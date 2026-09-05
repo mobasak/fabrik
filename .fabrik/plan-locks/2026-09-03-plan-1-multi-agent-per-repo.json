@@ -195,14 +195,16 @@
       "merged_under": "T07a"
     },
     "T05a": {
-      "state": "review-round-10",
+      "state": "merged",
       "coder": "native opus worktree (Execution Discipline: opus for T05a)",
       "dispatched_at": "2026-09-05T14:41:18",
       "branch": "worktree-agent-aa202dd80ecd23540",
-      "branch_head": "6a065def",
+      "branch_head": "5549a1c4",
       "round": 1,
       "updated": "2026-09-05T21:07:55+00:00",
-      "head": "5549a1c4"
+      "head": "5549a1c4",
+      "merged_at": "2026-09-06T00:28:47",
+      "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T05a-review.md"
     },
     "T03b": {
       "state": "merged",

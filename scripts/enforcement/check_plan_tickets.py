@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/enforcement/test_check_plan_tickets.py, commands/_sources/fabrik-plan-after-chat.md, commands/_sources/fabrik-plan-review.md, commands/_sources/fabrik-execute-plan.md, scripts/final_gate.py | none
+# AFTER-EDIT: tests/enforcement/test_check_plan_tickets.py, tests/enforcement/test_plan_tickets_epic_scope.py, commands/_sources/fabrik-plan-after-chat.md, commands/_sources/fabrik-plan-review.md, commands/_sources/fabrik-execute-plan.md, scripts/final_gate.py | none
 """Spine↔ticket plan-set contract gate (the spine+ticket plan shape).
 
 Fires ONLY for files inside a dated plan directory
@@ -32,6 +32,14 @@ Checks (per the 2026-08-04 spine-ticket plan, the canonical grammar):
   backtick/separator/colon leftovers; ``path:NN`` citations collapse to the
   path first) are ERRORs on both surfaces; a ticket with no parseable
   ``Complexity:`` is an ERROR at cli/flip.
+- **Epic containment** (only when the spine carries an ``Epic:
+  docs/development/epics/<file>`` header — an epic-born plan): every ticket's Touches AND
+  every spine File Scope entry must lie inside that epic's frontmatter ``owned_paths``
+  (spec § Chain consolidation (e): Touches ⊆ File Scope ⊆ ``owned_paths``; the File-Scope
+  link is what stops a spine widening past its epic and minting a wider lock). The epic
+  side is GLOB-aware (``_glob_covers``, never the literal ``_covered_by``); an
+  unresolvable header, or an epic with no ``owned_paths``, is an ERROR naming the path.
+  A spine with no ``Epic:`` line is untouched.
 - **Routing cross-check:** a pool-tier ticket (Complexity simple/complex) whose
   Touches match the never-route set is an ERROR (``.env.example`` is exempt — a
   routine Doc-Sync file, not a secret); an Integration ticket on a bare-token
@@ -71,6 +79,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
+from typing import cast
 
 try:
     from .check_convergence import PROOF
@@ -238,6 +247,68 @@ DEPENDS_RE = re.compile(
 )
 PARALLEL_RE = re.compile(
     _F + r"\*{0,2}Parallel\*{0,2}[^\S\n]*:[^\S\n]*\*{0,2}[^\S\n]*(\S+)", re.I | re.M
+)
+# The epic-born plan's header line: exactly one `Epic: docs/development/epics/<file>` on
+# the SPINE (written by fabrik-plan-after-chat Phase 4). Same label family as the fields
+# above — bold/bullet tolerant, no `>` blockquote.
+#
+# ⚠️ ITS PREFIX IS NOT `_F` — deliberately, and this is the ONE place in the file where a
+# `>` blockquote MUST parse. The `_F` family (Depends/Integration/Serialized) refuses
+# blockquotes because parsing a quoted example LICENSES an overlap: fail-open. Here the
+# direction is inverted — a header that does not parse means containment silently never
+# runs, which is the precise fail-open `_epic_containment` exists to close — so `>` is
+# accepted, as STATUS_RE accepts it for the same reason. The marker group REPEATS and
+# MIXES: `>> Epic:`, `> > Epic:`, `>Epic:` (no space), `- > Epic:` and `> - Epic:` are all
+# ordinary quoting/bulleting, and each earlier form of this prefix matched some and not
+# others — every miss parsing to nothing, i.e. containment silently skipped, which is the
+# exact hole this prefix exists to close. A bullet still REQUIRES its whitespace
+# (`[-*]\s+`), so a `--- ` rule or a bold `**Epic:` is untouched.
+#
+# WHOLE-LINE emphasis (`**Epic: <path>**`, `*Epic: <path>*`) closes on the VALUE side: the
+# opening run is eaten before `Epic`, but a closing one stayed glued to the path
+# (`…1-x.md**`) and tripped the glob arm of the unusable-path guard — a hard red on an
+# ordinary markdown line. The tail is peeled SYMMETRICALLY: the opening run is captured as
+# `em` and the tail is `(?:(?P=em))?`, so a run is removed only when one OPENED the line.
+# Emphasis is paired, and that is the whole rule.
+#
+# Two rejected alternatives, both measured over the 22 header forms this file tests or has
+# met (0 mismatches for the shipped form):
+#   - an END-ANCHOR (`(\S*?)\*{0,2}[^\S\n]*$`) stops matching the ONE live header on the box
+#     (an archived spine whose line carries trailing prose — `… .md (epic_n 2, depends_on
+#     [1])`) and the prose form, turning both into SILENT non-parses — the fail-open every
+#     widening here has closed;
+#   - an UNPAIRED lookahead peel (`(\S*?)\*{0,2}(?=[^\S\n]|$)`, shipped briefly) eats a
+#     trailing `*`/`**` that BELONGS to the value: `Epic: epics/*` captured `epics/` and
+#     `Epic: docs/x/**` captured `docs/x/`, so the glob arm never fired and the refusal came
+#     back with the wrong reason ("no such file"); worse, `Epic: <real-file>.md*` captured a
+#     path that EXISTS, silently accepting a malformed header and reading that epic.
+#
+# The value group is `(\S*?)`, not `(\S+)`, ON PURPOSE: a header with no value at all
+# (`Epic:`, `Epic: `, `Epic:\t`, `> Epic:`, or the path wrapped onto the NEXT line) used to
+# match nothing, and matching nothing is containment silently not running — the same
+# fail-open every widening above closed. It now parses to an empty token and takes the
+# unusable-path ERROR, which is the loud half of the same rule. (Fire rate for the
+# valueless form box-wide: 0 of 995; no emitter writes it.)
+#
+# WHAT THE FENCE STRIP ACTUALLY COVERS (`_strip_fences`, whose parsing contract is stated
+# at _FENCE_RE): BACKTICK fences only — a balanced 3+-backtick block and an inline
+# single-line ```…```. NOT stripped, and each therefore PARSED as a real header: a `~~~`
+# tilde fence, a 4-space-indented code block, a `>` blockquote (by the choice above), and
+# ordinary prose starting a line with "Epic:" (`Epic: this plan…` yields the token
+# `this`). Every one fails CLOSED — an unresolvable path is an ERROR that hard-reds the
+# set, never a silent skip — so the cost is a loud false red on a spine that quoted the
+# word in an unsupported form, and the fix is to fence it with backticks.
+# Measured before shipping, with the bound named because the ratio moves with it: ONE
+# line matches this regex box-wide at the bound "*.md one level under
+# docs/development/plans/" (1 of 509) and recursively (1 of 994) — and that one file is
+# ARCHIVED, so this gate never reads it. Inside the directories the gate actually walks
+# there are ZERO: 0 of 477 files in dated set dirs, 0 of 173 in non-archived ones
+# (2026-09-05; the population grows as plans land, the hit count has not). The rule
+# therefore fires only where a header is deliberately written.
+EPIC_HEADER_RE = re.compile(
+    r"^\s*(?:[-*]\s+|>[^\S\n]*)*(?P<em>\*{0,2})Epic\*{0,2}[^\S\n]*:[^\S\n]*\*{0,2}[^\S\n]*"
+    r"(?P<path>\S*?)(?:(?P=em))?(?=[^\S\n]|$)",
+    re.I | re.M,
 )
 TICKET_ID_RE = re.compile(r"T\d{2}[a-z]?")
 # Characters never legal in a repo path token: emphasis/quote/backtick residue,
@@ -437,6 +508,218 @@ def _never_route(p: str) -> bool:
     if p == ".env" or p.startswith(".env."):
         return True
     return any(_covered_by(n, p) or _covered_by(p, n) for n in NEVER_ROUTE_PREFIXES)
+
+
+# --- Epic containment: the GLOB-aware half of path coverage ---------------------------
+# `_covered_by` stays literal-vs-literal — the ownership, never-route and File-Scope
+# layers all depend on its prefix semantics, and widening it would change every one of
+# them. An EPIC's `owned_paths` are GLOBS by schema (`src/a/**`,
+# `libs/**/product_entitlements_bridge/**`, `app/(admin)/**` — the live shapes across the
+# two repos that have an epics dir, read 2026-09-05), so the ticket/File-Scope ⊆ epic
+# comparison gets its own predicate beside it. `/`-AWARE by construction: bare `fnmatch`
+# is separator-blind (`fnmatch("src/a/b/deep.py", "src/a/*")` is True), which would admit
+# a path the epic deliberately scoped OUT and silently void the guarantee that a window
+# cannot plan or build outside its epic.
+_GLOB_PROBE = "\x00fabrik-subtree-probe\x00"  # never a real path segment
+
+
+def _seg_matches(seg: str, s: str) -> bool:
+    """Does ONE segment's wildcard pattern match this ONE path segment?
+
+    `*` = any run of non-`/` characters, `?` = exactly one non-`/` character, and every
+    other character is a LITERAL — no regex, so parens, dots, `+` and brackets are just
+    characters (`app/(admin)/**` and `alembic/versions/(deploy)**` are live epic shapes,
+    and the regex form had to `re.escape` them for exactly this reason).
+
+    ITERATIVE two-pointer with a single backtrack point (the classic wildcard matcher):
+    O(len(seg) x len(s)), never exponential. The `[^/]*`-per-`*` regex it replaces
+    backtracked CATASTROPHICALLY on a non-match inside one segment — measured on this box
+    2026-09-05 against a 41-character name, `src/a*a*a…b/**` took 0.80 s at 8 stars, 9.8 s
+    at 10 and 74.7 s at 12 (74 s through the real CLI, rc 1), on a pattern read from an
+    epic file with no timeout in the call path; 5 of 45 live `owned_paths` values already
+    carry multi-`*` segments.
+
+    OUT OF CONTRACT, deliberately: the `[seq]` bracket class. `[` is a LITERAL here, so
+    `src/[ab]/**` matches the directory literally named `src/[ab]/` and nothing else —
+    the right reading for this fleet's paths (all 8 bracket tokens among the 1,007
+    Touches/File-Scope tokens in the 15 live non-archived plan sets are Next.js
+    dynamic-route dirs, `[id]`/`[token]`; none is an alternation set), and the wrong one
+    for a glob author. `_epic_containment` therefore REFUSES a bracket in an epic's
+    `owned_paths` (loudly, rather than false-redding every ticket beneath it); 0 of 45
+    live `owned_paths` values carry one.
+    """
+    i = j = 0
+    star = -1  # index in `seg` of the last `*` seen
+    mark = 0  # how far in `s` that `*` has consumed
+    while i < len(s):
+        # The `*` branch is tested FIRST, and the order is load-bearing: with the literal
+        # comparison first, a pattern `*` aligned with a literal `*` IN THE NAME was
+        # consumed as an equal literal and no backtrack point was recorded, so
+        # `_seg_matches("*", "**")` answered False — against this function's own
+        # contract, and 62 of 130,049 differential-fuzz pairs, every one that shape.
+        if j < len(seg) and seg[j] == "*":
+            star, mark = j, i
+            j += 1
+        elif j < len(seg) and (seg[j] == s[i] or (seg[j] == "?" and s[i] != "/")):
+            i += 1
+            j += 1
+        elif star >= 0:
+            # the `*` swallows one more character — never a separator
+            if s[mark] == "/":
+                return False
+            mark += 1
+            i, j = mark, star + 1
+        else:
+            return False
+    while j < len(seg) and seg[j] == "*":
+        j += 1
+    return j == len(seg)
+
+
+def _glob_matches(pattern: str, path: str) -> bool:
+    """Does the glob `pattern` match this whole path? SEGMENT-WISE, never one big regex.
+
+    Semantics: a whole-segment ``**`` spans any number of segments — zero included in the
+    MIDDLE (`libs/**/x/**` matches `libs/x/y.py`), at least one when TRAILING (`src/a/**`
+    matches `src/a/x.py`, and the bare `src/a` is answered by `_glob_covers`'s subtree
+    probe instead). ``*`` / ``?`` never cross a separator, by construction: they are only
+    ever matched against ONE segment.
+
+    `reach` is the frontier of path-segment indices the pattern's prefix can consume to,
+    so the segment level costs O(pattern segments x path segments) and never backtracks
+    ACROSS segments; WITHIN a segment, `_seg_matches` is a two-pointer matcher with one
+    backtrack point, bounded at O(seg x segment). Neither level has an exponential case —
+    both had one before: the single-regex form (`(?:[^/]+/)*` per mid-``**``) took 3.7 s
+    at 10 chained ``**`` on a 22-segment path, 11.2 s at 11 and 32.2 s at 12, and the
+    `[^/]*`-per-`*` segment regex took 74.7 s on 12 stars inside ONE segment. Both were
+    reachable from an epic file a project agent writes, with no timeout in the call path.
+    (Possessive/atomic quantifiers would fix both and need Python 3.11+; these two
+    matchers need no version floor at all on a fleet-synced file.)
+    """
+    psegs = pattern.rstrip("/").split("/")
+    ssegs = path.split("/")
+    m = len(ssegs)
+    reach = {0}
+    for i, seg in enumerate(psegs):
+        if seg == "**":
+            # Only the SMALLEST reachable index matters, and not because `reach` is
+            # upward-closed — it is not in general (`**/a/**/b` can leave `{3, 7}` after a
+            # literal segment). It is because `**` from index j reaches every index ≥ j
+            # (≥ j+1 when trailing), so the union of those rays over any `reach` IS the
+            # single ray from min(reach).
+            first = min(reach)
+            reach = set(range(first + 1 if i == len(psegs) - 1 else first, m + 1))
+        else:
+            reach = {j + 1 for j in reach if j < m and _seg_matches(seg, ssegs[j])}
+        if not reach:
+            return False
+    return m in reach
+
+
+def _glob_covers(pattern: str, entry: str) -> bool:
+    """DIRECTIONAL containment with a GLOB on the `pattern` side: does an epic
+    `owned_paths` entry cover this literal Touches / File-Scope entry?
+
+    A glob-free pattern falls back to `_covered_by` (literal file/dir prefix semantics —
+    an epic may own `db/schema.sql` or a bare dir). A DIRECTORY entry (`docs/x/`) is
+    covered only when its WHOLE subtree is, probed at two depths: `docs/x/` lies inside
+    `docs/**` and NOT inside `docs/*` (one probe would not separate them — `docs/PROBE`
+    matches `docs/*`).
+
+    The one AMBIGUOUS shape, resolved deliberately: a slash-less token (`src/a`) may name
+    a file or a directory and the grammar does not say which, so it is tested as a file
+    first and as a directory second — `_glob_covers("src/a/**", "src/a")` is True. That
+    is right for the directory reading and PERMISSIVE for the file one. The permissive
+    direction is chosen on purpose: the strict one would false-RED a legitimate
+    `Touches: src/a` under a globbed epic (a red the author cannot fix without renaming
+    their own scope), while this fails open only for a FILE whose name is exactly a
+    directory the epic owns — and that file is inside the epic's tree either way.
+    """
+    pattern = pattern.strip()
+    if not pattern:
+        return False
+    if not any(ch in pattern for ch in "*?"):
+        return _covered_by(pattern, entry)
+    bare = entry.rstrip("/")
+    if not entry.endswith("/") and _glob_matches(pattern, bare):
+        return True
+    return _glob_matches(pattern, f"{bare}/{_GLOB_PROBE}") and _glob_matches(
+        pattern, f"{bare}/{_GLOB_PROBE}/{_GLOB_PROBE}"
+    )
+
+
+def _norm_glob(entry: str) -> str:
+    """Path-normalise ONE epic `owned_paths` entry — glob-safely.
+
+    Touches and File-Scope tokens run through `_norm_path`; epic entries were only
+    `.strip()`ed, so `./src/a/**` matched nothing and LOUDLY accused every ticket the epic
+    really owns. `_norm_path` itself cannot be reused here: its symmetric-emphasis strip
+    eats `**/x/**` down to the absolute `/x/` (a documented behaviour there — a recursive
+    glob is not a legal Touches token), which matches nothing and reintroduces the same
+    false red from the other side. So this does the two normalisations a glob shares with
+    a path — a `./` prefix and interior `/./` self-references, plus edge quotes/backticks —
+    and NOTHING else.
+    """
+    g = entry.strip().strip("`").strip()
+    for quote in ('"', "'"):
+        if len(g) >= 2 and g.startswith(quote) and g.endswith(quote):
+            g = g[1:-1].strip()
+    while "/./" in g:
+        g = g.replace("/./", "/")
+    while g.startswith("./"):
+        g = g[2:]
+    return g
+
+
+def _unusable_owned(entry: str) -> str | None:
+    """Why this epic `owned_paths` entry can never match anything — or None if it can.
+
+    Every shape here is one `_glob_covers` answers False to for EVERY path, which turns
+    the containment loops into an accusation of every ticket the epic owns. Naming the
+    entry once is the fail direction the `[seq]` refusal already chose; this is that
+    doctrine applied to the whole class. Measured before shipping: 0 of the 45 live
+    `owned_paths` values carry any of these shapes.
+    """
+    if not entry.strip():
+        # Reached via `_norm_glob`: `"./"` and `"."`-only entries normalise to nothing.
+        # Dropping them silently made the epic report "carries no owned_paths" against a
+        # file that declares one — a true statement about the parsed value and a false one
+        # about the epic, which sends the author to the wrong line.
+        return "an empty path once normalised (a blank entry, or `./` and friends, cover nothing)"
+    if "[" in entry or "]" in entry:
+        # Out of contract by DESIGN: `_seg_matches` compares `[` as an ordinary
+        # character, because on the ticket side `[id]`/`[token]` are literal route dirs.
+        return "a `[seq]` bracket class (brackets are matched LITERALLY here, as Next.js `[id]` route dirs)"
+    if entry.startswith("/"):
+        return "an absolute path (owned_paths are repo-relative)"
+    if entry.startswith("~"):
+        return "a `~`-rooted path (owned_paths are repo-relative)"
+    if ".." in entry.split("/"):
+        return "a `..` traversal (owned_paths never leave the repo)"
+    if "\\" in entry:
+        return "a `\\` separator (paths are `/`-separated)"
+    if "//" in entry:
+        return "an empty path segment (`//`)"
+    if entry.rstrip("/") == ".":
+        return "the repo-root token `.` (it covers nothing in the matcher)"
+    return None
+
+
+def _carved_out(p: str) -> bool:
+    """Tokens the epic-containment loops SKIP — the same carve-out the File-Scope
+    containment applies: opaque tokens (glob / out-of-repo / repo-root / residue), which
+    already drew their own dedicated ERROR and are invisible to every path predicate, and
+    the off-contract surfaces (governance files, plan-metadata territory), which no epic
+    ever owns — a CHANGELOG append or a stem-scoped review receipt is not epic scope."""
+    return (
+        any(ch in p for ch in "*?")
+        or p.startswith(("/", "~"))
+        or ".." in Path(p).parts
+        or p.rstrip("/") == "."
+        or bool(_RESIDUE_RE.search(p))
+        or any(_covered_by(p, g) for g in _GOV_SURFACES)
+        or any(_covered_by(p, x) or _covered_by(x, p) for x in _SPINE_METADATA_PREFIXES)
+    )
 
 
 _ROW_MARKER_TAIL = re.compile(r"\s*\(\d+\)\s*\.?$")  # trailing (N) row markers — house style
@@ -694,7 +977,11 @@ def _staleness(
         except ValueError:
             continue
         files = [f.strip() for f in files_blob.splitlines() if f.strip()]
-        trailers = {t.upper() for t in AGENT_TASK_RE.findall(body)}
+        # Keyed UPPERCASE to join the Board (whose row ids are uppercased too), valued
+        # with the trailer's ORIGINAL text: the message quotes a string an operator greps
+        # for, and `Agent-Task: T05A` appears in no commit and no spine — the id is
+        # `T05a`. Uppercasing the key is matching; uppercasing the QUOTE is a wrong quote.
+        trailers = {t.upper(): t for t in AGENT_TASK_RE.findall(body)}
         # Trailer IDs are PER-PLAN (every plan set has a T01). Plan identity =
         # the commit touches THIS plan's directory — the same-commit Board-flip
         # discipline means every legitimate ticket commit stages the spine, and
@@ -728,18 +1015,469 @@ def _staleness(
                         "(the same-commit Board-flip discipline)",
                     )
                 )
-        for tid in trailers:
+        for tid, trailer_text in trailers.items():
             if not commit_in_plan:
                 break
             if states.get(tid, "").startswith("⬜"):
                 results.append(
                     _err(
-                        f"commit {sha[:8]} carries 'Agent-Task: {tid}' but the Board "
-                        f"row is still ⬜ (never flipped)",
+                        f"commit {sha[:8]} carries 'Agent-Task: {trailer_text}' but the "
+                        f"Board row is still ⬜ (never flipped)",
                         plan_dir / f"{plan_dir.name}.md",
                         hint="Flip the Board row in the SAME commit as the ticket's merge",
                     )
                 )
+    return results
+
+
+# --- Epic frontmatter: a VERBATIM port of T03a's parser closure ----------------------
+# Ported byte-for-byte from `scripts/epic_order.py` @ 2bd530fe — same names, same bodies,
+# same docstrings, so a future divergence is a plain diff (the parity test compares the
+# two symbol by symbol whenever the hub copy is current). NOT an import: this file is
+# synced to every project (`scripts/fabrik_synced_manifest.py::ENFORCEMENT_DIR`) and
+# `epic_order.py` is not, so an import would break the fleet copy at load time.
+#
+# THE PORTED SET IS `_parse_frontmatter`'s CLOSURE, read from the source rather than
+# recalled: _parse_frontmatter -> _find_fences, _line_content, _classify_fm_line,
+# _collect_block_items, _LIST_KEYS · _find_fences -> _classify_fm_line, _line_content ·
+# _line_content -> _line_terminator -> _LINE_TERMINATORS · _classify_fm_line ->
+# _strip_unquoted_comment. `_line_terminator`/`_line_content` were writer-only at
+# 544cf2ab and are IN the closure now that fence-finding is shared — which is exactly why
+# the closure is re-enumerated on every re-port instead of carried over.
+#
+# What 2bd530fe changed, and why it matters HERE: fence detection moved into the shared
+# classifier (`raw.rstrip() == "---"`), replacing a `startswith`/`find` prefix match. The
+# prefix form accepted `----` as an opening fence and closed on the first line merely
+# STARTING with `---`, so an epic with an interior `--- note` line lost every field below
+# it — `owned_paths` among them — and this check would then ERROR "carries no owned_paths"
+# against an epic that declares them (fixtures F18 and F20).
+#
+# The docstrings' references to `_write_owner` / `check_integrity` are the source
+# module's, kept verbatim on purpose; here the single consumer is `_epic_containment`
+# (which reads `owned_paths` and `_dup_keys`).
+# fmt: off — the ported block keeps the SOURCE MODULE's formatting so a future
+# divergence is a byte comparison, not a diff of two formatters' opinions.
+# ruff format would rewrap `_LINE_TERMINATORS` and `_find_fences`'s generator;
+# `ruff check` still lints this region (line-length 100 holds).
+# fmt: off
+def _strip_unquoted_comment(s: str) -> str:
+    """Cuts a trailing " #comment" that is NOT inside a quoted value — a `#`
+    reached while inside a quote is part of the value, never a comment start.
+    The `#` must be at position 0 or preceded by whitespace (the YAML "a bare
+    # only starts a comment after a space" convention) so an unquoted value
+    that happens to contain a bare `#` mid-token is left alone.
+
+    A quote character only OPENS a quoted value at position 0 of `s` — this
+    flat parser's convention is "the whole value is quoted, or none of it
+    is." An apostrophe or double-quote appearing mid-value in an unquoted
+    string (`Bob's API`) is a literal character, never a quote-open; treating
+    it as one used to trap the scanner in "still inside a quote" for the
+    rest of the string, so a genuinely unquoted value's trailing comment
+    never got cut."""
+    in_quote: str | None = None
+    for idx, ch in enumerate(s):
+        if in_quote:
+            if ch == in_quote:
+                in_quote = None
+        elif idx == 0 and ch in ("'", '"'):
+            in_quote = ch
+        elif ch == "#" and (idx == 0 or s[idx - 1].isspace()):
+            return s[:idx]
+    return s
+
+# The three frontmatter fields the schema actually declares as LISTS. A
+# multi-line YAML block ("key:" then "  - item" lines) is only ever a real
+# value for one of these — the same shape under a SCALAR key (title, owner,
+# slug, kind, status, scaffold, port, target_vps) is a malformed frontmatter,
+# never silently promoted to a list (every consumer of those fields assumes
+# a string: `re.match` on `title`, `owner in a set`, an f-string with `slug`
+# — a list there is a crash or a silent wrong-typed value, not a clean
+# integrity finding).
+_LIST_KEYS = frozenset({"depends_on", "parallel_with", "owned_paths"})
+
+# Every boundary str.splitlines() itself splits on (checked in this order so
+# the 2-char "\r\n" is recognised before its own bare "\r"/"\n" suffixes
+# would otherwise match first): CR+LF, CR, LF, vertical tab, form feed, the
+# three C1 separators, NEL, and the two Unicode line/paragraph separators.
+_LINE_TERMINATORS = (
+    "\r\n", "\r", "\n", "\v", "\f", "\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029",
+)
+
+def _line_terminator(line: str) -> str:
+    """The line-ending substring of ONE element from `str.splitlines(keepends=True)`
+    — any of `_LINE_TERMINATORS`, or "" (only the text's last line, if it has
+    no trailing terminator at all). Recognising only the ASCII \r\n/\r/\n
+    trio here — while `splitlines()` itself (used by both `_parse_frontmatter`
+    and `_write_owner` to cut lines in the first place) splits on the full
+    set below — meant a line ending in, say, "\x0c" read as terminator-less:
+    the writer's replacement/insertion then glued it directly onto the next
+    physical line with no separator at all, destroying data at rc 0."""
+    for term in _LINE_TERMINATORS:
+        if line.endswith(term):
+            return term
+    return ""
+
+def _line_content(line: str) -> str:
+    """`line` (from `splitlines(keepends=True)`) with its own terminator
+    removed — never a blind `.rstrip()`, which would also eat trailing
+    whitespace that is part of the line's actual content."""
+    term = _line_terminator(line)
+    return line[: len(line) - len(term)] if term else line
+
+def _classify_fm_line(raw: str) -> tuple:
+    """Classifies ONE frontmatter line (its terminator already stripped) —
+    the SINGLE place that answers "what kind of line is this", used by BOTH
+    `_parse_frontmatter`'s block collector and `_write_owner`'s placement
+    and replacement. Before this existed, the parser and the writer each
+    answered the question independently (a hand-rolled loop vs. a pair of
+    regexes) and disagreed on real fixtures: a whitespace-only interior line
+    inside a block (the parser's `not raw.strip()` calls it blank; a regex
+    anchored on a byte-empty line did not, so `owner:` landed INSIDE the
+    block and an item was lost); `owner : x` or an indented `  owner: x`
+    (the parser's `key.strip()` reads the key fine; `^owner:` anchored at
+    column 0 with no space before the colon did not, so a SECOND owner:
+    line got written at rc 0, breaking idempotency and pre-write dup
+    detection alike).
+
+    Returns one of:
+      ("fence",)               — the line, once trailing whitespace is
+                                   trimmed, is exactly "---" (no leading
+                                   whitespace tolerated: an indented
+                                   "  ---" is NOT a fence, nor is "----"
+                                   four dashes, nor "--- trailing text" —
+                                   see `_find_fences`)
+      ("blank",)                — empty or all-whitespace
+      ("comment",)               — a full-line comment: optional leading
+                                   whitespace, then "#"
+      ("item", text)             — an indented "- item" list-continuation
+                                   line; `text` has its own trailing comment
+                                   cut and surrounding quotes stripped
+      ("key", key, value)        — a "key: value" line; `key` is
+                                   whitespace-tolerant on both sides of the
+                                   colon (`owner : x`, `  owner: x`, and
+                                   `owner: x` all normalise to key="owner"
+                                   — the EXACT normalisation
+                                   `_parse_frontmatter` applies); `value`
+                                   has its trailing comment cut and is
+                                   stripped, and — unless it is an inline
+                                   `[a, b]` list — has its surrounding
+                                   quotes stripped too
+      ("other",)                 — none of the above (no ":" and not
+                                   blank/comment/item) — never raises on a
+                                   line that doesn't fit any known shape
+    """
+    if raw.rstrip() == "---":
+        return ("fence",)
+    if not raw.strip():
+        return ("blank",)
+    stripped = raw.lstrip()
+    if stripped.startswith("#"):
+        return ("comment",)
+    if stripped.startswith("- "):
+        text = _strip_unquoted_comment(stripped[2:].strip()).strip()
+        return ("item", text.strip("\"'"))
+    if ":" in raw:
+        key, _, val = raw.partition(":")
+        key = key.strip()
+        val = _strip_unquoted_comment(val.strip()).strip()
+        if not (val.startswith("[") and val.endswith("]")):
+            val = val.strip("\"'")
+        return ("key", key, val)
+    return ("other",)
+
+def _find_fences(lines: list[str]) -> tuple[int, int] | None:
+    """Given `lines` (from `text.splitlines(keepends=True)`), locates the
+    frontmatter's opening and closing fence lines by classifying each one
+    with `_classify_fm_line` — THE ONE place both `_parse_frontmatter` and
+    `_write_owner` decide where the frontmatter starts and ends, so a line
+    that is a fence to one is a fence to the other, always (previously the
+    parser used `text.startswith("---")` + `text.find("\n---", 3)` — a
+    PREFIX match that accepted "----" as an opening fence and closed on the
+    first line merely STARTING with "---" — while the writer's classifier
+    required the whole trimmed line to equal "---"; the two could locate
+    different boundaries in the same file).
+
+    Returns `(open_idx, close_idx)`, or `None` if the file doesn't open
+    with a fence or has no matching close. A line the classifier does not
+    accept as a fence — "----" (four dashes), an indented "  ---", or
+    "--- trailing text" — is not a fence for EITHER consumer: a file that
+    OPENS with one has no frontmatter at all (both `--check` and `--assign`
+    now refuse it, matching what `load_epics` already reports), and an
+    INTERIOR one is ordinary content, never a premature close."""
+    if not lines or _classify_fm_line(_line_content(lines[0]))[0] != "fence":
+        return None
+    close_idx = next(
+        (idx for idx in range(1, len(lines))
+         if _classify_fm_line(_line_content(lines[idx]))[0] == "fence"),
+        None,
+    )
+    if close_idx is None:
+        return None
+    return 0, close_idx
+
+def _collect_block_items(lines: list[str], start: int) -> tuple[list[str], int]:
+    """From `lines[start]` (one line PAST a `key:` with an empty value),
+    collects "  - item" continuation lines via `_classify_fm_line` —
+    tolerating interior blank lines and full-line comments (indented or
+    not), which are skipped rather than treated as block-enders. The block
+    ends at the first line that classifies as anything other than blank,
+    comment, or item. Returns `([], start)` when there is no such block."""
+    items: list[str] = []
+    j = start
+    while j < len(lines):
+        kind, *rest = _classify_fm_line(lines[j])
+        if kind == "item":
+            items.append(rest[0])
+            j += 1
+            continue
+        if kind in ("blank", "comment"):
+            j += 1
+            continue
+        break
+    return items, j
+
+def _parse_frontmatter(text: str) -> dict | None:
+    """Minimal flat-YAML frontmatter parser (scalars + inline [a, b] lists, PLUS
+    multi-line block lists — `key:` on its own line followed by `  - item`
+    lines, blank lines and full-line comments tolerated between items).
+    Every physical line is classified once by `_classify_fm_line` — the
+    SAME classifier `_write_owner` uses for placement/replacement, and the
+    frontmatter's own boundary is found by the SAME `_find_fences` the
+    writer uses too — so the two can never disagree about what a given
+    line IS, or where the frontmatter starts and ends. Avoids a PyYAML
+    dependency — the schema is intentionally flat.
+
+    Last-wins on a DUPLICATE key — a second `owner:` line overwrites the
+    first. `_write_owner` disagrees (it only ever updates the FIRST such
+    line), so a duplicate key is recorded under `_dup_keys` (a list) rather
+    than silently resolved one way or the other; the caller
+    (`check_integrity`) turns `"owner" in fm["_dup_keys"]` into a finding
+    that makes `--assign`/`--check --owners` refuse instead of the writer
+    and reader each acting on a different one of the two values."""
+    lines_with_ends = text.splitlines(keepends=True)
+    fences = _find_fences(lines_with_ends)
+    if fences is None:
+        return None
+    open_idx, close_idx = fences
+    fm: dict = {}
+    dup_keys: list[str] = []
+    lines = [_line_content(ln) for ln in lines_with_ends[open_idx + 1 : close_idx]]
+    i = 0
+    while i < len(lines):
+        kind, *rest = _classify_fm_line(lines[i])
+        if kind != "key":
+            i += 1
+            continue
+        key, val = rest
+        if key in fm and key not in dup_keys:
+            dup_keys.append(key)
+        if val.startswith("[") and val.endswith("]"):
+            inner = val[1:-1].strip()
+            items = [x.strip().strip("\"'") for x in inner.split(",")] if inner else []
+            fm[key] = [x for x in items if x != ""]
+            i += 1
+        elif val == "":
+            # A block-style YAML list: "key:" alone, then indented "  - item"
+            # continuation lines — valid ONLY for the three declared list
+            # fields (_LIST_KEYS). The same shape under any other key is
+            # recorded as `_malformed_keys` (never silently promoted to a
+            # list) and the field falls back to "", matching what an
+            # ordinary empty scalar already does.
+            items, j = _collect_block_items(lines, i + 1)
+            if key in _LIST_KEYS:
+                if items:
+                    fm[key] = items
+                    i = j
+                else:
+                    fm[key] = ""
+                    i += 1
+            else:
+                fm[key] = ""
+                if items:
+                    fm.setdefault("_malformed_keys", []).append(key)
+                    i = j
+                else:
+                    i += 1
+        else:
+            fm[key] = val
+            i += 1
+    if dup_keys:
+        fm["_dup_keys"] = dup_keys
+    return fm
+# fmt: on
+
+
+def _epic_containment(
+    raw_headers: list[str],
+    plan_dir: Path,
+    spine: Path,
+    tickets: dict[str, Ticket],
+    scope_paths: list[str],
+    external_root: Path | None,
+) -> list[CheckResult]:
+    """BOTH links of the epic contract (spec § Chain consolidation (e)): every ticket's
+    Touches ⊆ the spine's File Scope ⊆ the epic's ``owned_paths``.
+
+    The File-Scope link is not optional: with only the ticket link a spine can widen past
+    its epic and still pass — and the spine's File Scope is exactly what MINTS the plan
+    lock's `owned_paths`, so the widened scope would then be locked. An unresolvable
+    header or an epic with no `owned_paths` is an ERROR naming the path, never silence: a
+    header the check cannot read is containment that never ran, the fail-open this rule
+    exists to close.
+    """
+    results: list[CheckResult] = []
+    # ONE epic per plan (the hint below promises it). First-wins on two headers is a
+    # silent fail-open: the second epic's scope is never enforced, and a ticket outside it
+    # dispatches clean. Distinct TOKENS, so a repeated identical line is not an error —
+    # and `X` / `X/` are the SAME file, so the trailing slash is off before the set (as
+    # backticks and `./` already are, via `_norm_path`).
+    tokens = list(dict.fromkeys(_norm_path(h).rstrip("/") for h in raw_headers))
+    # An EMPTY token is not an epic: since a valueless `Epic:` line parses (deliberately —
+    # see EPIC_HEADER_RE), any `Epic:`-shaped prose bullet beside a correct header would
+    # otherwise read as a SECOND epic, take the early return, and skip containment
+    # entirely — a clean spine hard-redding while the rule stops running. The valueless
+    # line still fails closed when it is the only one: `real` is empty, `epic_rel` is "",
+    # and the unusable-path arm below fires.
+    real = [t for t in tokens if t]
+    if len(real) > 1:
+        return [
+            _err(
+                f"spine carries {len(real)} different Epic: headers "
+                f"({', '.join(real)}) — one epic per plan",
+                spine,
+                hint="Split the plan, or name the single epic it was fed — containment "
+                "cannot enforce two scopes at once",
+            )
+        ]
+    epic_rel = real[0] if real else ""  # "" -> the unusable-path ERROR below
+    if (
+        not epic_rel
+        or epic_rel.startswith(("/", "~"))
+        or ".." in Path(epic_rel).parts
+        or _RESIDUE_RE.search(epic_rel)
+        or any(ch in epic_rel for ch in "*?")
+    ):
+        return [
+            _err(
+                # The ADJUDICATED token, not the first line: with a valueless line FIRST
+                # and the offending header second, `raw_headers[0]` is "" and the message
+                # sent the author to the wrong line while still hard-redding. Same class as
+                # `_unusable_owned`'s empty-entry arm.
+                f"Epic: header path '{(epic_rel or raw_headers[0]).strip()}' is unusable — one "
+                "repo-relative `docs/development/epics/<file>` path per spine",
+                spine,
+                hint="An epic header the check cannot resolve is epic containment "
+                "silently not running",
+            )
+        ]
+    # The root is resolvable here BY CONSTRUCTION: `_repo_root` returns None only for a
+    # dir outside the plans layout, and `check_plan_dir` already returned early for such a
+    # dir unless an `external_root` was passed. Narrowed with `cast` rather than a runtime
+    # `if root is None:` arm — that arm could never fire, and unreachable defensive code on
+    # a fleet-synced surface reads as a real branch to every future editor.
+    root = cast(Path, external_root if external_root is not None else _repo_root(plan_dir))
+    epic_file = root / epic_rel
+    if not epic_file.is_file():
+        return [
+            _err(
+                f"Epic: header names '{epic_rel}' — no such file under {root} (epic "
+                "containment cannot run)",
+                spine,
+                hint="Name the epic file the plan was fed, or drop the header if this "
+                "plan is not epic-born",
+            )
+        ]
+    try:
+        fm = _parse_frontmatter(epic_file.read_text(encoding="utf-8", errors="replace"))
+    except OSError as e:
+        return [_err(f"epic '{epic_rel}' is unreadable ({e!r}) — containment cannot run", spine)]
+    if "owned_paths" in (fm or {}).get("_dup_keys", []):
+        # The ported parser RECORDS the duplicate instead of resolving it. Last-wins would
+        # accuse every ticket the FIRST list covers — a believable false accusation.
+        return [
+            _err(
+                f"epic '{epic_rel}' declares owned_paths twice — containment cannot pick "
+                "one (last-wins would accuse every ticket the first list covers)",
+                spine,
+                hint="Merge the two declarations into a single owned_paths line",
+            )
+        ]
+    raw_owned = (fm or {}).get("owned_paths", [])
+    if isinstance(raw_owned, str):
+        # A scalar `owned_paths: "src/a/**"` is ONE entry; a scalar that is blank is no
+        # declaration at all (`owned_paths:` with nothing after it, or `""`), and must keep
+        # reading as "carries no owned_paths" rather than as one malformed entry.
+        raw_owned = [raw_owned] if raw_owned.strip() else []
+    # Normalised but NOT filtered: an entry that is blank, or that normalises to nothing,
+    # is a MALFORMED entry and `_unusable_owned` names it. Dropping it here reported the
+    # epic as declaring no owned_paths at all — which is what the `if str(o).strip()` this
+    # replaces did to a BLANK BLOCK-LIST ITEM (`- ` on its own line, which the block parser
+    # preserves and the inline splitter never produces, so it hid behind the inline path).
+    owned = [_norm_glob(str(o)) for o in raw_owned]
+    if not owned:
+        return [
+            _err(
+                f"epic '{epic_rel}' carries no owned_paths frontmatter — epic containment "
+                "cannot run",
+                spine,
+                hint='EPIC-ARTIFACT-SCHEMA.md: `owned_paths: ["src/x/**"]` is the '
+                "concurrency contract every epic declares",
+            )
+        ]
+    unusable = [(o, why) for o in owned if (why := _unusable_owned(o))]
+    if unusable:
+        # A `[seq]` class, an absolute or `~`-rooted path, a `..` traversal, a `\`
+        # separator, an empty `//` segment, a bare `.` — each matches NOTHING here, and a
+        # matcher that matches nothing accuses EVERY ticket the epic owns. That is the
+        # fail direction this file already rejected for `[seq]`, applied to the whole
+        # class: name the malformed entry once instead of four believable accusations.
+        # Refusing is safe because none of these is a live shape: 0 of the 45 live
+        # `owned_paths` values carries one (the same denominator that justified
+        # normalising `./`), while the TICKET side keeps reading `[id]` as the literal
+        # Next.js/Expo route dir it is (all 8 bracket tokens among the 1,007
+        # Touches/File-Scope tokens in the 15 live non-archived plan sets, 7 repos).
+        return [
+            _err(
+                f"epic '{epic_rel}' owned_paths entry "
+                + "; ".join(f"'{o}' is unusable — {why}" for o, why in unusable[:3])
+                + (f" (+{len(unusable) - 3} more)" if len(unusable) > 3 else "")
+                + " — containment cannot run",
+                spine,
+                hint="owned_paths are repo-relative `/`-separated globs "
+                '(`["src/x/**", "db/schema.sql"]`); spell alternatives as separate '
+                "entries rather than a bracket class",
+            )
+        ]
+    shown = ", ".join(owned[:5]) + (f", +{len(owned) - 5} more" if len(owned) > 5 else "")
+    for t in sorted(tickets.values(), key=lambda t: t.tid):
+        for p in t.touches:
+            if _carved_out(p):
+                continue
+            if not any(_glob_covers(o, p) for o in owned):
+                results.append(
+                    _err(
+                        f"{t.tid}: Touches path '{p}' is outside the epic's owned_paths "
+                        f"({epic_rel}: {shown})",
+                        t.path,
+                        hint="Narrow the ticket to the epic's paths — widening "
+                        "owned_paths is an epic-contract change (it breaks the "
+                        "disjointness the parallel epics were assigned on), never a "
+                        "build addendum",
+                    )
+                )
+    for s in scope_paths:
+        if _carved_out(s):
+            continue
+        if not any(_glob_covers(o, s) for o in owned):
+            results.append(
+                _err(
+                    f"File Scope entry '{s}' is outside the epic's owned_paths "
+                    f"({epic_rel}: {shown})",
+                    spine,
+                    hint="File Scope MINTS the plan lock's owned_paths — an entry the "
+                    "epic does not own locks paths outside this window's epic",
+                )
+            )
     return results
 
 
@@ -1102,18 +1840,10 @@ def check_plan_dir(
                 # A governance-banned, glob, absolute or metadata-prefixed path
                 # already got its dedicated ERROR above (or its stem-scoped
                 # skip) — a containment ERROR on top would prescribe a fix that
-                # is itself an ERROR ("add it to File Scope").
-                if any(_covered_by(p, g) for g in _GOV_SURFACES):
-                    continue
-                if any(_covered_by(p, x) or _covered_by(x, p) for x in _SPINE_METADATA_PREFIXES):
-                    continue
-                if (
-                    any(ch in p for ch in "*?")
-                    or p.startswith(("/", "~"))
-                    or ".." in Path(p).parts
-                    or p.rstrip("/") == "."
-                    or _RESIDUE_RE.search(p)
-                ):
+                # is itself an ERROR ("add it to File Scope"). ONE predicate,
+                # shared with the epic-containment loops: this block and
+                # `_carved_out` were verbatim twins on a fleet-synced file.
+                if _carved_out(p):
                     continue
                 # DIRECTIONAL: a scope entry must cover the Touches path. The
                 # symmetric test would let `Touches: src/` pass against a
@@ -1207,6 +1937,18 @@ def check_plan_dir(
                         severity=Severity.WARN,
                     )
                 )
+
+    # --- Epic containment: Touches ⊆ File Scope ⊆ the epic's owned_paths ---------------
+    # Only for an epic-born plan — a spine with no `Epic:` header is untouched by this
+    # block, and the File-Scope containment above is unchanged either way. Runs even when
+    # File Scope is missing or unparseable: the ticket link is independent of it.
+    # `finditer` + the NAMED group, never `findall`: the symmetric peel needs a capturing
+    # `em` group for its backreference, and `findall` would hand back (em, path) TUPLES.
+    _epic_headers = [m.group("path") for m in EPIC_HEADER_RE.finditer(spine_scan)]
+    if _epic_headers:
+        results.extend(
+            _epic_containment(_epic_headers, plan_dir, spine, tickets, scope_paths, external_root)
+        )
 
     # --- Routing cross-check ------------------------------------------------------
     # The spine's Global Constraints may EXTEND the never-route set:

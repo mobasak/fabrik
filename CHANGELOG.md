@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — check_plan_tickets: epic containment at both levels (2026-09-06)
+- **What:** a spine's `Epic:` header (label family with paired emphasis, prefixes and a prose tail; unusable shapes — absolute, `..`, residue, globs, a valueless line beside a real one — refused by name) binds the plan set to its epic: the spine's File Scope and every ticket's Touches must sit inside the epic's `owned_paths` (a vendored glob port, nine symbols byte-identical, differential-fuzzed). `tests/enforcement/test_plan_tickets_epic_scope.py` (new): 84 passed; the five suites referencing the module 397. Base-vs-branch over the 31 plan sets on the box: 0 divergences.
+- **Where:** `scripts/enforcement/check_plan_tickets.py`, `tests/enforcement/test_plan_tickets_epic_scope.py` (plan set `2026-09-03-plan-1-multi-agent-per-repo`, ticket T05a).
+
 ### Changed — Retire ettw 06–11 + its checklist into docs/orchestrator/_retired/ (2026-09-06)
 - **What:** the remaining seven epic-to-ticket-workflow docs (06-ticket-breakdown, 07-execute, 08-implementation-validation, 09-revise-requirements, 10-cross-artifact-validation, 11-deploy, EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS) moved by `git mv` to `docs/orchestrator/_retired/epic-to-ticket-workflow/<stem>.RETIRED.md`, each with a two-line tombstone header naming its corpus twin per the multi-agent-per-repo spec § Chain consolidation (a): 06 → `/fabrik-plan-after-chat` + `/fabrik-plan-review` · 07 → `/fabrik-execute-plan` · 08/10 → `/fabrik-review` + `/fabrik-conformance-review` · 09 → `/fabrik-spec-review` re-opened on the changed spec · 11 → `/fabrik-release` → the deploy triad · the checklist → `docs/reference/command-evaluation-checklist.md`. `docs/orchestrator/epic-to-ticket-workflow/` is now empty and gone from git; history preserved (`git log --follow`); no content change beyond the header (7 rename rows, 2/0 each).
 - **Where:** `docs/orchestrator/_retired/epic-to-ticket-workflow/`, `INDEX.md`, `docs/reference/command-evaluation-checklist.md` (plan set `2026-09-03-plan-1-multi-agent-per-repo`, ticket T11).
