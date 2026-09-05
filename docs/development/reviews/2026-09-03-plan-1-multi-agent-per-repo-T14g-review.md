@@ -1,6 +1,6 @@
 # Acceptance review — T14g (plan set 2026-09-03-plan-1-multi-agent-per-repo)
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 
 **Surface:** the coder's worktree branch diff against the dispatch base 46f6c2a9 — see the round sections below (one file per ticket, rounds APPENDED).
 
@@ -20,3 +20,12 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 - v3.2-exp CLEAN (the type list byte-equal to the Phase-0 row; the label unified; no intra-file contradiction — the `Folder` column names the one folder that still exists). v4-flash (1): cannot verify a file outside the diff — not a defect. v4-flash (2): **the Phase-3 stale-upstream route is wrong for the mega types** — "upstream SPEC stale → `/fabrik-spec-review`" was prescribed by the orchestrator's round-1 brief as 09's corpus twin, but after the row deletion this command's three types have no spec upstream (a decomposition's / expanded epic's upstream is the Vision Summary; a vision's is its inputs) — UPHELD [M], the orchestrator's error.
 ### Verdict
 **1 finding (M) → FIXUP round 2 routed to the coder** (route one step up: re-run this review on the upstream artifact, or `/fabrik-vision` when the vision must change; no spec as upstream). Ledger: routing truth per site · gate satisfiability · render cleanliness · residual ettw prose · the stale-upstream route (NEW).
+
+## Round 3 — over `46f6c2a9..bc22a0ce` (the round-2 fixup cd8e27e2..bc22a0ce: one paragraph of `commands/_sources/fabrik-workflow-review.md`, 7/4 — the Phase-3 stale-upstream rule routes ONE STEP UP the mega chain: re-run this review on the upstream artifact (`/fabrik-workflow-review <vision path> vision-summary` for a stale vision behind a decomposition or an expanded epic; `… epic-decomposition` for a stale cut behind an expanded epic) or the upstream's own doer (`/fabrik-vision`, `/fabrik-epics`); the invariant sentence kept with spec → upstream; residue `spec-review|SPEC` 2 lines / 3 mentions, all corpus-chain references (the `:6` analogy, the `:62` gate citations); `--check` 0 render errors (six drift rows); corpus check green; the grep gate 0; trigger routing 149/108/41/0 unchanged)
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native: the orchestrator's own execution (one prescribed paragraph; stated) — round 3.
+### Orchestrator execution (in the worktree)
+- `assemble_commands.py --check` → 0 render errors / unresolved placeholders; `check_command_corpus.py` → all sound; the grep gate → 0 files; `check_trigger_routing.py` → 0 mis-routed; `spec-review|SPEC` residue at `:6` and `:62` only; "one step up" present once.
+### Pool layer (3 units returned — deepseek/deepseek-v4-flash, deepseek/deepseek-v3.2-exp, deepseek/deepseek-v4-flash; $0.0051)
+- Two CLEAN (the call form `<artifact path> <type>` matches the command's own `argument-hint`; `epic-decomposition` is the upstream of `expanded-epic-files` per `/fabrik-epics`' phases; the three Behavior-Contract rows; DO-NOTs). The third raised the same two questions and answered both "no defect" itself.
+### Verdict
+**0 findings — no-op round.** Ledger (three rounds): routing truth per site · gate satisfiability vs pointer resolution · render cleanliness · residual ettw prose · the stale-upstream route (one step up the mega chain) — all swept. **Status: CONVERGED** at `bc22a0ce`; merge owner: render in the MAIN checkout (render → `--check` → commit), CHANGELOG.

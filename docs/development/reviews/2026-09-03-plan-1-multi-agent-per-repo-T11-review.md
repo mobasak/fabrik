@@ -1,6 +1,6 @@
 # Acceptance review — T11 (plan set 2026-09-03-plan-1-multi-agent-per-repo)
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 
 **Surface:** the coder's worktree branch diff against the dispatch base e61d018a (master after the T10 merge) — see the round sections below (one file per ticket, rounds APPENDED).
 
@@ -8,4 +8,7 @@
 Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native: the orchestrator's own execution (a seven-file rename; stated) — round 1.
 ### Orchestrator execution (in the worktree)
 - `git show --numstat -M` → 7 rows; gate 1 (0 / 14) ok; gate 2 ok; bodies identical 7 of 7; the checklist header reads `<!-- ⛔ RETIRED 2026-09-06 — ettw EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS is no longer a checklist (the ettw chain it graded is retired).` — adjudicated a truthful deviation from the "is no longer a command" shape (it never was one), kept.
-Pool: PENDING — appended when it returns.
+### Pool layer (3 units returned — deepseek/deepseek-v4-flash, deepseek/deepseek-v3.2-exp, deepseek/deepseek-v4-flash; $0.0080)
+- Two CLEAN (seven pure renames, 98% similarity, headers match the spec rows, 0 relative links, nothing outside the Touches). One raised the checklist header's noun ("is no longer a checklist" / "as a yardstick") as a shape defect on the theory that a tool anchoring on "command" would misclassify it — ADJUDICATED against: `git grep 'no longer a command' -- scripts .claude commands templates` → 0 hits (no consumer anchors on the header text); the tombstone markers (`<!-- ⛔ RETIRED <date> — … -->`) are identical across all 14 files; the noun is the truthful one for a file that was never a command.
+### Verdict
+**0 findings — no-op round.** Ledger: rename purity · header twins vs the spec's (a) row · tombstone shape · relative-link rot · referrer census. **Status: CONVERGED** at `8249cf9d`; merge owner: rename commit pure, then INDEX/CHANGELOG and the one referrer the ticket's Docs line assigns (`docs/reference/command-evaluation-checklist.md:7-8` → the tombstone path with a retired qualifier) in the second commit; `.windsurf/rules/core/40-documentation.md:93,149` is T14a's, `scripts/review_rubric.py:124` T14d's, `fabrik-workflow-review.md:20,47` T14g's, `check_traycer_chain.py:28-33` T09's.
