@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `fabrik create` pointed at a docs/traycer path that does not exist (2026-09-06)
+- **What:** the post-scaffold hint told the operator to paste `docs/traycer/mega-epic-breakdown/00-trigger-workflow-command.md` (absent from the box) and follow the retired per-epic Traycer flow; it now names the assembled chain `/fabrik-vision` → `/fabrik-epics` → `/fabrik-epics-review` → per window `/fabrik-spec <epic file>`. The string lives in the pure helper `_orchestrator_hint(name)`, guarded by `tests/test_cli_orchestrator_hint.py` (2 passed; watched red on the old text).
+- **Where:** `src/fabrik/cli.py`, `tests/test_cli_orchestrator_hint.py` (plan set `2026-09-03-plan-1-multi-agent-per-repo`, ticket T14c).
+
 ### Fixed — the rotation tick was reset-BLIND: it measured freshness on the wrong axis (2026-09-06)
 
 Operator, after a hand-rotation at 99%: *"are you sure rotation worked? i have manually rotated"* —

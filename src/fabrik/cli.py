@@ -1649,6 +1649,15 @@ def _gh_authenticated() -> bool:
         return False
 
 
+def _orchestrator_hint(name: str) -> str:
+    """The post-`create` next-step line: the assembled multi-epic command chain."""
+    return (
+        f"\n# Next: cd /opt/{name}; then run /fabrik-vision to begin vision intake. "
+        "The flow goes: /fabrik-vision → /fabrik-epics → /fabrik-epics-review "
+        "→ per window: /fabrik-spec <epic file>."
+    )
+
+
 def _create_and_wire_github_repo(name: str, project_dir: Path, project_type: str, db: bool) -> None:
     """Make a scaffolded project deploy-ready: create the private GitHub repo,
     link it as ``origin``, push, and re-resolve the spec to ``source.type=git``.
@@ -1877,15 +1886,8 @@ def scaffold(
         if want_github:
             _create_and_wire_github_repo(name, project_dir, project_type, db)
 
-        # G-B4 (T1-02): point the operator at the current Traycer planning flow.
-        # Multi-epic projects start at mega-epic-breakdown/00-trigger;
-        # the per-epic flow lives in epic-to-ticket-workflow/ (consumed after epic dispatch).
-        click.echo(
-            f"\n# Next: cd /opt/{name}; open Traycer and paste "
-            f"docs/traycer/mega-epic-breakdown/00-trigger-workflow-command.md "
-            f"to begin vision intake. The flow goes: vision → epic decomposition "
-            f"→ ticket expansion → dispatch → per-epic epic-to-ticket-workflow."
-        )
+        # G-B4 (T1-02): point the operator at the planning flow.
+        click.echo(_orchestrator_hint(name))
 
     except ValueError as e:
         click.echo(f"Error: {e}", err=True)

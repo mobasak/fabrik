@@ -1,6 +1,6 @@
 # Acceptance review — T14c (plan set 2026-09-03-plan-1-multi-agent-per-repo)
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 
 **Surface:** the coder's worktree branch diff against the dispatch base 3a4b5e77 (master after the T09 merge) — see the round sections below (one file per ticket, rounds APPENDED).
 
@@ -9,4 +9,7 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 ### Orchestrator execution (in the worktree, `PYTHONPATH=src` pinned — the venv's editable install resolves `fabrik.cli` to the MAIN checkout otherwise, the quirk the coder found)
 - `pytest tests/test_cli_orchestrator_hint.py -q` → 2 passed; the grep gate → 0 files; `ruff check` clean; `_orchestrator_hint` defined and called once.
 - Routed (T16): the coder's finding that T16's tree-wide sweep does not exclude `tests/`, and four existing test files legitimately carry the literal as graders asserting its ABSENCE (`tests/test_epic_order.py:861`, `tests/test_review_rubric*.py` — T14d clears those two, `tests/test_assemble_orch_retired.py:37`); the allowlist grows by the absence-graders at T16, stated in the receipt.
-Pool: PENDING — appended when it returns.
+### Pool layer (3 units returned — deepseek/deepseek-v4-flash, deepseek/deepseek-v3.2-exp, deepseek/deepseek-v4-flash; $0.0018)
+- All three CLEAN: the two files only; the helper's f-string interpolates `name`; the call site byte-identical in position and leading newline; the test's import robust on master (the editable install points at `/opt/fabrik/src`).
+### Verdict
+**0 findings — no-op round.** **Status: CONVERGED** at `f00dc5b1`; merge (no trigger surface); the INDEX row for the new test + CHANGELOG are the merge owner's.
