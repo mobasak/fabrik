@@ -311,8 +311,8 @@ def test_a_quoted_or_abbreviated_git_flag_is_still_a_flag():
     ):
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "deny", cmd
     for cmd in (
-        'git commit -m "note: see --output=x in the docs"',
-        "git commit -m 'flags: --upload-pack is vetoed'",
+        'git commit -m "note: see --output=x in the docs" -- f.py',
+        "git commit -m 'flags: --upload-pack is vetoed' -- f.py",
         "git push --set-upstream origin master",
         "git fetch --tags",
         "git log -1 --oneline",
@@ -337,8 +337,8 @@ def test_ansi_c_and_locale_quoting_are_held_and_end_of_options_is_honoured():
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "deny", cmd
     for cmd in (
         "git log -1 -- --output=m",
-        'git commit -m "cost $\'s fine"',
-        "git commit -m 'a $\"b'",
+        'git commit -m "cost $\'s fine" -- f.py',
+        "git commit -m 'a $\"b' -- f.py",
     ):
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "allow", cmd
 
@@ -407,8 +407,8 @@ def test_git_verbs_take_only_their_checkpoint_flags():
     for cmd in (
         "git add f.py docs/x.md",
         "git add -v -- f.py",
-        "git commit -m 'checkpoint: held'",
-        "git commit -q -F /opt/fabrik/msg.txt",
+        "git commit -m 'checkpoint: held' -- f.py",
+        "git commit -q -F /opt/fabrik/msg.txt -- f.py",
         "git commit -m 'note: --force is refused' -- f.py",
         "git push",
         "git push origin master",
@@ -445,13 +445,20 @@ def test_a_sweeping_pathspec_or_a_forced_refspec_is_held_and_the_template_has_a_
     for cmd in (
         "git add .",
         "git add -- .",
-        "git add docs/.",
+        "git commit -m x",  # no pathspec: the whole index, a sibling's staged hunks included
+        "git commit -q -F msg.txt",
+        "git commit -- f.py",  # no message: only git's headless refusal stood between this and a commit
+        "git commit -m x f.py",  # paths without `--`: not the template shape
         "git add '*.py'",
         "git add ':(top)f'",
         "git commit -m x -- .",
         "git commit -m x .",
         "git reset -q HEAD -- .",
         "git reset HEAD -- ..",
+        "git add ./../",
+        "git add ././",
+        "git commit -m x -- docs/..",
+        "git add ''",  # an empty pathspec normalises to `.`
         "git fetch origin +master:master",
         "git fetch origin master:master",
         "git push origin -- +master",
@@ -467,6 +474,11 @@ def test_a_sweeping_pathspec_or_a_forced_refspec_is_held_and_the_template_has_a_
         "git add f.py docs/plans/2026-09-05-plan-x/",
         "git commit -m x -- f.py docs/x.md",
         "git reset -q HEAD -- f.py docs/",
+        "git add docs/../docs/x.md",
+        "git add docs/.",  # the directory form, normalised: named as by design
+        "git commit -F msg.txt -- f.py",
+        "git commit -qm x -- f.py",
+        "git log --oneline -- .",  # a READ verb takes any pathspec
         "git fetch origin",
         "git push origin HEAD",
         "git rev-parse -q --verify HEAD",

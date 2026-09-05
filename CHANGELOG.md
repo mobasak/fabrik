@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — pass 22 of the review: normalised pathspecs, and a held `git commit` must have the template's exact shape (2026-09-05)
+
+`git add ./../`, `././`, `docs/..` and `.//` passed the literal `.`/`..` list and swept the parent or
+the whole tree on disk; a pathspec to add/commit/reset is now `posixpath.normpath`'d before the check.
+A bare `git commit -m x` committed a sibling's STAGED hunks — the whole index — and `git commit -- f`
+reached git with no message, saved only by its headless-editor refusal; a held commit must now be
+exactly what the deny message orders, `-m|-F … -- <paths>`. The doc and docstring said a push refspec
+may not contain `:` while the code holds only a leading one (`a:b` is a plain push) — prose fixed.
+Named, not held: `[` in a real filename (git reads it as a glob), a directory pathspec, and a named
+file a sibling also edited unstaged (git commits the working tree — the snapshot discipline owns it).
+On my own beat: `commands/_agents/fabrik-reviewer.md` now tells a finder with a SHA-pinned brief to
+read the surface via `git show <sha>:<path>` — P21-A scored a moving target while I edited the live
+file. Grader red on revert; 28 hook tests.
+
 ### Fixed — pass 21 of the review: the quota hold's positive set now scopes the PATHSPEC and the REFSPEC, not only the flags (2026-09-05)
 
 `git add .`, `git commit -m x -- .` and `git reset -q HEAD -- .` each swept a sibling's work on disk
