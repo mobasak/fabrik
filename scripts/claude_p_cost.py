@@ -9,7 +9,7 @@ Two lenses, per model (fable/opus/sonnet/haiku), from a run's own `claude -p --o
 WHY a standalone copy (not `import derive_cost`): `derive_cost.py` is engine-internal (benchmark ranking)
 and relocated with the AI-model-catalog extraction; this file is the FLEET consumer copy that stays.
 Different lifecycles → vendor-the-math, don't import (fabrik "vendor, don't import" pattern). ⚠️ It is NOT
-in `fabrik_synced_manifest.py` and exists in 1 of 57 `/opt` dirs — the hub's own. An earlier version of
+in `fabrik_synced_manifest.py` and exists in 1 of 57 `/opt` dirs by `ls -1d /opt/*/` — 59 if hidden dirs are counted; the denominator depends on the method, the stable fact is that only the hub carries it — the hub's own. An earlier version of
 this header claimed it "is synced to every project"; it never was. The two numbers agree with
 `derive_cost` by construction (same formulas below).
 

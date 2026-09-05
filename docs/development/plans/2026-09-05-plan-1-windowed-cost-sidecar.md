@@ -130,7 +130,7 @@ by the author.
 
 ⚠️ **B4 landed early, in Phase A.** `claude_p_cost.py:17`'s key enumeration is what Phase A falsified, so
 Phase A fixed it; the review then found the mirror five lines above (`:10-12`'s "synced to every project",
-false — the file is in no manifest and in 1 of 57 `/opt` dirs) and fixed that too. **Phase B's B4 is
+false — the file is in no manifest and in 1 of 57 `/opt` dirs by `ls -1d /opt/*/`, 59 counting hidden — the method is part of the number) and fixed that too. **Phase B's B4 is
 therefore already delivered** — do not re-do it; verify and move on.
 
 ## Evidence
