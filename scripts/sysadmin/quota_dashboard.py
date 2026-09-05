@@ -475,64 +475,88 @@ _RESERVE_PCT = float(os.getenv("QUOTA_RESERVE_PCT", "80"))
 
 
 def _spend_panel() -> str:
-    """The tier-weighted per-model subscription split, rendered into the Quota tab.
+    """The Usage tab: tier-weighted subscription spend + a daily token calendar.
 
-    Operator directive 2026-09-05: measure ALL Claude Code / `claude -p` usage and price it per model
-    against the real 30-day subscription spend, using the weights haiku 1x · sonnet 2x · opus 5x ·
-    fable 10x. Those weights are an ASSUMPTION (see `claude_p_cost._TIER_WEIGHT`) — they match the
-    live Anthropic list-price ratio 1:2:5:10, but the subscription is a flat fee with no per-model
-    billing to check against, so the split is an ALLOCATION, not an invoice. The table says so.
+    Operator directive 2026-09-05 — measure ALL Claude Code / `claude -p` usage, price it per TIER
+    (haiku 1x, sonnet 2x, opus 5x, fable 10x), give it its own tab, and give the daily view a hover
+    detail like the Claude Manager extension so that extension can be retired.
 
-    Reads the sidecar rather than recomputing: `claude_p_cost --refresh` runs on the 06:00 cron, so
-    this stays current without the dashboard doing arithmetic on every page load. A missing or
-    old-format sidecar renders nothing — never a zeroed table, which would read as "we spent $0".
+    BY TIER, NOT BY MODEL VERSION: every Opus generation shares one weight because they share one
+    list price -- verified live, Opus 5 and Opus 4.8 are both $5/$25, Fable 5 and Fable 5.1 both
+    $10/$50. The concrete ids that rolled into each tier are shown beside it, because a total whose
+    members you cannot see is unverifiable.
+
+    Reads the sidecar, never recomputes (`--refresh` runs on the 06:00 cron). A missing or
+    old-format sidecar renders NOTHING rather than a zeroed table that would read as "$0 spent".
     """
     try:
         d = json.loads(_COST_SIDECAR.read_text(encoding="utf-8"))
         p = d.get("per_model_spend") or {}
-        models = p.get("models") or {}
+        tiers, daily = p.get("tiers") or {}, p.get("daily") or []
         spend, base = p.get("spend_usd"), p.get("base_rate_per_mtok")
-        if not models or not spend or not base:
+        if not tiers or not spend or not base:
             return ""
     except (OSError, ValueError, TypeError, AttributeError):
         return ""
 
     rows = []
-    for mid, v in sorted(models.items(), key=lambda kv: -(kv[1].get("cost_usd") or 0)):
+    for tier, v in sorted(tiers.items(), key=lambda kv: -(kv[1].get("cost_usd") or 0)):
+        ids = ", ".join(v.get("models") or []) or "-"
         rows.append(
-            f"<tr><td><code>{escape(str(mid))}</code></td>"
-            f"<td>{escape(str(v.get('tier', '—')))}</td>"
+            f"<tr><td><b>{escape(tier)}</b><br><span class='muted'>{escape(ids)}</span></td>"
             f"<td class='num'>{v.get('weight', 0):.0f}&times;</td>"
             f"<td class='num'>{v.get('tokens', 0):,}</td>"
             f"<td class='num'>{(v.get('share') or 0) * 100:.1f}%</td>"
             f"<td class='num'>${v.get('rate_per_mtok', 0):.5f}</td>"
             f"<td class='num'><b>${v.get('cost_usd', 0):,.2f}</b></td></tr>"
         )
-    total = sum(v.get("cost_usd") or 0 for v in models.values())
-    tok = sum(v.get("tokens") or 0 for v in models.values())
-    built = d.get("built_at") or "—"
-    win = f"{p.get('window_start')} → {p.get('window_end')}"
-    # The reconciliation IS the audit: an allocation that does not sum to the money paid is
-    # arithmetic, not accounting. Shown, not asserted, so a drift is visible rather than argued.
+    total = sum(v.get("cost_usd") or 0 for v in tiers.values())
+    tok = sum(v.get("tokens") or 0 for v in tiers.values())
     ok = abs(total - spend) < 0.01
     recon = (
-        f"<span class='ok'>reconciles to ${spend:,.2f}</span>"
+        f"<span style='color:var(--ok)'>reconciles to ${spend:,.2f}</span>"
         if ok
-        else f"<span class='crit'>DOES NOT reconcile: ${total:,.2f} vs ${spend:,.2f}</span>"
+        else f"<span style='color:var(--crit)'>DOES NOT reconcile: ${total:,.2f} vs ${spend:,.2f}</span>"
     )
+
+    # Intensity scales to the window's PEAK day, not an absolute count: an absolute scale makes every
+    # cell the same shade the moment fleet volume shifts, which is how a heatmap stops informing.
+    # `title=` gives native hover detail -- no JS, no tooltip library -- which is the Claude Manager
+    # behaviour being replaced.
+    peak = max((x.get("tokens") or 0) for x in daily) if daily else 0
+    cells = []
+    for x in daily:
+        t = x.get("tokens") or 0
+        lvl = 0 if not t or not peak else min(4, int(t / peak * 4) + 1)
+        by = x.get("by_tier") or {}
+        detail = " | ".join(f"{k} {v / 1e9:.2f}B" for k, v in by.items() if v) or "no usage"
+        tip = f"{x.get('date', '')}\n{t:,} tokens - ${x.get('cost_usd', 0):,.2f}\n{detail}"
+        cells.append(
+            f"<div class='cal-cell lvl{lvl}' title='{escape(tip)}'>"
+            f"<span>{escape((x.get('date') or '')[-2:])}</span></div>"
+        )
+    legend = "".join(f"<i class='cal-cell lvl{i}'></i>" for i in range(5))
+    cal = (
+        "<h2>Daily token consumption</h2>"
+        f"<p class='intro'>Every day in the window, shaded against the peak day ({peak:,} tokens). "
+        "<b>Hover a day</b> for its exact tokens, allocated cost and per-tier split.</p>"
+        f"<div class='cal'>{''.join(cells)}</div>"
+        f"<p class='intro' style='margin-top:8px'>less {legend} more</p>"
+    )
+    win = f"{p.get('window_start')} to {p.get('window_end')}"
+    built = d.get("built_at") or "-"
     return (
-        "<h2>Claude subscription — per-model spend</h2>"
+        "<h2>Claude subscription &mdash; spend by tier</h2>"
         f"<p class='intro'>All Claude Code / <code>claude -p</code> usage over <b>{escape(win)}</b> "
-        f"({tok:,} tokens, {len(models)} models), priced against the real subscription of "
-        f"<b>${spend:,.2f}</b> using the tier weights <b>haiku 1&times; · sonnet 2&times; · opus "
-        f"5&times; · fable 10&times;</b>. Base rate ${base:.6f}/MTok at weight 1. "
-        f"&Sigma; {recon}. "
-        "&#9888; An <b>allocation, not an invoice</b> — the subscription is a flat fee with no "
-        "per-model billing, and the weights are an operator assumption matching the list-price ratio "
+        f"({tok:,} tokens), priced against the real subscription of <b>${spend:,.2f}</b> using "
+        f"<b>haiku 1&times; &middot; sonnet 2&times; &middot; opus 5&times; &middot; fable "
+        f"10&times;</b>. Base ${base:.6f}/MTok at weight 1. &Sigma; {recon}. "
+        "&#9888; An <b>allocation, not an invoice</b> &mdash; the subscription is a flat fee with no "
+        "per-model billing; the weights are an operator assumption matching the list-price ratio "
         f"1:2:5:10. Rebuilt by the 06:00 cron; last built {escape(str(built))}.</p>"
-        "<table><thead><tr><th>Model</th><th>Tier</th><th>Weight</th><th>Tokens</th><th>Share</th>"
+        "<table><thead><tr><th>Tier</th><th>Weight</th><th>Tokens</th><th>Share</th>"
         "<th>$/MTok</th><th>Cost</th></tr></thead>"
-        f"<tbody>{''.join(rows)}</tbody></table>"
+        f"<tbody>{''.join(rows)}</tbody></table>{cal}"
     )
 
 
@@ -921,13 +945,30 @@ def render(
  #pane-commands td {{ font-size:13.5px; }} #pane-commands .ord {{ color:var(--sub); width:1%; }}
  #pane-commands .cmd strong {{ white-space:nowrap; color:var(--accent); }} #pane-commands .when {{ color:var(--sub); }}
  #pane-commands .intro {{ color:var(--sub); font-size:13px; margin:0 0 12px; }}
+ #pane-usage .intro {{ color:var(--sub); font-size:13px; margin:0 0 12px; }}
+ #pane-usage h2 {{ font-size:13px; text-transform:uppercase; letter-spacing:.06em;
+   color:var(--sub); margin:22px 0 8px; }}
+ #pane-usage .muted {{ color:var(--sub); font-size:12px; }}
+ .cal {{ display:grid; grid-template-columns:repeat(auto-fill,minmax(34px,1fr)); gap:5px; }}
+ .cal-cell {{ aspect-ratio:1; border-radius:7px; border:1px solid var(--line);
+   background:var(--card); display:flex; align-items:flex-end; justify-content:flex-end;
+   padding:3px 4px; cursor:default; }}
+ .cal-cell span {{ font-size:10px; color:var(--sub); line-height:1; }}
+ .cal-cell:hover {{ outline:2px solid var(--accent); outline-offset:1px; }}
+ .cal-cell.lvl1 {{ background:color-mix(in srgb, var(--accent) 18%, var(--card)); }}
+ .cal-cell.lvl2 {{ background:color-mix(in srgb, var(--accent) 38%, var(--card)); }}
+ .cal-cell.lvl3 {{ background:color-mix(in srgb, var(--accent) 60%, var(--card)); }}
+ .cal-cell.lvl4 {{ background:color-mix(in srgb, var(--accent) 85%, var(--card)); }}
+ .cal-cell.lvl3 span, .cal-cell.lvl4 span {{ color:var(--bg); }}
+ i.cal-cell {{ display:inline-block; width:14px; height:14px; aspect-ratio:auto;
+   vertical-align:-3px; margin:0 2px; padding:0; }}
 </style></head><body><div class="wrap">
 <header>
   <h1>Claude account quota — active: <span class="who">{escape(str(active or "none"))}</span></h1>
   <div class="stamp">updated {escape(gen)} · refreshes every {REFRESH_S}s ·
     <span id="conn">live</span></div>
 </header>
-<nav class="tabs" role="tablist"><button type="button" class="tab is-on" data-tab="quota">Quota</button><button type="button" class="tab" data-tab="commands">Commands</button><button type="button" class="tab" data-tab="external">External services</button></nav>
+<nav class="tabs" role="tablist"><button type="button" class="tab is-on" data-tab="quota">Quota</button><button type="button" class="tab" data-tab="usage">Usage</button><button type="button" class="tab" data-tab="commands">Commands</button><button type="button" class="tab" data-tab="external">External services</button></nav>
 <section id="pane-quota" class="pane">
 {banner}
 {gov_html}
@@ -937,6 +978,8 @@ def render(
   <tbody>{rows}</tbody>
 </table>
 {warn_html}
+</section>
+<section id="pane-usage" class="pane" hidden>
 {spend_html}
 </section>
 <section id="pane-commands" class="pane" hidden>

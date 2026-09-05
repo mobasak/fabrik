@@ -257,29 +257,33 @@ def _tier_of(model_id: str) -> str | None:
 
 
 def per_model_spend(days_back: int = _MONTHLY_DAYS) -> dict:
-    """Split the flat subscription across models by TIER-WEIGHTED token share.
+    """Split the flat subscription across TIERS by weighted token share, plus a daily series.
 
-    THE PROBLEM THIS SOLVES. `amortized_per_mtok` is one flat rate for every model — $800 divided by
-    every token the box ran. That treats an Opus token and a Haiku token as costing the same, which
-    is false by a factor of 5 at list price, so a Haiku-heavy month looks as expensive per token as
-    an Opus-heavy one and neither number can tell you where the money actually went.
+    THE PROBLEM. `amortized_per_mtok` is one flat rate — the subscription over every token the box
+    ran — so an Opus token and a Haiku token price identically. It can say what the fleet spends,
+    never where.
 
-    THE FORMULATION. With weights w (:data:`_TIER_WEIGHT`) and per-model token totals T, solve for
-    the base rate `b` that makes the weighted total equal the real spend::
+    THE FORMULATION. With weights w (:data:`_TIER_WEIGHT`) and per-tier token totals T::
 
-        b = SPEND / Σ(T_m × w_m)          rate_m = b × w_m          cost_m = T_m × rate_m
+        b = SPEND / Σ(T_t × w_t)        rate_t = b × w_t        cost_t = T_t × rate_t
 
-    So `Σ cost_m == SPEND` EXACTLY — the split reconciles to the money actually paid, and every
-    model's rate stands in the 1:2:5:10 ratio the operator set. That identity is the test: a split
-    that does not sum to the subscription is arithmetic, not accounting.
+    so `Σ cost_t == SPEND` EXACTLY. That identity is the audit: an allocation that does not sum to
+    the money actually paid is arithmetic, not accounting.
 
-    Returns `{window_start, window_end, spend_usd, accounts, base_rate_per_mtok, models: {...}}`
-    where each model carries `tokens`, `share`, `rate_per_mtok`, `cost_usd` and its `tier`/`weight`.
-    Models whose id matches no tier (`<synthetic>`, a future name) are reported under `unweighted`
-    with their tokens so they are visible rather than silently dropped from the denominator.
+    ⚠️ AGGREGATED BY TIER, NOT BY MODEL VERSION (operator directive 2026-09-05: *"i did not tell you
+    to separate model versions ... opus, fable, sonnet, haiku, as the multipliers are same"*). Every
+    Opus generation shares one weight because they share one list price — verified live: Opus 5 and
+    Opus 4.8 are both $5/$25, Fable 5 and Fable 5.1 both $10/$50. Splitting them added rows without
+    adding information. `models` is kept BESIDE `tiers` as the audit trail — which concrete ids rolled
+    into each tier — because a tier total whose members you cannot see is unverifiable.
+
+    `daily` carries per-day per-tier tokens for the calendar view: one entry per date in the window,
+    zero-filled, so a gap renders as a real quiet day rather than vanishing from the axis.
     """
-    today = datetime.date.today().isoformat()
-    cutoff = (datetime.date.today() - datetime.timedelta(days=days_back - 1)).isoformat()
+    today_d = datetime.date.today()
+    today = today_d.isoformat()
+    cutoff_d = today_d - datetime.timedelta(days=days_back - 1)
+    cutoff = cutoff_d.isoformat()
     try:
         counted: int | None = sum(
             1 for p in _MANAGER_ACCOUNTS.iterdir() if p.is_dir() and not p.name.startswith(".")
@@ -289,8 +293,10 @@ def per_model_spend(days_back: int = _MONTHLY_DAYS) -> dict:
     n = max(1, counted or 0)
     spend = _SUBSCRIPTION_USD_PER_ACCOUNT * n
 
-    per: dict[str, int] = {}
+    tier_tok: dict[str, int] = {}
+    model_tok: dict[str, int] = {}
     unweighted: dict[str, int] = {}
+    per_day: dict[str, dict[str, int]] = {}
     try:
         days = (json.loads(_USAGE_HISTORY.read_text(encoding="utf-8")).get("days")) or {}
         for k, day in days.items():
@@ -306,45 +312,70 @@ def per_model_spend(days_back: int = _MONTHLY_DAYS) -> dict:
                 )
                 if tok <= 0:
                     continue
-                (per if _tier_of(mid) else unweighted)[mid] = (
-                    per if _tier_of(mid) else unweighted
-                ).get(mid, 0) + tok
+                tier = _tier_of(mid)
+                if not tier:
+                    unweighted[mid] = unweighted.get(mid, 0) + tok
+                    continue
+                tier_tok[tier] = tier_tok.get(tier, 0) + tok
+                model_tok[mid] = model_tok.get(mid, 0) + tok
+                per_day.setdefault(k, {})[tier] = per_day.setdefault(k, {}).get(tier, 0) + tok
     except (OSError, ValueError, TypeError, AttributeError):
-        per, unweighted = {}, {}
+        tier_tok, model_tok, unweighted, per_day = {}, {}, {}, {}
 
-    weighted_total = sum(t * _TIER_WEIGHT[_tier_of(mid) or "haiku"] for mid, t in per.items())
+    weighted_total = sum(t * _TIER_WEIGHT[k] for k, t in tier_tok.items())
     if weighted_total <= 0:
-        # No measurable usage — publish nulls, never a plausible-looking zero split.
         return {
             "window_start": None,
             "window_end": None,
             "spend_usd": None,
             "accounts": counted if (counted or 0) > 0 else None,
             "base_rate_per_mtok": None,
+            "tiers": {},
             "models": {},
+            "daily": [],
             "unweighted": unweighted,
         }
-    base = spend / weighted_total * 1_000_000.0  # $ per Mtok at weight 1.0 (i.e. haiku)
-    models = {}
-    for mid, tok in sorted(per.items(), key=lambda kv: -kv[1]):
-        tier = _tier_of(mid) or "haiku"
-        w = _TIER_WEIGHT[tier]
-        rate = base * w
-        models[mid] = {
-            "tier": tier,
-            "weight": w,
+    base = spend / weighted_total * 1_000_000.0  # $/Mtok at weight 1.0 (haiku)
+    total_tok = sum(tier_tok.values())
+    tiers = {}
+    for tier, tok in sorted(tier_tok.items(), key=lambda kv: -kv[1]):
+        rate = base * _TIER_WEIGHT[tier]
+        tiers[tier] = {
+            "weight": _TIER_WEIGHT[tier],
             "tokens": tok,
-            "share": tok / sum(per.values()),
+            "share": tok / total_tok,
             "rate_per_mtok": rate,
             "cost_usd": tok / 1_000_000.0 * rate,
+            "models": sorted(
+                (m for m in model_tok if _tier_of(m) == tier), key=lambda m: -model_tok[m]
+            ),
         }
+    # Zero-filled so the calendar has a cell for EVERY date: a missing key would silently shorten
+    # the axis and make a quiet day indistinguishable from a day the history never recorded.
+    daily = []
+    d = cutoff_d
+    while d <= today_d:
+        k = d.isoformat()
+        by = per_day.get(k, {})
+        cost = sum(t / 1_000_000.0 * base * _TIER_WEIGHT[ti] for ti, t in by.items())
+        daily.append(
+            {
+                "date": k,
+                "tokens": sum(by.values()),
+                "cost_usd": cost,
+                "by_tier": {ti: by.get(ti, 0) for ti in _TIER_WEIGHT},
+            }
+        )
+        d += datetime.timedelta(days=1)
     return {
         "window_start": cutoff,
         "window_end": today,
         "spend_usd": spend,
         "accounts": counted if (counted or 0) > 0 else None,
         "base_rate_per_mtok": base,
-        "models": models,
+        "tiers": tiers,
+        "models": model_tok,
+        "daily": daily,
         "unweighted": unweighted,
     }
 
