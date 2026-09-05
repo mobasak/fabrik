@@ -62,3 +62,7 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 - [L] four references to the deleted `_seg_regex`, two stating a false mechanism ("escapes `[`") → FIXUP (2). [L] the :275 count "1 line fleet-wide" without its bound (1 of 508 one level down; 1 of 992 recursive; 0 of 476 in dated set dirs; 0 of 301 non-archived — the one hit is archived, so the round-3 body's "live" was wrong) → FIXUP (3). [L] `- > Epic:` / `> - Epic:` mixed prefixes fail open (0 box-wide, no emitter) → FIXUP (4): name them out of contract or widen.
 Round 4 verdict: 4 raised → 4 routed (1 M, 3 L); none changes the gate's behaviour on any live set; pool 2 CLEAN + deepseek's refuted arm. Not the no-op round.
 
+## Round 5 — over `2f982a5f..ed2ee6f4` (the round-4 fixup ed2ee6f4, 50/16 + 56/3: the star branch first — the fuzz widened to `*` on the string side proves the class, 1,394 → 0 over 131,466 pairs; the dead references corrected; the fire-rate comment bounded at four populations; mixed bullet+quote prefixes widened fail-closed (the coder's stated call); the held items executed — 45/45 live shapes with a shape-aware probe, and the un-normalised epic entry REPRODUCED and fixed with a glob-safe `_norm_glob` (not `_norm_path`, which would eat `**/x/**`); 414 passed across six suites, 48 + 0 skipped in the epic-scope file — the parity test now runs green against merged T03a)
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native opus×1 — round 5.
+Pool + native: PENDING — appended when they return.
+
