@@ -116,7 +116,7 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 | T08a | check_command_corpus: drop the orchestrator-wrapper audit path | T07a, T07b | ⛓️ | 🔵 | |
 | T08b | the corpus check's tests lose the wrapper fixtures | T08a | ⛓️ | ⬜ | |
 | T09 | Retire the Traycer layer — wrapper tree, traycer_mirror.py, the wiring doc, the Traycer workflow docs; re-point check_traycer_chain | T07a, T07b, T08a, T08b | ⛓️ | ⬜ | |
-| T10 | Retire ettw 00–05 → _retired/ (the first half of the 13-doc chain) | T07a, T07b | ⛓️ | 🔵 | |
+| T10 | Retire ettw 00–05 → _retired/ (the first half of the 13-doc chain) | T07a, T07b | ⛓️ | ✅ | branch head fd403139; merged 2026-09-06 (d9d34878) |
 | T11 | Retire ettw 06–11 + its checklist → _retired/ (the second half; the directory ends empty) | T07a, T07b | ⛓️ | ⬜ | |
 | T12a | Retire mega 00 + 02 → _retired/ (their text now lives in /fabrik-vision and /fabrik-epics) | T06a, T06b, T07a, T07b | ⛓️ | 🔵 | |
 | T12b | Retire mega 03 + 04 → _retired/ and relocate the 05 tombstone; the mega dir keeps only the schema + checklist | T06b, T06c, T07a, T07b | ⛓️ | ⬜ | |

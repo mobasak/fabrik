@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Retire ettw 00–05 into docs/orchestrator/_retired/ (2026-09-05)
+- **What:** the first seven epic-to-ticket-workflow docs (00-trigger, 01-decisions-lock, 01R-decisions-review, 02-core-flows, 03-tech-plan, 04-deploy-plan, 05-ticket-outline) moved by `git mv` to `docs/orchestrator/_retired/epic-to-ticket-workflow/<stem>.RETIRED.md`, each with a two-line tombstone header naming its corpus twin per the multi-agent-per-repo spec § Chain consolidation (a): 00 → `/fabrik-spec`'s epic-file intake · 01/01R → `/fabrik-spec` + `/fabrik-spec-review` · 02 → `/fabrik-flows` + review · 03 → `/fabrik-data-contract` + `/fabrik-plan-after-chat` · 04 → `/fabrik-deploy-checklist` + the deploy triad · 05 → `/fabrik-plan-after-chat` + `/fabrik-plan-review`. History preserved (`git log --follow`); no content change beyond the header.
+- **Where:** `docs/orchestrator/_retired/epic-to-ticket-workflow/`, `INDEX.md`, `docs/README.md`, `docs/workstation/kaizen-shrink-audit.md` (plan set `2026-09-03-plan-1-multi-agent-per-repo`, ticket T10).
+
 ### Changed — the quota drain broadcast now names WHEN the next account is available, +2 minutes (2026-09-05)
 
 Operator rule this session: when every account is walled and the fleet is told to stop, the message

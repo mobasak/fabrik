@@ -12,7 +12,7 @@ what belongs where.
 | `infrastructure/` | VPS-fleet setup references, rebuild runbooks, status snapshots, probe-reports, audit-prompts | workstation docs, orchestrator wiring |
 | `workstation/` | Local dev-box setup: WSL fixes, MCP transports, editor tooling, the full Claude config inventory, the fabrik-mail AI message channel, the 4-account Claude quota-rotation pool, the single-key VPS Claude quota governor (governor + broker + marshaller), the liveness layer that proves the scheduled machinery is actually running | anything that runs on the fleet |
 | `workflows/` | Per-script reference docs for live hub automation (final_gate, sync, scaffold, health) | docs for retired scripts (→ archive/) |
-| `orchestrator/` | The autonomous-factory command chains (epic-to-ticket, mega-epic), cockpit docs, north star, Traycer wiring | — |
+| `orchestrator/` | The autonomous-factory cockpit docs and north star; `_retired/` holds the tombstoned chain docs (epic-to-ticket, mega-epic) whose text moved into the corpus commands (`/fabrik-spec` intake, `/fabrik-vision`, `/fabrik-epics`, `/fabrik-epics-review`) | — |
 | `development/` | Plan/epic/review artifacts: `plans/` (+`archived/`), `epics/`, `reviews/` (evidence ledgers) | — |
 | `superpowers/` | `/fabrik-spec` designs (`specs/` + `specs/archived/`) and skill-authored plans | — |
 | `traycer/` | Traycer-GUI usage docs (the tool is live; its Kilo-era docs are archived) | — |

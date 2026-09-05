@@ -308,12 +308,16 @@
       "updated": "2026-09-05T20:52:55+00:00"
     },
     "T10": {
-      "state": "review-round-1",
+      "state": "merged",
       "agent": "ab65d0ba0aaa3716a",
       "branch": "worktree-agent-ab65d0ba0aaa3716a",
       "base": "b1f7e675",
       "head": "fd403139",
-      "updated": "2026-09-05T20:52:55+00:00"
+      "updated": "2026-09-05T20:52:55+00:00",
+      "branch_head": "fd403139",
+      "merged_at": "2026-09-06T00:02:59",
+      "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T10-review.md",
+      "rename_commit": "d9d34878"
     },
     "T08a": {
       "state": "review-round-1",

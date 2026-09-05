@@ -375,14 +375,16 @@ docs/
 │   │   │   └── SKILL.md
 │   │   └── fab-mega-04-validate
 │   │       └── SKILL.md
+│   ├── _retired
+│   │   └── epic-to-ticket-workflow
+│   │       ├── 00-trigger-fabrik.RETIRED.md
+│   │       ├── 01-decisions-lock-fabrik.RETIRED.md
+│   │       ├── 01R-decisions-review-fabrik.RETIRED.md
+│   │       ├── 02-core-flows-fabrik.RETIRED.md
+│   │       ├── 03-tech-plan-fabrik.RETIRED.md
+│   │       ├── 04-deploy-plan-fabrik.RETIRED.md
+│   │       └── 05-ticket-outline-fabrik.RETIRED.md
 │   ├── epic-to-ticket-workflow
-│   │   ├── 00-trigger-fabrik.md
-│   │   ├── 01-decisions-lock-fabrik.md
-│   │   ├── 01R-decisions-review-fabrik.md
-│   │   ├── 02-core-flows-fabrik.md
-│   │   ├── 03-tech-plan-fabrik.md
-│   │   ├── 04-deploy-plan-fabrik.md
-│   │   ├── 05-ticket-outline-fabrik.md
 │   │   ├── 06-ticket-breakdown-fabrik.md
 │   │   ├── 07-execute-fabrik.md
 │   │   ├── 08-implementation-validation-fabrik.md

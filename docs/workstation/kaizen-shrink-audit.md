@@ -301,7 +301,7 @@ Generated 2026-08-19 by `scripts/sysadmin/kaizen_shrink_audit.py --report` over 
   still slated for retirement WITH M1's typed event stream.
 - ~~`grounding-research` (fragment)~~ — **STRUCK: false candidate** (census erratum). Its content
   is INLINED (version-marker convention `n3k-research-clause v1`) into the orchestrator docs
-  (`epic-to-ticket-workflow/03-tech-plan-fabrik.md` + siblings) — the include-collector only
+  (`docs/orchestrator/_retired/epic-to-ticket-workflow/03-tech-plan-fabrik.RETIRED.md` + siblings — retired 2026-09-05, T10) — the include-collector only
   sees `{{include:}}` markers in `commands/_sources/`, and inline-by-content reuse is invisible
   to it. Verdict corrected to keep; collector refinement filed as an M1 input.
 - ~~`grounding-rules-cite` (fragment)~~ — **STRUCK: false candidate** — same erratum (marker
