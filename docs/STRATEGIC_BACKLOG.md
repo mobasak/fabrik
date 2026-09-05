@@ -655,6 +655,8 @@ gate-canaries, session-orient-hook (×4), kaizen (×3), final-gate-symlinks (×5
 file-worker-logger, select-rules (this one reads sibling-dirty `.windsurf/rules` + `libs/subagents/select.py` —
 verify vs a clean worktree before attributing). Scoped run: 23 failed / 113 passed in 20s.
 
+**Fleet-side measurement of the same class (wef 01M1R81T, 2026-09-05):** web-ecommerce-factory's `pytest tests/` runs 791s against `TIMEOUTS["pytest"]` = 900s (their D-104), so their sentinel stays deliberately UN-armed (their D-102) — arming would red three agents' gates at random. Their wef1 lane filed the remedy as `/opt/web-ecommerce-factory/docs/reference/upstream-proposals/2026-09-04-diff-scoped-pytest-leg.md` (their repo, absolute on purpose — not a hub path): a DIFF-SCOPED pytest leg that fits a fixed budget where a whole suite cannot. Disposition (infra, 2026-09-05): PLAN work — a new mechanism on a synced gate — designed together with (b) below; raising the timeout fleet-wide is REJECTED (the margin returns as suites grow). Until it lands, the CLAUDE.md clause says: arm where the suite fits the budget, otherwise a ledger decision per repo.
+
 **Path to measurement (the revisit's recommendation):** (a) triage + clear the ~25 on a CLEAN worktree
 (distinguish stale-test → update the contract, real-bug → fix, sibling-WIP → ignore); (b) add a marker that
 runs a FAST curated subset at the gate (seconds, network/integration tests excluded), NOT the 80-min full
