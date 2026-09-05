@@ -974,6 +974,37 @@ def _full_review_results_table() -> list[str]:
                 amort = f"${derive_cost.amortized_cost(usage):.6f}"
             except Exception:
                 amort = "—"
+            # ⚠️ ① IS RE-DERIVED HERE, NOT READ FROM THE DB. `cost_per_1k` / `cost_usd` were computed
+            # at MEASUREMENT time (2026-07-22/23) and frozen with whatever list price was current
+            # then, so a later price correction leaves these columns quietly wrong while still
+            # looking authoritative. It happened: Sonnet was corrected 2026-09-04 from a stale
+            # $3/$15 to $2/$10, and this table went on rendering `$/M-out $15.00` with a `$/1k` and
+            # `$/run` ~50% too high — an operator read those numbers off this table and they were
+            # wrong. ② beside it was ALREADY derived live from these same tokens; ① now is too, so a
+            # price fix propagates on the next refresh instead of waiting for a benchmark re-run.
+            try:
+                # ⚠️ BY PATH, not a bare `import`. `claude_p_cost.py` lives in `scripts/`, one level
+                # ABOVE this generator, so a bare import raises ModuleNotFoundError — which the
+                # fail-soft below then swallowed, leaving the stale stored prices rendering exactly as
+                # before. The fix looked correct and did nothing; only regenerating and READING the
+                # row caught it. (`derive_cost` above imports bare because it is a co-located sibling.)
+                import importlib.util as _ilu
+
+                _cpc_path = Path(__file__).resolve().parent.parent / "claude_p_cost.py"
+                _spec = _ilu.spec_from_file_location("claude_p_cost_render", _cpc_path)
+                claude_p_cost = _ilu.module_from_spec(_spec)
+                _spec.loader.exec_module(claude_p_cost)
+
+                _items = (nmut or 0) + (nctrl or 0)
+                _live = claude_p_cost.api_equiv(usage, model)  # whole measured run, LIVE prices
+                if _items > 0:
+                    cusd, c1k = _live, _live / _items * 1000.0
+                import json as _json
+
+                _ratios = _json.loads(claude_p_cost._prices_path().read_text(encoding="utf-8"))
+                opm = _ratios[claude_p_cost._norm_model(model)]["out"]
+            except Exception:
+                pass  # fail SOFT to the stored values — a pricing miss must never blank the table
         out.append(
             f"| `{model}` | {grade or '—'} | {_n(s5, '.2f')} | {_n(rec, '.2f')} | {_n(prec, '.2f')} | "
             f"{_n(c1k, '.3f', '$')} | {_n(opm, '.2f', '$')} | {_n(cusd, '.4f', '$')} | {amort} | {_n(p50, '.1f')} | "
@@ -1074,6 +1105,37 @@ def _full_review_hard_results_table() -> list[str]:
                 amort = f"${derive_cost.amortized_cost(usage):.6f}"
             except Exception:
                 amort = "—"
+            # ⚠️ ① IS RE-DERIVED HERE, NOT READ FROM THE DB. `cost_per_1k` / `cost_usd` were computed
+            # at MEASUREMENT time (2026-07-22/23) and frozen with whatever list price was current
+            # then, so a later price correction leaves these columns quietly wrong while still
+            # looking authoritative. It happened: Sonnet was corrected 2026-09-04 from a stale
+            # $3/$15 to $2/$10, and this table went on rendering `$/M-out $15.00` with a `$/1k` and
+            # `$/run` ~50% too high — an operator read those numbers off this table and they were
+            # wrong. ② beside it was ALREADY derived live from these same tokens; ① now is too, so a
+            # price fix propagates on the next refresh instead of waiting for a benchmark re-run.
+            try:
+                # ⚠️ BY PATH, not a bare `import`. `claude_p_cost.py` lives in `scripts/`, one level
+                # ABOVE this generator, so a bare import raises ModuleNotFoundError — which the
+                # fail-soft below then swallowed, leaving the stale stored prices rendering exactly as
+                # before. The fix looked correct and did nothing; only regenerating and READING the
+                # row caught it. (`derive_cost` above imports bare because it is a co-located sibling.)
+                import importlib.util as _ilu
+
+                _cpc_path = Path(__file__).resolve().parent.parent / "claude_p_cost.py"
+                _spec = _ilu.spec_from_file_location("claude_p_cost_render", _cpc_path)
+                claude_p_cost = _ilu.module_from_spec(_spec)
+                _spec.loader.exec_module(claude_p_cost)
+
+                _items = (nmut or 0) + (nctrl or 0)
+                _live = claude_p_cost.api_equiv(usage, model)  # whole measured run, LIVE prices
+                if _items > 0:
+                    cusd, c1k = _live, _live / _items * 1000.0
+                import json as _json
+
+                _ratios = _json.loads(claude_p_cost._prices_path().read_text(encoding="utf-8"))
+                opm = _ratios[claude_p_cost._norm_model(model)]["out"]
+            except Exception:
+                pass  # fail SOFT to the stored values — a pricing miss must never blank the table
         out.append(
             f"| `{model}` | {grade or '—'} | {_n(s5, '.2f')} | {_n(rec, '.2f')} | {_n(prec, '.2f')} | "
             f"{_n(c1k, '.3f', '$')} | {_n(opm, '.2f', '$')} | {_n(cusd, '.4f', '$')} | {amort} | {_n(p50, '.1f')} | "

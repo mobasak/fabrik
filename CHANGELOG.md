@@ -4,6 +4,40 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — per-model Claude subscription spend, in the quota dashboard (2026-09-05)
+
+The flat `amortized_per_mtok` prices an Opus token and a Haiku token identically, so it could say
+what the fleet spends but never *where*. `claude_p_cost.per_model_spend()` now splits the real
+subscription across models by tier weight — **haiku 1x · sonnet 2x · opus 5x · fable 10x** (operator
+assumption, D-138; matches the live list-price ratio $1/$2/$5/$10 exactly).
+
+With weights `w` and per-model 30-day token totals `T`: `b = SPEND / Σ(T×w)`, `rate_m = b×w_m`,
+`cost_m = T_m×rate_m` — so **Σ cost == SPEND exactly**, and that reconciliation is displayed rather
+than assumed. Live: base $0.001247/MTok over $800 and 107B tokens →
+
+| model | tier | share | cost |
+|---|---|---:|---:|
+| `claude-opus-5` | opus 5x | 62.6% | $417.31 |
+| `claude-fable-5` | fable 10x | 16.7% | $223.04 |
+| `claude-opus-4-8` | opus 5x | 12.3% | $81.98 |
+| `claude-fable-5-1` | fable 10x | 5.2% | $69.66 |
+| `claude-sonnet-5` | sonnet 2x | 2.8% | $7.50 |
+| `claude-haiku-4-5` | haiku 1x | 0.4% | $0.50 |
+
+Authored into `claude_p_cost.json` by `--refresh`, so it rides the existing 06:00 cron; rendered in
+the Quota tab at `localhost:5051`. ⚠️ An **allocation, not an invoice** — the subscription is a flat
+fee with no per-model billing to verify against.
+
+### Fixed — the benchmark table rendered a price corrected two days earlier (2026-09-05)
+
+`cost_per_1k` / `cost_usd` for `claude-code/*` rows were read from the benchmark DB, where they were
+frozen at measurement time (2026-07-22) with whatever list price was current then. Sonnet was
+corrected 2026-09-04 from a stale $3/$15 to $2/$10, and the table went on rendering `$/M-out $15.00`
+with a `$/1k` and `$/run` ~50% too high — an operator read those numbers off it and they were wrong.
+① is now re-derived at render from the live price file via `claude_p_cost.api_equiv`, the same way ②
+beside it already was: `$160.349 → $106.899`, `$4.8105 → $3.2070`. A price fix now propagates on the
+next refresh instead of waiting for a benchmark re-run.
+
 ### Fixed — check_review_coverage names /fabrik-epics-review, not the deleted fab-mega-04-validate (2026-09-05)
 
 T14e of plan `2026-09-03-plan-1-multi-agent-per-repo`. `scripts/enforcement/check_review_coverage.py` (fleet-synced)

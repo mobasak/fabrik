@@ -474,6 +474,68 @@ def _switch_cell(slug: str, is_active: bool) -> str:
 _RESERVE_PCT = float(os.getenv("QUOTA_RESERVE_PCT", "80"))
 
 
+def _spend_panel() -> str:
+    """The tier-weighted per-model subscription split, rendered into the Quota tab.
+
+    Operator directive 2026-09-05: measure ALL Claude Code / `claude -p` usage and price it per model
+    against the real 30-day subscription spend, using the weights haiku 1x · sonnet 2x · opus 5x ·
+    fable 10x. Those weights are an ASSUMPTION (see `claude_p_cost._TIER_WEIGHT`) — they match the
+    live Anthropic list-price ratio 1:2:5:10, but the subscription is a flat fee with no per-model
+    billing to check against, so the split is an ALLOCATION, not an invoice. The table says so.
+
+    Reads the sidecar rather than recomputing: `claude_p_cost --refresh` runs on the 06:00 cron, so
+    this stays current without the dashboard doing arithmetic on every page load. A missing or
+    old-format sidecar renders nothing — never a zeroed table, which would read as "we spent $0".
+    """
+    try:
+        d = json.loads(_COST_SIDECAR.read_text(encoding="utf-8"))
+        p = d.get("per_model_spend") or {}
+        models = p.get("models") or {}
+        spend, base = p.get("spend_usd"), p.get("base_rate_per_mtok")
+        if not models or not spend or not base:
+            return ""
+    except (OSError, ValueError, TypeError, AttributeError):
+        return ""
+
+    rows = []
+    for mid, v in sorted(models.items(), key=lambda kv: -(kv[1].get("cost_usd") or 0)):
+        rows.append(
+            f"<tr><td><code>{escape(str(mid))}</code></td>"
+            f"<td>{escape(str(v.get('tier', '—')))}</td>"
+            f"<td class='num'>{v.get('weight', 0):.0f}&times;</td>"
+            f"<td class='num'>{v.get('tokens', 0):,}</td>"
+            f"<td class='num'>{(v.get('share') or 0) * 100:.1f}%</td>"
+            f"<td class='num'>${v.get('rate_per_mtok', 0):.5f}</td>"
+            f"<td class='num'><b>${v.get('cost_usd', 0):,.2f}</b></td></tr>"
+        )
+    total = sum(v.get("cost_usd") or 0 for v in models.values())
+    tok = sum(v.get("tokens") or 0 for v in models.values())
+    built = d.get("built_at") or "—"
+    win = f"{p.get('window_start')} → {p.get('window_end')}"
+    # The reconciliation IS the audit: an allocation that does not sum to the money paid is
+    # arithmetic, not accounting. Shown, not asserted, so a drift is visible rather than argued.
+    ok = abs(total - spend) < 0.01
+    recon = (
+        f"<span class='ok'>reconciles to ${spend:,.2f}</span>"
+        if ok
+        else f"<span class='crit'>DOES NOT reconcile: ${total:,.2f} vs ${spend:,.2f}</span>"
+    )
+    return (
+        "<h2>Claude subscription — per-model spend</h2>"
+        f"<p class='intro'>All Claude Code / <code>claude -p</code> usage over <b>{escape(win)}</b> "
+        f"({tok:,} tokens, {len(models)} models), priced against the real subscription of "
+        f"<b>${spend:,.2f}</b> using the tier weights <b>haiku 1&times; · sonnet 2&times; · opus "
+        f"5&times; · fable 10&times;</b>. Base rate ${base:.6f}/MTok at weight 1. "
+        f"&Sigma; {recon}. "
+        "&#9888; An <b>allocation, not an invoice</b> — the subscription is a flat fee with no "
+        "per-model billing, and the weights are an operator assumption matching the list-price ratio "
+        f"1:2:5:10. Rebuilt by the 06:00 cron; last built {escape(str(built))}.</p>"
+        "<table><thead><tr><th>Model</th><th>Tier</th><th>Weight</th><th>Tokens</th><th>Share</th>"
+        "<th>$/MTok</th><th>Cost</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody></table>"
+    )
+
+
 def _governor_panel(payload: dict) -> str:
     """The quota governor's current routing verdict for the active ob@ account (single-key VPS).
 
@@ -573,6 +635,15 @@ def _eligible(a: dict) -> bool:
 _FABRIK_ROOT = Path(__file__).resolve().parents[2]
 # The external-services page (operator ask 2026-09-03): the STATIC file infra's daily chain regenerates
 # (scripts/gen_dashboard.py, 06:00 cron). This board only SERVES and EMBEDS it — never regenerates it.
+# The amortized cost sidecar `claude_p_cost.py --refresh` rebuilds on the 06:00 cron. Read, never
+# recomputed here: the dashboard renders, the producer measures. Resolved AFTER _FABRIK_ROOT but used
+# only inside `_spend_panel`, so call-time resolution is what matters.
+_COST_SIDECAR = Path(
+    os.getenv(
+        "CLAUDE_P_COST", str(_FABRIK_ROOT / "scripts" / "kilo-benchmarks" / "claude_p_cost.json")
+    )
+)
+
 EXT_SERVICES_HTML = Path(
     os.getenv("QUOTA_DASH_EXT_SERVICES", str(_FABRIK_ROOT / "external-services-dashboard.html"))
 )
@@ -777,6 +848,10 @@ def render(
     rows = "".join(_row(a, active, rank) for a, rank in zip(accounts, ranks, strict=True))
     gov_html = _governor_panel(payload)
     credits_html = _pool_credits_panel(credits)
+    # Fail-soft by contract: `_spend_panel` returns "" on a missing/old-format sidecar, so the Quota
+    # tab degrades to what it showed before rather than rendering a zeroed table that would read as
+    # "we spent nothing this month".
+    spend_html = _spend_panel()
     cmd_rows = _load_commands()
     cmd_html = _commands_table(cmd_rows)
     return f"""<!doctype html>
@@ -862,6 +937,7 @@ def render(
   <tbody>{rows}</tbody>
 </table>
 {warn_html}
+{spend_html}
 </section>
 <section id="pane-commands" class="pane" hidden>
 {'<div class="banner crit">Command corpus unreadable — no <code>commands/_sources/fabrik-*.md</code> under ' + escape(str(_FABRIK_ROOT)) + ".</div>" if not cmd_rows else ""}

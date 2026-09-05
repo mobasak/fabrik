@@ -12,6 +12,72 @@
   "accounts": 4,
   "spend_usd": 800.0,
   "tokens": 106922715198,
-  "built_at": "2026-09-05T11:36:20+03:00",
-  "amortized_per_mtok_by_family_carried": true
+  "built_at": "2026-09-05T21:12:14+03:00",
+  "amortized_per_mtok_by_family_carried": true,
+  "per_model_spend": {
+    "window_start": "2026-08-07",
+    "window_end": "2026-09-05",
+    "spend_usd": 800.0,
+    "accounts": 4,
+    "base_rate_per_mtok": 0.001247432962373532,
+    "models": {
+      "claude-opus-5": {
+        "tier": "opus",
+        "weight": 5.0,
+        "tokens": 66907716308,
+        "share": 0.6257577371103976,
+        "rate_per_mtok": 0.00623716481186766,
+        "cost_usd": 417.3144537986816
+      },
+      "claude-fable-5": {
+        "tier": "fable",
+        "weight": 10.0,
+        "tokens": 17880184122,
+        "share": 0.1672253093170089,
+        "rate_per_mtok": 0.01247432962373532,
+        "cost_usd": 223.04331047090648
+      },
+      "claude-opus-4-8": {
+        "tier": "opus",
+        "weight": 5.0,
+        "tokens": 13144364208,
+        "share": 0.12293331855311758,
+        "rate_per_mtok": 0.00623716481186766,
+        "cost_usd": 81.98356591251033
+      },
+      "claude-fable-5-1": {
+        "tier": "fable",
+        "weight": 10.0,
+        "tokens": 5583942578,
+        "share": 0.05222410006760143,
+        "rate_per_mtok": 0.01247432962373532,
+        "cost_usd": 69.65594031798237
+      },
+      "claude-sonnet-5": {
+        "tier": "sonnet",
+        "weight": 2.0,
+        "tokens": 3004973272,
+        "share": 0.028104161650172987,
+        "rate_per_mtok": 0.002494865924747064,
+        "cost_usd": 7.497005421088491
+      },
+      "claude-haiku-4-5-20251001": {
+        "tier": "haiku",
+        "weight": 1.0,
+        "tokens": 397657591,
+        "share": 0.003719112353849374,
+        "rate_per_mtok": 0.001247432962373532,
+        "cost_usd": 0.4960511867514524
+      },
+      "claude-sonnet-4-6": {
+        "tier": "sonnet",
+        "weight": 2.0,
+        "tokens": 3877119,
+        "share": 3.626094785210357e-05,
+        "rate_per_mtok": 0.002494865924747064,
+        "cost_usd": 0.00967289207928941
+      }
+    },
+    "unweighted": {}
+  }
 }

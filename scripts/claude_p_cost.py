@@ -237,6 +237,118 @@ def measure(claude_json: dict, model: str) -> dict:
 
 
 # ─── producer side (hub / operator box only — needs ~/.claude) ───────────────────────────────
+#: Relative price weight per Claude tier — an OPERATOR ASSUMPTION, recorded 2026-09-05, not a
+#: measurement. Stated as: "haiku price is 1x, sonnet 2x, opus 5x, fable 10x. ok save this as
+#: assumption." It matches the live Anthropic list prices exactly ($1/$2/$5/$10 per input MTok, so
+#: 1:2:5:10), which is why it is a sound proxy — but it is carried as an ASSUMPTION because the
+#: subscription is a flat fee with no per-model billing to verify against. If list prices move, the
+#: ratio moves and this constant must be re-derived; `tests/test_tier_weights.py` pins it to the
+#: live price file so a divergence fails loudly instead of silently re-weighting the split.
+_TIER_WEIGHT: dict[str, float] = {"haiku": 1.0, "sonnet": 2.0, "opus": 5.0, "fable": 10.0}
+
+
+def _tier_of(model_id: str) -> str | None:
+    """`claude-opus-5` / `claude-haiku-4-5-20251001` → the tier key in :data:`_TIER_WEIGHT`."""
+    m = (model_id or "").lower()
+    for tier in _TIER_WEIGHT:  # no substring collisions among these four
+        if tier in m:
+            return tier
+    return None
+
+
+def per_model_spend(days_back: int = _MONTHLY_DAYS) -> dict:
+    """Split the flat subscription across models by TIER-WEIGHTED token share.
+
+    THE PROBLEM THIS SOLVES. `amortized_per_mtok` is one flat rate for every model — $800 divided by
+    every token the box ran. That treats an Opus token and a Haiku token as costing the same, which
+    is false by a factor of 5 at list price, so a Haiku-heavy month looks as expensive per token as
+    an Opus-heavy one and neither number can tell you where the money actually went.
+
+    THE FORMULATION. With weights w (:data:`_TIER_WEIGHT`) and per-model token totals T, solve for
+    the base rate `b` that makes the weighted total equal the real spend::
+
+        b = SPEND / Σ(T_m × w_m)          rate_m = b × w_m          cost_m = T_m × rate_m
+
+    So `Σ cost_m == SPEND` EXACTLY — the split reconciles to the money actually paid, and every
+    model's rate stands in the 1:2:5:10 ratio the operator set. That identity is the test: a split
+    that does not sum to the subscription is arithmetic, not accounting.
+
+    Returns `{window_start, window_end, spend_usd, accounts, base_rate_per_mtok, models: {...}}`
+    where each model carries `tokens`, `share`, `rate_per_mtok`, `cost_usd` and its `tier`/`weight`.
+    Models whose id matches no tier (`<synthetic>`, a future name) are reported under `unweighted`
+    with their tokens so they are visible rather than silently dropped from the denominator.
+    """
+    today = datetime.date.today().isoformat()
+    cutoff = (datetime.date.today() - datetime.timedelta(days=days_back - 1)).isoformat()
+    try:
+        counted: int | None = sum(
+            1 for p in _MANAGER_ACCOUNTS.iterdir() if p.is_dir() and not p.name.startswith(".")
+        )
+    except OSError:
+        counted = None
+    n = max(1, counted or 0)
+    spend = _SUBSCRIPTION_USD_PER_ACCOUNT * n
+
+    per: dict[str, int] = {}
+    unweighted: dict[str, int] = {}
+    try:
+        days = (json.loads(_USAGE_HISTORY.read_text(encoding="utf-8")).get("days")) or {}
+        for k, day in days.items():
+            try:
+                datetime.date.fromisoformat(k)
+            except (ValueError, TypeError):
+                continue
+            if not (cutoff <= k <= today):
+                continue
+            for mid, m in (day.get("byModel") or {}).items():
+                tok = sum(
+                    int(m.get(x, 0) or 0) for x in ("input", "output", "cacheRead", "cacheCreation")
+                )
+                if tok <= 0:
+                    continue
+                (per if _tier_of(mid) else unweighted)[mid] = (
+                    per if _tier_of(mid) else unweighted
+                ).get(mid, 0) + tok
+    except (OSError, ValueError, TypeError, AttributeError):
+        per, unweighted = {}, {}
+
+    weighted_total = sum(t * _TIER_WEIGHT[_tier_of(mid) or "haiku"] for mid, t in per.items())
+    if weighted_total <= 0:
+        # No measurable usage — publish nulls, never a plausible-looking zero split.
+        return {
+            "window_start": None,
+            "window_end": None,
+            "spend_usd": None,
+            "accounts": counted if (counted or 0) > 0 else None,
+            "base_rate_per_mtok": None,
+            "models": {},
+            "unweighted": unweighted,
+        }
+    base = spend / weighted_total * 1_000_000.0  # $ per Mtok at weight 1.0 (i.e. haiku)
+    models = {}
+    for mid, tok in sorted(per.items(), key=lambda kv: -kv[1]):
+        tier = _tier_of(mid) or "haiku"
+        w = _TIER_WEIGHT[tier]
+        rate = base * w
+        models[mid] = {
+            "tier": tier,
+            "weight": w,
+            "tokens": tok,
+            "share": tok / sum(per.values()),
+            "rate_per_mtok": rate,
+            "cost_usd": tok / 1_000_000.0 * rate,
+        }
+    return {
+        "window_start": cutoff,
+        "window_end": today,
+        "spend_usd": spend,
+        "accounts": counted if (counted or 0) > 0 else None,
+        "base_rate_per_mtok": base,
+        "models": models,
+        "unweighted": unweighted,
+    }
+
+
 def _live_usage_window() -> dict:
     """② and the WINDOW it was derived from: (subscription $ × live accounts) ÷ last-30d global tokens.
 
@@ -421,6 +533,11 @@ def refresh() -> dict:
             "accounts": w["accounts"],
             "spend_usd": w["spend_usd"],
             "tokens": w["tokens"],
+            # The tier-weighted per-model split (operator directive 2026-09-05). AUTHORED here, so
+            # it is refreshed by the same 06:00 cron as the flat rate rather than going stale beside
+            # it — a second fossil next to the one this plan existed to end would be the same defect
+            # wearing a new key. `per_model_spend` reconciles to `spend_usd` exactly by construction.
+            "per_model_spend": per_model_spend(),
             "built_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
         }
     )

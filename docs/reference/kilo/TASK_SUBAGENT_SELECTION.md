@@ -34,12 +34,12 @@ _gate: n_err ≤ 1 · pass@1 ≥ 0.90 · $/1k ≤ 3.5 · p50 ≤ 10s_
 | `openai/gpt-5.6-luna` | A+ | 0.980 | $2.620 | $0.1310 | 3.8 |
 | `writer/palmyra-x5` | A+ | 0.940 | $3.300 | $0.1650 | 7.6 |
 
-### code (n_total=104)
+### code (n_total=116)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | grounding | n |
 |---:|---|---:|---:|---:|---:|:-:|:-:|---:|
-| 1 | `openai/gpt-5.6-luna` | 3.33 | 0.75 | $0.0181 | 2.55 | 2 | — | 20 |
-| 2 | `google/gemini-3-flash-preview` | 2.50 | 0.13 | $0.1003 | 1.67 | 3 | ✓ | 30 |
-| 3 | `deepseek/deepseek-v3.2-exp` | 3.67 | 0.00 | $0.0946 | 1.33 | 3 | ✓ | 4 |
+| 1 | `openai/gpt-5.6-luna` | 3.32 | 0.73 | $0.0205 | 2.71 | 2 | — | 26 |
+| 2 | `deepseek/deepseek-v3.2-exp` | 3.05 | 0.00 | $0.1306 | 0.83 | 3 | ✓ | 7 |
+| 3 | `google/gemini-3-flash-preview` | [benchmark] | — | — | — | 3 | ✓ | 0 |
 | 4 | `writer/palmyra-x5` | [benchmark] | — | — | — | 2 | — | 0 |
 | 5 | `qwen/qwen3-coder-next` | [benchmark] | — | — | — | 1 | — | 0 |
 | 6 | `openai/gpt-5.4-mini` | [benchmark] | — | — | — | 2 | — | 0 |
@@ -60,11 +60,11 @@ _gate: n_err ≤ 1 · pass@1 ≥ 0.90 · $/1k ≤ 3.5 · p50 ≤ 10s_
 | 3 | `minimax/minimax-m2.5` | 3.34 | 0.67 | $0.0096 | 2.25 | 3 | ✓ | 6 |
 | 4 | `deepseek/deepseek-v4-flash` | 2.85 | 0.67 | $0.0160 | 4.00 | 2 | ✓ | 3 |
 
-### review (n_total=10205)
+### review (n_total=10264)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | grounding | n |
 |---:|---|---:|---:|---:|---:|:-:|:-:|---:|
-| 1 | `deepseek/deepseek-v4-flash` | 2.70 | 0.88 | $0.0039 | 2.69 | 2 | ✓ | 1100 |
-| 2 | `deepseek/deepseek-v3.2-exp` | 2.97 | 0.89 | $0.0042 | 2.97 | 3 | ✓ | 1372 |
+| 1 | `deepseek/deepseek-v4-flash` | 2.72 | 0.88 | $0.0039 | 2.71 | 2 | ✓ | 1134 |
+| 2 | `deepseek/deepseek-v3.2-exp` | 2.95 | 0.89 | $0.0042 | 2.95 | 3 | ✓ | 1395 |
 
 ### spec (n_total=6)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | grounding | n |
@@ -92,7 +92,7 @@ _`claude-code/*` rows: `$/1k` = ① API-equivalent (a list-price valuation of th
 | `bytedance-seed/seed-2.0-lite` | A | 4.05 | 0.68 | 1.00 | $1.335 | $2.00 | $0.0400 | — | 7.5 | 73 | 22 | 8 | — |
 | `claude-code/fable` | A | 4.05 | 0.68 | 1.00 | $448.486 | $50.00 | $13.4546 | $0.011833 | 10.3 | 16 | 22 | 8 | ✅ |
 | `claude-code/opus` | A | 4.05 | 0.68 | 1.00 | $215.978 | $25.00 | $6.4794 | $0.011506 | 8.0 | 17 | 22 | 8 | ✅ |
-| `claude-code/sonnet` | A | 4.05 | 0.68 | 1.00 | $160.349 | $15.00 | $4.8105 | $0.018225 | 12.4 | 35 | 22 | 8 | ✅ |
+| `claude-code/sonnet` | A | 4.05 | 0.68 | 1.00 | $106.899 | $10.00 | $3.2070 | $0.018225 | 12.4 | 35 | 22 | 8 | ✅ |
 | `google/gemini-3-flash-preview` | A | 4.05 | 0.68 | 1.00 | $0.226 | $3.00 | $0.0068 | — | 1.3 | 10 | 22 | 8 | ✅ |
 | `moonshotai/kimi-k2.7-code` | A | 4.05 | 0.68 | 1.00 | $2.674 | $4.40 | $0.0802 | — | 5.0 | 87 | 22 | 8 | — |
 | `openai/o4-mini-high` | A | 4.05 | 0.68 | 1.00 | $2.278 | $4.40 | $0.0683 | — | 5.1 | 78 | 22 | 8 | — |
@@ -152,7 +152,7 @@ _`claude-code/*` rows: `$/1k` = ① API-equivalent (a list-price valuation of th
 | model | grade | score5 | recall | prec | $/1k | $/M-out | $/run | ②total$ | p50 s | tok/s | n_mut | n_ctrl |
 |---|:-:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
 | `claude-code/haiku` | A+ | 5.00 | 1.00 | 1.00 | $41.500 | $5.00 | $0.8300 | $0.007234 | 25.2 | 60 | 10 | 10 |
-| `claude-code/sonnet` | A+ | 5.00 | 1.00 | 1.00 | $166.464 | $15.00 | $3.3293 | $0.010668 | 16.3 | 28 | 10 | 10 |
+| `claude-code/sonnet` | A+ | 5.00 | 1.00 | 1.00 | $110.976 | $10.00 | $2.2195 | $0.010668 | 16.3 | 28 | 10 | 10 |
 | `claude-code/fable` | A+ | 4.74 | 0.90 | 1.00 | $494.925 | $50.00 | $9.8985 | $0.008465 | 12.1 | 15 | 10 | 10 |
 | `claude-code/opus` | A | 4.44 | 0.80 | 1.00 | $237.073 | $25.00 | $4.7415 | $0.008236 | 13.8 | 10 | 10 | 10 |
 
