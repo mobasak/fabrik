@@ -188,8 +188,13 @@ def test_every_key_this_producer_did_not_author_survives(rig):
     assert on_disk["some_future_key"] == {"written": "by another producer"}
 
 
-def test_a_carried_family_split_does_not_inherit_the_fresh_window(rig):
-    """The split is carried, never recomputed — so it must not read as covered by today's window."""
+def test_a_carried_family_split_is_flagged_as_carried_not_computed(rig):
+    """The split is carried, never recomputed — the file must say so, without inventing a date.
+
+    Two earlier revisions stamped `prev["built_at"]`, which is the previous REFRESH's clock rather than
+    the split's build time: after one cron tick the stamp claimed today for a map weeks old. The
+    lineage is unrecoverable from this file, so the flag states the one thing the producer knows.
+    """
     rig.write_text(
         json.dumps(
             {"amortized_per_mtok_by_family": {"opus": 0.0054}, "built_at": "2026-08-10T07:17:23"}
@@ -197,8 +202,16 @@ def test_a_carried_family_split_does_not_inherit_the_fresh_window(rig):
         encoding="utf-8",
     )
     data = cpc.refresh()
-    assert data["amortized_per_mtok_by_family_built_at"] == "2026-08-10T07:17:23"
-    assert data["built_at"] != data["amortized_per_mtok_by_family_built_at"]
+    assert data["amortized_per_mtok_by_family_carried"] is True
+    assert "amortized_per_mtok_by_family_built_at" not in data, "a superseded stamp key survived"
+    assert "amortized_per_mtok_by_family_carried_from" not in data
+
+
+def test_the_carried_flag_is_absent_when_there_is_no_split(rig):
+    """Absence means "this producer computed nothing to carry", which is different from `false`."""
+    rig.write_text(json.dumps({"quota_draw_pct": 1.0}), encoding="utf-8")
+    data = cpc.refresh()
+    assert "amortized_per_mtok_by_family_carried" not in data
 
 
 # ─── the producer must never crash off its cron ──────────────────────────────────────────────────
@@ -226,18 +239,6 @@ def test_a_truncated_sidecar_is_replaced_rather_than_crashing(rig):
     rig.write_text('{"amortized_per_mtok": 0.007, "acc', encoding="utf-8")
     data = cpc.refresh()
     assert data["window_end"] == datetime.date.today().isoformat()
-
-
-def test_a_carried_split_is_stamped_even_when_its_origin_is_unknown(rig):
-    """`null` says "carried, origin unknown"; ABSENCE says "computed this window" — which would be a lie.
-
-    The first version stamped only when the previous file had a truthy `built_at`, so a split carried
-    from a file without one slipped back in unstamped — through the exact gap this key closes.
-    """
-    rig.write_text(json.dumps({"amortized_per_mtok_by_family": {"opus": 0.0054}}), encoding="utf-8")
-    data = cpc.refresh()
-    assert "amortized_per_mtok_by_family_built_at" in data
-    assert data["amortized_per_mtok_by_family_built_at"] is None
 
 
 def test_built_at_is_never_behind_the_window_it_describes(rig, monkeypatch):
@@ -303,8 +304,31 @@ def test_concurrent_producers_do_not_share_a_temp_file(rig):
     assert len(seen) == 2 and seen[0] != seen[1], f"temp names collided: {seen}"
 
 
-def test_the_write_is_atomic_and_leaves_no_debris(rig):
-    """A torn write would lose the family split permanently — nothing here can regenerate it."""
-    cpc.refresh()
+def test_the_target_is_only_ever_reached_by_an_atomic_rename(rig):
+    """A torn write loses the family split permanently — nothing in this repo can regenerate it.
+
+    The previous version of this test asserted only that no `*.tmp` was left behind, which a plain
+    `path.write_text` satisfies trivially: deleting the entire atomic write left all 36 tests green.
+    This asserts the MECHANISM — the sidecar is only ever created by `os.replace`, never written in
+    place — which is the only thing that makes a concurrent reader safe.
+    """
+    replaced: list[tuple] = []
+    real_replace = cpc.os.replace
+
+    def spy_replace(src, dst, *a, **kw):
+        replaced.append((str(src), str(dst)))
+        return real_replace(src, dst, *a, **kw)
+
+    monkey = cpc.os
+    monkey.replace = spy_replace
+    try:
+        rig.unlink(missing_ok=True)
+        cpc.refresh()
+    finally:
+        monkey.replace = real_replace
+
+    assert replaced, "the sidecar was written in place — a torn write is now possible"
+    assert replaced[-1][1] == str(rig)
+    assert replaced[-1][0] != str(rig), "source and destination are the same path"
     assert json.loads(rig.read_text(encoding="utf-8"))["tokens"] > 0
     assert not list(rig.parent.glob("*.tmp")), "a temp file survived the write"

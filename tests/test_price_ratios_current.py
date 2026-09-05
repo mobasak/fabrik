@@ -82,3 +82,156 @@ def test_no_override_sits_on_a_family_key() -> None:
     assert not family_keys, (
         f"cache overrides on family keys mis-price the whole tier: {family_keys}"
     )
+
+
+def test_the_longest_prefix_wins_and_only_at_a_segment_boundary() -> None:
+    """The tie-break and the boundary rule, neither of which the live one-key file can exercise.
+
+    `_model_cache` holds exactly one key today, so the longest-prefix comparison never fires against
+    real data: inverting it to SHORTEST left the whole suite green. And a bare prefix would let a
+    future `claude-fable-5-10` inherit Fable 5.1's 2.5% — a 4x underprice, the mirror of the bug the
+    override closed. Both are asserted here against a synthetic two-key table.
+    """
+    import importlib.util
+    import pathlib as _pl
+
+    spec = importlib.util.spec_from_file_location(
+        "cpc_prefix", _pl.Path(__file__).resolve().parents[1] / "scripts" / "claude_p_cost.py"
+    )
+    cpc = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cpc)
+
+    ratios = {
+        "_cache": {"read": 0.1, "write_5m": 1.25},
+        "_model_cache": {"claude-fable-5": {"read": 0.5}, "claude-fable-5-1": {"read": 0.025}},
+    }
+    # longest wins — under a shortest-first tie-break this would be 0.5
+    assert cpc._cache_multipliers(ratios, "claude-fable-5-1")["read"] == 0.025
+    assert cpc._cache_multipliers(ratios, "claude-fable-5-1-20260815")["read"] == 0.025
+    # the shorter key still applies to its own model
+    assert cpc._cache_multipliers(ratios, "claude-fable-5")["read"] == 0.5
+    # SEGMENT boundary: a different model number is not a suffix of this one
+    assert cpc._cache_multipliers(ratios, "claude-fable-5-10")["read"] == 0.5
+    assert cpc._cache_multipliers(ratios, "claude-fable-5-15")["read"] == 0.5
+
+
+def test_both_producers_price_a_cache_read_identically() -> None:
+    """`derive_cost._cache_for` claims in its docstring to mirror `claude_p_cost._cache_multipliers`.
+
+    It did not: it omitted the key normalisation, so `claude-fable-5.1` and
+    `anthropic/claude-fable-5-1` resolved 4x apart between the two modules. A docstring cannot hold
+    that invariant — this does.
+    """
+    import importlib.util
+    import pathlib as _pl
+    import sys as _sys
+
+    root = _pl.Path(__file__).resolve().parents[1]
+    spec = importlib.util.spec_from_file_location(
+        "cpc_mirror", root / "scripts" / "claude_p_cost.py"
+    )
+    cpc = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cpc)
+    _sys.path.insert(0, str(root / "scripts" / "kilo-benchmarks"))
+    import derive_cost as dc
+
+    r = _ratios()
+    for form in (
+        "claude-fable-5-1",
+        "claude-fable-5.1",
+        "anthropic/claude-fable-5-1",
+        "claude-fable-5-1[1m]",
+        "claude-fable-5-1-20260815",
+        "claude-fable-5",
+        "claude-fable-5-10",
+        "claude-opus-5",
+        "  CLAUDE-Fable-5-1  ",
+    ):
+        assert cpc._cache_multipliers(r, form) == dc._cache_for(r, form), (
+            f"the two producers disagree on {form!r} — the ranking axis and the per-call meter "
+            f"would price the same tokens differently"
+        )
+
+
+def test_both_producers_use_the_same_window_length() -> None:
+    """The ~1.3% money bug lived in TWO producers; fixing one left the other divisible by 31.
+
+    `claude_p_cost._live_usage_window` and `derive_cost.amortized_rate` / `amortized_by_family` each
+    divide ONE month of subscription spend by the tokens in their own window. A 31-date span against a
+    30-date spend understates the rate — and when the two disagree, the sidecar ships a 30-date
+    `amortized_per_mtok` beside a 31-date `amortized_per_mtok_by_family` under one window pair that
+    describes only the former. Asserted by feeding both an identical fixture with a day placed exactly
+    one past the cutoff.
+    """
+    import datetime
+    import importlib.util
+    import json as _json
+    import pathlib as _pl
+    import sys as _sys
+    import tempfile
+
+    root = _pl.Path(__file__).resolve().parents[1]
+    spec = importlib.util.spec_from_file_location(
+        "cpc_window", root / "scripts" / "claude_p_cost.py"
+    )
+    cpc = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cpc)
+    _sys.path.insert(0, str(root / "scripts" / "kilo-benchmarks"))
+    import derive_cost as dc
+
+    assert cpc._MONTHLY_DAYS == dc._MONTHLY_DAYS
+
+    def day(offset: int) -> str:
+        return (datetime.date.today() - datetime.timedelta(days=offset)).isoformat()
+
+    inside, outside = 1_000, 999_999_999
+    history = {
+        "days": {
+            day(0): {
+                "byModel": {
+                    "claude-opus-5": {
+                        "input": inside,
+                        "output": 0,
+                        "cacheRead": 0,
+                        "cacheCreation": 0,
+                    }
+                }
+            },
+            day(cpc._MONTHLY_DAYS - 1): {
+                "byModel": {
+                    "claude-opus-5": {
+                        "input": inside,
+                        "output": 0,
+                        "cacheRead": 0,
+                        "cacheCreation": 0,
+                    }
+                }
+            },
+            day(cpc._MONTHLY_DAYS): {
+                "byModel": {
+                    "claude-opus-5": {
+                        "input": outside,
+                        "output": 0,
+                        "cacheRead": 0,
+                        "cacheCreation": 0,
+                    }
+                }
+            },
+        }
+    }
+    with tempfile.TemporaryDirectory() as td:
+        tdp = _pl.Path(td)
+        hist = tdp / "usage-history.json"
+        hist.write_text(_json.dumps(history), encoding="utf-8")
+        accounts = tdp / "accounts"
+        accounts.mkdir()
+        (accounts / "a").mkdir()
+
+        # derive_cost: the rate is spend / tokens, so an over-wide window makes the rate collapse
+        rate = dc.amortized_rate(usage_history_path=hist, accounts_dir=accounts)
+        expected_tokens = 2 * inside
+        expected = dc._SUBSCRIPTION_USD_PER_ACCOUNT / expected_tokens
+        assert rate == __import__("pytest").approx(expected, rel=1e-9), (
+            f"derive_cost counted {dc._SUBSCRIPTION_USD_PER_ACCOUNT / rate:.0f} tokens, expected "
+            f"{expected_tokens} — its window spans a different number of dates than claude_p_cost's"
+        )

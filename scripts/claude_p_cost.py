@@ -16,15 +16,18 @@ this header claimed it "is synced to every project"; it never was. The two numbe
 DATA FILES (resolved in order: env override → co-located with this script → hub kilo-benchmarks):
   • prices     — `claude_price_ratios.json` (per-model in/out list price + cache multipliers). MANUAL,
                  grounded from platform.claude.com/docs/en/about-claude/pricing.
-  • amortized  — `claude_p_cost.json`. `--refresh` AUTHORS eight keys: the rate `amortized_per_mtok`,
-                 the window it came from (`window_start`, `window_end`, `accounts`, `spend_usd`,
-                 `tokens`), `quota_draw_pct` and `built_at`. It CARRIES FORWARD every other key the
-                 previous file had, so a box that has one also carries `amortized_per_mtok_by_family`
-                 (owned by `derive_cost.amortized_by_family`, never recomputed here) — nine in total.
-                 A fresh box with no previous file has eight; the family key is not guaranteed and a
-                 reader must `.get` it. Window keys are `null` when the rate fell back to the research
-                 anchor (no window) and `accounts`/`spend_usd` are `null` when the account count could
-                 not be measured. Rebuilt by `--refresh` (hub/operator box — needs ~/.claude history).
+  • amortized  — `claude_p_cost.json`. `--refresh` AUTHORS eight keys unconditionally: the rate
+                 `amortized_per_mtok`, the window it came from (`window_start`, `window_end`,
+                 `accounts`, `spend_usd`, `tokens`), `quota_draw_pct` and `built_at` — so a FRESH box
+                 with no previous file has exactly eight. It CARRIES FORWARD every other key the
+                 previous file had, and where that includes `amortized_per_mtok_by_family` (owned by
+                 `derive_cost.amortized_by_family`, never recomputed here) it authors a ninth,
+                 `amortized_per_mtok_by_family_carried: true` — TEN in total on this box today. That
+                 flag is deliberately NOT a date: the split's build time is not recoverable from this
+                 file, and `built_at` describes ② only. Nothing
+                 past the eight is guaranteed; a reader must `.get`. Window keys are `null` when the
+                 rate fell back to the research anchor (which came from no window), and
+                 `accounts`/`spend_usd` are `null` when the account count could not be measured.
 
 USAGE
   # measure one call (project or hub): pipe the CLI's JSON in, name the model
@@ -94,9 +97,16 @@ def _model_key(model: str) -> str:
     """Normalise a model string into the `_model_cache` key space: `anthropic/claude-fable-5.1` and
     `claude-fable-5-1` land on the same key. Vendor prefix dropped, dots folded to dashes, lowercased.
 
-    Price lookup (`_norm_model`) and cache lookup used to run on DIFFERENT key spaces, so a
-    vendor-qualified or dotted id got the right family PRICE and silently missed its cache override —
-    correct on the small term, 4x wrong on the dominant one.
+    This closed a real divergence: a vendor-qualified or dotted id got the right family PRICE and
+    silently missed its cache override — correct on the small term, 4x wrong on the dominant one.
+
+    ⚠️ SCOPE, stated because an earlier docstring and its commit message overclaimed "ONE key space":
+    this canonicalises the CACHE key space only. Price lookup still goes through `_norm_model`, which
+    scans the WHOLE string (vendor prefix included) for a tier word and returns `claude-code/<tier>`.
+    Two alphabets, deliberately, and they CAN disagree: a vendor path containing a tier word
+    (`opus-labs/claude-sonnet-5`) would price as opus while its cache resolved off sonnet. No such
+    prefix exists in this fleet's vocabulary — named here as latent rather than "fixed" with a
+    normalisation no caller needs.
     """
     return model.lower().strip().rsplit("/", 1)[-1].replace(".", "-")
 
@@ -123,8 +133,14 @@ def _cache_multipliers(ratios: dict, model: str) -> dict:
     m = _model_key(model)
     best: str | None = None
     for prefix in ratios.get("_model_cache") or {}:
-        if m.startswith(prefix.lower()) and (best is None or len(prefix) > len(best)):
-            best = prefix
+        rest = m[len(prefix) :] if m.startswith(prefix.lower()) else None
+        # SEGMENT boundary, not a bare prefix: `claude-fable-5-1` must not swallow a future
+        # `claude-fable-5-10`, which would hand a different model Fable 5.1's 2.5% rate — a 4x
+        # UNDERprice, the exact mirror of the bug the override closed. A real suffix always begins
+        # with a separator (`-20260815`, `[1m]`); a different model number begins with a digit.
+        if rest is not None and (rest == "" or not rest[0].isalnum()):
+            if best is None or len(prefix) > len(best):
+                best = prefix
     if best is not None:
         override = (ratios.get("_model_cache") or {}).get(best)
         if isinstance(override, dict):
@@ -249,6 +265,9 @@ def _live_usage_window() -> dict:
         }
     spend = _SUBSCRIPTION_USD_PER_ACCOUNT * n
     return {
+        # ⚠️ When `measured` is None the rate still divides by the max(1, n) FLOOR, so
+        # `amortized_per_mtok != spend_usd / tokens` on that branch — the published denominators cannot
+        # reconstruct the published rate, which is precisely why they are null rather than plausible.
         "amortized_per_mtok": spend / total * 1_000_000.0,
         "window_start": cutoff,
         "window_end": today,
@@ -286,14 +305,26 @@ def refresh() -> dict:
         quota = 0.0  # a non-numeric ③ must not crash the producer off its cron
     w = _live_usage_window()
     data = dict(prev)  # carry forward EVERY key this function did not author
-    # A carried map must not inherit the fresh window's authority: stamp it with the `built_at` of the
-    # file it came from, so `window_start`/`window_end` are never read as vouching for it. Measured
-    # 2026-09-05: the carried split was up to 88% off a live recompute under a same-day window.
+    # A carried map must not inherit the fresh window's authority: `window_start`/`window_end` and
+    # `built_at` describe ② only. Measured 2026-09-05: the carried split is 79.6% off a live recompute
+    # under a same-day window — 88.0% against the PRE-fix `amortized_by_family` that this same change
+    # replaced. Quote either WITH its as-of; never the pre-fix number as though it still reproduces.
+    #
+    # ⚠️ A FLAG, not a date. Two earlier revisions of this block tried to stamp the split's age from
+    # `prev["built_at"]` — first as `..._built_at`, then as `..._carried_from`. Both were wrong the same
+    # way: `prev["built_at"]` is the previous REFRESH's clock, never the split's build time, so after a
+    # single cron tick the stamp claimed today for a map last computed weeks earlier. The lineage is not
+    # recoverable from this file, and a value you cannot derive must not be invented — so the honest
+    # statement is the one thing this function actually knows: it carried the map, it did not compute it.
+    for superseded in (
+        "amortized_per_mtok_by_family_built_at",
+        "amortized_per_mtok_by_family_carried_from",
+    ):
+        data.pop(
+            superseded, None
+        )  # authored by THIS function in earlier revisions; not a foreign key
     if "amortized_per_mtok_by_family" in prev:
-        # ALWAYS stamp a carried split. Omitting the stamp when the previous file had no `built_at`
-        # would let an unstamped fossil back in through exactly the gap this key exists to close;
-        # `null` says "carried, origin unknown", which absence cannot say.
-        data.setdefault("amortized_per_mtok_by_family_built_at", prev.get("built_at") or None)
+        data["amortized_per_mtok_by_family_carried"] = True
     data.update(
         {
             "amortized_per_mtok": w["amortized_per_mtok"],

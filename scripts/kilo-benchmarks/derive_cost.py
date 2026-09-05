@@ -57,18 +57,35 @@ def _is_iso_date(s: object) -> bool:
         return False
 
 
+def _model_key(model: str) -> str:
+    """The `_model_cache` key space — byte-for-byte the same rule as `claude_p_cost._model_key`.
+
+    Vendor prefix dropped, dots folded to dashes, lowercased. Omitting this WAS a real divergence:
+    `claude-fable-5.1` and `anthropic/claude-fable-5-1` priced their cache reads 4x apart between the
+    two modules, inside a function whose docstring asserted they could not.
+    """
+    return model.lower().strip().rsplit("/", 1)[-1].replace(".", "-")
+
+
 def _cache_for(ratios: dict, model_id: str) -> dict:
     """`_cache` defaults with the longest-prefix `_model_cache` override for a real model id applied.
 
     Mirrors `scripts/claude_p_cost.py::_cache_multipliers` — the two modules must price a cache read
-    identically or the ranking axis and the per-call meter disagree on the same tokens.
+    identically or the ranking axis and the per-call meter disagree on the same tokens. Asserted by
+    `tests/test_price_ratios_current.py`, not merely stated here.
     """
     c = dict(ratios.get("_cache") or {})
-    m = str(model_id).lower().strip()
+    m = _model_key(str(model_id))
     best: str | None = None
     for prefix in ratios.get("_model_cache") or {}:
-        if m.startswith(prefix.lower()) and (best is None or len(prefix) > len(best)):
-            best = prefix
+        rest = m[len(prefix) :] if m.startswith(prefix.lower()) else None
+        # SEGMENT boundary, not a bare prefix: `claude-fable-5-1` must not swallow a future
+        # `claude-fable-5-10`, which would hand a different model Fable 5.1's 2.5% rate — a 4x
+        # UNDERprice, the exact mirror of the bug the override closed. A real suffix always begins
+        # with a separator (`-20260815`, `[1m]`); a different model number begins with a digit.
+        if rest is not None and (rest == "" or not rest[0].isalnum()):
+            if best is None or len(prefix) > len(best):
+                best = prefix
     if best is not None:
         override = (ratios.get("_model_cache") or {}).get(best)
         if isinstance(override, dict):
@@ -145,7 +162,10 @@ def amortized_rate(
         # a gapped history must not sum arbitrarily-old days into the "monthly" denominator (which would
         # skew the amortized rate). No recent usage → total 0 → fail-soft to the anchor below.
         today_iso = datetime.date.today().isoformat()
-        cutoff = (datetime.date.today() - datetime.timedelta(days=_MONTHLY_DAYS)).isoformat()
+        # INCLUSIVE bounds must span exactly `_MONTHLY_DAYS` dates: `today - _MONTHLY_DAYS` spans 31,
+        # dividing ONE month of subscription $ by 31 days of tokens (~1.3% low). Mirrors
+        # `claude_p_cost._live_usage_window` — both producers must use the same denominator.
+        cutoff = (datetime.date.today() - datetime.timedelta(days=_MONTHLY_DAYS - 1)).isoformat()
         # upper-bound at today too — a clock-skewed source could carry a future-dated key, which
         # would otherwise inflate the denominator (k >= cutoff alone never excludes k > today).
         recent = [k for k in days if _is_iso_date(k) and cutoff <= k <= today_iso]
@@ -211,7 +231,10 @@ def amortized_by_family(
         d = json.loads(Path(usage_history_path or _USAGE_HISTORY).read_text(encoding="utf-8"))
         days = d.get("days") or {}
         today_iso = datetime.date.today().isoformat()
-        cutoff = (datetime.date.today() - datetime.timedelta(days=_MONTHLY_DAYS)).isoformat()
+        # INCLUSIVE bounds must span exactly `_MONTHLY_DAYS` dates: `today - _MONTHLY_DAYS` spans 31,
+        # dividing ONE month of subscription $ by 31 days of tokens (~1.3% low). Mirrors
+        # `claude_p_cost._live_usage_window` — both producers must use the same denominator.
+        cutoff = (datetime.date.today() - datetime.timedelta(days=_MONTHLY_DAYS - 1)).isoformat()
         for dk in (k for k in days if _is_iso_date(k) and cutoff <= k <= today_iso):
             for model, m in (days[dk].get("byModel") or {}).items():
                 fam = _family(str(model))
@@ -279,8 +302,10 @@ def write_cost_sidecar(
 ) -> dict:
     """Write the ②/③ sidecar the ranker preamble reads: ② amortized $/M + ③ weekly-quota-draw %.
 
-    ⚠️ ORPHANED IN THIS REPO — zero CODE call sites. (`git grep write_cost_sidecar -- .` returns 12 hits
-    across 5 files; all but this `def` are prose — plans, reviews, the ledger, and a test docstring.)
+    ⚠️ ORPHANED IN THIS REPO — zero CODE call sites. Verify with
+    `git grep -n write_cost_sidecar -- '*.py'`: every hit outside this `def` is a docstring. (A raw
+    `git grep -- .` also sweeps the plan, the reviews and the ledger, so its count moves whenever one
+    of those is edited — this docstring stated such a count twice and was wrong both times.)
     Its callers left with the catalog-engine excision (`73bde59a`) and now live in `/opt/ai-model-catalog/`,
     whose copy resolves `_COST_SIDECAR` relative to ITS OWN directory and never writes the hub's file.
     The hub's sidecar is written by `scripts/claude_p_cost.py::refresh()` — change THAT one. Editing the
