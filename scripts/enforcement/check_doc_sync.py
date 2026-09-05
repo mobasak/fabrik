@@ -157,7 +157,8 @@ def _is_orm_model(f: str) -> bool:
     `db/schema.sql` — a BLOCKING false positive that cost a real improvement (site-provisioner
     01M1QS9527Y8K0P9VPE9XF5MYB, 2026-09-05). The content graded is the STAGED blob (`:path`) — the
     gate grades the index, and a working-tree read would judge an edit made after staging (review
-    of 3833fb16, pass 1); the working tree is the fallback for an intent-to-add. A directory hit
+    of 3833fb16, pass 1); the working tree is the fallback when the index has no entry or only the
+    empty intent-to-add blob. A directory hit
     (`models/`), a non-.py name (case-insensitive, like the filename regex) or an unreadable /
     deleted file keeps the old verdict: fail closed toward the schema demand.
     """
@@ -165,7 +166,10 @@ def _is_orm_model(f: str) -> bool:
     if p.is_dir() or p.suffix.lower() != ".py":
         return True
     text = _staged_text(f)
-    if text is None:
+    if not text:
+        # None: the index has no entry. '': an INTENT-TO-ADD entry — `git show :path` returns the
+        # empty blob with rc 0, so a brand-new ORM file added with `git add -N` read as non-ORM
+        # and drew no demand (review pass 2, executed). Either way the working tree decides.
         try:
             text = p.read_text(encoding="utf-8", errors="replace")
         except OSError:

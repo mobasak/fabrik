@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — review of 3833fb16, pass 2: an empty index blob (`git add -N`) sends the `models.py` probe to the working tree; suffix case asserted (2026-09-05)
+
+`git show :path` returns the EMPTY blob with rc 0 for an intent-to-add entry, and the pass-1 staged
+read took that as "non-ORM". Measured: the gate's `_staged()` (`git diff --cached --name-only`)
+lists 0 of 1 such entries, so no gate verdict was ever wrong — the probe's own reading is pinned
+instead (an empty index blob means the working tree decides), and `Models.PY` is now asserted to
+keep the demand. Named, not changed: the gate mirror's 12-line pin reds on a formatter run of
+`final_gate.py` (synced copies are byte-compared, never re-formatted).
+
 ### Fixed — review of 3833fb16, pass 1: the `models.py` probe grades the STAGED blob, knows registry-mapped and Pony models, ignores suffix case; the archive file is allowlisted; the gate mirror pins the whole condition (2026-09-05)
 
 `_is_orm_model` read the working tree while the gate grades the index — a Pydantic file staged and

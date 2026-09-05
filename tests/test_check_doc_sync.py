@@ -516,6 +516,44 @@ def test_a_pony_entity_and_an_upper_case_suffix_keep_the_demand(repo: Path) -> N
     _stage(repo, "app/models.py")
     r = _run(repo)
     assert r.returncode == 1 and "schema.sql" in (r.stdout + r.stderr), r.stdout + r.stderr
+    # suffix case: the filename regex is IGNORECASE, the probe's suffix check must be too
+    subprocess.run(["git", "reset", "-q", "--", "app/models.py"], cwd=repo, check=True)
+    _write(
+        repo,
+        "lib/Models.PY",
+        "from sqlalchemy import Column\n\nclass Site(Base):\n    __tablename__ = 's'\n",
+    )
+    _stage(repo, "lib/Models.PY")
+    r = _run(repo)
+    assert r.returncode == 1 and "schema.sql" in (r.stdout + r.stderr), r.stdout + r.stderr
+
+
+def test_the_probe_reads_the_working_tree_for_an_intent_to_add_entry(repo: Path) -> None:
+    """`git add -N` leaves the EMPTY blob in the index (`git show :path` → '' with rc 0); the
+    first staged-blob probe read that as non-ORM. Measured: `git diff --cached --name-only`
+    lists 0 of 1 intent-to-add entries, so the GATE never hands one to the probe — this pins the
+    probe's own reading (an empty index blob means the working tree decides), not a gate verdict
+    (review of 3833fb16, pass 2, executed both ways)."""
+    import importlib.util
+
+    sp = importlib.util.spec_from_file_location("cds_probe", CHECK)
+    m = importlib.util.module_from_spec(sp)
+    sp.loader.exec_module(m)
+    _write(
+        repo,
+        "app/models.py",
+        "from sqlalchemy import Column\n\nclass Site(Base):\n    __tablename__ = 's'\n",
+    )
+    subprocess.run(["git", "add", "-N", "--", "app/models.py"], cwd=repo, check=True)
+    import os
+
+    cwd = os.getcwd()
+    os.chdir(repo)
+    try:
+        assert m._staged_text("app/models.py") == ""
+        assert m._is_orm_model("app/models.py") is True
+    finally:
+        os.chdir(cwd)
 
 
 def test_an_orm_models_py_still_demands_the_schema_dump(repo: Path) -> None:
