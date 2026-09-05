@@ -352,12 +352,16 @@
       "rename_commit": "5c50c40e"
     },
     "T12b": {
-      "state": "review-round-1",
+      "state": "merged",
       "agent": "ade47f95f1f90f5f5",
       "branch": "worktree-agent-ade47f95f1f90f5f5",
       "updated": "2026-09-05T21:24:23+00:00",
       "head": "7fe45479",
-      "base": "c700e1b2"
+      "base": "c700e1b2",
+      "branch_head": "7fe45479",
+      "merged_at": "2026-09-06T00:30:55",
+      "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T12b-review.md",
+      "rename_commit": "27fa93ca"
     },
     "T08b": {
       "state": "review-round-1",

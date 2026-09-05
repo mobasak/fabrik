@@ -4,7 +4,7 @@
      agent runs directly:
        00-trigger-mega-epic-fabrik · 02-epic-decomposition-fabrik ·
        03-expand-epic-files-fabrik · 04-cross-epic-validation-fabrik.
-     `05-dispatch` is RETIRED (see `_retired/05-dispatch-epic-tickets-fabrik.RETIRED.md`);
+     `05-dispatch` is RETIRED (see `../_retired/mega-epic-breakdown/05-dispatch-epic-tickets-fabrik.RETIRED.md`);
      its ticket-set integrity gate + phased-order emission are now the deterministic
      `scripts/epic_order.py`, absorbed into 04. There is no cockpit or driver to
      click a card or run a phase queue — neither was ever built (84d). Dispatch IS

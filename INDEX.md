@@ -393,14 +393,13 @@ docs/
 │   │       └── EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.RETIRED.md
 │   │   └── mega-epic-breakdown
 │   │       ├── 00-trigger-mega-epic-fabrik.RETIRED.md
-│   │       └── 02-epic-decomposition-fabrik.RETIRED.md
-│   ├── mega-epic-breakdown
-│   │   ├── 03-expand-epic-files-fabrik.md
-│   │   ├── 04-cross-epic-validation-fabrik.md
-│   │   ├── EPIC-ARTIFACT-SCHEMA.md
-│   │   ├── EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md
-│   │   └── _retired
+│   │       ├── 02-epic-decomposition-fabrik.RETIRED.md
+│   │       ├── 03-expand-epic-files-fabrik.RETIRED.md
+│   │       ├── 04-cross-epic-validation-fabrik.RETIRED.md
 │   │       └── 05-dispatch-epic-tickets-fabrik.RETIRED.md
+│   ├── mega-epic-breakdown
+│   │   ├── EPIC-ARTIFACT-SCHEMA.md
+│   │   └── EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md
 │   ├── orchestrator-cockpit-decisions.md
 │   ├── orchestrator-cockpit-feature-set.md
 │   ├── orchestrator-cockpit-requirements.md
