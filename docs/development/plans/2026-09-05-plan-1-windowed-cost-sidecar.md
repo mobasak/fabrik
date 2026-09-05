@@ -54,7 +54,7 @@ Final Gate Instruction: `python scripts/final_gate.py --json`
 - **Shared tree — two siblings active.** Explicit pathspecs only, never a bare `git commit`. `CHANGELOG.md`, `docs/DECISIONS.md`, `docs/LESSONS_LEARNT.md` are governance files, outside File Scope by contract.
 - **Blast radius is narrow, verified:** neither file is in `fabrik_synced_manifest.py` (verified, grep exit 1) and no PROJECT repo carries either. ⚠️ But **2** `/opt` dirs carry the JSON, not 0: `/opt/fabrik/scripts/kilo-benchmarks/` and `/opt/ai-model-catalog/engine/` — the second being exactly the sidecar the § producers table and A5 are built on, so writing "0" contradicted this plan's own central finding.
 
-## Phase A — the LIVE writer emits the window, and stops destroying a key
+## Phase A — the LIVE writer emits the window, and stops destroying a key — ✅ EXECUTED 2026-09-05 (7aa4d7a4 … 0801a818, 9 commits; whole-phase review: `docs/development/reviews/2026-09-05-windowed-cost-sidecar-phase-A-review.md`, 9 passes to a quiet exit)
 
 **Files:** `scripts/claude_p_cost.py` · `scripts/kilo-benchmarks/claude_p_cost.json` · `scripts/kilo-benchmarks/claude_price_ratios.json` · `scripts/kilo-benchmarks/derive_cost.py` · `tests/test_price_ratios_current.py` · `tests/test_claude_p_cost_refresh.py` (new)
 
