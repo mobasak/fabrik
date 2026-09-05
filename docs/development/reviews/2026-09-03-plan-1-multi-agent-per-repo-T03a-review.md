@@ -1,6 +1,6 @@
 # Acceptance review — T03a (plan set 2026-09-03-plan-1-multi-agent-per-repo)
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED (2026-09-05 — 9 rounds; round 9: pool 3/3 CLEAN + orchestrator re-read, found: 0, fixed: 0)
 
 **Surface:** the coder's worktree branch (worktree-agent-adba677796831b5c2) against its merge base 716ce944 — 4 files. Dispatch history (D6): attempt 1 was a pool write-mode coder (openai/gpt-5.6-luna) REJECTED without review — gate red with no captured output, a 198-line deletion of the checklist, 53 lines of the script removed; attempt 2 a native Sonnet worktree coder that died on a network error with gate-green uncommitted work, salvaged to `.fabrik/plan-locks/…-salvage-T03a.diff` and resumed on its intact worktree to commit (923a2dfd).
 
@@ -115,4 +115,15 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 - [M] the `_OWNER_NAME_RE` comment (:509-516) cites a `_write_owner` regex-substitution template that no longer exists (and that the property guard forbids) plus an "all-or-nothing" promise --help does not make → FIXUP (2): the live justification (verbatim interpolation into a frontmatter line). [L] the help text renders a phantom `--owners-grade` flag to a mechanical extractor → FIXUP (3).
 Routed to T03b (byte-identical on base): the uncaught dependency-cycle `ValueError` in `--json`/default; the empty `owned_paths:` → `['']` false disjointness finding.
 Round 8 verdict: 3 raised → 3 routed (2 M, 1 L), production code correct — the graders and comments are what remain; pool 3/3 CLEAN. Not the no-op round.
+
+## Round 9 — over `716ce944..81b4bc36` (111,300 B; the round-8 fixup 81b4bc36, 31/12 lines, prescribed verbatim) — the third CLOSING round
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native: the orchestrator's own re-read of the verbatim-prescribed fixup — round 9.
+### Native layer (orchestrator re-read of 2bd530fe..81b4bc36, executed)
+- The diff is exactly the three items: the interior-lookalike test gains `owner: old` after `owned_paths:` and asserts `owner_like == ["owner: alpha"]` after `--assign`, a green `--check --owners alpha`, and the same single line after a second `--assign` (the coder's mutant-G run: `['owner: alpha', 'owner: old']` red, then green); the `_OWNER_NAME_RE` comment now states the live justification (verbatim `f"owner: {owner}"` interpolation — newline injection; quote/whitespace asymmetry against the reader's stripping); the help text reads "the --check --owners grade of integrity".
+- Executed in the worktree: `pytest -q tests/test_epic_order.py` → 64 passed; `ruff check` → All checks passed; `--help | grep -o '\-\-[a-z-]*' | sort -u` → exactly `--assign --check --epics-dir --expected-count --help --json --owners` (no phantom); `git diff 716ce944..81b4bc36 --name-only` → exactly the four Touches.
+### Adjudication (pool layer)
+- deepseek — CLEAN (28 contract points across the 4 files; the six rows to their tests; DO-NOTs; the structural fix verified hunk by hunk — one `_find_fences` + `_classify_fm_line`, 11 terminators, the property guard, the classifier, whitespace-only lines, `owner :`/indented, the apostrophe scanner, CRLF, idempotence, hub md5 identity).
+- gemini — CLEAN (the five round-8 classes by line: `_find_fences` :207-227 + `rstrip() == "---"` :189; `_LINE_TERMINATORS` :257; the property guard :1189; key normalisation :199 + `_dup_keys` :272; the strengthened lookalike test :1240 asserting one owner line + idempotent re-assign).
+- qwen — CLEAN (4 files, 1,285 test lines; every row, every DO-NOT, the four Touches; all 11 terminators; no fail-open path).
+Round 9 verdict: found 0, fixed 0 — the no-op round. Class ledger: reader/writer line agreement · fence agreement · terminators · property mutation guard · placement past a block · in-place replacement · comment scanning · docstring/help truth · CRLF · idempotence · hub byte-identity · docs' retired references — all swept clean.
 

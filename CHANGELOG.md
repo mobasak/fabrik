@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — epic assignment: `epic_order.py --assign` + owner-set integrity check (2026-09-05)
+
+T03a of plan `2026-09-03-plan-1-multi-agent-per-repo` (D-123). `scripts/epic_order.py` gains a third job
+beside integrity and phased ordering: `--assign <a,b,c>` hands each phase's epics to the named agents
+round-robin in `epic_n` order (deterministic, no judgment), writing `owner: <name>` into each epic file's
+frontmatter — refusing to write (exit 1, no file touched) when `check_integrity()` has any finding.
+`--check --owners <a,b,c>` adds one finding class: an epic whose `owner` is missing or outside the named
+set; a plain `--check` is unchanged. `EPIC-ARTIFACT-SCHEMA.md` documents the `owner: ""` field and the
+assignment commands; it and `EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md` are rewritten for the
+post-retirement world (the four one-epic-at-a-time rows now describe concurrent per-phase execution, one
+epic per named agent; every `traycer_mirror` / `epic-to-ticket-workflow` reference is gone from both).
+Graders: `tests/test_epic_order.py` (64 tests, each class seen red first across nine acceptance rounds). The parser and the writer share ONE line classifier and ONE fence finder (`_classify_fm_line`, `_find_fences`; fence = `rstrip() == "---"` for both), `_line_terminator` covers all 11 `str.splitlines()` boundaries, and a property guard asserts a single compiled regex in the module — the class that kept resurfacing (reader/writer disagreeing on a line, then on a fence) cannot recur by construction.
+
 ### Changed — `/fabrik-plan-after-chat` seeds File Scope from the epic's `owned_paths`; `/fabrik-execute-plan` refuses out-of-epic dispatch (2026-09-05)
 
 T04b of plan `2026-09-03-plan-1-multi-agent-per-repo` (spec § Chain consolidation (e), § Live locks;

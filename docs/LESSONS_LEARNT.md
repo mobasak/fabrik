@@ -6149,6 +6149,23 @@ they pass, and assert on THAT.
    producer suite let FIVE mutations through (window bounds hardcoded to 2020, `_MONTHLY_DAYS` collapsed to 1,
    `built_at` frozen, and two more). No amount of reading shows that; twelve minutes of mutation does.
 
+## "Rewrite these four rows" is not "delete the section" — and an uncaptured pytest run is not a green gate (2026-09-05)
+
+**Symptom.** T03a of `2026-09-03-plan-1-multi-agent-per-repo` (add `epic_order.py --assign` + the `owner`
+field) was first attempted by a pool coder whose diff was rejected on re-dispatch for three reasons: (1) its
+`pytest` gate was RED and it never captured the output before reporting done; (2) asked to rewrite four named
+checklist rows and strip ~12 dangling references, it deleted ~198 of `EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md`'s
+208 lines — every row not explicitly named in the brief must survive byte-identical, and a line count
+(`wc -l` before/after, `git diff --stat`) catches this in one command; (3) it deleted 53 lines of
+`epic_order.py`'s existing docstrings, comments and behaviour instead of adding to it — the mandate
+"`--check` without `--owners` unchanged" is a promise about DIFF SHAPE, not just exit codes.
+
+**The fix, generalized.** Two mechanical checks before trusting a "rewrite N named rows" ticket: (a) `wc -l`
+the touched doc before and after — a rewrite of K rows changes at most ~K lines net; a doc that shrank by an
+order of magnitude was gutted, not rewritten; (b) `git diff` the touched code and read every `-` line — a
+preserving change's deletions are exactly the old lines its insertions replace, never a docstring, a comment
+or a branch the ticket never asked to remove. Neither check needs domain knowledge.
+
 ## `ruff format <dir>` on a shared tree reflows your siblings' files, and the damage lands later (2026-09-05)
 
 **Near-miss.** I ran `ruff format tests/ scripts/claude_p_cost.py` meaning to format my own three test

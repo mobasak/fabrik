@@ -109,7 +109,7 @@
       "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T02a-review.md"
     },
     "T03a": {
-      "state": "fixup-round-8",
+      "state": "merged",
       "attempt": 2,
       "runtime": "native sonnet worktree (pool attempt 1 rejected: gate red with no captured output, 198-line checklist deletion, 53-line script deletion \u2014 D6 re-dispatch)",
       "started_at": "2026-09-05T12:16:12",
@@ -118,8 +118,11 @@
         "cost_usd": 0.0283,
         "disposition": "rejected \u2014 SIZING/DISPATCH DEFECT logged"
       },
-      "branch_head": "ddd03663",
-      "updated": "2026-09-05T13:17:38+00:00"
+      "branch_head": "81b4bc36",
+      "updated": "2026-09-05T13:32:07+00:00",
+      "branch": "worktree-agent-adba677796831b5c2",
+      "merged_at": "2026-09-05T16:36:23",
+      "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T03a-review.md"
     },
     "T01b": {
       "state": "review-round-6",
