@@ -1,6 +1,6 @@
 # Acceptance review — T07a (plan set 2026-09-03-plan-1-multi-agent-per-repo)
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED (2026-09-05 — 2 rounds; round 2: pool 3/3 CLEAN + orchestrator re-read, found: 0, fixed: 0)
 
 **Surface:** the coder's worktree branch — the T07a commit 3b686052 over a mechanical ruff-format commit 3df31000 (verified identical to `ruff format` of the base file) and three merge commits carrying the accepted T06a/T06b/T06c sources — see the round sections below (one file per ticket, rounds APPENDED).
 
@@ -14,3 +14,15 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 - [M] `NEXT["fabrik-epics-review"]` drops `CLAUDE_AGENT=<name>` from the launch line its source mandates in four places — no `Agent-Name` trailer, no charter injection for a window launched from it; 77 chars of headroom → FIXUP (1). [M] the two `validate_i18n.py` refs are a RED test (`test_live_corpus_is_clean`), not only a checker warning — merge-owner action: `fixup_T07a.py` rewords T06a's two lines at the joint merge (dry-run on a copy: 2 refs reworded).
 - [L] rows 4/5 red on the pre-T07a assembler only via the shared SystemExit — proven discriminating by isolation → recorded. [L] the prune test seeds a regular file where the installed corpus has a symlink → FIXUP (2): seed the symlink shape. [L] `.pre-commit-config.yaml:107-113` justifies its filter via the deleted `ORCH_SOURCES` → ROUTED (T09/T14). [L] `"FLOOR": ""` correct but undocumented → FIXUP (3): a comment.
 Round 1 verdict: 6 raised → 3 routed (1 M, 2 L) + 1 merge-owner fixup + 1 recorded + 1 routed out; pool 2 CLEAN + 1 contradicted. Not the no-op round.
+
+## Round 2 — over `3df31000..b5bad49c` (the round-1 fixup b5bad49c, 3/1 + 21/6, prescribed verbatim) — the CLOSING round
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native: the orchestrator's own re-read of the verbatim-prescribed fixup — round 2.
+### Native layer (orchestrator re-read of 3b686052..b5bad49c, executed)
+- The diff is exactly the three items: `NEXT["fabrik-epics-review"]` now carries `CLAUDE_AGENT=<name> claude --worktree <name> -n <name>-<repo>` (the coder's red: the composed description lacked the prefix; 947 → 967 of 1024); the prune test seeds the installed shape (a symlinked `SKILL.md` inside a real dir) and asserts the dir pruned with the tracked target intact (the keep-set mutation red on disk, restored byte-identical); a two-line comment above `"FLOOR": ""`.
+- Executed in the worktree: 12 passed (5 new + 7 pre-existing assembler tests); `assemble_commands.py --check` rc 1 with exactly 24 drift lines and 0 render errors / unresolved; the retired-token `git grep -l` prints nothing (rc 1); `ruff check` clean.
+### Adjudication (pool layer) — a three-deepseek draw
+- deepseek v4-flash (1) — CLEAN (the two Touches; DO-NOTs; every retired symbol absent with the module test; `check()`'s loops and union removed; the temp render test; the symlinked prune seed; the NEXT rows incl. the `CLAUDE_AGENT=` form; the three PARAMS blocks).
+- deepseek v3.2-exp — CLEAN (the five rows by test; every reference deletion located by line).
+- deepseek v4-flash (2) — CLEAN (5 rows red-first; `FLOOR: ""` documented; the prune banner-guarded with the target surviving; the retired-token grep rc 1; `{{` 0; ≤ 1024).
+Round 2 verdict: found 0, fixed 0 — the no-op round. Class ledger: the retired symbols and every reference · the render (36 + 36 + 4, no `fab-*`, no `{{`) · the banner-guarded prune incl. the installed symlink shape · the composed-description cap with the rivals trim · PARAMS for the three (traced to their sources) · the NEXT rows with the per-agent launch form · `--check`'s drift set · the merges' fidelity · the mechanical format commit — all swept clean.
+

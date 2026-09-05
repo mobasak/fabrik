@@ -145,13 +145,13 @@
       "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T02b-review.md"
     },
     "T13": {
-      "state": "review-round-8",
+      "state": "fixup-round-8",
       "branch": "worktree-agent-aca08762aa41073a1",
       "coder": "native sonnet worktree (plan said pool for `complex`; D6 record: the pool write-mode coder returned an unverified diff on T03a, so native is used for every coding ticket)",
       "dispatched_at": "2026-09-05T13:13:13",
       "branch_head": "866c593a",
       "round": 1,
-      "updated": "2026-09-05T17:12:25+00:00",
+      "updated": "2026-09-05T17:49:12+00:00",
       "head": "8a77ed0c"
     },
     "T04a": {
@@ -191,13 +191,13 @@
       "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T06b-review.md"
     },
     "T05a": {
-      "state": "review-round-7",
+      "state": "fixup-round-7",
       "coder": "native opus worktree (Execution Discipline: opus for T05a)",
       "dispatched_at": "2026-09-05T14:41:18",
       "branch": "worktree-agent-aa202dd80ecd23540",
       "branch_head": "6a065def",
       "round": 1,
-      "updated": "2026-09-05T17:11:29+00:00",
+      "updated": "2026-09-05T17:46:42+00:00",
       "head": "9d668a93"
     },
     "T03b": {
@@ -231,12 +231,12 @@
       "head": "5554d167"
     },
     "T07a": {
-      "state": "fixup-round-1",
+      "state": "review-round-2",
       "agent": "afbc78986d40f0649",
       "branch": "worktree-agent-afbc78986d40f0649",
       "base": "73ee240d",
-      "updated": "2026-09-05T17:34:39+00:00",
-      "head": "3b686052"
+      "updated": "2026-09-05T17:38:49+00:00",
+      "head": "b5bad49c"
     }
   },
   "orchestrator": "infra session dd3c06d1, main checkout (the plan's own C14 + merge-time-render law keep the orchestrator in the main checkout; coders isolate by worktree per D2)"
