@@ -465,6 +465,9 @@ def test_a_sweeping_pathspec_or_a_forced_refspec_is_held_and_the_template_has_a_
         "git commit -mF . -- f.py",  # `-mF` = message "F"; the `.` is a pathspec, not the value (P26-A)
         "git commit -Fm . -- f.py",
         "git commit -mq . -- f.py",
+        "git commit -m5 . -- f.py",  # digits FOLLOW too: message "5", the `.` is a pathspec (pass 28)
+        "git commit -qm5 . -- f.py",
+        "git commit -5m . -- f.py",  # a leading digit is not a flag letter: refused, fail-closed
         "git reset -q HEAD -- .",
         "git reset HEAD -- ..",
         "git add ./../",
@@ -491,6 +494,7 @@ def test_a_sweeping_pathspec_or_a_forced_refspec_is_held_and_the_template_has_a_
         "git commit -F msg.txt -- f.py",
         "git commit -m 'fix: globs *.py? and [x]' -- f.py",  # the MESSAGE is not a pathspec
         "git commit -m . -- f.py",
+        "git commit -qm . -- f.py",  # a cluster ENDING at m: the next token IS the message
         "git commit -m ':tada: done' -- f.py",
         "git commit --message 'a: b' -- f.py",
         "git log --oneline --",  # a bare `--` is skipped by the checker

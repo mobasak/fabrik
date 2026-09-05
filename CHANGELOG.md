@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — pass 28 of the review: digits after `-m` are the message too, so `-m5 .` no longer exempts the pathspec (2026-09-05)
+
+The pass-27 cluster rule stripped trailing digits before asking whether the first `m`/`F` was the
+cluster's last letter, so `-m5` read as "ends at m" and the next token was exempted as the message —
+git takes `5` as the message and the `.` as a pathspec, and a sibling's staged file was committed
+under `allow` (four prefixes proven: `-m5`, `-vm5`, `-qvm5`, `-om5`). The rule now reads the raw
+cluster: the next token is the value only when nothing at all follows the first `m`/`F`. Graded in
+both directions (`-qm .` stays a message), red on revert; the 26-form ledger holds; 30 hook tests.
+
 ### Fixed — pass 27 of the review: a short-flag cluster's value is what FOLLOWS its first `m`/`F`, so `-mF .` no longer exempts the pathspec (2026-09-05)
 
 `git commit -mF . -- f.py`: git reads `-mF` as `-m` with the attached message "F", so the `.` that

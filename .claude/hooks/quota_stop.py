@@ -300,7 +300,10 @@ def _git_flags_forbidden(command: str) -> bool:
             # LAST letter exempted `.` after `-mF` and a sibling's staged file was committed
             # (pass 27, P26-A, executed). Only a cluster that ENDS at its first m/F takes the
             # next token as the value.
-            cluster = tok[1:].rstrip("0123456789")
+            # …and "follows" includes DIGITS: `-m5` is message "5" — the digit strip that serves
+            # the letter check must not run before this, or `-m5 . -- f` exempts the `.` and a
+            # sibling's staged file is committed (pass 28, executed).
+            cluster = tok[1:]
             first = min((cluster.find(ch) for ch in "mF" if ch in cluster), default=-1)
             message_value_next = verb == "commit" and first != -1 and first == len(cluster) - 1
         elif not is_message_value and _positional_forbidden(verb, tok):
