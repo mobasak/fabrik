@@ -292,11 +292,11 @@
       "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T14h-review.md"
     },
     "T15": {
-      "state": "review-round-3",
+      "state": "fixup-round-3",
       "agent": "af90f113a2db134c8",
       "branch": "worktree-agent-af90f113a2db134c8",
       "base": "cb9716df",
-      "updated": "2026-09-05T21:07:55+00:00",
+      "updated": "2026-09-05T21:12:37+00:00",
       "head": "24c7c935"
     },
     "T12a": {
@@ -335,16 +335,23 @@
       "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T08a-review.md"
     },
     "T11": {
-      "state": "dispatched",
+      "state": "review-round-1",
       "agent": "a737ba57513cb096c",
       "branch": "worktree-agent-a737ba57513cb096c",
-      "updated": "2026-09-05T21:07:55+00:00"
+      "updated": "2026-09-05T21:12:37+00:00",
+      "head": "8249cf9d",
+      "base": "e61d018a"
     },
     "T12b": {
       "state": "dispatched",
       "agent": "ade47f95f1f90f5f5",
       "branch": "worktree-agent-ade47f95f1f90f5f5",
       "updated": "2026-09-05T21:07:55+00:00"
+    },
+    "T08b": {
+      "state": "dispatched",
+      "base": "0d5a4685",
+      "updated": "2026-09-05T21:12:37+00:00"
     }
   },
   "orchestrator": "infra session dd3c06d1, main checkout (the plan's own C14 + merge-time-render law keep the orchestrator in the main checkout; coders isolate by worktree per D2)"

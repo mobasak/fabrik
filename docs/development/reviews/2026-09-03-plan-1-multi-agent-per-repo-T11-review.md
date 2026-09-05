@@ -1,0 +1,11 @@
+# Acceptance review — T11 (plan set 2026-09-03-plan-1-multi-agent-per-repo)
+
+**Status:** IN-PROGRESS
+
+**Surface:** the coder's worktree branch diff against the dispatch base e61d018a (master after the T10 merge) — see the round sections below (one file per ticket, rounds APPENDED).
+
+## Round 1 — over `e61d018a..8249cf9d` (seven rename rows 2/0: ettw 06, 07, 08, 09, 10, 11 and the EVALUATION_CHECKLIST → docs/orchestrator/_retired/epic-to-ticket-workflow/*.RETIRED.md with the two-line tombstone header; the source directory empty and gone; bodies byte-identical 7 of 7; both ticket gates exit 0; `--follow` history preserved (6 commits on the checklist); twins from the spec's (a) row verbatim — the coder corrected three of the brief's shorthands in the spec's favour (09 → `/fabrik-spec-review` re-opened; 08 and 10 both carry the pair; 11 → `/fabrik-release` → the triad); the checklist has no spec-named twin, pointed at `docs/reference/command-evaluation-checklist.md` with a truthful "is no longer a checklist" noun; check_doc_links: exactly ONE new broken ref, `docs/reference/command-evaluation-checklist.md:8` (T14g's file; the ticket's Docs line assigns the repair to the merge owner); the git-grep census: `.windsurf/rules/core/40-documentation.md:93,149` (T14a), `scripts/review_rubric.py:124` (T14d, soft-fails), `commands/_sources/fabrik-workflow-review.md:20,47` (T14g), the north-star/cockpit/wiring docs and the `_traycer-skills` tree (T09/T14b), archived plans/specs (history); `check_traycer_chain.py:28-33` still lists the now-absent directory (spec (a) re-points it — T09); 0 relative links in the seven files)
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native: the orchestrator's own execution (a seven-file rename; stated) — round 1.
+### Orchestrator execution (in the worktree)
+- `git show --numstat -M` → 7 rows; gate 1 (0 / 14) ok; gate 2 ok; bodies identical 7 of 7; the checklist header reads `<!-- ⛔ RETIRED 2026-09-06 — ettw EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS is no longer a checklist (the ettw chain it graded is retired).` — adjudicated a truthful deviation from the "is no longer a command" shape (it never was one), kept.
+Pool: PENDING — appended when it returns.

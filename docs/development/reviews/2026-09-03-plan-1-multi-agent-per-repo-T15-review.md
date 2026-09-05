@@ -25,4 +25,7 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native: the orchestrator's own execution (one prescribed L item; stated) — round 3.
 ### Orchestrator execution (in the worktree)
 - `pytest tests/test_docs_updater.py tests/enforcement/test_plan_shape_gates.py -q` → 89 passed; `ruff check` clean; `_cell("a | b")` → `a \| b`, `_cell("a \| b")` → `a \| b` (idempotent).
-Pool: PENDING — appended when it returns.
+### Pool layer (3 units returned — deepseek/deepseek-v4-flash, deepseek/deepseek-v3.2-exp, deepseek/deepseek-v4-flash; $0.0101)
+- v3.2-exp CLEAN. v4-flash (1) and (2): the lookbehind decides by ONE preceding backslash while markdown escapes by PARITY — `a\\|b` (an escaped backslash, then a live pipe) is left alone → 5 cells — UPHELD [L], the last shape of the class (fix: escape a pipe preceded by an even run of backslashes). v4-flash (2)'s second item ("the test tree never creates scripts/epic_order.py") — REFUTED: the suite runs in the hub where the module exists; the fleet-mirror fixtures cover absence and pass.
+### Verdict
+**1 finding (L) → FIXUP round 3 routed to the coder** (parity-aware escape + the four-shape grader). Ledger: cell escaping (parity) · everything else clean.
