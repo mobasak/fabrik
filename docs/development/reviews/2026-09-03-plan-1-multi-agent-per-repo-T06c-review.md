@@ -1,6 +1,6 @@
 # Acceptance review — T06c (plan set 2026-09-03-plan-1-multi-agent-per-repo)
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED (2026-09-05 — 4 rounds; round 4: pool clean + orchestrator re-read, found: 0, fixed: 0; accepted pending the joint merge under T07a)
 
 **Surface:** the coder's worktree branch diff against the dispatch base (master after T03a's merge) — see the round sections below (one file per ticket, rounds APPENDED).
 
@@ -36,4 +36,15 @@ Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/
 - [M] `:335` "disjoint per unit or they serialize" is wrong — `fanout(mode="write")` REFUSES overlapping `owned_paths` with a ValueError (agent.py:3038-3044), and two findings on one epic file is the common Phase-4 case → FIXUP (1). [M] `:523` the acceptance criterion still names `pick_models("docs"/"spec")` as the dispatch — a stale mirror of the round-2 Phase-4 rewrite and the hand-roll :245 forbids → FIXUP (2).
 - Routed out (intel's beat): `libs/subagents/agent.py:2821` `fanout`'s docstring still claims the ≤$1.5 cap `select.py` removed.
 Round 3 verdict: 3 raised → 2 routed (2 M) + 1 refuted; pool 2/2 CLEAN. Not the no-op round.
+
+## Round 4 — over `6a5c5990..5554d167` (the round-3 fixup 5554d167, 7/5, prescribed verbatim) — the CLOSING round
+Finders: pool deepseek/deepseek-v4-flash + google/gemini-3-flash-preview + qwen/qwen3-max + native: the orchestrator's own re-read of the verbatim-prescribed fixup — round 4.
+### Native layer (orchestrator re-read of bf2859af..5554d167, executed)
+- The diff is exactly the two passages: Phase 4's fan-out now says "one unit per epic file as its `owned_paths` — `fanout` REFUSES with a `ValueError` if two units name the same path, so merge all of one file's findings into ONE unit", grounded on `agent.py:2093`'s raising branch; the acceptance criterion mirrors it (`fanout("docs", …, mode="write")`, one unit per epic file, or a native Opus subagent); `pick_models` and "or they serialize" have 0 hits.
+- Executed in the worktree: `check_traycer_chain.scan` → 0; the retired-name + stale-phrase grep → 0; 4 includes at column 0 and no other `{{`; description 676; `assemble_commands.py --check` → rc 2 with exactly this file's unresolved-PARAMS line and no other error (T07a's declared obligation).
+### Adjudication (pool layer) — a three-deepseek draw again
+- deepseek v4-flash (1) — CLEAN (the five rows; every re-sweep item present).
+- deepseek v3.2-exp — CLEAN (all rows and ledger items; the four includes; the Phase-4 refusal statement; the criterion mirror).
+- deepseek v4-flash (2) — 1 raised, REFUTED: it reads the prose placeholder `--expected-count <N — the epic count in …>` in a fenced command example as a defect against "a `--expected-count <N>` placeholder"; the source is a rule document whose examples carry annotated placeholders by convention (the whole corpus does), and the assembler's `--check` errors only on `{{…}}` tokens.
+Round 4 verdict: found 0, fixed 0 — the no-op round. Class ledger: survival · Step 1.5 order/strings/rc · the bounded PASS + lens C's own intersection · the refusal grade · the frontmatter-graph routes · the acting set + count source · the OR routing · the `## BLOCKED:` slot · lens B · the review-twin sentence · the fan-out's write mode + refusal · the criteria mirror · includes/comments/description/tense · the gates — all swept clean. T07a owns `PARAMS["fabrik-epics-review"]` (the dict in the coder's round-0 report).
 
