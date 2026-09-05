@@ -1,5 +1,5 @@
 ---
-description: Reopen EVERY spec + plan in a project and verify each was actually IMPLEMENTED — inventory → one grounded verifier per spec↔plan pair → five-value verdict → adjudicated ledger. Catches what code review and staleness checks cannot: a CONVERGED-but-stale plan, an implemented-but-INERT surface, a live-SLA broken while code conforms, and spec-refreeze debt. TRIGGER — EN: "was everything we specced actually built", "audit every spec and plan against the code"; TR: "spec'lediklerimiz gerçekten yapıldı mı". SKIP: code defects (→ /fabrik-review, /fabrik-repo-review) · doc/plan STALENESS (→ /fabrik-catchup) · ONE epic vs its decisions-lock (→ /fab-ettw-08-implementation-validation). Stage: gate.
+description: Reopen EVERY spec + plan in a project and verify each was actually IMPLEMENTED — inventory → one grounded verifier per spec↔plan pair → five-value verdict → adjudicated ledger. Catches what code review and staleness checks cannot: a CONVERGED-but-stale plan, an implemented-but-INERT surface, a live-SLA broken while code conforms, and spec-refreeze debt. TRIGGER — EN: "was everything we specced actually built", "audit every spec and plan against the code"; TR: "spec'lediklerimiz gerçekten yapıldı mı". SKIP: code defects (→ /fabrik-review, /fabrik-repo-review) · doc/plan STALENESS (→ /fabrik-catchup). Stage: gate.
 argument-hint: "[spec/plan subset or era to scope — omit for the whole portfolio]"
 ---
 
@@ -7,9 +7,10 @@ argument-hint: "[spec/plan subset or era to scope — omit for the whole portfol
 
 Every other gate asks whether the code is *good*. This one asks whether it is *what we said it
 would be*. Nothing else in the corpus reopens a finished spec and checks it against the live tree:
-`/fabrik-review` reads a diff, `/fabrik-repo-review` reads code, `/fabrik-catchup` measures
-staleness, and `/fab-ettw-08-implementation-validation` validates ONE epic against its own
-decisions-lock. A spec that converged in July and was 60% built is invisible to all of them.
+`/fabrik-review` reads a diff, `/fabrik-repo-review` reads code, and `/fabrik-catchup` measures
+staleness. A spec that converged in July and was 60% built is invisible to all of them. ONE epic
+(the argument names its spec) is this same sweep scoped to that epic's spec↔plan pair, with
+`/fabrik-review` on the diffs it finds wanting — the corpus has no separate per-epic validator.
 
 **Methodology origin:** run by hand in trade-intelligence 2026-08-22 over 28 artifacts (commit
 `e3b779cc`, ledger `docs/development/reviews/2026-08-22-spec-plan-conformance-review.md`): 13

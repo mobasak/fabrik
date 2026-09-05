@@ -376,12 +376,15 @@
       "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T08b-review.md"
     },
     "T14g": {
-      "state": "fixup-round-2",
+      "state": "merged",
       "base": "46f6c2a9",
       "updated": "2026-09-05T21:46:46+00:00",
       "agent": "ac74d3144d9addd5d",
       "branch": "worktree-agent-ac74d3144d9addd5d",
-      "head": "cd8e27e2"
+      "head": "cd8e27e2",
+      "branch_head": "bc22a0ce",
+      "merged_at": "2026-09-06T01:48:07",
+      "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T14g-review.md"
     },
     "T09": {
       "state": "review-round-2",

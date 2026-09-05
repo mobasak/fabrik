@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the command corpus stops routing to the retired ettw chain (2026-09-06)
+- **What:** seven sites in five sources sent a reader to a deleted chain step: `/fabrik-conformance-review` (description + body) routed "one epic vs its decisions-lock" to `/fab-ettw-08-…`; `/fabrik-flows` offered the ettw Core Flows stage as an alternative; `/fabrik-workflow-review` listed ettw artifact types and routed a stale upstream to `09-revise-requirements`; `/fabrik-spec`'s scale up-route named the ettw and mega trigger docs; the corpus checklist's tombstone cite carried the retired path. Each is now a present-tense rule naming the corpus twin (`/fabrik-review` + the per-pair sweep; `/fabrik-vision`; the mega types the Phase-0 table lists with the `mega-review` flywheel label; a stale upstream routed one step up the mega chain); the zero-references gate over `commands/_sources/` + the checklist goes 5 files → 0; rendered box-wide.
+- **Where:** `commands/_sources/fabrik-conformance-review.md`, `fabrik-flows.md`, `fabrik-workflow-review.md`, `fabrik-spec.md`, `docs/reference/command-evaluation-checklist.md` (plan set `2026-09-03-plan-1-multi-agent-per-repo`, ticket T14g).
+
 ### Fixed — the collector's review: 160M tokens the dedup dropped, a UTC day boundary, and a store that could erode (2026-09-06)
 
 `/fabrik-review-scoped` on d81d9db1 (shipped as ce0e70fd). Five defects in the change, one in its

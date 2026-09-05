@@ -6,10 +6,9 @@ argument-hint: "[spec path — omit to use the CONVERGED spec of the CURRENT pro
 Produce (or backfill) this project's **journey contract** — one frozen file, `docs/flows.md`, the **single
 source of truth for who moves through the product and how**: every persona's complete journey (entry →
 actions → feedback → exit), the decision points, the edge/error paths, what the user sees when an external
-call is slow or down, and exactly one `[PRIMARY PATH]` per flow. It is the feature-scale twin of the
-epic-route Core Flows stage (`docs/orchestrator/epic-to-ticket-workflow/02-core-flows-fabrik.md` owns that
-discipline at epic scale; THIS command owns it for the feature-scale pipeline) — and it sits **before the
-data contract on purpose**:
+call is slow or down, and exactly one `[PRIMARY PATH]` per flow. THIS command owns that discipline at
+every scale — an epic's journeys are frozen here too, from the spec `/fabrik-spec <epic file>` produced
+— and it sits **before the data contract on purpose**:
 
 ```
 /fabrik-spec → /fabrik-spec-review (approval) → /fabrik-flows (FREEZE, self-converge)

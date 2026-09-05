@@ -1,11 +1,11 @@
 ---
-description: Force a Traycer-workflow ARTIFACT to converge to a no-op — the shared paired review for the PRODUCER `-fabrik` doers (ettw 00, 02–06, mega 00/02/03; the `type` you pass names the DOER whose ARTIFACT you hand it — Phase-0 table). Give it the artifact path + its type. (Not 01 — dedicated 01R; not 07/09 — dedicated 08/10; not 11 — a human gate.) Fan-outs finders, fixes, loops to a no-op; the doer produces, THIS forces convergence. TRIGGER — EN: "converge this workflow artifact", "review the epic or ticket breakdown"; TR: "bu workflow çıktısını sağlamlaştır", "epic/ticket taslağını incele" — fires on a Traycer ARTIFACT, not source code. SKIP: source code review (→ /fabrik-review, /fabrik-repo-review). Stage: gate.
+description: Force a workflow ARTIFACT to converge to a no-op — the shared paired review for the PRODUCER doers /fabrik-vision and /fabrik-epics (the `type` you pass — `vision-summary` · `epic-decomposition` · `expanded-epic-files` — names the ARTIFACT you hand it; Phase-0 table). Give it the artifact path + its type. (Not the cross-epic validation — that loop is /fabrik-epics-review's own.) Fan-outs finders, fixes, loops to a no-op; the doer produces, THIS forces convergence. TRIGGER — EN: "converge this workflow artifact", "review the epic or ticket breakdown"; TR: "bu workflow çıktısını sağlamlaştır", "epic/ticket taslağını incele" — fires on a workflow ARTIFACT, not source code. SKIP: source code review (→ /fabrik-review, /fabrik-repo-review). Stage: gate.
 argument-hint: "<artifact path> <type — one of the Phase-0 table values>"
 ---
 
-Converge one workflow artifact to a fixed point. This is to the `-fabrik` doer commands what `/fabrik-spec-review` is to `/fabrik-spec`: the separate, fresh-context pass that forces the no-op the doer's own blind-spot-sharing context won't reach. **One lean template, both folders** — the loop is folder-neutral; only the `type` argument selects the yardstick (CC1: "thin files, not ten more heavy ones").
+Converge one workflow artifact to a fixed point. This is to the `-fabrik` doer commands what `/fabrik-spec-review` is to `/fabrik-spec`: the separate, fresh-context pass that forces the no-op the doer's own blind-spot-sharing context won't reach. **One lean template** — the loop is artifact-neutral; only the `type` argument selects the yardstick (CC1: "thin files, not ten more heavy ones").
 
-Reads (open NOTHING else to act): the artifact under review · its upstream INFRA-CHECK / epic ticket / Vision Summary · the doer twin's own `## Acceptance Criteria` · **the checklist its folder owns** (see Phase 0 — reference it **by path, never by an item count**). Everything the artifact cites is provenance — do not open it to review; if the artifact's claim can't be acted on without opening a cited file, that IS a finding (the applicable checklist's **hollow-citation** item).
+Reads (open NOTHING else to act): the artifact under review · its upstream (the Vision Summary for a decomposition or an expanded epic; the research or interview inputs for a vision) · the doer twin's own `## Acceptance Criteria` · **the checklist Phase 0 names** (see Phase 0 — reference it **by path, never by an item count**). Everything the artifact cites is provenance — do not open it to review; if the artifact's claim can't be acted on without opening a cited file, that IS a finding (the applicable checklist's **hollow-citation** item).
 
 {{include:run-record}}
 {{include:term-edit}}
@@ -17,16 +17,15 @@ Args name the **artifact path** + its **type**. If unset, infer from the path an
 
 | Folder | `type` values | Yardstick checklist (by path) |
 |---|---|---|
-| **`epic-to-ticket-workflow/`** (ettw) | `trigger` (the INFRA-CHECK artifact) · `core-flows` · `tech-plan` · `deploy-plan` · `ticket-outline` · `ticket-breakdown` — NOT the decisions lock: `01`'s artifact has its dedicated converger, `01R-decisions-review` | `docs/orchestrator/epic-to-ticket-workflow/EVALUATION_CHECKLIST_FOR_EPIC_COMMANDS.md` |
 | **`mega-epic-breakdown/`** (mega) | `vision-summary` · `epic-decomposition` · `expanded-epic-files` | `docs/orchestrator/mega-epic-breakdown/EVALUATION_CHECKLIST_FOR_MEGA_EPIC_COMMANDS.md` |
 
 Load the matching doer twin's `## Acceptance Criteria` and the checklist items that twin's `[canonical: …]` provenance tags point at — those two ARE the yardstick. ⚠️ **Never hard-code an item count** — read the checklist; counts drift. Record the artifact's `md5sum`.
 
 ## Phase 1 — Finders (recall), pool + native Opus
 
-Dispatch finders in parallel, each owning a different failure class, against the artifact + its acceptance criteria + the yardstick items. **Both layers, per `62-using-subagents.md`:** the **pool breadth** layer via `fanout("review", units, repo=…, project="ettw-review"|"mega-review" (the folder-derived label — it must MATCH Phase 3's back-fill, and omitting it records NOTHING, making that back-fill an orphan-writer), mode="read_only")` **AND ≥1 native `fabrik-reviewer` on Opus** (the authoritative pass — the pool never runs Opus). Cover, across finders, the classes THIS artifact can fail — locate each by NAME in the applicable checklist (the numbers differ per folder):
+Dispatch finders in parallel, each owning a different failure class, against the artifact + its acceptance criteria + the yardstick items. **Both layers, per `62-using-subagents.md`:** the **pool breadth** layer via `fanout("review", units, repo=…, project="mega-review" (the label the mega chain's twins share — it must MATCH Phase 3's back-fill, and omitting it records NOTHING, making that back-fill an orphan-writer), mode="read_only")` **AND ≥1 native `fabrik-reviewer` on Opus** (the authoritative pass — the pool never runs Opus). Cover, across finders, the classes THIS artifact can fail — locate each by NAME in the checklist (item numbers drift):
 
-- **Field completeness / propagation** — every field the acceptance criteria require is present, valued, and consistent with the upstream INFRA-CHECK (Path A vs Path B; nothing silently dropped).
+- **Field completeness / propagation** — every field the acceptance criteria require is present, valued, and consistent with the upstream artifact (Path A vs Path B; nothing silently dropped).
 - **Trigger-vs-value** (the *feature-vs-scaffold / N-A-contradicts-its-trigger* item) — an `N/A` whose reason contradicts its trigger (e.g. `Responsive: N/A` on `shape.is_public: true` + HTML) is a violation, not a pass.
 - **Flavor branch** (the *"Retrofit-epic special-case missing"* item) — Success-Criteria count, deploy-vs-gate criterion, closure applied correctly for the epic's flavour.
 - **Hollow citation** (the *hollow-citation* item) — any claim the reader can't act on without opening a cited file → the artifact must inline the decision or tag `[canonical: …]`.
@@ -44,11 +43,13 @@ Dedup; for each candidate try to REFUTE from the real source (quote the line/anc
 
 Fix every survivor in the artifact (route the fix to the artifact, not the doer command). **One
 disposition fork the seams class needs stated: when a cross-artifact finding shows the ARTIFACT right
-and the upstream DECISIONS LOCK stale, the fix routes to `09-revise-requirements-fabrik` for ettw
-types (mega types have no 09 — report-only to the operator; and routing is not convergence: the
-lock's converger remains `01R`) (the lock's
-propagation owner) — this loop never edits the lock, and "fix the artifact into agreeing with a stale
-lock" is the wrong direction.** Re-run the yardstick. Back-fill the flywheel with the folder-derived project label: `set_quality(r.agent_id, 0–5, project="ettw-review"` *(ettw types)* `| "mega-review"` *(mega types)*`, task_type="review", model=r.model)`. Then run the next full pass.
+and its UPSTREAM stale, the fix routes one step up — re-run THIS review on the upstream artifact
+(`/fabrik-workflow-review <vision path> vision-summary` for a stale Vision Summary behind a
+decomposition or an expanded epic; `… epic-decomposition` for a stale cut behind an expanded epic),
+or the upstream's own doer when it must change (`/fabrik-vision` for the vision, `/fabrik-epics` for
+the cut) — and the downstream then re-derives from the changed upstream; routing is not
+convergence. This loop never edits the upstream, and "fix the artifact into agreeing with a stale
+upstream" is the wrong direction.** Re-run the yardstick. Back-fill the flywheel with the same label: `set_quality(r.agent_id, 0–5, project="mega-review", task_type="review", model=r.model)`. Then run the next full pass.
 
 ## Phase 4 — Gate + converge
 
@@ -58,6 +59,6 @@ lock" is the wrong direction.** Re-run the yardstick. Back-fill the flywheel wit
 
 The loop is **autonomous for every type this skill serves**: converge and return control to the orchestrator so the next stage runs without a human stop.
 
-⚠️ This skill does **not** own either human gate, and neither gate is a `type` here `[canonical: north star § Human gates — R14: "Exactly two gates: plan approval in, deploy approval out"]`. **Plan-in** is the operator's approval of the spec/plan **upstream at the front door** — `/fabrik-spec-review` is the command that stops for it `[canonical: north star R25 — "/fabrik-spec-review stops for operator approval; /fabrik-plan-review runs to no-op autonomously"]`; by the time an ettw/mega artifact reaches this review, that gate has already passed. **Deploy-out** is Gate 2 at `11-deploy` — the operator's explicit go, with the deploy triad (`fabrik apply` underneath, never typed by hand) running after it. ⚠️ Note `10-cross-artifact-validation` runs AT the plan→execute *boundary* (CC5) but is **autonomous** — a boundary is not a gate. Likewise the doers whose paired review is a dedicated command are NOT types here: `07`→`08`, `09`→`10`, and `11` has no paired review (a grounding+consistency pass instead). This skill is the shared review for the **producer** doers only — ettw `00` and `02`–`06` (never `01`, whose decisions lock belongs to `01R`) and mega `00`/`02`/`03`.
+⚠️ This skill does **not** own either human gate, and neither gate is a `type` here `[canonical: north star § Human gates — R14: "Exactly two gates: plan approval in, deploy approval out"]`. **Plan-in** is the operator's approval of the spec/plan **upstream at the front door** — `/fabrik-spec-review` is the command that stops for it `[canonical: north star R25 — "/fabrik-spec-review stops for operator approval; /fabrik-plan-review runs to no-op autonomously"]`; by the time a mega artifact reaches this review, that gate has already passed. **Deploy-out** is Gate 2 before `/fabrik-deploy` — the operator's explicit go, with the deploy triad (`fabrik apply` underneath, never typed by hand) running after it. Likewise the doer whose paired review is a dedicated command is NOT a type here: the cross-epic validation of `/fabrik-epics`' output belongs to `/fabrik-epics-review`, which self-converges. This skill is the shared review for the **producer** doers only — `/fabrik-vision` (`vision-summary`) and `/fabrik-epics` (`epic-decomposition` · `expanded-epic-files`).
 
 Never leave a non-no-op ledger row for the operator to re-invoke. Converge here.
