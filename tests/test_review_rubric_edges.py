@@ -89,6 +89,13 @@ def test_promote_section_emitted_when_greppable_mandates_exist(tmp_path):
     assert "frobnicated" in out  # matched pack IS in the rubric
     # The promote header should mention the count (3 unique mandates from the floor)
     assert "3 injected mandate" in out
+    # The TAIL lists each mandate's backtick literals only — never the full mandate text again
+    # (re-emitting ~20 FLOOR lines verbatim doubled the rubric; wef 01M1QEY5, 2026-09-05).
+    tail = out.split("# promote-to-check_*:", 1)[1].splitlines()[1:]
+    tail = [line for line in tail if line.strip()]
+    assert tail, "promote tail should list the literals"
+    assert all(line.startswith("- `") for line in tail), tail
+    assert not any(rr._MANDATE.search(line) for line in tail), tail
 
 
 def test_promote_section_absent_when_no_greppable_mandates(tmp_path):
@@ -382,3 +389,40 @@ def test_longer_fence_nests_literal_shorter_fence(tmp_path):
     assert "Legacy MUST hide" not in out
     assert "Real MUST show" in out
     assert "MALFORMED PACK" not in out
+
+
+# ── Wrapped-bullet joining (wef 01M1QEY5: a mandate cut before its condition) ─────────────────
+def _lines(body: str):
+    return _load()._mandate_lines(body)
+
+
+def test_wrapped_bullet_is_joined_to_its_continuation():
+    assert _lines(
+        "- Use `Settings` — never raw `os.getenv` **for an\n  application setting**.\n"
+    ) == ["- Use `Settings` — never raw `os.getenv` **for an application setting**."]
+
+
+def test_heading_fence_and_numbered_item_end_a_bullet():
+    """Text after a heading, after a fenced example, or a `1.` item is NEW content — folding it
+    into the previous bullet fabricates a mandate that no pack line says."""
+    assert _lines("- MUST do X\n## Next\nplain text\n") == ["- MUST do X"]
+    assert _lines("- MUST do X\n```\ncode\n```\ntrailing text\n") == ["- MUST do X"]
+    assert _lines("- MUST do X\n1. then a numbered step\n") == ["- MUST do X"]
+
+
+def test_join_cap_marks_instead_of_silently_cutting():
+    rr = _load()
+    body = "- MUST do X\n" + "".join(f"more {i}\n" for i in range(rr._JOIN_CAP + 3))
+    (line,) = _lines(body)
+    assert line.endswith(rr._JOIN_MARK)
+    assert f"more {rr._JOIN_CAP - 1}" in line and f"more {rr._JOIN_CAP}" not in line
+
+
+def test_promote_tail_never_cuts_a_literal():
+    rr = _load()
+    line = "- MUST use " + " ".join(f"`literal-{i}-{'x' * 50}`" for i in range(5))
+    out = rr._literals(line)
+    assert len(out) <= rr._LITERALS_CAP
+    for lit in out.split(" "):
+        assert lit.startswith("`") and lit.endswith("`"), lit
+    assert out.count("`") % 2 == 0

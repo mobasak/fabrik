@@ -1,6 +1,6 @@
 # Review — mail-queue two follow-ups: the deep_research un-fork, the sentinel clause, the grader fix (2026-09-05)
 
-**Status:** CONVERGED (2026-09-05 — 2 passes, 4 fixed / 10 refuted, closing round 0/0/0 with two independent readers returned)
+**Status:** CONVERGED (2026-09-05 — 4 passes, 11 fixed / 10 refuted, closing round 0/0/0 with three independent readers returned; re-opened once for a late reader)
 
 **Surface:** commits 83b841ab, 7ab1ab45, 4ddcb6ad on master (this session's), plus the 17-line CHANGELOG entry that rode into fleet's 5ab9550d through the working-tree pathspec class. Siblings' interleaved commits (5ab9550d otherwise, 7aa4d7a4, b38bc674, 0af2ece9, d78e57c8) are out of scope. Operator directive this turn: every mail-handling change gets the FULL review; these three had scoped passes only.
 
@@ -187,7 +187,7 @@ two closing readers (pass 2). Verdicts: CLEAN · FIXED (closed in this review's 
 | standing: fail-open/fail-closed | FIXED | the regex None path was fail-SILENT-into-AttributeError; now a clear failed assertion |
 | standing: cost/quota accounting | CLEAN | 4 pool units this review, all recorded to the flywheel; one native reader in the prior scoped run |
 | standing: boundary/sentinel/prefix | REFUTED | "the test depends on `/opt/fabrik`" — the synced driver hard-codes `HUB_LIBS = Path("/opt/fabrik/libs")` in all 48 fleet copies; the hub's location is the contract, and the grader fails loudly, not silently, elsewhere |
-| standing: behavior-without-a-test | CLEAN | every behaviour in the three commits has its grader (un-fork ×2, HUB_LIBS regex, N803 now by exclusion — `ruff check .` = 0) |
+| standing: behavior-without-a-test | FIXED | Pass 3: the rubric join's five graders were dirty, never committed — committed; every other behaviour has its grader (un-fork ×2, HUB_LIBS regex, N803 now by exclusion — `ruff check .` = 0) |
 | ledger: unfork-callers | CLEAN | importers of `deep_research` hub-wide: 1 (`scripts/rivals_run.py`, after `_resolve_engine`); callers of the forked `libs.` form: 0 outside a stale `.tmp/` scratch copy |
 | ledger: grader-machine-dependence | FIXED | (4ddcb6ad) ROOT → the driver's constant; the tmp fixture's `libs/` is a namespace package like youtube's (no `__init__.py` there either) |
 | ledger: regex-none-path | FIXED | explicit assertion |
@@ -195,7 +195,7 @@ two closing readers (pass 2). Verdicts: CLEAN · FIXED (closed in this review's 
 | ledger: ledger-rows | REFUTED | D-130 supersedes D-127's pin and mechanism; CLASS reversible with the reason; the 71/75 counts are per-pin facts |
 | ledger: governance-text | REFUTED | `TIMEOUTS["pytest"]` IS 900 (final_gate.py:141); the hub clause names the hub as the exception in the same sentence; the reciprocal-duty sentence sits INSIDE § Upstream feedback where the subject lives — one source |
 | ledger: ruff-config | FIXED | a per-file N803 ignore was a SECOND mechanism for vendored code: the repo's convention is `[tool.ruff] extend-exclude` (the hub's `libs/deep_research` is already there); the template now joins it and the table is gone; `ruff check .` = 0 (an explicit-path `ruff check <file>` still reports 3 — exclusion applies to discovery, which is what the ratchet runs) |
-| ledger: changelog-index | CLEAN | the entry is intact atop `[Unreleased]` in HEAD (rode into 5ab9550d, attributed by mail); the three INDEX rows describe the tests as they are |
+| ledger: changelog-index | FIXED | the entry is intact atop `[Unreleased]` in HEAD (rode into 5ab9550d, attributed by mail); the three INDEX rows describe the tests as they are |
 | ledger: backlog-rows | FIXED | the partial-vendor row now carries its measurement: 2 of 48 `/opt/*/libs` (iterative_image_editor — forked form, informed 01M1RA0Y6JJ3ZFE81F5WHZ4JV0; web-ecommerce-factory — canonical) |
 | ledger: vendor-lint-convention | FIXED | see ruff-config |
 | ledger: partial-vendor-measured | FIXED | see backlog-rows |
@@ -207,7 +207,10 @@ two closing readers (pass 2). Verdicts: CLEAN · FIXED (closed in this review's 
 | Pass 1 | two pool finders (deepseek-v4-flash code partition, gemini-3-flash-preview docs partition — both RETURNED) + my execution pass: TIMEOUTS read, ruff 0.14.10 + config read, 48 driver copies grepped, importers counted, partial vendors measured across 48 libs dirs, brace count re-derived at three pins | method: re-derivation | 12 | 4 | 4 |
 | Pass 2 | the closing pass over the FINAL diff (tail fixes included): a native author-blind CODE reader RETURNED `CLEAN` with executed proofs (red on the old bytes; 3 of 3 files byte-identical to canonical; `ruff check .` honours the exclusion, no hub gate passes the path explicitly, mypy already excludes templates/); the pool DOCS reader RETURNED 2 candidates, both an artefact of the partition (it saw only the CHANGELOG hunk of 5ab9550d and reported fleet's T03 test "missing" — 5ab9550d carries it, 145 lines); the first closing batch's second unit hung in `alive_waiting` and was killed + re-dispatched; my fresh re-read of the tail: nothing | **method: re-derivation** | 2 | 0 | 0 |
 
-Totals: 14 candidates, 4 FIXED (all in the tail commit), 10 REFUTED with the disproving line or measurement, 0 open. Pool: 4 dispatches, 3 returned, 1 hung and was replaced by a native reader — the fourth deepseek-v4-flash hang today, added to intel's thread.
+| Pass 3 | RE-OPENED: the native DOCS reader returned AFTER the close with 7 findings, 7 confirmed by re-derivation and FIXED — the five rubric graders in tests/test_review_rubric_edges.py were NEVER COMMITTED (outside af986ad3's path list; 44 lines dirty in the tree — committed here), T01's `_reduce_metadata`/`server_name` cites were 060c096 numbers (:396/:598/:709 at 7b83573), the spine's "(59 tests)" and T03's 69,210 B matched no revision (75 / 91,359 B at the pin), the sentinel example cited wef's D-102 after their D-111 armed the sentinel at 431s, the spine's commit list and docstring sentence lagged | **method: re-derivation** | 7 | 7 | 7 |
+| Pass 4 | fresh re-sweep after the Pass 3 fixes: rubric suite 24 passed, check_plan_tickets green, every corrected number re-read from its source | **method: re-derivation** | 0 | 0 | 0 |
+
+Totals: 21 candidates, 11 FIXED (all in the tail commit), 10 REFUTED with the disproving line or measurement, 0 open. Pass 3's lesson: a review's 'graders in place' claim is checked against `git show --stat`, never against the tree. Pool: 4 dispatches, 3 returned, 1 hung and was replaced by a native reader — the fourth deepseek-v4-flash hang today, added to intel's thread.
 
 ## Phase 1 — Scope + arm
 
