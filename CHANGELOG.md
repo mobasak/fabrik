@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Phase 0 of session-history retention: measure before capping (2026-09-06)
+
+`scripts/sysadmin/sample_transcript_growth.sh` records one TSV row per day — date, MAIN bytes, file
+count, and the LARGEST single transcript — feeding the only input from which the retention cap will
+be derived. Plan `2026-09-06-plan-1-session-history-retention` (CONVERGED, D-144), Phase 0.
+
+The cap is not invented today on purpose: MAIN was 0.61 GB across all of August and 4.89 GB in five
+days of September, the difference between a ~2 GB and a ~90 GB window. Four confident claims in this
+work have already been refuted by reading code, so this one gets measured for 14 days first.
+
+The largest-file column is not decoration — the aggregate bound is structurally blind to a runaway
+session. Measured today: the biggest single transcript is **733,603,901 bytes**, and 50% of all
+transcript bytes live in the top 14 files, so a 10 GB session would sit under a 90 GB aggregate while
+filling the disk alone. That is why the plan's cap is two bounds.
+
+Idempotent by date, so a cron retry or an @reboot catch-up cannot double-count a day into the series.
+Reads only; deletes nothing.
+
+Four graders, each proven by mutation. Three were straightforward — dropping the
+`! -path '*/subagents/*'` predicate or the idempotence guard turns three tests red. The fourth was
+NOT: `test_missing_projects_dir_fails_loudly` passed against a sampler mutated to record a false
+zero, because it pointed at `/nonexistent-projects-dir` where the mutant failed on PERMISSIONS
+instead. The test was vacuous and mutation caught it; it now uses a path under a writable parent,
+and only a COMPOUND mutant (guard removed AND the empty-input `read` made tolerant) can defeat the
+behaviour — which is when the test finally goes red. The behaviour turned out to be defended three
+ways, which is why one mutation was not enough to prove anything.
+
+⚠️ The cron line is NOT installed by this change. Per the 2026-08-19 crontab-wipe lesson, crontab
+writes are handed to the operator rather than performed:
+`5 4 * * * /opt/fabrik/scripts/sysadmin/sample_transcript_growth.sh >> $HOME/.claude/state/transcript-growth.log 2>&1`
+
 ### Added — the sync emits the worktree artifacts into every project (2026-09-06)
 - **What:** `scripts/sync_enforcement_to_projects.py` (fleet-synced) seeds `rerere.enabled` + `push.autoSetupRemote` per project, re-copies the `.worktreeinclude` set into every linked worktree on a hash-vs-ledger decision (never mtime), keeps a per-worktree ledger `.fabrik/worktree-synced.lock` (atomic, an age-guarded reap of its orphaned tempfiles, dry-run parity) that alone authorises a prune, backs pruned files up outside the worktree, and seeds each repo's shared `info/exclude` with a five-pattern floor (`.env`, `.mcp.json`, the ledger, the copied `synced.lock`, `.fabrik/.ledger-tmp-*`) with dated upgrade addenda for already-seeded repos; the tally folds into `Results:` under both modes. `.claude/settings.json` gains the `worktree` block (additive, graded). `tests/test_sync_worktree_adoption.py` (new): 91 passed. The operating-model doc's T01b surfaces now read "on master".
 - **Where:** `scripts/sync_enforcement_to_projects.py`, `scripts/fabrik_synced_manifest.py`, `.claude/settings.json`, `docs/workflows/SYNC_ENFORCEMENT_WORKFLOW.md`, `tests/test_sync_worktree_adoption.py`, `docs/reference/multi-agent-operating-model.md` (plan set `2026-09-03-plan-1-multi-agent-per-repo`, ticket T01b).
