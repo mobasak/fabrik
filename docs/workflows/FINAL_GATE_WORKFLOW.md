@@ -202,7 +202,7 @@ trading-intelligence 2026-07-24). A repo whose CI doesn't run pytest is skipped 
 fabrik's own ~2,500-test suite takes ~3h — never run it inside a completion gate). Graceful skips:
 no `tests/` dir, pytest not installed, no src/tests/scripts changes, or exit 5 (nothing collected).
 
-**Phase 3: Repo Consistency** — inherits all **18** Tier-1 checks above (16 in the `tier in (1, 2)` block; TWO run unconditionally outside it: `check_convergence.py` AND `check_review_coverage.py` — the earlier "17/37" arithmetic silently dropped the second, a drift caught by the plan-2 closing review), **plus 16 Tier-2-only checks** (the `if tier == 2:` block — incl. the 3 docs-truth durability gates: Doc Link Integrity, INDEX↔tree drift, Retired-Tech Tripwire [ADVISORY row] — plus the Plan-Set Contract, Hooks Index Fresh, Sync Trigger Coverage, and Phase Tests [ADVISORY row, plan-window]), **plus the Kilo CLI Health Check** (shared with Tier 3, `tier >= 2`) — **35 checks total**. (Re-measured 2026-08-16 after the registration audit unwired four Tier-2 checks that could not fail — `check_env_updates`, `check_test_coverage`, `check_compose_services`, `check_reusable_modules`; the previous "19 / 38" had also drifted one low against `run_consistency_checks(tier=2)`'s real 39.) (Counts verified by INSTRUMENTED EXECUTION — stubbing `run_optional_check`/`run_cmd` and counting `run_consistency_checks(tier=…)`'s actual results list: tier 1 → 18, tier 2 → 38 — never by eyeballing the call sites; the line-number ranges that used to be cited here are deliberately dropped — they drifted on every insertion and a wrong `path:line` is worse than none.)
+**Phase 3: Repo Consistency** — inherits all **18** Tier-1 checks above (16 in the `tier in (1, 2)` block; TWO run unconditionally outside it: `check_convergence.py` AND `check_review_coverage.py` — the earlier "17/37" arithmetic silently dropped the second, a drift caught by the plan-2 closing review), **plus 16 Tier-2-only checks** (the `if tier == 2:` block — incl. the 3 docs-truth durability gates: Doc Link Integrity, INDEX↔tree drift, Retired-Tech Tripwire [ADVISORY row] — plus the Plan-Set Contract, Hooks Index Fresh, Sync Trigger Coverage, and Phase Tests [ADVISORY row, plan-window]; 17 where `scripts/epic_order.py` exists — the hub-conditional `epic_order --check` row below), **plus the Kilo CLI Health Check** (shared with Tier 3, `tier >= 2`) — **35 checks total** (36 where `scripts/epic_order.py` exists). (Re-measured 2026-08-16 after the registration audit unwired four Tier-2 checks that could not fail — `check_env_updates`, `check_test_coverage`, `check_compose_services`, `check_reusable_modules`; the previous "19 / 38" had also drifted one low against `run_consistency_checks(tier=2)`'s real 39.) (Counts verified by INSTRUMENTED EXECUTION — stubbing `run_optional_check`/`run_cmd` and counting `run_consistency_checks(tier=…)`'s actual results list: tier 1 → 18, tier 2 → 38 — never by eyeballing the call sites; the line-number ranges that used to be cited here are deliberately dropped — they drifted on every insertion and a wrong `path:line` is worse than none.)
 
 **The Tier-2-only checks:**
 - **Phase Tests (plan-window)** - `check_phase_tests.py` *(ADVISORY row)*
@@ -234,6 +234,10 @@ no `tests/` dir, pytest not installed, no src/tests/scripts changes, or exit 5 (
 - **User Guide Presence** - `check_user_guide.py`
   - Verifies `docs/user-guide/` exists with `.md` files when `project.yaml` has `has_user_guide: true`
   - Skips silently when `has_user_guide` is false or absent
+- **epic_order --check** - `scripts/epic_order.py --check` *(hub-conditional row; `_epic_order_row()`)*
+  - The epic-graph integrity proof over `docs/development/epics/*.md` frontmatter (numbering, `Epic N — …` title shape, parallel `owned_paths` disjointness, single migration owner — `EPIC-ARTIFACT-SCHEMA.md`); one finding reds the row, blocking
+  - Row exists ONLY where `scripts/epic_order.py` exists — it is a hub tool in no synced manifest, so a project sees no row at all (never a failure pointing at a missing script)
+  - Script present but no `docs/development/epics/` → the row is named `epic_order --check (N/A — no docs/development/epics/)`: green by contract, but the ⚠ text lands in `--json` `warnings` and the name is listed under `skipped_checks` — the same labelled-skip shape as `bandit (NOT INSTALLED — skipped)`, never a silent pass
 
 **Kilo CLI Health Check** - `check_kilo_health.sh` — runs at `tier >= 2`, i.e. Tier 2 **and** Tier 3, not Tier-2-only.
 
@@ -406,7 +410,7 @@ python -m sqlfluff lint --dialect postgres *.sql
 
 ### Enforcement Scripts
 
-All repo consistency checks are implemented by scripts in `scripts/enforcement/`. Each script validates specific Fabrik conventions. This list is reconciled against the actual `run_static_checks`/`run_consistency_checks` call sites in `scripts/final_gate.py` (2026-07-20):
+All repo consistency checks are implemented by scripts in `scripts/enforcement/`, with one exception: the hub-conditional `scripts/epic_order.py --check` row. Each script validates specific Fabrik conventions. This list is reconciled against the actual `run_static_checks`/`run_consistency_checks` call sites in `scripts/final_gate.py` (2026-07-20):
 
 **Gate-wired (invoked by `final_gate.py`):**
 - `check_convergence.py` — Convergence-evidence gate for changed plans/reviews (every tier)
@@ -439,6 +443,7 @@ All repo consistency checks are implemented by scripts in `scripts/enforcement/`
 - `check_undeclared_imports.py` — Undeclared-import guard vs requirements.txt
 - `check_synced_unmodified.py` — Fabrik-synced files match `/opt/fabrik` canonical bytes
 - `check_user_guide.py` — User-guide presence when `project.yaml::has_user_guide` is true
+- `scripts/epic_order.py --check` — Epic-graph integrity over `docs/development/epics/` (Tier 2; hub-conditional: no row without the script, a labelled `(N/A — …)` skip without the dir)
 - `check_doc_sprawl.py` — Documentation sprawl/duplication detection (HEAD-or-rename existing-file test)
 - `check_doc_links.py` — Live-tree link integrity (docs-truth durability gate)
 - `check_doc_index.py` — INDEX.md ↔ docs tree bidirectional drift

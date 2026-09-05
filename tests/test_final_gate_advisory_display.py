@@ -253,6 +253,7 @@ def test_every_green_not_run_row_the_gate_emits_is_summarized():
     of re-deriving it — a new skip row that lands in neither WARN_ONLY_CHECKS nor this set would
     pass, and that gap is named here rather than pretended away."""
     produced = set(fg.WARN_ONLY_CHECKS) | {
+        fg.EPIC_ORDER_NA,  # T05b: the hub-conditional epic_order row's labelled skip
         "bandit (NOT INSTALLED — skipped)",
         "sqlfluff (NOT INSTALLED — skipped)",
         "vulture (NOT INSTALLED — skipped)",

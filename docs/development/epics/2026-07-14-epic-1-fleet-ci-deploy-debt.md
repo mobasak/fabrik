@@ -1,3 +1,17 @@
+---
+kind: story
+title: "Epic 3 — Fleet CI + Deploy Debt"
+status: 0
+epic_n: 3
+slug: fleet-ci-deploy-debt
+depends_on: []
+parallel_with: []
+owned_paths: []
+owner: ""
+scaffold: none
+port: 0
+target_vps: vps1
+---
 # Epic — Fleet CI + deploy debt (phantom imports & lint) + project-type / deployability audit
 
 **Status:** OPEN · **Opened:** 2026-07-14 · **Owner:** hub (fabrik), execution delegated per-repo

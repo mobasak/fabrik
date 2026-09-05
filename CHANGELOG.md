@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `epic_order --check` as a hub-conditional Tier-2 gate row; the legacy fleet-CI epic brought to schema (2026-09-05)
+
+T05b of plan `2026-09-03-plan-1-multi-agent-per-repo` (audit R7). `scripts/final_gate.py` runs
+`scripts/epic_order.py --check` at Tier 2 through `_epic_order_row()`: no row where the script is absent
+(it is in no synced manifest list — every project), a labelled `(N/A — no docs/development/epics/)` green
+skip listed under `skipped_checks` (a new ` (N/A` marker in `_SKIP_MARKERS`) where the dir is absent,
+blocking otherwise; never at `--lean` or `--systemic`. The 2026-07-14 fleet-CI epic gained schema
+frontmatter (`epic_n: 3`, `owned_paths: []`, `owner: ""`; body untouched) so the hub's own dir passes.
+Graders: `tests/enforcement/test_final_gate_epic_order.py` (17 tests, all seen red first; the
+tier pin mutant-proven); the skip-row pin in `tests/test_final_gate_advisory_display.py` now names the row.
+
 ### Fixed — the fleet GlitchTip default has a residual, and the comment beside it said "closed" (2026-09-05)
 
 Review of the re-vendor found the defect in my own prose, not in the vendored code.

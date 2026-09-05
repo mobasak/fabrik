@@ -107,7 +107,7 @@ MUST-READ set = FLOOR (`core/35-security-auth`, `core/25-data-postgres`, `core/3
 | T04a | epic-file intake for /fabrik-spec | — | ⚡ | ✅ | branch head 899c7092; merged 2026-09-05 |
 | T04b | owned_paths into the plan's locks (the locks STAY in-repo, per spec r11) | — | ⚡ | ✅ | branch head eae893fe; merged 2026-09-05 |
 | T05a | epic containment in check_plan_tickets (both levels) | T04b | ⛓️ | ⬜ | |
-| T05b | epic_order --check as an optional Tier-2 gate check | T03a | ⛓️ | 🔵 | |
+| T05b | epic_order --check as an optional Tier-2 gate check | T03a | ⛓️ | ✅ | branch head 3836b8e7; merged 2026-09-05 |
 | T06a | /fabrik-vision — mega 00 moved into a corpus source, with the rivals pre-step | — | ⚡ | ⬜ | |
 | T06b | /fabrik-epics — mega 02 + 03 moved into one corpus source; epics in a phase run concurrently | — | ⚡ | ⬜ | |
 | T06c | /fabrik-epics-review — mega 04 moved into a corpus source; Step 1.5 runs --check → --assign → --check | T03a | ⛓️ | 🔵 | |

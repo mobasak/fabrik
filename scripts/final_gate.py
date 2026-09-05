@@ -325,6 +325,7 @@ _SKIP_MARKERS: tuple[str, ...] = (
     " (NOT RUN",  # pytest never executed (WARN_ONLY_CHECKS)
     " (NO TESTS COLLECTED",  # pytest ran and collected nothing
     " (diff-sensed skip",  # the whole static tier skipped: only .md files changed
+    " (N/A",  # an optional INPUT the check reads is absent (epic_order: no docs/development/epics/)
 )
 
 
@@ -1107,6 +1108,40 @@ def run_static_checks(
     return results
 
 
+# `epic_order --check` — the epic-graph integrity proof over docs/development/epics/ frontmatter
+# (numbering, title shape, parallel disjointness, single migration owner) as a Tier-2 row. Plan
+# 2026-09-03-plan-1-multi-agent-per-repo T05b, audit R7: the proof existed, no gate ever ran it.
+EPIC_ORDER_CHECK = "epic_order --check"
+EPIC_ORDER_NA = f"{EPIC_ORDER_CHECK} (N/A — no docs/development/epics/)"
+
+
+def _epic_order_row() -> tuple[str, bool, str] | None:
+    """The `epic_order --check` row, or None where the row must not exist at all.
+
+    Two guards, in this order. (1) `scripts/epic_order.py` is a HUB tool — in no synced
+    manifest, absent from every project — while this file is fleet-synced: an unconditional
+    registration would ship ~46 rows pointing at a missing script. No script → no row (not even
+    a "check not present" warning: nothing is missing in a project that never runs the
+    mega-epic chain). (2) The directory the check reads is optional: absent → a LABELLED green
+    skip in the shipped `bandit (NOT INSTALLED — skipped)` shape — True, but the NAME says it
+    did not run, the ⚠ text reaches --json `warnings`, and `_SKIP_MARKERS` lists it under
+    `skipped_checks`. No third result state, never a silent pass. One integrity finding reds it.
+    """
+    script = PROJECT_ROOT / "scripts" / "epic_order.py"
+    if not script.exists():
+        return None
+    _CHECK_SCRIPTS[EPIC_ORDER_CHECK] = "scripts/epic_order.py"  # names the rerun on truncation
+    if not (PROJECT_ROOT / "docs" / "development" / "epics").is_dir():
+        return (
+            EPIC_ORDER_NA,
+            True,
+            "⚠ epic_order --check N/A — no docs/development/epics/ in this repo; skipped, "
+            "not passed (nothing to prove until the mega-epic chain writes epics).",
+        )
+    code, out = run_cmd([PYTHON, str(script), "--check"])
+    return (EPIC_ORDER_CHECK, code == 0, out if code != 0 else "")
+
+
 def run_consistency_checks(
     tier: int = 2, changed_files: set[str] | None = None, check_only: bool = False
 ) -> list[tuple[str, bool, str]]:
@@ -1710,6 +1745,12 @@ def run_consistency_checks(
                 warn_only=True,
             )
         )
+        # Epic-graph integrity — hub-conditional on BOTH the script and the epics dir; the
+        # helper documents the two guards and the labelled-skip shape. Tier-2-ONLY: --lean's
+        # count must not move (the Phase Tests regression class).
+        epic_row = _epic_order_row()
+        if epic_row is not None:
+            results.append(epic_row)
 
     # ── Tier 3: Full repo health (systemic-only) ──
     if tier == 3:

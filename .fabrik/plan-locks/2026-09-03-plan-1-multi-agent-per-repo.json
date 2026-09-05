@@ -208,12 +208,15 @@
       "head": "291f79fc"
     },
     "T05b": {
-      "state": "review-round-2",
+      "state": "merged",
       "agent": "a12d480b915acc0ef",
       "branch": "worktree-agent-a12d480b915acc0ef",
       "updated": "2026-09-05T15:51:10+00:00",
       "base": "28de4900",
-      "head": "3836b8e7"
+      "head": "3836b8e7",
+      "branch_head": "3836b8e7",
+      "merged_at": "2026-09-05T18:55:50",
+      "review": "docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-T05b-review.md"
     },
     "T06c": {
       "state": "fixup-round-1",
