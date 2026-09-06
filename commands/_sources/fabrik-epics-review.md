@@ -516,7 +516,8 @@ A route-back instead hands to `/fabrik-epics` or `/fabrik-vision` and re-enters 
 - Ticket-set integrity gated in code (`epic_order.py --check --expected-count`) BEFORE any assignment, and
   `--assign <names>` never invoked over a failing set.
 - Every epic carries exactly one `owner` ∈ the operator's set, proven by `--check --owners <names>`
-  BEFORE any lens ran; the set's order (agent-1 first) recorded in the report.
+  BEFORE any lens ran; the set's order (agent-1 first) recorded in the report, and the merge-owner
+  ledger row present or minted (`decisions.py --merge-owner .` ≠ `UNDECLARED`).
 - Review dispatched through `libs/subagents` — **pool `fanout("review")` recording the flywheel AND ≥1
   native `fabrik-reviewer` on Opus** — across every report lens, with the orchestrator refuting / merging
   / deciding.

@@ -346,7 +346,9 @@ conflict with Fabrik's actual infrastructure or constraints.
 `specs/services/*.yaml` (deployed services, shape blocks, registrars) · `compose.yaml` / `Dockerfile`
 (infrastructure, base images, services) · `.env.example` (environment variables, external service
 dependencies) · `src/` or `app/` (codebase structure, modules, API routes) · database schema (migrations
-or models) · `docs/` (existing architecture docs, preplans, FINANCIALS.md) · `.windsurf/rules/` (synced —
+or models) · `docs/` (existing architecture docs, preplans, FINANCIALS.md — incl.
+`docs/development/PLANS.md` open rows + the `<!-- Merge owner: … -->` header, and
+`docs/STRATEGIC_BACKLOG.md`) · `.windsurf/rules/` (synced —
 check if the project follows them; index below).
 
 **⚠ Project files may be pre-rules, missing, or stale.** Existing projects predate current Fabrik
@@ -643,7 +645,9 @@ folder path:
   `fabrik apply`.
 - `templates/<scaffold-type>/` (in this repo) → the canonical scaffold tree the project was generated
   from. Compare against actual layout to detect drift.
-- `compose.yaml` / `Dockerfile`, `.env.example`, `src/`/`app/`, database schema, `docs/`.
+- `compose.yaml` / `Dockerfile`, `.env.example`, `src/`/`app/`, database schema, `docs/` (incl.
+  `docs/development/PLANS.md` open rows + the `<!-- Merge owner: … -->` header, and
+  `docs/STRATEGIC_BACKLOG.md`).
 - `.windsurf/rules/` — synced from this repo. **Local edits to any Fabrik-synced file are a Tier-1
   violation** — gate-enforced by `scripts/enforcement/check_synced_unmodified.py`. The full synced set is
   defined by `scripts/fabrik_synced_manifest.py`. Any drift is a Compliance gap: fix by reverting the

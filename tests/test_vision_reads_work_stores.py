@@ -7,7 +7,16 @@ One test per Behavior-Contract row in
 `docs/STRATEGIC_BACKLOG.md`, and its epic-seed paragraph names `owner:` inheritance from a `[name]` tag;
 (2) the epics-review source's Step 1.5 names `decisions.py --merge-owner` and the `MERGE OWNER:` row
 mint; (3) the assembler renders both edited sources clean (no unresolved `{{...}}` placeholder, no
-render error) and every composed skill description stays within the 1024-char cap Claude Code enforces.
+render error) and every composed skill description stays within the 1024-char cap Claude Code enforces,
+AND `check_command_corpus.py` — the other half of that gate pair — exits clean.
+
+Round-1 acceptance review (native Opus finder + pool trio) found the vision source carries THREE
+parallel EXISTING-mode read enumerations — Phase 0's acting-set bullet (:63-66), Phase 2's `Reads from
+the project itself` bullet, and the E-analysis `Read existing project state` load-step — and only the
+first had been extended, so the step that actually OPENS the files never named the two work stores.
+`test_vision_existing_read_list_names_both_work_stores` below now bounds-greps all three. It also found
+`check_command_corpus.py` was never invoked despite being named in Behavior-Contract row 3 (fixed by
+`test_check_command_corpus_exits_clean`).
 """
 
 from __future__ import annotations
@@ -26,6 +35,7 @@ REPO = Path(__file__).resolve().parents[1]
 VISION = REPO / "commands" / "_sources" / "fabrik-vision.md"
 EPICS_REVIEW = REPO / "commands" / "_sources" / "fabrik-epics-review.md"
 ASSEMBLER = REPO / "commands" / "assemble_commands.py"
+CORPUS_CHECK = REPO / "scripts" / "enforcement" / "check_command_corpus.py"
 SKILL_CAP = 1024
 
 
@@ -43,40 +53,74 @@ def _skill_description(sk: Path, name: str) -> str:
     return yaml.safe_load(text[3:end])["description"]
 
 
+def _segment(text: str, pattern: str, label: str) -> str:
+    m = re.search(pattern, text, re.S)
+    assert m, f"{label} not found"
+    return m.group(0)
+
+
 # ---------------------------------------------------------------------------
-# Row 1 — /fabrik-vision EXISTING-mode read list + epic-seed paragraph
+# Row 1 — /fabrik-vision EXISTING-mode read list (all THREE enumerations) +
+# epic-seed paragraph
 # ---------------------------------------------------------------------------
 
 
 def test_vision_existing_read_list_names_both_work_stores():
     text = VISION.read_text()
-    # The bullet segment: from "EXISTING mode only" to the next top-level bullet
-    # (the fabrik-lib vendor-ladder bullet) — the exact window the ticket's Behavior
-    # Contract row names.
-    m = re.search(
-        r"- EXISTING mode only —.*?(?=\n- `/opt/fabrik-lib/README\.md`)",
+
+    # (a) Phase 0's acting-set bullet: "EXISTING mode only" up to the fabrik-lib bullet.
+    acting_set = _segment(
         text,
-        re.S,
+        r"- EXISTING mode only —.*?(?=\n- `/opt/fabrik-lib/README\.md`)",
+        "Phase 0's EXISTING-mode-only acting-set bullet",
     )
-    assert m, "EXISTING mode only bullet (up to the fabrik-lib bullet) not found"
-    segment = m.group(0)
-    assert "docs/development/PLANS.md" in segment, (
-        f"PLANS.md missing from the EXISTING-mode read list:\n{segment}"
+    assert "docs/development/PLANS.md" in acting_set, (
+        f"PLANS.md missing from the Phase-0 acting-set bullet:\n{acting_set}"
     )
-    assert "docs/STRATEGIC_BACKLOG.md" in segment, (
-        f"STRATEGIC_BACKLOG.md missing from the EXISTING-mode read list:\n{segment}"
+    assert "docs/STRATEGIC_BACKLOG.md" in acting_set, (
+        f"STRATEGIC_BACKLOG.md missing from the Phase-0 acting-set bullet:\n{acting_set}"
+    )
+
+    # (b) Phase 2's "Reads from the project itself:" bullet — a SEPARATE enumeration.
+    required_inputs = _segment(
+        text,
+        r"\*\*Reads from the project itself:\*\*.*?(?=\n\n\*\*⚠ Project files may be pre-rules)",
+        "Phase 2's `Reads from the project itself:` bullet",
+    )
+    assert "docs/development/PLANS.md" in required_inputs, (
+        f"PLANS.md missing from the Phase-2 required-inputs bullet:\n{required_inputs}"
+    )
+    assert "docs/STRATEGIC_BACKLOG.md" in required_inputs, (
+        f"STRATEGIC_BACKLOG.md missing from the Phase-2 required-inputs bullet:\n{required_inputs}"
+    )
+    assert "Merge owner" in required_inputs, (
+        f"the <!-- Merge owner: ... --> header not named in the Phase-2 bullet:\n{required_inputs}"
+    )
+
+    # (c) The E-analysis "Read existing project state" load-step — the bullet that
+    # actually OPENS the files, distinct from the two enumerations above.
+    load_step = _segment(
+        text,
+        r"\*\*Read existing project state\*\*.*?(?=\n- `\.windsurf/rules/` — synced from this repo)",
+        "the E-analysis `Read existing project state` load-step",
+    )
+    assert "docs/development/PLANS.md" in load_step, (
+        f"PLANS.md missing from the E-analysis load-step:\n{load_step}"
+    )
+    assert "docs/STRATEGIC_BACKLOG.md" in load_step, (
+        f"STRATEGIC_BACKLOG.md missing from the E-analysis load-step:\n{load_step}"
+    )
+    assert "Merge owner" in load_step, (
+        f"the <!-- Merge owner: ... --> header not named in the E-analysis load-step:\n{load_step}"
     )
 
 
 def test_vision_epic_seed_paragraph_names_owner_inheritance_from_name_tag():
-    text = VISION.read_text()
-    m = re.search(
+    para = _segment(
+        VISION.read_text(),
         r"\*\*The two work stores seed the same Scale Assessment / epic seeds.*?\n\n",
-        text,
-        re.S,
+        "epic-seed paragraph (Scale Assessment / epic seeds)",
     )
-    assert m, "epic-seed paragraph (Scale Assessment / epic seeds) not found"
-    para = m.group(0)
     assert "docs/development/PLANS.md" in para
     assert "docs/STRATEGIC_BACKLOG.md" in para
     assert "[name]" in para, f"paragraph does not name the `[name]` tag:\n{para}"
@@ -92,14 +136,11 @@ def test_vision_epic_seed_paragraph_names_owner_inheritance_from_name_tag():
 
 
 def test_epics_review_step_1_5_names_merge_owner_read_and_mint():
-    text = EPICS_REVIEW.read_text()
-    m = re.search(
+    section = _segment(
+        EPICS_REVIEW.read_text(),
         r"## Phase 2 — Step 1\.5.*?(?=\n## )",
-        text,
-        re.S,
+        "Phase 2 — Step 1.5 section",
     )
-    assert m, "Phase 2 — Step 1.5 section not found"
-    section = m.group(0)
     assert "decisions.py --merge-owner" in section, (
         f"Step 1.5 does not name `decisions.py --merge-owner`:\n{section}"
     )
@@ -114,7 +155,8 @@ def test_epics_review_step_1_5_names_merge_owner_read_and_mint():
 
 
 # ---------------------------------------------------------------------------
-# Row 3 — the assembler renders both edited sources clean, within the skill cap
+# Row 3 — the assembler renders both edited sources clean, within the skill cap,
+# AND check_command_corpus.py exits clean (the other half of the gate pair)
 # ---------------------------------------------------------------------------
 
 
@@ -167,3 +209,22 @@ def test_assemble_commands_check_reports_no_render_error_and_only_expected_drift
         assert item.split(":", 1)[0].split("/")[-1].startswith(allowed), (
             f"drift outside the two edited sources: {item}"
         )
+
+
+def test_check_command_corpus_exits_clean():
+    """Behavior-Contract row 3 names BOTH `assemble_commands.py --check` and
+    `check_command_corpus.py` as the row-3 gate pair — round-1 review, defect 3: the
+    suite never invoked the second half."""
+    if not CORPUS_CHECK.exists():
+        pytest.skip(f"{CORPUS_CHECK} absent in this environment")
+    result = subprocess.run(
+        [sys.executable, str(CORPUS_CHECK)],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, (
+        f"check_command_corpus.py exited {result.returncode}\n"
+        f"stdout={result.stdout}\nstderr={result.stderr}"
+    )
