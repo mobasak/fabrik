@@ -4000,6 +4000,10 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
         # hysteresis that prevents ping-pong), under the ordinary dwell (this is relief, not a wall).
         drain_thr = _env_float("ROTATE_DRAIN_THRESHOLD", 85.0)
         if hot >= drain_thr and not _switch_paused():
+            # COST (scoped review F7): one `_validated_pick` per in-band tick — a live probe of a
+            # CACHED candidate at most, bounded by the tick period and by the flip itself (a
+            # successful relief moves the pointer off the band; a dwell-withheld one re-tries
+            # for at most ROTATE_DWELL_MIN). The advisory leg's own pick call is unchanged.
             pick = _validated_pick(accounts, {row["email"]})
             if pick is not None:
                 slug, email = pick

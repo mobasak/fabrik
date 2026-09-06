@@ -3573,3 +3573,16 @@ def test_an_active_below_the_drain_band_never_relief_flips(tmp_path, monkeypatch
     capsys.readouterr()
     assert cr._cmd_tick() == 0
     assert os.readlink(fleet / "active") == "seo"
+
+
+def test_an_active_in_the_drain_band_with_no_eligible_sibling_stays_put(
+    tmp_path, monkeypatch, capsys
+):
+    """Scoped review F8: the moved fixtures left "in the band, nobody to flip to" untested. The
+    sibling is itself in the band on its weekly, so it is not below-drain on both windows."""
+    fleet = _drain_relief_fleet(tmp_path, monkeypatch, active=(93.0, 97.0), successor=(20.0, 88.0))
+    capsys.readouterr()
+    assert cr._cmd_tick() == 0
+    out = capsys.readouterr().out
+    assert os.readlink(fleet / "active") == "seo", out
+    assert "drain-band relief" not in out and "no flip" in out, out
