@@ -179,6 +179,14 @@ $ python scripts/final_gate.py --check --json
 ```
 (`pytest` is the hub's standing skip — the plan's own suites were run above.) `check_plan_tickets --plan-dir`: the two READ-budget ERRORs are the logged sizing signals (docs_updater.py grew 59 → 85 KB through the plan's own tickets); `check_convergence` runs at the EXECUTED flip.
 
+### Post-flip finding and fix (the gate after `Status: EXECUTED`)
+At the EXECUTED flip the Tier-2 `Plan-Set Contract` check went RED on this set: the READ budget is measured on the LIVE tree and two merged tickets (T02a, T03) had grown their own files past it (`scripts/docs_updater.py` 59 → 90 KB, the adopt test file 0 → 67 KB, plus `final_gate.py` 130 KB in T03's Touches) — a merged set cannot be re-split, so the red would have stayed on every hub session's gate. Fixed at the mechanism in `scripts/enforcement/check_plan_tickets.py::_sizing_severity` (f48fe25a, `Agent-Role: primary`, its own `/fabrik-review-scoped` record): the gate path treats an EXECUTED spine's READ budget as advisory like DRAFT/IN-PROGRESS; the author's CLI and the flips keep the ERROR. Red-first test; 139 passed; one pool reader CLEAN on four seams; the enforcement surface re-synced fleet-wide.
+
+```text
+$ python scripts/final_gate.py --check --json   (after f48fe25a)
+{"status": "success", "skipped_checks": ["pytest"], "failures": []}
+```
+
 ## Coverage Checklist
 
 Rubric invocation (verbatim head of the output):
