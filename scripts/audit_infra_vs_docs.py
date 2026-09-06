@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/infrastructure/vps-status.md
 """Probe-vs-doc audit for the VPS fleet.
 
 Runs a fixed set of presence-probes against vps1/vps2/vps3 via SSH and emits:

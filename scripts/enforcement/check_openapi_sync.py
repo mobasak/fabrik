@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
 """Enforce OpenAPI/API documentation synchronization.
 
 When API endpoints change, documentation must be updated.

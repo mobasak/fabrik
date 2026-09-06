@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: none
 # RETIRED 2026-07-19 — Kilo CLI stack retired (operator directive: LLM access = Claude Max OAuth + OpenRouter only). Zero runtime callers; kept for history — do not use.
 """
 Kilo Cost Tracker - Extract and analyze agent run costs.

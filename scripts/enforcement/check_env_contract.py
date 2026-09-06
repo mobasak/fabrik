@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
 """Check ENV contract across .env.example, compose.yaml, and docs/CONFIGURATION.md.
 
 Ensures environment variables are consistently defined across all three files:

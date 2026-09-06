@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/workflows/KILO_AGENT_MANAGEMENT.md
 """
 Database-driven model selection for Kilo CLI wrappers.
 

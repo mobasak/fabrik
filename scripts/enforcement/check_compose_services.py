@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
 """Enforce compose.yaml service documentation.
 
 When new services are added to compose.yaml, they should be documented

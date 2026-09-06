@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
 """Enforce test coverage for new code.
 
 When new public functions/classes are added to src/, corresponding tests should exist.

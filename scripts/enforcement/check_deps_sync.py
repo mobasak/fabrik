@@ -1,3 +1,4 @@
+# AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
 """Check dependency synchronization between pyproject.toml and requirements.txt.
 
 Enforces that when both files exist, their dependencies are aligned:

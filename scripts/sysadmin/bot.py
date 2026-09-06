@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/infrastructure/vps-ai-sysadmin.md
 """
 VPS AI Sysadmin Telegram Bot.
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/workflows/HEALTH_CHECKER_WORKFLOW.md
 
 """Run HTTP `/health` probe and DB TCP reachability checks for cron/CI use.
 Validates service health responses and database host:port connectivity.
@@ -109,7 +110,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--health-url",
         default=None,
-        help="Optional full URL to /health endpoint (e.g. http://localhost:8000/health)",
+        help="Optional full URL to /health endpoint (e.g. http://localhost:8000/health)",  # noqa: argparse help text, not a connection
     )
     parser.add_argument(
         "--check-db",

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/workflows/DATA_SYNC_WORKFLOW.md
 """Deploy .doc-policy.md to all /opt/* projects (excluding _* prefixes)."""
 
 from pathlib import Path

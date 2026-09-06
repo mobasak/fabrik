@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
 """
 Tier 2 enforcement: verifies docs/user-guide/ exists and contains at least one
 .md file when project.yaml has has_user_guide: true.

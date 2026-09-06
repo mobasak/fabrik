@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/reference/health-monitoring.md
 """Weekly drift audit for Authelia gating on admin dashboards.
 
 Plan §8 acceptance criterion (``docs/development/plans/2026-04-18-zero-

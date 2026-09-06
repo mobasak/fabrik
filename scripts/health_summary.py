@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/workflows/HEALTH_SUMMARY_WORKFLOW.md
 """
 Scan /opt/* project directories and report health status.
 

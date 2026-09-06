@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: none
 """
 Tier 2 enforcement (warning-level, non-blocking): verifies that every .py module
 in src/utils/ and src/lib/ is listed in INDEX.md with a [reusable] marker.

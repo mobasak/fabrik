@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/workflows/DATA_SYNC_WORKFLOW.md
 """Deep audit all /opt projects for Fabrik scaffold compliance (v2).
 
 Improvements over v1:
@@ -875,7 +876,7 @@ def build_issues(audit: ProjectAudit):
                 "Dockerfile",
                 "No HEALTHCHECK instruction found",
                 "HEALTHCHECK required per 30-ops.md for Coolify zero-downtime deploys",
-                "Add `HEALTHCHECK --interval=30s --timeout=10s --retries=3 CMD curl -f http://localhost:${PORT}/health || exit 1`",
+                "Add `HEALTHCHECK --interval=30s --timeout=10s --retries=3 CMD curl -f http://localhost:${PORT}/health || exit 1`",  # noqa: Dockerfile HEALTHCHECK advice; runs inside the container
             )
         )
 

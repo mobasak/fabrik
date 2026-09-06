@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
 """Enforce README.md updates when structure changes.
 
 README.md is the primary entry point - must document:

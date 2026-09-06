@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/workflows/KILO_BENCHMARK_WORKFLOW.md
 """Inject GATEWAY_COUNTS marker blocks into the 7 LLM-bearing
 `.windsurf/rules/ai/NN-*.md` packs with live counts from `kilo_agents.db`.
 

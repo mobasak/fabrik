@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: none
 """Provision the ``watchdog_ro`` read-only Postgres role (deploy-readiness follow-on).
 
 The watchdog sidecar's **direct-DB investigation tool** (used only when an operator

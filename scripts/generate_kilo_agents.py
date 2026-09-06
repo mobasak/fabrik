@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/workflows/KILO_AGENT_MANAGEMENT.md
 # RETIRED 2026-07-19 — Kilo CLI stack retired (operator directive: LLM access = Claude Max OAuth + OpenRouter only). Zero runtime callers; kept for history — do not use.
 """
 Generate Kilo CLI Agent Scripts from kilo_agents.db

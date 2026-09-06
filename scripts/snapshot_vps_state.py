@@ -1,3 +1,4 @@
+# AFTER-EDIT: none
 """Pre/post-deploy VPS state snapshot for the dev→VPS workflow test.
 
 Captures Coolify apps, Cloudflare DNS records on vps1.ocoron.com, GlitchTip

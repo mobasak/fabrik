@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: none
 """One-time script: extract real host ports from compose.yaml/.env and update project.yaml.
 
 Reads each project's compose.yaml for port mappings and .env.example/.env for

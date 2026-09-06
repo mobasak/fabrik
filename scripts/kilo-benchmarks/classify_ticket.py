@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/workflows/KILO_AGENT_MANAGEMENT.md
 """
 Classify a Traycer/Kilo ticket as `coding_simple` or `coding_complex`.
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: none
 """Gate: verify every Zed extension that settings.json depends on is installed.
 
 Reads Zed's own source of truth (``extensions/index.json``), derives the REQUIRED

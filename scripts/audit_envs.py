@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/workflows/DATA_SYNC_WORKFLOW.md
 """Audit .env files across all /opt/* projects.
 
 This script NEVER writes secrets. It produces:

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
 """Check Docker conventions (base images, healthcheck, port consistency)."""
 
 from __future__ import annotations

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
 """Check that new src/ modules have corresponding documentation."""
 
 from pathlib import Path

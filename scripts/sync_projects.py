@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/DEPLOYMENT_ARCHITECTURE.md
 """
 Sync /opt/* projects into data/projects.yaml + docs/PROJECT_CATALOG.md
 

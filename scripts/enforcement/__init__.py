@@ -1,3 +1,4 @@
+# AFTER-EDIT: none
 """Fabrik Convention Enforcement Scripts.
 
 Shared validation layer called by Windsurf Cascade hooks and pre-commit checks.

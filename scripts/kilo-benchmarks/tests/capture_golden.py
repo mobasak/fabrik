@@ -1,4 +1,4 @@
-# AFTER-EDIT: tests/test_golden_parity.py, docs/development/plans/2026-07-26-plan-1-ai-model-catalog-extraction.md
+# AFTER-EDIT: tests/test_golden_parity.py, docs/development/plans/archived/2026-07-26-plan-1-ai-model-catalog-extraction.md
 """Phase A.1 — freeze the consumer contract as a STRUCTURAL regression oracle.
 
 The objective definition of "no functionality lost" for the catalog extraction, captured

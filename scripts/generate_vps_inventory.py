@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/DEPLOYMENT_ARCHITECTURE.md
 """
 Generate the VPS container inventory table for vps-complete-inventory.md.
 

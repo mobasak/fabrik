@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: none
 # Atomic, idempotent, rollback-capable Postgres database rename for Coolify-managed
 # apps. Reusable across vps1, vps2, ... — no hardcoded host names.
 #

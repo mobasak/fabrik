@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/workflows/KILO_AGENT_MANAGEMENT.md
 """
 Agent Selector - Runtime task-to-agent routing.
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/workflows/KILO_BENCHMARK_WORKFLOW.md
 """Warn when AI rule packs in .windsurf/rules/ai/*.md are >90 days unverified.
 
 Reads each pack's `Last content verification: YYYY-MM-DD` line and prints a

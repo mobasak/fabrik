@@ -1,3 +1,4 @@
+# AFTER-EDIT: none
 """Price the fleet's REAL token usage from ~/.claude/.claude-manager/usage-history.json.
 
 An AUDIT tool, deliberately separate from derive_cost.py: that module answers "what did THIS run

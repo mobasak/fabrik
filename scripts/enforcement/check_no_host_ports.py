@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
 """Tier 1 enforcement: ban host-bound ``ports:`` in Traefik-routed compose templates.
 
 Plan §5 (zero-touch deploy) acceptance criterion (line 2091):

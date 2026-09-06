@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: none
 """Refresh VPS documentation from live state.
 
 Queries VPS via SSH (docker ps) and Coolify API, then rewrites the

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
 """Check that health endpoints test actual dependencies.
 
 Also verifies that projects with health endpoints have corresponding test files.

@@ -1466,6 +1466,20 @@ def run_consistency_checks(
                 warn_only=True,
             )
         )
+        # The DOC SIDE of the same coupling: `check_script_headers` proves the script names its
+        # doc; this proves the doc names the script back. One source of truth — the block in each
+        # page is RENDERED from those same headers, never authored — so the two directions cannot
+        # disagree the way two hand-kept lists would. (Hub, 2026-09-06: the header side reached
+        # 212/212 live scripts, which is the "active scripts are headered" precondition the row
+        # above defers promotion on. Fleet-wide it is not met, so both rows stay advisory.)
+        results.append(
+            run_optional_check(
+                "scripts/render_doc_script_links.py",
+                "Doc-Script Links",
+                "--check",
+                warn_only=True,
+            )
+        )
         # Print/console.log ban in production code
         results.append(
             run_optional_check("scripts/enforcement/check_print_ban.py", "Print/Console.log Ban")

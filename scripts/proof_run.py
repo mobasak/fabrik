@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: none
 """End-to-end deploy harness: prove every scaffold type deploys live on VPS.
 
 Per-type loop for each T in SCAFFOLD_TYPES:

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/workflows/DATA_SYNC_WORKFLOW.md
 """Sync db/schema.sql to all /opt projects that don't have it.
 
 Creates the db/ directory and schema.sql file for projects that are missing it.

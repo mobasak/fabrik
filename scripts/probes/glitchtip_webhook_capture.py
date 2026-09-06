@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: none
 """Capture + pin the live GlitchTip new-issue webhook envelope (watchdog Phase A).
 
 Why this exists

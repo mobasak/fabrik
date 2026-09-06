@@ -1196,5 +1196,101 @@
     "url": "?",
     "status": "unidentified",
     "match": []
+  },
+  "canva": {
+    "category": "dev-tools",
+    "cost": "freemium",
+    "capability": "integrate Canva design capabilities into third-party apps",
+    "url": "https://www.canva.dev/docs/connect/",
+    "status": "active",
+    "match": []
+  },
+  "cargohandbook": {
+    "category": "research-data",
+    "cost": "free",
+    "capability": "marine cargo transport database and guidelines",
+    "url": "https://www.cargohandbook.com",
+    "status": "active",
+    "match": []
+  },
+  "cartesia": {
+    "category": "ai-audio",
+    "cost": "freemium",
+    "capability": "real-time voice AI platform with TTS, STT, and voice agents",
+    "url": "https://www.cartesia.ai/",
+    "status": "active",
+    "match": []
+  },
+  "cbi": {
+    "category": "research-data",
+    "cost": "free",
+    "capability": "Dutch government agency providing export market research for developin",
+    "url": "https://www.cbi.eu",
+    "status": "active",
+    "match": []
+  },
+  "census": {
+    "category": "research-data",
+    "cost": "free",
+    "capability": "US demographic, economic, and housing statistics API",
+    "url": "https://www.census.gov",
+    "status": "active",
+    "match": []
+  },
+  "candles": {
+    "category": "unidentified",
+    "cost": "?",
+    "capability": "web could not classify; add a real entry or remove the key",
+    "url": "?",
+    "status": "unidentified",
+    "match": []
+  },
+  "candleseurope": {
+    "category": "unidentified",
+    "cost": "?",
+    "capability": "web could not classify; add a real entry or remove the key",
+    "url": "?",
+    "status": "unidentified",
+    "match": []
+  },
+  "cbp": {
+    "category": "unidentified",
+    "cost": "?",
+    "capability": "web could not classify; add a real entry or remove the key",
+    "url": "?",
+    "status": "unidentified",
+    "match": []
+  },
+  "cefic": {
+    "category": "unidentified",
+    "cost": "?",
+    "capability": "web could not classify; add a real entry or remove the key",
+    "url": "?",
+    "status": "unidentified",
+    "match": []
+  },
+  "cencenelec": {
+    "category": "unidentified",
+    "cost": "?",
+    "capability": "web could not classify; add a real entry or remove the key",
+    "url": "?",
+    "status": "unidentified",
+    "match": []
+  },
+  "chinesestandard": {
+    "category": "research-data",
+    "cost": "paid",
+    "capability": "English translation of Chinese technical standards and documents",
+    "url": "https://www.chinesestandard.net",
+    "status": "active",
+    "match": []
+  },
+  "client": {
+    "category": "unidentified",
+    "cost": "?",
+    "capability": "web could not classify; add a real entry or remove the key",
+    "url": "?",
+    "status": "unidentified",
+    "match": []
   }
 }

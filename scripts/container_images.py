@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/reference/prebuilt-app-containers.md
 """
 Container Image Discovery Tool for Fabrik
 

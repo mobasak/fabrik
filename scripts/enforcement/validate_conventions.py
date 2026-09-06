@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
 """Fabrik Convention Validator - Orchestrates all convention checks.
 
 Called by:

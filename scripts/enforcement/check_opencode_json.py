@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
 """
 Enforcement check: Validate opencode.json contains Kilo-safe rule list only.
 

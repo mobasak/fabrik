@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
 """Check for code duplication using jscpd.
 
 This script wraps jscpd to detect copy-paste code across the codebase.

@@ -4,6 +4,40 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — doc↔script coupling: every doc names its scripts, every script names its doc (2026-09-06)
+
+Operator: *"in each doc, indicate the related scripts, in each script indicate the related document
+to be kept always uptodate."* Measured first — the script→doc half already existed (`# AFTER-EDIT:`,
+gate-WARN'd) at 137 of 212 live scripts, only **38** of which named a doc; the doc→script half did
+not exist at all (the 24 `## Related` sections point at sibling *docs*).
+
+**Built as ONE source of truth, not two lists.** The header is the declaration; each page's
+`## Related scripts` block is RENDERED from it by the new `scripts/render_doc_script_links.py`, and
+`--check` fails when a block goes stale. Two hand-kept lists would have doubled the drift surface —
+which this repo had proven hours earlier, when `claude-account-rotation.md` restated `caps.json`'s
+values and both had gone stale.
+
+- **Coverage: 212 of 212** live tracked scripts now carry a header (was 137); **41 pages** carry a
+  generated block. The 75 backfilled headers were derived from evidence — which live doc mentions
+  the script, and how often — with a ≥2-mention floor; 31 honestly say `none`.
+- **Rendered nowhere it would do harm:** not into `commands/_sources/**` (rendered box-wide — a
+  block there ships into every installed command and skill), not `templates/**` (fleet-synced to
+  ~46 repos), not frozen plans/specs (a CONVERGED status is an md5 of the content), not the Doc
+  Sync ledgers. Symlinked scripts are skipped: their couplings belong to the target's world.
+- **Found real drift on its first run:** three scripts still named a plan that had moved to
+  `archived/` — fixed. `docs/DEPLOYMENT.md`/`OPERATIONS.md` under `verify_prod_parity.py` turned
+  out to be the symlink case, not a defect.
+- **Found a defect in itself:** `git ls-files` cannot see an uncommitted script, so a new coupling
+  was invisible to the very gate that runs before its first commit — it rendered no block into its
+  own reference doc. Now enumerates untracked-not-ignored too, with a grader.
+- 9 graders, every one proven red by mutation before being trusted. Registered in `final_gate.py`
+  as **advisory/WARN** beside the header check; neither can turn a gate red.
+- New reference doc: `docs/reference/doc-script-coupling.md`.
+
+Note for a future promotion: `check_script_headers.py`'s docstring defers its ERROR promotion until
+"the active scripts are headered". That is now true **in the hub** (212/212) and not fleet-wide
+(427 headerless across 36 of 44 repos at the last audit), so both rows stay advisory.
+
 ### Fixed — the scaffolder seeds `.worktreeinclude` at birth, not on the first sync (2026-09-06)
 
 A freshly scaffolded project carried three of the four multi-agent-per-repo artifacts (the

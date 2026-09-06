@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
 """Enforce INDEX.md existence and updates.
 
 INDEX.md is the master file index - AI agents must read it first.

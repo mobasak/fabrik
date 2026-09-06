@@ -1,4 +1,4 @@
-# AFTER-EDIT: capture_golden.py, docs/development/plans/2026-07-26-plan-1-ai-model-catalog-extraction.md
+# AFTER-EDIT: capture_golden.py, docs/development/plans/archived/2026-07-26-plan-1-ai-model-catalog-extraction.md
 """Phase A.2 — prove the structural oracle is STABLE across churn AND still bites on loss.
 
 Both properties are required. A stable oracle that catches nothing is worse than no oracle,

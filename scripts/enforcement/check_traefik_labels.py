@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
 """Tier 1 enforcement: every Traefik-enabled service declares the full §7 label set.
 
 Plan §7 (``docs/development/plans/2026-04-18-zero-touch-deployment.md:344``)

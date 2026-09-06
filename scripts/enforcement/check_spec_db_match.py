@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
 """Phase 1c (deploy-readiness-gaps): spec <-> project DB-name consistency.
 
 For each hub spec with ``shape.needs_database``, the orchestrator now provisions

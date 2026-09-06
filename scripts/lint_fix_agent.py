@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: none
 """
 Lint Fix Sub-Agent - Cheap agent for lint-only fixes.
 

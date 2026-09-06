@@ -1,4 +1,4 @@
-# AFTER-EDIT: docs/development/plans/2026-07-26-plan-1-ai-model-catalog-extraction.md (Phase A.0 gates)
+# AFTER-EDIT: docs/development/plans/archived/2026-07-26-plan-1-ai-model-catalog-extraction.md (Phase A.0 gates)
 """Phase A.0 — the flywheel-safety invariant, made testable.
 
 Guards the operator's binding constraint ("we should not break flywheel") across the

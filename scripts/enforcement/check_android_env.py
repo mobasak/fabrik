@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: none
 """
 Verify WSL-to-Windows Android SDK communication.
 Ensures ANDROID_HOME is set and reachable across the mount.

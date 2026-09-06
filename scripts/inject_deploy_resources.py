@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: none
 """F5 backfill: inject deploy.resources.limits into a service compose.yaml.
 
 Idempotent — re-running on a compose that already has the deploy block

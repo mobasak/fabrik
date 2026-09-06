@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
 """Enforce .env file population when secrets are mentioned.
 
 When AI receives secrets/API keys from user, it must write to .env file.

@@ -1,3 +1,4 @@
+# AFTER-EDIT: none
 """aro-wake — push-trigger entry point for this host's veteran-sysadmin AI.
 
 Trio plan §3 (docs/development/plans/2026-06-04-three-sysadmin-trio.md).

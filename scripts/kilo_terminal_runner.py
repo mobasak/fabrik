@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: none
 """
 Kilo Terminal Runner - Rich TUI for Kilo CLI agent wrappers.
 

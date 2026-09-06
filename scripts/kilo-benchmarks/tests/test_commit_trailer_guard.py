@@ -1,3 +1,4 @@
+# AFTER-EDIT: none
 """Behaviour tests for scripts/check_commit_trailers.py.
 
 Two layers, and the second matters as much as the first: the guard must reject the right

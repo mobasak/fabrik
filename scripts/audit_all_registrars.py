@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/reference/health-monitoring.md
 """T4-04 G-G5 — hourly drift audit across all 9 registrars × all specs.
 
 Runs WSL-side via crontab (matches T2-03's G-G4 mechanism — single audit
@@ -14,10 +15,12 @@ Wire diagram::
                               │
                               ├─> /tmp/fabrik-audit-metrics.txt  (Prom text)
                               │
-                              └─> ssh vps 'curl --data-binary @-
-                                            http://localhost:9091/
+                              └─> ssh vps 'curl --data-binary @- <pushgateway>/
                                             metrics/job/fabrik-audit'
-                                  └─> pushgateway (loopback-bound)
+                                  └─> pushgateway, port 9091 on vps1's OWN loopback
+                                      (the literal lives in `_push_metrics` below —
+                                      it is the remote host's loopback, not ours,
+                                      which is why it is not a container DNS name)
                                        └─> prometheus scrapes pushgateway
                                             └─> rules/fabrik-drift.yml
                                                  └─> alertmanager route
@@ -113,7 +116,7 @@ def _push_to_gateway(metrics_path: Path) -> None:
     cmd = [
         ssh,
         "vps",
-        f"curl -fsS --data-binary @- http://localhost:9091/metrics/job/{PUSHGATEWAY_JOB}",
+        f"curl -fsS --data-binary @- http://localhost:9091/metrics/job/{PUSHGATEWAY_JOB}",  # noqa: runs remotely via ssh; pushgateway is loopback-bound on vps1
     ]
     with metrics_path.open("rb") as f:
         proc = subprocess.run(cmd, stdin=f, capture_output=True, timeout=30, check=False)

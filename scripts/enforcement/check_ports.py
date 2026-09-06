@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
 """Check port registration in PORTS.md and validate port ranges."""
 
 from __future__ import annotations
