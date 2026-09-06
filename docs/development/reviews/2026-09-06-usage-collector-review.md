@@ -224,9 +224,10 @@ Verbatim, as the command requires — the Coverage Checklist rows derive from TH
 | Pass 5 (FULL, same brief) | method: re-derivation | found: 1 | new: 1 | fixed: 1 | dispatched 5, returned 5 (agent-000-9c5c47, -001-fabe67, -002-e1aef3, -003-19afb6, -004-7670d9); the `_unusable` restoration outranked a measured value, reproduced before fixing |
 | Pass 6 (FULL, same brief) | method: re-derivation | found: 1 | new: 1 | fixed: 1 | dispatched 5, returned 5 (agent-000-c901b0, -001-ad9d71, -002-1743ab, -003-006407, -004-87a11c); `extension_last_day` could publish a junk key — two re-raises of already-proven arithmetic and migration shapes refuted by execution |
 | Pass 7 (FULL, same brief) | method: re-derivation | found: 2 | new: 2 | fixed: 2 | dispatched 5, returned 5 (agent-000-a96495, -001-e630d9, -002-d866ec, -003-da25d8, -004-abd436); `_total_days` disagreed with the file, and TODAY could be frozen. THREE of the five refuted everything they were given — one traced all six orderings of the withdraw-and-place and concluded REFUTED unprompted |
-| Pass 8 (FULL, same brief) | method: re-derivation | found: 0 | new: 0 | fixed: 0 | PENDING — dispatched 5, awaiting return |
+| Pass 8 (FULL, same brief) | method: re-derivation | found: 1 | new: 1 | fixed: 1 | dispatched 5, returned 5 (agent-000-625af8, -001-772c27, -002-79cc3b, -003-3963c9, -004-28db0c); ONE preserved corrupt value blanked the entire Usage tab — two unguarded `int()` calls, one of them outside any try |
+| Pass 9 (FULL, same brief + the consumer) | method: re-derivation | found: 0 | new: 0 | fixed: 0 | PENDING — dispatched 5, `per_model_spend` added to the surface because pass 8 changed it |
 
-⚠️ **Stall-breaker watch.** `new:` ran 9 → 1 → 2 → 3 → 1 → 1 → 2 across passes 1–7. The 1→2→3 stretch
+⚠️ **Stall-breaker watch.** `new:` ran 9 → 1 → 2 → 3 → 1 → 1 → 2 → 1 across passes 1–8. The 1→2→3 stretch
 matched the trip shape, so passes 5–7 re-swept the SAME brief (only the "already fixed" and
 "already refuted, with proof" lists grew) rather than inventing a new question. It came back to 1 and
 stayed there, so the pressure is falling, not diverging — and the SEVERITY curve says more than the
@@ -243,6 +244,17 @@ has to defeat a recorded proof rather than restate a suspicion.
 in front of the adjacent real discrepancy — the counter was taken before the preserved-unusable
 entries were restored, so the file said 2 while carrying 3. A wrong finding that makes you look in
 the right place still earns its cost, and the ledger should not launder it into a correct one.
+
+⚠️ **And pass 8 repeated the pattern at a larger size.** Two finders called the `_unusable`
+restoration a hazard because it "re-introduces corrupt values" — that re-introduction is intended and
+documented. Chasing their hazard found the real defect one layer UP: `per_model_spend` wrapped its
+whole aggregation in a single try/except, so `int("abc")` on one entry wiped tier_tok, model_tok,
+unweighted and per_day wholesale. A day holding 1,000,000 real opus tokens beside one bad string
+returned `tiers: {}` and `daily: []`. A SECOND unguarded `int()` in the calendar loop sat outside
+that try entirely. This is the interaction of two of my own decisions six passes apart — the store
+PRESERVES what it cannot interpret, and the consumer abandoned its walk at the first one — and it is
+the same poisoned-record class the collector fixed one layer down, which is where I should have
+thought to look.
 
 **Adjudicated, not fixed** — recorded so the disposition is visible rather than silently dropped:
 `frozen` is a TERMINAL state. A restored transcript backup will not bring a frozen day back into
