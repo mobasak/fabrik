@@ -84,7 +84,9 @@ def test_a_commit_without_agent_role_passes_through(tmp_path):
 
 def test_gits_editor_comments_are_not_mistaken_for_prose(tmp_path):
     """`git commit` appends `# …` lines; counting them as prose would false-red every commit."""
-    commented = GOOD + "\n# Please enter the commit message for your changes.\n#\n# On branch master\n"
+    commented = (
+        GOOD + "\n# Please enter the commit message for your changes.\n#\n# On branch master\n"
+    )
     assert run(commented, tmp_path).returncode == 0
 
 
@@ -104,7 +106,9 @@ def test_the_guard_delegates_to_git_rather_than_reimplementing_its_rules(tmp_pat
     without_git = subprocess.run(
         args, capture_output=True, text=True, check=False, cwd=REPO, env={"PATH": "/nonexistent"}
     )
-    assert with_git.returncode == REJECT_CODE, "the malformed block should be rejected when git is present"
+    assert with_git.returncode == REJECT_CODE, (
+        "the malformed block should be rejected when git is present"
+    )
     assert without_git.returncode == 0, (
         "with git unavailable the guard must fail open, not reject and not traceback"
     )
@@ -125,10 +129,7 @@ def test_the_guard_is_not_routed_through_pre_commit(tmp_path):
     # own — reading only per-hook `stages` missed that entirely.
     default_stages = config.get("default_stages") or []
     hooks = [h for r in config["repos"] for h in r.get("hooks", [])]
-    offenders = [
-        h for h in hooks
-        if "commit-msg" in (h.get("stages") or default_stages)
-    ]
+    offenders = [h for h in hooks if "commit-msg" in (h.get("stages") or default_stages)]
     assert not offenders, (
         f"a commit-msg-stage pre-commit hook reintroduces the doubled stash cycle: {offenders}"
     )
@@ -175,7 +176,10 @@ def test_the_commit_msg_hook_is_actually_installed_and_points_at_this_guard():
     # matters. `--git-common-dir` resolves to the shared hooks dir from a worktree too.
     common = subprocess.run(
         ["git", "rev-parse", "--git-common-dir"],
-        capture_output=True, text=True, check=False, cwd=REPO,
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=REPO,
     )
     if common.returncode != 0:
         pytest.skip("not a git checkout")
@@ -274,7 +278,11 @@ def test_a_non_utf8_commit_message_does_not_crash_the_hook(tmp_path):
     msg = tmp_path / "COMMIT_EDITMSG"
     msg.write_bytes(b"fix: caf\xe9\n\nAgent-Role: primary\nCo-Authored-By: Y <y@z>\n")
     result = subprocess.run(
-        [sys.executable, str(GUARD), str(msg)], capture_output=True, text=True, check=False, cwd=REPO
+        [sys.executable, str(GUARD), str(msg)],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=REPO,
     )
     assert "Traceback" not in result.stderr, result.stderr
     assert result.returncode == 0
@@ -306,7 +314,10 @@ def test_a_verbose_commit_whose_diff_mentions_agent_role_is_not_hijacked(tmp_pat
 
 def test_a_verbose_commit_with_a_real_broken_block_is_still_rejected(tmp_path):
     """The scissors fix must not become a bypass: authored trailers are still checked."""
-    broken = BLANK_INSIDE + "\n# ------------------------ >8 ------------------------\ndiff --git a/x b/x\n"
+    broken = (
+        BLANK_INSIDE
+        + "\n# ------------------------ >8 ------------------------\ndiff --git a/x b/x\n"
+    )
     assert run(broken, tmp_path).returncode == REJECT_CODE
 
 
@@ -333,7 +344,7 @@ def test_the_unattended_pipeline_commit_is_not_blocked_by_this_guard(tmp_path):
     # fabricated message, green while proving nothing about what git actually builds.
     m = re.search(r"^git commit", script, re.M)
     assert m, "could not find the git commit invocation in the auto-commit script"
-    invocation = script[m.start():]
+    invocation = script[m.start() :]
     invocation = invocation[: invocation.index("\n  -- ")]
     m_args = re.findall(r'-m "((?:[^"\\]|\\.)*)"', invocation, re.S)
     assert len(m_args) >= 2, f"expected at least a subject and a trailer block, got {m_args!r}"
@@ -415,7 +426,10 @@ def _install_into(repo: Path) -> Path:
     """Install the shim into a scratch repo and return the hook path."""
     subprocess.run(
         [sys.executable, str(GUARD), "--install", "--force"],
-        cwd=repo, capture_output=True, text=True, check=False,
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     return repo / ".git" / "hooks" / "commit-msg"
 
@@ -488,7 +502,10 @@ def test_the_shim_fails_open_when_no_interpreter_is_executable(tmp_path):
     hook.chmod(0o755)
     result = subprocess.run(
         ["git", "commit", "-m", "chore: a plain commit with no trailers"],
-        cwd=repo, capture_output=True, text=True, check=False,
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert result.returncode == 0, (
         f"a well-formed commit was blocked because no interpreter was runnable — the shim must "
@@ -502,7 +519,10 @@ def test_the_shim_still_enforces_when_an_interpreter_is_available(tmp_path):
     _install_into(repo)
     result = subprocess.run(
         ["git", "commit", "-m", BLANK_INSIDE],
-        cwd=repo, capture_output=True, text=True, check=False,
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert result.returncode != 0, (
         "the installed shim let a malformed trailer block through — it is not enforcing at all"
@@ -521,9 +541,7 @@ def test_an_indented_trailer_key_is_rejected_not_waved_through(tmp_path):
     that as "no trailer here" and ACCEPTED the commit, producing exactly the lost provenance
     this guard exists to prevent.
     """
-    message = (
-        "fix: x\n\nAgent-Context: c\n Agent-Role: primary\nCo-Authored-By: Y <y@z>\n"
-    )
+    message = "fix: x\n\nAgent-Context: c\n Agent-Role: primary\nCo-Authored-By: Y <y@z>\n"
     assert _git_verdict(message, tmp_path) is False, "precondition: git must not parse this"
     result = run(message, tmp_path)
     assert result.returncode == REJECT_CODE, "an indented trailer key was accepted"
@@ -574,7 +592,10 @@ def test_a_crashing_guard_does_not_block_commits(tmp_path):
     hook.chmod(0o755)
     result = subprocess.run(
         ["git", "commit", "-m", "chore: a plain commit with no trailers"],
-        cwd=repo, capture_output=True, text=True, check=False,
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert result.returncode == 0, (
         f"a crashing guard blocked a well-formed commit — breakage must never be "
@@ -595,7 +616,10 @@ def test_install_does_not_destroy_a_foreign_hook_that_merely_mentions_pre_commit
     hook.chmod(0o755)
     result = subprocess.run(
         [sys.executable, str(GUARD), "--install"],
-        cwd=repo, capture_output=True, text=True, check=False,
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert result.returncode != 0, "install() clobbered a foreign hook without --force"
     assert "commitlint" in hook.read_text(), "the foreign hook was overwritten"
@@ -636,8 +660,7 @@ def test_a_wholly_indented_trailer_block_is_rejected(tmp_path):
     alongside the indented key had re-opened it.
     """
     message = (
-        "fix: x\n\n    Agent-Role: primary\n    Agent-Context: c\n"
-        "    Co-Authored-By: Y <y@z>\n"
+        "fix: x\n\n    Agent-Role: primary\n    Agent-Context: c\n    Co-Authored-By: Y <y@z>\n"
     )
     assert _git_verdict(message, tmp_path) is False, "precondition: git must NOT parse this"
     assert run(message, tmp_path).returncode == REJECT_CODE
@@ -664,7 +687,6 @@ def test_trailer_key_casing_is_handled_the_way_git_handles_it(key, tmp_path):
     assert run(broken, tmp_path).returncode == REJECT_CODE
 
 
-
 def test_install_does_not_clobber_an_earlier_backup(tmp_path):
     """A single fixed backup name destroyed the FIRST foreign hook on the second replacement.
 
@@ -678,11 +700,15 @@ def test_install_does_not_clobber_an_earlier_backup(tmp_path):
         hook.chmod(0o755)
         subprocess.run(
             [sys.executable, str(GUARD), "--install", "--force"],
-            cwd=repo, capture_output=True, text=True, check=False,
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            check=False,
         )
     backups = list(hook.parent.glob("commit-msg.replaced-by-fabrik*"))
-    preserved = {m for m in ("FOREIGN-ONE", "FOREIGN-TWO")
-                 if any(m in b.read_text() for b in backups)}
+    preserved = {
+        m for m in ("FOREIGN-ONE", "FOREIGN-TWO") if any(m in b.read_text() for b in backups)
+    }
     assert preserved == {"FOREIGN-ONE", "FOREIGN-TWO"}, (
         f"a backup was overwritten — only {preserved} survived across {len(backups)} file(s)"
     )
@@ -711,7 +737,10 @@ def test_install_leaves_no_temp_file_and_uses_a_unique_one(tmp_path):
     def install_once(_):
         return subprocess.run(
             [sys.executable, str(GUARD), "--install", "--force"],
-            cwd=repo, capture_output=True, text=True, check=False,
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            check=False,
         ).returncode
 
     def observe(_):
@@ -738,7 +767,10 @@ def test_install_leaves_no_temp_file_and_uses_a_unique_one(tmp_path):
     try:
         blocked = subprocess.run(
             [sys.executable, str(GUARD), "--install", "--force"],
-            cwd=repo, capture_output=True, text=True, check=False,
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            check=False,
         )
     finally:
         (hook.parent / "commit-msg.tmp").rmdir()
@@ -774,7 +806,10 @@ def test_a_non_default_comment_char_does_not_reopen_the_verbose_diff_hijack(tmp_
     msg.write_text(message, encoding="utf-8")
     result = subprocess.run(
         [sys.executable, str(GUARD), str(msg)],
-        cwd=repo, capture_output=True, text=True, check=False,
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert result.returncode == 0, (
         f"a verbose-diff commit was hijacked under a non-default comment char:\n{result.stderr}"
@@ -787,9 +822,7 @@ def test_a_valueless_duplicate_key_does_not_erase_real_provenance(tmp_path):
     A last-write-wins dict let a trailing valueless `agent-role:` overwrite a perfectly good
     `Agent-Role: primary`, so the guard rejected a commit whose provenance git reports intact.
     """
-    message = (
-        "fix: x\n\nAgent-Role: primary\nagent-role:\nCo-Authored-By: Y <y@z>\n"
-    )
+    message = "fix: x\n\nAgent-Role: primary\nagent-role:\nCo-Authored-By: Y <y@z>\n"
     assert _git_verdict(message, tmp_path) is True, "precondition: git parses this"
     assert run(message, tmp_path).returncode == 0
 
@@ -830,7 +863,10 @@ def test_core_comment_char_auto_does_not_reopen_the_verbose_diff_hijack(tmp_path
     msg.write_text(message, encoding="utf-8")
     result = subprocess.run(
         [sys.executable, str(GUARD), str(msg)],
-        cwd=repo, capture_output=True, text=True, check=False,
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert result.returncode == 0, (
         f"a verbose-diff commit was hijacked under core.commentChar=auto:\n{result.stderr}"
@@ -869,7 +905,10 @@ def test_the_hook_does_not_fork_git_once_per_message_line(tmp_path):
         )
         subprocess.run(
             [sys.executable, str(GUARD), str(msg)],
-            capture_output=True, check=False, cwd=REPO, env=env,
+            capture_output=True,
+            check=False,
+            cwd=REPO,
+            env=env,
         )
         return len(log.read_text().splitlines())
 
@@ -906,7 +945,10 @@ def test_a_quoted_cut_line_is_not_mistaken_for_gits_own(char, tmp_path):
     msg.write_text(message, encoding="utf-8")
     result = subprocess.run(
         [sys.executable, str(GUARD), str(msg)],
-        cwd=repo, capture_output=True, text=True, check=False,
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert result.returncode == 0, (
         f"a quoted {char!r} cut line truncated the message and lost a valid trailer block:"
@@ -934,7 +976,10 @@ def test_gits_real_template_is_still_detected_under_auto(tmp_path):
     msg.write_text(message, encoding="utf-8")
     result = subprocess.run(
         [sys.executable, str(GUARD), str(msg)],
-        cwd=repo, capture_output=True, text=True, check=False,
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert result.returncode == 0, (
         f"git's own ';' template was not detected, so the -v diff hijacked the guard:"
@@ -963,17 +1008,25 @@ def test_an_explicit_comment_char_cut_line_really_does_lose_the_block(tmp_path):
     msg.write_text(message, encoding="utf-8")
     subprocess.run(
         ["git", "commit", "-q", "--no-verify", "-F", str(msg)],
-        cwd=repo, capture_output=True, check=False,
+        cwd=repo,
+        capture_output=True,
+        check=False,
     )
     landed = subprocess.run(
         ["git", "log", "-1", "--format=%(trailers:key=Agent-Role,valueonly)"],
-        cwd=repo, capture_output=True, text=True, check=False,
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
     ).stdout.strip()
     assert landed == "", "precondition: git must DROP this block under an explicit ';'"
 
     result = subprocess.run(
         [sys.executable, str(GUARD), str(msg)],
-        cwd=repo, capture_output=True, text=True, check=False,
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert result.returncode == REJECT_CODE, (
         "git dropped the trailer block and the guard accepted the commit — silent lost provenance"
@@ -1002,7 +1055,10 @@ def test_a_quoted_cut_line_does_not_hide_a_malformed_block_below_it(char, tmp_pa
     msg.write_text(message, encoding="utf-8")
     result = subprocess.run(
         [sys.executable, str(GUARD), str(msg)],
-        cwd=repo, capture_output=True, text=True, check=False,
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert result.returncode == REJECT_CODE, (
         f"a malformed block below a quoted {char!r} cut line was accepted — git cannot parse it "
@@ -1043,7 +1099,10 @@ def test_an_indented_block_below_a_real_cut_line_is_still_caught(tmp_path):
     msg.write_text(message, encoding="utf-8")
     result = subprocess.run(
         [sys.executable, str(GUARD), str(msg)],
-        cwd=repo, capture_output=True, text=True, check=False,
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert result.returncode == REJECT_CODE, (
         "an indented trailer block below a genuine cut line was accepted, and git drops it"

@@ -830,7 +830,13 @@ _VACUOUS_WORDS = frozenset(
 # exact FEEDBACK: line is printed for the FINAL OUTPUT block. `cost:` is optional (pool dollars).
 _USAGE_REQUIRED_FROM = dt.datetime(2026, 9, 6, 21, 0, tzinfo=dt.UTC)  # 2026-09-07 00:00 local
 _USAGE_FIELDS = ("confusion", "waste", "change", "filed")
-_USAGE_LABEL_RE = re.compile(r"(?<![\w-])(confusion|waste|change|filed|cost)\s*:", re.I)
+# A label counts ONLY at a field boundary — the start of the line, or after the separator
+# (` · `, `|`, `;` or a newline). Matched anywhere, a value that MENTIONS a label ("change:
+# rename the 'waste:' label", "filed: … the cost:5 defect …") was sliced mid-value and the
+# wrong field silently overwritten (round-1 finders, executed).
+_USAGE_LABEL_RE = re.compile(
+    r"(?:^|[·|;\n])[^\S\n]*(confusion|waste|change|filed|cost)[^\S\n]*:", re.I | re.M
+)
 _USAGE_GRAMMAR = (
     "confusion: <what in the command text was ambiguous or misleading | none> · "
     "waste: <steps/turns/tokens spent without changing the outcome | none> · "
@@ -847,14 +853,22 @@ def _usage_is_required(rec: dict[str, Any]) -> bool:
 
 def _parse_usage_feedback(text: str) -> tuple[dict[str, str], list[str]]:
     """Split a FEEDBACK line into its labelled fields. Returns (fields, missing) — `missing`
-    names every required label that is absent OR empty, so the refusal can say which."""
+    names every required label that is absent OR empty, so the refusal can say which; a label
+    written TWICE is listed as `<label> (duplicate)` and refused too — last-wins silently
+    discarded an honest value (round-1 finders)."""
     fields: dict[str, str] = {}
+    dupes: list[str] = []
     marks = list(_USAGE_LABEL_RE.finditer(text or ""))
     for i, m in enumerate(marks):
-        end = marks[i + 1].start() if i + 1 < len(marks) else len(text)
-        value = text[m.end() : end].strip().strip("·|;,").strip()
-        fields[m.group(1).lower()] = value
+        end = marks[i + 1].start(1) if i + 1 < len(marks) else len(text)
+        value = text[m.end() : end].strip()
+        value = value.rstrip("·|;, \t").strip()
+        key = m.group(1).lower()
+        if key in fields:
+            dupes.append(key)
+        fields[key] = value
     missing = [f for f in _USAGE_FIELDS if not fields.get(f)]
+    missing += [f"{d} (duplicate)" for d in dupes if f"{d} (duplicate)" not in missing]
     return fields, missing
 
 
@@ -1567,7 +1581,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
     if _usage_is_required(rec) and _usage_missing:
         msg = (
             f"REFUSED — closing /{live} needs the STRUCTURED usage feedback (D-175): "
-            f"missing or empty: {', '.join(f + ':' for f in _usage_missing)}. The line describes "
+            f"missing, empty or duplicated: {', '.join(f + ':' for f in _usage_missing)}. The line describes "
             "how the COMMAND behaved this run, so the corpus can be optimised for fewer rounds, "
             "less confusion and fewer tokens:\n  --feedback '" + _USAGE_GRAMMAR + "'\n"
             "Wall-clock and the round count are captured for you; write the four fields."

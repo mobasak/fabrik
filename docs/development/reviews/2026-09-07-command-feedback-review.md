@@ -205,6 +205,7 @@ the last; the closing pass re-derives every count and anchor and says so in its 
 
 | Pass | Finders | Counters | Method |
 |---|---|---|---|
+| Pass 1 | pool deepseek-v4-flash×1 + nemotron-3-super:free×1 + minimax-m3:free×1 + native sonnet×1 (executed the CLI with adversarial lines) + orchestrator | found: 9, fixed: 6, refuted: 3 (label-in-value split and `cost:` in prose → boundary-anchored labels; duplicate labels → refused; `--since 0`, `nothing`, integral medians in the report; refuted by execution: the relative-dir ledger path, `_feedback_verdict(None)` when the flag is omitted, the 45-repo sync ordering — grandfathering covers a run started before the cutoff) | citation |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 

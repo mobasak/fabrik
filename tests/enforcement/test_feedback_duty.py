@@ -30,16 +30,21 @@ chk = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(chk)
 
 
-def _rec(d: Path, name: str, *, state: str = "done", feedback: str | None = "filed",
-         days_ago: int = 0, command: str = "fabrik-probe") -> None:
+def _rec(
+    d: Path,
+    name: str,
+    *,
+    state: str = "done",
+    feedback: str | None = "filed",
+    days_ago: int = 0,
+    command: str = "fabrik-probe",
+) -> None:
     import datetime as dt
 
     body = {
         "command": command,
         "state": state,
-        "closed_at": (
-            dt.datetime.now(dt.UTC) - dt.timedelta(days=days_ago)
-        ).isoformat(),
+        "closed_at": (dt.datetime.now(dt.UTC) - dt.timedelta(days=days_ago)).isoformat(),
     }
     if feedback is not None:
         body["feedback"] = feedback

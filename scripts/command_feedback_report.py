@@ -54,12 +54,20 @@ def _rows(path: Path) -> list[dict]:
 
 
 def _is_none(value: str) -> bool:
-    return not value or value.strip().lower().split(" ")[0].rstrip(".,;") in {"none", "n/a", "-"}
+    head = value.strip().lower().split(" ")[0].rstrip(".,;") if value else ""
+    return not value or head in {"none", "nothing", "n/a", "-"}
+
+
+def _median(values: list) -> float | int:
+    if not values:
+        return 0
+    m = statistics.median(values)
+    return int(m) if float(m).is_integer() else round(float(m), 1)
 
 
 def build(rows: list[dict], since_days: float | None, command: str | None) -> dict:
     total = len(rows)
-    cutoff = time.time() - since_days * 86400 if since_days else None
+    cutoff = time.time() - since_days * 86400 if since_days is not None else None  # 0 = now
     kept = [
         r
         for r in rows
@@ -77,9 +85,9 @@ def build(rows: list[dict], since_days: float | None, command: str | None) -> di
             "runs": len(rs),
             "done": sum(1 for r in rs if r.get("state") == "done"),
             "blocked": sum(1 for r in rs if r.get("state") == "blocked"),
-            "median_wall_min": round(statistics.median(walls), 1) if walls else 0.0,
+            "median_wall_min": round(float(statistics.median(walls)), 1) if walls else 0.0,
             "max_wall_min": round(max(walls), 1) if walls else 0.0,
-            "median_rounds": statistics.median(rounds) if rounds else 0,
+            "median_rounds": _median(rounds),
             "change_none": sum(1 for r in rs if _is_none(str(r.get("change") or ""))),
         }
 

@@ -221,8 +221,10 @@ filed:     <mail id(s) to infra|fleet|intel | none — surfaces exercised: <what
 cost:      <pool dollars>                                                    (optional)
 ```
 
-- `command_run.py` REFUSES a close missing any field or leaving one empty (`_parse_usage_feedback`,
-  `_USAGE_REQUIRED_FROM`); the record stays `running`, which the Stop hook blocks the turn on.
+- `command_run.py` REFUSES a close missing any field, leaving one empty, or writing one twice
+  (`_parse_usage_feedback`, `_USAGE_REQUIRED_FROM`); a label counts only at a field boundary — the
+  start of the line or after ` · `, `|`, `;` or a newline — so a value may mention another label's
+  name (`change: rename the 'waste:' label`) without splitting; the record stays `running`, which the Stop hook blocks the turn on.
   The D-036 substance floor now grades the `filed:` field (a bare `filed: none` is refused; a
   `none — surfaces exercised: …` or a filing with its id passes), and the kaizen filing verdict
   (`filed` / `none` / `unstated`) is classified from that field alone.
@@ -325,5 +327,6 @@ Scripts that declare this document in their `# AFTER-EDIT:` header — editing o
 means updating this page in the same change. This list is generated from those headers
 (`python3 scripts/render_doc_script_links.py`); add the doc to a script's header, not here.
 
+- `scripts/command_feedback_report.py`
 - `scripts/command_run.py`
 <!-- END related-scripts -->

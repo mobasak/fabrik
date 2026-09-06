@@ -106,9 +106,11 @@ _KWARG_CUT_RE = re.compile(
 _NAME_RE = re.compile(
     r"[\"'\\]+([a-z0-9_]+)[\"'\\]+"
 )  # QUOTED names only — digits matter ("context7"); the wider capture would otherwise harvest `if`/`else`/`sorted` as tool names (DQ2)
-# Both citation forms: bare `scripts/x.py` AND hub-absolute `/opt/fabrik/scripts/x.py` — the
-# orchestrator docs cite almost exclusively in the absolute form, and the lookbehind-only regex
-# was blind to every one of them (predicate 3 said "all sound" while it audited nothing there —
+# Both citation forms: bare `scripts/x.py` AND hub-absolute `/opt/fabrik/scripts/x.py` — command
+# sources cite in both forms (8 absolute-form citations live across the 63 audited files, 5 of
+# them in fabrik-epics-review.md — T08a round 1); the retired orchestrator docs, where this was
+# first found, cited almost exclusively in the absolute form and the lookbehind-only regex was
+# blind to every one of them (predicate 3 said "all sound" while it audited nothing there —
 # reproduced with a dead absolute citation, round-5 closing sweep). The absolute prefix is
 # stripped before resolution, so both forms check the same repo-rooted path.
 _SCRIPT_RE = re.compile(r"(?:/opt/fabrik/|(?<![\w/-]))(scripts/[\w/-]+\.py)")

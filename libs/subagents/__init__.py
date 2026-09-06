@@ -31,6 +31,7 @@ from ._dotenv import env_status, load_env
 from .agent import (
     AgentResult,
     AgentSpec,
+    InsufficientCreditsError,
     arun_agents,
     fanout,
     results_table,
@@ -38,7 +39,10 @@ from .agent import (
 )
 from .lanes import (
     AllLanesExhaustedError,
+    FailureCause,
+    apply_bench,
     bench_remaining,
+    classify,
     lane_chain,
     lane_progress,
     reset_lane_state,
@@ -122,7 +126,14 @@ __all__ = [
     # soft-import resolves it exactly this way.
     "lane_chain",
     "AllLanesExhaustedError",
+    "InsufficientCreditsError",
     "bench_remaining",
     "lane_progress",
     "reset_lane_state",
+    # The classify/apply_bench split (T01) — same "export HERE, not just from lanes.__all__" rule
+    # as above, so `from subagents import classify` works rather than tripping the trap this file's
+    # own comment already names two entries up.
+    "FailureCause",
+    "classify",
+    "apply_bench",
 ]

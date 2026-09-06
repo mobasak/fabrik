@@ -108,6 +108,16 @@ def _stripped_env(workdir: str) -> dict[str, str]:
     return {"PATH": os.environ.get("PATH", ""), "HOME": workdir}
 
 
+def _decode_stream(raw: object) -> str:
+    """Coerce a captured stream to text. ``TimeoutExpired`` carries bytes even under
+    ``text=True``, and either stream can be ``None`` when nothing was captured."""
+    if raw is None:
+        return ""
+    if isinstance(raw, bytes):
+        return raw.decode("utf-8", errors="replace")
+    return str(raw)
+
+
 def _truncate(text: str) -> str:
     return text if len(text) <= _MAX_OUTPUT else text[:_MAX_OUTPUT] + "\n…[truncated]"
 
@@ -276,8 +286,23 @@ def _run_command(
             text=True,
             timeout=timeout_s,
         )
-    except subprocess.TimeoutExpired:
-        return ToolResult(ok=False, output="", error=f"timeout after {timeout_s}s")
+    except subprocess.TimeoutExpired as exc:
+        # Hand back whatever it managed to print. A hung command is PRECISELY the case
+        # where the last line it wrote says where it hung, and dropping it leaves the
+        # model a bare "timeout after 30.0s" it cannot act on — the same defect the loop
+        # had on the exit-code path (01M1S918DZXBBEJP8T151ZJ5DF).
+        # ⚠️ `TimeoutExpired.stdout`/`.stderr` are BYTES even though `run(text=True)`:
+        # subprocess decodes on the normal return path and hands the exception the raw
+        # buffer. Decoding here is not defensive noise — without it a literal b'...'
+        # reaches the model's context.
+        # Same SHAPE as the exit-code path below (stdout, then stderr on its own line)
+        # — two failure paths for the same command must not hand the model two different
+        # layouts, or whatever reads them has to know which failure it was.
+        _out, _err = _decode_stream(exc.stdout), _decode_stream(exc.stderr)
+        partial = _out + (("\n" + _err) if _err else "")
+        return ToolResult(
+            ok=False, output=_truncate(partial), error=f"timeout after {timeout_s}s"
+        )
     output = _truncate(proc.stdout + (("\n" + proc.stderr) if proc.stderr else ""))
     if proc.returncode != 0:
         return ToolResult(ok=False, output=output, error=f"exit code {proc.returncode}")

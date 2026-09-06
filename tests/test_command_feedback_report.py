@@ -95,3 +95,18 @@ def test_a_missing_ledger_is_an_empty_report_not_a_crash(tmp_path: Path) -> None
     assert r.returncode == 0, r.stderr
     out = json.loads(r.stdout)
     assert out["commands"] == {} and out["total_rows"] == 0
+
+
+def test_since_zero_is_a_real_cutoff_and_medians_are_integral_when_they_are(tmp_path: Path) -> None:
+    ledger = tmp_path / "command-feedback.jsonl"
+    _write(
+        ledger,
+        [
+            _row("fabrik-review", 600, 4, "a", days_ago=0.5),
+            _row("fabrik-review", 600, 2, "b", days_ago=0.5),
+        ],
+    )
+    out = json.loads(_run(ledger, "--json", "--since", "0").stdout)
+    assert out["examined"] == 0 and out["total_rows"] == 2  # 0 days back examines nothing
+    full = json.loads(_run(ledger, "--json").stdout)
+    assert full["commands"]["fabrik-review"]["median_rounds"] == 3  # not 3.0

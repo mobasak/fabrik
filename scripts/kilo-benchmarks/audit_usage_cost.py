@@ -75,7 +75,9 @@ def price_for(model: str) -> tuple[float, float, float, float] | None:
 
 def main() -> int:
     data = json.loads(USAGE_HISTORY.read_text())
-    by_month: dict[str, dict] = defaultdict(lambda: {"lo": 0.0, "hi": 0.0, "tok": 0, "cache_read": 0})
+    by_month: dict[str, dict] = defaultdict(
+        lambda: {"lo": 0.0, "hi": 0.0, "tok": 0, "cache_read": 0}
+    )
     by_model: dict[str, dict] = defaultdict(lambda: {"lo": 0.0, "hi": 0.0, "tok": 0})
     unpriced: dict[str, int] = defaultdict(int)
 
@@ -109,7 +111,9 @@ def main() -> int:
         tot_hi += b["hi"]
         tot_tok += b["tok"]
         share = 100 * b["cache_read"] / b["tok"] if b["tok"] else 0.0
-        print(f"{month:10} {b['tok'] / M:11,.1f}M {share:9.1f}%  ${b['lo']:12,.2f} - ${b['hi']:12,.2f}")
+        print(
+            f"{month:10} {b['tok'] / M:11,.1f}M {share:9.1f}%  ${b['lo']:12,.2f} - ${b['hi']:12,.2f}"
+        )
     print(f"{'TOTAL':10} {tot_tok / M:11,.1f}M            ${tot_lo:12,.2f} - ${tot_hi:12,.2f}")
 
     print("\nBY MODEL")

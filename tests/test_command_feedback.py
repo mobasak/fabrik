@@ -148,7 +148,7 @@ def test_an_empty_field_value_is_refused_like_a_missing_one(run_dir: Path) -> No
         "confusion: · waste: none · change: none · filed: none — surfaces exercised: x",
     )
     assert r.returncode == 1, r.stdout
-    assert "confusion:" in r.stdout
+    assert "missing, empty or duplicated: confusion:" in r.stdout, r.stdout
 
 
 def test_a_bare_none_in_the_filed_field_is_still_refused(run_dir: Path) -> None:
@@ -165,3 +165,40 @@ def test_a_bare_none_in_the_filed_field_is_still_refused(run_dir: Path) -> None:
     )
     assert r.returncode == 1, r.stdout
     assert "surfaces" in r.stdout.lower()
+
+
+def test_a_label_named_inside_a_value_does_not_split_the_field(run_dir: Path) -> None:
+    _start(run_dir)
+    r = _cr(
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-probe",
+        "--evidence",
+        "x",
+        "--feedback",
+        "confusion: none · waste: none · change: rename the 'waste:' label to 'burn:' · "
+        "filed: mailed the cost:5 defect 01M1XYZ to infra",
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    row = _ledger(run_dir)[0]
+    assert row["change"] == "rename the 'waste:' label to 'burn:'", row
+    assert row["filed"] == "mailed the cost:5 defect 01M1XYZ to infra", row
+    assert row["cost"] == "", row
+
+
+def test_a_duplicated_label_is_refused_not_last_wins(run_dir: Path) -> None:
+    _start(run_dir)
+    r = _cr(
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-probe",
+        "--evidence",
+        "x",
+        "--feedback",
+        "confusion: none · waste: none · change: none · filed: 01M1 to infra · filed: none",
+    )
+    assert r.returncode == 1, r.stdout
+    assert "filed (duplicate):" in r.stdout, r.stdout
+    assert _ledger(run_dir) == []
