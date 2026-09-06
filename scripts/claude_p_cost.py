@@ -85,6 +85,10 @@ _TRANSCRIPT_ROOT = Path.home() / ".claude" / "projects"
 #: v2 = local-day bucketing + max-wins dedup (2026-09-06).
 #: v3 = a call books to its EARLIEST sighting's day, so the walk no longer depends on the order
 #: `rglob` happens to return files in (2026-09-06).
+#: What the most recent `collect_from_transcripts` could NOT open. A partially-unreadable tree must
+#: not be mistaken for a complete one: freezing a day because its file would not open is the same
+#: error as freezing on a blind run, one degree quieter.
+_LAST_WALK: dict[str, int] = {"unreadable_files": 0}
 _COLLECTOR_VERSION = 3
 _USAGE_KEYS = (
     "input_tokens",
@@ -416,6 +420,7 @@ def collect_from_transcripts(root: Path | None = None) -> dict[str, dict[str, in
     """
     root = root or _transcript_root()
     out: dict[str, dict[str, int]] = {}
+    unreadable = 0  # files this walk could not open — see `_LAST_WALK`
     seen: dict[tuple, tuple[str, str, int]] = {}  # (id, requestId) -> (day, model, best tokens)
     try:
         paths = sorted(root.rglob("*.jsonl"))
@@ -425,6 +430,7 @@ def collect_from_transcripts(root: Path | None = None) -> dict[str, dict[str, in
         try:
             handle = path.open(encoding="utf-8", errors="replace")
         except OSError:
+            unreadable += 1
             continue
         with handle:
             for line in handle:
@@ -522,6 +528,7 @@ def collect_from_transcripts(root: Path | None = None) -> dict[str, dict[str, in
                     out.setdefault(best_day, {}).get(best_model, 0) + best_tok
                 )
                 seen[key] = (best_day, best_model, best_tok)
+    _LAST_WALK["unreadable_files"] = unreadable
     return out
 
 
@@ -728,7 +735,12 @@ def _merge_usage_store_locked(path: Path) -> dict:
     # ⚠️ A BLIND RUN MIGRATES NOTHING — not a drop, not a freeze. An empty walk means "could not
     # look", and concluding "unreachable, freeze it" from that would convert a transient unmounted
     # tree into a permanent verdict about somebody's data.
-    if migrating and tdays:
+    # A tree that LISTED but did not fully READ is partially blind, and "I could not open its file"
+    # is never "the day is not there" — so a partial read suppresses freezing exactly like a blind
+    # run does. Found by a round-12 finder: the blind-run guard covered the all-or-nothing case and
+    # left the quieter one open.
+    fully_read = _LAST_WALK.get("unreadable_files", 0) == 0
+    if migrating and tdays and fully_read:
         for k in pending:
             if k in tdays:  # a replacement is in hand
                 days.pop(k, None)
@@ -752,7 +764,7 @@ def _merge_usage_store_locked(path: Path) -> dict:
     # re-derivation FOREVER — the next run reads an up-to-date stamp and never retries. `tdays` empty
     # while days are pending means "could not look", not "nothing to do", and those are opposite
     # answers. Retrying costs one walk we were doing anyway. Found by a closing-pass finder.
-    stamp_ok = bool(tdays) or not pending
+    stamp_ok = (bool(tdays) and fully_read) or not pending
     # `pending` is now exactly the days that were re-derivable or newly frozen, so an advance here
     # means every transcript-marked day was ACTUALLY handled — not that one day happened to be in
     # the tree while the rest were skipped.
@@ -814,7 +826,11 @@ def _merge_usage_store_locked(path: Path) -> dict:
     still_unusable = sorted(
         k
         for k, v in unusable.items()
-        if (isinstance(v, dict) and any(mid in out_days.get(k, {}) for mid in v))
+        # The test is whether the UNUSABLE VALUE is what the file now holds — not whether its model
+        # KEY appears. My round-11 version asked the second question, so a corrupt `opus` entry that
+        # a measured 500 had completely superseded still listed the day. TWO finders caught it
+        # independently in the very next round: the fix to a lying diagnostic was itself lying.
+        if (isinstance(v, dict) and any(out_days.get(k, {}).get(mid) is t for mid, t in v.items()))
         or (not isinstance(v, dict) and out_days.get(k) is v)
     )
     store["_unusable"] = (

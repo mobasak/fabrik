@@ -1081,3 +1081,55 @@ def test_the_unusable_list_names_only_what_actually_survived(tmp_path, monkeypat
     assert store["days"]["2026-09-07"] == {"claude-opus-5": 100}, "superseded by measured data"
     assert store["days"]["2026-09-08"] == "still-corrupt", "nothing measured it ⇒ preserved"
     assert store["_unusable"]["days"] == ["2026-09-08"], "only the one that survived is listed"
+
+
+def test_a_superseded_corrupt_entry_leaves_the_unusable_list(tmp_path, monkeypatch):
+    """My round-11 fix was itself a lying diagnostic, and TWO finders caught it independently in the
+    very next round. It asked whether the corrupt entry's model KEY appears in the file — which it
+    does, carrying the good value that replaced it — instead of whether the corrupt VALUE is what the
+    file now holds."""
+    history = tmp_path / "usage-history.json"
+    history.write_text(
+        json.dumps({"days": {"2026-06-01": {"byModel": {"claude-opus-5": {"output": 500}}}}}),
+        encoding="utf-8",
+    )
+    _store(
+        tmp_path,
+        monkeypatch,
+        {"2026-06-01": {"claude-opus-5": "corrupt", "claude-haiku-4-5": 10}},
+        {"2026-06-01": "extension"},
+    )
+    monkeypatch.setattr(cpc, "_USAGE_HISTORY", history)
+    monkeypatch.setattr(cpc, "_TRANSCRIPT_ROOT", tmp_path / "no-transcripts")
+
+    store = cpc.merge_usage_store()
+
+    assert store["days"]["2026-06-01"]["claude-opus-5"] == 500, "the measured value supersedes it"
+    assert store["_unusable"] == {}, "nothing uninterpretable survived, so nothing is listed"
+
+
+def test_a_partially_unreadable_tree_does_not_freeze_anything(tmp_path, monkeypatch):
+    """The blind-run guard covered the all-or-nothing case and left the quieter one open: a tree that
+    LISTS but cannot fully READ. "I could not open its file" is never "the day is not there", and
+    freezing is terminal."""
+    root = _tree(
+        tmp_path, {"-opt-fabrik/ok.jsonl": [_msg("2026-08-15", "claude-opus-5", "m1", "r1", 700)]}
+    )
+    locked = root / "-opt-fabrik" / "locked.jsonl"
+    locked.write_text("{}", encoding="utf-8")
+    locked.chmod(0o000)  # unreadable, but rglob still lists it
+    _store(
+        tmp_path,
+        monkeypatch,
+        {"2026-01-01": {"claude-opus-5": 9}},
+        {"2026-01-01": "transcripts"},
+        version=1,
+    )
+    monkeypatch.setattr(cpc, "_TRANSCRIPT_ROOT", root)
+    try:
+        store = cpc.merge_usage_store()
+    finally:
+        locked.chmod(0o644)
+
+    assert store["source_by_day"]["2026-01-01"] == "transcripts", "a partial read freezes nothing"
+    assert store["collector_version"] == 1, "and the migration stamp waits for a complete read"
