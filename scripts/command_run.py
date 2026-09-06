@@ -1033,7 +1033,13 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 # silently skips the seed (C-6)
                 and se > 0
                 and int(se) <= int(ut)
-                and [math.floor(se), int(ut)] not in out
+                # "already recorded" = a pair that ENDS at this record's close, whatever its lo — a
+                # review's own pair reaches back, so comparing the full [floor(se), ut] shape missed
+                # it and seeded a second, narrower window per review close (reach-back reader F2)
+                and not any(
+                    isinstance(w, list) and len(w) == 2 and _finite_ts(w[1]) == float(int(ut))
+                    for w in out
+                )
             ):
                 # lo is FLOORED: a float start beside an int close inverted a window closed in
                 # its start second, and the hook's `lo <= hi` filter threw it away (R2)
@@ -1546,7 +1552,10 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         cov = rec.get("covered")
         cov = cov if isinstance(cov, list) else []  # a corrupt ledger never wedges a close (N5)
         lo = math.floor(_se)
-        if rec.get("command") in REVIEW_FAMILY:
+        if rec.get("command") in REVIEW_FAMILY and args.cmd == "done":
+            # DONE only (reach-back reader F1): a `blocked` or `handoff` review reviewed nothing
+            # to a verdict — reaching back from it would certify the whole gap since the last
+            # close, an honest BLOCKED exit turned into a laundering hatch
             # A REVIEW's own contract is "this session's work since the last run" — its window
             # reaches BACK to the previous covered window's close, or every edit the review
             # reviewed but that predates its `start` stays "between runs" forever (the Stop hook

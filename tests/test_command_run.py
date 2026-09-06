@@ -3399,3 +3399,54 @@ def test_review_family_names_are_real_commands() -> None:
     assert mod.REVIEW_FAMILY, "the set must not be empty"
     for name in mod.REVIEW_FAMILY:
         assert (src / f"{name}.md").is_file(), name
+
+
+def test_a_blocked_review_close_never_reaches_back(tmp_path: Path) -> None:
+    """Reach-back reader F1: `blocked`/`handoff` reviews reviewed nothing to a verdict; reaching
+    back from them turned an honest BLOCKED exit into a laundering hatch for the whole gap."""
+    run_dir = tmp_path / "runs"
+    run_dir.mkdir()
+    _start_named(run_dir, "fabrik-spec")
+    time.sleep(1.1)
+    _cr(run_dir, "done", "--command", "fabrik-spec", "--evidence", "x", "--feedback", _PROBE)
+    time.sleep(1.1)
+    _start_named(run_dir, "fabrik-review-scoped")
+    start = _rec(run_dir)["started_epoch"]
+    _cr(
+        run_dir,
+        "blocked",
+        "--command",
+        "fabrik-review-scoped",
+        "--reason",
+        "missing infra",
+        "--feedback",
+        _PROBE,
+    )
+    cov = _rec(run_dir)["covered"]
+    assert cov[-1][0] == math.floor(start), cov
+
+
+def test_the_seed_recognises_a_reached_back_review_window(tmp_path: Path) -> None:
+    """Reach-back reader F2: the seed compared the full [floor(start), close] shape, so a review's
+    widened pair never matched and every next `start` added a second, narrower window."""
+    run_dir = tmp_path / "runs"
+    run_dir.mkdir()
+    _start_named(run_dir, "fabrik-spec")
+    time.sleep(1.1)
+    _cr(run_dir, "done", "--command", "fabrik-spec", "--evidence", "x", "--feedback", _PROBE)
+    time.sleep(1.1)
+    _start_named(run_dir, "fabrik-review-scoped")
+    time.sleep(1.1)
+    _cr(
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-review-scoped",
+        "--evidence",
+        "x",
+        "--feedback",
+        _PROBE,
+    )
+    n = len(_rec(run_dir)["covered"])
+    _start_named(run_dir, "fabrik-plan-after-chat")
+    assert len(_rec(run_dir)["covered"]) == n, _rec(run_dir)["covered"]

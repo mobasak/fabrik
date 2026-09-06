@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the review reach-back applies to `done` closes only, and the seed recognises a widened window (2026-09-07)
+
+Native reader on the reach-back: a `blocked` or `handoff` review close reached back too, turning an honest
+BLOCKED exit into a laundering hatch for the whole gap since the last close — only a converged `done`
+reaches back now; and the start-time seed compared the full `[floor(start), close]` shape, so a review's
+widened pair never matched and every next `start` appended a second, narrower window — the seed now
+recognises a pair by its close. Two graders, red on HEAD's file.
+
 ### Fixed — quota board: nine defects in the external-services matrix, found by its own scoped review (2026-09-07)
 
 Three rounds of `/fabrik-review-scoped` over a9e5fd4a, each closing with three independent pool readers.
