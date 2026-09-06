@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-review pass 2: pass 1 fixed instances and broke two classes (2026-09-06)
+
+Two author-blind Opus finders on pass 1's own fix hunks: 23 findings, 22 fixed, 1 refuted with a
+measurement. **Stop hook (fleet-synced):** the A-F5 lower bound ran against a one-record-per-session
+store that `start` OVERWRITES, so every earlier command's coverage was destroyed and a session with
+two clean runs was permanently unreviewable (P1-1 — this session hit it live); the authored map was
+unfiltered by the SessionStart baseline, so a months-long transcript counted hundreds of files (P1-3);
+the operator's `COMMAND_RUN_STALE_H<=0` hatch armed the sixth cause instead of disarming the fifth
+(P1-2). Fix: a `covered` ledger — `command_run.py` appends `[started_epoch, close]` at every close,
+`start` carries it, a nested run's window joins its caller's — and the hook reads every window;
+edits before the baseline are a resumed transcript's; `died`/`expired` are closed states; the NaN
+stale bound reads as held on both sides (`_hold_in_force`); the redundant `nothing_unreviewed` flag is
+gone; the exemption suite owns its tick (it depended on the host cron). **User-level hooks:** the
+`/proc/locks` probe cannot see the watcher's `exec 9>lock; flock -n 9` (the lock's creating task has
+exited), so every ARMED window got the arm order on every prompt (P2-1) — the decider is now a shared
+non-blocking flock probe; the ancestor walk climbed into `$HOME` and detected the gate's own
+registration (P2-2); list-shaped `hooks`, `matcher`, `disableAllHooks` in any file, byte-for-byte
+pass-through, an unwritable lock FILE; the installer's `--check` compares the whole entry (timeout,
+path, matcher), replaces a stale path, creates a missing `settings.json`, and runs as the hub-only
+warn row `User-Level Hooks Registered`. 34 graders across the touched suites, each seen red first or
+proven on the reverted file. D-167 supersedes D-165 (2) and (5).
+
 ### Fixed — /fabrik-review pass 2: the doc-links gate enumerated every tracked script twice (2026-09-06)
 
 Found by the fresh gate, not a finder: `render_doc_script_links.py` in gate mode (`--check`/`--coverage`)
