@@ -946,18 +946,26 @@ _DECISION_ROW_ID_RE = re.compile(r"^\|\s*D-\d+\s*\|", re.I)
 # the other way.
 _ADOPT_NAME_RE = re.compile(r"^[a-z0-9-]{1,32}$")
 
-# T02b — STRATEGIC_BACKLOG.md row tagging (step (c') of --adopt). A "tag" already
-# present anywhere in a row means "don't touch it" — but `[x]`/`[ ]` are checkbox
-# syntax, never a name (the r1 pipeline error this excludes: `x` alone would
-# otherwise match `_ADOPT_NAME_RE`'s own character class). Acceptance review r1
-# (D3) widened this from a bare `[a-z0-9-]{1,32}` to also recognize the fleet's
-# real compound owner tags — `[infra/T16 decision]`, `[infra/docs]`,
-# `[fleet+infra]`, `[intel→fabrik-lib]` (docs/STRATEGIC_BACKLOG.md:55/56/60/908) —
-# so a bullet already headed by one of those never gets a SECOND tag inserted.
-# `(?!\s)` keeps the checkbox literals `[ ]`/`[x]`/`[X]` out (their content is
-# whitespace or, for the character class's first slot, an uppercase letter the
-# class below never accepts) without needing a second alternation branch.
-_BACKLOG_ALREADY_TAGGED_RE = re.compile(r"\[(?!x\])(?!\s)[a-z0-9-][^\]\n]{0,40}\]")
+# T02b — STRATEGIC_BACKLOG.md row tagging (step (c') of --adopt). A "tag" is
+# recognized ONLY at the row's own tag POSITION — the text right after a bullet's
+# marker/checkbox/leading `**`, or a table row's tag/Item cell start — NEVER by
+# searching the whole line (acceptance review r2, DEFECT-1: the round-1 widen's
+# `.search(line)` read ANY prose bracket as a tag; measured fleet-wide over 25
+# backlogs/1618 rows, 54 of 58 newly-"tagged" rows were false positives —
+# `[key: string]`, `[tool.ruff]`, `[0-9A-F]`, `[the review]`,
+# `[prometheus-app-metrics-setup.md](y.md)` — across 15 repos). The grammar: a
+# beat-shaped head `[a-z0-9-]{1,32}` either closes immediately, or is followed by
+# a compound tail — `/`, `+` or `→` then ANY text up to the next `]` — covering
+# the fleet's real compound owner tags `[infra/T16 decision]`, `[infra/docs]`,
+# `[fleet+infra]`, `[intel→fabrik-lib]` (docs/STRATEGIC_BACKLOG.md:55/56/60/908).
+# Excluded at the head: checkbox syntax (`[x]`/`[ ]`/`[X]` — the r1 pipeline
+# error), an uppercase-led head (`[WIP]`), and a bare `YYYY-MM-DD` date (a
+# changelog stamp, never a tag). A `.`-led tail (a markdown link's `.md` — the
+# probe that caught DEFECT-1) is deliberately NOT a valid separator: only
+# `/`, `+`, `→` open the free-text tail.
+_BACKLOG_TAG_AT_POS_RE = re.compile(
+    r"^\[(?!x\])(?!\s)(?!\d{4}-\d{2}-\d{2}\])[a-z0-9-]{1,32}(?:[/+→][^\]\n]{0,60})?\]"
+)
 # `- `, `* `, `- [ ] `, `- [x] ` — group(1) is the marker (+ optional checkbox) to
 # leave untouched, group(2) is the row's own content, where the tag is inserted.
 _BACKLOG_BULLET_RE = re.compile(r"^(\s*[-*]\s+(?:\[[ xX]\]\s+)?)(.*)$")
@@ -965,10 +973,11 @@ _BACKLOG_BULLET_RE = re.compile(r"^(\s*[-*]\s+(?:\[[ xX]\]\s+)?)(.*)$")
 # rows, and this row itself are all distinguished from ordinary data rows elsewhere).
 _BACKLOG_SEPARATOR_RE = re.compile(r"^\|?[\s:|-]*-[\s:|-]*\|?$")
 _BACKLOG_TAG_HEADER = "Tag"
-# D5: the hub's own "Now" table header names its owner cell `Owner`, never `Tag`
-# (docs/STRATEGIC_BACKLOG.md:33 — `| Effort | Owner | Item | Why Priority |
-# Ready When |`; `Tag` lives only in the legend table two sections above it) — so
-# the tag-cell lookup matches EITHER name, case-insensitively.
+# D5: the hub's own "Now" table names its owner cell `Owner`, never `Tag` (its
+# header row starts `| Effort | Owner | Item | Why Priority | ...` — grep
+# `^| Effort \| Owner \| Item` in docs/STRATEGIC_BACKLOG.md, a line number will
+# drift; `Tag` lives only in the legend table two sections above it) — so the
+# tag-cell lookup matches EITHER name, case-insensitively.
 _BACKLOG_TAG_HEADER_NAMES = {"tag", "owner"}
 _BACKLOG_ITEM_HEADER = "Item"
 
@@ -983,6 +992,19 @@ def _backlog_tag_header_index(names: list[str]) -> int | None:
         if cell.strip().lower() in _BACKLOG_TAG_HEADER_NAMES:
             return i
     return None
+
+
+def _backlog_starts_with_tag(text: str) -> bool:
+    """True when `text` (a bullet's own content, or a table-item row's Item
+    cell) already opens with a tag AT ITS OWN START — never searched anywhere
+    else in the text (DEFECT-1: a prose bracket later in the same row, e.g.
+    `[key: string]`, must never read as "already tagged"). Strips one leading
+    `**` bold marker first, since the fleet's real bullets wrap the tag alone
+    (`**[infra]**`) or open a longer bold span AT the tag (`**[infra] Title**`)."""
+    probe = text.lstrip()
+    if probe.startswith("**"):
+        probe = probe[2:]
+    return _BACKLOG_TAG_AT_POS_RE.match(probe) is not None
 
 
 def _backlog_row_cells(line: str) -> list[str]:
@@ -1004,15 +1026,13 @@ def classify_backlog_row(line: str, header_cells: list[str] | None) -> str:
     case-insensitive, D5 — tag goes in that cell), `"table-item"` (a table row under
     a header WITHOUT one, tag prefixes the SECOND cell), `"bullet"` (a `-`/`*` row,
     checkbox optional, tag inserted after marker+checkbox), or `"skip"` (already
-    tagged anywhere, the legend table — header cell 0 == `Tag`, the header/separator
-    row itself, or a struck-through Item). `header_cells` is the enclosing table's
-    already-split header — supplied by the CALLER, which alone tracks fences and
-    table boundaries; this function never infers table state from `line` alone, so
-    it stays a pure per-line classifier callable directly in tests without
+    tagged AT ITS OWN POSITION — never anywhere else in the row, r2 DEFECT-1 — the
+    legend table — header cell 0 == `Tag`, the header/separator row itself, or a
+    struck-through Item). `header_cells` is the enclosing table's already-split
+    header — supplied by the CALLER, which alone tracks fences and table
+    boundaries; this function never infers table state from `line` alone, so it
+    stays a pure per-line classifier callable directly in tests without
     reconstructing a scan."""
-    if _BACKLOG_ALREADY_TAGGED_RE.search(line):
-        return "skip"
-
     if header_cells is not None:
         if not line.strip().startswith("|"):
             return "skip"
@@ -1032,12 +1052,17 @@ def classify_backlog_row(line: str, header_cells: list[str] | None) -> str:
             if tag_idx < len(cells) and cells[tag_idx].strip() == "":
                 return "table-tag"
             return "skip"  # occupied by non-tag content — never overwrite
+        if len(cells) > 1 and _backlog_starts_with_tag(cells[1]):
+            return "skip"  # the Item cell already opens with a tag (idempotent re-run)
         return "table-item"
 
     m = _BACKLOG_BULLET_RE.match(line)
     if not m:
         return "skip"
-    if m.group(2).strip().startswith("~~"):
+    content = m.group(2)
+    if content.strip().startswith("~~"):
+        return "skip"
+    if _backlog_starts_with_tag(content):
         return "skip"
     return "bullet"
 

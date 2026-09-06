@@ -799,7 +799,8 @@ class TestT02bBC1ThreeShapesRoundRobin:
         AssertionError: assert '| **M** | `[alpha]` | A hub-shaped untagged item |
         because | now |' in ['# Strategic Backlog', '', '## Ownership', '', '| Tag |
         Agent | Beat |', '| :--- | :--- | :--- |', ...]
-        tests/test_docs_updater_adopt.py:813: AssertionError
+        (raised at this test's own `assert ... in lines` line just below — a line
+        number will drift; grep this test method's name instead)
     (the backlog file was byte-identical to the fixture — the untagged rows were
     never touched — before this ticket's implementation landed. BC2/BC3/BC4 below are
     vacuously green on that same baseline for the identical reason: a script that
@@ -1023,10 +1024,11 @@ class TestT02bClassifyBacklogRowDirect:
 
     def test_hub_shaped_owner_header_is_table_tag(self):
         # D5 (acceptance review r1): the hub's REAL "Now" table header names its
-        # tag cell `Owner`, never `Tag` (docs/STRATEGIC_BACKLOG.md:33 —
-        # `| Effort | Owner | Item | Why Priority | Ready When |`; `Tag` lives only
-        # in the legend two sections above it). The pre-r1 code matched literal
-        # `Tag` only, so this exact real-world header fell through to
+        # tag cell `Owner`, never `Tag` (grep `^| Effort \| Owner \| Item` in
+        # docs/STRATEGIC_BACKLOG.md — a line number will drift — for
+        # `| Effort | Owner | Item | Why Priority | Ready When |`; `Tag` lives
+        # only in the legend two sections above it). The pre-r1 code matched
+        # literal `Tag` only, so this exact real-world header fell through to
         # `"table-item"` and would have double-prefixed the Item cell instead of
         # writing into the empty Owner cell.
         header = ["Effort", "Owner", "Item", "Why Priority", "Ready When"]
@@ -1071,3 +1073,107 @@ class TestT02bD6RoundRobinAcrossInterleavedShapes:
         assert "| **M** | [beta] a project-shaped row | because | now |" in lines
         assert "- [alpha] second bullet row" in lines
         assert "| **M** | `[beta]` | a hub-shaped row | because | now |" in lines
+
+
+# ---------------------------------------------------------------------------
+# T02b round-2 acceptance review, DEFECT-1: "already tagged" is decided ONLY at
+# the row's own tag POSITION, never by searching the whole line.
+# ---------------------------------------------------------------------------
+
+# (content_after_marker_or_cell, is_a_real_tag, id) — the fleet's real grammar
+# boundary. Measured over 25 backlogs / 1618 candidate rows: the r1 whole-line
+# `.search()` misread 54 of 58 "already tagged" rows fleet-wide across 15 repos
+# (`[key: string]`, `[tool.ruff]`, `[0-9A-F]`, `[0.831, 0.940]`, `[the review]`,
+# `[1-liner value]`, a markdown link's `[label](url)`) as an existing tag.
+_BACKLOG_TAG_POSITION_SHAPES = [
+    ("[fleet+infra] a cross-beat item", True, "plus"),
+    ("[intel→fabrik-lib] a cross-repo-routed item", True, "arrow"),
+    ("[infra/docs] a slash-suffixed item", True, "slash"),
+    ("[infra/T16 decision] a decision-suffixed item", True, "slash-space"),
+    ("[see the docs](x.md) explains it", False, "md-link-space-head"),
+    ("[prometheus-app-metrics-setup.md](y.md) is linked", False, "md-link-dot-head"),
+    ("[2026-09-06] shipped this change", False, "date"),
+    ("[key: string] appears in the prose", False, "colon"),
+    ("[x] needs a real tag still", False, "checkbox-lower-x"),
+    ("[ ] needs a real tag still", False, "checkbox-empty"),
+    ("[X] needs a real tag still", False, "checkbox-upper-x"),
+    ("[WIP] needs a real tag still", False, "uppercase-wip"),
+]
+
+_NON_CHECKBOX_SHAPES = [t for t in _BACKLOG_TAG_POSITION_SHAPES if not t[2].startswith("checkbox")]
+
+
+class TestT02bR2Defect1AnchoredTagPosition:
+    """r2 DEFECT-1 (H): `classify_backlog_row`'s r1 "already tagged" check was
+    `_BACKLOG_ALREADY_TAGGED_RE.search(line)` — searched over the WHOLE row, so
+    any prose bracket anywhere read as a tag. Fixed at the mechanism: a tag is
+    now recognized ONLY at the row's own tag position (right after a bullet's
+    marker/checkbox/leading `**`, or a table-item row's Item-cell start) via
+    `_backlog_starts_with_tag` + `_BACKLOG_TAG_AT_POS_RE`, never by scanning the
+    rest of the row.
+
+    RED-FIRST EVIDENCE (watched against the pre-DEFECT-1 script — the r1 widened
+    `_BACKLOG_ALREADY_TAGGED_RE.search(line)` at the top of `classify_backlog_row`,
+    committed as `3ba09e23`): the two probes named in the review —
+        classify_backlog_row("- [see the docs](x.md) explains it", None)
+        # pre-fix: 'skip'  (WRONG — must be 'bullet')
+        classify_backlog_row(
+            "| **M** | [prometheus-app-metrics-setup.md](y.md) is linked | "
+            "because | now |",
+            ["Effort", "Item", "Why", "Ready when"],
+        )
+        # pre-fix: 'skip'  (WRONG — must be 'table-item')
+    Both READ the whole-line search's false positive; both are asserted below as
+    part of the parametrized sweep."""
+
+    @pytest.mark.parametrize(
+        "content,is_tag,shape_id",
+        _BACKLOG_TAG_POSITION_SHAPES,
+        ids=[t[2] for t in _BACKLOG_TAG_POSITION_SHAPES],
+    )
+    def test_table_item_cell_start(self, content, is_tag, shape_id):
+        header = ["Effort", "Item", "Why", "Ready when"]
+        line = f"| **M** | {content} | because | now |"
+        expected = "skip" if is_tag else "table-item"
+        assert du.classify_backlog_row(line, header) == expected
+
+    @pytest.mark.parametrize(
+        "content,is_tag,shape_id",
+        _NON_CHECKBOX_SHAPES,
+        ids=[t[2] for t in _NON_CHECKBOX_SHAPES],
+    )
+    def test_bullet_content_start(self, content, is_tag, shape_id):
+        # the three checkbox shapes are excluded here — `- [x] `, `- [ ] `,
+        # `- [X] ` are absorbed by the MARKER's own optional checkbox group
+        # before content is ever probed (pre-existing coverage:
+        # `test_checkbox_x_is_never_read_as_a_name_tag`,
+        # `test_checkbox_variants_are_never_read_as_a_tag`); this class instead
+        # tests the position probe on content the marker regex does NOT consume,
+        # proven separately just below for the double-bracket case.
+        line = f"- {content}"
+        expected = "skip" if is_tag else "bullet"
+        assert du.classify_backlog_row(line, None) == expected
+
+    @pytest.mark.parametrize(
+        "token", ["[x]", "[ ]", "[X]", "[WIP]"], ids=["lower-x", "empty", "upper-X", "wip"]
+    )
+    def test_checkbox_or_uppercase_token_after_a_real_checkbox_is_never_a_second_tag(self, token):
+        # the realistic double-bracket case: a REAL checkbox marker is consumed
+        # by the bullet regex first, so the look-alike token sits AT the row's
+        # own tag position in the remaining content — exactly where DEFECT-1's
+        # false-positive class lived.
+        line = f"- [ ] {token} still needs a real tag"
+        assert du.classify_backlog_row(line, None) == "bullet"
+
+    def test_bullet_with_key_string_prose_still_gets_tagged(self):
+        # the ONE regression test the review asked for: a bullet whose PROSE
+        # contains `[key: string]` after an UNTAGGED head must still be tagged —
+        # the pre-fix whole-line search read `[key: string]` anywhere in the row
+        # as "already tagged" and left the row untouched.
+        text = "- A note about the `[key: string]` type hint\n"
+        new_text, report = du._tag_backlog_rows(text, ["alpha"])
+
+        assert new_text == "- [alpha] A note about the `[key: string]` type hint\n"
+        assert len(report) == 1
+        _excerpt, name, kind = report[0]
+        assert (name, kind) == ("alpha", "backlog-row")
