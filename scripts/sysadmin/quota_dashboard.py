@@ -196,6 +196,12 @@ def _pool_credits_panel(credits: dict | None) -> str:
     is low — "$0.00 remaining" and "every fanout returns 402" are different sentences to act on."""
     if not credits:
         return ""
+    if credits.get("unreadable"):
+        return (
+            '<div class="banner warn">Pool balance UNREADABLE — '
+            f"{escape(str(credits['unreadable']))} while reading the cached balance. The quota board "
+            "below is unaffected; the OpenRouter figure is simply missing, not zero.</div>"
+        )
     remaining = float(credits.get("remaining") or 0.0)
     granted = float(credits.get("granted") or 0.0)
     if remaining <= 0:
@@ -854,7 +860,19 @@ def _queue(payload: dict, now: float, _key=None) -> list[dict]:
         a = head[0]
         five = _util(a, "five_hour")
         ra = _returns_at(a, now)
-        if five is not None and five >= TRIGGER_THRESHOLD and ra is not None:
+        leaving = five is not None and five >= TRIGGER_THRESHOLD
+        if not leaving and _relief_candidate(payload, a) is not None:
+            # the tick will relief-flip this active away (D-171, R6): it returns when its
+            # hottest window resets, not when it trips
+            hot_key = (
+                "seven_day"
+                if (_util(a, "seven_day") or 0) >= (_util(a, "five_hour") or 0)
+                else "five_hour"
+            )
+            r = (a.get(hot_key) or {}).get("resets_at_epoch")
+            ra = float(r) if isinstance(r, (int, float)) and float(r) >= now else None
+            leaving = ra is not None
+        if leaving and ra is not None:
             ghost = entry(a, "return", ra)
             i = 0
             while i < len(returns) and (returns[i]["returns_at"] or float("inf")) <= ra:
@@ -1125,7 +1143,9 @@ _EXT_SERVICES: tuple[tuple[str, str, str, str], ...] = (
         "pool",
         "pool",
         "OpenRouter subagent pool — fanout() / pick_models() via libs/subagents",
-        r"fanout\(|pick_models\(|libs[./]subagents",
+        # a bare `libs/subagents` PATH is prose about the module, not a call into it (measured:
+        # it alone credited fabrik-rivals, whose line names the key autoloader). An import IS a call.
+        r"fanout\(|pick_models\(|(?:from|import) libs\.subagents",
     ),
     (
         "fly",
@@ -1258,14 +1278,16 @@ def _ext_matrix_intro(rows: list[dict]) -> str:
         )
     n_rendered = n - len(unrendered)
     return (
-        f'<p class="intro">Which outside-the-box service each command actually reaches — derived on '
-        f"every page load from the corpus itself ({n_rendered} of {n} rows read from the rendered "
+        f'<p class="intro">Which outside-the-box service each command actually reaches — read from '
+        f"the corpus itself ({n_rendered} of {n} rows from the rendered "
         f"commands under <code>{escape(str(RENDERED_COMMANDS))}</code>), so the DOTS are never typed "
         f"here and cannot go stale against the corpus. A dot means the command "
         f"names that service's own <b>invocation token</b> (<code>fanout(</code>, <code>WebSearch</code>, "
         f"<code>mcp__firecrawl</code>, <code>fabrik apply</code>) — not that it merely mentions the "
-        f"service in prose. It is a text match, so it reads no NEGATIONS: a command naming a token "
-        f"only to say it does <i>not</i> apply is still credited. "
+        f"service in prose. Read it as a good index, not a proof: it is a literal text match over the "
+        f"command, so it reads no NEGATIONS (a token named only to say it does <i>not</i> apply is "
+        f"still credited), and it re-reads a command when that file's mtime or size changes — a "
+        f"rewrite that preserves both is invisible to it. "
         f"Hover a column head for the full name. The COLUMNS are the one hand-held half: <b>adding a new "
         f"external service to the fleet means adding a row to <code>_EXT_SERVICES</code> in "
         f"<code>scripts/sysadmin/quota_dashboard.py</code></b>.{caveat}</p>"
@@ -1617,10 +1639,14 @@ def _generate_locked() -> str:
     try:
         credits = _pool_credits(fetch=False)
     except Exception as exc:  # noqa: BLE001 — the pool balance may never break the quota board
+        # ...but it must not vanish in SILENCE either. "No panel" already means "the pool is not
+        # configured on this box", so a FAULT rendering identically is indistinguishable from a
+        # deliberate absence, and its only trace would be a log nobody reads — the same shape as the
+        # freeze this file was carrying an hour ago. Say it on the PAGE.
         sys.stderr.write(
             f"quota_dashboard: pool-credits read failed ({type(exc).__name__}: {exc})\n"
         )
-        credits = None
+        credits = {"unreadable": type(exc).__name__}
     html = render(payload, time.time(), error, credits=credits)
     _HTML.write_text(html, encoding="utf-8")
     return html
@@ -1649,7 +1675,39 @@ def _regen_async() -> threading.Thread | None:
     return t
 
 
-_LAST_TRIGGER: list[float] = [0.0, 0.0]  # [flip tier, drain tier] — independent cooldowns
+_LAST_TRIGGER: list[float] = [0.0, 0.0, 0.0]  # [flip, drain, relief] tiers — independent cooldowns
+
+
+def _drain_band() -> float:
+    """ROTATE_DRAIN_THRESHOLD (default 85), parsed like `_session_bar` — the band the tick's
+    drain-band relief flip keys on (D-171)."""
+    raw = os.environ.get("ROTATE_DRAIN_THRESHOLD")
+    try:
+        v = float(raw) if raw not in (None, "") else 85.0
+    except ValueError:
+        return 85.0
+    return v if math.isfinite(v) else 85.0
+
+
+def _hottest(a: dict) -> float | None:
+    vals = [v for v in (_util(a, "five_hour"), _util(a, "seven_day")) if v is not None]
+    return max(vals) if vals else None
+
+
+def _relief_candidate(payload: dict, active_row: dict) -> dict | None:
+    """The tick's relief precondition, mirrored read-only (R6): the active's hottest window is
+    at/over the drain band AND some other account is eligible with BOTH windows below it."""
+    hot = _hottest(active_row)
+    band = _drain_band()
+    if hot is None or hot < band:
+        return None
+    for a in payload.get("accounts") or []:
+        if a is active_row or not _eligible(a):
+            continue
+        five, seven = _util(a, "five_hour"), _util(a, "seven_day")
+        if five is not None and seven is not None and max(five, seven) < band:
+            return a
+    return None
 
 
 def _maybe_trigger_rotation(payload: dict) -> threading.Thread | None:
@@ -1669,17 +1727,28 @@ def _maybe_trigger_rotation(payload: dict) -> threading.Thread | None:
     sess = float(five) if isinstance(five, (int, float)) else None
     hot = sess is not None and sess >= bar
     drain = sess is not None and sess >= DRAIN_TRIGGER_THRESHOLD
+    relief = _relief_candidate(payload, row)
     if hot or row.get("cap_walled") is True:
         tier = 0  # flip tier
     elif drain:
         tier = 1  # urgent-drain tier: the tick decides whether a successor exists
+    elif relief is not None:
+        # relief tier (R6): the tick's drain-band relief flip (D-171) keys on the HOTTEST window,
+        # session or weekly — this fast path keyed on the session alone, so a weekly-driven
+        # relief waited for the */5 cron while a fresh account idled
+        tier = 2
     else:
         return None
     now = time.time()
     if now - _LAST_TRIGGER[tier] < TRIGGER_COOLDOWN_S:
         return None
     _LAST_TRIGGER[tier] = now
-    if tier == 1:
+    if tier == 2:
+        why = (
+            f"hottest window {_hottest(row) or 0:.0f}% >= drain band {_drain_band():.0f}% while "
+            f"{(relief or {}).get('slugs', ['?'])[0]} is below it (relief tier, D-171)"
+        )
+    elif tier == 1:
         why = f"session {sess:.0f}% >= {DRAIN_TRIGGER_THRESHOLD:.0f}% (urgent-drain tier)"
     elif hot:
         why = (

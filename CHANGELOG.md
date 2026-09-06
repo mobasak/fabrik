@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — quota board mirrors the drain-band relief flip: a `relief` trigger tier and the ghost return row (2026-09-07)
+
+Native reader R6 on the relief flip: the board's 20 s fast path invoked `--tick` on the SESSION line only, so a
+weekly-driven relief (active at session 40 / weekly 97 with a fresh sibling) waited for the `*/5` cron; and
+the Quota tab's ghost `return` row fired at session ≥ 95 only, so an active the tick was about to relief-flip
+rendered as #1 only. `_relief_candidate` mirrors the tick's precondition read-only (hottest window ≥ the
+drain band + an eligible sibling below it on both windows): a third trigger tier with its own cooldown, and
+the ghost row for such an active (it returns when its hottest window resets). Three graders, two red on
+HEAD's file; both workstation docs updated.
+
 ### Fixed — the review reach-back applies to `done` closes only, and the seed recognises a widened window (2026-09-07)
 
 Native reader on the reach-back: a `blocked` or `handoff` review close reached back too, turning an honest

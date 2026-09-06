@@ -72,8 +72,9 @@ The `*/5` tick reads every account dir (five as of 2026-09-06 — it discovers t
   stops ping-pong), the tick flips to it — walking down the ranking past in-band candidates, dwell-exempt like
   a trip, ledgered with `kind: relief`. Born of the 23:01–23:17 incident: the hold lifted on ozgurbasak@'s
   reset while the pointer stayed on mob@ (93/97, cap 99) because only a trip moved it. Accepted cost: the
-  85→cap weekly band of the account flipped away from is deferred, not spent. The board's fast path keys on
-  the session line, so a weekly-driven relief waits for the `*/5` cron tick.
+  85→cap weekly band of the account flipped away from is deferred, not spent. The board's fast path mirrors it
+  (a `relief` trigger tier + the ghost return row, R6, 2026-09-07), so a weekly-driven relief lands within the
+  20 s probe cadence like a trip.
 - **URGENT drain at 90 with NO successor (operator rule 2026-09-03, `_urgent_drain_pct`, `ROTATE_URGENT_DRAIN_PCT`):**
   when the ACTIVE account's session is at/over **90** and `_validated_pick` finds no eligible sibling (every
   one session-exhausted, weekly-walled or cap-walled), the wall advisory fires FIVE POINTS EARLY — the runway a

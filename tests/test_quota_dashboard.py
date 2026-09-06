@@ -845,7 +845,9 @@ def test_the_matrix_reads_the_rendered_corpus_not_the_sources(tmp_path, monkeypa
     (measured 2026-09-06). A command whose SOURCE never says `fanout(` still reaches the pool once
     rendered — the dot must follow the rendered text."""
     qd = _load(tmp_path, monkeypatch)
-    name = sorted(p.stem for p in (qd._FABRIK_ROOT / "commands" / "_sources").glob("fabrik-*.md"))[0]
+    name = sorted(p.stem for p in (qd._FABRIK_ROOT / "commands" / "_sources").glob("fabrik-*.md"))[
+        0
+    ]
     src = (qd._FABRIK_ROOT / "commands" / "_sources" / f"{name}.md").read_text(encoding="utf-8")
     assert "verify_citation" not in src, "fixture assumes the source does NOT reach the verifier"
     monkeypatch.setattr(
@@ -899,7 +901,9 @@ def test_a_corrupt_or_unreadable_command_file_never_takes_the_board_down(tmp_pat
     qd = _load(tmp_path, monkeypatch)
     d = tmp_path / "rendered"
     d.mkdir()
-    name = sorted(p.stem for p in (qd._FABRIK_ROOT / "commands" / "_sources").glob("fabrik-*.md"))[0]
+    name = sorted(p.stem for p in (qd._FABRIK_ROOT / "commands" / "_sources").glob("fabrik-*.md"))[
+        0
+    ]
     (d / f"{name}.md").write_bytes(b"description: x\nfanout( \xff\xfe not utf-8\n")
     monkeypatch.setattr(qd, "RENDERED_COMMANDS", d)
     services, is_rendered = qd._command_services(name)  # must NOT raise
@@ -908,7 +912,9 @@ def test_a_corrupt_or_unreadable_command_file_never_takes_the_board_down(tmp_pat
     assert len(qd._load_commands()) > 0  # the whole board survives it
     # and the DESCRIPTION read is guarded too — same class, previously unguarded entirely
     monkeypatch.setattr(
-        Path, "read_text", lambda self, *a, **kw: (_ for _ in ()).throw(UnicodeDecodeError("utf-8", b"", 0, 1, "x"))
+        Path,
+        "read_text",
+        lambda self, *a, **kw: (_ for _ in ()).throw(UnicodeDecodeError("utf-8", b"", 0, 1, "x")),
     )
     qd._cmd_cache_key = None
     rows = qd._load_commands()
@@ -939,7 +945,110 @@ def test_a_negated_mention_is_the_limit_the_page_declares(tmp_path, monkeypatch)
     assert "brw" in services("browser_navigate to the page")
     # and the honest limit is ON THE PAGE, not only in a comment
     intro = qd._ext_matrix_intro(qd._load_commands())
-    assert "reads no NEGATIONS" in intro
+    assert "reads no NEGATIONS" in intro and "preserves both is invisible" in intro
+
+
+def test_an_unreadable_pool_balance_says_so_on_the_page(tmp_path, monkeypatch):
+    """Round 4, and it corrects THIS session's own earlier fix. Guarding the render stopped the
+    board dying, but the panel then vanished — and "no panel" already means "the pool is not
+    configured on this box". A fault that renders identically to a deliberate absence, traceable
+    only in a log nobody reads, is the exact shape of the freeze this file was carrying an hour ago.
+    The board must SAY it, and must not print a zero the operator would act on."""
+    qd = _load(tmp_path, monkeypatch)
+
+    def boom(*_a, **_k):
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(qd, "_pool_credits", boom)
+    monkeypatch.setattr(qd, "_probe", _payload)
+    html = qd.generate()
+    assert "Claude account quota" in html and "mob" in html  # the board still stands
+    assert "Pool balance UNREADABLE" in html and "PermissionError" in html
+    assert "not zero" in html, "a missing balance must not read as an exhausted one"
+    # and a pool that is simply NOT CONFIGURED still renders no panel at all — the two are different
+    monkeypatch.setattr(qd, "_pool_credits", lambda *a, **k: None)
+    assert "Pool balance UNREADABLE" not in qd.generate()
+
+
+def test_every_registered_detector_is_pinned_by_a_positive_probe(tmp_path, monkeypatch):
+    """Round 4. Only gh / brw / cit had positive assertions, so deleting any OTHER pattern's
+    alternation — `firecrawl_[a-z]`, `search_chats`, `pick_models(` — would have passed the suite.
+    One probe per registered key, derived from the token each column claims to detect."""
+    qd = _load(tmp_path, monkeypatch)
+    d = tmp_path / "rendered"
+    d.mkdir()
+    # ⚠️ ONE PROBE PER ALTERNATION ARM, not per key. A combined probe ("fabrik apply ... ssh vps1")
+    # still lights the key after an arm is deleted, so it grades nothing: dropping the whole
+    # `fabrik (apply|redeploy|…)` branch — 55 live matches — used to pass.
+    probes = {
+        "pool": [
+            "fanout(",
+            "pick_models(",
+            "from libs.subagents import x",
+            "import libs.subagents",
+        ],
+        "fly": ["record_agent_run(spec, result)"],
+        "rec": ["search_chats", "recent_chats", "mcp__session-recall", "the session-recall MCP"],
+        "web": ["WebSearch", "WebFetch"],
+        "brv": ["brave_web_search", "brave-web-search", "mcp__brave-search", "brave-search"],
+        "fc": ["firecrawl_search", "mcp__firecrawl"],
+        "exa": ["web_search_exa", "web_fetch_exa", "mcp__exa"],
+        "brw": [
+            "mcp__playwright",
+            "mcp__chrome-devtools",
+            "`playwright`",
+            "`chrome-devtools`",
+            "@axe-core/playwright",
+            "browser_navigate",
+            "browser_take_screenshot",
+            "fabrik-gui",
+        ],
+        "gh": [
+            "gh pr x",
+            "gh issue x",
+            "gh api x",
+            "gh repo x",
+            "gh release x",
+            "gh run x",
+            "gh search x",
+            "gh browse x",
+            "gh workflow x",
+            "gh auth x",
+        ],
+        "vps": [
+            "fabrik apply x",
+            "fabrik redeploy x",
+            "fabrik plan x",
+            "fabrik destroy x",
+            "fabrik status x",
+            "ssh vps",
+            "ssh root@h",
+            "deployer_ssh",
+            "vps1",
+            "vps2",
+            "vps3",
+        ],
+        "aic": ["ai-consult", "ai_consult"],
+        "cit": [
+            "verify_citation(doi)",
+            "verify_batch(",
+            "mcp__fabrik-citation-verifier__verify_citation",
+        ],
+        "mail": ["scripts/mail.py", "mail.py send"],
+    }
+    registered = {k for k, _l, _t, _p in qd._EXT_SERVICES}
+    assert set(probes) == registered, (
+        "a new registry row needs its arms probed here — that is the point"
+    )
+    monkeypatch.setattr(qd, "RENDERED_COMMANDS", d)
+    for key, arms in probes.items():
+        for text in arms:
+            (d / "fabrik-spec.md").write_text(text, encoding="utf-8")
+            got = qd._command_services("fabrik-spec")[0]
+            assert key in got, f"{key}: arm {text!r} does not light it (-> {sorted(got)})"
+    # and the mirror the class keeps re-teaching: a bare module PATH is prose, not a call
+    (d / "fabrik-spec.md").write_text("see `libs/subagents` for the autoloader", encoding="utf-8")
+    assert qd._command_services("fabrik-spec")[0] == set()
 
 
 def test_the_service_registry_is_well_formed(tmp_path, monkeypatch):
@@ -984,8 +1093,11 @@ def test_an_unrendered_corpus_is_declared_never_silently_underreported(tmp_path,
     rows = qd._load_commands()
     intro = qd._ext_matrix_intro(rows)
     assert "UNDER-report" in intro and f"{len(rows)} of {len(rows)} rows did NOT come" in intro
+    # R4: the headline used to say "derived on EVERY PAGE LOAD", which the mtime cache makes false
+    # on every hit — a claim the page cannot support about its own machinery
+    assert "every page load" not in intro
     # and the headline claim agrees with the caveat rather than contradicting it
-    assert f"0 of {len(rows)} rows read from the rendered" in intro
+    assert f"0 of {len(rows)} rows from the rendered" in intro
     # and it NAMES them: "N of N fell back" without saying WHICH is a number the operator cannot act
     # on, and a row whose source ALSO failed to open would otherwise be reported as read from
     # `_sources/` — a claim about a file that was never opened
@@ -1086,7 +1198,9 @@ def test_the_matrix_is_in_the_commands_pane_and_names_its_maintenance_point(tmp_
     its file must be ON THE PAGE — a maintenance contract only in a code comment is unfindable."""
     qd = _load(tmp_path, monkeypatch)
     html = qd.render(_payload(), time.time())
-    pane = html[html.index('<section id="pane-commands"') : html.index('<section id="pane-external"')]
+    pane = html[
+        html.index('<section id="pane-commands"') : html.index('<section id="pane-external"')
+    ]
     assert "External services per command" in pane and 'table class="matrix"' in pane
     assert "_EXT_SERVICES" in pane and "scripts/sysadmin/quota_dashboard.py" in pane
     # R2, all three independent readers: the opening sentence used to assert the data came from the
@@ -1094,7 +1208,7 @@ def test_the_matrix_is_in_the_commands_pane_and_names_its_maintenance_point(tmp_
     # before the caveat said otherwise. It must state how many rows actually came from there.
     rows = qd._load_commands()
     n_r = sum(1 for r in rows if r["rendered"])
-    assert f"{n_r} of {len(rows)} rows read from the rendered" in pane
+    assert f"{n_r} of {len(rows)} rows from the rendered" in pane
 
 
 def test_a_rerendered_corpus_invalidates_the_cache(tmp_path, monkeypatch):
@@ -1922,3 +2036,59 @@ def test_the_session_bar_parses_like_claude_rotates_env_float(tmp_path, monkeypa
     monkeypatch.setenv("ROTATE_TARGET_SESSION_MAX_PCT", "abc")
     monkeypatch.delenv("ROTATE_DRAIN_THRESHOLD", raising=False)
     assert qd._session_bar() == 85.0
+
+
+def _relief_payload(active=(93.0, 97.0), sibling=(0.0, 19.0)):
+    p = _payload(session=active[0], weekly=active[1])
+    p["accounts"][0]["weekly_cap"] = 99
+    p["accounts"].append(
+        {
+            "email": "oz@ocoron.com",
+            "slugs": ["oz"],
+            "five_hour": {"utilization": sibling[0], "resets_at_epoch": time.time() + 7200},
+            "seven_day": {"utilization": sibling[1], "resets_at_epoch": time.time() + 400000},
+            "source": "live",
+            "age_s": None,
+            "weekly_cap": 99,
+            "cap_walled": False,
+        }
+    )
+    return p
+
+
+def test_a_weekly_driven_relief_invokes_the_tick_from_the_fast_path(tmp_path, monkeypatch):
+    """R6 (native reader on the relief flip): the fast path keyed on the SESSION only, so an
+    active at session 93 / weekly 97 with a fresh sibling waited for the */5 cron."""
+    monkeypatch.delenv("ROTATE_DRAIN_THRESHOLD", raising=False)
+    qd, stub = _tick_env(tmp_path, monkeypatch, session=40.0)
+    t = qd._maybe_trigger_rotation(_relief_payload(active=(40.0, 97.0)))
+    assert t is not None
+    t.join(10)
+    assert [c for c in _calls(stub) if c[:1] == ["--tick"]] == [["--tick"]]
+
+
+def test_the_relief_fast_path_needs_a_sibling_below_the_band(tmp_path, monkeypatch):
+    monkeypatch.delenv("ROTATE_DRAIN_THRESHOLD", raising=False)
+    qd, stub = _tick_env(tmp_path, monkeypatch, session=40.0)
+    assert (
+        qd._maybe_trigger_rotation(_relief_payload(active=(40.0, 97.0), sibling=(20.0, 88.0)))
+        is None
+    )
+    assert qd._maybe_trigger_rotation(_relief_payload(active=(40.0, 70.0))) is None, (
+        "below the band: nothing"
+    )
+    assert not [c for c in _calls(stub) if c[:1] == ["--tick"]]
+
+
+def test_the_ghost_return_row_renders_for_an_active_the_tick_will_relief_flip(
+    tmp_path, monkeypatch
+):
+    """R6 (board half): the ghost row fired at session >= 95 only; an active at 93/97 that the
+    tick relief-flips away rendered as #1 only, telling the operator it is staying."""
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.delenv("ROTATE_DRAIN_THRESHOLD", raising=False)
+    p = _queue_payload(active_five=93.0)
+    p["accounts"][0]["seven_day"]["utilization"] = 97.0
+    kinds = [e["kind"] for e in qd._queue(p, _NOW)]
+    assert "return" in kinds, kinds
+    assert "is-return" in qd.render(p, _NOW)
