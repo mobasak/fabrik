@@ -1477,7 +1477,10 @@ def run_consistency_checks(
                 "scripts/render_doc_script_links.py",
                 "Doc-Script Links",
                 "--check",
-                warn_only=True,
+                # BLOCKING since 2026-09-06 evening: registered warn_only in the morning, but the
+                # check exits 1 on a stale page by design and the gate rightly refuses a warn-only
+                # row that fails — and the operator's rule is "kept always up to date", which a
+                # warning does not deliver. First trip was this commit's own author.
             )
         )
         # The BACKFILL ratchet (operator ruling 2026-09-06: "it must force agents to backfill

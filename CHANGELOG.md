@@ -8,6 +8,33 @@ All notable changes to this project will be documented in this file.
 
 `--adopt` (step c′) tags every untagged `docs/STRATEGIC_BACKLOG.md` row round-robin in the row's own shape — a hub-shaped table gets `` `[<name>]` `` in its `Tag` cell, a project-shaped table (`| Effort | Item | Why | Ready when |`) gets `[<name>] ` on the Item cell, a bullet row gets it after the list marker and any checkbox — skipping rows already tagged, headers, the legend table, fenced blocks and struck-through items; a second run is byte-identical; a missing backlog is silently nothing (23 of 41 projects carry one; 6 of 619 project table rows were tagged before this). `classify_backlog_row()` is the shape oracle T03's advisory reuses. Plan 2026-09-06-plan-2-multi-agent-adoption T02b (spec D2, ruling D-154); 109 tests green.
 
+### Added — every window is now mechanically checked for its self-watch, and fabrik-lib gets the MCP banner and the quota hold (2026-09-06)
+
+Operator: "are we enforcing all Claude Code windows … so they all start with arming self-watch,
+checking their MCPs, reading CLAUDE.md, catching up with session-recall — and the mail watch?"
+Audited from the live configs: CLAUDE.md load, the session-recall digest and `mail_notify.py`
+were already mechanical in 43/43; `mcp_watch.py` and `quota_stop.py` in 42/43 (fabrik-lib is
+sync-excluded by ruling); the self-watch was an ORDER with no check — **4 of 12 live /opt sessions
+were unarmed**, and a compact-resumed session never sees the order at all.
+
+- **`selfwatch_check.py`** (user level, every prompt, every window): asks whether the per-sid
+  `selfwatch.lock` is HELD — the watcher holds a `flock` on it for its whole life, so held IS
+  armed. Unarmed → the arm order with the literal sid, every prompt, until armed. Silent when armed;
+  silent for /tmp one-shots, headless, sid-less. Does NOT exempt `source=compact` — that is the gap.
+- **`user_hook_gate.py`** (user level): runs the hub's `mcp_watch.py` and `quota_stop.py` for any
+  window whose project does not already wire them. fabrik-lib, `/opt` itself and non-project cwds
+  are now covered; the 42 synced repos are untouched (the gate defers by basename). No synced hook
+  was edited; no sync exclusion was changed.
+- Registered in the canonical `~/.claude/settings.json` and pushed to all five account dirs with
+  `--sync-shared`. Done wrong first: an edit to the ACTIVE dir's copy was silently overwritten by the
+  sync, which copies from the canonical file and uses `--from` only for the roster — the verify step
+  caught it (0 of 5), and hooks-index § 2 now says so. Hooks load at session start, so new windows
+  carry it — running sessions do not.
+- 10 graders across the two scripts, the lock probe and the dedupe guard proven by mutation.
+- **Not fixed, filed** (01M1VN1D7EFXWS76EWAM75H9N4 → infra): standing watchers never exit — 8 of
+  16 watch sessions that are gone, 55 processes. The exit semantics are the resume mesh's core (158
+  fixtures) and not a change to make blind. D-163.
+
 ### Changed — the Quota tab is the rotation QUEUE: #1 active, #2 next, then every account in the order it comes up (2026-09-06)
 
 Operator: "active account at the top, upcoming account second, then the third, fourth and fifth"
