@@ -795,3 +795,67 @@ def test_the_migration_only_drops_a_day_it_can_actually_replace(tmp_path, monkey
 
     assert store["days"]["2026-09-05"] == {"claude-opus-5": 9_000_000_000}, "pruned ⇒ keep it"
     assert store["days"]["2026-09-06"] == {"claude-opus-5": 12_000}, "re-derivable ⇒ replace it"
+
+
+def test_the_run_counters_reach_the_file_not_just_the_return_value(tmp_path, monkeypatch):
+    """They were attached to `store` AFTER `os.replace`, so the written file never carried them and a
+    reader saw the PREVIOUS run's values — on a producer whose only in-file signal of what it did is
+    these numbers, and which nobody watches because it runs at 06:00. `extension_source_present` is
+    the same need: it is how a reader learns source 1 has stopped, the event that made this collector
+    necessary and which nothing else in the file records."""
+    p = _store(tmp_path, monkeypatch, {}, {})
+    monkeypatch.setattr(
+        cpc,
+        "_TRANSCRIPT_ROOT",
+        _tree(
+            tmp_path,
+            {"-opt-fabrik/a.jsonl": [_msg("2026-09-05", "claude-opus-5", "m1", "r1", 500)]},
+        ),
+    )
+
+    cpc.merge_usage_store()
+
+    on_disk = json.loads(p.read_text(encoding="utf-8"))
+    assert on_disk["_transcript_added"] == 1, "the file must carry THIS run's counts"
+    assert on_disk["_total_days"] == 1
+    assert on_disk["extension_source_present"] is False, "source 1 is gone and the file says so"
+
+
+def test_the_migration_stamp_is_not_consumed_by_a_blind_run(tmp_path, monkeypatch):
+    """A one-shot that consumes itself on a run where the transcript root was unmounted, unreadable
+    or empty would skip the re-derivation FOREVER — the next run reads an up-to-date stamp and never
+    retries. An empty walk with days still pending means "could not look", not "nothing to do", and
+    those are opposite answers."""
+    _store(
+        tmp_path,
+        monkeypatch,
+        {"2026-09-05": {"claude-opus-5": 900}},
+        {"2026-09-05": "transcripts"},
+        version=1,
+    )
+    monkeypatch.setattr(cpc, "_TRANSCRIPT_ROOT", tmp_path / "unmounted")  # the walk sees nothing
+
+    store = cpc.merge_usage_store()
+
+    assert store["days"]["2026-09-05"] == {"claude-opus-5": 900}, "the day survives"
+    assert store["collector_version"] == 1, "the stamp must NOT advance on a blind run"
+
+    # …and once the tree is readable again, the migration finally runs.
+    monkeypatch.setattr(
+        cpc,
+        "_TRANSCRIPT_ROOT",
+        _tree(
+            tmp_path,
+            {"-opt-fabrik/a.jsonl": [_msg("2026-09-05", "claude-opus-5", "m1", "r1", 4_000)]},
+        ),
+    )
+    store = cpc.merge_usage_store()
+    assert store["days"]["2026-09-05"] == {"claude-opus-5": 4_000}, "re-derived under the new rules"
+    assert store["collector_version"] == cpc._COLLECTOR_VERSION
+
+
+def test_a_fresh_store_still_stamps(tmp_path, monkeypatch):
+    """Nothing pending ⇒ nothing to retry, so an empty walk must not pin a fresh box at version 0."""
+    _store(tmp_path, monkeypatch, {}, {}, version=None)
+    monkeypatch.setattr(cpc, "_TRANSCRIPT_ROOT", tmp_path / "empty")
+    assert cpc.merge_usage_store()["collector_version"] == cpc._COLLECTOR_VERSION

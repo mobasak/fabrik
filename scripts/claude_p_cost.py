@@ -703,11 +703,19 @@ def _merge_usage_store_locked(path: Path) -> dict:
     # holds; anything it no longer holds keeps its recorded value and its marker. Found by an
     # author-blind data-loss finder, 2026-09-06.
     tdays = collect_from_transcripts()
-    if int_or_zero(store.get("collector_version")) < _COLLECTOR_VERSION:
-        for k in [k for k, v in src_by.items() if v == "transcripts"]:
+    pending = [k for k, v in src_by.items() if v == "transcripts"]
+    migrating = int_or_zero(store.get("collector_version")) < _COLLECTOR_VERSION
+    if migrating:
+        for k in pending:
             if k in tdays:  # a replacement is in hand
                 days.pop(k, None)
                 src_by.pop(k, None)
+    # ⚠️ THE STAMP ADVANCES ONLY IF THE WALK COULD SEE. A one-shot migration that consumes itself on a
+    # run where the transcript root was unmounted, unreadable or empty would silently skip the
+    # re-derivation FOREVER — the next run reads an up-to-date stamp and never retries. `tdays` empty
+    # while days are pending means "could not look", not "nothing to do", and those are opposite
+    # answers. Retrying costs one walk we were doing anyway. Found by a closing-pass finder.
+    stamp_ok = bool(tdays) or not pending
 
     t_added = t_refreshed = 0
     for k, by in tdays.items():
@@ -765,7 +773,17 @@ def _merge_usage_store_locked(path: Path) -> dict:
     store["source_by_day"] = dict(sorted(src_by.items()))
     store["_discrepancy"] = disc
     store["_discrepancy_days"] = len(overlap)
-    store["collector_version"] = _COLLECTOR_VERSION
+    if stamp_ok:
+        store["collector_version"] = _COLLECTOR_VERSION
+    # ⚠️ THE RUN COUNTERS MUST BE SET BEFORE THE WRITE. They used to be attached to `store` AFTER
+    # `os.replace`, so the file never carried them and a reader saw the PREVIOUS run's values — on a
+    # producer whose only in-file signal of what it did is exactly these numbers, and which nobody
+    # watches because it runs at 06:00. `extension_source_present` is here for the same reason: it is
+    # how a reader learns that source 1 has stopped, which is the event that made this collector
+    # necessary and which nothing else in the file records. Found by a closing-pass finder.
+    store["_added"], store["_total_days"] = added, kept
+    store["_transcript_added"], store["_transcript_refreshed"] = t_added, t_refreshed
+    store["extension_source_present"] = _USAGE_HISTORY.exists()
     store["source"] = str(_USAGE_HISTORY)
     store["transcript_source"] = str(_transcript_root())
     store["merged_at"] = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
@@ -792,8 +810,6 @@ def _merge_usage_store_locked(path: Path) -> dict:
     except BaseException:
         Path(tmp).unlink(missing_ok=True)
         raise
-    store["_added"], store["_total_days"] = added, kept
-    store["_transcript_added"], store["_transcript_refreshed"] = t_added, t_refreshed
     return store
 
 
