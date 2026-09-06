@@ -401,6 +401,7 @@ def test_sessions_advisory_fires_at_three_shared_sessions(tmp_path: Path) -> Non
             ("103", "claude", str(scratch)),
             ("104", "bash", str(scratch)),  # wrong comm — not counted
             ("105", "claude", None),  # no cwd at all — not counted
+            ("106", "claude-foo", str(scratch)),  # comm merely PREFIXED with claude — not counted
         ],
     )
     rc, out = _run(
@@ -418,6 +419,30 @@ def test_sessions_advisory_fires_at_three_shared_sessions(tmp_path: Path) -> Non
     idx_line = out.index("sessions share this main checkout")
     idx_mcp = out.index("**Your ASSIGNED MCPs")
     assert idx_gov < idx_line < idx_mcp
+
+
+def test_sessions_advisory_fires_at_exactly_two_shared_sessions(tmp_path: Path) -> None:
+    # Pins the `< 2` boundary itself — a mutant that reads `< 3` still leaves every
+    # OTHER test green (they all use 0, 1, or 3 matching entries).
+    scratch = tmp_path / "opt" / "pair"
+    scratch.mkdir(parents=True)
+    proc = _fake_proc(
+        tmp_path,
+        [
+            ("111", "claude", str(scratch)),
+            ("112", "claude", str(scratch)),
+        ],
+    )
+    rc, out = _run(
+        scratch,
+        tmp_path,
+        json.dumps({"cwd": str(scratch)}),
+        extra_env={"FABRIK_PROC_ROOT": str(proc)},
+    )
+    assert rc == 0
+    lines = [ln for ln in out.splitlines() if "sessions share this main checkout" in ln]
+    assert len(lines) == 1
+    assert lines[0].startswith("- ⚠️ **2 sessions share this main checkout.**")
 
 
 def test_sessions_advisory_silent_below_two(tmp_path: Path) -> None:
@@ -479,9 +504,26 @@ def test_sessions_advisory_suppressed_in_hub(tmp_path: Path) -> None:
 
 
 def test_sessions_advisory_dangling_cwd_never_raises(tmp_path: Path) -> None:
+    # A lone dangling entry makes `rc == 0` a vacuous check: the `__main__` guard
+    # (session_orient.py) swallows ANY exception raised anywhere in main() and
+    # still exits 0 -- but in that case NOTHING is printed at all, since the crash
+    # happens while building the print() argument, before print() ever runs. So a
+    # standalone dangling entry can't tell "correctly skipped" apart from "silently
+    # crashed": both leave "sessions share..." absent from (a possibly empty) out.
+    # Putting the dangling entry BESIDE two live, matching entries closes that gap:
+    # if the per-entry fail-open ever regresses to an abort, the whole ORIENT block
+    # (this advisory included) goes missing and the "2 sessions" assertion below
+    # fails -- pinning skip-not-abort rather than merely "the process didn't crash".
     scratch = tmp_path / "opt" / "danglecase"
     scratch.mkdir(parents=True)
-    proc = _fake_proc(tmp_path, [("501", "claude", str(tmp_path / "gone-nowhere"))])
+    proc = _fake_proc(
+        tmp_path,
+        [
+            ("501", "claude", str(scratch)),
+            ("502", "claude", str(scratch)),
+            ("503", "claude", str(tmp_path / "gone-nowhere")),  # dangling -- skipped, not fatal
+        ],
+    )
     rc, out = _run(
         scratch,
         tmp_path,
@@ -489,7 +531,9 @@ def test_sessions_advisory_dangling_cwd_never_raises(tmp_path: Path) -> None:
         extra_env={"FABRIK_PROC_ROOT": str(proc)},
     )
     assert rc == 0
-    assert "sessions share this main checkout" not in out
+    lines = [ln for ln in out.splitlines() if "sessions share this main checkout" in ln]
+    assert len(lines) == 1
+    assert lines[0].startswith("- ⚠️ **2 sessions share this main checkout.**")
 
 
 def test_sessions_advisory_live_scan_is_fast(tmp_path: Path) -> None:
