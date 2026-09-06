@@ -39,7 +39,7 @@ Intake: 7 items — 5 IN, 2 OUT-OF-SCOPE (I5, I6 — each named), 0 ASK.
 |---|---|---|---|---|---|
 | T01 | `decisions.py --merge-owner` read | — | ⚡ | ✅ | branch head b7ffb88a; merged 2026-09-06 |
 | T02a | `--adopt` core: markers, owners, ledger row, header | — | ⚡ | ✅ | branch head 9607384f; merged 2026-09-06 |
-| T02b | `--adopt` backlog tagging, three shapes | T02a | ⛓️ | ⬜ | |
+| T02b | `--adopt` backlog tagging, three shapes | T02a | ⛓️ | 🔵 | |
 | T03 | `--check` advisory at ≥2 sessions (+ `advisory=True` at the gate call) | T02b | ⛓️ | ⬜ | |
 | T04 | SessionStart advisory (hook) | — | ⚡ | ✅ | branch head d92888e8; merged 2026-09-06 |
 | T05 | vision reads the work stores; epics-review mints the row | — | ⚡ | ✅ | branch head 4e6c3435; merged 2026-09-06 |
