@@ -353,7 +353,33 @@ def test_operating_model_doc_names_adopt_not_tail_sweep():
     assert "docs_updater.py --adopt" in text
 
 
+def test_operating_model_doc_states_each_advisorys_suppression_exactly():
+    """Acceptance-review fix (round 1): the doc must not overclaim a worktree guard the
+    `--check` advisory doesn't have. `docs_updater.validate_ownership_advisory()` guards
+    only the session count (< 2 → []) and the hub sentinel — it has NO `/.claude/worktrees/`
+    check, so ≥2 sessions sharing one worktree checkout WOULD fire it. Only the SessionStart
+    line (`session_orient.py::_sessions_line`, which literally tests `"/.claude/worktrees/"
+    in cwd`) is worktree-guarded. So: both advisories share the single-session + hub
+    suppression; only the SessionStart line ALSO never fires inside a worktree."""
+    text = _OPERATING_MODEL_DOC.read_text(encoding="utf-8")
+    assert "never fire in a single-session repo or in the hub" in text, (
+        "the shared suppression (session count + hub) must be stated for BOTH advisories"
+    )
+    assert "SessionStart line additionally never fires inside a worktree" in text, (
+        "the worktree guard is SessionStart-only (session_orient.py's own cwd check) — "
+        "the --check advisory carries no such guard and must not be credited with one"
+    )
+    # the retired overclaim — one sentence crediting BOTH advisories with a worktree guard
+    # neither the --check advisory nor the doc's own code citations actually have.
+    assert (
+        "neither ever fires in a single-session repo, in the hub, or inside a worktree" not in text
+    )
+
+
 def test_governance_template_names_adopt():
     text = _GOVERNANCE_TEMPLATE.read_text(encoding="utf-8")
+    # drift guard: the retired "tail sweep" phrasing never existed in this template (unlike
+    # the operating-model doc, which DID carry it) — kept as a tripwire against it creeping
+    # in here as a copy-paste of the old operating-model prose, not as evidence of a removal.
     assert "tail sweep" not in text
     assert "docs_updater.py --adopt" in text

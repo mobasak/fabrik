@@ -81,8 +81,10 @@ mid-epic loop below land with it). Nothing is hand-edited in a project.
   line prints `<!-- Merge owner: <name> | source: D-NNN -->` in place of the undeclared line.
 - **The two advisories** — `docs_updater.py --check`'s single `ADVISORY:` line (never a gate
   finding) and the SessionStart line `session_orient.py` prints — both fire only at ≥2 live
-  `claude` sessions sharing the checkout with incomplete ownership; neither ever fires in a
-  single-session repo, in the hub, or inside a worktree.
+  `claude` sessions sharing the checkout with incomplete ownership. Both never fire in a single-session repo or in the hub.
+  The SessionStart line additionally never fires inside a worktree (`session_orient.py`'s own
+  `/.claude/worktrees/`-in-`cwd` check); the `--check` advisory carries no such guard — it
+  counts sessions sharing whatever checkout it runs against, worktree included.
 
 ## Merge protocol — the merge owner only (§ Merge)
 
