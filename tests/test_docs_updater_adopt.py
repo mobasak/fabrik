@@ -726,3 +726,236 @@ class TestD3bStrictNameGrammar:
 
     def test_the_adopt_name_regex_is_byte_identical_to_epic_orders(self):
         assert du._ADOPT_NAME_RE.pattern == "^[a-z0-9-]{1,32}$"
+
+
+# ---------------------------------------------------------------------------
+# T02b — `--adopt` tags the untagged STRATEGIC_BACKLOG rows in their three
+# real shapes (hub `Tag`-column table, project no-`Tag` table, bullet rows).
+# ---------------------------------------------------------------------------
+
+_BACKLOG_FIXTURE = """# Strategic Backlog
+
+## Ownership
+
+| Tag | Agent | Beat |
+| :--- | :--- | :--- |
+| `[infra]` | infra | command corpus |
+| `[fleet]` | fleet | VPS + deploy |
+
+## Now
+
+| Effort | Tag | Item | Why Priority | Ready When |
+| :--- | :--- | :--- | :--- | :--- |
+| **M** |  | A hub-shaped untagged item | because | now |
+
+## Projects
+
+| Effort | Item | Why | Ready when |
+| :--- | :--- | :--- | :--- |
+| **M** | A project-shaped untagged item | because | now |
+
+## Later
+
+- A plain bullet row
+- [ ] An unchecked checkbox bullet row
+- [x] A checked checkbox bullet row
+"""
+
+_BACKLOG_SKIP_FIXTURE = """| Effort | Tag | Item | Why | Ready When |
+| :--- | :--- | :--- | :--- | :--- |
+| **M** | `[infra]` | An already-tagged item | because | now |
+| **M** |  | ~~A resolved, struck-through item~~ | because | now |
+
+```text
+- item
+```
+"""
+
+
+def _backlog_repo(tmp_path: Path, fixture: str = _BACKLOG_FIXTURE) -> Path:
+    root = tmp_path
+    plans = root / "docs" / "development" / "plans"
+    plans.mkdir(parents=True)
+    (root / "docs" / "STRATEGIC_BACKLOG.md").write_text(fixture, encoding="utf-8")
+    return root
+
+
+class TestT02bBC1ThreeShapesRoundRobin:
+    """Given a fixture backlog holding a hub-shaped table (`Tag` column, one empty
+    tag cell), a project-shaped table (no `Tag` column, one untagged row) and three
+    bullet rows (`- `, `- [ ] `, `- [x] `), when `--adopt alpha,beta --single-window`
+    runs, the empty tag cell reads `` `[alpha]` ``, the project row's second cell
+    starts with `[beta] `, and the bullets read `- [alpha] …`, `- [ ] [beta] …`,
+    `- [x] [alpha] …` — round-robin across all five in file order.
+
+    RED-FIRST EVIDENCE (watched against the pre-T02b script, HEAD c2631de2 —
+    `git show HEAD:scripts/docs_updater.py` has no `_tag_backlog_rows` and
+    `run_adopt` never reads STRATEGIC_BACKLOG.md at all):
+        FAILED tests/test_docs_updater_adopt.py::TestT02bBC1ThreeShapesRoundRobin
+        ::test_three_shapes_tagged_round_robin_in_file_order
+        AttributeError: module 'docs_updater' has no attribute '_tag_backlog_rows'
+    (the backlog file was byte-identical to the fixture — the untagged rows were
+    never touched — before this ticket's implementation landed.)
+    """
+
+    def test_three_shapes_tagged_round_robin_in_file_order(self, tmp_path, monkeypatch):
+        root = _backlog_repo(tmp_path)
+        monkeypatch.setattr(du, "PROJECT_ROOT", root)
+        monkeypatch.setattr(du, "PLANS_DIR", root / "docs" / "development" / "plans")
+        monkeypatch.setattr(du, "PLANS_INDEX", root / "docs" / "development" / "PLANS.md")
+
+        rc = du.run_adopt(["alpha", "beta"], single_window=True)
+        assert rc == 0
+
+        text = (root / "docs" / "STRATEGIC_BACKLOG.md").read_text(encoding="utf-8")
+        lines = text.splitlines()
+
+        assert "| **M** | `[alpha]` | A hub-shaped untagged item | because | now |" in lines
+        assert "| **M** | [beta] A project-shaped untagged item | because | now |" in lines
+        assert "- [alpha] A plain bullet row" in lines
+        assert "- [ ] [beta] An unchecked checkbox bullet row" in lines
+        assert "- [x] [alpha] A checked checkbox bullet row" in lines
+
+        # the legend table (already carrying real tags) is untouched
+        assert "| `[infra]` | infra | command corpus |" in lines
+        assert "| `[fleet]` | fleet | VPS + deploy |" in lines
+
+
+class TestT02bBC2SkipShapes:
+    """Given a row already carrying `[infra]`, the legend table, a header row, a
+    fenced block containing `- item`, and a `~~struck~~` row, when `--adopt` runs,
+    none of them changes.
+
+    RED-FIRST EVIDENCE (same pre-T02b baseline as BC1 — `run_adopt` never read the
+    file, so this assertion would trivially "pass" for the wrong reason on that
+    baseline; the real red is the ATTRIBUTEERROR above, since `_tag_backlog_rows`
+    did not exist at all before this ticket. Watched directly against the helper
+    with the module reverted to HEAD:
+        AttributeError: module 'docs_updater' has no attribute '_tag_backlog_rows'
+    """
+
+    def test_already_tagged_legend_header_fence_and_struck_rows_never_change(
+        self, tmp_path, monkeypatch
+    ):
+        root = _backlog_repo(tmp_path, fixture=_BACKLOG_SKIP_FIXTURE)
+        monkeypatch.setattr(du, "PROJECT_ROOT", root)
+        monkeypatch.setattr(du, "PLANS_DIR", root / "docs" / "development" / "plans")
+        monkeypatch.setattr(du, "PLANS_INDEX", root / "docs" / "development" / "PLANS.md")
+
+        rc = du.run_adopt(["alpha"], single_window=True)
+        assert rc == 0
+
+        text = (root / "docs" / "STRATEGIC_BACKLOG.md").read_text(encoding="utf-8")
+        assert text == _BACKLOG_SKIP_FIXTURE
+
+
+class TestT02bBC3Idempotent:
+    """Given the state after one run, a second run leaves STRATEGIC_BACKLOG.md
+    byte-identical and prints `(nothing to adopt)`.
+
+    RED-FIRST EVIDENCE: watched via the same AttributeError as BC1/BC2 against the
+    pre-T02b baseline (the method under test did not exist)."""
+
+    def test_second_run_is_byte_identical_and_reports_nothing(self, tmp_path, monkeypatch, capsys):
+        root = _backlog_repo(tmp_path)
+        monkeypatch.setattr(du, "PROJECT_ROOT", root)
+        monkeypatch.setattr(du, "PLANS_DIR", root / "docs" / "development" / "plans")
+        monkeypatch.setattr(du, "PLANS_INDEX", root / "docs" / "development" / "PLANS.md")
+
+        du.run_adopt(["alpha", "beta"], single_window=True)
+        capsys.readouterr()
+
+        backlog = root / "docs" / "STRATEGIC_BACKLOG.md"
+        before = backlog.read_bytes()
+
+        rc = du.run_adopt(["alpha", "beta"], single_window=True)
+        out = capsys.readouterr().out
+
+        assert rc == 0
+        assert out.strip() == "(nothing to adopt)"
+        assert backlog.read_bytes() == before
+
+
+class TestT02bBC4MissingBacklogIsSilentlyNothing:
+    """Given no STRATEGIC_BACKLOG.md, `--adopt` succeeds with no `backlog-row` in
+    the report.
+
+    RED-FIRST EVIDENCE: on the pre-T02b baseline this behavior was trivially true
+    (the code never looked at the file at all) — the meaningful red is that
+    `_tag_backlog_rows`/the `backlog_path.is_file()` guard did not exist, proven by
+    the same AttributeError as the other T02b tests when called directly."""
+
+    def test_no_backlog_file_means_no_backlog_rows_and_rc_0(self, tmp_path, monkeypatch, capsys):
+        root = tmp_path
+        plans = root / "docs" / "development" / "plans"
+        plans.mkdir(parents=True)
+        assert not (root / "docs" / "STRATEGIC_BACKLOG.md").exists()
+
+        monkeypatch.setattr(du, "PROJECT_ROOT", root)
+        monkeypatch.setattr(du, "PLANS_DIR", plans)
+        monkeypatch.setattr(du, "PLANS_INDEX", root / "docs" / "development" / "PLANS.md")
+
+        rc = du.run_adopt(["alpha"], single_window=True)
+        out = capsys.readouterr().out
+
+        assert rc == 0
+        assert "backlog-row" not in out
+        assert not (root / "docs" / "STRATEGIC_BACKLOG.md").exists()
+
+
+class TestT02bClassifyBacklogRowDirect:
+    """Direct unit coverage of `classify_backlog_row` — the five shapes it must
+    recognize plus every skip case, called without going through the file-scanning
+    loop at all (the T02b<->T03 Interfaces seam: T03's `--check` advisory calls this
+    same function)."""
+
+    def test_hub_shaped_empty_tag_cell_is_table_tag(self):
+        header = ["Effort", "Tag", "Item", "Why Priority", "Ready When"]
+        line = "| **M** |  | A hub-shaped untagged item | because | now |"
+        assert du.classify_backlog_row(line, header) == "table-tag"
+
+    def test_project_shaped_row_with_no_tag_column_is_table_item(self):
+        header = ["Effort", "Item", "Why", "Ready when"]
+        line = "| **M** | A project-shaped untagged item | because | now |"
+        assert du.classify_backlog_row(line, header) == "table-item"
+
+    def test_plain_bullet_is_bullet(self):
+        assert du.classify_backlog_row("- A plain bullet row", None) == "bullet"
+
+    def test_unchecked_checkbox_bullet_is_bullet(self):
+        assert du.classify_backlog_row("- [ ] An unchecked bullet", None) == "bullet"
+
+    def test_checked_checkbox_bullet_is_bullet(self):
+        assert du.classify_backlog_row("- [x] A checked bullet", None) == "bullet"
+
+    def test_already_tagged_table_row_is_skip(self):
+        header = ["Effort", "Tag", "Item", "Why", "Ready When"]
+        line = "| **M** | `[infra]` | An already-tagged item | because | now |"
+        assert du.classify_backlog_row(line, header) == "skip"
+
+    def test_already_tagged_bullet_is_skip(self):
+        assert du.classify_backlog_row("- [infra] already tagged", None) == "skip"
+
+    def test_legend_table_row_is_skip(self):
+        header = ["Tag", "Agent", "Beat"]
+        line = "| `[infra]` | infra | command corpus |"
+        assert du.classify_backlog_row(line, header) == "skip"
+
+    def test_the_header_row_itself_is_skip(self):
+        header = ["Effort", "Tag", "Item", "Why", "Ready When"]
+        line = "| Effort | Tag | Item | Why | Ready When |"
+        assert du.classify_backlog_row(line, header) == "skip"
+
+    def test_a_separator_row_is_skip(self):
+        header = ["Effort", "Tag", "Item", "Why", "Ready When"]
+        assert du.classify_backlog_row("| :--- | :--- | :--- | :--- | :--- |", header) == "skip"
+
+    def test_struck_through_item_cell_is_skip(self):
+        header = ["Effort", "Tag", "Item", "Why", "Ready When"]
+        line = "| **M** |  | ~~A resolved, struck-through item~~ | because | now |"
+        assert du.classify_backlog_row(line, header) == "skip"
+
+    def test_checkbox_x_is_never_read_as_a_name_tag(self):
+        # the r1 pipeline error this guards: `[x]` must never register as "already
+        # tagged" (which would silently skip a row that still needs a real tag).
+        assert du.classify_backlog_row("- [x] needs a real tag still", None) == "bullet"
