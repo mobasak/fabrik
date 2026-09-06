@@ -773,7 +773,12 @@ def _merge_usage_store_locked(path: Path) -> dict:
     out_days = dict(sorted(days.items()))
     for k, v in unusable.items():
         if isinstance(v, dict) and isinstance(out_days.get(k), dict):
-            out_days[k] = {**out_days[k], **v}
+            # ⚠️ PRESERVED, never PREFERRED. `{**merged, **unusable}` let the unusable value win, so a
+            # model whose stored value was corrupt AND which the transcripts now supply correctly was
+            # clobbered straight back to the corrupt one — reproduced: a stored `"corrupt"` survived
+            # over a real 900,000. Restoration exists so damaged data is not silently deleted; it must
+            # never outrank a value this run actually measured. Found by a round-6 finder.
+            out_days[k] = {**v, **out_days[k]}
         elif k not in out_days:
             out_days[k] = v
     store["days"] = dict(sorted(out_days.items()))

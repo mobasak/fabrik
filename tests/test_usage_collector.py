@@ -901,3 +901,29 @@ def test_a_day_whose_transcripts_are_gone_is_frozen_not_left_pending(tmp_path, m
     again = cpc.merge_usage_store()
     assert again["days"]["2026-01-01"] == {"claude-opus-5": 100}
     assert again["collector_version"] == cpc._COLLECTOR_VERSION
+
+
+def test_a_preserved_unusable_entry_never_outranks_a_measured_one(tmp_path, monkeypatch):
+    """Restoration exists so damaged data is not silently deleted — not so it wins. `{**merged,
+    **unusable}` let the unusable value take precedence, so a model whose stored value was corrupt and
+    which the transcripts now supply CORRECTLY was clobbered straight back to the corrupt one:
+    reproduced with a stored `"corrupt"` surviving over a real 900,000."""
+    _store(
+        tmp_path,
+        monkeypatch,
+        {"2026-09-05": {"claude-opus-5": "corrupt", "claude-haiku-4-5": "also-bad"}},
+        {"2026-09-05": "transcripts"},
+    )
+    monkeypatch.setattr(
+        cpc,
+        "_TRANSCRIPT_ROOT",
+        _tree(
+            tmp_path,
+            {"-opt-fabrik/a.jsonl": [_msg("2026-09-05", "claude-opus-5", "m1", "r1", 900_000)]},
+        ),
+    )
+
+    day = cpc.merge_usage_store()["days"]["2026-09-05"]
+
+    assert day["claude-opus-5"] == 900_000, "a measured value outranks a preserved corrupt one"
+    assert day["claude-haiku-4-5"] == "also-bad", "and one nothing measured is still preserved"
