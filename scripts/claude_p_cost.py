@@ -574,6 +574,15 @@ def merge_usage_store() -> dict:
             lock.close()  # closing the fd releases the flock
 
 
+def _is_iso_day(value: object) -> bool:
+    """True when `value` is a `YYYY-MM-DD` string a date can be built from."""
+    try:
+        datetime.date.fromisoformat(str(value))
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
 def int_or_zero(value: object) -> int:
     """`int(value)`, or 0 for anything that will not convert. A corrupt version stamp migrates
     rather than killing the 06:00 refresh — `int("two")` used to raise straight out of the merge."""
@@ -808,7 +817,11 @@ def _merge_usage_store_locked(path: Path) -> dict:
     # a reader nothing. The question that matters for an unattended producer is whether source 1 is
     # still ADVANCING, and only its newest day answers that. Caught by running the real production
     # path and reading the value, which is the check a proxy would have passed.
-    store["extension_last_day"] = max(src, default=None) if src else None
+    # `max` over VALIDATED keys: `src` is the extension's raw dict, so a junk key would win the
+    # comparison and be published as the source's newest day — a diagnostic that lies is worse than
+    # one that is absent. Raised by a round-7 finder.
+    _src_days = [k for k in src if _is_iso_day(k)]
+    store["extension_last_day"] = max(_src_days, default=None)
     store["source"] = str(_USAGE_HISTORY)
     store["transcript_source"] = str(_transcript_root())
     store["merged_at"] = datetime.datetime.now().astimezone().isoformat(timespec="seconds")

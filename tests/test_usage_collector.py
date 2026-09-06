@@ -927,3 +927,26 @@ def test_a_preserved_unusable_entry_never_outranks_a_measured_one(tmp_path, monk
 
     assert day["claude-opus-5"] == 900_000, "a measured value outranks a preserved corrupt one"
     assert day["claude-haiku-4-5"] == "also-bad", "and one nothing measured is still preserved"
+
+
+def test_the_source_staleness_signal_ignores_junk_keys(tmp_path, monkeypatch):
+    """`max` over the extension's RAW dict would let a junk key win the string comparison and be
+    published as the source's newest day. A diagnostic that lies is worse than one that is absent —
+    and this particular one is how a reader learns whether source 1 is still advancing."""
+    history = tmp_path / "usage-history.json"
+    history.write_text(
+        json.dumps(
+            {
+                "days": {
+                    "2026-09-04": {"byModel": {"claude-opus-5": {"output": 10}}},
+                    "zzz-not-a-day": {"byModel": {"claude-opus-5": {"output": 10}}},
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    _store(tmp_path, monkeypatch, {}, {})
+    monkeypatch.setattr(cpc, "_USAGE_HISTORY", history)
+    monkeypatch.setattr(cpc, "_TRANSCRIPT_ROOT", tmp_path / "no-transcripts")
+
+    assert cpc.merge_usage_store()["extension_last_day"] == "2026-09-04"
