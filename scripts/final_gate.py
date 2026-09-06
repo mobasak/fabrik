@@ -1894,7 +1894,7 @@ def run_consistency_checks(
             )
         )
         results.append(
-            run_optional_check("scripts/docs_updater.py", "Documentation Drift", "--check")
+            run_optional_check("scripts/docs_updater.py", "Documentation Drift", "--check", advisory=True)
         )
         results.append(
             run_optional_check(

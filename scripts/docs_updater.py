@@ -1741,6 +1741,110 @@ def count_sessions_sharing(cwd: Path, proc_root: Path = Path("/proc")) -> int:
     return count
 
 
+def _count_unowned_plans() -> int:
+    """Number of OPEN (non-terminal) plan units whose Owner is `NO_OWNER` — the same
+    "needs an owner" predicate `run_adopt()`'s step (b) uses (terminal = EXECUTED,
+    COMPLETE), read-only, for T03's `--check` advisory."""
+    n = 0
+    for _name, _rel, p in _plan_units():
+        if parse_plan_owner(p) != NO_OWNER:
+            continue
+        status, _checked, _total = parse_plan_status(p)
+        if status in ("EXECUTED", "COMPLETE"):
+            continue
+        n += 1
+    return n
+
+
+def _count_untagged_backlog_rows(text: str) -> int:
+    """Read-only count of untagged docs/STRATEGIC_BACKLOG.md rows, for T03's `--check`
+    advisory. Mirrors `_tag_backlog_rows`'s own header-walking scan EXACTLY (fence-aware;
+    a new header immediately followed by its separator sets `header_cells` for the rows
+    beneath it; that header's own separator row is skipped) so the two can never disagree
+    on what counts as "in a table" — but classifies every remaining line with
+    `classify_backlog_row` instead of mutating it. A row is untagged when its shape is
+    anything but `"skip"`."""
+    lines = text.split("\n")
+    header_cells: list[str] | None = None
+    in_fence = False
+    count = 0
+    i = 0
+    n = len(lines)
+    while i < n:
+        line = lines[i]
+        stripped = line.strip()
+
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            in_fence = not in_fence
+            header_cells = None
+            i += 1
+            continue
+
+        if in_fence:
+            i += 1
+            continue
+
+        if not stripped.startswith("|"):
+            header_cells = None
+        elif i + 1 < n and _BACKLOG_SEPARATOR_RE.match(lines[i + 1].strip()):
+            header_cells = _backlog_row_cells(line)
+            i += 1
+            continue
+        elif header_cells is not None and _BACKLOG_SEPARATOR_RE.match(stripped):
+            i += 1
+            continue
+
+        if classify_backlog_row(line, header_cells) != "skip":
+            count += 1
+
+        i += 1
+
+    return count
+
+
+def validate_ownership_advisory(proc_root: Path = Path("/proc")) -> list[str]:
+    """T03 (multi-agent-per-repo spec, § The delta D3): `--check`'s ownership advisory
+    — fires ONLY when ≥2 live `claude` sessions share this checkout AND ownership is
+    incomplete (the merge owner undeclared, OR an open plan unit is unowned, OR a
+    STRATEGIC_BACKLOG row is untagged). At <2 sessions this reads no file beyond the
+    `/proc` scan (I11 — a single-session repo sees nothing new). Suppressed
+    unconditionally in the HUB (`PROJECT_ROOT/scripts/fabrik_synced_manifest.py`
+    exists — the hub sits outside the worktree model, I12), checked only once the
+    session count already cleared the ≥2 bar. Returns `[]` or exactly ONE
+    `ADVISORY:` line naming the count, what's incomplete, and the `--adopt` command.
+    Collected SEPARATELY by `run_check()` — never append this list to `issues`, so
+    the advisory can never change the exit code."""
+    n = count_sessions_sharing(PROJECT_ROOT, proc_root)
+    if n < 2:
+        return []
+    if (PROJECT_ROOT / "scripts" / "fabrik_synced_manifest.py").exists():
+        return []
+
+    parts: list[str] = []
+    if read_merge_owner() is None:
+        parts.append("merge owner undeclared")
+    unowned = _count_unowned_plans()
+    if unowned:
+        parts.append(f"{unowned} unowned plans")
+    backlog_path = PROJECT_ROOT / "docs" / "STRATEGIC_BACKLOG.md"
+    untagged = 0
+    if backlog_path.is_file():
+        untagged = _count_untagged_backlog_rows(
+            backlog_path.read_text(encoding="utf-8", errors="replace")
+        )
+    if untagged:
+        parts.append(f"{untagged} untagged backlog rows")
+
+    if not parts:
+        return []
+
+    return [
+        f"ADVISORY: {n} sessions share this checkout and ownership is incomplete "
+        f"({'; '.join(parts)}) — run: python scripts/docs_updater.py --adopt "
+        "<name>[,<name>…]"
+    ]
+
+
 def _insert_owner_line(path: Path, name: str) -> bool:
     """Insert `**Owner:** <name>` as the first line after the plan's H1 — after the
     blank line that follows the H1, if one does — never inside a fenced code block,
@@ -1953,21 +2057,29 @@ def run_adopt(names: list[str], single_window: bool, proc_root: Path = Path("/pr
     return 3 if epic_order_failed else 0
 
 
-def run_check() -> int:
-    """Validate docs, fail on drift. Returns exit code."""
+def run_check(proc_root: Path = Path("/proc")) -> int:
+    """Validate docs, fail on drift. Returns exit code. `proc_root` overrides the
+    `/proc` scan T03's ownership advisory reads — a test injection point, the same
+    pattern `run_adopt()`'s own `proc_root` parameter uses. The advisory (T03) is
+    collected SEPARATELY from `issues` and printed after them — it never joins
+    `issues`, so it can never change the exit code below."""
     print("=== Documentation Check ===\n")
 
     valid, issues = validate_docs()
+    advisory = validate_ownership_advisory(proc_root)
 
     if valid:
         print("✓ All documentation checks passed")
-        return 0
     else:
         print("✗ Documentation issues found:\n")
         for issue in issues:
             print(f"  - {issue}")
         print("\nRun 'python scripts/docs_updater.py --sync' to fix.")
-        return 1
+
+    for line in advisory:
+        print(line)
+
+    return 0 if valid else 1
 
 
 def load_prompt_from_file(file_path: str) -> str:

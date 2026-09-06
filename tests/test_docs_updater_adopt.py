@@ -9,6 +9,7 @@ constraint: this flag must never run for real from inside a subagent worktree).
 
 from __future__ import annotations
 
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -53,6 +54,18 @@ def _decisions_no_merge_owner(path: Path) -> None:
         "| id | when | who | what (the decision) | why | where |\n"
         "|---|---|---|---|---|---|\n"
         "| D-001 | 2026-01-01 | operator | some unrelated decision | because | here |\n",
+        encoding="utf-8",
+    )
+
+
+def _decisions_with_merge_owner(path: Path, name: str = "alpha") -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "# Decisions\n\n"
+        "| id | when | who | what (the decision) | why | where |\n"
+        "|---|---|---|---|---|---|\n"
+        f"| D-001 | 2026-01-01 | {name} | MERGE OWNER: {name} — declared by --adopt "
+        "| because | docs/development/PLANS.md |\n",
         encoding="utf-8",
     )
 
@@ -1177,3 +1190,154 @@ class TestT02bR2Defect1AnchoredTagPosition:
         assert len(report) == 1
         _excerpt, name, kind = report[0]
         assert (name, kind) == ("alpha", "backlog-row")
+
+
+class TestT03CheckAdvisory:
+    """T03 (multi-agent-per-repo spec § The delta D3): `run_check()`'s ownership
+    advisory fires exactly one `ADVISORY:` line, ONLY when ≥2 live `claude` sessions
+    share this checkout AND ownership is incomplete (merge owner undeclared / an
+    open plan unowned / a backlog row untagged); it is collected SEPARATELY from
+    `issues` so it can never change the exit code, and is suppressed unconditionally
+    in the hub."""
+
+    @staticmethod
+    def _repo(
+        tmp_path: Path,
+        *,
+        merge_owner: bool,
+        plan_owned: bool,
+        backlog_tagged: bool,
+        hub: bool = False,
+    ) -> Path:
+        root = tmp_path / "repo"
+        plans = root / "docs" / "development" / "plans"
+        plans.mkdir(parents=True)
+        (plans / "2026-01-01-plan-1-open.md").write_text(
+            "# Plan\n\n" + ("**Owner:** alpha\n" if plan_owned else "") + "Status: DRAFT\n",
+            encoding="utf-8",
+        )
+        decisions = root / "docs" / "DECISIONS.md"
+        if merge_owner:
+            _decisions_with_merge_owner(decisions)
+        else:
+            _decisions_no_merge_owner(decisions)
+        backlog = root / "docs" / "STRATEGIC_BACKLOG.md"
+        if backlog_tagged:
+            backlog.write_text("- [alpha] Already tagged item\n", encoding="utf-8")
+        else:
+            backlog.write_text("- An untagged backlog item\n", encoding="utf-8")
+        if hub:
+            scripts = root / "scripts"
+            scripts.mkdir(parents=True, exist_ok=True)
+            (scripts / "fabrik_synced_manifest.py").write_text("# hub\n", encoding="utf-8")
+        return root
+
+    @staticmethod
+    def _patch(monkeypatch, root: Path) -> None:
+        monkeypatch.setattr(du, "PROJECT_ROOT", root)
+        monkeypatch.setattr(du, "PLANS_DIR", root / "docs" / "development" / "plans")
+        monkeypatch.setattr(du, "PLANS_INDEX", root / "docs" / "development" / "PLANS.md")
+
+    def test_two_sessions_incomplete_ownership_prints_exactly_one_advisory_line(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        """BC row 1: two `claude` processes at the fixture root, no `MERGE OWNER:`
+        row — `run_check()` prints exactly one `ADVISORY:` line naming `2 sessions`
+        and `--adopt`, and its return value never depends on the advisory (proven by
+        re-running with the advisory monkeypatched to `[]`)."""
+        root = self._repo(tmp_path, merge_owner=False, plan_owned=True, backlog_tagged=True)
+        proc_root = _fake_proc(tmp_path, [("claude", root), ("claude", root)])
+        self._patch(monkeypatch, root)
+
+        rc = du.run_check(proc_root=proc_root)
+        out = capsys.readouterr().out
+        advisory_lines = [ln for ln in out.splitlines() if ln.startswith("ADVISORY:")]
+
+        assert len(advisory_lines) == 1, out
+        assert "2 sessions" in advisory_lines[0]
+        assert "--adopt" in advisory_lines[0]
+        assert "merge owner undeclared" in advisory_lines[0]
+
+        monkeypatch.setattr(du, "validate_ownership_advisory", lambda *a, **k: [])
+        rc_without_advisory = du.run_check(proc_root=proc_root)
+
+        assert rc == rc_without_advisory
+
+    def test_one_session_prints_no_advisory_even_when_ownership_is_incomplete(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        """BC row 2 (first half): one process in the fake proc tree — no `ADVISORY:`
+        line, however incomplete ownership is."""
+        root = self._repo(tmp_path, merge_owner=False, plan_owned=False, backlog_tagged=False)
+        proc_root = _fake_proc(tmp_path, [("claude", root)])
+        self._patch(monkeypatch, root)
+
+        du.run_check(proc_root=proc_root)
+        out = capsys.readouterr().out
+
+        assert not any(ln.startswith("ADVISORY:") for ln in out.splitlines()), out
+
+    def test_hub_identity_suppresses_the_advisory_even_at_two_sessions(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        """BC row 2 (second half): two processes, but
+        `scripts/fabrik_synced_manifest.py` is present (hub identity) — no
+        `ADVISORY:` line, however incomplete ownership is."""
+        root = self._repo(
+            tmp_path, merge_owner=False, plan_owned=False, backlog_tagged=False, hub=True
+        )
+        proc_root = _fake_proc(tmp_path, [("claude", root), ("claude", root)])
+        self._patch(monkeypatch, root)
+
+        du.run_check(proc_root=proc_root)
+        out = capsys.readouterr().out
+
+        assert not any(ln.startswith("ADVISORY:") for ln in out.splitlines()), out
+
+    @pytest.mark.parametrize("session_count", [1, 2], ids=["1-session", "2-sessions"])
+    @pytest.mark.parametrize("complete", [True, False], ids=["complete", "incomplete"])
+    def test_advisory_fires_only_at_two_sessions_and_incomplete_ownership(
+        self, tmp_path, monkeypatch, capsys, session_count, complete
+    ):
+        """BC row 3: parametrized over the four combinations of
+        (sessions ∈ {1,2}) × (ownership complete/incomplete) — only (2, incomplete)
+        prints the advisory. "complete" = a declared merge owner, every open plan
+        owned, and every backlog row already tagged."""
+        root = self._repo(
+            tmp_path, merge_owner=complete, plan_owned=complete, backlog_tagged=complete
+        )
+        proc_root = _fake_proc(tmp_path, [("claude", root)] * session_count)
+        self._patch(monkeypatch, root)
+
+        du.run_check(proc_root=proc_root)
+        out = capsys.readouterr().out
+        fires = any(ln.startswith("ADVISORY:") for ln in out.splitlines())
+
+        assert fires == (session_count == 2 and not complete), out
+
+
+class TestT03GateWiring:
+    """T03 (multi-agent-per-repo spec § The delta D3): the gate's `Documentation
+    Drift` optional check gains `advisory=True` — proven both ways, so the wiring is
+    real, not cosmetic: the call site carries the keyword, AND
+    `run_optional_check`'s own docstring still documents that `advisory` preserves
+    stdout on a green exit (the contract the keyword invokes)."""
+
+    _FINAL_GATE = Path(__file__).parent.parent / "scripts" / "final_gate.py"
+
+    def test_documentation_drift_call_carries_advisory_true(self):
+        source = self._FINAL_GATE.read_text(encoding="utf-8")
+        m = re.search(
+            r'run_optional_check\(\s*"scripts/docs_updater\.py",\s*"Documentation Drift"[^)]*\)',
+            source,
+        )
+        assert m is not None, "the Documentation Drift run_optional_check call was not found"
+        assert "advisory=True" in m.group(0), m.group(0)
+
+    def test_run_optional_check_docstring_still_documents_advisory_stdout_preservation(self):
+        source = self._FINAL_GATE.read_text(encoding="utf-8")
+        m = re.search(r'def run_optional_check\(.*?"""(.*?)"""', source, re.S)
+        assert m is not None, "run_optional_check's docstring was not found"
+        docstring = m.group(1).lower()
+        assert "advisory" in docstring
+        assert "stdout" in docstring
