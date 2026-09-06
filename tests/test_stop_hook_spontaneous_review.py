@@ -58,3 +58,43 @@ def test_counters_extend_compatibly():
     vals = fgs._read_counters(p)
     assert vals == (1, 2, 3, 4, 5, 0), vals
     p.unlink()
+
+
+# --- the checkpoint is PER CHANGE, not per session (operator, 2026-09-06) ------------------------
+# `_run_record_exists` answered "did this session EVER open a record?" — a per-session boolean.
+# Measured: a session ran /fabrik-review-scoped at 01:45, then made TEN plain-chat commits across
+# the day, and never tripped the sixth cause because that one morning record exempted everything
+# after it. The hook must ask "is there authored CODE newer than the last closed command?" — a
+# closed command covers the edits made before its close and nothing after; a RUNNING record is
+# the fifth cause's business and must not double-block here.
+
+T = 1_800_000_000
+
+
+def test_code_authored_after_the_last_closed_command_is_unreviewed():
+    authored = {"src/a.py": T + 60, "src/b.py": T - 60, "docs/x.md": T + 600}
+    horizon = fgs._review_horizon({"command": "fabrik-review-scoped", "state": "done", "updated_ts": T})
+    assert horizon == T
+    assert fgs._unreviewed_code_files(authored, horizon) == 1, "only a.py is newer than the close"
+
+
+def test_no_record_at_all_leaves_every_code_file_unreviewed():
+    authored = {"src/a.py": T, "src/b.py": T - 9999}
+    assert fgs._review_horizon(None) is None
+    assert fgs._unreviewed_code_files(authored, None) == 2
+
+
+def test_a_running_record_is_the_fifth_causes_business_not_this_ones():
+    authored = {"src/a.py": T + 60}
+    horizon = fgs._review_horizon({"command": "fabrik-execute-plan", "state": "running", "updated_ts": T})
+    assert fgs._unreviewed_code_files(authored, horizon) == 0, "never double-block a live command"
+
+
+def test_a_blocked_close_covers_like_a_done_close():
+    horizon = fgs._review_horizon({"command": "fabrik-review", "state": "blocked", "updated_ts": T})
+    assert horizon == T
+
+
+def test_malformed_record_reads_as_no_record():
+    for rec in ({"state": "done"}, {"updated_ts": "soon", "state": "done"}, "junk", 42):
+        assert fgs._review_horizon(rec) is None

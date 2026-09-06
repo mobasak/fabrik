@@ -512,6 +512,18 @@ def _run_record(sid: str) -> dict | None:
         return None
 
 
+def _run_record_raw(sid: str) -> dict | None:
+    """The record as written, freshness-blind — `_review_horizon` needs a CLOSED record however
+    old it is (its close time IS the fact). Unreadable/absent → None (= no coverage)."""
+    try:
+        raw_dir = os.environ.get("COMMAND_RUN_DIR")
+        base = Path(raw_dir) if raw_dir else Path.home() / ".claude" / "state" / "command-runs"
+        rec = json.loads((base / f"{_safe_sid(sid)}.json").read_text(encoding="utf-8"))
+        return rec if isinstance(rec, dict) else None
+    except Exception:
+        return None
+
+
 def _run_record_exists(sid: str) -> bool:
     """Did this session EVER open a command run record? Freshness-independent, on purpose.
 
@@ -620,6 +632,43 @@ def _count_code_files(authored: dict[str, int]) -> int:
     from pathlib import PurePosixPath
 
     return sum(1 for f in authored if PurePosixPath(f).suffix.lower() in _CODE_EXTS)
+
+
+def _review_horizon(rec: object) -> float | None:
+    """The instant up to which this session's code edits are COVERED by a command.
+
+    None when there is no usable record (every authored code file is spontaneous). A CLOSED
+    record (`state` done/blocked) covers everything authored up to its `updated_ts` — the
+    command's own contract owned the review discipline until it closed — and NOTHING after.
+    A RUNNING record covers "now": a live command is the fifth cause's business, and blocking
+    here as well would double-block one stop for one reason.
+
+    Why per CHANGE and not per SESSION (2026-09-06): `_run_record_exists` answered "did this
+    session EVER open a record?", so one /fabrik-review-scoped at 01:45 exempted ten plain-chat
+    commits made across the rest of the day — the hook's own author measured it on himself.
+    """
+    if not isinstance(rec, dict):
+        return None
+    state = rec.get("state")
+    if state == "running":
+        return float("inf")
+    ts = rec.get("updated_ts")
+    if state in ("done", "blocked") and isinstance(ts, (int, float)):
+        return float(ts)
+    return None
+
+
+def _unreviewed_code_files(authored: dict[str, int], horizon: float | None) -> int:
+    """Code files this session authored AFTER the horizon — the ones no command has covered."""
+    from pathlib import PurePosixPath
+
+    n = 0
+    for f, ts in authored.items():
+        if PurePosixPath(f).suffix.lower() not in _CODE_EXTS:
+            continue
+        if horizon is None or not isinstance(ts, (int, float)) or float(ts) > horizon:
+            n += 1
+    return n
 
 
 def decide_review(
@@ -1326,13 +1375,15 @@ def main(argv: list[str]) -> int:
                 # predicate 5), so code edits with NO record at all are plain-chat work by
                 # construction. The remedy is the light /fabrik-review-scoped; running it
                 # creates the record, which clears this cause on the next stop.
-                v_action, v_att = decide_review(
-                    # EXISTS, not IS-FRESH: `run` is None for a stale record too, and this
-                    # cause's question is "reviewed under a command at all?" (01M1NTNCFEWMP82YQFGNN6NHYP)
-                    _count_code_files(authored_map),
-                    _run_record_exists(sid),
-                    v_att,
+                # PER CHANGE (2026-09-06): count only code authored AFTER the last CLOSED
+                # command's record. `has_any_record` is therefore "nothing is unreviewed" —
+                # the pure decision is unchanged, the question it is asked has changed. The
+                # 01M1NTNCFEWMP82YQFGNN6NHYP shape (reviewed, closed, idle under a hold) stays
+                # allowed: idle authors nothing after the close.
+                _unreviewed = _unreviewed_code_files(
+                    authored_map, _review_horizon(_run_record_raw(sid))
                 )
+                v_action, v_att = decide_review(_unreviewed, _unreviewed == 0, v_att)
                 if v_action == "block_review":
                     counter.write_text(f"{g},{c},0,{p_att},{r_att},{v_att}")
                     _kaizen(

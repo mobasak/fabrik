@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the review checkpoint is now PER CHANGE: one morning run record no longer licenses a day of unreviewed commits (2026-09-06)
+
+Operator: "after doing changes all agents must run a /fabrik-review or /fabrik-review-scoped — have
+you done this?" No. Ten commits today had inline passes, mutation-proven graders and green gates,
+and not one review command. The Stop hook's sixth cause is documented to block exactly that and
+never fired — because `_run_record_exists` asked "did this session EVER open a record?", a
+per-SESSION boolean. This session ran `/fabrik-review-scoped` at 01:45; that single record exempted
+everything authored after it. The hook's author measured it on himself.
+
+- `_review_horizon(rec)`: a CLOSED record (`done`/`blocked`) covers code authored up to its
+  `updated_ts` and nothing after; a RUNNING record covers "now" (the fifth cause's business — never
+  double-block one stop); no usable record covers nothing. `_unreviewed_code_files(authored,
+  horizon)` counts what is newer. The pure `decide_review` is unchanged — only the question it is
+  asked changed, so the 01M1NTNCFEWMP82YQFGNN6NHYP shape (reviewed, closed, idle under a hold) stays
+  allowed: idle authors nothing after the close.
+- `_run_record_raw`: freshness-blind read — a stale-but-closed record is exactly what sets the
+  horizon, and the fail-open `_run_record` would have hidden it.
+- 5 graders seen red, 2 helpers mutation-proven; 163 pass across the Stop-hook family.
+- Contract: `review-after-change` is a UNIVERSAL governance marker (anchor *EVERY code-changing
+  chunk of work gets a review-family pass* — already verbatim in the hub § 1a and the project
+  template); fabrik-lib's § 1a gained the sentence, so the drift check binds it. hooks-index § 1
+  Stop row re-worded. `.claude/hooks/` is fleet-synced: this commit distributes to 42 repos;
+  fabrik-lib's vendored hook has NO sixth cause at all and is filed for re-vendor. D-164.
+
 ### Added — docs_updater.py --adopt tags the backlog rows in their three real shapes (2026-09-06)
 
 `--adopt` (step c′) tags every untagged `docs/STRATEGIC_BACKLOG.md` row round-robin in the row's own shape — a hub-shaped table gets `` `[<name>]` `` in its `Tag` cell, a project-shaped table (`| Effort | Item | Why | Ready when |`) gets `[<name>] ` on the Item cell, a bullet row gets it after the list marker and any checkbox — skipping rows already tagged, headers, the legend table, fenced blocks and struck-through items; a second run is byte-identical; a missing backlog is silently nothing (23 of 41 projects carry one; 6 of 619 project table rows were tagged before this). `classify_backlog_row()` is the shape oracle T03's advisory reuses. Plan 2026-09-06-plan-2-multi-agent-adoption T02b (spec D2, ruling D-154); 109 tests green.
