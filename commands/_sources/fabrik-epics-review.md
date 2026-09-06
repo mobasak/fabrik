@@ -201,6 +201,10 @@ python3 /opt/fabrik/scripts/epic_order.py --assign <alpha,beta,gamma> --epics-di
   nothing.
 - `--assign` is its own action — it cannot be combined with `--check` or `--json`.
 - Re-run 2b after any route-back that recreated a file: the recreated ticket carries `owner: ""`.
+- After `--assign` succeeds, run `python3 /opt/fabrik/scripts/decisions.py --merge-owner .`; when it
+  prints `UNDECLARED` (exit 3), mint the `MERGE OWNER: <first name>` row in `docs/DECISIONS.md` — id via
+  `python3 /opt/fabrik/scripts/decisions.py --next-id .` — in the same change, so the epic path and
+  `docs_updater.py --adopt` converge on one declaration (D-154).
 
 **2c — prove the assignment:**
 
@@ -512,7 +516,8 @@ A route-back instead hands to `/fabrik-epics` or `/fabrik-vision` and re-enters 
 - Ticket-set integrity gated in code (`epic_order.py --check --expected-count`) BEFORE any assignment, and
   `--assign <names>` never invoked over a failing set.
 - Every epic carries exactly one `owner` ∈ the operator's set, proven by `--check --owners <names>`
-  BEFORE any lens ran; the set's order (agent-1 first) recorded in the report.
+  BEFORE any lens ran; the set's order (agent-1 first) recorded in the report, and the merge-owner
+  ledger row present or minted (`decisions.py --merge-owner .` ≠ `UNDECLARED`).
 - Review dispatched through `libs/subagents` — **pool `fanout("review")` recording the flywheel AND ≥1
   native `fabrik-reviewer` on Opus** — across every report lens, with the orchestrator refuting / merging
   / deciding.

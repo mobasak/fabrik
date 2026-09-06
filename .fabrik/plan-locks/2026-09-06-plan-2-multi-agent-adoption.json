@@ -59,13 +59,23 @@
       "merged_at": "2026-09-06T15:22:46"
     },
     "T05": {
-      "state": "in-review",
+      "state": "merged",
       "runtime": "native sonnet worktree",
       "started_at": "2026-09-06T12:16:27+00:00",
       "branch": "worktree-agent-ac49238fb7bb4c376",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-ac49238fb7bb4c376",
-      "branch_head": "af9413da",
-      "base_commit": "ca4ec9ed"
+      "branch_head": "4e6c3435",
+      "base_commit": "ca4ec9ed",
+      "merged_at": "2026-09-06T16:01:17",
+      "review": "docs/development/reviews/2026-09-06-plan-2-multi-agent-adoption-T05-review.md"
+    },
+    "T02b": {
+      "state": "dispatched",
+      "runtime": "NO-POOL: native sonnet worktree (the write sandbox cannot run pytest \u2014 01M1V98VN3QNS73GCR3GYF9FXH)",
+      "started_at": "2026-09-06T12:59:41+00:00",
+      "worktree_path": null,
+      "branch": null,
+      "base_commit": "c2631de2"
     }
   },
   "orchestrator": "infra session dd3c06d1, main checkout (dispatcher mode; the hub is outside the worktree model \u2014 coders isolate by worktree per D2)",

@@ -61,9 +61,11 @@ report it, don't quietly absorb the cost of a silent extra read).
   `src/fabrik/spec_loader.py` `WatchdogConfig` + `src/fabrik/drivers/watchdog.py` · `src/fabrik/audit.py` ·
   `src/fabrik/orchestrator/destroyer.py`.
 - EXISTING mode only — the live project: `project.yaml` · `specs/services/*.yaml` · `compose.yaml` ·
-  `.env.example` · the project's `docs/` (architecture docs, preplans, FINANCIALS.md) · the codebase
-  (⚠️ treat live VPS state as authoritative when they disagree) · `docs/reference/fabrik-cli-reference.md`
-  (to read `fabrik validate`'s output).
+  `.env.example` · the project's `docs/` (architecture docs, preplans, FINANCIALS.md) ·
+  `docs/development/PLANS.md` (its `AUTO-GENERATED:PLANS` block — open rows are those whose Status is
+  not EXECUTED/COMPLETE — and its `<!-- Merge owner: … -->` header line) · `docs/STRATEGIC_BACKLOG.md` ·
+  the codebase (⚠️ treat live VPS state as authoritative when they disagree) ·
+  `docs/reference/fabrik-cli-reference.md` (to read `fabrik validate`'s output).
 - `/opt/fabrik-lib/README.md` + each candidate module's own README — the vendor ladder (Phase 3).
 - The ACTIVE `.windsurf/rules` packs via `python scripts/select_rules.py` (run it against the PROJECT
   root) — PLUS the packs named by path that it will NEVER mark ACTIVE, which you must therefore open
@@ -344,7 +346,9 @@ conflict with Fabrik's actual infrastructure or constraints.
 `specs/services/*.yaml` (deployed services, shape blocks, registrars) · `compose.yaml` / `Dockerfile`
 (infrastructure, base images, services) · `.env.example` (environment variables, external service
 dependencies) · `src/` or `app/` (codebase structure, modules, API routes) · database schema (migrations
-or models) · `docs/` (existing architecture docs, preplans, FINANCIALS.md) · `.windsurf/rules/` (synced —
+or models) · `docs/` (existing architecture docs, preplans, FINANCIALS.md — incl.
+`docs/development/PLANS.md` open rows + the `<!-- Merge owner: … -->` header, and
+`docs/STRATEGIC_BACKLOG.md` — both when present) · `.windsurf/rules/` (synced —
 check if the project follows them; index below).
 
 **⚠ Project files may be pre-rules, missing, or stale.** Existing projects predate current Fabrik
@@ -641,7 +645,9 @@ folder path:
   `fabrik apply`.
 - `templates/<scaffold-type>/` (in this repo) → the canonical scaffold tree the project was generated
   from. Compare against actual layout to detect drift.
-- `compose.yaml` / `Dockerfile`, `.env.example`, `src/`/`app/`, database schema, `docs/`.
+- `compose.yaml` / `Dockerfile`, `.env.example`, `src/`/`app/`, database schema, `docs/` (incl.
+  `docs/development/PLANS.md` open rows + the `<!-- Merge owner: … -->` header, and
+  `docs/STRATEGIC_BACKLOG.md` — both when present).
 - `.windsurf/rules/` — synced from this repo. **Local edits to any Fabrik-synced file are a Tier-1
   violation** — gate-enforced by `scripts/enforcement/check_synced_unmodified.py`. The full synced set is
   defined by `scripts/fabrik_synced_manifest.py`. Any drift is a Compliance gap: fix by reverting the
@@ -804,6 +810,13 @@ New tables/endpoints/workers needed? New scaffold type? **If the capability bein
 (billing, a public surface, anything with real external competitors/users) on an otherwise-internal
 project, run the market-facing gate in Phase 2 now** — it applies to this delta exactly as it applies to
 a NEW-mode vision.
+
+**The two work stores seed the same Scale Assessment / epic seeds (D-154).** Every open row in
+`docs/development/PLANS.md` (Status not EXECUTED/COMPLETE) and every row in `docs/STRATEGIC_BACKLOG.md`
+is an additional candidate line for the delta's Full Feature Inventory — carried forward with its
+`[name]` tag / `Owner` so an epic cut from a `[beta]` backlog row is written with `owner: beta`. A
+candidate still passes the six reality-challenge checks above before it's kept; a row with no tag stays
+unowned until the epic path assigns one.
 
 **Load domain packs** — for each NEW capability read the matching rule pack: saas →
 `saas/00-domain-saas.md`; mobile → `mobile-app/00-domain-mobile-app.md`; desktop →
