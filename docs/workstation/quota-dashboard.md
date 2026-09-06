@@ -172,6 +172,36 @@ above the matrix, so it is findable without reading this doc. `tests/test_quota_
 the registry's shape (unique keys, compiling patterns, the three most-used services still present)
 and pins the rendered-vs-sources behaviour, but no test can know about a service nobody registered.
 
+#### Search-API quota & renewal, under the matrix (2026-09-07)
+
+A four-column strip below the matrix — service, plan, remaining, renews — for the three metered
+search APIs the matrix tracks. Fetched on a TTL **off the render path** and cached to
+`~/.claude/quota-dashboard/api-quotas.json`; the render reads that cache and never makes a network
+call, for the same reason the pool balance doesn't (a third-party endpoint on the critical path is
+how this board froze on 2026-09-06). Each provider is fetched independently, so one outage cannot
+blank the other two. Keys come from the MCP servers' own `env` blocks in `~/.claude.json` /
+`.mcp.json` (environment wins) and are never rendered, logged or cached.
+
+**What each provider actually exposes — probed live 2026-09-07, not assumed:**
+
+| Service | Endpoint | Gives us |
+|---|---|---|
+| **Firecrawl** | `GET https://api.firecrawl.dev/v1/team/credit-usage` | `remaining_credits`, `plan_credits`, `billing_period_end` — everything, one call, no credits spent |
+| **Brave** | none — the quota IS the rate-limit header on any search response | `X-RateLimit-Limit/Remaining/Reset`, comma-separated `"<per-second>, <monthly>"`. ⚠️ Probing **costs one search query** |
+| **Exa** | none reachable | usage lives at `admin-api.exa.ai/team-management/api-keys/{id}/usage`, needs a team-management **SERVICE** key (our search key gets 403 / Cloudflare 1010), and returns *spend* — never a balance or a renewal date. `POST /search` carries no quota headers at all |
+
+⚠️ **Brave's monthly `0` means UNLIMITED, not exhausted.** The docs say *"15,000 requests per month
+(0 for unlimited)"* ([rate limiting](https://api-dashboard.search.brave.com/documentation/guides/rate-limiting)),
+and this box's plan returns `x-ratelimit-limit: "50, 0"` — 50/second, no monthly cap. Read naively
+that renders as "0 remaining" and paints a healthy plan as a dead one, which is a false alarm on the
+board the operator checks *before* deciding whether work can run. `X-RateLimit-Reset` is likewise
+**seconds remaining in the window**, not a unix timestamp — treated as an epoch it dates the renewal
+to 1970. Both are pinned by graders.
+
+A value that cannot be obtained is **stated, never blank**: an absent key, an unavailable provider
+API, a failed probe and a provider that stopped sending its headers are four different verdicts, and
+the row says which. A stale reading keeps the last good numbers and is badged `stale`.
+
 ### The External services tab (2026-09-03)
 
 **External services** embeds the fleet's external-services & credentials inventory — the static
@@ -231,6 +261,8 @@ files and exit — useful for a scripted refresh without a browser).
 | `QUOTA_DASH_CREDITS_KEY_FILE` | `~/.config/fabrik/subagents.env` | where the OpenRouter key is read from (`OPENROUTER_API_KEY` in the environment wins). The key is never rendered, never logged and never written to the cache |
 | `QUOTA_DASH_CREDITS_TTL_S` | `300` | how long a balance is reused. Credits move only when something spends; at the 20s refresh an uncached read would be ~4,320 calls a day |
 | `QUOTA_DASH_CREDITS_TIMEOUT_S` | `10` | the balance GET's timeout — it runs OFF the render path, so this can never delay a page load |
+| `QUOTA_DASH_API_QUOTAS_TTL_S` | `1800` | how long a brave/firecrawl/exa quota reading is reused. Long on purpose: a Brave probe SPENDS one search query, since Brave has no balance endpoint |
+| `QUOTA_DASH_API_QUOTAS_TIMEOUT_S` | `12` | per-provider probe timeout — off the render path, so it can never delay a page load |
 | `QUOTA_DASH_RENDERED_COMMANDS` | `~/.claude/commands` | the RENDERED command corpus the external-services matrix reads (the sources under-report — the assembler appends shared fragments) |
 | `QUOTA_DASH_CREDITS_URL` | `https://openrouter.ai/api/v1/credits` | the balance endpoint |
 | `POOL_CREDITS_WARN_USD` | `5` | the drain line. An ABSOLUTE floor, not a percentage: after a top-up the percentage is meaningless ($20 of $245 reads as 8% and is the whole runway) |

@@ -45,7 +45,7 @@ rule packs, 70 enforcement checks, 35 rendered commands, 10 MCP servers.
 | fabrik-mail, thread anchors, native cross-session messaging | the three channels an agent must read and answer | `docs/reference/fabrik-mail.md`, `scripts/thread_anchor.py` |
 | The resume mesh + the wip-net | self-watch, death/revival, the off-box copy of uncommitted work | `docs/workstation/hooks-index.md`, `scripts/wip_backup.sh` |
 | Kaizen + the coroner | records every hook event, reaps abandoned records, digests that change the rules later | `scripts/sysadmin/kaizen_*.py` |
-| Outer loops | the daily pipeline, CI + the CI fix dispatcher, the watchdog — they commit into repos without a human | `scripts/kilo-benchmarks/daily_refresh.sh`, `scripts/ci_fix_dispatcher.py`, `docs/reference/watchdog.md` |
+| Outer loops | the daily pipeline, CI + the CI fix dispatcher, the watchdog — they commit into repos without a human | `scripts/kilo-benchmarks/daily_refresh.sh`, `scripts/ci_fix_dispatcher.py`, `scripts/watchdog.sh` |
 | Skills and subagent types | the superpowers plugin; the four rendered agent definitions | `~/.claude/agents/`, `commands/assemble_commands.py` |
 
 The levers with the most leverage, in order: `CLAUDE.md`, the hooks, the gate checks, the rule packs,

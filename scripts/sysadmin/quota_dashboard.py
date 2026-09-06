@@ -191,6 +191,265 @@ def _pool_credits(now: float | None = None, *, fetch: bool = True) -> dict | Non
     return {**fresh, "age_s": 0.0, "stale": False}
 
 
+# ── Search-API quotas: brave · firecrawl · exa (operator ask 2026-09-07) ─────────────────────
+# The matrix says WHICH commands reach these services; this says how much of each is LEFT and when
+# it renews. Same discipline as the pool balance above: fetched on a TTL OFF the render path,
+# cached to disk, and the render NEVER makes a network call (a third-party endpoint on the critical
+# path is how this board froze once already).
+#
+# ⚠️ WHAT EACH PROVIDER ACTUALLY EXPOSES — probed live 2026-09-07, not assumed:
+#   firecrawl  GET /v1/team/credit-usage  →  remaining_credits, plan_credits, billing_period_end.
+#              Everything asked for, in one call. Costs no credits.
+#   brave      no balance endpoint at all; the quota IS the rate-limit header on any search
+#              response — `X-RateLimit-Limit/Policy/Remaining/Reset`, comma-separated as
+#              "<per-second>, <monthly>". ⚠️ A monthly value of 0 means UNLIMITED, not exhausted:
+#              the docs say "15,000 requests per month (0 for unlimited)"
+#              (https://api-dashboard.search.brave.com/documentation/guides/rate-limiting).
+#              Reading it as "0 remaining" would paint an unlimited plan as dead. Reset is
+#              SECONDS REMAINING in the window, not an epoch. ⚠️ Probing costs one search query,
+#              which is why the TTL here is long.
+#   exa        NOT AVAILABLE to us, and the panel says so rather than showing a blank. Usage lives
+#              at admin-api.exa.ai/team-management/api-keys/{id}/usage and needs a SERVICE key from
+#              the team-management surface — our search key gets 403 (Cloudflare 1010) — and even
+#              that returns spend, never a balance or a renewal date. `POST /search` carries no
+#              quota headers of any kind (verified against the full response header set).
+API_QUOTAS_CACHE = OUT_DIR / "api-quotas.json"
+API_QUOTAS_TTL_S = float(os.getenv("QUOTA_DASH_API_QUOTAS_TTL_S", "1800"))
+API_QUOTAS_TIMEOUT_S = float(os.getenv("QUOTA_DASH_API_QUOTAS_TIMEOUT_S", "12"))
+# `_FABRIK_ROOT` is defined further down with the commands block; resolve the repo root the
+# same way here rather than reordering module state around a two-element tuple.
+_MCP_CONFIGS = (
+    Path.home() / ".claude.json",
+    Path(__file__).resolve().parents[2] / ".mcp.json",
+)
+
+
+def _mcp_key(server: str, var: str) -> str | None:
+    """The API key an MCP server is configured with. Environment wins; otherwise the `env` block of
+    the MCP configs, which is where this box actually keeps them. Returns None rather than raising,
+    and the VALUE never reaches a log or the page — only whether it exists."""
+    if os.getenv(var):
+        return os.getenv(var)
+    for cfg in _MCP_CONFIGS:
+        try:
+            data = json.loads(cfg.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        stack = [data]
+        while stack:
+            node = stack.pop()
+            if isinstance(node, dict):
+                block = node.get(server)
+                if isinstance(block, dict):
+                    val = (block.get("env") or {}).get(var)
+                    if isinstance(val, str) and val and "${" not in val:
+                        return val
+                stack.extend(v for v in node.values() if isinstance(v, (dict, list)))
+            elif isinstance(node, list):
+                stack.extend(v for v in node if isinstance(v, (dict, list)))
+    return None
+
+
+def _get_json(url: str, headers: dict[str, str]) -> tuple[dict, dict[str, str]]:
+    """One GET → (parsed body, lowercased response headers). Isolated so the callers above it are
+    testable without a network."""
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req, timeout=API_QUOTAS_TIMEOUT_S) as resp:  # noqa: S310
+        raw = resp.read()
+        hdrs = {k.lower(): v for k, v in resp.headers.items()}
+        try:
+            return json.loads(raw.decode("utf-8")), hdrs
+        except ValueError:
+            return {}, hdrs
+
+
+def _brave_quota(now: float) -> dict:
+    """Brave's quota rides the rate-limit headers of an ordinary search — there is no balance
+    endpoint. Costs one query per probe."""
+    key = _mcp_key("brave-search", "BRAVE_API_KEY")
+    if not key:
+        return {"state": "unconfigured"}
+    _, hdrs = _get_json(
+        "https://api.search.brave.com/res/v1/web/search?q=fabrik+quota+probe&count=1",
+        {"Accept": "application/json", "X-Subscription-Token": key},
+    )
+
+    def pair(name: str) -> list[str]:
+        return [p.strip() for p in (hdrs.get(name) or "").split(",")]
+
+    limit, remaining, reset = (
+        pair("x-ratelimit-limit"),
+        pair("x-ratelimit-remaining"),
+        pair("x-ratelimit-reset"),
+    )
+    if len(limit) < 2:
+        return {"state": "no-headers"}
+    monthly_limit = int(limit[1] or 0)
+    out = {
+        "state": "ok",
+        "unit": "queries/mo",
+        "per_second": int(limit[0] or 0),
+        # 0 IS UNLIMITED, per the docs. Reporting it as "0 left" would read as a dead plan.
+        "unlimited": monthly_limit == 0,
+        "total": None if monthly_limit == 0 else monthly_limit,
+        "remaining": None if monthly_limit == 0 else int(remaining[1] or 0),
+    }
+    if len(reset) > 1 and reset[1].isdigit():
+        out["renews_at"] = now + int(reset[1])  # SECONDS REMAINING, never an epoch
+    return out
+
+
+def _firecrawl_quota(_now: float) -> dict:
+    key = _mcp_key("firecrawl", "FIRECRAWL_API_KEY")
+    if not key:
+        return {"state": "unconfigured"}
+    body, _ = _get_json(
+        "https://api.firecrawl.dev/v1/team/credit-usage", {"Authorization": f"Bearer {key}"}
+    )
+    data = body.get("data") or {}
+    if "remaining_credits" not in data:
+        return {"state": "no-data"}
+    out = {
+        "state": "ok",
+        "unit": "credits",
+        "total": data.get("plan_credits"),
+        "remaining": data.get("remaining_credits"),
+    }
+    end = data.get("billing_period_end")
+    if isinstance(end, str):
+        try:
+            out["renews_at"] = datetime.fromisoformat(end.replace("Z", "+00:00")).timestamp()
+        except ValueError:
+            pass
+    return out
+
+
+def _exa_quota(_now: float) -> dict:
+    """Exa exposes nothing we can read. Stated, never blank — a missing row and an unavailable one
+    are different facts, and only one of them is the operator's problem to fix."""
+    if not _mcp_key("exa", "EXA_API_KEY"):
+        return {"state": "unconfigured"}
+    return {
+        "state": "unavailable",
+        "why": (
+            "no balance endpoint for a search key — usage needs a team-management SERVICE key "
+            "(ours gets 403) and returns spend, not a balance or a renewal date"
+        ),
+    }
+
+
+API_QUOTA_SOURCES: tuple[tuple[str, str, object], ...] = (
+    ("brave", "Brave Search", _brave_quota),
+    ("firecrawl", "Firecrawl", _firecrawl_quota),
+    ("exa", "Exa", _exa_quota),
+)
+
+
+def _api_quotas(now: float | None = None, *, fetch: bool = True) -> dict:
+    """``{provider: {...}, "ts": epoch}`` — cached for ``API_QUOTAS_TTL_S``.
+
+    RENDER PATH passes ``fetch=False``: cache only, never a network call, for the same reason the
+    pool balance does. A provider that raises is recorded as its own error rather than taking the
+    others down with it — three independent services, three independent verdicts.
+    """
+    now = time.time() if now is None else now
+    try:
+        cached = json.loads(API_QUOTAS_CACHE.read_text(encoding="utf-8"))
+        cached = cached if isinstance(cached, dict) else {}
+    except (OSError, ValueError):
+        cached = {}
+    ts = cached.get("ts")
+    fresh = isinstance(ts, (int, float)) and 0.0 <= now - float(ts) < API_QUOTAS_TTL_S
+    if fresh or not fetch:
+        if cached:
+            return {
+                **cached,
+                "age_s": now - float(ts) if isinstance(ts, (int, float)) else None,
+                "stale": not fresh,
+            }
+        return {"ts": None, "age_s": None, "stale": True}
+    out: dict = {"ts": now}
+    for key, _label, fetcher in API_QUOTA_SOURCES:
+        try:
+            out[key] = fetcher(now)
+        except Exception as exc:  # noqa: BLE001 — one dead provider may not blank the other two
+            sys.stderr.write(f"quota_dashboard: {key} quota probe failed ({type(exc).__name__})\n")
+            prev = cached.get(key)
+            out[key] = (
+                {**prev, "stale": True}
+                if isinstance(prev, dict) and prev.get("state") == "ok"
+                else {"state": "error", "error": type(exc).__name__}
+            )
+    try:
+        API_QUOTAS_CACHE.parent.mkdir(parents=True, exist_ok=True)
+        API_QUOTAS_CACHE.write_text(json.dumps(out), encoding="utf-8")
+    except OSError:
+        pass  # a lost cache costs one extra round of probes, never the reading
+    return {**out, "age_s": 0.0, "stale": False}
+
+
+def _fmt_renewal(epoch: float | None, now: float) -> str:
+    if not epoch:
+        return '<span class="muted">—</span>'
+    days = (epoch - now) / 86400.0
+    when = datetime.fromtimestamp(epoch).astimezone().strftime("%d %b")
+    return f'{escape(when)} <span class="muted">({days:.0f}d)</span>'
+
+
+def _api_quotas_panel(quotas: dict | None, now: float) -> str:
+    """The strip under the matrix: what is LEFT of each search API and when it renews. Every cell
+    is a measured number, an explicit 'unlimited', or a stated reason it cannot be known."""
+    if not quotas:
+        return ""
+    rows = []
+    for key, label, _f in API_QUOTA_SOURCES:
+        q = quotas.get(key) or {}
+        state = q.get("state")
+        if state == "ok":
+            if q.get("unlimited"):
+                total = "<b>unlimited</b>"
+                left = '<span class="muted">n/a — no monthly cap</span>'
+            else:
+                total = f"{q.get('total'):,}" if isinstance(q.get("total"), int) else "—"
+                rem = q.get("remaining")
+                left = f"{rem:,}" if isinstance(rem, int) else "—"
+                if isinstance(rem, int) and isinstance(q.get("total"), int) and q["total"]:
+                    pct = 100.0 * rem / q["total"]
+                    tone = "crit" if pct < 10 else ("warn" if pct < 25 else "cap")
+                    left = f'<span class="badge {tone}">{rem:,} ({pct:.0f}%)</span>'
+            extra = f" · {q['per_second']}/s" if q.get("per_second") else ""
+            unit = escape(str(q.get("unit") or ""))
+            body = (
+                f'<td>{total} <span class="muted">{unit}{escape(extra)}</span></td><td>{left}</td>'
+            )
+            renew = _fmt_renewal(q.get("renews_at"), now)
+        else:
+            why = {
+                "unconfigured": "no API key configured on this box",
+                "unavailable": q.get("why", "not exposed by the provider's API"),
+                "no-headers": "the provider stopped sending its rate-limit headers",
+                "no-data": "the provider's response carried no credit fields",
+                "error": f"probe failed ({q.get('error', '?')})",
+            }.get(str(state), "not read yet")
+            body = f'<td colspan="2" class="muted">{escape(why)}</td>'
+            renew = '<span class="muted">—</span>'
+        stale = ' <span class="badge stale">stale</span>' if q.get("stale") else ""
+        rows.append(
+            f"<tr><td><strong>{escape(label)}</strong>{stale}</td>{body}<td>{renew}</td></tr>"
+        )
+    age = quotas.get("age_s")
+    stamp = f"read {age / 60:.0f} min ago" if isinstance(age, (int, float)) else "not read yet"
+    return (
+        f"<h2>Search-API quota &amp; renewal</h2>"
+        f'<p class="intro">What is left of the three metered search services the matrix above '
+        f"tracks, and when each renews — {escape(stamp)}, refreshed every "
+        f"{API_QUOTAS_TTL_S / 60:.0f} min OFF the render path (a probe costs Brave one query). "
+        f"A blank is never shown: a value we cannot obtain says why.</p>"
+        f"<table><thead><tr><th>Service</th><th>Plan</th><th>Remaining</th><th>Renews</th></tr>"
+        f"</thead><tbody>{''.join(rows)}</tbody></table>"
+    )
+
+
 def _pool_credits_panel(credits: dict | None) -> str:
     """The board row. Says what the operator will SEE when it runs out, not merely that a number
     is low — "$0.00 remaining" and "every fanout returns 402" are different sentences to act on."""
@@ -287,6 +546,7 @@ def _refresh_pool_credits() -> None:
         return
     try:
         _maybe_alert_pool_credits(_pool_credits())
+        _api_quotas()  # TTL-gated inside; same thread, same off-the-render-path guarantee
     except (OSError, ValueError, TypeError) as exc:
         sys.stderr.write(f"quota_dashboard: pool-credits refresh: {type(exc).__name__}\n")
     finally:
@@ -1390,6 +1650,11 @@ def render(
     cmd_rows = _load_commands()
     cmd_html = _commands_table(cmd_rows)
     # no corpus ⇒ no heading either; the pane's own "corpus unreadable" banner already says why
+    try:
+        api_quotas_html = _api_quotas_panel(_api_quotas(generated_at, fetch=False), generated_at)
+    except Exception as exc:  # noqa: BLE001 — a quota panel may never break the board
+        sys.stderr.write(f"quota_dashboard: api-quota panel failed ({type(exc).__name__}: {exc})\n")
+        api_quotas_html = f'<div class="banner warn">Search-API quota panel unavailable — {escape(type(exc).__name__)}.</div>'
     ext_matrix_html = (
         "<h2>External services per command</h2>"
         + _ext_matrix_intro(cmd_rows)
@@ -1528,6 +1793,7 @@ def render(
 <p class="intro">Every <code>/fabrik-*</code> command in pipeline order ({len(cmd_rows)} sources under <code>commands/_sources/</code>, read live — purpose, when-to-use and skip-when come from each command's own description, the successor from the assembler's NEXT map). Stages run top to bottom; gates are invoked at boundaries; utilities at any point.</p>
 {cmd_html}
 {ext_matrix_html}
+{api_quotas_html}
 </section>
 <section id="pane-external" class="pane" hidden>
 {credits_html}

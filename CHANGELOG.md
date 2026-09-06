@@ -4,6 +4,50 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-review round 4 (committed under the quota hold, verified in the resumed run): the closing round's own hunks, 12 of 13 fixed (2026-09-07)
+
+N4's non-author pass on the closing round: the new `User-Level Hooks Registered` gate row was `advisory=True` and then
+`warn_only=True` — neither passes a non-zero exit, so it failed every hub session's gate on box drift; the contract is
+the SCRIPT's (`install_user_hooks.py --check --warn` prints the drift and exits 0). A run inside one wall-clock second
+wrote a window with lo > hi that the Stop hook dropped — lo is floored at both writer sites and the reader covers the
+close second whole. The rolled-over cache rescue let stale cached rows with a PAST weekly reset win perishable-first —
+a past reset sorts last. The board's eligibility mirrors the rescue; the session bar is strict on both sides; one
+guarded knob parse; the gate's `$HOME` refusal falls through to the cwd walk; a dead clock branch, the installer's
+entries-not-pairs count, the no-relief wording, the C-1 grader's timing dependence (0ddf4106) and the nested-growth
+grader asserting through the hook. N5's edge: a non-list `covered` no longer wedges a close. Committed as 58041dbd
+under the fleet-quota hold BEFORE its suites ran — the hold refuses multi-line messages and `--trailer`, so 58041dbd
+and 3023ef8a carry only an `Agent-Role` trailer (never amended; the hold-side contract conflict is filed to infra as
+01M1WD26H60V7S5XBCKVKH2TB7).
+
+### Added — quota board: search-API quota & renewal for brave · firecrawl · exa (2026-09-07)
+
+A strip under the external-services matrix — service, plan, remaining, renews — for the three metered
+search APIs the matrix tracks. Fetched on a 30-min TTL **off the render path** and cached to
+`~/.claude/quota-dashboard/api-quotas.json`; the render reads the cache and never makes a network call
+(a third-party endpoint on the critical path is how this board froze yesterday). Each provider is
+probed independently, so one outage cannot blank the other two. Keys come from the MCP servers' own
+`env` blocks and are never rendered, logged or cached — pinned by a grader.
+
+What the three actually expose was PROBED, not assumed, and they differ completely:
+- **Firecrawl** `GET /v1/team/credit-usage` returns `remaining_credits`, `plan_credits` and
+  `billing_period_end` in one call — live: 2,290 of 5,000 credits, renews 12 Sep.
+- **Brave** has no balance endpoint at all; the quota is the rate-limit header on any search
+  response, so a probe SPENDS one query (hence the long TTL). Live: 50/s, monthly unlimited,
+  window rolls 01 Oct.
+- **Exa** cannot be read: usage needs a team-management SERVICE key (our search key gets 403 /
+  Cloudflare 1010) and returns spend, never a balance or renewal; `POST /search` carries no quota
+  headers. The row SAYS that instead of rendering blank.
+
+⚠️ **Brave's monthly `0` means UNLIMITED, not exhausted** — the docs say "15,000 requests per month
+(0 for unlimited)", and this box's plan returns `"50, 0"`. Read naively it renders "0 remaining" and
+paints a healthy plan as dead, on the board the operator checks before deciding whether work can run.
+`X-RateLimit-Reset` is likewise seconds remaining, not an epoch — as an epoch it dates the renewal to
+1970. Both pinned by graders, both proven red on revert. An unobtainable value is always stated:
+absent key, unavailable API, failed probe and missing headers are four distinct verdicts.
+
+100 tests green; `final_gate.py --json` success.
+
+
 ### Changed — Close-out feedback is now a structured USAGE report, enforced at every close, with a fleet-wide ledger and a per-command optimisation report (2026-09-07)
 - **Why (D-175, the operator's 6th ask):** five asks produced filing-shaped verdicts ("what did you mail") — 7 of the last 17 closes on this box started with `none` — while nothing recorded how a COMMAND behaved: how long, how many rounds, what confused, what burned tokens, what to change.
 - **`scripts/command_run.py` (fleet-synced):** `done|blocked|handoff` of a run started on or after 2026-09-07 REFUSES a `--feedback` missing any of the four labelled fields `confusion:` `waste:` `change:` `filed:` (or leaving one empty); the D-036 substance floor grades the `filed:` field; wall-clock, rounds and the findings trend are captured automatically; a row is appended to `~/.claude/state/command-feedback.jsonl`; the finished `FEEDBACK:` line is printed for the FINAL OUTPUT block. Pre-cutoff records keep the old grammar. Five red-first tests in `tests/test_command_feedback.py`; the harness and every close in the existing suites moved to the new grammar (483 pass across the eight affected suites).

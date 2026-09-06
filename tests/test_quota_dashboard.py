@@ -19,6 +19,7 @@ import json
 import re
 import subprocess
 import time
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -827,6 +828,153 @@ def test_a_broken_pool_balance_never_takes_the_board_down(tmp_path, monkeypatch)
     monkeypatch.setattr(qd, "_probe", _payload)
     html = qd.generate()
     assert "Claude account quota" in html and "mob" in html
+
+
+# ── Search-API quotas: brave · firecrawl · exa (operator ask 2026-09-07) ──────────────────────
+
+
+def _quota_stub(qd, monkeypatch, *, brave_hdrs=None, fc_body=None, raise_for=()):
+    """Replace the ONE network primitive. Every quota fetcher goes through `_get_json`, so a test
+    never touches a provider — and neither does the render path, which is the point."""
+    def fake(url, headers):
+        for frag in raise_for:
+            if frag in url:
+                raise OSError("boom")
+        if "search.brave.com" in url:
+            return {}, brave_hdrs if brave_hdrs is not None else {}
+        if "firecrawl" in url:
+            return (fc_body if fc_body is not None else {}), {}
+        raise AssertionError(f"unexpected URL {url}")
+    monkeypatch.setattr(qd, "_get_json", fake)
+    monkeypatch.setattr(qd, "_mcp_key", lambda *_a, **_k: "test-key")
+
+
+_BRAVE_UNLIMITED = {
+    "x-ratelimit-limit": "50, 0",
+    "x-ratelimit-policy": "50;w=1, 0;w=2592000",
+    "x-ratelimit-remaining": "49, 0",
+    "x-ratelimit-reset": "1, 2079893",
+}
+_FC_OK = {
+    "success": True,
+    "data": {
+        "remaining_credits": 2290,
+        "plan_credits": 5000,
+        "billing_period_start": "2026-08-12T12:16:19.000Z",
+        "billing_period_end": "2026-09-12T12:16:19.000Z",
+    },
+}
+
+
+def test_braves_monthly_zero_means_unlimited_not_exhausted(tmp_path, monkeypatch):
+    """THE trap in this feature, and it is live on this box today. Brave has no balance endpoint —
+    the quota is the rate-limit header, comma-separated as "<per-second>, <monthly>", and our plan
+    returns a monthly value of 0. The documentation says "15,000 requests per month (0 for
+    unlimited)", so 0 is NO CAP. Read naively it renders as "0 remaining", painting a healthy
+    unlimited plan as a dead one — a false alarm on the board the operator checks before working."""
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "API_QUOTAS_CACHE", tmp_path / "q.json")
+    _quota_stub(qd, monkeypatch, brave_hdrs=_BRAVE_UNLIMITED, fc_body=_FC_OK)
+    now = time.time()
+    q = qd._api_quotas(now)
+    assert q["brave"]["unlimited"] is True
+    assert q["brave"]["remaining"] is None and q["brave"]["total"] is None
+    assert q["brave"]["per_second"] == 50
+    html = qd._api_quotas_panel(q, now)
+    assert "unlimited" in html and "no monthly cap" in html
+    assert ">0<" not in html and "0 (0%)" not in html, "an unlimited plan must never render as 0"
+    # a REAL cap still reports real numbers, and a low one is toned
+    capped = dict(_BRAVE_UNLIMITED, **{
+        "x-ratelimit-limit": "50, 15000", "x-ratelimit-remaining": "49, 900"})
+    _quota_stub(qd, monkeypatch, brave_hdrs=capped, fc_body=_FC_OK)
+    (tmp_path / "q.json").unlink()
+    q2 = qd._api_quotas(now)
+    assert q2["brave"]["total"] == 15000 and q2["brave"]["remaining"] == 900
+    assert "crit" in qd._api_quotas_panel(q2, now)  # 6% left
+
+
+def test_the_reset_header_is_seconds_remaining_not_an_epoch(tmp_path, monkeypatch):
+    """`X-RateLimit-Reset` is "Seconds until each quota resets". Treating it as a unix timestamp
+    would date the renewal to 1970 and print a negative day count."""
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "API_QUOTAS_CACHE", tmp_path / "q.json")
+    _quota_stub(qd, monkeypatch, brave_hdrs=_BRAVE_UNLIMITED, fc_body=_FC_OK)
+    now = time.time()
+    q = qd._api_quotas(now)
+    assert q["brave"]["renews_at"] == pytest.approx(now + 2079893, abs=2)
+    assert "(24d)" in qd._api_quotas_panel(q, now)
+    # firecrawl's renewal is a real ISO date from the provider, not a computed offset
+    assert q["firecrawl"]["renews_at"] == pytest.approx(
+        datetime.fromisoformat("2026-09-12T12:16:19+00:00").timestamp(), abs=1
+    )
+
+
+def test_the_render_path_never_makes_a_network_call(tmp_path, monkeypatch):
+    """Same rule the pool balance learned the hard way: a third-party endpoint on the render path
+    is how this board froze. `fetch=False` must read the cache and nothing else."""
+    qd = _load(tmp_path, monkeypatch)
+    cache = tmp_path / "q.json"
+    monkeypatch.setattr(qd, "API_QUOTAS_CACHE", cache)
+
+    def explode(*_a, **_k):
+        raise AssertionError("the render path made a network call")
+
+    monkeypatch.setattr(qd, "_get_json", explode)
+    assert qd._api_quotas(time.time(), fetch=False)["ts"] is None  # no cache, still no call
+    cache.write_text(json.dumps({"ts": time.time(), "firecrawl": {"state": "ok", "total": 5000,
+                                 "remaining": 10, "unit": "credits"}}), encoding="utf-8")
+    q = qd._api_quotas(time.time(), fetch=False)
+    assert q["firecrawl"]["remaining"] == 10
+    monkeypatch.setattr(qd, "_probe", _payload)
+    assert "Search-API quota" in qd.generate()  # a whole board render, still no call
+
+
+def test_one_dead_provider_does_not_blank_the_other_two(tmp_path, monkeypatch):
+    """Three independent services owe three independent verdicts. A single `except` around the loop
+    would turn one provider's outage into a blank panel — the shape this board keeps re-learning."""
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "API_QUOTAS_CACHE", tmp_path / "q.json")
+    _quota_stub(qd, monkeypatch, brave_hdrs=_BRAVE_UNLIMITED, fc_body=_FC_OK,
+                raise_for=("firecrawl",))
+    now = time.time()
+    q = qd._api_quotas(now)
+    assert q["brave"]["state"] == "ok", "brave must survive firecrawl being down"
+    assert q["firecrawl"]["state"] == "error" and q["firecrawl"]["error"] == "OSError"
+    html = qd._api_quotas_panel(q, now)
+    assert "unlimited" in html and "probe failed (OSError)" in html
+
+
+def test_exas_unavailability_is_stated_not_blank(tmp_path, monkeypatch):
+    """Exa exposes no balance to a search key: the usage API needs a team-management SERVICE key
+    (ours gets 403) and returns spend, never a balance or a renewal. A blank row would read as
+    "nothing to report"; the operator needs to know it is unknowable, and why."""
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "API_QUOTAS_CACHE", tmp_path / "q.json")
+    _quota_stub(qd, monkeypatch, brave_hdrs=_BRAVE_UNLIMITED, fc_body=_FC_OK)
+    now = time.time()
+    html = qd._api_quotas_panel(qd._api_quotas(now), now)
+    assert "SERVICE key" in html and "403" in html
+    # and an absent key is a DIFFERENT verdict from an unavailable API
+    monkeypatch.setattr(qd, "_mcp_key", lambda *_a, **_k: None)
+    (tmp_path / "q.json").unlink()
+    assert "no API key configured" in qd._api_quotas_panel(qd._api_quotas(now), now)
+
+
+def test_no_api_key_ever_reaches_the_page(tmp_path, monkeypatch):
+    """The board reads three secrets out of the MCP configs. None may be rendered — the existing
+    contract for the OpenRouter key, extended to the three that just joined it."""
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "API_QUOTAS_CACHE", tmp_path / "q.json")
+    secret = "sk-do-not-render-me-12345"
+    monkeypatch.setattr(qd, "_mcp_key", lambda *_a, **_k: secret)
+    _quota_stub(qd, monkeypatch, brave_hdrs=_BRAVE_UNLIMITED, fc_body=_FC_OK)
+    monkeypatch.setattr(qd, "_mcp_key", lambda *_a, **_k: secret)
+    now = time.time()
+    qd._api_quotas(now)
+    monkeypatch.setattr(qd, "_probe", _payload)
+    html = qd.generate()
+    assert secret not in html
+    assert secret not in (tmp_path / "q.json").read_text(encoding="utf-8")
 
 
 # ── External-services matrix (operator ask 2026-09-06; seen RED first) ─────────────────────────
