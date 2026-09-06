@@ -345,6 +345,15 @@ API_QUOTA_SOURCES: tuple[tuple[str, str, object], ...] = (
 )
 
 
+# The TTL gate must NOT depend on the disk cache succeeding. Measured: with `API_QUOTAS_CACHE`
+# unwritable (a stale directory in its place, a full disk, a permissions change), every read misses,
+# every refresher cycle re-probes, and the 1800s TTL silently becomes the probe loop's 20s cadence —
+# 4,320 Brave queries a day instead of 48, against a metered service, with nothing on the page or in
+# the log to say so. The in-memory stamp closes that: disk is the cross-restart cache, memory is the
+# rate limiter, and the fetch needs BOTH to be stale.
+_api_quotas_mem: dict = {}
+
+
 def _api_quotas(now: float | None = None, *, fetch: bool = True) -> dict:
     """``{provider: {...}, "ts": epoch}`` — cached for ``API_QUOTAS_TTL_S``.
 
@@ -358,6 +367,9 @@ def _api_quotas(now: float | None = None, *, fetch: bool = True) -> dict:
         cached = cached if isinstance(cached, dict) else {}
     except (OSError, ValueError):
         cached = {}
+    # whichever reading is NEWER wins; memory covers the run, disk covers the restart
+    if _api_quotas_mem.get("ts") and float(_api_quotas_mem["ts"]) > float(cached.get("ts") or 0):
+        cached = _api_quotas_mem
     ts = cached.get("ts")
     fresh = isinstance(ts, (int, float)) and 0.0 <= now - float(ts) < API_QUOTAS_TTL_S
     if fresh or not fetch:
@@ -380,11 +392,13 @@ def _api_quotas(now: float | None = None, *, fetch: bool = True) -> dict:
                 if isinstance(prev, dict) and prev.get("state") == "ok"
                 else {"state": "error", "error": type(exc).__name__}
             )
+    _api_quotas_mem.clear()
+    _api_quotas_mem.update(out)  # BEFORE the disk write: the rate limiter must not need the disk
     try:
         API_QUOTAS_CACHE.parent.mkdir(parents=True, exist_ok=True)
         API_QUOTAS_CACHE.write_text(json.dumps(out), encoding="utf-8")
     except OSError:
-        pass  # a lost cache costs one extra round of probes, never the reading
+        pass  # a lost cache costs the reading across a RESTART, never an extra probe this run
     return {**out, "age_s": 0.0, "stale": False}
 
 
