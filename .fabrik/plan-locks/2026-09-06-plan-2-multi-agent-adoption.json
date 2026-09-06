@@ -1,0 +1,73 @@
+{
+  "plan": "docs/development/plans/2026-09-06-plan-2-multi-agent-adoption",
+  "owned_paths": [
+    "scripts/decisions.py",
+    "tests/test_decisions_helper.py",
+    "scripts/docs_updater.py",
+    "tests/test_docs_updater_adopt.py",
+    ".claude/hooks/session_orient.py",
+    "tests/test_session_orient_hook.py",
+    "docs/workstation/hooks-index.md",
+    "commands/_sources/fabrik-vision.md",
+    "commands/_sources/fabrik-epics-review.md",
+    "tests/test_vision_reads_work_stores.py",
+    "src/fabrik/scaffold.py",
+    "tests/test_scaffold_doc_seeding.py",
+    "docs/reference/multi-agent-operating-model.md",
+    "templates/governance/CLAUDE.md",
+    "scripts/final_gate.py"
+  ],
+  "branch": "master",
+  "started_at": "2026-09-06T11:47:56+00:00",
+  "status": "active",
+  "baseline_commit": "231757fb",
+  "baseline_gate": "final_gate.py --check --json at 231757fb -> status: success, skipped ['pytest'], failures [] (captured this turn, before D1)",
+  "tickets": {
+    "T01": {
+      "state": "merged",
+      "runtime": "pool code default tier (attempt 1 deepseek-v3.2-exp died: idle >120s after 7 turns, $0.024)",
+      "started_at": "2026-09-06T11:53:58+00:00",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-aae9de1c5861d11c6",
+      "branch": "worktree-agent-aae9de1c5861d11c6",
+      "base_commit": "ca4ec9ed",
+      "attempt": 2,
+      "branch_head": "b7ffb88a",
+      "review": "docs/development/reviews/2026-09-06-plan-2-multi-agent-adoption-T01-review.md",
+      "merged_at": "2026-09-06T15:22:04"
+    },
+    "T02a": {
+      "state": "in-review",
+      "runtime": "NO-POOL: native sonnet worktree \u2014 attempt 1 pool gpt-5.6-luna died (connection write timeout after 13 turns, $0.022); the fleet-synced script is the heaviest surface",
+      "started_at": "2026-09-06T11:53:58+00:00",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a8f1d9418d61c2357",
+      "branch": "worktree-agent-a8f1d9418d61c2357",
+      "base_commit": "ca4ec9ed",
+      "attempt": 2,
+      "branch_head": "8c839125"
+    },
+    "T04": {
+      "state": "fixup-r2",
+      "runtime": "native sonnet worktree (Agent tool, isolation=worktree)",
+      "started_at": "2026-09-06T11:50:15+00:00",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-ae398d23a2b677726",
+      "branch": "worktree-agent-ae398d23a2b677726",
+      "base_commit": "ca4ec9ed",
+      "branch_head": "a5ee18bd",
+      "review": "docs/development/reviews/2026-09-06-plan-2-multi-agent-adoption-T04-review.md"
+    },
+    "T05": {
+      "state": "in-review",
+      "runtime": "native sonnet worktree",
+      "started_at": "2026-09-06T12:16:27+00:00",
+      "branch": "worktree-agent-ac49238fb7bb4c376",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-ac49238fb7bb4c376",
+      "branch_head": "af9413da",
+      "base_commit": "ca4ec9ed"
+    }
+  },
+  "orchestrator": "infra session dd3c06d1, main checkout (dispatcher mode; the hub is outside the worktree model \u2014 coders isolate by worktree per D2)",
+  "sizing_signals": [
+    "T01 re-dispatch (pool unit stuck)",
+    "T02a re-dispatch (pool unit connection timeout)"
+  ]
+}

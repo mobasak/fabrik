@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — decisions.py --merge-owner: the declared merge owner from the ledger (2026-09-06)
+
+`python3 scripts/decisions.py --merge-owner <repo|ledger>` prints the name from the LAST `docs/DECISIONS.md` row whose `what` cell opens with `MERGE OWNER: <name>` (leading `**` stripped, case-insensitive) and exits 0; `UNDECLARED` + exit 3 when no row matches (a mid-sentence mention never matches); the same `decisions: cannot read …` stderr line + exit 1 as `--next-id` on an unreadable ledger. `MERGE_OWNER_RE` is mirrored verbatim in `scripts/docs_updater.py` (the `# AFTER-EDIT:` coupling header names it). Plan 2026-09-06-plan-2-multi-agent-adoption T01 (spec D1, ruling D-154); the pool coder's untested diff (gpt-5.6-luna) was repaired by a native fixup — 21 tests green.
+
 ### Added — multi-agent adoption spec for existing projects CONVERGED (D-154) + the delta profile names its three-heading floor (2026-09-06)
 
 `docs/superpowers/specs/2026-09-06-multi-agent-adoption-design.md` (Profile: delta): one merge owner per repo declared by

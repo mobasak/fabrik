@@ -260,3 +260,65 @@ def test_next_id_accepts_a_direct_file_path_too(tmp_path, capsys):
     f.write_text("| D-009 | x |\n")
     assert dec.main(["--next-id", str(f)]) == 0
     assert capsys.readouterr().out.strip() == "D-010"
+
+
+# ── T01 (plan set 2026-09-06-plan-2-multi-agent-adoption): `--merge-owner` reads the declared
+# merge owner from the last matching `MERGE OWNER:`-opening `what` cell in the ledger — the read
+# half of the merge-owner convention T02a's docs_updater.py writes at merge time. ─────────────
+
+
+def test_merge_owner_prints_last_matching_owner_and_strips_leading_stars(tmp_path, capsys):
+    """The last row (bottom-most in file order) whose `what` cell OPENS with `MERGE OWNER:`
+    wins over an earlier one, and a `**bold**`-wrapped phrase is still recognized."""
+    _repo(tmp_path, "hub", (
+        "| id | when | who | what (the decision) | why | where |\n"
+        "|---|---|---|---|---|---|\n"
+        "| D-001 | 2026-08-30 | a | MERGE OWNER: alpha | why | here |\n"
+        "| D-002 | 2026-08-30 | a | **MERGE OWNER: beta** — current | why | here |\n"
+    ))
+    rc = dec.main(["--merge-owner", str(tmp_path / "hub")])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert out.strip() == "beta"
+
+
+def test_merge_owner_reports_undeclared_when_phrase_is_not_at_the_open(tmp_path, capsys):
+    """A `what` cell that merely CONTAINS the phrase mid-sentence must not match — the regex
+    is anchored at the cell's start, not a substring search."""
+    _repo(tmp_path, "hub", (
+        "| id | when | who | what (the decision) | why | where |\n"
+        "|---|---|---|---|---|---|\n"
+        "| D-001 | 2026-08-30 | a | recorded MERGE OWNER: alpha | why | here |\n"
+    ))
+    rc = dec.main(["--merge-owner", str(tmp_path / "hub")])
+    out = capsys.readouterr().out
+    assert rc == 3
+    assert out.strip() == "UNDECLARED"
+
+
+def test_merge_owner_reports_unreadable_ledger_like_next_id(tmp_path, capsys):
+    """Same stderr shape + exit code as `_next_id` on a missing ledger — a distinct exit code
+    (3, not 1) is reserved for the "not declared" case, which is not what happened here."""
+    repo = tmp_path / "hub"
+    repo.mkdir()
+    rc = dec.main(["--merge-owner", str(repo)])
+    captured = capsys.readouterr()
+    assert rc == 1
+    assert captured.out == ""
+    assert "decisions: cannot read" in captured.err
+
+
+def test_merge_owner_skips_a_short_row_above_the_matching_one(tmp_path, capsys):
+    """A malformed/short data row (fewer than 4 cells) sits ABOVE a valid MERGE OWNER: row —
+    `_merge_owner`'s `len(cells) > 3` guard must skip the short row instead of IndexError-ing
+    on `cells[3]`, and still find the valid row below it."""
+    _repo(tmp_path, "hub", (
+        "| id | when | who | what (the decision) | why | where |\n"
+        "|---|---|---|---|---|---|\n"
+        "| D-001 | x | a |\n"
+        "| D-002 | 2026-08-30 | a | MERGE OWNER: beta | why | here |\n"
+    ))
+    rc = dec.main(["--merge-owner", str(tmp_path / "hub")])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert out.strip() == "beta"
