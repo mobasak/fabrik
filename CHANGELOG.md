@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — session_orient advises when N ≥ 2 sessions share a main checkout (2026-09-06)
+
+`_sessions_line(cwd)` in `.claude/hooks/session_orient.py` (fleet-synced): a self-contained `/proc` scan — `comm == claude` and the resolved `cwd` symlink equal to the checkout — prints ONE bullet at SessionStart when two or more live sessions share the exact main checkout (the previously undetected shared-index situation, measured at 8 checkouts on 2026-09-06), naming the worktree launch form and `docs_updater.py --adopt`. Suppressed for the hub and for any session whose own cwd is under `/.claude/worktrees/`; every proc entry fails open; `FABRIK_PROC_ROOT` is the test seam (a fake proc tree, never a count override). Single-session repos see nothing new (29 hook tests green). Plan 2026-09-06-plan-2-multi-agent-adoption T04 (spec D5).
+
 ### Added — decisions.py --merge-owner: the declared merge owner from the ledger (2026-09-06)
 
 `python3 scripts/decisions.py --merge-owner <repo|ledger>` prints the name from the LAST `docs/DECISIONS.md` row whose `what` cell opens with `MERGE OWNER: <name>` (leading `**` stripped, case-insensitive) and exits 0; `UNDECLARED` + exit 3 when no row matches (a mid-sentence mention never matches); the same `decisions: cannot read …` stderr line + exit 1 as `--next-id` on an unreadable ledger. `MERGE_OWNER_RE` is mirrored verbatim in `scripts/docs_updater.py` (the `# AFTER-EDIT:` coupling header names it). Plan 2026-09-06-plan-2-multi-agent-adoption T01 (spec D1, ruling D-154); the pool coder's untested diff (gpt-5.6-luna) was repaired by a native fixup — 21 tests green.

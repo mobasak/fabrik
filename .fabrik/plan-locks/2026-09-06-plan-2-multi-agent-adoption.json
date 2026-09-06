@@ -46,14 +46,15 @@
       "branch_head": "8c839125"
     },
     "T04": {
-      "state": "fixup-r2",
+      "state": "merged",
       "runtime": "native sonnet worktree (Agent tool, isolation=worktree)",
       "started_at": "2026-09-06T11:50:15+00:00",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-ae398d23a2b677726",
       "branch": "worktree-agent-ae398d23a2b677726",
       "base_commit": "ca4ec9ed",
-      "branch_head": "a5ee18bd",
-      "review": "docs/development/reviews/2026-09-06-plan-2-multi-agent-adoption-T04-review.md"
+      "branch_head": "d92888e8",
+      "review": "docs/development/reviews/2026-09-06-plan-2-multi-agent-adoption-T04-review.md",
+      "merged_at": "2026-09-06T15:22:46"
     },
     "T05": {
       "state": "in-review",

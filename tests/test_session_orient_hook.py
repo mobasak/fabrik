@@ -7,6 +7,7 @@ mesh. Fail-open: a broken hook must never block a session."""
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -366,3 +367,194 @@ def test_no_autonomous_env_no_marker(tmp_path: Path) -> None:
                  extra_env={"CLAUDE_SOUND_LOCKDIR": str(locks)})
     assert rc == 0
     assert not (locks / "sid-m.autonomous").exists()   # panes are never swept
+
+
+# --- T04: _sessions_line — the "N sessions share this main checkout" advisory ---
+
+
+def _fake_proc(tmp: Path, entries: list[tuple[str, str, str | None]]) -> Path:
+    """Build a fake /proc tree: entries = [(pid, comm, cwd_or_None), ...].
+
+    A None cwd omits the `cwd` symlink entirely (mimics a pid the scan cannot
+    introspect — e.g. a race where the process exits mid-scan); any string
+    creates a `cwd` symlink to that path, dangling or not.
+    """
+    proc = tmp / "fake_proc"
+    proc.mkdir(parents=True, exist_ok=True)
+    for pid, comm, cwd in entries:
+        d = proc / pid
+        d.mkdir()
+        (d / "comm").write_text(comm + "\n", encoding="utf-8")
+        if cwd is not None:
+            (d / "cwd").symlink_to(cwd)
+    return proc
+
+
+def test_sessions_advisory_fires_at_three_shared_sessions(tmp_path: Path) -> None:
+    scratch = tmp_path / "opt" / "scratch"
+    scratch.mkdir(parents=True)
+    proc = _fake_proc(
+        tmp_path,
+        [
+            ("101", "claude", str(scratch)),
+            ("102", "claude", str(scratch)),
+            ("103", "claude", str(scratch)),
+            ("104", "bash", str(scratch)),  # wrong comm — not counted
+            ("105", "claude", None),  # no cwd at all — not counted
+            ("106", "claude-foo", str(scratch)),  # comm merely PREFIXED with claude — not counted
+        ],
+    )
+    rc, out = _run(
+        scratch,
+        tmp_path,
+        json.dumps({"cwd": str(scratch)}),
+        extra_env={"FABRIK_PROC_ROOT": str(proc)},
+    )
+    assert rc == 0
+    assert out.count("sessions share this main checkout") == 1
+    lines = [ln for ln in out.splitlines() if "sessions share this main checkout" in ln]
+    assert lines[0].startswith("- ⚠️ **3 sessions share this main checkout.**")
+    # placed in _identity_line's slot: after Governance/Memory, before the MCP line
+    idx_gov = out.index("**Governance")
+    idx_line = out.index("sessions share this main checkout")
+    idx_mcp = out.index("**Your ASSIGNED MCPs")
+    assert idx_gov < idx_line < idx_mcp
+
+
+def test_sessions_advisory_fires_at_exactly_two_shared_sessions(tmp_path: Path) -> None:
+    # Pins the `< 2` boundary itself — a mutant that reads `< 3` still leaves every
+    # OTHER test green (they all use 0, 1, or 3 matching entries).
+    scratch = tmp_path / "opt" / "pair"
+    scratch.mkdir(parents=True)
+    proc = _fake_proc(
+        tmp_path,
+        [
+            ("111", "claude", str(scratch)),
+            ("112", "claude", str(scratch)),
+        ],
+    )
+    rc, out = _run(
+        scratch,
+        tmp_path,
+        json.dumps({"cwd": str(scratch)}),
+        extra_env={"FABRIK_PROC_ROOT": str(proc)},
+    )
+    assert rc == 0
+    lines = [ln for ln in out.splitlines() if "sessions share this main checkout" in ln]
+    assert len(lines) == 1
+    assert lines[0].startswith("- ⚠️ **2 sessions share this main checkout.**")
+
+
+def test_sessions_advisory_silent_below_two(tmp_path: Path) -> None:
+    scratch = tmp_path / "opt" / "solo"
+    scratch.mkdir(parents=True)
+    proc = _fake_proc(tmp_path, [("201", "claude", str(scratch))])
+    rc, out = _run(
+        scratch,
+        tmp_path,
+        json.dumps({"cwd": str(scratch)}),
+        extra_env={"FABRIK_PROC_ROOT": str(proc)},
+    )
+    assert rc == 0
+    assert "sessions share this main checkout" not in out
+    # byte-identical to a run with no FABRIK_PROC_ROOT at all for this cwd
+    rc2, out2 = _run(scratch, tmp_path, json.dumps({"cwd": str(scratch)}))
+    assert rc2 == 0
+    assert out == out2
+
+
+def test_sessions_advisory_suppressed_in_worktree(tmp_path: Path) -> None:
+    scratch = tmp_path / "work" / ".claude" / "worktrees" / "agent1"
+    scratch.mkdir(parents=True)
+    proc = _fake_proc(
+        tmp_path,
+        [
+            ("301", "claude", str(scratch)),
+            ("302", "claude", str(scratch)),
+            ("303", "claude", str(scratch)),
+        ],
+    )
+    rc, out = _run(
+        scratch,
+        tmp_path,
+        json.dumps({"cwd": str(scratch)}),
+        extra_env={"FABRIK_PROC_ROOT": str(proc)},
+    )
+    assert rc == 0
+    assert "sessions share this main checkout" not in out
+
+
+def test_sessions_advisory_suppressed_in_hub(tmp_path: Path) -> None:
+    hub = tmp_path / "opt" / "hubish2"
+    (hub / "scripts").mkdir(parents=True)
+    (hub / "scripts" / "fabrik_synced_manifest.py").write_text("# marker\n", encoding="utf-8")
+    proc = _fake_proc(
+        tmp_path,
+        [
+            ("401", "claude", str(hub)),
+            ("402", "claude", str(hub)),
+            ("403", "claude", str(hub)),
+        ],
+    )
+    rc, out = _run(
+        hub, tmp_path, json.dumps({"cwd": str(hub)}), extra_env={"FABRIK_PROC_ROOT": str(proc)}
+    )
+    assert rc == 0
+    assert "sessions share this main checkout" not in out
+
+
+def test_sessions_advisory_dangling_cwd_never_raises(tmp_path: Path) -> None:
+    # A lone dangling entry makes `rc == 0` a vacuous check: the `__main__` guard
+    # (session_orient.py) swallows ANY exception raised anywhere in main() and
+    # still exits 0 -- but in that case NOTHING is printed at all, since the crash
+    # happens while building the print() argument, before print() ever runs. So a
+    # standalone dangling entry can't tell "correctly skipped" apart from "silently
+    # crashed": both leave "sessions share..." absent from (a possibly empty) out.
+    # Putting the dangling entry BESIDE two live, matching entries closes that gap:
+    # if the per-entry fail-open ever regresses to an abort, the whole ORIENT block
+    # (this advisory included) goes missing and the "2 sessions" assertion below
+    # fails -- pinning skip-not-abort rather than merely "the process didn't crash".
+    scratch = tmp_path / "opt" / "danglecase"
+    scratch.mkdir(parents=True)
+    proc = _fake_proc(
+        tmp_path,
+        [
+            ("501", "claude", str(scratch)),
+            ("502", "claude", str(scratch)),
+            ("503", "claude", str(tmp_path / "gone-nowhere")),  # dangling -- skipped, not fatal
+        ],
+    )
+    rc, out = _run(
+        scratch,
+        tmp_path,
+        json.dumps({"cwd": str(scratch)}),
+        extra_env={"FABRIK_PROC_ROOT": str(proc)},
+    )
+    assert rc == 0
+    lines = [ln for ln in out.splitlines() if "sessions share this main checkout" in ln]
+    assert len(lines) == 1
+    assert lines[0].startswith("- ⚠️ **2 sessions share this main checkout.**")
+
+
+def test_sessions_advisory_live_scan_is_fast(tmp_path: Path) -> None:
+    # Direct import-call against the REAL /proc (no FABRIK_PROC_ROOT) — bounds
+    # the scan itself, not subprocess/interpreter startup overhead.
+    import importlib.util
+    import time
+
+    spec = importlib.util.spec_from_file_location("session_orient_direct_t04", HOOK)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    scratch = tmp_path / "opt" / "timingcase"
+    scratch.mkdir(parents=True)
+    saved = os.environ.pop("FABRIK_PROC_ROOT", None)
+    try:
+        start = time.perf_counter()
+        result = mod._sessions_line(str(scratch))
+        elapsed = time.perf_counter() - start
+    finally:
+        if saved is not None:
+            os.environ["FABRIK_PROC_ROOT"] = saved
+    assert isinstance(result, str)
+    assert elapsed < 0.2
