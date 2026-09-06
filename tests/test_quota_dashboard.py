@@ -857,6 +857,21 @@ def test_the_matrix_reads_the_rendered_corpus_not_the_sources(tmp_path, monkeypa
     monkeypatch.setattr(qd, "RENDERED_COMMANDS", tmp_path / "absent")
     services, is_rendered = qd._command_services(name)
     assert not is_rendered and "cit" not in services
+    # ⚠️ the assertion above is NEGATIVE, and an empty set satisfies it — so it alone would let a
+    # mutation that DELETES the source fallback pass. Pin the POSITIVE half on a source that
+    # genuinely matches: 28 of the 35 do (measured 2026-09-06), and this test FOUND that the first
+    # one alphabetically is not among them — the shared pool and mail fragments the sources lack
+    # are exactly what the assembler adds, which is the feature's whole premise.
+    src_dir = qd._FABRIK_ROOT / "commands" / "_sources"
+    hits = {
+        f.stem: {k for k, rx in qd._EXT_COMPILED if rx.search(f.read_text(encoding="utf-8"))}
+        for f in sorted(src_dir.glob("fabrik-*.md"))
+    }
+    rich = next(n for n, s in hits.items() if s)
+    services, is_rendered = qd._command_services(rich)
+    assert not is_rendered and services == hits[rich] and services, (
+        "the source fallback must READ the source, not merely report un-rendered"
+    )
 
 
 def test_a_prose_mention_is_not_a_dot(tmp_path, monkeypatch):
@@ -875,6 +890,58 @@ def test_a_prose_mention_is_not_a_dot(tmp_path, monkeypatch):
     assert qd._command_services("fabrik-spec")[0] == {"vps", "gh", "pool"}
 
 
+def test_a_corrupt_or_unreadable_command_file_never_takes_the_board_down(tmp_path, monkeypatch):
+    """Round 3, from an independent reader. `read_text` raises UnicodeDecodeError — a ValueError,
+    NOT an OSError — on a single non-UTF-8 byte, and the `except OSError` did not catch it. That is
+    the THIRD instance in this file of the one failure that matters here: a raise on the render path
+    reaches the regeneration thread and the board stops updating while its header still advertises a
+    20s refresh. Both reads are covered: the services scan and the description parse."""
+    qd = _load(tmp_path, monkeypatch)
+    d = tmp_path / "rendered"
+    d.mkdir()
+    name = sorted(p.stem for p in (qd._FABRIK_ROOT / "commands" / "_sources").glob("fabrik-*.md"))[0]
+    (d / f"{name}.md").write_bytes(b"description: x\nfanout( \xff\xfe not utf-8\n")
+    monkeypatch.setattr(qd, "RENDERED_COMMANDS", d)
+    services, is_rendered = qd._command_services(name)  # must NOT raise
+    assert not is_rendered, "an undecodable rendered file falls through to the source"
+    qd._cmd_cache_key = None
+    assert len(qd._load_commands()) > 0  # the whole board survives it
+    # and the DESCRIPTION read is guarded too — same class, previously unguarded entirely
+    monkeypatch.setattr(
+        Path, "read_text", lambda self, *a, **kw: (_ for _ in ()).throw(UnicodeDecodeError("utf-8", b"", 0, 1, "x"))
+    )
+    qd._cmd_cache_key = None
+    rows = qd._load_commands()
+    assert len(rows) > 0 and all(r["purpose"] == "" for r in rows)
+
+
+def test_a_negated_mention_is_the_limit_the_page_declares(tmp_path, monkeypatch):
+    """Round 3. The ONLY `cit` match in the live corpus was fabrik-data-contract saying the
+    verifier "does not apply here" — the whole column was one negation. A regex cannot read
+    negation, so two things had to change: the bare SERVER NAME came out of that pattern (the tool
+    token is the invocation; the server name is prose about it), and the page now STATES the limit
+    instead of claiming a precision the method does not have."""
+    qd = _load(tmp_path, monkeypatch)
+    d = tmp_path / "rendered"
+    d.mkdir()
+
+    def services(body: str) -> set:
+        (d / "fabrik-spec.md").write_text(body, encoding="utf-8")
+        monkeypatch.setattr(qd, "RENDERED_COMMANDS", d)
+        return qd._command_services("fabrik-spec")[0]
+
+    assert services("the `fabrik-citation-verifier` MCP does not apply here") == set()
+    assert "cit" in services("call verify_citation(doi) on every claim")
+    assert "cit" in services("mcp__fabrik-citation-verifier__verify_batch")
+    # the corpus's own browser tools are only two of ~20 the MCP exposes; the next one used must
+    # not be a silent miss
+    assert "brw" in services("then browser_take_screenshot to prove it rendered")
+    assert "brw" in services("browser_navigate to the page")
+    # and the honest limit is ON THE PAGE, not only in a comment
+    intro = qd._ext_matrix_intro(qd._load_commands())
+    assert "reads no NEGATIONS" in intro
+
+
 def test_the_service_registry_is_well_formed(tmp_path, monkeypatch):
     """The registry is the ONE hand-held fact — a duplicate key would silently drop a column and a
     bad pattern would take the whole board down at import."""
@@ -885,6 +952,12 @@ def test_the_service_registry_is_well_formed(tmp_path, monkeypatch):
         assert key and label and title, key
         re.compile(pat)
     assert {"pool", "mail", "web"} <= set(keys), "the three most-used services stay registered"
+    # A reader raised "a hand-edited title containing a literal quote breaks the title attribute".
+    # REFUTED, and pinned: html.escape defaults to quote=True, so the attribute survives.
+    hostile = '"><script>alert(1)</script>'
+    monkeypatch.setattr(qd, "_EXT_SERVICES", ((("x", "x", hostile, "zzz"),)))
+    html = qd._ext_matrix_table([{"name": "c", "services": set(), "rendered": True}])
+    assert "<script>" not in html and "&quot;&gt;&lt;script&gt;" in html
 
 
 def test_every_command_gets_a_matrix_row_and_the_totals_carry_their_denominator(
@@ -910,10 +983,102 @@ def test_an_unrendered_corpus_is_declared_never_silently_underreported(tmp_path,
     qd._cmd_cache_key = None
     rows = qd._load_commands()
     intro = qd._ext_matrix_intro(rows)
-    assert "UNDER-report" in intro and f"{len(rows)} of {len(rows)}" in intro
+    assert "UNDER-report" in intro and f"{len(rows)} of {len(rows)} rows did NOT come" in intro
+    # and the headline claim agrees with the caveat rather than contradicting it
+    assert f"0 of {len(rows)} rows read from the rendered" in intro
+    # and it NAMES them: "N of N fell back" without saying WHICH is a number the operator cannot act
+    # on, and a row whose source ALSO failed to open would otherwise be reported as read from
+    # `_sources/` — a claim about a file that was never opened
+    assert rows[0]["name"] in intro
     monkeypatch.setattr(qd, "RENDERED_COMMANDS", Path.home() / ".claude" / "commands")
     qd._cmd_cache_key = None
     assert "UNDER-report" not in qd._ext_matrix_intro(qd._load_commands())
+
+
+def test_a_vanishing_rendered_file_re_keys_instead_of_raising(tmp_path, monkeypatch):
+    """Round 1, from an independent reader. `exists()`-then-`stat()` raced the ONE writer that
+    prunes this directory: `assemble_commands.py` unlinks stale commands mid-render. The raise came
+    out of `_load_commands` -> `render` -> `generate` on `_regen_async`'s daemon thread, which is
+    exactly the shape that froze this board earlier today — a page that stops updating and says
+    nothing. Absence must be a KEY VALUE, not an omitted entry, or a file appearing and vanishing
+    could leave the key unchanged."""
+    qd = _load(tmp_path, monkeypatch)
+    missing = tmp_path / "gone.md"
+    assert qd._mtime_key(missing) == (str(missing), -1, -1)
+    present = tmp_path / "here.md"
+    present.write_text("x", encoding="utf-8")
+    assert qd._mtime_key(present)[1] > 0 and qd._mtime_key(present)[2] == 1
+    # R2: SIZE is in the key because mtime alone cannot see a timestamp-preserving rewrite
+    # (`cp -p`, a restore, an archive extraction) — a real shape for a corpus that is regenerated.
+    before = qd._mtime_key(present)
+    present.write_text("xxxx", encoding="utf-8")
+    import os as _os
+
+    _os.utime(present, ns=(before[1], before[1]))
+    assert qd._mtime_key(present) != before, "a same-mtime rewrite must still re-key"
+    # a directory in the file's place, and an unreadable parent, are OSErrors too — never a raise
+    d = tmp_path / "adir"
+    d.mkdir()
+    assert qd._mtime_key(d / "under-a-dir" / "x.md") == (str(d / "under-a-dir" / "x.md"), -1, -1)
+    # and the whole load survives a rendered corpus that is not there at all
+    monkeypatch.setattr(qd, "RENDERED_COMMANDS", tmp_path / "never-rendered")
+    qd._cmd_cache_key = None
+    assert len(qd._load_commands()) > 0
+    # THE RACE ITSELF, which an `exists()` pre-check cannot close. Note the fixture shape: a stat
+    # that ALWAYS raises makes `exists()` return False (it stats once and swallows OSError), so the
+    # file is merely skipped and nothing reproduces. The real window is exists() SUCCEEDING and the
+    # caller's own stat() then failing — hence first-call-ok, second-call-raises. The old call site
+    # let that FileNotFoundError out of _load_commands, and the regen thread turned it into a board
+    # that stopped updating while its header still advertised a 20s refresh.
+    src = qd._FABRIK_ROOT / "commands" / "_sources"
+    victim = sorted(src.glob("fabrik-*.md"))[0]
+    real_stat = Path.stat
+    seen: list[str] = []
+
+    def flaky(self, *a, **kw):
+        if str(self) == str(victim):
+            seen.append("x")
+            if len(seen) > 1:
+                raise FileNotFoundError(2, "No such file or directory", str(self))
+        return real_stat(self, *a, **kw)
+
+    monkeypatch.setattr(Path, "stat", flaky)
+    qd._cmd_cache_key = None
+    rows = qd._load_commands()  # must NOT raise
+    assert len(rows) > 0 and any(r["name"] == victim.stem for r in rows)
+    # `seen` is deliberately NOT asserted > 1: the fix makes exactly ONE stat per file, so a second
+    # call happens only on the buggy path. That asymmetry IS the grader — one call here, red there.
+    assert len(seen) == 1, "the fixed key must stat each file once, not pre-check then stat"
+
+
+def test_the_detectors_catch_the_invocation_forms_the_live_corpus_actually_uses(
+    tmp_path, monkeypatch
+):
+    """Round 1: two FALSE NEGATIVES, both found by re-deriving each column against the live corpus
+    instead of trusting the pattern. `gh search` was outside a hand-listed alternation, and the
+    browser MCPs are named in backticks (`playwright`, `chrome-devtools`) far more often than as
+    `mcp__` tool ids. The mirror matters as much: bare "Browserless"/"Gotenberg" is a fleet SERVICE
+    a project may deploy — prose about someone else's architecture — and must NOT earn a dot."""
+    qd = _load(tmp_path, monkeypatch)
+    d = tmp_path / "rendered"
+    d.mkdir()
+
+    def services(body: str) -> set:
+        (d / "fabrik-spec.md").write_text(body, encoding="utf-8")
+        monkeypatch.setattr(qd, "RENDERED_COMMANDS", d)
+        return qd._command_services("fabrik-spec")[0]
+
+    assert "gh" in services("use `gh search repos --language=python` for prior art")
+    # R2: the alternation used to demand a TRAILING SPACE, so the same invocation at end of line or
+    # before punctuation was a silent miss. The boundary must be \b, and it must still refuse a
+    # longer word that merely starts with a subcommand.
+    assert "gh" in services("check prior art with gh search")
+    assert "gh" in services("run `gh pr create`.")
+    assert services("the gh apiary sample, gh runner notes, and ghost writing") == set()
+    assert "brw" in services("drive it with `playwright`")
+    assert "brw" in services("the `chrome-devtools` MCP")
+    assert "brw" in services("run @axe-core/playwright over the screen")
+    assert services("the stack deploys Gotenberg/Browserless behind Traefik") == set()
 
 
 def test_the_matrix_is_in_the_commands_pane_and_names_its_maintenance_point(tmp_path, monkeypatch):
@@ -924,6 +1089,12 @@ def test_the_matrix_is_in_the_commands_pane_and_names_its_maintenance_point(tmp_
     pane = html[html.index('<section id="pane-commands"') : html.index('<section id="pane-external"')]
     assert "External services per command" in pane and 'table class="matrix"' in pane
     assert "_EXT_SERVICES" in pane and "scripts/sysadmin/quota_dashboard.py" in pane
+    # R2, all three independent readers: the opening sentence used to assert the data came from the
+    # rendered corpus unconditionally, which a missing or PARTIAL render made false two sentences
+    # before the caveat said otherwise. It must state how many rows actually came from there.
+    rows = qd._load_commands()
+    n_r = sum(1 for r in rows if r["rendered"])
+    assert f"{n_r} of {len(rows)} rows read from the rendered" in pane
 
 
 def test_a_rerendered_corpus_invalidates_the_cache(tmp_path, monkeypatch):
@@ -961,8 +1132,8 @@ def test_commands_cache_follows_the_assembler_and_an_empty_corpus_is_said(tmp_pa
     key1 = qd._cmd_cache_key
     # keyed on the FULL path since 2026-09-06: source and rendered files share basenames, and the
     # rendered corpus (which the external-services matrix reads) must be in the key too
-    assert key1 and any(path.endswith("/assemble_commands.py") for path, _ in key1)
-    assert any(path.startswith(str(qd.RENDERED_COMMANDS) + "/") for path, _ in key1)
+    assert key1 and any(e[0].endswith("/assemble_commands.py") for e in key1)
+    assert any(e[0].startswith(str(qd.RENDERED_COMMANDS) + "/") for e in key1)
     monkeypatch.setattr(qd, "_FABRIK_ROOT", tmp_path / "nowhere")
     assert qd._load_commands() == []
     html = qd.render(_payload(), time.time())

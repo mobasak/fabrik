@@ -1037,13 +1037,32 @@ def _next_map() -> dict[str, str]:
         return {}
 
 
-_cmd_cache_key: tuple[tuple[str, int], ...] | None = None
+def _mtime_key(f: Path) -> tuple[str, int, int]:
+    """`(path, mtime_ns, size)`, or `(path, -1, -1)` for a file that is not there — NEVER a raise.
+
+    `exists()`-then-`stat()` is a race, and the file it races is the one `assemble_commands.py`
+    PRUNES and rewrites: a render unlinks stale commands and writes the rest, so a regeneration
+    landing mid-render raised `FileNotFoundError` out of `_load_commands` → `render` → `generate`,
+    on the `_regen_async` daemon thread — the board would stop updating and say nothing on the page.
+    `-1` is a real key value: absence is a state the key must DISTINGUISH, not drop, so a file
+    appearing or vanishing always re-keys. SIZE rides along because mtime alone cannot see a rewrite
+    that preserves the timestamp — `cp -p`, a restore, an archive extraction."""
+    try:
+        st = f.stat()
+        return (str(f), st.st_mtime_ns, st.st_size)
+    except OSError:
+        return (str(f), -1, -1)
+
+
+_cmd_cache_key: tuple[tuple[str, int, int], ...] | None = None
 _cmd_cache_rows: list[dict[str, str]] = []
 
 
 def _load_commands() -> list[dict[str, str]]:
     """Every `commands/_sources/fabrik-*.md`, in PIPELINE_ORDER (unknown names last, alphabetical,
-    so a new command is visible before its slot exists). Cached on the sources' mtimes."""
+    so a new command is visible before its slot exists). Cached on the mtimes of the sources, the
+    ASSEMBLER (it owns the NEXT column) and the RENDERED corpus (the matrix reads it) — the last two
+    change with no `_sources/` mtime moving, and a key missing them freezes the table it feeds."""
     src = _FABRIK_ROOT / "commands" / "_sources"
     files = sorted(src.glob("fabrik-*.md"))
     global _cmd_cache_key, _cmd_cache_rows
@@ -1052,13 +1071,17 @@ def _load_commands() -> list[dict[str, str]]:
     # the RENDERED corpus is what the external-services matrix reads, and the assembler can
     # rewrite it with no _sources mtime moving — both belong in the key or the dots go stale
     rendered = [RENDERED_COMMANDS / f.name for f in files]
-    key = tuple((str(f), f.stat().st_mtime_ns) for f in [*files, asm, *rendered] if f.exists())
+    key = tuple(_mtime_key(f) for f in [*files, asm, *rendered])
     if _cmd_cache_key == key:
         return list(_cmd_cache_rows)
     nxt = _next_map()
     rows = []
     for f in files:
-        m = _DESC_RE.search(f.read_text(encoding="utf-8")[:6000])
+        try:
+            head = f.read_text(encoding="utf-8")[:6000]
+        except (OSError, UnicodeDecodeError):
+            head = ""  # an unreadable source is an EMPTY description, never a dead board
+        m = _DESC_RE.search(head)
         parsed = _parse_description(m.group(1) if m else "")
         services, is_rendered = _command_services(f.stem)
         rows.append(
@@ -1129,9 +1152,17 @@ _EXT_SERVICES: tuple[tuple[str, str, str, str], ...] = (
         "brw",
         "brw",
         "Headless browser — playwright / chrome-devtools / the fabrik-gui subagent",
-        r"mcp__playwright|mcp__chrome-devtools|browser_(?:snapshot|navigate|click)|fabrik-gui",
+        # NOT bare "Browserless"/"Gotenberg" — those are fleet SERVICES a project may deploy,
+        # prose about someone else's architecture, not this command reaching for a browser.
+        r"mcp__playwright|mcp__chrome-devtools|`(?:playwright|chrome-devtools)`"
+        r"|@axe-core/playwright|\bbrowser_[a-z][a-z_]+\b|fabrik-gui",
     ),
-    ("gh", "gh", "GitHub through the gh CLI", r"\bgh (?:pr|issue|api|repo|release|run) "),
+    (
+        "gh",
+        "gh",
+        "GitHub through the gh CLI",
+        r"\bgh (?:pr|issue|api|repo|release|run|search|browse|workflow|auth)\b",
+    ),
     (
         "vps",
         "vps",
@@ -1139,7 +1170,15 @@ _EXT_SERVICES: tuple[tuple[str, str, str, str], ...] = (
         r"\bfabrik (?:apply|redeploy|plan|destroy|status)\b|\bssh (?:vps|root@)|deployer_ssh|\bvps[1-3]\b",
     ),
     ("aic", "aic", "ai-consult — the metered frontier panel (fabrik-lib)", r"ai[-_]consult"),
-    ("cit", "cit", "fabrik-citation-verifier MCP", r"verify_citation|citation-verifier"),
+    (
+        "cit",
+        "cit",
+        "fabrik-citation-verifier MCP",
+        # NOT the bare server name: its only occurrence in the corpus is fabrik-data-contract
+        # saying the verifier "does not apply here" — a NEGATION, which no regex can read. The
+        # tool token is the invocation; the server name is prose about it.
+        r"verify_citation|verify_batch|mcp__fabrik-citation-verifier",
+    ),
     (
         "mail",
         "mail",
@@ -1165,7 +1204,11 @@ def _command_services(name: str) -> tuple[set[str], bool]:
     ):
         try:
             text = path.read_text(encoding="utf-8")
-        except OSError:
+        except (OSError, UnicodeDecodeError):
+            # UnicodeDecodeError is a ValueError, NOT an OSError: one non-UTF-8 byte in one command
+            # file used to raise straight through `render` into the regeneration thread — the third
+            # instance in this file of the failure that freezes the board while the page keeps
+            # advertising a 20s refresh.
             continue
         return {k for k, rx in _EXT_COMPILED if rx.search(text)}, is_rendered
     return set(), False
@@ -1207,19 +1250,25 @@ def _ext_matrix_intro(rows: list[dict]) -> str:
     caveat = ""
     if unrendered:
         caveat = (
-            f" <b>{len(unrendered)} of {n} read from <code>_sources/</code>, not the rendered "
-            f"corpus</b> — the assembler appends the shared pool and mail fragments, so those rows "
-            f"UNDER-report; re-render with <code>commands/assemble_commands.py</code> from master."
+            f" <b>{len(unrendered)} of {n} rows did NOT come from the rendered corpus</b> "
+            f"({', '.join(escape(u) for u in unrendered[:6])}"
+            f"{', …' if len(unrendered) > 6 else ''}) — they fell back to <code>_sources/</code>, or "
+            f"could not be read at all. The assembler appends the shared pool and mail fragments, so "
+            f"they UNDER-report; re-render with <code>commands/assemble_commands.py</code> from master."
         )
+    n_rendered = n - len(unrendered)
     return (
         f'<p class="intro">Which outside-the-box service each command actually reaches — derived on '
-        f"every page load from the {n} rendered commands under <code>{escape(str(RENDERED_COMMANDS))}"
-        f"</code>, never typed here, so it cannot go stale against the corpus. A dot means the command "
+        f"every page load from the corpus itself ({n_rendered} of {n} rows read from the rendered "
+        f"commands under <code>{escape(str(RENDERED_COMMANDS))}</code>), so the DOTS are never typed "
+        f"here and cannot go stale against the corpus. A dot means the command "
         f"names that service's own <b>invocation token</b> (<code>fanout(</code>, <code>WebSearch</code>, "
-        f"<code>mcp__firecrawl</code>, <code>fabrik apply</code>) — not that it mentions it in prose. "
-        f"Hover a column head for the full name. <b>Adding a NEW external service to the fleet means "
-        f"adding a row to <code>_EXT_SERVICES</code> in <code>scripts/sysadmin/quota_dashboard.py</code></b> "
-        f"— that registry is the one thing here a human keeps current.{caveat}</p>"
+        f"<code>mcp__firecrawl</code>, <code>fabrik apply</code>) — not that it merely mentions the "
+        f"service in prose. It is a text match, so it reads no NEGATIONS: a command naming a token "
+        f"only to say it does <i>not</i> apply is still credited. "
+        f"Hover a column head for the full name. The COLUMNS are the one hand-held half: <b>adding a new "
+        f"external service to the fleet means adding a row to <code>_EXT_SERVICES</code> in "
+        f"<code>scripts/sysadmin/quota_dashboard.py</code></b>.{caveat}</p>"
     )
 
 
@@ -1313,7 +1362,14 @@ def render(
     spend_html = _spend_panel()
     cmd_rows = _load_commands()
     cmd_html = _commands_table(cmd_rows)
-    ext_matrix_html = _ext_matrix_intro(cmd_rows) + _ext_matrix_table(cmd_rows) if cmd_rows else ""
+    # no corpus ⇒ no heading either; the pane's own "corpus unreadable" banner already says why
+    ext_matrix_html = (
+        "<h2>External services per command</h2>"
+        + _ext_matrix_intro(cmd_rows)
+        + _ext_matrix_table(cmd_rows)
+        if cmd_rows
+        else ""
+    )
     return f"""<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8">
@@ -1444,7 +1500,6 @@ def render(
 {'<div class="banner crit">Command corpus unreadable — no <code>commands/_sources/fabrik-*.md</code> under ' + escape(str(_FABRIK_ROOT)) + ".</div>" if not cmd_rows else ""}
 <p class="intro">Every <code>/fabrik-*</code> command in pipeline order ({len(cmd_rows)} sources under <code>commands/_sources/</code>, read live — purpose, when-to-use and skip-when come from each command's own description, the successor from the assembler's NEXT map). Stages run top to bottom; gates are invoked at boundaries; utilities at any point.</p>
 {cmd_html}
-<h2>External services per command</h2>
 {ext_matrix_html}
 </section>
 <section id="pane-external" class="pane" hidden>
