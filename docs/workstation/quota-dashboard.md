@@ -78,6 +78,7 @@ The older design's reasoning, kept for the record:
 | `N% left` + bar | **remaining** headroom (the CLI prints *used*; this prints what is left) |
 | green / amber / red | >25% · 6–25% · ≤5% remaining |
 | `cap N%` badge | a `caps.json` reserve exists for this account |
+| `pending-login` row (greyed, last, no switch button) | a dir `--new-dir` scaffolded that has not had its ONE `/login` yet — `--status --json` lists it under `pending`, not `accounts`. Shown so "not scaffolded" and "not logged in" are distinguishable (the 5th account, 2026-09-06, was invisible here until its login) |
 | `RESERVED — fleet excluded` | weekly ≥ its cap: automated flips skip it, the remainder is the operator's (browser use). `--switch` may still target it, deliberately |
 | `WALLED` | weekly ≥ 100%: unusable until its reset |
 | `cached Nh ago` | the account is idle, so its token is stale; the reading is the last known one with its age |

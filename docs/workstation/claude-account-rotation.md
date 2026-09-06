@@ -1,7 +1,7 @@
 # Claude accounts — the pointer-rotation fleet (reference + runbook)
 
-**What it is:** four Claude Max subscriptions (`ob@`, `can@`, `sarp@`, `mob@` — the latter
-three are inbox-aliases of `ob@ocoron.com`), each permanently logged in to its OWN config dir,
+**What it is:** five Claude Max subscriptions (`ob@`, `can@`, `sarp@`, `mob@` — those three are
+inbox-aliases of `ob@ocoron.com` — and `ozgurbasak@`, added 2026-09-06), each permanently logged in to its OWN config dir,
 and **one pointer that selects which account every project uses right now**. The `*/5` cron
 tick moves that pointer toward quota headroom. Tool: `scripts/sysadmin/claude_rotate.py`
 (+ its AFTER-EDIT twin `scripts/aro-wake/claude_rotate.py` — byte-identical, every edit lands
@@ -17,7 +17,7 @@ file-swap rotation used to do.
 
 ```
 ~/.claude-fleet/
-  ob/ can/ sarp/ mob/     one per ACCOUNT — each holds its own .credentials.json, logged in ONCE
+  ob/ can/ sarp/ mob/ ozgurbasak/   one per ACCOUNT — each holds its own .credentials.json, logged in ONCE
   active -> mob           the pointer every session follows (a relative symlink)
   assignments.json        slug → account, pinned identity
   caps.json               per-account weekly reserves, e.g. {"ob@ocoron.com": 90}
@@ -48,7 +48,7 @@ survives it.
 
 ## Rotation — when the pointer moves, and where
 
-The `*/5` tick reads all four accounts, then decides (`_fleet_flip_leg`, `claude_rotate.py`):
+The `*/5` tick reads every account dir (five as of 2026-09-06 — it discovers them, nothing enumerates them), then decides (`_fleet_flip_leg`, `claude_rotate.py`):
 
 - **Flip-away trigger:** the active account reaches `ROTATE_THRESHOLD` (default **95** — operator rule
   2026-09-03, restated after 98 let the wall be hit anyway: "when we see 95% at these checks we need to switch";
@@ -288,8 +288,11 @@ in `tests/test_claude_fleet.py` (`test_oauth_get_*`).
 
 ### The logins (done — chains date from 2026-08-15, which is when their idle clocks start)
 
-All four accounts are logged in, one login each, and no further login is expected. For
-reference, adding or re-homing an account is:
+Every account is logged in once and never again. The fifth, `ozgurbasak` (2026-09-06), was
+scaffolded with `--new-dir ozgurbasak ozgurbasak@ocoron.com --from ob` — **`--from` matters**:
+with no source the seed falls back to `~/.claude.json`, the stale post-migration leftover, and
+the new dir would inherit neither the current MCP roster nor the 58 trusted repos (a `claude -p`
+coder there would refuse every command). Adding or re-homing an account is:
 
 ```bash
 python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --new-dir <account-slug> <account-email>

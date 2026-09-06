@@ -1347,3 +1347,51 @@ def test_an_underivable_fee_breakdown_is_omitted_not_guessed(tmp_path, monkeypat
     panel = qd._spend_panel()
     assert "priced against <b>$800.00</b> for that window" in panel
     assert "August days at" not in panel and "$800/month" not in panel
+
+
+# --- a scaffolded-but-unlogged dir is SHOWN, not dropped (5th account, 2026-09-06) ------------
+# `--new-dir` records the slug in assignments.json as identity `pending-login`; `--status --json`
+# reports it under `pending`, not `accounts`. The board read only `accounts`, so the operator who
+# had just scaffolded `ozgurbasak` saw a four-row board and could not tell "not scaffolded" from
+# "not logged in". The row must appear — greyed, ineligible, with the one action that pins it.
+
+
+def _pending_payload(pending: list[str]) -> dict:
+    return {
+        "fleet_root": "/x/.claude-fleet",
+        "active": "ob",
+        "pause": None,
+        "fleet_warnings": [],
+        "pending": pending,
+        "accounts": [
+            {
+                "email": "ob@ocoron.com",
+                "slugs": ["ob"],
+                "source": "live",
+                "weekly_cap": 95,
+                "cap_walled": False,
+                "chain_stale": False,
+                "five_hour": {"utilization": 10.0, "resets_at_epoch": 2_000_000_000},
+                "seven_day": {"utilization": 20.0, "resets_at_epoch": 2_000_000_000},
+            }
+        ],
+    }
+
+
+def test_a_pending_login_dir_is_rendered_with_its_one_action(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    html = qd.render(_pending_payload(["ozgurbasak"]), 1_900_000_000.0)
+    assert "ozgurbasak" in html, "the scaffolded dir vanished from the board"
+    assert "pending-login" in html, "the row must say WHY it is not an account yet"
+    assert "/login" in html, "the row must name the one action that pins it"
+    # it is never mistaken for a candidate: no switch button, and it sorts after every account
+    assert html.index("ob@ocoron.com") < html.index("ozgurbasak")
+
+
+def test_no_pending_key_renders_no_pending_row(tmp_path, monkeypatch):
+    """The control: an older --status --json without `pending` must not conjure a row."""
+    qd = _load(tmp_path, monkeypatch)
+    p = _pending_payload([])
+    del p["pending"]
+    html = qd.render(p, 1_900_000_000.0)
+    assert "pending-login" not in html

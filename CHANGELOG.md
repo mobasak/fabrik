@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — fifth Claude Max account `ozgurbasak@ocoron.com` wired into the fleet; the board now shows a scaffolded-but-unlogged dir (2026-09-06)
+
+Operator: "carefully wire it … update our gui and everything." Measured first: NO live code
+enumerates the accounts — the tick, the dashboard, keepalive and the DR mirror all discover
+`~/.claude-fleet/*/` — so wiring is data, not code, and the one code change is a GUI gap it exposed.
+
+- **Scaffolded with `--new-dir ozgurbasak ozgurbasak@ocoron.com --from ob`.** `--from` is the
+  detail that matters: with no source the seed falls back to `~/.claude.json`, which the code itself
+  calls "a REAL hazard once the fleet exists" (the stale post-migration leftover). Seeding from the
+  live `ob` dir carried the current MCP roster and the trust map — **58/58 trusted repos, 5/5 MCP
+  servers, the same 7 hook events, `defaultMode: auto`** — verified by count, not by reading the
+  diff. Without trust a `claude -p` coder in that dir refuses every command (hooks-index § 1a).
+- Row recorded as `identity: pending-login`; **no credential byte was written** — the dir is filled
+  by the operator's ONE `/login`, by design (no login automation).
+- **Weekly cap 99** (operator's number), added AFTER the row existed so the caps loader's
+  known-account check does not warn; `_account_caps()` reads it back clean. DR mirror re-run:
+  the store holds both `claude-fleet/ozgurbasak/claude.json` and the 99.
+- **GUI defect found and fixed:** `--status --json` reports an unpinned dir under `pending`, not
+  `accounts`, and `quota_dashboard.py` never read `pending` — a freshly scaffolded account was
+  simply absent from the board, so "not scaffolded" and "not logged in" were indistinguishable.
+  `render()` now emits a greyed `pending-login` row last, with no switch button and the one action
+  that pins it. 2 graders (feature seen red; a control proving an older payload without `pending`
+  renders nothing extra); 66 pass. Verified live on :5051 after restarting the real server.
+- Docs: rotation reference (five accounts, `--from` warning in the runbook), dashboard reference
+  (the new row).
+
+Two traps worth keeping: `pgrep -f '<script> --serve' | head -1` returns the Bash tool's OWN
+wrapper (its cmdline embeds the literal), so the "server pid" changed on every call and a timestamp
+guard compared the wrong process — find a server by its socket (`ss -ltnp`), never by name. And the
+scaffold's `--source` flag I first wrote does not exist; the gate refused to scaffold blind and the
+parser said `--from`.
+
 ### Changed — Pool roster restricted to a cheap-plus-free allowlist; free-account census measured (2026-09-06)
 - Operator ruling D-159: route only two cheap DeepSeek on OpenRouter plus the free NVIDIA/Kilo/Groq lanes; nothing removed from the model table. Mistral excluded on evidence (0 of 8 accounts live, HTTP 402); "grok" resolved to Groq.
 - Measured all 21 provisioned provider keys across `/opt/fabrik/.env` and `/opt/youtube/.env`: NVIDIA 4/4 live, Groq 6/6, Kilo 1/1, Mistral 0/8. Groq caps at 1,000 req/day and 8,000 tok/min per key and returns HTTP 413 above ~12k prompt tokens, so it is a small-unit lane only.

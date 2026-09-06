@@ -459,6 +459,29 @@ def _row(acct: dict, active: str | None, rank: str | None = None) -> str:
     )
 
 
+def _pending_row(slug: str) -> str:
+    """A dir `--new-dir` scaffolded that has not had its ONE `/login` yet.
+
+    `--status --json` reports such a dir under `pending`, not `accounts` — it has no identity to
+    group by and no quota to read. The board used to read only `accounts`, so the operator who
+    had just scaffolded `ozgurbasak` (2026-09-06) saw a four-row board and could not tell "not
+    scaffolded" from "not logged in". Rendered greyed, after every account, with NO switch button
+    (there is no chain to switch to) and the one action that pins it."""
+    if not _SLUG_RE.match(slug):
+        return ""
+    s = escape(slug)
+    no = '<td class="num muted">no reading<br><span class="sub">—</span></td>'
+    return (
+        '<tr class="is-pending">'
+        f'<td class="acct"><strong>{s}</strong><span class="sub">pending-login</span>'
+        '<div class="badges"><span class="badge stale">pending-login — identity unverified</span>'
+        "</div></td>"
+        f"{no}{no}{no}"
+        f'<td class="act"><span class="muted">ONE <code>/login</code> in this dir pins it</span></td>'
+        "</tr>"
+    )
+
+
 def _switch_cell(slug: str, is_active: bool) -> str:
     """The manual-rotation control: a button on every row that is NOT the active pointer.
     The active row shows nothing clickable — switching to the account you are already on is
@@ -992,6 +1015,9 @@ def render(
         else:
             ranks.append("not eligible")
     rows = "".join(_row(a, active, rank) for a, rank in zip(accounts, ranks, strict=True))
+    # Scaffolded-but-unlogged dirs LAST: real rows first, then the one thing the operator still
+    # owes. Older payloads (no `pending` key) render nothing extra.
+    rows += "".join(_pending_row(str(x)) for x in (payload.get("pending") or []))
     gov_html = _governor_panel(payload)
     credits_html = _pool_credits_panel(credits)
     # Fail-soft by contract: `_spend_panel` returns "" on a missing/old-format sidecar, so the Usage
