@@ -362,3 +362,42 @@ def test_a_deny_beats_the_allowlist_everywhere_it_could_contradict(monkeypatch):
             f"{kind}: `{banned}` is denied but the allowlist emitted it as routable: {models}"
         )
     assert any(parsed.values()), "the deny emptied every kind — the guard must not fail-open either"
+
+
+def test_a_deny_that_empties_a_kind_fails_closed_instead_of_widening_routing(monkeypatch):
+    """The nastiest interaction of the two policies, and the least obvious.
+
+    If the denies remove every allowlisted model for a kind, the backstop emits a section header
+    with NO rows — and `load_task_ranking` reads a rowless section as no section, so `pick_models`
+    answers from the UNRESTRICTED vendored `_TABLE`. Banning every allowed model for a kind would
+    therefore WIDEN that kind's routing to everything: the opposite of both policies. Executed
+    before the guard existed: `_allowlist_models_for("review") == []` →
+    `load_task_ranking(...)["review"] is None`. The generator must refuse to publish."""
+    monkeypatch.setattr(rank, "OPERATOR_DENY", {"review": frozenset(rank.OPERATOR_ALLOW_ORDER)})
+    with pytest.raises(rank.ContradictoryRoutingPolicyError, match="review"):
+        rank.render([], state="ok", include_full_results=False)
+
+
+def test_the_contradiction_guard_does_not_fire_on_the_real_policy():
+    """The mirror: a guard that fires on the live configuration would block every run."""
+    out = rank.render([], state="ok", include_full_results=False)
+    assert "### review (" in out, "the real policy must still publish"
+
+
+def test_the_code_fallback_section_respects_the_deny(monkeypatch):
+    """The fallback emits its OWN rows from `coding_fallback_models`, before the top-up runs — so
+    filtering only the top-up would leave the deny half-applied on that path. The construction is
+    `_denied`-filtered; this asserts the emitted OUTPUT, which is what a reader and the parser see."""
+    banned = "deepseek/deepseek-v4-flash"
+    monkeypatch.setattr(rank, "_load_coding_fallback", lambda: [banned, "deepseek/deepseek-v3.2-exp"])
+    monkeypatch.setattr(rank, "OPERATOR_DENY", {"code": frozenset({banned})})
+    out = rank.render(
+        [("docs", "deepseek/deepseek-v4-flash", 40, 0.01, 3.0, 0.9)],
+        state="ok",
+        include_full_results=False,
+    )
+    code_section = out.split("### code (")[1].split("\n#")[0]
+    assert banned not in code_section, (
+        f"a model denied for `code` was emitted into the code section:\n{code_section}"
+    )
+    assert "deepseek/deepseek-v3.2-exp" in code_section, "the deny removed more than it should"

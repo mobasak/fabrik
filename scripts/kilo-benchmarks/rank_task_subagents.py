@@ -165,6 +165,23 @@ def _allowed(model: str) -> bool:
     return not OPERATOR_ALLOW or model in OPERATOR_ALLOW
 
 
+class ContradictoryRoutingPolicyError(RuntimeError):
+    """The deny and the allowlist together leave a task kind with NO routable model.
+
+    ⚠️ FAIL-CLOSED ON PURPOSE, and the reasoning is the whole point. A kind whose allowlist the
+    denies have emptied gets a section header with NO ROWS — and the parser reads a rowless section
+    as no section, so `pick_models` falls back to the UNRESTRICTED vendored `_TABLE`. The operator's
+    two policies would combine to produce the exact opposite of both: banning every allowed model
+    for a kind would WIDEN that kind's routing to everything. Publishing that is worse than
+    publishing nothing, so the generator refuses and keeps the previous doc.
+
+    Verified reachable by configuration (executed): denying both allowlisted models for `review`
+    yields `_allowlist_models_for("review") == []`, a rowless section, and
+    `load_task_ranking(...)["review"] is None`. Not reachable today — the two sets are disjoint —
+    which is precisely why it needs a guard rather than a note.
+    """
+
+
 def _denied(model: str, task_type: str | None) -> bool:
     """True when either operator DENY forbids `model` for `task_type`. One predicate so the answer
     cannot differ between emission paths — which it did: the code fallback and the code benchmark
@@ -2059,6 +2076,17 @@ def render(
     # and `spec` one (z-ai/glm-5), so both sections would have vanished and both would have reverted
     # to the vendored default. Emitting the allowlist itself keeps every kind covered.
     if OPERATOR_ALLOW:
+        # Refuse BEFORE emitting: a kind the denies have emptied would ship a rowless section, which
+        # routing reads as no section at all and answers with the unrestricted vendored table.
+        _empty = [k for k in sorted(set(TASK_KINDS_EMITTED) | set(by_task)) if not _allowlist_models_for(k)]
+        if _empty:
+            raise ContradictoryRoutingPolicyError(
+                "OPERATOR_DENY leaves no allowlisted model routable for: "
+                + ", ".join(_empty)
+                + " — a rowless section makes pick_models fall back to the UNRESTRICTED vendored "
+                "_TABLE, so the two policies would combine to WIDEN routing. Fix OPERATOR_ALLOW or "
+                "OPERATOR_DENY in rank_task_subagents.py; the previous doc is kept."
+            )
         # The union, not the literal: `TASK_KINDS_EMITTED` is frozen hub-side on purpose (so a
         # re-vendor cannot redefine hub policy), but that freezing is exactly what lets a NEW
         # TaskKind go uncovered — the equality test catches the drift only when tests run, and the
