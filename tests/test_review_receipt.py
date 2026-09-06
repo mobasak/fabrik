@@ -133,3 +133,24 @@ def test_a_dated_scope_is_not_double_dated(repo: Path) -> None:
     assert (
         len(names) == 2 and names[-1].endswith("-widget-review.md") and names[-1].count("20") >= 1
     )
+
+
+def test_the_rubric_guard_is_the_gates_own_pattern() -> None:
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("rr", SCRIPT)
+    rr = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(rr)
+    assert rr.RUBRIC_RUN.pattern == crc.RUBRIC_RUN.pattern
+    assert rr._RUBRIC_RUN_LITERAL.pattern == crc.RUBRIC_RUN.pattern  # the fallback twin, pinned
+
+
+def test_a_range_surface_names_the_range_tip(repo: Path) -> None:
+    _git(repo, "add", "app.py")
+    _git(repo, "commit", "-q", "-m", "second")
+    out = repo / "r-review.md"
+    r = _init(repo, "--out", str(out), "--changed", "app.py", "--range", "HEAD~1..HEAD")
+    assert r.returncode == 0, r.stderr
+    line = next(ln for ln in out.read_text("utf-8").splitlines() if ln.startswith("**Surface:**"))
+    assert "range tip" in line and "git diff HEAD~1..HEAD" in line, line

@@ -202,7 +202,7 @@ single-unit ground loops solo. Enumerate what you actually read (an empty check 
 the code diff from the spec's deltas — code lines and code files, tests excluded. **≤ ~400 code lines AND
 ≤ 5 code files ⇒ write `Profile: small` on the line after `Status:`** and emit the MONOLITH with ≤3
 phases — or, only when two pieces must land as separate commits, a SET of ≤3 tickets, every one
-`Complexity: inline` (the Integration ticket stays `native`, as always). Small means INLINE execution: the
+`Complexity: inline` (the Integration ticket stays `native` — `never-route` is the same native coder — as always). Small means INLINE execution: the
 orchestrator codes each phase itself in the main checkout, so **the READ budget is NOT a shape trigger
 and never splits a small plan** — the budget guards a cold coder's context and the profile dispatches
 none (`check_plan_tickets.py` waives it under the profile, caps the set at 3 tickets and refuses the
@@ -346,7 +346,9 @@ Touches, they are orchestrator-applied — and never own a directory that CONTAI
 entry covers EVERY docs-resident governance file (README, FEATURES, LESSONS_LEARNT, DECISIONS,
 STRATEGIC_BACKLOG) and ERRORs; enumerate the doc paths instead) · `Gate:` tier (≤3 `Gate:` lines — WARN above) · `Complexity:` ∈
 **`simple|complex|native|never-route|inline`** (exact token — `inline` only under `Profile: small`, where
-it is the ONLY code tier, gate-enforced both ways; the gate ERRORs on anything else, e.g.
+the admitted tiers are the native-executed ones, `inline` for the orchestrator's own coding plus
+`native`/`never-route` for the Integration ticket and never-route paths — never a pool tier, gate-enforced
+both ways; the gate ERRORs on anything else, e.g.
 `medium`; write label and value BARE — `Complexity: simple` — a backticked value ERRORs; a bolded
 label/value is now parsed; the LABEL forms neither gate parses — `__Complexity__:`, a backticked
 label, `***Complexity***:`, a wrapped-to-next-line value — each still draw the routing-off

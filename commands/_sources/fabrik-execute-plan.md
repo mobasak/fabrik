@@ -500,7 +500,8 @@ its Touches (contract violation → its diff is rejected at acceptance).
   consecutive timeouts on one ticket → 🔴.
 - **Coder runtime per `Complexity:` (all FIVE values):** **`inline`** (only under `Profile: small` —
   gate-enforced) → NO dispatch: the orchestrator codes the ticket itself in the main checkout and
-  commits per D5 — no worktree, no polling loop · **`simple`** →
+  commits per D5 with `Agent-Role: orchestrator` + the ticket's `Agent-Task:` trailer — no worktree, no
+  polling loop · **`simple`** →
   `pick_models("code", prefer="value")` pool unit · **`complex`** → mid pool coder — both via
   `fanout("code", units=[{task, owned_paths: <ticket Touches>}…], mode="write")` — ⚠️ **but pool
   write-mode coders are OFF for code tickets until the pool sandbox can run the repo's tests**
@@ -1050,7 +1051,8 @@ it in Touches — but the orchestrator commits it.
 - **On start** (before the first phase commit): flip `**Status:** CONVERGED` → `**Status:** IN-PROGRESS`.
   This also moves the plan out of `check_convergence.py`'s scope — it only gates plans whose Status is
   `CONVERGED`/`zero unknowns` — so the Evidence stays as the design record with no re-validation.
-- **At each phase boundary** (after the phase commit AND a clean `/fabrik-review`): mark that phase done
+- **At each phase boundary** (after the phase commit AND a clean review — the full `/fabrik-review`, or
+  `/fabrik-review-scoped` under `Profile: small` per Execution Contract item 3): mark that phase done
   in the plan — append `— ✅ EXECUTED <YYYY-MM-DD> (<short-commit>)` to the phase's heading (or tick its
   DoD checklist). A resumed run skips phases already marked done; a first UNMARKED phase with landed-but-unaccounted commits or dirty owned paths is step 7's MESSY case -> BLOCKED for the operator (never blind-redo, never mark on partial evidence, never guess residue ownership).
 - **On completion** (all phases done, final gate green): flip `**Status:** IN-PROGRESS` →

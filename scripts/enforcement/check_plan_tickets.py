@@ -211,9 +211,13 @@ def _header_zone(status_scan: str) -> str:
     waiver (round-1 finder, executed); the zone is where the field lives, nowhere else. A spine
     with NO `##` heading is all header by this definition — and it fails the structure checks
     (`## Ticket Board` is mandatory), so the profile it declares never reaches a dispatcher."""
-    zone = _TILDE_FENCE_RE.sub("", status_scan)
-    m = _FIRST_SECTION_RE.search(zone)
-    zone = zone[: m.start()] if m else zone
+    # ORDER MATTERS: cut the zone FIRST, then strip fences inside it. Stripping first let a tilde
+    # fence opened in the header and closed past `## Ticket Board` swallow that heading, so the
+    # zone ran on into the body (round-3 finder); cut first, the opener is dangling inside the
+    # zone and absorbs to its end — fail-closed.
+    m = _FIRST_SECTION_RE.search(status_scan)
+    zone = status_scan[: m.start()] if m else status_scan
+    zone = _TILDE_FENCE_RE.sub("", zone)
     dangling = _TILDE_OPEN_RE.search(zone)
     return zone[: dangling.start()] if dangling else zone
 
@@ -2138,7 +2142,13 @@ def check_plan_dir(
                     "the Profile line and size the set for the dispatcher",
                 )
             )
-        if t.integration and t.complexity and t.complexity not in ("native", "never-route"):
+        inline_misplaced = t.complexity == "inline" and not spine_small  # already ERRORed above
+        if (
+            t.integration
+            and t.complexity
+            and t.complexity not in ("native", "never-route")
+            and not inline_misplaced
+        ):
             results.append(
                 _err(
                     f"{t.tid}: Integration ticket routed off the native tiers "

@@ -2430,3 +2430,26 @@ def test_small_profile_admits_a_never_route_integration_ticket(tmp_path: Path) -
     tickets["T99-integration.md"] = T99.replace("Complexity: native", "Complexity: never-route")
     plan_dir = _build(tmp_path, spine=_small_spine(), tickets=tickets)
     assert not _errors(cpt.check_plan_dir(plan_dir))
+
+
+def test_a_tilde_fence_spanning_the_first_heading_cannot_extend_the_header_zone(
+    tmp_path: Path,
+) -> None:
+    # opener in the header, closer past `## Ticket Board`, a Profile line after it: the zone is cut
+    # at the heading FIRST, so the opener is dangling inside the zone and absorbs to its end
+    spine = SPINE.replace(
+        "Status: DRAFT\n\n## Ticket Board",
+        "Status: DRAFT\n~~~\n\n## Ticket Board\n~~~\nProfile: small",
+    )
+    assert "~~~\nProfile: small" in spine
+    plan_dir = _build(tmp_path, spine=spine, tickets=_inline_set())
+    results = cpt.check_plan_dir(plan_dir)
+    assert not any("WAIVED" in r.message for r in results), [r.message for r in results]
+
+
+def test_an_inline_integration_ticket_outside_the_profile_errors_once(tmp_path: Path) -> None:
+    tickets = {"T01-schema.md": T01, "T02-api.md": T02}
+    tickets["T99-integration.md"] = T99.replace("Complexity: native", "Complexity: inline")
+    plan_dir = _build(tmp_path, tickets=tickets)
+    t99 = [m for m in _errors(cpt.check_plan_dir(plan_dir)) if m.startswith("T99:")]
+    assert len(t99) == 1 and "Profile: small tier" in t99[0], t99

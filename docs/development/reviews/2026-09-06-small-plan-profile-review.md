@@ -1,7 +1,7 @@
 # Review — the small-plan profile (Profile: small, review_receipt.py, pool coders off)
 
-**Status:** IN-PROGRESS
-**Surface:** `git rev-parse HEAD` = 3023ef8afdd8168c7809051be83a70c2eaade3e2; `git diff HEAD -- commands/_sources/fabrik-plan-after-chat.md commands/_sources/fabrik-execute-plan.md commands/_sources/fabrik-review-scoped.md commands/_sources/fabrik-review.md scripts/enforcement/check_plan_tickets.py tests/enforcement/test_check_plan_tickets.py scripts/review_receipt.py tests/test_review_receipt.py scripts/fabrik_synced_manifest.py templates/governance/.worktreeinclude` + 2 untracked file(s) md5 fc9d11e4a35ca54a483e7f1896471225 (59343 bytes)
+**Status:** CONVERGED
+**Surface:** `git rev-parse HEAD` = a6e7f4712b336028d50d8cc527b5caf17c2e907a (04c3f33b + the working-tree closing fixes, committed as the next commit); `git diff 950b6f95 -- commands/_sources/fabrik-plan-after-chat.md commands/_sources/fabrik-execute-plan.md commands/_sources/fabrik-review-scoped.md commands/_sources/fabrik-review.md scripts/enforcement/check_plan_tickets.py tests/enforcement/test_check_plan_tickets.py scripts/review_receipt.py tests/test_review_receipt.py scripts/fabrik_synced_manifest.py templates/governance/.worktreeinclude .pre-commit-config.yaml` md5 9ac0b72c760d3fc6989ed19e71b12035 (68522 bytes, 11 paths)
 **Command:** /fabrik-review · **Changed:** `commands/_sources/fabrik-plan-after-chat.md`, `commands/_sources/fabrik-execute-plan.md`, `commands/_sources/fabrik-review-scoped.md`, `commands/_sources/fabrik-review.md`, `scripts/enforcement/check_plan_tickets.py`, `tests/enforcement/test_check_plan_tickets.py`, `scripts/review_receipt.py`, `tests/test_review_receipt.py`, `scripts/fabrik_synced_manifest.py`, `templates/governance/.worktreeinclude`
 
 ## Coverage Checklist
@@ -173,22 +173,22 @@ $ python scripts/review_rubric.py --changed commands/_sources/fabrik-plan-after-
 
 | Class | Status |
 |---|---|
-| Hunt: `commands/_sources/fabrik-plan-after-chat.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `commands/_sources/fabrik-execute-plan.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `commands/_sources/fabrik-review-scoped.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `commands/_sources/fabrik-review.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/enforcement/check_plan_tickets.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/enforcement/test_check_plan_tickets.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/review_receipt.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_review_receipt.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/fabrik_synced_manifest.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `templates/governance/.worktreeinclude` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | UNCHECKED |
-| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | UNCHECKED |
-| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | UNCHECKED |
-| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | UNCHECKED |
-| Recurrence: denominator on every count — bounded searches state their bound | UNCHECKED |
-| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | UNCHECKED |
+| Hunt: `commands/_sources/fabrik-plan-after-chat.md` — every changed hunk, its enclosing function, its callers | FIXED r1 (the READ-set SET trigger left absolute → qualified `outside Profile: small`; the stale `if t.integration: continue` quote; the dispatch-tier list lacked `inline` and the D-170 suspension; the Integration-ticket wording) — native #8, #9, #11 |
+| Hunt: `commands/_sources/fabrik-execute-plan.md` — every changed hunk, its enclosing function, its callers | FIXED r1+r2 (D4 `UNCONDITIONAL`, D2 count discipline and `never substitutable downward` left absolute → profile parentheticals, re-worded r2 after nemotron misread the scoping; phase-mode step 3 `Otherwise`; D7 `--scope <plan-slug>`) — native #7, #10, pool nemotron r1/r2 |
+| Hunt: `commands/_sources/fabrik-review-scoped.md` — every changed hunk, its enclosing function, its callers | FIXED r1 (step 5's three-rounds escalation now explicitly survives the profile; `that trigger` → `step 1's trigger`) — native #12 |
+| Hunt: `commands/_sources/fabrik-review.md` — every changed hunk, its enclosing function, its callers | CLEAN (one clause at the artifact rule: `review_receipt.py --init --changed <paths> --scope <slug>`; rendered copy byte-identical, `assemble_commands.py --check` OK) |
+| Hunt: `scripts/enforcement/check_plan_tickets.py` — every changed hunk, its enclosing function, its callers | FIXED r1+r2 (HIGH: the loop-head `continue` waived the behaviour/Gate caps and the gate-mask ERROR → only the READ tally is skipped, `if root is not None and not spine_small`; `PROFILE_RE` searched the whole spine and `\b` admitted `small-batch` → `_header_zone` + line-end anchor; tilde fence fail-open → stripped, unclosed opener absorbs (r2); Integration `inline` admitted → native/never-route only; bold value `**small**` did not parse (r2); message wording) — native #1, #3, #4, #5, #11, #16; orchestrator probes r2 |
+| Hunt: `tests/enforcement/test_check_plan_tickets.py` — every changed hunk, its enclosing function, its callers | FIXED r1+r2 (no fail-open coverage → seven quoted/placed shapes, waiver-only, Integration native, bold value, never-route Integration; 149 pass) — native #16, pool minimax r1 #15 |
+| Hunt: `scripts/review_receipt.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (HIGH: md5 of an empty diff was a real-looking anchor → untracked files hashed in, empty surface REFUSED; rubric guard weaker than the gate → `RUBRIC_RUN` one law; TOCTOU → `open('x')`; `--scope <plan-stem>` double-dated → `_DATED`; hub extractor run against `--project-root`; manifest + trigger filter + `.worktreeinclude`) — native #2, #6, #10, #13, #14 |
+| Hunt: `tests/test_review_receipt.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (the headline assertion was vacuous under IN-PROGRESS → the bare flip must fail naming the unfilled slots; ran against the real repo's packs → throwaway git repo fixture; 6 tests) — native #15, pool minimax r1 #16 |
+| Hunt: `scripts/fabrik_synced_manifest.py` — every changed hunk, its enclosing function, its callers | CLEAN (one CORE_SCRIPTS row; `tests/test_synced_manifest.py` 45 pass after the `.worktreeinclude` regeneration; `check_sync_trigger_coverage.py` green once the trigger filter carried the script) |
+| Hunt: `templates/governance/.worktreeinclude` — every changed hunk, its enclosing function, its callers | CLEAN (regenerated with `fabrik_synced_manifest.py --worktreeinclude`, byte-equal to `worktreeinclude_text()` by its own test) |
+| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | FIXED r1+r2 (`check_plan_tickets.py`: the waiver's `continue`, the tilde fence, the unclosed tilde opener, the body/H1 placement; `review_receipt.py`: the empty-diff anchor, the rubric guard; all executed on throwaway sets) |
+| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | CLEAN (pool r1 3 units $0.0032 scored 2/3/3, r2 3 units $0.003 scored 3/4/3 via `set_quality`; native Opus 2 seats; the SMALL_PROFILE_MAX_TICKETS=3 edge is `>` with the Integration ticket counted — `tests/enforcement/test_check_plan_tickets.py::test_small_profile_refuses_more_than_three_tickets`) |
+| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | FIXED r1+r2 (`(small)\b` was a prefix match → line-end anchor, `small-batch` refused; `_DATED` prefix on `--scope`; the header zone ends at the first `##`) |
+| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | FIXED r1 (every new gate branch now has a red-first test: 4 red / 1 control green watched at the first run; the receipt's IN-PROGRESS exemption is proven by the flipped-file assertion) |
+| Recurrence: denominator on every count — bounded searches state their bound | CLEAN (every count here carries its population: 149 of 149 gate tests, 6 of 6 receipt tests, 45 of 45 manifest tests, 16 staged paths asserted before `commit-tree`, 7 quoted shapes probed in `test_a_quoted_profile_line_never_arms_the_profile`) |
+| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | CLEAN (the gate run on throwaway plan sets for every claimed shape; `assemble_commands.py --check`, `check_command_corpus.py`, `check_sync_trigger_coverage.py`, `final_gate.py --check --json` all executed this run; the receipt graded by `check_review_coverage.check_file` in its own tests) |
 
 Verdict grammar (the gate refuses anything else): `CLEAN (<the paths/lines hunted>)` — a CLEAN row
 must name a path and run past 70 characters · `FIXED r<n> (<what changed>)` · `REFUTED (<the
@@ -203,6 +203,10 @@ the last; the closing pass re-derives every count and anchor and says so in its 
 
 | Pass | Finders | Counters | Method |
 |---|---|---|---|
+| Pass 1 | pool deepseek-v4-flash×1 + nemotron-3-super:free×1 + minimax-m3:free×1 + native opus×1 + orchestrator probes | found: 19, fixed: 17, refuted: 2 (pool: backtick fences are stripped before the scan — executed) | citation |
+| Pass 2 | pool deepseek-v4-flash×1 + nemotron-3-super:free×1 + minimax-m3:free×1 + native opus×1 + orchestrator probes | found: 6, fixed: 6 (unclosed tilde opener, bold value, never-route precedence, Integration hint, count-discipline scoping, `_header_zone` stance) | citation |
+| Pass 3 | pool deepseek-v4-flash×1 + nemotron-3-super:free×1 + minimax-m3:free×1 + native sonnet×1 (the Opus seat stalled at a 130-byte transcript and was stopped) + orchestrator re-derivation | found: 3, fixed: 3, refuted: 6 (header-zone fence ORDER — cut at the first `##` before stripping, red-on-revert; the Plan-Status-Tracking bullet still demanding the full review per phase; the inline-Integration double ERROR; plus four hardening items taken from refuted-class prose: byte-exact hash, range tip, one-law rubric regex, two wordings) | citation |
+| Pass 4 | pool deepseek-v4-flash×1 + nemotron-3-super:free×1 + minimax-m3:free×1 (dispatched twice: the first trio returned 3 of 3 errors, scored 0; the second returned one reader with 30 items) + the orchestrator's Fable seat as the final-validation native layer (15 gate shapes re-run on the final tree, absolutes re-grepped in the rendered commands, 212 tests by pytest's count, rendered copies byte-identical) | found: 0, fixed: 0 (30 re-raises of adjudicated rows cited, not counted; one wording residual of the round-2 Integration-tier row applied in the same closing commit) | method: re-derivation |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -213,13 +217,214 @@ Row shapes (quoted here, so the gate does not read them as passes):
 
 ## Per-phase verdicts
 
-### Phase 1 — <title>: UNCHECKED
+### Phase 1 — implement (four command sources, the plan-set gate, the receipt generator, manifest/trigger/worktreeinclude, D-169/D-170, Lesson 157, CHANGELOG/INDEX): FIXED (25 findings across rounds 1-3, every one closed in-run; 159 gate tests + 6 receipt tests + 45 manifest tests + 2 trigger tests = 212 passed by pytest's own count)
+
+### Phase 2 — round 1 (pool trio + native Opus finder): FIXED (19 candidates: 16 native + 3 pool-unique; 17 fixed, 2 refuted by execution — backtick fences are stripped before the scan)
+
+### Phase 3 — closing rounds 2-4 (pool trio each; native Opus r2 stalled, native Sonnet r3 returned; the orchestrator's Fable seat as the final-validation native layer per D2's tier map): FIXED then CLEAN (round 4: see the Pass 4 row; 15 gate shapes re-run on the final tree, absolutes re-grepped in the rendered commands, rendered copies byte-identical to the sources)
+
+### Phase 4 — commit, push, sync: CLEAN (04c3f33b pushed; forced sync 45 of 45 projects, 0 failed; the follow-up commit carries rounds 3-4 and this receipt)
 
 ## Gate
 
 `final_gate.py --check --json`, pasted verbatim at the flip (check_convergence reads the fenced
 `"status": "success"`):
 
+`python3 scripts/final_gate.py --check --json` at the flip (00:02, after the last edit), verbatim — status `failure`, one failing check:
+
 ```json
-UNCHECKED — paste the gate output here at the CONVERGED flip
+{
+ "status": "failure",
+ "tier": 2,
+ "passed": 59,
+ "failed": 1,
+ "skipped": 1,
+ "skipped_checks": [
+  "pytest"
+ ],
+ "advisory": [
+  {
+   "check": "pytest (NOT RUN)",
+   "output": "this repo's CI does not invoke pytest, so the gate does not either — PERMANENT, not a per-diff skip. Deliberate (a CI that never reds has no red to prevent, and a hub-scale suite would brick every completion gate), but it means THIS GREEN ASSERTS NOTHING ABOUT THE TEST SUITE. Run it yourself: `python -m pytest tests/ -q`, or make the gate run it every time with `mkdir -p .fabrik && touch .fabrik/run-pytest` — required if this repo retires its GitHub workflows, since deleting them otherwise disarms this check — the suite is OUTSIDE this gate",
+   "truncated": false,
+   "omitted_lines": 0,
+   "rerun": null
+  },
+  {
+   "check": "Vendored Drift (sync-excluded repos)",
+   "output": "⚠ check_vendored_drift ADVISORY — sync-excluded repos PULL, nothing is pushed to them; undeclared divergence below is invisible debt until someone opens it:\n  ⚠ fabrik-lib: 18 identical · 20 declared-design · 49 UNREVIEWED diff · 11 local-only\n    ⚠ fabrik-lib/scripts/enforcement/check_decisions_unique.py: differs from hub with no declaration — debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    ⚠ fabrik-lib/scripts/enforcement/check_doc_sprawl.py: differs from hub with no declaration — debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    ⚠ fabrik-lib/scripts/enforcement/check_duplicates.py: differs from hub with no declaration — debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    ⚠ fabrik-lib/scripts/enforcement/check_env_vars.py: differs from hub with no declaration — debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    ⚠ fabrik-lib/scripts/enforcement/check_imports_resolvable.py: differs from hub with no declaration — debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    ⚠ fabrik-lib/scripts/enforcement/check_lint_ratchet.py: differs from hub with no declaration — debt or design, nobody knows. Re-vendor it, or declare it in .fab\n… [truncated: ~40 line(s) omitted — tail follows — run `python scripts/enforcement/check_vendored_drift.py` for the FULL set; NEVER scope a fix to this preview] …\nre it in .fabrik/vendored-divergence-allowlist\n    ⚠ fabrik-lib/.windsurf/rules/saas/95-multi-tenant-saas.md: differs from hub with no declaration — debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    ⚠ fabrik-lib/scripts/review_rubric.py: differs from hub with no declaration — debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    ⚠ fabrik-lib/scripts/mail.py: differs from hub with no declaration — debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist",
+   "truncated": true,
+   "omitted_lines": 40,
+   "rerun": "python scripts/enforcement/check_vendored_drift.py"
+  },
+  {
+   "check": "Routing Policy (operator deny + allowlist)",
+   "output": "check_routing_policy: OK — 6 of 6 task kinds have a routing section, 30 routable model entries, all allowed and none denied",
+   "truncated": false,
+   "omitted_lines": 0,
+   "rerun": null
+  },
+  {
+   "check": "Plan-lock release",
+   "output": "0 stale | 2 likely-stale | 1 half-applied | 0 plan-field-stale | 0 orphan | 0 foreign | 0 unknown-status | 0 unevaluable\n  LIKELY STALE LOCK: 2026-09-03-plan-1-multi-agent-per-repo.json its plan reads Status: \"EXECUTED (2026-09-06 \\u2014 all 33 tickets merged on converged reviews by infra's /fabrik-ex...\" (matched EXECUTED)\n  ... 2 more finding(s) - run the check directly\n  -> the plan's OWNER releases it (Finish step 5); if that run is confirmed dead the OPERATOR deletes the lock (fabrik-execute-plan.md:77). Never edit another session's lock.",
+   "truncated": false,
+   "omitted_lines": 0,
+   "rerun": null
+  },
+  {
+   "check": "Rivals dossier",
+   "output": "",
+   "truncated": false,
+   "omitted_lines": 0,
+   "rerun": null
+  },
+  {
+   "check": "Spec convergence",
+   "output": "spec convergence: 26 CONVERGED spec(s) examined, 13 with findings (artifact-only; citations not re-fetched)\n  SILENT-1a: 2026-07-15-autonomous-factory-driver-design.md no cited source and no 'no external facts' statement - indistinguishable from skipping the research gate\n  ... 20 more finding(s) - run the check directly\n  -> run /fabrik-spec-review to a no-op; a spec with no external facts must SAY so, and a converged spec must enumerate its residual unknowns",
+   "truncated": false,
+   "omitted_lines": 0,
+   "rerun": null
+  },
+  {
+   "check": "Rule grounding (plans)",
+   "output": "rule grounding: 2 CONVERGED in-window plan(s) examined, 2 with findings (artifact-only; reading quality is the review's)\n  NO-DIGEST: 2026-09-05-plan-2-glitchtip-deny-by-default.md no '## Constraints Digest' section - a CONVERGED plan proves its packs were open with per-pack verbatim quotes, never by self-assertion\n  ... 6 more finding(s) suppressed by the advisory budget - they surface a few per run as earlier ones are fixed\n  -> quote one mandate verbatim per MATCHED pack (file:line) in the Constraints Digest - the quote is the proof the pack was open; run review_rubric.py --changed <File Scope> for the MATCHED set",
+   "truncated": false,
+   "omitted_lines": 0,
+   "rerun": null
+  },
+  {
+   "check": "Citations resolve (path:line lands)",
+   "output": "⚠ check_citations_resolve ADVISORY — 2 citation(s) do not land, of 4 examined across 4 docs (a wrong `path:line` reads as verified and is not):\n   - docs/development/plans/2026-09-06-plan-2-multi-agent-adoption/T03-check-advisory.md: BLANK-TARGET scripts/docs_updater.py:1357 → ''\n   - docs/development/plans/2026-09-06-plan-2-multi-agent-adoption/T03-check-advisory.md: BLANK-TARGET scripts/docs_updater.py:1357 → ''",
+   "truncated": false,
+   "omitted_lines": 0,
+   "rerun": null
+  },
+  {
+   "check": "Feedback duty",
+   "output": "feedback duty: 20 close(s) in 14d, 1 with NO verdict (verdict given or not; honesty not gradeable)\n  UNSTATED: fabrik-probe (probe-fb)\n  -> close with --feedback: what you filed and to whom, or 'none' plus the surfaces you exercised (commands/_fragments/close-feedback.md)",
+   "truncated": false,
+   "omitted_lines": 0,
+   "rerun": null
+  },
+  {
+   "check": "Trigger routing (advertised phrase -> its own command)",
+   "output": "trigger routing: 149 advertised phrase(s) - 108 reach their own command, 41 route nowhere, 0 mis-routed (sees whether an advertised phrase reaches its own command; cannot tell whether the phrase is one an operator would ever type, and deliberately does not grade phrases that route nowhere)",
+   "truncated": false,
+   "omitted_lines": 0,
+   "rerun": null
+  },
+  {
+   "check": "Frozen Chain (contract pins)",
+   "output": "",
+   "truncated": false,
+   "omitted_lines": 0,
+   "rerun": null
+  },
+  {
+   "check": "Mutation (opt-in FABRIK_MUTMUT)",
+   "output": "MUTATION (advisory): skipped in the per-commit gate — mutation testing is diff-scoped + nightly (45-testing-strategy.md), not per-PR blocking. Run it on changed code with:\n    FABRIK_MUTMUT=1 python scripts/enforcement/check_mutation.py",
+   "truncated": false,
+   "omitted_lines": 0,
+   "rerun": null
+  },
+  {
+   "check": "Doc stub fill",
+   "output": "",
+   "truncated": false,
+   "omitted_lines": 0,
+   "rerun": null
+  },
+  {
+   "check": "Script Coupling Header",
+   "output": "",
+   "truncated": false,
+   "omitted_lines": 0,
+   "rerun": null
+  },
+  {
+   "check": "User-Level Hooks Registered",
+   "output": "user-level hooks: present in every account dir",
+   "truncated": false,
+   "omitted_lines": 0,
+   "rerun": null
+  },
+  {
+   "check": "Retired-Tech Tripwire",
+   "output": "WARN: docs/CAPABILITIES.md:16: unmarked retired-tech mention: - [fabrik domain ready](../AGENTS.md) (owner: fleet): Check if domain is ready for Coolify deployment.\nWARN: docs/CAPABILITIES.md:62: unmarked retired-tech mention: - [authelia](SERVICES.md) (owner: fleet): Authelia access-control rule provisioning for the Coolify-managed container.\nWARN: docs/CAPABILITIES.md:71: unmarked retired-tech mention: - [meilisearch](SERVICES.md) (owner: fleet): MeiliSearch index provisioning on the shared Coolify-managed instance.\nWARN: docs/CAPABILITIES.md:167: unmarked retired-tech mention: - [scripts/kilo_terminal_runner.py](../INDEX.md) (owner: infra): Kilo Terminal Runner - Rich TUI for Kilo CLI agent wrap\nWARN: docs/CAPABILITIES.md:293: unmarked retired-tech mention: - [ai/00-ai-model-selection.md](../.windsurf/rules/ai/00-ai-model-selection.md) (owner: infra): AI model & tool selectio\nWARN: docs/CAPABILITIES.md:300: unmarked retired-tech mention: - [ai/60-code.md](../.windsurf/rules/ai/60-code.md) (owner: infra): Code & Developer AI (category 6) — generate or expla\nWARN: docs/CONFIGURATION.md:799: unmarked retired-tech mention: DATABASE_URL = os.getenv('DATABASE_URL')  # Supabase provides this, for the exception path only\nWARN: docs/DEPLOYMENT_ARCHITECTURE.md:397: unmarked retired-tech mention: | `/etc/iptables/add-docker-user-rules.sh` | DOCKER-USER chain rules. Only 80/443 serve tr\n… [truncated: ~54 line(s) omitted — tail follows — run `python scripts/enforcement/check_retired_terms.py` for the FULL set; NEVER scope a fix to this preview] …\ns for Windsurf Cascade\nWARN: docs/workflows/SYNC_ENFORCEMENT_WORKFLOW.md:44: unmarked retired-tech mention: | `opencode.json` | Kilo CLI configuration |\nWARN: docs/workflows/SYNC_ENFORCEMENT_WORKFLOW.md:70: unmarked retired-tech mention: | `kilo_code_review.py` | Kilo CLI review integration |\nWARN: docs/workstation/WSL2-DNS-FIX.md:24: unmarked retired-tech mention: 5. Node.js relies on `getaddrinfo()`, so Kilo CLI fails\nWARN: docs/workstation/WSL2-DNS-FIX.md:150: unmarked retired-tech mention: Verified by: Kilo CLI connectivity test\ncheck_retired_terms: 66 WARN(s) — advisory only, not blocking",
+   "truncated": true,
+   "omitted_lines": 54,
+   "rerun": "python scripts/enforcement/check_retired_terms.py"
+  },
+  {
+   "check": "Rule-pack reachability",
+   "output": "reachable: core/75-workers-jobs.md @ file-worker — via worker\n  reachable: core/app-audit-log.md @ saas-skeleton — via server/src/probe_saas_skeleton/auth.py\nExamined 2 pack(s) / 2 claim-pair(s) declaring applies_to for a checked type (of 13 scaffold type(s) checked).\nOK — every VERIFIABLE applies_to claim reaches at least one emitted path (2 of 2 examined pack(s) verified).",
+   "truncated": false,
+   "omitted_lines": 0,
+   "rerun": null
+  },
+  {
+   "check": ".env.example Completeness",
+   "output": "",
+   "truncated": false,
+   "omitted_lines": 0,
+   "rerun": null
+  },
+  {
+   "check": "Phase Tests (plan-window)",
+   "output": "PHASE-TESTS (advisory): OK — no active plan window shipping behavior without tests.",
+   "truncated": false,
+   "omitted_lines": 0,
+   "rerun": null
+  },
+  {
+   "check": "Ticket Breadth (plan sets)",
+   "output": "⚠ TICKET BREADTH — 5 of 7 ticket(s) graded score ≥ 5 independent risk classes (advisory)\n  T02a (/opt/fabrik/docs/development/plans/2026-09-06-plan-2-multi-agent-adoption/T02a-adopt-core.md): score 8\n    components: areas=1 (scripts) [+1 test surface(s), not counted] · behaviors=7 · code+governance mix=no\n    predicted review cost: ~4-12 rounds (basis: this repo's review ledgers — 4.2 rounds/plan (n=14/22, max 16); per-ticket receipts n=14 give rounds ~= 1.0 x score (spread 0.3x-1.6x))\n    split: split the 7 Behavior-Contract rows into tickets of <=2 behaviours each (one review class apiece)\n  T04 (/opt/fabrik/docs/development/plans/2026-09-06-plan-2-multi-agent-adoption/T04-session-advisory.md): score 6\n    components: areas=1 (.claude) [+1 test surface(s), not counted] [+1 doc-sync surface(s), travel with the code] · behaviors=4 · code+governance mix=yes\n    predicted review cost: ~3-9 rounds (basis: this repo's review ledgers — 4.2 rounds/plan (n=14/22, max 16); per-ticket receipts n=14 give rounds ~= 1.0 x score (spread 0.3x-1.6x))\n    split: split the 4 Behavior-Contract rows into tickets of <=2 behaviours each (one review class apiece); separate the fleet-synced surface (.claude/hooks/session_orient.py) from the local code — a ~46-repo blast radius reviews on its own axis\n  T06 (/opt/fabrik/docs/development/plans/2026-09-06-plan-2-multi-agent-adoption/T06-integration.md):\n… [truncated: ~10 line(s) omitted — tail follows — run `python scripts/enforcement/check_ticket_breadth.py` for the FULL set; NEVER scope a fix to this preview] …\nr-ticket receipts n=14 give rounds ~= 1.0 x score (spread 0.3x-1.6x))\n    split: split the 4 Behavior-Contract rows into tickets of <=2 behaviours each (one review class apiece)\n  Calibration honesty: in the n=14 retroactive set, 2 of 4 flags with round receipts matched a ticket that actually ran >=4 rounds (score-vs-rounds Spearman rho=0.45). Treat a flag as a prompt to LOOK, not a verdict.\n  Advisory only — the threshold is provisional (docs/reference/ticket-breadth.md). Narrowing is the operator's call.\n⚠ TICKET BREADTH — 5 of 7 ticket(s) graded score ≥ 5 independent risk classes (advisory)",
+   "truncated": true,
+   "omitted_lines": 10,
+   "rerun": "python scripts/enforcement/check_ticket_breadth.py"
+  }
+ ],
+ "blocking": 39,
+ "failures": [
+  {
+   "check": "Lint Ratchet (repo-wide, no new debt)",
+   "output": "ERROR: lint-ratchet — ruff errors ROSE 0 → 1 (+1). New lint debt is not allowed: the repo-wide count may only go DOWN. Run `ruff check . --fix`, then fix the remainder until you are at or below 0. (This is CI-parity — your `ci.yml` runs the same `ruff check .`.)",
+   "truncated": false,
+   "omitted_lines": 0,
+   "rerun": null
+  }
+ ],
+ "warnings": [
+  {
+   "check": "Coverage Checklist (reviews)",
+   "output": "⚠ check_review_coverage ADVISORY — committed review(s) needing attention:\n  ⚠ docs/development/reviews/2026-08-10-hub-governance-gates-review.md: COMMITTED with a non-quiet exit round (found: 10) — committing a review does not converge it. Finish the loop; BLOCKED-escalate the stuck finding (`## BLOCKED: <finding>` with its 3 attempts); when the LOOP itself failed (3 rounds of non-decreasing, nonzero `new:`), emit `## BLOCKED: NON-CONVERGENCE` naming the suspected foundation error; or mark the report `Status: IN-PROGRESS`.\n  ⚠ docs/development/reviews/2026-08-19-plan-1-kaizen-m1-event-stream-review.md: COMMITTED with a Pass-shaped ledger line that does not parse ('Pass 1 (WIDE) — finders: pool fanout ×3 (deepseek-v3.2 raised 9 on the') — punctuate the counts or fence the quote\n  ⚠ docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T01-review.md: COMMITTED as Status: IN-PROGRESS — the loop that opened it has not closed; finish it, or this line stands forever\n  ⚠ docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T02-review.md: COMMITTED as Status: IN-PROGRESS — the loop that opened it has not closed; finish it, or this line stands forever\n  ⚠ docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T03-review.md: COMMITTED as Status: IN-PROGRESS — the loop that opened it has not closed; finish it, or this line stands forever\n  ⚠ docs/development/reviews/2026\n… [truncated: ~5 line(s) omitted — tail follows — run `python scripts/enforcement/check_review_coverage.py` for the FULL set; NEVER scope a fix to this preview] …\nndling-enforcement-review.md: COMMITTED as Status: IN-PROGRESS — the loop that opened it has not closed; finish it, or this line stands forever\n  ⚠ docs/development/reviews/2026-09-02-external-services-chain-review.md: COMMITTED as Status: IN-PROGRESS — the loop that opened it has not closed; finish it, or this line stands forever\n  ⚠ docs/development/reviews/2026-09-06-daily-chain-review.md: COMMITTED as Status: IN-PROGRESS — the loop that opened it has not closed; finish it, or this line stands forever\ncheck_review_coverage: OK — 0 unproven coverage claims across 1 changed review artifact(s)",
+   "truncated": true,
+   "omitted_lines": 5,
+   "rerun": "python scripts/enforcement/check_review_coverage.py"
+  },
+  {
+   "check": "Vendored Drift (sync-excluded repos)",
+   "output": "⚠ check_vendored_drift ADVISORY — sync-excluded repos PULL, nothing is pushed to them; undeclared divergence below is invisible debt until someone opens it:\n  ⚠ fabrik-lib: 18 identical · 20 declared-design · 49 UNREVIEWED diff · 11 local-only\n    ⚠ fabrik-lib/scripts/enforcement/check_decisions_unique.py: differs from hub with no declaration — debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    ⚠ fabrik-lib/scripts/enforcement/check_doc_sprawl.py: differs from hub with no declaration — debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    ⚠ fabrik-lib/scripts/enforcement/check_duplicates.py: differs from hub with no declaration — debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    ⚠ fabrik-lib/scripts/enforcement/check_env_vars.py: differs from hub with no declaration — debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    ⚠ fabrik-lib/scripts/enforcement/check_imports_resolvable.py: differs from hub with no declaration — debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    ⚠ fabrik-lib/scripts/enforcement/check_lint_ratchet.py: differs from hub with no declaration — debt or design, nobody knows. Re-vendor it, or declare it in .fab\n… [truncated: ~40 line(s) omitted — tail follows — run `python scripts/enforcement/check_vendored_drift.py` for the FULL set; NEVER scope a fix to this preview] …\nre it in .fabrik/vendored-divergence-allowlist\n    ⚠ fabrik-lib/.windsurf/rules/saas/95-multi-tenant-saas.md: differs from hub with no declaration — debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    ⚠ fabrik-lib/scripts/review_rubric.py: differs from hub with no declaration — debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    ⚠ fabrik-lib/scripts/mail.py: differs from hub with no declaration — debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist",
+   "truncated": true,
+   "omitted_lines": 40,
+   "rerun": "python scripts/enforcement/check_vendored_drift.py"
+  },
+  {
+   "check": "Citations resolve (path:line lands)",
+   "output": "⚠ check_citations_resolve ADVISORY — 2 citation(s) do not land, of 4 examined across 4 docs (a wrong `path:line` reads as verified and is not):\n   - docs/development/plans/2026-09-06-plan-2-multi-agent-adoption/T03-check-advisory.md: BLANK-TARGET scripts/docs_updater.py:1357 → ''\n   - docs/development/plans/2026-09-06-plan-2-multi-agent-adoption/T03-check-advisory.md: BLANK-TARGET scripts/docs_updater.py:1357 → ''",
+   "truncated": false,
+   "omitted_lines": 0,
+   "rerun": null
+  },
+  {
+   "check": "Ticket Breadth (plan sets)",
+   "output": "⚠ TICKET BREADTH — 5 of 7 ticket(s) graded score ≥ 5 independent risk classes (advisory)\n  T02a (/opt/fabrik/docs/development/plans/2026-09-06-plan-2-multi-agent-adoption/T02a-adopt-core.md): score 8\n    components: areas=1 (scripts) [+1 test surface(s), not counted] · behaviors=7 · code+governance mix=no\n    predicted review cost: ~4-12 rounds (basis: this repo's review ledgers — 4.2 rounds/plan (n=14/22, max 16); per-ticket receipts n=14 give rounds ~= 1.0 x score (spread 0.3x-1.6x))\n    split: split the 7 Behavior-Contract rows into tickets of <=2 behaviours each (one review class apiece)\n  T04 (/opt/fabrik/docs/development/plans/2026-09-06-plan-2-multi-agent-adoption/T04-session-advisory.md): score 6\n    components: areas=1 (.claude) [+1 test surface(s), not counted] [+1 doc-sync surface(s), travel with the code] · behaviors=4 · code+governance mix=yes\n    predicted review cost: ~3-9 rounds (basis: this repo's review ledgers — 4.2 rounds/plan (n=14/22, max 16); per-ticket receipts n=14 give rounds ~= 1.0 x score (spread 0.3x-1.6x))\n    split: split the 4 Behavior-Contract rows into tickets of <=2 behaviours each (one review class apiece); separate the fleet-synced surface (.claude/hooks/session_orient.py) from the local code — a ~46-repo blast radius reviews on its own axis\n  T06 (/opt/fabrik/docs/development/plans/2026-09-06-plan-2-multi-agent-adoption/T06-integration.md):\n… [truncated: ~10 line(s) omitted — tail follows — run `python scripts/enforcement/check_ticket_breadth.py` for the FULL set; NEVER scope a fix to this preview] …\nr-ticket receipts n=14 give rounds ~= 1.0 x score (spread 0.3x-1.6x))\n    split: split the 4 Behavior-Contract rows into tickets of <=2 behaviours each (one review class apiece)\n  Calibration honesty: in the n=14 retroactive set, 2 of 4 flags with round receipts matched a ticket that actually ran >=4 rounds (score-vs-rounds Spearman rho=0.45). Treat a flag as a prompt to LOOK, not a verdict.\n  Advisory only — the threshold is provisional (docs/reference/ticket-breadth.md). Narrowing is the operator's call.\n⚠ TICKET BREADTH — 5 of 7 ticket(s) graded score ≥ 5 independent risk classes (advisory)",
+   "truncated": true,
+   "omitted_lines": 10,
+   "rerun": "python scripts/enforcement/check_ticket_breadth.py"
+  }
+ ]
+}
 ```
+
+GATE-SCOPE: out-of-surface — Lint Ratchet (repo-wide, ruff errors 0 → 1); findings naming this surface: 0 of 1; measured by: `.venv/bin/ruff check .` → the single F841 is `tests/test_command_run.py:3272`, inside a SIBLING's uncommitted 105-line hunk (fleet's command_run WIP; last commit 58041dbd), not a file this review touched — every path of this surface is ruff-clean (`ruff check` on the 11 paths: All checks passed), and the previous four runs of the same gate over this tree (gate_profile_1..4, the last at 23:50 before the sibling's hunk landed) reported `success`.
