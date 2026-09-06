@@ -90,7 +90,7 @@ The `*/5` tick reads every account dir (five as of 2026-09-06 — it discovers t
   the next tick. A cached standby whose 5h reset time has already passed is read as 0% (an idle
   account cannot burn fleet quota; the window rolled over — the board applies the same rule). A candidate ranked off
   a CACHED reading is live-probed once before it can become the pointer — **and when that probe
-  fails, a reading younger than `ROTATE_CACHE_TRUST_S` (default 3600s) on a chain that passes the
+  fails, a reading younger than `ROTATE_CACHE_TRUST_S` (default: the refresh line `ROTATE_READING_MAX_AGE_S` **plus one tick of slack**, 3600 + 420 s — it used to EQUAL the refresh line, which left every reading untrusted between crossing the hour and the next tick's refresh; 2026-09-06) on a chain that passes the
   liveness gate is accepted anyway.** The probe runs with the standby's OWN access token, which is
   expired by construction for an idle account (only the active chain self-refreshes; the CLI rolls
   it on first use), so before 2026-09-02 every idle sibling read as "unverifiable" and the tick

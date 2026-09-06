@@ -1747,3 +1747,45 @@ def test_drain_message_still_names_a_sibling_normally():
     )
     assert "NEXT ACCOUNT AVAILABLE: can@test" in msg, msg[:200]
     assert "SAME ACCOUNT" not in msg
+
+
+# --- the trust line must OUTLAST the refresh cadence (2026-09-06, 5th-account review) --------
+# `_cache_trust_s` defaulted to `ROTATE_READING_MAX_AGE_S` — both 3600 — so a reading was
+# refreshed only once it was >=1h old but trusted only while <=1h old. Between crossing the hour
+# and the next tick's refresh (one */5 tick plus the ping) every cached standby was untrusted:
+# "mob@ at 100% (cached 1h ago)" in the live log is that edge. At a reset that is exactly when
+# the picker needs the row. Trust now runs one tick + refresh headroom past the refresh line, so
+# a reading the refresher has not yet been OBLIGED to renew can never be "too old to trust".
+
+
+def test_default_trust_outlasts_the_refresh_line_by_one_tick_plus_headroom(monkeypatch):
+    monkeypatch.delenv("ROTATE_CACHE_TRUST_S", raising=False)
+    monkeypatch.setenv("ROTATE_READING_MAX_AGE_S", "3600")
+    assert cr._cache_trust_s() == 3600 + cr._REFRESH_SLACK_S
+    assert cr._REFRESH_SLACK_S >= 300 + 60, "must cover one */5 tick plus a real ping"
+
+
+def test_a_reading_just_past_the_refresh_line_is_still_trusted_by_default(monkeypatch):
+    """The knife-edge itself: 1h + 4 min old, probe failed, chain alive → ACCEPTED."""
+    _arm_probe(monkeypatch, None)
+    monkeypatch.delenv("ROTATE_CACHE_TRUST_S", raising=False)
+    monkeypatch.setenv("ROTATE_READING_MAX_AGE_S", "3600")
+    assert cr._validated_pick([_cached_standby("can", age_s=3600.0 + 240.0)], {"mob@test"}) == (
+        "can", "can@test"
+    )
+
+
+def test_a_reading_past_the_slack_is_still_refused(monkeypatch):
+    """The MIRROR — F-P2 keeps its teeth. Past refresh line + slack the refresher has had its
+    chance and failed; the rosy-cache class stays excluded."""
+    _arm_probe(monkeypatch, None)
+    monkeypatch.delenv("ROTATE_CACHE_TRUST_S", raising=False)
+    monkeypatch.setenv("ROTATE_READING_MAX_AGE_S", "3600")
+    too_old = 3600.0 + cr._REFRESH_SLACK_S + 1.0
+    assert cr._validated_pick([_cached_standby("can", age_s=too_old)], {"mob@test"}) is None
+
+
+def test_an_explicit_trust_override_still_wins(monkeypatch):
+    monkeypatch.setenv("ROTATE_CACHE_TRUST_S", "100")
+    monkeypatch.setenv("ROTATE_READING_MAX_AGE_S", "3600")
+    assert cr._cache_trust_s() == 100

@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — cached standby readings were untrusted in the very window before their refresh (2026-09-06)
+
+Found reviewing the 5th account's failure path. `_cache_trust_s` defaulted to
+`ROTATE_READING_MAX_AGE_S` — both 3600 — so a reading was refreshed only once it was **≥1h** old but
+trusted only while **≤1h** old. Between crossing the hour and the next tick's oldest-first refresh
+(one `*/5` tick plus the ping), every cached standby was "too old to trust" — `mob@ at 100% (cached
+1h ago)` in tonight's log is that edge, live. At a 5-hour reset that is exactly when the picker needs
+the row: a failed live re-verify (a standby's access token is expired by design) then falls back to
+the cache, and the cache was refused.
+
+The trust line now runs one tick plus refresh headroom (`_REFRESH_SLACK_S`, 420 s) past the refresh
+line: a reading the refresher has not yet been *obliged* to renew is still trusted; one older than
+that has had its chance and stays excluded — F-P2's rosy-cache class keeps its teeth. Same ping
+cost, no new mechanism; an explicit `ROTATE_CACHE_TRUST_S` still wins. 4 graders (2 seen red, 2
+controls incl. the mirror); 100 pass. Both twins. D-161.
+
 ### Added — fifth Claude Max account `ozgurbasak@ocoron.com` wired into the fleet; the board now shows a scaffolded-but-unlogged dir (2026-09-06)
 
 Operator: "carefully wire it … update our gui and everything." Measured first: NO live code

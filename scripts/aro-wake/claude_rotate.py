@@ -3035,11 +3035,28 @@ def _pick_flip_target(
     return ranked[0][1], ranked[0][2]
 
 
+# One */5 tick (300s) plus refresh headroom (the `claude -p ping` and its probe, generously 120s):
+# how long a reading can legitimately exist PAST the refresh line before the oldest-first slot
+# allocator is obliged to have renewed it.
+_REFRESH_SLACK_S = 300.0 + 120.0
+
+
 def _cache_trust_s() -> float:
-    """How old a cached reading may be and still stand in for a failed live re-verify. Defaults
-    to the tick's own reading-refresh interval (``ROTATE_READING_MAX_AGE_S``) so one knob moves
-    both: a reading the tick would not yet refresh is, by the same rule, still trusted."""
-    return _env_float("ROTATE_CACHE_TRUST_S", _env_float("ROTATE_READING_MAX_AGE_S", 3600.0))
+    """How old a cached reading may be and still stand in for a failed live re-verify.
+
+    Defaults to the refresh line (``ROTATE_READING_MAX_AGE_S``) PLUS one tick of slack. It used
+    to EQUAL the refresh line — "one knob moves both" — which left a knife-edge: a reading is
+    refreshed only once it is >=1h old but was trusted only while <=1h old, so between crossing
+    the hour and the next tick's refresh every cached standby was untrusted ("mob@ at 100%
+    (cached 1h ago)", 2026-09-06 log — the edge, live, on the night the fleet was exhausted).
+    At a 5h reset that is exactly when the picker needs the row. The invariant now: a reading the
+    refresher has not yet been OBLIGED to renew is still trusted; one older than that has had its
+    refresh chance and failed, and stays excluded (F-P2's rosy-cache class). An explicit
+    ``ROTATE_CACHE_TRUST_S`` still wins outright."""
+    return _env_float(
+        "ROTATE_CACHE_TRUST_S",
+        _env_float("ROTATE_READING_MAX_AGE_S", 3600.0) + _REFRESH_SLACK_S,
+    )
 
 
 def _flip_candidate_verdict(
