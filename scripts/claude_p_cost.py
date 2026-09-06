@@ -670,10 +670,21 @@ def _merge_usage_store_locked(path: Path) -> dict:
         except (ValueError, TypeError):
             continue
         by = {}
+        if not isinstance(day, dict):
+            continue
         for mid, m in (day.get("byModel") or {}).items():
-            tok = sum(
-                int(m.get(x, 0) or 0) for x in ("input", "output", "cacheRead", "cacheCreation")
-            )
+            # THE THIRD PARSE PATH, and the last one still unguarded. The transcripts and the store
+            # both tolerate a poisoned value now; this one did not, so a single non-numeric field in
+            # the extension's file raised straight out of the merge and stopped recording — the same
+            # outage class, reached through the one door left open. Found by a round-10 finder.
+            if not isinstance(m, dict):
+                continue
+            tok = 0
+            for x in ("input", "output", "cacheRead", "cacheCreation"):
+                v = m.get(x)
+                if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
+                    continue
+                tok += int(v)
             if tok > 0:
                 by[mid] = tok
         if not by:

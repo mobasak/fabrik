@@ -1027,3 +1027,31 @@ def test_one_preserved_corrupt_value_does_not_blank_the_whole_view(tmp_path, mon
 
     assert got["tiers"]["opus"]["tokens"] == 1_000_000, "the good value must still be counted"
     assert got["daily"], "and the calendar must not be empty"
+
+
+def test_a_corrupt_extension_source_does_not_stop_the_merge(tmp_path, monkeypatch):
+    """The THIRD parse path, and the last one left unguarded. The transcripts and the store both
+    tolerate a poisoned value; this one raised straight out of the merge, so a single non-numeric
+    field in the extension's file stopped recording entirely — the same outage class, reached through
+    the one door still open."""
+    history = tmp_path / "usage-history.json"
+    history.write_text(
+        json.dumps(
+            {
+                "days": {
+                    "2026-09-01": {"byModel": {"claude-opus-5": {"output": "abc"}}},
+                    "2026-09-02": {"byModel": {"claude-opus-5": {"output": 500}}},
+                    "2026-09-03": "not-a-mapping",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    _store(tmp_path, monkeypatch, {}, {})
+    monkeypatch.setattr(cpc, "_USAGE_HISTORY", history)
+    monkeypatch.setattr(cpc, "_TRANSCRIPT_ROOT", tmp_path / "no-transcripts")
+
+    store = cpc.merge_usage_store()  # must not raise
+
+    assert store["days"]["2026-09-02"] == {"claude-opus-5": 500}, "the good day still lands"
+    assert "2026-09-01" not in store["days"], "the poisoned entry contributes nothing"
