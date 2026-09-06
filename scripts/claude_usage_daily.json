@@ -559,13 +559,13 @@
       "claude-sonnet-4-6": 12055644
     },
     "2026-09-06": {
-      "claude-opus-5": 2270828007,
-      "claude-fable-5-1": 272982906,
-      "claude-sonnet-5": 189681399
+      "claude-opus-5": 2764983285,
+      "claude-fable-5-1": 349145154,
+      "claude-sonnet-5": 618672325
     }
   },
   "source": "/home/ozgur/.claude/.claude-manager/usage-history.json",
-  "merged_at": "2026-09-06T06:00:50+03:00",
+  "merged_at": "2026-09-06T12:52:03+03:00",
   "source_by_day": {
     "2026-05-13": "extension",
     "2026-05-14": "extension",
@@ -713,5 +713,11 @@
   },
   "transcript_source": "/home/ozgur/.claude/projects",
   "_discrepancy_days": 111,
-  "collector_version": 3
+  "collector_version": 3,
+  "_unusable": {},
+  "_added": 0,
+  "_total_days": 113,
+  "_transcript_added": 0,
+  "_transcript_refreshed": 1,
+  "extension_source_present": true
 }

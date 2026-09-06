@@ -800,9 +800,11 @@ def test_the_migration_only_drops_a_day_it_can_actually_replace(tmp_path, monkey
 def test_the_run_counters_reach_the_file_not_just_the_return_value(tmp_path, monkeypatch):
     """They were attached to `store` AFTER `os.replace`, so the written file never carried them and a
     reader saw the PREVIOUS run's values — on a producer whose only in-file signal of what it did is
-    these numbers, and which nobody watches because it runs at 06:00. `extension_source_present` is
-    the same need: it is how a reader learns source 1 has stopped, the event that made this collector
-    necessary and which nothing else in the file records."""
+    these numbers, and which nobody watches because it runs at 06:00. `extension_last_day` is
+    the same need: it is how a reader learns source 1 has stopped ADVANCING — the event that made
+    this collector necessary and which nothing else in the file records. It reports the NEWEST DAY the
+    source carries, not whether the file exists: the file still exists five days after it stopped
+    being written, so `.exists()` answered True and told the reader nothing."""
     p = _store(tmp_path, monkeypatch, {}, {})
     monkeypatch.setattr(
         cpc,
@@ -818,7 +820,7 @@ def test_the_run_counters_reach_the_file_not_just_the_return_value(tmp_path, mon
     on_disk = json.loads(p.read_text(encoding="utf-8"))
     assert on_disk["_transcript_added"] == 1, "the file must carry THIS run's counts"
     assert on_disk["_total_days"] == 1
-    assert on_disk["extension_source_present"] is False, "source 1 is gone and the file says so"
+    assert on_disk["extension_last_day"] is None, "no extension days ⇒ the signal says so"
 
 
 def test_the_migration_stamp_is_not_consumed_by_a_blind_run(tmp_path, monkeypatch):
@@ -839,6 +841,9 @@ def test_the_migration_stamp_is_not_consumed_by_a_blind_run(tmp_path, monkeypatc
 
     assert store["days"]["2026-09-05"] == {"claude-opus-5": 900}, "the day survives"
     assert store["collector_version"] == 1, "the stamp must NOT advance on a blind run"
+    assert store["source_by_day"]["2026-09-05"] == "transcripts", (
+        "and it must NOT be frozen either — 'could not look' is not a verdict about the data"
+    )
 
     # …and once the tree is readable again, the migration finally runs.
     monkeypatch.setattr(
@@ -859,3 +864,40 @@ def test_a_fresh_store_still_stamps(tmp_path, monkeypatch):
     _store(tmp_path, monkeypatch, {}, {}, version=None)
     monkeypatch.setattr(cpc, "_TRANSCRIPT_ROOT", tmp_path / "empty")
     assert cpc.merge_usage_store()["collector_version"] == cpc._COLLECTOR_VERSION
+
+
+def test_a_day_whose_transcripts_are_gone_is_frozen_not_left_pending(tmp_path, monkeypatch):
+    """Without a name for this state the two failure modes are a straight trade: leave the day
+    pending and one unreachable day blocks every future migration, or advance the stamp anyway and it
+    claims a migration that skipped the rest. `frozen` means "came from transcripts, no longer
+    re-derivable" — it keeps its value, stops being pending, and no later migration drops it."""
+    _store(
+        tmp_path,
+        monkeypatch,
+        {"2026-01-01": {"claude-opus-5": 100}, "2026-09-06": {"claude-opus-5": 7}},
+        {"2026-01-01": "transcripts", "2026-09-06": "transcripts"},
+        version=1,
+    )
+    # the tree holds today but NOT the historical day
+    monkeypatch.setattr(
+        cpc,
+        "_TRANSCRIPT_ROOT",
+        _tree(
+            tmp_path,
+            {"-opt-fabrik/a.jsonl": [_msg("2026-09-06", "claude-opus-5", "m1", "r1", 9_000)]},
+        ),
+    )
+
+    store = cpc.merge_usage_store()
+
+    assert store["days"]["2026-01-01"] == {"claude-opus-5": 100}, "unreachable ⇒ value kept"
+    assert store["source_by_day"]["2026-01-01"] == "frozen"
+    assert store["days"]["2026-09-06"] == {"claude-opus-5": 9_000}, "reachable ⇒ re-derived"
+    assert store["collector_version"] == cpc._COLLECTOR_VERSION
+
+    # …and a frozen day is not pending on the NEXT migration, so it can never block one.
+    store["collector_version"] = 1
+    (tmp_path / "store.json").write_text(json.dumps(store), encoding="utf-8")
+    again = cpc.merge_usage_store()
+    assert again["days"]["2026-01-01"] == {"claude-opus-5": 100}
+    assert again["collector_version"] == cpc._COLLECTOR_VERSION

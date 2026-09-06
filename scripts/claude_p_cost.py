@@ -705,17 +705,32 @@ def _merge_usage_store_locked(path: Path) -> dict:
     tdays = collect_from_transcripts()
     pending = [k for k, v in src_by.items() if v == "transcripts"]
     migrating = int_or_zero(store.get("collector_version")) < _COLLECTOR_VERSION
-    if migrating:
+    # ⚠️ A BLIND RUN MIGRATES NOTHING — not a drop, not a freeze. An empty walk means "could not
+    # look", and concluding "unreachable, freeze it" from that would convert a transient unmounted
+    # tree into a permanent verdict about somebody's data.
+    if migrating and tdays:
         for k in pending:
             if k in tdays:  # a replacement is in hand
                 days.pop(k, None)
                 src_by.pop(k, None)
+            else:
+                # NO replacement, and for a past day there never will be one — its transcripts are
+                # gone. Say so: `frozen` means "came from transcripts, no longer re-derivable". It
+                # keeps its recorded value, stops being pending, and is never dropped by a later
+                # migration. Without this the two failure modes are a straight trade — leave it
+                # pending and one unreachable day blocks every future migration, or advance anyway
+                # and the stamp claims a migration that skipped 99 days. Naming the state ends the
+                # trade. Raised as two separate defects by a confirming-round finder.
+                src_by[k] = "frozen"
     # ⚠️ THE STAMP ADVANCES ONLY IF THE WALK COULD SEE. A one-shot migration that consumes itself on a
     # run where the transcript root was unmounted, unreadable or empty would silently skip the
     # re-derivation FOREVER — the next run reads an up-to-date stamp and never retries. `tdays` empty
     # while days are pending means "could not look", not "nothing to do", and those are opposite
     # answers. Retrying costs one walk we were doing anyway. Found by a closing-pass finder.
     stamp_ok = bool(tdays) or not pending
+    # `pending` is now exactly the days that were re-derivable or newly frozen, so an advance here
+    # means every transcript-marked day was ACTUALLY handled — not that one day happened to be in
+    # the tree while the rest were skipped.
 
     t_added = t_refreshed = 0
     for k, by in tdays.items():
@@ -783,7 +798,12 @@ def _merge_usage_store_locked(path: Path) -> dict:
     # necessary and which nothing else in the file records. Found by a closing-pass finder.
     store["_added"], store["_total_days"] = added, kept
     store["_transcript_added"], store["_transcript_refreshed"] = t_added, t_refreshed
-    store["extension_source_present"] = _USAGE_HISTORY.exists()
+    # ⚠️ The LAST DAY, not `.exists()`. My first version of this signal asked whether the file was
+    # there — and it is there, five days after it stopped being written, so it answered True and told
+    # a reader nothing. The question that matters for an unattended producer is whether source 1 is
+    # still ADVANCING, and only its newest day answers that. Caught by running the real production
+    # path and reading the value, which is the check a proxy would have passed.
+    store["extension_last_day"] = max(src, default=None) if src else None
     store["source"] = str(_USAGE_HISTORY)
     store["transcript_source"] = str(_transcript_root())
     store["merged_at"] = datetime.datetime.now().astimezone().isoformat(timespec="seconds")
