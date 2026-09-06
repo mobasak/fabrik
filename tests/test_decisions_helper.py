@@ -85,13 +85,7 @@ def test_repos_without_a_ledger_are_silently_skipped(tmp_path, capsys):
 def test_cli_runs_standalone(tmp_path):
     _repo(tmp_path, "alpha", LEDGER_A)
     r = subprocess.run(
-        [
-            sys.executable,
-            str(REPO / "scripts" / "decisions.py"),
-            "context7",
-            "--root",
-            str(tmp_path),
-        ],
+        [sys.executable, str(REPO / "scripts" / "decisions.py"), "context7", "--root", str(tmp_path)],
         capture_output=True,
         text=True,
         timeout=30,
@@ -103,18 +97,14 @@ def test_check_flags_a_duplicate_row_id_and_exits_1(tmp_path, capsys):
     """Two rows minted with the same D-NNN (concurrent sessions, stale max-id reads —
     live case: two D-041s, 2026-08-30) make every `supersedes D-NNN` ambiguous;
     --check must name the collision and fail."""
-    _repo(
-        tmp_path,
-        "hub",
-        (
-            "# Decisions\n\n"
-            "| id | when | who | what (the decision) | why | where |\n"
-            "|---|---|---|---|---|---|\n"
-            "| D-002 | 2026-08-30 | a | first | why | here |\n"
-            "| D-002 | 2026-08-30 | b | second | why | there |\n"
-            "| D-001 | 2026-08-30 | a | base | why | here |\n"
-        ),
-    )
+    _repo(tmp_path, "hub", (
+        "# Decisions\n\n"
+        "| id | when | who | what (the decision) | why | where |\n"
+        "|---|---|---|---|---|---|\n"
+        "| D-002 | 2026-08-30 | a | first | why | here |\n"
+        "| D-002 | 2026-08-30 | b | second | why | there |\n"
+        "| D-001 | 2026-08-30 | a | base | why | here |\n"
+    ))
     rc = dec._check(tmp_path)
     out = capsys.readouterr().out
     assert rc == 1
@@ -124,32 +114,24 @@ def test_check_flags_a_duplicate_row_id_and_exits_1(tmp_path, capsys):
 def test_check_resolves_a_lowercase_supersedes_target(tmp_path, capsys):
     """`supersedes d-001` (lowercase, captured case-preserved by the IGNORECASE regex)
     must resolve against the uppercase `| D-001 |` row — not report a false DANGLING."""
-    _repo(
-        tmp_path,
-        "hub",
-        (
-            "| id | when | who | what (the decision) | why | where |\n"
-            "|---|---|---|---|---|---|\n"
-            "| D-002 | 2026-08-30 | a | supersedes d-001: flipped | why | here |\n"
-            "| D-001 | 2026-08-30 | a | base | why | here |\n"
-        ),
-    )
+    _repo(tmp_path, "hub", (
+        "| id | when | who | what (the decision) | why | where |\n"
+        "|---|---|---|---|---|---|\n"
+        "| D-002 | 2026-08-30 | a | supersedes d-001: flipped | why | here |\n"
+        "| D-001 | 2026-08-30 | a | base | why | here |\n"
+    ))
     assert dec._check(tmp_path) == 0, capsys.readouterr().out
 
 
 def test_lowercase_row_ids_are_not_invisible(tmp_path, capsys):
     """A row keyed `| d-003 |` must be seen by the parser (normalized to D-003) —
     an invisible row can carry a duplicate/dangling defect no check can catch."""
-    _repo(
-        tmp_path,
-        "hub",
-        (
-            "| id | when | who | what (the decision) | why | where |\n"
-            "|---|---|---|---|---|---|\n"
-            "| d-003 | 2026-08-30 | a | lowercase-minted | why | here |\n"
-            "| D-003 | 2026-08-30 | b | uppercase twin | why | there |\n"
-        ),
-    )
+    _repo(tmp_path, "hub", (
+        "| id | when | who | what (the decision) | why | where |\n"
+        "|---|---|---|---|---|---|\n"
+        "| d-003 | 2026-08-30 | a | lowercase-minted | why | here |\n"
+        "| D-003 | 2026-08-30 | b | uppercase twin | why | there |\n"
+    ))
     rc = dec._check(tmp_path)
     out = capsys.readouterr().out
     assert rc == 1 and "DUPLICATE" in out and "D-003" in out
@@ -173,21 +155,13 @@ def test_piped_output_dies_silently_on_closed_pipe(tmp_path):
         f"| D-{i:03d} | 2026-08-30 | a | filler row {i} padded {'x' * 120} | why | here |"
         for i in range(3000)
     )
-    _repo(
-        tmp_path,
-        "big",
-        (
-            "| id | when | who | what (the decision) | why | where |\n|---|---|---|---|---|---|\n"
-            + rows
-            + "\n"
-        ),
-    )
+    _repo(tmp_path, "big", (
+        "| id | when | who | what (the decision) | why | where |\n|---|---|---|---|---|---|\n"
+        + rows + "\n"
+    ))
     r = subprocess.run(
         f"{sys.executable} {REPO / 'scripts' / 'decisions.py'} filler --root {tmp_path} | head -n 1",
-        shell=True,
-        capture_output=True,
-        text=True,
-        timeout=60,
+        shell=True, capture_output=True, text=True, timeout=60,
     )
     assert "D-" in r.stdout
     assert "BrokenPipeError" not in r.stderr and "Traceback" not in r.stderr, r.stderr[-500:]
@@ -253,7 +227,6 @@ def test_ledger_check_is_wired_into_pre_commit_and_fails_on_a_duplicate(tmp_path
     )
     assert r.returncode == 1 and "DUPLICATE" in (r.stdout + r.stderr)
 
-
 # ── 2026-09-03, mail 01M1KR2ANYTRZR80WF1H29399T: three concurrent agents hand-derived "the next
 # number" and two produced the same D-006. The same error hit this repo twice in one day (a D-084
 # collision between two hub sessions, and a D-107 already taken by the time the row was written) ─
@@ -297,16 +270,12 @@ def test_next_id_accepts_a_direct_file_path_too(tmp_path, capsys):
 def test_merge_owner_prints_last_matching_owner_and_strips_leading_stars(tmp_path, capsys):
     """The last row (bottom-most in file order) whose `what` cell OPENS with `MERGE OWNER:`
     wins over an earlier one, and a `**bold**`-wrapped phrase is still recognized."""
-    _repo(
-        tmp_path,
-        "hub",
-        (
-            "| id | when | who | what (the decision) | why | where |\n"
-            "|---|---|---|---|---|---|\n"
-            "| D-001 | 2026-08-30 | a | MERGE OWNER: alpha | why | here |\n"
-            "| D-002 | 2026-08-30 | a | **MERGE OWNER: beta** — current | why | here |\n"
-        ),
-    )
+    _repo(tmp_path, "hub", (
+        "| id | when | who | what (the decision) | why | where |\n"
+        "|---|---|---|---|---|---|\n"
+        "| D-001 | 2026-08-30 | a | MERGE OWNER: alpha | why | here |\n"
+        "| D-002 | 2026-08-30 | a | **MERGE OWNER: beta** — current | why | here |\n"
+    ))
     rc = dec.main(["--merge-owner", str(tmp_path / "hub")])
     out = capsys.readouterr().out
     assert rc == 0
@@ -316,15 +285,11 @@ def test_merge_owner_prints_last_matching_owner_and_strips_leading_stars(tmp_pat
 def test_merge_owner_reports_undeclared_when_phrase_is_not_at_the_open(tmp_path, capsys):
     """A `what` cell that merely CONTAINS the phrase mid-sentence must not match — the regex
     is anchored at the cell's start, not a substring search."""
-    _repo(
-        tmp_path,
-        "hub",
-        (
-            "| id | when | who | what (the decision) | why | where |\n"
-            "|---|---|---|---|---|---|\n"
-            "| D-001 | 2026-08-30 | a | recorded MERGE OWNER: alpha | why | here |\n"
-        ),
-    )
+    _repo(tmp_path, "hub", (
+        "| id | when | who | what (the decision) | why | where |\n"
+        "|---|---|---|---|---|---|\n"
+        "| D-001 | 2026-08-30 | a | recorded MERGE OWNER: alpha | why | here |\n"
+    ))
     rc = dec.main(["--merge-owner", str(tmp_path / "hub")])
     out = capsys.readouterr().out
     assert rc == 3
@@ -341,3 +306,19 @@ def test_merge_owner_reports_unreadable_ledger_like_next_id(tmp_path, capsys):
     assert rc == 1
     assert captured.out == ""
     assert "decisions: cannot read" in captured.err
+
+
+def test_merge_owner_skips_a_short_row_above_the_matching_one(tmp_path, capsys):
+    """A malformed/short data row (fewer than 4 cells) sits ABOVE a valid MERGE OWNER: row —
+    `_merge_owner`'s `len(cells) > 3` guard must skip the short row instead of IndexError-ing
+    on `cells[3]`, and still find the valid row below it."""
+    _repo(tmp_path, "hub", (
+        "| id | when | who | what (the decision) | why | where |\n"
+        "|---|---|---|---|---|---|\n"
+        "| D-001 | x | a |\n"
+        "| D-002 | 2026-08-30 | a | MERGE OWNER: beta | why | here |\n"
+    ))
+    rc = dec.main(["--merge-owner", str(tmp_path / "hub")])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert out.strip() == "beta"
