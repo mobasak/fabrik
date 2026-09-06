@@ -381,20 +381,24 @@ def collect_from_transcripts(root: Path | None = None) -> dict[str, dict[str, in
     every assistant message with its own `usage` block, and it does so whether or not any extension
     is installed.
 
-    ⚠️ IT IS NOT A BETTER RECORD OF THE PAST — it is a better record of the PRESENT, and those are
-    different claims. Measured on the 111 days BOTH sources hold (2026-09-06; 112 days compared, the
-    union): the transcripts hold a
-    MEDIAN 0.54x the extension's tokens per day, 186.8B against 298.1B in total, and the ratio climbs
-    toward today — 0.7-0.9 over the last fortnight, 1.00 on 2026-09-02 where both sources were
-    healthy. That gradient is the signature of TRANSCRIPT PRUNING: session files age out, so the
-    further back the walk reaches the less it finds. The single day where the transcripts hold MORE
-    (2026-09-04, 3.47x) is the day the extension died at 17:31 and missed the afternoon — and reading
-    that one day as the general case is exactly the mistake this paragraph replaces.
+    ⚠️ THE TWO SOURCES DO NOT MEASURE THE SAME THING, AND WHICH IS RIGHT IS NOT SETTLED. Measured on
+    the 111 days both hold (2026-09-06): this walk's DEDUPED totals are a median 0.54x the extension's,
+    while the same records UNDEDUPED are a median 1.13x. The extension's number therefore sits BETWEEN
+    them — consistent with it summing replays that this walk collapses, since 55% of usage records are
+    repeats of a call already counted.
 
-    Two consequences, both load-bearing. (1) History is NOT re-derived from here; doing so would
-    delete ~111B tokens of recorded past, not enrich it. (2) This collector must run DAILY, because
-    it can only capture a day while that day's transcripts still exist — the store is the durable
-    aggregate, the transcripts a decaying window onto it. See :func:`merge_usage_store` (D-143).
+    ⚠️ An earlier version of this paragraph asserted the gap was TRANSCRIPT PRUNING — "session files
+    age out" — as established fact, and repeated it in the tests, the changelog and two ledger rows.
+    It is not established: the tree spans 2026-05-16..today, essentially the whole recorded period, so
+    files are not aging out wholesale. Some older days do hold less even undeduped, so loss is real
+    somewhere; the 0.54x is not explained by it alone. Recorded as UNKNOWN rather than re-explained,
+    because a plausible story repeated five times is how a guess becomes a premise.
+
+    What that leaves is the design, on the honest ground: history is NOT re-derived from here because
+    we cannot say which source is right, and the extension's 111 days cannot be rebuilt if we are
+    wrong. Refusing to overwrite an irreplaceable record under uncertainty needs no theory of WHY the
+    two disagree. This collector must also run DAILY — whatever the explanation, it can only capture a
+    day while that day's transcripts still hold it. See :func:`merge_usage_store` (D-143, D-145).
 
     DEDUPLICATION is on `(message.id, requestId)`, MAX-WINS. A session that was resumed or compacted
     replays earlier messages into new files, and a message is re-serialised as its usage accrues:

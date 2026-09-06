@@ -6,12 +6,15 @@ Claude Code's own transcripts under `~/.claude/projects/**/*.jsonl` are the prim
 assistant message carries its own `usage` block — and they are written whether or not any extension
 is installed.
 
-THE ASYMMETRY THIS SUITE PINS. The transcripts are a better record of the PRESENT and a WORSE one of
-the past: measured on the 111 days BOTH sources hold they have a median 0.54x the extension's tokens
-(186.8B vs 298.1B), because session files are pruned as they age. So the merge fills days the
-extension never recorded and NEVER rewrites one it did — re-deriving history from transcripts would
-delete ~111B tokens of it. The overlap is published as `_discrepancy` instead, and the corollary is
-that this collector must run daily: it can only capture a day while that day's transcripts exist.
+THE ASYMMETRY THIS SUITE PINS. The two sources disagree and WHICH IS RIGHT IS UNSETTLED: on the 111
+days both hold, this walk's DEDUPED totals are a median 0.54x the extension's while the same records
+UNDEDUPED are 1.13x, so the extension's number sits between them — consistent with it summing replays
+we collapse. An earlier version of this docstring blamed transcript pruning as fact; the tree spans
+essentially the whole recorded period, so that was a guess. The merge therefore fills days the
+extension never recorded and NEVER rewrites one it did — not because transcripts are known to be
+worse, but because the extension's 111 days cannot be rebuilt if we are wrong about which is right.
+The overlap is published as `_discrepancy`, and this collector must run daily: whatever the
+explanation, it can only capture a day while that day's transcripts still hold it.
 """
 
 from __future__ import annotations
