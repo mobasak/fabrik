@@ -2226,3 +2226,35 @@ def test_cached_standby_whose_weekly_window_rolled_over_counts_as_empty(monkeypa
     walled["weekly_cap"] = 99
     walled["seven_day"] = {"utilization": 99.0, "resets_at_epoch": NOW + 3 * 86400}
     assert cr._pick_flip_target([rolled, walled], exclude=set()) == ("rolledw", "rolledw@test")
+
+
+def test_a_past_weekly_reset_never_sorts_ahead_of_a_live_accounts_future_one(monkeypatch):
+    """R3: the rolled-over rescue admitted cached rows whose weekly reset is in the PAST, and
+    the perishable-first key sorted that past epoch ahead of every live account's future reset."""
+    monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
+    monkeypatch.setattr(cr, "_now", lambda: NOW)
+    stale = _cand("stale", session=100.0, weekly=100.0, source="cache", age_s=4 * 3600.0)
+    stale["five_hour"] = {"utilization": 100.0, "resets_at_epoch": NOW - 600}
+    stale["seven_day"] = {"utilization": 100.0, "resets_at_epoch": NOW - 600}
+    fresh = _cand("fresh", session=5.0, weekly=20.0, source="live", age_s=10.0)
+    fresh["seven_day"] = {"utilization": 20.0, "resets_at_epoch": NOW + 86400}
+    assert cr._pick_flip_target([stale, fresh], exclude=set()) == ("fresh", "fresh@test")
+
+
+def test_exactly_at_the_pickers_bar_an_account_is_not_a_relief_candidate(monkeypatch):
+    """R5: the picker takes an account AT the bar now; relief must not promise its reset."""
+    monkeypatch.delenv("ROTATE_TARGET_SESSION_MAX_PCT", raising=False)
+    monkeypatch.delenv("ROTATE_DRAIN_THRESHOLD", raising=False)
+    accounts = [
+        _relief_row(
+            "bar", weekly=10.0, cap=99, session=85.0, fh_reset=NOW + 9000, wk_reset=NOW + 86400
+        )
+    ]
+    assert cr._next_session_relief(accounts, "active@test", NOW) is None
+
+
+def test_the_no_relief_message_does_not_claim_no_sibling_reports_a_reset():
+    """R13: with candidacy narrowed, relief can be None while siblings DO report reset times."""
+    msg = cr._urgent_drain_message("act@x", "its 5-hour session window is 91% CONSUMED", None)
+    assert "No sibling reports a reset time" not in msg
+    assert "no resume time can be given" in msg

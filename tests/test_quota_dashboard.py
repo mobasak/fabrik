@@ -1569,3 +1569,38 @@ def test_a_weekly_walled_account_in_the_pickers_refused_band_returns_at_its_sess
         cap_walled=True,
     )
     assert qd._returns_at(b, _NOW) == _NOW + 3600
+
+
+def test_the_board_applies_the_rolled_over_rule_where_it_judges_eligibility(tmp_path, monkeypatch):
+    """R4: the cell renderer said "idle — rolled over" while `_util`/`_eligible`/`_returns_at`
+    read the raw 100% and called the same cached row walled — board and picker disagreed."""
+    qd = _load(tmp_path, monkeypatch)
+    a = _q("rolled", 100.0, 100.0, five_reset=_NOW - 600, seven_reset=_NOW - 600, cap=99)
+    a["source"] = "cache"
+    monkeypatch.setattr(qd.time, "time", lambda: _NOW)
+    assert qd._util(a, "five_hour") == 0.0 and qd._util(a, "seven_day") == 0.0
+    assert qd._eligible(a) is True
+
+
+def test_exactly_at_the_session_bar_the_account_is_pickable_not_waiting(tmp_path, monkeypatch):
+    """R5: the picker refuses `> bar`; `>=` at exactly 85.0 promised a wait the picker did not require."""
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.delenv("ROTATE_TARGET_SESSION_MAX_PCT", raising=False)
+    monkeypatch.delenv("ROTATE_DRAIN_THRESHOLD", raising=False)
+    a = _q(
+        "bar", 85.0, 99.0, five_reset=_NOW + 36000, seven_reset=_NOW + 3600, cap=99, cap_walled=True
+    )
+    assert qd._returns_at(a, _NOW) == _NOW + 3600
+
+
+def test_the_session_bar_parses_like_claude_rotates_env_float(tmp_path, monkeypatch):
+    """R6: a third parse of one knob with a fourth semantics — nan/abc/"" must fall back the way
+    `_env_float` does, never silently disable the later-of-two rule."""
+    qd = _load(tmp_path, monkeypatch)
+    for bad in ("nan", "abc", "", "inf"):
+        monkeypatch.setenv("ROTATE_TARGET_SESSION_MAX_PCT", bad)
+        monkeypatch.setenv("ROTATE_DRAIN_THRESHOLD", "90")
+        assert qd._session_bar() == 90.0, bad
+    monkeypatch.setenv("ROTATE_TARGET_SESSION_MAX_PCT", "abc")
+    monkeypatch.delenv("ROTATE_DRAIN_THRESHOLD", raising=False)
+    assert qd._session_bar() == 85.0

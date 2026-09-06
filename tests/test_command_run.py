@@ -13,6 +13,7 @@ from __future__ import annotations
 import datetime as dt
 import importlib.util
 import json
+import math
 import subprocess
 import sys
 import time
@@ -3136,7 +3137,9 @@ def test_a_close_appends_its_window_and_the_next_start_carries_the_ledger(tmp_pa
     time.sleep(1.1)  # the start's stamp and the close's must differ, or the ordering defect hides
     _cr(run_dir, "done", "--command", r1["command"], "--evidence", "x", "--feedback", _PROBE)
     r1 = _rec(run_dir)
-    assert len(r1["covered"]) == 1 and r1["covered"][0][0] == r1["started_epoch"], r1.get("covered")
+    assert len(r1["covered"]) == 1 and r1["covered"][0][0] == math.floor(r1["started_epoch"]), (
+        r1.get("covered")
+    )
     # the window's close IS the close's touched stamp — deterministic, unlike the second-boundary
     # flake the ordering defect produced (5 of 20 runs)
     assert r1["covered"][0][1] == r1["updated_ts"], (r1["covered"], r1["updated_ts"])
@@ -3165,7 +3168,7 @@ def test_start_seeds_the_ledger_from_a_pre_ledger_closed_record(tmp_path: Path) 
     path.write_text(json.dumps(rec))
     _start(run_dir)
     got = _rec(run_dir)["covered"]
-    assert got == [[rec["started_epoch"], rec["updated_ts"]]], got
+    assert got == [[math.floor(rec["started_epoch"]), rec["updated_ts"]]], got
     # and a post-ledger close is seeded exactly ONCE across the next start (C-1: the float
     # close vs the int touch used to miss the dedupe on a second boundary — 2 of 20 runs)
     rec2 = _rec(run_dir)
@@ -3202,5 +3205,53 @@ def test_nested_runs_grow_the_ledger_linearly_not_exponentially(tmp_path: Path) 
         inner = _rec(run_dir)["command"]
         _cr(run_dir, "done", "--command", inner, "--evidence", "x", "--feedback", _PROBE)
     _cr(run_dir, "done", "--command", outer, "--evidence", "x", "--feedback", _PROBE)
-    n = len(_rec(run_dir)["covered"])
+    rec = _rec(run_dir)
+    n = len(rec["covered"])
     assert n <= 7, n
+    # R12: counting is not the invariant — the hook must be able to READ every window
+    assert len(_hook()._review_windows(rec)) >= n, "a window the hook drops is not coverage"
+
+
+def _hook():
+    import importlib.util as _ilu
+
+    spec = _ilu.spec_from_file_location(
+        "fgs", Path(__file__).resolve().parents[1] / ".claude" / "hooks" / "final_gate_stop.py"
+    )
+    m = _ilu.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def test_a_run_closed_in_its_start_second_yields_a_window_the_hook_keeps(tmp_path: Path) -> None:
+    """R2: a float start beside an int close inverted a sub-second window (`lo > hi`) and the
+    hook's `lo <= hi` filter threw it away — a fast nested review's coverage vanished. lo is
+    floored at the writer, so the start second is covered whole."""
+    run_dir = tmp_path / "runs"
+    run_dir.mkdir()
+    _start(run_dir)
+    rec = _rec(run_dir)
+    _cr(run_dir, "done", "--command", rec["command"], "--evidence", "x", "--feedback", _PROBE)
+    rec = _rec(run_dir)
+    (w,) = rec["covered"]
+    assert w[0] <= w[1], w
+    assert _hook()._review_windows(rec) != [], (
+        "the hook must be able to use the window it was given"
+    )
+    edit_ts = rec["started_epoch"]  # an edit at the very start instant
+    assert _hook()._unreviewed_code_files({"src/a.py": edit_ts}, _hook()._review_windows(rec)) == 0
+
+
+def test_a_corrupt_covered_value_never_wedges_a_close(tmp_path: Path) -> None:
+    """N5: `setdefault("covered", []).append` on a non-list raised inside the fail-soft, so the
+    close silently did nothing and the record stayed `running` — the Stop hook then blocked forever."""
+    run_dir = tmp_path / "runs"
+    run_dir.mkdir()
+    _start(run_dir)
+    rec = _rec(run_dir)
+    rec["covered"] = "garbage"
+    (path,) = list(run_dir.glob("*.json"))
+    path.write_text(json.dumps(rec))
+    _cr(run_dir, "done", "--command", rec["command"], "--evidence", "x", "--feedback", _PROBE)
+    rec = _rec(run_dir)
+    assert rec["state"] == "done" and isinstance(rec["covered"], list) and len(rec["covered"]) == 1

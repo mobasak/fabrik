@@ -1029,9 +1029,11 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 # silently skips the seed (C-6)
                 and se > 0
                 and int(se) <= int(ut)
-                and [se, int(ut)] not in out
+                and [math.floor(se), int(ut)] not in out
             ):
-                out.append([se, int(ut)])
+                # lo is FLOORED: a float start beside an int close inverted a window closed in
+                # its start second, and the hook's `lo <= hi` filter threw it away (R2)
+                out.append([math.floor(se), int(ut)])
             return out
 
         parent = rec if rec.get("state") == "running" else None
@@ -1537,7 +1539,10 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         # seconds) — appended before the touch it carried the PREVIOUS stamp, so the next
         # start's seed (built from the real close time) missed the dedupe on a second boundary
         # (C-1, re-found by the own re-sweep at 5 of 20 runs)
-        rec.setdefault("covered", []).append([_se, int(rec["updated_ts"])])
+        cov = rec.get("covered")
+        cov = cov if isinstance(cov, list) else []  # a corrupt ledger never wedges a close (N5)
+        cov.append([math.floor(_se), int(rec["updated_ts"])])
+        rec["covered"] = cov
     stack = list(rec.get("stack") or [])
     parent = stack.pop() if stack else None
     if parent is not None:

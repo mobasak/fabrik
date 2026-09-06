@@ -88,18 +88,21 @@ def _stale(d: dict) -> list[tuple[str, str, str]]:
                     out.append((ev, cmd, f"timeout {h.get('timeout')!r} < {TIMEOUT_S}"))
                 elif ev == "PreToolUse" and not e.get("matcher"):
                     out.append((ev, cmd, "no matcher"))
-            if len(found) > 1:
-                out.append((ev, cmd, f"{len(found)} registrations of one script"))
+            entries_carrying = len({id(e) for e, _ in found})
+            if entries_carrying > 1:
+                out.append((ev, cmd, f"{entries_carrying} registrations of one script"))
     return out
-
-
-def _missing(d: dict) -> list[tuple[str, str]]:
-    return [(ev, cmd) for ev, cmd, _ in _stale(d)]
 
 
 def run(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--check", action="store_true", help="verify only; exit 1 on any missing entry")
+    ap.add_argument(
+        "--warn",
+        action="store_true",
+        help="with --check: print the drift and exit 0 — the final_gate warn-only row's contract "
+        "(a warn_only row that exits non-zero still FAILS the gate, closing review R1)",
+    )
     args = ap.parse_args(argv)
     bad = 0
     for path in _targets():
@@ -149,6 +152,9 @@ def run(argv: list[str] | None = None) -> int:
             "user-level hooks: "
             + ("present in every account dir" if not bad else f"{bad} file(s) missing entries")
         )
+    if bad and args.check and args.warn:
+        print("WARN: user-level hook registrations drifted on this box — run install_user_hooks.py")
+        return 0
     return 1 if bad else 0
 
 

@@ -183,10 +183,43 @@ def test_a_stale_duplicate_before_the_canonical_entry_is_still_caught(tmp_path, 
     assert sum("selfwatch_check.py" in c for c in cmds) == 1, cmds
 
 
-def test_the_gate_row_is_warn_only_not_merely_advisory():
-    """E2: `advisory=True` only preserves stdout — the row still FAILED the gate on pure box
-    state; `warn_only=True` is what adds it to WARN_ONLY_CHECKS."""
-    src = (SCRIPT.parent.parent / "final_gate.py").read_text()
+def test_the_gate_row_never_fails_the_gate_on_box_drift(tmp_path, monkeypatch):
+    """E2 → R1: neither `advisory=True` nor `warn_only=True` makes a NON-ZERO exit pass —
+    `run_optional_check` returns passed=False on any non-zero exit by design. The warn-only
+    contract is the SCRIPT's: `--check --warn` prints the drift and exits 0. Executed through
+    the real gate function, not a source grep."""
+    import importlib.util as _ilu
+
+    home = _home(tmp_path)
+    monkeypatch.setenv("HOME", str(home))
+    assert iuh.run(["--check"]) == 1, "drifted box"
+    assert iuh.run(["--check", "--warn"]) == 0, "the gate's mode never fails"
+    spec = _ilu.spec_from_file_location("final_gate", REPO / "scripts" / "final_gate.py")
+    fg = _ilu.module_from_spec(spec)
+    spec.loader.exec_module(fg)
+    name, passed, out = fg.run_optional_check(
+        "scripts/sysadmin/install_user_hooks.py",
+        "User-Level Hooks Registered",
+        "--check",
+        "--warn",
+        warn_only=True,
+    )
+    assert passed is True and "MISSING" in out, (passed, out[:200])
+    src = (REPO / "scripts" / "final_gate.py").read_text()
     i = src.index('"User-Level Hooks Registered"')
-    block = src[i : i + 200]
-    assert "warn_only=True" in block and "advisory=True" not in block, block
+    assert '"--warn"' in src[i : i + 260], "the gate must register the --warn mode"
+
+
+def test_one_entry_with_two_hook_dicts_is_not_two_registrations(tmp_path, monkeypatch):
+    """R10: `found` collected (entry, hook) PAIRS; one entry carrying two matching hook dicts
+    was diagnosed as two registrations."""
+    home = _home(tmp_path)
+    monkeypatch.setenv("HOME", str(home))
+    assert iuh.run([]) == 0
+    f = home / ".claude" / "settings.json"
+    d = json.loads(f.read_text())
+    e = d["hooks"]["UserPromptSubmit"][0]
+    e["hooks"].append(dict(e["hooks"][0]))
+    f.write_text(json.dumps(d))
+    reasons = [why for _, _, why in iuh._stale(d)]
+    assert not any("registrations of one script" in r for r in reasons), reasons

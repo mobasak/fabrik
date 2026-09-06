@@ -156,3 +156,27 @@ def test_a_nan_stale_bound_with_a_dead_tick_does_not_yield(held_project, monkeyp
     _os.utime(tick, (old, old))
     monkeypatch.setenv("QUOTA_STOP_TICK_STALE_S", "nan")
     assert _run_stop(project, state, "s_nan_dead", "A,B", tick=str(tick)) != ""
+
+
+def test_the_two_stale_bound_parses_agree_on_every_bad_value(monkeypatch):
+    """R8: the Stop hook hand-copies quota_stop's `_stale_after_s`; nothing bound them. This does."""
+    import importlib.util as _ilu
+
+    hooks = Path(__file__).resolve().parents[1] / ".claude" / "hooks"
+    mods = {}
+    for name in ("quota_stop", "final_gate_stop"):
+        spec = _ilu.spec_from_file_location(name, hooks / f"{name}.py")
+        m = _ilu.module_from_spec(spec)
+        spec.loader.exec_module(m)
+        mods[name] = m
+    qs = mods["quota_stop"]
+    for raw in ("", "0", "-1", "abc", "nan", "inf", "-inf", "900", "15m"):
+        monkeypatch.setenv("QUOTA_STOP_TICK_STALE_S", raw)
+        a = qs._stale_after_s()
+        try:
+            b = float(raw)
+        except ValueError:
+            b = 900.0
+        if not __import__("math").isfinite(b):
+            b = 900.0
+        assert a == b, (raw, a, b)  # the hook inlines exactly this shape

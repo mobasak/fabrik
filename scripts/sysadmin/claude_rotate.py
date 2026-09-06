@@ -3025,7 +3025,12 @@ def _pick_flip_target(
             continue  # the ONE predicate source — the diagnostic line prints the same reason
         wk = row.get("seven_day")
         reset = wk.get("resets_at_epoch") if isinstance(wk, dict) else None
-        reset_at = float(reset) if isinstance(reset, (int, float)) else far
+        # a reset already in the PAST is not perishability either — the rolled-over rescue
+        # admits such cached rows, and their past epoch sorted AHEAD of every live account's
+        # future reset, inverting perishable-first (closing review R3)
+        reset_at = (
+            float(reset) if isinstance(reset, (int, float)) and float(reset) > _now() else far
+        )
         weekly = utils["seven_day"] if utils["seven_day"] is not None else 100.0
         session = utils["five_hour"] if utils["five_hour"] is not None else 100.0
         ranked.append(((reset_at, weekly, session), slug, str(row.get("email"))))
@@ -4128,7 +4133,9 @@ def _next_session_relief(
         session_bar = _env_float(
             "ROTATE_TARGET_SESSION_MAX_PCT", _env_float("ROTATE_DRAIN_THRESHOLD", 85.0)
         )
-        session_spent = isinstance(su, (int, float)) and float(su) >= session_bar
+        # STRICT, like the picker (`utils["five_hour"] > session_max`): at exactly the bar the
+        # picker takes the account now, so it is not waiting on anything (R5)
+        session_spent = isinstance(su, (int, float)) and float(su) > session_bar
         # `>=`: a reset AT now is "now" — the board's `_returns_at` mirror (P3-7).
         if (
             not weekly_blocked
@@ -4244,7 +4251,8 @@ def _urgent_drain_message(
             f"http://{os.getenv('QUOTA_DASH_HOST', '127.0.0.1')}:{os.getenv('QUOTA_DASH_PORT', '5051')}/",
         )
         return head + (
-            " No sibling reports a reset time, so no resume time can be given — wait for the "
+            " No sibling is waiting on a window it is blocked by (a full-window sibling behind an "
+            "untrusted reading resumes on the next validated tick), so no resume time can be given — wait for the "
             f"operator or re-check the quota board ({board}) before resuming."
         )
     epoch, email, window = relief

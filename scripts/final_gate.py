@@ -1602,6 +1602,7 @@ def run_consistency_checks(
                 "scripts/sysadmin/install_user_hooks.py",
                 "User-Level Hooks Registered",
                 "--check",
+                "--warn",  # exit 0 + the drift on stdout: what a warn_only row's contract IS (R1)
                 warn_only=True,
             )
         )

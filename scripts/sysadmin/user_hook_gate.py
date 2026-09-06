@@ -47,7 +47,10 @@ def _project_root(cwd: str) -> Path | None:
         # the same guard as the walk below: a session launched from $HOME carries
         # CLAUDE_PROJECT_DIR=$HOME for its whole life (it does not follow `cd`), and the gate
         # detected its own user-level registration there (closing review E3)
-        return None if (root == home or root in home.parents) else root
+        if not (root == home or root in home.parents):
+            return root
+        # …and FALL THROUGH to the cwd walk: a session launched from $HOME then cd'd into a
+        # project must still find that project's wiring, or the hub hook fires beside it (R7)
     p = Path(cwd)
     for cand in (p, *p.parents):
         if cand == home or cand in home.parents:

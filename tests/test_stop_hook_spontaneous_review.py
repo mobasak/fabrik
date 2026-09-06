@@ -85,7 +85,7 @@ def test_code_authored_after_the_last_closed_command_is_unreviewed():
             "updated_ts": T,
         }
     )
-    assert window == (T - 3600, T)
+    assert window == (T - 3600, T + 1)  # the close second is covered whole (R2)
     assert fgs._unreviewed_code_files(authored, window) == 1, "only a.py is newer than the close"
 
 
@@ -112,7 +112,7 @@ def test_a_blocked_close_covers_like_a_done_close():
     window = fgs._review_window(
         {"command": "fabrik-review", "state": "blocked", "started_epoch": T - 10, "updated_ts": T}
     )
-    assert window == (T - 10, T)
+    assert window == (T - 10, T + 1)
 
 
 def test_malformed_record_reads_as_no_record():
@@ -129,7 +129,7 @@ def test_handoff_is_a_closed_state_that_covers_like_done():
     """A-F2: /fabrik-user-test and /fabrik-service-test MANDATE a `handoff` close; hand-writing
     {"done","blocked"} blocked every such session with 'NO command run record'."""
     win = fgs._review_window({"state": "handoff", "started_epoch": T - 100, "updated_ts": T})
-    assert win == (T - 100, T)
+    assert win == (T - 100, T + 1)
     assert (
         frozenset({"done", "blocked", "handoff"}) == fgs._CLOSED_STATES
     )  # agent closes only (C-2)
@@ -193,7 +193,7 @@ def test_every_earlier_commands_window_stays_covered_across_a_start_overwrite():
     `covered` ledger (appended at close, carried across `start`) keeps every window."""
     rec = {"state": "done", "started_epoch": 3000, "updated_ts": 3600, "covered": [[100, 900]]}
     wins = fgs._review_windows(rec)
-    assert (100.0, 900.0) in wins and (3000.0, 3600.0) in wins, wins
+    assert (100.0, 901.0) in wins and (3000.0, 3601.0) in wins, wins
     assert fgs._unreviewed_code_files({"src/a.py": 500, "src/b.py": 3300}, wins) == 0
     assert fgs._unreviewed_code_files({"src/c.py": 2000}, wins) == 1, (
         "between runs: nobody reviewed it"

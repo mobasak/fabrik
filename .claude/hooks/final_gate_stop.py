@@ -652,6 +652,7 @@ def _review_window(rec: object, sid: str | None = None) -> tuple[float, float] |
     if started is None or started <= 0:
         return None  # the writer refuses to record a window unless started_epoch > 0 (E8 mirror)
     state = rec.get("state")
+    started = math.floor(started)  # the writer floors lo (R2): a start second is covered whole
     if state == "running":
         # stale/abandoned — the fifth cause no longer acts on it, nor does this. But the
         # operator's `COMMAND_RUN_STALE_H<=0` opt-out ("don't trap me") makes `_run_record`
@@ -662,7 +663,11 @@ def _review_window(rec: object, sid: str | None = None) -> tuple[float, float] |
         return (started, float("inf"))
     closed = _finite(rec.get("updated_ts"))
     if state in _CLOSED_STATES and closed is not None:
-        return (started, closed)
+        # the close stamp is FLOORED to the second by `_touch`; the true close lies anywhere in
+        # [closed, closed + 1), so the close second is covered whole — symmetric with the floored
+        # start (R2: a run inside one second yielded [t, t] and its own start-instant edit fell
+        # outside). A ≤ 1 s fail-open at the close edge, already inherent in whole-second stamps.
+        return (started, closed + 1.0)
     return None
 
 
@@ -677,7 +682,7 @@ def _review_windows(rec: dict | None, sid: str | None = None) -> list[tuple[floa
         if isinstance(w, (list, tuple)) and len(w) == 2:
             lo, hi = _finite(w[0]), _finite(w[1])
             if lo is not None and hi is not None and lo <= hi:
-                out.append((lo, hi))
+                out.append((math.floor(lo), hi + 1.0))  # whole seconds at both edges (R2)
     cur = _review_window(rec, sid)
     if cur is not None:
         out.append(cur)

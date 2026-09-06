@@ -322,3 +322,19 @@ def test_claude_project_dir_at_home_never_resolves_to_the_user_level_file(tmp_pa
     work.mkdir(parents=True)
     env = {**os.environ, "HOME": str(home), "CLAUDE_PROJECT_DIR": str(home)}
     assert "FAKE-HOOK-RAN" in _run_p(hook, work, _payload(work), env=env).stdout
+
+
+def test_a_session_launched_from_home_then_cd_into_a_project_still_defers_to_its_wiring(tmp_path):
+    """R7: refusing $HOME in the env branch returned None instead of falling through to the cwd
+    walk, so the hub hook fired BESIDE the project's own registration — the double banner /
+    double deny the gate exists to prevent."""
+    home = tmp_path / "home"
+    (home / ".claude").mkdir(parents=True)
+    proj = tmp_path / "opt" / "proj"
+    (proj / ".claude").mkdir(parents=True)
+    hook = _fake_hook(tmp_path)
+    (proj / ".claude" / "settings.json").write_text(
+        json.dumps({"hooks": {"PreToolUse": [_wiring(hook.name, ".*")]}})
+    )
+    env = {**os.environ, "HOME": str(home), "CLAUDE_PROJECT_DIR": str(home)}
+    assert "FAKE-HOOK-RAN" not in _run_p(hook, proj, _payload(proj), env=env).stdout

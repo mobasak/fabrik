@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import re
 import subprocess
@@ -146,7 +147,6 @@ def _pool_credits(now: float | None = None, *, fetch: bool = True) -> dict | Non
     account table: a dead endpoint serves the last known balance MARKED STALE with its age, because
     a number with a date on it beats a blank when the operator is deciding whether work can run.
     """
-    now = time.time() if now is None else now
     cached: dict | None
     try:
         raw = json.loads(CREDITS_CACHE.read_text(encoding="utf-8"))
@@ -809,13 +809,12 @@ def _returns_at(a: dict, now: float) -> float | None:
         # a weekly reset does not lift a session the PICKER refuses (over
         # ROTATE_TARGET_SESSION_MAX_PCT, 85): the return is the LATER of the two — the same rule
         # `_next_session_relief` applies, at the same bar (closing review P3-2)
-        try:
-            bar = float(os.environ.get("ROTATE_TARGET_SESSION_MAX_PCT") or 85.0)
-        except ValueError:
-            bar = 85.0
+        bar = _session_bar()
         five = _util(a, "five_hour")
         fr = (a.get("five_hour") or {}).get("resets_at_epoch")
-        if five is not None and five >= bar and isinstance(fr, (int, float)) and float(fr) > r:
+        # STRICT: the picker refuses `> bar` (`_flip_candidate_verdict`); `>=` promised a wait at
+        # exactly the bar, where the picker takes the account now (R5)
+        if five is not None and five > bar and isinstance(fr, (int, float)) and float(fr) > r:
             r = float(fr)
     return r
 
@@ -864,7 +863,32 @@ def _queue(payload: dict, now: float, _key=None) -> list[dict]:
 
 def _util(a: dict, k: str) -> float | None:
     u = (a.get(k) or {}).get("utilization")
-    return float(u) if isinstance(u, (int, float)) else None
+    if not isinstance(u, (int, float)):
+        return None
+    # the picker's rolled-over rule (`_flip_candidate_verdict`): a CACHED row whose reset has
+    # passed holds an empty window — the cell renderer said "idle — rolled over" while this
+    # read the raw 100% and called the row walled (closing review R4)
+    r = (a.get(k) or {}).get("resets_at_epoch")
+    if a.get("source") == "cache" and isinstance(r, (int, float)) and float(r) <= time.time():
+        return 0.0
+    return float(u)
+
+
+def _session_bar() -> float:
+    """ROTATE_TARGET_SESSION_MAX_PCT, else ROTATE_DRAIN_THRESHOLD, else 85 — the picker's bar,
+    parsed the way `claude_rotate._env_float` parses it (garbage/non-finite → the next
+    fallback); a third parse with a fourth semantics disagreed on 4 of 5 bad values (R6)."""
+    for key in ("ROTATE_TARGET_SESSION_MAX_PCT", "ROTATE_DRAIN_THRESHOLD"):
+        raw = os.environ.get(key)
+        if raw is None or raw.strip() == "":
+            continue
+        try:
+            v = float(raw)
+        except ValueError:
+            continue
+        if math.isfinite(v):
+            return v
+    return 85.0
 
 
 def _eligible(a: dict) -> bool:
