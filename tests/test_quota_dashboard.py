@@ -946,6 +946,9 @@ def test_a_negated_mention_is_the_limit_the_page_declares(tmp_path, monkeypatch)
     # and the honest limit is ON THE PAGE, not only in a comment
     intro = qd._ext_matrix_intro(qd._load_commands())
     assert "reads no NEGATIONS" in intro and "preserves both is invisible" in intro
+    # R6: "cannot go stale against the corpus" survived round 5 and sat one clause from the sentence
+    # explaining exactly how it CAN — an absolute claim next to its own counterexample.
+    assert "cannot go stale" not in intro
 
 
 def test_an_unreadable_pool_balance_says_so_on_the_page(tmp_path, monkeypatch):
@@ -991,7 +994,9 @@ def test_every_registered_detector_is_pinned_by_a_positive_probe(tmp_path, monke
         "rec": ["search_chats", "recent_chats", "mcp__session-recall", "the session-recall MCP"],
         "web": ["WebSearch", "WebFetch"],
         "brv": ["brave_web_search", "brave-web-search", "mcp__brave-search", "brave-search"],
-        "fc": ["firecrawl_search", "mcp__firecrawl"],
+        # two members per CHARACTER-CLASS arm: one literal cannot pin `firecrawl_[a-z]`'s
+        # generality, and a mutation narrowing the arm to that literal would pass (round 6)
+        "fc": ["firecrawl_search", "firecrawl_extract", "mcp__firecrawl"],
         "exa": ["web_search_exa", "web_fetch_exa", "mcp__exa"],
         "brw": [
             "mcp__playwright",
@@ -1001,6 +1006,7 @@ def test_every_registered_detector_is_pinned_by_a_positive_probe(tmp_path, monke
             "@axe-core/playwright",
             "browser_navigate",
             "browser_take_screenshot",
+            "browser_press_key",
             "fabrik-gui",
         ],
         "gh": [
