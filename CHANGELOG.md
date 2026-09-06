@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Pool roster restricted to a cheap-plus-free allowlist; free-account census measured (2026-09-06)
+- Operator ruling D-159: route only two cheap DeepSeek on OpenRouter plus the free NVIDIA/Kilo/Groq lanes; nothing removed from the model table. Mistral excluded on evidence (0 of 8 accounts live, HTTP 402); "grok" resolved to Groq.
+- Measured all 21 provisioned provider keys across `/opt/fabrik/.env` and `/opt/youtube/.env`: NVIDIA 4/4 live, Groq 6/6, Kilo 1/1, Mistral 0/8. Groq caps at 1,000 req/day and 8,000 tok/min per key and returns HTTP 413 above ~12k prompt tokens, so it is a small-unit lane only.
+- Filed two blockers: `libs/subagents/_transport.py:118` reads one key per provider with no rotation (mail 01M1VHFMD5REEPXB7G7T78R6C2 to fabrik-lib), and a forked ranker in ai-model-catalog overwrites the hub's routing doc daily, reverting the review deny (mail 01M1VHCHZ4CS9PD94YPV3XYYMB).
+
 ### Fixed — a quota-held session could not STOP: the Stop hook now yields to the exhaustion hold (2026-09-06)
 
 The second half of the infra incident, diagnosed rather than guessed. `quota_stop.py` was not
