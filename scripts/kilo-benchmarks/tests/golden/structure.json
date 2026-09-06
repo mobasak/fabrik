@@ -276,7 +276,7 @@
      "rank|model|shrunk_q|success|avg_cost|avg_quality|quality_tier|grounding|n :: TABLES": 6
     },
     "skeleton": [
-     "## \u2705 Selected subagents \u2014 the gate shortlists (`pick_models` picks from these)",
+     "## \u2705 Selected subagents \u2014 the BENCHMARK shortlists (measured quality, not the routing list)",
      "## Full review benchmark results \u2014 all measured columns (display only; not parsed for routing)",
      "## HARD review benchmark \u2014 hand-planted subtle logic bugs (diagnostic only; NOT comparable with the table above, never parsed for routing)",
      "## Full coding benchmark results \u2014 LiveCodeBench pass@1 (display only; not parsed for routing)"

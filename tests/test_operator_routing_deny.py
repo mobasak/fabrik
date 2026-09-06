@@ -241,3 +241,97 @@ def test_the_backstop_covers_a_task_kind_the_frozen_literal_has_not_caught_up_wi
     )
     ops_section = out.split("### ops (")[1].split("\n#")[0]
     assert "qwen/qwen3-max" not in ops_section, "a non-allowed model survived into the new section"
+
+
+# ─── Guards for the CLOSING-pass fixes (R1/R2/R5) ─────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("kind", ["code", "docs", "plan", "research", "review", "spec"])
+def test_excluding_the_top_model_still_leaves_a_worker(kind):
+    """THE reliability lever, and the fix that had no grader. `select.py:559` documents `exclude` as
+    what a caller reaches for when a model failed THIS session; `agent.py` raises
+    `ValueError: fanout: pick_models(...) returned no models` on an empty draw. So a kind that offers
+    only ONE model turns a routine provider hiccup into a raised batch."""
+    picked = pick_models(kind, n=5)
+    assert len(picked) >= 2, f"{kind} offers {picked} — excluding one leaves nothing to route to"
+    survivors = pick_models(kind, n=5, exclude=(picked[0],))
+    assert survivors, f"{kind}: excluding the top model returned nothing — fanout would raise"
+
+
+def test_a_one_model_fallback_section_is_topped_up_not_shipped_short(monkeypatch):
+    """R1: the mode-(b) CODE fallback marks `code` emitted, so the backstop skips the kind — meaning
+    the top-up must run in that emitter too, or a fallback section built from one allowlisted model
+    ships a one-model kind and `pick_models("code", exclude=rank1)` returns [].
+
+    ⚠️ This must reach the FALLBACK path, not the fleet loop. An earlier draft passed a `docs` row,
+    which goes through the fleet loop — it would have passed against the unfixed fallback and graded
+    nothing. Monkeypatching `_load_coding_fallback` is what makes it a real guard: `by_task` carries
+    no `code` rows, so the mode-(b) block is the only thing that can emit that section."""
+    from libs.subagents.select import load_task_ranking
+
+    monkeypatch.setattr(rank, "_load_coding_fallback", lambda: ["deepseek/deepseek-v4-flash"])
+    rows = [("docs", "deepseek/deepseek-v4-flash", 40, 0.01, 3.0, 0.9)]
+    out = rank.render(rows, state="ok", include_full_results=False)
+    assert "fallback from CODING_SUBAGENT_SELECTION.md" in out, (
+        "the mode-(b) code fallback did not fire — this test is not exercising the path it names"
+    )
+    tmp = Path(__file__).parent.parent / ".tmp" / "topup_fallback.md"
+    tmp.parent.mkdir(parents=True, exist_ok=True)
+    tmp.write_text(out, encoding="utf-8")
+    try:
+        parsed = load_task_ranking(str(tmp))
+    finally:
+        tmp.unlink(missing_ok=True)
+    assert set(parsed.get("code", [])) == set(rank.OPERATOR_ALLOW_ORDER), (
+        f"the one-model FALLBACK section was not topped up: {parsed.get('code')}"
+    )
+    assert parsed.get("docs"), "the fleet-loop kind regressed while fixing the fallback one"
+
+
+def test_no_section_carries_a_duplicate_model_or_a_duplicate_rank():
+    """R2: the first top-up derived its `already` set and its starting rank from the FLEET rows
+    alone, so a model the benchmark supplement had already appended was emitted a SECOND time, at a
+    duplicate rank. Routing survived (the parser dedups), so only a doc-integrity assertion catches
+    it — in a fleet-synced table whose rank order IS the contract."""
+    doc = _DOC.read_text(encoding="utf-8")
+    for kind in rank.TASK_KINDS_EMITTED:
+        for chunk in doc.split(f"### {kind} (")[1:]:
+            section = chunk.split("\n#")[0]
+            models, ranks = [], []
+            for line in section.splitlines():
+                if not line.startswith("| ") or "`" not in line:
+                    continue
+                cells = [c.strip() for c in line.strip().strip("|").split("|")]
+                if not cells or not cells[0].isdecimal():
+                    continue
+                ranks.append(cells[0])
+                models.append(cells[1].strip("`"))
+            assert len(models) == len(set(models)), f"{kind}: duplicate model in one section: {models}"
+            assert len(ranks) == len(set(ranks)), f"{kind}: duplicate rank in one section: {ranks}"
+
+
+@pytest.mark.parametrize("kind", ["review", "code", "docs"])
+def test_a_supplemented_section_does_not_re_emit_what_the_supplement_already_wrote(kind):
+    """The live-doc check above passes even when this is broken, because the live sections happen not
+    to trigger it — so this CONSTRUCTS the case. The code/review benchmark supplements append rows
+    but for a long time recorded neither the models nor the ranks they used (`emitted_*_models` and
+    `*_last_rank` were updated only by the fleet loop). Nothing ran after them, so it was harmless —
+    until the D-159 top-up did, and re-emitted a model the supplement had already written, at a rank
+    it had already used (measured: `1, 2, 2` with v4-flash twice)."""
+    rows = [(kind, "deepseek/deepseek-v3.2-exp", 40, 0.01, 3.0, 0.9)]
+    out = rank.render(rows, state="ok", include_full_results=False)
+    section = out.split(f"### {kind} (")[1].split("\n#")[0]
+    models, ranks = [], []
+    for line in section.splitlines():
+        if not line.startswith("| ") or "`" not in line:
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if not cells or not cells[0].isdecimal():
+            continue
+        ranks.append(cells[0])
+        models.append(cells[1].strip("`"))
+    assert models, f"{kind}: constructed section emitted no data rows"
+    assert len(models) == len(set(models)), f"{kind}: model emitted twice: {models}"
+    assert len(ranks) == len(set(ranks)), (
+        f"{kind}: rank reused: {list(zip(ranks, models, strict=True))}"
+    )

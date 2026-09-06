@@ -306,8 +306,16 @@ fi
   # operator deny (`OPERATOR_DENY`) and allowlist (`OPERATOR_ALLOW`, D-159) live. Reversing these two
   # steps silently reverts fleet routing policy to whatever the engine last produced.
   # Still ordered after the flush, so each day's recovered rows are in the table the ranking reads.
+  # ⚠️ THE FAILURE PATH IS LOUD NOW, and the old message was FALSE after the move. It read
+  # "non-fatal — the previous doc stands"; post-move the previous doc is the one `deliver_to_fabrik`
+  # just copied in from the engine, i.e. the UNRESTRICTED one. A silent failure here therefore ships
+  # a doc carrying none of the operator's routing policy to 45 repos on the next sync, and
+  # `guard_selection_freshness` cannot catch it because it compares DATES and the delivered copy is
+  # stamped the same day. Every other policy-critical step in this file alerts; this one now does.
   _step "rank_task_subagents" "$VENV_PY" "$KB/rank_task_subagents.py" \
-    || echo "[daily_refresh] ranking regen errored (non-fatal — the previous doc stands)"
+    || { echo "[daily_refresh] ranking regen FAILED — the delivered (unrestricted) doc is what stands"; \
+         bash "$KB/pipeline_alert.sh" 'daily_refresh: rank_task_subagents exited non-zero' \
+           'The hub ranker did not regenerate TASK_SUBAGENT_SELECTION.md after deliver_to_fabrik overwrote it, so the doc now on disk is the ai-model-catalog engine copy — which carries NEITHER the operator deny nor the D-159 allowlist. It will be auto-committed and synced to ~45 repos unless this is fixed before the next sync. Re-run: python3 scripts/kilo-benchmarks/rank_task_subagents.py' || true; }
 
   _step "generate_capability_index" "$VENV_PY" "$FABRIK_ROOT/scripts/generate_capability_index.py" \
     || echo "[daily_refresh] generate_capability_index failed (non-fatal)"

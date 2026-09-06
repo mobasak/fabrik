@@ -165,6 +165,43 @@ def _allowed(model: str) -> bool:
     return not OPERATOR_ALLOW or model in OPERATOR_ALLOW
 
 
+def _allowlist_topup(
+    emitted: set[str], next_rank: int, tiers: object, canary: dict[str, float] | None
+) -> list[str]:
+    """Rows for the allowlisted models a section has NOT already emitted, numbered from `next_rank`.
+
+    ⚠️ TWO DEFECTS THIS EXISTS TO PREVENT, both found by the closing pass after an earlier, narrower
+    version of the top-up shipped:
+
+    1. `emitted` must be what the section ACTUALLY emitted, not just its fleet rows. The first
+       version derived it from `scored` alone, so a model the review/code BENCHMARK supplement had
+       already appended was invisible to it and got emitted a SECOND time — a duplicate model at a
+       duplicate rank in a fleet-synced table whose "rank order IS the contract". Routing survived
+       (`select.py:374` dedups with `if model not in bucket`), so this was doc integrity, not
+       behaviour — which is exactly the kind of defect a routing test never catches.
+    2. The same reasoning applies to `next_rank`: the supplements advance the numbering, so deriving
+       it from `len(scored)` collides with rows already written above.
+
+    Used by all THREE section emitters (fleet loop, code fallback, review fallback). The earlier
+    version ran only in the fleet loop, which re-created the very defect it was written to fix: the
+    mode-(b) fallbacks mark a kind emitted, the backstop then skips it, and a fallback section built
+    from ONE allowlisted model shipped a one-model kind — `pick_models(kind, exclude=rank1)` -> `[]`
+    -> `ValueError` in `agent.py`. Latent when found (both fallback lists were empty or complete),
+    which is why it needs a grader rather than a comment.
+    """
+    if not OPERATOR_ALLOW:
+        return []
+    rows = []
+    for i, model in enumerate(
+        (m for m in OPERATOR_ALLOW_ORDER if m not in emitted), start=next_rank
+    ):
+        rows.append(
+            f"| {i} | `{model}` | [allowlist] | — | — | — | "
+            f"{_fmt_tier(tiers, model)} | {_grounding_cell(canary.get(model) if canary else None)} | 0 |"
+        )
+    return rows
+
+
 def _allowlist_rows(tiers: object, canary: dict[str, float] | None) -> list[str]:
     """The allowlist section BODY — shared by the backstop and the no-data stub, so the two can
     never drift apart. Emits the 9-column routing shape the parser contracts on: model at
@@ -1889,6 +1926,15 @@ def render(
                     f"| {i} | `{model}` | [benchmark] | — | — | — | {_fmt_tier(tiers, model)} | "
                     f"{_grounding_cell(canary.get(model))} | 0 |"
                 )
+                # ⚠️ RECORD what this supplement emitted. It did not, and the two trackers were
+                # updated ONLY by the fleet loop above — so anything appended here was invisible to
+                # whatever ran next. Harmless while nothing ran after it; the moment the D-159
+                # top-up did, it re-emitted a model this loop had already written, at a rank this
+                # loop had already used (executed: review section came out `1,2,2` with v4-flash
+                # twice). Tracking here is what makes "what has this section emitted so far" a
+                # question anyone downstream can actually ask.
+                emitted_code_models.add(model)
+                code_last_rank = i
         # REVIEW supplement — same shape: append gate-eligible benchmark models below the fleet
         # review rows so pick_models("review") sees a benched-but-not-yet-fleet-used reviewer.
         if task_type == "review" and review_benchmark:
@@ -1897,6 +1943,8 @@ def render(
                 start=review_last_rank + 1,
             ):
                 out.append(_fmt_bench_review_row(i, model, review_metrics, tiers, canary))
+                emitted_review_models.add(model)  # same reasoning as the code supplement above
+                review_last_rank = i
         # ⚠️ ALLOWLIST TOP-UP (D-159). The backstop below triggers on a MISSING SECTION, which is
         # all-or-nothing: `emitted_task_types.add()` fires the moment ONE row survives, so a kind
         # that kept exactly one allowlisted model never received the other and the operator's roster
@@ -1907,16 +1955,9 @@ def render(
         # failed THIS session — so a one-model kind converts a routine provider hiccup into a raised
         # batch. Measured pre-fix: code, docs and research each drew 1 model and each returned [] on
         # excluding it. Found by the D-159 review's native finder.
-        if OPERATOR_ALLOW:
-            already = {r[1] for r, _ in scored}
-            missing = [m for m in OPERATOR_ALLOW_ORDER if m not in already]
-            if missing:
-                start = len(scored) + 1
-                for i, model in enumerate(missing, start=start):
-                    out.append(
-                        f"| {i} | `{model}` | [allowlist] | — | — | — | "
-                        f"{_fmt_tier(tiers, model)} | {_grounding_cell(canary.get(model))} | 0 |"
-                    )
+        _emitted_here = {r[1] for r, _ in scored} | emitted_code_models | emitted_review_models
+        _next = max(len(scored), code_last_rank, review_last_rank) + 1
+        out.extend(_allowlist_topup(_emitted_here, _next, tiers, canary))
         out.append("")
         emitted_task_types.add(task_type)
 
@@ -1935,6 +1976,13 @@ def render(
                 f"| {rank} | `{model}` | [benchmark] | — | — | — | {_fmt_tier(tiers, model)} | "
                 f"{_grounding_cell(canary.get(model))} | 0 |"
             )
+        # This block marks `code` emitted, so the backstop will skip the kind — which means the
+        # top-up has to run HERE too or a one-model fallback section ships a one-model kind.
+        out.extend(
+            _allowlist_topup(
+                set(coding_fallback_models), len(coding_fallback_models) + 1, tiers, canary
+            )
+        )
         out.append("")
         emitted_task_types.add("code")
 
@@ -1953,6 +2001,10 @@ def render(
         out.append("|---:|---|---:|---:|---:|---:|:-:|:-:|---:|")
         for rank, model in enumerate(review_benchmark, start=1):
             out.append(_fmt_bench_review_row(rank, model, review_metrics, tiers, canary))
+        # Same reasoning as the code fallback above — this block marks `review` emitted.
+        out.extend(
+            _allowlist_topup(set(review_benchmark), len(review_benchmark) + 1, tiers, canary)
+        )
         out.append("")
         emitted_task_types.add("review")
 

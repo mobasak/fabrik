@@ -132,11 +132,25 @@ behaviour is in the vendored parser. Routed to the operator and to fabrik-lib's 
 
 ### F6 — CONFIRMED (REPORTED, decision input). `code` now routes solely to a model measured at 0.00 success
 
-Live doc: `### code` rank 1 is `deepseek/deepseek-v3.2-exp` with `success 0.00` over n=10 fleet runs
-and `avg_quality 0.62/5`. Per-run cost also rises against the rows the allowlist removed: `code`
-$0.0201 → $0.0962 (4.8×), `research` $0.0077 → $0.0160 (2.1×). That inverts the "two CHEAP deepseek
-agents" intent for two of three kinds. This is a consequence of the operator's roster, not a defect
-in its implementation — surfaced for their decision, not fixed.
+⚠️ **CORRECTED in the closing pass — my first figures used the wrong baseline.** I took the "before"
+costs from HEAD's committed doc, which is the FORK's output on a different aggregation window
+(`code n_total` 187 vs 130, `review` 13825 vs 10765), so the delta conflated the allowlist with a
+different generator AND a different data window. Re-derived against the honest baseline — the same
+live `_query_rows()` data through the hub ranker with `OPERATOR_ALLOW = frozenset()`, which is the
+documented off switch:
+
+| kind | rank 1 without the allowlist | rank 1 with it | per-run cost |
+|---|---|---|---|
+| `code` | `openai/gpt-5.6-luna` — success **0.68**, $0.0212 | `deepseek/deepseek-v3.2-exp` — success **0.00**, n=10, avg_quality 0.62/5 | $0.0212 → $0.0962 (**4.5×**, not the 4.8× I first wrote) |
+| `research` | `deepseek/deepseek-v3.2` — $0.0077 | `deepseek/deepseek-v4-flash` — $0.0160 | **2.08×** — reproduces exactly |
+| `docs` | `deepseek/deepseek-v4-flash` — $0.0078 | same | **no change** (I implied one; there is none) |
+| `plan` | *no section at all* — its only row was `deepseek-v4-pro`, `OPERATOR_DENY_ALWAYS` | allowlist | `plan` was ALREADY falling through to `_TABLE` before D-159 |
+
+The correct baseline **strengthens** the finding rather than softening it: the model the allowlist
+displaced on `code` measures success 0.68 against the retained model's 0.00, on the same window. Two
+of three kinds also get more expensive per run, which inverts the "two CHEAP deepseek agents" intent.
+This is a consequence of the operator's roster, not a defect in its implementation — surfaced for
+their decision, not fixed.
 
 ### F7 — CONFIRMED. `_allowed()` blessed `claude-code/*`, and the tests used it as the definition
 
@@ -195,6 +209,58 @@ and in a project copy on this box `/opt/youtube/scripts/enforcement/…` resolve
 a **project's gate report on hub state**. Verified both branches by execution before and after.
 FIXED: the fallback is gone; belonging is the question, not availability. A hub `git worktree` still
 resolves to itself because it carries the full tree.
+
+## Findings — Pass 3 (the closing re-derivation pass)
+
+Nine raised by an independent native finder plus a 3-unit pool sweep; **five of the nine were defects
+in Pass 1's own fixes**, which is the case for running the pass at all.
+
+- **R1 — CONFIRMED, HIGH, FIXED.** My `emitted_task_types.add("code"/"review")` re-created F4 on the
+  mode-(b) fallback paths: those blocks mark a kind emitted, the backstop then skips it, and a
+  fallback section built from ONE allowlisted model shipped a one-model kind → `exclude` → `[]` →
+  `ValueError`. Latent when found (both fallback lists were empty or complete). FIXED by running the
+  top-up in **all three** emitters. Grader added and proven red-on-revert.
+- **R2 — CONFIRMED, FIXED (twice).** The top-up's `already` set and `start` rank came from the fleet
+  rows alone, so a model the benchmark supplement had already appended was re-emitted at a duplicate
+  rank. My first fix (`max(len(scored), code_last_rank, review_last_rank) + 1`) **did not work** —
+  executed, the review section still came out `1, 2, 2` with `v4-flash` twice — because the
+  supplements update neither tracker. Real fix: the supplements now RECORD what they emit. Verified
+  across review/code/docs: no duplicate rank or model.
+- **R3 — CONFIRMED, FIXED.** My `## ✅` header rename broke the nightly contract oracle
+  (`tests/golden/structure.json` freezes the old string; `capture_golden.py --verify` reported
+  `skeleton LOST`). Re-snapshotted **that one artifact's skeleton only** — a blanket `--snapshot`
+  would have silently blessed 12 pre-existing drift rows that are not mine. Verified: my row gone,
+  the other 12 intact.
+- **R4 — CONFIRMED, ACCEPTED + DOCUMENTED.** `[allowlist]` cells fail the float cast, so
+  `select.py:400-404` skips the ungrounded-quality penalty for the whole kind. Real behavioural
+  change, latent while every live grounding cell reads `✓`. Not fixed here: the row cannot carry a
+  measurement it does not have, and inventing one would be worse.
+- **R5 — CONFIRMED, FIXED.** The F4 fix shipped with **no grader** — `exclude` appeared nowhere in
+  the test file. Fix Directive #4 violation, mine. Added
+  `test_excluding_the_top_model_still_leaves_a_worker` (all six kinds) plus graders for R1 and R2.
+- **R6 — CONFIRMED, FIXED.** After moving the ranker, its failure path still said "non-fatal — the
+  previous doc stands". That became FALSE: post-move the previous doc is the unrestricted one
+  delivery just copied in. It now fires `pipeline_alert.sh` like every other policy-critical step.
+- **Pool finder — CONFIRMED, FIXED.** `select._synced_ranking()` sat OUTSIDE the try/except, so an
+  `AttributeError` after a re-vendor (it is a PRIVATE function of a vendored module) would exit
+  non-zero — and `warn_only` reads a non-zero exit as a broken contract that FAILS the gate. An
+  advisory check would have become blocking across 45 repos. Now guarded, returning 0 with an
+  explicit "UNVERIFIED this run" line.
+- **Pool finder — CONFIRMED, FIXED.** Dropping the `/opt/fabrik` fallback left a silent false-SKIP if
+  `__file__` resolves outside the tree. Second candidate is now `git rev-parse --show-toplevel` —
+  "which checkout am I in", which is the right question and keeps project copies skipping.
+- **R7/R8/R9 — CONFIRMED, LOW, recorded not fixed.** A docstring overstates the DRY guarantee; the
+  "byte-identical when the allowlist is empty" claim is false (the `claude-code/*` strip in the fleet
+  loop is unconditional — 0 of 76 live rows are affected); and from a hub worktree the check asserts
+  about the main checkout's doc, which is what its docstring says it does.
+
+### Re-derivation of the artifact's own claims (method: re-derivation)
+
+An independent finder re-derived all five load-bearing claims from primary sources: **(a) VERIFIED**
+(md5 match), **(b) VERIFIED** (`grep -c grounding` on HEAD = 0; `ec05a490` dated 2026-08-29),
+**(c) VERIFIED** (`deliver_to_fabrik.py:138` rglob, `:59` three exclusions), **(d) VERIFIED**
+(`max_age_days=14` at `:474`; a stale copy reverts all six kinds with `v4-pro` at rank 4 in four),
+**(e) PARTLY WRONG** — corrected in F6 above.
 
 ## Pass Ledger
 

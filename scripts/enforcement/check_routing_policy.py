@@ -45,7 +45,29 @@ def _hub_root() -> Path | None:
     made a PROJECT's gate report on HUB state. Belonging is the question, not availability.
     """
     base = Path(__file__).resolve().parent.parent.parent
-    return base if (base / _RANKER_REL).is_file() else None
+    if (base / _RANKER_REL).is_file():
+        return base
+    # Second candidate: the REPO this run belongs to. Not a hardcoded `/opt/fabrik` — that version
+    # made a project copy report on hub state (its own defect, found in the closing pass) — and not
+    # a third relative guess. `--show-toplevel` answers the question that actually matters, "which
+    # checkout am I running in", and it survives the layout `parent.parent.parent` cannot: a
+    # symlinked script whose `resolve()` lands outside the tree, which would otherwise SILENTLY skip
+    # and report nothing wrong while the policy went unguarded.
+    try:
+        import subprocess
+
+        root = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        ).stdout.strip()
+    except Exception:
+        return None
+    if root and (Path(root) / _RANKER_REL).is_file():
+        return Path(root)
+    return None
 
 
 def main() -> int:
@@ -67,10 +89,25 @@ def main() -> int:
         spec.loader.exec_module(rank)
         from libs.subagents import TASK_KINDS, select
     except Exception as exc:  # pragma: no cover - environment shape, not logic
-        print(f"check_routing_policy: SKIP — policy modules unavailable ({type(exc).__name__}: {exc})")
+        print(
+            f"check_routing_policy: SKIP — policy modules unavailable ({type(exc).__name__}: {exc})"
+        )
         return 0
 
-    ranking = select._synced_ranking()
+    # ⚠️ INSIDE the guard, deliberately. `_synced_ranking` is a PRIVATE function of a VENDORED
+    # module: a re-vendor may rename it (AttributeError) and it can raise on a missing or malformed
+    # doc. Outside a guard, either would exit non-zero — and `final_gate.run_optional_check`'s
+    # `warn_only` contract reads a non-zero exit as a BROKEN CHECK that fails the gate outright, so
+    # an advisory check would silently become blocking across ~45 repos. Reported by a closing-pass
+    # finder (agent-000-9df517).
+    try:
+        ranking = select._synced_ranking()
+    except Exception as exc:
+        print(
+            f"⚠ check_routing_policy ADVISORY — could not read the routing doc "
+            f"({type(exc).__name__}: {exc}); the operator's deny/allowlist is UNVERIFIED this run"
+        )
+        return 0
     problems: list[str] = []
 
     if not ranking:
@@ -89,7 +126,9 @@ def main() -> int:
             continue
         for model in models:
             if not rank._allowed(model):
-                problems.append(f"{kind}: `{model}` is routable but the operator allowlist forbids it")
+                problems.append(
+                    f"{kind}: `{model}` is routable but the operator allowlist forbids it"
+                )
             if model in rank.OPERATOR_DENY.get(kind, ()) or model in rank.OPERATOR_DENY_ALWAYS:
                 problems.append(f"{kind}: `{model}` is routable but is DENIED")
 
