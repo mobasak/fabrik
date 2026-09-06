@@ -1,6 +1,6 @@
 # Multi-agent adoption for existing projects — the merge owner and work-item ownership
 
-Status: DRAFT
+Status: CONVERGED (2026-09-06 — 4 passes: r1 5 findings (pool ×3 + own), r2 5 (own closing read + 2 pool wording rows), r3 2 (own), r4 edit-free)
 Profile: delta
 Owner: infra
 Date: 2026-09-06
@@ -28,9 +28,9 @@ session shares a checkout.
 | I6 | gap (1) no surface declares the merge owner without epics — `fabrik-epics-review.md:459` "agent-1 = the first name" of the epics' owner set | IN | § What exists today, § The delta D1 |
 | I7 | gap (2) the ownership sweep is a described duty with no mechanism — `docs_updater.py:834` `NO_OWNER = "—"  # … the tail sweep … fills it`; 0 hits for "tail sweep" in `commands/_sources/` | IN | § The delta D2 |
 | I8 | gap (3) `/fabrik-vision` EXISTING mode reads neither PLANS.md nor STRATEGIC_BACKLOG.md (0 hits in `fabrik-vision.md`) | IN | § The delta D4 |
-| I9 | gap (4) two sessions in one main checkout is undetected | IN — measured: 8 repos with 2–3 live sessions each, all in the main checkout, none named | § What exists today, § The delta D5 |
+| I9 | gap (4) two sessions in one main checkout is undetected | IN — measured: 8 checkouts with 2–3 live sessions each (6 synced project repos + the hub + fabrik-lib), all in the main checkout, none named | § What exists today, § The delta D5 |
 | I10 | proposal (c) "a gate WARN … when the repo has linked worktrees" | IN — CHANGED: the worktree trigger is WRONG (measured: 83 linked worktrees in 4 repos, 28 of 29 in seo are `worktree-agent-<hex>` subagent residue); the trigger is live sessions per checkout | § The delta D3, § Rejected alternatives |
-| I11 | constraint "single-window repos must see NOTHING new" | IN | § The delta D3/D5 (fire only at ≥2 sessions), § Validation V4 |
+| I11 | constraint "single-window repos must see NOTHING new" | IN | § The delta D3/D5 (fire only at ≥2 sessions), D2 (`--adopt` refuses at one session without `--single-window`), § Validation V4 |
 | I12 | constraint "the hub itself is excluded from the worktree model" | IN | § The delta D5 (hub identity → advisory suppressed) |
 | I13 | constraint "no new command unless the design proves one is needed" | IN — no new command; one script flag + three text deltas | § Chosen approach |
 | I14 | "fabrik-lib vendor check per the ladder" | IN | § fabrik-lib verdict |
@@ -66,8 +66,8 @@ item — and stays that way, because the surfaces that show ownership are regene
 ## Why this exists
 
 The operating model shipped ownership for EPIC-BORN work only (`owner:` set by `/fabrik-epics-review`). Existing
-repos have no epics, and the measurement this run made is the pain: 21 live sessions on the box, 8 repos with 2–3
-sessions each, all in the main checkout, none named — the shared-index way that lost work three times in one day
+repos have no epics, and the measurement this run made is the pain: 21 live sessions on the box, 8 checkouts with 2–3
+sessions each (6 of them synced project repos), all in the main checkout, none named — the shared-index way that lost work three times in one day
 (D-099 § Why this exists) continues silently in every one of them. And the one surface built to show ownership,
 the PLANS block, is present in 0 of 41 project repos because nothing seeds its markers. The chosen delta resolves
 exactly this: a declaration that exists without epics, an adoption step that populates the surface, and an
@@ -89,8 +89,11 @@ advisory that names the shared-checkout situation the moment it happens.
   `—` when unset.
 - `commands/_sources/fabrik-vision.md:17,63` — EXISTING mode reads `project.yaml`, specs, compose, the live
   layout; **not** `docs/development/PLANS.md`, **not** `docs/STRATEGIC_BACKLOG.md` (0 hits).
-- `docs/STRATEGIC_BACKLOG.md` in 23 of 41 repos: table rows `| Effort | Item | Why | Ready when |` (transdoc, seo,
-  youtube); 1,891 rows, 130 carry a `[name]` tag in the Item cell (the tag grammar the operating-model doc names).
+- `docs/STRATEGIC_BACKLOG.md` in 23 of 41 repos: 619 table rows (`| Effort | Item | Why | Ready when |` — transdoc,
+  seo, youtube) + 764 bullet rows; **6** table rows carry a `[name]` tag (re-counted r1 — an earlier pipeline count of
+  130 had swallowed `[x]` checkboxes). The tag grammar in use is the HUB's: a legend table `| Tag | Agent | Beat |`
+  (`docs/STRATEGIC_BACKLOG.md:19-24`, tags `` `[infra]` `` / `` `[fleet]` `` / `` `[intel]` `` / `` `[operator]` ``), a
+  dedicated `Tag` column on table rows, and `**[infra]**` as the leading token of bullet rows.
 - `.claude/hooks/session_orient.py` (SessionStart, synced via `AGENT_HOOK_FILES`) prints the ORIENT block; it
   reads `CLAUDE_AGENT` for the "UNNAMED" warning already. No hook counts sessions.
 - Live sessions are enumerable box-side with no registry: `readlink /proc/<pid>/cwd` over `pgrep -x claude`
@@ -100,21 +103,28 @@ advisory that names the shared-checkout situation the moment it happens.
 ## The delta
 
 **D1 — the merge owner is ONE ledger row per repo, printed by the PLANS block header.** Row text is fixed by
-grammar so a script can read it: `MERGE OWNER: <name>` as the first words of the `what` cell (`decisions.py` gains
-a `--merge-owner` read: the LAST row whose `what` starts with that literal wins, so a change is a new row that
+grammar so a script can read it: `MERGE OWNER: <name>` as the first words of the `what` cell after leading `*` are stripped (58 of the hub's
+155 rows open their `what` with `**`; `decisions.py:82` splits cells on `|`, so the row escapes any pipe as `\|`
+like every other row — the D-099 lesson) (`decisions.py` gains a `--merge-owner` read: the LAST row whose stripped
+`what` starts with that literal, case-insensitive, wins, so a change is a new row that
 supersedes, never an edit — the ledger's own law). `generate_plans_table()` prints a second header comment
 `<!-- Merge owner: <name> | source: D-NNN -->` (or `<!-- Merge owner: UNDECLARED — run docs_updater.py --adopt
 <name> -->`). No new file, no new field on plans; the ledger every agent already queries first is the declaration.
 
 **D2 — the adoption step: `python scripts/docs_updater.py --adopt <name>[,<name>…]`.** Runs in the main checkout
-by agent-1, idempotent, and does exactly four things: (a) seeds the `AUTO-GENERATED:PLANS` markers into PLANS.md
+by agent-1, idempotent, and does exactly four edits (plus the epic half it delegates, below): (a) seeds the `AUTO-GENERATED:PLANS` markers into PLANS.md
 when absent (below the existing hand table, which is left as history), then regenerates the block; (b) stamps
 `**Owner:** <name>` on every plan unit whose Owner is `—` and whose Status is not terminal, round-robin over the
 names given (the first name = the merge owner, mirror of `epic_order.py --assign`); (c) tags every untagged
-STRATEGIC_BACKLOG row by prefixing the Item cell with `[<name>]`, round-robin, skipping rows whose Item already
-carries a `[tag]`; (d) appends the `MERGE OWNER: <first name>` row with the next id from `decisions.py --next-id`
+STRATEGIC_BACKLOG row, round-robin, in the row's own shape: a TABLE row whose header has a `Tag` column (the hub's
+`| Effort | Tag | Item | … |`) gets `` `[<name>]` `` in that cell; a table row without one (the projects' `| Effort |
+Item | Why | Ready when |`) gets `[<name>] ` prefixed to the Item cell; a BULLET row (`- `, `- [ ] `, `- [x] `) gets
+`[<name>] ` after the list marker and any checkbox — skipping rows that already carry a `[tag]` and the legend table
+itself; (d) appends the `MERGE OWNER: <first name>` row with the next id from `decisions.py --next-id`
 when no such row exists. It prints the same table the operator asked for: `| Item | Owner | Source |` for every
-row it touched. Re-running with the same names changes nothing; with a different first name it appends a
+row it touched. `--adopt` is an EXPLICIT act on the operator's word (I11 binds the passive surfaces — `--check`,
+SessionStart — which stay silent in a single-session repo; the flag refuses with one line when it counts one live
+session and no `--single-window` override, so an over-eager agent cannot adopt a repo nobody shares). Re-running with the same names changes nothing; with a different first name it appends a
 superseding row. `epic_order.py --assign` stays the epic half — `--adopt` calls it when an epics dir exists.
 The scaffolder's inline PLANS.md gains the markers (`scaffold.py:1436`) so new repos never need (a).
 
@@ -122,7 +132,8 @@ The scaffolder's inline PLANS.md gains the markers (`scaffold.py:1436`) so new r
 check counts `claude` processes whose `/proc/<pid>/cwd` equals the repo root; when the count is ≥2 AND (the merge
 owner is undeclared OR any open plan row is `—` OR any backlog row is untagged) it emits ONE advisory line naming
 the count and the `--adopt` command. A single-session repo emits nothing — the constraint I11, and the measured
-fire rate: 8 of 41 repos today, all legitimately. The gate already runs `docs_updater.py --check` as an optional
+fire rate: 8 shared checkouts on the box today, of which 6 are synced project repos (the other two are the hub and
+fabrik-lib, both outside the model) — every one legitimately. The gate already runs `docs_updater.py --check` as an optional
 tier-3 check (`final_gate.py:1884`), so no new check file and no new gate row.
 
 **D4 — `/fabrik-vision` EXISTING mode reads the two work stores.** Phase 0's live-project read list gains
@@ -133,8 +144,10 @@ epic cut from a `[beta]` backlog row inherits `owner: beta`. Text delta only, ~1
 **D5 — the session-start advisory.** `session_orient.py` counts sibling `claude` processes with the same cwd at
 SessionStart; at ≥2 it prints one line: `⚠️ N sessions share this main checkout — the multi-agent model puts
 agents 2..N in worktrees: CLAUDE_AGENT=<name> claude --worktree <name> -n <name>-<repo> (docs: /opt/fabrik/docs/
-reference/multi-agent-operating-model.md)`. Suppressed when the repo is the hub (the hook already branches on hub
-identity, I12) and when `CLAUDE_CODE_MESSAGING_SOCKET` names a worktree session. One line, no block, no prompt.
+reference/multi-agent-operating-model.md)`. Suppressed when the repo is the hub (`session_orient.py:139` already computes `is_hub` from
+`scripts/fabrik_synced_manifest.py`, I12) and when the session's own cwd is under `/.claude/worktrees/` (a worktree
+session is detectable ONLY from its cwd — `CLAUDE_CODE_MESSAGING_SOCKET` is a temp-file path that names nothing,
+review r1). One line, no block, no prompt.
 
 **What does not change:** the epic path (`/fabrik-epics-review` still derives agent-1 as the first owner — D1's
 row is written by it too, so both paths converge on one declaration); plan-locks; the merge protocol; the tail.
@@ -175,7 +188,7 @@ by D-154, not by literature — per D-153.
   isolation residue; would fire on single-session repos that ran a review yesterday.
 - **A new field `Merge-owner:` in PLANS.md or project.yaml** — a second source of truth beside the ledger; the
   ledger row plus a generated header line keeps one.
-- **Blocking on undeclared ownership** — a block on 8 repos today, all mid-work; advisory first, fire rate
+- **Blocking on undeclared ownership** — a block on 6 synced repos today, all mid-work; advisory first, fire rate
   re-measured after a week (D-034 model: measured before anything blocks).
 
 ## Contract deltas
@@ -193,8 +206,8 @@ by D-154, not by literature — per D-153.
 
 ## Cost
 
-Zero tokens: every delta is a script or a hook. Runtime: `--adopt` is one pass over plans + backlog (1,891 rows
-fleet-wide today, milliseconds); the session count is one `/proc` scan per SessionStart / per `--check` (21
+Zero tokens: every delta is a script or a hook. Runtime: `--adopt` is one pass over plans + backlog (1,383 project backlog rows
+fleet-wide today — 619 table + 764 bullet — milliseconds); the session count is one `/proc` scan per SessionStart / per `--check` (21
 processes today). Build: ~250 lines of Python across two scripts and one hook, ~30 lines of command text, tests.
 
 ## Validation
@@ -202,12 +215,15 @@ processes today). Build: ~250 lines of Python across two scripts and one hook, ~
 - V1 `--adopt` on a fixture repo with a marker-less PLANS.md, two `—` plans, three untagged backlog rows and no
   ledger row: after one run — markers present, both plans owned round-robin, three rows tagged, ONE `MERGE OWNER:`
   row; a second run is byte-identical (idempotent). Red-first.
+- V1b `--adopt` in a fixture with one injected live session refuses with one line and touches nothing; with
+  `--single-window` it proceeds; a bullet-shaped backlog row is tagged after its checkbox, a hub-shaped row in its
+  `Tag` cell (parametrized over the three row shapes).
 - V2 `--adopt` with a different first name appends a superseding row and rewrites the header comment; the old row
   is untouched (ledger immutability).
 - V3 `--check` emits the advisory only when the injected session count is ≥2 AND ownership is incomplete; the
   four other combinations emit nothing (parametrized).
 - V4 fire-rate proof over the 45 synced projects before the sync distributes: the advisory would fire in exactly
-  the repos with ≥2 live sessions at measurement time (8 today), never in a single-session repo.
+  the repos with ≥2 live sessions at measurement time (6 of 41 today), never in a single-session repo.
 - V5 `session_orient.py` prints the D5 line at ≥2 same-cwd processes, nothing at 1, nothing in the hub.
 - V6 the scaffolded PLANS.md carries the markers and `docs_updater.py --sync` regenerates it on a fresh scaffold.
 - V7 `/fabrik-vision` EXISTING: a fixture backlog row tagged `[beta]` reaches the epic seeds with `owner: beta`.
@@ -221,7 +237,7 @@ processes today). Build: ~250 lines of Python across two scripts and one hook, ~
 
 ## Lifecycle
 
-Adoption: one `--adopt` per repo by agent-1, on the operator's word per repo (8 repos today are candidates).
+Adoption: one `--adopt` per repo by agent-1, on the operator's word per repo (6 synced repos are candidates today).
 Growth: rows scale linearly; the advisory's fire rate is re-measured after one week and the block decision is a
 new ledger row. Retirement: delete the flag and the two advisories; the ledger rows remain history.
 
@@ -274,8 +290,14 @@ CLAUDE.md` § Orient (d) gains the `--adopt` sentence (synced) · CHANGELOG · D
 | Pool spend | $0.049 (2 research units) | 13 native dispatches |
 | H2 sections at DRAFT | 20 (`grep -c '^## '`): 7 delta sections in full, Personas in full (new duty holder), 12 short mandated sections | 15 |
 | Lines at DRAFT | 281 (`wc -l`, this file before the review) | 471 |
+| `/fabrik-spec-review` wall-clock | 8 min (11:17→11:25 UTC), 4 passes: 5 → 5 → 2 → 0 findings; pool $0.026 (r1 ×3 finders, one returned empty) + $0.0035 (r2, ran no tools) | ~1h52m, 9 passes, 13 native dispatches |
+| Lines at CONVERGED | 297 (+16: three corrected counts, the socket claim, the tag grammar, V1b) | 672 |
+| Whole run (spec + review) | 20 min wall-clock, $0.078 pool | 2h47m net |
 
 Friction with the new text: (1) the delta profile still owes `## Personas`, `## Lifecycle` and `## Intake
 Inventory` headings for the gate — fine, but the profile text should SAY the three headings are the floor, so an
 author does not re-derive it (one sentence, filed at the close if the review agrees); (2) the 1c carve-out worked as
-intended — the two rulings cost zero citations; the four URLs ground only the mechanism.
+intended — the two rulings cost zero citations; the four URLs ground only the mechanism; (3) the review's ask ↔ spec
+table is cheap to produce because the Intake Inventory already carries the operator's words — the two artefacts
+share rows, which is the point; (4) the pool's cheapest reader ran no tools in r2 and graded every anchor
+'unverifiable' — a reader that cannot read is not a finder; the native closing read caught the three stale counts.

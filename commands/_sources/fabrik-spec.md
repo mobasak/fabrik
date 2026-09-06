@@ -331,8 +331,10 @@ interfaces — for each you can state *what it does / how you use it / what it d
   Rejected alternatives`, the constraints digest, the fabrik-lib verdict and `## Lifecycle` **collapse to
   ONE line each** unless the delta introduces a new persona, a new consumer, or a pack-relevant surface —
   then that section is written in full. The interrogative floor below still holds: the six answers live in
-  fewer sections, never in none, and `check_spec_convergence.py`'s heading checks (`## Personas`,
-  `## Lifecycle`, `## Intake Inventory`) and its 1c URL floor are unchanged — a delta on an existing engine
+  fewer sections, never in none. **The heading FLOOR under the profile is exactly three — `## Personas`,
+  `## Lifecycle`, `## Intake Inventory` — because those are what `check_spec_convergence.py` greps for; a
+  collapsed section keeps its heading and its one line** (first live delta run 2026-09-06: the author
+  re-derived this from the script — say it here instead). The 1c URL floor is unchanged — a delta on an existing engine
   still grounds its approach. A brief that fails the trigger (any item with no existing code behind it)
   takes the full section set; state the profile verdict either way. (Measured cause: a 14-line brief became
   15 H2 sections at minute 11 and 672 lines after review, brand-identiy-creator 2026-09-05.)

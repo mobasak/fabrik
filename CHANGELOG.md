@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — multi-agent adoption spec for existing projects CONVERGED (D-154) + the delta profile names its three-heading floor (2026-09-06)
+
+`docs/superpowers/specs/2026-09-06-multi-agent-adoption-design.md` (Profile: delta): one merge owner per repo declared by
+a ledger row (`MERGE OWNER: <name>`), `docs_updater.py --adopt` stamping owners on open plans / tags on backlog rows /
+seeding the PLANS markers (present in 0 of 41 projects today), a ≥2-live-sessions advisory in `--check` and at
+SessionStart (measured: 21 sessions, 8 shared checkouts, none named), `/fabrik-vision` EXISTING reading PLANS + the
+backlog. First live run of the D-153 changes: 20 min and $0.078 for spec + review (vs 2h47m); `commands/_sources/
+fabrik-spec.md` now states that the delta profile's heading floor is the three headings the convergence check greps for.
+
+
 ### Changed — /fabrik-spec + /fabrik-spec-review: ruled behaviours need no citations, a `Profile: delta` for briefs on an existing engine, and an ask ↔ spec comparison table at both closes (2026-09-06)
 
 Operator rulings D-153 on brand-identiy-creator's measured proposal (a 14-line brief → 471-line draft in
