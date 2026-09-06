@@ -198,6 +198,22 @@ single-unit ground loops solo. Enumerate what you actually read (an empty check 
 
 ## Phase 2 — Emit the plan (phases, dependency order, runnable gates)
 
+**⚠️ SIZE THE DIFF BEFORE THE SHAPE — `Profile: small` (operator ruling 2026-09-06, D-169).** Estimate
+the code diff from the spec's deltas — code lines and code files, tests excluded. **≤ ~400 code lines AND
+≤ 5 code files ⇒ write `Profile: small` on the line after `Status:`** and emit the MONOLITH with ≤3
+phases — or, only when two pieces must land as separate commits, a SET of ≤3 tickets, every one
+`Complexity: inline` (the Integration ticket stays `native`, as always). Small means INLINE execution: the
+orchestrator codes each phase itself in the main checkout, so **the READ budget is NOT a shape trigger
+and never splits a small plan** — the budget guards a cold coder's context and the profile dispatches
+none (`check_plan_tickets.py` waives it under the profile, caps the set at 3 tickets and refuses the
+pool tiers). Per phase the review is `/fabrik-review-scoped` (tests + gate + the light scoped round);
+the ONE heavy round — pool trio + native finder, ONE receipt — runs over the whole-plan diff at Finish.
+Behavior Contract rows stay one per behaviour, but the TEST budget is proportional: target ≤ ~1.5× the
+code diff in test lines, and seam tests are written ONCE, in the last phase, never repeated per phase.
+Measured 2026-09-06 on this hub: the full machinery applied to an 851-line feature produced 7 tickets,
+21 review rounds, 63 pool units, 5.7 test lines per code line and 4 h 20 min of execution, ~110 min of
+it polling for coders; the profile's floor is about an hour. Larger than that ⇒ the shape decision.
+
 **⚠️ SHAPE DECISION FIRST — monolith or spine+tickets.** Emit the **spine+ticket plan SET** when ANY
 of: the work decomposes into **>3 phases** · the projected monolith would exceed **~300 lines** · any
 single phase's computed READ set (its files + Context Files:
@@ -205,11 +221,13 @@ single phase's computed READ set (its files + Context Files:
 not-yet-created path under-counts silently, and `find` reports it only there; `xargs wc -c` batches
 into multiple misleading `total` lines and plain `wc -c` errors on `dir/` entries) exceeds
 `READ_BUDGET_BYTES` (262144 — the gate's PER-TICKET budget in
-`scripts/enforcement/check_plan_tickets.py`, reused here as the shape trigger; the byte test keeps a
+`scripts/enforcement/check_plan_tickets.py`, reused here as the shape trigger — outside `Profile: small`,
+which waives it; the byte test keeps a
 compact-but-heavy plan out of the monolith path). Smaller work keeps the single-file monolith below —
 both shapes are first-class, no forced migration of old plans. **One file larger than the budget does
 NOT force the monolith:** the per-ticket budget exempts the set's single `Integration: true` ticket
-(`check_plan_tickets.py`, the `if t.integration: continue` before the per-entry sum), so an
+(`check_plan_tickets.py`, the `if t.integration: continue` before the per-entry sum — a tally also
+skipped under `Profile: small`), so an
 indivisible oversized file (a 436 KB `app.py`, a 281 KB `scaffold.py`) is OWNED by that ticket, last
 in Merge Order, and the SET shape stays available — splitting divides the ticket, never the file
 (youtube 01M1QBPW, 2026-09-05: two plans a week apart chose a monolith for want of this sentence).
@@ -327,12 +345,14 @@ legacy lowercase alias `docs/lessons-learnt.md` still lives in older projects) a
 Touches, they are orchestrator-applied — and never own a directory that CONTAINS one: a `docs/`
 entry covers EVERY docs-resident governance file (README, FEATURES, LESSONS_LEARNT, DECISIONS,
 STRATEGIC_BACKLOG) and ERRORs; enumerate the doc paths instead) · `Gate:` tier (≤3 `Gate:` lines — WARN above) · `Complexity:` ∈
-**`simple|complex|native|never-route`** (exact token — the gate ERRORs on anything else, e.g.
+**`simple|complex|native|never-route|inline`** (exact token — `inline` only under `Profile: small`, where
+it is the ONLY code tier, gate-enforced both ways; the gate ERRORs on anything else, e.g.
 `medium`; write label and value BARE — `Complexity: simple` — a backticked value ERRORs; a bolded
 label/value is now parsed; the LABEL forms neither gate parses — `__Complexity__:`, a backticked
 label, `***Complexity***:`, a wrapped-to-next-line value — each still draw the routing-off
 finding: ERROR at the emit gate (a `***triple***`/`__bold__` VALUE parses or draws the
-unrecognized-value ERROR — fail-closed either way) → dispatch tier (**simple** →
+unrecognized-value ERROR — fail-closed either way) → dispatch tier (**inline** → no dispatch, the
+orchestrator codes it in the main checkout — only under `Profile: small` · **simple** →
 `pick_models("code", prefer="value")` · **complex** → mid pool coder, premium pool models only via a
 named trigger · **never-route** → MANDATORY native, use it whenever Touches intersect the
 never-route set (the gate cross-checks simple/complex Touches against those paths) · **native** →
@@ -341,7 +361,9 @@ Integration/receipt ticket — whose Touches are NOT never-route paths (the gate
 `native` Touches; self-verify the tier choice); both native
 tiers dispatch to the native worktree coder, `claude -p sonnet` default / `claude -p opus` for
 design-heavy auth/schema/migration/concurrency work; **Haiku never codes**; the pool is the ONLY
-route for gradeable tickets) · `## Behavior Contract` (≤8 G/W/T rows, **bulleted `- **Given** …`
+route for gradeable tickets — SUSPENDED by D-170 until the pool's write sandbox can run the repo's
+tests: `simple`/`complex` currently dispatch a native Sonnet coder with `NO-POOL: sandbox`, per
+`/fabrik-execute-plan` D2) · `## Behavior Contract` (≤8 G/W/T rows, **bulleted `- **Given** …`
 form only** — the gate reads ONLY bulleted Given rows, so numbered/table rows silently escape both
 the ≤8 cap and roll-up equality) · `## Context Files` (rule packs + refs + **every existing file the
 coder must READ** — the byte budget counts them; new-file-heavy tickets list their reference/seam
@@ -384,7 +406,7 @@ is the only place they surface on any GATE path, per Phase 5). ⚠️ **Record i
 sizing evidence, not "exit 0"**: the run ends with `graded N ticket(s), M Touches path(s), K
 Context-Files entry(ies); READ budget measured against <root>; 0 finding(s)`. A bare exit 0 is
 byte-identical to a run that graded nothing, so citing it is the un-denominated claim the
-bounded-search rule forbids. A single behavior that cannot fit the READ budget is a named BLOCKING unknown for the
+bounded-search rule forbids. Under `Profile: small` the budget is waived outright (inline execution reads nothing cold); otherwise a single behavior that cannot fit the READ budget is a named BLOCKING unknown for the
 operator — one of the two non-self-service sizing cases (the other: the Integration slot already taken).
 
 **Worked ticket skeleton** (fenced — quoted content to the plan-CONTRACT gates;

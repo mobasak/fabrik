@@ -1,6 +1,16 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+# Lesson 157: machinery with no small path makes a 300-line feature a four-hour plan — size the DIFF before choosing the shape (2026-09-06)
+
+**What happened.** The multi-agent-adoption plan shipped 851 code lines through 7 tickets, 21 review rounds, 63 pool units and 4 h 20 min of `/fabrik-execute-plan`. Measured from the transcript: ~110 min was `sleep 15` loops waiting for worktree coders (three of them pool coders that died or coded blind), 74 min was the orchestrator writing seven 80-line receipts and briefs, and a one-keyword ticket (`advisory=True`) got the same coder + trio + finder + receipt + sync as the biggest one. The plan had 7 tickets because the READ budget split one big file's feature in two and serialized the halves.
+
+**Why it survived.** Every rule fired correctly on its own terms — the budget, the caps, the per-ticket floor — and none of them asks "how big is the diff?". The shape decision keyed on bytes READ, not lines WRITTEN, so a compact change to a large file looked heavy.
+
+**Lesson.** Size the diff (code lines, code files) before the shape; a small diff runs inline with a light per-phase review and one heavy round at the end. And never split a ticket on the READ budget alone — the budget guards a cold coder, and a profile that dispatches none needs no budget.
+
+**Guard:** `Profile: small` in `fabrik-plan-after-chat.md` § Phase 2 (D-169); `check_plan_tickets.py::PROFILE_RE` waives the budget, caps the set at 3 and refuses pool tiers — `tests/enforcement/test_check_plan_tickets.py::test_small_profile_*`, red-first.
+
 # Lesson 156: changing a RENDERED STRING is a code change to every test that reads the page — and the suite you skip is the one that pinned it (2026-09-05)
 
 **What happened.** I made the dashboard's tab restore generic, because naming `"commands"` and `"external"` literally meant every tab added later silently fell through to Quota on the 20s auto-reload. The new code reads the hash and restores any pane that exists — strictly better, verified live in the browser. It also deleted the literal string `"#external"` from the rendered HTML, and `test_page_has_an_external_services_tab_with_a_lazy_iframe_and_freshness` asserted exactly that literal as its proof that the tab survives a reload. I ran the cost suites (the ones for the arithmetic I had changed), saw green, committed and pushed. The suite stayed red on master for hours until an unrelated scoped review ran it.

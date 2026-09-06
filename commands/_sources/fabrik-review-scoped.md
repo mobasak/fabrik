@@ -24,7 +24,11 @@ proportionate answer.
    KNOW is yours and say so), or
    `$ARGUMENTS` when given. List the files; classify: any gate/hook/enforcement path, auth/schema/
    migration/concurrency surface, or >5 files → **STOP and run the full `/fabrik-review` instead**
-   (say so — routing up is a success, not a failure).
+   (say so — routing up is a success, not a failure). **Invoked per phase/ticket by a `Profile: small` plan**
+   (`/fabrik-execute-plan`): step 1's trigger is SATISFIED by the plan's Finish `/fabrik-review` over the
+   whole-plan diff — record `ROUTED-TO-FINISH: <trigger>` in the round ledger and continue the light pass
+   here; never open the heavy command per ticket on THIS trigger. Step 5's three-rounds trigger still
+   escalates: a phase that keeps finding has outgrown the profile's light layer.
 2. **Arm:** `python scripts/review_rubric.py --changed <the files>` — the injected mandates plus the
    four standing recurrence classes (fail-open/fail-closed · cost/limit edges · boundary/sentinel ·
    behavior-without-a-test) are your hunt list.

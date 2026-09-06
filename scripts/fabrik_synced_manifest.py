@@ -41,6 +41,7 @@ CORE_SCRIPTS = [
     "health_checker.py",
     "select_rules.py",  # plan-time: lists applicable .windsurf/rules packs
     "review_rubric.py",  # armed-review rubric extractor — /fabrik-review injects its output into finders
+    "review_receipt.py",  # review-artifact skeleton (--init) — /fabrik-review + execute-plan D7 call it box-wide (D-169)
     # ⚠️ IMPORT DEPENDENCY of the two above — both `import rules_match` at MODULE SCOPE, so a sync
     # that ships them without it breaks BOTH fleet-wide with ModuleNotFoundError. Measured live
     # 2026-08-25: the pair synced first, and 48 of 49 projects' `select_rules.py` died at import

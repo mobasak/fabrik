@@ -46,7 +46,15 @@ Checks (per the 2026-08-04 spine-ticket plan, the canonical grammar):
   pool tier is an ERROR (receipts run native).
 - **Grounding floor:** every non-Integration ticket carries ≥1 ``path:line``.
 - **Sizing:** READ budget ≤ READ_BUDGET_BYTES; ≤8 behaviors and ≤3 Gate lines are
-  ALWAYS WARN; ``Integration: true`` exempt from all three. Only the READ budget
+  ALWAYS WARN; ``Integration: true`` exempt from all three. A spine declaring
+  ``Profile: small`` (inline execution — the orchestrator codes, no cold coder)
+  WAIVES the READ budget ONLY (the behaviour/Gate caps and the gate-mask ERROR
+  still grade), caps the set at 3 tickets and admits only the native-executed
+  tiers ``Complexity: inline|native|never-route`` (the Integration ticket stays
+  ``native``/``never-route``); ``inline`` outside
+  that profile is an ERROR. The Profile line is read from the spine's HEADER
+  ZONE (before the first ``##`` heading), line-end anchored, blockquote- and
+  fence-stripped (tilde fences included), so a quoted example never arms it. Only the READ budget
   takes the invocation-context severity: cli/flip = ERROR; the gate path = WARN
   while the spine is DRAFT, IN-PROGRESS or EXECUTED (a merged set cannot be re-split). (validate_conventions exempts this
   check's WARNs from --strict promotion — they are designed advisories.)
@@ -176,6 +184,43 @@ STATUS_RE = re.compile(
 )
 # PLANNED is DRAFT's sanctioned synonym (fabrik-plan-after-chat Phase 4).
 _DRAFT_LIKE = ("DRAFT", "PLANNED", "")
+# `Profile: small` — the spine's opt-in to the INLINE execution profile (fabrik-plan-after-chat
+# Phase 2, operator ruling 2026-09-06): the orchestrator codes every ticket itself in the main
+# checkout, so no cold coder ever reads a ticket — the READ budget (a cold-coder guard) is waived,
+# the set is capped at SMALL_PROFILE_MAX_TICKETS, and only the native-executed tiers are admitted.
+# Bold-tolerant like STATUS_RE; searched on the same blockquote-stripped scan.
+PROFILE_RE = re.compile(
+    r"^\s*(?:[-*>]\s+)?\*{0,2}Profile\*{0,2}[^\S\n]*:[^\S\n]*\*{0,2}[^\S\n]*\*{0,2}(small)\*{0,2}"
+    r"[^\S\n]*$",
+    re.I | re.M,
+)
+# Tilde fences are OUT of `_FENCE_RE`'s contract (fail-closed everywhere else); here a fenced
+# example must never ARM a waiver, so the header zone strips them too.
+_TILDE_FENCE_RE = re.compile(r"^[ \t]*~{3,}[^\n]*\n.*?^[ \t]*~{3,}[ \t]*$", re.M | re.S)
+# an UNCLOSED tilde opener absorbs to the end of the zone (renderer behaviour; fail-closed — the
+# balanced regex alone left `~~~\nProfile: small` visible and armed the waiver, executed)
+_TILDE_OPEN_RE = re.compile(r"^[ \t]*~{3,}[^\n]*$", re.M)
+_FIRST_SECTION_RE = re.compile(r"^#{2,6}\s", re.M)
+
+
+def _header_zone(status_scan: str) -> str:
+    """The spine's header — everything before its first `##` heading, tilde fences removed.
+
+    `Profile:` is a HEADER field (fabrik-plan-after-chat: "the line after `Status:`"). Searching
+    the whole spine let a bullet in `## Global Constraints` or a tilde-fenced example arm the
+    waiver (round-1 finder, executed); the zone is where the field lives, nowhere else. A spine
+    with NO `##` heading is all header by this definition — and it fails the structure checks
+    (`## Ticket Board` is mandatory), so the profile it declares never reaches a dispatcher."""
+    zone = _TILDE_FENCE_RE.sub("", status_scan)
+    m = _FIRST_SECTION_RE.search(zone)
+    zone = zone[: m.start()] if m else zone
+    dangling = _TILDE_OPEN_RE.search(zone)
+    return zone[: dangling.start()] if dangling else zone
+
+
+SMALL_PROFILE_MAX_TICKETS = 3
+COMPLEXITY_VALUES = ("simple", "complex", "native", "never-route", "inline")
+SMALL_PROFILE_TIERS = ("inline", "native", "never-route")  # every native-executed tier
 # G/W/T rows: indentable bullets, case-insensitive, bold optional (aligned with
 # check_test_proposal's counter). Scoped to the Behavior Contract SECTION by the
 # callers — a Given quoted in ## Scope must not become a phantom roll-up row.
@@ -1537,6 +1582,7 @@ def check_plan_dir(
     status_scan = _BLOCKQUOTE_RE.sub("", spine_scan)
     status_m = STATUS_RE.search(status_scan)
     spine_status = status_m.group(1).upper() if status_m else ""
+    spine_small = bool(PROFILE_RE.search(_header_zone(status_scan)))
     # A PRESENT-but-unrecognized Status (`Status: COMPLETE`, `Status: Done ✅`, a
     # typo) must FAIL CLOSED — inheriting the absent-status DRAFT protection
     # would let one bad token silence the whole contract at the gate.
@@ -1647,6 +1693,16 @@ def check_plan_dir(
     elif order and order[-1] != integrations[0]:
         results.append(
             _err(f"Integration ticket {integrations[0]} must be LAST in Merge Order", spine)
+        )
+    if spine_small and len(tickets) > SMALL_PROFILE_MAX_TICKETS:
+        results.append(
+            _err(
+                f"Profile: small caps the set at {SMALL_PROFILE_MAX_TICKETS} tickets "
+                f"(found {len(tickets)}) — a larger set is not small",
+                spine,
+                hint="Merge tickets that exist only because a file is big (the profile waives "
+                "the READ budget), or drop the Profile line and size for the dispatcher",
+            )
         )
 
     # --- Ownership (OVERLAP-aware: dir-vs-file covered, not just exact match) ----
@@ -2053,23 +2109,43 @@ def check_plan_dir(
                     hint="Write the field bare: `Complexity: simple|complex|native|never-route`",
                 )
             )
-        if t.complexity and t.complexity not in ("simple", "complex", "native", "never-route"):
+        if t.complexity and t.complexity not in COMPLEXITY_VALUES:
             results.append(
                 _err(
                     f"{t.tid}: unrecognized Complexity value '{t.complexity}' "
-                    "(simple|complex|native|never-route)",
+                    f"({'|'.join(COMPLEXITY_VALUES)})",
                     t.path,
                     hint="An unknown tier would silently skip the never-route routing check",
                 )
             )
-        if t.integration and t.complexity in ("simple", "complex"):
+        if t.complexity == "inline" and not spine_small:
             results.append(
                 _err(
-                    f"{t.tid}: Integration ticket routed to a pool tier "
-                    f"(Complexity: {t.complexity}) — receipts run native",
+                    f"{t.tid}: Complexity: inline is the Profile: small tier — declare "
+                    "`Profile: small` on the spine, or pick simple|complex|native|never-route",
+                    t.path,
+                    hint="inline = the orchestrator codes it in the main checkout; outside the "
+                    "small profile the dispatcher has no such lane",
+                )
+            )
+        if spine_small and t.complexity and t.complexity not in SMALL_PROFILE_TIERS:
+            results.append(
+                _err(
+                    f"{t.tid}: Profile: small admits only inline|native|never-route — Complexity: "
+                    f"{t.complexity} dispatches a cold worktree coder the profile exists to avoid",
+                    t.path,
+                    hint="Set Complexity: inline (the Integration ticket stays native), or drop "
+                    "the Profile line and size the set for the dispatcher",
+                )
+            )
+        if t.integration and t.complexity and t.complexity not in ("native", "never-route"):
+            results.append(
+                _err(
+                    f"{t.tid}: Integration ticket routed off the native tiers "
+                    f"(Complexity: {t.complexity}) — receipts run native, under every profile",
                     t.path,
                     hint="The Integration ticket owns whole-plan gates and reviews; "
-                    "set Complexity: native",
+                    "set Complexity: native (never-route is the same native coder, admitted)",
                 )
             )
         if t.complexity in ("simple", "complex"):
@@ -2140,7 +2216,10 @@ def check_plan_dir(
         # debugging loop into a read (transdoc, 2026-08-22: a 102KB surprise from
         # `public/i18n/` counted as a subtree).
         per_entry: dict[str, int] = {}
-        if root is not None:
+        # Profile: small waives the READ budget ONLY — no cold coder reads the ticket — so the tally
+        # is skipped here and the behaviour/Gate caps and the gate-mask ERROR below still grade
+        # (round-1 finder: a `continue` at the loop head had silently waived all three).
+        if root is not None and not spine_small:
             for p in dict.fromkeys(t.touches + t.context_files):
                 # Out-of-repo tokens already ERRORed — and `root / "/etc"` would
                 # REPLACE root (pathlib absolute-RHS) while `../` climbs out;
@@ -2245,6 +2324,8 @@ def check_plan_dir(
             if root is not None
             else "READ budget NOT MEASURED — no repo root resolvable (pass --project-root)"
         )
+        if spine_small:
+            _budget = "READ budget WAIVED (Profile: small — inline execution, no cold coder)"
         results.append(
             _err(
                 f"graded {len(tickets)} ticket(s), "

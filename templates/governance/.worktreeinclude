@@ -36,6 +36,7 @@ scripts/doc_reconcile.py
 scripts/health_checker.py
 scripts/select_rules.py
 scripts/review_rubric.py
+scripts/review_receipt.py
 scripts/rules_match.py
 scripts/release_cut.py
 scripts/mail.py

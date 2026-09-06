@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — rotation: relief on a sibling now MOVES the pointer when the active account is in the drain band (2026-09-06)
+
+Incident 23:01-23:17 +03: the advisory leg lifted the fleet-exhausted hold the moment ozgurbasak@'s 5h
+window reset, but the flip leg flips only when the ACTIVE account trips (session ≥ 95 or weekly ≥ its
+cap) — mob@ sat at session 93 / weekly 97 (cap 99), so every released session resumed on the drained
+account for sixteen minutes while a fresh account idled at 0 / 19 (measured by fabrik-lib's infra agent,
+01M1W5YQ55PECZRJS2PNGNYNXS; the operator saw it live). The tick now performs a **drain-band relief
+flip**: active at/over `ROTATE_DRAIN_THRESHOLD` (85) on its hottest window + a validated successor
+BELOW that threshold on both windows (the hysteresis that prevents ping-pong) → flip under the ordinary
+dwell, with a `drain-band relief` tick line and a Telegram note. Both twins. Graders: the incident
+fixture flips, a successor at weekly 87 does not, an active at 60/50 does not (red on HEAD's file,
+green on the fix). D-171.
+
+### Added — `Profile: small`: an inline execution profile for small plans, and a review-receipt generator (2026-09-06)
+- **Measured first** (operator: "how long did each one take, why that long"): on the multi-agent-adoption plan, 851 code lines cost `/fabrik-plan-after-chat` 9 min, `/fabrik-plan-review` 5 min and `/fabrik-execute-plan` 4 h 20 min — 7 tickets, 21 review rounds, 63 pool units, 4,870 test lines, ~110 min of it polling for worktree coders, 74 min of orchestrator turns writing seven 80-line receipts. The per-ticket machinery had no small path.
+- **`Profile: small`** (D-169): a plan whose code diff is ≤ ~400 lines over ≤ 5 files declares the profile on the line after `Status:`; the orchestrator codes each phase INLINE in the main checkout (a set's tickets carry the new `Complexity: inline`), the READ budget is waived and never splits a small plan, `/fabrik-review-scoped` closes each phase/ticket (the operator's explicit ask), ONE heavy round + ONE receipt and ONE forced sync run at Finish, and the test budget is proportional (≤ ~1.5× the code diff, seam tests once). Text in `fabrik-plan-after-chat.md` § Phase 2, `fabrik-execute-plan.md` step 0 / D2 / D4 / D5 / D7, `fabrik-review-scoped.md` step 1.
+- **Gate** (`scripts/enforcement/check_plan_tickets.py`): `PROFILE_RE` reads the spine's `Profile: small`; under it the READ budget is waived — ONLY the budget: the behaviour/Gate caps and the gate-mask ERROR still grade (round-1 finder caught a loop-head `continue` that waived all three) — the set is capped at 3 tickets, only `inline|native` are admitted and the Integration ticket stays native; `inline` outside the profile is an ERROR; the Profile line is read from the header zone, line-end anchored, with tilde fences stripped, so a quoted example never arms it. Five red-first tests in `tests/enforcement/test_check_plan_tickets.py`.
+- **`scripts/review_receipt.py --init`**: emits the review-artifact skeleton `check_review_coverage.py` grades — the pasted rubric run, the `Surface:` hash, the standing recurrence rows, the ledger and phase-verdict shapes — born `Status: IN-PROGRESS` with every verdict slot `UNCHECKED` (a lazy flip fails the gate); the `Surface:` anchor hashes the tracked diff PLUS every untracked changed file and the script REFUSES an empty surface (round-1 finder: md5 of nothing satisfied the gate); exclusive create, never an overwrite; fails closed when the rubric cannot run; fleet-synced (`fabrik_synced_manifest.py`) because the commands that call it render box-wide. `tests/test_review_receipt.py` proves a mechanically completed skeleton passes the gate with zero findings.
+- **Pool write-mode coders are OFF for code tickets** until the pool sandbox can run the repo's tests (D-170; 3 of 3 failed 2026-09-06, finding 01M1V98VN3QNS73GCR3GYF9FXH to intel): `simple`/`complex` dispatch a native Sonnet coder with `NO-POOL: sandbox`.
+
 ### Changed — Free-model roster: guards, and two comments corrected against the code (2026-09-06)
 - Review refinements on top of the roster entry above (whose text landed in `0ddf4106`, a sibling's commit that swept the uncommitted hunk — nothing lost, provenance only).
 - **Corrected a false comment of my own**: it claimed free models "lead the order for every task kind". The live doc contradicted that for four of six — the tuple orders only the ALLOWLIST-emitted rows (backstop/top-up), never a kind's measured rows, which rank by cost among gate survivors. `plan` and `spec` lead free because they have no fleet data; the rest lead with the measured DeepSeek.

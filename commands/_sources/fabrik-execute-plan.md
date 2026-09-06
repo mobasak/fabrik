@@ -38,7 +38,11 @@ TASK terminator, and the record is what proves the task is actually over.
    **Corroborate before committing to the mode:** a real set has the dated directory + a same-stem
    spine + ≥1 `T##` ticket file — a lone `## Ticket Board` string in a monolith's prose with no
    ticket files is NOT a set (run phase mode and report the anomaly). A
-   monolith plan file runs the phase mode below verbatim.
+   monolith plan file runs the phase mode below verbatim. **A spine or monolith declaring `Profile: small`**
+   (the line after `Status:`) runs its profile in either mode: every phase/ticket is coded INLINE by the
+   orchestrator in the main checkout (no worktree coder, no dispatch wait — a set's tickets carry
+   `Complexity: inline`), `/fabrik-review-scoped` closes each phase/ticket, and the ONE heavy review and the
+   ONE forced sync run at Finish (D2/D4/D5/D7 name the deltas; everything unnamed binds unchanged).
 1. Read the plan file fully.
 2. Read `agents-fabrik.md` — the canonical infra + codebase map (`AGENTS.md` is a stub).
 3. Run `python scripts/select_rules.py` and read **every ACTIVE pack**.
@@ -217,7 +221,10 @@ Format when blocked: `BLOCKED: <what> — searched: <sources checked> — missin
    output between start and finish is **exactly**: a one-line phase-boundary marker per phase, and the
    final completion block. Commit per phase as specified.
 2. **Fix, don't ask.** Test failures mean your code is wrong. Read the error, fix, re-run. After 3 consecutive failures on the same test with different fix approaches → STOP and report.
-3. **Phase reviews run as parallel subagents.** At each phase boundary, run the full `/fabrik-review`
+3. **Phase reviews run as parallel subagents.** **Under `Profile: small` the per-phase pass is
+   `/fabrik-review-scoped` (its round ledger is the artifact; its route-up trigger defers to the Finish
+   review) and the full round below runs ONCE at Finish over the whole-plan diff — the rest of this item
+   binds unchanged.** Otherwise, at each phase boundary, run the full `/fabrik-review`
    methodology on the changed surface *plus everything it calls / is called by* — dispatch its independent
    **finder passes pool-default** (per `/fabrik-review` § Dispatch policy — `fanout("review", …, mode="read_only")`, which auto-records each finder UNSCORED then wants a `set_quality` back-fill), reserving
    **native `fabrik-reviewer` (Opus)** for a phase diff touching auth / schema / migrations / secrets /
@@ -491,9 +498,17 @@ its Touches (contract violation → its diff is rejected at acceptance).
 - **Dispatch timeout:** a coder with no result within 2× the ticket's plan-time estimate (no estimate
   stated → use 30 min as the estimate, i.e. a 60-minute timeout) → the D6 salvage procedure; 2
   consecutive timeouts on one ticket → 🔴.
-- **Coder runtime per `Complexity:` (all FOUR values):** **`simple`** →
+- **Coder runtime per `Complexity:` (all FIVE values):** **`inline`** (only under `Profile: small` —
+  gate-enforced) → NO dispatch: the orchestrator codes the ticket itself in the main checkout and
+  commits per D5 — no worktree, no polling loop · **`simple`** →
   `pick_models("code", prefer="value")` pool unit · **`complex`** → mid pool coder — both via
-  `fanout("code", units=[{task, owned_paths: <ticket Touches>}…], mode="write")` · **`never-route`** →
+  `fanout("code", units=[{task, owned_paths: <ticket Touches>}…], mode="write")` — ⚠️ **but pool
+  write-mode coders are OFF for code tickets until the pool sandbox can run the repo's tests**
+  (measured 2026-09-06: 3 of 3 pool coders failed — two died idle, one returned undefined names — because
+  the write sandbox has no venv and cannot run pytest; filed to intel 01M1V98VN3QNS73GCR3GYF9FXH; D-170):
+  until that mail closes, `simple`/`complex` dispatch a NATIVE worktree coder (Sonnet) with
+  `NO-POOL: sandbox` declared per ticket, and the pool stays the review/research breadth layer, where it
+  records and scores · **`never-route`** →
   native worktree coder (**gate cross-check:** the gate independently ERRORs a pool-tier ticket
   touching never-route paths — trust it, don't re-derive) · **`native`** → native worktree coder by
   AUTHOR'S CHOICE for non-never-route work the pool must not code (the Integration ticket always
@@ -513,14 +528,16 @@ its Touches (contract violation → its diff is rejected at acceptance).
     finder, never a coder. **Opus** = the per-round per-ticket authoritative finder + design-heavy
     never-route coding. **Sonnet** = default never-route coder; as a native finder ONLY via a named
     trigger (breadth is trigger-funded, not routine). **Haiku** = trivial-mechanical checks; never codes.
-  - **Count discipline — the floor IS the default, per review ROUND:** each per-ticket review round =
+  - **Count discipline — the floor IS the default, per review ROUND (the exception is `Profile: small`:
+    there the per-ticket layer is `/fabrik-review-scoped` and this floor runs once, at D7):** each per-ticket review round =
     **2–3 diverse pool finders + exactly 1 native Opus finder**; every material re-review round re-runs
     the floor; scale up by at most +2 finders (pool-tier unless never-route) ONLY on a named trigger
     (diff >~400 net LOC · never-route surface · a repeat-failed round). Grounding fan-outs: one unit per
     independent dependency, never per file.
   - **Quota-pause terminal:** a native call failing on quota exhaustion (not a transient error) → the
     plan PAUSES: lock `status: "paused"`, Board preserved, spine stays IN-PROGRESS; resume on quota
-    reset/rotation. **The Opus floor is never substitutable downward** — quota pressure pauses the plan,
+    reset/rotation. **The Opus floor is never substitutable downward** (the `Profile: small` per-ticket
+    layer is not a substitution — the floor still runs, once, at D7) — quota pressure pauses the plan,
     it never thins the review.
 
 ### D3 — Shared governance files: orchestrator-applied Deltas
@@ -545,12 +562,17 @@ mechanism.
 
 ("ettw-07" is provenance — the epic-to-ticket workflow step this floor was adapted from; the CONTRACT
 is the text below, self-contained.) Each returned ticket converges to `/fabrik-review`'s coverage-adjudicated exit BEFORE merge — pool
-breadth (counts per D2) **AND exactly 1 native Opus finder per round, UNCONDITIONAL**. **Secrets
+breadth (counts per D2) **AND exactly 1 native Opus finder per round, UNCONDITIONAL** (under
+`Profile: small` this floor runs ONCE, at D7 — the carve-out below). **Secrets
 carve-out:** a diff touching secret-material paths (`.env` / `.env.*` **except `.env.example`** — the
 Doc-Sync-Matrix file every env-var change touches; without the exemption a routine env-var phase goes
 native-only and the flywheel floor blocks it — `secrets/`, key files) is reviewed
 **native-only** — secret contents never go to pool APIs; all other never-route classes get both layers.
-The orchestrator refutes/merges/adjudicates; fixups route per D2. Each ticket's review is persisted as
+The orchestrator refutes/merges/adjudicates; fixups route per D2. **Under `Profile: small` the per-ticket
+layer is `/fabrik-review-scoped`** — tests + gate + the light scoped round, its run record the artifact, NO
+per-ticket review file — and the floor above runs ONCE at D7 over the whole-plan diff into the single
+receipt; the rest of this section (docs converge with the ticket, fixups, 3-strikes) binds unchanged.
+Otherwise each ticket's review is persisted as
 `docs/development/reviews/<plan>-T<id>-review.md` (full ID; **one file per ticket, round sections
 APPENDED**, each round carrying a machine-readable roster line — `Finders: pool <model×n> + native
 <model×n> — round N` — so the floor is attestable, not asserted). `/fabrik-generate-tests` runs at
@@ -573,7 +595,11 @@ time anyone looks.
 
 Merge in `## Merge Order`. Merges are **squash-applied**: code + spine Board flip + applied Deltas staged
 in ONE ordinary commit with the full-ID `Agent-Task:` trailer — same-commit atomicity is what makes the
-Board trustworthy. Touches are exclusively owned → a same-file collision between coders is a **contract
+Board trustworthy. **Synced surfaces sync ONCE, at Finish:** a merge that lands a fleet-synced path
+(`scripts/fabrik_synced_manifest.py`) through plumbing that skips the post-commit governance sync owes one
+`python3 scripts/sync_enforcement_to_projects.py --force` after the LAST merge, never per merge — the sync
+is idempotent and a project's older-but-unmodified copy passes its own gate until then
+(`check_synced_unmodified.py`); 2026-09-06 ran five forced syncs of 45 repos inside one plan. Touches are exclusively owned → a same-file collision between coders is a **contract
 violation → ERROR + re-dispatch**, never a merge-rule pick. Cross-ticket semantic incompatibility is
 caught by tests, not diffs: at each merge, re-run the producer tickets' Behavior-Contract tests + the
 consumer's seam tests on the integrated tree — red → fixup routed to the **CONSUMER's coder** with both
@@ -619,7 +645,11 @@ gate-enforced) owns the monolith's mandatory closing work: the whole-plan doc re
 `/fabrik-features` when features shipped, the cross-ticket seam-test run, and the whole-plan
 `final_gate.py --check --json` + `check_convergence.py` run; its command outputs and doc-drift fixes
 flow through `## Deltas` (D3), and it merges like any ticket. D7's validation is the adversarial
-layer ON TOP of those receipts — never a substitute for them.
+layer ON TOP of those receipts — never a substitute for them. **The whole-plan receipt starts from
+`python scripts/review_receipt.py --init --scope <plan-slug> --changed <the plan's code paths> --range
+<baseline>..HEAD --plan <spine>`** — the generator writes the rubric run, the `Surface:` hash, the standing
+rows and the ledger/phase shapes; the reviewer writes every verdict (born `IN-PROGRESS`; a lazy flip fails
+the gate). Under `Profile: small` this is the plan's ONLY review artifact.
 
 Validation runs only when every non-🔴 ticket is terminal (✅ — no ⬜ dispatchable, no 🔵/🟡 in
 flight, all salvage procedures complete). ONE whole-plan validation — internally consistent · factual · correct:

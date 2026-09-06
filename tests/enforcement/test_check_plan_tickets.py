@@ -245,7 +245,9 @@ def test_staleness_resolves_a_scratch_copy_against_the_given_root_too(tmp_path: 
         cpt._repo_root = orig  # type: ignore[assignment]
 
 
-def test_an_external_run_names_a_defaulted_root_even_when_spelled_as_dot(tmp_path: Path, monkeypatch) -> None:
+def test_an_external_run_names_a_defaulted_root_even_when_spelled_as_dot(
+    tmp_path: Path, monkeypatch
+) -> None:
     """The NOTE compared the RAW --project-root to Path.cwd(), so `--project-root .` — the most
     natural spelling of the default — silenced it while resolving to the same tree (review pass 3,
     native finder, executed). Compare resolved paths."""
@@ -260,10 +262,25 @@ def test_an_external_run_names_a_defaulted_root_even_when_spelled_as_dot(tmp_pat
     script = Path(cpt.__file__).resolve()
     repo_root = script.parents[2]
     outs = {}
-    for label, extra in (("default", []), ("dot", ["--project-root", "."]), ("explicit", ["--project-root", str(tmp_path)])):
+    for label, extra in (
+        ("default", []),
+        ("dot", ["--project-root", "."]),
+        ("explicit", ["--project-root", str(tmp_path)]),
+    ):
         proc = subprocess.run(
-            [sys.executable, "-m", "scripts.enforcement.check_plan_tickets", "--plan-dir", str(scratch), "--allow-external", *extra],
-            cwd=repo_root, capture_output=True, text=True, timeout=60,
+            [
+                sys.executable,
+                "-m",
+                "scripts.enforcement.check_plan_tickets",
+                "--plan-dir",
+                str(scratch),
+                "--allow-external",
+                *extra,
+            ],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            timeout=60,
         )
         outs[label] = proc.stdout
     assert "NOTE: --allow-external is resolving" in outs["default"], outs["default"]
@@ -381,7 +398,9 @@ def test_bc9_budget_overrun_names_the_entry_that_blew_it(tmp_path: Path) -> None
     bulk = tmp_path / "src" / "bulk"
     bulk.mkdir(parents=True, exist_ok=True)
     (bulk / "big.py").write_text("y" * (cpt.READ_BUDGET_BYTES + 1), encoding="utf-8")
-    msg = next(m for m in _errors(cpt.check_plan_dir(plan_dir, context="cli")) if "READ budget" in m)
+    msg = next(
+        m for m in _errors(cpt.check_plan_dir(plan_dir, context="cli")) if "READ budget" in m
+    )
     assert "src/bulk/=" in msg, msg  # the subtree entry is named, not just the total
     assert str(cpt.READ_BUDGET_BYTES + 1) in msg
 
@@ -562,7 +581,9 @@ def test_bc24_rollup_still_catches_a_genuinely_different_behavior(tmp_path: Path
 def test_bc24_rollup_does_not_strip_a_non_citation_parenthetical(tmp_path: Path) -> None:
     """`(observable)` is prose, not grounding — stripping it would erase real signal."""
     spine = SPINE.replace("**Then** 201 (src/app/api.py:1)", "**Then** 201 (idempotently)")
-    assert any("matches no ticket" in m for m in _errors(cpt.check_plan_dir(_build(tmp_path, spine=spine))))
+    assert any(
+        "matches no ticket" in m for m in _errors(cpt.check_plan_dir(_build(tmp_path, spine=spine)))
+    )
 
 
 # --- BC 10 + 21: board staleness (execution window) ---------------------------------------
@@ -2113,7 +2134,12 @@ def test_the_masking_check_is_wired_into_the_audit_not_just_defined():
 
 
 def test_the_frozen_contracts_are_exempt_from_the_read_budget():
-    for f in ("docs/ui-design.md", "docs/flows.md", "docs/data-contract.md", "docs/design-system.md"):
+    for f in (
+        "docs/ui-design.md",
+        "docs/flows.md",
+        "docs/data-contract.md",
+        "docs/design-system.md",
+    ):
         assert f in cpt.BUDGET_EXEMPT_READS, f
 
 
@@ -2189,7 +2215,9 @@ def test_allow_external_admits_a_scratch_copy_and_refuses_without(tmp_path):
     containment refusal names the flag; the dated-dir rule binds regardless."""
     import sys as _sys
 
-    script = Path(__file__).resolve().parents[2] / "scripts" / "enforcement" / "check_plan_tickets.py"
+    script = (
+        Path(__file__).resolve().parents[2] / "scripts" / "enforcement" / "check_plan_tickets.py"
+    )
     d = tmp_path / "2026-09-01-plan-9-scratch"
     d.mkdir()
     (d / "2026-09-01-plan-9-scratch.md").write_text("# spine\nStatus: DRAFT\n")
@@ -2235,3 +2263,170 @@ def test_bc9_budget_overrun_on_an_executed_spine_is_advisory_on_the_gate_path(
     gate = cpt.check_plan_dir(plan_dir, context="gate")
     assert not any("READ budget" in m for m in _errors(gate)), gate
     assert any("READ budget" in m for m in _warns(gate))
+
+
+# --- Profile: small (operator ruling 2026-09-06 — the small-plan profile) ----------------------
+# A plan whose spine declares `Profile: small` is executed INLINE by the orchestrator: no cold
+# coder ever reads the ticket, so the READ budget (a cold-coder guard) does not apply; the profile
+# caps the set at three tickets and admits only the native-executed tiers (`inline` | `native`).
+
+
+def _small_spine() -> str:
+    return SPINE.replace("Status: DRAFT", "Status: DRAFT\nProfile: small")
+
+
+def _oversized(root: Path) -> None:
+    big = root / "src" / "app" / "schema.py"
+    big.parent.mkdir(parents=True, exist_ok=True)
+    big.write_text("x" * (cpt.READ_BUDGET_BYTES + 10), encoding="utf-8")
+
+
+def test_inline_complexity_outside_the_small_profile_is_an_error(tmp_path: Path) -> None:
+    t1 = T01.replace("Complexity: simple", "Complexity: inline")
+    plan_dir = _build(
+        tmp_path, tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99}
+    )
+    errs = _errors(cpt.check_plan_dir(plan_dir))
+    assert any("inline" in m and "Profile: small" in m for m in errs), errs
+
+
+def test_small_profile_accepts_inline_and_skips_the_read_budget(tmp_path: Path) -> None:
+    _oversized(tmp_path)
+    t1 = T01.replace("Complexity: simple", "Complexity: inline")
+    t2 = T02.replace("Complexity: simple", "Complexity: inline")
+    plan_dir = _build(
+        tmp_path,
+        spine=_small_spine(),
+        tickets={"T01-schema.md": t1, "T02-api.md": t2, "T99-integration.md": T99},
+    )
+    results = cpt.check_plan_dir(plan_dir)
+    msgs = [r.message for r in results]
+    assert not any("exceeds READ_BUDGET_BYTES" in m for m in msgs), msgs
+    assert any("READ budget WAIVED (Profile: small" in m for m in msgs), msgs
+    assert not any("unrecognized Complexity" in m for m in msgs), msgs
+    assert not _errors(results), _errors(results)
+
+
+def test_default_profile_still_grades_the_read_budget(tmp_path: Path) -> None:
+    _oversized(tmp_path)
+    plan_dir = _build(tmp_path)
+    msgs = [r.message for r in cpt.check_plan_dir(plan_dir)]
+    assert any("READ budget" in m for m in msgs), msgs
+
+
+def test_small_profile_refuses_more_than_three_tickets(tmp_path: Path) -> None:
+    t1 = T01.replace("Complexity: simple", "Complexity: inline")
+    t2 = T02.replace("Complexity: simple", "Complexity: inline")
+    t3 = (
+        T02.replace("# T02 — api", "# T03 — cli")
+        .replace("Depends: T01", "Depends: T02")
+        .replace("Complexity: simple", "Complexity: inline")
+        .replace("src/app/api.py", "src/app/cli.py")
+    )
+    t99 = T99.replace("Depends: T02", "Depends: T03")
+    spine = (
+        _small_spine()
+        .replace(
+            "| T99 | integration | T02 |",
+            "| T03 | cli | T02 | ⛓️ | ⬜ | |\n| T99 | integration | T03 |",
+        )
+        .replace("2. T02\n3. T99", "2. T02\n3. T03\n4. T99")
+        .replace("- src/app/api.py\n", "- src/app/api.py\n- src/app/cli.py\n")
+    )
+    plan_dir = _build(
+        tmp_path,
+        spine=spine,
+        tickets={
+            "T01-schema.md": t1,
+            "T02-api.md": t2,
+            "T03-cli.md": t3,
+            "T99-integration.md": t99,
+        },
+    )
+    errs = _errors(cpt.check_plan_dir(plan_dir))
+    assert any("Profile: small" in m and "3" in m for m in errs), errs
+
+
+def test_small_profile_refuses_pool_tiers(tmp_path: Path) -> None:
+    plan_dir = _build(tmp_path, spine=_small_spine())  # T01/T02 are `Complexity: simple`
+    errs = _errors(cpt.check_plan_dir(plan_dir))
+    assert any("Profile: small" in m and "simple" in m for m in errs), errs
+
+
+def _inline_set() -> dict[str, str]:
+    return {
+        "T01-schema.md": T01.replace("Complexity: simple", "Complexity: inline"),
+        "T02-api.md": T02.replace("Complexity: simple", "Complexity: inline"),
+        "T99-integration.md": T99,
+    }
+
+
+def test_a_quoted_profile_line_never_arms_the_profile(tmp_path: Path) -> None:
+    quoted = {
+        "blockquote": "Status: DRAFT\n> Profile: small",
+        "backtick fence": "Status: DRAFT\n```\nProfile: small\n```",
+        "tilde fence": "Status: DRAFT\n~~~\nProfile: small\n~~~",
+        "body bullet": "Status: DRAFT",  # declared below the first ## heading instead
+        "hyphenated value": "Status: DRAFT\nProfile: small-batch",
+        "unclosed tilde fence": "Status: DRAFT\n~~~\nProfile: small",
+        "H1 mention": "Status: DRAFT",  # the H1 is rewritten below
+    }
+    for label, header in quoted.items():
+        spine = SPINE.replace("Status: DRAFT", header)
+        if label == "body bullet":
+            spine = spine.replace(
+                "## Global Constraints\n\n- None.", "## Global Constraints\n\n- Profile: small"
+            )
+        if label == "H1 mention":
+            spine = spine.replace("# Plan: widget", "# Plan: widget — not a Profile: small plan")
+        root = tmp_path / label.replace(" ", "_")
+        plan_dir = _build(root, spine=spine, tickets=_inline_set())
+        results = cpt.check_plan_dir(plan_dir)
+        msgs = [r.message for r in results]
+        assert any("inline is the Profile: small tier" in m for m in _errors(results)), (
+            label,
+            msgs,
+        )
+        assert not any("WAIVED" in m for m in msgs), (label, msgs)
+
+
+def test_small_profile_waives_only_the_read_budget(tmp_path: Path) -> None:
+    _oversized(tmp_path)
+    tickets = _inline_set()
+    tickets["T01-schema.md"] = (
+        tickets["T01-schema.md"]
+        .replace("- docs/small-context.md", "- docs/*.md")
+        .replace(
+            "Gate: pytest -q tests/test_schema.py", "Gate: pytest -q tests/test_schema.py | tail -5"
+        )
+    )
+    plan_dir = _build(tmp_path, spine=_small_spine(), tickets=tickets)
+    results = cpt.check_plan_dir(plan_dir)
+    msgs = [r.message for r in results]
+    assert not any("exceeds READ_BUDGET_BYTES" in m for m in msgs), msgs
+    assert any("glob 'docs/*.md'" in m for m in _warns(results)), msgs
+    masked = [r for r in results if "tail" in r.message and r.severity.value == "error"]
+    assert masked, msgs  # the gate-mask ERROR still grades under the profile
+
+
+def test_small_profile_keeps_the_integration_ticket_native(tmp_path: Path) -> None:
+    tickets = _inline_set()
+    tickets["T99-integration.md"] = T99.replace("Complexity: native", "Complexity: inline")
+    plan_dir = _build(tmp_path, spine=_small_spine(), tickets=tickets)
+    errs = _errors(cpt.check_plan_dir(plan_dir))
+    assert any("T99: Integration ticket routed off the native tiers" in m for m in errs), errs
+
+
+def test_bold_profile_label_and_value_both_parse(tmp_path: Path) -> None:
+    spine = SPINE.replace("Status: DRAFT", "Status: DRAFT\n**Profile:** **small**")
+    plan_dir = _build(tmp_path, spine=spine, tickets=_inline_set())
+    results = cpt.check_plan_dir(plan_dir)
+    assert not _errors(results), _errors(results)
+    assert any("WAIVED" in r.message for r in results)
+
+
+def test_small_profile_admits_a_never_route_integration_ticket(tmp_path: Path) -> None:
+    tickets = _inline_set()
+    tickets["T99-integration.md"] = T99.replace("Complexity: native", "Complexity: never-route")
+    plan_dir = _build(tmp_path, spine=_small_spine(), tickets=tickets)
+    assert not _errors(cpt.check_plan_dir(plan_dir))
