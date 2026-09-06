@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the plan-set READ budget is advisory on the gate path for an EXECUTED spine (2026-09-06)
+
+`check_plan_tickets._sizing_severity`: a merged set cannot be re-split, and a ticket that grows its own file measures over `READ_BUDGET_BYTES` on the post-merge tree forever — plan `2026-09-06-plan-2-multi-agent-adoption` (`scripts/docs_updater.py` 59 → 90 KB through its own tickets) turned every hub session's completion gate red at its EXECUTED flip. The gate path now WARNs on EXECUTED exactly as on DRAFT/IN-PROGRESS; the author's CLI and the CONVERGED/EXECUTED flips keep the ERROR (a CONVERGED, unexecuted set can still be split). Red-first test in `tests/enforcement/test_check_plan_tickets.py`; one pool reader CLEAN on the four hunted seams.
+
+
 ### Fixed — /fabrik-review closing pass: `start` seeds the covered ledger from a pre-ledger closed record (2026-09-06)
 
 The migration half P1-1's fix left out: a record closed BEFORE the ledger existed holds its window only

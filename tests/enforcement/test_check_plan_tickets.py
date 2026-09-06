@@ -2211,3 +2211,27 @@ def test_allow_external_admits_a_scratch_copy_and_refuses_without(tmp_path):
         text=True,
     )
     assert bad.returncode == 1 and "dated plan directory" in bad.stdout
+
+
+def test_bc9_budget_overrun_on_an_executed_spine_is_advisory_on_the_gate_path(
+    tmp_path: Path,
+) -> None:
+    """A merged set cannot be re-split: the READ budget is a DISPATCH-time constraint, and a
+    ticket that grows its own file (docs_updater.py 59 → 90 KB through plan 2026-09-06-plan-2)
+    measures over budget on the post-merge tree forever. The gate path (every session's
+    completion gate) therefore WARNs on an EXECUTED spine exactly as it does on DRAFT and
+    IN-PROGRESS; the author's CLI and the flips keep the ERROR (hub, 2026-09-06: the plan's
+    close turned every sibling's gate red on two merged tickets)."""
+    plan_dir = _build(tmp_path)
+    big = tmp_path / "src" / "app" / "schema.py"
+    big.parent.mkdir(parents=True, exist_ok=True)
+    big.write_text("x" * (cpt.READ_BUDGET_BYTES + 1), encoding="utf-8")
+    spine = plan_dir / f"{DIRNAME}.md"
+    spine.write_text(
+        spine.read_text(encoding="utf-8").replace("Status: DRAFT", "Status: EXECUTED", 1),
+        encoding="utf-8",
+    )
+    assert any("READ budget" in m for m in _errors(cpt.check_plan_dir(plan_dir, context="cli")))
+    gate = cpt.check_plan_dir(plan_dir, context="gate")
+    assert not any("READ budget" in m for m in _errors(gate)), gate
+    assert any("READ budget" in m for m in _warns(gate))

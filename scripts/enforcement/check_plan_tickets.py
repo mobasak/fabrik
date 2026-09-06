@@ -48,7 +48,7 @@ Checks (per the 2026-08-04 spine-ticket plan, the canonical grammar):
 - **Sizing:** READ budget ≤ READ_BUDGET_BYTES; ≤8 behaviors and ≤3 Gate lines are
   ALWAYS WARN; ``Integration: true`` exempt from all three. Only the READ budget
   takes the invocation-context severity: cli/flip = ERROR; the gate path = WARN
-  while the spine is DRAFT or IN-PROGRESS. (validate_conventions exempts this
+  while the spine is DRAFT, IN-PROGRESS or EXECUTED (a merged set cannot be re-split). (validate_conventions exempts this
   check's WARNs from --strict promotion — they are designed advisories.)
 - **Board-staleness:** only when this plan's lock carries ``baseline_commit``.
   One bulk ``git log --first-parent -m --name-only`` over the window (merge
@@ -846,8 +846,13 @@ def _find_cycle(edges: dict[str, list[str]]) -> bool:
 def _sizing_severity(context: str, spine_status: str) -> Severity:
     if context in ("cli", "flip"):
         return Severity.ERROR
-    # validate_conventions gate path: sibling-session / mid-run protection.
-    if spine_status in (*_DRAFT_LIKE, "IN-PROGRESS"):
+    # validate_conventions gate path: sibling-session / mid-run protection — and a
+    # merged set cannot be re-split: the READ budget is a DISPATCH-time constraint,
+    # and a ticket that grows its own file measures over budget on the post-merge
+    # tree forever (plan 2026-09-06-plan-2: docs_updater.py 59 → 90 KB through its
+    # own tickets turned every sibling's gate red at the EXECUTED flip). EXECUTED is
+    # advisory here; the author's CLI and the flips keep the ERROR.
+    if spine_status in (*_DRAFT_LIKE, "IN-PROGRESS", "EXECUTED"):
         return Severity.WARN
     return Severity.ERROR
 
