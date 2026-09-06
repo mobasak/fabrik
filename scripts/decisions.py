@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_decisions_helper.py, docs/reference/decision-ledger.md, docs/superpowers/specs/2026-08-30-decision-ledger-v2-design.md
+# AFTER-EDIT: tests/test_decisions_helper.py, docs/reference/decision-ledger.md, docs/superpowers/specs/2026-08-30-decision-ledger-v2-design.md, scripts/docs_updater.py (keep MERGE_OWNER_RE identical)
 """Fleet decision-ledger query — grep every repo's docs/DECISIONS.md in one command.
 
 The read half of the decision ledger (spec: docs/superpowers/specs/
