@@ -270,3 +270,60 @@ def test_an_after_edit_line_inside_a_docstring_is_not_a_declaration(ratchet_repo
     assert "scripts/d.py" in rdsl.uncoupled(ratchet_repo), (
         "a declaration inside a docstring was counted as a real header"
     )
+
+
+# --- review pass 1 (2026-09-06), E1/E2/E3 ----------------------------------------------------------
+def _git_repo(tmp_path: Path) -> Path:
+    import subprocess as sp
+
+    sp.run(["git", "init", "-q", str(tmp_path)], check=True)
+    sp.run(["git", "-C", str(tmp_path), "config", "user.email", "t@t"], check=True)
+    sp.run(["git", "-C", str(tmp_path), "config", "user.name", "t"], check=True)
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "docs" / "reference").mkdir(parents=True)
+    (tmp_path / "docs" / "reference" / "thing.md").write_text("# Thing\n")
+    (tmp_path / "scripts" / "a.py").write_text("# AFTER-EDIT: docs/reference/thing.md\n")
+    sp.run(["git", "-C", str(tmp_path), "add", "-A"], check=True)
+    sp.run(["git", "-C", str(tmp_path), "commit", "-qm", "base"], check=True)
+    return tmp_path
+
+
+def test_gate_modes_ignore_a_siblings_untracked_unstaged_script(tmp_path):
+    """E1/E2: on a three-session tree a sibling's untracked scratch script under scripts/ entered
+    the graph and could red the BLOCKING --check (a stale block) or raise the ratchet for everyone.
+    Gate modes see tracked + STAGED files only; a plain render may still include untracked."""
+    repo = _git_repo(tmp_path)
+    rdsl.run(["--repo", str(repo)])
+    assert rdsl.run(["--repo", str(repo), "--check"]) == 0
+    (repo / "scripts" / "sibling_scratch.py").write_text(
+        "# AFTER-EDIT: docs/reference/thing.md\nprint(1)\n"
+    )
+    assert rdsl.run(["--repo", str(repo), "--check"]) == 0, (
+        "an unstaged sibling scratch script must not red --check"
+    )
+    (repo / "scripts" / "sibling_headerless.py").write_text("print(2)\n")
+    rdsl.run(["--repo", str(repo), "--coverage"])  # seeds at the TRACKED+STAGED count: 0
+    code, _ = rdsl.ratchet(repo, write=False)
+    assert code == 0, "an unstaged headerless scratch file must not raise the ratchet"
+
+
+def test_gate_modes_do_see_a_staged_new_script(tmp_path):
+    """The other half: a script YOU staged is about to be committed — its coupling counts."""
+    import subprocess as sp
+
+    repo = _git_repo(tmp_path)
+    rdsl.run(["--repo", str(repo)])
+    (repo / "scripts" / "mine.py").write_text("# AFTER-EDIT: docs/reference/thing.md\n")
+    sp.run(["git", "-C", str(repo), "add", "scripts/mine.py"], check=True)
+    assert rdsl.run(["--repo", str(repo), "--check"]) == 1, (
+        "a staged new coupling must be visible to --check"
+    )
+
+
+def test_crlf_doc_round_trips_and_stays_idempotent(tmp_path):
+    """E3 (PLAUSIBLE → discharged): marker_state/apply_block on a CRLF page."""
+    doc = "# D\r\n\r\nProse.\r\n"
+    a = rdsl.apply_block(doc, ["scripts/x.py"])
+    assert rdsl.marker_state(a) == "ok"
+    assert rdsl.apply_block(a, ["scripts/x.py"]) == a
+    assert rdsl.apply_block(a, []).rstrip("\r\n") == "# D\r\n\r\nProse.".rstrip("\r\n")

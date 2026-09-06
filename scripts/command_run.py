@@ -983,6 +983,18 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
     rec = load(sid)
     outbox["started_at"] = rec.get("started_at") or ""
 
+    if args.cmd in ("step", "round") and rec and rec.get("state") != "running":
+        # A-F4 (review 2026-09-06): `_close` refuses to touch an already-closed record ("never
+        # mutate; never resurrect") but these two had no such guard — a `step` on a done record
+        # moved `updated_ts`, and the Stop hook's review window read the moved close time, so one
+        # stray `step`/`round` laundered every code edit made since the close. Same shape as the
+        # close guard: a warned no-op, never a mutation.
+        print(
+            f"command_run: this record is already closed ({rec.get('state')}) — `{args.cmd}` is "
+            "a no-op on a closed run; start a new command before recording phases or rounds"
+        )
+        return 0
+
     if args.cmd == "start":
         parent = rec if rec.get("state") == "running" else None
         stack = list(rec.get("stack") or []) if parent else []

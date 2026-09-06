@@ -24,6 +24,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -94,3 +95,30 @@ def test_a_quota_held_session_is_allowed_to_stop(held_project):
     (state / "fleet-exhausted").write_text("0")
     out = _run_stop(project, state, "s_held", "A,B")
     assert out == "", f"a quota-held session was blocked from stopping: {out}"
+
+
+def test_a_stale_stamp_with_a_dead_tick_does_not_yield(held_project, monkeypatch):
+    """A-F1 (CRITICAL, fleet-wide): quota_stop fails OPEN when the tick log is older than
+    QUOTA_STOP_TICK_STALE_S (900 s) — tools come back — but this hook yielded on the stamp's mere
+    EXISTENCE, so a dead cron + a leftover stamp disabled all six Stop causes indefinitely while no
+    hold was in force. Yield only when the hold is genuinely in force: stamp AND a fresh tick."""
+    project, state = held_project
+    (state / "fleet-exhausted").write_text("0")
+    tick = state / "rotate-tick.log"
+    tick.write_text("tick\n")
+    import os as _os
+
+    old = time.time() - 2000
+    _os.utime(tick, (old, old))
+    monkeypatch.setenv("QUOTA_STOP_TICK_LOG", str(tick))
+    out = _run_stop(project, state, "s_stale", "A,B")
+    assert out != "", "a stale stamp (hold OFF) must not disable the Stop hook"
+
+
+def test_a_stamp_with_a_fresh_tick_yields(held_project, monkeypatch):
+    project, state = held_project
+    (state / "fleet-exhausted").write_text("0")
+    tick = state / "rotate-tick.log"
+    tick.write_text("tick\n")
+    monkeypatch.setenv("QUOTA_STOP_TICK_LOG", str(tick))
+    assert _run_stop(project, state, "s_fresh", "A,B") == ""

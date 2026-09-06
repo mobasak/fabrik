@@ -59,7 +59,12 @@ def _cr(
     # other assertion, so the harness supplies the verdict once rather than 60 call sites
     # repeating it — a test that is ABOUT the verdict passes its own and opts out here.
     argv = list(args)
-    if inject_feedback and argv and argv[0] in ("done", "blocked", "handoff") and "--feedback" not in argv:
+    if (
+        inject_feedback
+        and argv
+        and argv[0] in ("done", "blocked", "handoff")
+        and "--feedback" not in argv
+    ):
         argv += ["--feedback", "none — harness setup"]
     return subprocess.run(
         [sys.executable, str(_SCRIPT), *argv],
@@ -511,16 +516,16 @@ def test_review_done_refused_without_a_persisted_report(tmp_path, monkeypatch):
     )
     r = subprocess.run(
         [
-                sys.executable,
-                script,
-                "done",
+            sys.executable,
+            script,
+            "done",
             "--command",
             "fabrik-review",
             "--evidence",
             "reviewed, all clean",
-                "--feedback",
-                "none — harness setup",
-            ],
+            "--feedback",
+            "none — harness setup",
+        ],
         cwd=repo,
         env=env,
         capture_output=True,
@@ -534,16 +539,16 @@ def test_review_done_refused_without_a_persisted_report(tmp_path, monkeypatch):
     (repo / "docs/development/reviews/2026-08-19-x-review.md").write_text("# r\n")
     r2 = subprocess.run(
         [
-                sys.executable,
-                script,
-                "done",
+            sys.executable,
+            script,
+            "done",
             "--command",
             "fabrik-review",
             "--evidence",
             "report written",
-                "--feedback",
-                "none — harness setup",
-            ],
+            "--feedback",
+            "none — harness setup",
+        ],
         cwd=repo,
         env=env,
         capture_output=True,
@@ -587,7 +592,17 @@ def test_review_done_pins_cwd_to_the_repo_recorded_at_start(tmp_path):
     )
     # close from repo B (wrong repo, dirty reviews/): must still refuse — the check runs in A
     r = subprocess.run(
-        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e", "--feedback", "none — harness setup"],
+        [
+            sys.executable,
+            script,
+            "done",
+            "--command",
+            "fabrik-review",
+            "--evidence",
+            "e",
+            "--feedback",
+            "none — harness setup",
+        ],
         cwd=repo_b,
         env=env,
         capture_output=True,
@@ -601,7 +616,17 @@ def test_review_done_pins_cwd_to_the_repo_recorded_at_start(tmp_path):
     sub = repo_a / "scripts"
     sub.mkdir()
     r2 = subprocess.run(
-        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e", "--feedback", "none — harness setup"],
+        [
+            sys.executable,
+            script,
+            "done",
+            "--command",
+            "fabrik-review",
+            "--evidence",
+            "e",
+            "--feedback",
+            "none — harness setup",
+        ],
         cwd=sub,
         env=env,
         capture_output=True,
@@ -661,7 +686,17 @@ def test_review_done_rejects_deletions_and_stale_files_as_artifacts(tmp_path):
         timeout=15,
     )
     r = subprocess.run(
-        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e", "--feedback", "none — harness setup"],
+        [
+            sys.executable,
+            script,
+            "done",
+            "--command",
+            "fabrik-review",
+            "--evidence",
+            "e",
+            "--feedback",
+            "none — harness setup",
+        ],
         cwd=repo,
         env=env,
         capture_output=True,
@@ -708,7 +743,17 @@ def test_stale_but_present_report_is_refused_in_isolation(tmp_path):
         timeout=15,
     )
     r = subprocess.run(
-        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e", "--feedback", "none — harness setup"],
+        [
+            sys.executable,
+            script,
+            "done",
+            "--command",
+            "fabrik-review",
+            "--evidence",
+            "e",
+            "--feedback",
+            "none — harness setup",
+        ],
         cwd=repo,
         env=env,
         capture_output=True,
@@ -752,7 +797,17 @@ def test_review_started_outside_any_repo_refuses_done(tmp_path):
         timeout=15,
     )
     r = subprocess.run(
-        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e", "--feedback", "none — harness setup"],
+        [
+            sys.executable,
+            script,
+            "done",
+            "--command",
+            "fabrik-review",
+            "--evidence",
+            "e",
+            "--feedback",
+            "none — harness setup",
+        ],
         cwd=dirty,
         env=env,
         capture_output=True,
@@ -793,16 +848,16 @@ def test_blocked_works_on_a_rootless_record(tmp_path):
     )
     r = subprocess.run(
         [
-                sys.executable,
-                script,
-                "blocked",
+            sys.executable,
+            script,
+            "blocked",
             "--command",
             "fabrik-review",
             "--reason",
             "rootless-record",
-                "--feedback",
-                "none — harness setup",
-            ],
+            "--feedback",
+            "none — harness setup",
+        ],
         cwd=norepo,
         env=env,
         capture_output=True,
@@ -1617,7 +1672,17 @@ def test_cert_and_mega_done_also_require_their_reports(tmp_path):
         rep = repo / "docs/development/reviews" / report_name
         rep.write_text("# r\ndone and closed\n")
         r2 = subprocess.run(
-            [sys.executable, script, "done", "--command", cmd, "--evidence", "report written", "--feedback", "none — harness setup"],
+            [
+                sys.executable,
+                script,
+                "done",
+                "--command",
+                cmd,
+                "--evidence",
+                "report written",
+                "--feedback",
+                "none — harness setup",
+            ],
             cwd=repo,
             env=env,
             capture_output=True,
@@ -1656,7 +1721,17 @@ def test_done_refused_when_every_artifact_is_midloop(tmp_path):
     rep = repo / "docs/development/reviews/2026-08-21-midloop-review.md"
     rep.write_text("# r\nStatus: IN-PROGRESS — round 3 running\n")
     r = subprocess.run(
-        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "all done", "--feedback", "none — harness setup"],
+        [
+            sys.executable,
+            script,
+            "done",
+            "--command",
+            "fabrik-review",
+            "--evidence",
+            "all done",
+            "--feedback",
+            "none — harness setup",
+        ],
         cwd=repo,
         env=env,
         capture_output=True,
@@ -1667,7 +1742,17 @@ def test_done_refused_when_every_artifact_is_midloop(tmp_path):
     assert "IN-PROGRESS" in r.stdout
     rep.write_text("# r\nStatus: closed — quiet round earned\n")
     r2 = subprocess.run(
-        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "closed", "--feedback", "none — harness setup"],
+        [
+            sys.executable,
+            script,
+            "done",
+            "--command",
+            "fabrik-review",
+            "--evidence",
+            "closed",
+            "--feedback",
+            "none — harness setup",
+        ],
         cwd=repo,
         env=env,
         capture_output=True,
@@ -1727,7 +1812,17 @@ def test_done_artifact_floor_survives_the_exit_sequence_and_rejects_decoys(tmp_p
 
     _os.utime(rep, (1, 1))
     r = subprocess.run(
-        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e", "--feedback", "none — harness setup"],
+        [
+            sys.executable,
+            script,
+            "done",
+            "--command",
+            "fabrik-review",
+            "--evidence",
+            "e",
+            "--feedback",
+            "none — harness setup",
+        ],
         cwd=repo,
         env=env,
         capture_output=True,
@@ -1759,7 +1854,17 @@ def test_done_artifact_floor_survives_the_exit_sequence_and_rejects_decoys(tmp_p
     (repo / "docs/development/reviews/evidence.png").write_bytes(b"\x89PNG")
     _commit(repo, env, "docs/development/reviews", msg="png")
     r = subprocess.run(
-        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "see commit", "--feedback", "none — harness setup"],
+        [
+            sys.executable,
+            script,
+            "done",
+            "--command",
+            "fabrik-review",
+            "--evidence",
+            "see commit",
+            "--feedback",
+            "none — harness setup",
+        ],
         cwd=repo,
         env=env,
         capture_output=True,
@@ -1791,7 +1896,17 @@ def test_done_artifact_floor_survives_the_exit_sequence_and_rejects_decoys(tmp_p
     (repo / "docs/development/reviews/archived/old-review.md").write_text("# old\n")
     _commit(repo, env, "docs/development/reviews", msg="refile")
     r = subprocess.run(
-        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "refiled", "--feedback", "none — harness setup"],
+        [
+            sys.executable,
+            script,
+            "done",
+            "--command",
+            "fabrik-review",
+            "--evidence",
+            "refiled",
+            "--feedback",
+            "none — harness setup",
+        ],
         cwd=repo,
         env=env,
         capture_output=True,
@@ -1848,7 +1963,17 @@ def test_done_floor_rejects_symlinks_stale_rebases_and_survives_merges_and_long_
     target.write_text("unrelated\n")
     (repo / "docs/development/reviews/fake-review.md").symlink_to(target)
     r = subprocess.run(
-        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e", "--feedback", "none — harness setup"],
+        [
+            sys.executable,
+            script,
+            "done",
+            "--command",
+            "fabrik-review",
+            "--evidence",
+            "e",
+            "--feedback",
+            "none — harness setup",
+        ],
         cwd=repo,
         env=env,
         capture_output=True,
@@ -1889,7 +2014,17 @@ def test_done_floor_rejects_symlinks_stale_rebases_and_survives_merges_and_long_
     )
     _os.utime(stale, (1, 1))
     r = subprocess.run(
-        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e", "--feedback", "none — harness setup"],
+        [
+            sys.executable,
+            script,
+            "done",
+            "--command",
+            "fabrik-review",
+            "--evidence",
+            "e",
+            "--feedback",
+            "none — harness setup",
+        ],
         cwd=repo,
         env=env,
         capture_output=True,
@@ -1935,7 +2070,17 @@ def test_done_floor_rejects_symlinks_stale_rebases_and_survives_merges_and_long_
     _commit(repo, "docs/development/reviews", msg="merge-resolve")
     _os.utime(f, (1, 1))
     r = subprocess.run(
-        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e", "--feedback", "none — harness setup"],
+        [
+            sys.executable,
+            script,
+            "done",
+            "--command",
+            "fabrik-review",
+            "--evidence",
+            "e",
+            "--feedback",
+            "none — harness setup",
+        ],
         cwd=repo,
         env=env,
         capture_output=True,
@@ -1972,7 +2117,17 @@ def test_done_floor_rejects_symlinks_stale_rebases_and_survives_merges_and_long_
         _commit(repo, "f.txt", msg=f"phase-{i}")
     _os.utime(rep, (1, 1))
     r = subprocess.run(
-        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e", "--feedback", "none — harness setup"],
+        [
+            sys.executable,
+            script,
+            "done",
+            "--command",
+            "fabrik-review",
+            "--evidence",
+            "e",
+            "--feedback",
+            "none — harness setup",
+        ],
         cwd=repo,
         env=env,
         capture_output=True,
@@ -2031,7 +2186,17 @@ def test_done_refused_when_the_report_was_added_then_deleted(tmp_path):
         timeout=15,
     )
     r = subprocess.run(
-        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "e", "--feedback", "none — harness setup"],
+        [
+            sys.executable,
+            script,
+            "done",
+            "--command",
+            "fabrik-review",
+            "--evidence",
+            "e",
+            "--feedback",
+            "none — harness setup",
+        ],
         cwd=repo,
         env=env,
         capture_output=True,
@@ -2276,8 +2441,10 @@ def test_an_empty_review_file_is_not_a_review(tmp_path: Path) -> None:
     rev.mkdir(parents=True)
     (rev / "phase-1-review.md").write_text("", encoding="utf-8")
     assert _plan_run(run_dir, repo).returncode == 0
-    assert _cr(run_dir, "step", "--phase", "2", "--title", "B",
-               sid="plan-sid", cwd=repo).returncode != 0
+    assert (
+        _cr(run_dir, "step", "--phase", "2", "--title", "B", sid="plan-sid", cwd=repo).returncode
+        != 0
+    )
 
 
 def test_skipping_phases_cannot_skip_their_reviews(tmp_path: Path) -> None:
@@ -2301,10 +2468,25 @@ def test_a_cosmetic_command_name_cannot_disable_the_rule(tmp_path: Path) -> None
     run, with nothing printed anywhere."""
     run_dir = tmp_path / "runs"
     repo = _mkrepo(tmp_path, "casing")
-    assert _cr(run_dir, "start", "--command", "Fabrik-Execute-Plan", "--phases", "3",
-               "--terminal", "t", sid="case-sid", cwd=repo).returncode == 0
-    assert _cr(run_dir, "step", "--phase", "2", "--title", "B",
-               sid="case-sid", cwd=repo).returncode != 0
+    assert (
+        _cr(
+            run_dir,
+            "start",
+            "--command",
+            "Fabrik-Execute-Plan",
+            "--phases",
+            "3",
+            "--terminal",
+            "t",
+            sid="case-sid",
+            cwd=repo,
+        ).returncode
+        == 0
+    )
+    assert (
+        _cr(run_dir, "step", "--phase", "2", "--title", "B", sid="case-sid", cwd=repo).returncode
+        != 0
+    )
 
 
 # ── the FEEDBACK verdict: making "Filed" MEASURED instead of hand-typed ──────────────────────────
@@ -2325,8 +2507,14 @@ def test_a_cosmetic_command_name_cannot_disable_the_rule(tmp_path: Path) -> None
 def test_done_records_a_filed_feedback_verdict(run_dir: Path) -> None:
     _start(run_dir)
     _cr(
-        run_dir, "done", "--command", "fabrik-probe", "--evidence", "round 4 found: 0",
-        "--feedback", "filed 01M11VS2ZE to intel — dead Kilo test modules break collection",
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-probe",
+        "--evidence",
+        "round 4 found: 0",
+        "--feedback",
+        "filed 01M11VS2ZE to intel — dead Kilo test modules break collection",
     )
     row = _events(run_dir, "s1")[-1]
     assert row["feedback"] == "filed", row
@@ -2340,8 +2528,14 @@ def test_done_records_an_explicit_none_verdict(run_dir: Path) -> None:
     """`none` is a real answer: the agent looked and had nothing to file."""
     _start(run_dir)
     _cr(
-        run_dir, "done", "--command", "fabrik-probe", "--evidence", "x",
-        "--feedback", "none — exercised the router and the corpus check",
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-probe",
+        "--evidence",
+        "x",
+        "--feedback",
+        "none — exercised the router and the corpus check",
     )
     row = _events(run_dir, "s1")[-1]
     assert row["feedback"] == "none", row
@@ -2358,8 +2552,7 @@ def test_omitting_feedback_is_recorded_as_unstated_not_as_none(run_dir: Path) ->
     re-labelling them `none` would retroactively invent compliance that never happened."""
     _start(run_dir)
     _backdate(run_dir, "s1")
-    _cr(run_dir, "done", "--command", "fabrik-probe", "--evidence", "x",
-        inject_feedback=False)
+    _cr(run_dir, "done", "--command", "fabrik-probe", "--evidence", "x", inject_feedback=False)
     row = _events(run_dir, "s1")[-1]
     assert row["feedback"] == "unstated", row
 
@@ -2368,8 +2561,14 @@ def test_blocked_carries_the_verdict_too(run_dir: Path) -> None:
     """A BLOCKED run is exactly when friction is worth hearing about."""
     _start(run_dir)
     _cr(
-        run_dir, "blocked", "--command", "fabrik-probe", "--reason", "missing infra — no DB",
-        "--feedback", "filed to fleet — the scaffold emits no DB fixture",
+        run_dir,
+        "blocked",
+        "--command",
+        "fabrik-probe",
+        "--reason",
+        "missing infra — no DB",
+        "--feedback",
+        "filed to fleet — the scaffold emits no DB fixture",
     )
     row = _events(run_dir, "s1")[-1]
     assert row["verdict"] == "blocked" and row["feedback"] == "filed", row
@@ -2379,8 +2578,14 @@ def test_blocked_carries_the_verdict_too(run_dir: Path) -> None:
 def test_multiple_beats_are_all_captured(run_dir: Path) -> None:
     _start(run_dir)
     _cr(
-        run_dir, "done", "--command", "fabrik-probe", "--evidence", "x",
-        "--feedback", "filed to infra and intel",
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-probe",
+        "--evidence",
+        "x",
+        "--feedback",
+        "filed to infra and intel",
     )
     assert sorted(_events(run_dir, "s1")[-1]["feedback_to"]) == ["infra", "intel"]
 
@@ -2389,10 +2594,16 @@ def test_feedback_never_breaks_the_close(run_dir: Path) -> None:
     """The record is the point; telemetry is not allowed to cost a close."""
     _start(run_dir)
     out = _cr(
-        run_dir, "done", "--command", "fabrik-probe", "--evidence", "x",
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-probe",
+        "--evidence",
+        "x",
         # NOT a NUL byte: execve() forbids one in argv, so it can never reach this code and a
         # test using one measures subprocess, not the classifier. These CAN arrive.
-        "--feedback", "\x01\x1b[31m filed to   nobody " + "z" * 5000,
+        "--feedback",
+        "\x01\x1b[31m filed to   nobody " + "z" * 5000,
     )
     assert out.returncode == 0, out.stderr
     row = _events(run_dir, "s1")[-1]
@@ -2415,9 +2626,14 @@ def test_feedback_never_breaks_the_close(run_dir: Path) -> None:
 def test_handoff_closes_a_not_quiet_run_with_its_resume_artifact(run_dir: Path) -> None:
     _start(run_dir)
     out = _cr(
-        run_dir, "handoff", "--command", "fabrik-probe",
-        "--resume", "docs/development/certifications/2026-08-27-cert-x/ledger.md",
-        "--reason", "3 DESIGN-GAP rows the run may not decide",
+        run_dir,
+        "handoff",
+        "--command",
+        "fabrik-probe",
+        "--resume",
+        "docs/development/certifications/2026-08-27-cert-x/ledger.md",
+        "--reason",
+        "3 DESIGN-GAP rows the run may not decide",
     )
     assert out.returncode == 0, out.stderr
     row = _events(run_dir, "s1")[-1]
@@ -2437,8 +2653,14 @@ def test_handoff_leaves_the_record_closed_so_the_stop_hook_releases(run_dir: Pat
     trapped and will reach for the stretched BLOCKED cause anyway."""
     _start(run_dir)
     _cr(
-        run_dir, "handoff", "--command", "fabrik-probe", "--resume", "docs/x/ledger.md",
-        "--reason", "rows open",
+        run_dir,
+        "handoff",
+        "--command",
+        "fabrik-probe",
+        "--resume",
+        "docs/x/ledger.md",
+        "--reason",
+        "rows open",
     )
     rec = json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))
     assert rec["state"] == "handoff", rec
@@ -2448,8 +2670,16 @@ def test_handoff_leaves_the_record_closed_so_the_stop_hook_releases(run_dir: Pat
 def test_handoff_carries_the_feedback_verdict_like_the_other_closes(run_dir: Path) -> None:
     _start(run_dir)
     _cr(
-        run_dir, "handoff", "--command", "fabrik-probe", "--resume", "docs/x/ledger.md",
-        "--reason", "rows open", "--feedback", "filed to infra — the grader is mute",
+        run_dir,
+        "handoff",
+        "--command",
+        "fabrik-probe",
+        "--resume",
+        "docs/x/ledger.md",
+        "--reason",
+        "rows open",
+        "--feedback",
+        "filed to infra — the grader is mute",
     )
     row = _events(run_dir, "s1")[-1]
     assert row["feedback"] == "filed" and row["feedback_to"] == ["infra"], row
@@ -2460,8 +2690,16 @@ def test_the_record_itself_carries_the_feedback_verdict(run_dir: Path) -> None:
     the verdict only on the event left the record unable to describe its own close — and left the
     duty ungradeable, which is how a prose obligation stays prose."""
     _start(run_dir)
-    _cr(run_dir, "done", "--command", "fabrik-probe", "--evidence", "e",
-        "--feedback", "filed to fleet — scaffold emits no DB fixture")
+    _cr(
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-probe",
+        "--evidence",
+        "e",
+        "--feedback",
+        "filed to fleet — scaffold emits no DB fixture",
+    )
     rec = json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))
     assert rec["feedback"] == "filed", rec
     assert rec["feedback_to"] == ["fleet"], rec
@@ -2472,8 +2710,7 @@ def test_a_close_without_feedback_records_unstated_on_the_record_too(run_dir: Pa
     per-run grader (`check_feedback_duty.py`) actually reads."""
     _start(run_dir)
     _backdate(run_dir, "s1")
-    _cr(run_dir, "done", "--command", "fabrik-probe", "--evidence", "e",
-        inject_feedback=False)
+    _cr(run_dir, "done", "--command", "fabrik-probe", "--evidence", "e", inject_feedback=False)
     rec = json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))
     assert rec["feedback"] == "unstated", rec
 
@@ -2725,8 +2962,21 @@ def test_a_siblings_dirty_midloop_report_cannot_veto_a_committed_converged_close
     env, repo = _artifact_repo(tmp_path)
     script = str(_SCRIPT)
     subprocess.run(
-        [sys.executable, script, "start", "--command", "fabrik-review", "--phases", "1", "--terminal", "t"],
-        cwd=repo, env=env, check=True, timeout=15,
+        [
+            sys.executable,
+            script,
+            "start",
+            "--command",
+            "fabrik-review",
+            "--phases",
+            "1",
+            "--terminal",
+            "t",
+        ],
+        cwd=repo,
+        env=env,
+        check=True,
+        timeout=15,
     )
     time.sleep(1.1)  # git author time is whole seconds; land the commit strictly after start
     (repo / "docs/development/reviews").mkdir(parents=True, exist_ok=True)
@@ -2736,12 +2986,39 @@ def test_a_siblings_dirty_midloop_report_cannot_veto_a_committed_converged_close
     mine.write_text("# m\nStatus: CONVERGED\n")
     subprocess.run(["git", "add", "--", str(mine)], cwd=repo, check=True, timeout=15)
     subprocess.run(
-        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "mine", "--", str(mine)],
-        cwd=repo, check=True, timeout=15,
+        [
+            "git",
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-qm",
+            "mine",
+            "--",
+            str(mine),
+        ],
+        cwd=repo,
+        check=True,
+        timeout=15,
     )
     r = subprocess.run(
-        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "closed", "--feedback", "none — harness setup"],
-        cwd=repo, env=env, capture_output=True, text=True, timeout=15,
+        [
+            sys.executable,
+            script,
+            "done",
+            "--command",
+            "fabrik-review",
+            "--evidence",
+            "closed",
+            "--feedback",
+            "none — harness setup",
+        ],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=15,
     )
     assert r.returncode == 0, r.stdout + r.stderr
 
@@ -2785,7 +3062,9 @@ def test_the_mcp_advisory_goes_to_stderr_not_stdout(capsys, monkeypatch) -> None
     monkeypatch.setattr(
         cr.subprocess,
         "run",
-        lambda *a, **k: subprocess.CompletedProcess(a[0] if a else [], 0, "MCP-HEALTH: all live\n", ""),
+        lambda *a, **k: subprocess.CompletedProcess(
+            a[0] if a else [], 0, "MCP-HEALTH: all live\n", ""
+        ),
     )
     cr._mcp_probe_advisory()
     captured = capsys.readouterr()
@@ -2818,3 +3097,25 @@ def test_a_nested_start_of_a_different_command_stays_silent(run_dir: Path) -> No
         "found:0 no-op round",
     )
     assert "NESTED START" not in nested.stderr, nested.stderr
+
+
+# --- review pass 1 (2026-09-06), A-F4: step/round must refuse a CLOSED record -------------------
+def test_step_and_round_refuse_to_touch_a_closed_record(run_dir: Path) -> None:
+    """A-F4 (review 2026-09-06): `_close` refuses to mutate an already-closed record ("never
+    mutate; never resurrect") but `step` and `round` had no such guard — a `step` on a done record
+    moved `updated_ts`, and the Stop hook's review window read the moved close time: one command
+    laundered every edit since."""
+    _start(run_dir)
+    _cr(run_dir, "done", "--command", _PROBE, "--evidence", "e", "--feedback", "none — surfaces: t")
+    before = _rec(run_dir)
+    assert before["state"] == "done"
+    r1 = _cr(run_dir, "step", "--phase", "1", "--title", "x")
+    r2 = _cr(run_dir, "round", "--findings", "0")
+    after = _rec(run_dir)
+    assert after["updated_ts"] == before["updated_ts"], (
+        "a closed record's close time must never move"
+    )
+    assert after.get("rounds") == before.get("rounds")
+    assert (
+        "closed" in (r1.stdout + r1.stderr).lower() and "closed" in (r2.stdout + r2.stderr).lower()
+    )

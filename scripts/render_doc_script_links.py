@@ -101,6 +101,9 @@ def renderable(rel: str) -> bool:
     return rel.endswith(".md") and any(rel.startswith(r) for r in RENDER_ROOTS)
 
 
+_GATE_MODE = False  # set by run(): --check / --coverage see tracked + STAGED files only
+
+
 def _scripts(repo: Path) -> list[Path]:
     """Tracked, live scripts. `git ls-files` is the denominator that matters: a plain rglob over
     `scripts/` returns 3,476 files here, of which 3,235 are untracked benchmark/venv artifacts
@@ -111,8 +114,14 @@ def _scripts(repo: Path) -> list[Path]:
         # not been committed yet — so a brand-new script's coupling would be invisible to the very
         # gate that runs BEFORE its first commit, and the doc side would land one commit late.
         # Found by using this tool on itself: it rendered no block into its own reference doc.
+        # GATE modes (--check, --coverage) see tracked + STAGED files: what is about to be
+        # committed. A plain render also sees untracked-not-ignored, so a brand-new script's
+        # coupling is visible before its first commit. On a three-session tree a SIBLING's
+        # untracked scratch script under scripts/ used to enter the gate's graph and could red the
+        # BLOCKING --check or raise the ratchet for everyone (review 2026-09-06, E1/E2).
+        extras = [[], ["--cached"]] if _GATE_MODE else [[], ["--others", "--exclude-standard"]]
         names = []
-        for extra in ([], ["--others", "--exclude-standard"]):
+        for extra in extras:
             out = subprocess.run(
                 ["git", "-C", str(repo), "ls-files", "-z", *extra, "scripts"],
                 capture_output=True,
@@ -290,6 +299,8 @@ def run(argv: list[str] | None = None) -> int:
         help="report the headerless-script backlog and ratchet it (count may only go DOWN)",
     )
     args = ap.parse_args(argv)
+    global _GATE_MODE
+    _GATE_MODE = bool(args.check or args.coverage)
     repo = Path(args.repo).resolve()
 
     if args.coverage:

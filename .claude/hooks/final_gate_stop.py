@@ -524,30 +524,6 @@ def _run_record_raw(sid: str) -> dict | None:
         return None
 
 
-def _run_record_exists(sid: str) -> bool:
-    """Did this session EVER open a command run record? Freshness-independent, on purpose.
-
-    `_run_record` fails OPEN on anything it cannot positively prove fresh — correct for the
-    "still running" cause, where a stale record must never trap a session forever. But its None
-    was also being read as `has_any_record=False` by the review checkpoint, whose question is a
-    different one: "was this code reviewed under a command at all?" A record that exists and is
-    13h old answers YES to that and NO to the other. Collapsing the two meant a session that ran
-    /fabrik-review-scoped to a clean terminal, closed it properly, then sat idle under a quota
-    hold got re-blocked as UNREVIEWED SPONTANEOUS WORK (youtube, session 50328fe3, record age
-    13.01h — 01M1NTNCFEWMP82YQFGNN6NHYP).
-
-    Same fail-open direction as everything else here: unreadable/corrupt/absent → False only
-    because that is genuinely "no record", and the checkpoint's own CAP still warns through.
-    """
-    try:
-        raw_dir = os.environ.get("COMMAND_RUN_DIR")
-        base = Path(raw_dir) if raw_dir else Path.home() / ".claude" / "state" / "command-runs"
-        rec = json.loads((base / f"{_safe_sid(sid)}.json").read_text(encoding="utf-8"))
-        return isinstance(rec, dict) and bool(rec)
-    except Exception:
-        return False
-
-
 def _run_block_reason(rec: dict, attempt: int) -> str:
     cmd = rec.get("command") or "?"
     cur, total = rec.get("phase") or 1, rec.get("phases") or "?"
@@ -628,64 +604,87 @@ _CODE_EXTS = frozenset(
 )
 
 
-def _count_code_files(authored: dict[str, int]) -> int:
-    from pathlib import PurePosixPath
+_CLOSED_STATES = frozenset(
+    {"done", "blocked", "handoff"}
+)  # scripts/enforcement/check_feedback_duty.py:60 — the canonical set
 
-    return sum(1 for f in authored if PurePosixPath(f).suffix.lower() in _CODE_EXTS)
+
+def _finite(v: object) -> float | None:
+    """`_run_record`'s own guard, lifted verbatim: json.loads accepts bare NaN/Infinity, and a bool
+    is an int — `Infinity` gave a permanent exemption, `true` read as 1970 (review A-F6)."""
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
+        return None
+    return float(v)
 
 
-def _review_horizon(rec: object) -> float | None:
-    """The instant up to which this session's code edits are COVERED by a command.
+def _review_window(rec: object, sid: str | None = None) -> tuple[float, float] | None:
+    """The interval of this session's code edits that a command's contract COVERED — or None.
 
-    None when there is no usable record (every authored code file is spontaneous). A CLOSED
-    record (`state` done/blocked) covers everything authored up to its `updated_ts` — the
-    command's own contract owned the review discipline until it closed — and NOTHING after.
-    A RUNNING record covers "now": a live command is the fifth cause's business, and blocking
-    here as well would double-block one stop for one reason.
+    A command's contract owns the review discipline from its START to its CLOSE, and nothing
+    outside that: code authored BEFORE `started_epoch` was never in its scope (review A-F5 — a
+    /fabrik-spec run after plain-chat edits used to launder them), code authored AFTER a closed
+    record's `updated_ts` is spontaneous again. A CLOSED state is one of `_CLOSED_STATES` —
+    `handoff` included, which /fabrik-user-test and /fabrik-service-test MANDATE (A-F2; a
+    hand-written {done, blocked} blocked every such session as "NO run record"). A RUNNING
+    record covers up to "now" — but only while the FIFTH cause would still act on it: the same
+    freshness rule (`_run_record`, 12h) — an abandoned `start` must not buy immunity after the
+    fifth cause has failed open on it (A-F3). Timestamps are guarded for finiteness (A-F6).
 
-    Why per CHANGE and not per SESSION (2026-09-06): `_run_record_exists` answered "did this
-    session EVER open a record?", so one /fabrik-review-scoped at 01:45 exempted ten plain-chat
-    commits made across the rest of the day — the hook's own author measured it on himself.
+    Why a window and not a per-session boolean (2026-09-06): `_run_record_exists` asked "did this
+    session EVER open a record?", so one 01:45 /fabrik-review-scoped exempted ten plain-chat commits
+    made across the rest of the day — measured by the hook's own author on himself.
     """
     if not isinstance(rec, dict):
         return None
+    started = _finite(rec.get("started_epoch"))
+    if started is None:
+        return None
     state = rec.get("state")
     if state == "running":
-        return float("inf")
-    ts = rec.get("updated_ts")
-    if state in ("done", "blocked") and isinstance(ts, (int, float)):
-        return float(ts)
+        if sid is not None and _run_record(sid) is None:
+            return None  # stale/abandoned — the fifth cause no longer acts on it, nor does this
+        return (started, float("inf"))
+    closed = _finite(rec.get("updated_ts"))
+    if state in _CLOSED_STATES and closed is not None:
+        return (started, closed)
     return None
 
 
-def _unreviewed_code_files(authored: dict[str, int], horizon: float | None) -> int:
-    """Code files this session authored AFTER the horizon — the ones no command has covered."""
+def _unreviewed_code_files(authored: dict[str, int], window: tuple[float, float] | None) -> int:
+    """Code files this session authored OUTSIDE the covered window — before the command started
+    or after it closed — the ones no command's contract has reviewed. An edit with no parseable
+    timestamp (ts == 0, `_session_files`) COUNTS: unknown is not covered (A-F10)."""
     from pathlib import PurePosixPath
 
     n = 0
     for f, ts in authored.items():
         if PurePosixPath(f).suffix.lower() not in _CODE_EXTS:
             continue
-        if horizon is None or not isinstance(ts, (int, float)) or float(ts) > horizon:
+        if window is None or not isinstance(ts, (int, float)) or ts == 0:
+            n += 1
+            continue
+        lo, hi = window
+        if float(ts) < lo or float(ts) > hi:
             n += 1
     return n
 
 
 def decide_review(
-    code_files: int, has_any_record: bool, attempts: int, cap: int = CAP
+    code_files: int, nothing_unreviewed: bool, attempts: int, cap: int = CAP
 ) -> tuple[str, int]:
     """Pure review-checkpoint decision. Returns (action, attempts').
 
-    ⚠️ `has_any_record` means EXISTS, never IS-FRESH. It used to be fed `bool(_run_record(sid))`,
-    whose None also means "I could not prove this record fresh" — so a stale-but-real record read
-    as "never reviewed" and this cause blocked a session that had already reviewed and closed
-    (01M1NTNCFEWMP82YQFGNN6NHYP). Feed it `_run_record_exists(sid)`.
+    `code_files` is the count of session-authored code files OUTSIDE the last command's covered
+    window (`_unreviewed_code_files`); `nothing_unreviewed` is `code_files == 0` restated by the
+    caller so the exempt branch stays a first-class outcome. Warn-through RE-ARMS (attempts → 0),
+    like every other cause: the old `return attempts` disarmed the cause for the rest of the
+    session after three blocks (review A-F8).
     """
-    if code_files == 0 or has_any_record:
+    if code_files == 0 or nothing_unreviewed:
         return "allow", 0
     attempts += 1
     if attempts > cap:
-        return "allow_warn_review", attempts
+        return "allow_warn_review", 0
     return "block_review", attempts
 
 
@@ -1233,7 +1232,20 @@ def main(argv: list[str]) -> int:
         # costs nothing — the opposite mistake costs the last of the quota).
         try:
             _state = Path(os.environ.get("ROTATE_STATE_DIR") or Path.home() / ".claude" / "state")
-            if (_state / "fleet-exhausted").exists():
+            # A-F1 (review 2026-09-06, CRITICAL): quota_stop.py fails OPEN when the tick log is
+            # older than QUOTA_STOP_TICK_STALE_S — the hold is OFF and every tool is back — but this
+            # yielded on the stamp's mere EXISTENCE, so a dead cron plus a leftover stamp disabled
+            # all six causes indefinitely while nothing was held. Same seam, same bound, same
+            # direction as quota_stop.py:487-503: yield only while the hold is genuinely in force.
+            _tick = Path(
+                os.environ.get("QUOTA_STOP_TICK_LOG") or Path.home() / ".claude" / "rotate-tick.log"
+            )
+            _stale = float(os.environ.get("QUOTA_STOP_TICK_STALE_S", "900"))
+            if (
+                (_state / "fleet-exhausted").exists()
+                and _tick.exists()
+                and (time.time() - _tick.stat().st_mtime) <= _stale
+            ):
                 _kaizen("stop_allowed_quota_hold", ev_sid)
                 return 0
         except Exception:
@@ -1380,9 +1392,8 @@ def main(argv: list[str]) -> int:
                 # the pure decision is unchanged, the question it is asked has changed. The
                 # 01M1NTNCFEWMP82YQFGNN6NHYP shape (reviewed, closed, idle under a hold) stays
                 # allowed: idle authors nothing after the close.
-                _unreviewed = _unreviewed_code_files(
-                    authored_map, _review_horizon(_run_record_raw(sid))
-                )
+                _rec = _run_record_raw(sid)
+                _unreviewed = _unreviewed_code_files(authored_map, _review_window(_rec, sid))
                 v_action, v_att = decide_review(_unreviewed, _unreviewed == 0, v_att)
                 if v_action == "block_review":
                     counter.write_text(f"{g},{c},0,{p_att},{r_att},{v_att}")
@@ -1399,7 +1410,7 @@ def main(argv: list[str]) -> int:
                                 "decision": "block",
                                 "reason": (
                                     f"UNREVIEWED SPONTANEOUS WORK (attempt {v_att}/{CAP}). This "
-                                    "session edited code files with NO command run record — "
+                                    "session authored code files OUTSIDE the last command run's covered window (before it started, or after it closed) — "
                                     "plain-chat work that skipped every review contract. Run "
                                     "`/fabrik-review-scoped` (minutes: diff-scoped, same "
                                     "convergence spine, fix-in-run) — or the full "

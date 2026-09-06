@@ -8,6 +8,53 @@ All notable changes to this project will be documented in this file.
 
 `validate_ownership_advisory()` prints ONE `ADVISORY:` line — never a finding, never a changed exit code — when two or more live `claude` sessions share this checkout AND (the merge owner is undeclared, an open plan has no owner, or a backlog row is untagged), naming the count and the `--adopt` command; silent at one session and always silent in the hub. `final_gate.py`'s `Documentation Drift` row now passes `advisory=True` so the line survives a green exit instead of being dropped. Plan 2026-09-06-plan-2-multi-agent-adoption T03 (spec D3); 124 tests green.
 
+### Fixed — /fabrik-review of today's 12-commit chain, pass 1: 49 candidates adjudicated, 29 fixed (2026-09-06)
+
+The review that was owed and skipped all day (§ 1a; the sixth Stop cause's own hole let it slide).
+Two native Opus finders + four pool units + an orchestrator sweep; every candidate FIXED or REFUTED
+in-run — artifact `docs/development/reviews/2026-09-06-daily-chain-review.md`.
+
+**Stop hook (`final_gate_stop.py`, fleet-synced) — Finder A, 10 of 10 confirmed:**
+- **A-F1 CRITICAL:** 17b172bf yielded on the stamp's mere EXISTENCE while `quota_stop.py` fails OPEN
+  on a stale tick (>900 s) — a dead cron plus a leftover stamp disabled all six causes indefinitely
+  with every tool available. Yields now only while the hold is genuinely in force (stamp AND fresh
+  tick, the same seam). Grader: stale stamp → still blocks.
+- The coverage is a WINDOW `[started_epoch, updated_ts]`: code authored BEFORE a command started was
+  never in its scope (a `/fabrik-spec` run laundered earlier plain-chat edits — A-F5); `handoff` is a
+  closed state (A-F2 — every `/fabrik-service-test` close was blocked as "NO run record"); a `running`
+  record covers only while the fifth cause still acts on it (A-F3 — an abandoned `start` bought
+  permanent immunity); NaN/Infinity/bool timestamps read as no record (A-F6); warn-through re-arms
+  (A-F8 — three blocks used to disarm the cause for the session); an edit with no parseable
+  timestamp counts (A-F10); the block message no longer claims "NO command run record" (A-F9); the
+  dead per-session helpers and the test that certified the removed contract are gone (A-F7).
+- `command_run.py step/round` refuse a CLOSED record (A-F4) — a stray `step` moved `updated_ts` and
+  laundered every edit since the close.
+
+**User-level hooks — Finder B, 11 of 12 confirmed (B12 theoretical, fixed anyway):**
+- `user_hook_gate.py`: the docstring asserted a deny-by-exit-code contract the real `quota_stop.py`
+  does not use (it denies via stdout JSON, exit 0) and the grader tested a synthetic hook — now a
+  byte-identical pass-through grader runs the REAL hook (B1); detection parses `settings.json` and
+  defers only on a same-event registration — a substring anywhere used to strip a window of its hold
+  (B2); the project root is resolved (`CLAUDE_PROJECT_DIR` or the nearest `.claude/settings.json`) so
+  a subdirectory cwd no longer double-fires (B3); a hang or a missing hook is fail-open with a
+  stderr line, inner timeout 8 s under a 10 s registration (B8/B9).
+- `selfwatch_check.py`: the probe is read-only (`/proc/locks` by inode, flock fallback) — taking
+  `LOCK_EX` to ask could abort a concurrent arm (B6); a read-only lock file no longer crashes into
+  silence, exceptions print one line (B4); an unwritable lock DIR prints the diagnosis, not an arm
+  order that dies at once (B5); `cwd == "/opt"` is graded (B7); `CLAUDE_MESH_AUTONOMOUS` workers are
+  silent (B11); the sid transform is byte-wise like the watcher's `tr` (B12).
+- **`install_user_hooks.py`** (B10): the three registrations had no creator, verifier or restorer, and
+  `check_hooks_index.py` derives its required set FROM the file. Idempotent installer, `--check`
+  fails on absence (a warn-only gate row); live registration timeout 30 → 10.
+
+**Board / rotation / doc-links — pool finders:** one sort key and one clock for the queue (C5/C6), a
+reset AT now reads as "now" (C7); relief is the soonest epoch across both buckets and a weekly-walled
+account whose session is also spent returns at the later of the two (D1 — the bucket precedence
+chose a 10 h session wait over a 1 h weekly wait); gate modes of the doc-links renderer see tracked +
+STAGED files only, so a sibling's untracked scratch script can no longer red a BLOCKING check or
+raise the ratchet (E1/E2); CRLF pages graded (E3). Six INDEX rows for today's new files (F8 =
+orchestrator O1a). Refuted with citations: C1–C4, C8, D2–D4, F1–F7, O2. D-165.
+
 ### Fixed — the review checkpoint is now PER CHANGE: one morning run record no longer licenses a day of unreviewed commits (2026-09-06)
 
 Operator: "after doing changes all agents must run a /fabrik-review or /fabrik-review-scoped — have

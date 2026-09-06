@@ -30,24 +30,55 @@ WATCH = Path.home() / ".claude" / "bin" / "claude-selfwatch.sh"
 
 
 def _safe(sid: str) -> str:
-    # the watcher's own transform: tr -c 'A-Za-z0-9_-' '_' | head -c 64
-    return "".join(c if (c.isalnum() or c in "_-") else "_" for c in sid)[:64]
+    """The watcher's own transform, BYTE for byte: `tr -c 'A-Za-z0-9_-' '_' | head -c 64` maps every
+    non-matching BYTE to `_` and cuts at 64 BYTES (review B12: a char-wise copy diverged on
+    non-ASCII; sids are UUIDs today, the mirror is exact anyway)."""
+    out = bytearray()
+    for b in sid.encode("utf-8"):
+        out.append(b if (chr(b).isalnum() and b < 128) or b in b"_-" else ord("_"))
+    return out[:64].decode("ascii")
+
+
+def _lock_dir() -> Path:
+    return Path(os.environ.get("CLAUDE_SOUND_LOCKDIR") or f"/tmp/claude-sound-locks-{os.getuid()}")
+
+
+def _held_per_proc_locks(st: os.stat_result) -> bool | None:
+    """READ-ONLY probe (review B6): does any process hold a FLOCK on this inode? `/proc/locks`
+    lists `… FLOCK ADVISORY WRITE <pid> <maj>:<min>:<ino> …`. None when unreadable (not Linux,
+    hidepid) — the caller falls back to the flock probe, which is racy by nature: taking LOCK_EX
+    to ask could make the watcher's own `flock -n` see "already armed" and exit 0."""
+    try:
+        text = Path("/proc/locks").read_text()
+    except OSError:
+        return None
+    maj, mnr = os.major(st.st_dev), os.minor(st.st_dev)
+    want = f"{maj:02x}:{mnr:02x}:{st.st_ino}"
+    for line in text.splitlines():
+        parts = line.split()
+        if len(parts) >= 6 and parts[1] == "FLOCK" and parts[5] == want:
+            return True
+    return False
 
 
 def _armed(sid: str) -> bool:
-    locks = Path(os.environ.get("CLAUDE_SOUND_LOCKDIR") or f"/tmp/claude-sound-locks-{os.getuid()}")
-    path = locks / f"{_safe(sid)}.selfwatch.lock"
+    path = _lock_dir() / f"{_safe(sid)}.selfwatch.lock"
     if not path.exists():
         return False
-    # O_APPEND, never truncate: the watcher's fd 9 points at this inode.
-    fd = os.open(str(path), os.O_WRONLY | os.O_APPEND)
+    st = os.stat(path)
+    held = _held_per_proc_locks(st)
+    if held is not None:
+        return held
+    # Fallback: a non-blocking flock probe. O_RDONLY — flock needs no write access, and O_WRONLY
+    # raised on a read-only lock file, which the bare except then swallowed into silence (B4).
+    fd = os.open(str(path), os.O_RDONLY)
     try:
         try:
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            return True  # somebody holds it → the standing watch is alive
+            return True
         fcntl.flock(fd, fcntl.LOCK_UN)
-        return False  # nobody holds it → a stale file, not an arm
+        return False
     finally:
         os.close(fd)
 
@@ -60,23 +91,37 @@ def main() -> int:
         if (
             not sid
             or os.environ.get("CLAUDE_MESH_HEADLESS") == "1"
+            or os.environ.get("CLAUDE_MESH_AUTONOMOUS")
+            == "1"  # `claude -p` workers: no Monitor tool (B11)
             or not (cwd == "/opt" or cwd.startswith("/opt/"))
             or not WATCH.is_file()
         ):
             return 0
         if _armed(sid):
             return 0
+        locks = _lock_dir()
+        if locks.exists() and not os.access(locks, os.W_OK):
+            # B5: the watcher exits 1 when it cannot open its lock — ordering an arm here loops
+            # forever ("arm → dies → arm"). Say what is actually wrong.
+            print(
+                "## ⚠️ SELF-WATCH CANNOT ARM — LOCK DIR not writable\n"
+                f"`{locks}` is not writable by this user, so `claude-selfwatch.sh` exits at once "
+                "(its line 25) and an arm order would never stop this notice. Fix the directory "
+                "(permissions/ownership), then arm.\n"
+            )
+            return 0
         print(
             "## ⚠️ SELF-WATCH NOT ARMED (mechanical check, every prompt)\n"
-            f"No process holds this session's `selfwatch.lock`, so a mid-stream death would wait "
-            "for a human \"proceed\". ARM IT NOW — one persistent Monitor, then this notice stops:\n"
+            "No process holds this session's `selfwatch.lock`, so a mid-stream death would wait "
+            'for a human "proceed". ARM IT NOW — one persistent Monitor; once the lock is held this '
+            "notice stops:\n"
             f'`Monitor(persistent: true, command: "bash {WATCH} {sid}", '
             'description: "resume-mesh self-watch")`\n'
             "(The literal sid above is required — an empty arg exits the watch as you arm it. "
             "Never a `nohup … &` arm. Authority: docs/workstation/hooks-index.md.)"
         )
-    except Exception:  # noqa: BLE001 — fail-open by contract
-        pass
+    except Exception as exc:  # noqa: BLE001 — fail-open by contract, but never SILENT (B4)
+        print(f"selfwatch_check: skipped — {type(exc).__name__}: {exc}", file=sys.stderr)
     return 0
 
 

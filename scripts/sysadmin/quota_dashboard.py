@@ -778,26 +778,16 @@ _TARGET_SESSION_MAX = float(
 )
 
 
-def _display_order(payload: dict) -> list[dict]:
-    """Rows in ROTATION order (operator rule 2026-09-03): the active account first, then the standby
-    the tick would pick NEXT, then the one after — for any number of accounts. Mirrors the tick's
-    `_pick_flip_target`: eligible = not cap-walled, no window ≥100, a KNOWN 5h reading ≤ the target
-    budget (`ROTATE_TARGET_SESSION_MAX_PCT`, default = the drain line) and below the flip threshold;
-    ranked PERISHABLE-FIRST — soonest weekly reset, then lower weekly, then lower session utilization
-    (an unknown reset sorts last). Ineligible accounts follow, by the same key, so the board reads
-    top-to-bottom as the order rotation will actually use."""
-    far = time.time() + 365 * 86400
-
-    def key(a: dict) -> tuple[float, float, float]:
-        reset = (a.get("seven_day") or {}).get("resets_at_epoch")
-        seven, five = _util(a, "seven_day"), _util(a, "five_hour")
-        return (
-            float(reset) if isinstance(reset, (int, float)) else far,
-            seven if seven is not None else 101.0,
-            five if five is not None else 101.0,
-        )
-
-    return [e["acct"] for e in _queue(payload, time.time(), _key=key) if e["kind"] != "return"]
+def _display_order(payload: dict, now: float | None = None) -> list[dict]:
+    """Rows in the order rotation will actually use — the account-only projection of `_queue`.
+    ONE key and ONE clock: this used to carry its own copy of the perishable-first key (unknown
+    reset = now+365d, vs inf in `_queue_for_render`) and read `time.time()` while `render()` passed
+    `generated_at` — two copies that could disagree (review 2026-09-06, C5/C6)."""
+    return [
+        e["acct"]
+        for e in _queue_for_render(payload, time.time() if now is None else now)
+        if e["kind"] != "return"
+    ]
 
 
 def _returns_at(a: dict, now: float) -> float | None:
@@ -812,7 +802,7 @@ def _returns_at(a: dict, now: float) -> float | None:
     )
     win = a.get("seven_day") if weekly_blocked else a.get("five_hour")
     r = (win or {}).get("resets_at_epoch") if isinstance(win, dict) else None
-    return float(r) if isinstance(r, (int, float)) and float(r) > now else None
+    return float(r) if isinstance(r, (int, float)) and float(r) >= now else None
 
 
 def _queue(payload: dict, now: float, _key=None) -> list[dict]:
@@ -1061,7 +1051,7 @@ def _commands_table(rows: list[dict[str, str]]) -> str:
 def render(
     payload: dict, generated_at: float, error: str | None = None, credits: dict | None = None
 ) -> str:
-    accounts = _display_order(payload)
+    accounts = _display_order(payload, generated_at)
     active = payload.get("active")
     warns = payload.get("fleet_warnings") or []
     pause = payload.get("pause")

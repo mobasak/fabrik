@@ -372,6 +372,13 @@ def _run_stop_with_transcript(
             json.dumps(
                 {
                     "type": "assistant",
+                    # a real edit postdates the SessionStart baseline this helper writes a moment later — stamp
+                    # it a minute ahead so the session_floor filter (an edit older than the baseline is a
+                    # resumed transcript's ancient work) keeps it as THIS session's
+                    "timestamp": (
+                        __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+                        + __import__("datetime").timedelta(seconds=60)
+                    ).isoformat(),
                     "message": {
                         "content": [
                             {"type": "tool_use", "name": "Edit", "input": {"file_path": str(ap)}}
@@ -401,7 +408,23 @@ def _run_stop_with_transcript(
     import time as _t
 
     (run_dir / f"{sid}.json").write_text(
-        json.dumps({"state": "done", "command": "fabrik-review-scoped", "updated_ts": _t.time()})
+        json.dumps(
+            {
+                "state": "done",
+                "command": "fabrik-review-scoped",
+                # a real record ALWAYS carries started_epoch (command_run.py `start` writes it); a
+                # closed record without one is an unrecognised shape and covers nothing (A-F5/A-F7)
+                # 0, not now-120: these fixtures' transcript entries carry FIXED historical
+                # timestamps, and the window covers [started, closed] — a "command that covered
+                # everything" is expressed by a start at the epoch (these tests are about gate
+                # ATTRIBUTION, not the review cause)
+                "started_epoch": 0,
+                # closed AFTER the stamped edit (now+60): the fixture means "a command covered this
+                # edit", so its window [0, now+120] must contain it — a close BEFORE the edit reads,
+                # correctly, as "authored after the close" and the sixth cause blocks
+                "updated_ts": _t.time() + 120,
+            }
+        )
     )
     env = {
         **os.environ,
@@ -1562,38 +1585,16 @@ def test_blocked_exemption_still_fires_on_real_escalations() -> None:
         assert hook._GATE_EXEMPT_GLOBAL_RE.search(msg), msg
 
 
-def test_a_stale_but_real_record_is_not_unreviewed_work(tmp_path, monkeypatch):
-    """`_run_record` fails OPEN on anything it cannot prove FRESH — right for the "still running"
-    cause, where a stale record must never trap a session. Its None was also being read as
-    `has_any_record=False` by the review checkpoint, whose question is a different one: "was this
-    reviewed under a command AT ALL?" So a session that ran /fabrik-review-scoped to a clean
-    terminal, closed it, then sat idle under a quota hold was re-blocked as UNREVIEWED SPONTANEOUS
-    WORK once its record aged past the bound (youtube, session 50328fe3, age 13.01h —
-    01M1NTNCFEWMP82YQFGNN6NHYP). A fail-open on one cause became a fail-CLOSED block on another."""
+def test_a_stale_but_real_record_is_not_unreviewed_work(tmp_path: Path, monkeypatch) -> None:
+    """A reviewed, closed, idle session stays ALLOWED — the 01M1NTNCFEWMP82YQFGNN6NHYP shape —
+    now expressed through the review WINDOW (review 2026-09-06, A-F7 re-grounding): a closed
+    record covers edits inside [started, closed]; an idle session authors nothing after."""
+    import time as _t
+
     mod = hook
-    monkeypatch.setenv("COMMAND_RUN_DIR", str(tmp_path))
-    sid = "50328fe3-aaaa-bbbb-cccc-ddddeeeeffff"
-    rec = {
-        "command": "fabrik-review-scoped",
-        "state": "done",
-        "updated_ts": time.time() - 13.01 * 3600,
-    }
-    (tmp_path / f"{mod._safe_sid(sid)}.json").write_text(json.dumps(rec), encoding="utf-8")
-
-    assert mod._run_record(sid) is None, (
-        "freshness is unprovable at 13h — the run-record cause stays fail-open"
-    )
-    assert mod._run_record_exists(sid) is True, (
-        "but the record EXISTS, which is the review checkpoint's question"
-    )
-    assert mod.decide_review(3, bool(mod._run_record(sid)), 0)[0] == "block_review"  # the defect
-    assert mod.decide_review(3, mod._run_record_exists(sid), 0)[0] == "allow"  # the fix
-
-    (tmp_path / f"{mod._safe_sid(sid)}.json").unlink()
-    assert mod._run_record_exists(sid) is False
-    assert mod.decide_review(3, mod._run_record_exists(sid), 0)[0] == "block_review", (
-        "a session that genuinely never opened a record must still be caught — the cause survives"
-    )
-    for junk in ("[]", "null", "{}", "not json at all"):
-        (tmp_path / f"{mod._safe_sid(sid)}.json").write_text(junk, encoding="utf-8")
-        assert mod._run_record_exists(sid) is False, junk
+    now = _t.time()
+    rec = {"state": "done", "started_epoch": now - 14 * 3600, "updated_ts": now - 13.01 * 3600}
+    win = mod._review_window(rec)
+    assert win is not None
+    n = mod._unreviewed_code_files({"src/a.py": int(now - 13.5 * 3600)}, win)
+    assert n == 0 and mod.decide_review(n, n == 0, 0)[0] == "allow"

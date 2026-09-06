@@ -1510,3 +1510,25 @@ def test_a_healthy_active_account_has_no_return_slot(tmp_path, monkeypatch):
     slugs = [e["slug"] for e in qd._queue(_queue_payload(active_five=20.0), _NOW)]
     assert slugs.count("ob") == 1
     assert "is-return" not in qd.render(_queue_payload(active_five=20.0), _NOW)
+
+
+# --- review pass 1 (2026-09-06): C5/C6/C7 — one sort key, one clock, a reset AT now is "now" ----
+def test_display_order_and_queue_share_one_key_and_one_clock(tmp_path, monkeypatch):
+    """C5/C6: _display_order had its own copy of the perishable-first key (unknown reset = now+365d)
+    while _queue_for_render used inf, and read time.time() while render() passed generated_at — two
+    copies that could disagree. One function, one `now`."""
+    qd = _load(tmp_path, monkeypatch)
+    p = _queue_payload()
+    a = [e["slug"] for e in qd._queue_for_render(p, _NOW) if e["kind"] != "return"]
+    b = [x["slugs"][0] for x in qd._display_order(p, _NOW)]
+    assert a == b
+    assert "far = time.time()" not in Path(qd.__file__).read_text(), (
+        "a second key closure crept back"
+    )
+
+
+def test_a_reset_exactly_at_now_reads_as_returning_now_not_unknown(tmp_path, monkeypatch):
+    """C7: strict `>` made a reset AT now read as None → 'return time unknown', sorted last."""
+    qd = _load(tmp_path, monkeypatch)
+    a = _q("x", 100.0, 40.0, five_reset=_NOW, seven_reset=_NOW + 86400, cap=99)
+    assert qd._returns_at(a, _NOW) == _NOW

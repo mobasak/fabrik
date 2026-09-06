@@ -15,6 +15,7 @@ no registry, no pgrep, no guessing from process names.
 from __future__ import annotations
 
 import fcntl
+import importlib.util as _ilu
 import json
 import os
 import subprocess
@@ -23,6 +24,10 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 HOOK = REPO / "scripts" / "sysadmin" / "selfwatch_check.py"
+_spec = _ilu.spec_from_file_location("selfwatch_check", HOOK)
+_selfwatch = _ilu.module_from_spec(_spec)
+_spec.loader.exec_module(_selfwatch)
+
 SID = "11111111-2222-3333-4444-555555555555"
 
 
@@ -98,3 +103,65 @@ def test_compact_resume_is_not_exempt(tmp_path):
         env={**os.environ, "CLAUDE_SOUND_LOCKDIR": str(locks)},
     )
     assert "NOT ARMED" in proc.stdout
+
+
+# --- review pass 1 (2026-09-06), Finder B: B4 B5 B6 B7 B11 B12 ----------------------------------
+
+
+def test_a_read_only_lock_file_is_still_probed(tmp_path):
+    """B4: O_WRONLY on a 0400 lock raised, the bare `except: pass` swallowed it, and the check
+    said NOTHING forever — the exact failure it was built to end. flock needs no write access."""
+    fd = _hold_lock(tmp_path)
+    try:
+        locks = tmp_path / "locks"
+        lock = next(locks.glob("*.selfwatch.lock"))
+        lock.chmod(0o400)
+        assert _run(tmp_path) == "", "held + read-only must read as ARMED, not as silence-by-crash"
+    finally:
+        os.close(fd)
+
+
+def test_an_unwritable_lock_dir_prints_the_diagnosis_not_an_arm_order(tmp_path):
+    """B5: the watcher exits 1 when it cannot open the lock; the check kept ordering an arm that
+    could never succeed, on every prompt, while promising 'then this notice stops'."""
+    locks = tmp_path / "locks"
+    locks.mkdir(exist_ok=True)
+    locks.chmod(0o500)
+    try:
+        out = _run(tmp_path)
+        assert "LOCK DIR" in out and "not writable" in out, out
+        assert "Monitor(" not in out, "must not order an arm that will die at once"
+    finally:
+        locks.chmod(0o700)
+
+
+def test_probe_is_read_only_and_never_races_an_arm(tmp_path):
+    """B6: taking LOCK_EX to probe could make a concurrent `flock -n` in the watcher see 'already
+    armed' and exit 0 — a prober that mutates what it probes. /proc/locks is consulted first."""
+    fd = _hold_lock(tmp_path)
+    try:
+        locks = tmp_path / "locks"
+        lock = next(locks.glob("*.selfwatch.lock"))
+        st = os.stat(lock)
+        assert _selfwatch._held_per_proc_locks(st) is True
+    finally:
+        os.close(fd)
+
+
+def test_cwd_exactly_opt_is_a_pane_too(tmp_path):
+    """B7: the `cwd == "/opt"` disjunct had no grader — the exact class that silently dropped 4
+    sessions on 2026-08-16 (a /opt/*-only glob)."""
+    assert "NOT ARMED" in _run(tmp_path, cwd="/opt")
+
+
+def test_autonomous_headless_workers_are_silent(tmp_path):
+    """B11: ci_fix_dispatcher / the broker / rivals run `claude -p` under CLAUDE_MESH_AUTONOMOUS=1
+    (not HEADLESS) from /opt cwds — no Monitor tool exists there, the order is noise per prompt."""
+    assert _run(tmp_path, CLAUDE_MESH_AUTONOMOUS="1") == ""
+
+
+def test_safe_sid_mirrors_the_watchers_byte_transform():
+    """B12: the watcher's `tr -c … | head -c 64` works on BYTES; a char-wise copy diverged on
+    non-ASCII. UUIDs are ASCII today; the mirror must be exact anyway."""
+    assert _selfwatch._safe("é" * 40) == "_" * 64  # 2 bytes each → 80 underscores → cut at 64
+    assert _selfwatch._safe("abc-DEF_9") == "abc-DEF_9"

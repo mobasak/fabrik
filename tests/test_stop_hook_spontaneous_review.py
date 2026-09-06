@@ -24,34 +24,38 @@ _spec.loader.exec_module(fgs)
 def test_code_edits_with_no_record_block_up_to_the_cap():
     a = 0
     for expect in (1, 2, 3):
-        action, a = fgs.decide_review(code_files=3, has_any_record=False, attempts=a)
+        action, a = fgs.decide_review(3, False, a)
         assert action == "block_review" and a == expect
-    action, a = fgs.decide_review(code_files=3, has_any_record=False, attempts=a)
+    action, a = fgs.decide_review(3, False, a)
     assert action == "allow_warn_review", "cap must warn through, never trap (anti-trap law)"
 
 
-def test_any_run_record_exempts_commanded_work():
+def test_code_authored_inside_a_commands_window_is_exempt():
     """An /fabrik-execute-plan turn commits code under ITS record; its own contract owns the
-    review discipline. The checkpoint belongs to record-less work only."""
-    action, a = fgs.decide_review(code_files=9, has_any_record=True, attempts=2)
-    assert action == "allow" and a == 0, "a record must exempt AND reset the counter"
+    review discipline — for edits INSIDE its [start, close] window (A-F5/A-F7 re-grounding)."""
+    win = fgs._review_window({"state": "done", "started_epoch": 100, "updated_ts": 900})
+    n = fgs._unreviewed_code_files({"src/a.py": 500, "src/b.py": 850}, win)
+    action, a = fgs.decide_review(n, n == 0, attempts=2)
+    assert n == 0 and action == "allow" and a == 0, (
+        "covered edits must exempt AND reset the counter"
+    )
 
 
 def test_doc_only_sessions_never_fire():
-    action, a = fgs.decide_review(code_files=0, has_any_record=False, attempts=2)
+    action, a = fgs.decide_review(0, False, 2)
     assert action == "allow" and a == 0
 
 
 def test_code_file_classifier():
-    files = {"scripts/x.py": 3, "docs/A.md": 9, "CHANGELOG.md": 2, ".claude/settings.json": 1,
-             "a/b.ts": 1, "notes.txt": 5}
-    assert fgs._count_code_files(files) == 3, "py + json + ts are code; md/txt are not"
+    files = {"a.py": 1, "b.md": 2, "c.json": 3, "d.ts": 4, "e.txt": 5}
+    assert fgs._unreviewed_code_files(files, None) == 3, "py + json + ts are code; md/txt are not"
 
 
 def test_counters_extend_compatibly():
     """Old 5-slot counter files must read as 0 for the new slot — a synced hook meeting a
     pre-upgrade counter file must not crash or misattribute attempts."""
     import tempfile
+
     with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as f:
         f.write("1,2,3,4,5")
         p = Path(f.name)
@@ -73,28 +77,108 @@ T = 1_800_000_000
 
 def test_code_authored_after_the_last_closed_command_is_unreviewed():
     authored = {"src/a.py": T + 60, "src/b.py": T - 60, "docs/x.md": T + 600}
-    horizon = fgs._review_horizon({"command": "fabrik-review-scoped", "state": "done", "updated_ts": T})
-    assert horizon == T
-    assert fgs._unreviewed_code_files(authored, horizon) == 1, "only a.py is newer than the close"
+    window = fgs._review_window(
+        {
+            "command": "fabrik-review-scoped",
+            "state": "done",
+            "started_epoch": T - 3600,
+            "updated_ts": T,
+        }
+    )
+    assert window == (T - 3600, T)
+    assert fgs._unreviewed_code_files(authored, window) == 1, "only a.py is newer than the close"
 
 
 def test_no_record_at_all_leaves_every_code_file_unreviewed():
     authored = {"src/a.py": T, "src/b.py": T - 9999}
-    assert fgs._review_horizon(None) is None
+    assert fgs._review_window(None) is None
     assert fgs._unreviewed_code_files(authored, None) == 2
 
 
 def test_a_running_record_is_the_fifth_causes_business_not_this_ones():
     authored = {"src/a.py": T + 60}
-    horizon = fgs._review_horizon({"command": "fabrik-execute-plan", "state": "running", "updated_ts": T})
-    assert fgs._unreviewed_code_files(authored, horizon) == 0, "never double-block a live command"
+    window = fgs._review_window(
+        {
+            "command": "fabrik-execute-plan",
+            "state": "running",
+            "started_epoch": T - 60,
+            "updated_ts": T,
+        }
+    )
+    assert fgs._unreviewed_code_files(authored, window) == 0, "never double-block a live command"
 
 
 def test_a_blocked_close_covers_like_a_done_close():
-    horizon = fgs._review_horizon({"command": "fabrik-review", "state": "blocked", "updated_ts": T})
-    assert horizon == T
+    window = fgs._review_window(
+        {"command": "fabrik-review", "state": "blocked", "started_epoch": T - 10, "updated_ts": T}
+    )
+    assert window == (T - 10, T)
 
 
 def test_malformed_record_reads_as_no_record():
-    for rec in ({"state": "done"}, {"updated_ts": "soon", "state": "done"}, "junk", 42):
-        assert fgs._review_horizon(rec) is None
+    for rec in (
+        {"state": "done"},
+        {"updated_ts": "soon", "state": "done", "started_epoch": 1},
+        "junk",
+        42,
+    ):
+        assert fgs._review_window(rec) is None
+
+
+def test_handoff_is_a_closed_state_that_covers_like_done():
+    """A-F2: /fabrik-user-test and /fabrik-service-test MANDATE a `handoff` close; hand-writing
+    {"done","blocked"} blocked every such session with 'NO command run record'."""
+    win = fgs._review_window({"state": "handoff", "started_epoch": T - 100, "updated_ts": T})
+    assert win == (T - 100, T)
+    assert frozenset({"done", "blocked", "handoff"}) == fgs._CLOSED_STATES
+
+
+def test_code_authored_before_the_command_started_is_not_covered():
+    """A-F5: a command's contract owns its scope from its START, not from the beginning of time.
+    Plain-chat code edited at 12:00, then /fabrik-spec run 12:10-12:40 → the 12:00 edit is
+    covered by nothing."""
+    win = fgs._review_window({"state": "done", "started_epoch": T + 600, "updated_ts": T + 2400})
+    assert fgs._unreviewed_code_files({"src/a.py": T}, win) == 1
+    assert fgs._unreviewed_code_files({"src/a.py": T + 900}, win) == 0
+    assert fgs._unreviewed_code_files({"src/a.py": T + 3000}, win) == 1
+
+
+def test_a_stale_running_record_no_longer_covers(monkeypatch):
+    """A-F3: `running` covered 'now' freshness-blind while the fifth cause fails OPEN past 12h — an
+    abandoned `start` bought permanent immunity. Running covers only while the record is fresh."""
+    monkeypatch.setattr(fgs, "_run_record", lambda sid: None)  # the fifth cause's verdict: stale
+    assert (
+        fgs._review_window({"state": "running", "started_epoch": T, "updated_ts": T}, sid="x")
+        is None
+    )
+    monkeypatch.setattr(fgs, "_run_record", lambda sid: {"state": "running"})
+    assert fgs._review_window(
+        {"state": "running", "started_epoch": T, "updated_ts": T}, sid="x"
+    ) == (T, float("inf"))
+
+
+def test_non_finite_or_bool_timestamps_read_as_no_record():
+    """A-F6: json.loads accepts bare NaN/Infinity; `Infinity` gave a permanent exemption, `true`
+    read as 1970. The guard _run_record already carries is lifted here verbatim."""
+    for bad in (float("inf"), float("nan"), True):
+        assert fgs._review_window({"state": "done", "started_epoch": T, "updated_ts": bad}) is None
+        assert fgs._review_window({"state": "done", "started_epoch": bad, "updated_ts": T}) is None
+
+
+def test_warn_through_re_arms_like_every_other_cause():
+    """A-F8: after three blocks the cause disarmed for the rest of the session."""
+    action, a = fgs.decide_review(3, False, 3)
+    assert action == "allow_warn_review" and a == 0, (
+        "must reset so the next unreviewed stop blocks again"
+    )
+
+
+def test_an_edit_with_no_parseable_timestamp_counts_as_unreviewed():
+    """A-F10: ts=0 (unparseable transcript timestamp) read as covered by any window."""
+    assert fgs._unreviewed_code_files({"src/a.py": 0}, (T - 100, T)) == 1
+
+
+def test_the_dead_per_session_helpers_are_gone():
+    """A-F7: _run_record_exists / _count_code_files had zero production callers and a docstring
+    that instructed the reverted contract; a green test certified the removed behaviour."""
+    assert not hasattr(fgs, "_run_record_exists") and not hasattr(fgs, "_count_code_files")

@@ -21,7 +21,8 @@ import pytest
 REPO = Path(__file__).resolve().parents[1]
 
 spec = importlib.util.spec_from_file_location(
-    "claude_rotate_v2", REPO / "scripts" / "sysadmin" / "claude_rotate.py")
+    "claude_rotate_v2", REPO / "scripts" / "sysadmin" / "claude_rotate.py"
+)
 cr = importlib.util.module_from_spec(spec)
 sys.modules["claude_rotate_v2"] = cr
 spec.loader.exec_module(cr)
@@ -29,10 +30,17 @@ spec.loader.exec_module(cr)
 NOW = 1_800_000_000.0
 
 
-def _acct(name, weekly_pct=10.0, weekly_reset=NOW + 5 * 86400, session_pct=10.0,
-          session_reset=NOW + 3600, valid=True):
+def _acct(
+    name,
+    weekly_pct=10.0,
+    weekly_reset=NOW + 5 * 86400,
+    session_pct=10.0,
+    session_reset=NOW + 3600,
+    valid=True,
+):
     return {
-        "name": f"{name}-ocoron-com-s-organization", "email": f"{name}@ocoron.com",
+        "name": f"{name}-ocoron-com-s-organization",
+        "email": f"{name}@ocoron.com",
         "valid": valid,
         "five_hour": {"utilization": session_pct, "resets_at_epoch": session_reset},
         "seven_day": {"utilization": weekly_pct, "resets_at_epoch": weekly_reset},
@@ -43,39 +51,55 @@ def _acct(name, weekly_pct=10.0, weekly_reset=NOW + 5 * 86400, session_pct=10.0,
 
 
 def test_t1_soonest_weekly_reset_wins():
-    cands = [_acct("a", weekly_reset=NOW + 4 * 86400),
-             _acct("b", weekly_reset=NOW + 1 * 86400),
-             _acct("c", weekly_reset=NOW + 2 * 86400)]
+    cands = [
+        _acct("a", weekly_reset=NOW + 4 * 86400),
+        _acct("b", weekly_reset=NOW + 1 * 86400),
+        _acct("c", weekly_reset=NOW + 2 * 86400),
+    ]
     pick = cr._pick_successor(cands, current_name=None, now=NOW)
     assert pick == "b-ocoron-com-s-organization"
 
 
 def test_t1_tiebreak_lower_weekly_then_session():
-    cands = [_acct("a", weekly_reset=NOW + 86400, weekly_pct=50),
-             _acct("b", weekly_reset=NOW + 86400, weekly_pct=20, session_pct=30),
-             _acct("c", weekly_reset=NOW + 86400, weekly_pct=20, session_pct=10)]
+    cands = [
+        _acct("a", weekly_reset=NOW + 86400, weekly_pct=50),
+        _acct("b", weekly_reset=NOW + 86400, weekly_pct=20, session_pct=30),
+        _acct("c", weekly_reset=NOW + 86400, weekly_pct=20, session_pct=10),
+    ]
     assert cr._pick_successor(cands, None, NOW) == "c-ocoron-com-s-organization"
 
 
 def test_t1_excludes_walled_invalid_and_current():
-    cands = [_acct("a", weekly_pct=100.0, weekly_reset=NOW + 100),        # weekly-walled
-             _acct("b", session_pct=100.0, weekly_reset=NOW + 200),      # session-walled
-             _acct("c", valid=False, weekly_reset=NOW + 300),            # dead snapshot
-             _acct("d", weekly_reset=NOW + 4 * 86400)]                   # current
+    cands = [
+        _acct("a", weekly_pct=100.0, weekly_reset=NOW + 100),  # weekly-walled
+        _acct("b", session_pct=100.0, weekly_reset=NOW + 200),  # session-walled
+        _acct("c", valid=False, weekly_reset=NOW + 300),  # dead snapshot
+        _acct("d", weekly_reset=NOW + 4 * 86400),
+    ]  # current
     assert cr._pick_successor(cands, "d-ocoron-com-s-organization", NOW) is None
 
 
 # ── tick harness ───────────────────────────────────────────────────────────────
 
 
-def _tick(tmp_path, monkeypatch, statuses, live_name, now=NOW, ledger_pre=None,
-          threshold="95", drain="85", dwell_min="30"):
+def _tick(
+    tmp_path,
+    monkeypatch,
+    statuses,
+    live_name,
+    now=NOW,
+    ledger_pre=None,
+    threshold="95",
+    drain="85",
+    dwell_min="30",
+):
     """Run _cmd_tick with every seam faked; returns (actions dict, state dir)."""
     state = tmp_path / "state"
     state.mkdir(exist_ok=True)
     if ledger_pre:
         (state / "rotate-ledger.jsonl").write_text(
-            "".join(json.dumps(e) + "\n" for e in ledger_pre))
+            "".join(json.dumps(e) + "\n" for e in ledger_pre)
+        )
     actions = {"switched_to": [], "mails": [], "telegrams": [], "refreshed": []}
     # Hermetic: an operator-created real ~/.claude-fleet must never flip these legacy-tick
     # tests into fleet mode (T03 feature detection keys on the fleet root's contents).
@@ -86,12 +110,14 @@ def _tick(tmp_path, monkeypatch, statuses, live_name, now=NOW, ledger_pre=None,
     monkeypatch.setenv("ROTATE_DWELL_MIN", dwell_min)
     monkeypatch.setattr(cr, "_collect_statuses", lambda: (statuses, live_name))
     monkeypatch.setattr(cr, "_now", lambda: now)
-    monkeypatch.setattr(cr, "_tick_switch",
-                        lambda name: actions["switched_to"].append(name) or True)
+    monkeypatch.setattr(
+        cr, "_tick_switch", lambda name: actions["switched_to"].append(name) or True
+    )
     monkeypatch.setattr(cr, "_drain_mail", lambda repos, msg: actions["mails"].extend(repos))
     monkeypatch.setattr(cr, "_tick_telegram", lambda msg: actions["telegrams"].append(msg))
-    monkeypatch.setattr(cr, "_keepwarm_refresh",
-                        lambda store: actions["refreshed"].append(store.name) or True)
+    monkeypatch.setattr(
+        cr, "_keepwarm_refresh", lambda store: actions["refreshed"].append(store.name) or True
+    )
     monkeypatch.setattr(cr, "_mailbox_repos", lambda: ["fabrik", "seo"])
     rc = cr._cmd_tick()
     assert rc == 0
@@ -109,7 +135,7 @@ def test_t2_below_threshold_noop(tmp_path, monkeypatch):
 
 
 def test_t2_either_window_triggers_exactly_one_switch(tmp_path, monkeypatch):
-    live = _acct("live", weekly_pct=96.0)   # weekly window crosses, session fine
+    live = _acct("live", weekly_pct=96.0)  # weekly window crosses, session fine
     sib = _acct("sib", weekly_reset=NOW + 86400)
     actions, _ = _tick(tmp_path, monkeypatch, [live, sib], live["name"])
     assert actions["switched_to"] == [sib["name"]]
@@ -133,7 +159,7 @@ def test_t3_dwell_blocks_then_allows(tmp_path, monkeypatch):
 
 
 def test_t4_drain_broadcast_and_suppress(tmp_path, monkeypatch):
-    live = _acct("live", session_pct=86.0)   # over drain threshold, under switch threshold
+    live = _acct("live", session_pct=86.0)  # over drain threshold, under switch threshold
     dead = _acct("dead", valid=False)
     actions, state = _tick(tmp_path, monkeypatch, [live, dead], live["name"])
     assert actions["mails"] == ["fabrik", "seo"], "drain must mail every mailbox repo"
@@ -147,6 +173,7 @@ def test_t4b_future_dated_drain_stamp_never_suppresses(tmp_path, monkeypatch):
     the FUTURE (WSL suspend/resume, NTP correction) must read EXPIRED — not 'suppressed until
     the wall clock catches up', which silences the broadcast for days while the pool drains."""
     import os as _os
+
     live = _acct("live", session_pct=86.0)
     dead = _acct("dead", valid=False)
     state = tmp_path / "state"
@@ -173,9 +200,9 @@ def test_t4_no_drain_when_sibling_available(tmp_path, monkeypatch):
 def test_t5_expiring_snapshot_refreshes_fresh_does_not(tmp_path, monkeypatch):
     live = _acct("live")
     exp = _acct("exp")
-    exp["refresh_expires_at_epoch"] = NOW + 47 * 3600      # inside 48h → refresh
+    exp["refresh_expires_at_epoch"] = NOW + 47 * 3600  # inside 48h → refresh
     fresh = _acct("fresh")
-    fresh["refresh_expires_at_epoch"] = NOW + 30 * 86400   # far out → leave alone
+    fresh["refresh_expires_at_epoch"] = NOW + 30 * 86400  # far out → leave alone
     stores = tmp_path / "stores"
     for a in (exp, fresh):
         d = stores / a["name"]
@@ -190,17 +217,24 @@ def test_t5_identity_mismatch_never_filed(tmp_path, monkeypatch):
     store — the misattribution class (2026-08-13) must be impossible on the refresh path."""
     store = tmp_path / "ob-ocoron-com-s-organization"
     store.mkdir()
-    (store / ".credentials.json").write_text(json.dumps({"claudeAiOauth": {
-        "accessToken": "OLD", "refreshToken": "OLDR"}}))
+    (store / ".credentials.json").write_text(
+        json.dumps({"claudeAiOauth": {"accessToken": "OLD", "refreshToken": "OLDR"}})
+    )
     ok = cr._file_refreshed_credentials(
-        store, {"claudeAiOauth": {"accessToken": "NEW", "refreshToken": "NEWR"}},
-        verified_email="sarp@ocoron.com")
+        store,
+        {"claudeAiOauth": {"accessToken": "NEW", "refreshToken": "NEWR"}},
+        verified_email="sarp@ocoron.com",
+    )
     assert ok is False
-    assert json.loads((store / ".credentials.json").read_text())[
-        "claudeAiOauth"]["accessToken"] == "OLD", "mismatch must leave the store untouched"
+    assert (
+        json.loads((store / ".credentials.json").read_text())["claudeAiOauth"]["accessToken"]
+        == "OLD"
+    ), "mismatch must leave the store untouched"
     ok = cr._file_refreshed_credentials(
-        store, {"claudeAiOauth": {"accessToken": "NEW", "refreshToken": "NEWR"}},
-        verified_email="ob@ocoron.com")
+        store,
+        {"claudeAiOauth": {"accessToken": "NEW", "refreshToken": "NEWR"}},
+        verified_email="ob@ocoron.com",
+    )
     assert ok is True
     blob = json.loads((store / ".credentials.json").read_text())
     assert blob["claudeAiOauth"]["accessToken"] == "NEW"
@@ -212,37 +246,54 @@ def test_t5c_provenance_filing_path_still_guards_identity():
     no in-tool refresh to file. The provenance FLAG on _file_refreshed_credentials remains
     (a future CLI-mediated refresh would use it), so its contract is pinned directly."""
     import tempfile
+
     with tempfile.TemporaryDirectory() as d:
         store = Path(d) / "ob-ocoron-com-s-organization"
         store.mkdir()
-        (store / ".credentials.json").write_text(json.dumps({"claudeAiOauth": {
-            "accessToken": "OLD"}}))
-        assert cr._file_refreshed_credentials(
-            store, {"claudeAiOauth": {"accessToken": "NEW"}},
-            verified_email=None, provenance=True) is True
-        assert json.loads((store / ".credentials.json").read_text())[
-            "claudeAiOauth"]["accessToken"] == "NEW"
-        assert cr._file_refreshed_credentials(
-            store, {"claudeAiOauth": {"accessToken": "X"}},
-            verified_email="sarp@ocoron.com") is False
+        (store / ".credentials.json").write_text(
+            json.dumps({"claudeAiOauth": {"accessToken": "OLD"}})
+        )
+        assert (
+            cr._file_refreshed_credentials(
+                store,
+                {"claudeAiOauth": {"accessToken": "NEW"}},
+                verified_email=None,
+                provenance=True,
+            )
+            is True
+        )
+        assert (
+            json.loads((store / ".credentials.json").read_text())["claudeAiOauth"]["accessToken"]
+            == "NEW"
+        )
+        assert (
+            cr._file_refreshed_credentials(
+                store, {"claudeAiOauth": {"accessToken": "X"}}, verified_email="sarp@ocoron.com"
+            )
+            is False
+        )
 
 
 def test_t5d_unwritable_store_never_consumes_the_token(tmp_path, monkeypatch):
     """F1's other half: prove the store can take the write BEFORE the single-use grant."""
     store = tmp_path / "ob-ocoron-com-s-organization"
     store.mkdir()
-    (store / ".credentials.json").write_text(json.dumps({"claudeAiOauth": {
-        "accessToken": "OLD", "refreshToken": "OLDR"}}))
+    (store / ".credentials.json").write_text(
+        json.dumps({"claudeAiOauth": {"accessToken": "OLD", "refreshToken": "OLDR"}})
+    )
     consumed = []
     import urllib.request
-    monkeypatch.setattr(urllib.request, "urlopen",
-                        lambda req, timeout=0: consumed.append(1))
-    monkeypatch.setattr(urllib.request, "build_opener",
-                        lambda *a: type("O", (), {"open": lambda s, r, timeout=0:
-                                                  consumed.append(1)})())
+
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=0: consumed.append(1))
+    monkeypatch.setattr(
+        urllib.request,
+        "build_opener",
+        lambda *a: type("O", (), {"open": lambda s, r, timeout=0: consumed.append(1)})(),
+    )
     live = tmp_path / "live-credentials.json"
-    live.write_text(json.dumps({"claudeAiOauth": {"accessToken": "LIVE-OTHER",
-                                                 "refreshToken": "LIVE-OTHER-R"}}))
+    live.write_text(
+        json.dumps({"claudeAiOauth": {"accessToken": "LIVE-OTHER", "refreshToken": "LIVE-OTHER-R"}})
+    )
     monkeypatch.setattr(cr, "ACTIVE_CREDS", live)
     store.chmod(0o500)
     try:
@@ -262,8 +313,10 @@ def test_t6_no_signal_calls_in_either_copy():
     # "signal" in comments/docstrings — the plan's raw grep matched those, which is why
     # its literal form cannot be the assertion
     pat = re.compile(r"pkill|os\.kill|from signal import|(?<![a-z ])signal\.[a-z]")
-    for f in (REPO / "scripts" / "sysadmin" / "claude_rotate.py",
-              REPO / "scripts" / "aro-wake" / "claude_rotate.py"):
+    for f in (
+        REPO / "scripts" / "sysadmin" / "claude_rotate.py",
+        REPO / "scripts" / "aro-wake" / "claude_rotate.py",
+    ):
         hits = [ln for ln in f.read_text().splitlines() if pat.search(ln)]
         assert hits == [], (f.name, hits)
 
@@ -290,17 +343,22 @@ def test_t5e_never_consumes_the_live_accounts_token(tmp_path, monkeypatch):
     marker or a duplicate mis-filed store — must NEVER have its refresh token consumed."""
     store = tmp_path / "sarp-ocoron-com-s-organization"
     store.mkdir()
-    (store / ".credentials.json").write_text(json.dumps({"claudeAiOauth": {
-        "accessToken": "LIVE-TOK", "refreshToken": "LIVE-R"}}))
+    (store / ".credentials.json").write_text(
+        json.dumps({"claudeAiOauth": {"accessToken": "LIVE-TOK", "refreshToken": "LIVE-R"}})
+    )
     live = tmp_path / "live-credentials.json"
-    live.write_text(json.dumps({"claudeAiOauth": {"accessToken": "LIVE-TOK",
-                                                 "refreshToken": "LIVE-R"}}))
+    live.write_text(
+        json.dumps({"claudeAiOauth": {"accessToken": "LIVE-TOK", "refreshToken": "LIVE-R"}})
+    )
     monkeypatch.setattr(cr, "ACTIVE_CREDS", live)
     consumed = []
     import urllib.request
-    monkeypatch.setattr(urllib.request, "build_opener",
-                        lambda *a: type("O", (), {"open": lambda s, r, timeout=0:
-                                                  consumed.append(1)})())
+
+    monkeypatch.setattr(
+        urllib.request,
+        "build_opener",
+        lambda *a: type("O", (), {"open": lambda s, r, timeout=0: consumed.append(1)})(),
+    )
     assert cr._keepwarm_refresh(store) is False
     assert consumed == [], "the live account's single-use token must never be spent"
 
@@ -309,9 +367,15 @@ def test_t8_account_status_fails_closed_on_partial_usage(monkeypatch):
     """Closer #6: a 200 with a missing/oddly-typed window must read UNKNOWN (invalid), never
     0% — 0% makes a walled sibling the most attractive successor."""
     monkeypatch.setattr(cr, "_read_access_token", lambda p: "tok")
-    monkeypatch.setattr(cr, "_oauth_get", lambda path, tok, **kw: (
-        {"account": {"email": "ob@ocoron.com"}} if path == "profile"
-        else {"five_hour": {"utilization": 12.0, "resets_at": None}}))   # seven_day MISSING
+    monkeypatch.setattr(
+        cr,
+        "_oauth_get",
+        lambda path, tok, **kw: (
+            {"account": {"email": "ob@ocoron.com"}}
+            if path == "profile"
+            else {"five_hour": {"utilization": 12.0, "resets_at": None}}
+        ),
+    )  # seven_day MISSING
     row = cr._account_status(Path("/tmp/ob-ocoron-com-s-organization"))
     assert row["valid"] is False
     assert row["seven_day"] is None
@@ -332,7 +396,7 @@ def test_t9_failed_switch_falls_through_to_drain(tmp_path, monkeypatch):
     monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
     monkeypatch.setattr(cr, "_collect_statuses", lambda: ([live, sib], live["name"]))
     monkeypatch.setattr(cr, "_now", lambda: NOW)
-    monkeypatch.setattr(cr, "_tick_switch", lambda name: False)      # install refuses
+    monkeypatch.setattr(cr, "_tick_switch", lambda name: False)  # install refuses
     monkeypatch.setattr(cr, "_drain_mail", lambda repos, msg: actions["mails"].extend(repos))
     monkeypatch.setattr(cr, "_tick_telegram", lambda msg: actions["telegrams"].append(msg))
     monkeypatch.setattr(cr, "_mailbox_repos", lambda: ["fabrik"])
@@ -345,7 +409,9 @@ def test_t9_failed_switch_falls_through_to_drain(tmp_path, monkeypatch):
 def test_t10_tick_never_raises(tmp_path, monkeypatch):
     """Closer #11: 'always exits 0' must be ENFORCED, not documented."""
     monkeypatch.setenv("CLAUDE_FLEET_ROOT", str(tmp_path / "fleet-absent"))  # hermetic (T03)
-    monkeypatch.setattr(cr, "_collect_statuses", lambda: (_ for _ in ()).throw(RuntimeError("boom")))
+    monkeypatch.setattr(
+        cr, "_collect_statuses", lambda: (_ for _ in ()).throw(RuntimeError("boom"))
+    )
     assert cr._cmd_tick() == 0
 
 
@@ -369,13 +435,17 @@ def test_t12_keepwarm_is_blocked_and_never_spends_a_token(tmp_path, monkeypatch)
     hosts 2026-08-13). Keep-warm must be an honest no-op — never a silent token spend."""
     store = tmp_path / "ob-ocoron-com-s-organization"
     store.mkdir()
-    (store / ".credentials.json").write_text(json.dumps({"claudeAiOauth": {
-        "accessToken": "A", "refreshToken": "R"}}))
+    (store / ".credentials.json").write_text(
+        json.dumps({"claudeAiOauth": {"accessToken": "A", "refreshToken": "R"}})
+    )
     import urllib.request
+
     called = []
-    monkeypatch.setattr(urllib.request, "build_opener",
-                        lambda *a: type("O", (), {"open": lambda s, r, timeout=0:
-                                                  called.append(1)})())
+    monkeypatch.setattr(
+        urllib.request,
+        "build_opener",
+        lambda *a: type("O", (), {"open": lambda s, r, timeout=0: called.append(1)})(),
+    )
     monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **kw: called.append(1))
     assert cr._keepwarm_refresh(store) is False
     assert called == [], "no grant request may be issued"
@@ -388,9 +458,13 @@ def test_t13_parked_expired_access_is_unknown_not_dead(monkeypatch):
     monkeypatch.setattr(cr, "_oauth_get", lambda path, tok, **kw: None)  # 401s
     monkeypatch.setattr(cr, "_now", lambda: NOW)
     store = Path("/tmp/ob-ocoron-com-s-organization")
-    monkeypatch.setattr(Path, "read_text",
-                        lambda self, *a, **kw: json.dumps({"claudeAiOauth": {
-                            "refreshTokenExpiresAt": (NOW + 20 * 86400) * 1000}}))
+    monkeypatch.setattr(
+        Path,
+        "read_text",
+        lambda self, *a, **kw: json.dumps(
+            {"claudeAiOauth": {"refreshTokenExpiresAt": (NOW + 20 * 86400) * 1000}}
+        ),
+    )
     row = cr._account_status(store)
     assert row["valid"] is True and row["telemetry"] == "unknown-parked"
 
@@ -399,8 +473,13 @@ def test_t14_unknown_parked_ranks_last_but_is_eligible():
     """Fail-closed preference: an account with REAL telemetry always outranks an unknown
     one; an unknown account is still better than no successor at all."""
     live_tel = _acct("known", weekly_reset=NOW + 6 * 86400)
-    unknown = {"name": "parked-ocoron-com-s-organization", "valid": True,
-               "telemetry": "unknown-parked", "five_hour": None, "seven_day": None}
+    unknown = {
+        "name": "parked-ocoron-com-s-organization",
+        "valid": True,
+        "telemetry": "unknown-parked",
+        "five_hour": None,
+        "seven_day": None,
+    }
     assert cr._pick_successor([live_tel, unknown], None, NOW) == live_tel["name"]
     assert cr._pick_successor([unknown], None, NOW) == unknown["name"]
 
@@ -408,29 +487,40 @@ def test_t14_unknown_parked_ranks_last_but_is_eligible():
 # ── T8: --touch (keep the parked accounts' refresh chains alive) ───────────────
 
 
-def _touch_env(tmp_path, monkeypatch, live_name, ran, refreshed_email="ob@ocoron.com",
-               change=True):
+def _touch_env(tmp_path, monkeypatch, live_name, ran, refreshed_email="ob@ocoron.com", change=True):
     """Seams: two stores (live + parked), a fake `claude` run that optionally rewrites the
     isolated config's credentials, and a fake identity probe."""
     stores = tmp_path / "manager-accounts"
     for n in ("ob-ocoron-com-s-organization", "sarp-ocoron-com-s-organization"):
         d = stores / n
         d.mkdir(parents=True)
-        (d / ".credentials.json").write_text(json.dumps(
-            {"claudeAiOauth": {"accessToken": f"OLD-{n[:3]}", "refreshToken": f"R-{n[:3]}"}}))
+        (d / ".credentials.json").write_text(
+            json.dumps(
+                {"claudeAiOauth": {"accessToken": f"OLD-{n[:3]}", "refreshToken": f"R-{n[:3]}"}}
+            )
+        )
     monkeypatch.setattr(cr, "ACCOUNTS_DIR", stores)
     monkeypatch.setattr(cr, "ACTIVE_CREDS", tmp_path / "live.json")
-    (tmp_path / "live.json").write_text(json.dumps(
-        {"claudeAiOauth": {"accessToken": "LIVE", "refreshToken": "R-LIVE"}}))
+    (tmp_path / "live.json").write_text(
+        json.dumps({"claudeAiOauth": {"accessToken": "LIVE", "refreshToken": "R-LIVE"}})
+    )
     monkeypatch.setattr(cr, "_active_account", lambda: stores / live_name)
     monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
 
     def fake_run(cfg_dir: Path, store: Path) -> bool:
         ran.append(store.name)
         if change:
-            (cfg_dir / ".credentials.json").write_text(json.dumps(
-                {"claudeAiOauth": {"accessToken": "NEW-TOK", "refreshToken": "NEW-R",
-                                   "expiresAt": int((NOW + 8 * 3600) * 1000)}}))
+            (cfg_dir / ".credentials.json").write_text(
+                json.dumps(
+                    {
+                        "claudeAiOauth": {
+                            "accessToken": "NEW-TOK",
+                            "refreshToken": "NEW-R",
+                            "expiresAt": int((NOW + 8 * 3600) * 1000),
+                        }
+                    }
+                )
+            )
         return True
 
     monkeypatch.setattr(cr, "_touch_run_cli", fake_run)
@@ -456,8 +546,13 @@ def test_t8_touch_files_the_refreshed_pair(tmp_path, monkeypatch):
 
 def test_t8_touch_refuses_a_mismatched_identity(tmp_path, monkeypatch):
     ran = []
-    stores = _touch_env(tmp_path, monkeypatch, "sarp-ocoron-com-s-organization", ran,
-                        refreshed_email="stranger@example.com")
+    stores = _touch_env(
+        tmp_path,
+        monkeypatch,
+        "sarp-ocoron-com-s-organization",
+        ran,
+        refreshed_email="stranger@example.com",
+    )
     assert cr._cmd_touch() == 0
     blob = json.loads((stores / "ob-ocoron-com-s-organization" / ".credentials.json").read_text())
     assert blob["claudeAiOauth"]["accessToken"] == "OLD-ob-", "mismatch must not be filed"
@@ -491,21 +586,31 @@ def test_t8_touch_never_files_a_blanked_credential(tmp_path, monkeypatch):
     for n in ("ob-ocoron-com-s-organization", "sarp-ocoron-com-s-organization"):
         d = stores / n
         d.mkdir(parents=True)
-        (d / ".credentials.json").write_text(json.dumps({"claudeAiOauth": {
-            "accessToken": "GOOD", "refreshToken": "GOOD-R",
-            "expiresAt": int((NOW + 3600) * 1000)}}))
+        (d / ".credentials.json").write_text(
+            json.dumps(
+                {
+                    "claudeAiOauth": {
+                        "accessToken": "GOOD",
+                        "refreshToken": "GOOD-R",
+                        "expiresAt": int((NOW + 3600) * 1000),
+                    }
+                }
+            )
+        )
     monkeypatch.setattr(cr, "ACCOUNTS_DIR", stores)
     monkeypatch.setattr(cr, "ACTIVE_CREDS", tmp_path / "live.json")
     (tmp_path / "live.json").write_text(json.dumps({"claudeAiOauth": {"accessToken": "LIVE"}}))
-    monkeypatch.setattr(cr, "_active_account",
-                        lambda: stores / "sarp-ocoron-com-s-organization")
+    monkeypatch.setattr(cr, "_active_account", lambda: stores / "sarp-ocoron-com-s-organization")
     monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
     monkeypatch.setattr(cr, "_email_for_token", lambda tok: "ob@ocoron.com")
 
     def blanking_run(cfg_dir: Path, store: Path) -> bool:
         ran.append(store.name)
-        (cfg_dir / ".credentials.json").write_text(json.dumps({"claudeAiOauth": {
-            "accessToken": "BLANK", "refreshToken": "", "expiresAt": 0}}))
+        (cfg_dir / ".credentials.json").write_text(
+            json.dumps(
+                {"claudeAiOauth": {"accessToken": "BLANK", "refreshToken": "", "expiresAt": 0}}
+            )
+        )
         return True
 
     monkeypatch.setattr(cr, "_touch_run_cli", blanking_run)
@@ -543,8 +648,15 @@ def test_t14_pause_and_resume_cli_roundtrip(tmp_path, monkeypatch):
 # ── T15: the pause marker also gates run_claude's rotation choke point ──────────
 
 
-def _rotate_env(tmp_path, monkeypatch, paused, output, calls, install_ok=True,
-                names=("ob-ocoron-com-s-organization", "sarp-ocoron-com-s-organization")):
+def _rotate_env(
+    tmp_path,
+    monkeypatch,
+    paused,
+    output,
+    calls,
+    install_ok=True,
+    names=("ob-ocoron-com-s-organization", "sarp-ocoron-com-s-organization"),
+):
     """Seams for the run_claude rotation path (T01/M-pre): *names* snapshots, a fake `claude`
     whose output is `calls["script"]` in order (then *output* forever), a recorded installer, a
     recorded Telegram, and a tmp 401-debounce file (never the real ~/.claude one)."""
@@ -561,13 +673,29 @@ def _rotate_env(tmp_path, monkeypatch, paused, output, calls, install_ok=True,
     for n in names:
         d = stores / n
         d.mkdir(parents=True)
-        (d / ".credentials.json").write_text(json.dumps({"claudeAiOauth": {
-            "accessToken": f"TOK-{n[:4]}", "refreshToken": f"R-{n[:4]}",
-            "expiresAt": int((NOW + 3600) * 1000)}}))
+        (d / ".credentials.json").write_text(
+            json.dumps(
+                {
+                    "claudeAiOauth": {
+                        "accessToken": f"TOK-{n[:4]}",
+                        "refreshToken": f"R-{n[:4]}",
+                        "expiresAt": int((NOW + 3600) * 1000),
+                    }
+                }
+            )
+        )
     live = tmp_path / "live.json"
-    live.write_text(json.dumps({"claudeAiOauth": {  # = the ob store → it is the active one
-        "accessToken": "TOK-ob-o", "refreshToken": "R-ob-o",
-        "expiresAt": int((NOW + 3600) * 1000)}}))
+    live.write_text(
+        json.dumps(
+            {
+                "claudeAiOauth": {  # = the ob store → it is the active one
+                    "accessToken": "TOK-ob-o",
+                    "refreshToken": "R-ob-o",
+                    "expiresAt": int((NOW + 3600) * 1000),
+                }
+            }
+        )
+    )
     monkeypatch.setattr(cr, "ACCOUNTS_DIR", stores)
     monkeypatch.setattr(cr, "ACTIVE_CREDS", live)
     monkeypatch.setattr(cr, "ALERT_STATE", tmp_path / "last-401-alert")
@@ -583,8 +711,9 @@ def _rotate_env(tmp_path, monkeypatch, paused, output, calls, install_ok=True,
 
     monkeypatch.setattr(cr, "_activate_snapshot", fake_install)
     monkeypatch.setattr(cr.subprocess, "run", fake_run)
-    monkeypatch.setattr(cr, "_notify_telegram",
-                        lambda text: calls["telegrams"].append(text) or True)
+    monkeypatch.setattr(
+        cr, "_notify_telegram", lambda text: calls["telegrams"].append(text) or True
+    )
     return calls
 
 
@@ -624,8 +753,9 @@ def test_t15b_unpaused_rotation_is_unchanged(tmp_path, monkeypatch, capsys):
 def test_t15c_paused_401_never_claims_all_credentials_are_dead(tmp_path, monkeypatch):
     """Adversary finding R6: a withheld rotation is not evidence of exhaustion. The 12h-debounced
     'all credentials are dead' alert must stay silent — and must not burn the debounce window."""
-    calls = _rotate_env(tmp_path, monkeypatch, True,
-                        "API Error: 401 authentication_error", _calls())
+    calls = _rotate_env(
+        tmp_path, monkeypatch, True, "API Error: 401 authentication_error", _calls()
+    )
     cr.run_claude(["claude", "-p", "ping"], timeout=5, cwd=str(tmp_path), env={})
     assert calls["telegrams"] == [], "rotation was withheld, not exhausted"
     assert not (tmp_path / "last-401-alert").exists(), "the debounce window must not be consumed"
@@ -635,8 +765,14 @@ def test_t15d_unpaused_401_with_no_target_still_alerts(tmp_path, monkeypatch):
     """Over-suppression guard: without the marker, a genuinely unrecoverable 401 still alerts —
     and the send DOES record the debounce window (the mirror of t15c's negative; without this
     assertion a 'never touch the debounce file' mutant survives)."""
-    calls = _rotate_env(tmp_path, monkeypatch, False, "API Error: 401 authentication_error",
-                        _calls(), install_ok=False)
+    calls = _rotate_env(
+        tmp_path,
+        monkeypatch,
+        False,
+        "API Error: 401 authentication_error",
+        _calls(),
+        install_ok=False,
+    )
     cr.run_claude(["claude", "-p", "ping"], timeout=5, cwd=str(tmp_path), env={})
     assert any("all credentials are dead" in t for t in calls["telegrams"]), calls["telegrams"]
     assert (tmp_path / "last-401-alert").is_file(), "a real send must arm the 12h debounce"
@@ -701,25 +837,35 @@ def test_t15h_one_snapshot_host_still_reports_dead_credentials(tmp_path, monkeyp
     """F1: with a single snapshot there is nothing to rotate TO, so `_rotate_active_account` is
     never called — the pause marker did NOT withhold anything. Re-reading the marker at the
     give-up point (instead of having the gate report it) silenced this TRUE all-dead alert."""
-    calls = _rotate_env(tmp_path, monkeypatch, True, "API Error: 401 authentication_error",
-                        _calls(), names=("ob-ocoron-com-s-organization",))
+    calls = _rotate_env(
+        tmp_path,
+        monkeypatch,
+        True,
+        "API Error: 401 authentication_error",
+        _calls(),
+        names=("ob-ocoron-com-s-organization",),
+    )
     cr.run_claude(["claude", "-p", "ping"], timeout=5, cwd=str(tmp_path), env={})
     assert calls["installed"] == []
     assert any("all credentials are dead" in t for t in calls["telegrams"]), (
-        "no rotation was possible at all — that is exhaustion, not a withheld rotation")
+        "no rotation was possible at all — that is exhaustion, not a withheld rotation"
+    )
 
 
 def test_t15i_fail_closed_refusal_still_alerts_on_401(tmp_path, monkeypatch):
     """F6: fail-closed must not silence the only alert channel. An UNREADABLE pause state refuses
     the install (as the marker does) but is NOT the operator holding the marker — the operator is
     never told to expect silence, so the all-dead Telegram fires, carrying why it could not heal."""
-    calls = _rotate_env(tmp_path, monkeypatch, False, "API Error: 401 authentication_error",
-                        _calls())
+    calls = _rotate_env(
+        tmp_path, monkeypatch, False, "API Error: 401 authentication_error", _calls()
+    )
     monkeypatch.setattr(cr, "_switch_paused", _boom())
     cr.run_claude(["claude", "-p", "ping"], timeout=5, cwd=str(tmp_path), env={})
     assert calls["installed"] == [], "fail-closed still refuses the install"
-    assert any("all credentials are dead" in t and "pause-state unreadable" in t
-               for t in calls["telegrams"]), calls["telegrams"]
+    assert any(
+        "all credentials are dead" in t and "pause-state unreadable" in t
+        for t in calls["telegrams"]
+    ), calls["telegrams"]
 
 
 def test_t15j_withheld_reason_is_thread_local(tmp_path, monkeypatch):
@@ -729,18 +875,25 @@ def test_t15j_withheld_reason_is_thread_local(tmp_path, monkeypatch):
     reading its verdict; thread B then runs a whole unpaused give-up (which clears and rewrites
     the slot) and alerts; A is released and reads. Thread-local → A still sees its own 'marker'
     and B still alerted. One shared slot → B's reset wipes A's verdict."""
-    calls = _rotate_env(tmp_path, monkeypatch, False, "API Error: 401 authentication_error",
-                        _calls(), install_ok=False)
+    calls = _rotate_env(
+        tmp_path,
+        monkeypatch,
+        False,
+        "API Error: 401 authentication_error",
+        _calls(),
+        install_ok=False,
+    )
     # Pause state as seen BY THREAD. Keyed on the thread NAME, never on get_ident(): idents are
     # recycled once a thread exits, which silently marks a later thread "paused".
-    monkeypatch.setattr(cr, "_switch_paused",
-                        lambda: threading.current_thread().name.startswith("paused-"))
+    monkeypatch.setattr(
+        cr, "_switch_paused", lambda: threading.current_thread().name.startswith("paused-")
+    )
     parked, released = threading.Event(), threading.Event()
     seen = {}
 
     def thread_a():
-        cr._rotate_active_account()          # refused by the gate → writes THIS thread's reason
-        parked.set()                          # …and parks before reading it back
+        cr._rotate_active_account()  # refused by the gate → writes THIS thread's reason
+        parked.set()  # …and parks before reading it back
         released.wait(timeout=10)
         seen["a"] = getattr(cr._TLS, "withheld_reason", None)
 
@@ -758,9 +911,11 @@ def test_t15j_withheld_reason_is_thread_local(tmp_path, monkeypatch):
     b.join(timeout=10)
     assert not a.is_alive() and not b.is_alive(), "deadlock — the interleaving never completed"
     assert seen["a"] == cr._PAUSE_MARKER, (
-        f"thread A's verdict was overwritten by thread B: {seen['a']!r}")
+        f"thread A's verdict was overwritten by thread B: {seen['a']!r}"
+    )
     assert any("all credentials are dead" in t for t in calls["telegrams"]), (
-        "thread B was genuinely exhausted — its alert must not be suppressed by A's pause")
+        "thread B was genuinely exhausted — its alert must not be suppressed by A's pause"
+    )
 
 
 def test_t15k_status_banner_survives_an_unreadable_pause_state(tmp_path, monkeypatch, capsys):
@@ -780,8 +935,9 @@ def test_t15k_status_banner_survives_an_unreadable_pause_state(tmp_path, monkeyp
     assert "⏸ auto-switch PAUSED (--resume-switch to re-enable)" in capsys.readouterr().out
 
 
-def test_t15l_tick_withholds_and_still_drains_on_an_unreadable_pause_state(tmp_path, monkeypatch,
-                                                                            capsys):
+def test_t15l_tick_withholds_and_still_drains_on_an_unreadable_pause_state(
+    tmp_path, monkeypatch, capsys
+):
     """F9/F12: the tick's raw probe raised into _cmd_tick's blanket except, killing the DRAIN
     broadcast — the one warning that lets sessions reach a checkpoint before the wall. The whole
     state dir is unreachable here (RuntimeError: HOME unset, no passwd entry), which is also the
@@ -844,7 +1000,7 @@ def test_t15o_unreadable_ledger_holds_and_still_drains(tmp_path, monkeypatch, ca
     account burns, so the ≥drain ticks must still reach the DRAIN broadcast (24h-deduped) exactly
     as the paused/no-successor cases do. Three ways to be unreadable: corrupt bytes, a permission
     error, and a well-formed switch record with a non-numeric ts."""
-    live = _acct("live", session_pct=99.0)   # hot enough to switch, and past the drain threshold
+    live = _acct("live", session_pct=99.0)  # hot enough to switch, and past the drain threshold
     sib = _acct("sib", weekly_reset=NOW + 86400)  # …and a healthy successor is available
     state = tmp_path / "state"
     state.mkdir()
@@ -876,7 +1032,8 @@ def test_t15o_unreadable_ledger_holds_and_still_drains(tmp_path, monkeypatch, ca
     assert drains == 1, f"the coming wall must be announced exactly once per 24h, got {drains}"
     assert "ledger" in capsys.readouterr().err.lower(), "the held guard must say why"
     assert b"dwell-hold-degraded" in ledger.read_bytes(), (
-        "a fail-closed hold must be distinguishable from a genuine one in the ledger")
+        "a fail-closed hold must be distinguishable from a genuine one in the ledger"
+    )
 
 
 def test_t15p_switch_escape_hatch_works_while_paused(tmp_path, monkeypatch, capsys):
@@ -937,8 +1094,7 @@ def test_t15t_drain_threshold_above_switch_threshold_is_clamped(tmp_path, monkey
     state = tmp_path / "state"
     state.mkdir()
     (state / "switch-paused").touch()  # no install is possible → the drain path is the only voice
-    actions, _ = _tick(tmp_path, monkeypatch, [live, sib], live["name"],
-                       threshold="95", drain="96")
+    actions, _ = _tick(tmp_path, monkeypatch, [live, sib], live["name"], threshold="95", drain="96")
     assert actions["switched_to"] == []
     assert actions["mails"], "95.5% with no installable successor must still warn"
     assert "clamp" in capsys.readouterr().err.lower(), "the misconfiguration must be named"
@@ -976,7 +1132,8 @@ def _mk_fleet(tmp_path, monkeypatch, slugs=("alpha", "beta")):
     monkeypatch.setenv("CLAUDE_FLEET_ROOT", str(root))
     monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
     monkeypatch.setattr(
-        cr, "_pin_pending_identities",
+        cr,
+        "_pin_pending_identities",
         lambda dirs: {s: {"identity": f"{s}@test"} for s in slugs},
     )
     return root
@@ -990,6 +1147,7 @@ def test_stale_reading_triggers_refresh_ping_and_reprobe(tmp_path, monkeypatch):
     now = 1_000_000.0
     old = now - 100_000  # credential mtime far beyond _FLEET_TOKEN_FRESH_S
     import os as _os
+
     _os.utime(root / "alpha" / ".credentials.json", (old, old))
     monkeypatch.setattr(cr, "_now", lambda: now)
     monkeypatch.setattr(cr, "_load_usage_cache", lambda: {"alpha@test": {"ts": now - 90_000}})
@@ -998,7 +1156,8 @@ def test_stale_reading_triggers_refresh_ping_and_reprobe(tmp_path, monkeypatch):
     monkeypatch.setattr(cr, "_read_access_token", lambda p: "tok")
     monkeypatch.setattr(cr, "_oauth_get", lambda kind, tok: {"usage": True})
     monkeypatch.setattr(
-        cr, "_usage_windows",
+        cr,
+        "_usage_windows",
         lambda payload: {"five_hour": {"utilization": 1.0}, "seven_day": {"utilization": 2.0}},
     )
     monkeypatch.setattr(cr, "_identity_probe_due", lambda slugs, now: False)
@@ -1016,14 +1175,18 @@ def test_status_path_never_pings_even_when_stale(tmp_path, monkeypatch):
     now = 1_000_000.0
     old = now - 100_000
     import os as _os
+
     _os.utime(root / "alpha" / ".credentials.json", (old, old))
     monkeypatch.setattr(cr, "_now", lambda: now)
     monkeypatch.setattr(
-        cr, "_load_usage_cache",
+        cr,
+        "_load_usage_cache",
         lambda: {"alpha@test": {"ts": now - 90_000, "seven_day": {"utilization": 93.0}}},
     )
+
     def _boom(d):
         raise AssertionError("--status must never invoke _keepalive_ping")
+
     monkeypatch.setattr(cr, "_keepalive_ping", _boom)
     monkeypatch.setattr(cr, "_identity_probe_due", lambda slugs, now: False)
     accounts, _ = cr._fleet_account_rows(cr._fleet_dirs())
@@ -1038,10 +1201,12 @@ def test_failed_refresh_ping_marks_chain_dead_not_zero(tmp_path, monkeypatch):
     now = 1_000_000.0
     old = now - 100_000
     import os as _os
+
     _os.utime(root / "alpha" / ".credentials.json", (old, old))
     monkeypatch.setattr(cr, "_now", lambda: now)
     monkeypatch.setattr(
-        cr, "_load_usage_cache",
+        cr,
+        "_load_usage_cache",
         lambda: {"alpha@test": {"ts": now - 90_000, "seven_day": {"utilization": 93.0}}},
     )
     monkeypatch.setattr(cr, "_keepalive_ping", lambda d: False)
@@ -1055,11 +1220,23 @@ def test_dead_active_chain_flips_when_network_proven_up(monkeypatch, capsys):
     """The 2026-08-17 21:00 defect: a dead ACTIVE chain must flip away + alert, not sit on
     'below threshold, no flip' from cache for 9 hours."""
     accounts = [
-        {"email": "dead@test", "slugs": ["dead"], "ping_failed": True, "source": "cache",
-         "five_hour": None, "seven_day": {"utilization": 93.0}, "weekly_cap": None},
-        {"email": "alive@test", "slugs": ["alive"], "source": "live",
-         "five_hour": {"utilization": 5.0}, "seven_day": {"utilization": 5.0},
-         "weekly_cap": None},
+        {
+            "email": "dead@test",
+            "slugs": ["dead"],
+            "ping_failed": True,
+            "source": "cache",
+            "five_hour": None,
+            "seven_day": {"utilization": 93.0},
+            "weekly_cap": None,
+        },
+        {
+            "email": "alive@test",
+            "slugs": ["alive"],
+            "source": "live",
+            "five_hour": {"utilization": 5.0},
+            "seven_day": {"utilization": 5.0},
+            "weekly_cap": None,
+        },
     ]
     monkeypatch.setattr(cr, "_resolve_active", lambda: "dead")
     flips = []
@@ -1075,10 +1252,23 @@ def test_dead_active_chain_flips_when_network_proven_up(monkeypatch, capsys):
 def test_dead_active_chain_does_not_flip_on_boxwide_outage(monkeypatch):
     """No sibling probed live ⇒ the network itself may be down — flipping would thrash."""
     accounts = [
-        {"email": "dead@test", "slugs": ["dead"], "ping_failed": True, "source": "cache",
-         "five_hour": None, "seven_day": {"utilization": 93.0}, "weekly_cap": None},
-        {"email": "also@test", "slugs": ["also"], "source": "cache",
-         "five_hour": None, "seven_day": {"utilization": 50.0}, "weekly_cap": None},
+        {
+            "email": "dead@test",
+            "slugs": ["dead"],
+            "ping_failed": True,
+            "source": "cache",
+            "five_hour": None,
+            "seven_day": {"utilization": 93.0},
+            "weekly_cap": None,
+        },
+        {
+            "email": "also@test",
+            "slugs": ["also"],
+            "source": "cache",
+            "five_hour": None,
+            "seven_day": {"utilization": 50.0},
+            "weekly_cap": None,
+        },
     ]
     monkeypatch.setattr(cr, "_resolve_active", lambda: "dead")
     flips = []
@@ -1091,6 +1281,7 @@ def test_keepalive_sweep_pings_only_idle_dirs(tmp_path, monkeypatch):
     """The tick-folded keepalive (2026-08-18: the Monday cron slot was slept through) pings
     a >7d-idle dir and leaves fresh dirs alone."""
     import os as _os
+
     root = tmp_path / "fleet"
     for name in ("stale", "fresh"):
         d = root / name
@@ -1115,9 +1306,15 @@ def test_keepalive_sweep_pings_only_idle_dirs(tmp_path, monkeypatch):
 
 
 def _cached_standby(name, age_s=120.0, session=10.0, weekly=12.0):
-    return {"email": f"{name}@test", "slugs": [name], "source": "cache", "age_s": age_s,
-            "five_hour": {"utilization": session}, "seven_day": {"utilization": weekly},
-            "weekly_cap": None}
+    return {
+        "email": f"{name}@test",
+        "slugs": [name],
+        "source": "cache",
+        "age_s": age_s,
+        "five_hour": {"utilization": session},
+        "seven_day": {"utilization": weekly},
+        "weekly_cap": None,
+    }
 
 
 def _arm_probe(monkeypatch, windows):
@@ -1131,8 +1328,14 @@ def _arm_probe(monkeypatch, windows):
 def test_validated_pick_survives_model_windows_in_a_live_reprobe(monkeypatch):
     """A successful live re-probe returns five_hour/seven_day PLUS model_windows; only the two
     quota windows are utilization dicts. Before the fix: KeyError 'utilization'."""
-    _arm_probe(monkeypatch, {"five_hour": {"utilization": 11.0}, "seven_day": {"utilization": 14.0},
-                             "model_windows": {"Fable": {"utilization": 3.0}}})
+    _arm_probe(
+        monkeypatch,
+        {
+            "five_hour": {"utilization": 11.0},
+            "seven_day": {"utilization": 14.0},
+            "model_windows": {"Fable": {"utilization": 3.0}},
+        },
+    )
     assert cr._validated_pick([_cached_standby("can")], {"mob@test"}) == ("can", "can@test")
 
 
@@ -1142,7 +1345,10 @@ def test_validated_pick_accepts_a_fresh_cached_standby_whose_probe_failed(monkey
     token is what makes it usable, and the CLI rolls the access token on first use."""
     _arm_probe(monkeypatch, None)
     monkeypatch.setenv("ROTATE_CACHE_TRUST_S", "3600")
-    assert cr._validated_pick([_cached_standby("can", age_s=600.0)], {"mob@test"}) == ("can", "can@test")
+    assert cr._validated_pick([_cached_standby("can", age_s=600.0)], {"mob@test"}) == (
+        "can",
+        "can@test",
+    )
 
 
 def test_validated_pick_still_refuses_a_stale_cache_it_cannot_verify(monkeypatch):
@@ -1165,14 +1371,40 @@ def test_no_successor_line_names_why_each_candidate_was_excluded(monkeypatch, ca
     """'NO successor has headroom' with no per-candidate reason was undiagnosable twice in one
     day. The line must say WHY for every sibling."""
     accounts = [
-        {"email": "mob@test", "slugs": ["mob"], "source": "live",
-         "five_hour": {"utilization": 98.0}, "seven_day": {"utilization": 20.0}, "weekly_cap": None},
-        {"email": "ob@test", "slugs": ["ob"], "source": "live",
-         "five_hour": {"utilization": 99.0}, "seven_day": {"utilization": 20.0}, "weekly_cap": 80},
-        {"email": "sarp@test", "slugs": ["sarp"], "source": "cache", "age_s": 30.0,
-         "five_hour": {"utilization": 100.0}, "seven_day": {"utilization": 20.0}, "weekly_cap": 90},
-        {"email": "can@test", "slugs": ["can"], "source": "cache", "age_s": 9000.0,
-         "five_hour": {"utilization": 12.0}, "seven_day": {"utilization": 12.0}, "weekly_cap": 99},
+        {
+            "email": "mob@test",
+            "slugs": ["mob"],
+            "source": "live",
+            "five_hour": {"utilization": 98.0},
+            "seven_day": {"utilization": 20.0},
+            "weekly_cap": None,
+        },
+        {
+            "email": "ob@test",
+            "slugs": ["ob"],
+            "source": "live",
+            "five_hour": {"utilization": 99.0},
+            "seven_day": {"utilization": 20.0},
+            "weekly_cap": 80,
+        },
+        {
+            "email": "sarp@test",
+            "slugs": ["sarp"],
+            "source": "cache",
+            "age_s": 30.0,
+            "five_hour": {"utilization": 100.0},
+            "seven_day": {"utilization": 20.0},
+            "weekly_cap": 90,
+        },
+        {
+            "email": "can@test",
+            "slugs": ["can"],
+            "source": "cache",
+            "age_s": 9000.0,
+            "five_hour": {"utilization": 12.0},
+            "seven_day": {"utilization": 12.0},
+            "weekly_cap": 99,
+        },
     ]
     monkeypatch.setattr(cr, "_resolve_active", lambda: "mob")
     monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
@@ -1191,14 +1423,33 @@ def test_flip_target_is_perishable_first_soonest_weekly_reset_wins(monkeypatch):
     closest (quota about to refresh is the cheapest to burn) — not the one with the most
     headroom. Ties break to lower weekly, then lower session utilization."""
     monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
-    soon = {"email": "soon@test", "slugs": ["soon"], "source": "live", "weekly_cap": None,
-            "five_hour": {"utilization": 40.0}, "seven_day": {"utilization": 60.0, "resets_at_epoch": NOW + 3600}}
-    roomy = {"email": "roomy@test", "slugs": ["roomy"], "source": "live", "weekly_cap": None,
-             "five_hour": {"utilization": 5.0}, "seven_day": {"utilization": 5.0, "resets_at_epoch": NOW + 5 * 86400}}
+    soon = {
+        "email": "soon@test",
+        "slugs": ["soon"],
+        "source": "live",
+        "weekly_cap": None,
+        "five_hour": {"utilization": 40.0},
+        "seven_day": {"utilization": 60.0, "resets_at_epoch": NOW + 3600},
+    }
+    roomy = {
+        "email": "roomy@test",
+        "slugs": ["roomy"],
+        "source": "live",
+        "weekly_cap": None,
+        "five_hour": {"utilization": 5.0},
+        "seven_day": {"utilization": 5.0, "resets_at_epoch": NOW + 5 * 86400},
+    }
     assert cr._pick_flip_target([roomy, soon], exclude={"mob@test"}) == ("soon", "soon@test")
     # a candidate with NO reset time known sorts last (unprovable perishability)
-    unknown = {"email": "unk@test", "slugs": ["unk"], "source": "cache", "age_s": 60.0, "weekly_cap": None,
-               "five_hour": {"utilization": 1.0}, "seven_day": {"utilization": 1.0}}
+    unknown = {
+        "email": "unk@test",
+        "slugs": ["unk"],
+        "source": "cache",
+        "age_s": 60.0,
+        "weekly_cap": None,
+        "five_hour": {"utilization": 1.0},
+        "seven_day": {"utilization": 1.0},
+    }
     assert cr._pick_flip_target([unknown, roomy], exclude=set()) == ("roomy", "roomy@test")
 
 
@@ -1206,9 +1457,16 @@ def test_flip_target_is_perishable_first_soonest_weekly_reset_wins(monkeypatch):
 
 
 def _cand(name, session, weekly=20.0, reset=NOW + 3600, source="live", **extra):
-    row = {"email": f"{name}@test", "slugs": [name], "source": source, "weekly_cap": None,
-           "five_hour": ({"utilization": session, "resets_at_epoch": NOW + 3600} if session is not None else None),
-           "seven_day": {"utilization": weekly, "resets_at_epoch": reset}}
+    row = {
+        "email": f"{name}@test",
+        "slugs": [name],
+        "source": source,
+        "weekly_cap": None,
+        "five_hour": (
+            {"utilization": session, "resets_at_epoch": NOW + 3600} if session is not None else None
+        ),
+        "seven_day": {"utilization": weekly, "resets_at_epoch": reset},
+    }
     row.update(extra)
     return row
 
@@ -1220,7 +1478,10 @@ def test_target_needs_session_budget_even_when_its_weekly_reset_is_soonest(monke
     monkeypatch.setattr(cr, "_now", lambda: NOW)
     soon_but_spent = _cand("soon", session=90.0, reset=NOW + 3600)
     later_but_fresh = _cand("fresh", session=10.0, reset=NOW + 5 * 86400)
-    assert cr._pick_flip_target([soon_but_spent, later_but_fresh], exclude=set()) == ("fresh", "fresh@test")
+    assert cr._pick_flip_target([soon_but_spent, later_but_fresh], exclude=set()) == (
+        "fresh",
+        "fresh@test",
+    )
     reasons = cr._flip_exclusion_reasons([soon_but_spent], set(), 95.0)
     assert reasons and "no 5h budget" in reasons[0], reasons
 
@@ -1240,7 +1501,10 @@ def test_cached_standby_whose_session_window_rolled_over_counts_as_empty(monkeyp
     monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
     monkeypatch.setattr(cr, "_now", lambda: NOW)
     rolled = _cand("rolled", session=100.0, source="cache", age_s=4 * 3600.0)
-    rolled["five_hour"] = {"utilization": 100.0, "resets_at_epoch": NOW - 600}  # reset already passed
+    rolled["five_hour"] = {
+        "utilization": 100.0,
+        "resets_at_epoch": NOW - 600,
+    }  # reset already passed
     still_walled = _cand("walled", session=100.0, source="cache", age_s=600.0)
     still_walled["five_hour"] = {"utilization": 100.0, "resets_at_epoch": NOW + 3 * 3600}
     assert cr._pick_flip_target([rolled, still_walled], exclude=set()) == ("rolled", "rolled@test")
@@ -1253,8 +1517,14 @@ def test_live_reverify_applies_the_same_session_budget_gate(monkeypatch):
     monkeypatch.setattr(cr, "_now", lambda: NOW)
     monkeypatch.setattr(cr, "_read_access_token", lambda p: "tok")
     monkeypatch.setattr(cr, "_oauth_get", lambda *a, **k: {"usage": True})
-    monkeypatch.setattr(cr, "_usage_windows", lambda u: {"five_hour": {"utilization": 90.0, "resets_at_epoch": NOW + 3600},
-                                                          "seven_day": {"utilization": 20.0, "resets_at_epoch": NOW + 3600}})
+    monkeypatch.setattr(
+        cr,
+        "_usage_windows",
+        lambda u: {
+            "five_hour": {"utilization": 90.0, "resets_at_epoch": NOW + 3600},
+            "seven_day": {"utilization": 20.0, "resets_at_epoch": NOW + 3600},
+        },
+    )
     monkeypatch.setattr(cr, "_chain_stale_reason", lambda d: None)
     cached = _cand("c", session=10.0, source="cache", age_s=120.0)
     assert cr._validated_pick([cached], set()) is None
@@ -1275,7 +1545,9 @@ def test_default_flip_threshold_is_95_and_the_env_still_overrides(monkeypatch):
     assert cr._rotate_threshold() == 91.0
 
 
-def test_fleet_flip_leg_holds_below_the_line_and_flips_at_it_on_the_session_window(monkeypatch, capsys):
+def test_fleet_flip_leg_holds_below_the_line_and_flips_at_it_on_the_session_window(
+    monkeypatch, capsys
+):
     """The active account at 96% session with a fresh sibling: NO flip under the new default;
     at 98.2% it flips. The weekly window is low on both, so only the 5h leg decides."""
     monkeypatch.delenv("ROTATE_THRESHOLD", raising=False)
@@ -1285,15 +1557,27 @@ def test_fleet_flip_leg_holds_below_the_line_and_flips_at_it_on_the_session_wind
     monkeypatch.setattr(cr, "_validated_pick", lambda accts, excl, **kw: ("can", "can@ocoron.com"))
     monkeypatch.setattr(cr, "_tick_telegram", lambda msg: None)
     monkeypatch.setattr(cr, "_ledger_append", lambda e: None)
+
     def rows(session):
         return [
-            {"email": "mob@ocoron.com", "slugs": ["mob"], "source": "live", "valid": True,
-             "five_hour": {"utilization": session, "resets_at_epoch": NOW + 3600},
-             "seven_day": {"utilization": 40.0, "resets_at_epoch": NOW + 86400}},
-            {"email": "can@ocoron.com", "slugs": ["can"], "source": "live", "valid": True,
-             "five_hour": {"utilization": 5.0, "resets_at_epoch": NOW + 3600},
-             "seven_day": {"utilization": 10.0, "resets_at_epoch": NOW + 3600}},
+            {
+                "email": "mob@ocoron.com",
+                "slugs": ["mob"],
+                "source": "live",
+                "valid": True,
+                "five_hour": {"utilization": session, "resets_at_epoch": NOW + 3600},
+                "seven_day": {"utilization": 40.0, "resets_at_epoch": NOW + 86400},
+            },
+            {
+                "email": "can@ocoron.com",
+                "slugs": ["can"],
+                "source": "live",
+                "valid": True,
+                "five_hour": {"utilization": 5.0, "resets_at_epoch": NOW + 3600},
+                "seven_day": {"utilization": 10.0, "resets_at_epoch": NOW + 3600},
+            },
         ]
+
     # 93 holds, 95.2 flips: the line is 95 (see _rotate_threshold). No burn history exists in
     # this fixture's state dir, so the projection adds 0 and the raw reading is what decides.
     cr._fleet_flip_leg([], rows(93.0), threshold=cr._rotate_threshold())
@@ -1314,15 +1598,28 @@ def test_weekly_leg_trips_at_the_cap_not_at_the_session_threshold(monkeypatch, c
     monkeypatch.setattr(cr, "_validated_pick", lambda accts, excl, **kw: ("mob", "mob@ocoron.com"))
     monkeypatch.setattr(cr, "_tick_telegram", lambda msg: None)
     monkeypatch.setattr(cr, "_ledger_append", lambda e: None)
+
     def rows(weekly, cap):
         return [
-            {"email": "can@ocoron.com", "slugs": ["can"], "source": "live", "valid": True, "weekly_cap": cap,
-             "five_hour": {"utilization": 50.0, "resets_at_epoch": NOW + 3600},
-             "seven_day": {"utilization": weekly, "resets_at_epoch": NOW + 86400}},
-            {"email": "mob@ocoron.com", "slugs": ["mob"], "source": "live", "valid": True,
-             "five_hour": {"utilization": 5.0, "resets_at_epoch": NOW + 3600},
-             "seven_day": {"utilization": 10.0, "resets_at_epoch": NOW + 3600}},
+            {
+                "email": "can@ocoron.com",
+                "slugs": ["can"],
+                "source": "live",
+                "valid": True,
+                "weekly_cap": cap,
+                "five_hour": {"utilization": 50.0, "resets_at_epoch": NOW + 3600},
+                "seven_day": {"utilization": weekly, "resets_at_epoch": NOW + 86400},
+            },
+            {
+                "email": "mob@ocoron.com",
+                "slugs": ["mob"],
+                "source": "live",
+                "valid": True,
+                "five_hour": {"utilization": 5.0, "resets_at_epoch": NOW + 3600},
+                "seven_day": {"utilization": 10.0, "resets_at_epoch": NOW + 3600},
+            },
         ]
+
     thr = cr._rotate_threshold()
     cr._fleet_flip_leg([], rows(98.5, 99), threshold=thr)
     assert flips == [], "weekly 98.5 with cap 99 must NOT flip: " + capsys.readouterr().out
@@ -1348,9 +1645,14 @@ def _flip_leg_harness(monkeypatch, tmp_path, successor=("sarp", "sarp@test")):
 
 
 def _ob(session, weekly, *, s_reset=NOW + 3000.0, w_reset=NOW + 200000.0, cap=80):
-    return {"email": "ob@test", "slugs": ["ob"], "source": "live", "weekly_cap": cap,
-            "five_hour": {"utilization": session, "resets_at_epoch": s_reset},
-            "seven_day": {"utilization": weekly, "resets_at_epoch": w_reset}}
+    return {
+        "email": "ob@test",
+        "slugs": ["ob"],
+        "source": "live",
+        "weekly_cap": cap,
+        "five_hour": {"utilization": session, "resets_at_epoch": s_reset},
+        "seven_day": {"utilization": weekly, "resets_at_epoch": w_reset},
+    }
 
 
 def test_flip_leg_trips_on_the_projected_reading(monkeypatch, tmp_path, capsys):
@@ -1440,10 +1742,12 @@ def test_a_trip_flip_is_never_held_by_the_dwell(monkeypatch, tmp_path):
     monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
     monkeypatch.setattr(cr, "_validated_pick", lambda accts, excl, **kw: ("sarp", "sarp@test"))
     calls: list[dict] = []
-    monkeypatch.setattr(cr, "_flip_active", lambda slug, **kw: calls.append({"slug": slug, **kw}) or True)
+    monkeypatch.setattr(
+        cr, "_flip_active", lambda slug, **kw: calls.append({"slug": slug, **kw}) or True
+    )
     monkeypatch.setattr(cr, "_now", lambda: NOW)
-    cr._fleet_flip_leg([], [_ob(98.5, 40.0)], threshold=98.0)            # the session line
-    cr._fleet_flip_leg([], [_ob(10.0, 80.0)], threshold=98.0)            # the weekly cap (80)
+    cr._fleet_flip_leg([], [_ob(98.5, 40.0)], threshold=98.0)  # the session line
+    cr._fleet_flip_leg([], [_ob(10.0, 80.0)], threshold=98.0)  # the weekly cap (80)
     assert [c["slug"] for c in calls] == ["sarp", "sarp"]
     assert all(c.get("ignore_dwell") is True for c in calls), calls
 
@@ -1456,15 +1760,17 @@ def test_drain_message_names_reset_and_resume_two_minutes_apart(monkeypatch):
     only timestamp from reset+lead and then called it the moment the window "resets", so the
     number a stopped repo acted on contradicted its own label."""
     monkeypatch.delenv("ROTATE_DRAIN_RESUME_LEAD_S", raising=False)
-    reset = 1788612000.0                       # a fixed reset instant
-    msg = cr._urgent_drain_message("live@test", "session 90% consumed",
-                                   (reset, "next@test", "5-hour"))
+    reset = 1788612000.0  # a fixed reset instant
+    msg = cr._urgent_drain_message(
+        "live@test", "session 90% consumed", (reset, "next@test", "5-hour")
+    )
     assert cr._drain_resume_lead_s() == 120, "operator rule is +2 minutes, not +1"
     assert f"epoch {int(reset) + 120}" in msg, msg
     assert "NEXT ACCOUNT AVAILABLE: next@test" in msg
     assert "2 minutes after the reset" in msg
     # the RESET instant must appear too, and must NOT be the resume instant
     from datetime import UTC, datetime
+
     reset_utc = datetime.fromtimestamp(reset, tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     resume_utc = datetime.fromtimestamp(reset + 120, tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     assert reset_utc in msg and resume_utc in msg, "both instants must be stated"
@@ -1481,15 +1787,19 @@ def test_promised_resume_and_message_cannot_drift_apart(monkeypatch, tmp_path):
     it — which proves the two agree on a value the TEST chose, not that production reads one
     source. It was vacuous. This reads the SOURCE and pins that every site delegates."""
     import re
+
     src = (REPO / "scripts" / "sysadmin" / "claude_rotate.py").read_text(encoding="utf-8")
     # no site may reconstruct the lead from a literal again
     # ANY numeric literal, not just 60 — a future `+ 120` would satisfy a 60-only guard while
     # re-introducing exactly the drift this pins (pool reader, 2026-09-05).
     assert not re.search(r"int\(epoch\)\s*\+\s*[0-9]", src), "message re-introduced a literal lead"
-    assert not re.search(r"relief\[0\]\)\s*\+\s*[0-9]", src), "stamp/ledger re-introduced a literal lead"
+    assert not re.search(r"relief\[0\]\)\s*\+\s*[0-9]", src), (
+        "stamp/ledger re-introduced a literal lead"
+    )
     # all three consumers delegate to the one function
     assert src.count("_drain_resume_lead_s()") >= 3, (
-        f"expected the 3 call sites to delegate; found {src.count('_drain_resume_lead_s()')}")
+        f"expected the 3 call sites to delegate; found {src.count('_drain_resume_lead_s()')}"
+    )
     # and the value the message names really does follow the single source
     monkeypatch.setenv("ROTATE_DRAIN_RESUME_LEAD_S", "300")
     lead = cr._drain_resume_lead_s()
@@ -1499,6 +1809,7 @@ def test_promised_resume_and_message_cannot_drift_apart(monkeypatch, tmp_path):
     stamp = tmp_path / "wall.stamp"
     stamp.write_text(str(1788612000 + lead), encoding="utf-8")
     import os as _os
+
     _os.utime(stamp, (1788611999, 1788611999))
     assert cr._promised_resume(stamp) == float(1788612000 + lead)
 
@@ -1519,7 +1830,7 @@ def test_resume_lead_is_floored_and_rendered_honestly(monkeypatch):
     assert cr._humanize_lead(1) == "1 second", "singular seconds too"
     for bad in (0, -60, -1):
         with pytest.raises(ValueError):
-            cr._humanize_lead(bad)   # -60 % 60 == 0 would otherwise render "-1 minute"
+            cr._humanize_lead(bad)  # -60 % 60 == 0 would otherwise render "-1 minute"
     monkeypatch.setenv("ROTATE_DRAIN_RESUME_LEAD_S", "90")
     msg = cr._urgent_drain_message("a@x", "walled", (1788612000.0, "b@x", "5-hour"))
     assert "90 seconds after the reset" in msg, msg
@@ -1531,6 +1842,7 @@ def test_resume_lead_is_floored_and_rendered_honestly(monkeypatch):
 # so they assert the flip TRIGGER and never the CANDIDATE SELECTION. These three drive the REAL
 # picker (_validated_pick -> _pick_flip_target) with live-source rows, so nothing about "is there
 # an account to go to" is faked. ────────────────────────────────────────────────────────────────
+
 
 def _real_pick_harness(monkeypatch, tmp_path):
     """Like _flip_leg_harness but WITHOUT stubbing _validated_pick — the whole point."""
@@ -1544,9 +1856,14 @@ def _real_pick_harness(monkeypatch, tmp_path):
 
 
 def _sib(slug, session, weekly=10.0, *, s_reset=NOW + 3000.0, cap=80):
-    return {"email": f"{slug}@test", "slugs": [slug], "source": "live", "weekly_cap": cap,
-            "five_hour": {"utilization": session, "resets_at_epoch": s_reset},
-            "seven_day": {"utilization": weekly, "resets_at_epoch": NOW + 200000.0}}
+    return {
+        "email": f"{slug}@test",
+        "slugs": [slug],
+        "source": "live",
+        "weekly_cap": cap,
+        "five_hour": {"utilization": session, "resets_at_epoch": s_reset},
+        "seven_day": {"utilization": weekly, "resets_at_epoch": NOW + 200000.0},
+    }
 
 
 def test_guarantee_1_rotates_to_the_next_account_when_quota_hits(monkeypatch, tmp_path):
@@ -1588,9 +1905,13 @@ def test_guarantee_3_switches_as_soon_as_an_account_becomes_available(monkeypatc
 # successor bar; the tick printed "NO successor has headroom"; the operator flipped by hand
 # (ledger: via "switch", at_pct null). Freshness was measured on the wrong axis.
 
+
 def _cache_row(ts, five_h_reset, util=87.0):
-    return {"ts": ts, "five_hour": {"utilization": util, "resets_at_epoch": five_h_reset},
-            "seven_day": {"utilization": 40.0, "resets_at_epoch": ts + 500000.0}}
+    return {
+        "ts": ts,
+        "five_hour": {"utilization": util, "resets_at_epoch": five_h_reset},
+        "seven_day": {"utilization": 40.0, "resets_at_epoch": ts + 500000.0},
+    }
 
 
 def test_reading_taken_before_a_passed_reset_is_obsolete():
@@ -1608,8 +1929,11 @@ def test_obsolete_predicate_covers_the_weekly_window_too():
     """Either window can roll independently; a weekly reset invalidates a reading as surely
     as a 5-hour one."""
     now = NOW
-    row = {"ts": now - 300, "five_hour": {"utilization": 50.0, "resets_at_epoch": now + 3600},
-           "seven_day": {"utilization": 90.0, "resets_at_epoch": now - 30}}
+    row = {
+        "ts": now - 300,
+        "five_hour": {"utilization": 50.0, "resets_at_epoch": now + 3600},
+        "seven_day": {"utilization": 90.0, "resets_at_epoch": now - 30},
+    }
     assert cr._reading_predates_a_reset(row, now) is True
 
 
@@ -1617,12 +1941,20 @@ def test_malformed_cache_row_never_forces_a_ping():
     """Fail direction: an unparseable row falls through to the ordinary age rule rather than
     forcing a ping storm on every tick."""
     now = NOW
-    for bad in (None, {}, "nope", {"ts": "x"}, {"ts": now, "five_hour": "no"},
-                {"ts": now, "five_hour": {"resets_at_epoch": None}}):
+    for bad in (
+        None,
+        {},
+        "nope",
+        {"ts": "x"},
+        {"ts": now, "five_hour": "no"},
+        {"ts": now, "five_hour": {"resets_at_epoch": None}},
+    ):
         assert cr._reading_predates_a_reset(bad, now) is False, bad
 
 
-def test_the_2026_09_06_stall_an_account_seconds_past_reset_gets_a_refresh_slot(monkeypatch, tmp_path):
+def test_the_2026_09_06_stall_an_account_seconds_past_reset_gets_a_refresh_slot(
+    monkeypatch, tmp_path
+):
     """END-TO-END on the real stall. Four accounts, all with CHRONOLOGICALLY FRESH readings so
     the old age gate skipped every one of them. One (ob) has just crossed its 5-hour reset, so
     its 87% reading is semantically dead. It must win a refresh slot — and it must do so even
@@ -1632,8 +1964,8 @@ def test_the_2026_09_06_stall_an_account_seconds_past_reset_gets_a_refresh_slot(
     now = NOW
     emails = ["can@test", "mob@test", "ob@test", "sarp@test"]
     groups = {e: [{"mtime": now - 10}] for e in emails}
-    cache = {e: _cache_row(now - 300, now + 3600) for e in emails}   # all fresh, none rolled
-    cache["ob@test"] = _cache_row(now - 300, now - 48)               # rolled 48s ago
+    cache = {e: _cache_row(now - 300, now + 3600) for e in emails}  # all fresh, none rolled
+    cache["ob@test"] = _cache_row(now - 300, now - 48)  # rolled 48s ago
     # every account pinged 5 minutes ago => _refresh_ping_due is False for ALL of them
     monkeypatch.setattr(cr, "_refresh_ping_due", lambda email, n: False)
     slots = cr._ping_slots(groups, cache, now)
@@ -1660,15 +1992,16 @@ def test_an_obsolete_reading_outranks_merely_old_ones_for_a_scarce_slot(monkeypa
     that are merely old — it is the one that may be sitting on a full window while the fleet
     reports no successor. Ranking by age alone would sort it LAST, because it is the youngest."""
     monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
-    monkeypatch.setenv("ROTATE_REFRESH_MAX_PER_RUN", "1")   # one slot, many claimants
+    monkeypatch.setenv("ROTATE_REFRESH_MAX_PER_RUN", "1")  # one slot, many claimants
     now = NOW
-    groups = {e: [{"mtime": now - 10}] for e in
-              ["old1@test", "old2@test", "old3@test", "rolled@test"]}
+    groups = {
+        e: [{"mtime": now - 10}] for e in ["old1@test", "old2@test", "old3@test", "rolled@test"]
+    }
     cache = {
-        "old1@test": _cache_row(now - 40000, now + 3600),   # ancient, window still current
+        "old1@test": _cache_row(now - 40000, now + 3600),  # ancient, window still current
         "old2@test": _cache_row(now - 30000, now + 3600),
         "old3@test": _cache_row(now - 20000, now + 3600),
-        "rolled@test": _cache_row(now - 300, now - 48),     # YOUNGEST, but its window rolled
+        "rolled@test": _cache_row(now - 300, now - 48),  # YOUNGEST, but its window rolled
     }
     monkeypatch.setattr(cr, "_refresh_ping_due", lambda email, n: True)
     assert cr._ping_slots(groups, cache, now) == {"rolled@test"}, (
@@ -1683,9 +2016,13 @@ def test_an_obsolete_reading_outranks_merely_old_ones_for_a_scarce_slot(monkeypa
 # reset ~2.5h out — and that epoch is also written into the stamp as the latch re-arm, so the
 # follow-up notice the message promises was suppressed until the wrong time too.
 
+
 def _relief_row(name, *, weekly, cap, session, fh_reset, wk_reset):
     return {
-        "email": f"{name}@test", "slugs": [name], "source": "live", "weekly_cap": cap,
+        "email": f"{name}@test",
+        "slugs": [name],
+        "source": "live",
+        "weekly_cap": cap,
         "five_hour": {"utilization": session, "resets_at_epoch": fh_reset},
         "seven_day": {"utilization": weekly, "resets_at_epoch": wk_reset},
     }
@@ -1695,12 +2032,20 @@ def test_relief_is_the_active_accounts_own_session_reset_when_siblings_are_cap_w
     """The measured incident. Active is session-spent but weekly-healthy; every sibling is
     cap-walled. Its OWN 5h reset is the soonest real relief and must be what the fleet is told."""
     accounts = [
-        _relief_row("mob", weekly=75.0, cap=99, session=100.0,
-                    fh_reset=NOW + 2 * 3600, wk_reset=NOW + 3 * 86400),
-        _relief_row("can", weekly=99.0, cap=99, session=10.0,
-                    fh_reset=NOW + 600, wk_reset=NOW + 20 * 3600),
-        _relief_row("sarp", weekly=95.0, cap=95, session=10.0,
-                    fh_reset=NOW + 600, wk_reset=NOW + 30 * 3600),
+        _relief_row(
+            "mob",
+            weekly=75.0,
+            cap=99,
+            session=100.0,
+            fh_reset=NOW + 2 * 3600,
+            wk_reset=NOW + 3 * 86400,
+        ),
+        _relief_row(
+            "can", weekly=99.0, cap=99, session=10.0, fh_reset=NOW + 600, wk_reset=NOW + 20 * 3600
+        ),
+        _relief_row(
+            "sarp", weekly=95.0, cap=95, session=10.0, fh_reset=NOW + 600, wk_reset=NOW + 30 * 3600
+        ),
     ]
     got = cr._next_session_relief(accounts, "mob@test", NOW)
     assert got is not None, "no relief offered at all"
@@ -1715,10 +2060,12 @@ def test_a_weekly_walled_active_account_does_not_claim_its_own_session_reset():
     must never offer its own session reset as relief — that would promise a resume that cannot
     happen and re-arm the latch on a lie. This is why the original blanket skip existed."""
     accounts = [
-        _relief_row("ob", weekly=90.0, cap=90, session=3.0,
-                    fh_reset=NOW + 600, wk_reset=NOW + 3 * 86400),
-        _relief_row("can", weekly=99.0, cap=99, session=10.0,
-                    fh_reset=NOW + 300, wk_reset=NOW + 20 * 3600),
+        _relief_row(
+            "ob", weekly=90.0, cap=90, session=3.0, fh_reset=NOW + 600, wk_reset=NOW + 3 * 86400
+        ),
+        _relief_row(
+            "can", weekly=99.0, cap=99, session=10.0, fh_reset=NOW + 300, wk_reset=NOW + 20 * 3600
+        ),
     ]
     got = cr._next_session_relief(accounts, "ob@test", NOW)
     assert got is not None
@@ -1731,7 +2078,8 @@ def test_drain_message_says_same_account_when_the_active_one_recovers_first():
     """Wording: "NEXT ACCOUNT AVAILABLE: mob@" reads as "switch to mob@" when mob@ is the
     account you are already on. A stopped repo acts on this text."""
     msg = cr._urgent_drain_message(
-        "mob@test", "its 5-hour session window is 100% CONSUMED",
+        "mob@test",
+        "its 5-hour session window is 100% CONSUMED",
         (NOW + 2 * 3600, "mob@test", "session"),
     )
     assert "NEXT ACCOUNT AVAILABLE" not in msg, msg[:200]
@@ -1742,7 +2090,8 @@ def test_drain_message_says_same_account_when_the_active_one_recovers_first():
 def test_drain_message_still_names_a_sibling_normally():
     """The unchanged path — relief on a different account keeps the original wording."""
     msg = cr._urgent_drain_message(
-        "mob@test", "its 5-hour session window is 100% CONSUMED",
+        "mob@test",
+        "its 5-hour session window is 100% CONSUMED",
         (NOW + 2 * 3600, "can@test", "weekly"),
     )
     assert "NEXT ACCOUNT AVAILABLE: can@test" in msg, msg[:200]
@@ -1771,7 +2120,8 @@ def test_a_reading_just_past_the_refresh_line_is_still_trusted_by_default(monkey
     monkeypatch.delenv("ROTATE_CACHE_TRUST_S", raising=False)
     monkeypatch.setenv("ROTATE_READING_MAX_AGE_S", "3600")
     assert cr._validated_pick([_cached_standby("can", age_s=3600.0 + 240.0)], {"mob@test"}) == (
-        "can", "can@test"
+        "can",
+        "can@test",
     )
 
 
@@ -1789,3 +2139,36 @@ def test_an_explicit_trust_override_still_wins(monkeypatch):
     monkeypatch.setenv("ROTATE_CACHE_TRUST_S", "100")
     monkeypatch.setenv("ROTATE_READING_MAX_AGE_S", "3600")
     assert cr._cache_trust_s() == 100
+
+
+# --- review pass 1 (2026-09-06), D1: relief is the SOONEST epoch across both buckets --------------
+def test_a_sooner_weekly_reset_beats_a_later_session_reset():
+    """The bucket precedence ("session_wait first") returned a 10h session reset over a 1h weekly
+    reset — the fleet would wait 9h longer than necessary. Relief is the global minimum."""
+    accounts = [
+        _relief_row(
+            "cap", weekly=99.0, cap=99, session=5.0, fh_reset=NOW + 600, wk_reset=NOW + 3600
+        ),
+        _relief_row(
+            "spent",
+            weekly=20.0,
+            cap=99,
+            session=100.0,
+            fh_reset=NOW + 36000,
+            wk_reset=NOW + 5 * 86400,
+        ),
+    ]
+    epoch, email, window = cr._next_session_relief(accounts, "active@test", NOW)
+    assert (email, window, epoch) == ("cap@test", "weekly", NOW + 3600)
+
+
+def test_a_weekly_walled_account_whose_session_is_also_spent_returns_at_the_later_of_the_two():
+    """A weekly reset does not help an account whose 5h window is ALSO spent past its reset;
+    its true relief is max(weekly, session) — never the weekly alone."""
+    accounts = [
+        _relief_row(
+            "both", weekly=99.0, cap=99, session=100.0, fh_reset=NOW + 7200, wk_reset=NOW + 3600
+        ),
+    ]
+    epoch, email, window = cr._next_session_relief(accounts, "active@test", NOW)
+    assert epoch == NOW + 7200 and email == "both@test"

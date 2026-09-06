@@ -4118,17 +4118,28 @@ def _next_session_relief(
         )
         fr = fh.get("resets_at_epoch")
         wr = wk.get("resets_at_epoch")
+        su = fh.get("utilization")
+        session_spent = isinstance(su, (int, float)) and float(su) >= _rotate_threshold()
         if not weekly_blocked and isinstance(fr, (int, float)) and float(fr) > now:
             session_wait.append((float(fr), email))
         elif weekly_blocked and isinstance(wr, (int, float)) and float(wr) > now:
-            weekly_wait.append((float(wr), email))
-    if session_wait:
-        epoch, email = min(session_wait)
-        return epoch, email, "session"
-    if weekly_wait:
-        epoch, email = min(weekly_wait)
-        return epoch, email, "weekly"
-    return None
+            # A weekly reset does not help an account whose 5h window is ALSO spent past that
+            # instant: its relief is the LATER of the two (review 2026-09-06, D1).
+            epoch = float(wr)
+            if session_spent and isinstance(fr, (int, float)) and float(fr) > epoch:
+                epoch = float(fr)
+            weekly_wait.append((epoch, email))
+    # The SOONEST epoch across both buckets. It used to prefer ANY session reset over ANY weekly
+    # reset — a 10h session wait over a 1h weekly wait (review 2026-09-06, D1). The bucket only
+    # labels the window; it never outranks time.
+    best = None
+    for epoch, email in session_wait:
+        if best is None or epoch < best[0]:
+            best = (epoch, email, "session")
+    for epoch, email in weekly_wait:
+        if best is None or epoch < best[0]:
+            best = (epoch, email, "weekly")
+    return best
 
 
 def _drain_trigger_reason(row: dict, session_pct: float | None, walled: bool) -> str:
