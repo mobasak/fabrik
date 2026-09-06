@@ -3143,3 +3143,21 @@ def test_a_close_appends_its_window_and_the_next_start_carries_the_ledger(tmp_pa
     )
     _cr(run_dir, "done", "--command", r2["command"], "--evidence", "y", "--feedback", _PROBE)
     assert len(_rec(run_dir)["covered"]) == 2
+
+
+def test_start_seeds_the_ledger_from_a_pre_ledger_closed_record(tmp_path: Path) -> None:
+    """P1-1 migration half: a record closed BEFORE the ledger existed carries its window only in
+    its own started_epoch/updated_ts; the next `start` used to overwrite it and lose that
+    coverage — every session with runs older than the deploy then blocked on its own reviewed
+    work (this review's session, live, twice)."""
+    run_dir = tmp_path / "runs"
+    run_dir.mkdir()
+    _start(run_dir)
+    rec = _rec(run_dir)
+    rec.update({"state": "done", "updated_ts": rec["started_epoch"] + 600})
+    rec.pop("covered", None)  # the pre-ledger shape
+    (path,) = list(run_dir.glob("*.json"))
+    path.write_text(json.dumps(rec))
+    _start(run_dir)
+    got = _rec(run_dir)["covered"]
+    assert got == [[rec["started_epoch"], rec["updated_ts"]]], got

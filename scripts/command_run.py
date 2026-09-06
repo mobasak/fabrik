@@ -996,6 +996,23 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         return 0
 
     if args.cmd == "start":
+        # the windows earlier commands of this session COVERED, carried across this overwrite
+        # (review P1-1). A record closed BEFORE the ledger existed holds its window only in its own
+        # started_epoch/updated_ts — seed that too, or every pre-deploy run's coverage is lost.
+        def _carried_windows(prev: dict) -> list:
+            out = [w for w in (prev.get("covered") or []) if isinstance(w, list) and len(w) == 2]
+            se, ut = prev.get("started_epoch"), prev.get("updated_ts")
+            if (
+                prev.get("state") in ("done", "blocked", "handoff", "died", "expired")
+                and isinstance(se, (int, float))
+                and isinstance(ut, (int, float))
+                and not isinstance(se, bool)
+                and 0 < se <= ut
+                and [se, ut] not in out
+            ):
+                out.append([se, ut])
+            return out
+
         parent = rec if rec.get("state") == "running" else None
         stack = list(rec.get("stack") or []) if parent else []
         if parent:
@@ -1030,9 +1047,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             # the ledger of windows earlier commands of this session COVERED — carried across
             # this overwrite so the Stop hook's sixth cause keeps every reviewed edit reviewed
             # (review P1-1: a single window un-reviewed every command before the last one)
-            "covered": [
-                w for w in (rec.get("covered") or []) if isinstance(w, list) and len(w) == 2
-            ],
+            "covered": _carried_windows(rec),
         }
         # The `start` verb's join window is the WHOLE store, so the anchor is cleared —
         # never this record's own start (that would exclude every candidate landing
