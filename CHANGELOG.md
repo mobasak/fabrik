@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the scaffolder seeds `.worktreeinclude` at birth, not on the first sync (2026-09-06)
+
+A freshly scaffolded project carried three of the four multi-agent-per-repo artifacts (the
+`.claude/settings.json` worktree block, the `.claude/worktrees/` ignore line, `rerere.enabled` +
+`push.autoSetupRemote`) but not `.worktreeinclude`, which only arrived with the next governance sync.
+A project launched with `claude --worktree` in that window carried no hooks or packs into the
+worktree and every prompt there was blocked. `_scaffold_shared` now copies
+`templates/governance/.worktreeinclude` beside the `CLAUDE.md` seed (same source the sync
+distributes, byte-identical); `tests/test_scaffold_git_config.py` gains the red-first guard.
+Measured on a real scaffold into scratch, not by reading. Follow-up to plan
+`2026-09-03-plan-1-multi-agent-per-repo` (D-123).
+
+
 ### Fixed — the rotation doc restated the cap values in prose, and both had drifted (2026-09-06)
 
 Asked where the account-rotation documentation lives, so that a future session reads it instead of

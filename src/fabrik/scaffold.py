@@ -1275,6 +1275,15 @@ def _scaffold_shared(
     if fabrik_claude_md.exists():
         shutil.copy(fabrik_claude_md, project_dir / "CLAUDE.md")
 
+    # `.worktreeinclude` — multi-agent-per-repo adoption artifact #1 (GOVERNANCE_TEMPLATES in
+    # fabrik_synced_manifest.py). Seeded at birth, not left to the first governance sync: a
+    # project launched with `claude --worktree` before that sync carries no hooks or packs into
+    # the worktree and every prompt there is blocked (measured 2026-09-06). Same source the sync
+    # distributes, copied verbatim.
+    fabrik_worktreeinclude = FABRIK_ROOT / "templates/governance/.worktreeinclude"
+    if fabrik_worktreeinclude.exists():
+        shutil.copy(fabrik_worktreeinclude, project_dir / ".worktreeinclude")
+
     # Copy the /opt project catalog (so Traycer can check for duplicate projects + wire to
     # siblings). Renamed 2026-07-11 from BUSINESS_MODEL.md → PROJECT_CATALOG.md, and placed at
     # docs/reference/opt-project-catalog.md so it never overwrites the project's own monetization

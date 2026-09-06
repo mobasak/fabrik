@@ -102,3 +102,24 @@ def test_the_scaffolder_actually_calls_it_right_after_git_init(tmp_path: Path):
     assert (project_dir / ".git").is_dir(), "guard: the scaffolder really did init a repo here"
     assert _cfg(project_dir, "push.autoSetupRemote") == "true"
     assert _cfg(project_dir, "rerere.enabled") == "true"
+
+
+def test_a_scaffolded_repo_carries_worktreeinclude_at_birth(tmp_path: Path):
+    """Artifact #1 of the multi-agent model (`.worktreeinclude`) must exist the moment the repo
+    exists — a project scaffolded and launched with `claude --worktree` BEFORE its first
+    governance sync would otherwise carry no hooks or packs into the worktree, and every prompt
+    there is blocked by the UserPromptSubmit hooks (measured 2026-09-06: a fresh `_scaffold_shared`
+    emitted the settings block, the .gitignore line and both git keys, but no `.worktreeinclude`).
+    The content is the synced template, byte-for-byte — one source of truth."""
+    from fabrik import scaffold
+
+    project_dir = tmp_path / "svc"
+    project_dir.mkdir()
+
+    scaffold._scaffold_shared(project_dir, "svc", "Test service", "2026-09-06", 8099, "python-api")
+
+    template = Path(scaffold.FABRIK_ROOT) / "templates" / "governance" / ".worktreeinclude"
+    assert template.is_file(), "guard: the synced template exists in the hub"
+    emitted = project_dir / ".worktreeinclude"
+    assert emitted.is_file(), ".worktreeinclude is missing from a freshly scaffolded project"
+    assert emitted.read_text() == template.read_text()
