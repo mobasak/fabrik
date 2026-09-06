@@ -150,6 +150,57 @@ def _identity_line(cwd: str) -> str:
     return ""
 
 
+def _sessions_line(cwd: str) -> str:
+    """D5 (multi-agent-adoption spec): ≥2 live `claude` processes sharing this
+    exact main checkout is the shared-index way that has lost work before
+    (D-099) — undetected until now. A self-contained `/proc` scan: no
+    `git worktree list` (subagent residue makes that trigger wrong, I10), no
+    `/proc/<pid>/environ` read (payload sanitization boundary). Fail-open per
+    entry: a vanished/unreadable pid is skipped, never raised — and the whole
+    scan degrades to "" on any top-level OSError. Suppressed for a worktree
+    session (cwd under `/.claude/worktrees/`) and for the hub (same `is_hub`
+    test as `_identity_line`)."""
+    if "/.claude/worktrees/" in cwd:
+        return ""
+    try:
+        if (Path(cwd) / "scripts" / "fabrik_synced_manifest.py").is_file():
+            return ""
+        real_cwd = os.path.realpath(cwd)
+    except OSError:
+        return ""
+
+    proc_root_env = os.environ.get("FABRIK_PROC_ROOT", "")
+    proc_root = (
+        Path(proc_root_env) if proc_root_env and Path(proc_root_env).is_dir() else Path("/proc")
+    )
+    try:
+        pids = [e.name for e in os.scandir(proc_root) if e.name.isdigit()]
+    except OSError:
+        return ""
+
+    count = 0
+    for pid in pids:
+        entry = proc_root / pid
+        try:
+            comm = (entry / "comm").read_text(encoding="utf-8", errors="replace").strip()
+            if comm != "claude":
+                continue
+            entry_cwd = os.path.realpath(os.readlink(entry / "cwd"))
+        except OSError:
+            continue  # vanished or unreadable mid-scan — never fatal
+        if entry_cwd == real_cwd:
+            count += 1
+
+    if count < 2:
+        return ""
+    return (
+        f"- ⚠️ **{count} sessions share this main checkout.** The multi-agent model puts agents"
+        " 2..N in worktrees — `CLAUDE_AGENT=<name> claude --worktree <name> -n <name>-<repo>` —"
+        " and one merge owner in the main checkout; adopt once with `python scripts/docs_updater.py"
+        " --adopt <names>` (docs: /opt/fabrik/docs/reference/multi-agent-operating-model.md).\n"
+    )
+
+
 def _mcp_line(cwd: str) -> str:
     """The session's ASSIGNED MCP set + catalog pointer + fix-first duty (operator
     directive 2026-08-30, D-032). Reads the repo's emitted .mcp.json at runtime;
@@ -292,6 +343,7 @@ def main() -> int:
         + _memory_line(cwd)
         + "\n"
         + _identity_line(cwd)
+        + _sessions_line(cwd)
         + _mcp_line(cwd)
         + "- **Decision-shaped question? LEDGER FIRST:** grep `docs/DECISIONS.md` (fleet-wide:"
         " `python3 /opt/fabrik/scripts/decisions.py <term>`) BEFORE any wider hunt — a prior ruling,"
