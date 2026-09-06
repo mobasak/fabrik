@@ -13,6 +13,8 @@ import shutil
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 import docs_updater as du  # noqa: E402
 
@@ -64,7 +66,7 @@ class TestBC1FirstAdoptRun:
     table has one row per change."""
 
     @staticmethod
-    def _repo(tmp_path: Path) -> Path:
+    def _repo(tmp_path: Path, with_epics: bool = False) -> Path:
         root = tmp_path
         plans = root / "docs" / "development" / "plans"
         plans.mkdir(parents=True)
@@ -80,6 +82,15 @@ class TestBC1FirstAdoptRun:
         idx = root / "docs" / "development" / "PLANS.md"
         idx.write_text("# Plans\n\nSome hand table.\n", encoding="utf-8")
         _decisions_no_merge_owner(root / "docs" / "DECISIONS.md")
+        if with_epics:
+            epics = root / "docs" / "development" / "epics"
+            epics.mkdir(parents=True)
+            (epics / "2026-01-01-epic-1-one.md").write_text(
+                '---\nkind: story\ntitle: "Epic 1 — One"\nstatus: 0\nepic_n: 1\nslug: one\n'
+                "depends_on: []\nparallel_with: []\nowned_paths: []\n---\n# Epic 1\n",
+                encoding="utf-8",
+            )
+            _vendor_epic_order(root)
         return root
 
     def test_first_run_seeds_markers_owners_and_ledger_row(self, tmp_path, monkeypatch, capsys):
@@ -123,10 +134,12 @@ class TestBC1FirstAdoptRun:
 
 class TestBC2Idempotent:
     """Given the state after that run, re-running with the same names changes no byte
-    and prints `(nothing to adopt)`."""
+    and prints `(nothing to adopt)` — WITH an epics dir present too (D1): `--assign` is
+    itself idempotent, so a second run must not keep reporting an `epic_order` change
+    that did not happen."""
 
     def test_second_identical_run_is_a_byte_identical_no_op(self, tmp_path, monkeypatch, capsys):
-        root = TestBC1FirstAdoptRun._repo(tmp_path)
+        root = TestBC1FirstAdoptRun._repo(tmp_path, with_epics=True)
         monkeypatch.setattr(du, "PROJECT_ROOT", root)
         monkeypatch.setattr(du, "PLANS_DIR", root / "docs" / "development" / "plans")
         monkeypatch.setattr(du, "PLANS_INDEX", root / "docs" / "development" / "PLANS.md")
@@ -139,6 +152,7 @@ class TestBC2Idempotent:
             root / "docs" / "development" / "plans" / "2026-01-01-plan-1-open-a.md",
             root / "docs" / "development" / "plans" / "2026-01-02-plan-2-open-b.md",
             root / "docs" / "development" / "plans" / "2026-01-03-plan-3-done.md",
+            root / "docs" / "development" / "epics" / "2026-01-01-epic-1-one.md",
             root / "docs" / "DECISIONS.md",
         ]
         before = {p: p.read_bytes() for p in watched}
@@ -318,8 +332,7 @@ class TestBC6EpicDelegation:
         out = capsys.readouterr().out
 
         assert rc == 0
-        assert "epic_order" in out
-        assert "rc=0" in out
+        assert "| epics (epic_order.py --assign) | alpha | epic_order |" in out
 
         e1 = (epics / "2026-01-01-epic-1-one.md").read_text(encoding="utf-8")
         e2 = (epics / "2026-01-02-epic-2-two.md").read_text(encoding="utf-8")
@@ -373,3 +386,238 @@ class TestBC7LiveTreeHeaderAndStaleness:
         changed, _msg = du.sync_plans_index()
         assert changed is True
         assert du.validate_plans_indexed() == []
+
+
+class TestD2NameValidation:
+    """Acceptance-review D2: `--adopt` must refuse any name that cannot round-trip
+    through MERGE_OWNER_RE once written into the ledger row — a name carrying `|` or
+    a leading `-` would silently corrupt the ledger row / be read as a flag."""
+
+    @staticmethod
+    def _repo(tmp_path: Path) -> Path:
+        root = tmp_path
+        (root / "docs" / "development" / "plans").mkdir(parents=True)
+        return root
+
+    @pytest.mark.parametrize("bad_name", ["al|pha", "-lead"])
+    def test_an_invalid_name_is_refused_before_any_file_changes(
+        self, tmp_path, monkeypatch, capsys, bad_name
+    ):
+        root = self._repo(tmp_path)
+        idx = root / "docs" / "development" / "PLANS.md"
+        monkeypatch.setattr(du, "PROJECT_ROOT", root)
+        monkeypatch.setattr(du, "PLANS_DIR", root / "docs" / "development" / "plans")
+        monkeypatch.setattr(du, "PLANS_INDEX", idx)
+
+        rc = du.run_adopt([bad_name, "beta"], single_window=True)
+        err = capsys.readouterr().err
+
+        assert rc == 2
+        assert bad_name in err
+        assert not idx.exists()
+        assert not (root / "docs" / "DECISIONS.md").exists()
+
+
+class TestD3LastMatchWinsIsGrounded:
+    """Acceptance-review D3: the T01<->T02a seam — TWO matching rows in the ledger,
+    the LATER one must win. A `found = (...)` that regressed to `return (...)` inside
+    the loop would keep this suite green without this fixture."""
+
+    def test_two_merge_owner_rows_the_later_one_wins(self, tmp_path, monkeypatch):
+        root = tmp_path
+        decisions = root / "docs" / "DECISIONS.md"
+        decisions.parent.mkdir(parents=True, exist_ok=True)
+        decisions.write_text(
+            "# Decisions\n\n"
+            "| id | when | who | what (the decision) | why | where |\n"
+            "|---|---|---|---|---|---|\n"
+            "| D-010 | 2026-01-01 | infra (--adopt) | MERGE OWNER: alpha — the only "
+            "writer | because | here |\n"
+            "| D-011 | 2026-01-02 | infra (--adopt) | **MERGE OWNER: beta** — the only "
+            "writer | because | here |\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(du, "PROJECT_ROOT", root)
+
+        assert du.read_merge_owner() == ("beta", "D-011")
+
+
+class TestD4OwnerLinePlacement:
+    """Acceptance-review D4: the exact LINE INDEX the Owner line lands at, not merely
+    its substring presence — parametrized over the four shapes the reviewer named."""
+
+    @pytest.mark.parametrize(
+        "body,expected_lines",
+        [
+            pytest.param(
+                "# Plan A\n\nStatus: DRAFT\n",
+                ["# Plan A", "", "**Owner:** alpha", "Status: DRAFT", ""],
+                id="h1-then-blank-then-status",
+            ),
+            pytest.param(
+                "# Plan A\nStatus: DRAFT\n",
+                ["# Plan A", "**Owner:** alpha", "Status: DRAFT", ""],
+                id="h1-then-status-directly",
+            ),
+            pytest.param(
+                "```text\n# not a real heading\n```\n# Plan A\n\nStatus: DRAFT\n",
+                [
+                    "```text",
+                    "# not a real heading",
+                    "```",
+                    "# Plan A",
+                    "",
+                    "**Owner:** alpha",
+                    "Status: DRAFT",
+                    "",
+                ],
+                id="fenced-block-precedes-the-real-h1",
+            ),
+            pytest.param(
+                '---\n# a YAML comment, not a heading\ntitle: "x"\n---\n'
+                "# Plan A\n\nStatus: DRAFT\n",
+                [
+                    "---",
+                    "# a YAML comment, not a heading",
+                    'title: "x"',
+                    "---",
+                    "# Plan A",
+                    "",
+                    "**Owner:** alpha",
+                    "Status: DRAFT",
+                    "",
+                ],
+                id="leading-frontmatter-precedes-the-real-h1",
+            ),
+        ],
+    )
+    def test_owner_line_lands_immediately_after_h1_and_before_status(
+        self, tmp_path, body, expected_lines
+    ):
+        p = tmp_path / "plan.md"
+        p.write_text(body, encoding="utf-8")
+
+        assert du._insert_owner_line(p, "alpha") is True
+
+        lines = p.read_text(encoding="utf-8").split("\n")
+        assert lines == expected_lines
+
+        h1_idx = next(i for i, ln in enumerate(lines) if ln == "# Plan A")
+        owner_idx = next(i for i, ln in enumerate(lines) if ln == "**Owner:** alpha")
+        status_idx = next(i for i, ln in enumerate(lines) if ln.startswith("Status:"))
+        assert owner_idx > h1_idx
+        assert owner_idx < status_idx
+
+
+class TestD5SeededMarkersAreByteExactSuffix:
+    """Acceptance-review D5: the T02a->T06 seam literal — the seeded block is an EXACT
+    suffix appended below the pre-existing hand table, byte for byte."""
+
+    def test_the_seeded_block_is_the_exact_suffix_below_existing_content(
+        self, tmp_path, monkeypatch
+    ):
+        root = tmp_path
+        plans = root / "docs" / "development" / "plans"
+        plans.mkdir(parents=True)
+        idx = root / "docs" / "development" / "PLANS.md"
+        existing = "# Plans\n\nSome hand table.\n| a | b |\n|---|---|\n"
+        idx.write_text(existing, encoding="utf-8")
+        _decisions_no_merge_owner(root / "docs" / "DECISIONS.md")
+
+        monkeypatch.setattr(du, "PROJECT_ROOT", root)
+        monkeypatch.setattr(du, "PLANS_DIR", plans)
+        monkeypatch.setattr(du, "PLANS_INDEX", idx)
+
+        du.run_adopt(["alpha"], single_window=True)
+
+        text = idx.read_text(encoding="utf-8")
+        assert text.startswith(existing)
+        suffix = text[len(existing) :]
+        assert suffix.startswith(
+            "\n## Ownership (auto-generated)\n\n<!-- AUTO-GENERATED:PLANS:START -->\n"
+        )
+        assert suffix.endswith("<!-- AUTO-GENERATED:PLANS:END -->\n")
+
+
+class TestD6ProcScanEdgeCases:
+    """Acceptance-review D6: a `claude`-prefixed-but-different comm must not count, and
+    an indirect (aliased) symlink chain must still resolve via realpath."""
+
+    def test_a_claude_prefixed_comm_is_not_counted(self, tmp_path):
+        root = tmp_path / "repo"
+        root.mkdir()
+        proc_root = _fake_proc(tmp_path, [("claude-foo", root)])
+        assert du.count_sessions_sharing(root, proc_root) == 0
+
+    def test_an_aliased_symlink_still_resolves_via_realpath(self, tmp_path):
+        real_repo = tmp_path / "real_repo"
+        real_repo.mkdir()
+        alias = tmp_path / "alias_repo"
+        alias.symlink_to(real_repo, target_is_directory=True)
+        # the fake proc entry's cwd symlink points at the ALIAS, one hop short of the
+        # real repo — only a realpath() on the readlink() target reaches it.
+        proc_root = _fake_proc(tmp_path, [("claude", alias)])
+        assert du.count_sessions_sharing(real_repo, proc_root) == 1
+
+
+class TestD7NoTailSweepWording:
+    """Acceptance-review D7: the retired 'tail sweep' wording must be gone everywhere
+    it was named, and '--adopt fills it' must be the replacement text."""
+
+    def test_phase_note_and_no_owner_comment_name_adopt_not_tail_sweep(self):
+        import inspect
+
+        source = inspect.getsource(du)
+        assert "tail sweep" not in source
+        assert "`--adopt` fills it" in du._PLANS_PHASE_NOTE
+
+
+class TestD8EmptyAdoptStringIsRejected:
+    """Acceptance-review D8: `--adopt ""` is falsy under `if args.adopt:` and silently
+    fell through to the default `run_once()` branch instead of being refused."""
+
+    def test_adopt_empty_string_exits_2_and_never_reaches_run_once(self, monkeypatch):
+        monkeypatch.setattr(sys, "argv", ["docs_updater.py", "--adopt", ""])
+
+        def _boom():
+            raise AssertionError("run_once() must never run for --adopt=''")
+
+        monkeypatch.setattr(du, "run_once", _boom)
+
+        with pytest.raises(SystemExit) as exc_info:
+            du.main()
+
+        assert exc_info.value.code == 2
+
+
+class TestD9EpicOrderFailureIsReportedAndFlipsExit:
+    """Acceptance-review D9: a REFUSED epic_order.py --assign (rc!=0) must not print as
+    an ordinary success row, and run_adopt must return non-zero so a caller can tell."""
+
+    def test_a_refused_assign_reports_its_rc_and_returns_3(self, tmp_path, monkeypatch, capsys):
+        root = tmp_path
+        plans = root / "docs" / "development" / "plans"
+        epics = root / "docs" / "development" / "epics"
+        plans.mkdir(parents=True)
+        epics.mkdir(parents=True)
+        # a title that fails epic_order.py's own 'Epic N — [Name]' integrity check —
+        # --assign refuses (rc=1) and writes nothing.
+        (epics / "2026-01-01-epic-1-bad.md").write_text(
+            '---\nkind: story\ntitle: "Not The Right Shape"\nstatus: 0\nepic_n: 1\n'
+            "slug: bad\ndepends_on: []\nparallel_with: []\nowned_paths: []\n---\n# Epic 1\n",
+            encoding="utf-8",
+        )
+        idx = root / "docs" / "development" / "PLANS.md"
+        _decisions_no_merge_owner(root / "docs" / "DECISIONS.md")
+        _vendor_epic_order(root)
+
+        monkeypatch.setattr(du, "PROJECT_ROOT", root)
+        monkeypatch.setattr(du, "PLANS_DIR", plans)
+        monkeypatch.setattr(du, "PLANS_INDEX", idx)
+
+        rc = du.run_adopt(["alpha"], single_window=True)
+        out = capsys.readouterr().out
+
+        assert rc == 3
+        assert "epic_order (rc=1)" in out
+        assert "| epics (epic_order.py --assign) | alpha | epic_order (rc=1) |" in out

@@ -831,7 +831,7 @@ _OWNER_LINE_RE = re.compile(
     r"^\s*(?:[-*>]\s+)?\*{0,2}Owner\*{0,2}[^\S\n]*:[^\S\n]*\*{0,2}[^\S\n]*(.+?)(?:\n|$)",
     re.I | re.M,
 )
-NO_OWNER = "—"  # an untagged row — the tail sweep (spec § Personas, agent-1) fills it
+NO_OWNER = "—"  # an untagged row — `--adopt` fills it
 # The owner NAME is the line's leading token; live hub plans append prose
 # (`infra (build) — spec by fleet, …`) that must not become a table cell.
 _OWNER_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.@-]*")
@@ -936,6 +936,12 @@ _EPIC_STATUS = {"0": "TODO", "1": "IN_PROGRESS", "2": "DONE"}  # EPIC-ARTIFACT-S
 # Interfaces seam: both tests share one fixture ledger and must agree on the same name).
 MERGE_OWNER_RE = re.compile(r"^\**\s*MERGE OWNER:\s*([A-Za-z0-9][A-Za-z0-9_.@-]*)", re.I)
 _DECISION_ROW_ID_RE = re.compile(r"^\|\s*D-\d+\s*\|", re.I)
+# --adopt's own name grammar — the same class epic_order.py's `_validate_names` refuses
+# (its `[a-z0-9-]{1,32}`, case-relaxed to match MERGE_OWNER_RE's capture group exactly):
+# a name that fails this can never round-trip through MERGE_OWNER_RE once written into
+# the ledger row, so `read_merge_owner()` would never see it and the header would stay
+# UNDECLARED forever while every rerun kept minting another row.
+_ADOPT_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.@-]*$")
 
 
 def read_merge_owner() -> tuple[str, str] | None:
@@ -1511,16 +1517,28 @@ def count_sessions_sharing(cwd: Path, proc_root: Path = Path("/proc")) -> int:
 
 def _insert_owner_line(path: Path, name: str) -> bool:
     """Insert `**Owner:** <name>` as the first line after the plan's H1 — after the
-    blank line that follows the H1, if one does — never inside a fenced code block.
-    No-op (returns False, no write) when the file has no H1 at all."""
+    blank line that follows the H1, if one does — never inside a fenced code block,
+    and never inside a leading YAML frontmatter block (a `# comment` line there must
+    never be mistaken for the document's H1). No-op (returns False, no write) when the
+    file has no H1 at all."""
     try:
         text = path.read_text(encoding="utf-8")
     except OSError:
         return False
     lines = text.split("\n")
+    start = 0
+    if lines and lines[0].strip() == "---":
+        # Leading frontmatter fence: skip to its close so nothing inside — including a
+        # bare `# ...` comment line — is ever read as the document's H1.
+        start = len(lines)
+        for j in range(1, len(lines)):
+            if lines[j].strip() == "---":
+                start = j + 1
+                break
     h1_idx: int | None = None
     in_fence = False
-    for i, line in enumerate(lines):
+    for i in range(start, len(lines)):
+        line = lines[i]
         stripped = line.strip()
         if stripped.startswith("```") or stripped.startswith("~~~"):
             in_fence = not in_fence
@@ -1558,9 +1576,19 @@ def run_adopt(names: list[str], single_window: bool, proc_root: Path = Path("/pr
     """`--adopt <name>[,<name>…]`: seed the PLANS ownership markers, stamp every open
     unowned plan unit's Owner (round-robin), declare the merge owner (the first name)
     when the ledger has none, delegate the epic half to `epic_order.py --assign`, then
-    regenerate the PLANS block. Refuses (exit 2, one stderr line) on a checkout only
-    this session shares, unless `single_window` overrides it. Idempotent: a re-run
-    with the same names touches no byte and prints `(nothing to adopt)`."""
+    regenerate the PLANS block. Refuses (exit 2, one stderr line) on any name failing
+    `_ADOPT_NAME_RE`, or on a checkout only this session shares unless `single_window`
+    overrides it. Returns 3 when the epic delegation subprocess itself failed (rc≠0).
+    Idempotent: a re-run with the same names touches no byte and prints
+    `(nothing to adopt)`."""
+    bad = [n for n in names if not _ADOPT_NAME_RE.fullmatch(n)]
+    if bad:
+        sys.stderr.write(
+            f"docs_updater --adopt: invalid agent name(s) {bad!r} — must match "
+            f"{_ADOPT_NAME_RE.pattern!r}\n"
+        )
+        return 2
+
     if not single_window:
         n = count_sessions_sharing(PROJECT_ROOT, proc_root)
         if n < 2:
@@ -1634,8 +1662,15 @@ def run_adopt(names: list[str], single_window: bool, proc_root: Path = Path("/pr
         report.append((f"{did} (MERGE OWNER)", first, "ledger-row"))
 
     # (d) the epic half — delegated to epic_order.py --assign, never re-implemented here.
+    # A row is emitted ONLY when an epic actually gained an owner (or the delegation
+    # failed) — --assign is itself idempotent (a no-op write when the file already
+    # reads the target way), so re-running --adopt over the same epics dir with the
+    # same names must never keep reporting a change that did not happen.
+    epic_order_failed = False
     epics_dir = _epics_dir()
     if epics_dir.is_dir() and any(epics_dir.glob("*.md")):
+        epic_files = sorted(epics_dir.glob("*.md"))
+        before = {p: p.read_bytes() for p in epic_files}
         result = subprocess.run(
             [sys.executable, "scripts/epic_order.py", "--assign", ",".join(names)],
             cwd=str(PROJECT_ROOT),
@@ -1643,22 +1678,30 @@ def run_adopt(names: list[str], single_window: bool, proc_root: Path = Path("/pr
             text=True,
             check=False,
         )
-        report.append(
-            (f"epics (epic_order.py --assign, rc={result.returncode})", names[0], "epic_order")
-        )
+        if result.returncode != 0:
+            epic_order_failed = True
+            report.append(
+                (
+                    "epics (epic_order.py --assign)",
+                    names[0],
+                    f"epic_order (rc={result.returncode})",
+                )
+            )
+        elif any(p.read_bytes() != before[p] for p in epic_files if p.exists()):
+            report.append(("epics (epic_order.py --assign)", names[0], "epic_order"))
 
     # (e) regenerate the block so the new owners / merge-owner header are visible.
     sync_plans_index()
 
     if not report:
         print("(nothing to adopt)")
-        return 0
+        return 3 if epic_order_failed else 0
 
     lines = ["| Item | Owner | Source |", "|---|---|---|"]
     for item, owner, source in report:
         lines.append(f"| {_cell(item)} | {_cell(owner)} | {_cell(source)} |")
     print("\n".join(lines))
-    return 0
+    return 3 if epic_order_failed else 0
 
 
 def run_check() -> int:
@@ -1821,7 +1864,7 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    if args.adopt:
+    if args.adopt is not None:
         names = [n.strip() for n in args.adopt.split(",") if n.strip()]
         if not names:
             parser.error("--adopt requires at least one name")
