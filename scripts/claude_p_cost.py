@@ -659,7 +659,7 @@ def _merge_usage_store_locked(path: Path) -> dict:
     src_by: dict = (
         store.get("source_by_day") if isinstance(store.get("source_by_day"), dict) else {}
     )
-    added = kept = 0
+    added = 0
     try:
         src = (json.loads(_USAGE_HISTORY.read_text(encoding="utf-8")).get("days")) or {}
     except (OSError, ValueError, TypeError, AttributeError):
@@ -722,6 +722,11 @@ def _merge_usage_store_locked(path: Path) -> dict:
             if k in tdays:  # a replacement is in hand
                 days.pop(k, None)
                 src_by.pop(k, None)
+            elif k == datetime.date.today().isoformat():
+                # NEVER freeze TODAY. Today's transcripts may simply not exist yet at 06:00, and
+                # "no data at this instant" is not "no data ever" — freezing it would lock a partial
+                # day at whatever it held before the sun came up.
+                continue
             else:
                 # NO replacement, and for a past day there never will be one — its transcripts are
                 # gone. Say so: `frozen` means "came from transcripts, no longer re-derivable". It
@@ -774,7 +779,6 @@ def _merge_usage_store_locked(path: Path) -> dict:
         for k in overlap[-7:]
     }
 
-    kept = len(days)
     # Write the merged days back, then RESTORE anything this run could not interpret. A day (or a
     # single model entry) whose shape the arithmetic cannot use is still somebody's recorded spend:
     # dropping it silently would mean the next cron run erases data no other copy holds. It rides
@@ -810,7 +814,12 @@ def _merge_usage_store_locked(path: Path) -> dict:
     # watches because it runs at 06:00. `extension_source_present` is here for the same reason: it is
     # how a reader learns that source 1 has stopped, which is the event that made this collector
     # necessary and which nothing else in the file records. Found by a closing-pass finder.
-    store["_added"], store["_total_days"] = added, kept
+    # `_total_days` describes THE FILE, not the working dict — they diverge by exactly the
+    # preserved-but-unusable days, which are restored into `out_days` after `kept` was taken. A
+    # counter that disagrees with the thing it counts is a diagnostic that lies, which is the same
+    # defect class as the staleness signal two rounds ago. Raised (via a wrong line-order claim) by a
+    # round-8 finder; the claim was wrong and the adjacent discrepancy was real.
+    store["_added"], store["_total_days"] = added, len(out_days)
     store["_transcript_added"], store["_transcript_refreshed"] = t_added, t_refreshed
     # ⚠️ The LAST DAY, not `.exists()`. My first version of this signal asked whether the file was
     # there — and it is there, five days after it stopped being written, so it answered True and told

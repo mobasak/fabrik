@@ -950,3 +950,57 @@ def test_the_source_staleness_signal_ignores_junk_keys(tmp_path, monkeypatch):
     monkeypatch.setattr(cpc, "_TRANSCRIPT_ROOT", tmp_path / "no-transcripts")
 
     assert cpc.merge_usage_store()["extension_last_day"] == "2026-09-04"
+
+
+def test_the_day_counter_describes_the_file_not_the_working_dict(tmp_path, monkeypatch):
+    """`_total_days` was taken from `days` before the preserved-but-unusable entries were restored
+    into the written object, so the file said 2 while carrying 3. A counter that disagrees with the
+    thing it counts is a diagnostic that lies — the same class as the staleness signal two rounds
+    earlier."""
+    p = _store(
+        tmp_path,
+        monkeypatch,
+        {"2026-05-01": 12345, "2026-05-02": {"claude-opus-5": 7}},
+        {"2026-05-01": "extension", "2026-05-02": "extension"},
+    )
+    monkeypatch.setattr(
+        cpc,
+        "_TRANSCRIPT_ROOT",
+        _tree(
+            tmp_path,
+            {"-opt-fabrik/a.jsonl": [_msg("2026-09-05", "claude-opus-5", "m1", "r1", 900)]},
+        ),
+    )
+
+    cpc.merge_usage_store()
+
+    written = json.loads(p.read_text(encoding="utf-8"))
+    assert written["_total_days"] == len(written["days"]) == 3
+
+
+def test_today_is_never_frozen(tmp_path, monkeypatch):
+    """Today's transcripts may simply not exist yet at 06:00, and "no data at this instant" is not
+    "no data ever". Freezing today would lock a partial day at whatever it held before the sun came
+    up, and freezing is terminal."""
+    today = datetime.date.today().isoformat()
+    _store(
+        tmp_path,
+        monkeypatch,
+        {today: {"claude-opus-5": 5}, "2026-01-01": {"claude-opus-5": 9}},
+        {today: "transcripts", "2026-01-01": "transcripts"},
+        version=1,
+    )
+    # the tree holds some OTHER day, so the walk is not blind, but neither pending day is in it
+    monkeypatch.setattr(
+        cpc,
+        "_TRANSCRIPT_ROOT",
+        _tree(
+            tmp_path,
+            {"-opt-fabrik/a.jsonl": [_msg("2026-08-15", "claude-opus-5", "m1", "r1", 700)]},
+        ),
+    )
+
+    store = cpc.merge_usage_store()
+
+    assert store["source_by_day"][today] == "transcripts", "today stays refreshable"
+    assert store["source_by_day"]["2026-01-01"] == "frozen", "a past day with no data is frozen"
