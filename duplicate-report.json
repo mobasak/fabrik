@@ -1,9 +1,9 @@
 {
   "status": "pass",
-  "duplicated_lines": 5587,
-  "percentage": 4.18,
+  "duplicated_lines": 6860,
+  "percentage": 4.32,
   "threshold": 7.0,
-  "duplicate_count": 78,
+  "duplicate_count": 100,
   "duplicates": [
     {
       "lines": 11,
@@ -36,8 +36,8 @@
       "secondFile": "scripts/archived/kilo_code_review.py"
     },
     {
-      "lines": 4135,
-      "tokens": 27887,
+      "lines": 4858,
+      "tokens": 33760,
       "firstFile": "scripts/aro-wake/claude_rotate.py",
       "secondFile": "scripts/sysadmin/claude_rotate.py"
     },
