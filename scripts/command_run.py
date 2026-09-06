@@ -485,6 +485,10 @@ def _now() -> str:
 # `expired` are deliberately NOT here — a reaped run covered nothing.
 AGENT_CLOSED_STATES = frozenset({"done", "blocked", "handoff"})
 
+# The commands whose closed window reaches back to the previous covered window's close: a review
+# reviews the session's work SINCE the last run, so that span is covered by its contract.
+REVIEW_FAMILY = frozenset({"fabrik-review", "fabrik-review-scoped"})
+
 
 def _finite_ts(v: object) -> float | None:
     """A usable epoch: a non-bool finite number, else None."""
@@ -1541,7 +1545,23 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         # (C-1, re-found by the own re-sweep at 5 of 20 runs)
         cov = rec.get("covered")
         cov = cov if isinstance(cov, list) else []  # a corrupt ledger never wedges a close (N5)
-        cov.append([math.floor(_se), int(rec["updated_ts"])])
+        lo = math.floor(_se)
+        if rec.get("command") in REVIEW_FAMILY:
+            # A REVIEW's own contract is "this session's work since the last run" — its window
+            # reaches BACK to the previous covered window's close, or every edit the review
+            # reviewed but that predates its `start` stays "between runs" forever (the Stop hook
+            # blocked a session on the very commit its scoped review had just closed over,
+            # 2026-09-07). A nested review starts with an empty ledger, so it reaches back only
+            # to its own start and never swallows its caller's later edits; a non-review command
+            # keeps its own start (A-F5: a /fabrik-spec run launders nothing).
+            prev = [
+                float(w[1])
+                for w in cov
+                if isinstance(w, list) and len(w) == 2 and isinstance(w[1], (int, float))
+            ]
+            if prev:
+                lo = min(lo, math.floor(max(prev)))
+        cov.append([lo, int(rec["updated_ts"])])
         rec["covered"] = cov
     stack = list(rec.get("stack") or [])
     parent = stack.pop() if stack else None

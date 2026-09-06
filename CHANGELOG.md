@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a review-family run's covered window reaches back to the previous window's close (2026-09-07)
+
+The Stop hook's sixth cause blocked a session on the very commit its scoped review had just closed
+over: the review's `start` came after the edits it reviewed, so the ledger held them "between runs".
+A review's contract is "this session's work since the last run" — `command_run.py` now closes a
+`fabrik-review` / `fabrik-review-scoped` record with `lo` = the previous covered window's close (its
+own start when the ledger is empty; a nested review starts with an empty ledger and never swallows
+its caller's later edits); every other command keeps its own start (A-F5 stays). Four graders, red
+on HEAD's file. The R2 expectation in `test_stop_hook_spontaneous_review.py` that a formatter reflow
+had hidden from the earlier fix is corrected in the same change.
+
 ### Added — quota dashboard: an external-services matrix under the Commands tab (2026-09-06)
 
 `localhost:5051/#commands` now carries a command × service matrix below the command table — which

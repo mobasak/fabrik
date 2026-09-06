@@ -208,7 +208,7 @@ def test_every_earlier_commands_window_stays_covered_across_a_start_overwrite():
             "updated_ts": 2,
             "covered": [[float("nan"), 5], "x", [9, 1]],
         }
-    ) == [(1.0, 2.0)]
+    ) == [(1, 3.0)]  # floored lo, close second whole (R2)
 
 
 def test_a_resumed_transcripts_ancient_edits_are_not_this_sessions():

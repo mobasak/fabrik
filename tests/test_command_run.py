@@ -3255,3 +3255,107 @@ def test_a_corrupt_covered_value_never_wedges_a_close(tmp_path: Path) -> None:
     _cr(run_dir, "done", "--command", rec["command"], "--evidence", "x", "--feedback", _PROBE)
     rec = _rec(run_dir)
     assert rec["state"] == "done" and isinstance(rec["covered"], list) and len(rec["covered"]) == 1
+
+
+def _start_named(run_dir: Path, command: str) -> None:
+    _cr(run_dir, "start", "--command", command, "--phases", "1", "--terminal", "t")
+
+
+def test_a_review_family_close_reaches_back_to_the_previous_windows_close(tmp_path: Path) -> None:
+    """A review's contract is "this session's work since the last run": its closed window's lo
+    is the previous covered window's close, not its own start — otherwise the edits it reviewed
+    but that predate its `start` stay "between runs" forever (the Stop hook blocked a session on
+    the very commit its scoped review had just closed over, 2026-09-07)."""
+    run_dir = tmp_path / "runs"
+    run_dir.mkdir()
+    _start_named(run_dir, "fabrik-spec")
+    time.sleep(1.1)
+    _cr(run_dir, "done", "--command", "fabrik-spec", "--evidence", "x", "--feedback", _PROBE)
+    prev_hi = _rec(run_dir)["covered"][0][1]
+    time.sleep(1.1)  # a plain-chat edit happens in this gap
+    _start_named(run_dir, "fabrik-review-scoped")
+    rev_start = _rec(run_dir)["started_epoch"]
+    time.sleep(1.1)
+    _cr(
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-review-scoped",
+        "--evidence",
+        "x",
+        "--feedback",
+        _PROBE,
+    )
+    cov = _rec(run_dir)["covered"]
+    assert cov[-1][0] == prev_hi, cov
+    assert cov[-1][0] < int(rev_start), "the review's window must reach back past its own start"
+
+
+def test_a_non_review_close_keeps_its_own_start(tmp_path: Path) -> None:
+    """A-F5 stays: a /fabrik-spec run launders no pre-start code."""
+    run_dir = tmp_path / "runs"
+    run_dir.mkdir()
+    _start_named(run_dir, "fabrik-spec")
+    time.sleep(1.1)
+    _cr(run_dir, "done", "--command", "fabrik-spec", "--evidence", "x", "--feedback", _PROBE)
+    time.sleep(1.1)
+    _start_named(run_dir, "fabrik-plan-after-chat")
+    start2 = _rec(run_dir)["started_epoch"]
+    _cr(
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-plan-after-chat",
+        "--evidence",
+        "x",
+        "--feedback",
+        _PROBE,
+    )
+    cov = _rec(run_dir)["covered"]
+    assert cov[-1][0] == math.floor(start2), cov
+
+
+def test_a_review_with_an_empty_ledger_starts_at_its_own_start(tmp_path: Path) -> None:
+    run_dir = tmp_path / "runs"
+    run_dir.mkdir()
+    _start_named(run_dir, "fabrik-review-scoped")
+    start = _rec(run_dir)["started_epoch"]
+    _cr(
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-review-scoped",
+        "--evidence",
+        "x",
+        "--feedback",
+        _PROBE,
+    )
+    cov = _rec(run_dir)["covered"]
+    assert cov == [[math.floor(start), _rec(run_dir)["updated_ts"]]] and cov[0][0] > 0, cov
+
+
+def test_a_nested_review_never_swallows_its_callers_later_edits(tmp_path: Path) -> None:
+    """A nested review starts with an empty ledger, so it reaches back only to its own start; the
+    caller's window still covers its whole span at the caller's close."""
+    run_dir = tmp_path / "runs"
+    run_dir.mkdir()
+    _start_named(run_dir, "fabrik-execute-plan")
+    outer_start = _rec(run_dir)["started_epoch"]
+    time.sleep(1.1)
+    _start_named(run_dir, "fabrik-review-scoped")
+    inner_start = _rec(run_dir)["started_epoch"]
+    _cr(
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-review-scoped",
+        "--evidence",
+        "x",
+        "--feedback",
+        _PROBE,
+    )
+    _cr(
+        run_dir, "done", "--command", "fabrik-execute-plan", "--evidence", "x", "--feedback", _PROBE
+    )
+    cov = sorted(_rec(run_dir)["covered"])
+    assert cov[0][0] == math.floor(outer_start) and cov[1][0] == math.floor(inner_start), cov
