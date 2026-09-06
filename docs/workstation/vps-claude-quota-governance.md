@@ -136,8 +136,9 @@ stops both, so its cache ages past the bound and the alarm fires).
   re-push as the stopgap).
 - **Operator caps (set 2026-08-30):** `QUOTA_RESERVE_PCT=80` is pinned in
   `/opt/fabrik/.env.sysadmin` on all 3 hosts (the governor sheds routine at ≥80% on EVERY window —
-  5h, weekly, per-model), and WSL `~/.claude-fleet/caps.json` carries `ob@ocoron.com: 80` so the
-  WSL rotation never flips onto ob@ past 80% weekly (caps.json is weekly-only by design; there is
+  5h, weekly, per-model), and WSL `~/.claude-fleet/caps.json` carries a weekly cap for
+  `ob@ocoron.com` so the WSL rotation never flips onto ob@ past it (read the file for the live
+  value — it was 80 when this was written and is 90 today; caps.json is weekly-only by design; there is
   no 5h knob in WSL rotation — the 5h 80% is enforced by the governor where ob@ actually works).
 - **The morning heartbeat never dies:** on a governor shed the morning report sends the
   already-collected context as a RAW report (zero Claude cost — only the prose is skipped);

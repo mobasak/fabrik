@@ -81,8 +81,9 @@ The `*/5` tick reads all four accounts, then decides (`_fleet_flip_leg`, `claude
   **weekly reset is soonest** wins (quota about to refresh is the cheapest to burn); ties break
   to lower weekly, then lower session utilization; an unknown reset time sorts last. The same
   rule the reactive path (`_pick_successor`) always applied; the tick used to rank by headroom
-  instead. The weekly reserves are `caps.json`: `can` 99 · `mob` 99 · `sarp` 90 (10% kept) ·
-  `ob` 80 (20% kept) — at weekly ≥ cap the account flips away whatever its session says.
+  instead. The weekly reserves live in `caps.json` — **§ Per-account caps below; read the file
+  or `--status`, never this page, for the numbers.** At weekly ≥ cap the account flips away
+  whatever its session says.
   **A target must have 5h budget** (operator rule, same day): its session reading must be KNOWN and
   ≤ `ROTATE_TARGET_SESSION_MAX_PCT` (default = `ROTATE_DRAIN_THRESHOLD`, **85** — a target at or over the drain line would be flagged the moment it became active) — a weekly reading alone proves nothing about
   the session window, and a sibling near its own session wall would be flipped to and away from on
@@ -141,10 +142,21 @@ exceed:
 {"ob@ocoron.com": 90}
 ```
 
+⚠️ **The live values are the file, and this doc does not restate them** — deliberately, as of
+2026-09-06. Read `cat ~/.claude-fleet/caps.json`, or `claude_rotate.py --status`, which prints
+`(cap N)` on every account row (`claude_rotate.py:3592`). The caps are the operator's browser
+reserve: they are edited by hand, take effect with no restart, and therefore change with no
+commit and no reviewer. Both values this page used to name had drifted silently — `sarp` was
+raised 90 → 95 on 2026-09-06 (D-150) and `ob` had moved 80 → 90 before that, with the prose left
+untouched each time. A number copied out of a live JSON file into prose is stale from the day
+after it is written.
+
 At or above the cap the account is **cap-walled**: automated flips exclude it and `--status`
 says so, reserving the remainder for the operator's own claude.ai browser use. `--switch` may
 still target it deliberately. Keys are matched case-insensitively; a key matching no known
-account warns ("cap inactive") rather than failing silently.
+account warns ("cap inactive") rather than failing silently. The file is mirrored off-box by
+`scripts/dr_claude_backup.sh` (D-150, 2026-09-06 — until then it had no backup at all, because
+that script's fleet loop walks account *directories* and caps.json sits at the fleet root).
 
 ## `--status` — the board
 

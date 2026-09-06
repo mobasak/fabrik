@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the rotation doc restated the cap values in prose, and both had drifted (2026-09-06)
+
+Asked where the account-rotation documentation lives, so that a future session reads it instead of
+guessing. The answer is `docs/workstation/claude-account-rotation.md` — but checking it against the
+live file found it naming `sarp` 90 and `ob` 80, while `~/.claude-fleet/caps.json` holds 95 and 90.
+The `sarp` half went stale yesterday, in my own D-150 change: I updated CHANGELOG and DECISIONS and
+never touched the reference doc that states the number. The `ob` half had been stale longer.
+
+Fixed at the class rather than the two instances: the doc no longer restates the values anywhere.
+§ Per-account caps now points at `cat ~/.claude-fleet/caps.json` and at `--status`, which prints
+`(cap N)` per account row (`claude_rotate.py:3592`), and says WHY a copy here rots — the caps are
+hand-edited, take effect with no restart, and so change with no commit and no reviewer. The same
+literal in `docs/workstation/vps-claude-quota-governance.md` is replaced by the mechanism plus a
+dated note that the value has moved. The `caps.json` section also now records that the file is
+DR-mirrored (D-150), which is where a reader would look for it.
+
+`docs/DECISIONS.md` rows keep their original numbers on purpose — a ledger row states what was true
+when the decision was made, and is immutable.
+
 ### Fixed — caps.json had no off-box copy, found while raising sarp@'s weekly cap to 95 (2026-09-06)
 
 Operator: raise sarp@'s weekly rotation cap from 90% to 95%. Done in `~/.claude-fleet/caps.json`
