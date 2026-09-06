@@ -1514,12 +1514,6 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         print(msg)
         return 1
     rec["state"] = args.cmd
-    _se = _finite_ts(rec.get("started_epoch"))
-    if _se is not None and _se > 0:
-        # the close instant is the touched `updated_ts` (whole seconds), not a fresh
-        # `time.time()` — a float here and an int there made the start-time seed miss its own
-        # dedupe and append a near-duplicate, a coin-flip on the second boundary (C-1)
-        rec.setdefault("covered", []).append([_se, int(rec.get("updated_ts") or time.time())])
     # `closed_by` is ADDITIVE and never read by an existing consumer (the Stop hook keys
     # on `state == "running"` alone). `agent` is the only value this script writes; the
     # coroner writes `coroner`/`ttl` for the runs no agent ever came back to close.
@@ -1537,6 +1531,13 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
     else:
         rec["blocked_reason"] = args.reason
     _touch(rec)
+    _se = _finite_ts(rec.get("started_epoch"))
+    if _se is not None and _se > 0:
+        # AFTER `_touch`: the window's close is the close's own touched `updated_ts` (whole
+        # seconds) — appended before the touch it carried the PREVIOUS stamp, so the next
+        # start's seed (built from the real close time) missed the dedupe on a second boundary
+        # (C-1, re-found by the own re-sweep at 5 of 20 runs)
+        rec.setdefault("covered", []).append([_se, int(rec["updated_ts"])])
     stack = list(rec.get("stack") or [])
     parent = stack.pop() if stack else None
     if parent is not None:

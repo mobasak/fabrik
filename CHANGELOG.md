@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Free models in the subagent roster: all six task kinds now offer 3 free + 2 cheap paid (2026-09-06)
+- **The free half needed no module change.** OpenRouter publishes 21 models at $0/token, so a `:free` id is an ordinary model id to `pick_models` and `fanout`. D-159 recorded that free models were reachable only via an explicit `AgentSpec(provider=…)` — true of the direct NVIDIA/Kilo/Groq endpoints and irrelevant; I had not checked OpenRouter's own free tier. D-168 supersedes it.
+- Admitted after live verification through the pool's transport (HTTP 200, `usage.cost == 0`, real content): `nvidia/nemotron-3-super-120b-a12b:free`, `nvidia/nemotron-3-ultra-550b-a55b:free`, `minimax/minimax-m3:free` — all three already benchmarked on the hub's own corpus. They lead the allowlist order; the two cheap DeepSeek remain the measured floor.
+- Every task kind (spec, plan, review, code, docs, research) now offers 5 models, at least one free. Guards added and proven red-on-revert: removing the free models fails 8 tests.
+
 ### Fixed — /fabrik-review closing pass: 25 findings from three non-author Opus closers, 24 fixed (2026-09-06)
 
 **Enforcement (N1):** the new `User-Level Hooks Registered` row was `advisory=True`, which only
@@ -31,7 +36,10 @@ documented direction). **Committed test debt found on the way:** `tests/test_cla
 carried six failures at HEAD (the `+60` resume lead since e8f0473d made it 120; the pre-D1 bucket
 precedence; a stale drain wording) — bound to `_drain_resume_lead_s()`, fixtures brought to the
 current contract. INDEX grader counts removed (they rotted twice in one review); the CHANGELOG
-grader count re-derived by the producing tool.
+grader count re-derived by the producing tool. **Own re-sweep after the closers (round 4):** the ledger
+append ran BEFORE `_touch`, so a window's close carried the previous stamp and the next `start`'s seed
+missed its dedupe on a second boundary — 5 of 20 runs red; the append now follows the touch, and the
+grader asserts `covered[-1][1] == updated_ts` across a 1.1 s gap (red on e74987e4, green on the fix).
 
 ### Fixed — the plan-set READ budget is advisory on the gate path for an EXECUTED spine (2026-09-06)
 

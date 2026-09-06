@@ -3133,9 +3133,13 @@ def test_a_close_appends_its_window_and_the_next_start_carries_the_ledger(tmp_pa
     run_dir.mkdir()
     _start(run_dir)
     r1 = _rec(run_dir)
+    time.sleep(1.1)  # the start's stamp and the close's must differ, or the ordering defect hides
     _cr(run_dir, "done", "--command", r1["command"], "--evidence", "x", "--feedback", _PROBE)
     r1 = _rec(run_dir)
     assert len(r1["covered"]) == 1 and r1["covered"][0][0] == r1["started_epoch"], r1.get("covered")
+    # the window's close IS the close's touched stamp — deterministic, unlike the second-boundary
+    # flake the ordering defect produced (5 of 20 runs)
+    assert r1["covered"][0][1] == r1["updated_ts"], (r1["covered"], r1["updated_ts"])
     _start(run_dir)
     r2 = _rec(run_dir)
     assert r2["state"] == "running" and r2["covered"] == r1["covered"], (
