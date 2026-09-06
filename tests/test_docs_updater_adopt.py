@@ -390,8 +390,10 @@ class TestBC7LiveTreeHeaderAndStaleness:
 
 class TestD2NameValidation:
     """Acceptance-review D2: `--adopt` must refuse any name that cannot round-trip
-    through MERGE_OWNER_RE once written into the ledger row — a name carrying `|` or
-    a leading `-` would silently corrupt the ledger row / be read as a flag."""
+    through MERGE_OWNER_RE once written into the ledger row — a name carrying `|`
+    would silently corrupt the ledger row. (A bare leading `-` is legitimately valid
+    under epic_order.py's own grammar — round 2 / D3b tightens the exact character
+    class; `TestD3bStrictNameGrammar` below covers that boundary precisely.)"""
 
     @staticmethod
     def _repo(tmp_path: Path) -> Path:
@@ -399,7 +401,7 @@ class TestD2NameValidation:
         (root / "docs" / "development" / "plans").mkdir(parents=True)
         return root
 
-    @pytest.mark.parametrize("bad_name", ["al|pha", "-lead"])
+    @pytest.mark.parametrize("bad_name", ["al|pha"])
     def test_an_invalid_name_is_refused_before_any_file_changes(
         self, tmp_path, monkeypatch, capsys, bad_name
     ):
@@ -621,3 +623,106 @@ class TestD9EpicOrderFailureIsReportedAndFlipsExit:
         assert rc == 3
         assert "epic_order (rc=1)" in out
         assert "| epics (epic_order.py --assign) | alpha | epic_order (rc=1) |" in out
+
+
+class TestD3aAbsentEpicOrderIsSkippedNotFailed:
+    """Round-2 acceptance review 3a: scripts/epic_order.py is fleet-synced NOWHERE
+    (0 of 41 projects) while docs_updater.py itself IS fleet-synced. A repo with an
+    epics dir but no vendored epic_order.py must be skipped entirely — never treated
+    as a failed delegation — mirroring the guard `_epic_rows()` already applies at the
+    module's ImportError branch."""
+
+    def test_no_epic_order_script_skips_delegation_with_rc_0(self, tmp_path, monkeypatch, capsys):
+        root = tmp_path
+        plans = root / "docs" / "development" / "plans"
+        epics = root / "docs" / "development" / "epics"
+        plans.mkdir(parents=True)
+        epics.mkdir(parents=True)
+        (epics / "2026-01-01-epic-1-one.md").write_text(
+            '---\nkind: story\ntitle: "Epic 1 — One"\nstatus: 0\nepic_n: 1\nslug: one\n'
+            "depends_on: []\nparallel_with: []\nowned_paths: []\n---\n# Epic 1\n",
+            encoding="utf-8",
+        )
+        idx = root / "docs" / "development" / "PLANS.md"
+        _decisions_no_merge_owner(root / "docs" / "DECISIONS.md")
+        # deliberately NOT vendoring scripts/epic_order.py — the web-ecommerce-factory shape
+
+        monkeypatch.setattr(du, "PROJECT_ROOT", root)
+        monkeypatch.setattr(du, "PLANS_DIR", plans)
+        monkeypatch.setattr(du, "PLANS_INDEX", idx)
+
+        rc = du.run_adopt(["alpha"], single_window=True)
+        out = capsys.readouterr().out
+
+        assert rc == 0
+        assert "epic_order" not in out
+        # the epic itself is genuinely untouched — no local writer ran
+        untouched = (epics / "2026-01-01-epic-1-one.md").read_text(encoding="utf-8")
+        assert "owner:" not in untouched
+
+        before = {
+            idx: idx.read_bytes(),
+            (root / "docs" / "DECISIONS.md"): (root / "docs" / "DECISIONS.md").read_bytes(),
+        }
+        rc2 = du.run_adopt(["alpha"], single_window=True)
+        out2 = capsys.readouterr().out
+
+        assert rc2 == 0
+        assert out2.strip() == "(nothing to adopt)"
+        for p, content in before.items():
+            assert p.read_bytes() == content
+
+
+class TestD3bStrictNameGrammar:
+    """Round-2 acceptance review 3b: `_ADOPT_NAME_RE` must be IDENTICAL to
+    epic_order.py's `_OWNER_NAME_RE` (`^[a-z0-9-]{1,32}$`) — the round-1 grammar
+    (uppercase, `_`, `.`, `@`, unbounded length all accepted) let a name through that
+    epic_order.py's own `--assign` would refuse, half-adopting the repo (markers +
+    owner lines + an IMMUTABLE ledger row written, then rc=3 with zero epics owned)."""
+
+    @staticmethod
+    def _repo(tmp_path: Path) -> Path:
+        root = tmp_path
+        (root / "docs" / "development" / "plans").mkdir(parents=True)
+        return root
+
+    @pytest.mark.parametrize(
+        "bad_name",
+        ["Alpha", "a.b", "x@y", "alpha_1", "a" * 40],
+        ids=["uppercase", "dot", "at-sign", "underscore", "over-32-chars"],
+    )
+    def test_a_name_outside_epic_orders_grammar_is_refused(
+        self, tmp_path, monkeypatch, capsys, bad_name
+    ):
+        root = self._repo(tmp_path)
+        idx = root / "docs" / "development" / "PLANS.md"
+        decisions = root / "docs" / "DECISIONS.md"
+        monkeypatch.setattr(du, "PROJECT_ROOT", root)
+        monkeypatch.setattr(du, "PLANS_DIR", root / "docs" / "development" / "plans")
+        monkeypatch.setattr(du, "PLANS_INDEX", idx)
+
+        rc = du.run_adopt([bad_name], single_window=True)
+        err = capsys.readouterr().err
+
+        assert rc == 2
+        assert bad_name in err
+        assert not idx.exists()
+        assert not decisions.exists()
+
+    @pytest.mark.parametrize("good_name", ["n-1", "1st"])
+    def test_a_name_matching_epic_orders_grammar_is_accepted(
+        self, tmp_path, monkeypatch, good_name
+    ):
+        root = self._repo(tmp_path)
+        idx = root / "docs" / "development" / "PLANS.md"
+        monkeypatch.setattr(du, "PROJECT_ROOT", root)
+        monkeypatch.setattr(du, "PLANS_DIR", root / "docs" / "development" / "plans")
+        monkeypatch.setattr(du, "PLANS_INDEX", idx)
+
+        rc = du.run_adopt([good_name], single_window=True)
+
+        assert rc == 0
+        assert idx.exists()  # step (a) ran — the name passed validation
+
+    def test_the_adopt_name_regex_is_byte_identical_to_epic_orders(self):
+        assert du._ADOPT_NAME_RE.pattern == "^[a-z0-9-]{1,32}$"

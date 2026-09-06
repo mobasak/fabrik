@@ -936,12 +936,15 @@ _EPIC_STATUS = {"0": "TODO", "1": "IN_PROGRESS", "2": "DONE"}  # EPIC-ARTIFACT-S
 # Interfaces seam: both tests share one fixture ledger and must agree on the same name).
 MERGE_OWNER_RE = re.compile(r"^\**\s*MERGE OWNER:\s*([A-Za-z0-9][A-Za-z0-9_.@-]*)", re.I)
 _DECISION_ROW_ID_RE = re.compile(r"^\|\s*D-\d+\s*\|", re.I)
-# --adopt's own name grammar — the same class epic_order.py's `_validate_names` refuses
-# (its `[a-z0-9-]{1,32}`, case-relaxed to match MERGE_OWNER_RE's capture group exactly):
-# a name that fails this can never round-trip through MERGE_OWNER_RE once written into
-# the ledger row, so `read_merge_owner()` would never see it and the header would stay
-# UNDECLARED forever while every rerun kept minting another row.
-_ADOPT_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.@-]*$")
+# --adopt's own name grammar — IDENTICAL to epic_order.py's `_OWNER_NAME_RE`
+# (`^[a-z0-9-]{1,32}$`, epic_order.py:748), not merely "the same class": a name
+# epic_order.py's own `--assign` would refuse (uppercase, `_`, `.`, `@`, or >32 chars)
+# must never get as far as markers + owner lines + the IMMUTABLE merge-owner ledger
+# row here, only to have the epic half fail afterward — a half-adopted repo. This is
+# ALSO narrower than MERGE_OWNER_RE's capture group (which stays permissive so it can
+# still READ a name minted before this tightening), so it never needs to round-trip
+# the other way.
+_ADOPT_NAME_RE = re.compile(r"^[a-z0-9-]{1,32}$")
 
 
 def read_merge_owner() -> tuple[str, str] | None:
@@ -1575,11 +1578,15 @@ def _mint_next_decision_id() -> str:
 def run_adopt(names: list[str], single_window: bool, proc_root: Path = Path("/proc")) -> int:
     """`--adopt <name>[,<name>…]`: seed the PLANS ownership markers, stamp every open
     unowned plan unit's Owner (round-robin), declare the merge owner (the first name)
-    when the ledger has none, delegate the epic half to `epic_order.py --assign`, then
-    regenerate the PLANS block. Refuses (exit 2, one stderr line) on any name failing
-    `_ADOPT_NAME_RE`, or on a checkout only this session shares unless `single_window`
-    overrides it. Returns 3 when the epic delegation subprocess itself failed (rc≠0).
-    Idempotent: a re-run with the same names touches no byte and prints
+    when the ledger has none, delegate the epic half to `epic_order.py --assign` WHEN
+    that script is present (it is hub-only, never synced to projects — a repo with an
+    epics dir but no vendored copy is skipped here; the hub adopts those epics
+    separately, from /opt/fabrik, with `python3 /opt/fabrik/scripts/epic_order.py
+    --assign <names>`), then regenerate the PLANS block. Refuses (exit 2, one stderr
+    line) on any name failing `_ADOPT_NAME_RE`, or on a checkout only this session
+    shares unless `single_window` overrides it. Returns 3 only when a PRESENT
+    epic_order.py genuinely refused the assignment (rc≠0) — never for an absent
+    script. Idempotent: a re-run with the same names touches no byte and prints
     `(nothing to adopt)`."""
     bad = [n for n in names if not _ADOPT_NAME_RE.fullmatch(n)]
     if bad:
@@ -1662,13 +1669,19 @@ def run_adopt(names: list[str], single_window: bool, proc_root: Path = Path("/pr
         report.append((f"{did} (MERGE OWNER)", first, "ledger-row"))
 
     # (d) the epic half — delegated to epic_order.py --assign, never re-implemented here.
-    # A row is emitted ONLY when an epic actually gained an owner (or the delegation
-    # failed) — --assign is itself idempotent (a no-op write when the file already
+    # scripts/epic_order.py is HUB-ONLY (never synced to projects — same guard
+    # `_epic_rows()` already applies at :1026-1028): a project with an epics dir but no
+    # vendored epic_order.py must be skipped entirely, not treated as a failed
+    # delegation — the hub adopts those epics separately, from here, with
+    # `python3 /opt/fabrik/scripts/epic_order.py --assign <names>`. A row is emitted
+    # ONLY when an epic actually gained an owner (or a PRESENT script genuinely
+    # refused) — --assign is itself idempotent (a no-op write when the file already
     # reads the target way), so re-running --adopt over the same epics dir with the
     # same names must never keep reporting a change that did not happen.
     epic_order_failed = False
     epics_dir = _epics_dir()
-    if epics_dir.is_dir() and any(epics_dir.glob("*.md")):
+    epic_order_script = PROJECT_ROOT / "scripts" / "epic_order.py"
+    if epics_dir.is_dir() and any(epics_dir.glob("*.md")) and epic_order_script.is_file():
         epic_files = sorted(epics_dir.glob("*.md"))
         before = {p: p.read_bytes() for p in epic_files}
         result = subprocess.run(
