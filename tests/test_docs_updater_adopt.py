@@ -788,14 +788,22 @@ class TestT02bBC1ThreeShapesRoundRobin:
     starts with `[beta] `, and the bullets read `- [alpha] …`, `- [ ] [beta] …`,
     `- [x] [alpha] …` — round-robin across all five in file order.
 
-    RED-FIRST EVIDENCE (watched against the pre-T02b script, HEAD c2631de2 —
-    `git show HEAD:scripts/docs_updater.py` has no `_tag_backlog_rows` and
-    `run_adopt` never reads STRATEGIC_BACKLOG.md at all):
+    RED-FIRST EVIDENCE (watched against the pre-T02b script, `git show
+    c2631de2:scripts/docs_updater.py` — T02a's merged state, no `_tag_backlog_rows`
+    and `run_adopt` never reads STRATEGIC_BACKLOG.md at all). BC1 calls `run_adopt`
+    itself, not `_tag_backlog_rows` directly, so the baseline's `run_adopt` runs to
+    completion (rc == 0) without ever touching the fixture file — the failure is an
+    AssertionError on the untagged content still being there, not an AttributeError:
         FAILED tests/test_docs_updater_adopt.py::TestT02bBC1ThreeShapesRoundRobin
         ::test_three_shapes_tagged_round_robin_in_file_order
-        AttributeError: module 'docs_updater' has no attribute '_tag_backlog_rows'
+        AssertionError: assert '| **M** | `[alpha]` | A hub-shaped untagged item |
+        because | now |' in ['# Strategic Backlog', '', '## Ownership', '', '| Tag |
+        Agent | Beat |', '| :--- | :--- | :--- |', ...]
+        tests/test_docs_updater_adopt.py:813: AssertionError
     (the backlog file was byte-identical to the fixture — the untagged rows were
-    never touched — before this ticket's implementation landed.)
+    never touched — before this ticket's implementation landed. BC2/BC3/BC4 below are
+    vacuously green on that same baseline for the identical reason: a script that
+    never reads the file can't be caught changing it, or failing to.)
     """
 
     def test_three_shapes_tagged_round_robin_in_file_order(self, tmp_path, monkeypatch):
@@ -826,13 +834,14 @@ class TestT02bBC2SkipShapes:
     fenced block containing `- item`, and a `~~struck~~` row, when `--adopt` runs,
     none of them changes.
 
-    RED-FIRST EVIDENCE (same pre-T02b baseline as BC1 — `run_adopt` never read the
-    file, so this assertion would trivially "pass" for the wrong reason on that
-    baseline; the real red is the ATTRIBUTEERROR above, since `_tag_backlog_rows`
-    did not exist at all before this ticket. Watched directly against the helper
-    with the module reverted to HEAD:
-        AttributeError: module 'docs_updater' has no attribute '_tag_backlog_rows'
-    """
+    RED-FIRST EVIDENCE: this test is VACUOUSLY GREEN on the pre-T02b baseline
+    (`git show c2631de2:scripts/docs_updater.py`) — watched directly, `rc == 0` and
+    `text == _BACKLOG_SKIP_FIXTURE` both hold, for the wrong reason: `run_adopt`
+    never read STRATEGIC_BACKLOG.md at all on that baseline, so "none of them
+    changes" was true of every row, tagged or not. The meaningful red for this
+    behavior is BC1's (the ONLY row of the five that must not have changed but is
+    exercised by a run that actually touches the file at all) — see BC1's
+    AssertionError above."""
 
     def test_already_tagged_legend_header_fence_and_struck_rows_never_change(
         self, tmp_path, monkeypatch
@@ -853,8 +862,10 @@ class TestT02bBC3Idempotent:
     """Given the state after one run, a second run leaves STRATEGIC_BACKLOG.md
     byte-identical and prints `(nothing to adopt)`.
 
-    RED-FIRST EVIDENCE: watched via the same AttributeError as BC1/BC2 against the
-    pre-T02b baseline (the method under test did not exist)."""
+    RED-FIRST EVIDENCE: vacuously green on the pre-T02b baseline for the same reason
+    as BC2 — a script that never writes to the file trivially reproduces
+    `(nothing to adopt)` / byte-identical on every run. BC1's AssertionError is the
+    real proof that this ticket's writer exists and does something."""
 
     def test_second_run_is_byte_identical_and_reports_nothing(self, tmp_path, monkeypatch, capsys):
         root = _backlog_repo(tmp_path)
@@ -880,10 +891,10 @@ class TestT02bBC4MissingBacklogIsSilentlyNothing:
     """Given no STRATEGIC_BACKLOG.md, `--adopt` succeeds with no `backlog-row` in
     the report.
 
-    RED-FIRST EVIDENCE: on the pre-T02b baseline this behavior was trivially true
-    (the code never looked at the file at all) — the meaningful red is that
-    `_tag_backlog_rows`/the `backlog_path.is_file()` guard did not exist, proven by
-    the same AttributeError as the other T02b tests when called directly."""
+    RED-FIRST EVIDENCE: trivially true on the pre-T02b baseline too (the code never
+    looked at the file at all, so a missing file changed nothing about its
+    behavior) — the meaningful proof that a real, gated file-read now exists is
+    BC1's AssertionError, not a rerun of this one."""
 
     def test_no_backlog_file_means_no_backlog_rows_and_rc_0(self, tmp_path, monkeypatch, capsys):
         root = tmp_path
