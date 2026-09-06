@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: docs/development/PLANS.md
+# AFTER-EDIT: docs/development/PLANS.md, scripts/decisions.py (keep MERGE_OWNER_RE identical)
 """
 Fabrik Documentation Updater
 
@@ -54,7 +54,7 @@ import threading
 import time
 import urllib.parse
 from contextlib import suppress
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from queue import Empty, Queue
 from typing import Any
@@ -831,7 +831,7 @@ _OWNER_LINE_RE = re.compile(
     r"^\s*(?:[-*>]\s+)?\*{0,2}Owner\*{0,2}[^\S\n]*:[^\S\n]*\*{0,2}[^\S\n]*(.+?)(?:\n|$)",
     re.I | re.M,
 )
-NO_OWNER = "—"  # an untagged row — the tail sweep (spec § Personas, agent-1) fills it
+NO_OWNER = "—"  # an untagged row — `--adopt` fills it
 # The owner NAME is the line's leading token; live hub plans append prose
 # (`infra (build) — spec by fleet, …`) that must not become a table cell.
 _OWNER_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.@-]*")
@@ -926,10 +926,63 @@ _PLANS_PHASE_NOTE = (
     "(1 = no upstream dependency; `cycle` = dependency cycle, see `epic_order.py --check`); "
     "plan rows = Board progress, checked/total task boxes (`-` = no boxes). "
     "Owner: the leading name token of a plan's **Owner:** line / a spine's Owner: header, "
-    "or an epic's frontmatter `owner`; `—` = untagged (agent-1's tail sweep fills it). "
+    "or an epic's frontmatter `owner`; `—` = untagged (`--adopt` fills it). "
     "Regenerate: python scripts/docs_updater.py --sync -->"
 )
 _EPIC_STATUS = {"0": "TODO", "1": "IN_PROGRESS", "2": "DONE"}  # EPIC-ARTIFACT-SCHEMA.md `status`
+
+# D1 (multi-agent-per-repo spec): the merge owner is ONE ledger row per repo — grammar
+# shared verbatim with scripts/decisions.py's `--merge-owner` (T01; no import — see the
+# Interfaces seam: both tests share one fixture ledger and must agree on the same name).
+MERGE_OWNER_RE = re.compile(r"^\**\s*MERGE OWNER:\s*([A-Za-z0-9][A-Za-z0-9_.@-]*)", re.I)
+_DECISION_ROW_ID_RE = re.compile(r"^\|\s*D-\d+\s*\|", re.I)
+# --adopt's own name grammar — IDENTICAL to epic_order.py's `_OWNER_NAME_RE`
+# (`^[a-z0-9-]{1,32}$`, epic_order.py:748), not merely "the same class": a name
+# epic_order.py's own `--assign` would refuse (uppercase, `_`, `.`, `@`, or >32 chars)
+# must never get as far as markers + owner lines + the IMMUTABLE merge-owner ledger
+# row here, only to have the epic half fail afterward — a half-adopted repo. This is
+# ALSO narrower than MERGE_OWNER_RE's capture group (which stays permissive so it can
+# still READ a name minted before this tightening), so it never needs to round-trip
+# the other way.
+_ADOPT_NAME_RE = re.compile(r"^[a-z0-9-]{1,32}$")
+
+
+def read_merge_owner() -> tuple[str, str] | None:
+    """The `(name, "D-NNN")` declared by the LAST row of `docs/DECISIONS.md` whose `what`
+    cell (cells[3] — decisions.py:82's own `|`-split) matches MERGE_OWNER_RE. A LATER row
+    always wins: a changed merge owner is a NEW row that supersedes, never an edit of this
+    one (the ledger's own law). `None` when the ledger is missing/unreadable or no row
+    matches — the repo hasn't adopted yet."""
+    ledger = PROJECT_ROOT / "docs" / "DECISIONS.md"
+    try:
+        text = ledger.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    found: tuple[str, str] | None = None
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not _DECISION_ROW_ID_RE.match(stripped):
+            continue
+        cells = [c.strip() for c in stripped.strip("|").split("|")]
+        if len(cells) < 4:
+            continue
+        m = MERGE_OWNER_RE.match(cells[3])
+        if m:
+            found = (m.group(1), cells[0].upper())
+    return found
+
+
+def _merge_owner_header_line() -> str:
+    """The PLANS block's second header line (right after `_PLANS_PHASE_NOTE`, in every
+    branch `generate_plans_table()` returns): who the ledger names as merge owner, or the
+    command that would declare one."""
+    owner = read_merge_owner()
+    if owner is None:
+        return (
+            "<!-- Merge owner: UNDECLARED — run: python scripts/docs_updater.py --adopt <name> -->"
+        )
+    name, decision_id = owner
+    return f"<!-- Merge owner: {name} | source: {decision_id} -->"
 
 
 def _epics_dir() -> Path:
@@ -1012,6 +1065,23 @@ def _epic_rows() -> list[str]:
     return rows
 
 
+def _plan_units() -> list[tuple[str, str, Path]]:
+    """Every plan unit under PLANS_DIR — monolith files + spine+ticket plan SETS
+    (represented by their same-stem spine; ticket files are never listed), sorted by
+    display name. Directories are filtered to the dated prefix — `archived/` (or any
+    non-dated dir) is never a plan unit. Single source shared by `generate_plans_table()`
+    and `run_adopt()` so both see the identical unit list."""
+    if not PLANS_DIR.exists():
+        return []
+    plans = [(p.name, f"plans/{p.name}", p) for p in sorted(PLANS_DIR.glob("*.md"))]
+    plans += [
+        (f"{d.name}.md", f"plans/{d.name}/{d.name}.md", d / f"{d.name}.md")
+        for d in sorted(PLANS_DIR.iterdir())
+        if d.is_dir() and _PLAN_DIR_NAME_RE.match(d.name) and (d / f"{d.name}.md").is_file()
+    ]
+    return sorted(plans)
+
+
 def generate_plans_table() -> str:
     """The `AUTO-GENERATED:PLANS` block body for docs/development/PLANS.md: every
     epic (docs/development/epics/) and every plan unit (docs/development/plans/ —
@@ -1019,27 +1089,27 @@ def generate_plans_table() -> str:
     ticket files are never listed) with Owner, Status and Phase. Consumed by
     `sync_plans_index` (--sync) and `validate_plans_indexed` (--check)."""
     empty = (
-        f"{_PLANS_PHASE_NOTE}\n{_PLANS_TABLE_HEADER}\n{_PLANS_TABLE_RULE}\n| (none) | - | - | - |"
+        f"{_PLANS_PHASE_NOTE}\n{_merge_owner_header_line()}\n{_PLANS_TABLE_HEADER}\n"
+        f"{_PLANS_TABLE_RULE}\n| (none) | - | - | - |"
     )
     rows = _epic_rows()
-    if PLANS_DIR.exists():
-        # Directories are filtered to the dated prefix — `archived/` (or any
-        # non-dated dir) is never a plan unit.
-        plans = [(p.name, f"plans/{p.name}", p) for p in sorted(PLANS_DIR.glob("*.md"))]
-        plans += [
-            (f"{d.name}.md", f"plans/{d.name}/{d.name}.md", d / f"{d.name}.md")
-            for d in sorted(PLANS_DIR.iterdir())
-            if d.is_dir() and _PLAN_DIR_NAME_RE.match(d.name) and (d / f"{d.name}.md").is_file()
-        ]
-        for name, rel, p in sorted(plans):
-            status, checked, total = parse_plan_status(p)
-            phase = f"{checked}/{total}" if total > 0 else "-"
-            rows.append(
-                f"| [{name}]({rel}) | {_cell(parse_plan_owner(p))} | {_cell(status)} | {phase} |"
-            )
+    for name, rel, p in _plan_units():
+        status, checked, total = parse_plan_status(p)
+        phase = f"{checked}/{total}" if total > 0 else "-"
+        rows.append(
+            f"| [{name}]({rel}) | {_cell(parse_plan_owner(p))} | {_cell(status)} | {phase} |"
+        )
     if not rows:
         return empty
-    return "\n".join([_PLANS_PHASE_NOTE, _PLANS_TABLE_HEADER, _PLANS_TABLE_RULE, *rows])
+    return "\n".join(
+        [
+            _PLANS_PHASE_NOTE,
+            _merge_owner_header_line(),
+            _PLANS_TABLE_HEADER,
+            _PLANS_TABLE_RULE,
+            *rows,
+        ]
+    )
 
 
 def sync_plans_index(dry_run: bool = False) -> tuple[bool, str]:
@@ -1420,6 +1490,233 @@ def run_sync(dry_run: bool = False) -> None:
         print("\nAll documentation is up to date.")
 
 
+def count_sessions_sharing(cwd: Path, proc_root: Path = Path("/proc")) -> int:
+    """Number of processes under `proc_root` whose `comm` is `claude` and whose `cwd`
+    symlink resolves to the same real path as `cwd`. stdlib only, never reads
+    `environ`; an unreadable or vanished entry is skipped, and this function never
+    raises — `proc_root` exists so a test can point it at a fake tree and exercise the
+    real scan instead of overriding the count."""
+    target = os.path.realpath(str(cwd))
+    count = 0
+    try:
+        entries = os.listdir(proc_root)
+    except OSError:
+        return 0
+    for entry in entries:
+        if not entry.isdigit():
+            continue
+        pid_dir = Path(proc_root) / entry
+        try:
+            comm = (pid_dir / "comm").read_text(encoding="utf-8", errors="ignore").strip()
+            if comm != "claude":
+                continue
+            link_target = os.readlink(pid_dir / "cwd")
+            if os.path.realpath(link_target) == target:
+                count += 1
+        except OSError:
+            continue
+    return count
+
+
+def _insert_owner_line(path: Path, name: str) -> bool:
+    """Insert `**Owner:** <name>` as the first line after the plan's H1 — after the
+    blank line that follows the H1, if one does — never inside a fenced code block,
+    and never inside a leading YAML frontmatter block (a `# comment` line there must
+    never be mistaken for the document's H1). No-op (returns False, no write) when the
+    file has no H1 at all."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    lines = text.split("\n")
+    start = 0
+    if lines and lines[0].strip() == "---":
+        # Leading frontmatter fence: skip to its close so nothing inside — including a
+        # bare `# ...` comment line — is ever read as the document's H1.
+        start = len(lines)
+        for j in range(1, len(lines)):
+            if lines[j].strip() == "---":
+                start = j + 1
+                break
+    h1_idx: int | None = None
+    in_fence = False
+    for i in range(start, len(lines)):
+        line = lines[i]
+        stripped = line.strip()
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        if line.startswith("# "):
+            h1_idx = i
+            break
+    if h1_idx is None:
+        return False
+    insert_at = h1_idx + 1
+    if insert_at < len(lines) and lines[insert_at].strip() == "":
+        insert_at += 1
+    lines.insert(insert_at, f"**Owner:** {name}")
+    path.write_text("\n".join(lines), encoding="utf-8")
+    return True
+
+
+def _mint_next_decision_id() -> str:
+    """max existing `D-NNN` id + 1 in `docs/DECISIONS.md`, `D-001` when none/absent —
+    the same `^\\|\\s*D-(\\d+)\\s*\\|` scan `decisions.py:162`'s `_next_id` uses,
+    reimplemented locally (T02a does not import `scripts/decisions.py` — see the
+    Interfaces seam; `# AFTER-EDIT` binds the two regexes to stay identical)."""
+    ledger = PROJECT_ROOT / "docs" / "DECISIONS.md"
+    try:
+        text = ledger.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        text = ""
+    ids = [int(m) for m in re.findall(r"^\|\s*D-(\d+)\s*\|", text, re.M)]
+    return f"D-{(max(ids) + 1) if ids else 1:03d}"
+
+
+def run_adopt(names: list[str], single_window: bool, proc_root: Path = Path("/proc")) -> int:
+    """`--adopt <name>[,<name>…]`: seed the PLANS ownership markers, stamp every open
+    unowned plan unit's Owner (round-robin), declare the merge owner (the first name)
+    when the ledger has none, delegate the epic half to `epic_order.py --assign` WHEN
+    that script is present (it is hub-only, never synced to projects — a repo with an
+    epics dir but no vendored copy is skipped here; the hub adopts those epics
+    separately, from /opt/fabrik, with `python3 /opt/fabrik/scripts/epic_order.py
+    --assign <names>`), then regenerate the PLANS block. Refuses (exit 2, one stderr
+    line) on any name failing `_ADOPT_NAME_RE`, or on a checkout only this session
+    shares unless `single_window` overrides it. Returns 3 only when a PRESENT
+    epic_order.py genuinely refused the assignment (rc≠0) — never for an absent
+    script. Idempotent: a re-run with the same names touches no byte and prints
+    `(nothing to adopt)`."""
+    bad = [n for n in names if not _ADOPT_NAME_RE.fullmatch(n)]
+    if bad:
+        sys.stderr.write(
+            f"docs_updater --adopt: invalid agent name(s) {bad!r} — must match "
+            f"{_ADOPT_NAME_RE.pattern!r}\n"
+        )
+        return 2
+
+    if not single_window:
+        n = count_sessions_sharing(PROJECT_ROOT, proc_root)
+        if n < 2:
+            sys.stderr.write(
+                f"docs_updater --adopt: refused — only {n} Claude session(s) share this "
+                "checkout (need ≥2, or pass --single-window)\n"
+            )
+            return 2
+
+    report: list[tuple[str, str, str]] = []
+
+    # (a) seed the AUTO-GENERATED:PLANS markers when PLANS.md is absent or marker-less
+    # — left below any existing hand table, which stays as history.
+    ownership_block = (
+        "\n## Ownership (auto-generated)\n\n"
+        "<!-- AUTO-GENERATED:PLANS:START -->\n<!-- AUTO-GENERATED:PLANS:END -->\n"
+    )
+    if PLANS_INDEX.exists():
+        content = PLANS_INDEX.read_text(encoding="utf-8")
+        if not PLANS_BLOCK_RE.search(content):
+            PLANS_INDEX.write_text(content + ownership_block, encoding="utf-8")
+            report.append(("docs/development/PLANS.md", NO_OWNER, "markers"))
+    else:
+        PLANS_INDEX.parent.mkdir(parents=True, exist_ok=True)
+        PLANS_INDEX.write_text(f"# Development Plans\n{ownership_block}", encoding="utf-8")
+        report.append(("docs/development/PLANS.md", NO_OWNER, "markers"))
+
+    # (b) stamp Owner on every open (non-terminal), unowned plan unit — round-robin
+    # over `names`, in file-sorted order (same order `_plan_units()` lists them).
+    i = 0
+    for _name_file, rel, p in _plan_units():
+        if parse_plan_owner(p) != NO_OWNER:
+            continue
+        status, _checked, _total = parse_plan_status(p)
+        if status in ("EXECUTED", "COMPLETE"):
+            continue
+        owner_name = names[i % len(names)]
+        if _insert_owner_line(p, owner_name):
+            report.append((rel, owner_name, "owner-line"))
+            i += 1
+
+    # (c) declare the merge owner (first name) — ONLY when the ledger has none yet; a
+    # changed merge owner is a hand-minted superseding row, never --adopt's write.
+    if read_merge_owner() is None:
+        first = names[0]
+        did = _mint_next_decision_id()
+        today = datetime.now(UTC).strftime("%Y-%m-%d")
+        cells = [
+            did,
+            today,
+            f"{first} (--adopt)",
+            f"MERGE OWNER: {first} — the only writer of the base branch; agents 2..N "
+            "commit to worktree branches (multi-agent-per-repo model)",
+            "declared by `docs_updater.py --adopt` at adoption; a change is a NEW row "
+            "superseding this one",
+            "docs/development/PLANS.md (the AUTO-GENERATED:PLANS header prints it)",
+        ]
+        row = "| " + " | ".join(_cell(c) for c in cells) + " |"
+        ledger = PROJECT_ROOT / "docs" / "DECISIONS.md"
+        if ledger.exists():
+            ledger_text = ledger.read_text(encoding="utf-8")
+            sep = "" if ledger_text.endswith("\n") else "\n"
+            ledger.write_text(f"{ledger_text}{sep}{row}\n", encoding="utf-8")
+        else:
+            ledger.parent.mkdir(parents=True, exist_ok=True)
+            ledger.write_text(
+                "# Decisions\n\n| id | when | who | what (the decision) | why | where |\n"
+                f"|---|---|---|---|---|---|\n{row}\n",
+                encoding="utf-8",
+            )
+        report.append((f"{did} (MERGE OWNER)", first, "ledger-row"))
+
+    # (d) the epic half — delegated to epic_order.py --assign, never re-implemented here.
+    # scripts/epic_order.py is HUB-ONLY (never synced to projects — same guard
+    # `_epic_rows()` already applies at :1026-1028): a project with an epics dir but no
+    # vendored epic_order.py must be skipped entirely, not treated as a failed
+    # delegation — the hub adopts those epics separately, from here, with
+    # `python3 /opt/fabrik/scripts/epic_order.py --assign <names>`. A row is emitted
+    # ONLY when an epic actually gained an owner (or a PRESENT script genuinely
+    # refused) — --assign is itself idempotent (a no-op write when the file already
+    # reads the target way), so re-running --adopt over the same epics dir with the
+    # same names must never keep reporting a change that did not happen.
+    epic_order_failed = False
+    epics_dir = _epics_dir()
+    epic_order_script = PROJECT_ROOT / "scripts" / "epic_order.py"
+    if epics_dir.is_dir() and any(epics_dir.glob("*.md")) and epic_order_script.is_file():
+        epic_files = sorted(epics_dir.glob("*.md"))
+        before = {p: p.read_bytes() for p in epic_files}
+        result = subprocess.run(
+            [sys.executable, "scripts/epic_order.py", "--assign", ",".join(names)],
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            epic_order_failed = True
+            report.append(
+                (
+                    "epics (epic_order.py --assign)",
+                    names[0],
+                    f"epic_order (rc={result.returncode})",
+                )
+            )
+        elif any(p.read_bytes() != before[p] for p in epic_files if p.exists()):
+            report.append(("epics (epic_order.py --assign)", names[0], "epic_order"))
+
+    # (e) regenerate the block so the new owners / merge-owner header are visible.
+    sync_plans_index()
+
+    if not report:
+        print("(nothing to adopt)")
+        return 3 if epic_order_failed else 0
+
+    lines = ["| Item | Owner | Source |", "|---|---|---|"]
+    for item, owner, source in report:
+        lines.append(f"| {_cell(item)} | {_cell(owner)} | {_cell(source)} |")
+    print("\n".join(lines))
+    return 3 if epic_order_failed else 0
+
+
 def run_check() -> int:
     """Validate docs, fail on drift. Returns exit code."""
     print("=== Documentation Check ===\n")
@@ -1561,10 +1858,31 @@ def main() -> None:
     parser.add_argument("--check", action="store_true", help="Validate docs, fail on drift")
     parser.add_argument("--sync", action="store_true", help="Create missing stubs + sync structure")
     parser.add_argument("--dry-run", action="store_true", help="Preview changes without writing")
+    parser.add_argument(
+        "--adopt",
+        type=str,
+        metavar="NAMES",
+        help=(
+            "comma-separated agent name(s): seed the PLANS ownership markers, stamp "
+            "every open unowned plan unit's Owner, declare the merge owner when "
+            "undeclared, delegate the epic half to epic_order.py --assign, and print "
+            "a table of what changed"
+        ),
+    )
+    parser.add_argument(
+        "--single-window",
+        action="store_true",
+        help="override --adopt's refusal on a checkout only this session shares",
+    )
 
     args = parser.parse_args()
 
-    if args.check:
+    if args.adopt is not None:
+        names = [n.strip() for n in args.adopt.split(",") if n.strip()]
+        if not names:
+            parser.error("--adopt requires at least one name")
+        sys.exit(run_adopt(names, args.single_window))
+    elif args.check:
         sys.exit(run_check())
     elif args.sync:
         run_sync(dry_run=args.dry_run)

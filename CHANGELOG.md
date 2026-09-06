@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — docs_updater.py --adopt: PLANS markers, owner stamps, the merge-owner row, the PLANS header (2026-09-06)
+
+`python scripts/docs_updater.py --adopt <name>[,<name>…] [--single-window]` (fleet-synced) seeds the `AUTO-GENERATED:PLANS` markers into a marker-less PLANS.md (present in 0 of 41 projects before this), stamps `**Owner:** <name>` round-robin on every open unowned plan unit, appends ONE `MERGE OWNER: <first name>` ledger row when none is declared, delegates epics to `epic_order.py --assign`, regenerates the block and prints a `| Item | Owner | Source |` table; a second run is byte-identical; it refuses with one stderr line at a single live session unless `--single-window`. New public functions: `read_merge_owner()` / `MERGE_OWNER_RE` (mirrored in `decisions.py`), `count_sessions_sharing(cwd, proc_root)` (a `/proc` scan — `comm` + `cwd` only, never `environ`). `generate_plans_table()` prints a second header line `<!-- Merge owner: <name> | source: D-NNN -->` (or the `--adopt` hint), so every pre-change block reads stale once. Plan 2026-09-06-plan-2-multi-agent-adoption T02a (spec D1–D2, ruling D-154); 55 tests green.
+
 ### Added — session_orient advises when N ≥ 2 sessions share a main checkout (2026-09-06)
 
 `_sessions_line(cwd)` in `.claude/hooks/session_orient.py` (fleet-synced): a self-contained `/proc` scan — `comm == claude` and the resolved `cwd` symlink equal to the checkout — prints ONE bullet at SessionStart when two or more live sessions share the exact main checkout (the previously undetected shared-index situation, measured at 8 checkouts on 2026-09-06), naming the worktree launch form and `docs_updater.py --adopt`. Suppressed for the hub and for any session whose own cwd is under `/.claude/worktrees/`; every proc entry fails open; `FABRIK_PROC_ROOT` is the test seam (a fake proc tree, never a count override). Single-session repos see nothing new (29 hook tests green). Plan 2026-09-06-plan-2-multi-agent-adoption T04 (spec D5).
