@@ -1,4 +1,4 @@
-Last refresh: 2026-09-05
+Last refresh: 2026-09-06
 
 # Image-Gen Selection — Pareto-ranked at 100 images
 

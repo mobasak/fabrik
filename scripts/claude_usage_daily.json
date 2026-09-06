@@ -559,13 +559,13 @@
       "claude-sonnet-4-6": 12055644
     },
     "2026-09-06": {
-      "claude-opus-5": 1006560561,
-      "claude-fable-5-1": 139832591,
-      "claude-sonnet-5": 150956390
+      "claude-opus-5": 2270828007,
+      "claude-fable-5-1": 272982906,
+      "claude-sonnet-5": 189681399
     }
   },
   "source": "/home/ozgur/.claude/.claude-manager/usage-history.json",
-  "merged_at": "2026-09-06T01:52:45+03:00",
+  "merged_at": "2026-09-06T06:00:50+03:00",
   "source_by_day": {
     "2026-05-13": "extension",
     "2026-05-14": "extension",

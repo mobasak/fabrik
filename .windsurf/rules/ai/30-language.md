@@ -11,7 +11,7 @@ trigger: glob
 
 # 3. Language AI
 
-Last content verification: 2026-09-05
+Last content verification: 2026-09-06
 
 **Purpose:** Process and generate text.
 
@@ -30,8 +30,8 @@ Last content verification: 2026-09-05
 
 Pick the **cheaper gateway per model** — the bake-off browser shows the per-row markup. For translation specifically, prefer a dedicated MT model (DeepL, or `qwen-mt-turbo` via DashScope) over an LLM when the language is in scope.
 
-<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-09-05 (auto-managed by update_gateway_counts.py) -->
-*Live gateway counts (active models, 2026-09-05 UTC; auto-refreshed from `kilo_agents.db`):*
+<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-09-06 (auto-managed by update_gateway_counts.py) -->
+*Live gateway counts (active models, 2026-09-06 UTC; auto-refreshed from `kilo_agents.db`):*
 
 language-tagged (any gateway): **0**
 translation-scored (any gateway): **9**
@@ -43,8 +43,8 @@ Sweet-spot dedicated MT: `qwen-mt-turbo` via DashScope (top-3 on FR/PT/DE/ID/AR,
 
 **Anti-pattern:** standing up a dedicated vector DB when pgvector is already on the project's Postgres.
 
-<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-09-05 (auto-managed by category_export_markdown.py) -->
-*Auto-generated 2026-09-05 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
+<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-09-06 (auto-managed by category_export_markdown.py) -->
+*Auto-generated 2026-09-06 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
 
 *No eligible models today — floors too strict or catalog too thin. See `cache/update.log` for details. Reason: No model satisfies category='language' floors: min_quality_tier=2, min_context_window_k=32, require_vision=False, require_tools=False, require_reasoning=False, allow_free=True, stability_required=False, sort_key='input_cost_per_m ASC'*
 <!-- OPENROUTER_ROUTES:END -->

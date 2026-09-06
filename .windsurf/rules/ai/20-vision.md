@@ -11,7 +11,7 @@ trigger: glob
 
 # 2. Vision AI
 
-Last content verification: 2026-09-05
+Last content verification: 2026-09-06
 
 **Purpose:** Interpret or generate images/video.
 
@@ -40,18 +40,18 @@ Last content verification: 2026-09-05
 
 Either gateway is fine — pick the cheaper rate per model from the bake-off browser. **Note:** these are vision *understanding* models. For image *generation*, use Recraft (branded/vector) or FLUX/BFL (photoreal) directly — not a gateway LLM.
 
-<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-09-05 (auto-managed by update_gateway_counts.py) -->
-*Live gateway counts (active models, 2026-09-05 UTC; auto-refreshed from `kilo_agents.db`):*
+<!-- GATEWAY_COUNTS:START — last-refreshed: 2026-09-06 (auto-managed by update_gateway_counts.py) -->
+*Live gateway counts (active models, 2026-09-06 UTC; auto-refreshed from `kilo_agents.db`):*
 
-vision-input across all gateways: **233**
+vision-input across all gateways: **235**
 
 These are vision *understanding* models. Image *generation* (Recraft / FLUX) is not gateway-routed.
 <!-- GATEWAY_COUNTS:END -->
 
 **Use cases:** content creation, surveillance, document processing.
 
-<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-09-05 (auto-managed by category_export_markdown.py) -->
-*Auto-generated 2026-09-05 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
+<!-- OPENROUTER_ROUTES:START — last-refreshed: 2026-09-06 (auto-managed by category_export_markdown.py) -->
+*Auto-generated 2026-09-06 (UTC) by `category_route_mapper.py` → injected here by `category_export_markdown.py`. Edits between the markers will be overwritten on the next daily run.*
 
 *No eligible models today — floors too strict or catalog too thin. See `cache/update.log` for details. Reason: No model satisfies category='vision' floors: min_quality_tier=1, min_context_window_k=1, require_vision=True, require_tools=False, require_reasoning=False, allow_free=False, stability_required=True, sort_key='input_cost_per_m ASC'*
 <!-- OPENROUTER_ROUTES:END -->
