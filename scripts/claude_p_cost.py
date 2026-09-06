@@ -913,8 +913,22 @@ def per_model_spend(days_back: int = _MONTHLY_DAYS) -> dict:
         for k, by_model in days.items():
             if not (cutoff <= k <= today):
                 continue
+            if not isinstance(by_model, dict):
+                continue  # a preserved unusable DAY — see `merge_usage_store`'s `_unusable`
             for mid, raw in by_model.items():
-                tok = int(raw or 0)
+                # ⚠️ SKIP THE ENTRY, NEVER ABANDON THE WALK. `int("abc")` raises, and the `except`
+                # below wipes tier_tok/model_tok/unweighted/per_day wholesale — so ONE preserved
+                # corrupt value blanked the ENTIRE Usage tab: 1,000,000 real opus tokens on the same
+                # day vanished with it, tiers `{}` and daily `[]`, reproduced. That is the same
+                # poisoned-record class the collector fixed one layer down, and the store now
+                # PRESERVES such values by design (they are somebody's data), which is exactly what
+                # made this reachable. Raised by two round-9 finders as "unusable values are
+                # re-introduced"; the re-introduction is intended — the consumer's reaction was not.
+                if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+                    continue
+                if not math.isfinite(raw):
+                    continue
+                tok = int(raw)
                 if tok <= 0:
                     continue
                 tier = _tier_of(mid)
@@ -966,8 +980,16 @@ def per_model_spend(days_back: int = _MONTHLY_DAYS) -> dict:
     # it answers "what would this day cost at today's rate", not "what was billed that month".
     cal_tier: dict[str, dict[str, int]] = {}
     for k, by_model in (days or {}).items():
+        if not isinstance(by_model, dict):
+            continue  # a preserved unusable DAY
         for mid, raw in by_model.items():
-            t, tok = _tier_of(mid), int(raw or 0)
+            # The SAME guard as the window loop above, and it needs saying twice because this loop
+            # sits OUTSIDE that try — so an `int("abc")` here escaped `per_model_spend` entirely
+            # rather than merely emptying it. Two unguarded `int()` calls on the same preserved data,
+            # one of which no exception handler covered at all.
+            if isinstance(raw, bool) or not isinstance(raw, (int, float)) or not math.isfinite(raw):
+                continue
+            t, tok = _tier_of(mid), int(raw)
             if t and tok > 0:
                 cal_tier.setdefault(k, {})[t] = cal_tier.setdefault(k, {}).get(t, 0) + tok
     cal_start = datetime.date.fromisoformat(min(cal_tier)) if cal_tier else cutoff_d

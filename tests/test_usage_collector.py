@@ -1004,3 +1004,26 @@ def test_today_is_never_frozen(tmp_path, monkeypatch):
 
     assert store["source_by_day"][today] == "transcripts", "today stays refreshable"
     assert store["source_by_day"]["2026-01-01"] == "frozen", "a past day with no data is frozen"
+
+
+def test_one_preserved_corrupt_value_does_not_blank_the_whole_view(tmp_path, monkeypatch):
+    """The interaction between two decisions three rounds apart. The store PRESERVES values it cannot
+    interpret (they are somebody's data), and the consumer wrapped its whole aggregation in one
+    try/except — so `int("abc")` on a single entry wiped tier_tok, model_tok, unweighted and per_day
+    wholesale. Reproduced: 1,000,000 real opus tokens on the same day vanished with it, tiers `{}`,
+    daily `[]` — the entire Usage tab blank because of one bad string. Same poisoned-record class the
+    collector fixed one layer down."""
+    today = datetime.date.today().isoformat()
+    _store(
+        tmp_path,
+        monkeypatch,
+        {today: {"claude-opus-5": 1_000_000, "claude-broken": "abc"}},
+        {today: "extension"},
+    )
+    monkeypatch.setattr(cpc, "_TRANSCRIPT_ROOT", tmp_path / "no-transcripts")
+    monkeypatch.setattr(cpc, "_MANAGER_ACCOUNTS", tmp_path / "no-accounts")
+
+    got = cpc.per_model_spend()
+
+    assert got["tiers"]["opus"]["tokens"] == 1_000_000, "the good value must still be counted"
+    assert got["daily"], "and the calendar must not be empty"
