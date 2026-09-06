@@ -1674,3 +1674,76 @@ def test_an_obsolete_reading_outranks_merely_old_ones_for_a_scarce_slot(monkeypa
     assert cr._ping_slots(groups, cache, now) == {"rolled@test"}, (
         "the rolled-window account must win the scarce slot over merely-old readings"
     )
+
+
+# --- The active account is its OWN relief when only its SESSION is spent -------------------
+# Incident 2026-09-06: mob@ was active and session-exhausted with weekly UNDER its cap, while
+# can/ob/sarp were all cap-walled. `_next_session_relief` skipped the active account by
+# construction, so the broadcast named can@'s WEEKLY reset ~19h out instead of mob@'s own 5h
+# reset ~2.5h out — and that epoch is also written into the stamp as the latch re-arm, so the
+# follow-up notice the message promises was suppressed until the wrong time too.
+
+def _relief_row(name, *, weekly, cap, session, fh_reset, wk_reset):
+    return {
+        "email": f"{name}@test", "slugs": [name], "source": "live", "weekly_cap": cap,
+        "five_hour": {"utilization": session, "resets_at_epoch": fh_reset},
+        "seven_day": {"utilization": weekly, "resets_at_epoch": wk_reset},
+    }
+
+
+def test_relief_is_the_active_accounts_own_session_reset_when_siblings_are_cap_walled():
+    """The measured incident. Active is session-spent but weekly-healthy; every sibling is
+    cap-walled. Its OWN 5h reset is the soonest real relief and must be what the fleet is told."""
+    accounts = [
+        _relief_row("mob", weekly=75.0, cap=99, session=100.0,
+                    fh_reset=NOW + 2 * 3600, wk_reset=NOW + 3 * 86400),
+        _relief_row("can", weekly=99.0, cap=99, session=10.0,
+                    fh_reset=NOW + 600, wk_reset=NOW + 20 * 3600),
+        _relief_row("sarp", weekly=95.0, cap=95, session=10.0,
+                    fh_reset=NOW + 600, wk_reset=NOW + 30 * 3600),
+    ]
+    got = cr._next_session_relief(accounts, "mob@test", NOW)
+    assert got is not None, "no relief offered at all"
+    epoch, email, window = got
+    assert email == "mob@test", f"named {email}, not the account that actually recovers first"
+    assert window == "session"
+    assert epoch == NOW + 2 * 3600, "named a sibling's weekly reset instead of the active 5h reset"
+
+
+def test_a_weekly_walled_active_account_does_not_claim_its_own_session_reset():
+    """The MIRROR. A 5h reset does not lift a WEEKLY wall, so a weekly-walled active account
+    must never offer its own session reset as relief — that would promise a resume that cannot
+    happen and re-arm the latch on a lie. This is why the original blanket skip existed."""
+    accounts = [
+        _relief_row("ob", weekly=90.0, cap=90, session=3.0,
+                    fh_reset=NOW + 600, wk_reset=NOW + 3 * 86400),
+        _relief_row("can", weekly=99.0, cap=99, session=10.0,
+                    fh_reset=NOW + 300, wk_reset=NOW + 20 * 3600),
+    ]
+    got = cr._next_session_relief(accounts, "ob@test", NOW)
+    assert got is not None
+    epoch, email, window = got
+    assert window == "weekly", f"a weekly-walled active offered a {window} reset"
+    assert epoch != NOW + 600, "offered the active account's own 5h reset despite a weekly wall"
+
+
+def test_drain_message_says_same_account_when_the_active_one_recovers_first():
+    """Wording: "NEXT ACCOUNT AVAILABLE: mob@" reads as "switch to mob@" when mob@ is the
+    account you are already on. A stopped repo acts on this text."""
+    msg = cr._urgent_drain_message(
+        "mob@test", "its 5-hour session window is 100% CONSUMED",
+        (NOW + 2 * 3600, "mob@test", "session"),
+    )
+    assert "NEXT ACCOUNT AVAILABLE" not in msg, msg[:200]
+    assert "SAME ACCOUNT" in msg, msg[:200]
+    assert "mob@test" in msg
+
+
+def test_drain_message_still_names_a_sibling_normally():
+    """The unchanged path — relief on a different account keeps the original wording."""
+    msg = cr._urgent_drain_message(
+        "mob@test", "its 5-hour session window is 100% CONSUMED",
+        (NOW + 2 * 3600, "can@test", "weekly"),
+    )
+    assert "NEXT ACCOUNT AVAILABLE: can@test" in msg, msg[:200]
+    assert "SAME ACCOUNT" not in msg

@@ -4069,14 +4069,24 @@ def _next_session_relief(
     (weekly under its cap and under 100) — those become eligible the moment their session
     resets, which is hours, not days. Falls back to the soonest WEEKLY reset among siblings
     blocked by their weekly window. None when no sibling has a reset time at all. A reset
-    already in the past is skipped (a stale cached row); the active account is never a
-    candidate for its own relief.
+    already in the past is skipped (a stale cached row).
+
+    ⚠️ THE ACTIVE ACCOUNT IS A CANDIDATE FOR ITS OWN RELIEF, and usually the soonest one. It
+    used to be skipped outright, on the reasoning that the exhausted account cannot relieve
+    itself — true of a WEEKLY wall, false of a spent SESSION, which rolls over in hours. Measured
+    2026-09-06: mob@ was active and session-exhausted with weekly under its cap while every
+    sibling was cap-walled, so the fleet was told to resume at can@'s weekly reset ~19h out
+    instead of mob@'s own 5h reset ~2.5h out. That epoch is also written into the exhaustion
+    stamp as the latch re-arm (:4301), so the follow-up notice the message promises as "the
+    mechanism that wakes you" was suppressed until the wrong time as well. No special case is
+    needed for the wall: `weekly_blocked` already routes a weekly-walled account to its WEEKLY
+    reset, never to a session reset it would not survive.
     """
     session_wait: list[tuple[float, str]] = []
     weekly_wait: list[tuple[float, str]] = []
     for row in accounts:
         email = str(row.get("email") or "")
-        if not email or email == active_email:
+        if not email:
             continue
         # Bind THEN narrow: `x.get(k) if isinstance(x.get(k), dict) else {}` is two lookups and
         # mypy cannot narrow through them (3 union-attr errors this function carried since it
@@ -4201,9 +4211,18 @@ def _urgent_drain_message(
     reset_utc = datetime.fromtimestamp(epoch, tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     local = datetime.fromtimestamp(resume).strftime("%a %d %b %H:%M %Z").strip()
     utc = datetime.fromtimestamp(resume, tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    # WHOSE window it is changes what the reader must DO. "NEXT ACCOUNT AVAILABLE: mob@" reads as
+    # "switch to mob@" when mob@ is the account you are already on — and a stopped repo acts on
+    # this text. When the soonest relief is the active account's own session rolling over, say so
+    # and say that no switch is needed.
+    lead_in = (
+        f" THE SAME ACCOUNT RECOVERS FIRST — {email} is the one you are already on and no switch"
+        f" is needed: its {window} window resets at {reset_local}"
+        if email == active_email
+        else f" NEXT ACCOUNT AVAILABLE: {email} — its {window} window resets at {reset_local}"
+    )
     return head + (
-        f" NEXT ACCOUNT AVAILABLE: {email} — its {window} window resets at {reset_local}"
-        f" (UTC {reset_utc}). RESUME AT {local} (UTC {utc}), epoch {resume} —"
+        lead_in + f" (UTC {reset_utc}). RESUME AT {local} (UTC {utc}), epoch {resume} —"
         f" {_humanize_lead(lead)} after the reset, so the window is genuinely open rather than"
         " merely due."
         " ⚠️ A FOLLOW-UP NOTICE IS THE MECHANISM — another message like this one will arrive"

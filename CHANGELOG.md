@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the fleet-exhaustion notice named a relief ~19h too far out (2026-09-06)
+
+Operator incident: mob@ was the last eligible account, burned its 5-hour session, and infra ran
+into "You've hit your session limit" instead of stopping. The broadcast **was** sent, on time, to
+every repo — but it told the fleet to resume at **can@'s weekly reset tomorrow 13:01** when the box
+actually recovered at **mob@'s own 5h reset ~2.5h later the same day**.
+
+`_next_session_relief` skipped the active account outright (`email == active_email: continue`). The
+reasoning — an exhausted account cannot relieve itself — is true of a WEEKLY wall and false of a
+spent SESSION, which rolls over in hours. With every sibling cap-walled, the session bucket came
+back empty and it fell through to the soonest sibling *weekly* reset.
+
+The wrong epoch did more than mis-word an email: it is written into the exhaustion stamp as the
+LATCH RE-ARM, so the follow-up notice the message itself calls "the mechanism that wakes you" was
+also suppressed until tomorrow. Agents were pointed at a wake-up that would not come.
+
+- The active account is now a relief candidate. No special case was needed for the wall —
+  `weekly_blocked` already routes a weekly-walled account to its WEEKLY reset, never to a session
+  reset it would not survive. A mutation test pins that: dropping the `weekly_blocked` guard makes
+  the mirror grader fail.
+- `_urgent_drain_message` renders "THE SAME ACCOUNT RECOVERS FIRST — … no switch is needed" when
+  the winner is the account you are already on. "NEXT ACCOUNT AVAILABLE: mob@" read as an
+  instruction to switch to the account the reader was already using, and a stopped repo acts on
+  that text.
+- 4 graders (2 seen red first, the mirror proven by mutation); 96 pass in the file. Landed in both
+  `scripts/sysadmin/claude_rotate.py` and the byte-identical twin `scripts/aro-wake/claude_rotate.py`.
+
+NOT fixed here, and not yet diagnosed: infra never got held at all. `quota_stop.py` already fires at
+the 90% drain tier (the same stamp is written for both tiers), so the interceptor was not the gap —
+either infra's session predated the hook (hooks load at session start) or it burned the remaining
+quota through the reads the hold still permits. That needs evidence before a fleet-synced hook is
+touched.
+
 ### Changed — the doc↔script coupling is RETROACTIVE: a backfill ratchet, and the rule in both contracts (2026-09-06)
 
 Operator: put the rule in `CLAUDE.md` for the hub **and** fabrik-lib, and *"it must force agents to
