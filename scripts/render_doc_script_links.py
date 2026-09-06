@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import json
 import subprocess
 from pathlib import Path
 
@@ -225,14 +226,76 @@ def apply_block(text: str, scripts: list[str]) -> str:
     return text.rstrip("\n") + "\n\n" + new + "\n"
 
 
+BASELINE = ".fabrik/doc-script-baseline.json"
+
+
+def uncoupled(repo: Path) -> list[str]:
+    """Scripts carrying NO `# AFTER-EDIT:` header at all — the backfill backlog.
+
+    A header is one line and `none` is a valid answer, so this is not a judgement about whether a
+    script HAS a doc; it is about whether anyone ever said. `check_script_headers` is touch-on-change
+    by design ("a script gains its header the next time it is edited"), which grandfathers every
+    script nobody happens to touch — 427 of them across 36 of 44 repos at the last audit. Operator
+    ruling 2026-09-06: the coupling is RETROACTIVE, so the backlog is worked DOWN, not waited out."""
+    out = []
+    for script in _scripts(repo):
+        head = "\n".join(
+            script.read_text(encoding="utf-8", errors="replace").splitlines()[
+                : _csh.HEADER_SCAN_LINES
+            ]
+        )
+        if _csh._header_of(head) is None:
+            out.append(script.relative_to(repo).as_posix())
+    return sorted(out)
+
+
+def ratchet(repo: Path, write: bool) -> tuple[int, str]:
+    """Count-may-only-go-DOWN — the contract `check_lint_ratchet.py` already proves in this repo:
+    the first run SEEDS at today's count and passes (nothing is bricked), a run that RAISES it
+    fails, a run that lowers it tightens the floor, and 0 locks permanently."""
+    backlog = uncoupled(repo)
+    now, path = len(backlog), repo / BASELINE
+    total = len(_scripts(repo))
+    try:
+        prior = json.loads(path.read_text(encoding="utf-8")).get("headerless")
+    except (OSError, ValueError, AttributeError):
+        prior = None
+    if prior is None:
+        if write:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps({"headerless": now}, indent=2) + "\n", encoding="utf-8")
+        return 0, f"doc-script coverage: SEEDED baseline at {now} headerless of {total} script(s)"
+    if now > prior:
+        listing = "\n  ".join(backlog[:10])
+        return 1, (
+            f"doc-script coverage ROSE {prior} -> {now} headerless of {total} script(s). The "
+            f"coupling is RETROACTIVE: the count may only go DOWN. Add "
+            f"`# AFTER-EDIT: <doc | none>` to the first ~25 lines of:\n  {listing}"
+        )
+    if now < prior and write:
+        path.write_text(json.dumps({"headerless": now}, indent=2) + "\n", encoding="utf-8")
+    tail = " — LOCKED at zero" if now == 0 else f"; {now} still owed — backfill them"
+    return 0, f"doc-script coverage: {total - now} of {total} script(s) headered{tail}"
+
+
 def run(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--repo", default=".", help="repo root (default: cwd)")
     ap.add_argument(
         "--check", action="store_true", help="verify only; mutate nothing, exit 1 if stale"
     )
+    ap.add_argument(
+        "--coverage",
+        action="store_true",
+        help="report the headerless-script backlog and ratchet it (count may only go DOWN)",
+    )
     args = ap.parse_args(argv)
     repo = Path(args.repo).resolve()
+
+    if args.coverage:
+        code, msg = ratchet(repo, write=not args.check)
+        print(msg)
+        return code
 
     docs, notes = graph(repo)
     stale, written = [], 0

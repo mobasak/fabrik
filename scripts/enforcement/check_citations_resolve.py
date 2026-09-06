@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: tests/enforcement/test_check_citations_resolve.py | scripts/final_gate.py (registration, warn_only) | docs/workstation/hooks-index.md
 """check_citations_resolve — do a document's `path:line` citations LAND? (ADVISORY, exit 0 always)
 
 Every other class of claim in a spec/plan/review has an executable check (a probe, the gate,
@@ -22,7 +23,6 @@ Never blocks. The gate runs it with `--changed` (the author's unstaged + staged 
 moment a citation is cheap to fix); a bare run sweeps every dated artifact of the last 30 days plus
 the undated reference docs (`--since-days N` widens; `--root <repo>` for another tree).
 
-# AFTER-EDIT: tests/enforcement/test_check_citations_resolve.py | scripts/final_gate.py (registration, warn_only) | docs/workstation/hooks-index.md
 """
 
 from __future__ import annotations

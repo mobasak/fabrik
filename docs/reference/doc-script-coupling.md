@@ -76,8 +76,36 @@ always wrong — and an always-wrong finding is how a report stops being read.
 
 | | |
 |---|---|
-| live tracked scripts carrying a header | **212 of 212** (hub, 2026-09-06) |
-| documentation pages carrying a rendered block | **40** |
+| live tracked scripts carrying a header | **212 of 212** (hub, 2026-09-06) — ratchet LOCKED at zero |
+| documentation pages carrying a rendered block | **42** |
+
+## Backfill is retroactive, and ratcheted
+
+Operator ruling 2026-09-06: *"it must force agents to backfill backwards, as most of the documents
+and scripts dont have this."* `check_script_headers.py` is touch-on-change by its own design — *"a
+script gains its header the next time it is edited"* — which grandfathers every script nobody
+happens to touch. That was 427 of them across 36 of 44 repos at the last audit.
+
+So coverage is ratcheted, on the contract `check_lint_ratchet.py` already proves here:
+
+```bash
+python3 scripts/render_doc_script_links.py --coverage          # ratchet (writes the baseline)
+python3 scripts/render_doc_script_links.py --coverage --check   # report only
+```
+
+* the first run in a repo **seeds** at today's count and blocks nothing;
+* a run that **raises** the headerless count **fails** — it names the files and the fix is one line;
+* a run that lowers it **tightens** the floor, so the debt cannot be re-borrowed;
+* **0 locks permanently.**
+
+The baseline lives at `.fabrik/doc-script-baseline.json` (tracked, so it travels with the repo).
+This row is **blocking** in `final_gate.py`, unlike the two advisory rows above.
+
+⚠️ **The declaration must be a real COMMENT.** An `# AFTER-EDIT:` line inside the module docstring
+declares nothing, and the parser is right to ignore it — it reads comment *tokens*, so a docstring's
+example can never be mistaken for a declaration. Three hub scripts were wrong this way, and because
+a naive `grep '#\s*AFTER-EDIT'` counts them, the first backfill of this very subsystem reported
+**212 of 212 when the truth was 209**. A grader now pins the distinction.
 
 The header side reaching 212/212 is the precondition `check_script_headers.py`'s own docstring
 defers promotion-to-ERROR on. It is met **in the hub only** — fleet-wide the count was 427

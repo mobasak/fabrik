@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: INDEX.md, docs/README.md, scripts/kilo-benchmarks/daily_refresh.sh, tests/test_generate_capability_index.py
 """Generate the Fabrik capability catalog — capabilities.json + docs/CAPABILITIES.md.
 
 Self-verifying, GENERATED (never hand-curated): enumerates every invokable capability across the 9
@@ -15,7 +16,6 @@ and the run RAISES (the whole-surface guard) rather than emit a silently-all-bro
 
 Usage: python scripts/generate_capability_index.py [--root <repo>]
 
-# AFTER-EDIT: INDEX.md, docs/README.md, scripts/kilo-benchmarks/daily_refresh.sh, tests/test_generate_capability_index.py
 """
 
 from __future__ import annotations

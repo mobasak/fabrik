@@ -221,3 +221,52 @@ def test_a_half_deleted_block_is_reported_not_duplicated(repo: Path, capsys):
     out = capsys.readouterr().out
     assert "MALFORMED" in out and "board.md" in out, out
     assert doc.read_text().count(rdsl.BEGIN) == 1, "a second block was appended onto a half-block"
+
+
+@pytest.fixture
+def ratchet_repo(tmp_path: Path) -> Path:
+    import subprocess as sp
+
+    sp.run(["git", "init", "-q", str(tmp_path)], check=True)
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scripts" / "a.py").write_text("#!/usr/bin/env python3\n# AFTER-EDIT: none\n")
+    return tmp_path
+
+
+def test_coverage_ratchet_seeds_then_blocks_a_rise(ratchet_repo: Path):
+    """THE BACKFILL TEETH (operator ruling 2026-09-06). `check_script_headers` is touch-on-change
+    by design — "a script gains its header the next time it is edited" — which grandfathers every
+    script nobody touches (427 across 36 of 44 repos at the last audit). The ratchet makes the
+    debt one-directional: seed today's number blocking nothing, then never let it rise."""
+    code, msg = rdsl.ratchet(ratchet_repo, write=True)
+    assert code == 0 and "SEEDED" in msg, msg
+    assert (ratchet_repo / rdsl.BASELINE).is_file(), "the baseline must travel with the repo"
+
+    (ratchet_repo / "scripts" / "b.py").write_text("print(1)\n")  # a new HEADERLESS script
+    code, msg = rdsl.ratchet(ratchet_repo, write=True)
+    assert code == 1, "a rise in headerless scripts must FAIL"
+    assert "ROSE" in msg and "scripts/b.py" in msg, msg
+
+
+def test_coverage_ratchet_tightens_and_locks_at_zero(ratchet_repo: Path):
+    """A run that backfills must TIGHTEN the floor, so the debt cannot be re-borrowed later."""
+    (ratchet_repo / "scripts" / "b.py").write_text("print(1)\n")
+    rdsl.ratchet(ratchet_repo, write=True)  # seeds at 1
+    (ratchet_repo / "scripts" / "b.py").write_text("# AFTER-EDIT: none\nprint(1)\n")  # backfilled
+    code, msg = rdsl.ratchet(ratchet_repo, write=True)
+    assert code == 0 and "LOCKED at zero" in msg, msg
+    (ratchet_repo / "scripts" / "c.py").write_text("print(1)\n")  # try to re-borrow
+    assert rdsl.ratchet(ratchet_repo, write=True)[0] == 1, "zero must lock permanently"
+
+
+def test_an_after_edit_line_inside_a_docstring_is_not_a_declaration(ratchet_repo: Path):
+    """It must count as headerless. Three hub scripts carried their `# AFTER-EDIT:` INSIDE the
+    module docstring; a naive `grep '#\\s*AFTER-EDIT'` reads them as headered, the real parser
+    (comment tokens only) does not — so a backfill driven by grep skips exactly the files that
+    need it, and reports 212/212 when the truth is 209/212. That happened."""
+    (ratchet_repo / "scripts" / "d.py").write_text(
+        '#!/usr/bin/env python3\n"""Docs.\n\n# AFTER-EDIT: docs/x.md\n"""\n'
+    )
+    assert "scripts/d.py" in rdsl.uncoupled(ratchet_repo), (
+        "a declaration inside a docstring was counted as a real header"
+    )

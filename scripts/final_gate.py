@@ -1480,6 +1480,19 @@ def run_consistency_checks(
                 warn_only=True,
             )
         )
+        # The BACKFILL ratchet (operator ruling 2026-09-06: "it must force agents to backfill
+        # backwards, as most of the documents and scripts dont have this"). BLOCKING, unlike the
+        # two rows above, because touch-on-change alone grandfathers every script nobody happens
+        # to edit. Safe to block from day one: the first run in a repo SEEDS at today's count and
+        # passes — only a RISE fails — which is the same contract check_lint_ratchet.py has held
+        # here since it shipped.
+        results.append(
+            run_optional_check(
+                "scripts/render_doc_script_links.py",
+                "Doc-Script Coverage (ratchet)",
+                "--coverage",
+            )
+        )
         # Print/console.log ban in production code
         results.append(
             run_optional_check("scripts/enforcement/check_print_ban.py", "Print/Console.log Ban")

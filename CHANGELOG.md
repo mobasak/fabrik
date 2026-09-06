@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the doc↔script coupling is RETROACTIVE: a backfill ratchet, and the rule in both contracts (2026-09-06)
+
+Operator: put the rule in `CLAUDE.md` for the hub **and** fabrik-lib, and *"it must force agents to
+backfill backwards, as most of the documents and scripts dont have this."*
+
+- **The rule now lives in both contracts**, as an edit to the ONE bullet that already owned the
+  subject (hub `CLAUDE.md:348`, fabrik-lib `CLAUDE.md:557` — they were byte-identical and still are).
+  No new section in either file; the hub's net growth is one line, for the anchor below.
+- **`doc-script-coupling` is now a UNIVERSAL governance marker**, anchor *"The header is the only
+  hand-written half"*. fabrik-lib's `check_governance_drift.py` parses that list out of the hub's
+  `CLAUDE.md`, so the rule is self-propagating rather than two hand-kept copies — verified: 10
+  anchors parsed, the new one among them, fabrik-lib compliant.
+- **Backfill teeth:** `render_doc_script_links.py --coverage` ratchets the headerless count on the
+  same contract `check_lint_ratchet.py` has held here — seed today's number blocking nothing, fail
+  on a rise, tighten on a fall, lock at 0. Blocking row in `final_gate.py`. Hub is **LOCKED at zero**.
+
+**Correction to the previous entry.** It claimed 212 of 212 scripts headered; the true number was
+**209**. Three scripts carry their `# AFTER-EDIT:` line *inside the module docstring*, where it
+declares nothing — my backfill used a naive `grep`, which counts those, while the real parser reads
+comment tokens and does not. My own rule about proxies, and I broke it inside the change that exists
+to enforce coupling. The three are fixed (the line moved out of the docstring into a real comment),
+the count is now genuinely 212 of 212, and a grader pins the docstring case so the same proxy cannot
+report a false green again.
+
 ### Changed — /fabrik-vision EXISTING reads PLANS.md + STRATEGIC_BACKLOG.md; /fabrik-epics-review declares the merge owner (2026-09-06)
 
 `commands/_sources/fabrik-vision.md`: the EXISTING-mode read list (and its two mirrored read enumerations) gains `docs/development/PLANS.md` (the `AUTO-GENERATED:PLANS` block — open rows are those whose Status is not EXECUTED/COMPLETE — and its `<!-- Merge owner: … -->` header) and `docs/STRATEGIC_BACKLOG.md`; the E-analysis "Scope the continuation" step gains one paragraph: every open plan row and every backlog row is a candidate line for the epic cut, carried with its `[name]` tag / Owner so an epic cut from a `[beta]` row is written with `owner: beta` (D-154). `commands/_sources/fabrik-epics-review.md` § Step 1.5 mints the `MERGE OWNER: <first name>` ledger row when `decisions.py --merge-owner .` prints `UNDECLARED`, and its acceptance criteria require the row — the epic path and `docs_updater.py --adopt` converge on one declaration. Rendered box-wide from the main checkout; `tests/test_vision_reads_work_stores.py` (6 tests) guards the text. Plan 2026-09-06-plan-2-multi-agent-adoption T05 (spec D4).

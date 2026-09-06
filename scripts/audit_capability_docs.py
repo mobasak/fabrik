@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AFTER-EDIT: INDEX.md
 """Capability doc-audit — consume capabilities.json defects[], resolve the fixable set, ledger the rest.
 
 Reads the generated catalog (``scripts/generate_capability_index.py`` output) and acts on each record's
@@ -19,7 +20,6 @@ every run and lists the FULL plan of what ``--apply`` would do. A tool is never 
 
 Usage: python scripts/audit_capability_docs.py [capabilities.json] [--apply]
 
-# AFTER-EDIT: INDEX.md
 """
 
 from __future__ import annotations
