@@ -43,6 +43,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import json
+import math
 import os
 import sys
 import tempfile
@@ -347,8 +348,13 @@ def _local_day(ts: object) -> str:
 
     Costs ~1.1s per full walk over 1.2M records against ~50s of I/O — measured, not assumed.
 
-    A naive or unparseable stamp falls back to the leading date slice: better the UTC day than no day,
-    since dropping the record would lose real spend, and this reader never raises.
+    A NAIVE-BUT-VALID stamp falls back to the leading date slice — better the UTC day than no day,
+    since dropping the record would lose real spend. ⚠️ The fallback is not unconditional, and an
+    earlier version of this paragraph said it was: a stamp whose DATE is itself invalid
+    (`2026-02-30`, `2026-13-01`) fails the slice too and returns `""`, and its caller then skips the
+    record entirely. That is the only correct answer — a record with no derivable day cannot be
+    booked anywhere — but it is a DROP, not a fallback, and the difference matters to whoever next
+    reasons about where a missing token went. Never raises, either way.
     """
     text = str(ts or "")
     if len(text) < 10:
@@ -436,11 +442,21 @@ def collect_from_transcripts(root: Path | None = None) -> dict[str, dict[str, in
                 if not day:
                     continue
                 tok = 0
-                # the SAME four fields `measure()` already sums — one vocabulary for what a token is
+                # the SAME four fields `measure()` already sums — one vocabulary for what a token is.
+                # ⚠️ `math.isfinite` and the bool exclusion are not fussiness: `json.loads` accepts a
+                # bare `NaN`/`Infinity`, `isinstance(v, (int, float))` admits both, and `int()` then
+                # raises — killing the WHOLE walk on one poisoned line. Because the line stays on
+                # disk, every later run dies too and the store freezes silently: the exact failure
+                # this collector exists to prevent, and the docstring promises "never raises". A bool
+                # is likewise not a token count (`True` would add 1). Found by two independent
+                # author-blind finders, 2026-09-06.
                 for f in _USAGE_KEYS:
                     v = usage.get(f)
-                    if isinstance(v, (int, float)):
-                        tok += int(v)
+                    if isinstance(v, bool) or not isinstance(v, (int, float)):
+                        continue
+                    if not math.isfinite(v):
+                        continue
+                    tok += int(v)
                 model = msg.get("model")
                 if tok <= 0 or not isinstance(model, str) or not model:
                     continue
@@ -452,6 +468,13 @@ def collect_from_transcripts(root: Path | None = None) -> dict[str, dict[str, in
                 # Usage for a call can only be discovered, never un-happen, so the largest sighting is
                 # the true one — and where duplicates agree, max is first-wins by another name.
                 key = (msg.get("id"), rec.get("requestId"))
+                if not all(k is None or isinstance(k, (str, int, float)) for k in key):
+                    # An unhashable id (a dict, a list) would raise on `seen.get(key)` and take the
+                    # whole walk with it — every LATER file included, since the walk is one loop.
+                    # Count the record without deduping it: losing one call to a double-count is a
+                    # rounding error, losing every day after it is the outage.
+                    out.setdefault(day, {})[model] = out.setdefault(day, {}).get(model, 0) + tok
+                    continue
                 if key == (None, None):
                     # No key to dedup on: COUNT it. Dropping would lose real spend, and duplicates
                     # without keys are unmeasured rather than known (0 of 13,113 on the probe day).
@@ -462,28 +485,39 @@ def collect_from_transcripts(root: Path | None = None) -> dict[str, dict[str, in
                     seen[key] = (day, model, tok)
                     out.setdefault(day, {})[model] = out.setdefault(day, {}).get(model, 0) + tok
                     continue
-                # A call belongs to its EARLIEST sighting's day, not its first-TRAVERSED one. Files
-                # are walked in sorted path order, which has nothing to do with time, so booking to
-                # "whichever copy I read first" would make the answer depend on filenames: the same
-                # tree could total differently per box. A message re-serialised across local midnight
-                # is booked where it STARTED, which is also the stable choice.
-                best_day = min(prior[0], day)
-                if best_day != prior[0]:  # move the booking to the earlier day
-                    out[prior[0]][prior[1]] = out[prior[0]].get(prior[1], 0) - prior[2]
-                    if out[prior[0]][prior[1]] <= 0:
-                        del out[prior[0]][prior[1]]
-                        if not out[prior[0]]:
-                            del out[prior[0]]
-                    out.setdefault(best_day, {})[model] = (
-                        out.setdefault(best_day, {}).get(model, 0) + prior[2]
-                    )
-                    seen[key] = (best_day, model, prior[2])
-                    prior = seen[key]
-                if tok > prior[2]:
-                    # Same call, a fuller sighting: add only the DELTA, at the day and model the
-                    # booking now sits on.
-                    out[prior[0]][prior[1]] = out[prior[0]].get(prior[1], 0) + (tok - prior[2])
-                    seen[key] = (prior[0], prior[1], tok)
+                p_day, p_model, p_tok = prior
+                # THE BOOKING IS (earliest day, model of the LARGEST sighting, largest tokens), and
+                # every part of that triple must be order-independent or two boxes reading the same
+                # tree disagree. Day: `min`, since a call belongs where it started. Tokens: `max`,
+                # since usage accrues and the first sighting is often a partial. MODEL: the largest
+                # sighting's, because that is the sighting the tokens came from — an earlier version
+                # kept the tokens and DISCARDED that model, booking (measured) 1,000,000 opus tokens
+                # as haiku, and 68 of 300 randomised trials lost the max sighting's model while 65
+                # of 300 were order-dependent. Ties break lexicographically so a tie cannot depend
+                # on traversal order either. Found by an author-blind arithmetic finder, 2026-09-06;
+                # latent on today's tree (0 of 12,190 sampled keys carry two models) and a real
+                # per-model $ error the moment it fires, since every consumer prices per model.
+                best_day = min(p_day, day)
+                if tok > p_tok:
+                    best_model, best_tok = model, tok
+                elif tok == p_tok:
+                    best_model, best_tok = min(model, p_model), p_tok
+                else:
+                    best_model, best_tok = p_model, p_tok
+                if (best_day, best_model, best_tok) == prior:
+                    continue
+                # Withdraw the old booking whole, then place the new one — never patch a delta
+                # across a changed day or model, which is where the arithmetic used to drift.
+                cell = out.get(p_day, {})
+                cell[p_model] = cell.get(p_model, 0) - p_tok
+                if cell.get(p_model, 0) <= 0:
+                    cell.pop(p_model, None)
+                if not cell:
+                    out.pop(p_day, None)
+                out.setdefault(best_day, {})[best_model] = (
+                    out.setdefault(best_day, {}).get(best_model, 0) + best_tok
+                )
+                seen[key] = (best_day, best_model, best_tok)
     return out
 
 
@@ -536,36 +570,79 @@ def merge_usage_store() -> dict:
             lock.close()  # closing the fd releases the flock
 
 
-def _merge_usage_store_locked(path: Path) -> dict:
-    """The body of :func:`merge_usage_store`, run while the store lock is held."""
+def int_or_zero(value: object) -> int:
+    """`int(value)`, or 0 for anything that will not convert. A corrupt version stamp migrates
+    rather than killing the 06:00 refresh — `int("two")` used to raise straight out of the merge."""
     try:
-        store = json.loads(path.read_text(encoding="utf-8"))
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+class StoreUnwritableError(RuntimeError):
+    """The merged store could not be written — recording has STOPPED and must not read as success.
+
+    ⚠️ This is a `RuntimeError` on purpose. The write already raised `OSError`, and the comment above
+    it called that "deliberately loud" — but the only production caller, `per_model_spend`, catches
+    `(OSError, ValueError, TypeError, AttributeError)` around its merge, so the loudness died one
+    frame up: an unwritable store directory left `refresh()` returning normally, the sidecar written,
+    the cron step GREEN, and the day unrecorded. The store and the sidecar live in different
+    directories, so one can be unwritable while the other is fine. A distinct exception the caller
+    does not catch is what makes the failure reach the operator. Found by an author-blind data-loss
+    finder, 2026-09-06.
+    """
+
+
+class StoreUnreadableError(RuntimeError):
+    """The store file EXISTS and cannot be parsed — so it must not be overwritten."""
+
+
+def _merge_usage_store_locked(path: Path) -> dict:
+    """The body of :func:`merge_usage_store`, run while the store lock is held.
+
+    ⚠️ AN UNPARSEABLE STORE IS REFUSED, NOT DEGRADED — the asymmetry that matters most in this file.
+    An earlier version caught every read failure and continued with `days = {}`, then wrote that back:
+    a truncated or hand-broken file therefore REPLACED 113 days and 298 BILLION tokens with an empty
+    object, and with the extension dead and transcripts pruned there was nothing left to rebuild it
+    from. Reproduced before this guard existed: 28 seeded days in, 0 days on disk out.
+
+    The distinction is ABSENCE versus DAMAGE, and only the first is a legitimate empty start:
+      • no file at all      → a fresh box's first run; proceed with no history and write.
+      • a file that is there but will not parse → raise. The old bytes stay on disk for repair, and
+        the 06:00 cron fails LOUDLY, which is the only way anyone learns the store needs attention.
+    Losing one day's merge is recoverable; overwriting the only copy is not.
+    """
+    days: dict = {}
+    store: dict = {}
+    unusable: dict = {}
+    if path.exists():
+        try:
+            store = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise StoreUnreadableError(f"{path} exists but does not parse: {exc}") from exc
         if not isinstance(store, dict):
-            raise TypeError("store is not an object")
-        # `days` must be a MAPPING OF MAPPINGS or the merge below raises — on `.items()` for the
-        # outer, and on `days[k].values()` / `dict(days[k])` for a day whose value is a scalar. A
-        # corrupt or hand-edited store must degrade to "no history yet", never crash the daily
-        # refresh: the store is written atomically, so shapes that reach here are external damage,
-        # and a producer that dies on them stops recording usage until somebody notices. Sanitising
-        # HERE rather than guarding each use is the point — one place holds the invariant, and every
-        # reader below can then assume it. An unusable day is dropped; keeping a scalar would only
-        # move the crash downstream.
+            raise StoreUnreadableError(f"{path} exists but is not a JSON object")
         raw = store.get("days")
-        days: dict = (
-            {
-                k: {
+        if raw is not None and not isinstance(raw, dict):
+            raise StoreUnreadableError(f"{path} has a 'days' key that is not an object")
+        # Per-DAY damage is different again: one bad entry must not refuse the whole merge, and it
+        # must not be DELETED either. Unusable entries are held aside and written back untouched —
+        # sanitise for USE, preserve for STORAGE — so a day this code cannot interpret survives for
+        # a human to repair instead of vanishing on the next cron run.
+        for k, v in (raw or {}).items():
+            if isinstance(v, dict):
+                clean = {
                     m: t
                     for m, t in v.items()
                     if isinstance(t, (int, float)) and not isinstance(t, bool)
                 }
-                for k, v in raw.items()
-                if isinstance(v, dict)
-            }
-            if isinstance(raw, dict)
-            else {}
-        )
-    except (OSError, ValueError, TypeError, AttributeError):
-        store, days = {}, {}
+                if len(clean) == len(v):
+                    days[k] = clean
+                else:
+                    days[k] = clean
+                    unusable[k] = {m: t for m, t in v.items() if m not in clean}
+            else:
+                unusable[k] = v
     src_by: dict = (
         store.get("source_by_day") if isinstance(store.get("source_by_day"), dict) else {}
     )
@@ -613,26 +690,21 @@ def _merge_usage_store_locked(path: Path) -> dict:
     # itself transcript-sourced (today's partial day must keep refreshing), and a day carrying no
     # source marker reads as history — the fail direction that protects data. `_discrepancy`
     # publishes the overlap so the two sources stay comparable on their own evidence.
-    # ⚠️ RULE CHANGES RE-DERIVE THE TRANSCRIPT DAYS, ONCE. The no-shrink guard below would otherwise
-    # FREEZE a day computed under the old rules: local-day bucketing moves an evening's tokens to the
-    # next day and max-wins dedup adds to it, so a re-read can be legitimately smaller for a day whose
-    # old total was simply mis-bucketed, and "never shrinks" would preserve the error forever.
-    # Dropping is safe for exactly these days and no others: a transcript-sourced day is re-derivable
-    # by construction, while an extension day is irreplaceable and is never touched here. Version-
-    # stamped so the migration is reproducible on any box instead of a hand-run mutation nobody can
-    # repeat — bump `_COLLECTOR_VERSION` whenever a counting rule changes.
-    try:
-        stamped = int(store.get("collector_version") or 0)
-    except (TypeError, ValueError):
-        # A corrupt stamp migrates rather than crashing: re-deriving transcript days is safe by
-        # construction, and `int("two")` killing the 06:00 refresh is not.
-        stamped = 0
-    if stamped < _COLLECTOR_VERSION:
-        for k in [k for k, v in src_by.items() if v == "transcripts"]:
-            days.pop(k, None)
-            src_by.pop(k, None)
-
+    # ⚠️ RULE CHANGES RE-DERIVE THE TRANSCRIPT DAYS, ONCE — but only where a replacement EXISTS.
+    # The drop used to run BEFORE the walk and the version stamp was written regardless, so a rule
+    # bump on a day whose transcripts had since pruned deleted it outright: reproduced at 13 BILLION
+    # tokens lost, and one-shot, so the next run could not repair it. The premise "a transcript day
+    # is re-derivable by construction" is contradicted by this module's own pruning measurement —
+    # 0.54x median. Collect FIRST, then swap in the re-derived value only for days the tree still
+    # holds; anything it no longer holds keeps its recorded value and its marker. Found by an
+    # author-blind data-loss finder, 2026-09-06.
     tdays = collect_from_transcripts()
+    if int_or_zero(store.get("collector_version")) < _COLLECTOR_VERSION:
+        for k in [k for k, v in src_by.items() if v == "transcripts"]:
+            if k in tdays:  # a replacement is in hand
+                days.pop(k, None)
+                src_by.pop(k, None)
+
     t_added = t_refreshed = 0
     for k, by in tdays.items():
         if not by:
@@ -667,7 +739,25 @@ def _merge_usage_store_locked(path: Path) -> dict:
     }
 
     kept = len(days)
-    store["days"] = dict(sorted(days.items()))
+    # Write the merged days back, then RESTORE anything this run could not interpret. A day (or a
+    # single model entry) whose shape the arithmetic cannot use is still somebody's recorded spend:
+    # dropping it silently would mean the next cron run erases data no other copy holds. It rides
+    # along untouched, under `_unusable`, where a human can see it and repair it.
+    out_days = dict(sorted(days.items()))
+    for k, v in unusable.items():
+        if isinstance(v, dict) and isinstance(out_days.get(k), dict):
+            out_days[k] = {**out_days[k], **v}
+        elif k not in out_days:
+            out_days[k] = v
+    store["days"] = dict(sorted(out_days.items()))
+    store["_unusable"] = (
+        {
+            "days": sorted(unusable),
+            "note": "shapes this collector cannot interpret, preserved verbatim",
+        }
+        if unusable
+        else {}
+    )
     store["source_by_day"] = dict(sorted(src_by.items()))
     store["_discrepancy"] = disc
     store["_discrepancy_days"] = len(overlap)
@@ -680,11 +770,21 @@ def _merge_usage_store_locked(path: Path) -> dict:
     # an unwritable store path (a mis-set `CLAUDE_USAGE_DAILY`, a missing parent directory, a full
     # disk) means usage has stopped being recorded, which is the exact failure this whole collector
     # exists to prevent. Swallowing it would hide the outage behind a green cron.
-    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp")
+    except OSError as exc:
+        raise StoreUnwritableError(f"cannot create a temp file beside {path}: {exc}") from exc
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write(json.dumps(store, indent=2) + "\n")
+            fh.flush()
+            # fsync before the rename: `os.replace` is journaled while the tmp file's DATA may not
+            # be, so a power loss can otherwise leave a zero-length store — on the only durable copy.
+            os.fsync(fh.fileno())
         os.replace(tmp, path)
+    except OSError as exc:
+        Path(tmp).unlink(missing_ok=True)
+        raise StoreUnwritableError(f"cannot write {path}: {exc}") from exc
     except BaseException:
         Path(tmp).unlink(missing_ok=True)
         raise
@@ -993,6 +1093,16 @@ def refresh() -> dict:
         quota = float(prev.get("quota_draw_pct", 0.0) or 0.0)
     except (TypeError, ValueError):
         quota = 0.0  # a non-numeric ③ must not crash the producer off its cron
+    # ⚠️ CAPTURE BEFORE YOU REFUSE — the ordering is load-bearing and it was a dated time bomb.
+    # `_live_usage_window()` REFUSES when the extension's `usage-history.json` cannot be measured, and
+    # that refusal used to fire BEFORE `per_model_spend()`, which is the only production caller of
+    # `merge_usage_store()`. The extension died on 2026-09-04, `_live_usage_window` looks back 30 days,
+    # so from ~2026-10-04 every `--refresh` would have exited 3 and THE TRANSCRIPT COLLECTOR WOULD
+    # NEVER HAVE RUN AGAIN — the death of source 1 silently stopping source 2, on a cron, with an
+    # alert that talks about a stale RATE and never mentions that recording has stopped. Merging is
+    # independent of the rate: it reads transcripts and writes the store, and it must happen whether
+    # or not ② can be re-derived today. Found by an author-blind data-loss finder, 2026-09-06.
+    merge_usage_store()
     w = _live_usage_window()
     # THE REFUSAL (see UnmeasurableWindowError). `window_start is None` IS the anchor branch — the same
     # sentinel the reader in rank_task_subagents keys its "no window" rendering on, so the two agree

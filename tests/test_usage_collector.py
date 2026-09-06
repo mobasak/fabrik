@@ -21,6 +21,8 @@ import importlib.util
 import json
 from pathlib import Path
 
+import pytest
+
 _MOD = Path(__file__).resolve().parent.parent / "scripts" / "claude_p_cost.py"
 _spec = importlib.util.spec_from_file_location("claude_p_cost_collector", _MOD)
 cpc = importlib.util.module_from_spec(_spec)
@@ -467,11 +469,16 @@ def test_an_up_to_date_store_is_not_re_derived(tmp_path, monkeypatch):
     assert cpc.merge_usage_store()["days"]["2026-09-05"] == {"claude-opus-5": 999}
 
 
-def test_a_corrupt_store_degrades_instead_of_killing_the_daily_refresh(tmp_path, monkeypatch):
-    """External damage — a hand edit, a half-restored backup — must not stop the producer. Measured
+def test_shape_damage_degrades_instead_of_killing_the_daily_refresh(tmp_path, monkeypatch):
+    """SHAPE damage — a hand edit, a half-restored backup — must not stop the producer. Measured
     before guarding: `collector_version: "two"` raised ValueError, a dict raised TypeError, and a
     `days` list raised AttributeError, each of which would end the 06:00 refresh and silently stop
-    recording usage until somebody noticed."""
+    recording usage until somebody noticed.
+
+    ⚠️ This is the SHAPE half only. PARSE damage takes the opposite branch and is REFUSED — see
+    `test_an_unparseable_store_is_refused_not_overwritten`, which is the defect a /fabrik-review
+    finder caught in the very guard this test was written for: degrading a file that exists but does
+    not parse, and then WRITING that degraded value back, destroys the only copy of the history."""
     root = _tree(
         tmp_path, {"-opt-fabrik/a.jsonl": [_msg("2026-09-05", "claude-opus-5", "m1", "r1", 500)]}
     )
@@ -483,11 +490,9 @@ def test_a_corrupt_store_degrades_instead_of_killing_the_daily_refresh(tmp_path,
     for corrupt in (
         {"days": {"2026-01-01": {"claude-opus-5": 5}}, "collector_version": "two"},
         {"days": {"2026-01-01": {"claude-opus-5": 5}}, "collector_version": {"a": 1}},
-        {"days": ["not-a-mapping"]},
         # a day whose VALUE is a scalar — this one reached `sum(days[k].values())` in the
         # `_discrepancy` build and `dict(days[k])` in the per-model merge, and raised on both
-        {"days": {"2026-09-05": 7}, "source_by_day": {"2026-09-05": "extension"}},
-        ["not-an-object"],
+        {"days": {"2026-01-01": 7}, "source_by_day": {"2026-01-01": "extension"}},
         {},
     ):
         p.write_text(json.dumps(corrupt), encoding="utf-8")
@@ -548,7 +553,7 @@ def test_a_non_numeric_token_value_is_dropped_not_raised(tmp_path, monkeypatch):
     _store(
         tmp_path,
         monkeypatch,
-        {"2026-09-05": {"claude-opus-5": "abc", "claude-haiku-4-5": 50, "x": True}},
+        {"2026-09-05": {"claude-opus-5-old": "abc", "claude-haiku-4-5": 50, "x": True}},
         {"2026-09-05": "transcripts"},
     )
     root = _tree(
@@ -556,10 +561,16 @@ def test_a_non_numeric_token_value_is_dropped_not_raised(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(cpc, "_TRANSCRIPT_ROOT", root)
 
-    day = cpc.merge_usage_store()["days"]["2026-09-05"]
+    store = cpc.merge_usage_store()
+    day = store["days"]["2026-09-05"]
 
-    assert day == {"claude-opus-5": 900, "claude-haiku-4-5": 50}
-    assert "x" not in day, "a bool is not a token count"
+    # The ARITHMETIC never sees them — opus is merged, haiku survives untouched…
+    assert day["claude-opus-5"] == 900 and day["claude-haiku-4-5"] == 50
+    # …but the unusable entries are PRESERVED rather than deleted, and named. Dropping them would
+    # mean the next cron run erases values no other copy holds, which is the same class of loss as
+    # overwriting an unparseable store.
+    assert day["claude-opus-5-old"] == "abc" and day["x"] is True
+    assert "2026-09-05" in store["_unusable"]["days"]
 
 
 def test_an_extension_day_never_shrinks_either(tmp_path, monkeypatch):
@@ -595,3 +606,189 @@ def test_an_extension_day_still_grows(tmp_path, monkeypatch):
     monkeypatch.setattr(cpc, "_TRANSCRIPT_ROOT", tmp_path / "no-transcripts")
 
     assert cpc.merge_usage_store()["days"]["2026-09-04"] == {"claude-opus-5": 900}
+
+
+def test_an_unparseable_store_is_refused_not_overwritten(tmp_path, monkeypatch):
+    """THE defect this whole review escalation earned. An earlier version caught every read failure
+    and continued with `days = {}`, then wrote that back — so a truncated file REPLACED 113 days and
+    298 billion tokens with an empty object, and with the extension dead and transcripts pruned there
+    was nothing to rebuild from. Reproduced before the guard: 28 seeded days in, 0 days out."""
+    p = tmp_path / "store.json"
+    real = {
+        "days": {f"2026-05-{i:02d}": {"claude-opus-5": 1_000_000_000} for i in range(1, 29)},
+        "source_by_day": {f"2026-05-{i:02d}": "extension" for i in range(1, 29)},
+        "collector_version": cpc._COLLECTOR_VERSION,
+    }
+    text = json.dumps(real)
+    p.write_text(text[: len(text) // 2], encoding="utf-8")  # genuinely unparseable
+    monkeypatch.setenv("CLAUDE_USAGE_DAILY", str(p))
+    monkeypatch.setattr(cpc, "_USAGE_HISTORY", tmp_path / "no-extension.json")
+    monkeypatch.setattr(cpc, "_TRANSCRIPT_ROOT", tmp_path / "no-transcripts")
+
+    with pytest.raises(cpc.StoreUnreadableError):
+        cpc.merge_usage_store()
+
+    assert p.read_text(encoding="utf-8") == text[: len(text) // 2], "the bytes must be untouched"
+
+    # STRUCTURAL damage takes the same branch: a `days` that is not an object, or a store that is not
+    # an object at all, is damage rather than absence and must not be written over either.
+    for structural in ({"days": ["not-a-mapping"]}, ["not-an-object"]):
+        p.write_text(json.dumps(structural), encoding="utf-8")
+        with pytest.raises(cpc.StoreUnreadableError):
+            cpc.merge_usage_store()
+        assert json.loads(p.read_text(encoding="utf-8")) == structural
+
+
+def test_an_absent_store_is_still_a_legitimate_fresh_start(tmp_path, monkeypatch):
+    """ABSENCE is not DAMAGE. A first run on a fresh box has no file and must proceed."""
+    p = tmp_path / "store.json"
+    monkeypatch.setenv("CLAUDE_USAGE_DAILY", str(p))
+    monkeypatch.setattr(cpc, "_USAGE_HISTORY", tmp_path / "no-extension.json")
+    root = _tree(
+        tmp_path, {"-opt-fabrik/a.jsonl": [_msg("2026-09-05", "claude-opus-5", "m1", "r1", 500)]}
+    )
+    monkeypatch.setattr(cpc, "_TRANSCRIPT_ROOT", root)
+
+    assert cpc.merge_usage_store()["days"]["2026-09-05"] == {"claude-opus-5": 500}
+
+
+def test_a_day_this_collector_cannot_read_is_preserved_not_deleted(tmp_path, monkeypatch):
+    """Sanitise for USE, preserve for STORAGE. An entry whose shape the arithmetic cannot use is
+    still somebody's recorded spend; dropping it would mean the next cron run erases data no other
+    copy holds. It rides along untouched and is named under `_unusable` for a human to repair."""
+    _store(
+        tmp_path,
+        monkeypatch,
+        {"2026-05-01": 12345, "2026-05-02": {"claude-opus-5": 7, "bad": "x"}},
+        {"2026-05-01": "extension", "2026-05-02": "extension"},
+    )
+    monkeypatch.setattr(cpc, "_TRANSCRIPT_ROOT", tmp_path / "no-transcripts")
+
+    store = cpc.merge_usage_store()
+
+    assert store["days"]["2026-05-01"] == 12345, "the scalar day survives verbatim"
+    assert store["days"]["2026-05-02"] == {"claude-opus-5": 7, "bad": "x"}
+    assert store["_unusable"]["days"] == ["2026-05-01", "2026-05-02"]
+
+
+def test_the_fallback_is_only_for_a_naive_but_valid_stamp(tmp_path):
+    """The docstring used to promise an unconditional fallback to the date slice. It is not: a stamp
+    whose DATE is invalid fails the slice too and the record is DROPPED. Both halves pinned, because
+    the difference is what tells the next reader where a missing token went."""
+    assert cpc._local_day("2026-09-05T22:00:00") == "2026-09-05", "naive but valid → the slice"
+    for impossible in ("2026-02-30T00:00:00Z", "2026-13-01T00:00:00Z", "not-a-date", "", None):
+        assert cpc._local_day(impossible) == "", f"{impossible!r} has no derivable day"
+
+    # …and a record with no derivable day is skipped rather than booked under an empty key, which is
+    # what stops `min(prior_day, day)` ever selecting "" as the earliest day.
+    def rec(ts, tok):
+        return json.dumps(
+            {
+                "timestamp": ts,
+                "requestId": "r1",
+                "message": {"id": "m1", "model": "claude-opus-5", "usage": {"output_tokens": tok}},
+            }
+        )
+
+    root = _tree(tmp_path, {"a.jsonl": [rec("2026-09-05T12:00:00.000Z", 100), rec("garbage", 900)]})
+    got = cpc.collect_from_transcripts(root)
+    assert got == {"2026-09-05": {"claude-opus-5": 100}}
+    assert "" not in got
+
+
+def test_the_largest_sightings_model_is_the_one_booked(tmp_path):
+    """A per-model $ error, not a labelling one: every consumer prices per model. An earlier version
+    kept the largest sighting's TOKENS and discarded its MODEL, booking a measured 1,000,000 opus
+    tokens as haiku — 68 of 300 randomised trials lost the model and 65 of 300 were order-dependent.
+    The whole booking triple (earliest day, largest sighting's model, largest tokens) must be
+    order-independent or two boxes reading one tree disagree."""
+
+    def rec(day, tok, model):
+        return json.dumps(
+            {
+                "timestamp": f"{day}T10:00:00.000Z",
+                "requestId": "r1",
+                "message": {"id": "m1", "model": model, "usage": {"output_tokens": tok}},
+            }
+        )
+
+    big = ("2026-09-02", 1_000_000, "claude-opus-5")
+    small = ("2026-09-01", 300, "claude-haiku-4-5")
+    want = {"2026-09-01": {"claude-opus-5": 1_000_000}}
+    assert (
+        cpc.collect_from_transcripts(
+            _tree(tmp_path / "a", {"0.jsonl": [rec(*big)], "1.jsonl": [rec(*small)]})
+        )
+        == want
+    )
+    assert (
+        cpc.collect_from_transcripts(
+            _tree(tmp_path / "b", {"0.jsonl": [rec(*small)], "1.jsonl": [rec(*big)]})
+        )
+        == want
+    )
+
+
+def test_one_poisoned_record_cannot_stop_the_whole_walk(tmp_path):
+    """The outage shape. `json.loads` accepts a bare NaN, `isinstance(v, (int, float))` admits it and
+    `int()` raises; an unhashable `message.id` raises on the dedup lookup. Either killed the walk —
+    and since the poisoned line stays on disk, every LATER file and every later run died with it,
+    silently, behind a green cron. Files are walked in sorted order, so a bad line in `aaa.jsonl`
+    took `zzz.jsonl` with it."""
+    poison = (
+        '{"timestamp":"2026-09-01T10:00:00Z","requestId":"r","message":'
+        '{"id":{"unhashable":1},"model":"claude-opus-5","usage":{"output_tokens":5}}}'
+    )
+    nan = (
+        '{"timestamp":"2026-09-01T10:00:00Z","requestId":"r2","message":'
+        '{"id":"m2","model":"claude-opus-5","usage":{"output_tokens":NaN}}}'
+    )
+    root = _tree(
+        tmp_path,
+        {
+            "aaa.jsonl": [poison, nan],
+            "zzz.jsonl": [_msg("2026-09-02", "claude-opus-5", "m9", "r9", 900_000_000)],
+        },
+    )
+    got = cpc.collect_from_transcripts(root)
+    assert got["2026-09-02"] == {"claude-opus-5": 900_000_000}, "the later file must still be read"
+    assert got["2026-09-01"] == {"claude-opus-5": 5}, "an unhashable id counts, undeduped"
+
+
+def test_a_bool_is_not_a_token_count(tmp_path):
+    rec = json.dumps(
+        {
+            "timestamp": "2026-09-01T10:00:00Z",
+            "requestId": "r",
+            "message": {
+                "id": "m",
+                "model": "claude-opus-5",
+                "usage": {"input_tokens": True, "output_tokens": True},
+            },
+        }
+    )
+    assert cpc.collect_from_transcripts(_tree(tmp_path, {"a.jsonl": [rec]})) == {}
+
+
+def test_the_migration_only_drops_a_day_it_can_actually_replace(tmp_path, monkeypatch):
+    """The drop used to run BEFORE the walk, and the version stamp was written regardless — so a rule
+    bump on a day whose transcripts had since pruned deleted it outright. Reproduced at 13 BILLION
+    tokens lost, and one-shot, so the next run could not repair it. The premise that a transcript day
+    is 're-derivable by construction' is contradicted by this module's own 0.54x pruning number."""
+    _store(
+        tmp_path,
+        monkeypatch,
+        {"2026-09-05": {"claude-opus-5": 9_000_000_000}, "2026-09-06": {"claude-opus-5": 4_000}},
+        {"2026-09-05": "transcripts", "2026-09-06": "transcripts"},
+        version=1,  # older than _COLLECTOR_VERSION: the migration will fire
+    )
+    # the tree still holds 09-06 but has PRUNED 09-05
+    root = _tree(
+        tmp_path, {"-opt-fabrik/a.jsonl": [_msg("2026-09-06", "claude-opus-5", "m1", "r1", 12_000)]}
+    )
+    monkeypatch.setattr(cpc, "_TRANSCRIPT_ROOT", root)
+
+    store = cpc.merge_usage_store()
+
+    assert store["days"]["2026-09-05"] == {"claude-opus-5": 9_000_000_000}, "pruned ⇒ keep it"
+    assert store["days"]["2026-09-06"] == {"claude-opus-5": 12_000}, "re-derivable ⇒ replace it"
