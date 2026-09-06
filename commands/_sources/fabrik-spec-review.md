@@ -265,8 +265,15 @@ external fact you cannot verify live, or a fabrik-lib capability you cannot conf
 `/fabrik-spec-review` ends at the **design approval gate** — a **human approves the hardened design** before any
 field-freeze / UI / plan work begins. Once the md5-verified no-op round earns `Status: CONVERGED`:
 
-- **Present** the converged spec + a short summary of what hardened (facts re-verified, vendor verdicts
-  confirmed, gaps closed) + the full Pass Ledger, and **STOP — explicitly ask the user to approve.**
+- **Present, in this order:** (1) the **ask ↔ spec comparison table** — defined in `/fabrik-spec` Phase 6
+  (hub ruling D-153): one row per item of the operator's brief in the operator's OWN WORDS · what the
+  CONVERGED spec says (section + one line) · anchor · IN / CHANGED (how) / ADDED (why) / DROPPED (why), then
+  one row per spec section the operator did not ask for; **recomputed against the CONVERGED text, never
+  copied from the DRAFT hand-over** (every round may have moved a section, and an anchor that no longer
+  resolves is a defect of THIS round); countable: rows ≥ the A0a inventory you enumerated yourself, every
+  row anchored — a brief item with no row is a silent drop and re-opens the loop; (2) the converged spec + a
+  short summary of what hardened (facts re-verified, vendor verdicts confirmed, gaps closed); (3) the full
+  Pass Ledger — and **STOP — explicitly ask the user to approve.**
 - **Do NOT auto-invoke the next command.** Unlike `/fabrik-spec` → `/fabrik-spec-review` (no human gate
   there), this hand-off IS the human gate; auto-chaining past it would skip the design sign-off. Name the
   applicable next so the operator (or the next turn) knows what follows, but do not call it:

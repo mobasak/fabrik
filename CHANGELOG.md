@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-spec + /fabrik-spec-review: ruled behaviours need no citations, a `Profile: delta` for briefs on an existing engine, and an ask ↔ spec comparison table at both closes (2026-09-06)
+
+Operator rulings D-153 on brand-identiy-creator's measured proposal (a 14-line brief → 471-line draft in
+12 minutes → 672 lines after nine review passes, 2h47m net). `/fabrik-spec`: the 1c floor now grounds the
+APPROACH only — a behaviour the operator ruled is cited by its ledger row, never by literature that agrees
+with it; `Profile: delta` (declared under `Status:`, trigger: every intake item maps to existing code)
+keeps seven sections in full and collapses the rest to one line each, with the convergence gate's heading
+checks and URL floor untouched; Phase 6 opens the approval with the ask ↔ spec table (operator's own words ·
+what the spec says · anchor · IN/CHANGED/ADDED/DROPPED + one row per unasked section). `/fabrik-spec-review`
+presents the same table, recomputed against the CONVERGED text, before the Pass Ledger; its full
+re-verification and closing re-derivation stay exactly as they were (ruling 3 withdrawn). Rendered and
+`--check` clean over 36 commands; corpus check green over 63 files.
+
+
 ### Added — doc↔script coupling: every doc names its scripts, every script names its doc (2026-09-06)
 
 Operator: *"in each doc, indicate the related scripts, in each script indicate the related document

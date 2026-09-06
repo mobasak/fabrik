@@ -231,6 +231,15 @@ build this — never pick an approach from training memory or first instinct:
   summariser fetch the same day this floor landed: ten minutes of the mandated search then overturned
   its row semantics (supersede-never-edit) and exposed its missing adoption mechanics. One WebFetch
   is not grounding; the command's own fetch-path law calls it an ANSWER about a page.
+  ⚠️ **The 1c floor grounds the APPROACH (how we build it), never a product behaviour the operator has
+  RULED.** A ruled behaviour ("around 7, not a hard cap"; "the band is the audience's perceived budget")
+  is grounded by its `docs/DECISIONS.md` row, minted in the same run — cite the row; do not go looking
+  for a citation that agrees with the operator. External literature is owed only where a design STEP
+  would change if the fact were false; a Grounding row that ends "not a cited law" or "design axis"
+  should not exist. (brand-identiy-creator 2026-09-05: 7 of 9 Grounding rows were literature about a
+  ruled number, and `/fabrik-spec-review` then spent finder passes resolving their DOIs — hub
+  ruling D-153: *"citations are not needed if I manually rule"* — and the ≥2-URL APPROACH floor above is
+  unchanged: a spec whose every behaviour is ruled still grounds HOW it is built.)
 
 **Parallelism — the DEFAULT for multi-unit grounding, not a maybe.** Grounding **2+ independent deps/capabilities
 → `fanout` them in parallel** (recipe in **§ Subagents** below): a serial grounding that could have been
@@ -313,6 +322,20 @@ interfaces — for each you can state *what it does / how you use it / what it d
   create** — if it exists, STOP and ask; never overwrite.
 - Open the spec with **`Status: DRAFT`** — this command writes DRAFT; the adversarial `/fabrik-spec-review`
   flips it to `CONVERGED` in place after re-verifying every cited fact + auditing the vendor verdict.
+- **`Profile: delta` — the brief profile, declared on the line under `Status:` (hub ruling D-153:
+  *"brief profile is needed"*).** Trigger, countable: EVERY item of the Intake Inventory maps to code that
+  exists today — the brief is a change to an EXISTING engine (the § Phase 0 INHERIT bullet's case), not a
+  new component. Under the profile the required sections are **Goal · What exists today (grounded —
+  `path:line`) · The delta · Contract deltas (data-contract / ui-design version bumps) · Cost · Validation ·
+  Decisions taken**, and `## Personas` (still first, still the step budget), the adoption forces, `##
+  Rejected alternatives`, the constraints digest, the fabrik-lib verdict and `## Lifecycle` **collapse to
+  ONE line each** unless the delta introduces a new persona, a new consumer, or a pack-relevant surface —
+  then that section is written in full. The interrogative floor below still holds: the six answers live in
+  fewer sections, never in none, and `check_spec_convergence.py`'s heading checks (`## Personas`,
+  `## Lifecycle`, `## Intake Inventory`) and its 1c URL floor are unchanged — a delta on an existing engine
+  still grounds its approach. A brief that fails the trigger (any item with no existing code behind it)
+  takes the full section set; state the profile verdict either way. (Measured cause: a 14-line brief became
+  15 H2 sections at minute 11 and 672 lines after review, brand-identiy-creator 2026-09-05.)
 - The spec MUST contain a **`## Personas`** section, FIRST among the content sections (operator law
   2026-08-29: *"all specs must address all relevant personas"*): **(a)** EVERY relevant persona
   enumerated — including the ones specs forget (the RECEIVER of anything sent, the payer if distinct
@@ -377,7 +400,18 @@ no-op round, and flips `Status: DRAFT → CONVERGED` (same relationship as `/fab
 CONVERGED are an unanswered Phase-2 question or a Phase-1 BLOCKING unknown (an external fact you cannot
 verify live); surface those and stop.
 
-After `CONVERGED`, present the hardened spec for the **user's approval**. On approval, the pipeline continues —
+After `CONVERGED`, present the hardened spec for the **user's approval** — and the presentation OPENS with the
+**ask ↔ spec comparison table** (hub ruling D-153: *"present what I have asked and what was specced in a
+comparison table"*): **one row per item of the operator's brief** — the operator's OWN WORDS · what the spec
+says (section + one line) · the anchor (`path:line` or heading) · a disposition ∈ {**IN** · **CHANGED** (how) ·
+**ADDED** beyond the ask (why) · **DROPPED** (why)} — followed by **one row per spec section the operator did
+NOT ask for**, each with its ADDED reason (a contract requires it · real money · an existing code path · this
+command mandates it · engineering nicety). Countable: rows ≥ Intake Inventory items; every row carries an
+anchor; a brief item with no row is the SILENT DROP the inventory exists to catch. The Intake Inventory inside
+the artifact grades coverage for the AGENT; this table is the same fact laid out for the OPERATOR, side by
+side, in their wording — how a 672-line spec got approved-for-review while its operator was "totally lost"
+(brand-identiy-creator 2026-09-05). `/fabrik-spec-review` presents the same table, recomputed against the
+CONVERGED text, at its approval gate. On approval, the pipeline continues —
 **data + UI contracts are frozen BEFORE planning** for anything data/GUI-shaped:
 
 ```
