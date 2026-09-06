@@ -92,6 +92,17 @@
       "branch_head": "34ed7a86",
       "merged_at": "2026-09-06T19:20:15",
       "review": "docs/development/reviews/2026-09-06-plan-2-multi-agent-adoption-T03-review.md"
+    },
+    "T06": {
+      "state": "merged",
+      "runtime": "native sonnet worktree (Integration: true; the code half \u2014 scaffold literal + docs; the receipt/proof/gates are the orchestrator's)",
+      "started_at": "2026-09-06T16:21:16+00:00",
+      "worktree_path": null,
+      "branch": "worktree-agent-ad6f11a764e3a69ac",
+      "base_commit": "5cd2ff55",
+      "branch_head": "56b2d231",
+      "merged_at": "2026-09-06T19:57:00",
+      "review": "docs/development/reviews/2026-09-06-plan-2-multi-agent-adoption-T06-review.md"
     }
   },
   "orchestrator": "infra session dd3c06d1, main checkout (dispatcher mode; the hub is outside the worktree model \u2014 coders isolate by worktree per D2)",

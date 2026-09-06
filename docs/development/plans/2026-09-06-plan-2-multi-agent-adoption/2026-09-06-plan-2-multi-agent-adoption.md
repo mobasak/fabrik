@@ -43,7 +43,7 @@ Intake: 7 items — 5 IN, 2 OUT-OF-SCOPE (I5, I6 — each named), 0 ASK.
 | T03 | `--check` advisory at ≥2 sessions (+ `advisory=True` at the gate call) | T02b | ⛓️ | ✅ | branch head 34ed7a86; merged 2026-09-06 |
 | T04 | SessionStart advisory (hook) | — | ⚡ | ✅ | branch head d92888e8; merged 2026-09-06 |
 | T05 | vision reads the work stores; epics-review mints the row | — | ⚡ | ✅ | branch head 4e6c3435; merged 2026-09-06 |
-| T06 | Integration: scaffold markers, fire-rate proof, docs, whole-plan gate | T01, T03, T04, T05 | ⛓️ | ⬜ | |
+| T06 | Integration: scaffold markers, fire-rate proof, docs, whole-plan gate | T01, T03, T04, T05 | ⛓️ | ✅ | branch head 56b2d231; merged 2026-09-06 |
 
 ## Merge Order
 

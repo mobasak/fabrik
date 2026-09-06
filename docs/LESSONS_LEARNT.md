@@ -6230,3 +6230,35 @@ HEAD exactly and costs nobody anything.
 3. A merge script that stages a diff-listed file from the cached apply silently drops fixup hunks applied to the same file in the working tree (announced in a commit body, absent from the commit). **Solution:** re-stage every fixup path from the working tree after the cached apply; assert the committed numstat against the expected one before pushing.
 **Integration:** the fixed merge tooling lives in this run's scratch (merge_ticket.sh / merge_move.sh / merge_mixed.sh) and the three shapes are recorded here; the execute-plan source should carry the first two as gate-authoring rules (routed to infra's list).
 **Triggered by:** T14b round 1 (native finder), T13 rounds 10–11 (native finder), T14a's merge (post-merge status check).
+
+## 2026-09-06 — multi-agent-adoption: the pool's write sandbox codes blind, and a review brief can prescribe a regression
+
+Plan `2026-09-06-plan-2-multi-agent-adoption` (7 tickets, 4 native coders, 21 review rounds). Two shapes worth keeping:
+
+1. **A pool WRITE-mode coder on this box cannot run pytest** — `fanout("code", …, mode="write")` hands the unit a
+   sandbox where `/opt/fabrik/.venv/bin/python` is not invocable and no interpreter has pytest. Three dispatches:
+   two died (idle > 120 s; a connection write timeout), one returned a clean-applying 15 KB diff whose tests
+   referenced undefined names — it had also silently replaced a 262-line test file with a 46-line one. The fix
+   is not "review harder": until the sandbox runs the proof floor (filed to intel, 01M1V98VN3QNS73GCR3GYF9FXH),
+   route code tickets native and declare NO-POOL per ticket; the D2 precondition ("a coder must be able to RUN
+   its proof floor") has no probe for pool units — add one before trusting a pool diff.
+2. **A review brief's own prescription is a change that needs measuring.** T02b round 1 found compound owner
+   tags (`[fleet+infra]`) were re-tagged; the round-2 brief prescribed a widened regex — searched over the whole
+   row, it skipped 54 legitimate rows across 15 repos (`[key: string]`, a leading markdown link, a date). The
+   round-2 native finder caught it only because it RE-MEASURED the fleet (1618 candidate rows) instead of
+   re-verifying the prescribed fix; round 3 fixed the mechanism (decide at the row's tag POSITION) and the
+   re-measurement read 1318 → 1303 with every lost row already owned. Prescribe the INVARIANT, let the coder
+   choose the mechanism, and re-measure the population the finding was measured on.
+
+3. **A worktree's symlinked venv imports the MAIN checkout's package.** `.claude/settings.json`'s
+   `symlinkDirectories: [".venv"]` shares one venv, and its editable install's `.pth` pins `/opt/fabrik/src`
+   — so `python -m pytest` inside an agent worktree silently tests the main checkout's `src/fabrik/*`, not
+   the worktree's edits (the T06 coder caught it; the orchestrator's own worktree gate had reported
+   `2 failed` against the wrong file). Every `src/`-importing gate in a worktree needs
+   `PYTHONPATH=<worktree>/src` (scripts imported by path are unaffected).
+
+Also recorded: the previous plan's fixup files in the session scratch collided by ticket id (`fixup_T02b.py`
+from plan-1 fired on plan-2's T02b merge and aborted it before commit) — scratch tooling keyed by ticket id must
+be quarantined per plan; the emit gate's READ budget is measured on the LIVE tree, so a plan whose own tickets
+grow a file (docs_updater.py 59 → 85 KB) reports over-budget mid-execution — a sizing signal to log, not a
+re-split.

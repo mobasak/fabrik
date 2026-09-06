@@ -1452,6 +1452,11 @@ Plan documents for {name}.
 | Plan | Date | Status |
 |------|------|--------|
 | (none) | - | - |
+
+## Ownership (auto-generated)
+
+<!-- AUTO-GENERATED:PLANS:START -->
+<!-- AUTO-GENERATED:PLANS:END -->
 """
     )
 

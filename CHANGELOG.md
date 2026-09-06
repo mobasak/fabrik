@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — multi-agent adoption for existing projects EXECUTED: new repos are born with the PLANS markers; the operating model and the project contract name `--adopt` (2026-09-06)
+
+Plan `2026-09-06-plan-2-multi-agent-adoption` (spec D-155, ruling D-154) is complete: `decisions.py --merge-owner` (T01), `docs_updater.py --adopt` with backlog tagging in the three real row shapes (T02a/T02b), the `--check` ownership advisory (T03), the SessionStart advisory (T04), `/fabrik-vision` reading PLANS.md + the backlog and `/fabrik-epics-review` minting the merge-owner row (T05). T06: `src/fabrik/scaffold.py` seeds the `AUTO-GENERATED:PLANS` markers below the hand table so a fresh repo is born with the ownership surface; `docs/reference/multi-agent-operating-model.md` § Ownership surfaces and the project contract § Orient (d) state the adoption step; the fleet fire-rate proof (3 of 41 git repos would fire at run time, 0 single-session repos — measured over the 45 sync targets) and the whole-plan receipt are in `docs/development/reviews/2026-09-06-plan-2-multi-agent-adoption-review.md`. 25 scaffold tests green.
+
 ### Fixed — /fabrik-review pass 2: pass 1 fixed instances and broke two classes (2026-09-06)
 
 Two author-blind Opus finders on pass 1's own fix hunks: 23 findings, 22 fixed, 1 refuted with a
