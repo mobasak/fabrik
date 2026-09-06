@@ -112,6 +112,89 @@ OPERATOR_DENY: dict[str, frozenset[str]] = {
 # iterative_image_editor (status=error, 0 chars, cost=null, 3 of 3). It ranked FIRST for `docs`.
 # Re-admit only after a measured run says it works.
 OPERATOR_DENY_ALWAYS: frozenset[str] = frozenset({"deepseek/deepseek-v4-pro"})
+
+#: ⚠️ OPERATOR ALLOWLIST (D-159, 2026-09-06). When NON-EMPTY, these are the ONLY OpenRouter models
+#: that may appear in ANY emitted routing section — a whitelist layered over the denies above, not a
+#: replacement for them. Empty frozenset = no allowlist, and every path below is then byte-identical
+#: to its pre-D-159 behaviour, which is what makes this safe to switch off.
+#:
+#: The operator's ruling was "allow only two cheap deepseek agents from openrouter" plus the FREE
+#: NVIDIA/Kilo/Groq lanes. Only the OpenRouter half is expressible here: `pick_models` reads this
+#: doc and returns OpenRouter ids, while a free-lane unit is chosen by an explicit
+#: `AgentSpec(provider=…, model=…)` that never consults it. So this allowlist is the whole of the
+#: paid half and none of the free half — see D-159's row for the free roster.
+#:
+#: These two are the only DeepSeek models the hub has actually benchmarked: score5 3.71 (B+) and
+#: 3.53 (B+), BOTH at precision 1.00, at $0.207 and $0.105 per 1k reviews. `deepseek-v4-flash-0731`
+#: is cheaper still ($0.150/Mtok blended vs $0.241) but has never been through the corpus, and an
+#: unmeasured snapshot is not a substitute for a measured model.
+#: Ordered best-first by MEASURED review rank (v4-flash score5 3.71, v3.2-exp 3.53). The tuple is
+#: the source of truth for ORDER because a frozenset iterates in hash order and Python randomises
+#: str hashing per process — emitting straight from the set would make the doc differ run to run.
+OPERATOR_ALLOW_ORDER: tuple[str, ...] = (
+    "deepseek/deepseek-v4-flash",
+    "deepseek/deepseek-v3.2-exp",
+)
+OPERATOR_ALLOW: frozenset[str] = frozenset(OPERATOR_ALLOW_ORDER)
+
+#: Every task_type the backstop must cover. Kept as a LOCAL literal rather than imported from
+#: `libs.subagents.TASK_KINDS`: this generator must not depend on the vendored module it feeds, or a
+#: re-vendor could change what the hub's own policy covers. `test_allowlist_covers_every_task_kind`
+#: asserts the two stay equal, so drift is caught by a test rather than by a silently uncovered kind.
+TASK_KINDS_EMITTED: tuple[str, ...] = ("code", "docs", "plan", "research", "review", "spec")
+
+
+def _allowed(model: str) -> bool:
+    """True when `model` may appear in a ROUTING section (a `### <task_kind>` table).
+
+    ⚠️ `claude-code/*` is FALSE here, and that is deliberate. An earlier version returned True for
+    them, reasoning that they are stripped upstream anyway and that a second opinion about
+    `claude-code/*` would be a contradiction. Review refuted it twice, on the same ground: this
+    predicate is what the TESTS use as the definition of "routable", so blessing an id that must
+    never be dispatched makes the guard assert less than it appears to. `claude-code/*` are
+    spawn-native — the pool cannot dispatch one (`_transport` would 404) — so they are never
+    routable, and saying so HERE makes this the single source of truth rather than one of two.
+    They remain visible in the ✅ Selected shortlists and the full benchmark tables, which are
+    display surfaces the parser never reads (`select.py:325-332`: any `###` header that is not a
+    TaskKind resets the section to None).
+
+    An empty `OPERATOR_ALLOW` disables the allowlist and restores pre-D-159 behaviour exactly.
+    """
+    if model.startswith("claude-code/"):
+        return False
+    return not OPERATOR_ALLOW or model in OPERATOR_ALLOW
+
+
+def _allowlist_rows(tiers: object, canary: dict[str, float] | None) -> list[str]:
+    """The allowlist section BODY — shared by the backstop and the no-data stub, so the two can
+    never drift apart. Emits the 9-column routing shape the parser contracts on: model at
+    `cells[1]`, run-count at `cells[-1]` (`select.py:296,303`).
+
+    ⚠️ `n=0` is honest — these models have no measured runs for this kind — and it is also the row's
+    one fragility: `load_task_ranking(..., min_n=1)` would drop every allowlist row and hand the kind
+    back to the vendored table. No production caller passes `min_n` (checked: only
+    `scripts/kilo-benchmarks/tests/test_canary_grounding_column.py` does, and `pick_models` has no
+    such parameter at all), so this is latent rather than live — but a future caller that sets it
+    must know it is opting out of the operator's allowlist.
+    """
+    rows = [
+        "| rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | grounding | n |",
+        "|---:|---|---:|---:|---:|---:|:-:|:-:|---:|",
+    ]
+    # Both maps default rather than crash: `_fmt_tier` does `tiers.get(...)`, so a None here raised
+    # AttributeError the first time a caller passed one — and this emitter now serves THREE call
+    # sites (backstop, no-data stub, and the top-up's sibling path), only one of which is guaranteed
+    # to have loaded the tier table.
+    tiers = tiers if tiers is not None else {}
+    canary = canary or {}
+    for rank, model in enumerate(OPERATOR_ALLOW_ORDER, start=1):
+        rows.append(
+            f"| {rank} | `{model}` | [allowlist] | — | — | — | {_fmt_tier(tiers, model)} | "
+            f"{_grounding_cell(canary.get(model))} | 0 |"
+        )
+    return rows
+
+
 # One discriminating corpus item ≈ 0.2 of score5 (1/22 of recall, ×5 through F1); rounded up to 0.25.
 # Reviewer candidates whose score5 falls in the same band are indistinguishable to the instrument and
 # are therefore ordered by COST. Widening this band trades measured quality for measured price —
@@ -1402,7 +1485,19 @@ def _selected_shortlists() -> list[str]:
 
     out: list[str] = [
         "",
-        "## ✅ Selected subagents — the gate shortlists (`pick_models` picks from these)",
+        # ⚠️ This header used to read "(`pick_models` picks from these)". That became FALSE the day
+        # the first operator deny landed and is now badly false under D-159's allowlist: the tables
+        # below list every model that cleared the BENCHMARK gates — including `qwen/qwen3-max` and
+        # `google/gemini-3-flash-preview`, which are DENIED, and four `claude-code/*` rows the pool
+        # cannot dispatch at all — while routing offers two. This doc syncs to 45 repos and the
+        # reader misled is as likely to be an agent choosing a reviewer as a human, so the header
+        # states where routing actually comes from.
+        "## ✅ Selected subagents — the BENCHMARK shortlists (measured quality, not the routing list)",
+        "",
+        "_⚠️ These tables are the measurement record, NOT what `pick_models` returns. Routing reads "
+        "the `### <task_type>` sections further down, after the operator deny (`OPERATOR_DENY`) and "
+        "allowlist (`OPERATOR_ALLOW`, D-159) are applied — a model can be gate-eligible here and "
+        "not routable there. `claude-code/*` rows are spawn-native and are never pool-routed._",
         "",
     ]
 
@@ -1604,7 +1699,7 @@ def render(
     # benched, and models we've benched but haven't fleet-used yet aren't
     # invisible to the router. Only applies to `code` — other task_types have
     # no benchmark analog.
-    coding_fallback_models: list[str] = _load_coding_fallback()
+    coding_fallback_models: list[str] = [m for m in _load_coding_fallback() if _allowed(m)]
 
     # CODE gate — the operator's coding constraints (n_err ≤ 1 · pass@1 ≥ 0.90 · $/1k ≤ 3.5 · p50 ≤ 10s),
     # mirroring the review gate. When the coding benchmark HAS run, `code_eligible()` supersedes the
@@ -1614,7 +1709,7 @@ def render(
     # claude-code/* id, it would 404 in _transport). Keep them OUT of the rank-led routing sections that
     # pick_models parses; they stay visible in the ✅ Selected shortlist (model-id-led) + the full tables.
     code_benchmark: list[str] = [
-        m for m in _code_benchmark_models() if not m.startswith("claude-code/")
+        m for m in _code_benchmark_models() if not m.startswith("claude-code/") and _allowed(m)
     ]
     code_gate: set[str] = set(code_benchmark)
     code_bench_ran: bool = _code_bench_ran()
@@ -1645,6 +1740,7 @@ def render(
         if not m.startswith("claude-code/")
         and m not in OPERATOR_DENY.get("review", ())
         and m not in OPERATOR_DENY_ALWAYS
+        and _allowed(m)
     ]
     review_gate: set[str] = set(review_benchmark)
     # measured metrics for the benchmark review rows, so the doc SHOWS score5/recall/$1k/precision
@@ -1671,6 +1767,27 @@ def render(
         and not review_bench_ran
         and not code_bench_ran
     ):
+        if OPERATOR_ALLOW:
+            # ⚠️ FAIL-OPEN CLOSED (D-159). This early return predates the allowlist and its own
+            # comment above still says routing "correctly" falls back to `_TABLE` — which was true
+            # before an operator allowlist existed and is FALSE now: `_TABLE` is exactly the
+            # unrestricted list (minimax, z-ai, qwen, google, openai) the operator excluded. So on a
+            # genuinely empty flywheel (fresh DB, or the read failing to a stub) the policy would
+            # have evaporated for EVERY kind, silently, on the next sync to 45 repos. Emit the
+            # allowlist instead: no measured data is still a complete answer to "what may I route
+            # to". Found by pass-1 finders (agent-000-54aad8) and by the orchestrator independently.
+            stub = [
+                header.rstrip("\n"),
+                "",
+                "No aggregated runs yet — but an operator ALLOWLIST is in force (D-159), so routing "
+                "is pinned to it rather than falling back to the vendored `_TABLE`.",
+                "",
+            ]
+            for _tt in sorted(set(TASK_KINDS_EMITTED)):
+                stub.append(f"### {_tt} (n_total=0, operator allowlist — no aggregated runs yet)")
+                stub.extend(_allowlist_rows(tiers, canary))
+                stub.append("")
+            return "\n".join(stub) + "\n"
         return header + (
             "No aggregated runs yet — `pick_models` continues to use vendored `_TABLE` default at "
             "`/opt/fabrik-lib/subagents/subagents/select.py:58`.\n"
@@ -1713,6 +1830,8 @@ def render(
             # the task-blind quality_tier where one exists. Today that is `ops` and `code`.
             if model in OPERATOR_DENY.get(_tt, ()) or model in OPERATOR_DENY_ALWAYS:
                 continue  # operator deny — see OPERATOR_DENY; hub-owned, never a module edit
+            if not _allowed(model):
+                continue  # operator ALLOWLIST — see OPERATOR_ALLOW (D-159)
             shrunk_q = _shrunk_quality(n, avg_quality, tier, model, _tt, task_baselines)
             if shrunk_q < QUALITY_GATE_MIN:
                 continue  # quality gate — a bad model is never in the usable top slots
@@ -1778,6 +1897,26 @@ def render(
                 start=review_last_rank + 1,
             ):
                 out.append(_fmt_bench_review_row(i, model, review_metrics, tiers, canary))
+        # ⚠️ ALLOWLIST TOP-UP (D-159). The backstop below triggers on a MISSING SECTION, which is
+        # all-or-nothing: `emitted_task_types.add()` fires the moment ONE row survives, so a kind
+        # that kept exactly one allowlisted model never received the other and the operator's roster
+        # was silently halved for it. That is not cosmetic — `pick_models(kind, exclude=(rank1,))`
+        # then returns `[]`, and `agent.py` turns an empty draw into a hard
+        # `ValueError: fanout: pick_models(...) returned no models`. `exclude` is documented in
+        # `select.py:559` as "the reliability lever" — the thing a caller reaches for when a model
+        # failed THIS session — so a one-model kind converts a routine provider hiccup into a raised
+        # batch. Measured pre-fix: code, docs and research each drew 1 model and each returned [] on
+        # excluding it. Found by the D-159 review's native finder.
+        if OPERATOR_ALLOW:
+            already = {r[1] for r, _ in scored}
+            missing = [m for m in OPERATOR_ALLOW_ORDER if m not in already]
+            if missing:
+                start = len(scored) + 1
+                for i, model in enumerate(missing, start=start):
+                    out.append(
+                        f"| {i} | `{model}` | [allowlist] | — | — | — | "
+                        f"{_fmt_tier(tiers, model)} | {_grounding_cell(canary.get(model))} | 0 |"
+                    )
         out.append("")
         emitted_task_types.add(task_type)
 
@@ -1797,6 +1936,7 @@ def render(
                 f"{_grounding_cell(canary.get(model))} | 0 |"
             )
         out.append("")
+        emitted_task_types.add("code")
 
     # REVIEW fallback — mode (b): no fleet `review` rows cleared the gate above, so emit a
     # dedicated section from the gate-eligible benchmark so pick_models("review") still has a list.
@@ -1814,6 +1954,35 @@ def render(
         for rank, model in enumerate(review_benchmark, start=1):
             out.append(_fmt_bench_review_row(rank, model, review_metrics, tiers, canary))
         out.append("")
+        emitted_task_types.add("review")
+
+    # ⚠️ ALLOWLIST BACKSTOP (D-159) — the step that makes the allowlist a RESTRICTION rather than a
+    # loosening. `pick_models` falls back to the VENDORED `_TABLE` **per task type** whenever the doc
+    # has no section for that kind, and that table is unrestricted: minimax, z-ai, qwen, google,
+    # openai. So filtering a task's rows down to nothing does not narrow routing — it hands the whole
+    # kind back to a list the operator just excluded, silently and only for the kinds with the least
+    # fleet data. Measured before this change: `plan` held one row (deepseek-v4-pro, itself denied)
+    # and `spec` one (z-ai/glm-5), so both sections would have vanished and both would have reverted
+    # to the vendored default. Emitting the allowlist itself keeps every kind covered.
+    if OPERATOR_ALLOW:
+        # The union, not the literal: `TASK_KINDS_EMITTED` is frozen hub-side on purpose (so a
+        # re-vendor cannot redefine hub policy), but that freezing is exactly what lets a NEW
+        # TaskKind go uncovered — the equality test catches the drift only when tests run, and the
+        # hub's gate does not run pytest. `by_task` is live fleet data, so any kind the fleet is
+        # actually dispatching gets a section even if the literal has not caught up. Raised by
+        # pass-1 finders agent-000-54aad8 and agent-001-31c527, independently.
+        for _tt in sorted(set(TASK_KINDS_EMITTED) | set(by_task)):
+            if _tt in emitted_task_types:
+                continue
+            out.append(
+                f"### {_tt} (n_total=0, operator allowlist — no measured rows survived the gates)"
+            )
+            out.append(
+                "_allowlist rows: this task_type has no gate-surviving fleet data, and the section "
+                "exists so routing cannot fall through to the unrestricted vendored `_TABLE` (D-159)._"
+            )
+            out.extend(_allowlist_rows(tiers, canary))
+            out.append("")
 
     # Human-readable full leaderboards (all measured columns) appended below the router sections.
     # These read the real kilo_agents.db — gated off in unit tests that assert on synthetic `rows`.

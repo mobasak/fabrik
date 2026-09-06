@@ -1187,6 +1187,23 @@ def run_consistency_checks(
         )
     )
 
+    # Routing policy: the operator's deny + allowlist (D-159) live in a GENERATED, tracked doc that
+    # other processes also write, so "the generator applies the policy" is not the same claim as
+    # "the policy is in force". Measured 2026-09-06: the hub's own daily_refresh regenerated the doc
+    # and then copied a fork's older copy over it 110 lines later, every morning for ~8 days, and
+    # auto-committed the result — so a deny landed the previous day had never once been live. The
+    # equivalent assertions existed in tests/ and were INERT (the hub runs no pytest leg by design).
+    # Hub-only: it self-skips in project copies, which never receive the ranker.
+    # ADVISORY on landing per the standing rollout law — expected fire rate is zero, and a single
+    # fire is a real regression, so this is a promotion candidate once that rate is observed.
+    results.append(
+        run_optional_check(
+            "scripts/enforcement/check_routing_policy.py",
+            "Routing Policy (operator deny + allowlist)",
+            warn_only=True,
+        )
+    )
+
     # Certification coverage: /fabrik-user-test and /fabrik-service-test graded their own
     # denominator. The inventory was PROSE WITH COUNTS authored by the agent later graded against it,
     # and NOTHING read it — there was no certification grader at all. On an inherited surface it

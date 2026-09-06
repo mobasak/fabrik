@@ -174,8 +174,15 @@ fi
   # when a human ran it by hand. `TASK_SUBAGENT_SELECTION.md` read "Last refresh: <recent>" purely
   # because someone had. Ordered AFTER the flush so each day's recovered rows are in the table the
   # ranking reads.
-  _step "rank_task_subagents" "$VENV_PY" "$KB/rank_task_subagents.py" \
-    || echo "[daily_refresh] ranking regen errored (non-fatal — the previous doc stands)"
+  # ⚠️ MOVED — this step now runs AFTER `deliver_to_fabrik` (see § DELIVER below). It ran HERE
+  # until 2026-09-06, and `deliver_to_fabrik --target-root "$FABRIK_ROOT"` 110 lines later
+  # blanket-copies the engine's `out/` tree over the hub, selection doc included (its
+  # `_NEVER_DELIVER` set names only CAPABILITIES.md, capabilities.json and llms.txt). So the hub
+  # regenerated its own routing doc and then threw it away ~1 hour later, every day, and
+  # auto-committed the discard. Proven: the engine's `out/` copy and HEAD's committed doc are
+  # byte-identical (md5 0330e2d09dcc9e0f4d69d53895542f0b), and the committed doc lacks the
+  # `grounding` column the hub ranker has emitted since ec05a490 (2026-08-29) — ~8 days of hub
+  # output silently discarded. Found by the D-159 review's native finder.
 
   # The external-services chain (gather_envs → classify → gather_envs → registry_sync →
   # gen_dashboard) lives in ONE script shared with wsl_startup_hook.sh — both entry points race
@@ -291,6 +298,16 @@ fi
   else
     echo "[daily_refresh] WARNING: ai-model-catalog engine venv missing — nothing delivered today"
   fi
+
+  # A5 — regenerate the subagent ranking. ⚠️ ORDER IS LOAD-BEARING AND THIS STEP MUST STAY LAST OF
+  # THE TWO: it has to run AFTER `deliver_to_fabrik`, because delivery copies the engine's own
+  # (older, fork-generated) copy of TASK_SUBAGENT_SELECTION.md over this one. Running the hub ranker
+  # afterwards gives the HUB the last word on the HUB's own routing doc — which is where the
+  # operator deny (`OPERATOR_DENY`) and allowlist (`OPERATOR_ALLOW`, D-159) live. Reversing these two
+  # steps silently reverts fleet routing policy to whatever the engine last produced.
+  # Still ordered after the flush, so each day's recovered rows are in the table the ranking reads.
+  _step "rank_task_subagents" "$VENV_PY" "$KB/rank_task_subagents.py" \
+    || echo "[daily_refresh] ranking regen errored (non-fatal — the previous doc stands)"
 
   _step "generate_capability_index" "$VENV_PY" "$FABRIK_ROOT/scripts/generate_capability_index.py" \
     || echo "[daily_refresh] generate_capability_index failed (non-fatal)"

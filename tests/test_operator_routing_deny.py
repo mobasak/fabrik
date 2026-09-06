@@ -54,10 +54,18 @@ def test_the_denies_are_declared_in_hub_owned_code_not_the_vendored_module():
 
 @pytest.mark.parametrize("model", REVIEW_DENIED)
 def test_a_denied_reviewer_is_absent_from_the_emitted_review_section(model):
-    """The doc is what routing reads, so absence FROM THE DOC is the deny."""
-    doc = _DOC.read_text(encoding="utf-8")
-    section = doc.split("### review (n_total=")[1].split("###")[0]
-    assert f"`{model}`" not in section, f"{model} is still routable for review:\n{section}"
+    """The doc is what routing reads, so absence FROM THE DOC is the deny.
+
+    ⚠️ This used to bound the section with `.split("###")[0]`, which does NOT stop at the `## Full …
+    results` display tables that list every benchmarked model including the denied ones. It passed
+    only because another `### <kind>` section happened to follow `### review` and cut the chunk short
+    — an accident of section ORDER, not a property of the doc. Removing the section that followed it
+    (proven live while revert-testing D-159's backstop) turned it red instantly. Parse with the
+    module's own `_synced_ranking()` instead: it returns exactly what routing consumes."""
+    from libs.subagents import select
+
+    routable = select._synced_ranking().get("review", [])
+    assert model not in routable, f"{model} is still routable for review: {routable}"
 
 
 def test_the_broken_worker_is_absent_from_every_routing_section():
@@ -104,3 +112,132 @@ def test_the_benchmark_supplement_cannot_reintroduce_a_denied_model():
         "the benchmark supplement no longer applies the operator deny — denied models will reappear "
         "as n=0 rows in the emitted review section"
     )
+
+
+# ─── D-159: the operator ALLOWLIST (layered over the denies above) ────────────────────────────────
+# The allowlist is the narrower policy: the denies name models that may never route, the allowlist
+# names the only ones that may. Its dangerous edge is NOT letting a bad model through — it is
+# emptying a section, because `pick_models` then falls back to the vendored `_TABLE`, which is
+# unrestricted. Every test below exists because that fallback is silent.
+
+ALLOWED = ("deepseek/deepseek-v4-flash", "deepseek/deepseek-v3.2-exp")
+
+
+def test_the_allowlist_is_declared_in_hub_owned_code_with_a_deterministic_order():
+    assert set(rank.OPERATOR_ALLOW) == set(ALLOWED)
+    assert rank.OPERATOR_ALLOW_ORDER == ALLOWED, (
+        "order is the emitted rank order and must be a TUPLE — emitting from the frozenset would "
+        "reorder the doc between runs, because Python randomises str hashing per process"
+    )
+
+
+def test_allowlist_covers_every_task_kind_pick_models_can_ask_for():
+    """A kind missing from the backstop is a kind that silently reverts to the vendored table."""
+    from libs.subagents import TASK_KINDS
+
+    assert set(rank.TASK_KINDS_EMITTED) == set(TASK_KINDS), (
+        "TASK_KINDS_EMITTED has drifted from the module's TASK_KINDS; an uncovered kind falls "
+        "through to the unrestricted _TABLE"
+    )
+
+
+def test_every_routing_section_in_the_live_doc_contains_only_allowed_models():
+    """The doc IS the routing policy — so assert on the module's OWN parse of it, not a hand-rolled
+    one. The first version of this test split the doc on `### <kind> (` and ended each section at the
+    next `### `, which silently swallowed the `## Full … results` display tables that follow the LAST
+    routing section, and then read their `grade` column as model names. Parsing with
+    `select._synced_ranking()` removes that whole class: it is the exact function `pick_models`
+    calls, so what it returns is what routing sees, by construction rather than by resemblance."""
+    from libs.subagents import select
+
+    ranking = select._synced_ranking()
+    assert ranking, "the module parsed NO routing sections out of the live doc"
+    offenders = [
+        f"{kind}: {model}"
+        for kind, models in ranking.items()
+        for model in models
+        if not rank._allowed(model)
+    ]
+    assert not offenders, "non-allowed models are routable in the live doc: " + ", ".join(offenders)
+
+
+def test_no_task_kind_falls_through_to_the_vendored_table():
+    """THE regression this change exists to prevent. Filtering a section to zero rows does not
+    narrow routing — it hands that whole kind to the unrestricted `_TABLE`. Before D-159, `plan`
+    held exactly one row (deepseek-v4-pro, itself denied) and `spec` one (z-ai/glm-5), so a naive
+    allowlist would have deleted both sections and reverted both kinds to the vendored default."""
+    doc = _DOC.read_text(encoding="utf-8")
+    missing = [k for k in rank.TASK_KINDS_EMITTED if f"### {k} (" not in doc]
+    assert not missing, (
+        f"no routing section for {missing} — pick_models falls back to the vendored _TABLE for "
+        "those kinds, which the operator's allowlist does not govern"
+    )
+
+
+@pytest.mark.parametrize("kind", ["code", "docs", "plan", "research", "review", "spec"])
+def test_pick_models_end_to_end_returns_only_allowed_models(kind):
+    """The executable check: not what the doc says, but what routing actually hands a dispatch."""
+    picked = pick_models(kind, n=12)
+    assert picked, f"pick_models({kind!r}) returned nothing — a dispatch would have no worker"
+    bad = [m for m in picked if not rank._allowed(m)]
+    assert not bad, f"pick_models({kind!r}) still routes non-allowed models: {bad}"
+
+
+# ─── Guards for the pass-1 review fixes (D-159) ───────────────────────────────────────────────────
+
+
+def test_claude_code_ids_are_not_routable():
+    """`_allowed()` is what the tests above use as the definition of "routable", so it must not
+    bless an id the pool cannot dispatch. `claude-code/*` are spawn-native — `_transport` would 404
+    — and an earlier draft returned True for them, which made every guard here assert less than it
+    looked like it did."""
+    for model in ("claude-code/opus", "claude-code/haiku", "claude-code/fable"):
+        assert not rank._allowed(model), f"{model} is spawn-native and must never be routable"
+
+
+def test_the_allowlist_rows_parse_back_through_the_real_parser():
+    """The 9-column shape is a CONTRACT (`select.py:296,303` — model at cells[1], n at cells[-1]).
+    Assert it by round-tripping through the actual parser rather than by eyeballing the format, and
+    cover the emitter BOTH the backstop and the no-data stub now share."""
+    from libs.subagents.select import load_task_ranking
+
+    body = "\n".join(rank._allowlist_rows({}, {}))
+    doc = f"# t\n\nLast refresh: 2099-01-01\n\n### plan (n_total=0, operator allowlist)\n{body}\n"
+    tmp = Path(__file__).parent.parent / ".tmp" / "allowlist_roundtrip.md"
+    tmp.parent.mkdir(parents=True, exist_ok=True)
+    tmp.write_text(doc, encoding="utf-8")
+    try:
+        parsed = load_task_ranking(str(tmp))
+    finally:
+        tmp.unlink(missing_ok=True)
+    assert parsed.get("plan") == list(rank.OPERATOR_ALLOW_ORDER), (
+        f"the real parser did not read the allowlist rows back: {parsed!r}"
+    )
+
+
+def test_the_no_data_stub_does_not_hand_every_kind_to_the_vendored_table():
+    """FAIL-OPEN guard. `render([])` takes the early "No aggregated runs yet" return, which predates
+    the allowlist; its own comment called falling back to `_TABLE` correct, and under D-159 that is
+    the unrestricted list the operator excluded. An empty flywheel must still emit the policy."""
+    out = rank.render([], state="ok", include_full_results=False)
+    for kind in rank.TASK_KINDS_EMITTED:
+        assert f"### {kind} (" in out, (
+            f"the no-data stub emitted no `### {kind}` section — pick_models falls back to the "
+            f"unrestricted vendored _TABLE for it:\n{out[:600]}"
+        )
+    assert "`_TABLE` default" not in out, "the stub still advertises the vendored-table fallback"
+
+
+def test_the_backstop_covers_a_task_kind_the_frozen_literal_has_not_caught_up_with():
+    """`TASK_KINDS_EMITTED` is frozen hub-side so a re-vendor cannot redefine hub policy — which is
+    also exactly how a NEW TaskKind goes uncovered. The backstop unions it with live `by_task`, so a
+    kind the fleet is actually dispatching gets a section even before the literal is updated."""
+    assert "ops" not in rank.TASK_KINDS_EMITTED, "pick a kind the literal really does not carry"
+    rows = [("ops", "qwen/qwen3-max", 40, 0.01, 3.0, 0.9)]
+    out = rank.render(rows, state="ok", include_full_results=False)
+    assert "### ops (" in out, (
+        "a fleet-used kind absent from the frozen literal got NO section, so it falls through to "
+        "the unrestricted vendored _TABLE"
+    )
+    ops_section = out.split("### ops (")[1].split("\n#")[0]
+    assert "qwen/qwen3-max" not in ops_section, "a non-allowed model survived into the new section"
