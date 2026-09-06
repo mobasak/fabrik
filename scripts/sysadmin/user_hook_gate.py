@@ -40,11 +40,15 @@ _TIMEOUT_S = float(os.environ.get("USER_HOOK_GATE_TIMEOUT_S", "8"))  # below the
 
 
 def _project_root(cwd: str) -> Path | None:
+    home = Path.home()
     env = os.environ.get("CLAUDE_PROJECT_DIR")
     if env and (Path(env) / ".claude").is_dir():
-        return Path(env)
+        root = Path(env)
+        # the same guard as the walk below: a session launched from $HOME carries
+        # CLAUDE_PROJECT_DIR=$HOME for its whole life (it does not follow `cd`), and the gate
+        # detected its own user-level registration there (closing review E3)
+        return None if (root == home or root in home.parents) else root
     p = Path(cwd)
-    home = Path.home()
     for cand in (p, *p.parents):
         if cand == home or cand in home.parents:
             # `~/.claude/settings.json` is the USER level — the file holding this gate's own

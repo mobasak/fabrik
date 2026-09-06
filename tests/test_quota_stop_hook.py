@@ -706,3 +706,15 @@ def test_malformed_tool_input_is_held_while_the_stamp_stands(tmp_path):
         r.returncode == 0
         and json.loads(r.stdout)["hookSpecificOutput"]["permissionDecision"] == "deny"
     )
+
+
+def test_a_garbage_or_nan_stale_bound_is_the_default_never_a_crash_or_a_freeze(monkeypatch):
+    """P3-5/P3-6 (closing review): `float(env)` unguarded died with a traceback on every tool call
+    in every synced repo for a typo'd value; a NaN bound made `age > stale` False forever — a dead
+    cron froze the fleet, the opposite of the documented direction."""
+    for bad in ("garbage", "900s", "nan", "inf", ""):
+        monkeypatch.setenv("QUOTA_STOP_TICK_STALE_S", bad)
+        assert hook.decide("Edit", None, stamp_exists=True, tick_age_s=3600.0)[0] == "allow_warn", (
+            bad
+        )
+        assert hook.decide("Edit", None, stamp_exists=True, tick_age_s=10.0)[0] == "deny", bad

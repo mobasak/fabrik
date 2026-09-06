@@ -778,7 +778,7 @@ _TARGET_SESSION_MAX = float(
 )
 
 
-def _display_order(payload: dict, now: float | None = None) -> list[dict]:
+def _display_order(payload: dict, now: float) -> list[dict]:
     """Rows in the order rotation will actually use — the account-only projection of `_queue`.
     ONE key and ONE clock: this used to carry its own copy of the perishable-first key (unknown
     reset = now+365d, vs inf in `_queue_for_render`) and read `time.time()` while `render()` passed
@@ -802,7 +802,22 @@ def _returns_at(a: dict, now: float) -> float | None:
     )
     win = a.get("seven_day") if weekly_blocked else a.get("five_hour")
     r = (win or {}).get("resets_at_epoch") if isinstance(win, dict) else None
-    return float(r) if isinstance(r, (int, float)) and float(r) >= now else None
+    if not (isinstance(r, (int, float)) and float(r) >= now):
+        return None
+    r = float(r)
+    if weekly_blocked:
+        # a weekly reset does not lift a session the PICKER refuses (over
+        # ROTATE_TARGET_SESSION_MAX_PCT, 85): the return is the LATER of the two — the same rule
+        # `_next_session_relief` applies, at the same bar (closing review P3-2)
+        try:
+            bar = float(os.environ.get("ROTATE_TARGET_SESSION_MAX_PCT") or 85.0)
+        except ValueError:
+            bar = 85.0
+        five = _util(a, "five_hour")
+        fr = (a.get("five_hour") or {}).get("resets_at_epoch")
+        if five is not None and five >= bar and isinstance(fr, (int, float)) and float(fr) > r:
+            r = float(fr)
+    return r
 
 
 def _queue(payload: dict, now: float, _key=None) -> list[dict]:

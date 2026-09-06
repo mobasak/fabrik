@@ -69,23 +69,27 @@ def _stale(d: dict) -> list[tuple[str, str, str]]:
         entries = hooks.get(ev) if isinstance(hooks.get(ev), list) else []
         for cmd in cmds:
             base = cmd.rsplit("/", 1)[-1].split()[0]
-            found = None
-            for e in entries:
-                if not isinstance(e, dict):
-                    continue
-                for h in e.get("hooks") or []:
-                    if isinstance(h, dict) and base in str(h.get("command", "")):
-                        found = (e, h)
-            if found is None:
+            found = [
+                (e, h)
+                for e in entries
+                if isinstance(e, dict)
+                for h in e.get("hooks") or []
+                if isinstance(h, dict) and base in str(h.get("command", ""))
+            ]
+            if not found:
                 out.append((ev, cmd, "missing"))
                 continue
-            e, h = found
-            if str(h.get("command", "")) != cmd:
-                out.append((ev, cmd, f"stale command `{h.get('command', '')}`"))
-            elif not isinstance(h.get("timeout"), (int, float)) or h["timeout"] < TIMEOUT_S:
-                out.append((ev, cmd, f"timeout {h.get('timeout')!r} < {TIMEOUT_S}"))
-            elif ev == "PreToolUse" and not e.get("matcher"):
-                out.append((ev, cmd, "no matcher"))
+            # EVERY entry carrying this script is judged — judging only the last one let a stale
+            # duplicate placed BEFORE the canonical entry keep firing unseen (closing review E4)
+            for e, h in found:
+                if str(h.get("command", "")) != cmd:
+                    out.append((ev, cmd, f"stale command `{h.get('command', '')}`"))
+                elif not isinstance(h.get("timeout"), (int, float)) or h["timeout"] < TIMEOUT_S:
+                    out.append((ev, cmd, f"timeout {h.get('timeout')!r} < {TIMEOUT_S}"))
+                elif ev == "PreToolUse" and not e.get("matcher"):
+                    out.append((ev, cmd, "no matcher"))
+            if len(found) > 1:
+                out.append((ev, cmd, f"{len(found)} registrations of one script"))
     return out
 
 

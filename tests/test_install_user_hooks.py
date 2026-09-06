@@ -156,3 +156,37 @@ def test_a_list_shaped_hooks_value_is_replaced_not_a_traceback(tmp_path, monkeyp
     monkeypatch.setenv("HOME", str(home))
     assert iuh.run(["--check"]) == 1
     assert iuh.run([]) == 0 and isinstance(_entries(home / ".claude" / "settings.json"), dict)
+
+
+def test_a_stale_duplicate_before_the_canonical_entry_is_still_caught(tmp_path, monkeypatch):
+    """E4: `_stale` judged only the LAST entry carrying the script; a dead path registered
+    before the canonical one kept firing on every prompt while --check said present."""
+    home = _home(tmp_path)
+    monkeypatch.setenv("HOME", str(home))
+    assert iuh.run([]) == 0
+    f = home / ".claude" / "settings.json"
+    d = json.loads(f.read_text())
+    stale = {
+        "hooks": [
+            {
+                "type": "command",
+                "command": "python3 /opt/OLDPATH/scripts/sysadmin/selfwatch_check.py",
+                "timeout": 10,
+            }
+        ]
+    }
+    d["hooks"]["UserPromptSubmit"].insert(0, stale)
+    f.write_text(json.dumps(d))
+    assert iuh.run(["--check"]) == 1
+    assert iuh.run([]) == 0 and iuh.run(["--check"]) == 0
+    cmds = [h["command"] for e in _entries(f)["UserPromptSubmit"] for h in e["hooks"]]
+    assert sum("selfwatch_check.py" in c for c in cmds) == 1, cmds
+
+
+def test_the_gate_row_is_warn_only_not_merely_advisory():
+    """E2: `advisory=True` only preserves stdout — the row still FAILED the gate on pure box
+    state; `warn_only=True` is what adds it to WARN_ONLY_CHECKS."""
+    src = (SCRIPT.parent.parent / "final_gate.py").read_text()
+    i = src.index('"User-Level Hooks Registered"')
+    block = src[i : i + 200]
+    assert "warn_only=True" in block and "advisory=True" not in block, block

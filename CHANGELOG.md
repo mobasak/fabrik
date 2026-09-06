@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-review closing pass: 25 findings from three non-author Opus closers, 24 fixed (2026-09-06)
+
+**Enforcement (N1):** the new `User-Level Hooks Registered` row was `advisory=True`, which only
+preserves stdout — it failed every hub session's gate on pure box state; now `warn_only=True`. The
+user-level gate's `$HOME` guard missed the `CLAUDE_PROJECT_DIR` branch (a session launched from
+$HOME lost the quota hold for its whole life). The installer's `--check` judged only the LAST entry
+carrying a script, so a stale duplicate registered first kept firing unseen. The hook's reader
+accepted `started_epoch == 0` as a window since the epoch. Stale in-code descriptions and the
+hooks-index Stop row rewritten to the ledger model. **The ledger migration hunk (N3):** the close
+appended a float `time.time()` while `_touch` floors `updated_ts`, so the start-time seed missed its
+own dedupe and appended near-duplicates (a measured 2/20 flake on a second boundary) — the close now
+records the touched integer; seeding `died`/`expired` laundered a never-reviewed 37 h abandoned plan
+sitting in the live store — reversed (P1-9 undone): `AGENT_CLOSED_STATES = {done, blocked, handoff}`
+in `command_run.py`, bound to the hook's `_CLOSED_STATES` by a parity grader; a nested child no
+longer inherits its parent's ledger (the join doubled it per cycle — 2047 windows after ten phase
+boundaries), the pop dedupes. **Rotation / quota (N2):** relief collected EVERY weekly-healthy
+sibling — a full-window account behind an untrusted cache was broadcast fleet-wide as "resets in
+2.5 h" — now only an account blocked by its session (≥ the picker's `ROTATE_TARGET_SESSION_MAX_PCT`,
+85) is a candidate, and relief in the 85–95 band no longer promises the weekly reset the picker
+would refuse (board `_returns_at` mirrors it); the rolled-over cache rescue covers the weekly window
+too; `>=` at reset == now; `_display_order` requires its clock; `quota_stop.py` no longer dies on a
+non-numeric `QUOTA_STOP_TICK_STALE_S` and a non-finite bound is the 900 s default on BOTH hooks
+(a NaN used to freeze the fleet AND disarm the Stop hook — P1-6 had optimised agreement over the
+documented direction). **Committed test debt found on the way:** `tests/test_claude_fleet.py`
+carried six failures at HEAD (the `+60` resume lead since e8f0473d made it 120; the pre-D1 bucket
+precedence; a stale drain wording) — bound to `_drain_resume_lead_s()`, fixtures brought to the
+current contract. INDEX grader counts removed (they rotted twice in one review); the CHANGELOG
+grader count re-derived by the producing tool.
+
 ### Fixed — the plan-set READ budget is advisory on the gate path for an EXECUTED spine (2026-09-06)
 
 `check_plan_tickets._sizing_severity`: a merged set cannot be re-split, and a ticket that grows its own file measures over `READ_BUDGET_BYTES` on the post-merge tree forever — plan `2026-09-06-plan-2-multi-agent-adoption` (`scripts/docs_updater.py` 59 → 90 KB through its own tickets) turned every hub session's completion gate red at its EXECUTED flip. The gate path now WARNs on EXECUTED exactly as on DRAFT/IN-PROGRESS; the author's CLI and the CONVERGED/EXECUTED flips keep the ERROR (a CONVERGED, unexecuted set can still be split). Red-first test in `tests/enforcement/test_check_plan_tickets.py`; one pool reader CLEAN on the four hunted seams.
@@ -40,7 +69,7 @@ non-blocking flock probe; the ancestor walk climbed into `$HOME` and detected th
 registration (P2-2); list-shaped `hooks`, `matcher`, `disableAllHooks` in any file, byte-for-byte
 pass-through, an unwritable lock FILE; the installer's `--check` compares the whole entry (timeout,
 path, matcher), replaces a stale path, creates a missing `settings.json`, and runs as the hub-only
-warn row `User-Level Hooks Registered`. 34 graders across the touched suites, each seen red first or
+warn row `User-Level Hooks Registered`. graders across the touched suites (`git diff aca5b038..HEAD -- tests | grep -c '^+def test_'` → 79 new test functions at ff887758's parent chain), each seen red first or
 proven on the reverted file. D-167 supersedes D-165 (2) and (5).
 
 ### Fixed — /fabrik-review pass 2: the doc-links gate enumerated every tracked script twice (2026-09-06)

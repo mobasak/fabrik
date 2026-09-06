@@ -307,3 +307,18 @@ def test_stdout_passes_through_byte_for_byte(tmp_path):
         env={**os.environ},
     )
     assert p.returncode == 0 and p.stdout == b"a\r\nb\xff\xfe ok", (p.stdout, p.stderr)
+
+
+def test_claude_project_dir_at_home_never_resolves_to_the_user_level_file(tmp_path):
+    """E3: the $HOME guard sat on the walk only; a session launched from $HOME carries
+    CLAUDE_PROJECT_DIR=$HOME for its whole life and deferred to the gate's own registration."""
+    home = tmp_path / "home"
+    (home / ".claude").mkdir(parents=True)
+    hook = _fake_hook(tmp_path)
+    (home / ".claude" / "settings.json").write_text(
+        json.dumps({"hooks": {"PreToolUse": [_wiring(hook.name, ".*")]}})
+    )
+    work = tmp_path / "opt" / "proj"
+    work.mkdir(parents=True)
+    env = {**os.environ, "HOME": str(home), "CLAUDE_PROJECT_DIR": str(home)}
+    assert "FAKE-HOOK-RAN" in _run_p(hook, work, _payload(work), env=env).stdout

@@ -3074,18 +3074,21 @@ def _flip_candidate_verdict(
         w = row.get(key)
         u = w.get("utilization") if isinstance(w, dict) else None
         utils[key] = float(u) if isinstance(u, (int, float)) else None
-    # A CACHED standby whose 5h reset time has already passed holds a ROLLED-OVER window: an idle
+    # A CACHED standby whose reset time has already passed holds a ROLLED-OVER window: an idle
     # account cannot burn fleet quota, so that window is empty by construction (the board applies
-    # the same rule). Read it as 0% — the stale 100% is not evidence of anything current.
-    fh = row.get("five_hour")
-    fh_reset = fh.get("resets_at_epoch") if isinstance(fh, dict) else None
-    if (
-        row.get("source") == "cache"
-        and utils["five_hour"] is not None
-        and isinstance(fh_reset, (int, float))
-        and float(fh_reset) <= _now()
-    ):
-        utils["five_hour"] = 0.0
+    # the same rule, per cell). Read it as 0% — the stale 100% is not evidence of anything
+    # current. BOTH windows: the rationale is window-agnostic, and a 5h-only rescue made a
+    # weekly-walled account wait a full probe cycle after its weekly reset (closing review P3-3).
+    for key in ("five_hour", "seven_day"):
+        w = row.get(key)
+        w_reset = w.get("resets_at_epoch") if isinstance(w, dict) else None
+        if (
+            row.get("source") == "cache"
+            and utils[key] is not None
+            and isinstance(w_reset, (int, float))
+            and float(w_reset) <= _now()
+        ):
+            utils[key] = 0.0
     if slug is None:
         return None, utils, "no live-chained credentialed dir (chain stale or no credentials)"
     if utils["five_hour"] is None and utils["seven_day"] is None:
@@ -4119,10 +4122,25 @@ def _next_session_relief(
         fr = fh.get("resets_at_epoch")
         wr = wk.get("resets_at_epoch")
         su = fh.get("utilization")
-        session_spent = isinstance(su, (int, float)) and float(su) >= _rotate_threshold()
-        if not weekly_blocked and isinstance(fr, (int, float)) and float(fr) > now:
+        # The PICKER's bar, not the drain threshold: `_flip_candidate_verdict` refuses a target
+        # whose session is over ROTATE_TARGET_SESSION_MAX_PCT (85), so relief promised from the
+        # 85-95 band named an instant at which nothing was pickable (closing review P3-2).
+        session_bar = _env_float(
+            "ROTATE_TARGET_SESSION_MAX_PCT", _env_float("ROTATE_DRAIN_THRESHOLD", 85.0)
+        )
+        session_spent = isinstance(su, (int, float)) and float(su) >= session_bar
+        # `>=`: a reset AT now is "now" — the board's `_returns_at` mirror (P3-7).
+        if (
+            not weekly_blocked
+            and session_spent
+            and isinstance(fr, (int, float))
+            and float(fr) >= now
+        ):
+            # blocked ONLY by its session — the docstring's contract. An account under both bars
+            # is not waiting for any window; naming its 5h reset promised the whole fleet a wait
+            # nothing required (P3-1: a full-window sibling behind an untrusted cache).
             session_wait.append((float(fr), email))
-        elif weekly_blocked and isinstance(wr, (int, float)) and float(wr) > now:
+        elif weekly_blocked and isinstance(wr, (int, float)) and float(wr) >= now:
             # A weekly reset does not help an account whose 5h window is ALSO spent past that
             # instant: its relief is the LATER of the two (review 2026-09-06, D1).
             epoch = float(wr)

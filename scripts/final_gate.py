@@ -1594,13 +1594,15 @@ def run_consistency_checks(
         # User-level hook registrations (hub-only; the script is not synced, so projects skip):
         # `check_hooks_index.py` derives its requirement FROM ~/.claude/settings.json and cannot
         # see a MISSING or stale entry — this row asserts the canonical three from a fixed list
-        # (review 2026-09-06 B10/P2-12; warn-only: a box-state drift, never a code failure).
+        # (review 2026-09-06 B10/P2-12). `warn_only=True`, NOT `advisory=True`: advisory only
+        # preserves stdout and would have failed every hub session's gate on pure box state
+        # (closing review E2).
         results.append(
             run_optional_check(
                 "scripts/sysadmin/install_user_hooks.py",
                 "User-Level Hooks Registered",
                 "--check",
-                advisory=True,
+                warn_only=True,
             )
         )
         # Sync-trigger coverage: a manifest surface whose edits fire NO governance-sync

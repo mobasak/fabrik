@@ -513,7 +513,7 @@ def _run_record(sid: str) -> dict | None:
 
 
 def _run_record_raw(sid: str) -> dict | None:
-    """The record as written, freshness-blind — `_review_horizon` needs a CLOSED record however
+    """The record as written, freshness-blind — `_review_windows` needs a CLOSED record however
     old it is (its close time IS the fact). Unreadable/absent → None (= no coverage)."""
     try:
         raw_dir = os.environ.get("COMMAND_RUN_DIR")
@@ -605,18 +605,19 @@ _CODE_EXTS = frozenset(
 
 
 _CLOSED_STATES = frozenset(
-    {"done", "blocked", "handoff", "died", "expired"}
-)  # the closes an agent writes (check_feedback_duty.py:60) PLUS the coroner's reaped states
-# (kaizen_coroner.py `died`/`expired`) — a reaped run still covered what it ran up to its last
-# update; reading it as "no record" re-opened every edit of a resumed session (review P1-9)
+    {"done", "blocked", "handoff"}
+)  # the closes an AGENT writes — `command_run.py::AGENT_CLOSED_STATES`, bound by a parity grader.
+# The coroner's `died`/`expired` are NOT closes: a reaped run covered a span no review contract
+# ever ran, and granting it laundered a 37 h abandoned plan (closing review C-2, reversing P1-9);
+# such a record reads as no record, and the remedy is the review the run never had.
 
 
 def _hold_in_force(tick_age_s: float, stale_s: float) -> bool:
     """Mirror of quota_stop.py's OFF test (`tick_age_s > stale_s`), negated: the hold is in force
-    unless the tick is provably stale. Under a NaN bound `>` is False on both sides, so both read
-    the hold as IN FORCE — `<=` disagreed exactly there and produced the held-and-blocked
-    deadlock A-F1 exists to end (review P1-6). Kept as a function so no formatter can fold the
-    negation back into `<=`."""
+    unless the tick is provably stale. The bound is finite by the time it arrives (the caller
+    maps garbage/NaN/inf to 900 s, as quota_stop.py does — P3-5/P3-6); the expression shape is
+    kept identical so the two sides can never disagree (review P1-6). A function, so no
+    formatter folds the negation back into `<=`."""
     return not (tick_age_s > stale_s)
 
 
@@ -648,8 +649,8 @@ def _review_window(rec: object, sid: str | None = None) -> tuple[float, float] |
     if not isinstance(rec, dict):
         return None
     started = _finite(rec.get("started_epoch"))
-    if started is None:
-        return None
+    if started is None or started <= 0:
+        return None  # the writer refuses to record a window unless started_epoch > 0 (E8 mirror)
     state = rec.get("state")
     if state == "running":
         # stale/abandoned — the fifth cause no longer acts on it, nor does this. But the
@@ -1289,7 +1290,15 @@ def main(argv: list[str]) -> int:
             _tick = Path(
                 os.environ.get("QUOTA_STOP_TICK_LOG") or Path.home() / ".claude" / "rotate-tick.log"
             )
-            _stale = float(os.environ.get("QUOTA_STOP_TICK_STALE_S", "900"))
+            # the same guarded parse as quota_stop.py `_stale_after_s`: garbage or a non-finite
+            # value is the 900 s default on BOTH sides (closing review P3-5/P3-6 — a NaN bound
+            # read as "held forever", the opposite of the documented "a dead cron never freezes")
+            try:
+                _stale = float(os.environ.get("QUOTA_STOP_TICK_STALE_S", "900"))
+            except (TypeError, ValueError):
+                _stale = 900.0
+            if not math.isfinite(_stale):
+                _stale = 900.0
             if (
                 (_state / "fleet-exhausted").exists()
                 and _tick.exists()
@@ -1439,9 +1448,9 @@ def main(argv: list[str]) -> int:
                 # predicate 5), so code edits with NO record at all are plain-chat work by
                 # construction. The remedy is the light /fabrik-review-scoped; running it
                 # creates the record, which clears this cause on the next stop.
-                # PER CHANGE (2026-09-06): count only code authored AFTER the last CLOSED
-                # command's record. `has_any_record` is therefore "nothing is unreviewed" —
-                # the pure decision is unchanged, the question it is asked has changed. The
+                # PER CHANGE (2026-09-06): count only this session's code authored OUTSIDE every
+                # window a command of the session covered (the record's `covered` ledger + the
+                # live window, edits before the SessionStart baseline excluded). The
                 # 01M1NTNCFEWMP82YQFGNN6NHYP shape (reviewed, closed, idle under a hold) stays
                 # allowed: idle authors nothing after the close.
                 _rec = _run_record_raw(sid)

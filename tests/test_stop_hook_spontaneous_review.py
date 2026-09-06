@@ -130,7 +130,9 @@ def test_handoff_is_a_closed_state_that_covers_like_done():
     {"done","blocked"} blocked every such session with 'NO command run record'."""
     win = fgs._review_window({"state": "handoff", "started_epoch": T - 100, "updated_ts": T})
     assert win == (T - 100, T)
-    assert frozenset({"done", "blocked", "handoff", "died", "expired"}) == fgs._CLOSED_STATES  # + the coroner's reaped states (P1-9)
+    assert (
+        frozenset({"done", "blocked", "handoff"}) == fgs._CLOSED_STATES
+    )  # agent closes only (C-2)
 
 
 def test_code_authored_before_the_command_started_is_not_covered():
@@ -228,10 +230,27 @@ def test_the_operators_stale_opt_out_does_not_uncover_a_live_run(monkeypatch):
     assert fgs._review_window(rec, "sid-with-no-store") == (100.0, float("inf"))
 
 
-def test_coroner_reaped_records_still_cover_their_run():
-    """P1-9: the coroner writes `died`/`expired`; a reaped run still covered what it ran."""
+def test_coroner_reaped_records_cover_nothing():
+    """C-2 (reversing P1-9): the coroner's `died`/`expired` close a run no agent reviewed — a 37 h
+    abandoned plan sat in the live store; granting its span laundered every edit inside it. A
+    reaped record reads as NO record, and the remedy is the review the run never had."""
     for st in ("died", "expired"):
-        assert fgs._review_window({"state": st, "started_epoch": 100, "updated_ts": 900}) == (
-            100.0,
-            900.0,
-        ), st
+        assert fgs._review_window({"state": st, "started_epoch": 100, "updated_ts": 900}) is None, (
+            st
+        )
+
+
+def test_the_hooks_closed_states_equal_command_runs_agent_closes():
+    """C-3: the fourth hand-kept copy of the closed-state set — bind it."""
+    import importlib.util as _ilu
+
+    spec = _ilu.spec_from_file_location("command_run", REPO / "scripts" / "command_run.py")
+    cr = _ilu.module_from_spec(spec)
+    spec.loader.exec_module(cr)
+    assert fgs._CLOSED_STATES == cr.AGENT_CLOSED_STATES
+
+
+def test_a_zero_started_epoch_covers_nothing_like_the_writer_refuses_it():
+    """E8: `_finite(0)` is 0.0, not None — a record with started_epoch 0 read as "one command
+    covered everything since the epoch"; the writer never records such a window."""
+    assert fgs._review_window({"state": "done", "started_epoch": 0, "updated_ts": 900}) is None

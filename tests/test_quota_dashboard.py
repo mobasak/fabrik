@@ -708,7 +708,7 @@ def test_rows_are_ordered_active_first_then_in_rotation_order(tmp_path, monkeypa
             acct("x5", 90.0, 5.0, reset_in=3600),  # no 5h budget → ineligible
         ],
     }
-    order = [a["slugs"][0] for a in qd._display_order(payload)]
+    order = [a["slugs"][0] for a in qd._display_order(payload, _NOW)]
     assert order == ["sarp", "can", "mob", "x5", "ob"], order
     html = qd.render(payload, now)
     first = html.index("sarp@ocoron.com")
@@ -1519,9 +1519,17 @@ def test_display_order_and_queue_share_one_key_and_one_clock(tmp_path, monkeypat
     copies that could disagree. One function, one `now`."""
     qd = _load(tmp_path, monkeypatch)
     p = _queue_payload()
+    # P3-4: with every account carrying a weekly reset the two keys could not diverge (the pre-fix
+    # function passed this test verbatim); strip one eligible account's resets so perishable-first
+    # (unknown = inf vs now+365d) is exercised, at a clock far from time.time()
+    for acc in p["accounts"]:
+        if acc["slugs"][0] == "alpha":
+            acc["five_hour"]["resets_at_epoch"] = None
+            acc["seven_day"]["resets_at_epoch"] = None
     a = [e["slug"] for e in qd._queue_for_render(p, _NOW) if e["kind"] != "return"]
     b = [x["slugs"][0] for x in qd._display_order(p, _NOW)]
     assert a == b
+    assert "alpha" in a
     assert "far = time.time()" not in Path(qd.__file__).read_text(), (
         "a second key closure crept back"
     )
@@ -1532,3 +1540,32 @@ def test_a_reset_exactly_at_now_reads_as_returning_now_not_unknown(tmp_path, mon
     qd = _load(tmp_path, monkeypatch)
     a = _q("x", 100.0, 40.0, five_reset=_NOW, seven_reset=_NOW + 86400, cap=99)
     assert qd._returns_at(a, _NOW) == _NOW
+
+
+def test_a_weekly_walled_account_in_the_pickers_refused_band_returns_at_its_session_reset(
+    tmp_path, monkeypatch
+):
+    """P3-2 (board half): a weekly reset does not lift a session the picker refuses (≥85); the
+    tail row said "returns in 1h" for an account at 90% whose 5h window resets in 10h."""
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.delenv("ROTATE_TARGET_SESSION_MAX_PCT", raising=False)
+    a = _q(
+        "band",
+        90.0,
+        99.0,
+        five_reset=_NOW + 36000,
+        seven_reset=_NOW + 3600,
+        cap=99,
+        cap_walled=True,
+    )
+    assert qd._returns_at(a, _NOW) == _NOW + 36000
+    b = _q(
+        "fine",
+        20.0,
+        99.0,
+        five_reset=_NOW + 36000,
+        seven_reset=_NOW + 3600,
+        cap=99,
+        cap_walled=True,
+    )
+    assert qd._returns_at(b, _NOW) == _NOW + 3600

@@ -52,6 +52,7 @@ import datetime as dt
 import fcntl
 import hashlib
 import json
+import math
 import os
 import re
 import subprocess
@@ -476,6 +477,20 @@ def _mcp_probe_advisory() -> None:
 
 def _now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%S%z")
+
+
+# The closes an AGENT writes — the states with a review contract behind them. The Stop hook's
+# `_CLOSED_STATES` (.claude/hooks/final_gate_stop.py) must equal this set; a parity grader binds
+# the two (closing review C-3: this was the fourth hand-kept copy). The coroner's `died`/
+# `expired` are deliberately NOT here — a reaped run covered nothing.
+AGENT_CLOSED_STATES = frozenset({"done", "blocked", "handoff"})
+
+
+def _finite_ts(v: object) -> float | None:
+    """A usable epoch: a non-bool finite number, else None."""
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
+        return None
+    return float(v)
 
 
 def _touch(rec: dict[str, Any]) -> None:
@@ -1001,16 +1016,22 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # started_epoch/updated_ts — seed that too, or every pre-deploy run's coverage is lost.
         def _carried_windows(prev: dict) -> list:
             out = [w for w in (prev.get("covered") or []) if isinstance(w, list) and len(w) == 2]
-            se, ut = prev.get("started_epoch"), prev.get("updated_ts")
+            se, ut = _finite_ts(prev.get("started_epoch")), _finite_ts(prev.get("updated_ts"))
             if (
-                prev.get("state") in ("done", "blocked", "handoff", "died", "expired")
-                and isinstance(se, (int, float))
-                and isinstance(ut, (int, float))
-                and not isinstance(se, bool)
-                and 0 < se <= ut
-                and [se, ut] not in out
+                # AGENT closes only: a coroner-reaped `died`/`expired` record covers a span no
+                # review contract ever ran (closing review C-2 — a 37 h abandoned plan in the
+                # live store would have been laundered); the hook mirrors this in _CLOSED_STATES
+                prev.get("state") in AGENT_CLOSED_STATES
+                and se is not None
+                and ut is not None
+                # `_touch` floors updated_ts to whole seconds while started_epoch is a float:
+                # compare like for like, or a run that started and closed inside one second
+                # silently skips the seed (C-6)
+                and se > 0
+                and int(se) <= int(ut)
+                and [se, int(ut)] not in out
             ):
-                out.append([se, ut])
+                out.append([se, int(ut)])
             return out
 
         parent = rec if rec.get("state") == "running" else None
@@ -1047,7 +1068,11 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             # the ledger of windows earlier commands of this session COVERED — carried across
             # this overwrite so the Stop hook's sixth cause keeps every reviewed edit reviewed
             # (review P1-1: a single window un-reviewed every command before the last one)
-            "covered": _carried_windows(rec),
+            # a NESTED child starts with an EMPTY ledger: the parked parent keeps its own, and
+            # the child's windows join it at the pop — copying the parent's ledger down and
+            # joining it back up doubled the ledger per nest cycle (2047 windows after ten
+            # phase boundaries, closing review C-4/E1)
+            "covered": [] if parent else _carried_windows(rec),
         }
         # The `start` verb's join window is the WHOLE store, so the anchor is cleared —
         # never this record's own start (that would exclude every candidate landing
@@ -1489,9 +1514,12 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         print(msg)
         return 1
     rec["state"] = args.cmd
-    _se = rec.get("started_epoch")
-    if isinstance(_se, (int, float)) and not isinstance(_se, bool) and _se > 0:
-        rec.setdefault("covered", []).append([float(_se), time.time()])
+    _se = _finite_ts(rec.get("started_epoch"))
+    if _se is not None and _se > 0:
+        # the close instant is the touched `updated_ts` (whole seconds), not a fresh
+        # `time.time()` — a float here and an int there made the start-time seed miss its own
+        # dedupe and append a near-duplicate, a coin-flip on the second boundary (C-1)
+        rec.setdefault("covered", []).append([_se, int(rec.get("updated_ts") or time.time())])
     # `closed_by` is ADDITIVE and never read by an existing consumer (the Stop hook keys
     # on `state == "running"` alone). `agent` is the only value this script writes; the
     # coroner writes `coroner`/`ttl` for the runs no agent ever came back to close.
@@ -1512,8 +1540,12 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
     stack = list(rec.get("stack") or [])
     parent = stack.pop() if stack else None
     if parent is not None:
-        # a nested run's window joins the caller's ledger before the caller is restored
-        parent["covered"] = list(parent.get("covered") or []) + list(rec.get("covered") or [])
+        # a nested run's windows join the caller's ledger before the caller is restored — deduped
+        joined = list(parent.get("covered") or [])
+        for w in rec.get("covered") or []:
+            if w not in joined:
+                joined.append(w)
+        parent["covered"] = joined
     _fb_verdict, _fb_beats = _feedback_verdict(getattr(args, "feedback", None))
     # On the RECORD as well as the event: the event stream is box-local telemetry, while the record
     # is what a per-run check can read. The verdict token AND the prose are both stored (D-055,

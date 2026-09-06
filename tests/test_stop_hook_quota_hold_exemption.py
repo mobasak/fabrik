@@ -140,3 +140,19 @@ def test_a_nan_stale_bound_reads_as_held_on_both_sides(held_project, monkeypatch
     monkeypatch.setenv("QUOTA_STOP_TICK_STALE_S", "nan")
     out = _run_stop(project, state, "s_nan", "A,B")
     assert out == "", f"a held session (NaN bound) was blocked from stopping: {out}"
+
+
+def test_a_nan_stale_bound_with_a_dead_tick_does_not_yield(held_project, monkeypatch):
+    """P3-6: under a NaN bound the earlier P1-6 fix made BOTH sides read the hold as in force
+    forever — a dead cron froze the fleet AND disarmed the Stop hook. Non-finite is the 900 s
+    default on both sides: a stale tick is a hold OFF, and this hook does not yield."""
+    import os as _os
+
+    project, state = held_project
+    (state / "fleet-exhausted").write_text("0")
+    tick = state / "old-tick.log"
+    tick.write_text("tick\n")
+    old = 10**9
+    _os.utime(tick, (old, old))
+    monkeypatch.setenv("QUOTA_STOP_TICK_STALE_S", "nan")
+    assert _run_stop(project, state, "s_nan_dead", "A,B", tick=str(tick)) != ""

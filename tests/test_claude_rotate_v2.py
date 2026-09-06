@@ -2172,3 +2172,57 @@ def test_a_weekly_walled_account_whose_session_is_also_spent_returns_at_the_late
     ]
     epoch, email, window = cr._next_session_relief(accounts, "active@test", NOW)
     assert epoch == NOW + 7200 and email == "both@test"
+
+
+# --- closing review 2026-09-06 (N2): P3-1 / P3-2 / P3-7 / P3-3 ---------------------------------
+def test_an_idle_sibling_under_both_bars_is_not_a_relief_candidate():
+    """P3-1 (HIGH): the session bucket collected EVERY weekly-healthy account — a 5h window always
+    has a future reset — so a full-window sibling behind an untrusted cache was broadcast fleet-wide
+    as "NEXT ACCOUNT AVAILABLE … resets at <2.5 h out>". Blocked ONLY by its session, or not a
+    relief candidate at all."""
+    accounts = [
+        _relief_row(
+            "idle", weekly=12.0, cap=99, session=12.0, fh_reset=NOW + 9000, wk_reset=NOW + 86400
+        )
+    ]
+    assert cr._next_session_relief(accounts, "active@test", NOW) is None
+
+
+def test_relief_uses_the_pickers_session_bar_not_the_drain_threshold(monkeypatch):
+    """P3-2: the picker refuses a target over ROTATE_TARGET_SESSION_MAX_PCT (85); relief keyed on
+    the 95 drain line promised the weekly reset for an account at 90% — an instant at which
+    nothing was pickable, re-broadcast every hour."""
+    monkeypatch.delenv("ROTATE_TARGET_SESSION_MAX_PCT", raising=False)
+    monkeypatch.delenv("ROTATE_DRAIN_THRESHOLD", raising=False)
+    accounts = [
+        _relief_row(
+            "band", weekly=99.0, cap=99, session=90.0, fh_reset=NOW + 36000, wk_reset=NOW + 3600
+        )
+    ]
+    epoch, email, _ = cr._next_session_relief(accounts, "active@test", NOW)
+    assert epoch == NOW + 36000 and email == "band@test"
+
+
+def test_a_reset_exactly_at_now_is_relief_now():
+    """P3-7: the board's `_returns_at` moved to `>=` this chain; relief kept `>` and dropped the
+    account at the instant it returned."""
+    accounts = [
+        _relief_row("at", weekly=10.0, cap=99, session=100.0, fh_reset=NOW, wk_reset=NOW + 86400)
+    ]
+    epoch, email, _ = cr._next_session_relief(accounts, "active@test", NOW)
+    assert epoch == NOW and email == "at@test"
+
+
+def test_cached_standby_whose_weekly_window_rolled_over_counts_as_empty(monkeypatch):
+    """P3-3: the rolled-over rescue applied to the 5h window only; a weekly-walled cached row
+    stayed refused for a whole probe cycle after its weekly reset, though the rationale ("an idle
+    account cannot burn fleet quota") is window-agnostic."""
+    monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
+    monkeypatch.setattr(cr, "_now", lambda: NOW)
+    rolled = _cand("rolledw", session=5.0, weekly=99.0, source="cache", age_s=4 * 3600.0)
+    rolled["weekly_cap"] = 99
+    rolled["seven_day"] = {"utilization": 99.0, "resets_at_epoch": NOW - 600}  # reset passed
+    walled = _cand("walledw", session=5.0, weekly=99.0, source="cache", age_s=600.0)
+    walled["weekly_cap"] = 99
+    walled["seven_day"] = {"utilization": 99.0, "resets_at_epoch": NOW + 3 * 86400}
+    assert cr._pick_flip_target([rolled, walled], exclude=set()) == ("rolledw", "rolledw@test")

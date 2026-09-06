@@ -29,6 +29,7 @@ flag. ROTATE_STATE_DIR is honored (the tick's own override) so tests never touch
 from __future__ import annotations
 
 import json
+import math
 import os
 import posixpath
 import re
@@ -488,6 +489,19 @@ def _tick_log() -> Path:
     )
 
 
+def _stale_after_s() -> float:
+    """QUOTA_STOP_TICK_STALE_S, or 900 when it is garbage or non-finite. An unguarded `float()`
+    here died with a traceback on EVERY tool call in every synced repo for a typo'd value
+    (closing review P3-5), and a NaN bound made `tick_age_s > stale` False forever — a dead
+    cron froze the fleet, the opposite of the documented direction (P3-6)."""
+    raw = os.environ.get("QUOTA_STOP_TICK_STALE_S", "900")
+    try:
+        v = float(raw)
+    except (TypeError, ValueError):
+        return 900.0
+    return v if math.isfinite(v) else 900.0
+
+
 def decide(
     tool: str,
     command: str | None,
@@ -499,7 +513,7 @@ def decide(
     """Pure decision. Returns (action, reason) with action ∈ {"allow", "deny", "allow_warn"}."""
     if not stamp_exists:
         return "allow", ""
-    stale_after = float(os.environ.get("QUOTA_STOP_TICK_STALE_S", "900"))
+    stale_after = _stale_after_s()
     if tick_age_s is None or tick_age_s > stale_after:
         return "allow_warn", (
             "quota-stop: the fleet-exhausted stamp exists but the rotation tick has not run for "

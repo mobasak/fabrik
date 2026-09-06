@@ -417,7 +417,7 @@ def _run_stop_with_transcript(
                 # 0, not now-120: the window covers [started, closed] and these tests are about
                 # gate ATTRIBUTION, not the review cause — a "command that covered everything" is
                 # expressed by a start at the epoch (the stamped edit sits at now+60, below)
-                "started_epoch": 0,
+                "started_epoch": 1.0,  # > 0: the reader refuses 0 like the writer does (E8)
                 # closed AFTER the stamped edit (now+60): the fixture means "a command covered this
                 # edit", so its window [0, now+120] must contain it — a close BEFORE the edit reads,
                 # correctly, as "authored after the close" and the sixth cause blocks

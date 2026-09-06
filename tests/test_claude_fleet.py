@@ -1294,9 +1294,7 @@ def test_fleet_tick_no_advisory_while_a_sibling_has_headroom(tmp_path, monkeypat
     assert actions["mails"] == [], "no drain mail while the fleet has headroom"
 
 
-def test_fleet_exhaustion_advisory_broadcasts_to_all_mailbox_repos(
-    tmp_path, monkeypatch, capsys
-):
+def test_fleet_exhaustion_advisory_broadcasts_to_all_mailbox_repos(tmp_path, monkeypatch, capsys):
     """When the ONLY account is walled (no sibling to flip to), the fleet-wide wall advisory
     fires and BROADCASTS to every mailbox repo — the wall concerns every project equally."""
     fleet, *_ = _canonical(tmp_path, monkeypatch)
@@ -1312,7 +1310,9 @@ def test_fleet_exhaustion_advisory_broadcasts_to_all_mailbox_repos(
 
     assert cr._cmd_tick() == 0
 
-    assert len(actions["telegrams"]) == 1, "the active account is walled with no relief → 1 advisory"
+    assert len(actions["telegrams"]) == 1, (
+        "the active account is walled with no relief → 1 advisory"
+    )
     assert "ob@ocoron.com" in actions["telegrams"][0]
     assert sorted(actions["mails"]) == ["fabrik", "seo", "youtube"]
 
@@ -1376,7 +1376,9 @@ def test_fleet_wall_advisory_future_dated_latch_is_invalid_and_still_fires(tmp_p
 
     assert cr._cmd_tick() == 0
 
-    assert len(actions["telegrams"]) == 1, "a future-dated (invalid) latch must not silence a live wall"
+    assert len(actions["telegrams"]) == 1, (
+        "a future-dated (invalid) latch must not silence a live wall"
+    )
 
 
 def test_fleet_wall_advisory_silent_when_a_headroom_sibling_relieves_the_wall(
@@ -3002,7 +3004,9 @@ def test_no_advisory_churn_from_reset_jitter_while_a_sibling_has_headroom(tmp_pa
         _fake_oauth(monkeypatch, usages=usages)
         assert cr._cmd_tick() == 0
 
-    assert actions["telegrams"] == [], "reset jitter must produce ZERO advisories while headroom exists"
+    assert actions["telegrams"] == [], (
+        "reset jitter must produce ZERO advisories while headroom exists"
+    )
     assert actions["mails"] == [], "and zero mail — the spam class is structurally gone"
 
 
@@ -3028,7 +3032,9 @@ def test_next_session_relief_prefers_the_soonest_session_reset_of_a_weekly_ok_si
         _row("act@x", 91.0, 40.0, cap=99, s_reset=now + 4000),  # the active — never its own relief
         _row("late@x", 97.0, 30.0, cap=90, s_reset=now + 9000, w_reset=now + 86400),
         _row("soon@x", 98.0, 27.0, cap=90, s_reset=now + 3000, w_reset=now + 90000),
-        _row("wk@x", 0.0, 100.0, cap=99, s_reset=None, w_reset=now + 1000),  # weekly-walled
+        # weekly-walled, resetting LATER than soon@x — D1 (2026-09-06): the soonest epoch across
+        # both buckets wins, so an earlier weekly reset would (correctly) be the relief
+        _row("wk@x", 0.0, 100.0, cap=99, s_reset=None, w_reset=now + 90000),
     ]
     assert cr._next_session_relief(rows, "act@x", now) == (now + 3000, "soon@x", "session")
 
@@ -3045,7 +3051,12 @@ def test_next_session_relief_falls_back_to_the_soonest_weekly_reset_when_every_s
 
 def test_next_session_relief_skips_stale_past_resets_and_returns_none_when_nothing_is_known():
     now = FLEET_NOW
-    assert cr._next_session_relief([_row("act@x", 91.0, 40.0), _row("a@x", 97.0, 10.0, s_reset=now - 5)], "act@x", now) is None
+    assert (
+        cr._next_session_relief(
+            [_row("act@x", 91.0, 40.0), _row("a@x", 97.0, 10.0, s_reset=now - 5)], "act@x", now
+        )
+        is None
+    )
     assert cr._next_session_relief([_row("act@x", 91.0, 40.0)], "act@x", now) is None
 
 
@@ -3056,17 +3067,22 @@ def test_urgent_drain_message_carries_the_operator_wording_and_the_resume_instan
     session figure. The invariants pinned here are unchanged; only the caller's contract moved."""
     now = 1_800_000_000
     reason = "its 5-hour session window is 91% CONSUMED"
-    msg = cr._urgent_drain_message("act@x", reason, (float(now), "soon@x", "session"))
+    # a relief IN THE FUTURE — a reset at/before `now` is a stale row the renderer no longer promises
+    msg = cr._urgent_drain_message("act@x", reason, (float(now + 3000), "soon@x", "session"))
     assert "URGENT" in msg and "STOP YOUR WORK ASAP" in msg and "GRACEFULLY" in msg
     assert reason in msg, "the notice must say WHICH window triggered it, in its own words"
-    assert "soon@x's session window resets" in msg
-    assert f"epoch {now + 60}" in msg  # resume = reset + 60 s, stated as a number the agent can sleep on
-    assert f"sleep $(( {now + 60} - $(date +%s) ))" in msg
+    # wording since e8f0473d (2026-09-05): "NEXT ACCOUNT AVAILABLE: <email> — its 5-hour window resets at …"
+    assert "soon@x" in msg and "resets at" in msg, msg
+    resume = int(now + 3000) + cr._drain_resume_lead_s()  # reset + lead, an integer epoch
+    assert f"epoch {resume}" in msg, msg
+    assert f"sleep $(( {resume} - $(date +%s) ))" in msg
     none = cr._urgent_drain_message("act@x", reason, None)
     assert "STOP YOUR WORK ASAP" in none and "no resume time can be given" in none
 
 
-def test_urgent_tier_fires_at_ninety_with_no_successor_and_names_the_resume_time(tmp_path, monkeypatch):
+def test_urgent_tier_fires_at_ninety_with_no_successor_and_names_the_resume_time(
+    tmp_path, monkeypatch
+):
     """The operator's rule end to end through the advisory: active at 91 session, every sibling
     unusable, → ONE telegram + ONE broadcast mail carrying the next session reset + 60 s; the
     latch then holds for the episode."""
@@ -3088,8 +3104,14 @@ def test_urgent_tier_fires_at_ninety_with_no_successor_and_names_the_resume_time
     cr._fleet_active_wall_advisory(rows, now, threshold=95.0)
     assert len(tg) == 1 and len(mails) == 1, (tg, mails)
     assert mails[0][0] == ["fabrik", "seo"]
-    assert "URGENT" in mails[0][1] and f"epoch {int(now + 1800) + 60}" in mails[0][1]
-    assert ledger[-1]["tier"] == "urgent-90" and ledger[-1]["resume_epoch"] == int(now + 1800) + 60
+    assert (
+        "URGENT" in mails[0][1]
+        and f"epoch {int(now + 1800) + cr._drain_resume_lead_s()}" in mails[0][1]
+    )
+    assert (
+        ledger[-1]["tier"] == "urgent-90"
+        and ledger[-1]["resume_epoch"] == int(now + 1800) + cr._drain_resume_lead_s()
+    )
     cr._fleet_active_wall_advisory(rows, now + 60, threshold=95.0)
     assert len(tg) == 1, "latched: one message per episode"
 
@@ -3105,11 +3127,17 @@ def test_urgent_tier_is_silent_below_ninety_and_while_a_successor_exists(tmp_pat
     monkeypatch.setattr(cr, "_ledger_append", lambda e: None)
     # 89: below the urgent line even with nobody available
     monkeypatch.setattr(cr, "_validated_pick", lambda accts, excl, **kw: None)
-    cr._fleet_active_wall_advisory([_row("act@x", 89.0, 40.0, cap=99, slug="act")], now, threshold=95.0)
+    cr._fleet_active_wall_advisory(
+        [_row("act@x", 89.0, 40.0, cap=99, slug="act")], now, threshold=95.0
+    )
     assert tg == []
     # 93 but a successor exists: the flip leg is the remedy, not the mail
     monkeypatch.setattr(cr, "_validated_pick", lambda accts, excl, **kw: ("fresh", "fresh@x"))
-    cr._fleet_active_wall_advisory([_row("act@x", 93.0, 40.0, cap=99, slug="act"), _row("fresh@x", 5.0, 5.0, slug="fresh")], now, threshold=95.0)
+    cr._fleet_active_wall_advisory(
+        [_row("act@x", 93.0, 40.0, cap=99, slug="act"), _row("fresh@x", 5.0, 5.0, slug="fresh")],
+        now,
+        threshold=95.0,
+    )
     assert tg == []
 
 
@@ -3263,7 +3291,7 @@ def test_the_latch_refires_once_the_promised_resume_instant_has_passed(tmp_path,
 
     cr._fleet_active_wall_advisory(rows, now, threshold=95.0)
     assert len(sent) == 1, "the wall fires once on entry"
-    assert f"epoch {int(relief) + 60}" in sent[0]
+    assert f"epoch {int(relief) + cr._drain_resume_lead_s()}" in sent[0]
 
     # still walled five minutes later, well before the promise comes due → silent
     cr._fleet_active_wall_advisory(rows, now + 300.0, threshold=95.0)
@@ -3274,7 +3302,9 @@ def test_the_latch_refires_once_the_promised_resume_instant_has_passed(tmp_path,
     rows[1]["five_hour"]["resets_at_epoch"] = later + 3600.0  # the window rolled, still walled
     cr._fleet_active_wall_advisory(rows, later, threshold=95.0)
     assert len(sent) == 2, "a broken promise must re-arm the latch, not extend the silence"
-    assert f"epoch {int(later + 3600.0) + 60}" in sent[1], "the new message carries the NEXT time"
+    assert f"epoch {int(later + 3600.0) + cr._drain_resume_lead_s()}" in sent[1], (
+        "the new message carries the NEXT time"
+    )
 
 
 def test_a_stamp_written_before_the_promise_field_existed_does_not_refire_every_tick(
@@ -3322,7 +3352,9 @@ def test_the_urgent_message_does_not_promise_a_switch_it_cannot_guarantee(tmp_pa
     time you wake". It had not, 10h later. A message that asserts a future state the machinery
     does not control is a false claim broadcast to every repo."""
     msg = cr._urgent_drain_message(
-        "act@x", "its 5-hour session window is 90% CONSUMED", (FLEET_NOW + 1800.0, "sib@x", "session")
+        "act@x",
+        "its 5-hour session window is 90% CONSUMED",
+        (FLEET_NOW + 1800.0, "sib@x", "session"),
     )
     assert "will have switched" not in msg
     assert "EXPECTED, not promised" in msg
@@ -3388,7 +3420,10 @@ def test_ping_slots_and_promised_resume_hold_at_their_edges(tmp_path, monkeypatc
     monkeypatch.setenv("ROTATE_REFRESH_MAX_PER_RUN", "3")
     assert cr._ping_slots(groups, cache, FLEET_NOW) == {"a@x"}, "guard: it would fire otherwise"
     # an account with no credentialed dir has no chain to ping
-    assert cr._ping_slots({"b@x": [{"slug": "d1", "dir": tmp_path, "mtime": None}]}, {}, FLEET_NOW) == set()
+    assert (
+        cr._ping_slots({"b@x": [{"slug": "d1", "dir": tmp_path, "mtime": None}]}, {}, FLEET_NOW)
+        == set()
+    )
 
     stamp = tmp_path / "state" / "probe-stamp"
     for content in ("", "not-a-number", "0"):
@@ -3439,12 +3474,19 @@ def test_an_operator_cap_says_so_rather_than_claiming_the_window_is_full():
 
 
 def test_a_session_drain_names_the_session_window_and_its_unit():
-    row = {"email": "ob@ocoron.com", "five_hour": {"utilization": 94.0}, "seven_day": {"utilization": 40.0}, "weekly_cap": None}
+    row = {
+        "email": "ob@ocoron.com",
+        "five_hour": {"utilization": 94.0},
+        "seven_day": {"utilization": 40.0},
+        "weekly_cap": None,
+    }
     reason = cr._drain_trigger_reason(row, session_pct=94.0, walled=False)
     msg = cr._urgent_drain_message("ob@ocoron.com", reason, None)
 
     assert "5-hour session" in msg and "94%" in msg
-    assert "CONSUMED" in msg, "name the unit — '90%' and '10%' both ordered a stop on consecutive days"
+    assert "CONSUMED" in msg, (
+        "name the unit — '90%' and '10%' both ordered a stop on consecutive days"
+    )
 
 
 def test_the_self_scheduled_sleep_is_a_courtesy_and_the_relay_is_the_mechanism():
@@ -3453,7 +3495,9 @@ def test_the_self_scheduled_sleep_is_a_courtesy_and_the_relay_is_the_mechanism()
     it is timing. An agent that reads self-scheduling as coverage believes it is protected while
     nothing is running."""
     relief = (1788530459.0, "can@ocoron.com", "session")
-    msg = cr._urgent_drain_message("ob@ocoron.com", "its 5-hour session window is 94% CONSUMED", relief)
+    msg = cr._urgent_drain_message(
+        "ob@ocoron.com", "its 5-hour session window is 94% CONSUMED", relief
+    )
 
     low = msg.lower()
     assert "follow-up notice" in low, "the relay must be named as the mechanism"
@@ -3461,4 +3505,6 @@ def test_the_self_scheduled_sleep_is_a_courtesy_and_the_relay_is_the_mechanism()
     assert relay_at < sleep_at, "the relay must LEAD; the timer is secondary"
     assert "courtesy" in low
     assert "session-scoped" in low or "dies with" in low, "say WHY the timer cannot be relied on"
-    assert "1788530519" in msg, "the concrete resume epoch (reset + 60s) must still be there"
+    assert str(1788530459 + cr._drain_resume_lead_s()) in msg, (
+        "the concrete resume epoch (reset + lead) must still be there"
+    )

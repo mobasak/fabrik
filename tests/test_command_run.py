@@ -3154,10 +3154,49 @@ def test_start_seeds_the_ledger_from_a_pre_ledger_closed_record(tmp_path: Path) 
     run_dir.mkdir()
     _start(run_dir)
     rec = _rec(run_dir)
-    rec.update({"state": "done", "updated_ts": rec["started_epoch"] + 600})
+    # the REAL close shape: `_touch` floors updated_ts to whole seconds (C-5)
+    rec.update({"state": "done", "updated_ts": int(rec["started_epoch"]) + 600})
     rec.pop("covered", None)  # the pre-ledger shape
     (path,) = list(run_dir.glob("*.json"))
     path.write_text(json.dumps(rec))
     _start(run_dir)
     got = _rec(run_dir)["covered"]
     assert got == [[rec["started_epoch"], rec["updated_ts"]]], got
+    # and a post-ledger close is seeded exactly ONCE across the next start (C-1: the float
+    # close vs the int touch used to miss the dedupe on a second boundary — 2 of 20 runs)
+    rec2 = _rec(run_dir)
+    _cr(run_dir, "done", "--command", rec2["command"], "--evidence", "x", "--feedback", _PROBE)
+    _start(run_dir)
+    assert len(_rec(run_dir)["covered"]) == 2, _rec(run_dir)["covered"]
+
+
+def test_a_reaped_record_is_never_seeded_into_the_ledger(tmp_path: Path) -> None:
+    """C-2: the coroner's `died`/`expired` close runs no agent reviewed."""
+    run_dir = tmp_path / "runs"
+    run_dir.mkdir()
+    _start(run_dir)
+    rec = _rec(run_dir)
+    rec.update(
+        {"state": "expired", "closed_by": "ttl", "updated_ts": int(rec["started_epoch"]) + 600}
+    )
+    rec.pop("covered", None)
+    (path,) = list(run_dir.glob("*.json"))
+    path.write_text(json.dumps(rec))
+    _start(run_dir)
+    assert _rec(run_dir)["covered"] == []
+
+
+def test_nested_runs_grow_the_ledger_linearly_not_exponentially(tmp_path: Path) -> None:
+    """C-4/E1: copying the parent's ledger into the child and joining it back doubled the ledger
+    per nest cycle — 2047 windows after ten phase boundaries."""
+    run_dir = tmp_path / "runs"
+    run_dir.mkdir()
+    _start(run_dir)  # the outer run
+    outer = _rec(run_dir)["command"]
+    for _ in range(6):
+        _start(run_dir)  # a nested review at a phase boundary
+        inner = _rec(run_dir)["command"]
+        _cr(run_dir, "done", "--command", inner, "--evidence", "x", "--feedback", _PROBE)
+    _cr(run_dir, "done", "--command", outer, "--evidence", "x", "--feedback", _PROBE)
+    n = len(_rec(run_dir)["covered"])
+    assert n <= 7, n
