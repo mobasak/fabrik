@@ -19,6 +19,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -3586,3 +3587,32 @@ def test_an_active_in_the_drain_band_with_no_eligible_sibling_stays_put(
     out = capsys.readouterr().out
     assert os.readlink(fleet / "active") == "seo", out
     assert "drain-band relief" not in out and "no flip" in out, out
+
+
+def test_relief_flips_even_within_the_dwell_of_the_last_flip(tmp_path, monkeypatch, capsys):
+    """Native reader R2 (HIGH), end to end: a flip five minutes ago used to hold the relief while the
+    advisory leg lifted the hold — every released session landed on the drained account for up to
+    30 min. Relief is dwell-exempt; the ledger row is `kind: relief`."""
+    fleet = _drain_relief_fleet(tmp_path, monkeypatch, active=(93.0, 97.0), successor=(0.0, 19.0))
+    ledger = tmp_path / "state" / "rotate-ledger.jsonl"
+    ledger.parent.mkdir(exist_ok=True)
+    ledger.write_text(
+        json.dumps(
+            {
+                "event": "flip",
+                "ts": time.time() - 300,
+                "from": "intel",
+                "to": "seo",
+                "at_pct": 96.0,
+                "via": "tick",
+            }
+        )
+        + "\n"
+    )
+    capsys.readouterr()
+    assert cr._cmd_tick() == 0
+    out = capsys.readouterr().out
+    assert os.readlink(fleet / "active") == "intel", out
+    rows = [json.loads(ln) for ln in ledger.read_text().splitlines()]
+    assert rows[-1]["event"] == "flip" and rows[-1]["kind"] == "relief", rows[-1]
+    assert (rows[-1]["from"], rows[-1]["to"]) == ("seo", "intel"), rows[-1]

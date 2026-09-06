@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: scripts/sysadmin/bot.py, scripts/aro-wake/main.py, scripts/sysadmin/claude_rotate.py, scripts/aro-wake/claude_rotate.py
+# AFTER-EDIT: scripts/sysadmin/bot.py, scripts/aro-wake/main.py, scripts/sysadmin/claude_rotate.py, scripts/aro-wake/claude_rotate.py | docs/workstation/claude-account-rotation.md
 # NB: this file is vendored BYTE-IDENTICAL into scripts/sysadmin/ and scripts/aro-wake/
 # (separate rsync trees + venvs on each host — no shared import). Keep the two copies identical.
 """Claude Code CLI usage-limit detection + bounded account rotation.
@@ -2834,7 +2834,12 @@ def _identity_probe_result(slug: str) -> str | None:
 
 
 def _flip_active(
-    slug: str, *, manual: bool = False, ignore_dwell: bool = False, at_pct: float | None = None
+    slug: str,
+    *,
+    manual: bool = False,
+    ignore_dwell: bool = False,
+    at_pct: float | None = None,
+    kind: str | None = None,
 ) -> bool:
     """Repoint ``active`` at *slug*'s fleet dir — the ONLY rotation act in fleet mode.
 
@@ -2956,6 +2961,10 @@ def _flip_active(
             "to": slug,
             "at_pct": at_pct,
             "via": "switch" if manual else "tick",
+            # trip / relief / repair / dead-chain — `at_pct` alone no longer says what fired
+            # (native reader R9: a relief flip ledgers the hottest window of an account that
+            # tripped nothing, in the same shape as a trip)
+            "kind": kind or ("switch" if manual else "trip"),
         }
     )
     return True
@@ -3217,6 +3226,15 @@ def _validated_pick(
         if live_reason is not None:
             exclude.add(email)
             continue
+        # the VERIFIED reading replaces the cache in the shared row: every later reader of this
+        # tick (the relief band test, the advisory leg) sees what the probe saw — a rosy cache
+        # (10/10) whose live probe read 20/88 was relief-flipped to as "headroom" (native reader
+        # R3, 2026-09-07)
+        for k in ("five_hour", "seven_day"):
+            if isinstance(windows.get(k), dict):
+                row[k] = windows[k]
+        row["source"] = "live"
+        row["age_s"] = 0.0  # the metadata follows the reading: probed THIS tick
         return pick
 
 
@@ -3925,7 +3943,7 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
         if slug is None:
             print("tick: active pointer missing and NO credentialed dir exists — cannot repair")
             return
-        if _flip_active(slug, ignore_dwell=True):
+        if _flip_active(slug, ignore_dwell=True, kind="repair"):
             print(f"tick: active pointer missing/dangling — repaired -> {slug}")
         else:
             print(f"tick: active pointer missing — repair flip to {slug} withheld (see stderr)")
@@ -3943,7 +3961,7 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
         pick = _validated_pick(accounts, {row["email"]})
         if pick is not None:
             slug, email = pick
-            if _flip_active(slug, ignore_dwell=True):
+            if _flip_active(slug, ignore_dwell=True, kind="dead-chain"):
                 print(f"tick: active {row['email']} chain DEAD — flipped -> {email} ({slug})")
                 _tick_telegram(
                     f"active account {row['email']} OAuth chain is DEAD (refresh ping failed;"
@@ -4000,36 +4018,56 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
         # hysteresis that prevents ping-pong), under the ordinary dwell (this is relief, not a wall).
         drain_thr = _env_float("ROTATE_DRAIN_THRESHOLD", 85.0)
         if hot >= drain_thr and not _switch_paused():
-            # COST (scoped review F7): one `_validated_pick` per in-band tick — a live probe of a
-            # CACHED candidate at most, bounded by the tick period and by the flip itself (a
-            # successful relief moves the pointer off the band; a dwell-withheld one re-tries
-            # for at most ROTATE_DWELL_MIN). The advisory leg's own pick call is unchanged.
-            pick = _validated_pick(accounts, {row["email"]})
-            if pick is not None:
+            # COST: up to ONE HTTP usage probe per CACHED candidate per in-band tick (no
+            # `claude -p` on this path) — the walk-down below excludes every candidate it
+            # rejects, so the bound is the fleet size, and a successful relief moves the pointer
+            # off the band. The advisory leg's own pick call is unchanged.
+            exclude = {row["email"]}
+            relief = None
+            for _ in range(len(accounts)):  # explicit bound; every iteration excludes an email
+                # walk DOWN the ranking (native reader R1): the band test lives outside
+                # `_validated_pick`, so an in-band candidate ranked first (perishable-first) used
+                # to block relief for good with no fall-through — the incident, verbatim
+                pick = _validated_pick(accounts, exclude, verbose=True)
+                if pick is None:
+                    break
                 slug, email = pick
                 prow = next((r for r in accounts if r.get("email") == email), None) or {}
                 # the successor's utils through the SAME verdict the picker applied — it carries
-                # the rolled-over cache rescue; raw utils read a just-reset cached sibling as
-                # 100/100 and refused relief for exactly the account that had just become usable
-                # (scoped review F1). `_validated_pick` probes live but never writes the live
-                # reading back into `accounts`.
+                # the rolled-over cache rescue (scoped review F1)
                 _ps, putils, _pr = _flip_candidate_verdict(prow, threshold)
-                pu = [float(v) for v in putils.values() if isinstance(v, (int, float))]
-                if pu and max(pu) < drain_thr:
-                    if _flip_active(slug, at_pct=hot):
-                        print(
-                            f"tick: drain-band relief — active {row['email']} at {hot:.0f}% "
-                            f"(≥ drain {drain_thr:.0f}%) while {email} has headroom "
-                            f"({max(pu):.0f}%) — flipped -> {email} ({slug})"
-                        )
-                        _tick_telegram(
-                            f"relief: {email} has headroom ({max(pu):.0f}%) — flipped the fleet "
-                            f"pointer off {row['email']} ({hot:.0f}%, drain band)"
-                        )
-                        return
+                fv, wv = putils.get("five_hour"), putils.get("seven_day")
+                # BOTH windows readable and below the band (R7: a missing weekly failed OPEN)
+                if (
+                    isinstance(fv, (int, float))
+                    and isinstance(wv, (int, float))
+                    and max(fv, wv) < drain_thr
+                ):
+                    relief = (slug, email, max(float(fv), float(wv)))
+                    break
+                exclude.add(email)
+            if relief is not None:
+                slug, email, top = relief
+                # DWELL-EXEMPT (native reader R2): a dwell-held relief left the advisory leg
+                # lifting the hold onto the drained pointer for up to 30 min — the incident
+                # through another door. The strict-both-windows hysteresis already guarantees the
+                # new active is out of the band, so relief flips cannot chain without FRESH burn
+                # on the new active (a later hop caused by real use is a legitimate flip, not a
+                # bounce); the dwell bought nothing here.
+                if _flip_active(slug, at_pct=hot, ignore_dwell=True, kind="relief"):
                     print(
-                        f"tick: drain-band relief flip {row['email']} -> {slug} withheld (see stderr)"
+                        f"tick: drain-band relief — active {row['email']} at {hot:.0f}% "
+                        f"(≥ drain {drain_thr:.0f}%) while {email} is at {top:.0f}% "
+                        f"— flipped -> {email} ({slug})"
                     )
+                    _tick_telegram(
+                        f"relief: {email} is at {top:.0f}% — flipped the fleet pointer off "
+                        f"{row['email']} ({hot:.0f}%, drain band)"
+                    )
+                    return
+                print(
+                    f"tick: drain-band relief flip {row['email']} -> {slug} withheld (see stderr)"
+                )
         proj = max(burn.values())
         print(
             f"tick: active {row['email']} at {hot:.0f}%"
@@ -4067,7 +4105,7 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
     # ob within dwell (30m of the last flip) — holding` until the operator switched by hand. Churn
     # is already prevented where it belongs — the candidate predicate never targets a sibling at
     # or over the threshold or without 5h budget — so the dwell has nothing left to protect here.
-    if _flip_active(slug, at_pct=at_pct, ignore_dwell=True):
+    if _flip_active(slug, at_pct=at_pct, ignore_dwell=True, kind="trip"):
         print(f"tick: flipped active {row['email']} -> {email} ({slug}) {at_desc}")
     else:
         print(f"tick: flip {row['email']} -> {email} ({slug}) withheld (see stderr)")
@@ -4337,9 +4375,10 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     with headroom and every agent keeps working. The "reach a checkpoint before the wall"
     advisory is TRUE only when the account agents are ACTUALLY using is walled and this tick
     could not relieve it (no successor with headroom, or the operator's pause held the flip).
-    (Historical: until 2026-09-03 a flip could be held by the 30-min dwell; trips are dwell-exempt now,
-    D-104, so this branch is reachable only through the pause.) A flip merely held while a headroom sibling exists is NOT
-    exhaustion — relief is minutes away — so it is suppressed. Firing per-account on every ≥85%
+    (Trips are dwell-exempt since 2026-09-03, D-104, and so are drain-band relief flips since
+    2026-09-07, R2 — the branch is reachable through the pause, or when relief refused every
+    candidate.) A flip merely held while a headroom sibling exists is NOT exhaustion, so it is
+    suppressed. Firing per-account on every ≥85%
     crossing was both spam — 10 near-identical mails on 2026-08-25, trade-intelligence 01M0YAB2 —
     and a false alarm. Fire once on entry to the walled state; suppress while it persists (the
     latch); re-arm the instant relief arrives, on a future-dated (clock-skew) stamp, or after a

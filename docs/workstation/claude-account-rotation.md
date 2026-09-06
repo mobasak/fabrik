@@ -66,6 +66,14 @@ The `*/5` tick reads every account dir (five as of 2026-09-06 — it discovers t
   (`docs/workstation/quota-dashboard.md` § the rotation trigger). The **weekly** leg is governed by the account's `caps.json` cap when one exists
   (the cap IS the operator's weekly rule — a cap of 99 trips at 99, not at the session threshold) and by
   `ROTATE_THRESHOLD` otherwise; the 5-hour leg is never cap-gated.
+- **Drain-band relief flip (D-171, 2026-09-06; hardened 2026-09-07):** a SECOND flip trigger, below the trip
+  line. When the active account's hottest window is at/over `ROTATE_DRAIN_THRESHOLD` (default **85**) but not
+  tripped, and a live-validated sibling is BELOW 85 on both windows (the strict-both-windows hysteresis that
+  stops ping-pong), the tick flips to it — walking down the ranking past in-band candidates, dwell-exempt like
+  a trip, ledgered with `kind: relief`. Born of the 23:01–23:17 incident: the hold lifted on ozgurbasak@'s
+  reset while the pointer stayed on mob@ (93/97, cap 99) because only a trip moved it. Accepted cost: the
+  85→cap weekly band of the account flipped away from is deferred, not spent. The board's fast path keys on
+  the session line, so a weekly-driven relief waits for the `*/5` cron tick.
 - **URGENT drain at 90 with NO successor (operator rule 2026-09-03, `_urgent_drain_pct`, `ROTATE_URGENT_DRAIN_PCT`):**
   when the ACTIVE account's session is at/over **90** and `_validated_pick` finds no eligible sibling (every
   one session-exhausted, weekly-walled or cap-walled), the wall advisory fires FIVE POINTS EARLY — the runway a
@@ -377,5 +385,7 @@ Scripts that declare this document in their `# AFTER-EDIT:` header — editing o
 means updating this page in the same change. This list is generated from those headers
 (`python3 scripts/render_doc_script_links.py`); add the doc to a script's header, not here.
 
+- `scripts/aro-wake/claude_rotate.py`
+- `scripts/sysadmin/claude_rotate.py`
 - `scripts/sysadmin/quota_dashboard.py`
 <!-- END related-scripts -->

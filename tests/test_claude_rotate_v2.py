@@ -1584,6 +1584,16 @@ def test_fleet_flip_leg_holds_below_the_line_and_flips_at_it_on_the_session_wind
     # this fixture's state dir, so the projection adds 0 and the raw reading is what decides.
     cr._fleet_flip_leg([], rows(84.0), threshold=cr._rotate_threshold())
     assert flips == [], capsys.readouterr().out
+    # …and 94 with the sibling IN the band (weekly 87) still holds — the trip line keeps its local
+    # power against a 90 mutant (native reader R10)
+    in_band = rows(94.0)
+    in_band[1]["seven_day"]["utilization"] = 87.0
+    # forget the 84 reading first: the PROJECTED trip (reading + burn since the last probe) would
+    # read 84 -> 94 as +10 and trip at 104 — the probe is about the raw line, not the projection
+    (cr._rotate_state_dir() / "tick-last-reading.json").unlink(missing_ok=True)
+    cr._fleet_flip_leg([], in_band, threshold=cr._rotate_threshold())
+    assert flips == [], capsys.readouterr().out
+    (cr._rotate_state_dir() / "tick-last-reading.json").unlink(missing_ok=True)
     cr._fleet_flip_leg([], rows(95.2), threshold=cr._rotate_threshold())
     assert flips == ["can"], capsys.readouterr().out
 
@@ -2304,3 +2314,110 @@ def test_drain_band_relief_reads_a_cached_successor_through_the_rolled_over_resc
     ]
     cr._fleet_flip_leg([], rows, threshold=cr._rotate_threshold())
     assert flips == ["oz"], capsys.readouterr().out
+
+
+def _relief_rows_base(monkeypatch, flips):
+    monkeypatch.setattr(cr, "_resolve_active", lambda: "mob")
+    monkeypatch.setattr(cr, "_now", lambda: NOW)
+    monkeypatch.setattr(
+        cr,
+        "_flip_active",
+        lambda slug, **kw: flips.append((slug, kw.get("kind"), kw.get("ignore_dwell"))) or True,
+    )
+    monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
+    monkeypatch.setattr(cr, "_tick_telegram", lambda msg: None)
+    monkeypatch.setattr(cr, "_ledger_append", lambda e: None)
+    monkeypatch.setattr(cr, "_switch_paused", lambda: False)
+
+
+def _live(email, slug, s, w, w_reset=None, cap=99):
+    return {
+        "email": email,
+        "slugs": [slug],
+        "source": "live",
+        "valid": True,
+        "weekly_cap": cap,
+        "five_hour": {"utilization": s, "resets_at_epoch": NOW + 3600},
+        "seven_day": {
+            "utilization": w,
+            "resets_at_epoch": NOW + (w_reset if w_reset is not None else 86400),
+        },
+    }
+
+
+def test_relief_walks_past_an_in_band_candidate_ranked_first(monkeypatch, capsys):
+    """Native reader R1 (HIGH): the band test lived outside `_validated_pick`, so an in-band
+    candidate ranked first by perishable-first blocked relief for good — the incident verbatim.
+    Real `_validated_pick`, all rows live: the in-band sibling (84/86, weekly reset in 30 min) ranks
+    first; relief must walk past it to the fresh one."""
+    flips = []
+    _relief_rows_base(monkeypatch, flips)
+    rows = [
+        _live("mob@ocoron.com", "mob", 93.0, 97.0),
+        _live("sarp@ocoron.com", "sarp", 84.0, 86.0, w_reset=1800),
+        _live("oz@ocoron.com", "oz", 0.0, 19.0),
+    ]
+    cr._fleet_flip_leg([], rows, threshold=cr._rotate_threshold())
+    assert flips and flips[0][0] == "oz", (flips, capsys.readouterr().out)
+
+
+def test_relief_is_dwell_exempt_and_ledgered_as_relief(monkeypatch, capsys):
+    """Native reader R2/R9: a dwell-held relief left the advisory leg lifting the hold onto the
+    drained pointer for up to 30 min; the ledger row names its kind."""
+    flips = []
+    _relief_rows_base(monkeypatch, flips)
+    rows = [_live("mob@ocoron.com", "mob", 93.0, 97.0), _live("oz@ocoron.com", "oz", 0.0, 19.0)]
+    cr._fleet_flip_leg([], rows, threshold=cr._rotate_threshold())
+    assert flips == [("oz", "relief", True)], (flips, capsys.readouterr().out)
+
+
+def test_repair_and_dead_chain_flips_are_ledgered_by_their_kind(monkeypatch, capsys):
+    """Pool readers: every `_flip_active` caller without a `kind` ledgered as a trip."""
+    flips = []
+    monkeypatch.setattr(
+        cr, "_flip_active", lambda slug, **kw: flips.append((slug, kw.get("kind"))) or True
+    )
+    monkeypatch.setattr(cr, "_tick_telegram", lambda msg: None)
+    monkeypatch.setattr(cr, "_ledger_append", lambda e: None)
+    monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
+    monkeypatch.setattr(cr, "_now", lambda: NOW)
+    monkeypatch.setattr(cr, "_switch_paused", lambda: False)
+    monkeypatch.setattr(cr, "_resolve_active", lambda: None)  # missing pointer → repair
+    cr._fleet_flip_leg(
+        [], [_live("oz@ocoron.com", "oz", 0.0, 19.0)], threshold=cr._rotate_threshold()
+    )
+    assert flips == [("oz", "repair")], (flips, capsys.readouterr().out)
+
+
+def test_relief_needs_both_windows_readable(monkeypatch, capsys):
+    """Native reader R7: a successor with no weekly reading passed the band test on its session
+    alone — fail OPEN. Both windows, or no relief."""
+    flips = []
+    _relief_rows_base(monkeypatch, flips)
+    oz = _live("oz@ocoron.com", "oz", 10.0, 19.0)
+    oz["seven_day"] = {"utilization": None, "resets_at_epoch": None}
+    rows = [_live("mob@ocoron.com", "mob", 93.0, 97.0), oz]
+    cr._fleet_flip_leg([], rows, threshold=cr._rotate_threshold())
+    assert flips == [], (flips, capsys.readouterr().out)
+
+
+def test_a_verified_live_reading_replaces_the_cached_row(monkeypatch):
+    """Native reader R3: `_validated_pick` verified a live probe and then discarded it; the relief
+    band test read the rosy cache (10/10) while the probe said 20/88."""
+    monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
+    monkeypatch.setattr(cr, "_now", lambda: NOW)
+    monkeypatch.setattr(cr, "_read_access_token", lambda d: "tok")
+    monkeypatch.setattr(cr, "_stale_snapshot_reason", lambda *a, **k: None) if hasattr(
+        cr, "_stale_snapshot_reason"
+    ) else None
+    live = {
+        "five_hour": {"utilization": 20.0, "resets_at_epoch": NOW + 3600},
+        "seven_day": {"utilization": 88.0, "resets_at_epoch": NOW + 86400},
+    }
+    monkeypatch.setattr(cr, "_oauth_get", lambda *a, **k: live)
+    cached = _live("oz@ocoron.com", "oz", 10.0, 10.0)
+    cached["source"] = "cache"
+    cached["age_s"] = 60.0
+    pick = cr._validated_pick([cached], set())
+    assert pick is not None, "the live probe (20/88, under every bar) must validate the candidate"
+    assert cached["source"] == "live" and cached["seven_day"]["utilization"] == 88.0, cached

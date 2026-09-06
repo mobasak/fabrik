@@ -4,6 +4,61 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — quota board: nine defects in the external-services matrix, found by its own scoped review (2026-09-07)
+
+Three rounds of `/fabrik-review-scoped` over a9e5fd4a, each closing with three independent pool readers.
+The board-freezing class turned out to have a THIRD instance and the detector's own precision claim was
+partly false:
+- `exists()`-then-`stat()` raced `assemble_commands.py`, which PRUNES the very directory the matrix reads.
+  The `FileNotFoundError` came out of `_load_commands` → `render` → `generate` on the regeneration thread —
+  the same shape as the freeze this feature's commit had just fixed. Now `_mtime_key`, which never raises.
+- `read_text` raises `UnicodeDecodeError`, a ValueError, which `except OSError` does not catch: one
+  non-UTF-8 byte in one command file killed the board. Guarded on both reads (the description parse was
+  unguarded entirely — pre-existing).
+- The cache keyed on mtime alone, so a timestamp-preserving rewrite (`cp -p`, a restore) was invisible.
+  Size is in the key now. The residual same-size-same-mtime case is an accepted limit: closing it means
+  re-reading the whole corpus on every page load.
+- The intro asserted the data came from the rendered corpus unconditionally — false whenever a row fell
+  back, which the caveat then contradicted two sentences later. It now prints `N of M rows read from the
+  rendered commands`, and the caveat NAMES the rows rather than only counting them.
+- ⚠️ The only `cit` dot on the whole board was `fabrik-data-contract` saying the citation verifier
+  "does not apply here" — the column was one negation. A text match cannot read negation, so the bare
+  SERVER NAME came out of that pattern and **the page now states the limit** instead of claiming a
+  precision the method does not have. `cit` is honestly 0 of 35.
+- Two false negatives: `gh search` at end of line (the alternation demanded a trailing space; now `\b`)
+  and the browser MCPs named in backticks. `gh` 1 → 2, `brw` 4 → 6. Deliberately NOT widened to any
+  `gh <word>`: the corpus contains the prose "gh unavailable", which would earn a false dot.
+- A mutation deleting the source fallback passed every test — the absent-rendered assertions were all
+  NEGATIVE, and an empty set satisfies them. Pinned positively.
+
+Refuted with proof, recorded so they are not re-raised: the single-slot cache cannot resurrect rows under a
+returning key; `render` has one production caller and it holds `_gen_lock`, so `_load_commands` is never
+concurrent; `html.escape` defaults to `quote=True`, so a registry title carrying a quote cannot break its
+attribute. 89 tests green, every fix proven red on revert.
+
+
+### Fixed — drain-band relief flip hardened: walks the ranking, dwell-exempt, live reading written back (2026-09-07)
+
+The native reader on b61e3f06 (12 findings, 9 fixed): the band test lived outside `_validated_pick`, so an
+in-band candidate ranked first by perishable-first blocked relief for good with no fall-through — the incident
+verbatim (R1; relief now walks DOWN the ranking); a dwell-held relief left the advisory leg lifting the hold
+onto the drained pointer for up to 30 min (R2; relief is dwell-exempt like a trip — the strict hysteresis
+already guarantees it cannot chain); `_validated_pick` verified a live probe and discarded it, so the band
+test read a rosy cache (R3; the verified reading now replaces the cached row); a successor with no weekly
+reading passed on its session alone (R7; both windows or nothing); the ledger row names its `kind`
+(trip / relief / switch — R9); "headroom (10%)" printed a utilization (R8); `verbose=True` on the relief pick
+(R11); the advisory docstring's dwell rationale (R12); the rotation doc gained the relief trigger and the
+script's `# AFTER-EDIT` header names it (R5). R10: a 94-with-in-band-sibling probe restores the trip line's
+local power. Refuted: R4 (see D-174), R6 is the board mirror (its own change). Six graders, each seen red
+on the pre-fix file. Pool readers on the fix (three families, all returned): the repair and dead-chain flips
+now ledger their own `kind`; the live write-back also resets `age_s`; the walk-down carries an explicit bound
+and an honest cost note (up to one probe per cached candidate per in-band tick).
+
+### Changed — ONE seven-line FINAL OUTPUT block in every repo, enforced by the Stop hook (2026-09-07)
+- Operator directive (D-173): the hub, the 45 project copies of `templates/governance/CLAUDE.md` and fabrik-lib's CLAUDE.md must close a task-completing response with the same seven lines. Measured: 48 of 49 `/opt/*/CLAUDE.md` already identical; fabrik-lib's block had six lines (no `FEEDBACK:`) and an Aug-29 hook copy — requested by mail 01M1W9BJT801DKGD58Z0Y07MAQ (its CLAUDE.md is their staged WIP).
+- `.claude/hooks/final_gate_stop.py::_detect_stall` (fleet-synced): the stall lane now refuses a block that carries some of the seven keys but not all — `final-block-incomplete`, naming the missing keys — where it used to refuse only a missing `FEEDBACK:` (a block without DOCS UPDATED/CHANGELOG/LESSONS LEARNT passed as complete). `NEXT:` never counts toward "a block is being emitted", so the two-line STATE/NEXT footer stays exempt. Three red-first tests.
+- `CLAUDE.md` § UNIVERSAL governance markers gains `final-output-block` (anchor `last 7 lines of every task-completing response`), so fabrik-lib's drift check flags its variant heading without another mail.
+
 ### Fixed — a review-family run's covered window reaches back to the previous window's close (2026-09-07)
 
 The Stop hook's sixth cause blocked a session on the very commit its scoped review had just closed
@@ -38,8 +93,13 @@ of its two callers ever passed `now`** — so from the moment the balance cache 
 every regeneration raised `TypeError: unsupported operand type(s) for -: 'NoneType' and 'float'`.
 `_generate_locked` calls it under a comment promising the pool "can never break the board", but the
 try/except that comment describes was never written, and `_regen_async` runs `generate()` on a daemon
-thread that swallows the traceback — so the board froze at its last good page with no visible error
-and kept claiming a live refresh. `--once` died with the same traceback. Both halves fixed at the
+thread — so the board froze at its last good page while its own header kept claiming a live refresh.
+⚠️ Precisely: the traceback was NOT swallowed. `threading`'s default excepthook wrote it to the
+server's log (`~/.claude/quota-dashboard.log`, 16 `Exception in thread quota-regen` blocks by the time
+it was found), and the probe loop logged its own line beside it. Nothing was silent except the place
+anyone looks — the PAGE, which showed a stale render with a fresh-looking "refreshes every 20s"
+header and no banner. That is the real lesson: a failure written only to an unwatched log is
+operationally identical to a swallowed one. `--once` died with the same traceback, visibly. Both halves fixed at the
 root: `now` defaults to `time.time()`, and the promised guard now exists (a missing balance is a
 missing panel, never a dead board). Introduced 2026-09-04 in 610c01b8 (fleet); 2 graders, both proven
 red on revert; verified live — the board's stamp now tracks within 20s of wall clock.
