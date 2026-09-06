@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the fleet quota picture: every agent in every repo can query the whole rotation state (2026-09-07)
+
+Operator directive: "all agents (in fabrik-lib, opt project folders, fabrik's 3 agents) should be able to reach/query
+the entire picture of the account's usage statistics, what is active, what is exhausted, what is coming next".
+`claude_rotate.py --status` now ends with the picture — the hold and its promised resume, the rotation queue in the
+picker's own order with when each account returns, the next relief the tick would name, the last flip and its
+kind — and `--status --json` carries it under `picture` (per-account `state` through the picker's own verdict,
+`returns_at`, `in_drain_band`, `queue`, `next_relief`, `hold`, `last_flip`, `thresholds`). A pure read, no probe.
+Pointed at from the hub `CLAUDE.md`, the synced project contract and fabrik-lib's contract (absolute path, works
+from any `/opt` repo); documented in the rotation doc § `--status`. Three graders. D-175.
+
 ### Fixed — quota board mirrors the drain-band relief flip: a `relief` trigger tier and the ghost return row (2026-09-07)
 
 Native reader R6 on the relief flip: the board's 20 s fast path invoked `--tick` on the SESSION line only, so a

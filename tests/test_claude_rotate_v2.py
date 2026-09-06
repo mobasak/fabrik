@@ -2421,3 +2421,98 @@ def test_a_verified_live_reading_replaces_the_cached_row(monkeypatch):
     pick = cr._validated_pick([cached], set())
     assert pick is not None, "the live probe (20/88, under every bar) must validate the candidate"
     assert cached["source"] == "live" and cached["seven_day"]["utilization"] == 88.0, cached
+
+
+# ── the fleet picture (operator directive 2026-09-07: every agent can query the whole quota state) ──
+def _pic_rows():
+    a = _live("act@ocoron.com", "act", 78.0, 35.0)
+    b = _live("fresh@ocoron.com", "fresh", 5.0, 10.0)
+    c = _live("capped@ocoron.com", "capped", 0.0, 99.0, w_reset=20 * 3600)
+    d = _live("spent@ocoron.com", "spent", 100.0, 40.0)
+    d["five_hour"]["resets_at_epoch"] = NOW + 2 * 3600
+    return [a, b, c, d]
+
+
+def test_the_fleet_picture_names_states_queue_returns_and_relief(monkeypatch):
+    monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
+    monkeypatch.setattr(cr, "_now", lambda: NOW)
+    monkeypatch.setattr(cr, "_rotate_state_dir", lambda: Path("/nonexistent-state-dir"))
+    monkeypatch.setattr(
+        cr, "_fleet_exhaustion_stamp", lambda: Path("/nonexistent-state-dir/fleet-exhausted")
+    )
+    pic = cr._fleet_picture(_pic_rows(), "act", NOW)
+    st = {r["email"]: r["state"] for r in pic["accounts"]}
+    assert st == {
+        "act@ocoron.com": "active",
+        "fresh@ocoron.com": "eligible",
+        "capped@ocoron.com": "cap-walled",
+        "spent@ocoron.com": "session-exhausted",
+    }, st
+    assert pic["queue"] == [
+        "act@ocoron.com",
+        "fresh@ocoron.com",
+        "spent@ocoron.com",
+        "capped@ocoron.com",
+    ], pic["queue"]
+    ret = {r["email"]: r["returns_at"] for r in pic["accounts"]}
+    assert ret["spent@ocoron.com"] == NOW + 2 * 3600 and ret["capped@ocoron.com"] == NOW + 20 * 3600
+    assert pic["next_relief"] == {
+        "epoch": NOW + 2 * 3600,
+        "email": "spent@ocoron.com",
+        "window": "session",
+    }
+    assert pic["hold"] is None and pic["last_flip"] is None
+
+
+def test_the_fleet_picture_reports_the_hold_and_the_last_flip(tmp_path, monkeypatch):
+    monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
+    monkeypatch.setattr(cr, "_now", lambda: NOW)
+    monkeypatch.setattr(cr, "_rotate_state_dir", lambda: tmp_path)
+    stamp = tmp_path / "fleet-exhausted"
+    monkeypatch.setattr(cr, "_fleet_exhaustion_stamp", lambda: stamp)
+    stamp.write_text(str(int(NOW + 600)))
+    (tmp_path / "rotate-ledger.jsonl").write_text(
+        json.dumps(
+            {
+                "event": "flip",
+                "ts": NOW - 300,
+                "from": "spent",
+                "to": "act",
+                "kind": "relief",
+                "via": "tick",
+                "at_pct": 97.0,
+            }
+        )
+        + "\n"
+    )
+    pic = cr._fleet_picture(_pic_rows(), "act", NOW)
+    assert pic["hold"] is not None and pic["hold"]["since"] is not None
+    assert pic["last_flip"]["kind"] == "relief" and pic["last_flip"]["to"] == "act"
+
+
+def test_status_json_and_text_carry_the_picture(monkeypatch, capsys):
+    monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
+    monkeypatch.setattr(cr, "_now", lambda: NOW)
+    monkeypatch.setattr(cr, "_rotate_state_dir", lambda: Path("/nonexistent-state-dir"))
+    monkeypatch.setattr(
+        cr, "_fleet_exhaustion_stamp", lambda: Path("/nonexistent-state-dir/fleet-exhausted")
+    )
+    monkeypatch.setattr(cr, "_fleet_account_rows", lambda dirs: (_pic_rows(), []))
+    monkeypatch.setattr(cr, "_fleet_row_warnings", lambda accounts: [])
+    monkeypatch.setattr(cr, "_fleet_warnings", lambda: [])
+    monkeypatch.setattr(cr, "_resolve_active", lambda: "act")
+    monkeypatch.setattr(cr, "_pause_state", lambda: None)
+    monkeypatch.setattr(cr, "_fleet_root", lambda: Path("/x"))
+    assert cr._cmd_fleet_status([], as_json=True) == 0
+    pay = json.loads(capsys.readouterr().out)
+    assert (
+        pay["picture"]["queue"][0] == "act@ocoron.com"
+        and pay["picture"]["next_relief"]["email"] == "spent@ocoron.com"
+    )
+    assert cr._cmd_fleet_status([], as_json=False) == 0
+    out = capsys.readouterr().out
+    assert (
+        "queue:   #1 act@ocoron.com (active 78%/35%)" in out
+        and "next relief: spent@ocoron.com at" in out
+        and "picture: hold none" in out
+    ), out

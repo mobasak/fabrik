@@ -343,6 +343,7 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
   always go through `mail.py` (the tmp-then-exclusive-create publish is the protocol).
 
 ## Pointers (detail in packs)
+- **The fleet quota picture — every agent, every repo, one query (operator directive 2026-09-07):** `python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --status` (add `--json` for machines; the `picture` key) tells you which account is ACTIVE, which are eligible / session-exhausted / weekly- or cap-walled, the rotation QUEUE in the picker's own order with when each returns, the NEXT RELIEF the tick would name, whether the fleet-exhausted HOLD is on and the resume it promised, and the last flip and its kind. Read it before dispatching long subagent work near a cap, and whenever a quota notice lands — the absolute path works from any `/opt` repo, fabrik-lib included. Authority: `/opt/fabrik/docs/workstation/claude-account-rotation.md` § `--status`.
 - **Backup secrets before edit** (`.env`, `*.key`, `*.pem`, `secrets/`, `.ssh/`) → `backups/` dir (gitignored).
 - **Password policy** (32-char `[a-zA-Z0-9]` via `secrets.choice()`).
 - **Naming:** kebab-case. Exceptions: `README.md`, `CHANGELOG.md`, `INDEX.md`, `PORTS.md`, `AGENTS.md`, `AGENTS-compact.md`, `LESSONS_LEARNT.md`, `DECISIONS.md`, `CLAUDE.md`, `Makefile`, `Dockerfile`, Python pkgs (snake_case), auto-generated, dotfiles.

@@ -3701,6 +3701,161 @@ def _fleet_row_warnings(accounts: list[dict]) -> list[str]:
     return warns
 
 
+def _fmt_when(epoch: float | None) -> str:
+    return (
+        time.strftime("%a %H:%M", time.localtime(epoch)) if isinstance(epoch, (int, float)) else "?"
+    )
+
+
+def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) -> dict:
+    """The ENTIRE quota picture, for any agent in any repo (operator directive 2026-09-07: "all
+    agents should be able to reach/query … what is active, what is exhausted, what is coming
+    next"). Pure read: every account's state through the SAME verdict the picker applies, the
+    rotation queue in the picker's order, who returns when (the tick's own two-bucket rule), the
+    next relief the tick would name, the hold and its promised resume, and the last flip."""
+    thr = _rotate_threshold()
+    band = _env_float("ROTATE_DRAIN_THRESHOLD", 85.0)
+    active_email = next(
+        (str(r.get("email")) for r in accounts if active_slug in (r.get("slugs") or [])), None
+    )
+    rows: list[dict] = []
+    for row in accounts:
+        _slug, utils, reason = _flip_candidate_verdict(row, thr)
+        fv, wv = utils.get("five_hour"), utils.get("seven_day")
+        cap = row.get("weekly_cap")
+        fh, wk = row.get("five_hour"), row.get("seven_day")
+        fr = (fh or {}).get("resets_at_epoch") if isinstance(fh, dict) else None
+        wr = (wk or {}).get("resets_at_epoch") if isinstance(wk, dict) else None
+        session_spent = fv is not None and fv >= thr
+        weekly_walled = wv is not None and (wv >= 100.0 or (cap is not None and wv >= float(cap)))
+        if active_slug is not None and active_slug in (row.get("slugs") or []):
+            state = "active"
+        elif reason is None:
+            state = "eligible"
+        elif weekly_walled and cap is not None and wv is not None and wv < 100.0:
+            state = "cap-walled"
+        elif weekly_walled:
+            state = "weekly-exhausted"
+        elif session_spent:
+            state = "session-exhausted"
+        else:
+            state = "unavailable"
+        returns_at: float | None = None
+        if weekly_walled and isinstance(wr, (int, float)) and float(wr) >= now:
+            returns_at = float(wr)
+            if session_spent and isinstance(fr, (int, float)) and float(fr) > returns_at:
+                returns_at = float(fr)  # the LATER of the two (D1)
+        elif session_spent and isinstance(fr, (int, float)) and float(fr) >= now:
+            returns_at = float(fr)
+        hot = (
+            max(v for v in (fv, wv) if v is not None)
+            if (fv is not None or wv is not None)
+            else None
+        )
+        rows.append(
+            {
+                "email": row.get("email"),
+                "slugs": list(row.get("slugs") or []),
+                "state": state,
+                "why": reason,
+                "session_pct": fv,
+                "weekly_pct": wv,
+                "session_resets_at": float(fr) if isinstance(fr, (int, float)) else None,
+                "weekly_resets_at": float(wr) if isinstance(wr, (int, float)) else None,
+                "weekly_cap": cap,
+                "returns_at": returns_at,
+                "in_drain_band": hot is not None and hot >= band,
+                "source": row.get("source"),
+            }
+        )
+    # the queue: the active first, then eligible accounts in the picker's own order, then the
+    # rest by when they return (unknown last)
+    queue: list[str] = [r["email"] for r in rows if r["state"] == "active"]
+    exclude = set(queue)
+    while True:
+        pick = _pick_flip_target(accounts, exclude=exclude)
+        if pick is None:
+            break
+        _s, email = pick
+        if email in exclude:
+            break
+        queue.append(email)
+        exclude.add(email)
+    rest = [r for r in rows if r["email"] not in exclude]
+    rest.sort(key=lambda r: (r["returns_at"] is None, r["returns_at"] or 0.0, str(r["email"])))
+    queue += [r["email"] for r in rest]
+    relief = _next_session_relief(accounts, active_email or "", now) if active_email else None
+    stamp = _fleet_exhaustion_stamp()
+    hold: dict | None = None
+    if stamp.exists():
+        try:
+            hold = {"since": stamp.stat().st_mtime, "resume_promised": _promised_resume(stamp)}
+        except OSError:
+            hold = {"since": None, "resume_promised": None}
+    last_flip: dict | None = None
+    try:
+        for line in reversed(
+            (_rotate_state_dir() / "rotate-ledger.jsonl").read_text().splitlines()
+        ):
+            try:
+                ev = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(ev, dict) and ev.get("event") == "flip":
+                last_flip = {k: ev.get(k) for k in ("ts", "from", "to", "kind", "via", "at_pct")}
+                break
+    except OSError:
+        pass
+    return {
+        "now": now,
+        "active": active_email,
+        "accounts": rows,
+        "queue": queue,
+        "next_relief": (
+            {"epoch": relief[0], "email": relief[1], "window": relief[2]} if relief else None
+        ),
+        "hold": hold,
+        "last_flip": last_flip,
+        "thresholds": {"trip": thr, "drain_band": band},
+    }
+
+
+def _print_picture(pic: dict) -> None:
+    by = {r["email"]: r for r in pic["accounts"]}
+    hold = pic.get("hold")
+    print(
+        "picture: hold "
+        + (
+            f"HELD since {_fmt_when(hold.get('since'))}, resume promised "
+            f"{_fmt_when(hold.get('resume_promised'))}"
+            if hold
+            else "none"
+        )
+    )
+    parts = []
+    for i, email in enumerate(pic["queue"], 1):
+        r = by.get(email) or {}
+        s, w = r.get("session_pct"), r.get("weekly_pct")
+        pct = f"{s:.0f}%/{w:.0f}%" if s is not None and w is not None else "?"
+        tail = f" returns {_fmt_when(r['returns_at'])}" if r.get("returns_at") else ""
+        parts.append(f"#{i} {email} ({r.get('state')} {pct}{tail})")
+    print("queue:   " + " · ".join(parts))
+    nr = pic.get("next_relief")
+    print(
+        "next relief: "
+        + (f"{nr['email']} at {_fmt_when(nr['epoch'])} ({nr['window']} window)" if nr else "none")
+    )
+    lf = pic.get("last_flip")
+    print(
+        "last flip: "
+        + (
+            f"{_fmt_when(lf.get('ts'))} {lf.get('from')} -> {lf.get('to')} ({lf.get('kind') or lf.get('via')})"
+            if lf
+            else "none"
+        )
+    )
+
+
 def _cmd_fleet_status(dirs: list[Path], as_json: bool) -> int:
     accounts, pending = _fleet_account_rows(dirs)
     warns = _fleet_row_warnings(accounts) + _fleet_warnings()
@@ -3715,6 +3870,7 @@ def _cmd_fleet_status(dirs: list[Path], as_json: bool) -> int:
                     "pending": [p["slug"] for p in pending],
                     "pause": _pause_state(),
                     "fleet_warnings": warns,
+                    "picture": _fleet_picture(accounts, active, _now()),
                 },
                 indent=1,
             )
@@ -3734,6 +3890,7 @@ def _cmd_fleet_status(dirs: list[Path], as_json: bool) -> int:
         )
     for warn in warns:
         print(warn)
+    _print_picture(_fleet_picture(accounts, active, _now()))
     return 0
 
 

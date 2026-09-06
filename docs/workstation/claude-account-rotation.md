@@ -169,6 +169,18 @@ that script's fleet loop walks account *directories* and caps.json sits at the f
 
 ## `--status` — the board
 
+**The picture (2026-09-07, operator directive "all agents should be able to reach/query the entire picture"):**
+after the per-account lines, `--status` prints four more — `picture:` (the fleet-exhausted HOLD: none, or held
+since when and the resume it promised), `queue:` (the rotation order: the active first, then eligible accounts in
+the picker's own perishable-first order, then everyone else by when they RETURN — a cap-walled or weekly-exhausted
+account at its weekly reset, a session-exhausted one at its 5h reset, the later of the two when both are spent),
+`next relief:` (the account and instant the tick's own relief rule would name), `last flip:` (when, from → to, and
+its `kind`: trip / relief / repair / dead-chain / switch). `--status --json` carries the same under `picture`
+(`accounts[].state` ∈ active · eligible · session-exhausted · weekly-exhausted · cap-walled · unavailable, with
+`why`, both percentages, both resets, `returns_at`, `in_drain_band`; plus `queue`, `next_relief`, `hold`,
+`last_flip`, `thresholds`). It is a READ — the same verdict the picker applies, no probe, no side effect — so
+any agent in any repo may run it as often as it likes: `python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --status`.
+
 ```bash
 python3 scripts/sysadmin/claude_rotate.py --status [--json]
 ```
