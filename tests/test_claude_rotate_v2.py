@@ -2516,3 +2516,44 @@ def test_status_json_and_text_carry_the_picture(monkeypatch, capsys):
         and "next relief: spent@ocoron.com at" in out
         and "picture: hold none" in out
     ), out
+
+
+def test_the_picture_names_over_threshold_and_the_cap_boundaries(monkeypatch):
+    """Scoped review: mob@ at 0/97 under cap 99 read as `unavailable` — it is over the picker's
+    target line on the weekly window (refused as a target until that window resets) but under
+    its cap (the tick keeps it active). Boundaries: weekly == cap → cap-walled; == 100 →
+    weekly-exhausted."""
+    monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
+    monkeypatch.setattr(cr, "_now", lambda: NOW)
+    monkeypatch.setattr(cr, "_rotate_state_dir", lambda: Path("/nonexistent-state-dir"))
+    monkeypatch.setattr(
+        cr, "_fleet_exhaustion_stamp", lambda: Path("/nonexistent-state-dir/fleet-exhausted")
+    )
+    rows = [
+        _live("act@ocoron.com", "act", 20.0, 30.0),
+        _live("over@ocoron.com", "over", 0.0, 97.0, w_reset=5 * 86400),
+        _live("atcap@ocoron.com", "atcap", 0.0, 99.0),
+        _live("full@ocoron.com", "full", 0.0, 100.0),
+    ]
+    pic = cr._fleet_picture(rows, "act", NOW)
+    st = {r["email"].split("@")[0]: (r["state"], r["returns_at"]) for r in pic["accounts"]}
+    assert st["over"] == ("over-threshold", NOW + 5 * 86400), st
+    assert st["atcap"][0] == "cap-walled" and st["full"][0] == "weekly-exhausted", st
+
+
+def test_the_picture_text_explains_an_unavailable_row_and_an_unnamed_resume(
+    tmp_path, monkeypatch, capsys
+):
+    monkeypatch.setattr(
+        cr, "_account_flip_dir", lambda slugs: None
+    )  # no credentialed dir → unavailable
+    monkeypatch.setattr(cr, "_now", lambda: NOW)
+    monkeypatch.setattr(cr, "_rotate_state_dir", lambda: tmp_path)
+    stamp = tmp_path / "fleet-exhausted"
+    stamp.write_text("0")  # the hold with NO relief time named
+    monkeypatch.setattr(cr, "_fleet_exhaustion_stamp", lambda: stamp)
+    rows = [_live("act@ocoron.com", "act", 20.0, 30.0), _live("dead@ocoron.com", "dead", 5.0, 5.0)]
+    cr._print_picture(cr._fleet_picture(rows, "act", NOW))
+    out = capsys.readouterr().out
+    assert "resume promised none named" in out, out
+    assert "dead@ocoron.com (unavailable: no live-chained credentialed dir" in out, out

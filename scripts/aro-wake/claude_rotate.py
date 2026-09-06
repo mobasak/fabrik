@@ -3738,10 +3738,17 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
             state = "weekly-exhausted"
         elif session_spent:
             state = "session-exhausted"
+        elif wv is not None and wv >= thr:
+            # under its cap but over the picker's target line on the WEEKLY window: not a wall
+            # (the tick keeps it active) and not a target either until that window resets —
+            # mob@ at 0/97 under cap 99 read as "unavailable" on the first cut (scoped review)
+            state = "over-threshold"
         else:
             state = "unavailable"
         returns_at: float | None = None
-        if weekly_walled and isinstance(wr, (int, float)) and float(wr) >= now:
+        if state == "over-threshold" and isinstance(wr, (int, float)) and float(wr) >= now:
+            returns_at = float(wr)
+        elif weekly_walled and isinstance(wr, (int, float)) and float(wr) >= now:
             returns_at = float(wr)
             if session_spent and isinstance(fr, (int, float)) and float(fr) > returns_at:
                 returns_at = float(fr)  # the LATER of the two (D1)
@@ -3766,6 +3773,7 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
                 "returns_at": returns_at,
                 "in_drain_band": hot is not None and hot >= band,
                 "source": row.get("source"),
+                "age_s": row.get("age_s") if isinstance(row.get("age_s"), (int, float)) else None,
             }
         )
     # the queue: the active first, then eligible accounts in the picker's own order, then the
@@ -3827,7 +3835,7 @@ def _print_picture(pic: dict) -> None:
         "picture: hold "
         + (
             f"HELD since {_fmt_when(hold.get('since'))}, resume promised "
-            f"{_fmt_when(hold.get('resume_promised'))}"
+            + (_fmt_when(hold["resume_promised"]) if hold.get("resume_promised") else "none named")
             if hold
             else "none"
         )
@@ -3838,7 +3846,8 @@ def _print_picture(pic: dict) -> None:
         s, w = r.get("session_pct"), r.get("weekly_pct")
         pct = f"{s:.0f}%/{w:.0f}%" if s is not None and w is not None else "?"
         tail = f" returns {_fmt_when(r['returns_at'])}" if r.get("returns_at") else ""
-        parts.append(f"#{i} {email} ({r.get('state')} {pct}{tail})")
+        why = f": {r['why']}" if r.get("state") == "unavailable" and r.get("why") else ""
+        parts.append(f"#{i} {email} ({r.get('state')}{why} {pct}{tail})")
     print("queue:   " + " · ".join(parts))
     nr = pic.get("next_relief")
     print(

@@ -13,7 +13,10 @@ picker's own order with when each account returns, the next relief the tick woul
 kind — and `--status --json` carries it under `picture` (per-account `state` through the picker's own verdict,
 `returns_at`, `in_drain_band`, `queue`, `next_relief`, `hold`, `last_flip`, `thresholds`). A pure read, no probe.
 Pointed at from the hub `CLAUDE.md`, the synced project contract and fabrik-lib's contract (absolute path, works
-from any `/opt` repo); documented in the rotation doc § `--status`. Three graders. D-175.
+from any `/opt` repo); documented in the rotation doc § `--status`. Scoped review: an `over-threshold` state
+(under its cap but a window ≥ the picker's target line — kept active, refused as a target until that window
+resets; mob@ at 0/97 under cap 99 read as `unavailable` on the first cut), the picker's reason printed on
+unavailable rows, `age_s` in the row, "none named" for a hold with no relief time. Five graders. D-175.
 
 ### Fixed — quota board mirrors the drain-band relief flip: a `relief` trigger tier and the ghost return row (2026-09-07)
 

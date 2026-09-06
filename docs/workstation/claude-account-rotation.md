@@ -176,8 +176,8 @@ the picker's own perishable-first order, then everyone else by when they RETURN 
 account at its weekly reset, a session-exhausted one at its 5h reset, the later of the two when both are spent),
 `next relief:` (the account and instant the tick's own relief rule would name), `last flip:` (when, from → to, and
 its `kind`: trip / relief / repair / dead-chain / switch). `--status --json` carries the same under `picture`
-(`accounts[].state` ∈ active · eligible · session-exhausted · weekly-exhausted · cap-walled · unavailable, with
-`why`, both percentages, both resets, `returns_at`, `in_drain_band`; plus `queue`, `next_relief`, `hold`,
+(`accounts[].state` ∈ active · eligible · session-exhausted · weekly-exhausted · cap-walled · over-threshold (under its cap but a window ≥ the picker's target line — kept active, refused as a target until that window resets) · unavailable (its `why` names the picker's reason: no credentialed dir, no reading, …), with
+`why`, both percentages, both resets, `returns_at`, `in_drain_band`, `source`, `age_s`; plus `queue`, `next_relief`, `hold`,
 `last_flip`, `thresholds`). It is a READ — the same verdict the picker applies, no probe, no side effect — so
 any agent in any repo may run it as often as it likes: `python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --status`.
 
