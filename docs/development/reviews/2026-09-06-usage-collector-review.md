@@ -223,16 +223,26 @@ Verbatim, as the command requires — the Coverage Checklist rows derive from TH
 | Pass 4 (CONFIRMING) | method: re-derivation | found: 3 | new: 3 | fixed: 3 | dispatched 5, returned 5 (agent-000-f986b7, -001-b4874c, -002-5aab2e, -003-3a4065, -004-4d331d); two of the three were defects in Pass 3's own fixes |
 | Pass 5 (FULL, same brief) | method: re-derivation | found: 1 | new: 1 | fixed: 1 | dispatched 5, returned 5 (agent-000-9c5c47, -001-fabe67, -002-e1aef3, -003-19afb6, -004-7670d9); the `_unusable` restoration outranked a measured value, reproduced before fixing |
 | Pass 6 (FULL, same brief) | method: re-derivation | found: 1 | new: 1 | fixed: 1 | dispatched 5, returned 5 (agent-000-c901b0, -001-ad9d71, -002-1743ab, -003-006407, -004-87a11c); `extension_last_day` could publish a junk key — two re-raises of already-proven arithmetic and migration shapes refuted by execution |
-| Pass 7 (FULL, same brief) | method: re-derivation | found: 0 | new: 0 | fixed: 0 | PENDING — dispatched 5, awaiting return |
+| Pass 7 (FULL, same brief) | method: re-derivation | found: 2 | new: 2 | fixed: 2 | dispatched 5, returned 5 (agent-000-a96495, -001-e630d9, -002-d866ec, -003-da25d8, -004-abd436); `_total_days` disagreed with the file, and TODAY could be frozen. THREE of the five refuted everything they were given — one traced all six orderings of the withdraw-and-place and concluded REFUTED unprompted |
+| Pass 8 (FULL, same brief) | method: re-derivation | found: 0 | new: 0 | fixed: 0 | PENDING — dispatched 5, awaiting return |
 
-⚠️ **Stall-breaker watch.** `new:` ran 9 → 1 → 2 → 3 → 1 → 1 across passes 1–6. The 1→2→3 stretch
+⚠️ **Stall-breaker watch.** `new:` ran 9 → 1 → 2 → 3 → 1 → 1 → 2 across passes 1–7. The 1→2→3 stretch
 matched the trip shape, so passes 5–7 re-swept the SAME brief (only the "already fixed" and
 "already refuted, with proof" lists grew) rather than inventing a new question. It came back to 1 and
 stayed there, so the pressure is falling, not diverging — and the SEVERITY curve says more than the
 count: outages first (a dated time bomb, a store overwritten, a migration deleting what it could not
 replace), then defects inside those fixes, and by pass 6 a diagnostic field that could publish a junk
-key. Pass 6 also spent two of its five finders re-raising shapes earlier passes had cleared by
-execution, one of them reaching the correct answer in its own walkthrough before calling it a defect.
+key, and by pass 7 two counters that disagreed with the file they describe. Passes 6 and 7 spent
+most of their finders re-raising shapes earlier passes had cleared by execution — one reached the
+correct answer in its own walkthrough before calling it a defect, and three of pass 7's five refuted
+everything they were given. The accumulated proofs in the brief are now doing the work: a re-raise
+has to defeat a recorded proof rather than restate a suspicion.
+
+⚠️ **One finding arrived through a WRONG claim, and that is worth recording.** A pass-7 finder said
+`_total_days` is set before the transcript merge; line order disproves it. Checking the claim put me
+in front of the adjacent real discrepancy — the counter was taken before the preserved-unusable
+entries were restored, so the file said 2 while carrying 3. A wrong finding that makes you look in
+the right place still earns its cost, and the ledger should not launder it into a correct one.
 
 **Adjudicated, not fixed** — recorded so the disposition is visible rather than silently dropped:
 `frozen` is a TERMINAL state. A restored transcript backup will not bring a frozen day back into
