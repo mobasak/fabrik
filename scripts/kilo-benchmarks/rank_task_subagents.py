@@ -165,8 +165,34 @@ def _allowed(model: str) -> bool:
     return not OPERATOR_ALLOW or model in OPERATOR_ALLOW
 
 
+def _denied(model: str, task_type: str | None) -> bool:
+    """True when either operator DENY forbids `model` for `task_type`. One predicate so the answer
+    cannot differ between emission paths — which it did: the code fallback and the code benchmark
+    list checked neither deny."""
+    return model in OPERATOR_DENY_ALWAYS or model in OPERATOR_DENY.get(task_type or "", ())
+
+
+def _allowlist_models_for(task_type: str | None) -> list[str]:
+    """The allowlisted models routable for `task_type` — the ALLOWLIST MINUS THE DENIES.
+
+    ⚠️ The two policies could contradict each other and the allowlist would have won. Every other
+    emission path checks `OPERATOR_DENY` / `OPERATOR_DENY_ALWAYS`, but the allowlist emitters wrote
+    straight from `OPERATOR_ALLOW_ORDER`, so a model added to BOTH lists — an operator restricting a
+    roster and then banning one of its members, which is an ordinary thing to want — would have been
+    emitted as routable by the top-up and the backstop while every other path refused it. There is
+    no overlap today (verified: `OPERATOR_ALLOW & OPERATOR_DENY_ALWAYS` is empty), so this is a
+    latent contradiction rather than a live defect; it is cheap to close and expensive to notice.
+    A deny beats an allow, always — the narrower policy wins.
+    """
+    return [m for m in OPERATOR_ALLOW_ORDER if not _denied(m, task_type)]
+
+
 def _allowlist_topup(
-    emitted: set[str], next_rank: int, tiers: object, canary: dict[str, float] | None
+    emitted: set[str],
+    next_rank: int,
+    tiers: object,
+    canary: dict[str, float] | None,
+    task_type: str | None = None,
 ) -> list[str]:
     """Rows for the allowlisted models a section has NOT already emitted, numbered from `next_rank`.
 
@@ -193,7 +219,7 @@ def _allowlist_topup(
         return []
     rows = []
     for i, model in enumerate(
-        (m for m in OPERATOR_ALLOW_ORDER if m not in emitted), start=next_rank
+        (m for m in _allowlist_models_for(task_type) if m not in emitted), start=next_rank
     ):
         rows.append(
             f"| {i} | `{model}` | [allowlist] | — | — | — | "
@@ -202,7 +228,9 @@ def _allowlist_topup(
     return rows
 
 
-def _allowlist_rows(tiers: object, canary: dict[str, float] | None) -> list[str]:
+def _allowlist_rows(
+    tiers: object, canary: dict[str, float] | None, task_type: str | None = None
+) -> list[str]:
     """The allowlist section BODY — shared by the backstop and the no-data stub, so the two can
     never drift apart. Emits the 9-column routing shape the parser contracts on: model at
     `cells[1]`, run-count at `cells[-1]` (`select.py:296,303`).
@@ -224,7 +252,7 @@ def _allowlist_rows(tiers: object, canary: dict[str, float] | None) -> list[str]
     # to have loaded the tier table.
     tiers = tiers if tiers is not None else {}
     canary = canary or {}
-    for rank, model in enumerate(OPERATOR_ALLOW_ORDER, start=1):
+    for rank, model in enumerate(_allowlist_models_for(task_type), start=1):
         rows.append(
             f"| {rank} | `{model}` | [allowlist] | — | — | — | {_fmt_tier(tiers, model)} | "
             f"{_grounding_cell(canary.get(model))} | 0 |"
@@ -1736,7 +1764,13 @@ def render(
     # benched, and models we've benched but haven't fleet-used yet aren't
     # invisible to the router. Only applies to `code` — other task_types have
     # no benchmark analog.
-    coding_fallback_models: list[str] = [m for m in _load_coding_fallback() if _allowed(m)]
+    # ⚠️ The DENY belongs here too, and did not used to be. `_allowed()` answers the ALLOWLIST
+    # question only, so this list — and `code_benchmark` below — passed a denied model straight into
+    # the `### code` routing section. Pre-existing, surfaced by the D-159 deny-beats-allow grader:
+    # every OTHER emission path checks the deny, these two never did.
+    coding_fallback_models: list[str] = [
+        m for m in _load_coding_fallback() if _allowed(m) and not _denied(m, "code")
+    ]
 
     # CODE gate — the operator's coding constraints (n_err ≤ 1 · pass@1 ≥ 0.90 · $/1k ≤ 3.5 · p50 ≤ 10s),
     # mirroring the review gate. When the coding benchmark HAS run, `code_eligible()` supersedes the
@@ -1746,7 +1780,9 @@ def render(
     # claude-code/* id, it would 404 in _transport). Keep them OUT of the rank-led routing sections that
     # pick_models parses; they stay visible in the ✅ Selected shortlist (model-id-led) + the full tables.
     code_benchmark: list[str] = [
-        m for m in _code_benchmark_models() if not m.startswith("claude-code/") and _allowed(m)
+        m
+        for m in _code_benchmark_models()
+        if not m.startswith("claude-code/") and _allowed(m) and not _denied(m, "code")
     ]
     code_gate: set[str] = set(code_benchmark)
     code_bench_ran: bool = _code_bench_ran()
@@ -1822,7 +1858,7 @@ def render(
             ]
             for _tt in sorted(set(TASK_KINDS_EMITTED)):
                 stub.append(f"### {_tt} (n_total=0, operator allowlist — no aggregated runs yet)")
-                stub.extend(_allowlist_rows(tiers, canary))
+                stub.extend(_allowlist_rows(tiers, canary, _tt))
                 stub.append("")
             return "\n".join(stub) + "\n"
         return header + (
@@ -1957,7 +1993,7 @@ def render(
         # excluding it. Found by the D-159 review's native finder.
         _emitted_here = {r[1] for r, _ in scored} | emitted_code_models | emitted_review_models
         _next = max(len(scored), code_last_rank, review_last_rank) + 1
-        out.extend(_allowlist_topup(_emitted_here, _next, tiers, canary))
+        out.extend(_allowlist_topup(_emitted_here, _next, tiers, canary, task_type))
         out.append("")
         emitted_task_types.add(task_type)
 
@@ -1980,7 +2016,11 @@ def render(
         # top-up has to run HERE too or a one-model fallback section ships a one-model kind.
         out.extend(
             _allowlist_topup(
-                set(coding_fallback_models), len(coding_fallback_models) + 1, tiers, canary
+                set(coding_fallback_models),
+                len(coding_fallback_models) + 1,
+                tiers,
+                canary,
+                "code",
             )
         )
         out.append("")
@@ -2003,7 +2043,9 @@ def render(
             out.append(_fmt_bench_review_row(rank, model, review_metrics, tiers, canary))
         # Same reasoning as the code fallback above — this block marks `review` emitted.
         out.extend(
-            _allowlist_topup(set(review_benchmark), len(review_benchmark) + 1, tiers, canary)
+            _allowlist_topup(
+                set(review_benchmark), len(review_benchmark) + 1, tiers, canary, "review"
+            )
         )
         out.append("")
         emitted_task_types.add("review")
@@ -2033,7 +2075,7 @@ def render(
                 "_allowlist rows: this task_type has no gate-surviving fleet data, and the section "
                 "exists so routing cannot fall through to the unrestricted vendored `_TABLE` (D-159)._"
             )
-            out.extend(_allowlist_rows(tiers, canary))
+            out.extend(_allowlist_rows(tiers, canary, _tt))
             out.append("")
 
     # Human-readable full leaderboards (all measured columns) appended below the router sections.

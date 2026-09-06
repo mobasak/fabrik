@@ -54,11 +54,11 @@ _gate: n_err ≤ 1 · pass@1 ≥ 0.90 · $/1k ≤ 3.5 · p50 ≤ 10s_
 | 1 | `deepseek/deepseek-v4-flash` | 2.85 | 0.67 | $0.0160 | 4.00 | 2 | ✓ | 3 |
 | 2 | `deepseek/deepseek-v3.2-exp` | [allowlist] | — | — | — | 3 | ✓ | 0 |
 
-### review (n_total=10774)
+### review (n_total=10787)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | grounding | n |
 |---:|---|---:|---:|---:|---:|:-:|:-:|---:|
-| 1 | `deepseek/deepseek-v4-flash` | 2.76 | 0.89 | $0.0040 | 2.76 | 2 | ✓ | 1378 |
-| 2 | `deepseek/deepseek-v3.2-exp` | 2.92 | 0.89 | $0.0044 | 2.92 | 3 | ✓ | 1519 |
+| 1 | `deepseek/deepseek-v4-flash` | 2.76 | 0.89 | $0.0040 | 2.75 | 2 | ✓ | 1386 |
+| 2 | `deepseek/deepseek-v3.2-exp` | 2.92 | 0.89 | $0.0044 | 2.92 | 3 | ✓ | 1524 |
 
 ### plan (n_total=0, operator allowlist — no measured rows survived the gates)
 _allowlist rows: this task_type has no gate-surviving fleet data, and the section exists so routing cannot fall through to the unrestricted vendored `_TABLE` (D-159)._

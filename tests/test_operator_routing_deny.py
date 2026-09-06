@@ -335,3 +335,30 @@ def test_a_supplemented_section_does_not_re_emit_what_the_supplement_already_wro
     assert len(ranks) == len(set(ranks)), (
         f"{kind}: rank reused: {list(zip(ranks, models, strict=True))}"
     )
+
+
+def test_a_deny_beats_the_allowlist_everywhere_it_could_contradict(monkeypatch):
+    """The two operator policies can contradict, and the allowlist emitters used to win.
+
+    Every other emission path checks `OPERATOR_DENY` / `OPERATOR_DENY_ALWAYS`, but the top-up and the
+    backstop wrote straight from `OPERATOR_ALLOW_ORDER` — so a model on BOTH lists (an operator
+    restricting a roster and then banning one of its members: an ordinary thing to want) would have
+    been emitted as routable by them while every other path refused it. No overlap exists today,
+    which is exactly why this needs a test rather than an observation."""
+    from libs.subagents.select import load_task_ranking
+
+    banned = rank.OPERATOR_ALLOW_ORDER[0]
+    monkeypatch.setattr(rank, "OPERATOR_DENY_ALWAYS", frozenset({banned}))
+    out = rank.render([], state="ok", include_full_results=False)  # the no-data stub path
+    tmp = Path(__file__).parent.parent / ".tmp" / "deny_beats_allow.md"
+    tmp.parent.mkdir(parents=True, exist_ok=True)
+    tmp.write_text(out, encoding="utf-8")
+    try:
+        parsed = load_task_ranking(str(tmp))
+    finally:
+        tmp.unlink(missing_ok=True)
+    for kind, models in parsed.items():
+        assert banned not in models, (
+            f"{kind}: `{banned}` is denied but the allowlist emitted it as routable: {models}"
+        )
+    assert any(parsed.values()), "the deny emptied every kind — the guard must not fail-open either"

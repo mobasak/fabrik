@@ -252,7 +252,18 @@ FLEET_ROWS = [
 ]
 
 
-def test_grounding_column_position(tmp_path):
+def test_grounding_column_position(tmp_path, monkeypatch):
+    """⚠️ Renders with the operator ALLOWLIST DISABLED, via its documented off switch.
+
+    This test is about COLUMN POSITION — that `grounding` sits second-to-last and `n` stays last, the
+    law `select.py:296,303` parses on. Its fixtures are arbitrary (`prov/a`, `prov/b`), and D-159's
+    allowlist filters every non-allowlisted model out of every routing section, so with the allowlist
+    live the `### docs` section holds allowlist rows carrying `n=0` and `min_n=1` drops them —
+    turning a column-position assertion into an accidental routing-policy assertion. Emptying
+    `OPERATOR_ALLOW` restores exactly the pre-D-159 behaviour (that is what the empty set means) and
+    keeps this test measuring what its name says.
+    """
+    monkeypatch.setattr(rts, "OPERATOR_ALLOW", frozenset())
     text = rts.render(FLEET_ROWS, canary={"prov/a": 4.0, "prov/b": 1.0}, include_full_results=False)
     doc = tmp_path / "TASK_SUBAGENT_SELECTION.md"
     doc.write_text(text, encoding="utf-8")
