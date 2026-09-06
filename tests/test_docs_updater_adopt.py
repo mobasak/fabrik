@@ -9,6 +9,7 @@ constraint: this flag must never run for real from inside a subagent worktree).
 
 from __future__ import annotations
 
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -17,6 +18,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 import docs_updater as du  # noqa: E402
+import final_gate as fg  # noqa: E402
 
 _REAL_EPIC_ORDER = Path(__file__).parent.parent / "scripts" / "epic_order.py"
 
@@ -53,6 +55,18 @@ def _decisions_no_merge_owner(path: Path) -> None:
         "| id | when | who | what (the decision) | why | where |\n"
         "|---|---|---|---|---|---|\n"
         "| D-001 | 2026-01-01 | operator | some unrelated decision | because | here |\n",
+        encoding="utf-8",
+    )
+
+
+def _decisions_with_merge_owner(path: Path, name: str = "alpha") -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "# Decisions\n\n"
+        "| id | when | who | what (the decision) | why | where |\n"
+        "|---|---|---|---|---|---|\n"
+        f"| D-001 | 2026-01-01 | {name} | MERGE OWNER: {name} — declared by --adopt "
+        "| because | docs/development/PLANS.md |\n",
         encoding="utf-8",
     )
 
@@ -1177,3 +1191,284 @@ class TestT02bR2Defect1AnchoredTagPosition:
         assert len(report) == 1
         _excerpt, name, kind = report[0]
         assert (name, kind) == ("alpha", "backlog-row")
+
+
+class TestT03CheckAdvisory:
+    """T03 (multi-agent-per-repo spec § The delta D3): `run_check()`'s ownership
+    advisory fires exactly one `ADVISORY:` line, ONLY when ≥2 live `claude` sessions
+    share this checkout AND ownership is incomplete (merge owner undeclared / an
+    open plan unowned / a backlog row untagged); it is collected SEPARATELY from
+    `issues` so it can never change the exit code, and is suppressed unconditionally
+    in the hub."""
+
+    @staticmethod
+    def _repo(
+        tmp_path: Path,
+        *,
+        merge_owner: bool,
+        plan_owned: bool,
+        backlog_tagged: bool,
+        hub: bool = False,
+    ) -> Path:
+        root = tmp_path / "repo"
+        plans = root / "docs" / "development" / "plans"
+        plans.mkdir(parents=True)
+        (plans / "2026-01-01-plan-1-open.md").write_text(
+            "# Plan\n\n" + ("**Owner:** alpha\n" if plan_owned else "") + "Status: DRAFT\n",
+            encoding="utf-8",
+        )
+        decisions = root / "docs" / "DECISIONS.md"
+        if merge_owner:
+            _decisions_with_merge_owner(decisions)
+        else:
+            _decisions_no_merge_owner(decisions)
+        backlog = root / "docs" / "STRATEGIC_BACKLOG.md"
+        if backlog_tagged:
+            backlog.write_text("- [alpha] Already tagged item\n", encoding="utf-8")
+        else:
+            backlog.write_text("- An untagged backlog item\n", encoding="utf-8")
+        if hub:
+            scripts = root / "scripts"
+            scripts.mkdir(parents=True, exist_ok=True)
+            (scripts / "fabrik_synced_manifest.py").write_text("# hub\n", encoding="utf-8")
+        return root
+
+    @staticmethod
+    def _patch(monkeypatch, root: Path) -> None:
+        monkeypatch.setattr(du, "PROJECT_ROOT", root)
+        monkeypatch.setattr(du, "PLANS_DIR", root / "docs" / "development" / "plans")
+        monkeypatch.setattr(du, "PLANS_INDEX", root / "docs" / "development" / "PLANS.md")
+
+    def test_two_sessions_incomplete_ownership_prints_exactly_one_advisory_line(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        """BC row 1: two `claude` processes at the fixture root, no `MERGE OWNER:`
+        row — `run_check()` prints exactly one `ADVISORY:` line naming `2 sessions`
+        and `--adopt`, and its return value never depends on the advisory (proven by
+        re-running with the advisory monkeypatched to `[]`). D6 mutation-guard: the
+        advisory line prints LAST — after the pass line / issues block, never
+        interleaved above it."""
+        root = self._repo(tmp_path, merge_owner=False, plan_owned=True, backlog_tagged=True)
+        proc_root = _fake_proc(tmp_path, [("claude", root), ("claude", root)])
+        self._patch(monkeypatch, root)
+
+        rc = du.run_check(proc_root=proc_root)
+        out = capsys.readouterr().out
+        advisory_lines = [ln for ln in out.splitlines() if ln.startswith("ADVISORY:")]
+
+        assert len(advisory_lines) == 1, out
+        assert "2 sessions" in advisory_lines[0]
+        assert "--adopt" in advisory_lines[0]
+        assert "merge owner undeclared" in advisory_lines[0]
+
+        non_blank_lines = [ln for ln in out.splitlines() if ln.strip()]
+        assert non_blank_lines[-1] == advisory_lines[0], out
+
+        monkeypatch.setattr(du, "validate_ownership_advisory", lambda *a, **k: [])
+        rc_without_advisory = du.run_check(proc_root=proc_root)
+
+        assert rc == rc_without_advisory
+
+    def test_one_session_prints_no_advisory_even_when_ownership_is_incomplete(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        """BC row 2 (first half): one process in the fake proc tree — no `ADVISORY:`
+        line, however incomplete ownership is."""
+        root = self._repo(tmp_path, merge_owner=False, plan_owned=False, backlog_tagged=False)
+        proc_root = _fake_proc(tmp_path, [("claude", root)])
+        self._patch(monkeypatch, root)
+
+        du.run_check(proc_root=proc_root)
+        out = capsys.readouterr().out
+
+        assert not any(ln.startswith("ADVISORY:") for ln in out.splitlines()), out
+
+    def test_hub_identity_suppresses_the_advisory_even_at_two_sessions(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        """BC row 2 (second half): two processes, but
+        `scripts/fabrik_synced_manifest.py` is present (hub identity) — no
+        `ADVISORY:` line, however incomplete ownership is."""
+        root = self._repo(
+            tmp_path, merge_owner=False, plan_owned=False, backlog_tagged=False, hub=True
+        )
+        proc_root = _fake_proc(tmp_path, [("claude", root), ("claude", root)])
+        self._patch(monkeypatch, root)
+
+        du.run_check(proc_root=proc_root)
+        out = capsys.readouterr().out
+
+        assert not any(ln.startswith("ADVISORY:") for ln in out.splitlines()), out
+
+    @pytest.mark.parametrize("session_count", [1, 2], ids=["1-session", "2-sessions"])
+    @pytest.mark.parametrize("complete", [True, False], ids=["complete", "incomplete"])
+    def test_advisory_fires_only_at_two_sessions_and_incomplete_ownership(
+        self, tmp_path, monkeypatch, capsys, session_count, complete
+    ):
+        """BC row 3: parametrized over the four combinations of
+        (sessions ∈ {1,2}) × (ownership complete/incomplete) — only (2, incomplete)
+        prints the advisory. "complete" = a declared merge owner, every open plan
+        owned, and every backlog row already tagged."""
+        root = self._repo(
+            tmp_path, merge_owner=complete, plan_owned=complete, backlog_tagged=complete
+        )
+        proc_root = _fake_proc(tmp_path, [("claude", root)] * session_count)
+        self._patch(monkeypatch, root)
+
+        du.run_check(proc_root=proc_root)
+        out = capsys.readouterr().out
+        fires = any(ln.startswith("ADVISORY:") for ln in out.splitlines())
+
+        assert fires == (session_count == 2 and not complete), out
+
+    def test_an_unowned_but_terminal_plan_never_fires_the_advisory(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        """D1 mutation-guard: `_count_unowned_plans` must skip TERMINAL-status plans
+        (EXECUTED, COMPLETE) exactly like `run_adopt()`'s own step (b) — an unowned
+        but EXECUTED plan, with a declared merge owner and a tagged backlog, must
+        never fire the advisory. Deleting that skip leaves this the only test that
+        catches it (every other case here uses `Status: DRAFT`)."""
+        root = tmp_path / "repo"
+        plans = root / "docs" / "development" / "plans"
+        plans.mkdir(parents=True)
+        (plans / "2026-01-01-plan-1-done.md").write_text(
+            "# Plan\n\nStatus: EXECUTED\n", encoding="utf-8"
+        )
+        _decisions_with_merge_owner(root / "docs" / "DECISIONS.md")
+        (root / "docs" / "STRATEGIC_BACKLOG.md").write_text(
+            "- [alpha] Already tagged item\n", encoding="utf-8"
+        )
+        proc_root = _fake_proc(tmp_path, [("claude", root), ("claude", root)])
+        self._patch(monkeypatch, root)
+
+        du.run_check(proc_root=proc_root)
+        out = capsys.readouterr().out
+
+        assert not any(ln.startswith("ADVISORY:") for ln in out.splitlines()), out
+
+    _LIMB_CASES = [
+        pytest.param(
+            {"merge_owner": False, "plan_owned": True, "backlog_tagged": True},
+            "merge owner undeclared",
+            ("unowned plans", "untagged backlog rows"),
+            id="merge-owner-undeclared-alone",
+        ),
+        pytest.param(
+            {"merge_owner": True, "plan_owned": False, "backlog_tagged": True},
+            "1 unowned plans",
+            ("merge owner undeclared", "untagged backlog rows"),
+            id="one-unowned-plan-alone",
+        ),
+        pytest.param(
+            {"merge_owner": True, "plan_owned": True, "backlog_tagged": False},
+            "1 untagged backlog rows",
+            ("merge owner undeclared", "unowned plans"),
+            id="one-untagged-backlog-row-alone",
+        ),
+    ]
+
+    @pytest.mark.parametrize("flags,expected,forbidden", _LIMB_CASES)
+    def test_each_incompleteness_limb_alone_names_only_itself(
+        self, tmp_path, monkeypatch, capsys, flags, expected, forbidden
+    ):
+        """D2 mutation-guard: BC row 3's combined "incomplete" fixture makes all
+        three limbs false together, so a mutant that neutralizes ONE counting
+        function (e.g. forcing `_count_untagged_backlog_rows` to always return 0)
+        still finds the advisory firing via the other two limbs and leaves the
+        suite green. Each limb is now incomplete ALONE — the advisory line must
+        name exactly that limb and none of the other two."""
+        root = self._repo(tmp_path, **flags)
+        proc_root = _fake_proc(tmp_path, [("claude", root), ("claude", root)])
+        self._patch(monkeypatch, root)
+
+        du.run_check(proc_root=proc_root)
+        out = capsys.readouterr().out
+        advisory_lines = [ln for ln in out.splitlines() if ln.startswith("ADVISORY:")]
+
+        assert len(advisory_lines) == 1, out
+        assert expected in advisory_lines[0], advisory_lines[0]
+        for f in forbidden:
+            assert f not in advisory_lines[0], advisory_lines[0]
+
+    def test_all_three_limbs_incomplete_join_into_one_line_in_order(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        """D2: with all three limbs incomplete, exactly ONE `ADVISORY:` line carries
+        all three parts, joined by `"; "` in the merge-owner / unowned-plans /
+        untagged-backlog-rows order."""
+        root = self._repo(tmp_path, merge_owner=False, plan_owned=False, backlog_tagged=False)
+        proc_root = _fake_proc(tmp_path, [("claude", root), ("claude", root)])
+        self._patch(monkeypatch, root)
+
+        du.run_check(proc_root=proc_root)
+        out = capsys.readouterr().out
+        advisory_lines = [ln for ln in out.splitlines() if ln.startswith("ADVISORY:")]
+
+        assert len(advisory_lines) == 1, out
+        assert (
+            "merge owner undeclared; 1 unowned plans; 1 untagged backlog rows" in advisory_lines[0]
+        ), advisory_lines[0]
+
+    def test_at_one_session_the_ownership_files_are_never_read(self, tmp_path, monkeypatch):
+        """D5 mutation-guard: the ≥2-session guard must run BEFORE any ownership
+        file is read (`read_merge_owner`, the plan scan, the backlog file) — proven
+        by making `read_merge_owner` raise and asserting a 1-session repo still
+        returns `[]` without the exception ever propagating (i.e. without
+        `read_merge_owner` ever being called). Moving the guard below the file
+        reads would make this test fail with the injected exception instead of
+        returning `[]`."""
+        root = tmp_path / "repo"
+        plans = root / "docs" / "development" / "plans"
+        plans.mkdir(parents=True)
+        proc_root = _fake_proc(tmp_path, [("claude", root)])
+        monkeypatch.setattr(du, "PROJECT_ROOT", root)
+        monkeypatch.setattr(du, "PLANS_DIR", root / "docs" / "development" / "plans")
+
+        def _boom():
+            raise AssertionError("read_merge_owner must not be called at <2 sessions")
+
+        monkeypatch.setattr(du, "read_merge_owner", _boom)
+
+        result = du.validate_ownership_advisory(proc_root)
+
+        assert result == []
+
+
+class TestT03GateWiring:
+    """T03 (multi-agent-per-repo spec § The delta D3): the gate's `Documentation
+    Drift` optional check gains `advisory=True` — proven both ways, so the wiring is
+    real, not cosmetic: the call site carries the keyword (syntactic), AND
+    `run_optional_check(advisory=True)` actually preserves an exit-0 check's stdout
+    while `advisory=False` (the default) drops it (BEHAVIOURAL — D3: the docstring
+    alone was not proof the wiring did anything; a stub script + a real call to
+    `final_gate.run_optional_check` is)."""
+
+    _FINAL_GATE = Path(__file__).parent.parent / "scripts" / "final_gate.py"
+
+    def test_documentation_drift_call_carries_advisory_true(self):
+        source = self._FINAL_GATE.read_text(encoding="utf-8")
+        m = re.search(
+            r'run_optional_check\(\s*"scripts/docs_updater\.py",\s*"Documentation Drift"[^)]*\)',
+            source,
+        )
+        assert m is not None, "the Documentation Drift run_optional_check call was not found"
+        assert "advisory=True" in m.group(0), m.group(0)
+
+    def test_run_optional_check_preserves_advisory_stdout_on_a_green_exit(self, tmp_path):
+        """D3: an exit-0 stub script's `ADVISORY: probe` line survives in the
+        returned message with `advisory=True`, and is dropped without it — proving
+        the keyword's own contract behaviourally, not by reading its docstring. The
+        stub's path is passed ABSOLUTE (`PROJECT_ROOT / <absolute path>` resolves to
+        the absolute path itself — the same trick `test_final_gate_advisory_display.py`
+        uses), so `final_gate.PROJECT_ROOT` never needs monkeypatching."""
+        script = tmp_path / "stub_check.py"
+        script.write_text("print('ADVISORY: probe')\n", encoding="utf-8")
+
+        _, passed, message = fg.run_optional_check(str(script), "Stub Check", advisory=True)
+        assert passed
+        assert "ADVISORY: probe" in message, message
+
+        _, passed_plain, message_plain = fg.run_optional_check(str(script), "Stub Check Plain")
+        assert passed_plain
+        assert "ADVISORY: probe" not in message_plain, message_plain

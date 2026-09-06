@@ -40,7 +40,7 @@ Intake: 7 items — 5 IN, 2 OUT-OF-SCOPE (I5, I6 — each named), 0 ASK.
 | T01 | `decisions.py --merge-owner` read | — | ⚡ | ✅ | branch head b7ffb88a; merged 2026-09-06 |
 | T02a | `--adopt` core: markers, owners, ledger row, header | — | ⚡ | ✅ | branch head 9607384f; merged 2026-09-06 |
 | T02b | `--adopt` backlog tagging, three shapes | T02a | ⛓️ | ✅ | branch head 7a4526e0; merged 2026-09-06 |
-| T03 | `--check` advisory at ≥2 sessions (+ `advisory=True` at the gate call) | T02b | ⛓️ | ⬜ | |
+| T03 | `--check` advisory at ≥2 sessions (+ `advisory=True` at the gate call) | T02b | ⛓️ | ✅ | branch head 34ed7a86; merged 2026-09-06 |
 | T04 | SessionStart advisory (hook) | — | ⚡ | ✅ | branch head d92888e8; merged 2026-09-06 |
 | T05 | vision reads the work stores; epics-review mints the row | — | ⚡ | ✅ | branch head 4e6c3435; merged 2026-09-06 |
 | T06 | Integration: scaffold markers, fire-rate proof, docs, whole-plan gate | T01, T03, T04, T05 | ⛓️ | ⬜ | |
@@ -86,7 +86,7 @@ Serialized: tests/test_docs_updater_adopt.py — T02a, T02b, T03
 - **Given** a fake proc tree with two `claude` processes in the repo (`proc_root`) and a repo with no `MERGE OWNER:` row, **When** `docs_updater.py --check` runs, **Then** stdout carries exactly one `ADVISORY:` line naming `2 sessions` and `--adopt`, and the exit code equals the run's exit code with the advisory removed (scripts/docs_updater.py:1357)
 - **Given** one process in the fake proc tree, or two processes but `scripts/fabrik_synced_manifest.py` present (hub identity), **When** `--check` runs, **Then** no `ADVISORY:` line is printed (scripts/docs_updater.py:1357)
 - **Given** 2 sessions, a declared merge owner, every open plan owned and every backlog row tagged, **When** `--check` runs, **Then** no `ADVISORY:` line is printed — parametrized over the four combinations of (sessions ∈ {1,2}) × (ownership complete/incomplete), only (2, incomplete) prints (scripts/docs_updater.py:1066)
-- **Given** the gate run on a tree where the advisory fires, **When** `final_gate.py --check --json` runs, **Then** the `Documentation Drift` row is green and its output carries the `ADVISORY:` line (scripts/final_gate.py:1884)
+- **Given** `run_optional_check` driven against a stub script that prints an `ADVISORY:` line and exits 0, **When** it is called with `advisory=True`, **Then** the returned message carries the line and without the keyword it does not — and the `Documentation Drift` call carries `advisory=True` (scripts/final_gate.py:1884)
 - **Given** the hook run through the existing `_run` harness with `FABRIK_PROC_ROOT` pointing at a fake tree holding three `claude` entries whose `cwd` symlinks resolve to a non-hub scratch cwd (plus one `bash` entry and one entry with no `cwd`), **When** it runs, **Then** the ORIENT block carries exactly one line starting `- ⚠️ **3 sessions share this main checkout.**` placed after the identity line (.claude/hooks/session_orient.py:294)
 - **Given** a fake tree with one `claude` entry in that cwd, **When** it runs, **Then** the block carries no `sessions share` line and is byte-identical to today's output for that cwd (.claude/hooks/session_orient.py:287)
 - **Given** three entries and a cwd whose path contains `/.claude/worktrees/`, or a cwd carrying `scripts/fabrik_synced_manifest.py` (hub identity), **When** it runs, **Then** no `sessions share` line is printed (.claude/hooks/session_orient.py:139)
@@ -177,6 +177,8 @@ Serialized: tests/test_docs_updater_adopt.py — T02a, T02b, T03
 - `src/fabrik/scaffold.py:1437-1455` — the PLANS.md literal ending in `| (none) | - | - |`.
 - `commands/_sources/fabrik-vision.md:63-66` — the EXISTING read list; `fabrik-epics-review.md:138` — "Step 1.5: ticket-set integrity + owner assignment, in CODE".
 - `scripts/final_gate.py:1884` — `run_optional_check("scripts/docs_updater.py", "Documentation Drift", "--check")`.
+- SIZING DEFECT signals (execution window, logged per D6): the emit gate re-run mid-execution reports T02a at 275,503 B and T03 at 309,875 B against the 262,144 B READ budget — `scripts/docs_updater.py` grew 59→85 KB and `tests/test_docs_updater_adopt.py` 0→53 KB through the plan's own tickets, and T03 carries the 128 KB `scripts/final_gate.py`; T02a was merged before the growth, T03's coder read the file it was born into — no re-split; the ten missing-trailer WARNs are sibling commits on shared master (aca5b038, f44e002b, 17b172bf, 43bccf95) plus the Serialized T02a→T02b→T03 chain touching one file by design. Re-dispatches: T01 ×2 (pool units dead/blind), T02a ×1 (pool unit dead), T02b ×1 (native coder died on a 429 mid-round-2, its edits salvaged).
+- Execution finding (T03 review r1): that call is under `if tier == 3` (`final_gate.py:1783`) and a passing advisory row's stdout is unreachable in `--check --json` — T03's Behavior Contract row 4 re-cut to the behavioural `run_optional_check(advisory=True)` test; the JSON surfacing is a backlog row (T06 Deltas). Plan-text defects recorded this run: T02b's Scope named a `Tag` column the hub table does not have (it is `Owner`); the T02b round-2 brief's own regex widening was a regression caught by the round-2 native finder (54 false skips fleet-wide) and fixed at the mechanism in round 3.
 
 ```text
 $ for p in $(pgrep -x claude); do readlink /proc/$p/cwd; done | sort | uniq -c | sort -rn | awk '$1>=2'

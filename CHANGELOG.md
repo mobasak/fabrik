@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — docs_updater.py --check advises when ≥2 sessions share the checkout and ownership is incomplete (2026-09-06)
+
+`validate_ownership_advisory()` prints ONE `ADVISORY:` line — never a finding, never a changed exit code — when two or more live `claude` sessions share this checkout AND (the merge owner is undeclared, an open plan has no owner, or a backlog row is untagged), naming the count and the `--adopt` command; silent at one session and always silent in the hub. `final_gate.py`'s `Documentation Drift` row now passes `advisory=True` so the line survives a green exit instead of being dropped. Plan 2026-09-06-plan-2-multi-agent-adoption T03 (spec D3); 124 tests green.
+
 ### Fixed — the review checkpoint is now PER CHANGE: one morning run record no longer licenses a day of unreviewed commits (2026-09-06)
 
 Operator: "after doing changes all agents must run a /fabrik-review or /fabrik-review-scoped — have
