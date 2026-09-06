@@ -1281,7 +1281,7 @@ def _ext_matrix_intro(rows: list[dict]) -> str:
         f'<p class="intro">Which outside-the-box service each command actually reaches — read from '
         f"the corpus itself ({n_rendered} of {n} rows from the rendered "
         f"commands under <code>{escape(str(RENDERED_COMMANDS))}</code>), so the DOTS are never typed "
-        f"here and cannot go stale against the corpus. A dot means the command "
+        f"here. A dot means the command "
         f"names that service's own <b>invocation token</b> (<code>fanout(</code>, <code>WebSearch</code>, "
         f"<code>mcp__firecrawl</code>, <code>fabrik apply</code>) — not that it merely mentions the "
         f"service in prose. Read it as a good index, not a proof: it is a literal text match over the "
@@ -1727,12 +1727,14 @@ def _maybe_trigger_rotation(payload: dict) -> threading.Thread | None:
     sess = float(five) if isinstance(five, (int, float)) else None
     hot = sess is not None and sess >= bar
     drain = sess is not None and sess >= DRAIN_TRIGGER_THRESHOLD
-    relief = _relief_candidate(payload, row)
+    relief = None
     if hot or row.get("cap_walled") is True:
         tier = 0  # flip tier
     elif drain:
         tier = 1  # urgent-drain tier: the tick decides whether a successor exists
-    elif relief is not None:
+    elif (
+        relief := _relief_candidate(payload, row)
+    ) is not None:  # only when the higher tiers passed
         # relief tier (R6): the tick's drain-band relief flip (D-171) keys on the HOTTEST window,
         # session or weekly — this fast path keyed on the session alone, so a weekly-driven
         # relief waited for the */5 cron while a fresh account idled
