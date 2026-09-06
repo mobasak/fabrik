@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-review pass 2: the doc-links gate enumerated every tracked script twice (2026-09-06)
+
+Found by the fresh gate, not a finder: `render_doc_script_links.py` in gate mode (`--check`/`--coverage`)
+listed `git ls-files` PLUS `--cached` — the SAME set — so every tracked script entered the graph twice
+(430 for 215 unique): notes printed twice and the coverage ratchet's denominator doubled (the earlier
+"428/428" was 214 scripts counted twice; the honest lock is **215 of 215 headered, 0 headerless**).
+Introduced by pass 1's own E1/E2 fix. Same pass: a directory/glob target OUTSIDE `docs/` (a fixtures
+tree, a test dir — `kaizen_collect_v2.py` declares `tests/fixtures/kaizen-golden/`, committed 2026-08-27)
+is a code-side coupling and is skipped, not refused as NOT-A-PAGE; the note fires only for a target that
+claims to be a doc (under `docs/` or `*.md`). And `docs/workstation/hooks-index.md` was re-rendered — the
+new `install_user_hooks.py` header names it and the gate could not see an UNSTAGED new script (by the
+E1/E2 design: stage before you gate). Graders: `test_gate_mode_enumerates_each_tracked_script_exactly_once`,
+`test_a_directory_target_outside_docs_is_a_code_coupling_not_a_missing_page` (both seen red first).
+
+### Fixed — The hub was discarding its own routing doc daily; operator routing policy is now enforced (2026-09-06)
+- **The hub's own `daily_refresh.sh` was reverting fleet routing policy every morning.** It ran `rank_task_subagents` at :177 and then, 110 lines later in the same script, `deliver_to_fabrik --target-root $FABRIK_ROOT`, which blanket-copies another repo's `out/` tree over the hub — selection doc included. Proven: the engine's copy and HEAD's committed doc were byte-identical (md5 `0330e2d0…`) and the committed doc lacked the `grounding` column the hub ranker has emitted since 2026-08-29. ~8 days of hub output discarded and auto-committed over, so the operator deny that landed 2026-09-05 had never once been live. Fixed by moving the ranker step after delivery (D-166 supersedes D-159's mechanism, which blamed the other repo's cron).
+- **D-159's allowlist implemented** (`OPERATOR_ALLOW` + `_allowed()` in `rank_task_subagents.py`), with a BACKSTOP: `pick_models` falls back per task type to an unrestricted vendored `_TABLE` when a section is missing, so filtering a kind to zero rows would have *widened* routing rather than narrowing it. Also fixed: the no-data stub bypassed the allowlist entirely; a kind that kept one of the two models never got the other, which made `pick_models(kind, exclude=…)` return `[]` and `fanout` raise; and `_allowed()` blessed `claude-code/*`, which the tests used as their definition of routable.
+- **New `scripts/enforcement/check_routing_policy.py`** (advisory, registered in `final_gate.py`, hub-only): reads the live doc's routing sections and reports any model the operator denied or excluded. Proven red against the previously-committed doc — 20 violations, including `deepseek-v4-pro`, a deny-ALWAYS model, routable for two kinds. The equivalent test assertions existed and were inert (the hub runs no pytest leg by design).
+- `.windsurf/rules/core/62-using-subagents.md`: `fanout`'s "family-diverse" claim corrected to best-effort — D-159 pins every kind to one vendor family, and the rule shipped to the same 45 repos as its own falsification.
+
 ### Added — docs_updater.py --check advises when ≥2 sessions share the checkout and ownership is incomplete (2026-09-06)
 
 `validate_ownership_advisory()` prints ONE `ADVISORY:` line — never a finding, never a changed exit code — when two or more live `claude` sessions share this checkout AND (the merge owner is undeclared, an open plan has no owner, or a backlog row is untagged), naming the count and the `--adopt` command; silent at one session and always silent in the hub. `final_gate.py`'s `Documentation Drift` row now passes `advisory=True` so the line survives a green exit instead of being dropped. Plan 2026-09-06-plan-2-multi-agent-adoption T03 (spec D3); 124 tests green.

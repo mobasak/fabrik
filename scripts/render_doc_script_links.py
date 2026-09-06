@@ -119,7 +119,10 @@ def _scripts(repo: Path) -> list[Path]:
         # coupling is visible before its first commit. On a three-session tree a SIBLING's
         # untracked scratch script under scripts/ used to enter the gate's graph and could red the
         # BLOCKING --check or raise the ratchet for everyone (review 2026-09-06, E1/E2).
-        extras = [[], ["--cached"]] if _GATE_MODE else [[], ["--others", "--exclude-standard"]]
+        # `--cached` IS the index (tracked + staged) — listing it beside the default tracked set
+        # enumerated every tracked script TWICE in gate mode: notes printed twice and the
+        # coverage ratchet's denominator doubled (review 2026-09-06 pass 2).
+        extras = [["--cached"]] if _GATE_MODE else [[], ["--others", "--exclude-standard"]]
         names = []
         for extra in extras:
             out = subprocess.run(
@@ -170,6 +173,11 @@ def graph(repo: Path) -> tuple[dict[Path, list[str]], list[str]]:
         rel = script.relative_to(repo).as_posix()
         for token in _declared(script, repo):
             if token.endswith("/") or any(ch in token for ch in "*?[") or (repo / token).is_dir():
+                # a directory/glob OUTSIDE docs/ is a code-side coupling (a fixtures dir, a test
+                # tree) — the doc side's business only when it claims to be a doc target
+                # (review 2026-09-06 pass 2: a fixtures dir red the BLOCKING check for every session)
+                if not (token.startswith("docs/") or token.endswith(".md")):
+                    continue
                 notes.append(
                     f"  NOT-A-PAGE  {rel} declares '{token}' — a directory or glob cannot be rendered onto one page"
                 )

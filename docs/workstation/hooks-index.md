@@ -242,6 +242,7 @@ means updating this page in the same change. This list is generated from those h
 - `scripts/check_commit_trailers.py`
 - `scripts/enforcement/check_citations_resolve.py`
 - `scripts/enforcement/check_hooks_index.py`
+- `scripts/sysadmin/install_user_hooks.py`
 - `scripts/sysadmin/selfwatch_check.py`
 - `scripts/sysadmin/user_hook_gate.py`
 <!-- END related-scripts -->

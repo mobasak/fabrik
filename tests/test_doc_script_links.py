@@ -16,6 +16,7 @@ the live file in both of the values it named. So: the block is generated, never 
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -327,3 +328,35 @@ def test_crlf_doc_round_trips_and_stays_idempotent(tmp_path):
     assert rdsl.marker_state(a) == "ok"
     assert rdsl.apply_block(a, ["scripts/x.py"]) == a
     assert rdsl.apply_block(a, []).rstrip("\r\n") == "# D\r\n\r\nProse.".rstrip("\r\n")
+
+
+def test_gate_mode_enumerates_each_tracked_script_exactly_once(repo: Path):
+    """Review 2026-09-06 pass 2: `--check`/`--coverage` listed `git ls-files` PLUS `--cached` —
+    the SAME set — so every tracked script entered the graph twice: notes printed twice and the
+    coverage ratchet's denominator doubled (428/428 on a tree of 216 scripts)."""
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    rdsl._GATE_MODE = True
+    try:
+        names = [p.as_posix() for p in rdsl._scripts(repo)]
+    finally:
+        rdsl._GATE_MODE = False
+    assert len(names) == len(set(names)), names
+
+
+def test_a_directory_target_outside_docs_is_a_code_coupling_not_a_missing_page(repo: Path, capsys):
+    """Live 2026-09-06: a committed header declared `tests/fixtures/kaizen-golden/` and the
+    BLOCKING --check called it NOT-A-PAGE. A fixtures directory is a code-side coupling exactly
+    like a test file and is none of the doc side's business; only a directory/glob that claims
+    to BE a doc target (under docs/, or a *.md glob) is a shape error worth a note."""
+    (repo / "tests" / "fixtures" / "golden").mkdir(parents=True)
+    (repo / "scripts" / "sysadmin" / "a.py").write_text(
+        "#!/usr/bin/env python3\n# AFTER-EDIT: tests/test_a.py, tests/fixtures/golden/ | none\n"
+    )
+    (repo / "scripts" / "sysadmin" / "b.py").write_text(
+        "#!/usr/bin/env python3\n# AFTER-EDIT: docs/workstation/ | none\n"
+    )
+    rdsl.run(["--repo", str(repo)])
+    out = capsys.readouterr().out
+    assert not any("NOT-A-PAGE" in ln and "a.py" in ln for ln in out.splitlines()), out
+    assert any("NOT-A-PAGE" in ln and "b.py" in ln for ln in out.splitlines()), out
