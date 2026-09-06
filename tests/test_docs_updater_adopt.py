@@ -788,14 +788,22 @@ class TestT02bBC1ThreeShapesRoundRobin:
     starts with `[beta] `, and the bullets read `- [alpha] …`, `- [ ] [beta] …`,
     `- [x] [alpha] …` — round-robin across all five in file order.
 
-    RED-FIRST EVIDENCE (watched against the pre-T02b script, HEAD c2631de2 —
-    `git show HEAD:scripts/docs_updater.py` has no `_tag_backlog_rows` and
-    `run_adopt` never reads STRATEGIC_BACKLOG.md at all):
+    RED-FIRST EVIDENCE (watched against the pre-T02b script, `git show
+    c2631de2:scripts/docs_updater.py` — T02a's merged state, no `_tag_backlog_rows`
+    and `run_adopt` never reads STRATEGIC_BACKLOG.md at all). BC1 calls `run_adopt`
+    itself, not `_tag_backlog_rows` directly, so the baseline's `run_adopt` runs to
+    completion (rc == 0) without ever touching the fixture file — the failure is an
+    AssertionError on the untagged content still being there, not an AttributeError:
         FAILED tests/test_docs_updater_adopt.py::TestT02bBC1ThreeShapesRoundRobin
         ::test_three_shapes_tagged_round_robin_in_file_order
-        AttributeError: module 'docs_updater' has no attribute '_tag_backlog_rows'
+        AssertionError: assert '| **M** | `[alpha]` | A hub-shaped untagged item |
+        because | now |' in ['# Strategic Backlog', '', '## Ownership', '', '| Tag |
+        Agent | Beat |', '| :--- | :--- | :--- |', ...]
+        tests/test_docs_updater_adopt.py:813: AssertionError
     (the backlog file was byte-identical to the fixture — the untagged rows were
-    never touched — before this ticket's implementation landed.)
+    never touched — before this ticket's implementation landed. BC2/BC3/BC4 below are
+    vacuously green on that same baseline for the identical reason: a script that
+    never reads the file can't be caught changing it, or failing to.)
     """
 
     def test_three_shapes_tagged_round_robin_in_file_order(self, tmp_path, monkeypatch):
@@ -826,13 +834,14 @@ class TestT02bBC2SkipShapes:
     fenced block containing `- item`, and a `~~struck~~` row, when `--adopt` runs,
     none of them changes.
 
-    RED-FIRST EVIDENCE (same pre-T02b baseline as BC1 — `run_adopt` never read the
-    file, so this assertion would trivially "pass" for the wrong reason on that
-    baseline; the real red is the ATTRIBUTEERROR above, since `_tag_backlog_rows`
-    did not exist at all before this ticket. Watched directly against the helper
-    with the module reverted to HEAD:
-        AttributeError: module 'docs_updater' has no attribute '_tag_backlog_rows'
-    """
+    RED-FIRST EVIDENCE: this test is VACUOUSLY GREEN on the pre-T02b baseline
+    (`git show c2631de2:scripts/docs_updater.py`) — watched directly, `rc == 0` and
+    `text == _BACKLOG_SKIP_FIXTURE` both hold, for the wrong reason: `run_adopt`
+    never read STRATEGIC_BACKLOG.md at all on that baseline, so "none of them
+    changes" was true of every row, tagged or not. The meaningful red for this
+    behavior is BC1's (the ONLY row of the five that must not have changed but is
+    exercised by a run that actually touches the file at all) — see BC1's
+    AssertionError above."""
 
     def test_already_tagged_legend_header_fence_and_struck_rows_never_change(
         self, tmp_path, monkeypatch
@@ -853,8 +862,10 @@ class TestT02bBC3Idempotent:
     """Given the state after one run, a second run leaves STRATEGIC_BACKLOG.md
     byte-identical and prints `(nothing to adopt)`.
 
-    RED-FIRST EVIDENCE: watched via the same AttributeError as BC1/BC2 against the
-    pre-T02b baseline (the method under test did not exist)."""
+    RED-FIRST EVIDENCE: vacuously green on the pre-T02b baseline for the same reason
+    as BC2 — a script that never writes to the file trivially reproduces
+    `(nothing to adopt)` / byte-identical on every run. BC1's AssertionError is the
+    real proof that this ticket's writer exists and does something."""
 
     def test_second_run_is_byte_identical_and_reports_nothing(self, tmp_path, monkeypatch, capsys):
         root = _backlog_repo(tmp_path)
@@ -880,10 +891,10 @@ class TestT02bBC4MissingBacklogIsSilentlyNothing:
     """Given no STRATEGIC_BACKLOG.md, `--adopt` succeeds with no `backlog-row` in
     the report.
 
-    RED-FIRST EVIDENCE: on the pre-T02b baseline this behavior was trivially true
-    (the code never looked at the file at all) — the meaningful red is that
-    `_tag_backlog_rows`/the `backlog_path.is_file()` guard did not exist, proven by
-    the same AttributeError as the other T02b tests when called directly."""
+    RED-FIRST EVIDENCE: trivially true on the pre-T02b baseline too (the code never
+    looked at the file at all, so a missing file changed nothing about its
+    behavior) — the meaningful proof that a real, gated file-read now exists is
+    BC1's AssertionError, not a rerun of this one."""
 
     def test_no_backlog_file_means_no_backlog_rows_and_rc_0(self, tmp_path, monkeypatch, capsys):
         root = tmp_path
@@ -959,3 +970,104 @@ class TestT02bClassifyBacklogRowDirect:
         # the r1 pipeline error this guards: `[x]` must never register as "already
         # tagged" (which would silently skip a row that still needs a real tag).
         assert du.classify_backlog_row("- [x] needs a real tag still", None) == "bullet"
+
+    def test_struck_through_bullet_is_skip(self):
+        # D1 (acceptance review r1): a bullet whose content is struck through must
+        # be skipped exactly like a struck table row — mutating the bullet path's
+        # `startswith("~~")` to `if False` left the pre-r1 suite green (only the
+        # TABLE shape had a direct assertion), so 16 of 16 struck bullets fleet-wide
+        # (docs/STRATEGIC_BACKLOG.md) were unguarded against a regression here.
+        assert du.classify_backlog_row("- ~~a resolved bullet~~", None) == "skip"
+
+    def test_untagged_legend_row_is_skip(self):
+        # D2 (acceptance review r1): the legend guard (`names[0] == "Tag"`) was
+        # never exercised because every legend fixture row already carried a real
+        # tag and was caught earlier by `_BACKLOG_ALREADY_TAGGED_RE` — this row's
+        # first cell is untagged, so ONLY the legend-header check can skip it.
+        header = ["Tag", "Agent", "Beat"]
+        line = "|  | infra | command corpus |"
+        assert du.classify_backlog_row(line, header) == "skip"
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "- [fleet+infra] a cross-beat bullet",
+            "- [intel→fabrik-lib] a cross-repo-routed bullet",
+            "- [infra/T16 decision] a decision-suffixed bullet",
+            "- [infra/docs] a slash-suffixed bullet",
+        ],
+        ids=["plus", "arrow", "slash-space", "slash"],
+    )
+    def test_compound_owner_tags_are_already_tagged_skip(self, line):
+        # D3 (acceptance review r1): the pre-r1 `_BACKLOG_ALREADY_TAGGED_RE`
+        # (`\[(?!x\])[a-z0-9-]{1,32}\]`) only matched a bare name, so 4 of 54 hub
+        # bullets already headed by a compound owner tag
+        # (docs/STRATEGIC_BACKLOG.md:55/56/60/908) would get a SECOND tag inserted
+        # on `--adopt`. The widened regex must still recognize all four real shapes.
+        assert du.classify_backlog_row(line, None) == "skip"
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "- [x] still needs a real tag",
+            "- [ ] still needs a real tag",
+            "- [X] still needs a real tag",
+        ],
+        ids=["lower-x", "empty", "upper-X"],
+    )
+    def test_checkbox_variants_are_never_read_as_a_tag(self, line):
+        # D3: the widened already-tagged regex must still treat every checkbox
+        # spelling (`[x]`, `[ ]`, `[X]`) as checkbox syntax, never a name — a
+        # regression here would silently skip a row that still needs a real tag.
+        assert du.classify_backlog_row(line, None) == "bullet"
+
+    def test_hub_shaped_owner_header_is_table_tag(self):
+        # D5 (acceptance review r1): the hub's REAL "Now" table header names its
+        # tag cell `Owner`, never `Tag` (docs/STRATEGIC_BACKLOG.md:33 —
+        # `| Effort | Owner | Item | Why Priority | Ready When |`; `Tag` lives only
+        # in the legend two sections above it). The pre-r1 code matched literal
+        # `Tag` only, so this exact real-world header fell through to
+        # `"table-item"` and would have double-prefixed the Item cell instead of
+        # writing into the empty Owner cell.
+        header = ["Effort", "Owner", "Item", "Why Priority", "Ready When"]
+        line = "| **M** |  | A hub-shaped untagged item | because | now |"
+        assert du.classify_backlog_row(line, header) == "table-tag"
+
+    def test_hub_shaped_owner_header_already_occupied_is_skip(self):
+        header = ["Effort", "Owner", "Item", "Why Priority", "Ready When"]
+        line = "| **M** | `[fleet]` | An already-owned item | because | now |"
+        assert du.classify_backlog_row(line, header) == "skip"
+
+
+class TestT02bD6RoundRobinAcrossInterleavedShapes:
+    """D6 (acceptance review r1): `_tag_backlog_rows` keeps ONE shared round-robin
+    counter across all three shapes — the pre-r1 test fixtures never interleaved
+    shapes (BC1's fixture runs table-tag, then table-item, then all three bullets,
+    never back-and-forth), so a regression that gave each shape its OWN counter
+    would have gone undetected. This fixture alternates bullet / table-item /
+    bullet / table-tag and asserts the round-robin counter carries across the
+    shape boundary each time."""
+
+    _INTERLEAVED_FIXTURE = """- first bullet row
+
+| Effort | Item | Why | Ready when |
+| :--- | :--- | :--- | :--- |
+| **M** | a project-shaped row | because | now |
+
+- second bullet row
+
+| Effort | Tag | Item | Why | Ready When |
+| :--- | :--- | :--- | :--- | :--- |
+| **M** |  | a hub-shaped row | because | now |
+"""
+
+    def test_alpha_beta_alpha_beta_across_shape_boundaries(self):
+        new_text, report = du._tag_backlog_rows(self._INTERLEAVED_FIXTURE, ["alpha", "beta"])
+
+        assert [name for (_excerpt, name, _kind) in report] == ["alpha", "beta", "alpha", "beta"]
+
+        lines = new_text.splitlines()
+        assert "- [alpha] first bullet row" in lines
+        assert "| **M** | [beta] a project-shaped row | because | now |" in lines
+        assert "- [alpha] second bullet row" in lines
+        assert "| **M** | `[beta]` | a hub-shaped row | because | now |" in lines

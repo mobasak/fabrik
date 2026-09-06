@@ -949,8 +949,15 @@ _ADOPT_NAME_RE = re.compile(r"^[a-z0-9-]{1,32}$")
 # T02b — STRATEGIC_BACKLOG.md row tagging (step (c') of --adopt). A "tag" already
 # present anywhere in a row means "don't touch it" — but `[x]`/`[ ]` are checkbox
 # syntax, never a name (the r1 pipeline error this excludes: `x` alone would
-# otherwise match `_ADOPT_NAME_RE`'s own character class).
-_BACKLOG_ALREADY_TAGGED_RE = re.compile(r"\[(?!x\])[a-z0-9-]{1,32}\]")
+# otherwise match `_ADOPT_NAME_RE`'s own character class). Acceptance review r1
+# (D3) widened this from a bare `[a-z0-9-]{1,32}` to also recognize the fleet's
+# real compound owner tags — `[infra/T16 decision]`, `[infra/docs]`,
+# `[fleet+infra]`, `[intel→fabrik-lib]` (docs/STRATEGIC_BACKLOG.md:55/56/60/908) —
+# so a bullet already headed by one of those never gets a SECOND tag inserted.
+# `(?!\s)` keeps the checkbox literals `[ ]`/`[x]`/`[X]` out (their content is
+# whitespace or, for the character class's first slot, an uppercase letter the
+# class below never accepts) without needing a second alternation branch.
+_BACKLOG_ALREADY_TAGGED_RE = re.compile(r"\[(?!x\])(?!\s)[a-z0-9-][^\]\n]{0,40}\]")
 # `- `, `* `, `- [ ] `, `- [x] ` — group(1) is the marker (+ optional checkbox) to
 # leave untouched, group(2) is the row's own content, where the tag is inserted.
 _BACKLOG_BULLET_RE = re.compile(r"^(\s*[-*]\s+(?:\[[ xX]\]\s+)?)(.*)$")
@@ -958,7 +965,24 @@ _BACKLOG_BULLET_RE = re.compile(r"^(\s*[-*]\s+(?:\[[ xX]\]\s+)?)(.*)$")
 # rows, and this row itself are all distinguished from ordinary data rows elsewhere).
 _BACKLOG_SEPARATOR_RE = re.compile(r"^\|?[\s:|-]*-[\s:|-]*\|?$")
 _BACKLOG_TAG_HEADER = "Tag"
+# D5: the hub's own "Now" table header names its owner cell `Owner`, never `Tag`
+# (docs/STRATEGIC_BACKLOG.md:33 — `| Effort | Owner | Item | Why Priority |
+# Ready When |`; `Tag` lives only in the legend table two sections above it) — so
+# the tag-cell lookup matches EITHER name, case-insensitively.
+_BACKLOG_TAG_HEADER_NAMES = {"tag", "owner"}
 _BACKLOG_ITEM_HEADER = "Item"
+
+
+def _backlog_tag_header_index(names: list[str]) -> int | None:
+    """Index of the header cell that holds the row's owner tag — named `Tag` or
+    `Owner`, case-insensitively (D5) — or `None` when the table has neither (the
+    project-shaped `| Effort | Item | Why | Ready when |` header). Shared by
+    `classify_backlog_row` and `_tag_backlog_rows` so the two never disagree on
+    which cell a `table-tag` row's tag lives in."""
+    for i, cell in enumerate(names):
+        if cell.strip().lower() in _BACKLOG_TAG_HEADER_NAMES:
+            return i
+    return None
 
 
 def _backlog_row_cells(line: str) -> list[str]:
@@ -976,15 +1000,16 @@ def _backlog_row_cells(line: str) -> list[str]:
 def classify_backlog_row(line: str, header_cells: list[str] | None) -> str:
     """Classify one STRATEGIC_BACKLOG.md candidate row for `--adopt`'s tagging step
     (T02b, consumed by T03's `--check` advisory per the spine's Interfaces). Returns
-    `"table-tag"` (a table row under a header carrying a `Tag` cell, tag goes in that
-    cell), `"table-item"` (a table row under a header WITHOUT one, tag prefixes the
-    SECOND cell), `"bullet"` (a `-`/`*` row, checkbox optional, tag inserted after
-    marker+checkbox), or `"skip"` (already tagged anywhere, the legend table — header
-    cell 0 == `Tag`, the header/separator row itself, or a struck-through Item).
-    `header_cells` is the enclosing table's already-split header — supplied by the
-    CALLER, which alone tracks fences and table boundaries; this function never infers
-    table state from `line` alone, so it stays a pure per-line classifier callable
-    directly in tests without reconstructing a scan."""
+    `"table-tag"` (a table row under a header carrying a `Tag`-or-`Owner` cell —
+    case-insensitive, D5 — tag goes in that cell), `"table-item"` (a table row under
+    a header WITHOUT one, tag prefixes the SECOND cell), `"bullet"` (a `-`/`*` row,
+    checkbox optional, tag inserted after marker+checkbox), or `"skip"` (already
+    tagged anywhere, the legend table — header cell 0 == `Tag`, the header/separator
+    row itself, or a struck-through Item). `header_cells` is the enclosing table's
+    already-split header — supplied by the CALLER, which alone tracks fences and
+    table boundaries; this function never infers table state from `line` alone, so
+    it stays a pure per-line classifier callable directly in tests without
+    reconstructing a scan."""
     if _BACKLOG_ALREADY_TAGGED_RE.search(line):
         return "skip"
 
@@ -1002,8 +1027,8 @@ def classify_backlog_row(line: str, header_cells: list[str] | None) -> str:
         item_idx = names.index(_BACKLOG_ITEM_HEADER) if _BACKLOG_ITEM_HEADER in names else 1
         if item_idx < len(cells) and cells[item_idx].strip().startswith("~~"):
             return "skip"  # resolved/struck-through row
-        if _BACKLOG_TAG_HEADER in names:
-            tag_idx = names.index(_BACKLOG_TAG_HEADER)
+        tag_idx = _backlog_tag_header_index(names)
+        if tag_idx is not None:
             if tag_idx < len(cells) and cells[tag_idx].strip() == "":
                 return "table-tag"
             return "skip"  # occupied by non-tag content — never overwrite
@@ -1077,7 +1102,8 @@ def _tag_backlog_rows(text: str, names: list[str]) -> tuple[str, list[tuple[str,
         shape = classify_backlog_row(line, header_cells)
         if shape == "table-tag":
             names_row = [c.strip() for c in header_cells or []]
-            tag_idx = names_row.index(_BACKLOG_TAG_HEADER)
+            tag_idx = _backlog_tag_header_index(names_row)
+            assert tag_idx is not None  # classify_backlog_row already confirmed a Tag/Owner header
             span = _backlog_cell_span(line, tag_idx)
             if span is None:
                 out.append(line)
