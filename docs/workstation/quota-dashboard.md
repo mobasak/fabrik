@@ -37,6 +37,8 @@ successor validation, its own state lock — so this shortens the latency from �
 tick, which stays as the backstop) to ≤ the probe interval. The invocation and the tick's exit line are
 written to the dashboard log.
 
+**Relief tier (R6, 2026-09-07).** The tick's drain-band relief flip (D-171) keys on the active's HOTTEST window, session or weekly, so the fast path mirrors it: active at/over `ROTATE_DRAIN_THRESHOLD` (85) with another account eligible and below the band on both windows (`_relief_candidate`, a read-only mirror of the tick's precondition) → `--tick` now, under its own cooldown slot (tier order: flip/cap-walled, urgent drain, relief). The Quota tab's ghost `return` row renders for such an active too — it returns when its hottest window resets — so the queue shows it leaving rather than settled.
+
 **Row order = rotation order (operator rule 2026-09-03).** The active account is the first row; then the
 standby the tick would pick NEXT, then the one after, for any number of accounts (`_display_order`, the
 read-only mirror of the tick's `_pick_flip_target`: eligible = not cap-walled, no window ≥100, a known 5h
