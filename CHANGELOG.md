@@ -16,7 +16,9 @@ Pointed at from the hub `CLAUDE.md`, the synced project contract and fabrik-lib'
 from any `/opt` repo); documented in the rotation doc § `--status`. Scoped review: an `over-threshold` state
 (under its cap but a window ≥ the picker's target line — kept active, refused as a target until that window
 resets; mob@ at 0/97 under cap 99 read as `unavailable` on the first cut), the picker's reason printed on
-unavailable rows, `age_s` in the row, "none named" for a hold with no relief time. Five graders. D-175.
+unavailable rows, `age_s` in the row, "none named" for a hold with no relief time; pool readers: the picture
+DEGRADES on a bad row (`picture: unavailable (<error>)`, the account lines still print) instead of taking
+`--status` down with a traceback. Six graders. D-175.
 
 ### Fixed — quota board mirrors the drain-band relief flip: a `relief` trigger tier and the ghost return row (2026-09-07)
 

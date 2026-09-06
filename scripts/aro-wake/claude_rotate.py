@@ -3829,6 +3829,9 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
 
 
 def _print_picture(pic: dict) -> None:
+    if pic.get("error"):
+        print(f"picture: unavailable ({pic['error']}) — the account lines above still hold")
+        return
     by = {r["email"]: r for r in pic["accounts"]}
     hold = pic.get("hold")
     print(
@@ -3879,7 +3882,7 @@ def _cmd_fleet_status(dirs: list[Path], as_json: bool) -> int:
                     "pending": [p["slug"] for p in pending],
                     "pause": _pause_state(),
                     "fleet_warnings": warns,
-                    "picture": _fleet_picture(accounts, active, _now()),
+                    "picture": _safe_picture(accounts, active),
                 },
                 indent=1,
             )
@@ -3899,8 +3902,26 @@ def _cmd_fleet_status(dirs: list[Path], as_json: bool) -> int:
         )
     for warn in warns:
         print(warn)
-    _print_picture(_fleet_picture(accounts, active, _now()))
+    _print_picture(_safe_picture(accounts, active))
     return 0
+
+
+def _safe_picture(accounts: list[dict], active: str | None) -> dict:
+    """`--status` is a READ every agent in every repo runs — a bad row must degrade the picture,
+    never crash the command (pool readers on the first cut). The rest of the status (the
+    per-account lines, the warnings) is already printed by the time this runs."""
+    try:
+        return _fleet_picture(accounts, active, _now())
+    except Exception as exc:  # noqa: BLE001 — a read degrades, it never takes the status down
+        return {
+            "error": f"{type(exc).__name__}: {exc}",
+            "active": None,
+            "accounts": [],
+            "queue": [],
+            "next_relief": None,
+            "hold": None,
+            "last_flip": None,
+        }
 
 
 def _fleet_exhaustion_stamp() -> Path:

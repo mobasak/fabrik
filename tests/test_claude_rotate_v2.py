@@ -2557,3 +2557,25 @@ def test_the_picture_text_explains_an_unavailable_row_and_an_unnamed_resume(
     out = capsys.readouterr().out
     assert "resume promised none named" in out, out
     assert "dead@ocoron.com (unavailable: no live-chained credentialed dir" in out, out
+
+
+def test_status_survives_a_picture_that_raises(monkeypatch, capsys):
+    """Pool readers: `--status` is a read every agent runs; a bad row degraded the whole
+    command to a traceback. The picture reports the error and the account lines still print."""
+    monkeypatch.setattr(cr, "_now", lambda: NOW)
+    monkeypatch.setattr(cr, "_fleet_account_rows", lambda dirs: (_pic_rows(), []))
+    monkeypatch.setattr(cr, "_fleet_row_warnings", lambda accounts: [])
+    monkeypatch.setattr(cr, "_fleet_warnings", lambda: [])
+    monkeypatch.setattr(cr, "_resolve_active", lambda: "act")
+    monkeypatch.setattr(cr, "_pause_state", lambda: None)
+    monkeypatch.setattr(cr, "_fleet_root", lambda: Path("/x"))
+
+    def boom(*a, **k):
+        raise KeyError("five_hour")
+
+    monkeypatch.setattr(cr, "_flip_candidate_verdict", boom)
+    assert cr._cmd_fleet_status([], as_json=False) == 0
+    out = capsys.readouterr().out
+    assert "act@ocoron.com" in out and "picture: unavailable (KeyError" in out, out
+    assert cr._cmd_fleet_status([], as_json=True) == 0
+    assert "KeyError" in json.loads(capsys.readouterr().out)["picture"]["error"]
