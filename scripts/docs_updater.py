@@ -946,6 +946,229 @@ _DECISION_ROW_ID_RE = re.compile(r"^\|\s*D-\d+\s*\|", re.I)
 # the other way.
 _ADOPT_NAME_RE = re.compile(r"^[a-z0-9-]{1,32}$")
 
+# T02b — STRATEGIC_BACKLOG.md row tagging (step (c') of --adopt). A "tag" is
+# recognized ONLY at the row's own tag POSITION — the text right after a bullet's
+# marker/checkbox/leading `**`, or a table row's tag/Item cell start — NEVER by
+# searching the whole line (acceptance review r2, DEFECT-1: the round-1 widen's
+# `.search(line)` read ANY prose bracket as a tag; measured fleet-wide over 25
+# backlogs/1618 rows, 54 of 58 newly-"tagged" rows were false positives —
+# `[key: string]`, `[tool.ruff]`, `[0-9A-F]`, `[the review]`,
+# `[prometheus-app-metrics-setup.md](y.md)` — across 15 repos). The grammar: a
+# beat-shaped head `[a-z0-9-]{1,32}` either closes immediately, or is followed by
+# a compound tail — `/`, `+` or `→` then ANY text up to the next `]` — covering
+# the fleet's real compound owner tags `[infra/T16 decision]`, `[infra/docs]`,
+# `[fleet+infra]`, `[intel→fabrik-lib]` (docs/STRATEGIC_BACKLOG.md:55/56/60/908).
+# Excluded at the head: checkbox syntax (`[x]`/`[ ]`/`[X]` — the r1 pipeline
+# error), an uppercase-led head (`[WIP]`), and a bare `YYYY-MM-DD` date (a
+# changelog stamp, never a tag). A `.`-led tail (a markdown link's `.md` — the
+# probe that caught DEFECT-1) is deliberately NOT a valid separator: only
+# `/`, `+`, `→` open the free-text tail.
+_BACKLOG_TAG_AT_POS_RE = re.compile(
+    r"^\[(?!x\])(?!\s)(?!\d{4}-\d{2}-\d{2}\])[a-z0-9-]{1,32}(?:[/+→][^\]\n]{0,60})?\]"
+)
+# `- `, `* `, `- [ ] `, `- [x] ` — group(1) is the marker (+ optional checkbox) to
+# leave untouched, group(2) is the row's own content, where the tag is inserted.
+_BACKLOG_BULLET_RE = re.compile(r"^(\s*[-*]\s+(?:\[[ xX]\]\s+)?)(.*)$")
+# A GFM separator row: every non-blank char is `-`, `:`, or `|` (Tag column, header
+# rows, and this row itself are all distinguished from ordinary data rows elsewhere).
+_BACKLOG_SEPARATOR_RE = re.compile(r"^\|?[\s:|-]*-[\s:|-]*\|?$")
+_BACKLOG_TAG_HEADER = "Tag"
+# D5: the hub's own "Now" table names its owner cell `Owner`, never `Tag` (its
+# header row starts `| Effort | Owner | Item | Why Priority | ...` — grep
+# `^| Effort \| Owner \| Item` in docs/STRATEGIC_BACKLOG.md, a line number will
+# drift; `Tag` lives only in the legend table two sections above it) — so the
+# tag-cell lookup matches EITHER name, case-insensitively.
+_BACKLOG_TAG_HEADER_NAMES = {"tag", "owner"}
+_BACKLOG_ITEM_HEADER = "Item"
+
+
+def _backlog_tag_header_index(names: list[str]) -> int | None:
+    """Index of the header cell that holds the row's owner tag — named `Tag` or
+    `Owner`, case-insensitively (D5) — or `None` when the table has neither (the
+    project-shaped `| Effort | Item | Why | Ready when |` header). Shared by
+    `classify_backlog_row` and `_tag_backlog_rows` so the two never disagree on
+    which cell a `table-tag` row's tag lives in."""
+    for i, cell in enumerate(names):
+        if cell.strip().lower() in _BACKLOG_TAG_HEADER_NAMES:
+            return i
+    return None
+
+
+def _backlog_starts_with_tag(text: str) -> bool:
+    """True when `text` (a bullet's own content, or a table-item row's Item
+    cell) already opens with a tag AT ITS OWN START — never searched anywhere
+    else in the text (DEFECT-1: a prose bracket later in the same row, e.g.
+    `[key: string]`, must never read as "already tagged"). Strips one leading
+    `**` bold marker first, since the fleet's real bullets wrap the tag alone
+    (`**[infra]**`) or open a longer bold span AT the tag (`**[infra] Title**`)."""
+    probe = text.lstrip()
+    if probe.startswith("**"):
+        probe = probe[2:]
+    return _BACKLOG_TAG_AT_POS_RE.match(probe) is not None
+
+
+def _backlog_row_cells(line: str) -> list[str]:
+    """Split one `|`-delimited table row into trimmed cell texts (leading/trailing
+    pipe optional). Naive pipe-position split — matches this module's existing table
+    readers (`read_merge_owner`), which already assume unescaped pipes."""
+    s = line.strip()
+    if s.startswith("|"):
+        s = s[1:]
+    if s.endswith("|"):
+        s = s[:-1]
+    return [c.strip() for c in s.split("|")]
+
+
+def classify_backlog_row(line: str, header_cells: list[str] | None) -> str:
+    """Classify one STRATEGIC_BACKLOG.md candidate row for `--adopt`'s tagging step
+    (T02b, consumed by T03's `--check` advisory per the spine's Interfaces). Returns
+    `"table-tag"` (a table row under a header carrying a `Tag`-or-`Owner` cell —
+    case-insensitive, D5 — tag goes in that cell), `"table-item"` (a table row under
+    a header WITHOUT one, tag prefixes the SECOND cell), `"bullet"` (a `-`/`*` row,
+    checkbox optional, tag inserted after marker+checkbox), or `"skip"` (already
+    tagged AT ITS OWN POSITION — never anywhere else in the row, r2 DEFECT-1 — the
+    legend table — header cell 0 == `Tag`, the header/separator row itself, or a
+    struck-through Item). `header_cells` is the enclosing table's already-split
+    header — supplied by the CALLER, which alone tracks fences and table
+    boundaries; this function never infers table state from `line` alone, so it
+    stays a pure per-line classifier callable directly in tests without
+    reconstructing a scan."""
+    if header_cells is not None:
+        if not line.strip().startswith("|"):
+            return "skip"
+        if _BACKLOG_SEPARATOR_RE.match(line.strip()):
+            return "skip"
+        names = [c.strip() for c in header_cells]
+        cells = _backlog_row_cells(line)
+        if cells == names:
+            return "skip"  # the header row itself, re-offered to the classifier
+        if names and names[0] == _BACKLOG_TAG_HEADER:
+            return "skip"  # the legend table (`| Tag | Agent | Beat |`) — never tagged
+        item_idx = names.index(_BACKLOG_ITEM_HEADER) if _BACKLOG_ITEM_HEADER in names else 1
+        if item_idx < len(cells) and cells[item_idx].strip().startswith("~~"):
+            return "skip"  # resolved/struck-through row
+        tag_idx = _backlog_tag_header_index(names)
+        if tag_idx is not None:
+            if tag_idx < len(cells) and cells[tag_idx].strip() == "":
+                return "table-tag"
+            return "skip"  # occupied by non-tag content — never overwrite
+        if len(cells) > 1 and _backlog_starts_with_tag(cells[1]):
+            return "skip"  # the Item cell already opens with a tag (idempotent re-run)
+        return "table-item"
+
+    m = _BACKLOG_BULLET_RE.match(line)
+    if not m:
+        return "skip"
+    content = m.group(2)
+    if content.strip().startswith("~~"):
+        return "skip"
+    if _backlog_starts_with_tag(content):
+        return "skip"
+    return "bullet"
+
+
+def _backlog_cell_span(line: str, cell_index: int) -> tuple[int, int] | None:
+    """(start, end) offsets of the `cell_index`-th cell's raw text (whitespace
+    included, delimiting pipes excluded) — position-based, so a mutation can insert
+    into just that cell without reflowing any other part of the row. `None` when the
+    row has too few pipes for that index (never raises — a caller sees no span and
+    leaves the row untouched rather than guessing)."""
+    positions = [i for i, ch in enumerate(line) if ch == "|"]
+    if len(positions) < cell_index + 2:
+        return None
+    return positions[cell_index] + 1, positions[cell_index + 1]
+
+
+def _tag_backlog_rows(text: str, names: list[str]) -> tuple[str, list[tuple[str, str, str]]]:
+    """Tag every untagged STRATEGIC_BACKLOG.md row in `text`, round-robin over `names`
+    in file order (one shared counter across all three shapes — table-tag, table-item,
+    bullet), inserting only the tag text (never reordering or reflowing a row). Fenced
+    blocks are passed through verbatim; a fence never leaves an outer table's header
+    context (this file never nests a table inside a fence). Returns `(new_text,
+    report_entries)`; a byte-identical run for the same names yields an empty report."""
+    lines = text.split("\n")
+    header_cells: list[str] | None = None
+    in_fence = False
+    report: list[tuple[str, str, str]] = []
+    idx = 0
+    out: list[str] = []
+    i = 0
+    n = len(lines)
+    while i < n:
+        line = lines[i]
+        stripped = line.strip()
+
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            in_fence = not in_fence
+            header_cells = None
+            out.append(line)
+            i += 1
+            continue
+
+        if in_fence:
+            out.append(line)
+            i += 1
+            continue
+
+        if not stripped.startswith("|"):
+            header_cells = None
+            # fall through to the bullet path below (header_cells is now None)
+        elif i + 1 < n and _BACKLOG_SEPARATOR_RE.match(lines[i + 1].strip()):
+            # a NEW header immediately followed by its separator — never tagged.
+            header_cells = _backlog_row_cells(line)
+            out.append(line)
+            i += 1
+            continue
+        elif header_cells is not None and _BACKLOG_SEPARATOR_RE.match(stripped):
+            out.append(line)  # the separator row belonging to the header just set
+            i += 1
+            continue
+
+        shape = classify_backlog_row(line, header_cells)
+        if shape == "table-tag":
+            names_row = [c.strip() for c in header_cells or []]
+            tag_idx = _backlog_tag_header_index(names_row)
+            assert tag_idx is not None  # classify_backlog_row already confirmed a Tag/Owner header
+            span = _backlog_cell_span(line, tag_idx)
+            if span is None:
+                out.append(line)
+                i += 1
+                continue
+            start, end = span
+            name = names[idx % len(names)]
+            new_line = line[:start] + f" `[{name}]` " + line[end:]
+            out.append(new_line)
+            report.append((line.strip()[:60], name, "backlog-row"))
+            idx += 1
+        elif shape == "table-item":
+            span = _backlog_cell_span(line, 1)
+            if span is None:
+                out.append(line)
+                i += 1
+                continue
+            start, end = span
+            raw = line[start:end]
+            lead = len(raw) - len(raw.lstrip())
+            name = names[idx % len(names)]
+            new_line = line[:start] + raw[:lead] + f"[{name}] " + raw[lead:] + line[end:]
+            out.append(new_line)
+            report.append((line.strip()[:60], name, "backlog-row"))
+            idx += 1
+        elif shape == "bullet":
+            m = _BACKLOG_BULLET_RE.match(line)
+            assert m is not None  # classify_backlog_row already confirmed the match
+            name = names[idx % len(names)]
+            new_line = m.group(1) + f"[{name}] " + m.group(2)
+            out.append(new_line)
+            report.append((line.strip()[:60], name, "backlog-row"))
+            idx += 1
+        else:
+            out.append(line)
+
+        i += 1
+
+    return "\n".join(out), report
+
 
 def read_merge_owner() -> tuple[str, str] | None:
     """The `(name, "D-NNN")` declared by the LAST row of `docs/DECISIONS.md` whose `what`
@@ -1578,16 +1801,18 @@ def _mint_next_decision_id() -> str:
 def run_adopt(names: list[str], single_window: bool, proc_root: Path = Path("/proc")) -> int:
     """`--adopt <name>[,<name>…]`: seed the PLANS ownership markers, stamp every open
     unowned plan unit's Owner (round-robin), declare the merge owner (the first name)
-    when the ledger has none, delegate the epic half to `epic_order.py --assign` WHEN
-    that script is present (it is hub-only, never synced to projects — a repo with an
-    epics dir but no vendored copy is skipped here; the hub adopts those epics
-    separately, from /opt/fabrik, with `python3 /opt/fabrik/scripts/epic_order.py
-    --assign <names>`), then regenerate the PLANS block. Refuses (exit 2, one stderr
-    line) on any name failing `_ADOPT_NAME_RE`, or on a checkout only this session
-    shares unless `single_window` overrides it. Returns 3 only when a PRESENT
-    epic_order.py genuinely refused the assignment (rc≠0) — never for an absent
-    script. Idempotent: a re-run with the same names touches no byte and prints
-    `(nothing to adopt)`."""
+    when the ledger has none, tag every untagged docs/STRATEGIC_BACKLOG.md row
+    round-robin in its own shape (T02b — `classify_backlog_row`/`_tag_backlog_rows`;
+    silently nothing when the file is absent), delegate the epic half to
+    `epic_order.py --assign` WHEN that script is present (it is hub-only, never
+    synced to projects — a repo with an epics dir but no vendored copy is skipped
+    here; the hub adopts those epics separately, from /opt/fabrik, with `python3
+    /opt/fabrik/scripts/epic_order.py --assign <names>`), then regenerate the PLANS
+    block. Refuses (exit 2, one stderr line) on any name failing `_ADOPT_NAME_RE`, or
+    on a checkout only this session shares unless `single_window` overrides it.
+    Returns 3 only when a PRESENT epic_order.py genuinely refused the assignment
+    (rc≠0) — never for an absent script. Idempotent: a re-run with the same names
+    touches no byte and prints `(nothing to adopt)`."""
     bad = [n for n in names if not _ADOPT_NAME_RE.fullmatch(n)]
     if bad:
         sys.stderr.write(
@@ -1667,6 +1892,17 @@ def run_adopt(names: list[str], single_window: bool, proc_root: Path = Path("/pr
                 encoding="utf-8",
             )
         report.append((f"{did} (MERGE OWNER)", first, "ledger-row"))
+
+    # (c') tag every untagged docs/STRATEGIC_BACKLOG.md row — round-robin over
+    # `names`, in the row's own shape (T02b). A missing file is silently nothing (23
+    # of 41 repos have one — the ticket's own denominator).
+    backlog_path = PROJECT_ROOT / "docs" / "STRATEGIC_BACKLOG.md"
+    if backlog_path.is_file():
+        backlog_text = backlog_path.read_text(encoding="utf-8")
+        new_backlog_text, backlog_report = _tag_backlog_rows(backlog_text, names)
+        if backlog_report:
+            backlog_path.write_text(new_backlog_text, encoding="utf-8")
+            report.extend(backlog_report)
 
     # (d) the epic half — delegated to epic_order.py --assign, never re-implemented here.
     # scripts/epic_order.py is HUB-ONLY (never synced to projects — same guard

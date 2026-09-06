@@ -70,17 +70,23 @@
       "review": "docs/development/reviews/2026-09-06-plan-2-multi-agent-adoption-T05-review.md"
     },
     "T02b": {
-      "state": "dispatched",
+      "state": "merged",
       "runtime": "NO-POOL: native sonnet worktree (the write sandbox cannot run pytest \u2014 01M1V98VN3QNS73GCR3GYF9FXH)",
       "started_at": "2026-09-06T12:59:41+00:00",
       "worktree_path": null,
-      "branch": null,
-      "base_commit": "c2631de2"
+      "branch": "worktree-agent-a1465c43f1a445a7f",
+      "base_commit": "c2631de2",
+      "note": "coder aa2502f9469ff9223 died on a 429 mid-fixup then was stopped; r1 branch worktree-agent-aa2502f9469ff9223 @ cdebb51c kept; uncommitted test edits salvaged to the -salvage-T02b.diff; fresh coder merges the branch + applies the salvage",
+      "salvaged_at": "2026-09-06T14:49:17+00:00",
+      "branch_head": "7a4526e0",
+      "merged_at": "2026-09-06T18:27:28",
+      "review": "docs/development/reviews/2026-09-06-plan-2-multi-agent-adoption-T02b-review.md"
     }
   },
   "orchestrator": "infra session dd3c06d1, main checkout (dispatcher mode; the hub is outside the worktree model \u2014 coders isolate by worktree per D2)",
   "sizing_signals": [
     "T01 re-dispatch (pool unit stuck)",
-    "T02a re-dispatch (pool unit connection timeout)"
+    "T02a re-dispatch (pool unit connection timeout)",
+    "T02b re-dispatch (native coder died on rate limit mid-round-2)"
   ]
 }

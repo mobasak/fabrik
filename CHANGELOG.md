@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — docs_updater.py --adopt tags the backlog rows in their three real shapes (2026-09-06)
+
+`--adopt` (step c′) tags every untagged `docs/STRATEGIC_BACKLOG.md` row round-robin in the row's own shape — a hub-shaped table gets `` `[<name>]` `` in its `Tag` cell, a project-shaped table (`| Effort | Item | Why | Ready when |`) gets `[<name>] ` on the Item cell, a bullet row gets it after the list marker and any checkbox — skipping rows already tagged, headers, the legend table, fenced blocks and struck-through items; a second run is byte-identical; a missing backlog is silently nothing (23 of 41 projects carry one; 6 of 619 project table rows were tagged before this). `classify_backlog_row()` is the shape oracle T03's advisory reuses. Plan 2026-09-06-plan-2-multi-agent-adoption T02b (spec D2, ruling D-154); 109 tests green.
+
 ### Changed — the Quota tab is the rotation QUEUE: #1 active, #2 next, then every account in the order it comes up (2026-09-06)
 
 Operator: "active account at the top, upcoming account second, then the third, fourth and fifth"
