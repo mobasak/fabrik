@@ -1,6 +1,6 @@
 # Multi-agent adoption for existing projects — merge owner, work-item ownership, `--adopt`, two advisories
 
-Status: DRAFT
+Status: CONVERGED (2026-09-06 — /fabrik-plan-review r1: 6 fixes from pool ×3 + own re-derivation; r2 edit-free; emit gate 0 findings over 7 tickets / 20 Touches / 35 Context-Files entries)
 **Owner:** infra
 Spec: docs/superpowers/specs/2026-09-06-multi-agent-adoption-design.md (CONVERGED 7d8b3dbe, approved D-155; ruling D-154; profile D-153)
 
@@ -40,7 +40,7 @@ Intake: 7 items — 5 IN, 2 OUT-OF-SCOPE (I5, I6 — each named), 0 ASK.
 | T01 | `decisions.py --merge-owner` read | — | ⚡ | ⬜ | |
 | T02a | `--adopt` core: markers, owners, ledger row, header | — | ⚡ | ⬜ | |
 | T02b | `--adopt` backlog tagging, three shapes | T02a | ⛓️ | ⬜ | |
-| T03 | `--check` advisory at ≥2 sessions | T02b | ⛓️ | ⬜ | |
+| T03 | `--check` advisory at ≥2 sessions (+ `advisory=True` at the gate call) | T02b | ⛓️ | ⬜ | |
 | T04 | SessionStart advisory (hook) | — | ⚡ | ⬜ | |
 | T05 | vision reads the work stores; epics-review mints the row | — | ⚡ | ⬜ | |
 | T06 | Integration: scaffold markers, fire-rate proof, docs, whole-plan gate | T01, T03, T04, T05 | ⛓️ | ⬜ | |
@@ -63,7 +63,7 @@ Serialized: tests/test_docs_updater_adopt.py — T02a, T02b, T03
 - **T01 → T02a (shared grammar, no import):** `MERGE_OWNER_RE = re.compile(r"^\**\s*MERGE OWNER:\s*([A-Za-z0-9][A-Za-z0-9_.@-]*)", re.I)` applied to the stripped `what` cell (cells[3]); LAST match wins. Seam test: T02a's `read_merge_owner()` test and T01's `--merge-owner` test share one fixture ledger text (copied verbatim into both test files) and must agree on `beta`. Consumer: T02a (`tests/test_docs_updater_adopt.py`).
 - **T02a → T02b:** `--adopt` runs T02b's backlog step after (b) and before (d); T02b's classifier `classify_backlog_row(line, header_cells) -> "table-tag"|"table-item"|"bullet"|"skip"` is also T03's untagged-row source. Consumer: T02b, T03.
 - **T02a → T03:** `count_sessions_sharing(cwd) -> int` and `read_merge_owner() -> tuple[str,str] | None`. Consumer: T03 (`validate_ownership_advisory`).
-- **T02a → T04 (copy, not import):** the `/proc` scan semantics — `comm == "claude"`, `cwd` resolved with `os.readlink`, unreadable skipped — duplicated in the hook by design (hooks are self-contained). Seam: T04's test asserts the same count on the same synthetic pid list T02a's test uses.
+- **T02a → T04 (copy, not import):** the `/proc` scan semantics — `<proc_root>/<pid>/comm == "claude"`, `cwd` symlink resolved, unreadable/vanished skipped — duplicated in the hook by design (hooks are self-contained; the hook reads `proc_root` from `FABRIK_PROC_ROOT`, the script takes it as a parameter). Seam: both tests build the SAME fake proc tree shape (a shared helper is not possible across the two test files without a conftest — T04 copies T02a's 12-line builder verbatim) and assert the same count.
 - **T02a → T05:** the row grammar `MERGE OWNER: <name>` and `decisions.py --merge-owner`'s `UNDECLARED` exit 3 (T01). Consumer: the epics-review text (T05).
 - **T02a → T06:** the marker pair + `## Ownership (auto-generated)` heading the scaffold literal must reproduce byte-for-byte. Consumer: T06 (`tests/test_scaffold_doc_seeding.py`).
 
@@ -75,21 +75,22 @@ Serialized: tests/test_docs_updater_adopt.py — T02a, T02b, T03
 - **Given** a scratch repo (PROJECT_ROOT monkeypatched) with a marker-less PLANS.md, two open plans with no Owner line, one EXECUTED plan, and a ledger with no `MERGE OWNER:` row, **When** `--adopt alpha,beta --single-window` runs, **Then** PLANS.md gains the markers and a v2 block whose second header line reads `<!-- Merge owner: alpha | source: D-NNN -->`, the two open plans carry `**Owner:** alpha` and `**Owner:** beta` on the line after their H1, the EXECUTED plan is untouched, exactly one `MERGE OWNER: alpha` row was appended with id max+1, and the printed table has one row per change (scripts/docs_updater.py:1046)
 - **Given** the state after that run, **When** `--adopt alpha,beta --single-window` runs again, **Then** every touched file is byte-identical and the output is `(nothing to adopt)` (scripts/docs_updater.py:1015)
 - **Given** a ledger already carrying `MERGE OWNER: alpha`, **When** `--adopt gamma --single-window` runs, **Then** NO new ledger row is written, the existing row is untouched, and the header comment still names `alpha` — a change of merge owner is a hand-minted superseding row, never `--adopt`'s write (scripts/decisions.py:82)
-- **Given** `count_sessions_sharing` monkeypatched to return 1 and no `--single-window`, **When** `--adopt alpha` runs, **Then** it exits 2 with one stderr line naming the count and the override, and no file changes (scripts/docs_updater.py:1550)
+- **Given** a fake proc tree with ONE `claude` process whose cwd is the repo and no `--single-window`, **When** `--adopt alpha` runs with `proc_root` pointed at it, **Then** it exits 2 with one stderr line naming the count and the override, and no file changes; with two such processes it proceeds (scripts/docs_updater.py:1550)
 - **Given** a ledger row whose `what` opens with `**MERGE OWNER: alpha**`, **When** `read_merge_owner()` runs, **Then** it returns `("alpha", "D-NNN")` (scripts/docs_updater.py:834)
 - **Given** an epics dir with two frontmatter epics lacking `owner:`, **When** `--adopt alpha,beta --single-window` runs, **Then** `epic_order.py --assign alpha,beta` was invoked once and the table carries an `epic_order` row (scripts/epic_order.py:668)
-- **Given** the live hub tree, **When** `generate_plans_table()` runs, **Then** its second line starts with `<!-- Merge owner:` and `validate_plans_indexed()` on a v1 block reports the stale finding (scripts/docs_updater.py:1066)
+- **Given** the live hub tree, **When** `generate_plans_table()` runs, **Then** its second line starts with `<!-- Merge owner:` and `validate_plans_indexed()` against the pre-change block reports the stale finding once, and `--sync` clears it (scripts/docs_updater.py:1066)
 - **Given** a backlog with a hub-shaped table (`Tag` column, one empty tag cell), a project-shaped table (no `Tag` column, one untagged row), and three bullet rows (`- `, `- [ ] `, `- [x] `), **When** `--adopt alpha,beta --single-window` runs, **Then** the empty tag cell reads `` `[alpha]` ``, the project row's second cell starts with `[beta] `, and the bullets read `- [alpha] …`, `- [ ] [beta] …`, `- [x] [alpha] …` — round-robin across all five in file order (docs/STRATEGIC_BACKLOG.md:19)
 - **Given** a row already carrying `[infra]`, the legend table, a header row, and a fenced block containing `- item`, **When** `--adopt` runs, **Then** none of them changes (scripts/docs_updater.py:946)
 - **Given** the state after one run, **When** it runs again, **Then** STRATEGIC_BACKLOG.md is byte-identical (scripts/docs_updater.py:1046)
 - **Given** no STRATEGIC_BACKLOG.md, **When** `--adopt` runs, **Then** it succeeds with no backlog rows in the report (scripts/docs_updater.py:1550)
-- **Given** `count_sessions_sharing` monkeypatched to 2 and a repo with no `MERGE OWNER:` row, **When** `docs_updater.py --check` runs, **Then** stdout carries exactly one `ADVISORY:` line naming `2 sessions` and `--adopt`, and the exit code equals the run's exit code with the advisory removed (scripts/docs_updater.py:1357)
-- **Given** the session count monkeypatched to 1 in the same repo, **When** `--check` runs, **Then** no `ADVISORY:` line is printed (scripts/docs_updater.py:1357)
+- **Given** a fake proc tree with two `claude` processes in the repo (`proc_root`) and a repo with no `MERGE OWNER:` row, **When** `docs_updater.py --check` runs, **Then** stdout carries exactly one `ADVISORY:` line naming `2 sessions` and `--adopt`, and the exit code equals the run's exit code with the advisory removed (scripts/docs_updater.py:1357)
+- **Given** one process in the fake proc tree, or two processes but `scripts/fabrik_synced_manifest.py` present (hub identity), **When** `--check` runs, **Then** no `ADVISORY:` line is printed (scripts/docs_updater.py:1357)
 - **Given** 2 sessions, a declared merge owner, every open plan owned and every backlog row tagged, **When** `--check` runs, **Then** no `ADVISORY:` line is printed — parametrized over the four combinations of (sessions ∈ {1,2}) × (ownership complete/incomplete), only (2, incomplete) prints (scripts/docs_updater.py:1066)
-- **Given** the hook run through the existing `_run` harness with `_sessions_line`'s scan monkeypatched (via an env override the test sets, `FABRIK_SESSIONS_SHARING_OVERRIDE=3`, read only when set) in a non-hub scratch cwd, **When** it runs, **Then** the ORIENT block carries exactly one line starting `- ⚠️ **3 sessions share this main checkout.**` placed after the identity line (.claude/hooks/session_orient.py:294)
-- **Given** the override set to 1, **When** it runs, **Then** the block carries no `sessions share` line and is byte-identical to today's output for that cwd (.claude/hooks/session_orient.py:287)
-- **Given** the override set to 3 and a cwd whose path contains `/.claude/worktrees/`, or a cwd carrying `scripts/fabrik_synced_manifest.py` (hub identity), **When** it runs, **Then** no `sessions share` line is printed (.claude/hooks/session_orient.py:139)
-- **Given** no override and a live scan, **When** `_sessions_line` runs on this box, **Then** it returns within 200 ms and never raises even when a `/proc/<pid>` entry disappears mid-scan (simulated by a pid list that includes a dead pid) (.claude/hooks/session_orient.py:211)
+- **Given** the gate run on a tree where the advisory fires, **When** `final_gate.py --check --json` runs, **Then** the `Documentation Drift` row is green and its output carries the `ADVISORY:` line (scripts/final_gate.py:1884)
+- **Given** the hook run through the existing `_run` harness with `FABRIK_PROC_ROOT` pointing at a fake tree holding three `claude` entries whose `cwd` symlinks resolve to a non-hub scratch cwd (plus one `bash` entry and one entry with no `cwd`), **When** it runs, **Then** the ORIENT block carries exactly one line starting `- ⚠️ **3 sessions share this main checkout.**` placed after the identity line (.claude/hooks/session_orient.py:294)
+- **Given** a fake tree with one `claude` entry in that cwd, **When** it runs, **Then** the block carries no `sessions share` line and is byte-identical to today's output for that cwd (.claude/hooks/session_orient.py:287)
+- **Given** three entries and a cwd whose path contains `/.claude/worktrees/`, or a cwd carrying `scripts/fabrik_synced_manifest.py` (hub identity), **When** it runs, **Then** no `sessions share` line is printed (.claude/hooks/session_orient.py:139)
+- **Given** no `FABRIK_PROC_ROOT` and the live `/proc`, **When** `_sessions_line` runs on this box, **Then** it returns within 200 ms and never raises even when an entry disappears mid-scan (a fake tree entry whose `cwd` symlink dangles) (.claude/hooks/session_orient.py:211)
 - **Given** the vision source, **When** `tests/test_vision_reads_work_stores.py` greps its EXISTING read list, **Then** `docs/development/PLANS.md` and `docs/STRATEGIC_BACKLOG.md` both appear between the `EXISTING mode only` bullet and the fabrik-lib bullet, and the epic-seed paragraph names `owner:` inheritance from a `[name]` tag (commands/_sources/fabrik-vision.md:63)
 - **Given** the epics-review source, **When** the test greps § Step 1.5, **Then** it names `decisions.py --merge-owner` and the `MERGE OWNER:` row mint (commands/_sources/fabrik-epics-review.md:138)
 - **Given** both sources edited, **When** `assemble_commands.py --check` and `check_command_corpus.py` run from the main checkout, **Then** both exit 0 and every composed skill description stays ≤ 1024 chars (commands/assemble_commands.py:1)
@@ -102,7 +103,7 @@ Serialized: tests/test_docs_updater_adopt.py — T02a, T02b, T03
 - Shared tree, three hub sessions: every commit is a private-index commit of explicitly named paths; never `git add -A`, `--amend`, stash; fetch + fast-forward before push; never `--force`.
 - `scripts/docs_updater.py` (RUN_SCRIPT) and `.claude/hooks/session_orient.py` (AGENT_HOOK_FILES) are FLEET-SYNCED: correct for a project with no PLANS.md, no backlog, no epics, one session; stdlib only; a commit-tree commit skips the post-commit sync — run `python3 scripts/sync_enforcement_to_projects.py --force` after T06 merges.
 - Commands render from the MAIN checkout only, order render → `--check` → commit (the renderer prunes when run from a worktree).
-- Advisory, never block: no new file under `scripts/enforcement/`; `--check`'s exit code is unchanged by the advisory; `final_gate.py:1884` is `run_optional_check`.
+- Advisory, never block: no new file under `scripts/enforcement/`; `--check`'s exit code is unchanged by the advisory; `final_gate.py:1884` is `run_optional_check`, whose stdout is DROPPED on exit 0 unless `advisory=True` (`final_gate.py:347-365`) — T03 adds that one keyword and nothing else there; the hub never gets either advisory.
 - Hub identity = `scripts/fabrik_synced_manifest.py` present; the hub never gets the SessionStart line.
 - Never-Route: scripts/enforcement/
 - Never-Route: scripts/final_gate.py
@@ -129,7 +130,7 @@ Serialized: tests/test_docs_updater_adopt.py — T02a, T02b, T03
 | `src/fabrik/scaffold.py` | the inline PLANS.md literal (:1436-1452) — 280 KB file, over the per-ticket budget → Integration hatch | read this run |
 | `commands/_sources/fabrik-vision.md` / `fabrik-epics-review.md` | EXISTING read list (:63-66); Step 1.5 (:138) | read this run |
 | `docs/STRATEGIC_BACKLOG.md` | the hub tag legend + `Tag` column (:19-24); project shape `| Effort | Item | Why | Ready when |` (transdoc, seo, youtube) | read this run |
-| `scripts/final_gate.py` | `run_optional_check("scripts/docs_updater.py", "Documentation Drift", "--check")` (:1884) | read this run |
+| `scripts/final_gate.py` | `run_optional_check("scripts/docs_updater.py", "Documentation Drift", "--check")` (:1884); `advisory` keeps stdout on exit 0, `warn_only` marks non-blocking (:347-365) | read this run |
 
 ## Constraints digest
 
@@ -146,7 +147,7 @@ Serialized: tests/test_docs_updater_adopt.py — T02a, T02b, T03
 ## Execution Discipline (binding on /fabrik-execute-plan)
 
 - **Review floor** — every ticket, on the coder's return, runs `/fabrik-review` on its changed surface to a coverage-adjudicated exit BEFORE its merge; no ticket merges on a first-pass green.
-- **Dispatch policy** — pool-default (`fanout(task_type, …)`, auto-records to the flywheel, wants the `set_quality` back-fill) for the gradeable tickets T01, T02a, T02b, T03; native added on top for the authoritative pass on T02a (the fleet-synced script) and for T04, T05, T06 (`Complexity: native` — a synced hook, command prose, the Integration receipt). Naming neither would let the executor go all-native.
+- **Dispatch policy** — pool-default (`fanout(task_type, …)`, auto-records to the flywheel, wants the `set_quality` back-fill) for the gradeable tickets T01, T02a, T02b; native for T03 (`never-route` — it touches `scripts/final_gate.py`), T04, T05, T06 (`Complexity: native` — a synced hook, command prose, the Integration receipt), and native added on top as the authoritative pass on T02a (the fleet-synced script). Naming neither would let the executor go all-native.
 - **Parallelism + merge** — T01, T02a, T04, T05 fan out concurrently at Phase 1 (disjoint Touches); T02b then T03 follow T02a serially on `scripts/docs_updater.py`; T06 runs last. Results merge in the main checkout by the merge owner in Merge Order, one `--no-ff` merge per ticket after its review exit; the D4 acceptance round is the pool trio + a native finder on T02a/T04.
 
 ## File Scope (owned paths)
@@ -166,6 +167,7 @@ Serialized: tests/test_docs_updater_adopt.py — T02a, T02b, T03
 - docs/reference/multi-agent-operating-model.md
 - templates/governance/CLAUDE.md
 - docs/development/reviews/2026-09-06-plan-2-multi-agent-adoption-review.md
+- scripts/final_gate.py
 
 ## Evidence
 
@@ -200,7 +202,7 @@ $ wc -c scripts/docs_updater.py src/fabrik/scaffold.py → 59363, 279834  (READ_
 - (a) Coverage — one master → T01/T02a; work-item split → T02a/T02b; make-sure mechanism → T03/T04; vision inputs → T05; markers at birth → T06; fire-rate proof → T06; docs → T04/T06/Deltas. No agreement without a ticket.
 - (b) Cross-ticket signatures — `MERGE_OWNER_RE` identical in T01 and T02a (seam test on one fixture); `count_sessions_sharing(cwd)`/`read_merge_owner()` produced by T02a, consumed by T03; `classify_backlog_row` produced by T02b, consumed by T03; the marker pair + heading produced by T02a, reproduced by T06's scaffold literal; the hook's scan is a stated copy, seam-tested on the same synthetic pid list.
 - Sizing: the emit gate summary line is recorded in § Residual unknowns once run; `scaffold.py` (280 KB) sits in the Integration ticket by the READ-budget hatch.
-- Fixed point: not yet — `/fabrik-plan-review` runs in this turn.
+- Fixed point: reached at review r2 — r1 (pool ×3 + own re-derivation): 6 fixes (terminal-status set, no `v2` arg, hub suppression in T03, `advisory=True` at the gate call → T03 never-route, the fake proc tree instead of a count override in T04/T02a, the comm value resolved); r2: edit-free full re-read, emit gate 0 findings over 7 tickets / 20 Touches / 35 Context-Files entries.
 
 ## Coverage Checklist
 
@@ -219,17 +221,25 @@ Rubric over the touched surfaces (`python scripts/review_rubric.py --changed scr
 
 | Class | Status |
 |---|---|
-| core/10-python.md rows (uv, datetime, no logfile, ruff sets) | to adjudicate at review |
-| core/40-documentation.md rows (trailers, CHANGELOG) | to adjudicate at review |
-| FLOOR 35/25/30 (unconstrained here except secrets) | to adjudicate at review |
-| Recurrence: bounded-count claims without denominators | to adjudicate at review |
-| Recurrence: proxy-as-evidence (a grep standing in for a run) | to adjudicate at review |
-| Recurrence: fleet blast radius of a synced surface | to adjudicate at review |
-| Recurrence: idempotency claimed, not asserted on disk | to adjudicate at review |
+| core/10-python.md rows (uv, datetime, no logfile, ruff sets) | CLEAN — no dependency, `datetime.now(UTC)` named in T02a, stdout/stderr only (T03/T04), ruff in every Python ticket's gate path |
+| core/40-documentation.md rows (trailers, CHANGELOG) | CLEAN — trailers in § Global Constraints; one CHANGELOG entry per ticket in every `Docs:` |
+| FLOOR 35/25/30 (unconstrained here except secrets) | CLEAN — the scan reads `comm` + `cwd`, never `environ` (T02a, T04 DO-NOT) |
+| Recurrence: bounded-count claims without denominators | FIXED r1 — "21 sessions / 8 checkouts / 6 synced", "0 of 41", "28 of 29", "619 + 764 / 6", "58 of 155", "27 → 28 rows" all carry their denominators |
+| Recurrence: proxy-as-evidence (a grep standing in for a run) | FIXED r1 — the emit gate's own summary line (`graded 7 ticket(s), 20 Touches path(s), 35 Context-Files entry(ies) … 0 finding(s)`) is the sizing evidence; the comm value was RUN, not assumed |
+| Recurrence: fleet blast radius of a synced surface | FIXED r1 — the hub excluded from BOTH advisories (T03 gained the `is_hub` return; T04 had it); single-session repos traced to zero output in T02a/T03/T04; `advisory=True` at `final_gate.py:1884` so the line is not silently dropped |
+| Recurrence: idempotency claimed, not asserted on disk | FIXED r1 — T02a/T02b assert byte-identity on the second run; the terminal-status set corrected to the normaliser's real values (`EXECUTED`, `COMPLETE`); the "v2 version arg" claim removed (`replace_block` hard-codes `v1`) |
+
+## Pass Ledger
+
+| Pass | Layer | Method | Findings → fixed | What was re-derived |
+|---|---|---|---|---|
+| Pass r1 | pool ×3 (deepseek-v4-flash 0/5 — raw tool markup; gemini-3-flash 3/5; qwen3-max 1/5 — graded unexecuted deltas as missing code) + own re-derivation | method: re-derivation | 6 → 6 | `parse_plan_status` vocabulary re-read at `docs_updater.py:889-905` (terminal = EXECUTED, COMPLETE); `replace_block` re-read (:703-717, stamp hard-coded `v1`, no version arg); `run_check` (:1423) and `run_optional_check` (:347-365, stdout dropped on exit 0 unless `advisory=True`); the hook's block assembly (:287-295) and the harness's env seam (`tests/test_session_orient_hook.py:18-40`); the hub clause (operating-model § Hub vs project); `/proc/<pid>/comm` walked: 21 `claude` of 21 `pgrep -x claude`; `docs/reference/decision-ledger.md` exists; `check_script_headers.py` touch-on-change (:11-14); emit gate re-run: 7 tickets / 20 Touches / 35 Context-Files entries, 0 findings |
+| Pass r2 | own closing read (full set) | method: re-derivation | 0 → 0 | roll-up recounted from the ticket files (28 = 3+7+4+4+4+3+3, spine equal); every ticket's eight fields present, no `Status:` line; stale-token sweep over the set (override / CONVERGED-EXECUTED / version-arg / to-adjudicate = 0 after the two legitimate mentions were read); emit gate 0 findings; `check_plan_quality.py` prints nothing on this set AND on a deliberately broken fixture (missing Complexity/Gate/Docs) — it grades nothing here, so field presence is self-verified above (filed as a finding, § Residual unknowns) |
 
 ## Residual unknowns
 
 - **Resolved:** the advisory trigger (live sessions, not worktrees); the ledger grammar vs bold-leading cells; the three backlog row shapes; the socket cannot identify a worktree session (cwd can).
-- **Open (self-service, T02a):** the exact `/proc/<pid>/comm` value for a Claude Code session on this box is `claude` — the plan's test uses a synthetic pid list, and T02a's first step is `for p in $(pgrep -x claude); do cat /proc/$p/comm; done | sort -u` recorded in its report; if it differs, the scan matches that value.
+- **Resolved (review r1):** the `/proc/<pid>/comm` value of every live Claude Code session on this box is `claude` — `for p in $(pgrep -x claude); do cat /proc/$p/comm; done | sort | uniq -c` → `21 claude`, and a full `/proc` walk on `comm == claude` counts the same 21 as `pgrep -x claude`.
 - **Open (self-service, T06):** the fire-rate proof reads 45 repos read-only; a repo whose PLANS.md is unreadable is reported as a row, never skipped silently.
+- **Filed (infra, own beat):** `scripts/enforcement/check_plan_quality.py` reads `PLAN_DIR = Path.cwd()/docs/development/plans` (:44), takes no `--plan-dir`, and printed nothing on a fixture ticket missing `Complexity:`/`Gate:`/`Docs:` — the vacuous-check class; a backlog row is written at T06's Deltas and the check is measured before it is trusted.
 - **Hand-off after execution (operator's word, per repo):** the six shared-checkout project repos measured today are the adoption candidates; agent-1 in each runs `python scripts/docs_updater.py --adopt <names>` — not this plan's step.
