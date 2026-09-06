@@ -1149,19 +1149,24 @@ _EXT_SERVICES: tuple[tuple[str, str, str, str], ...] = (
     ),
     (
         "fly",
-        "fly",
+        "flywheel",
         "Flywheel recording — record_agent_run() into the ranking store",
         r"record_agent_run",
     ),
     (
         "rec",
-        "rec",
+        "recall",
         "session-recall MCP — search_chats / recent_chats over past sessions",
         r"search_chats|recent_chats|mcp__session-recall|session-recall",
     ),
     ("web", "web", "Claude's own WebSearch / WebFetch", r"\bWebSearch\b|\bWebFetch\b"),
-    ("brv", "brv", "Brave Search MCP", r"brave[_-]web[_-]search|mcp__brave-search|brave-search"),
-    ("fc", "fc", "Firecrawl MCP — scrape / search / extract", r"firecrawl_[a-z]|mcp__firecrawl"),
+    ("brv", "brave", "Brave Search MCP", r"brave[_-]web[_-]search|mcp__brave-search|brave-search"),
+    (
+        "fc",
+        "firecrawl",
+        "Firecrawl MCP — scrape / search / extract",
+        r"firecrawl_[a-z]|mcp__firecrawl",
+    ),
     (
         "exa",
         "exa",
@@ -1170,7 +1175,7 @@ _EXT_SERVICES: tuple[tuple[str, str, str, str], ...] = (
     ),
     (
         "brw",
-        "brw",
+        "browser",
         "Headless browser — playwright / chrome-devtools / the fabrik-gui subagent",
         # NOT bare "Browserless"/"Gotenberg" — those are fleet SERVICES a project may deploy,
         # prose about someone else's architecture, not this command reaching for a browser.
@@ -1179,20 +1184,20 @@ _EXT_SERVICES: tuple[tuple[str, str, str, str], ...] = (
     ),
     (
         "gh",
-        "gh",
+        "github",
         "GitHub through the gh CLI",
         r"\bgh (?:pr|issue|api|repo|release|run|search|browse|workflow|auth)\b",
     ),
     (
         "vps",
-        "vps",
+        "VPS",
         "The VPS fleet over SSH — fabrik apply / redeploy / plan, deployer_ssh",
         r"\bfabrik (?:apply|redeploy|plan|destroy|status)\b|\bssh (?:vps|root@)|deployer_ssh|\bvps[1-3]\b",
     ),
-    ("aic", "aic", "ai-consult — the metered frontier panel (fabrik-lib)", r"ai[-_]consult"),
+    ("aic", "ai-consult", "ai-consult — the metered frontier panel (fabrik-lib)", r"ai[-_]consult"),
     (
         "cit",
-        "cit",
+        "citations",
         "fabrik-citation-verifier MCP",
         # NOT the bare server name: its only occurrence in the corpus is fabrik-data-contract
         # saying the verifier "does not apply here" — a NEGATION, which no regex can read. The
@@ -1462,9 +1467,9 @@ def render(
  #pane-commands h2 {{ font-size:13px; text-transform:uppercase; letter-spacing:.06em;
    color:var(--sub); margin:30px 0 8px; }}
  table.matrix {{ table-layout:auto; }}
- table.matrix th.svc {{ width:1%; text-align:center; white-space:nowrap; font-size:11.5px;
-   letter-spacing:.03em; cursor:help; padding-left:6px; padding-right:6px; }}
- table.matrix td.dot {{ text-align:center; width:1%; padding-left:6px; padding-right:6px;
+ table.matrix th.svc {{ width:1%; text-align:center; white-space:nowrap; font-size:12.5px;
+   letter-spacing:.02em; cursor:help; padding-left:10px; padding-right:10px; }}
+ table.matrix td.dot {{ text-align:center; width:1%; padding-left:10px; padding-right:10px;
    color:var(--line); font-size:15px; line-height:1.1; }}
  table.matrix td.dot.on {{ color:var(--accent); }}
  table.matrix td.dot.tot, table.matrix td.cmd.tot {{ color:var(--sub); font-size:12px;

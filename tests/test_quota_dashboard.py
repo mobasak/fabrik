@@ -1067,6 +1067,15 @@ def test_the_service_registry_is_well_formed(tmp_path, monkeypatch):
         assert key and label and title, key
         re.compile(pat)
     assert {"pool", "mail", "web"} <= set(keys), "the three most-used services stay registered"
+    # The column HEAD is what the operator reads; the key is what the code joins on. They were the
+    # same three-letter string until the operator asked why a 1600px-wide table was squeezed into
+    # "fly / rec / brv / fc / brw / aic / cit" — the abbreviations were an unchecked assumption
+    # about width, not a constraint. Labels are words now, and nothing but the KEY may shrink again.
+    for key, label, _title, _pat in qd._EXT_SERVICES:
+        assert len(label) >= 3, key
+        assert label.lower() == key or len(label) > len(key), (
+            f"{key}: the column head must not re-abbreviate"
+        )
     # A reader raised "a hand-edited title containing a literal quote breaks the title attribute".
     # REFUTED, and pinned: html.escape defaults to quote=True, so the attribute survives.
     hostile = '"><script>alert(1)</script>'
