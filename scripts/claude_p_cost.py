@@ -806,12 +806,23 @@ def _merge_usage_store_locked(path: Path) -> dict:
         elif k not in out_days:
             out_days[k] = v
     store["days"] = dict(sorted(out_days.items()))
+    # LIST ONLY WHAT ACTUALLY SURVIVED. A scalar day the extension has since supplied properly is
+    # SUPERSEDED rather than preserved — the good value replaces it, which is the outcome we want —
+    # but listing that day here would claim the file still carries something uninterpretable when it
+    # does not. Same class as the day counter and the staleness signal: a diagnostic that overstates
+    # is a diagnostic that lies. Raised by a round-11 finder.
+    still_unusable = sorted(
+        k
+        for k, v in unusable.items()
+        if (isinstance(v, dict) and any(mid in out_days.get(k, {}) for mid in v))
+        or (not isinstance(v, dict) and out_days.get(k) is v)
+    )
     store["_unusable"] = (
         {
-            "days": sorted(unusable),
-            "note": "shapes this collector cannot interpret, preserved verbatim",
+            "days": still_unusable,
+            "note": "shapes this collector cannot interpret, preserved verbatim in `days`",
         }
-        if unusable
+        if still_unusable
         else {}
     )
     store["source_by_day"] = dict(sorted(src_by.items()))

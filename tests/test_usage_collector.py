@@ -1055,3 +1055,29 @@ def test_a_corrupt_extension_source_does_not_stop_the_merge(tmp_path, monkeypatc
 
     assert store["days"]["2026-09-02"] == {"claude-opus-5": 500}, "the good day still lands"
     assert "2026-09-01" not in store["days"], "the poisoned entry contributes nothing"
+
+
+def test_the_unusable_list_names_only_what_actually_survived(tmp_path, monkeypatch):
+    """A scalar day the extension has since supplied properly is SUPERSEDED, not preserved — the good
+    value replaces it, which is the outcome we want. Listing that day under `_unusable` would claim
+    the file still carries something uninterpretable when it does not. Same class as the day counter
+    and the staleness signal: a diagnostic that overstates is a diagnostic that lies."""
+    history = tmp_path / "usage-history.json"
+    history.write_text(
+        json.dumps({"days": {"2026-09-07": {"byModel": {"claude-opus-5": {"output": 100}}}}}),
+        encoding="utf-8",
+    )
+    _store(
+        tmp_path,
+        monkeypatch,
+        {"2026-09-07": "corrupt_string", "2026-09-08": "still-corrupt"},
+        {"2026-09-07": "extension", "2026-09-08": "extension"},
+    )
+    monkeypatch.setattr(cpc, "_USAGE_HISTORY", history)
+    monkeypatch.setattr(cpc, "_TRANSCRIPT_ROOT", tmp_path / "no-transcripts")
+
+    store = cpc.merge_usage_store()
+
+    assert store["days"]["2026-09-07"] == {"claude-opus-5": 100}, "superseded by measured data"
+    assert store["days"]["2026-09-08"] == "still-corrupt", "nothing measured it ⇒ preserved"
+    assert store["_unusable"]["days"] == ["2026-09-08"], "only the one that survived is listed"
