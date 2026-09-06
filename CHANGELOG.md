@@ -19,6 +19,20 @@ commands as VPS-touching, because `VPS`, `GitHub` and `flywheel` appear in the b
 every command carries. The one hand-maintained fact is the `_EXT_SERVICES` registry, and the page
 says so above the matrix. 7 graders added, the rendered-vs-sources one proven red on revert.
 
+### Fixed — quota dashboard: the board had silently FROZEN; a cached pool balance crashed every render (2026-09-06)
+
+Found while verifying the matrix above: the page said "refreshes every 20s" and had not moved in
+minutes. `_pool_credits(now: float | None = None)` computed `now - float(cached["ts"])`, and **neither
+of its two callers ever passed `now`** — so from the moment the balance cache held a numeric `ts`,
+every regeneration raised `TypeError: unsupported operand type(s) for -: 'NoneType' and 'float'`.
+`_generate_locked` calls it under a comment promising the pool "can never break the board", but the
+try/except that comment describes was never written, and `_regen_async` runs `generate()` on a daemon
+thread that swallows the traceback — so the board froze at its last good page with no visible error
+and kept claiming a live refresh. `--once` died with the same traceback. Both halves fixed at the
+root: `now` defaults to `time.time()`, and the promised guard now exists (a missing balance is a
+missing panel, never a dead board). Introduced 2026-09-04 in 610c01b8 (fleet); 2 graders, both proven
+red on revert; verified live — the board's stamp now tracks within 20s of wall clock.
+
 ### Fixed — rotation: relief on a sibling now MOVES the pointer when the active account is in the drain band (2026-09-06)
 
 Incident 23:01-23:17 +03: the advisory leg lifted the fleet-exhausted hold the moment ozgurbasak@'s 5h

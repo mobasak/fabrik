@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -798,6 +799,149 @@ def test_commands_table_covers_every_fabrik_source_in_pipeline_order(tmp_path, m
     assert by["fabrik-spec"]["when"] and by["fabrik-spec"]["purpose"]
 
 
+def test_a_cached_pool_balance_does_not_freeze_the_board(tmp_path, monkeypatch):
+    """Live 2026-09-06: `_pool_credits(now=None)` did `None - float(ts)` whenever the cache held a
+    numeric ts — and NO caller ever passed `now`. From `_generate_locked` that TypeError took the
+    render with it, and `_regen_async` runs generate() on a daemon thread that swallows the
+    traceback, so the board silently froze at its last good page while claiming a 20s refresh."""
+    qd = _load(tmp_path, monkeypatch)
+    cache = tmp_path / "pool-credits.json"
+    cache.write_text(
+        json.dumps({"granted": 20.0, "used": 0.0, "remaining": 20.0, "ts": time.time()}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(qd, "CREDITS_CACHE", cache)
+    got = qd._pool_credits(fetch=False)  # no `now` — exactly how both real callers invoke it
+    assert got and got["remaining"] == 20.0 and got["age_s"] >= 0.0
+
+
+def test_a_broken_pool_balance_never_takes_the_board_down(tmp_path, monkeypatch):
+    """The guard `_generate_locked`'s own comment promised but did not have. The pool balance is a
+    panel; the quota board is the reason the page exists."""
+    qd = _load(tmp_path, monkeypatch)
+
+    def boom(*_a, **_k):
+        raise RuntimeError("pool exploded")
+
+    monkeypatch.setattr(qd, "_pool_credits", boom)
+    monkeypatch.setattr(qd, "_probe", _payload)
+    html = qd.generate()
+    assert "Claude account quota" in html and "mob" in html
+
+
+# ── External-services matrix (operator ask 2026-09-06; seen RED first) ─────────────────────────
+
+
+def _rendered(tmp_path: Path, name: str, body: str) -> Path:
+    d = tmp_path / "rendered"
+    d.mkdir(exist_ok=True)
+    (d / f"{name}.md").write_text(body, encoding="utf-8")
+    return d
+
+
+def test_the_matrix_reads_the_rendered_corpus_not_the_sources(tmp_path, monkeypatch):
+    """THE load-bearing behaviour. `assemble_commands.py` appends the shared pool and mail
+    fragments, so a source-only read under-reports the pool by ~9 commands and fabrik-mail by 34
+    (measured 2026-09-06). A command whose SOURCE never says `fanout(` still reaches the pool once
+    rendered — the dot must follow the rendered text."""
+    qd = _load(tmp_path, monkeypatch)
+    name = sorted(p.stem for p in (qd._FABRIK_ROOT / "commands" / "_sources").glob("fabrik-*.md"))[0]
+    src = (qd._FABRIK_ROOT / "commands" / "_sources" / f"{name}.md").read_text(encoding="utf-8")
+    assert "verify_citation" not in src, "fixture assumes the source does NOT reach the verifier"
+    monkeypatch.setattr(
+        qd, "RENDERED_COMMANDS", _rendered(tmp_path, name, src + "\nrun verify_citation() here\n")
+    )
+    services, is_rendered = qd._command_services(name)
+    assert is_rendered and "cit" in services
+    # and with no rendered file the row falls back to the source, DECLARED, never silently
+    monkeypatch.setattr(qd, "RENDERED_COMMANDS", tmp_path / "absent")
+    services, is_rendered = qd._command_services(name)
+    assert not is_rendered and "cit" not in services
+
+
+def test_a_prose_mention_is_not_a_dot(tmp_path, monkeypatch):
+    """The defect that made the first draft useless: `VPS`, `GitHub` and `flywheel` all appear in
+    the beat-routing table every rendered command carries, so a prose match rated all 36 commands
+    as VPS-touching. Only the service's own INVOCATION token counts."""
+    qd = _load(tmp_path, monkeypatch)
+    prose = (
+        "the VPS git pulls from the GitHub remote; intel owns models, benchmarks, the flywheel, "
+        "and an exact firecrawl-free reading of the pool"
+    )
+    monkeypatch.setattr(qd, "RENDERED_COMMANDS", _rendered(tmp_path, "fabrik-spec", prose))
+    assert qd._command_services("fabrik-spec")[0] == set()
+    invocations = "run `fabrik apply specs/services/x.yaml`, then gh pr create, then fanout( ... )"
+    monkeypatch.setattr(qd, "RENDERED_COMMANDS", _rendered(tmp_path, "fabrik-spec", invocations))
+    assert qd._command_services("fabrik-spec")[0] == {"vps", "gh", "pool"}
+
+
+def test_the_service_registry_is_well_formed(tmp_path, monkeypatch):
+    """The registry is the ONE hand-held fact — a duplicate key would silently drop a column and a
+    bad pattern would take the whole board down at import."""
+    qd = _load(tmp_path, monkeypatch)
+    keys = [k for k, _l, _t, _p in qd._EXT_SERVICES]
+    assert len(keys) == len(set(keys)) and len(keys) >= 10
+    for key, label, title, pat in qd._EXT_SERVICES:
+        assert key and label and title, key
+        re.compile(pat)
+    assert {"pool", "mail", "web"} <= set(keys), "the three most-used services stay registered"
+
+
+def test_every_command_gets_a_matrix_row_and_the_totals_carry_their_denominator(
+    tmp_path, monkeypatch
+):
+    """A count with no denominator is indistinguishable from having looked at nothing
+    (CLAUDE.md § HARD STOPS), so the footer states `of N` and each total is re-derived here."""
+    qd = _load(tmp_path, monkeypatch)
+    rows = qd._load_commands()
+    html = qd._ext_matrix_table(rows)
+    assert html.count('<td class="cmd"><strong>/') == len(rows)
+    assert f'<td class="cmd tot">of {len(rows)}</td>' in html
+    for key, _l, _t, _p in qd._EXT_SERVICES:
+        assert f'<td class="dot tot">{sum(1 for r in rows if key in r["services"])}</td>' in html
+    # the live corpus must actually exercise the matrix — an all-blank grid would pass every
+    # assertion above and tell the operator nothing
+    assert sum(len(r["services"]) for r in rows) > len(rows), "the live corpus reaches services"
+
+
+def test_an_unrendered_corpus_is_declared_never_silently_underreported(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "RENDERED_COMMANDS", tmp_path / "absent")
+    qd._cmd_cache_key = None
+    rows = qd._load_commands()
+    intro = qd._ext_matrix_intro(rows)
+    assert "UNDER-report" in intro and f"{len(rows)} of {len(rows)}" in intro
+    monkeypatch.setattr(qd, "RENDERED_COMMANDS", Path.home() / ".claude" / "commands")
+    qd._cmd_cache_key = None
+    assert "UNDER-report" not in qd._ext_matrix_intro(qd._load_commands())
+
+
+def test_the_matrix_is_in_the_commands_pane_and_names_its_maintenance_point(tmp_path, monkeypatch):
+    """The operator's second ask: a note that says how this is kept current. The registry name and
+    its file must be ON THE PAGE — a maintenance contract only in a code comment is unfindable."""
+    qd = _load(tmp_path, monkeypatch)
+    html = qd.render(_payload(), time.time())
+    pane = html[html.index('<section id="pane-commands"') : html.index('<section id="pane-external"')]
+    assert "External services per command" in pane and 'table class="matrix"' in pane
+    assert "_EXT_SERVICES" in pane and "scripts/sysadmin/quota_dashboard.py" in pane
+
+
+def test_a_rerendered_corpus_invalidates_the_cache(tmp_path, monkeypatch):
+    """The rows are cached on mtimes; the rendered corpus can be rewritten by the assembler with
+    no `_sources/` mtime moving, so the dots would freeze at the previous render."""
+    qd = _load(tmp_path, monkeypatch)
+    names = sorted(p.stem for p in (qd._FABRIK_ROOT / "commands" / "_sources").glob("fabrik-*.md"))
+    d = tmp_path / "rendered"
+    d.mkdir()
+    for n in names:
+        (d / f"{n}.md").write_text("nothing external here\n", encoding="utf-8")
+    monkeypatch.setattr(qd, "RENDERED_COMMANDS", d)
+    qd._cmd_cache_key = None
+    assert sum(len(r["services"]) for r in qd._load_commands()) == 0
+    (d / f"{names[0]}.md").write_text("now it calls fanout(...)\n", encoding="utf-8")
+    assert "pool" in {s for r in qd._load_commands() for s in r["services"]}
+
+
 def test_page_has_two_tabs_quota_default_commands_second(tmp_path, monkeypatch):
     qd = _load(tmp_path, monkeypatch)
     html = qd.render(_payload(), time.time())
@@ -815,7 +959,10 @@ def test_commands_cache_follows_the_assembler_and_an_empty_corpus_is_said(tmp_pa
     qd = _load(tmp_path, monkeypatch)
     qd._load_commands()
     key1 = qd._cmd_cache_key
-    assert key1 and any(name == "assemble_commands.py" for name, _ in key1)
+    # keyed on the FULL path since 2026-09-06: source and rendered files share basenames, and the
+    # rendered corpus (which the external-services matrix reads) must be in the key too
+    assert key1 and any(path.endswith("/assemble_commands.py") for path, _ in key1)
+    assert any(path.startswith(str(qd.RENDERED_COMMANDS) + "/") for path, _ in key1)
     monkeypatch.setattr(qd, "_FABRIK_ROOT", tmp_path / "nowhere")
     assert qd._load_commands() == []
     html = qd.render(_payload(), time.time())

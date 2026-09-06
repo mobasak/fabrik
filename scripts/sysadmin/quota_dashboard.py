@@ -147,6 +147,11 @@ def _pool_credits(now: float | None = None, *, fetch: bool = True) -> dict | Non
     account table: a dead endpoint serves the last known balance MARKED STALE with its age, because
     a number with a date on it beats a blank when the operator is deciding whether work can run.
     """
+    # `now=None` means NOW. It was the signature's default from the first commit and no caller ever
+    # passed it, so every call with a numeric-ts cache on disk raised `TypeError: NoneType - float`
+    # and, from `_generate_locked`, froze the whole board at its last render (live 2026-09-06, board
+    # stuck 67s and climbing; introduced 610c01b8, fleet).
+    now = time.time() if now is None else now
     cached: dict | None
     try:
         raw = json.loads(CREDITS_CACHE.read_text(encoding="utf-8"))
@@ -1044,7 +1049,10 @@ def _load_commands() -> list[dict[str, str]]:
     global _cmd_cache_key, _cmd_cache_rows
     asm = _FABRIK_ROOT / "commands" / "assemble_commands.py"
     # the NEXT column comes from the assembler, which can change with no _sources mtime moving
-    key = tuple((f.name, f.stat().st_mtime_ns) for f in [*files, asm] if f.exists())
+    # the RENDERED corpus is what the external-services matrix reads, and the assembler can
+    # rewrite it with no _sources mtime moving — both belong in the key or the dots go stale
+    rendered = [RENDERED_COMMANDS / f.name for f in files]
+    key = tuple((str(f), f.stat().st_mtime_ns) for f in [*files, asm, *rendered] if f.exists())
     if _cmd_cache_key == key:
         return list(_cmd_cache_rows)
     nxt = _next_map()
@@ -1052,11 +1060,115 @@ def _load_commands() -> list[dict[str, str]]:
     for f in files:
         m = _DESC_RE.search(f.read_text(encoding="utf-8")[:6000])
         parsed = _parse_description(m.group(1) if m else "")
-        rows.append({"name": f.stem, "next": nxt.get(f.stem, "").strip(), **parsed})
+        services, is_rendered = _command_services(f.stem)
+        rows.append(
+            {
+                "name": f.stem,
+                "next": nxt.get(f.stem, "").strip(),
+                "services": services,
+                "rendered": is_rendered,
+                **parsed,
+            }
+        )
     order = {n: i for i, n in enumerate(PIPELINE_ORDER)}
     rows.sort(key=lambda r: (order.get(r["name"], len(order)), r["name"]))
     _cmd_cache_key, _cmd_cache_rows = key, rows
     return list(rows)
+
+
+# ── External services per command (operator ask 2026-09-06) ──────────────────────────────────
+# The matrix under the commands table: which outside-the-box service each command actually
+# reaches. DERIVED on every render from the corpus, exactly like the table above — a command
+# that starts using firecrawl tomorrow grows its dot with no edit here.
+#
+# ⚠️ READ THE RENDERED CORPUS, NOT `_sources/`. `assemble_commands.py` appends shared fragments
+# (the pool dispatch policy, the close-out FEEDBACK block) to every command, so the source text
+# under-reports badly: measured 2026-09-06 the pool reads 17 of 36 in `_sources/` and 26 in
+# `~/.claude/commands/`, and fabrik-mail 2 vs 36. The rendered file is what the agent is handed,
+# so it is what the board reports; a command with no rendered file falls back to its source and
+# the intro says how many rows did (an unrendered corpus under-reports — never silently).
+#
+# A dot means the command NAMES THE SERVICE'S OWN INVOCATION TOKEN (`fanout(`, `WebSearch`,
+# `mcp__firecrawl`, `fabrik apply`) — not that it mentions the service in prose. That precision
+# is deliberate: `VPS`, `GitHub` and `flywheel` all appear in the beat-routing table every
+# command carries, so a prose match rated all 36 commands as VPS-touching, which is false.
+#
+# THE ONE HAND-HELD FACT is this registry. Adding an external service to the fleet means adding
+# a row here; `tests/test_quota_dashboard.py` holds its shape (unique keys, compiling patterns,
+# and each of the three most-used services still detected) but it cannot know about a service
+# nobody registered. That is the maintenance contract, and it is the only one.
+_EXT_SERVICES: tuple[tuple[str, str, str, str], ...] = (
+    (
+        "pool",
+        "pool",
+        "OpenRouter subagent pool — fanout() / pick_models() via libs/subagents",
+        r"fanout\(|pick_models\(|libs[./]subagents",
+    ),
+    (
+        "fly",
+        "fly",
+        "Flywheel recording — record_agent_run() into the ranking store",
+        r"record_agent_run",
+    ),
+    (
+        "rec",
+        "rec",
+        "session-recall MCP — search_chats / recent_chats over past sessions",
+        r"search_chats|recent_chats|mcp__session-recall|session-recall",
+    ),
+    ("web", "web", "Claude's own WebSearch / WebFetch", r"\bWebSearch\b|\bWebFetch\b"),
+    ("brv", "brv", "Brave Search MCP", r"brave[_-]web[_-]search|mcp__brave-search|brave-search"),
+    ("fc", "fc", "Firecrawl MCP — scrape / search / extract", r"firecrawl_[a-z]|mcp__firecrawl"),
+    (
+        "exa",
+        "exa",
+        "Exa MCP — web_search_exa / web_fetch_exa",
+        r"web_(?:search|fetch)_exa|mcp__exa",
+    ),
+    (
+        "brw",
+        "brw",
+        "Headless browser — playwright / chrome-devtools / the fabrik-gui subagent",
+        r"mcp__playwright|mcp__chrome-devtools|browser_(?:snapshot|navigate|click)|fabrik-gui",
+    ),
+    ("gh", "gh", "GitHub through the gh CLI", r"\bgh (?:pr|issue|api|repo|release|run) "),
+    (
+        "vps",
+        "vps",
+        "The VPS fleet over SSH — fabrik apply / redeploy / plan, deployer_ssh",
+        r"\bfabrik (?:apply|redeploy|plan|destroy|status)\b|\bssh (?:vps|root@)|deployer_ssh|\bvps[1-3]\b",
+    ),
+    ("aic", "aic", "ai-consult — the metered frontier panel (fabrik-lib)", r"ai[-_]consult"),
+    ("cit", "cit", "fabrik-citation-verifier MCP", r"verify_citation|citation-verifier"),
+    (
+        "mail",
+        "mail",
+        "fabrik-mail — scripts/mail.py send / list / ack",
+        r"scripts/mail\.py|mail\.py send",
+    ),
+)
+_EXT_COMPILED = tuple((k, re.compile(pat)) for k, _lbl, _t, pat in _EXT_SERVICES)
+RENDERED_COMMANDS = Path(
+    os.getenv("QUOTA_DASH_RENDERED_COMMANDS", str(Path.home() / ".claude" / "commands"))
+)
+
+
+def _command_services(name: str) -> tuple[set[str], bool]:
+    """(services this command reaches, whether the RENDERED file was the text read).
+
+    Unreadable either way → an empty set and `False`, so the row shows no dots and the intro
+    counts it as un-rendered; the board never guesses a service it could not see."""
+    rendered = RENDERED_COMMANDS / f"{name}.md"
+    for path, is_rendered in (
+        (rendered, True),
+        (_FABRIK_ROOT / "commands" / "_sources" / f"{name}.md", False),
+    ):
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        return {k for k, rx in _EXT_COMPILED if rx.search(text)}, is_rendered
+    return set(), False
 
 
 def _stage_tone(stage: str) -> str:
@@ -1084,6 +1196,58 @@ def _commands_table(rows: list[dict[str, str]]) -> str:
         "<table><thead><tr><th>#</th><th>Command</th><th>Stage</th><th>Purpose</th>"
         "<th>When to use</th><th>Skip when</th><th>Next</th></tr></thead>"
         f"<tbody>{''.join(body)}</tbody></table>"
+    )
+
+
+def _ext_matrix_intro(rows: list[dict]) -> str:
+    """One line above the matrix: the denominator, where the text came from, and the maintenance
+    contract — a service missing from `_EXT_SERVICES` is the only way this can be wrong."""
+    n = len(rows)
+    unrendered = [r["name"] for r in rows if not r["rendered"]]
+    caveat = ""
+    if unrendered:
+        caveat = (
+            f" <b>{len(unrendered)} of {n} read from <code>_sources/</code>, not the rendered "
+            f"corpus</b> — the assembler appends the shared pool and mail fragments, so those rows "
+            f"UNDER-report; re-render with <code>commands/assemble_commands.py</code> from master."
+        )
+    return (
+        f'<p class="intro">Which outside-the-box service each command actually reaches — derived on '
+        f"every page load from the {n} rendered commands under <code>{escape(str(RENDERED_COMMANDS))}"
+        f"</code>, never typed here, so it cannot go stale against the corpus. A dot means the command "
+        f"names that service's own <b>invocation token</b> (<code>fanout(</code>, <code>WebSearch</code>, "
+        f"<code>mcp__firecrawl</code>, <code>fabrik apply</code>) — not that it mentions it in prose. "
+        f"Hover a column head for the full name. <b>Adding a NEW external service to the fleet means "
+        f"adding a row to <code>_EXT_SERVICES</code> in <code>scripts/sysadmin/quota_dashboard.py</code></b> "
+        f"— that registry is the one thing here a human keeps current.{caveat}</p>"
+    )
+
+
+def _ext_matrix_table(rows: list[dict]) -> str:
+    """The command x service matrix, with a totals row carrying its own denominator (a count with
+    no denominator is indistinguishable from having looked at nothing — CLAUDE.md § HARD STOPS)."""
+    n = len(rows)
+    head = "".join(
+        f'<th class="svc" title="{escape(title)}">{escape(label)}</th>'
+        for _key, label, title, _pat in _EXT_SERVICES
+    )
+    body = []
+    for r in rows:
+        cells = "".join(
+            '<td class="dot on">&#9679;</td>'
+            if key in r["services"]
+            else '<td class="dot">&middot;</td>'
+            for key, _lbl, _t, _p in _EXT_SERVICES
+        )
+        body.append(f'<tr><td class="cmd"><strong>/{escape(r["name"])}</strong></td>{cells}</tr>')
+    totals = "".join(
+        f'<td class="dot tot">{sum(1 for r in rows if key in r["services"])}</td>'
+        for key, _lbl, _t, _p in _EXT_SERVICES
+    )
+    return (
+        f'<table class="matrix"><thead><tr><th>Command</th>{head}</tr></thead>'
+        f"<tbody>{''.join(body)}</tbody>"
+        f'<tfoot><tr><td class="cmd tot">of {n}</td>{totals}</tr></tfoot></table>'
     )
 
 
@@ -1149,6 +1313,7 @@ def render(
     spend_html = _spend_panel()
     cmd_rows = _load_commands()
     cmd_html = _commands_table(cmd_rows)
+    ext_matrix_html = _ext_matrix_intro(cmd_rows) + _ext_matrix_table(cmd_rows) if cmd_rows else ""
     return f"""<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8">
@@ -1216,6 +1381,17 @@ def render(
  #pane-commands td {{ font-size:13.5px; }} #pane-commands .ord {{ color:var(--sub); width:1%; }}
  #pane-commands .cmd strong {{ white-space:nowrap; color:var(--accent); }} #pane-commands .when {{ color:var(--sub); }}
  #pane-commands .intro {{ color:var(--sub); font-size:13px; margin:0 0 12px; }}
+ #pane-commands h2 {{ font-size:13px; text-transform:uppercase; letter-spacing:.06em;
+   color:var(--sub); margin:30px 0 8px; }}
+ table.matrix {{ table-layout:auto; }}
+ table.matrix th.svc {{ width:1%; text-align:center; white-space:nowrap; font-size:11.5px;
+   letter-spacing:.03em; cursor:help; padding-left:6px; padding-right:6px; }}
+ table.matrix td.dot {{ text-align:center; width:1%; padding-left:6px; padding-right:6px;
+   color:var(--line); font-size:15px; line-height:1.1; }}
+ table.matrix td.dot.on {{ color:var(--accent); }}
+ table.matrix td.dot.tot, table.matrix td.cmd.tot {{ color:var(--sub); font-size:12px;
+   font-weight:600; font-variant-numeric:tabular-nums; }}
+ table.matrix tfoot td {{ border-top:1px solid var(--line); }}
  #pane-usage .intro {{ color:var(--sub); font-size:13px; margin:0 0 12px; }}
  #pane-usage h2 {{ font-size:13px; text-transform:uppercase; letter-spacing:.06em;
    color:var(--sub); margin:22px 0 8px; }}
@@ -1268,6 +1444,8 @@ def render(
 {'<div class="banner crit">Command corpus unreadable — no <code>commands/_sources/fabrik-*.md</code> under ' + escape(str(_FABRIK_ROOT)) + ".</div>" if not cmd_rows else ""}
 <p class="intro">Every <code>/fabrik-*</code> command in pipeline order ({len(cmd_rows)} sources under <code>commands/_sources/</code>, read live — purpose, when-to-use and skip-when come from each command's own description, the successor from the assembler's NEXT map). Stages run top to bottom; gates are invoked at boundaries; utilities at any point.</p>
 {cmd_html}
+<h2>External services per command</h2>
+{ext_matrix_html}
 </section>
 <section id="pane-external" class="pane" hidden>
 {credits_html}
@@ -1378,7 +1556,16 @@ def _generate_locked() -> str:
     # The pool balance rides the SAME loop, behind its own TTL, and can never break the board:
     # _pool_credits already fails soft, and this guard covers anything it did not anticipate.
     # Cache only — see _pool_credits(fetch=False). The refresh happens off this lock.
-    credits = _pool_credits(fetch=False)
+    # The guard the comment above PROMISES, which was never written: an exception here takes the
+    # render with it, and `_regen_async` runs generate() on a daemon thread that swallows it, so
+    # the board freezes silently at its last good page. A missing balance is a missing panel.
+    try:
+        credits = _pool_credits(fetch=False)
+    except Exception as exc:  # noqa: BLE001 — the pool balance may never break the quota board
+        sys.stderr.write(
+            f"quota_dashboard: pool-credits read failed ({type(exc).__name__}: {exc})\n"
+        )
+        credits = None
     html = render(payload, time.time(), error, credits=credits)
     _HTML.write_text(html, encoding="utf-8")
     return html

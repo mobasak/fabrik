@@ -130,7 +130,7 @@ Three properties worth knowing:
 
 ### The Commands tab (2026-09-03)
 
-The page has three tabs. **Quota** (default) is the board above. **Commands** lists every `/fabrik-*`
+The page has four tabs. **Quota** (default) is the board above. **Commands** lists every `/fabrik-*`
 command in pipeline order — `#`, command, stage badge, purpose, when to use, skip when, next — and
 none of it is typed into the dashboard: each row is parsed live from the command's own frontmatter
 `description:` under `commands/_sources/` (purpose = the text before `TRIGGER —`; when = the
@@ -138,8 +138,37 @@ TRIGGER clause; skip = the `SKIP:` clause; stage = `Stage:`), and the successor 
 assembler's `NEXT` map (`commands/assemble_commands.py`). The one hand-held fact is
 `PIPELINE_ORDER` in `quota_dashboard.py` (CLAUDE.md § Pipeline: stages, then gates, then
 utilities); a test refuses a source with no slot and a slot with no source, so it cannot drift from
-the corpus silently. Rows are cached on the sources' mtimes. The chosen tab lives in the URL hash
-(`#commands`), so the 20-second reload lands on the same tab.
+the corpus silently. Rows are cached on the sources' mtimes — and on the RENDERED corpus's, because
+the matrix below reads that. The chosen tab lives in the URL hash (`#commands`), so the 20-second
+reload lands on the same tab.
+
+#### The external-services matrix, under the table (2026-09-06)
+
+Below the command table, a **command × service matrix**: which outside-the-box service each command
+actually reaches — the OpenRouter pool, the flywheel store, session-recall, WebSearch/WebFetch,
+Brave, Firecrawl, Exa, a headless browser, GitHub via `gh`, the VPS fleet, ai-consult, the citation
+verifier, fabrik-mail. A dot means the command **names that service's own invocation token**
+(`fanout(`, `WebSearch`, `mcp__firecrawl`, `fabrik apply`), not that it mentions the service in
+prose — the distinction is load-bearing, because `VPS`, `GitHub` and `flywheel` all appear in the
+beat-routing table every command carries, and a prose match rated all 36 commands as VPS-touching.
+The footer row carries each column's total against its denominator (`of 35`).
+
+⚠️ **It reads `~/.claude/commands/`, the RENDERED corpus — not `commands/_sources/`.**
+`assemble_commands.py` appends shared fragments (the pool dispatch policy, the close-out FEEDBACK
+block) to every command, so the source text under-reports badly: measured 2026-09-06 the pool reads
+17 of 36 in `_sources/` and 26 in the rendered corpus, and fabrik-mail 2 vs 36. The rendered file is
+what the agent is handed, so it is what the board reports. A command with no rendered file falls back
+to its source and the intro line says how many rows did — an unrendered corpus under-reports, never
+silently. Override the location with `QUOTA_DASH_RENDERED_COMMANDS`.
+
+**How it is kept up to date — and the one thing a human owns.** The dots are derived on every page
+load, so a command that starts calling Firecrawl tomorrow grows its dot with no edit here; nothing
+about the *data* can rot. The single hand-held fact is the **`_EXT_SERVICES` registry** in
+`quota_dashboard.py` — key, column label, hover title, detection pattern. **Adding a new external
+service to the fleet means adding a row there**, and that instruction is printed on the page itself,
+above the matrix, so it is findable without reading this doc. `tests/test_quota_dashboard.py` holds
+the registry's shape (unique keys, compiling patterns, the three most-used services still present)
+and pins the rendered-vs-sources behaviour, but no test can know about a service nobody registered.
 
 ### The External services tab (2026-09-03)
 
@@ -200,6 +229,7 @@ files and exit — useful for a scripted refresh without a browser).
 | `QUOTA_DASH_CREDITS_KEY_FILE` | `~/.config/fabrik/subagents.env` | where the OpenRouter key is read from (`OPENROUTER_API_KEY` in the environment wins). The key is never rendered, never logged and never written to the cache |
 | `QUOTA_DASH_CREDITS_TTL_S` | `300` | how long a balance is reused. Credits move only when something spends; at the 20s refresh an uncached read would be ~4,320 calls a day |
 | `QUOTA_DASH_CREDITS_TIMEOUT_S` | `10` | the balance GET's timeout — it runs OFF the render path, so this can never delay a page load |
+| `QUOTA_DASH_RENDERED_COMMANDS` | `~/.claude/commands` | the RENDERED command corpus the external-services matrix reads (the sources under-report — the assembler appends shared fragments) |
 | `QUOTA_DASH_CREDITS_URL` | `https://openrouter.ai/api/v1/credits` | the balance endpoint |
 | `POOL_CREDITS_WARN_USD` | `5` | the drain line. An ABSOLUTE floor, not a percentage: after a top-up the percentage is meaningless ($20 of $245 reads as 8% and is the whole runway) |
 
