@@ -377,9 +377,9 @@ def _row(acct: dict, active: str | None, rank: str | None = None) -> str:
 
     badges = []
     if is_active:
-        badges.append('<span class="badge active">ACTIVE</span>')
+        badges.append(f'<span class="badge active">{escape(rank) if rank else "ACTIVE"}</span>')
     elif rank:
-        tone = "cap" if rank == "NEXT" else ""
+        tone = "cap" if rank.endswith("NEXT") else ""
         badges.append(f'<span class="badge {tone}">{escape(rank)}</span>')
     if cap is not None:
         badges.append(f'<span class="badge cap">cap {int(cap)}%</span>')
@@ -455,6 +455,40 @@ def _row(acct: dict, active: str | None, rank: str | None = None) -> str:
         f"{cell(w_left, w_used, seven.get('resets_at_epoch'), _SEVEN_DAY_S)}"
         f"{cell(f_left, f_used, fable.get('resets_at_epoch'), _SEVEN_DAY_S)}"
         f"{_switch_cell(slug, is_active)}"
+        "</tr>"
+    )
+
+
+def _queue_for_render(payload: dict, now: float) -> list[dict]:
+    """`_queue` with the SAME perishable-first key `_display_order` uses — one source."""
+
+    def key(a: dict):
+        seven = _util(a, "seven_day")
+        five = _util(a, "five_hour")
+        reset = (a.get("seven_day") or {}).get("resets_at_epoch")
+        return (
+            float(reset) if isinstance(reset, (int, float)) else float("inf"),
+            seven if seven is not None else 101.0,
+            five if five is not None else 101.0,
+        )
+
+    return _queue(payload, now, _key=key)
+
+
+def _return_row(n: int, acct: dict, returns_at: float | None) -> str:
+    """The active account's RETURN slot: a ghost row at the position it comes back to the
+    queue, so an account about to be flipped away is visibly "both #1 and #N"."""
+    email = str(acct.get("email", "?"))
+    slug = (acct.get("slugs") or ["?"])[0]
+    when = _fmt_reset(returns_at) if returns_at else "unknown"
+    no = '<td class="num muted">—<br><span class="sub">&nbsp;</span></td>'
+    return (
+        '<tr class="is-return">'
+        f'<td class="acct"><strong>↩ {escape(email)}</strong><span class="sub">{escape(slug)} · returns here</span>'
+        f'<div class="badges"><span class="badge">#{n} — returns {escape(when)}</span>'
+        '<span class="badge stale">active now (#1), back after its reset</span></div></td>'
+        f"{no}{no}{no}"
+        '<td class="act"><span class="muted">no switch — same account</span></td>'
         "</tr>"
     )
 
@@ -752,7 +786,6 @@ def _display_order(payload: dict) -> list[dict]:
     ranked PERISHABLE-FIRST — soonest weekly reset, then lower weekly, then lower session utilization
     (an unknown reset sorts last). Ineligible accounts follow, by the same key, so the board reads
     top-to-bottom as the order rotation will actually use."""
-    active = payload.get("active")
     far = time.time() + 365 * 86400
 
     def key(a: dict) -> tuple[float, float, float]:
@@ -764,14 +797,64 @@ def _display_order(payload: dict) -> list[dict]:
             five if five is not None else 101.0,
         )
 
-    rows = list(payload.get("accounts") or [])
-    head = [a for a in rows if active in (a.get("slugs") or [])]
-    rest = [a for a in rows if a not in head]
-    return (
-        head
-        + sorted([a for a in rest if _eligible(a)], key=key)
-        + sorted([a for a in rest if not _eligible(a)], key=key)
+    return [e["acct"] for e in _queue(payload, time.time(), _key=key) if e["kind"] != "return"]
+
+
+def _returns_at(a: dict, now: float) -> float | None:
+    """When an account that is NOT eligible now next becomes eligible — the same two buckets
+    `claude_rotate._next_session_relief` uses: a weekly-walled or cap-walled account waits for
+    its WEEKLY reset (a session reset does not lift a weekly wall); anything else waits for its
+    5h reset. None when the reset is unknown or already past (an unread new account, a stale row)."""
+    seven = _util(a, "seven_day")
+    cap = a.get("weekly_cap")
+    weekly_blocked = a.get("cap_walled") is True or (
+        seven is not None and (seven >= 100.0 or (cap is not None and seven >= float(cap)))
     )
+    win = a.get("seven_day") if weekly_blocked else a.get("five_hour")
+    r = (win or {}).get("resets_at_epoch") if isinstance(win, dict) else None
+    return float(r) if isinstance(r, (int, float)) and float(r) > now else None
+
+
+def _queue(payload: dict, now: float, _key=None) -> list[dict]:
+    """The ROTATION QUEUE the Quota tab renders (operator, 2026-09-06): `#1` is the active
+    account, `#2` the account the tick would pick now, then the rest in the order they would
+    actually come up. Eligible accounts keep the picker's perishable-first order (this is still
+    the read-only mirror of `_pick_flip_target`); the INELIGIBLE tail is ordered by WHEN each
+    returns (`_returns_at`), unknown last — a session-spent account back in two hours precedes a
+    cap-walled one back next week even though its session reads 100%. An active account at or
+    over the flip line is about to be flipped away and will come back at its own reset: it gets a
+    second entry — kind "return" — at that position, so it is "both #1 and #N", as asked.
+
+    Entries: {"n", "slug", "acct", "kind": active|eligible|returns|return, "returns_at"}."""
+    accounts = list(payload.get("accounts") or [])
+    active = payload.get("active")
+    key = _key or (lambda a: (0,))
+    head = [a for a in accounts if active in (a.get("slugs") or [])]
+    rest = [a for a in accounts if a not in head]
+    eligible = sorted([a for a in rest if _eligible(a)], key=key)
+    tail = [a for a in rest if not _eligible(a)]
+    tail.sort(key=lambda a: (_returns_at(a, now) is None, _returns_at(a, now) or 0.0, key(a)))
+
+    def entry(a: dict, kind: str, ra: float | None = None) -> dict:
+        return {"slug": (a.get("slugs") or ["?"])[0], "acct": a, "kind": kind, "returns_at": ra}
+
+    entries = [entry(a, "active") for a in head]
+    entries += [entry(a, "eligible") for a in eligible]
+    returns = [entry(a, "returns", _returns_at(a, now)) for a in tail]
+    if head:
+        a = head[0]
+        five = _util(a, "five_hour")
+        ra = _returns_at(a, now)
+        if five is not None and five >= TRIGGER_THRESHOLD and ra is not None:
+            ghost = entry(a, "return", ra)
+            i = 0
+            while i < len(returns) and (returns[i]["returns_at"] or float("inf")) <= ra:
+                i += 1
+            returns.insert(i, ghost)
+    entries += returns
+    for n, e in enumerate(entries, 1):
+        e["n"] = n
+    return entries
 
 
 def _util(a: dict, k: str) -> float | None:
@@ -1004,17 +1087,27 @@ def render(
         items = "".join(f"<li>{escape(str(w))}</li>" for w in warns)
         warn_html = f'<section class="warns"><h2>Warnings</h2><ul>{items}</ul></section>'
 
-    ranks: list[str | None] = []
-    n = 0
-    for a in accounts:
-        if active in (a.get("slugs") or []):
-            ranks.append(None)
-        elif _eligible(a):
-            n += 1
-            ranks.append("NEXT" if n == 1 else f"#{n} in line")
-        else:
-            ranks.append("not eligible")
-    rows = "".join(_row(a, active, rank) for a, rank in zip(accounts, ranks, strict=True))
+    rows = ""
+    q = _queue_for_render(payload, generated_at)
+    back = next((e for e in q if e["kind"] == "return"), None)
+    for e in q:
+        n, a, kind = e["n"], e["acct"], e["kind"]
+        if kind == "active":
+            rank = f"#{n} ACTIVE" + (
+                f" · also #{back['n']} (returns {_fmt_reset(back['returns_at'])})" if back else ""
+            )
+        elif kind == "eligible":
+            rank = f"#{n} NEXT" if n == 2 else f"#{n} in line"
+        elif kind == "returns":
+            rank = (
+                f"#{n} — returns {_fmt_reset(e['returns_at'])}"
+                if e["returns_at"]
+                else f"#{n} — return time unknown"
+            )
+        else:  # the active account's own return slot
+            rows += _return_row(n, a, e["returns_at"])
+            continue
+        rows += _row(a, active, rank)
     # Scaffolded-but-unlogged dirs LAST: real rows first, then the one thing the operator still
     # owes. Older payloads (no `pending` key) render nothing extra.
     rows += "".join(_pending_row(str(x)) for x in (payload.get("pending") or []))

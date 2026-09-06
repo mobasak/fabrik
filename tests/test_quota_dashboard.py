@@ -1395,3 +1395,118 @@ def test_no_pending_key_renders_no_pending_row(tmp_path, monkeypatch):
     del p["pending"]
     html = qd.render(p, 1_900_000_000.0)
     assert "pending-login" not in html
+
+
+# --- the Quota tab is the ROTATION QUEUE, numbered 1..N, active first (operator, 2026-09-06) -----
+# "active account at the top, upcoming account second, then the third, fourth, fifth" — and an
+# active account that is session-capped but will come back "is both 1st and 3rd; it must be
+# indicated." The queue mirrors the picker for eligible accounts (perishable-first) and orders the
+# INELIGIBLE tail by the moment each becomes eligible again (session reset if only the session is
+# spent, weekly reset if walled/capped, unknown last). The active account's own return slot is a
+# ghost row at its position, plus a badge on the active row.
+
+_NOW = 1_900_000_000.0
+
+
+def _q(slug, five, seven, *, five_reset=None, seven_reset=None, cap=None, cap_walled=False):
+    return {
+        "email": f"{slug}@ocoron.com",
+        "slugs": [slug],
+        "source": "live",
+        "weekly_cap": cap,
+        "cap_walled": cap_walled,
+        "chain_stale": False,
+        "five_hour": {"utilization": five, "resets_at_epoch": five_reset},
+        "seven_day": {"utilization": seven, "resets_at_epoch": seven_reset},
+    }
+
+
+def _queue_payload(active_five=20.0, active_five_reset=_NOW + 4 * 3600):
+    return {
+        "fleet_root": "/x",
+        "active": "ob",
+        "pause": None,
+        "fleet_warnings": [],
+        "pending": [],
+        "accounts": [
+            # active
+            _q(
+                "ob",
+                active_five,
+                60.0,
+                five_reset=active_five_reset,
+                seven_reset=_NOW + 3 * 86400,
+                cap=90,
+            ),
+            # eligible: perishable-first → soonest WEEKLY reset wins
+            _q("zeta", 5.0, 30.0, five_reset=_NOW + 3600, seven_reset=_NOW + 1 * 86400, cap=99),
+            _q("alpha", 5.0, 10.0, five_reset=_NOW + 3600, seven_reset=_NOW + 2 * 86400, cap=99),
+            # ineligible, session-spent (weekly fine): returns at its 5h reset, in 2h
+            _q(
+                "mob", 100.0, 40.0, five_reset=_NOW + 2 * 3600, seven_reset=_NOW + 4 * 86400, cap=99
+            ),
+            # ineligible, cap-walled: returns at its WEEKLY reset, in 20h
+            _q(
+                "can",
+                5.0,
+                99.0,
+                five_reset=_NOW + 600,
+                seven_reset=_NOW + 20 * 3600,
+                cap=99,
+                cap_walled=True,
+            ),
+        ],
+    }
+
+
+def test_queue_is_numbered_active_first_then_the_picker_order_then_returns_by_time(
+    tmp_path, monkeypatch
+):
+    qd = _load(tmp_path, monkeypatch)
+    order = [e["slug"] for e in qd._queue(_queue_payload(), _NOW)]
+    assert order == ["ob", "zeta", "alpha", "mob", "can"], order
+    html = qd.render(_queue_payload(), _NOW)
+    # every account row carries its 1-based queue position, in display order. Search the TABLE
+    # BODY only: a bare "#3" also matches hex colours in the stylesheet ("#333") — first probe did.
+    body = html[html.index("<tbody>") :]
+    pos = [body.index(f"#{n} ") for n in (1, 2, 3, 4, 5)]
+    assert pos == sorted(pos), "queue numbers are not in ascending order on the page"
+    assert (
+        html.index("ob@ocoron.com")
+        < html.index("zeta@ocoron.com")
+        < html.index("alpha@ocoron.com")
+        < html.index("mob@ocoron.com")
+        < html.index("can@ocoron.com")
+    )
+
+
+def test_ineligible_tail_is_ordered_by_when_it_returns_not_by_utilization(tmp_path, monkeypatch):
+    """mob (session-spent, back in 2h) must precede can (cap-walled, back in 20h) even though
+    mob's session reads 100% and can's reads 5% — the queue is about WHEN, not how full."""
+    qd = _load(tmp_path, monkeypatch)
+    entries = {e["slug"]: e for e in qd._queue(_queue_payload(), _NOW)}
+    assert entries["mob"]["returns_at"] == _NOW + 2 * 3600
+    assert entries["can"]["returns_at"] == _NOW + 20 * 3600
+    html = qd.render(_queue_payload(), _NOW)
+    assert "returns" in html.lower()
+
+
+def test_a_session_capped_active_account_is_both_first_and_its_return_slot(tmp_path, monkeypatch):
+    """Active at 96% session with a 5h reset in 4h: it is #1 now AND it comes back after mob (2h)
+    but before can (20h) → a ghost row at #5 saying so, and a badge on the active row."""
+    qd = _load(tmp_path, monkeypatch)
+    p = _queue_payload(active_five=96.0, active_five_reset=_NOW + 4 * 3600)
+    slugs = [e["slug"] for e in qd._queue(p, _NOW)]
+    assert slugs == ["ob", "zeta", "alpha", "mob", "ob", "can"], slugs
+    html = qd.render(p, _NOW)
+    assert html.count("ob@ocoron.com") >= 2, "the active account must appear at its return slot too"
+    assert "is-return" in html, "the return slot must be a visibly distinct ghost row"
+    assert "also #5" in html, "the active row must say which later slot is its return"
+
+
+def test_a_healthy_active_account_has_no_return_slot(tmp_path, monkeypatch):
+    """At 20% session the active account is not leaving; a return row would be noise."""
+    qd = _load(tmp_path, monkeypatch)
+    slugs = [e["slug"] for e in qd._queue(_queue_payload(active_five=20.0), _NOW)]
+    assert slugs.count("ob") == 1
+    assert "is-return" not in qd.render(_queue_payload(active_five=20.0), _NOW)

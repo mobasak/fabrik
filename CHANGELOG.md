@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the Quota tab is the rotation QUEUE: #1 active, #2 next, then every account in the order it comes up (2026-09-06)
+
+Operator: "active account at the top, upcoming account second, then the third, fourth and fifth"
+— and an active account that is session-capped but will come back "is both 1st and 3rd; it must be
+indicated." The old board showed active → eligible → a flat "not eligible" tail sorted by
+utilization, which said nothing about WHEN anything would come back.
+
+- `_queue()` numbers every row `#1..#N`. Eligible accounts keep the picker's perishable-first order
+  (the tab stays the read-only mirror of `_pick_flip_target`); the ineligible tail is ordered by
+  **when each returns** (`_returns_at`: weekly reset if walled/capped, else the 5h reset — the same
+  two buckets as `_next_session_relief`), unknown last. A session-spent account back in two hours
+  now precedes a cap-walled one back next week even though its session reads 100%.
+- An active account at/over the flip line is about to be flipped away and comes back at its own
+  reset: it gets a **ghost row** (`is-return`, greyed, no switch button) at that position, and the
+  active row's badge reads `#1 ACTIVE · also #N (returns <time>)`. A healthy active account gets
+  no return row — noise otherwise.
+- `_display_order` is now the account-only projection of `_queue`, so the pre-existing
+  rotation-order grader passes unchanged. 4 new graders seen red first (numbering, returns-by-time,
+  both-#1-and-#N, no ghost when healthy); 70 pass. One test probe was scoped to the table body —
+  a bare `"#3"` also matched hex colours in the stylesheet.
+- D-162. Re-armed ob@'s cap to 90 the same run: the fleet had already flipped to ozgurbasak on its
+  own (ob@ crossed 95), no hold engaged, no broadcast — a successor existed.
+
 ### Fixed — cached standby readings were untrusted in the very window before their refresh (2026-09-06)
 
 Found reviewing the 5th account's failure path. `_cache_trust_s` defaulted to

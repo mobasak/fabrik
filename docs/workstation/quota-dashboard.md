@@ -78,6 +78,8 @@ The older design's reasoning, kept for the record:
 | `N% left` + bar | **remaining** headroom (the CLI prints *used*; this prints what is left) |
 | green / amber / red | >25% · 6–25% · ≤5% remaining |
 | `cap N%` badge | a `caps.json` reserve exists for this account |
+| `#1 ACTIVE` … `#N` badges (rows in queue order) | the Quota tab is the ROTATION QUEUE (operator, 2026-09-06): `#1` the active account, `#2 NEXT` the account the tick would pick now, then the rest in the order they would come up. Eligible accounts keep the picker's perishable-first order (still its read-only mirror); the ineligible tail is ordered by WHEN each returns — `#N — returns <time>` — a session-spent account back in two hours precedes a cap-walled one back next week even though its session reads 100%. Unknown return times sort last |
+| `↩ … returns here` ghost row (`is-return`, greyed, no switch button) | an active account at/over the flip line will be flipped away and comes back at its own reset, so it is "both #1 and #N": its return slot is drawn at position N, and the active row's badge says `also #N (returns <time>)`. A healthy active account gets no return row |
 | `pending-login` row (greyed, last, no switch button) | a dir `--new-dir` scaffolded that has not had its ONE `/login` yet — `--status --json` lists it under `pending`, not `accounts`. Shown so "not scaffolded" and "not logged in" are distinguishable (the 5th account, 2026-09-06, was invisible here until its login) |
 | `RESERVED — fleet excluded` | weekly ≥ its cap: automated flips skip it, the remainder is the operator's (browser use). `--switch` may still target it, deliberately |
 | `WALLED` | weekly ≥ 100%: unusable until its reset |
