@@ -1591,6 +1591,18 @@ def run_consistency_checks(
         results.append(
             run_optional_check("scripts/enforcement/check_hooks_index.py", "Hooks Index Fresh")
         )
+        # User-level hook registrations (hub-only; the script is not synced, so projects skip):
+        # `check_hooks_index.py` derives its requirement FROM ~/.claude/settings.json and cannot
+        # see a MISSING or stale entry — this row asserts the canonical three from a fixed list
+        # (review 2026-09-06 B10/P2-12; warn-only: a box-state drift, never a code failure).
+        results.append(
+            run_optional_check(
+                "scripts/sysadmin/install_user_hooks.py",
+                "User-Level Hooks Registered",
+                "--check",
+                advisory=True,
+            )
+        )
         # Sync-trigger coverage: a manifest surface whose edits fire NO governance-sync
         # ships nothing to the fleet (happened twice on 2026-08-09). Every synced path
         # must trigger, or be declared a deliberate non-trigger.

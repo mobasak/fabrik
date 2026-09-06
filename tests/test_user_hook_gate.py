@@ -226,3 +226,84 @@ def test_a_missing_hook_says_so_on_stderr(tmp_path):
     proj.mkdir()
     p = _run_p(tmp_path / "nope.py", proj)
     assert p.returncode == 0 and "nope.py" in p.stderr
+
+
+def _wiring(basename: str, matcher: str | None = None) -> dict:
+    e = {
+        "hooks": [
+            {"type": "command", "command": f"python3 /opt/fabrik/x/{basename}", "timeout": 10}
+        ]
+    }
+    if matcher is not None:
+        e["matcher"] = matcher
+    return e
+
+
+def test_the_walk_never_climbs_into_home_where_the_gates_own_registration_lives(tmp_path):
+    """P2-2 (HIGH): `~/.claude/settings.json` holds THIS gate's registration; a cwd with no
+    nearer project settings resolved to $HOME and the gate detected itself → deferred → every
+    window under $HOME lost the hold and the banner."""
+    home = tmp_path / "home"
+    (home / ".claude").mkdir(parents=True)
+    hook = _fake_hook(tmp_path)
+    (home / ".claude" / "settings.json").write_text(
+        json.dumps({"hooks": {"PreToolUse": [_wiring(hook.name, ".*")]}})
+    )
+    scratch = home / "scratch"
+    scratch.mkdir()
+    p = _run_p(hook, scratch, _payload(scratch), env={**os.environ, "HOME": str(home)})
+    assert "FAKE-HOOK-RAN" in p.stdout, p.stdout + p.stderr
+
+
+def test_a_list_shaped_hooks_value_is_not_a_wiring_and_never_a_traceback(tmp_path):
+    """P2-3 (HIGH): `hooks: [...]` raised AttributeError outside the try → rc 1, hook never ran."""
+    proj = tmp_path / "proj"
+    (proj / ".claude").mkdir(parents=True)
+    (proj / ".claude" / "settings.json").write_text(json.dumps({"hooks": [{"PreToolUse": []}]}))
+    hook = _fake_hook(tmp_path)
+    p = _run_p(hook, proj, _payload(proj))
+    assert p.returncode == 0 and "FAKE-HOOK-RAN" in p.stdout, p.stdout + p.stderr
+
+
+def test_a_matcher_scoped_wiring_defers_only_for_the_tools_it_names(tmp_path):
+    """P2-4: a project wiring quota_stop.py for `Bash` only must not strip the hold from Edit."""
+    proj = tmp_path / "proj"
+    (proj / ".claude").mkdir(parents=True)
+    hook = _fake_hook(tmp_path)
+    (proj / ".claude" / "settings.json").write_text(
+        json.dumps({"hooks": {"PreToolUse": [_wiring(hook.name, "Bash")]}})
+    )
+    assert "FAKE-HOOK-RAN" in _run_p(hook, proj, _payload(proj, tool="Edit")).stdout
+    assert "FAKE-HOOK-RAN" not in _run_p(hook, proj, _payload(proj, tool="Bash")).stdout
+
+
+def test_disable_all_hooks_in_any_file_means_the_hub_hook_runs(tmp_path):
+    """P2-5: the kill switch in settings.json + a wiring in settings.local.json → no project
+    hook can run, so the hub copy must (the per-file `continue` deferred on the second file)."""
+    proj = tmp_path / "proj"
+    (proj / ".claude").mkdir(parents=True)
+    hook = _fake_hook(tmp_path)
+    (proj / ".claude" / "settings.json").write_text(json.dumps({"disableAllHooks": True}))
+    (proj / ".claude" / "settings.local.json").write_text(
+        json.dumps({"hooks": {"PreToolUse": [_wiring(hook.name, ".*")]}})
+    )
+    assert "FAKE-HOOK-RAN" in _run_p(hook, proj, _payload(proj)).stdout
+
+
+def test_stdout_passes_through_byte_for_byte(tmp_path):
+    """P2-6: `text=True` translated CRLF and raised on non-UTF-8, losing the child's whole
+    stdout — a deny payload, in the shape that matters."""
+    hook = tmp_path / "bytes_hook.py"
+    hook.write_text(
+        "import sys\nsys.stdin.buffer.read()\nsys.stdout.buffer.write(b'a\\r\\nb\\xff\\xfe ok')\n"
+    )
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    p = subprocess.run(
+        [sys.executable, str(GATE), str(hook)],
+        input=json.dumps(_payload(proj)).encode(),
+        capture_output=True,
+        timeout=30,
+        env={**os.environ},
+    )
+    assert p.returncode == 0 and p.stdout == b"a\r\nb\xff\xfe ok", (p.stdout, p.stderr)

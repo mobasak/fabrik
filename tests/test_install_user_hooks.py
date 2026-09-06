@@ -101,3 +101,58 @@ def test_a_fleet_dir_added_later_is_covered_by_the_next_run(tmp_path, monkeypatc
     assert iuh.run(["--check"]) == 1
     iuh.run([])
     assert iuh.run(["--check"]) == 0
+
+
+def _entries(path: Path):
+    return json.loads(path.read_text())["hooks"]
+
+
+def test_check_sees_a_timeout_below_the_gates_inner_timeout_and_a_stale_path(tmp_path, monkeypatch):
+    """P2-7/P2-8: `--check` compared command SUBSTRINGS — a timeout of 1 s (below the gate's 8 s)
+    passed, and a moved checkout's stale registration stayed beside the new one, firing forever."""
+    home = _home(tmp_path)
+    monkeypatch.setenv("HOME", str(home))
+    assert iuh.run([]) == 0
+    f = home / ".claude" / "settings.json"
+    d = json.loads(f.read_text())
+    for ev in d["hooks"]:
+        for e in d["hooks"][ev]:
+            for h in e["hooks"]:
+                h["timeout"] = 1
+    f.write_text(json.dumps(d))
+    assert iuh.run(["--check"]) == 1, "a timeout below the gate's inner timeout must fail --check"
+    assert iuh.run([]) == 0 and iuh.run(["--check"]) == 0
+    d = json.loads(f.read_text())
+    d["hooks"]["UserPromptSubmit"][0]["hooks"][0]["command"] = (
+        "python3 /opt/OLDPATH/scripts/sysadmin/selfwatch_check.py"
+    )
+    f.write_text(json.dumps(d))
+    assert iuh.run(["--check"]) == 1, "a stale path for the same script must fail --check"
+    assert iuh.run([]) == 0
+    cmds = [h["command"] for e in _entries(f)["UserPromptSubmit"] for h in e["hooks"]]
+    assert sum("selfwatch_check.py" in c for c in cmds) == 1, cmds
+    assert not any("OLDPATH" in c for c in cmds), (
+        "the stale registration must be REPLACED, not joined"
+    )
+
+
+def test_a_missing_settings_file_in_an_account_dir_is_created(tmp_path, monkeypatch):
+    """P2-9: the restorer's own motivating cases (a sixth account dir, a DR restore) had no
+    settings.json — and the restorer skipped them."""
+    home = _home(tmp_path)
+    (home / ".claude-fleet" / "new").mkdir()
+    (home / ".claude-fleet" / "new" / ".claude.json").write_text("{}")
+    monkeypatch.setenv("HOME", str(home))
+    assert iuh.run(["--check"]) == 1
+    assert iuh.run([]) == 0
+    assert (home / ".claude-fleet" / "new" / "settings.json").exists()
+    assert iuh.run(["--check"]) == 0
+
+
+def test_a_list_shaped_hooks_value_is_replaced_not_a_traceback(tmp_path, monkeypatch):
+    """P2-3 (installer half): `hooks: [...]` escaped run() as AttributeError."""
+    home = _home(tmp_path)
+    (home / ".claude" / "settings.json").write_text(json.dumps({"hooks": [1, 2]}))
+    monkeypatch.setenv("HOME", str(home))
+    assert iuh.run(["--check"]) == 1
+    assert iuh.run([]) == 0 and isinstance(_entries(home / ".claude" / "settings.json"), dict)

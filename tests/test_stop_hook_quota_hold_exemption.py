@@ -54,7 +54,7 @@ def held_project(tmp_path: Path) -> tuple[Path, Path]:
     return p, state
 
 
-def _run_stop(project: Path, state: Path, sid: str, fails: str) -> str:
+def _run_stop(project: Path, state: Path, sid: str, fails: str, tick: str | None = None) -> str:
     """A BASELINE must exist or the hook fails open on attribution and never blocks — which is
     how the control below caught this fixture being vacuous the first time."""
     import tempfile
@@ -64,6 +64,14 @@ def _run_stop(project: Path, state: Path, sid: str, fails: str) -> str:
     ctr.unlink(missing_ok=True)
     bl.write_text(json.dumps(["A"]))  # A is inherited; anything else is NEW → blocks
     env = {**os.environ, "FAKE_FAILS": fails, "ROTATE_STATE_DIR": str(state)}
+    # P1-5: after A-F1 the yield needs a FRESH tick log; without one of its own this suite
+    # silently depended on the host's live rotation cron (green only while the cron ran within
+    # 900 s). A test's own fresh tick, unless the test set one deliberately (the A-F1 graders).
+    if tick is None:
+        fresh = state / "tick.log"
+        fresh.write_text("fresh")
+        tick = str(fresh)
+    env["QUOTA_STOP_TICK_LOG"] = tick  # never the host's — a dead cron must not red this suite
     try:
         proc = subprocess.run(
             [sys.executable, str(_HOOK)],
@@ -110,8 +118,7 @@ def test_a_stale_stamp_with_a_dead_tick_does_not_yield(held_project, monkeypatch
 
     old = time.time() - 2000
     _os.utime(tick, (old, old))
-    monkeypatch.setenv("QUOTA_STOP_TICK_LOG", str(tick))
-    out = _run_stop(project, state, "s_stale", "A,B")
+    out = _run_stop(project, state, "s_stale", "A,B", tick=str(tick))
     assert out != "", "a stale stamp (hold OFF) must not disable the Stop hook"
 
 
@@ -120,5 +127,16 @@ def test_a_stamp_with_a_fresh_tick_yields(held_project, monkeypatch):
     (state / "fleet-exhausted").write_text("0")
     tick = state / "rotate-tick.log"
     tick.write_text("tick\n")
-    monkeypatch.setenv("QUOTA_STOP_TICK_LOG", str(tick))
-    assert _run_stop(project, state, "s_fresh", "A,B") == ""
+    assert _run_stop(project, state, "s_fresh", "A,B", tick=str(tick)) == ""
+
+
+def test_a_nan_stale_bound_reads_as_held_on_both_sides(held_project, monkeypatch):
+    """P1-6: `quota_stop.py` decides "off" with `age > stale`, which is False under NaN — the hold
+    stays IN FORCE (tools denied). This hook's `age <= stale` was also False under NaN → no yield
+    → every cause armed while nothing could run: the exact deadlock A-F1 exists to end. Same
+    expression shape on both sides now."""
+    project, state = held_project
+    (state / "fleet-exhausted").write_text("0")
+    monkeypatch.setenv("QUOTA_STOP_TICK_STALE_S", "nan")
+    out = _run_stop(project, state, "s_nan", "A,B")
+    assert out == "", f"a held session (NaN bound) was blocked from stopping: {out}"

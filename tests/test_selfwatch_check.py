@@ -129,7 +129,7 @@ def test_an_unwritable_lock_dir_prints_the_diagnosis_not_an_arm_order(tmp_path):
     locks.chmod(0o500)
     try:
         out = _run(tmp_path)
-        assert "LOCK DIR" in out and "not writable" in out, out
+        assert "lock DIR" in out and "not writable" in out, out
         assert "Monitor(" not in out, "must not order an arm that will die at once"
     finally:
         locks.chmod(0o700)
@@ -155,7 +155,7 @@ def test_cwd_exactly_opt_is_a_pane_too(tmp_path):
 
 
 def test_autonomous_headless_workers_are_silent(tmp_path):
-    """B11: ci_fix_dispatcher / the broker / rivals run `claude -p` under CLAUDE_MESH_AUTONOMOUS=1
+    """B11: ci_fix_dispatcher.py:208 runs `claude -p` under CLAUDE_MESH_AUTONOMOUS=1 (the only producer in a repo-wide grep — review P2-13)
     (not HEADLESS) from /opt cwds — no Monitor tool exists there, the order is noise per prompt."""
     assert _run(tmp_path, CLAUDE_MESH_AUTONOMOUS="1") == ""
 
@@ -165,3 +165,49 @@ def test_safe_sid_mirrors_the_watchers_byte_transform():
     non-ASCII. UUIDs are ASCII today; the mirror must be exact anyway."""
     assert _selfwatch._safe("é" * 40) == "_" * 64  # 2 bytes each → 80 underscores → cut at 64
     assert _selfwatch._safe("abc-DEF_9") == "abc-DEF_9"
+
+
+def _hold_lock_like_the_watcher(tmp_path: Path, sid: str = SID) -> subprocess.Popen:
+    """The REAL arm idiom (`claude-selfwatch.sh`): `exec 9>lock; flock -n 9` — flock(1) takes the
+    lock and EXITS, the shell keeps the fd. `/proc/locks` omits a lock whose creating task is
+    gone, so a probe that trusts its absence calls an armed session unarmed (review P2-1)."""
+    locks = tmp_path / "locks"
+    locks.mkdir(exist_ok=True)
+    safe = "".join(c if c.isalnum() or c in "_-" else "_" for c in sid)[:64]
+    lock = locks / f"{safe}.selfwatch.lock"
+    proc = subprocess.Popen(
+        ["bash", "-c", f'exec 9>"{lock}"; flock -n 9 || exit 3; echo ready; exec sleep 30'],
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    assert proc.stdout.readline().strip() == "ready", "the bash holder did not take the lock"
+    return proc
+
+
+def test_the_watchers_own_flock_idiom_reads_as_armed(tmp_path):
+    """P2-1 (CRITICAL): with the lock held exactly as claude-selfwatch.sh holds it, the check
+    must be SILENT — the pre-fix probe printed the arm order on every prompt, forever."""
+    holder = _hold_lock_like_the_watcher(tmp_path)
+    try:
+        assert _run(tmp_path) == ""
+        # …and a lock file made read-only AFTER the arm is still probed (B4, on the real idiom)
+        safe = "".join(c if c.isalnum() or c in "_-" else "_" for c in SID)[:64]
+        (tmp_path / "locks" / f"{safe}.selfwatch.lock").chmod(0o400)
+        assert _run(tmp_path) == ""
+    finally:
+        holder.kill()
+        holder.wait()
+
+
+def test_an_unwritable_lock_file_prints_the_diagnosis_not_an_arm_order(tmp_path):
+    """P2-10: the watcher opens `exec 9>"$lock"` — an unwritable FILE kills the arm exactly like
+    an unwritable dir; the B5 diagnosis looked at the dir only."""
+    locks = tmp_path / "locks"
+    locks.mkdir(exist_ok=True)
+    safe = "".join(c if c.isalnum() or c in "_-" else "_" for c in SID)[:64]
+    lock = locks / f"{safe}.selfwatch.lock"
+    lock.write_text("")
+    lock.chmod(0o400)
+    out = _run(tmp_path)
+    assert "CANNOT ARM" in out and "lock FILE" in out, out
+    assert "ARM IT NOW" not in out

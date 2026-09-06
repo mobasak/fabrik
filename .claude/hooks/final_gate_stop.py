@@ -605,8 +605,19 @@ _CODE_EXTS = frozenset(
 
 
 _CLOSED_STATES = frozenset(
-    {"done", "blocked", "handoff"}
-)  # scripts/enforcement/check_feedback_duty.py:60 — the canonical set
+    {"done", "blocked", "handoff", "died", "expired"}
+)  # the closes an agent writes (check_feedback_duty.py:60) PLUS the coroner's reaped states
+# (kaizen_coroner.py `died`/`expired`) — a reaped run still covered what it ran up to its last
+# update; reading it as "no record" re-opened every edit of a resumed session (review P1-9)
+
+
+def _hold_in_force(tick_age_s: float, stale_s: float) -> bool:
+    """Mirror of quota_stop.py's OFF test (`tick_age_s > stale_s`), negated: the hold is in force
+    unless the tick is provably stale. Under a NaN bound `>` is False on both sides, so both read
+    the hold as IN FORCE — `<=` disagreed exactly there and produced the held-and-blocked
+    deadlock A-F1 exists to end (review P1-6). Kept as a function so no formatter can fold the
+    negation back into `<=`."""
+    return not (tick_age_s > stale_s)
 
 
 def _finite(v: object) -> float | None:
@@ -641,8 +652,12 @@ def _review_window(rec: object, sid: str | None = None) -> tuple[float, float] |
         return None
     state = rec.get("state")
     if state == "running":
-        if sid is not None and _run_record(sid) is None:
-            return None  # stale/abandoned — the fifth cause no longer acts on it, nor does this
+        # stale/abandoned — the fifth cause no longer acts on it, nor does this. But the
+        # operator's `COMMAND_RUN_STALE_H<=0` opt-out ("don't trap me") makes `_run_record`
+        # return None for a LIVE run too — that hatch disarms the fifth cause and must not arm
+        # this one (review P1-2)
+        if sid is not None and _stale_bound_s() is not None and _run_record(sid) is None:
+            return None
         return (started, float("inf"))
     closed = _finite(rec.get("updated_ts"))
     if state in _CLOSED_STATES and closed is not None:
@@ -650,37 +665,71 @@ def _review_window(rec: object, sid: str | None = None) -> tuple[float, float] |
     return None
 
 
-def _unreviewed_code_files(authored: dict[str, int], window: tuple[float, float] | None) -> int:
-    """Code files this session authored OUTSIDE the covered window — before the command started
-    or after it closed — the ones no command's contract has reviewed. An edit with no parseable
-    timestamp (ts == 0, `_session_files`) COUNTS: unknown is not covered (A-F10)."""
+def _review_windows(rec: dict | None, sid: str | None = None) -> list[tuple[float, float]]:
+    """EVERY window a command of this session covered: the record's `covered` ledger (each close
+    appends `[started_epoch, close]`, and `start` carries the ledger across its overwrite —
+    `command_run.py`) plus the current record's own window. One record per session is
+    OVERWRITTEN by the next `start`, so a single window destroyed the coverage of every earlier
+    command and made a session with two clean runs permanently unreviewable (review P1-1)."""
+    out: list[tuple[float, float]] = []
+    for w in (rec or {}).get("covered") or []:
+        if isinstance(w, (list, tuple)) and len(w) == 2:
+            lo, hi = _finite(w[0]), _finite(w[1])
+            if lo is not None and hi is not None and lo <= hi:
+                out.append((lo, hi))
+    cur = _review_window(rec, sid)
+    if cur is not None:
+        out.append(cur)
+    return out
+
+
+def _this_sessions_edits(authored: dict[str, int], session_floor: float) -> dict[str, int]:
+    """Drop edits older than the SessionStart baseline — a resumed transcript's ancient work,
+    not this session's (the same filter `_failure_cites_session` applies). Unfiltered, a
+    months-long transcript (454 code files over 116 days in one sid, measured) made any window
+    of minutes count hundreds of files as unreviewed (review P1-3). ts == 0 (unknown) stays."""
+    return {
+        f: ts for f, ts in authored.items() if not ts or not session_floor or ts >= session_floor
+    }
+
+
+def _unreviewed_code_files(
+    authored: dict[str, int],
+    windows: list[tuple[float, float]] | tuple[float, float] | None,
+) -> int:
+    """Code files this session authored OUTSIDE every covered window — the ones no command's
+    contract has reviewed. An edit with no parseable timestamp (ts == 0, `_session_files`)
+    COUNTS: unknown is not covered (A-F10). A single window (the pre-P1-1 shape) is accepted."""
     from pathlib import PurePosixPath
 
+    if windows is None:
+        wins: list[tuple[float, float]] = []
+    elif isinstance(windows, tuple):
+        wins = [windows]
+    else:
+        wins = list(windows)
     n = 0
     for f, ts in authored.items():
         if PurePosixPath(f).suffix.lower() not in _CODE_EXTS:
             continue
-        if window is None or not isinstance(ts, (int, float)) or ts == 0:
+        if not isinstance(ts, (int, float)) or ts == 0:
             n += 1
             continue
-        lo, hi = window
-        if float(ts) < lo or float(ts) > hi:
+        if not any(lo <= float(ts) <= hi for lo, hi in wins):
             n += 1
     return n
 
 
-def decide_review(
-    code_files: int, nothing_unreviewed: bool, attempts: int, cap: int = CAP
-) -> tuple[str, int]:
+def decide_review(code_files: int, attempts: int, cap: int = CAP) -> tuple[str, int]:
     """Pure review-checkpoint decision. Returns (action, attempts').
 
-    `code_files` is the count of session-authored code files OUTSIDE the last command's covered
-    window (`_unreviewed_code_files`); `nothing_unreviewed` is `code_files == 0` restated by the
-    caller so the exempt branch stays a first-class outcome. Warn-through RE-ARMS (attempts → 0),
-    like every other cause: the old `return attempts` disarmed the cause for the rest of the
-    session after three blocks (review A-F8).
+    `code_files` is the count of session-authored code files OUTSIDE every covered window
+    (`_unreviewed_code_files`). Warn-through RE-ARMS (attempts → 0), like every other cause: the
+    old `return attempts` disarmed the cause for the rest of the session after three blocks
+    (review A-F8). The former `nothing_unreviewed` flag was `code_files == 0` restated, and its
+    only independent value silently disabled the cause (review P1-7).
     """
-    if code_files == 0 or nothing_unreviewed:
+    if code_files == 0:
         return "allow", 0
     attempts += 1
     if attempts > cap:
@@ -1244,7 +1293,10 @@ def main(argv: list[str]) -> int:
             if (
                 (_state / "fleet-exhausted").exists()
                 and _tick.exists()
-                and (time.time() - _tick.stat().st_mtime) <= _stale
+                # the SAME expression shape as quota_stop.py (`age > stale` = off): under a NaN
+                # bound both sides read the hold as in force — `<=` disagreed exactly there and
+                # produced the held-and-blocked deadlock A-F1 exists to end (review P1-6)
+                and _hold_in_force(time.time() - _tick.stat().st_mtime, _stale)
             ):
                 _kaizen("stop_allowed_quota_hold", ev_sid)
                 return 0
@@ -1393,8 +1445,15 @@ def main(argv: list[str]) -> int:
                 # 01M1NTNCFEWMP82YQFGNN6NHYP shape (reviewed, closed, idle under a hold) stays
                 # allowed: idle authors nothing after the close.
                 _rec = _run_record_raw(sid)
-                _unreviewed = _unreviewed_code_files(authored_map, _review_window(_rec, sid))
-                v_action, v_att = decide_review(_unreviewed, _unreviewed == 0, v_att)
+                _floor = 0.0
+                try:
+                    _floor = _baseline_path(sid).stat().st_mtime
+                except OSError:
+                    pass
+                _unreviewed = _unreviewed_code_files(
+                    _this_sessions_edits(authored_map, _floor), _review_windows(_rec, sid)
+                )
+                v_action, v_att = decide_review(_unreviewed, v_att)
                 if v_action == "block_review":
                     counter.write_text(f"{g},{c},0,{p_att},{r_att},{v_att}")
                     _kaizen(
@@ -1410,7 +1469,7 @@ def main(argv: list[str]) -> int:
                                 "decision": "block",
                                 "reason": (
                                     f"UNREVIEWED SPONTANEOUS WORK (attempt {v_att}/{CAP}). This "
-                                    "session authored code files OUTSIDE the last command run's covered window (before it started, or after it closed) — "
+                                    "session authored code files OUTSIDE every command run's covered window (before the first started, between runs, or after the last closed) — "
                                     "plain-chat work that skipped every review contract. Run "
                                     "`/fabrik-review-scoped` (minutes: diff-scoped, same "
                                     "convergence spine, fix-in-run) — or the full "

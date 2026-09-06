@@ -15,6 +15,7 @@ import importlib.util
 import json
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -958,6 +959,7 @@ def test_record_shape_and_pinned_line_are_unchanged_by_events(run_dir: Path) -> 
     # is the one T03 addition, and it is additive — no existing consumer reads it.
     # `started_epoch` + `repo_root` are the review-guard's (mega-enforcement round-31/33).
     assert set(rec) == {
+        "covered",  # the closed-window ledger (P1-1)
         "session_id",
         "command",
         "phases",
@@ -3109,6 +3111,9 @@ def test_step_and_round_refuse_to_touch_a_closed_record(run_dir: Path) -> None:
     _cr(run_dir, "done", "--command", _PROBE, "--evidence", "e", "--feedback", "none — surfaces: t")
     before = _rec(run_dir)
     assert before["state"] == "done"
+    time.sleep(
+        1.1
+    )  # `_touch` stamps whole seconds: without a tick the close-time assertion is vacuous (review P1-4)
     r1 = _cr(run_dir, "step", "--phase", "1", "--title", "x")
     r2 = _cr(run_dir, "round", "--findings", "0")
     after = _rec(run_dir)
@@ -3119,3 +3124,22 @@ def test_step_and_round_refuse_to_touch_a_closed_record(run_dir: Path) -> None:
     assert (
         "closed" in (r1.stdout + r1.stderr).lower() and "closed" in (r2.stdout + r2.stderr).lower()
     )
+
+
+def test_a_close_appends_its_window_and_the_next_start_carries_the_ledger(tmp_path: Path) -> None:
+    """P1-1: the Stop hook's sixth cause reads `covered` — every window a command of this session
+    closed. Without the ledger, `start` overwrote the record and un-reviewed every earlier run."""
+    run_dir = tmp_path / "runs"
+    run_dir.mkdir()
+    _start(run_dir)
+    r1 = _rec(run_dir)
+    _cr(run_dir, "done", "--command", r1["command"], "--evidence", "x", "--feedback", _PROBE)
+    r1 = _rec(run_dir)
+    assert len(r1["covered"]) == 1 and r1["covered"][0][0] == r1["started_epoch"], r1.get("covered")
+    _start(run_dir)
+    r2 = _rec(run_dir)
+    assert r2["state"] == "running" and r2["covered"] == r1["covered"], (
+        "start must carry the ledger"
+    )
+    _cr(run_dir, "done", "--command", r2["command"], "--evidence", "y", "--feedback", _PROBE)
+    assert len(_rec(run_dir)["covered"]) == 2

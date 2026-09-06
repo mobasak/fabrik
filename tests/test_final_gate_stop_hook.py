@@ -414,10 +414,9 @@ def _run_stop_with_transcript(
                 "command": "fabrik-review-scoped",
                 # a real record ALWAYS carries started_epoch (command_run.py `start` writes it); a
                 # closed record without one is an unrecognised shape and covers nothing (A-F5/A-F7)
-                # 0, not now-120: these fixtures' transcript entries carry FIXED historical
-                # timestamps, and the window covers [started, closed] — a "command that covered
-                # everything" is expressed by a start at the epoch (these tests are about gate
-                # ATTRIBUTION, not the review cause)
+                # 0, not now-120: the window covers [started, closed] and these tests are about
+                # gate ATTRIBUTION, not the review cause — a "command that covered everything" is
+                # expressed by a start at the epoch (the stamped edit sits at now+60, below)
                 "started_epoch": 0,
                 # closed AFTER the stamped edit (now+60): the fixture means "a command covered this
                 # edit", so its window [0, now+120] must contain it — a close BEFORE the edit reads,
@@ -1597,4 +1596,4 @@ def test_a_stale_but_real_record_is_not_unreviewed_work(tmp_path: Path, monkeypa
     win = mod._review_window(rec)
     assert win is not None
     n = mod._unreviewed_code_files({"src/a.py": int(now - 13.5 * 3600)}, win)
-    assert n == 0 and mod.decide_review(n, n == 0, 0)[0] == "allow"
+    assert n == 0 and mod.decide_review(n, 0)[0] == "allow"

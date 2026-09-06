@@ -43,23 +43,54 @@ def _targets() -> list[Path]:
     fleet = home / ".claude-fleet"
     if fleet.is_dir():
         for d in sorted(fleet.iterdir()):
-            if d.is_dir() and not d.is_symlink() and (d / "settings.json").exists():
+            # every ACCOUNT dir, present settings.json or not — a restorer that skips the
+            # missing file cannot restore (review P2-9); `active` is a symlink, never a target
+            if (
+                d.is_dir()
+                and not d.is_symlink()
+                and (d / ".claude.json").exists()
+                or d.is_dir()
+                and not d.is_symlink()
+                and (d / "settings.json").exists()
+            ):
                 out.append(d / "settings.json")
     return out
 
 
-def _missing(d: dict) -> list[tuple[str, str]]:
-    miss = []
+def _stale(d: dict) -> list[tuple[str, str, str]]:
+    """Every (event, canonical command, reason) whose registration is not EXACTLY the canonical
+    one: absent, a different path for the same script (a moved checkout kept firing — P2-8), a
+    timeout below the gate's inner timeout (the B8 invariant `--check` could not see — P2-7), or
+    a PreToolUse entry without a matcher."""
+    out = []
+    hooks = d.get("hooks")
+    hooks = hooks if isinstance(hooks, dict) else {}
     for ev, cmds in ENTRIES.items():
-        have = [
-            h.get("command", "")
-            for e in (d.get("hooks") or {}).get(ev) or []
-            for h in (e.get("hooks") or [])
-        ]
+        entries = hooks.get(ev) if isinstance(hooks.get(ev), list) else []
         for cmd in cmds:
-            if not any(cmd in h for h in have):
-                miss.append((ev, cmd))
-    return miss
+            base = cmd.rsplit("/", 1)[-1].split()[0]
+            found = None
+            for e in entries:
+                if not isinstance(e, dict):
+                    continue
+                for h in e.get("hooks") or []:
+                    if isinstance(h, dict) and base in str(h.get("command", "")):
+                        found = (e, h)
+            if found is None:
+                out.append((ev, cmd, "missing"))
+                continue
+            e, h = found
+            if str(h.get("command", "")) != cmd:
+                out.append((ev, cmd, f"stale command `{h.get('command', '')}`"))
+            elif not isinstance(h.get("timeout"), (int, float)) or h["timeout"] < TIMEOUT_S:
+                out.append((ev, cmd, f"timeout {h.get('timeout')!r} < {TIMEOUT_S}"))
+            elif ev == "PreToolUse" and not e.get("matcher"):
+                out.append((ev, cmd, "no matcher"))
+    return out
+
+
+def _missing(d: dict) -> list[tuple[str, str]]:
+    return [(ev, cmd) for ev, cmd, _ in _stale(d)]
 
 
 def run(argv: list[str] | None = None) -> int:
@@ -69,29 +100,46 @@ def run(argv: list[str] | None = None) -> int:
     bad = 0
     for path in _targets():
         try:
-            d = json.loads(path.read_text(encoding="utf-8") or "{}")
+            d = json.loads(path.read_text(encoding="utf-8") or "{}") if path.exists() else {}
             if not isinstance(d, dict):
                 d = {}
         except (OSError, ValueError):
             print(f"install_user_hooks: cannot read {path}", file=sys.stderr)
             bad += 1
             continue
-        miss = _missing(d)
-        if not miss:
+        stale = _stale(d)
+        if not stale:
             continue
         if args.check:
-            for ev, cmd in miss:
-                print(f"MISSING {path}: {ev} → {cmd}")
+            for ev, cmd, why in stale:
+                print(
+                    f"{why.upper() if why == 'missing' else 'STALE'} {path}: {ev} → {cmd} ({why})"
+                )
             bad += 1
             continue
-        hooks = d.setdefault("hooks", {})
-        for ev, cmd in miss:
+        hooks = d.get("hooks")
+        if not isinstance(hooks, dict):
+            hooks = {}  # a list-shaped `hooks` is not a registration (P2-3)
+        d["hooks"] = hooks
+        for ev, cmd, _why in stale:
+            base = cmd.rsplit("/", 1)[-1].split()[0]
+            kept = []
+            for e in hooks.get(ev) or []:
+                # drop every entry carrying this script under any path — a stale registration
+                # kept executing (or failing) on every prompt beside the new one (P2-8)
+                if isinstance(e, dict) and any(
+                    isinstance(h, dict) and base in str(h.get("command", ""))
+                    for h in e.get("hooks") or []
+                ):
+                    continue
+                kept.append(e)
             entry = {"hooks": [{"type": "command", "command": cmd, "timeout": TIMEOUT_S}]}
             if ev == "PreToolUse":
                 entry["matcher"] = ".*"
-            hooks.setdefault(ev, []).append(entry)
+            hooks[ev] = [*kept, entry]
+        path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(d, indent=2) + "\n", encoding="utf-8")
-        print(f"installed {len(miss)} entr{'y' if len(miss) == 1 else 'ies'} into {path}")
+        print(f"installed {len(stale)} entr{'y' if len(stale) == 1 else 'ies'} into {path}")
     if args.check:
         print(
             "user-level hooks: "

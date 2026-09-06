@@ -24,9 +24,9 @@ _spec.loader.exec_module(fgs)
 def test_code_edits_with_no_record_block_up_to_the_cap():
     a = 0
     for expect in (1, 2, 3):
-        action, a = fgs.decide_review(3, False, a)
+        action, a = fgs.decide_review(3, a)
         assert action == "block_review" and a == expect
-    action, a = fgs.decide_review(3, False, a)
+    action, a = fgs.decide_review(3, a)
     assert action == "allow_warn_review", "cap must warn through, never trap (anti-trap law)"
 
 
@@ -35,14 +35,14 @@ def test_code_authored_inside_a_commands_window_is_exempt():
     review discipline — for edits INSIDE its [start, close] window (A-F5/A-F7 re-grounding)."""
     win = fgs._review_window({"state": "done", "started_epoch": 100, "updated_ts": 900})
     n = fgs._unreviewed_code_files({"src/a.py": 500, "src/b.py": 850}, win)
-    action, a = fgs.decide_review(n, n == 0, attempts=2)
+    action, a = fgs.decide_review(n, attempts=2)
     assert n == 0 and action == "allow" and a == 0, (
         "covered edits must exempt AND reset the counter"
     )
 
 
 def test_doc_only_sessions_never_fire():
-    action, a = fgs.decide_review(0, False, 2)
+    action, a = fgs.decide_review(0, 2)
     assert action == "allow" and a == 0
 
 
@@ -130,7 +130,7 @@ def test_handoff_is_a_closed_state_that_covers_like_done():
     {"done","blocked"} blocked every such session with 'NO command run record'."""
     win = fgs._review_window({"state": "handoff", "started_epoch": T - 100, "updated_ts": T})
     assert win == (T - 100, T)
-    assert frozenset({"done", "blocked", "handoff"}) == fgs._CLOSED_STATES
+    assert frozenset({"done", "blocked", "handoff", "died", "expired"}) == fgs._CLOSED_STATES  # + the coroner's reaped states (P1-9)
 
 
 def test_code_authored_before_the_command_started_is_not_covered():
@@ -167,7 +167,7 @@ def test_non_finite_or_bool_timestamps_read_as_no_record():
 
 def test_warn_through_re_arms_like_every_other_cause():
     """A-F8: after three blocks the cause disarmed for the rest of the session."""
-    action, a = fgs.decide_review(3, False, 3)
+    action, a = fgs.decide_review(3, 3)
     assert action == "allow_warn_review" and a == 0, (
         "must reset so the next unreviewed stop blocks again"
     )
@@ -182,3 +182,56 @@ def test_the_dead_per_session_helpers_are_gone():
     """A-F7: _run_record_exists / _count_code_files had zero production callers and a docstring
     that instructed the reverted contract; a green test certified the removed behaviour."""
     assert not hasattr(fgs, "_run_record_exists") and not hasattr(fgs, "_count_code_files")
+
+
+def test_every_earlier_commands_window_stays_covered_across_a_start_overwrite():
+    """P1-1 (CRITICAL, fleet-wide): one record per session, OVERWRITTEN by the next `start`. A
+    single [started, closed] window destroyed the coverage of every command before the last one,
+    and running another review only narrowed it further — a permanent 3-block/1-warn cycle. The
+    `covered` ledger (appended at close, carried across `start`) keeps every window."""
+    rec = {"state": "done", "started_epoch": 3000, "updated_ts": 3600, "covered": [[100, 900]]}
+    wins = fgs._review_windows(rec)
+    assert (100.0, 900.0) in wins and (3000.0, 3600.0) in wins, wins
+    assert fgs._unreviewed_code_files({"src/a.py": 500, "src/b.py": 3300}, wins) == 0
+    assert fgs._unreviewed_code_files({"src/c.py": 2000}, wins) == 1, (
+        "between runs: nobody reviewed it"
+    )
+    # the single-window shape that produced P1-1, kept only for the mirror
+    assert fgs._unreviewed_code_files({"src/a.py": 500}, fgs._review_window(rec)) == 1
+    # a malformed ledger entry is ignored, never a crash
+    assert fgs._review_windows(
+        {
+            "state": "done",
+            "started_epoch": 1,
+            "updated_ts": 2,
+            "covered": [[float("nan"), 5], "x", [9, 1]],
+        }
+    ) == [(1.0, 2.0)]
+
+
+def test_a_resumed_transcripts_ancient_edits_are_not_this_sessions():
+    """P1-3: a session id can carry months of transcript (454 code files over 116 days measured);
+    the sixth cause reads only edits at or after the SessionStart baseline, like attribution
+    (`_failure_cites_session`) always did. Unknown timestamps (0) stay — they still count."""
+    m = fgs._this_sessions_edits({"old.py": 100, "new.py": 5000, "unknown.py": 0}, 4000)
+    assert m == {"new.py": 5000, "unknown.py": 0}
+    assert fgs._this_sessions_edits({"old.py": 100}, 0.0) == {"old.py": 100}, (
+        "no baseline → keep all"
+    )
+
+
+def test_the_operators_stale_opt_out_does_not_uncover_a_live_run(monkeypatch):
+    """P1-2: `COMMAND_RUN_STALE_H<=0` is the fifth cause's "don't trap me" hatch; through
+    `_run_record` it read as "no record" here and armed the SIXTH cause against a live run."""
+    monkeypatch.setenv("COMMAND_RUN_STALE_H", "0")
+    rec = {"state": "running", "started_epoch": 100, "updated_ts": 200}
+    assert fgs._review_window(rec, "sid-with-no-store") == (100.0, float("inf"))
+
+
+def test_coroner_reaped_records_still_cover_their_run():
+    """P1-9: the coroner writes `died`/`expired`; a reaped run still covered what it ran."""
+    for st in ("died", "expired"):
+        assert fgs._review_window({"state": st, "started_epoch": 100, "updated_ts": 900}) == (
+            100.0,
+            900.0,
+        ), st

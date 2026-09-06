@@ -1027,6 +1027,12 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             # Session-monotonic, so a nested run and a later run keep ascending rather
             # than restarting at 1 and colliding in the same session's stream.
             "event_seq": int(rec.get("event_seq") or 0),
+            # the ledger of windows earlier commands of this session COVERED — carried across
+            # this overwrite so the Stop hook's sixth cause keeps every reviewed edit reviewed
+            # (review P1-1: a single window un-reviewed every command before the last one)
+            "covered": [
+                w for w in (rec.get("covered") or []) if isinstance(w, list) and len(w) == 2
+            ],
         }
         # The `start` verb's join window is the WHOLE store, so the anchor is cleared —
         # never this record's own start (that would exclude every candidate landing
@@ -1468,6 +1474,9 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         print(msg)
         return 1
     rec["state"] = args.cmd
+    _se = rec.get("started_epoch")
+    if isinstance(_se, (int, float)) and not isinstance(_se, bool) and _se > 0:
+        rec.setdefault("covered", []).append([float(_se), time.time()])
     # `closed_by` is ADDITIVE and never read by an existing consumer (the Stop hook keys
     # on `state == "running"` alone). `agent` is the only value this script writes; the
     # coroner writes `coroner`/`ttl` for the runs no agent ever came back to close.
@@ -1487,6 +1496,9 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
     _touch(rec)
     stack = list(rec.get("stack") or [])
     parent = stack.pop() if stack else None
+    if parent is not None:
+        # a nested run's window joins the caller's ledger before the caller is restored
+        parent["covered"] = list(parent.get("covered") or []) + list(rec.get("covered") or [])
     _fb_verdict, _fb_beats = _feedback_verdict(getattr(args, "feedback", None))
     # On the RECORD as well as the event: the event stream is box-local telemetry, while the record
     # is what a per-run check can read. The verdict token AND the prose are both stored (D-055,

@@ -43,15 +43,16 @@ def _lock_dir() -> Path:
     return Path(os.environ.get("CLAUDE_SOUND_LOCKDIR") or f"/tmp/claude-sound-locks-{os.getuid()}")
 
 
-def _held_per_proc_locks(st: os.stat_result) -> bool | None:
-    """READ-ONLY probe (review B6): does any process hold a FLOCK on this inode? `/proc/locks`
-    lists `… FLOCK ADVISORY WRITE <pid> <maj>:<min>:<ino> …`. None when unreadable (not Linux,
-    hidepid) — the caller falls back to the flock probe, which is racy by nature: taking LOCK_EX
-    to ask could make the watcher's own `flock -n` see "already armed" and exit 0."""
+def _held_per_proc_locks(st: os.stat_result) -> bool:
+    """POSITIVE-ONLY read-only probe: `/proc/locks` lists `… FLOCK ADVISORY WRITE <pid>
+    <maj>:<min>:<ino> …` — but it OMITS a lock whose creating task has exited, and the watcher
+    arms with `exec 9>lock; flock -n 9` (flock(1) takes the lock and exits; the shell keeps the
+    fd). So an absence here proves nothing (review P2-1: every armed window got the arm order on
+    every prompt); a presence is authoritative."""
     try:
         text = Path("/proc/locks").read_text()
     except OSError:
-        return None
+        return False
     maj, mnr = os.major(st.st_dev), os.minor(st.st_dev)
     want = f"{maj:02x}:{mnr:02x}:{st.st_ino}"
     for line in text.splitlines():
@@ -66,15 +67,17 @@ def _armed(sid: str) -> bool:
     if not path.exists():
         return False
     st = os.stat(path)
-    held = _held_per_proc_locks(st)
-    if held is not None:
-        return held
-    # Fallback: a non-blocking flock probe. O_RDONLY — flock needs no write access, and O_WRONLY
-    # raised on a read-only lock file, which the bare except then swallowed into silence (B4).
+    if _held_per_proc_locks(st):
+        return True
+    # The decider: a non-blocking SHARED flock probe. A held exclusive lock (the watcher's)
+    # refuses it at once; a shared probe never blocks a reader and is released within
+    # microseconds, so it cannot hand the watcher's own `flock -n` a false "already armed" the
+    # way an exclusive probe could (B6). O_RDONLY — flock needs no write access, and O_WRONLY
+    # raised on a read-only lock file, which a bare except then swallowed into silence (B4).
     fd = os.open(str(path), os.O_RDONLY)
     try:
         try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
         except BlockingIOError:
             return True
         fcntl.flock(fd, fcntl.LOCK_UN)
@@ -100,14 +103,21 @@ def main() -> int:
         if _armed(sid):
             return 0
         locks = _lock_dir()
-        if locks.exists() and not os.access(locks, os.W_OK):
-            # B5: the watcher exits 1 when it cannot open its lock — ordering an arm here loops
-            # forever ("arm → dies → arm"). Say what is actually wrong.
+        lock = locks / f"{_safe(sid)}.selfwatch.lock"
+        unwritable = (
+            f"lock DIR `{locks}`"
+            if locks.exists() and not os.access(locks, os.W_OK)
+            else (f"lock FILE `{lock}`" if lock.exists() and not os.access(lock, os.W_OK) else "")
+        )
+        if unwritable:
+            # B5/P2-10: the watcher opens its lock with `exec 9>"$lock"`, which fails on an
+            # unwritable dir AND on an unwritable file — ordering an arm here loops forever
+            # ("arm → dies → arm"). Say what is actually wrong.
             print(
-                "## ⚠️ SELF-WATCH CANNOT ARM — LOCK DIR not writable\n"
-                f"`{locks}` is not writable by this user, so `claude-selfwatch.sh` exits at once "
-                "(its line 25) and an arm order would never stop this notice. Fix the directory "
-                "(permissions/ownership), then arm.\n"
+                "## ⚠️ SELF-WATCH CANNOT ARM — not writable\n"
+                f"The {unwritable} is not writable by this user, so `claude-selfwatch.sh` exits "
+                "at once (its line 25) and an arm order would never stop this notice. Fix the "
+                "permissions/ownership, then arm.\n"
             )
             return 0
         print(
