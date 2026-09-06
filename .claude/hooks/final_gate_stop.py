@@ -141,6 +141,11 @@ _FINAL_BLOCK_KEYS = (
 )
 
 
+#: The block is "the LAST 7 lines" — the completeness check reads only this many trailing
+#: lines (seven keys + a closing fence + blank lines), so a quoted example higher up is prose.
+_FINAL_BLOCK_TAIL_LINES = 10  # 7 keys + a closing fence + 2 blank lines
+
+
 def _final_block_seen(text: str) -> bool:
     return all(re.search(rf"^\s*{re.escape(k)}", text, re.M) for k in _FINAL_BLOCK_KEYS)
 
@@ -1100,20 +1105,44 @@ def _detect_stall(
         # incomplete terminator. This is the ACTUAL enforcement the D-059 row
         # promised — _FINAL_BLOCK_KEYS alone only feeds a metric (review finding:
         # the first landing claimed blocking it never had).
-        if (
-            re.search(r"^\s*GATE:", text, re.M)
-            and re.search(r"^\s*DONE:", text, re.M)
-            and re.search(r"^\s*NEXT:", text, re.M)
-            and not re.search(r"^\s*FEEDBACK:", text, re.M)
-        ):
-            return ("feedback-line", "GATE:/DONE:/NEXT: present, FEEDBACK: absent")
+        # Generalised 2026-09-07 (operator directive, D-173: ONE seven-line block in every repo):
+        # a block that carries SOME of the seven keys but not all is incomplete whatever it
+        # dropped — the FEEDBACK:-only shape above was one instance of this class (a block
+        # missing DOCS UPDATED:/CHANGELOG:/LESSONS LEARNT: passed as complete). NEXT: is shared
+        # with the conversational STATE:/NEXT: footer, so it never counts toward "a block is
+        # being emitted": two or more of the OTHER six keys do.
+        # Scoped to the message TAIL: the contract says "the LAST 7 lines", so a block quoted
+        # mid-message as an example (an explainer, a how-to) is not a terminator and must not
+        # trip this (round-1 finders, three readers). Ten lines leave room for a closing
+        # fence and blank lines around the seven; the whole-text scan is kept for the metric.
+        # A BLOCKED: escalation is one of the three sanctioned halting exits and exempts every
+        # stall GLOBALLY (the flag below) — this check must not sit before that flag exists
+        # (native finder r1, executed: a 3-strikes BLOCKED close was refused as "incomplete").
+        escalation = _GATE_EXEMPT_GLOBAL_RE.search(text)
+        tail_lines = text.rstrip().splitlines()[-_FINAL_BLOCK_TAIL_LINES:]
+        tail_text = "\n".join(tail_lines)
+        present = [
+            k for k in _FINAL_BLOCK_KEYS if re.search(rf"^\s*{re.escape(k)}", tail_text, re.M)
+        ]
+        # THREE non-NEXT keys = a block is being emitted (the old anchor's strength: GATE+DONE+
+        # NEXT); two let "DONE: finished the compose review." + "GATE: looked right" beside a
+        # footer read as a block (native finder r1, executed).
+        if sum(1 for k in present if k != "NEXT:") >= 3 and len(present) < len(_FINAL_BLOCK_KEYS):
+            missing = [k for k in _FINAL_BLOCK_KEYS if k not in present]
+            if escalation:
+                if waived is not None:
+                    waived.append(("blocked-escalation", escalation.group(0)))
+            else:
+                return (
+                    "final-block-incomplete",
+                    f"present: {' '.join(present)}; missing: {' '.join(missing)}",
+                )
         tail = text[-600:]
         # The BLOCKED escalation exempts GLOBALLY: its header must not be split away
         # from its own detail by the tail cut (review finding). It is held as a flag
         # consulted by every loop rather than an early return, so a stall it waives is
         # still SEEN (and recorded) on the way past — the return value is unchanged,
         # since a truthy flag exempts every match there is.
-        escalation = _GATE_EXEMPT_GLOBAL_RE.search(text)
         dispatched = any(_is_dispatch(t) for t in tools)
 
         def _waive(match: re.Match[str]) -> None:
@@ -1519,12 +1548,19 @@ def main(argv: list[str]) -> int:
                 return 0
             counter.write_text(f"{g},{c},{s_att},{p_att},{r_att if run_active else 0},{v_att}")
             kind, snippet = stall  # type: ignore[misc]
-            if kind == "feedback-line":
+            if kind == "final-block-incomplete":
+                _missing = snippet.split("missing:", 1)[-1].strip()
                 what = (
-                    f"ends with a FINAL OUTPUT block missing its FEEDBACK: line ({snippet}) — "
-                    "append `FEEDBACK: <what you filed about the commands/skills/rules machinery, "
-                    "to whom (mail id / committed path) | none — the machinery surfaces this run "
-                    "exercised>` as the 7th line (D-059)"
+                    f"ends with an INCOMPLETE FINAL OUTPUT block ({snippet}) — the block is the "
+                    "same SEVEN lines in every repo (D-173): GATE: · DOCS UPDATED: · CHANGELOG: · "
+                    f"LESSONS LEARNT: · DONE: · NEXT: · FEEDBACK: — add the missing line(s): {_missing}"
+                    + (
+                        " (`FEEDBACK: <what you filed about the commands/skills/rules machinery, "
+                        "to whom (mail id / committed path) | none — the machinery surfaces this "
+                        "run exercised>` is the 7th, D-059)"
+                        if "FEEDBACK:" in _missing
+                        else ""
+                    )
                 )
             else:
                 what = (

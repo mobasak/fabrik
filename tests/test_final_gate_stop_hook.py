@@ -1597,3 +1597,108 @@ def test_a_stale_but_real_record_is_not_unreviewed_work(tmp_path: Path, monkeypa
     assert win is not None
     n = mod._unreviewed_code_files({"src/a.py": int(now - 13.5 * 3600)}, win)
     assert n == 0 and mod.decide_review(n, 0)[0] == "allow"
+
+
+# Operator directive 2026-09-07: every repo's agents close a task-completing response with the SAME
+# 7-line FINAL OUTPUT block. The guard read only ONE partial shape (FEEDBACK: absent); a block
+# missing DOCS UPDATED:/CHANGELOG:/LESSONS LEARNT: passed as complete.
+def test_a_partial_final_block_is_a_stall_naming_the_missing_keys(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    _turn(
+        tr,
+        _user(),
+        _asst_text(
+            "Shipped.\n\nGATE: final_gate --check --json → success\nDONE: commit abc123\n"
+            "NEXT: none — terminal\nFEEDBACK: none — surfaces: gate\n"
+        ),
+    )
+    kind = hook._detect_stall(str(tr), tmp_path, set())
+    assert kind and kind[0] == "final-block-incomplete", kind
+    assert "DOCS UPDATED:" in kind[1] and "CHANGELOG:" in kind[1] and "LESSONS LEARNT:" in kind[1]
+
+
+def test_a_block_missing_only_feedback_still_names_feedback(tmp_path: Path) -> None:
+    tr = tmp_path / "t.jsonl"
+    _turn(
+        tr,
+        _user(),
+        _asst_text(
+            "GATE: x → success\nDOCS UPDATED: none\nCHANGELOG: n/a\nLESSONS LEARNT: none\n"
+            "DONE: y\nNEXT: none — terminal\n"
+        ),
+    )
+    kind = hook._detect_stall(str(tr), tmp_path, set())
+    assert kind and kind[0] == "final-block-incomplete" and "FEEDBACK:" in kind[1], kind
+
+
+def test_the_complete_seven_line_block_and_the_two_line_footer_are_not_stalls(
+    tmp_path: Path,
+) -> None:
+    full = (
+        "GATE: x → success\nDOCS UPDATED: none\nCHANGELOG: n/a\nLESSONS LEARNT: none\n"
+        "DONE: y\nNEXT: none — terminal\nFEEDBACK: none — surfaces: gate\n"
+    )
+    tr = tmp_path / "full.jsonl"
+    _turn(tr, _user(), _asst_text(full))
+    assert hook._detect_stall(str(tr), tmp_path, set()) is None
+    tr2 = tmp_path / "footer.jsonl"
+    _turn(tr2, _user(), _asst_text("Answered.\n\nSTATE: idle\nNEXT: none — terminal\n"))
+    assert hook._detect_stall(str(tr2), tmp_path, set()) is None
+
+
+def test_a_partial_block_quoted_mid_message_is_prose_not_a_terminator(tmp_path: Path) -> None:
+    quoted = (
+        "The block looks like this:\n\n```\nGATE: x → success\nDONE: y\nNEXT: z\nFEEDBACK: none\n```\n\n"
+        "That is why the seventh line matters — it is the run-record close made visible.\n"
+        "The hook reads the seven keys at line starts; a prose mention never counts.\n"
+        "A quoted example is not a terminator, because the contract says LAST 7 lines.\n"
+        "So an explainer like this one can show the shape without being graded as one.\n"
+        "Fenced or not makes no difference: the tail window is what decides.\n"
+        "Nothing else changed in this turn, and no file was edited.\n"
+        "Ask me if you want the full template pasted.\n"
+        "\nSTATE: explained\nNEXT: awaiting your reply\n"
+    )
+    tr = tmp_path / "quoted.jsonl"
+    _turn(tr, _user(), _asst_text(quoted))
+    assert hook._detect_stall(str(tr), tmp_path, set()) is None
+    # the same partial block AT THE END is the terminator shape and still stalls
+    tr2 = tmp_path / "tail.jsonl"
+    _turn(
+        tr2,
+        _user(),
+        _asst_text("Shipped.\n\n```\nGATE: x → success\nDONE: y\nNEXT: z\nFEEDBACK: none\n```\n"),
+    )
+    kind = hook._detect_stall(str(tr2), tmp_path, set())
+    assert kind and kind[0] == "final-block-incomplete", kind
+
+
+def test_a_blocked_escalation_with_a_partial_block_is_exempt_and_recorded(tmp_path: Path) -> None:
+    tr = tmp_path / "blocked.jsonl"
+    _turn(
+        tr,
+        _user(),
+        _asst_text(
+            "GATE: final_gate --json → failure (3rd consecutive same test)\n"
+            "DONE: attempted fixes A, B, C; all reproduce the same failure\n"
+            "NEXT: BLOCKED: same-test-failure x3 — searched: docs/TROUBLESHOOTING.md, AFCL.md "
+            "— missing: root cause unclear\n"
+            "FEEDBACK: none — surfaces: the gate\n"
+        ),
+    )
+    waived: list = []
+    assert hook._detect_stall(str(tr), tmp_path, set(), waived=waived) is None
+    assert waived and waived[0][0] == "blocked-escalation", waived
+
+
+def test_two_incidental_prose_labels_beside_a_footer_are_not_a_block(tmp_path: Path) -> None:
+    tr = tmp_path / "prose.jsonl"
+    _turn(
+        tr,
+        _user(),
+        _asst_text(
+            "Status check.\nDONE: finished the compose review.\n"
+            "GATE: the memory-limit gate looked correct on inspection.\n"
+            "STATE: waiting for sibling to push.\nNEXT: none — terminal\n"
+        ),
+    )
+    assert hook._detect_stall(str(tr), tmp_path, set()) is None
