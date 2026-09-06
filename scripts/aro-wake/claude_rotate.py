@@ -3990,6 +3990,40 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
     ordinary_trip = session_trip or (cap is None and weekly_trip)
     cap_trip = cap is not None and weekly_trip
     if not (ordinary_trip or cap_trip):
+        # DRAIN-BAND RELIEF (operator directive 2026-09-06, incident 23:01-23:17 +03): the
+        # advisory leg lifts the fleet-exhausted hold the moment a successor becomes eligible,
+        # but this leg flipped only when the ACTIVE account tripped — so every released session
+        # resumed on mob@ at session 93 / weekly 97 (cap 99) while ozgurbasak@ sat at 0 / 19 for
+        # sixteen minutes ("mob did not switch to ozgurbasak"). Relief that arrives on a sibling
+        # IS a flip trigger when the active account is in the drain band: it moves to a validated
+        # successor that is BELOW the drain threshold on both windows (strictly fresher — the
+        # hysteresis that prevents ping-pong), under the ordinary dwell (this is relief, not a wall).
+        drain_thr = _env_float("ROTATE_DRAIN_THRESHOLD", 85.0)
+        if hot >= drain_thr and not _switch_paused():
+            pick = _validated_pick(accounts, {row["email"]})
+            if pick is not None:
+                slug, email = pick
+                prow = next((r for r in accounts if r.get("email") == email), None) or {}
+                pu = [
+                    float((prow.get(k) or {}).get("utilization"))
+                    for k in ("five_hour", "seven_day")
+                    if isinstance((prow.get(k) or {}).get("utilization"), (int, float))
+                ]
+                if pu and max(pu) < drain_thr:
+                    if _flip_active(slug, at_pct=hot):
+                        print(
+                            f"tick: drain-band relief — active {row['email']} at {hot:.0f}% "
+                            f"(≥ drain {drain_thr:.0f}%) while {email} has headroom "
+                            f"({max(pu):.0f}%) — flipped -> {email} ({slug})"
+                        )
+                        _tick_telegram(
+                            f"relief: {email} has headroom ({max(pu):.0f}%) — flipped the fleet "
+                            f"pointer off {row['email']} ({hot:.0f}%, drain band)"
+                        )
+                        return
+                    print(
+                        f"tick: drain-band relief flip {row['email']} -> {slug} withheld (see stderr)"
+                    )
         proj = max(burn.values())
         print(
             f"tick: active {row['email']} at {hot:.0f}%"

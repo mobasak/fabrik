@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — quota dashboard: an external-services matrix under the Commands tab (2026-09-06)
+
+`localhost:5051/#commands` now carries a command × service matrix below the command table — which
+outside-the-box service each of the 35 `/fabrik-*` commands actually reaches (OpenRouter pool,
+flywheel store, session-recall, WebSearch/WebFetch, Brave, Firecrawl, Exa, headless browser, GitHub
+via `gh`, the VPS fleet, ai-consult, the citation verifier, fabrik-mail), with a totals row carrying
+its own denominator. Derived on every page load, like the table above it, so the data cannot go stale
+against the corpus. Two things make it honest rather than decorative: it reads the **RENDERED** corpus
+at `~/.claude/commands/` (the assembler appends shared pool and mail fragments, so `_sources/` under-
+reports the pool 17-vs-26 and fabrik-mail 2-vs-36), and a dot requires the service's own **invocation
+token** (`fanout(`, `WebSearch`, `mcp__firecrawl`, `fabrik apply`) — a prose match rated all 36
+commands as VPS-touching, because `VPS`, `GitHub` and `flywheel` appear in the beat-routing table
+every command carries. The one hand-maintained fact is the `_EXT_SERVICES` registry, and the page
+says so above the matrix. 7 graders added, the rendered-vs-sources one proven red on revert.
+
 ### Fixed — rotation: relief on a sibling now MOVES the pointer when the active account is in the drain band (2026-09-06)
 
 Incident 23:01-23:17 +03: the advisory leg lifted the fleet-exhausted hold the moment ozgurbasak@'s 5h

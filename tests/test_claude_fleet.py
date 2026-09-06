@@ -1711,7 +1711,9 @@ def test_fleet_tick_below_threshold_never_flips(tmp_path, monkeypatch, capsys):
     _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
     _fake_oauth(
         monkeypatch,
-        usages={"tok-seo": _usage_blob(94.0, 50.0), "tok-intel": _usage_blob(10.0, 10.0)},
+        # 84, not 94: at/over the drain band (85) with a fresh sibling the tick now RELIEF-flips
+        # (D-171, 2026-09-06); the trip rule this test guards is exercised below the band
+        usages={"tok-seo": _usage_blob(84.0, 50.0), "tok-intel": _usage_blob(10.0, 10.0)},
     )
     _fleet_tick_spies(monkeypatch)
     monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
@@ -2508,7 +2510,9 @@ def test_active_below_cap_and_threshold_never_flips(tmp_path, monkeypatch, capsy
     _caps(fleet, {"sarp@ocoron.com": 90})
     _fake_oauth(
         monkeypatch,
-        usages={"tok-seo": _usage_blob(50.0, 89.0), "tok-intel": _usage_blob(10.0, 10.0)},
+        # weekly 84, not 89: 89 is in the drain band and a 10/10 sibling makes it a relief flip
+        # (D-171); the cap-vs-threshold rule this test guards is exercised below the band
+        usages={"tok-seo": _usage_blob(50.0, 84.0), "tok-intel": _usage_blob(10.0, 10.0)},
     )
     _fleet_tick_spies(monkeypatch)
     monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
@@ -3508,3 +3512,57 @@ def test_the_self_scheduled_sleep_is_a_courtesy_and_the_relay_is_the_mechanism()
     assert str(1788530459 + cr._drain_resume_lead_s()) in msg, (
         "the concrete resume epoch (reset + lead) must still be there"
     )
+
+
+# ── drain-band relief flip (operator directive 2026-09-06; incident 23:01-23:17 +03) ───────────
+def _drain_relief_fleet(tmp_path, monkeypatch, active, successor, cap=99):
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    (fleet / "caps.json").write_text(json.dumps({"sarp@ocoron.com": cap}))
+    _fake_oauth(
+        monkeypatch, usages={"tok-seo": _usage_blob(*active), "tok-intel": _usage_blob(*successor)}
+    )
+    _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    _point(fleet, "seo")
+    return fleet
+
+
+def test_relief_on_a_sibling_flips_the_pointer_off_an_active_in_the_drain_band(
+    tmp_path, monkeypatch, capsys
+):
+    """The incident: mob@ at session 93 / weekly 97 (cap 99) is not TRIPPED, so the flip leg said
+    "no flip" for sixteen minutes while ozgurbasak@ sat at 0 / 19 — every session released by the
+    hold resumed on the drained account. Relief on a sibling IS a flip when the active is in the
+    drain band and the successor is below it on both windows."""
+    fleet = _drain_relief_fleet(tmp_path, monkeypatch, active=(93.0, 97.0), successor=(0.0, 19.0))
+    capsys.readouterr()
+    assert cr._cmd_tick() == 0
+    out = capsys.readouterr().out
+    assert os.readlink(fleet / "active") == "intel", out
+    assert "drain-band relief" in out and "flipped -> ob@ocoron.com (intel)" in out, out
+    lines = (tmp_path / "state" / "rotate-ledger.jsonl").read_text().splitlines()
+    flip = next(e for e in map(json.loads, lines) if e.get("event") == "flip")
+    assert (flip["from"], flip["to"]) == ("seo", "intel")
+
+
+def test_relief_flip_needs_a_successor_below_the_drain_threshold_on_both_windows(
+    tmp_path, monkeypatch, capsys
+):
+    """Hysteresis: a successor at weekly 87 is itself in the band — flipping to it would flip
+    back next tick. No drain-band flip; the ordinary trip rule still governs."""
+    fleet = _drain_relief_fleet(tmp_path, monkeypatch, active=(93.0, 97.0), successor=(30.0, 87.0))
+    capsys.readouterr()
+    assert cr._cmd_tick() == 0
+    out = capsys.readouterr().out
+    assert os.readlink(fleet / "active") == "seo", out
+    assert "drain-band relief" not in out
+
+
+def test_an_active_below_the_drain_band_never_relief_flips(tmp_path, monkeypatch, capsys):
+    fleet = _drain_relief_fleet(tmp_path, monkeypatch, active=(60.0, 50.0), successor=(0.0, 19.0))
+    capsys.readouterr()
+    assert cr._cmd_tick() == 0
+    assert os.readlink(fleet / "active") == "seo"

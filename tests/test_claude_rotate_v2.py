@@ -1578,9 +1578,11 @@ def test_fleet_flip_leg_holds_below_the_line_and_flips_at_it_on_the_session_wind
             },
         ]
 
-    # 93 holds, 95.2 flips: the line is 95 (see _rotate_threshold). No burn history exists in
+    # 84 holds, 95.2 flips: the line is 95 (see _rotate_threshold). 84 rather than 93 since
+    # D-171 (2026-09-06): at/over the drain band (85) with a strictly fresher sibling the leg
+    # RELIEF-flips — that is its own test; the trip line is probed below the band here.
     # this fixture's state dir, so the projection adds 0 and the raw reading is what decides.
-    cr._fleet_flip_leg([], rows(93.0), threshold=cr._rotate_threshold())
+    cr._fleet_flip_leg([], rows(84.0), threshold=cr._rotate_threshold())
     assert flips == [], capsys.readouterr().out
     cr._fleet_flip_leg([], rows(95.2), threshold=cr._rotate_threshold())
     assert flips == ["can"], capsys.readouterr().out
@@ -1616,7 +1618,10 @@ def test_weekly_leg_trips_at_the_cap_not_at_the_session_threshold(monkeypatch, c
                 "source": "live",
                 "valid": True,
                 "five_hour": {"utilization": 5.0, "resets_at_epoch": NOW + 3600},
-                "seven_day": {"utilization": 10.0, "resets_at_epoch": NOW + 3600},
+                # weekly 87: IN the drain band, so the D-171 relief flip stays out of this
+                # test — the CAP rule alone decides the probes below (a trip flip never reads
+                # the successor's utils; `_validated_pick` is stubbed)
+                "seven_day": {"utilization": 87.0, "resets_at_epoch": NOW + 3600},
             },
         ]
 
