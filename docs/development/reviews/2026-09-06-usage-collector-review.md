@@ -6,10 +6,10 @@ Scope: `scripts/claude_p_cost.py` (`_local_day`, `collect_from_transcripts`, `me
 `tests/test_usage_collector.py` (25 tests) · the live artifact `scripts/claude_usage_daily.json`.
 Commits: `d81d9db1` (the collector) then `ce0e70fd`, `71f61d39`, `47df99c4`, `6491af48`.
 Owner: intel
-Status: IN-PROGRESS
+Status: CONVERGED
 
 ⚠️ `Status:` is at a LINE START on purpose: `check_review_coverage.py:331` anchors its regex
-with `^`, so `Owner: intel. Status: IN-PROGRESS.` on one line is NOT the sanctioned mid-loop
+with `^`, so `Owner: intel. Status: CONVERGED.` on one line is NOT the sanctioned mid-loop
 state — the gate refused this commit until it moved.
 
 **Anchor: NO MATCH — by absence.** `ls docs/development/reviews/ | grep -i 'collector|claude_p_cost|usage'`
@@ -225,9 +225,12 @@ Verbatim, as the command requires — the Coverage Checklist rows derive from TH
 | Pass 6 (FULL, same brief) | method: re-derivation | found: 1 | new: 1 | fixed: 1 | dispatched 5, returned 5 (agent-000-c901b0, -001-ad9d71, -002-1743ab, -003-006407, -004-87a11c); `extension_last_day` could publish a junk key — two re-raises of already-proven arithmetic and migration shapes refuted by execution |
 | Pass 7 (FULL, same brief) | method: re-derivation | found: 2 | new: 2 | fixed: 2 | dispatched 5, returned 5 (agent-000-a96495, -001-e630d9, -002-d866ec, -003-da25d8, -004-abd436); `_total_days` disagreed with the file, and TODAY could be frozen. THREE of the five refuted everything they were given — one traced all six orderings of the withdraw-and-place and concluded REFUTED unprompted |
 | Pass 8 (FULL, same brief) | method: re-derivation | found: 1 | new: 1 | fixed: 1 | dispatched 5, returned 5 (agent-000-625af8, -001-772c27, -002-79cc3b, -003-3963c9, -004-28db0c); ONE preserved corrupt value blanked the entire Usage tab — two unguarded `int()` calls, one of them outside any try |
-| Pass 9 (FULL, same brief + the consumer) | method: re-derivation | found: 0 | new: 0 | fixed: 0 | PENDING — dispatched 5, `per_model_spend` added to the surface because pass 8 changed it |
+| Pass 9 (FULL, same brief + the consumer) | method: re-derivation | found: 1 | new: 1 | fixed: 1 | dispatched 5, returned 5 (agent-000-1ffe38, -001-e2c2f8, -002-44683f, -003-a23504, -004-792c8a); the EXTENSION source parse was the last unguarded `int()` — three refutations by execution |
+| Pass 10 (FULL, same brief) | method: re-derivation | found: 1 | new: 1 | fixed: 1 | dispatched 5, returned **4** — agent-004-d1cf1b ERRORED, so its partition (untested behaviour, false comments) swept NOTHING and was re-dispatched in pass 11. `_unusable` listed days that no longer held anything unusable |
+| Pass 11 (FULL, re-dispatched partition) | method: re-derivation | found: 2 | new: 2 | fixed: 2 | dispatched 5, returned 5 (agent-000-2f582d, -001-bb9b56, -002-f1158d, -003-ecd44d, -004-4ed036); TWO finders independently caught that pass 10's fix was itself wrong (key-presence, not value-identity), and a PARTIALLY unreadable tree froze data |
+| Pass 12 (FULL, same brief) | method: re-derivation | found: 0 | new: 0 | fixed: 0 | dispatched 5, returned 5 (agent-000-7eea55, -001-5ed753, -002-011631, -003-1f19e2, -004-005302). **THE QUIET ROUND.** Every candidate refuted by EXECUTION: `_local_day` returns "" for bytes/int/None/list/dict/object and never raises; the order-independence claim (7th raising) gives one result across all 6 orderings; the temp file is unlinked on both exception paths |
 
-⚠️ **Stall-breaker watch.** `new:` ran 9 → 1 → 2 → 3 → 1 → 1 → 2 → 1 across passes 1–8. The 1→2→3 stretch
+⚠️ **Stall-breaker watch.** `new:` ran 9 → 1 → 2 → 3 → 1 → 1 → 2 → 1 → 1 → 1 → 2 → **0** across passes 1–12. The 1→2→3 stretch
 matched the trip shape, so passes 5–7 re-swept the SAME brief (only the "already fixed" and
 "already refuted, with proof" lists grew) rather than inventing a new question. It came back to 1 and
 stayed there, so the pressure is falling, not diverging — and the SEVERITY curve says more than the
@@ -263,16 +266,22 @@ rebuilt, and `source_by_day` shows the marker to anyone who wants to clear it de
 
 ## Gate
 
-RE-MEASURED this pass, never inherited — `python scripts/final_gate.py --json`:
+RE-MEASURED at the close, never inherited — `python scripts/final_gate.py --json`:
 
 ```json
-{"status": "success", "skipped_checks": ["pytest"], "failures": []}
+{"status": "success", "failures": []}
 ```
 
-⚠️ `skipped_checks: ["pytest"]` is the hub's deliberate exception (5,913 tests under `-x` would brick
-every completion gate three sessions run), so a green status here asserts the static tier and NOT the
-suite. The suites were run by hand every pass; the last reading is **196 passed** across
-`test_usage_collector` (38), `test_claude_p_cost_refresh`, `test_spend_calendar_months`,
+⚠️ It was RED for several passes on a SIBLING's uncommitted work — four hardcoded-localhost violations
+in `scripts/health_checker.py`, `audit_all_registrars.py` and `audit_all_projects.py`, plus an
+untracked `docs/reference/doc-script-coupling.md` with no INDEX row. Verified out-of-surface with
+`git status` at the time and left alone, because uncommitted work is the one thing a sibling session
+does not touch. It went green when they committed. Recorded rather than quietly omitted: a gate that
+was red for most of a review and green at the end is a fact the next reader deserves.
+
+`skipped_checks: ["pytest"]` is the hub's deliberate exception, so green asserts the static tier and
+NOT the suite. The suites were run by hand every pass; final reading **204 passed** across
+`test_usage_collector` (46), `test_claude_p_cost_refresh`, `test_spend_calendar_months`,
 `test_claude_p_cost`, `test_sidecar_staleness` and `test_quota_dashboard`.
 
 ## Production evidence — the executable check, not a proxy
