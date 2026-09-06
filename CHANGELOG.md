@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Free-model roster: guards, and two comments corrected against the code (2026-09-06)
+- Review refinements on top of the roster entry above (whose text landed in `0ddf4106`, a sibling's commit that swept the uncommitted hunk — nothing lost, provenance only).
+- **Corrected a false comment of my own**: it claimed free models "lead the order for every task kind". The live doc contradicted that for four of six — the tuple orders only the ALLOWLIST-emitted rows (backstop/top-up), never a kind's measured rows, which rank by cost among gate survivors. `plan` and `spec` lead free because they have no fleet data; the rest lead with the measured DeepSeek.
+- **Named the real safeguard**: the sort key is `(n < MIN_RUNS_TOP2, avg_cost, model)` — quality is not in it, so among survivors $0 wins outright. What stops a bad-but-free model routing is `shrunk_q < QUALITY_GATE_MIN`. Pre-existing design, but adding $0 models makes it load-bearing since nothing can undercut them on price.
+- Guards: `test_the_roster_carries_free_models_and_they_lead_the_allowlist_order` and `test_every_task_kind_is_offered_at_least_one_free_model` (all six kinds), proven red-on-revert against two distinct mutations — removing the free models, and keeping the tuple while never emitting them. 43 tests pass.
+
 ### Added — Free models in the subagent roster: all six task kinds now offer 3 free + 2 cheap paid (2026-09-06)
 - **The free half needed no module change.** OpenRouter publishes 21 models at $0/token, so a `:free` id is an ordinary model id to `pick_models` and `fanout`. D-159 recorded that free models were reachable only via an explicit `AgentSpec(provider=…)` — true of the direct NVIDIA/Kilo/Groq endpoints and irrelevant; I had not checked OpenRouter's own free tier. D-168 supersedes it.
 - Admitted after live verification through the pool's transport (HTTP 200, `usage.cost == 0`, real content): `nvidia/nemotron-3-super-120b-a12b:free`, `nvidia/nemotron-3-ultra-550b-a55b:free`, `minimax/minimax-m3:free` — all three already benchmarked on the hub's own corpus. They lead the allowlist order; the two cheap DeepSeek remain the measured floor.

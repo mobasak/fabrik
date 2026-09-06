@@ -120,7 +120,14 @@ def test_the_benchmark_supplement_cannot_reintroduce_a_denied_model():
 # emptying a section, because `pick_models` then falls back to the vendored `_TABLE`, which is
 # unrestricted. Every test below exists because that fallback is silent.
 
-ALLOWED = ("deepseek/deepseek-v4-flash", "deepseek/deepseek-v3.2-exp")
+# FREE first (they bill $0 on OpenRouter), then the two cheap paid DeepSeek as the measured floor.
+ALLOWED = (
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "minimax/minimax-m3:free",
+    "deepseek/deepseek-v4-flash",
+    "deepseek/deepseek-v3.2-exp",
+)
 
 
 def test_the_allowlist_is_declared_in_hub_owned_code_with_a_deterministic_order():
@@ -401,3 +408,30 @@ def test_the_code_fallback_section_respects_the_deny(monkeypatch):
         f"a model denied for `code` was emitted into the code section:\n{code_section}"
     )
     assert "deepseek/deepseek-v3.2-exp" in code_section, "the deny removed more than it should"
+
+
+def test_the_roster_carries_free_models_and_they_lead_the_allowlist_order():
+    """The operator's roster is "two cheap DeepSeek AND free models" — both halves, not one.
+
+    The free half is expressible HERE because OpenRouter publishes models at $0/token and a `:free`
+    id is an ordinary model id to `pick_models` and `fanout`. An earlier reading had free models
+    reachable only through a provider-aware path in the vendored module; that was wrong, and this
+    test exists so the free half cannot quietly fall out of the roster again."""
+    free = [m for m in rank.OPERATOR_ALLOW_ORDER if m.endswith(":free")]
+    paid = [m for m in rank.OPERATOR_ALLOW_ORDER if not m.endswith(":free")]
+    assert free, "the roster lost its free half"
+    assert paid, "the roster lost its paid floor"
+    assert rank.OPERATOR_ALLOW_ORDER[: len(free)] == tuple(free), (
+        "free models must LEAD the allowlist order — they cost $0, so where the generator has no "
+        f"measured data to rank by, they should be offered first: {rank.OPERATOR_ALLOW_ORDER}"
+    )
+
+
+@pytest.mark.parametrize("kind", ["code", "docs", "plan", "research", "review", "spec"])
+def test_every_task_kind_is_offered_at_least_one_free_model(kind):
+    """Cost control is per-KIND or it is not cost control: one kind with no free option keeps
+    spending on every dispatch of that kind."""
+    picked = pick_models(kind, n=12)
+    assert any(m.endswith(":free") for m in picked), (
+        f"{kind} has no free model to route to: {picked}"
+    )

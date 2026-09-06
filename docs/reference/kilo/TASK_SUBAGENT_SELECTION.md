@@ -40,39 +40,57 @@ _gate: n_err ≤ 1 · pass@1 ≥ 0.90 · $/1k ≤ 3.5 · p50 ≤ 10s_
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | grounding | n |
 |---:|---|---:|---:|---:|---:|:-:|:-:|---:|
 | 1 | `deepseek/deepseek-v3.2-exp` | 2.61 | 0.00 | $0.0962 | 0.62 | 3 | ✓ | 10 |
-| 2 | `deepseek/deepseek-v4-flash` | [allowlist] | — | — | — | 2 | ✓ | 0 |
+| 2 | `nvidia/nemotron-3-super-120b-a12b:free` | [allowlist] | — | — | — | 2 | — | 0 |
+| 3 | `nvidia/nemotron-3-ultra-550b-a55b:free` | [allowlist] | — | — | — | 2 | — | 0 |
+| 4 | `minimax/minimax-m3:free` | [allowlist] | — | — | — |  | — | 0 |
+| 5 | `deepseek/deepseek-v4-flash` | [allowlist] | — | — | — | 2 | ✓ | 0 |
 
 ### docs (n_total=403)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | grounding | n |
 |---:|---|---:|---:|---:|---:|:-:|:-:|---:|
 | 1 | `deepseek/deepseek-v4-flash` | 2.83 | 0.82 | $0.0078 | 2.88 | 2 | ✓ | 62 |
-| 2 | `deepseek/deepseek-v3.2-exp` | [allowlist] | — | — | — | 3 | ✓ | 0 |
+| 2 | `nvidia/nemotron-3-super-120b-a12b:free` | [allowlist] | — | — | — | 2 | — | 0 |
+| 3 | `nvidia/nemotron-3-ultra-550b-a55b:free` | [allowlist] | — | — | — | 2 | — | 0 |
+| 4 | `minimax/minimax-m3:free` | [allowlist] | — | — | — |  | — | 0 |
+| 5 | `deepseek/deepseek-v3.2-exp` | [allowlist] | — | — | — | 3 | ✓ | 0 |
 
 ### research (n_total=535)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | grounding | n |
 |---:|---|---:|---:|---:|---:|:-:|:-:|---:|
 | 1 | `deepseek/deepseek-v4-flash` | 2.85 | 0.67 | $0.0160 | 4.00 | 2 | ✓ | 3 |
-| 2 | `deepseek/deepseek-v3.2-exp` | [allowlist] | — | — | — | 3 | ✓ | 0 |
+| 2 | `nvidia/nemotron-3-super-120b-a12b:free` | [allowlist] | — | — | — | 2 | — | 0 |
+| 3 | `nvidia/nemotron-3-ultra-550b-a55b:free` | [allowlist] | — | — | — | 2 | — | 0 |
+| 4 | `minimax/minimax-m3:free` | [allowlist] | — | — | — |  | — | 0 |
+| 5 | `deepseek/deepseek-v3.2-exp` | [allowlist] | — | — | — | 3 | ✓ | 0 |
 
-### review (n_total=10800)
+### review (n_total=10832)
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | grounding | n |
 |---:|---|---:|---:|---:|---:|:-:|:-:|---:|
-| 1 | `deepseek/deepseek-v4-flash` | 2.76 | 0.89 | $0.0040 | 2.75 | 2 | ✓ | 1394 |
-| 2 | `deepseek/deepseek-v3.2-exp` | 2.92 | 0.89 | $0.0044 | 2.92 | 3 | ✓ | 1529 |
+| 1 | `deepseek/deepseek-v4-flash` | 2.75 | 0.89 | $0.0040 | 2.74 | 2 | ✓ | 1412 |
+| 2 | `deepseek/deepseek-v3.2-exp` | 2.92 | 0.89 | $0.0044 | 2.91 | 3 | ✓ | 1540 |
+| 3 | `nvidia/nemotron-3-super-120b-a12b:free` | [allowlist] | — | — | — | 2 | — | 0 |
+| 4 | `nvidia/nemotron-3-ultra-550b-a55b:free` | [allowlist] | — | — | — | 2 | — | 0 |
+| 5 | `minimax/minimax-m3:free` | [allowlist] | — | — | — |  | — | 0 |
 
 ### plan (n_total=0, operator allowlist — no measured rows survived the gates)
 _allowlist rows: this task_type has no gate-surviving fleet data, and the section exists so routing cannot fall through to the unrestricted vendored `_TABLE` (D-159)._
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | grounding | n |
 |---:|---|---:|---:|---:|---:|:-:|:-:|---:|
-| 1 | `deepseek/deepseek-v4-flash` | [allowlist] | — | — | — | 2 | ✓ | 0 |
-| 2 | `deepseek/deepseek-v3.2-exp` | [allowlist] | — | — | — | 3 | ✓ | 0 |
+| 1 | `nvidia/nemotron-3-super-120b-a12b:free` | [allowlist] | — | — | — | 2 | — | 0 |
+| 2 | `nvidia/nemotron-3-ultra-550b-a55b:free` | [allowlist] | — | — | — | 2 | — | 0 |
+| 3 | `minimax/minimax-m3:free` | [allowlist] | — | — | — |  | — | 0 |
+| 4 | `deepseek/deepseek-v4-flash` | [allowlist] | — | — | — | 2 | ✓ | 0 |
+| 5 | `deepseek/deepseek-v3.2-exp` | [allowlist] | — | — | — | 3 | ✓ | 0 |
 
 ### spec (n_total=0, operator allowlist — no measured rows survived the gates)
 _allowlist rows: this task_type has no gate-surviving fleet data, and the section exists so routing cannot fall through to the unrestricted vendored `_TABLE` (D-159)._
 | rank | model | shrunk_q | success | avg_cost | avg_quality | quality_tier | grounding | n |
 |---:|---|---:|---:|---:|---:|:-:|:-:|---:|
-| 1 | `deepseek/deepseek-v4-flash` | [allowlist] | — | — | — | 2 | ✓ | 0 |
-| 2 | `deepseek/deepseek-v3.2-exp` | [allowlist] | — | — | — | 3 | ✓ | 0 |
+| 1 | `nvidia/nemotron-3-super-120b-a12b:free` | [allowlist] | — | — | — | 2 | — | 0 |
+| 2 | `nvidia/nemotron-3-ultra-550b-a55b:free` | [allowlist] | — | — | — | 2 | — | 0 |
+| 3 | `minimax/minimax-m3:free` | [allowlist] | — | — | — |  | — | 0 |
+| 4 | `deepseek/deepseek-v4-flash` | [allowlist] | — | — | — | 2 | ✓ | 0 |
+| 5 | `deepseek/deepseek-v3.2-exp` | [allowlist] | — | — | — | 3 | ✓ | 0 |
 
 
 ## Full review benchmark results — all measured columns (display only; not parsed for routing)

@@ -132,9 +132,56 @@ OPERATOR_DENY_ALWAYS: frozenset[str] = frozenset({"deepseek/deepseek-v4-pro"})
 #: the source of truth for ORDER because a frozenset iterates in hash order and Python randomises
 #: str hashing per process — emitting straight from the set would make the doc differ run to run.
 OPERATOR_ALLOW_ORDER: tuple[str, ...] = (
+    # ── FREE FIRST *IN THIS TUPLE*, which is narrower than it sounds — read on. ──
+    # ⚠️ THE ORDER CLAIM, SCOPED HONESTLY. This tuple orders the rows the ALLOWLIST emits: the
+    # backstop (a kind with no measured data) and the top-up (a kind missing one of the roster).
+    # It does NOT reorder a kind's MEASURED rows, which the generator ranks by cost among gate
+    # survivors. So today `plan` and `spec` — no fleet data — lead with a free model, while `code`,
+    # `docs`, `research` and `review` lead with the measured DeepSeek and carry the free models
+    # below as `[allowlist]` rows. An earlier version of this comment said free models "lead the
+    # order for every task kind", which the live doc contradicted for four of six; measured beats
+    # unmeasured is the right rule, and the flywheel will float these up on their own evidence once
+    # they have runs — $0 is the best possible cost, so cost-ascending ranking promotes them the
+    # moment they are measured at all.
+    #
+    # ⚠️ AND THE SAFEGUARD IS THE QUALITY GATE, NOT THE SORT — a closing-pass reader got this
+    # backwards and still reached the right verdict, which is exactly the misreading worth closing
+    # here. The sort key is `(n < MIN_RUNS_TOP2, avg_cost, model)` (:1968): quality is NOT in it.
+    # So among rows that SURVIVE, $0 wins outright — a mediocre free model will outrank a better
+    # paid one. What stops a bad free model being routed at all is `shrunk_q < QUALITY_GATE_MIN ->
+    # continue`, which drops it before ranking. That is the file's existing design ("the score no
+    # longer drives rank order; cost does, among gate-survivors"), not something this change
+    # introduced — but adding $0 models makes it load-bearing in a way it was not before, because
+    # nothing can now undercut them on price.
+    # ⚠️ The `:free` suffix is the whole mechanism, and it is why no module change was needed:
+    # OpenRouter publishes 21 models at $0/token, so a free model is expressible in THIS doc as an
+    # ordinary model id. `pick_models` returns it, `fanout` dispatches it through the same
+    # transport, and the run bills nothing. An earlier reading of mine had free models reachable
+    # only through a provider-aware dispatch path in the vendored module — that was wrong, and it
+    # made the free half of the operator's roster look like another repo's work when it is one
+    # tuple here.
+    #
+    # All three verified LIVE through the pool's own transport (2026-09-06): HTTP 200,
+    # `usage.cost == 0`, and real content in the reply — not a reasoning-only null, which several
+    # other $0 listings return and which would make a finder useless. Measured quality is from the
+    # hub's own corpus, the same instrument that ranked the paid pair:
+    "nvidia/nemotron-3-super-120b-a12b:free",  # review 3.68 B+ · code 0.933 A+ · 1-2s
+    "nvidia/nemotron-3-ultra-550b-a55b:free",  # review 3.83 B+ · code 0.956 A+ · slower
+    "minimax/minimax-m3:free",  # review 3.53 B+ at precision 1.00 · code 0.674 B
+    # ── then the two cheap paid DeepSeek, which stay as the measured floor ──
     "deepseek/deepseek-v4-flash",
     "deepseek/deepseek-v3.2-exp",
 )
+
+#: Verified $0 but DELIBERATELY EXCLUDED, so the next reader does not re-litigate them:
+#: `thinkingmachines/inkling:free` + `inkling-small:free` — HTTP 403, "only available on" a tier we
+#: do not hold, despite being listed at $0 (inkling is the best free reviewer our corpus measured,
+#: score5 4.00 at precision 1.00 — worth re-testing if the tier changes).
+#: `poolside/laguna-xs-2.1:free`, `laguna-s-2.1:free`, `google/gemma-4-31b-it:free` — HTTP 429 from
+#: the upstream provider at probe time; free capacity, not a promise.
+#: `cohere/north-mini-code:free`, `dots-studio/dots-3-note-preview:free`,
+#: `nvidia/nemotron-3.5-lightning:free` — serve at $0 but returned NULL content on the probe
+#: (reasoning-only under a small token budget); unmeasured on our corpus either way.
 OPERATOR_ALLOW: frozenset[str] = frozenset(OPERATOR_ALLOW_ORDER)
 
 #: Every task_type the backstop must cover. Kept as a LOCAL literal rather than imported from
@@ -2078,7 +2125,11 @@ def render(
     if OPERATOR_ALLOW:
         # Refuse BEFORE emitting: a kind the denies have emptied would ship a rowless section, which
         # routing reads as no section at all and answers with the unrestricted vendored table.
-        _empty = [k for k in sorted(set(TASK_KINDS_EMITTED) | set(by_task)) if not _allowlist_models_for(k)]
+        _empty = [
+            k
+            for k in sorted(set(TASK_KINDS_EMITTED) | set(by_task))
+            if not _allowlist_models_for(k)
+        ]
         if _empty:
             raise ContradictoryRoutingPolicyError(
                 "OPERATOR_DENY leaves no allowlisted model routable for: "
