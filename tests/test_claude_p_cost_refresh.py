@@ -459,3 +459,45 @@ def test_a_junk_window_bound_is_not_a_measured_rate_and_never_locks_the_producer
     data = mod.refresh()  # must NOT raise: there is no measured window to protect
     assert data["amortized_per_mtok"] == mod._ANCHOR_USD_PER_TOKEN * 1_000_000.0
     assert json.loads(out.read_text(encoding="utf-8"))["window_start"] is None
+
+
+def test_refresh_captures_usage_even_when_the_rate_cannot_be_measured(tmp_path, monkeypatch):
+    """The dated time bomb. `_live_usage_window()` REFUSES when the extension's history cannot be
+    measured, and that refusal sat ABOVE the only production call of `merge_usage_store()`. The
+    extension died 2026-09-04 and the window looks back 30 days, so from ~2026-10-04 every morning's
+    `--refresh` would have exited 3 and the transcript collector would never have run again — source
+    1's death silently stopping source 2, behind an alert that only ever mentions a stale rate."""
+    monkeypatch.setenv("CLAUDE_USAGE_DAILY", str(tmp_path / "store.json"))
+    monkeypatch.setenv("CLAUDE_P_COST", str(tmp_path / "sidecar.json"))
+    monkeypatch.setattr(cpc, "_USAGE_HISTORY", tmp_path / "no-extension.json")
+    monkeypatch.setattr(cpc, "_MANAGER_ACCOUNTS", tmp_path / "no-accounts")
+    root = tmp_path / "projects" / "p"
+    root.mkdir(parents=True)
+    (root / "a.jsonl").write_text(
+        json.dumps(
+            {
+                "timestamp": f"{_day(0)}T10:00:00.000Z",
+                "requestId": "r1",
+                "message": {
+                    "id": "m1",
+                    "model": "claude-opus-5",
+                    "usage": {"output_tokens": 500_000},
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(cpc, "_TRANSCRIPT_ROOT", tmp_path / "projects")
+    # a sidecar carrying a MEASURED window is what arms the refusal
+    (tmp_path / "sidecar.json").write_text(
+        json.dumps({"amortized_per_mtok": 0.0074, "window_start": "2026-08-08"}), encoding="utf-8"
+    )
+
+    with pytest.raises(cpc.UnmeasurableWindowError):
+        cpc.refresh()
+
+    store = json.loads((tmp_path / "store.json").read_text(encoding="utf-8"))
+    assert store["days"][_day(0)] == {"claude-opus-5": 500_000}, (
+        "the day must be captured even though the RATE refused — they are independent"
+    )

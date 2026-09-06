@@ -1102,7 +1102,14 @@ def refresh() -> dict:
     # alert that talks about a stale RATE and never mentions that recording has stopped. Merging is
     # independent of the rate: it reads transcripts and writes the store, and it must happen whether
     # or not ② can be re-derived today. Found by an author-blind data-loss finder, 2026-09-06.
-    merge_usage_store()
+    #
+    # ⚠️ ONE walk, not two. `per_model_spend()` merges as its first act, so calling `merge_usage_store()`
+    # here as well and `per_model_spend()` again below walked 8.8 GB TWICE per cron run — ~100s where
+    # 50s does. Computing the split HERE gets the capture-before-refuse ordering and a single walk;
+    # the result is carried down to the output rather than re-derived. (My own scoped re-check of the
+    # capture-before-refuse fix, which is why middle passes exist: the fix diff is the least-reviewed
+    # code in the loop.)
+    spend_split = per_model_spend()
     w = _live_usage_window()
     # THE REFUSAL (see UnmeasurableWindowError). `window_start is None` IS the anchor branch — the same
     # sentinel the reader in rank_task_subagents keys its "no window" rendering on, so the two agree
@@ -1169,7 +1176,7 @@ def refresh() -> dict:
             # it is refreshed by the same 06:00 cron as the flat rate rather than going stale beside
             # it — a second fossil next to the one this plan existed to end would be the same defect
             # wearing a new key. `per_model_spend` reconciles to `spend_usd` exactly by construction.
-            "per_model_spend": per_model_spend(),
+            "per_model_spend": spend_split,
             "built_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
         }
     )
