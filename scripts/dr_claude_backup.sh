@@ -100,6 +100,12 @@ do_backup() {
     [ -f "$acct/.claude.json" ] || continue
     norm_json "$acct/.claude.json" "$DEST/claude-fleet/$(basename "$acct")/claude.json"
   done
+  # ⚠️ caps.json lives at the fleet ROOT, not inside an account dir, so the loop above has never
+  # touched it — found 2026-09-06 while raising sarp@'s weekly cap 90 → 95. It is the operator's
+  # per-account browser-reserve policy (`_account_caps()` in claude_rotate.py), hand-maintained
+  # and regenerable from nothing: losing it silently drops every cap back to the built-in default,
+  # which is exactly the "small, hand-maintained, NOT regenerable" class this script exists for.
+  mirror "$HOME/.claude-fleet/caps.json"           "claude-fleet/caps.json"
   mirror "$WIN_DESKTOP_CFG"                        "windows/claude_desktop_config.json"
 
   # selective file sets (dirs carry state we don't want)

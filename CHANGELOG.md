@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — caps.json had no off-box copy, found while raising sarp@'s weekly cap to 95 (2026-09-06)
+
+Operator: raise sarp@'s weekly rotation cap from 90% to 95%. Done in `~/.claude-fleet/caps.json`
+(backed up first), verified two ways rather than one: `_account_caps()` reads back
+`sarp@ocoron.com: 95`, and the live quota board at `:5051` renders **cap 95%** for that row.
+
+**The real finding is what the change exposed.** `dr_claude_backup.sh:98-101` mirrors the fleet by
+looping over `~/.claude-fleet/*/` — account DIRECTORIES — and copying each `.claude.json`.
+`caps.json` sits at the fleet ROOT, so it has never been in that loop and had **no off-box copy at
+all**. It is the operator's per-account browser-reserve policy, hand-maintained and regenerable from
+nothing; losing it silently drops every cap back to the built-in default. That is precisely the
+"small, hand-maintained, NOT regenerable from any other repo" class the script's own header says it
+exists to protect. Now mirrored to `claude-fleet/caps.json`, proven by running the backup and
+reading the file back out of the DR store carrying the 95 — not by reading the diff.
+
+**On "wire :5051 properly": I could not find a breakage, and say so rather than changing what
+works.** Verified end to end — the server is up (pid 3912191, 11h42m), `/` returns 200 with data
+timestamped 30s old, it is reachable from the Windows browser (`Invoke-WebRequest` → 200),
+`/health` → 200, and the External-services tab's `/external-services.html` → 200 (an earlier 404
+was my own wrong path, `/external-services`). The one genuine defect found is **768 `probe failed
+(TimeoutExpired)` lines** in `~/.claude/quota-dashboard.log`, the last 20 consecutive — the
+`--status --json` probe intermittently exceeds its 60s bar. It is NOT reproducible right now (the
+same command returns in 2s), and `quota_dashboard.py:67` already records this recurrence and the
+BLIND-bar mitigation built for it. Fixing it blind would be a guess, and this session has already
+produced five of those.
+
 ### Changed — multi-agent-per-repo executed: 32 tickets merged, the whole-plan gate green, the docs reconciled (2026-09-06)
 - **What:** plan set `2026-09-03-plan-1-multi-agent-per-repo` (D-123) ran to completion under `/fabrik-execute-plan` in dispatcher mode — every ticket on its own linked worktree, accepted on a converged pool + native review, merged by explicit-pathspec private-index commits, every trigger-surface merge fleet-synced (45/45). T16's receipt (`docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-review.md`) embeds the whole-plan `final_gate.py --check --json` (success), the tree-wide retired-token sweep (5 matches, all allowlisted graders/ledgers), 798 seam tests, the doc receipt over the range, and the fleet proof (transdoc's four artifacts + both git config keys; the spec's worktree-carry probe replicated on 2.1.258). `INDEX.md` and `docs/development/PLANS.md` regenerated; eight backlog rows for the out-of-scope findings; D-148/D-149 minted at T13.
 - **Where:** `docs/development/reviews/2026-09-03-plan-1-multi-agent-per-repo-review.md`, `INDEX.md`, `docs/development/PLANS.md`, `docs/STRATEGIC_BACKLOG.md`, `docs/LESSONS_LEARNT.md`, the plan set's spine (Status EXECUTED) and lock.
