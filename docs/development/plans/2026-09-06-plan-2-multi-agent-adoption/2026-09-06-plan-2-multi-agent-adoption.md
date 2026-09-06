@@ -1,6 +1,6 @@
 # Multi-agent adoption for existing projects — merge owner, work-item ownership, `--adopt`, two advisories
 
-Status: IN-PROGRESS (2026-09-06 — /fabrik-execute-plan dispatcher; was CONVERGED at 231757fb)
+Status: EXECUTED (2026-09-06 — all 7 tickets merged: T01 a6ac4cec · T04 7b72b5b6 · T02a c2631de2 · T05 21ab52db · T02b ac72db17 · T03 5cd2ff55 · T06 e81de2cb + aedcf64c; whole-plan validation review docs/development/reviews/2026-09-06-plan-2-multi-agent-adoption-review.md CONVERGED (found: 0, fixed: 0); was IN-PROGRESS from ca4ec9ed, CONVERGED at 231757fb / D-155)
 **Owner:** infra
 Spec: docs/superpowers/specs/2026-09-06-multi-agent-adoption-design.md (CONVERGED 7d8b3dbe, approved D-155; ruling D-154; profile D-153)
 

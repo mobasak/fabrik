@@ -1,114 +1,101 @@
 {
-  "plan": "docs/development/plans/2026-09-06-plan-2-multi-agent-adoption",
-  "owned_paths": [
-    "scripts/decisions.py",
-    "tests/test_decisions_helper.py",
-    "scripts/docs_updater.py",
-    "tests/test_docs_updater_adopt.py",
-    ".claude/hooks/session_orient.py",
-    "tests/test_session_orient_hook.py",
-    "docs/workstation/hooks-index.md",
-    "commands/_sources/fabrik-vision.md",
-    "commands/_sources/fabrik-epics-review.md",
-    "tests/test_vision_reads_work_stores.py",
-    "src/fabrik/scaffold.py",
-    "tests/test_scaffold_doc_seeding.py",
-    "docs/reference/multi-agent-operating-model.md",
-    "templates/governance/CLAUDE.md",
-    "scripts/final_gate.py"
-  ],
-  "branch": "master",
-  "started_at": "2026-09-06T11:47:56+00:00",
-  "status": "active",
-  "baseline_commit": "231757fb",
-  "baseline_gate": "final_gate.py --check --json at 231757fb -> status: success, skipped ['pytest'], failures [] (captured this turn, before D1)",
-  "tickets": {
-    "T01": {
-      "state": "merged",
-      "runtime": "pool code default tier (attempt 1 deepseek-v3.2-exp died: idle >120s after 7 turns, $0.024)",
-      "started_at": "2026-09-06T11:53:58+00:00",
-      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-aae9de1c5861d11c6",
-      "branch": "worktree-agent-aae9de1c5861d11c6",
-      "base_commit": "ca4ec9ed",
-      "attempt": 2,
-      "branch_head": "b7ffb88a",
-      "review": "docs/development/reviews/2026-09-06-plan-2-multi-agent-adoption-T01-review.md",
-      "merged_at": "2026-09-06T15:22:04"
-    },
-    "T02a": {
-      "state": "merged",
-      "runtime": "NO-POOL: native sonnet worktree \u2014 attempt 1 pool gpt-5.6-luna died (connection write timeout after 13 turns, $0.022); the fleet-synced script is the heaviest surface",
-      "started_at": "2026-09-06T11:53:58+00:00",
-      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a8f1d9418d61c2357",
-      "branch": "worktree-agent-a8f1d9418d61c2357",
-      "base_commit": "ca4ec9ed",
-      "attempt": 2,
-      "branch_head": "9607384f",
-      "merged_at": "2026-09-06T15:58:23",
-      "review": "docs/development/reviews/2026-09-06-plan-2-multi-agent-adoption-T02a-review.md"
-    },
-    "T04": {
-      "state": "merged",
-      "runtime": "native sonnet worktree (Agent tool, isolation=worktree)",
-      "started_at": "2026-09-06T11:50:15+00:00",
-      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-ae398d23a2b677726",
-      "branch": "worktree-agent-ae398d23a2b677726",
-      "base_commit": "ca4ec9ed",
-      "branch_head": "d92888e8",
-      "review": "docs/development/reviews/2026-09-06-plan-2-multi-agent-adoption-T04-review.md",
-      "merged_at": "2026-09-06T15:22:46"
-    },
-    "T05": {
-      "state": "merged",
-      "runtime": "native sonnet worktree",
-      "started_at": "2026-09-06T12:16:27+00:00",
-      "branch": "worktree-agent-ac49238fb7bb4c376",
-      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-ac49238fb7bb4c376",
-      "branch_head": "4e6c3435",
-      "base_commit": "ca4ec9ed",
-      "merged_at": "2026-09-06T16:01:17",
-      "review": "docs/development/reviews/2026-09-06-plan-2-multi-agent-adoption-T05-review.md"
-    },
-    "T02b": {
-      "state": "merged",
-      "runtime": "NO-POOL: native sonnet worktree (the write sandbox cannot run pytest \u2014 01M1V98VN3QNS73GCR3GYF9FXH)",
-      "started_at": "2026-09-06T12:59:41+00:00",
-      "worktree_path": null,
-      "branch": "worktree-agent-a1465c43f1a445a7f",
-      "base_commit": "c2631de2",
-      "note": "coder aa2502f9469ff9223 died on a 429 mid-fixup then was stopped; r1 branch worktree-agent-aa2502f9469ff9223 @ cdebb51c kept; uncommitted test edits salvaged to the -salvage-T02b.diff; fresh coder merges the branch + applies the salvage",
-      "salvaged_at": "2026-09-06T14:49:17+00:00",
-      "branch_head": "7a4526e0",
-      "merged_at": "2026-09-06T18:27:28",
-      "review": "docs/development/reviews/2026-09-06-plan-2-multi-agent-adoption-T02b-review.md"
-    },
-    "T03": {
-      "state": "merged",
-      "runtime": "native sonnet worktree (never-route: scripts/final_gate.py in Touches)",
-      "started_at": "2026-09-06T15:28:41+00:00",
-      "worktree_path": null,
-      "branch": "worktree-agent-a16957e0307ad8194",
-      "base_commit": "ac72db17",
-      "branch_head": "34ed7a86",
-      "merged_at": "2026-09-06T19:20:15",
-      "review": "docs/development/reviews/2026-09-06-plan-2-multi-agent-adoption-T03-review.md"
-    },
-    "T06": {
-      "state": "merged",
-      "runtime": "native sonnet worktree (Integration: true; the code half \u2014 scaffold literal + docs; the receipt/proof/gates are the orchestrator's)",
-      "started_at": "2026-09-06T16:21:16+00:00",
-      "worktree_path": null,
-      "branch": "worktree-agent-ad6f11a764e3a69ac",
-      "base_commit": "5cd2ff55",
-      "branch_head": "56b2d231",
-      "merged_at": "2026-09-06T19:57:00",
-      "review": "docs/development/reviews/2026-09-06-plan-2-multi-agent-adoption-T06-review.md"
-    }
+ "plan": "docs/development/plans/2026-09-06-plan-2-multi-agent-adoption",
+ "owned_paths": [],
+ "branch": "master",
+ "started_at": "2026-09-06T11:47:56+00:00",
+ "status": "released",
+ "baseline_commit": "231757fb",
+ "baseline_gate": "final_gate.py --check --json at 231757fb -> status: success, skipped ['pytest'], failures [] (captured this turn, before D1)",
+ "tickets": {
+  "T01": {
+   "state": "merged",
+   "runtime": "pool code default tier (attempt 1 deepseek-v3.2-exp died: idle >120s after 7 turns, $0.024)",
+   "started_at": "2026-09-06T11:53:58+00:00",
+   "worktree_path": "/opt/fabrik/.claude/worktrees/agent-aae9de1c5861d11c6",
+   "branch": "worktree-agent-aae9de1c5861d11c6",
+   "base_commit": "ca4ec9ed",
+   "attempt": 2,
+   "branch_head": "b7ffb88a",
+   "review": "docs/development/reviews/2026-09-06-plan-2-multi-agent-adoption-T01-review.md",
+   "merged_at": "2026-09-06T15:22:04"
   },
-  "orchestrator": "infra session dd3c06d1, main checkout (dispatcher mode; the hub is outside the worktree model \u2014 coders isolate by worktree per D2)",
-  "sizing_signals": [
-    "T01 re-dispatch (pool unit stuck)",
-    "T02a re-dispatch (pool unit connection timeout)",
-    "T02b re-dispatch (native coder died on rate limit mid-round-2)"
-  ]
+  "T02a": {
+   "state": "merged",
+   "runtime": "NO-POOL: native sonnet worktree \u2014 attempt 1 pool gpt-5.6-luna died (connection write timeout after 13 turns, $0.022); the fleet-synced script is the heaviest surface",
+   "started_at": "2026-09-06T11:53:58+00:00",
+   "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a8f1d9418d61c2357",
+   "branch": "worktree-agent-a8f1d9418d61c2357",
+   "base_commit": "ca4ec9ed",
+   "attempt": 2,
+   "branch_head": "9607384f",
+   "merged_at": "2026-09-06T15:58:23",
+   "review": "docs/development/reviews/2026-09-06-plan-2-multi-agent-adoption-T02a-review.md"
+  },
+  "T04": {
+   "state": "merged",
+   "runtime": "native sonnet worktree (Agent tool, isolation=worktree)",
+   "started_at": "2026-09-06T11:50:15+00:00",
+   "worktree_path": "/opt/fabrik/.claude/worktrees/agent-ae398d23a2b677726",
+   "branch": "worktree-agent-ae398d23a2b677726",
+   "base_commit": "ca4ec9ed",
+   "branch_head": "d92888e8",
+   "review": "docs/development/reviews/2026-09-06-plan-2-multi-agent-adoption-T04-review.md",
+   "merged_at": "2026-09-06T15:22:46"
+  },
+  "T05": {
+   "state": "merged",
+   "runtime": "native sonnet worktree",
+   "started_at": "2026-09-06T12:16:27+00:00",
+   "branch": "worktree-agent-ac49238fb7bb4c376",
+   "worktree_path": "/opt/fabrik/.claude/worktrees/agent-ac49238fb7bb4c376",
+   "branch_head": "4e6c3435",
+   "base_commit": "ca4ec9ed",
+   "merged_at": "2026-09-06T16:01:17",
+   "review": "docs/development/reviews/2026-09-06-plan-2-multi-agent-adoption-T05-review.md"
+  },
+  "T02b": {
+   "state": "merged",
+   "runtime": "NO-POOL: native sonnet worktree (the write sandbox cannot run pytest \u2014 01M1V98VN3QNS73GCR3GYF9FXH)",
+   "started_at": "2026-09-06T12:59:41+00:00",
+   "worktree_path": null,
+   "branch": "worktree-agent-a1465c43f1a445a7f",
+   "base_commit": "c2631de2",
+   "note": "coder aa2502f9469ff9223 died on a 429 mid-fixup then was stopped; r1 branch worktree-agent-aa2502f9469ff9223 @ cdebb51c kept; uncommitted test edits salvaged to the -salvage-T02b.diff; fresh coder merges the branch + applies the salvage",
+   "salvaged_at": "2026-09-06T14:49:17+00:00",
+   "branch_head": "7a4526e0",
+   "merged_at": "2026-09-06T18:27:28",
+   "review": "docs/development/reviews/2026-09-06-plan-2-multi-agent-adoption-T02b-review.md"
+  },
+  "T03": {
+   "state": "merged",
+   "runtime": "native sonnet worktree (never-route: scripts/final_gate.py in Touches)",
+   "started_at": "2026-09-06T15:28:41+00:00",
+   "worktree_path": null,
+   "branch": "worktree-agent-a16957e0307ad8194",
+   "base_commit": "ac72db17",
+   "branch_head": "34ed7a86",
+   "merged_at": "2026-09-06T19:20:15",
+   "review": "docs/development/reviews/2026-09-06-plan-2-multi-agent-adoption-T03-review.md"
+  },
+  "T06": {
+   "state": "merged",
+   "runtime": "native sonnet worktree (Integration: true; the code half \u2014 scaffold literal + docs; the receipt/proof/gates are the orchestrator's)",
+   "started_at": "2026-09-06T16:21:16+00:00",
+   "worktree_path": null,
+   "branch": "worktree-agent-ad6f11a764e3a69ac",
+   "base_commit": "5cd2ff55",
+   "branch_head": "56b2d231",
+   "merged_at": "2026-09-06T19:57:00",
+   "review": "docs/development/reviews/2026-09-06-plan-2-multi-agent-adoption-T06-review.md"
+  }
+ },
+ "orchestrator": "infra session dd3c06d1, main checkout (dispatcher mode; the hub is outside the worktree model \u2014 coders isolate by worktree per D2)",
+ "sizing_signals": [
+  "T01 re-dispatch (pool unit stuck)",
+  "T02a re-dispatch (pool unit connection timeout)",
+  "T02b re-dispatch (native coder died on rate limit mid-round-2)"
+ ],
+ "state": "released",
+ "released_at": "2026-09-06T17:13:44+00:00",
+ "released_by": "infra"
 }
