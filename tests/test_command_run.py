@@ -3359,3 +3359,43 @@ def test_a_nested_review_never_swallows_its_callers_later_edits(tmp_path: Path) 
     )
     cov = sorted(_rec(run_dir)["covered"])
     assert cov[0][0] == math.floor(outer_start) and cov[1][0] == math.floor(inner_start), cov
+
+
+def test_a_corrupt_bool_close_in_the_ledger_never_drags_a_review_window_to_the_epoch(
+    tmp_path: Path,
+) -> None:
+    """Pool reader (2026-09-07): `isinstance(True, (int, float))` is True — a corrupt `[x, True]`
+    pair read as a 1 s close and the reach-back set lo = 1."""
+    run_dir = tmp_path / "runs"
+    run_dir.mkdir()
+    _start_named(run_dir, "fabrik-review-scoped")
+    rec = _rec(run_dir)
+    rec["covered"] = [[100, True], [50, float("nan")]]
+    (path,) = list(run_dir.glob("*.json"))
+    path.write_text(json.dumps(rec))
+    _cr(
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-review-scoped",
+        "--evidence",
+        "x",
+        "--feedback",
+        _PROBE,
+    )
+    cov = _rec(run_dir)["covered"]
+    assert cov[-1][0] == math.floor(rec["started_epoch"]), cov
+
+
+def test_review_family_names_are_real_commands() -> None:
+    """Pool reader: a renamed review command would silently lose the reach-back — bind the set to
+    the command corpus' own sources."""
+    import importlib.util as _ilu
+
+    spec = _ilu.spec_from_file_location("cr_family", _SCRIPT)
+    mod = _ilu.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    src = Path(__file__).resolve().parents[1] / "commands" / "_sources"
+    assert mod.REVIEW_FAMILY, "the set must not be empty"
+    for name in mod.REVIEW_FAMILY:
+        assert (src / f"{name}.md").is_file(), name

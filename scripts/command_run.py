@@ -1554,10 +1554,16 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             # 2026-09-07). A nested review starts with an empty ledger, so it reaches back only
             # to its own start and never swallows its caller's later edits; a non-review command
             # keeps its own start (A-F5: a /fabrik-spec run launders nothing).
+            # only a FINITE, non-bool close counts (a corrupt `[x, True]` pair read as 1 s and
+            # dragged lo to the epoch — pool reader, scoped review 2026-09-07). Coverage is per
+            # SESSION, the hook's own granularity: a review that narrows its `$ARGUMENTS` scope
+            # below the session diff is narrowing its own contract, not this ledger's.
             prev = [
-                float(w[1])
+                v
                 for w in cov
-                if isinstance(w, list) and len(w) == 2 and isinstance(w[1], (int, float))
+                if isinstance(w, list) and len(w) == 2
+                for v in (_finite_ts(w[1]),)
+                if v is not None
             ]
             if prev:
                 lo = min(lo, math.floor(max(prev)))
