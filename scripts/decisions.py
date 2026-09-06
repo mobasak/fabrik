@@ -31,6 +31,7 @@ from pathlib import Path
 # must not be invisible to the integrity checks (review 2026-08-30).
 ROW_RE = re.compile(r"^\|\s*(D-\d+)\s*\|", re.IGNORECASE)
 SUPERSEDES_RE = re.compile(r"supersedes\s+(D-\d+)", re.IGNORECASE)
+MERGE_OWNER_RE = re.compile(r"^\**\s*MERGE OWNER:\s*([A-Za-z0-9][A-Za-z0-9_.@-]*)", re.I)
 
 
 def _say(line: str) -> None:
@@ -168,6 +169,26 @@ def _next_id(repo: Path) -> int:
     return 0
 
 
+def _merge_owner(repo: Path) -> int:
+    ledger = repo / "docs" / "DECISIONS.md" if repo.is_dir() else repo
+    try:
+        ledger.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        sys.stderr.write(f"decisions: cannot read {ledger} ({exc})\n")
+        return 1
+    owner: str | None = None
+    for _rid, cells in _rows(ledger):
+        if len(cells) > 3:
+            match = MERGE_OWNER_RE.match(cells[3])
+            if match:
+                owner = match.group(1)
+    if owner is None:
+        print("UNDECLARED")
+        return 3
+    print(owner)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Query every repo's docs/DECISIONS.md at once.")
     parser.add_argument("term", nargs="?", help="case-insensitive substring to find")
@@ -178,6 +199,11 @@ def main(argv: list[str] | None = None) -> int:
         help="ledger integrity: supersede pointers resolve + no duplicate ids; exit 1 on either",
     )
     parser.add_argument(
+        "--merge-owner",
+        metavar="REPO_DIR",
+        help="print the declared merge owner for that repo ledger",
+    )
+    parser.add_argument(
         "--next-id",
         metavar="REPO_DIR",
         help="print the next free D- id for that repo's docs/DECISIONS.md, read AT THIS INSTANT "
@@ -185,6 +211,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     root = Path(args.root)
+    if args.merge_owner:
+        return _merge_owner(Path(args.merge_owner))
     if args.next_id:
         return _next_id(Path(args.next_id))
     if args.check:
