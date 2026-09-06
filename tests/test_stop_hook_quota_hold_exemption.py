@@ -1,0 +1,96 @@
+"""Behavior Contract — the Stop hook must NOT block a session the quota hold has frozen.
+
+Incident 2026-09-06: the fleet ran out of quota, `quota_stop.py` held every write tool, and
+infra ran on until "You've hit your session limit" instead of stopping. The hold was not
+missing — it fires at the 90% drain tier — and it was not late. The gap is that the two hooks
+do not know about each other:
+
+  * `quota_stop.py` DENIES the tools needed to clear the Stop hook's causes. `final_gate.py`
+    is not in its allowed Bash set at all, so the "gate red on session-authored files" cause
+    can never be cleared while the hold stands; `/fabrik-review-scoped` needs tools too.
+  * `final_gate_stop.py` BLOCKS end-of-turn on those causes and knew nothing about the stamp.
+
+So a held session with a red gate or unreviewed edits was blocked from stopping and blocked
+from fixing. Every block emits another assistant turn, and turns burn quota even when every
+tool is denied — the session talks its way into the wall while obeying the hold.
+
+The hold has ALREADY ordered a graceful stop and the agent has already been told to commit and
+push. Once the stamp is up, letting the turn END is the whole point.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+REPO = Path(__file__).resolve().parents[1]
+_HOOK = REPO / ".claude" / "hooks" / "final_gate_stop.py"
+
+_FAKE_GATE = """#!/usr/bin/env python3
+import json, os, sys
+fails = [f for f in os.environ.get("FAKE_FAILS", "").split(",") if f]
+if not fails:
+    print(json.dumps({"status": "success", "failures": []})); sys.exit(0)
+print(json.dumps({"status": "failure", "failures": [{"check": c} for c in fails]}))
+sys.exit(1)
+"""
+
+
+@pytest.fixture
+def held_project(tmp_path: Path) -> tuple[Path, Path]:
+    p = tmp_path / "proj"
+    (p / "scripts").mkdir(parents=True)
+    (p / "scripts" / "final_gate.py").write_text(_FAKE_GATE)
+    subprocess.run(["git", "init", "-q"], cwd=p, check=True, timeout=15)
+    (p / "work.txt").write_text("uncommitted")  # a dirty tree = a blocking cause
+    state = tmp_path / "state"
+    state.mkdir()
+    return p, state
+
+
+def _run_stop(project: Path, state: Path, sid: str, fails: str) -> str:
+    """A BASELINE must exist or the hook fails open on attribution and never blocks — which is
+    how the control below caught this fixture being vacuous the first time."""
+    import tempfile
+
+    bl = Path(tempfile.gettempdir()) / f"fabrik-gate-baseline-{sid}.json"
+    ctr = Path(tempfile.gettempdir()) / f"fabrik-gate-stop-{sid}.attempts"
+    ctr.unlink(missing_ok=True)
+    bl.write_text(json.dumps(["A"]))  # A is inherited; anything else is NEW → blocks
+    env = {**os.environ, "FAKE_FAILS": fails, "ROTATE_STATE_DIR": str(state)}
+    try:
+        proc = subprocess.run(
+            [sys.executable, str(_HOOK)],
+            input=json.dumps({"session_id": sid, "cwd": str(project), "hook_event_name": "Stop"}),
+            capture_output=True,
+            text=True,
+            timeout=60,
+            env=env,
+        )
+        return proc.stdout.strip()
+    finally:
+        bl.unlink(missing_ok=True)
+        ctr.unlink(missing_ok=True)
+
+
+def test_the_stop_hook_blocks_normally_when_no_hold_is_in_force(held_project):
+    """The control. Without this the exemption test cannot tell 'exempted' from 'never blocked'."""
+    project, state = held_project
+    assert not (state / "fleet-exhausted").exists()
+    out = _run_stop(project, state, "s_nohold", "A,B")
+    assert out != "", "the Stop hook must still block a red gate when no hold is in force"
+
+
+def test_a_quota_held_session_is_allowed_to_stop(held_project):
+    """THE FIX. With the stamp up, the session cannot run final_gate.py (quota_stop denies it),
+    so the cause is unclearable — blocking only produces more turns, and turns cost the quota
+    that is already gone."""
+    project, state = held_project
+    (state / "fleet-exhausted").write_text("0")
+    out = _run_stop(project, state, "s_held", "A,B")
+    assert out == "", f"a quota-held session was blocked from stopping: {out}"

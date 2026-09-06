@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a quota-held session could not STOP: the Stop hook now yields to the exhaustion hold (2026-09-06)
+
+The second half of the infra incident, diagnosed rather than guessed. `quota_stop.py` was not
+missing and not late — registered 2026-09-02, it fires at the 90% drain tier and infra almost
+certainly WAS held. The gap was between two hooks that did not know about each other:
+
+- `quota_stop.py` denies the tools that clear the Stop hook's causes — `final_gate.py` is not in
+  its allowed Bash set at all, so "gate red on session files" is unclearable while held, and
+  `/fabrik-review-scoped` needs tools too;
+- `final_gate_stop.py` blocked end-of-turn on those causes and had **zero references** to the stamp.
+
+Every block forces another assistant turn, and turns burn quota even when every tool is denied.
+A held session with a red gate talked its way into "You've hit your session limit" while obeying
+the hold — up to 6 causes × 3 warn-through attempts of pure spend, at the moment there was none.
+
+`final_gate_stop.py` now allows the stop outright when `<state>/fleet-exhausted` exists (same path
+and `ROTATE_STATE_DIR` override as `quota_stop.py`; fail-open on any doubt). The hold has already
+ordered the graceful stop and told the agent to commit and push; letting the turn end IS the
+graceful stop. Emits `stop_allowed_quota_hold` to the kaizen stream so the fire rate is measurable.
+
+2 graders in `tests/test_stop_hook_quota_hold_exemption.py` — a control that PROVES the fixture
+blocks without a hold (it caught the first fixture being vacuous: no baseline → fail-open, and a
+fake gate exiting 0), and the held case, seen red and proven by mutation. 156 pass across the whole
+Stop-hook/hold family. Fleet-synced: `.claude/hooks/` distributes on this commit.
+
 ### Fixed — the fleet-exhaustion notice named a relief ~19h too far out (2026-09-06)
 
 Operator incident: mob@ was the last eligible account, burned its 5-hour session, and infra ran

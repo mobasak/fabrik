@@ -1171,6 +1171,25 @@ def main(argv: list[str]) -> int:
         if not (root / "scripts" / "final_gate.py").exists():
             return 0  # not a fabrik-style project → nothing to enforce
 
+        # THE QUOTA HOLD OUTRANKS EVERY CAUSE BELOW. While `quota_stop.py`'s stamp stands the
+        # session cannot run final_gate.py (not in the hold's allowed Bash set), cannot edit,
+        # cannot dispatch /fabrik-review-scoped — so "gate red", "unreviewed spontaneous work"
+        # and most of the rest are UNCLEARABLE, and blocking here only forces another assistant
+        # turn. Turns burn quota even when every tool is denied. Measured 2026-09-06: the hold
+        # fired on time at the 90% drain tier, the agent obeyed it, and still walked into "You've
+        # hit your session limit" — talking its way to the wall between two hooks that did not
+        # know about each other. The hold has ALREADY ordered the graceful stop; letting the turn
+        # end IS the graceful stop. Same stamp path and env override as quota_stop.py; fail-OPEN
+        # on any doubt (a stale stamp makes this hook lenient for one dead-cron episode, which
+        # costs nothing — the opposite mistake costs the last of the quota).
+        try:
+            _state = Path(os.environ.get("ROTATE_STATE_DIR") or Path.home() / ".claude" / "state")
+            if (_state / "fleet-exhausted").exists():
+                _kaizen("stop_allowed_quota_hold", ev_sid)
+                return 0
+        except Exception:
+            pass
+
         # SessionStart: record the inherited failing set, then always allow.
         # RESUME/COMPACT keep the ORIGINAL baseline: a revived session (the
         # resume mesh's claude -p --resume, or a compaction) re-baselining
