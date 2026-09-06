@@ -198,26 +198,72 @@ Verbatim, as the command requires — the Coverage Checklist rows derive from TH
 
 | # | Class (source) | Status | Evidence |
 |---|---|---|---|
-| C01 | fail-open vs fail-closed on every gate/guard (standing) | UNCHECKED | |
-| C02 | cost/quota/limit accounting edges — unknown≠0, per-call vs batch (standing) | UNCHECKED | |
-| C03 | boundary / sentinel / prefix collisions (standing) | UNCHECKED | |
-| C04 | behavior-without-a-test (standing) | UNCHECKED | |
-| C05 | DATA LOSS — every path by which a recorded day can be dropped, zeroed or corrupted | UNCHECKED | |
-| C06 | ARITHMETIC — the dedup's move-booking across days, 4+ sightings, shared days, model changes | UNCHECKED | |
-| C07 | THE CONSUMER — store shapes that make `per_model_spend` wrong rather than absent | UNCHECKED | |
-| C08 | UNATTENDED OPERATION — what fails SILENTLY at 06:00 with no human | UNCHECKED | |
-| C09 | MEMORY / TIME — growth curve, caps, the 187MB/50s measurement | UNCHECKED | |
-| C10 | TEST QUALITY — which of the 25 pass against a materially different implementation | UNCHECKED | |
-| C11 | core/10-python.md (MATCHED) — config via env, no silent failures, typing | UNCHECKED | |
-| C12 | core/45-testing-strategy.md (MATCHED) — behaviour coverage, watched-fail-first | UNCHECKED | |
-| C13 | 12-FACTOR — config as env, backing services, disposability | UNCHECKED | |
-| C14 | doc-truth — anything a comment or docstring claims that the code does not do | UNCHECKED | |
+| C01 | fail-open vs fail-closed on every gate/guard (standing) | FIXED(3) | The class's centre of gravity. A corrupt store DEGRADED to `days = {}` and was written back — reproduced 28 seeded days in, 0 out. Now ABSENCE is a fresh start and DAMAGE is refused (`StoreUnreadableError`), the bytes left for repair. The "deliberately loud" write failure was swallowed by `per_model_spend`'s `except (OSError, …)` one frame up: now `StoreUnwritableError`, a RuntimeError the caller cannot catch. The flock still fails open, deliberately — an unlocked merge beats a refused one. |
+| C02 | cost/quota/limit accounting edges — unknown≠0, per-call vs batch (standing) | FIXED(1) · REFUTED(2) | FIXED: `refresh()` walked 8.8 GB TWICE per run (~100s where 50s does) after the capture-before-refuse fix. REFUTED: JSON precision beyond 2^53 — the largest live per-day-per-model value is 2.9e9, six orders below the limit. REFUTED: `wt == 0` division — `k ∈ cal_tier` ⇒ `wtok_by_day[k] > 0` and `d_start ≤ k`, so `wt ≥ wtok_by_day[k] > 0` by construction. |
+| C03 | boundary / sentinel / prefix collisions (standing) | REFUTED(3) | `min(prior_day, day)` selecting `""` — refuted by the `if not day: continue` guard one line below the bucketing call, and by execution (a garbage-stamp sighting is skipped, no `""` key appears). `overlap[-7:]` on an unsorted list — `sorted()` is applied and ISO strings sort chronologically. `k[:7]` on a non-ISO key — every day key comes from `date.isoformat()`. |
+| C04 | behavior-without-a-test (standing) | FIXED(11) | Every fix in this review shipped its guard: 36 tests in `test_usage_collector.py` (from 10 at the start) plus the refresh-ordering test, with eleven proven red on revert. |
+| C05 | DATA LOSS — every path a recorded day can be dropped, zeroed or corrupted | FIXED(4) | The store overwrite (C01); the migration dropping days it could not replace (13B tokens in the finder's reproduction, one-shot); the blind run consuming the migration stamp so the re-derivation never retried; and the write failure that left the cron green with nothing recorded. REFUTED: `os.replace` across filesystems (same-directory `mkstemp`), kill-between-read-and-rename (the write is the last act), missing store (absence ≠ damage). |
+| C06 | ARITHMETIC — the dedup's move-booking across days | FIXED(1) · REFUTED(3) | FIXED: the largest sighting's TOKENS were kept while its MODEL was discarded — a measured 1,000,000 opus tokens booked as haiku; 68/300 randomised trials lost the model and 65/300 were order-dependent, now 0/300 for both. REFUTED by execution: 3,000-trial randomised sweep (0 mismatches), all 720 permutations of six sightings, and the three-day three-model sequence a closing finder claimed corrupts the withdraw-and-place. |
+| C07 | THE CONSUMER — store shapes that make `per_model_spend` wrong not absent | REFUTED(4) | Traced every claim to its line: the zero-division guard, `cal_tier` excluding untiered days, `day_rate` keyed exactly on `cal_tier`, and `live_months` omitting untiered months (intentional, and the dashboard now warns on unclassified tokens). No store shape the collector can produce makes the consumer wrong rather than absent. |
+| C08 | UNATTENDED OPERATION — what fails SILENTLY at 06:00 | FIXED(3) | The dated time bomb: `refresh()` refused BEFORE it merged, so from ~2026-10-04 the collector would never have run again — source 1's death silently stopping source 2. The run counters never reached the file, so the only in-file signal of what a run did carried the previous run's values. `extension_source_present` now records the event that made this collector necessary. |
+| C09 | MEMORY / TIME — growth curve and caps | REFUTED(1) · CLEAN | Measured: 187 MB peak, 43–50s over 8.9 GB / 14,759 files / 1,240,230 usage records. The OOM-at-10x concern is real arithmetic on a tree that would have to grow tenfold; recorded, not guarded, per FIX DIRECTIVE 5 (measure the fire rate before adding a mechanism). |
+| C10 | TEST QUALITY | FIXED(2) | Two tests pinned behaviour this review proved wrong and were rewritten to the corrected contract, not weakened: the corrupt-store test asserted the degrade that destroyed data, and the non-numeric test asserted deletion where preservation is right. A third weakness stands recorded: `test_it_sums_per_day_per_model` would survive a mutation that summed all numeric fields rather than `_USAGE_KEYS`. |
+| C11 | core/10-python.md (MATCHED) | CLEAN | Config via env with defaults (`_find`, `_transcript_root`), no bare excepts, no silent failures left after C01/C08, typing on every new signature. |
+| C12 | core/45-testing-strategy.md (MATCHED) | CLEAN | Behaviour-per-test, watched-fail-first or red-on-revert on every guard this review added; eleven revert probes run, one of which exposed the stale-bytecode trap that makes such a probe unreliable in both directions. |
+| C13 | 12-FACTOR | CLEAN | Backing paths are config (`CLAUDE_USAGE_DAILY`, `CLAUDE_TRANSCRIPTS`), the producer is stateless between runs, and the store is the only persistent state. |
+| C14 | doc-truth | FIXED(3) | The "MORE COMPLETE than the extension" claim survived in the shipped docstring after I said I had corrected it. `_local_day`'s fallback was documented as unconditional when an impossible date returns `""`. And the largest one: the **"transcripts prune" premise was withdrawn as unproven** (D-151) — the tree spans the whole recorded period, and deduped/undeduped ratios (0.54x / 1.13x) say the two sources differ in METHOD. The design stands on uncertainty instead of on a story. |
 
 ## Pass Ledger
 
 | Pass | method | found | new | fixed | finders |
 |---|---|---|---|---|---|
+| Pass 1 (WIDE) | method: citation | found: 9 | new: 9 | fixed: 6 | dispatched 7, returned 7 — pool `review` x5 (agent-000-0e9b82, -001-fb19bc, -002-8a5243, -003-a60786, -004-2aa63c) + native x2 on the data-loss and arithmetic slices |
+| Pass 2 (SCOPED) | method: citation | found: 1 | new: 1 | fixed: 1 | orchestrator over the pass-1 fix diff and its callers (the double walk); no finder dispatched — a scoped middle pass by the round SHAPE, and it can never be the exit round |
+| Pass 3 (CLOSING) | method: re-derivation | found: 2 | new: 2 | fixed: 2 | dispatched 5, returned 5 (agent-000-87af34, -001-83cbb8, -002-7f9df8, -003-822a33, -004-4f1ace) plus the orchestrator's re-derivation of every published count, which is what withdrew the pruning premise |
+| Pass 4 (CONFIRMING) | method: re-derivation | found: 3 | new: 3 | fixed: 3 | dispatched 5, returned 5 (agent-000-f986b7, -001-b4874c, -002-5aab2e, -003-3a4065, -004-4d331d); two of the three were defects in Pass 3's own fixes |
+| Pass 5 (FULL, same brief) | method: re-derivation | found: 1 | new: 1 | fixed: 1 | dispatched 5, returned 5 (agent-000-9c5c47, -001-fabe67, -002-e1aef3, -003-19afb6, -004-7670d9); the `_unusable` restoration outranked a measured value, reproduced before fixing |
+| Pass 6 (FULL, same brief) | method: re-derivation | found: 1 | new: 1 | fixed: 1 | dispatched 5, returned 5 (agent-000-c901b0, -001-ad9d71, -002-1743ab, -003-006407, -004-87a11c); `extension_last_day` could publish a junk key — two re-raises of already-proven arithmetic and migration shapes refuted by execution |
+| Pass 7 (FULL, same brief) | method: re-derivation | found: 0 | new: 0 | fixed: 0 | PENDING — dispatched 5, awaiting return |
+
+⚠️ **Stall-breaker watch.** `new:` ran 9 → 1 → 2 → 3 → 1 → 1 across passes 1–6. The 1→2→3 stretch
+matched the trip shape, so passes 5–7 re-swept the SAME brief (only the "already fixed" and
+"already refuted, with proof" lists grew) rather than inventing a new question. It came back to 1 and
+stayed there, so the pressure is falling, not diverging — and the SEVERITY curve says more than the
+count: outages first (a dated time bomb, a store overwritten, a migration deleting what it could not
+replace), then defects inside those fixes, and by pass 6 a diagnostic field that could publish a junk
+key. Pass 6 also spent two of its five finders re-raising shapes earlier passes had cleared by
+execution, one of them reaching the correct answer in its own walkthrough before calling it a defect.
+
+**Adjudicated, not fixed** — recorded so the disposition is visible rather than silently dropped:
+`frozen` is a TERMINAL state. A restored transcript backup will not bring a frozen day back into
+migration. That is the conservative direction for a store whose purpose is not losing what cannot be
+rebuilt, and `source_by_day` shows the marker to anyone who wants to clear it deliberately.
 
 ## Gate
 
-Re-measured in the closing pass, never inherited.
+RE-MEASURED this pass, never inherited — `python scripts/final_gate.py --json`:
+
+```json
+{"status": "success", "skipped_checks": ["pytest"], "failures": []}
+```
+
+⚠️ `skipped_checks: ["pytest"]` is the hub's deliberate exception (5,913 tests under `-x` would brick
+every completion gate three sessions run), so a green status here asserts the static tier and NOT the
+suite. The suites were run by hand every pass; the last reading is **196 passed** across
+`test_usage_collector` (38), `test_claude_p_cost_refresh`, `test_spend_calendar_months`,
+`test_claude_p_cost`, `test_sidecar_staleness` and `test_quota_dashboard`.
+
+## Production evidence — the executable check, not a proxy
+
+The real path was run end to end after the fixes, and the 06:00 cron ran itself once mid-review:
+
+```
+first unattended cron run (06:00:50): 113 days held, version 3, today +1,436,142,770 tokens,
+                                      no day shrank, extension-sourced total IDENTICAL
+after the round-4 fixes (manual):     113 days held, version 3, counters now IN the file
+                                      (_total_days=113, _transcript_refreshed=1),
+                                      extension-sourced 298,137,451,242 → 298,137,451,242
+```
+
+That last number is the invariant the whole design rests on: 111 irreplaceable extension-recorded days
+came through every migration and every fix byte-identical.
