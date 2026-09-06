@@ -3546,6 +3546,13 @@ def test_relief_on_a_sibling_flips_the_pointer_off_an_active_in_the_drain_band(
     lines = (tmp_path / "state" / "rotate-ledger.jsonl").read_text().splitlines()
     flip = next(e for e in map(json.loads, lines) if e.get("event") == "flip")
     assert (flip["from"], flip["to"]) == ("seo", "intel")
+    # …and the NEXT tick does not bounce back: the fresh active (0/19) is below the band, and the
+    # drained account is refused as a target (session 93 > the picker's 85 bar) — no ping-pong
+    capsys.readouterr()
+    assert cr._cmd_tick() == 0
+    out2 = capsys.readouterr().out
+    assert os.readlink(fleet / "active") == "intel", out2
+    assert "drain-band relief" not in out2 and "flipped" not in out2, out2
 
 
 def test_relief_flip_needs_a_successor_below_the_drain_threshold_on_both_windows(

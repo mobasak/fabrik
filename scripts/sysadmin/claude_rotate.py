@@ -4004,11 +4004,13 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
             if pick is not None:
                 slug, email = pick
                 prow = next((r for r in accounts if r.get("email") == email), None) or {}
-                pu = [
-                    float((prow.get(k) or {}).get("utilization"))
-                    for k in ("five_hour", "seven_day")
-                    if isinstance((prow.get(k) or {}).get("utilization"), (int, float))
-                ]
+                # the successor's utils through the SAME verdict the picker applied — it carries
+                # the rolled-over cache rescue; raw utils read a just-reset cached sibling as
+                # 100/100 and refused relief for exactly the account that had just become usable
+                # (scoped review F1). `_validated_pick` probes live but never writes the live
+                # reading back into `accounts`.
+                _ps, putils, _pr = _flip_candidate_verdict(prow, threshold)
+                pu = [float(v) for v in putils.values() if isinstance(v, (int, float))]
                 if pu and max(pu) < drain_thr:
                     if _flip_active(slug, at_pct=hot):
                         print(

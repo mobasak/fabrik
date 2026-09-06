@@ -2263,3 +2263,44 @@ def test_the_no_relief_message_does_not_claim_no_sibling_reports_a_reset():
     msg = cr._urgent_drain_message("act@x", "its 5-hour session window is 91% CONSUMED", None)
     assert "No sibling reports a reset time" not in msg
     assert "no resume time can be given" in msg
+
+
+def test_drain_band_relief_reads_a_cached_successor_through_the_rolled_over_rescue(
+    monkeypatch, capsys
+):
+    """Scoped review F1: `_validated_pick` probes a cached candidate live but never writes the
+    reading back into `accounts`; raw utils read a just-reset cached sibling as 100/100 and refused
+    relief for exactly the account that had just become usable. The successor's utils go through
+    `_flip_candidate_verdict`, which applies the rolled-over rescue."""
+    flips = []
+    monkeypatch.setattr(cr, "_resolve_active", lambda: "mob")
+    monkeypatch.setattr(cr, "_now", lambda: NOW)
+    monkeypatch.setattr(cr, "_flip_active", lambda slug, **kw: flips.append(slug) or True)
+    monkeypatch.setattr(cr, "_validated_pick", lambda accts, excl, **kw: ("oz", "oz@ocoron.com"))
+    monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
+    monkeypatch.setattr(cr, "_tick_telegram", lambda msg: None)
+    monkeypatch.setattr(cr, "_ledger_append", lambda e: None)
+    monkeypatch.setattr(cr, "_switch_paused", lambda: False)
+    rows = [
+        {
+            "email": "mob@ocoron.com",
+            "slugs": ["mob"],
+            "source": "live",
+            "valid": True,
+            "weekly_cap": 99,
+            "five_hour": {"utilization": 93.0, "resets_at_epoch": NOW + 3600},
+            "seven_day": {"utilization": 97.0, "resets_at_epoch": NOW + 86400},
+        },
+        {
+            "email": "oz@ocoron.com",
+            "slugs": ["oz"],
+            "source": "cache",
+            "valid": True,
+            "weekly_cap": 99,
+            # raw 100/100 with BOTH resets already passed — a rolled-over cache, empty by construction
+            "five_hour": {"utilization": 100.0, "resets_at_epoch": NOW - 60},
+            "seven_day": {"utilization": 100.0, "resets_at_epoch": NOW - 60},
+        },
+    ]
+    cr._fleet_flip_leg([], rows, threshold=cr._rotate_threshold())
+    assert flips == ["oz"], capsys.readouterr().out

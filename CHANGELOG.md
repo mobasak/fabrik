@@ -44,7 +44,10 @@ flip**: active at/over `ROTATE_DRAIN_THRESHOLD` (85) on its hottest window + a v
 BELOW that threshold on both windows (the hysteresis that prevents ping-pong) → flip under the ordinary
 dwell, with a `drain-band relief` tick line and a Telegram note. Both twins. Graders: the incident
 fixture flips, a successor at weekly 87 does not, an active at 60/50 does not (red on HEAD's file,
-green on the fix). D-171.
+green on the fix). Scoped review F1: the successor's utils go through `_flip_candidate_verdict` (the
+rolled-over cache rescue) — raw utils read a just-reset cached sibling as 100/100 and refused relief for
+exactly the account that had just become usable; grader red on the first cut. A second tick after the
+relief flip is asserted not to bounce back. D-171.
 
 ### Added — `Profile: small`: an inline execution profile for small plans, and a review-receipt generator (2026-09-06)
 - **Measured first** (operator: "how long did each one take, why that long"): on the multi-agent-adoption plan, 851 code lines cost `/fabrik-plan-after-chat` 9 min, `/fabrik-plan-review` 5 min and `/fabrik-execute-plan` 4 h 20 min — 7 tickets, 21 review rounds, 63 pool units, 4,870 test lines, ~110 min of it polling for worktree coders, 74 min of orchestrator turns writing seven 80-line receipts. The per-ticket machinery had no small path.
