@@ -135,7 +135,7 @@ what makes an in-flight command visible and un-abandonable.
   ambiguity never halts a decision; only the three BLOCKED cases halt execution). NOT a decision:
   routine fixes, refactors, doc edits — those are CHANGELOG's beat.
 - **Stay on task:** no unsolicited advice or process commentary.
-- **Every `/fabrik-*` run owes a `FEEDBACK:` line before it closes its run record** — what you filed and to whom, or `none` plus the surfaces you exercised. Auto-appended to every command by the assembler (§ Close-out feedback); routed by beat (infra · fleet · intel). You are the only witness to how the machinery behaved on that run; `none` is a valid verdict, silence is not.
+- **Every `/fabrik-*` run owes a `FEEDBACK:` line before it closes its run record — a USAGE report in four labelled fields:** `confusion:` (what in the command text misled you) · `waste:` (steps, turns or tokens spent without changing the outcome) · `change:` (the ONE concrete edit to the command or a rule that would have made the run faster or more accurate) · `filed:` (mail ids to a beat, or `none — surfaces exercised: …`). `command_run.py done|blocked|handoff` REFUSES a close missing any field, captures wall-clock and rounds itself, appends the row to the fleet-wide ledger (`~/.claude/state/command-feedback.jsonl`; `scripts/command_feedback_report.py` renders the per-command optimisation backlog) and prints the finished line to paste (D-175, the operator's 6th ask: the corpus is optimised from these — fewer rounds, less confusion, fewer tokens). Auto-appended to every command by the assembler (§ Close-out feedback); routed by beat (infra · fleet · intel). `none` per field is a valid verdict you sign; silence is not.
 - **⚠️ FEEDBACK IS RECIPROCAL — you owe your PEERS what the ~46 projects owe you.** The project-facing
   contract makes filing a hub defect a **DUTY at every step** (`templates/governance/CLAUDE.md`
   § Upstream feedback: *"Working around it silently, noting it only in a local doc, or absorbing the
@@ -371,7 +371,7 @@ CHANGELOG: <entry title | n/a>
 LESSONS LEARNT: <none | docs/LESSONS_LEARNT.md entry title>
 DONE: <one line — what this run delivered: the commits/artifacts, not intentions>
 NEXT: <the next command or step, NAMED — /fabrik-<x> <args> | operator decision: <what> | none — terminal>
-FEEDBACK: <what you filed about the commands/skills/rules machinery, to whom (mail id / committed path) | none — the machinery surfaces this run exercised>
+FEEDBACK: /<command> · <wall-clock> · rounds <n> · confusion: <…|none> · waste: <…|none> · change: <the one edit to the command/rule | none> · filed: <mail id(s) to a beat | none — surfaces exercised: …>
 ```
 
 Missing any line on a task-completing response = failure. Re-run gate until `success`, then output the 7 lines. The `FEEDBACK:` line is the run-record close verdict made CHAT-VISIBLE (operator directive 2026-09-01 — the 7th ask: verdicts persisted to records were still invisible in the conversation); same bar as the close: a "filed" claim names a durable artifact, a bare "none" is a defect — `none — <surfaces exercised>` or the filing. **EVERY OTHER response — conversational, clarifying, read-only, mid-plan status (operator mandate 2026-08-10: "in any answer agents must reply in that manner") — ends with the two-line STATE footer instead** (no gate, no changelog entry owed):

@@ -1,6 +1,16 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+# Lesson 158: a required field that asks the wrong question is satisfied honestly and stays useless — ask for the measurement, refuse the shape, and print what the reader needs (2026-09-07)
+
+**What happened.** Five operator asks made the close-out FEEDBACK line mandatory, then substantive, then chat-visible. Agents complied every time: 17 of the last 17 closes carried a verdict, 7 said `none — surfaces exercised: …` truthfully. And the operator still could not see what he wanted — how long a command took, how many rounds, what confused the agent, what burned tokens, which sentence to change — because the field asked "what did you file?", and a diligent agent answered that.
+
+**Why it survived.** Each tightening enforced the existing question harder instead of changing the question. Refusing a bare `none` produced longer `none`s.
+
+**Lesson.** When an enforced field keeps yielding compliant-but-useless answers, the defect is the question. Name the fields the consumer will actually read (confusion, waste, change, filed), capture what the tool can measure itself (wall-clock, rounds), refuse the shape not the sentiment, and print the finished line so the agent pastes rather than paraphrases.
+
+**Guard:** `tests/test_command_feedback.py` (a close without the four fields is refused and stays `running`; a structured close lands the ledger row with the auto-captured metrics); `scripts/command_feedback_report.py` is the consumer that proves the fields are read.
+
 # Lesson 157: machinery with no small path makes a 300-line feature a four-hour plan — size the DIFF before choosing the shape (2026-09-06)
 
 **What happened.** The multi-agent-adoption plan shipped 851 code lines through 7 tickets, 21 review rounds, 63 pool units and 4 h 20 min of `/fabrik-execute-plan`. Measured from the transcript: ~110 min was `sleep 15` loops waiting for worktree coders (three of them pool coders that died or coded blind), 74 min was the orchestrator writing seven 80-line receipts and briefs, and a one-keyword ticket (`advisory=True`) got the same coder + trio + finder + receipt + sync as the biggest one. The plan had 7 tickets because the READ budget split one big file's feature in two and serialized the halves.

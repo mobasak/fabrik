@@ -15,14 +15,29 @@ manifesto's Phase-0 triage; a ONE-WAY row grows the § Binding field block, per 
 decision ledger) — or state `no decisions this run`. **Then the
 feedback line:**
 
-> `FEEDBACK: <what you filed, to whom> | none — <the surfaces this run exercised>`
+> `FEEDBACK: /<command> · <wall-clock> · rounds <n> (<findings trend>) · confusion: <what in the
+> command text was ambiguous or misleading | none> · waste: <steps, turns or tokens spent without
+> changing the outcome | none> · change: <the ONE concrete edit to this command or a rule that would
+> have made this run faster or more accurate | none> · filed: <mail id(s) to infra|fleet|intel | none
+> — surfaces exercised: <what your run touched>> [· cost: <pool $>]`
+
+**The four labelled fields are the USAGE report (D-175, the operator's 6th ask 2026-09-07): the
+corpus is optimised from them — fewer review rounds, less confusion, fewer tokens, without losing
+function — and `command_run.py` REFUSES a close that lacks any of `confusion:` `waste:` `change:`
+`filed:` (or leaves one empty).** Wall-clock and the round count are captured for you; write what
+you SAW: which sentence you misread, which step you repeated, what you would cut or rename. A run
+that went cleanly still says so per field (`confusion: none`), and `change: none` is a claim you
+sign — every run of a 400-line command has one edit worth naming. The close prints the finished
+`FEEDBACK:` line; paste it as the 7th line of the FINAL OUTPUT block. Every close appends a row to
+the fleet-wide ledger `~/.claude/state/command-feedback.jsonl`; `python3
+scripts/command_feedback_report.py` (hub) turns it into the per-command optimisation backlog.
 
 **A "filed" claim MUST name a durable artifact — the mail id, or a COMMITTED path.** A cross-repo
 write to a hub path is not a filing (live case: "filed (5 items)" to a hub file that was never
 tracked on any branch — 4 of 5 unrecoverable). No artifact = not filed.
 
-**Then pass it: `done --command <name> --evidence "<proof>" --feedback "<that same line>"`. The close
-REFUSES without it** — and the TEXT is persisted and READ: the operator reviews every verdict via
+**Then pass it: `done --command <name> --evidence "<proof>" --feedback "<the four fields>"`. The close
+REFUSES without it, and without the four fields** — and the TEXT is persisted and READ: the operator reviews every verdict via
 `python3 scripts/enforcement/check_feedback_duty.py --digest` (D-055 — the substance used to be
 classified into a token and discarded, which is why five operator asks produced zero visible
 reports; write the verdict as a report to a human, because it now reaches one) — — and a refused close leaves the record `running`, which the Stop hook blocks the

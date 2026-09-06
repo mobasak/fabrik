@@ -67,7 +67,10 @@ def _cr(
         and argv[0] in ("done", "blocked", "handoff")
         and "--feedback" not in argv
     ):
-        argv += ["--feedback", "none — harness setup"]
+        argv += [
+            "--feedback",
+            "confusion: none · waste: none · change: none · filed: none — harness setup",
+        ]
     return subprocess.run(
         [sys.executable, str(_SCRIPT), *argv],
         capture_output=True,
@@ -99,6 +102,8 @@ def _backdate(run_dir: Path, sid: str = "s1") -> None:
 #: that did not became HEAD. Only `test_review_done_refused_without_a_persisted_report`,
 #: which exists to test that guard, may name a special-cased command.
 _PROBE = "fabrik-probe"
+#: A structured throwaway verdict for closes that are SETUP for another assertion (D-175).
+_SETUP_FB = "confusion: none · waste: none · change: none · filed: none — harness setup"
 
 
 def _start(run_dir: Path, **kw: str) -> None:
@@ -526,7 +531,7 @@ def test_review_done_refused_without_a_persisted_report(tmp_path, monkeypatch):
             "--evidence",
             "reviewed, all clean",
             "--feedback",
-            "none — harness setup",
+            "confusion: none · waste: none · change: none · filed: none — harness setup",
         ],
         cwd=repo,
         env=env,
@@ -549,7 +554,7 @@ def test_review_done_refused_without_a_persisted_report(tmp_path, monkeypatch):
             "--evidence",
             "report written",
             "--feedback",
-            "none — harness setup",
+            "confusion: none · waste: none · change: none · filed: none — harness setup",
         ],
         cwd=repo,
         env=env,
@@ -603,7 +608,7 @@ def test_review_done_pins_cwd_to_the_repo_recorded_at_start(tmp_path):
             "--evidence",
             "e",
             "--feedback",
-            "none — harness setup",
+            "confusion: none · waste: none · change: none · filed: none — harness setup",
         ],
         cwd=repo_b,
         env=env,
@@ -627,7 +632,7 @@ def test_review_done_pins_cwd_to_the_repo_recorded_at_start(tmp_path):
             "--evidence",
             "e",
             "--feedback",
-            "none — harness setup",
+            "confusion: none · waste: none · change: none · filed: none — harness setup",
         ],
         cwd=sub,
         env=env,
@@ -697,7 +702,7 @@ def test_review_done_rejects_deletions_and_stale_files_as_artifacts(tmp_path):
             "--evidence",
             "e",
             "--feedback",
-            "none — harness setup",
+            "confusion: none · waste: none · change: none · filed: none — harness setup",
         ],
         cwd=repo,
         env=env,
@@ -754,7 +759,7 @@ def test_stale_but_present_report_is_refused_in_isolation(tmp_path):
             "--evidence",
             "e",
             "--feedback",
-            "none — harness setup",
+            "confusion: none · waste: none · change: none · filed: none — harness setup",
         ],
         cwd=repo,
         env=env,
@@ -808,7 +813,7 @@ def test_review_started_outside_any_repo_refuses_done(tmp_path):
             "--evidence",
             "e",
             "--feedback",
-            "none — harness setup",
+            "confusion: none · waste: none · change: none · filed: none — harness setup",
         ],
         cwd=dirty,
         env=env,
@@ -858,7 +863,7 @@ def test_blocked_works_on_a_rootless_record(tmp_path):
             "--reason",
             "rootless-record",
             "--feedback",
-            "none — harness setup",
+            "confusion: none · waste: none · change: none · filed: none — harness setup",
         ],
         cwd=norepo,
         env=env,
@@ -1656,7 +1661,7 @@ def test_cert_and_mega_done_also_require_their_reports(tmp_path):
                 "--evidence",
                 "nothing written at all",
                 "--feedback",
-                "none — harness setup",
+                "confusion: none · waste: none · change: none · filed: none — harness setup",
             ],
             cwd=repo,
             env=env,
@@ -1684,7 +1689,7 @@ def test_cert_and_mega_done_also_require_their_reports(tmp_path):
                 "--evidence",
                 "report written",
                 "--feedback",
-                "none — harness setup",
+                "confusion: none · waste: none · change: none · filed: none — harness setup",
             ],
             cwd=repo,
             env=env,
@@ -1733,7 +1738,7 @@ def test_done_refused_when_every_artifact_is_midloop(tmp_path):
             "--evidence",
             "all done",
             "--feedback",
-            "none — harness setup",
+            "confusion: none · waste: none · change: none · filed: none — harness setup",
         ],
         cwd=repo,
         env=env,
@@ -1754,7 +1759,7 @@ def test_done_refused_when_every_artifact_is_midloop(tmp_path):
             "--evidence",
             "closed",
             "--feedback",
-            "none — harness setup",
+            "confusion: none · waste: none · change: none · filed: none — harness setup",
         ],
         cwd=repo,
         env=env,
@@ -1824,7 +1829,7 @@ def test_done_artifact_floor_survives_the_exit_sequence_and_rejects_decoys(tmp_p
             "--evidence",
             "e",
             "--feedback",
-            "none — harness setup",
+            "confusion: none · waste: none · change: none · filed: none — harness setup",
         ],
         cwd=repo,
         env=env,
@@ -1866,7 +1871,7 @@ def test_done_artifact_floor_survives_the_exit_sequence_and_rejects_decoys(tmp_p
             "--evidence",
             "see commit",
             "--feedback",
-            "none — harness setup",
+            "confusion: none · waste: none · change: none · filed: none — harness setup",
         ],
         cwd=repo,
         env=env,
@@ -1908,7 +1913,7 @@ def test_done_artifact_floor_survives_the_exit_sequence_and_rejects_decoys(tmp_p
             "--evidence",
             "refiled",
             "--feedback",
-            "none — harness setup",
+            "confusion: none · waste: none · change: none · filed: none — harness setup",
         ],
         cwd=repo,
         env=env,
@@ -1975,7 +1980,7 @@ def test_done_floor_rejects_symlinks_stale_rebases_and_survives_merges_and_long_
             "--evidence",
             "e",
             "--feedback",
-            "none — harness setup",
+            "confusion: none · waste: none · change: none · filed: none — harness setup",
         ],
         cwd=repo,
         env=env,
@@ -2026,7 +2031,7 @@ def test_done_floor_rejects_symlinks_stale_rebases_and_survives_merges_and_long_
             "--evidence",
             "e",
             "--feedback",
-            "none — harness setup",
+            "confusion: none · waste: none · change: none · filed: none — harness setup",
         ],
         cwd=repo,
         env=env,
@@ -2082,7 +2087,7 @@ def test_done_floor_rejects_symlinks_stale_rebases_and_survives_merges_and_long_
             "--evidence",
             "e",
             "--feedback",
-            "none — harness setup",
+            "confusion: none · waste: none · change: none · filed: none — harness setup",
         ],
         cwd=repo,
         env=env,
@@ -2129,7 +2134,7 @@ def test_done_floor_rejects_symlinks_stale_rebases_and_survives_merges_and_long_
             "--evidence",
             "e",
             "--feedback",
-            "none — harness setup",
+            "confusion: none · waste: none · change: none · filed: none — harness setup",
         ],
         cwd=repo,
         env=env,
@@ -2198,7 +2203,7 @@ def test_done_refused_when_the_report_was_added_then_deleted(tmp_path):
             "--evidence",
             "e",
             "--feedback",
-            "none — harness setup",
+            "confusion: none · waste: none · change: none · filed: none — harness setup",
         ],
         cwd=repo,
         env=env,
@@ -2517,7 +2522,7 @@ def test_done_records_a_filed_feedback_verdict(run_dir: Path) -> None:
         "--evidence",
         "round 4 found: 0",
         "--feedback",
-        "filed 01M11VS2ZE to intel — dead Kilo test modules break collection",
+        "confusion: none · waste: none · change: none · filed: 01M11VS2ZE to intel — dead Kilo test modules break collection",
     )
     row = _events(run_dir, "s1")[-1]
     assert row["feedback"] == "filed", row
@@ -2538,7 +2543,7 @@ def test_done_records_an_explicit_none_verdict(run_dir: Path) -> None:
         "--evidence",
         "x",
         "--feedback",
-        "none — exercised the router and the corpus check",
+        "confusion: none · waste: none · change: none · filed: none — exercised the router and the corpus check",
     )
     row = _events(run_dir, "s1")[-1]
     assert row["feedback"] == "none", row
@@ -2571,7 +2576,7 @@ def test_blocked_carries_the_verdict_too(run_dir: Path) -> None:
         "--reason",
         "missing infra — no DB",
         "--feedback",
-        "filed to fleet — the scaffold emits no DB fixture",
+        "confusion: none · waste: none · change: none · filed: to fleet — the scaffold emits no DB fixture, filed",
     )
     row = _events(run_dir, "s1")[-1]
     assert row["verdict"] == "blocked" and row["feedback"] == "filed", row
@@ -2588,7 +2593,7 @@ def test_multiple_beats_are_all_captured(run_dir: Path) -> None:
         "--evidence",
         "x",
         "--feedback",
-        "filed to infra and intel",
+        "confusion: none · waste: none · change: none · filed: filed to infra and intel",
     )
     assert sorted(_events(run_dir, "s1")[-1]["feedback_to"]) == ["infra", "intel"]
 
@@ -2606,7 +2611,8 @@ def test_feedback_never_breaks_the_close(run_dir: Path) -> None:
         # NOT a NUL byte: execve() forbids one in argv, so it can never reach this code and a
         # test using one measures subprocess, not the classifier. These CAN arrive.
         "--feedback",
-        "\x01\x1b[31m filed to   nobody " + "z" * 5000,
+        "confusion: none · waste: none · change: none · filed: \x01\x1b[31m filed to   nobody "
+        + "z" * 5000,
     )
     assert out.returncode == 0, out.stderr
     row = _events(run_dir, "s1")[-1]
@@ -2682,7 +2688,7 @@ def test_handoff_carries_the_feedback_verdict_like_the_other_closes(run_dir: Pat
         "--reason",
         "rows open",
         "--feedback",
-        "filed to infra — the grader is mute",
+        "confusion: none · waste: none · change: none · filed: filed to infra — the grader is mute",
     )
     row = _events(run_dir, "s1")[-1]
     assert row["feedback"] == "filed" and row["feedback_to"] == ["infra"], row
@@ -2701,7 +2707,7 @@ def test_the_record_itself_carries_the_feedback_verdict(run_dir: Path) -> None:
         "--evidence",
         "e",
         "--feedback",
-        "filed to fleet — scaffold emits no DB fixture",
+        "confusion: none · waste: none · change: none · filed: filed to fleet — scaffold emits no DB fixture",
     )
     rec = json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))
     assert rec["feedback"] == "filed", rec
@@ -2736,9 +2742,9 @@ def test_an_honest_none_naming_the_surfaces_it_swept_is_not_read_as_filed(run_di
     honest `none` as a filing — inflating compliance and under-counting the very verdict the metric
     exists to distinguish. A beat only means `filed` alongside an actual filing VERB."""
     for text in (
-        "none — swept infra rules and the enforcement checks",
-        "none - exercised the fleet spec loader",
-        "nothing to file; looked at intel's flywheel rosters",
+        "confusion: none · waste: none · change: none · filed: none — swept infra rules and the enforcement checks",
+        "confusion: none · waste: none · change: none · filed: none - exercised the fleet spec loader",
+        "confusion: none · waste: none · change: none · filed: nothing to file; looked at intel's flywheel rosters",
     ):
         _start(run_dir)
         _cr(run_dir, "done", "--command", "fabrik-probe", "--evidence", "e", "--feedback", text)
@@ -2750,10 +2756,19 @@ def test_an_honest_none_naming_the_surfaces_it_swept_is_not_read_as_filed(run_di
 
 def test_a_real_filing_still_registers_its_beats(run_dir: Path) -> None:
     for text, beats in (
-        ("filed 01M11 to intel", ["intel"]),
-        ("sent a finding to fleet", ["fleet"]),
-        ("routed to infra and intel", ["infra", "intel"]),
-        ("none for infra, but filed to fleet", ["fleet", "infra"]),  # a mixed line HAS filed
+        ("confusion: none · waste: none · change: none · filed: filed 01M11 to intel", ["intel"]),
+        (
+            "confusion: none · waste: none · change: none · filed: sent a finding to fleet",
+            ["fleet"],
+        ),
+        (
+            "confusion: none · waste: none · change: none · filed: routed to infra and intel",
+            ["infra", "intel"],
+        ),
+        (
+            "confusion: none · waste: none · change: none · filed: none for infra, but filed to fleet",
+            ["fleet", "infra"],
+        ),  # a mixed line HAS filed
     ):
         _start(run_dir)
         _cr(run_dir, "done", "--command", "fabrik-probe", "--evidence", "e", "--feedback", text)
@@ -3015,7 +3030,7 @@ def test_a_siblings_dirty_midloop_report_cannot_veto_a_committed_converged_close
             "--evidence",
             "closed",
             "--feedback",
-            "none — harness setup",
+            "confusion: none · waste: none · change: none · filed: none — harness setup",
         ],
         cwd=repo,
         env=env,
@@ -3109,7 +3124,16 @@ def test_step_and_round_refuse_to_touch_a_closed_record(run_dir: Path) -> None:
     moved `updated_ts`, and the Stop hook's review window read the moved close time: one command
     laundered every edit since."""
     _start(run_dir)
-    _cr(run_dir, "done", "--command", _PROBE, "--evidence", "e", "--feedback", "none — surfaces: t")
+    _cr(
+        run_dir,
+        "done",
+        "--command",
+        _PROBE,
+        "--evidence",
+        "e",
+        "--feedback",
+        "confusion: none · waste: none · change: none · filed: none — surfaces: t",
+    )
     before = _rec(run_dir)
     assert before["state"] == "done"
     time.sleep(
@@ -3135,7 +3159,7 @@ def test_a_close_appends_its_window_and_the_next_start_carries_the_ledger(tmp_pa
     _start(run_dir)
     r1 = _rec(run_dir)
     time.sleep(1.1)  # the start's stamp and the close's must differ, or the ordering defect hides
-    _cr(run_dir, "done", "--command", r1["command"], "--evidence", "x", "--feedback", _PROBE)
+    _cr(run_dir, "done", "--command", r1["command"], "--evidence", "x", "--feedback", _SETUP_FB)
     r1 = _rec(run_dir)
     assert len(r1["covered"]) == 1 and r1["covered"][0][0] == math.floor(r1["started_epoch"]), (
         r1.get("covered")
@@ -3148,7 +3172,7 @@ def test_a_close_appends_its_window_and_the_next_start_carries_the_ledger(tmp_pa
     assert r2["state"] == "running" and r2["covered"] == r1["covered"], (
         "start must carry the ledger"
     )
-    _cr(run_dir, "done", "--command", r2["command"], "--evidence", "y", "--feedback", _PROBE)
+    _cr(run_dir, "done", "--command", r2["command"], "--evidence", "y", "--feedback", _SETUP_FB)
     assert len(_rec(run_dir)["covered"]) == 2
 
 
@@ -3172,7 +3196,7 @@ def test_start_seeds_the_ledger_from_a_pre_ledger_closed_record(tmp_path: Path) 
     # and a post-ledger close is seeded exactly ONCE across the next start (C-1: the float
     # close vs the int touch used to miss the dedupe on a second boundary — 2 of 20 runs)
     rec2 = _rec(run_dir)
-    _cr(run_dir, "done", "--command", rec2["command"], "--evidence", "x", "--feedback", _PROBE)
+    _cr(run_dir, "done", "--command", rec2["command"], "--evidence", "x", "--feedback", _SETUP_FB)
     _start(run_dir)
     assert len(_rec(run_dir)["covered"]) == 2, _rec(run_dir)["covered"]
 
@@ -3203,8 +3227,8 @@ def test_nested_runs_grow_the_ledger_linearly_not_exponentially(tmp_path: Path) 
     for _ in range(6):
         _start(run_dir)  # a nested review at a phase boundary
         inner = _rec(run_dir)["command"]
-        _cr(run_dir, "done", "--command", inner, "--evidence", "x", "--feedback", _PROBE)
-    _cr(run_dir, "done", "--command", outer, "--evidence", "x", "--feedback", _PROBE)
+        _cr(run_dir, "done", "--command", inner, "--evidence", "x", "--feedback", _SETUP_FB)
+    _cr(run_dir, "done", "--command", outer, "--evidence", "x", "--feedback", _SETUP_FB)
     rec = _rec(run_dir)
     n = len(rec["covered"])
     assert n <= 7, n
@@ -3231,7 +3255,7 @@ def test_a_run_closed_in_its_start_second_yields_a_window_the_hook_keeps(tmp_pat
     run_dir.mkdir()
     _start(run_dir)
     rec = _rec(run_dir)
-    _cr(run_dir, "done", "--command", rec["command"], "--evidence", "x", "--feedback", _PROBE)
+    _cr(run_dir, "done", "--command", rec["command"], "--evidence", "x", "--feedback", _SETUP_FB)
     rec = _rec(run_dir)
     (w,) = rec["covered"]
     assert w[0] <= w[1], w
@@ -3252,7 +3276,7 @@ def test_a_corrupt_covered_value_never_wedges_a_close(tmp_path: Path) -> None:
     rec["covered"] = "garbage"
     (path,) = list(run_dir.glob("*.json"))
     path.write_text(json.dumps(rec))
-    _cr(run_dir, "done", "--command", rec["command"], "--evidence", "x", "--feedback", _PROBE)
+    _cr(run_dir, "done", "--command", rec["command"], "--evidence", "x", "--feedback", _SETUP_FB)
     rec = _rec(run_dir)
     assert rec["state"] == "done" and isinstance(rec["covered"], list) and len(rec["covered"]) == 1
 
@@ -3270,7 +3294,7 @@ def test_a_review_family_close_reaches_back_to_the_previous_windows_close(tmp_pa
     run_dir.mkdir()
     _start_named(run_dir, "fabrik-spec")
     time.sleep(1.1)
-    _cr(run_dir, "done", "--command", "fabrik-spec", "--evidence", "x", "--feedback", _PROBE)
+    _cr(run_dir, "done", "--command", "fabrik-spec", "--evidence", "x", "--feedback", _SETUP_FB)
     prev_hi = _rec(run_dir)["covered"][0][1]
     time.sleep(1.1)  # a plain-chat edit happens in this gap
     _start_named(run_dir, "fabrik-review-scoped")
@@ -3284,7 +3308,7 @@ def test_a_review_family_close_reaches_back_to_the_previous_windows_close(tmp_pa
         "--evidence",
         "x",
         "--feedback",
-        _PROBE,
+        _SETUP_FB,
     )
     cov = _rec(run_dir)["covered"]
     assert cov[-1][0] == prev_hi, cov
@@ -3297,7 +3321,7 @@ def test_a_non_review_close_keeps_its_own_start(tmp_path: Path) -> None:
     run_dir.mkdir()
     _start_named(run_dir, "fabrik-spec")
     time.sleep(1.1)
-    _cr(run_dir, "done", "--command", "fabrik-spec", "--evidence", "x", "--feedback", _PROBE)
+    _cr(run_dir, "done", "--command", "fabrik-spec", "--evidence", "x", "--feedback", _SETUP_FB)
     time.sleep(1.1)
     _start_named(run_dir, "fabrik-plan-after-chat")
     start2 = _rec(run_dir)["started_epoch"]
@@ -3309,7 +3333,7 @@ def test_a_non_review_close_keeps_its_own_start(tmp_path: Path) -> None:
         "--evidence",
         "x",
         "--feedback",
-        _PROBE,
+        _SETUP_FB,
     )
     cov = _rec(run_dir)["covered"]
     assert cov[-1][0] == math.floor(start2), cov
@@ -3328,7 +3352,7 @@ def test_a_review_with_an_empty_ledger_starts_at_its_own_start(tmp_path: Path) -
         "--evidence",
         "x",
         "--feedback",
-        _PROBE,
+        _SETUP_FB,
     )
     cov = _rec(run_dir)["covered"]
     assert cov == [[math.floor(start), _rec(run_dir)["updated_ts"]]] and cov[0][0] > 0, cov
@@ -3352,10 +3376,17 @@ def test_a_nested_review_never_swallows_its_callers_later_edits(tmp_path: Path) 
         "--evidence",
         "x",
         "--feedback",
-        _PROBE,
+        _SETUP_FB,
     )
     _cr(
-        run_dir, "done", "--command", "fabrik-execute-plan", "--evidence", "x", "--feedback", _PROBE
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-execute-plan",
+        "--evidence",
+        "x",
+        "--feedback",
+        _SETUP_FB,
     )
     cov = sorted(_rec(run_dir)["covered"])
     assert cov[0][0] == math.floor(outer_start) and cov[1][0] == math.floor(inner_start), cov
@@ -3381,7 +3412,7 @@ def test_a_corrupt_bool_close_in_the_ledger_never_drags_a_review_window_to_the_e
         "--evidence",
         "x",
         "--feedback",
-        _PROBE,
+        _SETUP_FB,
     )
     cov = _rec(run_dir)["covered"]
     assert cov[-1][0] == math.floor(rec["started_epoch"]), cov
@@ -3408,7 +3439,7 @@ def test_a_blocked_review_close_never_reaches_back(tmp_path: Path) -> None:
     run_dir.mkdir()
     _start_named(run_dir, "fabrik-spec")
     time.sleep(1.1)
-    _cr(run_dir, "done", "--command", "fabrik-spec", "--evidence", "x", "--feedback", _PROBE)
+    _cr(run_dir, "done", "--command", "fabrik-spec", "--evidence", "x", "--feedback", _SETUP_FB)
     time.sleep(1.1)
     _start_named(run_dir, "fabrik-review-scoped")
     start = _rec(run_dir)["started_epoch"]
@@ -3420,7 +3451,7 @@ def test_a_blocked_review_close_never_reaches_back(tmp_path: Path) -> None:
         "--reason",
         "missing infra",
         "--feedback",
-        _PROBE,
+        _SETUP_FB,
     )
     cov = _rec(run_dir)["covered"]
     assert cov[-1][0] == math.floor(start), cov
@@ -3433,7 +3464,7 @@ def test_the_seed_recognises_a_reached_back_review_window(tmp_path: Path) -> Non
     run_dir.mkdir()
     _start_named(run_dir, "fabrik-spec")
     time.sleep(1.1)
-    _cr(run_dir, "done", "--command", "fabrik-spec", "--evidence", "x", "--feedback", _PROBE)
+    _cr(run_dir, "done", "--command", "fabrik-spec", "--evidence", "x", "--feedback", _SETUP_FB)
     time.sleep(1.1)
     _start_named(run_dir, "fabrik-review-scoped")
     time.sleep(1.1)
@@ -3445,7 +3476,7 @@ def test_the_seed_recognises_a_reached_back_review_window(tmp_path: Path) -> Non
         "--evidence",
         "x",
         "--feedback",
-        _PROBE,
+        _SETUP_FB,
     )
     n = len(_rec(run_dir)["covered"])
     _start_named(run_dir, "fabrik-plan-after-chat")

@@ -48,8 +48,13 @@ def test_a_run_started_before_the_cutoff_is_grandfathered():
 
 def test_an_unparseable_or_missing_timestamp_fails_open():
     """Never wedge a close on a record we cannot date — that traps an agent with no way out."""
-    for bad in ({}, {"started_at": ""}, {"started_at": "not-a-date"}, {"started_at": None},
-                {"started_at": "2026-08-28T00:00:00"}):  # naive: _parse_ts rejects it
+    for bad in (
+        {},
+        {"started_at": ""},
+        {"started_at": "not-a-date"},
+        {"started_at": None},
+        {"started_at": "2026-08-28T00:00:00"},
+    ):  # naive: _parse_ts rejects it
         assert cr._feedback_is_required(bad) is False, bad
 
 
@@ -58,8 +63,11 @@ def test_the_refusal_message_names_both_valid_verdicts(capsys, tmp_path, monkeyp
 
     Asserted on what the process actually PRINTS, not on the source text — a grep of the source
     passes even if the refusal never fires, which is the vacuity this suite exists to avoid."""
-    _run(monkeypatch, tmp_path, ["start", "--command", "fabrik-probe", "--phases", "1",
-                                 "--terminal", "t"])
+    _run(
+        monkeypatch,
+        tmp_path,
+        ["start", "--command", "fabrik-probe", "--phases", "1", "--terminal", "t"],
+    )
     _run(monkeypatch, tmp_path, ["done", "--command", "fabrik-probe", "--evidence", "e"])
     printed = capsys.readouterr().out
     assert "--feedback 'filed" in printed, printed
@@ -71,7 +79,7 @@ def test_the_stop_hook_blocks_on_the_state_a_refused_close_leaves_behind():
     """The refusal has teeth only because the record stays `running` and the Stop hook keys on
     exactly that. If this coupling ever breaks, the refusal degrades to a printed complaint."""
     hook = (REPO / ".claude" / "hooks" / "final_gate_stop.py").read_text(encoding="utf-8")
-    assert 'state' in hook and '"running"' in hook
+    assert "state" in hook and '"running"' in hook
 
 
 def test_a_verdict_of_none_satisfies_the_requirement():
@@ -84,10 +92,16 @@ def test_whitespace_only_feedback_does_not_satisfy_it(monkeypatch, tmp_path):
     """A verdict of spaces is silence with extra steps. Exercised through the real close — the
     previous version of this test asserted a re-implementation of the production expression
     against a stub object, so it would have passed with the `.strip()` removed."""
-    _run(monkeypatch, tmp_path, ["start", "--command", "fabrik-probe", "--phases", "1",
-                                 "--terminal", "t"])
-    rc = _run(monkeypatch, tmp_path, ["done", "--command", "fabrik-probe", "--evidence", "e",
-                                      "--feedback", "   "])
+    _run(
+        monkeypatch,
+        tmp_path,
+        ["start", "--command", "fabrik-probe", "--phases", "1", "--terminal", "t"],
+    )
+    rc = _run(
+        monkeypatch,
+        tmp_path,
+        ["done", "--command", "fabrik-probe", "--evidence", "e", "--feedback", "   "],
+    )
     assert rc == 1
     rec = json.loads(next(tmp_path.glob("*.json")).read_text(encoding="utf-8"))
     assert rec["state"] == "running", rec
@@ -97,20 +111,42 @@ def test_handoff_owes_a_verdict_too(monkeypatch, tmp_path):
     """The third close, and the one the certification gauntlets MANDATE — /fabrik-user-test and
     /fabrik-service-test close NOT-QUIET runs this way, so it is the disposition most likely to
     carry machinery friction, and it was the branch with no test."""
-    _run(monkeypatch, tmp_path, ["start", "--command", "fabrik-probe", "--phases", "1",
-                                 "--terminal", "t"])
-    rc = _run(monkeypatch, tmp_path, ["handoff", "--command", "fabrik-probe", "--reason", "r",
-                                      "--resume", "docs/x.md"])
+    _run(
+        monkeypatch,
+        tmp_path,
+        ["start", "--command", "fabrik-probe", "--phases", "1", "--terminal", "t"],
+    )
+    rc = _run(
+        monkeypatch,
+        tmp_path,
+        ["handoff", "--command", "fabrik-probe", "--reason", "r", "--resume", "docs/x.md"],
+    )
     assert rc == 1
     rec = json.loads(next(tmp_path.glob("*.json")).read_text(encoding="utf-8"))
     assert rec["state"] == "running", rec
 
 
 def test_handoff_with_a_verdict_closes_and_releases_the_stop_hook(monkeypatch, tmp_path):
-    _run(monkeypatch, tmp_path, ["start", "--command", "fabrik-probe", "--phases", "1",
-                                 "--terminal", "t"])
-    rc = _run(monkeypatch, tmp_path, ["handoff", "--command", "fabrik-probe", "--reason", "r",
-                                      "--resume", "docs/x.md", "--feedback", "none — swept it"])
+    _run(
+        monkeypatch,
+        tmp_path,
+        ["start", "--command", "fabrik-probe", "--phases", "1", "--terminal", "t"],
+    )
+    rc = _run(
+        monkeypatch,
+        tmp_path,
+        [
+            "handoff",
+            "--command",
+            "fabrik-probe",
+            "--reason",
+            "r",
+            "--resume",
+            "docs/x.md",
+            "--feedback",
+            "confusion: none · waste: none · change: none · filed: none — swept it",
+        ],
+    )
     assert rc == 0
     rec = json.loads(next(tmp_path.glob("*.json")).read_text(encoding="utf-8"))
     assert rec["state"] == "handoff" and rec["feedback"] == "none", rec
@@ -128,8 +164,11 @@ def _run(monkeypatch, tmp_path, argv: list[str], *, sid: str = "s1") -> int:
 def test_done_without_feedback_is_refused_and_the_record_stays_running(monkeypatch, tmp_path):
     """The behaviour the whole change exists for. `running` is load-bearing: it is what the Stop
     hook blocks the turn on, so a refused close is a blocked turn, not a printed suggestion."""
-    _run(monkeypatch, tmp_path, ["start", "--command", "fabrik-probe", "--phases", "1",
-                                 "--terminal", "t"])
+    _run(
+        monkeypatch,
+        tmp_path,
+        ["start", "--command", "fabrik-probe", "--phases", "1", "--terminal", "t"],
+    )
     rc = _run(monkeypatch, tmp_path, ["done", "--command", "fabrik-probe", "--evidence", "e"])
     assert rc == 1, "a close with no verdict must be refused"
     rec = json.loads(next(tmp_path.glob("*.json")).read_text(encoding="utf-8"))
@@ -138,10 +177,24 @@ def test_done_without_feedback_is_refused_and_the_record_stays_running(monkeypat
 
 
 def test_done_with_feedback_closes_normally(monkeypatch, tmp_path):
-    _run(monkeypatch, tmp_path, ["start", "--command", "fabrik-probe", "--phases", "1",
-                                 "--terminal", "t"])
-    rc = _run(monkeypatch, tmp_path, ["done", "--command", "fabrik-probe", "--evidence", "e",
-                                      "--feedback", "filed a corpus defect to infra"])
+    _run(
+        monkeypatch,
+        tmp_path,
+        ["start", "--command", "fabrik-probe", "--phases", "1", "--terminal", "t"],
+    )
+    rc = _run(
+        monkeypatch,
+        tmp_path,
+        [
+            "done",
+            "--command",
+            "fabrik-probe",
+            "--evidence",
+            "e",
+            "--feedback",
+            "confusion: none · waste: none · change: none · filed: filed a corpus defect to infra",
+        ],
+    )
     assert rc == 0
     rec = json.loads(next(tmp_path.glob("*.json")).read_text(encoding="utf-8"))
     assert rec["state"] == "done" and rec["feedback"] == "filed"
@@ -149,8 +202,11 @@ def test_done_with_feedback_closes_normally(monkeypatch, tmp_path):
 
 def test_blocked_owes_a_verdict_too(monkeypatch, tmp_path):
     """A halted run has MORE to report about the machinery, not less."""
-    _run(monkeypatch, tmp_path, ["start", "--command", "fabrik-probe", "--phases", "1",
-                                 "--terminal", "t"])
+    _run(
+        monkeypatch,
+        tmp_path,
+        ["start", "--command", "fabrik-probe", "--phases", "1", "--terminal", "t"],
+    )
     rc = _run(monkeypatch, tmp_path, ["blocked", "--command", "fabrik-probe", "--reason", "r"])
     assert rc == 1
 
@@ -164,7 +220,9 @@ def test_bare_none_refused_substance_floor():
     assert cr._feedback_lacks_substance("nothing")
     assert cr._feedback_lacks_substance("none — x")  # decoration + noise is still bare
     assert not cr._feedback_lacks_substance("none — swept it")  # terse but real
-    assert not cr._feedback_lacks_substance("none — surfaces exercised: mail.py send seam, rubric derivation")
+    assert not cr._feedback_lacks_substance(
+        "none — surfaces exercised: mail.py send seam, rubric derivation"
+    )
     assert not cr._feedback_lacks_substance("filed the stale-twin finding to infra (01M1XXXX)")
 
 

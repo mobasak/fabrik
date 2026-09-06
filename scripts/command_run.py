@@ -821,6 +821,57 @@ _VACUOUS_WORDS = frozenset(
     {"nothing", "here", "to", "report", "at", "all", "really", "else", "new", "found"}
 )
 
+# ── Structured USAGE feedback (D-175, operator's 6th ask 2026-09-07) ───────────────────────────
+# The filing verdict above answers "what did you mail?"; five asks later the operator still could
+# not see how a COMMAND behaved — how long, how many rounds, what confused, what burned tokens,
+# what to change. So every close of a run started after this cutoff carries FOUR labelled
+# fields; the close refuses anything else, the record auto-captures wall-clock and rounds, a row
+# lands in the fleet-wide ledger (`command-feedback.jsonl` beside the run-record dir), and the
+# exact FEEDBACK: line is printed for the FINAL OUTPUT block. `cost:` is optional (pool dollars).
+_USAGE_REQUIRED_FROM = dt.datetime(2026, 9, 6, 21, 0, tzinfo=dt.UTC)  # 2026-09-07 00:00 local
+_USAGE_FIELDS = ("confusion", "waste", "change", "filed")
+_USAGE_LABEL_RE = re.compile(r"(?<![\w-])(confusion|waste|change|filed|cost)\s*:", re.I)
+_USAGE_GRAMMAR = (
+    "confusion: <what in the command text was ambiguous or misleading | none> · "
+    "waste: <steps/turns/tokens spent without changing the outcome | none> · "
+    "change: <the ONE concrete edit to the command/rule that would have made this run faster "
+    "or more accurate | none> · filed: <mail id(s) to <infra|fleet|intel> | none — surfaces "
+    "exercised: <what your run touched>> [· cost: <pool $>]"
+)
+
+
+def _usage_is_required(rec: dict[str, Any]) -> bool:
+    started = _parse_ts(str(rec.get("started_at") or ""))
+    return started is not None and started >= _USAGE_REQUIRED_FROM
+
+
+def _parse_usage_feedback(text: str) -> tuple[dict[str, str], list[str]]:
+    """Split a FEEDBACK line into its labelled fields. Returns (fields, missing) — `missing`
+    names every required label that is absent OR empty, so the refusal can say which."""
+    fields: dict[str, str] = {}
+    marks = list(_USAGE_LABEL_RE.finditer(text or ""))
+    for i, m in enumerate(marks):
+        end = marks[i + 1].start() if i + 1 < len(marks) else len(text)
+        value = text[m.end() : end].strip().strip("·|;,").strip()
+        fields[m.group(1).lower()] = value
+    missing = [f for f in _USAGE_FIELDS if not fields.get(f)]
+    return fields, missing
+
+
+def _feedback_ledger_path() -> Path:
+    return _state_dir().parent / "command-feedback.jsonl"
+
+
+def _feedback_line(rec: dict[str, Any], fields: dict[str, str], wall_s: float) -> str:
+    rounds = rec.get("rounds") or []
+    trend = "→".join(str(int(r.get("findings", 0))) for r in rounds)
+    mins = f"{wall_s / 60:.0f} min" if wall_s >= 90 else f"{wall_s:.0f} s"
+    head = f"FEEDBACK: /{rec.get('command')} · {mins} · rounds {len(rounds)}"
+    if trend:
+        head += f" ({trend})"
+    tail = " · ".join(f"{k}: {fields[k]}" for k in (*_USAGE_FIELDS, "cost") if fields.get(k))
+    return f"{head} · {tail}"
+
 
 def _feedback_lacks_substance(text: str) -> bool:
     """D-036 substance floor (operator, 2026-08-30 — the 5th ask, first MECHANICAL one):
@@ -1511,15 +1562,29 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         sys.stderr.write(f"[command_run] {msg}\n")
         print(msg)
         return 1
-    if _feedback_is_required(rec) and _feedback_lacks_substance(
-        str(getattr(args, "feedback", "") or "")
-    ):
+    _fb_text = str(getattr(args, "feedback", "") or "")
+    _usage_fields, _usage_missing = _parse_usage_feedback(_fb_text)
+    if _usage_is_required(rec) and _usage_missing:
+        msg = (
+            f"REFUSED — closing /{live} needs the STRUCTURED usage feedback (D-175): "
+            f"missing or empty: {', '.join(f + ':' for f in _usage_missing)}. The line describes "
+            "how the COMMAND behaved this run, so the corpus can be optimised for fewer rounds, "
+            "less confusion and fewer tokens:\n  --feedback '" + _USAGE_GRAMMAR + "'\n"
+            "Wall-clock and the round count are captured for you; write the four fields."
+        )
+        sys.stderr.write(f"[command_run] {msg}\n")
+        print(msg)
+        return 1
+    # the filing verdict is graded on the `filed:` field when the line is structured, on the
+    # whole line for a pre-cutoff record
+    _filed_text = _usage_fields.get("filed", "") if _usage_is_required(rec) else _fb_text
+    if _feedback_is_required(rec) and _feedback_lacks_substance(_filed_text):
         msg = (
             f"REFUSED — a bare 'none' is byte-equivalent to the silence this field exists to end "
-            f"(D-036 substance floor). Close /{live} with either:\n"
-            "  a filing:          --feedback 'filed <what> to <infra|fleet|intel> (<id>)'\n"
-            "  a substantive none: --feedback 'none — surfaces exercised: <what your run actually "
-            "touched of the machinery>'\n"
+            f"(D-036 substance floor). Close /{live} with the filed: field as either:\n"
+            "  a filing:          filed: <what> to <infra|fleet|intel> (<id>)\n"
+            "  a substantive none: filed: none — surfaces exercised: <what your run actually "
+            "touched of the machinery>\n"
             "Name the surfaces so the reader knows what your 'nothing' covers."
         )
         sys.stderr.write(f"[command_run] {msg}\n")
@@ -1587,7 +1652,9 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             if w not in joined:
                 joined.append(w)
         parent["covered"] = joined
-    _fb_verdict, _fb_beats = _feedback_verdict(getattr(args, "feedback", None))
+    _fb_verdict, _fb_beats = _feedback_verdict(
+        _filed_text if getattr(args, "feedback", None) is not None else None
+    )
     # On the RECORD as well as the event: the event stream is box-local telemetry, while the record
     # is what a per-run check can read. The verdict token AND the prose are both stored (D-055,
     # operator's 5th ask 2026-08-31): the token is for graders; the PROSE is the report the
@@ -1621,6 +1688,34 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             "resumed_rounds": len((parent or {}).get("rounds") or []),
         },
     )
+    # ── the fleet-wide usage ledger + the FINAL OUTPUT line (D-175) ─────────────────────────
+    _wall_s = 0.0
+    _se = _finite_ts(rec.get("started_epoch"))
+    if _se is not None:
+        _wall_s = max(0.0, time.time() - _se)
+    if _usage_fields:
+        _row = {
+            "ts": time.time(),
+            "sid": sid,
+            "repo": str(rec.get("repo_root") or ""),
+            "command": rec.get("command"),
+            "state": args.cmd,
+            "wall_s": round(_wall_s, 1),
+            "rounds": len(rec.get("rounds") or []),
+            "findings": [int(r.get("findings", 0)) for r in rec.get("rounds") or []],
+            "phases": rec.get("phases"),
+            "phase_reached": rec.get("phase"),
+            **{k: _usage_fields.get(k, "") for k in (*_USAGE_FIELDS, "cost")},
+        }
+        try:
+            _lp = _feedback_ledger_path()
+            _lp.parent.mkdir(parents=True, exist_ok=True)
+            with _lp.open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps(_row, ensure_ascii=False) + "\n")
+        except OSError as exc:  # the ledger never blocks a close; the record still carries it
+            sys.stderr.write(f"[command_run] usage ledger not written: {exc}\n")
+        rec["usage"] = {k: _row[k] for k in ("wall_s", "rounds", *_USAGE_FIELDS)}
+        print(_feedback_line(rec, _usage_fields, _wall_s))
     if parent is not None:
         closed = {k: v for k, v in rec.items() if k != "stack"}
         parent["stack"] = stack

@@ -3575,14 +3575,41 @@ def test_force_dash_still_spares_the_analyst() -> None:
 
 def test_derivation_counts_the_three_feedback_verdicts(tmp_path: Path) -> None:
     lines = [
-        _line("s1", "run_close", "2026-08-18T10:00:00.000+00:00", verdict="done",
-              evidence_hash="h", feedback="filed", feedback_to=["intel"]),
-        _line("s1", "run_close", "2026-08-18T11:00:00.000+00:00", verdict="done",
-              evidence_hash="h", feedback="none", feedback_to=[]),
-        _line("s1", "run_close", "2026-08-18T12:00:00.000+00:00", verdict="done",
-              evidence_hash="h", feedback="unstated", feedback_to=[]),
-        _line("s1", "run_close", "2026-08-18T13:00:00.000+00:00", verdict="blocked",
-              feedback="filed", feedback_to=["fleet", "infra"]),
+        _line(
+            "s1",
+            "run_close",
+            "2026-08-18T10:00:00.000+00:00",
+            verdict="done",
+            evidence_hash="h",
+            feedback="filed",
+            feedback_to=["intel"],
+        ),
+        _line(
+            "s1",
+            "run_close",
+            "2026-08-18T11:00:00.000+00:00",
+            verdict="done",
+            evidence_hash="h",
+            feedback="none",
+            feedback_to=[],
+        ),
+        _line(
+            "s1",
+            "run_close",
+            "2026-08-18T12:00:00.000+00:00",
+            verdict="done",
+            evidence_hash="h",
+            feedback="unstated",
+            feedback_to=[],
+        ),
+        _line(
+            "s1",
+            "run_close",
+            "2026-08-18T13:00:00.000+00:00",
+            verdict="blocked",
+            feedback="filed",
+            feedback_to=["fleet", "infra"],
+        ),
     ]
     row = kc.derive_session(_session(tmp_path / "ev", "s1", lines))
     assert row is not None
@@ -3596,7 +3623,9 @@ def test_a_run_close_with_no_feedback_field_counts_as_unstated(tmp_path: Path) -
     """Every run_close predating the field is `unstated` — which is TRUE of them: no verdict was
     ever given. Defaulting them to `none` would manufacture diligence retroactively."""
     lines = [
-        _line("s1", "run_close", "2026-08-18T10:00:00.000+00:00", verdict="done", evidence_hash="h"),
+        _line(
+            "s1", "run_close", "2026-08-18T10:00:00.000+00:00", verdict="done", evidence_hash="h"
+        ),
     ]
     row = kc.derive_session(_session(tmp_path / "ev", "s1", lines))
     assert row is not None
@@ -3607,8 +3636,14 @@ def test_a_run_close_with_no_feedback_field_counts_as_unstated(tmp_path: Path) -
 def test_an_unknown_feedback_value_is_counted_as_an_instrument_defect(tmp_path: Path) -> None:
     """M8 shape: a present-but-malformed value is a defect to COUNT, never silently bucketed."""
     lines = [
-        _line("s1", "run_close", "2026-08-18T10:00:00.000+00:00", verdict="done",
-              evidence_hash="h", feedback="probably?"),
+        _line(
+            "s1",
+            "run_close",
+            "2026-08-18T10:00:00.000+00:00",
+            verdict="done",
+            evidence_hash="h",
+            feedback="probably?",
+        ),
     ]
     row = kc.derive_session(_session(tmp_path / "ev", "s1", lines))
     assert row is not None
@@ -3638,7 +3673,7 @@ def test_the_whole_feedback_chain_connects_end_to_end(tmp_path: Path) -> None:
     ev.mkdir()
     runs.mkdir()
 
-    def _run(sid: str, *extra: str) -> None:
+    def _run(sid: str, *extra: str, backdate: bool = False) -> None:
         env = {
             "PATH": "/usr/bin:/bin",
             "KAIZEN_EVENTS_DIR": str(ev),
@@ -3649,14 +3684,34 @@ def test_the_whole_feedback_chain_connects_end_to_end(tmp_path: Path) -> None:
             ("start", "--command", "p", "--phases", "1", "--terminal", "t"),
             ("done", "--command", "p", "--evidence", "e", *extra),
         ):
+            if args[0] == "done" and backdate:
+                # a close with NO verdict is REFUSED for any run started after the feedback
+                # cutoff (command_run.py `_FEEDBACK_REQUIRED_FROM`), so the `unstated` path is
+                # only reachable for a grandfathered record — age it, as test_command_run's
+                # `_backdate` does, instead of asserting a close the tool no longer performs
+                f = runs / f"{sid}.json"
+                rec = json.loads(f.read_text(encoding="utf-8"))
+                rec["started_at"] = "2026-08-01T00:00:00+00:00"
+                f.write_text(json.dumps(rec), encoding="utf-8")
             subprocess.run(
                 [sys.executable, str(REPO / "scripts" / "command_run.py"), *args],
-                env=env, capture_output=True, text=True, check=False,
+                env=env,
+                capture_output=True,
+                text=True,
+                check=False,
             )
 
-    _run("chain-a", "--feedback", "filed 01M11 to intel")
-    _run("chain-b", "--feedback", "none - swept the router")
-    _run("chain-c")  # no --feedback at all -> unstated
+    _run(
+        "chain-a",
+        "--feedback",
+        "confusion: none · waste: none · change: none · filed: filed 01M11 to intel",
+    )
+    _run(
+        "chain-b",
+        "--feedback",
+        "confusion: none · waste: none · change: none · filed: none - swept the router",
+    )
+    _run("chain-c", backdate=True)  # no --feedback at all -> unstated (grandfathered)
 
     rows = [r for r in (kc.derive_session(f) for f in sorted(ev.glob("*.jsonl"))) if r]
     assert len(rows) == 3, rows
@@ -3680,8 +3735,15 @@ def test_a_handoff_close_is_a_sanctioned_verdict_not_an_unknown_one(tmp_path: Pa
     would make every NOT-QUIET close land as `unknown-run_close-verdict` — dropped from derivation
     entirely, taking its feedback counters with it. The enum and its consumer move together."""
     lines = [
-        _line("s1", "run_close", "2026-08-18T10:00:00.000+00:00", verdict="handoff",
-              resume="docs/x/ledger.md", feedback="filed", feedback_to=["infra"]),
+        _line(
+            "s1",
+            "run_close",
+            "2026-08-18T10:00:00.000+00:00",
+            verdict="handoff",
+            resume="docs/x/ledger.md",
+            feedback="filed",
+            feedback_to=["infra"],
+        ),
     ]
     row = kc.derive_session(_session(tmp_path / "ev", "s1", lines))
     assert row is not None

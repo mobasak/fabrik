@@ -206,6 +206,42 @@ accepted fail-safe; it costs an adoption, never a wrong one). Refusing is not a 
 becomes visible in the `unknown` stream as N distinct cwds mutating one record, which is the
 measurement the flag exists for.
 
+## Close-out USAGE feedback — the four fields, the ledger, the report
+
+Every close (`done` / `blocked` / `handoff`) of a run started on or after 2026-09-07 must carry a
+STRUCTURED usage report in `--feedback` (D-175, the operator's sixth ask — five earlier asks
+produced filing-shaped verdicts, "what did you mail", while nothing recorded how the COMMAND itself
+behaved). The four labelled fields, all required, any of them `none` but never empty:
+
+```
+confusion: <what in the command text was ambiguous or misleading | none>
+waste:     <steps, turns or tokens spent without changing the outcome | none>
+change:    <the ONE concrete edit to the command or a rule that would have made this run faster or more accurate | none>
+filed:     <mail id(s) to infra|fleet|intel | none — surfaces exercised: <what the run touched>>
+cost:      <pool dollars>                                                    (optional)
+```
+
+- `command_run.py` REFUSES a close missing any field or leaving one empty (`_parse_usage_feedback`,
+  `_USAGE_REQUIRED_FROM`); the record stays `running`, which the Stop hook blocks the turn on.
+  The D-036 substance floor now grades the `filed:` field (a bare `filed: none` is refused; a
+  `none — surfaces exercised: …` or a filing with its id passes), and the kaizen filing verdict
+  (`filed` / `none` / `unstated`) is classified from that field alone.
+- **Auto-captured:** wall-clock (`now − started_epoch`), the round count and the findings trend, the
+  phase reached. The close prints the finished line — `FEEDBACK: /<command> · <wall> · rounds <n>
+  (<trend>) · confusion: … · waste: … · change: … · filed: …` — which IS the FINAL OUTPUT block's
+  seventh line; paste it.
+- **The ledger:** one JSON row per close appended to `~/.claude/state/command-feedback.jsonl`
+  (`COMMAND_RUN_DIR`'s parent when that is set), box-wide across every repo whose `command_run.py`
+  is current (fleet-synced; fabrik-lib pulls). Fields: `ts sid repo command state wall_s rounds
+  findings phases phase_reached confusion waste change filed cost`.
+- **The report:** `python3 scripts/command_feedback_report.py [--since DAYS] [--command NAME]
+  [--json]` — per command: runs, done/blocked, median and max wall-clock, median rounds, how many
+  runs said `change: none`; then the optimisation backlog — every distinct `change:` item with its
+  recurrence count, and the `confusion:` and `waste:` items. This is what the corpus is optimised
+  from: a `change:` that recurs across runs is a command edit waiting to be made.
+- Pre-cutoff records keep the old grammar (the duty binds forward, never retroactively — the same
+  fail-open the `_FEEDBACK_REQUIRED_FROM` cutoff has always had).
+
 ## Enforcement — the Stop hook's fifth cause
 
 `.claude/hooks/final_gate_stop.py` had four causes (gate red · own uncommitted · own unpushed ·

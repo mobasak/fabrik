@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Close-out feedback is now a structured USAGE report, enforced at every close, with a fleet-wide ledger and a per-command optimisation report (2026-09-07)
+- **Why (D-175, the operator's 6th ask):** five asks produced filing-shaped verdicts ("what did you mail") — 7 of the last 17 closes on this box started with `none` — while nothing recorded how a COMMAND behaved: how long, how many rounds, what confused, what burned tokens, what to change.
+- **`scripts/command_run.py` (fleet-synced):** `done|blocked|handoff` of a run started on or after 2026-09-07 REFUSES a `--feedback` missing any of the four labelled fields `confusion:` `waste:` `change:` `filed:` (or leaving one empty); the D-036 substance floor grades the `filed:` field; wall-clock, rounds and the findings trend are captured automatically; a row is appended to `~/.claude/state/command-feedback.jsonl`; the finished `FEEDBACK:` line is printed for the FINAL OUTPUT block. Pre-cutoff records keep the old grammar. Five red-first tests in `tests/test_command_feedback.py`; the harness and every close in the existing suites moved to the new grammar (483 pass across the eight affected suites).
+- **`scripts/command_feedback_report.py` (new):** per command, runs / done-blocked / median and max wall-clock / median rounds / `change: none` share, then the recurring `change:`, `confusion:` and `waste:` items — the corpus optimisation backlog; `--since`, `--command`, `--json`, every count with its denominator.
+- **Contracts and corpus:** `commands/_fragments/close-feedback.md` (auto-appended to every command), the hub `CLAUDE.md` and `templates/governance/CLAUDE.md` state the four-field grammar and the seventh line's shape; corpus re-rendered from the main checkout. fabrik-lib's hand-maintained copies requested by mail.
+- **`docs/reference/agent-machinery-map.md` (new):** everything that acts on a repo's coding agent, grouped by when it acts — the inventory the operator asked for twice.
+
 ### Added — the fleet quota picture: every agent in every repo can query the whole rotation state (2026-09-07)
 
 Operator directive: "all agents (in fabrik-lib, opt project folders, fabrik's 3 agents) should be able to reach/query
