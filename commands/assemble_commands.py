@@ -218,8 +218,10 @@ def _floor(kind: str, native: str) -> str:
     # The pool form ("pool breadth AND ≥1 native Opus") is kept in git history for re-enable.
     return (
         f" **⚠️ Floor — every {kind} dispatches ≥1 native {native} on Opus as the authoritative pass** "
-        f"(Opus-only is still not a substantial {kind}: add 1–2 Sonnet seats for breadth, each briefed on a "
-        f"different failure-class subset) **plus your own Opus decide/refute/merge.**"
+        f"(Opus-only is still not a substantial {kind}) **plus ONE Sonnet seat per INDEPENDENT unit of "
+        f"the surface** — failure class · file · screen · doc · journey · fact — **all dispatched in ONE "
+        f"message so they run in parallel: 4–8 seats on a substantial surface, never a token 1–2; the cap "
+        f"is independence, not a number (D-186)** **plus your own Opus decide/refute/merge.**"
     )
 
 

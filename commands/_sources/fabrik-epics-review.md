@@ -242,7 +242,7 @@ is always injected); this raises compliance probability — it does **not** make
 
 Dispatch native seats — **two** layers (`core/62-using-subagents.md` § Dispatch policy; the pool is OFF, D-181):
 
-- **Breadth** — 1–2 native `fabrik-reviewer` seats on Sonnet, one lens each. <!-- POOL OFF (D-181): **Pool breadth** — `fanout("review", units, repo=…, project="mega-review", mode="read_only")` picks
+- **Breadth** — one native `fabrik-reviewer` seat on Sonnet PER LENS, all dispatched in one message: the lens count is the seat count (D-186), never a token 1–2. <!-- POOL OFF (D-181): **Pool breadth** — `fanout("review", units, repo=…, project="mega-review", mode="read_only")` picks
   family-diverse, flywheel-ranked review models (no default price cap) and auto-records each run to the
   flywheel. ⚠️ **Passing `project=` is what makes it record** — omit it and you land zero flywheel rows.
   After you adjudicate, back-fill your 0–5 verdict with
@@ -515,7 +515,7 @@ A route-back instead hands to `/fabrik-epics` or `/fabrik-vision` and re-enters 
 - Every epic carries exactly one `owner` ∈ the operator's set, proven by `--check --owners <names>`
   BEFORE any lens ran; the set's order (agent-1 first) recorded in the report, and the merge-owner
   ledger row present or minted (`decisions.py --merge-owner .` ≠ `UNDECLARED`).
-- Review dispatched as native seats — **1–2 Sonnet `fabrik-reviewer` seats AND ≥1
+- Review dispatched as native seats — **one Sonnet `fabrik-reviewer` seat per lens (D-186) AND ≥1
   native `fabrik-reviewer` on Opus** (the pool is OFF, D-181) — across every report lens, with the orchestrator refuting / merging
   / deciding.
 - Feature coverage (delta + `R`-prefixed alike), ticket structure (incl. all 5 `Dependencies` sub-bullets

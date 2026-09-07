@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — fan-out is sized by the surface's independent units, never by a fixed 1–2 seats (D-186, 2026-09-08)
+
+- Operator ruling: *"i want each command dispatch maximum count of viable and useful subagents not 1 or 2."*
+  The corpus capped breadth at "1–2 Sonnet seats" in 13 places, the widest being `assemble_commands.py::_floor()`,
+  which renders that cap into every command carrying the subagents fragment. The rule is now: partition the
+  surface into INDEPENDENT units (failure class · file · screen · doc · pack · journey · fact · behaviour),
+  dispatch ONE seat per unit **in a single message** so they run in parallel — 4–8 on a substantial surface —
+  with ≥1 Opus authoritative seat still the floor and independence, not a number, as the cap.
+- Swept all 36 commands, 4 agent definitions, both CLAUDE.md contracts and `core/62`: 13 fixed-count sites
+  raised; `fabrik-data-contract` and `fabrik-deploy-checklist` prescribed a fan-out but named no seat TYPE
+  (now `general-purpose`); 9 commands stay deliberately serial and the ledger row says why for each.
+
 ### Fixed — `fabrik-reviewer` was not a registerable agent type: a blank line inside its YAML frontmatter (2026-09-08)
 
 - `commands/_agents/fabrik-reviewer.md` — the `description:` scalar had grown a second PARAGRAPH; a blank

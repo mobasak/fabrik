@@ -1,5 +1,5 @@
 ---
-description: Generate Behavior-Contract tests for a target (module/dir/file, or a phase's Behavior Contract) with native Claude seats (the pool is OFF, D-181) — suggest (2–3 seats) → YOU curate → author in parallel (one seat per behavior, self-verified) → YOU review test-quality → git apply survivors. Standalone (backfill a suite), or auto-called by /fabrik-execute-plan per phase (its Execution Loop and dispatcher D4) and cited by /fabrik-plan-review as what a test-light plan owes; /fabrik-review renders the same shared fragment rather than copying it. TRIGGER — EN: "write tests for this", "backfill test coverage"; TR: "bunun için test yaz", "test kapsamını tamamla" — fires for AUTHORING new tests, not reviewing code. SKIP: adversarial code review (→ /fabrik-review) or full phase execution (→ /fabrik-execute-plan). Stage: 4-build.
+description: Generate Behavior-Contract tests for a target (module/dir/file, or a phase's Behavior Contract) with native Claude seats (the pool is OFF, D-181) — suggest (one seat per module/area) → YOU curate → author in parallel (one seat per behavior, self-verified) → YOU review test-quality → git apply survivors. Standalone (backfill a suite), or auto-called by /fabrik-execute-plan per phase (its Execution Loop and dispatcher D4) and cited by /fabrik-plan-review as what a test-light plan owes; /fabrik-review renders the same shared fragment rather than copying it. TRIGGER — EN: "write tests for this", "backfill test coverage"; TR: "bunun için test yaz", "test kapsamını tamamla" — fires for AUTHORING new tests, not reviewing code. SKIP: adversarial code review (→ /fabrik-review) or full phase execution (→ /fabrik-execute-plan). Stage: 4-build.
 argument-hint: "<module|dir|file to test — or a phase's Behavior Contract; omit to infer the behaviors from the current diff>"
 ---
 
@@ -58,8 +58,8 @@ The `###` sections below are the per-step DETAIL for exactly those five steps, a
 `/fabrik-review` renders too — it is the ONE place the shape is defined. **Edit the fragment, not the
 copy**, or the reviewer's view of this pipeline silently stops matching the pipeline.
 
-### 1. Suggest (native, 2–3 seats — diversity of briefs is the whole point)
-Dispatch **2–3 native seats (Sonnet), each with a differently-angled brief,** to each propose the distinct user-observable behaviors of the target, then
+### 1. Suggest (native — one seat per module/area of the target; diversity of briefs is the whole point)
+Dispatch **one native seat (Sonnet) per module/area of the target, each with a differently-angled brief** — 3+ on anything larger than a single file, never a token 2 (D-186) — to each propose the distinct user-observable behaviors of the target, then
 **union** them (a single suggester is the blind spot — different families catch what one misses):
 
 <!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:

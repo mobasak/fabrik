@@ -64,8 +64,10 @@ proportionate answer.
    and a hub run whose five rounds each found exactly one real defect found every one of them
    through the independent layer — including a commit whose comment AND message both described a
    redirect that was never added, which two self-sweeps had read straight past.
-   **The floor is ONE reader, not the heavy command's breadth** — that is what keeps this light:
-   a single native `fabrik-reviewer` (Sonnet) over the diff — and on a non-trivial diff pass the SAME brief to 2–3 native seats and adjudicate the union (measured on one diff: 1 seat found 0, 3 seats found 0 / 5 / 0, and the 5 held a real fail-open two self-sweeps had read past — web-ecommerce-factory 01M1RAAX, 2026-09-05). It must have RETURNED: a seat that was dispatched and died is not a reader, and its absence is not a clean round. The pool form of this floor is kept below for re-enable (D-181):
+   **The floor is 2–3 readers, not the heavy command's full class partition** — that is what keeps this
+   light: native `fabrik-reviewer` seats (Sonnet) over the diff sharing ONE brief, dispatched in a single
+   message and adjudicated as a union (D-186 — a lone reader is not a round; this command's own
+   measurement is why) (measured on one diff: 1 seat found 0, 3 seats found 0 / 5 / 0, and the 5 held a real fail-open two self-sweeps had read past — web-ecommerce-factory 01M1RAAX, 2026-09-05). It must have RETURNED: a seat that was dispatched and died is not a reader, and its absence is not a clean round. The pool form of this floor is kept below for re-enable (D-181):
 <!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
    a read-only `fanout("review", …, mode="read_only")` over the diff (cents, no Claude quota, and it
    records to the flywheel) or a single native `fabrik-reviewer`. It must have RETURNED: a finder

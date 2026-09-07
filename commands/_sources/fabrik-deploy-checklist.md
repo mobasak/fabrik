@@ -79,7 +79,8 @@ Record every derivation as the COMMAND that produced it and its COUNT (`routes: 
 `services: 4 + 1 sidecar` · `env keys: 32 distinct over 49 sites`). A count without its command is a
 claim.
 
-**Parallelism — the default with 2+ derivation surfaces:** one native grounder per surface (routes · jobs ·
+**Parallelism — the default with 2+ derivation surfaces:** one native `general-purpose` grounder per surface, all
+dispatched in ONE message — the surface count IS the seat count (D-186) (routes · jobs ·
 env · services · schema) per § Subagents; the exclusion-set judgement and every DEV measurement stay
 native — they read the project's own environment.
 

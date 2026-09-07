@@ -85,7 +85,8 @@ constraints; OPEN the file and read them. Assemble the inventory from both direc
   surface them, don't paper over them.
 
 **Parallelism — the DEFAULT for multi-surface reconciliation.** With **2+ entities or reconciliation surfaces**,
-dispatch one INDEPENDENT native seat per surface (schema · API/request models · frontend forms) or per entity
+dispatch one INDEPENDENT native `general-purpose` seat per surface (schema · API/request models · frontend
+forms) or per entity — the surface count IS the seat count (D-186), all in ONE message
 (recipe in **§ Subagents** below), each briefed to READ the repo itself; then merge +
 **REFUTE** any mapping you can disprove by quoting the contradicting `path:line` before recording it. A
 single-surface project grounds solo. Enumerate what you actually read — an empty inventory with no evidence
