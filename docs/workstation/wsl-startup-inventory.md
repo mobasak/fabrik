@@ -17,7 +17,17 @@
 | `openvpn.service` | VPN tunnel |
 | `fabrik-mcp-http` · `fabrik-citation-verifier-mcp` · `fabrik-citation-verifier` · `citation-verifier` | Fabrik MCP + citation services |
 | `fabrik-dr-watcher` · `env-watcher` | Fabrik watchers |
-| `emailgateway` · `namecheap-api` · `image-broker` · `captcha` · `seo` · `webscraper-ui` | Project microservices |
+| `seo` | Project microservice |
+
+**⚠️ DISABLED 2026-09-08 — five units were restart-looping against projects that no longer exist.**
+`namecheap-api` · `image-broker` · `captcha` (all three archived to `/opt/archived/`), `webscraper-ui`
+(`/opt/web_scraper` deleted outright) and `emailgateway` (repo survives but has NO source — `src/index.ts`
+missing, 11 files and all of them governance docs). Measured before disabling: **~239,500 restarts**
+across the five, every 5-10 s since the last boot, which is what grew `~/enforcement_watcher.log` to
+3.2 GB and the journal to 505 MB. `fabrik-citation-verifier.service` was disabled in the same pass —
+it is a STALE DUPLICATE that can never bind: pid 7347 already serves 8032 (`src.citation_verifier.main:app`
+on 0.0.0.0) and the capability is healthy (HTTP 200, MCP CONNECTED). Re-enable any of these only after
+its project is restored; a permanently-failed unit hides the next real failure.
 | `spamd` | SpamAssassin daemon (Ubuntu package unit, enabled) |
 
 **Does NOT auto-start (manual):**
@@ -55,7 +65,7 @@
   sweep, `kaizen_coroner.py` — the weekly `kaizen_metrics.py` is retired to
   `scripts/sysadmin/archived/`; `docs/workstation/kaizen.md`).
   **Post-wipe restore DONE 2026-08-22:** the 2026-08-19 whole-table wipe was reconciled + reinstalled
-  to 41 jobs (backup `~/backups/crontab.backup.20260822-143018`); `--tick`/`--keepalive`/dashboard
+  to 41 jobs, now **46** (audited 2026-09-08: every referenced script path exists; backup `~/backups/crontab.backup.20260822-143018`); `--tick`/`--keepalive`/dashboard
   `--ensure` all live. Cron runs with a minimal `PATH` (no `~/.local/bin`), so the rotation pings
   resolve `claude` themselves (`claude-account-rotation.md` § Cron PATH) — no crontab `PATH=` line.
 - **timers:** `proxy_sync`, `ip_authorization`, `phpsessionclean`, `logrotate`, `dpkg-db-backup`
@@ -68,7 +78,31 @@
 **Order:** `/etc/profile` → `/etc/profile.d/*` (locale-fix, apps-bin-path, bash_completion, byobu, cloudinit)
 → `~/.profile`; then interactive: `/etc/bash.bashrc` → `~/.bashrc` → `~/.bash_aliases`.
 
-**`~/.bashrc` (113 active lines) does:**
+**`~/.bashrc` (91 active lines — was 115 until the 2026-09-08 audit) does:**
+
+⚠️ **Audited and cleaned 2026-09-08** (backup `~/.bashrc.backup.20260908-015545`):
+- **A plaintext `SEMGREP_APP_TOKEN` was removed.** It sat in a `0644` file AND was redundant —
+  `~/.semgrep/settings.yml` (`0600`) holds the same token and `final_gate.py:470` reads it from
+  there, never from the environment. Nothing consumed the export. It was never in reachable git
+  history (0 commits); the only repo copy was a dangling object under `.git/lost-found`, pruned.
+- **The enforcement-watcher guard was `pgrep -f`, which races.** `pgrep -f` matches any cmdline
+  containing the string, so two shells opening in the same second both saw "not running" and both
+  spawned — measured: 2 live watchers started at the identical second, each running full 45-project
+  fleet syncs, 5,493 logged into a 3.2 GB unrotated file. Replaced with `flock -n 9`, which is
+  atomic (proven: 10 simultaneous shells → exactly 1 start). `~/.bashrc` is not the only place this
+  pattern appears — a `pgrep` guard on any per-shell daemon has the same defect.
+- **~24 dead alias lines removed:** the whole `mmc-*`/`consult-*` family (they call
+  `consult_list_models`, which is not a command, and name gpt5/codex/gemini routes retired here),
+  plus the SHADOWED earlier definitions of `ll`/`mmc`/`mmc-list`/`mmc-auto` — each was defined twice
+  and only the later one ever took effect.
+- **NOT fixed, reported instead:** `PATH` reaches **121 entries of which 64 are unique**
+  (`~/.local/bin` ×8, each Android SDK path ×7). Every `export PATH=` line prepends
+  unconditionally, so a nested or re-sourced shell stacks them again. Harmless but it makes every
+  command lookup scan duplicates; the fix is a guard or a dedup, and PATH is load-bearing enough to
+  be worth a deliberate change rather than a drive-by one.
+- `~/.bash_aliases` is sourced at `:104` but **does not exist** (harmless — the `-f` test guards it).
+
+**It also does:**
 
 - **fabrik startup hook** (line 212, interactive shells only): `source /opt/fabrik/scripts/wsl_startup_hook.sh`
   — env watcher + the lockfile-gated daily pipeline (detail: [../operations/wsl-environment.md](../operations/wsl-environment.md))
