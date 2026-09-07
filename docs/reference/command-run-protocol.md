@@ -218,7 +218,7 @@ confusion: <what in the command text was ambiguous or misleading | none>
 waste:     <steps, turns or tokens spent without changing the outcome | none>
 change:    <the ONE concrete edit to the command or a rule that would have made this run faster or more accurate | none>
 filed:     <mail id(s) to infra|fleet|intel | none — surfaces exercised: <what the run touched>>
-cost:      <pool dollars — a number; every $-marked amount is summed into cost_usd>  (optional)
+cost:      <pool dollars — the text you write is kept as `cost`; its parsed number is `cost_usd`> (optional)
 ```
 
 - `command_run.py` REFUSES a close missing any field, leaving one empty, or writing one twice

@@ -911,7 +911,7 @@ _COST_WHOLE_RE = re.compile(rf"^\s*(?:pool\s*)?\$?\s*({_COST_NUM})\s*(?:usd|\$)?
 # the `usd`-marked form needs a FRACTION (`0.01 usd`): a bare integer before `usd` is prose more
 # often than a cost ("budget for 2024 usd" — review 2026-09-07); `$N` is explicit and accepted as is
 _COST_MARKED_RE = re.compile(
-    rf"\$\s*({_COST_NUM})(?![\d,.])|(?<![\d,.])((?:\d{{1,3}}(?:,\d{{3}})+|\d+)\.\d+)\s*usd\b",
+    rf"\$\s*({_COST_NUM})(?![\d,.])|(?<![\d,.$])((?:\d{{1,3}}(?:,\d{{3}})+|\d+)\.\d+)\s*usd\b",
     re.I,
 )
 
@@ -2008,7 +2008,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             "phases": rec.get("phases"),
             "phase_reached": rec.get("phase"),
             "agent": str(rec.get("agent") or _agent_name() or ""),
-            "surface": str(rec.get("surface") or ""),
+            "surface": _cap_field(str(rec.get("surface") or "")),
             "account": str(rec.get("account") or ""),
             **{k: _cap_field(_usage_fields.get(k, "")) for k in (*_USAGE_FIELDS, "cost")},
             "cost_usd": _cost_usd(_usage_fields.get("cost", "")),

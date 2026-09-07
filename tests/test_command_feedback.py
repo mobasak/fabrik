@@ -902,3 +902,34 @@ def test_the_ledger_append_loops_over_a_short_write(run_dir: Path, monkeypatch) 
     cr._append_ledger_row(target, {"command": "fabrik-probe", "x": "y" * 100})
     rows = [json.loads(ln) for ln in target.read_text(encoding="utf-8").splitlines() if ln.strip()]
     assert rows == [{"command": "fabrik-probe", "x": "y" * 100}] and len(calls) > 1
+
+
+# ── /fabrik-review pass 3 (closing sweep raised two) ────────────────────────────────────
+
+
+def test_a_dollar_amount_followed_by_usd_inside_prose_counts_once() -> None:
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _cost_usd  # noqa: PLC0415
+
+    assert _cost_usd("$0.05 usd total") == 0.05  # both alternatives matched the same number
+    assert _cost_usd("about $0.01 usd for the pool") == 0.01
+    assert _cost_usd("$0.12 + 0.30 usd") == 0.42  # two distinct amounts still sum
+
+
+def test_the_surface_is_capped_like_every_other_row_field(run_dir: Path) -> None:
+    _start(run_dir)
+    r = _cr(
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-probe",
+        "--evidence",
+        "x",
+        "--surface",
+        "s" * 5000,
+        "--feedback",
+        STRUCTURED,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    row = _ledger(run_dir)[0]
+    assert len(row["surface"]) <= 2000 and row["surface"].endswith("…")
