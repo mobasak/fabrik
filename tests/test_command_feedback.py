@@ -1181,3 +1181,25 @@ def test_an_out_of_grammar_agent_name_records_as_empty(monkeypatch) -> None:
         assert _agent_name() == "", bad
     monkeypatch.setenv("CLAUDE_AGENT", " intel-2 ")
     assert _agent_name() == "intel-2"
+
+
+def test_a_hyphen_inside_a_versioned_name_before_usd_is_not_a_minus() -> None:
+    """`opus-4.5 usd` beside a real amount: a hyphen preceded by a letter is part of a name."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _cost_usd  # noqa: PLC0415
+
+    assert _cost_usd("used opus-4.5 usd equivalent, real cost $0.30") == 0.3
+    assert _cost_usd("$0.30 via sonnet-4.5 usd pool") == 0.3
+    assert (
+        _cost_usd("-1.50 usd") is None
+        and _cost_usd("$5-$2") is None
+        and _cost_usd("x -1.50 usd") is None
+    )
+
+
+def test_a_dash_glued_before_dollar_negates_and_a_torn_fraction_refuses() -> None:
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _cost_usd  # noqa: PLC0415
+
+    assert _cost_usd("pool-$0.30") is None  # a dash glued before `$` stays a negation
+    assert _cost_usd("$5 .99") is None and _cost_usd("pool $5 .25 total") is None  # never 5.0

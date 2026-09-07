@@ -910,14 +910,24 @@ _COST_NUM = r"(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?"  # well-formed thousands gro
 _COST_WHOLE_RE = re.compile(rf"^\s*(?:pool\s*)?\$?\s*({_COST_NUM})\s*(?:usd|\$)?\s*$", re.I)
 # the `usd`-marked form needs a FRACTION (`0.01 usd`): a bare integer before `usd` is prose more
 # often than a cost ("budget for 2024 usd" — review 2026-09-07); `$N` is explicit and accepted as is
+_COST_AMT_USD = r"(?:\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+\.\d+)\s*usd\b"
 _COST_NEGATED_RE = re.compile(
-    r"(?:[-\u2212]\s*|[\u2013\u2014\u2011](?=\$|\d)|(?<=\d)\s*[\u2013\u2014\u2011]\s*)(?:\$\s*\d|(?:\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+\.\d+)\s*usd\b)",
+    r"(?:[-\u2212]\s*\$\s*\d"  # `-$1.50`, `$5-$2`, `pool-$0.30`, `−$1.50`
+    r"|(?<![A-Za-z_])[-\u2212]\s*"
+    + _COST_AMT_USD  # `-1.50 usd`, never `opus-4.5 usd`
+    + r"|[\u2013\u2014\u2011](?=\$|\d)(?:\$\s*\d|"
+    + _COST_AMT_USD
+    + ")"  # `–$5` glued
+    + r"|(?<=\d)\s*[\u2013\u2014\u2011]\s*(?:\$\s*\d|"
+    + _COST_AMT_USD
+    + "))",  # `$0.12 – $0.30`
     re.I,
-)  # a minus/dash directly before an AMOUNT (`-$1.50`, `−$1.50`, `$5-$2`, `–$5`, `$0.12 – $0.30`) — never
+)
+# a minus/dash directly before an AMOUNT (`-$1.50`, `−$1.50`, `$5-$2`, `–$5`, `$0.12 – $0.30`) — never
 # `glm-5`, `T-11`, or a spaced em dash used as a separator (`pool $0.30 — three units`)
 _COST_ZERO_USD_RE = re.compile(r"(?<![\d,.$])0\s*usd\b", re.I)
 _COST_MARKED_RE = re.compile(
-    rf"\$\s*({_COST_NUM})(?!\w|[,.]\d)|(?<![\d,.$])(\d{{1,3}}(?:,\d{{3}})+(?:\.\d+)?|\d+\.\d+)\s*usd\b",
+    rf"\$\s*({_COST_NUM})(?!\w|[,.]\d|\s+\.\d)|(?<![\d,.$\-\u2212])(\d{{1,3}}(?:,\d{{3}})+(?:\.\d+)?|\d+\.\d+)\s*usd\b",
     re.I,
 )
 
