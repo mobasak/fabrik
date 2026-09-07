@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the relief wake, Phase C: the hold orders the self-watch arm and allows TaskStop (2026-09-07)
+
+- `.claude/hooks/quota_stop.py` (fleet-synced): `TaskStop` joins the hold's allow-list — a held session can stop its own native
+  subagent instead of letting it burn the quota the hold protects (measured denied 2026-09-07 01:24); the denial text now says the
+  lift WAKES every armed self-watch and orders the arm with the exact Monitor call (Monitor is allowed under the hold), naming the
+  consequence for an unarmed session. Graders: TaskStop allowed, Monitor stays allowed (a regression pin), the text names the arm.
+  Docs: hooks-index rows 102 (the tick's lockstep vendored decider) and 108 (the allow-list + the nudge); the ORIENT (a) line in
+  `CLAUDE.md` and `templates/governance/CLAUDE.md` says the lift wakes ONLY an armed watch.
+
 ### Added — the relief wake, Phase B: the self-watch consumes the lift file and tells the pane where it left off (2026-09-07)
 
 - `~/.claude/bin/claude-selfwatch.sh` (outside the repo; DR-mirrored by `scripts/dr_claude_backup.sh`): polls `<sid>.holdlifted` beside the

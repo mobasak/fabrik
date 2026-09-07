@@ -97,7 +97,7 @@ Steps:
 8. `/fabrik-review-scoped` on Phase A's surface (Profile: small) — fix in-run to a raised-zero no-op.
 9. Commit `-- scripts/sysadmin/claude_rotate.py scripts/aro-wake/claude_rotate.py tests/test_claude_rotate_v2.py tests/test_claude_fleet.py docs/workstation/claude-account-rotation.md` (+ CHANGELOG via the hot-file guard) with provenance trailers; push. `check_script_headers.py` (staged-diff scoped, `scripts/enforcement/check_script_headers.py:262`, run by `final_gate.py` inside step 8's scoped review) WARNs here — in THIS phase's window, the only one that stages `claude_rotate.py` — that its coupled `scripts/sysadmin/bot.py` / `scripts/aro-wake/main.py` (`claude_rotate.py:2`) are not staged: read the WARN, confirm neither consumer's contract moved (no signature in this plan changes), and say so in this commit's body.
 
-### Phase B — the lift file in the self-watch (`~/.claude/bin/claude-selfwatch.sh`, outside the repo) — ✅ EXECUTED 2026-09-07 (self-watch + harness mirrored to the DR store as dr-claude 20260907T121535Z; commit hash recorded in the Phase C commit)
+### Phase B — the lift file in the self-watch (`~/.claude/bin/claude-selfwatch.sh`, outside the repo) — ✅ EXECUTED 2026-09-07 (self-watch + harness mirrored to the DR store as dr-claude 20260907T121535Z; df518a33)
 
 **Files:** `~/.claude/bin/claude-selfwatch.sh` (class dispatch `:43-54`, wake line `:110`), `~/.claude/bin/claude-mesh-test.sh` (new fixtures W10-W10d after W7's `kill`/`wait` at `:320`, modelled on W6 at `:301-309` — each new fixture ends with its own `kill`/`wait` teardown like W6's `:309`, so no watch lingers on a sid lock into the next fixture), `docs/workstation/hooks-index.md` (rows 106/112: the marker class table gains `hold_lifted`), `scripts/dr_claude_backup.sh` run (mirror), `CHANGELOG.md`.
 
@@ -113,7 +113,7 @@ Steps:
 7. `/fabrik-review-scoped` on Phase B's surface (the shell diff + the doc rows; the script is outside the repo — paste its `diff` into the review's record) — fix in-run.
 8. Commit the repo side `-- docs/workstation/hooks-index.md` (+ CHANGELOG guarded); push. The self-watch itself is mirrored by step 4 (the DR store is its git).
 
-### Phase C — the hold nudges the arm and allows `TaskStop` (`.claude/hooks/quota_stop.py`, fleet-synced)
+### Phase C — the hold nudges the arm and allows `TaskStop` (`.claude/hooks/quota_stop.py`, fleet-synced) — ✅ EXECUTED 2026-09-07 (commit hash recorded in the Finish commit)
 
 **Files:** `.claude/hooks/quota_stop.py` (`_READ_TOOLS` `:44-57`, `_reason` `:541-549`), `tests/test_quota_stop_hook.py` (31 tests; the `_reason` grader at `:511`), `docs/workstation/hooks-index.md` row 108, `templates/governance/CLAUDE.md` + `CLAUDE.md` (the ORIENT (a) line already orders the arm — add one clause: "the hold's lift wakes ONLY an armed watch"), CHANGELOG, DECISIONS (D-177 minted with this plan).
 

@@ -50,6 +50,9 @@ _READ_TOOLS = {
     "AskUserQuestion",
     "TaskOutput",
     "Monitor",
+    "TaskStop",  # stopping a background task never changes the world — and under the hold it is
+    # the one way a held session stops its own native subagent from burning the quota the hold
+    # is protecting (measured denied 2026-09-07 01:24; plan 2026-09-07-plan-1-relief-wake, D-177)
     "ListMcpResourcesTool",
     "ReadMcpResourceTool",
     "ReadMcpResourceDirTool",
@@ -509,6 +512,7 @@ def decide(
     stamp_exists: bool,
     tick_age_s: float | None,
     now: float | None = None,
+    sid: str | None = None,
 ) -> tuple[str, str]:
     """Pure decision. Returns (action, reason) with action ∈ {"allow", "deny", "allow_warn"}."""
     if not stamp_exists:
@@ -532,20 +536,27 @@ def decide(
             and _ALLOWED_BASH.match(command)
         ):
             return "allow", ""
-        return "deny", _reason("Bash")
+        return "deny", _reason("Bash", sid)
     if tool in _READ_TOOLS or _READ_MCP.match(tool):
         return "allow", ""
-    return "deny", _reason(tool or "tool")
+    return "deny", _reason(tool or "tool", sid)
 
 
-def _reason(tool: str) -> str:
+def _reason(tool: str, sid: str | None = None) -> str:
+    """The one message every held session reads. It carries the LITERAL session id in the arm
+    order when the payload names one — CLAUDE.md's arm rule needs a literal sid (an empty arg
+    exits the watch as you arm it), and the relief wake reaches ONLY an armed watch."""
+    who = sid if sid else "<your sid>"
     return (
         f"FLEET QUOTA EXHAUSTED — no account left to rotate to (the tick's fleet-exhausted stamp is "
         f"set). {tool} is held. STOP GRACEFULLY NOW: commit your own work with explicit pathspecs "
         "(`git commit -m <msg> -- <paths>`), `git push`, close your run record (`command_run.py done|blocked`), "
-        "then end the turn — no new edits, no new phases. Reads, git, command_run.py, mail.py and "
-        "thread_anchor.py stay allowed. The hold lifts by itself when the tick sees relief (a reset "
-        "or a new account); a session that ended is restarted by the operator."
+        "then end the turn — no new edits, no new phases. Reads, git, command_run.py, mail.py, "
+        "thread_anchor.py, Monitor and TaskStop stay allowed. The hold lifts when the tick sees relief, "
+        "and the lift WAKES every session whose self-watch is armed (a RESUME line naming where it left "
+        "off) — an unarmed session stays idle until the operator restarts it, so ARM the self-watch NOW "
+        'if it is not: Monitor(persistent: true, command: "bash ~/.claude/bin/claude-selfwatch.sh '
+        f'{who}", description: "resume-mesh self-watch").'
     )
 
 
@@ -572,7 +583,11 @@ def main() -> int:
     except OSError:
         age = None
     action, reason = decide(
-        tool, cmd if isinstance(cmd, str) else None, stamp_exists=exists, tick_age_s=age
+        tool,
+        cmd if isinstance(cmd, str) else None,
+        stamp_exists=exists,
+        tick_age_s=age,
+        sid=(payload.get("session_id") if isinstance(payload, dict) else None),
     )
     if action == "deny":
         # ONLY the current PreToolUse contract: the installed CLI (2.1.258) deprecates the legacy

@@ -718,3 +718,33 @@ def test_a_garbage_or_nan_stale_bound_is_the_default_never_a_crash_or_a_freeze(m
             bad
         )
         assert hook.decide("Edit", None, stamp_exists=True, tick_age_s=10.0)[0] == "deny", bad
+
+
+# ── relief wake (plan 2026-09-07-plan-1-relief-wake, Phase C) ────────────────────────────────
+
+
+def test_taskstop_is_allowed_under_the_hold():
+    """A held session must be able to STOP its own native subagent — the exact quota waste the
+    hold exists to prevent; measured denied 2026-09-07 01:24 (a 220k-token pass ran on)."""
+    assert hook.decide("TaskStop", None, stamp_exists=True, tick_age_s=10.0) == ("allow", "")
+
+
+def test_monitor_stays_allowed_under_the_hold():
+    """The relief wake reaches only an ARMED self-watch, and arming is a Monitor call — the hold
+    text orders it, so Monitor must never be denied while the stamp stands (a regression pin:
+    `_READ_TOOLS` is fleet-synced and edited by more than one beat)."""
+    assert hook.decide("Monitor", None, stamp_exists=True, tick_age_s=10.0) == ("allow", "")
+
+
+def test_the_hold_text_orders_the_self_watch_arm():
+    """The denial text is the one message every held session is guaranteed to read; it names the
+    arm (the Monitor call with the self-watch script) and says the lift wakes only an armed watch."""
+    reason = hook._reason("Bash")
+    assert "ARM the self-watch" in reason and "claude-selfwatch.sh" in reason
+    assert "Monitor(" in reason and "armed" in reason
+    assert "<your sid>" in reason, "no session id known → the placeholder, never an empty arg"
+    # the payload's session id becomes the LITERAL arm argument (CLAUDE.md's arm rule; an empty
+    # arg exits the watch as you arm it)
+    with_sid = hook.decide("Edit", None, stamp_exists=True, tick_age_s=10.0, sid="abc-123")[1]
+    assert "claude-selfwatch.sh abc-123" in with_sid and "<your sid>" not in with_sid
+    assert len(with_sid) < 1000, len(with_sid)
