@@ -883,6 +883,10 @@ def test_each_parallelism_alternative_is_individually_load_bearing(plans_env, al
             "pool-remains-fully-off",
             "the subagent pool remains now fully OFF (D-182); dispatch is native",
         ),
+        (
+            "pool-has-been-off",
+            "the pool has been OFF for this plan since the ruling; finders are native Sonnet seats",
+        ),
         ("sonnet-seats", "two Sonnet seats per ticket plus an Opus finder; results merge at T09"),
     ],
 )
