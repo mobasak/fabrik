@@ -685,3 +685,32 @@ def test_layer2_prints_one_line_under_pool_off_never_the_backlog(tmp_path):
     assert "OFF by policy" in r.stdout and "D-182" in r.stdout and "2 historical" in r.stdout
     assert "hist-a1" not in r.stdout and "hist-a2" not in r.stdout
     assert r.stdout.count("SUBAGENT FLYWHEEL") == 1
+
+
+@pytest.mark.parametrize(
+    "value,names_env",
+    [("off", True), ("0", True), ("garbage-value", False), ("", False)],
+)
+def test_layer2_line_names_the_real_source_of_off(tmp_path, monkeypatch, capsys, value, names_env):
+    """Exit seat (2026-09-07): an unrecognised FABRIK_POOL_POLICY falls through to the constant, so
+    the advisory line must blame the script, not the environment."""
+    mod = _load()
+    monkeypatch.setattr(mod, "_POOL_POLICY_ON", False)
+    if value:
+        monkeypatch.setenv("FABRIK_POOL_POLICY", value)
+    else:
+        monkeypatch.delenv("FABRIK_POOL_POLICY", raising=False)
+    ledger = tmp_path / "ledger.jsonl"
+    _write_ledger(ledger, [{"agent_id": "h1", "model": "m", "task_type": "review"}])
+    import types
+
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "libs.subagents",
+        types.SimpleNamespace(audit_unrecorded=lambda p: ["h1"]),
+    )
+    mod._warn_unrecorded(ledger)
+    out = capsys.readouterr().out
+    assert "OFF by policy" in out
+    assert ("FABRIK_POOL_POLICY in the environment" in out) is names_env
+    assert ("_POOL_POLICY_ON in this script" in out) is (not names_env)

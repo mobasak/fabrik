@@ -281,7 +281,10 @@ SPINE_PILLAR_PATTERNS = [
             r"|\b(?:claude|sonnet|opus)\s+(?:task\s+)?(?:subagents?|seats?|finders?|coders?)\b"
             r"|\bdispatch(?:es|ed|ing)?\s+(?:is\s+|are\s+)?native\b"
             r"|\bfan[- ]outs?\s+(?:is\s+|are\s+|run\s+|runs\s+)?native\b"
-            r"|\bpool\b[^.\n]{0,20}\b(?:OFF|not\s+used|unused|disabled)\b"
+            # `pool … OFF` on its own; the softer verbs only when the noun is unmistakably OUR pool
+            # (exit seat, 2026-09-07: "the swimming pool was not used for training today" matched).
+            r"|\bpool\b[^.\n]{0,20}\bOFF\b"
+            r"|\b(?:openrouter|subagents?)\s+pool\b[^.\n]{0,20}\b(?:not\s+used|unused|disabled)\b"
             r"|\bD-18[12]\b",
             re.I,
         ),

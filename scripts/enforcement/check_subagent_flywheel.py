@@ -260,6 +260,9 @@ the policy is a committed line in a fleet-synced script: re-enabling pool-or-dec
 that the governance sync distributes, never a file nobody diffs."""
 
 
+_POLICY_TOKENS = frozenset({"on", "1", "true", "off", "0", "false"})
+
+
 def _pool_policy_on() -> bool:
     """Is the pool POLICY on? Reads :data:`_POOL_POLICY_ON`; ``FABRIK_POOL_POLICY=on|off`` overrides it for
     the tests (a documented seam, mirroring ``FABRIK_NO_POOL``), never for a run. While OFF: Layer 1 never
@@ -271,7 +274,7 @@ def _pool_policy_on() -> bool:
         return True
     if override in {"off", "0", "false"}:
         return False
-    return _POOL_POLICY_ON
+    return _POOL_POLICY_ON  # anything else (incl. "") is not a policy — the constant decides
 
 
 def _pool_available() -> bool:
@@ -376,9 +379,12 @@ def _warn_unrecorded(ledger_path: Path) -> None:
         # list that would re-print ~1,100 historical ids on every gate run forever (intel,
         # 01M1YARGHWZQF645DTQ2QNW4A6). A NEW row appearing here after the corpus flip is intel's tripwire
         # (D-182), not this gate's to block on.
+        # The source is the env seam ONLY when its value is one _pool_policy_on() honours — an
+        # unrecognised value falls through to the constant, and the line must say so (exit seat,
+        # 2026-09-07: `FABRIK_POOL_POLICY=garbage` blamed the environment).
         src = (
             "FABRIK_POOL_POLICY in the environment"
-            if os.environ.get("FABRIK_POOL_POLICY", "").strip()
+            if os.environ.get("FABRIK_POOL_POLICY", "").strip().lower() in _POLICY_TOKENS
             else "_POOL_POLICY_ON in this script"
         )
         print(

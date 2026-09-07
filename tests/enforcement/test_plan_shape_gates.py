@@ -865,6 +865,10 @@ def test_each_parallelism_alternative_is_individually_load_bearing(plans_env, al
             "claude-task-subagents",
             "Every ticket dispatches Claude Task subagents; the OpenRouter pool is not used for this plan.",
         ),
+        (
+            "subagent-pool-disabled",
+            "the subagent pool is disabled for this plan; finders are Sonnet seats",
+        ),
         ("sonnet-seats", "two Sonnet seats per ticket plus an Opus finder; results merge at T09"),
     ],
 )
@@ -884,6 +888,8 @@ def test_each_dispatch_alternative_is_individually_load_bearing(plans_env, alt, 
         # review seat A (2026-09-07): `native` + `seats` + `dispatch` as ordinary English in a booking plan
         "The booking flow must reserve native venue seats before dispatch of the confirmation email.",
         "Native speakers review the copy; the dispatch office confirms each seat by phone.",
+        # exit seat (2026-09-07): a literal pool is not the subagent pool
+        "The swimming pool was not used for training today; the gym is disabled until March.",
     ],
 )
 def test_ordinary_english_native_or_dispatch_does_not_satisfy_the_dispatch_pillar(
