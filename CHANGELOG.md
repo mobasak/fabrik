@@ -13,7 +13,8 @@ refuses a close whose `cost:` is not a plain amount (`0.0125`, `$0.30`, `pool $0
 `$1,234.50`, `0.0017 USD`), the way it refuses an empty usage field. The lenient parser stays
 for the ledger's older rows. Fragment, protocol doc and both CLAUDE.md templates say so. The close
 appends the ledger row only AFTER the record persisted: an unpersisted close prints `NOT CLOSED`,
-exits 1 and writes no row, so the retry writes exactly one (review pass 27). The report
+exits 1, writes no row, prints no FEEDBACK line and emits no `run_close` event, so the retry
+writes exactly one of each (review passes 27–28). The report
 (`command_feedback_report.py`) reads every numeric cell of an older row defensively — a non-finite,
 oversized, string or list `cost_usd`, `tok_*`, `wall_s`, `rounds` or `ts`, or a non-list `models`,
 is 'no datum' for that row — dropped from the sums and medians, which now print their own row

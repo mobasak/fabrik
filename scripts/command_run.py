@@ -2091,6 +2091,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
     if (getattr(args, "surface", "") or "").strip():
         rec["surface"] = args.surface.strip()
     _pending_row: dict[str, Any] | None = None
+    _fb_line: str | None = None
     if _usage_fields and _usage_is_required(rec):
         _tok = _sum_transcript_usage(
             _transcript_path(sid, str(rec.get("repo_root") or "")), _se or 0.0, time.time()
@@ -2116,7 +2117,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         _pending_row = _row  # appended only once the record itself persisted (pass 27)
         rec["usage"] = {k: _row[k] for k in ("wall_s", "rounds", *_USAGE_FIELDS)}
         rec["usage"]["tokens"] = _tok
-        print(_feedback_line(rec, _usage_fields, _wall_s))
+        _fb_line = _feedback_line(rec, _usage_fields, _wall_s)  # printed only on a real close
     if parent is not None:
         closed = {k: v for k, v in rec.items() if k != "stack"}
         parent["stack"] = stack
@@ -2129,7 +2130,10 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
     if not fields["persisted"]:
         # The record on disk still says `running`: the Stop hook keeps blocking and a retry of
         # this close is the right move — so no ledger row yet (the retry would have written a
-        # second one, review pass 27) and no claim of a close that did not happen.
+        # second one, review pass 27), no FEEDBACK line to paste, no `run_close` event (a close
+        # that did not happen is not a mutation — the protocol's own contract, pass 28) and no
+        # claim of a close that did not happen.
+        outbox["events"] = [e for e in outbox.get("events") or [] if e[1] is not fields]
         print(
             f"NOT CLOSED /{rec.get('command')} — the run record could not be written (see stderr);"
             f" fix the record dir and re-run `{args.cmd}` — no usage-ledger row was written."
@@ -2145,6 +2149,8 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             _append_ledger_row(_lp, _pending_row)
         except OSError as exc:  # the ledger never blocks a close; the record still carries it
             sys.stderr.write(f"[command_run] usage ledger not written: {exc}\n")
+    if _fb_line is not None:
+        print(_fb_line)
     if parent is not None:
         print(f"{args.cmd.upper()} /{closed.get('command')} — resuming:")
         print(pinned_line(parent))
