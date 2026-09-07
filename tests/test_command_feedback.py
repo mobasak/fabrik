@@ -1096,3 +1096,29 @@ def test_a_negated_thousands_amount_in_the_usd_form_is_refused_too() -> None:
     assert _cost_usd("saved -1,234.50 usd on this run") is None
     assert _cost_usd("refund of -12,345.67 usd issued") is None
     assert _cost_usd("1,234.50 usd across the pool") == 1234.5  # the positive form still parses
+
+
+def test_a_capped_read_that_saw_file_order_disorder_is_partial(tmp_path: Path, monkeypatch) -> None:
+    """A stale block at the byte cap makes the oldest scanned line look pre-window while in-window
+    lines may sit BEYOND the cap: disorder in file order (a line newer than the one after it) means
+    the window's start was not proven reached."""
+    import time
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import command_run as cr  # noqa: PLC0415
+
+    now = time.time()
+    start = now - 600
+    lines = [_usage_line(start + 5, "early", tout=100)]  # in-window, at the head (beyond the cap)
+    lines += [
+        _usage_line(start - 86400 - i, f"stale-{i}") for i in range(200)
+    ]  # a compaction block
+    lines += [_usage_line(start + 500, "late", tout=7)]
+    tr = tmp_path / "t.jsonl"
+    tr.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    monkeypatch.setattr(cr, "_TRANSCRIPT_MAX_BYTES", 12000)  # cuts inside the stale block
+    got = cr._sum_transcript_usage(tr, start, now)
+    assert got["tok_msgs"] == 1 and got["tok_partial"] is True, got
+    monkeypatch.setattr(cr, "_TRANSCRIPT_MAX_BYTES", 1 << 30)
+    full = cr._sum_transcript_usage(tr, start, now)
+    assert full["tok_msgs"] == 2 and full["tok_partial"] is False

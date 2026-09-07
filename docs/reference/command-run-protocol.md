@@ -261,7 +261,8 @@ cost:      <pool dollars — the text you write is kept as `cost`; its parsed nu
   There is deliberately no "stop after N older lines" rule: a compaction re-emits earlier messages
   with their original timestamps (measured: a 1,340-line block lagging 23 h), so a run spanning a
   compaction has in-window lines on both sides of a stale block. `tok_partial: true` means the cap
-  was reached before the scan had passed the window's start (or before any stamped line was seen)
+  was reached before the scan had passed the window's start (or before any stamped line was seen, or after
+  file-order disorder — a stale block — was seen)
   — the sum is a lower bound and the row says so. No transcript ⇒ `null` tokens and `tok_msgs: 0`, never a silent zero; a
   nested run's window overlaps its parent's and each row reports its own window. The printed line
   carries `tokens <input> input / <output> output (<cache-read share>% cached)` (the share is
@@ -271,7 +272,7 @@ cost:      <pool dollars — the text you write is kept as `cost`; its parsed nu
   wedge a close), a non-finite usage value counts as absent, and NOTHING the reader raises can
   escape (a pure accounting read).
 - **The report:** `python3 scripts/command_feedback_report.py [--since DAYS] [--command NAME]
-  [--agent NAME] [--json]` — per command: runs, done/blocked, median and max wall-clock, median
+  [--agent NAME] [--json]` — per command: runs, done/blocked/handoff, median and max wall-clock, median
   rounds, how many runs said `change: none`, summed pool `cost_usd` (with how many rows carried a
   number), median tokens per run with the rows that carried them, the cache-hit share
   (`cache_read / (in + read + create)`), and the models seen; the header states the POPULATION —

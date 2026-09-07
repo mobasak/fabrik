@@ -1044,6 +1044,8 @@ def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[s
         lo, hi = start - 2.0, end + 2.0
         oldest: float | None = None
         capped = False
+        prev: float | None = None
+        disorder = False  # a line NEWER than the one after it in file order (a stale block)
         for raw in _iter_lines_backwards(path, _TRANSCRIPT_MAX_BYTES):
             if raw is None:
                 capped = True
@@ -1053,6 +1055,9 @@ def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[s
                 continue
             if oldest is None or e < oldest:
                 oldest = e
+            if prev is not None and e > prev + 120.0:
+                disorder = True
+            prev = e
             if e < lo or e > hi or not _ASSISTANT_RE.search(raw):
                 continue
             try:
@@ -1086,7 +1091,8 @@ def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[s
             if isinstance(m, str) and m and m not in models:
                 models.append(m)
         # capped with NO stamped line seen is also partial: nothing proves the window was reached
-        partial = bool(capped and (oldest is None or oldest >= lo))
+        # capped with disorder seen: a stale block may hide in-window lines beyond the cap
+        partial = bool(capped and (oldest is None or oldest >= lo or disorder))
         msgs = len(per_msg)
         totals = dict.fromkeys((k for k, _ in _TOKEN_KEYS), 0)
         for acc in per_msg.values():
