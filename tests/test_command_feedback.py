@@ -1005,3 +1005,21 @@ def test_id_less_lines_count_once_each_with_or_without_a_line_uuid(tmp_path: Pat
     assert got["tok_msgs"] == 3 and got["tok_in"] == 3, (
         got
     )  # a line without message.id cannot be grouped
+
+
+def test_the_whole_value_usd_form_needs_a_fraction_like_the_marked_form() -> None:
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _cost_usd  # noqa: PLC0415
+
+    assert _cost_usd("2024 usd") is None and _cost_usd("3 usd") is None
+    assert (
+        _cost_usd("pool 0.0017 USD") == 0.0017 and _cost_usd("$3") == 3.0 and _cost_usd("5") == 5.0
+    )
+
+
+def test_an_explicit_zero_before_usd_is_a_zero_cost_not_absent() -> None:
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _cost_usd  # noqa: PLC0415
+
+    assert _cost_usd("0 usd") == 0.0 and _cost_usd("0 usd from the pool") == 0.0
+    assert _cost_usd("10 usd") is None  # still a bare integer — a count, not a cost

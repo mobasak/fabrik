@@ -75,7 +75,7 @@ def _median(values: list) -> float | int:
 
 def _cost(r: dict) -> float | None:
     v = r.get("cost_usd")
-    return float(v) if isinstance(v, (int, float)) else None
+    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
 
 _TOK = ("tok_in", "tok_out", "tok_cache_read", "tok_cache_create")
@@ -83,7 +83,7 @@ _TOK = ("tok_in", "tok_out", "tok_cache_read", "tok_cache_create")
 
 def _tok_total(r: dict) -> int | None:
     vals = [r.get(k) for k in _TOK]
-    if any(not isinstance(v, (int, float)) for v in vals):
+    if any(not isinstance(v, (int, float)) or isinstance(v, bool) for v in vals):
         return None  # a row without transcript data is counted, never zeroed
     return int(sum(vals))
 

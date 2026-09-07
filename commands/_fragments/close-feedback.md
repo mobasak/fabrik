@@ -19,7 +19,7 @@ feedback line:**
 > command text was ambiguous or misleading | none> · waste: <steps, turns or tokens spent without
 > changing the outcome | none> · change: <the ONE concrete edit to this command or a rule that would
 > have made this run faster or more accurate | none> · filed: <mail id(s) to infra|fleet|intel | none
-> — surfaces exercised: <what your run touched>> [· cost: <pool $ — a NUMBER, it is summed>]`
+> — surfaces exercised: <what your run touched>> [· cost: <pool $ as a number, e.g. `0.0125` — it is summed>]`
 
 **The four labelled fields are the USAGE report (D-175, the operator's 6th ask 2026-09-07): the
 corpus is optimised from them — fewer review rounds, less confusion, fewer tokens, without losing

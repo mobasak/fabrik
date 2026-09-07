@@ -910,6 +910,7 @@ _COST_NUM = r"(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?"  # well-formed thousands gro
 _COST_WHOLE_RE = re.compile(rf"^\s*(?:pool\s*)?\$?\s*({_COST_NUM})\s*(?:usd|\$)?\s*$", re.I)
 # the `usd`-marked form needs a FRACTION (`0.01 usd`): a bare integer before `usd` is prose more
 # often than a cost ("budget for 2024 usd" — review 2026-09-07); `$N` is explicit and accepted as is
+_COST_ZERO_USD_RE = re.compile(r"(?<![\d,.$])0\s*usd\b", re.I)
 _COST_MARKED_RE = re.compile(
     rf"\$\s*({_COST_NUM})(?![\d,.])|(?<![\d,.$])((?:\d{{1,3}}(?:,\d{{3}})+|\d+)\.\d+)\s*usd\b",
     re.I,
@@ -1121,11 +1122,17 @@ def _cost_usd(text: str) -> float | None:
     m = _COST_WHOLE_RE.match(t)
     try:
         if m:
+            # the whole-value form with a bare integer before `usd` is the same year/count
+            # shape the marked form refuses (`2024 usd`) — a fraction or a `$` makes it a cost
+            if "." not in m.group(1) and "$" not in t and "usd" in t.lower():
+                return 0.0 if m.group(1) == "0" else None  # an explicit `0 usd` IS a zero cost
             return float(m.group(1).replace(",", ""))
         amounts = [
             float(next(g for g in mm.groups() if g).replace(",", ""))
             for mm in _COST_MARKED_RE.finditer(t)
         ]
+        if not amounts and _COST_ZERO_USD_RE.search(t):
+            amounts = [0.0]  # `0 usd` inside prose: an explicit zero, never absent
         return round(sum(amounts), 6) if amounts else None
     except (ValueError, StopIteration):
         return None

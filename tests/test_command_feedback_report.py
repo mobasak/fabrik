@@ -277,3 +277,14 @@ def test_the_default_ledger_is_the_path_the_close_writes(tmp_path: Path, monkeyp
 
     importlib.reload(rep)
     assert rep._default_ledger() == cr._feedback_ledger_path()
+
+
+def test_booleans_are_not_numbers_in_the_report_helpers() -> None:
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_feedback_report import _cost, _tok_total  # noqa: PLC0415
+
+    assert _cost({"cost_usd": True}) is None
+    assert (
+        _tok_total({"tok_in": True, "tok_out": 1, "tok_cache_read": 1, "tok_cache_create": 1})
+        is None
+    )
