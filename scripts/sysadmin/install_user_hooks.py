@@ -136,14 +136,23 @@ def run(argv: list[str] | None = None) -> int:
             base = cmd.rsplit("/", 1)[-1].split()[0]
             kept = []
             for e in hooks.get(ev) or []:
-                # drop every entry carrying this script under any path — a stale registration
-                # kept executing (or failing) on every prompt beside the new one (P2-8)
-                if isinstance(e, dict) and any(
-                    isinstance(h, dict) and base in str(h.get("command", ""))
-                    for h in e.get("hooks") or []
-                ):
+                # drop every hook dict carrying this script under any path — a stale
+                # registration kept executing (or failing) on every prompt beside the new one
+                # (P2-8). Only THIS script's dicts go: an entry that also carries another
+                # script keeps it (dropping the whole entry lost the other registration —
+                # closing pool reader over c233c0b7, 2026-09-07).
+                if not isinstance(e, dict):
+                    kept.append(e)
                     continue
-                kept.append(e)
+                others = [
+                    h
+                    for h in e.get("hooks") or []
+                    if not (isinstance(h, dict) and base in str(h.get("command", "")))
+                ]
+                if len(others) == len(e.get("hooks") or []):
+                    kept.append(e)
+                elif others:
+                    kept.append({**e, "hooks": others})
             entry = {"hooks": [{"type": "command", "command": cmd, "timeout": TIMEOUT_S}]}
             if ev == "PreToolUse":
                 entry["matcher"] = ".*"

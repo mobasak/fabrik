@@ -230,3 +230,23 @@ def test_one_entry_with_two_hook_dicts_is_two_registrations(tmp_path, monkeypatc
     repaired = json.loads(f.read_text())["hooks"]["UserPromptSubmit"]
     n = sum(1 for e in repaired for h in e.get("hooks", []) if h.get("command") == e0_cmd)
     assert n == 1, f"the fixer collapses the duplicate: {n} left"
+
+
+def test_repairing_one_script_keeps_another_scripts_hook_in_the_same_entry(tmp_path, monkeypatch):
+    """Closing reader over c233c0b7: the repair dropped the WHOLE entry carrying a stale/doubled
+    script, so a hand-merged entry that also registered a different script lost that one."""
+    home = _home(tmp_path)
+    monkeypatch.setenv("HOME", str(home))
+    assert iuh.run([]) == 0
+    f = home / ".claude" / "settings.json"
+    d = json.loads(f.read_text())
+    e = d["hooks"]["UserPromptSubmit"][0]
+    e["hooks"].append({"type": "command", "command": "/opt/other/keep_me.py", "timeout": 10})
+    e["hooks"].append(dict(e["hooks"][0]))  # the doubled canonical dict → drift
+    f.write_text(json.dumps(d))
+    assert iuh.run(["--check"]) == 1
+    assert iuh.run([]) == 0
+    entries = json.loads(f.read_text())["hooks"]["UserPromptSubmit"]
+    cmds = [h["command"] for en in entries for h in en.get("hooks", [])]
+    assert cmds.count("/opt/other/keep_me.py") == 1, cmds
+    assert cmds.count(e["hooks"][0]["command"]) == 1, cmds

@@ -1122,8 +1122,8 @@ def _queue(payload: dict, now: float, _key=None) -> list[dict]:
     key = _key or (lambda a: (0,))
     head = [a for a in accounts if active in (a.get("slugs") or [])]
     rest = [a for a in accounts if a not in head]
-    eligible = sorted([a for a in rest if _eligible(a)], key=key)
-    tail = [a for a in rest if not _eligible(a)]
+    eligible = sorted([a for a in rest if _eligible(a, now)], key=key)
+    tail = [a for a in rest if not _eligible(a, now)]
     tail.sort(key=lambda a: (_returns_at(a, now) is None, _returns_at(a, now) or 0.0, key(a)))
 
     def entry(a: dict, kind: str, ra: float | None = None) -> dict:
@@ -1137,7 +1137,7 @@ def _queue(payload: dict, now: float, _key=None) -> list[dict]:
         five = _util(a, "five_hour", now)
         ra = _returns_at(a, now)
         leaving = five is not None and five >= TRIGGER_THRESHOLD
-        if not leaving and _relief_candidate(payload, a) is not None:
+        if not leaving and _relief_candidate(payload, a, now) is not None:
             # the tick will relief-flip this active away (D-171, R6): it returns when its
             # hottest window resets, not when it trips
             hot_key = (
@@ -1201,9 +1201,11 @@ def _session_bar() -> float:
     return _env_pct(("ROTATE_TARGET_SESSION_MAX_PCT", "ROTATE_DRAIN_THRESHOLD"))
 
 
-def _eligible(a: dict) -> bool:
-    """Would the tick pick this standby? (mirror of `_flip_candidate_verdict`, read-only side)"""
-    five, seven = _util(a, "five_hour"), _util(a, "seven_day")
+def _eligible(a: dict, now: float | None = None) -> bool:
+    """Would the tick pick this standby? (mirror of `_flip_candidate_verdict`, read-only side).
+    `now` is the caller's clock when it has one (closing reader over c233c0b7: `_queue` judged
+    eligibility on wall-clock and `returns_at` on the payload clock for the same row)."""
+    five, seven = _util(a, "five_hour", now), _util(a, "seven_day", now)
     if a.get("cap_walled") is True or five is None or seven is None:
         return False
     if five >= 100.0 or seven >= 100.0 or five >= TRIGGER_THRESHOLD or seven >= TRIGGER_THRESHOLD:
@@ -1982,22 +1984,22 @@ def _drain_band() -> float:
     return _env_pct(("ROTATE_DRAIN_THRESHOLD",))
 
 
-def _hottest(a: dict) -> float | None:
-    vals = [v for v in (_util(a, "five_hour"), _util(a, "seven_day")) if v is not None]
+def _hottest(a: dict, now: float | None = None) -> float | None:
+    vals = [v for v in (_util(a, "five_hour", now), _util(a, "seven_day", now)) if v is not None]
     return max(vals) if vals else None
 
 
-def _relief_candidate(payload: dict, active_row: dict) -> dict | None:
+def _relief_candidate(payload: dict, active_row: dict, now: float | None = None) -> dict | None:
     """The tick's relief precondition, mirrored read-only (R6): the active's hottest window is
     at/over the drain band AND some other account is eligible with BOTH windows below it."""
-    hot = _hottest(active_row)
+    hot = _hottest(active_row, now)
     band = _drain_band()
     if hot is None or hot < band:
         return None
     for a in payload.get("accounts") or []:
-        if a is active_row or not _eligible(a):
+        if a is active_row or not _eligible(a, now):
             continue
-        five, seven = _util(a, "five_hour"), _util(a, "seven_day")
+        five, seven = _util(a, "five_hour", now), _util(a, "seven_day", now)
         if five is not None and seven is not None and max(five, seven) < band:
             return a
     return None

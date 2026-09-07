@@ -2314,3 +2314,7 @@ def test_util_uses_the_callers_clock_so_returns_at_and_util_agree(tmp_path, monk
     assert qd._util(a, "five_hour") == 0.0, "no clock given: wall-clock, as before"
     # handed a clock BEFORE the reset, both mirrors see a spent window that returns at `reset`
     assert qd._returns_at(a, reset - 1) == reset
+    # …and `_eligible` on the SAME clock agrees (closing reader over c233c0b7): spent before,
+    # rolled over (eligible) after — never wall-clock-eligible beside a payload-clock `returns`
+    assert qd._eligible(a, reset - 1) is False and qd._eligible(a, reset + 1) is True
+    assert qd._hottest(a, reset - 1) == 100.0 and qd._hottest(a, reset + 1) == 20.0
