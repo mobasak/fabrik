@@ -20,7 +20,9 @@ with one `write(2)`; a newline-free tail longer than 8 MiB is abandoned; the pri
 `input`/`output` with an `M` unit. Report: an unreadable ledger is an empty report, `--agent ""`
 declares its bound, `done/blocked/handoff` is a three-way cell, models are aggregated, and the
 header states the population. Tests: +14 seen red first; the token fixture anchors on the run's
-own `started_epoch` and the harness never reads the developer's marker or transcript.
+own `started_epoch` and the harness never reads the developer's marker or transcript. Pass 2
+(scoped on the fixes): a naive timestamp is no longer dropped by the pre-filter, a capped read that
+saw no stamped line is `tok_partial`, and a short `write(2)` is continued (+3 tests).
 
 ### Added — Per-run token usage in the feedback ledger row, summed from the session transcript (2026-09-07)
 

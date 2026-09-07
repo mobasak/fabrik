@@ -844,3 +844,61 @@ def test_the_ledger_row_is_appended_with_one_write_and_fields_are_capped(run_dir
     assert r.returncode == 0, r.stdout + r.stderr
     row = _ledger(run_dir)[0]
     assert len(row["confusion"]) <= 2000 and row["confusion"].endswith("…")
+
+
+# ── /fabrik-review pass 2 (scoped on the pass-1 fixes) ──────────────────────────────────
+
+
+def test_a_naive_timestamp_is_not_dropped_by_the_prefilter(tmp_path: Path) -> None:
+    import datetime as dt
+    import time
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _sum_transcript_usage  # noqa: PLC0415
+
+    now = time.time()
+    start = now - 600
+    naive = dt.datetime.fromtimestamp(start + 5).strftime("%Y-%m-%dT%H:%M:%S.000")  # no Z, local
+    line = _transcript_line(start + 5, 7, 8, 9, 10, mid="n1").replace(
+        dt.datetime.fromtimestamp(start + 5, tz=dt.UTC).strftime("%Y-%m-%dT%H:%M:%S.000Z"), naive
+    )
+    assert naive in line and "Z" not in line.split('"timestamp": "')[1][:24]
+    tr = tmp_path / "t.jsonl"
+    tr.write_text(line + "\n", encoding="utf-8")
+    got = _sum_transcript_usage(tr, start, now)
+    assert got["tok_msgs"] == 1 and got["tok_in"] == 7, got
+
+
+def test_a_capped_read_that_saw_no_stamped_line_is_partial(tmp_path: Path, monkeypatch) -> None:
+    import time
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import command_run as cr  # noqa: PLC0415
+
+    tr = tmp_path / "t.jsonl"
+    tr.write_text("\n".join('{"type": "x"}' for _ in range(500)) + "\n", encoding="utf-8")
+    monkeypatch.setattr(cr, "_TRANSCRIPT_MAX_BYTES", 256)
+    got = cr._sum_transcript_usage(tr, time.time() - 60, time.time())
+    assert got["tok_msgs"] == 0 and got["tok_partial"] is True, got
+
+
+def test_the_ledger_append_loops_over_a_short_write(run_dir: Path, monkeypatch) -> None:
+    """os.write may return fewer bytes than given; a row must never be truncated by it."""
+    import os as _os
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import command_run as cr  # noqa: PLC0415
+
+    real = _os.write
+    calls: list[int] = []
+
+    def short(fd: int, data: bytes) -> int:
+        n = min(len(data), 16)
+        calls.append(n)
+        return real(fd, data[:n])
+
+    monkeypatch.setattr(cr.os, "write", short)
+    target = run_dir.parent / "command-feedback.jsonl"
+    cr._append_ledger_row(target, {"command": "fabrik-probe", "x": "y" * 100})
+    rows = [json.loads(ln) for ln in target.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    assert rows == [{"command": "fabrik-probe", "x": "y" * 100}] and len(calls) > 1

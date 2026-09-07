@@ -879,6 +879,18 @@ def _cap_field(text: str) -> str:
     return text if len(text) <= _LEDGER_FIELD_CAP else text[: _LEDGER_FIELD_CAP - 1] + "…"
 
 
+def _append_ledger_row(path: Path, row: dict[str, Any]) -> None:
+    """One row, appended under O_APPEND; a short write(2) is continued, never left truncated."""
+    data = (json.dumps(row, ensure_ascii=False) + "\n").encode("utf-8")
+    fd = os.open(str(path), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+    try:
+        while data:
+            n = os.write(fd, data)
+            data = data[n:]
+    finally:
+        os.close(fd)
+
+
 def _feedback_ledger_path() -> Path:
     return _state_dir().parent / "command-feedback.jsonl"
 
@@ -939,8 +951,8 @@ def _active_account() -> str:
 _TRANSCRIPT_MAX_BYTES = 256 << 20
 _TRANSCRIPT_MAX_LINE = 8 << 20  # no transcript record is this long — a newline-free tail is garbage
 _TS_RE = re.compile(
-    rb'"timestamp"\s*:\s*"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?)(Z|[+-]\d\d:\d\d)"'
-)
+    rb'"timestamp"\s*:\s*"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?)(Z|[+-]\d\d:\d\d)?"'
+)  # the offset is optional: a naive stamp reads as local time, exactly as fromisoformat did
 _ASSISTANT_RE = re.compile(rb'"type"\s*:\s*"assistant"')
 _TOKEN_KEYS = (
     ("tok_in", "input_tokens"),
@@ -1003,7 +1015,7 @@ def _line_epoch(raw: bytes) -> float | None:
         return None
     try:
         return dt.datetime.fromisoformat(
-            (m.group(1) + m.group(2)).decode("ascii").replace("Z", "+00:00")
+            (m.group(1) + (m.group(2) or b"")).decode("ascii").replace("Z", "+00:00")
         ).timestamp()
     except ValueError:
         return None
@@ -1064,7 +1076,8 @@ def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[s
             m = msg.get("model")
             if isinstance(m, str) and m and m not in models:
                 models.append(m)
-        partial = bool(capped and oldest is not None and oldest >= lo)
+        # capped with NO stamped line seen is also partial: nothing proves the window was reached
+        partial = bool(capped and (oldest is None or oldest >= lo))
         msgs = len(per_msg)
         totals = dict.fromkeys((k for k, _ in _TOKEN_KEYS), 0)
         for acc in per_msg.values():
@@ -2007,11 +2020,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             # ONE write(2) under O_APPEND: three sessions append to this file with no lock, and a
             # buffered text write past 8 KiB can split and interleave (review 2026-09-07); the
             # per-field cap above keeps a row well under that
-            _fd = os.open(str(_lp), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
-            try:
-                os.write(_fd, (json.dumps(_row, ensure_ascii=False) + "\n").encode("utf-8"))
-            finally:
-                os.close(_fd)
+            _append_ledger_row(_lp, _row)
         except OSError as exc:  # the ledger never blocks a close; the record still carries it
             sys.stderr.write(f"[command_run] usage ledger not written: {exc}\n")
         rec["usage"] = {k: _row[k] for k in ("wall_s", "rounds", *_USAGE_FIELDS)}
