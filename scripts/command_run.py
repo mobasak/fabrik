@@ -910,9 +910,10 @@ _COST_NUM = r"(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?"  # well-formed thousands gro
 _COST_WHOLE_RE = re.compile(rf"^\s*(?:pool\s*)?\$?\s*({_COST_NUM})\s*(?:usd|\$)?\s*$", re.I)
 # the `usd`-marked form needs a FRACTION (`0.01 usd`): a bare integer before `usd` is prose more
 # often than a cost ("budget for 2024 usd" — review 2026-09-07); `$N` is explicit and accepted as is
+_COST_NEGATED_RE = re.compile(r"(?<![\w])-\s*\$?\s*\d")  # `-$1.50`, `- $2`, `-1.5 usd`
 _COST_ZERO_USD_RE = re.compile(r"(?<![\d,.$])0\s*usd\b", re.I)
 _COST_MARKED_RE = re.compile(
-    rf"\$\s*({_COST_NUM})(?![\d,.])|(?<![\d,.$])((?:\d{{1,3}}(?:,\d{{3}})+|\d+)\.\d+)\s*usd\b",
+    rf"\$\s*({_COST_NUM})(?![\w,.])|(?<![\d,.$])((?:\d{{1,3}}(?:,\d{{3}})+|\d+)\.\d+)\s*usd\b",
     re.I,
 )
 
@@ -1072,7 +1073,12 @@ def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[s
                 # json.loads accepts the literal Infinity/NaN; int(inf) raises OverflowError,
                 # which escaped the old except tuple and left the close at rc 0 with the record
                 # still `running` (review 2026-09-07) — a non-finite value counts as absent
-                if isinstance(v, (int, float)) and math.isfinite(v) and int(v) > acc[k]:
+                if (
+                    isinstance(v, (int, float))
+                    and not isinstance(v, bool)
+                    and math.isfinite(v)
+                    and int(v) > acc[k]
+                ):
                     acc[k] = int(v)
             m = msg.get("model")
             if isinstance(m, str) and m and m not in models:
@@ -1119,6 +1125,8 @@ def _cost_usd(text: str) -> float | None:
     thousands groups are malformed (``$12,34``) — a row that cannot be summed says so, never
     contributes a wrong number or a silent 0."""
     t = text or ""
+    if _COST_NEGATED_RE.search(t):
+        return None  # a refund/subtraction is not a charge — never a wrong positive number
     m = _COST_WHOLE_RE.match(t)
     try:
         if m:

@@ -62,7 +62,7 @@ def _rows(path: Path | None) -> list[dict]:
 
 
 def _is_none(value: str) -> bool:
-    head = value.strip().lower().split(" ")[0].rstrip(".,;") if value else ""
+    head = value.strip().lower().split()[0].rstrip(".,;") if value and value.strip() else ""
     return not value or head in {"none", "nothing", "n/a", "-"}
 
 
@@ -150,7 +150,7 @@ def build(
     def _items(field: str) -> list[dict]:
         counter: collections.Counter[tuple[str, str]] = collections.Counter()
         agents: dict[tuple[str, str], list[str]] = collections.defaultdict(list)
-        first: dict[tuple[str, str], dict] = {}
+        surfaces: dict[tuple[str, str], list[str]] = collections.defaultdict(list)
         for r in kept:
             v = str(r.get(field) or "").strip()
             if not _is_none(v):
@@ -159,14 +159,16 @@ def build(
                 a = str(r.get("agent") or "")
                 if a and a not in agents[key]:
                     agents[key].append(a)  # EVERY agent that raised it, first-seen order
-                first.setdefault(key, r)  # the surface of the row that raised it first
+                sf = str(r.get("surface") or "")
+                if sf and sf not in surfaces[key]:
+                    surfaces[key].append(sf)  # and EVERY surface — never the first row's only
         return [
             {
                 "command": c,
                 "item": v,
                 "count": n,
                 "agent": ",".join(agents[(c, v)]),
-                "surface": str(first[(c, v)].get("surface") or ""),
+                "surface": ", ".join(surfaces[(c, v)]),
             }
             for (c, v), n in sorted(counter.items(), key=lambda kv: (-kv[1], kv[0]))
         ]

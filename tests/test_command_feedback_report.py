@@ -288,3 +288,29 @@ def test_booleans_are_not_numbers_in_the_report_helpers() -> None:
         _tok_total({"tok_in": True, "tok_out": 1, "tok_cache_read": 1, "tok_cache_create": 1})
         is None
     )
+
+
+def test_a_repeated_item_lists_every_surface_it_was_raised_on(tmp_path: Path) -> None:
+    ledger = tmp_path / "command-feedback.jsonl"
+    _write(
+        ledger,
+        [
+            _row("c1", 60, 1, "same text", agent="infra", surface="plan-1"),
+            _row("c1", 60, 1, "same text", agent="fleet", surface="spec-2"),
+        ],
+    )
+    out = json.loads(_run(ledger, "--json").stdout)
+    item = out["backlog"][0]
+    assert (
+        item["count"] == 2
+        and item["agent"] == "infra,fleet"
+        and item["surface"] == "plan-1, spec-2"
+    )
+    assert "[infra,fleet · plan-1, spec-2]" in _run(ledger).stdout
+
+
+def test_is_none_tokenises_on_any_whitespace() -> None:
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_feedback_report import _is_none  # noqa: PLC0415
+
+    assert _is_none("none\textra") and _is_none("none — x") and not _is_none("nonetheless")

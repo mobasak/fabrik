@@ -1023,3 +1023,30 @@ def test_an_explicit_zero_before_usd_is_a_zero_cost_not_absent() -> None:
 
     assert _cost_usd("0 usd") == 0.0 and _cost_usd("0 usd from the pool") == 0.0
     assert _cost_usd("10 usd") is None  # still a bare integer — a count, not a cost
+
+
+def test_a_negated_amount_is_refused_never_read_as_a_charge() -> None:
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _cost_usd  # noqa: PLC0415
+
+    assert _cost_usd("-$1.50") is None and _cost_usd("-1.50 usd") is None
+    assert _cost_usd("$5 - $2 refund") is None  # a subtraction is not a sum of charges
+    assert _cost_usd("$0.12 + $0.30") == 0.42
+
+
+def test_a_number_glued_to_a_letter_is_refused_and_bools_are_not_tokens(tmp_path: Path) -> None:
+    import time
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _cost_usd, _sum_transcript_usage  # noqa: PLC0415
+
+    assert _cost_usd("$1e10") is None and _cost_usd("$5k") is None and _cost_usd("$5 k") == 5.0
+    now = time.time()
+    start = now - 600
+    line = _transcript_line(start + 5, 7, 8, 9, 10, mid="b1").replace(
+        '"input_tokens": 7', '"input_tokens": true'
+    )
+    tr = tmp_path / "t.jsonl"
+    tr.write_text(line + "\n", encoding="utf-8")
+    got = _sum_transcript_usage(tr, start, now)
+    assert got["tok_msgs"] == 1 and got["tok_in"] == 0 and got["tok_out"] == 8, got
