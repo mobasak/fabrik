@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Stop hook sixth cause: edits older than the covered ledger's birth are no longer re-judged (2026-09-07)
+
+- `.claude/hooks/final_gate_stop.py` (fleet-synced): `_sixth_cause_floor` raises the session floor to `_LEDGER_EPOCH` (ff887758, when the `covered` ledger was born). A long-lived session's pre-ledger edits were adjudicated by the per-session rule of their day and no ledger holds their closes; the ledger-era cause could only re-block them — measured on one session: 16 already-reviewed edits (09-04 21:46 → 09-06 17:16), three attempts every turn. Applied at the one call site; the counter and its synthetic-epoch fixtures untouched (the first cut put the comparison in the counter and broke two graders — the mirror). Grader `test_edits_older_than_the_ledgers_birth_are_not_re_judged` (red-on-revert, both halves asserted); `docs/workstation/hooks-index.md` row updated. Transitional by construction: it goes inert as pre-epoch sessions end.
+
 ### Fixed — /fabrik-review round 4 (committed under the quota hold, verified in the resumed run): the closing round's own hunks, 12 of 13 fixed (2026-09-07)
 
 N4's non-author pass on the closing round: the new `User-Level Hooks Registered` gate row was `advisory=True` and then

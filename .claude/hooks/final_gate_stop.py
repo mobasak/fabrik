@@ -609,6 +609,15 @@ _CODE_EXTS = frozenset(
 )
 
 
+# The covered-window LEDGER was born at ff887758 (2026-09-06 19:56:08 +0300). Edits older than
+# that were adjudicated by the per-session rule that ran at the time, and their commands' closes
+# were never written to any ledger — the sixth cause cannot re-judge them, only re-block them
+# (measured: 16 edits of one long-lived session, 09-04 21:46 → 09-06 17:16, every one before the
+# first ledger window, re-blocking three attempts on every turn). Transitional by construction:
+# no session started after this instant carries an older edit, so the exemption goes inert on
+# its own and never widens.
+_LEDGER_EPOCH = 1788713768.0
+
 _CLOSED_STATES = frozenset(
     {"done", "blocked", "handoff"}
 )  # the closes an AGENT writes — `command_run.py::AGENT_CLOSED_STATES`, bound by a parity grader.
@@ -694,11 +703,20 @@ def _review_windows(rec: dict | None, sid: str | None = None) -> list[tuple[floa
     return out
 
 
+def _sixth_cause_floor(session_floor: float) -> float:
+    """The floor the sixth cause judges from: the SessionStart baseline, raised to the ledger's
+    birth (`_LEDGER_EPOCH`). Edits before the ledger existed were adjudicated by the per-session
+    rule of their day and no ledger holds their closes — re-judging them can only re-block."""
+    return max(float(session_floor or 0.0), _LEDGER_EPOCH)
+
+
 def _this_sessions_edits(authored: dict[str, int], session_floor: float) -> dict[str, int]:
     """Drop edits older than the SessionStart baseline — a resumed transcript's ancient work,
     not this session's (the same filter `_failure_cites_session` applies). Unfiltered, a
     months-long transcript (454 code files over 116 days in one sid, measured) made any window
-    of minutes count hundreds of files as unreviewed (review P1-3). ts == 0 (unknown) stays."""
+    of minutes count hundreds of files as unreviewed (review P1-3). ts == 0 (unknown) stays.
+    The sixth cause passes `_sixth_cause_floor(baseline)` — the baseline raised to the ledger's
+    birth — so pre-ledger edits are dropped here too (pool DOC-001, 2026-09-07)."""
     return {
         f: ts for f, ts in authored.items() if not ts or not session_floor or ts >= session_floor
     }
@@ -1494,7 +1512,8 @@ def main(argv: list[str]) -> int:
                 except OSError:
                     pass
                 _unreviewed = _unreviewed_code_files(
-                    _this_sessions_edits(authored_map, _floor), _review_windows(_rec, sid)
+                    _this_sessions_edits(authored_map, _sixth_cause_floor(_floor)),
+                    _review_windows(_rec, sid),
                 )
                 v_action, v_att = decide_review(_unreviewed, v_att)
                 if v_action == "block_review":

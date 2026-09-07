@@ -254,3 +254,30 @@ def test_a_zero_started_epoch_covers_nothing_like_the_writer_refuses_it():
     """E8: `_finite(0)` is 0.0, not None — a record with started_epoch 0 read as "one command
     covered everything since the epoch"; the writer never records such a window."""
     assert fgs._review_window({"state": "done", "started_epoch": 0, "updated_ts": 900}) is None
+
+
+def test_edits_older_than_the_ledgers_birth_are_not_re_judged():
+    # The covered ledger was born at ff887758; a long-lived session's earlier edits were
+    # adjudicated by the per-session rule of their day and no ledger holds their closes, so
+    # the sixth cause re-blocked 16 already-reviewed edits three times per turn (2026-09-07).
+    epoch = fgs._LEDGER_EPOCH
+    assert epoch == 1788713768.0, (
+        "pinned to ff887758's commit epoch — a moved epoch widens the hole"
+    )
+    assert fgs._sixth_cause_floor(epoch - 100_000) == epoch, "an older baseline is raised"
+    assert fgs._sixth_cause_floor(epoch + 5) == epoch + 5, "a newer baseline stands"
+    assert fgs._sixth_cause_floor(0.0) == epoch, "no baseline still floors at the ledger"
+    mine = fgs._this_sessions_edits(
+        {"old.py": epoch - 1, "new.py": epoch + 1}, fgs._sixth_cause_floor(epoch - 100_000)
+    )
+    assert mine == {"new.py": epoch + 1}, "pre-ledger edit dropped, post-ledger edit judged"
+
+
+def test_the_ledger_floor_is_wired_at_the_sixth_causes_call_site():
+    # The helper grader above cannot see the wiring: reverting the call-site edit alone keeps
+    # every assertion green. Pin the one line that applies the floor.
+    src = (REPO / ".claude" / "hooks" / "final_gate_stop.py").read_text(encoding="utf-8")
+    assert src.count("_this_sessions_edits(authored_map, _sixth_cause_floor(_floor))") == 1
+    assert src.count("_this_sessions_edits(authored_map, _floor)") == 0, (
+        "the unfloored call is gone"
+    )
