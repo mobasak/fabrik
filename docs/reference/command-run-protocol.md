@@ -218,7 +218,7 @@ confusion: <what in the command text was ambiguous or misleading | none>
 waste:     <steps, turns or tokens spent without changing the outcome | none>
 change:    <the ONE concrete edit to the command or a rule that would have made this run faster or more accurate | none>
 filed:     <mail id(s) to infra|fleet|intel | none — surfaces exercised: <what the run touched>>
-cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — prose is REFUSED at the close> (optional)
+cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — prose or a bare integer before usd (`10 usd`: write `$10`) is REFUSED at the close> (optional)
 ```
 
 - `command_run.py` REFUSES a close missing any field, leaving one empty, or writing one twice

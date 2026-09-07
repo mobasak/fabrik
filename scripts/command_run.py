@@ -1918,11 +1918,14 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         print(msg)
         return 1
     _cost_text = _usage_fields.get("cost", "").strip() if _usage_is_required(rec) else ""
-    if _cost_text and not _COST_STRICT_RE.match(_cost_text):
+    # the shape AND the parser's answer: `10 usd` fits the shape but a bare integer before `usd`
+    # is ambiguous (a count, a year) and parses to None — refuse rather than store a silent null
+    if _cost_text and (not _COST_STRICT_RE.match(_cost_text) or _cost_usd(_cost_text) is None):
         msg = (
             f"REFUSED — closing /{live}: `cost:` must be a plain amount (`0.0125`, `$0.30`, "
-            f"`pool $0.30`, `$1,234.50`), never prose — got {_cost_text!r}. The field is SUMMED "
-            "fleet-wide; put the words in `waste:` or `filed:` and the number here."
+            f"`pool $0.30`, `$1,234.50`, `10.00 usd`), never prose and never a bare integer "
+            f"before `usd` (write `$10`) — got {_cost_text!r}. The field is SUMMED fleet-wide; "
+            "put the words in `waste:` or `filed:` and the number here."
         )
         sys.stderr.write(f"[command_run] {msg}\n")
         print(msg)
