@@ -89,7 +89,7 @@ def _tok_total(r: dict) -> int | None:
 
 
 def _k(n: float) -> str:
-    if n >= 1_000_000:
+    if round(n / 1000, 1) >= 1000:  # 999,999 rolls over to 1.0M, never "1000.0k"
         return f"{n / 1_000_000:.1f}M"
     return f"{n / 1000:.1f}k" if n >= 1000 else f"{n:.0f}"
 

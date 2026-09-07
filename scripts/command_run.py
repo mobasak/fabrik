@@ -910,7 +910,9 @@ _COST_NUM = r"(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?"  # well-formed thousands gro
 _COST_WHOLE_RE = re.compile(rf"^\s*(?:pool\s*)?\$?\s*({_COST_NUM})\s*(?:usd|\$)?\s*$", re.I)
 # the `usd`-marked form needs a FRACTION (`0.01 usd`): a bare integer before `usd` is prose more
 # often than a cost ("budget for 2024 usd" — review 2026-09-07); `$N` is explicit and accepted as is
-_COST_NEGATED_RE = re.compile(r"(?<![\w])-\s*\$?\s*\d")  # `-$1.50`, `- $2`, `-1.5 usd`
+_COST_NEGATED_RE = re.compile(
+    r"-\s*\$?\s*\d"
+)  # `-$1.50`, `$5-$2`, `pool-$0.30`: a dash before an amount
 _COST_ZERO_USD_RE = re.compile(r"(?<![\d,.$])0\s*usd\b", re.I)
 _COST_MARKED_RE = re.compile(
     rf"\$\s*({_COST_NUM})(?![\w,.])|(?<![\d,.$])((?:\d{{1,3}}(?:,\d{{3}})+|\d+)\.\d+)\s*usd\b",
@@ -1113,7 +1115,7 @@ def _tokens_clause(tok: dict[str, Any]) -> str:
 
 
 def _fmt_tokens(n: int) -> str:
-    if n >= 1_000_000:
+    if round(n / 1000, 1) >= 1000:  # 999,999 rolls over to 1.0M, never "1000.0k"
         return f"{n / 1_000_000:.1f}M"
     return f"{n / 1000:.1f}k" if n >= 1000 else str(n)
 

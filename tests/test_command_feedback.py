@@ -1050,3 +1050,22 @@ def test_a_number_glued_to_a_letter_is_refused_and_bools_are_not_tokens(tmp_path
     tr.write_text(line + "\n", encoding="utf-8")
     got = _sum_transcript_usage(tr, start, now)
     assert got["tok_msgs"] == 1 and got["tok_in"] == 0 and got["tok_out"] == 8, got
+
+
+def test_a_tight_subtraction_is_refused_too() -> None:
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _cost_usd, _fmt_tokens  # noqa: PLC0415
+
+    assert (
+        _cost_usd("$5-$2") is None
+        and _cost_usd("$5- $2 refund") is None
+        and _cost_usd("$5 -$2") is None
+    )
+    assert (
+        _cost_usd("$0.12 + $0.30") == 0.42 and _cost_usd("pool-$0.30") is None
+    )  # a hyphen before $ is ambiguous
+    assert (
+        _fmt_tokens(999_999) == "1.0M"
+        and _fmt_tokens(999_499) == "999.5k"
+        and _fmt_tokens(999) == "999"
+    )

@@ -314,3 +314,15 @@ def test_is_none_tokenises_on_any_whitespace() -> None:
     from command_feedback_report import _is_none  # noqa: PLC0415
 
     assert _is_none("none\textra") and _is_none("none — x") and not _is_none("nonetheless")
+
+
+def test_k_rolls_over_to_millions_at_the_rounded_boundary() -> None:
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_feedback_report import _k  # noqa: PLC0415
+
+    assert (
+        _k(999_999) == "1.0M"
+        and _k(999_499) == "999.5k"
+        and _k(999.4) == "999"
+        and _k(1000) == "1.0k"
+    )
