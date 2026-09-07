@@ -915,7 +915,7 @@ _COST_NEGATED_RE = re.compile(
 )  # a dash directly before an AMOUNT (`-$1.50`, `$5-$2`, `-1,234.50 usd`) — never `glm-5` or `T-11`
 _COST_ZERO_USD_RE = re.compile(r"(?<![\d,.$])0\s*usd\b", re.I)
 _COST_MARKED_RE = re.compile(
-    rf"\$\s*({_COST_NUM})(?![\w,.])|(?<![\d,.$])((?:\d{{1,3}}(?:,\d{{3}})+|\d+)\.\d+)\s*usd\b",
+    rf"\$\s*({_COST_NUM})(?!\w|[,.]\d)|(?<![\d,.$])((?:\d{{1,3}}(?:,\d{{3}})+|\d+)\.\d+)\s*usd\b",
     re.I,
 )
 
@@ -942,17 +942,19 @@ def _active_account() -> str:
 # close sums the messages stamped inside the run's window [started_epoch, now] (±2 s slack for
 # the transcript's own write latency). The file is read BACKWARDS in 1 MiB chunks up to
 # `_TRANSCRIPT_MAX_BYTES`, every line pre-filtered by a regex for its timestamp and type so only
-# in-window assistant lines pay for json.loads — a 750 MB hub transcript scans its last 256 MiB in
-# ~0.3 s (measured 2026-09-07). ⚠️ There is deliberately NO "stop after N older lines" rule: a
+# in-window assistant lines pay for json.loads — a 750 MB hub transcript scans WHOLE in ~1 s
+# (measured 2026-09-07; the 2 GiB cap is a backstop). ⚠️ There is deliberately NO "stop after N older lines" rule: a
 # compaction re-emits earlier messages with their ORIGINAL timestamps (measured: a 1,340-line
 # block lagging 23 h inside the last 64 MiB), so a run spanning a compaction has in-window lines on
 # BOTH sides of a stale block, and an early stop lost everything before it (review 2026-09-07).
-# `tok_partial` is True when the byte cap was reached while the oldest scanned line was still
-# inside the window — the row says its bound instead of passing a truncated sum as a total. A
+# `tok_partial` is True whenever the byte cap cut the read — a compaction re-emits old lines
+# anywhere, so a cut read can never prove the window was covered; the row says its bound. A
 # nested run's window overlaps its parent's — each row reports what ITS window spent. Fail-soft:
 # no transcript ⇒ nulls (never a silent 0); the report counts such a row as a RUN but leaves it
 # out of the token sum and its denominator.
-_TRANSCRIPT_MAX_BYTES = 256 << 20
+_TRANSCRIPT_MAX_BYTES = (
+    2 << 30
+)  # a WHOLE hub transcript (750 MB live) scans in ~1 s; the cap is a backstop
 _TRANSCRIPT_MAX_LINE = 8 << 20  # no transcript record is this long — a newline-free tail is garbage
 _TS_RE = re.compile(
     rb'"timestamp"\s*:\s*"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?)(Z|[+-]\d\d:\d\d)?"'
@@ -1044,8 +1046,6 @@ def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[s
         lo, hi = start - 2.0, end + 2.0
         oldest: float | None = None
         capped = False
-        prev: float | None = None
-        disorder = False  # a line NEWER than the one after it in file order (a stale block)
         for raw in _iter_lines_backwards(path, _TRANSCRIPT_MAX_BYTES):
             if raw is None:
                 capped = True
@@ -1055,9 +1055,6 @@ def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[s
                 continue
             if oldest is None or e < oldest:
                 oldest = e
-            if prev is not None and e > prev + 120.0:
-                disorder = True
-            prev = e
             if e < lo or e > hi or not _ASSISTANT_RE.search(raw):
                 continue
             try:
@@ -1091,8 +1088,9 @@ def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[s
             if isinstance(m, str) and m and m not in models:
                 models.append(m)
         # capped with NO stamped line seen is also partial: nothing proves the window was reached
-        # capped with disorder seen: a stale block may hide in-window lines beyond the cap
-        partial = bool(capped and (oldest is None or oldest >= lo or disorder))
+        # a compaction re-emits old lines ANYWHERE in the file, so a cut read can never prove the
+        # window was covered: ANY cut is partial (review 2026-09-07, passes 2 and 10)
+        partial = bool(capped)
         msgs = len(per_msg)
         totals = dict.fromkeys((k for k, _ in _TOKEN_KEYS), 0)
         for acc in per_msg.values():

@@ -1098,10 +1098,9 @@ def test_a_negated_thousands_amount_in_the_usd_form_is_refused_too() -> None:
     assert _cost_usd("1,234.50 usd across the pool") == 1234.5  # the positive form still parses
 
 
-def test_a_capped_read_that_saw_file_order_disorder_is_partial(tmp_path: Path, monkeypatch) -> None:
-    """A stale block at the byte cap makes the oldest scanned line look pre-window while in-window
-    lines may sit BEYOND the cap: disorder in file order (a line newer than the one after it) means
-    the window's start was not proven reached."""
+def test_a_read_cut_inside_a_stale_block_is_partial(tmp_path: Path, monkeypatch) -> None:
+    """A compaction block at the byte cap hides in-window lines BEYOND the cap: no criterion on
+    the scanned lines can prove the window was covered, so any cut read is partial."""
     import time
 
     sys.path.insert(0, str(ROOT / "scripts"))
@@ -1122,3 +1121,14 @@ def test_a_capped_read_that_saw_file_order_disorder_is_partial(tmp_path: Path, m
     monkeypatch.setattr(cr, "_TRANSCRIPT_MAX_BYTES", 1 << 30)
     full = cr._sum_transcript_usage(tr, start, now)
     assert full["tok_msgs"] == 2 and full["tok_partial"] is False
+
+
+def test_punctuation_after_an_amount_does_not_drop_it() -> None:
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _cost_usd  # noqa: PLC0415
+
+    assert _cost_usd("pool $0.30, $0.40 ai-consult") == 0.7  # a trailing comma is punctuation
+    assert _cost_usd("$0.30.") == 0.3  # a full stop too
+    assert (
+        _cost_usd("$12,34") is None and _cost_usd("$1e10") is None
+    )  # malformed groups and letters still refuse

@@ -256,14 +256,14 @@ cost:      <pool dollars — the text you write is kept as `cost`; its parsed nu
   counts once with the per-field MAXIMUM over its lines — 3 of 2,857 live ids carried an all-zero
   line beside the real one; an id-less line counts as its own message), the `models` seen, and
   `tok_partial`. The file is read
-  backwards from the tail up to a 256 MiB cap, every line pre-filtered by a regex for its timestamp
-  and type so only in-window assistant lines are parsed — a 750 MB hub transcript scans in ~0.3 s.
+  backwards from the tail — the WHOLE file, a 2 GiB cap as a backstop — every line pre-filtered by
+  a regex for its timestamp and type so only in-window assistant lines are parsed; a 750 MB hub
+  transcript scans in ~1 s.
   There is deliberately no "stop after N older lines" rule: a compaction re-emits earlier messages
   with their original timestamps (measured: a 1,340-line block lagging 23 h), so a run spanning a
   compaction has in-window lines on both sides of a stale block. `tok_partial: true` means the cap
-  was reached before the scan had passed the window's start (or before any stamped line was seen, or after
-  file-order disorder — a stale block — was seen)
-  — the sum is a lower bound and the row says so. No transcript ⇒ `null` tokens and `tok_msgs: 0`, never a silent zero; a
+  cut the read — a compaction re-emits old lines anywhere in the file, so a cut read can never
+  prove the window was covered — the sum is a lower bound and the row says so. No transcript ⇒ `null` tokens and `tok_msgs: 0`, never a silent zero; a
   nested run's window overlaps its parent's and each row reports its own window. The printed line
   carries `tokens <input> input / <output> output (<cache-read share>% cached)` (the share is
   omitted when no input was billed) — `input` is the
