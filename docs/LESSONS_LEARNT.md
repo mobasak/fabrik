@@ -1233,6 +1233,14 @@ two different configs onto one dir.
 
 **TL;DR:** Coolify's `POST /applications/dockercompose` endpoint requires `docker_compose_raw` to be base64-encoded, not plain YAML.
 
+## 2026-09-08 — A prose-matching advisory checker has no fixed point under author-blind fan-out (the D-181/D-182 review's six mirror rounds)
+
+**What happened.** The D-181/D-182 corpus flip review took 9 rounds (7 → 2 → 2 → 1 → 1 → 1 → 1 → 1 → 0). Six of the nine were ONE item: the dispatch-policy pillar in `check_plan_quality.py`, a regex over English. Each author-blind exit seat wrote its own phrasing, found the regex (fitted to the previous seat's phrasing) rejected or over-accepted it, and reported that — correctly, by its own lights: bare `OFF` matched closure notices → verb-anchored → the noun-scoped form matched "pool room is OFF-limits" → verb required after the noun → that rejected "is completely OFF" → adverbs allowed → `OFF-limits` matched via `\bOFF\b` → hyphen refused. 6 of 9 rounds, 75% of the review's wall-clock, on an advisory WARN that was never a code defect (intel's diagnosis, 4e90716e; the commit trail 0ae72da9 → 9d7e6003 is the evidence).
+
+**Why.** Author-blind fan-out is a generator of independent phrasings; a regex over natural language is a classifier fitted to a sample of size one. Adding a fresh seat adds a fresh sample and a fresh miss, indefinitely — the loop's exit (findings → 0) is reached by accident when a seat happens to phrase the thing the way the current regex expects. The two checks in the same change that MATCH A FACT — `_POOL_POLICY_ON` read by the gate and by `doc_reconcile.py` — converged in one round each.
+
+**Rule.** An advisory check asserts the FACT, never the WORDING: read a committed constant, a ledger row, a file's presence, a parsed field — not English. When a prose-matcher must exist (a plan spine is prose), pin BOTH directions with tests the moment a seat raises a phrasing, record the shape as an ADJUDICATED standing row in the receipt, brief every later seat with it, and count only a plan-shaped phrasing a real spine would write; a further wording finding is CITED, not counted (D-048). Do not tune the regex a fourth time — leave it pinned; strictly better than another pass. Sibling of the mechanical-gate lesson: the gate that keyed on a credential file (no owner-visible state) was replaced by a committed constant for the same reason — a fact with a fixed point.
+
 ## Measure a moved doc's survival with a fence-aware census (2026-09-05)
 
 T06c moved a 286-line orchestrator doc into a corpus source and had to prove nothing was gutted (a
