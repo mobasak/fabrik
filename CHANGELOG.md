@@ -19,6 +19,16 @@ excluded from numeric helpers. Both CLAUDE.md FEEDBACK templates carry the `toke
 Two chain defects of the review itself were fixed in-run: a commit landed past a red gate
 (F541) and another past a red suite — the commit script now refuses both.
 
+### Added — the relief wake, Phase A: the rotation tick wakes every armed self-watch when the fleet-quota hold lifts (2026-09-07)
+
+- `scripts/sysadmin/claude_rotate.py` (+ the byte-identical aro-wake twin): at the fleet-exhausted stamp's unlink — the relief site
+  AND the transient-dwell site, both gated on a real exists→unlink transition — `_wake_held_sessions(now, reason, reading_ok)`
+  creates `<lockdir>/<safe-sid>.holdlifted` (the lift epoch, `O_CREAT|O_EXCL`, never the death record) for every sid whose
+  self-watch holds its `selfwatch.lock` (`_sid_is_armed`, vendored verbatim from `selfwatch_check.py` and lockstep-graded), writes NO
+  lift on a probe blackout (`reason="no-reading"`), and appends ONE `hold-lifted` ledger row with `armed/dead/woken/pending/errors`;
+  an unusable lock dir is counted, never fatal. Plan `docs/development/plans/2026-09-07-plan-1-relief-wake.md` (D-177/D-178).
+  Graders: three helper tests + four tick-level tests (relief + dedup, dwell, no-reading, errors), each seen red first.
+
 ### Fixed — Feedback ledger review round: the transcript scan no longer stops early, every reader error is contained, costs sum, the report declares its population (2026-09-07)
 
 `/fabrik-review 61b0e8ac..71314d47` (pool trio + native Opus + native Sonnet + own execution

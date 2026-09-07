@@ -1,6 +1,6 @@
 # Relief wake — when the fleet-quota hold lifts, every armed session is woken and told where it left off
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Profile: small
 **Owner:** fleet
 **Date:** 2026-09-07
@@ -80,7 +80,7 @@ Intake: 6 items — 5 IN, 1 OUT-OF-SCOPE (named above), 0 ASK.
 
 ## Phases
 
-### Phase A — the wake signal in the tick (`scripts/sysadmin/claude_rotate.py` + twin)
+### Phase A — the wake signal in the tick (`scripts/sysadmin/claude_rotate.py` + twin) — ✅ EXECUTED 2026-09-07 (commit hash recorded in the Phase B commit)
 
 **Files:** `scripts/sysadmin/claude_rotate.py` (`_fleet_active_wall_advisory` at `:4566`, both unlink sites `:4595` + `:4605`; new helpers `_selfwatch_lock_dir()`, `_armed_sids()`, `_wake_held_sessions(now, reason, reading_ok)`), `scripts/aro-wake/claude_rotate.py` (cp + cmp), `tests/test_claude_rotate_v2.py` (unit graders), `tests/test_claude_fleet.py` (the tick-level grader beside `test_fleet_exhaustion_advisory_fires_once_then_rearms_on_relief` at `:1321`).
 

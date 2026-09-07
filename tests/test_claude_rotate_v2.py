@@ -2626,3 +2626,130 @@ def test_a_session_between_a_raised_bar_and_the_trip_is_still_exhausted(monkeypa
     pic = cr._fleet_picture([_live("act@ocoron.com", "act", 20.0, 30.0), between], "act", NOW)
     st = {r["email"].split("@")[0]: (r["state"], r["returns_at"]) for r in pic["accounts"]}
     assert st["between"] == ("session-exhausted", NOW + 3 * 3600), st
+
+
+# ── relief wake (plan 2026-09-07-plan-1-relief-wake, Phase A) ────────────────────────────────
+
+
+def _hold_lock(path: Path):
+    """Hold an EXCLUSIVE flock on `path` for the test's life — the watcher's own shape
+    (`claude-selfwatch.sh:25-29`: `exec 9>lock; flock -n 9`)."""
+    import fcntl
+    import os
+
+    fd = os.open(str(path), os.O_WRONLY | os.O_CREAT, 0o644)
+    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    return fd
+
+
+def test_the_lift_wakes_only_armed_sids_and_never_touches_a_death(tmp_path, monkeypatch):
+    """Phase A.1: three sids — `a` armed (held lock), `b` a dead watch (lock file, no holder),
+    `c` armed with a death record AND a pending lift already on disk. Only `a` gets a lift file;
+    `c`'s death record is untouched (content + mtime) and its lift stays `5` (O_EXCL → pending);
+    the ledger row carries the counts; the vendored decider agrees with `selfwatch_check._armed`."""
+    import importlib.util
+    import os
+
+    locks = tmp_path / "locks"
+    locks.mkdir()
+    monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(locks))
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    fd_a = _hold_lock(locks / "a.selfwatch.lock")
+    (locks / "b.selfwatch.lock").write_text("")  # a dead watch: file, no holder
+    fd_c = _hold_lock(locks / "c.selfwatch.lock")
+    (locks / "c.errparked").write_text("server_error 1\n")
+    (locks / "c.holdlifted").write_text("5\n")
+    death_mtime = (locks / "c.errparked").stat().st_mtime_ns
+    try:
+        out = cr._wake_held_sessions(NOW, "relief", True)
+        assert (locks / "a.holdlifted").read_text() == f"{int(NOW)}\n"
+        assert not (locks / "b.holdlifted").exists(), "a dead watch cannot wake a pane"
+        assert (locks / "c.errparked").read_text() == "server_error 1\n"
+        assert (locks / "c.errparked").stat().st_mtime_ns == death_mtime, "never rewritten"
+        assert (locks / "c.holdlifted").read_text() == "5\n", "O_EXCL — an existing lift is pending"
+        assert out == {"armed": 2, "dead": 1, "woken": 1, "pending": 1, "errors": 0}, out
+        rows = [
+            json.loads(line)
+            for line in (state / "rotate-ledger.jsonl").read_text().splitlines()
+            if line.strip()
+        ]
+        lifted = [r for r in rows if r.get("event") == "hold-lifted"]
+        assert len(lifted) == 1 and lifted[0]["reason"] == "relief" and lifted[0]["woken"] == 1
+        # LOCKSTEP with the one decider the box already trusts
+        spec = importlib.util.spec_from_file_location(
+            "selfwatch_check",
+            Path(__file__).resolve().parents[1] / "scripts/sysadmin/selfwatch_check.py",
+        )
+        swc = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(swc)
+        for sid in ("a", "b", "c"):
+            assert cr._sid_is_armed(sid) == swc._armed(sid), sid
+    finally:
+        os.close(fd_a)
+        os.close(fd_c)
+
+
+def test_the_lift_without_a_reading_wakes_nobody_but_leaves_a_row(tmp_path, monkeypatch):
+    """Phase A: a probe blackout (`reading_ok=False`) writes NO lift file and a
+    `reason="no-reading"` row with `woken=0` — the helper is the ONE writer on both paths."""
+    import os
+
+    locks = tmp_path / "locks"
+    locks.mkdir()
+    monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(locks))
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    fd = _hold_lock(locks / "a.selfwatch.lock")
+    try:
+        out = cr._wake_held_sessions(NOW, "relief", False)
+        assert not (locks / "a.holdlifted").exists()
+        assert out["woken"] == 0 and out["armed"] == 1, out
+        rows = [
+            json.loads(line) for line in (state / "rotate-ledger.jsonl").read_text().splitlines()
+        ]
+        assert rows[-1]["event"] == "hold-lifted" and rows[-1]["reason"] == "no-reading"
+        assert rows[-1]["site"] == "relief", "the unlink site survives the reason rewrite"
+    finally:
+        os.close(fd)
+
+
+def test_the_lift_survives_an_unusable_lock_dir(tmp_path, monkeypatch):
+    """Phase A (fail-open on the mesh): the lock dir is a FILE → no crash, `errors >= 1`,
+    a row still lands so the failure is visible."""
+    bogus = tmp_path / "locks-as-a-file"
+    bogus.write_text("not a dir")
+    monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(bogus))
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    out = cr._wake_held_sessions(NOW, "relief", True)
+    assert out["errors"] >= 1 and out["woken"] == 0, out
+    rows = [json.loads(line) for line in (state / "rotate-ledger.jsonl").read_text().splitlines()]
+    assert rows[-1]["event"] == "hold-lifted" and rows[-1]["errors"] >= 1
+
+
+def test_the_reading_predicate_is_one_rule_on_both_sides():
+    """Scoped review of Phase A: `_active_account_walled`'s no-reading answer and the wake's
+    `reading_ok` must be the SAME predicate — one numeric window is a reading, all-None is not,
+    a missing window dict is None."""
+    assert cr._row_has_reading(
+        {"five_hour": {"utilization": 10.0}, "seven_day": {"utilization": None}}
+    )
+    assert cr._row_has_reading({"five_hour": None, "seven_day": {"utilization": 0.0}})
+    assert not cr._row_has_reading({"five_hour": {"utilization": None}, "seven_day": None})
+    assert not cr._row_has_reading({})
+    assert not cr._row_has_reading(None)
+
+
+def test_an_unclearable_stamp_keeps_the_hold_and_wakes_nobody(tmp_path, monkeypatch, capsys):
+    """Scoped review of Phase A: a stamp the tick cannot unlink (a directory in its place) is
+    reported and LEFT — the hook still reads it, so no wake may follow."""
+    stamp = tmp_path / "fleet-exhausted"
+    stamp.mkdir()
+    (stamp / "child").write_text("x")  # a non-empty dir: unlink raises
+    assert cr._clear_stamp(stamp) is False
+    assert stamp.exists()
+    assert "the hold stands, no wake" in capsys.readouterr().out

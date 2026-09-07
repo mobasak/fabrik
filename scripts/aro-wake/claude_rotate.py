@@ -4306,6 +4306,20 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
         print(f"tick: flip {row['email']} -> {email} ({slug}) withheld (see stderr)")
 
 
+def _row_utils(row: dict) -> dict[str, float | None]:
+    return {
+        key: (w.get("utilization") if isinstance(w, dict) else None)
+        for key, w in (("five_hour", row.get("five_hour")), ("seven_day", row.get("seven_day")))
+    }
+
+
+def _row_has_reading(row: dict | None) -> bool:
+    """The ONE no-reading predicate: `_active_account_walled` answers "not walled" on it and the
+    relief wake refuses to fire on it (a probe blackout is not relief). A row with ANY non-None
+    window utilization is a reading — the same rule on both sides, by construction."""
+    return row is not None and not all(v is None for v in _row_utils(row).values())
+
+
 def _active_account_walled(accounts: list[dict], threshold: float) -> tuple[bool, dict | None]:
     """Is the account the fleet's ``active`` pointer resolves to (AFTER this tick's flip leg)
     walled? Uses the ONE shared exclusion predicate (:func:`_flip_churn_excluded`) — a pointer
@@ -4320,13 +4334,140 @@ def _active_account_walled(accounts: list[dict], threshold: float) -> tuple[bool
     )
     if row is None:
         return False, None
-    utils = {
-        key: (w.get("utilization") if isinstance(w, dict) else None)
-        for key, w in (("five_hour", row.get("five_hour")), ("seven_day", row.get("seven_day")))
-    }
-    if all(v is None for v in utils.values()):
+    utils = _row_utils(row)
+    if not _row_has_reading(row):
         return False, row  # no reading → no claim
     return _flip_churn_excluded(utils, row.get("weekly_cap"), threshold), row
+
+
+def _clear_stamp(stamp: Path) -> bool:
+    """Unlink the fleet-exhausted stamp; True when it is gone. A stamp that cannot be removed
+    (permissions, a directory in its place) is reported and left — the hold then STANDS, so no
+    wake may follow: the tick must never tell the fleet the hold lifted while the hook still reads
+    the stamp (scoped review of Phase A, 2026-09-07)."""
+    try:
+        stamp.unlink(missing_ok=True)
+        return True
+    except OSError as exc:
+        print(
+            f"tick: fleet-exhausted stamp could not be cleared ({exc}) — the hold stands, no wake"
+        )
+        return False
+
+
+def _selfwatch_lock_dir() -> Path:
+    """The resume mesh's lock dir — the same default every pane's self-watch uses
+    (`claude-selfwatch.sh:18`, `selfwatch_check.py:42-43`); cron runs the tick as the same user."""
+    return Path(os.environ.get("CLAUDE_SOUND_LOCKDIR") or f"/tmp/claude-sound-locks-{os.getuid()}")
+
+
+def _selfwatch_safe(sid: str) -> str:
+    """Vendored VERBATIM from `scripts/sysadmin/selfwatch_check.py:32-39` — the watcher's own
+    transform BYTE for byte (`claude-selfwatch.sh:19`: `tr -c 'A-Za-z0-9_-' '_' | head -c 64`)."""
+    out = bytearray()
+    for b in sid.encode("utf-8"):
+        out.append(b if (chr(b).isalnum() and b < 128) or b in b"_-" else ord("_"))
+    return out[:64].decode("ascii")
+
+
+def _selfwatch_held_per_proc_locks(st: os.stat_result) -> bool:
+    """Vendored VERBATIM from `scripts/sysadmin/selfwatch_check.py:46-63` (the aro-wake twin ships
+    as one file and cannot import it; a lockstep grader in tests/test_claude_rotate_v2.py keeps the
+    two deciders equal). POSITIVE-ONLY: `/proc/locks` omits a lock whose creating task exited,
+    and the watcher arms with `exec 9>lock; flock -n 9` — absence proves nothing, presence is
+    authoritative."""
+    try:
+        text = Path("/proc/locks").read_text()
+    except OSError:
+        return False
+    maj, mnr = os.major(st.st_dev), os.minor(st.st_dev)
+    want = f"{maj:02x}:{mnr:02x}:{st.st_ino}"
+    for line in text.splitlines():
+        parts = line.split()
+        if len(parts) >= 6 and parts[1] == "FLOCK" and parts[5] == want:
+            return True
+    return False
+
+
+def _sid_is_armed(sid: str) -> bool:
+    """Vendored VERBATIM from `scripts/sysadmin/selfwatch_check.py:65-86` — the ONE armed decider:
+    a HELD `<safe>.selfwatch.lock` is an armed watch. `/proc/locks` first, then a non-blocking
+    SHARED flock probe on an O_RDONLY fd (a held exclusive lock refuses it at once; a shared probe
+    can never hand the watcher's own `flock -n` a false "already armed")."""
+    path = _selfwatch_lock_dir() / f"{_selfwatch_safe(sid)}.selfwatch.lock"
+    if not path.exists():
+        return False
+    st = os.stat(path)
+    if _selfwatch_held_per_proc_locks(st):
+        return True
+    fd = os.open(str(path), os.O_RDONLY)
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return True
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        return False
+    finally:
+        os.close(fd)
+
+
+def _armed_sids() -> tuple[list[str], list[str]]:
+    """``(armed, dead)`` — every `*.selfwatch.lock` in the lock dir, split by whether its holder
+    is alive. A lock file without a holder is a watch that died; it gets no wake and is counted."""
+    armed: list[str] = []
+    dead: list[str] = []
+    lock_dir = _selfwatch_lock_dir()
+    if not lock_dir.is_dir():  # a file or nothing at all: `glob` would say "no watches" silently
+        raise NotADirectoryError(str(lock_dir))
+    for lock in sorted(lock_dir.glob("*.selfwatch.lock")):
+        sid = lock.name[: -len(".selfwatch.lock")]
+        (armed if _sid_is_armed(sid) else dead).append(sid)
+    return armed, dead
+
+
+def _wake_held_sessions(now: float, reason: str, reading_ok: bool) -> dict:
+    """The RELIEF WAKE (D-177/D-178): the fleet-exhausted stamp just went away, so every session
+    that stopped for the hold must be told. For every sid whose self-watch is ARMED, create
+    `<lockdir>/<safe>.holdlifted` holding the lift epoch — a file of its OWN, never the death
+    record `.errparked` (the decider clears that one on every normal Stop, `claude-stop-decider.py
+    :904-906`, which is exactly the graceful-stop turn a held session is inside), created O_EXCL so
+    an existing lift stays `pending` and a same-second death is never overwritten. With
+    ``reading_ok`` False (a probe blackout — `_active_account_walled` answers "not walled" on no
+    data) NO lift is written: a blackout is not relief, and waking the fleet into the wall burns
+    the turn the hold saved. Either way ONE ledger row (`hold-lifted`) records the denominator.
+    Fails OPEN on the mesh: an unusable lock dir is counted in ``errors`` and the tick goes on."""
+    counts = {"armed": 0, "dead": 0, "woken": 0, "pending": 0, "errors": 0}
+    site = reason  # which unlink fired — kept even when the reason becomes "no-reading"
+    try:
+        armed, dead = _armed_sids()
+        counts["armed"], counts["dead"] = len(armed), len(dead)
+        if reading_ok:
+            for sid in armed:
+                target = _selfwatch_lock_dir() / f"{_selfwatch_safe(sid)}.holdlifted"
+                try:
+                    fd = os.open(str(target), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+                except FileExistsError:
+                    counts["pending"] += 1
+                    continue
+                except OSError:
+                    counts["errors"] += 1
+                    continue
+                try:
+                    os.write(fd, f"{int(now)}\n".encode())
+                finally:
+                    os.close(fd)
+                counts["woken"] += 1
+        else:
+            reason = "no-reading"
+    except OSError:
+        counts["errors"] += 1
+    _ledger_append({"event": "hold-lifted", "ts": now, "reason": reason, "site": site, **counts})
+    print(
+        f"tick: hold lifted ({reason}) — woke {counts['woken']} of {counts['armed']} armed "
+        f"self-watch(es); dead {counts['dead']}, pending {counts['pending']}, errors {counts['errors']}"
+    )
+    return counts
 
 
 def _promised_resume(stamp: Path) -> float | None:
@@ -4591,8 +4732,13 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
         session_pct = float(v) if isinstance(v, (int, float)) else None
     urgent = session_pct is not None and session_pct >= _urgent_drain_pct()
     stamp = _fleet_exhaustion_stamp()
+    # The RELIEF WAKE fires only on a real TRANSITION (stamp present → absent) and only with a
+    # real reading: `row is None` / both windows `None` is a probe blackout, not relief.
+    reading_ok = _row_has_reading(row)
     if row is None or not (walled or urgent):
-        stamp.unlink(missing_ok=True)  # relief arrived (flip/reset) → re-arm for the next wall
+        if stamp.exists() and _clear_stamp(stamp):
+            # relief arrived (flip/reset) → re-arm for the next wall, and wake the held sessions
+            _wake_held_sessions(now, "relief", reading_ok)
         return
     # Relief IS coming when a headroom successor exists AND rotation is not paused: the active
     # account is walled only because the flip is held by the transient 30-min dwell, not because
@@ -4602,7 +4748,9 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     # threshold's second tick sets up). The operator's PAUSE is the exception: it deliberately
     # froze the safety valve, so a walled active under pause IS a real stall worth the warning.
     if not _switch_paused() and _validated_pick(accounts, {row["email"]}) is not None:
-        stamp.unlink(missing_ok=True)  # transient dwell hold, not exhaustion → re-arm
+        if stamp.exists() and _clear_stamp(stamp):
+            # transient dwell hold, not exhaustion → re-arm; the hold is gone for the sessions too
+            _wake_held_sessions(now, "dwell", reading_ok)
         return
     # Latch: fire once per wall episode. But a latch is not forever — a WEEK of unbroken
     # exhaustion is a fact worth repeating (restores the per-account "week without a word" re-arm

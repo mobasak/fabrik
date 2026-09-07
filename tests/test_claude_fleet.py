@@ -3616,3 +3616,149 @@ def test_relief_flips_even_within_the_dwell_of_the_last_flip(tmp_path, monkeypat
     rows = [json.loads(ln) for ln in ledger.read_text().splitlines()]
     assert rows[-1]["event"] == "flip" and rows[-1]["kind"] == "relief", rows[-1]
     assert (rows[-1]["from"], rows[-1]["to"]) == ("seo", "intel"), rows[-1]
+
+
+# ── relief wake (plan 2026-09-07-plan-1-relief-wake, Phase A.4) ──────────────────────────────
+
+
+def _armed_watch(tmp_path, monkeypatch, sid="pane1"):
+    """A tmp lock dir with ONE armed self-watch (an exclusive flock held for the test's life —
+    `claude-selfwatch.sh:25-29`'s shape). Returns (locks, fd)."""
+    import fcntl
+    import os
+
+    locks = tmp_path / "locks"
+    locks.mkdir(exist_ok=True)
+    monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(locks))
+    fd = os.open(str(locks / f"{sid}.selfwatch.lock"), os.O_WRONLY | os.O_CREAT, 0o644)
+    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    return locks, fd
+
+
+def _lifted_rows():
+    return [
+        json.loads(line)
+        for line in (cr._rotate_state_dir() / "rotate-ledger.jsonl").read_text().splitlines()
+        if '"hold-lifted"' in line
+    ]
+
+
+def test_relief_wakes_the_armed_watch_once_and_only_on_the_transition(tmp_path, monkeypatch):
+    """A.4(a): the wall sets the stamp; a sibling regaining headroom relieves it → the ONE armed
+    pane gets `<sid>.holdlifted` with the tick's epoch and a `reason="relief"` row; the next
+    tick (no stamp) writes nothing more — dedup by the exists→unlink transition."""
+    import os
+
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    locks, fd = _armed_watch(tmp_path, monkeypatch)
+    try:
+        _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+        _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+        usages = {"tok-seo": _usage_blob(96.0, 96.0), "tok-intel": _usage_blob(100.0, 100.0)}
+        _fake_oauth(monkeypatch, usages=usages)
+        _fleet_tick_spies(monkeypatch)
+        monkeypatch.setattr(cr, "_mailbox_repos", lambda: ["fabrik"])
+        monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+        _point(fleet, "seo")
+        assert cr._cmd_tick() == 0  # the wall: stamp set
+        assert cr._fleet_exhaustion_stamp().exists()
+        assert not (locks / "pane1.holdlifted").exists()
+        usages["tok-intel"] = _usage_blob(10.0, 10.0)  # headroom returns
+        _fake_oauth(monkeypatch, usages=usages)
+        assert cr._cmd_tick() == 0  # relief: stamp unlinked + the wake
+        assert not cr._fleet_exhaustion_stamp().exists()
+        assert (locks / "pane1.holdlifted").read_text() == f"{int(FLEET_NOW)}\n"
+        rows = _lifted_rows()
+        assert len(rows) == 1 and rows[0]["reason"] == "relief" and rows[0]["woken"] == 1
+        assert rows[0]["armed"] == 1 and rows[0]["dead"] == 0
+        (locks / "pane1.holdlifted").unlink()
+        assert cr._cmd_tick() == 0  # still relieved, no stamp → nothing to lift
+        assert not (locks / "pane1.holdlifted").exists()
+        assert len(_lifted_rows()) == 1
+    finally:
+        os.close(fd)
+
+
+def test_a_transient_dwell_unlink_wakes_with_reason_dwell(tmp_path, monkeypatch):
+    """A.4(b): the stamp stands, the active is still walled, but a validated successor exists and
+    rotation is not paused — the `:4605` site unlinks and the wake fires with `reason="dwell"`."""
+    import os
+
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    locks, fd = _armed_watch(tmp_path, monkeypatch)
+    try:
+        _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+        _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+        usages = {"tok-seo": _usage_blob(96.0, 96.0), "tok-intel": _usage_blob(100.0, 100.0)}
+        _fake_oauth(monkeypatch, usages=usages)
+        _fleet_tick_spies(monkeypatch)
+        monkeypatch.setattr(cr, "_mailbox_repos", lambda: ["fabrik"])
+        monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+        _point(fleet, "seo")
+        assert cr._cmd_tick() == 0
+        assert cr._fleet_exhaustion_stamp().exists()
+        monkeypatch.setattr(cr, "_validated_pick", lambda *a, **k: ("intel", "ob@ocoron.com"))
+        monkeypatch.setattr(cr, "_switch_paused", lambda: False)
+        assert cr._cmd_tick() == 0
+        assert not cr._fleet_exhaustion_stamp().exists()
+        rows = _lifted_rows()
+        assert rows and rows[-1]["reason"] == "dwell" and rows[-1]["woken"] == 1
+        assert (locks / "pane1.holdlifted").exists()
+    finally:
+        os.close(fd)
+
+
+def test_a_probe_blackout_unlinks_without_waking(tmp_path, monkeypatch):
+    """A.4(c): the stamp stands and the tick has NO reading at all (every window `None`, no cache
+    to rescue from — a fresh fleet's first tick) → `_active_account_walled` answers not-walled,
+    the stamp is unlinked as before, NO lift file is written, and the row reads
+    `reason="no-reading", woken=0` with the armed count as the denominator."""
+    import os
+
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    locks, fd = _armed_watch(tmp_path, monkeypatch)
+    try:
+        _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+        _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+        _fake_oauth(
+            monkeypatch,
+            usages={"tok-seo": _usage_blob(None, None), "tok-intel": _usage_blob(None, None)},
+        )
+        _fleet_tick_spies(monkeypatch)
+        monkeypatch.setattr(cr, "_mailbox_repos", lambda: ["fabrik"])
+        monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+        _point(fleet, "seo")
+        stamp = cr._fleet_exhaustion_stamp()
+        stamp.parent.mkdir(parents=True, exist_ok=True)
+        stamp.write_text("0")  # a wall episode is latched from an earlier tick
+        assert cr._cmd_tick() == 0
+        assert not stamp.exists(), "no reading → not walled → the stamp is cleared as before"
+        assert not (locks / "pane1.holdlifted").exists(), "a blackout never wakes the fleet"
+        rows = _lifted_rows()
+        assert rows and rows[-1]["reason"] == "no-reading" and rows[-1]["woken"] == 0, rows
+        assert rows[-1]["armed"] == 1
+    finally:
+        os.close(fd)
+
+
+def test_an_unusable_lock_dir_never_aborts_the_tick(tmp_path, monkeypatch):
+    """A.4(d): the lock dir is a FILE → the relief tick still returns 0 and the row carries
+    `errors >= 1` (fail-open on the mesh, visible in the ledger)."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    bogus = tmp_path / "locks-as-a-file"
+    bogus.write_text("not a dir")
+    monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(bogus))
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    usages = {"tok-seo": _usage_blob(96.0, 96.0), "tok-intel": _usage_blob(100.0, 100.0)}
+    _fake_oauth(monkeypatch, usages=usages)
+    _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: ["fabrik"])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    _point(fleet, "seo")
+    assert cr._cmd_tick() == 0
+    usages["tok-intel"] = _usage_blob(10.0, 10.0)
+    _fake_oauth(monkeypatch, usages=usages)
+    assert cr._cmd_tick() == 0
+    rows = _lifted_rows()
+    assert rows and rows[-1]["errors"] >= 1 and rows[-1]["woken"] == 0

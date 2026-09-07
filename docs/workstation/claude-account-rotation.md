@@ -123,8 +123,16 @@ The `*/5` tick reads every account dir (five as of 2026-09-06 — it discovers t
   writes the `fleet-exhausted` stamp, and the synced PreToolUse hook `quota_stop.py` turns it
   into a GRACEFUL STOP that reaches every session mid-turn: work tools are held with one
   instruction (commit + push, close the run record, end the turn); reads, git and the record
-  tools stay open; the hold lifts the moment the tick clears the stamp; a session that ended is
-  restarted by the operator or the resume mesh. Before 2026-09-02 the four broadcasts of the day
+  tools stay open; the hold lifts the moment the tick clears the stamp — and since 2026-09-07 (the
+  RELIEF WAKE, plan `2026-09-07-plan-1-relief-wake`, D-177/D-178) the same unlink — the relief site and
+  the transient-dwell site alike — writes `<lockdir>/<safe-sid>.holdlifted` (the lift epoch) for every
+  session whose self-watch is ARMED (`_wake_held_sessions`: a held `selfwatch.lock`, the one decider
+  `selfwatch_check.py` uses, vendored lockstep) and appends a `hold-lifted` ledger row with
+  `armed/dead/woken/pending/errors`; the self-watch consumes the file and prints the RESUME line naming
+  the run record and thread anchors. A probe blackout (every window `None`) unlinks WITHOUT waking
+  (`reason="no-reading"`) — waking the fleet into the wall would burn the turn the hold saved. A session
+  whose watch was NOT armed stays idle until the operator restarts it — which is why the hold's own
+  denial text orders the arm (Monitor is allowed under the hold). Before 2026-09-02 the four broadcasts of the day
   were the picker bug (§ Target) talking, not real exhaustion. Work resumes
   as windows reset. **The latch has a THIRD re-arm: the promise coming due.** The message names a
   resume instant and tells every repo not to poll before it, so the `fleet-exhausted` stamp's
@@ -258,6 +266,8 @@ flip; nothing installs into `~/.claude`.
 @reboot sleep 20 && /usr/bin/python3 /opt/fabrik/scripts/sysadmin/quota_dashboard.py --ensure >> $HOME/.claude/quota-dashboard.log 2>&1
 */10 * * * * /usr/bin/python3 /opt/fabrik/scripts/sysadmin/quota_dashboard.py --ensure >> $HOME/.claude/quota-dashboard.log 2>&1
 ```
+
+The `flock -n $HOME/.claude/state/rotate.lock` wrapper is load-bearing, not tidiness: the relief wake fires on the stamp's exists→unlink TRANSITION, and that is single-fire only because two ticks never overlap — a hand-run `--tick` must use the same wrapper (`flock -n ~/.claude/state/rotate.lock python3 scripts/sysadmin/claude_rotate.py --tick`), or a hand tick racing the cron one can wake every pane twice.
 
 The hourly `--drift-check` cron and the SessionStart drift-check hook are gone — a settings
 symlink would have run the drift-check from every fleet dir against its hardcoded `~/.claude`

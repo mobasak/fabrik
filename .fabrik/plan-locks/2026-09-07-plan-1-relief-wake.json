@@ -1,0 +1,31 @@
+{
+  "plan": "docs/development/plans/2026-09-07-plan-1-relief-wake.md",
+  "owned_paths": [
+    "scripts/sysadmin/claude_rotate.py",
+    "scripts/aro-wake/claude_rotate.py",
+    "tests/test_claude_rotate_v2.py",
+    "tests/test_claude_fleet.py",
+    ".claude/hooks/quota_stop.py",
+    "tests/test_quota_stop_hook.py",
+    "docs/workstation/hooks-index.md",
+    "docs/workstation/claude-account-rotation.md",
+    "templates/governance/CLAUDE.md",
+    "CLAUDE.md",
+    "docs/development/reviews/2026-09-07-plan-1-relief-wake-review.md"
+  ],
+  "branch": "master",
+  "started_at": "2026-09-07T14:45:12",
+  "status": "active",
+  "baseline_commit": "e3467944",
+  "baseline_gate": {
+    "lean_status": "success",
+    "red_checks": [],
+    "advisory_warnings": [
+      "Coverage Checklist (reviews)",
+      "Vendored Drift (sync-excluded repos)",
+      "Citations resolve (path:line lands)",
+      "untracked sources (advisory)"
+    ],
+    "note": "two OTHER active locks present (2026-09-03-plan-1-multi-agent-per-repo \u2014 owned_paths malformed: G/W/T rows, not paths; 2026-09-05-plan-1-windowed-cost-sidecar \u2014 disjoint); no literal path overlap; main checkout used with per-file dirtiness checks"
+  }
+}
