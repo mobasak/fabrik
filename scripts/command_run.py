@@ -906,6 +906,142 @@ def _active_account() -> str:
         return ""
 
 
+# ── per-run TOKEN usage from the session transcript (operator, 2026-09-07: "input, output,
+# cached tokens must be recorded per run") ─────────────────────────────────────────────────
+# Claude Code writes every assistant message's `usage` (input / output / cache_read /
+# cache_creation tokens) with a timestamp to `~/.claude/projects/<cwd-slug>/<sid>.jsonl`. The
+# close sums the messages stamped inside the run's window [started_epoch, now] (±2 s slack for
+# the transcript's own write latency). The file is
+# read BACKWARDS in 1 MiB chunks and stops once a run of stamped lines predates the window
+# (a hub transcript is hundreds of MB; the last 30 min sit in the last ~1 MB), capped at
+# `_TRANSCRIPT_MAX_BYTES` so a pathological file can never wedge a close. A nested run's
+# window overlaps its parent's — each row reports what ITS window spent. Fail-soft: no
+# transcript ⇒ nulls (never a silent 0); the report counts such a row as a RUN but leaves it
+# out of the token sum and its denominator.
+_TRANSCRIPT_MAX_BYTES = 256 << 20
+_TRANSCRIPT_STOP_AFTER = 300  # consecutive stamped lines older than the window ⇒ stop
+_TOKEN_KEYS = (
+    ("tok_in", "input_tokens"),
+    ("tok_out", "output_tokens"),
+    ("tok_cache_read", "cache_read_input_tokens"),
+    ("tok_cache_create", "cache_creation_input_tokens"),
+)
+
+
+def _transcript_path(sid: str, repo_root: str) -> Path | None:
+    override = os.environ.get("COMMAND_RUN_TRANSCRIPT")
+    if override:
+        return Path(override)
+    if not sid or not repo_root:
+        return None
+    slug = re.sub(r"[^A-Za-z0-9]", "-", repo_root)
+    try:
+        home = Path.home()
+    except RuntimeError:
+        return None
+    for base in (home / ".claude" / "projects", home / ".claude-fleet" / "active" / "projects"):
+        cand = base / slug / f"{sid}.jsonl"
+        if cand.is_file():
+            return cand
+    return None
+
+
+def _iter_lines_backwards(path: Path, max_bytes: int):
+    """Yield the file's lines last-first, reading at most `max_bytes` from the tail."""
+    with path.open("rb") as fh:
+        fh.seek(0, os.SEEK_END)
+        pos = fh.tell()
+        floor = max(0, pos - max_bytes)
+        buf = b""
+        while pos > floor:
+            step = min(1 << 20, pos - floor)
+            pos -= step
+            fh.seek(pos)
+            buf = fh.read(step) + buf
+            lines = buf.split(b"\n")
+            buf = lines[0]
+            yield from reversed(lines[1:])
+        if pos == 0 and buf:
+            yield buf
+
+
+def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[str, Any]:
+    empty: dict[str, Any] = {k: None for k, _ in _TOKEN_KEYS}
+    empty.update({"tok_msgs": 0, "models": []})
+    if path is None or start <= 0:
+        return empty
+    try:
+        if not path.is_file():
+            return empty
+        totals = dict.fromkeys((k for k, _ in _TOKEN_KEYS), 0)
+        msgs = 0
+        models: list[str] = []
+        seen: set[str] = set()  # the transcript writes ONE LINE PER CONTENT BLOCK (thinking,
+        # tool_use, text) and every line repeats the message's usage — measured 500 assistant
+        # lines for 245 message ids; summing per line overcounts ~2x, so count a message once
+        older = 0
+        lo = start - 2.0
+        for raw in _iter_lines_backwards(path, _TRANSCRIPT_MAX_BYTES):
+            if not raw.strip():
+                continue
+            try:
+                d = json.loads(raw)
+            except ValueError:
+                continue
+            ts = d.get("timestamp") if isinstance(d, dict) else None
+            if not isinstance(ts, str):
+                continue
+            try:
+                e = dt.datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
+            except ValueError:
+                continue
+            if e < lo:
+                older += 1
+                if older >= _TRANSCRIPT_STOP_AFTER:
+                    break
+                continue
+            older = 0
+            if e > end + 2.0 or d.get("type") != "assistant":
+                continue
+            msg = d.get("message") or {}
+            u = msg.get("usage") if isinstance(msg, dict) else None
+            if not isinstance(u, dict):
+                continue
+            mid = str(msg.get("id") or d.get("uuid") or "")
+            if mid:  # an id-less line cannot be a repeat we can prove — count it
+                if mid in seen:
+                    continue
+                seen.add(mid)
+            msgs += 1
+            for k, src in _TOKEN_KEYS:
+                v = u.get(src)
+                if isinstance(v, (int, float)):
+                    totals[k] += int(v)
+            m = msg.get("model")
+            if isinstance(m, str) and m and m not in models:
+                models.append(m)
+        if msgs == 0:
+            return empty
+        out: dict[str, Any] = dict(totals)
+        out.update({"tok_msgs": msgs, "models": sorted(models)})
+        return out
+    except (OSError, ValueError, RecursionError):  # fail-soft — never wedges a close
+        return empty
+
+
+def _tokens_clause(tok: dict[str, Any]) -> str:
+    """`tokens 12.3k in / 4.5k out (97% cached)` for the printed FEEDBACK line; "" when null."""
+    if not tok or tok.get("tok_in") is None:
+        return ""
+
+    def k(n: int) -> str:
+        return f"{n / 1000:.1f}k" if n >= 1000 else str(n)
+
+    ctx = int(tok["tok_in"]) + int(tok["tok_cache_read"]) + int(tok["tok_cache_create"])
+    hit = f" ({100 * int(tok['tok_cache_read']) / ctx:.0f}% cached)" if ctx else ""
+    return f"tokens {k(ctx)} in / {k(int(tok['tok_out']))} out{hit}"
+
+
 def _cost_usd(text: str) -> float | None:
     """The dollar amount in a free-text ``cost:`` value (``pool $0.0125`` → 0.0125,
     ``$1,234.50`` → 1234.5). None when the value is prose or carries no marked number — a row
@@ -928,6 +1064,9 @@ def _feedback_line(rec: dict[str, Any], fields: dict[str, str], wall_s: float) -
     if trend:
         head += f" ({trend})"
     tail = " · ".join(f"{k}: {fields[k]}" for k in (*_USAGE_FIELDS, "cost") if fields.get(k))
+    tokens = _tokens_clause((rec.get("usage") or {}).get("tokens") or {})
+    if tokens:
+        head += f" · {tokens}"
     return f"{head} · {tail}"
 
 
@@ -1778,6 +1917,9 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         # above returned before this line, so a refused close never persists the override
         if (getattr(args, "surface", "") or "").strip():
             rec["surface"] = args.surface.strip()
+        _tok = _sum_transcript_usage(
+            _transcript_path(sid, str(rec.get("repo_root") or "")), _se or 0.0, time.time()
+        )
         _row = {
             "ts": time.time(),
             "sid": sid,
@@ -1794,6 +1936,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             "account": str(rec.get("account") or ""),
             **{k: _usage_fields.get(k, "") for k in (*_USAGE_FIELDS, "cost")},
             "cost_usd": _cost_usd(_usage_fields.get("cost", "")),
+            **_tok,
         }
         try:
             _lp = _feedback_ledger_path()
@@ -1803,6 +1946,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         except OSError as exc:  # the ledger never blocks a close; the record still carries it
             sys.stderr.write(f"[command_run] usage ledger not written: {exc}\n")
         rec["usage"] = {k: _row[k] for k in ("wall_s", "rounds", *_USAGE_FIELDS)}
+        rec["usage"]["tokens"] = _tok
         print(_feedback_line(rec, _usage_fields, _wall_s))
     if parent is not None:
         closed = {k: v for k, v in rec.items() if k != "stack"}

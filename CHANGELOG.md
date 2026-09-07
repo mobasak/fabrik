@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Per-run token usage in the feedback ledger row, summed from the session transcript (2026-09-07)
+
+`command_run.py`'s close reads the session transcript backwards from its tail and sums every
+assistant message's `usage` stamped inside the run window: `tok_in · tok_out · tok_cache_read ·
+tok_cache_create · tok_msgs · models`; the printed `FEEDBACK:` line carries `tokens <ctx> in /
+<out> out (<n>% cached)`. `command_feedback_report.py` adds median tokens per run (with the rows
+that carried them) and the cache-hit share per command. Operator, 2026-09-07: "input output
+tokens, cached tokens must be recorded per run". No transcript ⇒ `null`, never a silent zero.
+Fleet-synced. Tests: `tests/test_command_feedback.py` (+2), `tests/test_command_feedback_report.py`
+(+1), all seen red first.
+
 ### Fixed — quota board: six defects in the new search-API quota panel, found by its own review (2026-09-07)
 
 The review of `f657d83e` was cut short by the fleet-quota hold; resumed after it lifted. Every one of

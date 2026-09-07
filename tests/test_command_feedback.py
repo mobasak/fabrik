@@ -395,3 +395,143 @@ def test_a_refused_close_does_not_persist_its_late_surface(run_dir: Path) -> Non
     rec = json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))
     assert rec["surface"] == "" and rec["state"] == "running"
     assert _ledger(run_dir) == []
+
+
+def _transcript_line(
+    ts_epoch: float, tin: int, tout: int, cr: int, cc: int, model: str = "claude-x", mid: str = ""
+) -> str:
+    import datetime as dt
+
+    ts = dt.datetime.fromtimestamp(ts_epoch, tz=dt.UTC).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    return json.dumps(
+        {
+            "type": "assistant",
+            "timestamp": ts,
+            "message": {
+                "id": mid or f"msg_{ts_epoch}",
+                "model": model,
+                "usage": {
+                    "input_tokens": tin,
+                    "output_tokens": tout,
+                    "cache_read_input_tokens": cr,
+                    "cache_creation_input_tokens": cc,
+                },
+            },
+        }
+    )
+
+
+def test_the_row_sums_the_transcripts_token_usage_inside_the_run_window(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    import time
+
+    now = time.time()
+    tr = tmp_path / "s1.jsonl"
+    env = {
+        **os.environ,
+        "COMMAND_RUN_DIR": str(run_dir),
+        "CLAUDE_SESSION_ID": "s1",
+        "COMMAND_RUN_TRANSCRIPT": str(tr),
+    }
+    env.pop("CLAUDE_AGENT", None)
+    r = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "start",
+            "--command",
+            "fabrik-probe",
+            "--phases",
+            "1",
+            "--terminal",
+            "t",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env=env,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    tr.write_text(
+        "\n".join(
+            [
+                _transcript_line(now - 3600, 1000, 1000, 1000, 1000),  # an hour before: excluded
+                json.dumps({"type": "user", "timestamp": "2026-01-01T00:00:00.000Z"}),  # no usage
+                _transcript_line(now + 1, 10, 200, 5000, 700, model="claude-a", mid="m1"),
+                # the same message again — one line per content block, usage repeated: NOT summed
+                _transcript_line(now + 1, 10, 200, 5000, 700, model="claude-a", mid="m1"),
+                "{not json",
+                _transcript_line(now + 2, 5, 100, 3000, 300, model="claude-b", mid="m2"),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    r = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "done",
+            "--command",
+            "fabrik-probe",
+            "--evidence",
+            "x",
+            "--feedback",
+            STRUCTURED,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env=env,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    row = _ledger(run_dir)[0]
+    assert row["tok_in"] == 15 and row["tok_out"] == 300
+    assert row["tok_cache_read"] == 8000 and row["tok_cache_create"] == 1000
+    assert row["tok_msgs"] == 2 and row["models"] == ["claude-a", "claude-b"]
+    line = next(ln for ln in r.stdout.splitlines() if ln.startswith("FEEDBACK:"))
+    assert "tokens" in line and "cached" in line, line
+
+
+def test_a_missing_transcript_records_null_tokens_not_zero(run_dir: Path) -> None:
+    env = {
+        **os.environ,
+        "COMMAND_RUN_DIR": str(run_dir),
+        "CLAUDE_SESSION_ID": "s1",
+        "COMMAND_RUN_TRANSCRIPT": str(run_dir / "no-such-transcript.jsonl"),
+    }
+    env.pop("CLAUDE_AGENT", None)
+    for args in (
+        ["start", "--command", "fabrik-probe", "--phases", "1", "--terminal", "t"],
+        ["done", "--command", "fabrik-probe", "--evidence", "x", "--feedback", STRUCTURED],
+    ):
+        r = subprocess.run(
+            [sys.executable, str(SCRIPT), *args],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env=env,
+        )
+        assert r.returncode == 0, r.stdout + r.stderr
+    row = _ledger(run_dir)[0]
+    assert row["tok_in"] is None and row["tok_out"] is None and row["tok_msgs"] == 0
+    assert row["models"] == []
+
+
+def test_transcript_path_maps_the_cwd_to_claude_codes_project_slug(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Every non-alphanumeric byte of the ABSOLUTE cwd becomes '-' (measured against the live
+    ~/.claude/projects dirs: /opt/fabrik/.tmp/rivals/.neutral-cwd -> -opt-fabrik--tmp-rivals--neutral-cwd)."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _transcript_path  # noqa: PLC0415
+
+    monkeypatch.delenv("COMMAND_RUN_TRANSCRIPT", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    d = tmp_path / ".claude" / "projects" / "-opt-my-repo--tmp-x-y"
+    d.mkdir(parents=True)
+    (d / "s1.jsonl").write_text("", encoding="utf-8")
+    assert _transcript_path("s1", "/opt/my_repo/.tmp/x.y") == d / "s1.jsonl"
+    assert _transcript_path("s2", "/opt/my_repo/.tmp/x.y") is None  # no transcript ⇒ None
+    assert _transcript_path("", "/opt/my_repo") is None

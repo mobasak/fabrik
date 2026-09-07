@@ -15,7 +15,7 @@ manifesto's Phase-0 triage; a ONE-WAY row grows the § Binding field block, per 
 decision ledger) — or state `no decisions this run`. **Then the
 feedback line:**
 
-> `FEEDBACK: /<command> · <wall-clock> · rounds <n> (<findings trend>) · confusion: <what in the
+> `FEEDBACK: /<command> · <wall-clock> · rounds <n> (<findings trend>) · tokens <ctx> in / <out> out (<n>% cached) · confusion: <what in the
 > command text was ambiguous or misleading | none> · waste: <steps, turns or tokens spent without
 > changing the outcome | none> · change: <the ONE concrete edit to this command or a rule that would
 > have made this run faster or more accurate | none> · filed: <mail id(s) to infra|fleet|intel | none

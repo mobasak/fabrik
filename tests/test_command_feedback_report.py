@@ -136,3 +136,75 @@ def test_agent_filter_and_cost_sum_per_command(tmp_path: Path) -> None:
     assert only["backlog"][0]["agent"] == "infra" and only["backlog"][0]["surface"] == "plan-1"
     text = _run(ledger, "--agent", "fleet").stdout
     assert "[fleet · plan-2]" in text, text
+
+
+def test_token_columns_are_summed_and_medianed_per_command(tmp_path: Path) -> None:
+    ledger = tmp_path / "command-feedback.jsonl"
+    _write(
+        ledger,
+        [
+            _row(
+                "fabrik-review",
+                600,
+                4,
+                "a",
+                tok_in=100,
+                tok_out=1000,
+                tok_cache_read=9000,
+                tok_cache_create=900,
+                tok_msgs=10,
+            ),
+            _row(
+                "fabrik-review",
+                600,
+                4,
+                "b",
+                tok_in=300,
+                tok_out=3000,
+                tok_cache_read=27000,
+                tok_cache_create=2700,
+                tok_msgs=30,
+            ),
+            _row(
+                "fabrik-review",
+                600,
+                4,
+                "c",
+                tok_in=None,
+                tok_out=None,
+                tok_cache_read=None,
+                tok_cache_create=None,
+                tok_msgs=0,
+            ),
+        ],
+    )
+    out = json.loads(_run(ledger, "--json").stdout)
+    c = out["commands"]["fabrik-review"]
+    assert c["tok_total"] == 44000 and c["tok_rows"] == 2  # the null row is counted, not zeroed
+    assert c["median_tok"] == 22000 and c["cache_hit"] == 0.9  # cache_read / (in + read + create)
+    text = _run(ledger).stdout
+    assert "22.0k" in text and "90%" in text, text
+
+
+def test_a_command_with_no_token_rows_renders_a_dash_not_zero(tmp_path: Path) -> None:
+    ledger = tmp_path / "command-feedback.jsonl"
+    _write(
+        ledger,
+        [
+            _row(
+                "fabrik-spec",
+                100,
+                1,
+                "x",
+                tok_in=None,
+                tok_out=None,
+                tok_cache_read=None,
+                tok_cache_create=None,
+                tok_msgs=0,
+            )
+        ],
+    )
+    out = json.loads(_run(ledger, "--json").stdout)
+    assert out["commands"]["fabrik-spec"]["median_tok"] is None
+    assert out["commands"]["fabrik-spec"]["tok_rows"] == 0
+    assert "| — (0) | — |" in _run(ledger).stdout

@@ -235,7 +235,8 @@ cost:      <pool dollars — a number; the ledger sums it as cost_usd>          
 - **The ledger:** one JSON row per close appended to `~/.claude/state/command-feedback.jsonl`
   (`COMMAND_RUN_DIR`'s parent when that is set), box-wide across every repo whose `command_run.py`
   is current (fleet-synced; fabrik-lib pulls). Fields: `ts sid repo command state wall_s rounds
-  findings phases phase_reached agent surface account confusion waste change filed cost cost_usd`.
+  findings phases phase_reached agent surface account confusion waste change filed cost cost_usd
+  tok_in tok_out tok_cache_read tok_cache_create tok_msgs models`.
   **The analysis dimensions** (operator, 2026-09-07 — "which repo, which agent, which command,
   which spec, which file"): `repo` (the run's `repo_root`), `agent` (`CLAUDE_AGENT` at `start`,
   the same env the provenance trailers key on), `surface` (`start --surface` — the spec, plan
@@ -245,10 +246,23 @@ cost:      <pool dollars — a number; the ledger sums it as cost_usd>          
   path for tests), `cost_usd` (the amount in `cost:` when it is the whole value or sits on a
   `$`/`usd` marker, thousands separators stripped; prose such as `2 hold-era commits` and an
   absent value are `null` — never a wrong number, never a silent 0). All fail-soft to `""`: a row with an empty cell is analysable, a missing row is not.
+- **Tokens per run** (operator, 2026-09-07): the close sums every assistant message's `usage` in
+  the session transcript (`~/.claude/projects/<cwd-slug>/<sid>.jsonl`, the fleet dir as fallback,
+  `COMMAND_RUN_TRANSCRIPT` overrides for tests) whose timestamp falls inside the run window
+  `[started_epoch, close]` (±2 s slack for the transcript's write latency) — `tok_in` (uncached input), `tok_out`, `tok_cache_read`,
+  `tok_cache_create`, `tok_msgs` (distinct messages — the transcript writes one line per content
+  block and repeats the usage on each, so a message id counts once; an id-less line counts) and
+  the `models` seen. The file is read backwards from the tail and stops once 300 consecutive
+  stamped lines predate the window (cap 256 MiB), so a multi-hundred-MB hub transcript costs
+  milliseconds. No transcript ⇒ `null` tokens and `tok_msgs: 0`, never a silent zero; a nested
+  run's window overlaps its parent's and each row reports its own window. The printed line
+  carries `tokens <context> in / <out> out (<cache-read share>% cached)`.
 - **The report:** `python3 scripts/command_feedback_report.py [--since DAYS] [--command NAME]
   [--agent NAME] [--json]` — per command: runs, done/blocked, median and max wall-clock, median
   rounds, how many runs said `change: none`, summed pool `cost_usd` (with how many rows carried a
-  number); then the optimisation backlog (each item tagged `[agent · surface]` of the run that
+  number), median tokens per run with the rows that carried them, and the cache-hit share
+  (`cache_read / (in + read + create)`); then the optimisation backlog (each item tagged
+  `[agent · surface]` of the run that
   raised it) — every distinct `change:` item with its
   recurrence count, and the `confusion:` and `waste:` items. This is what the corpus is optimised
   from: a `change:` that recurs across runs is a command edit waiting to be made.

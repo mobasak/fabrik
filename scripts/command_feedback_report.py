@@ -70,6 +70,20 @@ def _cost(r: dict) -> float | None:
     return float(v) if isinstance(v, (int, float)) else None
 
 
+_TOK = ("tok_in", "tok_out", "tok_cache_read", "tok_cache_create")
+
+
+def _tok_total(r: dict) -> int | None:
+    vals = [r.get(k) for k in _TOK]
+    if any(not isinstance(v, (int, float)) for v in vals):
+        return None  # a row without transcript data is counted, never zeroed
+    return int(sum(vals))
+
+
+def _k(n: float) -> str:
+    return f"{n / 1000:.1f}k" if n >= 1000 else f"{n:.0f}"
+
+
 def build(
     rows: list[dict], since_days: float | None, command: str | None, agent: str | None = None
 ) -> dict:
@@ -101,6 +115,21 @@ def build(
             "cost_usd": round(sum(c for c in map(_cost, rs) if c is not None), 4),
             "cost_rows": sum(1 for r in rs if _cost(r) is not None),
         }
+        toks = [t for t in map(_tok_total, rs) if t is not None]
+        ctx = sum(
+            int(r["tok_in"]) + int(r["tok_cache_read"]) + int(r["tok_cache_create"])
+            for r in rs
+            if _tok_total(r) is not None
+        )
+        read = sum(int(r["tok_cache_read"]) for r in rs if _tok_total(r) is not None)
+        commands[cmd].update(
+            {
+                "tok_total": sum(toks),
+                "tok_rows": len(toks),
+                "median_tok": _median(toks) if toks else None,  # no rows ⇒ null, never "0"
+                "cache_hit": round(read / ctx, 3) if ctx else None,
+            }
+        )
 
     def _items(field: str) -> list[dict]:
         counter: collections.Counter[tuple[str, str]] = collections.Counter()
@@ -145,14 +174,17 @@ def render(report: dict) -> str:
         + (f" · agent {report['agent']}" if report.get("agent") else ""),
         "",
         "| command | runs | done/blocked | median wall | max wall | median rounds | change: none "
-        "| pool $ (rows) |",
-        "|---|---|---|---|---|---|---|---|",
+        "| pool $ (rows) | median tokens (rows) | cache hit |",
+        "|---|---|---|---|---|---|---|---|---|---|",
     ]
     for cmd, c in report["commands"].items():
+        hit = f"{100 * c['cache_hit']:.0f}%" if c.get("cache_hit") is not None else "—"
         lines.append(
             f"| /{cmd} | {c['runs']} | {c['done']}/{c['blocked']} | {c['median_wall_min']} min | "
             f"{c['max_wall_min']} min | {c['median_rounds']} | {c['change_none']} of {c['runs']} | "
-            f"{c['cost_usd']} ({c['cost_rows']}) |"
+            f"{c['cost_usd']} ({c['cost_rows']}) | "
+            f"{_k(c['median_tok']) if c.get('median_tok') is not None else '—'} "
+            f"({c['tok_rows']}) | {hit} |"
         )
     for title, key in (
         ("Optimisation backlog (change:)", "backlog"),
