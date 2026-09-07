@@ -345,3 +345,35 @@ def test_a_non_finite_cost_in_an_old_row_is_not_summed(tmp_path: Path) -> None:
     )
     out = json.loads(_run(ledger, "--json").stdout)
     assert out["commands"]["c1"]["cost_usd"] == 0.01 and out["commands"]["c1"]["cost_rows"] == 1
+
+
+def test_non_finite_or_oversized_numbers_in_old_rows_never_crash_the_report(tmp_path: Path) -> None:
+    ledger = tmp_path / "command-feedback.jsonl"
+    good = json.dumps(
+        _row(
+            "c1",
+            60,
+            1,
+            "a",
+            cost_usd=0.01,
+            tok_in=10,
+            tok_out=1,
+            tok_cache_read=0,
+            tok_cache_create=0,
+            tok_msgs=1,
+        )
+    )
+    inf_tok = '{"ts": 1, "sid": "s", "repo": "/opt/x", "command": "c1", "state": "done", "wall_s": 1, "rounds": 1, "findings": [], "phases": 1, "confusion": "none", "waste": "none", "change": "b", "filed": "none — x", "cost_usd": 0.3, "tok_in": Infinity, "tok_out": 1, "tok_cache_read": 0, "tok_cache_create": 0, "tok_msgs": 1}'
+    huge_cost = (
+        '{"ts": 1, "sid": "s", "repo": "/opt/x", "command": "c1", "state": "done", "wall_s": 1, "rounds": 1, "findings": [], "phases": 1, "confusion": "none", "waste": "none", "change": "c", "filed": "none — x", "cost_usd": 1'
+        + "0" * 320
+        + "}"
+    )
+    ledger.write_text("\n".join([good, inf_tok, huge_cost]) + "\n", encoding="utf-8")
+    r = _run(ledger, "--json")
+    assert r.returncode == 0, r.stderr
+    c = json.loads(r.stdout)["commands"]["c1"]
+    assert c["runs"] == 3 and c["tok_rows"] == 1 and c["tok_total"] == 11
+    assert (
+        c["cost_rows"] == 2 and c["cost_usd"] == 0.31
+    )  # the inf-token row's finite cost still counts

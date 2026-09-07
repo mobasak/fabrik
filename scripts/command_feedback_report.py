@@ -77,9 +77,12 @@ def _median(values: list) -> float | int:
 
 def _cost(r: dict) -> float | None:
     v = r.get("cost_usd")
-    if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v):
-        return float(v)
-    return None  # a non-finite value in an old row is counted as a run, never summed
+    try:
+        if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(float(v)):
+            return float(v)
+    except OverflowError:  # a 320-digit JSON integer: float() itself overflows
+        pass
+    return None  # a non-finite or oversized value in an old row is counted as a run, never summed
 
 
 _TOK = ("tok_in", "tok_out", "tok_cache_read", "tok_cache_create")
@@ -87,9 +90,15 @@ _TOK = ("tok_in", "tok_out", "tok_cache_read", "tok_cache_create")
 
 def _tok_total(r: dict) -> int | None:
     vals = [r.get(k) for k in _TOK]
-    if any(not isinstance(v, (int, float)) or isinstance(v, bool) for v in vals):
-        return None  # a row without transcript data is counted, never zeroed
-    return int(sum(vals))
+    try:
+        if any(
+            not isinstance(v, (int, float)) or isinstance(v, bool) or not math.isfinite(float(v))
+            for v in vals
+        ):
+            return None  # a row without (finite) transcript data is counted, never zeroed
+        return int(sum(vals))
+    except OverflowError:
+        return None
 
 
 def _k(n: float) -> str:
