@@ -885,7 +885,7 @@ def test_each_parallelism_alternative_is_individually_load_bearing(plans_env, al
         ),
         (
             "pool-has-been-off",
-            "the pool has been OFF for this plan since the ruling; finders are native Sonnet seats",
+            "the pool has been OFF for this plan since the ruling.",
         ),
         ("sonnet-seats", "two Sonnet seats per ticket plus an Opus finder; results merge at T09"),
     ],
