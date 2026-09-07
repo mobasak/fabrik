@@ -218,7 +218,7 @@ confusion: <what in the command text was ambiguous or misleading | none>
 waste:     <steps, turns or tokens spent without changing the outcome | none>
 change:    <the ONE concrete edit to the command or a rule that would have made this run faster or more accurate | none>
 filed:     <mail id(s) to infra|fleet|intel | none — surfaces exercised: <what the run touched>>
-cost:      <pool dollars — a number; the ledger sums it as cost_usd>           (optional)
+cost:      <pool dollars — a number; every $-marked amount is summed into cost_usd>  (optional)
 ```
 
 - `command_run.py` REFUSES a close missing any field, leaving one empty, or writing one twice
@@ -236,7 +236,7 @@ cost:      <pool dollars — a number; the ledger sums it as cost_usd>          
   (`COMMAND_RUN_DIR`'s parent when that is set), box-wide across every repo whose `command_run.py`
   is current (fleet-synced; fabrik-lib pulls). Fields: `ts sid repo command state wall_s rounds
   findings phases phase_reached agent surface account confusion waste change filed cost cost_usd
-  tok_in tok_out tok_cache_read tok_cache_create tok_msgs models`.
+  tok_in tok_out tok_cache_read tok_cache_create tok_msgs models tok_partial`.
   **The analysis dimensions** (operator, 2026-09-07 — "which repo, which agent, which command,
   which spec, which file"): `repo` (the run's `repo_root`), `agent` (`CLAUDE_AGENT` at `start`,
   the same env the provenance trailers key on), `surface` (`start --surface` — the spec, plan
@@ -249,19 +249,32 @@ cost:      <pool dollars — a number; the ledger sums it as cost_usd>          
 - **Tokens per run** (operator, 2026-09-07): the close sums every assistant message's `usage` in
   the session transcript (`~/.claude/projects/<cwd-slug>/<sid>.jsonl`, the fleet dir as fallback,
   `COMMAND_RUN_TRANSCRIPT` overrides for tests) whose timestamp falls inside the run window
-  `[started_epoch, close]` (±2 s slack for the transcript's write latency) — `tok_in` (uncached input), `tok_out`, `tok_cache_read`,
-  `tok_cache_create`, `tok_msgs` (distinct messages — the transcript writes one line per content
-  block and repeats the usage on each, so a message id counts once; an id-less line counts) and
-  the `models` seen. The file is read backwards from the tail and stops once 300 consecutive
-  stamped lines predate the window (cap 256 MiB), so a multi-hundred-MB hub transcript costs
-  milliseconds. No transcript ⇒ `null` tokens and `tok_msgs: 0`, never a silent zero; a nested
-  run's window overlaps its parent's and each row reports its own window. The printed line
-  carries `tokens <context> in / <out> out (<cache-read share>% cached)`.
+  `[started_epoch, close]` (±2 s slack for the transcript's write latency) — `tok_in` (uncached
+  input), `tok_out`, `tok_cache_read`, `tok_cache_create`, `tok_msgs` (distinct messages — the
+  transcript writes one line per content block and repeats the usage on each, so a message id
+  counts once with the per-field MAXIMUM over its lines — 3 of 2,857 live ids carried an all-zero
+  line beside the real one; an id-less line counts as its own message), the `models` seen, and
+  `tok_partial`. The file is read
+  backwards from the tail up to a 256 MiB cap, every line pre-filtered by a regex for its timestamp
+  and type so only in-window assistant lines are parsed — a 750 MB hub transcript scans in ~0.3 s.
+  There is deliberately no "stop after N older lines" rule: a compaction re-emits earlier messages
+  with their original timestamps (measured: a 1,340-line block lagging 23 h), so a run spanning a
+  compaction has in-window lines on both sides of a stale block. `tok_partial: true` means the cap
+  was reached while the oldest scanned line was still inside the window — the sum is a lower bound
+  and the row says so. No transcript ⇒ `null` tokens and `tok_msgs: 0`, never a silent zero; a
+  nested run's window overlaps its parent's and each row reports its own window. The printed line
+  carries `tokens <input> input / <output> output (<cache-read share>% cached)` — `input` is the
+  SUMMED billed input over the run's messages (uncached + cache-read + cache-create), never a
+  context size. A newline-free tail longer than 8 MiB abandons the read (a corrupt file cannot
+  wedge a close), a non-finite usage value counts as absent, and NOTHING the reader raises can
+  escape (a pure accounting read).
 - **The report:** `python3 scripts/command_feedback_report.py [--since DAYS] [--command NAME]
   [--agent NAME] [--json]` — per command: runs, done/blocked, median and max wall-clock, median
   rounds, how many runs said `change: none`, summed pool `cost_usd` (with how many rows carried a
-  number), median tokens per run with the rows that carried them, and the cache-hit share
-  (`cache_read / (in + read + create)`); then the optimisation backlog (each item tagged
+  number), median tokens per run with the rows that carried them, the cache-hit share
+  (`cache_read / (in + read + create)`), and the models seen; the header states the POPULATION —
+  agent-closed runs only (coroner-closed runs write no row) and nested windows overlap, so
+  per-command totals are not additive across commands; then the optimisation backlog (each item tagged
   `[agent · surface]` of the run that
   raised it) — every distinct `change:` item with its
   recurrence count, and the `confusion:` and `waste:` items. This is what the corpus is optimised

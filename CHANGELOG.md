@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Feedback ledger review round: the transcript scan no longer stops early, every reader error is contained, costs sum, the report declares its population (2026-09-07)
+
+`/fabrik-review 61b0e8ac..71314d47` (pool trio + native Opus + native Sonnet + own execution
+probes on the live 750 MB transcript). Fixed in `command_run.py`: the 300-older-lines stop rule
+(a compaction re-emits earlier messages with their original timestamps — 1,340 stale lines
+lagging 23 h — so a run spanning one lost 44% of its tokens; the reader now scans to the byte cap
+with a regex pre-filter, 0.3 s, and flags `tok_partial`); a message's usage is the per-field
+MAXIMUM over its lines (3 of 2,857 live ids carried an all-zero line beside the real one); a
+non-finite usage value or ANY reader exception can no longer leave a close at rc 0 with the record
+still `running`; `_cost_usd` refuses malformed thousands groups (`$12,34` was 12.0), sums every
+`$`-marked amount, and needs a fraction on the `usd` form (`2024 usd` was a year); the late
+`--surface` lands on grandfathered closes too; ledger fields capped at 2,000 chars and appended
+with one `write(2)`; a newline-free tail longer than 8 MiB is abandoned; the printed line says
+`input`/`output` with an `M` unit. Report: an unreadable ledger is an empty report, `--agent ""`
+declares its bound, `done/blocked/handoff` is a three-way cell, models are aggregated, and the
+header states the population. Tests: +14 seen red first; the token fixture anchors on the run's
+own `started_epoch` and the harness never reads the developer's marker or transcript.
+
 ### Added — Per-run token usage in the feedback ledger row, summed from the session transcript (2026-09-07)
 
 `command_run.py`'s close reads the session transcript backwards from its tail and sums every

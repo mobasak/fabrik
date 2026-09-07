@@ -181,6 +181,7 @@ def test_token_columns_are_summed_and_medianed_per_command(tmp_path: Path) -> No
     out = json.loads(_run(ledger, "--json").stdout)
     c = out["commands"]["fabrik-review"]
     assert c["tok_total"] == 44000 and c["tok_rows"] == 2  # the null row is counted, not zeroed
+    assert c["tok_partial_rows"] == 0
     assert c["median_tok"] == 22000 and c["cache_hit"] == 0.9  # cache_read / (in + read + create)
     text = _run(ledger).stdout
     assert "22.0k" in text and "90%" in text, text
@@ -208,3 +209,52 @@ def test_a_command_with_no_token_rows_renders_a_dash_not_zero(tmp_path: Path) ->
     assert out["commands"]["fabrik-spec"]["median_tok"] is None
     assert out["commands"]["fabrik-spec"]["tok_rows"] == 0
     assert "| — (0) | — |" in _run(ledger).stdout
+
+
+def test_an_unreadable_ledger_is_an_empty_report_not_a_crash(tmp_path: Path) -> None:
+    import os
+
+    ledger = tmp_path / "command-feedback.jsonl"
+    _write(ledger, [_row("fabrik-review", 600, 4, "a")])
+    ledger.chmod(0)
+    try:
+        if os.access(ledger, os.R_OK):  # root can always read — nothing to prove here
+            return
+        r = _run(ledger, "--json")
+        assert r.returncode == 0, r.stderr
+        assert json.loads(r.stdout)["total_rows"] == 0
+    finally:
+        ledger.chmod(0o600)
+
+
+def test_an_empty_agent_filter_declares_its_bound_and_handoff_has_its_own_cell(
+    tmp_path: Path,
+) -> None:
+    ledger = tmp_path / "command-feedback.jsonl"
+    _write(
+        ledger,
+        [
+            _row("c1", 60, 1, "a", agent="infra"),
+            _row("c1", 60, 1, "b", agent="", state="handoff"),
+            _row("c1", 60, 1, "c", agent="", state="blocked"),
+        ],
+    )
+    text = _run(ledger, "--agent", "").stdout
+    assert "2 of 3 ledger rows examined" in text and "(unattributed)" in text, text
+    full = _run(ledger).stdout
+    assert "| done/blocked/handoff |" in full and "| 1/1/1 |" in full, full
+
+
+def test_models_are_aggregated_and_the_population_is_declared(tmp_path: Path) -> None:
+    ledger = tmp_path / "command-feedback.jsonl"
+    _write(
+        ledger,
+        [
+            _row("c1", 60, 1, "a", models=["claude-a"]),
+            _row("c1", 60, 1, "b", models=["claude-b", "claude-a"]),
+        ],
+    )
+    out = json.loads(_run(ledger, "--json").stdout)
+    assert out["commands"]["c1"]["models"] == ["claude-a", "claude-b"]
+    text = _run(ledger).stdout
+    assert "claude-a, claude-b" in text and "coroner" in text and "nested" in text, text

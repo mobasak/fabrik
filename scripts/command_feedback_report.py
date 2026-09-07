@@ -28,19 +28,27 @@ from pathlib import Path
 _FIELDS = ("confusion", "waste", "change")
 
 
-def _default_ledger() -> Path:
+def _default_ledger() -> Path | None:
     import os
 
     raw = os.environ.get("COMMAND_RUN_DIR")
-    base = Path(raw).parent if raw else Path.home() / ".claude" / "state"
+    try:
+        base = Path(raw).parent if raw else Path.home() / ".claude" / "state"
+    except RuntimeError:  # no resolvable home
+        return None
     return base / "command-feedback.jsonl"
 
 
-def _rows(path: Path) -> list[dict]:
-    if not path.is_file():
+def _rows(path: Path | None) -> list[dict]:
+    """A missing OR unreadable ledger is an empty report, never a crash (review 2026-09-07)."""
+    if path is None:
+        return []
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
         return []
     out: list[dict] = []
-    for ln in path.read_text(encoding="utf-8", errors="replace").splitlines():
+    for ln in text.splitlines():
         ln = ln.strip()
         if not ln:
             continue
@@ -81,6 +89,8 @@ def _tok_total(r: dict) -> int | None:
 
 
 def _k(n: float) -> str:
+    if n >= 1_000_000:
+        return f"{n / 1_000_000:.1f}M"
     return f"{n / 1000:.1f}k" if n >= 1000 else f"{n:.0f}"
 
 
@@ -107,6 +117,10 @@ def build(
             "runs": len(rs),
             "done": sum(1 for r in rs if r.get("state") == "done"),
             "blocked": sum(1 for r in rs if r.get("state") == "blocked"),
+            "handoff": sum(1 for r in rs if r.get("state") == "handoff"),
+            "models": sorted(
+                {m for r in rs for m in (r.get("models") or []) if isinstance(m, str)}
+            ),
             "median_wall_min": round(float(statistics.median(walls)), 1) if walls else 0.0,
             "max_wall_min": round(max(walls), 1) if walls else 0.0,
             "median_rounds": _median(rounds),
@@ -128,6 +142,8 @@ def build(
                 "tok_rows": len(toks),
                 "median_tok": _median(toks) if toks else None,  # no rows ⇒ null, never "0"
                 "cache_hit": round(read / ctx, 3) if ctx else None,
+                # rows whose scan hit the byte cap inside the window: their sums are lower bounds
+                "tok_partial_rows": sum(1 for r in rs if r.get("tok_partial") is True),
             }
         )
 
@@ -171,20 +187,27 @@ def render(report: dict) -> str:
     lines = [
         f"command feedback — {report['examined']} of {report['total_rows']} ledger rows examined"
         + (f" (last {report['since_days']:g} days)" if report["since_days"] is not None else "")
-        + (f" · agent {report['agent']}" if report.get("agent") else ""),
+        + (
+            f" · agent {report['agent'] or '(unattributed)'}"
+            if report.get("agent") is not None
+            else ""
+        ),
+        "Population: rows are AGENT-CLOSED runs only — coroner-closed (died/expired) runs write no "
+        "row; nested runs overlap their parent's window, so per-command token and cost totals are "
+        "not additive across commands.",
         "",
-        "| command | runs | done/blocked | median wall | max wall | median rounds | change: none "
-        "| pool $ (rows) | median tokens (rows) | cache hit |",
-        "|---|---|---|---|---|---|---|---|---|---|",
+        "| command | runs | done/blocked/handoff | median wall | max wall | median rounds | "
+        "change: none | pool $ (rows) | median tokens (rows) | cache hit | models |",
+        "|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for cmd, c in report["commands"].items():
         hit = f"{100 * c['cache_hit']:.0f}%" if c.get("cache_hit") is not None else "—"
         lines.append(
-            f"| /{cmd} | {c['runs']} | {c['done']}/{c['blocked']} | {c['median_wall_min']} min | "
-            f"{c['max_wall_min']} min | {c['median_rounds']} | {c['change_none']} of {c['runs']} | "
-            f"{c['cost_usd']} ({c['cost_rows']}) | "
+            f"| /{cmd} | {c['runs']} | {c['done']}/{c['blocked']}/{c['handoff']} | "
+            f"{c['median_wall_min']} min | {c['max_wall_min']} min | {c['median_rounds']} | "
+            f"{c['change_none']} of {c['runs']} | {c['cost_usd']} ({c['cost_rows']}) | "
             f"{_k(c['median_tok']) if c.get('median_tok') is not None else '—'} "
-            f"({c['tok_rows']}) | {hit} |"
+            f"({c['tok_rows']}) | {hit} | {', '.join(c['models']) or '—'} |"
         )
     for title, key in (
         ("Optimisation backlog (change:)", "backlog"),

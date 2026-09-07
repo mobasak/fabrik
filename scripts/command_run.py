@@ -872,6 +872,13 @@ def _parse_usage_feedback(text: str) -> tuple[dict[str, str], list[str]]:
     return fields, missing
 
 
+_LEDGER_FIELD_CAP = 2000  # same cap as rec["feedback_text"]
+
+
+def _cap_field(text: str) -> str:
+    return text if len(text) <= _LEDGER_FIELD_CAP else text[: _LEDGER_FIELD_CAP - 1] + "…"
+
+
 def _feedback_ledger_path() -> Path:
     return _state_dir().parent / "command-feedback.jsonl"
 
@@ -887,8 +894,14 @@ _AGENT_NAME_RE = re.compile(r"^[a-z0-9-]{1,32}$")
 # a number counts as a COST only when it is the whole value (``0.03``, ``pool 0.0017 USD``) or sits
 # on a currency marker (``$0.0125``, ``0.01 usd``) — prose in the field ("2 hold-era commits") is
 # a real row shape and must NOT be summed as two dollars
-_COST_WHOLE_RE = re.compile(r"^\s*(?:pool\s*)?\$?\s*(\d+(?:\.\d+)?)\s*(?:usd|\$)?\s*$", re.I)
-_COST_MARKED_RE = re.compile(r"\$\s*(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*usd\b", re.I)
+_COST_NUM = r"(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?"  # well-formed thousands groups, or none
+_COST_WHOLE_RE = re.compile(rf"^\s*(?:pool\s*)?\$?\s*({_COST_NUM})\s*(?:usd|\$)?\s*$", re.I)
+# the `usd`-marked form needs a FRACTION (`0.01 usd`): a bare integer before `usd` is prose more
+# often than a cost ("budget for 2024 usd" — review 2026-09-07); `$N` is explicit and accepted as is
+_COST_MARKED_RE = re.compile(
+    rf"\$\s*({_COST_NUM})(?![\d,.])|(?<![\d,.])((?:\d{{1,3}}(?:,\d{{3}})+|\d+)\.\d+)\s*usd\b",
+    re.I,
+)
 
 
 def _agent_name() -> str:
@@ -911,15 +924,24 @@ def _active_account() -> str:
 # Claude Code writes every assistant message's `usage` (input / output / cache_read /
 # cache_creation tokens) with a timestamp to `~/.claude/projects/<cwd-slug>/<sid>.jsonl`. The
 # close sums the messages stamped inside the run's window [started_epoch, now] (±2 s slack for
-# the transcript's own write latency). The file is
-# read BACKWARDS in 1 MiB chunks and stops once a run of stamped lines predates the window
-# (a hub transcript is hundreds of MB; the last 30 min sit in the last ~1 MB), capped at
-# `_TRANSCRIPT_MAX_BYTES` so a pathological file can never wedge a close. A nested run's
-# window overlaps its parent's — each row reports what ITS window spent. Fail-soft: no
-# transcript ⇒ nulls (never a silent 0); the report counts such a row as a RUN but leaves it
+# the transcript's own write latency). The file is read BACKWARDS in 1 MiB chunks up to
+# `_TRANSCRIPT_MAX_BYTES`, every line pre-filtered by a regex for its timestamp and type so only
+# in-window assistant lines pay for json.loads — a 750 MB hub transcript scans its last 256 MiB in
+# ~0.3 s (measured 2026-09-07). ⚠️ There is deliberately NO "stop after N older lines" rule: a
+# compaction re-emits earlier messages with their ORIGINAL timestamps (measured: a 1,340-line
+# block lagging 23 h inside the last 64 MiB), so a run spanning a compaction has in-window lines on
+# BOTH sides of a stale block, and an early stop lost everything before it (review 2026-09-07).
+# `tok_partial` is True when the byte cap was reached while the oldest scanned line was still
+# inside the window — the row says its bound instead of passing a truncated sum as a total. A
+# nested run's window overlaps its parent's — each row reports what ITS window spent. Fail-soft:
+# no transcript ⇒ nulls (never a silent 0); the report counts such a row as a RUN but leaves it
 # out of the token sum and its denominator.
 _TRANSCRIPT_MAX_BYTES = 256 << 20
-_TRANSCRIPT_STOP_AFTER = 300  # consecutive stamped lines older than the window ⇒ stop
+_TRANSCRIPT_MAX_LINE = 8 << 20  # no transcript record is this long — a newline-free tail is garbage
+_TS_RE = re.compile(
+    rb'"timestamp"\s*:\s*"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?)(Z|[+-]\d\d:\d\d)"'
+)
+_ASSISTANT_RE = re.compile(rb'"type"\s*:\s*"assistant"')
 _TOKEN_KEYS = (
     ("tok_in", "input_tokens"),
     ("tok_out", "output_tokens"),
@@ -947,7 +969,9 @@ def _transcript_path(sid: str, repo_root: str) -> Path | None:
 
 
 def _iter_lines_backwards(path: Path, max_bytes: int):
-    """Yield the file's lines last-first, reading at most `max_bytes` from the tail."""
+    """Yield the file's lines last-first, reading at most `max_bytes` from the tail; the final
+    yield is the sentinel ``None`` when the cap cut the read short of the file's start (the torn
+    head line is dropped, never yielded)."""
     with path.open("rb") as fh:
         fh.seek(0, os.SEEK_END)
         pos = fh.tell()
@@ -958,100 +982,138 @@ def _iter_lines_backwards(path: Path, max_bytes: int):
             pos -= step
             fh.seek(pos)
             buf = fh.read(step) + buf
+            if b"\n" not in buf and len(buf) > _TRANSCRIPT_MAX_LINE:
+                # a newline-free tail is not a transcript: O(n²) + unbounded RSS otherwise
+                # (review 2026-09-07) — bail before anything torn is yielded
+                yield None
+                return
             lines = buf.split(b"\n")
             buf = lines[0]
             yield from reversed(lines[1:])
-        if pos == 0 and buf:
-            yield buf
+        if pos == 0:
+            if buf:
+                yield buf
+        else:
+            yield None
+
+
+def _line_epoch(raw: bytes) -> float | None:
+    m = _TS_RE.search(raw)
+    if not m:
+        return None
+    try:
+        return dt.datetime.fromisoformat(
+            (m.group(1) + m.group(2)).decode("ascii").replace("Z", "+00:00")
+        ).timestamp()
+    except ValueError:
+        return None
 
 
 def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[str, Any]:
     empty: dict[str, Any] = {k: None for k, _ in _TOKEN_KEYS}
-    empty.update({"tok_msgs": 0, "models": []})
+    empty.update({"tok_msgs": 0, "models": [], "tok_partial": False})
     if path is None or start <= 0:
         return empty
     try:
         if not path.is_file():
             return empty
-        totals = dict.fromkeys((k for k, _ in _TOKEN_KEYS), 0)
-        msgs = 0
+        # the transcript writes ONE LINE PER CONTENT BLOCK (thinking, tool_use, text) and every
+        # line repeats the message's usage — measured 500 assistant lines for 245 message ids;
+        # summing per line overcounts ~2x. And 3 of 2,857 ids carried one ALL-ZERO line beside
+        # the real one (measured 2026-09-07), so the message's usage is the per-field MAXIMUM
+        # over its lines — independent of write order, and right for a progressive format too.
+        per_msg: dict[str, dict[str, int]] = {}
+        anon = 0  # id-less lines cannot be proven repeats — each counts as its own message
         models: list[str] = []
-        seen: set[str] = set()  # the transcript writes ONE LINE PER CONTENT BLOCK (thinking,
-        # tool_use, text) and every line repeats the message's usage — measured 500 assistant
-        # lines for 245 message ids; summing per line overcounts ~2x, so count a message once
-        older = 0
-        lo = start - 2.0
+        lo, hi = start - 2.0, end + 2.0
+        oldest: float | None = None
+        capped = False
         for raw in _iter_lines_backwards(path, _TRANSCRIPT_MAX_BYTES):
-            if not raw.strip():
+            if raw is None:
+                capped = True
+                break
+            e = _line_epoch(raw)
+            if e is None:
+                continue
+            if oldest is None or e < oldest:
+                oldest = e
+            if e < lo or e > hi or not _ASSISTANT_RE.search(raw):
                 continue
             try:
                 d = json.loads(raw)
             except ValueError:
                 continue
-            ts = d.get("timestamp") if isinstance(d, dict) else None
-            if not isinstance(ts, str):
-                continue
-            try:
-                e = dt.datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
-            except ValueError:
-                continue
-            if e < lo:
-                older += 1
-                if older >= _TRANSCRIPT_STOP_AFTER:
-                    break
-                continue
-            older = 0
-            if e > end + 2.0 or d.get("type") != "assistant":
+            if not isinstance(d, dict) or d.get("type") != "assistant":
                 continue
             msg = d.get("message") or {}
             u = msg.get("usage") if isinstance(msg, dict) else None
             if not isinstance(u, dict):
                 continue
             mid = str(msg.get("id") or d.get("uuid") or "")
-            if mid:  # an id-less line cannot be a repeat we can prove — count it
-                if mid in seen:
-                    continue
-                seen.add(mid)
-            msgs += 1
+            if not mid:
+                anon += 1
+                mid = f"\x00anon{anon}"
+            acc = per_msg.setdefault(mid, dict.fromkeys((k for k, _ in _TOKEN_KEYS), 0))
             for k, src in _TOKEN_KEYS:
                 v = u.get(src)
-                if isinstance(v, (int, float)):
-                    totals[k] += int(v)
+                # json.loads accepts the literal Infinity/NaN; int(inf) raises OverflowError,
+                # which escaped the old except tuple and left the close at rc 0 with the record
+                # still `running` (review 2026-09-07) — a non-finite value counts as absent
+                if isinstance(v, (int, float)) and math.isfinite(v) and int(v) > acc[k]:
+                    acc[k] = int(v)
             m = msg.get("model")
             if isinstance(m, str) and m and m not in models:
                 models.append(m)
+        partial = bool(capped and oldest is not None and oldest >= lo)
+        msgs = len(per_msg)
+        totals = dict.fromkeys((k for k, _ in _TOKEN_KEYS), 0)
+        for acc in per_msg.values():
+            for k in totals:
+                totals[k] += acc[k]
         if msgs == 0:
-            return empty
+            out0 = dict(empty)
+            out0["tok_partial"] = partial
+            return out0
         out: dict[str, Any] = dict(totals)
-        out.update({"tok_msgs": msgs, "models": sorted(models)})
+        out.update({"tok_msgs": msgs, "models": sorted(models), "tok_partial": partial})
         return out
-    except (OSError, ValueError, RecursionError):  # fail-soft — never wedges a close
+    except Exception:  # noqa: BLE001 — a pure accounting read: NOTHING it raises may wedge a close
         return empty
 
 
 def _tokens_clause(tok: dict[str, Any]) -> str:
-    """`tokens 12.3k in / 4.5k out (97% cached)` for the printed FEEDBACK line; "" when null."""
+    """`tokens 18.8M input / 104.7k output (99% cached)` for the printed FEEDBACK line; "" when
+    null. `input` is the SUMMED billed input over the run's messages (uncached + cache-read +
+    cache-create) — never a context size (review 2026-09-07: `<context>` mislabelled a 51.7M sum)."""
     if not tok or tok.get("tok_in") is None:
         return ""
+    inp = int(tok["tok_in"]) + int(tok["tok_cache_read"]) + int(tok["tok_cache_create"])
+    hit = f" ({100 * int(tok['tok_cache_read']) / inp:.0f}% cached)" if inp else ""
+    return f"tokens {_fmt_tokens(inp)} input / {_fmt_tokens(int(tok['tok_out']))} output{hit}"
 
-    def k(n: int) -> str:
-        return f"{n / 1000:.1f}k" if n >= 1000 else str(n)
 
-    ctx = int(tok["tok_in"]) + int(tok["tok_cache_read"]) + int(tok["tok_cache_create"])
-    hit = f" ({100 * int(tok['tok_cache_read']) / ctx:.0f}% cached)" if ctx else ""
-    return f"tokens {k(ctx)} in / {k(int(tok['tok_out']))} out{hit}"
+def _fmt_tokens(n: int) -> str:
+    if n >= 1_000_000:
+        return f"{n / 1_000_000:.1f}M"
+    return f"{n / 1000:.1f}k" if n >= 1000 else str(n)
 
 
 def _cost_usd(text: str) -> float | None:
     """The dollar amount in a free-text ``cost:`` value (``pool $0.0125`` → 0.0125,
-    ``$1,234.50`` → 1234.5). None when the value is prose or carries no marked number — a row
-    that cannot be summed says so, never contributes a wrong number or a silent 0."""
-    t = re.sub(r"(?<=\d),(?=\d{3}\b)", "", text or "")  # thousands separators
-    m = _COST_WHOLE_RE.match(t) or _COST_MARKED_RE.search(t)
-    if not m:
-        return None
+    ``$1,234.50`` → 1234.5, ``$0 pool + $1.40 ai-consult`` → 1.4 — every marked amount is
+    SUMMED, review 2026-09-07). None when the value is prose, carries no marked number, or its
+    thousands groups are malformed (``$12,34``) — a row that cannot be summed says so, never
+    contributes a wrong number or a silent 0."""
+    t = text or ""
+    m = _COST_WHOLE_RE.match(t)
     try:
-        return float(next(g for g in m.groups() if g))
+        if m:
+            return float(m.group(1).replace(",", ""))
+        amounts = [
+            float(next(g for g in mm.groups() if g).replace(",", ""))
+            for mm in _COST_MARKED_RE.finditer(t)
+        ]
+        return round(sum(amounts), 6) if amounts else None
     except (ValueError, StopIteration):
         return None
 
@@ -1912,11 +1974,12 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
     # only a post-cutoff record writes the ledger and prints the line — a grandfathered close
     # whose free-text verdict happens to contain a label ("filed: … to infra") is not a report
     # (round-3 finder)
+    # a late `--surface` lands only on a close that is actually happening — every refusal above
+    # returned before this line, so a refused close never persists it; a grandfathered
+    # (pre-cutoff) close records it on the record too, even though it writes no ledger row
+    if (getattr(args, "surface", "") or "").strip():
+        rec["surface"] = args.surface.strip()
     if _usage_fields and _usage_is_required(rec):
-        # a late `--surface` lands only on a close that is actually happening — every refusal
-        # above returned before this line, so a refused close never persists the override
-        if (getattr(args, "surface", "") or "").strip():
-            rec["surface"] = args.surface.strip()
         _tok = _sum_transcript_usage(
             _transcript_path(sid, str(rec.get("repo_root") or "")), _se or 0.0, time.time()
         )
@@ -1934,15 +1997,21 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             "agent": str(rec.get("agent") or _agent_name() or ""),
             "surface": str(rec.get("surface") or ""),
             "account": str(rec.get("account") or ""),
-            **{k: _usage_fields.get(k, "") for k in (*_USAGE_FIELDS, "cost")},
+            **{k: _cap_field(_usage_fields.get(k, "")) for k in (*_USAGE_FIELDS, "cost")},
             "cost_usd": _cost_usd(_usage_fields.get("cost", "")),
             **_tok,
         }
         try:
             _lp = _feedback_ledger_path()
             _lp.parent.mkdir(parents=True, exist_ok=True)
-            with _lp.open("a", encoding="utf-8") as fh:
-                fh.write(json.dumps(_row, ensure_ascii=False) + "\n")
+            # ONE write(2) under O_APPEND: three sessions append to this file with no lock, and a
+            # buffered text write past 8 KiB can split and interleave (review 2026-09-07); the
+            # per-field cap above keeps a row well under that
+            _fd = os.open(str(_lp), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+            try:
+                os.write(_fd, (json.dumps(_row, ensure_ascii=False) + "\n").encode("utf-8"))
+            finally:
+                os.close(_fd)
         except OSError as exc:  # the ledger never blocks a close; the record still carries it
             sys.stderr.write(f"[command_run] usage ledger not written: {exc}\n")
         rec["usage"] = {k: _row[k] for k in ("wall_s", "rounds", *_USAGE_FIELDS)}

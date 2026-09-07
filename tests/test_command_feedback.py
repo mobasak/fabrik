@@ -37,6 +37,9 @@ def run_dir(tmp_path: Path) -> Path:
 def _cr(run_dir: Path, *args: str, sid: str = "s1") -> subprocess.CompletedProcess[str]:
     env = {**os.environ, "COMMAND_RUN_DIR": str(run_dir), "CLAUDE_SESSION_ID": sid}
     env.pop("CLAUDE_AGENT", None)
+    # never read the developer's real marker or transcript from a test (review 2026-09-07)
+    env.setdefault("COMMAND_RUN_ACCOUNT_FILE", str(run_dir / "no-marker"))
+    env.setdefault("COMMAND_RUN_TRANSCRIPT", str(run_dir / "no-transcript.jsonl"))
     return subprocess.run(
         [sys.executable, str(SCRIPT), *args], capture_output=True, text=True, timeout=30, env=env
     )
@@ -424,9 +427,6 @@ def _transcript_line(
 def test_the_row_sums_the_transcripts_token_usage_inside_the_run_window(
     run_dir: Path, tmp_path: Path
 ) -> None:
-    import time
-
-    now = time.time()
     tr = tmp_path / "s1.jsonl"
     env = {
         **os.environ,
@@ -453,6 +453,9 @@ def test_the_row_sums_the_transcripts_token_usage_inside_the_run_window(
         env=env,
     )
     assert r.returncode == 0, r.stdout + r.stderr
+    # anchor the fixture on the RUN's own clock, not the test's — a >3 s interpreter start
+    # between the two flipped the assertions (review 2026-09-07, native seat)
+    now = json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))["started_epoch"]
     tr.write_text(
         "\n".join(
             [
@@ -535,3 +538,309 @@ def test_transcript_path_maps_the_cwd_to_claude_codes_project_slug(
     assert _transcript_path("s1", "/opt/my_repo/.tmp/x.y") == d / "s1.jsonl"
     assert _transcript_path("s2", "/opt/my_repo/.tmp/x.y") is None  # no transcript ⇒ None
     assert _transcript_path("", "/opt/my_repo") is None
+
+
+def _usage_line(ts_epoch: float, mid: str, tout: int = 10) -> str:
+    return _transcript_line(ts_epoch, 1, tout, 100, 10, mid=mid)
+
+
+def test_a_stale_appended_block_never_truncates_the_window_scan(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Claude Code re-emits earlier messages with their ORIGINAL timestamps on a compaction
+    (measured on the live hub transcript: a 1340-line block lagging 23 h in the last 64 MiB).
+    A run that spans a compaction has in-window messages on BOTH sides of that block; a scan
+    that stops after N consecutive older lines loses everything before the block."""
+    import time
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _sum_transcript_usage  # noqa: PLC0415
+
+    now = time.time()
+    start = now - 600
+    lines = [_usage_line(start + 10, "before-compaction", tout=100)]
+    lines += [_usage_line(start - 86400 - i, f"stale-{i}") for i in range(2000)]  # a day old
+    lines += [_usage_line(start + 500, "after-compaction", tout=7)]
+    tr = tmp_path / "t.jsonl"
+    tr.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    got = _sum_transcript_usage(tr, start, now)
+    assert got["tok_msgs"] == 2 and got["tok_out"] == 107, got
+    assert got["tok_partial"] is False
+
+
+def test_hitting_the_byte_cap_inside_the_window_marks_the_row_partial(
+    tmp_path: Path, monkeypatch
+) -> None:
+    import time
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import command_run as cr  # noqa: PLC0415
+
+    now = time.time()
+    start = now - 600
+    lines = [_usage_line(start + i, f"m{i}") for i in range(200)]  # all inside the window
+    tr = tmp_path / "t.jsonl"
+    tr.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    monkeypatch.setattr(cr, "_TRANSCRIPT_MAX_BYTES", 2048)  # far smaller than the file
+    got = cr._sum_transcript_usage(tr, start, now)
+    assert 0 < got["tok_msgs"] < 200 and got["tok_partial"] is True, got
+    monkeypatch.setattr(cr, "_TRANSCRIPT_MAX_BYTES", 1 << 30)
+    full = cr._sum_transcript_usage(tr, start, now)
+    assert full["tok_msgs"] == 200 and full["tok_partial"] is False
+
+
+def test_cost_usd_refuses_malformed_thousands_groups_instead_of_guessing() -> None:
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _cost_usd  # noqa: PLC0415
+
+    assert _cost_usd("$1,234,567.89") == 1234567.89
+    assert _cost_usd("$12,34") is None  # not a thousands group — a wrong 12.0 would be summed
+    assert _cost_usd("$1,23,456") is None
+    assert _cost_usd("$1234,567") is None
+    assert _cost_usd("we spent about $1,23 today") is None
+
+
+def test_late_surface_lands_on_blocked_and_handoff_closes(run_dir: Path, tmp_path: Path) -> None:
+    _start(run_dir)
+    r = _cr(
+        run_dir,
+        "blocked",
+        "--command",
+        "fabrik-probe",
+        "--reason",
+        "missing infra - searched: a - missing: b",
+        "--surface",
+        "spec-x",
+        "--feedback",
+        STRUCTURED,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert _ledger(run_dir)[0]["surface"] == "spec-x"
+    _start(run_dir)
+    art = tmp_path / "resume.md"
+    art.write_text("## RESUME\n- row\n", encoding="utf-8")
+    r = _cr(
+        run_dir,
+        "handoff",
+        "--command",
+        "fabrik-probe",
+        "--resume",
+        str(art),
+        "--reason",
+        "rows open",
+        "--surface",
+        "spec-y",
+        "--feedback",
+        STRUCTURED,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert _ledger(run_dir)[-1]["surface"] == "spec-y"
+
+
+def test_tokens_clause_handles_a_zero_context_and_a_null_row() -> None:
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _tokens_clause  # noqa: PLC0415
+
+    assert _tokens_clause({}) == ""
+    assert _tokens_clause({"tok_in": None}) == ""
+    z = {"tok_in": 0, "tok_out": 5, "tok_cache_read": 0, "tok_cache_create": 0}
+    assert _tokens_clause(z) == "tokens 0 input / 5 output"  # no division, no percent
+
+
+def test_a_message_whose_lines_disagree_keeps_the_largest_usage_whatever_the_order(
+    tmp_path: Path,
+) -> None:
+    """Measured on the live hub transcript (2026-09-07): 3 of 2,857 message ids carry one line
+    with ALL-ZERO usage beside the real one. First-seen-wins depends on write order; the
+    per-message maximum does not."""
+    import time
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _sum_transcript_usage  # noqa: PLC0415
+
+    now = time.time()
+    start = now - 600
+    for order in ("zero-last", "zero-first"):
+        real = _transcript_line(start + 10, 56, 4690, 991877, 7327, mid="m1")
+        zero = _transcript_line(start + 11, 0, 0, 0, 0, mid="m1")
+        lines = [real, zero] if order == "zero-last" else [zero, real]
+        tr = tmp_path / f"{order}.jsonl"
+        tr.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        got = _sum_transcript_usage(tr, start, now)
+        assert got["tok_msgs"] == 1, (order, got)
+        assert (got["tok_in"], got["tok_out"], got["tok_cache_read"]) == (56, 4690, 991877), (
+            order,
+            got,
+        )
+
+
+def test_a_usd_marked_number_needs_a_fraction_so_prose_years_are_not_dollars() -> None:
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _cost_usd  # noqa: PLC0415
+
+    assert _cost_usd("budget for 2024 usd fiscal year") is None  # a year, not a cost
+    assert _cost_usd("1.0 usd across three units") == 1.0
+    assert _cost_usd("$2024") == 2024.0  # the $ marker is explicit — accepted as written
+
+
+# ── /fabrik-review 2026-09-07, native Opus seat: eight regression guards ────────────────────
+
+
+def test_a_non_finite_usage_value_never_wedges_the_close(run_dir: Path, tmp_path: Path) -> None:
+    """`json.loads` accepts the literal Infinity; int(inf) raises OverflowError, which the old
+    except tuple let escape — main() then returned rc 0 with the record still `running`."""
+
+    tr = tmp_path / "s1.jsonl"
+    env = {
+        **os.environ,
+        "COMMAND_RUN_DIR": str(run_dir),
+        "CLAUDE_SESSION_ID": "s1",
+        "COMMAND_RUN_TRANSCRIPT": str(tr),
+    }
+    env.pop("CLAUDE_AGENT", None)
+    r = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "start",
+            "--command",
+            "fabrik-probe",
+            "--phases",
+            "1",
+            "--terminal",
+            "t",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env=env,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    started = json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))["started_epoch"]
+    good = _transcript_line(started + 1, 10, 20, 30, 40, mid="ok")
+    bad = _transcript_line(started + 2, 1, 1, 1, 1, mid="inf").replace(
+        '"input_tokens": 1', '"input_tokens": Infinity'
+    )
+    tr.write_text(good + "\n" + bad + "\n", encoding="utf-8")
+    r = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "done",
+            "--command",
+            "fabrik-probe",
+            "--evidence",
+            "x",
+            "--feedback",
+            STRUCTURED,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env=env,
+    )
+    assert r.returncode == 0 and "run record closed" in r.stdout, r.stdout + r.stderr
+    rec = json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))
+    assert rec["state"] == "done"
+    row = _ledger(run_dir)[0]
+    assert row["tok_msgs"] == 2 and row["tok_in"] == 10 and row["tok_out"] == 21, row  # inf → 0
+
+
+def test_cost_usd_sums_every_marked_amount_or_refuses_an_ambiguous_mix() -> None:
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _cost_usd  # noqa: PLC0415
+
+    assert _cost_usd("$0 pool + $1.40 ai-consult") == 1.4
+    assert _cost_usd("pool $0.12 + $0.30 ai-consult") == 0.42
+    assert _cost_usd("3 pool workers, $0.44 total") == 0.44
+
+
+def test_the_late_surface_override_sits_below_every_refusal_in_close(run_dir: Path) -> None:
+    """In-process: a refused close must leave the in-memory record's surface untouched — the
+    CLI-level test could not see this (a refusal never saves), so it was vacuous under mutation."""
+    import argparse
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import command_run as cr  # noqa: PLC0415
+
+    _start(run_dir)
+    rec = json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))
+    args = argparse.Namespace(
+        cmd="done",
+        command="fabrik-other",
+        evidence="x",
+        feedback=STRUCTURED,
+        surface="late",
+        session=None,
+        adopt_sid=False,
+    )
+    rc = cr._close("s1", rec, args, {})
+    assert rc == 1 and rec.get("surface", "") == "", rec.get("surface")
+
+
+def test_the_feedback_line_labels_the_input_sum_honestly_and_scales_to_millions() -> None:
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _tokens_clause  # noqa: PLC0415
+
+    tok = {
+        "tok_in": 4614,
+        "tok_out": 104676,
+        "tok_cache_read": 18660086,
+        "tok_cache_create": 149051,
+    }
+    line = _tokens_clause(tok)
+    assert line.startswith("tokens 18.8M input / 104.7k output"), line
+    assert "context" not in line and "(99% cached)" in line, line
+
+
+def test_a_grandfathered_close_still_records_a_late_surface_on_the_record(run_dir: Path) -> None:
+    _start(run_dir)
+    f = run_dir / "s1.json"
+    rec = json.loads(f.read_text(encoding="utf-8"))
+    rec["started_at"] = "2026-09-01T00:00:00+00:00"  # pre-cutoff: no ledger row, old grammar
+    f.write_text(json.dumps(rec), encoding="utf-8")
+    r = _cr(
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-probe",
+        "--evidence",
+        "x",
+        "--surface",
+        "late-g",
+        "--feedback",
+        "none — surfaces exercised: x",
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert json.loads(f.read_text(encoding="utf-8"))["surface"] == "late-g"
+    assert _ledger(run_dir) == []
+
+
+def test_a_newline_free_tail_is_abandoned_not_accumulated(tmp_path: Path) -> None:
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import command_run as cr  # noqa: PLC0415
+
+    f = tmp_path / "garbage.jsonl"
+    f.write_bytes(
+        b"a\nb\n" + b"x" * (cr._TRANSCRIPT_MAX_LINE + (2 << 20))
+    )  # a 'line' longer than any record
+    got = list(cr._iter_lines_backwards(f, 64 << 20))
+    assert got == [None], (
+        got
+    )  # bailed: the sentinel says the read was cut short, nothing torn yielded
+    ok = tmp_path / "ok.jsonl"
+    ok.write_bytes(b"a\nb\nc\n")
+    assert list(cr._iter_lines_backwards(ok, 64 << 20)) == [b"", b"c", b"b", b"a"]
+
+
+def test_the_ledger_row_is_appended_with_one_write_and_fields_are_capped(run_dir: Path) -> None:
+    _start(run_dir)
+    huge = (
+        "confusion: "
+        + ("x" * 6000)
+        + " · waste: none · change: none · filed: none — surfaces exercised: y"
+    )
+    r = _cr(run_dir, "done", "--command", "fabrik-probe", "--evidence", "x", "--feedback", huge)
+    assert r.returncode == 0, r.stdout + r.stderr
+    row = _ledger(run_dir)[0]
+    assert len(row["confusion"]) <= 2000 and row["confusion"].endswith("…")
