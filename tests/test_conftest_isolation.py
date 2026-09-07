@@ -43,3 +43,17 @@ def test_the_tick_resolves_the_lock_dir_to_the_pin_not_the_box(tmp_path_factory)
     resolved = cr._selfwatch_lock_dir().resolve()
     assert resolved != _REAL_LOCK_DIR.resolve(), resolved
     assert resolved.is_relative_to(tmp_path_factory.getbasetemp().resolve()), resolved
+
+
+def test_every_bare_mkdtemp_lands_under_pytest_basetemp(tmp_path_factory):
+    """Measured 2026-09-07: four hub tests call `tempfile.mkdtemp()` with no cleanup, and the
+    suites run by three sessions and their readers left 4,072 `/tmp/tmp*` dirs (2.2 GB) in one
+    day. The class fix is the conftest autouse pin of `tempfile.tempdir` under pytest's basetemp,
+    which pytest prunes (it keeps the last three sessions) — no per-test edit, every existing and
+    future bare `mkdtemp()`/`NamedTemporaryFile()` covered."""
+    import tempfile
+
+    made = Path(tempfile.mkdtemp())
+    assert made.resolve().is_relative_to(tmp_path_factory.getbasetemp().resolve()), made
+    with tempfile.NamedTemporaryFile() as fh:
+        assert Path(fh.name).resolve().is_relative_to(tmp_path_factory.getbasetemp().resolve()), fh.name

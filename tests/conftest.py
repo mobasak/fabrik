@@ -109,3 +109,31 @@ def _isolated_sound_lock_dir(tmp_path, monkeypatch):
     locks.mkdir(exist_ok=True)
     monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(locks))
     yield locks
+
+
+# ---------------------------------------------------------------------------------------------
+# Bare `tempfile.mkdtemp()` / `NamedTemporaryFile()` land under pytest's basetemp (2026-09-07).
+#
+# Four hub tests create scratch with `tempfile.mkdtemp()` and never remove it; the suites run by
+# three sessions and their review readers left 4,072 `/tmp/tmp*` dirs (2.2 GB) in ONE day, and
+# /tmp is the same disk the pool sandboxes, pytest and the Claude scratch share. Pinning
+# `tempfile.tempdir` (and TMPDIR for subprocesses) to the session basetemp makes every such dir
+# part of the `pytest-<n>` tree pytest itself prunes (it keeps the last three sessions) — the
+# class fix, no per-test edit. Session-scoped: one directory per pytest process.
+# Grader: tests/test_conftest_isolation.py::test_every_bare_mkdtemp_lands_under_pytest_basetemp.
+# ---------------------------------------------------------------------------------------------
+@pytest.fixture(autouse=True, scope="session")
+def _tempfile_under_basetemp(tmp_path_factory):
+    import tempfile
+
+    scratch = tmp_path_factory.getbasetemp() / "mkdtemp"
+    scratch.mkdir(exist_ok=True)
+    previous_dir, previous_env = tempfile.tempdir, os.environ.get("TMPDIR")
+    tempfile.tempdir = str(scratch)
+    os.environ["TMPDIR"] = str(scratch)
+    yield scratch
+    tempfile.tempdir = previous_dir
+    if previous_env is None:
+        os.environ.pop("TMPDIR", None)
+    else:
+        os.environ["TMPDIR"] = previous_env
