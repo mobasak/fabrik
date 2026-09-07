@@ -395,7 +395,7 @@ def test_malformed_wall_rounds_ts_models_in_old_rows_never_crash_the_report(tmp_
             "repo": "/opt/x",
             "command": "c1",
             "state": "done",
-            "wall_s": 1,
+            "wall_s": 60,
             "rounds": 1,
             "findings": [],
             "phases": 1,
@@ -433,6 +433,27 @@ def test_malformed_wall_rounds_ts_models_in_old_rows_never_crash_the_report(tmp_
         assert "Infinity" not in r.stdout and "NaN" not in r.stdout, args
     c = json.loads(_run(ledger, "--json").stdout)["commands"]["c1"]
     assert c["runs"] == len(rows) and c["models"] == []
-    assert c["max_wall_min"] == 1.0 and c["median_rounds"] == 1  # bad values read as 0, never crash
+    # a malformed wall/rounds is NO datum: dropped from the medians and disclosed as a row count,
+    # never a phantom 0 that drags the median (pass 23: 13 bad rows would have shown "0 min")
+    assert c["median_wall_min"] == 1.0 and c["max_wall_min"] == 1.0 and c["median_rounds"] == 1
+    assert c["wall_rows"] == len(rows) - 4 and c["rounds_rows"] == len(rows) - 3
     since = json.loads(_run(ledger, "--json", "--since", "30").stdout)
     assert since["examined"] == len(rows) - 3  # the three bad-ts rows fall outside any window
+
+
+def test_a_malformed_wall_is_no_datum_never_a_phantom_zero_in_the_median(tmp_path: Path) -> None:
+    """Pass 23 (seat B): one real 10-minute run + one row whose `wall_s` is a string must report a
+    10-minute median over ONE timed row — a phantom 0 would print "5.0 min" for 2 runs, a real
+    number silently wrong by 2x with no denominator."""
+    ledger = tmp_path / "command-feedback.jsonl"
+    good = json.dumps(_row("c1", 600, 3, "a"))
+    corrupt = json.dumps(_row("c1", 1, 1, "b")).replace('"wall_s": 1', '"wall_s": "corrupt"')
+    corrupt = corrupt.replace('"rounds": 1', '"rounds": [1]')
+    assert '"wall_s": "corrupt"' in corrupt and '"rounds": [1]' in corrupt
+    ledger.write_text(good + "\n" + corrupt + "\n", encoding="utf-8")
+    r = _run(ledger, "--json")
+    assert r.returncode == 0, r.stderr[-400:]
+    c = json.loads(r.stdout)["commands"]["c1"]
+    assert c["runs"] == 2 and c["median_wall_min"] == 10.0 and c["wall_rows"] == 1
+    assert c["median_rounds"] == 3 and c["rounds_rows"] == 1
+    assert "| 10.0 min (1) |" in _run(ledger).stdout and "| 3 (1) |" in _run(ledger).stdout

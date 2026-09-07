@@ -75,17 +75,18 @@ def _median(values: list) -> float | int:
     return int(m) if float(m).is_integer() else round(float(m), 1)
 
 
-def _num(v: object, default: float = 0.0) -> float:
-    """A finite number from a ledger cell, else `default` — one bad row in the shared, append-only
+def _num(v: object) -> float | None:
+    """A finite number from a ledger cell, else None — one bad row in the shared, append-only
     ledger must never take the whole report down (review pass 22: the pass-21 guard covered
     cost_usd/tok_* only; a string, list, NaN, Infinity or 400-digit `wall_s`/`rounds`/`ts` still
-    raised out of build())."""
+    raised out of build()). None is NO datum: the caller drops it and discloses the row count,
+    never a phantom 0 that drags a median (pass 23)."""
     try:
         if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(float(v)):
             return float(v)
     except OverflowError:  # a 400-digit JSON integer: float() itself overflows
         pass
-    return default
+    return None
 
 
 def _cost(r: dict) -> float | None:
@@ -128,7 +129,7 @@ def build(
     kept = [
         r
         for r in rows
-        if (cutoff is None or _num(r.get("ts")) >= cutoff)
+        if (cutoff is None or (_num(r.get("ts")) or 0) >= cutoff)
         and (command is None or r.get("command") == command)
         and (agent is None or str(r.get("agent") or "") == agent)
     ]
@@ -137,8 +138,9 @@ def build(
         per[str(r["command"])].append(r)
     commands: dict[str, dict] = {}
     for cmd, rs in sorted(per.items()):
-        walls = [_num(r.get("wall_s")) / 60 for r in rs]
-        rounds = [int(_num(r.get("rounds"))) for r in rs]
+        # rows with a finite value only; the counts beside the medians are their denominators
+        walls = [w / 60 for w in map(_num, (r.get("wall_s") for r in rs)) if w is not None]
+        rounds = [int(n) for n in map(_num, (r.get("rounds") for r in rs)) if n is not None]
         commands[cmd] = {
             "runs": len(rs),
             "done": sum(1 for r in rs if r.get("state") == "done"),
@@ -155,6 +157,8 @@ def build(
             "median_wall_min": round(float(statistics.median(walls)), 1) if walls else 0.0,
             "max_wall_min": round(max(walls), 1) if walls else 0.0,
             "median_rounds": _median(rounds),
+            "wall_rows": len(walls),
+            "rounds_rows": len(rounds),
             "change_none": sum(1 for r in rs if _is_none(str(r.get("change") or ""))),
             # summed over the rows that carry a number; rows without one are counted, not zeroed
             "cost_usd": round(sum(c for c in map(_cost, rs) if c is not None), 4),
@@ -229,15 +233,17 @@ def render(report: dict) -> str:
         "row; nested runs overlap their parent's window, so per-command token and cost totals are "
         "not additive across commands.",
         "",
-        "| command | runs | done/blocked/handoff | median wall | max wall | median rounds | "
-        "change: none | pool $ (rows) | median tokens (rows) | cache hit | models |",
+        "| command | runs | done/blocked/handoff | median wall (rows) | max wall | "
+        "median rounds (rows) | change: none | pool $ (rows) | median tokens (rows) | cache hit | "
+        "models |",
         "|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for cmd, c in report["commands"].items():
         hit = f"{100 * c['cache_hit']:.0f}%" if c.get("cache_hit") is not None else "—"
         lines.append(
             f"| /{cmd} | {c['runs']} | {c['done']}/{c['blocked']}/{c['handoff']} | "
-            f"{c['median_wall_min']} min | {c['max_wall_min']} min | {c['median_rounds']} | "
+            f"{c['median_wall_min']} min ({c['wall_rows']}) | {c['max_wall_min']} min | "
+            f"{c['median_rounds']} ({c['rounds_rows']}) | "
             f"{c['change_none']} of {c['runs']} | "
             f"{c['cost_usd'] if c['cost_rows'] else '—'} ({c['cost_rows']}) | "
             f"{_k(c['median_tok']) if c.get('median_tok') is not None else '—'} "
