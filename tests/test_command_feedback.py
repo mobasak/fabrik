@@ -1069,3 +1069,21 @@ def test_a_tight_subtraction_is_refused_too() -> None:
         and _fmt_tokens(999_499) == "999.5k"
         and _fmt_tokens(999) == "999"
     )
+
+
+def test_a_hyphenated_name_beside_a_real_amount_never_nulls_the_cost() -> None:
+    """Pass-8's negation guard fired on ANY dash-digit (`glm-5`, `T-11`, `round-3`) and nulled the
+    real amount beside it — the exact shape an agent writes next to a pool cost."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _cost_usd  # noqa: PLC0415
+
+    assert _cost_usd("$0.30 via glm-5 pool") == 0.3
+    assert _cost_usd("pool $0.42 (opus-5 fallback)") == 0.42
+    assert _cost_usd("$0.10 (T-11 fix) round-3") == 0.1
+    assert _cost_usd("0.30 usd via glm-5") == 0.3
+    # the negations still refuse
+    assert (
+        _cost_usd("$5-$2") is None
+        and _cost_usd("-$1.50") is None
+        and _cost_usd("-1.50 usd") is None
+    )
