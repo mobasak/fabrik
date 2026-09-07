@@ -911,11 +911,11 @@ _COST_WHOLE_RE = re.compile(rf"^\s*(?:pool\s*)?\$?\s*({_COST_NUM})\s*(?:usd|\$)?
 # the `usd`-marked form needs a FRACTION (`0.01 usd`): a bare integer before `usd` is prose more
 # often than a cost ("budget for 2024 usd" — review 2026-09-07); `$N` is explicit and accepted as is
 _COST_NEGATED_RE = re.compile(
-    r"-\s*(?:\$\s*\d|(?:\d{1,3}(?:,\d{3})+|\d+)\.\d+\s*usd\b)", re.I
+    r"-\s*(?:\$\s*\d|(?:\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+\.\d+)\s*usd\b)", re.I
 )  # a dash directly before an AMOUNT (`-$1.50`, `$5-$2`, `-1,234.50 usd`) — never `glm-5` or `T-11`
 _COST_ZERO_USD_RE = re.compile(r"(?<![\d,.$])0\s*usd\b", re.I)
 _COST_MARKED_RE = re.compile(
-    rf"\$\s*({_COST_NUM})(?!\w|[,.]\d)|(?<![\d,.$])((?:\d{{1,3}}(?:,\d{{3}})+|\d+)\.\d+)\s*usd\b",
+    rf"\$\s*({_COST_NUM})(?!\w|[,.]\d)|(?<![\d,.$])(\d{{1,3}}(?:,\d{{3}})+(?:\.\d+)?|\d+\.\d+)\s*usd\b",
     re.I,
 )
 
@@ -1135,7 +1135,12 @@ def _cost_usd(text: str) -> float | None:
         if m:
             # the whole-value form with a bare integer before `usd` is the same year/count
             # shape the marked form refuses (`2024 usd`) — a fraction or a `$` makes it a cost
-            if "." not in m.group(1) and "$" not in t and "usd" in t.lower():
+            if (
+                "." not in m.group(1)
+                and "," not in m.group(1)  # `1,000 usd` is neither a year nor a count
+                and "$" not in t
+                and "usd" in t.lower()
+            ):
                 # an explicit zero (`0 usd`, `00 usd`) IS a zero cost — compared numerically
                 return 0.0 if float(m.group(1).replace(",", "")) == 0 else None
             return float(m.group(1).replace(",", ""))

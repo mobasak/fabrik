@@ -1143,3 +1143,13 @@ def test_a_multi_digit_zero_before_usd_is_still_zero() -> None:
         and _cost_usd("pool 000 usd") == 0.0
         and _cost_usd("10 usd") is None
     )
+
+
+def test_a_thousands_grouped_integer_before_usd_is_an_amount() -> None:
+    """`2024 usd` is a year and `5 usd` a count, but `1,000 usd` cannot be either."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _cost_usd  # noqa: PLC0415
+
+    assert _cost_usd("1,000 usd") == 1000.0 and _cost_usd("pool 1,500 usd for the week") == 1500.0
+    assert _cost_usd("2024 usd") is None and _cost_usd("500 usd") is None
+    assert _cost_usd("-1,000 usd") is None  # a negated grouped integer refuses too

@@ -278,8 +278,7 @@ cost:      <pool dollars — the text you write is kept as `cost`; its parsed nu
   (`cache_read / (in + read + create)`), and the models seen; the header states the POPULATION —
   agent-closed runs only (coroner-closed runs write no row) and nested windows overlap, so
   per-command totals are not additive across commands; then the optimisation backlog (each item tagged
-  `[agent · surface]` of the run that
-  raised it) — every distinct `change:` item with its
+  `[agents · surfaces]` — every agent and every surface that raised it) — every distinct `change:` item with its
   recurrence count, and the `confusion:` and `waste:` items. This is what the corpus is optimised
   from: a `change:` that recurs across runs is a command edit waiting to be made.
 - Pre-cutoff records keep the old grammar (the duty binds forward, never retroactively — the same
