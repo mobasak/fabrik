@@ -67,20 +67,38 @@ def _pool_policy_on() -> bool:
     `scripts/enforcement/check_subagent_flywheel.py::_POOL_POLICY_ON` (fleet-synced; `FABRIK_POOL_POLICY`
     is its test seam). Unknown ⇒ OFF — "cannot read the policy" must never mean "go"."""
     try:
-        enf = str(Path(__file__).resolve().parents[2] / "scripts" / "enforcement")
-        if enf not in sys.path:
-            sys.path.insert(0, enf)
-        import check_subagent_flywheel as _csf  # noqa: PLC0415
+        import importlib.util  # noqa: PLC0415
 
-        return bool(_csf._pool_policy_on())
+        path = (
+            Path(__file__).resolve().parents[2]
+            / "scripts"
+            / "enforcement"
+            / "check_subagent_flywheel.py"
+        )
+        spec = importlib.util.spec_from_file_location("_fabrik_pool_policy_source", path)
+        if spec is None or spec.loader is None:
+            return False
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(
+            mod
+        )  # by PATH, under a private name — a bare import could be shadowed
+        return bool(mod._pool_policy_on())
     except Exception:  # noqa: BLE001 — unknown policy → no spend
         return False
+
+
+class PoolOffByRulingError(RuntimeError):
+    """D-181/D-182: the governor may shed to the pool, but the pool is OFF by ruling — the broker
+    answers 503, charges no window, and the caller retries when its own account has headroom."""
 
 
 def _default_pool(prompt: str, model: str | None) -> str:
     """Single-shot pool completion (guarded import — no-ops to a clear error if unavailable)."""
     if not _pool_policy_on():
-        return "[pool OFF by ruling (D-181/D-182) — nothing dispatched; the job stays on ob@ or waits for quota]"
+        raise PoolOffByRulingError(
+            "pool OFF by ruling (D-181/D-182) — nothing dispatched, nothing charged; retry when the "
+            "account has headroom"
+        )
     try:
         from libs.subagents import fanout  # noqa: PLC0415
     except ImportError:
@@ -160,6 +178,21 @@ class Broker:
                 else self._run_claude_fn(prompt, model)
             )
             code, resp, out_len = 200, {"completion": text, "via": dest}, len(text)
+        except PoolOffByRulingError as exc:
+            # Nothing ran and nothing was spent: a real error code, no window counted, audited as
+            # refused (review r1: the refusal used to ship as a 200 completion and burn the window).
+            budgets[caller] = state
+            self._write_budgets(budgets)  # persist any rollover, exactly as the 429 path does
+            self._audit(
+                {
+                    "caller": caller,
+                    "prompt_hash": _hash(prompt),
+                    "out_len": 0,
+                    "via": "refused",
+                    "status": 503,
+                }
+            )
+            return 503, {"error": str(exc), "via": "refused"}
         except Exception as exc:  # noqa: BLE001 — a failed completion is a spent attempt, not a crash
             code, resp, out_len = 502, {"error": "completion failed", "via": dest}, 0
             self._alert_error(caller, exc)
@@ -296,7 +329,6 @@ def _load_tokens() -> dict[str, dict]:
 
 def serve(host: str = "127.0.0.1", port: int = 8790) -> None:  # pragma: no cover — thin I/O wrapper
     """Run the loopback broker. Reads `X-Broker-Token` + a JSON `{prompt, model?}` body."""
-    import sys
     import time
     from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -342,8 +374,6 @@ def serve(host: str = "127.0.0.1", port: int = 8790) -> None:  # pragma: no cove
 
 
 def _governor_status() -> dict:  # pragma: no cover — used only by serve()
-    import sys
-
     sys.path.insert(0, str(_DIR))
     from quota_governor import _default_status_fn  # noqa: PLC0415
 

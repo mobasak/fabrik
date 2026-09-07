@@ -57,12 +57,17 @@ def _pool_policy_on() -> bool:
     `scripts/enforcement/check_subagent_flywheel.py::_POOL_POLICY_ON` (fleet-synced; `FABRIK_POOL_POLICY`
     is its test seam). Unknown ⇒ OFF — "cannot read the policy" must never mean "go"."""
     try:
-        enf = str(_REPO_ROOT / "scripts" / "enforcement")
-        if enf not in sys.path:
-            sys.path.insert(0, enf)
-        import check_subagent_flywheel as _csf  # noqa: PLC0415
+        import importlib.util  # noqa: PLC0415
 
-        return bool(_csf._pool_policy_on())
+        path = _REPO_ROOT / "scripts" / "enforcement" / "check_subagent_flywheel.py"
+        spec = importlib.util.spec_from_file_location("_fabrik_pool_policy_source", path)
+        if spec is None or spec.loader is None:
+            return False
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(
+            mod
+        )  # by PATH, under a private name — a bare import could be shadowed
+        return bool(mod._pool_policy_on())
     except Exception:  # noqa: BLE001 — unknown policy → no spend
         return False
 
@@ -224,12 +229,12 @@ def run_batch(probes_per_model: int = 2) -> int:
 def main() -> int:
     import argparse
 
-    if not _pool_policy_on():
-        print("[canary-grounding] the pool is OFF by ruling (D-181/D-182) — nothing dispatched")
-        return 0
     ap = argparse.ArgumentParser(prog="canary_grounding")
     ap.add_argument("--probes-per-model", type=int, default=2)
     args = ap.parse_args()
+    if not _pool_policy_on():  # after argparse so --help and a bad flag still behave (review r1)
+        print("[canary-grounding] the pool is OFF by ruling (D-181/D-182) — nothing dispatched")
+        return 0
     return run_batch(probes_per_model=args.probes_per_model)
 
 

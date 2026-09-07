@@ -64,12 +64,22 @@ def _pool_policy_on() -> bool:
     `scripts/enforcement/check_subagent_flywheel.py::_POOL_POLICY_ON` (fleet-synced; `FABRIK_POOL_POLICY`
     is its test seam). Unknown ⇒ OFF — "cannot read the policy" must never mean "go"."""
     try:
-        enf = str(Path(__file__).resolve().parents[2] / "scripts" / "enforcement")
-        if enf not in sys.path:
-            sys.path.insert(0, enf)
-        import check_subagent_flywheel as _csf  # noqa: PLC0415
+        import importlib.util  # noqa: PLC0415
 
-        return bool(_csf._pool_policy_on())
+        path = (
+            Path(__file__).resolve().parents[2]
+            / "scripts"
+            / "enforcement"
+            / "check_subagent_flywheel.py"
+        )
+        spec = importlib.util.spec_from_file_location("_fabrik_pool_policy_source", path)
+        if spec is None or spec.loader is None:
+            return False
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(
+            mod
+        )  # by PATH, under a private name — a bare import could be shadowed
+        return bool(mod._pool_policy_on())
     except Exception:  # noqa: BLE001 — unknown policy → no spend
         return False
 
@@ -207,7 +217,6 @@ class IncidentMarshaller:
 
 def _default_governor() -> object:
     """A real QuotaGovernor (co-located under scripts/sysadmin/)."""
-    import sys
 
     here = str(Path(__file__).resolve().parent)
     if here not in sys.path:
@@ -225,7 +234,6 @@ def _main(
     echo '<webhook json>' | incident_context.py diagnose --containers svc,worker [--incident-id id]
     """
     import argparse
-    import sys
 
     p = argparse.ArgumentParser(description="Incident context marshaller")
     sub = p.add_subparsers(dest="cmd")

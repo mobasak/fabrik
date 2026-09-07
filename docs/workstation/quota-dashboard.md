@@ -147,7 +147,7 @@ reload lands on the same tab.
 #### The external-services matrix, under the table (2026-09-06)
 
 Below the command table, a **command × service matrix**: which outside-the-box service each command
-actually reaches — the OpenRouter pool, the flywheel store, session-recall, WebSearch/WebFetch,
+actually reaches — the OpenRouter pool (OFF by ruling), session-recall, WebSearch/WebFetch,
 Brave, Firecrawl, Exa, a headless browser, GitHub via `gh`, the VPS fleet, ai-consult, the citation
 verifier, fabrik-mail. A dot means the command **names that service's own invocation token**
 (`fanout(`, `WebSearch`, `mcp__firecrawl`, `fabrik apply`), not that it mentions the service in

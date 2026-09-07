@@ -42,12 +42,17 @@ def _pool_policy_on() -> bool:
     `scripts/enforcement/check_subagent_flywheel.py::_POOL_POLICY_ON` (fleet-synced; `FABRIK_POOL_POLICY`
     is its test seam). Unknown ⇒ OFF — "cannot read the policy" must never mean "go"."""
     try:
-        enf = str(REPO / "scripts" / "enforcement")
-        if enf not in sys.path:
-            sys.path.insert(0, enf)
-        import check_subagent_flywheel as _csf  # noqa: PLC0415
+        import importlib.util  # noqa: PLC0415
 
-        return bool(_csf._pool_policy_on())
+        path = REPO / "scripts" / "enforcement" / "check_subagent_flywheel.py"
+        spec = importlib.util.spec_from_file_location("_fabrik_pool_policy_source", path)
+        if spec is None or spec.loader is None:
+            return False
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(
+            mod
+        )  # by PATH, under a private name — a bare import could be shadowed
+        return bool(mod._pool_policy_on())
     except Exception:  # noqa: BLE001 — unknown policy → no spend
         return False
 
@@ -432,13 +437,6 @@ def extract_json(text: str) -> dict | None:
 
 
 def main() -> int:
-    if not _pool_policy_on():
-        print(
-            "classify_services: the pool is OFF by ruling (D-181/D-182) — nothing dispatched, "
-            "nothing written, cursor unmoved",
-            file=sys.stderr,
-        )
-        return 0
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
         "--apply", action="store_true", help="write identified providers into the catalog"
@@ -463,6 +461,13 @@ def main() -> int:
         "daily path — the code-host scan can enqueue hundreds of hosts at once.",
     )
     args = ap.parse_args()
+    if not _pool_policy_on():  # after argparse so --help and a bad flag still behave (review r1)
+        print(
+            "classify_services: the pool is OFF by ruling (D-181/D-182) — nothing dispatched, "
+            "nothing written, cursor unmoved",
+            file=sys.stderr,
+        )
+        return 0
     try:
         gather_envs.load_catalog()  # the same key rules the next gather_envs applies (lowercase, no whitespace): a lap must never accept a catalog the chain's next step refuses (EZ9)
     except gather_envs.CatalogError as exc:

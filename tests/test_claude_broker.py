@@ -337,25 +337,50 @@ def test_safe_content_length():
 
 def test_default_pool_refuses_while_the_policy_is_off(monkeypatch):
     """D-181/D-182: the default pool leg never dispatches while the committed policy is OFF —
-    even with the module importable and a key live — and still dispatches when it is ON."""
-    import importlib.util
+    even with the module importable and a key live — it RAISES the ruling; with the policy ON it
+    dispatches."""
     import sys
     import types
-    from pathlib import Path
 
-    spec = importlib.util.spec_from_file_location(
-        "claude_broker_under_test",
-        Path(__file__).resolve().parents[1] / "scripts" / "sysadmin" / "claude_broker.py",
-    )
-    m = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(m)
+    import pytest
+
     calls: list = []
     fake = types.SimpleNamespace(
         fanout=lambda *a, **k: calls.append(a) or [types.SimpleNamespace(text="OUT")]
     )
     monkeypatch.setitem(sys.modules, "libs.subagents", fake)
     monkeypatch.setenv("FABRIK_POOL_POLICY", "off")
-    out = m._default_pool("p", None)
-    assert "OFF by ruling" in out and "stays on ob@" in out and calls == []
+    with pytest.raises(claude_broker.PoolOffByRulingError, match="OFF by ruling"):
+        claude_broker._default_pool("p", None)
+    assert calls == []
     monkeypatch.setenv("FABRIK_POOL_POLICY", "on")
-    assert m._default_pool("p", None) == "OUT" and len(calls) == 1
+    assert claude_broker._default_pool("p", None) == "OUT" and len(calls) == 1
+
+
+def test_pool_off_refusal_is_a_503_that_charges_no_window(tmp_path, monkeypatch):
+    """Review r1 (2026-09-08): the governor sheds to the pool, the pool is OFF by ruling — the
+    caller must see a real error, not a 200 whose completion is prose, and its window must not be
+    counted. Uses the REAL `_default_pool` (the production wiring), not the test lambda."""
+    import sys
+    import types
+
+    m = claude_broker  # the SAME module the Broker class comes from — a second load would carry a different exception class
+    monkeypatch.setitem(
+        sys.modules,
+        "libs.subagents",
+        types.SimpleNamespace(fanout=lambda *a, **k: [types.SimpleNamespace(text="OUT")]),
+    )
+    monkeypatch.setenv("FABRIK_POOL_POLICY", "off")
+    b = _broker(tmp_path, dest="pool", pool=m._default_pool)
+    code, resp = b.handle({"prompt": "diagnose the OOM please"}, "tok-alpha")
+    assert code == 503 and resp["via"] == "refused" and "OFF by ruling" in resp["error"]
+    assert "completion" not in resp
+    counts = {
+        w: s.get("count", 0)
+        for w, s in b._read_budgets().get("alpha", {}).items()
+        if isinstance(s, dict)
+    }
+    assert all(c == 0 for c in counts.values()), counts  # nothing charged
+    monkeypatch.setenv("FABRIK_POOL_POLICY", "on")
+    code, resp = b.handle({"prompt": "diagnose the OOM please"}, "tok-alpha")
+    assert code == 200 and resp["completion"] == "OUT"

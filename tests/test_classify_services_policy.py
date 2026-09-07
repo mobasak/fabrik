@@ -35,3 +35,23 @@ def test_main_returns_zero_and_never_dispatches_while_the_policy_is_off(monkeypa
     assert cs.main() == 0
     assert calls == []
     assert "OFF by ruling" in capsys.readouterr().err
+
+
+def test_help_and_bad_flags_still_reach_argparse_while_the_policy_is_off(monkeypatch, capsys):
+    """Review r1: the gate sits AFTER argparse — `--help` prints usage (SystemExit 0) and a bad flag
+    is an argparse error (SystemExit 2), never a silent policy exit 0."""
+    import pytest
+
+    cs = _load()
+    monkeypatch.setattr(
+        cs, "fanout", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("dispatch reached"))
+    )
+    monkeypatch.setenv("FABRIK_POOL_POLICY", "off")
+    monkeypatch.setattr("sys.argv", ["classify_services", "--help"])
+    with pytest.raises(SystemExit) as e:
+        cs.main()
+    assert e.value.code == 0 and "usage" in capsys.readouterr().out.lower()
+    monkeypatch.setattr("sys.argv", ["classify_services", "--bogus-flag"])
+    with pytest.raises(SystemExit) as e:
+        cs.main()
+    assert e.value.code == 2

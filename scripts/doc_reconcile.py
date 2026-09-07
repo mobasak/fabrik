@@ -54,9 +54,17 @@ def _pool_policy_on() -> bool:
     enforcement module is unreachable the answer is OFF — under D-182 a dispatch spends real money, so
     "unknown" must not mean "go"."""
     try:
-        import check_subagent_flywheel as _csf  # `_ENF` is on sys.path above
+        import importlib.util  # noqa: PLC0415
 
-        return bool(_csf._pool_policy_on())
+        path = _ENF / "check_subagent_flywheel.py"  # _ENF IS scripts/enforcement
+        spec = importlib.util.spec_from_file_location("_fabrik_pool_policy_source", path)
+        if spec is None or spec.loader is None:
+            return False
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(
+            mod
+        )  # by PATH, under a private name — a bare import could be shadowed
+        return bool(mod._pool_policy_on())
     except Exception:  # noqa: BLE001 — unknown policy → no spend
         return False
 

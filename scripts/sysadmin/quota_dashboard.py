@@ -1089,12 +1089,17 @@ def _pool_policy_on() -> bool:
     `scripts/enforcement/check_subagent_flywheel.py::_POOL_POLICY_ON` (fleet-synced; `FABRIK_POOL_POLICY`
     is its test seam). Unknown ⇒ OFF — "cannot read the policy" must never mean "go"."""
     try:
-        enf = str(_FABRIK_ROOT / "scripts" / "enforcement")
-        if enf not in sys.path:
-            sys.path.insert(0, enf)
-        import check_subagent_flywheel as _csf  # noqa: PLC0415
+        import importlib.util  # noqa: PLC0415
 
-        return bool(_csf._pool_policy_on())
+        path = _FABRIK_ROOT / "scripts" / "enforcement" / "check_subagent_flywheel.py"
+        spec = importlib.util.spec_from_file_location("_fabrik_pool_policy_source", path)
+        if spec is None or spec.loader is None:
+            return False
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(
+            mod
+        )  # by PATH, under a private name — a bare import could be shadowed
+        return bool(mod._pool_policy_on())
     except Exception:  # noqa: BLE001 — unknown policy → no spend
         return False
 
@@ -1522,12 +1527,6 @@ _EXT_SERVICES: tuple[tuple[str, str, str, str], ...] = (
         # a bare `libs/subagents` PATH is prose about the module, not a call into it (measured:
         # it alone credited fabrik-rivals, whose line names the key autoloader). An import IS a call.
         r"fanout\(|pick_models\(|(?:from|import) libs\.subagents",
-    ),
-    (
-        "fly",
-        "flywheel",
-        "Flywheel recording — record_agent_run() into the ranking store",
-        r"record_agent_run",
     ),
     (
         "rec",

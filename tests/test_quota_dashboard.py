@@ -1382,7 +1382,6 @@ def test_every_registered_detector_is_pinned_by_a_positive_probe(tmp_path, monke
             "from libs.subagents import x",
             "import libs.subagents",
         ],
-        "fly": ["record_agent_run(spec, result)"],
         "rec": ["search_chats", "recent_chats", "mcp__session-recall", "the session-recall MCP"],
         "web": ["WebSearch", "WebFetch"],
         "brv": ["brave_web_search", "brave-web-search", "mcp__brave-search", "brave-search"],
