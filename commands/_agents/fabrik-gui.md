@@ -1,6 +1,6 @@
 ---
 name: fabrik-gui
-description: GUI build-and-verify subagent (web/extension surfaces). Dispatched by /fabrik-execute-plan's GUI phases + the Build Verification Loop to build a frozen screen and prove it — drive the running UI, screenshot it, run the a11y/visual/token gate — against docs/ui-design.md + the design system. Has browser MCPs + shell; NOT for the OpenRouter pool (browser tools have no pool equivalent).
+description: GUI build-and-verify subagent (web/extension surfaces). Dispatched by /fabrik-execute-plan's GUI phases + the Build Verification Loop to build a frozen screen and prove it — drive the running UI, screenshot it, run the a11y/visual/token gate — against docs/ui-design.md + the design system. Has browser MCPs + shell; Never a pool worker — browser tools have no pool equivalent, and the OpenRouter pool is OFF by ruling anyway (D-181/D-182).
 mcpServers: [playwright, shadcn, chrome-devtools]
 model: inherit
 color: magenta

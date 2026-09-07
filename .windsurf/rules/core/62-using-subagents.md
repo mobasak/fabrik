@@ -1,7 +1,7 @@
 ---
 activation: glob
 globs: ["**/subagents/**", "**/libs/subagents/**", "**/*subagent*", "**/mcp.json", "**/.mcp.json", "**/agents/*.md"]
-description: How to dispatch subagents — the two runtimes, per-task tool access (Claude Code agent-types vs pool web_tools/mcp_servers), the never-route safety list, the mcp.json source-of-truth, pool-vs-native, and the fanout → set_quality / record_agent_run flywheel
+description: How to dispatch subagents — native Claude Task subagents for every fan-out while the OpenRouter pool is OFF by ruling (D-181/D-182), per-task tool access, the never-route safety list, the mcp.json source-of-truth; the pool runtime and its flywheel are kept in comments for re-enable
 trigger: glob
 ---
 <!-- CONSUMER: Coding agents (all) + Traycer (planning)

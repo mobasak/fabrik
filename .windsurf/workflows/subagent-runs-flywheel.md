@@ -5,6 +5,10 @@ description: End-to-end workflow for the fleet-wide subagent-runs model-selectio
 
 # Subagent-Runs Flywheel — Operator Workflow
 
+> **⚠️ SUSPENDED — the OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism D-182, 2026-09-07).** Nothing dispatches, so nothing new records; every fan-out runs native Claude Task subagents (`core/62-using-subagents.md` § Dispatch policy). This workflow is kept as the recording path for the day the pool returns; do not vendor, wire or dispatch from it while the ruling stands.
+
+<!-- POOL OFF (D-181/D-182, 2026-09-07) — the workflow body, kept verbatim for re-enable:
+
 Wire a Fabrik project into the fleet-wide model-selection flywheel: every subagent run writes one row to a shared Postgres table on `postgres-main`, a nightly aggregator ranks models per task type, and future `pick_models()` calls in every project pick the empirically best model instead of a hardcoded default. Zero regression until you complete the wiring — the module runs on JSONL + a vendored `_TABLE` default indefinitely if you never set the env vars.
 
 **Canonical references:**
@@ -583,3 +587,4 @@ For a project X to be fully wired into the flywheel:
 - [ ] After ≥3 runs per (task_type, model), the nightly aggregator will list your project's data in the ranked doc.
 
 The flywheel closes automatically from there — every future `pick_models(task_type)` call in any project returns the fleet-best model backed by real runs, and every future `run_agents` call adds a data point that sharpens the ranking further.
+-->

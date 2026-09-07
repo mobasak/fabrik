@@ -146,7 +146,7 @@ what makes an in-flight command visible and un-abandonable.
   **infra** — `commands/_sources/`, `.windsurf/rules/`, `scripts/enforcement/`, `.claude/hooks/`,
   the box mesh, fabrik-mail · **fleet** — `specs/services/*.yaml`, deploy/VPS/monitoring, scaffolding,
   `docs/PROJECT_CATALOG.md` · **intel** — models, benchmarks, the flywheel, author-blind review, and
-  **the subagents pool — routing behaviour, fan-out, and what it SPENDS** (operator ruling 2026-09-05:
+  **the subagents pool — routing behaviour, fan-out, and what it SPENDS; OFF by ruling since D-181/D-182 (2026-09-07), the beat stays intel's** (operator ruling 2026-09-05:
   *"you are the owner not infra"*; D-135). Pool-usage mail from any repo is addressed to **intel**, not
   infra — that misrouting is what let four fan-out findings sit unworked while the pool burned ~$16 in
   28 hours. ⚠️ The BEAT is not edit rights: `libs/subagents/` is fabrik-lib's vendored module and the

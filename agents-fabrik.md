@@ -4,7 +4,7 @@
 > pointing here; the high-frequency core is `agents-fabrik-core.md`, `@import`-ed into `CLAUDE.md`.
 
 **Read by:** the planning chain (`/fabrik-vision` → `/fabrik-epics` → `/fabrik-epics-review`, then `/fabrik-spec <epic>` per agent window) **and any agent planning or
-making non-trivial changes directly** (Claude Code — Max OAuth — plus the OpenRouter subagent pool; Windsurf Cascade + Kilo CLI RETIRED 2026-07-19). This is the canonical infra +
+making non-trivial changes directly** (Claude Code — Max OAuth — with native Task subagents; the OpenRouter subagent pool is OFF by ruling, D-181/D-182, 2026-09-07; Windsurf Cascade + Kilo CLI RETIRED 2026-07-19). This is the canonical infra +
 codebase map — ground every plan in it, don't guess.
 **Our agents are tool-capable — orient, then act:** run `python scripts/select_rules.py` to load the ACTIVE rule packs; open every file/symbol you cite (`path:line`); ground external facts **live via MCP** (`exa` → `brave-search` → `context7`, cite URL + date, never from memory); gate with `python scripts/final_gate.py`. Enumerations here are copied from the live registry (`scaffold.py::SCAFFOLD_TYPES`, `.windsurf/rules/**`, `fabrik-lib/README.md`, `spec_loader.py::Shape`) — if a count disagrees with the registry, the registry wins.
 **Coding agents:** Claude Code reads `CLAUDE.md` (which `@import`s `agents-fabrik-core.md`). ⚠️ Windsurf Cascade + Kilo CLI are **RETIRED (2026-07-19)** — their bootstrap files (`.windsurfrules`, `AGENTS-compact.md` via `opencode.json`) remain synced only until removed. Rule packs live in `.windsurf/rules/**` — canonical; at review time `scripts/review_rubric.py` injects them.
@@ -86,7 +86,7 @@ Full lifecycle from vision to running service — what is automated vs what requ
 2. `/fabrik-vision` → `/fabrik-epics` write the epic files (`docs/development/epics/`); `/fabrik-epics-review` converges the set and assigns an owner per epic.
 3. Owner confirms the decomposition in chat and each named agent opens its window. **Human gate: epic confirmation (Gate 1).**
 
-**Phase 2 — Implementation (coding agents: Claude Code + the OpenRouter subagent pool):**
+**Phase 2 — Implementation (coding agents: Claude Code native subagents — the OpenRouter subagent pool is OFF by ruling, D-181/D-182):**
 4. Each agent runs the corpus chain on its epic, in its own worktree: `/fabrik-spec <epic file>` → `/fabrik-flows` → `/fabrik-data-contract` → *(GUI)* `/fabrik-ui-design` → `/fabrik-plan-after-chat` → `/fabrik-execute-plan`.
 5. Coding agent implements, passes `scripts/final_gate.py`, commits + pushes its own branch at task end (§ EXIT).
 6. The merge owner (agent-1) rebases and merges finished branches into `master` in `epic_order` phase order; the operator's go on the deploy is Gate 2.
@@ -154,9 +154,9 @@ Ollama on localhost:11434. Full setup: `docs/reference/LOCAL_LLM_INFRASTRUCTURE.
 | `fabrik-fixer` | hybrid-gpu | ~9 GB (8 GB VRAM + 1 GB RAM) | Fast (~40–60 tok/s) | Stable |
 | `fabrik-docs` | gpu | ~5 GB VRAM | Instant (~80–100 tok/s) | Rock solid |
 
-> ⚠️ **These are LOCAL OLLAMA models** (offline, hub-only). **The name `fabrik-reviewer` is overloaded** — the row above is the Ollama model; the **Claude Code `fabrik-reviewer` subagent-type** (and its siblings `fabrik-researcher` / `fabrik-gui`) are a *different thing* — layered **on top of** the pool-default for GUI work + the authoritative/high-risk review pass + the decide/merge phase (not the default worker).
+> ⚠️ **These are LOCAL OLLAMA models** (offline, hub-only). **The name `fabrik-reviewer` is overloaded** — the row above is the Ollama model; the **Claude Code `fabrik-reviewer` subagent-type** (and its siblings `fabrik-researcher` / `fabrik-gui`) are a *different thing* — layered **on top of** the pool-default for GUI work + the authoritative/high-risk review pass + the decide/merge phase (not the default worker) (the OpenRouter pool is OFF by ruling, D-181/D-182 — every subagent is native).
 >
-> **Subagent dispatch for gradeable fan-out** (review finders, research/`path:line` grounders, doc reconcilers, rules auditors, code implementers) is governed by [`.windsurf/rules/core/62-using-subagents.md`](.windsurf/rules/core/62-using-subagents.md) **§ Dispatch policy + § Parallelism** — **pool-default** (the OpenRouter pool, `run_agents` / `pick_models`, ≤$1.5/Mtok, records to the `subagent_runs` flywheel) with native Claude Code subagents added on top for GUI / the authoritative-high-risk pass / the decide-merge. **The two-shape parallelism rule (or a fan-out SILENTLY serializes):** read-only → `tools_enabled=False` (each its own group → parallel); tools-enabled → `tools_enabled=True` + **disjoint `owned_paths`** (empty/overlapping → one serial group). The planning agents *plan*; the `/fabrik-*` execution + review commands are what dispatch the pool.
+> **Subagent dispatch for gradeable fan-out — NATIVE seats while the pool is OFF by ruling (D-181/D-182)** (review finders, research/`path:line` grounders, doc reconcilers, rules auditors, code implementers) is governed by [`.windsurf/rules/core/62-using-subagents.md`](.windsurf/rules/core/62-using-subagents.md) **§ Dispatch policy + § Parallelism** — **pool-default** (the OpenRouter pool, `run_agents` / `pick_models`, ≤$1.5/Mtok, records to the `subagent_runs` flywheel) with native Claude Code subagents added on top for GUI / the authoritative-high-risk pass / the decide-merge. **The two-shape parallelism rule (or a fan-out SILENTLY serializes):** read-only → `tools_enabled=False` (each its own group → parallel); tools-enabled → `tools_enabled=True` + **disjoint `owned_paths`** (empty/overlapping → one serial group). The planning agents *plan*; the `/fabrik-*` execution + review commands are what dispatch the pool.
 
 ## File & Folder Naming
 
@@ -170,7 +170,7 @@ Kebab-case everywhere, with the canonical exception list `[canonical: CLAUDE.md 
 | Frontend | Next.js 15 + React 19 + TypeScript + Tailwind | — always use this (saas-skeleton bumped 2026-06-18) |
 | Database | PostgreSQL 16 (VPS, `postgres-main` container) | Self-host by default (see § Supabase below); Supabase only as a deliberate ADR-recorded exception |
 | Background jobs | PostgreSQL jobs table + worker | Redis queue for high throughput |
-| AI/LLM | Claude Max OAuth + OpenRouter subagent pool (Kilo CLI RETIRED 2026-07-19; direct API only for models not on OpenRouter) | Local Ollama for offline/free |
+| AI/LLM | Claude Max OAuth (the OpenRouter subagent pool is OFF by ruling — D-181/D-182 — its keys stay provisioned; Kilo CLI RETIRED 2026-07-19; direct API only for models not on OpenRouter) | Local Ollama for offline/free |
 | Local LLM | Ollama (localhost:11434) | See `docs/reference/LOCAL_LLM_INFRASTRUCTURE.md` |
 | Base images | `python:<current-stable>-slim-bookworm`, `node:<current-LTS>-bookworm-slim` | **Never** Alpine |
 | PDF | Gotenberg (self-hosted) | WeasyPrint for simple cases |
