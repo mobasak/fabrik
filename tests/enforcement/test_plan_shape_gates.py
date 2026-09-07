@@ -867,6 +867,11 @@ def test_each_parallelism_alternative_is_individually_load_bearing(plans_env, al
         ),
         (
             "subagent-pool-disabled",
+            (
+                "pool-stays-off",
+                "the pool stays OFF for this plan; every finder is a native Sonnet seat",
+            ),
+            ("subagent-pool-off", "the subagent pool is OFF (D-182); dispatch is native"),
             "the subagent pool is disabled for this plan; finders are Sonnet seats",
         ),
         ("sonnet-seats", "two Sonnet seats per ticket plus an Opus finder; results merge at T09"),
@@ -890,6 +895,9 @@ def test_each_dispatch_alternative_is_individually_load_bearing(plans_env, alt, 
         "Native speakers review the copy; the dispatch office confirms each seat by phone.",
         # exit seat (2026-09-07): a literal pool is not the subagent pool
         "The swimming pool was not used for training today; the gym is disabled until March.",
+        # exit seat r3: `OFF` is only the pool's own state, never a switch or a closure notice
+        "The community pool will be OFF for maintenance next week; residents should plan alternate exercise.",
+        "Our backyard pool heater switch is OFF during winter months.",
     ],
 )
 def test_ordinary_english_native_or_dispatch_does_not_satisfy_the_dispatch_pillar(

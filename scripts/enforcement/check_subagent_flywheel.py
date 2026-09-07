@@ -260,7 +260,11 @@ the policy is a committed line in a fleet-synced script: re-enabling pool-or-dec
 that the governance sync distributes, never a file nobody diffs."""
 
 
-_POLICY_TOKENS = frozenset({"on", "1", "true", "off", "0", "false"})
+_ON_TOKENS = frozenset({"on", "1", "true"})
+_OFF_TOKENS = frozenset({"off", "0", "false"})
+_POLICY_TOKENS = (
+    _ON_TOKENS | _OFF_TOKENS
+)  # ONE source — the seam and the advisory line read the same sets
 
 
 def _pool_policy_on() -> bool:
@@ -270,9 +274,9 @@ def _pool_policy_on() -> bool:
     ``.env``, the process env — under D-182 every one of them carries a live key and none of them is the
     policy."""
     override = os.environ.get("FABRIK_POOL_POLICY", "").strip().lower()
-    if override in {"on", "1", "true"}:
+    if override in _ON_TOKENS:
         return True
-    if override in {"off", "0", "false"}:
+    if override in _OFF_TOKENS:
         return False
     return _POOL_POLICY_ON  # anything else (incl. "") is not a policy — the constant decides
 

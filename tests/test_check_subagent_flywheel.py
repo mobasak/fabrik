@@ -714,3 +714,18 @@ def test_layer2_line_names_the_real_source_of_off(tmp_path, monkeypatch, capsys,
     assert "OFF by policy" in out
     assert ("FABRIK_POOL_POLICY in the environment" in out) is names_env
     assert ("_POOL_POLICY_ON in this script" in out) is (not names_env)
+
+
+def test_every_policy_token_is_honoured_and_nothing_else_is(monkeypatch):
+    """Exit seat r3 (2026-09-07): the advisory line and the seam must read ONE token set — every
+    token in `_POLICY_TOKENS` decides the policy by itself, and a non-token falls to the constant."""
+    mod = _load()
+    monkeypatch.setattr(
+        mod, "_POOL_POLICY_ON", True
+    )  # so a fall-through is distinguishable from OFF
+    for tok in mod._POLICY_TOKENS:
+        monkeypatch.setenv("FABRIK_POOL_POLICY", tok)
+        assert mod._pool_policy_on() is (tok in mod._ON_TOKENS), tok
+    monkeypatch.setenv("FABRIK_POOL_POLICY", "yes")
+    assert mod._pool_policy_on() is True  # fell through to the (True) constant
+    assert "yes" not in mod._POLICY_TOKENS
