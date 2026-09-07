@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the relief wake, Phase B: the self-watch consumes the lift file and tells the pane where it left off (2026-09-07)
+
+- `~/.claude/bin/claude-selfwatch.sh` (outside the repo; DR-mirrored by `scripts/dr_claude_backup.sh`): polls `<sid>.holdlifted` beside the
+  death marker; on a lift it runs the same connectivity gate (no backoff, no jitter — `death` set for the gate's ceiling under `set -u`),
+  consumes the file and prints ONE `RESUME: the fleet-quota hold LIFTED at <lift HH:MM> …` line naming `command_run.py line` and
+  `thread_anchor.py line --session <sid>`; a lift older than the arm is deleted as pre-arm history; a death and a lift together wake
+  death-first. `~/.claude/bin/claude-mesh-test.sh` gains W10/W10b/W10c/W10d (the lift minute, the where-you-left-off text, pre-arm,
+  both-files order, offline) — nine checks, all seen red against the old script; the harness's A0a red is a recorded baseline
+  (01M1XJ3XTQSZ17RBFVHQ586MKF), not this plan's. `docs/workstation/hooks-index.md` rows 106/112 name the new file.
+
 ### Fixed — Feedback ledger review, passes 3–12: cost grammar hardened, the whole transcript scanned, the row's agent is the start-time one (2026-09-07)
 
 `/fabrik-review 61b0e8ac..71314d47` continued past its first two passes (see the entry above):
