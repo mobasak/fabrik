@@ -1,6 +1,16 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+# Lesson 159: a review-fix committed under a hold, before its verification, is the least-reviewed code in the repo — and the hold's lift wakes nobody to verify it (2026-09-07)
+
+**What happened.** The daily-chain review's round 4 (58041dbd) was committed while the fleet-quota hold was landing, BEFORE its final suite run. A non-author pass over it the next morning found 11 defects, one critical: the "dead clock branch" removal had deleted the LIVE `now=None` default in `_pool_credits` — both callers pass no clock — and the quota board froze at its last render; a sibling restored it at a9e5fd4a before the pass even returned. The same round's "entries not pairs" count was fail-open and its own grader pinned the silence. Meanwhile the hold's lift woke no session: the tick only unlinks the stamp (`claude_rotate.py` relief path), the self-watch fires on DEATH markers only, and 8 of 9 live panes had no self-watch armed anyway — so the unverified commit sat unverified for eight hours until the operator asked why nobody was working.
+
+**Why it matters.** A hold that orders "commit and stop" turns every in-flight fix into a commit with no verification behind it, and a lift with no waker means nothing resumes to verify it. Lesson 163's ancestor ("the fix for a review finding is the least-reviewed code") compounds: a hold-era review-fix is the least-reviewed code AND the last code anyone looks at.
+
+**Rule.** (1) Under a hold, a fix whose suite has not run is committed with `Agent-Context: UNVERIFIED under the hold` in its trailer and re-verified as the FIRST act of the resume — never treated as landed. (2) The resume re-runs every touched suite at HEAD before adjudicating anything else (this run: 794 passed, 1 failed — the failure was a sibling's, but it was the only way to know). (3) The hold's lift needs a waker (a `hold_lifted` marker for every armed self-watch at the stamp unlink) — sized as `/fabrik-plan-after-chat`, not yet built; until it exists, say "the operator restarts sessions after a hold", never "the mesh resumes them".
+
+**Evidence.** Review artifact `docs/development/reviews/2026-09-06-daily-chain-review.md` passes 5–9 (F1–F11, N1–N10); fixes c233c0b7, 21e8c5a6, b61f3baf; the hold timeline in the rotation ledger (stamp 01:26, silent unlink after the 5h reset); `selfwatch.lock` census 1 of 9.
+
 # Lesson 158: a required field that asks the wrong question is satisfied honestly and stays useless — ask for the measurement, refuse the shape, and print what the reader needs (2026-09-07)
 
 **What happened.** Five operator asks made the close-out FEEDBACK line mandatory, then substantive, then chat-visible. Agents complied every time: 17 of the last 17 closes carried a verdict, 7 said `none — surfaces exercised: …` truthfully. And the operator still could not see what he wanted — how long a command took, how many rounds, what confused the agent, what burned tokens, which sentence to change — because the field asked "what did you file?", and a diligent agent answered that.
