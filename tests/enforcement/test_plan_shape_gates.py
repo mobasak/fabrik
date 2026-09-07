@@ -867,13 +867,13 @@ def test_each_parallelism_alternative_is_individually_load_bearing(plans_env, al
         ),
         (
             "subagent-pool-disabled",
-            (
-                "pool-stays-off",
-                "the pool stays OFF for this plan; every finder is a native Sonnet seat",
-            ),
-            ("subagent-pool-off", "the subagent pool is OFF (D-182); dispatch is native"),
             "the subagent pool is disabled for this plan; finders are Sonnet seats",
         ),
+        (
+            "pool-stays-off",
+            "the pool stays OFF for this plan; every finder is a native Sonnet seat",
+        ),
+        ("subagent-pool-off", "the subagent pool is OFF (D-182); dispatch is native"),
         ("sonnet-seats", "two Sonnet seats per ticket plus an Opus finder; results merge at T09"),
     ],
 )
