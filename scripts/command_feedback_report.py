@@ -75,6 +75,19 @@ def _median(values: list) -> float | int:
     return int(m) if float(m).is_integer() else round(float(m), 1)
 
 
+def _num(v: object, default: float = 0.0) -> float:
+    """A finite number from a ledger cell, else `default` — one bad row in the shared, append-only
+    ledger must never take the whole report down (review pass 22: the pass-21 guard covered
+    cost_usd/tok_* only; a string, list, NaN, Infinity or 400-digit `wall_s`/`rounds`/`ts` still
+    raised out of build())."""
+    try:
+        if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(float(v)):
+            return float(v)
+    except OverflowError:  # a 400-digit JSON integer: float() itself overflows
+        pass
+    return default
+
+
 def _cost(r: dict) -> float | None:
     v = r.get("cost_usd")
     try:
@@ -115,7 +128,7 @@ def build(
     kept = [
         r
         for r in rows
-        if (cutoff is None or float(r.get("ts") or 0) >= cutoff)
+        if (cutoff is None or _num(r.get("ts")) >= cutoff)
         and (command is None or r.get("command") == command)
         and (agent is None or str(r.get("agent") or "") == agent)
     ]
@@ -124,15 +137,20 @@ def build(
         per[str(r["command"])].append(r)
     commands: dict[str, dict] = {}
     for cmd, rs in sorted(per.items()):
-        walls = [float(r.get("wall_s") or 0) / 60 for r in rs]
-        rounds = [int(r.get("rounds") or 0) for r in rs]
+        walls = [_num(r.get("wall_s")) / 60 for r in rs]
+        rounds = [int(_num(r.get("rounds"))) for r in rs]
         commands[cmd] = {
             "runs": len(rs),
             "done": sum(1 for r in rs if r.get("state") == "done"),
             "blocked": sum(1 for r in rs if r.get("state") == "blocked"),
             "handoff": sum(1 for r in rs if r.get("state") == "handoff"),
             "models": sorted(
-                {m for r in rs for m in (r.get("models") or []) if isinstance(m, str)}
+                {
+                    m
+                    for r in rs
+                    for m in (r.get("models") if isinstance(r.get("models"), list) else [])
+                    if isinstance(m, str)
+                }
             ),
             "median_wall_min": round(float(statistics.median(walls)), 1) if walls else 0.0,
             "max_wall_min": round(max(walls), 1) if walls else 0.0,

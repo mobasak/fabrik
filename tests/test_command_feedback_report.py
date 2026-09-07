@@ -377,3 +377,62 @@ def test_non_finite_or_oversized_numbers_in_old_rows_never_crash_the_report(tmp_
     assert (
         c["cost_rows"] == 2 and c["cost_usd"] == 0.31
     )  # the inf-token row's finite cost still counts
+
+
+def test_malformed_wall_rounds_ts_models_in_old_rows_never_crash_the_report(tmp_path: Path) -> None:
+    """Review pass 22: the pass-21 guard covered cost_usd/tok_* only — the sibling numeric reads
+    (`wall_s`, `rounds`, the `--since` `ts` filter) and the `models` iteration still crashed the
+    WHOLE report on one bad row in the shared, append-only ledger. A malformed value reads as
+    'no datum' (0 / not a list), never a traceback, and the JSON stays valid (no Infinity)."""
+    ledger = tmp_path / "command-feedback.jsonl"
+    now = time.time()
+    good = json.dumps(_row("c1", 60, 1, "a", cost_usd=0.01))
+
+    def bad(**fields: str) -> str:
+        base = {
+            "ts": now,
+            "sid": "s",
+            "repo": "/opt/x",
+            "command": "c1",
+            "state": "done",
+            "wall_s": 1,
+            "rounds": 1,
+            "findings": [],
+            "phases": 1,
+            "confusion": "none",
+            "waste": "none",
+            "change": "b",
+            "filed": "none — x",
+            "models": [],
+        }
+        text = json.dumps(base)
+        for k, raw in fields.items():  # raw JSON tokens json.dumps cannot emit (NaN, 400 digits)
+            text = text.replace(json.dumps({k: base[k]})[1:-1], f'"{k}": {raw}')
+        return text
+
+    rows = [
+        good,
+        bad(wall_s='"x"'),
+        bad(wall_s="[1]"),
+        bad(wall_s="9" * 400),
+        bad(wall_s="1e400"),
+        bad(rounds="NaN"),
+        bad(rounds="Infinity"),
+        bad(rounds='"x"'),
+        bad(ts='"x"'),
+        bad(ts="[1]"),
+        bad(ts="9" * 400),
+        bad(models="true"),
+        bad(models="NaN"),
+        bad(models='"abc"'),
+    ]
+    ledger.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    for args in (("--json",), ("--json", "--since", "30"), ()):
+        r = _run(ledger, *args)
+        assert r.returncode == 0, (args, r.stderr[-400:])
+        assert "Infinity" not in r.stdout and "NaN" not in r.stdout, args
+    c = json.loads(_run(ledger, "--json").stdout)["commands"]["c1"]
+    assert c["runs"] == len(rows) and c["models"] == []
+    assert c["max_wall_min"] == 1.0 and c["median_rounds"] == 1  # bad values read as 0, never crash
+    since = json.loads(_run(ledger, "--json", "--since", "30").stdout)
+    assert since["examined"] == len(rows) - 3  # the three bad-ts rows fall outside any window
