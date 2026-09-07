@@ -50,6 +50,23 @@ from libs.subagents import (  # noqa: E402
     set_quality,
 )
 
+
+def _pool_policy_on() -> bool:
+    """D-181/D-182 (2026-09-07): the OpenRouter pool is OFF by ruling while its credentials stay
+    provisioned, so a dispatch here would still spend. The ONE policy is
+    `scripts/enforcement/check_subagent_flywheel.py::_POOL_POLICY_ON` (fleet-synced; `FABRIK_POOL_POLICY`
+    is its test seam). Unknown ⇒ OFF — "cannot read the policy" must never mean "go"."""
+    try:
+        enf = str(_REPO_ROOT / "scripts" / "enforcement")
+        if enf not in sys.path:
+            sys.path.insert(0, enf)
+        import check_subagent_flywheel as _csf  # noqa: PLC0415
+
+        return bool(_csf._pool_policy_on())
+    except Exception:  # noqa: BLE001 — unknown policy → no spend
+        return False
+
+
 REPO = "/opt/fabrik"
 PROJECT = "canary-grounding"
 GROUNDING_TASK_TYPES = ("review", "docs", "plan")
@@ -207,6 +224,9 @@ def run_batch(probes_per_model: int = 2) -> int:
 def main() -> int:
     import argparse
 
+    if not _pool_policy_on():
+        print("[canary-grounding] the pool is OFF by ruling (D-181/D-182) — nothing dispatched")
+        return 0
     ap = argparse.ArgumentParser(prog="canary_grounding")
     ap.add_argument("--probes-per-model", type=int, default=2)
     args = ap.parse_args()

@@ -35,6 +35,23 @@ for _p in (str(REPO), str(Path(__file__).resolve().parent)):
 import gather_envs  # noqa: E402 - the ONE category predicate, shared with the scan (CU3)
 from libs.subagents import fanout, methodology, set_quality  # noqa: E402
 
+
+def _pool_policy_on() -> bool:
+    """D-181/D-182 (2026-09-07): the OpenRouter pool is OFF by ruling while its credentials stay
+    provisioned, so a dispatch here would still spend. The ONE policy is
+    `scripts/enforcement/check_subagent_flywheel.py::_POOL_POLICY_ON` (fleet-synced; `FABRIK_POOL_POLICY`
+    is its test seam). Unknown ⇒ OFF — "cannot read the policy" must never mean "go"."""
+    try:
+        enf = str(REPO / "scripts" / "enforcement")
+        if enf not in sys.path:
+            sys.path.insert(0, enf)
+        import check_subagent_flywheel as _csf  # noqa: PLC0415
+
+        return bool(_csf._pool_policy_on())
+    except Exception:  # noqa: BLE001 — unknown policy → no spend
+        return False
+
+
 ALL_ENVS = REPO / "secrets" / "all-envs.env"
 CATALOG_PATH = REPO / "scripts" / "service_catalog.json"
 
@@ -415,6 +432,13 @@ def extract_json(text: str) -> dict | None:
 
 
 def main() -> int:
+    if not _pool_policy_on():
+        print(
+            "classify_services: the pool is OFF by ruling (D-181/D-182) — nothing dispatched, "
+            "nothing written, cursor unmoved",
+            file=sys.stderr,
+        )
+        return 0
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
         "--apply", action="store_true", help="write identified providers into the catalog"

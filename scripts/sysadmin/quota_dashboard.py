@@ -1083,6 +1083,22 @@ def _spend_panel() -> str:
     )
 
 
+def _pool_policy_on() -> bool:
+    """D-181/D-182 (2026-09-07): the OpenRouter pool is OFF by ruling while its credentials stay
+    provisioned, so a dispatch here would still spend. The ONE policy is
+    `scripts/enforcement/check_subagent_flywheel.py::_POOL_POLICY_ON` (fleet-synced; `FABRIK_POOL_POLICY`
+    is its test seam). Unknown ⇒ OFF — "cannot read the policy" must never mean "go"."""
+    try:
+        enf = str(_FABRIK_ROOT / "scripts" / "enforcement")
+        if enf not in sys.path:
+            sys.path.insert(0, enf)
+        import check_subagent_flywheel as _csf  # noqa: PLC0415
+
+        return bool(_csf._pool_policy_on())
+    except Exception:  # noqa: BLE001 — unknown policy → no spend
+        return False
+
+
 def _governor_panel(payload: dict) -> str:
     """The quota governor's current routing verdict for the active ob@ account (single-key VPS).
 
@@ -1114,6 +1130,9 @@ def _governor_panel(payload: dict) -> str:
     # cap_walled + window signals, the governor's primary inputs.)
     routine = "pool" if (walled or mx is None or mx >= _RESERVE_PCT) else "ob@"
     incident = "pool-diagnose" if walled else "ob@"
+    if not _pool_policy_on():  # D-181/D-182: the governor may WANT to shed; the pool refuses
+        routine = "ob@ (pool OFF by ruling — shedding disabled)" if routine == "pool" else routine
+        incident = "ob@ (pool OFF by ruling)" if incident == "pool-diagnose" else incident
     mx_txt = f"{mx:.0f}%" if mx is not None else "unknown"
     tone = "crit" if walled else ("warn" if routine == "pool" else "ok")
     return (
@@ -1462,6 +1481,7 @@ def _load_commands() -> list[dict[str, str]]:
                 "name": f.stem,
                 "next": nxt.get(f.stem, "").strip(),
                 "services": services,
+                "natives": _command_natives(f.stem),
                 "rendered": is_rendered,
                 **parsed,
             }
@@ -1497,7 +1517,8 @@ _EXT_SERVICES: tuple[tuple[str, str, str, str], ...] = (
     (
         "pool",
         "pool",
-        "OpenRouter subagent pool — fanout() / pick_models() via libs/subagents",
+        "OpenRouter subagent pool — OFF by ruling (D-181/D-182, 2026-09-07); a dot would mean a LIVE "
+        "fanout() / pick_models() call survives OUTSIDE the <!-- POOL OFF --> comments the corpus keeps for re-enable",
         # a bare `libs/subagents` PATH is prose about the module, not a call into it (measured:
         # it alone credited fabrik-rivals, whose line names the key autoloader). An import IS a call.
         r"fanout\(|pick_models\(|(?:from|import) libs\.subagents",
@@ -1567,6 +1588,56 @@ _EXT_SERVICES: tuple[tuple[str, str, str, str], ...] = (
     ),
 )
 _EXT_COMPILED = tuple((k, re.compile(pat)) for k, _lbl, _t, pat in _EXT_SERVICES)
+# The corpus keeps the pool contract inside HTML comments for re-enable (D-181/D-182); a dot must
+# follow the LIVE text only, so comments are blanked before any detector runs.
+_HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
+# Native Claude Task subagent types a command may name (the `subagent_type` vocabulary + the two
+# built-ins the corpus dispatches by name). Order = display order.
+_NATIVE_TYPES: tuple[str, ...] = (
+    "fabrik-reviewer",
+    "fabrik-researcher",
+    "fabrik-gui",
+    "design-review",
+    "general-purpose",
+)
+_NATIVE_COMPILED = tuple(
+    (n, re.compile(r"(?<![\w/-])" + re.escape(n) + r"(?![\w-])")) for n in _NATIVE_TYPES
+)
+# Boilerplate every command carries by assembly, never a dispatch of its own: the D-181 banner's
+# type enumeration, the subagents fragment's identical enumeration, and the close-out fragment's
+# "Subagents are ephemeral" paragraph (measured 2026-09-08: with these live, 35 of 35 commands
+# "named" four types; blanked, the column follows the command's own steps).
+_NATIVE_BOILERPLATE = (
+    re.compile(r"\(`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose\)"),
+    re.compile(r"Claude Task subagents \(`fabrik-reviewer`[^)]*\)"),
+    re.compile(r"Subagents are ephemeral\..*?(?:\n\n|\Z)", re.S),
+)
+
+
+def _command_live_text(name: str) -> tuple[str, bool]:
+    """(the command's text with HTML comments blanked, whether the RENDERED file was read)."""
+    rendered = RENDERED_COMMANDS / f"{name}.md"
+    for path, is_rendered in (
+        (rendered, True),
+        (_FABRIK_ROOT / "commands" / "_sources" / f"{name}.md", False),
+    ):
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        return _HTML_COMMENT_RE.sub("", text), is_rendered
+    return "", False
+
+
+def _command_natives(name: str) -> list[str]:
+    """The native subagent types the command's LIVE text names, in display order (operator ask
+    2026-09-08: per command, how many native subagents and their names)."""
+    text, _ = _command_live_text(name)
+    for rx in _NATIVE_BOILERPLATE:
+        text = rx.sub("", text)
+    return [n for n, rx in _NATIVE_COMPILED if rx.search(text)]
+
+
 RENDERED_COMMANDS = Path(
     os.getenv("QUOTA_DASH_RENDERED_COMMANDS", str(Path.home() / ".claude" / "commands"))
 )
@@ -1577,21 +1648,13 @@ def _command_services(name: str) -> tuple[set[str], bool]:
 
     Unreadable either way → an empty set and `False`, so the row shows no dots and the intro
     counts it as un-rendered; the board never guesses a service it could not see."""
-    rendered = RENDERED_COMMANDS / f"{name}.md"
-    for path, is_rendered in (
-        (rendered, True),
-        (_FABRIK_ROOT / "commands" / "_sources" / f"{name}.md", False),
-    ):
-        try:
-            text = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            # UnicodeDecodeError is a ValueError, NOT an OSError: one non-UTF-8 byte in one command
-            # file used to raise straight through `render` into the regeneration thread — the third
-            # instance in this file of the failure that freezes the board while the page keeps
-            # advertising a 20s refresh.
-            continue
-        return {k for k, rx in _EXT_COMPILED if rx.search(text)}, is_rendered
-    return set(), False
+    # UnicodeDecodeError is a ValueError, NOT an OSError: one non-UTF-8 byte in one command file
+    # used to raise straight through `render` into the regeneration thread — `_command_live_text`
+    # swallows both, and blanks the HTML comments so a commented pool contract never lights a dot.
+    text, is_rendered = _command_live_text(name)
+    if not text and not is_rendered:
+        return set(), False
+    return {k for k, rx in _EXT_COMPILED if rx.search(text)}, is_rendered
 
 
 def _stage_tone(stage: str) -> str:
@@ -1600,6 +1663,12 @@ def _stage_tone(stage: str) -> str:
     if stage == "utility":
         return "stale"
     return "cap"
+
+
+def _natives_cell(natives: list[str]) -> str:
+    if not natives:
+        return '<span class="muted">—</span>'
+    return f"{len(natives)} · " + ", ".join(escape(n) for n in natives)
 
 
 def _commands_table(rows: list[dict[str, str]]) -> str:
@@ -1613,11 +1682,14 @@ def _commands_table(rows: list[dict[str, str]]) -> str:
             f"<td>{escape(r['purpose'])}</td>"
             f'<td class="when">{escape(r["when"]) or '<span class="muted">—</span>'}</td>'
             f'<td class="when">{escape(r["skip"]) or '<span class="muted">—</span>'}</td>'
-            f'<td class="when">{escape(r["next"]) or '<span class="muted">—</span>'}</td></tr>'
+            f'<td class="when">{escape(r["next"]) or '<span class="muted">—</span>'}</td>'
+            f'<td class="when">{_natives_cell(r.get("natives") or [])}</td></tr>'
         )
     return (
         "<table><thead><tr><th>#</th><th>Command</th><th>Stage</th><th>Purpose</th>"
-        "<th>When to use</th><th>Skip when</th><th>Next</th></tr></thead>"
+        "<th>When to use</th><th>Skip when</th><th>Next</th>"
+        "<th title=\"Native Claude Task subagent types the command's LIVE text names (the pool is OFF by "
+        'ruling, D-181/D-182 — every fan-out is native); count · names">Native subagents</th></tr></thead>'
         f"<tbody>{''.join(body)}</tbody></table>"
     )
 

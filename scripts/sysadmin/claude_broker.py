@@ -26,6 +26,7 @@ import hashlib
 import json
 import os
 import re
+import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
@@ -60,8 +61,26 @@ def _default_run_claude(argv: list[str]) -> str:
     return out.stdout
 
 
+def _pool_policy_on() -> bool:
+    """D-181/D-182 (2026-09-07): the OpenRouter pool is OFF by ruling while its credentials stay
+    provisioned, so a dispatch here would still spend. The ONE policy is
+    `scripts/enforcement/check_subagent_flywheel.py::_POOL_POLICY_ON` (fleet-synced; `FABRIK_POOL_POLICY`
+    is its test seam). Unknown ⇒ OFF — "cannot read the policy" must never mean "go"."""
+    try:
+        enf = str(Path(__file__).resolve().parents[2] / "scripts" / "enforcement")
+        if enf not in sys.path:
+            sys.path.insert(0, enf)
+        import check_subagent_flywheel as _csf  # noqa: PLC0415
+
+        return bool(_csf._pool_policy_on())
+    except Exception:  # noqa: BLE001 — unknown policy → no spend
+        return False
+
+
 def _default_pool(prompt: str, model: str | None) -> str:
     """Single-shot pool completion (guarded import — no-ops to a clear error if unavailable)."""
+    if not _pool_policy_on():
+        return "[pool OFF by ruling (D-181/D-182) — nothing dispatched; the job stays on ob@ or waits for quota]"
     try:
         from libs.subagents import fanout  # noqa: PLC0415
     except ImportError:

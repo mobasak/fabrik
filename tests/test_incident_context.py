@@ -40,7 +40,8 @@ def _marshaller(tmp_path, *, pool=None, notify=None, logs=None, state=None, appl
     return incident_context.IncidentMarshaller(
         incidents_dir=tmp_path / "incidents",
         log_tail_lines=200,
-        docker_logs_fn=logs or (lambda container, lines: f"[{container}] line1\nline2 (of {lines})"),
+        docker_logs_fn=logs
+        or (lambda container, lines: f"[{container}] line1\nline2 (of {lines})"),
         state_fn=state or (lambda: "docker ps: X Up\nsystemctl: ok"),
         pool_fn=pool or _pool,
         notify_fn=notify or _notify,
@@ -70,9 +71,9 @@ def test_diagnose_inlines_bundle_content_into_single_shot_worker(tmp_path):
     m, d = _marshaller(tmp_path)
     result = m.diagnose("incident-7", {"error": "OOM in svc", "project": "svc"}, containers=["svc"])
     # the bundle CONTENT is inlined into the prompt — NOT a bare path
-    assert "OOM in svc" in d["prompt"]          # webhook content inlined
-    assert "line1" in d["prompt"]               # log-tail content inlined
-    assert "docker ps" in d["prompt"]           # host state inlined
+    assert "OOM in svc" in d["prompt"]  # webhook content inlined
+    assert "line1" in d["prompt"]  # log-tail content inlined
+    assert "docker ps" in d["prompt"]  # host state inlined
     assert str(tmp_path / "incidents") not in d["prompt"]  # never hands the worker a path to read
     # dispatched single-shot read_only
     assert d["kwargs"].get("mode") == "read_only"
@@ -81,7 +82,9 @@ def test_diagnose_inlines_bundle_content_into_single_shot_worker(tmp_path):
 
 def test_diagnose_notifies_operator_and_never_auto_applies(tmp_path):
     applied = {"count": 0}
-    m, d = _marshaller(tmp_path, applied=lambda proposal: applied.__setitem__("count", applied["count"] + 1))
+    m, d = _marshaller(
+        tmp_path, applied=lambda proposal: applied.__setitem__("count", applied["count"] + 1)
+    )
     m.diagnose("incident-9", {"error": "boom"}, containers=["svc"])
     # the operator is notified with the proposal
     assert d.get("notifications"), "operator must be mesh-notified with the proposal"
@@ -98,13 +101,15 @@ def test_diagnose_persists_bundle_before_dispatch(tmp_path):
     )
     m.diagnose("incident-1", {"error": "boom"}, containers=["svc"])
     path = tmp_path / "incidents" / "incident-1.json"
-    assert path.exists()                        # bundle written durably
+    assert path.exists()  # bundle written durably
     assert order.index("state") < order.index("dispatch")  # assembled BEFORE the worker runs
 
 
 def test_log_tails_bounded_to_configured_lines(tmp_path):
     seen = {}
-    m, _ = _marshaller(tmp_path, logs=lambda container, lines: seen.__setitem__("lines", lines) or "tail")
+    m, _ = _marshaller(
+        tmp_path, logs=lambda container, lines: seen.__setitem__("lines", lines) or "tail"
+    )
     m.build_bundle({"error": "x"}, containers=["svc"])
     assert seen["lines"] == 200  # the INCIDENT_LOG_TAIL_LINES default bounds the inlined size
 
@@ -124,15 +129,47 @@ def test_run_incident_routes_to_obat_when_headroom(tmp_path):
     out = m.run_incident({"id": "i1", "error": "x"}, containers=["svc"], governor=_Gov("ob@"))
     assert out["action"] == "run_on_obat"
     assert out["incident_id"] == "i1"
-    assert "governor" in out          # handed back so the caller can release_incident() after the fix
-    assert not (tmp_path / "incidents" / "i1.json").exists()  # no diagnosis marshalled on the ob@ path
+    assert "governor" in out  # handed back so the caller can release_incident() after the fix
+    assert not (
+        tmp_path / "incidents" / "i1.json"
+    ).exists()  # no diagnosis marshalled on the ob@ path
 
 
 # TERMINAL entry: a capped incident marshals a read-only pool diagnosis + notifies (never dropped).
 def test_run_incident_marshals_when_capped(tmp_path):
     m, d = _marshaller(tmp_path)
-    out = m.run_incident({"id": "i2", "error": "OOM"}, containers=["svc"], governor=_Gov("pool-diagnose"))
+    out = m.run_incident(
+        {"id": "i2", "error": "OOM"}, containers=["svc"], governor=_Gov("pool-diagnose")
+    )
     assert out["action"] == "pool_diagnosed"
     assert out["diagnosis"].startswith("DIAGNOSIS")
-    assert d.get("notifications")                        # operator handed the proposal
-    assert (tmp_path / "incidents" / "i2.json").exists()  # bundle persisted for the read-only worker
+    assert d.get("notifications")  # operator handed the proposal
+    assert (
+        tmp_path / "incidents" / "i2.json"
+    ).exists()  # bundle persisted for the read-only worker
+
+
+def test_default_pool_refuses_while_the_policy_is_off(monkeypatch):
+    """D-181/D-182: the default pool leg never dispatches while the committed policy is OFF —
+    even with the module importable and a key live — and still dispatches when it is ON."""
+    import importlib.util
+    import sys
+    import types
+    from pathlib import Path
+
+    spec = importlib.util.spec_from_file_location(
+        "incident_context_under_test",
+        Path(__file__).resolve().parents[1] / "scripts" / "sysadmin" / "incident_context.py",
+    )
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    calls: list = []
+    fake = types.SimpleNamespace(
+        fanout=lambda *a, **k: calls.append(a) or [types.SimpleNamespace(text="OUT")]
+    )
+    monkeypatch.setitem(sys.modules, "libs.subagents", fake)
+    monkeypatch.setenv("FABRIK_POOL_POLICY", "off")
+    out = m._default_pool("p")
+    assert "OFF by ruling" in out and "bundle written for manual review" in out and calls == []
+    monkeypatch.setenv("FABRIK_POOL_POLICY", "on")
+    assert m._default_pool("p") == "OUT" and len(calls) == 1

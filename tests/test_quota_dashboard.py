@@ -2557,3 +2557,99 @@ def test_a_bad_percent_knob_is_ignored_loudly(tmp_path, monkeypatch, capsys):
     assert qd._drain_band() == 85.0
     err = capsys.readouterr().err
     assert "ROTATE_DRAIN_THRESHOLD='nan' is not finite" in err and "'abc' is not a number" in err
+
+
+# ── D-181/D-182 — the pool column follows LIVE text; the native-subagents column (2026-09-08) ───────
+
+
+def test_pool_dot_ignores_a_commented_pool_contract(tmp_path, monkeypatch):
+    """The corpus keeps the pool contract inside `<!-- POOL OFF -->` comments for re-enable; a dot
+    must follow the live text only — a rendered command whose ONLY `fanout(` sits in a comment
+    reaches nothing, and one with a live call still lights the dot."""
+    qd = _load(tmp_path, monkeypatch)
+    name = "fabrik-review"
+    monkeypatch.setattr(
+        qd,
+        "RENDERED_COMMANDS",
+        _rendered(
+            tmp_path, name, '# x\n<!-- POOL OFF: fanout("review", …) -->\nrun WebSearch here\n'
+        ),
+    )
+    services, is_rendered = qd._command_services(name)
+    assert is_rendered and "pool" not in services
+    monkeypatch.setattr(
+        qd, "RENDERED_COMMANDS", _rendered(tmp_path, name, '# x\nfanout("review", units)\n')
+    )
+    services, _ = qd._command_services(name)
+    assert "pool" in services  # a LIVE call would still be visible — the column is not blind
+
+
+def test_native_subagents_column_follows_the_commands_own_steps(tmp_path, monkeypatch):
+    """Per command: how many native subagent types it names and which (operator ask 2026-09-08).
+    Boilerplate every command carries by assembly (the D-181 banner's enumeration, the close-out
+    fragment's 'Subagents are ephemeral' paragraph) never counts; a commented mention never
+    counts; the command's own steps do, in display order."""
+    qd = _load(tmp_path, monkeypatch)
+    name = "fabrik-review"
+    body = (
+        "# x\n\n> POOL OFF — run every fan-out NATIVELY — Claude Task subagents "
+        "(`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split.\n\n"
+        "Subagents are ephemeral. A `fabrik-reviewer` that notices a false-positive check, a\n"
+        "`fabrik-researcher` that hits a dead reference — file it.\n\n"
+        "<!-- POOL OFF: dispatch a `design-review` agent here -->\n"
+    )
+    monkeypatch.setattr(qd, "RENDERED_COMMANDS", _rendered(tmp_path, name, body))
+    assert qd._command_natives(name) == []  # boilerplate + comment only → nothing of its own
+    monkeypatch.setattr(
+        qd,
+        "RENDERED_COMMANDS",
+        _rendered(
+            tmp_path,
+            name,
+            body
+            + "\n## Phase 1\nDispatch one `general-purpose` seat per screen, then a `fabrik-reviewer` on Opus.\n",
+        ),
+    )
+    assert qd._command_natives(name) == ["fabrik-reviewer", "general-purpose"]
+    html = qd._commands_table(
+        [
+            {
+                "name": name,
+                "stage": "gate",
+                "purpose": "p",
+                "when": "",
+                "skip": "",
+                "next": "",
+                "natives": ["fabrik-reviewer", "general-purpose"],
+            }
+        ]
+    )
+    assert "Native subagents" in html and "2 · fabrik-reviewer, general-purpose" in html
+    html = qd._commands_table(
+        [
+            {
+                "name": name,
+                "stage": "gate",
+                "purpose": "p",
+                "when": "",
+                "skip": "",
+                "next": "",
+                "natives": [],
+            }
+        ]
+    )
+    assert "Native subagents" in html and "0 ·" not in html
+
+
+def test_governor_panel_never_advertises_shedding_to_a_pool_that_is_off(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    payload = {
+        "active": "ob",
+        "accounts": [{"slugs": ["ob"], "cap_walled": True, "five_hour": {"utilization": 99}}],
+    }
+    monkeypatch.setenv("FABRIK_POOL_POLICY", "off")
+    html = qd._governor_panel(payload)
+    assert "pool OFF by ruling" in html and "pool-diagnose" not in html
+    monkeypatch.setenv("FABRIK_POOL_POLICY", "on")
+    html = qd._governor_panel(payload)
+    assert "pool-diagnose" in html

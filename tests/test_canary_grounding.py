@@ -52,7 +52,9 @@ def test_judge_trailing_prose_five():
 
 
 def test_judge_soft_summary_zero():
-    soft = "It appears the file implements a loader; without the content I can only summarize broadly."
+    soft = (
+        "It appears the file implements a loader; without the content I can only summarize broadly."
+    )
     assert cg.judge(soft, PATH) == 0
 
 
@@ -243,7 +245,9 @@ def test_run_batch_short_results_is_loud(monkeypatch, capsys):
 
     _, scored = _wire_batch(monkeypatch, texts)
     real_fake = cg.run_agents
-    monkeypatch.setattr(cg, "run_agents", lambda specs, *, repo, **kw: real_fake(specs, repo=repo)[:4])
+    monkeypatch.setattr(
+        cg, "run_agents", lambda specs, *, repo, **kw: real_fake(specs, repo=repo)[:4]
+    )
     rc = cg.run_batch(probes_per_model=2)
     out = capsys.readouterr().out
     assert rc == 0 and len(scored) == 4
@@ -255,3 +259,21 @@ def test_run_batch_empty_roster_is_loud_and_nonzero(monkeypatch, capsys):
     rc = cg.run_batch(probes_per_model=2)
     assert rc == 1
     assert "empty" in capsys.readouterr().out.lower()
+
+
+def test_main_refuses_to_dispatch_while_the_policy_is_off(monkeypatch):
+    """D-181/D-182: the weekly cron entry point returns 0 without touching run_agents while the
+    committed pool policy is OFF; with it ON the batch proceeds (run_agents reached)."""
+    calls: list = []
+
+    def boom(*a, **k):
+        calls.append(a)
+        raise RuntimeError("dispatch reached")
+
+    monkeypatch.setattr(cg, "run_agents", boom)
+    monkeypatch.setattr(cg, "pick_models", lambda task_type, n=1, **kw: ["prov/a"])
+    monkeypatch.setattr("sys.argv", ["canary_grounding", "--probes-per-model", "1"])
+    monkeypatch.setenv("FABRIK_POOL_POLICY", "off")
+    assert cg.main() == 0 and calls == []
+    monkeypatch.setenv("FABRIK_POOL_POLICY", "on")
+    assert cg.main() != 0 and len(calls) == 1  # "dispatch impossible" is the one nonzero exit

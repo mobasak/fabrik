@@ -21,7 +21,9 @@ _ROOT = Path(__file__).resolve().parents[1]
 
 
 def _load(name: str):
-    spec = importlib.util.spec_from_file_location(name, _ROOT / "scripts" / "sysadmin" / f"{name}.py")
+    spec = importlib.util.spec_from_file_location(
+        name, _ROOT / "scripts" / "sysadmin" / f"{name}.py"
+    )
     mod = importlib.util.module_from_spec(spec)
     sys.modules[name] = mod
     spec.loader.exec_module(mod)  # type: ignore[union-attr]
@@ -46,16 +48,35 @@ class _FakeGovernor:
         return self.dest
 
 
-def _broker(tmp_path, *, governor=None, dest="ob@", now=1000.0, run_claude=None, pool=None,
-            tool_disable_args=("--tools", ""), tokens=None):
+def _broker(
+    tmp_path,
+    *,
+    governor=None,
+    dest="ob@",
+    now=1000.0,
+    run_claude=None,
+    pool=None,
+    tool_disable_args=("--tools", ""),
+    tokens=None,
+):
     gov = governor or _FakeGovernor(dest)
     audit: list[dict] = []
     b = Broker(
-        tokens=tokens if tokens is not None else {"tok-alpha": {"caller": "alpha", "five_hour_limit": 3, "seven_day_limit": 10}},
+        tokens=tokens
+        if tokens is not None
+        else {"tok-alpha": {"caller": "alpha", "five_hour_limit": 3, "seven_day_limit": 10}},
         governor=gov,
         budgets_path=tmp_path / "broker-budgets.json",
-        status_fn=lambda: {"active": "ob", "accounts": [{"slugs": ["ob"],
-                           "five_hour": {"resets_at_epoch": 5000.0}, "seven_day": {"resets_at_epoch": 9000.0}}]},
+        status_fn=lambda: {
+            "active": "ob",
+            "accounts": [
+                {
+                    "slugs": ["ob"],
+                    "five_hour": {"resets_at_epoch": 5000.0},
+                    "seven_day": {"resets_at_epoch": 9000.0},
+                }
+            ],
+        },
         now_fn=lambda: now,
         run_claude_fn=run_claude or (lambda prompt, model: f"ob-completion:{prompt}"),
         pool_fn=pool or (lambda prompt, model: f"pool-completion:{prompt}"),
@@ -139,16 +160,29 @@ def test_budget_none_epoch_never_resets_nor_raises(tmp_path):
     audit: list[dict] = []
     b = Broker(
         tokens={"tok-alpha": {"caller": "alpha", "five_hour_limit": 2, "seven_day_limit": 10}},
-        governor=gov, budgets_path=tmp_path / "b.json",
-        status_fn=lambda: {"active": "ob", "accounts": [{"slugs": ["ob"],
-                           "five_hour": {"resets_at_epoch": None}, "seven_day": {"resets_at_epoch": None}}]},
+        governor=gov,
+        budgets_path=tmp_path / "b.json",
+        status_fn=lambda: {
+            "active": "ob",
+            "accounts": [
+                {
+                    "slugs": ["ob"],
+                    "five_hour": {"resets_at_epoch": None},
+                    "seven_day": {"resets_at_epoch": None},
+                }
+            ],
+        },
         now_fn=lambda: 1000.0,
-        run_claude_fn=lambda p, m: "ok", pool_fn=lambda p, m: "pool",
-        tool_disable_args=("--tools", ""), audit_fn=audit.append,
+        run_claude_fn=lambda p, m: "ok",
+        pool_fn=lambda p, m: "pool",
+        tool_disable_args=("--tools", ""),
+        audit_fn=audit.append,
     )
     assert b.handle({"prompt": "x"}, "tok-alpha")[0] == 200
     assert b.handle({"prompt": "x"}, "tok-alpha")[0] == 200
-    assert b.handle({"prompt": "x"}, "tok-alpha")[0] == 429  # still counts; None epoch never reset it
+    assert (
+        b.handle({"prompt": "x"}, "tok-alpha")[0] == 429
+    )  # still counts; None epoch never reset it
 
 
 # (e) the broker forces `routine` + calls the governor; a job under the reserve routes to the pool
@@ -157,8 +191,8 @@ def test_forces_routine_and_sheds_to_pool(tmp_path):
     b = _broker(tmp_path, governor=gov)
     code, resp = b.handle({"prompt": "hello"}, "tok-alpha")
     assert code == 200
-    assert resp["completion"] == "pool-completion:hello"   # shed to pool, not ob@
-    assert gov.calls == [("routine", "alpha")]             # class forced to routine, caller passed
+    assert resp["completion"] == "pool-completion:hello"  # shed to pool, not ob@
+    assert gov.calls == [("routine", "alpha")]  # class forced to routine, caller passed
 
 
 def test_audit_line_per_job(tmp_path):
@@ -167,7 +201,7 @@ def test_audit_line_per_job(tmp_path):
     assert len(b._audit_log) == 1
     line = b._audit_log[0]
     assert line["caller"] == "alpha"
-    assert "prompt_hash" in line            # hash, not the raw prompt
+    assert "prompt_hash" in line  # hash, not the raw prompt
     assert "secret prompt" not in str(line)  # the raw prompt is never audited verbatim
 
 
@@ -177,7 +211,7 @@ def test_prompt_cannot_inject_a_flag(tmp_path):
     b = _broker(tmp_path)
     argv = b._claude_argv("--allow-dangerously-skip-permissions", None)
     assert argv[-1] == "--allow-dangerously-skip-permissions"  # the prompt is the LAST arg
-    assert argv[-2] == "--"                                    # immediately preceded by the sentinel
+    assert argv[-2] == "--"  # immediately preceded by the sentinel
     # and the pinned tool-disable is still present + before the sentinel
     assert argv.index("--tools") < argv.index("--")
 
@@ -215,11 +249,23 @@ def test_none_epoch_window_recovers_on_status_return(tmp_path):
     # phase 1: --status is down (None epochs); caller hits the limit
     down = Broker(
         tokens={"tok-alpha": {"caller": "alpha", "five_hour_limit": 2, "seven_day_limit": 10}},
-        governor=gov, budgets_path=budgets,
-        status_fn=lambda: {"active": "ob", "accounts": [{"slugs": ["ob"],
-                           "five_hour": {"resets_at_epoch": None}, "seven_day": {"resets_at_epoch": None}}]},
-        now_fn=lambda: 1000.0, run_claude_fn=lambda p, m: "ok", pool_fn=lambda p, m: "pool",
-        tool_disable_args=("--tools", ""), audit_fn=audit.append,
+        governor=gov,
+        budgets_path=budgets,
+        status_fn=lambda: {
+            "active": "ob",
+            "accounts": [
+                {
+                    "slugs": ["ob"],
+                    "five_hour": {"resets_at_epoch": None},
+                    "seven_day": {"resets_at_epoch": None},
+                }
+            ],
+        },
+        now_fn=lambda: 1000.0,
+        run_claude_fn=lambda p, m: "ok",
+        pool_fn=lambda p, m: "pool",
+        tool_disable_args=("--tools", ""),
+        audit_fn=audit.append,
     )
     down.handle({"prompt": "x"}, "tok-alpha")
     down.handle({"prompt": "x"}, "tok-alpha")
@@ -227,11 +273,23 @@ def test_none_epoch_window_recovers_on_status_return(tmp_path):
     # phase 2: --status returns a PAST epoch (2000 < now 3000) → the window must roll over
     up = Broker(
         tokens={"tok-alpha": {"caller": "alpha", "five_hour_limit": 2, "seven_day_limit": 10}},
-        governor=gov, budgets_path=budgets,
-        status_fn=lambda: {"active": "ob", "accounts": [{"slugs": ["ob"],
-                           "five_hour": {"resets_at_epoch": 2000.0}, "seven_day": {"resets_at_epoch": 2000.0}}]},
-        now_fn=lambda: 3000.0, run_claude_fn=lambda p, m: "ok", pool_fn=lambda p, m: "pool",
-        tool_disable_args=("--tools", ""), audit_fn=audit.append,
+        governor=gov,
+        budgets_path=budgets,
+        status_fn=lambda: {
+            "active": "ob",
+            "accounts": [
+                {
+                    "slugs": ["ob"],
+                    "five_hour": {"resets_at_epoch": 2000.0},
+                    "seven_day": {"resets_at_epoch": 2000.0},
+                }
+            ],
+        },
+        now_fn=lambda: 3000.0,
+        run_claude_fn=lambda p, m: "ok",
+        pool_fn=lambda p, m: "pool",
+        tool_disable_args=("--tools", ""),
+        audit_fn=audit.append,
     )
     assert up.handle({"prompt": "x"}, "tok-alpha")[0] == 200  # recovered, not stuck at 429
 
@@ -251,7 +309,10 @@ def test_flag_shaped_model_rejected_400(tmp_path):
         return "x"
 
     b = _broker(tmp_path, run_claude=_run)
-    assert b.handle({"prompt": "hi", "model": "--allow-dangerously-skip-permissions"}, "tok-alpha")[0] == 400
+    assert (
+        b.handle({"prompt": "hi", "model": "--allow-dangerously-skip-permissions"}, "tok-alpha")[0]
+        == 400
+    )
     assert b.handle({"prompt": "hi", "model": "sonnet --tools default"}, "tok-alpha")[0] == 400
     assert called["ran"] is False  # never invoked claude with a flag-shaped model
     # a legitimate model name still works
@@ -267,8 +328,34 @@ def test_malformed_token_config_500(tmp_path):
 # the Content-Length guard: a negative length (would make rfile.read(-1) OOM the host) or a
 # non-integer must be REJECTED, not read; a normal length passes.
 def test_safe_content_length():
-    assert claude_broker._safe_content_length("-1") is None          # negative → no unbounded read
-    assert claude_broker._safe_content_length("abc") is None         # non-integer → no ValueError escape
-    assert claude_broker._safe_content_length(str(10 ** 9)) is None  # over _MAX_BODY (1 MB)
-    assert claude_broker._safe_content_length(None) == 0             # missing → empty body
-    assert claude_broker._safe_content_length("100") == 100          # normal
+    assert claude_broker._safe_content_length("-1") is None  # negative → no unbounded read
+    assert claude_broker._safe_content_length("abc") is None  # non-integer → no ValueError escape
+    assert claude_broker._safe_content_length(str(10**9)) is None  # over _MAX_BODY (1 MB)
+    assert claude_broker._safe_content_length(None) == 0  # missing → empty body
+    assert claude_broker._safe_content_length("100") == 100  # normal
+
+
+def test_default_pool_refuses_while_the_policy_is_off(monkeypatch):
+    """D-181/D-182: the default pool leg never dispatches while the committed policy is OFF —
+    even with the module importable and a key live — and still dispatches when it is ON."""
+    import importlib.util
+    import sys
+    import types
+    from pathlib import Path
+
+    spec = importlib.util.spec_from_file_location(
+        "claude_broker_under_test",
+        Path(__file__).resolve().parents[1] / "scripts" / "sysadmin" / "claude_broker.py",
+    )
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    calls: list = []
+    fake = types.SimpleNamespace(
+        fanout=lambda *a, **k: calls.append(a) or [types.SimpleNamespace(text="OUT")]
+    )
+    monkeypatch.setitem(sys.modules, "libs.subagents", fake)
+    monkeypatch.setenv("FABRIK_POOL_POLICY", "off")
+    out = m._default_pool("p", None)
+    assert "OFF by ruling" in out and "stays on ob@" in out and calls == []
+    monkeypatch.setenv("FABRIK_POOL_POLICY", "on")
+    assert m._default_pool("p", None) == "OUT" and len(calls) == 1

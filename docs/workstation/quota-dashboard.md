@@ -155,6 +155,20 @@ prose — the distinction is load-bearing, because `VPS`, `GitHub` and `flywheel
 beat-routing table every command carries, and a prose match rated all 36 commands as VPS-touching.
 The footer row carries each column's total against its denominator (`of 35`).
 
+**Since D-181/D-182 (2026-09-08).** The OpenRouter pool is OFF by ruling and the corpus keeps its
+pool contract inside `<!-- POOL OFF -->` comments for re-enable, so every detector runs over the
+command's LIVE text only (HTML comments blanked first — `_command_live_text`). The `pool` column's
+hover says so: a dot there would mean a live `fanout()` / `pick_models()` call survived outside the
+comments, and the expected count is 0 of 35. The first table gained a **Native subagents** column —
+per command, how many native Claude Task subagent types its own steps name and which
+(`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · `design-review` · `general-purpose`,
+`_NATIVE_TYPES`). Boilerplate every command carries by assembly — the D-181 banner's type
+enumeration and the close-out fragment's "Subagents are ephemeral" paragraph — is blanked before
+counting (`_NATIVE_BOILERPLATE`), otherwise all 35 commands read as naming four types. The Quota
+governor banner never advertises shedding to a pool that is off: while
+`check_subagent_flywheel.py::_POOL_POLICY_ON` is False the routine/incident routes read `ob@ (pool
+OFF by ruling …)`.
+
 ⚠️ **It reads `~/.claude/commands/`, the RENDERED corpus — not `commands/_sources/`.**
 `assemble_commands.py` appends shared fragments (the pool dispatch policy, the close-out FEEDBACK
 block) to every command, so the source text under-reports badly: measured 2026-09-06 the pool reads
