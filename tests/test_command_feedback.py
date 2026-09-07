@@ -1443,3 +1443,26 @@ def test_a_timestamp_key_inside_a_tool_input_never_stands_in_for_the_envelopes(
     assert got["tok_msgs"] == 2 and got["tok_in"] == 2300, got  # m-in + m-plain, never m-late
     torn = line_late.encode()[:-1]  # both stamps present but no parseable envelope: no epoch
     assert torn.count(b'"timestamp"') == 2 and _line_epoch(torn) is None
+
+
+def test_an_envelope_stamp_of_another_shape_is_never_replaced_by_a_nested_one() -> None:
+    """Pass 26 (seat A): with the envelope's `timestamp` present but not in the regex's shape (a
+    number, a date-only string), the lone regex match was a NESTED stamp promoted to the
+    envelope's. Any line with more than one `"timestamp"` key is parsed, and a top-level value
+    the reader cannot read is no epoch. A line too deeply nested for the JSON parser has no
+    epoch either — never a RecursionError out of the close."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _line_epoch  # noqa: PLC0415
+
+    nested = {"type": "tool_use", "input": {"timestamp": "2020-01-01T00:00:00Z"}}
+    for top in (1700000000, "2026-09-07", None, ["2026-09-07T12:00:00Z"]):
+        raw = json.dumps(
+            {"message": {"content": [nested]}, "type": "assistant", "timestamp": top}
+        ).encode()
+        assert raw.count(b'"timestamp"') == 2
+        assert _line_epoch(raw) is None, top
+    deep = (
+        b'{"message":{"a":' + b"[" * 200_000 + b'{"timestamp":"2020-01-01T00:00:00Z"}'
+        b"]" * 200_000 + b'},"type":"assistant","timestamp":"2026-09-07T12:00:00Z"}'
+    )
+    assert _line_epoch(deep) is None  # unparseable ⇒ no epoch, and no exception

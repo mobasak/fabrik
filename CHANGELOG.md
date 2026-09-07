@@ -92,8 +92,9 @@ that carried them) and the cache-hit share per command. Operator, 2026-09-07: "i
 tokens, cached tokens must be recorded per run". No transcript ⇒ `null`, never a silent zero.
 Fleet-synced. Tests: `tests/test_command_feedback.py` (+2), `tests/test_command_feedback_report.py`
 (+1), all seen red first. The line's epoch is the ENVELOPE's `timestamp`: a `timestamp` key nested in a tool-call input is
-serialised before it, so a line carrying two is parsed and only the top-level key counts (review
-pass 25; 2,226 of 261,368 live lines carry two, none of them assistant lines).
+serialised before it, so a line carrying a second `timestamp` key of ANY shape is parsed and only the
+top-level key counts — unparseable, too deep, or not a string ⇒ no epoch, never a guess (review
+passes 25–26; 2,226 of 261,368 live lines carry two, 0 of 101,999 assistant lines leave the fast path).
 
 ### Fixed — quota board: six defects in the new search-API quota panel, found by its own review (2026-09-07)
 

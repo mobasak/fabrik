@@ -1043,12 +1043,12 @@ def _line_epoch(raw: bytes) -> float | None:
     matches = _TS_RE.findall(raw)
     if not matches:
         return None
-    if len(matches) == 1:
+    if len(matches) == 1 and raw.count(b'"timestamp"') == 1:
         stamp = (matches[0][0] + (matches[0][1] or b"")).decode("ascii")
-    else:
+    else:  # a second key of any shape: only the parsed top-level value may stand (pass 26)
         try:
             top = json.loads(raw).get("timestamp")
-        except (ValueError, AttributeError):
+        except (ValueError, AttributeError, RecursionError):
             return None
         m = (
             _TS_RE.match(b'"timestamp":' + json.dumps(top).encode())
