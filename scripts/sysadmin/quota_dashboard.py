@@ -357,6 +357,13 @@ API_QUOTA_SOURCES: tuple[tuple[str, str, object], ...] = (
 _api_quotas_mem: dict = {}
 
 
+def _stamp(d: dict) -> float:
+    """A dict's `ts` as a number, or 0.0 — never a raise. The cache is a file a human can edit and
+    a `float("soon")` on the render path is another frozen board."""
+    v = d.get("ts")
+    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
+
+
 def _api_quotas(now: float | None = None, *, fetch: bool = True) -> dict:
     """``{provider: {...}, "ts": epoch}`` — cached for ``API_QUOTAS_TTL_S``.
 
@@ -364,16 +371,21 @@ def _api_quotas(now: float | None = None, *, fetch: bool = True) -> dict:
     pool balance does. A provider that raises is recorded as its own error rather than taking the
     others down with it — three independent services, three independent verdicts.
     """
+    global _api_quotas_mem  # rebound at the end; must be declared before the first read below
     now = time.time() if now is None else now
     try:
         cached = json.loads(API_QUOTAS_CACHE.read_text(encoding="utf-8"))
         cached = cached if isinstance(cached, dict) else {}
     except (OSError, ValueError):
         cached = {}
-    # whichever reading is NEWER wins; memory covers the run, disk covers the restart
-    if _api_quotas_mem.get("ts") and float(_api_quotas_mem["ts"]) > float(cached.get("ts") or 0):
-        cached = _api_quotas_mem
+    # whichever reading is NEWER wins; memory covers the run, disk covers the restart.
+    # `_stamp` refuses a non-numeric ts instead of letting float() raise: the cache file is
+    # hand-editable and a ValueError here lands on the render path.
+    mem = _api_quotas_mem
+    if _stamp(mem) > _stamp(cached):
+        cached = mem
     ts = cached.get("ts")
+    ts = ts if isinstance(ts, (int, float)) and not isinstance(ts, bool) else None
     fresh = isinstance(ts, (int, float)) and 0.0 <= now - float(ts) < API_QUOTAS_TTL_S
     if fresh or not fetch:
         if cached:
@@ -395,8 +407,12 @@ def _api_quotas(now: float | None = None, *, fetch: bool = True) -> dict:
                 if isinstance(prev, dict) and prev.get("state") == "ok"
                 else {"state": "error", "error": type(exc).__name__}
             )
-    _api_quotas_mem.clear()
-    _api_quotas_mem.update(out)  # BEFORE the disk write: the rate limiter must not need the disk
+    # REBIND, never mutate in place: `{**cached}` above unpacks this very dict, and the refresher
+    # thread does not hold `_gen_lock`, so a `.clear()` mid-unpack raised "dictionary changed size
+    # during iteration" on the RENDER path — the frozen board, one more time. Rebinding is atomic;
+    # a reader sees the whole old dict or the whole new one. Set BEFORE the disk write, because the
+    # rate limiter must not depend on the disk (that was the 4,320-queries-a-day bug).
+    _api_quotas_mem = out
     try:
         API_QUOTAS_CACHE.parent.mkdir(parents=True, exist_ok=True)
         API_QUOTAS_CACHE.write_text(json.dumps(out), encoding="utf-8")
@@ -410,6 +426,9 @@ def _fmt_renewal(epoch: float | None, now: float) -> str:
         return '<span class="muted">—</span>'
     days = (epoch - now) / 86400.0
     when = datetime.fromtimestamp(epoch).astimezone().strftime("%d %b")
+    if days < 0:
+        # a renewal already in the PAST is a stale reading, not a renewal; "-3d" read as ordinary
+        return f'{escape(when)} <span class="badge warn">overdue</span>'
     return f'{escape(when)} <span class="muted">({days:.0f}d)</span>'
 
 
@@ -430,10 +449,16 @@ def _api_quotas_panel(quotas: dict | None, now: float) -> str:
                 total = f"{q.get('total'):,}" if isinstance(q.get("total"), int) else "—"
                 rem = q.get("remaining")
                 left = f"{rem:,}" if isinstance(rem, int) else "—"
-                if isinstance(rem, int) and isinstance(q.get("total"), int) and q["total"]:
-                    pct = 100.0 * rem / q["total"]
-                    tone = "crit" if pct < 10 else ("warn" if pct < 25 else "cap")
-                    left = f'<span class="badge {tone}">{rem:,} ({pct:.0f}%)</span>'
+                if isinstance(rem, int) and isinstance(q.get("total"), int) and q["total"] > 0:
+                    # a provider CAN report remaining > total (a mid-period plan upgrade) or a
+                    # NEGATIVE remaining (permitted overage). Neither is meaningful as a
+                    # percentage, so the count is shown and the percentage dropped, never invented.
+                    if 0 <= rem <= q["total"]:
+                        pct = 100.0 * rem / q["total"]
+                        tone = "crit" if pct < 10 else ("warn" if pct < 25 else "cap")
+                        left = f'<span class="badge {tone}">{rem:,} ({pct:.0f}%)</span>'
+                    else:
+                        left = f'<span class="badge warn">{rem:,}</span>'
             extra = f" · {q['per_second']}/s" if q.get("per_second") else ""
             unit = escape(str(q.get("unit") or ""))
             body = (
@@ -450,7 +475,13 @@ def _api_quotas_panel(quotas: dict | None, now: float) -> str:
             }.get(str(state), "not read yet")
             body = f'<td colspan="2" class="muted">{escape(why)}</td>'
             renew = '<span class="muted">—</span>'
-        stale = ' <span class="badge stale">stale</span>' if q.get("stale") else ""
+        # page-level staleness counts too: the whole reading can be past its TTL while no single
+        # provider is flagged, which rendered as a fresh-looking panel of hour-old numbers
+        stale = (
+            ' <span class="badge stale">stale</span>'
+            if q.get("stale") or quotas.get("stale")
+            else ""
+        )
         rows.append(
             f"<tr><td><strong>{escape(label)}</strong>{stale}</td>{body}<td>{renew}</td></tr>"
         )

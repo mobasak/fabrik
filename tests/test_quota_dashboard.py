@@ -913,6 +913,150 @@ def test_the_reset_header_is_seconds_remaining_not_an_epoch(tmp_path, monkeypatc
     )
 
 
+def test_an_unwritable_cache_cannot_turn_the_ttl_into_the_probe_cadence(tmp_path, monkeypatch):
+    """A metered-quota burn, reproduced before it was fixed and owed since the fleet-quota hold cut
+    the round short (21eba0fb shipped the fix with this grader unwritten, and said so).
+
+    `_refresh_pool_credits` calls `_api_quotas()` once per 20s probe cycle and leans on the TTL to
+    gate the fetch — but the TTL was read only from the DISK cache. Make that cache unwritable (a
+    stale directory in its place, a full disk, a permissions change) and every read misses, every
+    cycle re-probes, and 1800s silently becomes 20s: 4,320 Brave queries a day instead of 48,
+    against the one provider here that has no balance endpoint, so reading the quota SPENDS it —
+    with nothing on the page or in the log to say so. Memory is the rate limiter; disk only carries
+    the reading across a restart.
+    """
+    qd = _load(tmp_path, monkeypatch)
+    blocked = tmp_path / "api-quotas.json"
+    blocked.mkdir()  # a DIRECTORY where the cache file goes: every read and every write fails
+    monkeypatch.setattr(qd, "API_QUOTAS_CACHE", blocked)
+    # getattr, not attribute access: this must fail on the PROBE COUNT, not on an AttributeError.
+    # Reverting the fix removes `_api_quotas_mem`, and a grader that dies at setup would also pass
+    # for a version that kept the name and broke the gating — the mutation it exists to catch.
+    getattr(qd, "_api_quotas_mem", {}).clear()
+    calls: list[str] = []
+
+    def counting(url, _headers):
+        calls.append(url)
+        return {"data": {"remaining_credits": 1, "plan_credits": 2}}, _BRAVE_UNLIMITED
+
+    monkeypatch.setattr(qd, "_get_json", counting)
+    monkeypatch.setattr(qd, "_mcp_key", lambda *_a, **_k: "k")
+    now = time.time()
+    for i in range(5):  # five refresher cycles, every one well inside a single TTL
+        qd._api_quotas(now + i * 20)
+    brave = [u for u in calls if "brave" in u]
+    assert len(brave) == 1, (
+        f"the TTL must hold without the disk — probed {len(brave)}x in one window, which at the "
+        f"20s refresher cadence is {len(brave) / 5 * 3 * 60 * 24:.0f} Brave queries/day"
+    )
+    # ...and it must still probe once the window GENUINELY expires: a rate limiter that never
+    # releases is a frozen panel, which is the other half of this board's recurring failure.
+    qd._api_quotas(now + qd.API_QUOTAS_TTL_S + 60)
+    assert len([u for u in calls if "brave" in u]) == 2
+
+
+def test_a_refresh_mid_read_cannot_raise_on_the_render_path(tmp_path, monkeypatch):
+    """Round 2, from an independent reader, and it is this board's oldest failure wearing new
+    clothes. `_api_quotas(fetch=False)` builds `{**cached}` — which UNPACKS the in-memory dict — and
+    the refresher thread does NOT hold `_gen_lock`. Mutating that dict in place (`clear()` then
+    `update()`) mid-unpack raises "dictionary changed size during iteration" ON THE RENDER PATH,
+    which is exactly how this page froze while advertising a 20s refresh. Rebinding is atomic: a
+    reader gets the whole old dict or the whole new one."""
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "API_QUOTAS_CACHE", tmp_path / "q.json")
+    _quota_stub(qd, monkeypatch, brave_hdrs=_BRAVE_UNLIMITED, fc_body=_FC_OK)
+    qd._api_quotas(time.time())  # prime memory with a big dict
+    stop, errors = threading.Event(), []
+
+    def reader():
+        while not stop.is_set():
+            try:
+                qd._api_quotas(time.time(), fetch=False)
+            except Exception as exc:  # noqa: BLE001 — recording is the whole point
+                errors.append(exc)
+                return
+
+    def writer():
+        for i in range(400):
+            qd._api_quotas(time.time() + (i + 1) * qd.API_QUOTAS_TTL_S * 2)
+
+    r = threading.Thread(target=reader, daemon=True)
+    r.start()
+    try:
+        writer()
+    finally:
+        stop.set()
+        r.join(timeout=5)
+    assert not errors, f"the render path raised while the refresher rebuilt memory: {errors[:1]}"
+    # ⚠️ the thread race above can MISS its window, so it cannot be the proof. The invariant that
+    # makes the race impossible is deterministic and is what this asserts: a fetch REBINDS the
+    # module attribute, so the dict a reader is unpacking is never the dict a writer touches.
+    before = qd._api_quotas_mem
+    snapshot = dict(before)
+    qd._api_quotas(time.time() + qd.API_QUOTAS_TTL_S * 3)
+    assert qd._api_quotas_mem is not before, "memory must be REBOUND, not mutated in place"
+    assert before == snapshot, "the dict a reader may still hold must be left untouched"
+
+
+def test_a_hand_edited_cache_timestamp_cannot_raise(tmp_path, monkeypatch):
+    """Round 2. `float(cached["ts"])` on a non-numeric value raises ValueError — again on the render
+    path, again a frozen board. The cache is a plain JSON file a human can edit, and `True` is an
+    `int` in Python, so the numeric check has to exclude bool too."""
+    qd = _load(tmp_path, monkeypatch)
+    cache = tmp_path / "q.json"
+    monkeypatch.setattr(qd, "API_QUOTAS_CACHE", cache)
+    for junk in ('"soon"', "null", "true", "[]", '{"nested": 1}'):
+        cache.write_text(f'{{"ts": {junk}, "brave": {{"state": "ok"}}}}', encoding="utf-8")
+        # poison BOTH sides: an empty memory short-circuits the comparison, so a disk-only fixture
+        # never reaches the conversion this test exists to guard
+        monkeypatch.setattr(qd, "_api_quotas_mem", {"ts": json.loads(junk), "brave": {}})
+        out = qd._api_quotas(time.time(), fetch=False)  # must NOT raise
+        assert out.get("stale") is True, junk
+    assert qd._stamp({"ts": True}) == 0.0, "bool is an int in Python; it is not a timestamp"
+    assert qd._stamp({"ts": 5}) == 5.0 and qd._stamp({}) == 0.0
+
+
+def test_a_page_wide_stale_reading_badges_its_rows(tmp_path, monkeypatch):
+    """Round 2. `q["stale"]` is set only on the per-provider error-recovery path, so a whole
+    reading an hour past its TTL rendered with no mark at all while the intro said "refreshed every
+    30 min" — a fresh-looking panel of stale numbers, which is the silent half of this board's
+    failure history."""
+    qd = _load(tmp_path, monkeypatch)
+    cache = tmp_path / "q.json"
+    monkeypatch.setattr(qd, "API_QUOTAS_CACHE", cache)
+    qd._api_quotas_mem.clear()
+    old = time.time() - qd.API_QUOTAS_TTL_S * 4
+    cache.write_text(
+        json.dumps({"ts": old, "brave": {"state": "ok", "unlimited": True, "unit": "queries/mo"}}),
+        encoding="utf-8",
+    )
+    q = qd._api_quotas(time.time(), fetch=False)
+    assert q["stale"] is True
+    assert 'badge stale">stale' in qd._api_quotas_panel(q, time.time())
+
+
+def test_impossible_numbers_are_shown_without_an_invented_percentage(tmp_path, monkeypatch):
+    """Round 2, two readers. A provider can report remaining > total (a mid-period plan upgrade) or
+    a negative remaining (permitted overage). Both rendered as a percentage: "6,000 (120%)" with a
+    healthy green badge, and "-1 (-100%)". Neither is a number to act on."""
+    qd = _load(tmp_path, monkeypatch)
+    now = time.time()
+
+    def panel(total, rem):
+        return qd._api_quotas_panel(
+            {"ts": now, "firecrawl": {"state": "ok", "unit": "credits", "total": total,
+                                      "remaining": rem}}, now)
+
+    assert "(46%)" in panel(5000, 2290)          # the ordinary case still shows a percentage
+    assert "120%" not in panel(5000, 6000) and "6,000" in panel(5000, 6000)
+    assert "%" not in panel(5000, -1).split("Renews")[1] and "-1" in panel(5000, -1)
+    # a renewal already in the past is not a renewal
+    past = qd._api_quotas_panel(
+        {"ts": now, "firecrawl": {"state": "ok", "unit": "credits", "total": 5, "remaining": 1,
+                                  "renews_at": now - 3 * 86400}}, now)
+    assert "overdue" in past and "-3d" not in past
+
+
 def test_the_render_path_never_makes_a_network_call(tmp_path, monkeypatch):
     """Same rule the pool balance learned the hard way: a third-party endpoint on the render path
     is how this board froze. `fetch=False` must read the cache and nothing else."""
