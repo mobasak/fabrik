@@ -459,7 +459,11 @@ def _api_quotas_panel(quotas: dict | None, now: float) -> str:
         return ""
     rows = []
     for key, label, _f in API_QUOTA_SOURCES:
-        q = quotas.get(key) or {}
+        # the cache is hand-editable and a partial write is possible, so a PROVIDER ENTRY can be a
+        # list, a string or null. `q.get("state")` on any of those is an AttributeError on the
+        # render path — the same untrusted-value class as `ts` and `renews_at`, one level in.
+        q = quotas.get(key)
+        q = q if isinstance(q, dict) else {}
         state = q.get("state")
         if state == "ok":
             if q.get("unlimited"):

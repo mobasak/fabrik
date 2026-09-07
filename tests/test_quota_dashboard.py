@@ -1044,16 +1044,30 @@ def test_impossible_numbers_are_shown_without_an_invented_percentage(tmp_path, m
 
     def panel(total, rem):
         return qd._api_quotas_panel(
-            {"ts": now, "firecrawl": {"state": "ok", "unit": "credits", "total": total,
-                                      "remaining": rem}}, now)
+            {
+                "ts": now,
+                "firecrawl": {"state": "ok", "unit": "credits", "total": total, "remaining": rem},
+            },
+            now,
+        )
 
-    assert "(46%)" in panel(5000, 2290)          # the ordinary case still shows a percentage
+    assert "(46%)" in panel(5000, 2290)  # the ordinary case still shows a percentage
     assert "120%" not in panel(5000, 6000) and "6,000" in panel(5000, 6000)
     assert "%" not in panel(5000, -1).split("Renews")[1] and "-1" in panel(5000, -1)
     # a renewal already in the past is not a renewal
     past = qd._api_quotas_panel(
-        {"ts": now, "firecrawl": {"state": "ok", "unit": "credits", "total": 5, "remaining": 1,
-                                  "renews_at": now - 3 * 86400}}, now)
+        {
+            "ts": now,
+            "firecrawl": {
+                "state": "ok",
+                "unit": "credits",
+                "total": 5,
+                "remaining": 1,
+                "renews_at": now - 3 * 86400,
+            },
+        },
+        now,
+    )
     assert "overdue" in past and "-3d" not in past
 
 
@@ -1067,12 +1081,21 @@ def test_a_partial_or_junk_provider_header_keeps_the_rest_of_the_reading(tmp_pat
     assert qd._hdr_int(["50", "0"], 1) == 0 and qd._hdr_int(["50"], 1) is None
     assert qd._hdr_int(["50", "soon"], 1) is None and qd._hdr_int([], 0) is None
     for hdrs in (
-        {"x-ratelimit-limit": "50, 15000", "x-ratelimit-remaining": "49",
-         "x-ratelimit-reset": "1, 900"},                       # remaining truncated
-        {"x-ratelimit-limit": "50, 15000", "x-ratelimit-remaining": "49, soon",
-         "x-ratelimit-reset": "1, 900"},                       # remaining non-numeric
-        {"x-ratelimit-limit": "50, 15000", "x-ratelimit-remaining": "49, 900",
-         "x-ratelimit-reset": "1"},                            # reset truncated
+        {
+            "x-ratelimit-limit": "50, 15000",
+            "x-ratelimit-remaining": "49",
+            "x-ratelimit-reset": "1, 900",
+        },  # remaining truncated
+        {
+            "x-ratelimit-limit": "50, 15000",
+            "x-ratelimit-remaining": "49, soon",
+            "x-ratelimit-reset": "1, 900",
+        },  # remaining non-numeric
+        {
+            "x-ratelimit-limit": "50, 15000",
+            "x-ratelimit-remaining": "49, 900",
+            "x-ratelimit-reset": "1",
+        },  # reset truncated
     ):
         _quota_stub(qd, monkeypatch, brave_hdrs=hdrs, fc_body=_FC_OK)
         qd._api_quotas_mem.clear()
@@ -1090,13 +1113,32 @@ def test_a_future_stamp_or_a_junk_renewal_date_cannot_raise_or_read_as_fresh(tmp
     qd = _load(tmp_path, monkeypatch)
     now = time.time()
     assert "future" in qd._api_quotas_panel({"ts": now + 9999, "age_s": -9999}, now)
-    assert "-1" not in qd._api_quotas_panel({"ts": now + 9999, "age_s": -9999}, now).split("Service")[0]
+    assert (
+        "-1"
+        not in qd._api_quotas_panel({"ts": now + 9999, "age_s": -9999}, now).split("Service")[0]
+    )
     for junk in ("bad", None, True, [], {}, 10**20):
         html = qd._api_quotas_panel(
-            {"ts": now, "age_s": 1.0,
-             "firecrawl": {"state": "ok", "unit": "credits", "total": 5, "remaining": 1,
-                           "renews_at": junk}}, now)  # must NOT raise
+            {
+                "ts": now,
+                "age_s": 1.0,
+                "firecrawl": {
+                    "state": "ok",
+                    "unit": "credits",
+                    "total": 5,
+                    "remaining": 1,
+                    "renews_at": junk,
+                },
+            },
+            now,
+        )  # must NOT raise
         assert "Firecrawl" in html
+    # ...and a PROVIDER ENTRY that is not a dict at all. A partial write or a hand edit makes
+    # `quotas["brave"]` a list, and `q.get("state")` on a list is an AttributeError on the render
+    # path — the same untrusted-value class as `ts` and `renews_at`, one level in.
+    for junk in (["malformed"], "ok", 7, None, True):
+        html = qd._api_quotas_panel({"ts": now, "age_s": 1.0, "brave": junk}, now)  # must NOT raise
+        assert "Brave Search" in html and "not read yet" in html
 
 
 def test_the_render_path_never_makes_a_network_call(tmp_path, monkeypatch):
