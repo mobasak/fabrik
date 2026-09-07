@@ -1236,3 +1236,45 @@ def test_a_dash_between_a_usd_amount_and_another_amount_is_a_subtraction() -> No
     assert _cost_usd("5.00 usd – $2.00") is None and _cost_usd("5.00 usd – 2.00 usd") is None
     assert _cost_usd("pool 5.00 usd – 2.00 usd refund") is None
     assert _cost_usd("5.00 usd + 2.00 usd") == 7.0
+
+
+# ── the cost field is a NUMBER at the close, never prose (review 2026-09-07, pass 17) ──────
+
+
+def test_a_prose_cost_is_refused_at_the_close_and_a_plain_amount_is_accepted(run_dir: Path) -> None:
+    """Sixteen review passes each found one more prose shape the cost parser mis-read; the
+    class ends at the contract: `cost:` is a plain amount or the close refuses."""
+    _start(run_dir)
+    r = _cr(
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-probe",
+        "--evidence",
+        "x",
+        "--feedback",
+        STRUCTURED + " · cost: $0.30 via glm-5 pool",
+    )
+    assert r.returncode == 1 and "cost:" in r.stdout and "plain amount" in r.stdout, r.stdout
+    assert json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))["state"] == "running"
+    assert _ledger(run_dir) == []
+    for ok, want in (
+        ("pool $0.30", 0.3),
+        ("0.0125", 0.0125),
+        ("$1,234.50", 1234.5),
+        ("0.0017 USD", 0.0017),
+        ("$0", 0.0),
+    ):
+        _start(run_dir)
+        r = _cr(
+            run_dir,
+            "done",
+            "--command",
+            "fabrik-probe",
+            "--evidence",
+            "x",
+            "--feedback",
+            STRUCTURED + " · cost: " + ok,
+        )
+        assert r.returncode == 0, (ok, r.stdout + r.stderr)
+        assert _ledger(run_dir)[-1]["cost_usd"] == want, (ok, _ledger(run_dir)[-1]["cost"])

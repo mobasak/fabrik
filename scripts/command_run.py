@@ -925,6 +925,13 @@ _COST_NEGATED_RE = re.compile(
 )
 # a minus/dash directly before an AMOUNT (`-$1.50`, `−$1.50`, `$5-$2`, `–$5`, `$0.12 – $0.30`) — never
 # `glm-5`, `T-11`, or a spaced em dash used as a separator (`pool $0.30 — three units`)
+# the CLOSE-time contract for `cost:` — a plain amount, nothing else. Sixteen review passes each
+# found one more prose shape the lenient parser below mis-read (`opus-4.5 usd`, `5.00 usd – $2.00`);
+# the class ends at the input: prose in a field that is summed as money is refused, like an empty
+# usage field is (review 2026-09-07). The lenient parser stays for the ledger's older rows.
+_COST_STRICT_RE = re.compile(
+    r"^\s*(?:pool\s*)?\$?\s*(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?\s*(?:usd)?\s*$", re.I
+)
 _COST_ZERO_USD_RE = re.compile(r"(?<![\d,.$])0\s*usd\b", re.I)
 _COST_MARKED_RE = re.compile(
     rf"\$\s*({_COST_NUM})(?!\w|[,.]\d|\s+\.\d)|(?<![\d,.$\-\u2212])(\d{{1,3}}(?:,\d{{3}})+(?:\.\d+)?|\d+\.\d+)\s*usd\b",
@@ -1906,6 +1913,16 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             "how the COMMAND behaved this run, so the corpus can be optimised for fewer rounds, "
             "less confusion and fewer tokens:\n  --feedback '" + _USAGE_GRAMMAR + "'\n"
             "Wall-clock and the round count are captured for you; write the four fields."
+        )
+        sys.stderr.write(f"[command_run] {msg}\n")
+        print(msg)
+        return 1
+    _cost_text = _usage_fields.get("cost", "").strip() if _usage_is_required(rec) else ""
+    if _cost_text and not _COST_STRICT_RE.match(_cost_text):
+        msg = (
+            f"REFUSED — closing /{live}: `cost:` must be a plain amount (`0.0125`, `$0.30`, "
+            f"`pool $0.30`, `$1,234.50`), never prose — got {_cost_text!r}. The field is SUMMED "
+            "fleet-wide; put the words in `waste:` or `filed:` and the number here."
         )
         sys.stderr.write(f"[command_run] {msg}\n")
         print(msg)

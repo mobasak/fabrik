@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — `cost:` on the close-out line is a plain amount, never prose; a prose cost is refused at the close (2026-09-07)
+
+Sixteen `/fabrik-review` passes over the feedback ledger each found one more prose shape the
+lenient cost parser mis-read (`opus-4.5 usd`, `5.00 usd – $2.00`, `−$1.50 refund`), every one a
+wrong number in a field summed fleet-wide. The class ends at the input (D-179): `command_run.py`
+refuses a close whose `cost:` is not a plain amount (`0.0125`, `$0.30`, `pool $0.30`,
+`$1,234.50`, `0.0017 USD`), the way it refuses an empty usage field. The lenient parser stays
+for the ledger's older rows. Fragment, protocol doc and both CLAUDE.md templates say so.
+
 ### Changed — the relief wake, Phase C: the hold orders the self-watch arm and allows TaskStop (2026-09-07)
 
 - `.claude/hooks/quota_stop.py` (fleet-synced): `TaskStop` joins the hold's allow-list — a held session can stop its own native

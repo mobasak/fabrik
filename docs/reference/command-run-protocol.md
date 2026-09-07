@@ -218,7 +218,7 @@ confusion: <what in the command text was ambiguous or misleading | none>
 waste:     <steps, turns or tokens spent without changing the outcome | none>
 change:    <the ONE concrete edit to the command or a rule that would have made this run faster or more accurate | none>
 filed:     <mail id(s) to infra|fleet|intel | none — surfaces exercised: <what the run touched>>
-cost:      <pool dollars — the text you write is kept as `cost`; its parsed number is `cost_usd`> (optional)
+cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — prose is REFUSED at the close> (optional)
 ```
 
 - `command_run.py` REFUSES a close missing any field, leaving one empty, or writing one twice
@@ -246,7 +246,9 @@ cost:      <pool dollars — the text you write is kept as `cost`; its parsed nu
   hold or a flip otherwise looks like command slowness; `COMMAND_RUN_ACCOUNT_FILE` overrides the
   path for tests), `cost_usd` (the amount in `cost:` when it is the whole value or sits on a
   `$`/`usd` marker, thousands separators stripped; prose such as `2 hold-era commits` and an
-  absent value are `null` — never a wrong number, never a silent 0). All fail-soft to `""`: a row with an empty cell is analysable, a missing row is not.
+  absent value are `null` — never a wrong number, never a silent 0). **At the close, `cost:` must be a plain amount or the close is refused** — sixteen
+  review passes each found one more prose shape a lenient parser mis-read, so prose never enters a
+  field that is summed as money (D-179); the lenient parser stays for the ledger's older rows. All fail-soft to `""`: a row with an empty cell is analysable, a missing row is not.
 - **Tokens per run** (operator, 2026-09-07): the close sums every assistant message's `usage` in
   the session transcript (`~/.claude/projects/<cwd-slug>/<sid>.jsonl`, the fleet dir as fallback,
   `COMMAND_RUN_TRANSCRIPT` overrides for tests) whose timestamp falls inside the run window
