@@ -1153,3 +1153,18 @@ def test_a_thousands_grouped_integer_before_usd_is_an_amount() -> None:
     assert _cost_usd("1,000 usd") == 1000.0 and _cost_usd("pool 1,500 usd for the week") == 1500.0
     assert _cost_usd("2024 usd") is None and _cost_usd("500 usd") is None
     assert _cost_usd("-1,000 usd") is None  # a negated grouped integer refuses too
+
+
+def test_a_unicode_minus_or_a_dash_glued_to_an_amount_negates_but_a_spaced_em_dash_is_prose() -> (
+    None
+):
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _cost_usd  # noqa: PLC0415
+
+    assert _cost_usd("−$1.50") is None  # U+2212 MINUS SIGN
+    assert _cost_usd("–$5") is None and _cost_usd("—$5") is None and _cost_usd("‑$5") is None
+    assert _cost_usd("−$1.50 refund, real cost $0.30") is None  # never 1.8
+    assert (
+        _cost_usd("pool $0.30 — three units") == 0.3
+    )  # a spaced em dash is this corpus's separator
+    assert _cost_usd("$0.12 – $0.30") is None  # a dash BETWEEN amounts is a subtraction either way

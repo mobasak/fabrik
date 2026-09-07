@@ -911,8 +911,10 @@ _COST_WHOLE_RE = re.compile(rf"^\s*(?:pool\s*)?\$?\s*({_COST_NUM})\s*(?:usd|\$)?
 # the `usd`-marked form needs a FRACTION (`0.01 usd`): a bare integer before `usd` is prose more
 # often than a cost ("budget for 2024 usd" — review 2026-09-07); `$N` is explicit and accepted as is
 _COST_NEGATED_RE = re.compile(
-    r"-\s*(?:\$\s*\d|(?:\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+\.\d+)\s*usd\b)", re.I
-)  # a dash directly before an AMOUNT (`-$1.50`, `$5-$2`, `-1,234.50 usd`) — never `glm-5` or `T-11`
+    r"(?:[-\u2212]\s*|[\u2013\u2014\u2011](?=\$|\d)|(?<=\d)\s*[\u2013\u2014\u2011]\s*)(?:\$\s*\d|(?:\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+\.\d+)\s*usd\b)",
+    re.I,
+)  # a minus/dash directly before an AMOUNT (`-$1.50`, `−$1.50`, `$5-$2`, `–$5`, `$0.12 – $0.30`) — never
+# `glm-5`, `T-11`, or a spaced em dash used as a separator (`pool $0.30 — three units`)
 _COST_ZERO_USD_RE = re.compile(r"(?<![\d,.$])0\s*usd\b", re.I)
 _COST_MARKED_RE = re.compile(
     rf"\$\s*({_COST_NUM})(?!\w|[,.]\d)|(?<![\d,.$])(\d{{1,3}}(?:,\d{{3}})+(?:\.\d+)?|\d+\.\d+)\s*usd\b",
