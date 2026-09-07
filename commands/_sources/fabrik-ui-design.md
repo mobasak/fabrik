@@ -219,7 +219,7 @@ a **`size-limit`** per-surface bundle gate.
 - Hand off to planning on a `FROZEN` contract that has NOT yet passed `/fabrik-ui-design-review` — the
   independent review is a required gate, not optional.
 
-## Subagents — design-time fans out to the POOL; build-time is NATIVE (parallel per screen)
+## Subagents — design-time AND build-time are NATIVE while the pool is OFF (D-181/D-182); parallel per screen
 
 Two subagent regimes — keep them distinct:
 

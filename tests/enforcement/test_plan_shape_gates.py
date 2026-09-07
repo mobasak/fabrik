@@ -860,6 +860,12 @@ def test_each_parallelism_alternative_is_individually_load_bearing(plans_env, al
         ),
         ("pool-OFF", "the pool is OFF for this plan"),
         ("D-181", "per D-181 the finders run as native seats"),
+        # review seat A (2026-09-07): the box's own vocabulary, no `native`, no ledger id
+        (
+            "claude-task-subagents",
+            "Every ticket dispatches Claude Task subagents; the OpenRouter pool is not used for this plan.",
+        ),
+        ("sonnet-seats", "two Sonnet seats per ticket plus an Opus finder; results merge at T09"),
     ],
 )
 def test_each_dispatch_alternative_is_individually_load_bearing(plans_env, alt, phrase):
@@ -870,3 +876,26 @@ def test_each_dispatch_alternative_is_individually_load_bearing(plans_env, alt, 
     assert "dispatch policy" not in _pillar_msgs(
         cpq_mod.check_file(_write(plans_env, SPINE, good))
     ), alt
+
+
+@pytest.mark.parametrize(
+    "prose",
+    [
+        # review seat A (2026-09-07): `native` + `seats` + `dispatch` as ordinary English in a booking plan
+        "The booking flow must reserve native venue seats before dispatch of the confirmation email.",
+        "Native speakers review the copy; the dispatch office confirms each seat by phone.",
+    ],
+)
+def test_ordinary_english_native_or_dispatch_does_not_satisfy_the_dispatch_pillar(
+    plans_env: Path, prose: str
+) -> None:
+    """The pillar names a DISPATCH POLICY; the words `native`, `seats`, `dispatch` in a product
+    sentence are not one. The other two pillars are stated so only the dispatch pillar can be missing."""
+    good = SPINE_OK.replace(
+        "## Interfaces",
+        "## Execution Discipline\n\n"
+        "- Every ticket runs `/fabrik-review` on its changed surface to a coverage-adjudicated exit BEFORE its merge.\n"
+        f"- {prose}\n"
+        "- T02/T03 fan out concurrently; their results merge/dedupe at T11.\n\n## Interfaces",
+    )
+    assert "dispatch policy" in _pillar_msgs(cpq_mod.check_file(_write(plans_env, SPINE, good)))

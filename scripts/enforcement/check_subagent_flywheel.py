@@ -376,10 +376,15 @@ def _warn_unrecorded(ledger_path: Path) -> None:
         # list that would re-print ~1,100 historical ids on every gate run forever (intel,
         # 01M1YARGHWZQF645DTQ2QNW4A6). A NEW row appearing here after the corpus flip is intel's tripwire
         # (D-182), not this gate's to block on.
+        src = (
+            "FABRIK_POOL_POLICY in the environment"
+            if os.environ.get("FABRIK_POOL_POLICY", "").strip()
+            else "_POOL_POLICY_ON in this script"
+        )
         print(
-            f"SUBAGENT FLYWHEEL (advisory): the pool is OFF by policy (D-181/D-182 — "
-            f"_POOL_POLICY_ON is False in this script); {len(unrecorded)} historical unrecorded pool "
-            "run(s) stay unreconciled — nothing new should dispatch, nothing to score."
+            f"SUBAGENT FLYWHEEL (advisory): the pool is OFF by policy (D-181/D-182 — {src}); "
+            f"{len(unrecorded)} historical unrecorded pool run(s) stay unreconciled — nothing new "
+            "should dispatch, nothing to score."
         )
         return
 

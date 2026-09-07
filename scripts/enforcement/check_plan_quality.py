@@ -273,10 +273,16 @@ SPINE_PILLAR_PATTERNS = [
             r"|\bpick_models\b"
             r"|\bpool\b[^.\n]{0,40}\bdefault\b"
             r"|\bdefault\b[^.\n]{0,40}\bpool\b"
-            r"|\bnative\b[^.\n]{0,40}\b(?:subagents?|finders?|coders?|grounders?|seats?|dispatch)\b"
-            r"|\b(?:dispatch|fan[- ]out)\b[^.\n]{0,40}\bnative\b"
-            r"|\bpool\b[^.\n]{0,20}\bOFF\b"
-            r"|\bD-181\b",
+            # `native` counts only when it is the dispatch vocabulary — glued to a subagent noun
+            # (review seat A, 2026-09-07: "reserve native venue seats before dispatch of the
+            # confirmation email" satisfied the loose form; "dispatches Claude Task subagents"
+            # missed it). Word boundaries keep "dispatches"/"dispatched" in.
+            r"|\bnative\s+(?:claude\s+)?(?:task\s+)?(?:subagents?|finders?|coders?|grounders?|reviewers?|researchers?)\b"
+            r"|\b(?:claude|sonnet|opus)\s+(?:task\s+)?(?:subagents?|seats?|finders?|coders?)\b"
+            r"|\bdispatch(?:es|ed|ing)?\s+(?:is\s+|are\s+)?native\b"
+            r"|\bfan[- ]outs?\s+(?:is\s+|are\s+|run\s+|runs\s+)?native\b"
+            r"|\bpool\b[^.\n]{0,20}\b(?:OFF|not\s+used|unused|disabled)\b"
+            r"|\bD-18[12]\b",
             re.I,
         ),
         "state on the spine: the dispatch policy — native Claude subagents for every fan-out "

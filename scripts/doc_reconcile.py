@@ -47,6 +47,20 @@ except Exception:  # noqa: BLE001 — no pool → graceful no-op (the mechanical
     record_agent_run = None  # type: ignore[assignment]
     run_agents = None  # type: ignore[assignment]
 
+
+def _pool_policy_on() -> bool:
+    """The pool policy is ONE committed constant — `check_subagent_flywheel.py::_POOL_POLICY_ON` (with
+    its `FABRIK_POOL_POLICY` test seam). Read it from there so two scripts can never disagree; if the
+    enforcement module is unreachable the answer is OFF — under D-182 a dispatch spends real money, so
+    "unknown" must not mean "go"."""
+    try:
+        import check_subagent_flywheel as _csf  # `_ENF` is on sys.path above
+
+        return bool(_csf._pool_policy_on())
+    except Exception:  # noqa: BLE001 — unknown policy → no spend
+        return False
+
+
 # Text extensions the mechanical symbol-check scans when proving a patch's identifiers are real.
 _TEXT_EXT = {
     ".py",
@@ -300,6 +314,10 @@ def reconcile_doc(
         verify_fn = _default_verify
     name = getattr(doc, "name", "")
     if run_agents is None or AgentSpec is None or pick_models is None:
+        return ReconcileResult(name, "skipped", False)
+    if not _pool_policy_on():
+        # D-181/D-182 (2026-09-07): the pool is OFF by ruling while its credentials stay provisioned —
+        # a dispatch here would still spend. The author leg is native (a seat, or the orchestrator).
         return ReconcileResult(name, "skipped", False)
     try:
         models = pick_models("docs", n=1)

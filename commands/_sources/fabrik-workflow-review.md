@@ -51,7 +51,7 @@ decomposition or an expanded epic; `… epic-decomposition` for a stale cut behi
 or the upstream's own doer when it must change (`/fabrik-vision` for the vision, `/fabrik-epics` for
 the cut) — and the downstream then re-derives from the changed upstream; routing is not
 convergence. This loop never edits the upstream, and "fix the artifact into agreeing with a stale
-upstream" is the wrong direction.** Re-run the yardstick. Back-fill the flywheel with the same label: `set_quality(r.agent_id, 0–5, project="mega-review", task_type="review", model=r.model)`. Then run the next full pass.
+upstream" is the wrong direction.** Re-run the yardstick. No flywheel back-fill while the pool is OFF (D-181/D-182 — the seats are native and record nothing). Then run the next full pass.
 
 ## Phase 4 — Gate + converge
 

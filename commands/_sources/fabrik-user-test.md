@@ -333,7 +333,7 @@ Loop **rounds** until dry:
 
 {{include:cert-execution}}
 
-## Subagents — MANDATORY, both layers, per `core/62`
+## Subagents — MANDATORY, native seats only while the pool is OFF (D-181/D-182), per `core/62`
 
 **Solo-testing is a contract violation, not a style choice.** The orchestrator that drives the
 browser itself serializes the gauntlet, exhausts its own context on screenshots, and loses the

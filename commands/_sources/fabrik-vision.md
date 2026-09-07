@@ -1159,7 +1159,7 @@ Assessment. **EXISTING adds:** `Locked Decisions` + `Compliance Report`.
 - Scale Assessment present with classification. Vision Summary within token budget.
 - Open Questions captures ALL unresolved items; zero remain at confirmation.
 - **Grounding dispatched through both layers** — pool `fanout` units (each recording the flywheel) AND
-  ≥1 native `fabrik-researcher` on Opus, with every pool run back-filled by `set_quality`.
+  ≥1 native `fabrik-researcher` on Opus (the pool is OFF, D-181/D-182 — every seat is native, nothing records).
 - **Pre-confirmation self-audit ran** and its result was stated at the top of the presentation.
 - **No Guardrails prohibition tripped** (below). Owner explicitly confirms. Silence ≠ confirmation.
 
@@ -1205,7 +1205,7 @@ gaps (owner decides per gap; auto-fix happens later as Retrofit epics).
 - **Never auto-detect the mode** — Phase 0 is an explicit owner declaration; never proceed past a
   checkpoint with unresolved Open Questions or self-confirm on owner silence.
 - **Never go all-native on grounding** — the grounders run as pool `fanout` units (recording the flywheel)
-  **plus** ≥1 native `fabrik-researcher` on Opus, every pool run back-filled by `set_quality`.
+  **plus** ≥1 native `fabrik-researcher` on Opus (the pool is OFF, D-181/D-182 — every seat is native, nothing records).
 - **Never split into epics or decide per-epic scaffold/shape/infra** — that is `/fabrik-epics`; this
   command is orientation only. **Never persist outside the allowlisted `specs/` tree**, and DISK stays
   source-of-truth.

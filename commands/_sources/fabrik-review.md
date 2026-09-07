@@ -157,8 +157,8 @@ secret-material paths (`.env` / `.env.*` **except `.env.example`** — the Doc-S
 env-var change touches, `check_plan_tickets.py`'s own carve-out — `secrets/`, key/cert files) is
 reviewed **NATIVE-ONLY** — a
 `read_only` pool unit inlines the raw hunk into its task text, which ships the literal secret to a
-third-party API. Partition, don't skip: pool breadth runs on the non-secret remainder, the native
-Opus finder covers the secret-bearing hunks, and the flywheel floor is satisfied by the remainder
+third-party API. Partition, don't skip (moot while every seat is native — D-181/D-182): the Sonnet seats read the non-secret remainder, the native
+Opus finder covers the secret-bearing hunks with the secret redacted from its brief
 (a diff that is ENTIRELY secret-material → all-native with `NO-POOL: secrets-only surface` declared —
 the waiver form the flywheel check reads; the "zero pool dispatches" flywheel bullet in Phase 4
 describes exactly this case). The two mechanisms:
@@ -370,12 +370,15 @@ Log the pass you just finished in the **Pass Ledger** (Reporting: its `found`/`f
   contract's conditions). This — not an empty pass — is the ONLY thing that ends the review and lets the
   caller (e.g. `/fabrik-execute-plan` at a phase boundary) proceed. A finding stuck after 3 fix attempts:
   BLOCKED-escalate it per the contract and keep looping on the rest.
+- **No flywheel rows while the pool is OFF (D-181/D-182)** — every seat is native and records nothing; the exit check is the adjudication ledger (every candidate FIXED or REFUTED with proof), never a score back-fill.
+<!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 - **Every pool row this review dispatched is `set_quality`-scored — a round with unscored pool rows is
   NOT closed.** The back-fill has the same rank as the refute step, per round, not "at the end":
   dispatch guarantees the row, so a skipped back-fill leaks 100% of the time (measured 2026-08-12:
   `done`-status rows sat at 40.9% scored — the single largest flywheel leak, and the scoring moment is
   exactly when attention leaves the finders for the diff). Adjudicate → `set_quality` → only then the
   round is closed. Zero pool dispatches this round (native-only for a secrets surface) → nothing owed.
+-->
 
 **The round in which you made a fix is NEVER the last look at the classes it touched.** "I fixed what the
 first pass found" is not an exit — those classes return to UNCHECKED until a fresh round re-adjudicates them.

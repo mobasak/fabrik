@@ -8,6 +8,8 @@ import sys
 import types
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -68,6 +70,29 @@ def _mini_patch(target: str, *added: str, context: str = "ctx") -> str:
         f"diff --git a/{target} b/{target}\n--- a/{target}\n+++ b/{target}\n"
         f"@@ -1,1 +1,{1 + len(added)} @@\n {context}\n{body}"
     )
+
+
+@pytest.fixture(autouse=True)
+def _pool_policy_on_for_legacy_tests(monkeypatch):
+    """The committed pool policy is OFF (D-181/D-182); every test written before it exercises the
+    dispatch path, so the seam pins ON here and the policy test below overrides it."""
+    monkeypatch.setenv("FABRIK_POOL_POLICY", "on")
+
+
+def test_pool_policy_off_skips_without_any_dispatch(tmp_path, monkeypatch):
+    """D-181/D-182: while the pool is OFF by ruling the author leg never dispatches — no run_agents
+    call, no flywheel row — even though the module is vendored and a key is live."""
+    calls: list = []
+    monkeypatch.setattr(dr, "pick_models", lambda *a, **k: ["stub/model"])
+    monkeypatch.setattr(dr, "run_agents", lambda specs, **k: calls.append(specs) or [])
+    monkeypatch.setattr(dr, "AgentSpec", lambda **k: types.SimpleNamespace(**k))
+    monkeypatch.setenv("FABRIK_POOL_POLICY", "off")
+    doc = types.SimpleNamespace(name="docs/QUICKSTART.md")
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "QUICKSTART.md").write_text("# q\n")
+    r = dr.reconcile_doc(doc, "diff", tmp_path)
+    assert r.status == "skipped" and r.applied is False
+    assert calls == []
 
 
 def _stub_pool(monkeypatch, *, diff: str, recorder: dict | None = None) -> None:

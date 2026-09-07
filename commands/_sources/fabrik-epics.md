@@ -666,7 +666,7 @@ assign owners, and emit the phased dispatch order before any window starts build
   the defect this guardrail exists to name.
 - **Never simulate the owner's confirmation at the Checkpoint.** Silence ≠ confirmation.
 - **Never dispatch the decomposition judgment itself to a subagent** — only the optional Phase 1h
-  read-only citation check may fan out, and it records via `set_quality` if it does.
+  read-only citation check may fan out to native seats (the pool is OFF, D-181/D-182 — nothing records).
 - **Never write an epic file without the full typed frontmatter**, and never let `depends_on` /
   `parallel_with` / `owned_paths` diverge from the `### Dependencies` prose.
 - **Never persist the Infrastructure Decisions spec under `docs/development/epics/`** — it belongs in

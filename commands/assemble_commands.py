@@ -214,11 +214,12 @@ _EX_ITEM = 'an API "reused" that doesn\'t exist, a column "stored" with the wron
 
 
 def _floor(kind: str, native: str) -> str:
+    # D-181/D-182 (2026-09-07): the pool is OFF by ruling, so the floor is stated in native seats only.
+    # The pool form ("pool breadth AND ≥1 native Opus") is kept in git history for re-enable.
     return (
-        f" **⚠️ Floor — every {kind} dispatches BOTH: pool breadth AND ≥1 native Opus.** The pool never runs "
-        f"Opus (no `anthropic/*`), so a pool-only {kind} has no Opus eyes and is **not valid** — ALWAYS also "
-        f"dispatch at least one native {native} on Opus as the authoritative pass. Never pool-only, never "
-        f"Opus-only: pool breadth + ≥1 native Opus + your own Opus decide/refute/merge."
+        f" **⚠️ Floor — every {kind} dispatches ≥1 native {native} on Opus as the authoritative pass** "
+        f"(Opus-only is still not a substantial {kind}: add 1–2 Sonnet seats for breadth, each briefed on a "
+        f"different failure-class subset) **plus your own Opus decide/refute/merge.**"
     )
 
 
@@ -868,6 +869,13 @@ def render(dest: Path, skills_dest: Path | None = None, agents_dest: Path | None
                 # phase count makes the pinned RUN: line lie about where the run is.
                 params.setdefault("COMMAND", name)
                 params.setdefault("PHASES", str(_phase_count(src)))
+            # D-181/D-182 (2026-09-07): the per-command HEADLINE values above name `fanout` /
+            # `set_quality` — the pool contract. While the pool is OFF by ruling every includer of
+            # `subagents-core` renders ONE honest heading; the per-command values stay in PARAMS for
+            # re-enable (delete this override to restore them). Outside the run-record branch on
+            # purpose — review seat B, 2026-09-07: placed inside it, 20 of 20 headlines kept the pool text.
+            if fr == "subagents-core" and "HEADLINE" in params:
+                params["HEADLINE"] = "native seats only — the pool is OFF by ruling (D-181/D-182)"
             for k, v in params.items():
                 body2 = body.replace("{{" + k + "}}", v)
                 body = body2
