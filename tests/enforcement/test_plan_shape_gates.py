@@ -914,6 +914,9 @@ def test_each_dispatch_alternative_is_individually_load_bearing(plans_env, alt, 
         # exit seat r5: the noun alone does not make `OFF` a policy either
         "The subagent pool room is OFF-limits to visitors during business hours.",
         "The OpenRouter pool budget is OFF this quarter due to spend caps.",
+        # exit seat r8: our own vocabulary against the verb, but a hyphenated compound
+        "The subagent pool is OFF-limits to unreviewed models during this ticket.",
+        "The OpenRouter pool is OFF-topic for this plan; see the deploy plan instead.",
     ],
 )
 def test_ordinary_english_native_or_dispatch_does_not_satisfy_the_dispatch_pillar(
