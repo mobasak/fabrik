@@ -1312,3 +1312,33 @@ def test_a_bare_integer_before_usd_is_refused_at_the_close_not_stored_as_null(
         )
         assert r.returncode == 0, (ok, r.stdout + r.stderr)
         assert _ledger(run_dir)[-1]["cost_usd"] == want, (ok, _ledger(run_dir)[-1]["cost"])
+
+
+def test_a_sentence_final_period_after_the_cost_does_not_refuse_the_close(run_dir: Path) -> None:
+    """`cost:` is the last field; a line that ends a sentence ends in a period."""
+    for text, want in (("$0.30.", 0.3), ("$10.", 10.0), ("pool 0.0125.", 0.0125)):
+        _start(run_dir)
+        r = _cr(
+            run_dir,
+            "done",
+            "--command",
+            "fabrik-probe",
+            "--evidence",
+            "x",
+            "--feedback",
+            STRUCTURED + " · cost: " + text,
+        )
+        assert r.returncode == 0, (text, r.stdout + r.stderr)
+        assert _ledger(run_dir)[-1]["cost_usd"] == want, (text, _ledger(run_dir)[-1]["cost"])
+    _start(run_dir)
+    r = _cr(
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-probe",
+        "--evidence",
+        "x",
+        "--feedback",
+        STRUCTURED + " · cost: 10 usd.",
+    )
+    assert r.returncode == 1  # the period does not launder a bare integer before usd

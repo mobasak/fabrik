@@ -1917,7 +1917,14 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         sys.stderr.write(f"[command_run] {msg}\n")
         print(msg)
         return 1
+    # `cost:` is the LAST field, so a line that ends a sentence ends in a period: strip ONE
+    # sentence-final `.` before the shape check (`$0.30.` → `$0.30`; review pass 18)
     _cost_text = _usage_fields.get("cost", "").strip() if _usage_is_required(rec) else ""
+    if _cost_text.endswith(".") and not _cost_text.endswith(".."):
+        _cost_text = _cost_text[:-1].rstrip()
+        _usage_fields["cost"] = (
+            _cost_text  # the row and its cost_usd see the same value the gate did
+        )
     # the shape AND the parser's answer: `10 usd` fits the shape but a bare integer before `usd`
     # is ambiguous (a count, a year) and parses to None — refuse rather than store a silent null
     if _cost_text and (not _COST_STRICT_RE.match(_cost_text) or _cost_usd(_cost_text) is None):
