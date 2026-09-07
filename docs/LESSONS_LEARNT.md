@@ -6292,3 +6292,22 @@ from plan-1 fired on plan-2's T02b merge and aborted it before commit) — scrat
 be quarantined per plan; the emit gate's READ budget is measured on the LIVE tree, so a plan whose own tickets
 grow a file (docs_updater.py 59 → 85 KB) reports over-budget mid-execution — a sizing signal to log, not a
 re-split.
+
+## 2026-09-07 — relief-wake: a new box-state reader turns every OLD test that reaches it into a writer of real files
+
+The relief wake made the rotation tick's stamp unlink call `_wake_held_sessions`, which enumerates the
+resume-mesh lock dir (`${CLAUDE_SOUND_LOCKDIR:-/tmp/claude-sound-locks-<uid>}`). The plan's own tests
+set the variable; the older fleet tests that reach the same unlink did not — so every suite run (mine and
+the two author-blind readers') wrote `<sid>.holdlifted` files stamped with the tests' fixed clock (epoch
+1800000000 → 2027-01-15) for THREE live sessions on the box, and my own freshly-armed self-watch printed a
+bogus `RESUME: the fleet-quota hold LIFTED at 11:00` line mid-task. The tick ledger carried no row (the
+tests patch the ledger, not the lock dir), so only the impossible epoch pointed at the writer.
+
+1. **The mirror of adding a box-state reader is "every existing caller's test now touches the box."**
+   Isolation asserted per test is an instance fix; the class fix is a session-wide autouse pin in
+   `tests/conftest.py` (the same shape as its git-env scrub) plus a grader that asserts the pin is in
+   force (`tests/test_conftest_isolation.py`, seen red first).
+2. **Prove isolation by counting the real dir before and after the suites** — reading fixtures is
+   navigation. 340 tests, 0 lifts after.
+3. **A RESUME/lift with a nonsensical epoch is a leaked test clock** — `grep` the epoch in `tests/`
+   before suspecting the tick.

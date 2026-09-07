@@ -84,3 +84,27 @@ def pytest_configure(config):  # noqa: ARG001 - pytest hook signature
     # GIT_CONFIG_KEY_n / GIT_CONFIG_VALUE_n come in numbered pairs with no fixed bound.
     for key in [k for k in os.environ if k.startswith(("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_"))]:
         os.environ.pop(key, None)
+
+
+# ---------------------------------------------------------------------------------------------
+# The resume-mesh lock dir is BOX STATE — pin it to a per-test tmp dir for every test (2026-09-07).
+#
+# `claude_rotate._selfwatch_lock_dir()` (and `claude-selfwatch.sh`, `selfwatch_check.py`) resolve
+# `${CLAUDE_SOUND_LOCKDIR:-/tmp/claude-sound-locks-<uid>}`. Since the relief wake, every fleet test
+# that reaches the stamp's relief/dwell unlink calls `_wake_held_sessions`, which ENUMERATES that dir
+# and writes `<sid>.holdlifted` for every live armed session it finds. Measured: three live sessions
+# received lift files stamped with the tests' fixed clock (epoch 1800000000 → 2027-01-15) and one
+# self-watch printed a bogus RESUME line, because only two tests set the variable themselves.
+# Same shape as the git-env scrub above: session-wide, autouse, no opt-in — a test that wants the
+# real dir does not exist, and one that wants a specific dir sets it after this pin (monkeypatch
+# fixtures compose; the test's own setenv wins). Grader: tests/test_conftest_isolation.py.
+# ---------------------------------------------------------------------------------------------
+import pytest  # noqa: E402 — placed with the rule it serves
+
+
+@pytest.fixture(autouse=True)
+def _isolated_sound_lock_dir(tmp_path, monkeypatch):
+    locks = tmp_path / "sound-locks"
+    locks.mkdir(exist_ok=True)
+    monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(locks))
+    yield locks
