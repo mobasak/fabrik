@@ -1378,3 +1378,68 @@ def test_an_amount_that_overflows_to_infinity_is_refused(run_dir: Path) -> None:
         STRUCTURED + " · cost: " + big,
     )
     assert r.returncode == 1 and _ledger(run_dir) == []
+
+
+def _envelope(ts_iso: str, mid: str, tin: int, nested_ts: str | None) -> str:
+    """A transcript line in Claude Code's REAL key order — `message` (and every tool_use input
+    inside it) is serialised BEFORE the envelope's own `timestamp`."""
+    content: list[dict] = [{"type": "text", "text": "ok"}]
+    if nested_ts is not None:
+        content.append(
+            {"type": "tool_use", "id": "t1", "name": "log", "input": {"timestamp": nested_ts}}
+        )
+    return json.dumps(
+        {
+            "parentUuid": None,
+            "message": {
+                "model": "claude-x",
+                "id": mid,
+                "role": "assistant",
+                "content": content,
+                "usage": {
+                    "input_tokens": tin,
+                    "output_tokens": 1,
+                    "cache_read_input_tokens": 0,
+                    "cache_creation_input_tokens": 0,
+                },
+            },
+            "type": "assistant",
+            "uuid": "u-" + mid,
+            "timestamp": ts_iso,
+        }
+    )
+
+
+def test_a_timestamp_key_inside_a_tool_input_never_stands_in_for_the_envelopes(
+    tmp_path: Path,
+) -> None:
+    """Review pass 25 (seat A): `_TS_RE.search` took the FIRST `"timestamp"` in the line, and a
+    tool call whose input carries a `timestamp` argument is serialised before the envelope's
+    stamp — a 23:00 message with a nested 10:30 stamp was billed to the 10:00–11:00 run, and a
+    10:30 message with a nested 2020 stamp was dropped from it. Measured live on one hub
+    transcript: 2,226 of 261,368 lines carry more than one `"timestamp"` key, 0 of them assistant
+    lines — the class is a tool-call input, real but rare, so the fix parses only such lines."""
+    import datetime as dt
+    import time
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _line_epoch, _sum_transcript_usage  # noqa: PLC0415
+
+    def iso(epoch: float) -> str:
+        return dt.datetime.fromtimestamp(epoch, dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    now = float(int(time.time()))  # whole seconds: the envelope stamp carries no fraction
+    start, end = now - 3600, now - 1800  # the run's window
+    inside, outside = start + 600, end + 7200  # 10 min in; 2 h after the close
+    line_late = _envelope(iso(outside), "m-late", 99000, iso(inside))  # nested stamp INSIDE
+    line_in = _envelope(iso(inside), "m-in", 2000, "2020-01-01T00:00:00Z")  # nested OUTSIDE
+    line_plain = _envelope(iso(inside), "m-plain", 300, None)
+    assert line_late.count('"timestamp"') == 2 and line_plain.count('"timestamp"') == 1
+    assert _line_epoch(line_late.encode()) == outside
+    assert _line_epoch(line_in.encode()) == inside
+    tr = tmp_path / "t.jsonl"
+    tr.write_text("\n".join([line_plain, line_in, line_late]) + "\n", encoding="utf-8")
+    got = _sum_transcript_usage(tr, start, end)
+    assert got["tok_msgs"] == 2 and got["tok_in"] == 2300, got  # m-in + m-plain, never m-late
+    torn = line_late.encode()[:-1]  # both stamps present but no parseable envelope: no epoch
+    assert torn.count(b'"timestamp"') == 2 and _line_epoch(torn) is None

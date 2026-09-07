@@ -1035,13 +1035,31 @@ def _iter_lines_backwards(path: Path, max_bytes: int):
 
 
 def _line_epoch(raw: bytes) -> float | None:
-    m = _TS_RE.search(raw)
-    if not m:
+    """The ENVELOPE's timestamp. One regex match is it; several mean a `timestamp` key nested in
+    the message (a tool_use input is serialised BEFORE the envelope's own stamp — 2,226 of
+    261,368 live lines carry two, none of them assistant lines in that transcript), so only such
+    a line is parsed and only its top-level key counts; a line that cannot be parsed has no epoch
+    rather than a guessed one (review pass 25)."""
+    matches = _TS_RE.findall(raw)
+    if not matches:
         return None
+    if len(matches) == 1:
+        stamp = (matches[0][0] + (matches[0][1] or b"")).decode("ascii")
+    else:
+        try:
+            top = json.loads(raw).get("timestamp")
+        except (ValueError, AttributeError):
+            return None
+        m = (
+            _TS_RE.match(b'"timestamp":' + json.dumps(top).encode())
+            if isinstance(top, str)
+            else None
+        )
+        if not m:
+            return None
+        stamp = (m.group(1) + (m.group(2) or b"")).decode("ascii")
     try:
-        return dt.datetime.fromisoformat(
-            (m.group(1) + (m.group(2) or b"")).decode("ascii").replace("Z", "+00:00")
-        ).timestamp()
+        return dt.datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp()
     except ValueError:
         return None
 

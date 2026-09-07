@@ -91,7 +91,9 @@ tok_cache_create · tok_msgs · models`; the printed `FEEDBACK:` line carries `t
 that carried them) and the cache-hit share per command. Operator, 2026-09-07: "input output
 tokens, cached tokens must be recorded per run". No transcript ⇒ `null`, never a silent zero.
 Fleet-synced. Tests: `tests/test_command_feedback.py` (+2), `tests/test_command_feedback_report.py`
-(+1), all seen red first.
+(+1), all seen red first. The line's epoch is the ENVELOPE's `timestamp`: a `timestamp` key nested in a tool-call input is
+serialised before it, so a line carrying two is parsed and only the top-level key counts (review
+pass 25; 2,226 of 261,368 live lines carry two, none of them assistant lines).
 
 ### Fixed — quota board: six defects in the new search-API quota panel, found by its own review (2026-09-07)
 
