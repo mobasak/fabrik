@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — /fabrik-review resume: the non-author pass over round 4 (F1-F11), the kaizen split-block emitter, two sibling-red board tests (2026-09-07)
+
+- **Round 4 re-judged by a non-author pass (11 findings, all closed):** the R9 "dead clock branch" removal had hit the LIVE default in
+  `_pool_credits` (F1, board froze — restored by a sibling at a9e5fd4a; its comment now names the right remover, F3); the two remaining
+  import-time knob parses (`_TARGET_SESSION_MAX`, `BLIND_TRIGGER_THRESHOLD`) and `_drain_band`'s fourth copy are one lazy guarded
+  `_env_pct` (F4 — `abc` no longer crashes the board at import, `nan` no longer makes nobody eligible); R10's entries-not-pairs count was
+  fail-open and its grader pinned the silence — pairs restored, grader flipped, the fixer's repair asserted (F5); the no-relief wording and
+  `_next_session_relief`'s docstring say "blocked by a window with a readable future reset" (F6); the hook's reader floors `lo` BEFORE the
+  validity test so legacy sub-second pairs count (F7); `_util` takes the caller's clock (F8); the R2 grader asserts the floored int lo (F9);
+  hooks-index + the installer docstring name `--check --warn` (F10); the fleet-picture mirror compares the session window to the picker's
+  own bar, strictly (a row spent past the bar read `unavailable`). Twins cmp-identical.
+- **`tests/test_kaizen_hook_emitters.py` split-block test red at HEAD:** 2f984062's seven-line check read the last turn through a reader
+  keeping only the FIRST text block, so a final block written as two blocks was refused as incomplete before the emitter ran; the reader
+  joins every text block of the last assistant entry (`_final_message_text` already did).
+- **Two board tests committed red (f657d83e/21eba0fb):** the in-memory search-API TTL stamp outlived the test's disk unlink; the exa test
+  asserted "unconfigured" under a stub configuring every key — repaired to their stated intent.
+- **Closing readers (pool ×3 + native):** the caller's clock now reaches `_eligible`/`_hottest`/`_relief_candidate` too (the F8 residual —
+  eligibility and `returns_at` judged the same rolled cached row on two clocks); the installer's repair removes only the offending script's
+  hook dicts and keeps an entry's other registrations (it dropped the whole entry). The native reader's residue: the picture's
+  `session_spent` covers the trip threshold too (a row between a raised bar and the trip read `unavailable`); the board's knob parser
+  rejects bad values LOUDLY like the picker's; a stale first-block docstring in the hook and the `BLIND_TRIGGER_THRESHOLD` mention in
+  `docs/workstation/quota-dashboard.md` corrected; the exa test's duplicated setup collapsed.
+
 ### Fixed — Stop hook sixth cause: edits older than the covered ledger's birth are no longer re-judged (2026-09-07)
 
 - `.claude/hooks/final_gate_stop.py` (fleet-synced): `_sixth_cause_floor` raises the session floor to `_LEDGER_EPOCH` (ff887758, when the `covered` ledger was born). A long-lived session's pre-ledger edits were adjudicated by the per-session rule of their day and no ledger holds their closes; the ledger-era cause could only re-block them — measured on one session: 16 already-reviewed edits (09-04 21:46 → 09-06 17:16), three attempts every turn. Applied at the one call site; the counter and its synthetic-epoch fixtures untouched (the first cut put the comparison in the counter and broke two graders — the mirror). Grader `test_edits_older_than_the_ledgers_birth_are_not_re_judged` (red-on-revert, both halves asserted); `docs/workstation/hooks-index.md` row updated. Transitional by construction: it goes inert as pre-epoch sessions end.
@@ -16,8 +39,9 @@ the SCRIPT's (`install_user_hooks.py --check --warn` prints the drift and exits 
 wrote a window with lo > hi that the Stop hook dropped — lo is floored at both writer sites and the reader covers the
 close second whole. The rolled-over cache rescue let stale cached rows with a PAST weekly reset win perishable-first —
 a past reset sorts last. The board's eligibility mirrors the rescue; the session bar is strict on both sides; one
-guarded knob parse; the gate's `$HOME` refusal falls through to the cwd walk; a dead clock branch, the installer's
-entries-not-pairs count, the no-relief wording, the C-1 grader's timing dependence (0ddf4106) and the nested-growth
+guarded knob parse; the gate's `$HOME` refusal falls through to the cwd walk; a clock default (MIS-AIMED — it hit
+`_pool_credits`' live default, not `_display_order`'s dead branch; restored a9e5fd4a, see the 2026-09-07 resume entry), the installer's
+entries-not-pairs count (REVERSED in the resume: fail-open), the no-relief wording, the C-1 grader's timing dependence (0ddf4106) and the nested-growth
 grader asserting through the hook. N5's edge: a non-list `covered` no longer wedges a close. Committed as 58041dbd
 under the fleet-quota hold BEFORE its suites ran — the hold refuses multi-line messages and `--trailer`, so 58041dbd
 and 3023ef8a carry only an `Agent-Role` trailer (never amended; the hold-side contract conflict is filed to infra as

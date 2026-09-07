@@ -1,6 +1,6 @@
 # Review — today's 12-commit chain on master (2026-09-06)
 
-Status: IN-PROGRESS
+Status: CONVERGED
 Scope: aca5b038 f44e002b 9c0481c4 67b8cefb a1720dd8 17b172bf cde13686 43bccf95 c389bc92 54d2448a 05d43f7b (hub, master) + READ-ONLY cross-repo 32a061f8 2a0986a1 (/opt/fabrik-lib)
 Surface: aca5b0389dd72176273b7cff16e760e2e546b25b + contract-formula `git diff HEAD | md5sum` = a4af1ad4519502b8190d2020b739d7dd — ⚠️ that formula hashes the LIVE tree, which carries 13 sibling-dirty files (libs/subagents/**, check_command_corpus.py, kilo-benchmarks tests, PORTS.md, two kaizen logs); the sibling-free COMMITTED surface (the 12 shas' patches, `git show --format=` concatenated) = 8d89d23845ff68da5a0533238edcc19e. Finders read the materialised sha at `/tmp/claude-1000/-opt-fabrik/1970a0ff-baa3-401b-ba52-fb0c5de43261/scratchpad/review-aca5b038`, never the tree.
 Anchor: the three newest reviews in this directory are a sibling's (2026-09-06-plan-2-multi-agent-adoption-T02a/T02b/T05) — a different scope, no comparable `Surface:` → the anchor CANNOT match; this is a full WIDE pass 1, not verification-and-delta.
@@ -310,27 +310,27 @@ Changed paths: 147 (enumerated by sha, never by range — sibling commits interl
 
 | Class | Verdict | Evidence (what/where hunted) |
 |---|---|---|
-| `core/35-security-auth.md` | UNCHECKED | — |
-| `core/25-data-postgres.md` | UNCHECKED | — |
-| `core/30-ops.md` | UNCHECKED | — |
-| `ai/00-ai-model-selection.md` | UNCHECKED | — |
-| `ai/50-agentic.md` | UNCHECKED | — |
-| `core/10-python.md` | UNCHECKED | — |
-| `core/40-documentation.md` | UNCHECKED | — |
-| `core/45-testing-strategy.md` | UNCHECKED | — |
-| `core/55-observability.md` | UNCHECKED | — |
-| `core/58-resilience.md` | UNCHECKED | — |
-| `core/62-using-subagents.md` | UNCHECKED | — |
-| `core/self-healing.md` | UNCHECKED | — |
-| fail-open vs fail-closed on every gate/guard | UNCHECKED | — |
-| cost/quota/limit accounting edges (unknown≠0, per-call vs batch) | UNCHECKED | — |
-| boundary/sentinel/prefix collisions | UNCHECKED | — |
-| behavior-without-a-test | UNCHECKED | — |
-| 12-Factor (greppable hunt list) | UNCHECKED | — |
-| test quality (would it pass if the fix were reverted?) | UNCHECKED | — |
-| cross-file contract breaks / removed-guard regressions | UNCHECKED | — |
-| shared-tree hygiene (each commit's numstat vs its claim) | UNCHECKED | — |
-| denominator honesty in every stated count | UNCHECKED | — |
+| `core/35-security-auth.md` | CLEAN | no auth/secret surface in the chain; the user-level gate's `$HOME` refusal (P2, R7) hunted and fixed — no secret reaches a log or the page (`_mcp_key` returns existence only) |
+| `core/25-data-postgres.md` | CLEAN | the only DB touch is `pg_ledger.set_quality` for pool verdicts; every unit scored |
+| `core/30-ops.md` | FIXED(3) | A-F1 (stale stamp + dead cron disabled six causes), F1 (board froze on `now=None`, restored a9e5fd4a), P8-2/N1 (the installer's repair destroyed a shared entry) |
+| `ai/00-ai-model-selection.md` | CLEAN | pool picks via `pick_models`; the minimax/nemotron no-report class filed 01M1VTV7HS5502XA6K12R3N6JH; every unit carries a 0–5 verdict |
+| `ai/50-agentic.md` | CLEAN | subagent briefs carried termination + evidence-before-assertion; the native reader executed 10 of 12 named scenarios |
+| `core/10-python.md` | FIXED(2) | F4 import-time `float(os.getenv)` → lazy guarded `_env_pct`; N8 loud rejection restored; ruff clean on every touched file |
+| `core/40-documentation.md` | FIXED(6) | F2 (false dead-branch claim in CHANGELOG + ledger), F3 (mis-attributing comment), F10 (hooks-index + docstring named bare `--check`), N4 (deleted constant in quota-dashboard.md), N5 (stale first-block docstring), R13/F6 wording |
+| `core/45-testing-strategy.md` | FIXED(5) | F5 (a grader pinning fail-open silence, flipped), F9 (straddle window), N3 (signature-not-behaviour grader extended), N10 (dead duplicated setup), the two sibling-committed reds repaired; red-on-revert executed for F7 and the strict bar |
+| `core/55-observability.md` | FIXED(1) | the kaizen `final_block_emitted` emitter never ran for a split block (2f984062's reader) — root-fixed; N9's metric shift accepted and recorded |
+| `core/58-resilience.md` | FIXED(2) | F1 fail-soft board path restored with its grader; F7 legacy windows read whole (fail-closed → correct) |
+| `core/62-using-subagents.md` | CLEAN | pool breadth (×3, twice) AND native authority both dispatched; every pool unit recorded; partial batches adjudicated as PARTIAL |
+| `core/self-healing.md` | CLEAN | the self-watch/installer surface: P2 rows + F5/N1 repair scope; no silent retry added anywhere |
+| fail-open vs fail-closed on every gate/guard | FIXED(4) | A-F1, F5 (entries count fail-open), F7 (fail-closed but incomplete), N1 (repair destroys data); N9 (a) accepted as the contract's own direction |
+| cost/quota/limit accounting edges (unknown≠0, per-call vs batch) | FIXED(3) | F4 (`nan` → nobody eligible), N7 (bar above trip → `unavailable`), the strict session bar (R5 + the :3729 mirror) |
+| boundary/sentinel/prefix collisions | FIXED(4) | R2/F7 window edges (floor lo, `hi + 1.0`), F9, `_LEDGER_EPOCH` exactly-at-epoch judged (scoped run 28ca7443), exactly-at-bar eligible |
+| behavior-without-a-test | FIXED(3) | F1 had no grader at 58041dbd (the sibling's restore added one), F7 and N7 shipped with graders, the wiring pin for the ledger floor |
+| 12-Factor (greppable hunt list) | CLEAN | every knob read from env through one parser per side; no host/port literal added; twins byte-identical |
+| test quality (would it pass if the fix were reverted?) | FIXED(3) | F5 (passed BECAUSE of the defect), F9, N3 — each re-written to discriminate; red-on-revert executed for F7/strict-bar/kaizen |
+| cross-file contract breaks / removed-guard regressions | FIXED(3) | F1 (a removed guard both callers relied on), F8 (`_util` signature widened, 9 call sites re-pointed, then N2 the callers of the callers), N1 |
+| shared-tree hygiene (each commit's numstat vs its claim) | FIXED(2) | every commit's numstat read in the same invocation (11/4/7 files); two sweeps by others recorded (81bbe6a1 mine, f657d83e a sibling's over my hunk); command_run.py never staged (sibling WIP, committed by them at 19a1aae6) |
+| denominator honesty in every stated count | CLEAN | 794/1 of 13 suites; 515; 606; 317/103/166; 10 of 12 scenarios; 2 of 235,721 entries; 1 of 3 and 2 of 3 usable pool units — every count carries its population |
 
 ## Pass Ledger
 
@@ -340,6 +340,11 @@ Changed paths: 147 (enumerated by sha, never by range — sibling commits interl
 | Pass 2 | method: citation (fix hunks + callers, author-blind) | found: 34 | new: 34 | fixed: 28 | finders: P1 native Opus (Stop hook + command_run window semantics; 10 findings, 45 tool uses, 6 purpose-built reproductions incl. red-on-revert against f0bb8d5a^) · P2 native Opus (user-level hooks + installer; 13 findings, 13 probes incl. the LIVE watcher) · pool P3 deepseek-v4-flash (board; NO REPORT — malformed tool call, scored 0) · pool P4 deepseek-v3.2-exp (rotation + doc-links; 4, all refuted, scored 1) · pool P5 deepseek-v4-flash (docs claims; 4, 3 confirmed, scored 4) · orchestrator (the fresh gate + the two open classes re-swept with the same brief: fixture-shape 217 files/277 tests clean, shared-tree-lint clean; 3 gate findings) — subject f0bb8d5a materialised; every pool unit of both passes carries a flywheel verdict |
 | Pass 3 (closing) | method: re-derivation (non-author, full surface) | found: 25 | new: 25 | fixed: 24 | finders: N1 native Opus (enforcement surface; 10 findings, 64 tool uses, 14-mutation red-on-revert batch, 5 mandated e2e experiments, 279 tests run) · N2 native Opus (rotation/quota incident surface; 8 findings, 52 tool uses, 18-input predicate matrix, three-clock queue drive) · N3 native Opus (the ledger migration hunk; 7 findings, incl. a measured 2/20 flake) · pool Q1 deepseek-v4-flash + Q2 deepseek-v3.2-exp: NO REPORT (both died mid-work, 46/101 chars — scored 0, filed 01M1VTV7HS5502XA6K12R3N6JH) · orchestrator: the stale-since-e8f0473d fleet suite (6 committed failures, the repo's) — subject ff887758 → 0d26decd materialised |
 | Pass 4 (round 4, under the quota hold) | method: citation (N4 + N5 native Opus on the closing round's hunks) | found: 13 | new: 13 | fixed: 12 | finders: N4 native Opus (the closing round's fix hunks; 13 findings, 54 tool uses, 6 executed reproductions) · N5 native Opus (the append-after-touch hunk; 0 findings, 10/10 red-on-revert) · orchestrator (own re-sweep found the ledger-arith ordering flake at 5/20 and fixed it, 0ddf4106) — committed as 58041dbd BEFORE its final suite run because the fleet-quota hold landed mid-verification; verified in the resumed run (Pass 5) |
+| Pass 5 (resume #1, under the SECOND hold) | method: re-derivation (non-author, 58041dbd's hunks) | found: 11 | new: 11 | fixed: 0 (held) | finders: native Opus a493302ecc82f2e19 (58041dbd's R1-R13 hunks; 11 findings F1-F11, 69 tool uses, 220k tokens, executed R1/R2 probes + the eight suites at HEAD = 515 passed) · orchestrator (the 13 touched suites at HEAD: 794 passed, 1 failed — the kaizen split-block emitter test, a committed regression from 2f984062) — the fleet-quota hold fired again at 01:24 before adjudication; the pass could not be stopped (TaskStop held) and its table survived only in the task file |
+| Pass 6 (resume #2, hold lifted) | method: citation + fix (F1-F11 adjudicated, sibling reds) | found: 14 | new: 3 | fixed: 14 | finders: orchestrator (F1 verified restored by a sibling at a9e5fd4a with its grader; F2-F10 fixed with graders; F11 recorded; the :3729 session bar + `_drain_band` parse folded into F4/R5; the emitter regression root-fixed in the last-turn reader; two sibling-committed red board tests repaired) · pool closing reader ×3 over the source hunks (deepseek-v4-flash 3/5 + nemotron-3-super 3/5: P8-1..P8-3 — two fixed, one refuted; minimax returned nothing, scored 0; a first ×3 dispatch over the full 11-file diff timed out at 700 s with no unit complete — the class filed as 01M1VTV7HS5502XA6K12R3N6JH) · native non-author reader over c233c0b7 (Opus, 17 tool uses, 179k tokens: N1-N10 — 10 of 12 named scenarios executed; two closed by 21e8c5a6 before it returned, one accepted by contract, one closed by the artifact commit, six fixed) |
+| Pass 7 (closing, pool) | method: re-derivation (author-blind, source hunks of c233c0b7) | found: 3 | new: 3 | fixed: 2 | finders: pool deepseek-v4-flash (3/5) + nemotron-3-super (3/5) — P8-1 fixed, P8-2 fixed, P8-3 refuted (`_finite`); minimax no report (0); the first ×3 over the full diff timed out |
+| Pass 8 (closing, native) | method: re-derivation (author-blind, c233c0b7 + parent + 58041dbd copies) | found: 10 | new: 10 | fixed: 6 | finders: native Opus (17 tool uses, 10 of 12 scenarios executed) — N1/N2 already closed at 21e8c5a6, N3 grader extended, N4/N5/N7/N8/N10 fixed at b61f3baf, N6 closed by this commit, N9 accepted by contract |
+| Pass 9 (closing, no-op) | method: full re-sweep of the class ledger over the final tree (b61f3baf) | found: 0 | new: 0 | fixed: 0 | finders: orchestrator — twins cmp-identical; 0 live-tree code readers of the deleted constants (a 34-hit grep: 32 in 8 stale `.claude/worktrees/agent-*` copies, 2 in the grader's own docstring); 0 copies of the old no-relief string; suites at b61f3baf: 317 + 103 + 166 passed; gate at b61f3baf embedded; artifact md5 stamped before this row and unchanged after it |
 
 **Refuted with the citation that refutes it (20):** O2 (`updated_ts` is written only by `_mutate` → command_run.py `step/round/done/blocked/handoff`; `line`/`thread_anchor` never write — a touch after close could only come from `step/round`, which A-F4 now refuses) · C1 (`_returns_at` is consumed at two sites, not unused) · C2 (`_queue` ghost placement after equal times is the documented tie rule; a grader asserts it) · C3 (`five_hour` reset for a not-weekly-walled active IS the correct bucket — the weekly bucket applies only when cap-walled, `_returns_at:…`) · C4 (`_display_order` rotation-order grader is deterministic: it injects `_NOW`) · C8 (the pending-login row renders from `assignments.json` presence, not from a probe — no probe can flap it) · D2 (the 420 s slack fails CLOSED on a dead cron: the reading is refused, the tick falls to escalation-only, which is the intended direction; the operator's 20 s tick claim was about the escalation path, not the cron) · D3 (an explicit `ROTATE_CACHE_TRUST_S` equal to max-age is the operator's own knife-edge; a warning line was measured at zero fire rate on the live env — FIX DIRECTIVE 5, rejected) · D4 (the SAME-ACCOUNT head line "NO other account" is TRUE in that branch — no other account is eligible; the body names the account) · E3 (CRLF pages: the grader added this round PASSED without a code change — the renderer already normalises; recorded as a guard, not a fix) · F1–F7 (the seven CHANGELOG numbers re-derived by the producing tools: 212/212 → 214/214 today after two new headers, 42 rendered pages `--check`, 163 → 172 family after this pass, 10/4 tests, 4 of 12 commits with docs rows, 55/16/8 dashboard rows, 5/5 fleet dirs — the two that moved were superseded by later commits, none was wrong when written).
 
@@ -463,13 +468,40 @@ Changed paths: 147 (enumerated by sha, never by range — sibling commits interl
 | R6 MEDIUM a third parse of the knob with a fourth semantics | N4 | FIXED | `_session_bar()` parses like `_env_float`; grader over nan/abc/""/inf |
 | R7 MEDIUM the env-branch `$HOME` refusal returned None instead of falling through to the cwd walk (double banner / double deny) | N4 | FIXED | fall-through; grader |
 | R8 LOW the two stale-bound parses were hand-copied, nothing bound them | N4 | FIXED | parity grader over nine values |
-| R9 LOW `_display_order` kept a dead `now is None` branch after its signature tightened | N4 | FIXED | removed |
-| R10 LOW `_stale` counted (entry, hook) pairs; `_missing` unused | N4 | FIXED | entries counted, `_missing` deleted |
+| R9 LOW `_display_order` kept a dead `now is None` branch after its signature tightened | N4 | **MIS-FIXED → F1/F2** | 58041dbd deleted the LIVE default from `_pool_credits` instead (board froze; restored by a sibling at a9e5fd4a with a grader); `_display_order`'s branch still stands at HEAD and is left — its `now` is typed and every caller passes one |
+| R10 LOW `_stale` counted (entry, hook) pairs; `_missing` unused | N4 | **REVERSED → F5** | counting entries was fail-open (one entry carrying a script twice IS two registrations — Claude Code runs every hook dict); pairs restored, grader flipped, the fixer's repair asserted; `_missing` stays deleted (0 callers) |
 | R11 LOW the C-1 grader passed only inside one wall-clock second | N4 | FIXED (0ddf4106, before N4 returned) | the append follows `_touch`; deterministic grader across a 1.1 s gap |
 | R12 LOW the nested-growth grader counted windows without asserting the hook can read them | N4 | FIXED | asserts through `_review_windows` |
 | R13 LOW the no-relief text claimed "No sibling reports a reset time" after candidacy narrowed | N4 | FIXED | reworded; grader |
 | N5 edge: a non-list `covered` wedged the close inside the fail-soft | N5 | FIXED | the close coerces it; grader |
 | N5 (the append-after-touch hunk itself) | N5 | CLEAN | 0 findings; 10/10 red on e74987e4, 10/10 green |
+| F1 CRITICAL `_pool_credits` lost its `now=None` default (R9 hit the wrong function) | Pass 5 | FIXED-BY-SIBLING (a9e5fd4a) | verified at HEAD; grader `test_quota_dashboard.py:804` calls it the way both real callers do |
+| F2 HIGH CHANGELOG + ledger row R9 asserted a removal that never happened | Pass 5 | FIXED | row R9 rewritten above; the round-4 CHANGELOG entry corrected in place |
+| F3 MED the restoring comment blamed 610c01b8 (which ADDED the guard) | Pass 5 | FIXED | comment names 58041dbd as the remover |
+| F4 MED `_TARGET_SESSION_MAX` + `BLIND_TRIGGER_THRESHOLD` were import-time `float(os.getenv)` reads of the knob `_session_bar` guards | Pass 5 | FIXED | one lazy guarded `_env_pct` parser behind `_session_bar`/`_drain_band` (the fourth copy folded in); constants deleted; grader: `abc`/``/`nan`/`inf` neither crash nor disagree |
+| F5 MED R10's entries count was fail-open + its grader pinned the silence | Pass 5 | FIXED | pairs restored; grader flipped and asserts `--check` = 1 and the fixer collapses the duplicate |
+| F6 MED `_next_session_relief` docstring + the URGENT text still over-claimed (None also when a blocked sibling's reset is unreadable) | Pass 5 | FIXED | both reworded to "blocked by a window with a readable future reset"; twins cmp-identical |
+| F7 LOW the reader floored lo AFTER `lo <= hi`, dropping legacy `[100.7, 100]` pairs | Pass 5 | FIXED | floor before the test; grader `[100.7, 100]` → `(100, 101.0)`, `[102.2, 100]` still junk |
+| F8 LOW `_util` read `time.time()` inside functions handed a clock | Pass 5 | FIXED | `_util(a, k, now=None)`; the clock threaded at `_queue_for_render`, `_returns_at`, `_queue`; grader: `_util` and `_returns_at` agree on a rolled cached row |
+| F9 LOW the R2 grader had a ~10% straddle window | Pass 5 | FIXED | asserts the floored int lo == floor(started_epoch), which the pre-fix float start never produced |
+| F10 LOW hooks-index.md + the installer docstring named bare `--check` as the warn-only gate row | Pass 5 | FIXED | both say `--check --warn`; the doc row explains why bare `--check` fails a warn-only row |
+| F11 INFO 58041dbd carries only `Agent-Role` | Pass 5 | RECORDED | Residual risks + 01M1WD26H60V7S5XBCKVKH2TB7; never amended |
+| Pass-5 out-of-subject: `_fleet_picture` compared the SESSION window to the trip threshold (`fv >= thr`) — a row spent past the bar read `unavailable` | Pass 5 | FIXED | mirrors the picker's own `ROTATE_TARGET_SESSION_MAX_PCT` bar, strict; grader at exactly 85.0 / 85.1 / cap-walled returns weekly-only |
+| Resume: `tests/test_kaizen_hook_emitters.py::test_final_block_split_across_text_blocks_still_counts` red at HEAD | Pass 6 | FIXED (root) | 2f984062's seven-line check read the last turn through a reader that kept only the FIRST text block — a block split across two blocks was refused as incomplete before the emitter ran; the reader now joins every text block (as `_final_message_text` does); the existing grader was the red |
+| Resume: two sibling-committed board tests red at HEAD (`test_braves_monthly_zero…`, `test_exas_unavailability…`; f657d83e/21eba0fb) | Pass 6 | FIXED (tests) | the in-memory TTL stamp from 21eba0fb outlived the disk unlink; the exa test asserted "unconfigured" under a stub that configures every key — both repaired to their own stated intent; author informed |
+| Closing pool P8-1: `_eligible`/`_hottest`/`_relief_candidate` still on wall-clock beside `_returns_at` on the payload clock (F8 residual; raised by 2 of 2 usable units) | pool (deepseek + nemotron) | FIXED | `now` threaded through all three from `_queue`; grader: `_eligible`/`_hottest` agree with `_returns_at` on one rolled cached row |
+| Closing pool P8-2: the installer's repair dropped the WHOLE entry carrying a doubled script, losing another script's hook dict in the same entry | pool (deepseek) | FIXED | only this script's dicts are removed, the entry survives with the others; grader keeps `/opt/other/keep_me.py` |
+| Closing pool P8-3: `math.floor(lo)` before `lo <= hi` crashes on NaN/inf (raised by 2 of 2 units) | pool | REFUTED | `_finite` (:638) returns None for bool/NaN/inf BEFORE the floor — cited by both units without reading it |
+| Closing native N1: the installer's repair dropped a shared entry (executed on a tmp HOME) | native reader (c233c0b7) | FIXED at 21e8c5a6 (before the reader returned) | = P8-2 |
+| Closing native N2: `_queue` judged eligibility on wall-clock beside a payload-clock `returns_at` (executed) | native | FIXED at 21e8c5a6 | = P8-1 |
+| Closing native N3: the F8 grader pinned the signature, not the agreement | native (executed on the pre-fix module) | FIXED at 21e8c5a6 | the extended grader asserts `_eligible`/`_hottest` on the same clock as `_returns_at` — with `_util`'s `now` ignored (wall-clock patched to reset+5) `_eligible(a, reset-1)` reads the rolled 0.0 and turns True against the asserted False |
+| Closing native N4: `docs/workstation/quota-dashboard.md:28` still named the deleted `BLIND_TRIGGER_THRESHOLD` | native | FIXED | names `_drain_band()` / `ROTATE_DRAIN_THRESHOLD` |
+| Closing native N5: `_final_message_text`'s docstring asserted a first-block distinction the join removed | native | FIXED | docstring says both readers join alike and why |
+| Closing native N6: CHANGELOG entry + these ledger rows were uncommitted at c233c0b7 | native | FIXED | this commit carries them; the code commits went first so a green tree was never held uncommitted |
+| Closing native N7: `fv > session_bar` REPLACED `fv >= thr` — a row between a raised bar and the trip read `unavailable` (executed, misconfig edge) | native | FIXED | `session_spent = fv > session_bar or fv >= thr`; grader at bar 97 / trip 95 / row 96 → session-exhausted with its reset; twins identical |
+| Closing native N8: `_env_pct` reproduced the picker's values but dropped its LOUD rejection of non-finite knobs | native | FIXED | stderr line per bad value; grader via capsys |
+| Closing native N9: the joined last-turn text changes three stall-guard verdicts (an incomplete block followed by ≥10 prose lines now passes; a promise after a footer now blocks; a BLOCKED: in block 1 exempts block 2) — census 2 of 235,721 assistant entries carry ≥2 text blocks | native (executed parent vs HEAD) | ACCEPTED | the contract judges the LAST 7 lines of the message, which is what the joined text is; the metric and the check now agree by construction |
+| Closing native N10: the exa repair duplicated the test's setup (a dead first stub + a bare unlink) | native | FIXED | one stub + unlink + mem clear, ordered after the configured-row assertion |
 
 ## Per-phase verdicts
 
@@ -489,6 +521,22 @@ The chain has no plan phases; the surface is twelve commits, verdict per commit 
 | 05d43f7b | caps.json DR mirror | CLEAN (F-class re-derivation) | 0 / 0 |
 | fabrik-lib 32a061f8 + 2a0986a1 (read-only) | CLAUDE.md § 1a + the doc↔script bullet | CLEAN: the two clauses re-read against the hub's; anchors verbatim | 0 / 0 |
 | INDEX / hooks-index / CHANGELOG / DECISIONS (cross-cutting) | claims about code | FIXED: O1a/F8 six rows, O1b hooks-index rows, DC-1..3 grader counts, P2-12/P2-13 claims; DC-4 refuted | 4 / 1 |
+
+### Phase 1 — adjudicate + fix the 11 non-author findings (resume #2)
+
+Verdict: **FIXED** — F1 verified restored (`scripts/sysadmin/quota_dashboard.py:151`), F2–F10 fixed with graders at c233c0b7 (`tests/test_quota_dashboard.py::test_a_garbage_session_bar_knob_neither_crashes_import_nor_disagrees_with_itself`, `tests/test_install_user_hooks.py::test_one_entry_with_two_hook_dicts_is_two_registrations`, `tests/test_stop_hook_spontaneous_review.py::test_a_legacy_sub_second_pair_written_before_the_writer_floored_is_read_whole`).
+
+### Phase 2 — the kaizen emitter regression
+
+Verdict: **FIXED at the root** — `.claude/hooks/final_gate_stop.py` `_final_turn` joins every text block (c233c0b7); the red grader `tests/test_kaizen_hook_emitters.py:503` green; 173 hook-suite tests.
+
+### Phase 3 — artifact + gate at HEAD
+
+Verdict: **DONE** — gate block embedded at b61f3baf (`status: success`, 60/0); Pass 5–9 rows; ledger rows R9/R10 corrected.
+
+### Phase 4 — closing round
+
+Verdict: **CONVERGED** — pool ×3 (2 usable) + native reader adjudicated (P8-1..3, N1..N10), fixes at 21e8c5a6 and b61f3baf, then the edit-free no-op sweep (Pass 9).
 
 ## Gate
 
@@ -515,13 +563,12 @@ Pytest is the hub's deliberate skip (`skipped_checks: ['pytest']`); every touche
     "Coverage Checklist (reviews)",
     "Vendored Drift (sync-excluded repos)",
     "Citations resolve (path:line lands)",
-    "Ticket Breadth (plan sets)",
-    "untracked sources (advisory)"
+    "Ticket Breadth (plan sets)"
   ]
 }
 ```
 
-(`python scripts/final_gate.py --check --json` at e74987e4 on 2026-09-06, verbatim `status`/counts/failures/warnings; full output in the run's scratchpad `gate-final.json`.)
+(`python scripts/final_gate.py --check --json` at b61f3baf on 2026-09-07 — the last code commit of the run; verbatim `status`/counts/failures/warnings; full output in the run's scratchpad `gate10.json`. The earlier stamps at 21e8c5a6, c233c0b7 (2026-09-07) and e74987e4 (2026-09-06) carried the same status and counts.)
 
 ## Residual risks
 
@@ -530,4 +577,5 @@ Pytest is the hub's deliberate skip (`skipped_checks: ['pytest']`); every touche
 - **`covered` ledger growth (accepted):** two floats per closed run per session; a session with hundreds of runs carries hundreds of pairs in one JSON record — no reader is O(n²).
 - **Hub pytest leg OFF (standing hub policy):** the gate's green never asserts the suite; every touched suite was run directly and is cited by count in the Pass Ledger (`386 passed` after pass 2; `514` after pass 1).
 - **Two hold-era commits carry only `Agent-Role` (58041dbd, 3023ef8a):** the quota hold's allow-list refuses multi-line messages and `--trailer`, so a held commit cannot carry the mandated trailer block; never amended on the shared tree (the operator's rule) — the bodies name Agent-Name/Context/Co-Authored-By in prose. The hold-side contract conflict is filed to infra as 01M1WD26H60V7S5XBCKVKH2TB7 (admit `--trailer` in the hold's commit flag set).
+- **The round-4 CHANGELOG entry rode a sibling's commit (f657d83e):** written uncommitted under the hold, it was swept into their `git commit -- CHANGELOG.md` (the e001baa5 class — a pathspec commit reads the working tree); content intact, attribution wrong; no rewrite.
 - **The sibling stash/restore class (filed to intel earlier, then hit here):** a concurrent commit's pre-commit stash/restore clobbered one of my in-flight edits; every edited file was snapshotted to the scratchpad before further mutation and the clobbered hunk was re-applied from the backup — the same mechanism named in the memory note on `git commit -- <paths>`.
