@@ -192,7 +192,7 @@ These constraints prevent "agent drift" and bikeshedding:
 ## Related Rule Packs
 
 - **`CLAUDE.md` § THE FIX DIRECTIVE** — binding on every fix; its verb 6 IS this pack ("review your own fix and fix what the review finds"), verbs 1-5 are measure → fix-the-class → no-stopgaps → fix+grader → don't overengineer
-- `62-using-subagents.md` — finder dispatch (pool-default vs native-added), the parallelism trap
+- `62-using-subagents.md` — finder dispatch (native seats — the pool is OFF, D-181), the parallelism trap
 - `40-documentation.md` — Documentation Sync Matrix, CHANGELOG, INDEX.md, LESSONS_LEARNT, DECISIONS
 - `45-testing-strategy.md` — Behavior Contract, framework per scaffold, test fixtures
 - `30-ops.md` — Dockerfile + compose checklist (aggregated in the internal audit above)

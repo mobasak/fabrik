@@ -25,6 +25,13 @@ CHECK = (
 )
 
 
+@pytest.fixture(autouse=True)
+def _pool_policy_on_for_legacy_tests(monkeypatch):
+    """The committed constant is OFF (D-182); every test written before it assumes pool-or-declare is
+    live, so the seam pins ON here and the D-182 tests below override it explicitly."""
+    monkeypatch.setenv("FABRIK_POOL_POLICY", "on")
+
+
 def _load():
     spec = importlib.util.spec_from_file_location("csf_mod", CHECK)
     mod = importlib.util.module_from_spec(spec)
@@ -289,9 +296,14 @@ def test_fb4_unstaged_files_excluded_from_surface(tmp_path, monkeypatch):
 # ─────────────────────────── LAYER 2 — advisory (never blocks) ───────────────────────────
 
 
-def _run_advisory(ledger_path: Path) -> subprocess.CompletedProcess:
-    # FABRIK_NO_POOL set → Layer 1 passes → isolates the Layer-2 advisory
-    env = {**os.environ, "FABRIK_NO_POOL": "test-isolate-layer1"}
+def _run_advisory(ledger_path: Path, *, pool_on: bool = True) -> subprocess.CompletedProcess:
+    # FABRIK_NO_POOL set → Layer 1 passes → isolates the Layer-2 advisory; FABRIK_POOL_POLICY pins the
+    # D-182 policy constant (ON by default so the per-run list is exercised; the box's constant is OFF)
+    env = {
+        **os.environ,
+        "FABRIK_NO_POOL": "test-isolate-layer1",
+        "FABRIK_POOL_POLICY": "on" if pool_on else "off",
+    }
     return subprocess.run(
         [sys.executable, str(CHECK), str(ledger_path)],
         capture_output=True,
@@ -390,6 +402,7 @@ def test_unrecorded_warn_names_the_absent_dsn_when_that_is_the_cause(tmp_path, m
     _write_ledger(ledger, [{"ts": _iso(1_000_500.0), "agent_id": "a1"}])
     monkeypatch.setattr(mod, "PROJECT_ROOT", root)
     import types
+
     fake = types.SimpleNamespace(audit_unrecorded=lambda p: [{"agent_id": "a1"}])
     monkeypatch.setitem(sys.modules, "libs.subagents", fake)
     # hermetic: the hub test process itself may carry a real DSN (conftest/.env autoload),
@@ -429,7 +442,9 @@ def test_shared_fallback_dsn_suppresses_unrecordable(tmp_path, monkeypatch, caps
     monkeypatch.setenv("SUBAGENTS_ENV_FILE", str(shared))
     mod._warn_unrecorded(ledger)
     out = capsys.readouterr().out
-    assert "UNRECORDABLE" not in out, f"shared-file DSN not honored — false unrecordable claim:\n{out}"
+    assert "UNRECORDABLE" not in out, (
+        f"shared-file DSN not honored — false unrecordable claim:\n{out}"
+    )
 
 
 @pytest.mark.parametrize(
@@ -465,10 +480,14 @@ def test_dsn_detection_matches_runtime_parser_on_export_and_whitespace(
     monkeypatch.setenv("SUBAGENTS_ENV_FILE", str(shared))
     mod._warn_unrecorded(ledger)
     out = capsys.readouterr().out
-    assert "UNRECORDABLE" not in out, f"runtime-parseable DSN line missed by the check:\n{dsn_line!r}\n{out}"
+    assert "UNRECORDABLE" not in out, (
+        f"runtime-parseable DSN line missed by the check:\n{dsn_line!r}\n{out}"
+    )
 
 
-@pytest.mark.parametrize("commented", ["SUBAGENT_RUNS_DSN=# not set yet", "SUBAGENT_RUNS_DSN=#todo"])
+@pytest.mark.parametrize(
+    "commented", ["SUBAGENT_RUNS_DSN=# not set yet", "SUBAGENT_RUNS_DSN=#todo"]
+)
 def test_commented_out_dsn_value_is_not_counted_present(tmp_path, monkeypatch, capsys, commented):
     """Closing review 2026-08-28: a value that is ENTIRELY a `#`-comment is a commented-out placeholder
     the runtime parser (_dotenv._parse_env_text) treats as empty → NOT loaded → the repo is genuinely
@@ -492,7 +511,9 @@ def test_commented_out_dsn_value_is_not_counted_present(tmp_path, monkeypatch, c
     monkeypatch.setenv("SUBAGENTS_ENV_FILE", str(shared))
     mod._warn_unrecorded(ledger)
     out = capsys.readouterr().out
-    assert "UNRECORDABLE" in out, f"commented-out DSN value wrongly counted as present:\n{commented!r}\n{out}"
+    assert "UNRECORDABLE" in out, (
+        f"commented-out DSN value wrongly counted as present:\n{commented!r}\n{out}"
+    )
 
 
 def test_dsn_detection_survives_bom_and_honors_process_env(tmp_path, monkeypatch, capsys):
@@ -549,7 +570,6 @@ def test_unrecorded_warn_names_the_missing_driver_when_dsn_resolves(tmp_path, mo
     assert "UNRECORDABLE" in out or "cannot record" in out.lower()
 
 
-
 def test_driver_probe_error_fails_open_to_the_generic_message(tmp_path, monkeypatch, capsys):
     """Review round 1: the probe's own failure must read as importable (a broken probe proves
     nothing) — the advisory then falls through to the GENERIC message, never a false claim."""
@@ -575,3 +595,93 @@ def test_driver_probe_error_fails_open_to_the_generic_message(tmp_path, monkeypa
     out = capsys.readouterr().out
     assert "UNRECORDABLE" not in out, "a broken probe must not produce the driver claim"
     assert "never" in out and "scored" in out.lower() or "recorded" in out.lower()
+
+
+# ─────────────────────── D-181 / D-182 — the pool POLICY is a committed constant ───────────────────────
+
+
+def test_pool_policy_is_the_committed_constant_off_by_ruling(monkeypatch):
+    """D-182: the policy lives in the script, not in any credential file — the shipped constant is OFF."""
+    mod = _load()
+    monkeypatch.delenv("FABRIK_POOL_POLICY", raising=False)
+    assert mod._POOL_POLICY_ON is False
+    assert mod._pool_policy_on() is False
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ("on", True),
+        ("1", True),
+        ("TRUE", True),
+        ("off", False),
+        ("0", False),
+        ("false", False),
+        ("  ", False),
+        ("maybe", False),
+    ],
+)
+def test_pool_policy_env_seam(monkeypatch, value, expected):
+    """FABRIK_POOL_POLICY is the test seam (mirrors FABRIK_NO_POOL); anything but an explicit on/off
+    falls back to the committed constant (OFF)."""
+    mod = _load()
+    monkeypatch.setenv("FABRIK_POOL_POLICY", value)
+    assert mod._pool_policy_on() is expected
+
+
+def test_live_credentials_anywhere_are_not_a_policy(tmp_path, monkeypatch):
+    """D-182: the fleet file, the project .env and the process env ALL carry a live key and none of
+    them is the policy — a vendored module with keys everywhere is still unavailable while OFF."""
+    mod = _load()
+    root = tmp_path / "repo"
+    (root / "libs" / "subagents").mkdir(parents=True)
+    (root / "libs" / "subagents" / "__init__.py").write_text("")
+    (root / ".env").write_text("OPENROUTER_API_KEY=sk-or-v1-project\n")
+    fleet = tmp_path / "subagents.env"
+    fleet.write_text("OPENROUTER_API_KEY=sk-or-v1-fleet\n")
+    monkeypatch.setattr(mod, "PROJECT_ROOT", root)
+    monkeypatch.setenv("SUBAGENTS_ENV_FILE", str(fleet))
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-v1-process")
+    monkeypatch.setenv("FABRIK_POOL_POLICY", "off")
+    assert mod._pool_available() is False
+    monkeypatch.setenv("FABRIK_POOL_POLICY", "on")
+    assert mod._pool_available() is True  # the same box, policy back on → enforce again
+
+
+def test_layer1_stands_down_under_pool_off_without_any_declaration(tmp_path, monkeypatch):
+    """The exact D-181 trap: a substantial code change, zero pool runs, NO NO-POOL declaration —
+    with the policy off this is the NORMAL case and must pass, not block."""
+    mod = _load()
+    root = tmp_path / "repo"
+    (root / "libs" / "subagents").mkdir(parents=True)
+    (root / "libs" / "subagents" / "__init__.py").write_text("")
+    monkeypatch.setattr(mod, "PROJECT_ROOT", root)
+    monkeypatch.setattr(mod, "_changed_code_files", lambda: 40)
+    monkeypatch.setattr(mod, "_declared_no_pool", lambda: False)
+    monkeypatch.setattr(mod, "_in_cycle_pool_runs", lambda *_: 0)
+    monkeypatch.delenv("FABRIK_NO_POOL", raising=False)
+    monkeypatch.setenv("FABRIK_POOL_POLICY", "off")
+    assert mod._pool_or_declare(tmp_path / "ledger.jsonl") == 0
+    monkeypatch.setenv("FABRIK_POOL_POLICY", "on")
+    assert (
+        mod._pool_or_declare(tmp_path / "ledger.jsonl") == 1
+    )  # the same change blocks once the pool is back
+
+
+def test_layer2_prints_one_line_under_pool_off_never_the_backlog(tmp_path):
+    """With the pool off the historical unrecorded backlog can never be scored: ONE advisory line
+    naming the ruling and the count, never the per-run id list (which would re-print ~1,100 ids per
+    gate run forever)."""
+    ledger = tmp_path / "ledger.jsonl"
+    _write_ledger(
+        ledger,
+        [
+            {"agent_id": "hist-a1", "model": "minimax/minimax-m3", "task_type": "review"},
+            {"agent_id": "hist-a2", "model": "deepseek/deepseek-v4-flash", "task_type": "docs"},
+        ],
+    )
+    r = _run_advisory(ledger, pool_on=False)
+    assert r.returncode == 0, r.stderr
+    assert "OFF by policy" in r.stdout and "D-182" in r.stdout and "2 historical" in r.stdout
+    assert "hist-a1" not in r.stdout and "hist-a2" not in r.stdout
+    assert r.stdout.count("SUBAGENT FLYWHEEL") == 1

@@ -267,6 +267,8 @@ Pattern A, never Supabase.
 ```markdown
 # Infrastructure Decisions — Shared Across All Epics
 
+> **⚠️ POOL OFF — D-181 (operator, 2026-09-07).** The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable). Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy.
+
 [These decisions are made ONCE. Each epic inherits them. Do NOT re-decide per epic; do NOT copy into epic files.]
 
 ## Database Strategy
@@ -467,12 +469,10 @@ read you already did. **YOU keep the writing** — a unit that returns Success C
 overstepped.
 
 **Then add ≥1 native `fabrik-reviewer` on Opus for the high-risk seam** — that `Owned paths:`
-disjointness carried intact from Phase 1c's parallel gates 2/3 and 3/3 — and back-fill every pool run
-with `set_quality(r.agent_id, score, project="mega-expand", task_type="review", model=r.model)`.
-**Never go all-native on this adjudication and never all-pool either — BOTH layers, always**: the
-pool unit per epic gives breadth and feeds the flywheel; the native Opus pass is the one that catches
-a subtle `Owned paths:` overlap a cheap reviewer would rubber-stamp. Passing `project=` is what
-records the flywheel row in the first place.
+disjointness carried intact from Phase 1c's parallel gates 2/3 and 3/3.
+**Two native layers on this adjudication (the pool is OFF, D-181)**: one Sonnet `fabrik-reviewer`
+seat per epic gives breadth; the native Opus pass is the one that catches a subtle `Owned paths:`
+overlap a cheap reviewer would rubber-stamp.<!-- POOL OFF (D-181): back-fill every pool run with `set_quality(r.agent_id, score, project="mega-expand", task_type="review", model=r.model)`; passing `project=` is what records the flywheel row -->
 
 **5b. Persist the Infrastructure Decisions spec — ONE file, before any ticket, to the SPEC store, not
 the ticket directory:**
@@ -687,10 +687,9 @@ assign owners, and emit the phased dispatch order before any window starts build
   this command. Those are the owning epic's `/fabrik-spec` run's job once dispatched. This matters
   MORE now that one command also writes the ticket files: writing the file is not licence to also
   pre-decide what the file's own downstream command must still design.
-- **Never go all-native on the Phase 5a adjudication, and never all-pool either** — one pool
-  `fanout("review", …, project="mega-expand", mode="read_only")` unit per epic (facts inlined) PLUS
-  ≥1 native `fabrik-reviewer` on Opus for the `Owned paths:` seam, every pool run back-filled by
-  `set_quality`. A unit that returns Success Criteria or Scope has overstepped — the epic-file
+- **Two native layers on the Phase 5a adjudication (the pool is OFF, D-181)** — one Sonnet
+  `fabrik-reviewer` seat per epic (facts inlined) PLUS ≥1 native `fabrik-reviewer` on Opus for the
+  `Owned paths:` seam.<!-- POOL OFF (D-181): one pool `fanout("review", …, project="mega-expand", mode="read_only")` unit per epic, every run back-filled by `set_quality` --> A unit that returns Success Criteria or Scope has overstepped — the epic-file
   CONTENT stays single-agent Opus.
 - **Never write a ticket that will not fit the template** — a ticket too large for the structure
   means the epic is over-scoped; route back to Phase 1 and re-cut the boundary, never stretch the

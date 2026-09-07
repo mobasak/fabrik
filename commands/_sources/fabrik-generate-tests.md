@@ -1,17 +1,24 @@
 ---
-description: Generate Behavior-Contract tests for a target (module/dir/file, or a phase's Behavior Contract) by offloading authoring to cheap pool models — suggest (diverse) → YOU curate → author in parallel (write-mode, sandboxed, self-verified) → YOU review test-quality → git apply survivors. Standalone (backfill a suite), or auto-called by /fabrik-execute-plan per phase (its Execution Loop and dispatcher D4) and cited by /fabrik-plan-review as what a test-light plan owes; /fabrik-review renders the same shared fragment rather than copying it. TRIGGER — EN: "write tests for this", "backfill test coverage"; TR: "bunun için test yaz", "test kapsamını tamamla" — fires for AUTHORING new tests, not reviewing code. SKIP: adversarial code review (→ /fabrik-review) or full phase execution (→ /fabrik-execute-plan). Stage: 4-build.
+description: Generate Behavior-Contract tests for a target (module/dir/file, or a phase's Behavior Contract) with native Claude seats (the pool is OFF, D-181) — suggest (2–3 seats) → YOU curate → author in parallel (one seat per behavior, self-verified) → YOU review test-quality → git apply survivors. Standalone (backfill a suite), or auto-called by /fabrik-execute-plan per phase (its Execution Loop and dispatcher D4) and cited by /fabrik-plan-review as what a test-light plan owes; /fabrik-review renders the same shared fragment rather than copying it. TRIGGER — EN: "write tests for this", "backfill test coverage"; TR: "bunun için test yaz", "test kapsamını tamamla" — fires for AUTHORING new tests, not reviewing code. SKIP: adversarial code review (→ /fabrik-review) or full phase execution (→ /fabrik-execute-plan). Stage: 4-build.
 argument-hint: "<module|dir|file to test — or a phase's Behavior Contract; omit to infer the behaviors from the current diff>"
 ---
 
-# Behavior-Contract Test Generation — the pool authors, you curate
+# Behavior-Contract Test Generation — native seats author, you curate
+
+> **⚠️ POOL OFF — D-181 (operator, 2026-09-07).** The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable). Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy.
 
 Turn "test every user-observable behavior" (the Behavior Contract — `CLAUDE.md` Completion Contract +
-`.windsurf/rules/core/45-testing-strategy.md`) from a rule into cheap, minutes-not-hours reality: **cheap pool
-models author the tests; you own WHAT gets tested and the final quality.** Target = `$ARGUMENTS` (a module / dir
+`.windsurf/rules/core/45-testing-strategy.md`) from a rule into cheap, minutes-not-hours reality: **native Claude
+seats author the tests (the pool is OFF, D-181); you own WHAT gets tested and the final quality.** Target = `$ARGUMENTS` (a module / dir
 / file, or a phase's `## Behavior Contract`); if empty, infer the behaviors from the current changed surface
 (`git diff`). Never author trivia (getters / framework glue / config) — lean-but-complete, one test per behavior.
 
 {{include:run-record}}
+## Import — nothing to import while the pool is OFF (D-181)
+
+The suggest/author seats are native Claude Task subagents; `libs/subagents` is not called. The vendored-pool import contract is kept below for re-enable.
+
+<!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 ## Import the VENDORED pool (`from libs.subagents import …`)
 
 `fanout` / `pick_models` / `set_quality` come from the **vendored** `libs/subagents` (copied from canonical
@@ -39,6 +46,7 @@ not an absent vendor), then: "vendor `libs/subagents` (the cp above) AND install
 `fanout(...)` directly, and proceeding un-guarded dies as a bare `TypeError` mid-pipeline instead of a
 diagnosis.
 
+-->
 ## The loop — suggest → curate → author → review → apply
 
 **Context is never a reason to stop:** the harness auto-compacts and the run continues — keep going.
@@ -50,20 +58,25 @@ The `###` sections below are the per-step DETAIL for exactly those five steps, a
 `/fabrik-review` renders too — it is the ONE place the shape is defined. **Edit the fragment, not the
 copy**, or the reviewer's view of this pipeline silently stops matching the pipeline.
 
-### 1. Suggest (pool, multi-model — diversity is the whole point)
-Dispatch **2–3 diverse cheap models** to each propose the distinct user-observable behaviors of the target, then
+### 1. Suggest (native, 2–3 seats — diversity of briefs is the whole point)
+Dispatch **2–3 native seats (Sonnet), each with a differently-angled brief,** to each propose the distinct user-observable behaviors of the target, then
 **union** them (a single suggester is the blind spot — different families catch what one misses):
 
+<!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 ```python
 results, table = fanout("review", units=[SUGGEST_PROMPT] * 3, repo=REPO, project="test-gen",
                         mode="read_only")   # 3 UNITS -> 3 agents (draw defaults to len(units); if the ranking is thin, duplicates share a model) on 3 diverse models (k alone only sizes the model DRAW; one unit = ONE agent). read_only -> inline the target's code into SUGGEST_PROMPT
 ```
+-->
 
 ### 2. Curate (YOU — the anti-bloat + anti-gap gate)
 Evaluate the union: ADD missing behaviors, CUT trivia + dupes, RISK-ORDER. **You own WHAT gets tested** — bloat
 and gaps are stopped here, before any authoring spend. Emit a curated list: one behavior per line, each a
 `Given / When / Then`, mapped to the test file it belongs in.
 
+(No flywheel to score while the pool is OFF — D-181.)
+
+<!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 Curating IS your verdict on the suggesters, so **score them back to the flywheel** (the suggest `fanout` recorded
 them UNSCORED too — same trap as the authors); this sharpens `pick_models("review")` for behavior-suggesting —
 the same record-then-score discipline the authors get:
@@ -74,6 +87,7 @@ for r in results:                        # the SUGGEST results from step 1 (befo
                 project="test-gen", task_type="review", model=r.model)
 ```
 
+-->
 ### 3. Commit the code-under-test FIRST (mandatory)
 Tool-enabled authors run in a worktree on **committed HEAD** (`git worktree add --detach HEAD`) — which is
 also the secrets boundary: a worktree carries only tracked files, so an UNCOMMITTED `.env`/key never
@@ -86,7 +100,10 @@ tests target MUST be committed (or fully inlined into the author task). Commit i
 pathspecs + provenance trailers per CLAUDE.md § EXIT, never `git add -A` on the shared tree** (mid-pipeline is
 exactly when a sibling's WIP gets swept in) — else the authors test stale/absent code.
 
-### 4. Author (pool, parallel — one author per curated behavior)
+### 4. Author (native, parallel — one seat per curated behavior)
+One native `general-purpose` seat per curated behavior (Sonnet), each with a DISJOINT test file, briefed to write ONLY that file — never the code under test — and to run `pytest` on it (activating the project's `.venv` first) before returning; commit the code-under-test first (step 3) so every seat reads the same HEAD. Dispatch them in parallel; a seat that returns without a collecting test is re-dispatched once, then the behavior is yours to author.
+
+<!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 ```python
 units = [{"task": AUTHOR_PROMPT(b), "owned_paths": [test_file_for(b)]} for b in curated]  # DISJOINT paths
 results, table = fanout("code", units=units, repo=REPO, project="test-gen", mode="write")
@@ -106,16 +123,20 @@ results, table = fanout("code", units=units, repo=REPO, project="test-gen", mode
   in a non-inherited `.venv`, `AUTHOR_PROMPT` MUST activate it (`source .venv/bin/activate` / the project's
   runner) before `pytest`, or self-verify fails on import.
 
-### 5. Review test-quality (YOU) → score the flywheel → apply the survivors
-For each captured `result.diff`: **would the test FAIL if the behavior broke?** Real assertions, no mock-theater,
+-->
+### 5. Review test-quality (YOU) → keep the survivors
+For each authored test file: **would the test FAIL if the behavior broke?** Real assertions, no mock-theater,
 no test that passes if the feature is reverted (`45-testing-strategy.md` + `/fabrik-review`'s test-quality
 checklist). **And: could it fail in THIS environment at all?** A test whose environment cannot express the
 failure (a superuser role for an RLS behavior, one tenant for an isolation behavior) is green for the wrong
 reason — flag it rather than banking it; never degrade shared or paid infrastructure to make it provable. Then
-**`git apply`** each surviving diff into the tree; fix any weak test yourself. Finally
+keep each surviving test (the seats wrote them in the tree — delete a rejected one); fix any weak test yourself. Finally
 `FABRIK_MUTMUT=1 python scripts/enforcement/check_mutation.py` on the applied code confirms the tests kill
 mutants (advisory).
 
+(No flywheel back-fill while the pool is OFF — D-181; your test-quality review is the whole verdict.)
+
+<!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 **Back-fill the verdict — the step `fanout` cannot do for you.** `fanout` recorded every author at DISPATCH with
 a `NULL` `quality_score`; your review above IS the ground-truth verdict, so feed it back or the flywheel learns
 nothing about which code models author good tests:
@@ -131,6 +152,10 @@ hallucinated/weak test scored 4/5 poisons `pick_models("code")`. `set_quality` i
 scored delta row keyed on `agent_id`); a capped/errored author auto-coerces to `NULL` (a provider stall is not a
 bad model). Skipping this leaves every row `NULL` and `pick_models("code")` never sharpens.
 
+-->
+### Housekeeping — SUSPENDED (D-181): native seats leave no `.tmp/subagents` worktrees
+
+<!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 ### Housekeeping — prune orphaned author worktrees (before a high-volume run)
 A killed author process leaks its `.tmp/subagents/<id>` worktree (`git worktree prune` alone won't remove the
 dir). Sweep them first:
@@ -141,13 +166,19 @@ dir). Sweep them first:
 git worktree prune; find .tmp/subagents -maxdepth 1 -type d -name 'agent-*' -mmin +120 -exec rm -rf {} + 2>/dev/null || true
 ```
 
+-->
 ## Where this auto-fires (3 call sites — the same loop, different trigger)
 - **`/fabrik-execute-plan`, per phase (proactive):** after the phase CODE is committed + the phase gate is green,
   BEFORE the phase-boundary `/fabrik-review` — author the tests for the phase's `## Behavior Contract` behaviors
-  the implementer did NOT already TDD (the risky behaviors stay implementer-TDD'd; the pool fills the rest).
+  the implementer did NOT already TDD (the risky behaviors stay implementer-TDD'd; native seats fill the rest).
 - **`/fabrik-review` (reactive):** when a review finds a behavior with NO test, it invokes this loop for it.
 - **Standalone (`/fabrik-generate-tests <module>`):** backfill an existing untested suite.
 
+## Subagents — no flywheel while the pool is OFF (D-181)
+
+A native seat has no `AgentResult`: nothing records, nothing is scored, and `check_subagent_flywheel.py` stands down by the same ruling (D-182) — no `NO-POOL:` is owed. The pool recording contract is kept below for re-enable.
+
+<!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 ## Subagents — flywheel (fanout records; YOU score)
 `fanout(record=True, project=…)` records each author automatically — but **UNSCORED** (a `NULL` `quality_score`
 at dispatch), so you never call `record_agent_run` by hand (⚠️ and NOT `record_run`, which no-ops on a raw
@@ -157,3 +188,4 @@ authors at review (step 5, `task_type="code"`). Skip the score and rows stay `NU
 sharpens for either role. `scripts/enforcement/check_subagent_flywheel.py` BLOCKS the gate on a substantial code
 change with ZERO pool runs (pool-or-declare) — running THIS command on a phase's Behavior Contract is exactly how
 you satisfy it for test-shaped work.
+-->

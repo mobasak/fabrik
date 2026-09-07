@@ -3,6 +3,8 @@ description: Author the project's deployment-verification CONTRACT — `scripts/
 argument-hint: "[optional: a subsystem to scope the rows — omit to derive the whole deployed product]"
 ---
 
+> **⚠️ POOL OFF — D-181 (operator, 2026-09-07).** The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable). Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy.
+
 Author this project's **deployment-verification contract** — the artifact that lets a deploy be certified
 against what was BUILT rather than against liveness alone. It exists because a service passed every
 liveness check while holding 0 of its 760 companies: nothing anywhere had declared what the deployed
@@ -77,7 +79,7 @@ Record every derivation as the COMMAND that produced it and its COUNT (`routes: 
 `services: 4 + 1 sidecar` · `env keys: 32 distinct over 49 sites`). A count without its command is a
 claim.
 
-**Parallelism — the default with 2+ derivation surfaces:** one pool grounder per surface (routes · jobs ·
+**Parallelism — the default with 2+ derivation surfaces:** one native grounder per surface (routes · jobs ·
 env · services · schema) per § Subagents; the exclusion-set judgement and every DEV measurement stay
 native — they read the project's own environment.
 

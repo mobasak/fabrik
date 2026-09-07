@@ -78,7 +78,7 @@ PILLAR_SECTIONS = [
 # third `#` is not whitespace).
 #
 # The NAME SET is the concept, not two literals: the same live spine puts its mandates under
-# `## Phase gates (every ticket)` and `## Subagent dispatch (pool-default…)`, which are execution
+# `## Phase gates (every ticket)` and `## Subagent dispatch (native — pool OFF, D-181)`, which are execution
 # -mandate sections by any reading. `/fabrik-plan-after-chat` still mandates ONE canonical heading
 # so new plans converge on it; this set is what the gate ACCEPTS, deliberately wider than what the
 # command PRESCRIBES, because an advisory check should never punish a plan that did the right
@@ -258,21 +258,30 @@ SPINE_PILLAR_PATTERNS = [
         "coverage-adjudicated exit BEFORE its merge",
     ),
     (
-        "pool-default dispatch policy",
+        "dispatch policy",
         # Deliberately GENEROUS. A gate that cries wolf on a compliant plan gets ignored, and every
         # one of these MISSED before (native review, reproduced): "the OpenRouter pool is the
         # default worker for the gradeable finders", "pool by default (`pick_models`)", "Use
-        # `fanout` with task_type='review'" — each a correct statement of the policy.
+        # `fanout` with task_type='review'" — each a correct statement of the policy AS IT WAS.
+        # D-181 (2026-09-07) turned the pool OFF: the policy a spine states now is NATIVE — "every
+        # fan-out runs native Claude subagents", "native finders per ticket", "dispatch: native
+        # (pool OFF, D-181)". Both vocabularies satisfy the pillar (a spine written before D-181 is
+        # not retroactively defective); the message names the CURRENT policy.
         re.compile(
             r"\bpool[- ]default\b"
             r"|\bfanout\b"
             r"|\bpick_models\b"
             r"|\bpool\b[^.\n]{0,40}\bdefault\b"
-            r"|\bdefault\b[^.\n]{0,40}\bpool\b",
+            r"|\bdefault\b[^.\n]{0,40}\bpool\b"
+            r"|\bnative\b[^.\n]{0,40}\b(?:subagents?|finders?|coders?|grounders?|seats?|dispatch)\b"
+            r"|\b(?:dispatch|fan[- ]out)\b[^.\n]{0,40}\bnative\b"
+            r"|\bpool\b[^.\n]{0,20}\bOFF\b"
+            r"|\bD-181\b",
             re.I,
         ),
-        "state on the spine: pool-default (fanout(task_type, …)) for gradeable work, native "
-        "added on top for GUI / high-risk / decide-merge",
+        "state on the spine: the dispatch policy — native Claude subagents for every fan-out "
+        "(the OpenRouter pool is OFF, D-181), the native authoritative seat for GUI / high-risk / "
+        "decide-merge",
     ),
     (
         "parallelism + where results merge",

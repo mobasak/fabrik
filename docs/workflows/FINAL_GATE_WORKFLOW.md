@@ -174,7 +174,7 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
   - Only runs if .py or .sql files changed
 - **Doc Sync Matrix** - `check_doc_sync.py`
   - The single "update docs when code changes" gate — consolidates what `check_changelog.py` / `check_index_md.py` / `check_configuration_md.py` / `check_openapi_sync.py` used to check (those 5 scripts still exist on disk but are dead code, never invoked — see § All Checks Reference)
-- **Subagent Flywheel (pool-or-declare — BLOCKING)** - `check_subagent_flywheel.py` — fails the gate when a substantial code change ran zero pool subagent runs and carries no `NO-POOL:` declaration
+- **Subagent Flywheel (pool-or-declare — BLOCKING; STANDS DOWN under D-181)** - `check_subagent_flywheel.py` — the pool is OFF by ruling (D-181/D-182, 2026-09-07 — the committed constant `_POOL_POLICY_ON = False` in the script; `FABRIK_POOL_POLICY=on|off` is the test seam): Layer 1 never blocks and no `NO-POOL:` is owed, Layer 2 prints one line. With the constant flipped back on it fails the gate when a substantial code change ran zero pool subagent runs and carries no `NO-POOL:` declaration
 - **Mutation (opt-in FABRIK_MUTMUT)** - `check_mutation.py` *(ADVISORY row)* — through the gate it ALWAYS prints the pointer and exits 0: `final_gate.py` deliberately strips `FABRIK_MUTMUT` for this one child (a set flag would start a session-detached mutmut the gate's 120s timeout then orphans). A real mutation run happens only by DIRECT invocation (`FABRIK_MUTMUT=1 python scripts/enforcement/check_mutation.py`) or the Sunday 05:00 cron
 - **Doc stub fill** - `check_doc_stubs.py` *(ADVISORY row)*
 - **Script Coupling Header** - `check_script_headers.py` *(ADVISORY row)*
@@ -432,7 +432,7 @@ All repo consistency checks are implemented by scripts in `scripts/enforcement/`
 - `check_doc_sync.py` — Doc Sync Matrix (the consolidated "update docs when code changes" gate)
 - `check_imports_resolvable.py` — Phantom-import guard (clean-checkout parity, advisory)
 - `check_lint_ratchet.py` — Repo-wide ruff count may only go down (advisory)
-- `check_subagent_flywheel.py` — Pool-or-declare subagent flywheel (BLOCKING)
+- `check_subagent_flywheel.py` — Pool-or-declare subagent flywheel (BLOCKING while the pool policy is ON; stands down under D-181/D-182 — the committed `_POOL_POLICY_ON` constant)
 - `check_mutation.py` — Mutation testing (ADVISORY row; a real run only via direct `FABRIK_MUTMUT=1` invocation or the Sunday cron — the gate strips the flag for its own child, orphan protection)
 - `check_doc_stubs.py` — Doc stub force-fill (ADVISORY row)
 - `check_script_headers.py` — Script `# AFTER-EDIT:` coupling header (ADVISORY row)

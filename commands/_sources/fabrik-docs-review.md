@@ -39,6 +39,8 @@ you close** — a bare close would end the CALLER when this command runs nested 
 
 ```bash
 # The lock records exactly what was distributed to THIS project. PORTS.md + docs/DECISIONS.md are
+
+> **⚠️ POOL OFF — D-181 (operator, 2026-09-07).** The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable). Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy.
 # SEEDED_NOT_ENFORCED (live set: fabrik_synced_manifest.py; projects may edit them) → they stay
 # normal reconciliation targets.
 python3 -c "import json;print('\n'.join(sorted(json.load(open('.fabrik/synced.lock')))))" | grep -vxF -e 'PORTS.md' -e 'docs/DECISIONS.md'
@@ -132,8 +134,8 @@ re-run yourself.
 
 After each pass, show what you VERIFIED (which code/paths you actually read) and what you
 found, then fix. **Dispatch the doc author-fixes through the Tier-1 reconcile loop** —
-`scripts/doc_reconcile.py` / a `pick_models("docs")` pool author emitting a **minimal
-structured patch, verified-before-applied** (records the flywheel) — rather than hand-editing
+`scripts/doc_reconcile.py` (its pool author is OFF — D-181 — so its author leg is a native `general-purpose` seat, or you) emitting a **minimal
+structured patch, verified-before-applied** — rather than hand-editing
 each doc; keep the Opus adjudication (what's actually wrong + the routing decision) yours.
 **The loop ends ONLY when a full, demonstrably-thorough pass finds zero
 new discrepancies AND makes zero doc edits — a no-op pass.** The pass in which you *fixed*

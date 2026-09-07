@@ -5,6 +5,8 @@ argument-hint: "[NEW: omit — the interview begins, or name a research file/dir
 
 # Vision Summary — multi-epic project intake (NEW) or continuation (EXISTING)
 
+> **⚠️ POOL OFF — D-181 (operator, 2026-09-07).** The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable). Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy.
+
 You are a **project intake architect**. Take the owner's research (or run an interview) and turn it into a
 Vision Summary that `/fabrik-epics` splits into typed epic files — grounding every feature, constraint and
 technology choice against what Fabrik actually is, and surfacing what the research MISSED rather than
@@ -78,7 +80,7 @@ report it, don't quietly absorb the cost of a silent extra read).
   command names are NOT in that class — both ARE glob-activated, so `select_rules.py` surfaces them on a
   matching project on its own: `core/65-rag-search.md` and the mobile design-system sibling
   `mobile-app/ocoron-mobile-design-system.md`.
-- LIVE external sources for Phase 3's dual gate — pool grounders: exa / brave / firecrawl / context7 (the
+- LIVE external sources for Phase 3's dual gate — native `fabrik-researcher` grounders over exa / brave / firecrawl / context7 (the
   four `/opt/fabrik/mcp.json` defines); the orchestrator additionally: `WebSearch`/`WebFetch`,
   `mcp__github` (a dep's real source / latest release), and the session-recall MCP (own history — a LEAD,
   never a citation). Cite URL + fetch date.
@@ -136,7 +138,7 @@ covers only the deploy/runtime detail of stages 3–4 below. Every project passe
    `docs/preplans/*.md`; `fabrik preplan` merely files/ingests the artifact) → `fabrik scaffold` → AI
    guardrails + spec `shape:` block. The scaffold is a Context Injection.
 2. **Agentic Implementation (WSL)** — tickets dispatched to agents (Claude Code Max-OAuth agents +
-   OpenRouter-pool workers per `core/62-using-subagents.md`).
+   the OpenRouter-pool workers are OFF, D-181, per `core/62-using-subagents.md`).
 3. **Proper Registration (VPS)** — `fabrik apply` fires **10** registrars. **Only 7 are flag-driven** —
    postgres (`needs_database`), redis (`needs_cache`), gatus (`is_public`+domain), backrest
    (`has_persistent_data`), authelia (`is_admin_dashboard`+domain), meilisearch (`has_search_feature`),
@@ -550,12 +552,9 @@ route the website side to `/opt/web-ecommerce-factory`; retain only the non-webs
 (Phase 4) until all three sub-steps below pass — the first two are ⛔ BLOCKING; the third (the fabrik-lib
 ladder) must be completed but does not block on an external unknown.
 
-**1 — External facts (BLOCKING).** ⚡ **Dispatch the grounders in PARALLEL** — one per external
-dependency — via `fanout("research", units, repo="/opt/<project>", project="mega-trigger",
-mode="read_only", web_tools=["web_search","web_search_brave","web_scrape","docs_lookup"],
-mcp_servers=["exa","brave-search","firecrawl","context7"], mcp_config="/opt/fabrik/mcp.json")`, then add
-**≥1 native `fabrik-researcher` on Opus** as the authoritative citation-verify pass; back-fill each pool
-run with `set_quality(r.agent_id, score, project="mega-trigger", task_type="research", model=r.model)`,
+**1 — External facts (BLOCKING).** ⚡ **Dispatch the grounders in PARALLEL** — one native
+`fabrik-researcher` seat per external dependency (the pool is OFF, D-181), then add
+**≥1 native `fabrik-researcher` on Opus** as the authoritative citation-verify pass;<!-- POOL OFF (D-181): via `fanout("research", units, repo="/opt/<project>", project="mega-trigger", mode="read_only", web_tools=["web_search","web_search_brave","web_scrape","docs_lookup"], mcp_servers=["exa","brave-search","firecrawl","context7"], mcp_config="/opt/fabrik/mcp.json")`; back-fill each pool run with `set_quality(r.agent_id, score, project="mega-trigger", task_type="research", model=r.model)` -->
 where `score` is your 0-to-5 verdict on that grounder (0 = the citation didn't hold; 5 = it confirmed the
 fact). **You keep the synthesis** — the grounders return facts, you decide the vision. For **every**
 external dependency the vision names — 3rd-party API / SDK, vendor, **pricing, rate limits**,

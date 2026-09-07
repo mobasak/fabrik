@@ -3,6 +3,8 @@ description: LIGHT diff-scoped review with the full convergence spine — for SP
 argument-hint: "[paths or a git range — omit to review this session's uncommitted + unpushed work]"
 ---
 
+> **⚠️ POOL OFF — D-181 (operator, 2026-09-07).** The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable). Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy.
+
 The **light half of the review pair** — same convergence law as `/fabrik-review`, none of its
 machinery weight. Exists because the § 1a self-review mandate was prose, the full command is heavy
 artillery, and spontaneous 20-line changes were shipping reviewed by nobody (operator, 2026-08-29:
@@ -49,7 +51,7 @@ proportionate answer.
 5. **Loop:** middle passes scoped to the fixes + their callers; the closing pass re-reads the whole
    changed surface fresh. Done ONLY on a pass that raises **zero new candidates** — minimum two
    passes, the fixing pass is never the last. Three rounds with new findings each = the surface
-   outgrew this command: STOP and run the full `/fabrik-review` (its pool breadth exists for
+   outgrew this command: STOP and run the full `/fabrik-review` (its multi-seat breadth exists for
    exactly this).
    ⚠️ **The CLOSING pass owes ONE INDEPENDENT reader that actually RETURNED — a self-sweep may not
    close this loop.** Every other exit condition here is satisfiable by the orchestrator's own
@@ -63,6 +65,8 @@ proportionate answer.
    through the independent layer — including a commit whose comment AND message both described a
    redirect that was never added, which two self-sweeps had read straight past.
    **The floor is ONE reader, not the heavy command's breadth** — that is what keeps this light:
+   a single native `fabrik-reviewer` (Sonnet) over the diff — and on a non-trivial diff pass the SAME brief to 2–3 native seats and adjudicate the union (measured on one diff: 1 seat found 0, 3 seats found 0 / 5 / 0, and the 5 held a real fail-open two self-sweeps had read past — web-ecommerce-factory 01M1RAAX, 2026-09-05). It must have RETURNED: a seat that was dispatched and died is not a reader, and its absence is not a clean round. The pool form of this floor is kept below for re-enable (D-181):
+<!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
    a read-only `fanout("review", …, mode="read_only")` over the diff (cents, no Claude quota, and it
    records to the flywheel) or a single native `fabrik-reviewer`. It must have RETURNED: a finder
    that was dispatched and died is not a reader, and its absence is not a clean round. ⚠️ **The fan
@@ -77,6 +81,7 @@ proportionate answer.
    families found 0 / 5 / 0, and the 5 held a real fail-open that two self-sweeps had read past
    (web-ecommerce-factory 01M1RAAX, 2026-09-05; the extra readers cost $0.02). The floor stays one
    RETURNED reader; the width is what makes the one reader worth having.
+-->
 6. **Gate + close:** `python scripts/final_gate.py --check --json` green on your files, then
    `done --command fabrik-review-scoped --evidence "round <n>: new 0; <x> fixed / <y> refuted; independent reader <what> returned <n> candidate(s), adjudicated <how>" --feedback "<what you filed, to whom | none — surfaces exercised>"`.
    The evidence NAMES the independent reader and what it returned — "0 new" with no reader named is

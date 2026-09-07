@@ -3,6 +3,8 @@ description: Full-project adversarial code review + fix — discover units → p
 argument-hint: "[subsystem/dir/risk-tier to scope — omit for the whole repo]"
 ---
 
+> **⚠️ POOL OFF — D-181 (operator, 2026-09-07).** The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable). Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy.
+
 FULL PROJECT CODE REVIEW
 
 Adversarially review — and fix — this Fabrik project's codebase using multiple
@@ -40,8 +42,9 @@ and say so.
 
 One reviewer per unit, READ-ONLY — no edits, so parallel workers can't collide. **Scale the
 fan-out to the repo — a big repo is 20+ workers, not 2–3.** Dispatch the bulk of units as
-**cheap flywheel-ranked pool workers** via
-**`fanout("review", units=[<unit code inlined> …], repo=…, project="repo-review", mode="read_only", max_concurrency=…)`**
+**native `fabrik-reviewer` seats (Sonnet; Opus for the highest-blast-radius units) — the pool is OFF, D-181.** A unit touching secret-material paths (`.env` / `.env.*` except `.env.example`, `secrets/`, key files) still goes to the Opus seat with the secret redacted from the brief.
+<!-- POOL OFF (D-181): **`fanout("review", units=[<unit code inlined> …], repo=…, project="repo-review", mode="read_only", max_concurrency=…)`** -->
+<!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 (`repo=` is REQUIRED; omit `project=` and NOTHING is recorded, making the back-fill below an
 orphan-writer — `FanoutBatch`'s docstring documents seven such rows already in the flywheel) —
 it picks family-diverse, flywheel-ranked models (no default price cap; `max_cost_per_mtok=`
@@ -57,7 +60,8 @@ contains one ships it to a third-party model, and a leaked secret cannot be unle
 `set_quality(r.agent_id, <0–5>, project="repo-review", task_type="review", model=r.model)`
 per worker (⚠️ never `record_run` — it silently no-ops). **Batch the fan-out in WAVES by
 risk tier (cap concurrency via `max_concurrency`; don't spawn all 20+ at literally once)** —
-highest-blast-radius units first. Each reviewer applies the `/fabrik-review` adversarial
+-->
+Batch the fan-out in WAVES by risk tier, highest-blast-radius units first (native seats — no more than ~4 in flight). Each reviewer applies the `/fabrik-review` adversarial
 methodology to its unit PLUS everything it calls / is called by, hunting these failure
 classes:
 
@@ -91,7 +95,7 @@ classes:
 - SPEC/PLAN↔CODE deviations generally (the written spec can be wrong — judge against
   intent).
 
-**Prove before you flag, WITHOUT breaking read-only** (this obligation falls on the NATIVE finders and on YOUR triage — a single-shot `read_only` pool worker has no shell, so its findings arrive unproven and get verified at Phase 2): reproduce each suspected bug with
+**Prove before you flag, WITHOUT breaking read-only** (this obligation falls on the finders and on YOUR triage — a read-only seat's findings arrive unproven and get verified at Phase 2): reproduce each suspected bug with
 a THROWAWAY repro in the scratchpad or a read-only execution — NOT a committed test and
 NOT an edit to any repo file (the kept regression test is written later, in Phase 3).
 Return STRUCTURED findings only: `{file:line, failure_class, severity:

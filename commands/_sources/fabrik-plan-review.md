@@ -3,6 +3,8 @@ description: Converge a plan to a fixed point — adversarial grounding (paralle
 argument-hint: "[path to the plan file OR a spine+ticket plan-set directory — omit to use the plan under discussion]"
 ---
 
+> **⚠️ POOL OFF — D-181 (operator, 2026-09-07).** The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable). Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy.
+
 Converge this plan to a fixed point — do not stop after one pass. **Fixed point = one full, demonstrably-thorough review pass that changes nothing;** the pass in which you *made* edits is never the last one.
 
 {{include:run-record}}
@@ -31,7 +33,7 @@ unit is the WHOLE SET: the spine AND every `T##[a-z]?-<slug>.md` ticket. A pass 
   mid-loop artifact change (a ticket added, split, or renamed) changes the combined hash and is simply
   the next pass, standard ledger semantics — never a reason to restart the ledger.
 - **Fresh grounders per ticket** (§ Parallelism below): one independent grounding unit per TICKET
-  (pool-default, read-only inline) plus ≥1 native Opus authoritative pass over the whole set. The
+  (native `fabrik-researcher` seats — the pool is OFF, D-181) plus ≥1 native Opus authoritative pass over the whole set. The
   AUTHORING session's own re-read NEVER counts as the independent pass — author-blindness is the point
   of this command.
 - **Convergence precondition (mechanical):** `python -m scripts.enforcement.check_plan_tickets
@@ -224,9 +226,9 @@ Also hunt: plan↔reality drift, unstated assumptions, missing edge cases and fa
 validation gate is vague or unrunnable.
 
 **Parallelism — the DEFAULT for a multi-phase plan.** With **2+ phases, external dependencies, or TICKETS to
-ground**, `fanout` one INDEPENDENT grounder per phase/dependency/ticket — **pool-default** (`fanout("research",
-…, mode="read_only", web_tools=["web_search","web_scrape","docs_lookup"])` for live search; recipe in § Subagents),
-native `fabrik-researcher` for the authoritative verify-sample — run them in parallel, then merge + dedupe their
+ground**, dispatch one INDEPENDENT native `fabrik-researcher` grounder per phase/dependency/ticket (the pool is
+OFF, D-181<!-- POOL OFF: `fanout("research", …, mode="read_only", web_tools=["web_search","web_scrape","docs_lookup"])` for live search; recipe in § Subagents -->),
+an Opus `fabrik-researcher` for the authoritative verify-sample — run them in parallel, then merge + dedupe their
 findings (refute any that are provably wrong — quote the line/schema that disproves them — before acting) before
 the next pass. Only a GREENFIELD single-phase MONOLITH plan loops solo — a monolith that modifies or
 wires into EXISTING code still owes ≥1 author-blind native pass (live proof: a ~40-line monolith's
@@ -263,8 +265,8 @@ and a set carrying none of the three sails through. On a SET, the three below ar
 explicit statements in a binding spine section (conventionally **`## Execution Discipline`**;
 `## Global Constraints` is accepted for spines that predate it — the gate reads BOTH, and credits
 a pillar ONLY from inside such a section, never from narrative elsewhere) — (a) every ticket runs `/fabrik-review`
-on its changed surface to a coverage-adjudicated exit BEFORE its merge, (b) pool-default dispatch
-with native on top for GUI/high-risk/decide-merge, (c) which tickets fan out concurrently and where
+on its changed surface to a coverage-adjudicated exit BEFORE its merge, (b) the dispatch policy — native
+seats for every fan-out (the pool is OFF, D-181), Opus for GUI/high-risk/decide-merge, (c) which tickets fan out concurrently and where
 their results merge/dedupe. Absent = a finding you FIX, exactly as for a monolith missing its
 per-phase review step. "The `/fabrik-execute-plan` dispatcher owns the per-ticket review loop at
 runtime" is TRUE and is NOT a pass: the artifact must say it, or nobody reading the plan — operator
@@ -277,14 +279,13 @@ or auditing agent — can see it, and any executor other than the full dispatche
    positives → prove-before-fix with a kept regression test → correctness/security vs. style, re-running the gate
    after each fix) → only then start Phase N+1." Not a one-line "review here" mention — the full methodology, and
    progression is GATED on it coming back clean.
-2. **Subagent usage, mandated for any decomposable phase — and specified POOL-DEFAULT.** Every phase whose work is
+2. **Subagent usage, mandated for any decomposable phase — and specified NATIVE (the pool is OFF, D-181).** Every phase whose work is
    independently decomposable must dispatch subagents to do it (implementation, research, grounding, review)
-   rather than doing it inline — stated in the phase's steps, not as a suggestion. **Verify the plan names
-   POOL-DEFAULT** (per `62-using-subagents.md` § Dispatch policy — the OpenRouter pool via
-   `fanout(task_type, units, …)`, which **auto-records to the flywheel** then wants a `set_quality` back-fill) for
-   the gradeable work, native added on top for GUI / high-risk / decide-merge. A phase that just says "use a
-   subagent" without pool-default lets the executor go all-native and land zero flywheel rows — flag it and fix
-   the plan.
+   rather than doing it inline — stated in the phase's steps, not as a suggestion. **Verify the plan names its
+   dispatch policy** (per `62-using-subagents.md` § Dispatch policy — native Claude seats for every fan-out while
+   the pool is OFF, D-181; Opus for GUI / high-risk / decide-merge). A phase that just says "use a subagent"
+   without naming the seats and their independence leaves the executor without an author-blind floor — flag it
+   and fix the plan.<!-- POOL OFF (D-181): the pre-D-181 text required POOL-DEFAULT (`fanout(task_type, units, …)`, auto-records to the flywheel, `set_quality` back-fill) with native on top -->
 3. **Parallelism whenever independent work exists.** Independent subagents in the same phase (or independent
    phases) run in PARALLEL and their results are merged/deduped — call out explicitly which steps fan out and
    where the merge happens.

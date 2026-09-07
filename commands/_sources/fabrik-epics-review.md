@@ -5,6 +5,8 @@ argument-hint: "[<agent names, comma-separated — agent-1 FIRST (the merge owne
 
 # Cross-Epic Validation — converge the epic set, assign its owners
 
+> **⚠️ POOL OFF — D-181 (operator, 2026-09-07).** The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable). Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy.
+
 You are the **cross-epic (epic-set) review orchestrator** — agent-1's session, in the main checkout, the
 window that will later own the merges. After `/fabrik-epics` writes one file per epic, this command reads
 the **whole decomposition** and proves it is ready to execute: every feature covered exactly once, no
@@ -238,17 +240,15 @@ subject IS a command file, e.g. `/fabrik-workflow-review`.) The whole rubric is 
 script; nothing is inherited from the doer. Honesty: the injection STEP is maximally enforced (the rubric
 is always injected); this raises compliance probability — it does **not** make compliance guaranteed.
 
-Dispatch through the **`libs/subagents` module** — **BOTH** layers, never either/or
-(`core/62-using-subagents.md` § Dispatch policy; the mechanics are in § Subagents at the end):
+Dispatch native seats — **two** layers (`core/62-using-subagents.md` § Dispatch policy; the pool is OFF, D-181):
 
-- **Pool breadth** — `fanout("review", units, repo=…, project="mega-review", mode="read_only")` picks
+- **Breadth** — 1–2 native `fabrik-reviewer` seats on Sonnet, one lens each. <!-- POOL OFF (D-181): **Pool breadth** — `fanout("review", units, repo=…, project="mega-review", mode="read_only")` picks
   family-diverse, flywheel-ranked review models (no default price cap) and auto-records each run to the
   flywheel. ⚠️ **Passing `project=` is what makes it record** — omit it and you land zero flywheel rows.
   After you adjudicate, back-fill your 0–5 verdict with
   `set_quality(r.agent_id, score, project="mega-review", task_type="review", model=r.model)` (an unscored
-  row teaches the flywheel nothing; ⚠️ never hand-roll run_agents + record_run — it no-ops).
-- **≥1 native `fabrik-reviewer` on Opus** — the authoritative pass (the pool never runs `anthropic/*`, so
-  pool-only is not valid). It owns the high-risk seams: the parallel-set disjointness, the
+  row teaches the flywheel nothing; ⚠️ never hand-roll run_agents + record_run — it no-ops). -->
+- **≥1 native `fabrik-reviewer` on Opus** — the authoritative pass. It owns the high-risk seams: the parallel-set disjointness, the
   single-migration-owner rule, and `Registrars` ↔ `Shape`.
 
 Each reviewer commits to a lens before seeing the others; **you refute/merge/decide**. The lenses:
@@ -333,11 +333,8 @@ Classify every surviving finding, then handle it autonomously — everything sho
 
 - **Surgical ticket fix** (a missing Metadata field, a wrong title format, an absent `Owned paths`, an
   off-contract field value, a body that disagrees with its frontmatter) → a **scoped fixup ticket** naming
-  the finding's `path:line` + the required value, **dispatched** through `libs/subagents`: the pool via
-  `fanout("docs", units, repo=…, project="mega-review", mode="write")` for an epic-file edit — `mode="write"`
-  is load-bearing (the default `read_only` unit has no file tools and cannot edit anything), **one unit
-  per epic file** as its `owned_paths` — `fanout` REFUSES with a `ValueError` if two units name the same
-  path, so merge all of one file's findings into ONE unit (two findings on the same epic is the common
+  the finding's `path:line` + the required value, **dispatched** to a native `general-purpose` seat (the pool is OFF, D-181) — **one seat
+  per epic file**, briefed to touch ONLY that file, so merge all of one file's findings into ONE seat<!-- POOL OFF (D-181): the pool via `fanout("docs", units, repo=…, project="mega-review", mode="write")`, `mode="write"` load-bearing, one unit per epic file as its `owned_paths` — `fanout` REFUSES with a `ValueError` if two units name the same path --> (two findings on the same epic is the common
   case) — or a native Opus subagent for a high-risk one (e.g. a migration-owner correction). Re-read +
   re-review to confirm.
   ⚠️ **NOT** a `Registrars`↔`Shape` mismatch — lens E routes that to `/fabrik-epics` (a silently-broken
@@ -518,8 +515,8 @@ A route-back instead hands to `/fabrik-epics` or `/fabrik-vision` and re-enters 
 - Every epic carries exactly one `owner` ∈ the operator's set, proven by `--check --owners <names>`
   BEFORE any lens ran; the set's order (agent-1 first) recorded in the report, and the merge-owner
   ledger row present or minted (`decisions.py --merge-owner .` ≠ `UNDECLARED`).
-- Review dispatched through `libs/subagents` — **pool `fanout("review")` recording the flywheel AND ≥1
-  native `fabrik-reviewer` on Opus** — across every report lens, with the orchestrator refuting / merging
+- Review dispatched as native seats — **1–2 Sonnet `fabrik-reviewer` seats AND ≥1
+  native `fabrik-reviewer` on Opus** (the pool is OFF, D-181) — across every report lens, with the orchestrator refuting / merging
   / deciding.
 - Feature coverage (delta + `R`-prefixed alike), ticket structure (incl. all 5 `Dependencies` sub-bullets
   with a real `Owned paths`, frontmatter ↔ body agreement, the `/fabrik-spec` entry point), graph (cycles,
@@ -527,8 +524,7 @@ A route-back instead hands to `/fabrik-epics` or `/fabrik-vision` and re-enters 
   SPLIT-CANDIDATE, minimality), Infrastructure Decisions (+ the Deferred Compliance appendix in EXISTING
   mode), and handoff readiness (15 fields; **`Registrars` ↔ `Shape`**; `Port` free in `PORTS.md`) all
   verified — each binary with `path:line` evidence.
-- Findings handled **autonomously**: surgical fixups dispatched (pool `fanout("docs", …, mode="write")`,
-  one unit per epic file, or a native Opus subagent), re-reviewed, **looping to the lens-adjudicated exit (min-2 rounds, no ceiling,
+- Findings handled **autonomously**: surgical fixups dispatched (a native `general-purpose` seat per epic file, or a native Opus subagent — the pool is OFF, D-181), re-reviewed, **looping to the lens-adjudicated exit (min-2 rounds, no ceiling,
   chained full hashes)**; boundary/scope changes routed to `/fabrik-epics`; a corrupted Vision Summary to
   `/fabrik-vision`; only the 3 BLOCKED cases pause a finding.
 - Epic-count sanity surfaced (3–7 typical; E = 3–20 accepted; 10+ or 2 remarked, never a silent pass).

@@ -137,7 +137,7 @@ The engine is **Claude Max** (see § Owner Working Model) and it runs the single
 | #            | Requirement                                                                                      | State                                                   |
 | ------------ | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------- |
 | **R8** | Control flow in**code, not prose**: the driver runs the loops and calls `fanout` itself. | **OPEN** — the loops still live in command prose |
-| **R9** | Flywheel: every pool run recorded;`pick_models` learns.                                        | DONE (`check_subagent_flywheel.py`)                   |
+| **R9** | Flywheel: every pool run recorded;`pick_models` learns.                                        | DONE (`check_subagent_flywheel.py`) — SUSPENDED: the pool is OFF by ruling (D-181/D-182, 2026-09-07); the gate's pool-or-declare layer stands down on its committed policy constant |
 
 ### Human gates
 

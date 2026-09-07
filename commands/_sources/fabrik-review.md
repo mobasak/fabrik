@@ -47,6 +47,8 @@ plan. A mismatched name is refused; closing an already-closed run is a warned no
 
 ```bash
 # The lock records exactly what was distributed to THIS project (~220 paths). PORTS.md +
+
+> **⚠️ POOL OFF — D-181 (operator, 2026-09-07).** The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable). Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy.
 # docs/DECISIONS.md are SEEDED_NOT_ENFORCED (live set: fabrik_synced_manifest.py) — projects may
 # edit them, so they stay normal review targets.
 python3 -c "import json;print('\n'.join(sorted(json.load(open('.fabrik/synced.lock')))))" | grep -vxF -e 'PORTS.md' -e 'docs/DECISIONS.md'
@@ -137,7 +139,8 @@ that a change re-exposes are in scope).
 ## Phase 1 — Independent finders (recall)
 
 Dispatch several independent finder subagents in parallel, **each committing to a DIFFERENT subset of
-failure classes** before seeing the others' results. **Every brief carries the Phase-0 surface digest** (HEAD + `git diff HEAD | md5sum`) **and the instruction to RE-READ the file before concluding**: finders sweep a tree the orchestrator is fixing concurrently, so a finder can read a file mid-edit and CONFIRM a defect the fix already removed (web-ecommerce-factory 2026-09-02: 2 of 5 finders raced the fixer — 01M1HFSR); a finding whose digest differs from the round's is re-verified by the orchestrator against the current tree, never adjudicated from the finder's stale read. **Worker: run BOTH layers for any substantial review —
+failure classes** before seeing the others' results. **Every brief carries the Phase-0 surface digest** (HEAD + `git diff HEAD | md5sum`) **and the instruction to RE-READ the file before concluding**: finders sweep a tree the orchestrator is fixing concurrently, so a finder can read a file mid-edit and CONFIRM a defect the fix already removed (web-ecommerce-factory 2026-09-02: 2 of 5 finders raced the fixer — 01M1HFSR); a finding whose digest differs from the round's is re-verified by the orchestrator against the current tree, never adjudicated from the finder's stale read. **Worker: while the pool is OFF (D-181) both layers are NATIVE** — ≥1 `fabrik-reviewer` on Opus (the authoritative seat, always) plus 1–2 Sonnet seats each briefed on a DIFFERENT failure-class subset; nothing records to the flywheel and no `NO-POOL:` is owed (`check_subagent_flywheel.py` stands down by the same ruling, D-182). The pool-breadth contract follows, commented for re-enable:
+<!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 never either/or (per `62-using-subagents.md` § Dispatch policy).** The **pool breadth layer is MANDATORY**:
 dispatch cheap pool finders via **`fanout("review", …, mode="read_only")`** in parallel — it picks the
 **flywheel-ranked** reviewers for the `review` task from the per-task selection table (below); **do not name a
@@ -147,7 +150,8 @@ schema / secrets / concurrency) + the decide/refute/merge you own. A high-risk s
 *plus* the native pass; going all-native (skipping the pool layer) lands **zero** flywheel rows and
 `check_subagent_flywheel.py` BLOCKS it (exit 1) on a substantial code change, unless the run declares `NO-POOL: <reason>` in an in-cycle commit message or sets `FABRIK_NO_POOL`. (Evidence it earns its cost: cheap pool finders have caught
 real bugs that an Opus-only self-review missed — complementary recall, not redundant.)
-⚠️ **Secrets carve-out — the one sanctioned all-native slice (mirror: `/fabrik-execute-plan` D4 + the
+-->
+(Satisfied by construction while every seat is native — D-181; it binds again on re-enable.) ⚠️ **Secrets carve-out — the one sanctioned all-native slice (mirror: `/fabrik-execute-plan` D4 + the
 repo-review/rules-review/service-test/ui-design/user-test family):** a diff hunk touching
 secret-material paths (`.env` / `.env.*` **except `.env.example`** — the Doc-Sync-Matrix file every
 env-var change touches, `check_plan_tickets.py`'s own carve-out — `secrets/`, key/cert files) is
@@ -165,6 +169,8 @@ describes exactly this case). The two mechanisms:
   never runs Opus (no `anthropic/*`), so this native Opus finder is the review's only Opus eyes and pool-only is
   **not a valid review**. **Add** cheaper native finders for extra recall breadth — **Sonnet** routine, **Haiku**
   trivial — but the Opus finder is mandatory, not conditional. Recall matters most where a missed bug is expensive.
+- **Breadth seats (native, while the pool is OFF — D-181):** add 1–2 native `fabrik-reviewer` seats on **Sonnet**, each briefed on a DIFFERENT failure-class subset of the surface, in parallel with the Opus seat; a seat that returns nothing is a FAILED seat (re-dispatch), never a clean round. Nothing records to the flywheel; no `NO-POOL:` is owed.
+<!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 - **OpenRouter finders (the pool — Claude *and* OpenRouter models via one API):** when `libs/subagents/` is
   vendored, dispatch through the pool via **`fanout`** — it replaces the hand-rolled `run_agents`+`AgentSpec`
   boilerplate (family-diverse model pick, parallel-safe, auto-recorded):
@@ -187,7 +193,9 @@ describes exactly this case). The two mechanisms:
   worktree containment, caps, and the `fanout`→`set_quality` flywheel — bypassing to ai-consult throws all of that away
   and `pick_models` learns nothing. Use `fanout`. (And verify any model you name exists — don't invent version
   strings; the authoritative roster is the per-task selection table, not memory.)
+-->
 
+<!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 **📋 Per-task model selection — READ THE TABLE, don't hardcode.** The roster is NOT pinned in this command. The
 canonical, auto-refreshed, flywheel-ranked table lives at **`/opt/fabrik/docs/reference/kilo/TASK_SUBAGENT_SELECTION.md`**
 (one ranked section per task type: `code · docs · plan · research · review · spec`, each row = `shrunk_q ·
@@ -196,6 +204,7 @@ automatically** to select — so "the agent looks in the table" is already true 
 today's ranked reviewers (e.g. to justify a pick or spot a benchmark), read that file or call
 `pick_models("review")`. Any model name or `$X` cap written into prose has FROZEN a snapshot the table has
 since moved past — that drift is exactly the bug this points-at-the-table rule prevents.
+-->
 
 YOU (the dispatching session) remain the refute/merge/decide-clean and
 prove-and-fix authority — the finders only report. When adjudicating a caller/impact claim
@@ -378,7 +387,7 @@ its NON-CONVERGENCE warning names the failure mode this loop actually has: re-sc
 re-sweeping. Close the run at that verdict with
 `done --command fabrik-review --evidence "round <n> quiet: found:0 · new:0, all adjudicated" --feedback "<what you filed, to whom | none — surfaces exercised>"`.
 
-## Behavior Contract test generation — the pool authors, you curate (the fix for an untested behavior)
+## Behavior Contract test generation — native seats author, you curate (the fix for an untested behavior)
 
 ⚠️ **`/fabrik-generate-tests` is CANONICAL for this pipeline — invoke it** (`/fabrik-generate-tests <the
 phase's Behavior Contract | the module>`) rather than hand-running it. The steps below are the SAME BYTES
@@ -388,7 +397,7 @@ mid-loop needs the shape without leaving the page, NOT as a second implementatio
 lives only in `/fabrik-generate-tests`. **Edit the fragment, never either copy.**
 
 When Phase-3's test-quality check finds a **behavior with no test** (or the plan's Behavior Contract has
-uncovered behaviors), generate the missing tests via the pool:
+uncovered behaviors), generate the missing tests via the loop below (native seats while the pool is OFF, D-181):
 
 {{include:test-generation-loop}}
 

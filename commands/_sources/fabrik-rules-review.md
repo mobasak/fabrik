@@ -1,7 +1,9 @@
 ---
-description: Read-only .windsurf/rules compliance POSTURE audit — the full-coverage complement to /fabrik-review's per-diff rubric floor: establish real stack + spec shape flags + ADR, fan out one pool finder per applicable pack (parallel, flywheel-recorded), refute false gaps, iterate to a stable gap list, prioritized GAP table with path:line proof. Runs in a PROJECT (audit the project against its synced packs) or in the HUB (audit the packs themselves — blast-radius mode). TRIGGER — EN: "check rules-pack compliance", "audit against the windsurf rule packs"; TR: "kural paketlerine uyumu denetle", "windsurf kurallarını kontrol et" — fires for a PACK-compliance gap audit, not a defect review. SKIP: code-defect finding (→ /fabrik-review, /fabrik-repo-review); a single diff's rules floor (→ /fabrik-review's injected rubric). Stage: gate.
+description: Read-only .windsurf/rules compliance POSTURE audit — the full-coverage complement to /fabrik-review's per-diff rubric floor: establish real stack + spec shape flags + ADR, fan out one native finder per applicable pack (parallel), refute false gaps, iterate to a stable gap list, prioritized GAP table with path:line proof. Runs in a PROJECT (audit the project against its synced packs) or in the HUB (audit the packs themselves — blast-radius mode). TRIGGER — EN: "check rules-pack compliance", "audit against the windsurf rule packs"; TR: "kural paketlerine uyumu denetle", "windsurf kurallarını kontrol et" — fires for a PACK-compliance gap audit, not a defect review. SKIP: code-defect finding (→ /fabrik-review, /fabrik-repo-review); a single diff's rules floor (→ /fabrik-review's injected rubric). Stage: gate.
 argument-hint: "[a specific pack or rules subdir to scope — omit to audit all applicable packs]"
 ---
+
+> **⚠️ POOL OFF — D-181 (operator, 2026-09-07).** The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable). Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy.
 
 Run a `.windsurf/rules` COMPLIANCE GAP AUDIT. **READ-ONLY — do NOT modify code, config, docs, or the
 rules; produce an audit only.** And do NOT stop after one pass: **iterate the audit until it
@@ -68,14 +70,17 @@ applies to THIS scaffold + stack. SKIP non-applicable packs (e.g. mobile / chrom
 file-api / gpu-workers / rag / payments / email) unless the code actually uses them. STATE which you
 skipped and why. (HUB mode: every pack is in scope unless `$ARGUMENTS` narrows it.)
 
-## Phase 2 — Audit each applicable pack (parallel pool fan-out, flywheel-recorded)
+## Phase 2 — Audit each applicable pack (parallel native fan-out)
 
+The packs are independent, so this step MUST fan out — one native `fabrik-reviewer` seat (Sonnet) per applicable pack, in parallel; Opus for any pack whose subject is authoritative/high-risk (auth, schema, migrations, secrets, concurrency). The pool form is kept below for re-enable (D-181):
+<!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 The packs are independent, so this step MUST fan out — **pool-default per the dispatch policy**: one
 unit per applicable pack via `fanout("review", units, repo=REPO, project=<project>,
 mode="read_only")`, with `set_quality` back-fill after Phase 3 adjudication. Add a **native**
 finder on top for any pack whose subject is authoritative/high-risk (auth, schema, migrations,
 secrets, concurrency — the same reservation every review command uses); a 1–2-pack audit still
 dispatches through `fanout` (it records to the flywheel either way).
+-->
 
 **Division of labor — read_only units cannot touch the filesystem, so build their prompts
 accordingly:** each unit's prompt inlines its pack's text + the Phase-0 ground truth + the
@@ -115,8 +120,7 @@ with real tools (grep/Read) — those items are finder QUESTIONS, never findings
 try to REFUTE every ❌ GAP before it reaches the table: is it actually ADR-accepted (cite the ADR
 line) or spec-consistent-off (cite the shape flag)? If so, reclassify it as 🟡 DEVIATION. Only gaps
 that survive this refutation are real. Equally, do not let a finder's ✅ COMPLIANT stand without a
-`path:line` you spot-checked. Back-fill `set_quality` scores for the pool finders here
-(confirmed-gap yield + proof quality).
+`path:line` you spot-checked.
 
 ## Phase 4 — Iterate to a stable audit (no-op pass), then output
 

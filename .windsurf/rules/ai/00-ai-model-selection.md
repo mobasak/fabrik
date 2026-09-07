@@ -36,6 +36,8 @@ Every recommendation the operator will actually run should be grounded in the co
 
 **Vendor access:** `docs/reference/kilo/AI_VENDOR_ACCESS.md` is the single source of truth for which vendors the operator can call today. Rows with Status ✅ or ⚠️ are accessible (⚠️ = accessible but low balance — pick a ✅ peer if one is on the Pareto frontier).
 
+**Reachability filter — SUSPENDED with the pool (D-181/D-182, 2026-09-07): the pool is OFF by ruling, do not call `pick_models`; the recipe is kept for re-enable.**
+<!-- POOL OFF (D-181):
 **Reachability filter (2026-07-09 canonical alignment):** to avoid dispatching to a vendor the operator can't reach with existing keys, call `pick_models` with the canonical `exclude=` seam:
 
 ```python
@@ -51,6 +53,7 @@ unreachable = tuple(
     )
 )
 picks = pick_models("review", n=3, exclude=unreachable)
+-->
 ```
 
 `exclude=` is the documented "reliability lever" in canonical `subagents`; the pre-filter is a plan-1 project-local mechanism (was a module fork — reverted). No env var, no kwarg toggle, no HTML-comment doc parsing — just pass the set at the call site.
@@ -185,4 +188,4 @@ Boundaries: `claude -p` is the subscription CLI — the sanctioned Claude path (
 above; never `ANTHROPIC_API_KEY`, never a vendor SDK — `core/57` hard constraint). Every rung wraps
 in the `58-resilience` contract, and any unattended paid-LLM loop still carries watchdog +
 cost-budget. This ladder governs **in-code single-call/worker dispatch**; gradeable parallel fan-out
-(review finders, graders, doc reconcilers) stays pool-default per `core/62-using-subagents.md`.
+(review finders, graders, doc reconcilers) runs NATIVE while the pool is OFF (D-181) per `core/62-using-subagents.md`.

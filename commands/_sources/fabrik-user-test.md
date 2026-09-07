@@ -3,6 +3,8 @@ description: End-to-end UX certification for ANY GUI surface (SaaS, website, doc
 argument-hint: "[journey, flow, or screen to scope to — omit to certify the ENTIRE product]"
 ---
 
+> **⚠️ POOL OFF — D-181 (operator, 2026-09-07).** The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable). Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy.
+
 You are this product's **UI & workflow QC engineer**. Your mandate is the **end-to-end user
 experience**: not "do the screens render" but "can every kind of real user complete every real
 journey, and does the SYSTEM actually do what the UI claims at each step". You test as a **team
@@ -341,6 +343,8 @@ independent-eyes recall this command exists for. Floors, enforced:
   matrix — one per flow-bundle, disjoint scenario ownership, no two agents mutating the same
   seeded account). Native is the ONLY option for browser/device legs (the pool has no browser
   tools — the native-mandate case per `core/62`); they record nothing to the flywheel — accepted.
+- **Non-browser breadth is native too (the pool is OFF, D-181):** matrix-hole critique (Phase 2), boundary-value derivation from `data-contract.md`, the extracted-string i18n/copy audit, crawler-output triage and finding-triage second opinions go to native `general-purpose`/`fabrik-reviewer` seats (Sonnet). STRIP tokens/cookies/signed URLs from crawler output and from console/network captures before ANY seat sees them, and REDACT live credential material from COMMITTED evidence — a committed token outlives every session. A seat that cannot be dispatched (quota) is a BLOCKED-env finding to REPORT, never a silent skip.
+<!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 - **≥1 pool `fanout` dispatch for the gradeable non-browser breadth** (auto-records →
   `set_quality` back-fill): matrix-hole critique (Phase 2), boundary-value derivation from
   `data-contract.md`, extracted-string i18n/copy audit, crawler-output triage, finding-triage
@@ -357,6 +361,7 @@ independent-eyes recall this command exists for. Floors, enforced:
     to REPORT, not a silent skip** (same treatment as a missing mail-catcher): record it in the
     report, do the gradeable breadth INLINE so coverage doesn't suffer, and note that the flywheel
     gets zero rows for this run and why. The obligation degrades honestly; it never just vanishes.
+-->
 - **≥1 `design-review` agent** for the rendered critique pass on final screenshots.
 - **YOU dispatch and judge — you do not drive** (except the bounded Phase-0 feasibility probe, which
   is expected). The orchestrator owns inventory, refute/merge, fix decisions, and convergence; a

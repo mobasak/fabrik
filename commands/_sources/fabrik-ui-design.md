@@ -3,6 +3,8 @@ description: Freeze a GUI project's UI/UX design — a lean, frozen screen + flo
 argument-hint: "[spec path — omit to use the spec/data-contract of the CURRENT project (the command always operates on cwd)]"
 ---
 
+> **⚠️ POOL OFF — D-181 (operator, 2026-09-07).** The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable). Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy.
+
 Produce (or backfill) this GUI project's **UI/UX design** — one frozen file, `docs/ui-design.md`, the **single
 source of truth for what screens exist and how a user moves through them**: the product's screens, their
 minimal-click flows, the navigation/IA, and each screen's design-system components, states, and the
@@ -221,17 +223,10 @@ a **`size-limit`** per-surface bundle gate.
 
 Two subagent regimes — keep them distinct:
 
-- **Design-time (Phases 2 + 5 — pool-default, records the flywheel).** The **per-screen contract** (map each
+- **Design-time (Phases 2 + 5 — native seats; the pool is OFF, D-181).** The **per-screen contract** (map each
   screen's regions → design-system components → the `docs/data-contract.md` fields it renders) and the
   **backfill screen-inventory** read (parse real routes/components at `path:line`) are gradeable, per-screen,
-  embarrassingly parallel work → **`fanout` one unit per screen** (recipe in `62-using-subagents.md`
-  § Dispatch policy): `fanout("docs", [{"task": …, "owned_paths": [<screen's route/component files>]}, …],
-  mode="write", repo=REPO, project="ui-design")` — **disjoint `owned_paths` per screen** for real file reads
-  (or `mode="read_only"` with the screen's data-contract slice inlined). `fanout` auto-records each unit
-  **UNSCORED** → after you reconcile, **back-fill your verdict** with `set_quality(r.agent_id, score,
-  project="ui-design", task_type="docs", model=r.model)` (a `fanout` row left unscored teaches the flywheel
-  nothing; ⚠️ never hand-roll `run_agents`+`record_run` — it no-ops). Guard the import
-  (`try: from libs.subagents import fanout, set_quality / except ImportError: …`). **Secrets carve-out
+  embarrassingly parallel work → one native `general-purpose` seat per screen (Sonnet), each briefed on ONE screen's route/component files and its `docs/data-contract.md` slice; you reconcile the returned contracts. Nothing records to the flywheel.<!-- POOL OFF (D-181): → **`fanout` one unit per screen** (recipe in `62-using-subagents.md` § Dispatch policy): `fanout("docs", [{"task": …, "owned_paths": [<screen's route/component files>]}, …], mode="write", repo=REPO, project="ui-design")` — disjoint `owned_paths` per screen (or `mode="read_only"` with the screen's data-contract slice inlined); `fanout` auto-records each unit UNSCORED → back-fill `set_quality(r.agent_id, score, project="ui-design", task_type="docs", model=r.model)`; guard the import (`try: from libs.subagents import fanout, set_quality / except ImportError: …`). --> **Secrets carve-out
   (the repo-review/rules-review/service-test class): a route/component file can carry an inline key
   (a Stripe publishable, a Maps key, a forgotten test token) — never inline secret-material content
   into a pool unit; a screen whose files carry one gets the NATIVE read, or the excerpt is redacted

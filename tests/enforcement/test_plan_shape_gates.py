@@ -682,11 +682,11 @@ def test_spine_without_any_execution_pillar_warns(plans_env: Path) -> None:
     """The live defect: a CONVERGED 14-ticket set stated no per-ticket /fabrik-review floor, no
     pool-default dispatch policy, and no fan-out/merge semantics — so neither the operator nor an
     auditing agent could see that any ticket would ever be reviewed."""
-    p = _write(plans_env, SPINE, SPINE_OK)          # the baseline fixture carries none of them
+    p = _write(plans_env, SPINE, SPINE_OK)  # the baseline fixture carries none of them
     results = cpq_mod.check_file(p)
     msg = _pillar_msgs(results)
     assert msg, "a spine stating none of the three pillars must be flagged"
-    assert "/fabrik-review" in msg and "pool-default" in msg and "merge" in msg
+    assert "/fabrik-review" in msg and "dispatch policy" in msg and "merge" in msg
     assert "error" not in _sev(results), "advisory only — must not red a sibling's in-flight plan"
 
 
@@ -753,8 +753,9 @@ def test_a_look_alike_command_name_does_not_stand_in_for_the_review_floor(plans_
         "## Interfaces",
     )
     p = _write(plans_env, SPINE, faked)
-    assert "/fabrik-review" in _pillar_msgs(cpq_mod.check_file(p)), \
+    assert "/fabrik-review" in _pillar_msgs(cpq_mod.check_file(p)), (
         "a longer command name must not satisfy the review-floor pillar"
+    )
 
 
 def test_a_blockquoted_counter_example_does_not_satisfy_a_pillar(plans_env: Path) -> None:
@@ -769,26 +770,36 @@ def test_a_blockquoted_counter_example_does_not_satisfy_a_pillar(plans_env: Path
     assert "/fabrik-review" in _pillar_msgs(cpq_mod.check_file(p))
 
 
-@pytest.mark.parametrize("phrasing", [
-    "T01 · T05 · T06 touch disjoint trees and may run concurrently; findings are deduped at T11.",
-    "**Parallel fan-out points:** T01 || T05 || T06 (disjoint trees) in the first wave.",
-])
+@pytest.mark.parametrize(
+    "phrasing",
+    [
+        "T01 · T05 · T06 touch disjoint trees and may run concurrently; findings are deduped at T11.",
+        "**Parallel fan-out points:** T01 || T05 || T06 (disjoint trees) in the first wave.",
+    ],
+)
 def test_legitimate_parallelism_phrasings_are_not_flagged(plans_env: Path, phrasing: str) -> None:
     """A gate that cries wolf on a compliant plan gets ignored. These real phrasings from a live
     sibling spine were flagged as MISSING before (native review finding)."""
-    good = SPINE_OK.replace("## Interfaces", f"## Execution Discipline\n\n- {phrasing}\n\n## Interfaces")
+    good = SPINE_OK.replace(
+        "## Interfaces", f"## Execution Discipline\n\n- {phrasing}\n\n## Interfaces"
+    )
     assert "parallelism" not in _pillar_msgs(cpq_mod.check_file(_write(plans_env, SPINE, good)))
 
 
-@pytest.mark.parametrize("phrasing", [
-    "the OpenRouter pool is the default worker for the gradeable finders",
-    "pool by default (`pick_models`)",
-    "Use `fanout` with task_type='review'",
-])
+@pytest.mark.parametrize(
+    "phrasing",
+    [
+        "the OpenRouter pool is the default worker for the gradeable finders",
+        "pool by default (`pick_models`)",
+        "Use `fanout` with task_type='review'",
+    ],
+)
 def test_legitimate_dispatch_phrasings_are_not_flagged(plans_env: Path, phrasing: str) -> None:
     """Same class: each is a correct statement of the pool-default policy and each MISSED."""
-    good = SPINE_OK.replace("## Interfaces", f"## Execution Discipline\n\n- {phrasing}\n\n## Interfaces")
-    assert "pool-default" not in _pillar_msgs(cpq_mod.check_file(_write(plans_env, SPINE, good)))
+    good = SPINE_OK.replace(
+        "## Interfaces", f"## Execution Discipline\n\n- {phrasing}\n\n## Interfaces"
+    )
+    assert "dispatch policy" not in _pillar_msgs(cpq_mod.check_file(_write(plans_env, SPINE, good)))
 
 
 def test_a_spine_missing_only_one_pillar_is_still_flagged(plans_env: Path) -> None:
@@ -803,34 +814,59 @@ def test_a_spine_missing_only_one_pillar_is_still_flagged(plans_env: Path) -> No
     )  # pillar 3 (parallelism/merge) deliberately absent
     msg = _pillar_msgs(cpq_mod.check_file(_write(plans_env, SPINE, two_of_three)))
     assert msg, "a spine stating 2 of 3 must still be flagged"
-    assert "parallelism" in msg and "/fabrik-review" not in msg and "pool-default" not in msg
+    assert "parallelism" in msg and "/fabrik-review" not in msg and "dispatch policy" not in msg
 
 
-@pytest.mark.parametrize("alt,phrase", [
-    ("merges/dedupes",  "results merge/dedupe at the Integration ticket"),
-    ("dedupe",          "their findings are deduped before any fix"),
-    ("fan-out",         "the first wave is a fan-out across T01/T05"),
-    ("concurrently",    "T01 and T05 run concurrently"),
-    ("in parallel",     "T01 and T05 are built in parallel"),
-    ("parallel waves",  "two parallel waves, then Integration"),
-    ("where...merge",   "T02 and T03 are independent; where they merge is T11"),
-])
+@pytest.mark.parametrize(
+    "alt,phrase",
+    [
+        ("merges/dedupes", "results merge/dedupe at the Integration ticket"),
+        ("dedupe", "their findings are deduped before any fix"),
+        ("fan-out", "the first wave is a fan-out across T01/T05"),
+        ("concurrently", "T01 and T05 run concurrently"),
+        ("in parallel", "T01 and T05 are built in parallel"),
+        ("parallel waves", "two parallel waves, then Integration"),
+        ("where...merge", "T02 and T03 are independent; where they merge is T11"),
+    ],
+)
 def test_each_parallelism_alternative_is_individually_load_bearing(plans_env, alt, phrase):
     """F9: every parametrised fixture matched TWO alternatives at once, so deleting any single one
     left the suite green — 7 of them were individually unpinned. Each phrase here exercises exactly
     one alternative, so removing that alternative reds exactly this case."""
-    good = SPINE_OK.replace("## Interfaces", f"## Execution Discipline\n\n- {phrase}\n\n## Interfaces")
-    assert "parallelism" not in _pillar_msgs(cpq_mod.check_file(_write(plans_env, SPINE, good))), alt
+    good = SPINE_OK.replace(
+        "## Interfaces", f"## Execution Discipline\n\n- {phrase}\n\n## Interfaces"
+    )
+    assert "parallelism" not in _pillar_msgs(cpq_mod.check_file(_write(plans_env, SPINE, good))), (
+        alt
+    )
 
 
-@pytest.mark.parametrize("alt,phrase", [
-    ("pool-default", "dispatch is pool-default for the gradeable work"),
-    ("fanout",       "use `fanout` for the finder units"),
-    ("pick_models",  "the roster comes from `pick_models`"),
-    ("pool...default", "the pool is the default worker for gradeable finders"),
-    ("default...pool", "by default we dispatch to the OpenRouter pool"),
-])
+@pytest.mark.parametrize(
+    "alt,phrase",
+    [
+        ("pool-default", "dispatch is pool-default for the gradeable work"),
+        ("fanout", "use `fanout` for the finder units"),
+        ("pick_models", "the roster comes from `pick_models`"),
+        ("pool...default", "the pool is the default worker for gradeable finders"),
+        ("default...pool", "by default we dispatch to the OpenRouter pool"),
+        # D-181 (2026-09-07): the CURRENT policy is native — these are the shapes a post-D-181 spine states
+        (
+            "native-subagents",
+            "every fan-out dispatches native Claude subagents; the Opus seat decides",
+        ),
+        (
+            "dispatch...native",
+            "dispatch is native (the pool is OFF, D-181); Opus for the high-risk slices",
+        ),
+        ("pool-OFF", "the pool is OFF for this plan"),
+        ("D-181", "per D-181 the finders run as native seats"),
+    ],
+)
 def test_each_dispatch_alternative_is_individually_load_bearing(plans_env, alt, phrase):
     """Same class, dispatch side — including the reverse word order, which no test used at all."""
-    good = SPINE_OK.replace("## Interfaces", f"## Execution Discipline\n\n- {phrase}\n\n## Interfaces")
-    assert "pool-default" not in _pillar_msgs(cpq_mod.check_file(_write(plans_env, SPINE, good))), alt
+    good = SPINE_OK.replace(
+        "## Interfaces", f"## Execution Discipline\n\n- {phrase}\n\n## Interfaces"
+    )
+    assert "dispatch policy" not in _pillar_msgs(
+        cpq_mod.check_file(_write(plans_env, SPINE, good))
+    ), alt

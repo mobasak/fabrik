@@ -10,6 +10,8 @@ trigger: glob
 
 # Using Subagents
 
+> **⚠️ STATUS — POOL OFF (D-181, operator, 2026-09-07).** Runtime B (the OpenRouter pool) is OFF by ruling; its credentials stay provisioned (D-182), so this pack and the gate are the control. Every fan-out runs Runtime A (native Claude Task subagents); the pool sections below are kept in `<!-- POOL OFF -->` comments for re-enable. Binding detail: § Dispatch policy.
+
 Two runtimes dispatch subagents; each scopes tools differently. **Never restate tool lists in a command brief — the access lives in the agent-type file (Runtime A) or the `AgentSpec` (Runtime B).**
 
 **Composing the subagent's brief/system prompt:** follow `docs/reference/MD/ai-prompt-templates.md` — a distilled system prompt (Part A) that enforces the agentic patterns (Part B: termination contract, evidence-before-assertion, path:line grounding, untrusted-input). Distil, don't dump the whole rulebook into the brief.
@@ -17,11 +19,11 @@ Two runtimes dispatch subagents; each scopes tools differently. **Never restate 
 ## The two runtimes
 
 - **A — Claude Code subagents** (`Agent` tool / `subagent_type`). *Are* Claude; tool access = the agent-type frontmatter (`tools` / `mcpServers` / `disallowedTools`). Used today. Can drive browsers.
-- **B — fabrik-lib `subagents` pool** (OpenRouter-API models, sandboxed worktree). Not Claude; tools = the module's `web_tools` (Exa/Firecrawl/Context7/Brave HTTP) + `mcp_servers` (MCP client) + `allowed_commands`. **No browser** — GUI work never routes here.
+- **B — fabrik-lib `subagents` pool** — **OFF by ruling since D-181 (2026-09-07; mechanism revised by D-182 — the credentials stay provisioned, so a dispatch would still spend: do not call it).** (OpenRouter-API models, sandboxed worktree). Not Claude; tools = the module's `web_tools` (Exa/Firecrawl/Context7/Brave HTTP) + `mcp_servers` (MCP client) + `allowed_commands`. **No browser** — GUI work never routes here.
 
 ## Which subagent_type per command (Runtime A)
 
-These are the **native** types — used for GUI, the authoritative/high-risk pass, and the decide/refute/merge. Under § Dispatch policy the **gradeable fan-out** of these same commands (review finders, research grounders, doc reconcilers, rules auditors, implementers) **defaults to the POOL** (Runtime B); native here is the authoritative complement, not the default worker.
+These are the **native** types — and, while the pool is OFF (D-181, 2026-09-07), the ONLY runtime: every gradeable fan-out (review finders, research grounders, doc reconcilers, rules auditors, implementers) runs here too. <!-- POOL OFF (D-181): These are the **native** types — used for GUI, the authoritative/high-risk pass, and the decide/refute/merge. Under § Dispatch policy the **gradeable fan-out** of these same commands (review finders, research grounders, doc reconcilers, rules auditors, implementers) **defaults to the POOL** (Runtime B); native here is the authoritative complement, not the default worker. -->
 
 | Work | subagent_type | Access |
 |---|---|---|
@@ -30,6 +32,9 @@ These are the **native** types — used for GUI, the authoritative/high-risk pas
 | GUI screen build + verify (`/fabrik-execute-plan` GUI phases, Build Verification Loop) | **`fabrik-gui`** / `design-review` | browser MCPs + shell |
 | code implementers (`/fabrik-execute-plan`) | general builder | file/edit/Bash + optional `context7`; no search/GUI MCP |
 
+## Pool tool access · Pool model selection — SUSPENDED (D-181/D-182): the pool is OFF by ruling; `pick_models` still returns a dispatchable roster, so do not call it; kept for re-enable
+
+<!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 ## Pool tool access (Runtime B)
 
 - Enable **`web_tools`** and **`mcp_servers`** *per `task_type`*, off by default (they cost money + reach the internet): `research`/`plan` → `web_search`+`docs_lookup` (+ `web_scrape` to read a page); `code`/`review`/`docs` → none.
@@ -53,11 +58,19 @@ the task text (a finder given a truncated excerpt reads absence-in-window as abs
 
 - **Close the flywheel loop (every *pool* dispatch):** `pick_models(task_type)` → judge the run → **`record_agent_run(spec, result, quality_score, project=<name>)`**. Via `fanout` the dispatch half is automatic (recorded UNSCORED) — your judgment lands with `set_quality`. ⚠️ `record_run(result, …)` on a raw `AgentResult` **silently no-ops** (it wants a dict; `model`/`task_type` live on the *spec*) — always `record_agent_run(spec, result, …)`. Fleet runs → `subagent_runs` → per-task aggregation → **`TASK_SUBAGENT_SELECTION.md`** → sharper `pick_models` next time.
 - **⚠️ Keep the sources aligned:** the module's vendored `_TABLE` (fallback seed) and the flywheel-refreshed `TASK_SUBAGENT_SELECTION.md` (which overrides it via `_HUB_SELECTION_DOC`/`SUBAGENT_SELECTION_DOC`). **This pack lists NO models and NO price literal — only the mechanism — so it can never be the source that drifts.**
+-->
 
+## Dispatch policy — NATIVE for every fan-out while the pool is OFF (D-181, 2026-09-07); BINDING
+
+**⚠️ THE OPENROUTER POOL IS OFF — operator ruling D-181 (2026-09-07), OFF BY POLICY (D-182 revised the mechanism: the credentials stay provisioned, so a `fanout` would still dispatch and spend — this pack is the control; intel monitors `fabrik_analytics.subagent_runs` for any dispatch).** Until the operator re-enables it: **every fan-out a command names runs NATIVE (Runtime A)** — `fabrik-reviewer` / `fabrik-researcher` / `fabrik-gui` / general-purpose — with the SAME unit split, the SAME author-blind rule (§ Role separation) and the SAME decide/refute/merge you own. Nothing records to the flywheel (a native seat has no `AgentResult`) and nothing is scored; `scripts/enforcement/check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182), so **no `NO-POOL:` declaration is owed**. Native sizing: ≥1 Opus authoritative seat on every review, regardless of diff risk; 1–2 Sonnet seats for breadth on a substantial surface, each briefed on a DIFFERENT failure-class subset; Haiku only for trivial-mechanical checks; GUI stays `fabrik-gui`. ⚠️ Do NOT "turn the pool off" by emptying `TASK_SUBAGENT_SELECTION.md` — `pick_models` falls through an EMPTY section to the unrestricted vendored `_TABLE` (40 models incl. ones the operator removed under D-159/D-168); under D-182 the only lever that refuses is this text (the credential is provisioned). The pool-default contract is kept below, commented, so re-enabling is an uncomment, not a rewrite.
+
+<!-- POOL OFF (D-181) — the original heading, kept for re-enable:
 ## Dispatch policy — pool-default for gradeable fan-out, native for GUI/authoritative/decide (BINDING)
+-->
 
 **Everything decomposable → a subagent; the only question is the runtime.** Every command task that decomposes is fanned out in parallel wherever suitable (independent work, disjoint `owned_paths` — finder / grounder / reconciler / auditor / implementer classes). Do decomposable work via subagents, not inline; serialize only on a true data dependency or a shared file.
 
+<!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 **The OpenRouter pool is the DEFAULT worker for gradeable text/code fan-out** — review finders, repo-review unit reviewers, doc reconcilers, rules-pack auditors, spec/plan research grounders, code implementers. **Route it through `fanout(task_type, units, *, repo, project, mode="read_only"|"write")`** — where **`repo=` is the project ROOT as an absolute path** (e.g. `repo="/opt/job-agent"`, NEVER a bare name: `repo="job-agent"` called from inside the repo silently nested every ledger/env path under `<root>/<name>/` until the module learned to refuse it — the flywheel rows recorded there were invisible to the gate) — the one-call helper that selects via `pick_models` (flywheel-ranked, NO default price cap; **family diversity is BEST-EFFORT, not a guarantee** — `agent.py` reorders the draw distinct-family-first, but it can only diversify across what `pick_models` RETURNS, and the operator's routing allowlist (D-159) currently pins every task kind to two models of one vendor family, so a fan-out repeats them rather than spanning families. Where family diversity is the POINT — a substantial review's recall breadth — add the native layer on top, which is what § Dispatch policy already requires), runs parallel-safe, **auto-records each unit to the flywheel UNSCORED**, and recovers a zero-output straggler once; then **back-fill your 0–5 verdict with `set_quality(agent_id, score, project=, task_type=, model=)`** after you judge — a `fanout` row left unscored teaches the flywheel nothing. `run_agents([AgentSpec, …])` is the lower-level primitive for a hand-tuned mix — then YOU owe `record_agent_run(spec, result)` + `results_table` per unit (§ Report every pool run). A single-shot (`tools_enabled=False`) **repo-grounded** worker (`task_type` `review`/`docs`/`plan` — they assert about code they can't see) must set `allow_ungrounded=True` to attest it inlined the content into `task`, or use `tools_enabled=True` for real file reads — the module **refuses** ungrounded single-shot verification (it hallucinates). **The attestation is only as good as the inline: VERIFY the inlined content actually resolved before dispatch** — a `[MISSING: <path>]` marker passed as "source" produced a full, confident, line-numbered fabrication of a file the model never saw (measured 2026-08-28: one model refused honestly in its first sentence, another invented status values, methods and a five-step trace — wrong in exactly the direction that plans the wrong fix). Enforced (not prose) by `scripts/enforcement/check_subagent_flywheel.py`.
 
 ⚠️ **NEITHER MODE FITS A READ-ONLY REVIEWER OVER A LARGE FILE — know this before you dispatch.**
@@ -80,10 +93,11 @@ Either inline a BOUNDED extract (the section under review, not the whole contrac
 pool for units whose content genuinely fits inline. **And whichever you pick, treat an empty return as a
 FAILED unit, never a clean one** — check the output length before you score it, because the status will
 not tell you.
+-->
 
 **Native Claude Task subagents (`fabrik-*`, subscription-billed) are for GUI + the authoritative/high-risk pass + the decide/refute/merge.** GUI (`fabrik-gui`, browser MCPs — no pool equivalent); the authoritative line-precise verification (`fabrik-reviewer`/Opus on auth / schema / migrations / secrets / concurrency); and the decide/refute/merge you always own. A native fan-out produces no `AgentResult`, so it **records nothing** to the flywheel (nothing to rank — that is by nature, not a gap).
 
-**The THIRD lane — `ai-consult` (fabrik-lib, metered frontier panel): different eyes at a DECISION
+**The THIRD lane — `ai-consult` (fabrik-lib, metered frontier panel) — OFF WITH THE POOL (D-181/D-182: the same no-metered-fan-out ruling; its key stays provisioned, so do not call it); the four entry points below stay the contract for the day it returns.** different eyes at a DECISION
 FORK, never breadth.** The pool buys gradeable recall and the flywheel learns from it; native buys
 authority on subscription; `ai-consult` buys the one thing neither can — genuinely foreign frontier
 judgment (the `frontier` roster: 7 seats, 6 vendor families, zero Anthropic — Claude eyes come via
@@ -113,12 +127,17 @@ recording, containment and caps). Live-verify the roster's model IDs before a pa
 `curl -s https://openrouter.ai/api/v1/models | python3 -c "import sys,json; print('\n'.join(m['id'] for m in json.load(sys.stdin)['data']))" | grep -x "<id>"`
 (the public models list, no key needed) — the seats were frozen from a past measured run and IDs rot.
 
+<!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 **⚠️ BOTH layers, never either/or — native is ADDED ON TOP of the pool breadth, not instead of it.** A *substantial* review / repo-review / rules-audit runs the **pool** breadth layer (`run_agents` finders — recall + they record) **AND** native `fabrik-reviewer` (Opus) for the auth/schema/migrations/secrets/concurrency slices + the decide/merge. "Native for the high-risk pass" does NOT mean native-**only**: a high-risk surface needs the pool breadth *plus* the native authoritative pass. Going all-native and skipping the pool layer lands **zero** flywheel rows (the flywheel learns nothing) — the exact miss `check_subagent_flywheel.py` advisory-WARNs (a big changed surface with no pool run). Trivial one-file reviews may run a single layer; anything substantial runs both.
 
 **Trust = the METHODOLOGY, not a model pin.** A review's trust does NOT come from which pool model ran; it comes from **≥1 native Opus finder as the authoritative decider + every pool finding independently refuted before it is acted on** — both hold regardless of which models the flywheel currently ranks top. So never gate trust on a model name; gate it on the native-Opus-authority + refutation invariant.
 
 **Always cost-conservative + you adjudicate:** select via § Pool model selection (`pick_models`); pass an explicit `max_cost_per_mtok` only when a run needs a hard budget. Cheap pool workers *surface* candidates; you refute / merge / decide and own the verdict.
+-->
 
+## Pool vs native · Parallelism — SUSPENDED (D-181): the runtime for every fan-out is native (Runtime A); the pool comparison and the two parallel shapes are kept for re-enable
+
+<!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 ## Pool vs native — which runtime for a fan-out
 
 | | Native Claude Task subagent (`fabrik-reviewer`/`-researcher`/`-gui`) | OpenRouter pool (`run_agents`) |
@@ -156,6 +175,7 @@ worker has none of these, it just returns text): `read_file · write_file · app
 run_command` (bwrap-sandboxed). (Prices + the per-kind best model are the flywheel's *output* — they live in
 `select.py`'s `_TABLE` + the synced `CODING_SUBAGENT_SELECTION.md`, never restated here; `pick_models(task_type)`
 returns them cheapest-that-clears-the-bar first — see § Pool model selection for why no roster lives in this pack.)
+-->
 
 ## Role separation (review loops) — who hunts LAST is never the author
 
@@ -171,6 +191,9 @@ decide/refute/merge — stays with the orchestrator** (CLAUDE.md § Subagent fan
 decide/refute/merge you own"); this rule governs who HUNTS last, never who adjudicates. The loop
 fragments' fresh/independent-round language defers to THIS definition of independent.
 
+**Per-command dispatch mode — SUSPENDED (D-181): every command's fan-out is native seats; the pool shapes below are kept for re-enable.**
+
+<!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 **Per-command dispatch mode** (which shape each command's fan-out uses — pairs with the routing map above):
 
 | Command | Fan-out | Shape |
@@ -184,6 +207,7 @@ fragments' fresh/independent-round language defers to THIS definition of indepen
 > The two shapes govern **pool** fan-out (`run_agents`). `/fabrik-ui-design` runs a **native** `fabrik-gui`
 > subagent (browser) — not a pool fan-out at all, so the shapes don't apply; it's in the table only to mark it
 > non-pooled (native runtimes never hit the `disjoint()` grouping). Same for any native pass.
+-->
 
 ## NEVER route to the pool (fabrik-lib PROPOSED_RULE)
 
@@ -203,6 +227,9 @@ Adding a tool touches exactly: the roster ruling + emitter table (main agents, p
 `mcpServers` in the relevant Runtime-A agent type → `/opt/fabrik/mcp.json` (pool) — never a command
 brief.
 
+## Report every pool run — SUSPENDED (D-181): a native seat has no `AgentResult`, records nothing, owes no score
+
+<!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 ## Report every pool run — the results table AND the flywheel (both, always)
 
 After any **pool** (`run_agents`, Runtime B) dispatch you EVALUATE, emit **BOTH** — sharing **one** quality verdict (judge once, put the same 0–5 in both). A run that showed a table but no flywheel row (or vice-versa) is **half-done**:
@@ -211,6 +238,7 @@ After any **pool** (`run_agents`, Runtime B) dispatch you EVALUATE, emit **BOTH*
 2. **A flywheel row per unit** — **`record_agent_run(spec, result, quality_score=<the same 0-5>, project=<name>)`**. ⚠️ the older `record_run(result, …)` **silently no-ops** on a raw `AgentResult` (it wants a dict; `model`/`task_type` live on the *spec*) — always `record_agent_run(spec, result, …)`. On the VPS `SUBAGENT_RUNS_DSN` connects directly; on WSL dev pass a peer-auth `connect=` factory. It is fail-open (returns `False` silently on a DB problem) — to prove the plumbing, SELECT the row back, don't trust the return.
 
 **A native Claude-Code-subagent (Runtime A) dispatch produces NO `AgentResult` — it CANNOT record; the flywheel is pool-only (Runtime B).** So a native-fan-out command carries no flywheel footer (see § Pool vs native). Inline / no-dispatch → nothing to record. Telemetry design: `docs/superpowers/specs/archived/2026-07-06-subagent-runs-telemetry-design.md`.
+-->
 
 ## Vendored-module bug → UPSTREAM_FEEDBACK (binding)
 
@@ -220,10 +248,16 @@ When a project fixes a real bug in a **vendored `fabrik-lib` module** (e.g. `lib
 
 - A command brief that restates tool lists instead of naming a `subagent_type` / pointing here.
 - A GUI/browser task routed to the pool (no equivalent — Runtime A/primary only).
+<!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 - A pool task with `sandbox=False`, an inline API key, or web/MCP enabled while it carries sensitive context.
+-->
 - Hard-coding the `mcp` SDK v2 API or the Tool schema attribute name.
+<!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 - Naming a model roster, a per-stage ranking, or a `$X` price cap in this pack — the roster lives in the module `_TABLE` + `TASK_SUBAGENT_SELECTION.md`, and there is no always-on cap; NO model may appear by name here.
+-->
 - Gating a review's trust on a specific pool model name instead of the methodology (native-Opus authority + refutation).
+<!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 - A pool run that emitted a `record_agent_run` but no `results_table` (or vice-versa) — both, one verdict. (And never `record_run(result, …)` — it no-ops; use `record_agent_run(spec, result, …)`.)
+-->
 - Telling a **native** (Runtime A) fan-out to record a flywheel row — it has no `AgentResult`; recording is pool-only.
 - Fixing a bug in a vendored `fabrik-lib` module without an `UPSTREAM_FEEDBACK.md` entry.

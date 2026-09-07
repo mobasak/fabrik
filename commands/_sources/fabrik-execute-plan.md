@@ -5,6 +5,8 @@ argument-hint: "<path to plan file>"
 
 # Autonomous Plan Executor
 
+> **⚠️ POOL OFF — D-181 (operator, 2026-09-07).** The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable). Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy.
+
 You are executing the plan at `$ARGUMENTS`. The user has pre-approved this plan — it IS the approval. The plan and its design spec together govern this execution — `superpowers:subagent-driven-development` and `superpowers:executing-plans` are superseded by this command when invoked via `/fabrik-execute-plan`.
 
 ## Run record — open it FIRST (this is the command that gets abandoned mid-flight)
@@ -227,7 +229,7 @@ Format when blocked: `BLOCKED: <what> — searched: <sources checked> — missin
    review) and the full round below runs ONCE at Finish over the whole-plan diff — the rest of this item
    binds unchanged.** Otherwise, at each phase boundary, run the full `/fabrik-review`
    methodology on the changed surface *plus everything it calls / is called by* — dispatch its independent
-   **finder passes pool-default** (per `/fabrik-review` § Dispatch policy — `fanout("review", …, mode="read_only")`, which auto-records each finder UNSCORED then wants a `set_quality` back-fill), reserving
+   **finder passes as native seats** (the pool is OFF, D-181 — per `/fabrik-review` § Dispatch policy<!-- POOL OFF: `fanout("review", …, mode="read_only")`, auto-records each finder UNSCORED, `set_quality` back-fill -->), reserving
    **native `fabrik-reviewer` (Opus)** for a phase diff touching auth / schema / migrations / secrets /
    concurrency, then merge + **refute** false positives (you, the orchestrator on Opus), and
    **prove-before-fix** each surviving finding — **CONFIRMED and PLAUSIBLE alike** — with a kept regression
@@ -385,8 +387,8 @@ for each PHASE in dependency order:
     run: python scripts/enforcement/check_doc_sync.py
     → any WARNING whose trigger file is in THIS phase's diff is BLOCKING: update the doc before commit
     STAGE the phase's code changes, THEN run the Tier-1 doc-reconcile loop on the STAGED diff: `python scripts/doc_reconcile.py` — **no `--range`**: it reads `git diff --cached`, so it sees the just-staged phase changes. (Do NOT use `--range <phase-base>..HEAD` HERE — the phase isn't committed yet, so a committed-history range is an empty no-op; `--range` is only for the Finish receipt, when all phases ARE committed.) It dispatches a cheap pool author (`pick_models("docs")`) → verify-before-apply → converge, and APPLIES the verified doc patches to the working tree. Then YOU review the applied patches for truth (inject a native-Claude verify_fn for a high-risk doc) and `git add` them so they ride THIS phase's commit. Replaces hand-authoring the declared doc-update steps; hand-write only judgment-heavy prose the loop can't.
-    commit the phase CODE (authors run on committed HEAD via git worktree add --detach) → /fabrik-generate-tests on THIS phase's ## Behavior Contract: the pool authors one test per behavior the implementer did NOT already TDD (fanout("code", mode="write"), disjoint owned_paths, sandbox self-verify), you review test-quality + git apply the survivors → re-run the phase gate (now incl. the authored tests). Skip only if the phase added no user-observable behavior.
-    /fabrik-review on phase's changed surface (code + the authored tests) — PARALLEL pool finders (fanout("review", mode="read_only") auto-records → set_quality back-fill; native fabrik-reviewer/Opus for auth/schema/risky diffs) → refute → prove-before-fix
+    commit the phase CODE (authors run on committed HEAD via git worktree add --detach) → /fabrik-generate-tests on THIS phase's ## Behavior Contract: native seats author one test per behavior the implementer did NOT already TDD (one seat per behavior, disjoint test files, self-verified collection; the pool is OFF, D-181), you review test-quality + git apply the survivors → re-run the phase gate (now incl. the authored tests). Skip only if the phase added no user-observable behavior.
+    /fabrik-review on phase's changed surface (code + the authored tests) — PARALLEL native finders (Sonnet seats + the Opus seat — the pool is OFF, D-181) → refute → prove-before-fix
     iterate: fix → re-run finders → repeat until one review round is clean, THEN next phase
     fix CONFIRMED findings → commit review fixes with Agent-Role: review-fix trailer
     re-run gate until clean
@@ -464,7 +466,7 @@ its Touches (contract violation → its diff is rejected at acceptance).
 - **The orchestrator writes NO ticket code**, with exactly ONE exception — trivial ≤1-file/≤50-LOC
   **strictly-mechanical** inline edits (**no-new-logic** defined: no conditional/loop/function-body
   change). Any orchestrator-authored fixup is bound by the same numeric limits, lands **inside the
-  ticket's acceptance commit under its `Agent-Task:` trailer**, and gets a pool finder pass before final
+  ticket's acceptance commit under its `Agent-Task:` trailer**, and gets a native finder pass before final
   validation trusts it.
 - **Fixup ROUTING (a rule, not an exception):** fixups go to the ticket's coder — SAME coder if its
   session is alive; a FRESH coder/unit otherwise, whose task payload = the standard cold-coder
@@ -503,28 +505,20 @@ its Touches (contract violation → its diff is rejected at acceptance).
   gate-enforced) → NO dispatch: the orchestrator codes the ticket itself in the main checkout and
   commits per D5 with `Agent-Role: orchestrator` + the ticket's `Agent-Task:` trailer — no worktree, no
   polling loop · **`simple`** →
-  `pick_models("code", prefer="value")` pool unit · **`complex`** → mid pool coder — both via
-  `fanout("code", units=[{task, owned_paths: <ticket Touches>}…], mode="write")` — ⚠️ **but pool
-  write-mode coders are OFF for code tickets until the pool sandbox can run the repo's tests**
-  (measured 2026-09-06: 3 of 3 pool coders failed — two died idle, one returned undefined names — because
-  the write sandbox has no venv and cannot run pytest; filed to intel 01M1V98VN3QNS73GCR3GYF9FXH; D-170):
-  until that mail closes, `simple`/`complex` dispatch a NATIVE worktree coder (Sonnet) with
-  `NO-POOL: sandbox` declared per ticket, and the pool stays the review/research breadth layer, where it
-  records and scores · **`never-route`** →
+  a NATIVE worktree coder (Sonnet) · **`complex`** → a NATIVE worktree coder (Sonnet; Opus when the ticket
+  says design-heavy) — the pool is OFF (D-181, on top of D-170's sandbox suspension), so no `NO-POOL:` is
+  owed<!-- POOL OFF (D-181): `simple` → `pick_models("code", prefer="value")` pool unit · `complex` → mid pool coder — both via `fanout("code", units=[{task, owned_paths: <ticket Touches>}…], mode="write")`; D-170 (2026-09-06: 3 of 3 pool coders failed — the write sandbox has no venv; 01M1V98VN3QNS73GCR3GYF9FXH) had already suspended them with `NO-POOL: sandbox` per ticket --> · **`never-route`** →
   native worktree coder (**gate cross-check:** the gate independently ERRORs a pool-tier ticket
   touching never-route paths — trust it, don't re-derive) · **`native`** → native worktree coder by
   AUTHOR'S CHOICE for non-never-route work the pool must not code (the Integration ticket always
-  carries `Complexity: native` — a pool-tier Integration ticket is a gate ERROR). An all-native cycle
-  → a **`NO-POOL:`** declaration naming the reason per ticket (the never-route class, or
-  author-chosen `native`). Native coder tier: Sonnet default; Opus for design-heavy (auth
+  carries `Complexity: native` — a pool-tier Integration ticket is a gate ERROR). No `NO-POOL:` declaration is owed while the pool is OFF (D-181). Native coder tier: Sonnet default; Opus for design-heavy (auth
   flow/schema/migration design, concurrency); Haiku never codes. Concurrency: **3 coders**; when more
   tickets are eligible than free slots, dispatch in `## Merge Order` position order (deterministic
   across runs, and it frees downstream `Depends:` earliest); **acceptance reviews serialize** (one at
   a time — the orchestrator's adjudication is serial anyway, and it meters the Opus stream).
 - **Dispatch economics (budgeted rules, not vibes):**
-  - **Two currencies:** native Claude = subscription **quota** (binding; accounts exhaust in ~2–3 days);
-    pool = metered dollars at cents-scale. Never burn an Opus call to avoid a cents-scale pool unit;
-    never dispatch pool units the floor doesn't need.
+  - **One currency while the pool is OFF (D-181):** native Claude = subscription **quota** (binding; accounts
+    exhaust in ~2–3 days) — meter Opus, prefer Sonnet seats for breadth, Haiku for trivial checks.<!-- POOL OFF (D-181): two currencies — pool = metered dollars at cents-scale; never burn an Opus call to avoid a cents-scale pool unit -->
   - **Native tier map (four rungs):** **Fable** = orchestrator/adjudication + the final validation's
     authoritative native seat (it SUBSTITUTES for, never adds to, the Opus seat there); never a routine
     finder, never a coder. **Opus** = the per-round per-ticket authoritative finder + design-heavy
@@ -532,8 +526,8 @@ its Touches (contract violation → its diff is rejected at acceptance).
     trigger (breadth is trigger-funded, not routine). **Haiku** = trivial-mechanical checks; never codes.
   - **Count discipline — the floor IS the default, per review ROUND (the exception is `Profile: small`:
     there the per-ticket layer is `/fabrik-review-scoped` and this floor runs once, at D7):** each per-ticket review round =
-    **2–3 diverse pool finders + exactly 1 native Opus finder**; every material re-review round re-runs
-    the floor; scale up by at most +2 finders (pool-tier unless never-route) ONLY on a named trigger
+    **1–2 native Sonnet finders + exactly 1 native Opus finder** (the pool is OFF, D-181); every material re-review round re-runs
+    the floor; scale up by at most +2 Sonnet finders ONLY on a named trigger
     (diff >~400 net LOC · never-route surface · a repeat-failed round). Grounding fan-outs: one unit per
     independent dependency, never per file.
   - **Quota-pause terminal:** a native call failing on quota exhaustion (not a transient error) → the
@@ -656,8 +650,8 @@ the gate). Under `Profile: small` this is the plan's ONLY review artifact.
 Validation runs only when every non-🔴 ticket is terminal (✅ — no ⬜ dispatchable, no 🔵/🟡 in
 flight, all salvage procedures complete). ONE whole-plan validation — internally consistent · factual · correct:
 spine↔tickets↔frozen-contract seams + the integrated cumulative diff + a full run of **every ticket's
-Behavior-Contract tests and every seam test**. **Finder counts SCALE with the surface:** minimum 3 pool
-finders + the native authoritative seat (**Fable substitutes for Opus here**), adding ~1 pool finder per
+Behavior-Contract tests and every seam test**. **Finder counts SCALE with the surface:** minimum 3 native Sonnet
+finders + the native authoritative seat (**Fable substitutes for Opus here**; the pool is OFF, D-181), adding ~1 finder per
 2 tickets; NO round cap; closes only on `found: 0, fixed: 0` **(re-raises of already-adjudicated
 standing rows are CITED, never counted — D-048; counting them makes this terminal gate unreachable
 whenever a standing accepted-risk row stays true)**. A flaky test is itself a finding (fix or
@@ -857,7 +851,7 @@ powerful model that can do the role**, because **turn count beats token price**:
 | Implementer — 1–2 files, complete spec, mechanical | cheap |
 | Implementer — multi-file integration, pattern-matching, debugging judgment | standard (Sonnet) |
 | Implementer — design judgment / broad-codebase reasoning | most capable (Opus) |
-| Finder / reviewer | **pool-default** (`fanout("review", …)` — flywheel-ranked, no default price cap; auto-records to the flywheel, `set_quality` back-fill); native `fabrik-reviewer` on **Opus** when the diff touches auth / schema / migrations / secrets / concurrency — scale to the diff's risk, not a flat default |
+| Finder / reviewer | **native seats — the pool is OFF (D-181)**: `fabrik-reviewer` on Sonnet for breadth<!-- POOL OFF: pool-default `fanout("review", …)`, flywheel-ranked, auto-records, `set_quality` back-fill -->; native `fabrik-reviewer` on **Opus** when the diff touches auth / schema / migrations / secrets / concurrency — scale to the diff's risk, not a flat default |
 
 ### File handoffs — move artifacts as FILES, not pasted text
 
@@ -903,6 +897,11 @@ unchanged**:
   context and re-run suites — a real session's per-finding fix wave cost more than all its tasks combined.
   Batch CONFIRMED findings into a single fix dispatch; it re-runs the covering tests and reports results.
 
+### Flywheel — SUSPENDED (D-181): native seats record nothing; no `set_quality` back-fill, no `NO-POOL:` declaration
+
+A native Claude Task implementer or finder (Runtime A) produces no `AgentResult`, so there is nothing to record and nothing to score while the pool is OFF; `check_subagent_flywheel.py` stands down by the same ruling (D-182). The pool recording contract is kept below for re-enable.
+
+<!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 ### Flywheel — `fanout` auto-records; YOU back-fill the score (feeds `pick_models`)
 
 This command dispatches its pool workers via **`fanout(task_type, units, …)`** — the designed **first mover**
@@ -938,6 +937,7 @@ configured DSN; exact connection handling (WSL dev vs VPS `SUBAGENT_RUNS_DSN`), 
 > set_quality / except ImportError: fanout = None` — and guard with `if fanout:` so a not-yet-vendored project
 > no-ops instead of erroring.
 
+-->
 ## Merge Protocol
 
 After all subagents for a phase complete, merge their branches back into the run's `BASE` branch — the one

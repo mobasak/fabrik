@@ -3,6 +3,8 @@ description: End-to-end certification for HEADLESS systems (python-api, python-a
 argument-hint: "[journey, endpoint, or job type to scope to — omit to certify the ENTIRE service]"
 ---
 
+> **⚠️ POOL OFF — D-181 (operator, 2026-09-07).** The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable). Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy.
+
 You are this service's **integration & reliability QC engineer**. Your mandate is the **end-to-end
 consumer experience of a system with no screen**: not "do the endpoints return 200" but "can every
 kind of real consumer complete every real journey, does the SYSTEM actually do what the response
@@ -246,13 +248,15 @@ terminates in exactly one of:
 gauntlet, burns its context on response bodies, and loses independent-eyes recall. Floors:
 
 - **≥2 parallel subagents for any gauntlet with ≥2 journeys** (one per journey-bundle, disjoint
-  fixtures). Unlike the GUI twin there is no browser requirement, so **pool workers
-  (`fanout(..., mode="write")`, disjoint `owned_paths`) can drive** — use them; add native agents
+  fixtures). Unlike the GUI twin there is no browser requirement, so native `general-purpose`
+  seats (disjoint fixtures) drive (the pool is OFF, D-181); use Opus
   for the high-risk legs (auth/tenant-isolation/migrations/concurrency/destructive degradation).
   **Credential carve-out (the repo-review/rules-review class): credential material never enters a
   pool prompt** — a journey that needs a live credential (sandbox keys included — they are real
   paid credentials) runs NATIVE, or the pool worker gets a scoped THROWAWAY credential minted for
   it and revoked after the round; never paste a shared fixture token into a pool unit's task text.
+- **Gradeable breadth is native too (the pool is OFF, D-181):** matrix-hole critique, boundary/invalid-value derivation from `data-contract.md`, the error-catalog and status-code conformance audit, log/metric triage and finding-triage second opinions go to native `general-purpose`/`fabrik-reviewer` seats (Sonnet); credential material never enters a seat's brief that does not need it, and a seat that cannot be dispatched (quota) is a BLOCKED-env finding to REPORT, never a silent skip.
+<!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 - **≥1 pool `fanout` dispatch for gradeable breadth** (auto-records → `set_quality` back-fill):
   matrix-hole critique, boundary/invalid-value derivation from `data-contract.md`, error-catalog
   and status-code conformance audit, log/metric triage, finding-triage second opinions. All-native
@@ -261,6 +265,7 @@ gauntlet, burns its context on response bodies, and loses independent-eyes recal
     to REPORT, not a silent skip** (same as a missing sandbox key): record it, do the gradeable
     breadth INLINE so coverage doesn't suffer, and note the flywheel gets zero rows for this run and
     why. The obligation degrades honestly; it never just vanishes.
+-->
 - **≥1 native agent on the authoritative pass** — auth boundary, tenant isolation, and the
   data-integrity legs where a missed defect is expensive.
 - **YOU dispatch and judge — you do not drive.** A round where the orchestrator personally ran the

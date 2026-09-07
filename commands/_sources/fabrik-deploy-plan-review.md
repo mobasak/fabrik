@@ -3,6 +3,8 @@ description: Adversarially converge a DRAFT deployment plan to a fixed point —
 argument-hint: "<path to the deploy plan — docs/development/plans/YYYY-MM-DD-plan-deploy-<service>.md>"
 ---
 
+> **⚠️ POOL OFF — D-181 (operator, 2026-09-07).** The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable). Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy.
+
 Converge this deployment plan to a fixed point — do not stop after one pass. This command exists because a
 deploy plan's characteristic defects — a set placeholder silently defeating a compose `:-` fallback, an
 in-container dev-default port, a missing restart-after-init, a healer racing a migration window — are
@@ -153,12 +155,10 @@ replaces).
 Also hunt beyond the checklist: plan↔reality drift, unstated assumptions, steps whose verification is
 vague or unrunnable, and any `OPERATOR-GATE` marker missing from a step only the human may take.
 
-**Finder fan-out — pool breadth AND the native Opus floor, every round.** Decompose the pass into
-independent units (one per checklist class, or per plan section) and dispatch the gradeable breadth to the
-OpenRouter pool — `fanout("review", units, mode="read_only")` with the plan + the relevant ground-truth
-files inlined per unit (auto-records to the flywheel; back-fill `set_quality` per unit). **The pool never
-runs Opus, so a pool-only round has no Opus eyes and is NOT a valid round — EVERY round ALSO dispatches at
-least one native Opus finder as the authoritative pass.** Two slices are ADDITIONALLY native-only:
+**Finder fan-out — native seats, every round (the pool is OFF, D-181).** Decompose the pass into
+independent units (one per checklist class, or per plan section) and dispatch 1–2 native `fabrik-reviewer`
+seats on Sonnet with the plan + the relevant ground-truth files per unit. **EVERY round ALSO dispatches at
+least one native Opus finder as the authoritative pass.**<!-- POOL OFF (D-181): the breadth went to the OpenRouter pool — `fanout("review", units, mode="read_only")`, auto-recorded, `set_quality` back-filled per unit --> Two slices are ADDITIONALLY native-only:
 anything needing live SSH probes, and the secrets-flow class (secret-adjacent content never goes to pool
 APIs). Then YOU merge, dedupe by (section, failure-class), and **refute-with-evidence** — a finding dies
 only by quoting the line/probe output that disproves it, and survives only into a fix.

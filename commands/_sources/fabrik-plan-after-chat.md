@@ -190,8 +190,7 @@ Treat every intended step as unproven until verified against the real code/schem
   whose validation would be vague or unrunnable.
 
 **Parallelism — the DEFAULT for multi-unit grounding.** With **2+ independent files/subsystems/dependencies
-to ground**, `fanout` one INDEPENDENT grounder per unit — **pool-default** (`fanout("research", …, mode="read_only",
-web_tools=["web_search","web_scrape","docs_lookup"])` for live search; recipe in § Subagents), native
+to ground**, dispatch one INDEPENDENT native `fabrik-researcher` grounder per unit (the pool is OFF, D-181<!-- POOL OFF: `fanout("research", …, mode="read_only", web_tools=["web_search","web_scrape","docs_lookup"])` for live search; recipe in § Subagents -->), an Opus
 `fabrik-researcher` for the authoritative verify-sample — run them **in parallel**, then merge + dedupe —
 **refute** any finding you can disprove by quoting the contradicting `path:line` before acting. Only a
 single-unit ground loops solo. Enumerate what you actually read (an empty check with no evidence does not count).
@@ -207,7 +206,7 @@ orchestrator codes each phase itself in the main checkout, so **the READ budget 
 and never splits a small plan** — the budget guards a cold coder's context and the profile dispatches
 none (`check_plan_tickets.py` waives it under the profile, caps the set at 3 tickets and refuses the
 pool tiers). Per phase the review is `/fabrik-review-scoped` (tests + gate + the light scoped round);
-the ONE heavy round — pool trio + native finder, ONE receipt — runs over the whole-plan diff at Finish.
+the ONE heavy round — three native seats (≥1 Opus), ONE receipt — runs over the whole-plan diff at Finish.
 Behavior Contract rows stay one per behaviour, but the TEST budget is proportional: target ≤ ~1.5× the
 code diff in test lines, and seam tests are written ONCE, in the last phase, never repeated per phase.
 Measured 2026-09-06 on this hub: the full machinery applied to an 851-line feature produced 7 tickets,
@@ -354,18 +353,16 @@ label/value is now parsed; the LABEL forms neither gate parses — `__Complexity
 label, `***Complexity***:`, a wrapped-to-next-line value — each still draw the routing-off
 finding: ERROR at the emit gate (a `***triple***`/`__bold__` VALUE parses or draws the
 unrecognized-value ERROR — fail-closed either way) → dispatch tier (**inline** → no dispatch, the
-orchestrator codes it in the main checkout — only under `Profile: small` · **simple** →
-`pick_models("code", prefer="value")` · **complex** → mid pool coder, premium pool models only via a
-named trigger · **never-route** → MANDATORY native, use it whenever Touches intersect the
+orchestrator codes it in the main checkout — only under `Profile: small` · **simple** / **complex** →
+a native worktree coder (Sonnet; the pool is OFF, D-181 — the tiers keep their names so the gate's
+never-route cross-check still applies) · **never-route** → MANDATORY native, use it whenever Touches intersect the
 never-route set (the gate cross-checks simple/complex Touches against those paths) · **native** →
 author-CHOSEN native for work the pool must not code — design-heavy surfaces, and the
 Integration/receipt ticket — whose Touches are NOT never-route paths (the gate does not cross-check
 `native` Touches; self-verify the tier choice); both native
 tiers dispatch to the native worktree coder, `claude -p sonnet` default / `claude -p opus` for
-design-heavy auth/schema/migration/concurrency work; **Haiku never codes**; the pool is the ONLY
-route for gradeable tickets — SUSPENDED by D-170 until the pool's write sandbox can run the repo's
-tests: `simple`/`complex` currently dispatch a native Sonnet coder with `NO-POOL: sandbox`, per
-`/fabrik-execute-plan` D2) · `## Behavior Contract` (≤8 G/W/T rows, **bulleted `- **Given** …`
+design-heavy auth/schema/migration/concurrency work; **Haiku never codes**; `simple`/`complex` dispatch a native Sonnet coder (D-170 suspended pool coders; D-181 turned the
+pool off — no `NO-POOL:` is owed), per `/fabrik-execute-plan` D2) · `## Behavior Contract` (≤8 G/W/T rows, **bulleted `- **Given** …`
 form only** — the gate reads ONLY bulleted Given rows, so numbered/table rows silently escape both
 the ≤8 cap and roll-up equality) · `## Context Files` (rule packs + refs + **every existing file the
 coder must READ** — the byte budget counts them; new-file-heavy tickets list their reference/seam
@@ -417,6 +414,8 @@ shape, don't invent):
 
 ```markdown
 # T01 — <title>
+
+> **⚠️ POOL OFF — D-181 (operator, 2026-09-07).** The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable). Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy.
 
 ## Scope
 <one paragraph of the WHAT>. DO-NOT: <the adjacent surface this ticket must not touch>.
@@ -476,9 +475,9 @@ so, so the reviewing agent correctly called it a defect and the operator had no 
 
 - **Review floor** — "every ticket, on the coder's return, runs `/fabrik-review` on its changed
   surface to a coverage-adjudicated exit BEFORE its merge; no ticket merges on a first-pass green."
-- **Dispatch policy** — pool-default (`fanout(task_type, …)`, auto-records to the flywheel, wants the
-  `set_quality` back-fill) for the gradeable work, native added on top for GUI / the
-  authoritative-high-risk pass / the decide-merge. Naming neither lets the executor go all-native.
+- **Dispatch policy** — native Claude seats for every fan-out (the pool is OFF, D-181), the Opus
+  seat for GUI / the authoritative-high-risk pass / the decide-merge. Naming no policy leaves the
+  executor without an author-blind floor.<!-- POOL OFF (D-181): pool-default (`fanout(task_type, …)`, auto-records, `set_quality` back-fill) with native on top -->
 - **Parallelism + merge** — which tickets fan out concurrently and **where their results
   merge/dedupe**. `## Merge Order` gives sequencing; this gives the fan-out semantics, which a
   topological list cannot express.
@@ -574,8 +573,8 @@ WARN. Map every trigger: new feature → `docs/FEATURES.md`; API route → `docs
 `docs/CONFIGURATION.md` + `.env.example`; compose service → `docs/SERVICES.md` + `docs/OPERATIONS.md`;
 resilience pattern → `docs/RESILIENCE.md`; schema → `db/schema.sql` + `docs/data-contract.md`; new
 port → `PORTS.md`; file added/removed → `INDEX.md`; always `CHANGELOG.md`. **Annotate each trigger→doc
-step as pool-reconciled + native-verified** (`scripts/doc_reconcile.py` — cheap `pick_models("docs")`
-author → verify-before-apply → converge; `/fabrik-execute-plan` runs it per phase), not hand-authored
+step as reconciled + native-verified** (`scripts/doc_reconcile.py` — its author leg is native while the
+pool is OFF, D-181 → verify-before-apply → converge; `/fabrik-execute-plan` runs it per phase), not hand-authored
 from scratch — the coder curates the applied patch. The plan's
 **last phase** must run `/fabrik-docs-review` to converge the docs to a truthful fixed point
 (touch-on-change gates prove presence, not correctness — this pass proves correctness).
@@ -597,11 +596,10 @@ carries none of the three is a defective plan, not a shape difference:
    methodology, and progression is gated on it.
 2. **Subagents mandated where the work is independently decomposable** — implementation, research,
    grounding, and review are dispatched to subagents, stated in each phase's steps. **The plan must specify
-   POOL-DEFAULT** (per `62-using-subagents.md` § Dispatch policy — the OpenRouter pool via `fanout(task_type,
-   units, …)`, which **auto-records to the flywheel** then wants a `set_quality` back-fill) for the gradeable
-   work, with **native** Claude subagents added on top for GUI / the authoritative-high-risk pass / the
-   decide-merge. A phase that just says "use a subagent" without naming pool-default lets the executor go
-   all-native and land zero flywheel rows — name it.
+   its dispatch policy** (per `62-using-subagents.md` § Dispatch policy — native Claude seats for every
+   fan-out while the pool is OFF, D-181, the Opus seat for GUI / the authoritative-high-risk pass / the
+   decide-merge). A phase that just says "use a subagent" without naming the seats and their independence
+   leaves the executor without a floor — name it.<!-- POOL OFF (D-181): pre-D-181 text required POOL-DEFAULT via `fanout(task_type, units, …)` (auto-records, `set_quality` back-fill) with native on top -->
 3. **Parallelism whenever independent work exists** — call out explicitly which steps fan out to
    parallel subagents and **where the merge/dedupe happens**. Sequential only on a true data dependency.
 

@@ -12,6 +12,12 @@ that make `62-using-subagents.md` § Dispatch policy's pool-default real across 
 LAYER 2 (ADVISORY — never blocks): reconciles the local pool ledger vs receipts and WARNs on any pool
 run that ran but was never `record_agent_run`-recorded.
 
+⚠️ D-181 / D-182 (2026-09-07): the pool is OFF BY POLICY fleet-wide — the corpus no longer mandates it
+and this gate no longer demands it — while the provider credentials STAY provisioned (D-182 revised
+D-181's mechanism). So the policy lives HERE, as the committed constant ``_POOL_POLICY_ON`` (fleet-synced
+with the script): while it is False, Layer 1 stands down entirely (no NO-POOL declaration is owed) and
+Layer 2 prints one line instead of the historical backlog. See :func:`_pool_policy_on`.
+
 ⚠️ FAIL-SAFE INVARIANT: the block fires ONLY when {code files > threshold, zero in-cycle pool rows, no
 NO-POOL declaration} are ALL confidently determined. ANY git failure, parse error, or exception in any
 helper degrades to EXIT 0 — never a false block. A blocking gate that false-blocks the whole fleet is
@@ -229,14 +235,55 @@ def _declared_no_pool() -> bool:
         return True
 
 
+def _fleet_env_path() -> Path | None:
+    """The fleet-wide USER-level credential file — mirrors ``libs/subagents/_dotenv.py::_shared_env_path``
+    (``$SUBAGENTS_ENV_FILE`` override, else ``${XDG_CONFIG_HOME:-~/.config}/fabrik/subagents.env``).
+    Inlined, not imported, on purpose: this enforcement check must not hard-depend on the runtime package
+    being importable (the flywheel tests mock ``libs.subagents``), and the path convention is stable.
+    ``None`` when HOME is unresolvable (a minimal container)."""
+    try:
+        override = os.environ.get("SUBAGENTS_ENV_FILE")
+        if override:
+            return Path(override)
+        xdg = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
+        return Path(xdg) / "fabrik" / "subagents.env"
+    except (KeyError, RuntimeError):  # HOME unset + no passwd entry
+        return None
+
+
+_POOL_POLICY_ON = False
+"""The pool POLICY. D-181 (operator, 2026-09-07): "i decided not to use them" — the OpenRouter pool is OFF
+fleet-wide. D-182 (same day) revised the MECHANISM: the provider credentials are restored and stay
+provisioned, so the box can still dispatch; the corpus text and THIS constant are the control. A credential
+file was the wrong switch — no owner-visible state, no audit trail, flipped back by a backup restore — so
+the policy is a committed line in a fleet-synced script: re-enabling pool-or-declare is a one-line commit
+that the governance sync distributes, never a file nobody diffs."""
+
+
+def _pool_policy_on() -> bool:
+    """Is the pool POLICY on? Reads :data:`_POOL_POLICY_ON`; ``FABRIK_POOL_POLICY=on|off`` overrides it for
+    the tests (a documented seam, mirroring ``FABRIK_NO_POOL``), never for a run. While OFF: Layer 1 never
+    blocks and Layer 2 prints one line. NOT consulted on purpose: the fleet credential file, a project's
+    ``.env``, the process env — under D-182 every one of them carries a live key and none of them is the
+    policy."""
+    override = os.environ.get("FABRIK_POOL_POLICY", "").strip().lower()
+    if override in {"on", "1", "true"}:
+        return True
+    if override in {"off", "0", "false"}:
+        return False
+    return _POOL_POLICY_ON
+
+
 def _pool_available() -> bool:
-    """The gate enforces pool use ONLY where the pool can actually be dispatched. The subagents pool is
-    **vendored** into a project (``libs/subagents/`` — copied from ``/opt/fabrik-lib/subagents`` per the
-    flywheel workflow, `.windsurf/workflows/subagent-runs-flywheel.md`), and the commands import it as
-    ``from libs.subagents import …``. So "dispatchable here" == "vendored here": a project (or the hub,
-    which carries its own ``libs/subagents``) that has NOT vendored the module can't ``from libs.subagents
-    import`` → don't block (fail-safe: can't dispatch → can't enforce)."""
-    return (PROJECT_ROOT / "libs" / "subagents" / "__init__.py").is_file()
+    """The gate enforces pool use ONLY where the pool can actually be dispatched — TWO conditions. (1) The
+    subagents pool is **vendored** into a project (``libs/subagents/`` — copied from
+    ``/opt/fabrik-lib/subagents`` per the flywheel workflow, `.windsurf/workflows/subagent-runs-flywheel.md`),
+    and the commands import it as ``from libs.subagents import …``: a project (or the hub, which carries
+    its own ``libs/subagents``) that has NOT vendored the module can't dispatch → don't block. (2) The pool
+    POLICY is on (:func:`_pool_policy_on` — D-181/D-182 turned it off): demanding a pool run the operator
+    has forbidden would be a false block, whatever the credentials allow. Fail-safe both ways: can't (or
+    must not) dispatch → can't enforce."""
+    return (PROJECT_ROOT / "libs" / "subagents" / "__init__.py").is_file() and _pool_policy_on()
 
 
 def _pool_or_declare(ledger_path: Path) -> int:
@@ -324,6 +371,17 @@ def _warn_unrecorded(ledger_path: Path) -> None:
         return
     if not unrecorded:
         return
+    if not _pool_policy_on():
+        # D-181/D-182: nothing new should dispatch, so the backlog can never be scored — one line, not a
+        # list that would re-print ~1,100 historical ids on every gate run forever (intel,
+        # 01M1YARGHWZQF645DTQ2QNW4A6). A NEW row appearing here after the corpus flip is intel's tripwire
+        # (D-182), not this gate's to block on.
+        print(
+            f"SUBAGENT FLYWHEEL (advisory): the pool is OFF by policy (D-181/D-182 — "
+            f"_POOL_POLICY_ON is False in this script); {len(unrecorded)} historical unrecorded pool "
+            "run(s) stay unreconciled — nothing new should dispatch, nothing to score."
+        )
+        return
 
     # Name the CAUSE when it is the environment, not the agent: a repo whose .env carries no
     # SUBAGENT_RUNS_DSN cannot record ANY run — record_agent_run fail-opens False silently, so
@@ -366,21 +424,7 @@ def _warn_unrecorded(ledger_path: Path) -> None:
     # ($SUBAGENTS_ENV_FILE override, else ${XDG_CONFIG_HOME:-~/.config}/fabrik/subagents.env). Inlined,
     # not imported, on purpose: this enforcement check must not hard-depend on the runtime package being
     # importable (the flywheel tests mock libs.subagents), and the path convention is stable.
-    shared = None
-    try:
-        override = os.environ.get("SUBAGENTS_ENV_FILE")
-        if override:
-            shared = Path(override)
-        else:
-            xdg = os.environ.get("XDG_CONFIG_HOME") or os.path.join(
-                os.path.expanduser("~"), ".config"
-            )
-            shared = Path(xdg) / "fabrik" / "subagents.env"
-    except (
-        KeyError,
-        RuntimeError,
-    ):  # HOME unset + no passwd entry (minimal container) → skip layer
-        shared = None
+    shared = _fleet_env_path()  # the same resolver the policy probe uses — one place to drift
     env_file = PROJECT_ROOT / ".env"
     has_dsn = (
         bool(os.environ.get("SUBAGENT_RUNS_DSN", "").strip())
