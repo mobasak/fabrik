@@ -62,8 +62,9 @@ def _rows(path: Path | None) -> list[dict]:
 
 
 def _is_none(value: str) -> bool:
-    head = value.strip().lower().split()[0].rstrip(".,;") if value and value.strip() else ""
-    return not value or head in {"none", "nothing", "n/a", "-"}
+    stripped = (value or "").strip()
+    head = stripped.lower().split()[0].rstrip(".,;") if stripped else ""
+    return not stripped or head in {"none", "nothing", "n/a", "-"}
 
 
 def _median(values: list) -> float | int:

@@ -1044,7 +1044,6 @@ def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[s
         anon = 0  # id-less lines cannot be proven repeats — each counts as its own message
         models: list[str] = []
         lo, hi = start - 2.0, end + 2.0
-        oldest: float | None = None
         capped = False
         for raw in _iter_lines_backwards(path, _TRANSCRIPT_MAX_BYTES):
             if raw is None:
@@ -1053,8 +1052,6 @@ def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[s
             e = _line_epoch(raw)
             if e is None:
                 continue
-            if oldest is None or e < oldest:
-                oldest = e
             if e < lo or e > hi or not _ASSISTANT_RE.search(raw):
                 continue
             try:
@@ -1139,7 +1136,8 @@ def _cost_usd(text: str) -> float | None:
             # the whole-value form with a bare integer before `usd` is the same year/count
             # shape the marked form refuses (`2024 usd`) — a fraction or a `$` makes it a cost
             if "." not in m.group(1) and "$" not in t and "usd" in t.lower():
-                return 0.0 if m.group(1) == "0" else None  # an explicit `0 usd` IS a zero cost
+                # an explicit zero (`0 usd`, `00 usd`) IS a zero cost — compared numerically
+                return 0.0 if float(m.group(1).replace(",", "")) == 0 else None
             return float(m.group(1).replace(",", ""))
         amounts = [
             float(next(g for g in mm.groups() if g).replace(",", ""))

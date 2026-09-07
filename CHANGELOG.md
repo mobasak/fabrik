@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Feedback ledger review, passes 3–12: cost grammar hardened, the whole transcript scanned, the row's agent is the start-time one (2026-09-07)
+
+`/fabrik-review 61b0e8ac..71314d47` continued past its first two passes (see the entry above):
+ten more small commits (10c008ea … this one). `_cost_usd` refuses a negated amount (`-$1.50`,
+`$5-$2`, `-1,234.50 usd`) but never nulls a real amount beside a hyphenated name (`$0.30 via
+glm-5`), refuses a letter glued to a number (`$1e10`), needs a fraction on the bare `usd` form
+(`2024 usd` is a year, `0 usd` is zero), allows punctuation after an amount (`$0.30, $0.40` →
+0.70). The transcript reader scans the WHOLE file with a 2 GiB backstop (0.8–2.9 s on the 720 MiB
+hub file) and `tok_partial` means the cap cut the read. The row's `agent` is resolved at start
+like `account` and `surface`; `surface` is capped; the report's k/M rollover, dash for a command
+with no cost rows, every surface on a repeated backlog item, whitespace-agnostic `none`, bools
+excluded from numeric helpers. Both CLAUDE.md FEEDBACK templates carry the `tokens …` clause.
+Two chain defects of the review itself were fixed in-run: a commit landed past a red gate
+(F541) and another past a red suite — the commit script now refuses both.
+
 ### Fixed — Feedback ledger review round: the transcript scan no longer stops early, every reader error is contained, costs sum, the report declares its population (2026-09-07)
 
 `/fabrik-review 61b0e8ac..71314d47` (pool trio + native Opus + native Sonnet + own execution

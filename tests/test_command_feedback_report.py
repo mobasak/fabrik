@@ -326,3 +326,10 @@ def test_k_rolls_over_to_millions_at_the_rounded_boundary() -> None:
         and _k(999.4) == "999"
         and _k(1000) == "1.0k"
     )
+
+
+def test_a_whitespace_only_value_is_none() -> None:
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_feedback_report import _is_none  # noqa: PLC0415
+
+    assert _is_none("   ") and _is_none("\t\n") and _is_none("") and not _is_none(" x ")

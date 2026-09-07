@@ -1132,3 +1132,14 @@ def test_punctuation_after_an_amount_does_not_drop_it() -> None:
     assert (
         _cost_usd("$12,34") is None and _cost_usd("$1e10") is None
     )  # malformed groups and letters still refuse
+
+
+def test_a_multi_digit_zero_before_usd_is_still_zero() -> None:
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _cost_usd  # noqa: PLC0415
+
+    assert (
+        _cost_usd("00 usd") == 0.0
+        and _cost_usd("pool 000 usd") == 0.0
+        and _cost_usd("10 usd") is None
+    )
