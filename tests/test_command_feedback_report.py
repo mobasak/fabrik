@@ -258,3 +258,22 @@ def test_models_are_aggregated_and_the_population_is_declared(tmp_path: Path) ->
     assert out["commands"]["c1"]["models"] == ["claude-a", "claude-b"]
     text = _run(ledger).stdout
     assert "claude-a, claude-b" in text and "coroner" in text and "nested" in text, text
+
+
+def test_a_command_with_no_cost_rows_renders_a_dash_not_zero(tmp_path: Path) -> None:
+    ledger = tmp_path / "command-feedback.jsonl"
+    _write(ledger, [_row("fabrik-spec", 100, 1, "x", cost_usd=None)])
+    text = _run(ledger).stdout
+    assert "| — (0) | — (0) | — |" in text, text  # pool $, median tokens, cache hit
+
+
+def test_the_default_ledger_is_the_path_the_close_writes(tmp_path: Path, monkeypatch) -> None:
+    import importlib
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    monkeypatch.setenv("COMMAND_RUN_DIR", str(tmp_path / "state" / "command-runs"))
+    import command_feedback_report as rep  # noqa: PLC0415
+    import command_run as cr  # noqa: PLC0415
+
+    importlib.reload(rep)
+    assert rep._default_ledger() == cr._feedback_ledger_path()

@@ -2017,9 +2017,9 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         try:
             _lp = _feedback_ledger_path()
             _lp.parent.mkdir(parents=True, exist_ok=True)
-            # ONE write(2) under O_APPEND: three sessions append to this file with no lock, and a
-            # buffered text write past 8 KiB can split and interleave (review 2026-09-07); the
-            # per-field cap above keeps a row well under that
+            # a single append under O_APPEND (short writes continued): three sessions append to
+            # this file with no lock, and a buffered text write past 8 KiB could split and
+            # interleave (review 2026-09-07); the per-field cap bounds the row
             _append_ledger_row(_lp, _row)
         except OSError as exc:  # the ledger never blocks a close; the record still carries it
             sys.stderr.write(f"[command_run] usage ledger not written: {exc}\n")

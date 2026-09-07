@@ -205,7 +205,8 @@ def render(report: dict) -> str:
         lines.append(
             f"| /{cmd} | {c['runs']} | {c['done']}/{c['blocked']}/{c['handoff']} | "
             f"{c['median_wall_min']} min | {c['max_wall_min']} min | {c['median_rounds']} | "
-            f"{c['change_none']} of {c['runs']} | {c['cost_usd']} ({c['cost_rows']}) | "
+            f"{c['change_none']} of {c['runs']} | "
+            f"{c['cost_usd'] if c['cost_rows'] else '—'} ({c['cost_rows']}) | "
             f"{_k(c['median_tok']) if c.get('median_tok') is not None else '—'} "
             f"({c['tok_rows']}) | {hit} | {', '.join(c['models']) or '—'} |"
         )

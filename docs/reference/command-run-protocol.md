@@ -239,7 +239,8 @@ cost:      <pool dollars — the text you write is kept as `cost`; its parsed nu
   tok_in tok_out tok_cache_read tok_cache_create tok_msgs models tok_partial`.
   **The analysis dimensions** (operator, 2026-09-07 — "which repo, which agent, which command,
   which spec, which file"): `repo` (the run's `repo_root`), `agent` (`CLAUDE_AGENT` at `start`,
-  the same env the provenance trailers key on), `surface` (`start --surface` — the spec, plan
+  the same env and the same grammar `[a-z0-9-]{1,32}` the provenance trailers key on — anything
+  else records as empty), `surface` (`start --surface` — the spec, plan
   dir, ticket or diff range the command ran OVER; the close accepts `--surface` to name it late),
   `account` (the rotation's `~/.claude/.active-account` marker at `start`, a pure read — a quota
   hold or a flip otherwise looks like command slowness; `COMMAND_RUN_ACCOUNT_FILE` overrides the
@@ -260,10 +261,11 @@ cost:      <pool dollars — the text you write is kept as `cost`; its parsed nu
   There is deliberately no "stop after N older lines" rule: a compaction re-emits earlier messages
   with their original timestamps (measured: a 1,340-line block lagging 23 h), so a run spanning a
   compaction has in-window lines on both sides of a stale block. `tok_partial: true` means the cap
-  was reached while the oldest scanned line was still inside the window — the sum is a lower bound
-  and the row says so. No transcript ⇒ `null` tokens and `tok_msgs: 0`, never a silent zero; a
+  was reached before the scan had passed the window's start (or before any stamped line was seen)
+  — the sum is a lower bound and the row says so. No transcript ⇒ `null` tokens and `tok_msgs: 0`, never a silent zero; a
   nested run's window overlaps its parent's and each row reports its own window. The printed line
-  carries `tokens <input> input / <output> output (<cache-read share>% cached)` — `input` is the
+  carries `tokens <input> input / <output> output (<cache-read share>% cached)` (the share is
+  omitted when no input was billed) — `input` is the
   SUMMED billed input over the run's messages (uncached + cache-read + cache-create), never a
   context size. A newline-free tail longer than 8 MiB abandons the read (a corrupt file cannot
   wedge a close), a non-finite usage value counts as absent, and NOTHING the reader raises can
