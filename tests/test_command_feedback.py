@@ -1087,3 +1087,12 @@ def test_a_hyphenated_name_beside_a_real_amount_never_nulls_the_cost() -> None:
         and _cost_usd("-$1.50") is None
         and _cost_usd("-1.50 usd") is None
     )
+
+
+def test_a_negated_thousands_amount_in_the_usd_form_is_refused_too() -> None:
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _cost_usd  # noqa: PLC0415
+
+    assert _cost_usd("saved -1,234.50 usd on this run") is None
+    assert _cost_usd("refund of -12,345.67 usd issued") is None
+    assert _cost_usd("1,234.50 usd across the pool") == 1234.5  # the positive form still parses
