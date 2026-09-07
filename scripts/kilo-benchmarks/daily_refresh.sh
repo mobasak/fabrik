@@ -152,8 +152,28 @@ fi
   # and GROWING while unflushed. Fail-open by construction: it exits 0 on every path, so a sink
   # outage can never red the refresh. It must run BEFORE the ranking regen below, or the ranking
   # reads a table missing the day's rows.
-  _step "flush_subagent_outboxes" "$VENV_PY" "$KB/flush_subagent_outboxes.py" \
-    || echo "[daily_refresh] outbox flush errored (non-fatal, fail-open by design)"
+# ── POOL-EVALUATION PAUSE (operator, 2026-09-08: "do not delete them but stop/pause them, if we
+# want to reuse them, we can enable them") ───────────────────────────────────────────────────────
+# The three steps below are the OpenRouter evaluation + flywheel pipeline. They are PAUSED, not
+# removed, and they pause TOGETHER — see the atomicity note at the gate itself.
+#
+# ONE SWITCH, no new state: the pause reads the same committed constant the enforcement gate and
+# doc_reconcile.py read — `check_subagent_flywheel._pool_policy_on()` (D-181/D-182). Turn the pool
+# policy back on and this chain resumes with it; there is no second thing to remember. The
+# `FABRIK_POOL_POLICY=on|off` seam works here too, so a one-off run needs no edit:
+#     FABRIK_POOL_POLICY=on scripts/kilo-benchmarks/daily_refresh.sh
+_pool_eval_paused() {
+  "$VENV_PY" -c 'import sys; sys.path.insert(0, "'"$FABRIK_ROOT"'/scripts/enforcement")
+import check_subagent_flywheel as c
+sys.exit(0 if not c._pool_policy_on() else 1)' 2>/dev/null
+}
+
+  if _pool_eval_paused; then
+    echo "[daily_refresh] POOL EVAL PAUSED — skipping flush_subagent_outboxes (nothing dispatches, so nothing accrues)"
+  else
+    _step "flush_subagent_outboxes" "$VENV_PY" "$KB/flush_subagent_outboxes.py" \
+      || echo "[daily_refresh] outbox flush errored (non-fatal, fail-open by design)"
+  fi
 
   # C2 — rebuild the cost sidecar BEFORE the ranking regen below, which renders ② into
   # TASK_SUBAGENT_SELECTION.md. Wired AFTER it, the doc carries yesterday's rate for a full cycle.
@@ -290,7 +310,14 @@ fi
   #
   # Non-fatal by design: a delivery failure must leave YESTERDAY's good docs in place rather than
   # half-write today's. deliver_to_fabrik writes atomically (tmp + os.replace) for the same reason.
-  if [ -x /opt/ai-model-catalog/engine/.venv/bin/python ]; then
+  # ⚠️ ATOMIC WITH THE RANKER BELOW — never pause one without the other. deliver_to_fabrik
+  # OVERWRITES TASK_SUBAGENT_SELECTION.md with the catalog's UNRESTRICTED doc, and the ranker
+  # regenerates it with the operator's roster afterwards. Skip only the ranker and the unrestricted
+  # doc is what stands, silently restoring every model D-159/D-168 removed — the same shape as the
+  # empty-section `_TABLE` fallback. Both are gated on the one policy constant for exactly that reason.
+  if _pool_eval_paused; then
+    echo "[daily_refresh] POOL EVAL PAUSED — skipping deliver_to_fabrik (its unrestricted doc must not land while the ranker is paused)"
+  elif [ -x /opt/ai-model-catalog/engine/.venv/bin/python ]; then
     _step "deliver_to_fabrik" \
       /opt/ai-model-catalog/engine/.venv/bin/python \
       /opt/ai-model-catalog/engine/deliver_to_fabrik.py --apply --target-root "$FABRIK_ROOT" \
@@ -312,10 +339,14 @@ fi
   # a doc carrying none of the operator's routing policy to 45 repos on the next sync, and
   # `guard_selection_freshness` cannot catch it because it compares DATES and the delivered copy is
   # stamped the same day. Every other policy-critical step in this file alerts; this one now does.
+  if _pool_eval_paused; then
+    echo "[daily_refresh] POOL EVAL PAUSED — skipping rank_task_subagents; the routing doc stays FROZEN as last written (its own 'Evidence age:' line states how old that is)"
+  else
   _step "rank_task_subagents" "$VENV_PY" "$KB/rank_task_subagents.py" \
     || { echo "[daily_refresh] ranking regen FAILED — the delivered (unrestricted) doc is what stands"; \
          bash "$KB/pipeline_alert.sh" 'daily_refresh: rank_task_subagents exited non-zero' \
            'The hub ranker did not regenerate TASK_SUBAGENT_SELECTION.md after deliver_to_fabrik overwrote it, so the doc now on disk is the ai-model-catalog engine copy — which carries NEITHER the operator deny nor the D-159 allowlist. It will be auto-committed and synced to ~45 repos unless this is fixed before the next sync. Re-run: python3 scripts/kilo-benchmarks/rank_task_subagents.py' || true; }
+  fi
 
   _step "generate_capability_index" "$VENV_PY" "$FABRIK_ROOT/scripts/generate_capability_index.py" \
     || echo "[daily_refresh] generate_capability_index failed (non-fatal)"

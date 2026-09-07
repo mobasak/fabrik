@@ -48,7 +48,7 @@ import os
 import sqlite3
 import subprocess
 import sys
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 DB_NAME = "fabrik_analytics"
@@ -590,6 +590,81 @@ def _query_canary_rows() -> tuple[str, dict[str, float]]:
     except Exception as exc:
         print(f"[rank_task_subagents] canary query errored: {exc}", file=sys.stderr)
         return "error", {}
+
+
+# ── Evidence age (D-182 follow-up, operator 2026-09-08) ──────────────────────────────────────
+# `Last refresh:` is the day the RANKER RAN. It says nothing about how old the EVIDENCE is, and the
+# cron re-stamps it every morning — so a doc built on frozen data wears a current date, and a reader
+# (or a re-enable months later) cannot tell. With the pool OFF by ruling (D-181/D-182) nothing new
+# enters `subagent_runs` — native Claude seats produce no AgentResult and never record — so the
+# evidence stops advancing the moment the corpus flip lands while `Last refresh` keeps moving.
+#
+# ⚠️ THE FAILURE THIS CLOSES, measured not imagined: the ranking query is WINDOWED
+# (`WHERE ts > NOW() - INTERVAL '{WINDOW_DAYS} days'`, :493). With no new runs the window DRAINS —
+# on 2026-12-06 for a 2026-09-07 newest-run — and an empty window emits empty sections, at which
+# point `select.py::pick_models` does `table.get(task_type) or _TABLE[task_type]` and every task
+# type silently falls back to the unrestricted vendored table. The operator's cut models would
+# return under a fresh `Last refresh` stamp with nothing on the page to say so.
+EVIDENCE_QUERY = (
+    f"SELECT max(ts)::date, count(*) FROM {TABLE} WHERE ts > NOW() - INTERVAL '{WINDOW_DAYS} days'"  # noqa: S608
+)
+
+
+def _evidence_age(today: str) -> str:
+    """One header line: how old the newest RANKED run is, and whether the window still holds data.
+
+    Fail-soft by construction — this is a transparency line, never a gate. Any failure returns a
+    line that SAYS it could not be determined rather than an empty string, because a missing line
+    reads as "no problem" and that is the exact illusion it exists to remove.
+    """
+    try:
+        r = subprocess.run(
+            [
+                "sudo",
+                "-n",
+                "-u",
+                "postgres",
+                "psql",
+                "-d",
+                DB_NAME,
+                "-A",
+                "-F",
+                PSQL_FIELD_SEP,
+                "--tuples-only",
+                "-c",
+                EVIDENCE_QUERY,
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=QUERY_TIMEOUT_SECONDS,
+        )
+        if r.returncode != 0:
+            return "Evidence age: UNKNOWN — the evidence query failed; treat this ranking as unverified\n"
+        newest_s, n_s = (r.stdout.strip().split(PSQL_FIELD_SEP) + ["", ""])[:2]
+        n = int(n_s or 0)
+        if not newest_s or n == 0:
+            # An EMPTY window is the dangerous state, not a quiet one: the sections below are empty
+            # and every task type falls back to the vendored table.
+            return (
+                f"⚠️ Evidence age: THE {WINDOW_DAYS}-DAY WINDOW IS EMPTY — no runs remain in scope, so the "
+                f"sections below carry no models and `pick_models` falls back to the UNRESTRICTED vendored "
+                f"table for every task type. This ranking is not a policy; re-enable dispatch or pin the "
+                f"roster before trusting it.\n"
+            )
+        newest = date.fromisoformat(newest_s)
+        age = (date.fromisoformat(today) - newest).days
+        drains = newest + timedelta(days=WINDOW_DAYS)
+        if age <= 2:
+            return f"Evidence age: newest ranked run {newest} ({age}d old) · {n:,} runs in the {WINDOW_DAYS}-day window\n"
+        return (
+            f"⚠️ Evidence age: newest ranked run {newest} ({age}d old) · {n:,} runs in the "
+            f"{WINDOW_DAYS}-day window · NO NEW EVIDENCE since then — this ranking is FROZEN, and the "
+            f"window empties on {drains}, after which every task type falls back to the unrestricted "
+            f"vendored table. `Last refresh` above is the day the ranker ran, not the age of its data.\n"
+        )
+    except (subprocess.TimeoutExpired, OSError, ValueError, IndexError) as exc:  # noqa: BLE001
+        return f"Evidence age: UNKNOWN ({type(exc).__name__}) — treat this ranking as unverified\n"
 
 
 def _query_rows() -> tuple[str, list[tuple[str, str, int, float, float, float]]]:
@@ -1787,7 +1862,8 @@ def render(
     # `agents.reachable_with_existing_keys=0` at dispatch time.
     header = (
         f"Last refresh: {today}\n"
-        f"Formula: shrunk_q = (n·avg_q + {SHRINKAGE_K}·tier_baseline) / (n+{SHRINKAGE_K}); "
+        + _evidence_age(today)
+        + f"Formula: shrunk_q = (n·avg_q + {SHRINKAGE_K}·tier_baseline) / (n+{SHRINKAGE_K}); "
         f"quality-gate at shrunk_q ≥ {QUALITY_GATE_MIN}; then cost-asc among survivors; "
         f"top-2 slots require n ≥ {MIN_RUNS_TOP2}; "
         f"grounding: canary avg ≥ 2.5 → ✓, below → ✗(score), no/thin/stale data → — | "

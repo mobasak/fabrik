@@ -4,6 +4,40 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — routing doc: an `Evidence age:` line, and the pool-evaluation chain is PAUSED not deleted (2026-09-08)
+
+Operator: *"do not delete them but stop/pause them, if we want to reuse them, we can enable them"*
+plus the evidence-age line, both closing the same trap from opposite ends.
+
+**`Evidence age:` now sits directly under `Last refresh:`** in
+`docs/reference/kilo/TASK_SUBAGENT_SELECTION.md`. `Last refresh` is the day the RANKER RAN and the
+cron re-stamped it every morning, so a ranking built on frozen data wore a current date. With the
+pool OFF by ruling (D-181/D-182) nothing new enters `subagent_runs` — native Claude seats produce no
+`AgentResult` and never record, measured: 30 claude-family rows of 16,847, all one day in July, all
+via the pool — so the two dates diverge from the moment the corpus flip landed. The line states the
+newest ranked run, its age, the run count in the window, and when the window empties.
+
+**⚠️ The failure it closes was mis-stated by me first and then measured.** I reported the ranking
+query had no time window; it does — `WINDOW_DAYS = 90`, applied at `rank_task_subagents.py:493`. I
+had checked `STALL_QUERY` (genuinely unwindowed) and generalised. The real consequence: with no new
+runs the window DRAINS on **2026-12-06**, an empty window emits empty sections, and
+`select.py::pick_models` does `table.get(task_type) or _TABLE[task_type]` — so every task type would
+have fallen back to the unrestricted vendored table, silently restoring the models D-159/D-168
+removed, under a fresh `Last refresh` stamp. Grounding marks degrade from 2026-10-07.
+
+**The chain is paused on the one committed constant** already used by the enforcement gate and
+`doc_reconcile.py` — `check_subagent_flywheel._pool_policy_on()`. One switch, no new state; the
+`FABRIK_POOL_POLICY=on` seam re-enables a single run without an edit. Three steps gate together:
+`flush_subagent_outboxes`, `deliver_to_fabrik`, `rank_task_subagents`. **They are ATOMIC on purpose**
+— `deliver_to_fabrik` overwrites the routing doc with the catalog's UNRESTRICTED copy and the ranker
+regenerates it with the operator's roster afterwards, so pausing the ranker alone would leave the
+unrestricted doc standing. The governance sync, the Claude cost refresh and the external-services
+chain are deliberately NOT paused; a grader fails if any of them is.
+
+10 graders across two new suites, all proven red on revert — including two mutations that reproduce
+the traps: gating the ranker without `deliver_to_fabrik`, and over-reaching onto the governance sync.
+
+
 ### Changed — no hub script dispatches the pool while the policy is off; the :5051 commands tab shows the pool column comment-aware and a per-command native-subagents column (2026-09-08)
 
 Operator: "are we 100% sure that no agent will call subagents module?" Measured: four hub scripts still could — `scripts/classify_services.py` (the 06:00 chain's paid step), `scripts/sysadmin/canary_grounding.py` (Sunday cron), `scripts/sysadmin/claude_broker.py` (sheds to the pool when an account is cap-walled) and `scripts/sysadmin/incident_context.py` (pool-diagnose). Each now reads the ONE policy (`check_subagent_flywheel.py::_POOL_POLICY_ON`, unknown ⇒ OFF) and returns without dispatching, exit 0, naming D-181/D-182 (tests red-first on HEAD: 7 of 7). `scripts/sysadmin/quota_dashboard.py`: the external-services matrix blanks HTML comments before any detector (the pool column is 0 of 35, and a dot would mean a live call), the commands table gains **Native subagents** (count · types the command's own steps name; assembly boilerplate excluded), and the governor banner reads `ob@ (pool OFF by ruling)` instead of advertising a shed. What remains outside the hub's reach: a hand-typed `fanout()` in plain chat and the 11 repos holding their own key — the module-level switch is fabrik-lib's (01M1XKFNW1A8RGVN35WX3J2Y0F); intel's `subagent_runs` tripwire covers both. Doc: `docs/workstation/quota-dashboard.md` § The Commands tab.
