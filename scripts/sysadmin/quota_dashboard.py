@@ -1616,8 +1616,23 @@ _NATIVE_TYPES: tuple[str, ...] = (
 _MODEL_TIERS: tuple[str, ...] = ("opus", "sonnet", "haiku", "fable")
 _MODEL_RE = re.compile(r"\b(" + "|".join(_MODEL_TIERS) + r")\b", re.I)
 _MODEL_WINDOW = 160
+# `general-purpose` is the one type that is also an ordinary English adjective, and the corpus
+# proves it: 13 of its 14 live mentions are backticked seat references and the 14th is
+# fabrik-vision's "Never wire a general-purpose vendor SDK" — prose about someone else's
+# architecture. So that one type is counted only in code-span form. The `fabrik-*` names carry no
+# such ambiguity and are counted bare too (they are written bare in real dispatches: `subagent_type:
+# fabrik-gui`, "dispatches fabrik-gui subagents").
+_CODE_SPAN_ONLY = ("general-purpose",)
 _NATIVE_COMPILED = tuple(
-    (n, re.compile(r"(?<![\w/-])" + re.escape(n) + r"(?![\w-])")) for n in _NATIVE_TYPES
+    (
+        n,
+        re.compile(
+            (r"`" + re.escape(n) + r"`")
+            if n in _CODE_SPAN_ONLY
+            else (r"(?<![\w/-])" + re.escape(n) + r"(?![\w-])")
+        ),
+    )
+    for n in _NATIVE_TYPES
 )
 # Boilerplate every command carries by assembly, never a dispatch of its own: the D-181 banner's
 # suspended-instruction enumeration and its type enumeration, the subagents fragment's identical
@@ -1672,30 +1687,31 @@ def _command_natives(name: str) -> list[tuple[str, tuple[str, ...]]]:
     beside it, in display order (operator ask 2026-09-08: per command, how many native subagents,
     their names, and on which model)."""
     text = _command_stripped_text(name)
-    # Seat boundaries: a tier belongs to the NEAREST seat, so "one `general-purpose` seat per
-    # screen, then a `fabrik-reviewer` on Opus" gives Opus to the reviewer alone.
-    spans = sorted(m.span() for _n, rx in _NATIVE_COMPILED for m in rx.finditer(text))
+    seats = sorted((m.start(), m.end(), n) for n, rx in _NATIVE_COMPILED for m in rx.finditer(text))
+    models: dict[str, list[str]] = {n: [] for n, _rx in _NATIVE_COMPILED}
+    # Each tier is awarded to exactly ONE seat — the nearest. An earlier fence bounded each seat's
+    # window by its NEIGHBOURS instead, which arbitrates only when a third seat stands between two
+    # of them: "`fabrik-reviewer` on Opus and then `general-purpose`" gave Opus to both.
+    for tm in _MODEL_RE.finditer(text):
+        para_lo = text.rfind("\n\n", 0, tm.start()) + 1
+        para_hi = text.find("\n\n", tm.end())
+        para_hi = len(text) if para_hi < 0 else para_hi
+        best: tuple[int, str] | None = None
+        for s, e, n in seats:
+            if e <= para_lo or s >= para_hi:
+                continue  # a tier named in another paragraph is not "beside" this seat
+            gap = s - tm.end() if s >= tm.end() else tm.start() - e
+            if gap <= _MODEL_WINDOW and (best is None or gap < best[0]):
+                best = (gap, n)
+        if best:
+            tier = tm.group(1).lower()
+            if tier not in models[best[1]]:
+                models[best[1]].append(tier)
     out: list[tuple[str, tuple[str, ...]]] = []
     for n, rx in _NATIVE_COMPILED:
-        models: list[str] = []
-        for m in rx.finditer(text):
-            para_lo = text.rfind("\n\n", 0, m.start()) + 1
-            para_hi = text.find("\n\n", m.end())
-            para_hi = len(text) if para_hi < 0 else para_hi
-            lo = max(
-                [m.start() - _MODEL_WINDOW, 0, para_lo]
-                + [e for s, e in spans if e <= m.start() and s != m.start()]
-            )
-            after = [s for s, e in spans if s >= m.end()]
-            hi = min([m.end() + _MODEL_WINDOW, len(text), para_hi] + after)
-            window = text[lo:hi]
-            for tier in _MODEL_RE.findall(window):
-                tier = tier.lower()
-                if tier not in models:
-                    models.append(tier)
-        if models or rx.search(text):
+        if models[n] or rx.search(text):
             # canonical tier order, so two commands naming the same pair read the same
-            out.append((n, tuple(sorted(models, key=_MODEL_TIERS.index))))
+            out.append((n, tuple(sorted(models[n], key=_MODEL_TIERS.index))))
     return out
 
 

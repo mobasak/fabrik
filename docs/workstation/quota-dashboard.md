@@ -173,7 +173,11 @@ text between that seat and its neighbours — and never across a paragraph break
 tiers are not smeared across every seat in it). A second column, **Model tiers**, carries every tier
 the command's own steps name whether or not a seat mention is near one: a tiering paragraph's "Haiku
 only for trivial-mechanical checks" is a real tier no seat is beside (measured 2026-09-08, banner
-blanked: opus 21, sonnet 23, haiku 5, fable 1 of 35). Boilerplate every command carries by assembly — the D-181 banner (minus its per-command
+blanked: opus 21, sonnet 23, haiku 5, fable 1 of 35). Each tier is awarded to exactly ONE seat, the
+nearest; and `general-purpose` — the one type that is also an ordinary English adjective — counts
+only in code-span form, because 13 of its 14 live mentions are `` `general-purpose` `` seat
+references and the 14th is fabrik-vision's "Never wire a general-purpose vendor SDK" (both found by
+the author-blind review of this very change). Boilerplate every command carries by assembly — the D-181 banner (minus its per-command
 `{{FLOOR}}` sentence, which names a real seat and its tier), the subagents fragment's identical type
 enumeration, and the close-out fragment's "Subagents are ephemeral" paragraph — is blanked before
 ANY detector runs (`_BOILERPLATE`, applied to the dots and the native column alike): otherwise all

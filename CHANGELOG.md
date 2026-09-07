@@ -33,6 +33,10 @@ All notable changes to this project will be documented in this file.
   general-purpose (sonnet)`), read from the text between that seat and its neighbours and never across a
   paragraph break; a new **Model tiers** column carries every tier the command's own steps name even where
   no seat mention is near one (opus 21, sonnet 23, haiku 5, fable 1 of 35).
+- Round-2 fixes from this change's own author-blind review: a tier is awarded to exactly ONE seat (the
+  nearest — the neighbour fence arbitrated only when a THIRD seat stood between two of them, so two
+  adjacent seats both took the tier in the gap), and `general-purpose` counts only in code-span form
+  (fabrik-vision's "Never wire a general-purpose vendor SDK" was reading as a dispatched seat).
 
 ### Added — routing doc: an `Evidence age:` line, and the pool-evaluation chain is PAUSED not deleted (2026-09-08)
 

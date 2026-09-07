@@ -2645,6 +2645,41 @@ def test_native_subagents_column_follows_the_commands_own_steps(tmp_path, monkey
     assert "Native subagents" in html and "0 ·" not in html
 
 
+def test_a_tier_between_two_adjacent_seats_is_awarded_to_one_of_them(tmp_path, monkeypatch):
+    """Round-1 finding, author-blind: the first fence bounded each seat's window by its NEIGHBOURS,
+    which arbitrates only when a THIRD seat stands between two of them — so a tier in the gap
+    between exactly two adjacent seats was credited to both. A tier belongs to the nearest seat."""
+    qd = _load(tmp_path, monkeypatch)
+    name = "fabrik-review"
+    monkeypatch.setattr(
+        qd,
+        "RENDERED_COMMANDS",
+        _rendered(tmp_path, name, "`fabrik-reviewer` on Opus and then `general-purpose`.\n"),
+    )
+    assert qd._command_natives(name) == [("fabrik-reviewer", ("opus",)), ("general-purpose", ())]
+
+
+def test_general_purpose_is_a_seat_only_in_code_span_form(tmp_path, monkeypatch):
+    """Round-1 finding, author-blind: `general-purpose` is also an ordinary English adjective, and
+    fabrik-vision's "Never wire a general-purpose vendor SDK" — prose about someone else's
+    architecture — was being counted as a dispatched seat. Measured that day: 13 of the corpus's 14
+    live mentions are code spans, and the 14th is that sentence."""
+    qd = _load(tmp_path, monkeypatch)
+    name = "fabrik-vision"
+    monkeypatch.setattr(
+        qd,
+        "RENDERED_COMMANDS",
+        _rendered(tmp_path, name, "Never wire a general-purpose vendor SDK as the LLM path.\n"),
+    )
+    assert qd._command_natives(name) == []
+    monkeypatch.setattr(
+        qd,
+        "RENDERED_COMMANDS",
+        _rendered(tmp_path, name, "Dispatch one `general-purpose` seat per doc.\n"),
+    )
+    assert qd._command_natives(name) == [("general-purpose", ())]
+
+
 def test_model_tiers_column_catches_a_tier_no_seat_mention_is_near(tmp_path, monkeypatch):
     """The seat column can only report a tier written NEXT to a seat. A command that tiers its work
     in its own paragraph — "Haiku only for trivial-mechanical checks" — names a real tier that no
