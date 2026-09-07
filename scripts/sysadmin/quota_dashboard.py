@@ -266,6 +266,16 @@ def _get_json(url: str, headers: dict[str, str]) -> tuple[dict, dict[str, str]]:
             return {}, hdrs
 
 
+def _hdr_int(parts: list[str], i: int) -> int | None:
+    """Element `i` of a comma-split rate-limit header as an int, or None. Never raises: these come
+    from a third party, the elements are optional per plan, and one absent or non-numeric field must
+    not discard an otherwise good reading."""
+    try:
+        return int(parts[i])
+    except (IndexError, ValueError, TypeError):
+        return None
+
+
 def _brave_quota(now: float) -> dict:
     """Brave's quota rides the rate-limit headers of an ordinary search — there is no balance
     endpoint. Costs one query per probe."""
@@ -287,18 +297,23 @@ def _brave_quota(now: float) -> dict:
     )
     if len(limit) < 2:
         return {"state": "no-headers"}
-    monthly_limit = int(limit[1] or 0)
+    # ⚠️ `limit` is length-checked but `remaining` and `reset` are SEPARATE headers — a plan that
+    # sends only the per-second element used to raise IndexError, and a non-numeric element
+    # ValueError, either of which discarded the WHOLE Brave reading (plan, rate, renewal) over one
+    # missing field. `_hdr_int` makes every element optional and numeric-or-nothing.
+    monthly_limit = _hdr_int(limit, 1) or 0
     out = {
         "state": "ok",
         "unit": "queries/mo",
-        "per_second": int(limit[0] or 0),
+        "per_second": _hdr_int(limit, 0) or 0,
         # 0 IS UNLIMITED, per the docs. Reporting it as "0 left" would read as a dead plan.
         "unlimited": monthly_limit == 0,
         "total": None if monthly_limit == 0 else monthly_limit,
-        "remaining": None if monthly_limit == 0 else int(remaining[1] or 0),
+        "remaining": None if monthly_limit == 0 else (_hdr_int(remaining, 1) or 0),
     }
-    if len(reset) > 1 and reset[1].isdigit():
-        out["renews_at"] = now + int(reset[1])  # SECONDS REMAINING, never an epoch
+    secs = _hdr_int(reset, 1)
+    if secs is not None:
+        out["renews_at"] = now + secs  # SECONDS REMAINING, never an epoch
     return out
 
 
@@ -422,10 +437,15 @@ def _api_quotas(now: float | None = None, *, fetch: bool = True) -> dict:
 
 
 def _fmt_renewal(epoch: float | None, now: float) -> str:
-    if not epoch:
+    # `epoch` comes from the cache file, which a human can edit: a string here raised TypeError on
+    # the render path — the same class as the `ts` guard, one field over. Bool is an int in Python.
+    if not isinstance(epoch, (int, float)) or isinstance(epoch, bool) or not epoch:
         return '<span class="muted">—</span>'
+    try:
+        when = datetime.fromtimestamp(epoch).astimezone().strftime("%d %b")
+    except (OverflowError, OSError, ValueError):
+        return '<span class="muted">—</span>'  # a year-5138 timestamp is not a renewal date
     days = (epoch - now) / 86400.0
-    when = datetime.fromtimestamp(epoch).astimezone().strftime("%d %b")
     if days < 0:
         # a renewal already in the PAST is a stale reading, not a renewal; "-3d" read as ordinary
         return f'{escape(when)} <span class="badge warn">overdue</span>'
@@ -486,7 +506,14 @@ def _api_quotas_panel(quotas: dict | None, now: float) -> str:
             f"<tr><td><strong>{escape(label)}</strong>{stale}</td>{body}<td>{renew}</td></tr>"
         )
     age = quotas.get("age_s")
-    stamp = f"read {age / 60:.0f} min ago" if isinstance(age, (int, float)) else "not read yet"
+    if not isinstance(age, (int, float)):
+        stamp = "not read yet"
+    elif age < 0:
+        # a reading stamped in the FUTURE (a clock jump, a restored snapshot, a hand edit) rendered
+        # as "read -1218540 min ago" — a negative age is a broken clock, not a fresh reading
+        stamp = "stamped in the future — clock skew"
+    else:
+        stamp = f"read {age / 60:.0f} min ago"
     return (
         f"<h2>Search-API quota &amp; renewal</h2>"
         f'<p class="intro">What is left of the three metered search services the matrix above '

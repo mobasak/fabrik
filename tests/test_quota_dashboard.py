@@ -1057,6 +1057,48 @@ def test_impossible_numbers_are_shown_without_an_invented_percentage(tmp_path, m
     assert "overdue" in past and "-3d" not in past
 
 
+def test_a_partial_or_junk_provider_header_keeps_the_rest_of_the_reading(tmp_path, monkeypatch):
+    """Closing round. `limit` was length-checked; `remaining` and `reset` are SEPARATE headers and
+    were not. A plan sending only the per-second element raised IndexError, a non-numeric element
+    raised ValueError, and either discarded the WHOLE Brave reading — plan, rate and renewal — over
+    one missing field, leaving the panel stuck on "probe failed" until the provider behaved."""
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "API_QUOTAS_CACHE", tmp_path / "q.json")
+    assert qd._hdr_int(["50", "0"], 1) == 0 and qd._hdr_int(["50"], 1) is None
+    assert qd._hdr_int(["50", "soon"], 1) is None and qd._hdr_int([], 0) is None
+    for hdrs in (
+        {"x-ratelimit-limit": "50, 15000", "x-ratelimit-remaining": "49",
+         "x-ratelimit-reset": "1, 900"},                       # remaining truncated
+        {"x-ratelimit-limit": "50, 15000", "x-ratelimit-remaining": "49, soon",
+         "x-ratelimit-reset": "1, 900"},                       # remaining non-numeric
+        {"x-ratelimit-limit": "50, 15000", "x-ratelimit-remaining": "49, 900",
+         "x-ratelimit-reset": "1"},                            # reset truncated
+    ):
+        _quota_stub(qd, monkeypatch, brave_hdrs=hdrs, fc_body=_FC_OK)
+        qd._api_quotas_mem.clear()
+        (tmp_path / "q.json").unlink(missing_ok=True)
+        q = qd._api_quotas(time.time())
+        assert q["brave"]["state"] == "ok", f"one bad field must not discard the reading: {hdrs}"
+        assert q["brave"]["total"] == 15000 and q["brave"]["per_second"] == 50
+
+
+def test_a_future_stamp_or_a_junk_renewal_date_cannot_raise_or_read_as_fresh(tmp_path, monkeypatch):
+    """Closing round, two readers. `age_s` was never gated against a ts in the FUTURE, so a clock
+    jump or a restored snapshot rendered "read -1218540 min ago". And `renews_at` is read straight
+    out of the hand-editable cache — a string there raised TypeError on the render path, the same
+    class already closed for `ts`, one field over."""
+    qd = _load(tmp_path, monkeypatch)
+    now = time.time()
+    assert "future" in qd._api_quotas_panel({"ts": now + 9999, "age_s": -9999}, now)
+    assert "-1" not in qd._api_quotas_panel({"ts": now + 9999, "age_s": -9999}, now).split("Service")[0]
+    for junk in ("bad", None, True, [], {}, 10**20):
+        html = qd._api_quotas_panel(
+            {"ts": now, "age_s": 1.0,
+             "firecrawl": {"state": "ok", "unit": "credits", "total": 5, "remaining": 1,
+                           "renews_at": junk}}, now)  # must NOT raise
+        assert "Firecrawl" in html
+
+
 def test_the_render_path_never_makes_a_network_call(tmp_path, monkeypatch):
     """Same rule the pool balance learned the hard way: a third-party endpoint on the render path
     is how this board froze. `fetch=False` must read the cache and nothing else."""
