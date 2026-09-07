@@ -1342,3 +1342,19 @@ def test_a_sentence_final_period_after_the_cost_does_not_refuse_the_close(run_di
         STRUCTURED + " · cost: 10 usd.",
     )
     assert r.returncode == 1  # the period does not launder a bare integer before usd
+
+
+def test_a_lone_period_cost_is_refused_not_treated_as_absent(run_dir: Path) -> None:
+    _start(run_dir)
+    r = _cr(
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-probe",
+        "--evidence",
+        "x",
+        "--feedback",
+        STRUCTURED + " · cost: .",
+    )
+    assert r.returncode == 1 and "cost:" in r.stdout, r.stdout
+    assert _ledger(run_dir) == []

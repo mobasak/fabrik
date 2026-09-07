@@ -1920,6 +1920,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
     # `cost:` is the LAST field, so a line that ends a sentence ends in a period: strip ONE
     # sentence-final `.` before the shape check (`$0.30.` → `$0.30`; review pass 18)
     _cost_text = _usage_fields.get("cost", "").strip() if _usage_is_required(rec) else ""
+    _cost_raw = _cost_text
     if _cost_text.endswith(".") and not _cost_text.endswith(".."):
         _cost_text = _cost_text[:-1].rstrip()
         _usage_fields["cost"] = (
@@ -1927,7 +1928,10 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         )
     # the shape AND the parser's answer: `10 usd` fits the shape but a bare integer before `usd`
     # is ambiguous (a count, a year) and parses to None — refuse rather than store a silent null
-    if _cost_text and (not _COST_STRICT_RE.match(_cost_text) or _cost_usd(_cost_text) is None):
+    # a value that VANISHES under the strip (`cost: .`) is garbage, not an absent field
+    if _cost_raw and (
+        not _cost_text or not _COST_STRICT_RE.match(_cost_text) or _cost_usd(_cost_text) is None
+    ):
         msg = (
             f"REFUSED — closing /{live}: `cost:` must be a plain amount (`0.0125`, `$0.30`, "
             f"`pool $0.30`, `$1,234.50`, `10.00 usd`), never prose and never a bare integer "
