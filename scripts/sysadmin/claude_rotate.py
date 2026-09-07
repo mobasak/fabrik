@@ -3731,7 +3731,10 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
         fh, wk = row.get("five_hour"), row.get("seven_day")
         fr = (fh or {}).get("resets_at_epoch") if isinstance(fh, dict) else None
         wr = (wk or {}).get("resets_at_epoch") if isinstance(wk, dict) else None
-        session_spent = fv is not None and fv > session_bar  # strict, the picker's `> session_max`
+        # strict at the picker's bar (`> session_max`, R5) OR at the trip threshold on the
+        # session window (the picker refuses `a window >= thr` too) — replacing one with the
+        # other left a row between a raised bar and the trip reading `unavailable` (native N7)
+        session_spent = fv is not None and (fv > session_bar or fv >= thr)
         weekly_walled = wv is not None and (wv >= 100.0 or (cap is not None and wv >= float(cap)))
         if active_slug is not None and active_slug in (row.get("slugs") or []):
             state = "active"

@@ -25,7 +25,7 @@ at/over `ROTATE_THRESHOLD` (default **95**, the tick's own default) or the accou
 URGENT-DRAIN tier, at/over `ROTATE_URGENT_DRAIN_PCT` (default **90**: the tick then sends the operator's
 "stop gracefully, hook to the next reset" mail if NO successor exists; this tier has its OWN cooldown so a drain
 tick at 90 can never delay the flip tick at 95) — or, while
-the probe is BLIND (the payload carries `probe_failed`), at/over the drain line (`BLIND_TRIGGER_THRESHOLD`,
+the probe is BLIND (the payload carries `probe_failed`), at/over the drain line (`_drain_band()` — `ROTATE_DRAIN_THRESHOLD`, read lazily and guarded like the session bar; the import-time `BLIND_TRIGGER_THRESHOLD` constant is gone,
 `ROTATE_DRAIN_THRESHOLD` = 85; 2026-09-03 20:10: seven 60 s probe timeouts in a row hid ob@'s 96 → 100 and
 the trigger only ever saw the last good 96) — the
 server invokes `claude_rotate.py --tick` at once (`_maybe_trigger_rotation`; once per

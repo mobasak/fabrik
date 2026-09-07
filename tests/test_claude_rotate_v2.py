@@ -2607,3 +2607,22 @@ def test_the_picture_reads_the_session_bar_strictly_like_the_picker(monkeypatch)
     assert st["atbar"][0] == "eligible", st
     assert st["walled"] == ("cap-walled", NOW + 2 * 3600), st
     assert st["over"] == ("session-exhausted", NOW + 3 * 3600), st
+
+
+def test_a_session_between_a_raised_bar_and_the_trip_is_still_exhausted(monkeypatch):
+    """Native closing reader N7: `fv > session_bar` REPLACED `fv >= thr`; with the bar raised
+    above the trip (ROTATE_TARGET_SESSION_MAX_PCT=97, threshold 95) a row at 96 read
+    `unavailable` with no return, while the picker refuses it as "a window >= 95%"."""
+    monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
+    monkeypatch.setattr(cr, "_now", lambda: NOW)
+    monkeypatch.setattr(cr, "_rotate_state_dir", lambda: Path("/nonexistent-state-dir"))
+    monkeypatch.setattr(
+        cr, "_fleet_exhaustion_stamp", lambda: Path("/nonexistent-state-dir/fleet-exhausted")
+    )
+    monkeypatch.setattr(cr, "_rotate_threshold", lambda: 95.0)
+    monkeypatch.setenv("ROTATE_TARGET_SESSION_MAX_PCT", "97")
+    between = _live("between@ocoron.com", "between", 96.0, 40.0)
+    between["five_hour"]["resets_at_epoch"] = NOW + 3 * 3600
+    pic = cr._fleet_picture([_live("act@ocoron.com", "act", 20.0, 30.0), between], "act", NOW)
+    st = {r["email"].split("@")[0]: (r["state"], r["returns_at"]) for r in pic["accounts"]}
+    assert st["between"] == ("session-exhausted", NOW + 3 * 3600), st

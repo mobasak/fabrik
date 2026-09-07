@@ -956,10 +956,11 @@ def _tail_lines(transcript_path: str) -> list[str] | None:
 def _final_message_text(transcript_path: str) -> str:
     """EVERY text block of the last assistant entry, joined in order.
 
-    Distinct from :func:`_final_turn`, which takes only the FIRST text block because
-    the stall guard reasons about one contiguous message tail. A 7-line FINAL OUTPUT
-    block routinely spans several blocks in one entry, and reading only the first
-    under-counts the terminator contract.
+    The stall guard's reader (:func:`_final_turn`) joins the same way since 2026-09-07 — it
+    took only the FIRST text block, and the seven-line check (2f984062) then refused a FINAL
+    OUTPUT block split across two blocks as incomplete before this metric ever ran. Two
+    readers of "the final message" with different join rules is how a check and its metric
+    disagreed; keep them joined alike (native closing reader N5).
     """
     lines = _tail_lines(transcript_path)
     if not lines:

@@ -966,14 +966,12 @@ def test_exas_unavailability_is_stated_not_blank(tmp_path, monkeypatch):
     now = time.time()
     html = qd._api_quotas_panel(qd._api_quotas(now), now)
     assert "SERVICE key" in html and "403" in html
-    # and an absent key is a DIFFERENT verdict from an unavailable API
-    monkeypatch.setattr(qd, "_mcp_key", lambda *_a, **_k: None)
-    (tmp_path / "q.json").unlink()
     # the stub configures every key (exa included): the row states WHY it is unknowable
     assert "returns spend, not a balance" in html
-    # and with NO key on the box it says that instead — a different fact, stated too
+    # and an absent key is a DIFFERENT verdict from an unavailable API — stated too. The disk
+    # cache AND the in-memory TTL stamp (21eba0fb) must both go, or the configured row is served
     monkeypatch.setattr(qd, "_mcp_key", lambda *_a, **_k: None)
-    (tmp_path / "q.json").unlink(missing_ok=True)
+    (tmp_path / "q.json").unlink()
     qd._api_quotas_mem.clear()
     assert "no API key configured" in qd._api_quotas_panel(qd._api_quotas(now), now)
 
@@ -2318,3 +2316,16 @@ def test_util_uses_the_callers_clock_so_returns_at_and_util_agree(tmp_path, monk
     # rolled over (eligible) after — never wall-clock-eligible beside a payload-clock `returns`
     assert qd._eligible(a, reset - 1) is False and qd._eligible(a, reset + 1) is True
     assert qd._hottest(a, reset - 1) == 100.0 and qd._hottest(a, reset + 1) == 20.0
+
+
+def test_a_bad_percent_knob_is_ignored_loudly(tmp_path, monkeypatch, capsys):
+    """Native closing reader N8: the picker's `_env_float` rejects a non-finite knob LOUDLY
+    (a silently-disabled bar is the failure mode the knob guards against); the F4 consolidation
+    reproduced its values and dropped that property."""
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setenv("ROTATE_DRAIN_THRESHOLD", "nan")
+    assert qd._drain_band() == 85.0
+    monkeypatch.setenv("ROTATE_DRAIN_THRESHOLD", "abc")
+    assert qd._drain_band() == 85.0
+    err = capsys.readouterr().err
+    assert "ROTATE_DRAIN_THRESHOLD='nan' is not finite" in err and "'abc' is not a number" in err

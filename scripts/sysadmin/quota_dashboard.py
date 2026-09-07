@@ -1190,9 +1190,13 @@ def _env_pct(keys: tuple[str, ...], default: float = 85.0) -> float:
         try:
             v = float(raw)
         except ValueError:
+            print(f"quota_dashboard: {key}={raw!r} is not a number — ignored", file=sys.stderr)
             continue
         if math.isfinite(v):
             return v
+        # LOUD like the picker's `_env_float`: a silently-disabled bar is the failure mode the
+        # knob guards against (native closing reader N8 — the consolidation had dropped the warning)
+        print(f"quota_dashboard: {key}={raw!r} is not finite — ignored", file=sys.stderr)
     return default
 
 
