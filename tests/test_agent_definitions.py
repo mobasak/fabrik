@@ -43,6 +43,28 @@ def test_every_source_agent_is_rendered():
     assert {p.name for p in out.glob("*.md")} == srcs
 
 
+def test_a_blank_line_in_the_frontmatter_fails_the_render_loudly():
+    """The defect that hid `fabrik-reviewer` from the agent roster: a second paragraph inside the
+    `description:` scalar. A blank line at column 0 ends a plain YAML scalar, so the loader dropped
+    the definition — while every check stayed green, because the FILE renders perfectly. The only
+    symptom was a Task dispatch answering "agent type not found", mid-review, one seat short."""
+    good = "---\nname: x\ndescription: one line\ntools: Read\n---\n\nbody\n"
+    assert asm._agent_frontmatter_defect(good) is None
+    bad = "---\nname: x\ndescription: one line\n\n**A second paragraph.**\n\ntools: Read\n---\n\nbody\n"
+    assert "blank line" in (asm._agent_frontmatter_defect(bad) or "")
+    assert "no `name:` key" in (asm._agent_frontmatter_defect("---\ndescription: d\n---\nb\n") or "")
+    assert asm._agent_frontmatter_defect("no frontmatter at all\n")
+
+
+def test_every_agent_source_would_actually_register():
+    """The live sources, not a fixture: each must survive the loader, or the seat does not exist."""
+    broken = {
+        p.name: asm._agent_frontmatter_defect(p.read_text(encoding="utf-8"))
+        for p in SRC.glob("*.md")
+    }
+    assert not {k: v for k, v in broken.items() if v}, broken
+
+
 def test_every_rendered_agent_carries_the_machinery_duty():
     out = _render()
     missing = [p.name for p in out.glob("*.md") if MARKER not in p.read_text(encoding="utf-8")]

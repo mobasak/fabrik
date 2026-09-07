@@ -236,8 +236,8 @@ Two subagent regimes — keep them distinct:
   MCPs (Playwright / Maestro / mobile-mcp / chrome-devtools / shadcn), which have **no pool equivalent** — so
   this is **native `fabrik-gui`**, dispatched **one agent per screen IN PARALLEL** (screens are independent →
   verify them concurrently, don't serialize). `/design-review` is likewise native. Native subagents produce no
-  `AgentResult` → they record nothing (by nature); `scripts/enforcement/check_subagent_flywheel.py` WARNs only
-  on an unrecorded **pool** run.
+  `AgentResult` → they record nothing (by nature); `scripts/enforcement/check_subagent_flywheel.py` stands
+  down entirely while the pool is OFF (D-182).
 - **Model tier the native work:** **Opus** for the UX/design-review judgment + the decide/refute/merge you own;
   **Haiku/Sonnet** for the mechanical passes (reading the a11y tree, checking design-token compliance,
   screenshot diffing) — don't spend Opus on a pixel-diff.

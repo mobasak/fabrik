@@ -1158,8 +1158,8 @@ Assessment. **EXISTING adds:** `Locked Decisions` + `Compliance Report`.
 - **Rejected Alternatives** recorded with reasons. All 20 constraints verified — no silent unknowns.
 - Scale Assessment present with classification. Vision Summary within token budget.
 - Open Questions captures ALL unresolved items; zero remain at confirmation.
-- **Grounding dispatched through both layers** — pool `fanout` units (each recording the flywheel) AND
-  ≥1 native `fabrik-researcher` on Opus (the pool is OFF, D-181/D-182 — every seat is native, nothing records).
+- **Grounding dispatched across parallel native seats** — one `fabrik-researcher` per independent fact, of
+  which ≥1 on Opus (the pool is OFF, D-181/D-182 — every seat is native, nothing records).
 - **Pre-confirmation self-audit ran** and its result was stated at the top of the presentation.
 - **No Guardrails prohibition tripped** (below). Owner explicitly confirms. Silence ≠ confirmation.
 
@@ -1204,8 +1204,8 @@ gaps (owner decides per gap; auto-fix happens later as Retrofit epics).
   from `audit.py` + `destroyer.py`. Read them at the source; they have drifted before.
 - **Never auto-detect the mode** — Phase 0 is an explicit owner declaration; never proceed past a
   checkpoint with unresolved Open Questions or self-confirm on owner silence.
-- **Never go all-native on grounding** — the grounders run as pool `fanout` units (recording the flywheel)
-  **plus** ≥1 native `fabrik-researcher` on Opus (the pool is OFF, D-181/D-182 — every seat is native, nothing records).
+- **Never ground a multi-fact vision in ONE seat** — one native `fabrik-researcher` per independent fact, in
+  parallel, **plus** ≥1 of them on Opus (the pool is OFF, D-181/D-182 — every seat is native, nothing records).
 - **Never split into epics or decide per-epic scaffold/shape/infra** — that is `/fabrik-epics`; this
   command is orientation only. **Never persist outside the allowlisted `specs/` tree**, and DISK stays
   source-of-truth.

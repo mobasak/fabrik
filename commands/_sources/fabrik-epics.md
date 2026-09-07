@@ -229,7 +229,8 @@ fabrik-lib modules are resolved from `/opt/fabrik-lib/README.md` § Modules, nev
 **Optional consistency fanout** — the 14 verdicts are single-agent judgment, but the mechanical
 citation audit underneath them (does each cited path exist and say what the verdict claims?) MAY fan
 out — see the Subagents section at the end of this command for the recipe; if you dispatch it, you
-owe the flywheel back-fill. The decomposition judgment itself is NEVER fanned out.
+run it as native seats — they record nothing (the pool is OFF, D-181/D-182). The decomposition
+judgment itself is NEVER fanned out.
 
 **Output of 1h into the Checkpoint:** a 14-line verdict block under `### Universal Coverage Check`;
 `Universal categories: <numbers>` appended to each `COVERED by Epic X` epic's compact entry; a

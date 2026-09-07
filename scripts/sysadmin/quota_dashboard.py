@@ -1487,6 +1487,7 @@ def _load_commands() -> list[dict[str, str]]:
                 "next": nxt.get(f.stem, "").strip(),
                 "services": services,
                 "natives": _command_natives(f.stem),
+                "tiers": _command_tiers(f.stem),
                 "rendered": is_rendered,
                 **parsed,
             }
@@ -1526,7 +1527,17 @@ _EXT_SERVICES: tuple[tuple[str, str, str, str], ...] = (
         "fanout() / pick_models() call survives OUTSIDE the <!-- POOL OFF --> comments the corpus keeps for re-enable",
         # a bare `libs/subagents` PATH is prose about the module, not a call into it (measured:
         # it alone credited fabrik-rivals, whose line names the key autoloader). An import IS a call.
-        r"fanout\(|pick_models\(|(?:from|import) libs\.subagents",
+        r"fanout\(|pick_models\(|`fanout`|`pick_models`|(?:from|import) libs\.subagents",
+    ),
+    (
+        "fly",
+        "flywheel",
+        "Flywheel recording — RETIRED with the pool (D-181/D-182, 2026-09-07): a native seat has no "
+        "AgentResult, so nothing records and nothing is scored. A dot here means a LIVE record_agent_run() "
+        "or set_quality() call survived outside the <!-- POOL OFF --> comments",
+        # the CALL form only: the D-181 banner names both symbols in its suspended-instruction
+        # enumeration, which is a retirement notice, not a dispatch (and is blanked below anyway).
+        r"record_agent_run\(|set_quality\(",
     ),
     (
         "rec",
@@ -1599,14 +1610,22 @@ _NATIVE_TYPES: tuple[str, ...] = (
     "design-review",
     "general-purpose",
 )
+# The model tier a seat is dispatched on. Read from a ±160-character window around each seat
+# mention — the corpus writes them together ("≥1 native `fabrik-reviewer` on **Opus**"), and a
+# whole-paragraph window would smear every tier in a paragraph across every seat in it.
+_MODEL_TIERS: tuple[str, ...] = ("opus", "sonnet", "haiku", "fable")
+_MODEL_RE = re.compile(r"\b(" + "|".join(_MODEL_TIERS) + r")\b", re.I)
+_MODEL_WINDOW = 160
 _NATIVE_COMPILED = tuple(
     (n, re.compile(r"(?<![\w/-])" + re.escape(n) + r"(?![\w-])")) for n in _NATIVE_TYPES
 )
 # Boilerplate every command carries by assembly, never a dispatch of its own: the D-181 banner's
-# type enumeration, the subagents fragment's identical enumeration, and the close-out fragment's
+# suspended-instruction enumeration and its type enumeration, the subagents fragment's identical
+# type enumeration, and the close-out fragment's
 # "Subagents are ephemeral" paragraph (measured 2026-09-08: with these live, 35 of 35 commands
 # "named" four types; blanked, the column follows the command's own steps).
-_NATIVE_BOILERPLATE = (
+_BOILERPLATE = (
+    re.compile(r"\*\*⚠️ POOL OFF — D-181.*?(?=\*\*⚠️ Floor —|\n\n|\Z)", re.S),
     re.compile(r"\(`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose\)"),
     re.compile(r"Claude Task subagents \(`fabrik-reviewer`[^)]*\)"),
     re.compile(r"Subagents are ephemeral\..*?(?:\n\n|\Z)", re.S),
@@ -1628,13 +1647,56 @@ def _command_live_text(name: str) -> tuple[str, bool]:
     return "", False
 
 
-def _command_natives(name: str) -> list[str]:
-    """The native subagent types the command's LIVE text names, in display order (operator ask
-    2026-09-08: per command, how many native subagents and their names)."""
+def _command_stripped_text(name: str) -> str:
+    """The command's live text with assembled boilerplate blanked — what its OWN steps say."""
     text, _ = _command_live_text(name)
-    for rx in _NATIVE_BOILERPLATE:
+    for rx in _BOILERPLATE:
         text = rx.sub("", text)
-    return [n for n, rx in _NATIVE_COMPILED if rx.search(text)]
+    return text
+
+
+def _command_tiers(name: str) -> tuple[str, ...]:
+    """Every model tier the command's own steps name, attributed to a seat or not.
+
+    The seat column can only report a tier written NEXT to a seat; a command that says "Haiku only
+    for trivial-mechanical checks" in its own tiering paragraph names a real tier that no seat
+    mention is near (operator, 2026-09-08: "i dont see model names fable? opus? sonnet? haiku?").
+    Measured that day, banner blanked: opus 21, sonnet 23, haiku 5, fable 1 of 35 commands.
+    """
+    found = {m.lower() for m in _MODEL_RE.findall(_command_stripped_text(name))}
+    return tuple(sorted(found, key=_MODEL_TIERS.index))
+
+
+def _command_natives(name: str) -> list[tuple[str, tuple[str, ...]]]:
+    """The native subagent types the command's LIVE text names, each with the model tiers named
+    beside it, in display order (operator ask 2026-09-08: per command, how many native subagents,
+    their names, and on which model)."""
+    text = _command_stripped_text(name)
+    # Seat boundaries: a tier belongs to the NEAREST seat, so "one `general-purpose` seat per
+    # screen, then a `fabrik-reviewer` on Opus" gives Opus to the reviewer alone.
+    spans = sorted(m.span() for _n, rx in _NATIVE_COMPILED for m in rx.finditer(text))
+    out: list[tuple[str, tuple[str, ...]]] = []
+    for n, rx in _NATIVE_COMPILED:
+        models: list[str] = []
+        for m in rx.finditer(text):
+            para_lo = text.rfind("\n\n", 0, m.start()) + 1
+            para_hi = text.find("\n\n", m.end())
+            para_hi = len(text) if para_hi < 0 else para_hi
+            lo = max(
+                [m.start() - _MODEL_WINDOW, 0, para_lo]
+                + [e for s, e in spans if e <= m.start() and s != m.start()]
+            )
+            after = [s for s, e in spans if s >= m.end()]
+            hi = min([m.end() + _MODEL_WINDOW, len(text), para_hi] + after)
+            window = text[lo:hi]
+            for tier in _MODEL_RE.findall(window):
+                tier = tier.lower()
+                if tier not in models:
+                    models.append(tier)
+        if models or rx.search(text):
+            # canonical tier order, so two commands naming the same pair read the same
+            out.append((n, tuple(sorted(models, key=_MODEL_TIERS.index))))
+    return out
 
 
 RENDERED_COMMANDS = Path(
@@ -1653,6 +1715,8 @@ def _command_services(name: str) -> tuple[set[str], bool]:
     text, is_rendered = _command_live_text(name)
     if not text and not is_rendered:
         return set(), False
+    for rx in _BOILERPLATE:
+        text = rx.sub("", text)
     return {k for k, rx in _EXT_COMPILED if rx.search(text)}, is_rendered
 
 
@@ -1664,10 +1728,20 @@ def _stage_tone(stage: str) -> str:
     return "cap"
 
 
-def _natives_cell(natives: list[str]) -> str:
+def _natives_cell(natives: list[tuple[str, tuple[str, ...]]]) -> str:
     if not natives:
         return '<span class="muted">—</span>'
-    return f"{len(natives)} · " + ", ".join(escape(n) for n in natives)
+    parts = []
+    for n, models in natives:
+        tiers = f" <em>({', '.join(models)})</em>" if models else ""
+        parts.append(f"{escape(n)}{tiers}")
+    return f"{len(natives)} · " + ", ".join(parts)
+
+
+def _tiers_cell(tiers: tuple[str, ...]) -> str:
+    if not tiers:
+        return '<span class="muted">—</span>'
+    return " · ".join(escape(x) for x in tiers)
 
 
 def _commands_table(rows: list[dict[str, str]]) -> str:
@@ -1682,13 +1756,18 @@ def _commands_table(rows: list[dict[str, str]]) -> str:
             f'<td class="when">{escape(r["when"]) or '<span class="muted">—</span>'}</td>'
             f'<td class="when">{escape(r["skip"]) or '<span class="muted">—</span>'}</td>'
             f'<td class="when">{escape(r["next"]) or '<span class="muted">—</span>'}</td>'
-            f'<td class="when">{_natives_cell(r.get("natives") or [])}</td></tr>'
+            f'<td class="when">{_natives_cell(r.get("natives") or [])}</td>'
+            f'<td class="when">{_tiers_cell(r.get("tiers") or ())}</td></tr>'
         )
     return (
         "<table><thead><tr><th>#</th><th>Command</th><th>Stage</th><th>Purpose</th>"
         "<th>When to use</th><th>Skip when</th><th>Next</th>"
         "<th title=\"Native Claude Task subagent types the command's LIVE text names (the pool is OFF by "
-        'ruling, D-181/D-182 — every fan-out is native); count · names">Native subagents</th></tr></thead>'
+        "ruling, D-181/D-182 — every fan-out is native) and the model tier named beside each; "
+        'count · name (tiers)">Native subagents</th>'
+        '<th title="Every model tier the command&#39;s OWN steps name — including one no '
+        "seat mention is near, like a tiering paragraph&#39;s &quot;Haiku only for "
+        'trivial-mechanical checks&quot;">Model tiers</th></tr></thead>'
         f"<tbody>{''.join(body)}</tbody></table>"
     )
 

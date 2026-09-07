@@ -1432,6 +1432,7 @@ def test_every_registered_detector_is_pinned_by_a_positive_probe(tmp_path, monke
             "mcp__fabrik-citation-verifier__verify_citation",
         ],
         "mail": ["scripts/mail.py", "mail.py send"],
+        "fly": ["record_agent_run(spec, r)", "set_quality(r.agent_id, 5)"],
     }
     registered = {k for k, _l, _t, _p in qd._EXT_SERVICES}
     assert set(probes) == registered, (
@@ -2609,7 +2610,10 @@ def test_native_subagents_column_follows_the_commands_own_steps(tmp_path, monkey
             + "\n## Phase 1\nDispatch one `general-purpose` seat per screen, then a `fabrik-reviewer` on Opus.\n",
         ),
     )
-    assert qd._command_natives(name) == ["fabrik-reviewer", "general-purpose"]
+    assert qd._command_natives(name) == [
+        ("fabrik-reviewer", ("opus",)),  # the tier named beside the seat rides with it
+        ("general-purpose", ()),  # no tier named → the name alone
+    ]
     html = qd._commands_table(
         [
             {
@@ -2619,11 +2623,12 @@ def test_native_subagents_column_follows_the_commands_own_steps(tmp_path, monkey
                 "when": "",
                 "skip": "",
                 "next": "",
-                "natives": ["fabrik-reviewer", "general-purpose"],
+                "natives": [("fabrik-reviewer", ("opus", "sonnet")), ("general-purpose", ())],
             }
         ]
     )
-    assert "Native subagents" in html and "2 · fabrik-reviewer, general-purpose" in html
+    assert "Native subagents" in html
+    assert "2 · fabrik-reviewer <em>(opus, sonnet)</em>, general-purpose" in html
     html = qd._commands_table(
         [
             {
@@ -2638,6 +2643,88 @@ def test_native_subagents_column_follows_the_commands_own_steps(tmp_path, monkey
         ]
     )
     assert "Native subagents" in html and "0 ·" not in html
+
+
+def test_model_tiers_column_catches_a_tier_no_seat_mention_is_near(tmp_path, monkeypatch):
+    """The seat column can only report a tier written NEXT to a seat. A command that tiers its work
+    in its own paragraph — "Haiku only for trivial-mechanical checks" — names a real tier that no
+    seat mention is within reach of, and the operator asked for those by name (2026-09-08)."""
+    qd = _load(tmp_path, monkeypatch)
+    name = "fabrik-ui-design"
+    body = (
+        "# x\n\nDispatch one `general-purpose` seat per screen on **Sonnet**.\n\n"
+        "**Model tier the native work:** **Opus** for the UX judgment; **Haiku** for the mechanical "
+        "passes (reading the a11y tree, checking design-token compliance, and the rest).\n"
+    )
+    monkeypatch.setattr(qd, "RENDERED_COMMANDS", _rendered(tmp_path, name, body))
+    assert qd._command_natives(name) == [("general-purpose", ("sonnet",))]
+    assert qd._command_tiers(name) == ("opus", "sonnet", "haiku")  # canonical order, not text order
+    html = qd._commands_table(
+        [
+            {
+                "name": name,
+                "stage": "2-contract",
+                "purpose": "p",
+                "when": "",
+                "skip": "",
+                "next": "",
+                "natives": [("general-purpose", ("sonnet",))],
+                "tiers": ("opus", "sonnet", "haiku"),
+            }
+        ]
+    )
+    assert "Model tiers" in html and "opus · sonnet · haiku" in html
+
+
+def test_flywheel_column_is_a_tombstone_the_retirement_notice_cannot_light(tmp_path, monkeypatch):
+    """The column stays (operator ask 2026-09-08 — the mechanism is named, so its retirement is
+    visible); the dots go. The D-181 banner NAMES `record_agent_run` in the instructions it
+    suspends, so a bare-symbol pattern would light every command in the corpus; only a CALL —
+    outside the `<!-- POOL OFF -->` comments — is live flywheel usage."""
+    qd = _load(tmp_path, monkeypatch)
+    assert "fly" in {k for k, _l, _t, _p in qd._EXT_SERVICES}
+    name = "fabrik-review"
+    banner = (
+        "**⚠️ POOL OFF — D-181 (operator, 2026-09-07).** Skip every `fanout` / `pick_models` / "
+        "`set_quality` / `record_agent_run` / `results_table` step named anywhere in this command.\n\n"
+    )
+    monkeypatch.setattr(
+        qd,
+        "RENDERED_COMMANDS",
+        _rendered(
+            tmp_path,
+            name,
+            banner + "<!-- POOL OFF: back-fill with set_quality(r.agent_id, 5) -->\nrun it\n",
+        ),
+    )
+    assert "fly" not in qd._command_services(name)[0]
+    assert "pool" not in qd._command_services(name)[0]
+    monkeypatch.setattr(
+        qd,
+        "RENDERED_COMMANDS",
+        _rendered(tmp_path, name, banner + "record_agent_run(spec, result)\n"),
+    )
+    assert "fly" in qd._command_services(name)[0]  # a live call is still visible
+
+
+def test_pool_column_reads_backticked_prose_not_only_code(tmp_path, monkeypatch):
+    """`fanout` one grounder per axis` is a dispatch instruction as surely as `fanout(` — eight
+    such sentences survived the D-181 corpus pass because the paren-only pattern could not see
+    them (2026-09-08). The banner's own enumeration of what it SUSPENDS must not light it."""
+    qd = _load(tmp_path, monkeypatch)
+    name = "fabrik-spec"
+    banner = (
+        "**⚠️ POOL OFF — D-181 (operator, 2026-09-07).** Skip every `fanout` / `pick_models` "
+        "step named anywhere in this command.\n\n"
+    )
+    monkeypatch.setattr(qd, "RENDERED_COMMANDS", _rendered(tmp_path, name, banner + "ground it\n"))
+    assert "pool" not in qd._command_services(name)[0]
+    monkeypatch.setattr(
+        qd,
+        "RENDERED_COMMANDS",
+        _rendered(tmp_path, name, banner + "`fanout` one INDEPENDENT grounder per axis.\n"),
+    )
+    assert "pool" in qd._command_services(name)[0]
 
 
 def test_governor_panel_never_advertises_shedding_to_a_pool_that_is_off(tmp_path, monkeypatch):

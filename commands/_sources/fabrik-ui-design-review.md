@@ -86,7 +86,7 @@ microcopy follow the design system's voice; no two sections contradict (an IA th
 primary; a state listed on one screen and forgotten on its twin).
 
 **Parallelism — the DEFAULT for a multi-surface or multi-screen contract.** With **2+ surfaces or more than a
-handful of screens**, `fanout` one INDEPENDENT grounder per axis (or per surface) — recipe in § Subagents — run
+handful of screens**, dispatch one INDEPENDENT native seat per axis (or per surface) — recipe in § Subagents — run
 them in parallel, then merge + **REFUTE** any finding you can disprove (quote the contract line / the
 data-contract field / the pack rule that makes it a non-issue) before editing. Only a tiny single-surface
 contract loops solo.

@@ -85,8 +85,8 @@ constraints; OPEN the file and read them. Assemble the inventory from both direc
   surface them, don't paper over them.
 
 **Parallelism — the DEFAULT for multi-surface reconciliation.** With **2+ entities or reconciliation surfaces**,
-`fanout` one INDEPENDENT grounder per surface (schema · API/request models · frontend forms) or per entity
-(recipe + the parallel-safe shapes in **§ Subagents** below), preferring **tool-enabled** reads; then merge +
+dispatch one INDEPENDENT native seat per surface (schema · API/request models · frontend forms) or per entity
+(recipe in **§ Subagents** below), each briefed to READ the repo itself; then merge +
 **REFUTE** any mapping you can disprove by quoting the contradicting `path:line` before recording it. A
 single-surface project grounds solo. Enumerate what you actually read — an empty inventory with no evidence
 does not count.

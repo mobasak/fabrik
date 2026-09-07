@@ -561,8 +561,8 @@ is the text below, self-contained.) Each returned ticket converges to `/fabrik-r
 breadth (counts per D2) **AND exactly 1 native Opus finder per round, UNCONDITIONAL** (under
 `Profile: small` this floor runs ONCE, at D7 — the carve-out below). **Secrets
 carve-out:** a diff touching secret-material paths (`.env` / `.env.*` **except `.env.example`** — the
-Doc-Sync-Matrix file every env-var change touches; without the exemption a routine env-var phase goes
-native-only and the flywheel floor blocks it — `secrets/`, key files) is reviewed
+Doc-Sync-Matrix file every env-var change touches; without the exemption a routine env-var phase would be
+misread as secret-bearing — `secrets/`, key files) is reviewed
 **native-only** — secret contents never go to pool APIs; all other never-route classes get both layers.
 The orchestrator refutes/merges/adjudicates; fixups route per D2. **Under `Profile: small` the per-ticket
 layer is `/fabrik-review-scoped`** — tests + gate + the light scoped round, its run record the artifact, NO

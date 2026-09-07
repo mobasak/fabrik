@@ -244,8 +244,8 @@ build this — never pick an approach from training memory or first instinct:
   unchanged: a spec whose every behaviour is ruled still grounds HOW it is built.)
 
 **Parallelism — the DEFAULT for multi-unit grounding, not a maybe.** Grounding **2+ independent deps/capabilities
-→ `fanout` them in parallel** (recipe in **§ Subagents** below): a serial grounding that could have been
-parallel is wasted breadth and zero flywheel rows. Add native `fabrik-researcher` for the authoritative-source
+→ one native seat each, run in parallel** (recipe in **§ Subagents** below): a serial grounding that could
+have been parallel is wasted wall-clock. Keep ≥1 native `fabrik-researcher` on Opus for the authoritative-source
 verify-sample; then **you** synthesize. Only a single dep grounds inline. The vendor-ladder verdict (1b) and
 the design judgment stay yours.
 

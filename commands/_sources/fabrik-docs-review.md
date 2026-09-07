@@ -122,7 +122,7 @@ features documented-but-removed or shipped-but-undocumented.
 
 ### Parallelism — the DEFAULT for a multi-doc scope
 
-With **2+ docs or subsystems to reconcile**, `fanout` one INDEPENDENT reconciler per doc/subsystem (recipe in
+With **2+ docs or subsystems to reconcile**, dispatch one INDEPENDENT native seat per doc/subsystem (recipe in
 § Subagents), run them in parallel, then merge + dedupe their findings — refuting any that are provably wrong
 (quote the code/doc line that disproves the discrepancy) before acting — before the next pass. Only a
 single-doc scope loops solo.

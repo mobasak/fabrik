@@ -42,7 +42,7 @@ binding sources, all read THIS session:
 
 Treat every flow as unproven until re-walked. Run repeated passes until one demonstrably-thorough pass finds
 zero new gaps; the class ledger below persists across rounds — a round re-sweeps it, never re-scopes it.
-With more than a handful of flows, `fanout` one INDEPENDENT grounder per axis (recipe in § Subagents), then
+With more than a handful of flows, dispatch one INDEPENDENT native seat per axis (recipe in § Subagents), then
 merge + **REFUTE** what you can disprove (quote the flow line / spec line / pack rule) before editing.
 
 **A) Success-Criterion tracing (both directions).** Every criterion → ≥1 covering flow; every flow → ≥1

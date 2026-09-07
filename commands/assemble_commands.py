@@ -783,6 +783,29 @@ def _requote_command_description(text: str) -> str:
     return "---" + fm2 + text[end:]
 
 
+def _agent_frontmatter_defect(text: str) -> str | None:
+    """Why Claude Code would refuse to REGISTER this agent, or None.
+
+    Measured 2026-09-08: `fabrik-reviewer` — the authoritative review seat every /fabrik-review is
+    contractually required to dispatch — was absent from the agent roster for weeks. Its source had
+    grown a second PARAGRAPH inside the `description:` scalar, and a blank line at column 0 ends a
+    plain YAML scalar: the loader dropped the whole definition, silently, while `agent_drift` stayed
+    green (the file renders fine; it just does not LOAD). The dispatcher only learns of it when a
+    Task call answers "agent type not found" — mid-review, one seat short.
+    """
+    if not text.startswith("---"):
+        return "no YAML frontmatter block"
+    try:
+        block = text[3 : text.index("\n---", 3)]
+    except ValueError:
+        return "unterminated frontmatter block"
+    if "\n\n" in block:
+        return "blank line inside the frontmatter — it ends the scalar and unregisters the agent"
+    if not re.search(r"^name: \S", block.lstrip("\n"), re.M):
+        return "no `name:` key"
+    return None
+
+
 def _render_agent(src: Path, frags: dict[str, str]) -> str:
     """One agent definition, banner-stamped and carrying the machinery-findings duty.
 
@@ -791,6 +814,9 @@ def _render_agent(src: Path, frags: dict[str, str]) -> str:
     silently unregister the agent rather than fail loudly.
     """
     text = src.read_text()
+    defect = _agent_frontmatter_defect(text)
+    if defect:
+        raise SystemExit(f"agents/{src.name}: {defect} — fix the SOURCE, then re-render")
     body = frags.get(_AGENT_FEEDBACK, "")
     if body and body.split("\n", 1)[0] not in text:
         text = text.rstrip("\n") + "\n\n" + body + "\n"

@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `fabrik-reviewer` was not a registerable agent type: a blank line inside its YAML frontmatter (2026-09-08)
+
+- `commands/_agents/fabrik-reviewer.md` — the `description:` scalar had grown a second PARAGRAPH; a blank
+  line at column 0 ends a plain YAML scalar, so Claude Code dropped the whole definition and the seat every
+  `/fabrik-review` is contractually required to dispatch ("≥1 native `fabrik-reviewer` on Opus, ALWAYS") was
+  absent from the agent roster. Found by a Task dispatch answering "agent type not found" mid-review.
+  The paragraph moved into the agent BODY, where it still binds.
+- `commands/assemble_commands.py` — `_agent_frontmatter_defect()` now refuses the render (no blank line in
+  the block, a `name:` key, a terminated block). Every check was green before this: the file RENDERS
+  perfectly, it just does not LOAD, and `agent_drift` compares renders. Guarded by
+  `tests/test_agent_definitions.py` (the live sources, not a fixture).
+
+### Changed — the commands board: a flywheel tombstone, native seats with their model tier, and the last 8 live `fanout` sentences retired (2026-09-08)
+
+- `commands/_sources/` — 8 live `` `fanout` `` dispatch sentences and 4 stale flywheel claims retired to
+  native language (data-contract, docs-review, flows-review, ui-design-review, spec-review, spec, vision ×2;
+  epics, execute-plan, review, ui-design). The D-181 banner had suspended them, but the step itself still
+  said `fanout` — the paren-only detector could not see a backticked mention. Live pool-call lines in the
+  sources: 8 → 0.
+- `scripts/sysadmin/quota_dashboard.py` — the **flywheel** column returns as a tombstone beside **pool**
+  (both stay so the retirement is visible; a dot in either means live usage survived outside the
+  `<!-- POOL OFF -->` comments; both read 0 of 35). The pool probe now reads backticked prose; the flywheel
+  probe is the call form only. `_BOILERPLATE` (was `_NATIVE_BOILERPLATE`) blanks the D-181 banner — minus its
+  per-command `{{FLOOR}}` sentence — before EVERY detector, so the banner's own `fabrik-gui` no longer rates
+  27 of 35 commands as driving a browser (6 do).
+- The **Native subagents** column now carries the model tier per seat (`2 · fabrik-reviewer (opus, sonnet),
+  general-purpose (sonnet)`), read from the text between that seat and its neighbours and never across a
+  paragraph break; a new **Model tiers** column carries every tier the command's own steps name even where
+  no seat mention is near one (opus 21, sonnet 23, haiku 5, fable 1 of 35).
+
 ### Added — routing doc: an `Evidence age:` line, and the pool-evaluation chain is PAUSED not deleted (2026-09-08)
 
 Operator: *"do not delete them but stop/pause them, if we want to reuse them, we can enable them"*

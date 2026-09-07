@@ -147,7 +147,8 @@ reload lands on the same tab.
 #### The external-services matrix, under the table (2026-09-06)
 
 Below the command table, a **command × service matrix**: which outside-the-box service each command
-actually reaches — the OpenRouter pool (OFF by ruling), session-recall, WebSearch/WebFetch,
+actually reaches — the OpenRouter pool (OFF by ruling), the flywheel (retired with it),
+session-recall, WebSearch/WebFetch,
 Brave, Firecrawl, Exa, a headless browser, GitHub via `gh`, the VPS fleet, ai-consult, the citation
 verifier, fabrik-mail. A dot means the command **names that service's own invocation token**
 (`fanout(`, `WebSearch`, `mcp__firecrawl`, `fabrik apply`), not that it mentions the service in
@@ -157,14 +158,27 @@ The footer row carries each column's total against its denominator (`of 35`).
 
 **Since D-181/D-182 (2026-09-08).** The OpenRouter pool is OFF by ruling and the corpus keeps its
 pool contract inside `<!-- POOL OFF -->` comments for re-enable, so every detector runs over the
-command's LIVE text only (HTML comments blanked first — `_command_live_text`). The `pool` column's
-hover says so: a dot there would mean a live `fanout()` / `pick_models()` call survived outside the
-comments, and the expected count is 0 of 35. The first table gained a **Native subagents** column —
-per command, how many native Claude Task subagent types its own steps name and which
+command's LIVE text only (HTML comments blanked first — `_command_live_text`). The `pool` and
+`flywheel` columns are **tombstones**: both stay on the board so the retirement is visible, and a
+dot in either means live usage survived outside the comments — the expected count is 0 of 35 for
+each. The pool probe reads BACKTICKED PROSE as well as code (`` `fanout` one grounder per axis ``
+is a dispatch instruction as surely as `fanout(`): eight such sentences survived the D-181 corpus
+pass unseen by the paren-only pattern, and were retired 2026-09-08. The flywheel probe is the
+call form only (`record_agent_run(` / `set_quality(`) — the banner NAMES both symbols in the
+instructions it suspends. The first table gained a **Native subagents** column — per command, how
+many native Claude Task subagent types its own steps name, which
 (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · `design-review` · `general-purpose`,
-`_NATIVE_TYPES`). Boilerplate every command carries by assembly — the D-181 banner's type
-enumeration and the close-out fragment's "Subagents are ephemeral" paragraph — is blanked before
-counting (`_NATIVE_BOILERPLATE`), otherwise all 35 commands read as naming four types. The Quota
+`_NATIVE_TYPES`), and **on which model tier** (`opus` / `sonnet` / `haiku` / `fable`, read from the
+text between that seat and its neighbours — and never across a paragraph break — so a paragraph's
+tiers are not smeared across every seat in it). A second column, **Model tiers**, carries every tier
+the command's own steps name whether or not a seat mention is near one: a tiering paragraph's "Haiku
+only for trivial-mechanical checks" is a real tier no seat is beside (measured 2026-09-08, banner
+blanked: opus 21, sonnet 23, haiku 5, fable 1 of 35). Boilerplate every command carries by assembly — the D-181 banner (minus its per-command
+`{{FLOOR}}` sentence, which names a real seat and its tier), the subagents fragment's identical type
+enumeration, and the close-out fragment's "Subagents are ephemeral" paragraph — is blanked before
+ANY detector runs (`_BOILERPLATE`, applied to the dots and the native column alike): otherwise all
+35 commands read as naming four types, and the banner's own `fabrik-gui` rated 27 of 35 commands as
+driving a browser (6 actually do). The Quota
 governor banner never advertises shedding to a pool that is off: while
 `check_subagent_flywheel.py::_POOL_POLICY_ON` is False the routine/incident routes read `ob@ (pool
 OFF by ruling …)`.

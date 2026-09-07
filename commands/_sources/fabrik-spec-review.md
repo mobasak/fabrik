@@ -211,8 +211,8 @@ source URL. **A well-cited approach that violates a hard constraint is WORSE tha
 constraint FIRST, the citation second.
 
 **Parallelism — the DEFAULT for multi-unit grounding.** If the spec has **2+ external deps or capabilities**,
-spawn one INDEPENDENT grounder per axis/dependency and **`fanout` them in parallel** (recipe in **§ Subagents**
-below): several finish in the wall-time of one, each a flywheel row a solo pass throws away. **Always** add
+spawn one INDEPENDENT native seat per axis/dependency and **run them in parallel** (recipe in **§ Subagents**
+below): several finish in the wall-time of one, and a solo pass throws that breadth away. **Always** add
 **≥1 native `fabrik-researcher` on Opus** (`model: "opus"`, mandatory floor — see § Subagents) for the
 authoritative citation verify-sample; then
 merge + **REFUTE** any finding you can disprove (quote the source/module line) before editing. **Tier the
