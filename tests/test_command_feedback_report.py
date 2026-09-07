@@ -457,3 +457,20 @@ def test_a_malformed_wall_is_no_datum_never_a_phantom_zero_in_the_median(tmp_pat
     assert c["runs"] == 2 and c["median_wall_min"] == 10.0 and c["wall_rows"] == 1
     assert c["median_rounds"] == 3 and c["rounds_rows"] == 1
     assert "| 10.0 min (1) |" in _run(ledger).stdout and "| 3 (1) |" in _run(ledger).stdout
+
+
+def test_no_timed_row_renders_a_dash_never_a_zero_minute_run(tmp_path: Path) -> None:
+    """Pass 24 (seat B): a command whose EVERY row has a malformed wall/rounds has no timing
+    datum — the median AND max cells print `—` with the `(0)` denominator, the way `pool $`
+    already does, never a `0.0 min` that reads like a real zero-minute run."""
+    ledger = tmp_path / "command-feedback.jsonl"
+    row = json.dumps(_row("c1", 1, 1, "a")).replace('"wall_s": 1', '"wall_s": "x"')
+    row = row.replace('"rounds": 1', '"rounds": "y"')
+    assert '"wall_s": "x"' in row and '"rounds": "y"' in row
+    ledger.write_text(row + "\n", encoding="utf-8")
+    text = _run(ledger).stdout
+    assert "| — (0) | — | — (0) |" in text, text
+    assert "0.0 min" not in text and "| 0 (0) |" not in text
+    c = json.loads(_run(ledger, "--json").stdout)["commands"]["c1"]
+    assert c["wall_rows"] == 0 and c["median_wall_min"] is None and c["max_wall_min"] is None
+    assert c["rounds_rows"] == 0 and c["median_rounds"] is None

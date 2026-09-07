@@ -154,9 +154,10 @@ def build(
                     if isinstance(m, str)
                 }
             ),
-            "median_wall_min": round(float(statistics.median(walls)), 1) if walls else 0.0,
-            "max_wall_min": round(max(walls), 1) if walls else 0.0,
-            "median_rounds": _median(rounds),
+            # no timed row ⇒ null, never a 0 that reads like a real zero-minute run (pass 24)
+            "median_wall_min": round(float(statistics.median(walls)), 1) if walls else None,
+            "max_wall_min": round(max(walls), 1) if walls else None,
+            "median_rounds": _median(rounds) if rounds else None,
             "wall_rows": len(walls),
             "rounds_rows": len(rounds),
             "change_none": sum(1 for r in rs if _is_none(str(r.get("change") or ""))),
@@ -220,6 +221,10 @@ def build(
     }
 
 
+def _min(v: float | None) -> str:
+    return f"{v} min" if v is not None else "—"
+
+
 def render(report: dict) -> str:
     lines = [
         f"command feedback — {report['examined']} of {report['total_rows']} ledger rows examined"
@@ -242,8 +247,8 @@ def render(report: dict) -> str:
         hit = f"{100 * c['cache_hit']:.0f}%" if c.get("cache_hit") is not None else "—"
         lines.append(
             f"| /{cmd} | {c['runs']} | {c['done']}/{c['blocked']}/{c['handoff']} | "
-            f"{c['median_wall_min']} min ({c['wall_rows']}) | {c['max_wall_min']} min | "
-            f"{c['median_rounds']} ({c['rounds_rows']}) | "
+            f"{_min(c['median_wall_min'])} ({c['wall_rows']}) | {_min(c['max_wall_min'])} | "
+            f"{c['median_rounds'] if c['rounds_rows'] else '—'} ({c['rounds_rows']}) | "
             f"{c['change_none']} of {c['runs']} | "
             f"{c['cost_usd'] if c['cost_rows'] else '—'} ({c['cost_rows']}) | "
             f"{_k(c['median_tok']) if c.get('median_tok') is not None else '—'} "

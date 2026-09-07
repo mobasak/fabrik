@@ -15,8 +15,8 @@ for the ledger's older rows. Fragment, protocol doc and both CLAUDE.md templates
 (`command_feedback_report.py`) reads every numeric cell of an older row defensively — a non-finite,
 oversized, string or list `cost_usd`, `tok_*`, `wall_s`, `rounds` or `ts`, or a non-list `models`,
 is 'no datum' for that row — dropped from the sums and medians, which now print their own row
-counts (`10.0 min (1)`) — never a phantom zero, never a traceback that takes the whole
-fleet-wide report down (review passes 21–23).
+counts (`10.0 min (1)`, `—` with none) — never a phantom zero, never a traceback that takes the
+whole fleet-wide report down (review passes 21–24).
 
 ### Changed — the relief wake, Phase C: the hold orders the self-watch arm and allows TaskStop (2026-09-07)
 
