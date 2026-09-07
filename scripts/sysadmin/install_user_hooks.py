@@ -10,7 +10,8 @@ canonical strips every window of them silently, and `check_hooks_index.py` deriv
 set FROM the file, so it can only see an UNDOCUMENTED entry, never a MISSING one.
 
     install_user_hooks.py            # idempotent: add what is missing to the canonical + every fleet dir
-    install_user_hooks.py --check    # exit 1 naming any file that lacks an entry (a gate row)
+    install_user_hooks.py --check    # exit 1 naming any file that lacks an entry
+    install_user_hooks.py --check --warn   # print the drift, exit 0 — the final_gate warn-only row
 
 Registration timeout is 10 s — above user_hook_gate's inner 8 s, so the harness never kills the
 gate before the gate can kill its child (B8). Other keys in each settings.json are untouched.
@@ -88,9 +89,12 @@ def _stale(d: dict) -> list[tuple[str, str, str]]:
                     out.append((ev, cmd, f"timeout {h.get('timeout')!r} < {TIMEOUT_S}"))
                 elif ev == "PreToolUse" and not e.get("matcher"):
                     out.append((ev, cmd, "no matcher"))
-            entries_carrying = len({id(e) for e, _ in found})
-            if entries_carrying > 1:
-                out.append((ev, cmd, f"{entries_carrying} registrations of one script"))
+            # Claude Code executes EVERY hook dict in every matching entry, so the same script
+            # twice inside ONE entry is a double registration exactly like two entries are.
+            # R10 counted entries and made the intra-entry duplicate invisible — and the fixer's
+            # `if not stale: continue` then stopped repairing it (non-author pass F5, 2026-09-07).
+            if len(found) > 1:
+                out.append((ev, cmd, f"{len(found)} registrations of one script"))
     return out
 
 

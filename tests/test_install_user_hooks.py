@@ -210,16 +210,23 @@ def test_the_gate_row_never_fails_the_gate_on_box_drift(tmp_path, monkeypatch):
     assert '"--warn"' in src[i : i + 260], "the gate must register the --warn mode"
 
 
-def test_one_entry_with_two_hook_dicts_is_not_two_registrations(tmp_path, monkeypatch):
-    """R10: `found` collected (entry, hook) PAIRS; one entry carrying two matching hook dicts
-    was diagnosed as two registrations."""
+def test_one_entry_with_two_hook_dicts_is_two_registrations(tmp_path, monkeypatch):
+    """R10 (reversed by the non-author pass F5, 2026-09-07): one entry carrying the same script
+    twice IS a double registration — Claude Code runs every hook dict in a matching entry — and
+    counting ENTRIES made it invisible to --check and unrepaired by the fixer."""
     home = _home(tmp_path)
     monkeypatch.setenv("HOME", str(home))
     assert iuh.run([]) == 0
     f = home / ".claude" / "settings.json"
     d = json.loads(f.read_text())
     e = d["hooks"]["UserPromptSubmit"][0]
+    e0_cmd = e["hooks"][0]["command"]
     e["hooks"].append(dict(e["hooks"][0]))
     f.write_text(json.dumps(d))
     reasons = [why for _, _, why in iuh._stale(d)]
-    assert not any("registrations of one script" in r for r in reasons), reasons
+    assert any("2 registrations of one script" in r for r in reasons), reasons
+    assert iuh.run(["--check"]) == 1, "a doubled hook dict is drift"
+    assert iuh.run([]) == 0
+    repaired = json.loads(f.read_text())["hooks"]["UserPromptSubmit"]
+    n = sum(1 for e in repaired for h in e.get("hooks", []) if h.get("command") == e0_cmd)
+    assert n == 1, f"the fixer collapses the duplicate: {n} left"

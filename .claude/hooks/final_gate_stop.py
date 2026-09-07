@@ -695,8 +695,11 @@ def _review_windows(rec: dict | None, sid: str | None = None) -> list[tuple[floa
     for w in (rec or {}).get("covered") or []:
         if isinstance(w, (list, tuple)) and len(w) == 2:
             lo, hi = _finite(w[0]), _finite(w[1])
-            if lo is not None and hi is not None and lo <= hi:
-                out.append((math.floor(lo), hi + 1.0))  # whole seconds at both edges (R2)
+            if lo is None or hi is None:
+                continue
+            lo = math.floor(lo)  # floor BEFORE the validity test: a legacy `[100.7, 100]` pair
+            if lo <= hi:  # written before the writer floored is a real window, not junk (F7)
+                out.append((lo, hi + 1.0))  # whole seconds at both edges (R2)
     cur = _review_window(rec, sid)
     if cur is not None:
         out.append(cur)
@@ -1024,8 +1027,13 @@ def _final_turn(transcript_path: str) -> tuple[str, list[dict]] | None:
                 continue
             if block.get("type") == "tool_use":
                 tools.append({"name": block.get("name", ""), "input": block.get("input") or {}})
-            elif block.get("type") == "text" and not seen_assistant_entry and not text:
-                text = str(block.get("text") or "")
+            elif block.get("type") == "text" and not seen_assistant_entry:
+                # EVERY text block of the last entry, joined — reading only the first split a
+                # final block written as two blocks and the seven-line check (2f984062, D-173)
+                # refused it as "incomplete" before the emitter ran (kaizen split-block grader
+                # red at HEAD, 2026-09-07); `_final_message_text` already joins the same way
+                t = str(block.get("text") or "")
+                text = f"{text}\n{t}" if text else t
         seen_assistant_entry = True  # only the LAST assistant entry may supply text
     return text, tools
 

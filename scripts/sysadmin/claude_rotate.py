@@ -3715,6 +3715,11 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
     next relief the tick would name, the hold and its promised resume, and the last flip."""
     thr = _rotate_threshold()
     band = _env_float("ROTATE_DRAIN_THRESHOLD", 85.0)
+    # the picker's own session bar (`_flip_candidate_verdict`: ROTATE_TARGET_SESSION_MAX_PCT,
+    # default the drain band) — the first cut compared the SESSION window against the trip
+    # threshold, so a row spent past the bar but under the trip read `unavailable` (non-author
+    # pass over 58041dbd + the strict-bar grader, 2026-09-07)
+    session_bar = _env_float("ROTATE_TARGET_SESSION_MAX_PCT", band)
     active_email = next(
         (str(r.get("email")) for r in accounts if active_slug in (r.get("slugs") or [])), None
     )
@@ -3726,7 +3731,7 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
         fh, wk = row.get("five_hour"), row.get("seven_day")
         fr = (fh or {}).get("resets_at_epoch") if isinstance(fh, dict) else None
         wr = (wk or {}).get("resets_at_epoch") if isinstance(wk, dict) else None
-        session_spent = fv is not None and fv >= thr
+        session_spent = fv is not None and fv > session_bar  # strict, the picker's `> session_max`
         weekly_walled = wv is not None and (wv >= 100.0 or (cap is not None and wv >= float(cap)))
         if active_slug is not None and active_slug in (row.get("slugs") or []):
             state = "active"
@@ -4358,8 +4363,9 @@ def _next_session_relief(
     Prefers the SOONEST 5h-window reset among siblings that are blocked ONLY by their session
     (weekly under its cap and under 100) — those become eligible the moment their session
     resets, which is hours, not days. Falls back to the soonest WEEKLY reset among siblings
-    blocked by their weekly window. None when no sibling has a reset time at all. A reset
-    already in the past is skipped (a stale cached row).
+    blocked by their weekly window. None when no sibling is blocked by a window that carries a
+    readable FUTURE reset — a missing, non-numeric or already-past reset is skipped (a stale
+    cached row), so None also covers a blocked sibling with an unreadable reading (F6).
 
     ⚠️ THE ACTIVE ACCOUNT IS A CANDIDATE FOR ITS OWN RELIEF, and usually the soonest one. It
     used to be skipped outright, on the reasoning that the exhausted account cannot relieve
@@ -4516,7 +4522,7 @@ def _urgent_drain_message(
             f"http://{os.getenv('QUOTA_DASH_HOST', '127.0.0.1')}:{os.getenv('QUOTA_DASH_PORT', '5051')}/",
         )
         return head + (
-            " No sibling is waiting on a window it is blocked by (a full-window sibling behind an "
+            " No sibling is blocked by a window with a readable future reset (a full-window sibling behind an "
             "untrusted reading resumes on the next validated tick), so no resume time can be given — wait for the "
             f"operator or re-check the quota board ({board}) before resuming."
         )

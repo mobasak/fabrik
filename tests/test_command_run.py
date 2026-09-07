@@ -3259,6 +3259,10 @@ def test_a_run_closed_in_its_start_second_yields_a_window_the_hook_keeps(tmp_pat
     rec = _rec(run_dir)
     (w,) = rec["covered"]
     assert w[0] <= w[1], w
+    # F9 (non-author pass, 2026-09-07): nothing forces start and close into the same second, and
+    # when they straddle one the PRE-fix writer also satisfied `lo <= hi` — the assertion the
+    # fix is FOR is the floored lo, which the old float start never produced.
+    assert w[0] == math.floor(rec["started_epoch"]) and isinstance(w[0], int), w
     assert _hook()._review_windows(rec) != [], (
         "the hook must be able to use the window it was given"
     )

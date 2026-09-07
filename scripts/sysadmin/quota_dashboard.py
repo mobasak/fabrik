@@ -69,7 +69,8 @@ DRAIN_TRIGGER_THRESHOLD = float(os.getenv("ROTATE_URGENT_DRAIN_PCT", "90"))
 # while ob@ burned 96 → 100, and the last GOOD reading (96 < 98) never re-armed the trigger. When
 # the probe is failing the last good reading is minutes old, so the bar drops to the drain line
 # and the TICK reads live for itself; the cooldown bounds the blind path exactly like the sighted one.
-BLIND_TRIGGER_THRESHOLD = float(os.getenv("ROTATE_DRAIN_THRESHOLD", "85"))
+# BLIND bar = the drain band, read lazily + guarded by `_drain_band()` (F4: an import-time
+# float(os.getenv) crashed the whole board on a bad value; `_session_bar` was hardened, this was not)
 TICK_TIMEOUT_S = float(os.getenv("QUOTA_DASH_TICK_TIMEOUT_S", "180"))
 # The SAME lock the cron line takes (`flock -n $HOME/.claude/state/rotate.lock … --tick`): two ticks
 # deciding at once is the double-flip race, so the board's tick is skipped while a cron tick holds it.
@@ -150,7 +151,9 @@ def _pool_credits(now: float | None = None, *, fetch: bool = True) -> dict | Non
     # `now=None` means NOW. It was the signature's default from the first commit and no caller ever
     # passed it, so every call with a numeric-ts cache on disk raised `TypeError: NoneType - float`
     # and, from `_generate_locked`, froze the whole board at its last render (live 2026-09-06, board
-    # stuck 67s and climbing; introduced 610c01b8, fleet).
+    # stuck 67s and climbing; the guard came in with 610c01b8 and was REMOVED by the review-fix
+    # 58041dbd, which aimed at `_display_order`'s dead branch and hit this live one — non-author
+    # pass F1/F3, 2026-09-07).
     now = time.time() if now is None else now
     cached: dict | None
     try:
@@ -748,8 +751,8 @@ def _queue_for_render(payload: dict, now: float) -> list[dict]:
     """`_queue` with the SAME perishable-first key `_display_order` uses — one source."""
 
     def key(a: dict):
-        seven = _util(a, "seven_day")
-        five = _util(a, "five_hour")
+        seven = _util(a, "seven_day", now)
+        five = _util(a, "five_hour", now)
         reset = (a.get("seven_day") or {}).get("resets_at_epoch")
         return (
             float(reset) if isinstance(reset, (int, float)) else float("inf"),
@@ -1058,9 +1061,8 @@ def _governor_panel(payload: dict) -> str:
     )
 
 
-_TARGET_SESSION_MAX = float(
-    os.getenv("ROTATE_TARGET_SESSION_MAX_PCT", os.getenv("ROTATE_DRAIN_THRESHOLD", "85"))
-)
+# the picker's session bar is `_session_bar()` — lazy + guarded (F4); the old import-time
+# `_TARGET_SESSION_MAX` constant bound before any monkeypatch and crashed on garbage
 
 
 def _display_order(payload: dict, now: float) -> list[dict]:
@@ -1080,7 +1082,7 @@ def _returns_at(a: dict, now: float) -> float | None:
     `claude_rotate._next_session_relief` uses: a weekly-walled or cap-walled account waits for
     its WEEKLY reset (a session reset does not lift a weekly wall); anything else waits for its
     5h reset. None when the reset is unknown or already past (an unread new account, a stale row)."""
-    seven = _util(a, "seven_day")
+    seven = _util(a, "seven_day", now)
     cap = a.get("weekly_cap")
     weekly_blocked = a.get("cap_walled") is True or (
         seven is not None and (seven >= 100.0 or (cap is not None and seven >= float(cap)))
@@ -1095,7 +1097,7 @@ def _returns_at(a: dict, now: float) -> float | None:
         # ROTATE_TARGET_SESSION_MAX_PCT, 85): the return is the LATER of the two — the same rule
         # `_next_session_relief` applies, at the same bar (closing review P3-2)
         bar = _session_bar()
-        five = _util(a, "five_hour")
+        five = _util(a, "five_hour", now)
         fr = (a.get("five_hour") or {}).get("resets_at_epoch")
         # STRICT: the picker refuses `> bar` (`_flip_candidate_verdict`); `>=` promised a wait at
         # exactly the bar, where the picker takes the account now (R5)
@@ -1132,7 +1134,7 @@ def _queue(payload: dict, now: float, _key=None) -> list[dict]:
     returns = [entry(a, "returns", _returns_at(a, now)) for a in tail]
     if head:
         a = head[0]
-        five = _util(a, "five_hour")
+        five = _util(a, "five_hour", now)
         ra = _returns_at(a, now)
         leaving = five is not None and five >= TRIGGER_THRESHOLD
         if not leaving and _relief_candidate(payload, a) is not None:
@@ -1140,7 +1142,7 @@ def _queue(payload: dict, now: float, _key=None) -> list[dict]:
             # hottest window resets, not when it trips
             hot_key = (
                 "seven_day"
-                if (_util(a, "seven_day") or 0) >= (_util(a, "five_hour") or 0)
+                if (_util(a, "seven_day", now) or 0) >= (_util(a, "five_hour", now) or 0)
                 else "five_hour"
             )
             r = (a.get(hot_key) or {}).get("resets_at_epoch")
@@ -1158,7 +1160,10 @@ def _queue(payload: dict, now: float, _key=None) -> list[dict]:
     return entries
 
 
-def _util(a: dict, k: str) -> float | None:
+def _util(a: dict, k: str, now: float | None = None) -> float | None:
+    """The window's utilization, or 0.0 for a CACHED row whose reset has already passed. `now`
+    is the caller's clock when it has one (F8: a second clock inside functions handed an explicit
+    one let `_util` and `_returns_at` disagree about the same row at render time)."""
     u = (a.get(k) or {}).get("utilization")
     if not isinstance(u, (int, float)):
         return None
@@ -1166,16 +1171,19 @@ def _util(a: dict, k: str) -> float | None:
     # passed holds an empty window — the cell renderer said "idle — rolled over" while this
     # read the raw 100% and called the row walled (closing review R4)
     r = (a.get(k) or {}).get("resets_at_epoch")
-    if a.get("source") == "cache" and isinstance(r, (int, float)) and float(r) <= time.time():
+    t = time.time() if now is None else now
+    if a.get("source") == "cache" and isinstance(r, (int, float)) and float(r) <= t:
         return 0.0
     return float(u)
 
 
-def _session_bar() -> float:
-    """ROTATE_TARGET_SESSION_MAX_PCT, else ROTATE_DRAIN_THRESHOLD, else 85 — the picker's bar,
-    parsed the way `claude_rotate._env_float` parses it (garbage/non-finite → the next
-    fallback); a third parse with a fourth semantics disagreed on 4 of 5 bad values (R6)."""
-    for key in ("ROTATE_TARGET_SESSION_MAX_PCT", "ROTATE_DRAIN_THRESHOLD"):
+def _env_pct(keys: tuple[str, ...], default: float = 85.0) -> float:
+    """The ONE percent-knob parser (F4): each key in order, parsed the way
+    `claude_rotate._env_float` parses it — blank/garbage/non-finite → the next key → default.
+    Every bar the board reads lazily comes through here; a third parse with a fourth semantics
+    once disagreed on 4 of 5 bad values (R6), and an import-time `float(os.getenv(...))` crashed
+    the whole board on the very input this guards against."""
+    for key in keys:
         raw = os.environ.get(key)
         if raw is None or raw.strip() == "":
             continue
@@ -1185,7 +1193,12 @@ def _session_bar() -> float:
             continue
         if math.isfinite(v):
             return v
-    return 85.0
+    return default
+
+
+def _session_bar() -> float:
+    """ROTATE_TARGET_SESSION_MAX_PCT, else ROTATE_DRAIN_THRESHOLD, else 85 — the picker's bar."""
+    return _env_pct(("ROTATE_TARGET_SESSION_MAX_PCT", "ROTATE_DRAIN_THRESHOLD"))
 
 
 def _eligible(a: dict) -> bool:
@@ -1195,7 +1208,7 @@ def _eligible(a: dict) -> bool:
         return False
     if five >= 100.0 or seven >= 100.0 or five >= TRIGGER_THRESHOLD or seven >= TRIGGER_THRESHOLD:
         return False
-    return five <= _TARGET_SESSION_MAX
+    return five <= _session_bar()
 
 
 # ── Commands tab (operator ask 2026-09-03) ───────────────────────────────────────────────────
@@ -1964,14 +1977,9 @@ _LAST_TRIGGER: list[float] = [0.0, 0.0, 0.0]  # [flip, drain, relief] tiers — 
 
 
 def _drain_band() -> float:
-    """ROTATE_DRAIN_THRESHOLD (default 85), parsed like `_session_bar` — the band the tick's
-    drain-band relief flip keys on (D-171)."""
-    raw = os.environ.get("ROTATE_DRAIN_THRESHOLD")
-    try:
-        v = float(raw) if raw not in (None, "") else 85.0
-    except ValueError:
-        return 85.0
-    return v if math.isfinite(v) else 85.0
+    """ROTATE_DRAIN_THRESHOLD (default 85) — the band the tick's drain-band relief flip keys on
+    (D-171); the same parser as `_session_bar` (F4: it was a fourth copy)."""
+    return _env_pct(("ROTATE_DRAIN_THRESHOLD",))
 
 
 def _hottest(a: dict) -> float | None:
@@ -2008,7 +2016,7 @@ def _maybe_trigger_rotation(payload: dict) -> threading.Thread | None:
         return None
     five = (row.get("five_hour") or {}).get("utilization")
     blind = bool(payload.get("probe_failed"))  # the last GOOD reading, minutes old — bar drops
-    bar = BLIND_TRIGGER_THRESHOLD if blind else TRIGGER_THRESHOLD
+    bar = _drain_band() if blind else TRIGGER_THRESHOLD
     sess = float(five) if isinstance(five, (int, float)) else None
     hot = sess is not None and sess >= bar
     drain = sess is not None and sess >= DRAIN_TRIGGER_THRESHOLD

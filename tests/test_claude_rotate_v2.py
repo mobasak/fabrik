@@ -2579,3 +2579,31 @@ def test_status_survives_a_picture_that_raises(monkeypatch, capsys):
     assert "act@ocoron.com" in out and "picture: unavailable (KeyError" in out, out
     assert cr._cmd_fleet_status([], as_json=True) == 0
     assert "KeyError" in json.loads(capsys.readouterr().out)["picture"]["error"]
+
+
+def test_the_picture_reads_the_session_bar_strictly_like_the_picker(monkeypatch):
+    """Non-author pass over 58041dbd (2026-09-07): the fleet-picture mirror wrote
+    `fv >= thr` while the picker refuses at `> session_max` (R5) — a row EXACTLY at the bar was
+    `session-exhausted` on the board and eligible to the tick. Boundary at 85.0: eligible when
+    the weekly window is under its cap; cap-walled with the weekly reset ALONE (no later-of-two
+    with a session reset it is not blocked by) when the weekly window is at its cap."""
+    monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
+    monkeypatch.setattr(cr, "_now", lambda: NOW)
+    monkeypatch.setattr(cr, "_rotate_state_dir", lambda: Path("/nonexistent-state-dir"))
+    monkeypatch.setattr(
+        cr, "_fleet_exhaustion_stamp", lambda: Path("/nonexistent-state-dir/fleet-exhausted")
+    )
+    monkeypatch.delenv("ROTATE_TARGET_SESSION_MAX_PCT", raising=False)
+    monkeypatch.delenv("ROTATE_DRAIN_THRESHOLD", raising=False)
+    atbar = _live("atbar@ocoron.com", "atbar", 85.0, 40.0)
+    atbar["five_hour"]["resets_at_epoch"] = NOW + 3 * 3600
+    walled = _live("walled@ocoron.com", "walled", 85.0, 99.0, w_reset=2 * 3600)
+    walled["five_hour"]["resets_at_epoch"] = NOW + 4 * 3600  # later than the weekly reset
+    over = _live("over@ocoron.com", "over", 85.1, 40.0)
+    over["five_hour"]["resets_at_epoch"] = NOW + 3 * 3600
+    rows = [_live("act@ocoron.com", "act", 20.0, 30.0), atbar, walled, over]
+    pic = cr._fleet_picture(rows, "act", NOW)
+    st = {r["email"].split("@")[0]: (r["state"], r["returns_at"]) for r in pic["accounts"]}
+    assert st["atbar"][0] == "eligible", st
+    assert st["walled"] == ("cap-walled", NOW + 2 * 3600), st
+    assert st["over"] == ("session-exhausted", NOW + 3 * 3600), st

@@ -281,3 +281,12 @@ def test_the_ledger_floor_is_wired_at_the_sixth_causes_call_site():
     assert src.count("_this_sessions_edits(authored_map, _floor)") == 0, (
         "the unfloored call is gone"
     )
+
+
+def test_a_legacy_sub_second_pair_written_before_the_writer_floored_is_read_whole():
+    # F7 (non-author pass, 2026-09-07): the reader floored lo AFTER testing lo <= hi, so a pair a
+    # pre-R2 writer left as [100.7, 100] was still dropped — fail-closed, but the commit claimed
+    # the reader "covers the close second whole" for existing ledgers too.
+    wins = fgs._review_windows({"state": "done", "covered": [[100.7, 100]]})
+    assert wins == [(100, 101.0)], wins
+    assert fgs._review_windows({"state": "done", "covered": [[102.2, 100]]}) == [], "still junk"

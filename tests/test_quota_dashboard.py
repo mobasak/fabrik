@@ -836,6 +836,7 @@ def test_a_broken_pool_balance_never_takes_the_board_down(tmp_path, monkeypatch)
 def _quota_stub(qd, monkeypatch, *, brave_hdrs=None, fc_body=None, raise_for=()):
     """Replace the ONE network primitive. Every quota fetcher goes through `_get_json`, so a test
     never touches a provider — and neither does the render path, which is the point."""
+
     def fake(url, headers):
         for frag in raise_for:
             if frag in url:
@@ -845,6 +846,7 @@ def _quota_stub(qd, monkeypatch, *, brave_hdrs=None, fc_body=None, raise_for=())
         if "firecrawl" in url:
             return (fc_body if fc_body is not None else {}), {}
         raise AssertionError(f"unexpected URL {url}")
+
     monkeypatch.setattr(qd, "_get_json", fake)
     monkeypatch.setattr(qd, "_mcp_key", lambda *_a, **_k: "test-key")
 
@@ -884,10 +886,12 @@ def test_braves_monthly_zero_means_unlimited_not_exhausted(tmp_path, monkeypatch
     assert "unlimited" in html and "no monthly cap" in html
     assert ">0<" not in html and "0 (0%)" not in html, "an unlimited plan must never render as 0"
     # a REAL cap still reports real numbers, and a low one is toned
-    capped = dict(_BRAVE_UNLIMITED, **{
-        "x-ratelimit-limit": "50, 15000", "x-ratelimit-remaining": "49, 900"})
+    capped = dict(
+        _BRAVE_UNLIMITED, **{"x-ratelimit-limit": "50, 15000", "x-ratelimit-remaining": "49, 900"}
+    )
     _quota_stub(qd, monkeypatch, brave_hdrs=capped, fc_body=_FC_OK)
     (tmp_path / "q.json").unlink()
+    qd._api_quotas_mem.clear()  # the in-memory TTL stamp (21eba0fb) outlives the disk cache
     q2 = qd._api_quotas(now)
     assert q2["brave"]["total"] == 15000 and q2["brave"]["remaining"] == 900
     assert "crit" in qd._api_quotas_panel(q2, now)  # 6% left
@@ -921,8 +925,15 @@ def test_the_render_path_never_makes_a_network_call(tmp_path, monkeypatch):
 
     monkeypatch.setattr(qd, "_get_json", explode)
     assert qd._api_quotas(time.time(), fetch=False)["ts"] is None  # no cache, still no call
-    cache.write_text(json.dumps({"ts": time.time(), "firecrawl": {"state": "ok", "total": 5000,
-                                 "remaining": 10, "unit": "credits"}}), encoding="utf-8")
+    cache.write_text(
+        json.dumps(
+            {
+                "ts": time.time(),
+                "firecrawl": {"state": "ok", "total": 5000, "remaining": 10, "unit": "credits"},
+            }
+        ),
+        encoding="utf-8",
+    )
     q = qd._api_quotas(time.time(), fetch=False)
     assert q["firecrawl"]["remaining"] == 10
     monkeypatch.setattr(qd, "_probe", _payload)
@@ -934,8 +945,9 @@ def test_one_dead_provider_does_not_blank_the_other_two(tmp_path, monkeypatch):
     would turn one provider's outage into a blank panel — the shape this board keeps re-learning."""
     qd = _load(tmp_path, monkeypatch)
     monkeypatch.setattr(qd, "API_QUOTAS_CACHE", tmp_path / "q.json")
-    _quota_stub(qd, monkeypatch, brave_hdrs=_BRAVE_UNLIMITED, fc_body=_FC_OK,
-                raise_for=("firecrawl",))
+    _quota_stub(
+        qd, monkeypatch, brave_hdrs=_BRAVE_UNLIMITED, fc_body=_FC_OK, raise_for=("firecrawl",)
+    )
     now = time.time()
     q = qd._api_quotas(now)
     assert q["brave"]["state"] == "ok", "brave must survive firecrawl being down"
@@ -957,6 +969,12 @@ def test_exas_unavailability_is_stated_not_blank(tmp_path, monkeypatch):
     # and an absent key is a DIFFERENT verdict from an unavailable API
     monkeypatch.setattr(qd, "_mcp_key", lambda *_a, **_k: None)
     (tmp_path / "q.json").unlink()
+    # the stub configures every key (exa included): the row states WHY it is unknowable
+    assert "returns spend, not a balance" in html
+    # and with NO key on the box it says that instead — a different fact, stated too
+    monkeypatch.setattr(qd, "_mcp_key", lambda *_a, **_k: None)
+    (tmp_path / "q.json").unlink(missing_ok=True)
+    qd._api_quotas_mem.clear()
     assert "no API key configured" in qd._api_quotas_panel(qd._api_quotas(now), now)
 
 
@@ -2255,3 +2273,44 @@ def test_the_ghost_return_row_renders_for_an_active_the_tick_will_relief_flip(
     kinds = [e["kind"] for e in qd._queue(p, _NOW)]
     assert "return" in kinds, kinds
     assert "is-return" in qd.render(p, _NOW)
+
+
+def test_a_garbage_session_bar_knob_neither_crashes_import_nor_disagrees_with_itself(
+    tmp_path, monkeypatch
+):
+    """F4 (non-author pass over 58041dbd, 2026-09-07): `_TARGET_SESSION_MAX` and
+    `BLIND_TRIGGER_THRESHOLD` were import-time `float(os.getenv(...))` reads of the knobs
+    `_session_bar` had just been hardened for — `abc` crashed the whole board at import and `nan`
+    made nobody eligible while the guarded parser read 85. One lazy guarded parser now."""
+    qd = _load(tmp_path, monkeypatch)
+    assert not hasattr(qd, "_TARGET_SESSION_MAX") and not hasattr(qd, "BLIND_TRIGGER_THRESHOLD")
+    row = {"five_hour": {"utilization": 84.0}, "seven_day": {"utilization": 10.0}}
+    for bad in ("abc", "", "nan", "inf"):
+        monkeypatch.setenv("ROTATE_TARGET_SESSION_MAX_PCT", bad)
+        monkeypatch.setenv("ROTATE_DRAIN_THRESHOLD", bad)
+        assert qd._session_bar() == 85.0 == qd._drain_band(), bad
+        assert qd._eligible(row) is True, bad
+    monkeypatch.setenv("ROTATE_TARGET_SESSION_MAX_PCT", "80")
+    assert qd._eligible(row) is False, "the live knob, read lazily, decides"
+    monkeypatch.delenv("ROTATE_TARGET_SESSION_MAX_PCT")
+    monkeypatch.setenv("ROTATE_DRAIN_THRESHOLD", "70")
+    assert qd._session_bar() == 70.0 == qd._drain_band()
+
+
+def test_util_uses_the_callers_clock_so_returns_at_and_util_agree(tmp_path, monkeypatch):
+    """F8: `_util` read `time.time()` inside functions handed an explicit `now`; a payload probed
+    at T and rendered at T+Δ could have `_util` zero a rolled cached window against wall-clock
+    while `_returns_at` judged the same reset against `generated_at`."""
+    qd = _load(tmp_path, monkeypatch)
+    reset = 1_000_000.0
+    a = {
+        "source": "cache",
+        "five_hour": {"utilization": 100.0, "resets_at_epoch": reset},
+        "seven_day": {"utilization": 20.0, "resets_at_epoch": reset + 86_400},
+    }
+    assert qd._util(a, "five_hour", reset - 1) == 100.0, "before the reset: the raw reading"
+    assert qd._util(a, "five_hour", reset) == 0.0, "at/after the reset: rolled over"
+    monkeypatch.setattr(qd.time, "time", lambda: reset + 5)
+    assert qd._util(a, "five_hour") == 0.0, "no clock given: wall-clock, as before"
+    # handed a clock BEFORE the reset, both mirrors see a spent window that returns at `reset`
+    assert qd._returns_at(a, reset - 1) == reset
