@@ -24,7 +24,7 @@ feedback line:**
 **The four labelled fields are the USAGE report (D-175, the operator's 6th ask 2026-09-07): the
 corpus is optimised from them — fewer review rounds, less confusion, fewer tokens, without losing
 function — and `command_run.py` REFUSES a close that lacks any of `confusion:` `waste:` `change:`
-`filed:` (or leaves one empty).** Wall-clock and the round count are captured for you; write what
+`filed:` (or leaves one empty, or writes one twice).** The separator between fields is ` · ` (a middle dot; `|`, `;` or a newline also count) — a label only counts at a field boundary, so a value may mention another label's name in prose. Wall-clock and the round count are captured for you; write what
 you SAW: which sentence you misread, which step you repeated, what you would cut or rename. A run
 that went cleanly still says so per field (`confusion: none`), and `change: none` is a claim you
 sign — every run of a 400-line command has one edit worth naming. The close prints the finished

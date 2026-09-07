@@ -247,3 +247,14 @@ def test_stopword_none_lacks_substance():
     assert cr._feedback_lacks_substance("none: nothing to report")
     assert cr._feedback_lacks_substance("none))))))")
     assert not cr._feedback_lacks_substance("none — swept it")
+
+
+def test_usage_requirement_fails_open_like_the_feedback_requirement():
+    """`_usage_is_required` mirrors `_feedback_is_required`: an unparseable or missing
+    `started_at` never traps a close (the duty binds forward), and a post-cutoff start owes it."""
+    from scripts import command_run as cr
+
+    for bad in ({}, {"started_at": ""}, {"started_at": "not-a-date"}, {"started_at": None}):
+        assert cr._usage_is_required(bad) is False, bad
+    assert cr._usage_is_required({"started_at": "2026-09-08T00:00:00+00:00"}) is True
+    assert cr._usage_is_required({"started_at": "2026-08-01T00:00:00+00:00"}) is False

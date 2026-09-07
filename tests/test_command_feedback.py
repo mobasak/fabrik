@@ -148,7 +148,7 @@ def test_an_empty_field_value_is_refused_like_a_missing_one(run_dir: Path) -> No
         "confusion: · waste: none · change: none · filed: none — surfaces exercised: x",
     )
     assert r.returncode == 1, r.stdout
-    assert "confusion:" in r.stdout
+    assert "missing, empty or duplicated: confusion:" in r.stdout, r.stdout
 
 
 def test_a_bare_none_in_the_filed_field_is_still_refused(run_dir: Path) -> None:
@@ -165,3 +165,65 @@ def test_a_bare_none_in_the_filed_field_is_still_refused(run_dir: Path) -> None:
     )
     assert r.returncode == 1, r.stdout
     assert "surfaces" in r.stdout.lower()
+
+
+def test_a_label_named_inside_a_value_does_not_split_the_field(run_dir: Path) -> None:
+    _start(run_dir)
+    r = _cr(
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-probe",
+        "--evidence",
+        "x",
+        "--feedback",
+        "confusion: none · waste: none · change: rename the 'waste:' label to 'burn:' · "
+        "filed: mailed the cost:5 defect 01M1XYZ to infra",
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    row = _ledger(run_dir)[0]
+    assert row["change"] == "rename the 'waste:' label to 'burn:'", row
+    assert row["filed"] == "mailed the cost:5 defect 01M1XYZ to infra", row
+    assert row["cost"] == "", row
+
+
+def test_a_duplicated_label_is_refused_not_last_wins(run_dir: Path) -> None:
+    _start(run_dir)
+    r = _cr(
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-probe",
+        "--evidence",
+        "x",
+        "--feedback",
+        "confusion: none · waste: none · change: none · filed: 01M1 to infra · filed: none",
+    )
+    assert r.returncode == 1, r.stdout
+    assert "filed (duplicate):" in r.stdout, r.stdout
+    assert _ledger(run_dir) == []
+
+
+def test_a_grandfathered_close_writes_no_ledger_row_even_when_its_text_carries_a_label(
+    run_dir: Path,
+) -> None:
+    _start(run_dir)
+    f = run_dir / "s1.json"
+    rec = json.loads(f.read_text(encoding="utf-8"))
+    rec["started_at"] = (
+        "2026-08-30T00:00:00+00:00"  # after the presence cutoff, before the usage one
+    )
+    f.write_text(json.dumps(rec), encoding="utf-8")
+    r = _cr(
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-probe",
+        "--evidence",
+        "x",
+        "--feedback",
+        "filed: 01M1 to infra — the old free-text shape, one label by accident",
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert _ledger(run_dir) == []
+    assert not any(ln.startswith("FEEDBACK:") for ln in r.stdout.splitlines())

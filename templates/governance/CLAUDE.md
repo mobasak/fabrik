@@ -373,7 +373,7 @@ CHANGELOG: <entry title | n/a>
 LESSONS LEARNT: <none | docs/LESSONS_LEARNT.md entry title>
 DONE: <one line — what this run delivered: the commits/artifacts, not intentions>
 NEXT: <the next command or step, NAMED — /fabrik-<x> <args> | operator decision: <what> | none — terminal>
-FEEDBACK: /<command> · <wall-clock> · rounds <n> · confusion: <…|none> · waste: <…|none> · change: <the one edit to the command/rule | none> · filed: <mail id(s) to a beat | none — surfaces exercised: …>
+FEEDBACK: /<command> · <wall-clock> · rounds <n> (<findings trend>) · confusion: <…|none> · waste: <…|none> · change: <the one edit to the command/rule | none> · filed: <mail id(s) to a beat | none — surfaces exercised: …> [· cost: <pool $>]
 ```
 
 Missing any line on a task-completing response = failure. Re-run gate until `success`, then output the 7 lines. The `FEEDBACK:` line is the run-record close verdict made CHAT-VISIBLE (operator directive 2026-09-01 — the 7th ask: verdicts persisted to records were still invisible in the conversation); same bar as the close: a "filed" claim names a durable artifact, a bare "none" is a defect — `none — <surfaces exercised>` or the filing. **EVERY OTHER response — conversational, clarifying, read-only, mid-plan status (operator mandate 2026-08-10: "in any answer agents must reply in that manner") — ends with the two-line STATE footer instead** (no gate, no changelog entry owed):
