@@ -37,9 +37,10 @@ def run_dir(tmp_path: Path) -> Path:
 def _cr(run_dir: Path, *args: str, sid: str = "s1") -> subprocess.CompletedProcess[str]:
     env = {**os.environ, "COMMAND_RUN_DIR": str(run_dir), "CLAUDE_SESSION_ID": sid}
     env.pop("CLAUDE_AGENT", None)
-    # never read the developer's real marker or transcript from a test (review 2026-09-07)
-    env.setdefault("COMMAND_RUN_ACCOUNT_FILE", str(run_dir / "no-marker"))
-    env.setdefault("COMMAND_RUN_TRANSCRIPT", str(run_dir / "no-transcript.jsonl"))
+    # never read the developer's real marker or transcript from a test (review 2026-09-07) —
+    # force-assigned, so an ambient export of either seam cannot leak in (pass-14 seat A)
+    env["COMMAND_RUN_ACCOUNT_FILE"] = str(run_dir / "no-marker")
+    env["COMMAND_RUN_TRANSCRIPT"] = str(run_dir / "no-transcript.jsonl")
     return subprocess.run(
         [sys.executable, str(SCRIPT), *args], capture_output=True, text=True, timeout=30, env=env
     )
@@ -1168,3 +1169,15 @@ def test_a_unicode_minus_or_a_dash_glued_to_an_amount_negates_but_a_spaced_em_da
         _cost_usd("pool $0.30 — three units") == 0.3
     )  # a spaced em dash is this corpus's separator
     assert _cost_usd("$0.12 – $0.30") is None  # a dash BETWEEN amounts is a subtraction either way
+
+
+def test_an_out_of_grammar_agent_name_records_as_empty(monkeypatch) -> None:
+    """The trailer grammar `[a-z0-9-]{1,32}`: anything else is not an agent name."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _agent_name  # noqa: PLC0415
+
+    for bad in ("Infra", "in_fra", "a" * 33, "infra intel", ""):
+        monkeypatch.setenv("CLAUDE_AGENT", bad)
+        assert _agent_name() == "", bad
+    monkeypatch.setenv("CLAUDE_AGENT", " intel-2 ")
+    assert _agent_name() == "intel-2"
