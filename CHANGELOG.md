@@ -11,7 +11,9 @@ lenient cost parser mis-read (`opus-4.5 usd`, `5.00 usd – $2.00`, `−$1.50 re
 wrong number in a field summed fleet-wide. The class ends at the input (D-179): `command_run.py`
 refuses a close whose `cost:` is not a plain amount (`0.0125`, `$0.30`, `pool $0.30`,
 `$1,234.50`, `0.0017 USD`), the way it refuses an empty usage field. The lenient parser stays
-for the ledger's older rows. Fragment, protocol doc and both CLAUDE.md templates say so. The report
+for the ledger's older rows. Fragment, protocol doc and both CLAUDE.md templates say so. The close
+appends the ledger row only AFTER the record persisted: an unpersisted close prints `NOT CLOSED`,
+exits 1 and writes no row, so the retry writes exactly one (review pass 27). The report
 (`command_feedback_report.py`) reads every numeric cell of an older row defensively — a non-finite,
 oversized, string or list `cost_usd`, `tok_*`, `wall_s`, `rounds` or `ts`, or a non-list `models`,
 is 'no datum' for that row — dropped from the sums and medians, which now print their own row

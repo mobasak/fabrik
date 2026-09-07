@@ -2090,6 +2090,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
     # (pre-cutoff) close records it on the record too, even though it writes no ledger row
     if (getattr(args, "surface", "") or "").strip():
         rec["surface"] = args.surface.strip()
+    _pending_row: dict[str, Any] | None = None
     if _usage_fields and _usage_is_required(rec):
         _tok = _sum_transcript_usage(
             _transcript_path(sid, str(rec.get("repo_root") or "")), _se or 0.0, time.time()
@@ -2112,15 +2113,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             "cost_usd": _cost_usd(_usage_fields.get("cost", "")),
             **_tok,
         }
-        try:
-            _lp = _feedback_ledger_path()
-            _lp.parent.mkdir(parents=True, exist_ok=True)
-            # a single append under O_APPEND (short writes continued): three sessions append to
-            # this file with no lock, and a buffered text write past 8 KiB could split and
-            # interleave (review 2026-09-07); the per-field cap bounds the row
-            _append_ledger_row(_lp, _row)
-        except OSError as exc:  # the ledger never blocks a close; the record still carries it
-            sys.stderr.write(f"[command_run] usage ledger not written: {exc}\n")
+        _pending_row = _row  # appended only once the record itself persisted (pass 27)
         rec["usage"] = {k: _row[k] for k in ("wall_s", "rounds", *_USAGE_FIELDS)}
         rec["usage"]["tokens"] = _tok
         print(_feedback_line(rec, _usage_fields, _wall_s))
@@ -2132,11 +2125,30 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         # a restored parent must keep ascending from where the nested run left off.
         parent["event_seq"] = rec.get("event_seq")
         _touch(parent)
-        fields["persisted"] = save(sid, parent)
+    fields["persisted"] = save(sid, parent if parent is not None else rec)
+    if not fields["persisted"]:
+        # The record on disk still says `running`: the Stop hook keeps blocking and a retry of
+        # this close is the right move — so no ledger row yet (the retry would have written a
+        # second one, review pass 27) and no claim of a close that did not happen.
+        print(
+            f"NOT CLOSED /{rec.get('command')} — the run record could not be written (see stderr);"
+            f" fix the record dir and re-run `{args.cmd}` — no usage-ledger row was written."
+        )
+        return 1
+    if _pending_row is not None:
+        try:
+            _lp = _feedback_ledger_path()
+            _lp.parent.mkdir(parents=True, exist_ok=True)
+            # a single append under O_APPEND (short writes continued): three sessions append to
+            # this file with no lock, and a buffered text write past 8 KiB could split and
+            # interleave (review 2026-09-07); the per-field cap bounds the row
+            _append_ledger_row(_lp, _pending_row)
+        except OSError as exc:  # the ledger never blocks a close; the record still carries it
+            sys.stderr.write(f"[command_run] usage ledger not written: {exc}\n")
+    if parent is not None:
         print(f"{args.cmd.upper()} /{closed.get('command')} — resuming:")
         print(pinned_line(parent))
         return 0
-    fields["persisted"] = save(sid, rec)
     print(f"{args.cmd.upper()} /{rec.get('command')} — run record closed.")
     return 0
 

@@ -1466,3 +1466,28 @@ def test_an_envelope_stamp_of_another_shape_is_never_replaced_by_a_nested_one() 
         b"]" * 200_000 + b'},"type":"assistant","timestamp":"2026-09-07T12:00:00Z"}'
     )
     assert _line_epoch(deep) is None  # unparseable ⇒ no epoch, and no exception
+
+
+def test_an_unpersisted_close_writes_no_ledger_row_and_never_claims_closed(run_dir: Path) -> None:
+    """Pass 27 (seat B): the ledger row asserting `done` was appended BEFORE `save()` flipped the
+    record, and a failed save still printed "run record closed" with rc 0 — the Stop hook kept
+    blocking on `running`, and the retry appended a SECOND row. The row is written only after
+    the record persisted; an unpersisted close says so, exits 1, and the retry writes one row."""
+    _start(run_dir)
+    fb = "confusion: none · waste: none · change: none · filed: none — surfaces exercised: x"
+    done = ("done", "--command", "fabrik-probe", "--evidence", "round 3 found: 0", "--feedback", fb)
+    os.chmod(run_dir, 0o555)  # the record dir cannot take the .json.tmp save
+    try:
+        r = _cr(run_dir, *done)
+    finally:
+        os.chmod(run_dir, 0o755)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "NOT CLOSED" in r.stdout and "run record closed" not in r.stdout, r.stdout
+    rec = json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))
+    assert rec["state"] == "running" and _ledger(run_dir) == []
+    r = _cr(run_dir, *done)  # the retry, once the dir is writable again
+    assert r.returncode == 0 and "run record closed" in r.stdout, r.stdout + r.stderr
+    rec = json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))
+    assert rec["state"] == "done"
+    rows = _ledger(run_dir)
+    assert len(rows) == 1 and rows[0]["state"] == "done" and rows[0]["command"] == "fabrik-probe"
