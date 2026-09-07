@@ -982,6 +982,10 @@ def test_record_shape_and_pinned_line_are_unchanged_by_events(run_dir: Path) -> 
         "updated_at",
         "updated_ts",
         "event_seq",
+        # the ledger's analysis dimensions (operator 2026-09-07) — additive, resolved at start
+        "agent",
+        "surface",
+        "account",
     }, sorted(rec)
     assert rec["state"] == "running"
     assert _cr(run_dir, "line").stdout.rstrip("\n") == (

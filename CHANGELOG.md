@@ -4,6 +4,52 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — quota board: six defects in the new search-API quota panel, found by its own review (2026-09-07)
+
+The review of `f657d83e` was cut short by the fleet-quota hold; resumed after it lifted. Every one of
+these is the same failure this board keeps re-earning — a page that stops telling the truth without
+saying so — and two of them are on the render path:
+
+- **The render path could raise mid-read.** `_api_quotas(fetch=False)` builds `{**cached}`, which
+  UNPACKS the in-memory dict, while the refresher thread — which does not hold `_gen_lock` — mutated
+  that same dict with `clear()` + `update()`. A `RuntimeError: dictionary changed size during
+  iteration` on the render path is exactly how this page froze two days ago. Memory is now REBOUND,
+  never mutated: a reader gets the whole old dict or the whole new one.
+- **A hand-edited cache timestamp raised.** `float(cached["ts"])` on `"soon"` throws `ValueError`,
+  again on the render path. `_stamp()` refuses a non-numeric value (and `True`, which is an `int` in
+  Python) instead.
+- **A page-wide stale reading badged nothing.** `stale` was set only per-provider on the error path,
+  so a whole reading hours past its TTL rendered clean while the intro promised "refreshed every
+  30 min".
+- **Impossible numbers rendered as percentages.** A provider can report remaining > total (a
+  mid-period plan upgrade) or a negative remaining (permitted overage); those printed as
+  "6,000 (120%)" with a healthy green badge and "-1 (-100%)". The count now shows without an
+  invented percentage.
+- **A renewal date in the past printed "-3d"** as if it were an ordinary countdown; it says
+  **overdue**.
+- Plus the metered-quota burn already shipped in `21eba0fb`, whose grader was owed and is now
+  written and proven red against the pre-fix commit: an unwritable disk cache turned the 1800s TTL
+  into the 20s probe cadence — 4,320 billed Brave queries a day instead of 48.
+
+108 tests green; every fix proven red on revert. Two graders had to be rewritten because the first
+versions passed on the broken code: the concurrency one raced and could miss its window (it now
+asserts the rebinding invariant that makes the race impossible), and the timestamp one
+short-circuited before reaching the conversion it existed to guard.
+
+
+### Changed — The feedback ledger row carries its analysis dimensions: agent, surface, account, numeric cost (2026-09-07)
+
+`command_run.py start` takes `--surface` (the spec, plan dir, ticket or diff range the command
+runs OVER; the three closes accept it late), records `CLAUDE_AGENT` and the rotation's
+`.active-account` marker at start, and the ledger row adds `agent · surface · account · cost_usd`
+(the amount when `cost:` is a whole value or `$`/`usd`-marked; prose and absence are `null`). `command_feedback_report.py` gains `--agent`,
+a summed pool-cost column, and tags each backlog item with the agent and surface that raised it.
+Operator, 2026-09-07: "which repo, which agent, which command, which spec, which file are recorded
+in it for analysis?" — repo, session and command were; the other three were not. Fleet-synced
+(`command_run.py`); the run-record fragment and three command start lines name the flag. Tests:
+`tests/test_command_feedback.py` (+3), `tests/test_command_feedback_report.py` (+1), the record-shape
+pin in `tests/test_command_run.py`.
+
 ### Fixed — /fabrik-review resume: the non-author pass over round 4 (F1-F11), the kaizen split-block emitter, two sibling-red board tests (2026-09-07)
 
 - **Round 4 re-judged by a non-author pass (11 findings, all closed):** the R9 "dead clock branch" removal had hit the LIVE default in

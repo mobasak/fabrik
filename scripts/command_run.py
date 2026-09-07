@@ -876,6 +876,50 @@ def _feedback_ledger_path() -> Path:
     return _state_dir().parent / "command-feedback.jsonl"
 
 
+# The three dimensions a ledger row needs to be ANALYSED rather than merely read (operator,
+# 2026-09-07: "which repo, which agent, which command, which spec, which file are recorded?"):
+# the AGENT (``CLAUDE_AGENT``, the same env the provenance trailers key on), the SURFACE the
+# command ran over (``start --surface`` — the spec, plan dir, ticket or diff range; the close may
+# name it late), and the ACCOUNT the session ran under (the rotation's ``.active-account`` marker,
+# a pure read — a quota hold or an account flip otherwise looks like command slowness). All three
+# fail-soft to "" — a row with an empty cell is analysable, a missing row is not.
+_AGENT_NAME_RE = re.compile(r"^[a-z0-9-]{1,32}$")
+# a number counts as a COST only when it is the whole value (``0.03``, ``pool 0.0017 USD``) or sits
+# on a currency marker (``$0.0125``, ``0.01 usd``) — prose in the field ("2 hold-era commits") is
+# a real row shape and must NOT be summed as two dollars
+_COST_WHOLE_RE = re.compile(r"^\s*(?:pool\s*)?\$?\s*(\d+(?:\.\d+)?)\s*(?:usd|\$)?\s*$", re.I)
+_COST_MARKED_RE = re.compile(r"\$\s*(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*usd\b", re.I)
+
+
+def _agent_name() -> str:
+    name = os.environ.get("CLAUDE_AGENT", "").strip()
+    return name if _AGENT_NAME_RE.match(name) else ""
+
+
+def _active_account() -> str:
+    try:
+        raw = os.environ.get("COMMAND_RUN_ACCOUNT_FILE") or str(
+            Path.home() / ".claude" / ".active-account"
+        )
+        return Path(raw).read_text(encoding="utf-8").strip().splitlines()[0][:64]
+    except (OSError, ValueError, IndexError, RuntimeError):  # RuntimeError: no resolvable home
+        return ""
+
+
+def _cost_usd(text: str) -> float | None:
+    """The dollar amount in a free-text ``cost:`` value (``pool $0.0125`` → 0.0125,
+    ``$1,234.50`` → 1234.5). None when the value is prose or carries no marked number — a row
+    that cannot be summed says so, never contributes a wrong number or a silent 0."""
+    t = re.sub(r"(?<=\d),(?=\d{3}\b)", "", text or "")  # thousands separators
+    m = _COST_WHOLE_RE.match(t) or _COST_MARKED_RE.search(t)
+    if not m:
+        return None
+    try:
+        return float(next(g for g in m.groups() if g))
+    except (ValueError, StopIteration):
+        return None
+
+
 def _feedback_line(rec: dict[str, Any], fields: dict[str, str], wall_s: float) -> str:
     rounds = rec.get("rounds") or []
     trend = "→".join(str(int(r.get("findings", 0))) for r in rounds)
@@ -940,6 +984,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--command", required=True, help="e.g. fabrik-review")
     p.add_argument("--phases", required=True, type=int)
     p.add_argument("--terminal", default="", help="the run's terminal condition")
+    p.add_argument(
+        "--surface",
+        default="",
+        help="what the run is OVER — the spec, plan dir, ticket or diff range (ledger dimension)",
+    )
 
     p = sub.add_parser("step", help="advance to a phase", parents=[common])
     p.add_argument(
@@ -959,6 +1008,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--command", required=True, help="the run you are closing — must be the LIVE one"
     )
+    p.add_argument(
+        "--surface", default="", help="name the surface late if `start` omitted it (ledger)"
+    )
     p.add_argument("--evidence", required=True)
     p.add_argument(
         "--feedback",
@@ -977,6 +1029,9 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--command", required=True, help="the run you are closing — must be the LIVE one"
+    )
+    p.add_argument(
+        "--surface", default="", help="name the surface late if `start` omitted it (ledger)"
     )
     p.add_argument(
         "--resume",
@@ -999,6 +1054,9 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--command", required=True, help="the run you are closing — must be the LIVE one"
+    )
+    p.add_argument(
+        "--surface", default="", help="name the surface late if `start` omitted it (ledger)"
     )
     p.add_argument("--reason", required=True)
     p.add_argument(
@@ -1136,6 +1194,11 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             # the repo the run REVIEWS, resolved once at start — round 31 reproduced the close
             # check running against whatever repo the shell happened to be cd'd into
             "repo_root": _repo_root(),
+            # the analysis dimensions (see _agent_name/_active_account): resolved at start, when
+            # the env and the marker describe THIS run — the close may run under a later flip
+            "agent": _agent_name(),
+            "surface": (args.surface or "").strip(),
+            "account": _active_account(),
             "rounds": [],
             "classes": {},
             "stack": stack,
@@ -1711,6 +1774,10 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
     # whose free-text verdict happens to contain a label ("filed: … to infra") is not a report
     # (round-3 finder)
     if _usage_fields and _usage_is_required(rec):
+        # a late `--surface` lands only on a close that is actually happening — every refusal
+        # above returned before this line, so a refused close never persists the override
+        if (getattr(args, "surface", "") or "").strip():
+            rec["surface"] = args.surface.strip()
         _row = {
             "ts": time.time(),
             "sid": sid,
@@ -1722,7 +1789,11 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             "findings": [int(r.get("findings", 0)) for r in rec.get("rounds") or []],
             "phases": rec.get("phases"),
             "phase_reached": rec.get("phase"),
+            "agent": str(rec.get("agent") or _agent_name() or ""),
+            "surface": str(rec.get("surface") or ""),
+            "account": str(rec.get("account") or ""),
             **{k: _usage_fields.get(k, "") for k in (*_USAGE_FIELDS, "cost")},
+            "cost_usd": _cost_usd(_usage_fields.get("cost", "")),
         }
         try:
             _lp = _feedback_ledger_path()

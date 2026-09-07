@@ -6,11 +6,15 @@ machinery that stops a command being abandoned half-executed — it only protect
 
 ```bash
 python3 scripts/command_run.py start --command {{COMMAND}} --phases {{PHASES}} \
+  --surface "<what this run is OVER — the spec | plan dir | ticket | diff range>" \
   --terminal "<this command's own terminal condition, in your words>"
 ```
 
 Then `step --phase <N> --title "<the phase title>"` on entering each phase, so the pinned `RUN:`
-line shows the operator where the run actually is rather than where it started.
+line shows the operator where the run actually is rather than where it started. `--surface` is
+what makes the run's ledger row ANALYSABLE — a 40-file plan set and a 3-file diff are different
+runs of the same command; name it at `start` (the close accepts `--surface` too if you learn it
+late). The agent (`CLAUDE_AGENT`) and the active account are captured for you.
 
 Close it EXACTLY ONE of two ways — never by simply stopping:
 

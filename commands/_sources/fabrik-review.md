@@ -16,6 +16,7 @@ already-adjudicated STANDING row is cited in its row, never counted — see § R
 
 ```bash
 python3 scripts/command_run.py start --command fabrik-review --phases 5 \
+  --surface "<what this run is OVER — the spec | plan dir | ticket | diff range>" \
   --terminal "found:0 no-op round"
 ```
 

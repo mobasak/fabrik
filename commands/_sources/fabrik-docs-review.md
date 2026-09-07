@@ -14,6 +14,7 @@ Converge the documentation to a fixed point — do not stop after one pass.
 
 ```bash
 python3 scripts/command_run.py start --command fabrik-docs-review --phases 5 \
+  --surface "<what this run is OVER — the spec | plan dir | ticket | diff range>" \
   --terminal "edit-free pass + docs_updater --check green"
 ```
 

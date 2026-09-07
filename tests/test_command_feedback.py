@@ -227,3 +227,171 @@ def test_a_grandfathered_close_writes_no_ledger_row_even_when_its_text_carries_a
     assert r.returncode == 0, r.stdout + r.stderr
     assert _ledger(run_dir) == []
     assert not any(ln.startswith("FEEDBACK:") for ln in r.stdout.splitlines())
+
+
+def test_the_row_carries_agent_surface_account_and_a_numeric_cost(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    marker = tmp_path / "active-account"
+    marker.write_text("ob-ocoron-com-s-organization\n", encoding="utf-8")
+    env = {
+        **os.environ,
+        "COMMAND_RUN_DIR": str(run_dir),
+        "CLAUDE_SESSION_ID": "s1",
+        "CLAUDE_AGENT": "infra",
+        "COMMAND_RUN_ACCOUNT_FILE": str(marker),
+    }
+    args = [
+        "start",
+        "--command",
+        "fabrik-probe",
+        "--phases",
+        "1",
+        "--terminal",
+        "t",
+        "--surface",
+        "docs/development/plans/2026-09-07-plan-1-x.md",
+    ]
+    r = subprocess.run(
+        [sys.executable, str(SCRIPT), *args], capture_output=True, text=True, timeout=30, env=env
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    r = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "done",
+            "--command",
+            "fabrik-probe",
+            "--evidence",
+            "x",
+            "--feedback",
+            STRUCTURED + " · cost: pool $0.0125",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env=env,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    row = _ledger(run_dir)[0]
+    assert row["agent"] == "infra"
+    assert row["surface"] == "docs/development/plans/2026-09-07-plan-1-x.md"
+    assert row["account"] == "ob-ocoron-com-s-organization"
+    assert row["cost"] == "pool $0.0125" and row["cost_usd"] == 0.0125
+
+
+def test_missing_agent_surface_account_and_cost_record_as_empty_not_absent(run_dir: Path) -> None:
+    env = {
+        **os.environ,
+        "COMMAND_RUN_DIR": str(run_dir),
+        "CLAUDE_SESSION_ID": "s1",
+        "COMMAND_RUN_ACCOUNT_FILE": str(run_dir / "no-such-marker"),
+    }
+    env.pop("CLAUDE_AGENT", None)
+    r = subprocess.run(  # no --surface, no CLAUDE_AGENT, no account marker
+        [
+            sys.executable,
+            str(SCRIPT),
+            "start",
+            "--command",
+            "fabrik-probe",
+            "--phases",
+            "1",
+            "--terminal",
+            "t",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env=env,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    r = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "done",
+            "--command",
+            "fabrik-probe",
+            "--evidence",
+            "x",
+            "--feedback",
+            STRUCTURED,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env=env,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    row = _ledger(run_dir)[0]
+    assert row["agent"] == "" and row["surface"] == "" and row["account"] == ""
+    assert row["cost"] == "" and row["cost_usd"] is None
+
+
+def test_the_close_can_name_the_surface_a_start_omitted(run_dir: Path) -> None:
+    _start(run_dir)
+    r = _cr(
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-probe",
+        "--evidence",
+        "x",
+        "--surface",
+        "git diff a1b2c3d..HEAD",
+        "--feedback",
+        STRUCTURED,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert _ledger(run_dir)[0]["surface"] == "git diff a1b2c3d..HEAD"
+
+
+def test_cost_usd_parses_marked_or_whole_numbers_and_never_prose() -> None:
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _cost_usd  # noqa: PLC0415
+
+    assert _cost_usd("pool $0.0125") == 0.0125
+    assert _cost_usd("0.03") == 0.03
+    assert _cost_usd("pool 0.0017 USD") == 0.0017
+    assert _cost_usd("$1,234.50") == 1234.5
+    assert _cost_usd("about 0.01 usd across three units") == 0.01
+    assert _cost_usd("2 hold-era commits, 1 orphaned native pass") is None  # prose, not dollars
+    assert _cost_usd("") is None
+
+
+def test_a_refused_close_does_not_persist_its_late_surface(run_dir: Path) -> None:
+    _start(run_dir)
+    r = _cr(
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-other",
+        "--evidence",
+        "x",
+        "--surface",
+        "late-surface",
+        "--feedback",
+        STRUCTURED,
+    )
+    assert r.returncode == 1, r.stdout
+    rec = json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))
+    assert rec["surface"] == "" and rec["state"] == "running"
+    # a second, LATER refusal path — the usage-field check — must not persist it either
+    r = _cr(
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-probe",
+        "--evidence",
+        "x",
+        "--surface",
+        "late-surface",
+        "--feedback",
+        "confusion: none · waste: none",
+    )
+    assert r.returncode == 1, r.stdout
+    rec = json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))
+    assert rec["surface"] == "" and rec["state"] == "running"
+    assert _ledger(run_dir) == []

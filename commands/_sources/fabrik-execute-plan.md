@@ -14,6 +14,7 @@ count** (dispatcher mode: the Board's ticket count), not a fixed number:
 
 ```bash
 python3 scripts/command_run.py start --command fabrik-execute-plan --phases <plan's phases> \
+  --surface "<what this run is OVER — the spec | plan dir | ticket | diff range>" \
   --terminal "every phase EXECUTED + its /fabrik-review round clean"
 ```
 

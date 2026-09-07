@@ -117,3 +117,22 @@ def test_the_text_report_states_a_zero_day_bound(tmp_path: Path) -> None:
     _write(ledger, [_row("fabrik-review", 600, 4, "a", days_ago=0.5)])
     text = _run(ledger, "--since", "0").stdout
     assert "0 of 1 ledger rows examined (last 0 days)" in text, text
+
+
+def test_agent_filter_and_cost_sum_per_command(tmp_path: Path) -> None:
+    ledger = tmp_path / "command-feedback.jsonl"
+    _write(
+        ledger,
+        [
+            _row("fabrik-review", 600, 4, "a", agent="infra", cost_usd=0.01, surface="plan-1"),
+            _row("fabrik-review", 600, 4, "b", agent="fleet", cost_usd=0.02, surface="plan-2"),
+            _row("fabrik-review", 600, 4, "c", agent="", cost_usd=None, surface=""),
+        ],
+    )
+    out = json.loads(_run(ledger, "--json").stdout)
+    assert out["commands"]["fabrik-review"]["cost_usd"] == 0.03
+    only = json.loads(_run(ledger, "--json", "--agent", "infra").stdout)
+    assert only["examined"] == 1 and only["commands"]["fabrik-review"]["cost_usd"] == 0.01
+    assert only["backlog"][0]["agent"] == "infra" and only["backlog"][0]["surface"] == "plan-1"
+    text = _run(ledger, "--agent", "fleet").stdout
+    assert "[fleet · plan-2]" in text, text

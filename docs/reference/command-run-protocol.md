@@ -218,7 +218,7 @@ confusion: <what in the command text was ambiguous or misleading | none>
 waste:     <steps, turns or tokens spent without changing the outcome | none>
 change:    <the ONE concrete edit to the command or a rule that would have made this run faster or more accurate | none>
 filed:     <mail id(s) to infra|fleet|intel | none — surfaces exercised: <what the run touched>>
-cost:      <pool dollars>                                                    (optional)
+cost:      <pool dollars — a number; the ledger sums it as cost_usd>           (optional)
 ```
 
 - `command_run.py` REFUSES a close missing any field, leaving one empty, or writing one twice
@@ -235,10 +235,21 @@ cost:      <pool dollars>                                                    (op
 - **The ledger:** one JSON row per close appended to `~/.claude/state/command-feedback.jsonl`
   (`COMMAND_RUN_DIR`'s parent when that is set), box-wide across every repo whose `command_run.py`
   is current (fleet-synced; fabrik-lib pulls). Fields: `ts sid repo command state wall_s rounds
-  findings phases phase_reached confusion waste change filed cost`.
+  findings phases phase_reached agent surface account confusion waste change filed cost cost_usd`.
+  **The analysis dimensions** (operator, 2026-09-07 — "which repo, which agent, which command,
+  which spec, which file"): `repo` (the run's `repo_root`), `agent` (`CLAUDE_AGENT` at `start`,
+  the same env the provenance trailers key on), `surface` (`start --surface` — the spec, plan
+  dir, ticket or diff range the command ran OVER; the close accepts `--surface` to name it late),
+  `account` (the rotation's `~/.claude/.active-account` marker at `start`, a pure read — a quota
+  hold or a flip otherwise looks like command slowness; `COMMAND_RUN_ACCOUNT_FILE` overrides the
+  path for tests), `cost_usd` (the amount in `cost:` when it is the whole value or sits on a
+  `$`/`usd` marker, thousands separators stripped; prose such as `2 hold-era commits` and an
+  absent value are `null` — never a wrong number, never a silent 0). All fail-soft to `""`: a row with an empty cell is analysable, a missing row is not.
 - **The report:** `python3 scripts/command_feedback_report.py [--since DAYS] [--command NAME]
-  [--json]` — per command: runs, done/blocked, median and max wall-clock, median rounds, how many
-  runs said `change: none`; then the optimisation backlog — every distinct `change:` item with its
+  [--agent NAME] [--json]` — per command: runs, done/blocked, median and max wall-clock, median
+  rounds, how many runs said `change: none`, summed pool `cost_usd` (with how many rows carried a
+  number); then the optimisation backlog (each item tagged `[agent · surface]` of the run that
+  raised it) — every distinct `change:` item with its
   recurrence count, and the `confusion:` and `waste:` items. This is what the corpus is optimised
   from: a `change:` that recurs across runs is a command edit waiting to be made.
 - Pre-cutoff records keep the old grammar (the duty binds forward, never retroactively — the same
