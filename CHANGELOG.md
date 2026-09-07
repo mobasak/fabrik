@@ -21,6 +21,10 @@ is 'no datum' for that row — dropped from the sums and medians, which now prin
 counts (`10.0 min (1)`, `—` with none) — never a phantom zero, never a traceback that takes the
 whole fleet-wide report down (review passes 21–24).
 
+### Fixed — the relief wake, Finish review: the Stop decider's lock prune had orphaned 25 of 30 self-watches (2026-09-07)
+
+- The heavy `/fabrik-review` of plan `2026-09-07-plan-1-relief-wake` found the wake could not reach most sessions on this box: `~/.claude/bin/claude-stop-decider.py`'s 2-hour lock-dir prune deleted every self-watch's never-touched `*.selfwatch.lock`, so the watchers held deleted inodes — invisible to the tick's armed census — and every re-arm the nag ordered died the same way. Fixed at both ends: the prune skips flock-held files (`_flock_held`; grader `tests/test_claude_stop_decider_prune.py`, seen red) and `~/.claude/bin/claude-selfwatch.sh` exits with one line when its lock file vanishes (harness W11). Also in the tick (`scripts/sysadmin/claude_rotate.py` + twin): a lock it cannot probe is counted in `errors` instead of aborting the census (`_armed_sids` → `(armed, dead, broken)`), a non-UTF-8 lock name no longer raises (`surrogateescape`, lockstep with `selfwatch_check._safe`), an unclearable stamp appends a `hold-stuck` ledger row, and — D-180 — a probe blackout KEEPS the stamp instead of consuming the wake's only transition. `.claude/hooks/quota_stop.py` type- and charset-guards the sid it interpolates into the arm order. Graders for every fix seen red first; 347 passed across the six suites with 0 lift files left in the real lock dir. Docs: rotation doc hold paragraph, hooks-index rows 106/112, the plan's Finish-review block.
+
 ### Changed — the relief wake, Phase C: the hold orders the self-watch arm and allows TaskStop (2026-09-07)
 
 - `.claude/hooks/quota_stop.py` (fleet-synced): `TaskStop` joins the hold's allow-list — a held session can stop its own native
@@ -35,9 +39,9 @@ whole fleet-wide report down (review passes 21–24).
 - `~/.claude/bin/claude-selfwatch.sh` (outside the repo; DR-mirrored by `scripts/dr_claude_backup.sh`): polls `<sid>.holdlifted` beside the
   death marker; on a lift it runs the same connectivity gate (no backoff, no jitter — `death` set for the gate's ceiling under `set -u`),
   consumes the file and prints ONE `RESUME: the fleet-quota hold LIFTED at <lift HH:MM> …` line naming `command_run.py line` and
-  `thread_anchor.py line --session <sid>`; a lift older than the arm is deleted as pre-arm history; a death and a lift together wake
+  `thread_anchor.py line --session <sid>`; any lift already present at arm is deleted (pre-arm history); a death and a lift together wake
   death-first. `~/.claude/bin/claude-mesh-test.sh` gains W10/W10b/W10c/W10d (the lift minute, the where-you-left-off text, pre-arm,
-  both-files order, offline) — nine checks, all seen red against the old script; the harness's A0a red is a recorded baseline
+  both-files order, offline) — fourteen verdict sites, nine of them seen red against the old script (the other five pass on both); the harness's A0a red is a recorded baseline
   (01M1XJ3XTQSZ17RBFVHQ586MKF), not this plan's. `docs/workstation/hooks-index.md` rows 106/112 name the new file.
 
 ### Fixed — Feedback ledger review, passes 3–12: cost grammar hardened, the whole transcript scanned, the row's agent is the start-time one (2026-09-07)
@@ -61,9 +65,9 @@ Two chain defects of the review itself were fixed in-run: a commit landed past a
   AND the transient-dwell site, both gated on a real exists→unlink transition — `_wake_held_sessions(now, reason, reading_ok)`
   creates `<lockdir>/<safe-sid>.holdlifted` (the lift epoch, `O_CREAT|O_EXCL`, never the death record) for every sid whose
   self-watch holds its `selfwatch.lock` (`_sid_is_armed`, vendored verbatim from `selfwatch_check.py` and lockstep-graded), writes NO
-  lift on a probe blackout (`reason="no-reading"`), and appends ONE `hold-lifted` ledger row with `armed/dead/woken/pending/errors`;
-  an unusable lock dir is counted, never fatal. Plan `docs/development/plans/2026-09-07-plan-1-relief-wake.md` (D-177/D-178).
-  Graders: three helper tests + four tick-level tests (relief + dedup, dwell, no-reading, errors), each seen red first.
+  lift on a probe blackout (`reason="no-reading"`; superseded at the Finish by D-180 — the tick now KEEPS the stamp, so the tick never reaches that branch), and appends ONE `hold-lifted` ledger row with `reason/site/armed/dead/woken/pending/errors`;
+  an unusable lock dir is counted, never fatal; an unclearable stamp keeps the hold and wakes nobody (`_clear_stamp`). Finish (docs-review): the wake made every fleet test that reaches the unlink enumerate the BOX'S lock dir — three live sessions received `.holdlifted` files stamped with the tests' fixed clock (epoch 1800000000) and one self-watch printed a bogus RESUME line; `tests/conftest.py` now pins `CLAUDE_SOUND_LOCKDIR` to a per-test tmp dir for every test (autouse, the git-env-scrub shape), graded by `tests/test_conftest_isolation.py` (seen red first), and the three files were removed. Plan `docs/development/plans/2026-09-07-plan-1-relief-wake.md` (D-177/D-178).
+  Graders: five helper-level tests (three in the phase, two from its scoped review — the unclearable stamp, the one reading predicate) + four tick-level tests (relief + dedup, dwell, no-reading, errors), each seen red first.
 
 ### Fixed — Feedback ledger review round: the transcript scan no longer stops early, every reader error is contained, costs sum, the report declares its population (2026-09-07)
 

@@ -3623,7 +3623,7 @@ def test_relief_flips_even_within_the_dwell_of_the_last_flip(tmp_path, monkeypat
 
 def _armed_watch(tmp_path, monkeypatch, sid="pane1"):
     """A tmp lock dir with ONE armed self-watch (an exclusive flock held for the test's life —
-    `claude-selfwatch.sh:25-29`'s shape). Returns (locks, fd)."""
+    `claude-selfwatch.sh:30-34`'s shape). Returns (locks, fd)."""
     import fcntl
     import os
 
@@ -3681,7 +3681,7 @@ def test_relief_wakes_the_armed_watch_once_and_only_on_the_transition(tmp_path, 
 
 def test_a_transient_dwell_unlink_wakes_with_reason_dwell(tmp_path, monkeypatch):
     """A.4(b): the stamp stands, the active is still walled, but a validated successor exists and
-    rotation is not paused — the `:4605` site unlinks and the wake fires with `reason="dwell"`."""
+    rotation is not paused — the dwell site (`:4764-4766` shipped; `:4605` at plan time) unlinks and the wake fires with `reason="dwell"`."""
     import os
 
     fleet = _fleet_two_accounts(tmp_path, monkeypatch)
@@ -3708,11 +3708,13 @@ def test_a_transient_dwell_unlink_wakes_with_reason_dwell(tmp_path, monkeypatch)
         os.close(fd)
 
 
-def test_a_probe_blackout_unlinks_without_waking(tmp_path, monkeypatch):
-    """A.4(c): the stamp stands and the tick has NO reading at all (every window `None`, no cache
-    to rescue from — a fresh fleet's first tick) → `_active_account_walled` answers not-walled,
-    the stamp is unlinked as before, NO lift file is written, and the row reads
-    `reason="no-reading", woken=0` with the armed count as the denominator."""
+def test_a_probe_blackout_keeps_the_hold_and_wakes_nobody(tmp_path, monkeypatch):
+    """Phase A.4(c) as refined by D-180 (the heavy review, R4): a wall episode is latched and the
+    tick's next reading is a PROBE BLACKOUT (every window `None`) — the stamp is KEPT (a blackout is
+    not relief; unlinking it consumed the wake's only transition), NO lift file is written, and no
+    `hold-lifted` row is appended (no transition happened). Before D-180 this test pinned the lossy
+    behaviour: unlink without waking.
+    """
     import os
 
     fleet = _fleet_two_accounts(tmp_path, monkeypatch)
@@ -3732,11 +3734,11 @@ def test_a_probe_blackout_unlinks_without_waking(tmp_path, monkeypatch):
         stamp.parent.mkdir(parents=True, exist_ok=True)
         stamp.write_text("0")  # a wall episode is latched from an earlier tick
         assert cr._cmd_tick() == 0
-        assert not stamp.exists(), "no reading → not walled → the stamp is cleared as before"
+        assert stamp.exists(), "D-180: no reading → the stamp is KEPT (a blackout is not relief)"
         assert not (locks / "pane1.holdlifted").exists(), "a blackout never wakes the fleet"
-        rows = _lifted_rows()
-        assert rows and rows[-1]["reason"] == "no-reading" and rows[-1]["woken"] == 0, rows
-        assert rows[-1]["armed"] == 1
+        ledger = cr._rotate_state_dir() / "rotate-ledger.jsonl"
+        rows = _lifted_rows() if ledger.exists() else []  # D-180: no transition → maybe no ledger at all
+        assert not [r for r in rows if r.get("event") == "hold-lifted"], rows  # no transition → no row
     finally:
         os.close(fd)
 

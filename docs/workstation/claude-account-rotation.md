@@ -23,7 +23,7 @@ file-swap rotation used to do.
   caps.json               per-account weekly reserves, e.g. {"ob@ocoron.com": 90}
 ```
 
-Fleet root override: `CLAUDE_FLEET_ROOT` (`_fleet_root`, `claude_rotate.py:1327`). Only
+Fleet root override: `CLAUDE_FLEET_ROOT` (`_fleet_root`, `claude_rotate.py:1432`). Only
 `--new-dir` creates the root; readers never mkdir it.
 
 ## How a session binds to the pointer
@@ -122,15 +122,20 @@ The `*/5` tick reads every account dir (five as of 2026-09-06 — it discovers t
   a walled active with a headroom sibling is relieved by the same tick since trips are dwell-exempt). The same tick
   writes the `fleet-exhausted` stamp, and the synced PreToolUse hook `quota_stop.py` turns it
   into a GRACEFUL STOP that reaches every session mid-turn: work tools are held with one
-  instruction (commit + push, close the run record, end the turn); reads, git and the record
-  tools stay open; the hold lifts the moment the tick clears the stamp — and since 2026-09-07 (the
+  instruction (commit + push, close the run record, end the turn); reads, git, the record
+  tools, `Monitor` and `TaskStop` stay open; the hold lifts the moment the tick clears the stamp (an
+  unclearable stamp keeps the hold and wakes nobody — `_clear_stamp`) — and since 2026-09-07 (the
   RELIEF WAKE, plan `2026-09-07-plan-1-relief-wake`, D-177/D-178) the same unlink — the relief site and
   the transient-dwell site alike — writes `<lockdir>/<safe-sid>.holdlifted` (the lift epoch) for every
   session whose self-watch is ARMED (`_wake_held_sessions`: a held `selfwatch.lock`, the one decider
   `selfwatch_check.py` uses, vendored lockstep) and appends a `hold-lifted` ledger row with
-  `armed/dead/woken/pending/errors`; the self-watch consumes the file and prints the RESUME line naming
-  the run record and thread anchors. A probe blackout (every window `None`) unlinks WITHOUT waking
-  (`reason="no-reading"`) — waking the fleet into the wall would burn the turn the hold saved. A session
+  `reason` (`relief`/`dwell`; the helper's `no-reading` value is defensive only since D-180 — the tick keeps the stamp instead), `site` (which unlink fired) and `armed/dead/woken/pending/errors`; `pending` = an ARMED watch that never consumed the previous lift — a watch armed before the lift branch shipped (an old script in memory), healed only by ENDING that watch's Monitor (`TaskStop`, allowed under the hold — a plain re-arm exits at once as a duplicate while the old watch still holds the lock) and arming again. ⚠️ Until 2026-09-07 the Stop decider's 2-hour lock-dir prune deleted every self-watch's lock FILE (its mtime never changes), orphaning 25 of 30 watchers on this box — invisible to this census, and each re-arm the nag ordered died the same way two hours later; the prune now skips flock-held files and the watch exits when its lock file vanishes (harness W11); the self-watch consumes the file and prints the RESUME line naming
+  the run record and thread anchors. A probe blackout (every window `None`) is NOT relief:
+  since D-180 (2026-09-07, the plan's heavy review) the tick KEEPS the stamp and logs `stamp KEPT — no reading`; the
+  hold stands until a reading says otherwise, so the one present→absent transition the wake fires on is never
+  consumed blind (before D-180 the stamp went and every held session slept until the NEXT episode). A stamp the
+  tick cannot unlink also keeps the hold and appends a `hold-stuck` ledger row. A lock the tick cannot probe is
+  counted in `errors` and never aborts the census for the others. A session
   whose watch was NOT armed stays idle until the operator restarts it — which is why the hold's own
   denial text orders the arm (Monitor is allowed under the hold). Before 2026-09-02 the four broadcasts of the day
   were the picker bug (§ Target) talking, not real exhaustion. Work resumes
@@ -161,7 +166,7 @@ exceed:
 
 ⚠️ **The live values are the file, and this doc does not restate them** — deliberately, as of
 2026-09-06. Read `cat ~/.claude-fleet/caps.json`, or `claude_rotate.py --status`, which prints
-`(cap N)` on every account row (`claude_rotate.py:3592`). The caps are the operator's browser
+`(cap N)` on every account row (`claude_rotate.py:3636`). The caps are the operator's browser
 reserve: they are edited by hand, take effect with no restart, and therefore change with no
 commit and no reviewer. Both values this page used to name had drifted silently — `sarp` was
 raised 90 → 95 on 2026-09-06 (D-150) and `ob` had moved 80 → 90 before that, with the prose left

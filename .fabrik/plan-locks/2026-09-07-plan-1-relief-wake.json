@@ -15,7 +15,7 @@
   ],
   "branch": "master",
   "started_at": "2026-09-07T14:45:12",
-  "status": "active",
+  "status": "released",
   "baseline_commit": "e3467944",
   "baseline_gate": {
     "lean_status": "success",
@@ -27,5 +27,9 @@
       "untracked sources (advisory)"
     ],
     "note": "two OTHER active locks present (2026-09-03-plan-1-multi-agent-per-repo \u2014 owned_paths malformed: G/W/T rows, not paths; 2026-09-05-plan-1-windowed-cost-sidecar \u2014 disjoint); no literal path overlap; main checkout used with per-file dirtiness checks"
-  }
+  },
+  "completed_at": "2026-09-07T19:39:27+03:00",
+  "final_commit": "the Finish commit (after 2356fc61); phases: A 45bbed1d \u00b7 B df518a33 \u00b7 C 0040d5da \u00b7 review-fix dd294a3f",
+  "whole_plan_review": "docs/development/reviews/2026-09-07-plan-1-relief-wake-review.md",
+  "released_by": "fleet (session 1970a0ff)"
 }

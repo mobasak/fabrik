@@ -15,10 +15,10 @@ moment relief arrives (a flip or a reset). No other writer, no other reader with
 While the stamp stands the rule is DEFAULT-DENY: every tool that can change the world is held —
 Edit/Write/MultiEdit/NotebookEdit, MCP editors (serena replace/insert/rename, browser clicks),
 Agent/Workflow dispatch, and any Bash that is not ONE simple checkpoint or read command — with one instruction — commit + push your own work with
-explicit pathspecs, close your run record, stop. Reads (Read/Grep/Glob/LS), git checkpointing,
-`command_run.py`, `mail.py` and `thread_anchor.py` stay allowed, so a session can finish cleanly
-and the Stop hook's commit-and-push law can be met. The block lifts by itself when the tick clears
-the stamp; a session that already ended is restarted by the operator (or the resume mesh).
+explicit pathspecs, close your run record, stop. Reads, git checkpointing, `command_run.py`, `mail.py`,
+`thread_anchor.py`, `Monitor` (the self-watch arm) and `TaskStop` stay allowed, so a session can finish
+cleanly and the Stop hook's commit-and-push law can be met. The block lifts when the tick clears the
+stamp; the lift WAKES every ARMED self-watch (D-178) — an unarmed ended session waits for the operator.
 
 FAIL-OPEN, deliberately: no stamp → allow; unreadable state → allow; a stamp older than the tick
 could have refreshed (the tick log has not moved for QUOTA_STOP_TICK_STALE_S, default 900s) →
@@ -546,7 +546,7 @@ def _reason(tool: str, sid: str | None = None) -> str:
     """The one message every held session reads. It carries the LITERAL session id in the arm
     order when the payload names one — CLAUDE.md's arm rule needs a literal sid (an empty arg
     exits the watch as you arm it), and the relief wake reaches ONLY an armed watch."""
-    who = sid if sid else "<your sid>"
+    who = sid if isinstance(sid, str) and 0 < len(sid) <= 80 and all((c.isascii() and c.isalnum()) or c in "._-" for c in sid) else "<your sid>"
     return (
         f"FLEET QUOTA EXHAUSTED — no account left to rotate to (the tick's fleet-exhausted stamp is "
         f"set). {tool} is held. STOP GRACEFULLY NOW: commit your own work with explicit pathspecs "

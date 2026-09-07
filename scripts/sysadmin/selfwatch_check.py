@@ -10,7 +10,7 @@ skip `source=compact` by design. An unarmed pane that dies mid-stream waits for 
 (the 2026-09-03 class, 3 of 4 unarmed sessions that day).
 
 This asks the one thing that is true or false. `claude-selfwatch.sh` holds a `flock` on
-`<lockdir>/<safe-sid>.selfwatch.lock` for its whole life (its lines 25-29), so HELD means ARMED.
+`<lockdir>/<safe-sid>.selfwatch.lock` for its whole life (its lines 30-37), so HELD means ARMED.
 No registry, no pgrep (a name match returns the caller's own wrapper — measured today), no
 guessing. Unarmed → print the arm order with the LITERAL sid, every prompt, until it is armed.
 Armed → silent. Same gates as the SessionStart order EXCEPT compact, which is the whole point:
@@ -34,7 +34,7 @@ def _safe(sid: str) -> str:
     non-matching BYTE to `_` and cuts at 64 BYTES (review B12: a char-wise copy diverged on
     non-ASCII; sids are UUIDs today, the mirror is exact anyway)."""
     out = bytearray()
-    for b in sid.encode("utf-8"):
+    for b in sid.encode("utf-8", "surrogateescape"):  # a non-UTF-8 name must not raise (R3)
         out.append(b if (chr(b).isalnum() and b < 128) or b in b"_-" else ord("_"))
     return out[:64].decode("ascii")
 
@@ -116,7 +116,7 @@ def main() -> int:
             print(
                 "## ⚠️ SELF-WATCH CANNOT ARM — not writable\n"
                 f"The {unwritable} is not writable by this user, so `claude-selfwatch.sh` exits "
-                "at once (its line 25) and an arm order would never stop this notice. Fix the "
+                "at once (its line 30) and an arm order would never stop this notice. Fix the "
                 "permissions/ownership, then arm.\n"
             )
             return 0

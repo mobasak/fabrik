@@ -1347,7 +1347,7 @@ def main(argv: list[str]) -> int:
             # older than QUOTA_STOP_TICK_STALE_S — the hold is OFF and every tool is back — but this
             # yielded on the stamp's mere EXISTENCE, so a dead cron plus a leftover stamp disabled
             # all six causes indefinitely while nothing was held. Same seam, same bound, same
-            # direction as quota_stop.py:487-503: yield only while the hold is genuinely in force.
+            # direction as quota_stop.py:489-505: yield only while the hold is genuinely in force.
             _tick = Path(
                 os.environ.get("QUOTA_STOP_TICK_LOG") or Path.home() / ".claude" / "rotate-tick.log"
             )

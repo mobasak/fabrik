@@ -8,7 +8,7 @@ An unarmed pane that dies mid-stream waits for a human "proceed" (the 2026-09-03
 
 This hook runs on EVERY prompt at user level (all windows, every project, fabrik-lib included)
 and asks the one thing that is true or false: is the per-sid `selfwatch.lock` HELD? The watcher
-holds a `flock` on it for its whole life (`claude-selfwatch.sh:25-29`), so "held" IS "armed" —
+holds a `flock` on it for its whole life (`claude-selfwatch.sh:30-34`), so "held" IS "armed" —
 no registry, no pgrep, no guessing from process names.
 """
 

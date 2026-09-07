@@ -748,3 +748,15 @@ def test_the_hold_text_orders_the_self_watch_arm():
     with_sid = hook.decide("Edit", None, stamp_exists=True, tick_age_s=10.0, sid="abc-123")[1]
     assert "claude-selfwatch.sh abc-123" in with_sid and "<your sid>" not in with_sid
     assert len(with_sid) < 1000, len(with_sid)
+
+
+def test_the_hold_text_refuses_a_malformed_sid():
+    """The sid is interpolated into the arm order the agent will copy verbatim — a payload sid
+    carrying a quote, a space or a newline must fall back to the placeholder, never break the
+    Monitor call (heavy review of the relief-wake plan, 2026-09-07)."""
+    for bad in ('abc"def', "abc def", "abc\ndef", "a" * 81, "abcé", "٣٣٣"):
+        text = hook._reason("Edit", bad)
+        assert "<your sid>" in text and "claude-selfwatch.sh <your sid>" in text, bad
+        assert bad not in text
+    good = hook._reason("Edit", "1970a0ff-baa3-401b-ba52-fb0c5de43261")
+    assert "claude-selfwatch.sh 1970a0ff-baa3-401b-ba52-fb0c5de43261" in good

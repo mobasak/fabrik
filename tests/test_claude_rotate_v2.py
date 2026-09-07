@@ -2633,7 +2633,7 @@ def test_a_session_between_a_raised_bar_and_the_trip_is_still_exhausted(monkeypa
 
 def _hold_lock(path: Path):
     """Hold an EXCLUSIVE flock on `path` for the test's life — the watcher's own shape
-    (`claude-selfwatch.sh:25-29`: `exec 9>lock; flock -n 9`)."""
+    (`claude-selfwatch.sh:30-34`: `exec 9>lock; flock -n 9`)."""
     import fcntl
     import os
 
@@ -2753,3 +2753,90 @@ def test_an_unclearable_stamp_keeps_the_hold_and_wakes_nobody(tmp_path, monkeypa
     assert cr._clear_stamp(stamp) is False
     assert stamp.exists()
     assert "the hold stands, no wake" in capsys.readouterr().out
+
+
+def _armed_alive(tmp_path, monkeypatch, sid="alive"):
+    """A lock dir with ONE live armed sid (held flock) — the heavy-review graders' fixture."""
+    locks = tmp_path / "locks"
+    locks.mkdir(exist_ok=True)
+    monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(locks))
+    return locks, _hold_lock(locks / f"{sid}.selfwatch.lock")
+
+
+def test_one_unreadable_lock_never_aborts_the_wake_for_the_others(tmp_path, monkeypatch):
+    """Heavy review R2: a lock the tick cannot open (chmod 000) must count as an error and the
+    armed sibling must still be woken — one bad entry aborted the whole census before."""
+    import os  # local, like _hold_lock — the module has no top-level os
+
+    rows: list[dict] = []
+    monkeypatch.setattr(cr, "_ledger_append", rows.append)
+    locks, fd = _armed_alive(tmp_path, monkeypatch)
+    bad = locks / "noread.selfwatch.lock"
+    bad.write_text("")
+    bad.chmod(0)
+    try:
+        r = cr._wake_held_sessions(1_800_000_000.0, "relief", True)
+    finally:
+        bad.chmod(0o644)
+        os.close(fd)
+    assert (locks / "alive.holdlifted").exists(), r
+    assert r["woken"] == 1 and r["errors"] == 1, r
+
+
+def test_a_non_utf8_lock_name_is_counted_not_raised(tmp_path, monkeypatch):
+    """Heavy review R3: a lock filename that is not valid UTF-8 surrogate-escapes out of glob;
+    the safe transform must swallow it (bytes >= 128 are `_`) so the wake still runs and the
+    ledger row is written, instead of a UnicodeEncodeError escaping as an INTERNAL ERROR."""
+    import os  # local, like _hold_lock — the module has no top-level os
+
+    rows: list[dict] = []
+    monkeypatch.setattr(cr, "_ledger_append", rows.append)
+    locks, fd = _armed_alive(tmp_path, monkeypatch)
+    (locks / os.fsdecode(b"\xff\xfe.selfwatch.lock")).write_text("")
+    try:
+        r = cr._wake_held_sessions(1_800_000_000.0, "relief", True)
+    finally:
+        os.close(fd)
+    assert (locks / "alive.holdlifted").exists(), r
+    assert r["woken"] == 1 and r["dead"] == 1, r
+    assert rows and rows[-1]["event"] == "hold-lifted", rows
+
+
+def test_the_lockstep_holds_when_proc_locks_is_blind(tmp_path, monkeypatch):
+    """Heavy review R9: on the real box /proc/locks lists none of the live flocks (flock(1)
+    exits after taking them), so ONLY the LOCK_SH|LOCK_NB fallback decides in production —
+    grade both implementations with the /proc short-circuit forced off."""
+    import os  # local, like _hold_lock — the module has no top-level os
+
+    spec = importlib.util.spec_from_file_location(
+        "selfwatch_check_blind", Path(__file__).resolve().parents[1] / "scripts/sysadmin/selfwatch_check.py"
+    )
+    swc = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(swc)
+    locks, fd = _armed_alive(tmp_path, monkeypatch)
+    monkeypatch.setattr(cr, "_selfwatch_held_per_proc_locks", lambda st: False)
+    monkeypatch.setattr(swc, "_held_per_proc_locks", lambda st: False)
+    try:
+        assert cr._sid_is_armed("alive") is True
+        assert cr._sid_is_armed("alive") == swc._armed("alive")
+    finally:
+        os.close(fd)
+    assert cr._sid_is_armed("alive") is False
+    assert cr._sid_is_armed("alive") == swc._armed("alive")
+
+
+def test_an_unclearable_stamp_leaves_a_ledger_row(tmp_path, monkeypatch):
+    """Heavy review R7: `_clear_stamp` False used to be one tick-log print — the hold stays
+    with no row anyone can count; it now appends a `hold-stuck` row."""
+    rows: list[dict] = []
+    monkeypatch.setattr(cr, "_ledger_append", rows.append)
+    d = tmp_path / "ro"
+    d.mkdir()
+    stamp = d / "fleet-exhausted"
+    stamp.write_text("")
+    d.chmod(0o500)
+    try:
+        assert cr._clear_stamp(stamp) is False
+    finally:
+        d.chmod(0o700)
+    assert [r["event"] for r in rows] == ["hold-stuck"], rows

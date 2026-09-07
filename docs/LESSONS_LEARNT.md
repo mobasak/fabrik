@@ -6311,3 +6311,24 @@ tests patch the ledger, not the lock dir), so only the impossible epoch pointed 
    navigation. 340 tests, 0 lifts after.
 3. **A RESUME/lift with a nonsensical epoch is a leaked test clock** — `grep` the epoch in `tests/`
    before suspecting the tick.
+
+## 2026-09-07 — relief-wake Finish: the mechanism could not reach most sessions because a two-hour mtime prune was deleting live lock files
+
+The heavy review's native finder counted 25 of the 30 self-watch processes on the box holding a
+DELETED lock inode. Cause: the Stop decider prunes every lock-dir file older than two hours by mtime,
+and a self-watch's `<sid>.selfwatch.lock` is a 0-byte file whose mtime never changes while the
+watcher holds its flock — so every watch older than two hours lost its file at the next Stop of ANY
+session, became invisible to the tick's armed census (the relief wake could not see it) and to the
+per-prompt arm check (which then ordered a duplicate arm that died the same way two hours later). My
+own eight arms since Thursday had all gone that way.
+
+1. **A "held" resource must be probed, not aged.** Any janitor that deletes by mtime will delete a
+   live lock whose holder never touches the file; the rule is "a flock-held file is live whatever its
+   mtime" — probe `LOCK_SH|LOCK_NB` and skip. Graded by `tests/test_claude_stop_decider_prune.py`.
+2. **A long-lived watcher must re-validate its own anchor.** The watcher now compares its lock path
+   against its own fd each poll and exits with one line when the inode is gone (harness W11) — an
+   orphan that keeps polling steals the next death marker from the re-armed watch.
+3. **The wake's own review found this, the plan's did not**: 17 plan-review passes reasoned about the
+   lock protocol from the code; one finder that ran `readlink /proc/<pid>/fd/9` over the live
+   processes found it in minutes. For a mechanism that acts on box state, one census of the live box
+   belongs in the review brief.

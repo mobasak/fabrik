@@ -94,7 +94,8 @@ def pytest_configure(config):  # noqa: ARG001 - pytest hook signature
 # that reaches the stamp's relief/dwell unlink calls `_wake_held_sessions`, which ENUMERATES that dir
 # and writes `<sid>.holdlifted` for every live armed session it finds. Measured: three live sessions
 # received lift files stamped with the tests' fixed clock (epoch 1800000000 → 2027-01-15) and one
-# self-watch printed a bogus RESUME line, because only two tests set the variable themselves.
+# self-watch printed a bogus RESUME line, because — at the time of this fix — only the plan's own seven tests (two setenv sites in the fleet suite,
+# three in rotate_v2) set the variable themselves.
 # Same shape as the git-env scrub above: session-wide, autouse, no opt-in — a test that wants the
 # real dir does not exist, and one that wants a specific dir sets it after this pin (monkeypatch
 # fixtures compose; the test's own setenv wins). Grader: tests/test_conftest_isolation.py.

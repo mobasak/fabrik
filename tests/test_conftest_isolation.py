@@ -6,7 +6,8 @@ fixed clock (`1800000000` — 2027-01-15) as the lift epoch, and the author's ow
 self-watch printed a bogus `RESUME: the fleet-quota hold LIFTED at 11:00` line. Cause: every fleet
 test that reaches the relief/dwell unlink of `_fleet_active_wall_advisory` now calls
 `_wake_held_sessions`, which enumerates `_selfwatch_lock_dir()` — the REAL dir unless
-`CLAUDE_SOUND_LOCKDIR` is set — so the two tests that set it were the exception, not the rule.
+`CLAUDE_SOUND_LOCKDIR` is set — so the plan's own seven tests that set it (two setenv sites in the fleet suite,
+three in rotate_v2) were the exception, not the rule.
 The class fix is the autouse fixture in `tests/conftest.py` (same shape as its git-env scrub):
 every test, existing and future, runs with the variable pinned to a per-test tmp dir. This grader
 asserts that pin is in force for an arbitrary test and that the tick's resolver honours it.
