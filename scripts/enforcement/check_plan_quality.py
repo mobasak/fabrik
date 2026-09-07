@@ -285,8 +285,8 @@ SPINE_PILLAR_PATTERNS = [
             # (exit seat, 2026-09-07: "the swimming pool was not used for training today" matched).
             # `OFF` counts only as the pool's own state ("the pool is OFF", "the subagent pool stays
             # OFF") — never a heater switch or a community pool "OFF for maintenance" (exit seat r3).
-            r"|\bpool\s+(?:is|stays|remains)\s+OFF\b"
-            r"|\b(?:openrouter|subagents?)\s+pool\b[^.\n]{0,20}\b(?:OFF|not\s+used|unused|disabled)\b"
+            r"|\b(?:openrouter\s+|subagents?\s+)?pool\s+(?:is|stays|remains)\s+OFF\b"
+            r"|\b(?:openrouter|subagents?)\s+pool\b[^.\n]{0,20}\b(?:not\s+used|unused|disabled)\b"
             r"|\bD-18[12]\b",
             re.I,
         ),

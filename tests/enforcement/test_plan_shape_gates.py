@@ -898,6 +898,9 @@ def test_each_dispatch_alternative_is_individually_load_bearing(plans_env, alt, 
         # exit seat r3: `OFF` is only the pool's own state, never a switch or a closure notice
         "The community pool will be OFF for maintenance next week; residents should plan alternate exercise.",
         "Our backyard pool heater switch is OFF during winter months.",
+        # exit seat r5: the noun alone does not make `OFF` a policy either
+        "The subagent pool room is OFF-limits to visitors during business hours.",
+        "The OpenRouter pool budget is OFF this quarter due to spend caps.",
     ],
 )
 def test_ordinary_english_native_or_dispatch_does_not_satisfy_the_dispatch_pillar(
