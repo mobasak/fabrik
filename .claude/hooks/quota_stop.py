@@ -69,7 +69,7 @@ _ALLOWED_BASH = re.compile(
     # `branch` is OFF the verb list (pass 17): `git branch -D x` deleted a ref under `allow`;
     # `git rev-parse --abbrev-ref HEAD` / `git status` answer the read. `fetch`/`push` stay —
     # the hold ORDERS a push — but their own program-running flags are vetoed below.
-    r"^\s*(git\s+(add|commit|push|status|diff|log|fetch|show|rev-parse)\b"
+    r"^\s*(git\s+(add|commit|push|status|diff|log|fetch|show|rev-parse)(?!-)\b"  # (?!-): `commit-tree`/`diff-tree`/`show-ref` rode the verb's \b (F5)
     # index realign ONLY, the exact form — `HEAD\b` alone admitted `HEAD^`, `HEAD~1` and a trailing
     # `--hard` (pass 20, executed: a commit rewound, an edit destroyed); after `--` git reads paths
     r"|git\s+reset\s+(-q\s+)?HEAD\s+--\s+\S"
@@ -389,7 +389,7 @@ _FILE_REDIRECT = re.compile(
 )
 
 
-def _mask_quoted(command: str) -> str:
+def _mask_quoted(command: str, commit_body: bool = False) -> str:
     """Blank shell-QUOTED spans so the vetoes above see OPERATORS, not DATA.
 
     They scan the raw line, so a `;` or `|` inside a quoted ARGUMENT reads as a control operator
@@ -408,7 +408,7 @@ def _mask_quoted(command: str) -> str:
         `git status "$(rm -rf x)"` is still refused;
       - a backslash escape inside double quotes masks BOTH characters, since an escaped dollar
         or backtick is a literal rather than an expansion;
-      - a newline is NEVER masked, quoted or not - a multi-line command stays refused;
+      - a newline is never masked, quoted or not (a multi-line command stays refused) - EXCEPT inside a quoted span (either quote) of a `git commit` line (`commit_body`), the -m body's paragraph break the provenance trailers need (fleet 01M1W6KVH7Y0HQMQ9W3QTXDM7V);
       - an UNBALANCED quote returns the line untouched, so something that would not even parse
         meets the vetoes raw and fails closed.
 
@@ -445,7 +445,7 @@ def _mask_quoted(command: str) -> str:
             out.append(ch)
             i += 1
         elif ch == "\n":
-            out.append(ch)  # a quoted newline is still a refused multi-line command
+            out.append("x" if commit_body else ch)  # a quoted newline is the multi-line veto — except inside a git commit's quoted -m body (either quote: data to the shell)
             i += 1
         elif quote == '"' and ch == "\\" and i + 1 < n:
             # an escaped $ ` " or \ is a literal, not an expansion — but an escaped NEWLINE is a
@@ -527,7 +527,7 @@ def decide(
     if tool == "Bash":
         # the vetoes read the MASKED line (operators only); the allow-list reads the RAW line,
         # because the leading command word is never quoted in a command we would allow.
-        masked = _mask_quoted(command) if command is not None else ""
+        masked = _mask_quoted(command, commit_body=command.lstrip().startswith("git commit ")) if command is not None else ""
         if (
             command is not None
             and not _UNSAFE_SHELL.search(masked)
@@ -550,7 +550,7 @@ def _reason(tool: str, sid: str | None = None) -> str:
     return (
         f"FLEET QUOTA EXHAUSTED — no account left to rotate to (the tick's fleet-exhausted stamp is "
         f"set). {tool} is held. STOP GRACEFULLY NOW: commit your own work with explicit pathspecs "
-        "(`git commit -m <msg> -- <paths>`), `git push`, close your run record (`command_run.py done|blocked`), "
+        "(`git commit -m '<msg>' -- <paths>` — SINGLE-QUOTE the message: a quoted newline is data, but `$(…)`/heredoc and a backtick in double quotes stay refused), `git push`, close your run record (`command_run.py done|blocked`), "
         "then end the turn — no new edits, no new phases. Reads, git, command_run.py, mail.py, "
         "thread_anchor.py, Monitor and TaskStop stay allowed. The hold lifts when the tick sees relief, "
         "and the lift WAKES every session whose self-watch is armed (a RESUME line naming where it left "

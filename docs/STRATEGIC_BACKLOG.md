@@ -1383,3 +1383,7 @@ means updating this page in the same change. This list is generated from those h
 
 - `scripts/sysadmin/rules_currency_watch.py`
 <!-- END related-scripts -->
+
+## [fleet] Quota board: a render-failure banner, not a fresh-looking page over a stale render (2026-09-07, owner: fleet = me)
+
+The board froze for 16 regeneration cycles on a `TypeError` in `_pool_credits` (introduced 610c01b8, fixed a9e5fd4a by a peer, mails 01M1W7FEAJVNDVK8F4CP55R1VA / 01M1W9DPSPYPDS6RH6KYH2CD8Q): the traceback WAS logged, to `~/.claude/quota-dashboard.log`, which nobody reads — while the page's own header kept advertising a 20-second refresh over a render 67 s old and climbing. The defect class is not "unlogged"; it is that the artifact cannot tell the reader it is stale. Owed: a banner carrying the last successful render time + the error class of the last failed one (the external-services page's mtime-age embed is the pattern to copy). Small, a design call; the crash itself is fixed and graded.
