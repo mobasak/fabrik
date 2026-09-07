@@ -918,7 +918,7 @@ _COST_NEGATED_RE = re.compile(
     + r"|[\u2013\u2014\u2011](?=\$|\d)(?:\$\s*\d|"
     + _COST_AMT_USD
     + ")"  # `–$5` glued
-    + r"|(?<=\d)\s*[\u2013\u2014\u2011]\s*(?:\$\s*\d|"
+    + r"|(?:(?<=\d)|(?<=usd))\s*[\u2013\u2014\u2011]\s*(?:\$\s*\d|"
     + _COST_AMT_USD
     + "))",  # `$0.12 – $0.30`
     re.I,
@@ -1080,6 +1080,14 @@ def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[s
             if not mid:  # the line uuid is per LINE, never per message — no key can group these
                 anon += 1
                 mid = f"\x00anon{anon}"
+            numeric = {
+                k: int(v)
+                for k, src in _TOKEN_KEYS
+                for v in (u.get(src),)
+                if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+            }
+            if not numeric:
+                continue  # a present-but-malformed usage is not a message, never a real zero
             acc = per_msg.setdefault(mid, dict.fromkeys((k for k, _ in _TOKEN_KEYS), 0))
             for k, src in _TOKEN_KEYS:
                 v = u.get(src)

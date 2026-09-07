@@ -1203,3 +1203,36 @@ def test_a_dash_glued_before_dollar_negates_and_a_torn_fraction_refuses() -> Non
 
     assert _cost_usd("pool-$0.30") is None  # a dash glued before `$` stays a negation
     assert _cost_usd("$5 .99") is None and _cost_usd("pool $5 .25 total") is None  # never 5.0
+
+
+def test_a_usage_with_no_numeric_field_is_not_a_message(tmp_path: Path) -> None:
+    """A present-but-malformed usage (string numbers) must not count as a real zero-token message."""
+    import time
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _sum_transcript_usage  # noqa: PLC0415
+
+    now = time.time()
+    start = now - 600
+    good = _transcript_line(start + 5, 7, 8, 9, 10, mid="ok")
+    bad = _transcript_line(start + 6, 1, 1, 1, 1, mid="str").replace(
+        '"input_tokens": 1', '"input_tokens": "500"'
+    )
+    bad = (
+        bad.replace('"output_tokens": 1', '"output_tokens": "5"')
+        .replace('"cache_read_input_tokens": 1', '"cache_read_input_tokens": "0"')
+        .replace('"cache_creation_input_tokens": 1', '"cache_creation_input_tokens": "0"')
+    )
+    tr = tmp_path / "t.jsonl"
+    tr.write_text(good + "\n" + bad + "\n", encoding="utf-8")
+    got = _sum_transcript_usage(tr, start, now)
+    assert got["tok_msgs"] == 1 and got["tok_in"] == 7, got
+
+
+def test_a_dash_between_a_usd_amount_and_another_amount_is_a_subtraction() -> None:
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _cost_usd  # noqa: PLC0415
+
+    assert _cost_usd("5.00 usd – $2.00") is None and _cost_usd("5.00 usd – 2.00 usd") is None
+    assert _cost_usd("pool 5.00 usd – 2.00 usd refund") is None
+    assert _cost_usd("5.00 usd + 2.00 usd") == 7.0
