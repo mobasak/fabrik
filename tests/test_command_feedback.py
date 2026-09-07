@@ -1358,3 +1358,23 @@ def test_a_lone_period_cost_is_refused_not_treated_as_absent(run_dir: Path) -> N
     )
     assert r.returncode == 1 and "cost:" in r.stdout, r.stdout
     assert _ledger(run_dir) == []
+
+
+def test_an_amount_that_overflows_to_infinity_is_refused(run_dir: Path) -> None:
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _cost_usd  # noqa: PLC0415
+
+    big = "1" + "0" * 320
+    assert _cost_usd(big) is None and _cost_usd("$" + big) is None
+    _start(run_dir)
+    r = _cr(
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-probe",
+        "--evidence",
+        "x",
+        "--feedback",
+        STRUCTURED + " · cost: " + big,
+    )
+    assert r.returncode == 1 and _ledger(run_dir) == []

@@ -1157,6 +1157,11 @@ def _cost_usd(text: str) -> float | None:
     t = text or ""
     if _COST_NEGATED_RE.search(t):
         return None  # a refund/subtraction is not a charge — never a wrong positive number
+    out = _cost_usd_inner(t)
+    return out if out is not None and math.isfinite(out) else None  # a 320-digit amount is inf
+
+
+def _cost_usd_inner(t: str) -> float | None:
     m = _COST_WHOLE_RE.match(t)
     try:
         if m:

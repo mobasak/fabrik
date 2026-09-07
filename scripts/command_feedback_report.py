@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import collections
 import json
+import math
 import statistics
 import sys
 import time
@@ -76,7 +77,9 @@ def _median(values: list) -> float | int:
 
 def _cost(r: dict) -> float | None:
     v = r.get("cost_usd")
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+    if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v):
+        return float(v)
+    return None  # a non-finite value in an old row is counted as a run, never summed
 
 
 _TOK = ("tok_in", "tok_out", "tok_cache_read", "tok_cache_create")

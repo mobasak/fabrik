@@ -333,3 +333,15 @@ def test_a_whitespace_only_value_is_none() -> None:
     from command_feedback_report import _is_none  # noqa: PLC0415
 
     assert _is_none("   ") and _is_none("\t\n") and _is_none("") and not _is_none(" x ")
+
+
+def test_a_non_finite_cost_in_an_old_row_is_not_summed(tmp_path: Path) -> None:
+    ledger = tmp_path / "command-feedback.jsonl"
+    ledger.write_text(
+        json.dumps(_row("c1", 60, 1, "a", cost_usd=0.01))
+        + "\n"
+        + '{"ts": 1, "sid": "s", "repo": "/opt/x", "command": "c1", "state": "done", "wall_s": 1, "rounds": 1, "findings": [], "phases": 1, "confusion": "none", "waste": "none", "change": "b", "filed": "none — x", "cost_usd": Infinity}\n',
+        encoding="utf-8",
+    )
+    out = json.loads(_run(ledger, "--json").stdout)
+    assert out["commands"]["c1"]["cost_usd"] == 0.01 and out["commands"]["c1"]["cost_rows"] == 1
