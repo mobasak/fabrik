@@ -729,3 +729,14 @@ def test_every_policy_token_is_honoured_and_nothing_else_is(monkeypatch):
     monkeypatch.setenv("FABRIK_POOL_POLICY", "yes")
     assert mod._pool_policy_on() is True  # fell through to the (True) constant
     assert "yes" not in mod._POLICY_TOKENS
+
+
+def test_exec_loading_the_module_does_not_grow_sys_path(monkeypatch):
+    """Exit seat (2026-09-08): six scripts exec-load this file on every policy read — the dashboard
+    every 20 s, the broker per request — so the module-level sys.path insert must be idempotent."""
+    import sys
+
+    before = len(sys.path)
+    for _ in range(50):
+        _load()
+    assert len(sys.path) - before <= 1

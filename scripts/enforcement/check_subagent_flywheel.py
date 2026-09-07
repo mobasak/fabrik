@@ -49,7 +49,10 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 # so `from libs.subagents import …` resolves when run as a bare script (sys.path[0] is this dir)
-sys.path.insert(0, str(PROJECT_ROOT))
+if (
+    str(PROJECT_ROOT) not in sys.path
+):  # idempotent: six scripts exec-load this file per policy read (D-182)
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 DEFAULT_LEDGER = PROJECT_ROOT / ".tmp" / "subagents" / "ledger.jsonl"
 
