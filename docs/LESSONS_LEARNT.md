@@ -1,6 +1,32 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+# Lesson 160: a check that compares RENDERS cannot see a file that fails to LOAD — `fabrik-reviewer` was not a registerable agent type for weeks, and every gate was green
+
+**What happened.** The Task dispatch of this change's own author-blind review answered *"Agent type
+'fabrik-reviewer' not found"*. The file was present in `commands/_agents/`, present in
+`~/.claude/agents/`, byte-identical to a fresh render, and named by name in every review command as
+the mandatory authoritative seat ("≥1 native `fabrik-reviewer` on Opus, ALWAYS"). Its `description:`
+scalar had grown a second PARAGRAPH; a blank line at column 0 ends a plain YAML scalar, so the
+loader dropped the whole definition. Nothing was red, because `agent_drift` compares a render to a
+render and `check_command_corpus` audits content, not registration.
+
+**Why it matters.** The corpus mandates a seat that does not exist. A dispatcher following the
+contract either fails mid-review or silently substitutes another type — and the substitution is
+invisible in the report, so a review that ran one seat short looks exactly like one that did not.
+This is the sibling of "a MISSING optional check counted GREEN": the artifact was verified against
+itself, never against its consumer.
+
+**Rule.** A generated artifact whose consumer PARSES it owes a check that models the parse, not the
+bytes. `assemble_commands.py::_agent_frontmatter_defect()` now refuses the render (no blank line in
+the block, a `name:` key, a terminated block), and `tests/test_agent_definitions.py` runs it over
+the LIVE sources rather than a fixture. Note also the roster is read at session start: fixing the
+source makes the seat available in a NEW window, not the running one.
+
+**Evidence.** Pre-fix source from `git show HEAD:commands/_agents/fabrik-reviewer.md` →
+`blank line inside the frontmatter — it ends the scalar and unregisters the agent`; post-fix →
+`None`. Commit 1720d62f. The four live agent sources all register.
+
 # Lesson 159: a review-fix committed under a hold, before its verification, is the least-reviewed code in the repo — and the hold's lift wakes nobody to verify it (2026-09-07)
 
 **What happened.** The daily-chain review's round 4 (58041dbd) was committed while the fleet-quota hold was landing, BEFORE its final suite run. A non-author pass over it the next morning found 11 defects, one critical: the "dead clock branch" removal had deleted the LIVE `now=None` default in `_pool_credits` — both callers pass no clock — and the quota board froze at its last render; a sibling restored it at a9e5fd4a before the pass even returned. The same round's "entries not pairs" count was fail-open and its own grader pinned the silence. Meanwhile the hold's lift woke no session: the tick only unlinks the stamp (`claude_rotate.py` relief path), the self-watch fires on DEATH markers only, and 8 of 9 live panes had no self-watch armed anyway — so the unverified commit sat unverified for eight hours until the operator asked why nobody was working.
