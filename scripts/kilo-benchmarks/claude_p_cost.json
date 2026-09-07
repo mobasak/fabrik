@@ -1,5 +1,5 @@
 {
-  "amortized_per_mtok": 0.00781637980476492,
+  "amortized_per_mtok": 0.007921151942552152,
   "amortized_per_mtok_by_family": {
     "opus": 0.005489476973706957,
     "haiku": 0.008287347458697648,
@@ -7,25 +7,25 @@
     "sonnet": 0.0031955059617919837
   },
   "quota_draw_pct": 0.0,
-  "window_start": "2026-08-08",
-  "window_end": "2026-09-06",
+  "window_start": "2026-08-09",
+  "window_end": "2026-09-07",
   "accounts": 4,
   "spend_usd": 800.0,
-  "tokens": 102349171865,
-  "built_at": "2026-09-06T12:52:03+03:00",
+  "tokens": 100995411501,
+  "built_at": "2026-09-07T06:00:58+03:00",
   "per_model_spend": {
-    "window_start": "2026-08-08",
-    "window_end": "2026-09-06",
-    "spend_usd": 779.354838709677,
+    "window_start": "2026-08-09",
+    "window_end": "2026-09-07",
+    "spend_usd": 780.2150537634404,
     "accounts": 4,
-    "base_rate_per_mtok": 0.00111941792473471,
+    "base_rate_per_mtok": 0.0011018444420512958,
     "tiers": {
       "opus": {
         "weight": 5.0,
-        "tokens": 88616104509,
-        "share": 0.7463085422370774,
-        "rate_per_mtok": 0.00559708962367355,
-        "cost_usd": 495.99227903769474,
+        "tokens": 90141497749,
+        "share": 0.745051579911007,
+        "rate_per_mtok": 0.005509222210256479,
+        "cost_usd": 496.6095414645752,
         "models": [
           "claude-opus-5",
           "claude-opus-4-8"
@@ -33,10 +33,10 @@
       },
       "fable": {
         "weight": 10.0,
-        "tokens": 24160647244,
-        "share": 0.20347652973554725,
-        "rate_per_mtok": 0.0111941792473471,
-        "cost_usd": 270.4586159812587,
+        "tokens": 24512303190,
+        "share": 0.20260291513926748,
+        "rate_per_mtok": 0.011018444420512958,
+        "cost_usd": 270.0874503177775,
         "models": [
           "claude-fable-5",
           "claude-fable-5-1"
@@ -44,10 +44,10 @@
       },
       "sonnet": {
         "weight": 2.0,
-        "tokens": 5564887104,
-        "share": 0.04686645621934728,
-        "rate_per_mtok": 0.00223883584946942,
-        "cost_usd": 12.458868746685262,
+        "tokens": 5935454181,
+        "share": 0.049058642528407526,
+        "rate_per_mtok": 0.0022036888841025916,
+        "cost_usd": 13.079894400769952,
         "models": [
           "claude-sonnet-5",
           "claude-sonnet-4-6"
@@ -55,23 +55,23 @@
       },
       "haiku": {
         "weight": 1.0,
-        "tokens": 397594977,
-        "share": 0.003348471808028055,
-        "rate_per_mtok": 0.00111941792473471,
-        "cost_usd": 0.44507494403828474,
+        "tokens": 397667369,
+        "share": 0.003286862421317936,
+        "rate_per_mtok": 0.0011018444420512958,
+        "cost_usd": 0.4381675803178118,
         "models": [
           "claude-haiku-4-5-20251001"
         ]
       }
     },
     "models": {
-      "claude-opus-5": 75471740301,
-      "claude-fable-5": 16988336351,
-      "claude-haiku-4-5-20251001": 397594977,
+      "claude-fable-5": 16510858163,
+      "claude-opus-5": 76997133541,
+      "claude-haiku-4-5-20251001": 397667369,
       "claude-opus-4-8": 13144364208,
-      "claude-sonnet-5": 5548954341,
-      "claude-fable-5-1": 7172310893,
-      "claude-sonnet-4-6": 15932763
+      "claude-sonnet-5": 5916088536,
+      "claude-fable-5-1": 8001445027,
+      "claude-sonnet-4-6": 19365645
     },
     "daily": [
       {
@@ -1352,13 +1352,24 @@
       },
       {
         "date": "2026-09-06",
-        "tokens": 3732800764,
-        "cost_usd": 20.769358471607507,
+        "tokens": 6780105340,
+        "cost_usd": 38.889014879319134,
         "by_tier": {
           "haiku": 0,
-          "sonnet": 618672325,
-          "opus": 2764983285,
-          "fable": 349145154
+          "sonnet": 975592496,
+          "opus": 4881160996,
+          "fable": 923351848
+        }
+      },
+      {
+        "date": "2026-09-07",
+        "tokens": 554144443,
+        "cost_usd": 4.411927426044346,
+        "by_tier": {
+          "haiku": 72392,
+          "sonnet": 13646906,
+          "opus": 285497705,
+          "fable": 254927440
         }
       }
     ],

@@ -1,4 +1,4 @@
-Last refresh: 2026-09-06
+Last refresh: 2026-09-07
 
 # Translation Selection — Pareto-ranked at 100 000 chars
 
