@@ -197,7 +197,10 @@ proposal's `INDEX.md` status marker if the round-trip changes it (e.g. from no m
 
 Before touching a single file, re-verify EVERY claim in the proposal independently — recompute the numbers,
 re-read the cited code at its CURRENT state (never the proposal's snapshot of it), re-run any command the
-proposal cites. This is the standing rule that governs synced-rule authorship generally, applied here verbatim:
+proposal cites. **Claims are independent units, so this step FANS OUT: one native `fabrik-reviewer` seat per
+claim (or per proposal file when several arrive together), all dispatched in a single message — the claim
+count is the seat count, never a token one (D-186). The verdict, the disposition and the single reply stay
+YOURS; the seats re-derive, they do not decide.** This is the standing rule that governs synced-rule authorship generally, applied here verbatim:
 *"a peer AI's external technical claim … is an unverified external fact; live-ground the primary source before
 writing it into a canonical synced rule (fleet blast radius) … the justification must be true"* — a project
 agent's proposal is exactly this class of peer-AI claim, and a synced file is exactly this class of fleet-wide

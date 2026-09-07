@@ -522,8 +522,9 @@ its Touches (contract violation → its diff is rejected at acceptance).
   - **Native tier map (four rungs):** **Fable** = orchestrator/adjudication + the final validation's
     authoritative native seat (it SUBSTITUTES for, never adds to, the Opus seat there); never a routine
     finder, never a coder. **Opus** = the per-round per-ticket authoritative finder + design-heavy
-    never-route coding. **Sonnet** = default never-route coder; as a native finder ONLY via a named
-    trigger (breadth is trigger-funded, not routine). **Haiku** = trivial-mechanical checks; never codes.
+    never-route coding. **Sonnet** = default never-route coder, and the ROUTINE
+    breadth finder — one seat per independent failure-class group per the count discipline below
+    (breadth is unit-funded, not trigger-funded; D-186 superseded the trigger precondition). **Haiku** = trivial-mechanical checks; never codes.
   - **Count discipline — the floor IS the default, per review ROUND (the exception is `Profile: small`:
     there the per-ticket layer is `/fabrik-review-scoped` and this floor runs once, at D7):** each per-ticket review round =
     **one native Sonnet finder per independent failure-class unit of the phase diff (4–6 on a substantial

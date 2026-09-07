@@ -37,7 +37,7 @@ measurable gap for an unmeasurable one.
 Subcommands:
   start --command <name> --phases <N> [--terminal "<condition>"]
   step --phase <N> [--title "<t>"]
-  round [--findings <N>] [--classes-swept a,b] [--classes-new c,d]
+  round [--findings <N>] [--seats <N>] [--classes-swept a,b] [--classes-new c,d]
   done --command <name> --evidence "<proof>" | blocked --command <name> --reason "<case>"
   line     — the pinned status line (silent when no run is active)
   status --json
@@ -1291,6 +1291,12 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--findings", type=int, default=0)
     p.add_argument("--classes-swept", default="", help="comma-separated, swept CLEAN")
     p.add_argument("--classes-new", default="", help="comma-separated, newly opened")
+    # D-186 made fan-out SIZE a rule, and the ledger had no column to evaluate it with: the ruling's
+    # own "seats do not drive wall-clock" was an inference, not a measurement, because nothing here
+    # recorded a seat count. One field makes the next audit possible.
+    p.add_argument(
+        "--seats", type=int, default=0, help="native seats dispatched this round (0 = not recorded)"
+    )
 
     p = sub.add_parser("done", help="terminal: the contract is met", parents=[common])
     p.add_argument(
@@ -1660,6 +1666,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             {
                 "n": len(rounds),
                 "findings": args.findings,
+                "seats": args.seats,
                 "classes_swept": swept,
                 "classes_new": new_c,
                 "classes_open": sorted(k for k, v in classes.items() if v != "clean"),

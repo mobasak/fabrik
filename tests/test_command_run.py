@@ -907,6 +907,20 @@ def test_step_and_round_emit_their_events(run_dir: Path) -> None:
     assert rows[2]["classes_new"] == ["races"], rows[2]
 
 
+def test_round_records_the_seat_count_so_the_sizing_ruling_can_be_evaluated(run_dir: Path) -> None:
+    """D-186 made fan-out SIZE a rule while the ledger had no column to measure it — the ruling's own
+    "seats do not drive wall-clock" was an inference, not a measurement (re-derived 2026-09-08: the
+    union of keys over all 37 ledger rows carries no seat field). One integer closes that."""
+    _start(run_dir)
+    _cr(run_dir, "round", "--findings", "3", "--seats", "5", "--classes-swept", "auth")
+    rows = _events(run_dir, "s1")
+    assert rows[-1]["seats"] == 5, rows[-1]
+    # unrecorded stays 0, never absent — a missing key and "nobody counted" read the same downstream
+    _cr(run_dir, "round", "--findings", "0", "--classes-swept", "auth")
+    rows = _events(run_dir, "s1")
+    assert rows[-1]["seats"] == 0, rows[-1]
+
+
 def test_done_emits_run_close_with_a_verdict_and_evidence_hash(run_dir: Path) -> None:
     _start(run_dir)
     _cr(run_dir, "done", "--command", "fabrik-probe", "--evidence", "round 4 found: 0")

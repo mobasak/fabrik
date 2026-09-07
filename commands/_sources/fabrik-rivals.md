@@ -108,6 +108,14 @@ The traps, all of which produce a plausible-looking empty dossier rather than an
 
 ## Phase 2 — converge: dry discovery + the split audit
 
+**Parallelism — per RIVAL, and the engine will not do it for you.** `libs/competitor_intel/orchestrator.py`
+mines reviews in a plain sequential `for` loop over the kept competitors (verified 2026-09-08: zero
+`asyncio.gather` / `TaskGroup` / `create_task` in that file; the only concurrency is deep-research's
+per-search-leg `gather`), so wall-clock scales linearly with rival count. The ENGINE call stays as it is —
+that module is vendored from fabrik-lib and is not ours to change — but this command's own convergence
+rounds fan out: **one native `fabrik-reviewer` seat per RIVAL** to audit that rival's dossier section
+against its cited sources, all dispatched in a single message; the rival count is the seat count (D-186).
+
 ⚠️ **Every convergence round MUST pass `--rediscover`, or the loop is vacuous.** The engine discovers
 ONCE per `job_id` (the orchestrator guards on a persisted `discovery_done` flag — find the live guard
 with `grep -n "if not discovery_done" libs/competitor_intel/orchestrator.py`), and the driver

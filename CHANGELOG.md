@@ -7,14 +7,45 @@ All notable changes to this project will be documented in this file.
 ### Changed — fan-out is sized by the surface's independent units, never by a fixed 1–2 seats (D-186, 2026-09-08)
 
 - Operator ruling: *"i want each command dispatch maximum count of viable and useful subagents not 1 or 2."*
-  The corpus capped breadth at "1–2 Sonnet seats" in 13 places, the widest being `assemble_commands.py::_floor()`,
+  The corpus capped breadth at "1–2 Sonnet seats" in 16 places, the widest being `assemble_commands.py::_floor()`,
   which renders that cap into every command carrying the subagents fragment. The rule is now: partition the
   surface into INDEPENDENT units (failure class · file · screen · doc · pack · journey · fact · behaviour),
   dispatch ONE seat per unit **in a single message** so they run in parallel — 4–8 on a substantial surface —
   with ≥1 Opus authoritative seat still the floor and independence, not a number, as the cap.
-- Swept all 36 commands, 4 agent definitions, both CLAUDE.md contracts and `core/62`: 13 fixed-count sites
-  raised; `fabrik-data-contract` and `fabrik-deploy-checklist` prescribed a fan-out but named no seat TYPE
-  (now `general-purpose`); 9 commands stay deliberately serial and the ledger row says why for each.
+- Swept 118 files (36 command sources, 22 fragments, 4 agent definitions, both CLAUDE.md contracts, 56 rule
+  packs): 16 fixed-count sites across 13 files raised; `fabrik-data-contract` and `fabrik-deploy-checklist`
+  prescribed a fan-out but named no seat TYPE (now `general-purpose`).
+- The change's own author-blind review (4 finders in parallel, one per class — the new rule applied to itself)
+  found 8 defects, all fixed in-run: `_floor()` was restating the fragment's whole sizing rule in the same
+  paragraph of 20 rendered commands; the unit list existed in two forms (8-item vs 6-item) live at once; the
+  "9 deliberately serial" list named `fabrik-flows` (which INCLUDES the fan-out fragment) and omitted
+  `design-review` (one fixed Opus seat); `fabrik-rivals`' exemption rested on "the engine fans out", which is
+  false per rival (`libs/competitor_intel/orchestrator.py` mines in a plain sequential `for` — zero
+  `asyncio.gather`/`TaskGroup`/`create_task`); `fabrik-upstream` re-verifies every claim of a proposal with no
+  dispatch step; and the quota line in `/fabrik-execute-plan` was never reconciled with a 2–4× seat increase.
+  `design-review` now fans out per screen, `fabrik-flows` per persona, `fabrik-upstream` per claim,
+  `fabrik-rivals` per rival — 6 of 36 commands remain genuinely serial (catchup + the five acting runbooks behind Gate 2).
+- The rule is explicitly self-scaling: the unit count is what the SURFACE HAS, not a quota to spend — a
+  one-file diff yields one or two units, not eight — and only the authoritative seat is Opus.
+- The authoritative (Opus) seat then broke the ruling's own evidence, and the row was corrected rather than
+  defended: "~10 min/round" is false as stated (median 6.7, bimodal 3.2 scoped vs 10.5 heavy, 6 of 32 within
+  ±20%); 5 ledger rows carry 0 rounds and 31% of all wall-clock, so r falls 0.937 → 0.638 over all 37; and the
+  ledger has NO seat-count field, so "seats do not drive wall-clock" was an inference. `command_run.py round`
+  gained `--seats <n>` so the next audit is not blind, and D-186 now carries `CLASS: REVERSIBLE` and a
+  TRIPWIRE (median `/fabrik-review` rounds > 4 over the next 20 rows ⇒ revert to a per-round class budget).
+- Four more contradictions the same seat found and this change closed: `fabrik-plan-after-chat` fixed the same
+  D7 round at "three native seats"; `fabrik-execute-plan`'s tier map made Sonnet breadth trigger-funded, which
+  forbade what its own count discipline mandates; `/fabrik-review` pointed the partition at the Coverage
+  Checklist, which is one row per changed FILE plus standing recurrence rows and overlaps by construction —
+  the 16-class list in Phase 1 is the real source, and the missing collapse rule (N classes → 4–6 groups such
+  that no defect can be claimed by two) is now written; and the "overlapping briefs add no recall" premise is
+  refuted by `/fabrik-review-scoped`'s own measurement, so the cap is now independence OF THE SURFACE, with
+  duplicate briefs budgeted as one unit.
+- `core/62` gained a **Parallelism (Runtime A — native)** section outside the `<!-- POOL OFF -->` comment: the
+  ceiling is `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`, default 20, per-session, and a seat past it is REFUSED,
+  not queued — so 4–8 never approaches it and QUOTA is the binding constraint. Every fan-out wider than 3 now
+  checks `claude_rotate.py --status` first (4 of 5 accounts were walled and the active one at 81% weekly while
+  this shipped).
 
 ### Fixed — `fabrik-reviewer` was not a registerable agent type: a blank line inside its YAML frontmatter (2026-09-08)
 
