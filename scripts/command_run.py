@@ -1061,8 +1061,8 @@ def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[s
             u = msg.get("usage") if isinstance(msg, dict) else None
             if not isinstance(u, dict):
                 continue
-            mid = str(msg.get("id") or d.get("uuid") or "")
-            if not mid:
+            mid = str(msg.get("id") or "")
+            if not mid:  # the line uuid is per LINE, never per message — no key can group these
                 anon += 1
                 mid = f"\x00anon{anon}"
             acc = per_msg.setdefault(mid, dict.fromkeys((k for k, _ in _TOKEN_KEYS), 0))
@@ -2007,7 +2007,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             "findings": [int(r.get("findings", 0)) for r in rec.get("rounds") or []],
             "phases": rec.get("phases"),
             "phase_reached": rec.get("phase"),
-            "agent": str(rec.get("agent") or _agent_name() or ""),
+            "agent": str(rec.get("agent") or ""),  # resolved at START, like account/surface
             "surface": _cap_field(str(rec.get("surface") or "")),
             "account": str(rec.get("account") or ""),
             **{k: _cap_field(_usage_fields.get(k, "")) for k in (*_USAGE_FIELDS, "cost")},

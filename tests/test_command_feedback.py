@@ -933,3 +933,75 @@ def test_the_surface_is_capped_like_every_other_row_field(run_dir: Path) -> None
     assert r.returncode == 0, r.stdout + r.stderr
     row = _ledger(run_dir)[0]
     assert len(row["surface"]) <= 2000 and row["surface"].endswith("…")
+
+
+def test_the_agent_dimension_is_the_start_time_one_never_the_close_time_env(run_dir: Path) -> None:
+    """`account` and `surface` are resolved at start; `agent` fell back to the CLOSE process's
+    CLAUDE_AGENT when the start had none — a window renamed mid-run mis-attributed the row."""
+    env = {
+        **os.environ,
+        "COMMAND_RUN_DIR": str(run_dir),
+        "CLAUDE_SESSION_ID": "s1",
+        "COMMAND_RUN_ACCOUNT_FILE": str(run_dir / "no-marker"),
+        "COMMAND_RUN_TRANSCRIPT": str(run_dir / "no-transcript.jsonl"),
+    }
+    env.pop("CLAUDE_AGENT", None)
+    r = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "start",
+            "--command",
+            "fabrik-probe",
+            "--phases",
+            "1",
+            "--terminal",
+            "t",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env=env,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    env["CLAUDE_AGENT"] = "fleet"
+    r = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "done",
+            "--command",
+            "fabrik-probe",
+            "--evidence",
+            "x",
+            "--feedback",
+            STRUCTURED,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env=env,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert _ledger(run_dir)[0]["agent"] == ""
+
+
+def test_id_less_lines_count_once_each_with_or_without_a_line_uuid(tmp_path: Path) -> None:
+    import time
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _sum_transcript_usage  # noqa: PLC0415
+
+    now = time.time()
+    start = now - 600
+    base = _transcript_line(start + 5, 1, 2, 3, 4)
+    no_id = base.replace('"id": ' + json.dumps(f"msg_{start + 5}") + ", ", "")
+    assert '"id"' not in no_id
+    with_uuid = no_id[:-1] + ', "uuid": "line-1"}'
+    with_uuid2 = no_id[:-1] + ', "uuid": "line-2"}'
+    tr = tmp_path / "t.jsonl"
+    tr.write_text("\n".join([no_id, with_uuid, with_uuid2]) + "\n", encoding="utf-8")
+    got = _sum_transcript_usage(tr, start, now)
+    assert got["tok_msgs"] == 3 and got["tok_in"] == 3, (
+        got
+    )  # a line without message.id cannot be grouped
