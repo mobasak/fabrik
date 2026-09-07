@@ -244,3 +244,6 @@ Row shapes (quoted here, so the gate does not read them as passes):
   "note": "the one failure is FOREIGN \u2014 a sibling's D-184 row (a01de4a6, fleet) cites scripts/scratch_sweep.py before it exists; none of this review's 13 paths is red; routed to fleet by intel"
 }
 ```
+
+GATE-SCOPE: out-of-surface — Doc Link Integrity (live tree); findings naming this surface: 0 of 1; measured by: `python3 scripts/final_gate.py --check --json` (the one failure is `docs/DECISIONS.md: broken ref -> scripts/scratch_sweep.py`, a sibling's D-184 row at a01de4a6 — none of this review's 13 paths)
+
