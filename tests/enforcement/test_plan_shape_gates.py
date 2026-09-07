@@ -874,6 +874,15 @@ def test_each_parallelism_alternative_is_individually_load_bearing(plans_env, al
             "the pool stays OFF for this plan; every finder is a native Sonnet seat",
         ),
         ("subagent-pool-off", "the subagent pool is OFF (D-182); dispatch is native"),
+        # exit seat r6: adverbs between the verb and OFF are still the pool's own state
+        (
+            "pool-completely-off",
+            "the OpenRouter pool is completely OFF for this plan; finders are native",
+        ),
+        (
+            "pool-remains-fully-off",
+            "the subagent pool remains now fully OFF (D-182); dispatch is native",
+        ),
         ("sonnet-seats", "two Sonnet seats per ticket plus an Opus finder; results merge at T09"),
     ],
 )
