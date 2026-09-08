@@ -3005,6 +3005,11 @@ def test_the_box_budget_banner_shows_the_maximum_and_fails_soft(tmp_path, monkey
     payload["reasons_read_only"] = ["read-only-only: box unknown, held at the floor"]
     assert "read-only-only: box unknown, held at the floor" in qd._budget_probe()
     payload.pop("reasons_read_only")
+    # a line repeated INSIDE heavy_reasons renders once (round 13: the prefixed form never
+    # matched its raw twin, so the second copy slipped through the dedupe)
+    payload["heavy_reasons"] = ["floor granted: 2 seat(s) past what the box has left"] * 2
+    assert qd._budget_probe().count("heavy half — floor granted: 2 seat(s)") == 1
+    payload["heavy_reasons"] = []
     # an older probe without box_caps must not let the read-only cap pose as the heavy one
     monkeypatch.setattr(
         qd.subprocess,
@@ -3256,11 +3261,14 @@ def test_every_degraded_reason_the_script_can_emit_reaches_the_board(tmp_path, m
                 for units, heavy, risky, mech in shapes:
                     r = dh.budget(units, heavy, b, q, s, risky, mech)
                     _check(r, s, qd, bookkeeping, missed)
+                    # the same reasons arriving as the HEAVY half must render too (round 13: the
+                    # matrix never fed `heavy_reasons`; the prefixed path had one example)
+                    _check(r, s, qd, bookkeeping, missed, key="heavy_reasons")
     assert not missed, sorted(missed)
 
 
-def _check(r, s, qd, bookkeeping, missed):
-    rendered = qd._budget_caveats({"reasons": r["reasons"], "siblings": s})
+def _check(r, s, qd, bookkeeping, missed, key="reasons"):
+    rendered = qd._budget_caveats({key: r["reasons"], "siblings": s})
     for reason in r["reasons"]:
         if reason.startswith(bookkeeping):
             continue

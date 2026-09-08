@@ -68,6 +68,10 @@ def test_the_live_corpus_has_no_gap_and_the_detector_fires_on_real_fan_outs(tmp_
             graded += 1
             assert "[--mechanical <M>]" in m.group(0), (name, m.group(0))
     assert graded >= 25, graded  # a reworded banner must not empty the grader (round 9)
+    # the fragment's partial-close clause survives a render (round 13: appendix-only prose
+    # with no grader); fabrik-review includes the fragment
+    live_review = ac._HTML_COMMENT_RE.sub("", rendered["fabrik-review"])
+    assert "keeps the remainder on the ORIGINAL stamp's clock" in live_review
 
 
 def test_judgement_floors_name_no_haiku_seat_and_review_floors_name_a_class_wide_one():

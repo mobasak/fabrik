@@ -1777,6 +1777,26 @@ def test_a_round_with_no_stamp_names_the_seats_that_ran_unstamped(
     assert "seat transcript(s) since" not in p.stderr
     # stamped: silent, the stamp is the figure
     time.sleep(1.1)  # the fixture's whole-second timestamps
+    # an UNREADABLE seat transcript (a read error → "skipped") still counts: it ran, and only
+    # its mtime can date it (round-13 Opus finding: the dict guard dropped it silently)
+    if os.geteuid() != 0:
+        _seat_file(sub, "x", [(time.time(), "sx", 10, 10)])
+        (sub / "agent-x.jsonl").chmod(0)
+        p = _cr(run_dir, "round", "--findings", "1")
+        (sub / "agent-x.jsonl").chmod(0o644)
+        assert (
+            "1 seat transcript(s) since the last round and NO `dispatch --seats` stamp" in p.stderr
+        )
+    # the seat is dated from its TAIL only (round-13 finding: a full read of every seat under
+    # the record lock was ~50 ms/MB): a new line buried at the HEAD under 70 KB of old lines is
+    # not the seat's newest line, and the nudge stays silent
+    time.sleep(1.1)  # the fixture writes whole-second stamps; clear the round's sub-second ts
+    _tnow = time.time()
+    buried = [(_tnow, "sy", 10, 10)] + [(_tnow - 9000, f"sy{i}", 10, 10) for i in range(600)]
+    _seat_file(sub, "y", buried)
+    assert (sub / "agent-y.jsonl").stat().st_size > 70 * 1024
+    p = _cr(run_dir, "round", "--findings", "1")
+    assert "seat transcript(s) since" not in p.stderr
     _seat_file(sub, "c", [(time.time(), "s3", 10, 10)])
     _cr(run_dir, "dispatch", "--seats", "1")
     p = _cr(run_dir, "round", "--findings", "0", "--classes-swept", "a")

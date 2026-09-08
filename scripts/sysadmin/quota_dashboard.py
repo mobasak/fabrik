@@ -1940,9 +1940,13 @@ def _all_reasons(d: dict) -> list:
     `heavy_reasons` — deduped in order; a payload from a probe that predates the halves says so
     instead of passing as "no heavy caveats" (round-11 Opus finding: the guard was asymmetric)."""
     out: list = []
+    seen: set = (
+        set()
+    )  # dedupe on the RAW line — the prefixed form never matched its twin (round 13)
     for key in ("reasons", "reasons_read_only", "heavy_reasons"):
         for x in d.get(key) or []:
-            if isinstance(x, str) and x not in out:
+            if isinstance(x, str) and x not in seen:
+                seen.add(x)
                 # a heavy-only cause is LABELLED — beside a read-only `floor_granted: 0` an
                 # unlabelled "floor granted" read as a contradiction (round-12 Opus finding)
                 out.append(("heavy half — " + x) if key == "heavy_reasons" else x)

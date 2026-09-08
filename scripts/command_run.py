@@ -997,6 +997,26 @@ _SEAT_MAX_BYTES = (
     256 << 20
 )  # the largest seat file measured is single-digit MB; a cap, not a budget
 _SEAT_PARTIAL_S = 30.0  # a seat whose last line is this close to the close was still running
+_SEAT_TAIL_BYTES = 64 << 10  # the nudge dates a seat from its TAIL: one assistant line is enough
+
+
+def _seat_last_epoch(q: Path) -> float | str | None:
+    """The newest assistant line's epoch, read from the file's TAIL only — the mid-run nudge
+    needs one date per seat, and a full read of every seat under the record lock cost ~50 ms/MB
+    (round-13 finding: 40 seats × 3 MB was six seconds of lock). "skipped" when unreadable."""
+    try:
+        size = q.stat().st_size
+        with q.open("rb") as fh:
+            fh.seek(max(size - _SEAT_TAIL_BYTES, 0))
+            lines = fh.read().splitlines()
+    except OSError:
+        return "skipped"
+    for raw in reversed(lines):
+        if _ASSISTANT_RE.search(raw):
+            e = _line_epoch(raw)
+            if e is not None:
+                return e
+    return None
 
 
 def _seat_transcripts(path: Path, lo: float) -> list[Path]:
@@ -1883,8 +1903,11 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 if _tp is not None:
                     _tnow = time.time()  # never `_now`: that name is the module's clock function
                     for _q in _seat_transcripts(_tp, _since):
-                        _u = _seat_usage(_q, _since, _tnow)
-                        if isinstance(_u, dict) and float(_u.get("_last") or 0) > _since:
+                        _e = _seat_last_epoch(_q)
+                        # strict `>`: a line ON the round's own sub-second `ts` is that round's;
+                        # an UNREADABLE transcript ("skipped") has only its mtime to date it, and
+                        # the nudge exists to stop silent under-reporting (round-13 Opus finding)
+                        if (isinstance(_e, float) and _e > _since) or _e == "skipped":
                             _ran += 1
             if _ran:
                 print(
