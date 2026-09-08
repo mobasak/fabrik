@@ -219,7 +219,9 @@ def _floor(kind: str, native: str) -> str:
     return (
         f" **⚠️ Floor — every {kind} dispatches ≥1 native {native} on Opus as the authoritative pass** "
         f"(Opus-only is still not a substantial {kind}) **plus one Sonnet {native} seat per INDEPENDENT "
-        f"unit, sized by the rule above — never a token 1–2 (D-186)** **plus your own Opus decide/refute/merge.**"
+        f"unit, sized by the rule above — never a token 1–2 (D-186); the model is the per-dispatch "
+        f'token, `model: "opus"` for the authoritative seat, `model: "sonnet"` for breadth'
+        f"** **plus your own Opus decide/refute/merge.**"
     )
 
 

@@ -2629,7 +2629,10 @@ def test_native_subagents_column_follows_the_commands_own_steps(tmp_path, monkey
     )
     assert "Native subagents" in html
     # the cell leads with the dispatch RULE (none in this fixture row), then the types
-    assert "no per-unit rule</strong> · fabrik-reviewer <em>(opus, sonnet)</em>, general-purpose" in html
+    assert (
+        "no per-unit rule</strong> · fabrik-reviewer <em>(opus, sonnet)</em>, general-purpose"
+        in html
+    )
     html = qd._commands_table(
         [
             {
@@ -2698,21 +2701,70 @@ def test_the_seat_column_reports_the_dispatch_rule_not_the_type_count(tmp_path, 
     cell = qd._natives_cell(qd._command_natives(name), qd._command_seat_rule(name))
     assert "≥1 opus + 1 per unit" in cell and "fabrik-reviewer" in cell
 
-    # the shared fragment's own sizing paragraph is boilerplate — it must NOT become every
+    # the shared fragment's sizing paragraph rides INSIDE the D-181 banner paragraph in every
+    # rendered command — that is the real shape (the first draft's fixture had it standalone, which
+    # never occurs, and tested a regex the banner strip made dead) — it must NOT become every
     # command's rule, or all 20 that include it report the same one
     frag = (
-        "Size the native fan-out to the SURFACE, never to a fixed small number: partition it into "
-        "INDEPENDENT units and dispatch ONE seat PER UNIT.\n\nDispatch a `fabrik-reviewer`.\n"
+        "**⚠️ POOL OFF — D-181 (operator, 2026-09-07).** Size the native fan-out to the SURFACE: "
+        "dispatch ONE seat PER UNIT in a single message.\n\nDispatch a `fabrik-reviewer`.\n"
     )
     monkeypatch.setattr(qd, "RENDERED_COMMANDS", _rendered(tmp_path, name, frag))
     assert qd._command_seat_rule(name) == (False, ())
-    assert "no per-unit rule" in qd._natives_cell(qd._command_natives(name), qd._command_seat_rule(name))
+    assert "no per-unit rule" in qd._natives_cell(
+        qd._command_natives(name), qd._command_seat_rule(name)
+    )
+
+    # a unit counts only NEXT TO a seat word — "naming, per claim, landed / deferred" is a report
+    # format and "States per screen: empty · loaded" a checklist (round-1 findings on five commands)
+    prose = (
+        "# x\n\nReply naming, per claim, landed / deferred / refuted.\n\nStates per screen: empty "
+        "· loaded · error.\n\n"
+        + ("Ground truth first: read the contract, the spec and the code. " * 4)
+        + "\n\nThen dispatch one native `fabrik-reviewer` seat per\nclaim, and one "
+        "seat per external dependency, all in one message.\n"
+    )
+    monkeypatch.setattr(qd, "RENDERED_COMMANDS", _rendered(tmp_path, name, prose))
+    assert qd._command_seat_rule(name) == (False, ("claim", "dependency"))
 
     # a command that states a FIXED floor instead of a per-unit rule reports the number, not "none"
     fixed = "# x\n\nThe floor is 2–3 readers: native `fabrik-reviewer` seats over the diff.\n"
     monkeypatch.setattr(qd, "RENDERED_COMMANDS", _rendered(tmp_path, name, fixed))
     assert qd._command_seat_rule(name) == (False, ("!2–3 readers",))
     assert "2–3 readers" in qd._natives_cell(qd._command_natives(name), qd._command_seat_rule(name))
+
+
+def test_the_seat_rule_reads_the_real_corpus_correctly(tmp_path, monkeypatch):
+    """Golden values against the LIVE rendered corpus — the round-1 finder reproduced five wrong
+    cells that no fixture test could see. Skipped where the corpus is not installed."""
+    import pytest
+
+    corpus = Path.home() / ".claude" / "commands"
+    if not (corpus / "fabrik-review.md").exists():
+        pytest.skip("rendered corpus not installed here")
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "RENDERED_COMMANDS", corpus)
+    rule = {
+        n: qd._command_seat_rule(n)
+        for n in (
+            "fabrik-review",
+            "fabrik-upstream",
+            "fabrik-user-test",
+            "fabrik-plan-review",
+            "fabrik-vision",
+            "fabrik-review-scoped",
+            "fabrik-spec",
+            "fabrik-catchup",
+        )
+    }
+    assert rule["fabrik-review"][0] and "group" in rule["fabrik-review"][1]  # the flagship
+    assert "claim" in rule["fabrik-upstream"][1]  # the real dispatch line spans "per\nclaim"
+    assert rule["fabrik-user-test"][1] == ("flow",)  # not persona/screen/journey from prose
+    assert "ticket" in rule["fabrik-plan-review"][1]
+    assert "dependency" in rule["fabrik-vision"][1]  # "per external dependency"
+    assert rule["fabrik-review-scoped"][1] == ("!3 readers",)
+    assert rule["fabrik-spec"][1] == ("dependency",)
+    assert rule["fabrik-catchup"] == (False, ())
 
 
 def test_model_tiers_column_catches_a_tier_no_seat_mention_is_near(tmp_path, monkeypatch):

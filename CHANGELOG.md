@@ -16,7 +16,17 @@ All notable changes to this project will be documented in this file.
 - `core/62` § Dispatch economics is the canonical rule and carries the role table: Fable orchestrates and
   adjudicates, Opus is the authoritative pass, Sonnet is breadth, Haiku is trivia — model by the seat's JOB,
   never by what is idle. Mirrored in the subagents fragment and both CLAUDE.md contracts; `fabrik-execute-plan`'s
-  tier map now points at it. 8 tests, the FLOOR mutation kills 4.
+  tier map now points at it.
+- Its own author-blind review (four seats — the third one the script itself printed as the day's budget, plus one
+  over the board column the Stop hook flagged as never reviewed) found 22 defects, all closed in-run: the floor
+  overrode the box cap (a box with room for 0 heavy seats was told 3 — my own test enshrined it); the quota band
+  counted the active account as a missing standby and made 3 the permanent maximum; Fable is METERED usage
+  credits the quota probe cannot see, with no named fallback; the role table had no dispatch mechanism (18 of 20
+  commands never showed `model: "opus"`); "read-only" seats were unbounded by the box although one measured
+  1.19 GB running pytest; three sessions could each take the whole box in one minute (now `siblings()` subtracts
+  live seats from run records); nothing linked `SEATS:` to `round --seats`; and the board's seat-rule column named
+  units from report prose while missing "per GROUP", the rule's own flagship. One seat also REVERTED the fixes
+  with `git checkout --` on the shared tree and disclosed it; the reviewer brief now forbids that by name.
 
 ### Changed — the fan-out is UNCONDITIONAL and its floor is three seats (D-188, 2026-09-08)
 

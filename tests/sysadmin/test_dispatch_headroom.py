@@ -21,12 +21,75 @@ dh = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(dh)
 
 BOX_OK = {"ok": True, "mem_available_gb": 25.0, "mem_total_gb": 47.0, "cores": 24, "load1": 1.0}
-Q_OK = {"ok": True, "active": "a@x", "hottest_pct": 40.0, "eligible": 3, "hold": False}
+Q_OK_BAND = 85.0
+Q_OK = {
+    "ok": True,
+    "active": "a@x",
+    "hottest_pct": 40.0,
+    "eligible": 3,
+    "hold": False,
+    "drain_band": 85.0,
+}
 
 
 def test_read_only_seats_follow_the_unit_count_up_to_the_cli_cap():
     assert dh.budget(6, False, BOX_OK, Q_OK)["seats"] == 6
     assert dh.budget(40, False, BOX_OK, Q_OK)["seats"] == dh.CONCURRENCY_CAP  # refused past it
+
+
+def test_read_only_seats_are_bounded_by_the_box_too_a_finder_still_runs_pytest():
+    """Round-1 (authoritative seat): a "read-only" fabrik-reviewer ran `pytest tests/enforcement`
+    through Bash at 1.19 GB max RSS — the label is self-declared, the tools load the box the same.
+    1 GB planned per read-only seat, against min(MemAvailable, CommitLimit − Committed_AS)."""
+    r = dh.budget(12, False, dict(BOX_OK, mem_available_gb=4.0), Q_OK)
+    assert r["caps"]["box_cap"] == 4 and r["seats"] == 4
+    r = dh.budget(12, False, dict(BOX_OK, commit_headroom_gb=2.5), Q_OK)
+    assert r["caps"]["box_cap"] == 2 and r["seats"] == 2  # the commit limit binds first
+
+
+def test_the_cli_concurrency_cap_is_hard_and_the_floor_never_raises_past_it(monkeypatch):
+    """`CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=2` — the runtime REFUSES the third seat ("Do not
+    retry"); the first draft printed 3 anyway."""
+    monkeypatch.setattr(dh, "CONCURRENCY_CAP", 2)
+    r = dh.budget(6, False, BOX_OK, Q_OK)
+    assert r["seats"] == 2 and any("concurrency_cap=2" in x for x in r["reasons"])
+
+
+def test_an_unidentifiable_active_account_reads_as_hot_never_cool():
+    """`claude_rotate.py` can return `active: None` on a broken pointer; `hottest_pct` is then None.
+    The first draft's `is not None and ...` made that COOL and lifted the only affordability guard."""
+    r = dh.budget(8, False, BOX_OK, dict(Q_OK, active=None, hottest_pct=None))
+    assert r["seats"] == 3 and any("could not be identified" in x for x in r["reasons"])
+
+
+def test_the_drain_band_comes_from_the_rotation_picture_not_a_second_constant():
+    r = dh.budget(8, False, BOX_OK, dict(Q_OK, hottest_pct=70.0, drain_band=60.0))
+    assert r["seats"] == 3 and any("drain band 60.0%" in x for x in r["reasons"])
+    assert dh.budget(8, False, BOX_OK, dict(Q_OK, hottest_pct=70.0, drain_band=85.0))["seats"] == 8
+
+
+def test_seats_live_in_sibling_sessions_are_subtracted_from_the_box(tmp_path):
+    """TOCTOU on the box: three sessions reading the same free memory in one minute would each
+    take all of it. The last round's `seats` of every fresh `running` record is subtracted."""
+    now = 1_000_000.0
+    (tmp_path / "a.json").write_text(
+        json.dumps({"state": "running", "updated_ts": now - 60, "rounds": [{"seats": 5}]})
+    )
+    (tmp_path / "b.json").write_text(
+        json.dumps(
+            {"state": "running", "updated_ts": now - 60, "rounds": [{"seats": 2}, {"seats": 4}]}
+        )
+    )
+    (tmp_path / "stale.json").write_text(  # abandoned 3 h ago — must not hold the box hostage
+        json.dumps({"state": "running", "updated_ts": now - 3 * 3600, "rounds": [{"seats": 9}]})
+    )
+    (tmp_path / "done.json").write_text(json.dumps({"state": "done", "rounds": [{"seats": 9}]}))
+    (tmp_path / "junk.json").write_text("{not json")
+    s = dh.siblings(now=now, runs_dir=tmp_path)
+    assert s == {"ok": True, "seats": 9, "sessions": 2, "skipped": ["junk.json"]}
+    r = dh.budget(12, True, BOX_OK, Q_OK, s)  # box allows 12 heavy, minus 9 live elsewhere
+    assert r["caps"]["box_cap"] == 3 and r["seats"] == 3
+    assert any("minus 9 seat(s) live in 2 sibling session(s)" in x for x in r["reasons"])
 
 
 def test_the_floor_is_three_even_for_a_one_unit_surface():
@@ -46,7 +109,7 @@ def test_heavy_seats_are_bounded_by_memory_and_cpu_never_the_unit_count_alone():
     assert dh.budget(12, True, busy, Q_OK)["seats"] == 1
     empty = dict(BOX_OK, mem_available_gb=0.0)
     r = dh.budget(12, True, empty, Q_OK)
-    assert r["seats"] == 0 and any("read-only seats instead" in x for x in r["reasons"])
+    assert r["seats"] == 0 and any("never dispatch past a hard cap" in x for x in r["reasons"])
     assert dh.budget(12, True, dict(BOX_OK, mem_available_gb=25.0), Q_OK)["seats"] == 12
     roomy = dh.budget(12, True, BOX_OK, Q_OK)
     assert roomy["caps"]["box_cap"] == 12 and roomy["seats"] == 12
@@ -59,9 +122,11 @@ def test_quota_pressure_holds_the_round_at_the_floor_and_names_which_band_trippe
     # `eligible` counts STANDBYS (the active account is state=active): one fresh standby is a
     # fallback, so it must NOT collapse the round — the first draft's "< 2" did exactly that
     assert dh.budget(8, False, BOX_OK, dict(Q_OK, eligible=1))["seats"] == 8
+    # NO standby at all is a WARNING, not a cap — the operator asked for the maximum, and a fresh
+    # active account with no fallback still runs; the reason names the risk
     thin = dict(Q_OK, eligible=0)
     r = dh.budget(8, False, BOX_OK, thin)
-    assert r["seats"] == 3 and any("standby" in x for x in r["reasons"])
+    assert r["seats"] == 8 and any("NO eligible standby" in x for x in r["reasons"])
     # the exact boundaries, so a mutation of `>=` or `<` is caught
     assert dh.budget(8, False, BOX_OK, dict(Q_OK, hottest_pct=85.0))["seats"] == 3
     assert dh.budget(8, False, BOX_OK, dict(Q_OK, hottest_pct=84.9))["seats"] == 8
@@ -92,9 +157,14 @@ def test_every_operator_named_model_has_exactly_one_role():
 def test_json_output_carries_the_budget_and_both_probes(monkeypatch, capsys):
     monkeypatch.setattr(dh, "box", lambda: BOX_OK)
     monkeypatch.setattr(dh, "quota", lambda: Q_OK)
+    monkeypatch.setattr(
+        dh, "siblings", lambda: {"ok": True, "seats": 0, "sessions": 0, "skipped": []}
+    )
     assert dh.main(["--units", "5", "--json"]) == 0
     out = json.loads(capsys.readouterr().out)
     assert out["seats"] == 5 and out["box"]["ok"] and out["quota"]["ok"] and "fable" in out["tiers"]
-    assert (
-        out["caps"] == {"units": 5, "concurrency_cap": dh.CONCURRENCY_CAP} and out["reasons"] == []
-    )
+    assert out["caps"] == {"units": 5, "concurrency_cap": dh.CONCURRENCY_CAP, "box_cap": 23}
+    assert out["reasons"] == [
+        "box allows 23 read-only seats (mem 25.0GB/1.0GB=25, cores 24-load 1.0=23)"
+    ]
+    assert out["siblings"] == {"ok": True, "seats": 0, "sessions": 0, "skipped": []}

@@ -1689,17 +1689,31 @@ def _command_tiers(name: str) -> tuple[str, ...]:
 # a seat count made /fabrik-review read as "1 subagent" when its own steps dispatch an Opus floor
 # plus one Sonnet seat per failure-class group (operator, 2026-09-08: "i want to see subagents counts
 # correctly"). These two regexes read the RULE out of the command's own steps.
-_FRAG_SIZING = re.compile(r"Size the native fan-out to the SURFACE.*?(?:\n\n|\Z)", re.S)
 _FLOOR_RE = re.compile(r"Floor — every \w+ dispatches ≥1 native")
-# case-insensitive: the corpus writes the same unit as "per screen", "PER RIVAL", "Per axis"
+# A unit is a DISPATCH unit only when a seat word stands near it: "one seat per claim" is a fan-out,
+# "naming, per claim, landed / deferred / refuted" is a report format, and "States per screen: empty
+# · loaded" is a UI checklist. The author-blind round on 7178fa27 found five commands whose cell
+# named units from report prose, table headers and checklist rows — and missed "per GROUP" (the
+# rule's own flagship example), "per TICKET" and "per external dependency". The match now needs a
+# seat word within `_DISPATCH_WINDOW` characters, allows one adjective between "per" and the unit,
+# and spans a line break ("seat per\nclaim" was the real instruction the regex could not see).
 _UNIT_RE = re.compile(
-    r"per (independent unit|unit|lens|screen/route|screen|persona|claim|rival|axis|surface"
-    r"|doc/subsystem|pack|behaviou?r|journey-bundle|journey|epic file|epic|module/area|entity"
-    r"|flow-bundle|stale doc|checklist class|dependency)(?![\w-])",
+    r"\bper\s+(?:[a-z-]+\s+)?(independent unit|unit|failure-class group|class group|group|lens"
+    r"|screen/route|screen|persona|claim|rival|axis|surface|doc/subsystem|pack|behaviou?r"
+    r"|journey-bundle|journey|epic file|epic|module/area|entity|flow-bundle|stale doc"
+    r"|checklist class|dependency|ticket|fact|phase|file)(?![\w-])",
     re.I,
 )
+_DISPATCH_RE = re.compile(
+    r"\b(seat|seats|subagent|subagents|grounder|grounders|finder|finders|reviewer|reviewers|"
+    r"researcher|researchers|reconciler|reconcilers|dispatch|dispatched|fan[- ]?out|in parallel)\b",
+    re.I,
+)
+_DISPATCH_WINDOW = 120
 _UNIT_LABEL = {
     "independent unit": "unit",
+    "failure-class group": "group",
+    "class group": "group",
     "screen/route": "screen",
     "doc/subsystem": "doc",
     "behaviour": "behavior",  # both spellings live in the corpus; one unit, not two
@@ -1707,10 +1721,8 @@ _UNIT_LABEL = {
     "journey-bundle": "journey",
     "flow-bundle": "flow",
 }
-
-
 # a command may state a FIXED floor instead of a per-unit rule — /fabrik-review-scoped's "the floor
-# is 2–3 readers" is the deliberate light-command exception, and reporting it as "no rule" hides a
+# is 3 readers" is the deliberate light-command exception, and reporting it as "no rule" hides a
 # real number the reader asked for.
 _FIXED_RE = re.compile(r"floor is (\d\s*[–-]\s*\d|\d) (readers?|seats?|native seats?)", re.I)
 
@@ -1718,12 +1730,16 @@ _FIXED_RE = re.compile(r"floor is (\d\s*[–-]\s*\d|\d) (readers?|seats?|native 
 def _command_seat_rule(name: str) -> tuple[bool, tuple[str, ...]]:
     """(does it carry the Opus authoritative floor, the UNITS its own steps fan out over).
 
-    The shared fragment's sizing paragraph is blanked first: it is in every command that includes
-    the fragment, so counting it would report the same rule for all of them."""
-    own = _FRAG_SIZING.sub("", _command_stripped_text(name))
+    The shared boilerplate — the D-181 banner, which carries the fragment's sizing paragraph — is
+    blanked by `_command_stripped_text` first, so 20 commands that include it do not all report the
+    same rule. A unit counts only with a seat word within `_DISPATCH_WINDOW` characters."""
+    own = _command_stripped_text(name)
     units: list[str] = []
     for m in _UNIT_RE.finditer(own):
-        u = m.group(1).lower()
+        window = own[max(0, m.start() - _DISPATCH_WINDOW) : m.end() + _DISPATCH_WINDOW]
+        if not _DISPATCH_RE.search(window):
+            continue
+        u = re.sub(r"\s+", " ", m.group(1).lower())
         u = _UNIT_LABEL.get(u, u)
         if u not in units:
             units.append(u)
