@@ -16,12 +16,16 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import re
 import subprocess
 import time
 from datetime import datetime
 from pathlib import Path
 
+os.environ.setdefault(
+    "QUOTA_DASH_BUDGET", "0"
+)  # the box-budget banner shells out to the fleet probe; not in tests
 import pytest
 
 _SRC = Path(__file__).resolve().parents[1] / "scripts" / "sysadmin" / "quota_dashboard.py"
@@ -2765,6 +2769,48 @@ def test_the_seat_rule_reads_the_real_corpus_correctly(tmp_path, monkeypatch):
     assert rule["fabrik-review-scoped"][1] == ("!3 readers",)
     assert rule["fabrik-spec"][1] == ("dependency",)
     assert rule["fabrik-catchup"] == (False, ())
+
+
+def test_the_box_budget_banner_shows_the_maximum_and_fails_soft(tmp_path, monkeypatch):
+    """D-191: the operator wants the MAXIMUM visible on the board, not the rule. The banner runs
+    dispatch_headroom.py --json (read-only and heavy) and prints what the box allows now; when the
+    probe fails it prints the reason, never an empty table head; QUOTA_DASH_BUDGET=0 disables it."""
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setenv("QUOTA_DASH_BUDGET", "1")
+    qd._budget_cache.update(ts=0.0, html="")
+    calls = []
+
+    class _R:
+        def __init__(self, args):
+            heavy = "--heavy" in args
+            calls.append(heavy)
+            self.stdout = json.dumps(
+                {
+                    "caps": {"box_cap": 12 if heavy else 23},
+                    "quota": {
+                        "ok": True,
+                        "active": "a@x",
+                        "hottest_pct": 7.0,
+                        "eligible": 1,
+                        "hold": False,
+                    },
+                }
+            )
+
+    monkeypatch.setattr(qd.subprocess, "run", lambda args, **kw: _R(args))
+    html = qd._budget_banner()
+    assert "read-only seats allowed now: <strong>23</strong>" in html
+    assert "heavy seats allowed now: <strong>12</strong>" in html and "CLI cap 20" in html
+    assert calls == [False, True]
+    qd._budget_cache.update(ts=0.0, html="")
+
+    def boom(args, **kw):
+        raise OSError("probe down")
+
+    monkeypatch.setattr(qd.subprocess, "run", boom)
+    assert "Box budget unavailable: probe down" in qd._budget_banner()
+    monkeypatch.setenv("QUOTA_DASH_BUDGET", "0")
+    assert qd._budget_banner() == ""
 
 
 def test_model_tiers_column_catches_a_tier_no_seat_mention_is_near(tmp_path, monkeypatch):

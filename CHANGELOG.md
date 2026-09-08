@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the box is the ceiling, units are the partition: every fan-out dispatches the maximum (D-191, 2026-09-08)
+
+- The operator stated the directive a third time; each earlier answer had left the UNIT count as the cap, so the
+  box allowed 23 read-only seats and a 3-unit review dispatched 3. Now every unit gets one Sonnet breadth seat
+  and one Haiku mechanical seat, plus the Opus authoritative seat(s) — `dispatch_headroom.py` computes the WANTED
+  count and trims it to the box/CLI/quota, cheapest angle first. A 3-unit surface on an idle box is 7 seats
+  (cost 14); a 6-unit one 13 (cost 23).
+- Every fanning-out command now carries the dispatch step in its own text (the fragment for 20, the short
+  banner for 19): run the script, dispatch ALL of what it prints in ONE message, one distinct unit × angle
+  brief per seat with its model token. The commands board shows the box budget above the table.
+
 ### Added — model price multipliers make "affordable" a number (D-190, 2026-09-08)
 
 - Operator: haiku 1× · sonnet 2× · opus 5× · fable 10×. `dispatch_headroom.py` now prices the seat mix

@@ -37,6 +37,13 @@ import time
 from pathlib import Path
 
 FLOOR = 3
+# D-191 (operator, three times: "maximum count of viable and useful subagents"): the BOX is the
+# ceiling and the units are the PARTITION. Every unit gets one seat per ANGLE — breadth (Sonnet),
+# mechanical (Haiku) — plus the authoritative Opus seats (one per risky unit, at least one). A
+# seat is "useful" when its brief is a distinct unit x angle; the box, the CLI cap and the quota
+# are what make it "viable". Before this, `units` capped the count: the box allowed 23 and the
+# rule dispatched 3 (measured 2026-09-08).
+ANGLES = {"breadth": "sonnet", "mechanical": "haiku"}
 # CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS ?? 20 — read out of the CLI bundle v2.1.263 (core/62
 # § Parallelism (Runtime A)); a seat past it is REFUSED, not queued. A non-numeric value must not
 # kill the script at import ("fails SOFT" is the contract): it falls back to 20 with a reason.
@@ -185,13 +192,35 @@ def cost(mix: dict[str, int]) -> dict:
     return {"units": sum(parts.values()), "parts": parts}
 
 
+def full_mix(units: int, risky: int = 0) -> dict[str, int]:
+    """The MAXIMUM useful mix for a surface of `units`: one Sonnet breadth seat and one Haiku
+    mechanical seat per unit, plus the authoritative Opus seats — one per risky unit, at least one.
+    Every seat is a distinct unit x angle brief; the caller trims it to the budget with `trim()`."""
+    if units <= 0:
+        return {}
+    opus = max(1, min(risky, units))
+    return {"opus": opus, "sonnet": units, "haiku": units}
+
+
+def trim(mix: dict[str, int], seats: int) -> dict[str, int]:
+    """Cut a full mix down to `seats`, cheapest angle first: Haiku, then Sonnet, never below one
+    Opus. The result is what the box, the cap and the quota actually allow."""
+    if seats <= 0:
+        return {}
+    out = dict(mix)
+    for k in ("haiku", "sonnet"):
+        while sum(out.values()) > seats and out.get(k, 0) > 0:
+            out[k] -= 1
+    while sum(out.values()) > seats and out.get("opus", 0) > 1:
+        out["opus"] -= 1
+    return {k: v for k, v in out.items() if v > 0}
+
+
 def cheapest_mix(seats: int, trivial: int = 0, risky: int = 0) -> dict[str, int]:
-    """The cheapest ROLE-LEGAL mix for N seats: `risky` units (auth/schema/migrations/secrets —
-    at least one, the authoritative seat) on Opus, `trivial` units (grep-able classes, format,
-    inventory) on Haiku, the rest Sonnet. Surface-blind callers get the role-neutral default,
-    which is NOT a minimum — the authoritative seat found that `{sonnet: 3}` (the measured
-    /fabrik-review-scoped floor) and `{opus: 1, haiku: 2}` are both cheaper and both legal. It
-    does not enforce the floor — `budget()` already did that on `seats`."""
+    """The cheapest ROLE-LEGAL mix for exactly N seats (the `--mix`-less FLOOR case, or a caller
+    that wants the minimum): `risky` units on Opus (at least one), `trivial` on Haiku, the rest
+    Sonnet. NOT a minimum in the D-191 sense — `full_mix` is the default now; this is what a
+    hard-capped round falls back to."""
     if seats <= 0:
         return {}
     opus = max(1, min(risky, seats))
@@ -213,12 +242,17 @@ def parse_mix(text: str) -> dict[str, int]:
     return mix
 
 
-def budget(units: int, heavy: bool, b: dict, q: dict, s: dict | None = None) -> dict:
+def budget(
+    units: int, heavy: bool, b: dict, q: dict, s: dict | None = None, risky: int = 0
+) -> dict:
     s = s or {"ok": True, "seats": 0, "sessions": 0, "skipped": []}
     reasons: list[str] = []
     if CAP_NOTE:
         reasons.append(CAP_NOTE)
-    caps = {"units": max(units, 0), "concurrency_cap": CONCURRENCY_CAP}
+    # D-191: the units are the partition, not the cap — the WANTED count is one seat per unit per
+    # angle plus the authoritative seats; the box, the CLI cap and the quota are the caps
+    wanted = sum(full_mix(max(units, 0), risky).values())
+    caps = {"wanted": wanted, "concurrency_cap": CONCURRENCY_CAP}
     per_seat = HEAVY_GB_PER_SEAT if heavy else LIGHT_GB_PER_SEAT
     if b.get("ok"):
         mem = b["mem_available_gb"]
@@ -278,15 +312,21 @@ def budget(units: int, heavy: bool, b: dict, q: dict, s: dict | None = None) -> 
     # HARD cap. The first draft raised any sub-floor result back to 3, including a box_cap of 0, so
     # "--heavy" on a box with no room printed 3 heavy seats: the exact OOM this tool exists to
     # prevent (author-blind round 1, 2026-09-08). Now: units up to the floor first, then the caps.
-    if caps["units"] < FLOOR:
+    if caps["wanted"] < FLOOR:
         reasons.append(
-            f"units={caps['units']} raised to the floor of {FLOOR} — three seats on DIFFERENT angles "
-            f"over the whole surface (D-188)"
+            f"wanted={caps['wanted']} raised to the floor of {FLOOR} — three seats on DIFFERENT "
+            f"angles over the whole surface (D-188)"
         )
-        caps["units"] = FLOOR
+        caps["wanted"] = FLOOR
     seats = min(caps.values())
+    if seats < caps["wanted"]:
+        binding = [k for k, v in caps.items() if v == seats and k != "wanted"]
+        reasons.append(
+            f"wanted {caps['wanted']} (units x angles + authoritative), bound to {seats} by "
+            f"{', '.join(binding)} — the box/quota decide, the surface only asks"
+        )
     if seats < FLOOR:
-        hard = [k for k, v in caps.items() if v == seats and k != "units"]
+        hard = [k for k, v in caps.items() if v == seats and k != "wanted"]
         reasons.append(
             f"below the floor because a HARD cap binds ({', '.join(hard)}={seats}) — "
             + (
@@ -318,9 +358,19 @@ def main(argv: list[str] | None = None) -> int:
     )
     a = ap.parse_args(argv)
     b, q, s = box(), quota(), siblings()
-    r = budget(a.units, a.heavy, b, q, s)
+    r = budget(a.units, a.heavy, b, q, s, a.risky)
     try:
-        mix = parse_mix(a.mix) if a.mix else cheapest_mix(r["seats"], a.trivial, a.risky)
+        if a.mix:
+            mix = parse_mix(a.mix)
+        else:
+            # the MAXIMUM useful mix, trimmed to what is viable — never the minimum by default
+            mix = trim(full_mix(a.units, a.risky), r["seats"])
+            if a.trivial and mix:
+                mix = (
+                    cheapest_mix(r["seats"], a.trivial, a.risky)
+                    if r["seats"] < 2 * a.units
+                    else mix
+                )
         priced = cost(mix)
     except ValueError as exc:
         print(f"dispatch_headroom.py: error: {exc}", file=sys.stderr)
@@ -377,8 +427,10 @@ def main(argv: list[str] | None = None) -> int:
             + (
                 ""
                 if a.mix
-                else " (role-neutral default — NOT a minimum: trivia on Haiku 1x with --trivial, "
-                "risk-bearing units on Opus 5x with --risky, or price your real mix with --mix)"
+                else f" — the MAXIMUM useful mix for {a.units} unit(s): one Sonnet breadth + one Haiku "
+                "mechanical seat per unit, plus the Opus authoritative seat(s) (--risky N adds one per "
+                "risky unit), trimmed to the budget cheapest-angle first; dispatch ALL of it in ONE "
+                "message, each seat a distinct unit x angle brief"
             )
             + " — D-190: haiku 1x · sonnet 2x · opus 5x · fable 10x"
         )

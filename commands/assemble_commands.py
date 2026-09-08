@@ -218,9 +218,10 @@ def _floor(kind: str, native: str) -> str:
     # The pool form ("pool breadth AND ≥1 native Opus") is kept in git history for re-enable.
     return (
         f" **⚠️ Floor — every {kind} dispatches ≥1 native {native} on Opus as the authoritative pass** "
-        f"(Opus-only is still not a substantial {kind}) **plus one Sonnet {native} seat per INDEPENDENT "
-        f"unit, sized by the rule above — never a token 1–2 (D-186); the model is the per-dispatch "
-        f'token, `model: "opus"` for the authoritative seat, `model: "sonnet"` for breadth'
+        f"(Opus-only is still not a substantial {kind}) **plus one Sonnet {native} breadth seat AND one "
+        f"Haiku mechanical seat per INDEPENDENT unit — the box is the ceiling, the units the partition "
+        f"(D-191); never a token 1–2; the model is the per-dispatch token, `model: \"opus\"` for the "
+        f'authoritative seat, `model: "sonnet"` for breadth, `model: "haiku"` for the mechanical angle'
         f"** **plus your own Opus decide/refute/merge.**"
     )
 

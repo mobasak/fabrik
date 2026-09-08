@@ -1840,6 +1840,53 @@ def _tiers_cell(tiers: tuple[str, ...]) -> str:
     return " · ".join(escape(x) for x in tiers)
 
 
+_BUDGET_TTL_S = 60
+_budget_cache: dict = {"ts": 0.0, "html": ""}
+
+
+def _budget_banner() -> str:
+    """One line above the commands table: what the box allows RIGHT NOW (D-191 — the operator wants
+    the maximum visible, not the rule). `dispatch_headroom.py --json` for a 1-unit surface, read-
+    only and heavy, cached 60 s; fail-soft to a one-line reason."""
+    if os.getenv("QUOTA_DASH_BUDGET", "1") == "0":
+        return ""  # a test or a headless render that must not shell out to the fleet probe
+    now = time.time()
+    if now - _budget_cache["ts"] < _BUDGET_TTL_S and _budget_cache["html"]:
+        return _budget_cache["html"]
+    script = _FABRIK_ROOT / "scripts" / "sysadmin" / "dispatch_headroom.py"
+    try:
+        parts = []
+        for heavy in (False, True):
+            args = [sys.executable, str(script), "--units", "1", "--json"] + (
+                ["--heavy"] if heavy else []
+            )
+            d = json.loads(
+                subprocess.run(args, capture_output=True, text=True, timeout=90, check=True).stdout
+            )
+            caps = d.get("caps") or {}
+            parts.append(
+                f"{'heavy' if heavy else 'read-only'} seats allowed now: <strong>{caps.get('box_cap', '?')}</strong>"
+            )
+            q = d.get("quota") or {}
+        quota = (
+            f"quota: active {escape(str(q.get('active')))} at {q.get('hottest_pct')}%, "
+            f"{q.get('eligible')} eligible standby(s), hold={q.get('hold')}"
+            if q.get("ok")
+            else "quota: unknown"
+        )
+        html = (
+            '<p class="muted">Box budget (D-189/D-191, `dispatch_headroom.py`): '
+            + " · ".join(parts)
+            + f" · CLI cap 20 · {quota}. A command's units are the partition; the box is the ceiling — "
+            "every fan-out dispatches the SEATS the script prints, one Sonnet + one Haiku seat per unit "
+            "plus the Opus authoritative seat(s).</p>"
+        )
+    except (OSError, subprocess.SubprocessError, ValueError) as exc:
+        html = f'<p class="muted">Box budget unavailable: {escape(str(exc))}</p>'
+    _budget_cache.update(ts=now, html=html)
+    return html
+
+
 def _commands_table(rows: list[dict[str, str]]) -> str:
     body = []
     for i, r in enumerate(rows, 1):
@@ -1856,7 +1903,8 @@ def _commands_table(rows: list[dict[str, str]]) -> str:
             f'<td class="when">{_tiers_cell(r.get("tiers") or ())}</td></tr>'
         )
     return (
-        "<table><thead><tr><th>#</th><th>Command</th><th>Stage</th><th>Purpose</th>"
+        _budget_banner()
+        + "<table><thead><tr><th>#</th><th>Command</th><th>Stage</th><th>Purpose</th>"
         "<th>When to use</th><th>Skip when</th><th>Next</th>"
         "<th title=\"Native Claude Task subagent types the command's LIVE text names (the pool is OFF by "
         "ruling, D-181/D-182 — every fan-out is native) and the model tier named beside each; "

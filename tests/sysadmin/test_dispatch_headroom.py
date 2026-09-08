@@ -33,7 +33,7 @@ Q_OK = {
 
 
 def test_read_only_seats_follow_the_unit_count_up_to_the_cli_cap():
-    assert dh.budget(6, False, BOX_OK, Q_OK)["seats"] == 6
+    assert dh.budget(6, False, BOX_OK, Q_OK)["seats"] == 13  # 6 units x 2 angles + 1 opus (D-191)
     assert dh.budget(40, False, BOX_OK, Q_OK)["seats"] == dh.CONCURRENCY_CAP  # refused past it
 
 
@@ -65,7 +65,7 @@ def test_an_unidentifiable_active_account_reads_as_hot_never_cool():
 def test_the_drain_band_comes_from_the_rotation_picture_not_a_second_constant():
     r = dh.budget(8, False, BOX_OK, dict(Q_OK, hottest_pct=70.0, drain_band=60.0))
     assert r["seats"] == 3 and any("drain band 60.0%" in x for x in r["reasons"])
-    assert dh.budget(8, False, BOX_OK, dict(Q_OK, hottest_pct=70.0, drain_band=85.0))["seats"] == 8
+    assert dh.budget(8, False, BOX_OK, dict(Q_OK, hottest_pct=70.0, drain_band=85.0))["seats"] == 17
 
 
 def test_seats_live_in_sibling_sessions_are_subtracted_from_the_box(tmp_path):
@@ -94,8 +94,9 @@ def test_seats_live_in_sibling_sessions_are_subtracted_from_the_box(tmp_path):
 
 def test_the_floor_is_three_even_for_a_one_unit_surface():
     r = dh.budget(1, False, BOX_OK, Q_OK)
-    assert r["seats"] == dh.FLOOR == 3
-    assert any("floor" in x for x in r["reasons"])
+    assert r["seats"] == dh.FLOOR == 3  # one unit: 1 sonnet + 1 haiku + 1 opus IS the floor
+    r = dh.budget(0, False, BOX_OK, Q_OK)
+    assert r["seats"] == 3 and any("raised to the floor" in x for x in r["reasons"])
 
 
 def test_heavy_seats_are_bounded_by_memory_and_cpu_never_the_unit_count_alone():
@@ -121,15 +122,15 @@ def test_quota_pressure_holds_the_round_at_the_floor_and_names_which_band_trippe
     assert r["seats"] == 3 and any("91.0%" in x for x in r["reasons"])
     # `eligible` counts STANDBYS (the active account is state=active): one fresh standby is a
     # fallback, so it must NOT collapse the round — the first draft's "< 2" did exactly that
-    assert dh.budget(8, False, BOX_OK, dict(Q_OK, eligible=1))["seats"] == 8
+    assert dh.budget(8, False, BOX_OK, dict(Q_OK, eligible=1))["seats"] == 17
     # NO standby at all is a WARNING, not a cap — the operator asked for the maximum, and a fresh
     # active account with no fallback still runs; the reason names the risk
     thin = dict(Q_OK, eligible=0)
     r = dh.budget(8, False, BOX_OK, thin)
-    assert r["seats"] == 8 and any("NO eligible standby" in x for x in r["reasons"])
+    assert r["seats"] == 17 and any("NO eligible standby" in x for x in r["reasons"])
     # the exact boundaries, so a mutation of `>=` or `<` is caught
     assert dh.budget(8, False, BOX_OK, dict(Q_OK, hottest_pct=85.0))["seats"] == 3
-    assert dh.budget(8, False, BOX_OK, dict(Q_OK, hottest_pct=84.9))["seats"] == 8
+    assert dh.budget(8, False, BOX_OK, dict(Q_OK, hottest_pct=84.9))["seats"] == 17
 
 
 def test_the_fleet_hold_dispatches_nothing():
@@ -198,6 +199,27 @@ def test_a_malformed_mix_exits_2_with_a_message_never_a_traceback(monkeypatch, c
     assert "COST: 0 haiku-units — nothing to dispatch" in out and "for  (" not in out
 
 
+def test_the_box_is_the_ceiling_and_the_units_are_the_partition():
+    """D-191 (the operator's third statement): before it, `units` capped the count — the box allowed
+    23 and a 3-unit review dispatched 3. Now WANTED = one Sonnet + one Haiku per unit + the Opus
+    authoritative seat(s), trimmed to the box cheapest angle first; every seat a distinct
+    unit x angle brief."""
+    assert dh.full_mix(3) == {"opus": 1, "sonnet": 3, "haiku": 3}
+    assert dh.full_mix(6, risky=2) == {"opus": 2, "sonnet": 6, "haiku": 6}
+    assert dh.full_mix(0) == {}
+    assert dh.trim(dh.full_mix(3), 7) == {"opus": 1, "sonnet": 3, "haiku": 3}  # nothing to cut
+    assert dh.trim(dh.full_mix(3), 5) == {"opus": 1, "sonnet": 3, "haiku": 1}  # haiku first
+    assert dh.trim(dh.full_mix(3), 2) == {"opus": 1, "sonnet": 1}  # then sonnet, never below 1 opus
+    assert dh.trim(dh.full_mix(3, risky=3), 2) == {"opus": 2}
+    assert dh.trim(dh.full_mix(3), 0) == {}  # the HOLD path dispatches nothing
+    r = dh.budget(3, False, BOX_OK, Q_OK)
+    assert r["caps"]["wanted"] == 7 and r["seats"] == 7  # not 3
+    r = dh.budget(3, True, dict(BOX_OK, mem_available_gb=8.0), Q_OK)  # box allows 4 heavy
+    assert r["seats"] == 4 and any(
+        "wanted 7" in x and "bound to 4 by box_cap" in x for x in r["reasons"]
+    )
+
+
 def test_every_operator_named_model_has_exactly_one_role():
     assert set(dh.TIERS) == {"fable", "opus", "sonnet", "haiku"}
     assert all(v for v in dh.TIERS.values())
@@ -211,13 +233,17 @@ def test_json_output_carries_the_budget_and_both_probes(monkeypatch, capsys):
     )
     assert dh.main(["--units", "5", "--json"]) == 0
     out = json.loads(capsys.readouterr().out)
-    assert out["seats"] == 5 and out["box"]["ok"] and out["quota"]["ok"] and "fable" in out["tiers"]
-    assert out["caps"] == {"units": 5, "concurrency_cap": dh.CONCURRENCY_CAP, "box_cap": 23}
+    assert (
+        out["seats"] == 11 and out["box"]["ok"] and out["quota"]["ok"] and "fable" in out["tiers"]
+    )
+    assert out["caps"] == {"wanted": 11, "concurrency_cap": dh.CONCURRENCY_CAP, "box_cap": 23}
     assert out["reasons"] == [
         "box allows 23 read-only seats (mem 25.0GB/1.0GB=25, cores 24-load 1.0=23)"
     ]
     assert out["siblings"] == {"ok": True, "seats": 0, "sessions": 0, "skipped": []}
-    assert out["mix"] == {"opus": 1, "sonnet": 4} and out["cost"]["units"] == 13  # 5 + 4x2
+    assert (
+        out["mix"] == {"opus": 1, "sonnet": 5, "haiku": 5} and out["cost"]["units"] == 20
+    )  # 5+10+5
     assert out["adjudicator"] == {"model": "fable", "units": 10, "counted_in_seats": False}
 
 
@@ -232,15 +258,16 @@ def test_the_cost_line_an_agent_reads_is_graded_not_only_the_json(monkeypatch, c
     )
     assert dh.main(["--units", "5"]) == 0
     out = capsys.readouterr().out
+    assert "SEATS: 11" in out
     assert (
-        "COST: 13 haiku-units for 1 opus x5 + 4 sonnet x2 (role-neutral default — NOT a minimum"
+        "COST: 20 haiku-units for 1 opus x5 + 5 sonnet x2 + 5 haiku x1 — the MAXIMUM useful mix"
         in out
     )
     assert "+ 10 for the orchestrator/adjudicator on fable x10" in out
     assert "RELATIVE and dimensionless" in out
-    assert dh.main(["--units", "5", "--trivial", "2"]) == 0
+    assert dh.main(["--units", "5", "--risky", "2"]) == 0
     assert (
-        "COST: 11 haiku-units for 1 opus x5 + 2 haiku x1 + 2 sonnet x2" in capsys.readouterr().out
+        "COST: 25 haiku-units for 2 opus x5 + 5 sonnet x2 + 5 haiku x1" in capsys.readouterr().out
     )
     assert dh.main(["--units", "3", "--mix", "sonnet=99"]) == 0
-    assert "mix has 99 seat(s) but the budget is 3" in capsys.readouterr().out
+    assert "mix has 99 seat(s) but the budget is 7" in capsys.readouterr().out
