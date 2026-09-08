@@ -2522,6 +2522,14 @@ def _rotate_threshold() -> float:
     (D-177/D-178/D-180): a session that hits the wall is HELD and woken when relief lands, instead
     of dying there. Before that mechanism a lost race cost a session; now it costs a pause.
 
+    ⚠️ FIRST LIVE DATA FROM THE RESTORED ROW (2026-09-08, 21 rows over 1.3 h) says the 4.6x above
+    is CONSERVATIVE, and names why: the overall gap reproduces the August sample exactly (median
+    5.0 min, p90 5.0, max 8.0), but the gap that actually matters — the one measured FROM a reading
+    already at/over 85 — is median **2.4 min** (n=10, max 8.0), because the quota board invokes the
+    tick on a crossing instead of waiting for the `*/5` cron. Roughly half the exposure window the
+    risk figure assumes. Small sample, one burn, stated as such; re-derive it over a full week
+    before leaning on it.
+
     ⚠️ The 5 points this gives up were the margin, so the fallback carries the weight: with NO
     eligible successor the URGENT-DRAIN mail fires at ``_urgent_drain_pct()`` = 90, eight points
     below this line, and tells every repo when to resume. That ordering (90 < 98) is the design,
