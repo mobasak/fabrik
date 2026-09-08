@@ -153,7 +153,7 @@ def test_seats_live_in_sibling_sessions_are_subtracted_from_the_box(tmp_path):
     r = dh.budget(12, True, BOX_OK, Q_OK, s)  # box allows 12 heavy, minus 9 live elsewhere
     assert r["caps"]["box_cap"] == 3 and r["seats"] == 3
     assert any(
-        "minus 9 seat(s) dispatched < 15 min ago in 2 running record(s)" in x for x in r["reasons"]
+        "minus 9 seat(s) dispatched < 25 min ago in 2 running record(s)" in x for x in r["reasons"]
     )
 
 
@@ -365,7 +365,7 @@ def test_siblings_reserve_but_never_starve_a_session_below_the_floor():
     assert r["caps"]["box_cap"] == 3 and r["seats"] == 3
     assert any("never below the floor of 3" in x for x in r["reasons"])
     assert dh.budget(6, False, BOX_OK, Q_OK, dict(sib, seats=13))["seats"] == 10
-    assert dh.SIBLING_FRESH_S == 15 * 60
+    assert dh.SIBLING_FRESH_S == 25 * 60
     # a box that is ITSELF below the floor keeps the reservation in full — three sessions must not
     # each claim a 2-seat box (round-3 finding)
     low = dict(BOX_OK, mem_available_gb=2.0)
@@ -411,3 +411,96 @@ def test_negative_counts_are_refused_and_the_angles_table_matches_the_mix(capsys
         dh.main(["--units", "4", "--risky", "-1"])
     assert set(dh.ANGLES.values()) <= set(dh.TIERS)
     assert set(dh.full_mix(3, risky=1)) == set(dh.ANGLES.values())
+
+
+def test_the_trimmed_story_is_graded_for_judgement_surfaces_and_risky_units(monkeypatch, capsys):
+    """Round-4 mutation finding: both halves of the F74 fix survived every test. A judgement surface
+    trimmed to the floor must not be told its mechanical classes "wait"; an Opus seat on a risky unit
+    counts as coverage."""
+    monkeypatch.setattr(dh, "box", lambda: BOX_OK)
+    monkeypatch.setattr(
+        dh, "siblings", lambda: {"ok": True, "seats": 0, "sessions": 0, "skipped": []}
+    )
+    monkeypatch.setattr(dh, "quota", lambda: dict(Q_OK, hottest_pct=90.0))  # the floor binds
+    assert dh.main(["--units", "5", "--risky", "2", "--mechanical", "0"]) == 0
+    out = capsys.readouterr().out
+    assert "TRIMMED from 7 wanted" in out and "mechanical classes wait" not in out
+    assert "no Haiku seat" not in out
+    monkeypatch.setattr(dh, "quota", lambda: Q_OK)
+    monkeypatch.setattr(dh, "CONCURRENCY_CAP", 2)
+    assert dh.main(["--units", "3", "--risky", "3"]) == 0
+    out = capsys.readouterr().out
+    # opus 1 + sonnet 1 both sit on the risky unit that kept its Sonnet seat: TWO of three unread
+    assert "2 unit(s) have NO breadth seat" in out
+
+
+def test_a_dispatch_stamp_without_ts_is_named_and_a_double_dash_count_is_refused(tmp_path):
+    now = 1_000_000.0
+    (tmp_path / "d.json").write_text(
+        json.dumps({"state": "running", "updated_ts": now, "rounds": [], "dispatch": {"seats": 5}})
+    )
+    s = dh.siblings(now=now, runs_dir=tmp_path)
+    assert s["seats"] == 0 and s["skipped"] == ["d.json"]
+    with pytest.raises(ValueError, match="not name=count"):
+        dh.parse_mix("opus=--5")
+
+
+def test_siblings_exclude_the_callers_own_record_and_take_the_fresher_source(tmp_path, monkeypatch):
+    """Round-4 findings: a session subtracted its OWN stamp on round N+1; a stale stamp silenced a
+    fresh round (0 where the pre-stamp code reserved 10); `dispatch --seats 0` disabled a record."""
+    now = 1_000_000.0
+    (tmp_path / "me.json").write_text(
+        json.dumps(
+            {
+                "state": "running",
+                "updated_ts": now,
+                "rounds": [{"seats": 13}],
+                "dispatch": {"ts": now - 60, "seats": 13},
+            }
+        )
+    )
+    (tmp_path / "stale-stamp.json").write_text(
+        json.dumps(
+            {
+                "state": "running",
+                "updated_ts": now - 60,
+                "rounds": [{"seats": 10}],
+                "dispatch": {"ts": now - 2000, "seats": 20},
+            }
+        )
+    )
+    (tmp_path / "zero-stamp.json").write_text(
+        json.dumps(
+            {
+                "state": "running",
+                "updated_ts": now - 60,
+                "rounds": [{"seats": 12}],
+                "dispatch": {"ts": now - 30, "seats": 0},
+            }
+        )
+    )
+    s = dh.siblings(now=now, runs_dir=tmp_path, exclude_sid="me")
+    assert s["seats"] == 22 and s["sessions"] == 2 and s["excluded_own"] is True
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "me")
+    monkeypatch.delenv("CLAUDE_SESSION_ID", raising=False)
+    assert dh.siblings(now=now, runs_dir=tmp_path)["seats"] == 22  # the default is this session
+    assert dh.siblings(now=now, runs_dir=tmp_path, exclude_sid="")["seats"] == 35
+
+
+def test_the_pad_and_the_coverage_gap_are_told_honestly(monkeypatch, capsys):
+    """Round-4 findings: two Sonnet seats on one unit were described as "one per unit"; an Opus seat
+    on a risky unit that keeps its Sonnet seat was counted as covering a second unit."""
+    monkeypatch.setattr(dh, "box", lambda: BOX_OK)
+    monkeypatch.setattr(
+        dh, "siblings", lambda: {"ok": True, "seats": 0, "sessions": 0, "skipped": []}
+    )
+    monkeypatch.setattr(dh, "quota", lambda: Q_OK)
+    assert dh.main(["--units", "1", "--mechanical", "0"]) == 0
+    out = capsys.readouterr().out
+    assert "SECOND breadth reader" in out and "duplicate brief" in out
+    monkeypatch.setattr(dh, "CONCURRENCY_CAP", 2)
+    assert dh.main(["--units", "2", "--risky", "2"]) == 0
+    out = capsys.readouterr().out
+    assert "1 unit(s) have NO breadth seat" in out
+    with pytest.raises(SystemExit):
+        dh.main(["--units", "-3"])

@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — D-191 round 4: the closing sweep's residue (2026-09-08)
+
+- Ten fresh seats over 23189ea4..f794b7cd: the module docstring still stated the D-189 formula; the F74 story
+  fix was unguarded on both halves; a `dispatch` stamp without `ts` vanished silently; `opus=--5` reached
+  `int()`; one malformed `seats_seen` took the whole feedback report down; one pathologically nested line in
+  one seat transcript nulled the orchestrator's own totals (now: that seat is skipped, a 256 MiB cap, the
+  parent's anon-id policy); the mtime prefilter had no test; `_JUDGEMENT_KINDS` was half-graded; the
+  fragment pointed at "the floor below" in six commands that have none — `fabrik-spec` and
+  `fabrik-plan-after-chat` now carry the grounding floor (`--mechanical 0`); `test-generation-loop`,
+  `fabrik-generate-tests` and `fabrik-plan-after-chat`'s D7 cross-reference still sized per D-186;
+  `_FANOUT_RE`'s bare "seats per" alternative could fail a commit on prose; `design-review` names its seat
+  roles; the +31 % per-round wall-clock was bootstrapped on the retired instrument — re-measured on the
+  per-seat transcripts it is +28 % (n=95). Board banner and markdown structure swept clean.
+
 ### Fixed — D-191 round 3: the price was inverted, the ledger reads the seats' own transcripts, the reservation is stamped at dispatch (D-193, 2026-09-08)
 
 - Ten author-blind seats (1 Opus + 6 Sonnet + 3 Haiku — the script's own budget for a 6-unit surface with 3
@@ -55,7 +69,8 @@ All notable changes to this project will be documented in this file.
   the twelve point-of-use sentences still reading "the unit count IS the seat count (D-186)" now say the
   partition is the unit count and the script prints the seats.
 - Recorded, not hidden: 3 → 7 seats costs +31 % wall-clock per round (n=255 seats), seats are ~0.1 % of a
-  run's tokens, ~30M tokens per quota point — D-191 is paid in per-round wall-clock, not affordability.
+  run's tokens, ~30M tokens per quota point — D-191 is paid in per-round wall-clock, not affordability
+  (superseded by D-193 — see the round-3 entry above: seats are ~3.3M each, ≈ 2× the orchestrator).
 
 ### Fixed — D-191 round 1: one statement of the sizing rule, an honest board banner, no phantom seats (2026-09-08)
 

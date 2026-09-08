@@ -199,7 +199,14 @@ def build(
                 "tok_rows": len(toks),
                 "seat_total": sum(seats),
                 "seat_rows": len(seats),
-                "seats_seen": sum(int(r.get("seats_seen") or 0) for r in rs),
+                "seats_seen": sum(
+                    int(v)
+                    for r in rs
+                    for v in (r.get("seats_seen"),)
+                    if isinstance(v, (int, float))
+                    and not isinstance(v, bool)
+                    and math.isfinite(float(v))
+                ),  # one malformed row must never take the whole report down (round-4 finding)
                 "median_tok": _median(toks) if toks else None,  # no rows ⇒ null, never "0"
                 "cache_hit": round(read / ctx, 3) if ctx else None,
                 # rows whose scan hit the byte cap inside the window: their sums are lower bounds

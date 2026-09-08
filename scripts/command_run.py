@@ -993,6 +993,10 @@ _TOKEN_KEYS = (
     ("tok_cache_create", "cache_creation_input_tokens"),
 )
 _SEAT_KEYS = tuple((f"tok_seat_{k[4:]}", src) for k, src in _TOKEN_KEYS)
+_SEAT_MAX_BYTES = (
+    256 << 20
+)  # the largest seat file measured is single-digit MB; a cap, not a budget
+_SEAT_PARTIAL_S = 30.0  # a seat whose last line is this close to the close was still running
 
 
 def _seat_transcripts(path: Path, lo: float) -> list[Path]:
@@ -1009,7 +1013,11 @@ def _seat_usage(q: Path, lo: float, hi: float) -> dict[str, int] | None:
     """One seat's in-window usage, per-message maximum like the parent; None when the file holds
     no in-window assistant message (or cannot be read) — a seat, never a real zero."""
     seen: dict[str, dict[str, int]] = {}
+    anon = 0
+    last = 0.0
     try:
+        if q.stat().st_size > _SEAT_MAX_BYTES:
+            return None  # a seat file this large is not a seat transcript; skipped, never summed
         for raw in q.read_bytes().splitlines():
             e = _line_epoch(raw)
             if e is None or e < lo or e > hi or not _ASSISTANT_RE.search(raw):
@@ -1024,7 +1032,11 @@ def _seat_usage(q: Path, lo: float, hi: float) -> dict[str, int] | None:
             u = msg.get("usage") if isinstance(msg, dict) else None
             if not isinstance(u, dict):
                 continue
-            mid = str(msg.get("id") or d.get("uuid") or "")
+            last = max(last, e)
+            mid = str(msg.get("id") or "")
+            if not mid:  # same policy as the parent: a line uuid is per LINE, it groups nothing
+                anon += 1
+                mid = f"\x00anon{anon}"
             m = seen.setdefault(mid, dict.fromkeys((k for k, _ in _SEAT_KEYS), 0))
             for k, src in _SEAT_KEYS:
                 v = u.get(src)
@@ -1035,7 +1047,9 @@ def _seat_usage(q: Path, lo: float, hi: float) -> dict[str, int] | None:
                     and int(v) > m[k]
                 ):
                     m[k] = int(v)
-    except OSError:
+    except Exception:  # noqa: BLE001 — one bad seat file must never null the whole row
+        # a RecursionError from a deeply nested line, a MemoryError, an OSError: this seat is
+        # skipped; the orchestrator's own totals and the other seats survive (round-4 finding)
         return None
     if not seen:
         return None
@@ -1043,6 +1057,7 @@ def _seat_usage(q: Path, lo: float, hi: float) -> dict[str, int] | None:
     for m in seen.values():
         for k in acc:
             acc[k] += m[k]
+    acc["_last"] = int(last)
     return acc
 
 
@@ -1130,6 +1145,7 @@ def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[s
         {
             "tok_msgs": 0,
             "seats_seen": 0,
+            "seats_partial": False,
             "models": [],
             "tok_partial": False,
         }
@@ -1211,11 +1227,14 @@ def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[s
         seat_rows = [u for u in (_seat_usage(q, lo, hi) for q in _seat_transcripts(path, lo)) if u]
         seat_totals: dict[str, Any] = dict.fromkeys((k for k, _ in _SEAT_KEYS), 0)
         for u in seat_rows:
-            for k in seat_totals:
+            for k, _ in _SEAT_KEYS:
                 seat_totals[k] += u[k]
         if not seat_rows:  # no seat in the window: null, never a real zero
             seat_totals = dict.fromkeys((k for k, _ in _SEAT_KEYS), None)
         seats_seen = len(seat_rows)
+        # a seat still writing at the close is summed mid-flight: say so, like tok_partial does
+        # for the byte cap (round-4 finding)
+        seat_totals["seats_partial"] = any(end - u["_last"] < _SEAT_PARTIAL_S for u in seat_rows)
         if msgs == 0:
             out0 = dict(empty)
             out0.update(seat_totals)
@@ -1264,6 +1283,7 @@ def _tokens_clause(tok: dict[str, Any]) -> str:
         seats = (
             f" · seats {tok.get('seats_seen', 0)}: {_fmt_tokens(s_in)} input / "
             f"{_fmt_tokens(int(tok['tok_seat_out']))} output"
+            + (" (a seat still running — partial)" if tok.get("seats_partial") else "")
         )
     return f"{own}{seats}"
 
@@ -1734,10 +1754,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         print(pinned_line(rec))
         return 0
 
-    if args.cmd == "dispatch":
-        if not rec:
-            print("no active run — start one before dispatching seats", file=sys.stderr)
-            return 1
+    if args.cmd == "dispatch":  # `rec` is live here: the generic no-record guard fired above
         if args.seats < 0:
             print(f"--seats {args.seats} is not a count", file=sys.stderr)
             return 2
@@ -1745,11 +1762,27 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # them while they run. `round --seats` (below) is the ledger figure written at the
         # round's CLOSE — after the seats returned — which is why it reserved nothing (review
         # 2026-09-08: three sessions simulated at 60 seats on a 22-seat box)
-        rec["dispatch"] = {"ts": time.time(), "seats": args.seats, "phase": rec.get("phase")}
-        fields = _queue(rec, outbox, "dispatch", {"seats": args.seats, "phase": rec.get("phase")})
+        # ACCUMULATE within the round: two Task messages in one round are two stamps, and the
+        # second overwrote the first — live, 5 stamped for 10 launched (round-4 finding). The
+        # round's close clears the stamp: its seats have returned.
+        prev = rec.get("dispatch") if isinstance(rec.get("dispatch"), dict) else {}
+        n_rounds = len(rec.get("rounds") or [])
+        carried = int(prev.get("seats") or 0) if prev.get("round") == n_rounds else 0
+        rec["dispatch"] = {
+            "ts": time.time(),
+            "seats": carried + args.seats,
+            "phase": rec.get("phase"),
+            "round": n_rounds,
+        }
+        fields = _queue(
+            rec, outbox, "dispatch", {"seats": rec["dispatch"]["seats"], "phase": rec.get("phase")}
+        )
         _touch(rec)
         fields["persisted"] = save(sid, rec)
-        print(f"DISPATCH recorded · {args.seats} seat(s) — reserved for sibling sessions from now")
+        print(
+            f"DISPATCH recorded · {rec['dispatch']['seats']} seat(s) this round — reserved for "
+            "sibling sessions from now"
+        )
         return 0
 
     if args.cmd == "round":
@@ -1784,6 +1817,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             }
         )
         rec["rounds"], rec["classes"] = rounds, classes
+        rec.pop("dispatch", None)  # the round's seats have returned; the reservation is released
         # ROUNDS SINCE THE LAST `step` — the signal job-agent identified. A counter that advances
         # while the phase never moves is either a convergence loop legitimately living inside one
         # phase (correct, and common) or a boundary the agent walked past without recording. Both
@@ -2241,8 +2275,20 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         _tok = _sum_transcript_usage(
             _transcript_path(sid, str(rec.get("repo_root") or "")), _se or 0.0, time.time()
         )
+        # the grader on the hand-typed reservation (round-4 finding): the close computes the TRUE
+        # seat count in the same process; a stamp that disagrees is said out loud and recorded
+        _declared = sum(int(r.get("seats") or 0) for r in rec.get("rounds") or [])
+        _seen = int(_tok.get("seats_seen") or 0)
+        if (_tok.get("tok_seat_in") is not None or _declared) and abs(_declared - _seen) > 1:
+            print(
+                f"[command_run] seats declared {_declared} (round --seats) vs seen {_seen} (seat "
+                "transcripts in the window) — the reservation siblings subtract is only as true as "
+                "the number you type",
+                file=sys.stderr,
+            )
         _row = {
             "ts": time.time(),
+            "seats_declared": _declared,
             "sid": sid,
             "repo": str(rec.get("repo_root") or ""),
             "command": rec.get("command"),

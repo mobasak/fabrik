@@ -512,6 +512,7 @@ def test_seat_tokens_are_rolled_up_beside_the_orchestrators_never_inside(tmp_pat
                 tok_cache_create=0,
             ),
             _row("fabrik-review", 300, 1, "c", tok_seat_in="x", seats_seen=1),
+            _row("fabrik-review", 400, 1, "d", seats_seen="bad"),  # never takes the report down
         ],
     )
     out = json.loads(_run(ledger, "--json").stdout)

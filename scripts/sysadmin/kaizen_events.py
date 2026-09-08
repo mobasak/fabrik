@@ -117,6 +117,7 @@ EVENT_TYPES = (
     "session_end",
     "run_open",
     "phase",
+    "dispatch",  # a fan-out stamped BEFORE its seats go out (command_run.py dispatch --seats, D-193)
     "round",
     "run_close",
     "gate_run",

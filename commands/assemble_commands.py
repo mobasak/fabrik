@@ -250,9 +250,9 @@ def _floor(kind: str, native: str) -> str:
 # upstream — the rule's only seat instruction there was the one D-191 overturned), 6 are serial by
 # design and match neither; 0 false positives.
 _FANOUT_RE = re.compile(
-    r"(seats? per |per (?:unit|screen|rival|claim|persona|lens|surface|dependency|fact|file|flow-bundle"
-    r"|epic|pack|doc)\b[^.]{0,80}(?:single|one|ONE) message|dispatch(?:ed|es)?[^.]{0,60}in (?:a )?"
-    r"(?:single|ONE|one) message)",
+    r"((?:seats? per |per (?:unit|screen|rival|claim|persona|lens|surface|dependency|fact|file"
+    r"|flow-bundle|epic|pack|doc)\b)[^.]{0,80}(?:single|one|ONE) message|dispatch(?:ed|es)?[^.]{0,60}"
+    r"in (?:a )?(?:single|ONE|one) message)",
     re.I,
 )
 _DISPATCH_STEP_RE = re.compile(r"THE DISPATCH STEP \(D-191|Dispatch step \(D-191\)")
@@ -672,7 +672,9 @@ PARAMS = {
             "HEADLINE": "pool-default for gradeable fan-out (records to the flywheel)",
             "TASK_TYPE": '"research"',
             "PROJECT": "plan-after-chat",
-            "FLOOR": "",
+            "FLOOR": _floor(
+                "grounding", "`fabrik-researcher`"
+            ),  # a grounder is a judgement (round 4)
             "EXTRA": " **Model tier:** the plan synthesis you own — decomposition, phase-sizing, `Interfaces` design, decide — is high-judgment → **Opus**; the native `fabrik-researcher` verify-sample is fetch-and-confirm → **Haiku** (Sonnet for a nuanced source); grounding breadth → the pool (`pick_models` self-tiers). Don't spend Opus on a citation re-fetch, and don't hand plan decomposition to a cheap model.",
         },
     },
@@ -681,7 +683,9 @@ PARAMS = {
             "HEADLINE": "`fanout` the grounding, `set_quality` the verdict",
             "TASK_TYPE": '"research"',
             "PROJECT": "spec-grounding",
-            "FLOOR": "",
+            "FLOOR": _floor(
+                "grounding", "`fabrik-researcher`"
+            ),  # a grounder is a judgement (round 4)
             "EXTRA": _SPEC_EXTRA,
         },
     },

@@ -2767,7 +2767,8 @@ def test_the_seat_rule_reads_the_real_corpus_correctly(tmp_path, monkeypatch):
     assert "ticket" in rule["fabrik-plan-review"][1]
     assert "dependency" in rule["fabrik-vision"][1]  # "per external dependency"
     assert rule["fabrik-review-scoped"][1] == ("!3 readers",)
-    assert rule["fabrik-spec"][1] == ("dependency",)
+    # the grounding floor (round 4) adds "per INDEPENDENT unit" beside the per-dependency sentence
+    assert rule["fabrik-spec"][1] == ("dependency", "unit")
     assert rule["fabrik-catchup"] == (False, ())
 
 
@@ -2859,6 +2860,13 @@ def test_the_box_budget_banner_shows_the_maximum_and_fails_soft(tmp_path, monkey
         th.join(timeout=5)
     qd._budget_cache["thread"].join(timeout=10)
     assert len(calls) == 1
+    # an account switch invalidates the banner cache (round 4): the next banner is a placeholder
+    # or a fresh probe, never the old account's headroom
+    qd._budget_cache.update(ts=time.time(), html="<p>OLD ACCOUNT</p>", thread=None)
+    with qd._budget_lock:
+        qd._budget_cache.update(ts=0.0, html="")  # the exact statement switch_account runs
+    assert "OLD ACCOUNT" not in qd._budget_banner()
+    qd._budget_cache["thread"].join(timeout=10)
     monkeypatch.setenv("QUOTA_DASH_BUDGET", "0")
     assert qd._budget_banner() == ""
 

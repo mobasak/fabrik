@@ -11,9 +11,11 @@ cannot hold five constraints in an agent's head at dispatch time; this prints th
     python3 scripts/sysadmin/dispatch_headroom.py --units 6 --heavy    # seats that run pytest/builds
     python3 scripts/sysadmin/dispatch_headroom.py --units 6 --json
 
-seats = min(units raised to the floor, CONCURRENCY_CAP, box_cap, quota_cap). The floor (3, D-188)
-raises the UNIT count; it never raises past a HARD cap — a box with room for two heavy seats gets
-two, with the reason, never three. A native seat runs INSIDE its parent claude process, so its
+seats = min(units × angles + the Opus seat(s), CONCURRENCY_CAP, box_cap, quota_cap) — D-191: every
+unit wants one Sonnet breadth seat and one Haiku mechanical seat (`--mechanical <M>`, 0 on a judgement
+surface), plus one Opus seat per risky unit and at least one; `full_mix` pads to the floor (3, D-188)
+with real seats and `trim` cuts for coverage when a cap binds. The floor never raises past a HARD
+cap — a box with room for two heavy seats gets two, with the reason, never three. A native seat runs INSIDE its parent claude process, so its
 memory is its TOOL subprocesses — and a "read-only" finder still runs pytest through Bash (measured
 2026-09-08 at 1.19 GB max RSS), so the box bound applies to every seat: 2 GB planned per `--heavy`
 seat, 1 GB per read-only seat. Seats already dispatched by OTHER live sessions on this box are
@@ -31,6 +33,7 @@ import argparse
 import json
 import math
 import os
+import re
 import subprocess
 import sys
 import time
@@ -72,12 +75,13 @@ RUNS_DIR = Path.home() / ".claude" / "state" / "command-runs"
 # a sibling's run record counts as LIVE for this purpose when it is `running` and was touched
 # within this window — an abandoned record (the Stop hook's stale bound is 12 h) must not hold
 # the box hostage
-# A sibling's seats are RESERVED from their DISPATCH stamp for the life of a typical seat:
-# measured 2026-09-08 on 84 completed seats since 09-07, median 439 s, p90 765 s (the earlier
-# "201 s" was the last-turn duration of the old synchronous shape). The box probe sees a running
+# A sibling's seats are RESERVED from their DISPATCH stamp for the life of a seat: measured
+# 2026-09-08 on 245 seat transcripts since 09-07 (first to last line — a lower bound on the true
+# span), median 550 s, p90 1085 s, p95 1354 s; a 15-minute window left 16 % of seats, the longest
+# ones, unreserved (round-4 finding). 25 minutes covers the p95 with the launch/return margin. The box probe sees a running
 # seat's tools too, so late in a seat's life this double-counts — accepted, because the floor
 # clause below means a reservation can never starve a session the box has room for.
-SIBLING_FRESH_S = 15 * 60
+SIBLING_FRESH_S = 25 * 60
 
 # Price multipliers, operator ruling 2026-09-08 (D-190): haiku 1x · sonnet 2x · opus 5x · fable 10x.
 # "Affordable" is a NUMBER: cost = sum(seats x multiplier) in haiku-units. Breadth on Sonnet costs 2
@@ -158,15 +162,31 @@ def quota() -> dict:
         return {"ok": False, "why": f"quota probe failed: {exc}"}
 
 
-def siblings(now: float | None = None, runs_dir: Path = RUNS_DIR) -> dict:
-    """Seats OTHER live sessions on this box have dispatched — the sum of the last round's `seats`
-    over run records that are `running` and fresh. Three sessions reading the same free memory in
-    the same minute would otherwise each take all of it (TOCTOU on the box). Fail-soft: an
-    unreadable record counts 0 and is named."""
+def own_session_id() -> str:
+    """The record `command_run.py` keys on for THIS session — the same env it reads (a Bash shell
+    carries CLAUDE_CODE_SESSION_ID; CLAUDE_SESSION_ID is empty there)."""
+    return (
+        os.environ.get("CLAUDE_SESSION_ID") or os.environ.get("CLAUDE_CODE_SESSION_ID") or ""
+    ).strip()
+
+
+def siblings(
+    now: float | None = None, runs_dir: Path = RUNS_DIR, exclude_sid: str | None = None
+) -> dict:
+    """Seats OTHER live sessions on this box have dispatched — the fresher of each running
+    record's DISPATCH stamp and its last round's `seats` (the larger wins when both are fresh).
+    The caller's OWN record is excluded (`exclude_sid`, default this session): a session that
+    subtracted its own stamp sized round N+1 against a box it had emptied itself (round-4
+    finding). Three sessions reading the same free memory in the same minute would otherwise each
+    take all of it (TOCTOU on the box). Fail-soft: an unreadable record counts 0 and is named."""
     now = time.time() if now is None else now
-    out: dict = {"ok": True, "seats": 0, "sessions": 0, "skipped": []}
+    own = own_session_id() if exclude_sid is None else exclude_sid
+    out: dict = {"ok": True, "seats": 0, "sessions": 0, "skipped": [], "excluded_own": False}
     try:
         for p in runs_dir.glob("*.json"):
+            if own and p.stem == own:
+                out["excluded_own"] = True
+                continue
             try:
                 rec = json.loads(p.read_text())
                 if rec.get("state") != "running":
@@ -175,18 +195,27 @@ def siblings(now: float | None = None, runs_dir: Path = RUNS_DIR) -> dict:
                 # are sent) is the reservation; a record without one falls back to its last
                 # round's seats at its last touch — which is written AFTER the seats returned, so
                 # it reserves nothing while they run (round-3 finding: the guard was inert)
+                cands: list[tuple[float, int]] = []
                 disp = rec.get("dispatch")
                 if isinstance(disp, dict) and disp.get("seats") is not None:
-                    ts = float(disp.get("ts") or 0)
-                    seats = int(disp.get("seats") or 0)
-                else:
-                    ts = float(rec.get("updated_ts") or 0)
-                    rounds = rec.get("rounds") or []
-                    if not isinstance(rounds, list):
-                        raise TypeError("rounds is not a list")
-                    seats = int((rounds[-1] if rounds else {}).get("seats") or 0)
-                if not math.isfinite(ts) or now - ts > SIBLING_FRESH_S:
-                    continue  # a NaN stamp read as forever-fresh (round-3 finding)
+                    if disp.get("ts") is None:
+                        raise ValueError("dispatch stamp without ts")  # named, never silently 0
+                    cands.append((float(disp["ts"]), int(disp.get("seats") or 0)))
+                rounds = rec.get("rounds") or []
+                if not isinstance(rounds, list):
+                    raise TypeError("rounds is not a list")
+                cands.append(
+                    (
+                        float(rec.get("updated_ts") or 0),
+                        int((rounds[-1] if rounds else {}).get("seats") or 0),
+                    )
+                )
+                # a stale stamp must not silence a fresh round (round-4 finding); a NaN stamp read
+                # as forever-fresh (round-3 finding)
+                fresh = [s for ts, s in cands if math.isfinite(ts) and now - ts <= SIBLING_FRESH_S]
+                if not fresh:
+                    continue
+                seats = max(fresh)
             except Exception:  # noqa: BLE001 — classify-and-name only; a probe fails SOFT
                 # a malformed record (non-numeric seats/ts, Infinity, a round that is not a dict)
                 # counts 0 and is named — two narrower tuples each let one shape crash the CLI
@@ -261,7 +290,7 @@ def parse_mix(text: str) -> dict[str, int]:
     for part in filter(None, (x.strip() for x in text.split(","))):
         k, eq, v = part.partition("=")
         k = k.strip().lower()
-        if not eq or not k or not v.strip().lstrip("-").isdigit():
+        if not eq or not k or not re.fullmatch(r"-?\d+", v.strip()):
             raise ValueError(f"--mix part {part!r} is not name=count (e.g. opus=1,sonnet=5)")
         mix[k] = int(v)
     return mix
@@ -399,6 +428,13 @@ def _mix_story(a: argparse.Namespace, mix: dict[str, int], full: dict[str, int])
         return tail
     haiku = mix.get("haiku", 0)
     if mix == full:
+        pad = mix.get("sonnet", 0) - a.units
+        padded = (
+            f"; the extra {pad} Sonnet seat(s) are SECOND breadth readers on the same unit — a "
+            "deliberate duplicate brief padding to the floor of 3 (D-188), not a distinct unit"
+            if pad > 0
+            else ""
+        )
         if not haiku:
             mech = (
                 "; no mechanical seat (--mechanical 0: a judgement surface has no grep-able angle)"
@@ -409,12 +445,15 @@ def _mix_story(a: argparse.Namespace, mix: dict[str, int], full: dict[str, int])
             mech = f", {haiku} Haiku mechanical seat(s) — one per grep-able class, each swept across every unit"
         return (
             f" — the MAXIMUM useful mix for {a.units} unit(s): one Sonnet breadth seat per unit, "
-            f"the Opus authoritative seat(s) (--risky N: one per risky unit){mech}; dispatch ALL of "
-            "it in ONE message, each seat a distinct unit x angle brief" + tail
+            f"the Opus authoritative seat(s) (--risky N: one per risky unit){mech}{padded}; dispatch "
+            "ALL of it in ONE message, each seat a distinct unit x angle brief" + tail
         )
     # an Opus seat on a risky unit reads that unit too; a judgement surface never HAD mechanical
     # classes, so nothing "waits" (round-3 finding: the story told --mechanical 0 to sweep them)
-    covered = mix.get("sonnet", 0) + (mix.get("opus", 0) if a.risky else 0)
+    # an Opus seat sits on a RISKY unit that keeps its Sonnet seat — counting it again certified
+    # an unswept unit as covered (round-4 finding); only Opus seats beyond the Sonnet count add
+    sonnet = mix.get("sonnet", 0)
+    covered = sonnet + (max(mix.get("opus", 0) - min(a.risky, sonnet), 0) if a.risky else 0)
     uncovered = max(a.units - covered, 0)
     if haiku:
         left = (
@@ -445,7 +484,7 @@ def main(argv: list[str] | None = None) -> int:
             raise argparse.ArgumentTypeError(f"{n} is not a count")
         return n
 
-    ap.add_argument("--units", type=int, required=True, help="independent units in the surface")
+    ap.add_argument("--units", type=_count, required=True, help="independent units in the surface")
     ap.add_argument("--heavy", action="store_true", help="each seat runs tests/builds/renders")
     ap.add_argument("--json", action="store_true")
     ap.add_argument(

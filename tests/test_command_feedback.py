@@ -1599,6 +1599,21 @@ def test_the_row_sums_the_seats_own_transcripts_never_the_parents_result_line(
     got = _sum_transcript_usage(tr, start, now)
     assert got["tok_in"] is None and got["seats_seen"] == 2
     assert _tokens_clause(got).startswith("tokens — · seats 2:")
+    # one bad seat file (a pathologically nested line) must never null the whole row — the
+    # orchestrator's totals and the other seats survive (round-4 finding); and the mtime prefilter
+    # is real: a seat file last written before the window opened is never opened
+    import os
+
+    bad = sub / "agent-bad.jsonl"
+    bad.write_text("[" * 200_000 + "]" * 200_000 + "\n", encoding="utf-8")
+    tr.write_text(_usage_line(start + 10, "m1", tout=100) + "\n", encoding="utf-8")
+    got = _sum_transcript_usage(tr, start, now)
+    assert got["tok_out"] == 100 and got["seats_seen"] == 2 and got["tok_seat_out"] == 10500
+    bad.unlink()
+    stale = _seat_file(sub, "stale", [(start + 50, "s7", 1, 1)])
+    os.utime(stale, (start - 100, start - 100))
+    got = _sum_transcript_usage(tr, start, now)
+    assert got["seats_seen"] == 2  # in-window lines, but the file predates the window: not opened
     # no seat directory: null, and the clause carries no seat fragment
     tr2 = tmp_path / "other.jsonl"
     tr2.write_text(_usage_line(start + 10, "m1", tout=100) + "\n", encoding="utf-8")

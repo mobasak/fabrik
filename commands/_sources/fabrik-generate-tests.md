@@ -59,7 +59,7 @@ The `###` sections below are the per-step DETAIL for exactly those five steps, a
 copy**, or the reviewer's view of this pipeline silently stops matching the pipeline.
 
 ### 1. Suggest (native — one seat per module/area of the target; diversity of briefs is the whole point)
-Dispatch **one native seat (Sonnet) per module/area of the target, each with a differently-angled brief** — 3+ on anything larger than a single file, never a token 2 (D-186) — to each propose the distinct user-observable behaviors of the target, then
+Dispatch **one native seat (Sonnet) per module/area of the target, each with a differently-angled brief** — the module count is the PARTITION and `dispatch_headroom.py --units <N>` prints the seats (D-191), never a token 2 (D-186) — to each propose the distinct user-observable behaviors of the target, then
 **union** them (a single suggester is the blind spot — different families catch what one misses):
 
 <!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:

@@ -2562,6 +2562,8 @@ def switch_account(slug: object) -> tuple[int, dict]:
     if proc.returncode != 0:
         err = (proc.stderr.strip() or proc.stdout.strip() or f"exit {proc.returncode}")[:400]
         return 502, {"ok": False, "error": err}
+    with _budget_lock:  # the banner's own 60 s cache would show the OLD account's headroom
+        _budget_cache.update(ts=0.0, html="")
     generate()  # fresh render NOW — bypasses the floor on purpose, one probe per click
     return 200, {"ok": True, "output": proc.stdout.strip()[:400]}
 
@@ -2752,6 +2754,10 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument("--ensure", action="store_true", help="start the server if it is not running")
     args = ap.parse_args(argv)
     if args.once:
+        # a one-shot render is not a request thread: compute the banner synchronously, or the
+        # daemon thread dies with the interpreter and the page says "computing" forever (round 4)
+        if os.getenv("QUOTA_DASH_BUDGET", "1") != "0":
+            _budget_probe()
         generate()
         sys.stdout.write(f"{_HTML}\n")
         return 0

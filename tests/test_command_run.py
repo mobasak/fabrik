@@ -3529,9 +3529,23 @@ def test_dispatch_stamps_the_reservation_before_the_seats_go_out(run_dir: Path) 
     assert rec["dispatch"]["seats"] == 7 and before - 1 <= rec["dispatch"]["ts"] <= time.time() + 1
     assert rec["dispatch"]["phase"] == rec.get("phase")
     assert _cr(run_dir, "dispatch", "--seats", "-1").returncode == 2
-    # the round's close still records the ledger figure; the stamp stays as the reservation source
-    _cr(run_dir, "round", "--findings", "0", "--seats", "7", "--classes-swept", "a")
+    # a second message in the same round ACCUMULATES (live: 5 stamped for 10 launched — round 4)
+    p = _cr(run_dir, "dispatch", "--seats", "3")
+    assert "10 seat(s) this round" in p.stdout
     rec = json.loads(
         next(f for f in run_dir.glob("*.json") if "feedback" not in f.name).read_text()
     )
-    assert rec["rounds"][-1]["seats"] == 7 and rec["dispatch"]["seats"] == 7
+    assert rec["dispatch"]["seats"] == 10 and rec["dispatch"]["round"] == 0
+    # the round's close records the ledger figure and RELEASES the reservation
+    _cr(run_dir, "round", "--findings", "0", "--seats", "10", "--classes-swept", "a")
+    rec = json.loads(
+        next(f for f in run_dir.glob("*.json") if "feedback" not in f.name).read_text()
+    )
+    assert rec["rounds"][-1]["seats"] == 10 and "dispatch" not in rec
+    _cr(run_dir, "dispatch", "--seats", "4")
+    rec = json.loads(
+        next(f for f in run_dir.glob("*.json") if "feedback" not in f.name).read_text()
+    )
+    assert (
+        rec["dispatch"]["seats"] == 4 and rec["dispatch"]["round"] == 1
+    )  # a fresh round, no carry

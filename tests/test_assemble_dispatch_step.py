@@ -29,6 +29,8 @@ def test_a_command_that_fans_out_without_the_dispatch_step_is_a_gap():
         "fans-out-bare": "dispatch **one `fabrik-reviewer` seat per claim, all in a single message**.",
         "fans-out-verb": "Finders are dispatched together in ONE message so they run in parallel.",
         "serial-by-design": "Walk the checklist yourself; no subagent is dispatched here.",
+        # "seats per" in prose about cost is not a fan-out (round-4: the branch was untethered)
+        "prose-only": "Fewer seats per round drops recall; the seat per group ratio is a budget matter.",
         "step-no-fanout": "THE DISPATCH STEP (D-191, binding on every fan-out): …",
         # the named-unit branch alone: no "seat", no "dispatch" — one reader per file
         "fans-out-named": "Run one `fabrik-reviewer` per file, all in ONE message; merge the union.",
@@ -62,5 +64,8 @@ def test_judgement_floors_name_no_haiku_seat_and_review_floors_name_a_class_wide
     review = ac._floor("review", "`fabrik-reviewer`")
     assert "no mechanical seat" in grounding and "--mechanical 0" in grounding
     assert "haiku" not in grounding.lower()
+    # both judgement kinds — dropping "adjudication" from the set reopened F27 unnoticed (round 4)
+    adjudication = ac._floor("adjudication", "`fabrik-reviewer`")
+    assert "an adjudication unit" in adjudication and "haiku" not in adjudication.lower()
     assert "one Haiku mechanical seat per INDEPENDENT unit" in review
     assert "sweeps ONE grep-able class across every unit" in review

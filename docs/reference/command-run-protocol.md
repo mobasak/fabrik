@@ -51,7 +51,7 @@ The Stop hook keys on `state == "running"` **alone**, so neither field can chang
 |---|---|
 | `start --command <name> --phases <N> [--terminal "<cond>"]` | begin a run at phase 1 (a running record is pushed onto `stack`) |
 | `step --phase <N> [--title "<t>"]` | advance |
-| `dispatch --seats <n>` | stamp a fan-out BEFORE its seats go out — `rec["dispatch"] = {ts, seats, phase}`; `dispatch_headroom.py` subtracts it for 15 minutes on every sibling session (a `round --seats` at the round's close reserves nothing while the seats run — D-193) |
+| `dispatch --seats <n>` | stamp a fan-out BEFORE its seats go out — `rec["dispatch"] = {ts, seats, phase}`; `dispatch_headroom.py` ACCUMULATED across the messages of one round and released by that round's `round`; `dispatch_headroom.py` subtracts it for 25 minutes on every OTHER session (a `round --seats` at the round's close reserves nothing while the seats run — D-193) |
 | `round [--findings <N>] [--classes-swept a,b] [--classes-new c,d]` | record one convergence pass; merge the class ledger |
 | `done --command <name> --evidence "<proof>"` | terminal — the contract IS met |
 | `blocked --command <name> --reason "<sanctioned case>"` | terminal — a real halt |
@@ -270,7 +270,12 @@ cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — 
   into `tok_seat_in/out/cache_read/cache_create` and counts them as `seats_seen`; null when no seat
   file holds an in-window message. Measured 2026-09-08: one review's 21 seats billed 69.5M input
   against the orchestrator's 35.7M. The FEEDBACK line prints them as `· seats N: X input / Y output`;
-  a window with seats but no orchestrator message prints `tokens — · seats …`, never nothing.
+  a window with seats but no orchestrator message prints `tokens — · seats …`, never nothing; a seat still
+  writing within 30 s of the close is summed mid-flight and the row says `seats_partial: true`. A NESTED run's
+  window lies inside its parent's, so the same seats appear on both rows — the report's seat column is
+  non-additive across nested closes, like `tok_*`. The close also records `seats_declared` (the sum of
+  `round --seats`) and prints a warning when it differs from `seats_seen` by more than one — the reservation
+  siblings subtract is only as true as the number typed.
   The file is read
   backwards from the tail — the WHOLE file, a 2 GiB cap as a backstop — every line pre-filtered by
   a regex for its timestamp and type so only in-window assistant lines are parsed; a 750 MB hub
