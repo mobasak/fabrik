@@ -2628,7 +2628,8 @@ def test_native_subagents_column_follows_the_commands_own_steps(tmp_path, monkey
         ]
     )
     assert "Native subagents" in html
-    assert "2 · fabrik-reviewer <em>(opus, sonnet)</em>, general-purpose" in html
+    # the cell leads with the dispatch RULE (none in this fixture row), then the types
+    assert "no per-unit rule</strong> · fabrik-reviewer <em>(opus, sonnet)</em>, general-purpose" in html
     html = qd._commands_table(
         [
             {
@@ -2678,6 +2679,40 @@ def test_general_purpose_is_a_seat_only_in_code_span_form(tmp_path, monkeypatch)
         _rendered(tmp_path, name, "Dispatch one `general-purpose` seat per doc.\n"),
     )
     assert qd._command_natives(name) == [("general-purpose", ())]
+
+
+def test_the_seat_column_reports_the_dispatch_rule_not_the_type_count(tmp_path, monkeypatch):
+    """Operator, 2026-09-08: "i want to see subagents counts correctly". The column led with the
+    number of seat TYPES, so /fabrik-review read as "1 subagent" when its own steps dispatch an Opus
+    floor plus one Sonnet seat per failure-class group. Under D-186 the seat count IS the unit count,
+    so the cell leads with the command's own rule: the floor it carries, and the unit it fans over."""
+    qd = _load(tmp_path, monkeypatch)
+    name = "fabrik-review"
+    body = (
+        "# x\n\n**⚠️ Floor — every review dispatches ≥1 native `fabrik-reviewer` on Opus** as the "
+        "authoritative pass.\n\nAdd one `fabrik-reviewer` seat on Sonnet per INDEPENDENT unit of the "
+        "surface.\n"
+    )
+    monkeypatch.setattr(qd, "RENDERED_COMMANDS", _rendered(tmp_path, name, body))
+    assert qd._command_seat_rule(name) == (True, ("unit",))
+    cell = qd._natives_cell(qd._command_natives(name), qd._command_seat_rule(name))
+    assert "≥1 opus + 1 per unit" in cell and "fabrik-reviewer" in cell
+
+    # the shared fragment's own sizing paragraph is boilerplate — it must NOT become every
+    # command's rule, or all 20 that include it report the same one
+    frag = (
+        "Size the native fan-out to the SURFACE, never to a fixed small number: partition it into "
+        "INDEPENDENT units and dispatch ONE seat PER UNIT.\n\nDispatch a `fabrik-reviewer`.\n"
+    )
+    monkeypatch.setattr(qd, "RENDERED_COMMANDS", _rendered(tmp_path, name, frag))
+    assert qd._command_seat_rule(name) == (False, ())
+    assert "no per-unit rule" in qd._natives_cell(qd._command_natives(name), qd._command_seat_rule(name))
+
+    # a command that states a FIXED floor instead of a per-unit rule reports the number, not "none"
+    fixed = "# x\n\nThe floor is 2–3 readers: native `fabrik-reviewer` seats over the diff.\n"
+    monkeypatch.setattr(qd, "RENDERED_COMMANDS", _rendered(tmp_path, name, fixed))
+    assert qd._command_seat_rule(name) == (False, ("!2–3 readers",))
+    assert "2–3 readers" in qd._natives_cell(qd._command_natives(name), qd._command_seat_rule(name))
 
 
 def test_model_tiers_column_catches_a_tier_no_seat_mention_is_near(tmp_path, monkeypatch):

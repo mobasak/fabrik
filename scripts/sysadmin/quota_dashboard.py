@@ -1487,6 +1487,7 @@ def _load_commands() -> list[dict[str, str]]:
                 "next": nxt.get(f.stem, "").strip(),
                 "services": services,
                 "natives": _command_natives(f.stem),
+                "rule": _command_seat_rule(f.stem),
                 "tiers": _command_tiers(f.stem),
                 "rendered": is_rendered,
                 **parsed,
@@ -1682,6 +1683,57 @@ def _command_tiers(name: str) -> tuple[str, ...]:
     return tuple(sorted(found, key=_MODEL_TIERS.index))
 
 
+# How many seats a command dispatches is NOT the number of types it names — under D-186 it is one
+# seat per INDEPENDENT unit of the surface, and every fanning-out command names its own unit ("per
+# screen", "per persona", "per claim", "per rival"). Showing the type count where the reader expects
+# a seat count made /fabrik-review read as "1 subagent" when its own steps dispatch an Opus floor
+# plus one Sonnet seat per failure-class group (operator, 2026-09-08: "i want to see subagents counts
+# correctly"). These two regexes read the RULE out of the command's own steps.
+_FRAG_SIZING = re.compile(r"Size the native fan-out to the SURFACE.*?(?:\n\n|\Z)", re.S)
+_FLOOR_RE = re.compile(r"Floor — every \w+ dispatches ≥1 native")
+# case-insensitive: the corpus writes the same unit as "per screen", "PER RIVAL", "Per axis"
+_UNIT_RE = re.compile(
+    r"per (independent unit|unit|lens|screen/route|screen|persona|claim|rival|axis|surface"
+    r"|doc/subsystem|pack|behaviou?r|journey-bundle|journey|epic file|epic|module/area|entity"
+    r"|flow-bundle|stale doc|checklist class|dependency)(?![\w-])",
+    re.I,
+)
+_UNIT_LABEL = {
+    "independent unit": "unit",
+    "screen/route": "screen",
+    "doc/subsystem": "doc",
+    "behaviour": "behavior",  # both spellings live in the corpus; one unit, not two
+    "epic file": "epic",
+    "journey-bundle": "journey",
+    "flow-bundle": "flow",
+}
+
+
+# a command may state a FIXED floor instead of a per-unit rule — /fabrik-review-scoped's "the floor
+# is 2–3 readers" is the deliberate light-command exception, and reporting it as "no rule" hides a
+# real number the reader asked for.
+_FIXED_RE = re.compile(r"floor is (\d\s*[–-]\s*\d|\d) (readers?|seats?|native seats?)", re.I)
+
+
+def _command_seat_rule(name: str) -> tuple[bool, tuple[str, ...]]:
+    """(does it carry the Opus authoritative floor, the UNITS its own steps fan out over).
+
+    The shared fragment's sizing paragraph is blanked first: it is in every command that includes
+    the fragment, so counting it would report the same rule for all of them."""
+    own = _FRAG_SIZING.sub("", _command_stripped_text(name))
+    units: list[str] = []
+    for m in _UNIT_RE.finditer(own):
+        u = m.group(1).lower()
+        u = _UNIT_LABEL.get(u, u)
+        if u not in units:
+            units.append(u)
+    if not units:
+        m = _FIXED_RE.search(own)
+        if m:
+            units.append(f"!{m.group(1).replace(' ', '')} {m.group(2)}")
+    return bool(_FLOOR_RE.search(own)), tuple(units)
+
+
 def _command_natives(name: str) -> list[tuple[str, tuple[str, ...]]]:
     """The native subagent types the command's LIVE text names, each with the model tiers named
     beside it, in display order (operator ask 2026-09-08: per command, how many native subagents,
@@ -1744,14 +1796,26 @@ def _stage_tone(stage: str) -> str:
     return "cap"
 
 
-def _natives_cell(natives: list[tuple[str, tuple[str, ...]]]) -> str:
+def _natives_cell(
+    natives: list[tuple[str, tuple[str, ...]]], rule: tuple[bool, tuple[str, ...]] = (False, ())
+) -> str:
     if not natives:
         return '<span class="muted">—</span>'
     parts = []
     for n, models in natives:
         tiers = f" <em>({', '.join(models)})</em>" if models else ""
         parts.append(f"{escape(n)}{tiers}")
-    return f"{len(natives)} · " + ", ".join(parts)
+    floor, units = rule
+    count = []
+    if floor:
+        count.append("≥1 opus")
+    if units and units[0].startswith("!"):
+        count.append(escape(units[0][1:]))  # a FIXED floor, not a per-unit rule
+    elif units:
+        shown = ", ".join(escape(u) for u in units[:3]) + ("…" if len(units) > 3 else "")
+        count.append(f"1 per {shown}")
+    head = " + ".join(count) if count else "no per-unit rule"
+    return f"<strong>{head}</strong> · " + ", ".join(parts)
 
 
 def _tiers_cell(tiers: tuple[str, ...]) -> str:
@@ -1772,7 +1836,7 @@ def _commands_table(rows: list[dict[str, str]]) -> str:
             f'<td class="when">{escape(r["when"]) or '<span class="muted">—</span>'}</td>'
             f'<td class="when">{escape(r["skip"]) or '<span class="muted">—</span>'}</td>'
             f'<td class="when">{escape(r["next"]) or '<span class="muted">—</span>'}</td>'
-            f'<td class="when">{_natives_cell(r.get("natives") or [])}</td>'
+            f'<td class="when">{_natives_cell(r.get("natives") or [], r.get("rule") or (False, ()))}</td>'
             f'<td class="when">{_tiers_cell(r.get("tiers") or ())}</td></tr>'
         )
     return (
@@ -1780,7 +1844,11 @@ def _commands_table(rows: list[dict[str, str]]) -> str:
         "<th>When to use</th><th>Skip when</th><th>Next</th>"
         "<th title=\"Native Claude Task subagent types the command's LIVE text names (the pool is OFF by "
         "ruling, D-181/D-182 — every fan-out is native) and the model tier named beside each; "
-        'count · name (tiers)">Native subagents</th>'
+        "SEATS PER ROUND first — the command's own dispatch rule, which is what a reader wants when "
+        "they ask how many subagents it calls: an Opus authoritative floor where it has one, plus ONE "
+        "seat per INDEPENDENT unit of the surface (D-186), so the seat count is the UNIT count, never "
+        "a fixed number. Then the seat TYPES it names, each with the model tier written beside "
+        'it">Native subagents</th>'
         '<th title="Every model tier the command&#39;s OWN steps name — including one no '
         "seat mention is near, like a tiering paragraph&#39;s &quot;Haiku only for "
         'trivial-mechanical checks&quot;">Model tiers</th></tr></thead>'

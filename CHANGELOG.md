@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the commands board reports the dispatch RULE, not the seat-type count (2026-09-08)
+
+- Operator: *"i want to see subagents counts correctly."* The **Native subagents** column led with the number
+  of seat TYPES, so `/fabrik-review` read as "1 subagent" when its own steps dispatch an Opus floor plus one
+  Sonnet seat per failure-class group. Under D-186 the seat count IS the unit count, so the cell now leads
+  with the command's own rule — `≥1 opus + 1 per unit`, `1 per screen`, `1 per persona`, `1 per claim`,
+  `1 per rival` — read out of its own steps with the shared fragment's sizing paragraph blanked first (else
+  all 20 commands that include it would report the same rule). A command stating a FIXED floor shows the
+  number instead (`/fabrik-review-scoped`: `2–3 readers`); one with neither shows `no per-unit rule`.
+- `/fabrik-spec` said "one native seat each" where every other command names its unit — now `per dependency`,
+  so the board can read it. Unit labels are normalised (behaviour→behavior, epic file→epic, journey-bundle→
+  journey), and the match is case-insensitive because the corpus writes "per screen" and "PER RIVAL" alike.
+
 ### Changed — fan-out is sized by the surface's independent units, never by a fixed 1–2 seats (D-186, 2026-09-08)
 
 - Operator ruling: *"i want each command dispatch maximum count of viable and useful subagents not 1 or 2."*

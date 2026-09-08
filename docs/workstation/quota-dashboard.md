@@ -165,8 +165,14 @@ each. The pool probe reads BACKTICKED PROSE as well as code (`` `fanout` one gro
 is a dispatch instruction as surely as `fanout(`): eight such sentences survived the D-181 corpus
 pass unseen by the paren-only pattern, and were retired 2026-09-08. The flywheel probe is the
 call form only (`record_agent_run(` / `set_quality(`) — the banner NAMES both symbols in the
-instructions it suspends. The first table gained a **Native subagents** column — per command, how
-many native Claude Task subagent types its own steps name, which
+instructions it suspends. The first table's **Native subagents** column leads with the command's own **dispatch RULE** — the
+Opus authoritative floor where it carries one, plus the UNIT it fans over (`1 per screen`, `1 per
+persona`, `1 per claim`, `1 per rival`), because under D-186 the seat count IS the unit count and a
+leading type count read as "1 subagent" for commands that dispatch five. A command stating a FIXED
+floor instead shows the number (`/fabrik-review-scoped`: `2–3 readers`); one with neither shows `no
+per-unit rule`. The shared fragment's own sizing paragraph is blanked before the rule is read, or all
+20 commands that include it would report the same one. After the rule come the seat types its own
+steps name, which
 (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · `design-review` · `general-purpose`,
 `_NATIVE_TYPES`), and **on which model tier** (`opus` / `sonnet` / `haiku` / `fable`, read from the
 text between that seat and its neighbours — and never across a paragraph break — so a paragraph's
