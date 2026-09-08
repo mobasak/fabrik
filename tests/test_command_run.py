@@ -915,6 +915,10 @@ def test_round_records_the_seat_count_so_the_sizing_ruling_can_be_evaluated(run_
     _cr(run_dir, "round", "--findings", "3", "--seats", "5", "--classes-swept", "auth")
     rows = _events(run_dir, "s1")
     assert rows[-1]["seats"] == 5, rows[-1]
+    # …and in the RECORD itself, which is what dispatch_headroom.py's sibling guard reads —
+    # the event stream alone left that guard reading None on every record (closing sweep, D-189)
+    rec = json.loads((run_dir / "s1.json").read_text())
+    assert rec["rounds"][-1]["seats"] == 5, rec["rounds"][-1]
     # unrecorded stays 0, never absent — a missing key and "nobody counted" read the same downstream
     _cr(run_dir, "round", "--findings", "0", "--classes-swept", "auth")
     rows = _events(run_dir, "s1")

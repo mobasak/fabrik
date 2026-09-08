@@ -89,7 +89,7 @@ def test_seats_live_in_sibling_sessions_are_subtracted_from_the_box(tmp_path):
     assert s == {"ok": True, "seats": 9, "sessions": 2, "skipped": ["junk.json"]}
     r = dh.budget(12, True, BOX_OK, Q_OK, s)  # box allows 12 heavy, minus 9 live elsewhere
     assert r["caps"]["box_cap"] == 3 and r["seats"] == 3
-    assert any("minus 9 seat(s) live in 2 sibling session(s)" in x for x in r["reasons"])
+    assert any("minus 9 seat(s) live in 2 running record(s)" in x for x in r["reasons"])
 
 
 def test_the_floor_is_three_even_for_a_one_unit_surface():

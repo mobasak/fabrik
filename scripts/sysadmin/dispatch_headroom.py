@@ -185,7 +185,8 @@ def budget(units: int, heavy: bool, b: dict, q: dict, s: dict | None = None) -> 
             f"box allows {cap} {'heavy' if heavy else 'read-only'} seats "
             f"(mem {mem:.1f}GB/{per_seat}GB={by_mem}, cores {b['cores']}-load {b['load1']:.1f}={by_cpu}"
             + (
-                f", minus {taken} seat(s) live in {s.get('sessions')} sibling session(s)"
+                f", minus {taken} seat(s) live in {s.get('sessions')} running record(s) — "
+                f"this session's own included if it recorded a round, which is the safe side"
                 if taken
                 else ""
             )

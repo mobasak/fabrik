@@ -1640,6 +1640,10 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             {
                 "n": len(rounds) + 1,
                 "findings": args.findings,
+                # in the RECORD, not only the event stream: dispatch_headroom.py's sibling guard
+                # reads `rounds[-1].seats` off every fresh running record, and the first draft
+                # wrote seats to the event only — the guard read None everywhere and was inert
+                "seats": args.seats,
                 "swept": swept,
                 "new": new_c,
                 "phase": _phase_now,
