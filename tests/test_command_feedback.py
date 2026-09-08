@@ -1797,6 +1797,27 @@ def test_a_round_with_no_stamp_names_the_seats_that_ran_unstamped(
     assert (sub / "agent-y.jsonl").stat().st_size > 70 * 1024
     p = _cr(run_dir, "round", "--findings", "1")
     assert "seat transcript(s) since" not in p.stderr
+    # a seat whose LAST line is a tool result larger than the tail still counts: the date is
+    # the newest line of any type, and the cut first element of the tail is never parsed
+    import datetime as dt
+
+    time.sleep(1.1)
+    _seat_file(sub, "z", [(time.time(), "sz", 10, 10)])
+    with (sub / "agent-z.jsonl").open("a") as fh:
+        fh.write(
+            json.dumps(
+                {
+                    "type": "user",
+                    "timestamp": dt.datetime.fromtimestamp(time.time(), tz=dt.UTC).strftime(
+                        "%Y-%m-%dT%H:%M:%S.000Z"
+                    ),
+                    "message": {"content": [{"type": "tool_result", "content": "x" * 100_000}]},
+                }
+            )
+            + "\n"
+        )
+    p = _cr(run_dir, "round", "--findings", "1")
+    assert "1 seat transcript(s) since the last round and NO `dispatch --seats` stamp" in p.stderr
     _seat_file(sub, "c", [(time.time(), "s3", 10, 10)])
     _cr(run_dir, "dispatch", "--seats", "1")
     p = _cr(run_dir, "round", "--findings", "0", "--classes-swept", "a")

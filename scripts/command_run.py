@@ -997,25 +997,25 @@ _SEAT_MAX_BYTES = (
     256 << 20
 )  # the largest seat file measured is single-digit MB; a cap, not a budget
 _SEAT_PARTIAL_S = 30.0  # a seat whose last line is this close to the close was still running
-_SEAT_TAIL_BYTES = 64 << 10  # the nudge dates a seat from its TAIL: one assistant line is enough
+_SEAT_TAIL_BYTES = 4 << 20  # the nudge dates a seat from its tail: one complete line is enough
 
 
 def _seat_last_epoch(q: Path) -> float | str | None:
-    """The newest assistant line's epoch, read from the file's TAIL only — the mid-run nudge
-    needs one date per seat, and a full read of every seat under the record lock cost ~50 ms/MB
-    (round-13 finding: 40 seats × 3 MB was six seconds of lock). "skipped" when unreadable."""
+    """The newest line's epoch OF ANY TYPE, read backwards from the file's tail — the mid-run
+    nudge needs one date per seat, and a full read of every seat under the record lock cost
+    ~50 ms/MB (round-13 finding: 40 seats × 3 MB was six seconds of lock). Any type, because a
+    seat's last line is often a tool result far larger than a fixed window, and demanding an
+    assistant line there read a running seat as silent; the backwards reader yields whole lines
+    only and its sentinel ends the walk. "skipped" when unreadable."""
     try:
-        size = q.stat().st_size
-        with q.open("rb") as fh:
-            fh.seek(max(size - _SEAT_TAIL_BYTES, 0))
-            lines = fh.read().splitlines()
-    except OSError:
-        return "skipped"
-    for raw in reversed(lines):
-        if _ASSISTANT_RE.search(raw):
+        for raw in _iter_lines_backwards(q, _SEAT_TAIL_BYTES):
+            if raw is None:
+                return None
             e = _line_epoch(raw)
             if e is not None:
                 return e
+    except OSError:
+        return "skipped"
     return None
 
 
