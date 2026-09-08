@@ -69,3 +69,15 @@ def test_judgement_floors_name_no_haiku_seat_and_review_floors_name_a_class_wide
     assert "an adjudication unit" in adjudication and "haiku" not in adjudication.lower()
     assert "one Haiku mechanical seat per INDEPENDENT unit" in review
     assert "sweeps ONE grep-able class across every unit" in review
+
+
+def test_the_native_half_of_a_commands_extra_renders_in_the_live_paragraph(tmp_path):
+    """Round-5 finding: `{{EXTRA}}` sits inside the <!-- POOL OFF --> comment, so /fabrik-spec's
+    "an EMPTY grounding is a FAILED grounding" was invisible while the pool is OFF. `{{EXTRA_LIVE}}`
+    carries the pool-independent sentences into the live paragraph; a command without one renders
+    nothing there (no unfilled placeholder)."""
+    ac.render(tmp_path, tmp_path / "_skills", agents_dest=tmp_path / "_agents")
+    spec = (tmp_path / "fabrik-spec.md").read_text()
+    live = ac._HTML_COMMENT_RE.sub("", spec)
+    assert "EMPTY (or near-empty) grounder output is a FAILED grounding" in live
+    assert all("{{EXTRA_LIVE}}" not in f.read_text() for f in tmp_path.glob("*.md"))

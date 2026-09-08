@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — D-191 round 5: the second closing sweep's residue (D-194, 2026-09-08)
+
+- Ten fresh seats over 23189ea4..eb6df895; three mechanical classes clean (counts 18/18, structure 0/63,
+  stale phrases 0 current). Closed: `own_session_id()` had re-derived the env ladder without the
+  `nosession-<repo>` key — an id-less shell subtracted its own record again (the name now comes from
+  `command_run._session_id` itself); `quota()` crashed the CLI on a malformed picture; one unreadable seat
+  file emptied the whole seat listing; the switch-vs-in-flight-probe race (a generation counter, the real
+  `switch_account` under test); `{{EXTRA_LIVE}}` carries the native-relevant grounding sentences into the live
+  paragraph; six "one seat per X" openers reconciled with the script (judgement surfaces run `--mechanical 0`);
+  the fan-out grader also sees "seats … in parallel"; `seats_declared`/`seats_partial` in the field list and
+  the report; D-194 supersedes D-193's 15 minutes/+31 % and D-190's 39M with the re-measured figures.
+
 ### Fixed — D-191 round 4: the closing sweep's residue (2026-09-08)
 
 - Ten fresh seats over 23189ea4..f794b7cd: the module docstring still stated the D-189 formula; the F74 story
@@ -16,7 +28,11 @@ All notable changes to this project will be documented in this file.
   `fabrik-generate-tests` and `fabrik-plan-after-chat`'s D7 cross-reference still sized per D-186;
   `_FANOUT_RE`'s bare "seats per" alternative could fail a commit on prose; `design-review` names its seat
   roles; the +31 % per-round wall-clock was bootstrapped on the retired instrument — re-measured on the
-  per-seat transcripts it is +28 % (n=95). Board banner and markdown structure swept clean.
+  per-seat transcripts it is +28 % (n=95); markdown structure swept clean. The Opus seat's own findings landed
+  in the same commit: `siblings()` no longer subtracts the caller's own record and takes the fresher source,
+  the window is 25 min from the p95 of 245 seat transcripts, `dispatch --seats` accumulates within a round and the
+  round's close releases it, the close records `seats_declared` and warns on a mismatch, `seats_partial`, `--once`
+  computes the banner, an account switch invalidates the banner cache.
 
 ### Fixed — D-191 round 3: the price was inverted, the ledger reads the seats' own transcripts, the reservation is stamped at dispatch (D-193, 2026-09-08)
 
@@ -35,7 +51,8 @@ All notable changes to this project will be documented in this file.
   no message in the window; the report rolls seat tokens up beside (never inside) the orchestrator's;
   `docs/reference/command-run-protocol.md` carries the mechanism. New `command_run.py dispatch --seats <n>`
   stamps a fan-out BEFORE its seats go out — `dispatch_headroom.py`'s sibling reservation reads that stamp
-  for 15 minutes (median seat 439 s, p90 765 s, n=84): a `round --seats` written at the round's close had
+  for 15 minutes (median seat 439 s, p90 765 s, n=84 — superseded by D-194: 25 minutes from the p95 of n=245): a
+  `round --seats` written at the round's close had
   reserved nothing while the seats ran (three sessions simulated at 60 seats on a 22-seat box).
 - `dispatch_headroom.py`: `--units 1 --mechanical 0` printed `SEATS: 3` over a 2-seat mix — `full_mix` pads a
   second breadth reader so the floor is three REAL seats; a box below the floor lost the reservation

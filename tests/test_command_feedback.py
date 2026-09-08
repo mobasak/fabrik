@@ -1610,6 +1610,11 @@ def test_the_row_sums_the_seats_own_transcripts_never_the_parents_result_line(
     got = _sum_transcript_usage(tr, start, now)
     assert got["tok_out"] == 100 and got["seats_seen"] == 2 and got["tok_seat_out"] == 10500
     bad.unlink()
+    # a broken symlink beside the good files must not null the directory listing (round 5)
+    (sub / "agent-gone.jsonl").symlink_to(sub / "no-such-file.jsonl")
+    got = _sum_transcript_usage(tr, start, now)
+    assert got["seats_seen"] == 2 and got["tok_seat_out"] == 10500
+    (sub / "agent-gone.jsonl").unlink()
     stale = _seat_file(sub, "stale", [(start + 50, "s7", 1, 1)])
     os.utime(stale, (start - 100, start - 100))
     got = _sum_transcript_usage(tr, start, now)

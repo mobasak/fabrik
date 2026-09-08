@@ -515,7 +515,7 @@ A route-back instead hands to `/fabrik-epics` or `/fabrik-vision` and re-enters 
 - Every epic carries exactly one `owner` ∈ the operator's set, proven by `--check --owners <names>`
   BEFORE any lens ran; the set's order (agent-1 first) recorded in the report, and the merge-owner
   ledger row present or minted (`decisions.py --merge-owner .` ≠ `UNDECLARED`).
-- Review dispatched as native seats — **one Sonnet `fabrik-reviewer` seat per lens (D-186) AND ≥1
+- Review dispatched as native seats — **one Sonnet `fabrik-reviewer` seat per lens (D-191 — the seats `dispatch_headroom.py --units <lenses> --mechanical 0` prints; a lens is a judgement) AND ≥1
   native `fabrik-reviewer` on Opus** (the pool is OFF, D-181) — across every report lens, with the orchestrator refuting / merging
   / deciding.
 - Feature coverage (delta + `R`-prefixed alike), ticket structure (incl. all 5 `Dependencies` sub-bullets

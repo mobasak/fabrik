@@ -1004,9 +1004,17 @@ def _seat_transcripts(path: Path, lo: float) -> list[Path]:
     opened (an mtime prefilter — the window itself is applied per line)."""
     d = path.parent / path.stem / "subagents"
     try:
-        return sorted(q for q in d.glob("agent-*.jsonl") if q.stat().st_mtime >= lo)
+        found = list(d.glob("agent-*.jsonl"))
     except OSError:
         return []
+    out: list[Path] = []
+    for q in found:
+        try:
+            if q.stat().st_mtime >= lo:
+                out.append(q)
+        except OSError:
+            continue  # one vanished/unreadable seat file must never null the others (round 5)
+    return sorted(out)
 
 
 def _seat_usage(q: Path, lo: float, hi: float) -> dict[str, int] | None:
@@ -1811,6 +1819,10 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 # reads `rounds[-1].seats` off every fresh running record, and the first draft
                 # wrote seats to the event only — the guard read None everywhere and was inert
                 "seats": args.seats,
+                # the round's OWN stamp: dispatch_headroom.py dates the fallback reservation by it
+                # — `updated_ts` is a generic last-touch and re-dated a two-hour-old round on a
+                # bare `step` (round-5 finding)
+                "ts": time.time(),
                 "swept": swept,
                 "new": new_c,
                 "phase": _phase_now,
@@ -2159,6 +2171,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         print(msg)
         return 1
     rec["state"] = args.cmd
+    rec.pop("dispatch", None)  # a closed run reserves nothing; the stamp is not history
     # `closed_by` is ADDITIVE and never read by an existing consumer (the Stop hook keys
     # on `state == "running"` alone). `agent` is the only value this script writes; the
     # coroner writes `coroner`/`ttl` for the runs no agent ever came back to close.

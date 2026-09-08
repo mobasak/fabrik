@@ -183,7 +183,7 @@ Pool-check the matrix for holes (see Subagents) before dispatch — a hole found
 
 ## Phase 3 — Parallel gauntlet (subagents drive; you collect evidence, never impressions)
 
-- **Browser/device work = native `fabrik-gui` subagents, in PARALLEL** — one per flow-bundle,
+- **Browser/device work = native `fabrik-gui` subagents, in PARALLEL** — the seats `dispatch_headroom.py --units <bundles>` prints: one Sonnet driver per flow-bundle plus that bundle's Haiku mechanical gate and the Opus authoritative re-drive (roles in § Subagents),
   disjoint scenario ownership (no two agents mutate the same seeded account). The pool CANNOT do
   this leg (no browser tools) — the native-mandate case per `core/62`.
 - **⚠️ PARALLEL agents must NOT drive the shared Playwright MCP browser — this is a correctness

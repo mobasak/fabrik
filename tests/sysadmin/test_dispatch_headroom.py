@@ -75,15 +75,27 @@ def test_seats_live_in_sibling_sessions_are_subtracted_from_the_box(tmp_path):
     take all of it. The last round's `seats` of every fresh `running` record is subtracted."""
     now = 1_000_000.0
     (tmp_path / "a.json").write_text(
-        json.dumps({"state": "running", "updated_ts": now - 60, "rounds": [{"seats": 5}]})
+        json.dumps(
+            {"state": "running", "updated_ts": now - 60, "rounds": [{"seats": 5, "ts": now - 60}]}
+        )
     )
     (tmp_path / "b.json").write_text(
         json.dumps(
-            {"state": "running", "updated_ts": now - 60, "rounds": [{"seats": 2}, {"seats": 4}]}
+            {
+                "state": "running",
+                "updated_ts": now - 60,
+                "rounds": [{"seats": 2}, {"seats": 4, "ts": now - 60}],
+            }
         )
     )
     (tmp_path / "stale.json").write_text(  # abandoned 3 h ago — must not hold the box hostage
-        json.dumps({"state": "running", "updated_ts": now - 3 * 3600, "rounds": [{"seats": 9}]})
+        json.dumps(
+            {
+                "state": "running",
+                "updated_ts": now - 3 * 3600,
+                "rounds": [{"seats": 9, "ts": now - 3 * 3600}],
+            }
+        )
     )
     (tmp_path / "done.json").write_text(json.dumps({"state": "done", "rounds": [{"seats": 9}]}))
     (tmp_path / "junk.json").write_text("{not json")
@@ -136,7 +148,11 @@ def test_seats_live_in_sibling_sessions_are_subtracted_from_the_box(tmp_path):
     edge.mkdir()
     (edge / "x.json").write_text(
         json.dumps(
-            {"state": "running", "updated_ts": now - dh.SIBLING_FRESH_S, "rounds": [{"seats": 2}]}
+            {
+                "state": "running",
+                "updated_ts": now,
+                "rounds": [{"seats": 2, "ts": now - dh.SIBLING_FRESH_S}],
+            }
         )
     )
     assert dh.siblings(now=now, runs_dir=edge)["seats"] == 2
@@ -145,7 +161,7 @@ def test_seats_live_in_sibling_sessions_are_subtracted_from_the_box(tmp_path):
             {
                 "state": "running",
                 "updated_ts": now - dh.SIBLING_FRESH_S - 1,
-                "rounds": [{"seats": 2}],
+                "rounds": [{"seats": 2, "ts": now - dh.SIBLING_FRESH_S - 1}],
             }
         )
     )
@@ -386,7 +402,7 @@ def test_the_cost_story_describes_the_mix_it_prints_never_the_per_unit_sentence(
     assert dh.main(["--units", "5"]) == 0
     out = capsys.readouterr().out
     assert "SEATS: 3" in out and "TRIMMED from 11 wanted" in out
-    assert "no Haiku seat left" in out and "3 unit(s) have NO breadth seat this round" in out
+    assert "no Haiku seat left" in out and "2 unit(s) have NO breadth seat this round" in out
     assert "one Sonnet breadth seat per unit" not in out
     monkeypatch.setattr(dh, "quota", lambda: Q_OK)
     assert dh.main(["--units", "16"]) == 0
@@ -445,27 +461,30 @@ def test_a_dispatch_stamp_without_ts_is_named_and_a_double_dash_count_is_refused
         dh.parse_mix("opus=--5")
 
 
-def test_siblings_exclude_the_callers_own_record_and_take_the_fresher_source(tmp_path, monkeypatch):
-    """Round-4 findings: a session subtracted its OWN stamp on round N+1; a stale stamp silenced a
-    fresh round (0 where the pre-stamp code reserved 10); `dispatch --seats 0` disabled a record."""
+def test_siblings_exclude_the_callers_own_record_and_prefer_the_dispatch_stamp(
+    tmp_path, monkeypatch
+):
+    """Round-4/5 findings: a session subtracted its OWN stamp on round N+1; the dispatch stamp (written
+    before the seats went out, released when they returned) is the reservation and a round row is only
+    the fallback for a record without one, dated by the round's own stamp; `dispatch --seats 0` reserves
+    nothing."""
     now = 1_000_000.0
     (tmp_path / "me.json").write_text(
         json.dumps(
             {
                 "state": "running",
                 "updated_ts": now,
-                "rounds": [{"seats": 13}],
-                "dispatch": {"ts": now - 60, "seats": 13},
+                "rounds": [{"seats": 13, "ts": now - 30}],
+                "dispatch": {"ts": now - 60, "seats": 13, "round": 1},
             }
         )
     )
-    (tmp_path / "stale-stamp.json").write_text(
+    (tmp_path / "round-only.json").write_text(
         json.dumps(
             {
                 "state": "running",
-                "updated_ts": now - 60,
-                "rounds": [{"seats": 10}],
-                "dispatch": {"ts": now - 2000, "seats": 20},
+                "updated_ts": now - 7200,
+                "rounds": [{"seats": 10, "ts": now - 60}],
             }
         )
     )
@@ -474,17 +493,27 @@ def test_siblings_exclude_the_callers_own_record_and_take_the_fresher_source(tmp
             {
                 "state": "running",
                 "updated_ts": now - 60,
-                "rounds": [{"seats": 12}],
-                "dispatch": {"ts": now - 30, "seats": 0},
+                "rounds": [{"seats": 12, "ts": now - 60}],
+                "dispatch": {"ts": now - 30, "seats": 0, "round": 1},
+            }
+        )
+    )
+    (tmp_path / "stale-stamp.json").write_text(
+        json.dumps(
+            {
+                "state": "running",
+                "updated_ts": now,
+                "rounds": [],
+                "dispatch": {"ts": now - 2000, "seats": 20, "round": 0},
             }
         )
     )
     s = dh.siblings(now=now, runs_dir=tmp_path, exclude_sid="me")
-    assert s["seats"] == 22 and s["sessions"] == 2 and s["excluded_own"] is True
+    assert s["seats"] == 10 and s["sessions"] == 1 and s["excluded_own"] is True
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "me")
     monkeypatch.delenv("CLAUDE_SESSION_ID", raising=False)
-    assert dh.siblings(now=now, runs_dir=tmp_path)["seats"] == 22  # the default is this session
-    assert dh.siblings(now=now, runs_dir=tmp_path, exclude_sid="")["seats"] == 35
+    assert dh.siblings(now=now, runs_dir=tmp_path)["seats"] == 10  # the default is this session
+    assert dh.siblings(now=now, runs_dir=tmp_path, exclude_sid="")["seats"] == 23
 
 
 def test_the_pad_and_the_coverage_gap_are_told_honestly(monkeypatch, capsys):
@@ -504,3 +533,117 @@ def test_the_pad_and_the_coverage_gap_are_told_honestly(monkeypatch, capsys):
     assert "1 unit(s) have NO breadth seat" in out
     with pytest.raises(SystemExit):
         dh.main(["--units", "-3"])
+
+
+def test_own_session_id_is_command_runs_own_ladder_including_the_nosession_key(monkeypatch):
+    """Round-5 finding: an id-less shell made `own_session_id()` "" and the own record
+    (`nosession-<repo>.json`) was subtracted again. The name comes from command_run.py itself."""
+    import importlib.util as iu
+
+    monkeypatch.delenv("CLAUDE_SESSION_ID", raising=False)
+    monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
+    spec = iu.spec_from_file_location("command_run", REPO / "scripts" / "command_run.py")
+    cr = iu.module_from_spec(spec)
+    spec.loader.exec_module(cr)
+    assert dh.own_session_id() == cr._session_id(None) and dh.own_session_id().startswith(
+        "nosession-"
+    )
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "abc-123")
+    assert dh.own_session_id() == "abc-123"
+
+
+def test_a_malformed_quota_picture_falls_to_the_floor_never_a_traceback(monkeypatch):
+    """Round-5 finding: quota() caught four exception classes; a picture whose account row is a
+    string raised AttributeError through main()."""
+
+    class _P:
+        stdout = json.dumps({"picture": {"accounts": ["not-a-dict"], "active": None}})
+        returncode = 0
+
+    monkeypatch.setattr(dh.subprocess, "run", lambda *a, **k: _P())
+    q = dh.quota()
+    assert q["ok"] is False and "quota probe failed" in q["why"]
+    assert dh.budget(4, False, BOX_OK, q)["seats"] == 3
+
+
+def test_the_round_fallback_is_dated_by_the_rounds_own_stamp_and_unrecorded_siblings_are_named(
+    tmp_path,
+):
+    """Round-5 findings: `updated_ts` is a generic last-touch — a bare `step` re-reserved a two-hour-old
+    round; a running record with no seat figure at all was silently 0 and absent from the count; a raw
+    sid with a dot never matched its `_safe_sid` file stem."""
+    now = 1_000_000.0
+    (tmp_path / "touched.json").write_text(
+        json.dumps(
+            {
+                "state": "running",
+                "updated_ts": now - 10,
+                "rounds": [{"seats": 13, "ts": now - 7200}],
+            }
+        )
+    )
+    (tmp_path / "fresh-round.json").write_text(
+        json.dumps(
+            {"state": "running", "updated_ts": now - 7200, "rounds": [{"seats": 4, "ts": now - 60}]}
+        )
+    )
+    (tmp_path / "silent.json").write_text(
+        json.dumps({"state": "running", "updated_ts": now, "rounds": []})
+    )
+    s = dh.siblings(now=now, runs_dir=tmp_path, exclude_sid="nobody")
+    assert s["seats"] == 4 and s["sessions"] == 1 and s["unrecorded"] == 1
+    r = dh.budget(6, False, BOX_OK, Q_OK, s)
+    assert any("1 running sibling(s) carry NO seat figure" in x for x in r["reasons"])
+    # a sid that is not filename-safe still finds its own record
+    import importlib.util as iu
+
+    spec = iu.spec_from_file_location("command_run", REPO / "scripts" / "command_run.py")
+    cr = iu.module_from_spec(spec)
+    spec.loader.exec_module(cr)
+    stem = cr._safe_sid("sess.one")
+    (tmp_path / f"{stem}.json").write_text(
+        json.dumps(
+            {
+                "state": "running",
+                "updated_ts": now,
+                "rounds": [],
+                "dispatch": {"ts": now, "seats": 9, "round": 0},
+            }
+        )
+    )
+    s = dh.siblings(now=now, runs_dir=tmp_path, exclude_sid="sess.one")
+    assert s["excluded_own"] is True and s["seats"] == 4
+
+
+def test_a_none_reading_is_unknown_never_cool_and_a_lone_opus_seat_counts_as_coverage(
+    monkeypatch, capsys
+):
+    class _P:
+        stdout = json.dumps(
+            {
+                "picture": {
+                    "accounts": [
+                        {"state": "active", "email": "a@x", "session_pct": None, "weekly_pct": None}
+                    ],
+                    "active": "a@x",
+                    "hold": False,
+                    "thresholds": {"drain_band": 85.0},
+                }
+            }
+        )
+        returncode = 0
+
+    monkeypatch.setattr(dh.subprocess, "run", lambda *a, **k: _P())
+    q = dh.quota()
+    assert q["ok"] is True and q["hottest_pct"] is None
+    assert dh.budget(8, False, BOX_OK, q)["seats"] == 3  # unknown reads as HOT
+    monkeypatch.setattr(dh, "box", lambda: BOX_OK)
+    monkeypatch.setattr(
+        dh, "siblings", lambda: {"ok": True, "seats": 0, "sessions": 0, "skipped": []}
+    )
+    monkeypatch.setattr(dh, "quota", lambda: Q_OK)
+    monkeypatch.setattr(dh, "CONCURRENCY_CAP", 1)
+    assert dh.main(["--units", "3"]) == 0
+    assert (
+        "2 unit(s) have NO breadth seat" in capsys.readouterr().out
+    )  # the lone Opus seat reads one

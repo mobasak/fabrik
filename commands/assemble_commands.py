@@ -252,10 +252,11 @@ def _floor(kind: str, native: str) -> str:
 _FANOUT_RE = re.compile(
     r"((?:seats? per |per (?:unit|screen|rival|claim|persona|lens|surface|dependency|fact|file"
     r"|flow-bundle|epic|pack|doc)\b)[^.]{0,80}(?:single|one|ONE) message|dispatch(?:ed|es)?[^.]{0,60}"
-    r"in (?:a )?(?:single|ONE|one) message)",
+    r"in (?:a )?(?:single|ONE|one) message|(?:seats?|subagents?|agents?|finders?)[^.]{0,60}"
+    r"\bin parallel\b)",
     re.I,
 )
-_DISPATCH_STEP_RE = re.compile(r"THE DISPATCH STEP \(D-191|Dispatch step \(D-191\)")
+_DISPATCH_STEP_RE = re.compile(r"THE DISPATCH STEP \(D-191|Dispatch step \(D-191\)", re.I)
 
 
 _HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
@@ -351,6 +352,7 @@ PARAMS = {
             "HEADLINE": "`fanout` the grounders, `set_quality` the verdict",
             "TASK_TYPE": '"research"',
             "PROJECT": "mega-trigger",
+            "EXTRA_LIVE": " Score every grounder's answer against its cited source (0 = the citation didn't hold / was stale · 5 = it confirmed the fact); reserve the Opus `fabrik-researcher` seat for the authoritative verify-sample — the vendor-ladder verdict, the Q&A and the decide/refute/merge stay yours.",
             "FLOOR": _floor("grounding", "`fabrik-researcher`"),
             "EXTRA": ' Grounders: `fanout("research", units, repo=REPO, project="mega-trigger", mode="read_only", web_tools=["web_search","web_search_brave","web_scrape","docs_lookup"], mcp_servers=["exa","brave-search","firecrawl","context7"])`; score anchors: 0 = the citation didn\'t hold / was stale · 5 = it confirmed the cited fact. Reserve native `fabrik-researcher` for the authoritative verify-sample; the vendor-ladder verdict, the Q&A, and the decide/refute/merge stay yours.',
         },
@@ -683,6 +685,7 @@ PARAMS = {
             "HEADLINE": "`fanout` the grounding, `set_quality` the verdict",
             "TASK_TYPE": '"research"',
             "PROJECT": "spec-grounding",
+            "EXTRA_LIVE": " ⚠️ An EMPTY (or near-empty) grounder output is a FAILED grounding, never a pass — check `len` before believing a verdict; the verify-sample is a Haiku/Sonnet `fabrik-researcher` seat, the vendor-ladder verdict, the Q&A and the decide/refute/merge stay yours on Opus.",
             "FLOOR": _floor(
                 "grounding", "`fabrik-researcher`"
             ),  # a grounder is a judgement (round 4)
@@ -957,6 +960,11 @@ def render(dest: Path, skills_dest: Path | None = None, agents_dest: Path | None
             # purpose — review seat B, 2026-09-07: placed inside it, 20 of 20 headlines kept the pool text.
             if fr == "subagents-core" and "HEADLINE" in params:
                 params["HEADLINE"] = "native seats only — the pool is OFF by ruling (D-181/D-182)"
+                # the pool-independent half of a command's EXTRA renders in the LIVE paragraph;
+                # `{{EXTRA}}` sits inside the <!-- POOL OFF --> comment and is dead while the pool
+                # is OFF (round-5 finding: /fabrik-spec's "an EMPTY grounding is a FAILED grounding"
+                # and its native tiering were invisible to the agent running it)
+                params.setdefault("EXTRA_LIVE", "")
             for k, v in params.items():
                 body2 = body.replace("{{" + k + "}}", v)
                 body = body2

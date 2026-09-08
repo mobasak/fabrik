@@ -63,7 +63,7 @@ Two flags are accepted on **either side** of the subcommand (`--adopt-sid round`
 deliberately **not** named `--session-*`: argparse resolves abbreviations, so a second `--sess…` flag
 makes the long-standing `--sess <id>` spelling ambiguous and every caller using it starts exiting 2.
 
-Every **mutating** subcommand (`start` · `step` · `dispatch` · `round` · `done` · `blocked`) holds an exclusive
+Every **mutating** subcommand (`start` · `step` · `dispatch` · `round` · `done` · `blocked` · `handoff`) holds an exclusive
 `fcntl.flock` over the record across its whole read-modify-write. Subagents routinely inherit the
 parent's `CLAUDE_SESSION_ID`, and unlocked, 20 concurrent `round` calls lost 14 of 20 class-opens
 (measured) — a dropped class means a review reads CLEAN on a class that was never swept, destroying
@@ -240,7 +240,7 @@ cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — 
   is current (fleet-synced; fabrik-lib pulls). Fields: `ts sid repo command state wall_s rounds
   findings phases phase_reached agent surface account confusion waste change filed cost cost_usd
   tok_in tok_out tok_cache_read tok_cache_create tok_msgs models tok_partial tok_seat_in tok_seat_out
-  tok_seat_cache_read tok_seat_cache_create seats_seen`.
+  tok_seat_cache_read tok_seat_cache_create seats_seen seats_declared seats_partial`.
   **The analysis dimensions** (operator, 2026-09-07 — "which repo, which agent, which command,
   which spec, which file"): `repo` (the run's `repo_root`), `agent` (`CLAUDE_AGENT` at `start`,
   the same env and the same grammar `[a-z0-9-]{1,32}` the provenance trailers key on — anything

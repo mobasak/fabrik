@@ -142,11 +142,18 @@ def quota() -> dict:
         accounts = pic.get("accounts") or []
         active = pic.get("active")
         act = next((a for a in accounts if a.get("email") == active), None)
-        hottest = (
-            max(float(act.get("session_pct") or 0), float(act.get("weekly_pct") or 0))
+        # a reading of None is UNKNOWN, never 0 % — `or 0` priced an active account with no
+        # reading as cool and set no quota cap at all (round-5 finding)
+        vals = (
+            [
+                float(v)
+                for v in (act.get("session_pct"), act.get("weekly_pct"))
+                if isinstance(v, (int, float)) and not isinstance(v, bool)
+            ]
             if act
-            else None
+            else []
         )
+        hottest = max(vals) if vals else None
         # `eligible` is the rotation's STANDBY state; the account doing the work is `active`
         eligible = sum(1 for a in accounts if a.get("state") == "eligible")
         band = float((pic.get("thresholds") or {}).get("drain_band") or 85.0)
@@ -158,16 +165,39 @@ def quota() -> dict:
             "hold": bool(pic.get("hold")),
             "drain_band": band,
         }
-    except (OSError, subprocess.SubprocessError, ValueError, json.JSONDecodeError) as exc:
+    except Exception as exc:  # noqa: BLE001 — a malformed picture (a row that is not a dict, a
+        # list where a dict was promised) crashed the CLI through main() (round-5 finding);
+        # every probe fails SOFT to the floor and says why
         return {"ok": False, "why": f"quota probe failed: {exc}"}
 
 
+def _safe_stem(sid: str) -> str:
+    """The FILENAME `command_run.py` writes for a sid (`_safe_sid`) — the own-record test compares
+    stems, and a raw sid with a dot or a slash never matched its own file (round-5 finding)."""
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+        from command_run import _safe_sid  # noqa: PLC0415
+
+        return str(_safe_sid(sid))
+    except Exception:  # noqa: BLE001
+        return sid
+
+
 def own_session_id() -> str:
-    """The record `command_run.py` keys on for THIS session — the same env it reads (a Bash shell
-    carries CLAUDE_CODE_SESSION_ID; CLAUDE_SESSION_ID is empty there)."""
-    return (
-        os.environ.get("CLAUDE_SESSION_ID") or os.environ.get("CLAUDE_CODE_SESSION_ID") or ""
-    ).strip()
+    """The record `command_run.py` keys on for THIS session — derived by command_run.py ITSELF
+    (`_session_id`: explicit → CLAUDE_SESSION_ID → CLAUDE_CODE_SESSION_ID → the repo-scoped
+    `nosession-<repo>`), never a second copy of that ladder: a copy without the nosession
+    fallback returned "" in an id-less shell and the own record was counted again (round-5
+    finding). Fail-soft: if command_run.py cannot be imported, the env ladder alone."""
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+        from command_run import _session_id  # noqa: PLC0415 — the authority on the record's name
+
+        return str(_session_id(None) or "").strip()
+    except Exception:  # noqa: BLE001 — a probe fails soft
+        return (
+            os.environ.get("CLAUDE_SESSION_ID") or os.environ.get("CLAUDE_CODE_SESSION_ID") or ""
+        ).strip()
 
 
 def siblings(
@@ -181,10 +211,18 @@ def siblings(
     take all of it (TOCTOU on the box). Fail-soft: an unreadable record counts 0 and is named."""
     now = time.time() if now is None else now
     own = own_session_id() if exclude_sid is None else exclude_sid
-    out: dict = {"ok": True, "seats": 0, "sessions": 0, "skipped": [], "excluded_own": False}
+    own_stem = _safe_stem(own) if own else ""
+    out: dict = {
+        "ok": True,
+        "seats": 0,
+        "sessions": 0,
+        "unrecorded": 0,
+        "skipped": [],
+        "excluded_own": False,
+    }
     try:
         for p in runs_dir.glob("*.json"):
-            if own and p.stem == own:
+            if own_stem and p.stem == own_stem:
                 out["excluded_own"] = True
                 continue
             try:
@@ -195,27 +233,27 @@ def siblings(
                 # are sent) is the reservation; a record without one falls back to its last
                 # round's seats at its last touch — which is written AFTER the seats returned, so
                 # it reserves nothing while they run (round-3 finding: the guard was inert)
-                cands: list[tuple[float, int]] = []
                 disp = rec.get("dispatch")
-                if isinstance(disp, dict) and disp.get("seats") is not None:
-                    if disp.get("ts") is None:
-                        raise ValueError("dispatch stamp without ts")  # named, never silently 0
-                    cands.append((float(disp["ts"]), int(disp.get("seats") or 0)))
                 rounds = rec.get("rounds") or []
                 if not isinstance(rounds, list):
                     raise TypeError("rounds is not a list")
-                cands.append(
-                    (
-                        float(rec.get("updated_ts") or 0),
-                        int((rounds[-1] if rounds else {}).get("seats") or 0),
-                    )
-                )
-                # a stale stamp must not silence a fresh round (round-4 finding); a NaN stamp read
-                # as forever-fresh (round-3 finding)
-                fresh = [s for ts, s in cands if math.isfinite(ts) and now - ts <= SIBLING_FRESH_S]
-                if not fresh:
+                last = rounds[-1] if rounds else {}
+                if not isinstance(disp, dict) and last.get("seats") is None:
+                    out["unrecorded"] += 1  # running, no seat figure at all: a LOWER bound
                     continue
-                seats = max(fresh)
+                # the DISPATCH stamp (written before the seats went out, released when they
+                # returned) is the reservation; the round row is only the fallback for a record
+                # without one, dated by the round's OWN stamp — `updated_ts` is a generic
+                # last-touch and re-dated a two-hour-old round on a bare `step` (round-5 finding)
+                if isinstance(disp, dict) and disp.get("seats") is not None:
+                    if disp.get("ts") is None:
+                        raise ValueError("dispatch stamp without ts")  # named, never silently 0
+                    ts, seats = float(disp["ts"]), int(disp.get("seats") or 0)
+                else:
+                    ts = float(last.get("ts") or 0)
+                    seats = int(last.get("seats") or 0)
+                if not math.isfinite(ts) or now - ts > SIBLING_FRESH_S:
+                    continue  # a NaN stamp read as forever-fresh (round-3 finding)
             except Exception:  # noqa: BLE001 — classify-and-name only; a probe fails SOFT
                 # a malformed record (non-numeric seats/ts, Infinity, a round that is not a dict)
                 # counts 0 and is named — two narrower tuples each let one shape crash the CLI
@@ -341,6 +379,11 @@ def budget(
             + (
                 f", minus {taken} seat(s) dispatched < {SIBLING_FRESH_S // 60} min ago in "
                 f"{s.get('sessions')} running record(s), never below the floor of {FLOOR}"
+                + (
+                    f"; {s['unrecorded']} running sibling(s) carry NO seat figure — this is a LOWER bound"
+                    if s.get("unrecorded")
+                    else ""
+                )
                 if taken
                 else ""
             )
@@ -453,7 +496,7 @@ def _mix_story(a: argparse.Namespace, mix: dict[str, int], full: dict[str, int])
     # an Opus seat sits on a RISKY unit that keeps its Sonnet seat — counting it again certified
     # an unswept unit as covered (round-4 finding); only Opus seats beyond the Sonnet count add
     sonnet = mix.get("sonnet", 0)
-    covered = sonnet + (max(mix.get("opus", 0) - min(a.risky, sonnet), 0) if a.risky else 0)
+    covered = sonnet + max(mix.get("opus", 0) - min(a.risky, sonnet), 0)
     uncovered = max(a.units - covered, 0)
     if haiku:
         left = (

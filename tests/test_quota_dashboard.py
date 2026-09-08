@@ -2965,3 +2965,56 @@ def test_governor_panel_never_advertises_shedding_to_a_pool_that_is_off(tmp_path
     monkeypatch.setenv("FABRIK_POOL_POLICY", "on")
     html = qd._governor_panel(payload)
     assert "pool-diagnose" in html
+
+
+def test_a_switch_orphans_the_probe_already_in_flight(tmp_path, monkeypatch):
+    """Round-5 finding: the switch reset the cache but a probe thread that had started BEFORE the
+    switch wrote the OLD account's html with a fresh stamp afterwards. The switch bumps a
+    generation; a probe lands only if its generation is still current — graded through the REAL
+    switch_account, banner enabled (the F102 test had re-run the reset statement itself)."""
+    import threading
+
+    qd, stub = _switch_env(tmp_path, monkeypatch)
+    monkeypatch.setenv("QUOTA_DASH_BUDGET", "1")
+    started = threading.Event()
+    release = threading.Event()
+    real_run = qd.subprocess.run
+
+    def slow_probe(args, **kw):  # only the banner's dispatch_headroom probe is slowed
+        if any("dispatch_headroom" in str(a) for a in args):
+            started.set()
+            release.wait(timeout=10)
+            return type(
+                "R",
+                (),
+                {
+                    "stdout": json.dumps(
+                        {
+                            "caps": {"box_cap": 23, "concurrency_cap": 20},
+                            "box_caps": {"read_only": 23, "heavy": 12},
+                            "quota": {
+                                "ok": True,
+                                "active": "OLD-ACCOUNT",
+                                "hottest_pct": 1.0,
+                                "eligible": 1,
+                                "hold": False,
+                            },
+                        }
+                    )
+                },
+            )()
+        return real_run(args, **kw)
+
+    monkeypatch.setattr(qd.subprocess, "run", slow_probe)
+    qd._budget_cache.update(ts=0.0, html="", thread=None, gen=0)
+    assert "computing" in qd._budget_banner()  # the pre-switch probe is now in flight
+    assert started.wait(timeout=10)
+    gen_before = qd._budget_cache["gen"]
+    monkeypatch.setattr(
+        qd, "generate", lambda: None
+    )  # the switch's own re-render is not under test
+    status, body = qd.switch_account("sarp")
+    assert status == 200 and qd._budget_cache["gen"] == gen_before + 1
+    release.set()
+    qd._budget_cache["thread"].join(timeout=10)
+    assert "OLD-ACCOUNT" not in qd._budget_cache["html"] and qd._budget_cache["ts"] == 0.0

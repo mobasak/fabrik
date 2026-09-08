@@ -211,6 +211,16 @@ def build(
                 "cache_hit": round(read / ctx, 3) if ctx else None,
                 # rows whose scan hit the byte cap inside the window: their sums are lower bounds
                 "tok_partial_rows": sum(1 for r in rs if r.get("tok_partial") is True),
+                # a seat still writing at the close; and a typed reservation that disagreed with
+                # the seat files by more than one — the close's warning, made queryable (round 5)
+                "seats_partial_rows": sum(1 for r in rs if r.get("seats_partial") is True),
+                "seats_mismatch_rows": sum(
+                    1
+                    for r in rs
+                    if isinstance(r.get("seats_declared"), int)
+                    and isinstance(r.get("seats_seen"), int)
+                    and abs(r["seats_declared"] - r["seats_seen"]) > 1
+                ),
             }
         )
 

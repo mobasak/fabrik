@@ -1842,10 +1842,10 @@ def _tiers_cell(tiers: tuple[str, ...]) -> str:
 
 _BUDGET_TTL_S = 60
 _budget_lock = threading.Lock()
-_budget_cache: dict = {"ts": 0.0, "html": "", "thread": None}
+_budget_cache: dict = {"ts": 0.0, "html": "", "thread": None, "gen": 0}
 
 
-def _budget_probe() -> str:
+def _budget_probe(gen: int | None = None) -> str:
     """The slow half of the banner: ONE `dispatch_headroom.py --json` run — its `box_caps` carries the
     read-only and the heavy bound from the same box probe, so the fleet quota round-trip happens once
     per refresh, not twice (round-2 finding: the banner tripled probe volume on a module whose header
@@ -1899,7 +1899,11 @@ def _budget_probe() -> str:
     except Exception as exc:  # noqa: BLE001 — a panel may never break the board
         html = f'<p class="muted">Box budget unavailable: {escape(str(exc))}</p>'
     with _budget_lock:
-        _budget_cache.update(ts=time.time(), html=html)
+        # a probe that started before an invalidation (an account switch) must not land its
+        # OLD-account html with a fresh stamp: it writes only if its generation is still current
+        # (round-5 finding); a synchronous caller (`--once`) passes no generation
+        if gen is None or gen == _budget_cache["gen"]:
+            _budget_cache.update(ts=time.time(), html=html)
     return html
 
 
@@ -1916,7 +1920,12 @@ def _budget_banner() -> str:
         html = _budget_cache["html"]
         th = _budget_cache["thread"]
         if not fresh and not (th and th.is_alive()):
-            th = threading.Thread(target=_budget_probe, name="budget-banner", daemon=True)
+            th = threading.Thread(
+                target=_budget_probe,
+                args=(_budget_cache["gen"],),
+                name="budget-banner",
+                daemon=True,
+            )
             _budget_cache["thread"] = th
             th.start()
     return html or '<p class="muted">Box budget: computing (dispatch_headroom.py) …</p>'
@@ -2564,6 +2573,7 @@ def switch_account(slug: object) -> tuple[int, dict]:
         return 502, {"ok": False, "error": err}
     with _budget_lock:  # the banner's own 60 s cache would show the OLD account's headroom
         _budget_cache.update(ts=0.0, html="")
+        _budget_cache["gen"] += 1  # and a probe already in flight may not land its result
     generate()  # fresh render NOW — bypasses the floor on purpose, one probe per click
     return 200, {"ok": True, "output": proc.stdout.strip()[:400]}
 
@@ -2749,7 +2759,11 @@ def ensure() -> int:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     g = ap.add_mutually_exclusive_group(required=True)
-    g.add_argument("--once", action="store_true", help="regenerate the page and exit")
+    g.add_argument(
+        "--once",
+        action="store_true",
+        help="regenerate the page and exit (computes the box-budget banner first — up to 45 s on a slow fleet probe)",
+    )
     g.add_argument("--serve", action="store_true", help="run the localhost server (foreground)")
     g.add_argument("--ensure", action="store_true", help="start the server if it is not running")
     args = ap.parse_args(argv)
