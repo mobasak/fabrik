@@ -303,6 +303,8 @@ def _frame_seats(rec: dict, now: float, out: dict) -> int:
     last = rounds[-1] if rounds else {}
     disp_seats = disp.get("seats") if disp is not None else None
     released = disp is not None and bool(disp.get("released"))
+    if disp is not None and disp_seats is not None and disp.get("ts") is None:
+        raise ValueError("dispatch stamp without ts")  # named even when released (round 11)
     if released:
         return 0  # a RELEASE marker is a known zero whatever else the frame says (round-10 Opus:
         # one without a `seats` key fell through to the round row and re-reserved 9)
@@ -578,7 +580,10 @@ def budget(
 def _mix_story(a: argparse.Namespace, mix: dict[str, int], full: dict[str, int]) -> str:
     """The sentence beside COST must describe THIS mix — the first draft glued "one Sonnet + one
     Haiku seat per unit" to a mix the budget had already trimmed, and an agent reading it literally
-    would dispatch past a hard cap (round-2 finding)."""
+    would dispatch past a hard cap (round-2 finding).
+    `b` (from `box()`) carries `ok`, and when ok: `mem_available_gb`, `cores`, `load1` (optionally
+    `commit_headroom_gb`) — a hand-built `ok: True` dict without them raises (round 11).
+    """
     tail = " — D-190: haiku 1x · sonnet 2x · opus 5x · fable 10x"
     if a.mix:
         return tail
@@ -706,6 +711,7 @@ def main(argv: list[str] | None = None) -> int:
         # the HEAVY half's reasons — the board scans them too (round-10 Opus finding: a heavy-only
         # over-commit rendered with no caveat because `reasons` was the read-only half only)
         heavy_reasons=_hv["reasons"],
+        reasons_read_only=_ro["reasons"],  # both halves, whatever `--heavy` was (round 11)
         floor=FLOOR,  # the board labels a cap the floor raised (round-7 finding)
     )
     if a.json:

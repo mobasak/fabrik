@@ -108,7 +108,7 @@ All notable changes to this project will be documented in this file.
 
 `scripts/scratch_sweep.py` (Phase A of plan 2026-09-08-plan-1-scratch-sweep, D-184/D-187). Three modes — this session's scratchpad, `--worktrees`, and the `--dead` janitor — and in every one the DRY RUN is the default: each row carries its class, its reason and its evidence, `--apply` is opt-in, and a hard-coded refusal set (printed by `--help`) keeps held, kept, fresh, dirty, unmerged, locked, foreign and backup-holding entries out of the removal set entirely. Operator's two constraints, verbatim: "we should not cause data loss" and "agents must know what will this script do while using it."
 
-A sid is `dead` only on three positive signals — no live signal, a death signal, AND its own directory idle past 7 days — because a gone pid is not a finished session: `--resume` keeps the sid across exactly the network deaths, context fills and quota holds this tool exists to serve (18 of 18 gone-pid dirs on the box were younger than 7 d, one 8 minutes old). A same-uid `/proc` gap is reported as `proc-gaps N`, never blocking, because 150 of 152 fd-deniers are foreign-uid and the two same-uid ones are permanent — a blocking default made the tool inert on every run. Worktree provenance is the registration's mtime against `btime + procStart/SC_CLK_TCK`, failing closed. 53 graders at Phase A, each seen red first; 57 today.
+A sid is `dead` only on three positive signals — no live signal, a death signal, AND its own directory idle past 7 days — because a gone pid is not a finished session: `--resume` keeps the sid across exactly the network deaths, context fills and quota holds this tool exists to serve (18 of 18 gone-pid dirs on the box were younger than 7 d, one 8 minutes old). A same-uid `/proc` gap is reported as `proc-gaps N`, never blocking, because 150 of 152 fd-deniers are foreign-uid and the two same-uid ones are permanent — a blocking default made the tool inert on every run. Worktree provenance is the registration's mtime against `btime + procStart/SC_CLK_TCK`, failing closed. 53 graders at Phase A, each seen red first; 55 today.
 
 Phase B wires the three triggers, all advisory. A TOP-LEVEL `command_run.py done|blocked|handoff` now
 prints the closing session's own table after `run record closed` — its five OLDEST stale entries, a
@@ -124,18 +124,6 @@ to the operator rather than installed (crontab writes are classifier-blocked) an
 wrapper — the script self-locks on the same path, so a wrapper makes the child's acquire fail and the
 sweep exit 0 having done nothing.
 
-Phase C makes it the rule. One sentence in item 5 of § EXIT in BOTH `CLAUDE.md` and
-`templates/governance/CLAUDE.md` — byte-identical, naming the absolute hub path so it is true from
-every repo — plus the `clean-own-scratch` universal marker, which fabrik-lib's own drift check reads
-out of the hub file (verified with their parser: 13 of 13 markers extract, the new anchor among them).
-The Finish review then found THREE false clauses in that sentence before it shipped: `<repo>/.tmp` was
-promised as a flat never-touch when the script only declines to SCAN it; `--worktrees` was said to list
-"the worktrees you opened" when it lists every registered one, most of them foreign; and its seven
-verdict names were not the ten the script emits, with "merged" never printed at all. It also found the
-close-out's own 2 s subprocess timeout killing the advisory on the single largest scratchpad on the box
-— the one with the most residue — which is verbatim the defect the hook's 1 s -> 4 s raise had already
-fixed for the other trigger.
-
 ### Changed — intel's charter re-frozen against the pool/flywheel retirement (2026-09-08)
 
 - `docs/reference/agents/intel.md` was 3 days stale in the direction that matters: it assigned intel a
@@ -150,6 +138,13 @@ fixed for the other trigger.
   regex, so no project receives this. `scored-rate` occurs in exactly two files, both charters, with no
   code consumer and no kaizen cell — the suspension breaks nothing mechanical. The mirror claim in
   `docs/reference/agents/infra.md:42-45` is infra's beat and was filed to them, not edited here. (D-195)
+
+### Fixed — D-191 round 11: the closing sweep (2026-09-08)
+- Receipt rows F278–F291 (FIXED 8 · RECORDED 5 · REFUTED 1; 14 rows, script-counted at the round's close).
+- `command_run.py`: a `round` close releases only what closed — in dispatcher mode the first ticket to close no longer frees every other ticket's running seats (the stamp keeps `M−N`, `released` only at 0; the message says "releasing N of M — M−N stay reserved") (F281).
+- `dispatch_headroom.py` exports `reasons_read_only` beside `heavy_reasons`; `quota_dashboard.py` merges the three halves, says so when a probe payload predates them, and gates the sibling-failure fallback on its own caveat's absence; the orphan re-kick guard has its grader (F282–F283, F288, F290).
+- The corpus: plan-review Phase 1, epics 5a and review-scoped step 5 carry the size → stamp → close command lines at the point of use; execute-plan D2 names the partial close (F284, F287).
+- `dispatch_headroom.py`: a released stamp with `seats` but no `ts` is still named as unreadable — the `ts` check runs before the release short-circuit (F278).
 
 ### Fixed — D-191 round 10: the closing sweep's residue (2026-09-08)
 - Receipt rows F262–F277 (FIXED 13 · RECORDED 3; 16 rows, script-counted at the round's close).

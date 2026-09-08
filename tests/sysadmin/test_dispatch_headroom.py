@@ -428,6 +428,7 @@ def test_the_cost_story_describes_the_mix_it_prints_never_the_per_unit_sentence(
     d = json.loads(capsys.readouterr().out)
     assert d["box_caps_floored"] == {"read_only": True, "heavy": True} and d["floor_granted"] == 1
     assert any("floor granted" in x for x in d["heavy_reasons"])  # the heavy half rides too
+    assert d["reasons_read_only"] == d["reasons"]  # and the read-only half, explicitly (round 11)
     assert dh.main(["--units", "0"]) == 0  # the phantom-floor path end to end (round-8 finding)
     out = capsys.readouterr().out
     assert "SEATS: 0" in out
@@ -909,6 +910,13 @@ def test_a_parked_parent_frame_keeps_its_reservation_and_the_two_no_standby_fact
     s = dh.siblings(now=now, runs_dir=tmp_path, exclude_sid="nobody")
     assert s["seats"] == 7 and s["unrecorded"] == 0
     (tmp_path / "released-no-seats.json").unlink()
+    # a released stamp with a seats key but NO ts is still NAMED (round 11: the early return hid it)
+    (tmp_path / "released-no-ts.json").write_text(
+        json.dumps({"state": "running", "rounds": [], "dispatch": {"seats": 5, "released": True}})
+    )
+    s = dh.siblings(now=now, runs_dir=tmp_path, exclude_sid="nobody")
+    assert "released-no-ts.json" in s["skipped"] and s["seats"] == 7
+    (tmp_path / "released-no-ts.json").unlink()
     warm = dict(Q_OK, eligible=0, eligible_raw=2)
     r = dh.budget(6, False, BOX_OK, warm)
     assert any("0 of 2 standby(s) are COOL" in x for x in r["reasons"])

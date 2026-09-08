@@ -529,7 +529,7 @@ its Touches (contract violation → its diff is rejected at acceptance).
     there the per-ticket layer is `/fabrik-review-scoped` and this floor runs once, at D7):** each per-ticket review round =
     **one native Sonnet finder AND one Haiku mechanical seat per independent failure-class unit of the
     phase diff, plus ≥1 native Opus finder** (the pool is OFF, D-181) — `dispatch_headroom.py --units <N>`
-    prints the seats — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them — (D-191), all dispatched in ONE message; every material re-review round re-runs the
+    prints the seats — closed with `python3 scripts/command_run.py round --seats <n> …` when THIS ticket's seats return (a partial close releases only what closed; the other tickets' seats stay reserved) — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them — (D-191), all dispatched in ONE message; every material re-review round re-runs the
     floor. The unit count is the PARTITION, so a named trigger (diff >~400 net LOC · never-route surface ·
     a repeat-failed round) means MORE units to partition, not a bigger cap. Grounding fan-outs: one unit per
     independent dependency, never per file.
@@ -567,7 +567,7 @@ carve-out:** a diff touching secret-material paths (`.env` / `.env.*` **except `
 Doc-Sync-Matrix file every env-var change touches; without the exemption a routine env-var phase would be
 misread as secret-bearing — `secrets/`, key files) is reviewed
 **native-only** — secret contents never go to pool APIs; all other never-route classes get both layers.
-The orchestrator refutes/merges/adjudicates; fixups route per D2. **Every per-ticket round is stamped and closed like any other:** `python3 scripts/command_run.py dispatch --seats <n>` BEFORE its seats go out, `python3 scripts/command_run.py round --seats <n> --findings <n> --classes-swept … --classes-new …` at its close — the D-186 tripwire and the sibling reservation are blind to a round that stamps and never closes. **Under `Profile: small` the per-ticket
+The orchestrator refutes/merges/adjudicates; fixups route per D2. **Every per-ticket round is stamped and closed like any other:** `python3 scripts/command_run.py dispatch --seats <n>` BEFORE its seats go out, `python3 scripts/command_run.py round --seats <n> --findings <n> --classes-swept … --classes-new …` at its close — the D-186 tripwire is blind to a round that stamps and never closes, and the sibling reservation stands until its 25-minute expiry. **Under `Profile: small` the per-ticket
 layer is `/fabrik-review-scoped`** — tests + gate + the light scoped round, its run record the artifact, NO
 per-ticket review file — and the floor above runs ONCE at D7 over the whole-plan diff into the single
 receipt; the rest of this section (docs converge with the ticket, fixups, 3-strikes) binds unchanged.

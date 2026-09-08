@@ -2850,6 +2850,7 @@ def test_the_box_budget_banner_shows_the_maximum_and_fails_soft(tmp_path, monkey
                 {
                     "caps": caps,
                     "box_caps": {"read_only": 23, "heavy": 12},
+                    "heavy_reasons": [],
                     "quota": {
                         "ok": True,
                         "active": "a@x",
@@ -2900,6 +2901,7 @@ def test_the_box_budget_banner_shows_the_maximum_and_fails_soft(tmp_path, monkey
             "read_only": True,
             "heavy": True,
         },  # the script's own verdict (round 9)
+        "heavy_reasons": [],
         "siblings": {"seats": 21, "ok": True},
         "quota": {
             "ok": True,
@@ -2954,6 +2956,13 @@ def test_the_box_budget_banner_shows_the_maximum_and_fails_soft(tmp_path, monkey
     html = qd._budget_probe()
     assert "= the floor" not in html and "(box 3 after 5 reserved by sibling sessions)" in html
     payload["box"] = {"ok": True}
+    payload["siblings"] = {"seats": 0, "ok": False, "why": "sibling probe failed: EACCES"}
+    payload["reasons"] = [
+        "below the floor because a HARD cap binds (quota_cap=0) — dispatch nothing until relief"
+    ]
+    html = qd._budget_probe()  # round 11: an unrelated caveat must not hide a failed sibling probe
+    assert "sibling probe failed: EACCES — sibling seats unknown, not subtracted" in html
+    payload["siblings"] = {"seats": 0, "ok": True}
     payload["reasons"] = [
         "1 sibling record(s) unreadable (x.json) — their seats are NOT subtracted; the box number is an UPPER bound",
         "below the floor because a HARD cap binds (quota_cap=0) — dispatch nothing until relief",
@@ -2969,6 +2978,10 @@ def test_the_box_budget_banner_shows_the_maximum_and_fails_soft(tmp_path, monkey
         "floor granted: 2 seat(s) past what the box has left after the sibling reservation"
     ]
     assert "⚠️ floor granted: 2 seat(s) past what the box has left" in qd._budget_probe()
+    payload["heavy_reasons"] = []
+    # a probe that predates the halves SAYS so (round 11: an absent key read as "no heavy caveats")
+    payload.pop("heavy_reasons")
+    assert "probe payload predates heavy_reasons" in qd._budget_probe()
     payload["heavy_reasons"] = []
     # an older probe without box_caps must not let the read-only cap pose as the heavy one
     monkeypatch.setattr(
@@ -3231,3 +3244,43 @@ def _check(r, s, qd, bookkeeping, missed):
             continue
         if html.escape(reason) not in rendered:
             missed.add(reason[:90])
+
+
+def test_an_orphaned_probe_re_kicks_only_when_no_other_probe_is_alive(tmp_path, monkeypatch):
+    """Round-10 Opus finding (F276): every stale landing spawned a fresh fleet probe — K stale
+    generations, K probes. With another probe thread ALIVE the orphan lands and spawns nothing;
+    with none alive it re-kicks exactly one."""
+    import threading
+
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setenv("QUOTA_DASH_BUDGET", "1")
+    payload = json.dumps(
+        {
+            "caps": {"box_cap": 5, "concurrency_cap": 20},
+            "box_caps": {"read_only": 5, "heavy": 2},
+            "heavy_reasons": [],
+            "quota": {"ok": True, "active": "a@x", "hottest_pct": 1.0, "eligible": 1},
+        }
+    )
+    started = []
+
+    class _R:
+        def __init__(self, args):
+            started.append(list(args))
+            self.stdout = payload
+
+    monkeypatch.setattr(qd.subprocess, "run", lambda args, **kw: _R(args))
+    hold = threading.Event()
+    other = threading.Thread(target=hold.wait, daemon=True)
+    other.start()
+    qd._budget_cache.update(ts=0.0, html="", thread=other, gen=7)
+    qd._budget_probe(3)  # stale generation lands while `other` is alive: no re-kick
+    assert qd._budget_cache["thread"] is other and len(started) == 1
+    hold.set()
+    other.join(timeout=5)
+    qd._budget_cache["thread"] = None
+    qd._budget_probe(3)  # stale again, nothing alive: exactly one re-kick for the current gen
+    nxt = qd._budget_cache["thread"]
+    assert nxt is not None and nxt is not other
+    nxt.join(timeout=10)
+    assert len(started) == 3 and qd._budget_cache["html"]  # the re-kick landed as current

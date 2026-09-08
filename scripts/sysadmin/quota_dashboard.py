@@ -1933,6 +1933,22 @@ def _budget_probe(gen: int | None = None) -> str:
     return html
 
 
+def _all_reasons(d: dict) -> list:
+    """Every half the probe carries — `reasons` (the run's own), `reasons_read_only`,
+    `heavy_reasons` — deduped in order; a payload from a probe that predates the halves says so
+    instead of passing as "no heavy caveats" (round-11 Opus finding: the guard was asymmetric)."""
+    out: list = []
+    for key in ("reasons", "reasons_read_only", "heavy_reasons"):
+        for x in d.get(key) or []:
+            if isinstance(x, str) and x not in out:
+                out.append(x)
+    if "heavy_reasons" not in d:
+        out.append(
+            "probe payload predates heavy_reasons — the heavy half's caveats are not subtracted"
+        )
+    return out
+
+
 def _budget_caveats(d: dict) -> str:
     """The script's own confidence caveats, rendered — a failed sibling probe ("seats unknown, not
     subtracted"), sibling sessions with no seat figure (a LOWER bound), an env-only own id. Round-7
@@ -1956,14 +1972,15 @@ def _budget_caveats(d: dict) -> str:
     )
     # case-INSENSITIVE (round-9 finding): the script says "NOT subtracted" for an unreadable
     # sibling record — the over-dispatch caveat — and a lowercase word never matched it
-    lines = [
-        r
-        for r in list(d.get("reasons") or [])
-        + [x for x in (d.get("heavy_reasons") or []) if x not in (d.get("reasons") or [])]
-        if isinstance(r, str) and any(w.lower() in r.lower() for w in words)
-    ]
+    lines = [r for r in _all_reasons(d) if any(w.lower() in r.lower() for w in words)]
     sib = d.get("siblings") or {}
-    if isinstance(sib, dict) and sib.get("ok") is False and not lines:
+    # the sibling-failure fallback is gated on the SIBLING caveat being absent, not on any
+    # caveat at all (round-11 finding: an unrelated HARD-cap line hid a failed sibling probe)
+    if (
+        isinstance(sib, dict)
+        and sib.get("ok") is False
+        and not any("sibling seats unknown" in x for x in lines)
+    ):
         lines.append(f"{sib.get('why') or 'probe failed'} — sibling seats unknown, not subtracted")
     if not lines:
         return ""

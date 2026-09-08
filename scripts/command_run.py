@@ -1859,11 +1859,21 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             print("[command_run] round --seats must be >= 0", file=sys.stderr)  # round-10 finding
             return 2
         _seats = args.seats if args.seats is not None else _stamped
+        # a PARTIAL close (round-11 Opus finding): in dispatcher mode several tickets stamp into
+        # one round and return independently — the first `round` must release only what closed,
+        # never the whole accumulated stamp (siblings read 0 while the other tickets' seats ran)
+        _remaining = max(_stamped - int(_seats or 0), 0) if _stamped else 0
         if args.seats is not None and _stamped and args.seats != _stamped:  # 0 disagrees too
             print(
-                f"[command_run] round --seats {args.seats} disagrees with the {_stamped} seat(s) "
-                "stamped this round — the stamp is what sibling sessions subtracted; recording "
-                f"{args.seats} as typed",
+                (
+                    f"[command_run] round --seats {args.seats}: releasing {args.seats} of the "
+                    f"{_stamped} seat(s) stamped this round — {_remaining} stay reserved for the "
+                    "seats still running"
+                    if args.seats < _stamped
+                    else f"[command_run] round --seats {args.seats} disagrees with the {_stamped} "
+                    "seat(s) stamped this round — the stamp is what sibling sessions subtracted; "
+                    f"recording {args.seats} as typed"
+                ),
                 file=sys.stderr,
             )
         classes: dict[str, str] = dict(rec.get("classes") or {})
@@ -1898,10 +1908,10 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # finding: the "release" extended the reservation from 25 to 45 minutes)
         rec["dispatch"] = {
             "ts": time.time(),
-            "seats": 0,
+            "seats": _remaining,  # 0 on a full close; the still-running remainder on a partial one
             "phase": rec.get("phase"),
-            "round": len(rounds),
-            "released": True,
+            "round": len(rounds) if _remaining else len(rounds),
+            "released": _remaining == 0,
         }
         # ROUNDS SINCE THE LAST `step` — the signal job-agent identified. A counter that advances
         # while the phase never moves is either a convergence loop legitimately living inside one

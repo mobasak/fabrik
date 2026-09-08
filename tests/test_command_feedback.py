@@ -1690,16 +1690,25 @@ def test_a_bare_round_inherits_the_stamp_and_a_disagreeing_count_is_said_and_gra
     assert rec["rounds"][-1]["seats"] == 7 and rec["dispatch"]["released"] is True
     _cr(run_dir, "dispatch", "--seats", "5")
     p = _cr(run_dir, "round", "--seats", "2", "--findings", "0", "--classes-swept", "a")
-    assert "round --seats 2 disagrees with the 5 seat(s) stamped" in p.stderr
+    # a PARTIAL close (round-11 Opus finding): two tickets stamped into one round, the first
+    # to close releases only what closed — 3 seats stay reserved, the marker is not `released`
+    assert "releasing 2 of the 5 seat(s) stamped this round — 3 stay reserved" in p.stderr
     rec = json.loads(next(run_dir.glob("*.json")).read_text())
-    assert rec["rounds"][-1]["seats"] == 2  # recorded as typed, the disagreement named
+    assert rec["rounds"][-1]["seats"] == 2  # recorded as typed
+    assert rec["dispatch"]["seats"] == 3 and rec["dispatch"]["released"] is False
+    p = _cr(run_dir, "round", "--seats", "3", "--findings", "0", "--classes-swept", "a")
+    rec = json.loads(next(run_dir.glob("*.json")).read_text())
+    assert rec["dispatch"]["seats"] == 0 and rec["dispatch"]["released"] is True  # the full close
+    p = _cr(run_dir, "round", "--seats", "9", "--findings", "0", "--classes-swept", "a")
+    assert "disagrees" not in p.stderr  # no stamp left to disagree with
     # a negative typed count is refused like `dispatch`'s (round 10: it reached the ledger as -5)
     p = _cr(run_dir, "round", "--seats", "-1", "--findings", "0")
     assert p.returncode == 2 and "must be >= 0" in p.stderr
     # a deliberate `--seats 0` beside a live stamp is recorded as 0 (round 9: `or` conflated it)
     _cr(run_dir, "dispatch", "--seats", "4")
     p = _cr(run_dir, "round", "--seats", "0", "--findings", "0", "--classes-swept", "a")
-    assert "round --seats 0 disagrees with the 4 seat(s) stamped" in p.stderr  # round 10: 0 too
+    # round 11: a deliberate 0 beside a stamp is a PARTIAL close — nothing released, all 4 stay
+    assert "releasing 0 of the 4 seat(s) stamped this round — 4 stay reserved" in p.stderr
     rec = json.loads(next(run_dir.glob("*.json")).read_text())
     assert rec["rounds"][-1]["seats"] == 0
     p = _cr(
@@ -1715,7 +1724,9 @@ def test_a_bare_round_inherits_the_stamp_and_a_disagreeing_count_is_said_and_gra
     assert p.returncode == 0, p.stderr
     ledger = run_dir.parent / "command-feedback.jsonl"
     row = json.loads(ledger.read_text().splitlines()[-1])
-    assert row["seats_declared"] == 9  # 7 + 2 + 0: the ledger figure the tripwire divides by
+    assert (
+        row["seats_declared"] == 21
+    )  # 7 + 2 + 3 + 9 + 0: the ledger figure the tripwire divides by
     # a closed record is never mutated by `dispatch` either (round-8: the docstring claimed it,
     # no test proved it)
     p = _cr(run_dir, "dispatch", "--seats", "3")

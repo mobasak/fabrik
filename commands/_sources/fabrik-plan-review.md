@@ -227,7 +227,7 @@ validation gate is vague or unrunnable.
 
 **Parallelism — UNCONDITIONAL, every round.** Dispatch one INDEPENDENT native `fabrik-researcher` grounder per phase/dependency/ticket (the pool is
 OFF, D-181<!-- POOL OFF: `fanout("research", …, mode="read_only", web_tools=["web_search","web_scrape","docs_lookup"])` for live search; recipe in § Subagents -->),
-an Opus `fabrik-researcher` for the authoritative verify-sample — run them in parallel, then merge + dedupe their
+an Opus `fabrik-researcher` for the authoritative verify-sample — sized, stamped and closed at THIS point: `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <N> --mechanical 0` prints the seats, `python3 scripts/command_run.py dispatch --seats <n>` BEFORE they go out, `python3 scripts/command_run.py round --seats <n> --findings <n> …` at the round's close (the recipe in § Subagents below is the same one) — run them in parallel, then merge + dedupe their
 findings (refute any that are provably wrong — quote the line/schema that disproves them — before acting) before
 the next pass. **Never solo, never two:** a surface with fewer than three units still dispatches **THREE seats on DIFFERENT angles** over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186). (This replaces the old GREENFIELD-monolith exemption: a monolith that modifies or
 wires into EXISTING code still owes ≥1 author-blind native pass (live proof: a ~40-line monolith's

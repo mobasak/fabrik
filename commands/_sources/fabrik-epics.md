@@ -471,7 +471,7 @@ overstepped.
 **Then add ≥1 native `fabrik-reviewer` on Opus for the high-risk seam** — that `Owned paths:`
 disjointness carried intact from Phase 1c's parallel gates 2/3 and 3/3.
 **Two native layers on this adjudication (the pool is OFF, D-181)**: one Sonnet `fabrik-reviewer`
-seat per epic gives breadth; the native Opus pass is the one that catches a subtle `Owned paths:`
+seat per epic gives breadth — sized, stamped and closed at THIS point: `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <N> --mechanical 0` prints the seats, `python3 scripts/command_run.py dispatch --seats <n>` BEFORE they go out, `python3 scripts/command_run.py round --seats <n> --findings <n> …` at the round's close (the recipe in § Subagents below is the same one); the native Opus pass is the one that catches a subtle `Owned paths:`
 overlap a cheap reviewer would rubber-stamp.<!-- POOL OFF (D-181): back-fill every pool run with `set_quality(r.agent_id, score, project="mega-expand", task_type="review", model=r.model)`; passing `project=` is what records the flywheel row -->
 
 **5b. Persist the Infrastructure Decisions spec — ONE file, before any ticket, to the SPEC store, not
