@@ -1855,6 +1855,22 @@ def test_a_round_with_no_stamp_names_the_seats_that_ran_unstamped(
         )
     p = _cr(run_dir, "round", "--findings", "1")
     assert "1 seat transcript(s) since the last round and NO `dispatch --seats` stamp" in p.stderr
+    # round-15 Opus finding: a giant last line is DATABLE (its envelope stamp is at its head) —
+    # a STAMPED seat of that shape, touched after its close, must not re-fire the nudge
+    time.sleep(1.1)
+    _seat_file(sub, "t5", [(time.time(), "st5", 10, 10)])
+    with (sub / "agent-t5.jsonl").open("a") as fh:
+        fh.write(
+            json.dumps({"type": "user", "timestamp": _stamp(time.time()), "big": "x" * (5 << 20)})
+            + "\n"
+        )
+    _cr(run_dir, "dispatch", "--seats", "1")
+    p = _cr(run_dir, "round", "--seats", "1", "--findings", "0")
+    assert "seat transcript(s) since" not in p.stderr
+    time.sleep(1.1)
+    (sub / "agent-t5.jsonl").touch()
+    p = _cr(run_dir, "round", "--findings", "0")
+    assert "seat transcript(s) since" not in p.stderr
     _seat_file(sub, "c", [(time.time(), "s3", 10, 10)])
     _cr(run_dir, "dispatch", "--seats", "1")
     p = _cr(run_dir, "round", "--findings", "0", "--classes-swept", "a")
@@ -1885,8 +1901,8 @@ def test_a_round_with_no_stamp_names_the_seats_that_ran_unstamped(
     # the next empty round — the count is by the seat's in-window last line, not the file mtime
     time.sleep(1.1)  # the fixture's whole-second timestamps
     for f in sub.glob("agent-*.jsonl"):
-        if f.stem in ("agent-t3", "agent-t4"):
-            continue  # undatable seats (empty, one giant line) are dated by mtime BY DESIGN
+        if f.stem == "agent-t3":
+            continue  # the EMPTY seat is undatable and dated by mtime by design; t4/t5 are datable
         f.touch()
     p = _cr(run_dir, "round", "--findings", "0", "--classes-swept", "a")
     assert "seat transcript(s) since" not in p.stderr

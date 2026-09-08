@@ -3015,7 +3015,13 @@ def test_the_box_budget_banner_shows_the_maximum_and_fails_soft(tmp_path, monkey
     _both = qd._budget_probe()
     assert _both.count("quota HOLD is on — dispatch nothing") == 1
     assert "heavy half — quota HOLD" not in _both
+    # the read-only half and the heavy half sharing a cause the run's own half lacks: once, unlabelled
     payload["reasons"].remove("quota HOLD is on — dispatch nothing")
+    payload["reasons_read_only"] = ["quota HOLD is on — dispatch nothing"]
+    _ro = qd._budget_probe()
+    assert _ro.count("quota HOLD is on — dispatch nothing") == 1
+    assert "heavy half — quota HOLD" not in _ro
+    payload.pop("reasons_read_only")
     payload["heavy_reasons"] = []
     # an older probe without box_caps must not let the read-only cap pose as the heavy one
     monkeypatch.setattr(
@@ -3276,7 +3282,10 @@ def test_every_degraded_reason_the_script_can_emit_reaches_the_board(tmp_path, m
 
 
 def _check(r, s, qd, bookkeeping, missed, key="reasons"):
-    rendered = qd._budget_caveats({key: r["reasons"], "siblings": s})
+    d = {"reasons": [], "reasons_read_only": [], "heavy_reasons": [], "siblings": s}
+    d[key] = r["reasons"]  # every half present: the "predates" line must never pollute (round 15)
+    rendered = qd._budget_caveats(d)
+    assert "predates heavy_reasons" not in rendered
     # the heavy half renders LABELLED — containment alone passed with the label dropped (round 14)
     label = "heavy half — " if key == "heavy_reasons" else ""
     for reason in r["reasons"]:

@@ -271,7 +271,9 @@ def pinned_line(rec: dict[str, Any]) -> str:
 # run (2026-08-28), named a specific wrong cause, and instructed a fix that did not apply. A loud
 # advisory that is confidently wrong costs more than silence, because an agent that believes it
 # starts re-scoping a loop that was converging.
-PER_UNIT_ROUND_COMMANDS = frozenset({"fabrik-execute-plan"})
+PER_UNIT_ROUND_COMMANDS = frozenset(
+    {"fabrik-execute-plan", "fabrik-repo-review"}
+)  # waves: round 15
 
 
 def convergence_warning(series: list[int], command: str = "") -> str:
@@ -1000,6 +1002,25 @@ _SEAT_PARTIAL_S = 30.0  # a seat whose last line is this close to the close was 
 _SEAT_TAIL_BYTES = 4 << 20  # the nudge dates a seat from its tail: one complete line is enough
 
 
+def _giant_line_epoch(q: Path, size: int) -> float | None:
+    """The envelope stamp at the HEAD of a last line longer than the walk (a tool result past
+    4 MB): scan back from the window's start for the previous newline, then date the 64 KB after
+    it. Round-15 Opus finding: answering "skipped" there dated a perfectly datable seat by its
+    mtime, so a stamped seat re-fired the nudge whenever its file was touched after the close."""
+    pos = max(size - _SEAT_TAIL_BYTES, 0)
+    with q.open("rb") as fh:
+        while pos > 0:
+            step = min(1 << 20, pos)
+            pos -= step
+            fh.seek(pos)
+            nl = fh.read(step).rfind(b"\n")
+            if nl >= 0:
+                pos += nl + 1
+                break
+        fh.seek(pos)
+        return _line_epoch(fh.read(64 << 10))
+
+
 def _seat_last_epoch(q: Path) -> float | str:
     """The newest line's epoch OF ANY TYPE, read backwards from the file's tail — the mid-run
     nudge needs one date per seat, and a full read of every seat under the record lock cost
@@ -1008,9 +1029,10 @@ def _seat_last_epoch(q: Path) -> float | str:
     assistant line there read a running seat as silent. A TORN tail line (no trailing newline —
     the writer is mid-flush) is skipped: its envelope stamp may be missing while a nested one
     reads as it (round-14 Opus finding). Whenever the walk yields NO date — unreadable, empty,
-    all torn, or the cap cut inside one giant line — the answer is "skipped": the mtime prefilter
-    already dated the file, and the nudge exists to stop silent under-reporting; None is never
-    returned (round 14: a 5 MB last line and an empty file both read as silent)."""
+    or all torn — the answer is "skipped": the mtime prefilter already dated the file, and the
+    nudge exists to stop silent under-reporting; None is never returned (round 14: a 5 MB last
+    line and an empty file both read as silent). A last line longer than the walk is dated from
+    its HEAD (`_giant_line_epoch`), never by its mtime (round 15)."""
     try:
         size = q.stat().st_size
         torn = False
@@ -1020,6 +1042,9 @@ def _seat_last_epoch(q: Path) -> float | str:
                 torn = fh.read(1) != b"\n"
         for raw in _iter_lines_backwards(q, _SEAT_TAIL_BYTES):
             if raw is None:
+                e = _giant_line_epoch(q, size)
+                if e is not None:
+                    return e
                 break
             if torn:
                 torn = False  # the first line yielded is the unterminated one
@@ -1914,7 +1939,6 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 )
                 _tp = _transcript_path(sid, str(rec.get("repo_root") or ""))
                 if _tp is not None:
-                    _tnow = time.time()  # never `_now`: that name is the module's clock function
                     for _q in _seat_transcripts(_tp, _since):
                         _e = _seat_last_epoch(_q)
                         # strict `>`: a line ON the round's own sub-second `ts` is that round's;

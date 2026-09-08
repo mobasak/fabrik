@@ -2938,6 +2938,9 @@ def test_the_oscillation_detector_is_silent_for_per_unit_rounds() -> None:
 
     oscillating = [24, 0, 0, 0, 10]
     assert cr.convergence_warning(oscillating, "fabrik-execute-plan") == ""
+    # round 15 (D-191 review): /fabrik-repo-review closes a round per WAVE — disjoint unit sets
+    # whose counts rise and fall with the subsystem, never with convergence
+    assert cr.convergence_warning(oscillating, "fabrik-repo-review") == ""
 
 
 def test_the_oscillation_detector_still_fires_for_single_brief_loops() -> None:

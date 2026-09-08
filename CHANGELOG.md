@@ -174,30 +174,34 @@ sweep exit 0 having done nothing.
   code consumer and no kaizen cell — the suspension breaks nothing mechanical. The mirror claim in
   `docs/reference/agents/infra.md:42-45` is infra's beat and was filed to them, not edited here. (D-195)
 
+### Fixed — D-191 round 15: a giant last line is dated from its head, a wave's round is a reservation close (2026-09-08)
+- Receipt rows F336–F343 (8 rows: FIXED 5 · REFUTED 1 · RECORDED 2; counted from the verdict cells at the round's close).
+- `command_run.py`: a seat whose last line exceeds the 4 MB walk is dated from that line's head (`_giant_line_epoch`), so a stamped seat touched after its close stays silent (F336); fabrik-repo-review's waves are reservation closes with no class ledger and the command joins the per-unit set the oscillation advisory skips (F337); the dead `_tnow` is gone (F340). The caveat matrix feeds every half and asserts the "predates" line absent (F339). Tally cells carry one leading verdict and the CHANGELOG stops calling a scratch one-liner a script (F338).
+
 ### Fixed — D-191 round 14: the seat dater's three silent shapes and the graders that let them through (2026-09-08)
-- Receipt rows F322–F335 (14 rows: FIXED 11 · RECORDED 3; script-counted at the round's close).
+- Receipt rows F322–F335 (14 rows: FIXED 12 · RECORDED 2 — F333's twin claim refuted in prose; counted from the verdict cells at the round's close).
 - `command_run.py`'s seat dater skips a torn tail line and answers "skipped" — never None — when the walk yields no date, so a 5 MB last line, an empty file and a mid-write fragment all count (F322–F324); its tool-result grader now proves the any-type claim (F325). The caveat matrix asserts the "heavy half — " label, runs `reasons_read_only`, and grades a cause in both halves rendering once unlabelled (F326–F328). fabrik-repo-review's waves are rounds — `--units <this wave's units> [--risky] [--mechanical]` → stamp → seats → `round --seats <n>` per wave (F329–F331). Receipt cells normalised (F332–F333).
 
 ### Fixed — D-191 round 13: the closing sweep's residue (2026-09-08)
-- Receipt rows F309–F321 (13 rows: FIXED 9 · RECORDED 3 · REFUTED 1; script-counted at the round's close).
+- Receipt rows F309–F321 (13 rows: FIXED 9 · RECORDED 3 · REFUTED 1; counted from the receipt's verdict cells at the round's close).
 - `quota_dashboard.py` dedupes caveat lines on the raw text (a line repeated inside `heavy_reasons` rendered twice) and the caveat matrix runs every shape as the heavy half too (F309–F310); the fragment's partial-close clause is graded on the rendered fabrik-review (F311); fabrik-repo-review's waves defer to the script instead of three contradictory numbers, and fabrik-flows-review names `--mechanical 2` at its point of use (F312–F313). `command_run.py`'s mid-run nudge counts an unreadable seat transcript by its mtime instead of dropping it (F316); the hub's and the template's fan-out bullet carry both the `agent.py:1188` anchor and the 01M1GNKP incident, and the template's UI-bearing set names `office-extension` (F317–F318). 741eebbf had swept fleet's D-201 hunks in four files, not one; fleet's 2de6aad6 restored the change's atomicity (F315, recorded). The nudge dates each seat from the newest line of any type via the backwards reader (`_seat_last_epoch`, 4 MB cap) instead of summing the whole file under the record lock (F320).
 
 ### Fixed — D-191 round 12: the unstamped fan-out is named mid-run (2026-09-08)
-- Receipt rows F292–F307 (FIXED 15 over F293–F307 plus F292 FIXED; 16 rows, script-counted at the round's close).
+- Receipt rows F292–F307 (FIXED 15 over F293–F307 plus F292 FIXED; 16 rows, counted from the receipt's verdict cells at the round's close).
 - `dispatch_headroom.py`: the `--mix` mismatch caution reaches the matching reason half; the two sub-floor instructions are graded; the dead second `ts` guard is gone (F294–F295).
 - Round-12 Opus seat: the mid-run nudge counts a seat by its in-window last line (a stamped seat flushing after its close re-fired it), every read it makes is guarded (a malformed `started_epoch` voided a round with rc 0), a partial close keeps the original stamp's clock, heavy-only caveats are labelled on the board, D2 says stamp-then-close, the dead ternary is gone; the over-typed close is graded, `dispatch --seats 0` is a released stamp, the fragment names the partial close; the backlog row and the dashboard doc are current (F299–F307).
 - The corpus: rules-review Phase 2 and ui-design's screen fan-out carry the size → stamp → close line at the point of use; user-test's citation is the full path (F296–F297). The board's read-only reason half is graded (F298). The receipt's stray F6 row is in order (F293).
 - `command_run.py`: a `round` with no dispatch stamp that finds seat transcripts written since the previous round/step says so on stderr — the reservation and `seats_declared` read 0 until the agent stamps (F292; fleet's live datapoint: declared 0 vs seen 12).
 
 ### Fixed — D-191 round 11: the closing sweep (2026-09-08)
-- Receipt rows F278–F291 (FIXED 8 · RECORDED 5 · REFUTED 1; 14 rows, script-counted at the round's close).
+- Receipt rows F278–F291 (FIXED 8 · RECORDED 5 · REFUTED 1; 14 rows, counted from the receipt's verdict cells at the round's close).
 - `command_run.py`: a `round` close releases only what closed — in dispatcher mode the first ticket to close no longer frees every other ticket's running seats (the stamp keeps `M−N`, `released` only at 0; the message says "releasing N of M — M−N stay reserved") (F281).
 - `dispatch_headroom.py` exports `reasons_read_only` beside `heavy_reasons`; `quota_dashboard.py` merges the three halves, says so when a probe payload predates them, and gates the sibling-failure fallback on its own caveat's absence; the orphan re-kick guard has its grader (F282–F283, F288, F290).
 - The corpus: plan-review Phase 1, epics 5a and review-scoped step 5 carry the size → stamp → close command lines at the point of use; execute-plan D2 names the partial close (F284, F287).
 - `dispatch_headroom.py`: a released stamp with `seats` but no `ts` is still named as unreadable — the `ts` check runs before the release short-circuit (F278).
 
 ### Fixed — D-191 round 10: the closing sweep's residue (2026-09-08)
-- Receipt rows F262–F277 (FIXED 13 · RECORDED 3; 16 rows, script-counted at the round's close).
+- Receipt rows F262–F277 (FIXED 13 · RECORDED 3; 16 rows, counted from the receipt's verdict cells at the round's close).
 - `command_run.py`: `round --seats` refuses a negative like `dispatch` does, and a deliberate `--seats 0` beside a live stamp is SAID as a disagreement (F267, F272); the protocol table's `round` row states omitted-vs-zero (F268).
 - `dispatch_headroom.py`: the unreadable reason counts records AND frames honestly; a release marker without a `seats` key is still a known zero; the heavy budget's reasons ride the payload (F273–F275).
 - `quota_dashboard.py`: the caveat block scans the heavy half's reasons and "nothing to partition"; the orphan re-kick is one at a time; the matrix test walks four budget shapes (F270, F274, F276).
@@ -205,7 +209,7 @@ sweep exit 0 having done nothing.
 - fabrik-execute-plan D4 pairs its per-ticket dispatch stamp with the `round` close (F266). The round-9 CHANGELOG bullet's range and tally corrected (F262).
 
 ### Fixed — D-191 round 9: the sibling walk is per frame; the board's caveat match is case-insensitive; core/62 says what the code does (2026-09-08)
-- Receipt rows F233–F261 (19 fixed, 8 recorded, 2 refuted; script-counted at the round's close — the first draft of this bullet counted F233–F252 before the Opus seat's rows landed, F262).
+- Receipt rows F233–F261 (19 fixed, 8 recorded, 2 refuted; counted from the receipt's verdict cells at the round's close — the first draft of this bullet counted F233–F252 before the Opus seat's rows landed, F262).
 - `dispatch_headroom.py`: one malformed NESTED frame no longer drops the whole record's live reservation — the bad frame is named `<file>#<n>`, a non-dict stack entry too, the good frames count, and `unrecorded` is one per SESSION (F236–F238).
 - `quota_dashboard.py`: the caveat match is case-insensitive (the script's "NOT subtracted" over-dispatch caveat never matched), "HARD cap binds" and "is not a number" are caveat words, an ABSENT box block is unknown (no floor label), and the period test asserts the wait the loop computes on a fake clock — nothing sleeps (F246–F249).
 - `command_feedback_report.py`: `seats_seen_rows` (was `seats_rows`, one letter from `seat_rows`); the `seats_seen` reducer uses `_is_count`; the protocol doc lists the report's `--json` keys (F242–F244).
