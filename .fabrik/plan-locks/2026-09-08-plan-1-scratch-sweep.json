@@ -18,7 +18,9 @@
   ],
   "branch": "master",
   "started_at": "2026-09-08T12:13:23+03:00",
-  "status": "active",
+  "status": "released",
   "baseline_commit": "f794b7cd",
-  "owner": "fleet (session 1970a0ff)"
+  "owner": "fleet (session 1970a0ff)",
+  "released_at": "2026-09-08T15:24:36+03:00",
+  "released_by": "fleet, at the /fabrik-execute-plan Finish (Status EXECUTED, D-200)"
 }
