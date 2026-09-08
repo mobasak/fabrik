@@ -66,7 +66,7 @@ def test_an_unidentifiable_active_account_reads_as_hot_never_cool():
 
 def test_the_drain_band_comes_from_the_rotation_picture_not_a_second_constant():
     r = dh.budget(8, False, BOX_OK, dict(Q_OK, hottest_pct=70.0, drain_band=60.0))
-    assert r["seats"] == 3 and any("drain band 60.0%" in x for x in r["reasons"])
+    assert r["seats"] == 3 and any("drain band (60.0%" in x for x in r["reasons"])
     assert dh.budget(8, False, BOX_OK, dict(Q_OK, hottest_pct=70.0, drain_band=85.0))["seats"] == 17
 
 
@@ -402,7 +402,7 @@ def test_the_cost_story_describes_the_mix_it_prints_never_the_per_unit_sentence(
     assert dh.main(["--units", "5"]) == 0
     out = capsys.readouterr().out
     assert "SEATS: 3" in out and "TRIMMED from 11 wanted" in out
-    assert "no Haiku seat left" in out and "2 unit(s) have NO breadth seat this round" in out
+    assert "no Haiku seat left" in out and "2 unit(s) have NO seat at all this round" in out
     assert "one Sonnet breadth seat per unit" not in out
     monkeypatch.setattr(dh, "quota", lambda: Q_OK)
     assert dh.main(["--units", "16"]) == 0
@@ -446,8 +446,8 @@ def test_the_trimmed_story_is_graded_for_judgement_surfaces_and_risky_units(monk
     monkeypatch.setattr(dh, "CONCURRENCY_CAP", 2)
     assert dh.main(["--units", "3", "--risky", "3"]) == 0
     out = capsys.readouterr().out
-    # opus 1 + sonnet 1 both sit on the risky unit that kept its Sonnet seat: TWO of three unread
-    assert "2 unit(s) have NO breadth seat" in out
+    # a trimmed round puts the Opus seat on a risky unit WITHOUT a Sonnet seat: one of three unread
+    assert "1 unit(s) have NO seat at all" in out
 
 
 def test_a_dispatch_stamp_without_ts_is_named_and_a_double_dash_count_is_refused(tmp_path):
@@ -530,7 +530,7 @@ def test_the_pad_and_the_coverage_gap_are_told_honestly(monkeypatch, capsys):
     monkeypatch.setattr(dh, "CONCURRENCY_CAP", 2)
     assert dh.main(["--units", "2", "--risky", "2"]) == 0
     out = capsys.readouterr().out
-    assert "1 unit(s) have NO breadth seat" in out
+    assert "NO seat at all" not in out  # opus on one risky unit, sonnet on the other: both read
     with pytest.raises(SystemExit):
         dh.main(["--units", "-3"])
 
@@ -593,7 +593,20 @@ def test_the_round_fallback_is_dated_by_the_rounds_own_stamp_and_unrecorded_sibl
     s = dh.siblings(now=now, runs_dir=tmp_path, exclude_sid="nobody")
     assert s["seats"] == 4 and s["sessions"] == 1 and s["unrecorded"] == 1
     r = dh.budget(6, False, BOX_OK, Q_OK, s)
-    assert any("1 running sibling(s) carry NO seat figure" in x for x in r["reasons"])
+    assert any("1 running sibling session(s) carry NO seat figure" in x for x in r["reasons"])
+    # the common case — a sibling that has just started, nothing else live — must be named too
+    # (the clause was nested under `taken`, round-6 finding); an EMPTY stamp is unrecorded, not 0
+    (tmp_path / "touched.json").unlink()
+    (tmp_path / "fresh-round.json").unlink()
+    (tmp_path / "silent.json").write_text(
+        json.dumps({"state": "running", "updated_ts": now, "rounds": [], "dispatch": {}})
+    )
+    s = dh.siblings(now=now, runs_dir=tmp_path, exclude_sid="nobody")
+    assert s["seats"] == 0 and s["unrecorded"] == 1
+    r = dh.budget(6, False, BOX_OK, Q_OK, s)
+    assert any("1 running sibling session(s) carry NO seat figure" in x for x in r["reasons"])
+    env_reasons = dh.budget(6, False, BOX_OK, Q_OK, dict(s, own_source="env"))["reasons"]
+    assert any("own-session id came from the env" in x for x in env_reasons)
     # a sid that is not filename-safe still finds its own record
     import importlib.util as iu
 
@@ -612,7 +625,7 @@ def test_the_round_fallback_is_dated_by_the_rounds_own_stamp_and_unrecorded_sibl
         )
     )
     s = dh.siblings(now=now, runs_dir=tmp_path, exclude_sid="sess.one")
-    assert s["excluded_own"] is True and s["seats"] == 4
+    assert s["excluded_own"] is True and s["seats"] == 0  # its own 9 excluded; nothing else fresh
 
 
 def test_a_none_reading_is_unknown_never_cool_and_a_lone_opus_seat_counts_as_coverage(
@@ -645,5 +658,69 @@ def test_a_none_reading_is_unknown_never_cool_and_a_lone_opus_seat_counts_as_cov
     monkeypatch.setattr(dh, "CONCURRENCY_CAP", 1)
     assert dh.main(["--units", "3"]) == 0
     assert (
-        "2 unit(s) have NO breadth seat" in capsys.readouterr().out
+        "2 unit(s) have NO seat at all" in capsys.readouterr().out
     )  # the lone Opus seat reads one
+
+
+def test_a_standby_in_the_drain_band_is_no_fallback_and_a_release_marker_is_a_known_zero(
+    monkeypatch, tmp_path
+):
+    """Round-6 findings: the only standby sat AT the band and `eligible` still read 1; the picture
+    publishes `in_drain_band` per row — read it. A round row at the CLI default (`--seats` 0 = not
+    recorded) is unrecorded; a RELEASE marker (seats 0, released) is a known zero."""
+
+    class _P:
+        stdout = json.dumps(
+            {
+                "picture": {
+                    "accounts": [
+                        {
+                            "state": "active",
+                            "email": "a@x",
+                            "session_pct": 17.0,
+                            "weekly_pct": 56.0,
+                            "in_drain_band": False,
+                        },
+                        {
+                            "state": "eligible",
+                            "email": "b@x",
+                            "session_pct": 85.0,
+                            "weekly_pct": 17.0,
+                            "in_drain_band": True,
+                        },
+                    ],
+                    "active": "a@x",
+                    "hold": False,
+                    "thresholds": {"drain_band": 85.0},
+                }
+            }
+        )
+        returncode = 0
+
+    monkeypatch.setattr(dh.subprocess, "run", lambda *a, **k: _P())
+    q = dh.quota()
+    assert q["eligible"] == 0 and q["eligible_raw"] == 1 and q["active_in_band"] is False
+    r = dh.budget(
+        6, False, BOX_OK, q
+    )  # no COOL standby: the caution fires (it stayed silent before)
+    assert r["seats"] == 13 and any("NO eligible standby" in x for x in r["reasons"])
+    hot = dict(q, active_in_band=True, eligible=3)
+    assert dh.budget(6, False, BOX_OK, hot)["seats"] == 3  # the picture's own predicate, not ours
+    now = 1_000_000.0
+    (tmp_path / "zero-round.json").write_text(
+        json.dumps({"state": "running", "updated_ts": now, "rounds": [{"seats": 0, "ts": now}]})
+    )
+    (tmp_path / "released.json").write_text(
+        json.dumps(
+            {
+                "state": "running",
+                "updated_ts": now,
+                "rounds": [{"seats": 7, "ts": now}],
+                "dispatch": {"ts": now, "seats": 0, "round": 1, "released": True},
+            }
+        )
+    )
+    s = dh.siblings(now=now, runs_dir=tmp_path, exclude_sid="nobody")
+    assert (
+        s["seats"] == 0 and s["unrecorded"] == 1
+    )  # the zero-round is unrecorded; the release is a known zero

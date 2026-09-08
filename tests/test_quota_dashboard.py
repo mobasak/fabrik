@@ -3016,5 +3016,12 @@ def test_a_switch_orphans_the_probe_already_in_flight(tmp_path, monkeypatch):
     status, body = qd.switch_account("sarp")
     assert status == 200 and qd._budget_cache["gen"] == gen_before + 1
     release.set()
-    qd._budget_cache["thread"].join(timeout=10)
-    assert "OLD-ACCOUNT" not in qd._budget_cache["html"] and qd._budget_cache["ts"] == 0.0
+    old_thread = qd._budget_cache["thread"]
+    old_thread.join(timeout=10)
+    # the orphan re-kicks a probe for the current generation (round-6 finding); it lands
+    nxt = qd._budget_cache["thread"]
+    assert nxt is not old_thread
+    nxt.join(timeout=10)
+    assert (
+        "OLD-ACCOUNT" in qd._budget_cache["html"] and qd._budget_cache["ts"] > 0
+    )  # the stub's payload, now current

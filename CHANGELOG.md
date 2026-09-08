@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — D-191 round 6: the third closing sweep's residue (2026-09-08)
+
+- Ten fresh seats over 23189ea4..a0d3b92d; the three mechanical classes clean by execution. Closed: the
+  unrecorded-sibling warning printed only beside a counted sibling (a lone just-started session — the common
+  case — was never named); an empty dispatch stamp fell through every bucket; the own-id env fallback was
+  silent; `seats_partial` flagged every gather-then-close (now only a seat younger than the orchestrator's
+  last word); an orphaned banner probe never re-kicked after a switch; the grounding FLOOR's Opus seat and
+  the "verify-sample" sentence read as two recipes (one now, across spec/vision/plan-after-chat); the five
+  point-of-use "record each pass" sentences and the ten short banners never mentioned `round --seats` — the
+  tripwire stayed blind by construction; core/62 still described the withdrawn notice instrument; the
+  round row's `ts`, the kaizen `dispatch` type and the mismatch rows' number acceptance gained tests.
+- The Opus seat then showed the round-4 "release" EXTENDED the reservation: a popped stamp read as "never
+  dispatched" and the fallback re-reserved the round row's seats for a fresh 25 minutes — an explicit release
+  marker now, never a pop; the script's own last line told the agent to record only `round --seats`; the
+  coverage gap was over-reported in half of trimmed mixes; a standby in the drain band counted as a
+  fallback (live: the only standby sat at exactly 85.0); `round --seats 0` read as a known zero; oversize
+  seat files vanished without a flag (`seats_skipped`).
+
 ### Fixed — D-191 round 5: the second closing sweep's residue (D-194, 2026-09-08)
 
 - Ten fresh seats over 23189ea4..eb6df895; three mechanical classes clean (counts 18/18, structure 0/63,
@@ -142,7 +160,7 @@ All notable changes to this project will be documented in this file.
 - Operator: *"maximum count of viable and useful subagents … utilize the box capacity properly, do not cause
   ooms, finish fastest with affordable token usage, and utilize proper claude models such as fable, opus,
   sonnet, haiku."* Five constraints cannot live in prose at dispatch time. `python3
-  scripts/sysadmin/dispatch_headroom.py --units <N> [--heavy]` prints `SEATS = min(units, the CLI cap of 20,
+  scripts/sysadmin/dispatch_headroom.py --units <N> [--heavy]` prints (superseded by D-191: `min(units × angles + the Opus seat(s), …)`) `SEATS = min(units, the CLI cap of 20,
   box_cap, quota_cap)`, never below 3 (D-188), 0 on the fleet HOLD. `--heavy` seats (pytest/builds/renders)
   are bounded by `MemAvailable / 2 GB` and `(cores − load) / 1.5` — a native seat lives inside its parent
   `claude` process, so only its tool subprocesses load the box. Every probe fails soft with its reason.

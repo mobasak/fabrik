@@ -1602,13 +1602,26 @@ def test_the_row_sums_the_seats_own_transcripts_never_the_parents_result_line(
     # one bad seat file (a pathologically nested line) must never null the whole row — the
     # orchestrator's totals and the other seats survive (round-4 finding); and the mtime prefilter
     # is real: a seat file last written before the window opened is never opened
+    import datetime as dt
     import os
 
     bad = sub / "agent-bad.jsonl"
-    bad.write_text("[" * 200_000 + "]" * 200_000 + "\n", encoding="utf-8")
+    ts = dt.datetime.fromtimestamp(start + 20, tz=dt.UTC).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    bad.write_text(  # an in-window assistant line whose payload is pathologically nested
+        '{"type": "assistant", "timestamp": "'
+        + ts
+        + '", "message": {"id": "sx", "usage": {}}, "junk": '
+        + "[" * 200_000
+        + "]" * 200_000
+        + "}\n",
+        encoding="utf-8",
+    )
     tr.write_text(_usage_line(start + 10, "m1", tout=100) + "\n", encoding="utf-8")
     got = _sum_transcript_usage(tr, start, now)
     assert got["tok_out"] == 100 and got["seats_seen"] == 2 and got["tok_seat_out"] == 10500
+    assert (
+        got["seats_skipped"] == 1
+    )  # the bad file is COUNTED as skipped, never invisible (round 6)
     bad.unlink()
     # a broken symlink beside the good files must not null the directory listing (round 5)
     (sub / "agent-gone.jsonl").symlink_to(sub / "no-such-file.jsonl")
@@ -1619,6 +1632,16 @@ def test_the_row_sums_the_seats_own_transcripts_never_the_parents_result_line(
     os.utime(stale, (start - 100, start - 100))
     got = _sum_transcript_usage(tr, start, now)
     assert got["seats_seen"] == 2  # in-window lines, but the file predates the window: not opened
+    # seats_partial: a seat whose newest line is younger than the orchestrator's newest message
+    # AND within the close's last seconds is still running; a seat the orchestrator spoke AFTER
+    # has returned (round-6 finding: the bare 30-second test flagged every gather-then-close)
+    for f in sub.glob("agent-*.jsonl"):
+        f.unlink()
+    _seat_file(sub, "late", [(now - 5, "s8", 1, 1)])
+    tr.write_text(_usage_line(now - 50, "m5", tout=1) + "\n", encoding="utf-8")
+    assert _sum_transcript_usage(tr, start, now)["seats_partial"] is True
+    tr.write_text(_usage_line(now - 3, "m6", tout=1) + "\n", encoding="utf-8")
+    assert _sum_transcript_usage(tr, start, now)["seats_partial"] is False
     # no seat directory: null, and the clause carries no seat fragment
     tr2 = tmp_path / "other.jsonl"
     tr2.write_text(_usage_line(start + 10, "m1", tout=100) + "\n", encoding="utf-8")

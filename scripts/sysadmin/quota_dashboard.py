@@ -1874,9 +1874,11 @@ def _budget_probe(gen: int | None = None) -> str:
                 [caps["quota_cap"]] if "quota_cap" in caps else []
             )
             allowed = 0 if q.get("hold") else min(int(x) for x in bound if x is not None)
+            taken = int((d.get("siblings") or {}).get("seats") or 0)
             parts.append(
                 f"{label} seats allowed now: <strong>{allowed}</strong> "
                 f"(box {escape(str(box_cap if box_cap is not None else '?'))}"
+                + (f" after {taken} reserved by sibling sessions" if taken else "")
                 + (f", quota {escape(str(caps['quota_cap']))}" if "quota_cap" in caps else "")
                 + ")"
             )
@@ -1904,6 +1906,15 @@ def _budget_probe(gen: int | None = None) -> str:
         # (round-5 finding); a synchronous caller (`--once`) passes no generation
         if gen is None or gen == _budget_cache["gen"]:
             _budget_cache.update(ts=time.time(), html=html)
+        else:
+            # orphaned: kick a probe for the CURRENT generation now, or the placeholder stays
+            # until some later render happens to notice this thread is dead (round-6 finding)
+            cur = _budget_cache["gen"]
+            nxt = threading.Thread(
+                target=_budget_probe, args=(cur,), name="budget-banner", daemon=True
+            )
+            _budget_cache["thread"] = nxt
+            nxt.start()
     return html
 
 

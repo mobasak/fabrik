@@ -107,6 +107,12 @@ _TOK = ("tok_in", "tok_out", "tok_cache_read", "tok_cache_create")
 _SEAT_TOK = ("tok_seat_in", "tok_seat_out", "tok_seat_cache_read", "tok_seat_cache_create")
 
 
+def _is_count(v: object) -> bool:
+    """A finite non-bool number — the same acceptance `seats_seen` uses, so the two aggregations of
+    one field cannot disagree on a `10.0` (round-6 finding)."""
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(float(v))
+
+
 def _seat_total(r: dict) -> int | None:
     """Seat tokens on a row (sync fields + background total), or None when the row carries none."""
     total = 0
@@ -217,9 +223,9 @@ def build(
                 "seats_mismatch_rows": sum(
                     1
                     for r in rs
-                    if isinstance(r.get("seats_declared"), int)
-                    and isinstance(r.get("seats_seen"), int)
-                    and abs(r["seats_declared"] - r["seats_seen"]) > 1
+                    if _is_count(r.get("seats_declared"))
+                    and _is_count(r.get("seats_seen"))
+                    and abs(int(r["seats_declared"]) - int(r["seats_seen"])) > 1
                 ),
             }
         )

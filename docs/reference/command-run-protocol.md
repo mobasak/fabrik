@@ -51,8 +51,8 @@ The Stop hook keys on `state == "running"` **alone**, so neither field can chang
 |---|---|
 | `start --command <name> --phases <N> [--terminal "<cond>"]` | begin a run at phase 1 (a running record is pushed onto `stack`) |
 | `step --phase <N> [--title "<t>"]` | advance |
-| `dispatch --seats <n>` | stamp a fan-out BEFORE its seats go out — `rec["dispatch"] = {ts, seats, phase}`; `dispatch_headroom.py` ACCUMULATED across the messages of one round and released by that round's `round`; `dispatch_headroom.py` subtracts it for 25 minutes on every OTHER session (a `round --seats` at the round's close reserves nothing while the seats run — D-193) |
-| `round [--findings <N>] [--classes-swept a,b] [--classes-new c,d]` | record one convergence pass; merge the class ledger |
+| `dispatch --seats <n>` | stamp a fan-out BEFORE its seats go out — `rec["dispatch"] = {ts, seats, phase, round}`; the STAMP accumulates across the messages of one round, and that round's `round` (or the close) rewrites it as a release marker (`seats: 0, released: true`) — never a pop, because an absent stamp reads as "never dispatched" and the sibling probe would fall back to the round row and re-reserve the returned seats; `dispatch_headroom.py` subtracts a live stamp for 25 minutes on every OTHER session (a `round --seats` at the round's close reserves nothing while the seats run — D-193/D-194) |
+| `round [--seats <n>] [--findings <N>] [--classes-swept a,b] [--classes-new c,d]` | record one convergence pass; merge the class ledger |
 | `done --command <name> --evidence "<proof>"` | terminal — the contract IS met |
 | `blocked --command <name> --reason "<sanctioned case>"` | terminal — a real halt |
 | `line` | the pinned status line; **silent + rc 0 when no run is active** |
@@ -240,7 +240,7 @@ cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — 
   is current (fleet-synced; fabrik-lib pulls). Fields: `ts sid repo command state wall_s rounds
   findings phases phase_reached agent surface account confusion waste change filed cost cost_usd
   tok_in tok_out tok_cache_read tok_cache_create tok_msgs models tok_partial tok_seat_in tok_seat_out
-  tok_seat_cache_read tok_seat_cache_create seats_seen seats_declared seats_partial`.
+  tok_seat_cache_read tok_seat_cache_create seats_seen seats_declared seats_partial seats_skipped`.
   **The analysis dimensions** (operator, 2026-09-07 — "which repo, which agent, which command,
   which spec, which file"): `repo` (the run's `repo_root`), `agent` (`CLAUDE_AGENT` at `start`,
   the same env and the same grammar `[a-z0-9-]{1,32}` the provenance trailers key on — anything
@@ -271,7 +271,8 @@ cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — 
   file holds an in-window message. Measured 2026-09-08: one review's 21 seats billed 69.5M input
   against the orchestrator's 35.7M. The FEEDBACK line prints them as `· seats N: X input / Y output`;
   a window with seats but no orchestrator message prints `tokens — · seats …`, never nothing; a seat still
-  writing within 30 s of the close is summed mid-flight and the row says `seats_partial: true`. A NESTED run's
+  writing within 30 s of the close is summed mid-flight and the row says `seats_partial: true`; an unreadable or oversize (256 MiB) seat file is
+  counted in `seats_skipped`, never silently absent. A NESTED run's
   window lies inside its parent's, so the same seats appear on both rows — the report's seat column is
   non-additive across nested closes, like `tok_*`. The close also records `seats_declared` (the sum of
   `round --seats`) and prints a warning when it differs from `seats_seen` by more than one — the reservation

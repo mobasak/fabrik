@@ -22,7 +22,7 @@ python3 scripts/command_run.py start --command fabrik-review --phases 5 \
 
 Then, for the whole run: `step --phase <N> --title "<the phase title>"` on entering each phase, and
 **one `round` call per Phase-4 pass** —
-`python3 scripts/command_run.py round --findings <this pass's found count> --classes-swept <the
+`python3 scripts/command_run.py round --seats <seats dispatched this pass> --findings <this pass's found count> --classes-swept <the
 Coverage-Checklist classes this pass swept CLEAN> --classes-new <classes this pass opened>`.
 The class ledger persists across rounds: **re-sweep it, never re-scope it** — a pass that invents a
 fresh brief is why a review runs 30 rounds instead of 4. When a round sweeps every known class with
@@ -383,7 +383,7 @@ Log the pass you just finished in the **Pass Ledger** (Reporting: its `found`/`f
 **The round in which you made a fix is NEVER the last look at the classes it touched.** "I fixed what the
 first pass found" is not an exit — those classes return to UNCHECKED until a fresh round re-adjudicates them.
 
-**Record the pass before you decide:** `python3 scripts/command_run.py round --findings <found> \
+**Record the pass before you decide:** `python3 scripts/command_run.py round --seats <seats dispatched this pass> --findings <found> \
 --classes-swept <classes swept CLEAN this pass> --classes-new <classes this pass opened>`. Its TERMINAL
 verdict — every known class clean, `--findings 0` — is the machine-readable form of the EXIT above, and
 its NON-CONVERGENCE warning names the failure mode this loop actually has: re-scoping instead of

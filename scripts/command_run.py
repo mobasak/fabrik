@@ -1025,7 +1025,7 @@ def _seat_usage(q: Path, lo: float, hi: float) -> dict[str, int] | None:
     last = 0.0
     try:
         if q.stat().st_size > _SEAT_MAX_BYTES:
-            return None  # a seat file this large is not a seat transcript; skipped, never summed
+            return "skipped"  # not a seat transcript at this size; counted as SKIPPED, never summed
         for raw in q.read_bytes().splitlines():
             e = _line_epoch(raw)
             if e is None or e < lo or e > hi or not _ASSISTANT_RE.search(raw):
@@ -1058,7 +1058,7 @@ def _seat_usage(q: Path, lo: float, hi: float) -> dict[str, int] | None:
     except Exception:  # noqa: BLE001 — one bad seat file must never null the whole row
         # a RecursionError from a deeply nested line, a MemoryError, an OSError: this seat is
         # skipped; the orchestrator's own totals and the other seats survive (round-4 finding)
-        return None
+        return "skipped"  # counted, so a dropped seat is not invisible (round-6 finding)
     if not seen:
         return None
     acc = dict.fromkeys((k for k, _ in _SEAT_KEYS), 0)
@@ -1154,6 +1154,7 @@ def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[s
             "tok_msgs": 0,
             "seats_seen": 0,
             "seats_partial": False,
+            "seats_skipped": 0,
             "models": [],
             "tok_partial": False,
         }
@@ -1169,6 +1170,7 @@ def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[s
         # the real one (measured 2026-09-07), so the message's usage is the per-field MAXIMUM
         # over its lines — independent of write order, and right for a progressive format too.
         per_msg: dict[str, dict[str, int]] = {}
+        last_orch = 0.0  # the orchestrator's newest in-window message, for the seat-partial test
         anon = 0  # id-less lines cannot be proven repeats — each counts as its own message
         models: list[str] = []
         lo, hi = start - 2.0, end + 2.0
@@ -1190,6 +1192,7 @@ def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[s
                 continue
             if not isinstance(d, dict) or d.get("type") != "assistant":
                 continue
+            last_orch = max(last_orch, e)
             msg = d.get("message") or {}
             u = msg.get("usage") if isinstance(msg, dict) else None
             if not isinstance(u, dict):
@@ -1232,7 +1235,9 @@ def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[s
             for k in totals:
                 totals[k] += acc[k]
         # the seats: their own transcripts, in the same window
-        seat_rows = [u for u in (_seat_usage(q, lo, hi) for q in _seat_transcripts(path, lo)) if u]
+        seat_results = [_seat_usage(q, lo, hi) for q in _seat_transcripts(path, lo)]
+        seat_rows = [u for u in seat_results if isinstance(u, dict)]
+        seats_skipped = sum(1 for u in seat_results if u == "skipped")
         seat_totals: dict[str, Any] = dict.fromkeys((k for k, _ in _SEAT_KEYS), 0)
         for u in seat_rows:
             for k, _ in _SEAT_KEYS:
@@ -1241,8 +1246,14 @@ def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[s
             seat_totals = dict.fromkeys((k for k, _ in _SEAT_KEYS), None)
         seats_seen = len(seat_rows)
         # a seat still writing at the close is summed mid-flight: say so, like tok_partial does
-        # for the byte cap (round-4 finding)
-        seat_totals["seats_partial"] = any(end - u["_last"] < _SEAT_PARTIAL_S for u in seat_rows)
+        # for the byte cap (round-4 finding). "Still writing" = its newest line is younger than the
+        # orchestrator's newest message AND within the close's last seconds — a seat that returned
+        # and was closed on at once has an orchestrator message AFTER it (round-6 finding: the
+        # bare 30-second test flagged the ordinary gather-then-close flow every time)
+        seat_totals["seats_partial"] = any(
+            u["_last"] > last_orch and end - u["_last"] < _SEAT_PARTIAL_S for u in seat_rows
+        )
+        seat_totals["seats_skipped"] = seats_skipped  # unreadable/oversize seat files, named
         if msgs == 0:
             out0 = dict(empty)
             out0.update(seat_totals)
@@ -1829,7 +1840,17 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             }
         )
         rec["rounds"], rec["classes"] = rounds, classes
-        rec.pop("dispatch", None)  # the round's seats have returned; the reservation is released
+        # an explicit RELEASE marker, not a pop: an absent stamp means "this record never
+        # dispatched", and dispatch_headroom.siblings() then falls back to this very round row and
+        # re-reserves the seats the round just declared returned — for a FRESH window (round-6
+        # finding: the "release" extended the reservation from 25 to 45 minutes)
+        rec["dispatch"] = {
+            "ts": time.time(),
+            "seats": 0,
+            "phase": rec.get("phase"),
+            "round": len(rounds),
+            "released": True,
+        }
         # ROUNDS SINCE THE LAST `step` — the signal job-agent identified. A counter that advances
         # while the phase never moves is either a convergence loop legitimately living inside one
         # phase (correct, and common) or a boundary the agent walked past without recording. Both
@@ -2171,7 +2192,8 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         print(msg)
         return 1
     rec["state"] = args.cmd
-    rec.pop("dispatch", None)  # a closed run reserves nothing; the stamp is not history
+    if isinstance(rec.get("dispatch"), dict):  # a closed run reserves nothing — say so, don't pop
+        rec["dispatch"] = dict(rec["dispatch"], seats=0, released=True, ts=time.time())
     # `closed_by` is ADDITIVE and never read by an existing consumer (the Stop hook keys
     # on `state == "running"` alone). `agent` is the only value this script writes; the
     # coroner writes `coroner`/`ttl` for the runs no agent ever came back to close.

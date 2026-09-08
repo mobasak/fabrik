@@ -132,7 +132,7 @@ reclassified, keep going. A single pass, or "I think I caught them all," is not 
 stable (identical-to-prior) pass is. This converges the AUDIT to completeness; it does **not** fix
 the gaps (fixing is a separate, user-authorized step).
 
-**Record each pass in the run record:** `python3 scripts/command_run.py round --findings <n>
+**Record each pass in the run record:** `python3 scripts/command_run.py round --seats <seats dispatched this pass> --findings <n>
 --classes-swept <the packs swept> --classes-new <…>` — where **`<n>` counts gaps NEW or
 RECLASSIFIED this pass, never the standing gap-table size: a standing gap re-listed by a later
 pass is CITED, not counted (D-048), so the stable pass honestly records `--findings 0` and the

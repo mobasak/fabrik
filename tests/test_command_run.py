@@ -3537,11 +3537,18 @@ def test_dispatch_stamps_the_reservation_before_the_seats_go_out(run_dir: Path) 
     )
     assert rec["dispatch"]["seats"] == 10 and rec["dispatch"]["round"] == 0
     # the round's close records the ledger figure and RELEASES the reservation
+    before_round = time.time()
     _cr(run_dir, "round", "--findings", "0", "--seats", "10", "--classes-swept", "a")
     rec = json.loads(
         next(f for f in run_dir.glob("*.json") if "feedback" not in f.name).read_text()
     )
-    assert rec["rounds"][-1]["seats"] == 10 and "dispatch" not in rec
+    assert rec["rounds"][-1]["seats"] == 10
+    # an explicit RELEASE marker (seats 0), never a pop — a popped stamp let the sibling probe fall
+    # back to this very round row and re-reserve the returned seats for a fresh window (round 6)
+    assert rec["dispatch"]["seats"] == 0 and rec["dispatch"]["released"] is True
+    # the round row's OWN stamp — dispatch_headroom.py dates the fallback reservation by it (a
+    # producer-side assertion; the consumer test hand-writes the field — round-6 finding)
+    assert before_round - 1 <= rec["rounds"][-1]["ts"] <= time.time() + 1
     _cr(run_dir, "dispatch", "--seats", "4")
     rec = json.loads(
         next(f for f in run_dir.glob("*.json") if "feedback" not in f.name).read_text()

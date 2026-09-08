@@ -696,3 +696,16 @@ def test_partial_exposure_override_is_merged_over_unknown_baseline(_isolated_eve
     assert exp["project"] == "px"
     for key in ("commit", "account", "model", "headless", "plan_era"):
         assert exp[key] == kaizen_events.UNKNOWN, f"{key} must degrade to unknown, not vanish"
+
+
+def test_dispatch_is_a_registered_event_type():
+    """D-193/D-194: `command_run.py dispatch --seats` emits a `dispatch` event; an unregistered type
+    prints "unknown event type … (emitted anyway)" on every fan-out (round-6 finding: untested)."""
+    import importlib.util as iu
+    from pathlib import Path
+
+    p = Path(__file__).resolve().parents[1] / "scripts" / "sysadmin" / "kaizen_events.py"
+    spec = iu.spec_from_file_location("kaizen_events", p)
+    ke = iu.module_from_spec(spec)
+    spec.loader.exec_module(ke)
+    assert "dispatch" in ke.EVENT_TYPES

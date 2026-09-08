@@ -19,7 +19,7 @@ cap — a box with room for two heavy seats gets two, with the reason, never thr
 memory is its TOOL subprocesses — and a "read-only" finder still runs pytest through Bash (measured
 2026-09-08 at 1.19 GB max RSS), so the box bound applies to every seat: 2 GB planned per `--heavy`
 seat, 1 GB per read-only seat. Seats already dispatched by OTHER live sessions on this box are
-subtracted first (their run records carry `seats` per round), so three sessions cannot each take
+subtracted first (their DISPATCH stamps, `command_run.py dispatch --seats`), so three sessions cannot each take
 the whole box in the same minute.
 
 Every probe fails SOFT and says so: an unreadable /proc, a rotation script that raises, or an
@@ -154,14 +154,21 @@ def quota() -> dict:
             else []
         )
         hottest = max(vals) if vals else None
-        # `eligible` is the rotation's STANDBY state; the account doing the work is `active`
-        eligible = sum(1 for a in accounts if a.get("state") == "eligible")
+        # `eligible` is the rotation's STANDBY state; the account doing the work is `active`. A
+        # standby that is ITSELF in the drain band is no fallback — count the COOL ones (round-6
+        # finding: the only standby sat at exactly the band and the caution stayed silent)
+        eligible_raw = sum(1 for a in accounts if a.get("state") == "eligible")
+        eligible = sum(
+            1 for a in accounts if a.get("state") == "eligible" and not a.get("in_drain_band")
+        )
         band = float((pic.get("thresholds") or {}).get("drain_band") or 85.0)
         return {
             "ok": True,
             "active": active,
             "hottest_pct": hottest,
             "eligible": eligible,
+            "eligible_raw": eligible_raw,
+            "active_in_band": bool(act.get("in_drain_band")) if act else None,
             "hold": bool(pic.get("hold")),
             "drain_band": band,
         }
@@ -171,16 +178,28 @@ def quota() -> dict:
         return {"ok": False, "why": f"quota probe failed: {exc}"}
 
 
+_SCRIPTS_DIR = str(Path(__file__).resolve().parents[1])
+
+
+def _import_command_run():
+    """`scripts/command_run.py` — the authority on record names; inserted on sys.path ONCE."""
+    if _SCRIPTS_DIR not in sys.path:
+        sys.path.insert(0, _SCRIPTS_DIR)
+    import command_run  # noqa: PLC0415
+
+    return command_run
+
+
 def _safe_stem(sid: str) -> str:
     """The FILENAME `command_run.py` writes for a sid (`_safe_sid`) — the own-record test compares
     stems, and a raw sid with a dot or a slash never matched its own file (round-5 finding)."""
     try:
-        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-        from command_run import _safe_sid  # noqa: PLC0415
-
-        return str(_safe_sid(sid))
+        return str(_import_command_run()._safe_sid(sid))
     except Exception:  # noqa: BLE001
         return sid
+
+
+OWN_ID_SOURCE = "command_run"  # or "env" when the import failed — a silent fallback is a finding
 
 
 def own_session_id() -> str:
@@ -190,11 +209,10 @@ def own_session_id() -> str:
     fallback returned "" in an id-less shell and the own record was counted again (round-5
     finding). Fail-soft: if command_run.py cannot be imported, the env ladder alone."""
     try:
-        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-        from command_run import _session_id  # noqa: PLC0415 — the authority on the record's name
-
-        return str(_session_id(None) or "").strip()
-    except Exception:  # noqa: BLE001 — a probe fails soft
+        return str(_import_command_run()._session_id(None) or "").strip()
+    except Exception:  # noqa: BLE001 — a probe fails soft, and SAYS so (round-6 finding)
+        global OWN_ID_SOURCE
+        OWN_ID_SOURCE = "env"
         return (
             os.environ.get("CLAUDE_SESSION_ID") or os.environ.get("CLAUDE_CODE_SESSION_ID") or ""
         ).strip()
@@ -219,6 +237,7 @@ def siblings(
         "unrecorded": 0,
         "skipped": [],
         "excluded_own": False,
+        "own_source": OWN_ID_SOURCE if exclude_sid is None else "explicit",
     }
     try:
         for p in runs_dir.glob("*.json"):
@@ -238,17 +257,23 @@ def siblings(
                 if not isinstance(rounds, list):
                     raise TypeError("rounds is not a list")
                 last = rounds[-1] if rounds else {}
-                if not isinstance(disp, dict) and last.get("seats") is None:
-                    out["unrecorded"] += 1  # running, no seat figure at all: a LOWER bound
+                disp_seats = disp.get("seats") if isinstance(disp, dict) else None
+                released = isinstance(disp, dict) and bool(disp.get("released"))
+                if not released and not disp_seats and not last.get("seats"):
+                    # running, no seat figure at all: no stamp, an EMPTY stamp, or a round row at
+                    # the CLI's own default (`round --seats` 0 = "not recorded") — a LOWER bound,
+                    # counted and named, never a known zero (round-6 finding); a RELEASE marker
+                    # (seats 0, released) is a known zero and skips nothing
+                    out["unrecorded"] += 1
                     continue
                 # the DISPATCH stamp (written before the seats went out, released when they
                 # returned) is the reservation; the round row is only the fallback for a record
                 # without one, dated by the round's OWN stamp — `updated_ts` is a generic
                 # last-touch and re-dated a two-hour-old round on a bare `step` (round-5 finding)
-                if isinstance(disp, dict) and disp.get("seats") is not None:
+                if disp_seats is not None:
                     if disp.get("ts") is None:
                         raise ValueError("dispatch stamp without ts")  # named, never silently 0
-                    ts, seats = float(disp["ts"]), int(disp.get("seats") or 0)
+                    ts, seats = float(disp["ts"]), int(disp_seats or 0)
                 else:
                     ts = float(last.get("ts") or 0)
                     seats = int(last.get("seats") or 0)
@@ -379,11 +404,6 @@ def budget(
             + (
                 f", minus {taken} seat(s) dispatched < {SIBLING_FRESH_S // 60} min ago in "
                 f"{s.get('sessions')} running record(s), never below the floor of {FLOOR}"
-                + (
-                    f"; {s['unrecorded']} running sibling(s) carry NO seat figure — this is a LOWER bound"
-                    if s.get("unrecorded")
-                    else ""
-                )
                 if taken
                 else ""
             )
@@ -394,6 +414,18 @@ def budget(
         reasons.append(f"{b.get('why')} — box unknown, held at the floor")
     if not s.get("ok"):
         reasons.append(f"{s.get('why')} — sibling seats unknown, not subtracted")
+    if s.get("unrecorded"):
+        # its own line: nested under the `taken` clause it never printed for the common case — a
+        # sibling that has just `start`ed and dispatched nothing yet (round-6 finding)
+        reasons.append(
+            f"{s['unrecorded']} running sibling session(s) carry NO seat figure — the box number "
+            "is a LOWER bound"
+        )
+    if s.get("own_source") == "env":
+        reasons.append(
+            "own-session id came from the env only (command_run.py not importable) — an id-less "
+            "shell may be counting its own record as a sibling"
+        )
     if q.get("ok"):
         if q["hold"]:
             caps["quota_cap"] = 0
@@ -401,7 +433,8 @@ def budget(
         else:
             band = float(q.get("drain_band") or 85.0)
             unknown = q["hottest_pct"] is None
-            hot = unknown or q["hottest_pct"] >= band
+            # the picture publishes its own in_drain_band predicate; read it, don't re-derive it
+            hot = unknown or bool(q.get("active_in_band")) or q["hottest_pct"] >= band
             if hot:
                 caps["quota_cap"] = FLOOR
                 reasons.append(
@@ -409,8 +442,8 @@ def budget(
                         f"quota: the active account could not be identified ({q['active']!r}) — "
                         "treated as HOT, never as cool"
                         if unknown
-                        else f"quota: active {q['active']} is at {q['hottest_pct']}% "
-                        f"(>= drain band {band}%)"
+                        else f"quota: active {q['active']} is at {q['hottest_pct']}% — in the drain "
+                        f"band ({band}%, the rotation picture's own predicate)"
                     )
                     + " — run the FLOOR, sweep the rest next round"
                 )
@@ -493,10 +526,12 @@ def _mix_story(a: argparse.Namespace, mix: dict[str, int], full: dict[str, int])
         )
     # an Opus seat on a risky unit reads that unit too; a judgement surface never HAD mechanical
     # classes, so nothing "waits" (round-3 finding: the story told --mechanical 0 to sweep them)
-    # an Opus seat sits on a RISKY unit that keeps its Sonnet seat — counting it again certified
-    # an unswept unit as covered (round-4 finding); only Opus seats beyond the Sonnet count add
+    # units read by NOBODY this round: the Sonnet seats plus the Opus seats, which a trimmed
+    # round places on units WITHOUT a Sonnet seat (each seat is a distinct unit x angle brief) —
+    # the earlier formula forced the Opus seat onto a Sonnet-read unit and over-reported the gap
+    # in half of all trimmed mixes (round-6 finding, 83,600 of 165,957 combinations)
     sonnet = mix.get("sonnet", 0)
-    covered = sonnet + max(mix.get("opus", 0) - min(a.risky, sonnet), 0)
+    covered = min(sonnet + min(mix.get("opus", 0), max(a.risky, 1)), a.units)
     uncovered = max(a.units - covered, 0)
     if haiku:
         left = (
@@ -508,7 +543,7 @@ def _mix_story(a: argparse.Namespace, mix: dict[str, int], full: dict[str, int])
     else:
         left = ""
     gap = (
-        f"; {uncovered} unit(s) have NO breadth seat this round — re-sweep them next round, never "
+        f"; {uncovered} unit(s) have NO seat at all this round — re-sweep them next round, never "
         "dispatch past the cap"
         if uncovered
         else ""
@@ -621,7 +656,12 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print("  COST: 0 haiku-units — nothing to dispatch (see the reasons above)")
     print(
-        "  record what you dispatch: python3 scripts/command_run.py round --seats <n> "
+        "  record the dispatch BEFORE you send it: python3 scripts/command_run.py dispatch "
+        "--seats <n>   (the stamp sibling sessions subtract; a round --seats at the close "
+        "reserves nothing while the seats run)"
+    )
+    print(
+        "  then close the round: python3 scripts/command_run.py round --seats <n> "
         "--findings <n> --classes-swept … --classes-new …"
     )
     print("  tiers (model by the seat's JOB; the per-dispatch token is Agent(model=...)):")
