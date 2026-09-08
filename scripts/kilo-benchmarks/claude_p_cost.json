@@ -1,5 +1,5 @@
 {
-  "amortized_per_mtok": 0.007921151942552152,
+  "amortized_per_mtok": 0.00831807988564198,
   "amortized_per_mtok_by_family": {
     "opus": 0.005489476973706957,
     "haiku": 0.008287347458697648,
@@ -7,25 +7,25 @@
     "sonnet": 0.0031955059617919837
   },
   "quota_draw_pct": 0.0,
-  "window_start": "2026-08-09",
-  "window_end": "2026-09-07",
+  "window_start": "2026-08-10",
+  "window_end": "2026-09-08",
   "accounts": 4,
   "spend_usd": 800.0,
-  "tokens": 100995411501,
-  "built_at": "2026-09-07T06:00:58+03:00",
+  "tokens": 96176041947,
+  "built_at": "2026-09-08T06:00:48+03:00",
   "per_model_spend": {
-    "window_start": "2026-08-09",
-    "window_end": "2026-09-07",
-    "spend_usd": 780.2150537634404,
+    "window_start": "2026-08-10",
+    "window_end": "2026-09-08",
+    "spend_usd": 781.0752688172039,
     "accounts": 4,
-    "base_rate_per_mtok": 0.0011018444420512958,
+    "base_rate_per_mtok": 0.0011222341174288656,
     "tiers": {
       "opus": {
         "weight": 5.0,
-        "tokens": 90141497749,
-        "share": 0.745051579911007,
-        "rate_per_mtok": 0.005509222210256479,
-        "cost_usd": 496.6095414645752,
+        "tokens": 89308856709,
+        "share": 0.7468921773224311,
+        "rate_per_mtok": 0.005611170587144328,
+        "cost_usd": 501.12722993702823,
         "models": [
           "claude-opus-5",
           "claude-opus-4-8"
@@ -33,10 +33,10 @@
       },
       "fable": {
         "weight": 10.0,
-        "tokens": 24512303190,
-        "share": 0.20260291513926748,
-        "rate_per_mtok": 0.011018444420512958,
-        "cost_usd": 270.0874503177775,
+        "tokens": 23665552349,
+        "share": 0.19791559955891075,
+        "rate_per_mtok": 0.011222341174288657,
+        "cost_usd": 265.5829025384663,
         "models": [
           "claude-fable-5",
           "claude-fable-5-1"
@@ -44,10 +44,10 @@
       },
       "sonnet": {
         "weight": 2.0,
-        "tokens": 5935454181,
-        "share": 0.049058642528407526,
-        "rate_per_mtok": 0.0022036888841025916,
-        "cost_usd": 13.079894400769952,
+        "tokens": 6200928080,
+        "share": 0.05185851488595168,
+        "rate_per_mtok": 0.0022444682348577313,
+        "cost_usd": 13.91778610219734,
         "models": [
           "claude-sonnet-5",
           "claude-sonnet-4-6"
@@ -55,22 +55,22 @@
       },
       "haiku": {
         "weight": 1.0,
-        "tokens": 397667369,
-        "share": 0.003286862421317936,
-        "rate_per_mtok": 0.0011018444420512958,
-        "cost_usd": 0.4381675803178118,
+        "tokens": 398624701,
+        "share": 0.00333370823270644,
+        "rate_per_mtok": 0.0011222341174288656,
+        "cost_usd": 0.44735023951208047,
         "models": [
           "claude-haiku-4-5-20251001"
         ]
       }
     },
     "models": {
-      "claude-fable-5": 16510858163,
-      "claude-opus-5": 76997133541,
-      "claude-haiku-4-5-20251001": 397667369,
+      "claude-fable-5": 14867100201,
+      "claude-opus-5": 76164492501,
       "claude-opus-4-8": 13144364208,
-      "claude-sonnet-5": 5916088536,
-      "claude-fable-5-1": 8001445027,
+      "claude-sonnet-5": 6181562435,
+      "claude-haiku-4-5-20251001": 398624701,
+      "claude-fable-5-1": 8798452148,
       "claude-sonnet-4-6": 19365645
     },
     "daily": [
@@ -1363,13 +1363,24 @@
       },
       {
         "date": "2026-09-07",
-        "tokens": 554144443,
-        "cost_usd": 4.411927426044346,
+        "tokens": 3005059085,
+        "cost_usd": 20.705807136886122,
         "by_tier": {
           "haiku": 72392,
-          "sonnet": 13646906,
-          "opus": 285497705,
-          "fable": 254927440
+          "sonnet": 226631518,
+          "opus": 1808357789,
+          "fable": 969997386
+        }
+      },
+      {
+        "date": "2026-09-08",
+        "tokens": 955494262,
+        "cost_usd": 5.639628410874104,
+        "by_tier": {
+          "haiku": 1082784,
+          "sonnet": 52489287,
+          "opus": 819985016,
+          "fable": 81937175
         }
       }
     ],
