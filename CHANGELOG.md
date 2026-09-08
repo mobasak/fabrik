@@ -55,7 +55,13 @@ All notable changes to this project will be documented in this file.
 
 - **The D-196 delisting stripped `libs/subagents/` from the generated `.gitignore` block**, leaving 26
   files untracked AND unignored in 38 of 41 project repos: one `git clean -fd` from deletion, one
-  `git add -A` from being committed as a retired vendored module. The sync deleted nothing — that claim
+  `git add -A` from being committed as a retired vendored module. Selectors, because the first
+  version of this entry stated all three bare: **26** = `find libs/subagents -type f | grep -v
+  __pycache__ | wc -l`; **41** = `/opt/*/` with a `.git` DIRECTORY, minus fabrik/fabrik-lib/fabrik-mail
+  (the sync's own discovery yields **45**, adding 4 non-git dirs — a different population); **38** =
+  those 41 minus the 3 carrying pre-existing TRACKED files at that path. Post-fix exposure is **0**
+  files fleet-wide — measured per FILE, since a bare-directory `git check-ignore` reads NOT-ignored
+  whenever the directory holds tracked files. The sync deleted nothing — that claim
   was true — but the delisting removed the protection that made "the sync deletes nothing" safe to say.
   `fabrik_synced_manifest.py:60-63` already recorded this exact lesson for `RETIRED_CORE_SCRIPTS`,
   80 lines above the edit. New `RETIRED_VENDORED_DIRS` + `RETIRED_VENDORED_GITIGNORE_GROUP`: a retired
@@ -116,7 +122,7 @@ sweep exit 0 having done nothing.
   `docs/reference/agents/infra.md:42-45` is infra's beat and was filed to them, not edited here. (D-195)
 
 ### Fixed — D-191 round 9: the sibling walk is per frame; the board's caveat match is case-insensitive; core/62 says what the code does (2026-09-08)
-- Receipt rows F233–F252 (12 fixed, 6 recorded, 2 refuted; script-counted).
+- Receipt rows F233–F261 (19 fixed, 8 recorded, 2 refuted; script-counted at the round's close — the first draft of this bullet counted F233–F252 before the Opus seat's rows landed, F262).
 - `dispatch_headroom.py`: one malformed NESTED frame no longer drops the whole record's live reservation — the bad frame is named `<file>#<n>`, a non-dict stack entry too, the good frames count, and `unrecorded` is one per SESSION (F236–F238).
 - `quota_dashboard.py`: the caveat match is case-insensitive (the script's "NOT subtracted" over-dispatch caveat never matched), "HARD cap binds" and "is not a number" are caveat words, an ABSENT box block is unknown (no floor label), and the period test asserts the wait the loop computes on a fake clock — nothing sleeps (F246–F249).
 - `command_feedback_report.py`: `seats_seen_rows` (was `seats_rows`, one letter from `seat_rows`); the `seats_seen` reducer uses `_is_count`; the protocol doc lists the report's `--json` keys (F242–F244).

@@ -2435,3 +2435,47 @@ def test_hub_settings_json_worktree_block_is_present_and_well_formed():
     assert _indent("worktree") == _indent("hooks") == 2, (
         "top-level keys must share the file's own 2-space indentation"
     )
+
+
+def test_retired_dir_rows_persist_because_the_source_is_deliberately_kept(tmp_path: Path):
+    """D-199 closing round: the ZOMBIE-REAP HAS A DOCUMENTED BLIND SPOT, pinned here.
+
+    `test_zombie_ledger_row_is_reaped_when_both_source_and_file_are_gone` covers one FILE
+    retired inside a still-synced directory pattern. It does NOT cover the case this
+    retirement created: a whole directory pattern LEAVING the manifest while its
+    main-checkout source deliberately stays (RETIRED_VENDORED_DIRS — "removing the entry
+    deletes nothing; each project keeps its copy until it deletes it itself").
+
+    In that shape the reap can never fire, because it requires source_gone AND dest_gone
+    and the source is kept ON PURPOSE. Measured 2026-09-08: 2,158 `libs/subagents` rows
+    across 83/83 agent worktrees survived three consecutive sync runs.
+
+    That is ACCEPTED, not a bug to fix here, and this test exists so the acceptance is
+    deliberate rather than rediscovered:
+      * the rows are inert — only this module and its tests read the ledger, and the
+        pattern loop no longer visits those paths, so nothing copies or deletes on them;
+      * the reap is fail-SAFE (`never reap a row we're unsure about` on OSError), and a
+        hypothetical re-adoption yields a hash-mismatch WARN-and-skip, not data loss;
+      * clearing them would mean a deletion pass across 83 worktrees — a fleet deletion
+        the operator owns, never something a review invents.
+
+    If someone later makes the reap fire on a retired pattern, this test SHOULD fail —
+    that is the signal to re-read the three bullets above, not to delete the assertion.
+    """
+    from fabrik_synced_manifest import RETIRED_VENDORED_DIRS, worktreeinclude_text
+
+    retired = RETIRED_VENDORED_DIRS[0]  # non-empty is pinned in test_synced_manifest.py
+
+    # 1. The pattern really is absent from the worktree set — that is WHY the loop never
+    #    revisits those rows (the precondition of the blind spot).
+    assert f"{retired}/" not in worktreeinclude_text().splitlines()
+
+    # 2. The reap's own condition, restated as executable truth: a kept source means
+    #    source_gone is False, so the row survives however long the leftover copy sits.
+    project_dir = tmp_path / "proj"
+    (project_dir / retired).mkdir(parents=True)
+    (project_dir / retired / "agent.py").write_text("# the deliberately-kept leftover\n")
+    source_gone = not (project_dir / retired / "agent.py").exists()
+    assert source_gone is False, (
+        "a RETIRED dir's source is kept on purpose, so the zombie reap cannot fire for it"
+    )

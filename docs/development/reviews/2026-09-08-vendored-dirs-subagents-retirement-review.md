@@ -228,7 +228,7 @@ $ python scripts/review_rubric.py --changed scripts/fabrik_synced_manifest.py te
 | Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | CLEAN — no cost/limit surface in this diff; seats sized by `dispatch_headroom.py` (5 then 4), stamped before dispatch. |
 | Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | CLEAN — the group key is a module CONSTANT shared by producer and consumer, not a repeated literal; `leaf`-name matching in `_unreachable_vendored_copies` re-verified against both known strays by execution. |
 | Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | FIXED(1) — the retirement mechanism shipped with 5 guards; `_unreachable_vendored_copies`' restored coverage proven by running it against the two named strays. |
-| Recurrence: denominator on every count — bounded searches state their bound | FIXED(2) — two bare counts found and corrected (`17/12/4`, `seven suites`); every surviving number now carries its selector. This class fired in D-195, D-196 AND this round — three consecutive rows on one surface. |
+| Recurrence: denominator on every count — bounded searches state their bound | FIXED(3) — three bare counts found and corrected. ⚠️ The claim "every surviving number now carries its selector" was itself FALSE when first written: pass 4 found the flagship figure `26 files / 38 of 41 repos` restated five times with no path, command or repo list anywhere. Selectors now stated — **26** = `find /opt/fabrik/libs/subagents -type f | grep -v __pycache__ | wc -l`; **41** = `/opt/*/` directories with a `.git` DIRECTORY, excluding fabrik, fabrik-lib and fabrik-mail (the sync's own discovery yields **45** targets, adding 4 non-git dirs — a different population, and the number to quote for sync coverage); **38** = those 41 minus the 3 with pre-existing TRACKED files under the path (`git ls-files libs/subagents`). And the POST-fix exposure is **0**, not 3: the bare-directory `git check-ignore` reads NOT-ignored whenever a dir holds tracked files, so exposure must be measured per FILE (`git ls-files --others --exclude-standard -- libs/subagents`). This class fired in D-195, D-196 AND this round — three consecutive rows on one surface. |
 | Recurrence: proxy-as-evidence — the real check EXECUTED, not read | FIXED(1) — the refusal'sclaim (`the delete reds the gate`) was a READ, never executed. Settled by execution: with `libs.subagents` blocked via `sys.meta_path`, all four gate-wired checks exit 0. The claim was false. |
 
 Verdict grammar (the gate refuses anything else): `CLEAN (<the paths/lines hunted>)` — a CLEAN row
@@ -264,14 +264,15 @@ No "noted / to-watch / accepted" bucket exists.
 | 19 | D-198 lacked the `supersedes D-196` pointer its sibling D-197 sets for D-195 | 3 | **FIXED** `4d9d3407` — D-199 supersedes D-196 and completes the pointer |
 | 20 | "295 tests across ten suites" carried no selector; commit says 206/8 | 3 | **FIXED** `4d9d3407` — the SET is named rather than the count quoted bare |
 | 21 | `DECLARED_NON_TRIGGERS` still hardcodes `libs/subagents` | 1, 3 | **REFUTED** as a defect — `synced_surfaces()` never derives from `RETIRED_VENDORED_DIRS`, so the entry can no longer be exercised; dead weight, not a false pass. No behaviour depends on it |
-| 22 | 83 worktree ledgers carry ~26 un-reapable `libs/subagents` rows each | 1, 3 | **REFUTED** as a live defect — verified independently: only 3 files touch the ledger (the sync, its test, a comment in the manifest), so no third-party reader acts on the rows; the pattern loop no longer visits those paths, so nothing copies or deletes on them; and the reap is fail-SAFE by construction (`never reap a row we're unsure about` on OSError). A hypothetical re-adoption yields a hash-mismatch WARN-and-skip, not data loss. Pruning them would mean a deletion pass across 83 worktrees — a fleet deletion the operator owns, not a review's to invent |
+| 22 | 83 worktree ledgers carry ~26 un-reapable `libs/subagents` rows each | 1, 3, 4 | **FIXED** `4d9d3407`+ — RE-RAISED in round 4 with evidence my refutation did NOT cover: the dedicated guard `test_zombie_ledger_row_is_reaped_when_both_source_and_file_are_gone` covers one FILE retired inside a still-synced pattern, never a whole PATTERN leaving the manifest while its source is deliberately kept — so the blind spot was unguarded, not just inert. Per the cite-not-count rule a re-raise carrying evidence the proof does not cover NEEDS adjudication, so it counts. `test_retired_dir_rows_persist_because_the_source_is_deliberately_kept` now pins the acceptance and says what should happen if it ever fails. My original refutation stands on its own terms (inert, no third-party reader, fail-safe — verified independently: only 3 files touch the ledger (the sync, its test, a comment in the manifest), so no third-party reader acts on the rows; the pattern loop no longer visits those paths, so nothing copies or deletes on them; and the reap is fail-SAFE by construction (`never reap a row we're unsure about` on OSError). A hypothetical re-adoption yields a hash-mismatch WARN-and-skip, not data loss. Pruning them would mean a deletion pass across 83 worktrees — a fleet deletion the operator owns, not a review's to invent |
 | 23 | Retired dir left the project-review read-only set (a project agent could now edit it) | 3 | **REFUTED** — consistent with the retirement's intent: the directory is being deleted, so it is no longer a synced surface to protect. Named here so the consequence is stated rather than discovered |
 | 24 | Existing worktrees keep a frozen unreachable copy | 3 | **REFUTED** — same reasoning as 22; `_PRUNE_DIRS` excludes `.claude`, so it is invisible to the stray diagnostic by design |
 | 25 | `INDEX.md` row for `tests/test_synced_manifest.py` says "5 tests", actual 22 | 3 | **REFUTED as in-scope** — pre-existing (already stale before this change), in a file carrying a sibling's uncommitted WIP. Not introduced here and not mine to commit; left to its owner |
+| 26 | My own post-fix census said "38 protected, 3 still exposed" | 4 | **FIXED** — a METHODOLOGY error, not a fleet state: `git check-ignore -q libs/subagents` on the bare DIRECTORY reads NOT-ignored whenever the dir contains TRACKED files, even though every untracked file inside is correctly ignored. Re-measured at FILE level: **0 untracked-and-unignored files fleet-wide**, so the true post-fix state is 45/45 protected. The 3 repos have pre-existing tracked copies, which no gitignore rule can address and which are theirs to `git rm --cached`. Corrected in the artifact and reported |
 
-**Count: 25 findings → 16 FIXED + 9 REFUTED. The two sum.**
+**Count: 26 findings → 18 FIXED + 8 REFUTED. The two sum.**
 
-FIXED: 1-8, 13-20. REFUTED: 9-12, 21-25. Counted by row, then checked against
+FIXED: 1-8, 13-20, 22, 26. REFUTED: 9-12, 21, 23-25. Counted by row, then checked against
 `grep -c` on the table — the first draft of this line said "18 + 7", which is the same
 hand-counting defect the review spent three rounds on, committed inside the ledger that
 documents it. The disposition column is the denominator; this line is derived from it.
@@ -284,21 +285,19 @@ the last; the closing pass re-derives every count and anchor and says so in its 
 
 | Pass | Finders | Counters | Method |
 |---|---|---|---|
+| Pass 1 | method: citation | found: 15 | new: 15 | fixed: 0 | finders: 5 dispatched / 5 returned — native fabrik-reviewer, 1 Opus (prune+deletion safety) + 4 Sonnet (importer denominator · generated artifacts+caches · test integrity · ledger accuracy); sized by `dispatch_headroom.py --units 5 --risky 1`, stamped before dispatch, ONE message |
+| Pass 2 | method: gate | found: 6 | new: 6 | fixed: 15 | finders: orchestrator fixes + executable verification (`sys.meta_path` blocker over the 4 gate-wired checks; `_unreachable_vendored_copies` run against both known strays; red-on-revert vs HEAD's pre-fix module, both halves asserted) |
+| Pass 3 | method: re-derivation | found: 14 | new: 14 | fixed: 6 | finders: 4 dispatched / 4 returned — 1 Opus (fix completeness + fail direction) + 3 Sonnet (numbers/prose · tests+residue · fleet census); `--units 3 --risky 1 --mechanical 0`, stamped, ONE message. NOT QUIET: caught the exec-bit regression pass 2's own fix commit shipped, two VACUOUS guards proven by mutation, a third un-re-derivable count |
+| Pass 4 | method: re-derivation | found: 3 | new: 3 | fixed: 3 | finders: 3 dispatched / 3 returned — 1 Opus (whole surface, unscoped) + 2 Sonnet (written record · fleet end state). NOT QUIET: this ledger's rows were inside the QUOTED template block and invisible to the graders; the flagship "26 files / 38 of 41" carried no selector; a malformed nested fence in the Gate section |
 
-Row shapes (quoted here, so the gate does not read them as passes):
-
-```text
-| Pass 1 | method: citation | found: 15 | new: 15 | fixed: 0 | finders: 5 dispatched / 5 returned — native fabrik-reviewer, 1 Opus (prune+deletion safety) + 4 Sonnet (importer denominator · generated artifacts+caches · test integrity · ledger accuracy); sized by dispatch_headroom.py --units 5 --risky 1, stamped before dispatch, all in ONE message |
-| Pass 2 | method: gate | found: 6 | new: 6 | fixed: 15 | finders: orchestrator fixes + executable verification (meta_path import blocker over the 4 gate-wired checks; _unreachable_vendored_copies run against both known strays; red-on-revert vs HEAD's pre-fix module with both halves asserted); 206 tests green across 8 suites |
-| Pass 3 | method: re-derivation | found: 14 | new: 14 | fixed: 6 | finders: 4 dispatched / 4 returned — 1 Opus (fix completeness + fail direction) + 3 Sonnet (numbers/prose · tests+residue · fleet census); sized --units 3 --risky 1 --mechanical 0, stamped, ONE message. NOT QUIET: found the exec-bit regression commit 09292508 shipped, two VACUOUS guards proven by mutation, and a third un-re-derivable importer count |
-| Pass 4 | method: re-derivation | found: PENDING | new: PENDING | fixed: PENDING | finders: 3 dispatched — 1 Opus (whole surface, unscoped) + 2 Sonnet (written record · fleet end state); confirming sweep over d7c45b04..4d9d3407 |
-```
+(The illustrative row-shape block that shipped with this skeleton was REMOVED in pass 4: three authoring passes wrote real counters into it instead of the table above, so the ledger the graders read had zero data rows while the document looked complete. A template that is a valid-looking copy of the thing it describes is a trap; the row shape is documented in the command, not duplicated here.)
 
 ## Per-phase verdicts
 
-### Phase 1 — Independent finders (recall): PASS — 5 seats dispatched, 5 returned, 15 candidates; the Opus authoritative seat found the HIGH finding (gitignore protection stripped from 38 of 41 repos) that two self-sweeps and the scoped review had read straight past.
 
 ### Phase 0 — Establish scope: PASS — repo identity `/opt/fabrik` (HUB, so synced sources are canonical and editable here). Surface digest recorded; NO prior report matched this scope, so the anchor did not match and a full WIDE pass 1 was owed and run — stated rather than degraded silently into "no prior report". Rubric armed via `review_rubric.py` (matched `core/62-using-subagents.md`), pasted verbatim above.
+
+### Phase 1 — Independent finders (recall): PASS — 5 seats dispatched, 5 returned, 15 candidates; the Opus authoritative seat found the HIGH finding (gitignore protection stripped from 38 of 41 repos) that two self-sweeps and the scoped review had read straight past.
 
 ### Phase 2 — Verify / refute: PASS — 9 of 25 candidates REFUTED with quoted proof, including two of the review's own suspicions (the canary vacuity, refuted by a seat that monkeypatched `VENDORED_DIRS=[]` and watched both assertions fail) and one error in the orchestrator's OWN brief (the "reversed call yields 0" premise, which actually yields 49). Refutation was not a formality: it stopped four candidates from becoming unnecessary changes on a fleet-synced surface.
 
@@ -308,11 +307,8 @@ Row shapes (quoted here, so the gate does not read them as passes):
 
 ## Gate
 
-`final_gate.py --check --json`, pasted verbatim at the flip (check_convergence reads the fenced
-`"status": "success"`):
-
-```json
-RE-MEASURED in the closing pass, never inherited from an earlier pass:
+`final_gate.py --check --json` — RE-MEASURED in the closing pass, never inherited from an earlier
+pass's attribution:
 
 ```json
 {
