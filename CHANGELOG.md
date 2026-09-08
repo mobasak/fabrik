@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `dispatch_headroom.py`: the seat budget as one executable number (D-189, 2026-09-08)
+
+- Operator: *"maximum count of viable and useful subagents … utilize the box capacity properly, do not cause
+  ooms, finish fastest with affordable token usage, and utilize proper claude models such as fable, opus,
+  sonnet, haiku."* Five constraints cannot live in prose at dispatch time. `python3
+  scripts/sysadmin/dispatch_headroom.py --units <N> [--heavy]` prints `SEATS = min(units, the CLI cap of 20,
+  box_cap, quota_cap)`, never below 3 (D-188), 0 on the fleet HOLD. `--heavy` seats (pytest/builds/renders)
+  are bounded by `MemAvailable / 2 GB` and `(cores − load) / 1.5` — a native seat lives inside its parent
+  `claude` process, so only its tool subprocesses load the box. Every probe fails soft with its reason.
+- `core/62` § Dispatch economics is the canonical rule and carries the role table: Fable orchestrates and
+  adjudicates, Opus is the authoritative pass, Sonnet is breadth, Haiku is trivia — model by the seat's JOB,
+  never by what is idle. Mirrored in the subagents fragment and both CLAUDE.md contracts; `fabrik-execute-plan`'s
+  tier map now points at it. 8 tests, the FLOOR mutation kills 4.
+
 ### Changed — the fan-out is UNCONDITIONAL and its floor is three seats (D-188, 2026-09-08)
 
 - The operator repeated the D-186 directive verbatim, because the first pass fixed the arithmetic and left the
