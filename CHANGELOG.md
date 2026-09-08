@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — intel's charter re-frozen against the pool/flywheel retirement (2026-09-08)
+
+- `docs/reference/agents/intel.md` was 3 days stale in the direction that matters: it assigned intel a
+  health metric (flywheel scored-rate) over a mechanism RETIRED the day before by D-185, and said nothing
+  about the native seat model that replaced pool fan-out. Re-frozen: the `libs/subagents/` beat is restated
+  as DORMANT-NOT-GONE (off by policy, not credential — a `fanout` would still spend); a new bullet splits
+  native seat fan-out (infra owns `dispatch_headroom.py`, intel keeps the D-135 spend question as a
+  non-author audit); the flywheel bullet becomes a tombstone with scored-rate SUSPENDED, not replaced; and
+  the "until the extraction completes" hedge is replaced by the measured split (14 `.py` in
+  `scripts/kilo-benchmarks/`, 100 in `/opt/ai-model-catalog/engine/`, 6 basenames in both).
+- Hub-local: `docs/reference/agents/` is in neither `GOVERNANCE_DIRS` nor the governance-sync trigger
+  regex, so no project receives this. `scored-rate` occurs in exactly two files, both charters, with no
+  code consumer and no kaizen cell — the suspension breaks nothing mechanical. The mirror claim in
+  `docs/reference/agents/infra.md:42-45` is infra's beat and was filed to them, not edited here. (D-195)
+
 ### Fixed — D-191 round 6: the third closing sweep's residue (2026-09-08)
 
 - Ten fresh seats over 23189ea4..a0d3b92d; the three mechanical classes clean by execution. Closed: the
