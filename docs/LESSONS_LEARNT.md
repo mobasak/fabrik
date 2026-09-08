@@ -1,6 +1,33 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+# Lesson 161: a governance METRIC with no code consumer drifts silently — "scored-rate" lived in two charters, was assigned to one agent and cross-audited by another, and no line of code ever computed it
+
+**What happened.** Asked to list my responsibilities, I read my own charter
+(`docs/reference/agents/intel.md`) and found it three days stale: it named the flywheel
+scored-rate as intel's standing health metric and had infra cross-auditing that number weekly —
+both written against a mechanism D-185 had RETIRED the day before, alongside the pool (D-181/D-182)
+and the whole native-seat model (D-186→D-193) the charter never mentions. Grepping for the metric
+to find what else needed updating returned **exactly two files, and both were charters**
+(`intel.md`, `infra.md:42-45`). No script computed it, no kaizen cell carried it, no gate read it.
+Two agents were assigned to produce and audit a number that had never existed mechanically.
+
+**Why it matters.** Every other kind of staleness in this repo has a detector: a stale doc trips the
+Doc Sync Matrix, a stale citation trips `check_citations_resolve`, a stale render trips
+`command-corpus-check`. A duty written only in prose has none — the charter is injected at
+SessionStart as a "binding overlay on CLAUDE.md", so the agent READS it and believes it, and the
+belief survives exactly as long as nobody re-reads the ledger. Three days is the measured drift here
+only because the operator happened to ask. And the failure is silent in the safe-looking direction:
+nothing breaks, no gate reds, the agent simply carries a mandate that no longer matches the work.
+
+**Rule.** When a governance document assigns a METRIC, a DUTY or a CADENCE, either wire it to code
+in the same change (a script that computes it, a cell that records it, a check that reads it) or
+write it as explicitly unmechanized so the next reader knows it is prose. Ask of any number in a
+charter: *what would go red if this stopped being true?* If the answer is "nothing", it is not a
+metric, it is a sentence — and the honest form is to state that. Corollary for retirements: when a
+ruling retires a MECHANISM, grep the governance prose for the metric names it produced, not just the
+code paths it ran — the code stops, the prose does not, and the prose is what agents load at boot.
+
 # Lesson 160: a check that compares RENDERS cannot see a file that fails to LOAD — `fabrik-reviewer` was not a registerable agent type for weeks, and every gate was green
 
 **What happened.** The Task dispatch of this change's own author-blind review answered *"Agent type
