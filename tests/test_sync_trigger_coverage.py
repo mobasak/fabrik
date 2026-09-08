@@ -20,7 +20,12 @@ from pathlib import Path
 
 import pytest
 
-_MOD = Path(__file__).resolve().parent.parent / "scripts" / "enforcement" / "check_sync_trigger_coverage.py"
+_MOD = (
+    Path(__file__).resolve().parent.parent
+    / "scripts"
+    / "enforcement"
+    / "check_sync_trigger_coverage.py"
+)
 _spec = importlib.util.spec_from_file_location("check_sync_trigger_coverage", _MOD)
 chk = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(chk)
@@ -38,7 +43,7 @@ def test_manifest_surfaces_are_real_repo_paths():
     surfaces = chk.synced_surfaces()
     assert len(surfaces) > 15
     assert "templates/governance/CLAUDE.md" in surfaces
-    assert "scripts/final_gate.py" in surfaces          # bare CORE_SCRIPTS names resolved
+    assert "scripts/final_gate.py" in surfaces  # bare CORE_SCRIPTS names resolved
     assert ".claude/hooks/session_orient.py" in surfaces
 
 
@@ -49,15 +54,14 @@ def test_live_repo_has_no_undeclared_gap():
 
 
 def test_an_undeclared_new_surface_is_reported(monkeypatch):
-    monkeypatch.setattr(chk, "synced_surfaces",
-                        lambda: {"scripts/brand_new_synced_thing.py"})
+    monkeypatch.setattr(chk, "synced_surfaces", lambda: {"scripts/brand_new_synced_thing.py"})
     gaps = chk.uncovered(Path("/opt/fabrik"))
     assert gaps == ["scripts/brand_new_synced_thing.py"]
 
 
 def test_a_declared_non_trigger_is_not_a_gap(monkeypatch):
     monkeypatch.setattr(chk, "synced_surfaces", lambda: {"templates/scaffold/scripts/rund"})
-    assert chk.uncovered(Path("/opt/fabrik")) == []      # RUN_SCRIPTS ride the next sync by design
+    assert chk.uncovered(Path("/opt/fabrik")) == []  # RUN_SCRIPTS ride the next sync by design
 
 
 def test_fix_emits_a_regex_alternative_that_actually_matches(monkeypatch):
@@ -117,11 +121,16 @@ def test_empty_derivation_fails_loudly_instead_of_passing(monkeypatch):
 
 
 def test_declared_prefix_cannot_shadow_a_sibling_path(monkeypatch):
-    """`libs/subagents` must not exempt `libs/subagents_new_thing.py`."""
-    monkeypatch.setattr(chk, "synced_surfaces", lambda: {"libs/subagents_new_thing.py"})
-    assert chk.uncovered(Path("/opt/fabrik")) == ["libs/subagents_new_thing.py"]
-    monkeypatch.setattr(chk, "synced_surfaces", lambda: {"libs/subagents/core.py"})
-    assert chk.uncovered(Path("/opt/fabrik")) == []      # the real subtree stays declared
+    """A declared prefix must not exempt a SIBLING path that merely starts with it.
+
+    Was written against `libs/subagents`; repointed to `libs/health_probe` when D-199 deleted the
+    former's now-dead exemption. The property under test is the prefix-vs-path boundary, not any
+    particular member — the exemplar is whichever entry `DECLARED_NON_TRIGGERS` actually holds.
+    """
+    monkeypatch.setattr(chk, "synced_surfaces", lambda: {"libs/health_probe_new_thing.py"})
+    assert chk.uncovered(Path("/opt/fabrik")) == ["libs/health_probe_new_thing.py"]
+    monkeypatch.setattr(chk, "synced_surfaces", lambda: {"libs/health_probe/core.py"})
+    assert chk.uncovered(Path("/opt/fabrik")) == []  # the real subtree stays declared
 
 
 def test_a_synced_copy_inside_a_project_self_skips_instead_of_crashing(tmp_path):
@@ -140,7 +149,9 @@ def test_a_synced_copy_inside_a_project_self_skips_instead_of_crashing(tmp_path)
 
     r = subprocess.run(
         [sys.executable, "scripts/enforcement/check_sync_trigger_coverage.py"],
-        cwd=proj, capture_output=True, text=True,
+        cwd=proj,
+        capture_output=True,
+        text=True,
     )
     assert "Traceback" not in r.stderr, f"synced copy crashed in a project:\n{r.stderr}"
     assert r.returncode == 0, f"synced copy must not fail a project's gate (rc={r.returncode})"
@@ -167,9 +178,9 @@ def test_every_manifest_category_contributes_a_surface():
     """A partial dropout (one category vanishing) leaves >15 surfaces and the three hardcoded
     paths intact, so nothing else in this file would notice. Pin one path per category."""
     surfaces = chk.synced_surfaces()
-    assert ".windsurf/rules/" in surfaces                     # GOVERNANCE_DIRS
-    assert "scripts/enforcement/" in surfaces                 # ENFORCEMENT_DIR
-    assert any(s.startswith("docs/reference/") for s in surfaces)   # REFERENCE_DOCS
+    assert ".windsurf/rules/" in surfaces  # GOVERNANCE_DIRS
+    assert "scripts/enforcement/" in surfaces  # ENFORCEMENT_DIR
+    assert any(s.startswith("docs/reference/") for s in surfaces)  # REFERENCE_DOCS
     # VENDORED_DIRS — canary moved off libs/subagents when D-196 retired that entry; the
     # category still needs A pinned member, so it is health_probe (the only one left).
     assert any(s.startswith("libs/health_probe") for s in surfaces)
@@ -178,8 +189,9 @@ def test_every_manifest_category_contributes_a_surface():
 
 def test_seeded_not_enforced_is_read_from_the_manifest_not_duplicated(monkeypatch):
     """`PORTS.md` was hardcoded in two places; the manifest is the single source."""
-    assert not any("PORTS.md" in d for d in chk.DECLARED_NON_TRIGGERS), \
+    assert not any("PORTS.md" in d for d in chk.DECLARED_NON_TRIGGERS), (
         "SEEDED_NOT_ENFORCED must not be re-listed by hand"
+    )
     real = chk._manifest()
 
     class Extra:
@@ -210,10 +222,14 @@ def test_a_hub_worktree_still_runs_the_check_instead_of_skipping(tmp_path):
 
     r = subprocess.run(
         [sys.executable, "scripts/enforcement/check_sync_trigger_coverage.py"],
-        cwd=wt, capture_output=True, text=True,
+        cwd=wt,
+        capture_output=True,
+        text=True,
     )
     out = r.stdout + r.stderr
-    assert "not the hub" not in out.lower(), f"a hub worktree must NOT be treated as a project:\n{out}"
+    assert "not the hub" not in out.lower(), (
+        f"a hub worktree must NOT be treated as a project:\n{out}"
+    )
     assert "sync-trigger coverage" in out
     assert r.returncode == 0, out
 
@@ -221,6 +237,7 @@ def test_a_hub_worktree_still_runs_the_check_instead_of_skipping(tmp_path):
 def _no_yaml(monkeypatch):
     """Force trigger_pattern down its no-PyYAML fallback branch."""
     import builtins
+
     real_import = builtins.__import__
 
     def fake(name, *a, **kw):
@@ -299,7 +316,7 @@ def test_a_filter_named_reference_doc_is_not_masked_by_a_blanket_exemption(monke
     doc = "docs/reference/technology-stack-decision-guide.md"
     assert not chk._declared(doc), "a filter-named doc must not be blanket-exempted"
     monkeypatch.setattr(chk, "synced_surfaces", lambda: {doc})
-    assert chk.uncovered(Path("/opt/fabrik")) == []          # covered by the live filter
+    assert chk.uncovered(Path("/opt/fabrik")) == []  # covered by the live filter
 
     stripped = tmp_path / ".pre-commit-config.yaml"
     live = Path("/opt/fabrik/.pre-commit-config.yaml").read_text()
@@ -329,6 +346,7 @@ def test_an_auto_generated_file_is_declared_not_triggered(monkeypatch):
 
 def _hub_like(tmp_path, *, with_manifest: bool, markers=("commands/_sources",)):
     import shutil
+
     root = tmp_path / "tree"
     (root / "scripts" / "enforcement").mkdir(parents=True)
     shutil.copy(_MOD, root / "scripts" / "enforcement" / _MOD.name)
@@ -343,8 +361,13 @@ def _hub_like(tmp_path, *, with_manifest: bool, markers=("commands/_sources",)):
 def _run_in(root):
     import subprocess
     import sys
-    r = subprocess.run([sys.executable, "scripts/enforcement/check_sync_trigger_coverage.py"],
-                       cwd=root, capture_output=True, text=True)
+
+    r = subprocess.run(
+        [sys.executable, "scripts/enforcement/check_sync_trigger_coverage.py"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+    )
     return r.returncode, r.stdout + r.stderr
 
 
@@ -375,6 +398,7 @@ def test_a_relocated_hub_warns_that_the_sync_cannot_fire(tmp_path):
 
 def test_the_main_checkout_gets_no_inert_caveat():
     """Non-vacuous guard: the caveat must be absent where the sync genuinely fires."""
-    assert chk.sync_is_inert_here(
-        Path("/opt/fabrik/.pre-commit-config.yaml"), Path("/opt/fabrik")
-    ) is None
+    assert (
+        chk.sync_is_inert_here(Path("/opt/fabrik/.pre-commit-config.yaml"), Path("/opt/fabrik"))
+        is None
+    )

@@ -25,6 +25,24 @@ All notable changes to this project will be documented in this file.
   a later pass over a different eight-suite set reports 206, which is why the SET is now named
   rather than the count quoted bare). (D-196)
 
+### Fixed — the review's closing round: a fabricated gate embed, an unguarded fix, a fail-open census (2026-09-08)
+
+- **The artifact's Gate block carried `warning_checks`, a key `final_gate --json` has never emitted**,
+  while labelled "RE-MEASURED / verbatim". Hand-authored, not pasted — the proxy-never-evidence HARD STOP,
+  inside the artifact certifying the run, and invisible to the grader (`check_convergence`'s `GATE_OK` only
+  regex-matches `"status": "success"` and never validates shape). Real object pasted, block relabelled.
+- **`RETIRED_GITIGNORE_GROUPS` shipped with no guard**: reverting the skip to a literal `==` left 23/23
+  green, and the test named for it never called `worktreeinclude_text()`. New test, RED on that mutant.
+- **The embedded census used a relative path** and failed OPEN — from another cwd it exits 0 printing
+  nothing, indistinguishable from "no importers". Absolute now.
+- `check_imports_resolvable.py` still cited `VENDORED_DIRS` in prose — and it is SYNCED, so the false
+  claim sat in 49 project repos. `docs/LESSONS_LEARNT.md` Lesson 151 taught the private-index recipe with
+  no mode guidance, which is what generated the exec-bit defect; it now reads the real mode per path and
+  names `--summary` over `--numstat`. `SYNC_ENFORCEMENT_WORKFLOW.md` had re-frozen the very count D-199
+  retired. `DECLARED_NON_TRIGGERS`' dead `libs/subagents` entry deleted — refuted earlier as harmless, but
+  both rulings call the retirement REVERSIBLE, and on that undo it would silently exempt the module from
+  trigger coverage. (D-199)
+
 ### Fixed — the importer count is retired, not corrected; and a lost exec bit (2026-09-08)
 
 - **No importer COUNT lives in `scripts/fabrik_synced_manifest.py` any more.** Three successive ledger

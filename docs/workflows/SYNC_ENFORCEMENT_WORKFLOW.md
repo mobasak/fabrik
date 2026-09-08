@@ -108,7 +108,7 @@ All files in `scripts/enforcement/` are recursively synced (`ENFORCEMENT_DIR`, `
 
 | Dir | Purpose |
 |-----|----------|
-| `libs/subagents` | **RETIRED from the sync 2026-09-08 (D-196).** No longer distributed: a hub-copy fix does NOT reach projects any more, and `scripts/distribute_subagents.sh` no longer distributes it either. Projects delete their leftover copy at their own pace; it stays gitignored meanwhile via `RETIRED_VENDORED_DIRS` (D-198). The HUB copy `/opt/fabrik/libs/subagents` STAYS: an AST scan of 3,968 hub `.py` files finds 20 importer files, 10 with a module-level unguarded import, so deleting it breaks those 10. It does NOT red the gate — with the module blocked, all four gate-wired checks exit 0 (D-198 corrects the original "reds the gate" claim). |
+| `libs/subagents` | **RETIRED from the sync 2026-09-08 (D-196).** No longer distributed: a hub-copy fix does NOT reach projects any more, and `scripts/distribute_subagents.sh` no longer distributes it either. Projects delete their leftover copy at their own pace; it stays gitignored meanwhile via `RETIRED_VENDORED_DIRS` (D-198). The HUB copy `/opt/fabrik/libs/subagents` STAYS: some hub scripts import it at module level without a guard, so deleting it breaks them. **NO COUNT IS STATED HERE** — run the census embedded between `# BEGIN/END importer-census` in `scripts/fabrik_synced_manifest.py`. (The previous wording quoted "3,968 files / 20 / 10", re-freezing in this doc the very number D-199 had just retired in the manifest — and it was stale by one within the hour. Fourth iteration of that class.) It does NOT red the gate: with the module blocked, all four gate-wired checks exit 0 (D-198/D-199). |
 
 ### Agent Hook Files
 

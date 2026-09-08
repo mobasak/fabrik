@@ -349,3 +349,29 @@ def test_worktreeinclude_skip_is_keyed_on_the_group_constant() -> None:
         "the retired group vanished from gitignore_dest_paths — the ignore protection is gone"
     )
     assert groups[m.RETIRED_VENDORED_GITIGNORE_GROUP] == [f"{d}/" for d in m.RETIRED_VENDORED_DIRS]
+
+
+def test_worktreeinclude_skips_every_group_in_retired_gitignore_groups(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The skip must consult RETIRED_GITIGNORE_GROUPS, not one hardcoded key.
+
+    D-199 shipped the frozenset as a headline fix ("a single `==` made the default 'ship it'")
+    and NOTHING TESTED IT: a closing seat mutated the skip back to a literal comparison and all
+    23 tests stayed green. `test_worktreeinclude_skip_is_keyed_on_the_group_constant` never calls
+    `worktreeinclude_text()` — its name was a promise its body did not keep.
+
+    The regression this catches: a SECOND retired group is added, a later refactor collapses the
+    membership test back to `==`, nothing goes red, and that group is copied into every new linked
+    worktree across ~46 repos — the exact distribution the retirement mechanism exists to end.
+    """
+    second = "A second retired group (test)"
+    base = m.gitignore_dest_paths()
+    monkeypatch.setattr(m, "gitignore_dest_paths", lambda: {**base, second: ["libs/retired_two/"]})
+    monkeypatch.setattr(
+        m, "RETIRED_GITIGNORE_GROUPS", frozenset({*m.RETIRED_GITIGNORE_GROUPS, second})
+    )
+    assert "libs/retired_two/" not in m.worktreeinclude_text().splitlines(), (
+        "worktreeinclude_text() skipped only ONE hardcoded group — a second retired group would "
+        "be copied into every new worktree in ~46 repos"
+    )

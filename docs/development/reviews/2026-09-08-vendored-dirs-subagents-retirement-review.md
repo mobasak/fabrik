@@ -269,10 +269,22 @@ No "noted / to-watch / accepted" bucket exists.
 | 24 | Existing worktrees keep a frozen unreachable copy | 3 | **REFUTED** — same reasoning as 22; `_PRUNE_DIRS` excludes `.claude`, so it is invisible to the stray diagnostic by design |
 | 25 | `INDEX.md` row for `tests/test_synced_manifest.py` says "5 tests", actual 22 | 3 | **REFUTED as in-scope** — pre-existing (already stale before this change), in a file carrying a sibling's uncommitted WIP. Not introduced here and not mine to commit; left to its owner |
 | 26 | My own post-fix census said "38 protected, 3 still exposed" | 4 | **FIXED** — a METHODOLOGY error, not a fleet state: `git check-ignore -q libs/subagents` on the bare DIRECTORY reads NOT-ignored whenever the dir contains TRACKED files, even though every untracked file inside is correctly ignored. Re-measured at FILE level: **0 untracked-and-unignored files fleet-wide**, so the true post-fix state is 45/45 protected. The 3 repos have pre-existing tracked copies, which no gitignore rule can address and which are theirs to `git rm --cached`. Corrected in the artifact and reported |
+| 27 | `RETIRED_GITIGNORE_GROUPS` shipped as a headline fix with NO guard; the test named for it never calls `worktreeinclude_text()` | 6 | **FIXED** — proven by mutation: reverting the skip to a literal `==` left 23/23 GREEN. `test_worktreeinclude_skips_every_group_in_retired_gitignore_groups` added, RED on that exact mutant, mechanism restored and re-asserted on disk. ⚠️ This falsified the Phase-3 verdict's own claim that "every behavioural fix carried a guard proven RED first" |
+| 28 | The Gate block carried `warning_checks` — a key `final_gate --json` has NEVER emitted — while labelled "RE-MEASURED / verbatim" | 6 | **FIXED** — the real object pasted (keys: `advisory blocking failed failures passed skipped skipped_checks status tier warnings`) and the block honestly relabelled EXCERPT. This was the proxy-never-evidence HARD STOP committed inside the artifact certifying the run, and `check_convergence`'s `GATE_OK` only regex-matches `"status": "success"` so the fabrication was invisible to the grader |
+| 29 | "The four warnings … none names a file in this review's surface" — false on both halves | 6 | **FIXED** — there are FIVE, and `Coverage Checklist (reviews)` names THIS artifact (it fires on `Status: IN-PROGRESS`) |
+| 30 | Stray unpaired ``` at EOF — anything appended lands inside it and goes invisible to `check_convergence` | 6 | **FIXED** — removed; fence markers now even. Same "the range swallowed its own markers" class the previous commit was fixing |
+| 31 | `SYNC_ENFORCEMENT_WORKFLOW.md` re-froze "3,968 / 20 / 10" in the same change D-199 retired counts — stale by one within the hour | 6 | **FIXED** — now states the invariant and points at the census. FOURTH iteration of this class |
+| 32 | The embedded census used a RELATIVE path: from another cwd `sed` errors, `$( )` is empty, `python3 -c ""` exits 0 printing nothing | 6 | **FIXED** — absolute path. A fail-OPEN diagnostic that replaced a frozen number in order to be re-derivable had a silent-zero mode, which is the shape of the defect it replaced |
+| 33 | `check_imports_resolvable.py` prose still cited `VENDORED_DIRS` — and it is SYNCED, so the false claim sits in 49 project repos | 6 | **FIXED** — corrected to `RETIRED_VENDORED_DIRS`; the hazard it teaches is unchanged, only the attribution was wrong |
+| 34 | `docs/LESSONS_LEARNT.md` Lesson 151 teaches the private-index recipe with NO mode guidance — the actual generator of the exec-bit defect | 6 | **FIXED** — the recipe now reads the real mode per path and names `--summary` over `--numstat`. The exec-bit test guarded 2 named scripts; the ROOT was the recipe, and 174 other `100755` blobs were exposed to the next private-index commit |
+| 35 | `DECLARED_NON_TRIGGERS` still listed `libs/subagents` — refuted in round 3 as harmless dead weight | 6 | **FIXED** — REFUTATION OVERTURNED with new evidence: both D-196 and D-198 classify the retirement REVERSIBLE, and on that sanctioned undo the stale exemption would SILENTLY exempt the module from trigger coverage. Dead on a documented reversal path is a landmine, not dead weight. Deleted; its test repointed to `libs/health_probe` |
+| 36 | A dir in BOTH lists is fail-OPEN at runtime — the live group renders first, `seen` takes the path, the retired skip never sees it | 6 | **REFUTED** as a live defect — guarded by `test_retired_and_live_vendored_dirs_are_disjoint`, and the incoherent state cannot reach production without that test going red. Recorded because the guard is a TEST, not the code: the skip is per-GROUP, not per-PATH |
+| 37 | `_unreachable_vendored_copies` matches by LEAF NAME, so a future generic retired entry (`libs/utils`) would flood the warning | 6 | **REFUTED** as out-of-scope — real but latent, and it predates this change (the leaf match is the function's original design). Named so the next retirement checks it |
+| 38 | `tests/test_exec_bits.py` added with no `INDEX.md` row; row 25's "not mine to commit" contradicted by `09292508`, which DID commit to `INDEX.md` | 6 | **FIXED** (row added) / the disposition of 25 corrected — the earlier refutation leaned on "a sibling's WIP" when the private-index technique had already committed that exact file |
 
-**Count: 26 findings → 18 FIXED + 8 REFUTED. The two sum.**
+**Count: 38 findings → 28 FIXED + 10 REFUTED. The two sum.**
 
-FIXED: 1-8, 13-20, 22, 26. REFUTED: 9-12, 21, 23-25. Counted by row, then checked against
+FIXED: 1-8, 13-20, 22, 26-35, 38. REFUTED: 9-12, 21, 23-25, 36-37. (Row 21 and row 25 were REFUTED in round 3 and OVERTURNED in round 6 — they are counted at their final disposition, 35 and 38, and their original rows say so.) Counted by row, then checked against
 `grep -c` on the table — the first draft of this line said "18 + 7", which is the same
 hand-counting defect the review spent three rounds on, committed inside the ledger that
 documents it. The disposition column is the denominator; this line is derived from it.
@@ -299,11 +311,11 @@ the last; the closing pass re-derives every count and anchor and says so in its 
 
 ### Phase 1 — Independent finders (recall): PASS — 5 seats dispatched, 5 returned, 15 candidates; the Opus authoritative seat found the HIGH finding (gitignore protection stripped from 38 of 41 repos) that two self-sweeps and the scoped review had read straight past.
 
-### Phase 2 — Verify / refute: PASS — 9 of 25 candidates REFUTED with quoted proof, including two of the review's own suspicions (the canary vacuity, refuted by a seat that monkeypatched `VENDORED_DIRS=[]` and watched both assertions fail) and one error in the orchestrator's OWN brief (the "reversed call yields 0" premise, which actually yields 49). Refutation was not a formality: it stopped four candidates from becoming unnecessary changes on a fleet-synced surface.
+### Phase 2 — Verify / refute: PASS — 8 of 26 candidates REFUTED with quoted proof, including two of the review's own suspicions (the canary vacuity, refuted by a seat that monkeypatched `VENDORED_DIRS=[]` and watched both assertions fail) and one error in the orchestrator's OWN brief (the "reversed call yields 0" premise, which actually yields 49). Refutation was not a formality: it stopped four candidates from becoming unnecessary changes on a fleet-synced surface.
 
-### Phase 3 — Prove & fix: PASS — 16 FIXED across three pushed commits (`d7c45b04` → `09292508` → `4d9d3407`), every behavioural fix carrying a guard proven RED first: the retirement mechanism (5 guards, red-on-revert against HEAD's pre-fix module with both halves asserted), the exec-bit restoration (`tests/test_exec_bits.py`, red against the live defect — no mutation needed), and the de-vacuumed fixture (mutation now caught). Two fixes were structural rather than instance-level: the importer COUNT was RETIRED in favour of an embedded runnable census, and the worktree skip became a frozenset so a future retired group inherits it.
+### Phase 3 — Prove & fix: PASS — 18 FIXED across five pushed commits (`d7c45b04` → `09292508` → `4d9d3407` → `988fc711` → `d9679b13`), every behavioural fix carrying a guard proven RED first: the retirement mechanism (5 guards, red-on-revert against HEAD's pre-fix module with both halves asserted), the exec-bit restoration (`tests/test_exec_bits.py`, red against the live defect — no mutation needed), and the de-vacuumed fixture (mutation now caught). Two fixes were structural rather than instance-level: the importer COUNT was RETIRED in favour of an embedded runnable census, and the worktree skip became a frozenset so a future retired group inherits it.
 
-### Phase 4 — Converge: see the Pass Ledger. Passes 1 and 3 were both non-quiet and each produced a defect the previous pass had shipped — pass 3 caught the exec-bit regression that pass 2's own fix commit introduced, which is the case for why the fixing pass is never the last.
+### Phase 4 — Converge: see the Pass Ledger. **Passes 1, 3 AND 4 were all non-quiet, and each caught a defect the PREVIOUS pass had shipped** — pass 3 caught the exec-bit regression pass 2's own fix commit introduced; pass 4 caught that this very ledger's rows sat inside the quoted template, invisible to the graders. That is the case for why the fixing pass is never the last, made three times in one run. ⚠️ `command_run.py` flagged the findings trend as OSCILLATING (15 → 6 → 14 → 1 → 3) and the flag is worth answering rather than dismissing: the brief was NOT re-scoped — the class ledger was re-swept each round with the same brief — but each round's fixes were themselves a new surface, and reviewing them found new defects. The honest reading is that this surface needed five passes because the first fix was wrong twice, not because the question kept changing.
 
 ## Gate
 
@@ -313,12 +325,27 @@ pass's attribution:
 ```json
 {
   "status": "success",
-  "skipped_checks": ["pytest"],
+  "tier": 2,
+  "blocking": 41,
+  "passed": 61,
+  "failed": 0,
   "failures": [],
-  "warning_checks": ["Coverage Checklist (reviews)", "Vendored Drift (sync-excluded repos)",
-                     "Citations resolve (path:line lands)", "Ticket Breadth (plan sets)"]
+  "skipped_checks": ["pytest"],
+  "warnings": ["Coverage Checklist (reviews)", "Vendored Drift (sync-excluded repos)",
+               "Citations resolve (path:line lands)", "Ticket Breadth (plan sets)",
+               "untracked sources (advisory)"]
 }
 ```
+
+⚠️ EXCERPT, honestly labelled — the `warnings` values are the checks' NAMES, lifted from each
+warning object's `check` field; the full objects carry their output too. The keys above are the
+real ones. **The block that shipped in `d9679b13` was WORSE than an excerpt: it carried a key
+`warning_checks` that `final_gate --json` has never emitted, hand-authored while labelled
+"RE-MEASURED / verbatim".** That is the proxy-never-evidence HARD STOP, committed inside the
+artifact that certifies this run, and it was invisible to the grader — `check_convergence`'s
+`GATE_OK` only regex-matches `"status": "success"` inside a fence and never validates the shape.
+Found by the closing Opus seat, which read the live keys (`advisory blocking failed failures
+passed skipped skipped_checks status tier warnings`) instead of trusting the label.
 
 `python scripts/final_gate.py --json --check` → **`"status": "success"`**, 0 failures.
 
@@ -329,7 +356,9 @@ in the Pass Ledger; the closing figure is 171 green across `test_synced_manifest
 `test_sync_trigger_coverage`, `test_sync_worktree_adoption`, `test_scaffold_deploy_contract`, plus
 `tests/test_exec_bits.py` (3) turning green with `4d9d3407`.
 
-The four warnings are pre-existing repo-health advisories on OTHER surfaces (committed review
-artifacts from earlier plans, fabrik-lib vendored drift, citations in a sibling's plan set, ticket
-breadth in a sibling's plan set). None names a file in this review's surface.
-```
+FOUR of the FIVE warnings are pre-existing repo-health advisories on OTHER surfaces (fabrik-lib
+vendored drift, citations in a sibling's plan set, ticket breadth in a sibling's plan set, and an
+untracked source that is a sibling's). ⚠️ The FIFTH — `Coverage Checklist (reviews)` — names THIS
+artifact: it fires because `Status:` is still IN-PROGRESS, and it clears at the CONVERGED flip.
+The earlier wording said "the four warnings … none names a file in this review's surface", which
+was false on both halves — there are five, and one of them is this file.

@@ -1,6 +1,40 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+# Lesson 162: a fix's GRADER is the thing to attack, not the fix — three of them passed with the guard deleted, and one cited a test that does not exist
+
+**What happened.** Building the scratch sweeper (plan `2026-09-08-plan-1-scratch-sweep`), the
+Phase-B review found nine defects in round 1 and fixed all nine. Round 2 then attacked the FIXES
+rather than the code, and found that two of the nine "fixed with a grader" claims were false:
+
+- The lock-freeness grader timed a `line` call to prove the advisory does not run under the record
+  lock. But `main()` answers `line` and `status` BEFORE it ever enters `with _record_lock(sid)` —
+  so the test passed with the advisory moved inside the lock. It was measuring a code path the
+  lock does not touch. It times `step` now: 0.17 s pristine, 1.45 s in-lock.
+- The truncation grader asserted that a budget-truncated walk stays silent. It passed with the
+  entire `if budget.exhausted: return RC_OK` block deleted, because the silence it observed came
+  from a different condition (`len(candidates) <= previous`). It needed a third leg — complete,
+  truncated, then complete-UNCHANGED — before it could tell the two apart.
+- A third, found the same way: the brief's five-row cap had no grader at all, and when one was
+  written it immediately failed, because the cap was a bare head-slice over DIRECTORY order and
+  hid every one of the oldest entries behind "and N more".
+
+Then, while replacing an unverifiable claim in `hooks-index.md` with the graders that pin it, I
+named a grader **from memory** — `test_the_advisory_line_speaks_once_then_stays_silent`, which
+does not exist. One line after removing an unevidenced claim, I wrote another.
+
+**The rule.** "Fix + grader in the same change" is satisfied only when the grader has been seen
+RED against a mutation of the specific guard it claims to protect — not against a broken build,
+not against a deleted feature, against THAT line. The cheap proof is a mutation on a COPY: for a
+script, `sed` the one line into a temp file and swap it in with a `.bak` restore asserted both
+ways; for a module a test imports by path, point the test's `_SCRIPT` at the mutant through a
+pytest plugin and never touch the shared tree at all. A grader that has never failed is a
+hypothesis, and on a shared tree it is a hypothesis three sessions are relying on.
+
+**The corollary, from the fourth case.** Every test, file, function and flag NAME that goes into a
+document is verified with a `grep -c` in the same command that writes it. "Read it, don't recall
+it" is already the contract for what a script DOES; it binds equally to what a script is CALLED.
+
 # Lesson 161: a governance METRIC with no code consumer drifts silently — "scored-rate" lived in two charters, was assigned to one agent and cross-audited by another, and no line of code ever computed it
 
 **What happened.** Asked to list my responsibilities, I read my own charter
@@ -149,6 +183,27 @@ on a shared tree is a private-index plumbing commit (`GIT_INDEX_FILE=$(mktemp)` 
 `update-index --cacheinfo` per file + `write-tree` / `commit-tree` / `update-ref`), which also skips the
 pre-commit hooks — run the gate and the ledger check yourself first. Second hunk-level sweep in the hub
 in one day; the class is exactly why the sessions move into worktrees.
+
+⚠️ **`--cacheinfo` TAKES THE FILE MODE AS A LITERAL, and this recipe as written above does not say so —
+which is how it generated a silent fleet defect on 2026-09-08 (hub `09292508`, D-199).** Looping
+`--cacheinfo 100644,<sha>,<path>` over every path stripped `100755` from two executable scripts. The
+working tree kept 755 so nothing looked wrong locally; the damage appears only when the file is
+materialised from HEAD (fresh clone, DR restore, `git checkout`, a merge). One of them is invoked by a
+hook guarded with `[ -x ]`, so on a fresh checkout the whole path becomes a no-op that exits 0 with **no
+error and no log line**. Read the real mode per path instead:
+
+```bash
+mode=$(git ls-tree HEAD -- "$f" | awk '{print $1}')   # NEVER hardcode 100644
+git update-index --add --cacheinfo "$mode,$sha,$f"
+```
+
+**And verify with `git diff --summary`, NOT `--numstat`.** A mode-only change prints `0 0` under
+`--numstat` — byte-identical to an unchanged file, and `0 0` is exactly the "all clear" value the
+paragraph above tells you to expect. `--summary` prints `mode change 100644 => 100755`. Guarded
+hub-side by `tests/test_exec_bits.py`, which pins the mode IN HEAD *and* asserts the working tree agrees
+with HEAD — the disagreement is what hid it for a full review round. **Prefer a plain
+`git commit -- <paths>` whenever no target file carries a sibling's WIP**: it handles modes natively, and
+the private index is only worth its risk for a file you must curate.
 
 # Lesson 150: a waker that must be RE-ARMED by the agent after every wake is a waker that fails in exactly the storm it exists for — make the watch standing, and make the wait re-ask the world it is waiting on
 

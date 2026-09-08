@@ -161,7 +161,12 @@ ENFORCEMENT_DIR = "scripts/enforcement"
 # query instead — it is the only form that stays true:
 #
 #   python3 -c "$(sed -n '/^# BEGIN importer-census/,/^# END importer-census/p' \
-#     scripts/fabrik_synced_manifest.py | grep -v 'importer-census' | sed 's/^# //')"
+#     /opt/fabrik/scripts/fabrik_synced_manifest.py | grep -v 'importer-census' | sed 's/^# //')"
+#
+# ⚠️ The path is ABSOLUTE on purpose. With a relative path this command FAILS OPEN from any other
+# cwd: `sed` errors, `$( )` is empty, `python3 -c ""` exits 0 printing NOTHING — indistinguishable
+# from "no importers". A diagnostic that replaced a frozen number in order to be re-derivable must
+# not have a silent-zero mode; that was the shape of the defect it replaced.
 #
 # (the grep drops this block's own BEGIN/END marker lines; without it python parses the marker
 #  text as code — verified by running it, because a command quoted in a comment that has never
