@@ -377,8 +377,9 @@ the command?", that moment is the Stop hook.
 ## The scratch advisory on a top-level close
 
 Since 2026-09-08 (plan `2026-09-08-plan-1-scratch-sweep`, D-184/D-187) a TOP-LEVEL `done`/`blocked`/
-`handoff` prints the closing session's own scratch table after `run record closed` — a capped list of
-its oldest stale entries, a per-class summary, and the exact `--apply` command. It is the moment an
+`handoff` prints the closing session's own scratch table after `run record closed` — its five oldest
+stale entries (sorted by idle age, not directory order), a count of the rest, a per-class summary over
+the WHOLE table, and the exact `--apply` command. It is the moment an
 agent still has the context to judge its own residue, which is why the trigger sits here.
 
 Three properties are load-bearing and each has a grader:
@@ -390,8 +391,10 @@ Three properties are load-bearing and each has a grader:
   outer handler, which returns **0** and would silently turn the mis-named-close refusal into success.
 - **It never runs under the record lock.** `_close` only QUEUES `outbox["scratch_advice"]`; `main()`
   prints it after the `with _record_lock(sid):` block and the `finally: _flush_events(...)`. A
-  shell-out inside the lock would stall every concurrent `line`/`status` reader — and `line` runs on
-  every reply across three concurrent hub sessions.
+  shell-out inside the lock would stall every concurrent WRITER — `step`, `round`, another close —
+  for the remainder of the advisory's own 2 s subprocess timeout, measured at 1.45 s against 0.17 s.
+  `line` and `status` are answered before the lock is taken, so they are never the ones that wait;
+  a grader that timed `line` passed with the call relocated into the lock, and now times `step`.
 - **It advises, it never acts.** The sweeper is invoked in dry-run `--brief`; `--apply` is the
   agent's own next command. That is the operator's constraint: nothing is deleted blindly.
 

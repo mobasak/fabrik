@@ -3556,3 +3556,219 @@ def test_dispatch_stamps_the_reservation_before_the_seats_go_out(run_dir: Path) 
     assert (
         rec["dispatch"]["seats"] == 4 and rec["dispatch"]["round"] == 1
     )  # a fresh round, no carry
+
+
+# ── the scratch-sweep close-out advisory (plan 2026-09-08-plan-1-scratch-sweep, Phase B) ────────
+def _stub_sweep(tmp_path: Path, body: str = 'print("STUB TABLE")') -> Path:
+    """A stand-in for scratch_sweep.py, so a unit test never runs the real sweeper."""
+    stub = tmp_path / "stub_sweep.py"
+    stub.write_text(f"import sys\n{body}\n", encoding="utf-8")
+    return stub
+
+
+def test_a_top_level_close_prints_the_scratch_table_and_a_nested_close_does_not(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """The close-out is trigger 1: the agent is handed its own scratch table at task end.
+
+    It prints AFTER `run record closed`, because the advisory runs once the record has persisted
+    AND the record lock has dropped — a shell-out under `LOCK_EX` would stall every concurrent
+    `line`/`status` reader for its whole timeout.
+    """
+    stub = _stub_sweep(tmp_path)
+    env = {"FABRIK_SCRATCH_SWEEP_SCRIPT": str(stub)}
+
+    _cr(run_dir, "start", "--command", "c1", "--phases", "1", "--terminal", "t")
+    done = _cr(run_dir, "done", "--command", "c1", "--evidence", "e", extra_env=env)
+    assert done.returncode == 0, done.stderr
+    assert "STUB TABLE" in done.stdout, done.stdout
+    assert done.stdout.index("run record closed") < done.stdout.index("STUB TABLE"), done.stdout
+
+    # A NESTED close pops back to its caller — the caller's run is still live, so no advisory.
+    _cr(run_dir, "start", "--command", "outer", "--phases", "1", "--terminal", "t")
+    _cr(run_dir, "start", "--command", "inner", "--phases", "1", "--terminal", "t")
+    nested = _cr(run_dir, "done", "--command", "inner", "--evidence", "e", extra_env=env)
+    assert nested.returncode == 0, nested.stderr
+    assert "STUB TABLE" not in nested.stdout, nested.stdout
+
+
+def test_the_scratch_advisory_never_alters_a_close(run_dir: Path, tmp_path: Path) -> None:
+    """An advisory is advice: it can never change what the close DID.
+
+    A plain `outbox["scratch_advice"]` read would raise KeyError on every non-close verb, and
+    `main()`'s outer `except Exception` returns 0 — silently turning the mis-named-close refusal
+    (rc 1) into success. Every degraded path here must leave rc and the ledger row untouched.
+    """
+    # The ledger path is DERIVED, not configurable: `_feedback_ledger_path()` is
+    # `_state_dir().parent / "command-feedback.jsonl"`, and `_state_dir()` is COMMAND_RUN_DIR — so
+    # pointing that at tmp_path is what keeps this out of the operator's real ledger. An invented
+    # `COMMAND_FEEDBACK_LEDGER` var (which the script does not read) made an earlier version of
+    # this assertion vacuous: it compared two empty lists.
+    ledger = run_dir.parent / "command-feedback.jsonl"
+    base: dict[str, str] = {}
+
+    # A start/step/round must print nothing and keep its own rc.
+    _cr(run_dir, "start", "--command", "c2", "--phases", "2", "--terminal", "t", extra_env=base)
+    for verb in (["step", "--phase", "2", "--title", "t"], ["round", "--findings", "0"]):
+        proc = _cr(
+            run_dir,
+            *verb,
+            extra_env={**base, "FABRIK_SCRATCH_SWEEP_SCRIPT": str(_stub_sweep(tmp_path))},
+        )
+        assert proc.returncode == 0, proc.stderr
+        assert "STUB TABLE" not in proc.stdout, proc.stdout
+
+    # A MIS-NAMED close must still be refused with rc 1, advisory or not.
+    refused = _cr(
+        run_dir,
+        "done",
+        "--command",
+        "not-the-live-one",
+        "--evidence",
+        "e",
+        extra_env={**base, "FABRIK_SCRATCH_SWEEP_SCRIPT": str(_stub_sweep(tmp_path))},
+    )
+    assert refused.returncode == 1, refused.stdout + refused.stderr
+    assert "STUB TABLE" not in refused.stdout, refused.stdout
+
+    # A stub that exits non-zero, hangs past the timeout, or prints nothing: rc 0, no output.
+    for body, label in (
+        ("sys.exit(3)", "non-zero exit"),
+        ("import time; time.sleep(30)", "a hang past the timeout"),
+        ("pass", "silence"),
+    ):
+        _cr(
+            run_dir,
+            "start",
+            "--command",
+            f"c-{label[:4]}",
+            "--phases",
+            "1",
+            "--terminal",
+            "t",
+            extra_env=base,
+        )
+        proc = _cr(
+            run_dir,
+            "done",
+            "--command",
+            f"c-{label[:4]}",
+            "--evidence",
+            "e",
+            extra_env={**base, "FABRIK_SCRATCH_SWEEP_SCRIPT": str(_stub_sweep(tmp_path, body))},
+        )
+        assert proc.returncode == 0, f"{label}: {proc.stdout}{proc.stderr}"
+        assert "STUB TABLE" not in proc.stdout, label
+        assert not proc.stdout.endswith("\n\n"), f"{label} printed a bare blank line"
+
+    # Disabled, and a missing script: silent, rc 0.
+    _cr(run_dir, "start", "--command", "c3", "--phases", "1", "--terminal", "t", extra_env=base)
+    off = _cr(
+        run_dir,
+        "done",
+        "--command",
+        "c3",
+        "--evidence",
+        "e",
+        extra_env={
+            **base,
+            "FABRIK_SCRATCH_SWEEP": "0",
+            "FABRIK_SCRATCH_SWEEP_SCRIPT": str(_stub_sweep(tmp_path)),
+        },
+    )
+    assert off.returncode == 0 and "STUB TABLE" not in off.stdout, off.stdout
+
+    _cr(run_dir, "start", "--command", "c4", "--phases", "1", "--terminal", "t", extra_env=base)
+    gone = _cr(
+        run_dir,
+        "done",
+        "--command",
+        "c4",
+        "--evidence",
+        "e",
+        extra_env={**base, "FABRIK_SCRATCH_SWEEP_SCRIPT": str(tmp_path / "nope.py")},
+    )
+    assert gone.returncode == 0 and "STUB TABLE" not in gone.stdout, gone.stdout
+
+    # The usage-ledger row must be byte-identical whether or not the advisory ran — the only
+    # fields that legitimately move are the timestamp and the wall clock.
+    def _rows() -> list[dict]:
+        if not ledger.exists():
+            return []
+        return [json.loads(x) for x in ledger.read_text(encoding="utf-8").splitlines() if x.strip()]
+
+    before = len(_rows())
+    _cr(run_dir, "start", "--command", "c5", "--phases", "1", "--terminal", "t", extra_env=base)
+    _cr(run_dir, "done", "--command", "c5", "--evidence", "e", extra_env=base)
+    _cr(run_dir, "start", "--command", "c5", "--phases", "1", "--terminal", "t", extra_env=base)
+    _cr(
+        run_dir,
+        "done",
+        "--command",
+        "c5",
+        "--evidence",
+        "e",
+        extra_env={**base, "FABRIK_SCRATCH_SWEEP_SCRIPT": str(_stub_sweep(tmp_path))},
+    )
+    rows = _rows()
+    assert len(rows) == before + 2, rows
+    plain, advised = rows[-2], rows[-1]
+    assert set(plain) == set(advised), set(plain) ^ set(advised)
+    for k in set(plain) - {"ts", "wall_s"}:
+        assert plain[k] == advised[k], f"the advisory changed the ledger row's {k!r}"
+
+
+def test_the_scratch_advisory_never_runs_under_the_record_lock(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """A shell-out under `LOCK_EX` would stall every concurrent WRITER of the record.
+
+    The probe must be a verb that actually takes the lock. `line` and `status` are answered
+    before `main()` ever enters `with _record_lock(sid)`, so timing THEM passes with the advisory
+    moved inside the lock — the grader this replaces was inert for exactly that reason (round 2).
+    `step` mutates, so it waits. The threshold is tight for a second reason: `_scratch_advisory`
+    caps its own shell-out at 2 s, so an in-lock call stalls a writer for the REMAINDER of that
+    2 s and no more — a 3 s bar could not see the mutant at all, and did not (round 2). Measured
+    against a copy with the call relocated into `_close`: 0.17 s pristine, 1.45 s in-lock.
+    Ordering assertions cannot see this either, so the timing is asserted directly.
+    """
+    import subprocess as _sp
+
+    slow = _stub_sweep(tmp_path, "import time; time.sleep(30)")
+    _cr(run_dir, "start", "--command", "c-lock", "--phases", "1", "--terminal", "t")
+    closing = _sp.Popen(
+        [
+            sys.executable,
+            str(_SCRIPT),
+            "done",
+            "--command",
+            "c-lock",
+            "--evidence",
+            "e",
+            "--feedback",
+            "confusion: none · waste: none · change: none · filed: none — harness",
+        ],
+        stdout=_sp.PIPE,
+        stderr=_sp.PIPE,
+        text=True,
+        env={
+            "PATH": "/usr/bin:/bin",
+            "COMMAND_RUN_DIR": str(run_dir),
+            "CLAUDE_SESSION_ID": "s1",
+            "KAIZEN_EVENTS_DIR": str(_events_dir(run_dir)),
+            "FABRIK_SCRATCH_SWEEP_SCRIPT": str(slow),
+        },
+    )
+    try:
+        time.sleep(0.7)  # the close has persisted and is inside the advisory shell-out by now
+        started = time.monotonic()
+        # a WRITER — it takes the lock, so it is the one an in-lock advisory would stall. Its rc
+        # is not asserted: the record is already closed, and refusing is the correct answer.
+        _cr(run_dir, "step", "--phase", "1", "--title", "probe")
+        elapsed = time.monotonic() - started
+    finally:
+        closing.wait(timeout=40)
+    assert elapsed < 1.0, (
+        f"a writer waited {elapsed:.2f}s — the advisory is holding the record lock (pristine "
+        "measures 0.17 s; the in-lock mutant measures 1.45 s)"
+    )

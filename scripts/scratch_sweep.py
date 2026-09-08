@@ -73,7 +73,14 @@ Held, kept, fresh, dirty, unmerged, locked, foreign, orphan-dir, ignored-data an
 entries are LISTED with their reason and never removed."""
 
 # Ignored paths that are rebuildable caches, not data — a worktree holding only these stays removable.
-CACHE_ALLOWLIST = (".venv/", "node_modules/", "__pycache__/", ".pytest_cache/", ".ruff_cache/", ".mypy_cache/")
+CACHE_ALLOWLIST = (
+    ".venv/",
+    "node_modules/",
+    "__pycache__/",
+    ".pytest_cache/",
+    ".ruff_cache/",
+    ".mypy_cache/",
+)
 
 # A scratchpad entry (or root-level entry) matching any of these may hold the ONLY copy of a
 # pre-mutation file. The hub contract itself tells agents to `cp f /tmp/f.bak` for a revert test.
@@ -90,11 +97,15 @@ KEEP_FILE = ".keep"
 NAG_STAMP = ".scratch-nagged"
 LOCK_PATH = "~/.claude/state/scratch-sweep.lock"
 
+BRIEF_ROWS = 5  # the close-out shows this many candidates, then a count — never the whole table
 DEFAULT_OLDER_THAN = "6h"
 DEFAULT_DEAD_OLDER_THAN = "7d"
 WALK_BUDGET = 60_000  # TOTAL stats across all entries, session/worktree mode only
 WALK_DEADLINE_S = 8.0
-HOOK_DEADLINE_S = 1.0
+HOOK_DEADLINE_S = 4.0  # measured: the largest live scratchpad's holder probe alone costs 2.2 s,
+# and the SessionStart registration allows 10 s. At 1.0 s the budget was exhausted before the first
+# stat on 3 of the 6 largest pads — by the DEADLINE, not the stat cap — so the advisory was
+# structurally dead on exactly the sessions that needed it.
 DU_DEADLINE_S = 10.0
 
 RC_OK, RC_USAGE, RC_REFUSED = 0, 1, 2
@@ -110,6 +121,9 @@ class Row:
     reason: str
     evidence: str = ""
     size_kb: int | None = None
+    age_s: float | None = (
+        None  # idle seconds, when the classifier computed one — the brief sorts on it
+    )
 
 
 # Only these are EVER removed, and the last three only behind their own explicit flag.
@@ -200,11 +214,7 @@ def session_id(explicit: str | None) -> str:
 
 def _is_backup_shape(name: str) -> bool:
     low = name.lower()
-    return (
-        low.endswith(BACKUP_SUFFIXES)
-        or low in BACKUP_NAMES
-        or BACKUP_SUBSTRING in low
-    )
+    return low.endswith(BACKUP_SUFFIXES) or low in BACKUP_NAMES or BACKUP_SUBSTRING in low
 
 
 def _holds_backup(entry: Path) -> bool | None:
@@ -351,6 +361,7 @@ def newest_mtime(entry: Path, budget: WalkBudget) -> tuple[float, bool]:
     if not entry.is_dir() or entry.is_symlink():
         return newest, True
     try:
+
         def _boom(exc: OSError) -> None:
             raise exc
 
@@ -473,7 +484,9 @@ def _btime() -> float | None:
         except ValueError:
             return None
     try:
-        for line in (_proc_root() / "stat").read_text(encoding="utf-8", errors="replace").splitlines():
+        for line in (
+            (_proc_root() / "stat").read_text(encoding="utf-8", errors="replace").splitlines()
+        ):
             if line.startswith("btime"):
                 return float(line.split()[1])
     except (OSError, ValueError, IndexError):
@@ -614,7 +627,11 @@ def _is_slug_dir(entry: Path) -> bool:
         return False
     try:
         for child in os.scandir(entry):
-            if child.is_dir(follow_symlinks=False) and SID_RE.match(child.name) and "-" in child.name:
+            if (
+                child.is_dir(follow_symlinks=False)
+                and SID_RE.match(child.name)
+                and "-" in child.name
+            ):
                 return True
     except OSError:
         # Unreadable ⇒ KEEP it in the janitor's per-sid territory. Falling through to `unowned`
@@ -640,14 +657,23 @@ def _read_keep_list(pad: Path) -> tuple[set[str], list[Row]]:
     except OSError as exc:
         # An UNREADABLE keep list silently disabled every protection it carried — the opposite of
         # "any probe error ⇒ KEEP". Say so, and keep the whole scratchpad rather than sweeping it.
-        notes.append(Row(str(path), "entry", "keep-unreadable", f"the keep list cannot be read ({exc.strerror})"))
+        notes.append(
+            Row(
+                str(path),
+                "entry",
+                "keep-unreadable",
+                f"the keep list cannot be read ({exc.strerror})",
+            )
+        )
         return names, notes
     for raw in text.splitlines():
         name = raw.split("#", 1)[0].strip()
         if not name:
             continue
         if "/" in name or ".." in name:
-            notes.append(Row(str(path), "entry", "keep-invalid", f"{name!r} is not a bare basename"))
+            notes.append(
+                Row(str(path), "entry", "keep-invalid", f"{name!r} is not a bare basename")
+            )
             continue
         if not (pad / name).exists():
             notes.append(Row(str(path), "entry", "keep-unmatched", f"{name!r} matches no entry"))
@@ -678,10 +704,16 @@ def classify_session(
         pad = session_dir / "scratchpad"
         try:
             # The same containment test one level down: a symlinked `scratchpad/` would escape too.
-            if pad.is_symlink() or not pad.resolve().is_relative_to(root.resolve()) or not pad.is_dir():
+            if (
+                pad.is_symlink()
+                or not pad.resolve().is_relative_to(root.resolve())
+                or not pad.is_dir()
+            ):
                 continue
         except OSError:
-            rows.append(Row(str(pad), "entry", "probe-error", "unreadable — no classification is provable"))
+            rows.append(
+                Row(str(pad), "entry", "probe-error", "unreadable — no classification is provable")
+            )
             continue
         found_any = True
         keep_names, notes = _read_keep_list(pad)
@@ -690,7 +722,14 @@ def classify_session(
             # Nothing here is provably unprotected while the list itself is unreadable.
             try:
                 for e in sorted(os.scandir(pad), key=lambda x: x.name):
-                    rows.append(Row(e.path, "entry", "probe-error", "the keep list is unreadable — nothing is provably unprotected"))
+                    rows.append(
+                        Row(
+                            e.path,
+                            "entry",
+                            "probe-error",
+                            "the keep list is unreadable — nothing is provably unprotected",
+                        )
+                    )
             except OSError:
                 pass
             continue
@@ -705,7 +744,9 @@ def classify_session(
         probe_ok = probe_ok and ok
         for entry in paths:
             rows.append(
-                _classify_one(entry, keep_names, held, now, older_than_s, budget, du_deadline, with_size)
+                _classify_one(
+                    entry, keep_names, held, now, older_than_s, budget, du_deadline, with_size
+                )
             )
     if not found_any:
         # "nothing to classify" and "I could not find your scratchpad" are different facts, and
@@ -752,21 +793,30 @@ def _classify_one(
         return Row(p, "entry", "fresh", "not walked — the shared freshness budget was exhausted")
     newest, complete = newest_mtime(entry, budget)
     if not complete:
-        return Row(p, "entry", "probe-error", "the freshness walk was cut short — never assumed stale")
+        return Row(
+            p, "entry", "probe-error", "the freshness walk was cut short — never assumed stale"
+        )
     age = now - newest
     if age < older_than_s:
-        return Row(p, "entry", "fresh", f"newest file {_human(age)} old")
+        return Row(p, "entry", "fresh", f"newest file {_human(age)} old", age_s=age)
     # LAST, and only over an entry that would otherwise be `stale`: `holds-backups` is a REMOVABLE
     # class under `--include-backups`, so testing it before the holder probe and the freshness
     # check made the flag delete FRESH and HELD entries — the guard written to protect revert-test
     # baselines was the only thing deleting them (round-2 A1). `_classify_sid` had the order right.
     backup = _holds_backup(entry)
     if backup is None:
-        return Row(p, "entry", "probe-error", "part of its tree is unreadable — no backup scan, no claim")
+        return Row(
+            p, "entry", "probe-error", "part of its tree is unreadable — no backup scan, no claim"
+        )
     if backup:
-        return Row(p, "entry", "holds-backups", "stale, but holds a backup shape (--include-backups to remove)")
+        return Row(
+            p,
+            "entry",
+            "holds-backups",
+            "stale, but holds a backup shape (--include-backups to remove)",
+        )
     size = _du_kb(entry, du_deadline) if with_size else None
-    return Row(p, "entry", "stale", f"newest file {_human(age)} old", size_kb=size)
+    return Row(p, "entry", "stale", f"newest file {_human(age)} old", size_kb=size, age_s=age)
 
 
 def _human(seconds: float) -> str:
@@ -799,12 +849,24 @@ def render(
     if brief and not candidates:
         return ""
     out: list[str] = []
-    for r in rows:
+    # `--brief` is the CLOSE-OUT shape, and a close-out prints into the agent's own context at the
+    # moment it is composing its final block: the full table was 477 lines / 64 KB on a real
+    # scratchpad, fleet-wide, at every close. It shows the OLDEST candidates and says how many it
+    # did not show. The sort is what makes "oldest" true: `classify_session` yields entries in
+    # directory order, so a bare head-slice showed five day-old dirs and hid every 40-day one
+    # behind the "and N more" (round 2). Rows with no age sort last, never first.
+    # The interactive dry run is uncapped — that reader asked for the whole list.
+    shown = sorted(candidates, key=lambda r: -(r.age_s or 0.0))[:BRIEF_ROWS] if brief else rows
+    for r in shown:
         size = f"{r.size_kb} KB" if r.size_kb is not None else "?"
         cells = [r.path, size, r.cls, r.reason]
         if r.evidence:
             cells.append(r.evidence)
         out.append(" · ".join(cells))
+    if brief and len(candidates) > len(shown):
+        out.append(
+            f"… and {len(candidates) - len(shown)} more — run the dry-run command for the full table"
+        )
     counts: dict[str, int] = {}
     for r in rows:
         counts[r.cls] = counts.get(r.cls, 0) + 1
@@ -852,7 +914,9 @@ class _Lock:
 
 
 # ── apply ───────────────────────────────────────────────────────────────────────────────────────
-def apply_rows(rows: list[Row], allowed: set[str], out=sys.stdout, proc_root: Path | None = None) -> int:
+def apply_rows(
+    rows: list[Row], allowed: set[str], out=sys.stdout, proc_root: Path | None = None
+) -> int:
     """Remove only rows whose class is in `allowed`. Per-ROW error handling, never all-or-nothing.
 
     The holder probe is RE-RUN here, inside the lock and immediately before removal: the
@@ -872,7 +936,9 @@ def apply_rows(rows: list[Row], allowed: set[str], out=sys.stdout, proc_root: Pa
         if r.cls not in allowed:
             continue
         if r.path in held_now or str(Path(r.path).resolve()) in held_now:
-            who = held_now.get(r.path) or held_now.get(str(Path(r.path).resolve()), "a live process")
+            who = held_now.get(r.path) or held_now.get(
+                str(Path(r.path).resolve()), "a live process"
+            )
             print(f"KEPT {r.path} — a holder appeared since classification ({who})", file=out)
             continue
         p = Path(r.path)
@@ -898,7 +964,9 @@ def build_parser() -> argparse.ArgumentParser:
         epilog=REFUSAL_SET,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    ap.add_argument("--session", help="session id (default: $CLAUDE_SESSION_ID / $CLAUDE_CODE_SESSION_ID)")
+    ap.add_argument(
+        "--session", help="session id (default: $CLAUDE_SESSION_ID / $CLAUDE_CODE_SESSION_ID)"
+    )
     ap.add_argument("--cwd", help="disambiguate a sid whose scratch sits under two slugs")
     ap.add_argument(
         "--older-than",
@@ -906,14 +974,43 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"an entry newer than this is `fresh` (default {DEFAULT_OLDER_THAN}; {DEFAULT_DEAD_OLDER_THAN} in --dead)",
     )
     ap.add_argument("--apply", action="store_true", help="actually remove the candidates (opt-in)")
-    ap.add_argument("--worktrees", nargs="?", const=".", metavar="REPO", help="classify this repo's agent worktrees")
-    ap.add_argument("--dead", action="store_true", help="janitor: sessions that can never clean themselves")
-    ap.add_argument("--unowned-older-than", type=float, metavar="DAYS", help="also remove root-level entries older than DAYS")
-    ap.add_argument("--include-harness", action="store_true", help="let a harness worktree be removed when its own verdict is wt-removable")
-    ap.add_argument("--include-backups", action="store_true", help="let a backup-holding entry be removed")
-    ap.add_argument("--strict-proc", action="store_true", help="turn a same-uid /proc gap into probe-error (default: report it)")
-    ap.add_argument("--hook", action="store_true", help="SessionStart hook mode: one advisory line, exit 0 always")
-    ap.add_argument("--brief", action="store_true", help="the close-out shape: zero candidates print zero bytes")
+    ap.add_argument(
+        "--worktrees",
+        nargs="?",
+        const=".",
+        metavar="REPO",
+        help="classify this repo's agent worktrees",
+    )
+    ap.add_argument(
+        "--dead", action="store_true", help="janitor: sessions that can never clean themselves"
+    )
+    ap.add_argument(
+        "--unowned-older-than",
+        type=float,
+        metavar="DAYS",
+        help="also remove root-level entries older than DAYS",
+    )
+    ap.add_argument(
+        "--include-harness",
+        action="store_true",
+        help="let a harness worktree be removed when its own verdict is wt-removable",
+    )
+    ap.add_argument(
+        "--include-backups", action="store_true", help="let a backup-holding entry be removed"
+    )
+    ap.add_argument(
+        "--strict-proc",
+        action="store_true",
+        help="turn a same-uid /proc gap into probe-error (default: report it)",
+    )
+    ap.add_argument(
+        "--hook",
+        action="store_true",
+        help="SessionStart hook mode: one advisory line, exit 0 always",
+    )
+    ap.add_argument(
+        "--brief", action="store_true", help="the close-out shape: zero candidates print zero bytes"
+    )
     return ap
 
 
@@ -966,7 +1063,9 @@ def run_session_mode(args: argparse.Namespace, sid: str) -> int:
         root, sid, _now(), older, with_size=not (args.brief or args.hook), cwd=args.cwd
     )
     if not probe_ok:
-        rows = _downgrade(rows, args, "the /proc holder probe is unreadable — nothing is provably unheld")
+        rows = _downgrade(
+            rows, args, "the /proc holder probe is unreadable — nothing is provably unheld"
+        )
     elif args.strict_proc and gaps:
         rows = _downgrade(rows, args, f"a same-uid /proc gap under --strict-proc ({len(gaps)})")
     argv = ["--session", sid] + (["--cwd", args.cwd] if args.cwd else [])
@@ -995,8 +1094,11 @@ def run_session_mode(args: argparse.Namespace, sid: str) -> int:
             apply_rows(rows, _allowed_classes(args), proc_root=_proc_root())
         return RC_OK
     out = render(
-        rows, brief=args.brief, gaps=gaps,
-        apply_cmd=_apply_command(argv, args), allowed=_allowed_classes(args),
+        rows,
+        brief=args.brief,
+        gaps=gaps,
+        apply_cmd=_apply_command(argv, args),
+        allowed=_allowed_classes(args),
     )
     if out:
         print(out)
@@ -1076,7 +1178,6 @@ def main(argv: list[str] | None = None) -> int:
         return RC_USAGE
 
 
-
 # ── mode 2: the janitor (--dead) ────────────────────────────────────────────────────────────────
 def _transcript_age(sid: str, dirs: list[Path], now: float) -> float | None:
     """Seconds since the sid's most recent transcript was written, across every discovered root."""
@@ -1120,7 +1221,9 @@ def dead_sessions(
     unreadable_slugs: list[Path] = []
     for slug in slug_dirs:
         try:
-            sid_dirs.extend(Path(c.path) for c in os.scandir(slug) if c.is_dir(follow_symlinks=False))
+            sid_dirs.extend(
+                Path(c.path) for c in os.scandir(slug) if c.is_dir(follow_symlinks=False)
+            )
         except OSError:
             unreadable_slugs.append(slug)  # a row, not a silence: it vanished from the table (A14)
     held, probe_gaps, probe_ok = probe_holders(sid_dirs + root_level, proc_root)
@@ -1134,7 +1237,9 @@ def dead_sessions(
     for entry in sorted(root_level):
         rows.append(_classify_root_entry(entry, held, now, unowned_days))
     for slug in sorted(unreadable_slugs):
-        rows.append(Row(str(slug), "session", "probe-error", "a session-slug dir this run cannot read"))
+        rows.append(
+            Row(str(slug), "session", "probe-error", "a session-slug dir this run cannot read")
+        )
     return rows, unreadable, sorted(set(gaps))
 
 
@@ -1165,7 +1270,9 @@ def _classify_sid(
     if tx_age is not None and tx_age > older_than_s:
         death = death or f"its transcript is {_human(tx_age)} idle"
     if not death:
-        return Row(p, "session", "unclassified", "no live signal and no death signal — never removed")
+        return Row(
+            p, "session", "unclassified", "no live signal and no death signal — never removed"
+        )
 
     newest, complete = newest_mtime(sid_dir, WalkBudget(stats=10**9, deadline_s=30.0))
     if not complete:
@@ -1175,36 +1282,50 @@ def _classify_sid(
     dir_age = now - newest
     if dir_age <= older_than_s:
         return Row(
-            p, "session", "unclassified",
+            p,
+            "session",
+            "unclassified",
             f"{death}, but its dir was touched {_human(dir_age)} ago — a gone pid is not a finished session",
         )
     backup = _holds_backup(sid_dir)
     if backup is None:
         return Row(p, "session", "unclassified", f"{death}, but part of its tree is unreadable")
     if backup:
-        return Row(p, "session", "dead-holds-backups", f"{death}; holds a backup shape (--include-backups)")
+        return Row(
+            p, "session", "dead-holds-backups", f"{death}; holds a backup shape (--include-backups)"
+        )
     return Row(p, "session", "dead", f"{death}; dir idle {_human(dir_age)}")
 
 
-def _classify_root_entry(entry: Path, held: dict[str, str], now: float, unowned_days: float | None) -> Row:
+def _classify_root_entry(
+    entry: Path, held: dict[str, str], now: float, unowned_days: float | None
+) -> Row:
     p = str(entry)
     if entry.name in PROTECTED_NAMES or entry.name.endswith(PROTECTED_SUFFIXES):
         return Row(p, "root", "protected", "live system state, by name")
     backup = _holds_backup(entry)
     if backup is None:
-        return Row(p, "root", "protected", "part of its tree is unreadable — no backup scan, no claim")
+        return Row(
+            p, "root", "protected", "part of its tree is unreadable — no backup scan, no claim"
+        )
     if backup:
-        return Row(p, "root", "protected", "holds a backup shape — the root level is where baselines sit")
+        return Row(
+            p, "root", "protected", "holds a backup shape — the root level is where baselines sit"
+        )
     if p in held or str(entry.resolve()) in held:
         return Row(p, "root", "protected", "held by a live process", held.get(p, ""))
     if unowned_days is None:
-        return Row(p, "root", "unowned", "unowned residue — pass --unowned-older-than DAYS to remove")
+        return Row(
+            p, "root", "unowned", "unowned residue — pass --unowned-older-than DAYS to remove"
+        )
     try:
         age = now - entry.lstat().st_mtime
     except OSError:
         return Row(p, "root", "probe-error", "stat failed")
     if age <= unowned_days * 86400:
-        return Row(p, "root", "protected", f"only {_human(age)} old, under the {unowned_days:g}d threshold")
+        return Row(
+            p, "root", "protected", f"only {_human(age)} old, under the {unowned_days:g}d threshold"
+        )
     return Row(p, "root", "unowned", f"unowned and {_human(age)} idle")
 
 
@@ -1212,17 +1333,27 @@ def run_dead_mode(args: argparse.Namespace) -> int:
     root = _scratch_root()
     older = parse_duration(args.older_than or DEFAULT_DEAD_OLDER_THAN)
     rows, unreadable, gaps = dead_sessions(
-        root, sessions_dirs(), transcript_dirs(), _proc_root(), _now(), older, args.unowned_older_than
+        root,
+        sessions_dirs(),
+        transcript_dirs(),
+        _proc_root(),
+        _now(),
+        older,
+        args.unowned_older_than,
     )
     if args.strict_proc and gaps:
         rows = _downgrade(rows, args, f"a same-uid /proc gap under --strict-proc ({len(gaps)})")
     if unreadable:
         # A root we cannot list has no enumerable sids: the LIVE signal collapses while the DEATH
         # signal survives, so the whole table degrades rather than calling a live session dead.
-        rows = [Row(r.path, r.kind, "unclassified", f"unreadable root {unreadable[0]}") for r in rows]
+        rows = [
+            Row(r.path, r.kind, "unclassified", f"unreadable root {unreadable[0]}") for r in rows
+        ]
         print(render(rows, gaps=gaps))
         if args.apply:
-            print(f"REFUSED — cannot read {', '.join(unreadable)}; no sid classified, nothing removed")
+            print(
+                f"REFUSED — cannot read {', '.join(unreadable)}; no sid classified, nothing removed"
+            )
             return RC_REFUSED
         return RC_OK
     if args.apply:
@@ -1235,12 +1366,16 @@ def run_dead_mode(args: argparse.Namespace) -> int:
             apply_rows(rows, _allowed_classes(args), proc_root=_proc_root())
         return RC_OK
     out = render(
-        rows, brief=args.brief, gaps=gaps,
-        apply_cmd=_apply_command(["--dead"], args), allowed=_allowed_classes(args),
+        rows,
+        brief=args.brief,
+        gaps=gaps,
+        apply_cmd=_apply_command(["--dead"], args),
+        allowed=_allowed_classes(args),
     )
     if out:  # `print("")` is a blank line, and --brief promises ZERO bytes
         print(out)
     return RC_OK
+
 
 # ── mode 3: --worktrees ─────────────────────────────────────────────────────────────────────────
 def _git(repo: Path, *args: str, timeout: int = 20) -> tuple[int, str]:
@@ -1355,7 +1490,9 @@ def classify_worktrees(
     """One row per registration, plus every unregistered directory under `.claude/worktrees/`."""
     entries = _worktree_registrations(repo)
     if not entries:
-        return [Row(str(repo), "worktree", "unclassified", "not a git repo, or git refused to list")]
+        return [
+            Row(str(repo), "worktree", "unclassified", "not a git repo, or git refused to list")
+        ]
     main_path = Path(entries[0].get("worktree", str(repo)))
     rc, target_out = _git(main_path, "branch", "--show-current")
     target = target_out.strip() if rc == 0 else ""
@@ -1363,8 +1500,12 @@ def classify_worktrees(
 
     if not target:
         return [
-            Row(e.get("worktree", "?"), "worktree", "unclassified",
-                "the main checkout is on a detached HEAD — no merge target, nothing removable")
+            Row(
+                e.get("worktree", "?"),
+                "worktree",
+                "unclassified",
+                "the main checkout is on a detached HEAD — no merge target, nothing removable",
+            )
             for e in others
         ]
 
@@ -1373,16 +1514,28 @@ def classify_worktrees(
     held, _gaps, probe_ok = probe_holders(paths, proc_root)
     if not probe_ok:
         return [
-            Row(e.get("worktree", "?"), "worktree", "unclassified",
-                f"the /proc holder probe ({proc_root}) is unreadable — nothing is provably unheld")
+            Row(
+                e.get("worktree", "?"),
+                "worktree",
+                "unclassified",
+                f"the /proc holder probe ({proc_root}) is unreadable — nothing is provably unheld",
+            )
             for e in others
         ]
     rows: list[Row] = []
     for e in others:
         rows.append(
             _classify_worktree(
-                Path(e["worktree"]), e, repo, main_path, target, stashed, detached_stash,
-                held, session_start, now,
+                Path(e["worktree"]),
+                e,
+                repo,
+                main_path,
+                target,
+                stashed,
+                detached_stash,
+                held,
+                session_start,
+                now,
             )
         )
     rows.extend(_orphan_worktree_dirs(repo, {e.get("worktree", "") for e in entries}))
@@ -1390,9 +1543,16 @@ def classify_worktrees(
 
 
 def _classify_worktree(
-    path: Path, entry: dict, repo: Path, main_path: Path, target: str,
-    stashed: set[str], detached_stash: bool, held: dict[str, str],
-    session_start: float | None, now: float,
+    path: Path,
+    entry: dict,
+    repo: Path,
+    main_path: Path,
+    target: str,
+    stashed: set[str],
+    detached_stash: bool,
+    held: dict[str, str],
+    session_start: float | None,
+    now: float,
 ) -> Row:
     p = str(path)
     # `refs/heads/feat/foo` is the branch `feat/foo`, not `foo`. Truncating at the LAST slash
@@ -1402,26 +1562,38 @@ def _classify_worktree(
     branch = entry.get("branch", "").removeprefix("refs/heads/") if entry.get("branch") else ""
 
     if not branch:
-        return Row(p, "worktree", "unclassified", "a detached-HEAD worktree — no branch to reason about")
+        return Row(
+            p, "worktree", "unclassified", "a detached-HEAD worktree — no branch to reason about"
+        )
 
     # Provenance by AGE, not by a sid marker: CLAUDE_BASE holds the base COMMIT SHA and nothing in
     # the repo reads it, so the implementable test is the registration's own mtime against this
     # session's start — and it fails CLOSED when the start cannot be resolved.
     gitdir_meta = repo / ".git" / "worktrees" / path.name / "gitdir"
     if session_start is None:
-        return Row(p, "worktree", "wt-foreign", "this session's start time is unresolvable — nothing removable")
+        return Row(
+            p,
+            "worktree",
+            "wt-foreign",
+            "this session's start time is unresolvable — nothing removable",
+        )
     try:
         registered = gitdir_meta.stat().st_mtime
     except OSError:
         return Row(p, "worktree", "wt-foreign", "no registration metadata — provenance unprovable")
     if registered < session_start:
         return Row(
-            p, "worktree", "wt-foreign",
+            p,
+            "worktree",
+            "wt-foreign",
             "registered before this session started — not this run's to remove",
             f"registered {_human(now - registered)} ago",
         )
 
-    is_harness = ".claude/worktrees/" in p or (repo / ".git" / "worktrees" / path.name / "CLAUDE_BASE").exists()
+    is_harness = (
+        ".claude/worktrees/" in p
+        or (repo / ".git" / "worktrees" / path.name / "CLAUDE_BASE").exists()
+    )
     verdict, reason, evidence = _worktree_chain(
         path, entry, main_path, target, branch, stashed, detached_stash, held
     )
@@ -1435,20 +1607,40 @@ def _classify_worktree(
             # `wt-prunable` is in REMOVABLE too, so a harness tree whose dir is gone would have had
             # its registration pruned with no flag — and `git worktree prune` is repo-wide, so it
             # drops other sessions' stale registrations with it (round-2 A13).
-            return Row(p, "worktree", "wt-harness", f"harness-created ({verdict}); --include-harness to act", reason)
+            return Row(
+                p,
+                "worktree",
+                "wt-harness",
+                f"harness-created ({verdict}); --include-harness to act",
+                reason,
+            )
         return Row(p, "worktree", verdict, f"harness-created; {reason}", evidence)
     return Row(p, "worktree", verdict, reason, evidence)
 
 
 def _worktree_chain(
-    path: Path, entry: dict, main_path: Path, target: str, branch: str,
-    stashed: set[str], detached_stash: bool, held: dict[str, str],
+    path: Path,
+    entry: dict,
+    main_path: Path,
+    target: str,
+    branch: str,
+    stashed: set[str],
+    detached_stash: bool,
+    held: dict[str, str],
 ) -> tuple[str, str, str]:
     p = str(path)
     if "locked" in entry:
-        return "wt-locked", f"locked — `git worktree unlock {p}` then re-run", entry.get("locked", "")
+        return (
+            "wt-locked",
+            f"locked — `git worktree unlock {p}` then re-run",
+            entry.get("locked", ""),
+        )
     if "prunable" in entry or not path.exists():
-        return "wt-prunable", "its directory is gone — the registration is stale", entry.get("prunable", "")
+        return (
+            "wt-prunable",
+            "its directory is gone — the registration is stale",
+            entry.get("prunable", ""),
+        )
     if p in held or str(path.resolve()) in held:
         return "wt-held", "a live process is working in it", held.get(p, "")
     rc, status = _git(path, "status", "--porcelain")
@@ -1457,13 +1649,21 @@ def _worktree_chain(
         shown = ", ".join(all_names[:5]) + ("…" if len(all_names) > 5 else "")
         return "wt-dirty", f"uncommitted work ({len(all_names)}): {shown}", ""
     if branch in stashed:
-        return "wt-dirty", "a stash names this branch — invisible to status and to worktree list", ""
+        return (
+            "wt-dirty",
+            "a stash names this branch — invisible to status and to worktree list",
+            "",
+        )
     if detached_stash:
         return "wt-dirty", "a `(no branch)` stash exists and cannot be attributed to a branch", ""
     ignored = _ignored_data(path)
     if ignored:
         shown = ", ".join(ignored[:5]) + ("…" if len(ignored) > 5 else "")
-        return "wt-ignored-data", f"ignored DATA git would delete anyway ({len(ignored)}): {shown}", ""
+        return (
+            "wt-ignored-data",
+            f"ignored DATA git would delete anyway ({len(ignored)}): {shown}",
+            "",
+        )
     rc_anc, _ = _git(main_path, "merge-base", "--is-ancestor", branch, target)
     if rc_anc != 0 and not _merged_from(main_path, target, branch):
         rc_n, ahead = _git(main_path, "rev-list", "--count", f"{target}..{branch}")
@@ -1489,9 +1689,13 @@ def _orphan_worktree_dirs(repo: Path, registered: set[str]) -> list[Row]:
             if str(Path(child.path).resolve()) in {str(Path(r).resolve()) for r in registered if r}:
                 continue
             rows.append(
-                Row(child.path, "worktree", "wt-orphan-dir",
+                Row(
+                    child.path,
+                    "worktree",
+                    "wt-orphan-dir",
                     "a directory git does not register — listed, never removable",
-                    size_kb=_du_kb(Path(child.path), time.monotonic() + 2))
+                    size_kb=_du_kb(Path(child.path), time.monotonic() + 2),
+                )
             )
     except OSError:
         pass
@@ -1522,7 +1726,10 @@ def apply_worktrees(repo: Path, rows: list[Row], allowed: set[str], out=sys.stdo
             continue
         rc, msg = _git(repo, "worktree", "remove", r.path)
         if rc != 0:
-            print(f"REFUSED {r.path} — git: {msg.strip().splitlines()[0] if msg.strip() else rc}", file=out)
+            print(
+                f"REFUSED {r.path} — git: {msg.strip().splitlines()[0] if msg.strip() else rc}",
+                file=out,
+            )
             continue
         removed += 1
         print(f"REMOVED {r.path} ({r.cls}, {r.reason})", file=out)
@@ -1564,7 +1771,9 @@ def run_worktrees_mode(args: argparse.Namespace) -> int:
     if args.strict_proc:
         _held, wt_gaps, _ok = probe_holders([Path(r.path) for r in rows], _proc_root())
         if wt_gaps:
-            rows = _downgrade(rows, args, f"a same-uid /proc gap under --strict-proc ({len(wt_gaps)})")
+            rows = _downgrade(
+                rows, args, f"a same-uid /proc gap under --strict-proc ({len(wt_gaps)})"
+            )
     if args.apply:
         with _Lock() as got:
             if not got:
@@ -1575,9 +1784,11 @@ def run_worktrees_mode(args: argparse.Namespace) -> int:
             apply_worktrees(repo, rows, _allowed_classes(args))
         return RC_OK
     out = render(
-        rows, brief=args.brief,
+        rows,
+        brief=args.brief,
         apply_cmd=_apply_command(
-            ["--worktrees", str(repo), "--session", sid] if sid else ["--worktrees", str(repo)], args
+            ["--worktrees", str(repo), "--session", sid] if sid else ["--worktrees", str(repo)],
+            args,
         ),
         allowed=_allowed_classes(args),
     )
@@ -1614,7 +1825,18 @@ def run_hook_mode(args: argparse.Namespace, sid_hint: str) -> int:
             return RC_OK
         root = _scratch_root()
         older = parse_duration(args.older_than or DEFAULT_OLDER_THAN)
-        budget = WalkBudget(deadline_s=HOOK_DEADLINE_S)
+        # `SCRATCH_SWEEP_HOOK_BUDGET` is the test seam for the truncation path — the real budget is
+        # a wall-clock deadline, which a grader cannot force deterministically.
+        try:
+            stats = int(os.environ.get("SCRATCH_SWEEP_HOOK_BUDGET") or WALK_BUDGET)
+        except ValueError:
+            stats = WALK_BUDGET
+        budget = WalkBudget(stats=stats, deadline_s=HOOK_DEADLINE_S)
+        # The budget's clock starts at CONSTRUCTION and `probe_holders` runs inside it, so the
+        # holder probe spends the same deadline the walk does — measured 2.64 s of probe + 0.50 s
+        # of walk on this box's largest pad (52,320 entries), which is why HOOK_DEADLINE_S is 4.0
+        # and not 1.0. A pad that outgrows the deadline truncates and stays silent rather than
+        # printing a shrunken count; it is not built earlier than this on purpose.
         rows, _gaps, probe_ok = classify_session(
             root, sid, _now(), older, budget=budget, with_size=False, cwd=cwd
         )
@@ -1629,6 +1851,15 @@ def run_hook_mode(args: argparse.Namespace, sid_hint: str) -> int:
                 previous = int(stamp.read_text(encoding="utf-8").strip() or -1)
             except (OSError, ValueError):
                 previous = -1
+        if budget.exhausted:
+            # A truncated walk yields a LOWER BOUND that varies run to run — the unwalked entries
+            # default to `fresh`, so the same pad reports 300 then 340 and reads as "grown", and
+            # the line re-fired on every SessionStart (measured on the three largest live pads).
+            # So an uncertain count is neither SPOKEN nor RECORDED: returning before the stamp
+            # write leaves the last certain number in place, and the next complete walk speaks
+            # normally. Recording it here instead would be the worse bug — it silenced exactly the
+            # scratchpads with the most residue, which is the "never to silence" rule inverted.
+            return RC_OK
         if stamp is not None:
             try:
                 stamp.write_text(str(len(candidates)), encoding="utf-8")
@@ -1636,9 +1867,11 @@ def run_hook_mode(args: argparse.Namespace, sid_hint: str) -> int:
                 pass
         if not candidates or len(candidates) <= previous:
             return RC_OK
-        oldest = f"oldest {_human(max(now_ages))}" if (now_ages := [
-            _now() - _entry_newest(Path(r.path)) for r in candidates[:20]
-        ]) else ""
+        oldest = (
+            f"oldest {_human(max(now_ages))}"
+            if (now_ages := [_now() - _entry_newest(Path(r.path)) for r in candidates[:20]])
+            else ""
+        )
         print(
             f"## 🧹 SCRATCH: {len(candidates)} stale entries in this session's scratchpad "
             f"({oldest}) — dry-run: python3 /opt/fabrik/scripts/scratch_sweep.py · "

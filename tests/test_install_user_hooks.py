@@ -250,3 +250,47 @@ def test_repairing_one_script_keeps_another_scripts_hook_in_the_same_entry(tmp_p
     cmds = [h["command"] for en in entries for h in en.get("hooks", [])]
     assert cmds.count("/opt/other/keep_me.py") == 1, cmds
     assert cmds.count(e["hooks"][0]["command"]) == 1, cmds
+
+
+def test_check_finds_missing_scratch_sweep_entry_and_install_adds_it(tmp_path, monkeypatch):
+    """Trigger 2 of the scratch sweep: a SessionStart entry, and deliberately NOT UserPromptSubmit.
+
+    The per-prompt trigger was measured and rejected before it shipped: with it, 9 of 9 live
+    sessions fired on EVERY prompt, because a working session never becomes clean — it keeps
+    producing entries that age past the threshold. That is wallpaper, and wallpaper is how
+    enforcement dies. SessionStart plus a count-recording stamp says it once per resume instead.
+    """
+    home = _home(tmp_path)
+    monkeypatch.setenv("HOME", str(home))
+    assert iuh.run(["--check"]) == 1
+    assert iuh.run([]) == 0
+    assert iuh.run(["--check"]) == 0
+
+    for f in (
+        home / ".claude" / "settings.json",
+        home / ".claude-fleet" / "ob" / "settings.json",
+        home / ".claude-fleet" / "can" / "settings.json",
+    ):
+        got = _has(f)
+        assert any(
+            "scratch_sweep.py" in c and "--hook" in c for c in got.get("SessionStart", [])
+        ), f"{f}: {got}"
+        assert not any("scratch_sweep.py" in c for c in got.get("UserPromptSubmit", [])), (
+            f"{f}: the per-prompt trigger was measured and rejected — 9 of 9 sessions, every prompt"
+        )
+        entries = json.loads(f.read_text())["hooks"]["SessionStart"]
+        hook = next(
+            h for e in entries for h in e.get("hooks", []) if "scratch_sweep.py" in h["command"]
+        )
+        assert hook["timeout"] == iuh.TIMEOUT_S, hook
+
+    # Removing just that entry must make --check fail again — absence is a failure, not a default.
+    p = home / ".claude" / "settings.json"
+    d = json.loads(p.read_text())
+    d["hooks"]["SessionStart"] = [
+        e
+        for e in d["hooks"]["SessionStart"]
+        if not any("scratch_sweep.py" in h.get("command", "") for h in e.get("hooks", []))
+    ]
+    p.write_text(json.dumps(d))
+    assert iuh.run(["--check"]) == 1

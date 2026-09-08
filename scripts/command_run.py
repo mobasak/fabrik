@@ -1576,6 +1576,16 @@ def main(argv: list[str]) -> int:
                 rc = _mutate(sid, args, outbox)
         finally:
             _flush_events(args, outbox)
+        # AFTER the lock and after the flush: the advisory is a courtesy, and it may never change
+        # what the close did. `.get` (not `[...]`) because every non-close verb leaves the key
+        # unset, and main()'s outer `except Exception` would turn the resulting KeyError into a
+        # silent rc 0 — converting the mis-named-close refusal into success.
+        advice = outbox.get("scratch_advice")
+        if advice:
+            text = _scratch_advisory(*advice)
+            if text:  # `print("")` is a blank line; zero candidates print zero bytes
+                with contextlib.suppress(Exception):
+                    print(text)
         return rc
     except Exception as e:  # fail-soft — a state bug must never wedge an agent
         sys.stderr.write(f"[command_run] error, continuing: {e}\n")
@@ -1922,6 +1932,37 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         return _close(sid, rec, args, outbox)
 
     return 0
+
+
+def _scratch_advisory(sid: str, repo_root: str) -> str:
+    """This session's own scratch table, or "" — advice at task end, never an action.
+
+    Trigger 1 of the scratch sweep (plan 2026-09-08-plan-1-scratch-sweep, D-184/D-187): the moment
+    an agent closes a run is the moment it still has the context to judge its own residue. The
+    sweep is invoked in DRY-RUN `--brief`, so it prints a table and removes nothing; `--apply` is
+    the agent's own next command, which is the point — the operator's constraint is that nothing
+    is deleted blindly.
+
+    Fail-open in every direction: no script, a non-zero exit, a hang, or any exception yields ""
+    and the close is unaffected. It NEVER runs under the record lock (see the call site) — a
+    shell-out there would stall every concurrent `line`/`status` reader for the whole timeout.
+    """
+    if os.environ.get("FABRIK_SCRATCH_SWEEP") == "0":
+        return ""
+    script = os.environ.get("FABRIK_SCRATCH_SWEEP_SCRIPT") or "/opt/fabrik/scripts/scratch_sweep.py"
+    if not sid or not Path(script).is_file():
+        return ""
+    argv = [sys.executable, script, "--session", sid, "--brief"]
+    if repo_root:
+        # Disambiguates a sid whose scratch sits under two slugs — a session that entered an agent
+        # worktree has one dir per cwd, and only this one is the run's own.
+        argv += ["--cwd", repo_root]
+    try:
+        proc = subprocess.run(argv, capture_output=True, text=True, timeout=2)
+    except (OSError, subprocess.SubprocessError) as exc:
+        sys.stderr.write(f"[command_run] scratch advisory skipped: {exc}\n")
+        return ""
+    return proc.stdout.strip() if proc.returncode == 0 else ""
 
 
 def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict[str, Any]) -> int:
@@ -2418,6 +2459,10 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         print(pinned_line(parent))
         return 0
     print(f"{args.cmd.upper()} /{rec.get('command')} — run record closed.")
+    # Queue the scratch advisory for `main()` to print AFTER the record lock drops. Set here, not
+    # printed here, and only on a top-level close that actually persisted: the NOT-CLOSED path
+    # returns above, so a close that did not happen never offers advice about it.
+    outbox["scratch_advice"] = (sid, str(rec.get("repo_root") or ""))
     return 0
 
 

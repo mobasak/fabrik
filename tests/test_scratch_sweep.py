@@ -28,6 +28,7 @@ from __future__ import annotations
 import fcntl
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -45,7 +46,9 @@ SID = "11111111-2222-3333-4444-555555555555"
 SLUG = "-opt-fixture"
 
 
-def _run(*args: str, env: dict[str, str] | None = None, stdin: str = "") -> subprocess.CompletedProcess[str]:
+def _run(
+    *args: str, env: dict[str, str] | None = None, stdin: str = ""
+) -> subprocess.CompletedProcess[str]:
     """Invoke the real script as a subprocess — the way every caller does."""
     e = {
         "PATH": "/usr/bin:/bin",
@@ -172,8 +175,8 @@ def test_a_deep_in_place_edit_keeps_an_entry_fresh(scratch: Path) -> None:
     deep.mkdir(parents=True)
     live = deep / "notes.md"
     live.write_text("still working", encoding="utf-8")
-    _age(live, 5 * 60)          # touched five minutes ago …
-    _age(deep, 7 * HOUR)        # … while every directory above it is hours old
+    _age(live, 5 * 60)  # touched five minutes ago …
+    _age(deep, 7 * HOUR)  # … while every directory above it is hours old
     _age(entry / "a", 7 * HOUR)
     _age(entry, 7 * HOUR)
 
@@ -182,7 +185,9 @@ def test_a_deep_in_place_edit_keeps_an_entry_fresh(scratch: Path) -> None:
     assert _classes(proc.stdout).get("stale-dir") == "fresh", proc.stdout
 
 
-def test_a_symlinked_entry_is_unclassified_and_its_target_untouched(scratch: Path, tmp_path: Path) -> None:
+def test_a_symlinked_entry_is_unclassified_and_its_target_untouched(
+    scratch: Path, tmp_path: Path
+) -> None:
     """A symlink is never followed and never removed — its target may be anything at all."""
     target = tmp_path / "outside"
     target.mkdir()
@@ -280,7 +285,9 @@ def _fake_proc(tmp_path: Path, *, uid: int, unreadable_fd: bool) -> Path:
     pid = proc_root / "4793"
     pid.mkdir(parents=True)
     (pid / "comm").write_text("(sd-pam)\n", encoding="utf-8")
-    (pid / "status").write_text(f"Name:\tsd-pam\nUid:\t{uid}\t{uid}\t{uid}\t{uid}\n", encoding="utf-8")
+    (pid / "status").write_text(
+        f"Name:\tsd-pam\nUid:\t{uid}\t{uid}\t{uid}\t{uid}\n", encoding="utf-8"
+    )
     fd = pid / "fd"
     fd.mkdir()
     if unreadable_fd:
@@ -327,7 +334,9 @@ def test_strict_proc_downgrades_stale_to_probe_error(scratch: Path, tmp_path: Pa
     """The opt-in: an operator who wants the conservative reading passes `--strict-proc`."""
     proc_root = _fake_proc(tmp_path, uid=os.getuid(), unreadable_fd=True)
     try:
-        proc = _run("--session", SID, "--strict-proc", env=_env(scratch, FABRIK_PROC_ROOT=str(proc_root)))
+        proc = _run(
+            "--session", SID, "--strict-proc", env=_env(scratch, FABRIK_PROC_ROOT=str(proc_root))
+        )
         assert proc.returncode == 0, proc.stderr
         assert _classes(proc.stdout).get("stale-dir") == "probe-error", proc.stdout
     finally:
@@ -345,7 +354,9 @@ def test_apply_removes_only_stale(scratch: Path) -> None:
     assert proc.returncode == 0, proc.stderr
     assert "REMOVED" in proc.stdout and "stale-dir" in proc.stdout, proc.stdout
     assert not (pad / "stale-dir").exists()
-    assert (pad / "fresh-dir").exists() and (pad / "kept-dir").exists() and (pad / "held-dir").exists()
+    assert (
+        (pad / "fresh-dir").exists() and (pad / "kept-dir").exists() and (pad / "held-dir").exists()
+    )
     assert (scratch / SLUG / SID / "tasks" / "a.output").exists(), "tasks/ is never the sweeper's"
 
 
@@ -407,7 +418,9 @@ def test_a_second_concurrent_apply_is_a_one_line_noop_not_a_wait(scratch: Path) 
     assert proc.returncode == 0, proc.stderr
     assert "another sweep holds the lock" in proc.stdout, proc.stdout
     assert elapsed < 10, f"a held lock must not wait ({elapsed:.1f}s)"
-    assert (scratch / SLUG / SID / "scratchpad" / "stale-dir").exists(), "nothing swept while locked"
+    assert (scratch / SLUG / SID / "scratchpad" / "stale-dir").exists(), (
+        "nothing swept while locked"
+    )
 
 
 def test_apply_on_another_live_sid_is_refused(scratch: Path, tmp_path: Path) -> None:
@@ -481,7 +494,7 @@ def graveyard(tmp_path: Path) -> tuple[Path, Path, Path]:
         (live_sid, 30 * DAY),
         (dead_sid, 30 * DAY),
         (unknown_sid, 30 * DAY),
-        (fresh_dead_sid, 8 * 60),          # a gone pid whose dir was touched 8 minutes ago
+        (fresh_dead_sid, 8 * 60),  # a gone pid whose dir was touched 8 minutes ago
         (backup_sid, 30 * DAY),
     ):
         pad = root / SLUG / sid / "scratchpad"
@@ -502,7 +515,12 @@ def graveyard(tmp_path: Path) -> tuple[Path, Path, Path]:
             json.dumps({"pid": 999_999, "sessionId": sid, "procStart": "1"}), encoding="utf-8"
         )
 
-    for name, days in (("payments-c4", 10), ("fe-pristine", 10), ("mcp-health-cache", 10), ("recent-thing", 1)):
+    for name, days in (
+        ("payments-c4", 10),
+        ("fe-pristine", 10),
+        ("mcp-health-cache", 10),
+        ("recent-thing", 1),
+    ):
         d = root / name
         d.mkdir(parents=True)
         (d / "f").write_text("x", encoding="utf-8")
@@ -548,7 +566,9 @@ def test_janitor_removes_only_dead_sids(graveyard: tuple[Path, Path, Path]) -> N
         assert (root / SLUG / survivor).exists(), survivor
 
 
-def test_a_freshly_gone_sid_is_not_dead_until_the_dir_is_idle(graveyard: tuple[Path, Path, Path]) -> None:
+def test_a_freshly_gone_sid_is_not_dead_until_the_dir_is_idle(
+    graveyard: tuple[Path, Path, Path],
+) -> None:
     """A gone pid is NOT a finished session — `--resume` keeps the sid.
 
     Measured 2026-09-08: 18 sids had a gone-pid sessions file and a live directory, ALL of them
@@ -575,7 +595,9 @@ def test_a_freshly_gone_sid_is_not_dead_until_the_dir_is_idle(graveyard: tuple[P
     assert two_day.exists()
 
 
-def test_a_held_selfwatch_lock_is_liveness(graveyard: tuple[Path, Path, Path], tmp_path: Path) -> None:
+def test_a_held_selfwatch_lock_is_liveness(
+    graveyard: tuple[Path, Path, Path], tmp_path: Path
+) -> None:
     """A held self-watch lock means the pane is alive even with no sessions file."""
     root, _, _ = graveyard
     locks = tmp_path / "locks"
@@ -644,7 +666,9 @@ def test_an_unowned_pristine_baseline_is_protected(graveyard: tuple[Path, Path, 
         assert (root / survivor).exists(), survivor
 
 
-def test_an_unreadable_root_makes_no_sid_dead(graveyard: tuple[Path, Path, Path], tmp_path: Path) -> None:
+def test_an_unreadable_root_makes_no_sid_dead(
+    graveyard: tuple[Path, Path, Path], tmp_path: Path
+) -> None:
     """A root we cannot list has no enumerable sids — the LIVE signal collapses, DEATH survives.
 
     So the whole table degrades to `unclassified` and `--apply` refuses, rather than the unattended
@@ -655,7 +679,9 @@ def test_an_unreadable_root_makes_no_sid_dead(graveyard: tuple[Path, Path, Path]
     blocked.mkdir()
     os.chmod(blocked, 0o000)
     env = _dead_env(graveyard)
-    env["SCRATCH_SWEEP_SESSIONS_DIRS"] = f"{env['SCRATCH_SWEEP_SESSIONS_DIRS']}{os.pathsep}{blocked}"
+    env["SCRATCH_SWEEP_SESSIONS_DIRS"] = (
+        f"{env['SCRATCH_SWEEP_SESSIONS_DIRS']}{os.pathsep}{blocked}"
+    )
     try:
         proc = _run("--dead", "--apply", env=env)
     finally:
@@ -680,7 +706,8 @@ def test_a_sid_whose_sessions_file_lives_in_an_unscanned_root_is_never_dead(
     extra.mkdir(parents=True)
     sid = "bbbbbbbb-2222-2222-2222-222222222222"
     (extra / "live.json").write_text(
-        json.dumps({"pid": os.getpid(), "sessionId": sid, "procStart": _own_proc_start()}), encoding="utf-8"
+        json.dumps({"pid": os.getpid(), "sessionId": sid, "procStart": _own_proc_start()}),
+        encoding="utf-8",
     )
     env = _dead_env(graveyard)
     env["SCRATCH_SWEEP_SESSIONS_DIRS"] = f"{sessions}{os.pathsep}{extra}"
@@ -739,8 +766,14 @@ def repo(tmp_path: Path) -> Path:
     (squashed / "s.txt").write_text("s", encoding="utf-8")
     _git(squashed, "add", "-A")
     _git(squashed, "commit", "-qm", "squash work")
-    _git(main, "commit", "-q", "--allow-empty", "-m",
-         "squash\n\nMerged-From: other-branch (x), feat-squashed (y)\n")
+    _git(
+        main,
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        "squash\n\nMerged-From: other-branch (x), feat-squashed (y)\n",
+    )
 
     near = wt("wt-nearmiss", "feat-squashed-2")
     (near / "n.txt").write_text("n", encoding="utf-8")
@@ -865,7 +898,14 @@ def test_worktree_apply_never_forces(repo: Path) -> None:
     assert proc.returncode == 0, proc.stderr
     assert not (repo.parent / "wt-merged").exists(), "the merged+clean worktree is removed"
     assert not (repo.parent / "wt-squashed").exists(), "the squash-merged worktree is removed"
-    for kept in ("wt-unmerged", "wt-nearmiss", "wt-dirty", "wt-stashed", "wt-ignored-data", "wt-locked"):
+    for kept in (
+        "wt-unmerged",
+        "wt-nearmiss",
+        "wt-dirty",
+        "wt-stashed",
+        "wt-ignored-data",
+        "wt-locked",
+    ):
         assert (repo.parent / kept).exists(), f"{kept} must survive"
     assert (repo / ".claude" / "worktrees" / "agent-x").exists(), "harness needs --include-harness"
     branches = _git(repo, "branch", "--list")
@@ -873,7 +913,9 @@ def test_worktree_apply_never_forces(repo: Path) -> None:
     assert "feat-squashed" in branches, "a squash-merged branch survives -d's refusal"
 
 
-def test_include_harness_still_refuses_dirty_and_unmerged_harness_trees(repo: Path, tmp_path: Path) -> None:
+def test_include_harness_still_refuses_dirty_and_unmerged_harness_trees(
+    repo: Path, tmp_path: Path
+) -> None:
     """The harness test TAGS; it never short-circuits the chain.
 
     A first-match "harness" rule would make a dirty or unmerged harness tree removable under the
@@ -886,7 +928,9 @@ def test_include_harness_still_refuses_dirty_and_unmerged_harness_trees(repo: Pa
 
     proc = _run("--worktrees", str(repo), "--apply", "--include-harness", env=_wt_env())
     assert proc.returncode == 0, proc.stderr
-    assert not (repo / ".claude" / "worktrees" / "agent-x").exists(), "clean+merged harness goes under the flag"
+    assert not (repo / ".claude" / "worktrees" / "agent-x").exists(), (
+        "clean+merged harness goes under the flag"
+    )
     assert dirty_harness.exists(), "a DIRTY harness tree survives even under --include-harness"
 
 
@@ -901,7 +945,9 @@ def test_a_worktree_registered_before_this_session_started_is_foreign(repo: Path
     assert later.returncode == 0, later.stderr
     assert set(_classes(later.stdout).values()) <= {"wt-foreign", "wt-orphan-dir"}, later.stdout
 
-    unresolvable = _run("--worktrees", str(repo), env={"SCRATCH_SWEEP_SESSIONS_DIRS": "/nonexistent"})
+    unresolvable = _run(
+        "--worktrees", str(repo), env={"SCRATCH_SWEEP_SESSIONS_DIRS": "/nonexistent"}
+    )
     assert unresolvable.returncode == 0, unresolvable.stderr
     classes = set(_classes(unresolvable.stdout).values())
     assert classes <= {"wt-foreign", "wt-orphan-dir"}, unresolvable.stdout
@@ -910,7 +956,9 @@ def test_a_worktree_registered_before_this_session_started_is_foreign(repo: Path
 # ── the SessionStart hook ───────────────────────────────────────────────────────────────────────
 def _hook(scratch: Path, sid: str = SID, cwd: str = "/opt/fabrik", **extra: str):
     return _run(
-        "--hook", "--session", sid,
+        "--hook",
+        "--session",
+        sid,
         env=_env(scratch, **extra),
         stdin=json.dumps({"session_id": sid, "cwd": cwd, "hook_event_name": "SessionStart"}),
     )
@@ -985,9 +1033,13 @@ def test_include_harness_never_promotes_a_non_removable_chain_verdict(repo: Path
     seen = _classes(proc.stdout)
     assert seen.get("agent-data") == "wt-ignored-data", proc.stdout
     assert seen.get("agent-unmerged") == "wt-unmerged", proc.stdout
-    assert (data_wt / "data" / "only-copy.jsonl").exists(), "ignored DATA survived --include-harness"
+    assert (data_wt / "data" / "only-copy.jsonl").exists(), (
+        "ignored DATA survived --include-harness"
+    )
     assert unmerged_wt.exists(), "a clean-but-unmerged harness tree survived --include-harness"
-    assert not (repo / ".claude" / "worktrees" / "agent-x").exists(), "the clean+merged one still goes"
+    assert not (repo / ".claude" / "worktrees" / "agent-x").exists(), (
+        "the clean+merged one still goes"
+    )
 
 
 def test_a_dead_proc_probe_never_reads_as_unheld(scratch: Path, tmp_path: Path) -> None:
@@ -1006,7 +1058,9 @@ def test_a_dead_proc_probe_never_reads_as_unheld(scratch: Path, tmp_path: Path) 
     assert proc.returncode == 0, proc.stderr
     assert _classes(proc.stdout).get("held-dir") == "probe-error", proc.stdout
     assert (scratch / SLUG / SID / "scratchpad" / "held-dir").exists(), "an open fd was inside it"
-    assert (scratch / SLUG / SID / "scratchpad" / "stale-dir").exists(), "nothing is provably unheld"
+    assert (scratch / SLUG / SID / "scratchpad" / "stale-dir").exists(), (
+        "nothing is provably unheld"
+    )
 
 
 def test_an_unreadable_sessions_root_refuses_a_peer_apply(scratch: Path, tmp_path: Path) -> None:
@@ -1026,7 +1080,12 @@ def test_an_unreadable_sessions_root_refuses_a_peer_apply(scratch: Path, tmp_pat
     blocked.mkdir()
     os.chmod(blocked, 0o000)
     try:
-        proc = _run("--session", other, "--apply", env=_env(scratch, SCRATCH_SWEEP_SESSIONS_DIRS=str(blocked)))
+        proc = _run(
+            "--session",
+            other,
+            "--apply",
+            env=_env(scratch, SCRATCH_SWEEP_SESSIONS_DIRS=str(blocked)),
+        )
     finally:
         os.chmod(blocked, 0o755)
     assert proc.returncode == 2, proc.stdout + proc.stderr
@@ -1058,9 +1117,15 @@ def test_a_truncated_idleness_walk_never_reads_as_dead(graveyard: tuple[Path, Pa
 def test_a_zero_or_negative_threshold_is_refused(scratch: Path) -> None:
     """`--older-than 0` made a directory written one second ago `stale`; `--unowned-older-than 0`
     made every non-protected root entry removable at any age."""
-    for flag, value in (("--older-than", "0"), ("--older-than", "nan"), ("--unowned-older-than", "0")):
+    for flag, value in (
+        ("--older-than", "0"),
+        ("--older-than", "nan"),
+        ("--unowned-older-than", "0"),
+    ):
         proc = _run("--session", SID, flag, value, env=_env(scratch))
-        assert proc.returncode == 1, f"{flag} {value} → rc {proc.returncode}: {proc.stdout}{proc.stderr}"
+        assert proc.returncode == 1, (
+            f"{flag} {value} → rc {proc.returncode}: {proc.stdout}{proc.stderr}"
+        )
     assert (scratch / SLUG / SID / "scratchpad" / "stale-dir").exists()
 
 
@@ -1080,7 +1145,9 @@ def test_the_hook_reads_the_session_id_from_its_payload(scratch: Path) -> None:
     proc = _run(
         "--hook",
         env=_env(scratch),
-        stdin=json.dumps({"session_id": SID, "cwd": "/opt/fabrik", "hook_event_name": "SessionStart"}),
+        stdin=json.dumps(
+            {"session_id": SID, "cwd": "/opt/fabrik", "hook_event_name": "SessionStart"}
+        ),
     )
     assert proc.returncode == 0, proc.stderr
     assert "🧹 SCRATCH:" in proc.stdout, proc.stdout
@@ -1090,8 +1157,12 @@ def test_the_provenance_seam_is_inert_without_the_test_flag(repo: Path) -> None:
     """`SCRATCH_SWEEP_FORCE_START` can authorize removing another session's worktree, unlike the
     clock seam, so it is gated behind an explicit `SCRATCH_SWEEP_TEST=1`."""
     ungated = _run(
-        "--worktrees", str(repo),
-        env={"SCRATCH_SWEEP_SESSIONS_DIRS": "/nonexistent", "SCRATCH_SWEEP_FORCE_START": str(NOW - DAY)},
+        "--worktrees",
+        str(repo),
+        env={
+            "SCRATCH_SWEEP_SESSIONS_DIRS": "/nonexistent",
+            "SCRATCH_SWEEP_FORCE_START": str(NOW - DAY),
+        },
     )
     assert ungated.returncode == 0, ungated.stderr
     assert set(_classes(ungated.stdout).values()) <= {"wt-foreign", "wt-orphan-dir"}, ungated.stdout
@@ -1233,10 +1304,12 @@ def test_brief_is_zero_bytes_with_zero_candidates_in_every_mode(
     session = _run("--session", SID, "--brief", env=_env(scratch))
     assert session.stdout == "", repr(session.stdout)
 
-    dead = _run("--dead", "--brief", env=_dead_env(graveyard, SCRATCH_SWEEP_NOW=str(NOW - 40 * DAY)))
+    dead = _run(
+        "--dead", "--brief", env=_dead_env(graveyard, SCRATCH_SWEEP_NOW=str(NOW - 40 * DAY))
+    )
     assert dead.stdout == "", repr(dead.stdout)
 
-    _git(repo, "checkout", "-q", "--detach")   # every worktree unclassified ⇒ zero candidates
+    _git(repo, "checkout", "-q", "--detach")  # every worktree unclassified ⇒ zero candidates
     wt = _run("--worktrees", str(repo), "--brief", env=_wt_env())
     assert wt.stdout == "", repr(wt.stdout)
 
@@ -1302,7 +1375,11 @@ def test_strict_proc_downgrades_every_removable_class_in_every_mode(
     _age(holder, 9 * HOUR)
     try:
         session = _run(
-            "--session", SID, "--strict-proc", "--include-backups", "--apply",
+            "--session",
+            SID,
+            "--strict-proc",
+            "--include-backups",
+            "--apply",
             env=_env(scratch, FABRIK_PROC_ROOT=str(proc_root)),
         )
         assert session.returncode == 0, session.stderr
@@ -1315,7 +1392,9 @@ def test_strict_proc_downgrades_every_removable_class_in_every_mode(
         strict = _run("--dead", "--strict-proc", "--apply", env=env)
         assert strict.returncode == 0, strict.stderr
         assert "dead " not in strict.stdout.splitlines()[-1], strict.stdout
-        assert (graveyard[0] / SLUG / "bbbbbbbb-2222-2222-2222-222222222222").exists(), strict.stdout
+        assert (graveyard[0] / SLUG / "bbbbbbbb-2222-2222-2222-222222222222").exists(), (
+            strict.stdout
+        )
     finally:
         os.chmod(proc_root / "4793" / "fd", 0o755)
 
@@ -1382,3 +1461,108 @@ def test_an_unreadable_keep_list_keeps_everything(scratch: Path) -> None:
         assert (pad / "stale-dir").exists(), "nothing is provably unprotected"
     finally:
         os.chmod(pad / ".keep", 0o644)
+
+
+def test_a_truncated_walk_never_makes_the_hook_line_reprint(scratch: Path) -> None:
+    """A budget-truncated count is a LOWER BOUND, and it varies run to run.
+
+    The unwalked entries default to `fresh`, so the same scratchpad reports 300 then 340 and reads
+    as "grown". Measured on the three largest live scratchpads during Phase B's fire-rate
+    confirmation: the line reprinted on EVERY SessionStart — the wallpaper the stamp exists to
+    prevent. Once said for a sid, an uncertain count never says it again.
+    """
+    pad = scratch / SLUG / SID / "scratchpad"
+    for i in range(40):
+        d = pad / f"bulk-{i:02d}"
+        d.mkdir()
+        (d / "f").write_text("x" * 100, encoding="utf-8")
+        _age(d / "f", 9 * HOUR)
+        _age(d, 9 * HOUR)
+
+    payload = json.dumps(
+        {"session_id": SID, "cwd": "/opt/fabrik", "hook_event_name": "SessionStart"}
+    )
+    first = _run("--hook", "--session", SID, env=_env(scratch), stdin=payload)
+    assert "🧹 SCRATCH:" in first.stdout, first.stdout
+
+    # A tiny budget forces truncation, so the count wobbles below its true value.
+    for _ in range(3):
+        again = _run(
+            "--hook",
+            "--session",
+            SID,
+            env=_env(scratch, SCRATCH_SWEEP_HOOK_BUDGET="5"),
+            stdin=payload,
+        )
+        assert again.stdout == "", f"a truncated count must never reprint: {again.stdout!r}"
+
+    # The third leg is what makes this a grader rather than a restatement of the first two: a
+    # truncated run must not WRITE the stamp either. Without that, the silence above comes only
+    # from `len(candidates) <= previous` and the guard can be deleted with the test still green
+    # (proven by mutation, round 2). So walk the SAME pad COMPLETELY: a stamp a truncated run had
+    # lowered to 5 makes this unchanged 40 read as growth and reprint. It must stay silent.
+    complete = _run("--hook", "--session", SID, env=_env(scratch), stdin=payload)
+    assert complete.stdout == "", (
+        "a complete walk over an UNCHANGED pad reprinted — a truncated run wrote the stamp down, "
+        f"so its own lower bound now reads as growth: {complete.stdout!r}"
+    )
+
+    # And the stamp is not a permanent gag: real growth still speaks (the F2 invariant).
+    for i in range(40, 46):
+        d = pad / f"bulk-{i:02d}"
+        d.mkdir()
+        (d / "f").write_text("x" * 100, encoding="utf-8")
+        _age(d / "f", 9 * HOUR)
+        _age(d, 9 * HOUR)
+    grown = _run("--hook", "--session", SID, env=_env(scratch), stdin=payload)
+    import re as _re
+
+    def _count(text: str) -> int:
+        m = _re.search(r"SCRATCH: (\d+) stale", text)
+        assert m, f"no count in {text!r}"
+        return int(m.group(1))
+
+    assert "🧹 SCRATCH:" in grown.stdout, (
+        "a COMPLETE walk over a grown pad must speak again — the stamp is a high-water mark, not "
+        f"a permanent gag: {grown.stdout!r}"
+    )
+    assert _count(grown.stdout) == _count(first.stdout) + 6, grown.stdout
+    settled = _run("--hook", "--session", SID, env=_env(scratch), stdin=payload)
+    assert settled.stdout == "", f"an unchanged complete walk stays silent: {settled.stdout!r}"
+
+
+def test_the_brief_shows_the_oldest_candidates_and_counts_all_of_them(scratch: Path) -> None:
+    """The close-out sample is capped AND sorted by age — a head-slice hid the real residue.
+
+    `--brief` prints into the agent's own context at every close, fleet-wide, so it shows
+    `BRIEF_ROWS` candidates and a count. `classify_session` yields entries in DIRECTORY order,
+    so the cap alone showed five day-old dirs and pushed every 40-day one behind "and N more"
+    (round 2) — the exact rows the agent needed to see. The count stays over the whole table.
+    """
+    pad = scratch / SLUG / SID / "scratchpad"
+    for i in range(8):  # young, and first in name order
+        d = pad / f"aaa-{i:02d}"
+        d.mkdir()
+        (d / "f").write_text("x", encoding="utf-8")
+        _age(d / "f", 25 * HOUR)
+        _age(d, 25 * HOUR)
+    for i in range(3):  # ancient, and last in name order
+        d = pad / f"zzz-{i:02d}"
+        d.mkdir()
+        (d / "f").write_text("x", encoding="utf-8")
+        _age(d / "f", 40 * DAY)
+        _age(d, 40 * DAY)
+
+    out = _run("--session", SID, "--brief", env=_env(scratch)).stdout
+    assert out.count("zzz-") == 3, f"the three oldest must all be shown, not hidden:\n{out}"
+    shown = [ln for ln in out.splitlines() if " · stale · " in ln]
+    assert len(shown) == 5, out
+    # the count is the DENOMINATOR — it covers every candidate, not the five that fit. The base
+    # fixture contributes its own stale entries, so both numbers are read from this run's output.
+    total = int(re.search(r"stale (\d+)", out).group(1))  # type: ignore[union-attr]
+    assert total >= 11, out
+    assert f"… and {total - 5} more" in out, out
+
+    full = _run("--session", SID, env=_env(scratch)).stdout
+    assert full.count("aaa-") == 8 and full.count("zzz-") == 3, "the dry run is uncapped"
+    assert "… and" not in full, full

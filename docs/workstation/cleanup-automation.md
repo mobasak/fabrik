@@ -15,6 +15,7 @@ this page is where a new cleanup rule gets written.
 | `cleanup-weekly.ps1` | `C:\Users\user\scripts\` (Windows) | Task Scheduler `Fabrik-WeeklyCleanup`, **Sun 04:00** | Windows Temp, crash dumps, WU downloads |
 | `compact-wsl.bat` | `C:\Users\user\OneDrive - Tojlo Solutions LLC\Desktop\` | manual | WSL vhdx compaction |
 | `flush_subagent_outboxes.py` | `/opt/fabrik/scripts/kilo-benchmarks/` (WSL) | **daily 06:00** via `daily_refresh.sh` **+ every boot** via `wsl_startup_hook.sh` | drains `.tmp/subagents/pg_outbox*.jsonl` — see § E |
+| `scratch_sweep.py --dead --apply` | `/opt/fabrik/scripts/` (WSL) | cron **04:20 daily** — ⚠️ **NOT YET PLACED**: crontab writes are classifier-blocked, so the line is handed to the operator | DEAD sessions' scratch under `/tmp/claude-<uid>` — see § F |
 
 ---
 
@@ -136,6 +137,77 @@ cleaner. That distinction is the whole point: `cache-prune.sh` deletes regenerab
 
 ⚠️ **Not a cleanup knob.** Do not add age gates, size caps, or `find -delete` to the spools it manages —
 an unflushed row is the only copy of a run that happened. § D's table is the contract.
+
+---
+
+## F. Session scratch and agent worktrees — `scratch_sweep.py`
+
+The one cleaner an AGENT runs on its own work, and the only one that removes anything under
+`/tmp/claude-<uid>`. Landed 2026-09-08 (plan `2026-09-08-plan-1-scratch-sweep`, D-184/D-187) because
+no rule had ever said whose job this was: nothing in any `CLAUDE.md`, no close-out step, no hook, no
+janitor — `git worktree remove` lived only as unenforced prose. The residue reached 87 GB before a
+manual clear, and the manual clear is exactly the failure mode § A's design principle warns about.
+
+**Three modes, and the dry run is the default in every one:**
+
+```bash
+python3 /opt/fabrik/scripts/scratch_sweep.py                 # this session's scratchpad — a table
+python3 /opt/fabrik/scripts/scratch_sweep.py --apply         # remove what it listed as `stale`
+python3 /opt/fabrik/scripts/scratch_sweep.py --worktrees     # this repo's agent worktrees
+python3 /opt/fabrik/scripts/scratch_sweep.py --dead          # the janitor, DRY RUN
+python3 /opt/fabrik/scripts/scratch_sweep.py --dead --apply  # what the cron line runs
+```
+
+Every row carries a class, a reason and its evidence; `--apply` is opt-in and prints the refusal set
+before it removes anything. The operator's two constraints are the whole design: *"we should not
+cause data loss"* and *"agents must know what will this script do while using it."*
+
+**Its relation to § D is the point.** § D's DO-NOT-SWEEP list exists because a rule globbing
+`.tmp/**` would take `pg_outbox.jsonl` with it. This tool's scan roots are `/tmp/claude-<uid>` and
+the paths `git worktree list` reports — **`<repo>/.tmp` is never a scan root**. A worktree git itself
+registers under `<repo>/.tmp` (fabrik-lib has one) is classified like any other worktree and spared
+by the ordinary guards; it is never swept as a spool. And because `git worktree remove` deletes
+ignored files even without `--force`, a worktree holding ignored DATA outside the cache allowlist is
+`wt-ignored-data` and is never removed — which is what keeps § D's spools safe on that path too.
+
+**What it never touches** (hard-coded, printed by `--help` and by every apply run): repo files, except
+a worktree it classified removable · transcripts and `~/.claude*/state`, beyond the one lock file it
+creates · `<repo>/.tmp/**` as a scan root · docker anything · another LIVE session's scratch · the
+session's own `tasks/` dir · a symlink's target · a worktree another session registered, one holding
+ignored data, or one git does not register · anything holding a backup shape (`*.bak`, `*.original`,
+`*pristine*`, `before.txt`/`after.txt`, `.keep`) — the entry's own NAME included, which is what keeps
+the operator's `pristine/` and `fe-pristine/` baselines.
+
+**Why the janitor needs three signals.** A sid is `dead` only when it has no live signal, AND a death
+signal, AND its own directory is idle past 7 days. A gone pid is NOT a finished session: `--resume`
+keeps the sid across exactly the network deaths, context fills and quota holds this tool serves.
+Measured 2026-09-08: 18 sids had a gone-pid sessions file and a live directory, and all 18 were
+younger than 7 days — one of them 8 minutes old.
+
+**The cron line, for the operator to place (it is NOT in the crontab yet — `crontab -l` has no
+04:20 entry, and a crontab write is classifier-blocked for an agent):**
+
+```cron
+20 4 * * * python3 /opt/fabrik/scripts/scratch_sweep.py --dead --apply >> $HOME/.claude/scratch-sweep.log 2>&1
+```
+
+**⚠️ It carries NO `flock -n` wrapper, deliberately.** The script takes that lock itself,
+and `flock(1)` holds it across the exec — so a wrapper on the same path makes the child's own
+non-blocking acquire fail and the janitor exits 0 having swept nothing, silently, every night.
+Reproduced 2026-09-08.
+
+**Test seams** (env vars, all with production defaults): `SCRATCH_SWEEP_ROOT` · `SCRATCH_SWEEP_NOW`
+· `SCRATCH_SWEEP_SESSIONS_DIRS` · `SCRATCH_SWEEP_TRANSCRIPT_DIRS` · `SCRATCH_SWEEP_BTIME` ·
+`SCRATCH_SWEEP_HOOK_BUDGET` · `FABRIK_PROC_ROOT` · `CLAUDE_SOUND_LOCKDIR`, plus
+`SCRATCH_SWEEP_FORCE_START`, which is gated behind `SCRATCH_SWEEP_TEST=1` because unlike the others
+it can authorize removing another session's worktree. A stray value in an operator's environment
+degrades the tool silently, so set none of them outside a test.
+
+Trust the deletion paths because five review rounds found six of them by EXECUTION and each is now
+pinned by a test proven red-on-revert: `--include-harness` removing a worktree whose verdict was not
+removable, `--include-backups` removing FRESH and HELD backup holders, a dead `/proc` reading as "no
+holders", an unreadable sessions root letting a live peer's scratch go, a branch ref truncated at the
+last slash deleting an unrelated branch, and a sid-level symlink escaping the scratch root.
 
 ---
 

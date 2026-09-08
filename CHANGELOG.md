@@ -86,6 +86,20 @@ All notable changes to this project will be documented in this file.
 
 A sid is `dead` only on three positive signals — no live signal, a death signal, AND its own directory idle past 7 days — because a gone pid is not a finished session: `--resume` keeps the sid across exactly the network deaths, context fills and quota holds this tool exists to serve (18 of 18 gone-pid dirs on the box were younger than 7 d, one 8 minutes old). A same-uid `/proc` gap is reported as `proc-gaps N`, never blocking, because 150 of 152 fd-deniers are foreign-uid and the two same-uid ones are permanent — a blocking default made the tool inert on every run. Worktree provenance is the registration's mtime against `btime + procStart/SC_CLK_TCK`, failing closed. 33 graders, each seen red first.
 
+Phase B wires the three triggers, all advisory. A TOP-LEVEL `command_run.py done|blocked|handoff` now
+prints the closing session's own table after `run record closed` — its five OLDEST stale entries, a
+count of the rest, and the `--apply` command to run knowingly. It is queued under the record lock and
+printed after it drops, because a shell-out under `LOCK_EX` stalls every concurrent writer for the
+advisory's whole 2 s timeout (measured 0.17 s against 1.45 s with the call relocated). A `SessionStart`
+hook line tells a resuming or compacting session what its scratchpad holds; `UserPromptSubmit` was
+measured and REJECTED first — 9 of 9 live sessions fired on every prompt, because a working session
+never becomes clean. The line speaks only when the count exceeds the last one it recorded, and a
+budget-truncated walk neither speaks NOR records: a truncated count is a lower bound that wobbles, and
+writing it down silenced exactly the biggest scratchpads. The daily `--dead --apply` cron line is handed
+to the operator rather than installed (crontab writes are classifier-blocked) and carries no `flock`
+wrapper — the script self-locks on the same path, so a wrapper makes the child's acquire fail and the
+sweep exit 0 having done nothing.
+
 ### Changed — intel's charter re-frozen against the pool/flywheel retirement (2026-09-08)
 
 - `docs/reference/agents/intel.md` was 3 days stale in the direction that matters: it assigned intel a
