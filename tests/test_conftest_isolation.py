@@ -56,4 +56,17 @@ def test_every_bare_mkdtemp_lands_under_pytest_basetemp(tmp_path_factory):
     made = Path(tempfile.mkdtemp())
     assert made.resolve().is_relative_to(tmp_path_factory.getbasetemp().resolve()), made
     with tempfile.NamedTemporaryFile() as fh:
-        assert Path(fh.name).resolve().is_relative_to(tmp_path_factory.getbasetemp().resolve()), fh.name
+        assert Path(fh.name).resolve().is_relative_to(tmp_path_factory.getbasetemp().resolve()), (
+            fh.name
+        )
+
+
+def test_kaizen_events_dir_is_pinned_under_basetemp(tmp_path):
+    """F349: a test that spawns command_run.py with a hand-built env inherits this pin, so no
+    fabricated event reaches ~/.claude/state/events/<live sid>.jsonl."""
+    import os
+    from pathlib import Path
+
+    d = os.environ.get("KAIZEN_EVENTS_DIR")
+    assert d, "KAIZEN_EVENTS_DIR is not pinned"
+    assert Path(d).resolve().is_relative_to(tmp_path.resolve().parent), d

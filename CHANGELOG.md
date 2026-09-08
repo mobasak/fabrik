@@ -174,6 +174,10 @@ sweep exit 0 having done nothing.
   code consumer and no kaizen cell — the suspension breaks nothing mechanical. The mirror claim in
   `docs/reference/agents/infra.md:42-45` is infra's beat and was filed to them, not edited here. (D-195)
 
+### Fixed — D-191 round 16: the giant line is dated from its tail, the terminal verdict needs a class-ledger round (2026-09-08)
+- Receipt rows F344–F351 (8 rows: FIXED 7 · RECORDED 1; counted from the verdict cells at the round's close).
+- `command_run.py`: a last line longer than the 4 MB walk is dated from its last 64 KB — Claude Code writes the envelope `timestamp` after the payload, so the round-15 head read took a nested stamp (F344); a torn giant line is "skipped" before the giant path (F345); the terminal verdict requires the closing round itself to have swept classes, so a wave's reservation close never reads terminal (F346); the backward scan is gone (F347). Fixtures carry the live shape (F348). `tests/conftest.py` pins `KAIZEN_EVENTS_DIR`, so a suite run no longer writes fabricated events into the operator's live events log (F349). The subagents fragment names the reservation-close shape and fabrik-repo-review's Phase 4 shows the class-ledger close (F350).
+
 ### Fixed — D-191 round 15: a giant last line is dated from its head, a wave's round is a reservation close (2026-09-08)
 - Receipt rows F336–F343 (8 rows: FIXED 5 · REFUTED 1 · RECORDED 2; counted from the verdict cells at the round's close).
 - `command_run.py`: a seat whose last line exceeds the 4 MB walk is dated from that line's head (`_giant_line_epoch`), so a stamped seat touched after its close stays silent (F336); fabrik-repo-review's waves are reservation closes with no class ledger and the command joins the per-unit set the oscillation advisory skips (F337); the dead `_tnow` is gone (F340). The caveat matrix feeds every half and asserts the "predates" line absent (F339). Tally cells carry one leading verdict and the CHANGELOG stops calling a scratch one-liner a script (F338).

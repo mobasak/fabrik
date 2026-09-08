@@ -159,7 +159,7 @@ surfaces anything new, adjudicate it (fix, or budget it into the backlog) and re
 contract while the rest keeps converging. Do not claim the exit without embedded proof: the adjudicated Coverage Checklist + the verbatim `final_gate.py --json` success
 + each fix's regression test. `check_review_coverage.py` grades the review artifact, and the run
 record's round entries (`command_run.py round`, Stop-hook-enforced) trace the loop — record every
-pass in both; the embedded proof above is what the operator audits. Run the FULL test suite (pytest and, if a web surface was touched, vitest/tsc)
+pass in both; the certification pass's round is the CLASS-LEDGER close — `python3 scripts/command_run.py round --seats <n> --findings <n> --classes-swept <every class in the checklist> --classes-new none` — the only round shape that can print the TERMINAL verdict (a wave's round carries no classes); the embedded proof above is what the operator audits. Run the FULL test suite (pytest and, if a web surface was touched, vitest/tsc)
 — not just the in-scope tests.
 
 **`found` counts every candidate a unit-reviewer RAISED — including ones you drop as false positives in

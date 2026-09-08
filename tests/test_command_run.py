@@ -414,6 +414,10 @@ def test_terminal_verdict_fires_on_all_swept_and_zero_findings(run_dir: Path) ->
     assert "TERMINAL" not in mid.stdout, mid.stdout  # concurrency still open
     partial = _cr(run_dir, "round", "--findings", "2", "--classes-swept", "concurrency")
     assert "TERMINAL" not in partial.stdout, partial.stdout  # swept, but findings > 0
+    # round 16 (D-191 review): a round that swept NO classes is a reservation close (a wave) —
+    # never terminal, even with the persisted ledger clean and 0 findings
+    wave = _cr(run_dir, "round", "--findings", "0")
+    assert "TERMINAL" not in wave.stdout, wave.stdout
     final = _cr(run_dir, "round", "--findings", "0", "--classes-swept", "auth,concurrency")
     assert "TERMINAL" in final.stdout, final.stdout
     # The hint must be RUNNABLE, not merely present: F-R1 made --command required, so a
@@ -3074,7 +3078,11 @@ def test_terminal_verdict_names_the_full_sweep_condition_and_oscillation_names_b
     cr = importlib.util.module_from_spec(spec)
     assert spec.loader
     spec.loader.exec_module(cr)
-    rec = {"command": "fabrik-review", "rounds": [{"findings": 0}], "classes": {"a": "clean"}}
+    rec = {
+        "command": "fabrik-review",
+        "rounds": [{"findings": 0, "swept": ["a"]}],
+        "classes": {"a": "clean"},
+    }
     text = cr._round_report(rec)
     assert "FULL fresh sweep" in text and "scoped round never closes" in text
     warn = cr.convergence_warning([9, 15, 10, 6, 4, 9, 9], "fabrik-review")

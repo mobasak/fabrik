@@ -111,6 +111,18 @@ def _isolated_sound_lock_dir(tmp_path, monkeypatch):
     yield locks
 
 
+@pytest.fixture(autouse=True)
+def _isolated_kaizen_events_dir(tmp_path, monkeypatch):
+    """Five tests built their own `dict(os.environ, …)` without `KAIZEN_EVENTS_DIR`, so a suite
+    run wrote fabricated round/run events into the operator's REAL per-session events log under
+    the live sid (D-191 review round 16, F349). Same class as the two pins above: one autouse
+    pin, composable — a test that wants a specific dir still sets it after this."""
+    events = tmp_path / "kaizen-events"
+    events.mkdir(exist_ok=True)
+    monkeypatch.setenv("KAIZEN_EVENTS_DIR", str(events))
+    yield events
+
+
 # ---------------------------------------------------------------------------------------------
 # Bare `tempfile.mkdtemp()` / `NamedTemporaryFile()` land under pytest's basetemp (2026-09-07).
 #
