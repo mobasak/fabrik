@@ -72,12 +72,12 @@ RUNS_DIR = Path.home() / ".claude" / "state" / "command-runs"
 # a sibling's run record counts as LIVE for this purpose when it is `running` and was touched
 # within this window — an abandoned record (the Stop hook's stale bound is 12 h) must not hold
 # the box hostage
-# A sibling's seats are RESERVED only while they are too young to show in MemAvailable/load1 —
-# a seat's tools load the box within minutes (measured 2026-09-08: median seat 201 s, n=255).
-# Past that the box probe already sees them, and subtracting them again double-counts: three hub
-# sessions each with a 13-seat round starved the third to ZERO seats on a read-only review
-# (round-2 finding, executed on the 30-minute window this replaced).
-SIBLING_FRESH_S = 5 * 60
+# A sibling's seats are RESERVED from their DISPATCH stamp for the life of a typical seat:
+# measured 2026-09-08 on 84 completed seats since 09-07, median 439 s, p90 765 s (the earlier
+# "201 s" was the last-turn duration of the old synchronous shape). The box probe sees a running
+# seat's tools too, so late in a seat's life this double-counts — accepted, because the floor
+# clause below means a reservation can never starve a session the box has room for.
+SIBLING_FRESH_S = 15 * 60
 
 # Price multipliers, operator ruling 2026-09-08 (D-190): haiku 1x · sonnet 2x · opus 5x · fable 10x.
 # "Affordable" is a NUMBER: cost = sum(seats x multiplier) in haiku-units. Breadth on Sonnet costs 2
@@ -171,14 +171,25 @@ def siblings(now: float | None = None, runs_dir: Path = RUNS_DIR) -> dict:
                 rec = json.loads(p.read_text())
                 if rec.get("state") != "running":
                     continue
-                ts = float(rec.get("updated_ts") or 0)
-                if now - ts > SIBLING_FRESH_S:
-                    continue
-                rounds = rec.get("rounds") or []
-                seats = int((rounds[-1] if rounds else {}).get("seats") or 0)
-            except (OSError, ValueError, TypeError, AttributeError, IndexError):
-                # a malformed record (non-numeric seats/ts, a round that is not a dict) counts 0
-                # and is named — the first draft guarded only the JSON parse and crashed the CLI
+                # the DISPATCH stamp (command_run.py dispatch --seats, written before the seats
+                # are sent) is the reservation; a record without one falls back to its last
+                # round's seats at its last touch — which is written AFTER the seats returned, so
+                # it reserves nothing while they run (round-3 finding: the guard was inert)
+                disp = rec.get("dispatch")
+                if isinstance(disp, dict) and disp.get("seats") is not None:
+                    ts = float(disp.get("ts") or 0)
+                    seats = int(disp.get("seats") or 0)
+                else:
+                    ts = float(rec.get("updated_ts") or 0)
+                    rounds = rec.get("rounds") or []
+                    if not isinstance(rounds, list):
+                        raise TypeError("rounds is not a list")
+                    seats = int((rounds[-1] if rounds else {}).get("seats") or 0)
+                if not math.isfinite(ts) or now - ts > SIBLING_FRESH_S:
+                    continue  # a NaN stamp read as forever-fresh (round-3 finding)
+            except Exception:  # noqa: BLE001 — classify-and-name only; a probe fails SOFT
+                # a malformed record (non-numeric seats/ts, Infinity, a round that is not a dict)
+                # counts 0 and is named — two narrower tuples each let one shape crash the CLI
                 out["skipped"].append(p.name)
                 continue
             if seats > 0:
@@ -215,7 +226,14 @@ def full_mix(units: int, risky: int = 0, mechanical: int | None = None) -> dict[
         return {}
     opus = max(1, min(risky, units))
     haiku = units if mechanical is None else max(0, mechanical)
-    return {k: v for k, v in (("opus", opus), ("sonnet", units), ("haiku", haiku)) if v > 0}
+    sonnet = units
+    # the FLOOR is three REAL seats (D-188): a one-unit judgement surface has only two angles
+    # (authoritative + breadth), so the third seat is a second breadth reader — the measured
+    # same-brief technique (1 seat found 0; 3 found 0/5/0). "SEATS: 3" beside a 2-seat mix was
+    # F10 wearing a new flag (round-3 finding)
+    if opus + sonnet + haiku < FLOOR:
+        sonnet += FLOOR - (opus + sonnet + haiku)
+    return {k: v for k, v in (("opus", opus), ("sonnet", sonnet), ("haiku", haiku)) if v > 0}
 
 
 def trim(mix: dict[str, int], seats: int) -> dict[str, int]:
@@ -280,9 +298,13 @@ def budget(
         by_cpu = max(int(b["cores"] - math.ceil(b["load1"])), 0)
         taken = int(s.get("seats") or 0)
         phys = min(by_mem, by_cpu)
-        # siblings RESERVE, they never starve: a session always gets the floor the box physically
-        # has room for — three sessions each at 13 seats left the third at 0 (round-2 finding)
-        cap = max(phys - taken, min(phys, FLOOR))
+        # siblings RESERVE, they never starve: a session always gets the floor when the BOX has
+        # room for it — three sessions each at 13 seats left the third at 0 (round-2 finding). But
+        # a box that is itself below the floor keeps the reservation in full: `max(phys - taken,
+        # min(phys, FLOOR))` let three sessions each claim a 2-seat box (round-3 finding)
+        cap = max(phys - taken, 0)
+        if cap < FLOOR <= phys:
+            cap = FLOOR
         caps["box_cap"] = cap
         reasons.append(
             f"box allows {cap} {'heavy' if heavy else 'read-only'} seats "
@@ -338,9 +360,11 @@ def budget(
         # beside a mix of {} recorded three phantom seats (round-1 finding) — say it, dispatch none
         caps["wanted"] = 0
         reasons.append(
-            "units=0 — nothing to partition; give --units >= 1 (one unit is already the floor of 3)"
+            f"units={units} — nothing to partition; give --units >= 1 (one unit is already the floor of 3)"
         )
-    elif caps["wanted"] < FLOOR:  # unreachable for units >= 1 (1 unit = 3 seats); kept as the guard
+    elif (
+        caps["wanted"] < FLOOR
+    ):  # unreachable: full_mix pads to the floor itself; kept as the guard
         reasons.append(
             f"wanted={caps['wanted']} raised to the floor of {FLOOR} — three seats on DIFFERENT "
             f"angles over the whole surface (D-188)"
@@ -388,13 +412,19 @@ def _mix_story(a: argparse.Namespace, mix: dict[str, int], full: dict[str, int])
             f"the Opus authoritative seat(s) (--risky N: one per risky unit){mech}; dispatch ALL of "
             "it in ONE message, each seat a distinct unit x angle brief" + tail
         )
-    uncovered = max(a.units - mix.get("sonnet", 0), 0)
-    left = (
-        f": {haiku} Haiku seat(s) left — each sweeps ONE grep-able class across every unit "
-        "(class-wide, not per unit)"
-        if haiku
-        else ": no Haiku seat left — the mechanical classes wait for the next round"
-    )
+    # an Opus seat on a risky unit reads that unit too; a judgement surface never HAD mechanical
+    # classes, so nothing "waits" (round-3 finding: the story told --mechanical 0 to sweep them)
+    covered = mix.get("sonnet", 0) + (mix.get("opus", 0) if a.risky else 0)
+    uncovered = max(a.units - covered, 0)
+    if haiku:
+        left = (
+            f": {haiku} Haiku seat(s) left — each sweeps ONE grep-able class across every unit "
+            "(class-wide, not per unit)"
+        )
+    elif full.get("haiku"):
+        left = ": no Haiku seat left — the mechanical classes wait for the next round"
+    else:
+        left = ""
     gap = (
         f"; {uncovered} unit(s) have NO breadth seat this round — re-sweep them next round, never "
         "dispatch past the cap"
@@ -406,8 +436,15 @@ def _mix_story(a: argparse.Namespace, mix: dict[str, int], full: dict[str, int])
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+
     # REQUIRED: a default of FLOOR let a caller who forgot the flag read a plausible "SEATS: 3" as a
     # constrained verdict instead of "you never said how big the surface is" (round-1 finding).
+    def _count(text: str) -> int:
+        n = int(text)
+        if n < 0:
+            raise argparse.ArgumentTypeError(f"{n} is not a count")
+        return n
+
     ap.add_argument("--units", type=int, required=True, help="independent units in the surface")
     ap.add_argument("--heavy", action="store_true", help="each seat runs tests/builds/renders")
     ap.add_argument("--json", action="store_true")
@@ -417,11 +454,11 @@ def main(argv: list[str] | None = None) -> int:
         help='price a seat mix, e.g. "opus=1,sonnet=5" (D-190: haiku 1x, sonnet 2x, opus 5x, fable 10x)',
     )
     ap.add_argument(
-        "--risky", type=int, default=0, help="units that are auth/schema/secrets (Opus)"
+        "--risky", type=_count, default=0, help="units that are auth/schema/secrets (Opus)"
     )
     ap.add_argument(
         "--mechanical",
-        type=int,
+        type=_count,
         default=None,
         help="Haiku seats wanted: the grep-able classes the surface HAS (default: one per unit; "
         "0 for a grounding/adjudication surface — a judgement unit has no mechanical angle)",

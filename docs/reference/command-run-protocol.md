@@ -51,6 +51,7 @@ The Stop hook keys on `state == "running"` **alone**, so neither field can chang
 |---|---|
 | `start --command <name> --phases <N> [--terminal "<cond>"]` | begin a run at phase 1 (a running record is pushed onto `stack`) |
 | `step --phase <N> [--title "<t>"]` | advance |
+| `dispatch --seats <n>` | stamp a fan-out BEFORE its seats go out — `rec["dispatch"] = {ts, seats, phase}`; `dispatch_headroom.py` subtracts it for 15 minutes on every sibling session (a `round --seats` at the round's close reserves nothing while the seats run — D-193) |
 | `round [--findings <N>] [--classes-swept a,b] [--classes-new c,d]` | record one convergence pass; merge the class ledger |
 | `done --command <name> --evidence "<proof>"` | terminal — the contract IS met |
 | `blocked --command <name> --reason "<sanctioned case>"` | terminal — a real halt |
@@ -62,7 +63,7 @@ Two flags are accepted on **either side** of the subcommand (`--adopt-sid round`
 deliberately **not** named `--session-*`: argparse resolves abbreviations, so a second `--sess…` flag
 makes the long-standing `--sess <id>` spelling ambiguous and every caller using it starts exiting 2.
 
-Every **mutating** subcommand (`start` · `step` · `round` · `done` · `blocked`) holds an exclusive
+Every **mutating** subcommand (`start` · `step` · `dispatch` · `round` · `done` · `blocked`) holds an exclusive
 `fcntl.flock` over the record across its whole read-modify-write. Subagents routinely inherit the
 parent's `CLAUDE_SESSION_ID`, and unlocked, 20 concurrent `round` calls lost 14 of 20 class-opens
 (measured) — a dropped class means a review reads CLEAN on a class that was never swept, destroying
@@ -238,7 +239,8 @@ cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — 
   (`COMMAND_RUN_DIR`'s parent when that is set), box-wide across every repo whose `command_run.py`
   is current (fleet-synced; fabrik-lib pulls). Fields: `ts sid repo command state wall_s rounds
   findings phases phase_reached agent surface account confusion waste change filed cost cost_usd
-  tok_in tok_out tok_cache_read tok_cache_create tok_msgs models tok_partial`.
+  tok_in tok_out tok_cache_read tok_cache_create tok_msgs models tok_partial tok_seat_in tok_seat_out
+  tok_seat_cache_read tok_seat_cache_create seats_seen`.
   **The analysis dimensions** (operator, 2026-09-07 — "which repo, which agent, which command,
   which spec, which file"): `repo` (the run's `repo_root`), `agent` (`CLAUDE_AGENT` at `start`,
   the same env and the same grammar `[a-z0-9-]{1,32}` the provenance trailers key on — anything
@@ -259,7 +261,17 @@ cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — 
   transcript writes one line per content block and repeats the usage on each, so a message id
   counts once with the per-field MAXIMUM over its lines — 3 of 2,857 live ids carried an all-zero
   line beside the real one; an id-less line counts as its own message), the `models` seen, and
-  `tok_partial`. The file is read
+  `tok_partial`. **The seats' own spend rides the same row (D-192/D-193):** a native seat's usage is
+  NOT on the parent transcript — the parent's tool-result line carries the seat's LAST turn only
+  (`toolUseResult.usage` == one message; 251 of 251 checked, median 10× under), a background seat's
+  completion notice repeats that number, and a background launch carries no usage at all. The whole
+  seat lives in its own transcript, `<transcript dir>/<sid>/subagents/agent-<id>.jsonl`, in the
+  parent's per-message shape — the close sums those (in-window assistant lines, per-message maximum)
+  into `tok_seat_in/out/cache_read/cache_create` and counts them as `seats_seen`; null when no seat
+  file holds an in-window message. Measured 2026-09-08: one review's 21 seats billed 69.5M input
+  against the orchestrator's 35.7M. The FEEDBACK line prints them as `· seats N: X input / Y output`;
+  a window with seats but no orchestrator message prints `tokens — · seats …`, never nothing.
+  The file is read
   backwards from the tail — the WHOLE file, a 2 GiB cap as a backstop — every line pre-filtered by
   a regex for its timestamp and type so only in-window assistant lines are parsed; a 750 MB hub
   transcript scans in ~1 s.
@@ -278,7 +290,8 @@ cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — 
 - **The report:** `python3 scripts/command_feedback_report.py [--since DAYS] [--command NAME]
   [--agent NAME] [--json]` — per command: runs, done/blocked/handoff, median and max wall-clock, median
   rounds, how many runs said `change: none`, summed pool `cost_usd` (with how many rows carried a
-  number), median tokens per run with the rows that carried them, the cache-hit share
+  number), median tokens per run with the rows that carried them, the cache-hit share, the seats'
+  tokens beside them (rows · seats seen — never folded into the orchestrator's total)
   (`cache_read / (in + read + create)`), and the models seen; the header states the POPULATION —
   agent-closed runs only (coroner-closed runs write no row) and nested windows overlap, so
   per-command totals are not additive across commands; then the optimisation backlog (each item tagged

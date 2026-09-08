@@ -224,8 +224,8 @@ def _floor(kind: str, native: str) -> str:
     # The pool form ("pool breadth AND ≥1 native Opus") is kept in git history for re-enable.
     if kind in _JUDGEMENT_KINDS:
         angles = (
-            f"**plus one Sonnet {native} breadth seat per INDEPENDENT unit — no mechanical seat: a "
-            f"{kind} unit is a judgement with no grep-able angle, so the dispatch step runs with "
+            f"**plus one Sonnet {native} breadth seat per INDEPENDENT unit — no mechanical seat: "
+            f"{'an' if kind[0] in 'aeiou' else 'a'} {kind} unit is a judgement with no grep-able angle, so the dispatch step runs with "
             f"`--mechanical 0` — the box is the ceiling, the units the partition (D-191); never a token "
             f'1–2; the model is the per-dispatch token, `model: "opus"` for the authoritative seat, '
             f'`model: "sonnet"` for breadth'
@@ -258,13 +258,20 @@ _FANOUT_RE = re.compile(
 _DISPATCH_STEP_RE = re.compile(r"THE DISPATCH STEP \(D-191|Dispatch step \(D-191\)")
 
 
+_HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
+
+
 def dispatch_step_gaps(rendered: dict[str, str]) -> list[str]:
-    """Names of rendered commands that fan out and do not carry the D-191 dispatch step."""
-    return sorted(
-        name
-        for name, text in rendered.items()
-        if _FANOUT_RE.search(text) and not _DISPATCH_STEP_RE.search(text)
-    )
+    """Names of rendered commands that fan out and do not carry the D-191 dispatch step — judged
+    on the LIVE text: `<!-- POOL OFF -->` blocks are stripped first, so a step that survives only
+    inside a comment cannot satisfy the grader (round-3 finding; the corpus keeps the pool-era
+    paragraphs in exactly such comments for re-enable)."""
+    out = []
+    for name, text in rendered.items():
+        live = _HTML_COMMENT_RE.sub("", text)
+        if _FANOUT_RE.search(live) and not _DISPATCH_STEP_RE.search(live):
+            out.append(name)
+    return sorted(out)
 
 
 _SPEC_EXTRA = """

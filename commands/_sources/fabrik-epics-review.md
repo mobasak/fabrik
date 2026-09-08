@@ -242,7 +242,7 @@ is always injected); this raises compliance probability — it does **not** make
 
 Dispatch native seats — **two** layers (`core/62-using-subagents.md` § Dispatch policy; the pool is OFF, D-181):
 
-- **Breadth** — one native `fabrik-reviewer` seat on Sonnet PER LENS, all dispatched in one message: the lens count is the PARTITION and `dispatch_headroom.py --units <N>` prints the seats (D-191), never a token 1–2. <!-- POOL OFF (D-181): **Pool breadth** — `fanout("review", units, repo=…, project="mega-review", mode="read_only")` picks
+- **Breadth** — one native `fabrik-reviewer` seat on Sonnet PER LENS, all dispatched in one message: the lens count is the PARTITION and `dispatch_headroom.py --units <N> --mechanical 0` prints the seats (D-191 — a lens is a judgement, no Haiku mechanical seat), never a token 1–2. <!-- POOL OFF (D-181): **Pool breadth** — `fanout("review", units, repo=…, project="mega-review", mode="read_only")` picks
   family-diverse, flywheel-ranked review models (no default price cap) and auto-records each run to the
   flywheel. ⚠️ **Passing `project=` is what makes it record** — omit it and you land zero flywheel rows.
   After you adjudicate, back-fill your 0–5 verdict with

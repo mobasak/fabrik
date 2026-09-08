@@ -216,13 +216,14 @@ seat(s), the CLI cap of 20, box_cap, quota_cap)` — every unit wants one Sonnet
 mechanical seat, plus one Opus authoritative seat per risky unit and at least one (D-191: the box is the
 ceiling, the units the partition; a 3-unit surface on an idle box is 7 seats), trimmed cheapest angle first
 when a cap binds (Haiku first, then the extra Opus seats, then Sonnet — coverage over cost; D-192); `--mechanical <M>` is the number of
-grep-able classes the surface has (default one per unit, 0 for a grounding/adjudication surface — a judgement has no mechanical angle), and a
-trimmed Haiku seat sweeps one class across every unit; never below 3 unless a hard cap binds or the fleet HOLD is on (then 0); `--units 0` is
+grep-able classes the surface has (default one per unit, 0 for a grounding/adjudication surface — a judgement has no mechanical angle; a
+negative count is refused), a trimmed Haiku seat sweeps one class across every unit, and a one-unit judgement surface pads a second
+breadth reader so the floor is three REAL seats; never below 3 unless a hard cap binds or the fleet HOLD is on (then 0); `--units 0` is
 nothing to partition and prints 0 with the reason. `--json` also carries `box_caps` (read-only + heavy from the one box probe) for callers like the board. `quota_cap` drops to the
 floor when the active account's hottest window is ≥85% or no standby account is eligible (`eligible` counts standbys; the active account is `state=active`) —
 the same bands `core/62` § Dispatch economics names. `--heavy` is for seats whose TOOLS load the box
 (pytest, builds, renders): a native seat lives inside its parent `claude` process, so only its
-subprocesses count, bounded by `min(MemAvailable, CommitLimit − Committed_AS)` at 2 GB per heavy seat (1 GB read-only) and one core per seat over `load1`, minus the seats sibling sessions dispatched in the last 5 minutes (their run records' `--seats`), never below the floor the box has room for. Every probe fails
+subprocesses count, bounded by `min(MemAvailable, CommitLimit − Committed_AS)` at 2 GB per heavy seat (1 GB read-only) and one core per seat over `load1`, minus the seats sibling sessions DISPATCHED in the last 15 minutes (`command_run.py dispatch --seats <n>` — stamped before the seats go out; a `round --seats` at the round's close reserves nothing while they run; median seat 439 s, p90 765 s), never below the floor the box has room for. Every probe fails
 soft and prints its reason with the floor, never a silent 20. It also prices the mix per D-190 — haiku 1× · sonnet 2× · opus 5× · fable 10× — for the mix it chose (`--units 3` → `{opus: 1, sonnet: 3, haiku: 3}`, `COST: 14 haiku-units`) or one you pass (`--mix opus=1,sonnet=5` → 15), with the Fable adjudicator (10) printed beside the total, never inside it. Tests: `tests/sysadmin/test_dispatch_headroom.py`.
 
 ### The occupancy monitor

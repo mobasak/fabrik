@@ -183,6 +183,7 @@ def test_token_columns_are_summed_and_medianed_per_command(tmp_path: Path) -> No
     assert c["tok_total"] == 44000 and c["tok_rows"] == 2  # the null row is counted, not zeroed
     assert c["tok_partial_rows"] == 0
     assert c["median_tok"] == 22000 and c["cache_hit"] == 0.9  # cache_read / (in + read + create)
+    assert c["seat_total"] == 0 and c["seat_rows"] == 0 and c["seats_seen"] == 0  # no seat fields
     text = _run(ledger).stdout
     assert "22.0k" in text and "90%" in text, text
 
@@ -474,3 +475,48 @@ def test_no_timed_row_renders_a_dash_never_a_zero_minute_run(tmp_path: Path) -> 
     c = json.loads(_run(ledger, "--json").stdout)["commands"]["c1"]
     assert c["wall_rows"] == 0 and c["median_wall_min"] is None and c["max_wall_min"] is None
     assert c["rounds_rows"] == 0 and c["median_rounds"] is None
+
+
+def test_seat_tokens_are_rolled_up_beside_the_orchestrators_never_inside(tmp_path: Path) -> None:
+    """D-192: 20M seat tokens beside 160 orchestrator tokens were invisible to every rollup here.
+    The four seat fields come from the seats' own transcripts; a row without any is counted, not
+    zeroed; a malformed seat field nulls that row's seat sum; `tok_total` stays the orchestrator's."""
+    ledger = tmp_path / "ledger.jsonl"
+    _write(
+        ledger,
+        [
+            _row(
+                "fabrik-review",
+                100,
+                1,
+                "a",
+                tok_in=100,
+                tok_out=60,
+                tok_cache_read=0,
+                tok_cache_create=0,
+                tok_msgs=1,
+                tok_seat_in=10,
+                tok_seat_out=2_000_000,
+                tok_seat_cache_read=18_000_000,
+                tok_seat_cache_create=0,
+                seats_seen=3,
+            ),
+            _row(
+                "fabrik-review",
+                200,
+                1,
+                "b",
+                tok_in=1,
+                tok_out=1,
+                tok_cache_read=0,
+                tok_cache_create=0,
+            ),
+            _row("fabrik-review", 300, 1, "c", tok_seat_in="x", seats_seen=1),
+        ],
+    )
+    out = json.loads(_run(ledger, "--json").stdout)
+    c = out["commands"]["fabrik-review"]
+    assert c["tok_total"] == 162 and c["seat_total"] == 20_000_010 and c["seat_rows"] == 1
+    assert c["seats_seen"] == 4
+    text = _run(ledger).stdout
+    assert "seat tokens (rows · seats)" in text and "(1 · 4)" in text

@@ -100,6 +100,26 @@ def _cost(r: dict) -> float | None:
 
 
 _TOK = ("tok_in", "tok_out", "tok_cache_read", "tok_cache_create")
+# the SEATS' spend (D-192/D-193): the four fields summed from each seat's own transcript —
+# summed separately from the orchestrator's, never folded into `tok_total` (which stays what the
+# orchestrator read), because 20M seat tokens beside 160 orchestrator tokens was invisible to every
+# rollup here (review 2026-09-08)
+_SEAT_TOK = ("tok_seat_in", "tok_seat_out", "tok_seat_cache_read", "tok_seat_cache_create")
+
+
+def _seat_total(r: dict) -> int | None:
+    """Seat tokens on a row (sync fields + background total), or None when the row carries none."""
+    total = 0
+    seen = False
+    for k in _SEAT_TOK:
+        v = r.get(k)
+        if v is None:
+            continue
+        if not isinstance(v, (int, float)) or isinstance(v, bool) or not math.isfinite(float(v)):
+            return None  # a malformed seat field nulls the row's seat sum, never the count
+        total += int(v)
+        seen = True
+    return total if seen else None
 
 
 def _tok_total(r: dict) -> int | None:
@@ -172,10 +192,14 @@ def build(
             if _tok_total(r) is not None
         )
         read = sum(int(r["tok_cache_read"]) for r in rs if _tok_total(r) is not None)
+        seats = [t for t in map(_seat_total, rs) if t is not None]
         commands[cmd].update(
             {
                 "tok_total": sum(toks),
                 "tok_rows": len(toks),
+                "seat_total": sum(seats),
+                "seat_rows": len(seats),
+                "seats_seen": sum(int(r.get("seats_seen") or 0) for r in rs),
                 "median_tok": _median(toks) if toks else None,  # no rows ⇒ null, never "0"
                 "cache_hit": round(read / ctx, 3) if ctx else None,
                 # rows whose scan hit the byte cap inside the window: their sums are lower bounds
@@ -240,8 +264,8 @@ def render(report: dict) -> str:
         "",
         "| command | runs | done/blocked/handoff | median wall (rows) | max wall | "
         "median rounds (rows) | change: none | pool $ (rows) | median tokens (rows) | cache hit | "
-        "models |",
-        "|---|---|---|---|---|---|---|---|---|---|---|",
+        "seat tokens (rows · seats) | models |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for cmd, c in report["commands"].items():
         hit = f"{100 * c['cache_hit']:.0f}%" if c.get("cache_hit") is not None else "—"
@@ -252,7 +276,9 @@ def render(report: dict) -> str:
             f"{c['change_none']} of {c['runs']} | "
             f"{c['cost_usd'] if c['cost_rows'] else '—'} ({c['cost_rows']}) | "
             f"{_k(c['median_tok']) if c.get('median_tok') is not None else '—'} "
-            f"({c['tok_rows']}) | {hit} | {', '.join(c['models']) or '—'} |"
+            f"({c['tok_rows']}) | {hit} | "
+            f"{_k(c['seat_total']) if c['seat_rows'] else '—'} ({c['seat_rows']} · {c['seats_seen']}) | "
+            f"{', '.join(c['models']) or '—'} |"
         )
     for title, key in (
         ("Optimisation backlog (change:)", "backlog"),

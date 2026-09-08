@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — D-191 round 3: the price was inverted, the ledger reads the seats' own transcripts, the reservation is stamped at dispatch (D-193, 2026-09-08)
+
+- Ten author-blind seats (1 Opus + 6 Sonnet + 3 Haiku — the script's own budget for a 6-unit surface with 3
+  mechanical classes) over the committed range 23189ea4..9917a02d. The Opus seat overturned round 2's
+  central number: "seats ≈ 0.1 % of a run's tokens" was read off `toolUseResult.usage`, which is a seat's
+  LAST turn (251 of 251 seat results equal one message, median 10× under the seat's own file). Measured
+  on the seats' own transcripts (`<sid>/subagents/agent-*.jsonl`) this run's 21 seats billed 69.5M input
+  against the orchestrator's 35.7M — seats ≈ 195 % of the orchestrator's spend, ~3.3M per seat, a 13-seat
+  round ≈ 1.4 quota points. D-191 roughly triples a run's tokens; core/62 says so with the instrument, and
+  the immutable D-192 row gets erratum row D-193. D-191 itself is not revised — "affordable" is the
+  operator's call with the number in front of them; the quota band is the guard.
+- `command_run.py` sums `tok_seat_*` from the per-seat transcripts (in-window assistant lines, per-message
+  maximum) — the parent-line instrument had seen 0 of the 40 seats run that day; `seats_seen` counts the
+  files with an in-window message; the FEEDBACK clause prints the seat half even when the orchestrator had
+  no message in the window; the report rolls seat tokens up beside (never inside) the orchestrator's;
+  `docs/reference/command-run-protocol.md` carries the mechanism. New `command_run.py dispatch --seats <n>`
+  stamps a fan-out BEFORE its seats go out — `dispatch_headroom.py`'s sibling reservation reads that stamp
+  for 15 minutes (median seat 439 s, p90 765 s, n=84): a `round --seats` written at the round's close had
+  reserved nothing while the seats ran (three sessions simulated at 60 seats on a 22-seat box).
+- `dispatch_headroom.py`: `--units 1 --mechanical 0` printed `SEATS: 3` over a 2-seat mix — `full_mix` pads a
+  second breadth reader so the floor is three REAL seats; a box below the floor lost the reservation
+  entirely — kept in full, raised to the floor only when the box has room; `rounds` as an object, an
+  `Infinity` seat count and a `NaN` stamp no longer crash the CLI or read as forever-fresh; negative
+  `--risky`/`--mechanical` refused; the TRIMMED story stops telling a judgement surface its mechanical
+  classes "wait" and counts Opus seats as coverage; `ANGLES` graded.
+- Corpus: four more "the X count IS the seat count (D-186)" sentences at the point of use (`fabrik-review`
+  ×2, `fabrik-workflow-review`, core/62's "D-186's 4–8 never approaches the ceiling"); the fragment's formula
+  nested `--heavy` in a backtick span (broken in 20 rendered commands); its unconditional "one Haiku seat
+  per unit" and "3 units = 7 seats" beside a judgement floor saying none; `fabrik-epics-review`'s lenses run
+  `--mechanical 0`; "a adjudication"; `fabrik-user-test` names its Opus seat. The assembler's grader strips
+  `<!-- POOL OFF -->` comments before judging and its named-unit branch is exercised. The board banner's
+  stale docstring, a fail-open fallback without `box_caps`, and an untested single-flight lock are fixed.
+
 ### Changed — D-191 round 2: the mechanical angle is global, trim for coverage, siblings never starve, the ledger sees seat spend (D-192, 2026-09-08)
 
 - The Opus authoritative seat's findings, executed not argued: a Haiku seat was manufactured for every unit

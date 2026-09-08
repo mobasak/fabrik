@@ -979,11 +979,13 @@ _TS_RE = re.compile(
     rb'"timestamp"\s*:\s*"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?)(Z|[+-]\d\d:\d\d)?"'
 )  # the offset is optional: a naive stamp reads as local time, exactly as fromisoformat did
 _ASSISTANT_RE = re.compile(rb'"type"\s*:\s*"assistant"')
-# A native SEAT's usage never appears on an assistant line: it rides the `user` line that carries
-# the Agent tool's result (`toolUseResult.usage`, one per seat, keyed by `agentId`). The
-# assistant-only sum saw 0 % of seat spend — 255 seats, 20.3M tokens, in one hub transcript —
-# under a rule (D-191) that triples seats (review 2026-09-08, the Opus authoritative seat).
-_SEAT_RE = re.compile(rb'"toolUseResult"')
+# A native SEAT's usage is NOT on the parent transcript. The parent's tool-result line carries the
+# seat's LAST turn only (`toolUseResult.usage` == one message; 251 of 251 checked against the seat's
+# own file, median 10x under), a background seat's completion notice repeats that number, and a
+# background LAUNCH carries no usage at all (630 of 631 seat lines since 2026-09-01). The whole seat
+# lives in its own transcript — `<transcript dir>/<sid>/subagents/agent-<id>.jsonl`, assistant lines
+# in the parent's per-message shape — so that is what is summed (review 2026-09-08, the Opus seat:
+# the parent-line sum saw 0 of the 40 seats run that day).
 _TOKEN_KEYS = (
     ("tok_in", "input_tokens"),
     ("tok_out", "output_tokens"),
@@ -991,6 +993,57 @@ _TOKEN_KEYS = (
     ("tok_cache_create", "cache_creation_input_tokens"),
 )
 _SEAT_KEYS = tuple((f"tok_seat_{k[4:]}", src) for k, src in _TOKEN_KEYS)
+
+
+def _seat_transcripts(path: Path, lo: float) -> list[Path]:
+    """The per-seat transcripts under the parent's `<sid>/subagents/`, touched since the window
+    opened (an mtime prefilter — the window itself is applied per line)."""
+    d = path.parent / path.stem / "subagents"
+    try:
+        return sorted(q for q in d.glob("agent-*.jsonl") if q.stat().st_mtime >= lo)
+    except OSError:
+        return []
+
+
+def _seat_usage(q: Path, lo: float, hi: float) -> dict[str, int] | None:
+    """One seat's in-window usage, per-message maximum like the parent; None when the file holds
+    no in-window assistant message (or cannot be read) — a seat, never a real zero."""
+    seen: dict[str, dict[str, int]] = {}
+    try:
+        for raw in q.read_bytes().splitlines():
+            e = _line_epoch(raw)
+            if e is None or e < lo or e > hi or not _ASSISTANT_RE.search(raw):
+                continue
+            try:
+                d = json.loads(raw)
+            except ValueError:
+                continue
+            if not isinstance(d, dict) or d.get("type") != "assistant":
+                continue
+            msg = d.get("message") or {}
+            u = msg.get("usage") if isinstance(msg, dict) else None
+            if not isinstance(u, dict):
+                continue
+            mid = str(msg.get("id") or d.get("uuid") or "")
+            m = seen.setdefault(mid, dict.fromkeys((k for k, _ in _SEAT_KEYS), 0))
+            for k, src in _SEAT_KEYS:
+                v = u.get(src)
+                if (
+                    isinstance(v, (int, float))
+                    and not isinstance(v, bool)
+                    and math.isfinite(v)
+                    and int(v) > m[k]
+                ):
+                    m[k] = int(v)
+    except OSError:
+        return None
+    if not seen:
+        return None
+    acc = dict.fromkeys((k for k, _ in _SEAT_KEYS), 0)
+    for m in seen.values():
+        for k in acc:
+            acc[k] += m[k]
+    return acc
 
 
 def _transcript_path(sid: str, repo_root: str) -> Path | None:
@@ -1073,7 +1126,14 @@ def _line_epoch(raw: bytes) -> float | None:
 def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[str, Any]:
     empty: dict[str, Any] = {k: None for k, _ in _TOKEN_KEYS}
     empty.update({k: None for k, _ in _SEAT_KEYS})
-    empty.update({"tok_msgs": 0, "seats_seen": 0, "models": [], "tok_partial": False})
+    empty.update(
+        {
+            "tok_msgs": 0,
+            "seats_seen": 0,
+            "models": [],
+            "tok_partial": False,
+        }
+    )
     if path is None or start <= 0:
         return empty
     try:
@@ -1085,9 +1145,7 @@ def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[s
         # the real one (measured 2026-09-07), so the message's usage is the per-field MAXIMUM
         # over its lines — independent of write order, and right for a progressive format too.
         per_msg: dict[str, dict[str, int]] = {}
-        per_seat: dict[str, dict[str, int]] = {}
         anon = 0  # id-less lines cannot be proven repeats — each counts as its own message
-        anon_seat = 0
         models: list[str] = []
         lo, hi = start - 2.0, end + 2.0
         capped = False
@@ -1100,35 +1158,13 @@ def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[s
                 continue
             if e < lo or e > hi:
                 continue
-            is_seat = bool(_SEAT_RE.search(raw))
-            if not is_seat and not _ASSISTANT_RE.search(raw):
+            if not _ASSISTANT_RE.search(raw):
                 continue
             try:
                 d = json.loads(raw)
             except ValueError:
                 continue
-            if not isinstance(d, dict):
-                continue
-            if is_seat:
-                tr = d.get("toolUseResult")
-                su = tr.get("usage") if isinstance(tr, dict) else None
-                if isinstance(su, dict):
-                    sid_ = str(tr.get("agentId") or "")
-                    if not sid_:
-                        anon_seat += 1
-                        sid_ = f"\x00anon{anon_seat}"
-                    acc_s = per_seat.setdefault(sid_, dict.fromkeys((k for k, _ in _SEAT_KEYS), 0))
-                    for k, src in _SEAT_KEYS:
-                        v = su.get(src)
-                        if (
-                            isinstance(v, (int, float))
-                            and not isinstance(v, bool)
-                            and math.isfinite(v)
-                            and int(v) > acc_s[k]
-                        ):
-                            acc_s[k] = int(v)
-                continue
-            if d.get("type") != "assistant":
+            if not isinstance(d, dict) or d.get("type") != "assistant":
                 continue
             msg = d.get("message") or {}
             u = msg.get("usage") if isinstance(msg, dict) else None
@@ -1171,23 +1207,26 @@ def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[s
         for acc in per_msg.values():
             for k in totals:
                 totals[k] += acc[k]
+        # the seats: their own transcripts, in the same window
+        seat_rows = [u for u in (_seat_usage(q, lo, hi) for q in _seat_transcripts(path, lo)) if u]
         seat_totals: dict[str, Any] = dict.fromkeys((k for k, _ in _SEAT_KEYS), 0)
-        for acc_s in per_seat.values():
+        for u in seat_rows:
             for k in seat_totals:
-                seat_totals[k] += acc_s[k]
-        if not per_seat:  # no seat result in the window: null, never a real zero
+                seat_totals[k] += u[k]
+        if not seat_rows:  # no seat in the window: null, never a real zero
             seat_totals = dict.fromkeys((k for k, _ in _SEAT_KEYS), None)
+        seats_seen = len(seat_rows)
         if msgs == 0:
             out0 = dict(empty)
             out0.update(seat_totals)
-            out0.update({"seats_seen": len(per_seat), "tok_partial": partial})
+            out0.update({"seats_seen": seats_seen, "tok_partial": partial})
             return out0
         out: dict[str, Any] = dict(totals)
         out.update(seat_totals)
         out.update(
             {
                 "tok_msgs": msgs,
-                "seats_seen": len(per_seat),
+                "seats_seen": seats_seen,
                 "models": sorted(models),
                 "tok_partial": partial,
             }
@@ -1201,12 +1240,22 @@ def _tokens_clause(tok: dict[str, Any]) -> str:
     """`tokens 18.8M input / 104.7k output (99% cached)` for the printed FEEDBACK line; "" when
     null. `input` is the SUMMED billed input over the run's messages (uncached + cache-read +
     cache-create) — never a context size (review 2026-09-07: `<context>` mislabelled a 51.7M sum)."""
-    if not tok or tok.get("tok_in") is None:
+    if not tok:
         return ""
-    inp = int(tok["tok_in"]) + int(tok["tok_cache_read"]) + int(tok["tok_cache_create"])
-    hit = f" ({100 * int(tok['tok_cache_read']) / inp:.0f}% cached)" if inp else ""
+    has_seats = tok.get("tok_seat_in") is not None
+    if tok.get("tok_in") is None and not has_seats:
+        return ""
+    if tok.get("tok_in") is None:
+        # seats spent inside the window while the orchestrator had no message in it (a nested or
+        # rapid close): the seat half prints on its own — the first draft returned "" and hid
+        # real seat spend behind the orchestrator's null (round-3 finding)
+        own = "tokens —"
+    else:
+        inp = int(tok["tok_in"]) + int(tok["tok_cache_read"]) + int(tok["tok_cache_create"])
+        hit = f" ({100 * int(tok['tok_cache_read']) / inp:.0f}% cached)" if inp else ""
+        own = f"tokens {_fmt_tokens(inp)} input / {_fmt_tokens(int(tok['tok_out']))} output{hit}"
     seats = ""
-    if tok.get("tok_seat_in") is not None:
+    if has_seats:
         s_in = (
             int(tok["tok_seat_in"])
             + int(tok["tok_seat_cache_read"])
@@ -1216,9 +1265,7 @@ def _tokens_clause(tok: dict[str, Any]) -> str:
             f" · seats {tok.get('seats_seen', 0)}: {_fmt_tokens(s_in)} input / "
             f"{_fmt_tokens(int(tok['tok_seat_out']))} output"
         )
-    return (
-        f"tokens {_fmt_tokens(inp)} input / {_fmt_tokens(int(tok['tok_out']))} output{hit}{seats}"
-    )
+    return f"{own}{seats}"
 
 
 def _fmt_tokens(n: int) -> str:
@@ -1347,6 +1394,14 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--phase", required=True, type=int)
     p.add_argument("--title", default="")
+
+    p = sub.add_parser(
+        "dispatch",
+        help="stamp a fan-out BEFORE its seats go out — the sibling reservation "
+        "dispatch_headroom.py subtracts (a round --seats at the close reserves nothing while they run)",
+        parents=[common],
+    )
+    p.add_argument("--seats", type=int, required=True, help="seats dispatched in this message")
 
     p = sub.add_parser("round", help="record one convergence round", parents=[common])
     p.add_argument("--findings", type=int, default=0)
@@ -1480,7 +1535,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
     rec = load(sid)
     outbox["started_at"] = rec.get("started_at") or ""
 
-    if args.cmd in ("step", "round") and rec and rec.get("state") != "running":
+    if args.cmd in ("step", "round", "dispatch") and rec and rec.get("state") != "running":
         # A-F4 (review 2026-09-06): `_close` refuses to touch an already-closed record ("never
         # mutate; never resurrect") but these two had no such guard — a `step` on a done record
         # moved `updated_ts`, and the Stop hook's review window read the moved close time, so one
@@ -1609,7 +1664,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
     if not rec:
         sys.stderr.write(
             "[command_run] no run record for this session — "
-            "`start` one before step/round/done/blocked.\n"
+            "`start` one before step/dispatch/round/done/blocked.\n"
         )
         return 0
 
@@ -1677,6 +1732,24 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         _touch(rec)
         fields["persisted"] = save(sid, rec)
         print(pinned_line(rec))
+        return 0
+
+    if args.cmd == "dispatch":
+        if not rec:
+            print("no active run — start one before dispatching seats", file=sys.stderr)
+            return 1
+        if args.seats < 0:
+            print(f"--seats {args.seats} is not a count", file=sys.stderr)
+            return 2
+        # the DISPATCH stamp: written before the seats go out so sibling sessions can subtract
+        # them while they run. `round --seats` (below) is the ledger figure written at the
+        # round's CLOSE — after the seats returned — which is why it reserved nothing (review
+        # 2026-09-08: three sessions simulated at 60 seats on a 22-seat box)
+        rec["dispatch"] = {"ts": time.time(), "seats": args.seats, "phase": rec.get("phase")}
+        fields = _queue(rec, outbox, "dispatch", {"seats": args.seats, "phase": rec.get("phase")})
+        _touch(rec)
+        fields["persisted"] = save(sid, rec)
+        print(f"DISPATCH recorded · {args.seats} seat(s) — reserved for sibling sessions from now")
         return 0
 
     if args.cmd == "round":

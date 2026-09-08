@@ -3507,3 +3507,31 @@ def test_the_seed_recognises_a_reached_back_review_window(tmp_path: Path) -> Non
     n = len(_rec(run_dir)["covered"])
     _start_named(run_dir, "fabrik-plan-after-chat")
     assert len(_rec(run_dir)["covered"]) == n, _rec(run_dir)["covered"]
+
+
+def test_dispatch_stamps_the_reservation_before_the_seats_go_out(run_dir: Path) -> None:
+    """D-193: `round --seats` is written at the round's CLOSE, after the seats returned, so the
+    sibling reservation `dispatch_headroom.py` reads never covered a running seat (three sessions
+    simulated at 60 seats on a 22-seat box). `dispatch --seats` stamps the record BEFORE the fan-out:
+    a `dispatch` dict with the stamp and the count, an event, a touched record; refused without a
+    live run and for a negative count; a closed record is never mutated."""
+    import time
+
+    p = _cr(run_dir, "dispatch", "--seats", "7")
+    assert "no run record" in p.stderr and not p.stdout  # the file's fail-soft for every verb
+    _start(run_dir)
+    before = time.time()
+    p = _cr(run_dir, "dispatch", "--seats", "7")
+    assert p.returncode == 0 and "DISPATCH recorded · 7 seat(s)" in p.stdout, (p.stdout, p.stderr)
+    rec = json.loads(
+        next(f for f in run_dir.glob("*.json") if "feedback" not in f.name).read_text()
+    )
+    assert rec["dispatch"]["seats"] == 7 and before - 1 <= rec["dispatch"]["ts"] <= time.time() + 1
+    assert rec["dispatch"]["phase"] == rec.get("phase")
+    assert _cr(run_dir, "dispatch", "--seats", "-1").returncode == 2
+    # the round's close still records the ledger figure; the stamp stays as the reservation source
+    _cr(run_dir, "round", "--findings", "0", "--seats", "7", "--classes-swept", "a")
+    rec = json.loads(
+        next(f for f in run_dir.glob("*.json") if "feedback" not in f.name).read_text()
+    )
+    assert rec["rounds"][-1]["seats"] == 7 and rec["dispatch"]["seats"] == 7

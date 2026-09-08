@@ -30,8 +30,19 @@ def test_a_command_that_fans_out_without_the_dispatch_step_is_a_gap():
         "fans-out-verb": "Finders are dispatched together in ONE message so they run in parallel.",
         "serial-by-design": "Walk the checklist yourself; no subagent is dispatched here.",
         "step-no-fanout": "THE DISPATCH STEP (D-191, binding on every fan-out): …",
+        # the named-unit branch alone: no "seat", no "dispatch" — one reader per file
+        "fans-out-named": "Run one `fabrik-reviewer` per file, all in ONE message; merge the union.",
+        # a step that survives only inside a POOL-OFF comment does not cover the live text
+        "fans-out-masked": "one seat per claim, all in a single message. <!-- POOL OFF: "
+        + STEP
+        + " -->",
     }
-    assert ac.dispatch_step_gaps(rendered) == ["fans-out-bare", "fans-out-verb"]
+    assert ac.dispatch_step_gaps(rendered) == [
+        "fans-out-bare",
+        "fans-out-masked",
+        "fans-out-named",
+        "fans-out-verb",
+    ]
 
 
 def test_the_live_corpus_has_no_gap_and_the_detector_fires_on_real_fan_outs(tmp_path):

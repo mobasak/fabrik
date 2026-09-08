@@ -1510,36 +1510,49 @@ def test_an_unpersisted_close_writes_no_ledger_row_and_never_claims_closed(
     assert len(rows) == 1 and rows[0]["state"] == "done" and rows[0]["command"] == "fabrik-probe"
 
 
-def _seat_line(ts_epoch: float, agent_id: str, tout: int, cr: int = 1000) -> str:
-    """A native seat's usage rides the `user` line carrying the Agent tool's result — never an
-    assistant line (measured on the live hub transcript, review 2026-09-08)."""
+def _seat_file(sub: Path, agent_id: str, msgs: list[tuple[float, str, int, int]]) -> Path:
+    """A per-seat transcript in the LIVE shape (`<sid>/subagents/agent-<id>.jsonl`, read from a real
+    one 2026-09-08): assistant lines with the parent's per-message usage; a message repeats one
+    line per content block, so the same id appears more than once."""
     import datetime as dt
 
-    ts = dt.datetime.fromtimestamp(ts_epoch, tz=dt.UTC).strftime("%Y-%m-%dT%H:%M:%S.000Z")
-    return json.dumps(
-        {
-            "type": "user",
-            "timestamp": ts,
-            "toolUseResult": {
-                "agentId": agent_id,
-                "agentType": "fabrik-reviewer",
-                "totalTokens": tout + cr,
-                "usage": {
-                    "input_tokens": 5,
-                    "output_tokens": tout,
-                    "cache_read_input_tokens": cr,
-                    "cache_creation_input_tokens": 0,
-                },
-            },
-        }
-    )
+    sub.mkdir(parents=True, exist_ok=True)
+    lines = []
+    for ts_epoch, mid, tout, cr in msgs:
+        ts = dt.datetime.fromtimestamp(ts_epoch, tz=dt.UTC).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        lines.append(
+            json.dumps(
+                {
+                    "agentId": agent_id,
+                    "isSidechain": True,
+                    "type": "assistant",
+                    "timestamp": ts,
+                    "message": {
+                        "id": mid,
+                        "model": "claude-sonnet-5",
+                        "usage": {
+                            "input_tokens": 2,
+                            "output_tokens": tout,
+                            "cache_read_input_tokens": cr,
+                            "cache_creation_input_tokens": 0,
+                        },
+                    },
+                }
+            )
+        )
+    f = sub / f"agent-{agent_id}.jsonl"
+    f.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return f
 
 
-def test_the_row_sums_the_seats_own_usage_from_the_agent_result_lines(tmp_path: Path) -> None:
-    """D-192: the assistant-only sum saw 0 % of seat spend (255 seats, 20.3M tokens in one hub
-    transcript) under a rule that triples seats. Seat usage is summed per `agentId` (a repeated
-    result line is the same seat, largest value wins), reported beside the orchestrator's, and is
-    NULL — never a real zero — when no seat result falls in the window."""
+def test_the_row_sums_the_seats_own_transcripts_never_the_parents_result_line(
+    tmp_path: Path,
+) -> None:
+    """D-192/D-193: a seat's spend lives in `<sid>/subagents/agent-*.jsonl`. The parent's tool-result
+    line is the seat's LAST turn only (251 of 251 measured), a background seat writes no usage there
+    at all — an instrument keyed on it saw 0 of the 40 seats run that day and the one it saw 10x
+    under. Per-message maximum inside each seat file, summed across seats; a seat with no in-window
+    message is not a seat; no seat ⇒ null, never a real zero; the FEEDBACK clause prints the seats."""
     import time
 
     sys.path.insert(0, str(ROOT / "scripts"))
@@ -1547,24 +1560,49 @@ def test_the_row_sums_the_seats_own_usage_from_the_agent_result_lines(tmp_path: 
 
     now = time.time()
     start = now - 600
-    lines = [
-        _usage_line(start + 10, "m1", tout=100),
-        _seat_line(start + 20, "seat-a", tout=6000, cr=70000),
-        _seat_line(start + 20, "seat-a", tout=6000, cr=70000),  # the same seat, re-emitted
-        _seat_line(start + 30, "seat-b", tout=4000, cr=30000),
-        _seat_line(start - 3600, "seat-old", tout=9999),  # outside the window
-        json.dumps({"type": "user", "timestamp": "2026-09-08T10:00:00.000Z", "toolUseResult": "x"}),
-    ]
-    tr = tmp_path / "t.jsonl"
-    tr.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    tr = tmp_path / "sid.jsonl"
+    tr.write_text(_usage_line(start + 10, "m1", tout=100) + "\n", encoding="utf-8")
+    sub = tmp_path / "sid" / "subagents"
+    # seat a: two messages, the first re-emitted (same id, same usage) — counts once
+    _seat_file(
+        sub,
+        "a",
+        [
+            (start + 20, "s1", 6000, 70000),
+            (start + 21, "s1", 6000, 70000),
+            (start + 30, "s2", 500, 80000),
+        ],
+    )
+    # seat b: one in-window message; seat old: every message before the window
+    _seat_file(sub, "b", [(start + 40, "s3", 4000, 30000)])
+    _seat_file(sub, "old", [(start - 3600, "s9", 9999, 9999)])
+    # a parent-line result carrying the seat's LAST turn must NOT be counted on top
+    tr.write_text(
+        tr.read_text()
+        + json.dumps(
+            {
+                "type": "user",
+                "timestamp": "2026-09-08T10:00:00.000Z",
+                "toolUseResult": {"agentId": "a", "usage": {"output_tokens": 500}},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     got = _sum_transcript_usage(tr, start, now)
     assert got["tok_msgs"] == 1 and got["tok_out"] == 100  # the orchestrator's sum is unchanged
-    assert got["seats_seen"] == 2 and got["tok_seat_out"] == 10000
-    assert got["tok_seat_cache_read"] == 100000 and got["tok_seat_in"] == 10
-    assert "seats 2: 100.0k input / 10.0k output" in _tokens_clause(got)
-    # no seat in the window: null, and the clause carries no seat fragment
-    tr.write_text(_usage_line(start + 10, "m1", tout=100) + "\n", encoding="utf-8")
+    assert got["seats_seen"] == 2 and got["tok_seat_out"] == 6000 + 500 + 4000
+    assert got["tok_seat_cache_read"] == 70000 + 80000 + 30000 and got["tok_seat_in"] == 6
+    assert "seats 2: 180.0k input / 10.5k output" in _tokens_clause(got)
+    # seats in the window while the orchestrator has NO message in it: the seat half still prints
+    tr.write_text(_usage_line(start - 3600, "m0", tout=1) + "\n", encoding="utf-8")
     got = _sum_transcript_usage(tr, start, now)
+    assert got["tok_in"] is None and got["seats_seen"] == 2
+    assert _tokens_clause(got).startswith("tokens — · seats 2:")
+    # no seat directory: null, and the clause carries no seat fragment
+    tr2 = tmp_path / "other.jsonl"
+    tr2.write_text(_usage_line(start + 10, "m1", tout=100) + "\n", encoding="utf-8")
+    got = _sum_transcript_usage(tr2, start, now)
     assert (
         got["seats_seen"] == 0
         and got["tok_seat_out"] is None

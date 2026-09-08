@@ -1861,11 +1861,15 @@ def _budget_probe() -> str:
         )
         caps = d.get("caps") or {}
         q = d.get("quota") or {}
-        box_caps = d.get("box_caps") or {}
+        box_caps = d.get("box_caps")
+        if not isinstance(box_caps, dict):
+            # an older script without the pair: the read-only cap must never stand in for the
+            # heavy one (it is the HIGHER number — a fail-open in the OOM direction; round-3 seat)
+            raise ValueError("dispatch_headroom.py --json carries no box_caps — probe out of date")
         cli = caps.get("concurrency_cap", "?")  # read from the payload, never re-hardcoded
         parts = []
         for label, key in (("read-only", "read_only"), ("heavy", "heavy")):
-            box_cap = box_caps.get(key, caps.get("box_cap"))
+            box_cap = box_caps.get(key)
             bound = [box_cap, caps.get("concurrency_cap")] + (
                 [caps["quota_cap"]] if "quota_cap" in caps else []
             )
@@ -1901,8 +1905,8 @@ def _budget_probe() -> str:
 
 def _budget_banner() -> str:
     """One line above the commands table, served from a 60 s cache. A stale cache starts ONE
-    background refresh and returns what it has (or a placeholder) — the probe is two subprocesses
-    with a fleet round-trip each, and `generate()` is reachable synchronously from a request
+    background refresh and returns what it has (or a placeholder) — the probe is a subprocess
+    with a fleet round-trip inside it, and `generate()` is reachable synchronously from a request
     (`_fresh_html`'s pointer-moved branch, `switch_account`), the exact page-hang `_fresh_html`'s
     docstring records as fixed on 2026-08-18. `QUOTA_DASH_BUDGET=0` disables it (tests)."""
     if os.getenv("QUOTA_DASH_BUDGET", "1") == "0":

@@ -98,6 +98,38 @@ def test_seats_live_in_sibling_sessions_are_subtracted_from_the_box(tmp_path):
     s = dh.siblings(now=now, runs_dir=tmp_path)
     assert s["ok"] and s["seats"] == 9 and s["sessions"] == 2
     assert sorted(s["skipped"]) == ["bad.json", "junk.json", "shape.json"]
+    # two shapes the narrower tuple let through (round-3 finding): rounds as an object (KeyError),
+    # Infinity seats (OverflowError); and a NaN stamp must not read as forever-fresh
+    (tmp_path / "obj.json").write_text(
+        json.dumps({"state": "running", "updated_ts": now, "rounds": {"seats": 4}})
+    )
+    (tmp_path / "inf.json").write_text(
+        f'{{"state": "running", "updated_ts": {now!r}, "rounds": [{{"seats": Infinity}}]}}'
+    )
+    (tmp_path / "nan.json").write_text(
+        '{"state": "running", "updated_ts": NaN, "rounds": [{"seats": 7}]}'
+    )
+    s = dh.siblings(now=now, runs_dir=tmp_path)
+    assert s["seats"] == 9 and sorted(s["skipped"]) == [
+        "bad.json",
+        "inf.json",
+        "junk.json",
+        "obj.json",
+        "shape.json",
+    ]
+    # the DISPATCH stamp is the reservation: written BEFORE the seats go out, it counts while they
+    # run; a record whose last round closed long ago but dispatched a minute ago reserves
+    (tmp_path / "disp.json").write_text(
+        json.dumps(
+            {
+                "state": "running",
+                "updated_ts": now - 3600,
+                "rounds": [{"seats": 0}],
+                "dispatch": {"ts": now - 60, "seats": 11},
+            }
+        )
+    )
+    assert dh.siblings(now=now, runs_dir=tmp_path)["seats"] == 20
     # the exact freshness edge: a record touched precisely SIBLING_FRESH_S ago still counts, one
     # second older does not (a `>=` slip here would drop a live sibling at the boundary)
     edge = tmp_path / "edge"
@@ -121,7 +153,7 @@ def test_seats_live_in_sibling_sessions_are_subtracted_from_the_box(tmp_path):
     r = dh.budget(12, True, BOX_OK, Q_OK, s)  # box allows 12 heavy, minus 9 live elsewhere
     assert r["caps"]["box_cap"] == 3 and r["seats"] == 3
     assert any(
-        "minus 9 seat(s) dispatched < 5 min ago in 2 running record(s)" in x for x in r["reasons"]
+        "minus 9 seat(s) dispatched < 15 min ago in 2 running record(s)" in x for x in r["reasons"]
     )
 
 
@@ -130,8 +162,13 @@ def test_the_floor_is_three_even_for_a_one_unit_surface():
     assert r["seats"] == dh.FLOOR == 3  # one unit: 1 sonnet + 1 haiku + 1 opus IS the floor
     # the floor branch is REACHABLE for a real input: one judgement unit wants 2 (opus + sonnet)
     # and is raised to three seats on different angles (D-188)
+    # a one-unit judgement surface has two angles; the floor is three REAL seats, so the mix pads
+    # a second breadth reader — SEATS and the mix agree (round-3 finding: "SEATS: 3" over 2 seats)
     r = dh.budget(1, False, BOX_OK, Q_OK, mechanical=0)
-    assert r["seats"] == 3 and any("raised to the floor" in x for x in r["reasons"])
+    assert r["seats"] == 3 and r["caps"]["wanted"] == 3
+    assert dh.full_mix(1, mechanical=0) == {"opus": 1, "sonnet": 2}
+    assert sum(dh.trim(dh.full_mix(1, mechanical=0), 3).values()) == 3
+    assert not any("raised to the floor" in x for x in r["reasons"])
     # no surface: no phantom floor — "SEATS: 3" beside a mix of {} recorded three seats that were
     # never dispatched (round-1 finding); zero units means zero seats and says why
     r = dh.budget(0, False, BOX_OK, Q_OK)
@@ -328,7 +365,12 @@ def test_siblings_reserve_but_never_starve_a_session_below_the_floor():
     assert r["caps"]["box_cap"] == 3 and r["seats"] == 3
     assert any("never below the floor of 3" in x for x in r["reasons"])
     assert dh.budget(6, False, BOX_OK, Q_OK, dict(sib, seats=13))["seats"] == 10
-    assert dh.SIBLING_FRESH_S == 5 * 60
+    assert dh.SIBLING_FRESH_S == 15 * 60
+    # a box that is ITSELF below the floor keeps the reservation in full — three sessions must not
+    # each claim a 2-seat box (round-3 finding)
+    low = dict(BOX_OK, mem_available_gb=2.0)
+    assert dh.budget(6, False, low, Q_OK, dict(sib, seats=20))["caps"]["box_cap"] == 0
+    assert dh.budget(6, False, low, Q_OK)["caps"]["box_cap"] == 2
 
 
 def test_the_cost_story_describes_the_mix_it_prints_never_the_per_unit_sentence(
@@ -357,3 +399,15 @@ def test_the_cost_story_describes_the_mix_it_prints_never_the_per_unit_sentence(
     assert dh.main(["--units", "3", "--json"]) == 0
     d = json.loads(capsys.readouterr().out)
     assert d["box_caps"] == {"read_only": 23, "heavy": 12} and d["full_mix"] == d["mix"]
+
+
+def test_negative_counts_are_refused_and_the_angles_table_matches_the_mix(capsys):
+    """A negative --mechanical was silently floored to 0 and the story then claimed the operator
+    had declared a judgement surface (round-3 finding); `ANGLES` had no grader."""
+    with pytest.raises(SystemExit) as e:
+        dh.main(["--units", "4", "--mechanical", "-5"])
+    assert e.value.code == 2 and "is not a count" in capsys.readouterr().err
+    with pytest.raises(SystemExit):
+        dh.main(["--units", "4", "--risky", "-1"])
+    assert set(dh.ANGLES.values()) <= set(dh.TIERS)
+    assert set(dh.full_mix(3, risky=1)) == set(dh.ANGLES.values())

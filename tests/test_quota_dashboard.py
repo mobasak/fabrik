@@ -2831,6 +2831,34 @@ def test_the_box_budget_banner_shows_the_maximum_and_fails_soft(tmp_path, monkey
     assert "computing" in first
     qd._budget_cache["thread"].join(timeout=10)
     assert "seats allowed now" in qd._budget_banner()
+    # an older probe without box_caps must not let the read-only cap pose as the heavy one
+    monkeypatch.setattr(
+        qd.subprocess,
+        "run",
+        lambda args, **kw: type(
+            "R", (), {"stdout": json.dumps({"caps": {"box_cap": 23}, "quota": {}})}
+        )(),
+    )
+    assert "carries no box_caps" in qd._budget_probe()
+    # single-flight under CONCURRENT stale-cache renders: N threads, ONE probe thread started
+    import threading
+
+    qd._budget_cache.update(ts=0.0, html="", thread=None)
+    monkeypatch.setattr(qd.subprocess, "run", lambda args, **kw: _R(args))
+    calls.clear()
+    gate = threading.Barrier(6)
+
+    def hit():
+        gate.wait(timeout=5)
+        qd._budget_banner()
+
+    ts = [threading.Thread(target=hit) for _ in range(6)]
+    for th in ts:
+        th.start()
+    for th in ts:
+        th.join(timeout=5)
+    qd._budget_cache["thread"].join(timeout=10)
+    assert len(calls) == 1
     monkeypatch.setenv("QUOTA_DASH_BUDGET", "0")
     assert qd._budget_banner() == ""
 
