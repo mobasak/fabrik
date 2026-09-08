@@ -37,8 +37,12 @@ CONCURRENCY_CAP = int(os.getenv("CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS") or 20)
 # ~0.5-2 GB each; 2 GB is the conservative planning figure, 1.5 cores the CPU share.
 HEAVY_GB_PER_SEAT = 2.0
 HEAVY_CORES_PER_SEAT = 1.5
-# quota: the same bands core/62 names — floor at >=85% on the active account or <2 eligible.
+# quota: floor at >=85% on the active account's hottest window (the rotation's own drain_band), or
+# when NO standby is eligible. The picture's `eligible` counts STANDBYS — the active account carries
+# state=active — so the first draft's `< 2` fired with a 7%-used active and one fresh standby and
+# turned the operator's MAXIMUM into a permanent 3 (orchestrator's own sweep + two seats, 2026-09-08).
 QUOTA_HOT_PCT = 85.0
+MIN_STANDBYS = 1
 ROTATE = Path(__file__).resolve().parent / "claude_rotate.py"
 
 # model tiering by ROLE — the operator's four names, one job each (canonical: core/62)
@@ -120,7 +124,7 @@ def budget(units: int, heavy: bool, b: dict, q: dict) -> dict:
             reasons.append("fleet-exhausted HOLD is on — dispatch nothing until relief")
         else:
             hot = q["hottest_pct"] is not None and q["hottest_pct"] >= QUOTA_HOT_PCT
-            thin = q["eligible"] < 2
+            thin = q["eligible"] < MIN_STANDBYS
             if hot or thin:
                 caps["quota_cap"] = FLOOR
                 why = " and ".join(
@@ -130,7 +134,7 @@ def budget(units: int, heavy: bool, b: dict, q: dict) -> dict:
                             f"active {q['active']} is at {q['hottest_pct']}% (>= {QUOTA_HOT_PCT}%)",
                             hot,
                         ),
-                        (f"only {q['eligible']} account(s) eligible (< 2)", thin),
+                        (f"no eligible standby ({q['eligible']} < {MIN_STANDBYS})", thin),
                     )
                     if on
                 )
@@ -138,16 +142,35 @@ def budget(units: int, heavy: bool, b: dict, q: dict) -> dict:
     else:
         caps["quota_cap"] = FLOOR
         reasons.append(f"{q.get('why')} — quota unknown, held at the floor")
+    # The floor raises the UNIT-derived count (D-188: never solo, never two) — it never overrides a
+    # HARD cap. The first draft raised any sub-floor result back to 3, including a box_cap of 0, so
+    # "--heavy" on a box with no room printed 3 heavy seats: the exact OOM this tool exists to
+    # prevent (author-blind round 1, 2026-09-08). Now: units up to the floor first, then the caps.
+    if caps["units"] < FLOOR:
+        reasons.append(
+            f"units={caps['units']} raised to the floor of {FLOOR} — three seats on DIFFERENT angles "
+            f"over the whole surface (D-188)"
+        )
+        caps["units"] = FLOOR
     seats = min(caps.values())
-    if seats < FLOOR and caps.get("quota_cap", FLOOR) != 0:
-        seats = FLOOR
-        reasons.append(f"raised to the floor of {FLOOR} (D-188: never solo, never two)")
+    if seats < FLOOR:
+        hard = [k for k, v in caps.items() if v == seats and k != "units"]
+        reasons.append(
+            f"below the floor because a HARD cap binds ({', '.join(hard)}={seats}) — "
+            + (
+                "dispatch nothing until relief"
+                if seats == 0 and "quota_cap" in hard
+                else "run read-only seats instead (no box bound), or wait for the box"
+            )
+        )
     return {"seats": seats, "caps": caps, "reasons": reasons}
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--units", type=int, default=FLOOR, help="independent units in the surface")
+    # REQUIRED: a default of FLOOR let a caller who forgot the flag read a plausible "SEATS: 3" as a
+    # constrained verdict instead of "you never said how big the surface is" (round-1 finding).
+    ap.add_argument("--units", type=int, required=True, help="independent units in the surface")
     ap.add_argument("--heavy", action="store_true", help="each seat runs tests/builds/renders")
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args(argv)
@@ -171,10 +194,9 @@ def main(argv: list[str] | None = None) -> int:
         print(
             f"  quota: active {q['active']} hottest {q['hottest_pct']}%, eligible {q['eligible']}, hold={q['hold']}"
         )
-    print(
-        "  tiers: "
-        + " · ".join(f"{k}={v.split(';')[0].split('+')[0].strip()}" for k, v in TIERS.items())
-    )
+    print("  tiers (model by the seat's JOB):")
+    for k, v in TIERS.items():
+        print(f"    {k:7} {v}")
     return 0
 
 

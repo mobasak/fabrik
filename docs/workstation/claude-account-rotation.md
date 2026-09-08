@@ -213,7 +213,7 @@ python3 scripts/sysadmin/claude_rotate.py --status [--json]
 `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <N> [--heavy] [--json]` turns
 the `--status` picture into ONE number an agent dispatches: `SEATS = min(units, the CLI cap of 20,
 box_cap, quota_cap)`, never below 3 unless the fleet HOLD is on (then 0). `quota_cap` drops to the
-floor when the active account's hottest window is ≥85% or fewer than two accounts are eligible —
+floor when the active account's hottest window is ≥85% or no standby account is eligible (`eligible` counts standbys; the active account is `state=active`) —
 the same bands `core/62` § Dispatch economics names. `--heavy` is for seats whose TOOLS load the box
 (pytest, builds, renders): a native seat lives inside its parent `claude` process, so only its
 subprocesses count, bounded by `MemAvailable / 2 GB` and `(cores − load1) / 1.5`. Every probe fails
@@ -426,5 +426,6 @@ means updating this page in the same change. This list is generated from those h
 
 - `scripts/aro-wake/claude_rotate.py`
 - `scripts/sysadmin/claude_rotate.py`
+- `scripts/sysadmin/dispatch_headroom.py`
 - `scripts/sysadmin/quota_dashboard.py`
 <!-- END related-scripts -->

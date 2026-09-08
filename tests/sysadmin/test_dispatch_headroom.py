@@ -36,11 +36,18 @@ def test_the_floor_is_three_even_for_a_one_unit_surface():
 
 
 def test_heavy_seats_are_bounded_by_memory_and_cpu_never_the_unit_count_alone():
-    tight = dict(BOX_OK, mem_available_gb=5.0)  # 5 GB / 2 GB per seat = 2 -> raised to the floor
+    # a HARD cap is never overridden by the floor — the first draft raised a box_cap of 2 (and even
+    # 0) back to 3 heavy seats, the exact OOM this script exists to prevent (round-1 finding)
+    tight = dict(BOX_OK, mem_available_gb=5.0)  # 5 GB / 2 GB per seat = 2
     r = dh.budget(12, True, tight, Q_OK)
-    assert r["caps"]["box_cap"] == 2 and r["seats"] == 3
+    assert r["caps"]["box_cap"] == 2 and r["seats"] == 2
+    assert any("HARD cap" in x and "box_cap=2" in x for x in r["reasons"])
     busy = dict(BOX_OK, load1=22.5)  # (24 - 22.5) / 1.5 = 1 core-share left
-    assert dh.budget(12, True, busy, Q_OK)["caps"]["box_cap"] == 1
+    assert dh.budget(12, True, busy, Q_OK)["seats"] == 1
+    empty = dict(BOX_OK, mem_available_gb=0.0)
+    r = dh.budget(12, True, empty, Q_OK)
+    assert r["seats"] == 0 and any("read-only seats instead" in x for x in r["reasons"])
+    assert dh.budget(12, True, dict(BOX_OK, mem_available_gb=25.0), Q_OK)["seats"] == 12
     roomy = dh.budget(12, True, BOX_OK, Q_OK)
     assert roomy["caps"]["box_cap"] == 12 and roomy["seats"] == 12
 
@@ -49,9 +56,15 @@ def test_quota_pressure_holds_the_round_at_the_floor_and_names_which_band_trippe
     hot = dict(Q_OK, hottest_pct=91.0)
     r = dh.budget(8, False, BOX_OK, hot)
     assert r["seats"] == 3 and any("91.0%" in x for x in r["reasons"])
-    thin = dict(Q_OK, eligible=1)
+    # `eligible` counts STANDBYS (the active account is state=active): one fresh standby is a
+    # fallback, so it must NOT collapse the round — the first draft's "< 2" did exactly that
+    assert dh.budget(8, False, BOX_OK, dict(Q_OK, eligible=1))["seats"] == 8
+    thin = dict(Q_OK, eligible=0)
     r = dh.budget(8, False, BOX_OK, thin)
-    assert r["seats"] == 3 and any("eligible" in x for x in r["reasons"])
+    assert r["seats"] == 3 and any("standby" in x for x in r["reasons"])
+    # the exact boundaries, so a mutation of `>=` or `<` is caught
+    assert dh.budget(8, False, BOX_OK, dict(Q_OK, hottest_pct=85.0))["seats"] == 3
+    assert dh.budget(8, False, BOX_OK, dict(Q_OK, hottest_pct=84.9))["seats"] == 8
 
 
 def test_the_fleet_hold_dispatches_nothing():
@@ -60,8 +73,13 @@ def test_the_fleet_hold_dispatches_nothing():
 
 
 def test_a_failed_probe_falls_to_the_floor_and_says_why_never_a_silent_twenty():
-    r = dh.budget(8, True, {"ok": False, "why": "box probe failed: x"}, {"ok": False, "why": "quota probe failed: y"})
-    assert r["seats"] == 3
+    r = dh.budget(
+        8,
+        True,
+        {"ok": False, "why": "box probe failed: x"},
+        {"ok": False, "why": "quota probe failed: y"},
+    )
+    assert r["seats"] == 3  # both unknown caps are held AT the floor, so the floor still reaches
     assert any("box probe failed" in x for x in r["reasons"])
     assert any("quota probe failed" in x for x in r["reasons"])
 
@@ -77,3 +95,6 @@ def test_json_output_carries_the_budget_and_both_probes(monkeypatch, capsys):
     assert dh.main(["--units", "5", "--json"]) == 0
     out = json.loads(capsys.readouterr().out)
     assert out["seats"] == 5 and out["box"]["ok"] and out["quota"]["ok"] and "fable" in out["tiers"]
+    assert (
+        out["caps"] == {"units": 5, "concurrency_cap": dh.CONCURRENCY_CAP} and out["reasons"] == []
+    )

@@ -30,7 +30,7 @@ defects, not to be certain and not to fix anything.
    the dominant cause of misses, and refuting is the dispatcher's job, not yours. When unsure, surface it.
 
 ## Hard limits
-- **Read-only.** Never edit, write, or commit. No fixes, no regression tests — the dispatching session
+- **Read-only — and that includes git.** Never edit, write, or commit, and never `git checkout --`, `git restore`, `git stash`, `git reset` or any command that rewrites the working tree: three sessions share it, and a seat that "restores its own backup" with `git checkout` discards a sibling's UNCOMMITTED fix with no error (live 2026-09-08 — a finder reverted the very fix it had just confirmed). Probe a mutation on a COPY under `/tmp`, never on the tracked file. No fixes, no regression tests — the dispatching session
   owns refute → prove-before-fix. You only report.
 - Ground every claim in code you actually read (`path:line`); a path that looks right is not proof, and a
   column name is not its values.
