@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — agents sweep their own session scratch and agent worktrees; nothing is deleted blindly (2026-09-08)
+
+`scripts/scratch_sweep.py` (Phase A of plan 2026-09-08-plan-1-scratch-sweep, D-184/D-187). Three modes — this session's scratchpad, `--worktrees`, and the `--dead` janitor — and in every one the DRY RUN is the default: each row carries its class, its reason and its evidence, `--apply` is opt-in, and a hard-coded refusal set (printed by `--help`) keeps held, kept, fresh, dirty, unmerged, locked, foreign and backup-holding entries out of the removal set entirely. Operator's two constraints, verbatim: "we should not cause data loss" and "agents must know what will this script do while using it."
+
+A sid is `dead` only on three positive signals — no live signal, a death signal, AND its own directory idle past 7 days — because a gone pid is not a finished session: `--resume` keeps the sid across exactly the network deaths, context fills and quota holds this tool exists to serve (18 of 18 gone-pid dirs on the box were younger than 7 d, one 8 minutes old). A same-uid `/proc` gap is reported as `proc-gaps N`, never blocking, because 150 of 152 fd-deniers are foreign-uid and the two same-uid ones are permanent — a blocking default made the tool inert on every run. Worktree provenance is the registration's mtime against `btime + procStart/SC_CLK_TCK`, failing closed. 33 graders, each seen red first.
+
 ### Changed — intel's charter re-frozen against the pool/flywheel retirement (2026-09-08)
 
 - `docs/reference/agents/intel.md` was 3 days stale in the direction that matters: it assigned intel a

@@ -1,6 +1,6 @@
 # Scratch sweep — agents clean their OWN session scratch and agent worktrees, interruptions included, with nothing deleted blindly
 
-Status: **CONVERGED 2026-09-08** (`/fabrik-plan-review`, 10 passes — 98 findings adjudicated, terminal round raised 0 with md5 `6c5769c78d856ca59ebd74b698ea6b88` unchanged across it)
+Status: **IN-PROGRESS** (execution started 2026-09-08; converged (`/fabrik-plan-review`, 10 passes — 98 findings adjudicated, terminal round raised 0 with md5 `6c5769c78d856ca59ebd74b698ea6b88` unchanged across it)
 Profile: small
 **Owner:** fleet
 **Date:** 2026-09-08
@@ -81,7 +81,7 @@ Selections below cite a row or say `unconstrained`.
 
 ## Phases
 
-### Phase A — the script: `scripts/scratch_sweep.py` + its graders + the owners' mail
+### Phase A — the script: `scripts/scratch_sweep.py` + its graders + the owners' mail — ✅ EXECUTED 2026-09-08
 
 **Interfaces — Produces:** `scripts/scratch_sweep.py` (hub-only; `# AFTER-EDIT: docs/workstation/cleanup-automation.md | docs/workstation/hooks-index.md | tests/test_scratch_sweep.py`): CLI `[--session SID] [--cwd DIR] [--older-than 6h | 7d in --dead] [--apply] [--worktrees [REPO]] [--dead] [--unowned-older-than DAYS] [--include-harness] [--include-backups] [--strict-proc] [--hook] [--brief]`; functions `classify_session(root, sid, now, older_than_s, proc_root) -> list[Row]`, `classify_worktrees(repo, now, proc_root, session_start_epoch, include_harness=False) -> list[Row]`, `dead_sessions(root, sessions_dirs, transcript_dirs, lock_dir, proc_root, now, older_than_s) -> list[Row]`, `apply(rows) -> int` (`shutil.rmtree` for a directory, `os.unlink` for a regular file, NEVER a symlink — `rmtree` raises on one, Evidence P3), `render(rows, brief=False) -> str` (a summary line per class closes every table — `dead N · live N · unclassified N · probe-error N …` — so a persistent probe error is visible in the cron log without reading rows; EXCEPT under `--brief`, where zero candidates produce ZERO BYTES: the close-out must be able to print nothing at all); `Row = (path, kind, cls, reason, evidence, size_kb | None)` with `cls ∈ {stale, fresh, held, kept, holds-backups, unclassified, probe-error, wt-removable, wt-dirty, wt-unmerged, wt-locked, wt-held, wt-harness, wt-foreign, wt-orphan-dir, wt-ignored-data, wt-prunable, dead, dead-holds-backups, live, unowned, protected}`; only `stale`, `wt-removable`, `wt-prunable`, `dead` and — each under its own explicit flag — `wt-harness` (`--include-harness`, and only when its chain verdict is `wt-removable`), `holds-backups`/`dead-holds-backups` (`--include-backups`), `unowned` (`--unowned-older-than`) are ever removed. Exit codes: 0 · 2 refusal · 1 bad invocation. Env seams per C11. Stdlib-only (Global Constraints).
 
