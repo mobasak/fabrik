@@ -703,7 +703,13 @@ def test_dashboard_trigger_default_matches_the_tick_default(tmp_path, monkeypatc
     cr = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(cr)
-    assert qd.TRIGGER_THRESHOLD == cr._rotate_threshold() == 95.0
+    # 98 since 2026-09-08 (D-201). The literal is pinned deliberately — deriving BOTH sides from
+    # the code would let the two drift together silently, which is the only failure this grader
+    # exists to catch. Update it in the same change that moves the constants, never after.
+    assert qd.TRIGGER_THRESHOLD == cr._rotate_threshold() == 98.0
+    # and the no-successor mail must stay BELOW the flip line: with a successor the flip is the
+    # remedy, without one this is, and it needs runway. 90 < 98 is the design (D-201).
+    assert qd.DRAIN_TRIGGER_THRESHOLD < qd.TRIGGER_THRESHOLD
 
 
 def test_rows_are_ordered_active_first_then_in_rotation_order(tmp_path, monkeypatch):
@@ -1875,15 +1881,24 @@ def test_ninety_percent_session_invokes_the_tick_on_the_drain_tier(tmp_path, mon
 
 
 def test_the_drain_tier_cooldown_never_delays_the_flip_tier(tmp_path, monkeypatch):
-    """A drain tick at 91 followed 30 s later by 96 must fire AGAIN — a shared cooldown would
-    hold the flip for up to two minutes, which a burst covers from 95 to 100."""
+    """A drain-tier tick followed 30 s later by a flip-tier one must fire AGAIN — a shared
+    cooldown would hold the flip for up to two minutes, which a measured burst covers easily
+    (p99 rise 35 points per 5-min gap).
+
+    Both readings are derived from the live constants, not typed: this test was written with a
+    literal 96, which was a flip-tier reading at the old threshold of 95 and became a drain-tier
+    reading the moment it went to 98 — so it failed for a stale fixture, not a real defect.
+    """
     monkeypatch.delenv("ROTATE_THRESHOLD", raising=False)
     qd, stub = _tick_env(tmp_path, monkeypatch, session=91.0, QUOTA_DASH_TRIGGER_COOLDOWN_S="600")
+    drain_tier = qd.DRAIN_TRIGGER_THRESHOLD + 1.0
+    flip_tier = qd.TRIGGER_THRESHOLD + 1.0
+    assert drain_tier < qd.TRIGGER_THRESHOLD, "the first reading must be BELOW the flip line"
     qd.generate()
     t = qd._maybe_trigger_rotation(json.loads(qd._JSON.read_text()))
     assert t is not None
     t.join(10)
-    (tmp_path / "stub_rotate.py.payload").write_text(json.dumps(_payload(session=96.0)))
+    (tmp_path / "stub_rotate.py.payload").write_text(json.dumps(_payload(session=flip_tier)))
     qd.generate()
     t2 = qd._maybe_trigger_rotation(json.loads(qd._JSON.read_text()))
     assert t2 is not None, "the flip tier has its own cooldown"
@@ -2977,12 +2992,19 @@ def test_the_box_budget_banner_shows_the_maximum_and_fails_soft(tmp_path, monkey
     payload["heavy_reasons"] = [
         "floor granted: 2 seat(s) past what the box has left after the sibling reservation"
     ]
-    assert "⚠️ floor granted: 2 seat(s) past what the box has left" in qd._budget_probe()
+    assert (
+        "⚠️ heavy half — floor granted: 2 seat(s) past what the box has left" in qd._budget_probe()
+    )
     payload["heavy_reasons"] = []
     # a probe that predates the halves SAYS so (round 11: an absent key read as "no heavy caveats")
     payload.pop("heavy_reasons")
     assert "probe payload predates heavy_reasons" in qd._budget_probe()
     payload["heavy_reasons"] = []
+    # the read-only half is read too — a caveat only IT carries renders (round 12: the merge
+    # branch was unguarded at the board layer)
+    payload["reasons_read_only"] = ["read-only-only: box unknown, held at the floor"]
+    assert "read-only-only: box unknown, held at the floor" in qd._budget_probe()
+    payload.pop("reasons_read_only")
     # an older probe without box_caps must not let the read-only cap pose as the heavy one
     monkeypatch.setattr(
         qd.subprocess,

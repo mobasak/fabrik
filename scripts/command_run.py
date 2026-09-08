@@ -1823,6 +1823,8 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             "seats": carried + args.seats,
             "phase": rec.get("phase"),
             "round": n_rounds,
+            # a deliberate `dispatch --seats 0` is a KNOWN zero, never "unrecorded" (round 12)
+            "released": (carried + args.seats) == 0,
         }
         fields = _queue(
             rec, outbox, "dispatch", {"seats": rec["dispatch"]["seats"], "phase": rec.get("phase")}
@@ -1859,16 +1861,31 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             print("[command_run] round --seats must be >= 0", file=sys.stderr)  # round-10 finding
             return 2
         _seats = args.seats if args.seats is not None else _stamped
+        _ran = 0
         if not _stamped and args.seats is None:
             # a fan-out that ran with NO stamp is silent until the close (fleet, 2026-09-08:
             # declared 0 vs seen 12 on a live execute-plan) — name it where the agent stands:
-            # seat transcripts newer than the previous round/step mean seats ran unstamped
-            _since = max(
-                [float(r.get("ts") or 0) for r in rounds if isinstance(r, dict)]
-                + [float(rec.get("started_epoch") or 0), float(rec.get("child_closed_ts") or 0)]
-            )
-            _tp = _transcript_path(sid, str(rec.get("repo_root") or ""))
-            _ran = len(_seat_transcripts(_tp, _since)) if _tp is not None else 0
+            # a seat transcript whose newest IN-WINDOW line is newer than the previous round (or
+            # a nested child's close) means seats ran unstamped. A `step` writes no timestamp the
+            # window reads — it never narrows it. Counted by the seat's last line, not the file's
+            # mtime (round-12 Opus: a stamped seat still flushing after its close re-fired the
+            # nudge on the next, empty round). Advisory only: it may never void the round, so
+            # every read here is guarded (a non-numeric `started_epoch` voided one, silently).
+            with contextlib.suppress(Exception):
+                _since = max(
+                    [_finite_ts(r.get("ts")) or 0.0 for r in rounds if isinstance(r, dict)]
+                    + [
+                        _finite_ts(rec.get("started_epoch")) or 0.0,
+                        _finite_ts(rec.get("child_closed_ts")) or 0.0,
+                    ]
+                )
+                _tp = _transcript_path(sid, str(rec.get("repo_root") or ""))
+                if _tp is not None:
+                    _tnow = time.time()  # never `_now`: that name is the module's clock function
+                    for _q in _seat_transcripts(_tp, _since):
+                        _u = _seat_usage(_q, _since, _tnow)
+                        if isinstance(_u, dict) and float(_u.get("_last") or 0) > _since:
+                            _ran += 1
             if _ran:
                 print(
                     f"[command_run] {_ran} seat transcript(s) since the last round and NO "
@@ -1924,10 +1941,12 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # re-reserves the seats the round just declared returned — for a FRESH window (round-6
         # finding: the "release" extended the reservation from 25 to 45 minutes)
         rec["dispatch"] = {
-            "ts": time.time(),
+            # a partial close keeps the ORIGINAL stamp's clock: re-dating it granted the remainder
+            # a fresh 25-minute window, renewable without bound (round-12 Opus finding)
+            "ts": (_d.get("ts") if _remaining and _d.get("ts") else time.time()),
             "seats": _remaining,  # 0 on a full close; the still-running remainder on a partial one
             "phase": rec.get("phase"),
-            "round": len(rounds) if _remaining else len(rounds),
+            "round": len(rounds),
             "released": _remaining == 0,
         }
         # ROUNDS SINCE THE LAST `step` — the signal job-agent identified. A counter that advances

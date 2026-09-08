@@ -21,10 +21,10 @@ remains only as the fallback for a view that lands before the first loop iterati
 decision it feeds — current at 20s granularity, and four usage probes every 20s is the price.
 
 **The rotation trigger — the fast path to a flip.** After each probe, if the ACTIVE account's 5h window is
-at/over `ROTATE_THRESHOLD` (default **95**, the tick's own default) or the account is cap-walled — or, on the
+at/over `ROTATE_THRESHOLD` (default **98** since 2026-09-08, D-201 — the tick's own default, pinned equal by a grader) or the account is cap-walled — or, on the
 URGENT-DRAIN tier, at/over `ROTATE_URGENT_DRAIN_PCT` (default **90**: the tick then sends the operator's
 "stop gracefully, hook to the next reset" mail if NO successor exists; this tier has its OWN cooldown so a drain
-tick at 90 can never delay the flip tick at 95) — or, while
+tick at 90 can never delay the flip tick at 98) — or, while
 the probe is BLIND (the payload carries `probe_failed`), at/over the drain line (`_drain_band()` — `ROTATE_DRAIN_THRESHOLD`, read lazily and guarded like the session bar; the import-time `BLIND_TRIGGER_THRESHOLD` constant is gone,
 `ROTATE_DRAIN_THRESHOLD` = 85; 2026-09-03 20:10: seven 60 s probe timeouts in a row hid ob@'s 96 → 100 and
 the trigger only ever saw the last good 96) — the
@@ -108,7 +108,7 @@ number is the FLOOR rather than the remainder ("= the floor, K reserved"); and e
 reason the script emits (a failed box/quota/sibling probe "held at the floor" / "not subtracted",
 sibling sessions with no seat figure = a LOWER bound, an env-only own id, a warm-only standby set)
 renders after a ⚠️ — a confident number over a failed probe is the defect the banner exists to end.
-An account switch bumps the cache generation: a probe already in flight may not land its
+The probe carries three reason halves — the run's own, the read-only and the heavy budget's — and the caveat line merges them (a heavy-only cause is labelled "heavy half —"); a probe payload that predates the halves says so instead of passing as "no heavy caveats". An account switch bumps the cache generation: a probe already in flight may not land its
 old-account line, and an orphaned one re-kicks a probe for the current generation.
 
 ### The OpenRouter pool banner (2026-09-04)
@@ -327,7 +327,7 @@ files and exit — useful for a scripted refresh without a browser).
   the operator's click — `--switch <slug>` to flip. It never decides a rotation, never writes
   `caps.json`, never reads or writes a credential file; the CLI owns every one of those
   contracts (see `docs/workstation/claude-account-rotation.md`). The tick's own automation is
-  unchanged: it still flips at 95% / the cap (98 until 2026-09-03; D-104) — and since 2026-09-03 the board itself invokes the tick within ~20s of the crossing, which is why the
+  unchanged: it still flips at the line / the cap — 98 until 2026-09-03 (D-104), 95 from then, and 98 again since 2026-09-08 (D-201, after the relief wake made a lost race cost a pause rather than a session) — and since 2026-09-03 the board itself invokes the tick within ~20s of the crossing, which is why the
   button exists: a fast burn (94% → 100% inside one tick, seen 2026-09-02) reaches the wall
   before the tick does, and the operator can see it coming on this board.
 - **Loopback only.** No auth, because nothing off-box can reach it; do not rebind it to

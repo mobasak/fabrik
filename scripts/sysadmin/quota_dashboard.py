@@ -56,8 +56,10 @@ REFRESH_S = int(os.getenv("QUOTA_DASH_REFRESH_S", "20"))
 # window (or is cap-walled) — the cron tick (*/5) stays as the backstop; the board is the fast path.
 PROBE_INTERVAL_S = float(os.getenv("QUOTA_DASH_PROBE_INTERVAL_S", "20"))
 TRIGGER_THRESHOLD = float(
-    os.getenv("ROTATE_THRESHOLD", "95")
-)  # the tick's own default (claude_rotate._rotate_threshold) — keep the two literals equal
+    os.getenv("ROTATE_THRESHOLD", "98")
+)  # the tick's own default (claude_rotate._rotate_threshold) — keep the two literals equal;
+# `test_quota_dashboard.py` asserts the equality, because a dashboard that triggers at a different
+# line than the tick acts on is a trigger that either fires late or fires into a no-op.
 TRIGGER_COOLDOWN_S = float(os.getenv("QUOTA_DASH_TRIGGER_COOLDOWN_S", "120"))
 # The URGENT-DRAIN tier (operator rule 2026-09-03): at/over 90% session the tick must run within
 # one probe interval so that, if NO successor is eligible, every repo gets the "stop gracefully,
@@ -1941,7 +1943,9 @@ def _all_reasons(d: dict) -> list:
     for key in ("reasons", "reasons_read_only", "heavy_reasons"):
         for x in d.get(key) or []:
             if isinstance(x, str) and x not in out:
-                out.append(x)
+                # a heavy-only cause is LABELLED — beside a read-only `floor_granted: 0` an
+                # unlabelled "floor granted" read as a contradiction (round-12 Opus finding)
+                out.append(("heavy half — " + x) if key == "heavy_reasons" else x)
     if "heavy_reasons" not in d:
         out.append(
             "probe payload predates heavy_reasons — the heavy half's caveats are not subtracted"

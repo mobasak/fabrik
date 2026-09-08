@@ -1680,6 +1680,8 @@ def test_a_bare_round_inherits_the_stamp_and_a_disagreeing_count_is_said_and_gra
     true 7 in the stamp all along. The stamp is the default now; a typed count that disagrees is
     said on stderr and recorded as typed; `seats_declared` on the ledger row is graded here (the
     mutant `_declared = 0` survived every test before)."""
+    import time
+
     # not a review-shaped command: `done` on those also demands a persisted report in the repo
     _cr(run_dir, "start", "--command", "fabrik-features", "--phases", "1", "--surface", "x")
     _cr(run_dir, "dispatch", "--seats", "3")
@@ -1701,6 +1703,24 @@ def test_a_bare_round_inherits_the_stamp_and_a_disagreeing_count_is_said_and_gra
     assert rec["dispatch"]["seats"] == 0 and rec["dispatch"]["released"] is True  # the full close
     p = _cr(run_dir, "round", "--seats", "9", "--findings", "0", "--classes-swept", "a")
     assert "disagrees" not in p.stderr  # no stamp left to disagree with
+    # typed MORE than stamped (round 12: the branch had no grader): said, released in full
+    _cr(run_dir, "dispatch", "--seats", "5")
+    p = _cr(run_dir, "round", "--seats", "8", "--findings", "0", "--classes-swept", "a")
+    assert "round --seats 8 disagrees with the 5 seat(s) stamped" in p.stderr
+    rec = json.loads(next(run_dir.glob("*.json")).read_text())
+    assert rec["dispatch"]["seats"] == 0 and rec["dispatch"]["released"] is True
+    # a partial close keeps the ORIGINAL stamp's clock (round 12: re-dating renewed the window)
+    _cr(run_dir, "dispatch", "--seats", "6")
+    stamped_ts = json.loads(next(run_dir.glob("*.json")).read_text())["dispatch"]["ts"]
+    time.sleep(0.05)
+    _cr(run_dir, "round", "--seats", "2", "--findings", "0", "--classes-swept", "a")
+    rec = json.loads(next(run_dir.glob("*.json")).read_text())
+    assert rec["dispatch"]["seats"] == 4 and rec["dispatch"]["ts"] == stamped_ts
+    _cr(run_dir, "round", "--seats", "4", "--findings", "0", "--classes-swept", "a")
+    # a deliberate `dispatch --seats 0` is a KNOWN zero (round 12)
+    _cr(run_dir, "dispatch", "--seats", "0")
+    rec = json.loads(next(run_dir.glob("*.json")).read_text())
+    assert rec["dispatch"]["seats"] == 0 and rec["dispatch"]["released"] is True
     # a negative typed count is refused like `dispatch`'s (round 10: it reached the ledger as -5)
     p = _cr(run_dir, "round", "--seats", "-1", "--findings", "0")
     assert p.returncode == 2 and "must be >= 0" in p.stderr
@@ -1724,9 +1744,7 @@ def test_a_bare_round_inherits_the_stamp_and_a_disagreeing_count_is_said_and_gra
     assert p.returncode == 0, p.stderr
     ledger = run_dir.parent / "command-feedback.jsonl"
     row = json.loads(ledger.read_text().splitlines()[-1])
-    assert (
-        row["seats_declared"] == 21
-    )  # 7 + 2 + 3 + 9 + 0: the ledger figure the tripwire divides by
+    assert row["seats_declared"] == 35  # 7+2+3+9+8+2+4+0: the tripwire's ledger figure
     # a closed record is never mutated by `dispatch` either (round-8: the docstring claimed it,
     # no test proved it)
     p = _cr(run_dir, "dispatch", "--seats", "3")
@@ -1747,7 +1765,7 @@ def test_a_round_with_no_stamp_names_the_seats_that_ran_unstamped(
     # `_cr` pins COMMAND_RUN_TRANSCRIPT to run_dir/no-transcript.jsonl: the seat dir follows it
     _cr(run_dir, "start", "--command", "fabrik-features", "--phases", "1", "--surface", "x")
     sub = run_dir / "no-transcript" / "subagents"
-    time.sleep(0.05)
+    time.sleep(1.1)  # the fixture's whole-second timestamps
     _seat_file(sub, "a", [(time.time(), "s1", 10, 10)])
     _seat_file(sub, "b", [(time.time(), "s2", 10, 10)])
     p = _cr(run_dir, "round", "--findings", "0", "--classes-swept", "a")
@@ -1758,7 +1776,7 @@ def test_a_round_with_no_stamp_names_the_seats_that_ran_unstamped(
     p = _cr(run_dir, "round", "--findings", "0", "--classes-swept", "a")
     assert "seat transcript(s) since" not in p.stderr
     # stamped: silent, the stamp is the figure
-    time.sleep(0.05)
+    time.sleep(1.1)  # the fixture's whole-second timestamps
     _seat_file(sub, "c", [(time.time(), "s3", 10, 10)])
     _cr(run_dir, "dispatch", "--seats", "1")
     p = _cr(run_dir, "round", "--findings", "0", "--classes-swept", "a")
@@ -1768,7 +1786,7 @@ def test_a_round_with_no_stamp_names_the_seats_that_ran_unstamped(
     # a NESTED child's seats were the child's to stamp (fleet's caveat): after the child closes,
     # the parent's next round must not read them as an unstamped fan-out
     _cr(run_dir, "start", "--command", "fabrik-review-scoped", "--phases", "1", "--surface", "y")
-    time.sleep(0.05)
+    time.sleep(1.1)  # the fixture's whole-second timestamps
     _seat_file(sub, "d", [(time.time(), "s4", 10, 10)])
     _cr(run_dir, "dispatch", "--seats", "1")
     _cr(run_dir, "round", "--findings", "0", "--classes-swept", "a")
@@ -1785,3 +1803,18 @@ def test_a_round_with_no_stamp_names_the_seats_that_ran_unstamped(
     assert p.returncode == 0, p.stderr
     p = _cr(run_dir, "round", "--findings", "0", "--classes-swept", "a")
     assert "seat transcript(s) since" not in p.stderr
+    # round-12 Opus: a STAMPED seat still flushing after its close must not re-fire the nudge on
+    # the next empty round — the count is by the seat's in-window last line, not the file mtime
+    time.sleep(1.1)  # the fixture's whole-second timestamps
+    for f in sub.glob("agent-*.jsonl"):
+        f.touch()
+    p = _cr(run_dir, "round", "--findings", "0", "--classes-swept", "a")
+    assert "seat transcript(s) since" not in p.stderr
+    # and a malformed timestamp on the record never voids the round (advisory, guarded)
+    rp = next(run_dir.glob("*.json"))
+    rec = json.loads(rp.read_text())
+    rec["started_epoch"] = "2026-09-08T12:00:00Z"
+    rp.write_text(json.dumps(rec))
+    p = _cr(run_dir, "round", "--findings", "0", "--classes-swept", "a")
+    assert p.returncode == 0 and "error, continuing" not in p.stderr
+    assert len(json.loads(rp.read_text())["rounds"]) == len(rec["rounds"]) + 1

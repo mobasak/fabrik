@@ -234,7 +234,7 @@ Two subagent regimes — keep them distinct:
   flows, click budgets, IA, and the design-system CREATE/ADOPT call — stays **yours (Opus)**, never a pool worker.
 - **Build-time (the Build Verification Loop — NATIVE, no pool).** Driving a running screen needs the browser
   MCPs (Playwright / Maestro / mobile-mcp / chrome-devtools / shadcn), which have **no pool equivalent** — so
-  this is **native `fabrik-gui`**, dispatched **one agent per screen IN PARALLEL** (screens are independent →
+  this is **native `fabrik-gui`**, dispatched **one agent per screen IN PARALLEL** — sized, stamped and closed per § Subagents below (`python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <screens>` → `python3 scripts/command_run.py dispatch --seats <n>` → `round --seats <n>`) — (screens are independent →
   verify them concurrently, don't serialize). `/design-review` is likewise native. Native subagents produce no
   `AgentResult` → they record nothing (by nature); `scripts/enforcement/check_subagent_flywheel.py` stands
   down entirely while the pool is OFF (D-182).

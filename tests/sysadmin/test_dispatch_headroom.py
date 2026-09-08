@@ -429,6 +429,21 @@ def test_the_cost_story_describes_the_mix_it_prints_never_the_per_unit_sentence(
     assert d["box_caps_floored"] == {"read_only": True, "heavy": True} and d["floor_granted"] == 1
     assert any("floor granted" in x for x in d["heavy_reasons"])  # the heavy half rides too
     assert d["reasons_read_only"] == d["reasons"]  # and the read-only half, explicitly (round 11)
+    # the mix/budget caution reaches the matching half too (round 12: it was appended after)
+    assert dh.main(["--units", "3", "--mix", "sonnet=99", "--json"]) == 0
+    d = json.loads(capsys.readouterr().out)
+    assert any("mix has 99 seat(s)" in x for x in d["reasons_read_only"])
+    # the two sub-floor instructions are distinct and graded (round 12: neither had a test)
+    held = dh.budget(6, False, BOX_OK, dict(Q_OK, hold=True))
+    assert any("dispatch nothing until relief" in x for x in held["reasons"])
+    boxed = dh.budget(
+        6,
+        True,
+        {"ok": True, "mem_available_gb": 3.0, "cores": 16, "load1": 1.0},
+        Q_OK,
+        {"ok": True, "seats": 14, "unrecorded": 0},
+    )
+    assert any("wait for the box or the sibling rounds to finish" in x for x in boxed["reasons"])
     assert dh.main(["--units", "0"]) == 0  # the phantom-floor path end to end (round-8 finding)
     out = capsys.readouterr().out
     assert "SEATS: 0" in out

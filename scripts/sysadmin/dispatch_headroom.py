@@ -320,8 +320,6 @@ def _frame_seats(rec: dict, now: float, out: dict) -> int:
     # without one, dated by the round's OWN stamp — `updated_ts` is a generic
     # last-touch and re-dated a two-hour-old round on a bare `step` (round-5 finding)
     if disp is not None and disp_seats is not None:
-        if disp.get("ts") is None:
-            raise ValueError("dispatch stamp without ts")  # named, never silently 0
         # a RELEASE marker is a known zero whatever `seats` says — the CLI never writes
         # `released` beside a count, so a record that does is contradictory and the
         # release wins (round-7 finding: `released, seats 5` counted 5 in flight)
@@ -689,6 +687,9 @@ def main(argv: list[str] | None = None) -> int:
     # script — and its fleet round-trip — ONCE, not twice
     _ro = budget(a.units, False, b, q, s, a.risky, a.mechanical)
     _hv = budget(a.units, True, b, q, s, a.risky, a.mechanical)
+    # the mix/budget caution was appended to `r` AFTER the halves were computed, so the half that
+    # matches this run never carried it (round-12 finding) — the halves are the run's own list
+    (_hv if a.heavy else _ro)["reasons"] = list(r["reasons"])
     box_caps = {"read_only": _ro["caps"].get("box_cap"), "heavy": _hv["caps"].get("box_cap")}
     box_caps_floored = {  # which of the pair the FLOOR raised past the sibling remainder
         "read_only": bool(_ro.get("floor_granted")),

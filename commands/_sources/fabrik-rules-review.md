@@ -72,7 +72,7 @@ skipped and why. (HUB mode: every pack is in scope unless `$ARGUMENTS` narrows i
 
 ## Phase 2 — Audit each applicable pack (parallel native fan-out)
 
-The packs are independent, so this step MUST fan out — one native `fabrik-reviewer` seat (Sonnet) per applicable pack, in parallel; Opus for any pack whose subject is authoritative/high-risk (auth, schema, migrations, secrets, concurrency). The pool form is kept below for re-enable (D-181):
+The packs are independent, so this step MUST fan out — sized, stamped and closed at THIS point (`python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <packs>` prints the seats, `python3 scripts/command_run.py dispatch --seats <n>` BEFORE they go out, Phase 4's `round --seats <n>` closes; the recipe in § Subagents below is the same one) — one native `fabrik-reviewer` seat (Sonnet) per applicable pack, in parallel; Opus for any pack whose subject is authoritative/high-risk (auth, schema, migrations, secrets, concurrency). The pool form is kept below for re-enable (D-181):
 <!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 The packs are independent, so this step MUST fan out — **pool-default per the dispatch policy**: one
 unit per applicable pack via `fanout("review", units, repo=REPO, project=<project>,

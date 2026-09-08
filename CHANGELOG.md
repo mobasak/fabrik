@@ -4,6 +4,41 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the account flip line moves 95 → 98; the no-successor mail stays at 90 (2026-09-08)
+
+Operator rule (D-201): "we can switch a lot faster now so i want to utilize them better — switch as
+soon as it reaches 98% session limit". `ROTATE_THRESHOLD` defaults 95.0 → 98.0 in
+`claude_rotate._rotate_threshold()`, in its byte-identical twin `scripts/aro-wake/claude_rotate.py`,
+and in `quota_dashboard.TRIGGER_THRESHOLD` — a grader pins the last two equal, because a dashboard
+triggering on a different line than the tick acts on either fires late or fires into a no-op.
+
+The operator's second branch needed no new code. When NO sibling is eligible, `_urgent_drain_pct()`
+= 90 already broadcasts a fabrik-mail to every repo naming the reset instant, the resume instant and
+a copy-paste `sleep` line — built to their own 2026-09-03 rule and fired 14 times live. What changed
+is the gap it leaves: five points became eight, and the ordering (90 < 98) is now GRADED rather than
+assumed. Invert those two and the failure is silent — the "stop gracefully" warning would arrive
+after the wall it warns about, on an account that can no longer send it.
+
+The trade is deliberate and measured, not free. The burst that beat 98 in September is unchanged:
+over 305 inter-tick gaps (2026-08-13..15, the last window the tick ledgered a `pct`) the gap was
+median 5.0 min / p90 5.0 / max 10.0 and the per-gap RISE was median 0 points, p90 3, p99 35, max 81
+— so P(rise > 5) = 4.7% against P(rise > 2) = 21.7%, i.e. an account read AT the line walls about
+4.6x more often at 98. It is worth taking because the COST of losing that race fell: the relief wake
+(D-177/D-178/D-180) holds a walled session and wakes it on relief instead of letting it die.
+
+⚠️ Found while measuring and fixed in the same change: the FLEET tick never wrote the
+`{"event": "tick", "pct": …}` row the LEGACY tick did, so the samples stop dead on 2026-08-15 — the
+day this box moved to fleet mode — and the distribution behind this very decision was frozen at
+three-week-old data. `_fleet_tick_inner` now writes one row per tick for the ACTIVE account's
+session window (graded, red-on-revert). A threshold shipped without the evidence to re-tune it is a
+number nobody can question again. Also found: `scripts/aro-wake/claude_rotate.py`
+had already drifted from its twin at HEAD (one ruff reflow), so
+`test_twin_copies_are_byte_identical` was failing before this change — re-synced here.
+
+Ten fleet tests encoded the old line as a literal `96.0` fixture and silently became BELOW-the-line
+readings; they now derive from `cr._rotate_threshold()` via a new `OVER_LINE` constant, so the next
+move of this number is one line rather than twenty.
+
 ### Changed — libs/subagents retired from the fleet sync; the hub source stays (2026-09-08)
 
 - `scripts/fabrik_synced_manifest.py::VENDORED_DIRS` no longer lists `libs/subagents`, at fabrik-lib's
@@ -140,7 +175,10 @@ sweep exit 0 having done nothing.
   `docs/reference/agents/infra.md:42-45` is infra's beat and was filed to them, not edited here. (D-195)
 
 ### Fixed — D-191 round 12: the unstamped fan-out is named mid-run (2026-09-08)
-- Receipt row F292 (FIXED 1; the round-12 sweep's own rows follow in its closing entry).
+- Receipt rows F292–F307 (FIXED 15 over F293–F307 plus F292 FIXED; 16 rows, script-counted at the round's close).
+- `dispatch_headroom.py`: the `--mix` mismatch caution reaches the matching reason half; the two sub-floor instructions are graded; the dead second `ts` guard is gone (F294–F295).
+- Round-12 Opus seat: the mid-run nudge counts a seat by its in-window last line (a stamped seat flushing after its close re-fired it), every read it makes is guarded (a malformed `started_epoch` voided a round with rc 0), a partial close keeps the original stamp's clock, heavy-only caveats are labelled on the board, D2 says stamp-then-close, the dead ternary is gone; the over-typed close is graded, `dispatch --seats 0` is a released stamp, the fragment names the partial close; the backlog row and the dashboard doc are current (F299–F307).
+- The corpus: rules-review Phase 2 and ui-design's screen fan-out carry the size → stamp → close line at the point of use; user-test's citation is the full path (F296–F297). The board's read-only reason half is graded (F298). The receipt's stray F6 row is in order (F293).
 - `command_run.py`: a `round` with no dispatch stamp that finds seat transcripts written since the previous round/step says so on stderr — the reservation and `seats_declared` read 0 until the agent stamps (F292; fleet's live datapoint: declared 0 vs seen 12).
 
 ### Fixed — D-191 round 11: the closing sweep (2026-09-08)
