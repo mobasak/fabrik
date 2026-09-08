@@ -70,3 +70,29 @@ def test_kaizen_events_dir_is_pinned_under_basetemp(tmp_path):
     d = os.environ.get("KAIZEN_EVENTS_DIR")
     assert d, "KAIZEN_EVENTS_DIR is not pinned"
     assert Path(d).resolve().is_relative_to(tmp_path.resolve().parent), d
+    # the invariant, not the fixture (round-17 Opus finding): a hand-built env inherits the pin
+    # and the writer honours it at call time — the event lands under tmp, nowhere else
+    import subprocess
+    import sys
+
+    env = dict(os.environ, COMMAND_RUN_DIR=str(tmp_path / "runs"), CLAUDE_SESSION_ID="pin-probe")
+    script = Path(__file__).resolve().parents[1] / "scripts" / "command_run.py"
+    subprocess.run(
+        [
+            sys.executable,
+            str(script),
+            "start",
+            "--command",
+            "fabrik-features",
+            "--phases",
+            "1",
+            "--terminal",
+            "t",
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    written = list(Path(d).glob("*.jsonl"))
+    assert written and any("pin-probe" in w.name for w in written), written

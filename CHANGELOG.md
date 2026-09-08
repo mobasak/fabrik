@@ -174,6 +174,10 @@ sweep exit 0 having done nothing.
   code consumer and no kaizen cell — the suspension breaks nothing mechanical. The mirror claim in
   `docs/reference/agents/infra.md:42-45` is infra's beat and was filed to them, not edited here. (D-195)
 
+### Fixed — D-191 round 17: the other giant shape — the stamp before a giant tool result (2026-09-08)
+- Receipt rows F352–F360 (9 rows: FIXED 4 · RECORDED 4 · REFUTED 1; counted from the verdict cells at the round's close).
+- `command_run.py`: a >4 MB last line is dated from its last 64 KB, then — the shape that actually goes giant, the envelope stamp preceding a giant `toolUseResult` (151 of 1,011 long seat lines) — from its first 64 KB after a scan back capped at one extra window (F352); any torn tail skips the giant path, since a stamp fragment after a complete giant line poisoned the file-tail read (F353); fixtures t7/t8 carry both shapes (F354). The events-pin grader spawns command_run.py with a hand-built env and asserts the event lands under tmp (F355).
+
 ### Fixed — D-191 round 16: the giant line is dated from its tail, the terminal verdict needs a class-ledger round (2026-09-08)
 - Receipt rows F344–F351 (8 rows: FIXED 7 · RECORDED 1; counted from the verdict cells at the round's close).
 - `command_run.py`: a last line longer than the 4 MB walk is dated from its last 64 KB — Claude Code writes the envelope `timestamp` after the payload, so the round-15 head read took a nested stamp (F344); a torn giant line is "skipped" before the giant path (F345); the terminal verdict requires the closing round itself to have swept classes, so a wave's reservation close never reads terminal (F346); the backward scan is gone (F347). Fixtures carry the live shape (F348). `tests/conftest.py` pins `KAIZEN_EVENTS_DIR`, so a suite run no longer writes fabricated events into the operator's live events log (F349). The subagents fragment names the reservation-close shape and fabrik-repo-review's Phase 4 shows the class-ledger close (F350).

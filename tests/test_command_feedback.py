@@ -1881,6 +1881,31 @@ def test_a_round_with_no_stamp_names_the_seats_that_ran_unstamped(
     (sub / "agent-t5.jsonl").touch()
     p = _cr(run_dir, "round", "--findings", "0")
     assert "seat transcript(s) since" not in p.stderr
+    # the OTHER live giant shape (round 17: 151 of 1,011 long seat lines): the envelope stamp
+    # PRECEDES a giant `toolUseResult` — dated from the line's head; stamped, closed, touched →
+    # silent; unstamped and fresh → fires
+    time.sleep(1.1)
+    _seat_file(sub, "t7", [(time.time() - 9000, "st7", 10, 10)])
+    with (sub / "agent-t7.jsonl").open("a") as fh:
+        fh.write(
+            json.dumps(
+                {
+                    "type": "user",
+                    "message": {"content": [{"type": "tool_result", "tool_use_id": "t"}]},
+                    "timestamp": _stamp(time.time()),
+                    "toolUseResult": {"stdout": "x" * (5 << 20)},
+                }
+            )
+            + "\n"
+        )
+    p = _cr(run_dir, "round", "--findings", "1")
+    assert "1 seat transcript(s) since the last round and NO `dispatch --seats` stamp" in p.stderr
+    _cr(run_dir, "dispatch", "--seats", "1")
+    p = _cr(run_dir, "round", "--seats", "1", "--findings", "0")
+    time.sleep(1.1)
+    (sub / "agent-t7.jsonl").touch()
+    p = _cr(run_dir, "round", "--findings", "0")
+    assert "seat transcript(s) since" not in p.stderr
     # a TORN giant line (mid-flush, no newline) whose tail ends in a nested OLD stamp is "skipped"
     # — dated by mtime, so a LIVE seat still counts (round-16 Opus: the sentinel fired before the
     # torn guard and the fragment's stamp dated the seat three days old)
@@ -1891,6 +1916,24 @@ def test_a_round_with_no_stamp_names_the_seats_that_ran_unstamped(
             '{"type":"user","big":"'
             + "x" * (5 << 20)
             + '","input":{"timestamp":"2020-01-01T00:00:00.000Z"}'
+        )
+    p = _cr(run_dir, "round", "--findings", "1")
+    assert "1 seat transcript(s) since the last round and NO `dispatch --seats` stamp" in p.stderr
+    # a COMPLETE giant line followed by a torn stamp fragment: the file-tail read would see two
+    # stamps — a torn tail skips the giant path, "skipped", so a live seat still counts (round 17)
+    time.sleep(1.1)
+    _seat_file(sub, "t8", [(time.time() - 9000, "st8", 10, 10)])
+    with (sub / "agent-t8.jsonl").open("a") as fh:
+        fh.write(
+            json.dumps(  # the stamp-first shape: under a tail-only read the fragment's stamp wins
+                {
+                    "type": "user",
+                    "timestamp": _stamp(time.time() - 9000),
+                    "toolUseResult": {"stdout": "x" * (5 << 20)},
+                }
+            )
+            + "\n"
+            + '{"type":"assistant","timestamp":"2020-06-15T00:00:00.000Z"'
         )
     p = _cr(run_dir, "round", "--findings", "1")
     assert "1 seat transcript(s) since the last round and NO `dispatch --seats` stamp" in p.stderr
@@ -1924,8 +1967,8 @@ def test_a_round_with_no_stamp_names_the_seats_that_ran_unstamped(
     # the next empty round — the count is by the seat's in-window last line, not the file mtime
     time.sleep(1.1)  # the fixture's whole-second timestamps
     for f in sub.glob("agent-*.jsonl"):
-        if f.stem in ("agent-t3", "agent-t6"):
-            continue  # the EMPTY and the TORN-giant seats are undatable and dated by mtime by design
+        if f.stem in ("agent-t3", "agent-t6", "agent-t8"):
+            continue  # the EMPTY and the TORN seats are undatable and dated by mtime by design
         f.touch()
     p = _cr(run_dir, "round", "--findings", "0", "--classes-swept", "a")
     assert "seat transcript(s) since" not in p.stderr

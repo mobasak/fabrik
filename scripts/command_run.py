@@ -1010,17 +1010,34 @@ _SEAT_TAIL_BYTES = 4 << 20  # the nudge dates a seat from its tail: one complete
 
 
 def _giant_line_epoch(q: Path, size: int) -> float | None:
-    """The envelope stamp of a last line longer than the walk (a tool result past 4 MB), read
-    from the line's TAIL: Claude Code writes the envelope's `timestamp` AFTER the message
-    payload (measured on live lines: the first stamp sits mid-line, past the payload), so the
-    last 64 KB carry it and the head does not (round-16 Opus finding — the head read dated a
-    nested stamp). Exactly one stamp in that window is the envelope's; two mean a nested one
-    reached the tail and `_line_epoch` refuses the truncated chunk → None → "skipped". Bounded
-    by construction: one 64 KB read, never a scan (round 15 answered "skipped" there and a stamped
-    seat re-fired the nudge whenever its file was touched after the close)."""
+    """The envelope stamp of a last line longer than the walk (a tool result past 4 MB). Two
+    live shapes (round 17, measured on 8,778 seat files: 1,011 lines over 64 KB): the stamp
+    trails the message payload — 860 of them, read from the line's last 64 KB — or it PRECEDES
+    a giant `toolUseResult` (151, all `type: user`; the envelope key order is …, message,
+    uuid, timestamp, toolUseResult, …), read from the line's first 64 KB after a scan back for
+    the previous newline that is capped at one extra window (F347 stays closed). Exactly one
+    stamp in the window is the envelope's; two mean a nested one and `_line_epoch` refuses the
+    truncated chunk → None → "skipped". The caller has already ruled out a torn tail."""
     with q.open("rb") as fh:
         fh.seek(max(size - (64 << 10), 0))
-        return _line_epoch(fh.read())
+        e = _line_epoch(fh.read())
+        if e is not None:
+            return e
+        pos = max(size - _SEAT_TAIL_BYTES, 0)
+        floor = max(size - 2 * _SEAT_TAIL_BYTES, 0)
+        while pos > floor:
+            step = min(1 << 20, pos - floor)
+            pos -= step
+            fh.seek(pos)
+            nl = fh.read(step).rfind(b"\n")
+            if nl >= 0:
+                pos += nl + 1
+                break
+        else:
+            if pos > 0:
+                return None  # the line's head is further back than one extra window
+        fh.seek(pos)
+        return _line_epoch(fh.read(64 << 10))
 
 
 def _seat_last_epoch(q: Path) -> float | str:
@@ -1034,8 +1051,8 @@ def _seat_last_epoch(q: Path) -> float | str:
     or all torn — the answer is "skipped": the mtime prefilter already dated the file, and the
     nudge exists to stop silent under-reporting; None is never returned (round 14: a 5 MB last
     line and an empty file both read as silent). A last line longer than the walk is dated from
-    its TAIL (`_giant_line_epoch`), never by its mtime (rounds 15–16); a TORN giant line is
-    "skipped" — the torn check comes before the giant path (round-16 Opus finding)."""
+    its own bytes (`_giant_line_epoch`, tail then bounded head), never by its mtime (rounds
+    15–17); any file with a TORN tail skips the giant path — "skipped" (rounds 16–17)."""
     try:
         size = q.stat().st_size
         torn = False
@@ -1043,10 +1060,13 @@ def _seat_last_epoch(q: Path) -> float | str:
             with q.open("rb") as fh:
                 fh.seek(size - 1)
                 torn = fh.read(1) != b"\n"
+        was_torn = torn
         for raw in _iter_lines_backwards(q, _SEAT_TAIL_BYTES):
             if raw is None:
-                if torn:
-                    break  # a torn giant line has no trustworthy stamp at either end
+                if was_torn:
+                    # a torn tail poisons the FILE-tail read the giant path makes (round 17:
+                    # a stamp fragment after a complete giant line read as a second stamp)
+                    break
                 e = _giant_line_epoch(q, size)
                 if e is not None:
                     return e
