@@ -289,6 +289,56 @@ FIXED: 1-8, 13-20, 22, 26-35, 38. REFUTED: 9-12, 21, 23-25, 36-37. (Row 21 and r
 hand-counting defect the review spent three rounds on, committed inside the ledger that
 documents it. The disposition column is the denominator; this line is derived from it.
 
+## BLOCKED: NON-CONVERGENCE
+
+**This review is NOT converged and its `Status:` stays IN-PROGRESS.** The exit contract was never
+met: no round returned `found: 0 · new: 0 · fixed: 0`. Seven rounds, 21 seats, trend
+`15 · 6 · 14 · 1 · 3 · 12 · 9`.
+
+**The suspected foundation error, named as the breaker requires.** The loop is not failing to find
+defects — it is failing to stop producing them. Every round after the first found its worst defect
+in the PREVIOUS round's fix: round 3 found the exec bit that round 2's fix commit stripped; round 5
+found that the ledger rows sat inside a quoted template; round 6 found a fabricated `warning_checks`
+key in the gate embed and a headline hardening with no guard; round 7 found a mangled duplicated
+sentence shipped into a SYNCED file — inside the very commit whose message said it was fixing that
+file *because* the stale text sat in 49 repos — plus a guard that survived three mutations of the
+predicate it names.
+
+The common cause is not any one defect. It is that **the same agent authored the code, the fixes,
+the tests and the record**, on a surface where that agent's measured error rate is high: three
+successive ledger rows stated importer counts that did not re-derive, a fourth number was restated
+five times with no selector, a disposition total was wrong inside the ledger about wrong totals, and
+two guards were written that guarded nothing. Independent seats caught every one of those; not one
+was caught by the author. Adding rounds has therefore been adding defects at roughly the rate it
+removes them, which is the definition the breaker exists to catch.
+
+**What IS settled, and is not in doubt** — all three exit seats verified the MECHANISM independently
+and it holds: the retired dir is gitignored, never synced, never worktree-copied; `.worktreeinclude`
+matches its generator byte-for-byte; the exec bits are `100755` in HEAD; the census runs from any cwd
+without failing open; `_unreachable_vendored_copies` reports exactly its two known strays; the fleet
+is 41/41 protected with **0** untracked-and-unignored files; six of the seven retirement guards kill
+their named mutants. The code is sound. The RECORD is what did not converge.
+
+**What remains OPEN, for whoever takes this next** (none of it is code correctness):
+1. The Pass Ledger is missing rows for two of the seven rounds; its last row is a fixing pass, so the
+   table's own "the gate reads the LAST row as the exit round" contract is unsatisfied.
+2. Eleven of the eighteen files the six commits touched have no `Hunt:` row.
+   `check_review_coverage` grades the rows that EXIST and never compares them to the real file set —
+   which is why this survived seven rounds and is filed as a machinery gap.
+3. Phase 2 and Phase 3 verdicts are stale by one round, and Phase 3 still asserts "every behavioural
+   fix carrying a guard proven RED first", which two seats have now falsified twice.
+4. `scripts/distribute_subagents.sh:4-8` still states the retired fleet-distribution behaviour; the
+   correction was APPENDED at line 42 instead of replacing it — two sources of truth, stale one first.
+5. Row 35's fix (deleting the dead `DECLARED_NON_TRIGGERS` entry) has no guard; re-adding the entry
+   leaves the suite green.
+6. Assorted stale counts: "171 green" is 176; "49 project repos" matches no live population (41);
+   two `INDEX.md` test-count rows.
+
+**Why BLOCKED rather than another round:** the breaker's own instruction is to stop and name the
+foundation error rather than spend round N+1 on the same shape. The honest next step is a pass by an
+agent that did not author this — the independence the closing rounds kept proving is load-bearing —
+not an eighth self-authored round.
+
 ## Pass Ledger
 
 ONE table, one row per pass, counts punctuated (`found: N, fixed: M`) — the gate reads the LAST row
