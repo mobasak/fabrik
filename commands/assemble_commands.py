@@ -213,16 +213,57 @@ EXTRACT = {
 _EX_ITEM = 'an API "reused" that doesn\'t exist, a column "stored" with the wrong type, a symbol "called" that was deleted, a config "inherited" that was never set'
 
 
+# Kinds whose units are JUDGEMENTS — a live-docs grounding, an adjudication — have no grep-able
+# angle: a Haiku seat briefed on one returns a claim the orchestrator must refute, spend without
+# recall (D-191 round-2 finding). The floor for them names Sonnet + Opus only and `--mechanical 0`.
+_JUDGEMENT_KINDS = {"grounding", "adjudication"}
+
+
 def _floor(kind: str, native: str) -> str:
     # D-181/D-182 (2026-09-07): the pool is OFF by ruling, so the floor is stated in native seats only.
     # The pool form ("pool breadth AND ≥1 native Opus") is kept in git history for re-enable.
+    if kind in _JUDGEMENT_KINDS:
+        angles = (
+            f"**plus one Sonnet {native} breadth seat per INDEPENDENT unit — no mechanical seat: a "
+            f"{kind} unit is a judgement with no grep-able angle, so the dispatch step runs with "
+            f"`--mechanical 0` — the box is the ceiling, the units the partition (D-191); never a token "
+            f'1–2; the model is the per-dispatch token, `model: "opus"` for the authoritative seat, '
+            f'`model: "sonnet"` for breadth'
+        )
+    else:
+        angles = (
+            f"**plus one Sonnet {native} breadth seat AND one Haiku mechanical seat per INDEPENDENT unit "
+            f"(trimmed below one per unit, each Haiku seat sweeps ONE grep-able class across every unit) "
+            f"— the box is the ceiling, the units the partition (D-191); never a token 1–2; the model is "
+            f'the per-dispatch token, `model: "opus"` for the authoritative seat, `model: "sonnet"` for '
+            f'breadth, `model: "haiku"` for the mechanical angle'
+        )
     return (
         f" **⚠️ Floor — every {kind} dispatches ≥1 native {native} on Opus as the authoritative pass** "
-        f"(Opus-only is still not a substantial {kind}) **plus one Sonnet {native} breadth seat AND one "
-        f"Haiku mechanical seat per INDEPENDENT unit — the box is the ceiling, the units the partition "
-        f"(D-191); never a token 1–2; the model is the per-dispatch token, `model: \"opus\"` for the "
-        f'authoritative seat, `model: "sonnet"` for breadth, `model: "haiku"` for the mechanical angle'
-        f"** **plus your own Opus decide/refute/merge.**"
+        f"(Opus-only is still not a substantial {kind}) {angles}** **plus your own Opus decide/refute/merge.**"
+    )
+
+
+# The D-191 grader: a command whose text fans out (a seat per unit, "all in one message") must carry
+# the dispatch step — the fragment's or the short banner's. Measured on the 36 rendered commands
+# before it shipped: 27 fan out and carry it, 3 fanned out without it (design-review, rivals,
+# upstream — the rule's only seat instruction there was the one D-191 overturned), 6 are serial by
+# design and match neither; 0 false positives.
+_FANOUT_RE = re.compile(
+    r"(seats? per |per (?:unit|screen|rival|claim|persona|lens|surface|dependency|fact|file|flow-bundle"
+    r"|epic|pack|doc)\b[^.]{0,80}(?:single|one|ONE) message|dispatch(?:ed|es)?[^.]{0,60}in (?:a )?"
+    r"(?:single|ONE|one) message)",
+    re.I,
+)
+_DISPATCH_STEP_RE = re.compile(r"THE DISPATCH STEP \(D-191|Dispatch step \(D-191\)")
+
+
+def dispatch_step_gaps(rendered: dict[str, str]) -> list[str]:
+    """Names of rendered commands that fan out and do not carry the D-191 dispatch step."""
+    return sorted(
+        name
+        for name, text in rendered.items()
+        if _FANOUT_RE.search(text) and not _DISPATCH_STEP_RE.search(text)
     )
 
 
@@ -977,6 +1018,11 @@ def check():
         # Agent definitions are part of the corpus now: a hand-edit on the box must show up here,
         # or the repo sources are merely FIRST rather than canonical.
         drift = list(agent_drift(AGENTS))
+        # D-191: a fan-out with no dispatch step is a rule with no grader (round-2 finding)
+        drift += [
+            f"{n}.md: fans out without the D-191 dispatch step"
+            for n in dispatch_step_gaps({f.stem: f.read_text() for f in tmp.glob("*.md")})
+        ]
         for f in sorted(tmp.glob("*.md")):
             inst = OUT / f.name
             if not inst.exists():

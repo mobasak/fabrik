@@ -85,7 +85,7 @@ constraints; OPEN the file and read them. Assemble the inventory from both direc
   surface them, don't paper over them.
 
 **Parallelism — UNCONDITIONAL, every run.** Dispatch one INDEPENDENT native `general-purpose` seat per surface (schema · API/request models · frontend
-forms) or per entity — the surface count IS the seat count (D-186), all in ONE message
+forms) or per entity — the surface count is the PARTITION and `dispatch_headroom.py --units <N>` prints the seats (D-191), all in ONE message
 (recipe in **§ Subagents** below), each briefed to READ the repo itself; then merge +
 **REFUTE** any mapping you can disprove by quoting the contradicting `path:line` before recording it.
 **Never solo, never two:** a surface with fewer than three units still dispatches **THREE seats on DIFFERENT angles** over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186). Enumerate what you actually read — an empty inventory with no evidence

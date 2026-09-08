@@ -527,11 +527,11 @@ its Touches (contract violation → its diff is rejected at acceptance).
     (breadth is unit-funded, not trigger-funded; D-186 superseded the trigger precondition). **Haiku** = trivial-mechanical checks; never codes.
   - **Count discipline — the floor IS the default, per review ROUND (the exception is `Profile: small`:
     there the per-ticket layer is `/fabrik-review-scoped` and this floor runs once, at D7):** each per-ticket review round =
-    **one native Sonnet finder per independent failure-class unit of the phase diff (4–6 on a substantial
-    phase, never a token 1–2 — D-186) + exactly 1 native Opus finder** (the pool is OFF, D-181), all
-    dispatched in ONE message; every material re-review round re-runs the floor. The unit count IS the
-    seat count, so a named trigger (diff >~400 net LOC · never-route surface · a repeat-failed round)
-    means MORE units to partition, not a bigger cap. Grounding fan-outs: one unit per
+    **one native Sonnet finder AND one Haiku mechanical seat per independent failure-class unit of the
+    phase diff, plus ≥1 native Opus finder** (the pool is OFF, D-181) — `dispatch_headroom.py --units <N>`
+    prints the seats (D-191), all dispatched in ONE message; every material re-review round re-runs the
+    floor. The unit count is the PARTITION, so a named trigger (diff >~400 net LOC · never-route surface ·
+    a repeat-failed round) means MORE units to partition, not a bigger cap. Grounding fan-outs: one unit per
     independent dependency, never per file.
   - **Quota-pause terminal:** a native call failing on quota exhaustion (not a transient error) → the
     plan PAUSES: lock `status: "paused"`, Board preserved, spine stays IN-PROGRESS; resume on quota

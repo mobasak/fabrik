@@ -2785,14 +2785,14 @@ def test_the_box_budget_banner_shows_the_maximum_and_fails_soft(tmp_path, monkey
 
     class _R:
         def __init__(self, args):
-            heavy = "--heavy" in args
-            calls.append(heavy)
-            caps = {"box_cap": 12 if heavy else 23, "concurrency_cap": 17}
+            calls.append(list(args))
+            caps = {"box_cap": 23, "concurrency_cap": 17}
             if state["quota_cap"] is not None:
                 caps["quota_cap"] = state["quota_cap"]
             self.stdout = json.dumps(
                 {
                     "caps": caps,
+                    "box_caps": {"read_only": 23, "heavy": 12},
                     "quota": {
                         "ok": True,
                         "active": "a@x",
@@ -2807,7 +2807,9 @@ def test_the_box_budget_banner_shows_the_maximum_and_fails_soft(tmp_path, monkey
     html = qd._budget_probe()
     assert "read-only seats allowed now: <strong>17</strong> (box 23)" in html
     assert "heavy seats allowed now: <strong>12</strong> (box 12)" in html
-    assert "CLI cap 17" in html and "CLI cap 20" not in html and calls == [False, True]
+    assert "CLI cap 17" in html and "CLI cap 20" not in html
+    # ONE probe per refresh — the fleet round-trip inside it is the thing the module bounds
+    assert len(calls) == 1 and "--heavy" not in calls[0]
     # the quota cap binds when the payload carries it; a HOLD is 0 seats and says so
     state["quota_cap"] = 3
     html = qd._budget_probe()

@@ -1,4 +1,4 @@
-"""dispatch_headroom — the seat budget is min(units, cap, box, quota) with a floor of three.
+"""dispatch_headroom — the seat budget is min(units x angles + the Opus seat(s), cap, box, quota), floor three.
 
 The operator's full objective (2026-09-08): the maximum count of viable seats, no OOMs, the fastest
 finish, affordable tokens, the right model per role. Five constraints cannot live in prose at
@@ -11,6 +11,8 @@ from __future__ import annotations
 import importlib.util
 import json
 from pathlib import Path
+
+import pytest
 
 REPO = Path(__file__).resolve().parents[2]
 _spec = importlib.util.spec_from_file_location(
@@ -118,12 +120,18 @@ def test_seats_live_in_sibling_sessions_are_subtracted_from_the_box(tmp_path):
     assert dh.siblings(now=now, runs_dir=edge)["seats"] == 0
     r = dh.budget(12, True, BOX_OK, Q_OK, s)  # box allows 12 heavy, minus 9 live elsewhere
     assert r["caps"]["box_cap"] == 3 and r["seats"] == 3
-    assert any("minus 9 seat(s) live in 2 running record(s)" in x for x in r["reasons"])
+    assert any(
+        "minus 9 seat(s) dispatched < 5 min ago in 2 running record(s)" in x for x in r["reasons"]
+    )
 
 
 def test_the_floor_is_three_even_for_a_one_unit_surface():
     r = dh.budget(1, False, BOX_OK, Q_OK)
     assert r["seats"] == dh.FLOOR == 3  # one unit: 1 sonnet + 1 haiku + 1 opus IS the floor
+    # the floor branch is REACHABLE for a real input: one judgement unit wants 2 (opus + sonnet)
+    # and is raised to three seats on different angles (D-188)
+    r = dh.budget(1, False, BOX_OK, Q_OK, mechanical=0)
+    assert r["seats"] == 3 and any("raised to the floor" in x for x in r["reasons"])
     # no surface: no phantom floor — "SEATS: 3" beside a mix of {} recorded three seats that were
     # never dispatched (round-1 finding); zero units means zero seats and says why
     r = dh.budget(0, False, BOX_OK, Q_OK)
@@ -190,15 +198,8 @@ def test_price_multipliers_make_affordable_a_number():
     assert dh.PRICE == {"haiku": 1, "sonnet": 2, "opus": 5, "fable": 10}
     assert dh.cost({"opus": 1, "sonnet": 5}) == {"units": 15, "parts": {"opus": 5, "sonnet": 10}}
     assert dh.cost({"fable": 1, "haiku": 3})["units"] == 13
-    assert dh.cheapest_mix(6) == {"opus": 1, "sonnet": 5} and dh.cheapest_mix(1) == {"opus": 1}
-    assert dh.cheapest_mix(0) == {}
-    # role-legal, surface-aware: trivia on Haiku, risk on Opus (>=1), the rest Sonnet
-    assert dh.cheapest_mix(6, trivial=2) == {"opus": 1, "haiku": 2, "sonnet": 3}
-    assert dh.cheapest_mix(6, risky=3) == {"opus": 3, "sonnet": 3}
-    assert dh.cheapest_mix(3, trivial=5, risky=0) == {"opus": 1, "haiku": 2}  # clamped to seats
-    assert dh.cost(dh.cheapest_mix(12, trivial=11))["units"] == 16  # vs 27 for 1 opus + 11 sonnet
-    assert dh.parse_mix("opus=1, sonnet=5") == {"opus": 1, "sonnet": 5}
-    import pytest
+    # a risky unit carries THREE angles (authoritative + breadth + mechanical) and costs 8
+    assert dh.cost(dh.full_mix(1, risky=1))["units"] == 8
 
     with pytest.raises(ValueError, match="unknown model"):
         dh.cost({"gpt": 2})
@@ -244,7 +245,18 @@ def test_the_box_is_the_ceiling_and_the_units_are_the_partition():
     assert dh.trim(dh.full_mix(3), 7) == {"opus": 1, "sonnet": 3, "haiku": 3}  # nothing to cut
     assert dh.trim(dh.full_mix(3), 5) == {"opus": 1, "sonnet": 3, "haiku": 1}  # haiku first
     assert dh.trim(dh.full_mix(3), 2) == {"opus": 1, "sonnet": 1}  # then sonnet, never below 1 opus
-    assert dh.trim(dh.full_mix(3, risky=3), 2) == {"opus": 2}
+    # COVERAGE over cost (round-2 finding): the old order gave {opus: 2} here — two Opus seats on two
+    # units (cost 10) with one unit read by nobody; {opus: 1, sonnet: 1} covers the same two for 7
+    assert dh.trim(dh.full_mix(3, risky=3), 2) == {"opus": 1, "sonnet": 1}
+    assert dh.trim(dh.full_mix(3, risky=3), 5) == {
+        "opus": 2,
+        "sonnet": 3,
+    }  # extra opus before sonnet
+    # the mechanical angle is GLOBAL: `mechanical` is the number of grep-able classes, 0 for a
+    # judgement surface (grounding/adjudication) — no Haiku seat is manufactured there
+    assert dh.full_mix(4, mechanical=2) == {"opus": 1, "sonnet": 4, "haiku": 2}
+    assert dh.full_mix(4, mechanical=0) == {"opus": 1, "sonnet": 4}
+    assert dh.budget(4, False, BOX_OK, Q_OK, mechanical=0)["caps"]["wanted"] == 5
     assert dh.trim(dh.full_mix(3), 0) == {}  # the HOLD path dispatches nothing
     r = dh.budget(3, False, BOX_OK, Q_OK)
     assert r["caps"]["wanted"] == 7 and r["seats"] == 7  # not 3
@@ -305,3 +317,43 @@ def test_the_cost_line_an_agent_reads_is_graded_not_only_the_json(monkeypatch, c
     )
     assert dh.main(["--units", "3", "--mix", "sonnet=99"]) == 0
     assert "mix has 99 seat(s) but the budget is 7" in capsys.readouterr().out
+
+
+def test_siblings_reserve_but_never_starve_a_session_below_the_floor():
+    """Round-2 finding: with the 30-minute window three hub sessions each at 13 seats left the third
+    at box_cap=0 on a read-only review — colliding with D-188 and the Stop hook. A sibling's seats are
+    reserved only while too young to show in the box probe, and never below the floor the box has."""
+    sib = {"ok": True, "seats": 26, "sessions": 2, "skipped": []}
+    r = dh.budget(6, False, BOX_OK, Q_OK, sib)
+    assert r["caps"]["box_cap"] == 3 and r["seats"] == 3
+    assert any("never below the floor of 3" in x for x in r["reasons"])
+    assert dh.budget(6, False, BOX_OK, Q_OK, dict(sib, seats=13))["seats"] == 10
+    assert dh.SIBLING_FRESH_S == 5 * 60
+
+
+def test_the_cost_story_describes_the_mix_it_prints_never_the_per_unit_sentence(
+    monkeypatch, capsys
+):
+    """Round-2 finding: "one Sonnet + one Haiku seat per unit" was printed beside a TRIMMED mix; an
+    agent reading it literally dispatches past a hard cap."""
+    monkeypatch.setattr(dh, "box", lambda: BOX_OK)
+    monkeypatch.setattr(
+        dh, "siblings", lambda: {"ok": True, "seats": 0, "sessions": 0, "skipped": []}
+    )
+    monkeypatch.setattr(dh, "quota", lambda: dict(Q_OK, hottest_pct=90.0))  # the floor binds
+    assert dh.main(["--units", "5"]) == 0
+    out = capsys.readouterr().out
+    assert "SEATS: 3" in out and "TRIMMED from 11 wanted" in out
+    assert "no Haiku seat left" in out and "3 unit(s) have NO breadth seat this round" in out
+    assert "one Sonnet breadth seat per unit" not in out
+    monkeypatch.setattr(dh, "quota", lambda: Q_OK)
+    assert dh.main(["--units", "16"]) == 0
+    out = capsys.readouterr().out
+    assert "SEATS: 20" in out and "TRIMMED from 33 wanted" in out
+    assert "3 Haiku seat(s) left — each sweeps ONE grep-able class across every unit" in out
+    assert dh.main(["--units", "2", "--mechanical", "0"]) == 0
+    out = capsys.readouterr().out
+    assert "SEATS: 3" in out and "no mechanical seat (--mechanical 0" in out
+    assert dh.main(["--units", "3", "--json"]) == 0
+    d = json.loads(capsys.readouterr().out)
+    assert d["box_caps"] == {"read_only": 23, "heavy": 12} and d["full_mix"] == d["mix"]

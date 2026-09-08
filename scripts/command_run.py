@@ -979,12 +979,18 @@ _TS_RE = re.compile(
     rb'"timestamp"\s*:\s*"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?)(Z|[+-]\d\d:\d\d)?"'
 )  # the offset is optional: a naive stamp reads as local time, exactly as fromisoformat did
 _ASSISTANT_RE = re.compile(rb'"type"\s*:\s*"assistant"')
+# A native SEAT's usage never appears on an assistant line: it rides the `user` line that carries
+# the Agent tool's result (`toolUseResult.usage`, one per seat, keyed by `agentId`). The
+# assistant-only sum saw 0 % of seat spend — 255 seats, 20.3M tokens, in one hub transcript —
+# under a rule (D-191) that triples seats (review 2026-09-08, the Opus authoritative seat).
+_SEAT_RE = re.compile(rb'"toolUseResult"')
 _TOKEN_KEYS = (
     ("tok_in", "input_tokens"),
     ("tok_out", "output_tokens"),
     ("tok_cache_read", "cache_read_input_tokens"),
     ("tok_cache_create", "cache_creation_input_tokens"),
 )
+_SEAT_KEYS = tuple((f"tok_seat_{k[4:]}", src) for k, src in _TOKEN_KEYS)
 
 
 def _transcript_path(sid: str, repo_root: str) -> Path | None:
@@ -1066,7 +1072,8 @@ def _line_epoch(raw: bytes) -> float | None:
 
 def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[str, Any]:
     empty: dict[str, Any] = {k: None for k, _ in _TOKEN_KEYS}
-    empty.update({"tok_msgs": 0, "models": [], "tok_partial": False})
+    empty.update({k: None for k, _ in _SEAT_KEYS})
+    empty.update({"tok_msgs": 0, "seats_seen": 0, "models": [], "tok_partial": False})
     if path is None or start <= 0:
         return empty
     try:
@@ -1078,7 +1085,9 @@ def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[s
         # the real one (measured 2026-09-07), so the message's usage is the per-field MAXIMUM
         # over its lines — independent of write order, and right for a progressive format too.
         per_msg: dict[str, dict[str, int]] = {}
+        per_seat: dict[str, dict[str, int]] = {}
         anon = 0  # id-less lines cannot be proven repeats — each counts as its own message
+        anon_seat = 0
         models: list[str] = []
         lo, hi = start - 2.0, end + 2.0
         capped = False
@@ -1089,13 +1098,37 @@ def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[s
             e = _line_epoch(raw)
             if e is None:
                 continue
-            if e < lo or e > hi or not _ASSISTANT_RE.search(raw):
+            if e < lo or e > hi:
+                continue
+            is_seat = bool(_SEAT_RE.search(raw))
+            if not is_seat and not _ASSISTANT_RE.search(raw):
                 continue
             try:
                 d = json.loads(raw)
             except ValueError:
                 continue
-            if not isinstance(d, dict) or d.get("type") != "assistant":
+            if not isinstance(d, dict):
+                continue
+            if is_seat:
+                tr = d.get("toolUseResult")
+                su = tr.get("usage") if isinstance(tr, dict) else None
+                if isinstance(su, dict):
+                    sid_ = str(tr.get("agentId") or "")
+                    if not sid_:
+                        anon_seat += 1
+                        sid_ = f"\x00anon{anon_seat}"
+                    acc_s = per_seat.setdefault(sid_, dict.fromkeys((k for k, _ in _SEAT_KEYS), 0))
+                    for k, src in _SEAT_KEYS:
+                        v = su.get(src)
+                        if (
+                            isinstance(v, (int, float))
+                            and not isinstance(v, bool)
+                            and math.isfinite(v)
+                            and int(v) > acc_s[k]
+                        ):
+                            acc_s[k] = int(v)
+                continue
+            if d.get("type") != "assistant":
                 continue
             msg = d.get("message") or {}
             u = msg.get("usage") if isinstance(msg, dict) else None
@@ -1138,12 +1171,27 @@ def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[s
         for acc in per_msg.values():
             for k in totals:
                 totals[k] += acc[k]
+        seat_totals: dict[str, Any] = dict.fromkeys((k for k, _ in _SEAT_KEYS), 0)
+        for acc_s in per_seat.values():
+            for k in seat_totals:
+                seat_totals[k] += acc_s[k]
+        if not per_seat:  # no seat result in the window: null, never a real zero
+            seat_totals = dict.fromkeys((k for k, _ in _SEAT_KEYS), None)
         if msgs == 0:
             out0 = dict(empty)
-            out0["tok_partial"] = partial
+            out0.update(seat_totals)
+            out0.update({"seats_seen": len(per_seat), "tok_partial": partial})
             return out0
         out: dict[str, Any] = dict(totals)
-        out.update({"tok_msgs": msgs, "models": sorted(models), "tok_partial": partial})
+        out.update(seat_totals)
+        out.update(
+            {
+                "tok_msgs": msgs,
+                "seats_seen": len(per_seat),
+                "models": sorted(models),
+                "tok_partial": partial,
+            }
+        )
         return out
     except Exception:  # noqa: BLE001 — a pure accounting read: NOTHING it raises may wedge a close
         return empty
@@ -1157,7 +1205,20 @@ def _tokens_clause(tok: dict[str, Any]) -> str:
         return ""
     inp = int(tok["tok_in"]) + int(tok["tok_cache_read"]) + int(tok["tok_cache_create"])
     hit = f" ({100 * int(tok['tok_cache_read']) / inp:.0f}% cached)" if inp else ""
-    return f"tokens {_fmt_tokens(inp)} input / {_fmt_tokens(int(tok['tok_out']))} output{hit}"
+    seats = ""
+    if tok.get("tok_seat_in") is not None:
+        s_in = (
+            int(tok["tok_seat_in"])
+            + int(tok["tok_seat_cache_read"])
+            + int(tok["tok_seat_cache_create"])
+        )
+        seats = (
+            f" · seats {tok.get('seats_seen', 0)}: {_fmt_tokens(s_in)} input / "
+            f"{_fmt_tokens(int(tok['tok_seat_out']))} output"
+        )
+    return (
+        f"tokens {_fmt_tokens(inp)} input / {_fmt_tokens(int(tok['tok_out']))} output{hit}{seats}"
+    )
 
 
 def _fmt_tokens(n: int) -> str:

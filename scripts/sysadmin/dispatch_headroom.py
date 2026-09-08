@@ -43,7 +43,12 @@ FLOOR = 3
 # seat is "useful" when its brief is a distinct unit x angle; the box, the CLI cap and the quota
 # are what make it "viable". Before this, `units` capped the count: the box allowed 23 and the
 # rule dispatched 3 (measured 2026-09-08).
-ANGLES = {"breadth": "sonnet", "mechanical": "haiku"}
+# Three angles, not two: a RISKY unit also carries an authoritative Opus seat, so it has three
+# seats (cost 8) — the Opus and Sonnet briefs on it share the unit but not the angle (authoritative
+# re-derivation vs breadth). A mechanical seat is grep-shaped and therefore GLOBAL: when the budget
+# trims below one per unit, each remaining Haiku seat sweeps ONE grep-able class across every
+# unit; a grounding or adjudication unit has no grep-able angle at all (`--mechanical 0`).
+ANGLES = {"breadth": "sonnet", "mechanical": "haiku", "authoritative": "opus"}
 # CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS ?? 20 — read out of the CLI bundle v2.1.263 (core/62
 # § Parallelism (Runtime A)); a seat past it is REFUSED, not queued. A non-numeric value must not
 # kill the script at import ("fails SOFT" is the contract): it falls back to 20 with a reason.
@@ -67,7 +72,12 @@ RUNS_DIR = Path.home() / ".claude" / "state" / "command-runs"
 # a sibling's run record counts as LIVE for this purpose when it is `running` and was touched
 # within this window — an abandoned record (the Stop hook's stale bound is 12 h) must not hold
 # the box hostage
-SIBLING_FRESH_S = 30 * 60
+# A sibling's seats are RESERVED only while they are too young to show in MemAvailable/load1 —
+# a seat's tools load the box within minutes (measured 2026-09-08: median seat 201 s, n=255).
+# Past that the box probe already sees them, and subtracting them again double-counts: three hub
+# sessions each with a 13-seat round starved the third to ZERO seats on a read-only review
+# (round-2 finding, executed on the 30-minute window this replaced).
+SIBLING_FRESH_S = 5 * 60
 
 # Price multipliers, operator ruling 2026-09-08 (D-190): haiku 1x · sonnet 2x · opus 5x · fable 10x.
 # "Affordable" is a NUMBER: cost = sum(seats x multiplier) in haiku-units. Breadth on Sonnet costs 2
@@ -86,7 +96,7 @@ TIERS = {
     ),
     "opus": "the authoritative pass (>=1 per review) + design-heavy never-route coding",
     "sonnet": "breadth — one seat per independent unit; default never-route coder",
-    "haiku": "trivial-mechanical checks (grep-able classes, format, inventory); never codes",
+    "haiku": "the mechanical seat (grep-able classes, format, inventory) — one per unit, class-wide when trimmed, none on a judgement surface; never codes",
 }
 
 
@@ -194,41 +204,36 @@ def cost(mix: dict[str, int]) -> dict:
     return {"units": sum(parts.values()), "parts": parts}
 
 
-def full_mix(units: int, risky: int = 0) -> dict[str, int]:
-    """The MAXIMUM useful mix for a surface of `units`: one Sonnet breadth seat and one Haiku
-    mechanical seat per unit, plus the authoritative Opus seats — one per risky unit, at least one.
-    Every seat is a distinct unit x angle brief; the caller trims it to the budget with `trim()`."""
+def full_mix(units: int, risky: int = 0, mechanical: int | None = None) -> dict[str, int]:
+    """The MAXIMUM useful mix for a surface of `units`: one Sonnet breadth seat per unit, the
+    authoritative Opus seats (one per risky unit, at least one), and the Haiku mechanical seats —
+    one per unit by default, or `mechanical` of them: the count of grep-able classes the surface
+    HAS (0 for a grounding/adjudication surface — a judgement unit has no mechanical angle, and a
+    Haiku seat there returns a claim the orchestrator must refute; round-2 finding). Every seat is
+    a distinct unit x angle brief; the caller trims it to the budget with `trim()`."""
     if units <= 0:
         return {}
     opus = max(1, min(risky, units))
-    return {"opus": opus, "sonnet": units, "haiku": units}
+    haiku = units if mechanical is None else max(0, mechanical)
+    return {k: v for k, v in (("opus", opus), ("sonnet", units), ("haiku", haiku)) if v > 0}
 
 
 def trim(mix: dict[str, int], seats: int) -> dict[str, int]:
-    """Cut a full mix down to `seats`, cheapest angle first: Haiku, then Sonnet, never below one
-    Opus. The result is what the box, the cap and the quota actually allow."""
+    """Cut a full mix down to `seats` for maximum UNIT COVERAGE per haiku-unit: Haiku first (grep-
+    shaped, so the survivors sweep class-wide), then the EXTRA Opus seats (a risky unit keeps its
+    Sonnet seat — same unit, cheaper), then Sonnet, never below one Opus. The first draft shed
+    Sonnet before Opus: a 3-unit surface at 2 seats became two Opus seats (cost 10) with one unit
+    read by nobody, where {opus 1, sonnet 1} covers the same units for 7 (round-2 finding)."""
     if seats <= 0:
         return {}
     out = dict(mix)
-    for k in ("haiku", "sonnet"):
-        while sum(out.values()) > seats and out.get(k, 0) > 0:
-            out[k] -= 1
+    while sum(out.values()) > seats and out.get("haiku", 0) > 0:
+        out["haiku"] -= 1
     while sum(out.values()) > seats and out.get("opus", 0) > 1:
         out["opus"] -= 1
+    while sum(out.values()) > seats and out.get("sonnet", 0) > 0:
+        out["sonnet"] -= 1
     return {k: v for k, v in out.items() if v > 0}
-
-
-def cheapest_mix(seats: int, trivial: int = 0, risky: int = 0) -> dict[str, int]:
-    """The cheapest ROLE-LEGAL mix for exactly N seats (the `--mix`-less FLOOR case, or a caller
-    that wants the minimum): `risky` units on Opus (at least one), `trivial` on Haiku, the rest
-    Sonnet. NOT a minimum in the D-191 sense — `full_mix` is the default now; this is what a
-    hard-capped round falls back to."""
-    if seats <= 0:
-        return {}
-    opus = max(1, min(risky, seats))
-    haiku = max(0, min(trivial, seats - opus))
-    sonnet = seats - opus - haiku
-    return {k: v for k, v in (("opus", opus), ("haiku", haiku), ("sonnet", sonnet)) if v > 0}
 
 
 def parse_mix(text: str) -> dict[str, int]:
@@ -245,7 +250,13 @@ def parse_mix(text: str) -> dict[str, int]:
 
 
 def budget(
-    units: int, heavy: bool, b: dict, q: dict, s: dict | None = None, risky: int = 0
+    units: int,
+    heavy: bool,
+    b: dict,
+    q: dict,
+    s: dict | None = None,
+    risky: int = 0,
+    mechanical: int | None = None,
 ) -> dict:
     s = s or {"ok": True, "seats": 0, "sessions": 0, "skipped": []}
     reasons: list[str] = []
@@ -253,7 +264,7 @@ def budget(
         reasons.append(CAP_NOTE)
     # D-191: the units are the partition, not the cap — the WANTED count is one seat per unit per
     # angle plus the authoritative seats; the box, the CLI cap and the quota are the caps
-    wanted = sum(full_mix(max(units, 0), risky).values())
+    wanted = sum(full_mix(max(units, 0), risky, mechanical).values())
     caps = {"wanted": wanted, "concurrency_cap": CONCURRENCY_CAP}
     if risky > units > 0:
         reasons.append(
@@ -268,14 +279,17 @@ def budget(
         by_mem = int(mem // per_seat)
         by_cpu = max(int(b["cores"] - math.ceil(b["load1"])), 0)
         taken = int(s.get("seats") or 0)
-        cap = max(min(by_mem, by_cpu) - taken, 0)
+        phys = min(by_mem, by_cpu)
+        # siblings RESERVE, they never starve: a session always gets the floor the box physically
+        # has room for — three sessions each at 13 seats left the third at 0 (round-2 finding)
+        cap = max(phys - taken, min(phys, FLOOR))
         caps["box_cap"] = cap
         reasons.append(
             f"box allows {cap} {'heavy' if heavy else 'read-only'} seats "
             f"(mem {mem:.1f}GB/{per_seat}GB={by_mem}, cores {b['cores']}-load {b['load1']:.1f}={by_cpu}"
             + (
-                f", minus {taken} seat(s) live in {s.get('sessions')} running record(s) — "
-                f"this session's own included if it recorded a round, which is the safe side"
+                f", minus {taken} seat(s) dispatched < {SIBLING_FRESH_S // 60} min ago in "
+                f"{s.get('sessions')} running record(s), never below the floor of {FLOOR}"
                 if taken
                 else ""
             )
@@ -352,6 +366,44 @@ def budget(
     return {"seats": seats, "caps": caps, "reasons": reasons}
 
 
+def _mix_story(a: argparse.Namespace, mix: dict[str, int], full: dict[str, int]) -> str:
+    """The sentence beside COST must describe THIS mix — the first draft glued "one Sonnet + one
+    Haiku seat per unit" to a mix the budget had already trimmed, and an agent reading it literally
+    would dispatch past a hard cap (round-2 finding)."""
+    tail = " — D-190: haiku 1x · sonnet 2x · opus 5x · fable 10x"
+    if a.mix:
+        return tail
+    haiku = mix.get("haiku", 0)
+    if mix == full:
+        if not haiku:
+            mech = (
+                "; no mechanical seat (--mechanical 0: a judgement surface has no grep-able angle)"
+            )
+        elif haiku == a.units:
+            mech = f", {haiku} Haiku mechanical seat(s) — one per unit"
+        else:
+            mech = f", {haiku} Haiku mechanical seat(s) — one per grep-able class, each swept across every unit"
+        return (
+            f" — the MAXIMUM useful mix for {a.units} unit(s): one Sonnet breadth seat per unit, "
+            f"the Opus authoritative seat(s) (--risky N: one per risky unit){mech}; dispatch ALL of "
+            "it in ONE message, each seat a distinct unit x angle brief" + tail
+        )
+    uncovered = max(a.units - mix.get("sonnet", 0), 0)
+    left = (
+        f": {haiku} Haiku seat(s) left — each sweeps ONE grep-able class across every unit "
+        "(class-wide, not per unit)"
+        if haiku
+        else ": no Haiku seat left — the mechanical classes wait for the next round"
+    )
+    gap = (
+        f"; {uncovered} unit(s) have NO breadth seat this round — re-sweep them next round, never "
+        "dispatch past the cap"
+        if uncovered
+        else ""
+    )
+    return f" — TRIMMED from {sum(full.values())} wanted to the budget{left}{gap}{tail}"
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     # REQUIRED: a default of FLOOR let a caller who forgot the flag read a plausible "SEATS: 3" as a
@@ -367,18 +419,26 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--risky", type=int, default=0, help="units that are auth/schema/secrets (Opus)"
     )
+    ap.add_argument(
+        "--mechanical",
+        type=int,
+        default=None,
+        help="Haiku seats wanted: the grep-able classes the surface HAS (default: one per unit; "
+        "0 for a grounding/adjudication surface — a judgement unit has no mechanical angle)",
+    )
     a = ap.parse_args(argv)
     b, q, s = box(), quota(), siblings()
-    r = budget(a.units, a.heavy, b, q, s, a.risky)
+    r = budget(a.units, a.heavy, b, q, s, a.risky, a.mechanical)
+    full = full_mix(a.units, a.risky, a.mechanical)
     try:
         # the MAXIMUM useful mix, trimmed to what is viable — never the minimum by default
-        mix = parse_mix(a.mix) if a.mix else trim(full_mix(a.units, a.risky), r["seats"])
+        mix = parse_mix(a.mix) if a.mix else trim(full, r["seats"])
         priced = cost(mix)
     except ValueError as exc:
         print(f"dispatch_headroom.py: error: {exc}", file=sys.stderr)
         return 2
-    # the adjudicator is ONE seat per run on Fable (10x) that `cheapest_mix` never returns — a
-    # COST that omitted it understated every run by 10 units, always in the cheap direction
+    # the adjudicator is ONE seat per run on Fable (10x) that no mix returns — a COST that
+    # omitted it understated every run by 10 units, always in the cheap direction
     adjudicator = {"model": "fable", "units": PRICE["fable"], "counted_in_seats": False}
     mix_seats = sum(mix.values())
     if mix_seats != r["seats"]:
@@ -386,6 +446,12 @@ def main(argv: list[str] | None = None) -> int:
             f"mix has {mix_seats} seat(s) but the budget is {r['seats']} — reprice or resize; "
             "SEATS and COST must describe the same round"
         )
+    # both box bounds in one probe, so a caller that wants the pair (the board banner) runs this
+    # script — and its fleet round-trip — ONCE, not twice
+    box_caps = {
+        "read_only": budget(a.units, False, b, q, s, a.risky, a.mechanical)["caps"].get("box_cap"),
+        "heavy": budget(a.units, True, b, q, s, a.risky, a.mechanical)["caps"].get("box_cap"),
+    }
     r.update(
         box=b,
         quota=q,
@@ -395,8 +461,10 @@ def main(argv: list[str] | None = None) -> int:
         heavy=a.heavy,
         price=PRICE,
         mix=mix,
+        full_mix=full,
         cost=priced,
         adjudicator=adjudicator,
+        box_caps=box_caps,
     )
     if a.json:
         print(json.dumps(r, indent=2, default=str))
@@ -424,18 +492,7 @@ def main(argv: list[str] | None = None) -> int:
         )
     if mix:
         shown = " + ".join(f"{n} {k} x{PRICE[k]}" for k, n in mix.items())
-        print(
-            f"  COST: {priced['units']} haiku-units for {shown}"
-            + (
-                ""
-                if a.mix
-                else f" — the MAXIMUM useful mix for {a.units} unit(s): one Sonnet breadth + one Haiku "
-                "mechanical seat per unit, plus the Opus authoritative seat(s) (--risky N adds one per "
-                "risky unit), trimmed to the budget cheapest-angle first; dispatch ALL of it in ONE "
-                "message, each seat a distinct unit x angle brief"
-            )
-            + " — D-190: haiku 1x · sonnet 2x · opus 5x · fable 10x"
-        )
+        print(f"  COST: {priced['units']} haiku-units for {shown}{_mix_story(a, mix, full)}")
         print(
             f"  + {adjudicator['units']} for the orchestrator/adjudicator on fable x10 — one per run, "
             "not in the seat total. RELATIVE and dimensionless: assumes equal tokens per seat, and "

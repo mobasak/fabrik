@@ -9,7 +9,7 @@
 #   `claude_rotate.py --status --json` makes live API probes for fresh-token dirs. A */5 cron
 #   would probe forever whether or not anyone is looking, and a self-refreshing browser tab
 #   would probe on every reload. So the page is regenerated ON DEMAND, at most once per
-#   QUOTA_DASH_MAX_AGE_S (default 240s): open tabs stay current, a closed tab costs nothing,
+#   QUOTA_DASH_MAX_AGE_S (default 20s): open tabs stay current, a closed tab costs nothing,
 #   and refresh-spamming the page cannot multiply probe volume. The rendered page always
 #   states the age of its own data — a stale render is visible, never silent.
 #
@@ -1846,32 +1846,33 @@ _budget_cache: dict = {"ts": 0.0, "html": "", "thread": None}
 
 
 def _budget_probe() -> str:
-    """The slow half of the banner: two `dispatch_headroom.py --json` runs (read-only, heavy), each
-    of which shells out to the fleet quota probe. NEVER on a request thread — see `_budget_banner`.
-    Renders what the box AND the quota allow right now (D-191 — the operator wants the maximum
-    visible); a fleet HOLD says "dispatch nothing" instead of the box number beside `hold=True`
-    (author-blind round 1, 2026-09-08). Fail-soft to a one-line reason: no panel may break the board."""
+    """The slow half of the banner: ONE `dispatch_headroom.py --json` run — its `box_caps` carries the
+    read-only and the heavy bound from the same box probe, so the fleet quota round-trip happens once
+    per refresh, not twice (round-2 finding: the banner tripled probe volume on a module whose header
+    exists to bound it). NEVER on a request thread — see `_budget_banner`. Renders what the box AND
+    the quota allow right now (D-191 — the operator wants the maximum visible); a fleet HOLD says
+    "dispatch nothing" instead of the box number beside `hold=True`. Fail-soft to a one-line reason:
+    no panel may break the board."""
     script = _FABRIK_ROOT / "scripts" / "sysadmin" / "dispatch_headroom.py"
     try:
+        args = [sys.executable, str(script), "--units", "1", "--json"]
+        d = json.loads(
+            subprocess.run(args, capture_output=True, text=True, timeout=45, check=True).stdout
+        )
+        caps = d.get("caps") or {}
+        q = d.get("quota") or {}
+        box_caps = d.get("box_caps") or {}
+        cli = caps.get("concurrency_cap", "?")  # read from the payload, never re-hardcoded
         parts = []
-        q: dict = {}
-        cli: object = "?"
-        for heavy in (False, True):
-            args = [sys.executable, str(script), "--units", "1", "--json"] + (
-                ["--heavy"] if heavy else []
+        for label, key in (("read-only", "read_only"), ("heavy", "heavy")):
+            box_cap = box_caps.get(key, caps.get("box_cap"))
+            bound = [box_cap, caps.get("concurrency_cap")] + (
+                [caps["quota_cap"]] if "quota_cap" in caps else []
             )
-            d = json.loads(
-                subprocess.run(args, capture_output=True, text=True, timeout=45, check=True).stdout
-            )
-            caps = d.get("caps") or {}
-            q = d.get("quota") or {}
-            cli = caps.get("concurrency_cap", cli)  # read from the payload, never re-hardcoded
-            bound = [caps.get(k) for k in ("box_cap", "concurrency_cap", "quota_cap") if k in caps]
-            allowed = 0 if q.get("hold") else min(int(x) for x in bound)
-            label = "heavy" if heavy else "read-only"
+            allowed = 0 if q.get("hold") else min(int(x) for x in bound if x is not None)
             parts.append(
                 f"{label} seats allowed now: <strong>{allowed}</strong> "
-                f"(box {escape(str(caps.get('box_cap', '?')))}"
+                f"(box {escape(str(box_cap if box_cap is not None else '?'))}"
                 + (f", quota {escape(str(caps['quota_cap']))}" if "quota_cap" in caps else "")
                 + ")"
             )

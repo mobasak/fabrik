@@ -3,6 +3,8 @@ description: Two-mode synced-file-defect flow (trade-intelligence 2026-08-05/06 
 argument-hint: "[PROJECT mode: omit — triggered by the synced-file defect itself; HUB mode: the proposal path(s) to review]"
 ---
 
+> **⚠️ POOL OFF — D-181 (operator, 2026-09-07).** The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable). Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy. **Dispatch step (D-191):** run `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <N> [--heavy] [--risky <R>]` and dispatch exactly the `SEATS:` and mix it prints, all in ONE message, each seat a distinct unit × angle brief with its model token — the box is the ceiling, the units only the partition.
+
 Canonize the trade-intelligence upstream-proposal pattern (read-only exemplars:
 `/opt/trade-intelligence/docs/reference/upstream-proposals/2026-08-05-check-structure-and-index-false-positives.md`,
 `2026-08-05-ocoron-design-system-contrast-table.md`, `2026-08-06-structure-check-two-remaining-cases.md`) and
@@ -199,7 +201,7 @@ Before touching a single file, re-verify EVERY claim in the proposal independent
 re-read the cited code at its CURRENT state (never the proposal's snapshot of it), re-run any command the
 proposal cites. **Claims are independent units, so this step FANS OUT: one native `fabrik-reviewer` seat per
 claim (or per proposal file when several arrive together), all dispatched in a single message — the claim
-count is the seat count, never a token one (D-186). The verdict, the disposition and the single reply stay
+count is the PARTITION and `dispatch_headroom.py --units <claims>` prints the seats, never a token one (D-191). The verdict, the disposition and the single reply stay
 YOURS; the seats re-derive, they do not decide.** This is the standing rule that governs synced-rule authorship generally, applied here verbatim:
 *"a peer AI's external technical claim … is an unverified external fact; live-ground the primary source before
 writing it into a canonical synced rule (fleet blast radius) … the justification must be true"* — a project

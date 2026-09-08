@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — D-191 round 2: the mechanical angle is global, trim for coverage, siblings never starve, the ledger sees seat spend (D-192, 2026-09-08)
+
+- The Opus authoritative seat's findings, executed not argued: a Haiku seat was manufactured for every unit
+  including grounding/adjudication units that have no grep-able angle — `--mechanical <M>` names the classes
+  the surface has (0 for a judgement surface; the assembler's floors say so), and below one per unit each
+  Haiku seat sweeps one class across every unit; `trim` shed Sonnet before Opus (a 3-unit surface at 2 seats
+  became two Opus seats with one unit read by nobody) — now Haiku, extra Opus, then Sonnet; the sibling
+  reservation subtracted seats the box probe already saw and starved the third of three hub sessions to
+  zero — 5-minute window, never below the floor; `cheapest_mix`/`--trivial` removed; the COST line says
+  TRIMMED when it is and names the units without a breadth seat; the board banner runs ONE probe per refresh.
+- `command_run.py`'s token sum skipped every seat: seat usage lives on `toolUseResult.usage` lines, not on
+  assistant lines, so the ledger saw 0 % of seat spend under a rule that triples seats. `tok_seat_*` and
+  `seats_seen` now ride every row (fleet-synced CORE_SCRIPT; forced sync).
+- `assemble_commands.py --check` grades D-191: a rendered command that fans out without the dispatch step is
+  drift. The three that had none (`design-review`, `fabrik-rivals`, `fabrik-upstream`) carry the banner, and
+  the twelve point-of-use sentences still reading "the unit count IS the seat count (D-186)" now say the
+  partition is the unit count and the script prints the seats.
+- Recorded, not hidden: 3 → 7 seats costs +31 % wall-clock per round (n=255 seats), seats are ~0.1 % of a
+  run's tokens, ~30M tokens per quota point — D-191 is paid in per-round wall-clock, not affordability.
+
 ### Fixed — D-191 round 1: one statement of the sizing rule, an honest board banner, no phantom seats (2026-09-08)
 
 - Eleven author-blind seats (1 Opus + 5 Sonnet + 5 Haiku — the number the script printed for the change's five
