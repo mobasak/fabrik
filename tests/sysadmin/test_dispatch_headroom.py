@@ -85,8 +85,37 @@ def test_seats_live_in_sibling_sessions_are_subtracted_from_the_box(tmp_path):
     )
     (tmp_path / "done.json").write_text(json.dumps({"state": "done", "rounds": [{"seats": 9}]}))
     (tmp_path / "junk.json").write_text("{not json")
+    # malformed FIELDS are skipped and named too — the first draft guarded only the JSON parse,
+    # and a record with seats "abc" crashed the whole CLI (round-1 finding)
+    (tmp_path / "bad.json").write_text(
+        json.dumps({"state": "running", "updated_ts": now, "rounds": [{"seats": "abc"}]})
+    )
+    (tmp_path / "shape.json").write_text(
+        json.dumps({"state": "running", "updated_ts": now, "rounds": ["not a dict"]})
+    )
     s = dh.siblings(now=now, runs_dir=tmp_path)
-    assert s == {"ok": True, "seats": 9, "sessions": 2, "skipped": ["junk.json"]}
+    assert s["ok"] and s["seats"] == 9 and s["sessions"] == 2
+    assert sorted(s["skipped"]) == ["bad.json", "junk.json", "shape.json"]
+    # the exact freshness edge: a record touched precisely SIBLING_FRESH_S ago still counts, one
+    # second older does not (a `>=` slip here would drop a live sibling at the boundary)
+    edge = tmp_path / "edge"
+    edge.mkdir()
+    (edge / "x.json").write_text(
+        json.dumps(
+            {"state": "running", "updated_ts": now - dh.SIBLING_FRESH_S, "rounds": [{"seats": 2}]}
+        )
+    )
+    assert dh.siblings(now=now, runs_dir=edge)["seats"] == 2
+    (edge / "x.json").write_text(
+        json.dumps(
+            {
+                "state": "running",
+                "updated_ts": now - dh.SIBLING_FRESH_S - 1,
+                "rounds": [{"seats": 2}],
+            }
+        )
+    )
+    assert dh.siblings(now=now, runs_dir=edge)["seats"] == 0
     r = dh.budget(12, True, BOX_OK, Q_OK, s)  # box allows 12 heavy, minus 9 live elsewhere
     assert r["caps"]["box_cap"] == 3 and r["seats"] == 3
     assert any("minus 9 seat(s) live in 2 running record(s)" in x for x in r["reasons"])
@@ -95,8 +124,13 @@ def test_seats_live_in_sibling_sessions_are_subtracted_from_the_box(tmp_path):
 def test_the_floor_is_three_even_for_a_one_unit_surface():
     r = dh.budget(1, False, BOX_OK, Q_OK)
     assert r["seats"] == dh.FLOOR == 3  # one unit: 1 sonnet + 1 haiku + 1 opus IS the floor
+    # no surface: no phantom floor — "SEATS: 3" beside a mix of {} recorded three seats that were
+    # never dispatched (round-1 finding); zero units means zero seats and says why
     r = dh.budget(0, False, BOX_OK, Q_OK)
-    assert r["seats"] == 3 and any("raised to the floor" in x for x in r["reasons"])
+    assert r["seats"] == 0 and any("nothing to partition" in x for x in r["reasons"])
+    # risky beyond the surface is clamped AND named, like every other clamp in the file
+    r = dh.budget(2, False, BOX_OK, Q_OK, risky=5)
+    assert r["caps"]["wanted"] == 6 and any("risky=5 exceeds units=2" in x for x in r["reasons"])
 
 
 def test_heavy_seats_are_bounded_by_memory_and_cpu_never_the_unit_count_alone():
@@ -162,7 +196,7 @@ def test_price_multipliers_make_affordable_a_number():
     assert dh.cheapest_mix(6, trivial=2) == {"opus": 1, "haiku": 2, "sonnet": 3}
     assert dh.cheapest_mix(6, risky=3) == {"opus": 3, "sonnet": 3}
     assert dh.cheapest_mix(3, trivial=5, risky=0) == {"opus": 1, "haiku": 2}  # clamped to seats
-    assert dh.cost(dh.cheapest_mix(12, trivial=11))["units"] == 16  # vs 27 all-Sonnet
+    assert dh.cost(dh.cheapest_mix(12, trivial=11))["units"] == 16  # vs 27 for 1 opus + 11 sonnet
     assert dh.parse_mix("opus=1, sonnet=5") == {"opus": 1, "sonnet": 5}
     import pytest
 

@@ -285,6 +285,7 @@ files and exit — useful for a scripted refresh without a browser).
 
 | Variable | Default | Purpose |
 |---|---|---|
+| `QUOTA_DASH_BUDGET` | `1` | `0` disables the box-budget banner above the commands table (it shells out to `dispatch_headroom.py`, which probes the fleet) — set in the test suite, never on the served board |
 | `QUOTA_DASH_PORT` | `5051` | listen port (PORTS.md: WSL Python range) |
 | `QUOTA_DASH_HOST` | `127.0.0.1` | bind address — loopback by design |
 | `QUOTA_DASH_MAX_AGE_S` | `20` | regeneration floor (probe-volume bound) |

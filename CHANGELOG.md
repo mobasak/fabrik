@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — D-191 round 1: one statement of the sizing rule, an honest board banner, no phantom seats (2026-09-08)
+
+- Eleven author-blind seats (1 Opus + 5 Sonnet + 5 Haiku — the number the script printed for the change's five
+  units) over pinned copies of D-191. Closed in the same run: the D-186 sentence "ONE Sonnet seat per unit …
+  4–8 seats" survived one clause before the D-191 sentence that supersedes it in core/62, both `CLAUDE.md`
+  and the command fragment, and "trivia belongs on Haiku (`--trivial N`)" described a flag the script no
+  longer has — every file now states the rule once (Haiku is every unit's mechanical seat); the fragment's
+  formula was rewritten to what `budget()` runs and the 12 commands that include it lost their duplicate
+  banner copy (rendered: 27 once, 0 twice); the POOL-OFF blockquote sat INSIDE a bash fence in two commands
+  and inside the generated-artifact templates of two more — moved out; `/fabrik-review-scoped`'s floor is
+  now the script's own 1-unit answer instead of a second recipe; `/fabrik-user-test` says what a Haiku seat
+  does with a flow-bundle (the mechanical gate, never a journey); the D-186 tripwire is re-based at D-191.
+- `dispatch_headroom.py`: `--units 0` printed `SEATS: 3` beside an empty mix (0 now, with the reason); a
+  malformed sibling run record (non-numeric `seats`) crashed the CLI that promises to fail soft; `risky >
+  units` was clamped silently; `--trivial` removed with its dead branch.
+- The board banner printed the BOX number as "seats allowed now" even beside `hold=True`, ran two 90 s
+  probes synchronously on the request path (`switch_account`, `_fresh_html`'s pointer-moved branch — the
+  2026-08-18 page-hang class) and hardcoded "CLI cap 20": it now shows the min over every cap in the
+  payload, 0 + "FLEET HOLD" on a hold, the CLI cap from the payload, and refreshes on a daemon thread
+  behind a locked 60 s cache; `QUOTA_DASH_BUDGET` documented.
+
 ### Changed — the box is the ceiling, units are the partition: every fan-out dispatches the maximum (D-191, 2026-09-08)
 
 - The operator stated the directive a third time; each earlier answer had left the UNIT count as the cap, so the

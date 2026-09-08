@@ -2772,43 +2772,63 @@ def test_the_seat_rule_reads_the_real_corpus_correctly(tmp_path, monkeypatch):
 
 
 def test_the_box_budget_banner_shows_the_maximum_and_fails_soft(tmp_path, monkeypatch):
-    """D-191: the operator wants the MAXIMUM visible on the board, not the rule. The banner runs
-    dispatch_headroom.py --json (read-only and heavy) and prints what the box allows now; when the
-    probe fails it prints the reason, never an empty table head; QUOTA_DASH_BUDGET=0 disables it."""
+    """D-191: the operator wants the MAXIMUM visible on the board, not the rule. The probe runs
+    dispatch_headroom.py --json (read-only and heavy) and prints what the box AND quota allow now —
+    the min over every cap in the payload, the CLI cap read from it, and 0 with a loud HOLD line
+    when the fleet is held (round 1: the box number printed beside `hold=True`); a failed probe
+    prints the reason, never an empty table head; QUOTA_DASH_BUDGET=0 disables it."""
     qd = _load(tmp_path, monkeypatch)
     monkeypatch.setenv("QUOTA_DASH_BUDGET", "1")
-    qd._budget_cache.update(ts=0.0, html="")
+    qd._budget_cache.update(ts=0.0, html="", thread=None)
     calls = []
+    state = {"hold": False, "quota_cap": None}
 
     class _R:
         def __init__(self, args):
             heavy = "--heavy" in args
             calls.append(heavy)
+            caps = {"box_cap": 12 if heavy else 23, "concurrency_cap": 17}
+            if state["quota_cap"] is not None:
+                caps["quota_cap"] = state["quota_cap"]
             self.stdout = json.dumps(
                 {
-                    "caps": {"box_cap": 12 if heavy else 23},
+                    "caps": caps,
                     "quota": {
                         "ok": True,
                         "active": "a@x",
                         "hottest_pct": 7.0,
                         "eligible": 1,
-                        "hold": False,
+                        "hold": state["hold"],
                     },
                 }
             )
 
     monkeypatch.setattr(qd.subprocess, "run", lambda args, **kw: _R(args))
-    html = qd._budget_banner()
-    assert "read-only seats allowed now: <strong>23</strong>" in html
-    assert "heavy seats allowed now: <strong>12</strong>" in html and "CLI cap 20" in html
-    assert calls == [False, True]
-    qd._budget_cache.update(ts=0.0, html="")
+    html = qd._budget_probe()
+    assert "read-only seats allowed now: <strong>17</strong> (box 23)" in html
+    assert "heavy seats allowed now: <strong>12</strong> (box 12)" in html
+    assert "CLI cap 17" in html and "CLI cap 20" not in html and calls == [False, True]
+    # the quota cap binds when the payload carries it; a HOLD is 0 seats and says so
+    state["quota_cap"] = 3
+    html = qd._budget_probe()
+    assert "read-only seats allowed now: <strong>3</strong> (box 23, quota 3)" in html
+    state["hold"] = True
+    html = qd._budget_probe()
+    assert "<strong>0</strong>" in html and "FLEET HOLD" in html and "at 7.0%" not in html
 
     def boom(args, **kw):
         raise OSError("probe down")
 
     monkeypatch.setattr(qd.subprocess, "run", boom)
-    assert "Box budget unavailable: probe down" in qd._budget_banner()
+    assert "Box budget unavailable: probe down" in qd._budget_probe()
+    # the banner never blocks a render on the probe: a stale cache returns a placeholder and
+    # starts ONE background refresh; the next render reads what it computed
+    qd._budget_cache.update(ts=0.0, html="", thread=None)
+    monkeypatch.setattr(qd.subprocess, "run", lambda args, **kw: _R(args))
+    first = qd._budget_banner()
+    assert "computing" in first
+    qd._budget_cache["thread"].join(timeout=10)
+    assert "seats allowed now" in qd._budget_banner()
     monkeypatch.setenv("QUOTA_DASH_BUDGET", "0")
     assert qd._budget_banner() == ""
 

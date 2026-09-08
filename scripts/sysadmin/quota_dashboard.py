@@ -1841,50 +1841,80 @@ def _tiers_cell(tiers: tuple[str, ...]) -> str:
 
 
 _BUDGET_TTL_S = 60
-_budget_cache: dict = {"ts": 0.0, "html": ""}
+_budget_lock = threading.Lock()
+_budget_cache: dict = {"ts": 0.0, "html": "", "thread": None}
 
 
-def _budget_banner() -> str:
-    """One line above the commands table: what the box allows RIGHT NOW (D-191 — the operator wants
-    the maximum visible, not the rule). `dispatch_headroom.py --json` for a 1-unit surface, read-
-    only and heavy, cached 60 s; fail-soft to a one-line reason."""
-    if os.getenv("QUOTA_DASH_BUDGET", "1") == "0":
-        return ""  # a test or a headless render that must not shell out to the fleet probe
-    now = time.time()
-    if now - _budget_cache["ts"] < _BUDGET_TTL_S and _budget_cache["html"]:
-        return _budget_cache["html"]
+def _budget_probe() -> str:
+    """The slow half of the banner: two `dispatch_headroom.py --json` runs (read-only, heavy), each
+    of which shells out to the fleet quota probe. NEVER on a request thread — see `_budget_banner`.
+    Renders what the box AND the quota allow right now (D-191 — the operator wants the maximum
+    visible); a fleet HOLD says "dispatch nothing" instead of the box number beside `hold=True`
+    (author-blind round 1, 2026-09-08). Fail-soft to a one-line reason: no panel may break the board."""
     script = _FABRIK_ROOT / "scripts" / "sysadmin" / "dispatch_headroom.py"
     try:
         parts = []
+        q: dict = {}
+        cli: object = "?"
         for heavy in (False, True):
             args = [sys.executable, str(script), "--units", "1", "--json"] + (
                 ["--heavy"] if heavy else []
             )
             d = json.loads(
-                subprocess.run(args, capture_output=True, text=True, timeout=90, check=True).stdout
+                subprocess.run(args, capture_output=True, text=True, timeout=45, check=True).stdout
             )
             caps = d.get("caps") or {}
-            parts.append(
-                f"{'heavy' if heavy else 'read-only'} seats allowed now: <strong>{caps.get('box_cap', '?')}</strong>"
-            )
             q = d.get("quota") or {}
-        quota = (
-            f"quota: active {escape(str(q.get('active')))} at {q.get('hottest_pct')}%, "
-            f"{q.get('eligible')} eligible standby(s), hold={q.get('hold')}"
-            if q.get("ok")
-            else "quota: unknown"
-        )
+            cli = caps.get("concurrency_cap", cli)  # read from the payload, never re-hardcoded
+            bound = [caps.get(k) for k in ("box_cap", "concurrency_cap", "quota_cap") if k in caps]
+            allowed = 0 if q.get("hold") else min(int(x) for x in bound)
+            label = "heavy" if heavy else "read-only"
+            parts.append(
+                f"{label} seats allowed now: <strong>{allowed}</strong> "
+                f"(box {escape(str(caps.get('box_cap', '?')))}"
+                + (f", quota {escape(str(caps['quota_cap']))}" if "quota_cap" in caps else "")
+                + ")"
+            )
+        if q.get("hold"):
+            quota = "<strong>FLEET HOLD — dispatch nothing until relief</strong>"
+        elif q.get("ok"):
+            quota = (
+                f"quota: active {escape(str(q.get('active')))} at {q.get('hottest_pct')}%, "
+                f"{q.get('eligible')} eligible standby(s)"
+            )
+        else:
+            quota = "quota: unknown"
         html = (
             '<p class="muted">Box budget (D-189/D-191, `dispatch_headroom.py`): '
             + " · ".join(parts)
-            + f" · CLI cap 20 · {quota}. A command's units are the partition; the box is the ceiling — "
-            "every fan-out dispatches the SEATS the script prints, one Sonnet + one Haiku seat per unit "
-            "plus the Opus authoritative seat(s).</p>"
+            + f" · CLI cap {escape(str(cli))} · {quota}. A command's units are the partition; the box "
+            "is the ceiling — every fan-out dispatches the SEATS the script prints, one Sonnet + one "
+            "Haiku seat per unit plus the Opus authoritative seat(s).</p>"
         )
-    except (OSError, subprocess.SubprocessError, ValueError) as exc:
+    except Exception as exc:  # noqa: BLE001 — a panel may never break the board
         html = f'<p class="muted">Box budget unavailable: {escape(str(exc))}</p>'
-    _budget_cache.update(ts=now, html=html)
+    with _budget_lock:
+        _budget_cache.update(ts=time.time(), html=html)
     return html
+
+
+def _budget_banner() -> str:
+    """One line above the commands table, served from a 60 s cache. A stale cache starts ONE
+    background refresh and returns what it has (or a placeholder) — the probe is two subprocesses
+    with a fleet round-trip each, and `generate()` is reachable synchronously from a request
+    (`_fresh_html`'s pointer-moved branch, `switch_account`), the exact page-hang `_fresh_html`'s
+    docstring records as fixed on 2026-08-18. `QUOTA_DASH_BUDGET=0` disables it (tests)."""
+    if os.getenv("QUOTA_DASH_BUDGET", "1") == "0":
+        return ""  # a test or a headless render that must not shell out to the fleet probe
+    with _budget_lock:
+        fresh = time.time() - _budget_cache["ts"] < _BUDGET_TTL_S and _budget_cache["html"]
+        html = _budget_cache["html"]
+        th = _budget_cache["thread"]
+        if not fresh and not (th and th.is_alive()):
+            th = threading.Thread(target=_budget_probe, name="budget-banner", daemon=True)
+            _budget_cache["thread"] = th
+            th.start()
+    return html or '<p class="muted">Box budget: computing (dispatch_headroom.py) …</p>'
 
 
 def _commands_table(rows: list[dict[str, str]]) -> str:

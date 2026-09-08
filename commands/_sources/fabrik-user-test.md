@@ -341,7 +341,10 @@ independent-eyes recall this command exists for. Floors, enforced:
 
 - **≥2 parallel native `fabrik-gui` subagents for any gauntlet with ≥2 flows** (scale up with the
   matrix — one per flow-bundle, disjoint scenario ownership, no two agents mutating the same
-  seeded account). Native is the ONLY option for browser/device legs (the pool has no browser
+  seeded account). Under the dispatch step the UNITS are the flow-bundles and EVERY seat is
+  `fabrik-gui` with its model token: the Sonnet seat drives the bundle's journeys, the Haiku seat
+  runs that bundle's mechanical gate (a11y · visual · token scan on its screens) — a journey is
+  never handed to the mechanical seat. Native is the ONLY option for browser/device legs (the pool has no browser
   tools — the native-mandate case per `core/62`); they record nothing to the flywheel — accepted.
 - **Non-browser breadth is native too (the pool is OFF, D-181):** matrix-hole critique (Phase 2), boundary-value derivation from `data-contract.md`, the extracted-string i18n/copy audit, crawler-output triage and finding-triage second opinions go to native `general-purpose`/`fabrik-reviewer` seats (Sonnet). STRIP tokens/cookies/signed URLs from crawler output and from console/network captures before ANY seat sees them, and REDACT live credential material from COMMITTED evidence — a committed token outlives every session. A seat that cannot be dispatched (quota) is a BLOCKED-env finding to REPORT, never a silent skip.
 <!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:

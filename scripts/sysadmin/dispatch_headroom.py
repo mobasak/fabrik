@@ -159,16 +159,18 @@ def siblings(now: float | None = None, runs_dir: Path = RUNS_DIR) -> dict:
         for p in runs_dir.glob("*.json"):
             try:
                 rec = json.loads(p.read_text())
-            except (OSError, ValueError):
+                if rec.get("state") != "running":
+                    continue
+                ts = float(rec.get("updated_ts") or 0)
+                if now - ts > SIBLING_FRESH_S:
+                    continue
+                rounds = rec.get("rounds") or []
+                seats = int((rounds[-1] if rounds else {}).get("seats") or 0)
+            except (OSError, ValueError, TypeError, AttributeError, IndexError):
+                # a malformed record (non-numeric seats/ts, a round that is not a dict) counts 0
+                # and is named — the first draft guarded only the JSON parse and crashed the CLI
                 out["skipped"].append(p.name)
                 continue
-            if rec.get("state") != "running":
-                continue
-            ts = float(rec.get("updated_ts") or 0)
-            if now - ts > SIBLING_FRESH_S:
-                continue
-            rounds = rec.get("rounds") or []
-            seats = int((rounds[-1] if rounds else {}).get("seats") or 0)
             if seats > 0:
                 out["seats"] += seats
                 out["sessions"] += 1
@@ -253,6 +255,11 @@ def budget(
     # angle plus the authoritative seats; the box, the CLI cap and the quota are the caps
     wanted = sum(full_mix(max(units, 0), risky).values())
     caps = {"wanted": wanted, "concurrency_cap": CONCURRENCY_CAP}
+    if risky > units > 0:
+        reasons.append(
+            f"risky={risky} exceeds units={units} — clamped to {units} Opus seat(s); the risky units "
+            "are a subset of the surface"
+        )
     per_seat = HEAVY_GB_PER_SEAT if heavy else LIGHT_GB_PER_SEAT
     if b.get("ok"):
         mem = b["mem_available_gb"]
@@ -312,7 +319,14 @@ def budget(
     # HARD cap. The first draft raised any sub-floor result back to 3, including a box_cap of 0, so
     # "--heavy" on a box with no room printed 3 heavy seats: the exact OOM this tool exists to
     # prevent (author-blind round 1, 2026-09-08). Now: units up to the floor first, then the caps.
-    if caps["wanted"] < FLOOR:
+    if units <= 0:
+        # no surface to partition: the floor is a rule about seats PER SURFACE, and "SEATS: 3"
+        # beside a mix of {} recorded three phantom seats (round-1 finding) — say it, dispatch none
+        caps["wanted"] = 0
+        reasons.append(
+            "units=0 — nothing to partition; give --units >= 1 (one unit is already the floor of 3)"
+        )
+    elif caps["wanted"] < FLOOR:  # unreachable for units >= 1 (1 unit = 3 seats); kept as the guard
         reasons.append(
             f"wanted={caps['wanted']} raised to the floor of {FLOOR} — three seats on DIFFERENT "
             f"angles over the whole surface (D-188)"
@@ -325,7 +339,7 @@ def budget(
             f"wanted {caps['wanted']} (units x angles + authoritative), bound to {seats} by "
             f"{', '.join(binding)} — the box/quota decide, the surface only asks"
         )
-    if seats < FLOOR:
+    if seats < FLOOR and units > 0:
         hard = [k for k, v in caps.items() if v == seats and k != "wanted"]
         reasons.append(
             f"below the floor because a HARD cap binds ({', '.join(hard)}={seats}) — "
@@ -351,26 +365,14 @@ def main(argv: list[str] | None = None) -> int:
         help='price a seat mix, e.g. "opus=1,sonnet=5" (D-190: haiku 1x, sonnet 2x, opus 5x, fable 10x)',
     )
     ap.add_argument(
-        "--trivial", type=int, default=0, help="units that are trivial-mechanical (Haiku)"
-    )
-    ap.add_argument(
         "--risky", type=int, default=0, help="units that are auth/schema/secrets (Opus)"
     )
     a = ap.parse_args(argv)
     b, q, s = box(), quota(), siblings()
     r = budget(a.units, a.heavy, b, q, s, a.risky)
     try:
-        if a.mix:
-            mix = parse_mix(a.mix)
-        else:
-            # the MAXIMUM useful mix, trimmed to what is viable — never the minimum by default
-            mix = trim(full_mix(a.units, a.risky), r["seats"])
-            if a.trivial and mix:
-                mix = (
-                    cheapest_mix(r["seats"], a.trivial, a.risky)
-                    if r["seats"] < 2 * a.units
-                    else mix
-                )
+        # the MAXIMUM useful mix, trimmed to what is viable — never the minimum by default
+        mix = parse_mix(a.mix) if a.mix else trim(full_mix(a.units, a.risky), r["seats"])
         priced = cost(mix)
     except ValueError as exc:
         print(f"dispatch_headroom.py: error: {exc}", file=sys.stderr)
