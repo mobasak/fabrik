@@ -529,7 +529,7 @@ its Touches (contract violation → its diff is rejected at acceptance).
     there the per-ticket layer is `/fabrik-review-scoped` and this floor runs once, at D7):** each per-ticket review round =
     **one native Sonnet finder AND one Haiku mechanical seat per independent failure-class unit of the
     phase diff, plus ≥1 native Opus finder** (the pool is OFF, D-181) — `dispatch_headroom.py --units <N>`
-    prints the seats (D-191), all dispatched in ONE message; every material re-review round re-runs the
+    prints the seats — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them — (D-191), all dispatched in ONE message; every material re-review round re-runs the
     floor. The unit count is the PARTITION, so a named trigger (diff >~400 net LOC · never-route surface ·
     a repeat-failed round) means MORE units to partition, not a bigger cap. Grounding fan-outs: one unit per
     independent dependency, never per file.

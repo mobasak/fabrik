@@ -1017,9 +1017,11 @@ def _seat_transcripts(path: Path, lo: float) -> list[Path]:
     return sorted(out)
 
 
-def _seat_usage(q: Path, lo: float, hi: float) -> dict[str, int] | None:
+def _seat_usage(q: Path, lo: float, hi: float) -> dict[str, int] | str | None:
     """One seat's in-window usage, per-message maximum like the parent; None when the file holds
-    no in-window assistant message (or cannot be read) — a seat, never a real zero."""
+    no in-window assistant message (or cannot be read) — a seat, never a real zero; the string
+    "skipped" for an oversize file (round-7 finding: the sentinel was not in the annotation and
+    mypy said so)."""
     seen: dict[str, dict[str, int]] = {}
     anon = 0
     last = 0.0
@@ -1170,7 +1172,10 @@ def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[s
         # the real one (measured 2026-09-07), so the message's usage is the per-field MAXIMUM
         # over its lines — independent of write order, and right for a progressive format too.
         per_msg: dict[str, dict[str, int]] = {}
-        last_orch = 0.0  # the orchestrator's newest in-window message, for the seat-partial test
+        # the orchestrator's newest in-window message, for the seat-partial test; None until one
+        # is seen — with NO orchestrator message in the window the test is inconclusive and says
+        # so by staying False (round-7 finding: 0.0 degraded it to the bare 30-second test)
+        last_orch: float | None = None
         anon = 0  # id-less lines cannot be proven repeats — each counts as its own message
         models: list[str] = []
         lo, hi = start - 2.0, end + 2.0
@@ -1192,7 +1197,7 @@ def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[s
                 continue
             if not isinstance(d, dict) or d.get("type") != "assistant":
                 continue
-            last_orch = max(last_orch, e)
+            last_orch = e if last_orch is None else max(last_orch, e)
             msg = d.get("message") or {}
             u = msg.get("usage") if isinstance(msg, dict) else None
             if not isinstance(u, dict):
@@ -1250,7 +1255,7 @@ def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[s
         # orchestrator's newest message AND within the close's last seconds — a seat that returned
         # and was closed on at once has an orchestrator message AFTER it (round-6 finding: the
         # bare 30-second test flagged the ordinary gather-then-close flow every time)
-        seat_totals["seats_partial"] = any(
+        seat_totals["seats_partial"] = last_orch is not None and any(
             u["_last"] > last_orch and end - u["_last"] < _SEAT_PARTIAL_S for u in seat_rows
         )
         seat_totals["seats_skipped"] = seats_skipped  # unreadable/oversize seat files, named
@@ -1293,6 +1298,11 @@ def _tokens_clause(tok: dict[str, Any]) -> str:
         hit = f" ({100 * int(tok['tok_cache_read']) / inp:.0f}% cached)" if inp else ""
         own = f"tokens {_fmt_tokens(inp)} input / {_fmt_tokens(int(tok['tok_out']))} output{hit}"
     seats = ""
+    skipped = int(tok.get("seats_skipped") or 0)
+    if not has_seats and skipped:
+        # every seat file was oversize/unreadable: name the skip rather than print no seat half at
+        # all (round-7 finding: the field reached the ledger row and no surface a reader sees)
+        seats = f" · seats: {skipped} skipped (oversize/unreadable transcript)"
     if has_seats:
         s_in = (
             int(tok["tok_seat_in"])
@@ -1303,6 +1313,7 @@ def _tokens_clause(tok: dict[str, Any]) -> str:
             f" · seats {tok.get('seats_seen', 0)}: {_fmt_tokens(s_in)} input / "
             f"{_fmt_tokens(int(tok['tok_seat_out']))} output"
             + (" (a seat still running — partial)" if tok.get("seats_partial") else "")
+            + (f" · {skipped} skipped" if skipped else "")
         )
     return f"{own}{seats}"
 
@@ -1784,9 +1795,10 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # ACCUMULATE within the round: two Task messages in one round are two stamps, and the
         # second overwrote the first — live, 5 stamped for 10 launched (round-4 finding). The
         # round's close clears the stamp: its seats have returned.
-        prev = rec.get("dispatch") if isinstance(rec.get("dispatch"), dict) else {}
+        _pd = rec.get("dispatch")
+        prev_disp: dict = _pd if isinstance(_pd, dict) else {}
         n_rounds = len(rec.get("rounds") or [])
-        carried = int(prev.get("seats") or 0) if prev.get("round") == n_rounds else 0
+        carried = int(prev_disp.get("seats") or 0) if prev_disp.get("round") == n_rounds else 0
         rec["dispatch"] = {
             "ts": time.time(),
             "seats": carried + args.seats,

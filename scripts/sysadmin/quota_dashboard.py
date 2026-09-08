@@ -1875,10 +1875,17 @@ def _budget_probe(gen: int | None = None) -> str:
             )
             allowed = 0 if q.get("hold") else min(int(x) for x in bound if x is not None)
             taken = int((d.get("siblings") or {}).get("seats") or 0)
+            # "(box 3 after 21 reserved)" read as a 24-seat box when the FLOOR had raised a
+            # 2-seat remainder to 3: name the floor when it is what the reader sees (round-7)
+            floored = taken and box_cap is not None and int(box_cap) == int(d.get("floor") or -1)
             parts.append(
                 f"{label} seats allowed now: <strong>{allowed}</strong> "
                 f"(box {escape(str(box_cap if box_cap is not None else '?'))}"
-                + (f" after {taken} reserved by sibling sessions" if taken else "")
+                + (
+                    f" = the floor, {taken} reserved by sibling sessions"
+                    if floored
+                    else (f" after {taken} reserved by sibling sessions" if taken else "")
+                )
                 + (f", quota {escape(str(caps['quota_cap']))}" if "quota_cap" in caps else "")
                 + ")"
             )
@@ -1887,7 +1894,8 @@ def _budget_probe(gen: int | None = None) -> str:
         elif q.get("ok"):
             quota = (
                 f"quota: active {escape(str(q.get('active')))} at {q.get('hottest_pct')}%, "
-                f"{q.get('eligible')} eligible standby(s)"
+                f"{q.get('eligible')} cool standby(s) of "
+                f"{q.get('eligible_raw', q.get('eligible'))} eligible"
             )
         else:
             quota = "quota: unknown"
@@ -1896,7 +1904,7 @@ def _budget_probe(gen: int | None = None) -> str:
             + " · ".join(parts)
             + f" · CLI cap {escape(str(cli))} · {quota}. A command's units are the partition; the box "
             "is the ceiling — every fan-out dispatches the SEATS the script prints, one Sonnet + one "
-            "Haiku seat per unit plus the Opus authoritative seat(s).</p>"
+            "Haiku seat per unit plus the Opus authoritative seat(s)." + _budget_caveats(d) + "</p>"
         )
     except Exception as exc:  # noqa: BLE001 — a panel may never break the board
         html = f'<p class="muted">Box budget unavailable: {escape(str(exc))}</p>'
@@ -1916,6 +1924,22 @@ def _budget_probe(gen: int | None = None) -> str:
             _budget_cache["thread"] = nxt
             nxt.start()
     return html
+
+
+def _budget_caveats(d: dict) -> str:
+    """The script's own confidence caveats, rendered — a failed sibling probe ("seats unknown, not
+    subtracted"), sibling sessions with no seat figure (a LOWER bound), an env-only own id. Round-7
+    finding: the banner printed a confident 23 while `reasons` said the sibling count was unknown."""
+    words = ("not subtracted", "LOWER bound", "own-session id")
+    lines = [
+        r for r in (d.get("reasons") or []) if isinstance(r, str) and any(w in r for w in words)
+    ]
+    sib = d.get("siblings") or {}
+    if isinstance(sib, dict) and sib.get("ok") is False and not lines:
+        lines.append(f"sibling seats unknown, not subtracted: {sib.get('why') or 'probe failed'}")
+    if not lines:
+        return ""
+    return " ⚠️ " + " · ".join(escape(x) for x in lines)
 
 
 def _budget_banner() -> str:
@@ -2585,7 +2609,9 @@ def switch_account(slug: object) -> tuple[int, dict]:
     with _budget_lock:  # the banner's own 60 s cache would show the OLD account's headroom
         _budget_cache.update(ts=0.0, html="")
         _budget_cache["gen"] += 1  # and a probe already in flight may not land its result
-    generate()  # fresh render NOW — bypasses the floor on purpose, one probe per click
+    # fresh render NOW — bypasses the floor on purpose; at most one probe per click, and none when
+    # a pre-switch probe is still in flight (it re-kicks for this generation when it lands)
+    generate()
     return 200, {"ok": True, "output": proc.stdout.strip()[:400]}
 
 

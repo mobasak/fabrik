@@ -1623,6 +1623,19 @@ def test_the_row_sums_the_seats_own_transcripts_never_the_parents_result_line(
         got["seats_skipped"] == 1
     )  # the bad file is COUNTED as skipped, never invisible (round 6)
     bad.unlink()
+    # round 7: a seat that finished near the close with NO orchestrator message in the window is
+    # not "still running" — the partial test is inconclusive there and stays False (0.0 as the
+    # orchestrator's last message degraded it to the bare 30-second test)
+    _seat_file(sub, "late", [(now - 5, "s7", 10, 10)])
+    tr.write_text(_usage_line(start - 3600, "m0", tout=1) + "\n", encoding="utf-8")
+    got = _sum_transcript_usage(tr, start, now)
+    assert got["seats_seen"] == 3 and got["seats_partial"] is False
+    # and a row whose EVERY seat file was skipped still prints the seat half — as a skip
+    assert _tokens_clause(
+        {"tok_in": 1, "tok_out": 1, "tok_cache_read": 0, "tok_cache_create": 0, "seats_skipped": 2}
+    ).endswith(" · seats: 2 skipped (oversize/unreadable transcript)")
+    assert _tokens_clause(dict(got, seats_skipped=1)).endswith(" · 1 skipped")
+    (sub / "agent-late.jsonl").unlink()  # the assertions below count two seats
     # a broken symlink beside the good files must not null the directory listing (round 5)
     (sub / "agent-gone.jsonl").symlink_to(sub / "no-such-file.jsonl")
     got = _sum_transcript_usage(tr, start, now)

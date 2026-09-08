@@ -205,7 +205,7 @@ orchestrator codes each phase itself in the main checkout, so **the READ budget 
 and never splits a small plan** — the budget guards a cold coder's context and the profile dispatches
 none (`check_plan_tickets.py` waives it under the profile, caps the set at 3 tickets and refuses the
 pool tiers). Per phase the review is `/fabrik-review-scoped` (tests + gate + the light scoped round);
-the ONE heavy round — the `/fabrik-execute-plan` D7 floor (≥1 Opus authoritative seat + one Sonnet AND one Haiku mechanical seat per independent failure-class group — `dispatch_headroom.py --units <groups>` prints the seats, D-191 — never a fixed three), ONE receipt — runs over the whole-plan diff at Finish.
+the ONE heavy round — the `/fabrik-execute-plan` D7 floor (≥1 Opus authoritative seat + one Sonnet AND one Haiku mechanical seat per independent failure-class group — `dispatch_headroom.py --units <groups>` prints the seats — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them —, D-191 — never a fixed three), ONE receipt — runs over the whole-plan diff at Finish.
 Behavior Contract rows stay one per behaviour, but the TEST budget is proportional: target ≤ ~1.5× the
 code diff in test lines, and seam tests are written ONCE, in the last phase, never repeated per phase.
 Measured 2026-09-06 on this hub: the full machinery applied to an 851-line feature produced 7 tickets,

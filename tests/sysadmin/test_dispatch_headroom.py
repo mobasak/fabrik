@@ -415,6 +415,7 @@ def test_the_cost_story_describes_the_mix_it_prints_never_the_per_unit_sentence(
     assert dh.main(["--units", "3", "--json"]) == 0
     d = json.loads(capsys.readouterr().out)
     assert d["box_caps"] == {"read_only": 23, "heavy": 12} and d["full_mix"] == d["mix"]
+    assert d["floor"] == dh.FLOOR  # the board keys its "= the floor" label on it
 
 
 def test_negative_counts_are_refused_and_the_angles_table_matches_the_mix(capsys):
@@ -545,11 +546,11 @@ def test_own_session_id_is_command_runs_own_ladder_including_the_nosession_key(m
     spec = iu.spec_from_file_location("command_run", REPO / "scripts" / "command_run.py")
     cr = iu.module_from_spec(spec)
     spec.loader.exec_module(cr)
-    assert dh.own_session_id() == cr._session_id(None) and dh.own_session_id().startswith(
+    assert dh.own_session_id()[0] == cr._session_id(None) and dh.own_session_id()[0].startswith(
         "nosession-"
     )
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "abc-123")
-    assert dh.own_session_id() == "abc-123"
+    assert dh.own_session_id() == ("abc-123", "command_run")
 
 
 def test_a_malformed_quota_picture_falls_to_the_floor_never_a_traceback(monkeypatch):
@@ -715,7 +716,7 @@ def test_a_standby_in_the_drain_band_is_no_fallback_and_a_release_marker_is_a_kn
             {
                 "state": "running",
                 "updated_ts": now,
-                "rounds": [{"seats": 7, "ts": now}],
+                "rounds": [{"seats": 0, "ts": now}],  # the shape `round` really leaves behind
                 "dispatch": {"ts": now, "seats": 0, "round": 1, "released": True},
             }
         )
@@ -724,3 +725,52 @@ def test_a_standby_in_the_drain_band_is_no_fallback_and_a_release_marker_is_a_kn
     assert (
         s["seats"] == 0 and s["unrecorded"] == 1
     )  # the zero-round is unrecorded; the release is a known zero
+
+
+def test_round7_shapes_a_release_beside_a_count_a_standby_without_a_grade_and_the_own_id_source(
+    tmp_path, monkeypatch
+):
+    """Round-7 findings: (1) `released: true, seats: 5` (a hand-edited record) counted 5 in flight
+    — the release wins; (2) a standby row WITHOUT `in_drain_band` was counted cool (`not None`) —
+    an ungraded standby is unknown, never a fallback; (3) the own-id source was a module global
+    that ratcheted to "env" on one failed import and never reset — it is a return value now."""
+    now = 1_000_000.0
+    (tmp_path / "contradictory.json").write_text(
+        json.dumps(
+            {
+                "state": "running",
+                "updated_ts": now,
+                "rounds": [{"seats": 5, "ts": now}],
+                "dispatch": {"ts": now, "seats": 5, "round": 1, "released": True},
+            }
+        )
+    )
+    s = dh.siblings(now=now, runs_dir=tmp_path, exclude_sid="nobody")
+    assert s["seats"] == 0 and s["unrecorded"] == 0 and s["sessions"] == 0  # no seat in flight
+    pic = {
+        "hold": False,
+        "thresholds": {"drain_band": 85.0},
+        "accounts": [
+            {"email": "a@x", "state": "active", "session_pct": 10, "weekly_pct": 10},
+            {"email": "b@x", "state": "eligible"},  # no grade at all
+            {"email": "c@x", "state": "eligible", "in_drain_band": False},
+        ],
+    }
+
+    class _P:
+        stdout = json.dumps({"picture": pic})
+
+    monkeypatch.setattr(dh.subprocess, "run", lambda *a, **k: _P())
+    q = dh.quota()
+    assert q["eligible_raw"] == 2 and q["eligible"] == 1  # the ungraded standby is not cool
+
+    def boom():
+        raise ImportError("no command_run here")
+
+    monkeypatch.setattr(dh, "_import_command_run", boom)
+    monkeypatch.setenv("CLAUDE_SESSION_ID", "env-sid")
+    assert dh.own_session_id() == ("env-sid", "env")
+    assert dh.siblings(now=now, runs_dir=tmp_path)["own_source"] == "env"
+    monkeypatch.undo()
+    sid, src = dh.own_session_id()
+    assert src == "command_run"  # a later success is not poisoned by the earlier failure

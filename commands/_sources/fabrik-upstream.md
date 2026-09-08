@@ -201,7 +201,7 @@ Before touching a single file, re-verify EVERY claim in the proposal independent
 re-read the cited code at its CURRENT state (never the proposal's snapshot of it), re-run any command the
 proposal cites. **Claims are independent units, so this step FANS OUT: one native `fabrik-reviewer` seat per
 claim (or per proposal file when several arrive together) plus the Opus authoritative seat, all dispatched in a single message — the claim
-count is the PARTITION and `dispatch_headroom.py --units <claims> --mechanical 0` prints the seats, never a token one (D-191 — re-verifying a claim is a judgement, no Haiku mechanical seat). The verdict, the disposition and the single reply stay
+count is the PARTITION and `dispatch_headroom.py --units <claims> --mechanical 0` prints the seats — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them —, never a token one (D-191 — re-verifying a claim is a judgement, no Haiku mechanical seat). The verdict, the disposition and the single reply stay
 YOURS; the seats re-derive, they do not decide.** This is the standing rule that governs synced-rule authorship generally, applied here verbatim:
 *"a peer AI's external technical claim … is an unverified external fact; live-ground the primary source before
 writing it into a canonical synced rule (fleet blast radius) … the justification must be true"* — a project

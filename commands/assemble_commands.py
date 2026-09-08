@@ -352,7 +352,7 @@ PARAMS = {
             "HEADLINE": "`fanout` the grounders, `set_quality` the verdict",
             "TASK_TYPE": '"research"',
             "PROJECT": "mega-trigger",
-            "EXTRA_LIVE": " Score every grounder's answer against its cited source (0 = the citation didn't hold / was stale · 5 = it confirmed the fact). Two different seats, not two recipes: the floor's Opus `fabrik-researcher` seat is the AUTHORITATIVE re-grounding of the highest-risk fact; the verify-sample spot-checks of the rest are the Sonnet breadth seats (Haiku only for a literal re-fetch); the vendor-ladder verdict, the Q&A and the decide/refute/merge stay yours.",
+            "EXTRA_LIVE": " Score every grounder's answer against its cited source (0 = the citation didn't hold / was stale · 5 = it confirmed the fact). Two different seats, not two recipes: the floor's Opus `fabrik-researcher` seat is the AUTHORITATIVE re-grounding of the highest-risk fact; the verify-sample spot-checks of the rest are the Sonnet breadth seats — and no third tier: the script prints no mechanical seat for a grounding surface; the vendor-ladder verdict, the Q&A and the decide/refute/merge stay yours.",
             "FLOOR": _floor("grounding", "`fabrik-researcher`"),
             "EXTRA": ' Grounders: `fanout("research", units, repo=REPO, project="mega-trigger", mode="read_only", web_tools=["web_search","web_search_brave","web_scrape","docs_lookup"], mcp_servers=["exa","brave-search","firecrawl","context7"])`; score anchors: 0 = the citation didn\'t hold / was stale · 5 = it confirmed the cited fact. Reserve native `fabrik-researcher` for the authoritative verify-sample; the vendor-ladder verdict, the Q&A, and the decide/refute/merge stay yours.',
         },
@@ -442,7 +442,9 @@ PARAMS = {
             "HEADLINE": "pool-default for gradeable fan-out (records to the flywheel)",
             "TASK_TYPE": '"review"',
             "PROJECT": "plan-review",
-            "FLOOR": _floor("review", "`fabrik-researcher`"),
+            # a grounder is a judgement (round 7): the plan-review seats verify claims against the
+            # repo and the spec — no grep-able class for a Haiku seat to sweep
+            "FLOOR": _floor("grounding", "`fabrik-researcher`"),
             "EXTRA": " A cheaper Haiku/Sonnet native verify-sample MAY add breadth on top; keep Opus for the authoritative pass + the convergence decide + the ask-before-not-during residual sweep.",
         },
     },
@@ -626,7 +628,8 @@ PARAMS = {
             "HEADLINE": "one grounded verifier per spec\u2194plan pair, batched 2-4",
             "TASK_TYPE": '"review"',
             "PROJECT": "conformance-review",
-            "FLOOR": _floor("review", "`fabrik-reviewer`"),
+            # spec↔build conformance is an adjudication per pair (round 7): no mechanical angle
+            "FLOOR": _floor("adjudication", "`fabrik-reviewer`"),
             "EXTRA": " Pool breadth carries the bulk of the pairs; put native Opus on the rows whose failure is silent — the four discriminators (trivially-green test, implemented-but-inert, live-SLA broken, refreeze debt) are exactly where a cheap verifier reports CONFORMS and is wrong. The worked example ran all-native only because the pool was exhausted; that is not the default.",
         },
     },
@@ -674,7 +677,7 @@ PARAMS = {
             "HEADLINE": "pool-default for gradeable fan-out (records to the flywheel)",
             "TASK_TYPE": '"research"',
             "PROJECT": "plan-after-chat",
-            "EXTRA_LIVE": " Two different seats, not two recipes: the floor's Opus `fabrik-researcher` seat is the AUTHORITATIVE re-grounding of the highest-risk dependency; a citation re-fetch is a Haiku/Sonnet verify-sample seat — never Opus for a fetch-and-confirm; the merge/refute and the plan stay yours.",
+            "EXTRA_LIVE": " Two different seats, not two recipes: the floor's Opus `fabrik-researcher` seat is the AUTHORITATIVE re-grounding of the highest-risk dependency; a citation re-fetch is a Sonnet verify-sample seat — never Opus for a fetch-and-confirm, and no third tier (the script prints no mechanical seat for a grounding surface); the merge/refute and the plan stay yours.",
             "FLOOR": _floor(
                 "grounding", "`fabrik-researcher`"
             ),  # a grounder is a judgement (round 4)
@@ -686,7 +689,7 @@ PARAMS = {
             "HEADLINE": "`fanout` the grounding, `set_quality` the verdict",
             "TASK_TYPE": '"research"',
             "PROJECT": "spec-grounding",
-            "EXTRA_LIVE": " ⚠️ An EMPTY (or near-empty) grounder output is a FAILED grounding, never a pass — check `len` before believing a verdict. Two different seats, not two recipes: the floor's Opus `fabrik-researcher` seat is the AUTHORITATIVE re-grounding of the highest-risk dependency; the verify-sample spot-checks of the rest are the Sonnet breadth seats (Haiku only for a literal re-fetch); the vendor-ladder verdict, the Q&A and the decide/refute/merge stay yours.",
+            "EXTRA_LIVE": " ⚠️ An EMPTY (or near-empty) grounder output is a FAILED grounding, never a pass — check `len` before believing a verdict. Two different seats, not two recipes: the floor's Opus `fabrik-researcher` seat is the AUTHORITATIVE re-grounding of the highest-risk dependency; the verify-sample spot-checks of the rest are the Sonnet breadth seats — and no third tier: the script prints no mechanical seat for a grounding surface; the vendor-ladder verdict, the Q&A and the decide/refute/merge stay yours.",
             "FLOOR": _floor(
                 "grounding", "`fabrik-researcher`"
             ),  # a grounder is a judgement (round 4)

@@ -81,3 +81,26 @@ def test_the_native_half_of_a_commands_extra_renders_in_the_live_paragraph(tmp_p
     live = ac._HTML_COMMENT_RE.sub("", spec)
     assert "EMPTY (or near-empty) grounder output is a FAILED grounding" in live
     assert all("{{EXTRA_LIVE}}" not in f.read_text() for f in tmp_path.glob("*.md"))
+
+
+def test_a_judgement_floor_span_never_names_a_haiku_seat_in_the_rendered_text(tmp_path):
+    """Round-7 finding: `_floor("grounding")` says "no mechanical seat … `--mechanical 0`" and the
+    same command's `{{EXTRA_LIVE}}`, concatenated right after it, said "Haiku only for a literal
+    re-fetch" — a seat the script never prints (ANGLES maps mechanical→haiku 1:1). The floor test
+    reads `_floor()` alone and could not see it. Graded on the RENDERED span from the floor's own
+    words to the pool-contract seam (= FLOOR + EXTRA_LIVE), comments stripped — the dispatch-step
+    paragraph around it legitimately names Haiku for mechanical seats on OTHER surfaces."""
+    ac.render(tmp_path, tmp_path / "_skills", agents_dest=tmp_path / "_agents")
+    offenders, seen = [], 0
+    for f in sorted(tmp_path.glob("*.md")):
+        live = ac._HTML_COMMENT_RE.sub("", f.read_text())
+        i = live.find("no mechanical seat")
+        if i < 0:
+            continue
+        j = live.find("The pool contract is kept below", i)
+        assert j > i, f.stem  # the seam bounds the span; a missing seam is its own defect
+        seen += 1
+        if "haiku" in live[i:j].lower():
+            offenders.append(f.stem)
+    assert seen >= 4, seen  # spec, vision, plan-after-chat, epics carry a judgement floor
+    assert offenders == [], offenders

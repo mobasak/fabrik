@@ -55,6 +55,7 @@ The Stop hook keys on `state == "running"` **alone**, so neither field can chang
 | `round [--seats <n>] [--findings <N>] [--classes-swept a,b] [--classes-new c,d]` | record one convergence pass; merge the class ledger |
 | `done --command <name> --evidence "<proof>"` | terminal — the contract IS met |
 | `blocked --command <name> --reason "<sanctioned case>"` | terminal — a real halt |
+| `handoff --command <name> --reason "<why rows remain open>" [--resume "<RESUME block>"]` | terminal — NOT-QUIET: the loop is quiet but rows stay OPEN and are routed (the close `/fabrik-user-test` and `/fabrik-service-test` mandate); `--feedback` owed like `done`/`blocked` |
 | `line` | the pinned status line; **silent + rc 0 when no run is active** |
 | `status --json` | the record (`{}` when there is none) |
 

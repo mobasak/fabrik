@@ -25,6 +25,7 @@ import statistics
 import sys
 import time
 from pathlib import Path
+from typing import TypeGuard
 
 _FIELDS = ("confusion", "waste", "change")
 
@@ -107,7 +108,7 @@ _TOK = ("tok_in", "tok_out", "tok_cache_read", "tok_cache_create")
 _SEAT_TOK = ("tok_seat_in", "tok_seat_out", "tok_seat_cache_read", "tok_seat_cache_create")
 
 
-def _is_count(v: object) -> bool:
+def _is_count(v: object) -> TypeGuard[int | float]:
     """A finite non-bool number — the same acceptance `seats_seen` uses, so the two aggregations of
     one field cannot disagree on a `10.0` (round-6 finding)."""
     return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(float(v))
@@ -220,6 +221,11 @@ def build(
                 # a seat still writing at the close; and a typed reservation that disagreed with
                 # the seat files by more than one — the close's warning, made queryable (round 5)
                 "seats_partial_rows": sum(1 for r in rs if r.get("seats_partial") is True),
+                # seat files dropped for size/unreadability — a count nobody could read from any
+                # rollup while it lived only in the raw row (round-7 finding)
+                "seats_skipped": sum(
+                    int(v) for v in (r.get("seats_skipped") for r in rs) if _is_count(v)
+                ),
                 "seats_mismatch_rows": sum(
                     1
                     for r in rs
@@ -300,7 +306,8 @@ def render(report: dict) -> str:
             f"{c['cost_usd'] if c['cost_rows'] else '—'} ({c['cost_rows']}) | "
             f"{_k(c['median_tok']) if c.get('median_tok') is not None else '—'} "
             f"({c['tok_rows']}) | {hit} | "
-            f"{_k(c['seat_total']) if c['seat_rows'] else '—'} ({c['seat_rows']} · {c['seats_seen']}) | "
+            f"{_k(c['seat_total']) if c['seat_rows'] else '—'} ({c['seat_rows']} · {c['seats_seen']}"
+            f"{' · ' + str(c['seats_skipped']) + ' skipped' if c['seats_skipped'] else ''}) | "
             f"{', '.join(c['models']) or '—'} |"
         )
     for title, key in (

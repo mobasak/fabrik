@@ -116,7 +116,7 @@ mines reviews in a plain sequential `for` loop over the kept competitors (verifi
 per-search-leg `gather`), so wall-clock scales linearly with rival count. The ENGINE call stays as it is —
 that module is vendored from fabrik-lib and is not ours to change — but this command's own convergence
 rounds fan out: **one native `fabrik-reviewer` seat per RIVAL plus the Opus authoritative seat** to audit that rival's dossier section
-against its cited sources, all dispatched in a single message; the rival count is the PARTITION and `dispatch_headroom.py --units <rivals> --mechanical 0` prints the seats (D-191 — a citation audit is a judgement, no Haiku mechanical seat).
+against its cited sources, all dispatched in a single message; the rival count is the PARTITION and `dispatch_headroom.py --units <rivals> --mechanical 0` prints the seats — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them — (D-191 — a citation audit is a judgement, no Haiku mechanical seat).
 
 ⚠️ **Every convergence round MUST pass `--rediscover`, or the loop is vacuous.** The engine discovers
 ONCE per `job_id` (the orchestrator guards on a persisted `discovery_done` flag — find the live guard

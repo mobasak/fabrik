@@ -2832,6 +2832,43 @@ def test_the_box_budget_banner_shows_the_maximum_and_fails_soft(tmp_path, monkey
     assert "computing" in first
     qd._budget_cache["thread"].join(timeout=10)
     assert "seats allowed now" in qd._budget_banner()
+    # round 7: the sibling reservation is on the label; a cap the FLOOR raised says so instead of
+    # implying a 24-seat box; the script's own caveats (a failed sibling probe, a LOWER bound, an
+    # env-only own id) reach the board; standbys are the COOL ones of the eligible
+    payload = {
+        "caps": {"box_cap": 3, "concurrency_cap": 17},
+        "box_caps": {"read_only": 3, "heavy": 3},
+        "floor": 3,
+        "siblings": {"seats": 21, "ok": True},
+        "quota": {
+            "ok": True,
+            "active": "a@x",
+            "hottest_pct": 7.0,
+            "eligible": 0,
+            "eligible_raw": 1,
+        },
+        "reasons": ["2 running sibling session(s) carry NO seat figure — a LOWER bound"],
+    }
+
+    class _P:
+        def __init__(self, args):
+            self.stdout = json.dumps(payload)
+
+    monkeypatch.setattr(qd.subprocess, "run", lambda args, **kw: _P(args))
+    html = qd._budget_probe()
+    assert "(box 3 = the floor, 21 reserved by sibling sessions)" in html
+    assert "0 cool standby(s) of 1 eligible" in html
+    assert "⚠️ 2 running sibling session(s) carry NO seat figure — a LOWER bound" in html
+    payload["box_caps"] = {"read_only": 20, "heavy": 9}
+    payload["caps"]["box_cap"] = 20
+    payload["siblings"] = {"seats": 0, "ok": False, "why": "sibling probe failed: PermissionError"}
+    payload["reasons"] = []
+    html = qd._budget_probe()
+    assert "(box 20)" in html and "reserved" not in html
+    assert "⚠️ sibling seats unknown, not subtracted: sibling probe failed: PermissionError" in html
+    payload["siblings"] = {"seats": 2, "ok": True}
+    html = qd._budget_probe()
+    assert "(box 20 after 2 reserved by sibling sessions)" in html and "⚠️" not in html
     # an older probe without box_caps must not let the read-only cap pose as the heavy one
     monkeypatch.setattr(
         qd.subprocess,

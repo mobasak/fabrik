@@ -44,6 +44,15 @@ A sid is `dead` only on three positive signals — no live signal, a death signa
   code consumer and no kaizen cell — the suspension breaks nothing mechanical. The mirror claim in
   `docs/reference/agents/infra.md:42-45` is infra's beat and was filed to them, not edited here. (D-195)
 
+### Fixed — D-191 round 7: the quota label and the protocol table's missing verb (2026-09-08)
+- `dispatch_headroom.py`'s quota line printed "eligible standbys N" for the COOL count core/62 defines — now "cool standbys N of M eligible" (F170).
+- `docs/reference/command-run-protocol.md` § CLI enumerated eight verbs and omitted `handoff`; F130 had fixed only the prose list. The row is written from argparse (`--reason` required, `--resume` optional) (F173).
+- The grounding commands' live paragraph said `--mechanical 0` and, two sentences later, "Haiku only for a literal re-fetch" — a seat the script never prints; the three `EXTRA_LIVE` sentences drop it and a new assembler test grades the rendered FLOOR→seam span of every command (red on revert: 3 offenders) (F175–F176). `fabrik-plan-review` is a grounding floor and `fabrik-conformance-review` an adjudication floor now (F190); all 13 point-of-use PARTITION sentences say the seats are stamped first with `dispatch --seats` (F189); `fabrik-docs-review`'s record-each-pass line carries `--seats` (F188).
+- `command_run.py`: four mypy errors (the "skipped" sentinel outside `_seat_usage`'s annotation; `prev` rebound int→dict) fixed; `seats_skipped` prints on the FEEDBACK line and aggregates in the report; the seat-partial test is inconclusive (False) when the orchestrator wrote nothing in the window (F178–F180).
+- `dispatch_headroom.py`: `own_session_id()` returns `(sid, source)` instead of ratcheting a module global; a release marker beside a count is a known zero; a standby without `in_drain_band` is unknown, never cool; the release-marker test's fixture is the shape `round` really leaves (F185–F186).
+- The board's banner renders the script's caveats (failed sibling probe, LOWER bound, env own-id), names the floor when it is what raised the cap, and says "N cool standby(s) of M eligible"; the sibling label is tested (F181–F183).
+- Recorded, not fixed: rounds 4–6 wrote the bare "tests/sysadmin N" in their commit bodies after F55 asked for the file name (F172); intel's D-195 row rode into e622970a through the working tree — the class fabrik-lib filed (F171), and its engine count is unpinned (F174, relayed).
+
 ### Fixed — D-191 round 6: the third closing sweep's residue (2026-09-08)
 
 - Ten fresh seats over 23189ea4..a0d3b92d; the three mechanical classes clean by execution. Closed: the

@@ -158,8 +158,10 @@ def quota() -> dict:
         # standby that is ITSELF in the drain band is no fallback — count the COOL ones (round-6
         # finding: the only standby sat at exactly the band and the caution stayed silent)
         eligible_raw = sum(1 for a in accounts if a.get("state") == "eligible")
+        # a standby the picker did not grade (`in_drain_band` absent) is UNKNOWN, never cool —
+        # the same direction `hottest_pct is None` takes for the active account (round-7 finding)
         eligible = sum(
-            1 for a in accounts if a.get("state") == "eligible" and not a.get("in_drain_band")
+            1 for a in accounts if a.get("state") == "eligible" and a.get("in_drain_band") is False
         )
         band = float((pic.get("thresholds") or {}).get("drain_band") or 85.0)
         return {
@@ -199,23 +201,21 @@ def _safe_stem(sid: str) -> str:
         return sid
 
 
-OWN_ID_SOURCE = "command_run"  # or "env" when the import failed — a silent fallback is a finding
-
-
-def own_session_id() -> str:
+def own_session_id() -> tuple[str, str]:
     """The record `command_run.py` keys on for THIS session — derived by command_run.py ITSELF
     (`_session_id`: explicit → CLAUDE_SESSION_ID → CLAUDE_CODE_SESSION_ID → the repo-scoped
     `nosession-<repo>`), never a second copy of that ladder: a copy without the nosession
     fallback returned "" in an id-less shell and the own record was counted again (round-5
-    finding). Fail-soft: if command_run.py cannot be imported, the env ladder alone."""
+    finding). Fail-soft: if command_run.py cannot be imported, the env ladder alone — returned
+    as `(sid, source)` with source "command_run" or "env", never a module global (round-7 finding:
+    the global ratcheted to "env" on one failed import and never reset in that process)."""
     try:
-        return str(_import_command_run()._session_id(None) or "").strip()
+        return str(_import_command_run()._session_id(None) or "").strip(), "command_run"
     except Exception:  # noqa: BLE001 — a probe fails soft, and SAYS so (round-6 finding)
-        global OWN_ID_SOURCE
-        OWN_ID_SOURCE = "env"
-        return (
+        sid = (
             os.environ.get("CLAUDE_SESSION_ID") or os.environ.get("CLAUDE_CODE_SESSION_ID") or ""
         ).strip()
+        return sid, "env"
 
 
 def siblings(
@@ -228,7 +228,7 @@ def siblings(
     finding). Three sessions reading the same free memory in the same minute would otherwise each
     take all of it (TOCTOU on the box). Fail-soft: an unreadable record counts 0 and is named."""
     now = time.time() if now is None else now
-    own = own_session_id() if exclude_sid is None else exclude_sid
+    own, own_source = own_session_id() if exclude_sid is None else (exclude_sid, "explicit")
     own_stem = _safe_stem(own) if own else ""
     out: dict = {
         "ok": True,
@@ -237,7 +237,7 @@ def siblings(
         "unrecorded": 0,
         "skipped": [],
         "excluded_own": False,
-        "own_source": OWN_ID_SOURCE if exclude_sid is None else "explicit",
+        "own_source": own_source,
     }
     try:
         for p in runs_dir.glob("*.json"):
@@ -273,7 +273,10 @@ def siblings(
                 if disp_seats is not None:
                     if disp.get("ts") is None:
                         raise ValueError("dispatch stamp without ts")  # named, never silently 0
-                    ts, seats = float(disp["ts"]), int(disp_seats or 0)
+                    # a RELEASE marker is a known zero whatever `seats` says — the CLI never writes
+                    # `released` beside a count, so a record that does is contradictory and the
+                    # release wins (round-7 finding: `released, seats 5` counted 5 in flight)
+                    ts, seats = float(disp["ts"]), 0 if released else int(disp_seats or 0)
                 else:
                     ts = float(last.get("ts") or 0)
                     seats = int(last.get("seats") or 0)
@@ -619,6 +622,7 @@ def main(argv: list[str] | None = None) -> int:
         cost=priced,
         adjudicator=adjudicator,
         box_caps=box_caps,
+        floor=FLOOR,  # the board labels a cap the floor raised (round-7 finding)
     )
     if a.json:
         print(json.dumps(r, indent=2, default=str))
@@ -641,8 +645,9 @@ def main(argv: list[str] | None = None) -> int:
         )
     if q.get("ok"):
         print(
-            f"  quota: active {q['active']} hottest {q['hottest_pct']}%, eligible standbys "
-            f"{q['eligible']}, hold={q['hold']}, drain band {q.get('drain_band')}%"
+            f"  quota: active {q['active']} hottest {q['hottest_pct']}%, cool standbys "
+            f"{q['eligible']} of {q.get('eligible_raw', q['eligible'])} eligible, hold={q['hold']}, "
+            f"drain band {q.get('drain_band')}%"
         )
     if mix:
         shown = " + ".join(f"{n} {k} x{PRICE[k]}" for k, n in mix.items())
