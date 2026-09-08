@@ -132,17 +132,58 @@ ENFORCEMENT_DIR = "scripts/enforcement"
 # ⚠️ ``libs/subagents`` was REMOVED from this list on 2026-09-08 (D-196), at fabrik-lib's request, so the
 # ~46 project copies can be deleted without the next sync restoring them. Removing the entry does NOT
 # delete anything: the prune at ``sync_enforcement_to_projects.py`` only walks dirs still listed here, so
-# a project keeps its stale copy until it deletes it itself — which is the point. Safe fleet-wide because
-# every SYNCED file that imports the module guards it (measured 2026-09-08: 231 synced files, 5 Python
-# importers — doc_reconcile, rivals_run, check_routing_policy, check_command_corpus,
-# check_subagent_flywheel — all in try/except; check_imports_resolvable names it in prose only).
-# The HUB source ``/opt/fabrik/libs/subagents`` STAYS: 17 hub scripts import it, 12 unguarded, 4 wired
-# into final_gate.py — deleting it would red every hub session's completion gate. That deletion is a
-# migration, not a one-liner, and it is deliberately not done here.
+# a project keeps its stale copy until it deletes it itself — which is the point, and the leftover stays
+# IGNORED via RETIRED_VENDORED_DIRS below (D-198; dropping the ignore was the D-196 defect). Safe
+# fleet-wide because every SYNCED file that imports the module guards it — measured 2026-09-08 over the
+# 231 files `iter_synced_pairs` yielded BEFORE this removal (it yields 205 after, so the number is a
+# decision-time denominator, not a figure this file reproduces today): 5 Python importers —
+# doc_reconcile, rivals_run, check_routing_policy, check_command_corpus, check_subagent_flywheel — all
+# in try/except, each verified to degrade correctly at its USE site, not merely wrapped;
+# check_imports_resolvable names it in prose only.
+# The HUB source ``/opt/fabrik/libs/subagents`` STAYS, but NOT for the reason first written here.
+# ⚠️ CORRECTED 2026-09-08 (D-198, found by this change's own review): the original note claimed
+# "17 hub scripts import it, 12 unguarded, 4 wired into final_gate.py — deleting it would red every
+# hub session's completion gate". That is FALSE and was asserted cross-repo before it was checked.
+# Proven by EXECUTION, not counting: with ``libs.subagents`` made unimportable via a meta_path
+# blocker, all four gate-wired checks (check_imports_resolvable, check_routing_policy,
+# check_command_corpus, check_subagent_flywheel) exit 0 — every one guards its import, and
+# check_imports_resolvable never imports it at all (prose only, the same distinction the project-side
+# count got right). The real reason to keep it: an AST scan of 3,968 hub ``.py`` files (excluding
+# .venv, node_modules, .claude/worktrees, mutants and the vendored dirs) finds 20 importer files, 10
+# with a MODULE-LEVEL UNGUARDED import — 3 live scripts (classify_services, flush_subagent_outboxes,
+# canary_grounding) plus 7 test modules. Deleting the source breaks those 10, so it is still a
+# migration rather than a one-liner — a smaller one than first claimed, and not a gate failure.
+# Re-derive with the selector stated; a bare count here is what went wrong the first time.
 VENDORED_DIRS = [
     # fabrik-lib health-probe, vendored AS SHIPPED (D-082): the comparison-row producer every
     # project's scripts/verify_prod_parity.py imports lazily. Pinned by the VENDORED-FROM header.
     "libs/health_probe",
+]
+
+# Vendored dirs RETIRED from VENDORED_DIRS: the sync no longer WRITES them (so a project's own
+# deletion sticks) but the gitignore block still COVERS them, so the leftover copy is not bait.
+#
+# ⚠️ This exists because delisting alone is NOT retirement — the same lesson RETIRED_CORE_SCRIPTS
+# records 80 lines above, re-learned at directory scale on 2026-09-08. D-196 delisted
+# ``libs/subagents`` and the regenerated block stopped covering it, which left 26 files
+# untracked AND unignored in 38 of 41 project repos: one ``git clean -fd`` deleted them, one
+# ``git add -A`` committed a retired vendored module. Neither is a sync bug — the sync deletes
+# nothing here, exactly as D-196 says — but the delisting removed the protection that had made
+# "the sync deletes nothing" a safe thing to say.
+#
+# A name here is NOT synced and NOT copied into worktrees (``worktreeinclude_text()`` skips this
+# group by key — re-adding it there would resume the very distribution the retirement ended);
+# it is ONLY kept in the ignore set. Actually REMOVING the directory from ~46 repos is a separate,
+# operator-authorised step, not a side effect of a manifest edit.
+RETIRED_VENDORED_GITIGNORE_GROUP = (
+    "Retired vendored modules (no longer synced; still ignored so a leftover copy is not "
+    "`git clean -fd` / `git add -A` bait)"
+)
+
+RETIRED_VENDORED_DIRS = [
+    # D-198, 2026-09-08 — retired by D-196 at fabrik-lib's request; the pool is OFF (D-181/D-182)
+    # and every SYNCED importer guards the import, so projects may delete it at their own pace.
+    "libs/subagents",
 ]
 
 # Agent "definition of done" + prompt-governance hooks → synced to project root
@@ -240,6 +281,9 @@ def gitignore_dest_paths() -> dict[str, list[str]]:
             + [f"scripts/{s}" for s in RUN_SCRIPTS]
         ),
         "Vendored fabrik-lib modules (synced fleet-wide)": [f"{d}/" for d in VENDORED_DIRS],
+        # RETIRED: ignored so a leftover copy is neither `git clean -fd` bait nor `git add -A`
+        # bait, but NOT synced and NOT worktree-copied (worktreeinclude_text skips this key).
+        RETIRED_VENDORED_GITIGNORE_GROUP: [f"{d}/" for d in RETIRED_VENDORED_DIRS],
         # NOT sync-pushed: the hub's emit_mcp_project_config.py writes this per repo
         # (plan-3); inline resolved DATABASE_URL makes it uncommittable by design.
         "MCP config (emitted by emit_mcp_project_config.py, gitignored: carries the repo's resolved DATABASE_URL)": [
@@ -313,15 +357,26 @@ def worktreeinclude_text() -> str:
     TRACKED files — doesn't leave a worktree with no gate, no rule packs, no port
     registry, no MCP config).
 
-    Built from the SAME ``gitignore_dest_paths()`` the ``.gitignore`` block comes from,
-    so the two can never list a different set — plus ``.env`` and ``.mcp.json`` (a
-    worktree needs both to run and neither is ever tracked), minus
+    Built from the SAME ``gitignore_dest_paths()`` the ``.gitignore`` block comes from — plus
+    ``.env`` and ``.mcp.json`` (a worktree needs both to run and neither is ever tracked), minus
     ``.claude/settings.local.json`` (approvals stay in the main checkout — worktrees doc
     § "What worktrees share").
+
+    ⚠️ ONE deliberate divergence, and it is the only one: the
+    ``RETIRED_VENDORED_GITIGNORE_GROUP`` is skipped. A retired vendored dir must stay IGNORED
+    (so a leftover copy is not ``git clean -fd`` bait) while never being DISTRIBUTED again —
+    copying it into a new worktree would resume the distribution the retirement ended (D-198).
+    The two sets are therefore intentionally not identical; the skip is keyed on the group
+    CONSTANT, never on a repeated string literal, so renaming the group cannot silently
+    reintroduce the copy.
     """
     seen: set[str] = set()
     patterns: list[str] = []
-    for paths in gitignore_dest_paths().values():
+    for group, paths in gitignore_dest_paths().items():
+        # A RETIRED vendored dir is ignored but never distributed — copying it into a new
+        # worktree would resume exactly the distribution the retirement ended (D-198).
+        if group == RETIRED_VENDORED_GITIGNORE_GROUP:
+            continue
         for p in paths:
             if p not in seen:
                 seen.add(p)

@@ -13,15 +13,44 @@ All notable changes to this project will be documented in this file.
 - Safe fleet-wide by measurement, not assumption: of 231 synced files, 5 Python importers of the module
   (`doc_reconcile`, `rivals_run`, `check_routing_policy`, `check_command_corpus`,
   `check_subagent_flywheel`) all guard the import in `try/except`; `check_imports_resolvable` names it in
-  prose only. Their step 2 — deleting `/opt/fabrik/libs/subagents` — is REFUSED and stays refused: 17 hub
-  scripts import it, 12 unguarded, 4 wired into `final_gate.py` including `check_imports_resolvable`
-  itself, so the delete would red every hub session's completion gate. That is a migration, not a
-  one-liner.
+  prose only. Their step 2 — deleting `/opt/fabrik/libs/subagents` — is REFUSED, but **on corrected
+  evidence** (see the D-198 entry below): the original "17 importers, 12 unguarded, 4 in `final_gate.py`,
+  the delete reds the gate" was wrong on every count and was asserted cross-repo before it was checked.
 - `templates/governance/.worktreeinclude` regenerated (the generated fleet-synced artifact still listed
   the directory); the pinned exemplars in `tests/test_synced_manifest.py` and
   `tests/test_sync_trigger_coverage.py` moved to `libs/health_probe`, the remaining VENDORED_DIRS member,
-  plus a new assertion that `libs/subagents/` is gone from the generated gitignore block. 295 tests green
-  across seven suites. (D-196)
+  plus a new assertion that `libs/subagents/` left the SYNCED vendored group. 295 tests green
+  across ten suites (the entry first said seven — the suites were counted by hand, the tests by pytest;
+  only the tool-produced number was right). (D-196)
+
+### Fixed — the retirement kept its ignore, and the refusal that justified it was wrong (2026-09-08)
+
+- **The D-196 delisting stripped `libs/subagents/` from the generated `.gitignore` block**, leaving 26
+  files untracked AND unignored in 38 of 41 project repos: one `git clean -fd` from deletion, one
+  `git add -A` from being committed as a retired vendored module. The sync deleted nothing — that claim
+  was true — but the delisting removed the protection that made "the sync deletes nothing" safe to say.
+  `fabrik_synced_manifest.py:60-63` already recorded this exact lesson for `RETIRED_CORE_SCRIPTS`,
+  80 lines above the edit. New `RETIRED_VENDORED_DIRS` + `RETIRED_VENDORED_GITIGNORE_GROUP`: a retired
+  dir stays IGNORED but is never synced and never copied into a worktree (`worktreeinclude_text()` skips
+  it by group CONSTANT, so a rename cannot silently resume distribution). Five guards, red-on-revert
+  proven against HEAD's pre-fix module with both halves asserted.
+- **The refusal of fabrik-lib's step 2 rested on numbers that do not re-derive.** "17 hub scripts import
+  it, 12 unguarded, 4 wired into `final_gate.py` — including `check_imports_resolvable` itself" was
+  wrong three ways: `check_imports_resolvable` never imports the module (prose only — the same
+  distinction the project-side count got right), and an AST scan of 3,968 hub `.py` files finds 20
+  importer files, 10 with a module-level unguarded import. Proven by EXECUTION rather than counting:
+  with the module made unimportable via a `meta_path` blocker, **all four gate-wired checks exit 0** —
+  the delete does NOT red the gate. The refusal stands on the 10 real breakages (3 live scripts,
+  7 test modules), not on a gate failure.
+- `_unreachable_vendored_copies` now searches retired dirs too: both strays it exists to name
+  (`ai-model-catalog/engine/libs/subagents`, `whatsapp-agent/src/libs/subagents`) had silently stopped
+  being reported the moment the dir was delisted — verified reporting again by execution.
+- Stale-comment repairs the same delisting caused: `src/fabrik/scaffold.py` (new projects no longer ship
+  the module — an unstated consequence, now stated), `scripts/distribute_subagents.sh` (its fleet
+  distribution is now hub-only and said so nowhere), `INDEX.md`, and
+  `docs/workflows/SYNC_ENFORCEMENT_WORKFLOW.md`. The "231 synced files" denominator is now marked as the
+  pre-removal measurement it was — `iter_synced_pairs` yields 205 after the edit, so the number was
+  stale in its own file on day one. (D-198)
 
 ### Added — agents sweep their own session scratch and agent worktrees; nothing is deleted blindly (2026-09-08)
 

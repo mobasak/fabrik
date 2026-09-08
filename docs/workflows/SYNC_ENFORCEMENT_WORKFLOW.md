@@ -108,7 +108,7 @@ All files in `scripts/enforcement/` are recursively synced (`ENFORCEMENT_DIR`, `
 
 | Dir | Purpose |
 |-----|----------|
-| `libs/subagents` | The OpenRouter subagent-pool module (`VENDORED_DIRS`, `fabrik_synced_manifest.py`), vendored into every project. Dev-time tool the `/fabrik-*` commands import as `from libs.subagents import …`; a fix in the hub copy (`/opt/fabrik/libs/subagents`, kept byte-identical to canonical `/opt/fabrik-lib/subagents`) propagates fleet-wide on the next sync. |
+| `libs/subagents` | **RETIRED from the sync 2026-09-08 (D-196).** No longer distributed: a hub-copy fix does NOT reach projects any more, and `scripts/distribute_subagents.sh` no longer distributes it either. Projects delete their leftover copy at their own pace; it stays gitignored meanwhile via `RETIRED_VENDORED_DIRS` (D-198). The HUB copy `/opt/fabrik/libs/subagents` STAYS — 17 hub scripts import it, 12 unguarded. |
 
 ### Agent Hook Files
 

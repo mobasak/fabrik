@@ -39,5 +39,12 @@ if ! "$PY" -c "import sys; sys.path.insert(0,'/opt/fabrik'); from libs.subagents
   exit 1
 fi
 
-echo "distribute_subagents: re-vendored canonical -> hub; distributing to the fleet…"
+# ⚠️ HUB-ONLY since D-196 (2026-09-08). `libs/subagents` was retired from VENDORED_DIRS, so the fleet
+# sync no longer carries this module to the ~46 projects — a canonical fix reaches the HUB copy and
+# stops there. The sync is still run because this script may be the only thing that fires after a
+# fabrik-lib commit and other governance surfaces still ride it, but do NOT read its output as
+# "the module reached the fleet": it did not, by design. Re-enabling fleet distribution means
+# re-adding the entry to VENDORED_DIRS (and removing it from RETIRED_VENDORED_DIRS), not editing this.
+echo "distribute_subagents: re-vendored canonical -> HUB ONLY (fleet distribution retired, D-196);"
+echo "distribute_subagents: running the fleet sync for the OTHER governance surfaces…"
 "$PY" /opt/fabrik/scripts/sync_enforcement_to_projects.py 2>&1 | tail -2

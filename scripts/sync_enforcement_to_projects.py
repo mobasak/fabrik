@@ -2155,11 +2155,16 @@ def _unreachable_vendored_copies(projects: list[Path]) -> list[str]:
     LOAD-BEARING, 01M1J0HN) receives nothing, forever, and every "does this repo have the module?"
     check answers YES against the unused standard copy. Report what the sync did not reach —
     the population of copies that EXIST, not just the files it WROTE."""
-    from fabrik_synced_manifest import VENDORED_DIRS
+    # RETIRED dirs are searched TOO (D-198). The two strays this function exists to name are
+    # both `libs/subagents` copies, so when D-196 delisted that dir the diagnostic silently
+    # stopped reporting them — a load-bearing check quietly losing its only known subjects.
+    # A retired dir is exactly when an unreachable copy matters MOST: nothing syncs it any
+    # more, so a stray is now permanently stale rather than merely mis-placed.
+    from fabrik_synced_manifest import RETIRED_VENDORED_DIRS, VENDORED_DIRS
 
     found: list[str] = []
     for project_dir in projects:
-        for vendored_rel in VENDORED_DIRS:
+        for vendored_rel in [*VENDORED_DIRS, *RETIRED_VENDORED_DIRS]:
             leaf = Path(vendored_rel).name
             target = project_dir / vendored_rel
             for dirpath, dirnames, filenames in os.walk(project_dir):

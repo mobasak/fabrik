@@ -1163,11 +1163,16 @@ def _scaffold_shared(
     if fabrik_enforcement.exists():
         shutil.copytree(fabrik_enforcement, project_enforcement, dirs_exist_ok=True)
 
-    # Copy vendored fabrik-lib modules (the subagents pool → libs/subagents) so every new project — of
-    # ANY type — ships with the dev-time pool the /fabrik-* commands import (`from libs.subagents import …`).
-    # Driven by the SAME manifest constant the fleet sync uses (VENDORED_DIRS) so the two never drift; the
-    # .gitignore "Fabrik-synced" block already lists libs/subagents/ (via gitignore_block_text()), so the
-    # copy is gitignored in the project, matching the other synced dirs. Skip bytecode.
+    # Copy vendored fabrik-lib modules so every new project — of ANY type — ships with them.
+    # Driven by the SAME manifest constant the fleet sync uses (VENDORED_DIRS) so the two never drift,
+    # and the .gitignore "Fabrik-synced" block lists each one (via gitignore_block_text()), so the copy
+    # is gitignored in the project. Skip bytecode.
+    #
+    # ⚠️ As of D-196 this no longer ships `libs/subagents`: retiring it from VENDORED_DIRS changed
+    # NEW-PROJECT behaviour too, not only the ~46 existing copies the retirement talked about. That is
+    # correct — a new project should not be seeded with a module the fleet is deleting, and the pool is
+    # OFF (D-181/D-182) — but it was an unstated consequence, so it is stated here. A retired dir is
+    # deliberately NOT copied: RETIRED_VENDORED_DIRS keeps it ignored, never distributed (D-198).
     for _vendored_rel in _fabrik_vendored_dirs():
         fabrik_vendored = FABRIK_ROOT / _vendored_rel
         if fabrik_vendored.is_dir():

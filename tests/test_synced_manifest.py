@@ -66,7 +66,9 @@ def fake_fabrik(tmp_path: Path) -> Path:
     (root / "libs" / "health_probe" / "agent.py").write_text("# agent\n")
     (root / "libs" / "health_probe" / "requirements.txt").write_text("httpx\n")
     (root / "libs" / "health_probe" / "__pycache__").mkdir()
-    (root / "libs" / "health_probe" / "__pycache__" / "agent.cpython-312.pyc").write_bytes(b"\x00bc")
+    (root / "libs" / "health_probe" / "__pycache__" / "agent.cpython-312.pyc").write_bytes(
+        b"\x00bc"
+    )
     return root
 
 
@@ -149,25 +151,24 @@ def test_gitignore_block_ignores_claude_settings_local() -> None:
     assert text.count(".claude/settings.local.json") == 1
     assert text.index(".claude/settings.local.json") < text.index(m.GITIGNORE_BLOCK_END)
     synced_names = [
-        p
-        for v in vars(m).values()
-        if isinstance(v, (list, tuple))
-        for p in v
-        if isinstance(p, str)
+        p for v in vars(m).values() if isinstance(v, (list, tuple)) for p in v if isinstance(p, str)
     ]
-    assert not any(
-        "settings.local.json" in p for p in synced_names
-    ), "the carrier must be ignored, never distributed (no synced name list may carry it)"
+    assert not any("settings.local.json" in p for p in synced_names), (
+        "the carrier must be ignored, never distributed (no synced name list may carry it)"
+    )
 
 
-def test_vendored_module_gitignored_and_pycache_excluded(
-    fake_fabrik: Path, tmp_path: Path
-) -> None:
+def test_vendored_module_gitignored_and_pycache_excluded(fake_fabrik: Path, tmp_path: Path) -> None:
     # a vendored module must be gitignored in projects (synced dir) AND its bytecode never synced.
     assert "libs/health_probe/" in m.gitignore_block_text()
-    # D-196 retired libs/subagents from VENDORED_DIRS: it must no longer be claimed by the
-    # generated block, or a project would keep ignoring a directory nothing syncs any more.
-    assert "libs/subagents/" not in m.gitignore_block_text()
+    # D-196 retired libs/subagents from VENDORED_DIRS, so it is no longer a SYNCED vendored
+    # module. It must NOT appear in this group — but it IS still ignored, via the separate
+    # retired group (D-198): dropping the ignore entirely left 26 files untracked in 38 repos.
+    # See test_retired_vendored_dir_is_still_gitignored for the other half of that contract.
+    assert (
+        "libs/subagents/"
+        not in m.gitignore_dest_paths()["Vendored fabrik-lib modules (synced fleet-wide)"]
+    )
     proj = tmp_path / "proj"
     dests = [d.as_posix() for _src, d in m.iter_synced_pairs(proj, fake_fabrik)]
     vendored = [d for d in dests if "libs/health_probe" in d]
@@ -192,9 +193,26 @@ def test_worktreeinclude_text_covers_every_gitignore_dest_paths_entry() -> None:
     names), so dropping the real entry leaves a substring check green (proven by
     mutation review: dropping ".windsurf/" from the render left it green)."""
     rendered_lines = m.worktreeinclude_text().splitlines()
-    flattened = {p for paths in m.gitignore_dest_paths().values() for p in paths}
+    # ONE deliberate exemption (D-198): the RETIRED vendored group is ignored but never
+    # distributed, so it must NOT reach a worktree — copying it there would resume the very
+    # distribution the retirement ended. Every OTHER group still owes full coverage, and the
+    # exemption is keyed on the group CONSTANT so a renamed group fails loudly here rather
+    # than silently widening the exemption.
+    flattened = {
+        p
+        for group, paths in m.gitignore_dest_paths().items()
+        if group != m.RETIRED_VENDORED_GITIGNORE_GROUP
+        for p in paths
+    }
     missing = sorted(p for p in flattened if p not in rendered_lines)
-    assert not missing, f"worktreeinclude_text() is missing gitignore_dest_paths() entries: {missing}"
+    assert not missing, (
+        f"worktreeinclude_text() is missing gitignore_dest_paths() entries: {missing}"
+    )
+    # The exemption is EXACT, not a licence: the retired entries are the only absentees.
+    retired = {f"{d}/" for d in m.RETIRED_VENDORED_DIRS}
+    assert not (retired & set(rendered_lines)), (
+        f"a RETIRED vendored dir reached .worktreeinclude: {sorted(retired & set(rendered_lines))}"
+    )
 
 
 def test_worktreeinclude_text_adds_env_and_mcp_json() -> None:
@@ -256,3 +274,57 @@ def test_gitignore_block_contains_worktrees_dir() -> None:
     hub's own .git/info/exclude), needed so a linked worktree's own metadata dir is
     never tracked (design spec § Lifecycle: "Adoption")."""
     assert ".claude/worktrees/" in m.gitignore_block_text().splitlines()
+
+
+# ── D-198: a RETIRED vendored dir stays IGNORED but is never DISTRIBUTED ────────────────
+# Regression guards for the defect D-196 introduced: delisting `libs/subagents` from
+# VENDORED_DIRS also dropped it from the generated gitignore block, leaving 26 files
+# untracked AND unignored in 38 of 41 project repos — one `git clean -fd` from deletion.
+# The same lesson is recorded for CORE_SCRIPTS at fabrik_synced_manifest.py:60-63.
+
+
+def test_retired_vendored_dir_is_still_gitignored() -> None:
+    """The leftover copy must stay ignored — otherwise it is clean/add bait in ~46 repos."""
+    block = m.gitignore_block_text()
+    for retired in m.RETIRED_VENDORED_DIRS:
+        assert f"{retired}/" in block, (
+            f"{retired} is retired but NOT in the gitignore block — a project's leftover copy "
+            "is now `git clean -fd` bait and `git add -A` bait (the D-196 defect)"
+        )
+
+
+def test_retired_vendored_dir_is_not_distributed(fake_fabrik: Path, tmp_path: Path) -> None:
+    """Retired means the sync never WRITES it again — ignoring it must not resurrect the copy."""
+    dests = [d.as_posix() for _src, d in m.iter_synced_pairs(tmp_path / "proj", fake_fabrik)]
+    for retired in m.RETIRED_VENDORED_DIRS:
+        assert not any(retired in d for d in dests), (
+            f"{retired} is retired but iter_synced_pairs still yields it — the sync would "
+            "restore what the projects are deleting"
+        )
+
+
+def test_retired_vendored_dir_is_not_copied_into_worktrees() -> None:
+    """`.worktreeinclude` must NOT carry a retired dir: copying it into a new worktree
+    resumes exactly the distribution the retirement ended."""
+    text = m.worktreeinclude_text()
+    for retired in m.RETIRED_VENDORED_DIRS:
+        assert f"{retired}/" not in text, (
+            f"{retired} is retired but .worktreeinclude still lists it — every new worktree "
+            "would receive a fresh copy of a module the fleet is deleting"
+        )
+
+
+def test_retired_and_live_vendored_dirs_are_disjoint() -> None:
+    """A name in both lists would be synced and retired at once — an incoherent state."""
+    overlap = set(m.VENDORED_DIRS) & set(m.RETIRED_VENDORED_DIRS)
+    assert not overlap, f"vendored dirs both live and retired: {sorted(overlap)}"
+
+
+def test_worktreeinclude_skip_is_keyed_on_the_group_constant() -> None:
+    """The skip must key on RETIRED_VENDORED_GITIGNORE_GROUP, not a repeated literal —
+    a renamed group would otherwise silently reintroduce the worktree copy."""
+    groups = m.gitignore_dest_paths()
+    assert m.RETIRED_VENDORED_GITIGNORE_GROUP in groups, (
+        "the retired group vanished from gitignore_dest_paths — the ignore protection is gone"
+    )
+    assert groups[m.RETIRED_VENDORED_GITIGNORE_GROUP] == [f"{d}/" for d in m.RETIRED_VENDORED_DIRS]
