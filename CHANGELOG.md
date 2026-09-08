@@ -90,7 +90,7 @@ All notable changes to this project will be documented in this file.
 
 `scripts/scratch_sweep.py` (Phase A of plan 2026-09-08-plan-1-scratch-sweep, D-184/D-187). Three modes — this session's scratchpad, `--worktrees`, and the `--dead` janitor — and in every one the DRY RUN is the default: each row carries its class, its reason and its evidence, `--apply` is opt-in, and a hard-coded refusal set (printed by `--help`) keeps held, kept, fresh, dirty, unmerged, locked, foreign and backup-holding entries out of the removal set entirely. Operator's two constraints, verbatim: "we should not cause data loss" and "agents must know what will this script do while using it."
 
-A sid is `dead` only on three positive signals — no live signal, a death signal, AND its own directory idle past 7 days — because a gone pid is not a finished session: `--resume` keeps the sid across exactly the network deaths, context fills and quota holds this tool exists to serve (18 of 18 gone-pid dirs on the box were younger than 7 d, one 8 minutes old). A same-uid `/proc` gap is reported as `proc-gaps N`, never blocking, because 150 of 152 fd-deniers are foreign-uid and the two same-uid ones are permanent — a blocking default made the tool inert on every run. Worktree provenance is the registration's mtime against `btime + procStart/SC_CLK_TCK`, failing closed. 33 graders, each seen red first.
+A sid is `dead` only on three positive signals — no live signal, a death signal, AND its own directory idle past 7 days — because a gone pid is not a finished session: `--resume` keeps the sid across exactly the network deaths, context fills and quota holds this tool exists to serve (18 of 18 gone-pid dirs on the box were younger than 7 d, one 8 minutes old). A same-uid `/proc` gap is reported as `proc-gaps N`, never blocking, because 150 of 152 fd-deniers are foreign-uid and the two same-uid ones are permanent — a blocking default made the tool inert on every run. Worktree provenance is the registration's mtime against `btime + procStart/SC_CLK_TCK`, failing closed. 53 graders at Phase A, each seen red first; 55 today.
 
 Phase B wires the three triggers, all advisory. A TOP-LEVEL `command_run.py done|blocked|handoff` now
 prints the closing session's own table after `run record closed` — its five OLDEST stale entries, a
@@ -120,6 +120,14 @@ sweep exit 0 having done nothing.
   regex, so no project receives this. `scored-rate` occurs in exactly two files, both charters, with no
   code consumer and no kaizen cell — the suspension breaks nothing mechanical. The mirror claim in
   `docs/reference/agents/infra.md:42-45` is infra's beat and was filed to them, not edited here. (D-195)
+
+### Fixed — D-191 round 10: the closing sweep's residue (2026-09-08)
+- Receipt rows F262–F277 (FIXED 13 · RECORDED 3; 16 rows, script-counted at the round's close).
+- `command_run.py`: `round --seats` refuses a negative like `dispatch` does, and a deliberate `--seats 0` beside a live stamp is SAID as a disagreement (F267, F272); the protocol table's `round` row states omitted-vs-zero (F268).
+- `dispatch_headroom.py`: the unreadable reason counts records AND frames honestly; a release marker without a `seats` key is still a known zero; the heavy budget's reasons ride the payload (F273–F275).
+- `quota_dashboard.py`: the caveat block scans the heavy half's reasons and "nothing to partition"; the orphan re-kick is one at a time; the matrix test walks four budget shapes (F270, F274, F276).
+- `dispatch_headroom.py`: a `stack` that is not a list is named `<file>#stack`; the unreadable-record reason speaks of frames; `box_caps_floored`'s True case is tested through `main()` (F263–F265).
+- fabrik-execute-plan D4 pairs its per-ticket dispatch stamp with the `round` close (F266). The round-9 CHANGELOG bullet's range and tally corrected (F262).
 
 ### Fixed — D-191 round 9: the sibling walk is per frame; the board's caveat match is case-insensitive; core/62 says what the code does (2026-09-08)
 - Receipt rows F233–F261 (19 fixed, 8 recorded, 2 refuted; script-counted at the round's close — the first draft of this bullet counted F233–F252 before the Opus seat's rows landed, F262).

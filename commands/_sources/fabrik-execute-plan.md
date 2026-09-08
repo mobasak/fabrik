@@ -567,7 +567,7 @@ carve-out:** a diff touching secret-material paths (`.env` / `.env.*` **except `
 Doc-Sync-Matrix file every env-var change touches; without the exemption a routine env-var phase would be
 misread as secret-bearing — `secrets/`, key files) is reviewed
 **native-only** — secret contents never go to pool APIs; all other never-route classes get both layers.
-The orchestrator refutes/merges/adjudicates; fixups route per D2. **Under `Profile: small` the per-ticket
+The orchestrator refutes/merges/adjudicates; fixups route per D2. **Every per-ticket round is stamped and closed like any other:** `python3 scripts/command_run.py dispatch --seats <n>` BEFORE its seats go out, `python3 scripts/command_run.py round --seats <n> --findings <n> --classes-swept … --classes-new …` at its close — the D-186 tripwire and the sibling reservation are blind to a round that stamps and never closes. **Under `Profile: small` the per-ticket
 layer is `/fabrik-review-scoped`** — tests + gate + the light scoped round, its run record the artifact, NO
 per-ticket review file — and the floor above runs ONCE at D7 over the whole-plan diff into the single
 receipt; the rest of this section (docs converge with the ticket, fixups, 3-strikes) binds unchanged.
@@ -1153,8 +1153,8 @@ is where `BASE` goes, and each of step 8's three positions has its own dispositi
       `git merge --no-ff <the branch>`, resolving conflicts by § Merge Protocol's table (higher task
       number wins on semantic conflicts · keep both additions · combine import sets) — a conflict you
       cannot resolve cleanly is `git merge --abort` + OWED, never a forced resolution. Then **re-run the
-      phase gates ON THE MERGED RESULT**, `git worktree remove <path>` + `git worktree prune`, and delete
-      the branch.
+      phase gates ON THE MERGED RESULT**, `git worktree remove <path>` + `git worktree prune`
+      (or `python3 /opt/fabrik/scripts/scratch_sweep.py --worktrees` — lists merged/dirty/unmerged/locked with reasons; `--apply` removes only the merged + clean + unlocked + unheld), and delete the branch.
    5. Steps 5–7 then run here, on the merged branch — **only if step 4 actually merged.** Deferred on a
       dirty path, or aborted on a conflict → the OWED path below owns the rest: the tree stays, steps 5–7
       run in it, and the report names what is left.

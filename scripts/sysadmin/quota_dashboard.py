@@ -1921,6 +1921,10 @@ def _budget_probe(gen: int | None = None) -> str:
             # orphaned: kick a probe for the CURRENT generation now, or the placeholder stays
             # until some later render happens to notice this thread is dead (round-6 finding)
             cur = _budget_cache["gen"]
+            th = _budget_cache["thread"]
+            # one re-kick at a time: K stale generations spawned K fleet probes (round-10 Opus)
+            if th and th.is_alive() and th is not threading.current_thread():
+                return html
             nxt = threading.Thread(
                 target=_budget_probe, args=(cur,), name="budget-banner", daemon=True
             )
@@ -1948,12 +1952,14 @@ def _budget_caveats(d: dict) -> str:
         "HARD cap binds",
         "is not a number",
         "dispatch nothing",
+        "nothing to partition",
     )
     # case-INSENSITIVE (round-9 finding): the script says "NOT subtracted" for an unreadable
     # sibling record — the over-dispatch caveat — and a lowercase word never matched it
     lines = [
         r
-        for r in (d.get("reasons") or [])
+        for r in list(d.get("reasons") or [])
+        + [x for x in (d.get("heavy_reasons") or []) if x not in (d.get("reasons") or [])]
         if isinstance(r, str) and any(w.lower() in r.lower() for w in words)
     ]
     sib = d.get("siblings") or {}

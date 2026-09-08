@@ -1855,8 +1855,11 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             if _d.get("round") == len(rounds) and not _d.get("released")
             else 0
         )
+        if args.seats is not None and args.seats < 0:
+            print("[command_run] round --seats must be >= 0", file=sys.stderr)  # round-10 finding
+            return 2
         _seats = args.seats if args.seats is not None else _stamped
-        if args.seats and _stamped and args.seats != _stamped:
+        if args.seats is not None and _stamped and args.seats != _stamped:  # 0 disagrees too
             print(
                 f"[command_run] round --seats {args.seats} disagrees with the {_stamped} seat(s) "
                 "stamped this round — the stamp is what sibling sessions subtracted; recording "

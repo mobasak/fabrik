@@ -261,6 +261,8 @@ def siblings(
             # record, however many of its frames carry no figure (the reason says sessions)
             stack = rec.get("stack")
             raw_frames = [rec] + (list(stack) if isinstance(stack, list) else [])
+            if stack is not None and not isinstance(stack, list):
+                out["skipped"].append(f"{p.name}#stack")  # a non-list stack is named, not dropped
             seats = 0
             frame_out = {"unrecorded": 0}
             for k, fr in enumerate(raw_frames):
@@ -301,7 +303,10 @@ def _frame_seats(rec: dict, now: float, out: dict) -> int:
     last = rounds[-1] if rounds else {}
     disp_seats = disp.get("seats") if disp is not None else None
     released = disp is not None and bool(disp.get("released"))
-    if not released and not disp_seats and not last.get("seats"):
+    if released:
+        return 0  # a RELEASE marker is a known zero whatever else the frame says (round-10 Opus:
+        # one without a `seats` key fell through to the round row and re-reserved 9)
+    if not disp_seats and not last.get("seats"):
         # running, no seat figure at all: no stamp, an EMPTY stamp, or a round row at
         # the CLI's own default (`round --seats` 0 = "not recorded") — a LOWER bound,
         # counted and named, never a known zero (round-6 finding); a RELEASE marker
@@ -471,9 +476,11 @@ def budget(
         # F80 named a malformed record "as skipped" — into a field nothing read; their seats
         # vanished in the OVER-dispatch direction with no line (round-8 Opus finding)
         sk = [str(x) for x in s["skipped"]]
+        recs = sorted({x.split("#", 1)[0] for x in sk})  # frames vs records (round-10 Opus)
         reasons.append(
-            f"{len(sk)} sibling record(s) unreadable ({', '.join(sk[:3])}) — their seats are NOT "
-            "subtracted; the box number is an UPPER bound"
+            f"{len(recs)} sibling record(s) carry {len(sk)} unreadable frame(s) "
+            f"({', '.join(sk[:3])}) — the seats those frames carried are NOT subtracted; the box "
+            "number is an UPPER bound"
         )
     if s.get("unrecorded"):
         # its own line: nested under the `taken` clause it never printed for the common case — a
@@ -696,6 +703,9 @@ def main(argv: list[str] | None = None) -> int:
         adjudicator=adjudicator,
         box_caps=box_caps,
         box_caps_floored=box_caps_floored,
+        # the HEAVY half's reasons — the board scans them too (round-10 Opus finding: a heavy-only
+        # over-commit rendered with no caveat because `reasons` was the read-only half only)
+        heavy_reasons=_hv["reasons"],
         floor=FLOOR,  # the board labels a cap the floor raised (round-7 finding)
     )
     if a.json:

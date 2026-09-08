@@ -420,6 +420,14 @@ def test_the_cost_story_describes_the_mix_it_prints_never_the_per_unit_sentence(
     d = json.loads(capsys.readouterr().out)
     assert d["box_caps"] == {"read_only": 23, "heavy": 12} and d["full_mix"] == d["mix"]
     assert d["floor"] == dh.FLOOR and d["box_caps_floored"] == {"read_only": False, "heavy": False}
+    # the True case through main() (round 10: the wiring could be hardcoded False and stay green)
+    monkeypatch.setattr(
+        dh, "siblings", lambda: {"ok": True, "seats": 21, "sessions": 2, "skipped": []}
+    )
+    assert dh.main(["--units", "3", "--json"]) == 0
+    d = json.loads(capsys.readouterr().out)
+    assert d["box_caps_floored"] == {"read_only": True, "heavy": True} and d["floor_granted"] == 1
+    assert any("floor granted" in x for x in d["heavy_reasons"])  # the heavy half rides too
     assert dh.main(["--units", "0"]) == 0  # the phantom-floor path end to end (round-8 finding)
     out = capsys.readouterr().out
     assert "SEATS: 0" in out
@@ -833,6 +841,20 @@ def test_a_parked_parent_frame_keeps_its_reservation_and_the_two_no_standby_fact
     s = dh.siblings(now=now, runs_dir=tmp_path, exclude_sid="nobody")
     assert s["seats"] == 17 and s["sessions"] == 2  # 7 (parked parent) + 10 (combo's parent)
     assert sorted(s["skipped"]) == ["combo.json#1", "combo.json#2"]
+    # a `stack` that is not a list is NAMED (round 10) — it was silently read as absent
+    (tmp_path / "dict-stack.json").write_text(
+        json.dumps(
+            {
+                "state": "running",
+                "rounds": [],
+                "dispatch": {"ts": now, "seats": 2},
+                "stack": {"x": 1},
+            }
+        )
+    )
+    s = dh.siblings(now=now, runs_dir=tmp_path, exclude_sid="nobody")
+    assert "dict-stack.json#stack" in s["skipped"] and s["seats"] == 19
+    (tmp_path / "dict-stack.json").unlink()
     assert s["unrecorded"] == 1  # two-empty-frames only, once — nested.json carries a figure
     (tmp_path / "combo.json").unlink()
     (tmp_path / "two-empty-frames.json").unlink()
@@ -862,9 +884,31 @@ def test_a_parked_parent_frame_keeps_its_reservation_and_the_two_no_standby_fact
     # an unreadable sibling record is SAID, in the over-dispatch direction (round-8 Opus)
     r = dh.budget(6, False, BOX_OK, Q_OK, {"ok": True, "seats": 0, "skipped": ["sib.json"]})
     assert any(
-        "1 sibling record(s) unreadable (sib.json) — their seats are NOT subtracted" in x
+        "1 sibling record(s) carry 1 unreadable frame(s) (sib.json) — the seats those frames" in x
         for x in r["reasons"]
     )
+    # frames vs records (round-10 Opus): three bad frames of ONE record are one record
+    r = dh.budget(
+        6,
+        False,
+        BOX_OK,
+        Q_OK,
+        {"ok": True, "seats": 6, "skipped": ["one.json#1", "one.json#2", "one.json#3"]},
+    )
+    assert any("1 sibling record(s) carry 3 unreadable frame(s)" in x for x in r["reasons"])
+    # a RELEASE marker without a `seats` key is still a known zero (round-10 Opus)
+    (tmp_path / "released-no-seats.json").write_text(
+        json.dumps(
+            {
+                "state": "running",
+                "rounds": [{"n": 1, "seats": 9, "ts": now}],
+                "dispatch": {"ts": now, "released": True, "round": 1},
+            }
+        )
+    )
+    s = dh.siblings(now=now, runs_dir=tmp_path, exclude_sid="nobody")
+    assert s["seats"] == 7 and s["unrecorded"] == 0
+    (tmp_path / "released-no-seats.json").unlink()
     warm = dict(Q_OK, eligible=0, eligible_raw=2)
     r = dh.budget(6, False, BOX_OK, warm)
     assert any("0 of 2 standby(s) are COOL" in x for x in r["reasons"])

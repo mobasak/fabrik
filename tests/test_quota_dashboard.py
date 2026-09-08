@@ -2963,6 +2963,13 @@ def test_the_box_budget_banner_shows_the_maximum_and_fails_soft(tmp_path, monkey
     assert "⚠️ 1 sibling record(s) unreadable (x.json) — their seats are NOT subtracted" in html
     assert "HARD cap binds" in html and "is not a number" in html
     payload["reasons"] = []
+    # the HEAVY half's reasons reach the caveat block too (round-10 Opus: a heavy-only
+    # over-commit rendered with no ⚠️)
+    payload["heavy_reasons"] = [
+        "floor granted: 2 seat(s) past what the box has left after the sibling reservation"
+    ]
+    assert "⚠️ floor granted: 2 seat(s) past what the box has left" in qd._budget_probe()
+    payload["heavy_reasons"] = []
     # an older probe without box_caps must not let the read-only cap pose as the heavy one
     monkeypatch.setattr(
         qd.subprocess,
@@ -3205,14 +3212,22 @@ def test_every_degraded_reason_the_script_can_emit_reaches_the_board(tmp_path, m
     ]
     bookkeeping = ("box allows ", "wanted ", "risky=", "mix has ")
     missed = set()
+    # round 10: the walk also covers units 0 ("nothing to partition" — it had no word), heavy,
+    # a clamped risky and the judgement-surface mechanical 0
+    shapes = [(6, False, 1, None), (0, False, 0, None), (6, True, 3, 0), (2, False, 3, None)]
     for b in boxes:
         for q in quotas:
             for s in sibs:
-                r = dh.budget(6, False, b, q, s, 1, None)
-                rendered = qd._budget_caveats({"reasons": r["reasons"], "siblings": s})
-                for reason in r["reasons"]:
-                    if reason.startswith(bookkeeping):
-                        continue
-                    if html.escape(reason) not in rendered:
-                        missed.add(reason[:90])
+                for units, heavy, risky, mech in shapes:
+                    r = dh.budget(units, heavy, b, q, s, risky, mech)
+                    _check(r, s, qd, bookkeeping, missed)
     assert not missed, sorted(missed)
+
+
+def _check(r, s, qd, bookkeeping, missed):
+    rendered = qd._budget_caveats({"reasons": r["reasons"], "siblings": s})
+    for reason in r["reasons"]:
+        if reason.startswith(bookkeeping):
+            continue
+        if html.escape(reason) not in rendered:
+            missed.add(reason[:90])

@@ -1693,10 +1693,13 @@ def test_a_bare_round_inherits_the_stamp_and_a_disagreeing_count_is_said_and_gra
     assert "round --seats 2 disagrees with the 5 seat(s) stamped" in p.stderr
     rec = json.loads(next(run_dir.glob("*.json")).read_text())
     assert rec["rounds"][-1]["seats"] == 2  # recorded as typed, the disagreement named
+    # a negative typed count is refused like `dispatch`'s (round 10: it reached the ledger as -5)
+    p = _cr(run_dir, "round", "--seats", "-1", "--findings", "0")
+    assert p.returncode == 2 and "must be >= 0" in p.stderr
     # a deliberate `--seats 0` beside a live stamp is recorded as 0 (round 9: `or` conflated it)
     _cr(run_dir, "dispatch", "--seats", "4")
     p = _cr(run_dir, "round", "--seats", "0", "--findings", "0", "--classes-swept", "a")
-    assert "disagrees" not in p.stderr
+    assert "round --seats 0 disagrees with the 4 seat(s) stamped" in p.stderr  # round 10: 0 too
     rec = json.loads(next(run_dir.glob("*.json")).read_text())
     assert rec["rounds"][-1]["seats"] == 0
     p = _cr(
