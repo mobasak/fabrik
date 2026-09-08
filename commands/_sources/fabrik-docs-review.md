@@ -122,10 +122,10 @@ features documented-but-removed or shipped-but-undocumented.
 
 ### Parallelism — the DEFAULT for a multi-doc scope
 
-With **2+ docs or subsystems to reconcile**, dispatch one INDEPENDENT native seat per doc/subsystem (recipe in
+Dispatch one INDEPENDENT native seat per doc/subsystem, every run (recipe in
 § Subagents), run them in parallel, then merge + dedupe their findings — refuting any that are provably wrong
-(quote the code/doc line that disproves the discrepancy) before acting — before the next pass. Only a
-single-doc scope loops solo.
+(quote the code/doc line that disproves the discrepancy) before acting — before the next pass.
+**Never solo, never two:** a surface with fewer than three units still dispatches **THREE seats on DIFFERENT angles** over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186).
 
 **Verify subagents:** after merging subagent ledgers, independently re-check a random
 sample (~20%) of each subagent's VERIFIED claims against the code. Subagent summaries

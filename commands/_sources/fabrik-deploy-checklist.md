@@ -79,9 +79,10 @@ Record every derivation as the COMMAND that produced it and its COUNT (`routes: 
 `services: 4 + 1 sidecar` · `env keys: 32 distinct over 49 sites`). A count without its command is a
 claim.
 
-**Parallelism — the default with 2+ derivation surfaces:** one native `general-purpose` grounder per surface, all
+**Parallelism — UNCONDITIONAL, every run:** one native `general-purpose` grounder per surface, all
 dispatched in ONE message — the surface count IS the seat count (D-186) (routes · jobs ·
-env · services · schema) per § Subagents; the exclusion-set judgement and every DEV measurement stay
+env · services · schema) per § Subagents. **Never solo, never two:** a surface with fewer than three units still dispatches **THREE seats on DIFFERENT angles** over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186).
+The the exclusion-set judgement and every DEV measurement stay
 native — they read the project's own environment.
 
 ## Phase 2 — Emit the contract `[anywhere]`

@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the fan-out is UNCONDITIONAL and its floor is three seats (D-188, 2026-09-08)
+
+- The operator repeated the D-186 directive verbatim, because the first pass fixed the arithmetic and left the
+  escape hatches: **9 thresholds** ("with 2+ docs", "2+ entities", "more than a handful of flows", "2+ external
+  deps", "2+ phases", "2+ surfaces", "2+ derivation surfaces", "2+ personas", "2+ files/subsystems") and
+  **7 solo escapes** ("grounds solo", "loops solo", "grounds inline", and — in the SHARED `term-edit` fragment
+  reaching 13 commands — "a solo pass with no dispatch closes with its own full fresh read"). Below the
+  threshold a command dispatched NOTHING, so "one seat per unit" still yielded one seat, or none.
+- All 16 are gone. Every fan-out fires every run, and a surface with fewer than three units still dispatches
+  **three seats on different angles** — measured, not assumed: 1 seat found 0 while 3 over the same surface
+  found 0/5/0, and the 5 held a real fail-open two self-sweeps had read past. `/fabrik-review-scoped`'s floor
+  rises from "2–3 readers" to 3.
+
 ### Changed — the commands board reports the dispatch RULE, not the seat-type count (2026-09-08)
 
 - Operator: *"i want to see subagents counts correctly."* The **Native subagents** column led with the number

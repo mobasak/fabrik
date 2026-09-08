@@ -225,12 +225,11 @@ Also verify the plan's **structural pillars** are present and sound (add/fix any
 Also hunt: plan↔reality drift, unstated assumptions, missing edge cases and failure modes, and steps whose
 validation gate is vague or unrunnable.
 
-**Parallelism — the DEFAULT for a multi-phase plan.** With **2+ phases, external dependencies, or TICKETS to
-ground**, dispatch one INDEPENDENT native `fabrik-researcher` grounder per phase/dependency/ticket (the pool is
+**Parallelism — UNCONDITIONAL, every round.** Dispatch one INDEPENDENT native `fabrik-researcher` grounder per phase/dependency/ticket (the pool is
 OFF, D-181<!-- POOL OFF: `fanout("research", …, mode="read_only", web_tools=["web_search","web_scrape","docs_lookup"])` for live search; recipe in § Subagents -->),
 an Opus `fabrik-researcher` for the authoritative verify-sample — run them in parallel, then merge + dedupe their
 findings (refute any that are provably wrong — quote the line/schema that disproves them — before acting) before
-the next pass. Only a GREENFIELD single-phase MONOLITH plan loops solo — a monolith that modifies or
+the next pass. **Never solo, never two:** a surface with fewer than three units still dispatches **THREE seats on DIFFERENT angles** over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186). (This replaces the old GREENFIELD-monolith exemption: a monolith that modifies or
 wires into EXISTING code still owes ≥1 author-blind native pass (live proof: a ~40-line monolith's
 author nearly converged solo; the author-blind finder returned a CONFIRMED-HIGH invalidating the
 plan's core mechanism — every anchor was real, the defect was the author's inference) — and a plan

@@ -85,11 +85,10 @@ the pack wins — flag and fix.
 microcopy follow the design system's voice; no two sections contradict (an IA that buries a screen Phase 3 calls
 primary; a state listed on one screen and forgotten on its twin).
 
-**Parallelism — the DEFAULT for a multi-surface or multi-screen contract.** With **2+ surfaces or more than a
-handful of screens**, dispatch one INDEPENDENT native seat per axis (or per surface) — recipe in § Subagents — run
+**Parallelism — UNCONDITIONAL, every round.** Dispatch one INDEPENDENT native seat per axis (or per surface) — recipe in § Subagents — run
 them in parallel, then merge + **REFUTE** any finding you can disprove (quote the contract line / the
-data-contract field / the pack rule that makes it a non-issue) before editing. Only a tiny single-surface
-contract loops solo.
+data-contract field / the pack rule that makes it a non-issue) before editing.
+**Never solo, never two:** a surface with fewer than three units still dispatches **THREE seats on DIFFERENT angles** over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186).
 
 After each pass, list what you re-grounded (which screens you read, which `docs/data-contract.md` fields you
 confirmed, which pack rules you checked) and what you found, then fix the contract. **The loop terminates ONLY

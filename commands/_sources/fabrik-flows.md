@@ -95,7 +95,8 @@ operator debugging a 4xx) are distinct personas.
 
 ## Phase 3 — Map the journeys
 
-**Parallelism — the default once Phase 2 names 2+ personas.** Dispatch **one native `general-purpose` seat per persona (or per journey), all in a single message** to walk that persona's path through the spec, the code and any existing flows and return its entry → actions → feedback → exit with the gaps it hit; the persona count is the seat count (D-186). YOU own the journey judgment, the [PRIMARY PATH] call and every edit — the seats ground, they do not author. A single-persona journey grounds inline.
+**Parallelism — UNCONDITIONAL, every run.** Dispatch **one native `general-purpose` seat per persona (or per journey), all in a single message** to walk that persona's path through the spec, the code and any existing flows and return its entry → actions → feedback → exit with the gaps it hit; the persona count is the seat count (D-186). YOU own the journey judgment, the [PRIMARY PATH] call and every edit — the seats ground, they do not author.
+**Never solo, never two:** a surface with fewer than three units still dispatches **THREE seats on DIFFERENT angles** over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186).
 
 For each persona, map **Entry Point → Actions → Feedback → Exit**, with:
 

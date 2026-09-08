@@ -210,9 +210,8 @@ confidently-cited, genuinely-current best practice that is **illegal here** — 
 source URL. **A well-cited approach that violates a hard constraint is WORSE than an ungrounded one.** Check the
 constraint FIRST, the citation second.
 
-**Parallelism — the DEFAULT for multi-unit grounding.** If the spec has **2+ external deps or capabilities**,
-spawn one INDEPENDENT native seat per axis/dependency and **run them in parallel** (recipe in **§ Subagents**
-below): several finish in the wall-time of one, and a solo pass throws that breadth away. **Always** add
+**Parallelism — UNCONDITIONAL, every round.** Spawn one INDEPENDENT native seat per axis/dependency and **run them in parallel** (recipe in **§ Subagents**
+below): several finish in the wall-time of one, and a solo pass throws that breadth away. **Never solo, never two:** a surface with fewer than three units still dispatches **THREE seats on DIFFERENT angles** over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186). **Always** add
 **≥1 native `fabrik-researcher` on Opus** (`model: "opus"`, mandatory floor — see § Subagents) for the
 authoritative citation verify-sample; then
 merge + **REFUTE** any finding you can disprove (quote the source/module line) before editing. **Tier the

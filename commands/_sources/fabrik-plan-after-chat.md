@@ -189,11 +189,10 @@ Treat every intended step as unproven until verified against the real code/schem
 - Hunt, before they reach the plan: unstated assumptions, missing edge cases/failure modes, and any step
   whose validation would be vague or unrunnable.
 
-**Parallelism — the DEFAULT for multi-unit grounding.** With **2+ independent files/subsystems/dependencies
-to ground**, dispatch one INDEPENDENT native `fabrik-researcher` grounder per unit (the pool is OFF, D-181<!-- POOL OFF: `fanout("research", …, mode="read_only", web_tools=["web_search","web_scrape","docs_lookup"])` for live search; recipe in § Subagents -->), an Opus
+**Parallelism — UNCONDITIONAL, every run.** Dispatch one INDEPENDENT native `fabrik-researcher` grounder per unit (the pool is OFF, D-181<!-- POOL OFF: `fanout("research", …, mode="read_only", web_tools=["web_search","web_scrape","docs_lookup"])` for live search; recipe in § Subagents -->), an Opus
 `fabrik-researcher` for the authoritative verify-sample — run them **in parallel**, then merge + dedupe —
-**refute** any finding you can disprove by quoting the contradicting `path:line` before acting. Only a
-single-unit ground loops solo. Enumerate what you actually read (an empty check with no evidence does not count).
+**refute** any finding you can disprove by quoting the contradicting `path:line` before acting.
+**Never solo, never two:** a surface with fewer than three units still dispatches **THREE seats on DIFFERENT angles** over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186). Enumerate what you actually read (an empty check with no evidence does not count).
 
 ## Phase 2 — Emit the plan (phases, dependency order, runnable gates)
 

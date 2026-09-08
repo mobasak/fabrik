@@ -243,10 +243,9 @@ build this — never pick an approach from training memory or first instinct:
   ruling D-153: *"citations are not needed if I manually rule"* — and the ≥2-URL APPROACH floor above is
   unchanged: a spec whose every behaviour is ruled still grounds HOW it is built.)
 
-**Parallelism — the DEFAULT for multi-unit grounding, not a maybe.** Grounding **2+ independent deps/capabilities
-→ one native `fabrik-researcher` seat PER DEPENDENCY, run in parallel** (recipe in **§ Subagents** below): a serial grounding that could
+**Parallelism — UNCONDITIONAL, every run.** Ground with **one native `fabrik-researcher` seat PER DEPENDENCY/capability, run in parallel** (recipe in **§ Subagents** below): a serial grounding that could
 have been parallel is wasted wall-clock. Keep ≥1 native `fabrik-researcher` on Opus for the authoritative-source
-verify-sample; then **you** synthesize. Only a single dep grounds inline. The vendor-ladder verdict (1b) and
+verify-sample; then **you** synthesize. **Never solo, never two:** a surface with fewer than three units still dispatches **THREE seats on DIFFERENT angles** over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186). The vendor-ladder verdict (1b) and
 the design judgment stay yours.
 
 ## Phase 2 — Collaborative Q&A (pin intent)
