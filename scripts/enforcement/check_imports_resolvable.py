@@ -13,8 +13,8 @@ THE BUG THIS CATCHES — a deploy-breaker, not a lint nit.
 `libs/subagents/` was a Fabrik-synced DEV-TIME module. RETIRED from the fleet sync 2026-09-08 (D-196): it is
 no longer distributed, but the leftover copy is still present and still GITIGNORED in the project repos that
 have not deleted it yet (`fabrik_synced_manifest.py::RETIRED_VENDORED_DIRS`, not `VENDORED_DIRS`). The hazard
-this file teaches is UNCHANGED — the module sits on a developer's disk and is NOT in the repository. So it sits on a developer's disk and is NOT in
-the repository. When shipped code does `from libs.subagents.web_tools import execute_web_tool`:
+this file teaches is UNCHANGED — the module sits on a developer's disk and is NOT in the repository.
+When shipped code does `from libs.subagents.web_tools import execute_web_tool`:
 
   • locally  → the import works, tests pass, `final_gate` is green;
   • in CI    → `ModuleNotFoundError: No module named 'libs.subagents'`;

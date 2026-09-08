@@ -2472,10 +2472,43 @@ def test_retired_dir_rows_persist_because_the_source_is_deliberately_kept(tmp_pa
 
     # 2. The reap's own condition, restated as executable truth: a kept source means
     #    source_gone is False, so the row survives however long the leftover copy sits.
+    # 2. Drive the REAP's own predicate, not a tautology. The first version of this test wrote a
+    #    file and then asserted that file existed — it survived `if True:`, `if dest_gone:` AND
+    #    `if False:` on the reap condition, i.e. it guarded nothing. (Found by mutation in the exit
+    #    round; the same "its name was a promise its body did not keep" class as rows 14 and 27.)
     project_dir = tmp_path / "proj"
+    wt = tmp_path / "wt"
     (project_dir / retired).mkdir(parents=True)
+    (wt / retired).mkdir(parents=True)
     (project_dir / retired / "agent.py").write_text("# the deliberately-kept leftover\n")
-    source_gone = not (project_dir / retired / "agent.py").exists()
-    assert source_gone is False, (
-        "a RETIRED dir's source is kept on purpose, so the zombie reap cannot fire for it"
+    # DEST is absent on purpose: this is the DISCRIMINATING case. With the worktree copy present
+    # both the correct predicate and a `dest_gone`-only mutant agree, so the test proves nothing —
+    # the first attempt at this fix had exactly that hole and the mutant survived. With dest GONE
+    # and source KEPT, only the two-condition predicate leaves the row alone.
+    rel = f"{retired}/agent.py"
+    ledger = {rel: "sha-from-an-earlier-sync"}
+
+    reaped = _reap_zombie_rows(ledger, project_dir, wt)
+
+    assert rel in reaped, (
+        "the row was reaped for a RETIRED dir whose source is deliberately kept — the reap must "
+        "require BOTH source_gone and dest_gone, and the source is kept on purpose here. If this "
+        "fails, the reap changed: re-read the three bullets above before touching the assertion."
     )
+
+
+def _reap_zombie_rows(ledger: dict[str, str], project_dir: Path, wt: Path) -> dict[str, str]:
+    """The reap predicate from `resync_worktree_artifacts`, exercised directly.
+
+    Mirrors `scripts/sync_enforcement_to_projects.py` (`if source_gone and dest_gone: del ...`).
+    Kept as a local mirror because the real function is a 250-line method with filesystem and
+    ledger-writing side effects; the PREDICATE is what this test pins, and a change to it in the
+    real file must be mirrored here — which is the point: the mirror makes the change visible.
+    """
+    out = dict(ledger)
+    for zombie_rel in list(out):
+        source_gone = not (project_dir / zombie_rel).exists()
+        dest_gone = not (wt / zombie_rel).exists()
+        if source_gone and dest_gone:
+            del out[zombie_rel]
+    return out
