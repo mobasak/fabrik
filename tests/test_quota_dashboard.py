@@ -3009,6 +3009,13 @@ def test_the_box_budget_banner_shows_the_maximum_and_fails_soft(tmp_path, monkey
     # matched its raw twin, so the second copy slipped through the dedupe)
     payload["heavy_reasons"] = ["floor granted: 2 seat(s) past what the box has left"] * 2
     assert qd._budget_probe().count("heavy half — floor granted: 2 seat(s)") == 1
+    # a cause in BOTH halves is not heavy-only: rendered once, unlabelled (round 14)
+    payload["heavy_reasons"] = ["quota HOLD is on — dispatch nothing"]
+    payload["reasons"] = list(payload["reasons"]) + ["quota HOLD is on — dispatch nothing"]
+    _both = qd._budget_probe()
+    assert _both.count("quota HOLD is on — dispatch nothing") == 1
+    assert "heavy half — quota HOLD" not in _both
+    payload["reasons"].remove("quota HOLD is on — dispatch nothing")
     payload["heavy_reasons"] = []
     # an older probe without box_caps must not let the read-only cap pose as the heavy one
     monkeypatch.setattr(
@@ -3264,16 +3271,19 @@ def test_every_degraded_reason_the_script_can_emit_reaches_the_board(tmp_path, m
                     # the same reasons arriving as the HEAVY half must render too (round 13: the
                     # matrix never fed `heavy_reasons`; the prefixed path had one example)
                     _check(r, s, qd, bookkeeping, missed, key="heavy_reasons")
+                    _check(r, s, qd, bookkeeping, missed, key="reasons_read_only")
     assert not missed, sorted(missed)
 
 
 def _check(r, s, qd, bookkeeping, missed, key="reasons"):
     rendered = qd._budget_caveats({key: r["reasons"], "siblings": s})
+    # the heavy half renders LABELLED — containment alone passed with the label dropped (round 14)
+    label = "heavy half — " if key == "heavy_reasons" else ""
     for reason in r["reasons"]:
         if reason.startswith(bookkeeping):
             continue
-        if html.escape(reason) not in rendered:
-            missed.add(reason[:90])
+        if html.escape(label + reason) not in rendered:
+            missed.add(key + ": " + reason[:90])
 
 
 def test_an_orphaned_probe_re_kicks_only_when_no_other_probe_is_alive(tmp_path, monkeypatch):

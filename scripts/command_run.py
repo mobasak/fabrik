@@ -1000,23 +1000,36 @@ _SEAT_PARTIAL_S = 30.0  # a seat whose last line is this close to the close was 
 _SEAT_TAIL_BYTES = 4 << 20  # the nudge dates a seat from its tail: one complete line is enough
 
 
-def _seat_last_epoch(q: Path) -> float | str | None:
+def _seat_last_epoch(q: Path) -> float | str:
     """The newest line's epoch OF ANY TYPE, read backwards from the file's tail — the mid-run
     nudge needs one date per seat, and a full read of every seat under the record lock cost
     ~50 ms/MB (round-13 finding: 40 seats × 3 MB was six seconds of lock). Any type, because a
     seat's last line is often a tool result far larger than a fixed window, and demanding an
-    assistant line there read a running seat as silent; the backwards reader yields whole lines
-    only and its sentinel ends the walk. "skipped" when unreadable."""
+    assistant line there read a running seat as silent. A TORN tail line (no trailing newline —
+    the writer is mid-flush) is skipped: its envelope stamp may be missing while a nested one
+    reads as it (round-14 Opus finding). Whenever the walk yields NO date — unreadable, empty,
+    all torn, or the cap cut inside one giant line — the answer is "skipped": the mtime prefilter
+    already dated the file, and the nudge exists to stop silent under-reporting; None is never
+    returned (round 14: a 5 MB last line and an empty file both read as silent)."""
     try:
+        size = q.stat().st_size
+        torn = False
+        if size:
+            with q.open("rb") as fh:
+                fh.seek(size - 1)
+                torn = fh.read(1) != b"\n"
         for raw in _iter_lines_backwards(q, _SEAT_TAIL_BYTES):
             if raw is None:
-                return None
+                break
+            if torn:
+                torn = False  # the first line yielded is the unterminated one
+                continue
             e = _line_epoch(raw)
             if e is not None:
                 return e
     except OSError:
-        return "skipped"
-    return None
+        pass
+    return "skipped"
 
 
 def _seat_transcripts(path: Path, lo: float) -> list[Path]:

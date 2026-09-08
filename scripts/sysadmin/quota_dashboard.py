@@ -1947,8 +1947,9 @@ def _all_reasons(d: dict) -> list:
         for x in d.get(key) or []:
             if isinstance(x, str) and x not in seen:
                 seen.add(x)
-                # a heavy-only cause is LABELLED — beside a read-only `floor_granted: 0` an
-                # unlabelled "floor granted" read as a contradiction (round-12 Opus finding)
+                # a heavy-ONLY cause is LABELLED — beside a read-only `floor_granted: 0` an
+                # unlabelled "floor granted" read as a contradiction (round-12 Opus finding); a
+                # cause in BOTH halves renders once, unlabelled — it is not heavy-only (round 14)
                 out.append(("heavy half — " + x) if key == "heavy_reasons" else x)
     if "heavy_reasons" not in d:
         out.append(

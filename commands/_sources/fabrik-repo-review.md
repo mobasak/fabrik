@@ -41,7 +41,7 @@ and say so.
 ## PHASE 1 — PARALLEL ADVERSARIAL REVIEW (read-only)
 
 One reviewer per unit, READ-ONLY — no edits, so parallel workers can't collide. **Scale the
-fan-out to the repo — as many seats as `dispatch_headroom.py` prints per wave, never a token 2–3.** Dispatch the bulk of units as
+fan-out to the repo — as many seats as `dispatch_headroom.py` prints for each wave's units, never a token 2–3.** Dispatch the bulk of units as
 **native `fabrik-reviewer` seats (Sonnet; Opus for the highest-blast-radius units — each one priced at 5× a Sonnet seat (D-190): name them and count them, never "the risky ones" unbounded) — the pool is OFF, D-181.** A unit touching secret-material paths (`.env` / `.env.*` except `.env.example`, `secrets/`, key files) still goes to the Opus seat with the secret redacted from the brief.
 <!-- POOL OFF (D-181): **`fanout("review", units=[<unit code inlined> …], repo=…, project="repo-review", mode="read_only", max_concurrency=…)`** -->
 <!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
@@ -61,7 +61,7 @@ contains one ships it to a third-party model, and a leaked secret cannot be unle
 per worker (⚠️ never `record_run` — it silently no-ops). **Batch the fan-out in WAVES by
 risk tier (cap concurrency via `max_concurrency`; don't spawn all 20+ at literally once)** —
 -->
-Batch the fan-out in WAVES by risk tier, highest-blast-radius units first — each wave is one `dispatch_headroom.py --units <remaining units>` → `command_run.py dispatch --seats <n>` (the stamps accumulate within the round), and ONE `round --seats <total>` closes the wave set; the box and the quota cap what is in flight, never a hand-picked number. Each reviewer applies the `/fabrik-review` adversarial
+Batch the fan-out in WAVES by risk tier, highest-blast-radius units first — a wave IS a round: `dispatch_headroom.py --units <this wave's units> [--risky <R>] [--mechanical <M>]` → `command_run.py dispatch --seats <n>` → the seats → `round --seats <n> --findings <n> --classes-swept … --classes-new …`, so each wave's sibling reservation runs on its own clock (a stamp accumulated across waves would expire on the FIRST wave's 25 minutes); the box and the quota cap what is in flight, never a hand-picked number. Each reviewer applies the `/fabrik-review` adversarial
 methodology to its unit PLUS everything it calls / is called by, hunting these failure
 classes:
 

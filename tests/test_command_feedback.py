@@ -1798,11 +1798,12 @@ def test_a_round_with_no_stamp_names_the_seats_that_ran_unstamped(
     p = _cr(run_dir, "round", "--findings", "1")
     assert "seat transcript(s) since" not in p.stderr
     # a seat whose LAST line is a tool result larger than the tail still counts: the date is
-    # the newest line of any type, and the cut first element of the tail is never parsed
+    # the newest line of any type — the assistant line is 9000 s OLD, so an assistant-only
+    # dater reads this seat as silent (round-14 Opus finding: the fresh assistant line masked it)
     import datetime as dt
 
     time.sleep(1.1)
-    _seat_file(sub, "z", [(time.time(), "sz", 10, 10)])
+    _seat_file(sub, "z", [(time.time() - 9000, "sz", 10, 10)])
     with (sub / "agent-z.jsonl").open("a") as fh:
         fh.write(
             json.dumps(
@@ -1814,6 +1815,42 @@ def test_a_round_with_no_stamp_names_the_seats_that_ran_unstamped(
                     "message": {"content": [{"type": "tool_result", "content": "x" * 100_000}]},
                 }
             )
+            + "\n"
+        )
+    p = _cr(run_dir, "round", "--findings", "1")
+    assert "1 seat transcript(s) since the last round and NO `dispatch --seats` stamp" in p.stderr
+    # round-14 Opus findings, each its own round: (1) a TORN tail line (mid-write, no newline)
+    # carrying a nested stale stamp on a LIVE seat is skipped — the complete line before it
+    # dates the seat and the nudge fires; (2) a torn line carrying a FUTURE stamp on a 9000 s-old
+    # seat is skipped too — silent; (3) an EMPTY seat file counts (only its mtime dates it);
+    # (4) a last line larger than the 4 MB walk counts — "skipped", never None
+
+    def _stamp(t):
+        return dt.datetime.fromtimestamp(t, tz=dt.UTC).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+    time.sleep(1.1)
+    _seat_file(sub, "t1", [(time.time(), "st1", 10, 10)])
+    with (sub / "agent-t1.jsonl").open("a") as fh:
+        fh.write('{"type":"user","message":{"input":{"timestamp":"2020-01-01T00:00:00.000Z"')
+    p = _cr(run_dir, "round", "--findings", "1")
+    assert "1 seat transcript(s) since the last round and NO `dispatch --seats` stamp" in p.stderr
+    time.sleep(1.1)
+    _seat_file(sub, "t2", [(time.time() - 9000, "st2", 10, 10)])
+    with (sub / "agent-t2.jsonl").open("a") as fh:
+        fh.write(
+            '{"type":"assistant","timestamp":"2030-01-01T00:00:00.000Z","message":{"usage":{}}}'
+        )
+    p = _cr(run_dir, "round", "--findings", "1")
+    assert "seat transcript(s) since" not in p.stderr
+    time.sleep(1.1)
+    (sub / "agent-t3.jsonl").write_bytes(b"")
+    p = _cr(run_dir, "round", "--findings", "1")
+    assert "1 seat transcript(s) since the last round and NO `dispatch --seats` stamp" in p.stderr
+    time.sleep(1.1)
+    _seat_file(sub, "t4", [(time.time(), "st4", 10, 10)])
+    with (sub / "agent-t4.jsonl").open("a") as fh:
+        fh.write(
+            json.dumps({"type": "user", "timestamp": _stamp(time.time()), "big": "x" * (5 << 20)})
             + "\n"
         )
     p = _cr(run_dir, "round", "--findings", "1")
@@ -1848,6 +1885,8 @@ def test_a_round_with_no_stamp_names_the_seats_that_ran_unstamped(
     # the next empty round — the count is by the seat's in-window last line, not the file mtime
     time.sleep(1.1)  # the fixture's whole-second timestamps
     for f in sub.glob("agent-*.jsonl"):
+        if f.stem in ("agent-t3", "agent-t4"):
+            continue  # undatable seats (empty, one giant line) are dated by mtime BY DESIGN
         f.touch()
     p = _cr(run_dir, "round", "--findings", "0", "--classes-swept", "a")
     assert "seat transcript(s) since" not in p.stderr
