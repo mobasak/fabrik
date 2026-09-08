@@ -1531,6 +1531,42 @@ def test_a_truncated_walk_never_makes_the_hook_line_reprint(scratch: Path) -> No
     assert settled.stdout == "", f"an unchanged complete walk stays silent: {settled.stdout!r}"
 
 
+def test_a_first_ever_truncated_walk_speaks_nothing_and_records_nothing(scratch: Path) -> None:
+    """The realistic truncation is the FIRST one, on a pad no complete walk has ever measured.
+
+    The three legs above all prime with a complete walk, so `if budget.exhausted and previous >= 0`
+    survives every one of them — and that mutant is worse than the bug it replaces: on the biggest
+    pad's first SessionStart it speaks a wobbling lower bound AND writes it down as the baseline,
+    which then suppresses the real count forever. This is the leg that kills it: a fresh sid whose
+    very first evaluation is truncated must print nothing and leave no stamp behind.
+    """
+    pad = scratch / SLUG / SID / "scratchpad"
+    for i in range(40):
+        d = pad / f"bulk-{i:02d}"
+        d.mkdir()
+        (d / "f").write_text("x" * 100, encoding="utf-8")
+        _age(d / "f", 9 * HOUR)
+        _age(d, 9 * HOUR)
+
+    payload = json.dumps(
+        {"session_id": SID, "cwd": "/opt/fabrik", "hook_event_name": "SessionStart"}
+    )
+    first = _run(
+        "--hook", "--session", SID, env=_env(scratch, SCRATCH_SWEEP_HOOK_BUDGET="5"), stdin=payload
+    )
+    assert first.stdout == "", f"a first-ever truncated walk must say nothing: {first.stdout!r}"
+
+    stamps = list((scratch / SLUG / SID).glob(".scratch-nagged")) + list(
+        (scratch / SLUG / SID).rglob(".scratch-nagged")
+    )
+    assert not stamps, f"a truncated walk must record no baseline, found {stamps}"
+
+    # and the first COMPLETE walk then speaks its true count, unsuppressed
+    full = _run("--hook", "--session", SID, env=_env(scratch), stdin=payload)
+    assert "🧹 SCRATCH:" in full.stdout, full.stdout
+    assert int(re.search(r"SCRATCH: (\d+) stale", full.stdout).group(1)) >= 40, full.stdout  # type: ignore[union-attr]
+
+
 def test_the_brief_shows_the_oldest_candidates_and_counts_all_of_them(scratch: Path) -> None:
     """The close-out sample is capped AND sorted by age — a head-slice hid the real residue.
 
@@ -1566,3 +1602,44 @@ def test_the_brief_shows_the_oldest_candidates_and_counts_all_of_them(scratch: P
     full = _run("--session", SID, env=_env(scratch)).stdout
     assert full.count("aaa-") == 8 and full.count("zzz-") == 3, "the dry run is uncapped"
     assert "… and" not in full, full
+
+
+def test_the_close_out_brief_truncates_rather_than_being_killed(scratch: Path) -> None:
+    """The close-out's own walk stops well before its caller's subprocess timeout.
+
+    Trigger 1 shells out with a wall-clock timeout. Before this, the walk had the interactive 8 s
+    deadline while the caller waited 2 s, so the box's LARGEST scratchpad — 3.29 s, and the one
+    with the most residue — was killed and printed nothing at every close, fleet-wide. That is
+    the identical defect `HOOK_DEADLINE_S` 1.0 -> 4.0 fixed for the other trigger.
+
+    Truncating the sweeper's own walk is NOT the fix and this grader must not encourage it: a
+    truncated session walk has no certain candidates, so `--brief` prints nothing either. The walk
+    has to COMPLETE, which means the caller has to wait for it — so what is pinned here is the
+    relation between two constants in two files, which nothing else checks.
+    """
+    pad = scratch / SLUG / SID / "scratchpad"
+    for i in range(30):
+        d = pad / f"bulk-{i:02d}"
+        d.mkdir()
+        (d / "f").write_text("x" * 100, encoding="utf-8")
+        _age(d / "f", 9 * HOUR)
+        _age(d, 9 * HOUR)
+
+    out = _run("--session", SID, "--brief", env=_env(scratch)).stdout
+    assert "apply:" in out, f"a complete brief prints its table:\n{out!r}"
+
+    src = Path(__file__).resolve().parent.parent / "scripts" / "scratch_sweep.py"
+    walk_deadline = float(
+        re.search(r"^WALK_DEADLINE_S = ([\d.]+)", src.read_text(encoding="utf-8"), re.M).group(1)  # type: ignore[union-attr]
+    )
+    caller = Path(__file__).resolve().parent.parent / "scripts" / "command_run.py"
+    timeout = float(
+        re.search(  # the advisory's own subprocess call, not any other timeout in that file
+            r"proc = subprocess\.run\(argv,[^)]*timeout=([\d.]+)\)",
+            caller.read_text(encoding="utf-8"),
+        ).group(1)  # type: ignore[union-attr]
+    )
+    assert walk_deadline < timeout, (
+        f"the close-out walk ({walk_deadline}s) must finish inside its caller's timeout "
+        f"({timeout}s), or the biggest scratchpads are killed and print nothing"
+    )

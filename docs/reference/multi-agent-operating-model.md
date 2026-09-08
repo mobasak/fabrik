@@ -124,7 +124,7 @@ Agent-1 runs the pipeline from `5-certify` once every branch is merged: `/fabrik
 ## Retirement (§ Lifecycle)
 
 - **A worktree:** on the agent's last epic, after its branch is merged — `ExitWorktree` (or the exit
-  prompt) with `remove`, then `git worktree prune`. A dead session leaves its worktree locked:
+  prompt) with `remove`, then `git worktree prune` (or `python3 /opt/fabrik/scripts/scratch_sweep.py --worktrees` — lists every registered worktree with its verdict and reason; `--apply` removes only the merged + clean + unlocked + unheld, and a HARNESS-created tree — which is what `EnterWorktree` makes, so it is what you have here — needs `--include-harness` on top and is still refused if it is dirty, unmerged or foreign). A dead session leaves its worktree locked:
   `git worktree list` is the truth, `git worktree unlock` then `remove`. Resume an unfinished window
   with `claude --resume`, launched from the main checkout.
 - **The model:** revert the four artifacts above; nothing else changes shape.

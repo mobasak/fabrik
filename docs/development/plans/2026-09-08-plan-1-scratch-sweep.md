@@ -1,6 +1,6 @@
 # Scratch sweep — agents clean their OWN session scratch and agent worktrees, interruptions included, with nothing deleted blindly
 
-Status: **IN-PROGRESS** (execution started 2026-09-08; converged (`/fabrik-plan-review`, 10 passes — 98 findings adjudicated, terminal round raised 0 with md5 `6c5769c78d856ca59ebd74b698ea6b88` unchanged across it)
+Status: **EXECUTED** 2026-09-08 (Phases A+B+C built, gated, reviewed to a raised-zero round, D-200; execution started 2026-09-08; converged (`/fabrik-plan-review`, 10 passes — 98 findings adjudicated, terminal round raised 0 with md5 `6c5769c78d856ca59ebd74b698ea6b88` unchanged across it)
 Profile: small
 **Owner:** fleet
 **Date:** 2026-09-08
@@ -412,6 +412,14 @@ $ for r in seo trade-intelligence web-ecommerce-factory fabrik-lib: git -C /opt/
 seo 29 · trade-intelligence 25 · web-ecommerce-factory 31 · fabrik-lib 11   (incl. the main checkout; 0 prunable, 0 locked)
 ```
 
+### Phase A — as EXECUTED (f29c0463)
+
+- **The review that shaped it:** 5 rounds of `/fabrik-review-scoped`, findings 17 → 14 → 2 → 1 → 0, each round an independent shell-capable Opus seat working on the real files. SIX data-loss paths were found BY EXECUTION and each is pinned by a grader proven red-on-revert: `--include-harness` removing a worktree whose chain verdict was not removable (it took a `data/only-copy.jsonl`); `--include-backups` removing FRESH and HELD backup holders because the backup test preceded the holder probe; a dead `/proc` reading as "no holders" so a directory with an open fd was removed and a live session read `dead`; an unreadable sessions root letting a running peer's scratch be swept; a branch ref truncated at the last slash deleting an unrelated branch; and a sid-level symlink escaping the scratch root entirely.
+- **Deviations from the plan, both deliberate and both narrower than the plan allowed:** (1) `SCRATCH_SWEEP_FORCE_START` was added as a test seam and then GATED behind `SCRATCH_SWEEP_TEST=1`, because unlike the clock seam it can authorize removing another session's worktree; (2) `_shares_our_process_session` (a `getsid` check) was added so a session whose env lost its sid can still sweep its own scratch — its docstring records that this is a real widening whose measured population is empty.
+- **Live proof, this session's own scratchpad:** `419 stale · 40 holds-backups · proc-gaps 2 (17559 fusermount3, 4793 (sd-pam))`, tree byte-identical at 257,392 KB before and after. The two named gaps are exactly the two the plan predicted.
+- **Gates:** 53 graders pass (`uv run pytest tests/test_scratch_sweep.py -q`), `ruff` clean, stdlib-only verified by import census, `--help` prints the refusal set, `render_doc_script_links.py --check` clean.
+- **A.7 mail (sent 2026-09-08):** hub broadcast `01M20A76SRTPG7491RA061XF38` · seo `01M20A7X1K2VNNKRR36RDC814C` · trade-intelligence `01M20A7X3DMSVER99WH8JMN5ZX` · web-ecommerce-factory `01M20A7X55G18960EZ3JRJ9HZV` · fabrik-lib `01M20A7X6T5Z4WZNHSHPDHTKF1`; native SendMessage to both live hub peers. Worktree counts re-measured at send time: seo 28 of 29, trade-intelligence 24 of 25, web-ecommerce-factory 30 of 31, fabrik-lib 10 of 11.
+
 ### Phase B
 
 - `scripts/command_run.py` — `_close`, the persisted-then-print order (`fields["persisted"] = save(...)`), the nested-resume print then `run record closed`, the sid chain and the ledger row: all GREPPED, never cited, per B.2 (the file shifted +7 lines during this review; `grep -n 'def _close\|parent = stack.pop\|fields\["persisted"\] = save\|run record closed' scripts/command_run.py`).
@@ -425,6 +433,45 @@ ACTIVE — read these in full now (26):
 ```
 
 (The MATCHED-pack list for this plan's real File Scope is the verbatim `review_rubric.py` run in `## Coverage Checklist` — an earlier draft of this block pasted a run over a different `--changed` set, which reproduced only with a file the plan does not touch.)
+
+### Phase B — as EXECUTED (9456380d)
+
+- `scripts/command_run.py` — three hunks, all located by grep per B.2, never by line number: `_scratch_advisory()` (the shell-out, `timeout=2`, fail-open in every direction), `outbox["scratch_advice"] = (sid, str(rec.get("repo_root") or ""))` at the tail of `_close` (queued, not called), and the guarded print in `main()` AFTER `with _record_lock(sid):` and after `finally: _flush_events(...)`. The queued tuple is read with `.get`, because a bare `outbox[...]` raises `KeyError` into `main()`'s outer handler, which returns 0 — turning the mis-named-close REFUSAL into success.
+- `scripts/sysadmin/install_user_hooks.py` — one `SessionStart` key in `ENTRIES`. Its production line reached master inside a sibling's commit 86e865fd (their path list came from a directory-wide `git diff --name-only`, recorded on their side as F260); 9456380d lands its grader, so the entry and its guard are both on master.
+- `UserPromptSubmit` was measured and REJECTED before it shipped: 9 of 9 live sessions fired on EVERY prompt, because a working session never becomes clean — it keeps writing. The comment recording that measurement sits beside the entry.
+
+```text
+$ uv run pytest tests/test_scratch_sweep.py tests/test_command_run.py tests/test_install_user_hooks.py -q
+197 passed in 80.48s
+
+$ python scripts/final_gate.py --json --check     # read status AND skipped_checks
+status: success
+skipped_checks: ['pytest']
+failing: []
+```
+
+Three round-1 fixes and both round-2 findings were proven by MUTATION on a copy — never in the tree:
+
+```text
+# the truncation guard, deleted from a copy of the script
+$ cp $S/mutA.py scripts/scratch_sweep.py && pytest -q ...::test_a_truncated_walk_never_makes_the_hook_line_reprint
+1 failed in 1.51s
+$ cp $S/orig.py scripts/scratch_sweep.py   # restored: guard count 1
+1 passed in 2.08s
+
+# the advisory relocated INTO _close, under the lock, in a copy of command_run.py
+$ env PYTHONPATH=$S pytest -q ...::test_the_scratch_advisory_never_runs_under_the_record_lock -p lockmut_plugin
+1 failed in 3.35s          # writer waited 1.45 s
+$ pytest -q ...            # pristine: 0.17 s
+1 passed in 2.52s
+
+# the brief's age sort, reverted to a bare head-slice by line
+$ sed '859s/.*/    shown = candidates[:BRIEF_ROWS] if brief else rows/' … && pytest -q ...
+1 failed in 0.87s
+$ (restored)                                       1 passed in 1.46s
+```
+
+Round 2's two findings were both INERT GRADERS — tests that passed with the thing they guard removed. The lock grader timed `line`, which `main()` answers BEFORE it takes the lock; it times `step` now. The truncation grader's silence came from `len(candidates) <= previous`, not from the guard; it gained the completing third leg. Both are the same defect class as P6-4 in the plan review: a guard whose only grader asserts the wrong side.
 
 ### Phase C
 
@@ -440,6 +487,50 @@ CLAUDE.md:4 · templates/governance/CLAUDE.md:4   (8 lines, all eight named; non
 $ grep -c '^| D-184 ' docs/DECISIONS.md
 1        (minted with this plan's commit a01de4a6; `--next-id` is NOT idempotent — it returns a higher id after every sibling append: D-186 at the closing pass, D-187 an hour later)
 ```
+
+### Phase C — as EXECUTED
+
+- Both `CLAUDE.md` files: one sentence INSIDE item 5 of § EXIT, after the push clause and before the
+  ad-hoc-worktree disposition — byte-identical in the two files, naming the absolute hub path so it is
+  true from every repo. Three clauses were WRONG in the first draft and the Finish review caught all
+  three before the commit: it promised `<repo>/.tmp` as a flat never-touch (the script declines to SCAN
+  `.tmp`, it does not exempt a worktree that sits there); it said `--worktrees` lists "the agent
+  worktrees you opened" (it lists every registered worktree, and most read `wt-foreign` — including
+  your own after a `--resume`); and its seven verdict names were not the ten the script emits, with
+  "merged" never printed at all (the token is `wt-removable`).
+- The `clean-own-scratch` marker bullet, verified against the CONSUMER's parser rather than by eye:
+  fabrik-lib's `_MARKER_RE` extracts 13 of 13 markers including `('clean-own-scratch', 'CLEAN your own
+  scratch')`, and the anchor is present in both contracts' rule text. Their live
+  `check_governance_drift.py` prints `missing: clean-own-scratch`, rc 0 — advisory, exactly as designed.
+  Mailed to them as 01M20EZM9H7451EZH64KVM2SGR (ack:no).
+- The two pointer clauses now name `--include-harness`, because both sit at a step whose worktree
+  `EnterWorktree` created: without it, an agent substituting the offered command for `git worktree
+  prune` removes nothing and leaves the tree it was told to retire.
+- `docs/DECISIONS.md` D-200 (minted with `--next-id`), carrying the two reversals a reader who greps
+  D-184 alone would otherwise miss, and correcting D-187's `150 of 151` arithmetic in a new row rather
+  than editing an immutable one.
+- `docs/LESSONS_LEARNT.md` Lesson 162 — the inert-grader class this plan produced four instances of.
+
+```text
+$ python scripts/final_gate.py --json --check
+status: success · skipped_checks: ['pytest'] · failing: []
+
+$ uv run pytest tests/test_scratch_sweep.py tests/test_command_run.py tests/test_install_user_hooks.py -q
+199 passed (57 scratch-sweep + 130 command_run + 12 installer)
+
+$ python commands/assemble_commands.py && python commands/assemble_commands.py --check
+check OK — installed commands + skills match rendered sources
+
+$ python scripts/enforcement/check_convergence.py   # rc 0
+$ python scripts/render_doc_script_links.py --check  # 43 coupled doc(s) current
+$ python scripts/enforcement/check_hooks_index.py    # ✓ 31 live hooks all indexed
+```
+
+The Finish review ran three native seats (pool OFF) and raised five findings across two rounds after
+Phases A and B were already converged — three false claims in the fleet-wide sentence, one grader gap
+no existing test could reach, and the close-out's 2 s subprocess timeout, which killed the advisory on
+exactly the largest scratchpad on the box. All five are fixed in this commit; the receipt carries each
+with its disposition.
 
 ## Self-audit
 

@@ -1154,7 +1154,7 @@ is where `BASE` goes, and each of step 8's three positions has its own dispositi
       number wins on semantic conflicts · keep both additions · combine import sets) — a conflict you
       cannot resolve cleanly is `git merge --abort` + OWED, never a forced resolution. Then **re-run the
       phase gates ON THE MERGED RESULT**, `git worktree remove <path>` + `git worktree prune`
-      (or `python3 /opt/fabrik/scripts/scratch_sweep.py --worktrees` — lists merged/dirty/unmerged/locked with reasons; `--apply` removes only the merged + clean + unlocked + unheld), and delete the branch.
+      (or `python3 /opt/fabrik/scripts/scratch_sweep.py --worktrees` — lists every registered worktree with its verdict and reason; `--apply` removes only the merged + clean + unlocked + unheld, and a HARNESS-created tree — which is what `EnterWorktree` makes, so it is what you have here — needs `--include-harness` on top and is still refused if it is dirty, unmerged or foreign), and delete the branch.
    5. Steps 5–7 then run here, on the merged branch — **only if step 4 actually merged.** Deferred on a
       dirty path, or aborted on a conflict → the OWED path below owns the rest: the tree stays, steps 5–7
       run in it, and the report names what is left.

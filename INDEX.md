@@ -233,7 +233,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 │   └── docs/                        # Document templates
 ├── tests/                           # Test suite
 │   ├── scratch_sweep.py               # Sweep your OWN session scratch, agent worktrees, dead-session scratch (dry-run by default)
-│   ├── … tests/test_scratch_sweep.py  # 53 graders — every removal path, every refusal
+│   ├── … tests/test_scratch_sweep.py  # 57 graders — every removal path, every refusal
 │   ├── test_deploy_validator.py     # deploy_validator.py tests (7 classes, 21 tests)
 │   ├── test_watchdog_db_roles.py    # create_watchdog_roles RO/RW provisioning + registrar wiring (28 tests)
 │   ├── test_watchdog_governance_mount.py # _push_governance ship + /governance:ro mount + WATCHDOG_GOVERNANCE_MOUNT gate, fail-soft (12 tests)

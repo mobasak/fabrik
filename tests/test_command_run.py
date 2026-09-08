@@ -3573,7 +3573,9 @@ def test_a_top_level_close_prints_the_scratch_table_and_a_nested_close_does_not(
 
     It prints AFTER `run record closed`, because the advisory runs once the record has persisted
     AND the record lock has dropped — a shell-out under `LOCK_EX` would stall every concurrent
-    `line`/`status` reader for its whole timeout.
+    WRITER (`step`, `round`, another close) for the rest of its timeout. NOT `line`/`status`:
+    `main()` answers those before it takes the lock, which is exactly why the first version of
+    the lock-freeness grader passed with the call moved inside it.
     """
     stub = _stub_sweep(tmp_path)
     env = {"FABRIK_SCRATCH_SWEEP_SCRIPT": str(stub)}

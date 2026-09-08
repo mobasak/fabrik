@@ -1951,7 +1951,9 @@ def _scratch_advisory(sid: str, repo_root: str) -> str:
 
     Fail-open in every direction: no script, a non-zero exit, a hang, or any exception yields ""
     and the close is unaffected. It NEVER runs under the record lock (see the call site) — a
-    shell-out there would stall every concurrent `line`/`status` reader for the whole timeout.
+    shell-out there would stall every concurrent WRITER — `step`, `round`, another close — for the
+    rest of the timeout below. `line` and `status` are answered BEFORE the lock is taken, so they
+    never wait on it; believing otherwise is what made this contract's first grader inert.
     """
     if os.environ.get("FABRIK_SCRATCH_SWEEP") == "0":
         return ""
@@ -1964,7 +1966,15 @@ def _scratch_advisory(sid: str, repo_root: str) -> str:
         # worktree has one dir per cwd, and only this one is the run's own.
         argv += ["--cwd", repo_root]
     try:
-        proc = subprocess.run(argv, capture_output=True, text=True, timeout=2)
+        # 12 s, not 2: the sweeper's own walk deadline is 8 s and its holder probe runs outside
+        # that, so 2 s could not bound it and did not — the box's largest scratchpad takes 3.29 s
+        # and was KILLED at every close, printing nothing to the session with the most residue.
+        # That is the same defect HOOK_DEADLINE_S 1.0 -> 4.0 fixed for the other trigger. Cutting
+        # the sweeper's walk short instead would NOT help: a truncated session walk has no certain
+        # candidates, so it prints nothing either. This runs after the record lock has dropped, so
+        # waiting longer stalls no other session — only this process's own exit, and only on a pad
+        # slower than any that exists on this box today.
+        proc = subprocess.run(argv, capture_output=True, text=True, timeout=12)
     except (OSError, subprocess.SubprocessError) as exc:
         sys.stderr.write(f"[command_run] scratch advisory skipped: {exc}\n")
         return ""

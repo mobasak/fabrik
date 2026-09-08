@@ -101,7 +101,20 @@ BRIEF_ROWS = 5  # the close-out shows this many candidates, then a count — nev
 DEFAULT_OLDER_THAN = "6h"
 DEFAULT_DEAD_OLDER_THAN = "7d"
 WALK_BUDGET = 60_000  # TOTAL stats across all entries, session/worktree mode only
-WALK_DEADLINE_S = 8.0
+
+
+def _env_int(name: str, default: int) -> int:
+    """A stat-cap test seam: an unset or unparseable value is the default, never an error."""
+    try:
+        return int(os.environ.get(name) or default)
+    except ValueError:
+        return default
+
+
+WALK_DEADLINE_S = 8.0  # and the close-out's caller waits longer than this — see command_run.py
+# `_scratch_advisory`. Truncating the close-out walk INSTEAD would have been the wrong fix: a
+# truncated session walk has no CERTAIN candidates, so `--brief` prints nothing at all. Silence
+# sooner is not an improvement over silence later; the caller has to wait.
 HOOK_DEADLINE_S = 4.0  # measured: the largest live scratchpad's holder probe alone costs 2.2 s,
 # and the SessionStart registration allows 10 s. At 1.0 s the budget was exhausted before the first
 # stat on 3 of the 6 largest pads — by the DEADLINE, not the stat cap — so the advisory was
@@ -1060,7 +1073,13 @@ def run_session_mode(args: argparse.Namespace, sid: str) -> int:
     root = _scratch_root()
     older = parse_duration(args.older_than or DEFAULT_OLDER_THAN)
     rows, gaps, probe_ok = classify_session(
-        root, sid, _now(), older, with_size=not (args.brief or args.hook), cwd=args.cwd
+        root,
+        sid,
+        _now(),
+        older,
+        budget=WalkBudget(stats=_env_int("SCRATCH_SWEEP_WALK_BUDGET", WALK_BUDGET)),
+        with_size=not (args.brief or args.hook),
+        cwd=args.cwd,
     )
     if not probe_ok:
         rows = _downgrade(
@@ -1294,7 +1313,7 @@ def _classify_sid(
         return Row(
             p, "session", "dead-holds-backups", f"{death}; holds a backup shape (--include-backups)"
         )
-    return Row(p, "session", "dead", f"{death}; dir idle {_human(dir_age)}")
+    return Row(p, "session", "dead", f"{death}; dir idle {_human(dir_age)}", age_s=dir_age)
 
 
 def _classify_root_entry(
@@ -1867,11 +1886,12 @@ def run_hook_mode(args: argparse.Namespace, sid_hint: str) -> int:
                 pass
         if not candidates or len(candidates) <= previous:
             return RC_OK
-        oldest = (
-            f"oldest {_human(max(now_ages))}"
-            if (now_ages := [_now() - _entry_newest(Path(r.path)) for r in candidates[:20]])
-            else ""
-        )
+        # `Row.age_s` is set on every stale row by the walk that just ran, so the exact oldest is
+        # free. It used to be `max(...) for r in candidates[:20]` over NAME order — a bounded max
+        # printed as if unbounded (measured: `oldest 3.52d` where the true oldest was 3.73d), and
+        # it re-walked 20 entries AFTER the deadline the rest of this function respects.
+        ages = [r.age_s for r in candidates if r.age_s is not None]
+        oldest = f"oldest {_human(max(ages))}" if ages else ""
         print(
             f"## 🧹 SCRATCH: {len(candidates)} stale entries in this session's scratchpad "
             f"({oldest}) — dry-run: python3 /opt/fabrik/scripts/scratch_sweep.py · "
