@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — libs/subagents retired from the fleet sync; the hub source stays (2026-09-08)
+
+- `scripts/fabrik_synced_manifest.py::VENDORED_DIRS` no longer lists `libs/subagents`, at fabrik-lib's
+  request (their `01M1YXJ1GH…`), so the ~46 project copies can be deleted without the next sync restoring
+  them. Removing the entry deletes NOTHING: the prune in `sync_enforcement_to_projects.py` only walks dirs
+  still listed, so a project keeps its stale copy until it removes it itself.
+- Safe fleet-wide by measurement, not assumption: of 231 synced files, 5 Python importers of the module
+  (`doc_reconcile`, `rivals_run`, `check_routing_policy`, `check_command_corpus`,
+  `check_subagent_flywheel`) all guard the import in `try/except`; `check_imports_resolvable` names it in
+  prose only. Their step 2 — deleting `/opt/fabrik/libs/subagents` — is REFUSED and stays refused: 17 hub
+  scripts import it, 12 unguarded, 4 wired into `final_gate.py` including `check_imports_resolvable`
+  itself, so the delete would red every hub session's completion gate. That is a migration, not a
+  one-liner.
+- `templates/governance/.worktreeinclude` regenerated (the generated fleet-synced artifact still listed
+  the directory); the pinned exemplars in `tests/test_synced_manifest.py` and
+  `tests/test_sync_trigger_coverage.py` moved to `libs/health_probe`, the remaining VENDORED_DIRS member,
+  plus a new assertion that `libs/subagents/` is gone from the generated gitignore block. 295 tests green
+  across seven suites. (D-196)
+
 ### Added — agents sweep their own session scratch and agent worktrees; nothing is deleted blindly (2026-09-08)
 
 `scripts/scratch_sweep.py` (Phase A of plan 2026-09-08-plan-1-scratch-sweep, D-184/D-187). Three modes — this session's scratchpad, `--worktrees`, and the `--dead` janitor — and in every one the DRY RUN is the default: each row carries its class, its reason and its evidence, `--apply` is opt-in, and a hard-coded refusal set (printed by `--help`) keeps held, kept, fresh, dirty, unmerged, locked, foreign and backup-holding entries out of the removal set entirely. Operator's two constraints, verbatim: "we should not cause data loss" and "agents must know what will this script do while using it."

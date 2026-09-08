@@ -125,13 +125,21 @@ GOVERNANCE_DIRS = [
 # Enforcement directory → synced recursively into project ``scripts/enforcement/``.
 ENFORCEMENT_DIR = "scripts/enforcement"
 
-# Vendored fabrik-lib modules → synced recursively (flat copy) into each project. The subagents pool is a
-# DEV-TIME tool the /fabrik-* commands import as ``from libs.subagents import …``; making it a synced dir
-# means a fix in the hub copy propagates fleet-wide on the next sync (no manual re-vendor), and new projects
-# get it via the scaffold (which copies the synced dirs). Hub source: ``/opt/fabrik/libs/subagents`` (kept
-# byte-identical to canonical ``/opt/fabrik-lib/subagents`` by re-vendoring before a sync).
+# Vendored fabrik-lib modules → synced recursively (flat copy) into each project: a fix in the hub copy
+# propagates fleet-wide on the next sync (no manual re-vendor), and new projects get it via the scaffold
+# (which copies the synced dirs).
+#
+# ⚠️ ``libs/subagents`` was REMOVED from this list on 2026-09-08 (D-196), at fabrik-lib's request, so the
+# ~46 project copies can be deleted without the next sync restoring them. Removing the entry does NOT
+# delete anything: the prune at ``sync_enforcement_to_projects.py`` only walks dirs still listed here, so
+# a project keeps its stale copy until it deletes it itself — which is the point. Safe fleet-wide because
+# every SYNCED file that imports the module guards it (measured 2026-09-08: 231 synced files, 5 Python
+# importers — doc_reconcile, rivals_run, check_routing_policy, check_command_corpus,
+# check_subagent_flywheel — all in try/except; check_imports_resolvable names it in prose only).
+# The HUB source ``/opt/fabrik/libs/subagents`` STAYS: 17 hub scripts import it, 12 unguarded, 4 wired
+# into final_gate.py — deleting it would red every hub session's completion gate. That deletion is a
+# migration, not a one-liner, and it is deliberately not done here.
 VENDORED_DIRS = [
-    "libs/subagents",
     # fabrik-lib health-probe, vendored AS SHIPPED (D-082): the comparison-row producer every
     # project's scripts/verify_prod_parity.py imports lazily. Pinned by the VENDORED-FROM header.
     "libs/health_probe",

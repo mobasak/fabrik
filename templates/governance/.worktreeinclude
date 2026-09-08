@@ -55,7 +55,6 @@ scripts/runtail
 scripts/runclean
 scripts/sync_cascade_backup.sh
 scripts/sync_extensions.sh
-libs/subagents/
 libs/health_probe/
 .mcp.json
 .env

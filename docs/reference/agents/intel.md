@@ -43,8 +43,11 @@ the routing POLICY, the seat SPEND, and the RE-ENABLE decision.
   claim is the same one D-135 granted over the pool — what the fleet dispatches to and what it
   costs — discharged as the **non-author audit** of that mechanism, never as an edit to it.
 - `scripts/kilo-benchmarks/` (model DB, benchmarks, selection docs) — **the extraction to
-  `/opt/ai-model-catalog` is HALF DONE, measured 2026-09-08**: 14 `.py` here, 100 in
-  `/opt/ai-model-catalog/engine/`, **6 basenames live in both** (`agent_selector`,
+  `/opt/ai-model-catalog` is HALF DONE, measured 2026-09-08** with the selector stated, because a
+  bare count here invites a reader to re-derive it differently and conclude it is wrong: **top-level
+  `*.py`, non-recursive** — 14 here, 100 in `/opt/ai-model-catalog/engine/` (recursively that repo
+  holds 254 excluding `.venv`, 3,104 including it — different question, different number),
+  **6 basenames live in both** (`agent_selector`,
   `build_task_baselines`, `check_daily_refresh_freshness`, `derive_cost`, `rank_task_subagents`,
   `update_gateway_counts`). Until the hand-off checklist lands — authored in the catalog's own
   spec, adjudicated THERE — the HUB copies are intel's and the catalog's are not. A divergence

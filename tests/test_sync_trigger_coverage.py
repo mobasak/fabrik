@@ -170,7 +170,9 @@ def test_every_manifest_category_contributes_a_surface():
     assert ".windsurf/rules/" in surfaces                     # GOVERNANCE_DIRS
     assert "scripts/enforcement/" in surfaces                 # ENFORCEMENT_DIR
     assert any(s.startswith("docs/reference/") for s in surfaces)   # REFERENCE_DOCS
-    assert any(s.startswith("libs/subagents") for s in surfaces)    # VENDORED_DIRS
+    # VENDORED_DIRS — canary moved off libs/subagents when D-196 retired that entry; the
+    # category still needs A pinned member, so it is health_probe (the only one left).
+    assert any(s.startswith("libs/health_probe") for s in surfaces)
     assert any(s.startswith("templates/scaffold/scripts/") for s in surfaces)  # RUN_SCRIPTS
 
 

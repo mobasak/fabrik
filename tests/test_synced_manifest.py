@@ -58,13 +58,15 @@ def fake_fabrik(tmp_path: Path) -> Path:
     (root / "docs" / "reference" / "kilo" / "k.md").write_text("kilo\n")
     (root / "AGENTS.md").write_text("agents\n")
     (root / "PORTS.md").write_text("ports\n")
-    # Vendored fabrik-lib module (subagents pool) → synced dir (VENDORED_DIRS).
-    (root / "libs" / "subagents").mkdir(parents=True)
-    (root / "libs" / "subagents" / "__init__.py").write_text("# pool\n")
-    (root / "libs" / "subagents" / "agent.py").write_text("# agent\n")
-    (root / "libs" / "subagents" / "requirements.txt").write_text("httpx\n")
-    (root / "libs" / "subagents" / "__pycache__").mkdir()
-    (root / "libs" / "subagents" / "__pycache__" / "agent.cpython-312.pyc").write_bytes(b"\x00bc")
+    # Vendored fabrik-lib module → synced dir (VENDORED_DIRS). Was libs/subagents until D-196
+    # retired that entry; health_probe is the remaining member and exercises the same behaviours
+    # (recursive flat copy, dep manifest carried, bytecode excluded, gitignored in projects).
+    (root / "libs" / "health_probe").mkdir(parents=True)
+    (root / "libs" / "health_probe" / "__init__.py").write_text("# probe\n")
+    (root / "libs" / "health_probe" / "agent.py").write_text("# agent\n")
+    (root / "libs" / "health_probe" / "requirements.txt").write_text("httpx\n")
+    (root / "libs" / "health_probe" / "__pycache__").mkdir()
+    (root / "libs" / "health_probe" / "__pycache__" / "agent.cpython-312.pyc").write_bytes(b"\x00bc")
     return root
 
 
@@ -78,8 +80,8 @@ def test_iter_synced_pairs_covers_each_category(fake_fabrik: Path, tmp_path: Pat
     assert "docs/reference/kilo/k.md" in dests  # governance dir
     assert "AGENTS.md" in dests  # governance file
     assert "PORTS.md" in dests  # reference doc (seeded)
-    assert "libs/subagents/agent.py" in dests  # vendored fabrik-lib module (recursive, flat)
-    assert "libs/subagents/requirements.txt" in dests  # vendored dep manifest synced too
+    assert "libs/health_probe/agent.py" in dests  # vendored fabrik-lib module (recursive, flat)
+    assert "libs/health_probe/requirements.txt" in dests  # vendored dep manifest synced too
 
 
 def test_iter_synced_pairs_excludes_compiled_bytecode(fake_fabrik: Path, tmp_path: Path) -> None:
@@ -158,15 +160,18 @@ def test_gitignore_block_ignores_claude_settings_local() -> None:
     ), "the carrier must be ignored, never distributed (no synced name list may carry it)"
 
 
-def test_vendored_subagents_gitignored_and_pycache_excluded(
+def test_vendored_module_gitignored_and_pycache_excluded(
     fake_fabrik: Path, tmp_path: Path
 ) -> None:
-    # the vendored pool must be gitignored in projects (synced dir) AND its bytecode never synced.
-    assert "libs/subagents/" in m.gitignore_block_text()
+    # a vendored module must be gitignored in projects (synced dir) AND its bytecode never synced.
+    assert "libs/health_probe/" in m.gitignore_block_text()
+    # D-196 retired libs/subagents from VENDORED_DIRS: it must no longer be claimed by the
+    # generated block, or a project would keep ignoring a directory nothing syncs any more.
+    assert "libs/subagents/" not in m.gitignore_block_text()
     proj = tmp_path / "proj"
     dests = [d.as_posix() for _src, d in m.iter_synced_pairs(proj, fake_fabrik)]
-    vendored = [d for d in dests if "libs/subagents" in d]
-    assert any(d.endswith("libs/subagents/agent.py") for d in vendored)
+    vendored = [d for d in dests if "libs/health_probe" in d]
+    assert any(d.endswith("libs/health_probe/agent.py") for d in vendored)
     assert not any("__pycache__" in d or d.endswith(".pyc") for d in vendored), vendored
 
 
