@@ -1533,14 +1533,21 @@ def test_live_reverify_applies_the_same_session_budget_gate(monkeypatch):
 # ── operator rule 2026-09-03: rotate at 98% on the 5h window (seen RED first) ─────────────────
 
 
-def test_default_flip_threshold_is_95_and_the_env_still_overrides(monkeypatch):
-    """`ROTATE_THRESHOLD` unset → 95 (operator, 2026-09-03, after 98 let the wall be hit anyway:
-    "when we see 95% at these checks we need to switch next account"). 98 lost because the gap
-    between two checks is bursty — 34 measured gaps: median 4, p90 10, max 16 — so a reading of 93
-    can be past 100 by the next look. The env override keeps working, and ONE helper feeds every
-    call site so the `_env_float("ROTATE_THRESHOLD", …)` copies cannot drift apart again."""
+def test_default_flip_threshold_is_98_and_the_env_still_overrides(monkeypatch):
+    """`ROTATE_THRESHOLD` unset → 98 (operator, 2026-09-08, D-201: "we can switch a lot faster now
+    so i want to utilize them better — switch as soon as it reaches 98%").
+
+    This SUPERSEDES the 95 of 2026-09-03, which itself replaced a 98 that lost the same day. The
+    number moved back not because the burst went away — it did not, and the docstring on
+    `_rotate_threshold` carries the measurement — but because the relief wake (D-177/D-178/D-180,
+    2026-09-07) changed what losing the race COSTS: a walled session is now held and woken when
+    relief lands, instead of dying. The literal is pinned deliberately rather than derived, since
+    a grader that reads the same constant it guards asserts nothing.
+
+    The env override keeps working, and ONE helper feeds every call site so the
+    `_env_float("ROTATE_THRESHOLD", …)` copies cannot drift apart again."""
     monkeypatch.delenv("ROTATE_THRESHOLD", raising=False)
-    assert cr._rotate_threshold() == 95.0
+    assert cr._rotate_threshold() == 98.0
     monkeypatch.setenv("ROTATE_THRESHOLD", "91")
     assert cr._rotate_threshold() == 91.0
 
@@ -2531,12 +2538,16 @@ def test_the_picture_names_over_threshold_and_the_cap_boundaries(monkeypatch):
     )
     rows = [
         _live("act@ocoron.com", "act", 20.0, 30.0),
-        _live("over@ocoron.com", "over", 0.0, 97.0, w_reset=5 * 86400),
+        # over the flip line but UNDER the default cap of 99 — derived, because a literal 97 was
+        # over-threshold at 95 and became a quiet under-threshold row at 98 (D-201), which is a
+        # state this test cannot see: it would still pass if the row were simply "eligible".
+        _live("over@ocoron.com", "over", 0.0, cr._rotate_threshold(), w_reset=5 * 86400),
         _live("atcap@ocoron.com", "atcap", 0.0, 99.0),
         _live("full@ocoron.com", "full", 0.0, 100.0),
     ]
     pic = cr._fleet_picture(rows, "act", NOW)
     st = {r["email"].split("@")[0]: (r["state"], r["returns_at"]) for r in pic["accounts"]}
+    assert cr._rotate_threshold() < 99, "this fixture needs the flip line under the default cap"
     assert st["over"] == ("over-threshold", NOW + 5 * 86400), st
     assert st["atcap"][0] == "cap-walled" and st["full"][0] == "weekly-exhausted", st
 
@@ -2840,3 +2851,35 @@ def test_an_unclearable_stamp_leaves_a_ledger_row(tmp_path, monkeypatch):
     finally:
         d.chmod(0o700)
     assert [r["event"] for r in rows] == ["hold-stuck"], rows
+
+
+def test_the_no_successor_mail_always_precedes_the_flip_line(monkeypatch):
+    """D-201's whole design is an ORDERING, and nothing enforced it before this grader.
+
+    Two remedies, and which one applies depends only on whether a successor exists. WITH one, the
+    flip at `_rotate_threshold()` is the remedy and the agents never need to know. WITHOUT one,
+    there is no flip to make, so the remedy is the URGENT-DRAIN broadcast at `_urgent_drain_pct()`
+    telling every repo when to resume — and that has to arrive with runway left, which means
+    strictly BELOW the flip line.
+
+    Invert the two and the failure is silent rather than loud: the tick would flip (or try to) at
+    the lower number and the "stop gracefully" mail would fire above it, i.e. after the wall it
+    exists to warn about, on an account that has already stopped being able to send it. The
+    operator raised the flip line 95 -> 98 on 2026-09-08 and the gap widened to 8 points; a later
+    raise of the drain line, or another raise of this one, is exactly when this breaks.
+    """
+    monkeypatch.delenv("ROTATE_THRESHOLD", raising=False)
+    monkeypatch.delenv("ROTATE_URGENT_DRAIN_PCT", raising=False)
+    monkeypatch.delenv("ROTATE_DRAIN_THRESHOLD", raising=False)
+    flip, urgent = cr._rotate_threshold(), cr._urgent_drain_pct()
+    assert urgent < flip, (
+        f"the no-successor mail ({urgent:.0f}) must fire BELOW the flip line ({flip:.0f}) — above "
+        "it, the graceful-stop warning arrives after the wall it warns about"
+    )
+    # and the plain drain warning stays under both, or `_tick_inner` clamps it away (F30's band)
+    assert cr._env_float("ROTATE_DRAIN_THRESHOLD", 85.0) <= urgent < flip
+
+    # the ordering must survive an operator override of either knob, not just the defaults
+    monkeypatch.setenv("ROTATE_THRESHOLD", "92")
+    monkeypatch.setenv("ROTATE_URGENT_DRAIN_PCT", "90")
+    assert cr._urgent_drain_pct() < cr._rotate_threshold()

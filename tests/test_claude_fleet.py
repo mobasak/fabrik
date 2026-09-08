@@ -33,6 +33,13 @@ cr = importlib.util.module_from_spec(spec)
 sys.modules["claude_rotate_fleet"] = cr
 spec.loader.exec_module(cr)
 
+# A session reading that TRIPS the flip line, whatever the line currently is. Derived, never
+# typed: these fixtures were written with a literal 96.0 when the threshold was 95, and every one
+# of them silently became a BELOW-the-line reading when the operator moved it to 98 (D-201) —
+# ten tests failed for a stale fixture rather than a real defect. `+ 1.0` keeps the reading
+# strictly over the line without reaching 100, which is a different branch (the wall).
+OVER_LINE = cr._rotate_threshold() + 1.0
+
 SENTINEL = "SENTINEL-ACCESS-TOKEN"
 
 
@@ -1326,7 +1333,7 @@ def test_fleet_exhaustion_advisory_fires_once_then_rearms_on_relief(tmp_path, mo
     fleet = _fleet_two_accounts(tmp_path, monkeypatch)
     _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
     _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
-    usages = {"tok-seo": _usage_blob(96.0, 96.0), "tok-intel": _usage_blob(100.0, 100.0)}
+    usages = {"tok-seo": _usage_blob(OVER_LINE, 96.0), "tok-intel": _usage_blob(100.0, 100.0)}
     _fake_oauth(monkeypatch, usages=usages)
     actions = _fleet_tick_spies(monkeypatch)
     monkeypatch.setattr(cr, "_mailbox_repos", lambda: ["fabrik"])
@@ -1347,7 +1354,7 @@ def test_fleet_exhaustion_advisory_fires_once_then_rearms_on_relief(tmp_path, mo
     assert len(actions["telegrams"]) == 1, "relief (a flip to headroom) fires nothing and re-arms"
 
     # A fresh total wall AFTER relief speaks again — the latch was cleared, so it is a new fact.
-    usages["tok-seo"] = _usage_blob(97.0, 97.0)
+    usages["tok-seo"] = _usage_blob(OVER_LINE + 1.0, 97.0)
     usages["tok-intel"] = _usage_blob(100.0, 100.0)
     _fake_oauth(monkeypatch, usages=usages)
     _point(fleet, "seo")
@@ -1393,7 +1400,7 @@ def test_fleet_wall_advisory_silent_when_a_headroom_sibling_relieves_the_wall(
     fleet = _fleet_two_accounts(tmp_path, monkeypatch)
     _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
     _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
-    usages = {"tok-seo": _usage_blob(96.0, 50.0), "tok-intel": _usage_blob(10.0, 10.0)}
+    usages = {"tok-seo": _usage_blob(OVER_LINE, 50.0), "tok-intel": _usage_blob(10.0, 10.0)}
     _fake_oauth(monkeypatch, usages=usages)
     actions = _fleet_tick_spies(monkeypatch)
     monkeypatch.setattr(cr, "_mailbox_repos", lambda: ["fabrik"])
@@ -1407,7 +1414,7 @@ def test_fleet_wall_advisory_silent_when_a_headroom_sibling_relieves_the_wall(
 
     # tick 2 (same instant): intel walls to 96%, seo now has headroom → the flip is NOT held
     # (D-104), the pointer moves to seo, and the relieved wall fires nothing.
-    usages["tok-intel"] = _usage_blob(96.0, 96.0)
+    usages["tok-intel"] = _usage_blob(OVER_LINE, 96.0)
     usages["tok-seo"] = _usage_blob(10.0, 10.0)
     _fake_oauth(monkeypatch, usages=usages)
     assert cr._cmd_tick() == 0
@@ -1674,7 +1681,7 @@ def test_fleet_tick_flips_at_threshold_to_the_headroom_account(tmp_path, monkeyp
     fleet = _fleet_two_accounts(tmp_path, monkeypatch)
     _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
     _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
-    usages = {"tok-seo": _usage_blob(96.0, 50.0), "tok-intel": _usage_blob(10.0, 10.0)}
+    usages = {"tok-seo": _usage_blob(OVER_LINE, 50.0), "tok-intel": _usage_blob(10.0, 10.0)}
     _fake_oauth(monkeypatch, usages=usages)
     actions = _fleet_tick_spies(monkeypatch)
     monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
@@ -1686,18 +1693,18 @@ def test_fleet_tick_flips_at_threshold_to_the_headroom_account(tmp_path, monkeyp
     out = capsys.readouterr().out
 
     assert os.readlink(fleet / "active") == "intel", "the tick must FLIP the pointer"
-    assert "flipped active sarp@ocoron.com -> ob@ocoron.com (intel) at 96%" in out
+    assert f"flipped active sarp@ocoron.com -> ob@ocoron.com (intel) at {OVER_LINE:.0f}%" in out
     assert actions["switched"] == [] and actions["picked"] == [], "legacy install never touched"
     lines = (tmp_path / "state" / "rotate-ledger.jsonl").read_text().splitlines()
     flip = next(e for e in map(json.loads, lines) if e.get("event") == "flip")
-    assert (flip["from"], flip["to"], flip["at_pct"]) == ("seo", "intel", 96.0)
+    assert (flip["from"], flip["to"], flip["at_pct"]) == ("seo", "intel", OVER_LINE)
 
     # …and a second over-threshold tick moments later FLIPS AGAIN. Until 2026-09-03 this tick
     # was held by the 30-min dwell; D-104 made every trip flip dwell-exempt (a trip is a wall,
     # never churn — the session wall stops every running agent at once), and churn is prevented
     # where it belongs: the candidate predicate never targets a sibling at/over the threshold or
     # without 5h budget. seo at 10% IS such a target, so the pointer moves back to it.
-    usages["tok-intel"] = _usage_blob(96.0, 96.0)
+    usages["tok-intel"] = _usage_blob(OVER_LINE, 96.0)
     usages["tok-seo"] = _usage_blob(10.0, 10.0)
     capsys.readouterr()
     assert cr._cmd_tick() == 0
@@ -1724,7 +1731,9 @@ def test_fleet_tick_below_threshold_never_flips(tmp_path, monkeypatch, capsys):
 
     assert cr._cmd_tick() == 0
 
-    assert "below 95%, no flip" in capsys.readouterr().out
+    # derived: the tick prints the LIVE threshold, so a literal here fails on every future
+    # move of the line rather than on a real defect (D-201 moved it 95 -> 98)
+    assert f"below {cr._rotate_threshold():.0f}%, no flip" in capsys.readouterr().out
     assert os.readlink(fleet / "active") == "seo"
 
 
@@ -1769,7 +1778,7 @@ def test_fleet_tick_without_headroom_flips_nothing_and_advises(tmp_path, monkeyp
     _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
     _fake_oauth(
         monkeypatch,
-        usages={"tok-seo": _usage_blob(96.0, 50.0), "tok-intel": _usage_blob(100.0, 100.0)},
+        usages={"tok-seo": _usage_blob(OVER_LINE, 50.0), "tok-intel": _usage_blob(100.0, 100.0)},
     )
     actions = _fleet_tick_spies(monkeypatch)
     monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
@@ -1793,7 +1802,7 @@ def test_fleet_tick_pause_holds_the_flip_but_never_the_advisory(tmp_path, monkey
     _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
     _fake_oauth(
         monkeypatch,
-        usages={"tok-seo": _usage_blob(96.0, 50.0), "tok-intel": _usage_blob(10.0, 10.0)},
+        usages={"tok-seo": _usage_blob(OVER_LINE, 50.0), "tok-intel": _usage_blob(10.0, 10.0)},
     )
     actions = _fleet_tick_spies(monkeypatch)
     monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
@@ -1989,7 +1998,7 @@ def test_selector_skips_an_expired_chain_that_ranks_best_on_quota(tmp_path, monk
     _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0, refresh_expires_s=-3 * 3600.0)
     _fake_oauth(
         monkeypatch,
-        usages={"tok-seo": _usage_blob(96.0, 50.0), "tok-intel": _usage_blob(10.0, 10.0)},
+        usages={"tok-seo": _usage_blob(OVER_LINE, 50.0), "tok-intel": _usage_blob(10.0, 10.0)},
     )
     _fleet_tick_spies(monkeypatch)
     monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
@@ -2534,7 +2543,7 @@ def test_near_threshold_candidate_is_excluded_from_selection(tmp_path, monkeypat
     _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
     _fake_oauth(
         monkeypatch,
-        usages={"tok-seo": _usage_blob(96.0, 50.0), "tok-intel": _usage_blob(99.0, 10.0)},
+        usages={"tok-seo": _usage_blob(OVER_LINE, 50.0), "tok-intel": _usage_blob(99.0, 10.0)},
     )
     _fleet_tick_spies(monkeypatch)
     monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
@@ -2629,7 +2638,7 @@ def test_all_capped_or_walled_fires_the_drain_advisory(tmp_path, monkeypatch, ca
     _caps(fleet, {"ob@ocoron.com": 40})
     _fake_oauth(
         monkeypatch,
-        usages={"tok-seo": _usage_blob(96.0, 96.0), "tok-intel": _usage_blob(10.0, 50.0)},
+        usages={"tok-seo": _usage_blob(OVER_LINE, 96.0), "tok-intel": _usage_blob(10.0, 50.0)},
     )
     actions = _fleet_tick_spies(monkeypatch)
     monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
@@ -3614,8 +3623,13 @@ def test_relief_flips_even_within_the_dwell_of_the_last_flip(tmp_path, monkeypat
     out = capsys.readouterr().out
     assert os.readlink(fleet / "active") == "intel", out
     rows = [json.loads(ln) for ln in ledger.read_text().splitlines()]
-    assert rows[-1]["event"] == "flip" and rows[-1]["kind"] == "relief", rows[-1]
-    assert (rows[-1]["from"], rows[-1]["to"]) == ("seo", "intel"), rows[-1]
+    # by EVENT, not by position: the fleet tick also appends its own `tick` row now (D-201, the
+    # burst sample), so "the last row" is no longer "the flip". Both production readers already
+    # filtered by event name — `_last_event_ts` and the picture's last-flip scan — which is why
+    # this was a test-only assumption and not a defect.
+    flips = [r for r in rows if r.get("event") == "flip"]
+    assert flips and flips[-1]["kind"] == "relief", rows[-3:]
+    assert (flips[-1]["from"], flips[-1]["to"]) == ("seo", "intel"), flips[-1]
 
 
 # ── relief wake (plan 2026-09-07-plan-1-relief-wake, Phase A.4) ──────────────────────────────
@@ -3654,7 +3668,7 @@ def test_relief_wakes_the_armed_watch_once_and_only_on_the_transition(tmp_path, 
     try:
         _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
         _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
-        usages = {"tok-seo": _usage_blob(96.0, 96.0), "tok-intel": _usage_blob(100.0, 100.0)}
+        usages = {"tok-seo": _usage_blob(OVER_LINE, 96.0), "tok-intel": _usage_blob(100.0, 100.0)}
         _fake_oauth(monkeypatch, usages=usages)
         _fleet_tick_spies(monkeypatch)
         monkeypatch.setattr(cr, "_mailbox_repos", lambda: ["fabrik"])
@@ -3689,7 +3703,7 @@ def test_a_transient_dwell_unlink_wakes_with_reason_dwell(tmp_path, monkeypatch)
     try:
         _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
         _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
-        usages = {"tok-seo": _usage_blob(96.0, 96.0), "tok-intel": _usage_blob(100.0, 100.0)}
+        usages = {"tok-seo": _usage_blob(OVER_LINE, 96.0), "tok-intel": _usage_blob(100.0, 100.0)}
         _fake_oauth(monkeypatch, usages=usages)
         _fleet_tick_spies(monkeypatch)
         monkeypatch.setattr(cr, "_mailbox_repos", lambda: ["fabrik"])
@@ -3737,8 +3751,12 @@ def test_a_probe_blackout_keeps_the_hold_and_wakes_nobody(tmp_path, monkeypatch)
         assert stamp.exists(), "D-180: no reading → the stamp is KEPT (a blackout is not relief)"
         assert not (locks / "pane1.holdlifted").exists(), "a blackout never wakes the fleet"
         ledger = cr._rotate_state_dir() / "rotate-ledger.jsonl"
-        rows = _lifted_rows() if ledger.exists() else []  # D-180: no transition → maybe no ledger at all
-        assert not [r for r in rows if r.get("event") == "hold-lifted"], rows  # no transition → no row
+        rows = (
+            _lifted_rows() if ledger.exists() else []
+        )  # D-180: no transition → maybe no ledger at all
+        assert not [r for r in rows if r.get("event") == "hold-lifted"], (
+            rows
+        )  # no transition → no row
     finally:
         os.close(fd)
 
@@ -3752,7 +3770,7 @@ def test_an_unusable_lock_dir_never_aborts_the_tick(tmp_path, monkeypatch):
     monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(bogus))
     _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
     _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
-    usages = {"tok-seo": _usage_blob(96.0, 96.0), "tok-intel": _usage_blob(100.0, 100.0)}
+    usages = {"tok-seo": _usage_blob(OVER_LINE, 96.0), "tok-intel": _usage_blob(100.0, 100.0)}
     _fake_oauth(monkeypatch, usages=usages)
     _fleet_tick_spies(monkeypatch)
     monkeypatch.setattr(cr, "_mailbox_repos", lambda: ["fabrik"])
@@ -3764,3 +3782,34 @@ def test_an_unusable_lock_dir_never_aborts_the_tick(tmp_path, monkeypatch):
     assert cr._cmd_tick() == 0
     rows = _lifted_rows()
     assert rows and rows[-1]["errors"] >= 1 and rows[-1]["woken"] == 0
+
+
+def test_the_fleet_tick_ledgers_the_active_session_reading(tmp_path, monkeypatch, capsys):
+    """D-201: without this row the threshold cannot be tuned again, only guessed.
+
+    The legacy tick wrote `{"event": "tick", "verdict": "ok", "pct": …}` every pass; the FLEET
+    tick never did. So the burst distribution behind the 95-vs-98 argument stops dead on
+    2026-08-15 — the day this box moved to fleet mode — and `_rotate_threshold`'s own docstring
+    had to say the numbers it quotes cannot be refreshed. One row per tick, ACTIVE account only.
+    """
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(42.0, 50.0), "tok-intel": _usage_blob(10.0, 10.0)},
+    )
+    rows: list[dict] = []
+    monkeypatch.setattr(cr, "_ledger_append", rows.append)
+    assert cr._cmd_tick() == 0
+
+    ticks = [r for r in rows if r.get("event") == "tick"]
+    assert len(ticks) == 1, f"exactly one row per tick, for the ACTIVE account only: {ticks}"
+    t = ticks[0]
+    # WHICH account is active is the fixture's business, not this grader's — assert the row is
+    # self-consistent instead of hardcoding it, which is how the first draft of this test failed.
+    sessions = {"seo": 42.0, "intel": 10.0}
+    slug = "seo" if "sarp" in str(t["account"]) else "intel"
+    assert t["pct"] == sessions[slug], t  # the SESSION window, never the max of both windows
+    assert t["pct"] != 50.0, "50 is seo's WEEKLY — the flip line governs the session window"
+    assert t["verdict"] == "ok" and t["account"] and "source" in t, t

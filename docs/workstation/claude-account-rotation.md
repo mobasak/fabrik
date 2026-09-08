@@ -50,11 +50,21 @@ survives it.
 
 The `*/5` tick reads every account dir (five as of 2026-09-06 — it discovers them, nothing enumerates them), then decides (`_fleet_flip_leg`, `claude_rotate.py`):
 
-- **Flip-away trigger:** the active account reaches `ROTATE_THRESHOLD` (default **95** — operator rule
-  2026-09-03, restated after 98 let the wall be hit anyway: "when we see 95% at these checks we need to switch";
-  98 lost because the gap between two checks is BURSTY — 34 measured inter-tick gaps: median 4, p90 10, max 16 —
-  so a reading of 93 can be past 100 by the next look; ONE helper `_rotate_threshold()` feeds every call
-  site) on either the 5-hour or the weekly window — **on the PROJECTED reading**
+- **Flip-away trigger:** the active account reaches `ROTATE_THRESHOLD` (default **98** since 2026-09-08 —
+  operator rule, D-201: "we can switch a lot faster now so i want to utilize them better — switch as soon as
+  it reaches 98%". This SUPERSEDES the 95 of 2026-09-03, which had itself replaced a 98 that lost the same
+  day. The burst that beat 98 then is unchanged and still measurable in the last usable sample — 305
+  inter-tick gaps, 2026-08-13..15: gap median 5.0 min / p90 5.0 / max 10.0, per-gap RISE median 0 points,
+  p90 3, p99 35, so P(rise > 5) = 4.7% against P(rise > 2) = 21.7%, i.e. an account read AT the line walls
+  roughly 4.6x more often at 98 than at 95. What changed is the COST of losing that race: the relief wake
+  (D-177/D-178/D-180, 2026-09-07) holds a walled session and wakes it when relief lands instead of letting
+  it die. ⚠️ Those numbers were unrefreshable when this was decided and are not any more: the FLEET tick never
+  wrote the `{"event": "tick", "pct": …}` row the LEGACY tick did, so the samples stop dead on 2026-08-15 — the
+  day this box moved to fleet mode. Restored in the same change (one row per tick, ACTIVE account, its SESSION
+  window, graded by `test_the_fleet_tick_ledgers_the_active_session_reading`), so the next tuning has evidence
+  rather than a three-week-old snapshot. ONE helper
+  `_rotate_threshold()` feeds every call site, and `quota_dashboard.TRIGGER_THRESHOLD` is pinned equal to it
+  by a grader) on either the 5-hour or the weekly window — **on the PROJECTED reading**
   (2026-09-03 19:50, D-103): each leg trips on reading + the burn since the previous tick, remembered per
   account + window in `~/.claude/state/tick-last-reading.json` (`_tick_burn`; same account, same window by
   reset epoch, memory ≤ 15 min, else 0). The tick had logged ob@ at 89 → 93 → 96 "below 98, no flip" and the
@@ -77,8 +87,10 @@ The `*/5` tick reads every account dir (five as of 2026-09-06 — it discovers t
   20 s probe cadence like a trip.
 - **URGENT drain at 90 with NO successor (operator rule 2026-09-03, `_urgent_drain_pct`, `ROTATE_URGENT_DRAIN_PCT`):**
   when the ACTIVE account's session is at/over **90** and `_validated_pick` finds no eligible sibling (every
-  one session-exhausted, weekly-walled or cap-walled), the wall advisory fires FIVE POINTS EARLY — the runway a
-  graceful stop needs — as one Telegram + one broadcast fabrik-mail to every mailbox repo, in the operator's
+  one session-exhausted, weekly-walled or cap-walled), the wall advisory fires EIGHT POINTS EARLY — five until
+  2026-09-08, when D-201 moved the flip line 95 -> 98 and widened the gap; the runway a graceful stop needs, and
+  the ordering (90 < the flip line) is the design rather than a coincidence, graded by
+  `test_the_no_successor_mail_always_precedes_the_flip_line` — as one Telegram + one broadcast fabrik-mail to every mailbox repo, in the operator's
   words: **STOP YOUR WORK ASAP, GRACEFULLY, and HOOK YOURSELF TO RESUME 1 MINUTE AFTER the next account's
   session resets** — with that instant as local time, UTC and epoch, plus a copy-paste `sleep` line
   (`_next_session_relief`: the soonest 5h reset among siblings blocked only by their session; falls back to the
@@ -386,7 +398,7 @@ stores (`~/.claude/manager-accounts/<name>/`). It retires at the M4 sweep — do
   routes to the pointer flip instead).
 - Legacy `--status` — per-store quota table; parked stores whose access token aged out show
   "parked — quota unknown until used (refresh token valid)" — the blindness the fleet view retires.
-- Legacy tick — `ROTATE_THRESHOLD` (95) switching with a 30-minute dwell, graceful-drain mail
+- Legacy tick — `ROTATE_THRESHOLD` (98) switching with a 30-minute dwell, graceful-drain mail
   + one Telegram (24h suppress), keep-warm for parked snapshots.
 - `--capture-current` · `--drift-check` — snapshot the live chain (identity-gated); the cron
   and hook triggers are removed, the flags remain invocable by hand until the sweep.

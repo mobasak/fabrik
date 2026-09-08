@@ -2509,15 +2509,32 @@ def _env_float(name: str, default: float) -> float:
 def _rotate_threshold() -> float:
     """The flip-away threshold on either quota window — ONE source for every call site.
 
-    Default **95** (operator rule 2026-09-03, restated twice after the wall was hit anyway: "when
-    we see 95% at these checks we need to switch next account"). It was briefly 98 the same day;
-    98 lost, because the gap between two checks is BURSTY — measured over 34 real inter-tick gaps:
-    median 4 points, p90 10, max 16 — so an account read at 93 could be past 100 before the next
-    look. 95 restores the margin a burst needs. `ROTATE_THRESHOLD` overrides.
+    Default **98** (operator rule 2026-09-08: "we can switch a lot faster now so i want to utilize
+    them better — switch as soon as it reaches 98% session limit"). This SUPERSEDES the 95 of
+    2026-09-03, and it is the same 98 that lost that day, so the reason it wins now is the part to
+    keep: what changed is not the burst, it is the COST of losing the race.
+
+    The burst is real and unchanged. Measured over 305 real inter-tick gaps (2026-08-13..15, the
+    last window the tick ledgered a `pct`): gap median 5.0 min / p90 5.0 / max 10.0; per-gap RISE
+    median 0 points, p90 3, p99 35, max 81. So P(rise > 5) = 4.7% but P(rise > 2) = 21.7% — an
+    account READ AT THE THRESHOLD walls before the next look roughly 4.6x more often at 98 than at
+    95. That trade is now worth taking because the relief wake shipped on 2026-09-07
+    (D-177/D-178/D-180): a session that hits the wall is HELD and woken when relief lands, instead
+    of dying there. Before that mechanism a lost race cost a session; now it costs a pause.
+
+    ⚠️ The 5 points this gives up were the margin, so the fallback carries the weight: with NO
+    eligible successor the URGENT-DRAIN mail fires at ``_urgent_drain_pct()`` = 90, eight points
+    below this line, and tells every repo when to resume. That ordering (90 < 98) is the design,
+    not a coincidence — if you raise this, check that one first. `ROTATE_THRESHOLD` overrides.
+
+    ⚠️ The numbers above stop on 2026-08-15 because the FLEET tick never wrote the
+    `{"event": "tick", "pct": ...}` row the LEGACY tick did — the day this box moved to fleet mode
+    is the day the evidence stopped. `_fleet_tick_inner` writes it again as of this change, so the
+    NEXT move of this line can be measured instead of argued.
 
     The weekly leg is governed by the account's ``caps.json`` cap when one exists (the cap IS the
     operator's weekly rule) and by this threshold otherwise — see ``_fleet_flip_leg``."""
-    return _env_float("ROTATE_THRESHOLD", 95.0)
+    return _env_float("ROTATE_THRESHOLD", 98.0)
 
 
 def _tick_inner() -> int:
@@ -4732,7 +4749,8 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     95%). (2026-08-26, operator directive: "only fire when we don't have any active quota left".)"""
     walled, row = _active_account_walled(accounts, threshold)
     # URGENT tier (operator rule 2026-09-03): the active account's SESSION at/over 90 with no
-    # eligible successor is the same emergency as the wall, five points earlier — the runway a
+    # eligible successor is the same emergency as the wall, EIGHT points earlier (five until D-201
+    # moved the flip line 95 -> 98 on 2026-09-08) — the runway a
     # graceful stop needs. Same latch, same re-arm, one message per episode.
     session_pct = None
     if row is not None and isinstance(row.get("five_hour"), dict):
@@ -4868,6 +4886,26 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
         hot = max(utils)
         status = "ok" if hot < drain_thr else "at/over drain threshold"
         print(f"tick: {status} — {row['email']} at {hot:.0f}%{stale}")
+    # Restore the burst sample the threshold is tuned against (D-201). The legacy tick ledgered
+    # `{"event": "tick", "verdict": "ok", "pct": …}` on every pass; the FLEET tick never did, so
+    # the samples stop dead on 2026-08-15 — the day this box moved to fleet mode — and the
+    # distribution behind `_rotate_threshold`'s 95-vs-98 argument became unrefreshable. One row
+    # per tick for the ACTIVE account only: it is the account the flip line acts on, and a row per
+    # account would be four times the volume for three windows nothing reads.
+    _active_walled, _active_row = _active_account_walled(accounts, threshold)
+    if _active_row is not None and isinstance(_active_row.get("five_hour"), dict):
+        _sess = _active_row["five_hour"].get("utilization")
+        if isinstance(_sess, (int, float)):
+            _ledger_append(
+                {
+                    "event": "tick",
+                    "ts": now,
+                    "verdict": "walled" if _active_walled else "ok",
+                    "pct": float(_sess),
+                    "account": _active_row.get("email"),
+                    "source": _active_row.get("source"),
+                }
+            )
     # The advisory is FLEET-WIDE, not per-account: fire ONLY when the active account (the one
     # every agent is using) is walled with no auto-relief. A single account crossing the threshold is a
     # non-event — the flip leg above already re-pointed to a sibling with headroom.
