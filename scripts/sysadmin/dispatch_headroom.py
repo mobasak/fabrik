@@ -185,13 +185,19 @@ def cost(mix: dict[str, int]) -> dict:
     return {"units": sum(parts.values()), "parts": parts}
 
 
-def cheapest_mix(seats: int) -> dict[str, int]:
-    """The cheapest mix for N seats that keeps ONE Opus authoritative seat: the rest Sonnet. It does
-    not enforce the floor — `budget()` already did that on `seats`; a caller passing 1 gets one seat
-    and owns the reason (a hard cap, or a surface with nothing to partition)."""
+def cheapest_mix(seats: int, trivial: int = 0, risky: int = 0) -> dict[str, int]:
+    """The cheapest ROLE-LEGAL mix for N seats: `risky` units (auth/schema/migrations/secrets —
+    at least one, the authoritative seat) on Opus, `trivial` units (grep-able classes, format,
+    inventory) on Haiku, the rest Sonnet. Surface-blind callers get the role-neutral default,
+    which is NOT a minimum — the authoritative seat found that `{sonnet: 3}` (the measured
+    /fabrik-review-scoped floor) and `{opus: 1, haiku: 2}` are both cheaper and both legal. It
+    does not enforce the floor — `budget()` already did that on `seats`."""
     if seats <= 0:
         return {}
-    return {"opus": 1, "sonnet": seats - 1} if seats > 1 else {"opus": 1}
+    opus = max(1, min(risky, seats))
+    haiku = max(0, min(trivial, seats - opus))
+    sonnet = seats - opus - haiku
+    return {k: v for k, v in (("opus", opus), ("haiku", haiku), ("sonnet", sonnet)) if v > 0}
 
 
 def parse_mix(text: str) -> dict[str, int]:
@@ -304,15 +310,30 @@ def main(argv: list[str] | None = None) -> int:
         default="",
         help='price a seat mix, e.g. "opus=1,sonnet=5" (D-190: haiku 1x, sonnet 2x, opus 5x, fable 10x)',
     )
+    ap.add_argument(
+        "--trivial", type=int, default=0, help="units that are trivial-mechanical (Haiku)"
+    )
+    ap.add_argument(
+        "--risky", type=int, default=0, help="units that are auth/schema/secrets (Opus)"
+    )
     a = ap.parse_args(argv)
     b, q, s = box(), quota(), siblings()
     r = budget(a.units, a.heavy, b, q, s)
     try:
-        mix = parse_mix(a.mix) if a.mix else cheapest_mix(r["seats"])
+        mix = parse_mix(a.mix) if a.mix else cheapest_mix(r["seats"], a.trivial, a.risky)
         priced = cost(mix)
     except ValueError as exc:
         print(f"dispatch_headroom.py: error: {exc}", file=sys.stderr)
         return 2
+    # the adjudicator is ONE seat per run on Fable (10x) that `cheapest_mix` never returns — a
+    # COST that omitted it understated every run by 10 units, always in the cheap direction
+    adjudicator = {"model": "fable", "units": PRICE["fable"], "counted_in_seats": False}
+    mix_seats = sum(mix.values())
+    if mix_seats != r["seats"]:
+        r["reasons"].append(
+            f"mix has {mix_seats} seat(s) but the budget is {r['seats']} — reprice or resize; "
+            "SEATS and COST must describe the same round"
+        )
     r.update(
         box=b,
         quota=q,
@@ -323,6 +344,7 @@ def main(argv: list[str] | None = None) -> int:
         price=PRICE,
         mix=mix,
         cost=priced,
+        adjudicator=adjudicator,
     )
     if a.json:
         print(json.dumps(r, indent=2, default=str))
@@ -352,8 +374,19 @@ def main(argv: list[str] | None = None) -> int:
         shown = " + ".join(f"{n} {k} x{PRICE[k]}" for k, n in mix.items())
         print(
             f"  COST: {priced['units']} haiku-units for {shown}"
-            + ("" if a.mix else " (the cheapest floor-compliant mix; price your own with --mix)")
+            + (
+                ""
+                if a.mix
+                else " (role-neutral default — NOT a minimum: trivia on Haiku 1x with --trivial, "
+                "risk-bearing units on Opus 5x with --risky, or price your real mix with --mix)"
+            )
             + " — D-190: haiku 1x · sonnet 2x · opus 5x · fable 10x"
+        )
+        print(
+            f"  + {adjudicator['units']} for the orchestrator/adjudicator on fable x10 — one per run, "
+            "not in the seat total. RELATIVE and dimensionless: assumes equal tokens per seat, and "
+            "the orchestrator's own reading (at its own multiplier, growing with every seat's "
+            "report) is NOT counted — the absolute anchor waits on `round --seats` rows."
         )
     else:
         print("  COST: 0 haiku-units — nothing to dispatch (see the reasons above)")

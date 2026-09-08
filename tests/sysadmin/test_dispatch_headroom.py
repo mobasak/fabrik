@@ -157,6 +157,11 @@ def test_price_multipliers_make_affordable_a_number():
     assert dh.cost({"fable": 1, "haiku": 3})["units"] == 13
     assert dh.cheapest_mix(6) == {"opus": 1, "sonnet": 5} and dh.cheapest_mix(1) == {"opus": 1}
     assert dh.cheapest_mix(0) == {}
+    # role-legal, surface-aware: trivia on Haiku, risk on Opus (>=1), the rest Sonnet
+    assert dh.cheapest_mix(6, trivial=2) == {"opus": 1, "haiku": 2, "sonnet": 3}
+    assert dh.cheapest_mix(6, risky=3) == {"opus": 3, "sonnet": 3}
+    assert dh.cheapest_mix(3, trivial=5, risky=0) == {"opus": 1, "haiku": 2}  # clamped to seats
+    assert dh.cost(dh.cheapest_mix(12, trivial=11))["units"] == 16  # vs 27 all-Sonnet
     assert dh.parse_mix("opus=1, sonnet=5") == {"opus": 1, "sonnet": 5}
     import pytest
 
@@ -213,3 +218,29 @@ def test_json_output_carries_the_budget_and_both_probes(monkeypatch, capsys):
     ]
     assert out["siblings"] == {"ok": True, "seats": 0, "sessions": 0, "skipped": []}
     assert out["mix"] == {"opus": 1, "sonnet": 4} and out["cost"]["units"] == 13  # 5 + 4x2
+    assert out["adjudicator"] == {"model": "fable", "units": 10, "counted_in_seats": False}
+
+
+def test_the_cost_line_an_agent_reads_is_graded_not_only_the_json(monkeypatch, capsys):
+    """Round-1 (authoritative seat): deleting the whole human-readable COST block left every test
+    green — the one thing a dispatching agent reads had no grader. And a mix whose seat count
+    disagrees with the budget must say so: SEATS and COST describe the same round."""
+    monkeypatch.setattr(dh, "box", lambda: BOX_OK)
+    monkeypatch.setattr(dh, "quota", lambda: Q_OK)
+    monkeypatch.setattr(
+        dh, "siblings", lambda: {"ok": True, "seats": 0, "sessions": 0, "skipped": []}
+    )
+    assert dh.main(["--units", "5"]) == 0
+    out = capsys.readouterr().out
+    assert (
+        "COST: 13 haiku-units for 1 opus x5 + 4 sonnet x2 (role-neutral default — NOT a minimum"
+        in out
+    )
+    assert "+ 10 for the orchestrator/adjudicator on fable x10" in out
+    assert "RELATIVE and dimensionless" in out
+    assert dh.main(["--units", "5", "--trivial", "2"]) == 0
+    assert (
+        "COST: 11 haiku-units for 1 opus x5 + 2 haiku x1 + 2 sonnet x2" in capsys.readouterr().out
+    )
+    assert dh.main(["--units", "3", "--mix", "sonnet=99"]) == 0
+    assert "mix has 99 seat(s) but the budget is 3" in capsys.readouterr().out

@@ -42,7 +42,7 @@ and say so.
 
 One reviewer per unit, READ-ONLY — no edits, so parallel workers can't collide. **Scale the
 fan-out to the repo — a big repo is 20+ workers, not 2–3.** Dispatch the bulk of units as
-**native `fabrik-reviewer` seats (Sonnet; Opus for the highest-blast-radius units) — the pool is OFF, D-181.** A unit touching secret-material paths (`.env` / `.env.*` except `.env.example`, `secrets/`, key files) still goes to the Opus seat with the secret redacted from the brief.
+**native `fabrik-reviewer` seats (Sonnet; Opus for the highest-blast-radius units — each one priced at 5× a Sonnet seat (D-190): name them and count them, never "the risky ones" unbounded) — the pool is OFF, D-181.** A unit touching secret-material paths (`.env` / `.env.*` except `.env.example`, `secrets/`, key files) still goes to the Opus seat with the secret redacted from the brief.
 <!-- POOL OFF (D-181): **`fanout("review", units=[<unit code inlined> …], repo=…, project="repo-review", mode="read_only", max_concurrency=…)`** -->
 <!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 (`repo=` is REQUIRED; omit `project=` and NOTHING is recorded, making the back-fill below an

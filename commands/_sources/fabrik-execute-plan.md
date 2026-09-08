@@ -518,7 +518,7 @@ its Touches (contract violation → its diff is rejected at acceptance).
   a time — the orchestrator's adjudication is serial anyway, and it meters the Opus stream).
 - **Dispatch economics (budgeted rules, not vibes):**
   - **One currency while the pool is OFF (D-181):** native Claude = subscription **quota** (binding; accounts
-    exhaust in ~2–3 days) — meter Opus, prefer Sonnet seats for breadth, Haiku for trivial checks.<!-- POOL OFF (D-181): two currencies — pool = metered dollars at cents-scale; never burn an Opus call to avoid a cents-scale pool unit -->
+    exhaust in ~2–3 days) — meter Opus, prefer Sonnet seats for breadth, Haiku for trivial checks — priced haiku 1× · sonnet 2× · opus 5× · fable 10× (D-190; `dispatch_headroom.py` prints the round's cost), so an Opus breadth seat is 2.5× a Sonnet one and the Fable adjudicator is one seat per run.<!-- POOL OFF (D-181): two currencies — pool = metered dollars at cents-scale; never burn an Opus call to avoid a cents-scale pool unit -->
   - **Native tier map (four rungs — canonical in `core/62` § Dispatch economics; this restates it for the plan loop):** **Fable** = orchestrator/adjudication + the final validation's
     authoritative native seat (it SUBSTITUTES for, never adds to, the Opus seat there); never a routine
     finder, never a coder. **Opus** = the per-round per-ticket authoritative finder + design-heavy

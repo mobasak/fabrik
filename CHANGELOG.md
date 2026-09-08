@@ -11,6 +11,14 @@ All notable changes to this project will be documented in this file.
   Opus authoritative seat plus Sonnet breadth) and refuses an unknown model by name rather than pricing it
   at zero. `core/62` § Dispatch economics states the consequences: breadth on Opus is a 2.5× overspend, a
   Fable adjudicator is one seat per run, Haiku takes every trivial-mechanical class.
+- Its own review (three seats — the number the script printed for a 3-unit surface, cost 9) found 16 defects,
+  all closed: the "cheapest" mix was not cheapest (`{sonnet: 3}` and `{opus: 1, haiku: 2}` are both cheaper
+  and both legal) — it is now the role-neutral DEFAULT, with `--trivial`/`--risky` making it surface-aware; the
+  Fable adjudicator (10) was missing from every printed COST; the number is now stated as RELATIVE and
+  dimensionless with the orchestrator's own tokens explicitly uncounted; SEATS and COST warn when they
+  describe different rounds; a malformed `--mix` crashed instead of exiting 2; a negative count was priced
+  at zero; the COST line an agent reads had no test; and three commands (`execute-plan`'s own economics,
+  `repo-review`'s unbounded Opus units, `deploy-plan-review`'s pool-era FINDERS line) carried no price.
 
 ### Added — `dispatch_headroom.py`: the seat budget as one executable number (D-189, 2026-09-08)
 

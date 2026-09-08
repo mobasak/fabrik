@@ -231,7 +231,7 @@ DEPLOY-PLAN-REVIEW: <plan path> (surface: <vps|mobile|extension|desktop>)
 ## Phase verdicts
 <one line per plan Phase: Phase N — CLEAN | FIXED (n) | REFUTED, with evidence>
 <the Class verdicts table — CLEAN/FIXED tokens, evidence per row>
-FINDERS: pool <models×n> + native Opus ×<n> per round
+FINDERS: native `fabrik-reviewer` ×<n> per unit (Sonnet) + Opus ×<n> named per round (the pool is OFF, D-181; priced per D-190)
 <CONVERGED endings only: Final round: found: 0, fixed: 0>
 <fenced final_gate.py --check --json run (b) → "status": "success" — this is the fence the artifact embeds>
 <fenced final_gate.py --check --json run (e) → "status": "success" — session print only, proves the staged artifact passes; NOT persisted (the artifact is already written when (e) runs)>
