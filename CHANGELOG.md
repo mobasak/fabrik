@@ -71,7 +71,7 @@ move of this number is one line rather than twenty.
 - **The embedded census used a relative path** and failed OPEN — from another cwd it exits 0 printing
   nothing, indistinguishable from "no importers". Absolute now.
 - `check_imports_resolvable.py` still cited `VENDORED_DIRS` in prose — and it is SYNCED, so the false
-  claim sat in 49 project repos. `docs/LESSONS_LEARNT.md` Lesson 151 taught the private-index recipe with
+  claim sat in every project repo that has the file — 41 git repos under `/opt` excluding the three fabrik-* ones, 45 targets by the sync's own discovery. NOT 49: that figure was `ls /opt/*/CLAUDE.md`, which counts the hub's own contract and sync-excluded fabrik-lib as targets, and `docs/DECISIONS.md` D-098 had already debunked it once for an unrelated claim before this review reused it. `docs/LESSONS_LEARNT.md` Lesson 151 taught the private-index recipe with
   no mode guidance, which is what generated the exec-bit defect; it now reads the real mode per path and
   names `--summary` over `--numstat`. `SYNC_ENFORCEMENT_WORKFLOW.md` had re-frozen the very count D-199
   retired. `DECLARED_NON_TRIGGERS`' dead `libs/subagents` entry deleted — refuted earlier as harmless, but
@@ -173,6 +173,10 @@ sweep exit 0 having done nothing.
   regex, so no project receives this. `scored-rate` occurs in exactly two files, both charters, with no
   code consumer and no kaizen cell — the suspension breaks nothing mechanical. The mirror claim in
   `docs/reference/agents/infra.md:42-45` is infra's beat and was filed to them, not edited here. (D-195)
+
+### Fixed — D-191 round 18: the closing round — grader hardening, no confirmed defect in the delta (2026-09-08)
+- Receipt rows F361–F366 (6 rows: FIXED 3 · RECORDED 2 · REFUTED 1; counted from the verdict cells at the round's close). The authoritative seat found no confirmed defect in the round-17 delta; the receipt stays IN-PROGRESS and the run is BLOCKED on a spec contradiction — the corpus bar (a quiet exit round, refuted candidates counted, D-048) against the operator's directive to close on a round with zero CONFIRMED code/doc defects; the operator's D-row settles which bar stands.
+- The events-pin grader passes the pin explicitly and asserts the subprocess exit (F361); a 9 MB single line past the head-scan cap is graded "skipped" (F362); the protocol doc says `round --findings` counts raw candidates, not adjudicated rows (F363).
 
 ### Fixed — D-191 round 17: the other giant shape — the stamp before a giant tool result (2026-09-08)
 - Receipt rows F352–F360 (9 rows: FIXED 4 · RECORDED 4 · REFUTED 1; counted from the verdict cells at the round's close).

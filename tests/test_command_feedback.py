@@ -1937,6 +1937,16 @@ def test_a_round_with_no_stamp_names_the_seats_that_ran_unstamped(
         )
     p = _cr(run_dir, "round", "--findings", "1")
     assert "1 seat transcript(s) since the last round and NO `dispatch --seats` stamp" in p.stderr
+    # the head scan is capped at one extra window (F347): a 9 MB single line whose stamp sits
+    # past that cap is "skipped" — counted by mtime, bounded I/O (round 18: the bound was ungraded)
+    time.sleep(1.1)
+    (sub / "agent-t9.jsonl").write_text(
+        '{"type":"user","timestamp":"2020-01-01T00:00:00.000Z","toolUseResult":{"stdout":"'
+        + "x" * (9 << 20)
+        + '"}}\n'
+    )
+    p = _cr(run_dir, "round", "--findings", "1")
+    assert "1 seat transcript(s) since the last round and NO `dispatch --seats` stamp" in p.stderr
     _seat_file(sub, "c", [(time.time(), "s3", 10, 10)])
     _cr(run_dir, "dispatch", "--seats", "1")
     p = _cr(run_dir, "round", "--findings", "0", "--classes-swept", "a")
@@ -1967,8 +1977,8 @@ def test_a_round_with_no_stamp_names_the_seats_that_ran_unstamped(
     # the next empty round — the count is by the seat's in-window last line, not the file mtime
     time.sleep(1.1)  # the fixture's whole-second timestamps
     for f in sub.glob("agent-*.jsonl"):
-        if f.stem in ("agent-t3", "agent-t6", "agent-t8"):
-            continue  # the EMPTY and the TORN seats are undatable and dated by mtime by design
+        if f.stem in ("agent-t3", "agent-t6", "agent-t8", "agent-t9"):
+            continue  # EMPTY, TORN and past-the-cap seats are undatable and dated by mtime by design
         f.touch()
     p = _cr(run_dir, "round", "--findings", "0", "--classes-swept", "a")
     assert "seat transcript(s) since" not in p.stderr

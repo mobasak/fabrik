@@ -77,7 +77,10 @@ def test_kaizen_events_dir_is_pinned_under_basetemp(tmp_path):
 
     env = dict(os.environ, COMMAND_RUN_DIR=str(tmp_path / "runs"), CLAUDE_SESSION_ID="pin-probe")
     script = Path(__file__).resolve().parents[1] / "scripts" / "command_run.py"
-    subprocess.run(
+    env["KAIZEN_EVENTS_DIR"] = (
+        d  # explicit, so the grader's own RED path can never leak into the real dir
+    )
+    cp = subprocess.run(
         [
             sys.executable,
             str(script),
@@ -94,5 +97,6 @@ def test_kaizen_events_dir_is_pinned_under_basetemp(tmp_path):
         text=True,
         check=False,
     )
+    assert cp.returncode == 0, cp.stderr
     written = list(Path(d).glob("*.jsonl"))
     assert written and any("pin-probe" in w.name for w in written), written
