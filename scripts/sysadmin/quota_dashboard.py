@@ -1877,17 +1877,10 @@ def _budget_probe(gen: int | None = None) -> str:
             taken = int((d.get("siblings") or {}).get("seats") or 0)
             # "(box 3 after 21 reserved)" read as a 24-seat box when the FLOOR had raised a
             # 2-seat remainder to 3: name the floor when it is what the reader sees (round-7)
-            fl = d.get("floor")
-            box_known = (d.get("box") or {}).get("ok") is not False
-            # a dead box probe holds the cap at the floor too — never say the siblings did it
-            # (round-8 Opus finding); the "held at the floor" caveat carries the real cause
-            floored = (
-                bool(taken)
-                and box_known
-                and box_cap is not None
-                and fl is not None
-                and int(box_cap) == int(fl)
-            )
+            # the label keys on the script's OWN verdict (`box_caps_floored`, from `floor_granted`)
+            # — never on `box_cap == floor`: an honest remainder of 3 is not the floor, and a
+            # dead box probe's floor is not the siblings' doing (round-8/9 Opus findings)
+            floored = bool(taken) and bool((d.get("box_caps_floored") or {}).get(key))
             parts.append(
                 f"{label} seats allowed now: <strong>{allowed}</strong> "
                 f"(box {escape(str(box_cap if box_cap is not None else '?'))}"
@@ -1952,9 +1945,16 @@ def _budget_caveats(d: dict) -> str:
         "NO active account",
         "NO usable reading",
         "floor granted",
+        "HARD cap binds",
+        "is not a number",
+        "dispatch nothing",
     )
+    # case-INSENSITIVE (round-9 finding): the script says "NOT subtracted" for an unreadable
+    # sibling record — the over-dispatch caveat — and a lowercase word never matched it
     lines = [
-        r for r in (d.get("reasons") or []) if isinstance(r, str) and any(w in r for w in words)
+        r
+        for r in (d.get("reasons") or [])
+        if isinstance(r, str) and any(w.lower() in r.lower() for w in words)
     ]
     sib = d.get("siblings") or {}
     if isinstance(sib, dict) and sib.get("ok") is False and not lines:

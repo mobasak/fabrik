@@ -419,7 +419,7 @@ def test_the_cost_story_describes_the_mix_it_prints_never_the_per_unit_sentence(
     assert dh.main(["--units", "3", "--json"]) == 0
     d = json.loads(capsys.readouterr().out)
     assert d["box_caps"] == {"read_only": 23, "heavy": 12} and d["full_mix"] == d["mix"]
-    assert d["floor"] == dh.FLOOR  # the board keys its "= the floor" label on it
+    assert d["floor"] == dh.FLOOR and d["box_caps_floored"] == {"read_only": False, "heavy": False}
     assert dh.main(["--units", "0"]) == 0  # the phantom-floor path end to end (round-8 finding)
     out = capsys.readouterr().out
     assert "SEATS: 0" in out
@@ -811,7 +811,31 @@ def test_a_parked_parent_frame_keeps_its_reservation_and_the_two_no_standby_fact
         )
     )
     s = dh.siblings(now=now, runs_dir=tmp_path, exclude_sid="nobody")
-    assert s["seats"] == 7 and s["sessions"] == 1 and s["unrecorded"] == 1  # the child itself
+    # the stamped parent + an unstamped child is a RECORDED session (round 9: it wore a
+    # permanent LOWER-bound caveat in the ordinary execute-plan → review shape)
+    assert s["seats"] == 7 and s["sessions"] == 1 and s["unrecorded"] == 0
+    # round 9: one malformed NESTED frame must not drop the record's live parent reservation
+    # (10 seats vanished in the over-dispatch direction); the bad frame is named `<file>#<n>`,
+    # a non-dict stack entry too, and `unrecorded` is a SESSION count — one per record
+    (tmp_path / "combo.json").write_text(
+        json.dumps(
+            {
+                "state": "running",
+                "rounds": [],
+                "dispatch": {"ts": now, "seats": 10, "round": 0},
+                "stack": ["not-a-frame", {"rounds": [], "dispatch": {"ts": now, "seats": -3}}],
+            }
+        )
+    )
+    (tmp_path / "two-empty-frames.json").write_text(
+        json.dumps({"state": "running", "rounds": [], "stack": [{"rounds": []}]})
+    )
+    s = dh.siblings(now=now, runs_dir=tmp_path, exclude_sid="nobody")
+    assert s["seats"] == 17 and s["sessions"] == 2  # 7 (parked parent) + 10 (combo's parent)
+    assert sorted(s["skipped"]) == ["combo.json#1", "combo.json#2"]
+    assert s["unrecorded"] == 1  # two-empty-frames only, once — nested.json carries a figure
+    (tmp_path / "combo.json").unlink()
+    (tmp_path / "two-empty-frames.json").unlink()
     # a NEGATIVE seat count is a malformed record — named as skipped, never silently ignored
     (tmp_path / "negative.json").write_text(
         json.dumps({"state": "running", "rounds": [], "dispatch": {"ts": now, "seats": -5}})
@@ -820,8 +844,21 @@ def test_a_parked_parent_frame_keeps_its_reservation_and_the_two_no_standby_fact
     assert s["skipped"] == ["negative.json"] and s["seats"] == 7
     # the floor past the remainder is bounded and SAID (round-8 finding)
     r = dh.budget(6, False, BOX_OK, Q_OK, {"ok": True, "seats": 21, "unrecorded": 0})
-    assert r["caps"]["box_cap"] == dh.FLOOR
+    assert r["caps"]["box_cap"] == dh.FLOOR and r["floor_granted"] == 1
     assert any("floor granted: 1 seat(s) past what the box has left" in x for x in r["reasons"])
+    # an honest remainder that equals the floor is NOT the floor (round-9 Opus finding)
+    r = dh.budget(6, False, BOX_OK, Q_OK, {"ok": True, "seats": 20, "unrecorded": 0})
+    assert r["caps"]["box_cap"] == 3 and r["floor_granted"] == 0
+    # the guarantee is stated only where it holds: a box with no room says no "never below"
+    low = dh.budget(
+        6,
+        True,
+        {"ok": True, "mem_available_gb": 3.0, "cores": 16, "load1": 1.0},
+        Q_OK,
+        {"ok": True, "seats": 14, "unrecorded": 0},
+    )
+    assert low["caps"]["box_cap"] == 0
+    assert not any("never below the floor" in x for x in low["reasons"])
     # an unreadable sibling record is SAID, in the over-dispatch direction (round-8 Opus)
     r = dh.budget(6, False, BOX_OK, Q_OK, {"ok": True, "seats": 0, "skipped": ["sib.json"]})
     assert any(

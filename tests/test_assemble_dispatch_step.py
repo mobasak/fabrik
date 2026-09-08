@@ -60,11 +60,14 @@ def test_the_live_corpus_has_no_gap_and_the_detector_fires_on_real_fan_outs(tmp_
     assert {"fabrik-review", "design-review", "fabrik-rivals", "fabrik-upstream"} <= set(fan)
     # round-8 Opus finding: the ten short banners kept the pre-F189 wording and dropped
     # `--mechanical` — the only flag list in four commands. One wording, every flag, box-wide.
+    graded = 0
     for name, text in rendered.items():
         live = ac._HTML_COMMENT_RE.sub("", text)
         assert "stamped first with" not in live, name
         for m in re.finditer(r"--units <N>[^`]*\[--risky <R>\][^`]*`", live):
+            graded += 1
             assert "[--mechanical <M>]" in m.group(0), (name, m.group(0))
+    assert graded >= 25, graded  # a reworded banner must not empty the grader (round 9)
 
 
 def test_judgement_floors_name_no_haiku_seat_and_review_floors_name_a_class_wide_one():

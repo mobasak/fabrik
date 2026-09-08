@@ -206,13 +206,10 @@ def build(
                 "tok_rows": len(toks),
                 "seat_total": sum(seats),
                 "seat_rows": len(seats),
+                # ONE acceptance (`_is_count`) for the count and its denominator — two textually
+                # identical predicates were free to drift (round-9 finding)
                 "seats_seen": sum(
-                    int(v)
-                    for r in rs
-                    for v in (r.get("seats_seen"),)
-                    if isinstance(v, (int, float))
-                    and not isinstance(v, bool)
-                    and math.isfinite(float(v))
+                    int(v) for r in rs for v in (r.get("seats_seen"),) if _is_count(v)
                 ),  # one malformed row must never take the whole report down (round-4 finding)
                 "median_tok": _median(toks) if toks else None,  # no rows ⇒ null, never "0"
                 "cache_hit": round(read / ctx, 3) if ctx else None,
@@ -222,7 +219,7 @@ def build(
                 # the seat files by more than one — the close's warning, made queryable (round 5)
                 # the rows the seat count was read from — a 0 over 0 rows is "nothing looked at",
                 # not an honest zero (round-8 Opus finding)
-                "seats_rows": sum(1 for r in rs if _is_count(r.get("seats_seen"))),
+                "seats_seen_rows": sum(1 for r in rs if _is_count(r.get("seats_seen"))),
                 "seats_partial_rows": sum(1 for r in rs if r.get("seats_partial") is True),
                 # seat files dropped for size/unreadability — a count nobody could read from any
                 # rollup while it lived only in the raw row (round-7 finding)
@@ -310,7 +307,7 @@ def render(report: dict) -> str:
             f"{_k(c['median_tok']) if c.get('median_tok') is not None else '—'} "
             f"({c['tok_rows']}) | {hit} | "
             f"{_k(c['seat_total']) if c['seat_rows'] else '—'} ({c['seat_rows']} · "
-            f"{c['seats_seen'] if c['seats_rows'] else '—'}"
+            f"{c['seats_seen'] if c['seats_seen_rows'] else '—'}"
             f"{' · ' + str(c['seats_skipped']) + ' skipped' if c['seats_skipped'] else ''}) | "
             f"{', '.join(c['models']) or '—'} |"
         )

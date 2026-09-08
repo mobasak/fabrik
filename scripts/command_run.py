@@ -1467,7 +1467,10 @@ def _build_parser() -> argparse.ArgumentParser:
     # own "seats do not drive wall-clock" was an inference, not a measurement, because nothing here
     # recorded a seat count. One field makes the next audit possible.
     p.add_argument(
-        "--seats", type=int, default=0, help="native seats dispatched this round (0 = not recorded)"
+        "--seats",
+        type=int,
+        default=None,
+        help="native seats dispatched this round (omitted = the dispatch stamp; 0 = a deliberate zero)",
     )
 
     p = sub.add_parser("done", help="terminal: the contract is met", parents=[common])
@@ -1852,7 +1855,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             if _d.get("round") == len(rounds) and not _d.get("released")
             else 0
         )
-        _seats = args.seats or _stamped
+        _seats = args.seats if args.seats is not None else _stamped
         if args.seats and _stamped and args.seats != _stamped:
             print(
                 f"[command_run] round --seats {args.seats} disagrees with the {_stamped} seat(s) "
@@ -1917,7 +1920,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             {
                 "n": len(rounds),
                 "findings": args.findings,
-                "seats": args.seats,
+                "seats": _seats,  # the event stream carries the same figure as the record (round 9)
                 "classes_swept": swept,
                 "classes_new": new_c,
                 "classes_open": sorted(k for k, v in classes.items() if v != "clean"),

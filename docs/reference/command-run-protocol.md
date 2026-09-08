@@ -298,7 +298,7 @@ cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — 
   [--agent NAME] [--json]` — per command: runs, done/blocked/handoff, median and max wall-clock, median
   rounds, how many runs said `change: none`, summed pool `cost_usd` (with how many rows carried a
   number), median tokens per run with the rows that carried them, the cache-hit share, the seats'
-  tokens beside them (rows · seats seen — never folded into the orchestrator's total)
+  tokens beside them (rows · seats seen — never folded into the orchestrator's total) — `--json` keys per command: `seat_total`, `seat_rows` (rows carrying seat spend), `seats_seen`, `seats_seen_rows` (its denominator — a 0 over 0 rows prints "—"), `seats_skipped`, `seats_partial_rows`, `seats_mismatch_rows`, `tok_partial_rows`; the text report lists the last three under "⚠ LOWER BOUNDS"
   (`cache_read / (in + read + create)`), and the models seen; the header states the POPULATION —
   agent-closed runs only (coroner-closed runs write no row) and nested windows overlap, so
   per-command totals are not additive across commands; then the optimisation backlog (each item tagged

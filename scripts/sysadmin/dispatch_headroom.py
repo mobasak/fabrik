@@ -251,15 +251,33 @@ def siblings(
                 rec = json.loads(p.read_text())
                 if rec.get("state") != "running":
                     continue
-                frames = [rec] + [f for f in (rec.get("stack") or []) if isinstance(f, dict)]
-                seats = 0
-                for fr in frames:
-                    seats += _frame_seats(fr, now, out)
             except Exception:  # noqa: BLE001 — classify-and-name only; a probe fails SOFT
-                # a malformed record (non-numeric seats/ts, Infinity, a round that is not a dict)
-                # counts 0 and is named — two narrower tuples each let one shape crash the CLI
                 out["skipped"].append(p.name)
                 continue
+            # PER FRAME (round-9 finding): one malformed nested frame dropped the whole record —
+            # a live 10-seat parent vanished in the over-dispatch direction. A bad frame is named
+            # (`<file>#<n>`) and the good frames still count; a non-dict stack entry is named too
+            # (it was silently filtered); and `unrecorded` is a SESSION count — at most 1 per
+            # record, however many of its frames carry no figure (the reason says sessions)
+            stack = rec.get("stack")
+            raw_frames = [rec] + (list(stack) if isinstance(stack, list) else [])
+            seats = 0
+            frame_out = {"unrecorded": 0}
+            for k, fr in enumerate(raw_frames):
+                name = p.name if k == 0 else f"{p.name}#{k}"  # the record itself keeps its name
+                if not isinstance(fr, dict):
+                    out["skipped"].append(name)
+                    continue
+                try:
+                    seats += _frame_seats(fr, now, frame_out)
+                except Exception:  # noqa: BLE001 — a malformed frame (non-numeric seats/ts,
+                    # Infinity, a round that is not a dict) counts 0 and is named
+                    out["skipped"].append(name)
+            if frame_out["unrecorded"] and seats == 0:
+                # a record carries NO figure only when none of its frames does — a stamped
+                # parent with an unstamped child is recorded (round-9 Opus finding: the ordinary
+                # execute-plan → review shape wore a permanent LOWER-bound caveat)
+                out["unrecorded"] += 1
             if seats > 0:
                 out["seats"] += seats
                 out["sessions"] += 1
@@ -400,6 +418,7 @@ def budget(
             f"risky={risky} exceeds units={units} — clamped to {units} Opus seat(s); the risky units "
             "are a subset of the surface"
         )
+    floor_granted = 0  # seats the FLOOR granted past the sibling remainder (0 = none)
     per_seat = HEAVY_GB_PER_SEAT if heavy else LIGHT_GB_PER_SEAT
     if b.get("ok"):
         mem = b["mem_available_gb"]
@@ -422,6 +441,8 @@ def budget(
             overcommit = FLOOR - cap
             cap = FLOOR
         caps["box_cap"] = cap
+        floor_granted = overcommit  # exported beside caps (never INSIDE them: `seats` is their
+        # min) — the board keys its label on it, not on `box_cap == FLOOR` (round-9 Opus finding)
         if overcommit:
             reasons.append(
                 f"floor granted: {overcommit} seat(s) past what the box has left after the "
@@ -432,7 +453,10 @@ def budget(
             f"(mem {mem:.1f}GB/{per_seat}GB={by_mem}, cores {b['cores']}-load {b['load1']:.1f}={by_cpu}"
             + (
                 f", minus {taken} seat(s) dispatched < {SIBLING_FRESH_S // 60} min ago in "
-                f"{s.get('sessions')} running record(s), never below the floor of {FLOOR}"
+                f"{s.get('sessions')} running record(s)"
+                # the guarantee is stated only where it holds (round-9 Opus finding: "never below
+                # the floor of 3" printed beside "box allows 0 seats")
+                + (f", never below the floor of {FLOOR}" if phys >= FLOOR else "")
                 if taken
                 else ""
             )
@@ -541,7 +565,7 @@ def budget(
                 else "wait for the box or the sibling rounds to finish; never dispatch past a hard cap"
             )
         )
-    return {"seats": seats, "caps": caps, "reasons": reasons}
+    return {"seats": seats, "caps": caps, "reasons": reasons, "floor_granted": floor_granted}
 
 
 def _mix_story(a: argparse.Namespace, mix: dict[str, int], full: dict[str, int]) -> str:
@@ -651,9 +675,12 @@ def main(argv: list[str] | None = None) -> int:
         )
     # both box bounds in one probe, so a caller that wants the pair (the board banner) runs this
     # script — and its fleet round-trip — ONCE, not twice
-    box_caps = {
-        "read_only": budget(a.units, False, b, q, s, a.risky, a.mechanical)["caps"].get("box_cap"),
-        "heavy": budget(a.units, True, b, q, s, a.risky, a.mechanical)["caps"].get("box_cap"),
+    _ro = budget(a.units, False, b, q, s, a.risky, a.mechanical)
+    _hv = budget(a.units, True, b, q, s, a.risky, a.mechanical)
+    box_caps = {"read_only": _ro["caps"].get("box_cap"), "heavy": _hv["caps"].get("box_cap")}
+    box_caps_floored = {  # which of the pair the FLOOR raised past the sibling remainder
+        "read_only": bool(_ro.get("floor_granted")),
+        "heavy": bool(_hv.get("floor_granted")),
     }
     r.update(
         box=b,
@@ -668,6 +695,7 @@ def main(argv: list[str] | None = None) -> int:
         cost=priced,
         adjudicator=adjudicator,
         box_caps=box_caps,
+        box_caps_floored=box_caps_floored,
         floor=FLOOR,  # the board labels a cap the floor raised (round-7 finding)
     )
     if a.json:

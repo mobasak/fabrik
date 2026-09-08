@@ -14,6 +14,7 @@ Three things carry real risk and are pinned here; the rest is presentation.
 
 from __future__ import annotations
 
+import html
 import importlib.util
 import json
 import os
@@ -565,8 +566,32 @@ def test_the_server_probes_on_its_own_cadence_without_a_viewer(tmp_path, monkeyp
     thread (`_start_probe_loop`), so the cadence no longer depends on a viewer's reloads."""
     qd, stub = _tick_env(tmp_path, monkeypatch, QUOTA_DASH_PROBE_INTERVAL_S="0.15")
     assert qd.PROBE_INTERVAL_S == 0.15
+    # round-9 Opus finding: "≥3 probes in 0.8 s" sat on the boundary (2, 3, 2 measured) and was
+    # red 5 of 5 under load. No wall clock: the loop's own stop event records its waits and
+    # stops after three full cycles — three probes happened with NO viewer, deterministically.
+    import threading
+
+    waits: list[float] = []
+    real_event = threading.Event
+    made = {"n": 0}
+
+    class _Ev(threading.Event):
+        def wait(self, timeout=None):  # type: ignore[override]
+            waits.append(float(timeout))
+            if len(waits) >= 3:
+                self.set()
+            return True
+
+    def first_event_records():
+        made["n"] += 1
+        return _Ev() if made["n"] == 1 else real_event()
+
+    monkeypatch.setattr(qd.threading, "Event", first_event_records)
     stop = qd._start_probe_loop()
-    time.sleep(0.8)
+    for _ in range(500):
+        if stop.is_set():
+            break
+        time.sleep(0.01)
     stop.set()
     probes = [c for c in _calls(stub) if c[:2] == ["--status", "--json"]]
     assert len(probes) >= 3, probes
@@ -732,13 +757,35 @@ def test_the_probe_interval_is_a_period_not_a_pause_after_each_probe(tmp_path, m
     cadence ~40s (measured live 2026-09-03: 43s between quota.json writes). The interval is the
     PERIOD: the loop waits interval minus the probe's own duration."""
     qd, stub = _tick_env(tmp_path, monkeypatch, QUOTA_DASH_PROBE_INTERVAL_S="0.15")
-    real = qd.generate
-    ticks: list[float] = []
+    # round-9 finding: the median-gap version still needed three real cycles in 1.6 s and got ONE
+    # under load 20 on the shared box (red 6 of 6). No wall clock at all now: a fake monotonic
+    # clock the probe advances by 0.1, and an Event whose `wait` RECORDS the timeout the loop
+    # computed — period model: interval − probe = 0.05; pause-after-probe: 0.15.
+    import threading
+
+    clock = {"t": 0.0}
+    waits: list[float] = []
+
+    class _Ev(threading.Event):
+        def wait(self, timeout=None):  # type: ignore[override]
+            waits.append(float(timeout))
+            if len(waits) >= 4:
+                self.set()
+            return True
+
+    real_event = threading.Event
+    made = {"n": 0}
+
+    def first_event_records():  # only the loop's own stop event; every other Event stays real
+        made["n"] += 1
+        return _Ev() if made["n"] == 1 else real_event()
+
+    monkeypatch.setattr(qd.threading, "Event", first_event_records)
+    monkeypatch.setattr(qd.time, "monotonic", lambda: clock["t"])
 
     def slow_generate():
-        ticks.append(time.monotonic())
-        time.sleep(0.1)
-        return real()
+        clock["t"] += 0.1
+        return None
 
     monkeypatch.setattr(qd, "generate", slow_generate)
     stop = qd._start_probe_loop()
@@ -753,13 +800,13 @@ def test_the_probe_interval_is_a_period_not_a_pause_after_each_probe(tmp_path, m
     # floor discriminated nothing. Measure the quantity the loop CONTROLS: the gap between
     # probe starts is ~0.15 under the period model and ~0.25 under pause-after-probe; the
     # median sits 33 % from either, not on a count with no margin.
-    time.sleep(1.6)
+    for _ in range(200):
+        if stop.is_set():
+            break
+        time.sleep(0.01)
     stop.set()
-    import statistics
-
-    gaps = [b - a for a, b in zip(ticks, ticks[1:], strict=False)]
-    assert len(gaps) >= 3, ticks
-    assert statistics.median(gaps) < 0.20, gaps
+    assert len(waits) >= 4, waits
+    assert all(abs(w - 0.05) < 1e-6 for w in waits[:4]), waits  # 0.15 − 0.1, never 0.15
 
 
 # ── Commands tab (operator ask 2026-09-03; seen RED first) ─────────────────────────────────────
@@ -2848,6 +2895,11 @@ def test_the_box_budget_banner_shows_the_maximum_and_fails_soft(tmp_path, monkey
         "caps": {"box_cap": 3, "concurrency_cap": 17},
         "box_caps": {"read_only": 3, "heavy": 3},
         "floor": 3,
+        "box": {"ok": True},
+        "box_caps_floored": {
+            "read_only": True,
+            "heavy": True,
+        },  # the script's own verdict (round 9)
         "siblings": {"seats": 21, "ok": True},
         "quota": {
             "ok": True,
@@ -2869,6 +2921,7 @@ def test_the_box_budget_banner_shows_the_maximum_and_fails_soft(tmp_path, monkey
     assert "0 cool standby(s) of 1 eligible" in html
     assert "⚠️ 2 running sibling session(s) carry NO seat figure — a LOWER bound" in html
     payload["box_caps"] = {"read_only": 20, "heavy": 9}
+    payload["box_caps_floored"] = {"read_only": False, "heavy": False}
     payload["caps"]["box_cap"] = 20
     payload["siblings"] = {"seats": 0, "ok": False, "why": "sibling probe failed: PermissionError"}
     payload["reasons"] = []
@@ -2895,6 +2948,21 @@ def test_the_box_budget_banner_shows_the_maximum_and_fails_soft(tmp_path, monkey
     assert "= the floor" not in html and "(box 3 after 5 reserved by sibling sessions)" in html
     assert "⚠️ box probe failed: /proc/meminfo — box unknown, held at the floor" in html
     payload.pop("box")
+    # round 9: an ABSENT box block is unknown — the floor label must not fire; the over-dispatch
+    # caveat is spelled "NOT subtracted" by the script — case must not hide it; a hard cap below
+    # the floor and a malformed concurrency cap are caveats too
+    html = qd._budget_probe()
+    assert "= the floor" not in html and "(box 3 after 5 reserved by sibling sessions)" in html
+    payload["box"] = {"ok": True}
+    payload["reasons"] = [
+        "1 sibling record(s) unreadable (x.json) — their seats are NOT subtracted; the box number is an UPPER bound",
+        "below the floor because a HARD cap binds (quota_cap=0) — dispatch nothing until relief",
+        "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS='x' is not a number — using 20",
+    ]
+    html = qd._budget_probe()
+    assert "⚠️ 1 sibling record(s) unreadable (x.json) — their seats are NOT subtracted" in html
+    assert "HARD cap binds" in html and "is not a number" in html
+    payload["reasons"] = []
     # an older probe without box_caps must not let the read-only cap pose as the heavy one
     monkeypatch.setattr(
         qd.subprocess,
@@ -3090,3 +3158,61 @@ def test_a_switch_orphans_the_probe_already_in_flight(tmp_path, monkeypatch):
     assert (
         "OLD-ACCOUNT" in qd._budget_cache["html"] and qd._budget_cache["ts"] > 0
     )  # the stub's payload, now current
+
+
+def test_every_degraded_reason_the_script_can_emit_reaches_the_board(tmp_path, monkeypatch):
+    """Round-9 Opus finding: the board's caveat filter is a word list, the script's reasons are
+    prose — "NOT subtracted" (capitals) never matched "not subtracted". Walk the degraded matrix
+    of `dispatch_headroom.budget()` and assert every reason that is not bookkeeping renders."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "dh", Path(__file__).resolve().parents[1] / "scripts" / "sysadmin" / "dispatch_headroom.py"
+    )
+    dh = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(dh)
+    qd = _load(tmp_path, monkeypatch)
+    box_ok = {"ok": True, "mem_available_gb": 40.0, "cores": 24, "load1": 1.0}
+    boxes = [box_ok, {"ok": False, "why": "box probe failed: /proc/meminfo"}]
+    q_ok = {
+        "ok": True,
+        "active": "a@x",
+        "hottest_pct": 10.0,
+        "eligible": 1,
+        "eligible_raw": 1,
+        "active_in_band": False,
+        "hold": False,
+        "drain_band": 85.0,
+    }
+    quotas = [
+        q_ok,
+        dict(q_ok, hottest_pct=90.0, active_in_band=True),
+        dict(q_ok, eligible=0, eligible_raw=2),
+        dict(q_ok, eligible=0, eligible_raw=0),
+        dict(q_ok, active=None, hottest_pct=None),
+        dict(q_ok, hottest_pct=None),
+        {"ok": False, "why": "quota probe failed"},
+        dict(q_ok, hold=True),
+    ]
+    sibs = [
+        {"ok": True, "seats": 0, "unrecorded": 0},
+        {"ok": True, "seats": 21, "unrecorded": 0},
+        {"ok": True, "seats": 0, "unrecorded": 2},
+        {"ok": True, "seats": 0, "skipped": ["a.json"]},
+        {"ok": True, "seats": 0, "own_source": "env"},
+        {"ok": False, "seats": 0, "why": "sibling probe failed: EACCES"},
+    ]
+    bookkeeping = ("box allows ", "wanted ", "risky=", "mix has ")
+    missed = set()
+    for b in boxes:
+        for q in quotas:
+            for s in sibs:
+                r = dh.budget(6, False, b, q, s, 1, None)
+                rendered = qd._budget_caveats({"reasons": r["reasons"], "siblings": s})
+                for reason in r["reasons"]:
+                    if reason.startswith(bookkeeping):
+                        continue
+                    if html.escape(reason) not in rendered:
+                        missed.add(reason[:90])
+    assert not missed, sorted(missed)

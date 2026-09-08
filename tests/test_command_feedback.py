@@ -1693,6 +1693,12 @@ def test_a_bare_round_inherits_the_stamp_and_a_disagreeing_count_is_said_and_gra
     assert "round --seats 2 disagrees with the 5 seat(s) stamped" in p.stderr
     rec = json.loads(next(run_dir.glob("*.json")).read_text())
     assert rec["rounds"][-1]["seats"] == 2  # recorded as typed, the disagreement named
+    # a deliberate `--seats 0` beside a live stamp is recorded as 0 (round 9: `or` conflated it)
+    _cr(run_dir, "dispatch", "--seats", "4")
+    p = _cr(run_dir, "round", "--seats", "0", "--findings", "0", "--classes-swept", "a")
+    assert "disagrees" not in p.stderr
+    rec = json.loads(next(run_dir.glob("*.json")).read_text())
+    assert rec["rounds"][-1]["seats"] == 0
     p = _cr(
         run_dir,
         "done",
@@ -1706,7 +1712,7 @@ def test_a_bare_round_inherits_the_stamp_and_a_disagreeing_count_is_said_and_gra
     assert p.returncode == 0, p.stderr
     ledger = run_dir.parent / "command-feedback.jsonl"
     row = json.loads(ledger.read_text().splitlines()[-1])
-    assert row["seats_declared"] == 9  # 7 + 2: the ledger figure the tripwire divides by
+    assert row["seats_declared"] == 9  # 7 + 2 + 0: the ledger figure the tripwire divides by
     # a closed record is never mutated by `dispatch` either (round-8: the docstring claimed it,
     # no test proved it)
     p = _cr(run_dir, "dispatch", "--seats", "3")
