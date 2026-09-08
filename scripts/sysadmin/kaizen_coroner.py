@@ -379,9 +379,7 @@ def _walk_rows(sid: str, lines: list[str]) -> _Death | str | None:
             if row.get("isMeta") or row.get("isCompactSummary"):
                 continue
             text = _row_text(msg.get("content"))
-            if text.strip() and not any(
-                text.lstrip().startswith(m) for m in MACHINE_APPEND_MARKS
-            ):
+            if text.strip() and not any(text.lstrip().startswith(m) for m in MACHINE_APPEND_MARKS):
                 return "alive"  # genuine operator input — the session is attended
             continue  # tool_results / harness notifications — machine appends
         if role == "assistant":
@@ -557,9 +555,7 @@ def _command_run_save(sid: str, rec: dict) -> bool:
     return bool(command_run.save(sid, rec))
 
 
-def _close_records(
-    sources: Sources, evidence: set[str], now: float, report: CoronerReport
-) -> None:
+def _close_records(sources: Sources, evidence: set[str], now: float, report: CoronerReport) -> None:
     """Close what can no longer close itself. The ONLY mutations, ever:
 
     - ``running`` + attributed to a death → ``state: "died"``, ``closed_by: "coroner"``
@@ -594,11 +590,7 @@ def _close_records(
                 if not rec or rec.get("state") != "running":
                     continue  # closed itself between scan and lock — never overwritten
                 raw_sid = str(rec.get("session_id") or stem)
-                dead = (
-                    raw_sid in evidence
-                    or _mesh_safe(raw_sid) in evidence
-                    or stem in evidence
-                )
+                dead = raw_sid in evidence or _mesh_safe(raw_sid) in evidence or stem in evidence
                 if dead:
                     rec["state"] = "died"
                     rec["closed_by"] = "coroner"
@@ -783,9 +775,7 @@ def _gather_deaths(src: Sources, now: float, report: CoronerReport | None = None
             continue
         try:
             died_at = (
-                dt.datetime.fromtimestamp(epoch).isoformat(timespec="seconds")
-                if epoch
-                else UNKNOWN
+                dt.datetime.fromtimestamp(epoch).isoformat(timespec="seconds") if epoch else UNKNOWN
             )
         except (OverflowError, OSError, ValueError):
             died_at = UNKNOWN  # an absurd epoch is skipped-to-unknown, never a crash
@@ -888,20 +878,28 @@ def selftest() -> int:
         marker.write_text(f"rate_limit {int(now)}\n")
         marker_before = marker.read_bytes()
         (root / "runs" / f"{dead}.json").write_text(
-            json.dumps({"session_id": dead, "command": "x", "state": "running",
-                        "updated_ts": now - 60})
+            json.dumps(
+                {"session_id": dead, "command": "x", "state": "running", "updated_ts": now - 60}
+            )
         )
         # ARM 2 — the live-session control MUST stay untouched.
         live = "selftest-live"
         (root / "projects" / "-opt-x" / f"{live}.jsonl").write_text(
-            json.dumps({"type": "assistant",
-                        "message": {"role": "assistant",
-                                    "content": [{"type": "text", "text": "working"}]}})
+            json.dumps(
+                {
+                    "type": "assistant",
+                    "message": {
+                        "role": "assistant",
+                        "content": [{"type": "text", "text": "working"}],
+                    },
+                }
+            )
             + "\n"
         )
         (root / "runs" / f"{live}.json").write_text(
-            json.dumps({"session_id": live, "command": "y", "state": "running",
-                        "updated_ts": now - 60})
+            json.dumps(
+                {"session_id": live, "command": "y", "state": "running", "updated_ts": now - 60}
+            )
         )
 
         report = sweep(src, now=now)

@@ -221,8 +221,11 @@ def own_session_id() -> tuple[str, str]:
 def siblings(
     now: float | None = None, runs_dir: Path = RUNS_DIR, exclude_sid: str | None = None
 ) -> dict:
-    """Seats OTHER live sessions on this box have dispatched — the fresher of each running
-    record's DISPATCH stamp and its last round's `seats` (the larger wins when both are fresh).
+    """Seats OTHER live sessions on this box have dispatched — each running record's DISPATCH
+    stamp is the reservation; a record with no stamp falls back to its last round's `seats`, dated
+    by that round's own `ts`. A nested command parks its parent on `stack`, and a parked parent's
+    stamp is still live (round-7 Opus finding: /fabrik-execute-plan nesting /fabrik-review at a
+    phase boundary hid 7 running seats) — every frame is read, the stamps summed.
     The caller's OWN record is excluded (`exclude_sid`, default this session): a session that
     subtracted its own stamp sized round N+1 against a box it had emptied itself (round-4
     finding). Three sessions reading the same free memory in the same minute would otherwise each
@@ -248,40 +251,10 @@ def siblings(
                 rec = json.loads(p.read_text())
                 if rec.get("state") != "running":
                     continue
-                # the DISPATCH stamp (command_run.py dispatch --seats, written before the seats
-                # are sent) is the reservation; a record without one falls back to its last
-                # round's seats at its last touch — which is written AFTER the seats returned, so
-                # it reserves nothing while they run (round-3 finding: the guard was inert)
-                disp = rec.get("dispatch")
-                rounds = rec.get("rounds") or []
-                if not isinstance(rounds, list):
-                    raise TypeError("rounds is not a list")
-                last = rounds[-1] if rounds else {}
-                disp_seats = disp.get("seats") if isinstance(disp, dict) else None
-                released = isinstance(disp, dict) and bool(disp.get("released"))
-                if not released and not disp_seats and not last.get("seats"):
-                    # running, no seat figure at all: no stamp, an EMPTY stamp, or a round row at
-                    # the CLI's own default (`round --seats` 0 = "not recorded") — a LOWER bound,
-                    # counted and named, never a known zero (round-6 finding); a RELEASE marker
-                    # (seats 0, released) is a known zero and skips nothing
-                    out["unrecorded"] += 1
-                    continue
-                # the DISPATCH stamp (written before the seats went out, released when they
-                # returned) is the reservation; the round row is only the fallback for a record
-                # without one, dated by the round's OWN stamp — `updated_ts` is a generic
-                # last-touch and re-dated a two-hour-old round on a bare `step` (round-5 finding)
-                if disp_seats is not None:
-                    if disp.get("ts") is None:
-                        raise ValueError("dispatch stamp without ts")  # named, never silently 0
-                    # a RELEASE marker is a known zero whatever `seats` says — the CLI never writes
-                    # `released` beside a count, so a record that does is contradictory and the
-                    # release wins (round-7 finding: `released, seats 5` counted 5 in flight)
-                    ts, seats = float(disp["ts"]), 0 if released else int(disp_seats or 0)
-                else:
-                    ts = float(last.get("ts") or 0)
-                    seats = int(last.get("seats") or 0)
-                if not math.isfinite(ts) or now - ts > SIBLING_FRESH_S:
-                    continue  # a NaN stamp read as forever-fresh (round-3 finding)
+                frames = [rec] + [f for f in (rec.get("stack") or []) if isinstance(f, dict)]
+                seats = 0
+                for fr in frames:
+                    seats += _frame_seats(fr, now, out)
             except Exception:  # noqa: BLE001 — classify-and-name only; a probe fails SOFT
                 # a malformed record (non-numeric seats/ts, Infinity, a round that is not a dict)
                 # counts 0 and is named — two narrower tuples each let one shape crash the CLI
@@ -293,6 +266,49 @@ def siblings(
     except OSError as exc:
         out.update(ok=False, why=f"sibling probe failed: {exc}")
     return out
+
+
+def _frame_seats(rec: dict, now: float, out: dict) -> int:
+    """One frame's live reservation (0 when none, stale, released or unrecorded — the latter
+    counted on `out`); raises on a malformed shape so the caller can name the file."""
+    # the DISPATCH stamp (command_run.py dispatch --seats, written before the seats
+    # are sent) is the reservation; a record without one falls back to its last
+    # round's seats at its last touch — which is written AFTER the seats returned, so
+    # it reserves nothing while they run (round-3 finding: the guard was inert)
+    _disp = rec.get("dispatch")
+    disp: dict | None = _disp if isinstance(_disp, dict) else None
+    rounds = rec.get("rounds") or []
+    if not isinstance(rounds, list):
+        raise TypeError("rounds is not a list")
+    last = rounds[-1] if rounds else {}
+    disp_seats = disp.get("seats") if disp is not None else None
+    released = disp is not None and bool(disp.get("released"))
+    if not released and not disp_seats and not last.get("seats"):
+        # running, no seat figure at all: no stamp, an EMPTY stamp, or a round row at
+        # the CLI's own default (`round --seats` 0 = "not recorded") — a LOWER bound,
+        # counted and named, never a known zero (round-6 finding); a RELEASE marker
+        # (seats 0, released) is a known zero and skips nothing
+        out["unrecorded"] += 1
+        return 0
+    # the DISPATCH stamp (written before the seats went out, released when they
+    # returned) is the reservation; the round row is only the fallback for a record
+    # without one, dated by the round's OWN stamp — `updated_ts` is a generic
+    # last-touch and re-dated a two-hour-old round on a bare `step` (round-5 finding)
+    if disp is not None and disp_seats is not None:
+        if disp.get("ts") is None:
+            raise ValueError("dispatch stamp without ts")  # named, never silently 0
+        # a RELEASE marker is a known zero whatever `seats` says — the CLI never writes
+        # `released` beside a count, so a record that does is contradictory and the
+        # release wins (round-7 finding: `released, seats 5` counted 5 in flight)
+        ts, seats = float(disp["ts"]), 0 if released else int(disp_seats or 0)
+    else:
+        ts = float(last.get("ts") or 0)
+        seats = int(last.get("seats") or 0)
+    if seats < 0:
+        raise ValueError("negative seat count")  # malformed: named as skipped, never ignored
+    if not math.isfinite(ts) or now - ts > SIBLING_FRESH_S:
+        return 0  # a NaN stamp read as forever-fresh (round-3 finding)
+    return seats
 
 
 def cost(mix: dict[str, int]) -> dict:
@@ -398,9 +414,19 @@ def budget(
         # a box that is itself below the floor keeps the reservation in full: `max(phys - taken,
         # min(phys, FLOOR))` let three sessions each claim a 2-seat box (round-3 finding)
         cap = max(phys - taken, 0)
+        overcommit = 0
         if cap < FLOOR <= phys:
+            # the floor is granted against the BOX, not the remainder: a session never waits a
+            # sibling's 25-minute window out, at the price of up to FLOOR-1 seats past the
+            # remainder — bounded, and SAID (round-8 finding: it was silent)
+            overcommit = FLOOR - cap
             cap = FLOOR
         caps["box_cap"] = cap
+        if overcommit:
+            reasons.append(
+                f"floor granted: {overcommit} seat(s) past what the box has left after the "
+                f"sibling reservation (bounded by the floor of {FLOOR}; a session never starves)"
+            )
         reasons.append(
             f"box allows {cap} {'heavy' if heavy else 'read-only'} seats "
             f"(mem {mem:.1f}GB/{per_seat}GB={by_mem}, cores {b['cores']}-load {b['load1']:.1f}={by_cpu}"
@@ -417,6 +443,14 @@ def budget(
         reasons.append(f"{b.get('why')} — box unknown, held at the floor")
     if not s.get("ok"):
         reasons.append(f"{s.get('why')} — sibling seats unknown, not subtracted")
+    if s.get("skipped"):
+        # F80 named a malformed record "as skipped" — into a field nothing read; their seats
+        # vanished in the OVER-dispatch direction with no line (round-8 Opus finding)
+        sk = [str(x) for x in s["skipped"]]
+        reasons.append(
+            f"{len(sk)} sibling record(s) unreadable ({', '.join(sk[:3])}) — their seats are NOT "
+            "subtracted; the box number is an UPPER bound"
+        )
     if s.get("unrecorded"):
         # its own line: nested under the `taken` clause it never printed for the common case — a
         # sibling that has just `start`ed and dispatched nothing yet (round-6 finding)
@@ -442,8 +476,12 @@ def budget(
                 caps["quota_cap"] = FLOOR
                 reasons.append(
                     (
-                        f"quota: the active account could not be identified ({q['active']!r}) — "
-                        "treated as HOT, never as cool"
+                        (
+                            "quota: NO active account in the picture — treated as HOT, never as cool"
+                            if q.get("active") is None
+                            else f"quota: active {q['active']} has NO usable reading (session and "
+                            "weekly both absent) — treated as HOT, never as cool"
+                        )
                         if unknown
                         else f"quota: active {q['active']} is at {q['hottest_pct']}% — in the drain "
                         f"band ({band}%, the rotation picture's own predicate)"
@@ -451,10 +489,18 @@ def budget(
                     + " — run the FLOOR, sweep the rest next round"
                 )
             if q["eligible"] == 0:
+                # `--status` names a warm standby as the next flip while this said "none" — the
+                # two states are different facts and print differently (round-7 Opus finding)
+                raw = int(q.get("eligible_raw") or 0)
                 reasons.append(
-                    "quota: NO eligible standby — the active account has no fallback; the round "
-                    "runs, but a fan-out that exhausts it stops the fleet, so keep the seats you "
-                    "dispatch proportionate to its remaining window"
+                    (
+                        f"quota: 0 of {raw} standby(s) are COOL — every fallback is itself in the "
+                        "drain band"
+                        if raw
+                        else "quota: NO standby account at all — the active account has no fallback"
+                    )
+                    + "; the round runs, but a fan-out that exhausts it stops the fleet, so keep "
+                    "the seats you dispatch proportionate to its remaining window"
                 )
     else:
         caps["quota_cap"] = FLOOR

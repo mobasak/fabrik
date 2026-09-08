@@ -34,6 +34,15 @@ ENTRIES = {
     "PreToolUse": [
         f"python3 {HUB}/scripts/sysadmin/user_hook_gate.py {HUB}/.claude/hooks/quota_stop.py",
     ],
+    # SessionStart, deliberately NOT UserPromptSubmit: the per-prompt trigger was measured before
+    # it shipped and rejected — 9 of 9 live sessions fired on EVERY prompt, because a working
+    # session never becomes clean; it keeps producing entries that age past the threshold. That is
+    # wallpaper, and wallpaper is how enforcement dies. SessionStart + the script's own
+    # count-recording stamp says it once per resume, and again only when the residue has grown.
+    # (plan 2026-09-08-plan-1-scratch-sweep, D-184/D-187)
+    "SessionStart": [
+        f"python3 {HUB}/scripts/scratch_sweep.py --hook",
+    ],
 }
 TIMEOUT_S = 10
 

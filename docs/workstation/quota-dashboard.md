@@ -96,6 +96,21 @@ The older design's reasoning, kept for the record:
 
 Rows sort by weekly headroom, so the fleet's next flip target is the top eligible row.
 
+### The box-budget banner (2026-09-08, D-191)
+
+One muted line above the commands table, served from a 60 s cache that a background probe of
+`dispatch_headroom.py --json` refreshes (`_budget_probe`; `QUOTA_DASH_BUDGET=0` disables it for
+tests and headless renders). It prints the MAXIMUM the box and the quota allow right now — "read-only
+seats allowed now: N (box B …)" and the heavy twin — the CLI cap, and the quota line ("active X at
+P%, N cool standby(s) of M eligible"; "FLEET HOLD" at 0 seats). Two honesty rules the reviews forced:
+the label names a sibling reservation ("after K reserved by sibling sessions") and says when the
+number is the FLOOR rather than the remainder ("= the floor, K reserved"); and every degraded-state
+reason the script emits (a failed box/quota/sibling probe "held at the floor" / "not subtracted",
+sibling sessions with no seat figure = a LOWER bound, an env-only own id, a warm-only standby set)
+renders after a ⚠️ — a confident number over a failed probe is the defect the banner exists to end.
+An account switch bumps the cache generation: a probe already in flight may not land its
+old-account line, and an orphaned one re-kicks a probe for the current generation.
+
 ### The OpenRouter pool banner (2026-09-04)
 
 The board watches Claude account quota. It did not watch the **metered pool** — and on 2026-09-04

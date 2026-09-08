@@ -34,36 +34,54 @@ import sys
 from pathlib import Path
 
 UNIVERSAL6 = [
-    "session-recall", "exa", "brave-search", "firecrawl", "postgres-pro", "serena",
+    "session-recall",
+    "exa",
+    "brave-search",
+    "firecrawl",
+    "postgres-pro",
+    "serena",
 ]  # D-013 + D-020 + D-021
 
 TYPE_SETS: dict[str, list[str]] = {
     # D-015 (+D-019 chrome-devtools rides with playwright) · D-014 shadcn/magicui saas
     "saas-skeleton": ["playwright", "chrome-devtools", "shadcn", "magicui"],
     "chrome-extension": ["playwright", "chrome-devtools"],
-    "desktop-app": ["playwright", "chrome-devtools"],   # shadcn only via overlay (roster footnote 2)
+    "desktop-app": ["playwright", "chrome-devtools"],  # shadcn only via overlay (roster footnote 2)
     "static-site": ["playwright", "chrome-devtools"],
     "docusaurus": ["playwright", "chrome-devtools"],
-    "office-extension": ["playwright", "chrome-devtools"],  # PENDING type (roster row; proposal 01M19PSJN3)
-    "mobile-app": ["maestro", "mobile-mcp"],            # D-014
-    "python-api": [], "python-api-gpu": [], "node-api": [],
-    "file-api": [], "file-worker": [], "wordpress": [],
+    "office-extension": [
+        "playwright",
+        "chrome-devtools",
+    ],  # PENDING type (roster row; proposal 01M19PSJN3)
+    "mobile-app": ["maestro", "mobile-mcp"],  # D-014
+    "python-api": [],
+    "python-api-gpu": [],
+    "node-api": [],
+    "file-api": [],
+    "file-worker": [],
+    "wordpress": [],
 }
 
 # MIRRORS docs/workstation/mcp-roster.md § per-REPO overlays — keyed by repo dir name.
 OVERLAYS: dict[str, list[str]] = {
-    "web-ecommerce-factory": ["playwright", "chrome-devtools", "shadcn", "magicui",
-                              "pubchem", "media-engine"],  # D-016/017/018/019/022
-    "brand-identiy-creator": ["media-engine"],             # D-018
-    "youtube": ["media-engine"],                           # D-018
-    "transdoc": ["fabrik-citation-verifier"],              # D-022-adjacent (pre-existing grant)
-    "fabrik-citation-verifier": ["pubchem"],               # D-022 (claim-validator MCP pending build)
-    "fabrik-claim-validator": ["fabrik-citation-verifier", "pubchem"],       # D-022
-    "longephedia-vault": ["fabrik-citation-verifier", "pubchem"],            # D-025
-    "supplement-tracker-advisor": ["fabrik-citation-verifier", "pubchem"],   # D-025
+    "web-ecommerce-factory": [
+        "playwright",
+        "chrome-devtools",
+        "shadcn",
+        "magicui",
+        "pubchem",
+        "media-engine",
+    ],  # D-016/017/018/019/022
+    "brand-identiy-creator": ["media-engine"],  # D-018
+    "youtube": ["media-engine"],  # D-018
+    "transdoc": ["fabrik-citation-verifier"],  # D-022-adjacent (pre-existing grant)
+    "fabrik-citation-verifier": ["pubchem"],  # D-022 (claim-validator MCP pending build)
+    "fabrik-claim-validator": ["fabrik-citation-verifier", "pubchem"],  # D-022
+    "longephedia-vault": ["fabrik-citation-verifier", "pubchem"],  # D-025
+    "supplement-tracker-advisor": ["fabrik-citation-verifier", "pubchem"],  # D-025
 }
 
-HUB_REPOS = {"fabrik"}          # full defs set (D-015 hub-class; fabrik-lib lands via its own agent)
+HUB_REPOS = {"fabrik"}  # full defs set (D-015 hub-class; fabrik-lib lands via its own agent)
 CONDEMNED = {"image-generation"}  # D-023 ARCHIVE pending with fleet — excluded BY NAME
 NEVER_EMIT = {"fabrik-claim-validator"}  # D-022 planned row: no MCP endpoint exists yet
 

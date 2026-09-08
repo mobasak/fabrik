@@ -184,6 +184,7 @@ def test_token_columns_are_summed_and_medianed_per_command(tmp_path: Path) -> No
     assert c["tok_partial_rows"] == 0
     assert c["median_tok"] == 22000 and c["cache_hit"] == 0.9  # cache_read / (in + read + create)
     assert c["seat_total"] == 0 and c["seat_rows"] == 0 and c["seats_seen"] == 0  # no seat fields
+    assert c["seats_rows"] == 0 and "(0 · —)" in _run(ledger).stdout  # a zero over 0 rows is "—"
     text = _run(ledger).stdout
     assert "22.0k" in text and "90%" in text, text
 
@@ -520,7 +521,12 @@ def test_seat_tokens_are_rolled_up_beside_the_orchestrators_never_inside(tmp_pat
     out = json.loads(_run(ledger, "--json").stdout)
     c = out["commands"]["fabrik-review"]
     assert c["tok_total"] == 162 and c["seat_total"] == 20_000_010 and c["seat_rows"] == 1
-    assert c["seats_seen"] == 14 and c["seats_skipped"] == 2
+    assert c["seats_seen"] == 14 and c["seats_skipped"] == 2 and c["seats_rows"] == 3
     assert c["seats_partial_rows"] == 1 and c["seats_mismatch_rows"] == 1
     text = _run(ledger).stdout
     assert "seat tokens (rows · seats)" in text and "(1 · 14 · 2 skipped)" in text
+    # the lower-bound rows reach the TEXT report, not only --json (round-7 Opus finding)
+    assert (
+        "⚠ LOWER BOUNDS" in text
+        and "/fabrik-review: 1 declared/seen seat mismatch, 1 seat(s) still running" in text
+    )

@@ -367,7 +367,9 @@ def measure_missed_crons(repo_root: Path, report: dict | None = None, fault: str
     """
     if report is None:
         return _unavailable(fault or "the liveness audit produced no report")
-    cron_like = [f for f in _findings(report, "heartbeat") if f.get("kind") in ("cron", "service", "hook")]
+    cron_like = [
+        f for f in _findings(report, "heartbeat") if f.get("kind") in ("cron", "service", "hook")
+    ]
     if not cron_like:
         return _unavailable("the liveness registry declares no scheduled surfaces to measure")
 
@@ -376,7 +378,7 @@ def measure_missed_crons(repo_root: Path, report: dict | None = None, fault: str
     if not proven:
         return _unavailable(
             f"all {len(unknown)} scheduled surface(s) reported UNKNOWN (instrument faults: "
-            + "; ".join(sorted({f['instrument_fault'] for f in unknown}))[:300]
+            + "; ".join(sorted({f["instrument_fault"] for f in unknown}))[:300]
             + ") -- an instrument failure is not a miss and must not be counted as one"
         )
     missed = [f for f in proven if f["verdict"] == "DEAD"]
@@ -386,8 +388,7 @@ def measure_missed_crons(repo_root: Path, report: dict | None = None, fault: str
             "missed: "
             + (", ".join(f"{f['id']} ({f['reason_class']})" for f in missed) or "none")
             + f"; {len(unknown)} surface(s) UNKNOWN and excluded from both numerator and "
-            "denominator: "
-            + (", ".join(f["id"] for f in unknown) or "none")
+            "denominator: " + (", ".join(f["id"] for f in unknown) or "none")
         ),
     )
 

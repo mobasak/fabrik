@@ -141,7 +141,9 @@ def _scan_repo(repo_dir: Path, threshold: float) -> list[Obligation]:
     return out
 
 
-def _from_file(f: Path, repo: str, threshold: float, *, kind: str, need_unresolved: bool = False) -> Obligation | None:
+def _from_file(
+    f: Path, repo: str, threshold: float, *, kind: str, need_unresolved: bool = False
+) -> Obligation | None:
     try:
         text = f.read_text(encoding="utf-8", errors="replace")
     except OSError:
@@ -165,7 +167,9 @@ def _from_file(f: Path, repo: str, threshold: float, *, kind: str, need_unresolv
 
 
 def _fmt_age(days: float) -> str:
-    return ">999d" if not days < 999 else f"{days:.0f}d"  # inf-safe: broken ts escalates, renders sanely
+    return (
+        ">999d" if not days < 999 else f"{days:.0f}d"
+    )  # inf-safe: broken ts escalates, renders sanely
 
 
 def build_digest(items: list[Obligation]) -> str:

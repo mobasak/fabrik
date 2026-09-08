@@ -6,6 +6,7 @@ scripts and ozgur services share one credential home.
 The direct (no-sudo) branch is exercised end-to-end (CLAUDE_OPERATOR_USER == the test user);
 the root→operator sudo branch is exercised via a PATH-shimmed fake `sudo` that records its
 argv; the CLAUDE_BIN fallback resolution is exercised with CLAUDE_BIN unset + a controlled PATH."""
+
 import getpass
 import os
 import pathlib
@@ -26,7 +27,9 @@ def _framed_claude(tmp_path, rc=0):
 
 def _run(tmp_path, args, rc=0, extra_env=None):
     home = tmp_path / "home"
-    home.mkdir(exist_ok=True)  # no ~/.claude/manager-accounts → claude_rotate <2 accounts → no rotation
+    home.mkdir(
+        exist_ok=True
+    )  # no ~/.claude/manager-accounts → claude_rotate <2 accounts → no rotation
     env = {
         **os.environ,
         "CLAUDE_OPERATOR_USER": getpass.getuser(),  # == current user → the direct (no-sudo) branch
@@ -49,8 +52,12 @@ def test_args_pass_through_verbatim_no_word_splitting(tmp_path):
     args = ["-p", "--model", "opus", "PROMPT-TEXT", "--system-prompt", "multi\nline\nprompt"]
     out = _run(tmp_path, args).stdout
     assert out.count("<A>") == len(args), f"arg count changed (word-splitting?); got {out!r}"
-    assert "<A>multi\nline\nprompt</A>" in out, "the multi-line --system-prompt value must stay ONE arg"
-    assert "<A>--system-prompt</A>\n<A>multi\nline\nprompt</A>" in out, "value must follow its flag intact"
+    assert "<A>multi\nline\nprompt</A>" in out, (
+        "the multi-line --system-prompt value must stay ONE arg"
+    )
+    assert "<A>--system-prompt</A>\n<A>multi\nline\nprompt</A>" in out, (
+        "value must follow its flag intact"
+    )
 
 
 def test_exit_code_passes_through(tmp_path):
@@ -88,7 +95,9 @@ def _sudo_argv(tmp_path, args, extra_env=None):
         "CLAUDE_ROTATE_PYTHON": "python3",
         **(extra_env or {}),
     }
-    return subprocess.run(["bash", str(WRAPPER), *args], env=env, capture_output=True, text=True).stdout
+    return subprocess.run(
+        ["bash", str(WRAPPER), *args], env=env, capture_output=True, text=True
+    ).stdout
 
 
 def test_zero_or_negative_timeout_rejected_uses_default(tmp_path):
@@ -103,7 +112,14 @@ def test_zero_or_negative_timeout_rejected_uses_default(tmp_path):
 def test_root_branch_invokes_sudo_as_operator_with_args(tmp_path):
     out = _sudo_argv(tmp_path, ["-p", "--model", "opus", "hello"])
     # the sudo invocation: sudo -u operator-xyz -H env CLAUDE_ROTATE_TIMEOUT=… python3 <rotate> <bin> <args>
-    for expect in ("SUDOARG:-u", "SUDOARG:operator-xyz", "SUDOARG:-H", "SUDOARG:env", "SUDOARG:-p", "SUDOARG:hello"):
+    for expect in (
+        "SUDOARG:-u",
+        "SUDOARG:operator-xyz",
+        "SUDOARG:-H",
+        "SUDOARG:env",
+        "SUDOARG:-p",
+        "SUDOARG:hello",
+    ):
         assert expect in out, f"{expect} missing from the sudo argv; got {out!r}"
 
 
@@ -125,7 +141,9 @@ def test_resolves_claude_bin_from_path_when_unset(tmp_path):
         }
     )
     r = subprocess.run(["bash", str(WRAPPER), "-p", "hi"], env=env, capture_output=True, text=True)
-    assert "RESOLVED:-p" in r.stdout, f"must resolve claude from PATH when CLAUDE_BIN unset; got {r.stdout!r}"
+    assert "RESOLVED:-p" in r.stdout, (
+        f"must resolve claude from PATH when CLAUDE_BIN unset; got {r.stdout!r}"
+    )
 
 
 def test_malformed_timeout_falls_back_not_crash(tmp_path):
@@ -153,15 +171,23 @@ def test_direct_branch_actually_applies_timeout(tmp_path):
         "CLAUDE_ROTATE_PYTHON": "python3",
     }
     timed_out = subprocess.run(
-        ["bash", str(WRAPPER), "-p", "x"], env={**base, "CLAUDE_ROTATE_TIMEOUT": "1"},
-        capture_output=True, text=True,
+        ["bash", str(WRAPPER), "-p", "x"],
+        env={**base, "CLAUDE_ROTATE_TIMEOUT": "1"},
+        capture_output=True,
+        text=True,
     )
-    assert timed_out.returncode != 0, "a 1s timeout must kill the 3s fake claude (direct branch forwards it)"
+    assert timed_out.returncode != 0, (
+        "a 1s timeout must kill the 3s fake claude (direct branch forwards it)"
+    )
     fast = subprocess.run(
-        ["bash", str(WRAPPER), "-p", "x"], env={**base, "CLAUDE_ROTATE_TIMEOUT": "10"},
-        capture_output=True, text=True,
+        ["bash", str(WRAPPER), "-p", "x"],
+        env={**base, "CLAUDE_ROTATE_TIMEOUT": "10"},
+        capture_output=True,
+        text=True,
     )
-    assert fast.returncode == 0 and "done" in fast.stdout, "a 10s timeout must let the 3s fake claude finish"
+    assert fast.returncode == 0 and "done" in fast.stdout, (
+        "a 10s timeout must let the 3s fake claude finish"
+    )
 
 
 def test_root_path_uses_sudo_as_operator_structurally():
@@ -172,7 +198,12 @@ def test_root_path_uses_sudo_as_operator_structurally():
 
 # --- Phase B: the 4 root cron scripts route their claude call through claude-run.sh -------
 
-_ROOT_SCRIPTS = ["proactive-check.sh", "morning-report.sh", "weekly-security.sh", "monthly-backup-verify.sh"]
+_ROOT_SCRIPTS = [
+    "proactive-check.sh",
+    "morning-report.sh",
+    "weekly-security.sh",
+    "monthly-backup-verify.sh",
+]
 _HAVE_FALLBACK = ["morning-report.sh", "weekly-security.sh", "monthly-backup-verify.sh"]
 
 
@@ -198,7 +229,9 @@ def test_proactive_apprise_send_is_observable_on_failure():
     # defeat it, so APPRISE_SEND must check the docker-run exit and log a failure, AND both
     # escalation call sites (empty-RESULT + found-issues) must gate on its return.
     src = (ROOT / "scripts/sysadmin/proactive-check.sh").read_text()
-    assert "if ! sudo docker run" in src, "APPRISE_SEND must check the docker-run exit (not swallow it)"
+    assert "if ! sudo docker run" in src, (
+        "APPRISE_SEND must check the docker-run exit (not swallow it)"
+    )
     assert "APPRISE_SEND FAILED" in src, "a delivery failure must be logged (observable)"
     assert src.count("if APPRISE_SEND") >= 2, (
         "both the empty-RESULT escalation and the found-issues alert must gate on APPRISE_SEND's result"
@@ -217,13 +250,17 @@ def test_sibling_scripts_gate_apprise_delivery_and_use_printf():
             f"{s} must gate on the Apprise docker-run exit (not discard it with >/dev/null 2>&1)"
         )
         assert "FAILED to deliver" in src, f"{s} must log + exit on a delivery failure (observable)"
-        assert 'ESCAPED=$(echo ' not in src, f"{s} must escape via printf '%s', not echo (echo mangles the body)"
+        assert "ESCAPED=$(echo " not in src, (
+            f"{s} must escape via printf '%s', not echo (echo mangles the body)"
+        )
         assert "ESCAPED=$(printf '%s'" in src, f"{s} must build ESCAPED with printf '%s'"
 
 
 def test_four_root_scripts_syntax_valid():
     for s in _ROOT_SCRIPTS:
-        r = subprocess.run(["bash", "-n", str(ROOT / "scripts/sysadmin" / s)], capture_output=True, text=True)
+        r = subprocess.run(
+            ["bash", "-n", str(ROOT / "scripts/sysadmin" / s)], capture_output=True, text=True
+        )
         assert r.returncode == 0, f"{s}: {r.stderr}"
 
 
@@ -240,7 +277,7 @@ def test_wrapper_runs_claude_from_operator_accessible_cwd_not_caller_cwd(tmp_pat
     # operator-accessible dir so claude_rotate's subprocess chdir doesn't PermissionError after
     # the UID switch. Prove claude runs from the operator home (or /tmp), NOT the caller's cwd.
     fakebin = tmp_path / "fc"
-    fakebin.write_text("#!/usr/bin/env bash\necho \"CWD=$(pwd)\"\n")
+    fakebin.write_text('#!/usr/bin/env bash\necho "CWD=$(pwd)"\n')
     fakebin.chmod(0o755)
     home = tmp_path / "home"
     home.mkdir()
@@ -255,10 +292,18 @@ def test_wrapper_runs_claude_from_operator_accessible_cwd_not_caller_cwd(tmp_pat
         "CLAUDE_ROTATE_PYTHON": "python3",
     }
     r = subprocess.run(
-        ["bash", str(WRAPPER), "-p", "x"], env=env, cwd=str(caller_cwd), capture_output=True, text=True
+        ["bash", str(WRAPPER), "-p", "x"],
+        env=env,
+        cwd=str(caller_cwd),
+        capture_output=True,
+        text=True,
     )
-    assert f"CWD={op_home}" in r.stdout or "CWD=/tmp" in r.stdout, f"claude must run from a safe cwd; got {r.stdout!r}"
-    assert f"CWD={caller_cwd}" not in r.stdout, "must NOT inherit the caller's (maybe inaccessible) cwd"
+    assert f"CWD={op_home}" in r.stdout or "CWD=/tmp" in r.stdout, (
+        f"claude must run from a safe cwd; got {r.stdout!r}"
+    )
+    assert f"CWD={caller_cwd}" not in r.stdout, (
+        "must NOT inherit the caller's (maybe inaccessible) cwd"
+    )
 
 
 def test_proactive_check_fails_closed_on_empty_claude_result():
@@ -267,4 +312,6 @@ def test_proactive_check_fails_closed_on_empty_claude_result():
     src = (ROOT / "scripts/sysadmin/proactive-check.sh").read_text()
     assert 'if [ -z "$RESULT" ]; then' in src, "empty RESULT must be handled on its own"
     assert "Claude analysis FAILED" in src, "empty RESULT must escalate to the operator"
-    assert '[ -z "$RESULT" ] || [ "$RESULT" = "ALL_CLEAR" ]' not in src, "the fail-open conflation must be gone"
+    assert '[ -z "$RESULT" ] || [ "$RESULT" = "ALL_CLEAR" ]' not in src, (
+        "the fail-open conflation must be gone"
+    )

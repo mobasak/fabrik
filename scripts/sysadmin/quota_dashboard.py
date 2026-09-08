@@ -1877,7 +1877,17 @@ def _budget_probe(gen: int | None = None) -> str:
             taken = int((d.get("siblings") or {}).get("seats") or 0)
             # "(box 3 after 21 reserved)" read as a 24-seat box when the FLOOR had raised a
             # 2-seat remainder to 3: name the floor when it is what the reader sees (round-7)
-            floored = taken and box_cap is not None and int(box_cap) == int(d.get("floor") or -1)
+            fl = d.get("floor")
+            box_known = (d.get("box") or {}).get("ok") is not False
+            # a dead box probe holds the cap at the floor too — never say the siblings did it
+            # (round-8 Opus finding); the "held at the floor" caveat carries the real cause
+            floored = (
+                bool(taken)
+                and box_known
+                and box_cap is not None
+                and fl is not None
+                and int(box_cap) == int(fl)
+            )
             parts.append(
                 f"{label} seats allowed now: <strong>{allowed}</strong> "
                 f"(box {escape(str(box_cap if box_cap is not None else '?'))}"
@@ -1930,13 +1940,25 @@ def _budget_caveats(d: dict) -> str:
     """The script's own confidence caveats, rendered — a failed sibling probe ("seats unknown, not
     subtracted"), sibling sessions with no seat figure (a LOWER bound), an env-only own id. Round-7
     finding: the banner printed a confident 23 while `reasons` said the sibling count was unknown."""
-    words = ("not subtracted", "LOWER bound", "own-session id")
+    # every DEGRADED-state reason the script emits (round-8 finding: "held at the floor" — a
+    # box or quota probe that failed — rendered as a confident number with no caveat)
+    words = (
+        "not subtracted",
+        "LOWER bound",
+        "own-session id",
+        "held at the floor",
+        "standby",
+        "drain band",
+        "NO active account",
+        "NO usable reading",
+        "floor granted",
+    )
     lines = [
         r for r in (d.get("reasons") or []) if isinstance(r, str) and any(w in r for w in words)
     ]
     sib = d.get("siblings") or {}
     if isinstance(sib, dict) and sib.get("ok") is False and not lines:
-        lines.append(f"sibling seats unknown, not subtracted: {sib.get('why') or 'probe failed'}")
+        lines.append(f"{sib.get('why') or 'probe failed'} — sibling seats unknown, not subtracted")
     if not lines:
         return ""
     return " ⚠️ " + " · ".join(escape(x) for x in lines)

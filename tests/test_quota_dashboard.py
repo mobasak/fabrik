@@ -733,8 +733,10 @@ def test_the_probe_interval_is_a_period_not_a_pause_after_each_probe(tmp_path, m
     PERIOD: the loop waits interval minus the probe's own duration."""
     qd, stub = _tick_env(tmp_path, monkeypatch, QUOTA_DASH_PROBE_INTERVAL_S="0.15")
     real = qd.generate
+    ticks: list[float] = []
 
     def slow_generate():
+        ticks.append(time.monotonic())
         time.sleep(0.1)
         return real()
 
@@ -747,10 +749,17 @@ def test_the_probe_interval_is_a_period_not_a_pause_after_each_probe(tmp_path, m
     # terms: period 0.15 -> ~10 probes; pause-after-probe (0.15 + 0.1 per cycle) -> ~6. A floor of 7
     # sits 30% under the correct model and still above the wrong one, so the test discriminates
     # HARDER than it did while flaking less.
+    # round-8 Opus finding: on a clean checkout the count sat at 6–7 (5 of 8 runs red) — the
+    # floor discriminated nothing. Measure the quantity the loop CONTROLS: the gap between
+    # probe starts is ~0.15 under the period model and ~0.25 under pause-after-probe; the
+    # median sits 33 % from either, not on a count with no margin.
     time.sleep(1.6)
     stop.set()
-    probes = [c for c in _calls(stub) if c[:2] == ["--status", "--json"]]
-    assert len(probes) >= 7, probes
+    import statistics
+
+    gaps = [b - a for a, b in zip(ticks, ticks[1:], strict=False)]
+    assert len(gaps) >= 3, ticks
+    assert statistics.median(gaps) < 0.20, gaps
 
 
 # ── Commands tab (operator ask 2026-09-03; seen RED first) ─────────────────────────────────────
@@ -2865,10 +2874,27 @@ def test_the_box_budget_banner_shows_the_maximum_and_fails_soft(tmp_path, monkey
     payload["reasons"] = []
     html = qd._budget_probe()
     assert "(box 20)" in html and "reserved" not in html
-    assert "⚠️ sibling seats unknown, not subtracted: sibling probe failed: PermissionError" in html
+    assert "⚠️ sibling probe failed: PermissionError — sibling seats unknown, not subtracted" in html
     payload["siblings"] = {"seats": 2, "ok": True}
     html = qd._budget_probe()
     assert "(box 20 after 2 reserved by sibling sessions)" in html and "⚠️" not in html
+    # a box or quota probe that FAILED is held at the floor — the caveat must say so (round 8)
+    payload["reasons"] = ["psutil not importable — box unknown, held at the floor"]
+    assert "⚠️ psutil not importable — box unknown, held at the floor" in qd._budget_probe()
+    payload["reasons"] = [
+        "quota: 0 of 1 standby(s) are COOL — every fallback is itself in the drain band"
+    ]
+    assert "0 of 1 standby(s) are COOL" in qd._budget_probe()
+    # a DEAD box probe holds the cap at the floor: the caveat says so and the label never blames
+    # the sibling reservation for it (round-8 Opus finding)
+    payload["box"] = {"ok": False, "why": "box probe failed: /proc/meminfo"}
+    payload["box_caps"] = {"read_only": 3, "heavy": 3}
+    payload["siblings"] = {"seats": 5, "ok": True}
+    payload["reasons"] = ["box probe failed: /proc/meminfo — box unknown, held at the floor"]
+    html = qd._budget_probe()
+    assert "= the floor" not in html and "(box 3 after 5 reserved by sibling sessions)" in html
+    assert "⚠️ box probe failed: /proc/meminfo — box unknown, held at the floor" in html
+    payload.pop("box")
     # an older probe without box_caps must not let the read-only cap pose as the heavy one
     monkeypatch.setattr(
         qd.subprocess,
@@ -3052,8 +3078,10 @@ def test_a_switch_orphans_the_probe_already_in_flight(tmp_path, monkeypatch):
     )  # the switch's own re-render is not under test
     status, body = qd.switch_account("sarp")
     assert status == 200 and qd._budget_cache["gen"] == gen_before + 1
+    old_thread = qd._budget_cache[
+        "thread"
+    ]  # read BEFORE the release: the orphan branch reassigns it
     release.set()
-    old_thread = qd._budget_cache["thread"]
     old_thread.join(timeout=10)
     # the orphan re-kicks a probe for the current generation (round-6 finding); it lands
     nxt = qd._budget_cache["thread"]

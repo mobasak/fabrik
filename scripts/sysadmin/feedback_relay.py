@@ -69,7 +69,9 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--runs", default="", help=f"run-record dir (default {RUNS_DIR})")
     ap.add_argument("--watermark", default="", help=f"watermark file (default {WATERMARK})")
-    ap.add_argument("--dry-run", action="store_true", help="print the digest, send nothing, keep the watermark")
+    ap.add_argument(
+        "--dry-run", action="store_true", help="print the digest, send nothing, keep the watermark"
+    )
     args = ap.parse_args(argv)
     runs = Path(args.runs) if args.runs else RUNS_DIR
     wm_path = Path(args.watermark) if args.watermark else WATERMARK
@@ -104,17 +106,32 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     proc = subprocess.run(
-        [sys.executable, str(MAIL), "send", "--to", "fabrik", "--to-agent", "infra", "--kind", "finding"],
+        [
+            sys.executable,
+            str(MAIL),
+            "send",
+            "--to",
+            "fabrik",
+            "--to-agent",
+            "infra",
+            "--kind",
+            "finding",
+        ],
         input=body,
         text=True,
         capture_output=True,
     )
     if proc.returncode != 0:
-        print(f"feedback_relay: mail send failed rc={proc.returncode}: {proc.stderr.strip()[:200]}", file=sys.stderr)
+        print(
+            f"feedback_relay: mail send failed rc={proc.returncode}: {proc.stderr.strip()[:200]}",
+            file=sys.stderr,
+        )
         return 1  # watermark NOT advanced — the batch retries on the next cadence
     wm_path.parent.mkdir(parents=True, exist_ok=True)
     wm_path.write_text(str(rows[-1][0]))
-    print(f"feedback_relay: relayed {len(rows)} verdict(s) -> fabrik/infra ({proc.stdout.strip()[-60:]})")
+    print(
+        f"feedback_relay: relayed {len(rows)} verdict(s) -> fabrik/infra ({proc.stdout.strip()[-60:]})"
+    )
     return 0
 
 

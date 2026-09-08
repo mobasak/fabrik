@@ -25,9 +25,7 @@ def _func_body(src: str, name: str) -> str:
     function are never folded in)."""
     lines = src.splitlines()
     start = next(
-        i
-        for i, ln in enumerate(lines)
-        if ln.startswith((f"def {name}(", f"async def {name}("))
+        i for i, ln in enumerate(lines) if ln.startswith((f"def {name}(", f"async def {name}("))
     )
     # Skip the signature (possibly multi-line) up to and including the line that ends in ':'.
     sig_end = start

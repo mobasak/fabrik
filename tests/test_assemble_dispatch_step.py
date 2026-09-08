@@ -11,6 +11,7 @@ name no Haiku seat: a judgement unit has no grep-able angle.
 from __future__ import annotations
 
 import importlib.util
+import re
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -57,6 +58,13 @@ def test_the_live_corpus_has_no_gap_and_the_detector_fires_on_real_fan_outs(tmp_
     fan = [n for n, t in rendered.items() if ac._FANOUT_RE.search(t)]
     assert len(fan) >= 25, fan  # 30 of 36 when this shipped
     assert {"fabrik-review", "design-review", "fabrik-rivals", "fabrik-upstream"} <= set(fan)
+    # round-8 Opus finding: the ten short banners kept the pre-F189 wording and dropped
+    # `--mechanical` — the only flag list in four commands. One wording, every flag, box-wide.
+    for name, text in rendered.items():
+        live = ac._HTML_COMMENT_RE.sub("", text)
+        assert "stamped first with" not in live, name
+        for m in re.finditer(r"--units <N>[^`]*\[--risky <R>\][^`]*`", live):
+            assert "[--mechanical <M>]" in m.group(0), (name, m.group(0))
 
 
 def test_judgement_floors_name_no_haiku_seat_and_review_floors_name_a_class_wide_one():
@@ -91,7 +99,7 @@ def test_a_judgement_floor_span_never_names_a_haiku_seat_in_the_rendered_text(tm
     words to the pool-contract seam (= FLOOR + EXTRA_LIVE), comments stripped — the dispatch-step
     paragraph around it legitimately names Haiku for mechanical seats on OTHER surfaces."""
     ac.render(tmp_path, tmp_path / "_skills", agents_dest=tmp_path / "_agents")
-    offenders, seen = [], 0
+    offenders, seen = [], set()
     for f in sorted(tmp_path.glob("*.md")):
         live = ac._HTML_COMMENT_RE.sub("", f.read_text())
         i = live.find("no mechanical seat")
@@ -99,8 +107,17 @@ def test_a_judgement_floor_span_never_names_a_haiku_seat_in_the_rendered_text(tm
             continue
         j = live.find("The pool contract is kept below", i)
         assert j > i, f.stem  # the seam bounds the span; a missing seam is its own defect
-        seen += 1
+        seen.add(f.stem)
         if "haiku" in live[i:j].lower():
             offenders.append(f.stem)
-    assert seen >= 4, seen  # spec, vision, plan-after-chat, epics carry a judgement floor
+    # the six judgement floors BY NAME — a count with slack absorbed the loss of either of the
+    # two round-7 kind changes (round-8 finding)
+    assert seen >= {
+        "fabrik-spec",
+        "fabrik-vision",
+        "fabrik-plan-after-chat",
+        "fabrik-epics",
+        "fabrik-plan-review",
+        "fabrik-conformance-review",
+    }, seen
     assert offenders == [], offenders

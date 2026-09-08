@@ -171,7 +171,17 @@ def main() -> int:
         lines.append(f"- {runtime}: packs pin {pin}; current stable/LTS is {cur} (endoflife.date)")
     body = "\n".join(lines) + "\n"
     proc = subprocess.run(
-        [sys.executable, str(MAIL), "send", "--to", "fabrik", "--to-agent", "infra", "--kind", "finding"],
+        [
+            sys.executable,
+            str(MAIL),
+            "send",
+            "--to",
+            "fabrik",
+            "--to-agent",
+            "infra",
+            "--kind",
+            "finding",
+        ],
         input=body,
         text=True,
         capture_output=True,
@@ -200,7 +210,9 @@ def _update_versions_text(text: str, clean: dict[str, tuple[str, str]], today: d
         pat = re.compile(rf'^(\s*{_KEY_FOR[runtime]}:\s*)"[^"]*"', re.M)
         if not pat.search(text):
             return None
-        text = pat.sub(rf'\g<1>"{cur}"', text, count=1)  # cur is _VALID_VERSION-validated — safe as a template
+        text = pat.sub(
+            rf'\g<1>"{cur}"', text, count=1
+        )  # cur is _VALID_VERSION-validated — safe as a template
     return re.sub(r"^updated: .*$", f"updated: {today.isoformat()}", text, count=1, flags=re.M)
 
 
@@ -216,7 +228,9 @@ def _auto_update(found: dict[str, tuple[str, str]]) -> bool:
         clean = {k: v for k, v in found.items() if _VALID_VERSION.match(v[1])}
         if not clean:
             return False
-        new_text = _update_versions_text(VERSIONS_FILE.read_text(encoding="utf-8"), clean, date.today())
+        new_text = _update_versions_text(
+            VERSIONS_FILE.read_text(encoding="utf-8"), clean, date.today()
+        )
         if new_text is None:
             return False
         yaml.safe_load(new_text)  # parse guard before the write
@@ -290,7 +304,17 @@ def _claims_pass() -> int:
             f"(window {c.get('window_days', 180)}d)"
         )
     proc = subprocess.run(
-        [sys.executable, str(MAIL), "send", "--to", "fabrik", "--to-agent", "infra", "--kind", "finding"],
+        [
+            sys.executable,
+            str(MAIL),
+            "send",
+            "--to",
+            "fabrik",
+            "--to-agent",
+            "infra",
+            "--kind",
+            "finding",
+        ],
         input="\n".join(lines) + "\n",
         text=True,
         capture_output=True,

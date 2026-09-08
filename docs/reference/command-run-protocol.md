@@ -55,7 +55,7 @@ The Stop hook keys on `state == "running"` **alone**, so neither field can chang
 | `round [--seats <n>] [--findings <N>] [--classes-swept a,b] [--classes-new c,d]` | record one convergence pass; merge the class ledger |
 | `done --command <name> --evidence "<proof>"` | terminal — the contract IS met |
 | `blocked --command <name> --reason "<sanctioned case>"` | terminal — a real halt |
-| `handoff --command <name> --reason "<why rows remain open>" [--resume "<RESUME block>"]` | terminal — NOT-QUIET: the loop is quiet but rows stay OPEN and are routed (the close `/fabrik-user-test` and `/fabrik-service-test` mandate); `--feedback` owed like `done`/`blocked` |
+| `handoff --command <name> --reason "<why rows remain open>" --resume "<RESUME block>"` | terminal — NOT-QUIET: the loop is quiet but rows stay OPEN and are routed (the close `/fabrik-user-test` and `/fabrik-service-test` mandate); `--feedback` owed like `done`/`blocked` |
 | `line` | the pinned status line; **silent + rc 0 when no run is active** |
 | `status --json` | the record (`{}` when there is none) |
 
@@ -371,6 +371,29 @@ the command?", that moment is the Stop hook.
 | `COMMAND_RUN_DIR` | `~/.claude/state/command-runs` | where records live (read by both the script and the hook) |
 | `CLAUDE_SESSION_ID` | — | record filename (`--session` overrides; falls through to `CLAUDE_CODE_SESSION_ID`, then the repo-scoped `nosession-<repo>`) |
 | `COMMAND_RUN_STALE_H` | `12` | hours after which the hook treats a record as abandoned; **≤0 / non-finite disables the block entirely** (never "block forever") |
+| `FABRIK_SCRATCH_SWEEP` | unset | set to `0` to suppress the scratch advisory a top-level close prints |
+| `FABRIK_SCRATCH_SWEEP_SCRIPT` | `/opt/fabrik/scripts/scratch_sweep.py` | the sweeper the advisory shells out to; a missing path is silent |
+
+## The scratch advisory on a top-level close
+
+Since 2026-09-08 (plan `2026-09-08-plan-1-scratch-sweep`, D-184/D-187) a TOP-LEVEL `done`/`blocked`/
+`handoff` prints the closing session's own scratch table after `run record closed` — a capped list of
+its oldest stale entries, a per-class summary, and the exact `--apply` command. It is the moment an
+agent still has the context to judge its own residue, which is why the trigger sits here.
+
+Three properties are load-bearing and each has a grader:
+
+- **It can never change what the close DID.** The rc, the stdout ordering and the usage-ledger row
+  are identical whether the advisory runs, is disabled, finds no script, exits non-zero, hangs past
+  its 2 s timeout, or prints nothing. A nested close and every non-close verb print nothing at all —
+  the queued tuple is read with `.get`, because a bare `outbox[...]` raises `KeyError` into `main()`'s
+  outer handler, which returns **0** and would silently turn the mis-named-close refusal into success.
+- **It never runs under the record lock.** `_close` only QUEUES `outbox["scratch_advice"]`; `main()`
+  prints it after the `with _record_lock(sid):` block and the `finally: _flush_events(...)`. A
+  shell-out inside the lock would stall every concurrent `line`/`status` reader — and `line` runs on
+  every reply across three concurrent hub sessions.
+- **It advises, it never acts.** The sweeper is invoked in dry-run `--brief`; `--apply` is the
+  agent's own next command. That is the operator's constraint: nothing is deleted blindly.
 
 ## Tests
 

@@ -37,6 +37,7 @@ def _hermetic_governor_hooks(monkeypatch, tmp_path):
     monkeypatch.setattr(claude_rotate, "_oauth_get", lambda *a, **k: None)
     monkeypatch.setattr(claude_rotate, "_signal_governor_capped", lambda text: None)
 
+
 # Grounded usage-limit renders (claude-auto-retry README + Anthropic errors docs, 2026-07-07)
 USAGE_LIMIT_STRINGS = [
     "Claude usage limit reached. Resets at 3pm",
@@ -171,9 +172,13 @@ def test_run_claude_rotates_and_alerts_on_401(monkeypatch):
     monkeypatch.setattr(claude_rotate.subprocess, "run", fake_run)
     monkeypatch.setattr(claude_rotate, "_list_accounts", lambda: _accounts("primary", "standby"))
     monkeypatch.setattr(claude_rotate, "_active_account", lambda: _accounts("primary")[0])
-    monkeypatch.setattr(claude_rotate, "_rotate_active_account", _walk_rotator(["standby"], rotations))
+    monkeypatch.setattr(
+        claude_rotate, "_rotate_active_account", _walk_rotator(["standby"], rotations)
+    )
     monkeypatch.setattr(claude_rotate, "_notify_telegram", lambda text: alerts.append(text) is None)
-    monkeypatch.setattr(claude_rotate, "_should_alert_401", lambda: True)  # bypass the debounce here
+    monkeypatch.setattr(
+        claude_rotate, "_should_alert_401", lambda: True
+    )  # bypass the debounce here
 
     r = claude_rotate.run_claude(["claude"], timeout=1, cwd="/x", env={})
 
@@ -182,8 +187,12 @@ def test_run_claude_rotates_and_alerts_on_401(monkeypatch):
     assert len(calls) == 2, "original call + one retry"
     assert len(alerts) == 1, "exactly one 401 alert"
     # message must reflect the RECOVERED outcome (not give-up) and name the dead + target accounts.
-    assert "recovered" in alerts[0] and "all credentials are dead" not in alerts[0], "reports recovery, not give-up"
-    assert "primary" in alerts[0] and "standby" in alerts[0], "names the dead + the rotated-to account"
+    assert "recovered" in alerts[0] and "all credentials are dead" not in alerts[0], (
+        "reports recovery, not give-up"
+    )
+    assert "primary" in alerts[0] and "standby" in alerts[0], (
+        "names the dead + the rotated-to account"
+    )
 
 
 def test_run_claude_401_alerts_giveup_when_no_standby(monkeypatch):
@@ -195,11 +204,15 @@ def test_run_claude_401_alerts_giveup_when_no_standby(monkeypatch):
         return _cp(stderr="401 Invalid authentication credentials", rc=1)
 
     monkeypatch.setattr(claude_rotate.subprocess, "run", fake_run)
-    monkeypatch.setattr(claude_rotate, "_list_accounts", lambda: _accounts("mob"))  # 1 acct → no standby
+    monkeypatch.setattr(
+        claude_rotate, "_list_accounts", lambda: _accounts("mob")
+    )  # 1 acct → no standby
     monkeypatch.setattr(claude_rotate, "_active_account", lambda: _accounts("mob")[0])
     monkeypatch.setattr(claude_rotate, "_rotate_active_account", _walk_rotator([], []))
     monkeypatch.setattr(claude_rotate, "_notify_telegram", lambda text: alerts.append(text) is None)
-    monkeypatch.setattr(claude_rotate, "_should_alert_401", lambda: True)  # bypass the debounce here
+    monkeypatch.setattr(
+        claude_rotate, "_should_alert_401", lambda: True
+    )  # bypass the debounce here
 
     r = claude_rotate.run_claude(["claude"], timeout=1, cwd="/x", env={})
 
@@ -210,7 +223,10 @@ def test_run_claude_401_alerts_giveup_when_no_standby(monkeypatch):
 
 def test_usage_limit_rotation_does_not_alert(monkeypatch):
     # A routine usage-limit rotates but must NOT send a Telegram alert — only a 401 alerts.
-    outputs = [_cp(stdout="You've hit your session limit · resets 3pm", rc=1), _cp(stdout="ok", rc=0)]
+    outputs = [
+        _cp(stdout="You've hit your session limit · resets 3pm", rc=1),
+        _cp(stdout="ok", rc=0),
+    ]
     calls, alerts = [], []
 
     def fake_run(argv, **kw):
@@ -222,7 +238,9 @@ def test_usage_limit_rotation_does_not_alert(monkeypatch):
     monkeypatch.setattr(claude_rotate, "_active_account", lambda: _accounts("mob")[0])
     monkeypatch.setattr(claude_rotate, "_rotate_active_account", _walk_rotator(["ob"], []))
     monkeypatch.setattr(claude_rotate, "_notify_telegram", lambda text: alerts.append(text) is None)
-    monkeypatch.setattr(claude_rotate, "_should_alert_401", lambda: True)  # bypass the debounce here
+    monkeypatch.setattr(
+        claude_rotate, "_should_alert_401", lambda: True
+    )  # bypass the debounce here
 
     claude_rotate.run_claude(["claude"], timeout=1, cwd="/x", env={})
     assert len(alerts) == 0, "usage-limit rotation is silent (no 401 alert)"
@@ -241,13 +259,17 @@ def test_run_claude_401_both_dead_alerts_giveup_not_recovered(monkeypatch):
     monkeypatch.setattr(claude_rotate, "_active_account", lambda: _accounts("mob")[0])
     monkeypatch.setattr(claude_rotate, "_rotate_active_account", _walk_rotator(["ob"], rotations))
     monkeypatch.setattr(claude_rotate, "_notify_telegram", lambda text: alerts.append(text) is None)
-    monkeypatch.setattr(claude_rotate, "_should_alert_401", lambda: True)  # bypass the debounce here
+    monkeypatch.setattr(
+        claude_rotate, "_should_alert_401", lambda: True
+    )  # bypass the debounce here
 
     claude_rotate.run_claude(["claude"], timeout=1, cwd="/x", env={})
 
     assert len(rotations) == 1, "rotated to the (also-dead) standby once, then exhausted"
     assert len(alerts) == 1, "exactly one alert, fired post-loop"
-    assert "all credentials are dead" in alerts[0] and "recovered" not in alerts[0], "give-up, not false-recovered"
+    assert "all credentials are dead" in alerts[0] and "recovered" not in alerts[0], (
+        "give-up, not false-recovered"
+    )
 
 
 def test_should_alert_401_debounces_per_window(tmp_path, monkeypatch):
@@ -337,7 +359,9 @@ def test_active_account_corrupt_marker_does_not_raise(tmp_path, monkeypatch):
     _write_creds_no_org(active, "DRIFTED-TOKEN")  # matches no snapshot
     claude_rotate.ACTIVE_MARKER.write_bytes(b"\xff\xfe not-utf8")  # corrupt marker
 
-    assert claude_rotate._active_account() is None, "corrupt marker → no identification, not a crash"
+    assert claude_rotate._active_account() is None, (
+        "corrupt marker → no identification, not a crash"
+    )
 
 
 def test_access_token_from_handles_missing_or_malformed_oauth():
@@ -348,7 +372,9 @@ def test_access_token_from_handles_missing_or_malformed_oauth():
     assert claude_rotate._access_token_from(json.dumps({"claudeAiOauth": "notadict"})) is None
     assert claude_rotate._access_token_from(b"[]") is None
     assert claude_rotate._access_token_from(b"123") is None
-    assert claude_rotate._access_token_from(json.dumps({"claudeAiOauth": {"accessToken": "T"}})) == "T"
+    assert (
+        claude_rotate._access_token_from(json.dumps({"claudeAiOauth": {"accessToken": "T"}})) == "T"
+    )
 
 
 def test_cmd_list_active_matches_no_snapshot(tmp_path, monkeypatch, capsys):
@@ -361,7 +387,9 @@ def test_cmd_list_active_matches_no_snapshot(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert rc == 0
     assert "mob-dir" in out
-    assert "no snapshot" in out or "capture the account" in out, "prints the unidentified-active hint"
+    assert "no snapshot" in out or "capture the account" in out, (
+        "prints the unidentified-active hint"
+    )
 
 
 def test_main_missing_bin_returns_127_and_timeout_returns_124(monkeypatch):
@@ -544,7 +572,10 @@ def test_run_claude_401_with_usage_limit_rotates_and_alerts(monkeypatch):
     """Output that is BOTH a usage-limit render AND a 401 → rotate (either signal triggers it) and,
     because a 401 is present, fire the one-shot 401 alert."""
     outputs = [
-        _cp(stdout="hit your session limit · resets 3pm\n401 Invalid authentication credentials", rc=1),
+        _cp(
+            stdout="hit your session limit · resets 3pm\n401 Invalid authentication credentials",
+            rc=1,
+        ),
         _cp(stdout='{"result":"ok"}', rc=0),
     ]
     calls, alerts = [], []
@@ -559,7 +590,9 @@ def test_run_claude_401_with_usage_limit_rotates_and_alerts(monkeypatch):
     monkeypatch.setattr(claude_rotate, "_active_account", lambda: _accounts("mob")[0])
     monkeypatch.setattr(claude_rotate, "_rotate_active_account", _walk_rotator(["ob"], rotations))
     monkeypatch.setattr(claude_rotate, "_notify_telegram", lambda text: alerts.append(text) is None)
-    monkeypatch.setattr(claude_rotate, "_should_alert_401", lambda: True)  # bypass the debounce here
+    monkeypatch.setattr(
+        claude_rotate, "_should_alert_401", lambda: True
+    )  # bypass the debounce here
 
     claude_rotate.run_claude(["claude"], timeout=1, cwd="/x", env={})
 
@@ -767,7 +800,9 @@ def _write_creds_no_org(path, token):
     organizationUuid (Claude Code keeps the org in ~/.claude.json). This is the fixture the
     org-based guard wrongly treated as corrupt — the gap the 9-pass review missed because
     _write_creds always wrote an org."""
-    path.write_text(json.dumps({"claudeAiOauth": {"accessToken": token, "refreshToken": "R-" + token}}))
+    path.write_text(
+        json.dumps({"claudeAiOauth": {"accessToken": token, "refreshToken": "R-" + token}})
+    )
     os.chmod(path, 0o600)
 
 
@@ -866,8 +901,12 @@ def test_rotate_back_from_no_org_active_via_marker(tmp_path, monkeypatch):
     _write_creds_no_org(ob / ".credentials.json", "TOKEN-OB")
 
     assert claude_rotate._rotate_active_account() == "ob-dir"  # active → ob@ (no org)
-    assert claude_rotate.ACTIVE_MARKER.read_text().strip() == "ob-dir", "marker records active by name"
-    assert claude_rotate._rotate_active_account() == "mob-dir"  # identifies ob@ active, rotates back
+    assert claude_rotate.ACTIVE_MARKER.read_text().strip() == "ob-dir", (
+        "marker records active by name"
+    )
+    assert (
+        claude_rotate._rotate_active_account() == "mob-dir"
+    )  # identifies ob@ active, rotates back
     assert claude_rotate._read_org(active) == "org-mob"
 
 
@@ -903,7 +942,9 @@ def test_token_match_beats_stale_marker(tmp_path, monkeypatch):
     _write_creds_no_org(active, "TOKEN-OB")  # live active is really ob@ (fresh token)
 
     assert claude_rotate._active_account().name == "ob-dir", "token-match beats the stale marker"
-    assert claude_rotate.ACTIVE_MARKER.read_text().strip() == "mob-dir", "_active_account is a pure read"
+    assert claude_rotate.ACTIVE_MARKER.read_text().strip() == "mob-dir", (
+        "_active_account is a pure read"
+    )
 
 
 def test_old_format_active_identified_by_org_after_token_drift(tmp_path, monkeypatch):
@@ -918,14 +959,21 @@ def test_old_format_active_identified_by_org_after_token_drift(tmp_path, monkeyp
     _write_creds_no_org(ob / ".credentials.json", "TOKEN-OB")
     active.write_text(  # mob@ with a DRIFTED token (matches no snapshot), org still "org-mob"
         json.dumps(
-            {"claudeAiOauth": {"accessToken": "MOB-REFRESHED", "refreshToken": "R"}, "organizationUuid": "org-mob"}
+            {
+                "claudeAiOauth": {"accessToken": "MOB-REFRESHED", "refreshToken": "R"},
+                "organizationUuid": "org-mob",
+            }
         )
     )
     os.chmod(active, 0o600)
 
     assert not claude_rotate.ACTIVE_MARKER.exists()
-    assert claude_rotate._active_account().name == "mob-dir", "org-match identifies the drifted mob@"
-    assert claude_rotate._rotate_active_account() == "ob-dir", "excludes mob@, picks the ob@ standby"
+    assert claude_rotate._active_account().name == "mob-dir", (
+        "org-match identifies the drifted mob@"
+    )
+    assert claude_rotate._rotate_active_account() == "ob-dir", (
+        "excludes mob@, picks the ob@ standby"
+    )
 
 
 def test_org_match_beats_stale_marker_for_old_format(tmp_path, monkeypatch):
@@ -939,7 +987,10 @@ def test_org_match_beats_stale_marker_for_old_format(tmp_path, monkeypatch):
     claude_rotate.ACTIVE_MARKER.write_text("ob-dir")  # stale marker from a prior rotation to ob@
     active.write_text(  # live active is really old-format mob@ with a drifted (snapshot-less) token
         json.dumps(
-            {"claudeAiOauth": {"accessToken": "MOB-REFRESHED", "refreshToken": "R"}, "organizationUuid": "org-mob"}
+            {
+                "claudeAiOauth": {"accessToken": "MOB-REFRESHED", "refreshToken": "R"},
+                "organizationUuid": "org-mob",
+            }
         )
     )
     os.chmod(active, 0o600)
@@ -958,12 +1009,22 @@ def test_ambiguous_shared_org_falls_through_to_marker(tmp_path, monkeypatch):
         d = accounts_dir / name
         d.mkdir()
         (d / ".credentials.json").write_text(
-            json.dumps({"claudeAiOauth": {"accessToken": tok, "refreshToken": "R"}, "organizationUuid": "org-shared"})
+            json.dumps(
+                {
+                    "claudeAiOauth": {"accessToken": tok, "refreshToken": "R"},
+                    "organizationUuid": "org-shared",
+                }
+            )
         )
         os.chmod(d / ".credentials.json", 0o600)
     claude_rotate.ACTIVE_MARKER.write_text("b-dir")  # the active account is really b-dir
     active.write_text(  # live active = b@ with a drifted (snapshot-less) token; org = the shared org
-        json.dumps({"claudeAiOauth": {"accessToken": "B-REFRESHED", "refreshToken": "R"}, "organizationUuid": "org-shared"})
+        json.dumps(
+            {
+                "claudeAiOauth": {"accessToken": "B-REFRESHED", "refreshToken": "R"},
+                "organizationUuid": "org-shared",
+            }
+        )
     )
     os.chmod(active, 0o600)
 
@@ -975,9 +1036,7 @@ def test_rotate_skips_corrupt_snapshot_and_picks_valid_target(tmp_path, monkeypa
     # A snapshot whose creds are empty/0-byte/non-JSON (interrupted capture or partial
     # fleet-sync) yields _read_org()==None. It must NOT be selected as a rotation target
     # (installing its bytes would brick active auth); rotation must skip it to the valid one.
-    _, accounts_dir, active = _setup_fake_claude(
-        tmp_path, monkeypatch, {"ob-dir": "org-ob"}
-    )
+    _, accounts_dir, active = _setup_fake_claude(tmp_path, monkeypatch, {"ob-dir": "org-ob"})
     _write_creds(active, "org-mob")  # active = mob (its snapshot dir absent — irrelevant here)
     corrupt = accounts_dir / "can-dir"
     corrupt.mkdir()
@@ -1028,7 +1087,9 @@ def test_activate_snapshot_refuses_corrupt_explicit_target_no_brick(tmp_path, mo
 def test_dir_fsync_failure_does_not_fail_rotation(tmp_path, monkeypatch):
     # the post-replace directory fsync is best-effort: a failure must NOT undo/fail a swap that
     # already completed. Inject the failure via the dir-fsync's O_RDONLY os.open.
-    _, _, active = _setup_fake_claude(tmp_path, monkeypatch, {"mob-dir": "org-mob", "ob-dir": "org-ob"})
+    _, _, active = _setup_fake_claude(
+        tmp_path, monkeypatch, {"mob-dir": "org-mob", "ob-dir": "org-ob"}
+    )
     _write_creds(active, "org-mob")
     real_open = os.open
 
@@ -1238,12 +1299,16 @@ def test_probe_current_falls_back_to_cache_when_token_stale(monkeypatch, tmp_pat
     state.mkdir()
     monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
     monkeypatch.setattr(claude_rotate, "_read_access_token", lambda p: None)  # stale token
-    (state / "current-usage-cache.json").write_text(json.dumps({
-        "ts": time.time() - 300,  # 5 minutes old — well within the 7200s default
-        "five_hour": {"utilization": 61.0, "resets_at_epoch": 1.0},
-        "seven_day": {"utilization": 44.0, "resets_at_epoch": 2.0},
-        "model_windows": {"Fable": {"utilization": 40.0, "resets_at_epoch": 2.0}},
-    }))
+    (state / "current-usage-cache.json").write_text(
+        json.dumps(
+            {
+                "ts": time.time() - 300,  # 5 minutes old — well within the 7200s default
+                "five_hour": {"utilization": 61.0, "resets_at_epoch": 1.0},
+                "seven_day": {"utilization": 44.0, "resets_at_epoch": 2.0},
+                "model_windows": {"Fable": {"utilization": 40.0, "resets_at_epoch": 2.0}},
+            }
+        )
+    )
     assert claude_rotate.main(["--probe-current", "--json"]) == 0
     acc = json.loads(capsys.readouterr().out)["accounts"][0]
     assert acc["source"] == "cache"
@@ -1260,11 +1325,15 @@ def test_probe_current_expired_cache_reads_unavailable(monkeypatch, tmp_path, ca
     monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
     monkeypatch.setenv("PROBE_CACHE_MAX_AGE_S", "100")
     monkeypatch.setattr(claude_rotate, "_read_access_token", lambda p: None)
-    (state / "current-usage-cache.json").write_text(json.dumps({
-        "ts": time.time() - 5000,
-        "five_hour": {"utilization": 61.0, "resets_at_epoch": 1.0},
-        "seven_day": {"utilization": 44.0, "resets_at_epoch": 2.0},
-    }))
+    (state / "current-usage-cache.json").write_text(
+        json.dumps(
+            {
+                "ts": time.time() - 5000,
+                "five_hour": {"utilization": 61.0, "resets_at_epoch": 1.0},
+                "seven_day": {"utilization": 44.0, "resets_at_epoch": 2.0},
+            }
+        )
+    )
     assert claude_rotate.main(["--probe-current", "--json"]) == 0
     acc = json.loads(capsys.readouterr().out)["accounts"][0]
     assert acc["source"] == "unavailable"
@@ -1311,7 +1380,9 @@ def test_run_claude_final_limit_signals_governor(monkeypatch):
     # run_claude signals the governor's reactive cap so the NEXT routine call sheds.
     signals = []
     limit_out = "You've hit your weekly limit · resets 3pm"
-    monkeypatch.setattr(claude_rotate.subprocess, "run", lambda *a, **k: _cp(stdout=limit_out, rc=1))
+    monkeypatch.setattr(
+        claude_rotate.subprocess, "run", lambda *a, **k: _cp(stdout=limit_out, rc=1)
+    )
     monkeypatch.setattr(claude_rotate, "_list_accounts", lambda: _accounts("mob"))
     monkeypatch.setattr(claude_rotate, "_active_account", lambda: _accounts("mob")[0])
     monkeypatch.setattr(claude_rotate, "_signal_governor_capped", lambda text: signals.append(text))

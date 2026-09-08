@@ -3,6 +3,7 @@
 mkdir-before-scp ordering, active-creds refresh, unsafe-dirname skip, empty-hosts guard,
 the real (non-DRY_RUN) error/continue/exit-code path, and a static no-token-leak guard.
 Fixtures use fake creds (organizationUuid only) and DRY_RUN or fake ssh/scp — no network."""
+
 import os
 import pathlib
 import re
@@ -47,12 +48,16 @@ def test_dry_run_each_host_gets_its_own_mkdir_and_scp(tmp_path):
     lines = out.splitlines()
     for host in ("vps", "vps2", "vps3"):
         assert any(f"ozgur@{host} mkdir" in ln for ln in lines), f"{host} missing its own mkdir"
-        assert any("scp" in ln and f"ozgur@{host}:" in ln for ln in lines), f"{host} missing its own scp"
+        assert any("scp" in ln and f"ozgur@{host}:" in ln for ln in lines), (
+            f"{host} missing its own scp"
+        )
 
 
 def test_dry_run_adds_a_new_host(tmp_path):
     out = _dry_run(tmp_path, hosts="vps vps2 vps3 vps4").stdout
-    assert any("ozgur@vps4 mkdir" in ln for ln in out.splitlines()), "extending CLAUDE_FLEET_HOSTS adds the VPS"
+    assert any("ozgur@vps4 mkdir" in ln for ln in out.splitlines()), (
+        "extending CLAUDE_FLEET_HOSTS adds the VPS"
+    )
 
 
 def test_dry_run_mkdirs_before_scp(tmp_path):
@@ -70,13 +75,17 @@ def test_dry_run_pushes_snapshots_but_not_active_by_default(tmp_path):
     assert "manager-accounts/mob-dir/.credentials.json" in out
     assert "manager-accounts/ob-dir/.credentials.json" in out
     # the active-creds scp target is `:.claude/.credentials.json` with NO manager-accounts/ prefix
-    active_lines = [ln for ln in out.splitlines() if ln.rstrip().endswith(":.claude/.credentials.json")]
+    active_lines = [
+        ln for ln in out.splitlines() if ln.rstrip().endswith(":.claude/.credentials.json")
+    ]
     assert not active_lines, f"active creds must NOT be pushed by default, got: {active_lines}"
 
 
 def test_dry_run_sync_active_opt_in_pushes_active_with_backup(tmp_path):
     out = _dry_run(tmp_path, sync_active=True).stdout
-    active_lines = [ln for ln in out.splitlines() if ln.rstrip().endswith(":.claude/.credentials.json")]
+    active_lines = [
+        ln for ln in out.splitlines() if ln.rstrip().endswith(":.claude/.credentials.json")
+    ]
     assert active_lines, "SYNC_ACTIVE=1 must push the active creds"
     assert any(".credentials.json.sync-bak" in ln for ln in out.splitlines()), (
         "SYNC_ACTIVE=1 must back up each host's outgoing active first"
@@ -89,10 +98,14 @@ def test_unsafe_account_dirname_is_skipped(tmp_path):
     bad.mkdir()
     (bad / ".credentials.json").write_text('{"organizationUuid":"org-bad"}')
 
-    out = _dry_run(tmp_path, hosts="vps", claude_dir=claude_dir).stdout + \
-        _dry_run(tmp_path, hosts="vps", claude_dir=claude_dir).stderr
+    out = (
+        _dry_run(tmp_path, hosts="vps", claude_dir=claude_dir).stdout
+        + _dry_run(tmp_path, hosts="vps", claude_dir=claude_dir).stderr
+    )
     cmd_lines = [ln for ln in out.splitlines() if ln.startswith("DRY_RUN:")]
-    assert not any("bad;name" in ln for ln in cmd_lines), "unsafe dir must never reach a remote command"
+    assert not any("bad;name" in ln for ln in cmd_lines), (
+        "unsafe dir must never reach a remote command"
+    )
     assert any("good-dir" in ln for ln in cmd_lines), "safe dir still synced"
 
 
@@ -165,7 +178,9 @@ def test_real_run_chmod_belt_failure_is_warn_not_host_failure(tmp_path):
     bindir = tmp_path / "bin"
     bindir.mkdir()
     # fail only on the find/chmod belt command; succeed for the mkdir command
-    (bindir / "ssh").write_text('#!/usr/bin/env bash\ncase "$*" in *find*) exit 1;; *) exit 0;; esac\n')
+    (bindir / "ssh").write_text(
+        '#!/usr/bin/env bash\ncase "$*" in *find*) exit 1;; *) exit 0;; esac\n'
+    )
     (bindir / "scp").write_text("#!/usr/bin/env bash\nexit 0\n")
     (bindir / "ssh").chmod(0o755)
     (bindir / "scp").chmod(0o755)
@@ -205,7 +220,9 @@ def test_script_never_reads_cred_content_into_output():
         s = line.strip()
         if s.startswith("#") or "credentials.json" not in s:
             continue
-        assert not any(c in s for c in reader_cmds), f"creds content must never be read into output: {s}"
+        assert not any(c in s for c in reader_cmds), (
+            f"creds content must never be read into output: {s}"
+        )
 
 
 def test_sync_active_auto_enables_when_wsl_active_is_a_fleet_account(tmp_path):

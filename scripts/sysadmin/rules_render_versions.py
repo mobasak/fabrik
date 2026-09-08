@@ -89,10 +89,14 @@ def run(check: bool) -> int:
         # strip spans BEFORE sweeping so only unmarked literals fire
         stripped = _SPAN.sub("", new)
         for m in _LOOSE.finditer(stripped):
-            print(f"⚠ {f}: version-shaped literal outside a marker span: '{m.group(0)}' (D-062 — wrap as <!--v:key-->…<!--/v--> or move to versions.yaml)")
+            print(
+                f"⚠ {f}: version-shaped literal outside a marker span: '{m.group(0)}' (D-062 — wrap as <!--v:key-->…<!--/v--> or move to versions.yaml)"
+            )
         if new != text:
             if check:
-                print(f"ERROR: {f}: {n} span(s) disagree with versions.yaml — run rules_render_versions.py")
+                print(
+                    f"ERROR: {f}: {n} span(s) disagree with versions.yaml — run rules_render_versions.py"
+                )
                 rc = 1
             else:
                 f.write_text(new, encoding="utf-8")

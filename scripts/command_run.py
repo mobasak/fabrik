@@ -1017,14 +1017,14 @@ def _seat_transcripts(path: Path, lo: float) -> list[Path]:
     return sorted(out)
 
 
-def _seat_usage(q: Path, lo: float, hi: float) -> dict[str, int] | str | None:
+def _seat_usage(q: Path, lo: float, hi: float) -> dict[str, float] | str | None:
     """One seat's in-window usage, per-message maximum like the parent; None when the file holds
     no in-window assistant message (or cannot be read) — a seat, never a real zero; the string
     "skipped" for an oversize file (round-7 finding: the sentinel was not in the annotation and
     mypy said so)."""
     seen: dict[str, dict[str, int]] = {}
     anon = 0
-    last = 0.0
+    last = 0.0  # the newest line's epoch, kept float (round-7 Opus finding: int() truncated it)
     try:
         if q.stat().st_size > _SEAT_MAX_BYTES:
             return "skipped"  # not a seat transcript at this size; counted as SKIPPED, never summed
@@ -1063,11 +1063,11 @@ def _seat_usage(q: Path, lo: float, hi: float) -> dict[str, int] | str | None:
         return "skipped"  # counted, so a dropped seat is not invisible (round-6 finding)
     if not seen:
         return None
-    acc = dict.fromkeys((k for k, _ in _SEAT_KEYS), 0)
+    acc: dict[str, float] = dict.fromkeys((k for k, _ in _SEAT_KEYS), 0)
     for m in seen.values():
         for k in acc:
             acc[k] += m[k]
-    acc["_last"] = int(last)
+    acc["_last"] = last  # a float epoch: an int truncation compared unequal to `last_orch`
     return acc
 
 
@@ -1286,8 +1286,15 @@ def _tokens_clause(tok: dict[str, Any]) -> str:
     if not tok:
         return ""
     has_seats = tok.get("tok_seat_in") is not None
+    skipped = int(tok.get("seats_skipped") or 0)
     if tok.get("tok_in") is None and not has_seats:
-        return ""
+        # no orchestrator message AND no summed seat: the early return hid a skip event
+        # (round-8 finding) — the skip is the only fact left, so print it alone
+        return (
+            f"tokens — · seats: {skipped} skipped (oversize/unreadable transcript)"
+            if skipped
+            else ""
+        )
     if tok.get("tok_in") is None:
         # seats spent inside the window while the orchestrator had no message in it (a nested or
         # rapid close): the seat half prints on its own — the first draft returned "" and hid
@@ -1298,7 +1305,6 @@ def _tokens_clause(tok: dict[str, Any]) -> str:
         hit = f" ({100 * int(tok['tok_cache_read']) / inp:.0f}% cached)" if inp else ""
         own = f"tokens {_fmt_tokens(inp)} input / {_fmt_tokens(int(tok['tok_out']))} output{hit}"
     seats = ""
-    skipped = int(tok.get("seats_skipped") or 0)
     if not has_seats and skipped:
         # every seat file was oversize/unreadable: name the skip rather than print no seat half at
         # all (round-7 finding: the field reached the ledger row and no surface a reader sees)
@@ -1826,6 +1832,24 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # field that was actually lying (the phase) is the one nothing read. Unlike a phase-N
         # threshold this cannot be satisfied by calling `step` once at the start.
         _phase_now = int(rec.get("phase") or 1)
+        # the STAMP is the seat figure — `dispatch --seats` accumulated it while the seats went
+        # out; a bare `round` inherits it, and a hand-typed count that disagrees is said so
+        # (round-7 Opus finding: `dispatch 3` + `dispatch 4` then a bare `round` declared 0)
+        _dd = rec.get("dispatch")
+        _d: dict = _dd if isinstance(_dd, dict) else {}
+        _stamped = (
+            int(_d.get("seats") or 0)
+            if _d.get("round") == len(rounds) and not _d.get("released")
+            else 0
+        )
+        _seats = args.seats or _stamped
+        if args.seats and _stamped and args.seats != _stamped:
+            print(
+                f"[command_run] round --seats {args.seats} disagrees with the {_stamped} seat(s) "
+                "stamped this round — the stamp is what sibling sessions subtracted; recording "
+                f"{args.seats} as typed",
+                file=sys.stderr,
+            )
         classes: dict[str, str] = dict(rec.get("classes") or {})
         swept, new_c = _csv(args.classes_swept), _csv(args.classes_new)
         # Sweep first, then open: a class both swept AND re-found this round is
@@ -1841,7 +1865,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 # in the RECORD, not only the event stream: dispatch_headroom.py's sibling guard
                 # reads `rounds[-1].seats` off every fresh running record, and the first draft
                 # wrote seats to the event only — the guard read None everywhere and was inert
-                "seats": args.seats,
+                "seats": _seats,
                 # the round's OWN stamp: dispatch_headroom.py dates the fallback reservation by it
                 # — `updated_ts` is a generic last-touch and re-dated a two-hour-old round on a
                 # bare `step` (round-5 finding)

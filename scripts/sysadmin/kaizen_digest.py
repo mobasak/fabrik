@@ -112,9 +112,7 @@ def compose(state: Path | None = None) -> str:
         prev = pts[-2] if len(pts) == 2 else None
         cell = cur.get("cell") or str(cur.get("value"))
         lines.append(f"· {metric}: {cell} @ {cur.get('day', '?')}{_fmt_delta(cur, prev)}")
-    lines.append(
-        "detail: ~/.claude/kaizen.log · docs/reference/agents/kaizen-log-*.md"
-    )
+    lines.append("detail: ~/.claude/kaizen.log · docs/reference/agents/kaizen-log-*.md")
     return "\n".join(lines)
 
 
@@ -125,7 +123,9 @@ def main(argv: list[str]) -> int:
         helper = REPO / "scripts" / "sysadmin" / "send-telegram.sh"
         r = subprocess.run(["bash", str(helper), text], capture_output=True, text=True, timeout=30)
         if r.returncode != 0:
-            print(f"[kaizen_digest] TELEGRAM SEND FAILED: {r.stderr.strip()[:300]}", file=sys.stderr)
+            print(
+                f"[kaizen_digest] TELEGRAM SEND FAILED: {r.stderr.strip()[:300]}", file=sys.stderr
+            )
             return 1
     return 0
 

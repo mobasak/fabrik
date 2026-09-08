@@ -61,7 +61,11 @@ def test_an_unidentifiable_active_account_reads_as_hot_never_cool():
     """`claude_rotate.py` can return `active: None` on a broken pointer; `hottest_pct` is then None.
     The first draft's `is not None and ...` made that COOL and lifted the only affordability guard."""
     r = dh.budget(8, False, BOX_OK, dict(Q_OK, active=None, hottest_pct=None))
-    assert r["seats"] == 3 and any("could not be identified" in x for x in r["reasons"])
+    assert r["seats"] == 3 and any("NO active account in the picture" in x for x in r["reasons"])
+    # identified but unreadable is the OTHER fact (round-7 Opus finding: the old line said
+    # "could not be identified ('a')" — naming the account it claimed not to have identified)
+    r = dh.budget(8, False, BOX_OK, dict(Q_OK, hottest_pct=None))
+    assert r["seats"] == 3 and any("has NO usable reading" in x for x in r["reasons"])
 
 
 def test_the_drain_band_comes_from_the_rotation_picture_not_a_second_constant():
@@ -222,7 +226,7 @@ def test_quota_pressure_holds_the_round_at_the_floor_and_names_which_band_trippe
     # active account with no fallback still runs; the reason names the risk
     thin = dict(Q_OK, eligible=0)
     r = dh.budget(8, False, BOX_OK, thin)
-    assert r["seats"] == 17 and any("NO eligible standby" in x for x in r["reasons"])
+    assert r["seats"] == 17 and any("NO standby account at all" in x for x in r["reasons"])
     # the exact boundaries, so a mutation of `>=` or `<` is caught
     assert dh.budget(8, False, BOX_OK, dict(Q_OK, hottest_pct=85.0))["seats"] == 3
     assert dh.budget(8, False, BOX_OK, dict(Q_OK, hottest_pct=84.9))["seats"] == 17
@@ -416,6 +420,9 @@ def test_the_cost_story_describes_the_mix_it_prints_never_the_per_unit_sentence(
     d = json.loads(capsys.readouterr().out)
     assert d["box_caps"] == {"read_only": 23, "heavy": 12} and d["full_mix"] == d["mix"]
     assert d["floor"] == dh.FLOOR  # the board keys its "= the floor" label on it
+    assert dh.main(["--units", "0"]) == 0  # the phantom-floor path end to end (round-8 finding)
+    out = capsys.readouterr().out
+    assert "SEATS: 0" in out
 
 
 def test_negative_counts_are_refused_and_the_angles_table_matches_the_mix(capsys):
@@ -704,7 +711,7 @@ def test_a_standby_in_the_drain_band_is_no_fallback_and_a_release_marker_is_a_kn
     r = dh.budget(
         6, False, BOX_OK, q
     )  # no COOL standby: the caution fires (it stayed silent before)
-    assert r["seats"] == 13 and any("NO eligible standby" in x for x in r["reasons"])
+    assert r["seats"] == 13 and any("0 of 1 standby(s) are COOL" in x for x in r["reasons"])
     hot = dict(q, active_in_band=True, eligible=3)
     assert dh.budget(6, False, BOX_OK, hot)["seats"] == 3  # the picture's own predicate, not ours
     now = 1_000_000.0
@@ -774,3 +781,64 @@ def test_round7_shapes_a_release_beside_a_count_a_standby_without_a_grade_and_th
     monkeypatch.undo()
     sid, src = dh.own_session_id()
     assert src == "command_run"  # a later success is not poisoned by the earlier failure
+
+
+def test_a_parked_parent_frame_keeps_its_reservation_and_the_two_no_standby_facts_differ(
+    tmp_path, monkeypatch
+):
+    """Round-7 Opus findings: (1) a nested `start` parks the parent on `stack` and its live stamp
+    vanished from `siblings()` — /fabrik-execute-plan nesting /fabrik-review at a phase boundary
+    hid 7 running seats; every frame is read now. (2) "NO eligible standby" printed the same words
+    whether no standby EXISTS or the only one is merely warm — `--status` named a flip target
+    while this said none; the two facts print differently. (3) an active account with no usable
+    reading was reported as "could not be identified" — it was identified, it had no reading."""
+    now = 1_000_000.0
+    (tmp_path / "nested.json").write_text(
+        json.dumps(
+            {
+                "state": "running",
+                "command": "fabrik-review",
+                "updated_ts": now,
+                "rounds": [],
+                "stack": [
+                    {
+                        "command": "fabrik-execute-plan",
+                        "rounds": [],
+                        "dispatch": {"ts": now, "seats": 7, "round": 0},
+                    }
+                ],
+            }
+        )
+    )
+    s = dh.siblings(now=now, runs_dir=tmp_path, exclude_sid="nobody")
+    assert s["seats"] == 7 and s["sessions"] == 1 and s["unrecorded"] == 1  # the child itself
+    # a NEGATIVE seat count is a malformed record — named as skipped, never silently ignored
+    (tmp_path / "negative.json").write_text(
+        json.dumps({"state": "running", "rounds": [], "dispatch": {"ts": now, "seats": -5}})
+    )
+    s = dh.siblings(now=now, runs_dir=tmp_path, exclude_sid="nobody")
+    assert s["skipped"] == ["negative.json"] and s["seats"] == 7
+    # the floor past the remainder is bounded and SAID (round-8 finding)
+    r = dh.budget(6, False, BOX_OK, Q_OK, {"ok": True, "seats": 21, "unrecorded": 0})
+    assert r["caps"]["box_cap"] == dh.FLOOR
+    assert any("floor granted: 1 seat(s) past what the box has left" in x for x in r["reasons"])
+    # an unreadable sibling record is SAID, in the over-dispatch direction (round-8 Opus)
+    r = dh.budget(6, False, BOX_OK, Q_OK, {"ok": True, "seats": 0, "skipped": ["sib.json"]})
+    assert any(
+        "1 sibling record(s) unreadable (sib.json) — their seats are NOT subtracted" in x
+        for x in r["reasons"]
+    )
+    warm = dict(Q_OK, eligible=0, eligible_raw=2)
+    r = dh.budget(6, False, BOX_OK, warm)
+    assert any("0 of 2 standby(s) are COOL" in x for x in r["reasons"])
+    assert not any("NO standby account at all" in x for x in r["reasons"])
+    none_at_all = dict(Q_OK, eligible=0, eligible_raw=0)
+    assert any(
+        "NO standby account at all" in x
+        for x in dh.budget(6, False, BOX_OK, none_at_all)["reasons"]
+    )
+    no_active = dict(Q_OK, active=None, hottest_pct=None)
+    assert any(
+        "NO active account in the picture" in x
+        for x in dh.budget(6, False, BOX_OK, no_active)["reasons"]
+    )

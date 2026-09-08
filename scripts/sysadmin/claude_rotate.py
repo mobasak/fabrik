@@ -4748,7 +4748,9 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
             # D-180: a probe blackout is NOT relief — unlinking here consumed the one transition
             # the wake fires on, freeing tools while every held session slept until the NEXT
             # episode (heavy review R4). The hold stands until a reading says otherwise.
-            print("tick: fleet-exhausted stamp KEPT — no reading this tick (a blackout is not relief)")
+            print(
+                "tick: fleet-exhausted stamp KEPT — no reading this tick (a blackout is not relief)"
+            )
         elif stamp.exists() and _clear_stamp(stamp):
             # relief arrived (flip/reset) → re-arm for the next wall, and wake the held sessions
             _wake_held_sessions(now, "relief", reading_ok)

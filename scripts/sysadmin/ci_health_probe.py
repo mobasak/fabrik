@@ -73,8 +73,19 @@ def repo_slug(repo_dir: Path) -> str | None:
 
 def probe_repo(slug: str) -> dict | None:
     """The newest run's health for one repo, or None when there is nothing to say."""
-    rc, out = sh(["gh", "run", "list", "-R", slug, "--limit", "1",
-                  "--json", "databaseId,conclusion,workflowName,createdAt"])
+    rc, out = sh(
+        [
+            "gh",
+            "run",
+            "list",
+            "-R",
+            slug,
+            "--limit",
+            "1",
+            "--json",
+            "databaseId,conclusion,workflowName,createdAt",
+        ]
+    )
     if rc != 0:
         return None
     try:
@@ -84,8 +95,9 @@ def probe_repo(slug: str) -> dict | None:
     if not runs or (runs[0].get("conclusion") or "") != "failure":
         return None
     run = runs[0]
-    rc, out = sh(["gh", "api", f"repos/{slug}/actions/runs/{run['databaseId']}/jobs",
-                  "--jq", ".jobs[0]"])
+    rc, out = sh(
+        ["gh", "api", f"repos/{slug}/actions/runs/{run['databaseId']}/jobs", "--jq", ".jobs[0]"]
+    )
     if rc != 0:
         return None
     try:
@@ -95,9 +107,14 @@ def probe_repo(slug: str) -> dict | None:
     verdict = classify_run(job)
     if verdict != "never-started":
         return None
-    return {"repo": slug, "run_id": run["databaseId"], "workflow": run.get("workflowName"),
-            "verdict": verdict, "created": run.get("createdAt", "?"),
-            "reason": annotation_reason(slug, job)}
+    return {
+        "repo": slug,
+        "run_id": run["databaseId"],
+        "workflow": run.get("workflowName"),
+        "verdict": verdict,
+        "created": run.get("createdAt", "?"),
+        "reason": annotation_reason(slug, job),
+    }
 
 
 def annotation_reason(slug: str, job: dict) -> str:
@@ -105,8 +122,16 @@ def annotation_reason(slug: str, job: dict) -> str:
     cid = job.get("check_run_url", "").rstrip("/").split("/")[-1]
     if not cid.isdigit():
         return "job never started (no steps executed)"
-    rc, out = sh(["gh", "api", f"repos/{slug}/check-runs/{cid}/annotations",
-                  "--jq", ".[0].message // empty"], timeout=25)
+    rc, out = sh(
+        [
+            "gh",
+            "api",
+            f"repos/{slug}/check-runs/{cid}/annotations",
+            "--jq",
+            ".[0].message // empty",
+        ],
+        timeout=25,
+    )
     msg = out.strip()
     return msg[:200] if rc == 0 and msg else "job never started (no steps executed)"
 
@@ -130,7 +155,7 @@ def actions_quota() -> dict | None:
     as UNKNOWN, never as zero: a fail-open zero would silence the alert exactly when the API
     changes again.
     """
-    rc, out = sh(["gh", "api", "/user", "--jq", ".login + \" \" + .plan.name"], timeout=25)
+    rc, out = sh(["gh", "api", "/user", "--jq", '.login + " " + .plan.name'], timeout=25)
     if rc != 0 or not out.strip():
         return None
     login, _, plan = out.strip().partition(" ")
@@ -142,8 +167,11 @@ def actions_quota() -> dict | None:
     except ValueError:
         return None
     month = datetime.now(UTC).strftime("%Y-%m")
-    rows = [i for i in items
-            if i.get("sku") == "Actions Linux" and str(i.get("date", "")).startswith(month)]
+    rows = [
+        i
+        for i in items
+        if i.get("sku") == "Actions Linux" and str(i.get("date", "")).startswith(month)
+    ]
     visibility: dict[str, bool | None] = {}
     used = 0.0
     for i in rows:
@@ -155,17 +183,24 @@ def actions_quota() -> dict | None:
                 continue  # public = unmetered
         used += i.get("quantity", 0)
     included = PLAN_MINUTES.get(plan.lower(), 2000)
-    return {"plan": plan, "used": round(used), "included": included,
-            "pct": (used / included * 100) if included else 0.0}
+    return {
+        "plan": plan,
+        "used": round(used),
+        "included": included,
+        "pct": (used / included * 100) if included else 0.0,
+    }
 
 
 def notify(title: str, body: str) -> None:
     if not SOUND.is_file():
         print(f"[no notifier] {title}: {body}")
         return
-    subprocess.run(["bash", str(SOUND), "mesh-notify", "ci-health", "/opt/fabrik",
-                    f"{title} — {body}"], stdin=subprocess.DEVNULL,
-                   capture_output=True, check=False)
+    subprocess.run(
+        ["bash", str(SOUND), "mesh-notify", "ci-health", "/opt/fabrik", f"{title} — {body}"],
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        check=False,
+    )
 
 
 def suppressed(key: str) -> bool:
@@ -211,16 +246,22 @@ def main(argv: list[str] | None = None) -> int:
     if quota is None:
         print("quota: UNKNOWN (billing API unreachable — not treated as 0)")
     else:
-        print(f"quota: {quota['used']}/{quota['included']} min ({quota['pct']:.0f}%) "
-              f"plan={quota['plan']}")
+        print(
+            f"quota: {quota['used']}/{quota['included']} min ({quota['pct']:.0f}%) "
+            f"plan={quota['plan']}"
+        )
         if quota["pct"] >= 100 and not suppressed("quota-over"):
-            notify("ACTIONS QUOTA EXCEEDED",
-                   f"{quota['used']}/{quota['included']} min on {quota['plan']} — jobs will be "
-                   "refused until the spending limit or plan is raised")
+            notify(
+                "ACTIONS QUOTA EXCEEDED",
+                f"{quota['used']}/{quota['included']} min on {quota['plan']} — jobs will be "
+                "refused until the spending limit or plan is raised",
+            )
         elif quota["pct"] >= WARN_PCT and not suppressed("quota-warn"):
-            notify("ACTIONS QUOTA WARNING",
-                   f"{quota['used']}/{quota['included']} min ({quota['pct']:.0f}%) on "
-                   f"{quota['plan']} — CI stops when it hits 100%")
+            notify(
+                "ACTIONS QUOTA WARNING",
+                f"{quota['used']}/{quota['included']} min ({quota['pct']:.0f}%) on "
+                f"{quota['plan']} — CI stops when it hits 100%",
+            )
     if not blocked and not quiet:
         print("ci-health: every repo's newest run executed (or passed)")
     return 0

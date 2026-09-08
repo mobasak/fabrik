@@ -1635,6 +1635,12 @@ def test_the_row_sums_the_seats_own_transcripts_never_the_parents_result_line(
         {"tok_in": 1, "tok_out": 1, "tok_cache_read": 0, "tok_cache_create": 0, "seats_skipped": 2}
     ).endswith(" · seats: 2 skipped (oversize/unreadable transcript)")
     assert _tokens_clause(dict(got, seats_skipped=1)).endswith(" · 1 skipped")
+    # no orchestrator message AND every seat skipped: the skip still prints (round-8 finding —
+    # the early return for "nothing to print" ran before the skip clause)
+    assert _tokens_clause({"tok_in": None, "seats_skipped": 2}) == (
+        "tokens — · seats: 2 skipped (oversize/unreadable transcript)"
+    )
+    assert _tokens_clause({"tok_in": None}) == ""
     (sub / "agent-late.jsonl").unlink()  # the assertions below count two seats
     # a broken symlink beside the good files must not null the directory listing (round 5)
     (sub / "agent-gone.jsonl").symlink_to(sub / "no-such-file.jsonl")
@@ -1664,3 +1670,46 @@ def test_the_row_sums_the_seats_own_transcripts_never_the_parents_result_line(
         and got["tok_seat_out"] is None
         and "seats" not in _tokens_clause(got)
     )
+
+
+def test_a_bare_round_inherits_the_stamp_and_a_disagreeing_count_is_said_and_graded(
+    run_dir: Path,
+) -> None:
+    """Round-7 Opus finding: `dispatch 3` + `dispatch 4` then a bare `round` declared 0 seats
+    (argparse's default) and the close's `seats_declared` grader read that 0 — the tool had the
+    true 7 in the stamp all along. The stamp is the default now; a typed count that disagrees is
+    said on stderr and recorded as typed; `seats_declared` on the ledger row is graded here (the
+    mutant `_declared = 0` survived every test before)."""
+    # not a review-shaped command: `done` on those also demands a persisted report in the repo
+    _cr(run_dir, "start", "--command", "fabrik-features", "--phases", "1", "--surface", "x")
+    _cr(run_dir, "dispatch", "--seats", "3")
+    _cr(run_dir, "dispatch", "--seats", "4")
+    p = _cr(run_dir, "round", "--findings", "1", "--classes-new", "a")
+    assert p.returncode == 0 and "disagrees" not in p.stderr
+    rec = json.loads(next(run_dir.glob("*.json")).read_text())
+    assert rec["rounds"][-1]["seats"] == 7 and rec["dispatch"]["released"] is True
+    _cr(run_dir, "dispatch", "--seats", "5")
+    p = _cr(run_dir, "round", "--seats", "2", "--findings", "0", "--classes-swept", "a")
+    assert "round --seats 2 disagrees with the 5 seat(s) stamped" in p.stderr
+    rec = json.loads(next(run_dir.glob("*.json")).read_text())
+    assert rec["rounds"][-1]["seats"] == 2  # recorded as typed, the disagreement named
+    p = _cr(
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-features",
+        "--evidence",
+        "x",
+        "--feedback",
+        "confusion: none · waste: none · change: none · filed: none — surfaces exercised: x",
+    )
+    assert p.returncode == 0, p.stderr
+    ledger = run_dir.parent / "command-feedback.jsonl"
+    row = json.loads(ledger.read_text().splitlines()[-1])
+    assert row["seats_declared"] == 9  # 7 + 2: the ledger figure the tripwire divides by
+    # a closed record is never mutated by `dispatch` either (round-8: the docstring claimed it,
+    # no test proved it)
+    p = _cr(run_dir, "dispatch", "--seats", "3")
+    assert "already closed" in (p.stdout + p.stderr)
+    rec = json.loads(next(run_dir.glob("*.json")).read_text())
+    assert rec["dispatch"]["seats"] == 0 and rec["dispatch"]["released"] is True

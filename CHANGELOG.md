@@ -44,6 +44,14 @@ A sid is `dead` only on three positive signals — no live signal, a death signa
   code consumer and no kaizen cell — the suspension breaks nothing mechanical. The mirror claim in
   `docs/reference/agents/infra.md:42-45` is infra's beat and was filed to them, not edited here. (D-195)
 
+### Fixed — D-191 round 8: the stamp is the round's seat figure; a parked parent keeps its reservation; the board renders every degraded reason (2026-09-08)
+- `command_run.py`: a bare `round` inherits the accumulated `dispatch --seats` stamp (a hand-typed count that disagrees is said on stderr and recorded as typed); `seats_declared` is graded on the ledger row; the seat's `_last` epoch stays a float (F195, F201, F207).
+- `dispatch_headroom.py`: a nested `start` parks the parent on `stack` and its live stamp is summed (`_frame_seats`); the floor granted past the sibling remainder is bounded and SAID; a negative seat count is a malformed record; "0 of N standby(s) are COOL" vs "NO standby account at all"; "has NO usable reading" vs "NO active account"; the docstring says stamp-first (F196, F198, F199, F204, F214, F216).
+- `command_feedback_report.py`: the lower-bound rows (declared/seen mismatch, seats still running, truncated token scans) reach the TEXT report as a "⚠ LOWER BOUNDS" block, not only `--json` (F197).
+- `quota_dashboard.py`: the caveat filter covers every degraded-state reason the script emits — "held at the floor", the standby and drain-band lines — and the orphan-probe test reads the thread before the release (F205, F220).
+- Round-8 Opus seat: a dead box probe no longer has its floor blamed on the sibling reservation; an unreadable sibling record is SAID as an UPPER bound; the ten short banners carry one wording and `[--mechanical <M>]` (graded); the flaky probe-interval test measures the median inter-probe gap; `seats_rows` is the denominator under `seats_seen`; `_tokens_clause` prints a skip when nothing else is left (F224–F230).
+- The corpus: four `subtract them —,` seams; design-review's Haiku seat runs the AUTOMATED checks, Opus owns the visual judgement; the span test names the six judgement floors (F217–F219). The protocol table's `handoff` row: `--resume` is required (F211); `docs/workstation/quota-dashboard.md` gains § The box-budget banner (F212); the receipt header is regenerated from the D-191 commits' file union (F203). Filed: mail 01M2093GEG9GCBV30RCAPNGJ5B to fabrik-lib (F206).
+
 ### Fixed — D-191 round 7: the quota label and the protocol table's missing verb (2026-09-08)
 - `dispatch_headroom.py`'s quota line printed "eligible standbys N" for the COOL count core/62 defines — now "cool standbys N of M eligible" (F170).
 - `docs/reference/command-run-protocol.md` § CLI enumerated eight verbs and omitted `handoff`; F130 had fixed only the prose list. The row is written from argparse (`--reason` required, `--resume` optional) (F173).

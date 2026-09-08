@@ -220,6 +220,9 @@ def build(
                 "tok_partial_rows": sum(1 for r in rs if r.get("tok_partial") is True),
                 # a seat still writing at the close; and a typed reservation that disagreed with
                 # the seat files by more than one — the close's warning, made queryable (round 5)
+                # the rows the seat count was read from — a 0 over 0 rows is "nothing looked at",
+                # not an honest zero (round-8 Opus finding)
+                "seats_rows": sum(1 for r in rs if _is_count(r.get("seats_seen"))),
                 "seats_partial_rows": sum(1 for r in rs if r.get("seats_partial") is True),
                 # seat files dropped for size/unreadability — a count nobody could read from any
                 # rollup while it lived only in the raw row (round-7 finding)
@@ -306,10 +309,24 @@ def render(report: dict) -> str:
             f"{c['cost_usd'] if c['cost_rows'] else '—'} ({c['cost_rows']}) | "
             f"{_k(c['median_tok']) if c.get('median_tok') is not None else '—'} "
             f"({c['tok_rows']}) | {hit} | "
-            f"{_k(c['seat_total']) if c['seat_rows'] else '—'} ({c['seat_rows']} · {c['seats_seen']}"
+            f"{_k(c['seat_total']) if c['seat_rows'] else '—'} ({c['seat_rows']} · "
+            f"{c['seats_seen'] if c['seats_rows'] else '—'}"
             f"{' · ' + str(c['seats_skipped']) + ' skipped' if c['seats_skipped'] else ''}) | "
             f"{', '.join(c['models']) or '—'} |"
         )
+    # the rows whose sums UNDERSTATE — computed since round 5 and rendered only by --json until the
+    # round-7 Opus seat read the text report the contract names (F119/F139 were --json-only fixes)
+    cav = [
+        f"/{c}: {v['seats_mismatch_rows']} declared/seen seat mismatch, "
+        f"{v['seats_partial_rows']} seat(s) still running at the close, "
+        f"{v['tok_partial_rows']} truncated token scan(s)"
+        for c, v in report["commands"].items()
+        if v["seats_mismatch_rows"] or v["seats_partial_rows"] or v["tok_partial_rows"]
+    ]
+    if cav:
+        lines += ["", "⚠ LOWER BOUNDS — the sums above understate these rows:"] + [
+            f"- {x}" for x in cav
+        ]
     for title, key in (
         ("Optimisation backlog (change:)", "backlog"),
         ("Confusion (confusion:)", "confusion"),
