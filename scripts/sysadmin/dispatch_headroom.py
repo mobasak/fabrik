@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: .windsurf/rules/core/62-using-subagents.md, docs/workstation/claude-account-rotation.md
+# AFTER-EDIT: .windsurf/rules/core/62-using-subagents.md, docs/workstation/claude-account-rotation.md, commands/_fragments/subagents-core.md
 """dispatch_headroom — the seat budget for a native fan-out, from the BOX and the FLEET, not from prose.
 
 D-186/D-188 size a fan-out by the surface's independent units with a floor of three. The operator's
@@ -171,28 +171,39 @@ def siblings(now: float | None = None, runs_dir: Path = RUNS_DIR) -> dict:
 
 
 def cost(mix: dict[str, int]) -> dict:
-    """Relative cost of a seat mix in haiku-units, per the D-190 multipliers; unknown model names
-    are refused by name rather than priced at zero."""
+    """Relative cost of a seat mix in haiku-units, per the D-190 multipliers. An unknown model name
+    or a non-positive count is REFUSED by name — the first draft silently dropped a negative count
+    from the sum while still printing it in the mix, the same priced-at-zero shape the unknown-name
+    refusal exists to prevent (round-1 finding)."""
     unknown = sorted(k for k in mix if k not in PRICE)
     if unknown:
         raise ValueError(f"unknown model(s) {unknown}; priced models: {sorted(PRICE)}")
-    parts = {k: int(v) * PRICE[k] for k, v in mix.items() if int(v) > 0}
+    bad = sorted(k for k, v in mix.items() if int(v) <= 0)
+    if bad:
+        raise ValueError(f"seat count must be >= 1 for {bad}")
+    parts = {k: int(v) * PRICE[k] for k, v in mix.items()}
     return {"units": sum(parts.values()), "parts": parts}
 
 
 def cheapest_mix(seats: int) -> dict[str, int]:
-    """The floor-compliant mix that costs least: one Opus authoritative seat, the rest Sonnet."""
+    """The cheapest mix for N seats that keeps ONE Opus authoritative seat: the rest Sonnet. It does
+    not enforce the floor — `budget()` already did that on `seats`; a caller passing 1 gets one seat
+    and owns the reason (a hard cap, or a surface with nothing to partition)."""
     if seats <= 0:
         return {}
     return {"opus": 1, "sonnet": seats - 1} if seats > 1 else {"opus": 1}
 
 
 def parse_mix(text: str) -> dict[str, int]:
-    """`opus=1,sonnet=5` -> {"opus": 1, "sonnet": 5}."""
+    """`opus=1,sonnet=5` -> {"opus": 1, "sonnet": 5}. Every part is `name=count`, nothing implied:
+    a bare name, an empty name or a non-numeric count is refused with the part quoted."""
     mix: dict[str, int] = {}
     for part in filter(None, (x.strip() for x in text.split(","))):
-        k, _, v = part.partition("=")
-        mix[k.strip().lower()] = int(v or 1)
+        k, eq, v = part.partition("=")
+        k = k.strip().lower()
+        if not eq or not k or not v.strip().lstrip("-").isdigit():
+            raise ValueError(f"--mix part {part!r} is not name=count (e.g. opus=1,sonnet=5)")
+        mix[k] = int(v)
     return mix
 
 
@@ -296,8 +307,8 @@ def main(argv: list[str] | None = None) -> int:
     a = ap.parse_args(argv)
     b, q, s = box(), quota(), siblings()
     r = budget(a.units, a.heavy, b, q, s)
-    mix = parse_mix(a.mix) if a.mix else cheapest_mix(r["seats"])
     try:
+        mix = parse_mix(a.mix) if a.mix else cheapest_mix(r["seats"])
         priced = cost(mix)
     except ValueError as exc:
         print(f"dispatch_headroom.py: error: {exc}", file=sys.stderr)
@@ -337,12 +348,15 @@ def main(argv: list[str] | None = None) -> int:
             f"  quota: active {q['active']} hottest {q['hottest_pct']}%, eligible standbys "
             f"{q['eligible']}, hold={q['hold']}, drain band {q.get('drain_band')}%"
         )
-    shown = " + ".join(f"{n} {k} x{PRICE[k]}" for k, n in mix.items())
-    print(
-        f"  COST: {priced['units']} haiku-units for {shown}"
-        + ("" if a.mix else " (the cheapest floor-compliant mix; price your own with --mix)")
-        + " — D-190: haiku 1x · sonnet 2x · opus 5x · fable 10x"
-    )
+    if mix:
+        shown = " + ".join(f"{n} {k} x{PRICE[k]}" for k, n in mix.items())
+        print(
+            f"  COST: {priced['units']} haiku-units for {shown}"
+            + ("" if a.mix else " (the cheapest floor-compliant mix; price your own with --mix)")
+            + " — D-190: haiku 1x · sonnet 2x · opus 5x · fable 10x"
+        )
+    else:
+        print("  COST: 0 haiku-units — nothing to dispatch (see the reasons above)")
     print(
         "  record what you dispatch: python3 scripts/command_run.py round --seats <n> "
         "--findings <n> --classes-swept … --classes-new …"

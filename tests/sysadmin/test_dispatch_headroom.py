@@ -162,6 +162,35 @@ def test_price_multipliers_make_affordable_a_number():
 
     with pytest.raises(ValueError, match="unknown model"):
         dh.cost({"gpt": 2})
+    # a non-positive count is refused, never silently dropped from the sum (round-1 finding)
+    with pytest.raises(ValueError, match="seat count must be >= 1"):
+        dh.cost({"opus": -1, "sonnet": 5})
+    with pytest.raises(ValueError, match="seat count must be >= 1"):
+        dh.cost({"sonnet": 0})
+    # the parser is strict: name=count, nothing implied
+    for bad in ("opus", "opus=", "=3", "opus=1,sonnet=x"):
+        with pytest.raises(ValueError, match="not name=count"):
+            dh.parse_mix(bad)
+    assert dh.parse_mix(" OPUS = 1 ,sonnet=2") == {"opus": 1, "sonnet": 2}
+
+
+def test_a_malformed_mix_exits_2_with_a_message_never_a_traceback(monkeypatch, capsys):
+    """Round-1 finding: `parse_mix` ran OUTSIDE the try that guards `cost`, so `--mix opus=1,sonnet=x`
+    crashed with a traceback (exit 1) while `--mix gpt=2` was refused cleanly (exit 2)."""
+    monkeypatch.setattr(dh, "box", lambda: BOX_OK)
+    monkeypatch.setattr(dh, "quota", lambda: Q_OK)
+    monkeypatch.setattr(
+        dh, "siblings", lambda: {"ok": True, "seats": 0, "sessions": 0, "skipped": []}
+    )
+    assert dh.main(["--units", "6", "--mix", "opus=1,sonnet=x"]) == 2
+    assert "not name=count" in capsys.readouterr().err
+    assert dh.main(["--units", "6", "--mix", "opus=-1,sonnet=5"]) == 2
+    assert "seat count must be >= 1" in capsys.readouterr().err
+    # an empty mix (the HOLD path, seats 0) prints a sentence, not "for  ("
+    monkeypatch.setattr(dh, "quota", lambda: dict(Q_OK, hold=True))
+    assert dh.main(["--units", "6"]) == 0
+    out = capsys.readouterr().out
+    assert "COST: 0 haiku-units — nothing to dispatch" in out and "for  (" not in out
 
 
 def test_every_operator_named_model_has_exactly_one_role():
