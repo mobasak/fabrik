@@ -604,6 +604,7 @@ Eleven seats in ONE message — the number `dispatch_headroom.py --units 5 --ris
 | F289 | F265 and F273 are two rows on one hunk; the FLOOR sentence renders twice (live + inside the POOL OFF comment) (sonnet s6 + s4, round 11) | one fix wearing two ids; the comment duplicate is F223's class | RECORDED |
 | F290 | the sibling-failure fallback caveat was gated on `not lines` — any unrelated caveat hid a failed sibling probe (sonnet s5, round 11) | executed with a HARD-cap line beside `siblings.ok False` | FIXED — gated on the sibling caveat's own absence; test |
 | F291 | the re-kick guard's distinct-alive-thread branch has no production caller; K≥2 stale generations untested (sonnet s5, round 11) | by construction two probe threads are never alive together | RECORDED — F288's test exercises the branch with a foreign alive thread; K collapses through the fresh `gen` read |
+| F292 | a run that dispatched seats and never stamped is silent until the close — `round` compares only against a stamp it has (fleet, by message, round 12: declared 0 vs seen 12 on a live execute-plan) | the leak sits where the agent is standing | FIXED — a `round` with no stamp that finds seat transcripts newer than the previous round/step says so on stderr; test |
 | F6 | mechanical (haiku rule seat) | ledger check ok; column count; 20 fragment includers, 19 banner sources, 7/14 and 13/23 arithmetic; markup balance; both contracts byte-identical | CLEAN |
 
 

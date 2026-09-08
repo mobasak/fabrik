@@ -1859,6 +1859,23 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             print("[command_run] round --seats must be >= 0", file=sys.stderr)  # round-10 finding
             return 2
         _seats = args.seats if args.seats is not None else _stamped
+        if not _stamped and args.seats is None:
+            # a fan-out that ran with NO stamp is silent until the close (fleet, 2026-09-08:
+            # declared 0 vs seen 12 on a live execute-plan) — name it where the agent stands:
+            # seat transcripts newer than the previous round/step mean seats ran unstamped
+            _since = max(
+                [float(r.get("ts") or 0) for r in rounds if isinstance(r, dict)]
+                + [float(rec.get("started_epoch") or 0), float(rec.get("child_closed_ts") or 0)]
+            )
+            _tp = _transcript_path(sid, str(rec.get("repo_root") or ""))
+            _ran = len(_seat_transcripts(_tp, _since)) if _tp is not None else 0
+            if _ran:
+                print(
+                    f"[command_run] {_ran} seat transcript(s) since the last round and NO "
+                    "`dispatch --seats` stamp — the sibling reservation and seats_declared read 0; "
+                    "stamp BEFORE the seats go out (or type `round --seats <n>` now)",
+                    file=sys.stderr,
+                )
         # a PARTIAL close (round-11 Opus finding): in dispatcher mode several tickets stamp into
         # one round and return independently — the first `round` must release only what closed,
         # never the whole accumulated stamp (siblings read 0 while the other tickets' seats ran)
@@ -2450,6 +2467,9 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
     if parent is not None:
         closed = {k: v for k, v in rec.items() if k != "stack"}
         parent["stack"] = stack
+        # the child's seats were the child's to stamp: the parent's next `round` must not read
+        # them as an unstamped fan-out (fleet, 2026-09-08: a parent counted its nested review's 7)
+        parent["child_closed_ts"] = time.time()
         parent.setdefault("nested", []).append(closed)
         # The counter belongs to the SESSION, not to the record that happens to hold it —
         # a restored parent must keep ascending from where the nested run left off.

@@ -139,6 +139,10 @@ sweep exit 0 having done nothing.
   code consumer and no kaizen cell — the suspension breaks nothing mechanical. The mirror claim in
   `docs/reference/agents/infra.md:42-45` is infra's beat and was filed to them, not edited here. (D-195)
 
+### Fixed — D-191 round 12: the unstamped fan-out is named mid-run (2026-09-08)
+- Receipt row F292 (FIXED 1; the round-12 sweep's own rows follow in its closing entry).
+- `command_run.py`: a `round` with no dispatch stamp that finds seat transcripts written since the previous round/step says so on stderr — the reservation and `seats_declared` read 0 until the agent stamps (F292; fleet's live datapoint: declared 0 vs seen 12).
+
 ### Fixed — D-191 round 11: the closing sweep (2026-09-08)
 - Receipt rows F278–F291 (FIXED 8 · RECORDED 5 · REFUTED 1; 14 rows, script-counted at the round's close).
 - `command_run.py`: a `round` close releases only what closed — in dispatcher mode the first ticket to close no longer frees every other ticket's running seats (the stamp keeps `M−N`, `released` only at 0; the message says "releasing N of M — M−N stay reserved") (F281).

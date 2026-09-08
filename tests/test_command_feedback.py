@@ -1733,3 +1733,55 @@ def test_a_bare_round_inherits_the_stamp_and_a_disagreeing_count_is_said_and_gra
     assert "already closed" in (p.stdout + p.stderr)
     rec = json.loads(next(run_dir.glob("*.json")).read_text())
     assert rec["dispatch"]["seats"] == 0 and rec["dispatch"]["released"] is True
+
+
+def test_a_round_with_no_stamp_names_the_seats_that_ran_unstamped(
+    run_dir: Path, monkeypatch
+) -> None:
+    """Fleet's live datapoint (2026-09-08): an execute-plan closed with `seats_declared 0` against
+    `seats_seen 12` — honest dispatches, never stamped, and nothing said so until the close. A
+    `round` with no stamp that finds seat transcripts newer than the previous round/step says so
+    on stderr; a stamped round, or one with nothing new, says nothing."""
+    import time
+
+    # `_cr` pins COMMAND_RUN_TRANSCRIPT to run_dir/no-transcript.jsonl: the seat dir follows it
+    _cr(run_dir, "start", "--command", "fabrik-features", "--phases", "1", "--surface", "x")
+    sub = run_dir / "no-transcript" / "subagents"
+    time.sleep(0.05)
+    _seat_file(sub, "a", [(time.time(), "s1", 10, 10)])
+    _seat_file(sub, "b", [(time.time(), "s2", 10, 10)])
+    p = _cr(run_dir, "round", "--findings", "0", "--classes-swept", "a")
+    assert "2 seat transcript(s) since the last round and NO `dispatch --seats` stamp" in p.stderr
+    rec = json.loads(next(run_dir.glob("*.json")).read_text())
+    assert rec["rounds"][-1]["seats"] == 0
+    # nothing new since that round: silent
+    p = _cr(run_dir, "round", "--findings", "0", "--classes-swept", "a")
+    assert "seat transcript(s) since" not in p.stderr
+    # stamped: silent, the stamp is the figure
+    time.sleep(0.05)
+    _seat_file(sub, "c", [(time.time(), "s3", 10, 10)])
+    _cr(run_dir, "dispatch", "--seats", "1")
+    p = _cr(run_dir, "round", "--findings", "0", "--classes-swept", "a")
+    assert "seat transcript(s) since" not in p.stderr
+    rec = json.loads(next(run_dir.glob("*.json")).read_text())
+    assert rec["rounds"][-1]["seats"] == 1
+    # a NESTED child's seats were the child's to stamp (fleet's caveat): after the child closes,
+    # the parent's next round must not read them as an unstamped fan-out
+    _cr(run_dir, "start", "--command", "fabrik-review-scoped", "--phases", "1", "--surface", "y")
+    time.sleep(0.05)
+    _seat_file(sub, "d", [(time.time(), "s4", 10, 10)])
+    _cr(run_dir, "dispatch", "--seats", "1")
+    _cr(run_dir, "round", "--findings", "0", "--classes-swept", "a")
+    p = _cr(
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-review-scoped",
+        "--evidence",
+        "x",
+        "--feedback",
+        "confusion: none · waste: none · change: none · filed: none — surfaces exercised: y",
+    )
+    assert p.returncode == 0, p.stderr
+    p = _cr(run_dir, "round", "--findings", "0", "--classes-swept", "a")
+    assert "seat transcript(s) since" not in p.stderr
