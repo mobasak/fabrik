@@ -2498,17 +2498,16 @@ def test_retired_dir_rows_persist_because_the_source_is_deliberately_kept(tmp_pa
 
 
 def _reap_zombie_rows(ledger: dict[str, str], project_dir: Path, wt: Path) -> dict[str, str]:
-    """The reap predicate from `resync_worktree_artifacts`, exercised directly.
+    """Drive the REAL reap predicate — `sync_enforcement_to_projects.reap_zombie_rows`.
 
-    Mirrors `scripts/sync_enforcement_to_projects.py` (`if source_gone and dest_gone: del ...`).
-    Kept as a local mirror because the real function is a 250-line method with filesystem and
-    ledger-writing side effects; the PREDICATE is what this test pins, and a change to it in the
-    real file must be mirrored here — which is the point: the mirror makes the change visible.
+    This was a hand-written MIRROR of the production predicate, with a docstring arguing that a
+    mirror "makes the change visible". A mirror does not make a change FAIL: disabling the real
+    reap left this test GREEN while its heavier integration sibling
+    `test_zombie_ledger_row_is_reaped_when_both_source_and_file_are_gone` correctly went red
+    (proven by mutation on a scratch clone, 2026-09-08). Commit a104e8c2's message claimed this
+    test "drives the reap predicate directly" while it drove a copy — the claim was the defect.
+    The predicate is now module-level in the production file so this wrapper can call it.
     """
     out = dict(ledger)
-    for zombie_rel in list(out):
-        source_gone = not (project_dir / zombie_rel).exists()
-        dest_gone = not (wt / zombie_rel).exists()
-        if source_gone and dest_gone:
-            del out[zombie_rel]
+    sync.reap_zombie_rows(out, project_dir, wt)
     return out

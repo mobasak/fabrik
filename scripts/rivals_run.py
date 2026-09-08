@@ -95,7 +95,14 @@ def _resolve_engine() -> str:
                 sys.path.insert(0, parent)
             return "local"
     if (HUB_LIBS / "competitor_intel").is_dir():
-        sys.path.insert(0, str(HUB_LIBS))
+        # APPEND and guard, mirroring the local branch above and `main()`'s key-loader. An
+        # unguarded `insert(0)` here undid that append twenty lines later: the hub landed at
+        # sys.path[0] AND was duplicated, so a project's own `libs/deep_research` /
+        # `libs/web_tools.py` were shadowed by the hub's again (round 8d — latent, 2 of 43 repos
+        # own such a copy today and they differ from the hub only by one pack file). The hub is a
+        # FALLBACK: it must be searched last, whichever branch puts it there.
+        if str(HUB_LIBS) not in sys.path:
+            sys.path.append(str(HUB_LIBS))
         return "hub"
     raise PreflightError(
         f"the competitor-intel engine is in neither {REPO / 'libs'} nor {HUB_LIBS}. Vendor it "
@@ -1089,13 +1096,57 @@ def main(argv: list[str] | None = None) -> int:
         # layout, `subagents/` is fabrik-lib's canonical home for the module. Hard-coding the
         # first made the autoload raise in the second, and preflight then reported the search
         # keys "not set" when they were present in that repo's .env (fabrik-lib 01M14SG0RQ).
-        for _cand in (REPO, REPO / "libs"):
-            if (_cand / "subagents").is_dir() and str(_cand) not in sys.path:
-                sys.path.insert(0, str(_cand))
+        # HUB_LIBS is the third candidate, and it is the one that matters since D-196: this script
+        # is a CORE_SCRIPT synced to every project, but `libs/subagents` was retired from
+        # VENDORED_DIRS, so a project no longer HAS it — and a project scaffolded after 2026-09-08
+        # never did. Without this fallback the autoload below raises, preflight reports the search
+        # keys "not set" when they sit in that repo's own .env, and `/fabrik-rivals` exits 2 in
+        # every project (proven by fixture, 2026-09-08: absent → WIRING ERROR rc 2, present → ok
+        # rc 0). The engine resolution 20 lines above already falls back to HUB_LIBS; the KEY
+        # loader did not, and the retirement turned that asymmetry into a fleet-wide break.
+        # FIRST MATCH WINS, and the hub is LAST. The first version of this fix inserted every
+        # candidate, which put /opt/fabrik/libs ahead of the project's own libs at sys.path[0] —
+        # so `_resolve_engine()` bound the HUB's competitor_intel while still printing "local",
+        # in ~45 repos, against a shared tree three sessions write to. That is the same hazard
+        # D-202 removed from the fleet sync, reintroduced through sys.path (caught by the closing
+        # seat, red-on-revert on two fixtures). `HUB_LIBS.parent` was also dropped: /opt/fabrik
+        # has no `subagents/`, so it could never help, and if it ever did it would put the hub
+        # root at sys.path[0] and shadow every top-level `scripts`/`src`/`tests` in the project.
+        for _cand in (REPO, REPO / "libs", HUB_LIBS):
+            if (_cand / "subagents").is_dir():
+                if str(_cand) not in sys.path:
+                    if _cand == HUB_LIBS:
+                        # APPEND, never insert. `insert(0, …)` put /opt/fabrik/libs at the FRONT of
+                        # sys.path in every project — so the hub's `competitor_intel`,
+                        # `health_probe`, `deep_research` and `web_tools` shadowed the project's own
+                        # vendored copies, while `_resolve_engine()` still printed "local". Ordering
+                        # the CANDIDATES hub-last did not fix that, because insert(0) ignores
+                        # candidate order; only the insertion POSITION decides the search order.
+                        # The hub is a fallback, so it must be searched LAST. (Two closing sweeps
+                        # to see this: the first fix moved the loop, the second moved the position.)
+                        sys.path.append(str(_cand))
+                    else:
+                        sys.path.insert(0, str(_cand))
+                break
+        # ⚠️ The package autoloads `load_env(os.getcwd())` AT IMPORT, and `_dotenv` documents
+        # "real env (already set) wins" — so an explicit `load_env(REPO)` AFTER the import cannot
+        # override what the cwd's .env already set. `/fabrik-rivals` runs from ANY repo, so a
+        # hub-driven run for project P was silently using the HUB's search keys while preflight
+        # reported keys present: wrong keys, no warning. Suppressing the cwd autoload makes the
+        # project's own .env the only one that loads. (Caught by the closing seat; the fail
+        # direction changed the moment the hub module became importable from everywhere.)
+        _prior = os.environ.get("SUBAGENTS_NO_AUTOLOAD")
+        os.environ["SUBAGENTS_NO_AUTOLOAD"] = "1"
         try:
-            from libs.subagents import load_env
-        except ModuleNotFoundError:
-            from subagents import load_env  # canonical fabrik-lib layout
+            try:
+                from libs.subagents import load_env
+            except ModuleNotFoundError:
+                from subagents import load_env  # canonical fabrik-lib layout
+        finally:
+            if _prior is None:
+                os.environ.pop("SUBAGENTS_NO_AUTOLOAD", None)
+            else:
+                os.environ["SUBAGENTS_NO_AUTOLOAD"] = _prior
 
         load_env(str(REPO))
     except Exception as exc:  # pragma: no cover - the autoload is a convenience, never a hard dep

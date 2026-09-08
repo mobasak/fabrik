@@ -269,11 +269,10 @@ def _declared(surface: str, seeded: frozenset[str] = frozenset()) -> bool:
     """
     if surface in seeded:
         return True
-    for d in DECLARED_NON_TRIGGERS:
-        base = d.rstrip("/")
-        if surface == base or surface.startswith(base + "/"):
-            return True
-    return False
+    # ONE implementation, called — not restated. The first version of `_declared_matches` claimed
+    # in its own docstring that writing this twice was the mirror defect, and then left this copy
+    # in place; `_declared` never called it (caught by the closing seat).
+    return any(_declared_matches(d, surface) for d in DECLARED_NON_TRIGGERS)
 
 
 # Tolerates the spellings a shell author actually uses. The first version understood only
@@ -282,34 +281,179 @@ def _declared(surface: str, seeded: frozenset[str] = frozenset()) -> bool:
 _PWD_GUARD_RE = re.compile(r'(?:\$\(pwd\)|\$PWD|\$\{PWD\})"?\s*[!=]?==?\s*"?(/[^"\s\]]+)')
 
 
+def _inert_is_unknown(inert: str) -> bool:
+    """True when the caveat is an UNKNOWN rather than a proven-inert sync.
+
+    ONE predicate, two call sites. The three-state fix originally landed on `main()`'s clean path
+    only, so the FAILING path still glued an unknown to "fixing the gap here still distributes
+    nothing" — asserting on no evidence the exact thing the fix was written to stop asserting, one
+    branch away (round 8e). Two sites testing the same string separately is how that happened.
+    """
+    return "could not be determined" in inert
+
+
 def sync_is_inert_here(config: Path, root: Path) -> str | None:
     """Why a commit from THIS checkout would distribute nothing, or None if the sync can fire.
 
-    The governance-sync hook body is wrapped in `if [ "$(pwd)" = "/opt/fabrik" ]`, so from a `git
-    worktree` of the hub it never executes — and `sync_enforcement_to_projects.py` hardcodes the
-    same root, so even if it did it would ship the MAIN checkout's files. Reporting "every synced
-    surface triggers a sync" there is a FALSE GREEN about the very thing this gate exists to
-    guarantee: an agent edits a rule in a worktree, commits, sees the tick, and zero repos receive
-    it. Filter coverage is still genuinely complete, so this is a truthful caveat, not a failure
-    (failing would red every worktree gate for a condition the author cannot fix in the filter).
+    The governance-sync hook's body is a WRAPPER SCRIPT, and the `$(pwd)` guard lives in THAT
+    script — `scripts/governance_sync_postcommit.sh` — not in `.pre-commit-config.yaml`. From a
+    `git worktree` of the hub the guard exits 0 immediately, and `sync_enforcement_to_projects.py`
+    hardcodes the same root, so even if it ran it would ship the MAIN checkout's files. Reporting
+    "every synced surface triggers a sync" there is a FALSE GREEN about the very thing this gate
+    exists to guarantee: an agent edits a rule in a worktree, commits, sees the tick, and zero
+    repos receive it. Filter coverage is still genuinely complete, so this is a truthful caveat,
+    not a failure (failing would red every worktree gate for a condition the filter cannot fix).
+
+    ⚠️ This used to scan the WHOLE `.pre-commit-config.yaml` for any `$(pwd)` guard and attribute
+    whatever it found to `governance-sync`. It was right only by coincidence — an unrelated hook
+    (`command-corpus-check`) guards the same literal — and a fixture with the guard on a DIFFERENT
+    hook made it emit a message NAMING governance-sync for a guard that was not its own (proven
+    2026-09-08 by the independent closing pass). It now reads the wrapper the hook actually
+    invokes, and says so when it cannot find one.
+    """
+    entry = _governance_sync_entry(config)
+    if entry is None:
+        # A hook with no readable `entry:` executes NOTHING. Returning None here asserted "the
+        # sync CAN fire" — the most confident verdict this gate has, handed to the strongest
+        # evidence of a broken hook. That is the same inversion round 8c fixed twenty lines down
+        # (an unreadable wrapper), recurring one frame UP the call chain: the structural fix moved
+        # the fail-open rather than closing it. `main()` branches on "could not be determined",
+        # so the --force advice stays correctly suppressed.
+        return (
+            f"the governance-sync hook's entry: could not be read from {config} — whether a "
+            f"commit from {root} fires a sync could not be determined"
+        )
+    script = _guard_script(entry, root)
+    if script is None:
+        # NOT None: an unidentifiable wrapper is an UNKNOWN, and returning None here would assert
+        # "the sync can fire" on no evidence — the failure this function exists to prevent.
+        return (
+            "the governance-sync hook's entry names no readable wrapper script "
+            f"({entry!r}) — whether a commit from {root} fires a sync could not be determined"
+        )
+    try:
+        text = script.read_text(encoding="utf-8")
+    except OSError:
+        # A named wrapper that does NOT EXIST is the strongest evidence of a broken hook there is —
+        # stronger than one we merely could not parse. Returning None here said "the sync can fire";
+        # the weaker unknown above returned a caveat. The two fail directions were inverted relative
+        # to their evidence, five lines apart (closing sweep).
+        return (
+            f"the governance-sync hook names a wrapper this checkout cannot read ({script}) — "
+            "a commit from here fires no sync"
+        )
+    for m in _PWD_GUARD_RE.finditer(text):
+        guarded = Path(m.group(1))
+        if guarded != root:
+            return (
+                f"the governance-sync hook's wrapper ({script.name}) only runs when pwd is "
+                f"{guarded}, but this checkout is {root} — a commit from here fires NO sync "
+                "and distributes nothing"
+            )
+    return None
+
+
+def _governance_sync_entry(config: Path) -> str | None:
+    """The governance-sync hook's `entry:`, read with the YAML PARSER this file already imports.
+
+    ⚠️ THE ROOT FIX, and the reason it is worth naming: the first three versions of this hand-rolled
+    a regex over the same file that `trigger_pattern` (20 lines up) parses with `yaml.safe_load`.
+    Every single entry-shape defect the review found here — a double-quoted entry, a single-quoted
+    id, a folded `entry: >`, a trailing `# comment`, a missing key — is a shape the real parser
+    handles for free, and each was fixed by adding one more special case to the regex, which is
+    what kept generating the next one. Three closing sweeps, six findings, all of one class.
+
+    So: parse it. The PyYAML-absent fallback mirrors `trigger_pattern`'s, scoped to this hook's own
+    block, because a gate must still answer when the dependency is missing.
     """
     try:
         text = config.read_text(encoding="utf-8")
     except OSError:
         return None
-    for m in _PWD_GUARD_RE.finditer(text):
-        guarded = Path(m.group(1))
-        if guarded != root:
-            return (
-                f"the governance-sync hook only runs when pwd is {guarded}, but this checkout is "
-                f"{root} — a commit from here fires NO sync and distributes nothing"
-            )
+    try:
+        import yaml
+    except ImportError:
+        yaml = None  # type: ignore[assignment]
+    if yaml is not None:
+        try:
+            data = yaml.safe_load(text) or {}
+        except Exception:  # noqa: BLE001 — an unparseable config is an UNKNOWN, not a green
+            return None
+        if not isinstance(data, dict):
+            return None
+        for repo in data.get("repos", []) or []:
+            for hook in (repo or {}).get("hooks", []) or []:
+                if (hook or {}).get("id") == "governance-sync":
+                    entry = (hook.get("entry") or "").strip()
+                    return entry or None
+        return None
+    block = re.search(
+        r"^\s*-\s*id:\s*['\"]?governance-sync['\"]?[^\S\n]*(?:#[^\n]*)?$(.*?)(?=^\s*-\s*id:|\Z)",
+        text,
+        re.M | re.S,
+    )
+    if block is None:
+        return None
+    entry = re.search(r"^\s*entry:\s*(.+)$", block.group(1), re.M)
+    return entry.group(1).strip() if entry else None
+
+
+def _guard_script(entry: str, root: Path) -> Path | None:
+    """The wrapper script an `entry:` invokes, if it names one this checkout has.
+
+    Quotes are STRIPPED per token. The first version split on whitespace and matched a bare
+    `.sh` suffix, so `entry: "bash x.sh"`, `entry: 'bash x.sh'` and `bash -c '… x.sh'` all
+    returned None — and None means "the sync can fire", the exact FALSE GREEN this function
+    exists to kill. `.pre-commit-config.yaml` already carries a double-quoted entry, so that
+    shape is live in this file today (caught by the closing seat, 5 of 9 shapes failing open).
+    The sibling parser in `tests/test_exec_bits.py` strips quotes; two hand-rolled parsers in
+    one change that disagreed with each other.
+    """
+    for raw in entry.split():
+        token = raw.strip("\"'")
+        if token.endswith(".sh"):
+            p = Path(token)
+            return p if p.is_absolute() else root / p
     return None
 
 
 def _probe(path: str) -> str:
     """A concrete path to test the regex against (a directory entry needs a child)."""
     return f"{path}probe.py" if path.endswith("/") else path
+
+
+def dead_declarations(seeded: frozenset[str] = frozenset()) -> list[str]:
+    """Entries in ``DECLARED_NON_TRIGGERS`` that no longer match ANY real synced surface.
+
+    The gate walks manifest → filter and asks "is this surface declared?". Nothing ever walked the
+    other way, so an exemption whose subject has been retired stayed in the tuple forever, matching
+    nothing and warning no one. That is not dead weight: D-196/D-198 both classify the vendored-dir
+    retirement REVERSIBLE ("re-add the entry"), and on that sanctioned undo a stale exemption
+    SILENTLY exempts the module from trigger coverage — a hub edit to it stops being required to
+    fire a fleet sync while this gate still prints OK.
+
+    `libs/subagents` was exactly that entry and was deleted by hand (D-199). The hand-deletion left
+    the MECHANISM unbuilt, so the next retirement would recreate it; the independent closing pass
+    (2026-09-08) built this. Advisory, never blocking: a dead entry misleads, it does not break a
+    sync, and a gate that hard-fails on tidiness gets waived into uselessness.
+    """
+    # `seeded` names SURFACES, so it filters surfaces — testing the ENTRY against it (as the
+    # first version did) is a different predicate that would have gone wrong the moment a caller
+    # passed one. Latent, and fixed before it could be wired.
+    surfaces = [s for s in synced_surfaces() if s not in seeded]
+    return [e for e in DECLARED_NON_TRIGGERS if not any(_declared_matches(e, s) for s in surfaces)]
+
+
+def _declared_matches(entry: str, surface: str) -> bool:
+    """One entry's match, with `_declared`'s EXACT semantics — never a second implementation.
+
+    `_declared` normalises with `rstrip("/")` and then matches exact-or-directory-prefix. Writing
+    that logic twice is the mirror defect this same review fixed in `test_sync_worktree_adoption`:
+    a copy cannot make a change fail. Kept as one expression so the two cannot drift; if
+    `_declared` changes, this must change with it and the graders below say so.
+    """
+    base = entry.rstrip("/")
+    return surface == base or surface.startswith(base + "/")
 
 
 def uncovered(root: Path | None = None) -> list[str]:
@@ -372,14 +516,37 @@ def main(argv: list[str] | None = None) -> int:
         print(f"✗ sync-trigger coverage: unexpected {type(e).__name__}: {e}")
         return 1
     if not gaps:
+        # The reverse walk, ADVISORY and on the success path: a dead exemption never breaks a
+        # sync, it just misleads — and a gate that hard-fails on tidiness gets waived. It is
+        # printed HERE because the first version of this fix defined the function and called it
+        # from nowhere: the only enforcement was pytest, and the hub's pytest leg is OFF by
+        # design, so `final_gate --json` printed ✓ with the landmine back in place.
+        try:
+            _dead = dead_declarations()
+        except Exception as exc:  # a gate must never emit a bare traceback to the fleet (:460)
+            print(f"⚠ dead-exemption walk skipped ({type(exc).__name__}: {exc})")
+            _dead = []
+        for entry in _dead:
+            print(
+                f"⚠ dead exemption: {entry!r} in DECLARED_NON_TRIGGERS matches no synced surface "
+                "— on the documented re-add path it would silently exempt that surface again"
+            )
         inert = sync_is_inert_here(FABRIK_ROOT / ".pre-commit-config.yaml", FABRIK_ROOT)
         if inert:
             print("✓ sync-trigger coverage: the filter covers every synced surface")
-            print(f"⚠ but the sync CANNOT FIRE from this checkout — {inert}.")
-            print(
-                "  Commit from the main checkout, or run "
-                "scripts/sync_enforcement_to_projects.py --force yourself."
-            )
+            # THREE states, not two. "could not be determined" is not "CANNOT FIRE", and the
+            # --force remediation must not be advised on an UNKNOWN: that command is the
+            # unattended working-tree push D-202 removed as a hazard, so recommending it on no
+            # evidence would have this gate advising the thing a sibling surface calls dangerous
+            # (closing sweep — two hub surfaces giving opposite advice about one command).
+            if _inert_is_unknown(inert):
+                print(f"⚠ the sync's trigger could not be DETERMINED from this checkout — {inert}.")
+            else:
+                print(f"⚠ but the sync CANNOT FIRE from this checkout — {inert}.")
+                print(
+                    "  Commit from the main checkout, or run "
+                    "scripts/sync_enforcement_to_projects.py --force yourself."
+                )
             return 0
         print("✓ sync-trigger coverage: every synced surface triggers a sync or is declared")
         return 0
@@ -387,7 +554,10 @@ def main(argv: list[str] | None = None) -> int:
     if inert:
         # Also on the FAILING path: an agent in a worktree who fixes the gap still ships nothing,
         # and without this would never be told (review finding).
-        print(f"⚠ note: {inert} — fixing the gap here still distributes nothing.")
+        if _inert_is_unknown(inert):
+            print(f"⚠ note: {inert} — whether fixing the gap here distributes anything is UNKNOWN.")
+        else:
+            print(f"⚠ note: {inert} — fixing the gap here still distributes nothing.")
     print("✗ sync-trigger coverage — these are DISTRIBUTED fleet-wide but editing them fires NO")
     print("  governance-sync, so a commit ships nothing and the fleet keeps the old copy:")
     for g in gaps:

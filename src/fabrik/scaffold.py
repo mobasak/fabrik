@@ -1377,7 +1377,7 @@ def _scaffold_shared(
         f"# Optional - subagent pool flywheel (record_agent_run scoring feeds pick_models)\n"
         f"# INSERT-only writer DSN for fabrik_analytics.subagent_runs; the hub injects the real\n"
         f"# value via `fabrik apply` (create_subagent_ins_role + inject_env). Unset = record_agent_run\n"
-        f"# fail-opens (no row written, no crash). The vendored subagents module autoloads this from .env.\n"
+        f"# fail-opens (no row written, no crash). Consumed by a subagents-pool client if this project vendors one. ⚠️ Since D-196 a NEW project does NOT ship `libs/subagents` (it left VENDORED_DIRS), and the pool is OFF by ruling (D-181/D-182) — so nothing in a fresh scaffold reads this today.\n"
         f"# SUBAGENT_RUNS_DSN=postgresql://<writer>:<pass>@postgres-main:5432/fabrik_analytics\n"
         f"# SUBAGENT_PROJECT={name}\n"
     )

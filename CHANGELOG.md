@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the vendored-dirs retirement review closes: nine defects in its own fixes, and the loop's real foundation error (2026-09-08)
+
+- Closed `/fabrik-review` of the D-196/D-198/D-199 `libs/subagents` retirement, taken over as INDEPENDENT author after the original run closed `BLOCKED: NON-CONVERGENCE` at seven rounds. Twelve rounds total; the six open record-accuracy items all closed, plus nine live defects the independent rounds found in the prior rounds' fixes.
+- ROOT FIX: `check_sync_trigger_coverage.py::_governance_sync_entry` now parses `.pre-commit-config.yaml` with `yaml.safe_load` instead of hand-rolled regexes. The regex path survives only as an explicitly fail-closed PyYAML-absent fallback; a hook whose entry cannot be determined is reported UNKNOWN, never green. This is the change the whole trend turned on — the loop converged the round mechanism was REMOVED rather than added.
+- `scripts/distribute_subagents.sh`: the unattended fleet sync is REMOVED (D-202). Its trigger was inverted — it fired only for the module it no longer distributes, and shipped whatever WIP the hub tree happened to hold. The stale header was replaced, not appended to, and the FAIL-CLOSED and lock-count comments corrected (2 of 47).
+- `check_synced_unmodified.py`: the retired-vendored-dir skip moved ABOVE the exists/hash branch, so a retired module tolerates deletion as well as edit.
+- `scripts/rivals_run.py`: the hub-libs key loader appends rather than `insert(0)`, so candidate order is honoured; `_resolve_engine()` no longer undoes it twenty lines later.
+- Guards: `tests/test_sync_trigger_coverage.py` 22 → 87 tests (yaml-shape matrix, a WITHOUT-PyYAML mirror, block-scalar fail-closed, and decoy-before/decoy-after graders), plus hub-source-exists and retired-deletion-is-not-drift guards with controls. Suite 230 passed.
+
 ### Changed — the account flip line moves 95 → 98; the no-successor mail stays at 90 (2026-09-08)
 
 Operator rule (D-201): "we can switch a lot faster now so i want to utilize them better — switch as

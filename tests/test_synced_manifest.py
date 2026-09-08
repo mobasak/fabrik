@@ -6,6 +6,8 @@ filter that prevents spurious drift in ``check_synced_unmodified.py``).
 
 from __future__ import annotations
 
+import hashlib
+import json
 import sys
 from pathlib import Path
 
@@ -374,4 +376,87 @@ def test_worktreeinclude_skips_every_group_in_retired_gitignore_groups(
     assert "libs/retired_two/" not in m.worktreeinclude_text().splitlines(), (
         "worktreeinclude_text() skipped only ONE hardcoded group — a second retired group would "
         "be copied into every new worktree in ~46 repos"
+    )
+
+
+def test_the_hub_source_of_a_retired_vendored_dir_still_exists() -> None:
+    """The ONLY stated reason the hub keeps `libs/subagents` is an invariant nothing guarded.
+
+    `fabrik_synced_manifest.py` says the hub source stays because "some hub scripts import the
+    module at MODULE level without a guard, so deleting the source breaks them". The review that
+    retired the dir then PROVED the completion gate is blind to it — with the module made
+    unimportable, all four gate-wired checks still exit 0 — and shipped no guard for the claim.
+
+    Measured 2026-09-08 (count corrected by the closing sweep — the first draft said "two" while
+    its own command returns four files, three of them non-test): THREE live hub scripts import it
+    unguarded at module level, and one runs from cron —
+      * `scripts/sysadmin/canary_grounding.py:45` — weekly, `15 6 * * 0`, output to a log nobody reads
+      * `scripts/classify_services.py:36`
+      * `scripts/kilo-benchmarks/flush_subagent_outboxes.py:43`
+    So an agent who reads D-196/D-198's own language ("the fleet stops restoring what 46 repos are
+    deleting", "HUB-ONLY", and the pool is OFF) and deletes the hub copy gets a GREEN final_gate,
+    a silent pytest leg (OFF in the hub by design), and a weekly canary that dies unattended.
+    This pins the fact in HEAD, the way `tests/test_exec_bits.py` pins a mode.
+    """
+    root = Path(__file__).resolve().parents[1]
+    for retired in m.RETIRED_VENDORED_DIRS:
+        pkg = root / retired / "__init__.py"
+        assert pkg.is_file(), (
+            f"{retired} is RETIRED from the fleet sync but its HUB source is gone ({pkg}). "
+            "Retired means 'no longer distributed', NOT 'deletable here': hub scripts still "
+            "import it unguarded at module level — re-derive with "
+            "`grep -rln '^from libs.subagents\\|^import libs.subagents' scripts/` — and one of "
+            "them is on a weekly cron. Restore it, or guard every hub importer first."
+        )
+
+
+def test_deleting_a_retired_vendored_dir_is_not_reported_as_drift(tmp_path) -> None:
+    """`RETIRED_VENDORED_DIRS` tells a project it may delete the dir; the gate must agree.
+
+    `check_synced_unmodified.py` iterates the project's `.fabrik/synced.lock` — a FROZEN snapshot
+    rewritten only by a sync — and treats a row whose file is absent as a hard failure. So a
+    project that follows the retirement's own instruction reds `final_gate`, and in any target the
+    sync no longer reaches it can NEVER be cleared. Measured 2026-09-08: 2 of 47 locks under /opt
+    still carried the 26 `libs/subagents` rows, both in worktree-shaped repos the sync skips by
+    design, both belonging to fabrik-lib — the repo that requested the retirement.
+    """
+    import subprocess
+
+    if not m.RETIRED_VENDORED_DIRS:
+        pytest.skip("nothing retired — the documented un-retire path, not a failure")
+    retired = m.RETIRED_VENDORED_DIRS[0]
+    (tmp_path / ".fabrik").mkdir()
+    (tmp_path / "kept.txt").write_text("x", encoding="utf-8")
+    lock = {
+        f"{retired}/agent.py": "0" * 32,  # retired + absent → the sanctioned deletion
+        "kept.txt": hashlib.md5(b"x").hexdigest(),
+        # THE CONTROL. Without it, a fix that skips EVERY missing row — gutting deletion detection
+        # for the whole fleet — passes this test just as happily (proven by mutation: the same
+        # mutant turned a real deletion of scripts/final_gate.py from red to green). A guard whose
+        # positive case is untested only proves the skip fires, never that it fires NARROWLY.
+        "scripts/not_retired_and_deleted.py": "1" * 32,
+    }
+    (tmp_path / ".fabrik" / "synced.lock").write_text(json.dumps(lock), encoding="utf-8")
+
+    out = subprocess.run(
+        [
+            sys.executable,
+            str(
+                Path(__file__).resolve().parents[1]
+                / "scripts/enforcement/check_synced_unmodified.py"
+            ),
+            "--project-root",
+            str(tmp_path),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert out.returncode == 1, (
+        "the CONTROL row (a non-retired file, deleted) must still be reported — a skip this wide "
+        f"would gut deletion detection fleet-wide:\n{out.stdout}{out.stderr}"
+    )
+    assert "scripts/not_retired_and_deleted.py" in out.stdout, out.stdout
+    assert retired not in out.stdout, (
+        "the RETIRED dir was reported as drift — the gate contradicts the retirement's own "
+        f"sanctioned action and no sync can ever clear it:\n{out.stdout}"
     )

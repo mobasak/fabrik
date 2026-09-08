@@ -1117,6 +1117,33 @@ def _sync_dir_into_worktree(
     return copied, deletions, warnings, authored
 
 
+def reap_zombie_rows(authored: dict, project_dir: Path, wt: Path) -> int:
+    """Drop every row whose MAIN-CHECKOUT source AND worktree file are both gone. Returns the count.
+
+    Extracted from ``resync_worktree_artifacts`` so a test can drive THE predicate rather than a
+    copy of it. It was inline, and `tests/test_sync_worktree_adoption.py` pinned it with a
+    hand-written mirror function — which meant disabling the real reap left that test GREEN while
+    only a heavier sibling integration test caught it (proven by mutation, 2026-09-08). A mirror
+    makes a change *visible* only to a reader who already knows to look at both; it cannot make a
+    change *fail*, which is the only thing a guard is for.
+
+    Mutates `authored` in place, as the caller's merge semantics require. Fail direction is
+    UNCHANGED and deliberate: an OSError on either probe SKIPS that row — never reap a row whose
+    state could not be verified.
+    """
+    reaped = 0
+    for zombie_rel in list(authored):
+        try:
+            source_gone = not (project_dir / zombie_rel).exists()
+            dest_gone = not (wt / zombie_rel).exists()
+        except OSError:
+            continue  # can't verify — never reap a row we're unsure about
+        if source_gone and dest_gone:
+            del authored[zombie_rel]
+            reaped += 1
+    return reaped
+
+
 def resync_worktree_artifacts(
     project_dir: Path,
     dry_run: bool = False,
@@ -1387,14 +1414,7 @@ def resync_worktree_artifacts(
             # Nothing left to copy (no source) and nothing left to protect (no
             # destination): the row asserts nothing true about this worktree
             # anymore.
-            for zombie_rel in list(authored_this_run):
-                try:
-                    source_gone = not (project_dir / zombie_rel).exists()
-                    dest_gone = not (wt / zombie_rel).exists()
-                except OSError:
-                    continue  # can't verify — never reap a row we're unsure about
-                if source_gone and dest_gone:
-                    del authored_this_run[zombie_rel]
+            reap_zombie_rows(authored_this_run, project_dir, wt)
             # THIS worktree's own record of what was actually confirmed present here
             # this run — never the copied main lock — for the NEXT resync's prune and
             # copy-safety checks.
@@ -1749,11 +1769,12 @@ def sync_scripts_to_project(
                     )
                     file_results.append(result)
 
-        # Sync vendored fabrik-lib modules (libs/subagents pool) — recursive flat copy, bytecode
+        # Sync vendored fabrik-lib modules — whatever VENDORED_DIRS holds — recursive flat copy, bytecode
         # excluded (same rule as the enforcement dir), WITH orphan pruning: a Python module churns, so
         # a file REMOVED from the hub must be removed from every project too — else a stale
-        # `from libs.subagents import <gone>` keeps resolving to dead code. Hub source is kept
-        # byte-identical to canonical /opt/fabrik-lib/subagents by re-vendoring before a sync.
+        # `from libs.<module> import <gone>` keeps resolving to dead code. ⚠️ `libs/subagents` is NOT
+        # in this list since D-196 — it is RETIRED, and this loop never touches it; naming it here as
+        # the example was stale from the day of the retirement (found by the independent closing pass).
         for vendored_rel in VENDORED_DIRS:
             fabrik_vendored = FABRIK_ROOT / vendored_rel
             project_vendored = project_dir / vendored_rel
@@ -2171,7 +2192,18 @@ def _unreachable_vendored_copies(projects: list[Path]) -> list[str]:
         for vendored_rel in dict.fromkeys([*VENDORED_DIRS, *RETIRED_VENDORED_DIRS]):
             leaf = Path(vendored_rel).name
             target = project_dir / vendored_rel
-            for dirpath, dirnames, filenames in os.walk(project_dir):
+
+            # onerror is NOT optional here. os.walk's default SWALLOWS PermissionError/OSError,
+            # so a stray copy under a mode-700 or root-owned subtree is simply never seen and this
+            # returns "0 unreachable" — indistinguishable from a clean fleet. The retirement made
+            # this diagnostic more load-bearing, not less (a retired dir is exactly when an
+            # unreachable copy matters most), so it must report what it could not look at rather
+            # than fail open. Found 2026-09-08 by the independent closing pass; latent, not fired
+            # (the live run over 45 targets reports exactly the two known strays).
+            def _unwalkable(err: OSError, _found: list[str] = found) -> None:
+                _found.append(f"<unwalkable: {err.filename} ({type(err).__name__})>")
+
+            for dirpath, dirnames, filenames in os.walk(project_dir, onerror=_unwalkable):
                 dirnames[:] = [d for d in dirnames if d not in _PRUNE_DIRS]
                 if (
                     Path(dirpath).name == leaf

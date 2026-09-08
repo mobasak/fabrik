@@ -1,8 +1,8 @@
 # Review — vendored-dirs-subagents-retirement
 
-**Status:** IN-PROGRESS
-**Surface:** `git rev-parse HEAD` = c4b1b90ce96ced2327070422b430a9f5c9dbbd83; range tip d7c45b0445372b9f67a92371543c5b49e9db6048; `git diff d7c45b04^..d7c45b04 -- scripts/fabrik_synced_manifest.py tests/test_synced_manifest.py tests/test_sync_trigger_coverage.py templates/governance/.worktreeinclude docs/DECISIONS.md docs/reference/agents/intel.md CHANGELOG.md` md5 b5dea1e29b64b4b24dbcbd7bdfd8d1aa (20447 bytes)
-**Command:** /fabrik-review · **Changed:** `scripts/fabrik_synced_manifest.py`, `tests/test_synced_manifest.py`, `tests/test_sync_trigger_coverage.py`, `templates/governance/.worktreeinclude`, `docs/DECISIONS.md`, `docs/reference/agents/intel.md`, `CHANGELOG.md`
+**Status:** CONVERGED — 2026-09-08, on round **8g**, under the exit rule the operator re-cut mid-review (**D-203**). Twelve rounds, trend `15 · 6 · 14 · 1 · 3 · 12 · 9` then `18 · 9 · 13 · 4 · 3 · 3 · 1`. ⚠️ Read the flip honestly: round 8g did **not** return `found: 0`. It returned ONE candidate, and under the rule in force at the time that forbade the flip. D-203 redefines a quiet round as one whose partitioned pass confirms **zero code or doc defects**, and rules that **refuted candidates never count** (superseding D-048, the rule that kept this review open). 8g's single candidate was a LATENT grader gap on a shape not reachable in the live config — no code defect, no doc defect — so 8g was quiet by the new definition and by no other. The fix for it was made anyway and CONFIRMED BY EXECUTION as D-203 requires: the new grader is red against the exact mutant (unbounded block regex `$(.*)`) that had survived all 86 prior tests, and green restored at 87. ⚠️ This flip is therefore a RULE CHANGE applied to a standing verdict, not a new finding — it is recorded that way deliberately, because the alternative reading ("round 13 finally came back clean") is false and would teach the wrong lesson to whoever reads this next.
+**Surface:** `git rev-parse HEAD` = 067213edfac2cba99447c3669aa7e197e5435099; the 8 retirement commits' concatenated `git show` md5 = 8579579d2c4c216efe45a30dc908ba4b over **18 files** (`for c in d7c45b04 09292508 4d9d3407 988fc711 d9679b13 5dd80c26 a104e8c2 54c66406; do git show --name-only --format="" $c; done | sort -u`). ⚠️ The line this replaces recorded `git diff d7c45b04^..d7c45b04 -- <7 paths>` — ONE commit, SEVEN paths. That is why 11 of 18 files had no `Hunt:` row: the surface line never claimed them. It also could not anchor a re-invocation, since a range-scoped hash can never string-match the `git diff HEAD` form the contract compares against — so this run's anchor check DID NOT MATCH, by construction, and a full WIDE pass 1 was owed and run. ⚠️ Do NOT use the range `d7c45b04^..54c66406`: it spans 18 commits and 80 files because three sessions interleaved, and would pull two other agents' work into the surface.
+**Command:** /fabrik-review · **Changed (all 18, re-derived from the 8 commits):** `CHANGELOG.md`, `docs/DECISIONS.md`, `docs/development/reviews/2026-09-08-vendored-dirs-subagents-retirement-review.md`, `docs/LESSONS_LEARNT.md`, `docs/reference/agents/intel.md`, `docs/workflows/SYNC_ENFORCEMENT_WORKFLOW.md`, `INDEX.md`, `scripts/distribute_subagents.sh`, `scripts/enforcement/check_imports_resolvable.py`, `scripts/enforcement/check_sync_trigger_coverage.py`, `scripts/fabrik_synced_manifest.py`, `scripts/sync_enforcement_to_projects.py`, `src/fabrik/scaffold.py`, `templates/governance/.worktreeinclude`, `tests/test_exec_bits.py`, `tests/test_synced_manifest.py`, `tests/test_sync_trigger_coverage.py`, `tests/test_sync_worktree_adoption.py`
 
 ## Coverage Checklist
 
@@ -224,6 +224,17 @@ $ python scripts/review_rubric.py --changed scripts/fabrik_synced_manifest.py te
 | Hunt: `docs/DECISIONS.md` — every changed hunk, its enclosing function, its callers | FIXED(1) — D-198 appended recording both the gitignore defect and the false refusal evidence; `check_decisions_unique.py` green, insertions only. |
 | Hunt: `docs/reference/agents/intel.md` — every changed hunk, its enclosing function, its callers | CLEAN — every figure (14 / 100 / 254 / 3,104 / 6 basenames) re-derived exactly by an independent seat. |
 | Hunt: `CHANGELOG.md` — every changed hunk, its enclosing function, its callers | FIXED(2) — the `17 importers / 12 unguarded / 4 gate-wired` claim corrected, and `seven suites` corrected to ten (tests were counted by pytest, suites by hand; only the tool-produced number was right). |
+| Hunt: `docs/development/reviews/2026-09-08-vendored-dirs-subagents-retirement-review.md` — every changed hunk, its enclosing function, its callers | FIXED(6) — the artifact reviewed as an artifact by the U4 seat + this orchestrator: its `Surface:` line could not anchor and under-described the surface by 11 files (fixed); the Pass Ledger is missing THREE rounds, not the two its own BLOCKED item claims (recorded); its last row was a FIXING pass (this quiet round is now last); the Gate figure said 171 where the review's own commit said 176 (re-measured to 177); Phase 3's verdict was stale at 18 FIXED / 26 rows against a real 28 / 38 (fixed). |
+| Hunt: `docs/LESSONS_LEARNT.md` — every changed hunk, its enclosing function, its callers | CLEAN — U4 read Lesson 151 (the private-index recipe) against the commits that cite it; no claim in it is falsified by the retirement, and the retirement added no lesson that contradicts one. |
+| Hunt: `docs/workflows/SYNC_ENFORCEMENT_WORKFLOW.md` — every changed hunk, its enclosing function, its callers | CLEAN — U4 checked every sentence describing what the sync carries; none still lists `libs/subagents` as vendored or distributed. 0 stale statements of 8 files' worth of prose examined. |
+| Hunt: `INDEX.md` — every changed hunk, its enclosing function, its callers | FIXED(2) — the row this change WROTE shipped its own stale count ('the file held 23' when `git show 5dd80c26:tests/test_synced_manifest.py | grep -c '^def test_'` = 24, at that very commit — a stale count inside the commit retiring a stale count). Three further rows are stale but PRE-EXISTING and untouched by these 8 commits (`test_sync_trigger_coverage` 15 vs 36, `test_scaffold_deploy_contract` 31 vs 44, `test_sync_worktree_adoption` 68 vs 69) — recorded under Residual risks (a), not silently fixed inside this surface's diff. |
+| Hunt: `scripts/distribute_subagents.sh` — every changed hunk, its enclosing function, its callers | FIXED(1) — the header at :4-8 stated the RETIRED fleet-distribution behaviour with the correction APPENDED at :42. Two sources of truth, stale one first, and an operator reads the header. The STALE half is now REPLACED (not appended to) and points at the full contract below. Exec bit verified 100755 in HEAD after the edit — this surface has lost it once already. |
+| Hunt: `scripts/enforcement/check_imports_resolvable.py` — every changed hunk, its enclosing function, its callers | CLEAN — U2 read all 664 lines, ran it live (4,039 imports checked, green), and proved VACUITY negative with a constructed phantom import on PYTHONPATH; `_is_tracked` anchors prefixes with a trailing slash so `libs/subagents` cannot collide with `libs/subagents_old`. Fail direction verified: a non-git dir exits 1, not 0. |
+| Hunt: `scripts/enforcement/check_sync_trigger_coverage.py` — every changed hunk, its enclosing function, its callers | FIXED(2) — `sync_is_inert_here` scanned the WHOLE `.pre-commit-config.yaml` for any `$(pwd)` guard and attributed it to `governance-sync`; the real guard lives in the wrapper `scripts/governance_sync_postcommit.sh:26`. It was right only by coincidence (an unrelated hook guards the same literal), and a fixture with the guard on a different hook made it emit a message NAMING governance-sync for a guard that was not its own. Now reads the hook's own wrapper, scoped by id; graded by `test_the_inert_caveat_reads_the_governance_sync_wrapper_not_any_pwd_guard`, red against the restored whole-file scan. Second: `DECLARED_NON_TRIGGERS` was never walked back against the manifest, so a dead exemption stayed invisible forever — `dead_declarations()` now does, advisory. |
+| Hunt: `scripts/sync_enforcement_to_projects.py` — every changed hunk, its enclosing function, its callers | FIXED(1) — the VENDORED_DIRS loop's header still named `(libs/subagents pool)` as what it syncs, which is precisely the member the constant no longer has; and it described re-vendoring the retired module before each sync. Corrected to name the constant, not a retired member. Found independently by TWO seats (U1 and the H2 mechanical sweep). |
+| Hunt: `src/fabrik/scaffold.py` — every changed hunk, its enclosing function, its callers | FIXED(1) — the scaffold's `.env.example` template still told a new project that 'the vendored subagents module autoloads this from .env', 200 lines below the comment commit 09292508 DID correct. A project scaffolded after 2026-09-08 receives no such module. Same defect species as the `distribute_subagents.sh` header, in the same file as a fix that missed it. |
+| Hunt: `tests/test_exec_bits.py` — every changed hunk, its enclosing function, its callers | FIXED(1) — U3 proved by mutation (a real `git update-index --chmod=-x` + commit) that BOTH tests catch a 100755→100644 flip, which `git diff --numstat` cannot see. But the H3 sweep found the list itself unguarded: removing a script from `HOOK_INVOKED` leaves the suite green, so coverage can silently shrink — the same 'a grader that cannot see a MISSING entry' class as the coverage checker below. Guarded now. |
+| Hunt: `tests/test_sync_worktree_adoption.py` — every changed hunk, its enclosing function, its callers | FIXED(1) — `test_retired_dir_rows_persist_because_the_source_is_deliberately_kept` drove a hand-written MIRROR of the reap predicate defined in the test file, while commit a104e8c2's message claimed it 'drives the reap predicate directly'. Proven inert by mutation. The predicate is now module-level (`sync_enforcement_to_projects.reap_zombie_rows`) and the test calls it; red against the discriminating `dest_gone`-only mutant, green restored. |
 | Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | FIXED(1) — the delisting failed OPEN in the worst direction: it silently removed a protection while the code kept working. The fix's own fail direction is checked by `test_worktreeinclude_skip_is_keyed_on_the_group_constant` (a renamed group fails loudly, not silently). |
 | Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | CLEAN — no cost/limit surface in this diff; seats sized by `dispatch_headroom.py` (5 then 4), stamped before dispatch. |
 | Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | CLEAN — the group key is a module CONSTANT shared by producer and consumer, not a repeated literal; `leaf`-name matching in `_unreachable_vendored_copies` re-verified against both known strays by execution. |
@@ -289,9 +300,17 @@ FIXED: 1-8, 13-20, 22, 26-35, 38. REFUTED: 9-12, 21, 23-25, 36-37. (Row 21 and r
 hand-counting defect the review spent three rounds on, committed inside the ledger that
 documents it. The disposition column is the denominator; this line is derived from it.
 
-## BLOCKED: NON-CONVERGENCE
+## BLOCKED: NON-CONVERGENCE — LIFTED 2026-09-08 (D-203)
 
-**This review is NOT converged and its `Status:` stays IN-PROGRESS.** The exit contract was never
+⚠️ **The diagnosis below is KEPT VERBATIM and is still the honest account of rounds 1-7.** What follows it is the resolution, not a retraction: the six open items were all closed by the independent rounds 8-8g, and the exit itself was unblocked by the operator's D-203 re-cut rather than by a round that finally hit `found: 0`.
+
+**The six open items, each closed and each verifiable:** (1) the Pass Ledger now carries 12 rows and its LAST row is round 8g — the three unlogged rounds are recorded AS a gap rather than back-filled, which is what an honest ledger can say about rounds nobody witnessed; (2) all 18 changed files carry a `Hunt:` row or an explicit not-applicable; (3) the Phase 2/3 verdicts were re-derived, and Phase 3's falsified "every fix carried a guard proven RED first" claim was corrected rather than restated; (4) `scripts/distribute_subagents.sh`'s stale fleet-distribution header was REPLACED, not appended to — the two-sources-of-truth defect the item named; (5) the dead `DECLARED_NON_TRIGGERS` deletion now has a guard; (6) the stale counts were re-measured ("49 project repos" → the live population; the lock figure corrected to 2 of 47, contradicted by my own test file in the round that found it).
+
+**What actually broke the loop, and it was not more rounds.** The prior author's diagnosis — one agent authoring code, fixes, tests and record — was true but insufficient: round 8 was fully independent and still shipped six defects inside its own fixes. The real foundation error is that **the surface accumulated clever mechanism where a library call would do** (hand-rolled YAML regexes, `sys.path` juggling), and every round added more of it. The trend broke the round I REMOVED mechanism instead of adding it — `_governance_sync_entry` rewritten onto `yaml.safe_load`: `18 → 9 → 13 → 4 → 3 → 3 → 1`. D-203's delta-round rule is the systemic fix for the other half (each of these was a full pass over a surface whose fixes had touched four files).
+
+**The superseded verdict, kept for the record:**
+
+**This review was NOT converged and its `Status:` stayed IN-PROGRESS.** The exit contract was never
 met: no round returned `found: 0 · new: 0 · fixed: 0`. Seven rounds, 21 seats, trend
 `15 · 6 · 14 · 1 · 3 · 12 · 9`.
 
@@ -331,13 +350,98 @@ their named mutants. The code is sound. The RECORD is what did not converge.
    correction was APPENDED at line 42 instead of replacing it — two sources of truth, stale one first.
 5. Row 35's fix (deleting the dead `DECLARED_NON_TRIGGERS` entry) has no guard; re-adding the entry
    leaves the suite green.
-6. Assorted stale counts: "171 green" is 176; "49 project repos" matches no live population (41);
+6. Assorted stale counts — ALL NOW CORRECTED by the independent closing pass (2026-09-08): "171 green"
+   was 176 at the time it was written (the review's OWN commit 5dd80c26 said 176) and is 177 today, the
+   extra one being the misattribution grader this pass added; "49 project repos" matched no live
+   population — 41 git repos excluding the three fabrik-* ones, 45 by the sync's own discovery;
    two `INDEX.md` test-count rows.
 
 **Why BLOCKED rather than another round:** the breaker's own instruction is to stop and name the
 foundation error rather than spend round N+1 on the same shape. The honest next step is a pass by an
 agent that did not author this — the independence the closing rounds kept proving is load-bearing —
 not an eighth self-authored round.
+
+## Round 8 — the INDEPENDENT closing pass (fleet, 2026-09-08)
+
+Handed off by infra (mail `01M20HMAP79YT5WKA1QCDX8F3W`, operator-authorised) after seven
+self-authored rounds closed `BLOCKED: NON-CONVERGENCE`. Their diagnosis — one agent authored the
+code, the fixes, the tests AND the record — is accepted and is why this round exists.
+
+⚠️ **Their premise was too kind to the change.** The handoff says "six items, all RECORD accuracy,
+none code correctness". That is false: the MECHANISM is sound (re-verified), but the retirement's
+CONSEQUENCES were never traced, and four of them are live code defects in the surface's own callers.
+Every one sits in a file that had no `Hunt:` row — which is what the missing rows actually cost.
+
+| # | Finding | Disposition |
+|---|---|---|
+| F1 | `scripts/distribute_subagents.sh` still fired an **unattended full-fleet sync**, gated on "did this fabrik-lib commit touch `subagents/`?" — the ONE thing D-196 stopped distributing. The retirement inverted the trigger. `sync_enforcement_to_projects.py` copies WORKING-TREE contents to ~45 repos: **13 synced-surface files carried uncommitted sibling WIP at the moment of the finding**, all of which a fabrik-lib commit would have force-shipped. The artifact called this a doc defect (its item 4); it was a live hazard. | **FIXED · ARCHITECTURAL → D-202** — the sync call removed, the stale header REPLACED not appended to |
+| F2 | `/fabrik-rivals` is **broken in every project**. `rivals_run.py` is a CORE_SCRIPT synced fleet-wide and reads its API keys only via `libs.subagents.load_env`; the retirement removed the module from projects, and the engine's HUB_LIBS fallback was never added to the KEY loader. Proven by fixture: absent → `WIRING ERROR … rc 2`; present → `ok … rc 0`. A project scaffolded today ships the command and cannot run it. | **FIXED · LOCAL** — `HUB_LIBS` added to the key-loader candidates, matching the engine-resolution precedent 20 lines above |
+| F3 | `check_synced_unmodified.py` iterates the project's `.fabrik/synced.lock` — a FROZEN snapshot — and treats a row whose file is absent as a hard failure. `RETIRED_VENDORED_DIRS` tells projects they may delete the dir; doing so reds `final_gate`, and in a target the sync no longer reaches it can NEVER be cleared. **2 of 47 locks under `/opt` still carry the 26 rows**, both worktree-shaped repos the sync skips by design, both belonging to fabrik-lib — the repo that REQUESTED the retirement. | **FIXED · LOCAL** — a retired dir's absence is no longer drift; graded by `test_deleting_a_retired_vendored_dir_is_not_reported_as_drift` |
+| F4 | The LAST fix commit's guard tested a **hand-written mirror** of the reap predicate defined in the test file, while `a104e8c2`'s message claimed it "drives the reap predicate directly". Third instance of the class the review had already diagnosed twice. | **FIXED · LOCAL** — predicate extracted to `sync_enforcement_to_projects.reap_zombie_rows`; the test calls it. Red against the discriminating `dest_gone`-only mutant, green restored |
+| F5 | `sync_is_inert_here` scanned the WHOLE `.pre-commit-config.yaml` for any `$(pwd)` guard and attributed it to `governance-sync`; the real guard is in the wrapper `scripts/governance_sync_postcommit.sh:26`. Right only by coincidence — an unrelated hook guards the same literal — and a fixture with the guard on a different hook made it emit a message NAMING governance-sync for a guard it never read. | **FIXED · LOCAL** — reads the hook's own wrapper, scoped by id; graded, red against the restored whole-file scan |
+| F6 | The D-199 `DECLARED_NON_TRIGGERS` deletion shipped **with no grader** (the artifact's own item 5). Re-planting the landmine left all 36 tests green — proven by mutation twice, independently. | **FIXED · LOCAL** — `dead_declarations()` walks filter → manifest, plus two graders; re-planting now fails 2 tests |
+| F7 | The retirement's ONLY stated reason to keep the hub source — "hub scripts import it unguarded at module level" — was guarded by nothing, and the review itself PROVED the gate is blind to it. Two live scripts import it unguarded, one on a **weekly cron** (`canary_grounding.py`, `15 6 * * 0`). Deleting the hub copy leaves `final_gate` green and kills the canary into a log. | **FIXED · LOCAL** — `test_the_hub_source_of_a_retired_vendored_dir_still_exists` pins the fact in HEAD |
+| F8 | `_unreachable_vendored_copies` walked with `os.walk`'s default `onerror=None`, which SWALLOWS `PermissionError` — reporting "0 unreachable" when it could not look. The retirement made this diagnostic more load-bearing, not less. Latent, not fired. | **FIXED · LOCAL** — reports `<unwalkable: …>`; proven against a mode-000 subtree |
+| F9 | Stale text left standing with the correction APPENDED below it, in two more files beyond the known one: `sync_enforcement_to_projects.py:1752` named `(libs/subagents pool)` as what the loop syncs — the exact member the constant no longer has — and `scaffold.py`'s `.env.example` still promised new projects a module they no longer receive, 200 lines below the comment the same commit DID fix. Found independently by two seats. | **FIXED · LOCAL** ×2 |
+| F10 | The `Surface:` line recorded ONE commit and SEVEN paths for a surface of 8 commits and 18 files — which is WHY 11 files had no `Hunt:` row, and why every finding above lived in an unhunted file. It also could not anchor a re-invocation (a range hash cannot match the `git diff HEAD` form). | **FIXED** — comparable anchor over all 18 files; 18 of 18 rows now adjudicated |
+| F11 | The Pass Ledger is missing **three** rounds, not the "two" the artifact's own BLOCKED item claims (4 rows against a 7-value trend; its "Pass 4" maps to trend position 5). Its last row was a FIXING pass, against the command's own rule. | **FIXED** — recorded honestly below; rows for rounds nobody logged are NOT fabricated |
+| F12 | Counts: "171 green" was 176 when written (the review's own commit `5dd80c26` said 176) and is 177 today; "49 project repos" matched no live population (41 git repos excluding the three fabrik-*, 45 sync targets) and `docs/DECISIONS.md` D-098 had already debunked that same figure; the INDEX row this change WROTE to retire a stale count shipped its own — "the file held 23" when it held 24 at that very commit. | **FIXED** ×3 |
+
+### Round 8b — the closing sweep found NINE defects in round 8's own fixes
+
+The disease this review was handed for did not stop at round 7. The closing Opus seat, briefed on
+round 8's fix diff alone and pinned OUTSIDE the scratchpad, raised 9 — six CONFIRMED, all in fixes
+written hours earlier by the independent author. Every one is fixed and re-proven.
+
+| # | What round 8 shipped | Disposition |
+|---|---|---|
+| G1 | **A fleet hazard reintroduced through `sys.path`.** The `HUB_LIBS` fix inserted EVERY candidate, putting `/opt/fabrik/libs` at `sys.path[0]` ahead of a project's own — so `_resolve_engine()` bound the HUB's `competitor_intel` while still printing `local`, in ~45 repos, against a tree three sessions write to. That is D-202's own hazard, arriving by import instead of by `shutil`. Red-on-revert on two fixtures. | **FIXED** — first-match-wins with the hub LAST and a `break`; `HUB_LIBS.parent` dropped (it could never match, and if it did it would shadow every top-level `scripts`/`src`/`tests`) |
+| G2 | **A false green, and a verdict REGRESSION.** `_guard_script` split on whitespace and matched a bare `.sh`, so a quoted, folded or `bash -c` entry returned `None` — and `None` means "the sync CAN fire", the exact false green the function exists to kill. 5 of 9 shapes failed open, and `.pre-commit-config.yaml:86` already carries a double-quoted entry. The OLD whole-file scan would at least have emitted the caveat. Worse: the sibling parser shipped in the SAME fix set (`test_exec_bits.py`) DID strip quotes — two hand-rolled parsers in one change, disagreeing. | **FIXED** — quotes stripped per token, and an unidentifiable wrapper now returns a caveat instead of `None`, which is what the docstring already promised |
+| G3 | **A new function with zero production callers.** `dead_declarations()` was defined, graded by pytest, and called from `main()` NEVER — so the gate stayed green with the landmine re-planted. The hub's pytest leg is OFF by design, so the tests were not a substitute, and the artifact's own text claimed advisory gate output that did not exist. | **FIXED** — called on `main()`'s success path; re-planting the landmine now prints `⚠ dead exemption` from the gate itself (proven) |
+| G4 | **A vacuous guard written to close a vacuity finding.** The new `HOOK_INVOKED` coverage test derived its subjects from `.pre-commit-config.yaml`, which executes NOTHING directly — every entry goes through `bash`. It computed an empty set, so `assert not missing` could not fail. Then the repair ran tuple → callers, which cannot fail on a DELETION either, because deleting shrinks the set being checked. It survived its own motivating mutation twice. | **FIXED** — direction reversed to caller → tuple, keyed on `[ -x /opt/fabrik/… ]`, and the enumeration follows the wrapper hop. Deleting the entry now reds (proven; it did not, twice, before) |
+| G5 | **The stale block my own header rewrite left behind.** `distribute_subagents.sh:44-47` still asserted "The sync is still run because …" — the justification D-202 removed and called wrong, sitting four lines above the note that removes it. The READ-BEFORE-YOU-EDIT defect, committed while fixing an instance of it. | **FIXED** — deleted; the D-202 note is the single account |
+| G6 | **The second implementation its own docstring forbade.** `_declared_matches` was written with a docstring saying writing this twice is the mirror defect — and `_declared` kept its inline copy and never called it. Also a latent axis error: `dead_declarations` tested the ENTRY name against `seeded` where `_declared` tests the SURFACE. | **FIXED** — `_declared` calls the helper; the `seeded` filter moved to surfaces |
+| G7-G9 | PLAUSIBLE: a dead `HUB_LIBS.parent` candidate (folded into G1); the package autoloading `load_env(cwd)` AT IMPORT so an explicit `load_env(REPO)` afterwards could never override it — a hub-driven `/fabrik-rivals` run silently used the HUB's keys while preflight reported keys present; and `RETIRED_VENDORED_DIRS[0]` raising `IndexError` on the documented un-retire path. | **FIXED** ×3 — `SUBAGENTS_NO_AUTOLOAD` set around the import and restored after (proven: the project's `.env` now wins), and a `pytest.skip` on the empty tuple |
+
+### Rounds 8c-8e — the loop converging, and the one change that made it converge
+
+| round | found | new | what it found |
+|---|---|---|---|
+| 8 | 18 | 12 | four LIVE blast-radius defects seven self-authored rounds missed |
+| 8b | 9 | 9 | six confirmed IN round 8's fixes — incl. a fleet hazard re-created via `sys.path` |
+| 8c | 13 | 13 | eleven confirmed IN 8b's fixes — incl. that the `sys.path` fix had not worked |
+| 8d | 4 | 4 | the fail-open had MOVED one frame up, not closed |
+| 8e | 3 | 3 | the three-state fix landed on one branch of two; a fix with no grader |
+
+**The change that broke the pattern was a SIMPLIFICATION, not another fix.** Rounds 8b-8c kept finding
+one class: a hand-rolled regex in `check_sync_trigger_coverage.py` failing open on some YAML shape
+(double-quoted, single-quoted, folded, trailing comment, missing key, `bash -c`). Each round fixed the
+instance by adding a special case, and the special case generated the next finding. Round 8c stopped
+and asked why the file was parsing YAML with a regex at all — `yaml.safe_load` is imported twenty
+lines above, and `trigger_pattern` already uses it. Parsing it properly took 18 of 18 shape×id
+combinations from 18-of-24 to 24-of-24 and the class has not reappeared since.
+
+That is the answer to the foundation error the round-7 close named. It was not "one agent authored
+everything" — round 8 was independent and still shipped six defects into its own fixes. It was that
+**the surface was accumulating clever mechanism where a library call would do, and every review round
+added more of it.** The loop converged the round someone removed mechanism instead of adding it.
+
+**What this round is evidence FOR.** Round 8 was the independent pass, and it still shipped six
+defects into its own fixes — including one that re-created the very hazard it had just removed by a
+different mechanism, and two guards that could not fail. The prior author's foundation error was
+diagnosed as "one agent authored the code, the fixes, the tests AND the record". Round 8b shows the
+narrower truth: it is not the AUTHOR that has to change, it is that **a fix is a new surface and
+needs a reader who did not write it.** That is why the closing full sweep is non-negotiable, and it
+is the one rule this review kept proving by breaking.
+
+**Refuted, with proof — three seats' candidates that did not survive adjudication:**
+`RETIRED_VENDORED_DIRS`' three loop-tests were reported INERT because emptying the constant makes them
+vacuous; the real regressions red them (dropping the group from `gitignore_block_text` reds one,
+re-adding `libs/subagents` to `VENDORED_DIRS` reds three), and `test_retired_vendored_dirs_is_not_empty`
+guards the emptying case — the suite is sound. Four `INDEX.md` test-count rows are stale but
+PRE-EXISTING and untouched by these 8 commits (Residual risks (a)). `scaffold.py:1166` and two
+`fabrik_synced_manifest.py` sites were reported as two-sources-of-truth; each is an explicitly marked
+correction naming its decision, which is good practice, not a live contradiction.
 
 ## Pass Ledger
 
@@ -351,6 +455,22 @@ the last; the closing pass re-derives every count and anchor and says so in its 
 | Pass 2 | method: gate | found: 6 | new: 6 | fixed: 15 | finders: orchestrator fixes + executable verification (`sys.meta_path` blocker over the 4 gate-wired checks; `_unreachable_vendored_copies` run against both known strays; red-on-revert vs HEAD's pre-fix module, both halves asserted) |
 | Pass 3 | method: re-derivation | found: 14 | new: 14 | fixed: 6 | finders: 4 dispatched / 4 returned — 1 Opus (fix completeness + fail direction) + 3 Sonnet (numbers/prose · tests+residue · fleet census); `--units 3 --risky 1 --mechanical 0`, stamped, ONE message. NOT QUIET: caught the exec-bit regression pass 2's own fix commit shipped, two VACUOUS guards proven by mutation, a third un-re-derivable count |
 | Pass 4 | method: re-derivation | found: 3 | new: 3 | fixed: 3 | finders: 3 dispatched / 3 returned — 1 Opus (whole surface, unscoped) + 2 Sonnet (written record · fleet end state). NOT QUIET: this ledger's rows were inside the QUOTED template block and invisible to the graders; the flagship "26 files / 38 of 41" carried no selector; a malformed nested fence in the Gate section |
+| Pass 8 (round 8 — the INDEPENDENT closing pass; rounds 5-7 have no row, above) | method: re-derivation | found: 18 | new: 12 | fixed: 18 | finders: 8 dispatched / 8 returned — native, ONE message, sized by `dispatch_headroom.py --units 4 --mechanical 3` (SEATS: 8) and stamped before dispatch: 1 Opus authoritative (whole surface) + 4 Sonnet (sync mechanism · enforcement checks · test quality · record and docs) + 3 Haiku mechanical (stale counts · two-sources-of-truth · guards that guard nothing). Artifact PINNED at md5 `d8b0938403f4a1f28a331130e11b5ca3`; the Opus and record seats both stated the hash they read. NOT QUIET: four LIVE code defects in the retirement's blast radius (F1-F3, F7), three inert or misdirected guards (F4-F6), a fail-open walk (F8), and the record items the handoff named |
+| Pass 8b (the closing sweep OVER round 8's own fixes) | method: re-derivation | found: 9 | new: 9 | fixed: 9 | finders: 2 dispatched / 1 returned — the first Opus seat was KILLED by the orchestrator after it reported the tree drifting under it mid-mutation (the orchestrator was editing while a read-only finder swept: the author's fault, recorded rather than hidden); re-dispatched against a pin OUTSIDE the churning scratchpad (`/tmp/rv-pin/`, md5 `350670aa794d3fb43f460374b77d40d9`) and returned 9 — 6 CONFIRMED, all in round 8's OWN fixes, including a fleet hazard re-created through `sys.path` and two guards that could not fail. NOT QUIET: a fixing pass is never the last |
+| Pass 8c | method: re-derivation | found: 13 | new: 13 | fixed: 13 | finders: 1 dispatched / 1 returned — Opus, pinned at `/tmp/rv-pin/` (OUTSIDE the scratchpad, which deleted two seats' working files today). 11 CONFIRMED in round 8b's fixes, incl. the `sys.path` hub-shadow fix that had NOT worked (`insert(0)` ignores candidate order — only the insertion POSITION decides). NOT QUIET |
+| Pass 8d | method: re-derivation | found: 4 | new: 4 | fixed: 4 | finders: 1 dispatched / 1 returned — Opus, pin md5 `2c99a75048896d5b4cc99e7c46ea0126`. Confirmed the ROOT fix (parse the YAML instead of regexing it) closed the shape class 18/18, and found the fail-open had MOVED one frame up rather than closed. NOT QUIET |
+| Pass 8e | method: re-derivation | found: 3 | new: 3 | fixed: 3 | finders: 1 dispatched / 1 returned — Opus, pin md5 `01f6ba904ed2088838a97ac9f0c174e3`, scope narrowed to the four changed files. All four of 8d's fixes HOLD (verified in 4 fixture states each). Found the three-state fix landed on one of two branches, and that the fallback parser shipped with no grader — a behaviour measured broken in 6 of 24 shapes was invisible to the suite. NOT QUIET |
+| Pass 8f | method: re-derivation | found: 3 | new: 3 | fixed: 3 | finders: 1 dispatched / 1 returned — Opus, pin md5 `c59d1cda77e2c1c27fbbf3b3a9f04143`, scope THREE files. Confirmed 8e's fixes hold behaviourally on all four branch×state cells. Found: my own replacement comment stated "0 of 45 project locks" where the true figure is 2 of 47 — contradicted by `tests/test_synced_manifest.py` written in the SAME round (the denominator-honesty anchor, two hub surfaces disagreeing about one quantity); and BOTH 8e fixes shipped ungraded (neutering `_inert_is_unknown` to `return False` left 85 green AND made the gate advise `--force` on no evidence; replacing the fallback's block-scoping with a naive global scan left 85 green). NOT QUIET |
+| Pass 8g | method: re-derivation | found: 1 | new: 1 | fixed: 1 | finders: 1 dispatched / 1 returned — Opus, pin md5 `6ae235e9202c1be3c09ca952e7194292`, three files, tree GENUINELY frozen this round (the seat re-checked both ends and confirmed it). All three of 8f's fixes HOLD, each proven by mutation: neutering `_inert_is_unknown` and deleting EITHER branch each red exactly one test. The one finding is a LATENT grader gap — the fallback's block terminator could be dropped and survive all 86, because a decoy BEFORE the target cannot exercise scoping when the target has its own entry; only the no-entry + later-hook shape can. Not reachable today (governance-sync is the last of 12 hooks). FIXED anyway, with a grader red on that exact mutant. NOT QUIET, but the round found no live defect |
+
+⚠️ **THREE ROUNDS HAVE NO ROW, and they are not reconstructed here.** The trend the closing author
+recorded is `15 · 6 · 14 · 1 · 3 · 12 · 9` (seven rounds); this table holds four rows carrying
+`15, 6, 14, 3`, so the rounds that found 1, 12 and 9 were never logged — and the row labelled
+`Pass 4` maps to trend position FIVE, not four. The artifact's own BLOCKED item called this "two of
+the seven"; it is three, measured by `grep -cE "^\| Pass [0-9]"` against the artifact's own prose.
+Rows are NOT back-filled from the commits: this round did not run them, and inventing a `found:`
+count for a pass nobody witnessed is the fabrication defect round 6 caught in the Gate section. The
+gap is recorded instead, which is what an honest ledger can say about rounds it did not see.
 
 (The illustrative row-shape block that shipped with this skeleton was REMOVED in pass 4: three authoring passes wrote real counters into it instead of the table above, so the ledger the graders read had zero data rows while the document looked complete. A template that is a valid-looking copy of the thing it describes is a trap; the row shape is documented in the command, not duplicated here.)
 
@@ -363,29 +483,76 @@ the last; the closing pass re-derives every count and anchor and says so in its 
 
 ### Phase 2 — Verify / refute: PASS — 8 of 26 candidates REFUTED with quoted proof, including two of the review's own suspicions (the canary vacuity, refuted by a seat that monkeypatched `VENDORED_DIRS=[]` and watched both assertions fail) and one error in the orchestrator's OWN brief (the "reversed call yields 0" premise, which actually yields 49). Refutation was not a formality: it stopped four candidates from becoming unnecessary changes on a fleet-synced surface.
 
-### Phase 3 — Prove & fix: PASS — 18 FIXED across five pushed commits (`d7c45b04` → `09292508` → `4d9d3407` → `988fc711` → `d9679b13`), every behavioural fix carrying a guard proven RED first: the retirement mechanism (5 guards, red-on-revert against HEAD's pre-fix module with both halves asserted), the exec-bit restoration (`tests/test_exec_bits.py`, red against the live defect — no mutation needed), and the de-vacuumed fixture (mutation now caught). Two fixes were structural rather than instance-level: the importer COUNT was RETIRED in favour of an embedded runnable census, and the worktree skip became a frozenset so a future retired group inherits it.
+### Phase 3 — Prove & fix: **CORRECTED by round 8** — the verdict below was written at `d9679b13`, when the ledger genuinely held 26 rows / 18 FIXED, and was never updated as three more commits took it to 38 rows / 28 FIXED. Two of the five commits it names are not fix commits at all (`d7c45b04` is the change under review; `988fc711` is docs-only). And its central claim — "every behavioural fix carrying a guard proven RED first" — is falsified THREE times, not twice: the reap guard tested a hand-written mirror, the `DECLARED_NON_TRIGGERS` deletion shipped with no guard at all, and `sync_is_inert_here`'s only test could not expose its cross-hook misattribution. All three now carry guards proven red. Original verdict, kept for the record: PASS — 18 FIXED across five pushed commits (`d7c45b04` → `09292508` → `4d9d3407` → `988fc711` → `d9679b13`), every behavioural fix carrying a guard proven RED first: the retirement mechanism (5 guards, red-on-revert against HEAD's pre-fix module with both halves asserted), the exec-bit restoration (`tests/test_exec_bits.py`, red against the live defect — no mutation needed), and the de-vacuumed fixture (mutation now caught). Two fixes were structural rather than instance-level: the importer COUNT was RETIRED in favour of an embedded runnable census, and the worktree skip became a frozenset so a future retired group inherits it.
 
-### Phase 4 — Converge: see the Pass Ledger. **Passes 1, 3 AND 4 were all non-quiet, and each caught a defect the PREVIOUS pass had shipped** — pass 3 caught the exec-bit regression pass 2's own fix commit introduced; pass 4 caught that this very ledger's rows sat inside the quoted template, invisible to the graders. That is the case for why the fixing pass is never the last, made three times in one run. ⚠️ `command_run.py` flagged the findings trend as OSCILLATING (15 → 6 → 14 → 1 → 3) and the flag is worth answering rather than dismissing: the brief was NOT re-scoped — the class ledger was re-swept each round with the same brief — but each round's fixes were themselves a new surface, and reviewing them found new defects. The honest reading is that this surface needed five passes because the first fix was wrong twice, not because the question kept changing.
+### Phase 4 — Converge: **NOT CONVERGED at round 7; converged at round 8 by an INDEPENDENT author.** The round-7 close named the foundation error correctly (one agent authoring code, fixes, tests AND record) but drew the wrong boundary from it: it concluded the code was sound and only the record was open. Round 8 found four LIVE code defects in the retirement's blast radius, every one in a file that had no `Hunt:` row. The missing rows were not bookkeeping — they were the coverage gap. Original note follows: see the Pass Ledger. **Passes 1, 3 AND 4 were all non-quiet, and each caught a defect the PREVIOUS pass had shipped** — pass 3 caught the exec-bit regression pass 2's own fix commit introduced; pass 4 caught that this very ledger's rows sat inside the quoted template, invisible to the graders. That is the case for why the fixing pass is never the last, made three times in one run. ⚠️ `command_run.py` flagged the findings trend as OSCILLATING (15 → 6 → 14 → 1 → 3) and the flag is worth answering rather than dismissing: the brief was NOT re-scoped — the class ledger was re-swept each round with the same brief — but each round's fixes were themselves a new surface, and reviewing them found new defects. The honest reading is that this surface needed five passes because the first fix was wrong twice, not because the question kept changing.
+
+## Method defects of my own, recorded because the seats caught them
+
+I killed the first closing seat mid-run after it reported the tree drifting underneath it — I had been
+editing while a read-only finder swept, which this command explicitly warns about, and the kill cost a
+nearly-complete pass. Two rounds later I told a seat the tree was FROZEN and then ran `ruff format`
+during its sweep; it noticed the mtime change itself and said so in its report rather than letting the
+verdicts quietly rest on a stale read. Pinning the subject OUTSIDE the session scratchpad is what kept
+both from becoming silent staleness — and the scratchpad deleted files under three separate seats
+today, which is why the pins moved to `/tmp/rv-pin*/`. Filed to infra with the rest of the machinery.
+
+## Residual risks — pre-existing, in scope for reporting, NOT introduced by this change
+
+Per the command's rule these hold ONLY (a) pre-existing issues this change did not introduce and
+(b) findings escalated elsewhere. No in-scope CONFIRMED or PLAUSIBLE finding is parked here.
+
+1. **Three gate canaries fail at HEAD, independent of this surface** — `test_gate_check_canaries.py::
+   test_every_registered_gate_check_is_accounted_for`, `::test_every_declared_advisory_row_is_a_check_
+   that_really_cannot_fail`, and the `check_subagent_flywheel` fixture canary. Baseline established
+   by running the file against an untouched `git archive HEAD` tree: the SAME three fail there, so
+   this review neither caused nor fixed them. Reported rather than absorbed — failing canaries on the
+   gate's own self-check are repo health, and the hub owns every committed line.
+2. **Four `INDEX.md` test-count rows are stale** (`test_sync_trigger_coverage` claims 15 vs 36,
+   `test_scaffold_deploy_contract` 31 vs 44, `test_sync_worktree_adoption` 68 vs 69, plus the "23"
+   this change wrote, which IS in scope and was fixed). The other three predate these 8 commits and
+   were not touched by them; INDEX rows are a fleet-wide drift class better fixed by the counts being
+   derived than by this review editing rows outside its own diff.
+3. **`_unreachable_vendored_copies` reports two known strays plus one in fabrik-lib** when pointed at
+   every `/opt/*/.git`; the production call excludes the hub-adjacent repos, so this is an artefact of
+   a wider probe, not a regression. Recorded so the next reader does not re-raise it.
+4. **Machinery, escalated to infra** (mail `01M20W9QK80GVRBBTA8YK444CS`, ack required):
+   `check_review_coverage.py` cannot see a MISSING Hunt row — the defect that let seven rounds pass;
+   `check_synced_unmodified` reads a frozen lock while every other consumer reads the manifest; the
+   trigger-coverage suite reads the LIVE pre-commit config on a three-session tree; and the session
+   scratchpad proved non-durable across a fan-out (my pinned artifact and two seats' working dirs were
+   deleted mid-run — cause unestablished, symptom reproduced three times independently).
 
 ## Gate
 
-`final_gate.py --check --json` — RE-MEASURED in the closing pass, never inherited from an earlier
-pass's attribution:
+`final_gate.py --check --json` — RE-MEASURED by round 8, the independent closing pass, never
+inherited. The block below is this round's own run, not an earlier pass's attribution:
 
 ```json
 {
   "status": "success",
   "tier": 2,
-  "blocking": 41,
-  "passed": 61,
-  "failed": 0,
-  "failures": [],
   "skipped_checks": ["pytest"],
-  "warnings": ["Coverage Checklist (reviews)", "Vendored Drift (sync-excluded repos)",
-               "Citations resolve (path:line lands)", "Ticket Breadth (plan sets)",
-               "untracked sources (advisory)"]
+  "failing": []
 }
 ```
+
+⚠️ `skipped_checks: ["pytest"]` is the HUB's deliberate exception — 5,913 tests under `-x` would
+brick every completion gate three concurrent sessions run — so this green asserts the STATIC tier
+and says nothing about the suite. The suite is asserted separately, in the same round:
+
+```text
+$ uv run pytest tests/test_synced_manifest.py tests/test_sync_trigger_coverage.py \
+      tests/test_sync_worktree_adoption.py tests/test_exec_bits.py \
+      tests/test_scaffold_deploy_contract.py -q
+182 passed in 89.57s
+```
+
+⚠️ THREE `tests/test_gate_check_canaries.py` failures are PRE-EXISTING and NOT attributable to this
+surface — the identical three fail against an untouched `git archive HEAD` tree
+(`test_every_registered_gate_check_is_accounted_for`, `test_every_declared_advisory_row_is_a_check_
+that_really_cannot_fail`, and the `check_subagent_flywheel` fixture canary). Baseline measured, not
+assumed; recorded under Residual risks rather than absorbed or silently excluded.
 
 ⚠️ EXCERPT, honestly labelled — the `warnings` values are the checks' NAMES, lifted from each
 warning object's `check` field; the full objects carry their output too. The keys above are the
@@ -402,7 +569,7 @@ passed skipped skipped_checks status tier warnings`) instead of trusting the lab
 ⚠️ Read `status` AND `skipped_checks` together. The hub's pytest leg is OFF by design (5,913 tests
 under `-x` would brick every completion gate three concurrent sessions run), so a green status
 asserts nothing about the suite. The suites were therefore run BY HAND and are reported separately
-in the Pass Ledger; the closing figure is 171 green across `test_synced_manifest`,
+in the Pass Ledger; the closing figure is **177** green across `test_synced_manifest`,
 `test_sync_trigger_coverage`, `test_sync_worktree_adoption`, `test_scaffold_deploy_contract`, plus
 `tests/test_exec_bits.py` (3) turning green with `4d9d3407`.
 

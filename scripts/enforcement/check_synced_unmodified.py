@@ -53,6 +53,33 @@ def _seeded_not_enforced() -> set[str]:
         return set()
 
 
+def _retired_vendored_dirs() -> tuple[str, ...]:
+    """Vendored dirs the fleet has RETIRED — deleting them locally is the sanctioned action.
+
+    Same degradation as `_seeded_not_enforced`: empty when the manifest is not importable.
+
+    Why this exists (found 2026-09-08 by the independent closing pass of the D-196 retirement):
+    this check iterates the project's `.fabrik/synced.lock`, which is a FROZEN SNAPSHOT rewritten
+    only by a sync. `RETIRED_VENDORED_DIRS` tells projects they "may delete it at their own pace",
+    but a lock row whose file is absent is a hard failure here — so in any target the sync no
+    longer reaches, following that instruction reds `final_gate` forever with no way to clear it.
+    Measured: 2 of 47 locks under /opt still carry the 26 `libs/subagents` rows, both in
+    worktree-shaped repos that the SYNC skips by design (`sync_enforcement_to_projects.py:2269`,
+    `.git` is a file — this `main()` has no such check and processes them, which is exactly why
+    their frozen locks matter here), both frozen since
+    2026-09-03 — and both belong to fabrik-lib, the repo that REQUESTED the retirement.
+    """
+    if not FABRIK_ROOT.exists():
+        return ()
+    sys.path.insert(0, str(FABRIK_ROOT / "scripts"))
+    try:
+        from fabrik_synced_manifest import RETIRED_VENDORED_DIRS
+
+        return tuple(RETIRED_VENDORED_DIRS)
+    except ImportError:
+        return ()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Verify Fabrik-synced files are unmodified.")
     parser.add_argument("--project-root", type=Path, default=Path.cwd())
@@ -77,11 +104,24 @@ def main() -> int:
         return 0
 
     seeded = _seeded_not_enforced()
+    # `item[0] if tuple` mirrors check_sync_trigger_coverage.py:247 — these manifest lists accept
+    # a tuple entry by convention, and an uncaught AttributeError here would fire in ~46 repos.
+    retired = tuple(
+        (d[0] if isinstance(d, tuple) else d).rstrip("/") + "/" for d in _retired_vendored_dirs()
+    )
     drifted: list[str] = []
     for rel, distributed_hash in lock.items():
         if rel in seeded:
             continue
         dest = project_root / rel
+        # A retired dir is the PROJECT'S now — deleting it AND editing it are both sanctioned,
+        # and neither can ever be cleared by a sync that no longer reaches it. The first version
+        # skipped only the deletion, so a project that kept the dir and changed one line reds
+        # `final_gate` forever, under a remedy text ("the next sync restores it") that is false
+        # for a retired path. `startswith(())` is False, so an empty tuple (manifest unimportable)
+        # degrades to the old behaviour with no special case — verified, not assumed.
+        if rel.startswith(retired):
+            continue
         if not dest.exists():
             drifted.append(f"{rel} — DELETED locally (a Fabrik-synced file must exist)")
         elif _md5(dest) != distributed_hash:

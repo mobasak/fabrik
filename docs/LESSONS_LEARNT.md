@@ -1341,6 +1341,38 @@ two different configs onto one dir.
 
 **TL;DR:** Coolify's `POST /applications/dockercompose` endpoint requires `docker_compose_raw` to be base64-encoded, not plain YAML.
 
+## 2026-09-08 — A review loop that will not converge is usually adding mechanism, not missing defects
+
+The `libs/subagents` retirement review ran **twelve rounds** across two authors and never once returned
+`found: 0`. Trend `15 · 6 · 14 · 1 · 3 · 12 · 9` (infra, who correctly closed `BLOCKED: NON-CONVERGENCE`
+rather than claim a convergence they had not reached), then `18 · 9 · 13 · 4 · 3 · 3 · 1` (this run).
+
+**The diagnosis that was true but insufficient.** The original author's post-mortem said the cause was
+that one agent had written the code, the fixes, the tests *and* the record. That is real — independent
+seats caught every one of their defects and the author caught none. But round 8 here was fully
+independent and still shipped **six defects inside its own fixes**. Independence alone did not close it.
+
+**The actual foundation error.** The surface kept accumulating clever mechanism where a library call
+would do: a hand-rolled regex parser for `.pre-commit-config.yaml`, `sys.path` juggling with
+`insert(0)` in one function silently undone by an `insert(0)` in another twenty lines later. Every
+round *added* mechanism to guard the mechanism. The trend broke the round mechanism was **removed** —
+`_governance_sync_entry` rewritten onto `yaml.safe_load`, regex kept only as an explicitly fail-closed
+PyYAML-absent fallback. That single round took the count from 4/3/3 to 1.
+
+**What the count was also measuring.** Two structural rules were inflating it, and the operator
+re-cut both mid-review (**D-203**): a *refuted* candidate still counted against the exit (D-048), so a
+round could find nothing real and still not be quiet; and every round was a FULL pass over a surface
+whose fixes had touched four files, so each pass re-read everything and had twelve fresh chances to
+raise noise. Under the new rules the exit is a **delta** round confirming zero *code or doc* defects,
+where "confirmed" must mean executed — a probe, a failing test, or a mutation on a copy.
+
+**The generalisation.** When a review will not converge, the question is not "what did I miss" but
+**"what is this round adding?"** A loop whose findings oscillate rather than decay (43 → 11 → 30 → 13,
+which `command_run.py` warns about) is re-scoping; a loop whose findings stay small but nonzero across
+independent authors is usually *manufacturing* them — from mechanism it added, or from a counting rule
+that lets refuted candidates block the exit. Count what the round CONFIRMED, and prefer deleting a
+clever thing over guarding it.
+
 ## 2026-09-08 — A prose-matching advisory checker has no fixed point under author-blind fan-out (the D-181/D-182 review's six mirror rounds)
 
 **What happened.** The D-181/D-182 corpus flip review took 9 rounds (7 → 2 → 2 → 1 → 1 → 1 → 1 → 1 → 0). Six of the nine were ONE item: the dispatch-policy pillar in `check_plan_quality.py`, a regex over English. Each author-blind exit seat wrote its own phrasing, found the regex (fitted to the previous seat's phrasing) rejected or over-accepted it, and reported that — correctly, by its own lights: bare `OFF` matched closure notices → verb-anchored → the noun-scoped form matched "pool room is OFF-limits" → verb required after the noun → that rejected "is completely OFF" → adverbs allowed → `OFF-limits` matched via `\bOFF\b` → hyphen refused. 6 of 9 rounds, 75% of the review's wall-clock, on an advisory WARN that was never a code defect (intel's diagnosis, 4e90716e; the commit trail 0ae72da9 → 9d7e6003 is the evidence).

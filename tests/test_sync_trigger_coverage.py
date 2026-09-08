@@ -402,3 +402,268 @@ def test_the_main_checkout_gets_no_inert_caveat():
         chk.sync_is_inert_here(Path("/opt/fabrik/.pre-commit-config.yaml"), Path("/opt/fabrik"))
         is None
     )
+
+
+def test_the_inert_caveat_reads_the_governance_sync_wrapper_not_any_pwd_guard(tmp_path):
+    """It must attribute a `$(pwd)` guard to the hook that OWNS it, never to whichever hook is near.
+
+    The old version scanned the WHOLE `.pre-commit-config.yaml` for any `$(pwd)` guard and named
+    `governance-sync` in the message regardless of whose guard it found. It was right only by
+    coincidence: an unrelated hook (`command-corpus-check`) guards the same literal `/opt/fabrik`.
+    Give it a config where governance-sync's wrapper guards THIS root and an unrelated hook guards
+    somewhere else, and the old code emitted a message naming governance-sync for a guard that was
+    not its own — a fabricated caveat, the same species as the fabricated gate embed this review
+    fixed earlier.
+    """
+    root = tmp_path
+    wrapper = root / "scripts" / "governance_sync_postcommit.sh"
+    wrapper.parent.mkdir(parents=True)
+    # governance-sync's OWN wrapper guards THIS checkout, so the sync can fire: expect None.
+    wrapper.write_text(f'[ "$(pwd)" = "{root}" ] || exit 0\n', encoding="utf-8")
+    config = root / ".pre-commit-config.yaml"
+    config.write_text(
+        "repos:\n"
+        "  - repo: local\n"
+        "    hooks:\n"
+        "      - id: command-corpus-check\n"
+        '        entry: bash -c \'[ "$(pwd)" = "/some/other/repo" ] || exit 0; true\'\n'
+        "      - id: governance-sync\n"
+        f"        entry: bash {wrapper}\n",
+        encoding="utf-8",
+    )
+
+    assert chk.sync_is_inert_here(config, root) is None, (
+        "the unrelated hook's /some/other/repo guard was attributed to governance-sync — the "
+        "caveat names a hook whose guard it never read"
+    )
+
+    # and when governance-sync's OWN wrapper guards elsewhere, it MUST speak — naming the wrapper.
+    wrapper.write_text('[ "$(pwd)" = "/opt/fabrik" ] || exit 0\n', encoding="utf-8")
+    msg = chk.sync_is_inert_here(config, root)
+    assert msg and "governance_sync_postcommit.sh" in msg and "/opt/fabrik" in msg, msg
+
+
+def test_no_retired_vendored_dir_is_still_declared_a_non_trigger() -> None:
+    """A retired dir left in `DECLARED_NON_TRIGGERS` is a landmine on the documented undo path.
+
+    D-196/D-198 both classify the retirement REVERSIBLE — "re-add the entry to VENDORED_DIRS". On
+    that sanctioned undo, a stale exemption SILENTLY exempts the module from trigger coverage: a
+    hub edit to it stops being required to fire a fleet sync, and this gate still prints OK.
+    `libs/subagents` was exactly that entry; D-199 deleted it BY HAND and shipped no guard, so
+    re-adding it left all 36 tests green (proven by mutation, twice, by independent seats).
+    """
+    import importlib.util as _u
+
+    _ms = _u.spec_from_file_location(
+        "_manifest_for_declared", Path("/opt/fabrik/scripts/fabrik_synced_manifest.py")
+    )
+    assert _ms and _ms.loader
+    _man = _u.module_from_spec(_ms)
+    _ms.loader.exec_module(_man)
+
+    declared = {d.rstrip("/") for d in chk.DECLARED_NON_TRIGGERS}
+    clash = sorted(d for d in _man.RETIRED_VENDORED_DIRS if d.rstrip("/") in declared)
+    assert not clash, (
+        f"{clash} is BOTH retired and declared a non-trigger. On the documented re-add path the "
+        "exemption fires first and this gate goes silent on the very surface it exists to cover."
+    )
+
+
+def test_a_dead_declaration_is_reported_by_dead_declarations() -> None:
+    """The reverse walk exists at all: manifest → filter was checked, filter → manifest never was."""
+    assert chk.dead_declarations() == [], (
+        f"dead exemptions: {chk.dead_declarations()} — each matches no synced surface today"
+    )
+    # and it must actually SEE one: a name nothing produces is dead by construction
+    original = chk.DECLARED_NON_TRIGGERS
+    try:
+        chk.DECLARED_NON_TRIGGERS = original + ("libs/a_module_that_was_never_synced",)
+        assert "libs/a_module_that_was_never_synced" in chk.dead_declarations()
+    finally:
+        chk.DECLARED_NON_TRIGGERS = original
+
+
+@pytest.mark.parametrize(
+    "hook_id", ["governance-sync", "'governance-sync'", '"governance-sync"', "governance-sync  # n"]
+)
+@pytest.mark.parametrize(
+    "entry",
+    [
+        "entry: bash /r/w.sh",
+        'entry: "bash /r/w.sh"',
+        "entry: 'bash /r/w.sh'",
+        "entry: >-\n          bash /r/w.sh",
+        "entry: bash /r/w.sh  # note",
+        "entry: bash -c '/r/w.sh'",
+    ],
+)
+def test_the_hook_entry_is_read_for_every_yaml_shape(tmp_path, hook_id, entry) -> None:
+    """Every shape a YAML author may write, because a missed one FAILS OPEN.
+
+    `sync_is_inert_here` returning None means "the sync can fire" — so an entry shape the parser
+    cannot read is a FALSE GREEN about the one thing this gate exists to guarantee. Three closing
+    sweeps found six such shapes one at a time (double-quoted, single-quoted, folded, trailing
+    comment, missing key, `bash -c`), each fixed by another regex special case, which is what kept
+    producing the next one. The root fix was to stop hand-rolling: this file already imports
+    `yaml` and `trigger_pattern` twenty lines up already uses `safe_load`. This grader pins the
+    whole class rather than the six instances.
+    """
+    (tmp_path / "r").mkdir()
+    (tmp_path / "r" / "w.sh").write_text(
+        '[ "$(pwd)" = "/elsewhere" ] || exit 0\n', encoding="utf-8"
+    )
+    cfg = tmp_path / ".pre-commit-config.yaml"
+    cfg.write_text(
+        f"repos:\n  - repo: local\n    hooks:\n      - id: {hook_id}\n        {entry}\n",
+        encoding="utf-8",
+    )
+    assert chk._governance_sync_entry(cfg) is not None, (
+        f"entry shape not read (id={hook_id!r}) — sync_is_inert_here would return None, which "
+        "asserts 'the sync can fire' on no evidence"
+    )
+
+
+def test_a_hook_with_no_entry_is_an_unknown_not_a_green(tmp_path) -> None:
+    """The strongest evidence of a broken hook must not receive the gate's most confident verdict.
+
+    A hook with no `entry:` executes NOTHING. `sync_is_inert_here` returning None means "the sync
+    CAN fire", so that shape was a false green — the same fail-direction inversion fixed one frame
+    down for an unreadable wrapper, recurring one frame up after the parser fix (round 8d). This
+    asserts the CAVEAT, not merely `is not None`: the grader above could not see this, because it
+    only ever checked that SOMETHING was returned.
+    """
+    cfg = tmp_path / ".pre-commit-config.yaml"
+    cfg.write_text(
+        "repos:\n  - repo: local\n    hooks:\n      - id: governance-sync\n        name: x\n",
+        encoding="utf-8",
+    )
+    verdict = chk.sync_is_inert_here(cfg, tmp_path)
+    assert verdict is not None, "a hook with no entry: read as 'the sync can fire'"
+    assert "could not be determined" in verdict, verdict
+
+
+@pytest.mark.parametrize(
+    "hook_id", ["governance-sync", "'governance-sync'", '"governance-sync"', "governance-sync  # n"]
+)
+@pytest.mark.parametrize(
+    "entry",
+    [
+        "entry: bash /r/w.sh",
+        'entry: "bash /r/w.sh"',
+        "entry: 'bash /r/w.sh'",
+        "entry: bash /r/w.sh  # note",
+        "entry: bash -c '/r/w.sh'",
+    ],
+)
+def test_the_hook_entry_is_read_for_every_shape_without_pyyaml(
+    monkeypatch, tmp_path, hook_id, entry
+) -> None:
+    """The PyYAML-absent FALLBACK needs its own grader — the sibling test never reaches it.
+
+    `test_the_hook_entry_is_read_for_every_yaml_shape` runs with PyYAML present, so it exercises
+    `yaml.safe_load` and never touches the regex. Round 8e proved that by reverting the regex to
+    its buggy form and watching the suite stay byte-identical: a behaviour measured live-broken in
+    6 of 24 shapes was invisible to the tests, so the next "simplify this regex" edit reverts it
+    silently. This is the mirror, and between them they grade both parsers.
+
+    Block scalars (`entry: >-`, `entry: |`) are deliberately EXCLUDED: with yaml absent the
+    fallback returns the scalar indicator itself, `_guard_script` then returns None, and the caller
+    raises the UNKNOWN caveat — fail-CLOSED, which is correct and is asserted separately below.
+    """
+    (tmp_path / "r").mkdir()
+    (tmp_path / "r" / "w.sh").write_text(
+        '[ "$(pwd)" = "/elsewhere" ] || exit 0\n', encoding="utf-8"
+    )
+    cfg = tmp_path / ".pre-commit-config.yaml"
+    # A DECOY hook first. Every `_governance_sync_entry` fixture in this file was single-hook, so
+    # the fallback's block-scoping was ungraded: replacing its scoped regex with a naive global
+    # `entry:` scan passed all 85 tests (round 8f). Live, governance-sync sits at
+    # `.pre-commit-config.yaml:149` behind SEVEN earlier hooks that each carry an `entry:`.
+    cfg.write_text(
+        "repos:\n  - repo: local\n    hooks:\n"
+        "      - id: earlier-hook\n        entry: bash /decoy/stolen.sh\n"
+        f"      - id: {hook_id}\n        {entry}\n",
+        encoding="utf-8",
+    )
+    _no_yaml(monkeypatch)
+    got = chk._governance_sync_entry(cfg)
+    assert "stolen" not in (got or ""), (
+        f"the fallback grabbed an EARLIER hook's entry: {got!r} (id={hook_id!r})"
+    )
+    assert got and chk._guard_script(got, tmp_path) is not None, (
+        f"the PyYAML-absent fallback lost the wrapper (id={hook_id!r}, {entry!r})"
+    )
+
+
+def test_a_block_scalar_entry_fails_closed_without_pyyaml(monkeypatch, tmp_path) -> None:
+    """The one shape the fallback cannot read must be an UNKNOWN, never a green."""
+    cfg = tmp_path / ".pre-commit-config.yaml"
+    cfg.write_text(
+        "repos:\n  - repo: local\n    hooks:\n      - id: governance-sync\n"
+        "        entry: >-\n          bash /r/w.sh\n",
+        encoding="utf-8",
+    )
+    _no_yaml(monkeypatch)
+    verdict = chk.sync_is_inert_here(cfg, tmp_path)
+    assert verdict and "could not be determined" in verdict, verdict
+
+
+def test_the_unknown_caveat_is_distinguished_from_cannot_fire_on_both_main_branches(
+    monkeypatch, capsys, tmp_path
+) -> None:
+    """`_inert_is_unknown` had no grader: neutering it to `return False` left all 85 tests green.
+
+    Two things then break at once. Every UNKNOWN prints the gate's most confident verdict
+    ("CANNOT FIRE"), and — worse — the clean branch then advises
+    `scripts/sync_enforcement_to_projects.py --force`, which is the unattended working-tree push
+    D-202 removed as a fleet hazard. Advising it on no evidence is the defect, so it is asserted
+    here directly. Round 8e found the three-state fix had landed on one of two branches; round 8f
+    found the repair itself ungraded. This pins both branches and the `--force` suppression.
+    """
+    (tmp_path / ".pre-commit-config.yaml").write_text(
+        "repos:\n  - repo: local\n    hooks:\n      - id: governance-sync\n"
+        "        name: x\n        files: '^nothing_matches_this/'\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(chk, "FABRIK_ROOT", tmp_path)
+    monkeypatch.setattr(chk, "running_on_hub", lambda *a, **k: True)
+    monkeypatch.setattr(chk, "hub_shaped_without_manifest", lambda *a, **k: None)
+    monkeypatch.setattr(chk, "_manifest", lambda: type("M", (), {"SEEDED_NOT_ENFORCED": ()})())
+
+    monkeypatch.setattr(chk, "synced_surfaces", lambda: {"scripts/uncovered_thing.py"})
+    assert chk.main([]) == 1  # the FAILING path
+    out = capsys.readouterr().out
+    assert "UNKNOWN" in out and "still distributes nothing" not in out, out
+    assert "--force" not in out, "--force must never be advised on an UNKNOWN"
+
+    monkeypatch.setattr(chk, "synced_surfaces", lambda: {"templates/scaffold/scripts/rund"})
+    assert chk.main([]) == 0  # the CLEAN path
+    out = capsys.readouterr().out
+    assert "could not be DETERMINED" in out and "CANNOT FIRE" not in out, out
+    assert "--force" not in out, "--force must never be advised on an UNKNOWN"
+
+
+def test_a_hook_with_no_entry_is_an_unknown_without_pyyaml_too(monkeypatch, tmp_path) -> None:
+    """The fallback's block SCOPING is only load-bearing when governance-sync has NO entry.
+
+    The decoy-BEFORE fixture cannot catch an unbounded block: when governance-sync has its own
+    `entry:`, the first one after its id line is its own, so a runaway block still reads correctly.
+    The scoping matters only in the opposite case — governance-sync has no entry and a LATER hook
+    does — where an unbounded block steals the later hook's entry and turns a fail-closed UNKNOWN
+    into a false green. Dropping the block terminator survived all 86 tests (round 8g).
+
+    Not reachable in today's `.pre-commit-config.yaml` (governance-sync is the last of 12 hooks),
+    so this is a latent gap on a REORDER — which is exactly the edit `trigger_pattern`'s own
+    docstring warns about, and the same shape as the accepted finding one round earlier.
+    """
+    cfg = tmp_path / ".pre-commit-config.yaml"
+    cfg.write_text(
+        "repos:\n  - repo: local\n    hooks:\n"
+        "      - id: governance-sync\n        name: x\n"
+        "      - id: later-hook\n        entry: bash /decoy/later.sh\n",
+        encoding="utf-8",
+    )
+    _no_yaml(monkeypatch)
+    assert chk._governance_sync_entry(cfg) is None, "the fallback stole a LATER hook's entry"
+    verdict = chk.sync_is_inert_here(cfg, tmp_path)
+    assert verdict and "could not be determined" in verdict, verdict
