@@ -236,6 +236,46 @@ must name a path and run past 70 characters · `FIXED r<n> (<what changed>)` · 
 disproving line>)`. `UNCHECKED` may survive only under a `## BLOCKED` escalation (a finding + 3
 failed attempts).
 
+## Per-finding disposition ledger
+
+Every candidate raised by any seat across all rounds, each ending in exactly ONE terminal state.
+No "noted / to-watch / accepted" bucket exists.
+
+| # | Finding | Round | Disposition |
+|---|---|---|---|
+| 1 | Delisting stripped `libs/subagents/` from the generated gitignore — 26 files untracked AND unignored in 38 of 41 repos | 1 | **FIXED** `09292508` — `RETIRED_VENDORED_DIRS` + `RETIRED_VENDORED_GITIGNORE_GROUP`; guards `test_retired_vendored_dir_is_still_gitignored` + 4 more, red-on-revert vs HEAD's pre-fix module |
+| 2 | `_unreachable_vendored_copies` silently stopped reporting its two named load-bearing strays | 1 | **FIXED** `09292508` — iterates retired dirs too; proven by execution, both strays reported again, and the live sync run printed the warning |
+| 3 | Refusal claim "deleting the hub source reds every hub session's gate" | 1 | **FIXED** `09292508`+`4d9d3407` — REFUTED BY EXECUTION (all four gate-wired checks exit 0 with the module blocked via `sys.meta_path`); the false claim removed from code, CHANGELOG and the workflow doc; correction mailed to fabrik-lib `01M20DW5WG52W5HCVQZKSC2R5S` |
+| 4 | `check_imports_resolvable` named as an importer — it never imports the module | 1 | **FIXED** `4d9d3407` — the claim is gone; the prose-vs-import distinction now applied consistently to both sides |
+| 5 | "231 synced files" stale in its own file on day one (205 after the edit) | 1 | **FIXED** `09292508` — marked as the pre-removal denominator it was |
+| 6 | `scaffold.py` comment: new projects no longer ship the module (unstated consequence) | 1 | **FIXED** `09292508` |
+| 7 | `distribute_subagents.sh` fleet distribution now a silent no-op for its stated purpose | 1 | **FIXED** `09292508` — hub-only, said so in the script and in `INDEX.md` |
+| 8 | `SYNC_ENFORCEMENT_WORKFLOW.md` table false, then still carrying the debunked 17/12 | 1, 3 | **FIXED** `09292508`, corrected again `4d9d3407` |
+| 9 | Canary vacuity suspected in `test_sync_trigger_coverage.py` | 1 | **REFUTED** — seat monkeypatched `VENDORED_DIRS=[]` and watched BOTH assertions fail as designed; with one member, pinning it IS the non-empty claim |
+| 10 | The 5-importer / 231-file project-side safety measurement | 1 | **REFUTED** (claim stands) — independently re-derived 205+26=231 and all 5 guards traced to correct degrade behaviour at their USE sites, not merely wrapped |
+| 11 | My brief's "reversed `iter_synced_pairs` yields 0" | 1 | **REFUTED** — it yields 49; the 0 came from my own `is_file()` filter. Mechanism corrected in the record |
+| 12 | `test_sync_worktree_adoption` fixture math suspected stale | 1 | **REFUTED** — re-derived: 1 live + 1 retired = 2 vendored dirs, so "2 dirs / 8 hits / 164 fleet-wide" is still arithmetically true |
+| 13 | `09292508` stripped `100755 → 100644` from two hook-invoked scripts | 3 | **FIXED** `4d9d3407` — restored; `tests/test_exec_bits.py` pins the mode IN HEAD, seen RED against the live defect (3 failed, no mutation needed) |
+| 14 | `test_retired_vendored_dir_is_not_distributed` VACUOUS — fixture never created the retired dir | 3 | **FIXED** `4d9d3407` — fixture creates it; mutation now CAUGHT (re-adding to `VENDORED_DIRS` leaks 2 dests) |
+| 15 | All five D-198 guards pass vacuously if `RETIRED_VENDORED_DIRS` is emptied | 3 | **FIXED** `4d9d3407` — `test_retired_vendored_dirs_is_not_empty` anchors them |
+| 16 | "20 importer files / 10 unguarded" does not re-derive (a seat got 16/6) | 3 | **FIXED** `4d9d3407` — the COUNT is retired, not corrected: the comment states the invariant and embeds a runnable census, verified by running it |
+| 17 | Worktree skip was a single `==` — a future retired group would default to being distributed | 3 | **FIXED** `4d9d3407` — `RETIRED_GITIGNORE_GROUPS` frozenset; membership, not equality |
+| 18 | A name in BOTH lists double-reports every stray at runtime | 3 | **FIXED** `4d9d3407` — `dict.fromkeys` dedup |
+| 19 | D-198 lacked the `supersedes D-196` pointer its sibling D-197 sets for D-195 | 3 | **FIXED** `4d9d3407` — D-199 supersedes D-196 and completes the pointer |
+| 20 | "295 tests across ten suites" carried no selector; commit says 206/8 | 3 | **FIXED** `4d9d3407` — the SET is named rather than the count quoted bare |
+| 21 | `DECLARED_NON_TRIGGERS` still hardcodes `libs/subagents` | 1, 3 | **REFUTED** as a defect — `synced_surfaces()` never derives from `RETIRED_VENDORED_DIRS`, so the entry can no longer be exercised; dead weight, not a false pass. No behaviour depends on it |
+| 22 | 83 worktree ledgers carry ~26 un-reapable `libs/subagents` rows each | 1, 3 | **REFUTED** as a live defect — verified independently: only 3 files touch the ledger (the sync, its test, a comment in the manifest), so no third-party reader acts on the rows; the pattern loop no longer visits those paths, so nothing copies or deletes on them; and the reap is fail-SAFE by construction (`never reap a row we're unsure about` on OSError). A hypothetical re-adoption yields a hash-mismatch WARN-and-skip, not data loss. Pruning them would mean a deletion pass across 83 worktrees — a fleet deletion the operator owns, not a review's to invent |
+| 23 | Retired dir left the project-review read-only set (a project agent could now edit it) | 3 | **REFUTED** — consistent with the retirement's intent: the directory is being deleted, so it is no longer a synced surface to protect. Named here so the consequence is stated rather than discovered |
+| 24 | Existing worktrees keep a frozen unreachable copy | 3 | **REFUTED** — same reasoning as 22; `_PRUNE_DIRS` excludes `.claude`, so it is invisible to the stray diagnostic by design |
+| 25 | `INDEX.md` row for `tests/test_synced_manifest.py` says "5 tests", actual 22 | 3 | **REFUTED as in-scope** — pre-existing (already stale before this change), in a file carrying a sibling's uncommitted WIP. Not introduced here and not mine to commit; left to its owner |
+
+**Count: 25 findings → 16 FIXED + 9 REFUTED. The two sum.**
+
+FIXED: 1-8, 13-20. REFUTED: 9-12, 21-25. Counted by row, then checked against
+`grep -c` on the table — the first draft of this line said "18 + 7", which is the same
+hand-counting defect the review spent three rounds on, committed inside the ledger that
+documents it. The disposition column is the denominator; this line is derived from it.
+
 ## Pass Ledger
 
 ONE table, one row per pass, counts punctuated (`found: N, fixed: M`) — the gate reads the LAST row
@@ -250,12 +290,21 @@ Row shapes (quoted here, so the gate does not read them as passes):
 ```text
 | Pass 1 | method: citation | found: 15 | new: 15 | fixed: 0 | finders: 5 dispatched / 5 returned — native fabrik-reviewer, 1 Opus (prune+deletion safety) + 4 Sonnet (importer denominator · generated artifacts+caches · test integrity · ledger accuracy); sized by dispatch_headroom.py --units 5 --risky 1, stamped before dispatch, all in ONE message |
 | Pass 2 | method: gate | found: 6 | new: 6 | fixed: 15 | finders: orchestrator fixes + executable verification (meta_path import blocker over the 4 gate-wired checks; _unreachable_vendored_copies run against both known strays; red-on-revert vs HEAD's pre-fix module with both halves asserted); 206 tests green across 8 suites |
-| Pass 3 | method: re-derivation | found: PENDING | new: PENDING | fixed: PENDING | finders: 4 dispatched — 1 Opus (the fix itself: completeness + fail direction) + 3 Sonnet (numbers/prose re-derivation · tests+residue · fleet census); sized --units 3 --risky 1 --mechanical 0, stamped, ONE message |
+| Pass 3 | method: re-derivation | found: 14 | new: 14 | fixed: 6 | finders: 4 dispatched / 4 returned — 1 Opus (fix completeness + fail direction) + 3 Sonnet (numbers/prose · tests+residue · fleet census); sized --units 3 --risky 1 --mechanical 0, stamped, ONE message. NOT QUIET: found the exec-bit regression commit 09292508 shipped, two VACUOUS guards proven by mutation, and a third un-re-derivable importer count |
+| Pass 4 | method: re-derivation | found: PENDING | new: PENDING | fixed: PENDING | finders: 3 dispatched — 1 Opus (whole surface, unscoped) + 2 Sonnet (written record · fleet end state); confirming sweep over d7c45b04..4d9d3407 |
 ```
 
 ## Per-phase verdicts
 
 ### Phase 1 — Independent finders (recall): PASS — 5 seats dispatched, 5 returned, 15 candidates; the Opus authoritative seat found the HIGH finding (gitignore protection stripped from 38 of 41 repos) that two self-sweeps and the scoped review had read straight past.
+
+### Phase 0 — Establish scope: PASS — repo identity `/opt/fabrik` (HUB, so synced sources are canonical and editable here). Surface digest recorded; NO prior report matched this scope, so the anchor did not match and a full WIDE pass 1 was owed and run — stated rather than degraded silently into "no prior report". Rubric armed via `review_rubric.py` (matched `core/62-using-subagents.md`), pasted verbatim above.
+
+### Phase 2 — Verify / refute: PASS — 9 of 25 candidates REFUTED with quoted proof, including two of the review's own suspicions (the canary vacuity, refuted by a seat that monkeypatched `VENDORED_DIRS=[]` and watched both assertions fail) and one error in the orchestrator's OWN brief (the "reversed call yields 0" premise, which actually yields 49). Refutation was not a formality: it stopped four candidates from becoming unnecessary changes on a fleet-synced surface.
+
+### Phase 3 — Prove & fix: PASS — 16 FIXED across three pushed commits (`d7c45b04` → `09292508` → `4d9d3407`), every behavioural fix carrying a guard proven RED first: the retirement mechanism (5 guards, red-on-revert against HEAD's pre-fix module with both halves asserted), the exec-bit restoration (`tests/test_exec_bits.py`, red against the live defect — no mutation needed), and the de-vacuumed fixture (mutation now caught). Two fixes were structural rather than instance-level: the importer COUNT was RETIRED in favour of an embedded runnable census, and the worktree skip became a frozenset so a future retired group inherits it.
+
+### Phase 4 — Converge: see the Pass Ledger. Passes 1 and 3 were both non-quiet and each produced a defect the previous pass had shipped — pass 3 caught the exec-bit regression that pass 2's own fix commit introduced, which is the case for why the fixing pass is never the last.
 
 ## Gate
 
@@ -263,5 +312,28 @@ Row shapes (quoted here, so the gate does not read them as passes):
 `"status": "success"`):
 
 ```json
-UNCHECKED — paste the gate output here at the CONVERGED flip
+RE-MEASURED in the closing pass, never inherited from an earlier pass:
+
+```json
+{
+  "status": "success",
+  "skipped_checks": ["pytest"],
+  "failures": [],
+  "warning_checks": ["Coverage Checklist (reviews)", "Vendored Drift (sync-excluded repos)",
+                     "Citations resolve (path:line lands)", "Ticket Breadth (plan sets)"]
+}
+```
+
+`python scripts/final_gate.py --json --check` → **`"status": "success"`**, 0 failures.
+
+⚠️ Read `status` AND `skipped_checks` together. The hub's pytest leg is OFF by design (5,913 tests
+under `-x` would brick every completion gate three concurrent sessions run), so a green status
+asserts nothing about the suite. The suites were therefore run BY HAND and are reported separately
+in the Pass Ledger; the closing figure is 171 green across `test_synced_manifest`,
+`test_sync_trigger_coverage`, `test_sync_worktree_adoption`, `test_scaffold_deploy_contract`, plus
+`tests/test_exec_bits.py` (3) turning green with `4d9d3407`.
+
+The four warnings are pre-existing repo-health advisories on OTHER surfaces (committed review
+artifacts from earlier plans, fabrik-lib vendored drift, citations in a sibling's plan set, ticket
+breadth in a sibling's plan set). None names a file in this review's surface.
 ```
