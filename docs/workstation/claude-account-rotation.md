@@ -217,7 +217,7 @@ floor when the active account's hottest window is ≥85% or no standby account i
 the same bands `core/62` § Dispatch economics names. `--heavy` is for seats whose TOOLS load the box
 (pytest, builds, renders): a native seat lives inside its parent `claude` process, so only its
 subprocesses count, bounded by `MemAvailable / 2 GB` and `(cores − load1) / 1.5`. Every probe fails
-soft and prints its reason with the floor, never a silent 20. Tests: `tests/sysadmin/test_dispatch_headroom.py`.
+soft and prints its reason with the floor, never a silent 20. It also prices the mix (`--mix opus=1,sonnet=5` → `COST: 15 haiku-units`) per D-190: haiku 1× · sonnet 2× · opus 5× · fable 10×. Tests: `tests/sysadmin/test_dispatch_headroom.py`.
 
 ### The occupancy monitor
 

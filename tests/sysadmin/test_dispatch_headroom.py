@@ -149,6 +149,21 @@ def test_a_failed_probe_falls_to_the_floor_and_says_why_never_a_silent_twenty():
     assert any("quota probe failed" in x for x in r["reasons"])
 
 
+def test_price_multipliers_make_affordable_a_number():
+    """Operator ruling D-190 (2026-09-08): haiku 1x, sonnet 2x, opus 5x, fable 10x. Cost is the sum
+    of seats x multiplier in haiku-units; an unknown model is refused by name, never priced at 0."""
+    assert dh.PRICE == {"haiku": 1, "sonnet": 2, "opus": 5, "fable": 10}
+    assert dh.cost({"opus": 1, "sonnet": 5}) == {"units": 15, "parts": {"opus": 5, "sonnet": 10}}
+    assert dh.cost({"fable": 1, "haiku": 3})["units"] == 13
+    assert dh.cheapest_mix(6) == {"opus": 1, "sonnet": 5} and dh.cheapest_mix(1) == {"opus": 1}
+    assert dh.cheapest_mix(0) == {}
+    assert dh.parse_mix("opus=1, sonnet=5") == {"opus": 1, "sonnet": 5}
+    import pytest
+
+    with pytest.raises(ValueError, match="unknown model"):
+        dh.cost({"gpt": 2})
+
+
 def test_every_operator_named_model_has_exactly_one_role():
     assert set(dh.TIERS) == {"fable", "opus", "sonnet", "haiku"}
     assert all(v for v in dh.TIERS.values())
@@ -168,3 +183,4 @@ def test_json_output_carries_the_budget_and_both_probes(monkeypatch, capsys):
         "box allows 23 read-only seats (mem 25.0GB/1.0GB=25, cores 24-load 1.0=23)"
     ]
     assert out["siblings"] == {"ok": True, "seats": 0, "sessions": 0, "skipped": []}
+    assert out["mix"] == {"opus": 1, "sonnet": 4} and out["cost"]["units"] == 13  # 5 + 4x2

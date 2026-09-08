@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — model price multipliers make "affordable" a number (D-190, 2026-09-08)
+
+- Operator: haiku 1× · sonnet 2× · opus 5× · fable 10×. `dispatch_headroom.py` now prices the seat mix
+  (`--mix opus=1,sonnet=5` → `COST: 15 haiku-units`; the default is the cheapest floor-compliant mix — one
+  Opus authoritative seat plus Sonnet breadth) and refuses an unknown model by name rather than pricing it
+  at zero. `core/62` § Dispatch economics states the consequences: breadth on Opus is a 2.5× overspend, a
+  Fable adjudicator is one seat per run, Haiku takes every trivial-mechanical class.
+
 ### Added — `dispatch_headroom.py`: the seat budget as one executable number (D-189, 2026-09-08)
 
 - Operator: *"maximum count of viable and useful subagents … utilize the box capacity properly, do not cause

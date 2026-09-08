@@ -62,6 +62,11 @@ RUNS_DIR = Path.home() / ".claude" / "state" / "command-runs"
 # the box hostage
 SIBLING_FRESH_S = 30 * 60
 
+# Price multipliers, operator ruling 2026-09-08 (D-190): haiku 1x · sonnet 2x · opus 5x · fable 10x.
+# "Affordable" is a NUMBER: cost = sum(seats x multiplier) in haiku-units. Breadth on Sonnet costs 2
+# per seat; the same seat on Opus costs 5; a Fable adjudicator costs 10 — so the cheapest mix that
+# still meets the D-186 floor is one Opus authoritative seat plus Sonnet breadth.
+PRICE = {"haiku": 1, "sonnet": 2, "opus": 5, "fable": 10}
 # model tiering by ROLE — the operator's four names, one job each (canonical: core/62). Fable is
 # METERED (the CLI bundle: "Fable 5 requires usage credits"), not a subscription window — it is
 # NOT visible to the quota probe below; a Fable seat that refuses falls back to Opus BY NAME and
@@ -165,6 +170,32 @@ def siblings(now: float | None = None, runs_dir: Path = RUNS_DIR) -> dict:
     return out
 
 
+def cost(mix: dict[str, int]) -> dict:
+    """Relative cost of a seat mix in haiku-units, per the D-190 multipliers; unknown model names
+    are refused by name rather than priced at zero."""
+    unknown = sorted(k for k in mix if k not in PRICE)
+    if unknown:
+        raise ValueError(f"unknown model(s) {unknown}; priced models: {sorted(PRICE)}")
+    parts = {k: int(v) * PRICE[k] for k, v in mix.items() if int(v) > 0}
+    return {"units": sum(parts.values()), "parts": parts}
+
+
+def cheapest_mix(seats: int) -> dict[str, int]:
+    """The floor-compliant mix that costs least: one Opus authoritative seat, the rest Sonnet."""
+    if seats <= 0:
+        return {}
+    return {"opus": 1, "sonnet": seats - 1} if seats > 1 else {"opus": 1}
+
+
+def parse_mix(text: str) -> dict[str, int]:
+    """`opus=1,sonnet=5` -> {"opus": 1, "sonnet": 5}."""
+    mix: dict[str, int] = {}
+    for part in filter(None, (x.strip() for x in text.split(","))):
+        k, _, v = part.partition("=")
+        mix[k.strip().lower()] = int(v or 1)
+    return mix
+
+
 def budget(units: int, heavy: bool, b: dict, q: dict, s: dict | None = None) -> dict:
     s = s or {"ok": True, "seats": 0, "sessions": 0, "skipped": []}
     reasons: list[str] = []
@@ -257,10 +288,31 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--units", type=int, required=True, help="independent units in the surface")
     ap.add_argument("--heavy", action="store_true", help="each seat runs tests/builds/renders")
     ap.add_argument("--json", action="store_true")
+    ap.add_argument(
+        "--mix",
+        default="",
+        help='price a seat mix, e.g. "opus=1,sonnet=5" (D-190: haiku 1x, sonnet 2x, opus 5x, fable 10x)',
+    )
     a = ap.parse_args(argv)
     b, q, s = box(), quota(), siblings()
     r = budget(a.units, a.heavy, b, q, s)
-    r.update(box=b, quota=q, siblings=s, tiers=TIERS, units=a.units, heavy=a.heavy)
+    mix = parse_mix(a.mix) if a.mix else cheapest_mix(r["seats"])
+    try:
+        priced = cost(mix)
+    except ValueError as exc:
+        print(f"dispatch_headroom.py: error: {exc}", file=sys.stderr)
+        return 2
+    r.update(
+        box=b,
+        quota=q,
+        siblings=s,
+        tiers=TIERS,
+        units=a.units,
+        heavy=a.heavy,
+        price=PRICE,
+        mix=mix,
+        cost=priced,
+    )
     if a.json:
         print(json.dumps(r, indent=2, default=str))
         return 0
@@ -285,6 +337,12 @@ def main(argv: list[str] | None = None) -> int:
             f"  quota: active {q['active']} hottest {q['hottest_pct']}%, eligible standbys "
             f"{q['eligible']}, hold={q['hold']}, drain band {q.get('drain_band')}%"
         )
+    shown = " + ".join(f"{n} {k} x{PRICE[k]}" for k, n in mix.items())
+    print(
+        f"  COST: {priced['units']} haiku-units for {shown}"
+        + ("" if a.mix else " (the cheapest floor-compliant mix; price your own with --mix)")
+        + " — D-190: haiku 1x · sonnet 2x · opus 5x · fable 10x"
+    )
     print(
         "  record what you dispatch: python3 scripts/command_run.py round --seats <n> "
         "--findings <n> --classes-swept … --classes-new …"
