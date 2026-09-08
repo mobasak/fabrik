@@ -108,7 +108,7 @@ All files in `scripts/enforcement/` are recursively synced (`ENFORCEMENT_DIR`, `
 
 | Dir | Purpose |
 |-----|----------|
-| `libs/subagents` | **RETIRED from the sync 2026-09-08 (D-196).** No longer distributed: a hub-copy fix does NOT reach projects any more, and `scripts/distribute_subagents.sh` no longer distributes it either. Projects delete their leftover copy at their own pace; it stays gitignored meanwhile via `RETIRED_VENDORED_DIRS` (D-198). The HUB copy `/opt/fabrik/libs/subagents` STAYS — 17 hub scripts import it, 12 unguarded. |
+| `libs/subagents` | **RETIRED from the sync 2026-09-08 (D-196).** No longer distributed: a hub-copy fix does NOT reach projects any more, and `scripts/distribute_subagents.sh` no longer distributes it either. Projects delete their leftover copy at their own pace; it stays gitignored meanwhile via `RETIRED_VENDORED_DIRS` (D-198). The HUB copy `/opt/fabrik/libs/subagents` STAYS: an AST scan of 3,968 hub `.py` files finds 20 importer files, 10 with a module-level unguarded import, so deleting it breaks those 10. It does NOT red the gate — with the module blocked, all four gate-wired checks exit 0 (D-198 corrects the original "reds the gate" claim). |
 
 ### Agent Hook Files
 

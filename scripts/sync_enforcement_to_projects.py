@@ -2164,7 +2164,11 @@ def _unreachable_vendored_copies(projects: list[Path]) -> list[str]:
 
     found: list[str] = []
     for project_dir in projects:
-        for vendored_rel in [*VENDORED_DIRS, *RETIRED_VENDORED_DIRS]:
+        # dict.fromkeys: order-preserving dedup. A name in BOTH lists is an incoherent state a
+        # test catches loudly, but at RUNTIME it would walk every project twice and report each
+        # stray twice ("⚠️ 4 vendored copy(ies)" naming two) — a wrong count in a warning is how
+        # a real stray gets dismissed as noise.
+        for vendored_rel in dict.fromkeys([*VENDORED_DIRS, *RETIRED_VENDORED_DIRS]):
             leaf = Path(vendored_rel).name
             target = project_dir / vendored_rel
             for dirpath, dirnames, filenames in os.walk(project_dir):

@@ -69,6 +69,14 @@ def fake_fabrik(tmp_path: Path) -> Path:
     (root / "libs" / "health_probe" / "__pycache__" / "agent.cpython-312.pyc").write_bytes(
         b"\x00bc"
     )
+    # A RETIRED vendored dir must EXIST in the fake hub, or every "it is not distributed" assertion
+    # is vacuous: iter_synced_pairs skips a source dir that does not exist (`if not src_dir.exists():
+    # continue`), so the dest never appears whether the entry is in VENDORED_DIRS or not. Found by
+    # mutation in the D-198 closing round — re-adding libs/subagents to VENDORED_DIRS left the guard
+    # GREEN. With the stub present the test can finally tell "correctly excluded" from "trivially absent".
+    (root / "libs" / "subagents").mkdir(parents=True)
+    (root / "libs" / "subagents" / "__init__.py").write_text("# retired\n")
+    (root / "libs" / "subagents" / "agent.py").write_text("# agent\n")
     return root
 
 
@@ -281,6 +289,19 @@ def test_gitignore_block_contains_worktrees_dir() -> None:
 # VENDORED_DIRS also dropped it from the generated gitignore block, leaving 26 files
 # untracked AND unignored in 38 of 41 project repos — one `git clean -fd` from deletion.
 # The same lesson is recorded for CORE_SCRIPTS at fabrik_synced_manifest.py:60-63.
+
+
+def test_retired_vendored_dirs_is_not_empty() -> None:
+    """THE FLOOR under every other D-198 guard. All of them iterate RETIRED_VENDORED_DIRS, so an
+    empty list makes each loop body never run and all of them report green while protecting
+    nothing. Found by mutation in the closing round: emptying the list left SEVEN tests passing.
+    A future "the fleet finished deleting, drop the entry" cleanup is the realistic trigger —
+    and it must fail HERE, loudly, rather than silently hollowing out the suite."""
+    assert m.RETIRED_VENDORED_DIRS, (
+        "RETIRED_VENDORED_DIRS is empty — every retirement guard below now passes vacuously. "
+        "Removing the last entry is only safe once no project holds the directory at all; "
+        "delete this test in the same change if that day comes."
+    )
 
 
 def test_retired_vendored_dir_is_still_gitignored() -> None:

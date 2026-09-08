@@ -20,8 +20,36 @@ All notable changes to this project will be documented in this file.
   the directory); the pinned exemplars in `tests/test_synced_manifest.py` and
   `tests/test_sync_trigger_coverage.py` moved to `libs/health_probe`, the remaining VENDORED_DIRS member,
   plus a new assertion that `libs/subagents/` left the SYNCED vendored group. 295 tests green
-  across ten suites (the entry first said seven — the suites were counted by hand, the tests by pytest;
-  only the tool-produced number was right). (D-196)
+  across the ten suites named in the review artifact's Pass Ledger (the entry first said seven; the
+  suites were counted by hand, the tests by pytest, and only the tool-produced number was right —
+  a later pass over a different eight-suite set reports 206, which is why the SET is now named
+  rather than the count quoted bare). (D-196)
+
+### Fixed — the importer count is retired, not corrected; and a lost exec bit (2026-09-08)
+
+- **No importer COUNT lives in `scripts/fabrik_synced_manifest.py` any more.** Three successive ledger
+  rows tried to state one for this surface and all three failed to re-derive: D-195's engine files (no
+  selector), D-196's "17 importers / 12 unguarded" (unreproducible; its flagship example
+  `check_imports_resolvable` never imports the module), D-198's "20 / 10" (a closing seat got 16 / 6
+  under equally defensible scoping — a fixture-body import is arguably deferred). A number frozen in a
+  comment cannot carry its own selector, so it reads as fact and drifts: the census printed 3,968 files
+  when written and 3,969 an hour later, from adding one test file. The comment now states the INVARIANT
+  and embeds a runnable census; the command was verified by running it, after the first draft's `sed`
+  range swallowed its own markers.
+- **`09292508` stripped `100755 → 100644`** from `scripts/distribute_subagents.sh` and
+  `scripts/sync_enforcement_to_projects.py` — the private-index commit passed `--cacheinfo 100644` for
+  every path. The working tree kept 755, so nothing looked wrong locally; a fresh clone or DR restore
+  would have made fabrik-lib's `post-commit` hook (`if [ -x ... ]`) a silent no-op and killed the whole
+  auto-re-vendor path with no error and no log line. Restored, with `tests/test_exec_bits.py` pinning the
+  mode IN HEAD (seen red against the live defect — no mutation needed). ⚠️ It is invisible to the
+  stale-blob guard CLAUDE.md mandates: a mode-only change prints `0 0` under `git diff --numstat`,
+  identical to an unchanged file. `git diff --summary` is what reveals it.
+- Hardening from the same round: the worktree skip is a frozenset (`RETIRED_GITIGNORE_GROUPS`) so a
+  future retired group inherits the skip rather than defaulting to distribution;
+  `_unreachable_vendored_copies` dedups its dir list; the D-198 guards are no longer vacuous (the
+  `fake_fabrik` fixture now creates the retired dir — without it `iter_synced_pairs` skipped a
+  non-existent source and the guard passed whatever `VENDORED_DIRS` said), and
+  `test_retired_vendored_dirs_is_not_empty` anchors the five guards that all iterate that list. (D-199)
 
 ### Fixed — the retirement kept its ignore, and the refusal that justified it was wrong (2026-09-08)
 
@@ -72,6 +100,14 @@ A sid is `dead` only on three positive signals — no live signal, a death signa
   regex, so no project receives this. `scored-rate` occurs in exactly two files, both charters, with no
   code consumer and no kaizen cell — the suspension breaks nothing mechanical. The mirror claim in
   `docs/reference/agents/infra.md:42-45` is infra's beat and was filed to them, not edited here. (D-195)
+
+### Fixed — D-191 round 9: the sibling walk is per frame; the board's caveat match is case-insensitive; core/62 says what the code does (2026-09-08)
+- Receipt rows F233–F252 (12 fixed, 6 recorded, 2 refuted; script-counted).
+- `dispatch_headroom.py`: one malformed NESTED frame no longer drops the whole record's live reservation — the bad frame is named `<file>#<n>`, a non-dict stack entry too, the good frames count, and `unrecorded` is one per SESSION (F236–F238).
+- `quota_dashboard.py`: the caveat match is case-insensitive (the script's "NOT subtracted" over-dispatch caveat never matched), "HARD cap binds" and "is not a number" are caveat words, an ABSENT box block is unknown (no floor label), and the period test asserts the wait the loop computes on a fake clock — nothing sleeps (F246–F249).
+- `command_feedback_report.py`: `seats_seen_rows` (was `seats_rows`, one letter from `seat_rows`); the `seats_seen` reducer uses `_is_count`; the protocol doc lists the report's `--json` keys (F242–F244).
+- Round-9 Opus seat: "never below the floor" stated only where it holds; a stamped parent with an unstamped child is a recorded session; the board's floor label keys on the script's exported `floor_granted`/`box_caps_floored`, never on `box_cap == floor`; the round EVENT carries the inherited stamp and `--seats 0` is a deliberate zero; the no-viewer probe test is deterministic; the banner grader has an iteration floor; a matrix test proves every degraded `budget()` reason reaches the board (F253–F259).
+- core/62 (4) promised a floor cap on a missing standby that `budget()` never applied — it now states the two behaviours the code has (F233; fleet-synced). design-review's spelling harmonised (F239).
 
 ### Fixed — D-191 round 8: the stamp is the round's seat figure; a parked parent keeps its reservation; the board renders every degraded reason (2026-09-08)
 - `command_run.py`: a bare `round` inherits the accumulated `dispatch --seats` stamp (a hand-typed count that disagrees is said on stderr and recorded as typed); `seats_declared` is graded on the ledger row; the seat's `_last` epoch stays a float (F195, F201, F207).

@@ -148,12 +148,42 @@ ENFORCEMENT_DIR = "scripts/enforcement"
 # blocker, all four gate-wired checks (check_imports_resolvable, check_routing_policy,
 # check_command_corpus, check_subagent_flywheel) exit 0 — every one guards its import, and
 # check_imports_resolvable never imports it at all (prose only, the same distinction the project-side
-# count got right). The real reason to keep it: an AST scan of 3,968 hub ``.py`` files (excluding
-# .venv, node_modules, .claude/worktrees, mutants and the vendored dirs) finds 20 importer files, 10
-# with a MODULE-LEVEL UNGUARDED import — 3 live scripts (classify_services, flush_subagent_outboxes,
-# canary_grounding) plus 7 test modules. Deleting the source breaks those 10, so it is still a
-# migration rather than a one-liner — a smaller one than first claimed, and not a gate failure.
-# Re-derive with the selector stated; a bare count here is what went wrong the first time.
+# count got right).
+#
+# THE REAL REASON TO KEEP IT, stated as an INVARIANT rather than a count: some hub scripts import the
+# module at MODULE level without a guard, so deleting the source breaks them. It is a migration, not a
+# one-liner — and not a gate failure.
+#
+# ⚠️ NO COUNT LIVES HERE, deliberately. Three successive attempts to state one (D-195's engine files,
+# D-196's "17 importers / 12 unguarded", D-198's "20 / 10") each failed to re-derive, because the
+# answer moves with the exclusion set and with whether a fixture-body import counts as deferred.
+# A number frozen in a comment cannot carry its own selector, so it reads as fact and drifts. Run the
+# query instead — it is the only form that stays true:
+#
+#   python3 -c "$(sed -n '/^# BEGIN importer-census/,/^# END importer-census/p' \
+#     scripts/fabrik_synced_manifest.py | grep -v 'importer-census' | sed 's/^# //')"
+#
+# (the grep drops this block's own BEGIN/END marker lines; without it python parses the marker
+#  text as code — verified by running it, because a command quoted in a comment that has never
+#  been executed is the proxy-as-evidence defect in miniature)
+#
+# BEGIN importer-census
+# import ast, pathlib
+# EXCL = ('.venv','node_modules','.claude/worktrees','mutants','libs/subagents','libs/health_probe')
+# files = [p for p in pathlib.Path('/opt/fabrik').rglob('*.py') if not any(e in str(p) for e in EXCL)]
+# hard = []
+# for p in files:
+#     try: tree = ast.parse(p.read_text(encoding='utf-8', errors='ignore'))
+#     except SyntaxError: continue
+#     for n in ast.walk(tree):
+#         if isinstance(n, (ast.Import, ast.ImportFrom)):
+#             names = ([n.module] if isinstance(n, ast.ImportFrom) and n.module else [])
+#             names += [a.name for a in n.names]
+#             if any('subagents' in x for x in names) and n.col_offset == 0:
+#                 hard.append(f'{p}:{n.lineno}'); break
+# print(f'{len(files)} files scanned; {len(hard)} with a column-0 subagents import:')
+# print('\n'.join(sorted(hard)))
+# END importer-census
 VENDORED_DIRS = [
     # fabrik-lib health-probe, vendored AS SHIPPED (D-082): the comparison-row producer every
     # project's scripts/verify_prod_parity.py imports lazily. Pinned by the VENDORED-FROM header.
@@ -179,6 +209,13 @@ RETIRED_VENDORED_GITIGNORE_GROUP = (
     "Retired vendored modules (no longer synced; still ignored so a leftover copy is not "
     "`git clean -fd` / `git add -A` bait)"
 )
+
+# EVERY gitignore group that must be IGNORED but never DISTRIBUTED. ``worktreeinclude_text()``
+# skips membership of this set, not one hardcoded key: the property is "this group is retired",
+# and encoding it as a single `==` made the DEFAULT for any future retired group "distribute it"
+# — a second such group would silently land in `.worktreeinclude` and be copied into every new
+# worktree in ~46 repos, which is exactly the distribution the mechanism exists to end.
+RETIRED_GITIGNORE_GROUPS: frozenset[str] = frozenset({RETIRED_VENDORED_GITIGNORE_GROUP})
 
 RETIRED_VENDORED_DIRS = [
     # D-198, 2026-09-08 — retired by D-196 at fabrik-lib's request; the pool is OFF (D-181/D-182)
@@ -373,9 +410,10 @@ def worktreeinclude_text() -> str:
     seen: set[str] = set()
     patterns: list[str] = []
     for group, paths in gitignore_dest_paths().items():
-        # A RETIRED vendored dir is ignored but never distributed — copying it into a new
-        # worktree would resume exactly the distribution the retirement ended (D-198).
-        if group == RETIRED_VENDORED_GITIGNORE_GROUP:
+        # A RETIRED group is ignored but never distributed — copying it into a new worktree
+        # would resume exactly the distribution the retirement ended (D-198). Membership, not
+        # `==`: a second retired group must inherit the skip rather than default to shipping.
+        if group in RETIRED_GITIGNORE_GROUPS:
             continue
         for p in paths:
             if p not in seen:

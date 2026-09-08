@@ -248,13 +248,14 @@ the last; the closing pass re-derives every count and anchor and says so in its 
 Row shapes (quoted here, so the gate does not read them as passes):
 
 ```text
-| Pass 1 | pool <model×n> + native <model×n> | found: N, fixed: M | citation |
-| Pass 2 | pool <model×n> + native <model×n> | found: 0, fixed: 0 | method: re-derivation |
+| Pass 1 | method: citation | found: 15 | new: 15 | fixed: 0 | finders: 5 dispatched / 5 returned — native fabrik-reviewer, 1 Opus (prune+deletion safety) + 4 Sonnet (importer denominator · generated artifacts+caches · test integrity · ledger accuracy); sized by dispatch_headroom.py --units 5 --risky 1, stamped before dispatch, all in ONE message |
+| Pass 2 | method: gate | found: 6 | new: 6 | fixed: 15 | finders: orchestrator fixes + executable verification (meta_path import blocker over the 4 gate-wired checks; _unreachable_vendored_copies run against both known strays; red-on-revert vs HEAD's pre-fix module with both halves asserted); 206 tests green across 8 suites |
+| Pass 3 | method: re-derivation | found: PENDING | new: PENDING | fixed: PENDING | finders: 4 dispatched — 1 Opus (the fix itself: completeness + fail direction) + 3 Sonnet (numbers/prose re-derivation · tests+residue · fleet census); sized --units 3 --risky 1 --mechanical 0, stamped, ONE message |
 ```
 
 ## Per-phase verdicts
 
-### Phase 1 — <title>: UNCHECKED
+### Phase 1 — Independent finders (recall): PASS — 5 seats dispatched, 5 returned, 15 candidates; the Opus authoritative seat found the HIGH finding (gitignore protection stripped from 38 of 41 repos) that two self-sweeps and the scoped review had read straight past.
 
 ## Gate
 
