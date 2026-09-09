@@ -1196,8 +1196,8 @@ _PASS_HEAD_COLON = re.compile(r"(?<![\w-])\**Pass\s*\d+[a-z]?\**\s*:", re.I)
 # apart: it just picks which way to be wrong. Round 6 picked fail-OPEN and re-opened the round-4
 # hole — `| Pass 3 (a) | found: 5 issues | fixed: 1 | | found: 0 issues | fixed: 0 |` scored not-
 # joined and was DROPPED WHOLE, `check_file` green off the previous quiet round. This file's
-# adjudicated policy on exactly that tie is fail-CLOSED (see `_joined_row`'s cost block): fencing
-# a citation is one keystroke, a missed join grades a receipt quiet off someone else's numbers.
+# adjudicated policy on exactly that tie is fail-CLOSED (see `_joined_row`'s cost block): a cited
+# counter is one edit to reword, a missed join grades a receipt quiet off someone else's numbers.
 # The guard on `_CELL_FOUND` is NOT the same call — it fires on a whole-line count, where nothing
 # to its left establishes that a second row has begun.
 _CELL_OPENS_FOUND = re.compile(r"^\s*\**found:\s*\d")
@@ -1303,7 +1303,21 @@ def _joined_row(line: str) -> bool:
     caller's no-first-run branch is reachable and load-bearing, not decoration.
 
     RECORDED, all three the SAME adjudicated fail-CLOSED choice — indistinguishable from a real
-    join, one keystroke to repair (fence the citation), 0 committed exemplars among the 275:
+    join, cheap to repair, 0 committed exemplars among the 275.
+
+    ⚠️ THE REPAIR, measured rather than assumed (round 8 — this block used to say "one keystroke
+    to repair (fence the citation)", which is true of exactly ONE of the three). Executed against
+    all three shapes plus the bare `_empty_cell_join` row:
+      * REWORD the cited counter (`found: 3` -> `raised 3`) — repairs ALL of them. It is the only
+        remedy that does, and the only one this file should ever recommend;
+      * FENCE the counter (`` `found: 3` ``) — repairs only the bare `_empty_cell_join` row. On
+        the other three a backtick SATISFIES `_FOUND_TOK`'s trailing guard instead of defeating
+        it, so the row is still refused;
+      * DROP the `Pass N` mention — repairs only the PROSE line. The two cell shapes key on cells
+        and counters, not on heads, so removing the mention changes nothing.
+    Whoever edits `_JOINED_REASON` below: re-run that matrix before naming a remedy in it.
+
+    The three:
       * (round 3) a row that NAMES another round and cites its counter in its own cell
         (`| Pass 4 | … found: 1 | fixed: 1 | re-ran as Pass 3 | found: 3 |`) trips the strict arm;
       * (rounds 6-7) ANY citing cell standing right of an empty cell — bare (`| R1 | found: 1 |
@@ -1363,7 +1377,15 @@ def _first_run(line: str, stop: int | None = None) -> tuple[int, int] | None:
     return int(f.group(1)), (int(x.group(1)) if x else 0)
 
 
-_JOINED_REASON = "two ledger rows on ONE physical line (a U+2028/U+2029 joined them?) — "
+# The remedy named here is the MEASURED one (see `_joined_row`'s repair matrix): rewording the
+# cited counter is the only repair that clears every refused shape. Fencing it clears exactly one
+# of the four, and dropping the `Pass N` mention clears only the prose line — neither belongs in a
+# message an author is expected to act on.
+_JOINED_REASON = (
+    "two ledger rows on ONE physical line (a U+2028/U+2029 joined them?) — if this row only "
+    "CITES another round, reword the cited counter (`found: 3` -> `raised 3`); fencing it is "
+    "not enough — "
+)
 
 
 def _toks_in_span(tok: re.Pattern[str], line: str, start: int, stop: int) -> list[str]:

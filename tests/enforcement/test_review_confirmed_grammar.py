@@ -868,6 +868,20 @@ def test_a_citing_cell_right_of_a_gap_is_refused_fail_closed(tmp_path):
         assert crc._joined_row(citing) is True, citing
         _t, _p, _o, refusals = crc._ledger_shapes(citing + "\n")
         assert refusals and refusals[0].startswith("two ledger rows on ONE physical line"), citing
+        # Round 8: a refusal an honest author cannot act on is half a gate. The message must name
+        # the remedy, and the remedy must be the one that WORKS — measured, not assumed.
+        assert "reword the cited counter" in refusals[0], refusals[0]
+    # The repair matrix, executed. Rewording clears every shape; fencing clears only the bare
+    # `_empty_cell_join` row (elsewhere a backtick satisfies `_FOUND_TOK`'s trailing guard rather
+    # than defeating it); dropping the `Pass N` mention clears only the prose line. The message
+    # above may only ever name the first.
+    reworded = "| Pass 3 | o | found: 0 | fixed: 0 | | see Pass 2 | raised 3 as cited |"
+    assert crc._joined_row(reworded) is False, "the named remedy must actually repair the row"
+    assert _graded(tmp_path, reworded + "\n") == [], "and leave the receipt clean"
+    fenced = "| Pass 3 | o | found: 0 | fixed: 0 | | see Pass 2 | `found: 3` was cited |"
+    assert crc._joined_row(fenced) is True, "fencing does NOT repair this shape — never say it does"
+    dropped = "| Pass 3 | o | found: 0 | fixed: 0 | | see earlier | found: 3 was cited |"
+    assert crc._joined_row(dropped) is True, "nor does dropping the mention — the arm has no head"
 
 
 def test_a_head_less_join_whose_second_row_is_word_trailed_is_still_seen(tmp_path):
