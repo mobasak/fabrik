@@ -1,5 +1,5 @@
 ---
-description: LIGHT diff-scoped review with the full convergence spine — for SPONTANEOUS plain-chat changes made under no command. Rubric-armed passes over the changed surface, fix-in-run, loop to a raised-zero no-op; the run record's round ledger IS the artifact (no review file — that is the lightness; the closing pass still owes ONE independent reader). TRIGGER — EN: "quick review of my changes", "scoped review"; TR: "hızlı incele" — fires after ad-hoc edits; the Stop hook demands it when code changed with no run record. SKIP/ESCALATE to the full /fabrik-review: gate/hook/enforcement, auth/schema/migrations/concurrency, >5 files, operator-named work, or 3 rounds still finding. Stage: gate.
+description: LIGHT diff-scoped review with the full convergence spine — for SPONTANEOUS plain-chat changes made under no command. Rubric-armed passes over the changed surface, fix-in-run, loop to a delta pass that CONFIRMS zero (refuted candidates never count); the run record's round ledger IS the artifact (no review file — that is the lightness; the closing pass still owes ONE independent reader). TRIGGER — EN: "quick review of my changes", "scoped review"; TR: "hızlı incele" — fires after ad-hoc edits; the Stop hook demands it when code changed with no run record. SKIP/ESCALATE to the full /fabrik-review: gate/hook/enforcement, auth/schema/migrations/concurrency, >5 files, operator-named work, or 3 rounds still finding. Stage: gate.
 argument-hint: "[paths or a git range — omit to review this session's uncommitted + unpushed work]"
 ---
 
@@ -44,15 +44,19 @@ proportionate answer.
    exit and is not a route-up trigger** — the shape describes the FIX, never a permit to leave a
    finding standing. Routing up happens on the triggers in steps 1 and 5, never because a finding was
    called architectural.
-4. **Record each pass:** `python3 scripts/command_run.py round --seats <seats dispatched this pass> --findings <n> --classes-swept <…>
-   --classes-new <…>`. **The round ledger IS this command's artifact** — deliberately no review
+4. **Record each pass:** `python3 scripts/command_run.py round --seats <seats dispatched this pass> --findings <raw candidates> --confirmed <n> --classes-swept <…>
+   --classes-new <…>` — `--findings` is raw recall, `--confirmed` is the EXIT counter: a candidate
+   counts only once you EXECUTED it (a probe, a failing test, a mutation on a copy; a doc claim by a
+   pinned read quoted beside the sentence) and it reproduced. A refuted or `RECORDED` candidate
+   never reopens the loop (D-206). **The round ledger IS this command's artifact** — deliberately no review
    file: `check_review_coverage.py` grades the heavy command's reports; this one's proof is the
    record the Stop hook reads (that asymmetry is the lightness, stated so nobody "fixes" it).
-5. **Loop:** middle passes scoped to the fixes + their callers; the closing pass re-reads the whole
-   changed surface fresh. Done ONLY on a pass that raises **zero new candidates** — minimum two
-   passes, the fixing pass is never the last. Three rounds with new findings each = the surface
-   outgrew this command: STOP and run the full `/fabrik-review` (its multi-seat breadth exists for
-   exactly this).
+5. **Loop:** pass 1 reads the whole changed surface; every later pass is a DELTA over the last
+   pass's fix diff plus one hop of its callers and callees, same class ledger (a pass is never a
+   re-scope). Done ONLY on a delta pass that **CONFIRMS zero** — minimum two passes, the fixing
+   pass is never the last, and the closing pass owes a fresh non-authoring reader (below). Three
+   rounds each confirming something = the surface outgrew this command: STOP and run the full
+   `/fabrik-review` (its multi-seat breadth exists for exactly this).
    ⚠️ **The CLOSING pass owes ONE INDEPENDENT reader that actually RETURNED — a self-sweep may not
    close this loop.** Every other exit condition here is satisfiable by the orchestrator's own
    passes, and an orchestrator re-reading its own diff checks whether it did what it meant to; it
@@ -64,10 +68,12 @@ proportionate answer.
    and a hub run whose five rounds each found exactly one real defect found every one of them
    through the independent layer — including a commit whose comment AND message both described a
    redirect that was never added, which two self-sweeps had read straight past.
-   **The floor is 3 readers, not the heavy command's full class partition** — that is what keeps this
-   light: a one-unit diff is `dispatch_headroom.py --units 1`'s own answer, 3 seats (D-191: the Opus
-   authoritative seat + one Sonnet + one Haiku over the whole diff; a multi-file diff partitions by
-   file and the script says how many), stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` (the stamp is what sibling sessions subtract; step 4's `round --seats` closes it), dispatched in a single message and adjudicated as a union (D-186 — a lone reader is not a round; this command's own
+   **The floor is 3 readers, not the heavy command's file partition** — that is what keeps this
+   light: 3 seats on ONE brief, the measured duplicate-brief technique (`core/62`:65) — three
+   readers of the same one-unit diff on different angles, `dispatch_headroom.py --units 1`; a
+   multi-file diff partitions by file and sizes by `--units <N>`. **The partition rule of
+   `/fabrik-review` (`--slices`, Opus on the risky slices) never applies here** — this command's
+   escape hatch for a surface that needs it is routing UP, not partitioning down. Stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` (the stamp is what sibling sessions subtract; step 4's `round --seats` closes it), dispatched in a single message and adjudicated as a union (D-186 — a lone reader is not a round; this command's own
    measurement is why) (measured on one diff: 1 seat found 0, 3 seats found 0 / 5 / 0, and the 5 held a real fail-open two self-sweeps had read past — web-ecommerce-factory 01M1RAAX, 2026-09-05). It must have RETURNED: a seat that was dispatched and died is not a reader, and its absence is not a clean round. The pool form of this floor is kept below for re-enable (D-181):
 <!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
    a read-only `fanout("review", …, mode="read_only")` over the diff (cents, no Claude quota, and it

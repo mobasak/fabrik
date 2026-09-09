@@ -121,11 +121,14 @@
       "commit": "e007a3f2"
     },
     "T07": {
-      "state": "review-closed-awaits-T10-code-merge",
+      "state": "merging",
       "base_commit": "0fc15cae",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-ad7144e53b2348934",
       "branch": "worktree-agent-ad7144e53b2348934",
-      "head": "c49f389e"
+      "head": "c49f389e",
+      "rounds": 3,
+      "series": "20 \u2192 19 \u2192 13 candidates; 4 \u2192 5 \u2192 0 confirmed",
+      "seam": "V7 positive control re-pointed at the T10-split COST label at merge"
     },
     "T10": {
       "state": "code-merged",

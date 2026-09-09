@@ -218,11 +218,24 @@ _EX_ITEM = 'an API "reused" that doesn\'t exist, a column "stored" with the wron
 # recall (D-191 round-2 finding). The floor for them names Sonnet + Opus only and `--mechanical 0`.
 _JUDGEMENT_KINDS = {"grounding", "adjudication"}
 
+# The two PARTITIONED review loops (`/fabrik-review`, `/fabrik-repo-review`) size by slice, not by
+# unit: D-207 cuts their surface into disjoint file slices and D-208 retires the three-angle floor
+# there (it is satisfied by construction — the union of the slices IS the full pass). Every other
+# kind keeps the units-sized mix. This kind is used by exactly those two PARAMS entries.
+_PARTITION_KINDS = {"review loop"}
+
 
 def _floor(kind: str, native: str) -> str:
     # D-181/D-182 (2026-09-07): the pool is OFF by ruling, so the floor is stated in native seats only.
     # The pool form ("pool breadth AND ≥1 native Opus") is kept in git history for re-enable.
-    if kind in _JUDGEMENT_KINDS:
+    if kind in _PARTITION_KINDS:
+        angles = (
+            f"**plus the partition — the surface cut into DISJOINT slices by file: Opus on the "
+            f"risky slices, Sonnet {native} seats on the rest, at most ONE Haiku class seat when "
+            f"the brief names a non-scriptable inventory class; every file read once; sized by "
+            f"`dispatch_headroom.py --slices opus=N,sonnet=N,haiku=N` (D-207)"
+        )
+    elif kind in _JUDGEMENT_KINDS:
         angles = (
             f"**plus one Sonnet {native} breadth seat per INDEPENDENT unit — no mechanical seat: "
             f"{'an' if kind[0] in 'aeiou' else 'a'} {kind} unit is a judgement with no grep-able angle, so the dispatch step runs with "
@@ -232,11 +245,12 @@ def _floor(kind: str, native: str) -> str:
         )
     else:
         angles = (
-            f"**plus one Sonnet {native} breadth seat AND one Haiku mechanical seat per INDEPENDENT unit "
-            f"(trimmed below one per unit, each Haiku seat sweeps ONE grep-able class across every unit) "
-            f"— the box is the ceiling, the units the partition (D-191); never a token 1–2; the model is "
-            f'the per-dispatch token, `model: "opus"` for the authoritative seat, `model: "sonnet"` for '
-            f'breadth, `model: "haiku"` for the mechanical angle'
+            f"**plus one Sonnet {native} breadth seat per INDEPENDENT unit and one Haiku mechanical "
+            f"seat per grep-able class the surface has (trimmed, each Haiku seat sweeps ONE class "
+            f"across every unit) — the units-sized mix for a review, docs-review, sweep or audit "
+            f"surface (D-208); the box is the ceiling, the units the partition; never a token 1–2; "
+            f'the model is the per-dispatch token, `model: "opus"` for the authoritative seat, '
+            f'`model: "sonnet"` for breadth, `model: "haiku"` for the mechanical angle'
         )
     return (
         f" **⚠️ Floor — every {kind} dispatches ≥1 native {native} on Opus as the authoritative pass** "
@@ -612,7 +626,9 @@ PARAMS = {
             "HEADLINE": "flywheel (pool finders record; native finders don't)",
             "TASK_TYPE": '"review"',
             "PROJECT": "review",
-            "FLOOR": _floor("review", "`fabrik-reviewer`"),
+            # D-207: a PARTITIONED review loop — slices, not units (the other four `review`-kind
+            # entries are sweep/audit-shaped and keep the units-sized floor, D-208)
+            "FLOOR": _floor("review loop", "`fabrik-reviewer`"),
             "EXTRA": ' Finders inline the diff via `fanout("review", …, mode="read_only")` (sets `tools_enabled=False`+`allow_ungrounded=True`); use `mode="write"` for real file reads.',
         },
     },
@@ -642,7 +658,8 @@ PARAMS = {
             "HEADLINE": "flywheel (pool workers record; native reviewers don't)",
             "TASK_TYPE": '"review"',
             "PROJECT": "repo-review",
-            "FLOOR": _floor("review", "`fabrik-reviewer`"),
+            # D-207: the second PARTITIONED review loop — slices, not units
+            "FLOOR": _floor("review loop", "`fabrik-reviewer`"),
             "EXTRA": ' Mass unit review via `fanout("review", …, mode="read_only")`; put the native Opus pass on the highest-blast-radius units (money / auth / data-integrity) — but at least one, always.',
         },
     },

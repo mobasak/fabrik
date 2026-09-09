@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — The review corpus carries the file partition and the CONFIRMED exit (2026-09-09)
+
+- `/fabrik-review` states its seat rule once: the surface is partitioned into DISJOINT slices by
+  file (Opus on the risky slices, Sonnet on the rest, at most one Haiku class seat), sized by
+  `dispatch_headroom.py --slices opus=N,sonnet=N,haiku=N` and stamped before dispatch; the 16
+  failure classes are every seat's hunt list, not the partition (D-207). Phase 2 makes the
+  orchestrator EXECUTE every candidate and every refutation before CONFIRMED/REFUTED, with the four
+  `RECORDED — <kind> (…)` verdicts; Phase 4 becomes the delta round and every exit site reads
+  `confirmed: 0, fixed: 0` with `unexecuted:` 0 or absent (D-206, superseding D-048).
+- `/fabrik-repo-review`'s waves become slice batches and its certification pass is the class-ledger
+  close with `--confirmed`; `/fabrik-review-scoped` keeps its 3-reader one-brief floor, gains
+  `--confirmed` and adopts the delta-round rule; `/fabrik-rules-review` cites D-206.
+- `assemble_commands.py::_floor()` gains a third `review loop` kind for exactly those two
+  partitioned loops (D-207); the other eight commands keep a units-sized floor rephrased off the
+  retired D-191 literal (D-208). `tests/test_assemble_dispatch_step.py` grades the literal's absence
+  across the 36 rendered commands, the sources, the fragment, core/62, both CLAUDE.md files, the
+  tracked `scripts/**/*.py`, `docs/workstation/` and the two `docs/reference` files (V7), and the
+  fragment's delta-round sentence surviving a render (V8).
+
 ### Changed — `round --confirmed <n>`: the convergence exit counter is CONFIRMED defects (2026-09-09)
 `scripts/command_run.py round` gains `--confirmed <n>` (default: not stated). Quiet is zero
 CONFIRMED code or doc defects (D-206/D-203), never zero raised: the TERMINAL verdict fires on
