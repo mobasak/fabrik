@@ -267,7 +267,7 @@ A review/convergence loop must **not** be a one-shot. State it explicitly:
 
 - "This is a LOOP; it ends **only** when a fresh, demonstrably-thorough pass changes **NOTHING** (a no-op)."
 - "**The pass in which you changed anything is NEVER the last pass**" — it must be followed by a confirming pass.
-- Require a numbered **Pass Ledger**; done only when the last row reads `found: 0, fixed: 0` (or `edits: 0`).
+- Require a numbered **Pass Ledger**; done only when the last row carries `confirmed: 0, fixed: 0` (and `unexecuted: 0`, or no such cell) from a DELTA round that carried a fresh, non-authoring seat — a ledger whose rows never state `confirmed:` closes on `found: 0, fixed: 0` (or `edits: 0`).
 - **Anti-cheat:** record the artifact's `md5sum` at the start and end of the final pass — identical hash is the only proof of a real no-op; a claimed no-op without matching hashes doesn't count.
 
 ### 3. Evidence before assertion (freshness)
