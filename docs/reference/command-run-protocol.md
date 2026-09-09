@@ -131,8 +131,9 @@ sequence and that diagnosis. It is **advisory only and never blocks** — the op
 trapped by a heuristic, and a legitimately widening review (a fix that opens a new surface) must be
 able to say so and continue.
 
-The advisory reads the `confirmed` series when every round in the window states it, and the
-`findings` series otherwise — the same fallback the TERMINAL rule uses.
+The advisory reads the `confirmed` series when every round in the record states it, and the
+`findings` series otherwise — the same fallback the `FEEDBACK:` trend shares (§ Close-out USAGE
+feedback), never the TERMINAL rule's, which is a LAST-round-only test.
 
 ## Coverage — which commands open a record
 
