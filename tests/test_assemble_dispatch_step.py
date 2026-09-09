@@ -91,22 +91,51 @@ def test_judgement_floors_name_no_haiku_seat_and_review_floors_name_a_class_wide
     assert "units-sized mix for a review, docs-review, sweep or audit surface" in review
 
 
+# The ticket fixes both floor sentences VERBATIM so a grader can assert them WHOLE. A clause-level
+# check is not enough: two mutants of the partition floor — `(D-207)` -> `(D-999)` and the deletion
+# of the Haiku-class-seat clause — survived every earlier assertion in this file (review round 1).
+_PARTITION_SENTENCE = (
+    "**plus the partition — the surface cut into DISJOINT slices by file: Opus on the risky "
+    "slices, Sonnet `fabrik-reviewer` seats on the rest, at most ONE Haiku class seat when the "
+    "brief names a non-scriptable inventory class; every file read once; sized by "
+    "`dispatch_headroom.py --slices opus=N,sonnet=N,haiku=N` (D-207)"
+)
+_UNITS_SENTENCE = (
+    "**plus one Sonnet `fabrik-reviewer` breadth seat per INDEPENDENT unit and one Haiku "
+    "mechanical seat per grep-able class the surface has (trimmed, each Haiku seat sweeps ONE "
+    "class across every unit) — the units-sized mix for a review, docs-review, sweep or audit "
+    "surface (D-208)"
+)
+
+
 def test_the_two_partitioned_review_loops_get_the_slice_floor_and_nothing_else_does():
     """D-207 gives the partition ONLY to `/fabrik-review` and `/fabrik-repo-review`, through a
     third `_floor` kind. Graded on the PARAMS table, not on a source list: a fourth command
     silently switched to the `review loop` kind is exactly the drift this catches."""
     loop = ac._floor("review loop", "`fabrik-reviewer`")
-    assert "cut into DISJOINT slices by file" in loop
-    assert "--slices opus=N,sonnet=N,haiku=N" in loop
-    assert "every file read once" in loop
+    assert _PARTITION_SENTENCE in loop, loop  # WHOLE, including the D-row cite
     assert "one Haiku mechanical seat per grep-able class" not in loop
+    # the D-208 sentence is fixed verbatim too — the same mutant class, the other branch
+    assert _UNITS_SENTENCE in ac._floor("review", "`fabrik-reviewer`")
     slice_floors = sorted(
         name
         for name, frags in ac.PARAMS.items()
-        if "cut into DISJOINT slices by file"
-        in (frags.get("subagents-core", {}).get("FLOOR") or "")
+        if _PARTITION_SENTENCE in (frags.get("subagents-core", {}).get("FLOOR") or "")
     )
     assert slice_floors == ["fabrik-repo-review", "fabrik-review"], slice_floors
+
+
+def test_the_partition_sentence_reaches_the_two_rendered_commands_whole(tmp_path):
+    """`_floor()` alone cannot see an interpolation or PARAMS change that mangles the sentence on
+    its way into a command — grade the RENDERED text, comments stripped, and count the carriers."""
+    ac.render(tmp_path, tmp_path / "_skills", agents_dest=tmp_path / "_agents")
+    rendered = {f.stem: f.read_text() for f in tmp_path.glob("*.md")}
+    carriers = sorted(
+        n
+        for n, text in rendered.items()
+        if _PARTITION_SENTENCE in ac._HTML_COMMENT_RE.sub("", text)
+    )
+    assert carriers == ["fabrik-repo-review", "fabrik-review"], (carriers, len(rendered))
 
 
 def test_the_native_half_of_a_commands_extra_renders_in_the_live_paragraph(tmp_path):

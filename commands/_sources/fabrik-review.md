@@ -124,7 +124,7 @@ $ git archive <sha> | tar -x -C <scratchpad>/review-<sha>
 
 and brief the finder against that path. If a finder must read the live tree instead (a working-tree
 review, `git diff HEAD`), say so IN the brief so the finder knows what it is looking at — and tell it
-to EXCLUDE the tree's stale copies: `.claude/worktrees/**` and `.tmp/**` (pool scratch) hold whole
+to EXCLUDE the tree's stale copies: `.claude/worktrees/**` and `.tmp/**` (subagent scratch) hold whole
 duplicate `src/` + `tests/` trees at DIFFERENT line numbers, so an unscoped repo-root grep returns
 anchors that resolve in a worktree and not in HEAD (`grep -rn --exclude-dir=.claude
 --exclude-dir=.tmp …`; web-ecommerce-factory 01M1QEY5, 2026-09-05: two finders lost a result set to it). This is the
@@ -139,10 +139,13 @@ that a change re-exposes are in scope).
 ## Phase 1 — Independent finders (recall)
 
 **Run the review-hygiene check on the surface FIRST and fix its hits before the seats go out**
-(D4) — `check_review_hygiene.py`, which sits with the other enforcement checks under
-`scripts/enforcement/`, called with `--surface <the diff's dir|file>` plus, as the round needs them,
-`--receipt <the review file>`, `--phrase "<a phrase the brief calls stale>"` and `--symbol <a symbol
-that should be gone>` — advisory, always exit 0. It owns the grep-shaped classes (template residue,
+(D4): `python3 scripts/enforcement/check_review_hygiene.py --surface <a file or dir on the surface>
+[--receipt <a docs/development/reviews/ md>] [--phrase "<a stale phrase>"] [--symbol <a live
+symbol>] [--json]` — every flag is REPEATABLE (`action="append"`), and `--json` emits the hits for a
+brief. It is ADVISORY and ALWAYS exits 0, so read its OUTPUT, never its status: it prints a `[NOTE]`
+line for every path it could not read — *"unreadable — NOT scanned, not in the denominator"*, which
+is how a typo'd `--surface` shows itself instead of reading clean — and its summary line states how
+many receipt rows it could not grade. It owns the grep-shaped classes (template residue,
 fence parity, raw pipes, dual verdicts, changelog quality, dead symbols, stale phrases), so a seat
 is never spent on one; each hit is a CANDIDATE you adjudicate into the ledger as FIXED (a hygiene
 hit fixed at the round's start is a confirmed doc defect of that round and IS counted) or as
