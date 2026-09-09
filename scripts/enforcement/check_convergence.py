@@ -199,18 +199,30 @@ _TICKET_REVIEW_RE = re.compile(r"-T\d{2}[a-z]?-review\.md$")
 # CONFIRMED count is zero and nothing stands ``unexecuted:``, however large ``found:`` is
 # (``found:`` became prose). The pair below is one definition of quiet across both gates (DD9):
 #   * branch 1 — the OLD pair, ``found: 0 … fixed: 0``, kept for every receipt written before the
-#     re-cut (backward compatibility is a contract, DD4), but only on a row carrying no NUMERIC
-#     ``confirmed:`` counter and no ``unexecuted:`` above zero — else ``found: 0, confirmed: 3``
-#     or ``found: 0, fixed: 0, unexecuted: 2`` would read quiet HERE and not at the coverage gate;
-#   * branch 2 — the new pair, ``confirmed: 0 … fixed: 0``, likewise dead to a standing
-#     ``unexecuted:``. ``0+`` so a zero-padded ``confirmed: 00`` reads the same at both gates.
+#     re-cut (backward compatibility is a contract, DD4), killed when a NUMERIC ``confirmed:``
+#     counter or an ``unexecuted:`` above zero stands TO THE RIGHT of the ``found: 0`` anchor —
+#     else ``found: 0, confirmed: 3`` or ``found: 0, fixed: 0, unexecuted: 2`` would read quiet
+#     HERE and not at the coverage gate;
+#   * branch 2 — the new pair, ``confirmed: 0 … fixed: 0``, likewise dead to an ``unexecuted:``
+#     standing to the right of its ``confirmed:`` anchor. ``0+`` so a zero-padded
+#     ``confirmed: 00`` reads the same at both gates.
+# ⚠️ Both guards are LOOKAHEADS: they scan FORWARD from their anchor token only, so this pair is
+# NOT order-independent, and reading it as such is the mistake to avoid. Executed: a row written
+# ``| 18 | confirmed: 3 | found: 0 | fixed: 0 |`` or ``| u | unexecuted: 2 | found: 0 | fixed: 0 |``
+# still matches branch 1 (the counter is LEFT of the anchor, behind the lookahead), and
+# ``| Pass 19 | found: 5, fixed: 0, confirmed: 0 |`` matches NEITHER branch (branch 2 needs
+# ``fixed:`` to the right of ``confirmed:``). That is deliberate, not a hole: the canonical row
+# order is ``found, new, confirmed, fixed, unexecuted`` and check_review_coverage.py's token/order
+# rules REFUSE a displaced counter BY NAME, so the DEPTH gate catches the reordered row this
+# PRESENCE gate would false-accept. Measured over the 275 committed receipts at 8092e8a8: 0 carry
+# a counter left of its anchor.
 # Both lookaheads are anchored to a DIGIT and carry the coverage token's ``\s*`` before the colon:
 # this gate runs re.I, so a label-killed match would fail a genuinely converged receipt — a prose
 # ``CONFIRMED: see residual`` on an honest old-grammar row keeps its quiet match, while
 # ``unexecuted : 2`` cannot read quiet here and be refused there.
-# D-053 re-grounding (2026-08-31): the 40-char window made row ORDERING load-bearing — a
-# finder manifest between the counters failed an honest quiet round (13-round review proof).
-# Same-LINE is the constraint (``[^\n]``); the gap is not.
+# D-053 re-grounding (2026-08-31): the 40-char window made the GAP between the counters
+# load-bearing — a finder manifest between them failed an honest quiet round (13-round review
+# proof). Same-LINE is the constraint (``[^\n]``); the size of the gap is not.
 QUIET_PASS = re.compile(
     r"found:\s*0\b(?![^\n]*(?<![\w-])(?:confirmed\s*:\s*\d|unexecuted\s*:\s*\d*[1-9]))"
     r"[^\n]*?fixed:\s*0\b"
