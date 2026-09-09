@@ -91,6 +91,25 @@ def test_check_file_blocks_the_same_nonquiet_report_the_advisory_flags(tmp_path)
     assert any("final ledger round raised 3" in e for e in blocking), blocking
 
 
+def test_both_readers_agree_on_the_confirmed_grammar_too(tmp_path):
+    """The same alignment, on D7's V1 row (D-206). The divergence this file exists to prevent is
+    per-reader hardening, so the NEW grammar is proven on both readers the day it lands: a row
+    that is quiet by `confirmed: 0` although `found:` is 4 must be quiet to BOTH, and the same
+    row with a confirmed defect must be non-quiet to BOTH."""
+    quiet = "| Pass 19 | opus×1 | found: 4, new: 2, confirmed: 0, fixed: 0, unexecuted: 0 | d |\n"
+    root = _repo(tmp_path, quiet)
+    report = root / "docs" / "development" / "reviews" / "2026-08-27-x-review.md"
+    assert crc._committed_nonquiet(root, set()) == []
+    assert not [e for e in crc.check_file(report) if "final ledger round" in e]
+
+    loud = quiet.replace("confirmed: 0, fixed: 0", "confirmed: 1, fixed: 1")
+    report.write_text(HEAD + loud, encoding="utf-8")
+    advisory = crc._committed_nonquiet(root, set())
+    assert advisory and "confirmed: 1" in advisory[0], advisory
+    blocking = [e for e in crc.check_file(report) if "final ledger round" in e]
+    assert blocking and "confirmed: 1" in blocking[0], blocking
+
+
 def test_the_last_row_decides_not_an_earlier_quiet_one(tmp_path):
     root = _repo(
         tmp_path,
