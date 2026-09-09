@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Spec: review convergence redesign — partitioned single pass, delta rounds, zero-CONFIRMED quiet round (2026-09-08)
+- `docs/superpowers/specs/2026-09-08-review-convergence-redesign-design.md` (Profile: delta, CONVERGED): the operator's five review-loop rules (D-203) as a design delta on `/fabrik-review`, `/fabrik-repo-review`, `/fabrik-review-scoped`, the subagents fragment, core/62, both CLAUDE.md files, `dispatch_headroom.py`, `check_review_coverage.py`, `check_convergence.py` and `command_run.py` — quiet = zero CONFIRMED (executed) code/doc defects; refuted candidates never count; one partitioned pass per round, one model per slice; delta rounds over the fix diff plus callers; a `confirmed:`/`unexecuted:` row grammar with backward compatibility; the D-191 receipt as the first application. Grounded live on nine sources; converged by `/fabrik-spec-review` over 45 three-seat passes (Opus authoritative + two Sonnet breadth, md5-pinned; pass 45 the edit-free no-op), 20 intake items all IN. Awaits the operator's approval; the plan follows.
+
 ### Fixed — the vendored-dirs retirement review closes: nine defects in its own fixes, and the loop's real foundation error (2026-09-08)
 
 - Closed `/fabrik-review` of the D-196/D-198/D-199 `libs/subagents` retirement, taken over as INDEPENDENT author after the original run closed `BLOCKED: NON-CONVERGENCE` at seven rounds. Twelve rounds total; the six open record-accuracy items all closed, plus nine live defects the independent rounds found in the prior rounds' fixes.
