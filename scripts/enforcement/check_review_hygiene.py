@@ -59,6 +59,25 @@ TEMPLATE_RESIDUE = re.compile(r"\{\{[^{}\n]*\}\}")
 # reads `RECORDED — the F250 shape …`, which carries two bare RECORDEDs and satisfies the
 # widened `VERDICT` zero times. Counting VERDICT matches here would miss the whole class.
 VERDICT_WORD = re.compile(r"\b(?:CLEAN|FIXED|REFUTED|ROUTED|RECORDED)\b")
+# ⚠️ A verdict word ADJACENT TO A DIGIT is a TALLY REFERENCE, not a disposition — `6 FIXED ·
+# 1 REFUTED`, `the round-14 tally reads FIXED 12 · RECORDED 2`. Structural (a digit on either
+# side), not a phrase list: the receipts write tallies in at least four spellings and a
+# hand-listed set is one entry away from the next bypass. Round 1 measured this on the D-191
+# receipt's own remediation row (`:694`) and four pure Pass-Ledger tally cells.
+
+
+def _verdict_words(cell: str) -> list[str]:
+    """The verdict words in a cell that are DISPOSITIONS, tally references dropped."""
+    out: list[str] = []
+    for m in VERDICT_WORD.finditer(cell):
+        before = cell[: m.start()].rstrip()
+        after = cell[m.end() :].lstrip()
+        if (before and before[-1].isdigit()) or (after and after[0].isdigit()):
+            continue
+        out.append(m.group(0))
+    return out
+
+
 REVIEWS_PREFIX = "docs/development/reviews/"
 SURFACE_SUFFIXES = (".md", ".py")
 
@@ -133,6 +152,32 @@ def _fence_hits(path: str, lines: list[str]) -> list[Hit]:
             )
         ]
     return []
+
+
+def _blank_quoted(lines: list[str]) -> list[str]:
+    """Same-LENGTH copy with fenced blocks and HTML comments blanked to "".
+
+    A receipt routinely QUOTES the very row it fixed (the F280 remediation quotes its own broken
+    row inside a fence). Parsing raw text grades those quotations as live ledger rows — the class
+    fires on the fix. Blanking keeps every index, so line numbers stay true.
+    """
+    out: list[str] = []
+    char, length = "", 0
+    in_comment = False
+    for ln in lines:
+        if in_comment:
+            out.append("")
+            if "-->" in ln:
+                in_comment = False
+            continue
+        if "<!--" in ln and "-->" not in ln:
+            in_comment = True
+            out.append("")
+            continue
+        was_open = bool(char)
+        char, length, is_fence = _fence_step(ln, char, length)
+        out.append("" if (was_open or is_fence) else ln)
+    return out
 
 
 # --------------------------------------------------------------------------- table row shape
@@ -240,14 +285,18 @@ def _headers(lines: list[str]) -> dict[int, tuple[int, int | None]]:
     return out
 
 
-def _receipt_hits(path: str, text: str) -> list[Hit]:
-    lines = text.splitlines()
+def _receipt_hits(path: str, text: str) -> tuple[list[Hit], int]:
+    """(hits, rows graded by NEITHER class) — a row in a table with no header pair has no cell-count
+    denominator and no named disposition column, so both classes decline it. A bounded search states
+    its bound: the count rides the summary line."""
+    lines = _blank_quoted(text.splitlines())
     headers = _headers(lines)
     hits: list[Hit] = []
+    ungraded = 0
     # `_table_rows` returns the visible DATA rows verbatim and in order (headers and separators
     # already skipped); walk the physical lines in step to recover each row's line number.
     cursor = 0
-    for row in _table_rows(text):
+    for row in _table_rows("\n".join(lines)):
         while cursor < len(lines) and lines[cursor] != row:
             cursor += 1
         if cursor >= len(lines):
@@ -255,23 +304,31 @@ def _receipt_hits(path: str, text: str) -> list[Hit]:
         idx, cursor = cursor, cursor + 1
         cells = _split_cells(row)
         width, col = headers.get(idx, (None, None))
-        if width is not None and len(cells) != width:
+        if width is None:
+            ungraded += 1
+            continue
+        if len(cells) != width:
             # A row whose cells do not line up with its header has NO trustworthy disposition
             # cell — which column is which is exactly what the stray pipe destroyed. It is
             # reported once, as the shape defect it is, and not graded a second time.
+            short = len(cells) < width
             hits.append(
                 Hit(
                     "raw-pipe",
                     path,
                     idx + 1,
-                    f"{len(cells)} cells against the header's {width} — an unescaped `|` inside a "
-                    "cell (write `\\|`)",
+                    f"{len(cells)} cells against the header's {width} — "
+                    + (
+                        "a MISSING cell (the row is short; add the empty cell)"
+                        if short
+                        else "an unescaped `|` inside a cell (write `\\|`)"
+                    ),
                 )
             )
             continue
         if col is None or col >= len(cells):
             continue
-        found = VERDICT_WORD.findall(cells[col][1])
+        found = _verdict_words(cells[col][1])
         if len(found) > 1:
             hits.append(
                 Hit(
@@ -282,19 +339,31 @@ def _receipt_hits(path: str, text: str) -> list[Hit]:
                     f"({', '.join(found)}) — one leading verdict per cell",
                 )
             )
-    return hits
+    return hits, ungraded
 
 
 # --------------------------------------------------------------------------- surface classes
+# `{{include:…}}` IS the authoring format under `commands/_sources/` and `commands/_fragments/` —
+# the marker is residue only in a RENDERED command. Measured round 1: 127 hits over 36 source files,
+# 100 % false. Keyed on an ANCESTOR DIRECTORY, not on the filename, because the renderer's input tree
+# is what defines "source" (`commands/assemble_commands.py`).
+_SOURCE_DIRS = frozenset({"_sources", "_fragments"})
+
+
+def _is_template_source(path: str) -> bool:
+    return bool(_SOURCE_DIRS.intersection(Path(path).parts))
+
+
 def _surface_hits(path: str, text: str, phrases: list[str]) -> list[Hit]:
     lines = text.splitlines()
     hits: list[Hit] = []
-    if path.endswith(".md"):
+    if path.endswith(".md") and not _is_template_source(path):
         for i, ln in enumerate(lines, start=1):
             for m in TEMPLATE_RESIDUE.finditer(ln):
                 hits.append(
                     Hit("template-residue", path, i, f"unrendered template residue `{m.group(0)}`")
                 )
+    if path.endswith(".md"):
         hits.extend(_fence_hits(path, lines))
     for phrase in phrases:
         # Whitespace-tolerant so a phrase matches ACROSS a line wrap (two of the D-191 sentence's
@@ -374,32 +443,58 @@ def _read(p: Path) -> str | None:
         return None
 
 
+@dataclass(frozen=True)
+class Sweep:
+    """What one run of the sweep saw. `notes` are NON-findings that change what the hit count
+    means — a file that could not be read, a symbol query with no surface to answer it."""
+
+    hits: list[Hit]
+    files: int
+    notes: list[str]
+    ungraded: int
+
+
 def scan(
     surfaces: list[Path] | None = None,
     receipts: list[Path] | None = None,
     phrases: list[str] | None = None,
     symbols: list[str] | None = None,
-) -> tuple[list[Hit], int]:
-    """(hits, files actually read). Never raises for a missing or unreadable file."""
+) -> Sweep:
+    """Never raises for a missing or unreadable file — it NOTES it instead."""
     phrases = phrases or []
     symbols = symbols or []
     surface_files = _expand([Path(p) for p in (surfaces or [])])
     receipt_files = _expand([Path(p) for p in (receipts or [])])
     hits: list[Hit] = []
+    notes: list[str] = []
+    ungraded = 0
     read: dict[Path, str] = {}
     for p in surface_files:
         text = _read(p)
         if text is None:
+            # A file that vanished from BOTH the hits and the denominator makes an unreadable
+            # surface indistinguishable from a clean one — say it, every time.
+            notes.append(f"{_display(str(p))}: unreadable — NOT scanned, not in the denominator")
             continue
         read[p] = text
         hits.extend(_surface_hits(str(p), text, phrases))
     for p in receipt_files:
         text = _read(p)
         if text is None:
+            notes.append(f"{_display(str(p))}: unreadable — NOT scanned, not in the denominator")
             continue
         read.setdefault(p, text)
-        hits.extend(_receipt_hits(str(p), text))
+        rhits, rungraded = _receipt_hits(str(p), text)
+        hits.extend(rhits)
+        ungraded += rungraded
     for symbol in symbols:
+        if not read:
+            # No surface = no evidence either way. Reporting "referenced 0 times" here asserts a
+            # NEGATIVE with an empty denominator — the exact shape the denominator rule forbids.
+            notes.append(
+                f"symbol `{symbol}`: no readable file on the surface — nothing to count it in"
+            )
+            continue
         refs = sum(t.count(symbol) for t in read.values())
         if refs == 0:
             hits.append(
@@ -411,10 +506,16 @@ def scan(
                     f"{len(read)} file(s) on the surface",
                 )
             )
-    return hits, len(read)
+    return Sweep(hits, len(read), notes, ungraded)
 
 
 def _repo_root() -> Path:
+    # `final_gate.py` EXPORTS `PROJECT_ROOT` to every enforcement check it runs (`:268-270`)
+    # precisely so a check does not have to re-derive it; a git toplevel derived from cwd is the
+    # fallback, not the first answer (they differ whenever the gate is invoked from a subdirectory).
+    declared = os.environ.get("PROJECT_ROOT", "").strip()
+    if declared and Path(declared).is_dir():
+        return Path(declared)
     top = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
         capture_output=True,
@@ -476,13 +577,28 @@ def main(argv: list[str] | None = None) -> int:
             # handed an empty string, which is not JSON.
             return 0
 
-    hits, files = scan(surfaces, receipts, args.phrase, args.symbol)
+    sweep = scan(surfaces, receipts, args.phrase, args.symbol)
     if args.json:
-        print(json.dumps({"hits": [h.as_dict() for h in hits], "files": files}, indent=2))
+        print(
+            json.dumps(
+                {
+                    "hits": [h.as_dict() for h in sweep.hits],
+                    "files": sweep.files,
+                    "notes": sweep.notes,
+                    "ungraded_rows": sweep.ungraded,
+                },
+                indent=2,
+            )
+        )
         return 0
-    for h in hits:
+    for note in sweep.notes:
+        print(f"[NOTE] {note}")
+    for h in sweep.hits:
         print(h.line_out())
-    print(f"hygiene: {len(hits)} hit(s) over {files} file(s)")
+    print(
+        f"hygiene: {len(sweep.hits)} hit(s) over {sweep.files} file(s), "
+        f"{sweep.ungraded} rows ungraded"
+    )
     return 0
 
 
