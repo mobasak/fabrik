@@ -1,0 +1,59 @@
+{
+  "session_id": "t10-smoke",
+  "command": "fabrik-probe",
+  "phases": 2,
+  "phase": 1,
+  "phase_title": "",
+  "terminal": "confirmed: 0",
+  "state": "running",
+  "started_at": "2026-09-09T18:25:07+0300",
+  "started_epoch": 1788967507.7849271,
+  "repo_root": "/opt/fabrik/.claude/worktrees/agent-abc469fc23e742303",
+  "agent": "",
+  "surface": "",
+  "account": "ob-ocoron-com-s-organization",
+  "rounds": [
+    {
+      "n": 1,
+      "findings": 11,
+      "confirmed": 3,
+      "seats": 0,
+      "ts": 1788967514.663352,
+      "swept": [],
+      "new": [
+        "auth",
+        "races"
+      ],
+      "phase": 1
+    },
+    {
+      "n": 2,
+      "findings": 7,
+      "confirmed": 0,
+      "seats": 0,
+      "ts": 1788967523.1409154,
+      "swept": [
+        "auth",
+        "races"
+      ],
+      "new": [],
+      "phase": 1
+    }
+  ],
+  "classes": {
+    "auth": "clean",
+    "races": "clean"
+  },
+  "stack": [],
+  "event_seq": 3,
+  "covered": [],
+  "updated_at": "2026-09-09T18:25:23+0300",
+  "updated_ts": 1788967523,
+  "dispatch": {
+    "ts": 1788967523.140917,
+    "seats": 0,
+    "phase": 1,
+    "round": 2,
+    "released": true
+  }
+}

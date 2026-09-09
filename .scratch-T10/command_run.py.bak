@@ -1,0 +1,2703 @@
+#!/usr/bin/env python3
+# AFTER-EDIT: CLAUDE.md | templates/governance/CLAUDE.md | docs/reference/command-run-protocol.md | .claude/hooks/final_gate_stop.py | commands/_sources/fabrik-review.md | commands/_sources/fabrik-docs-review.md | commands/_sources/fabrik-execute-plan.md
+"""COMMAND RUN-RECORD — the in-flight state of the `/fabrik-*` command an agent is running.
+
+Three operator complaints, one record:
+1. "reviews are still taking 30 rounds"      → the persistent CLASS LEDGER + the
+   non-convergence detector (a converging loop's findings trend DOWN; an oscillating
+   one is RE-SCOPING each round instead of RE-SWEEPING a fixed ledger).
+2. "i want to see each commands status pinned in each agents reply"
+                                             → `line`, the one-line pinned status.
+3. "agents are still stopping without ... fully executing the commands"
+                                             → the record is the Stop hook's FIFTH
+   cause: a `running` record BLOCKS the stop (`.claude/hooks/final_gate_stop.py`).
+
+ONE json per session at ``$COMMAND_RUN_DIR`` (default ``~/.claude/state/command-runs``),
+named ``<session_id>.json``; the session id comes from ``--session``, ``CLAUDE_SESSION_ID``,
+or ``CLAUDE_CODE_SESSION_ID`` (the harness exports the latter to Bash-tool shells; the Stop
+hook keys on the same uuid from its payload, so records and hook lookups agree).
+
+Fail-soft EVERYWHERE: a corrupt or unwritable record must never wedge an agent, and
+``line``/``status`` never raise — they go silent instead. The Stop hook's matching
+fail direction is deliberate and asymmetric: only a record that positively says
+``running`` blocks; missing/corrupt/stale fails OPEN.
+
+Every MUTATION also appends one kaizen event (``run_open``/``phase``/``round``/
+``run_close``) — see § events below. The events are strictly ADDITIVE: they are emitted
+after ``save()`` returns, OUTSIDE the record lock, each call wrapped, so a broken emitter
+can never abort or corrupt a record mutation. The flush sits in a ``finally``, so an
+ordinary exception anywhere in a verb's post-save tail cannot silently drop the event for
+a mutation that already landed on disk. What is NOT covered — and is ACCEPTED as fail-open
+telemetry rather than papered over — is a ``BaseException`` escape or an outright process
+death (``SIGKILL``, OOM) between ``save()`` and the append: the record moves and the
+stream does not. That residue belongs to the collector's hole metric, which counts
+mutations with no matching event; hiding it behind a signal handler would trade a
+measurable gap for an unmeasurable one.
+
+Subcommands:
+  start --command <name> --phases <N> [--terminal "<condition>"]
+  step --phase <N> [--title "<t>"]
+  round [--findings <N>] [--confirmed <N>] [--seats <N>] [--classes-swept a,b] [--classes-new c,d]
+  done --command <name> --evidence "<proof>" | blocked --command <name> --reason "<case>"
+  line     — the pinned status line (silent when no run is active)
+  status --json
+"""
+
+from __future__ import annotations
+
+import argparse
+import calendar
+import contextlib
+import datetime as dt
+import fcntl
+import hashlib
+import json
+import math
+import os
+import re
+import subprocess
+import sys
+import time
+from collections.abc import Iterator
+from pathlib import Path
+from typing import Any
+
+# Rounds needed before the oscillation heuristic may speak at all — below this a
+# rising count is just an early loop widening its net, not a pathology.
+NON_CONVERGENCE_MIN_ROUNDS = 5
+# One advisory, once, when a round counter has advanced this many times inside one phase.
+ROUNDS_PER_PHASE_NOTICE = 5
+# How many trailing findings counts must be non-increasing to look convergent.
+CONVERGENCE_WINDOW = 3
+# Bound on how much of one session's event file the sid join reads — the join is a
+# best-effort fallback, never a reason to slurp a long-lived session's whole stream. It is
+# read from the TAIL: a head-bounded scan hides exactly the sessions that have been busiest
+# in this cwd, and a hidden candidate does not merely cost an adoption — it removes the
+# second candidate that would have forced a REFUSAL, turning ambiguity into a confident
+# wrong answer.
+JOIN_TAIL_BYTES = 512 * 1024
+# The exposure probe shells out to git. The flush runs after the mutation is already
+# durable, so waiting buys nothing: take `unknown` over latency on an agent's hot path.
+JOIN_PROBE_TIMEOUT_S = 2.0
+
+
+def _state_dir() -> Path:
+    raw = os.environ.get("COMMAND_RUN_DIR")
+    if raw:
+        return Path(raw)
+    return Path.home() / ".claude" / "state" / "command-runs"
+
+
+def _session_id(explicit: str | None) -> str:
+    """Explicit → CLAUDE_SESSION_ID → CLAUDE_CODE_SESSION_ID → the literal nosession.
+
+    Bash-tool shells carry an EMPTY ``CLAUDE_SESSION_ID`` but DO carry the harness's
+    ``CLAUDE_CODE_SESSION_ID`` (the real session uuid — the same id the Stop hook keys
+    its record lookup on from its stdin payload). Before this chain existed, every
+    concurrent session in a repo resolved to ONE ``nosession.json``: sibling ``start``
+    calls clobbered each other's live records, ``line`` pinned a sibling's run, and a
+    retried ``done`` could close a run it never opened (observed live three times,
+    2026-08-20). ``nosession`` remains only for environments carrying neither var.
+    """
+    return (
+        explicit
+        or os.environ.get("CLAUDE_SESSION_ID")
+        or os.environ.get("CLAUDE_CODE_SESSION_ID")
+        or _nosession_key()
+    )
+
+
+def _nosession_key() -> str:
+    """The last-resort key, scoped to the REPO — never the bare literal.
+
+    The state dir is GLOBAL (``~/.claude/state/command-runs``) and the record is keyed on
+    the session id alone, so a bare ``nosession`` meant every id-less session on the BOX —
+    in any repo — merged into one file. Reported nine times by six senders
+    (web-ecommerce-factory x3, tryton-crm x2, fleet, infra, trade-intelligence) between
+    2026-08-16 and 08-20, escalating: tryton-crm watched its own ``step --phase 5`` land
+    inside another repo's 4-phase record, and ``done`` was then correctly refused because
+    the live record named a command it had never run — so the run could not be closed at
+    all. ``repo_root`` was already stored INSIDE the record, which made the corruption
+    visible but never prevented it.
+
+    Scoping by repo kills the cross-repo case, which is the whole of the reported harm. Two
+    id-less sessions in the SAME repo still share a record: there is nothing further to key
+    on, and a per-process key would make the record unfindable by the Stop hook, which looks
+    the uuid up from its own payload. A run with no id is already invisible to that hook, so
+    this changes nothing about which records it can block on.
+    """
+    root = _repo_root()
+    slug = "".join(c if (c.isalnum() or c in "-_") else "_" for c in Path(root).name)
+    return f"nosession-{slug}" if slug else "nosession"
+
+
+def _safe_sid(sid: str) -> str:
+    """A filename-safe session id that NEVER collides with a different raw id.
+
+    Flattening alone mapped `abc.xyz` and `abc xyz` onto one `abc_xyz` file, so an
+    innocent session inherited (and was blocked by) another's run. When flattening
+    changed anything, a short digest of the RAW id is appended — distinct raw ids
+    therefore always get distinct files. Ordinary uuid-shaped ids are unchanged, so
+    no existing record is renamed. ⚠️ `.claude/hooks/final_gate_stop.py` carries a
+    byte-identical copy (it must not import this module — see its comment); the
+    agreement is pinned by ``test_hook_and_script_agree_on_every_record_filename``.
+    """
+    safe = "".join(c if (c.isalnum() or c in "-_") else "_" for c in sid)
+    if not safe:
+        return "nosession"
+    if safe != sid:
+        # blake2s, not sha1: this is a collision-avoidance tag, not a security hash,
+        # and blake2s keeps bandit's B324 quiet without an ignore comment.
+        safe += "-" + hashlib.blake2s(sid.encode("utf-8", "replace"), digest_size=4).hexdigest()
+    return safe
+
+
+def _record_path(sid: str) -> Path:
+    return _state_dir() / f"{_safe_sid(sid)}.json"
+
+
+@contextlib.contextmanager
+def _record_lock(sid: str) -> Iterator[None]:
+    """Exclusive flock held across the whole READ-MODIFY-WRITE of a mutating subcommand.
+
+    Subagents routinely inherit the parent's ``CLAUDE_SESSION_ID``, so concurrent
+    `round` calls hit one file: unlocked, 20 concurrent class-opens lost 14 (measured).
+    A silently dropped class is a review reading CLEAN while a class was never swept —
+    exactly the integrity the ledger exists to provide. Same `fcntl.flock` idiom as
+    `claude_rotate.py`'s assignments lock; `line`/`status` stay lock-free readers.
+
+    Fail-soft: if the lock cannot be taken (unwritable dir, no fcntl), the body still
+    runs unserialized rather than wedging the agent — `save()` fails soft the same way.
+    """
+    fd: int | None = None
+    try:
+        lock = _record_path(sid).with_suffix(".lock")
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(str(lock), os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+        fcntl.flock(fd, fcntl.LOCK_EX)
+    except Exception:
+        if fd is not None:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+            fd = None
+    try:
+        yield
+    finally:
+        if fd is not None:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_UN)
+            except OSError:
+                pass
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+
+
+def load(sid: str) -> dict[str, Any]:
+    """The session's record, or {} — never raises (missing/corrupt/unreadable → {})."""
+    try:
+        data = json.loads(_record_path(sid).read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def save(sid: str, rec: dict[str, Any]) -> bool:
+    """Atomically persist ``rec``. Returns False (never raises) on any I/O problem."""
+    try:
+        path = _record_path(sid)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(rec, indent=2), encoding="utf-8")
+        os.replace(tmp, path)
+        return True
+    except Exception as e:
+        sys.stderr.write(f"[command_run] state not persisted ({e}) — continuing.\n")
+        return False
+
+
+# Sentinels an agent reaches for to mean "nothing here". Without this they were recorded as
+# LITERAL class names: a genuinely clean round passing `--classes-new "none"` produced
+# `classes open: …, none, …` — the sentinel itself sat in the open list forever, so the loop could
+# never retire it and the ledger contradicted the round it was recording (youtube, 2026-08-28,
+# reproduced twice in one session across two different commands). The empty string already meant
+# "nothing"; these are the words people type when a flag looks like it wants a value.
+_NOTHING_TOKENS = frozenset({"none", "none-yet", "none yet", "nothing", "n/a", "na", "-", "—", "0"})
+
+
+def _csv(raw: str | None) -> list[str]:
+    return [
+        p.strip()
+        for p in (raw or "").split(",")
+        if p.strip() and p.strip().casefold() not in _NOTHING_TOKENS
+    ]
+
+
+def pinned_line(rec: dict[str, Any]) -> str:
+    """The pinned status line, or "" when no run is active.
+
+    Format (all segments present):
+      ``RUN: /<command> · phase <c>/<t> (<title>) · round <r> · terminal: <condition>``
+    A segment whose data does not exist yet is omitted rather than filled with a
+    placeholder — `round` before the first round, `(title)` before the first `step`
+    that names one, `terminal:` when the command declared no terminal condition.
+    """
+    if not rec or rec.get("state") != "running":
+        return ""
+    cmd = rec.get("command") or "?"
+    cur = rec.get("phase") or 1
+    total = rec.get("phases") or "?"
+    out = f"RUN: /{cmd} · phase {cur}/{total}"
+    title = (rec.get("phase_title") or "").strip()
+    if title:
+        out += f" ({title})"
+    rounds = rec.get("rounds") or []
+    if rounds:
+        out += f" · round {len(rounds)}"
+    terminal = (rec.get("terminal") or "").strip()
+    if terminal:
+        out += f" · terminal: {terminal}"
+    return out
+
+
+# Commands whose rounds are PER-UNIT, not per-sweep. `/fabrik-execute-plan` in DISPATCHER mode runs
+# N independent per-ticket review loops — round 4 is T11's review, round 5 is T08's — so a 0 followed
+# by a 10 is "the previous ticket converged clean and the next ticket's first review found ten
+# things", not oscillation. The detector's model (one brief, re-swept until dry) is correct for
+# /fabrik-review and the gate commands and structurally wrong here; it fired on a healthy transdoc
+# run (2026-08-28), named a specific wrong cause, and instructed a fix that did not apply. A loud
+# advisory that is confidently wrong costs more than silence, because an agent that believes it
+# starts re-scoping a loop that was converging.
+PER_UNIT_ROUND_COMMANDS = frozenset(
+    {"fabrik-execute-plan", "fabrik-repo-review"}
+)  # waves: round 15
+
+
+def convergence_warning(series: list[int], command: str = "") -> str:
+    """Advisory oscillation diagnosis, or "" — NEVER blocks (a heuristic must not trap).
+
+    A converging loop trends DOWN (5 → 3 → 0). A pathological one oscillates
+    (43 → 11 → 30 → 13 → 22) because each round RE-SCOPES instead of RE-SWEEPING
+    the persisted class ledger.
+    """
+    if str(command or "").strip().lower() in PER_UNIT_ROUND_COMMANDS:
+        return ""  # per-unit rounds: consecutive counts describe different surfaces
+    if len(series) < NON_CONVERGENCE_MIN_ROUNDS or len(series) < CONVERGENCE_WINDOW:
+        return ""
+    window = series[-CONVERGENCE_WINDOW:]
+    if all(a >= b for a, b in zip(window, window[1:], strict=False)):
+        return ""  # still non-increasing — converging, say nothing
+    arrow = " → ".join(str(n) for n in window)
+    full = " → ".join(str(n) for n in series)
+    return (
+        f"\n⚠️  NON-CONVERGENCE — findings are OSCILLATING: {arrow} "
+        f"(round {len(series)}; full series: {full}).\n"
+        "    Diagnosis (advisory): EITHER the loop is RE-SCOPING each round — inventing a fresh "
+        "brief instead of RE-SWEEPING the persisted class ledger — OR the ledger was IDENTICAL "
+        "every round and the surface keeps yielding (youtube 01M1H7ZQ: a stable ledger, 89 real "
+        "defects); the second case is the stall breaker's, not a re-scoping fault.\n"
+        "    Fix: re-sweep EVERY known class with the SAME brief (see `status --json` "
+        "→ classes). A round that changes the question cannot converge; a round that "
+        "repeats the question can.\n"
+        "    (Advisory only — nothing is blocked.)"
+    )
+
+
+def _confirmed(row: Any) -> int | None:
+    """One round's CONFIRMED count, or None when that round never stated it.
+
+    ABSENT is a third answer, never 0: "nobody counted" and "counted zero" are exactly what the
+    exit rule must tell apart, and a defaulted 0 would close every fleet loop that has not yet
+    heard of the flag (DD4, the backward-compatibility contract).
+    """
+    if not isinstance(row, dict) or row.get("confirmed") is None:
+        return None
+    with contextlib.suppress(TypeError, ValueError):
+        return int(row["confirmed"])
+    return None
+
+
+def _trend_series(rounds: list[Any]) -> list[int]:
+    """The `confirmed` series when EVERY round states it, the `findings` series otherwise.
+
+    EVERY round or none: a partial confirmed series is not a trend — it splices two different
+    questions ("what did you raise" and "what did you reproduce") into one arrow. Shared by the
+    oscillation advisory and the ``FEEDBACK:`` trend so the two can never disagree; the TERMINAL
+    rule is deliberately NOT a caller — that one is a LAST-round-only test.
+    """
+    if rounds and all(_confirmed(r) is not None for r in rounds):
+        return [_confirmed(r) or 0 for r in rounds]
+    return [int(r.get("findings", 0)) for r in rounds if isinstance(r, dict)]
+
+
+def _round_report(rec: dict[str, Any]) -> str:
+    rounds = rec.get("rounds") or []
+    classes: dict[str, str] = rec.get("classes") or {}
+    last = rounds[-1] if rounds else {}
+    last_confirmed = _confirmed(last)
+    open_c = sorted(k for k, v in classes.items() if v != "clean")
+    clean_c = sorted(k for k, v in classes.items() if v == "clean")
+    lines = [
+        f"ROUND {len(rounds)} recorded · findings: {last.get('findings', 0)} "
+        f"· confirmed: {'unstated' if last_confirmed is None else last_confirmed} "
+        f"· classes open: {', '.join(open_c) or 'none'} "
+        f"· clean: {', '.join(clean_c) or 'none'}"
+    ]
+    # the EXIT counter is CONFIRMED the moment the LAST round states it (D-206/D-203: quiet is
+    # zero confirmed code or doc defects, never zero raised — a refuted candidate never reopens
+    # the loop). A record whose last round does not state it keeps the old `--findings 0` rule.
+    # a round that swept NO classes is a reservation close (a wave, round 16): it never reads
+    # terminal, whatever the persisted ledger says
+    counter = int(last.get("findings", 0)) if last_confirmed is None else last_confirmed
+    terminal = (
+        bool(classes)
+        and not open_c
+        and counter == 0
+        and bool(last.get("swept"))  # the record's key; the event stream says classes_swept
+    )
+    if terminal:
+        lines.append(
+            f"✅ TERMINAL VERDICT — round {len(rounds)} swept every known class "
+            f"({', '.join(clean_c)}) clean and "
+            + (
+                "CONFIRMED 0 defects"
+                if last_confirmed is not None
+                else "found 0 new findings (no round stated `--confirmed`, so the old findings "
+                "rule closed it — the exit counter is `round --confirmed 0`)"
+            )
+            + ". A delta round closes when it carried a fresh non-authoring finder seat over "
+            "the fix diff and its receipt cites the standing-clean classes from the last full "
+            "pass (D-206/D-207). Close the run: "
+            f"python3 scripts/command_run.py done --command {rec.get('command') or '<name>'} "
+            '--evidence "<proof>" --feedback "<what you filed, to whom | none — surfaces swept>"'
+        )
+        # A terminal round CLOSES the loop — never also scold it for oscillating. The
+        # drop TO zero is what non-increasing was asking for; the series test alone
+        # reads `13 → 22 → 0` as a rise (live smoke, 2026-08-16).
+        return "\n".join(lines)
+    warn = convergence_warning(_trend_series(rounds), str(rec.get("command") or ""))
+    if warn:
+        lines.append(warn)
+    return "\n".join(lines)
+
+
+PHASE_REVIEW_COMMANDS = frozenset({"fabrik-execute-plan"})
+
+
+def _phase_review_exists(root: str, phase: int) -> bool:
+    """Is there a review artifact for ``phase`` under docs/development/reviews/?
+
+    transdoc finding 1.1 (2026-08-23), the highest-damage item in their report:
+    `/fabrik-execute-plan` requires every phase boundary to reach `/fabrik-review`'s
+    coverage-adjudicated exit, and `check_review_coverage.py`'s subject is the
+    DIRECTORY ``docs/development/reviews/``. A per-phase review emitted nothing
+    there, so at all 17 of their plan's phase boundaries the gate had NO SUBJECT
+    and passed. 71 defects reached the first real gate — including a missing
+    ``jobs.updated_at`` that meant no job could ever be claimed, i.e. the product's
+    core pipeline was dead end to end while every gate said success.
+
+    A contract clause with no mechanical binding is a suggestion. This is the
+    binding: the artifact must EXIST before the next phase may open.
+
+    Deliberately permissive about the NAME — projects date and slug their plans
+    differently, and a rule that guesses the stem would fail honest runs. Any file
+    under the reviews dir mentioning this phase counts; the gate then judges its
+    CONTENT. We bind existence here, not quality: quality is check_review_coverage's
+    job, and it can finally do it because it now has a subject.
+    """
+    if not root:
+        return False
+    d = Path(root) / "docs" / "development" / "reviews"
+    if not d.is_dir():
+        return False
+    # DELIMITED, not substring: `phase-1` is a prefix of `phase-10`, so a bare `in`
+    # let a phase-10 review satisfy phase 1 — a project that reviews only its last
+    # phase would sail through every earlier boundary (found by re-verification of
+    # this very guard, 2026-08-23).
+    # PHASE mode names artifacts `…phase-<N>…`; DISPATCHER mode (spine+ticket plan sets) mandates
+    # `<plan>-T<id>-review.md` instead (/fabrik-execute-plan § D4) and its § Plan Status Tracking
+    # says the phase-boundary bullet does NOT apply there. Accepting only the phase form made the
+    # two contracts unsatisfiable together: an executor naming artifacts correctly per D4 could
+    # never satisfy `step`, and one that satisfied `step` had misnamed them (transdoc, 2026-08-28).
+    # A ticket artifact is evidence a review ran, which is all this gate binds.
+    pat = re.compile(
+        rf"(?:^|[^0-9a-z])p(?:hase)?[-_ ]?{phase}(?:[^0-9]|$)|-T\d{{2}}[a-z]?-review\.md$", re.I
+    )
+    try:
+        for f in d.rglob("*.md"):
+            if not f.is_file() or not pat.search(f.name):
+                continue
+            try:
+                # NON-EMPTY: `touch` created a complete silent bypass. This still binds
+                # existence, not quality — but an empty file is not even existence.
+                if f.stat().st_size > 0:
+                    return True
+            except OSError:
+                continue
+    except OSError:
+        return False  # unreadable → treat as absent; the refusal names how to waive
+    return False
+
+
+def _midloop_report(f: Path) -> bool:
+    """A review report that declares itself mid-loop in its header zone (first 10 lines)."""
+    try:
+        head10 = "".join(
+            f.read_text(encoding="utf-8", errors="replace").splitlines(keepends=True)[:10]
+        )
+    except OSError:
+        return False
+    return bool(re.search(r"^\s*\**Status:\**\s*IN-PROGRESS\b", head10, re.M | re.I))
+
+
+def _repo_root() -> str:
+    """The toplevel of the repo the invoking shell is in at START time — "" if none."""
+    try:
+        return subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True,
+        ).stdout.strip()
+    except Exception:
+        return ""
+
+
+def _mcp_probe_advisory() -> None:
+    """Assigned-vs-live MCP diff printed at every run OPEN (operator directive
+    2026-09-01: "i still dont see agents are checking their assigned mcps" —
+    the ORIENT prose mandated it and nothing ran it; this is the one moment
+    every /fabrik-* run passes through). Advisory by D-033: best-effort, short
+    timeout, silent when the box-local health script is absent (project repos
+    reach it by absolute path; a box without it degrades to nothing)."""
+    # Test seam (review finding: the first landing made every fleet repo's test
+    # suite spawn LIVE MCP stdio servers and hang): pytest runs, explicit
+    # opt-outs, and any harness that redirects the run-record store (test
+    # suites set COMMAND_RUN_DIR precisely to avoid the real store — and they
+    # exec this script as a subprocess, where PYTEST_CURRENT_TEST never
+    # arrives) never probe.
+    if (
+        os.environ.get("PYTEST_CURRENT_TEST")
+        or os.environ.get("FABRIK_MCP_PROBE") == "0"
+        or os.environ.get("COMMAND_RUN_DIR")
+    ):
+        return
+    probe = Path("/opt/fabrik/scripts/sysadmin/mcp_health.py")
+    if not probe.exists():
+        return
+    try:
+        # --repo pinned via git toplevel, not the inherited cwd (mcp_health's
+        # default "." does no upward walk — a subdir invocation would silently
+        # report "no .mcp.json"; review finding).
+        cp = subprocess.run(
+            [sys.executable, str(probe), "--timeout", "6", "--repo", _repo_root() or "."],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        out = cp.stdout.strip()
+        if out:
+            # STDERR, not stdout (mail 01M1KNW05P7MKKAXT9NGVS1GY8): this block is a diagnostic
+            # side-channel, while the run-record confirmation is the command's RESULT. Sharing
+            # one stream buried the confirmation under six `<server>: CONNECTED` lines, an agent
+            # piping `| tail -5` saw no confirmation, re-ran `start`, and got TWO nested records
+            # for one invocation — the first `done` then closed the inner one and "resumed" to
+            # the outer, which read as a failed close. Both streams still show in a terminal.
+            sys.stderr.write(out + "\n")
+        elif cp.returncode != 0:
+            # A crashed probe must not silently disable the ORIENT-mandated
+            # check (review finding: empty stdout + nonzero rc printed nothing).
+            err = (cp.stderr or "").strip().splitlines()
+            sys.stderr.write(
+                f"⚠ mcp probe crashed (rc={cp.returncode}): {err[-1] if err else 'no output'} — fix-first per D-033\n"
+            )
+    except Exception:
+        sys.stderr.write(
+            "⚠ mcp probe: health script errored/timed out — fix-first per D-033 if MCPs matter to this run\n"
+        )
+
+
+def _now() -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%S%z")
+
+
+# The closes an AGENT writes — the states with a review contract behind them. The Stop hook's
+# `_CLOSED_STATES` (.claude/hooks/final_gate_stop.py) must equal this set; a parity grader binds
+# the two (closing review C-3: this was the fourth hand-kept copy). The coroner's `died`/
+# `expired` are deliberately NOT here — a reaped run covered nothing.
+AGENT_CLOSED_STATES = frozenset({"done", "blocked", "handoff"})
+
+# The commands whose closed window reaches back to the previous covered window's close: a review
+# reviews the session's work SINCE the last run, so that span is covered by its contract.
+REVIEW_FAMILY = frozenset({"fabrik-review", "fabrik-review-scoped"})
+
+
+def _finite_ts(v: object) -> float | None:
+    """A usable epoch: a non-bool finite number, else None."""
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
+        return None
+    return float(v)
+
+
+def _touch(rec: dict[str, Any]) -> None:
+    rec["updated_at"] = _now()
+    rec["updated_ts"] = int(time.time())
+
+
+# ── kaizen events ────────────────────────────────────────────────────────────────────
+#
+# The record is the Stop hook's fifth cause and this file is fleet-synced, so the event
+# stream is bolted on the OUTSIDE of it: emitted after `save()` returns, outside the
+# record lock, every call wrapped. A project that has not yet received `kaizen_events`
+# — and a `kaizen_events` that raises on every call — must both behave exactly as this
+# script did before events existed.
+
+_EVENTS_UNSET: Any = object()
+_events_mod: Any = _EVENTS_UNSET
+
+
+def _kaizen() -> Any:
+    """The kaizen emitter module, or ``None`` — imported LAZILY, exactly once, fail-open.
+
+    The ``sys.path`` additions are ADDITIVE and IDEMPOTENT (appended, never inserted, and
+    only when absent), so importing this module can never shadow a caller's own packages.
+    """
+    global _events_mod
+    if _events_mod is _EVENTS_UNSET:
+        _events_mod = None
+        try:
+            for extra in (
+                str(Path(__file__).resolve().parent / "sysadmin"),
+                "/opt/fabrik/scripts/sysadmin",
+            ):
+                if extra not in sys.path:
+                    sys.path.append(extra)
+            import kaizen_events
+
+            _events_mod = kaizen_events
+        except Exception:
+            _events_mod = None
+    return _events_mod
+
+
+def _cwd() -> str:
+    try:
+        return str(Path.cwd().resolve())
+    except OSError:
+        return "unknown"
+
+
+def _project_of(cwd: str) -> str:
+    """``/opt/<name>``'s ``<name>`` — the same derivation ``kaizen_events.exposure`` uses."""
+    parts = Path(cwd).parts
+    return parts[2] if len(parts) >= 3 and parts[1] == "opt" else ""
+
+
+def _parse_ts(raw: str) -> dt.datetime | None:
+    """An AWARE datetime, or None. A naive timestamp is treated as unusable rather than
+    assumed to be local — a wrong assumption here silently mis-windows the join."""
+    try:
+        parsed = dt.datetime.fromisoformat(raw.strip()) if raw.strip() else None
+    except ValueError:
+        return None
+    return parsed if parsed and parsed.tzinfo is not None else None
+
+
+def _names_cwd(row: dict[str, Any], cwd: str, project: str) -> bool:
+    """Does this event name the directory this run is executing in?
+
+    An event carrying an explicit ``cwd`` (``session_start``, and this script's own
+    events) is matched EXACTLY — that is the precise key. Everything else is matched on
+    ``exposure.project``, which is deliberately coarse: in a repo with three concurrent
+    sessions it makes the join AMBIGUOUS, which is the honest answer.
+    """
+    raw = row.get("cwd")
+    if isinstance(raw, str) and raw:
+        return raw == cwd
+    exp = row.get("exposure")
+    return bool(project) and isinstance(exp, dict) and exp.get("project") == project
+
+
+def _naming_sid(path: Path, cwd: str, project: str, anchor: dt.datetime | None) -> tuple[str, bool]:
+    """``(sid, provable)`` for one session file, reading its TAIL.
+
+    ``sid`` is the id of an event naming ``cwd`` inside the window, or "". ``provable`` is
+    False when the file was larger than :data:`JOIN_TAIL_BYTES` and nothing matched — the
+    absence of a match is then a fact about the WINDOW READ, not about the session, and
+    the caller must not treat it as evidence.
+
+    The tail is the right end to read: a session's newest events are the ones that can
+    still be in this run's window, and the first partial line after the seek is discarded
+    so a half-record is never parsed.
+    """
+    try:
+        size = path.stat().st_size
+        truncated = size > JOIN_TAIL_BYTES
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            if truncated:
+                fh.seek(size - JOIN_TAIL_BYTES)
+                fh.readline()  # discard the partial line the seek landed inside
+            for raw in fh:
+                try:
+                    row = json.loads(raw)
+                except ValueError:
+                    continue  # a torn line is dropped, never guessed at
+                if not isinstance(row, dict) or not _names_cwd(row, cwd, project):
+                    continue
+                if anchor is not None:
+                    ts = _parse_ts(str(row.get("ts") or ""))
+                    if ts is None or ts < anchor:
+                        continue
+                sid = str(row.get("sid") or "").strip()
+                return sid or path.stem, True
+    except OSError:
+        return "", True  # an unreadable file is not a hidden candidate, it is no candidate
+    return "", not truncated
+
+
+def _sid_from_events(started_at: str) -> tuple[str, str]:
+    """``(sid, why)`` — DETERMINISTIC JOIN OR NOTHING; ``sid`` is "" when it refuses.
+
+    A Bash-tool shell carries an EMPTY ``CLAUDE_SESSION_ID``, so every such invocation
+    resolves to `nosession` and their events would pile into one unattributable bucket.
+    This optional join recovers the real sid from the event stream — but only when the
+    answer is unambiguous.
+
+    The window is every event naming this cwd since THIS run's own start (the whole
+    window, never a trailing N minutes: a sliding boundary can hide the second candidate
+    and mis-adopt). The `start` verb has no run to anchor on — there is no such thing as
+    "since a run that has not begun" — so its window is the whole store, and the anchor is
+    never read off whatever record happens to be lying in the file: that would filter the
+    store by a FINISHED run's clock and hide the older candidate whose presence is the only
+    reason to refuse.
+
+    EVERY unresolved shape resolves toward refusal:
+    - two or more proven candidates → refuse (ambiguity is not a coin flip);
+    - a session whose file is too long to prove absence over → refuse, because "no match in
+      the last 512 KiB" is not "no match";
+    - a session whose events carry a clock running BACKWARDS relative to the anchor → its
+      events fall outside the window and it simply is not a candidate. That is accepted
+      fail-safe: a skewed clock makes a session indistinguishable from one that never named
+      this cwd, and the join has no second source of time to arbitrate with. It costs an
+      adoption, never a wrong one.
+
+    The ambiguity is not lost by refusing — it becomes visible in the `unknown` stream as
+    N distinct cwds mutating one record, which is the measurement this feature exists for.
+    """
+    mod = _kaizen()
+    if mod is None:
+        return "", "kaizen_events unavailable"
+    try:
+        anchor = _parse_ts(started_at)
+        cwd, project = _cwd(), _project_of(_cwd())
+        skip = {"nosession", str(getattr(mod, "UNKNOWN", "unknown"))}
+        found: set[str] = set()
+        unprovable: list[str] = []
+        for path in sorted(mod.events_dir().glob("*.jsonl")):
+            if path.stem in skip:
+                continue
+            sid, provable = _naming_sid(path, cwd, project, anchor)
+            if sid and sid not in skip:
+                found.add(sid)
+            elif not provable:
+                unprovable.append(path.stem)
+        if unprovable:
+            return "", (
+                f"{len(unprovable)} session(s) too long to prove absence over "
+                f"({', '.join(sorted(unprovable)[:3])}) — refusing to guess"
+            )
+        if len(found) == 1:
+            return found.pop(), "single candidate"
+        if found:
+            return "", f"{len(found)} sessions name {cwd} in this window — refusing to guess"
+        return "", f"no event names {cwd} in this window"
+    except Exception as e:  # the join is a convenience — it never breaks a mutation
+        return "", f"join failed ({e})"
+
+
+def _flush_events(args: argparse.Namespace, outbox: dict[str, Any]) -> None:
+    """Emit the mutation's events. Runs with the record lock RELEASED and the save done."""
+    events: list[tuple[str, dict[str, Any]]] = outbox.get("events") or []
+    if not events:
+        return
+    mod = _kaizen()
+    if mod is None:
+        return
+    # `--session` is passed through; a bare env id is left to the emitter to resolve so
+    # it is labelled `env` and not laundered into `explicit`.
+    explicit = (getattr(args, "session", None) or "").strip()
+    # The FULL env chain, matching _session_id (round 105): gating the join on
+    # CLAUDE_SESSION_ID alone made it fire in the COMMON Bash-shell case (empty legacy
+    # var, populated CLAUDE_CODE_SESSION_ID) — the record landed under the real sid
+    # while the event was join-attributed into a SIBLING session's stream, reopening
+    # the cross-session collision one layer over (events vs record).
+    env_sid = (
+        os.environ.get("CLAUDE_SESSION_ID") or os.environ.get("CLAUDE_CODE_SESSION_ID") or ""
+    ).strip()
+    sid: str | None = explicit or None
+    # `None` = let the emitter resolve and label it (`env`); `"join"` = RECONSTRUCTED here,
+    # which is neither explicit nor env and must never be reported as either.
+    source: str | None = None
+    if not explicit and not env_sid and getattr(args, "adopt_sid", False):
+        adopted, why = _sid_from_events(str(outbox.get("started_at") or ""))
+        if adopted:
+            sid, source = adopted, "join"
+        else:
+            sys.stderr.write(f"[command_run] --adopt-sid: no join ({why}).\n")
+    for event, fields in events:
+        try:
+            payload = dict(fields)
+            payload["cwd"] = _cwd()
+            mod.emit(event, sid, sid_source=source, probe_timeout_s=JOIN_PROBE_TIMEOUT_S, **payload)
+        except Exception as e:
+            sys.stderr.write(f"[command_run] event not emitted ({e}) — the record is unaffected.\n")
+
+
+def _queue(
+    rec: dict[str, Any], outbox: dict[str, Any], event: str, fields: dict[str, Any]
+) -> dict[str, Any]:
+    """Queue one event and stamp it ORDER-FAITHFUL and SELF-DESCRIBING. Flock HELD.
+
+    ``seq`` comes from a per-session counter incremented on the record under the same lock
+    that serializes the mutation, so it is dense and gap-free even when twenty subagents
+    write at once. It has to exist because the alternatives do not order anything: ``ts``
+    is millisecond-quantized (concurrent events collide) and file order is whatever the
+    kernel interleaved. The collector orders by ``(command, seq)``.
+
+    ``command`` names the run being mutated, so a line means something on its own — a
+    nested `/fabrik-review` inside `/fabrik-execute-plan` is otherwise attributable only by
+    replaying the whole stack, which the collector cannot do from a single line.
+
+    Returns the queued field dict so the caller can stamp `persisted` once `save()` answers.
+    The queue happens BEFORE the save: `main()` flushes in a `finally`, so an event that is
+    already queued survives any failure in the tail.
+    """
+    seq = int(rec.get("event_seq") or 0) + 1
+    rec["event_seq"] = seq
+    stamped = dict(fields, seq=seq, command=rec.get("command") or "", persisted=False)
+    outbox["events"].append((event, stamped))
+    return stamped
+
+
+def _evidence_hash(text: str) -> str:
+    """A fingerprint of the closing evidence — the stream records THAT it was given, and
+    whether it changed between retries, without copying an agent's prose into the store."""
+    return hashlib.blake2s((text or "").encode("utf-8", "replace"), digest_size=8).hexdigest()
+
+
+# The three hub beats a finding can be routed to (charters: docs/reference/agents/). Matched as
+# whole words so "infrastructure" does not read as a route to `infra`.
+_BEATS = ("infra", "fleet", "intel")
+
+# Runs STARTED before this instant close without a verdict, exactly as they always could. They
+# were dispatched under a contract that did not require one, and trapping a peer mid-run to
+# enforce a rule it never read is the failure mode this whole mechanism exists to prevent.
+# UTC, and the landing instant — not a rounded local date. Set to a midnight that had not yet
+# arrived in UTC, this whole mechanism ships INERT for hours while reading as enforced; the
+# end-to-end tests caught exactly that before it landed.
+_FEEDBACK_REQUIRED_FROM = dt.datetime(2026, 8, 27, 21, 15, tzinfo=dt.UTC)
+
+
+def _feedback_is_required(rec: dict[str, Any]) -> bool:
+    """Does this record owe a `--feedback` verdict at close?
+
+    Fails OPEN on every unreadable or missing timestamp. A record whose `started_at` cannot be
+    parsed is old, corrupt, or written by a version that did not stamp it — none of which is
+    evidence the agent owes anything, and all of which would otherwise wedge a close with no way
+    out. The duty binds forward, never retroactively.
+    """
+    started = _parse_ts(str(rec.get("started_at") or ""))
+    return started is not None and started >= _FEEDBACK_REQUIRED_FROM
+
+
+def _feedback_verdict(text: str | None) -> tuple[str, list[str]]:
+    """Classify the close-out FEEDBACK line into (verdict, beats).
+
+    Three values, and the third is the load-bearing one:
+      ``filed``     - something was routed to a beat.
+      ``none``      - the agent looked and had nothing to file. A real answer.
+      ``unstated``  - no --feedback was passed at all.
+
+    ``unstated`` must never collapse into ``none``. If it did, the metric would report perfect
+    diligence for a corpus nobody ever looked at - the fail-silent-green shape reproduced inside the
+    very telemetry built to measure it. That distinction is the whole reason this field exists.
+    """
+    if text is None:
+        return "unstated", []
+    stripped = (text or "").strip()
+    if not stripped:
+        return "unstated", []
+    low = stripped.lower()
+    beats = [b for b in _BEATS if re.search(rf"\b{b}\b", low)]
+    # A beat name is NOT by itself a filing. `close-feedback.md` instructs the agent to write
+    # "none - <the surfaces this run exercised>", and those surfaces are routinely the beat names
+    # themselves ("infra rules", "the fleet specs"). Matching a beat anywhere therefore read an
+    # HONEST `none` as a filing, inflating compliance and under-counting the exact verdict the
+    # metric exists to tell apart. A filing needs a filing VERB.
+    # PAST TENSE only. `filed?` also matched the bare infinitive, so "nothing to FILE" read as a
+    # filing — the negation of the sentence lost to one optional character. A verdict claims a
+    # COMPLETED act or it is not a claim.
+    filed_verb = _has_filing_verb(low)
+    if re.match(r"^(none|nothing|n/?a)\b", low) and not filed_verb:
+        return "none", []
+    if beats or filed_verb:
+        return "filed", beats
+    return ("filed" if len(stripped) > 3 else "none"), beats
+
+
+def _has_filing_verb(low: str) -> bool:
+    """A filing verb NOT negated within the 3 preceding tokens — 'not filed anywhere'
+    is a none, not a filing (author-blind review 2026-08-30: bare verb presence
+    inflated the diligence metric with attributions that never happened)."""
+    for m in re.finditer(r"\b(filed|sent|routed|mailed|raised|reported)\b", low):
+        preceding = low[: m.start()].split()[-3:]
+        if not any(
+            re.fullmatch(r"(not|never|no|nothing|nowhere|\w+n't)", t.strip(".,;:—–-"))
+            for t in preceding
+        ):
+            return True
+    return False
+
+
+_VACUOUS_WORDS = frozenset(
+    {"nothing", "here", "to", "report", "at", "all", "really", "else", "new", "found"}
+)
+
+# ── Structured USAGE feedback (D-175, operator's 6th ask 2026-09-07) ───────────────────────────
+# The filing verdict above answers "what did you mail?"; five asks later the operator still could
+# not see how a COMMAND behaved — how long, how many rounds, what confused, what burned tokens,
+# what to change. So every close of a run started after this cutoff carries FOUR labelled
+# fields; the close refuses anything else, the record auto-captures wall-clock and rounds, a row
+# lands in the fleet-wide ledger (`command-feedback.jsonl` beside the run-record dir), and the
+# exact FEEDBACK: line is printed for the FINAL OUTPUT block. `cost:` is optional (pool dollars).
+_USAGE_REQUIRED_FROM = dt.datetime(2026, 9, 6, 21, 0, tzinfo=dt.UTC)  # 2026-09-07 00:00 local
+_USAGE_FIELDS = ("confusion", "waste", "change", "filed")
+# A label counts ONLY at a field boundary — the start of the line, or after the separator
+# (` · `, `|`, `;` or a newline). Matched anywhere, a value that MENTIONS a label ("change:
+# rename the 'waste:' label", "filed: … the cost:5 defect …") was sliced mid-value and the
+# wrong field silently overwritten (round-1 finders, executed).
+_USAGE_LABEL_RE = re.compile(
+    r"(?:^|[·|;\n])[^\S\n]*(confusion|waste|change|filed|cost)[^\S\n]*:", re.I | re.M
+)
+_USAGE_GRAMMAR = (
+    "confusion: <what in the command text was ambiguous or misleading | none> · "
+    "waste: <steps/turns/tokens spent without changing the outcome | none> · "
+    "change: <the ONE concrete edit to the command/rule that would have made this run faster "
+    "or more accurate | none> · filed: <mail id(s) to <infra|fleet|intel> | none — surfaces "
+    "exercised: <what your run touched>> [· cost: <pool $>]"
+)
+
+
+def _usage_is_required(rec: dict[str, Any]) -> bool:
+    started = _parse_ts(str(rec.get("started_at") or ""))
+    return started is not None and started >= _USAGE_REQUIRED_FROM
+
+
+def _parse_usage_feedback(text: str) -> tuple[dict[str, str], list[str]]:
+    """Split a FEEDBACK line into its labelled fields. Returns (fields, missing) — `missing`
+    names every required label that is absent OR empty, so the refusal can say which; a label
+    written TWICE is listed as `<label> (duplicate)` and refused too — last-wins silently
+    discarded an honest value (round-1 finders)."""
+    fields: dict[str, str] = {}
+    dupes: list[str] = []
+    marks = list(_USAGE_LABEL_RE.finditer(text or ""))
+    for i, m in enumerate(marks):
+        end = marks[i + 1].start(1) if i + 1 < len(marks) else len(text)
+        value = text[m.end() : end].strip()
+        value = value.rstrip("·|;, \t").strip()
+        key = m.group(1).lower()
+        if key in fields:
+            dupes.append(key)
+        fields[key] = value
+    missing = [f for f in _USAGE_FIELDS if not fields.get(f)]
+    missing += [f"{d} (duplicate)" for d in dupes if f"{d} (duplicate)" not in missing]
+    return fields, missing
+
+
+_LEDGER_FIELD_CAP = 2000  # same cap as rec["feedback_text"]
+
+
+def _cap_field(text: str) -> str:
+    return text if len(text) <= _LEDGER_FIELD_CAP else text[: _LEDGER_FIELD_CAP - 1] + "…"
+
+
+def _append_ledger_row(path: Path, row: dict[str, Any]) -> None:
+    """One row, appended under O_APPEND; a short write(2) is continued, never left truncated."""
+    data = (json.dumps(row, ensure_ascii=False) + "\n").encode("utf-8")
+    fd = os.open(str(path), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+    try:
+        while data:
+            n = os.write(fd, data)
+            data = data[n:]
+    finally:
+        os.close(fd)
+
+
+def _feedback_ledger_path() -> Path:
+    return _state_dir().parent / "command-feedback.jsonl"
+
+
+# The three dimensions a ledger row needs to be ANALYSED rather than merely read (operator,
+# 2026-09-07: "which repo, which agent, which command, which spec, which file are recorded?"):
+# the AGENT (``CLAUDE_AGENT``, the same env the provenance trailers key on), the SURFACE the
+# command ran over (``start --surface`` — the spec, plan dir, ticket or diff range; the close may
+# name it late), and the ACCOUNT the session ran under (the rotation's ``.active-account`` marker,
+# a pure read — a quota hold or an account flip otherwise looks like command slowness). All three
+# fail-soft to "" — a row with an empty cell is analysable, a missing row is not.
+_AGENT_NAME_RE = re.compile(r"^[a-z0-9-]{1,32}$")
+# a number counts as a COST only when it is the whole value (``0.03``, ``pool 0.0017 USD``) or sits
+# on a currency marker (``$0.0125``, ``0.01 usd``) — prose in the field ("2 hold-era commits") is
+# a real row shape and must NOT be summed as two dollars
+_COST_NUM = r"(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?"  # well-formed thousands groups, or none
+_COST_WHOLE_RE = re.compile(rf"^\s*(?:pool\s*)?\$?\s*({_COST_NUM})\s*(?:usd|\$)?\s*$", re.I)
+# the `usd`-marked form needs a FRACTION (`0.01 usd`): a bare integer before `usd` is prose more
+# often than a cost ("budget for 2024 usd" — review 2026-09-07); `$N` is explicit and accepted as is
+_COST_AMT_USD = r"(?:\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+\.\d+)\s*usd\b"
+_COST_NEGATED_RE = re.compile(
+    r"(?:[-\u2212]\s*\$\s*\d"  # `-$1.50`, `$5-$2`, `pool-$0.30`, `−$1.50`
+    r"|(?<![A-Za-z_])[-\u2212]\s*"
+    + _COST_AMT_USD  # `-1.50 usd`, never `opus-4.5 usd`
+    + r"|[\u2013\u2014\u2011](?=\$|\d)(?:\$\s*\d|"
+    + _COST_AMT_USD
+    + ")"  # `–$5` glued
+    + r"|(?:(?<=\d)|(?<=usd))\s*[\u2013\u2014\u2011]\s*(?:\$\s*\d|"
+    + _COST_AMT_USD
+    + "))",  # `$0.12 – $0.30`
+    re.I,
+)
+# a minus/dash directly before an AMOUNT (`-$1.50`, `−$1.50`, `$5-$2`, `–$5`, `$0.12 – $0.30`) — never
+# `glm-5`, `T-11`, or a spaced em dash used as a separator (`pool $0.30 — three units`)
+# the CLOSE-time contract for `cost:` — a plain amount, nothing else. Sixteen review passes each
+# found one more prose shape the lenient parser below mis-read (`opus-4.5 usd`, `5.00 usd – $2.00`);
+# the class ends at the input: prose in a field that is summed as money is refused, like an empty
+# usage field is (review 2026-09-07). The lenient parser stays for the ledger's older rows.
+_COST_STRICT_RE = re.compile(
+    r"^\s*(?:pool\s*)?\$?\s*(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?\s*(?:usd)?\s*$", re.I
+)
+_COST_ZERO_USD_RE = re.compile(r"(?<![\d,.$])0\s*usd\b", re.I)
+_COST_MARKED_RE = re.compile(
+    rf"\$\s*({_COST_NUM})(?!\w|[,.]\d|\s+\.\d)|(?<![\d,.$\-\u2212])(\d{{1,3}}(?:,\d{{3}})+(?:\.\d+)?|\d+\.\d+)\s*usd\b",
+    re.I,
+)
+
+
+def _agent_name() -> str:
+    name = os.environ.get("CLAUDE_AGENT", "").strip()
+    return name if _AGENT_NAME_RE.match(name) else ""
+
+
+def _active_account() -> str:
+    try:
+        raw = os.environ.get("COMMAND_RUN_ACCOUNT_FILE") or str(
+            Path.home() / ".claude" / ".active-account"
+        )
+        return Path(raw).read_text(encoding="utf-8").strip().splitlines()[0][:64]
+    except (OSError, ValueError, IndexError, RuntimeError):  # RuntimeError: no resolvable home
+        return ""
+
+
+# ── per-run TOKEN usage from the session transcript (operator, 2026-09-07: "input, output,
+# cached tokens must be recorded per run") ─────────────────────────────────────────────────
+# Claude Code writes every assistant message's `usage` (input / output / cache_read /
+# cache_creation tokens) with a timestamp to `~/.claude/projects/<cwd-slug>/<sid>.jsonl`. The
+# close sums the messages stamped inside the run's window [started_epoch, now] (±2 s slack for
+# the transcript's own write latency). The file is read BACKWARDS in 1 MiB chunks up to
+# `_TRANSCRIPT_MAX_BYTES`, every line pre-filtered by a regex for its timestamp and type so only
+# in-window assistant lines pay for json.loads — a 750 MB hub transcript scans WHOLE in ~1 s
+# (measured 2026-09-07; the 2 GiB cap is a backstop). ⚠️ There is deliberately NO "stop after N older lines" rule: a
+# compaction re-emits earlier messages with their ORIGINAL timestamps (measured: a 1,340-line
+# block lagging 23 h inside the last 64 MiB), so a run spanning a compaction has in-window lines on
+# BOTH sides of a stale block, and an early stop lost everything before it (review 2026-09-07).
+# `tok_partial` is True whenever the byte cap cut the read — a compaction re-emits old lines
+# anywhere, so a cut read can never prove the window was covered; the row says its bound. A
+# nested run's window overlaps its parent's — each row reports what ITS window spent. Fail-soft:
+# no transcript ⇒ nulls (never a silent 0); the report counts such a row as a RUN but leaves it
+# out of the token sum and its denominator.
+_TRANSCRIPT_MAX_BYTES = (
+    2 << 30
+)  # a WHOLE hub transcript (750 MB live) scans in ~1 s; the cap is a backstop
+_TRANSCRIPT_MAX_LINE = 8 << 20  # no transcript record is this long — a newline-free tail is garbage
+_TS_RE = re.compile(
+    rb'"timestamp"\s*:\s*"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?)(Z|[+-]\d\d:\d\d)?"'
+)  # the offset is optional: a naive stamp reads as local time, exactly as fromisoformat did
+_ASSISTANT_RE = re.compile(rb'"type"\s*:\s*"assistant"')
+# A native SEAT's usage is NOT on the parent transcript. The parent's tool-result line carries the
+# seat's LAST turn only (`toolUseResult.usage` == one message; 251 of 251 checked against the seat's
+# own file, median 10x under), a background seat's completion notice repeats that number, and a
+# background LAUNCH carries no usage at all (630 of 631 seat lines since 2026-09-01). The whole seat
+# lives in its own transcript — `<transcript dir>/<sid>/subagents/agent-<id>.jsonl`, assistant lines
+# in the parent's per-message shape — so that is what is summed (review 2026-09-08, the Opus seat:
+# the parent-line sum saw 0 of the 40 seats run that day).
+_TOKEN_KEYS = (
+    ("tok_in", "input_tokens"),
+    ("tok_out", "output_tokens"),
+    ("tok_cache_read", "cache_read_input_tokens"),
+    ("tok_cache_create", "cache_creation_input_tokens"),
+)
+_SEAT_KEYS = tuple((f"tok_seat_{k[4:]}", src) for k, src in _TOKEN_KEYS)
+_SEAT_MAX_BYTES = (
+    256 << 20
+)  # the largest seat file measured is single-digit MB; a cap, not a budget
+_SEAT_PARTIAL_S = 30.0  # a seat whose last line is this close to the close was still running
+_SEAT_TAIL_BYTES = 4 << 20  # the nudge dates a seat from its tail: one complete line is enough
+
+
+def _giant_line_epoch(q: Path, size: int) -> float | None:
+    """The envelope stamp of a last line longer than the walk (a tool result past 4 MB). Two
+    live shapes (round 17, measured on 8,778 seat files: 1,011 lines over 64 KB): the stamp
+    trails the message payload — 860 of them, read from the line's last 64 KB — or it PRECEDES
+    a giant `toolUseResult` (151, all `type: user`; the envelope key order is …, message,
+    uuid, timestamp, toolUseResult, …), read from the line's first 64 KB after a scan back for
+    the previous newline that is capped at one extra window (F347 stays closed). Exactly one
+    stamp in the window is the envelope's; two mean a nested one and `_line_epoch` refuses the
+    truncated chunk → None → "skipped". The caller has already ruled out a torn tail."""
+    with q.open("rb") as fh:
+        fh.seek(max(size - (64 << 10), 0))
+        e = _line_epoch(fh.read())
+        if e is not None:
+            return e
+        pos = max(size - _SEAT_TAIL_BYTES, 0)
+        floor = max(size - 2 * _SEAT_TAIL_BYTES, 0)
+        while pos > floor:
+            step = min(1 << 20, pos - floor)
+            pos -= step
+            fh.seek(pos)
+            nl = fh.read(step).rfind(b"\n")
+            if nl >= 0:
+                pos += nl + 1
+                break
+        else:
+            if pos > 0:
+                return None  # the line's head is further back than one extra window
+        fh.seek(pos)
+        return _line_epoch(fh.read(64 << 10))
+
+
+def _seat_last_epoch(q: Path) -> float | str:
+    """The newest line's epoch OF ANY TYPE, read backwards from the file's tail — the mid-run
+    nudge needs one date per seat, and a full read of every seat under the record lock cost
+    ~50 ms/MB (round-13 finding: 40 seats × 3 MB was six seconds of lock). Any type, because a
+    seat's last line is often a tool result far larger than a fixed window, and demanding an
+    assistant line there read a running seat as silent. A TORN tail line (no trailing newline —
+    the writer is mid-flush) is skipped: its envelope stamp may be missing while a nested one
+    reads as it (round-14 Opus finding). Whenever the walk yields NO date — unreadable, empty,
+    or all torn — the answer is "skipped": the mtime prefilter already dated the file, and the
+    nudge exists to stop silent under-reporting; None is never returned (round 14: a 5 MB last
+    line and an empty file both read as silent). A last line longer than the walk is dated from
+    its own bytes (`_giant_line_epoch`, tail then bounded head), never by its mtime (rounds
+    15–17); any file with a TORN tail skips the giant path — "skipped" (rounds 16–17)."""
+    try:
+        size = q.stat().st_size
+        torn = False
+        if size:
+            with q.open("rb") as fh:
+                fh.seek(size - 1)
+                torn = fh.read(1) != b"\n"
+        was_torn = torn
+        for raw in _iter_lines_backwards(q, _SEAT_TAIL_BYTES):
+            if raw is None:
+                if was_torn:
+                    # a torn tail poisons the FILE-tail read the giant path makes (round 17:
+                    # a stamp fragment after a complete giant line read as a second stamp)
+                    break
+                e = _giant_line_epoch(q, size)
+                if e is not None:
+                    return e
+                break
+            if torn:
+                torn = False  # the first line yielded is the unterminated one
+                continue
+            e = _line_epoch(raw)
+            if e is not None:
+                return e
+    except OSError:
+        pass
+    return "skipped"
+
+
+def _seat_transcripts(path: Path, lo: float) -> list[Path]:
+    """The per-seat transcripts under the parent's `<sid>/subagents/`, touched since the window
+    opened (an mtime prefilter — the window itself is applied per line)."""
+    d = path.parent / path.stem / "subagents"
+    try:
+        found = list(d.glob("agent-*.jsonl"))
+    except OSError:
+        return []
+    out: list[Path] = []
+    for q in found:
+        try:
+            if q.stat().st_mtime >= lo:
+                out.append(q)
+        except OSError:
+            continue  # one vanished/unreadable seat file must never null the others (round 5)
+    return sorted(out)
+
+
+def _seat_usage(q: Path, lo: float, hi: float) -> dict[str, float] | str | None:
+    """One seat's in-window usage, per-message maximum like the parent; None when the file holds
+    no in-window assistant message (or cannot be read) — a seat, never a real zero; the string
+    "skipped" for an oversize file (round-7 finding: the sentinel was not in the annotation and
+    mypy said so)."""
+    seen: dict[str, dict[str, int]] = {}
+    anon = 0
+    last = 0.0  # the newest line's epoch, kept float (round-7 Opus finding: int() truncated it)
+    try:
+        if q.stat().st_size > _SEAT_MAX_BYTES:
+            return "skipped"  # not a seat transcript at this size; counted as SKIPPED, never summed
+        for raw in q.read_bytes().splitlines():
+            e = _line_epoch(raw)
+            if e is None or e < lo or e > hi or not _ASSISTANT_RE.search(raw):
+                continue
+            try:
+                d = json.loads(raw)
+            except ValueError:
+                continue
+            if not isinstance(d, dict) or d.get("type") != "assistant":
+                continue
+            msg = d.get("message") or {}
+            u = msg.get("usage") if isinstance(msg, dict) else None
+            if not isinstance(u, dict):
+                continue
+            last = max(last, e)
+            mid = str(msg.get("id") or "")
+            if not mid:  # same policy as the parent: a line uuid is per LINE, it groups nothing
+                anon += 1
+                mid = f"\x00anon{anon}"
+            m = seen.setdefault(mid, dict.fromkeys((k for k, _ in _SEAT_KEYS), 0))
+            for k, src in _SEAT_KEYS:
+                v = u.get(src)
+                if (
+                    isinstance(v, (int, float))
+                    and not isinstance(v, bool)
+                    and math.isfinite(v)
+                    and int(v) > m[k]
+                ):
+                    m[k] = int(v)
+    except Exception:  # noqa: BLE001 — one bad seat file must never null the whole row
+        # a RecursionError from a deeply nested line, a MemoryError, an OSError: this seat is
+        # skipped; the orchestrator's own totals and the other seats survive (round-4 finding)
+        return "skipped"  # counted, so a dropped seat is not invisible (round-6 finding)
+    if not seen:
+        return None
+    acc: dict[str, float] = dict.fromkeys((k for k, _ in _SEAT_KEYS), 0)
+    for m in seen.values():
+        for k in acc:
+            acc[k] += m[k]
+    acc["_last"] = last  # a float epoch: an int truncation compared unequal to `last_orch`
+    return acc
+
+
+def _transcript_path(sid: str, repo_root: str) -> Path | None:
+    override = os.environ.get("COMMAND_RUN_TRANSCRIPT")
+    if override:
+        return Path(override)
+    if not sid or not repo_root:
+        return None
+    slug = re.sub(r"[^A-Za-z0-9]", "-", repo_root)
+    try:
+        home = Path.home()
+    except RuntimeError:
+        return None
+    for base in (home / ".claude" / "projects", home / ".claude-fleet" / "active" / "projects"):
+        cand = base / slug / f"{sid}.jsonl"
+        if cand.is_file():
+            return cand
+    return None
+
+
+def _iter_lines_backwards(path: Path, max_bytes: int):
+    """Yield the file's lines last-first, reading at most `max_bytes` from the tail; the final
+    yield is the sentinel ``None`` when the cap cut the read short of the file's start (the torn
+    head line is dropped, never yielded)."""
+    with path.open("rb") as fh:
+        fh.seek(0, os.SEEK_END)
+        pos = fh.tell()
+        floor = max(0, pos - max_bytes)
+        buf = b""
+        while pos > floor:
+            step = min(1 << 20, pos - floor)
+            pos -= step
+            fh.seek(pos)
+            buf = fh.read(step) + buf
+            if b"\n" not in buf and len(buf) > _TRANSCRIPT_MAX_LINE:
+                # a newline-free tail is not a transcript: O(n²) + unbounded RSS otherwise
+                # (review 2026-09-07) — bail before anything torn is yielded
+                yield None
+                return
+            lines = buf.split(b"\n")
+            buf = lines[0]
+            yield from reversed(lines[1:])
+        if pos == 0:
+            if buf:
+                yield buf
+        else:
+            yield None
+
+
+def _line_epoch(raw: bytes) -> float | None:
+    """The ENVELOPE's timestamp. One regex match is it; several mean a `timestamp` key nested in
+    the message (a tool_use input is serialised BEFORE the envelope's own stamp — 2,226 of
+    261,368 live lines carry two, none of them assistant lines in that transcript), so only such
+    a line is parsed and only its top-level key counts; a line that cannot be parsed has no epoch
+    rather than a guessed one (review pass 25)."""
+    matches = _TS_RE.findall(raw)
+    if not matches:
+        return None
+    if len(matches) == 1 and raw.count(b'"timestamp"') == 1:
+        stamp = (matches[0][0] + (matches[0][1] or b"")).decode("ascii")
+    else:  # a second key of any shape: only the parsed top-level value may stand (pass 26)
+        try:
+            top = json.loads(raw).get("timestamp")
+        except (ValueError, AttributeError, RecursionError):
+            return None
+        m = (
+            _TS_RE.match(b'"timestamp":' + json.dumps(top).encode())
+            if isinstance(top, str)
+            else None
+        )
+        if not m:
+            return None
+        stamp = (m.group(1) + (m.group(2) or b"")).decode("ascii")
+    try:
+        return dt.datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
+
+
+def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[str, Any]:
+    empty: dict[str, Any] = {k: None for k, _ in _TOKEN_KEYS}
+    empty.update({k: None for k, _ in _SEAT_KEYS})
+    empty.update(
+        {
+            "tok_msgs": 0,
+            "seats_seen": 0,
+            "seats_partial": False,
+            "seats_skipped": 0,
+            "models": [],
+            "tok_partial": False,
+        }
+    )
+    if path is None or start <= 0:
+        return empty
+    try:
+        if not path.is_file():
+            return empty
+        # the transcript writes ONE LINE PER CONTENT BLOCK (thinking, tool_use, text) and every
+        # line repeats the message's usage — measured 500 assistant lines for 245 message ids;
+        # summing per line overcounts ~2x. And 3 of 2,857 ids carried one ALL-ZERO line beside
+        # the real one (measured 2026-09-07), so the message's usage is the per-field MAXIMUM
+        # over its lines — independent of write order, and right for a progressive format too.
+        per_msg: dict[str, dict[str, int]] = {}
+        # the orchestrator's newest in-window message, for the seat-partial test; None until one
+        # is seen — with NO orchestrator message in the window the test is inconclusive and says
+        # so by staying False (round-7 finding: 0.0 degraded it to the bare 30-second test)
+        last_orch: float | None = None
+        anon = 0  # id-less lines cannot be proven repeats — each counts as its own message
+        models: list[str] = []
+        lo, hi = start - 2.0, end + 2.0
+        capped = False
+        for raw in _iter_lines_backwards(path, _TRANSCRIPT_MAX_BYTES):
+            if raw is None:
+                capped = True
+                break
+            e = _line_epoch(raw)
+            if e is None:
+                continue
+            if e < lo or e > hi:
+                continue
+            if not _ASSISTANT_RE.search(raw):
+                continue
+            try:
+                d = json.loads(raw)
+            except ValueError:
+                continue
+            if not isinstance(d, dict) or d.get("type") != "assistant":
+                continue
+            last_orch = e if last_orch is None else max(last_orch, e)
+            msg = d.get("message") or {}
+            u = msg.get("usage") if isinstance(msg, dict) else None
+            if not isinstance(u, dict):
+                continue
+            mid = str(msg.get("id") or "")
+            if not mid:  # the line uuid is per LINE, never per message — no key can group these
+                anon += 1
+                mid = f"\x00anon{anon}"
+            numeric = {
+                k: int(v)
+                for k, src in _TOKEN_KEYS
+                for v in (u.get(src),)
+                if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+            }
+            if not numeric:
+                continue  # a present-but-malformed usage is not a message, never a real zero
+            acc = per_msg.setdefault(mid, dict.fromkeys((k for k, _ in _TOKEN_KEYS), 0))
+            for k, src in _TOKEN_KEYS:
+                v = u.get(src)
+                # json.loads accepts the literal Infinity/NaN; int(inf) raises OverflowError,
+                # which escaped the old except tuple and left the close at rc 0 with the record
+                # still `running` (review 2026-09-07) — a non-finite value counts as absent
+                if (
+                    isinstance(v, (int, float))
+                    and not isinstance(v, bool)
+                    and math.isfinite(v)
+                    and int(v) > acc[k]
+                ):
+                    acc[k] = int(v)
+            m = msg.get("model")
+            if isinstance(m, str) and m and m not in models:
+                models.append(m)
+        # capped with NO stamped line seen is also partial: nothing proves the window was reached
+        # a compaction re-emits old lines ANYWHERE in the file, so a cut read can never prove the
+        # window was covered: ANY cut is partial (review 2026-09-07, passes 2 and 10)
+        partial = bool(capped)
+        msgs = len(per_msg)
+        totals = dict.fromkeys((k for k, _ in _TOKEN_KEYS), 0)
+        for acc in per_msg.values():
+            for k in totals:
+                totals[k] += acc[k]
+        # the seats: their own transcripts, in the same window
+        seat_results = [_seat_usage(q, lo, hi) for q in _seat_transcripts(path, lo)]
+        seat_rows = [u for u in seat_results if isinstance(u, dict)]
+        seats_skipped = sum(1 for u in seat_results if u == "skipped")
+        seat_totals: dict[str, Any] = dict.fromkeys((k for k, _ in _SEAT_KEYS), 0)
+        for u in seat_rows:
+            for k, _ in _SEAT_KEYS:
+                seat_totals[k] += u[k]
+        if not seat_rows:  # no seat in the window: null, never a real zero
+            seat_totals = dict.fromkeys((k for k, _ in _SEAT_KEYS), None)
+        seats_seen = len(seat_rows)
+        # a seat still writing at the close is summed mid-flight: say so, like tok_partial does
+        # for the byte cap (round-4 finding). "Still writing" = its newest line is younger than the
+        # orchestrator's newest message AND within the close's last seconds — a seat that returned
+        # and was closed on at once has an orchestrator message AFTER it (round-6 finding: the
+        # bare 30-second test flagged the ordinary gather-then-close flow every time)
+        seat_totals["seats_partial"] = last_orch is not None and any(
+            u["_last"] > last_orch and end - u["_last"] < _SEAT_PARTIAL_S for u in seat_rows
+        )
+        seat_totals["seats_skipped"] = seats_skipped  # unreadable/oversize seat files, named
+        if msgs == 0:
+            out0 = dict(empty)
+            out0.update(seat_totals)
+            out0.update({"seats_seen": seats_seen, "tok_partial": partial})
+            return out0
+        out: dict[str, Any] = dict(totals)
+        out.update(seat_totals)
+        out.update(
+            {
+                "tok_msgs": msgs,
+                "seats_seen": seats_seen,
+                "models": sorted(models),
+                "tok_partial": partial,
+            }
+        )
+        return out
+    except Exception:  # noqa: BLE001 — a pure accounting read: NOTHING it raises may wedge a close
+        return empty
+
+
+def _tokens_clause(tok: dict[str, Any]) -> str:
+    """`tokens 18.8M input / 104.7k output (99% cached)` for the printed FEEDBACK line; "" when
+    null. `input` is the SUMMED billed input over the run's messages (uncached + cache-read +
+    cache-create) — never a context size (review 2026-09-07: `<context>` mislabelled a 51.7M sum)."""
+    if not tok:
+        return ""
+    has_seats = tok.get("tok_seat_in") is not None
+    skipped = int(tok.get("seats_skipped") or 0)
+    if tok.get("tok_in") is None and not has_seats:
+        # no orchestrator message AND no summed seat: the early return hid a skip event
+        # (round-8 finding) — the skip is the only fact left, so print it alone
+        return (
+            f"tokens — · seats: {skipped} skipped (oversize/unreadable transcript)"
+            if skipped
+            else ""
+        )
+    if tok.get("tok_in") is None:
+        # seats spent inside the window while the orchestrator had no message in it (a nested or
+        # rapid close): the seat half prints on its own — the first draft returned "" and hid
+        # real seat spend behind the orchestrator's null (round-3 finding)
+        own = "tokens —"
+    else:
+        inp = int(tok["tok_in"]) + int(tok["tok_cache_read"]) + int(tok["tok_cache_create"])
+        hit = f" ({100 * int(tok['tok_cache_read']) / inp:.0f}% cached)" if inp else ""
+        own = f"tokens {_fmt_tokens(inp)} input / {_fmt_tokens(int(tok['tok_out']))} output{hit}"
+    seats = ""
+    if not has_seats and skipped:
+        # every seat file was oversize/unreadable: name the skip rather than print no seat half at
+        # all (round-7 finding: the field reached the ledger row and no surface a reader sees)
+        seats = f" · seats: {skipped} skipped (oversize/unreadable transcript)"
+    if has_seats:
+        s_in = (
+            int(tok["tok_seat_in"])
+            + int(tok["tok_seat_cache_read"])
+            + int(tok["tok_seat_cache_create"])
+        )
+        seats = (
+            f" · seats {tok.get('seats_seen', 0)}: {_fmt_tokens(s_in)} input / "
+            f"{_fmt_tokens(int(tok['tok_seat_out']))} output"
+            + (" (a seat still running — partial)" if tok.get("seats_partial") else "")
+            + (f" · {skipped} skipped" if skipped else "")
+        )
+    return f"{own}{seats}"
+
+
+def _fmt_tokens(n: int) -> str:
+    if round(n / 1000, 1) >= 1000:  # 999,999 rolls over to 1.0M, never "1000.0k"
+        return f"{n / 1_000_000:.1f}M"
+    return f"{n / 1000:.1f}k" if n >= 1000 else str(n)
+
+
+def _cost_usd(text: str) -> float | None:
+    """The dollar amount in a free-text ``cost:`` value (``pool $0.0125`` → 0.0125,
+    ``$1,234.50`` → 1234.5, ``$0 pool + $1.40 ai-consult`` → 1.4 — every marked amount is
+    SUMMED, review 2026-09-07). None when the value is prose, carries no marked number, or its
+    thousands groups are malformed (``$12,34``) — a row that cannot be summed says so, never
+    contributes a wrong number or a silent 0."""
+    t = text or ""
+    if _COST_NEGATED_RE.search(t):
+        return None  # a refund/subtraction is not a charge — never a wrong positive number
+    out = _cost_usd_inner(t)
+    return out if out is not None and math.isfinite(out) else None  # a 320-digit amount is inf
+
+
+def _cost_usd_inner(t: str) -> float | None:
+    m = _COST_WHOLE_RE.match(t)
+    try:
+        if m:
+            # the whole-value form with a bare integer before `usd` is the same year/count
+            # shape the marked form refuses (`2024 usd`) — a fraction or a `$` makes it a cost
+            if (
+                "." not in m.group(1)
+                and "," not in m.group(1)  # `1,000 usd` is neither a year nor a count
+                and "$" not in t
+                and "usd" in t.lower()
+            ):
+                # an explicit zero (`0 usd`, `00 usd`) IS a zero cost — compared numerically
+                return 0.0 if float(m.group(1).replace(",", "")) == 0 else None
+            return float(m.group(1).replace(",", ""))
+        amounts = [
+            float(next(g for g in mm.groups() if g).replace(",", ""))
+            for mm in _COST_MARKED_RE.finditer(t)
+        ]
+        if not amounts and _COST_ZERO_USD_RE.search(t):
+            amounts = [0.0]  # `0 usd` inside prose: an explicit zero, never absent
+        return round(sum(amounts), 6) if amounts else None
+    except (ValueError, StopIteration):
+        return None
+
+
+def _feedback_line(rec: dict[str, Any], fields: dict[str, str], wall_s: float) -> str:
+    rounds = rec.get("rounds") or []
+    # the CONFIRMED trend when every round states it, the raw one otherwise (§ Close-out USAGE
+    # feedback) — this string is the chat-visible 7th line of every close, fleet-wide
+    trend = "→".join(str(n) for n in _trend_series(rounds))
+    mins = f"{wall_s / 60:.0f} min" if wall_s >= 90 else f"{wall_s:.0f} s"
+    head = f"FEEDBACK: /{rec.get('command')} · {mins} · rounds {len(rounds)}"
+    if trend:
+        head += f" ({trend})"
+    tail = " · ".join(f"{k}: {fields[k]}" for k in (*_USAGE_FIELDS, "cost") if fields.get(k))
+    tokens = _tokens_clause((rec.get("usage") or {}).get("tokens") or {})
+    if tokens:
+        head += f" · {tokens}"
+    return f"{head} · {tail}"
+
+
+def _feedback_lacks_substance(text: str) -> bool:
+    """D-036 substance floor (operator, 2026-08-30 — the 5th ask, first MECHANICAL one):
+    a bare ``none``/``nothing``/``n/a`` is byte-equivalent to the silence the field
+    exists to end, so the close REFUSES it. A ``none`` passes only when it carries the
+    surfaces-exercised clause (what your "nothing" actually covered); a filing passes
+    on its filing verb. Presence is checked by the caller; this grades SUBSTANCE."""
+    stripped = text.strip()
+    low = stripped.lower()
+    if not re.match(r"^(none|nothing|n/?a)\b", low):
+        # the FILED path owes the same floor: a bare 'filed'/'sent' names no what,
+        # no whom (the refusal text itself demands 'filed <what> to <beat>').
+        return len(re.sub(r"\s", "", low)) < 12
+    # everything after the none-token must say SOMETHING real (>= 6 non-space chars —
+    # kills bare/decoration-only nones without rejecting honest terse verdicts like
+    # 'none — swept it'; calibrated against the live fixture corpus, not vibed)
+    rest = re.sub(r"^(none|nothing|n/?a)\b[\s.,:;—–-]*", "", low)
+    # strip vacuous elaborations ('nothing to report') and punctuation runs — a
+    # bare none in a costume is still a bare none
+    words = [w for w in re.findall(r"[a-z0-9./_-]+", rest) if w not in _VACUOUS_WORDS]
+    return len("".join(words)) < 6
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    # ⚠️ NOT `--session-*`: argparse resolves abbreviations, so a second flag sharing the
+    # `--sess` prefix makes the long-standing `--sess <id>` spelling AMBIGUOUS and every
+    # caller using it starts exiting 2. The name is deliberately in a different namespace.
+    join_help = (
+        "when no session id resolves, adopt one from the kaizen event stream — ONLY if "
+        "exactly one session provably named this cwd in the window (else refuse). Affects "
+        "the EVENTS only; the record file is named as it always was."
+    )
+    ap = argparse.ArgumentParser(prog="command_run.py", description=__doc__)
+    ap.add_argument("--session", help="session id (default: $CLAUDE_SESSION_ID)")
+    ap.add_argument("--adopt-sid", action="store_true", help=join_help)
+
+    # The session flags are accepted on EITHER side of the subcommand: argparse would
+    # otherwise reject `round --adopt-sid`, which is the only spelling an agent naturally
+    # reaches for. `SUPPRESS` keeps the subparser copy from resetting a value the
+    # top-level parser already captured.
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument("--session", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
+    common.add_argument(
+        "--adopt-sid",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help=join_help,
+    )
+    sub = ap.add_subparsers(dest="cmd", required=True)
+
+    p = sub.add_parser("start", help="begin a command run", parents=[common])
+    p.add_argument("--command", required=True, help="e.g. fabrik-review")
+    p.add_argument("--phases", required=True, type=int)
+    p.add_argument("--terminal", default="", help="the run's terminal condition")
+    p.add_argument(
+        "--surface",
+        default="",
+        help="what the run is OVER — the spec, plan dir, ticket or diff range (ledger dimension)",
+    )
+
+    p = sub.add_parser("step", help="advance to a phase", parents=[common])
+    p.add_argument(
+        "--review-waived",
+        metavar="REASON",
+        help="advance without the previous phase's review artifact — RECORDED in the run record",
+    )
+    p.add_argument("--phase", required=True, type=int)
+    p.add_argument("--title", default="")
+
+    p = sub.add_parser(
+        "dispatch",
+        help="stamp a fan-out BEFORE its seats go out — the sibling reservation "
+        "dispatch_headroom.py subtracts (a round --seats at the close reserves nothing while they run)",
+        parents=[common],
+    )
+    p.add_argument("--seats", type=int, required=True, help="seats dispatched in this message")
+
+    p = sub.add_parser(
+        "round",
+        help="record one convergence round (--confirmed <n> is the exit counter)",
+        parents=[common],
+    )
+    p.add_argument("--findings", type=int, default=0)
+    # D-206/D-203: quiet is zero CONFIRMED code or doc defects, never zero RAISED — a refuted or
+    # recorded candidate never reopens the loop, so the raw candidate count cannot be the exit
+    # test. `None` (not stated) is a THIRD answer that keeps every untouched fleet caller on the
+    # old `--findings 0` rule; a default of 0 would close their loops for them.
+    p.add_argument(
+        "--confirmed",
+        type=int,
+        default=None,
+        help="candidates CONFIRMED by execution this round — the EXIT counter "
+        "(omitted = not stated; the old --findings 0 rule then stands)",
+    )
+    p.add_argument("--classes-swept", default="", help="comma-separated, swept CLEAN")
+    p.add_argument("--classes-new", default="", help="comma-separated, newly opened")
+    # D-186 made fan-out SIZE a rule, and the ledger had no column to evaluate it with: the ruling's
+    # own "seats do not drive wall-clock" was an inference, not a measurement, because nothing here
+    # recorded a seat count. One field makes the next audit possible.
+    p.add_argument(
+        "--seats",
+        type=int,
+        default=None,
+        help="native seats dispatched this round (omitted = the dispatch stamp; 0 = a deliberate zero)",
+    )
+
+    p = sub.add_parser("done", help="terminal: the contract is met", parents=[common])
+    p.add_argument(
+        "--command", required=True, help="the run you are closing — must be the LIVE one"
+    )
+    p.add_argument(
+        "--surface", default="", help="name the surface late if `start` omitted it (ledger)"
+    )
+    p.add_argument("--evidence", required=True)
+    p.add_argument(
+        "--feedback",
+        default=None,
+        help=(
+            "the close-out FEEDBACK line: what you filed and to whom, or 'none' plus the "
+            "surfaces you exercised. OMITTING it records `unstated`, which is NOT the same as "
+            "`none` and is counted separately - see commands/_fragments/close-feedback.md"
+        ),
+    )
+
+    p = sub.add_parser(
+        "handoff",
+        help="terminal: NOT-QUIET — the loop is quiet but rows stay OPEN, routed in a RESUME block",
+        parents=[common],
+    )
+    p.add_argument(
+        "--command", required=True, help="the run you are closing — must be the LIVE one"
+    )
+    p.add_argument(
+        "--surface", default="", help="name the surface late if `start` omitted it (ledger)"
+    )
+    p.add_argument(
+        "--resume",
+        required=True,
+        help=(
+            "path to the artifact carrying the open rows + the `## RESUME` block. REQUIRED: this "
+            "close is only legitimate when the successor is named, which makes it strictly harder "
+            "to fake than the BLOCKED cause agents were stretching to reach"
+        ),
+    )
+    p.add_argument("--reason", required=True, help="why rows remain open")
+    p.add_argument(
+        "--feedback",
+        default=None,
+        help="the close-out FEEDBACK line — see commands/_fragments/close-feedback.md",
+    )
+
+    p = sub.add_parser(
+        "blocked", help="terminal: one of the three sanctioned BLOCKED cases", parents=[common]
+    )
+    p.add_argument(
+        "--command", required=True, help="the run you are closing — must be the LIVE one"
+    )
+    p.add_argument(
+        "--surface", default="", help="name the surface late if `start` omitted it (ledger)"
+    )
+    p.add_argument("--reason", required=True)
+    p.add_argument(
+        "--feedback",
+        default=None,
+        help=(
+            "the close-out FEEDBACK line: what you filed and to whom, or 'none' plus the "
+            "surfaces you exercised. OMITTING it records `unstated`, which is NOT the same as "
+            "`none` and is counted separately - see commands/_fragments/close-feedback.md"
+        ),
+    )
+
+    sub.add_parser("line", help="print the pinned status line (silent when idle)", parents=[common])
+    p = sub.add_parser("status", help="print the record", parents=[common])
+    p.add_argument("--json", action="store_true", default=True)
+    return ap
+
+
+def main(argv: list[str]) -> int:
+    try:
+        args = _build_parser().parse_args(argv)
+    except SystemExit as e:  # argparse's own exit — keep it, it is a usage error
+        return int(e.code or 0)
+    try:
+        sid = _session_id(args.session)
+
+        # Readers run lock-free: `line` is invoked on EVERY reply, so it must stay
+        # cheap and must never wait behind a writer.
+        if args.cmd == "line":
+            line = pinned_line(load(sid))
+            if line:
+                print(line)
+            return 0
+
+        if args.cmd == "status":
+            print(json.dumps(load(sid), indent=2))
+            return 0
+
+        # Every MUTATING subcommand loads, modifies and saves under one exclusive
+        # flock — the read-modify-write is otherwise lossy under concurrent subagents.
+        # Events are QUEUED under the lock and emitted after it drops: a sensor must
+        # never hold the lock an agent's next mutation is waiting on, and must never sit
+        # between a mutation and its `save()`. The flush is a `finally` because the queue
+        # is filled BEFORE `save()` — so a bug anywhere in a verb's tail (a report
+        # formatter, a print) cannot leave a persisted mutation with no event, which is a
+        # disagreement between record and stream that nothing downstream can ever repair.
+        outbox: dict[str, Any] = {"events": [], "started_at": ""}
+        try:
+            rc = 0
+            with _record_lock(sid):
+                rc = _mutate(sid, args, outbox)
+        finally:
+            _flush_events(args, outbox)
+        # AFTER the lock and after the flush: the advisory is a courtesy, and it may never change
+        # what the close did. `.get` (not `[...]`) because every non-close verb leaves the key
+        # unset, and main()'s outer `except Exception` would turn the resulting KeyError into a
+        # silent rc 0 — converting the mis-named-close refusal into success.
+        advice = outbox.get("scratch_advice")
+        if advice:
+            text = _scratch_advisory(*advice)
+            if text:  # `print("")` is a blank line; zero candidates print zero bytes
+                with contextlib.suppress(Exception):
+                    print(text)
+        return rc
+    except Exception as e:  # fail-soft — a state bug must never wedge an agent
+        sys.stderr.write(f"[command_run] error, continuing: {e}\n")
+        return 0
+
+
+def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
+    """The mutating subcommands. Runs with the record's flock HELD.
+
+    Appends ``(event, fields)`` to ``outbox["events"]`` — it never EMITS, so no sensor
+    failure can land between a mutation and its ``save()``.
+    """
+    rec = load(sid)
+    outbox["started_at"] = rec.get("started_at") or ""
+
+    if args.cmd in ("step", "round", "dispatch") and rec and rec.get("state") != "running":
+        # A-F4 (review 2026-09-06): `_close` refuses to touch an already-closed record ("never
+        # mutate; never resurrect") but these two had no such guard — a `step` on a done record
+        # moved `updated_ts`, and the Stop hook's review window read the moved close time, so one
+        # stray `step`/`round` laundered every code edit made since the close. Same shape as the
+        # close guard: a warned no-op, never a mutation.
+        print(
+            f"command_run: this record is already closed ({rec.get('state')}) — `{args.cmd}` is "
+            "a no-op on a closed run; start a new command before recording phases or rounds"
+        )
+        return 0
+
+    if args.cmd == "start":
+        # the windows earlier commands of this session COVERED, carried across this overwrite
+        # (review P1-1). A record closed BEFORE the ledger existed holds its window only in its own
+        # started_epoch/updated_ts — seed that too, or every pre-deploy run's coverage is lost.
+        def _carried_windows(prev: dict) -> list:
+            out = [w for w in (prev.get("covered") or []) if isinstance(w, list) and len(w) == 2]
+            se, ut = _finite_ts(prev.get("started_epoch")), _finite_ts(prev.get("updated_ts"))
+            if (
+                # AGENT closes only: a coroner-reaped `died`/`expired` record covers a span no
+                # review contract ever ran (closing review C-2 — a 37 h abandoned plan in the
+                # live store would have been laundered); the hook mirrors this in _CLOSED_STATES
+                prev.get("state") in AGENT_CLOSED_STATES
+                and se is not None
+                and ut is not None
+                # `_touch` floors updated_ts to whole seconds while started_epoch is a float:
+                # compare like for like, or a run that started and closed inside one second
+                # silently skips the seed (C-6)
+                and se > 0
+                and int(se) <= int(ut)
+                # "already recorded" = a pair that ENDS at this record's close, whatever its lo — a
+                # review's own pair reaches back, so comparing the full [floor(se), ut] shape missed
+                # it and seeded a second, narrower window per review close (reach-back reader F2)
+                and not any(
+                    isinstance(w, list) and len(w) == 2 and _finite_ts(w[1]) == float(int(ut))
+                    for w in out
+                )
+            ):
+                # lo is FLOORED: a float start beside an int close inverted a window closed in
+                # its start second, and the hook's `lo <= hi` filter threw it away (R2)
+                out.append([math.floor(se), int(ut)])
+            return out
+
+        parent = rec if rec.get("state") == "running" else None
+        stack = list(rec.get("stack") or []) if parent else []
+        if parent:
+            # A nested command (/fabrik-execute-plan → /fabrik-review at a phase
+            # boundary) must not ERASE its caller's record: park the parent and
+            # restore it when the nested run terminates.
+            parent = {k: v for k, v in parent.items() if k != "stack"}
+            stack.append(parent)
+        new = {
+            "session_id": sid,
+            "command": (args.command or "").lstrip("/"),
+            "phases": max(1, args.phases),
+            "phase": 1,
+            "phase_title": "",
+            "terminal": args.terminal,
+            "state": "running",
+            "started_at": _now(),
+            # numeric epoch alongside the display string — round 33: the close parsed
+            # started_at with its %z DROPPED and re-interpreted the wall clock in the CLOSE
+            # process's timezone, shifting the run-binding window by whole hours across any
+            # TZ/DST difference between the two processes
+            "started_epoch": time.time(),
+            # the repo the run REVIEWS, resolved once at start — round 31 reproduced the close
+            # check running against whatever repo the shell happened to be cd'd into
+            "repo_root": _repo_root(),
+            # the analysis dimensions (see _agent_name/_active_account): resolved at start, when
+            # the env and the marker describe THIS run — the close may run under a later flip
+            "agent": _agent_name(),
+            "surface": (args.surface or "").strip(),
+            "account": _active_account(),
+            "rounds": [],
+            "classes": {},
+            "stack": stack,
+            # Session-monotonic, so a nested run and a later run keep ascending rather
+            # than restarting at 1 and colliding in the same session's stream.
+            "event_seq": int(rec.get("event_seq") or 0),
+            # the ledger of windows earlier commands of this session COVERED — carried across
+            # this overwrite so the Stop hook's sixth cause keeps every reviewed edit reviewed
+            # (review P1-1: a single window un-reviewed every command before the last one)
+            # a NESTED child starts with an EMPTY ledger: the parked parent keeps its own, and
+            # the child's windows join it at the pop — copying the parent's ledger down and
+            # joining it back up doubled the ledger per nest cycle (2047 windows after ten
+            # phase boundaries, closing review C-4/E1)
+            "covered": [] if parent else _carried_windows(rec),
+        }
+        # The `start` verb's join window is the WHOLE store, so the anchor is cleared —
+        # never this record's own start (that would exclude every candidate landing
+        # microseconds earlier, and `started_at` is second-truncated so WHICH ones would
+        # depend on the second boundary), and never the PREVIOUS record's start, which
+        # would filter the store by a finished run's clock.
+        outbox["started_at"] = ""
+        fields = _queue(
+            new,
+            outbox,
+            "run_open",
+            {
+                "phases": new["phases"],
+                "terminal": new["terminal"],
+                "nested": bool(stack),
+            },
+        )
+        _touch(new)
+        fields["persisted"] = save(sid, new)
+        print(pinned_line(new))
+        # A second `start` for the SAME command inside the join window is almost always a
+        # DOUBLE-START, not a legitimate nest: a command invoking itself recursively is not a
+        # shape we have, while an agent who missed the confirmation and re-ran is exactly what
+        # produced two nested `fabrik-spec` records nine seconds apart (mail
+        # 01M1KNW05P7MKKAXT9NGVS1GY8). Say so loudly on stderr — the record still opens, because
+        # refusing would be worse if the nest IS deliberate, but the agent now sees the cause
+        # instead of a close that appears to fail.
+        if any(str(fr.get("command")) == str(new.get("command")) for fr in stack):
+            sys.stderr.write(
+                f"[command_run] ⚠ NESTED START of the SAME command "
+                f"({new.get('command')}) — the outer record is still open. If you re-ran "
+                "`start` because you did not see a confirmation, close this one with "
+                f"`done --command {new.get('command')}` and keep the outer: two records for "
+                "one invocation make the first `done` look like it failed.\n"
+            )
+        _mcp_probe_advisory()
+        return 0
+
+    if not rec:
+        sys.stderr.write(
+            "[command_run] no run record for this session — "
+            "`start` one before step/dispatch/round/done/blocked.\n"
+        )
+        return 0
+
+    if args.cmd == "step":
+        target = max(1, args.phase)
+        # EVERY intermediate phase, not just the immediate predecessor: `step --phase 5`
+        # from phase 1 only ever demanded phase 4's artifact, so 2 and 3 vanished
+        # silently. Report the LOWEST unreviewed phase — that is the one to go back to.
+        prev = next(
+            (
+                n
+                for n in range(1, target)
+                if not _phase_review_exists(str(rec.get("repo_root") or ""), n)
+            ),
+            0,
+        )
+        if prev >= 1 and str(rec.get("command") or "").strip().lower() in PHASE_REVIEW_COMMANDS:
+            if args.review_waived:
+                waived = list(rec.get("waived_reviews") or [])
+                waived.append({"phase": prev, "reason": args.review_waived, "at": _now()})
+                rec["waived_reviews"] = waived
+                print(
+                    f"command_run: phase {prev} review WAIVED — {args.review_waived} "
+                    "(recorded in the run record; an escape that leaves no trace is how "
+                    "this contract became unenforceable in the first place)",
+                    file=sys.stderr,
+                )
+            else:
+                print(
+                    f"REFUSED — phase {prev} has no review artifact under "
+                    "docs/development/reviews/, so there is nothing for the review gate to "
+                    "read. Emit it as either shape: PHASE mode a filename containing "
+                    f"`phase-{prev}`, DISPATCHER mode `<plan>-T<id>-review.md` "
+                    "(/fabrik-execute-plan D4). Or re-run with "
+                    '--review-waived "<reason>" to record a deliberate skip.',
+                    file=sys.stderr,
+                )
+                return 2
+        # A run that advances phases while recording ZERO rounds has a convergence loop nothing
+        # can see: the oscillation/terminal advisories all key on `round`, so an agent that never
+        # calls it gets silence and reads silence as approval. job-agent (2026-08-28) ran NINE
+        # discovery rounds and recorded none of them, and found out only when a round-9 call
+        # printed "ROUND 1 recorded" — nothing anywhere had noticed. Their own framing is the
+        # argument: a convergence check that depends on a voluntary call from the very agent whose
+        # judgement it exists to check is load-bearing on the wrong party. ADVISORY, not a refusal
+        # — a one-shot command legitimately records no rounds, and trapping it would be worse than
+        # the silence. Fires from phase 3 so a normal two-phase run stays quiet.
+        # …and a LINEAR command (its own declared terminal never mentions rounds/no-op/found)
+        # legitimately steps through phases with zero rounds — firing there is noise that trains
+        # scroll-past (youtube 01M153H14, hit on a 5-phase linear plan run). The terminal string
+        # the run DECLARED at start is the honest signal for whether a loop was ever promised.
+        _terminal = str(rec.get("terminal") or "").lower()
+        # `confirmed:` is the D-206 exit vocabulary — a nudge keyed only to the retired words
+        # would go silent on exactly the review loops it was built for
+        _loop_shaped = any(
+            k in _terminal for k in ("round", "no-op", "noop", "found:", "new:", "confirmed:")
+        )
+        if target >= 3 and _loop_shaped and not (rec.get("rounds") or []):
+            sys.stderr.write(
+                f"[command_run] NOTICE — /{rec.get('command') or '?'} is at phase {target} with "
+                "ZERO rounds recorded. If this command has a convergence loop, every round "
+                "advisory (oscillation, terminal verdict) has been silent because it never ran, "
+                "not because the loop is healthy. Record them: `round --findings <n> "
+                "--confirmed <n> --classes-swept <…> --classes-new <…>`.\n"
+            )
+        rec["phase"] = target
+        rec["phase_title"] = args.title
+        fields = _queue(rec, outbox, "phase", {"n": rec["phase"], "title": rec["phase_title"]})
+        _touch(rec)
+        fields["persisted"] = save(sid, rec)
+        print(pinned_line(rec))
+        return 0
+
+    if args.cmd == "dispatch":  # `rec` is live here: the generic no-record guard fired above
+        if args.seats < 0:
+            print(f"--seats {args.seats} is not a count", file=sys.stderr)
+            return 2
+        # the DISPATCH stamp: written before the seats go out so sibling sessions can subtract
+        # them while they run. `round --seats` (below) is the ledger figure written at the
+        # round's CLOSE — after the seats returned — which is why it reserved nothing (review
+        # 2026-09-08: three sessions simulated at 60 seats on a 22-seat box)
+        # ACCUMULATE within the round: two Task messages in one round are two stamps, and the
+        # second overwrote the first — live, 5 stamped for 10 launched (round-4 finding). The
+        # round's close clears the stamp: its seats have returned.
+        _pd = rec.get("dispatch")
+        prev_disp: dict = _pd if isinstance(_pd, dict) else {}
+        n_rounds = len(rec.get("rounds") or [])
+        carried = int(prev_disp.get("seats") or 0) if prev_disp.get("round") == n_rounds else 0
+        rec["dispatch"] = {
+            "ts": time.time(),
+            "seats": carried + args.seats,
+            "phase": rec.get("phase"),
+            "round": n_rounds,
+            # a deliberate `dispatch --seats 0` is a KNOWN zero, never "unrecorded" (round 12)
+            "released": (carried + args.seats) == 0,
+        }
+        fields = _queue(
+            rec, outbox, "dispatch", {"seats": rec["dispatch"]["seats"], "phase": rec.get("phase")}
+        )
+        _touch(rec)
+        fields["persisted"] = save(sid, rec)
+        print(
+            f"DISPATCH recorded · {rec['dispatch']['seats']} seat(s) this round — reserved for "
+            "sibling sessions from now"
+        )
+        return 0
+
+    if args.cmd == "round":
+        rounds = list(rec.get("rounds") or [])
+        # Stamp the PHASE onto every round. Without it, "rounds since the last step" is not
+        # derivable and the only signal available is "zero rounds at phase N" — which job-agent
+        # (2026-08-28) showed misses the real case: their pinned line read `phase 5/9` for six
+        # hours and eight discovery rounds, faithfully reporting a phase they had left long
+        # before. They HAD rounds — seven — so a zero-rounds threshold could never fire, and the
+        # field that was actually lying (the phase) is the one nothing read. Unlike a phase-N
+        # threshold this cannot be satisfied by calling `step` once at the start.
+        _phase_now = int(rec.get("phase") or 1)
+        # the STAMP is the seat figure — `dispatch --seats` accumulated it while the seats went
+        # out; a bare `round` inherits it, and a hand-typed count that disagrees is said so
+        # (round-7 Opus finding: `dispatch 3` + `dispatch 4` then a bare `round` declared 0)
+        _dd = rec.get("dispatch")
+        _d: dict = _dd if isinstance(_dd, dict) else {}
+        _stamped = (
+            int(_d.get("seats") or 0)
+            if _d.get("round") == len(rounds) and not _d.get("released")
+            else 0
+        )
+        if args.seats is not None and args.seats < 0:
+            print("[command_run] round --seats must be >= 0", file=sys.stderr)  # round-10 finding
+            return 2
+        _seats = args.seats if args.seats is not None else _stamped
+        _ran = 0
+        if not _stamped and args.seats is None:
+            # a fan-out that ran with NO stamp is silent until the close (fleet, 2026-09-08:
+            # declared 0 vs seen 12 on a live execute-plan) — name it where the agent stands:
+            # a seat transcript whose newest IN-WINDOW line is newer than the previous round (or
+            # a nested child's close) means seats ran unstamped. A `step` writes no timestamp the
+            # window reads — it never narrows it. Counted by the seat's last line, not the file's
+            # mtime (round-12 Opus: a stamped seat still flushing after its close re-fired the
+            # nudge on the next, empty round). Advisory only: it may never void the round, so
+            # every read here is guarded (a non-numeric `started_epoch` voided one, silently).
+            with contextlib.suppress(Exception):
+                _since = max(
+                    [_finite_ts(r.get("ts")) or 0.0 for r in rounds if isinstance(r, dict)]
+                    + [
+                        _finite_ts(rec.get("started_epoch")) or 0.0,
+                        _finite_ts(rec.get("child_closed_ts")) or 0.0,
+                    ]
+                )
+                _tp = _transcript_path(sid, str(rec.get("repo_root") or ""))
+                if _tp is not None:
+                    for _q in _seat_transcripts(_tp, _since):
+                        _e = _seat_last_epoch(_q)
+                        # strict `>`: a line ON the round's own sub-second `ts` is that round's;
+                        # an UNREADABLE transcript ("skipped") has only its mtime to date it, and
+                        # the nudge exists to stop silent under-reporting (round-13 Opus finding)
+                        if (isinstance(_e, float) and _e > _since) or _e == "skipped":
+                            _ran += 1
+            if _ran:
+                print(
+                    f"[command_run] {_ran} seat transcript(s) since the last round and NO "
+                    "`dispatch --seats` stamp — the sibling reservation and seats_declared read 0; "
+                    "stamp BEFORE the seats go out (or type `round --seats <n>` now)",
+                    file=sys.stderr,
+                )
+        # a PARTIAL close (round-11 Opus finding): in dispatcher mode several tickets stamp into
+        # one round and return independently — the first `round` must release only what closed,
+        # never the whole accumulated stamp (siblings read 0 while the other tickets' seats ran)
+        _remaining = max(_stamped - int(_seats or 0), 0) if _stamped else 0
+        if args.seats is not None and _stamped and args.seats != _stamped:  # 0 disagrees too
+            print(
+                (
+                    f"[command_run] round --seats {args.seats}: releasing {args.seats} of the "
+                    f"{_stamped} seat(s) stamped this round — {_remaining} stay reserved for the "
+                    "seats still running"
+                    if args.seats < _stamped
+                    else f"[command_run] round --seats {args.seats} disagrees with the {_stamped} "
+                    "seat(s) stamped this round — the stamp is what sibling sessions subtracted; "
+                    f"recording {args.seats} as typed"
+                ),
+                file=sys.stderr,
+            )
+        # a loop that STARTED stating the exit counter and stopped has no readable exit: the
+        # terminal rule falls back to the raw candidate count, which D-206 retired. Advisory —
+        # a round may never be refused over a missing advisory field.
+        if (
+            args.confirmed is None
+            and args.findings > 0
+            and any(_confirmed(r) is not None for r in rounds)
+        ):
+            print(
+                f"[command_run] round --findings {args.findings} with NO --confirmed: earlier "
+                f"rounds of /{rec.get('command') or '?'} stated it, so the exit counter for this "
+                "loop is CONFIRMED and this round leaves it unstated — quiet is zero confirmed "
+                "defects, never zero raised (D-206). Type `round --confirmed <n>`.",
+                file=sys.stderr,
+            )
+        classes: dict[str, str] = dict(rec.get("classes") or {})
+        swept, new_c = _csv(args.classes_swept), _csv(args.classes_new)
+        # Sweep first, then open: a class both swept AND re-found this round is
+        # OPEN — a round that turned up a new defect in it did not retire it.
+        for name in swept:
+            classes[name] = "clean"
+        for name in new_c:
+            classes[name] = "open"
+        rounds.append(
+            {
+                "n": len(rounds) + 1,
+                "findings": args.findings,
+                # ABSENT when not stated (unlike `seats`, whose 0 IS "nobody dispatched"): the
+                # terminal rule reads presence, so a written-through default would silently
+                # re-point every legacy record's exit at a counter nobody typed
+                **({} if args.confirmed is None else {"confirmed": args.confirmed}),
+                # in the RECORD, not only the event stream: dispatch_headroom.py's sibling guard
+                # reads `rounds[-1].seats` off every fresh running record, and the first draft
+                # wrote seats to the event only — the guard read None everywhere and was inert
+                "seats": _seats,
+                # the round's OWN stamp: dispatch_headroom.py dates the fallback reservation by it
+                # — `updated_ts` is a generic last-touch and re-dated a two-hour-old round on a
+                # bare `step` (round-5 finding)
+                "ts": time.time(),
+                "swept": swept,
+                "new": new_c,
+                "phase": _phase_now,
+            }
+        )
+        rec["rounds"], rec["classes"] = rounds, classes
+        # an explicit RELEASE marker, not a pop: an absent stamp means "this record never
+        # dispatched", and dispatch_headroom.siblings() then falls back to this very round row and
+        # re-reserves the seats the round just declared returned — for a FRESH window (round-6
+        # finding: the "release" extended the reservation from 25 to 45 minutes)
+        rec["dispatch"] = {
+            # a partial close keeps the ORIGINAL stamp's clock: re-dating it granted the remainder
+            # a fresh 25-minute window, renewable without bound (round-12 Opus finding)
+            "ts": (_d.get("ts") if _remaining and _d.get("ts") else time.time()),
+            "seats": _remaining,  # 0 on a full close; the still-running remainder on a partial one
+            "phase": rec.get("phase"),
+            "round": len(rounds),
+            "released": _remaining == 0,
+        }
+        # ROUNDS SINCE THE LAST `step` — the signal job-agent identified. A counter that advances
+        # while the phase never moves is either a convergence loop legitimately living inside one
+        # phase (correct, and common) or a boundary the agent walked past without recording. Both
+        # deserve exactly one advisory line; neither deserves a refusal, which is why this prints
+        # once at the threshold rather than on every round after it.
+        in_phase = [r for r in rounds if int(r.get("phase") or 0) == _phase_now]
+        if len(in_phase) == ROUNDS_PER_PHASE_NOTICE:
+            sys.stderr.write(
+                f"[command_run] NOTICE — {len(in_phase)} rounds recorded without leaving phase "
+                f"{_phase_now}. If the loop IS this phase, ignore this. If you crossed a phase "
+                "boundary and did not `step`, the pinned RUN: line has been reporting a phase you "
+                "left — true when written, wrong by the time anyone reads it.\n"
+            )
+        fields = _queue(
+            rec,
+            outbox,
+            "round",
+            {
+                "n": len(rounds),
+                "findings": args.findings,
+                "seats": _seats,  # the event stream carries the same figure as the record (round 9)
+                # absent when not stated, exactly as in the record (docs/workstation/
+                # kaizen-event-stream.md) — the emitter takes **fields with no allowlist
+                **({} if args.confirmed is None else {"confirmed": args.confirmed}),
+                "classes_swept": swept,
+                "classes_new": new_c,
+                "classes_open": sorted(k for k, v in classes.items() if v != "clean"),
+            },
+        )
+        _touch(rec)
+        fields["persisted"] = save(sid, rec)
+        print(_round_report(rec))
+        return 0
+
+    if args.cmd in ("done", "blocked", "handoff"):
+        return _close(sid, rec, args, outbox)
+
+    return 0
+
+
+def _scratch_advisory(sid: str, repo_root: str) -> str:
+    """This session's own scratch table, or "" — advice at task end, never an action.
+
+    Trigger 1 of the scratch sweep (plan 2026-09-08-plan-1-scratch-sweep, D-184/D-187): the moment
+    an agent closes a run is the moment it still has the context to judge its own residue. The
+    sweep is invoked in DRY-RUN `--brief`, so it prints a table and removes nothing; `--apply` is
+    the agent's own next command, which is the point — the operator's constraint is that nothing
+    is deleted blindly.
+
+    Fail-open in every direction: no script, a non-zero exit, a hang, or any exception yields ""
+    and the close is unaffected. It NEVER runs under the record lock (see the call site) — a
+    shell-out there would stall every concurrent WRITER — `step`, `round`, another close — for the
+    rest of the timeout below. `line` and `status` are answered BEFORE the lock is taken, so they
+    never wait on it; believing otherwise is what made this contract's first grader inert.
+    """
+    if os.environ.get("FABRIK_SCRATCH_SWEEP") == "0":
+        return ""
+    script = os.environ.get("FABRIK_SCRATCH_SWEEP_SCRIPT") or "/opt/fabrik/scripts/scratch_sweep.py"
+    if not sid or not Path(script).is_file():
+        return ""
+    argv = [sys.executable, script, "--session", sid, "--brief"]
+    if repo_root:
+        # Disambiguates a sid whose scratch sits under two slugs — a session that entered an agent
+        # worktree has one dir per cwd, and only this one is the run's own.
+        argv += ["--cwd", repo_root]
+    try:
+        # 12 s, not 2: the sweeper's own walk deadline is 8 s and its holder probe runs outside
+        # that, so 2 s could not bound it and did not — the box's largest scratchpad takes 3.29 s
+        # and was KILLED at every close, printing nothing to the session with the most residue.
+        # That is the same defect HOOK_DEADLINE_S 1.0 -> 4.0 fixed for the other trigger. Cutting
+        # the sweeper's walk short instead would NOT help: a truncated session walk has no certain
+        # candidates, so it prints nothing either. This runs after the record lock has dropped, so
+        # waiting longer stalls no other session — only this process's own exit, and only on a pad
+        # slower than any that exists on this box today.
+        proc = subprocess.run(argv, capture_output=True, text=True, timeout=12)
+    except (OSError, subprocess.SubprocessError) as exc:
+        sys.stderr.write(f"[command_run] scratch advisory skipped: {exc}\n")
+        return ""
+    return proc.stdout.strip() if proc.returncode == 0 else ""
+
+
+def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict[str, Any]) -> int:
+    """`done` / `blocked` — close ONLY the run the caller NAMED. Flock held.
+
+    Closing whatever happens to be live is how this design reintroduces the very
+    defect it exists to prevent: after a nested /fabrik-review pops back to its
+    caller, a retried or duplicated `done` would close /fabrik-execute-plan at
+    phase 2/5 — the pinned line goes silent and the Stop hook never blocks again
+    for the remaining phases. So the caller must name the run, and a name that is
+    not the live one is REFUSED (rc 1) rather than applied to the wrong record.
+    """
+    live = rec.get("command") or "?"
+    passed = (args.command or "").lstrip("/")
+    state = rec.get("state")
+
+    if state != "running":
+        # Already closed — a retry, not an error. Never mutate; never resurrect.
+        msg = (
+            f"{args.cmd.upper()} — /{live} is already {state}; nothing to close (no-op). "
+            "If a DIFFERENT run is live, close that one by name."
+        )
+        sys.stderr.write(f"[command_run] {msg}\n")
+        print(msg)
+        return 0
+
+    if passed != live:
+        msg = (
+            f"REFUSED — you asked to close /{passed}, but the LIVE run is /{live} "
+            f"(phase {rec.get('phase')}/{rec.get('phases')}). Closing the wrong record "
+            "would silence the pinned line and disarm the Stop hook for the rest of "
+            f"/{live}. Re-run with --command {live} if that is genuinely what you mean."
+        )
+        sys.stderr.write(f"[command_run] {msg}\n")
+        print(msg)
+        return 1
+
+    if args.cmd == "done" and live in (
+        "fabrik-review",
+        "fabrik-repo-review",
+        # round 135: these three persist to docs/development/reviews/ by their own
+        # contracts, yet closed with NO artifact check at all — the round-29 hole verbatim,
+        # three commands over
+        "fabrik-user-test",
+        "fabrik-service-test",
+        # T14f (multi-agent-per-repo): the mega-validation slot was keyed on a command T07a
+        # deleted, so its successor /fabrik-epics-review — which persists
+        # docs/development/reviews/YYYY-MM-DD-mega-<vision-slug>-validation-review.md by
+        # contract — owed no report at all; the obligation moved silently from enforced to
+        # absent. Same refusal semantics, live name.
+        "fabrik-epics-review",
+        # audit cmd 27/31: the same hole a FOURTH time — its ledger is the deliverable
+        # by contract ("that FILE is the deliverable, not this chat"), yet done was ungated
+        "fabrik-conformance-review",
+    ):
+        # ARTIFACT-BY-FILESYSTEM, RUN-BOUND (rounds 29+31). Round 29 proved `done` accepted any
+        # evidence STRING; the first fix then shipped green-by-accident (its own bundled ledger
+        # edit satisfied it) and round 31 reproduced four more holes: no cwd pinning (a wrong
+        # repo's dirt passed; a subdir invocation false-refused), deletions counted as artifacts,
+        # any HEAD touch of reviews/ counted regardless of WHEN, and the check had no binding to
+        # THIS run at all. Now: git runs in the repo recorded at START; only non-deleted *.md
+        # count; a file must be modified at-or-after the run began (mtime), or HEAD must be a
+        # commit from this run's window touching reviews/ (line-anchored, not substring).
+        root = rec.get("repo_root") or None
+        if root is None:
+            # Round 33: `"" or None` silently fell back to the CLOSE process's cwd — the
+            # wrong-repo hole reborn for any run started outside a git repo. Unverifiable
+            # means REFUSE, not guess.
+            msg = (
+                f"REFUSED — this /{live} run has no repo_root on record (start ran outside a "
+                "git repo, or the record predates the field), so its report cannot be "
+                "verified. The ONLY exit is `blocked --command "
+                f"{live} --reason rootless-record` — a fresh `start` NESTS under this record "
+                "rather than replacing it (round 35: an operator following a 'restart' remedy "
+                "closed the child, saw DONE, and the rootless parent kept blocking forever)."
+            )
+            sys.stderr.write(f"[command_run] {msg}\n")
+            print(msg)
+            return 1
+        # mtime binding is DECLARATIVE evidence (adjudicated round 33): os.utime forgery is
+        # trivial and out of scope on a single-operator box — this is self-discipline, not a
+        # security boundary; the same residual class as BLOCKED-section sincerity.
+        started_epoch = rec.get("started_epoch") or 0.0
+        if not started_epoch:
+            # legacy record without the numeric field: parse WITH the offset the string
+            # carries (round 33: truncating %z re-interpreted the wall clock in the close
+            # process's local zone — hours of drift either direction across TZ/DST)
+            started = rec.get("started_at", "")
+            try:
+                t = time.strptime(started, "%Y-%m-%dT%H:%M:%S%z")
+                started_epoch = calendar.timegm(t) - (t.tm_gmtoff or 0)
+            except Exception:
+                started_epoch = 0.0
+        ok_artifact = None  # None = unverifiable (fail open); False = verified absent
+        candidates: list[Path] = []
+        try:
+            porcelain = subprocess.run(
+                [
+                    "git",
+                    "status",
+                    "--porcelain",
+                    "--untracked-files=all",
+                    "--",
+                    "docs/development/reviews/",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=True,
+                cwd=root,
+            ).stdout
+            ok_artifact = False
+            for ln in porcelain.splitlines():
+                if ln[:2].strip() == "D" or not ln[3:].strip().endswith(".md"):
+                    continue
+                if "archived/" in ln:
+                    # round 137: re-filing an old report satisfied the floor — archived/
+                    # is excluded everywhere the review grammars read; here too
+                    continue
+                f = Path(root or ".") / ln[3:].split(" -> ")[-1].strip().strip('"')
+                if f.is_symlink():
+                    # round 139: an untracked symlink named *.md pointing at ANY fresh
+                    # unrelated file satisfied the floor with zero review content
+                    continue
+                if f.is_file() and f.stat().st_mtime >= started_epoch - 2:
+                    ok_artifact = True
+                    candidates.append(f)
+            if ok_artifact is False or (candidates and all(_midloop_report(f) for f in candidates)):
+                # 2026-09-02 (shared tree, reproduced live): a SIBLING's uncommitted mid-loop
+                # report set ok_artifact=True and this walk never ran, so THIS run's committed
+                # CONVERGED report was never examined and the close was refused on a roster
+                # naming only the sibling's file. The commit walk also runs when every
+                # working-tree candidate is mid-loop — one non-mid-loop artifact from EITHER
+                # walk suffices, as the refusal text already promised.
+                # Round 137 rebuilt this branch from three live-reproduced holes: (a) only
+                # HEAD was inspected, so a report committed mid-run followed by ANY later
+                # unrelated commit (CHANGELOG, lessons-learnt — the Completion Contract's
+                # own EXIT sequence) false-REFUSED the close; (b) the gate accepted any
+                # touch of the prefix while only candidates required .md, so a committed
+                # screenshot satisfied the floor with candidates=[] and the content floor
+                # never ran; (c) archived/ counted. Now: walk the run window's commits
+                # (bounded), and the SAME filter — live .md outside archived/ — decides
+                # both the gate and the candidates.
+                try:
+                    # round 139 rebuilt the walk's three seams: %at not %ct (rebase — the
+                    # exit ladder's own `git pull --rebase` — rewrites committer time, so a
+                    # STALE replayed leftover looked fresh; author time survives replay, and
+                    # a cherry-picked old report failing closed is the right direction);
+                    # -m (a report finalized only in a merge-conflict resolution listed NO
+                    # files in the default merge-suppressed log — false refusal); and the
+                    # run's own TIME window instead of a commit count (55 phase/doc commits
+                    # after the report pushed it past -n 50 — false refusal; the -n 500 is
+                    # a runaway backstop, not the bound).
+                    since = str(int(started_epoch))
+                    log = subprocess.run(
+                        [
+                            "git",
+                            "log",
+                            "-m",
+                            "--name-only",
+                            "--format=%at",
+                            f"--since={since}",
+                            "-n",
+                            "500",
+                            "HEAD",
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                        check=True,
+                        cwd=root,
+                    ).stdout.splitlines()
+                except Exception:
+                    log = []  # no commits yet = no HEAD artifact; NOT "broken git" (round 31:
+                    # the outer fail-open swallowed this and closed an empty repo clean)
+                commit_epoch = 0.0
+                for ln in log:
+                    if ln.strip().isdigit():
+                        commit_epoch = float(ln.strip())
+                        continue
+                    # >= floor(start), no broader grace: a commit AUTHORED before start is
+                    # a previous task's artifact (round 31: the 60s grace let the pre-run
+                    # commit count) — git timestamps are WHOLE seconds while started_epoch
+                    # is fractional, so a same-second commit truncates below start and was
+                    # false-refused (round 137, reproduced); within the shared second,
+                    # "before" is indeterminate and resolves toward not refusing.
+                    if (
+                        commit_epoch >= int(started_epoch)
+                        and ln.startswith("docs/development/reviews/")
+                        and ln.endswith(".md")
+                        and "archived/" not in ln
+                    ):
+                        hf = Path(root or ".") / ln
+                        # EXISTENCE gates the gate (round 141): --name-only lines carry no
+                        # status letter, so an add-then-delete pair inside the window
+                        # matched the path test twice while the file no longer existed —
+                        # ok_artifact went True with candidates=[], and BOTH refusal
+                        # branches were skipped. The report must be on disk NOW.
+                        if hf.is_file() and not hf.is_symlink():
+                            ok_artifact = True
+                            candidates.append(hf)
+        except Exception:
+            ok_artifact = None  # broken git must not wedge the close — fail open HERE only
+        if ok_artifact is True and candidates:
+            # CONTENT floor (round 135): a report declaring itself mid-loop satisfies no
+            # terminal condition — `done` with ONLY `Status: IN-PROGRESS` artifacts is the
+            # round-29 evidence-string hole wearing a file's clothes. Header-zone only
+            # (first 10 lines, the template's slot); one non-mid-loop artifact suffices.
+            if all(_midloop_report(f) for f in candidates):
+                # Name the candidates (01M19X16Z: an agent burned ~15 min discovering a
+                # SIBLING's uncommitted mid-loop review had poisoned this working-tree walk).
+                roster = ", ".join(str(f) for f in candidates) or "<none>"
+                msg = (
+                    f"REFUSED — every report this /{live} run persisted declares "
+                    "`Status: IN-PROGRESS` (mid-loop). A terminal `done` needs a report "
+                    "that has actually closed its loop; finish it, or close as `blocked`. "
+                    f"Candidates examined (working-tree walk — a SIBLING's uncommitted "
+                    f"mid-loop review can appear here): {roster}"
+                )
+                sys.stderr.write(f"[command_run] {msg}\n")
+                print(msg)
+                return 1
+        if ok_artifact is False:
+            msg = (
+                f"REFUSED — closing /{live} with done requires its persisted report: no "
+                "docs/development/reviews/*.md written or committed SINCE THIS RUN STARTED "
+                f"in {root or 'the current repo'}. A review that exists only in chat does not "
+                "exist. Write the report (or close as `blocked` if genuinely halted)."
+            )
+            sys.stderr.write(f"[command_run] {msg}\n")
+            print(msg)
+            return 1
+    # ── the FEEDBACK duty, made non-optional at the only moment it can still be paid ──────────
+    # Measured 2026-08-28, after the duty was written into both constitutions, auto-appended to
+    # all 31 commands and 4 agent definitions, given a `--feedback` flag, a persisted verdict, a
+    # kaizen cell and a grader: 13 closes in 14 days, 12 with NO verdict, and ZERO `filed` — ever.
+    # Distribution was not the problem (30/30 commands carried it; the fleet copies were
+    # byte-identical). It changed nothing because `done` returned 0 without the flag and the
+    # grader is warn_only. Prose plus an advisory line does not bind an agent at the end of a long
+    # run; a refused close does — and it needs no new hook and no new fleet-wide red, because the
+    # record simply stays `running` and final_gate_stop.py ALREADY blocks the turn on that.
+    if _feedback_is_required(rec) and not str(getattr(args, "feedback", "") or "").strip():
+        msg = (
+            f"REFUSED — closing /{live} needs its FEEDBACK verdict. You are the only witness to "
+            "how the machinery behaved on this run, and this is the last moment you can say so.\n"
+            f"  Filed something:  --feedback 'filed <what> to <infra|fleet|intel>'\n"
+            "  Genuinely nothing: --feedback 'none — <the surfaces you exercised>'\n"
+            "`none` is a valid verdict and is counted separately; silence is not a verdict. "
+            "See commands/_fragments/close-feedback.md."
+        )
+        sys.stderr.write(f"[command_run] {msg}\n")
+        print(msg)
+        return 1
+    _fb_text = str(getattr(args, "feedback", "") or "")
+    _usage_fields, _usage_missing = _parse_usage_feedback(_fb_text)
+    if _usage_is_required(rec) and _usage_missing:
+        msg = (
+            f"REFUSED — closing /{live} needs the STRUCTURED usage feedback (D-175): "
+            f"missing, empty or duplicated: {', '.join(f + ':' for f in _usage_missing)}. The line describes "
+            "how the COMMAND behaved this run, so the corpus can be optimised for fewer rounds, "
+            "less confusion and fewer tokens:\n  --feedback '" + _USAGE_GRAMMAR + "'\n"
+            "Wall-clock and the round count are captured for you; write the four fields."
+        )
+        sys.stderr.write(f"[command_run] {msg}\n")
+        print(msg)
+        return 1
+    # `cost:` is the LAST field, so a line that ends a sentence ends in a period: strip ONE
+    # sentence-final `.` before the shape check (`$0.30.` → `$0.30`; review pass 18)
+    _cost_text = _usage_fields.get("cost", "").strip() if _usage_is_required(rec) else ""
+    _cost_raw = _cost_text
+    if _cost_text.endswith(".") and not _cost_text.endswith(".."):
+        _cost_text = _cost_text[:-1].rstrip()
+        _usage_fields["cost"] = (
+            _cost_text  # the row and its cost_usd see the same value the gate did
+        )
+    # the shape AND the parser's answer: `10 usd` fits the shape but a bare integer before `usd`
+    # is ambiguous (a count, a year) and parses to None — refuse rather than store a silent null
+    # a value that VANISHES under the strip (`cost: .`) is garbage, not an absent field
+    if _cost_raw and (
+        not _cost_text or not _COST_STRICT_RE.match(_cost_text) or _cost_usd(_cost_text) is None
+    ):
+        msg = (
+            f"REFUSED — closing /{live}: `cost:` must be a plain amount (`0.0125`, `$0.30`, "
+            f"`pool $0.30`, `$1,234.50`, `10.00 usd`), never prose and never a bare integer "
+            f"before `usd` (write `$10`) — got {_cost_text!r}. The field is SUMMED fleet-wide; "
+            "put the words in `waste:` or `filed:` and the number here."
+        )
+        sys.stderr.write(f"[command_run] {msg}\n")
+        print(msg)
+        return 1
+    # the filing verdict is graded on the `filed:` field when the line is structured, on the
+    # whole line for a pre-cutoff record
+    _filed_text = _usage_fields.get("filed", "") if _usage_is_required(rec) else _fb_text
+    if _feedback_is_required(rec) and _feedback_lacks_substance(_filed_text):
+        msg = (
+            f"REFUSED — a bare 'none' is byte-equivalent to the silence this field exists to end "
+            f"(D-036 substance floor). Close /{live} with the filed: field as either:\n"
+            "  a filing:          filed: <what> to <infra|fleet|intel> (<id>)\n"
+            "  a substantive none: filed: none — surfaces exercised: <what your run actually "
+            "touched of the machinery>\n"
+            "Name the surfaces so the reader knows what your 'nothing' covers."
+        )
+        sys.stderr.write(f"[command_run] {msg}\n")
+        print(msg)
+        return 1
+    rec["state"] = args.cmd
+    if isinstance(rec.get("dispatch"), dict):  # a closed run reserves nothing — say so, don't pop
+        rec["dispatch"] = dict(rec["dispatch"], seats=0, released=True, ts=time.time())
+    # `closed_by` is ADDITIVE and never read by an existing consumer (the Stop hook keys
+    # on `state == "running"` alone). `agent` is the only value this script writes; the
+    # coroner writes `coroner`/`ttl` for the runs no agent ever came back to close.
+    rec["closed_by"] = "agent"
+    if args.cmd == "done":
+        rec["evidence"] = args.evidence
+    elif args.cmd == "handoff":
+        # NOT-QUIET: the loop went quiet but rows stay OPEN and are ROUTED. /fabrik-user-test and
+        # /fabrik-service-test both MANDATE this close; before it existed the only reachable words
+        # were `done` (untrue - the contract is not met) and a stretched "unresolvable spec
+        # contradiction". An agent ordered to produce a disposition it cannot record will either
+        # lie or stall, and both are worse than a fourth word.
+        rec["blocked_reason"] = args.reason
+        rec["resume"] = args.resume
+    else:
+        rec["blocked_reason"] = args.reason
+    _touch(rec)
+    _se = _finite_ts(rec.get("started_epoch"))
+    if _se is not None and _se > 0:
+        # AFTER `_touch`: the window's close is the close's own touched `updated_ts` (whole
+        # seconds) — appended before the touch it carried the PREVIOUS stamp, so the next
+        # start's seed (built from the real close time) missed the dedupe on a second boundary
+        # (C-1, re-found by the own re-sweep at 5 of 20 runs)
+        cov = rec.get("covered")
+        cov = cov if isinstance(cov, list) else []  # a corrupt ledger never wedges a close (N5)
+        lo = math.floor(_se)
+        if rec.get("command") in REVIEW_FAMILY and args.cmd == "done":
+            # DONE only (reach-back reader F1): a `blocked` or `handoff` review reviewed nothing
+            # to a verdict — reaching back from it would certify the whole gap since the last
+            # close, an honest BLOCKED exit turned into a laundering hatch
+            # A REVIEW's own contract is "this session's work since the last run" — its window
+            # reaches BACK to the previous covered window's close, or every edit the review
+            # reviewed but that predates its `start` stays "between runs" forever (the Stop hook
+            # blocked a session on the very commit its scoped review had just closed over,
+            # 2026-09-07). A nested review starts with an empty ledger, so it reaches back only
+            # to its own start and never swallows its caller's later edits; a non-review command
+            # keeps its own start (A-F5: a /fabrik-spec run launders nothing).
+            # only a FINITE, non-bool close counts (a corrupt `[x, True]` pair read as 1 s and
+            # dragged lo to the epoch — pool reader, scoped review 2026-09-07). Coverage is per
+            # SESSION, the hook's own granularity: a review that narrows its `$ARGUMENTS` scope
+            # below the session diff is narrowing its own contract, not this ledger's.
+            prev = [
+                v
+                for w in cov
+                if isinstance(w, list) and len(w) == 2
+                for v in (_finite_ts(w[1]),)
+                if v is not None
+            ]
+            if prev:
+                lo = min(lo, math.floor(max(prev)))
+        cov.append([lo, int(rec["updated_ts"])])
+        rec["covered"] = cov
+    stack = list(rec.get("stack") or [])
+    parent = stack.pop() if stack else None
+    if parent is not None:
+        # a nested run's windows join the caller's ledger before the caller is restored — deduped
+        joined = list(parent.get("covered") or [])
+        for w in rec.get("covered") or []:
+            if w not in joined:
+                joined.append(w)
+        parent["covered"] = joined
+    _fb_verdict, _fb_beats = _feedback_verdict(
+        _filed_text if getattr(args, "feedback", None) is not None else None
+    )
+    # On the RECORD as well as the event: the event stream is box-local telemetry, while the record
+    # is what a per-run check can read. The verdict token AND the prose are both stored (D-055,
+    # operator's 5th ask 2026-08-31): the token is for graders; the PROSE is the report the
+    # operator reads — a token-only record was the reason five asks produced zero visible
+    # feedback (the substance was classified, then discarded).
+    rec["feedback"] = _fb_verdict
+    rec["feedback_to"] = _fb_beats
+    rec["feedback_text"] = (str(getattr(args, "feedback", "") or "").strip())[:2000]
+    fields = _queue(
+        rec,
+        outbox,
+        "run_close",
+        {
+            "verdict": args.cmd,
+            "closed_by": "agent",
+            "evidence_hash": _evidence_hash(args.evidence if args.cmd == "done" else args.reason),
+            "resume": getattr(args, "resume", "") or "",
+            # Kaizen's `Filed (spec/mail)` column has read "-" on every row since the 2026-08-12
+            # baseline because nothing ever measured it. These three fields make it countable: the
+            # verdict, which beats were routed to, and a HASH of the line (never the prose - the
+            # same contract `evidence_hash` already keeps).
+            "feedback": _fb_verdict,
+            "feedback_to": _fb_beats,
+            "feedback_hash": _evidence_hash(getattr(args, "feedback", None) or ""),
+            "rounds": len(rec.get("rounds") or []),
+            # A nested close is the one event whose meaning lives OUTSIDE the line: "resuming"
+            # is only informative if it says what, and at what point. Without these the
+            # collector would have to replay the whole stack to learn that the run continues.
+            "resumed": (parent or {}).get("command") or "",
+            "resumed_phase": (parent or {}).get("phase") or 0,
+            "resumed_rounds": len((parent or {}).get("rounds") or []),
+        },
+    )
+    # ── the fleet-wide usage ledger + the FINAL OUTPUT line (D-175) ─────────────────────────
+    _wall_s = 0.0
+    _se = _finite_ts(rec.get("started_epoch"))
+    if _se is not None:
+        _wall_s = max(0.0, time.time() - _se)
+    # only a post-cutoff record writes the ledger and prints the line — a grandfathered close
+    # whose free-text verdict happens to contain a label ("filed: … to infra") is not a report
+    # (round-3 finder)
+    # a late `--surface` lands only on a close that is actually happening — every refusal above
+    # returned before this line, so a refused close never persists it; a grandfathered
+    # (pre-cutoff) close records it on the record too, even though it writes no ledger row
+    if (getattr(args, "surface", "") or "").strip():
+        rec["surface"] = args.surface.strip()
+    _pending_row: dict[str, Any] | None = None
+    _fb_line: str | None = None
+    if _usage_fields and _usage_is_required(rec):
+        _tok = _sum_transcript_usage(
+            _transcript_path(sid, str(rec.get("repo_root") or "")), _se or 0.0, time.time()
+        )
+        # the grader on the hand-typed reservation (round-4 finding): the close computes the TRUE
+        # seat count in the same process; a stamp that disagrees is said out loud and recorded
+        _declared = sum(int(r.get("seats") or 0) for r in rec.get("rounds") or [])
+        _seen = int(_tok.get("seats_seen") or 0)
+        if (_tok.get("tok_seat_in") is not None or _declared) and abs(_declared - _seen) > 1:
+            print(
+                f"[command_run] seats declared {_declared} (round --seats) vs seen {_seen} (seat "
+                "transcripts in the window) — the reservation siblings subtract is only as true as "
+                "the number you type",
+                file=sys.stderr,
+            )
+        _row = {
+            "ts": time.time(),
+            "seats_declared": _declared,
+            "sid": sid,
+            "repo": str(rec.get("repo_root") or ""),
+            "command": rec.get("command"),
+            "state": args.cmd,
+            "wall_s": round(_wall_s, 1),
+            "rounds": len(rec.get("rounds") or []),
+            "findings": [int(r.get("findings", 0)) for r in rec.get("rounds") or []],
+            # the durable exit-counter series beside the raw one; `null` for a round that never
+            # stated it, never a fabricated 0 (no reader exists yet — this is the record)
+            "confirmed": [_confirmed(r) for r in rec.get("rounds") or []],
+            "phases": rec.get("phases"),
+            "phase_reached": rec.get("phase"),
+            "agent": str(rec.get("agent") or ""),  # resolved at START, like account/surface
+            "surface": _cap_field(str(rec.get("surface") or "")),
+            "account": str(rec.get("account") or ""),
+            **{k: _cap_field(_usage_fields.get(k, "")) for k in (*_USAGE_FIELDS, "cost")},
+            "cost_usd": _cost_usd(_usage_fields.get("cost", "")),
+            **_tok,
+        }
+        _pending_row = _row  # appended only once the record itself persisted (pass 27)
+        rec["usage"] = {k: _row[k] for k in ("wall_s", "rounds", *_USAGE_FIELDS)}
+        rec["usage"]["tokens"] = _tok
+        _fb_line = _feedback_line(rec, _usage_fields, _wall_s)  # printed only on a real close
+    if parent is not None:
+        closed = {k: v for k, v in rec.items() if k != "stack"}
+        parent["stack"] = stack
+        # the child's seats were the child's to stamp: the parent's next `round` must not read
+        # them as an unstamped fan-out (fleet, 2026-09-08: a parent counted its nested review's 7)
+        parent["child_closed_ts"] = time.time()
+        parent.setdefault("nested", []).append(closed)
+        # The counter belongs to the SESSION, not to the record that happens to hold it —
+        # a restored parent must keep ascending from where the nested run left off.
+        parent["event_seq"] = rec.get("event_seq")
+        _touch(parent)
+    fields["persisted"] = save(sid, parent if parent is not None else rec)
+    if not fields["persisted"]:
+        # The record on disk still says `running`: the Stop hook keeps blocking and a retry of
+        # this close is the right move — so no ledger row yet (the retry would have written a
+        # second one, review pass 27), no FEEDBACK line to paste, no `run_close` event (a close
+        # that did not happen is not a mutation — the protocol's own contract, pass 28) and no
+        # claim of a close that did not happen.
+        outbox["events"] = [e for e in outbox.get("events") or [] if e[1] is not fields]
+        print(
+            f"NOT CLOSED /{rec.get('command')} — the run record could not be written (see stderr);"
+            f" fix the record dir and re-run `{args.cmd}` — no usage-ledger row was written."
+        )
+        return 1
+    if _pending_row is not None:
+        try:
+            _lp = _feedback_ledger_path()
+            _lp.parent.mkdir(parents=True, exist_ok=True)
+            # a single append under O_APPEND (short writes continued): three sessions append to
+            # this file with no lock, and a buffered text write past 8 KiB could split and
+            # interleave (review 2026-09-07); the per-field cap bounds the row
+            _append_ledger_row(_lp, _pending_row)
+        except OSError as exc:  # the ledger never blocks a close; the record still carries it
+            sys.stderr.write(f"[command_run] usage ledger not written: {exc}\n")
+    if _fb_line is not None:
+        print(_fb_line)
+    if parent is not None:
+        print(f"{args.cmd.upper()} /{closed.get('command')} — resuming:")
+        print(pinned_line(parent))
+        return 0
+    print(f"{args.cmd.upper()} /{rec.get('command')} — run record closed.")
+    # Queue the scratch advisory for `main()` to print AFTER the record lock drops. Set here, not
+    # printed here, and only on a top-level close that actually persisted: the NOT-CLOSED path
+    # returns above, so a close that did not happen never offers advice about it.
+    outbox["scratch_advice"] = (sid, str(rec.get("repo_root") or ""))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

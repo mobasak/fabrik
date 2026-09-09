@@ -1,0 +1,917 @@
+#!/usr/bin/env python3
+# AFTER-EDIT: .windsurf/rules/core/62-using-subagents.md, docs/workstation/claude-account-rotation.md, commands/_fragments/subagents-core.md
+"""dispatch_headroom — the seat budget for a native fan-out, from the BOX and the FLEET, not from prose.
+
+D-186/D-188 size a fan-out by the surface's independent units with a floor of three. The operator's
+full objective (2026-09-08) binds five things at once: the maximum count of viable seats, box
+capacity without OOMs, the fastest finish, affordable tokens, and the right model per role. Prose
+cannot hold five constraints in an agent's head at dispatch time; this prints the number.
+
+    python3 scripts/sysadmin/dispatch_headroom.py --units 6            # read-only seats
+    python3 scripts/sysadmin/dispatch_headroom.py --units 6 --heavy    # seats that run pytest/builds
+    python3 scripts/sysadmin/dispatch_headroom.py --units 6 --json
+    python3 scripts/sysadmin/dispatch_headroom.py --slices opus=1,sonnet=2   # an orchestrator partition
+
+seats = min(units × angles + the Opus seat(s), CONCURRENCY_CAP, box_cap, quota_cap) for a units-sized
+surface — D-191: every unit wants one Sonnet breadth seat plus one Haiku mechanical seat
+(`--mechanical <M>`, 0 on a judgement surface), plus one Opus seat per risky unit and at least one;
+`full_mix` pads to the floor (3, D-188) with real seats and `trim` cuts for coverage when a cap binds.
+The floor never raises past a HARD cap — a box with room for two heavy seats gets two, with the
+reason, never three. A native seat runs INSIDE its parent claude process, so its
+memory is its TOOL subprocesses — and a "read-only" finder still runs pytest through Bash (measured
+2026-09-08 at 1.19 GB max RSS), so the box bound applies to every seat: 2 GB planned per `--heavy`
+seat, 1 GB per read-only seat. Seats already dispatched by OTHER live sessions on this box are
+subtracted first (their DISPATCH stamps, `command_run.py dispatch --seats`), so three sessions cannot each take
+the whole box in the same minute.
+
+For an orchestrator-computed PARTITION (a review loop's disjoint slices), pass `--slices
+opus=<n>,sonnet=<n>,haiku=<n>` instead of `--units`: SEATS = the slice counts SUMMED (Σ slices,
+against the same CONCURRENCY_CAP/box_cap/quota_cap caps), no floor padding — the DD2 floor (every
+non-empty kind keeps at least its own seat) is satisfied by construction, since the partition IS
+that seat count; `--units` then defaults to the slice count.
+
+Every probe fails SOFT and says so: an unreadable /proc, a rotation script that raises, or an
+unidentifiable active account prints the floor with the reason — never a silent 20, and never
+"cool" by default.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import os
+import re
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+FLOOR = 3
+# D-191 (operator, three times: "maximum count of viable and useful subagents"): the BOX is the
+# ceiling and the units are the PARTITION. Every unit gets one seat per ANGLE — breadth (Sonnet),
+# mechanical (Haiku) — plus the authoritative Opus seats (one per risky unit, at least one). A
+# seat is "useful" when its brief is a distinct unit x angle; the box, the CLI cap and the quota
+# are what make it "viable". Before this, `units` capped the count: the box allowed 23 and the
+# rule dispatched 3 (measured 2026-09-08).
+# Three angles, not two: a RISKY unit also carries an authoritative Opus seat, so it has three
+# seats (cost 8) — the Opus and Sonnet briefs on it share the unit but not the angle (authoritative
+# re-derivation vs breadth). A mechanical seat is grep-shaped and therefore GLOBAL: when the budget
+# trims below one per unit, each remaining Haiku seat sweeps ONE grep-able class across every
+# unit; a grounding or adjudication unit has no grep-able angle at all (`--mechanical 0`).
+ANGLES = {"breadth": "sonnet", "mechanical": "haiku", "authoritative": "opus"}
+# a `--slices` partition's kinds are exactly these three — Fable is never a finder (spec D2), so
+# `--slices fable=1` is refused rather than silently priced as a Fable seat (round-1 review F3)
+_SLICE_KINDS = ("opus", "sonnet", "haiku")
+# CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS ?? 20 — read out of the CLI bundle v2.1.263 (core/62
+# § Parallelism (Runtime A)); a seat past it is REFUSED, not queued. A non-numeric value must not
+# kill the script at import ("fails SOFT" is the contract): it falls back to 20 with a reason.
+_CAP_RAW = os.getenv("CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS")
+try:
+    CONCURRENCY_CAP = int(_CAP_RAW) if _CAP_RAW else 20
+    CAP_NOTE = ""
+except ValueError:
+    CONCURRENCY_CAP = 20
+    CAP_NOTE = f"CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS={_CAP_RAW!r} is not a number — using 20"
+# Planning figures, measured on this box 2026-09-08 with /usr/bin/time: `pytest tests/enforcement`
+# (1035 tests) peaks at 1.19 GB, `mypy` at 120 MB, `ruff` at 94 MB, the corpus render at 19 MB.
+# 2 GB per heavy seat is 1.7x the largest thing measured; 1 GB per read-only seat covers a finder
+# that runs a test slice through Bash. CPU: one core per seat — `ruff` alone took 14.5 cores for
+# 60 ms, so a per-seat CPU share is not a planning figure; the CPU term only refuses to put seats
+# onto a box whose load already fills its cores.
+HEAVY_GB_PER_SEAT = 2.0
+LIGHT_GB_PER_SEAT = 1.0
+ROTATE = Path(__file__).resolve().parent / "claude_rotate.py"
+RUNS_DIR = Path.home() / ".claude" / "state" / "command-runs"
+# a sibling's run record counts as LIVE for this purpose when it is `running` and was touched
+# within this window — an abandoned record (the Stop hook's stale bound is 12 h) must not hold
+# the box hostage
+# A sibling's seats are RESERVED from their DISPATCH stamp for the life of a seat: measured
+# 2026-09-08 on 245 seat transcripts since 09-07 (first to last line — a lower bound on the true
+# span), median 550 s, p90 1085 s, p95 1354 s; a 15-minute window left 16 % of seats, the longest
+# ones, unreserved (round-4 finding). 25 minutes covers the p95 with the launch/return margin. The box probe sees a running
+# seat's tools too, so late in a seat's life this double-counts — accepted, because the floor
+# clause below means a reservation can never starve a session the box has room for.
+SIBLING_FRESH_S = 25 * 60
+
+# Price multipliers, operator ruling 2026-09-08 (D-190): haiku 1x · sonnet 2x · opus 5x · fable 10x.
+# "Affordable" is a NUMBER: cost = sum(seats x multiplier) in haiku-units. Breadth on Sonnet costs 2
+# per seat; the same seat on Opus costs 5; a Fable adjudicator costs 10 — so the cheapest mix that
+# still meets the D-186 floor is one Opus authoritative seat plus Sonnet breadth.
+PRICE = {"haiku": 1, "sonnet": 2, "opus": 5, "fable": 10}
+# model tiering by ROLE — the operator's four names, one job each (canonical: core/62). Fable is
+# METERED (the CLI bundle: "Fable 5 requires usage credits"), not a subscription window — it is
+# NOT visible to the quota probe below; a Fable seat that refuses falls back to Opus BY NAME and
+# the fallback is recorded, never silent.
+TIERS = {
+    "fable": (
+        "orchestrator/adjudicator + the final validation's authoritative seat; never a routine "
+        "finder — METERED usage credits, not subscription quota: check before the run, fall back "
+        "to Opus by name"
+    ),
+    "opus": "the authoritative pass (>=1 per review) + design-heavy never-route coding",
+    "sonnet": "breadth — one seat per independent unit; default never-route coder",
+    "haiku": "the mechanical seat (grep-able classes, format, inventory) — one per unit, class-wide when trimmed, none on a judgement surface; never codes",
+}
+
+
+def box() -> dict:
+    """MemAvailable, the commit headroom, cores, 1-min load — from /proc, fail-soft. Raw GB kept
+    for the arithmetic; rounding is for display only."""
+    out: dict = {"ok": True}
+    try:
+        mem = {}
+        for line in Path("/proc/meminfo").read_text().splitlines():
+            k, _, v = line.partition(":")
+            mem[k] = int(v.split()[0])
+        out["mem_available_gb"] = mem["MemAvailable"] / 1024 / 1024
+        out["mem_total_gb"] = mem["MemTotal"] / 1024 / 1024
+        # the quantity that reaches zero BEFORE the OOM killer runs; MemAvailable ignores it
+        if "CommitLimit" in mem and "Committed_AS" in mem:
+            out["commit_headroom_gb"] = (
+                max(mem["CommitLimit"] - mem["Committed_AS"], 0) / 1024 / 1024
+            )
+        out["cores"] = os.cpu_count() or 1
+        out["load1"] = os.getloadavg()[0]
+    except (OSError, KeyError, ValueError, IndexError) as exc:
+        out.update(ok=False, why=f"box probe failed: {exc}")
+    return out
+
+
+def quota() -> dict:
+    """The active account's hottest window + eligible-standby count, via claude_rotate.py. The
+    drain band is read from the picture, not re-hardcoded, so the two cannot drift."""
+    try:
+        raw = subprocess.run(
+            [sys.executable, str(ROTATE), "--status", "--json"],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=True,
+        ).stdout
+        pic = json.loads(raw).get("picture") or {}
+        accounts = pic.get("accounts") or []
+        active = pic.get("active")
+        act = next((a for a in accounts if a.get("email") == active), None)
+        # a reading of None is UNKNOWN, never 0 % — `or 0` priced an active account with no
+        # reading as cool and set no quota cap at all (round-5 finding)
+        vals = (
+            [
+                float(v)
+                for v in (act.get("session_pct"), act.get("weekly_pct"))
+                if isinstance(v, (int, float)) and not isinstance(v, bool)
+            ]
+            if act
+            else []
+        )
+        hottest = max(vals) if vals else None
+        # `eligible` is the rotation's STANDBY state; the account doing the work is `active`. A
+        # standby that is ITSELF in the drain band is no fallback — count the COOL ones (round-6
+        # finding: the only standby sat at exactly the band and the caution stayed silent)
+        eligible_raw = sum(1 for a in accounts if a.get("state") == "eligible")
+        # a standby the picker did not grade (`in_drain_band` absent) is UNKNOWN, never cool —
+        # the same direction `hottest_pct is None` takes for the active account (round-7 finding)
+        eligible = sum(
+            1 for a in accounts if a.get("state") == "eligible" and a.get("in_drain_band") is False
+        )
+        band = float((pic.get("thresholds") or {}).get("drain_band") or 85.0)
+        return {
+            "ok": True,
+            "active": active,
+            "hottest_pct": hottest,
+            "eligible": eligible,
+            "eligible_raw": eligible_raw,
+            "active_in_band": bool(act.get("in_drain_band")) if act else None,
+            "hold": bool(pic.get("hold")),
+            "drain_band": band,
+        }
+    except Exception as exc:  # noqa: BLE001 — a malformed picture (a row that is not a dict, a
+        # list where a dict was promised) crashed the CLI through main() (round-5 finding);
+        # every probe fails SOFT to the floor and says why
+        return {"ok": False, "why": f"quota probe failed: {exc}"}
+
+
+_SCRIPTS_DIR = str(Path(__file__).resolve().parents[1])
+
+
+def _import_command_run():
+    """`scripts/command_run.py` — the authority on record names; inserted on sys.path ONCE."""
+    if _SCRIPTS_DIR not in sys.path:
+        sys.path.insert(0, _SCRIPTS_DIR)
+    import command_run  # noqa: PLC0415
+
+    return command_run
+
+
+def _safe_stem(sid: str) -> str:
+    """The FILENAME `command_run.py` writes for a sid (`_safe_sid`) — the own-record test compares
+    stems, and a raw sid with a dot or a slash never matched its own file (round-5 finding)."""
+    try:
+        return str(_import_command_run()._safe_sid(sid))
+    except Exception:  # noqa: BLE001
+        return sid
+
+
+def own_session_id() -> tuple[str, str]:
+    """The record `command_run.py` keys on for THIS session — derived by command_run.py ITSELF
+    (`_session_id`: explicit → CLAUDE_SESSION_ID → CLAUDE_CODE_SESSION_ID → the repo-scoped
+    `nosession-<repo>`), never a second copy of that ladder: a copy without the nosession
+    fallback returned "" in an id-less shell and the own record was counted again (round-5
+    finding). Fail-soft: if command_run.py cannot be imported, the env ladder alone — returned
+    as `(sid, source)` with source "command_run" or "env", never a module global (round-7 finding:
+    the global ratcheted to "env" on one failed import and never reset in that process)."""
+    try:
+        return str(_import_command_run()._session_id(None) or "").strip(), "command_run"
+    except Exception:  # noqa: BLE001 — a probe fails soft, and SAYS so (round-6 finding)
+        sid = (
+            os.environ.get("CLAUDE_SESSION_ID") or os.environ.get("CLAUDE_CODE_SESSION_ID") or ""
+        ).strip()
+        return sid, "env"
+
+
+def siblings(
+    now: float | None = None, runs_dir: Path = RUNS_DIR, exclude_sid: str | None = None
+) -> dict:
+    """Seats OTHER live sessions on this box have dispatched — each running record's DISPATCH
+    stamp is the reservation; a record with no stamp falls back to its last round's `seats`, dated
+    by that round's own `ts`. A nested command parks its parent on `stack`, and a parked parent's
+    stamp is still live (round-7 Opus finding: /fabrik-execute-plan nesting /fabrik-review at a
+    phase boundary hid 7 running seats) — every frame is read, the stamps summed.
+    The caller's OWN record is excluded (`exclude_sid`, default this session): a session that
+    subtracted its own stamp sized round N+1 against a box it had emptied itself (round-4
+    finding). Three sessions reading the same free memory in the same minute would otherwise each
+    take all of it (TOCTOU on the box). Fail-soft: an unreadable record counts 0 and is named."""
+    now = time.time() if now is None else now
+    own, own_source = own_session_id() if exclude_sid is None else (exclude_sid, "explicit")
+    own_stem = _safe_stem(own) if own else ""
+    out: dict = {
+        "ok": True,
+        "seats": 0,
+        "sessions": 0,
+        "unrecorded": 0,
+        "skipped": [],
+        "excluded_own": False,
+        "own_source": own_source,
+    }
+    try:
+        for p in runs_dir.glob("*.json"):
+            if own_stem and p.stem == own_stem:
+                out["excluded_own"] = True
+                continue
+            try:
+                rec = json.loads(p.read_text())
+                if rec.get("state") != "running":
+                    continue
+            except Exception:  # noqa: BLE001 — classify-and-name only; a probe fails SOFT
+                out["skipped"].append(p.name)
+                continue
+            # PER FRAME (round-9 finding): one malformed nested frame dropped the whole record —
+            # a live 10-seat parent vanished in the over-dispatch direction. A bad frame is named
+            # (`<file>#<n>`) and the good frames still count; a non-dict stack entry is named too
+            # (it was silently filtered); and `unrecorded` is a SESSION count — at most 1 per
+            # record, however many of its frames carry no figure (the reason says sessions)
+            stack = rec.get("stack")
+            raw_frames = [rec] + (list(stack) if isinstance(stack, list) else [])
+            if stack is not None and not isinstance(stack, list):
+                out["skipped"].append(f"{p.name}#stack")  # a non-list stack is named, not dropped
+            seats = 0
+            frame_out = {"unrecorded": 0}
+            for k, fr in enumerate(raw_frames):
+                name = p.name if k == 0 else f"{p.name}#{k}"  # the record itself keeps its name
+                if not isinstance(fr, dict):
+                    out["skipped"].append(name)
+                    continue
+                try:
+                    seats += _frame_seats(fr, now, frame_out)
+                except Exception:  # noqa: BLE001 — a malformed frame (non-numeric seats/ts,
+                    # Infinity, a round that is not a dict) counts 0 and is named
+                    out["skipped"].append(name)
+            if frame_out["unrecorded"] and seats == 0:
+                # a record carries NO figure only when none of its frames does — a stamped
+                # parent with an unstamped child is recorded (round-9 Opus finding: the ordinary
+                # execute-plan → review shape wore a permanent LOWER-bound caveat)
+                out["unrecorded"] += 1
+            if seats > 0:
+                out["seats"] += seats
+                out["sessions"] += 1
+    except OSError as exc:
+        out.update(ok=False, why=f"sibling probe failed: {exc}")
+    return out
+
+
+def _frame_seats(rec: dict, now: float, out: dict) -> int:
+    """One frame's live reservation (0 when none, stale, released or unrecorded — the latter
+    counted on `out`); raises on a malformed shape so the caller can name the file."""
+    # the DISPATCH stamp (command_run.py dispatch --seats, written before the seats
+    # are sent) is the reservation; a record without one falls back to its last
+    # round's seats at its last touch — which is written AFTER the seats returned, so
+    # it reserves nothing while they run (round-3 finding: the guard was inert)
+    _disp = rec.get("dispatch")
+    disp: dict | None = _disp if isinstance(_disp, dict) else None
+    rounds = rec.get("rounds") or []
+    if not isinstance(rounds, list):
+        raise TypeError("rounds is not a list")
+    last = rounds[-1] if rounds else {}
+    disp_seats = disp.get("seats") if disp is not None else None
+    released = disp is not None and bool(disp.get("released"))
+    if disp is not None and disp_seats is not None and disp.get("ts") is None:
+        raise ValueError("dispatch stamp without ts")  # named even when released (round 11)
+    if released:
+        return 0  # a RELEASE marker is a known zero whatever else the frame says (round-10 Opus:
+        # one without a `seats` key fell through to the round row and re-reserved 9)
+    if not disp_seats and not last.get("seats"):
+        # running, no seat figure at all: no stamp, an EMPTY stamp, or a round row at
+        # the CLI's own default (`round --seats` 0 = "not recorded") — a LOWER bound,
+        # counted and named, never a known zero (round-6 finding); a RELEASE marker
+        # (seats 0, released) is a known zero and skips nothing
+        out["unrecorded"] += 1
+        return 0
+    # the DISPATCH stamp (written before the seats went out, released when they
+    # returned) is the reservation; the round row is only the fallback for a record
+    # without one, dated by the round's OWN stamp — `updated_ts` is a generic
+    # last-touch and re-dated a two-hour-old round on a bare `step` (round-5 finding)
+    if disp is not None and disp_seats is not None:
+        # a RELEASE marker is a known zero whatever `seats` says — the CLI never writes
+        # `released` beside a count, so a record that does is contradictory and the
+        # release wins (round-7 finding: `released, seats 5` counted 5 in flight)
+        ts, seats = float(disp["ts"]), 0 if released else int(disp_seats or 0)
+    else:
+        ts = float(last.get("ts") or 0)
+        seats = int(last.get("seats") or 0)
+    if seats < 0:
+        raise ValueError("negative seat count")  # malformed: named as skipped, never ignored
+    if not math.isfinite(ts) or now - ts > SIBLING_FRESH_S:
+        return 0  # a NaN stamp read as forever-fresh (round-3 finding)
+    return seats
+
+
+def cost(mix: dict[str, int]) -> dict:
+    """Relative cost of a seat mix in haiku-units, per the D-190 multipliers. An unknown model name
+    or a non-positive count is REFUSED by name — the first draft silently dropped a negative count
+    from the sum while still printing it in the mix, the same priced-at-zero shape the unknown-name
+    refusal exists to prevent (round-1 finding)."""
+    unknown = sorted(k for k in mix if k not in PRICE)
+    if unknown:
+        raise ValueError(f"unknown model(s) {unknown}; priced models: {sorted(PRICE)}")
+    bad = sorted(k for k, v in mix.items() if int(v) <= 0)
+    if bad:
+        raise ValueError(f"seat count must be >= 1 for {bad}")
+    parts = {k: int(v) * PRICE[k] for k, v in mix.items()}
+    return {"units": sum(parts.values()), "parts": parts}
+
+
+def full_mix(units: int, risky: int = 0, mechanical: int | None = None) -> dict[str, int]:
+    """The MAXIMUM useful mix for a units-sized surface of `units`: one Sonnet breadth
+    seat per unit, the authoritative Opus seats (one per risky unit, at least one), and the Haiku
+    mechanical seats — one per unit by default, or `mechanical` of them: the count of grep-able
+    classes the surface HAS (0 for a grounding/adjudication surface — a judgement unit has no
+    mechanical angle, and a Haiku seat there returns a claim the orchestrator must refute; round-2
+    finding). Every seat is a distinct unit x angle brief; the caller trims it to the budget with
+    `trim()`. (An orchestrator-computed partition passes `slices=` to `budget()` instead and skips
+    this padding entirely — DD2/D3.)"""
+    if units <= 0:
+        return {}
+    opus = max(1, min(risky, units))
+    haiku = units if mechanical is None else max(0, mechanical)
+    sonnet = units
+    # the FLOOR is three REAL seats (D-188): a one-unit judgement surface has only two angles
+    # (authoritative + breadth), so the third seat is a second breadth reader — the measured
+    # same-brief technique (1 seat found 0; 3 found 0/5/0). "SEATS: 3" beside a 2-seat mix was
+    # F10 wearing a new flag (round-3 finding)
+    if opus + sonnet + haiku < FLOOR:
+        sonnet += FLOOR - (opus + sonnet + haiku)
+    return {k: v for k, v in (("opus", opus), ("sonnet", sonnet), ("haiku", haiku)) if v > 0}
+
+
+def trim(mix: dict[str, int], seats: int) -> dict[str, int]:
+    """Cut a full mix down to `seats` for maximum UNIT COVERAGE per haiku-unit: Haiku first (grep-
+    shaped, so the survivors sweep class-wide), then the EXTRA Opus seats (a risky unit keeps its
+    Sonnet seat — same unit, cheaper), then Sonnet, never below one Opus. The first draft shed
+    Sonnet before Opus: a 3-unit surface at 2 seats became two Opus seats (cost 10) with one unit
+    read by nobody, where {opus 1, sonnet 1} covers the same units for 7 (round-2 finding)."""
+    if seats <= 0:
+        return {}
+    out = dict(mix)
+    while sum(out.values()) > seats and out.get("haiku", 0) > 0:
+        out["haiku"] -= 1
+    while sum(out.values()) > seats and out.get("opus", 0) > 1:
+        out["opus"] -= 1
+    while sum(out.values()) > seats and out.get("sonnet", 0) > 0:
+        out["sonnet"] -= 1
+    return {k: v for k, v in out.items() if v > 0}
+
+
+def parse_mix(text: str, flag: str = "--mix") -> dict[str, int]:
+    """`opus=1,sonnet=5` -> {"opus": 1, "sonnet": 5}. Every part is `name=count`, nothing implied:
+    a bare name, an empty name or a non-numeric count is refused with the part quoted; a kind given
+    more than once is refused too — a dict silently keeps only the LAST value, so
+    "haiku=5,HAIKU=1" (case folds together) or "opus=1,opus=2" understated a caller's real count
+    with no reason (round-3 delta review, item 1: this was first fixed for `--slices` alone, but
+    the grammar underlies `--mix` too — "--mix haiku=7,haiku=7" priced 7 seats when the caller
+    asked for 14). Detected HERE, in the grammar itself, so both callers get it for free: `flag`
+    names the CLI flag being parsed in the error text — `--slices` shares this grammar with `--mix`
+    but an error naming "--mix part ..." while parsing `--slices` points the caller at the wrong
+    flag."""
+    mix: dict[str, int] = {}
+    seen: list[str] = []
+    for part in filter(None, (x.strip() for x in text.split(","))):
+        k, eq, v = part.partition("=")
+        k = k.strip().lower()
+        if not eq or not k or not re.fullmatch(r"-?\d+", v.strip()):
+            raise ValueError(f"{flag} part {part!r} is not name=count (e.g. opus=1,sonnet=5)")
+        seen.append(k)
+        mix[k] = int(v)
+    dupes = sorted({k for k in seen if seen.count(k) > 1})
+    if dupes:
+        raise ValueError(
+            f"{flag} kind " + ", ".join(f"{k!r}" for k in dupes) + " given more than once"
+        )
+    return mix
+
+
+def budget(
+    units: int,
+    heavy: bool,
+    b: dict,
+    q: dict,
+    s: dict | None = None,
+    risky: int = 0,
+    mechanical: int | None = None,
+    *,
+    slices: dict[str, int] | None = None,
+) -> dict:
+    s = s or {"ok": True, "seats": 0, "sessions": 0, "skipped": []}
+    reasons: list[str] = []
+    if CAP_NOTE:
+        reasons.append(CAP_NOTE)
+    # D-191: the units are the partition, not the cap — the WANTED count is one seat per unit per
+    # angle plus the authoritative seats; the box, the CLI cap and the quota are the caps.
+    # DD2/D3: an orchestrator-computed `slices` partition sizes `wanted` DIRECTLY as the slice
+    # counts SUMMED (Σ slices) — no `full_mix()` floor padding; the DD2 floor (every non-empty kind
+    # keeps at least its own seat) is satisfied BY CONSTRUCTION, since the partition already IS
+    # that seat count. `slices=None` is byte-identical to today.
+    wanted = (
+        sum(slices.values())
+        if slices is not None
+        else sum(full_mix(max(units, 0), risky, mechanical).values())
+    )
+    caps = {"wanted": wanted, "concurrency_cap": CONCURRENCY_CAP}
+    if risky > units > 0:
+        reasons.append(
+            f"risky={risky} exceeds units={units} — clamped to {units} Opus seat(s); the risky units "
+            "are a subset of the surface"
+        )
+    floor_granted = 0  # seats the FLOOR granted past the sibling remainder (0 = none)
+    per_seat = HEAVY_GB_PER_SEAT if heavy else LIGHT_GB_PER_SEAT
+    if b.get("ok"):
+        mem = b["mem_available_gb"]
+        if "commit_headroom_gb" in b:
+            mem = min(mem, b["commit_headroom_gb"])
+        by_mem = int(mem // per_seat)
+        by_cpu = max(int(b["cores"] - math.ceil(b["load1"])), 0)
+        taken = int(s.get("seats") or 0)
+        phys = min(by_mem, by_cpu)
+        # siblings RESERVE, they never starve: a session always gets the floor when the BOX has
+        # room for it — three sessions each at 13 seats left the third at 0 (round-2 finding). But
+        # a box that is itself below the floor keeps the reservation in full: `max(phys - taken,
+        # min(phys, FLOOR))` let three sessions each claim a 2-seat box (round-3 finding)
+        cap = max(phys - taken, 0)
+        overcommit = 0
+        if cap < FLOOR <= phys:
+            # the floor is granted against the BOX, not the remainder: a session never waits a
+            # sibling's 25-minute window out, at the price of up to FLOOR-1 seats past the
+            # remainder — bounded, and SAID (round-8 finding: it was silent)
+            overcommit = FLOOR - cap
+            cap = FLOOR
+        caps["box_cap"] = cap
+        floor_granted = overcommit  # exported beside caps (never INSIDE them: `seats` is their
+        # min) — the board keys its label on it, not on `box_cap == FLOOR` (round-9 Opus finding)
+        if overcommit:
+            reasons.append(
+                f"floor granted: {overcommit} seat(s) past what the box has left after the "
+                f"sibling reservation (bounded by the floor of {FLOOR}; a session never starves)"
+            )
+        reasons.append(
+            f"box allows {cap} {'heavy' if heavy else 'read-only'} seats "
+            f"(mem {mem:.1f}GB/{per_seat}GB={by_mem}, cores {b['cores']}-load {b['load1']:.1f}={by_cpu}"
+            + (
+                f", minus {taken} seat(s) dispatched < {SIBLING_FRESH_S // 60} min ago in "
+                f"{s.get('sessions')} running record(s)"
+                # the guarantee is stated only where it holds (round-9 Opus finding: "never below
+                # the floor of 3" printed beside "box allows 0 seats")
+                + (f", never below the floor of {FLOOR}" if phys >= FLOOR else "")
+                if taken
+                else ""
+            )
+            + ")"
+        )
+    else:
+        caps["box_cap"] = FLOOR
+        reasons.append(f"{b.get('why')} — box unknown, held at the floor")
+    if not s.get("ok"):
+        reasons.append(f"{s.get('why')} — sibling seats unknown, not subtracted")
+    if s.get("skipped"):
+        # F80 named a malformed record "as skipped" — into a field nothing read; their seats
+        # vanished in the OVER-dispatch direction with no line (round-8 Opus finding)
+        sk = [str(x) for x in s["skipped"]]
+        recs = sorted({x.split("#", 1)[0] for x in sk})  # frames vs records (round-10 Opus)
+        reasons.append(
+            f"{len(recs)} sibling record(s) carry {len(sk)} unreadable frame(s) "
+            f"({', '.join(sk[:3])}) — the seats those frames carried are NOT subtracted; the box "
+            "number is an UPPER bound"
+        )
+    if s.get("unrecorded"):
+        # its own line: nested under the `taken` clause it never printed for the common case — a
+        # sibling that has just `start`ed and dispatched nothing yet (round-6 finding)
+        reasons.append(
+            f"{s['unrecorded']} running sibling session(s) carry NO seat figure — the box number "
+            "is a LOWER bound"
+        )
+    if s.get("own_source") == "env":
+        reasons.append(
+            "own-session id came from the env only (command_run.py not importable) — an id-less "
+            "shell may be counting its own record as a sibling"
+        )
+    if q.get("ok"):
+        if q["hold"]:
+            caps["quota_cap"] = 0
+            reasons.append("fleet-exhausted HOLD is on — dispatch nothing until relief")
+        else:
+            band = float(q.get("drain_band") or 85.0)
+            unknown = q["hottest_pct"] is None
+            # the picture publishes its own in_drain_band predicate; read it, don't re-derive it
+            hot = unknown or bool(q.get("active_in_band")) or q["hottest_pct"] >= band
+            if hot:
+                caps["quota_cap"] = FLOOR
+                reasons.append(
+                    (
+                        (
+                            "quota: NO active account in the picture — treated as HOT, never as cool"
+                            if q.get("active") is None
+                            else f"quota: active {q['active']} has NO usable reading (session and "
+                            "weekly both absent) — treated as HOT, never as cool"
+                        )
+                        if unknown
+                        else f"quota: active {q['active']} is at {q['hottest_pct']}% — in the drain "
+                        f"band ({band}%, the rotation picture's own predicate)"
+                    )
+                    + " — run the FLOOR, sweep the rest next round"
+                )
+            if q["eligible"] == 0:
+                # `--status` names a warm standby as the next flip while this said "none" — the
+                # two states are different facts and print differently (round-7 Opus finding)
+                raw = int(q.get("eligible_raw") or 0)
+                reasons.append(
+                    (
+                        f"quota: 0 of {raw} standby(s) are COOL — every fallback is itself in the "
+                        "drain band"
+                        if raw
+                        else "quota: NO standby account at all — the active account has no fallback"
+                    )
+                    + "; the round runs, but a fan-out that exhausts it stops the fleet, so keep "
+                    "the seats you dispatch proportionate to its remaining window"
+                )
+    else:
+        caps["quota_cap"] = FLOOR
+        reasons.append(f"{q.get('why')} — quota unknown, held at the floor")
+    # The floor raises the UNIT-derived count (D-188: never solo, never two) — it never overrides a
+    # HARD cap. The first draft raised any sub-floor result back to 3, including a box_cap of 0, so
+    # "--heavy" on a box with no room printed 3 heavy seats: the exact OOM this tool exists to
+    # prevent (author-blind round 1, 2026-09-08). Now: units up to the floor first, then the caps.
+    # DD2/D3: under `slices` BOTH sites stand down — the D-186/D-188 three-seat floor is a rule
+    # about a UNITS-sized surface, and a partition's own count (however small) is not "nothing to
+    # partition" nor "below the floor": a 2-slice partition is meant to print SEATS: 2, not 3.
+    if slices is None and units <= 0:
+        # no surface to partition: the floor is a rule about seats PER SURFACE, and "SEATS: 3"
+        # beside a mix of {} recorded three phantom seats (round-1 finding) — say it, dispatch none
+        caps["wanted"] = 0
+        reasons.append(
+            f"units={units} — nothing to partition; give --units >= 1 (one unit is already the floor of 3)"
+        )
+    elif slices is None and caps["wanted"] < FLOOR:
+        # reachable for units=1 with a Haiku-less mechanical=0 mix (opus 1 + sonnet 1 = 2 < 3); a
+        # `slices` caller reaching here would be a bug in the discriminator, not a real partition,
+        # so the guard above keeps this branch closed under slices rather than merely rare
+        reasons.append(
+            f"wanted={caps['wanted']} raised to the floor of {FLOOR} — three seats on DIFFERENT "
+            f"angles over the whole surface (D-188)"
+        )
+        caps["wanted"] = FLOOR
+    elif slices is not None and caps["wanted"] == 0:
+        # mirror of the units-mode "nothing to partition" branch above: a zero-sum partition
+        # (every kind absent, or every count explicitly 0) is not a silent SEATS: 0 (round-1
+        # review finding F1: "SEATS: 0" with no reason line pointed "see the reasons above" at
+        # nothing)
+        reasons.append("slices sum to 0 — nothing to partition; give at least one seat in one kind")
+    if slices is not None and caps["wanted"] > 0 and slices.get("opus", 0) == 0:
+        # DD2 carves the authoritative seat OUT of the Sonnet count on the orchestrator's own
+        # judgement of the most consequential slice — this script accepts any partition the CLI
+        # grammar allows (round-1 review finding F5) but SAYS when the caller's partition has no
+        # Opus slice at all, so `_mix_story` below can tell the truth about the mix it prints
+        reasons.append(
+            "partition carries no Opus slice — DD2 wants one authoritative seat over the most "
+            "consequential slice, carved out of the Sonnet count"
+        )
+    seats = min(caps.values())
+    if seats < caps["wanted"]:
+        binding = [k for k, v in caps.items() if v == seats and k != "wanted"]
+        # F7 (round-1 review): under slices `caps["wanted"]` is Σ slices, not "units x angles +
+        # authoritative" — the reason must name the basis it actually used
+        basis = (
+            "the slice counts summed" if slices is not None else "units x angles + authoritative"
+        )
+        reasons.append(
+            f"wanted {caps['wanted']} ({basis}), bound to {seats} by "
+            f"{', '.join(binding)} — the box/quota decide, the surface only asks"
+        )
+    if slices is None and seats < FLOOR and units > 0:
+        hard = [k for k, v in caps.items() if v == seats and k != "wanted"]
+        reasons.append(
+            f"below the floor because a HARD cap binds ({', '.join(hard)}={seats}) — "
+            + (
+                "dispatch nothing until relief"
+                if seats == 0 and "quota_cap" in hard
+                else "wait for the box or the sibling rounds to finish; never dispatch past a hard cap"
+            )
+        )
+    return {"seats": seats, "caps": caps, "reasons": reasons, "floor_granted": floor_granted}
+
+
+def _mix_story(a: argparse.Namespace, mix: dict[str, int], full: dict[str, int]) -> str:
+    """The sentence beside COST must describe THIS mix — the first draft glued the units-sized
+    surface's per-unit sentence to a mix the budget had already trimmed, and an agent
+    reading it literally would dispatch past a hard cap (round-2 finding).
+    `b` (from `box()`) carries `ok`, and when ok: `mem_available_gb`, `cores`, `load1` (optionally
+    `commit_headroom_gb`) — a hand-built `ok: True` dict without them raises (round 11).
+    """
+    tail = " — D-190: haiku 1x · sonnet 2x · opus 5x · fable 10x"
+    if a.mix:
+        return tail
+    if a.slices:
+        # DD2/D3: an orchestrator-computed partition, not a units-sized surface — the
+        # floor-padding sentence below never applies to it (`mix == full` here is the partition
+        # itself, unmodified or trimmed, never the D-188 padded mix)
+        # F5 (round-1 review): a partition without an Opus slice must not be told it has one — the
+        # story describes the TRIMMED mix it actually prints, never the risky-slices sentence when
+        # `mix` carries no Opus seat (the budget's own "partition carries no Opus slice" reason
+        # names the DD2 gap; this sentence only avoids lying about the mix beside it)
+        opus_clause = (
+            "Opus on the risky slices, Sonnet on the rest"
+            if mix.get("opus", 0) > 0
+            else "no Opus slice in this partition (see the reason above)"
+        )
+        return (
+            f" — the orchestrator-computed partition (DD2): {opus_clause}, at most one Haiku "
+            "class seat; every file read once — the third angle is the orchestrator's execution, "
+            "not a third reader" + tail
+        )
+    haiku = mix.get("haiku", 0)
+    if mix == full:
+        pad = mix.get("sonnet", 0) - a.units
+        padded = (
+            f"; the extra {pad} Sonnet seat(s) are SECOND breadth readers on the same unit — a "
+            "deliberate duplicate brief padding to the floor of 3 (D-188), not a distinct unit"
+            if pad > 0
+            else ""
+        )
+        if not haiku:
+            mech = (
+                "; no mechanical seat (--mechanical 0: a judgement surface has no grep-able angle)"
+            )
+        elif haiku == a.units:
+            mech = f", {haiku} Haiku mechanical seat(s) — one per unit of the units-sized surface"
+        else:
+            mech = f", {haiku} Haiku mechanical seat(s) — one per grep-able class, each swept across every unit"
+        return (
+            # the label names the SURFACE this mix is for: "grounding" is the governance term for
+            # a judgement surface, which is exactly the `--mechanical 0` case — calling the
+            # DEFAULT mix grounding collided with the rule ordering `--mechanical 0` there (T06)
+            " — the MAXIMUM useful mix for a units-sized "
+            + ("surface with a mechanical angle" if haiku else "grounding surface")
+            + f" of {a.units} unit(s): "
+            f"one Sonnet breadth seat per unit, the Opus authoritative seat(s) (--risky N: one per "
+            f"risky unit){mech}{padded}; dispatch ALL of it in ONE message, each seat a distinct "
+            "unit x angle brief" + tail
+        )
+    # an Opus seat on a risky unit reads that unit too; a judgement surface never HAD mechanical
+    # classes, so nothing "waits" (round-3 finding: the story told --mechanical 0 to sweep them)
+    # units read by NOBODY this round: the Sonnet seats plus the Opus seats, which a trimmed
+    # round places on units WITHOUT a Sonnet seat (each seat is a distinct unit x angle brief) —
+    # the earlier formula forced the Opus seat onto a Sonnet-read unit and over-reported the gap
+    # in half of all trimmed mixes (round-6 finding, 83,600 of 165,957 combinations)
+    sonnet = mix.get("sonnet", 0)
+    covered = min(sonnet + min(mix.get("opus", 0), max(a.risky, 1)), a.units)
+    uncovered = max(a.units - covered, 0)
+    if haiku:
+        left = (
+            f": {haiku} Haiku seat(s) left — each sweeps ONE grep-able class across every unit "
+            "(class-wide, not per unit)"
+        )
+    elif full.get("haiku"):
+        left = ": no Haiku seat left — the mechanical classes wait for the next round"
+    else:
+        left = ""
+    gap = (
+        f"; {uncovered} unit(s) have NO seat at all this round — re-sweep them next round, never "
+        "dispatch past the cap"
+        if uncovered
+        else ""
+    )
+    return f" — TRIMMED from {sum(full.values())} wanted to the budget{left}{gap}{tail}"
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+
+    # REQUIRED unless --slices supplies the partition: a default of FLOOR let a caller who forgot
+    # the flag read a plausible "SEATS: 3" as a constrained verdict instead of "you never said how
+    # big the surface is" (round-1 finding).
+    def _count(text: str) -> int:
+        n = int(text)
+        if n < 0:
+            raise argparse.ArgumentTypeError(f"{n} is not a count")
+        return n
+
+    ap.add_argument(
+        "--units",
+        type=_count,
+        default=None,
+        help="independent units in the surface (defaults to the --slices count when --slices is given)",
+    )
+    ap.add_argument("--heavy", action="store_true", help="each seat runs tests/builds/renders")
+    ap.add_argument("--json", action="store_true")
+    ap.add_argument(
+        "--mix",
+        default="",
+        help='price a seat mix, e.g. "opus=1,sonnet=5" (D-190: haiku 1x, sonnet 2x, opus 5x, fable 10x)',
+    )
+    ap.add_argument(
+        "--slices",
+        default="",
+        help=(
+            'an orchestrator-computed partition, e.g. "opus=1,sonnet=1" (DD2/D3: SEATS is the '
+            "slice counts SUMMED, no floor padding; kinds are opus/sonnet/haiku only, counts >= 0; "
+            "--units then defaults to the slice count)"
+        ),
+    )
+    ap.add_argument(
+        "--risky", type=_count, default=0, help="units that are auth/schema/secrets (Opus)"
+    )
+    ap.add_argument(
+        "--mechanical",
+        type=_count,
+        default=None,
+        help="Haiku seats wanted: the grep-able classes the surface HAS (default: one per unit; "
+        "0 for a grounding/adjudication surface — a judgement unit has no mechanical angle)",
+    )
+    a = ap.parse_args(argv)
+    try:
+        slices = parse_mix(a.slices, flag="--slices") if a.slices else None
+    except ValueError as exc:
+        print(f"dispatch_headroom.py: error: {exc}", file=sys.stderr)
+        return 2
+    if slices is not None:
+        # R1 (round-3 delta review): the duplicate-kind check used to live HERE, scanning the raw
+        # `--slices` text — but that scoped the fix to one caller of a shared grammar. It now lives
+        # INSIDE `parse_mix` itself (raised as the same ValueError this `except` above already
+        # catches), so `--mix` gets it too, for free, with no second call site to keep in sync.
+        # F3 (round-1 review): a partition's kinds are exactly opus/sonnet/haiku (Fable is never a
+        # finder, D2) — checked BEFORE the negative-count check, the more fundamental refusal.
+        # Item 3 (round-3 delta review): every unknown kind is named, not just the first — mirrors
+        # the negative-count check's "report every bad one" shape.
+        unknown = sorted(k for k in slices if k not in _SLICE_KINDS)
+        if unknown:
+            print(
+                "dispatch_headroom.py: error: --slices kind "
+                + ", ".join(f"{k!r}" for k in unknown)
+                + " is not one of "
+                + ", ".join(_SLICE_KINDS),
+                file=sys.stderr,
+            )
+            return 2
+        # F1 (round-1 review): `_count` refuses a negative --units/--risky/--mechanical; --slices
+        # shared no such gate — "opus=-5" silently priced a negative seat count as SEATS: -5
+        bad = ", ".join(f"{k}={v}" for k, v in slices.items() if v < 0)
+        if bad:
+            print(
+                f"dispatch_headroom.py: error: --slices count must be >= 0 (got {bad})",
+                file=sys.stderr,
+            )
+            return 2
+    if a.units is None:
+        if slices is None:
+            print(
+                "dispatch_headroom.py: error: --units is required unless --slices is given",
+                file=sys.stderr,
+            )
+            return 2
+        a.units = sum(slices.values())  # DD2/D3: the slice count, not the D-186/D-188 unit floor
+    b, q, s = box(), quota(), siblings()
+    r = budget(a.units, a.heavy, b, q, s, a.risky, a.mechanical, slices=slices)
+    full = dict(slices) if slices is not None else full_mix(a.units, a.risky, a.mechanical)
+    try:
+        # the MAXIMUM useful mix, trimmed to what is viable — never the minimum by default
+        mix = parse_mix(a.mix) if a.mix else trim(full, r["seats"])
+        priced = cost(mix)
+    except ValueError as exc:
+        print(f"dispatch_headroom.py: error: {exc}", file=sys.stderr)
+        return 2
+    # the adjudicator is ONE seat per run on Fable (10x) that no mix returns — a COST that
+    # omitted it understated every run by 10 units, always in the cheap direction
+    adjudicator = {"model": "fable", "units": PRICE["fable"], "counted_in_seats": False}
+    mix_seats = sum(mix.values())
+    if mix_seats != r["seats"]:
+        r["reasons"].append(
+            f"mix has {mix_seats} seat(s) but the budget is {r['seats']} — reprice or resize; "
+            "SEATS and COST must describe the same round"
+        )
+    # both box bounds in one probe, so a caller that wants the pair (the board banner) runs this
+    # script — and its fleet round-trip — ONCE, not twice
+    _ro = budget(a.units, False, b, q, s, a.risky, a.mechanical, slices=slices)
+    _hv = budget(a.units, True, b, q, s, a.risky, a.mechanical, slices=slices)
+    # the mix/budget caution was appended to `r` AFTER the halves were computed, so the half that
+    # matches this run never carried it (round-12 finding) — the halves are the run's own list
+    (_hv if a.heavy else _ro)["reasons"] = list(r["reasons"])
+    box_caps = {"read_only": _ro["caps"].get("box_cap"), "heavy": _hv["caps"].get("box_cap")}
+    box_caps_floored = {  # which of the pair the FLOOR raised past the sibling remainder
+        "read_only": bool(_ro.get("floor_granted")),
+        "heavy": bool(_hv.get("floor_granted")),
+    }
+    r.update(
+        box=b,
+        quota=q,
+        siblings=s,
+        tiers=TIERS,
+        units=a.units,
+        heavy=a.heavy,
+        price=PRICE,
+        mix=mix,
+        full_mix=full,
+        cost=priced,
+        adjudicator=adjudicator,
+        box_caps=box_caps,
+        box_caps_floored=box_caps_floored,
+        # the HEAVY half's reasons — the board scans them too (round-10 Opus finding: a heavy-only
+        # over-commit rendered with no caveat because `reasons` was the read-only half only)
+        heavy_reasons=_hv["reasons"],
+        reasons_read_only=_ro["reasons"],  # both halves, whatever `--heavy` was (round 11)
+        floor=FLOOR,  # the board labels a cap the floor raised (round-7 finding)
+        slices=slices,  # the parsed --slices partition, or None (DD2/D3)
+        # F6 (round-1 review): the TRIMMED PARTITION, independent of a `--mix` price override — a
+        # `--mix` price the caller passes alongside `--slices` must not leak into this key, so it
+        # is re-derived from `slices` and `r["seats"]` here, never read off `mix`
+        mix_by_slice=(trim(dict(slices), r["seats"]) if slices is not None else None),
+    )
+    if a.json:
+        print(json.dumps(r, indent=2, default=str))
+        return 0
+    print(
+        f"SEATS: {r['seats']}  (units={a.units}, {'heavy' if a.heavy else 'read-only'}; "
+        f"caps {r['caps']})"
+    )
+    for line in r["reasons"]:
+        print(f"  - {line}")
+    if b.get("ok"):
+        print(
+            f"  box: {b['mem_available_gb']:.1f}/{b['mem_total_gb']:.1f} GB available"
+            + (
+                f", commit headroom {b['commit_headroom_gb']:.1f} GB"
+                if "commit_headroom_gb" in b
+                else ""
+            )
+            + f", load {b['load1']:.1f} on {b['cores']} cores"
+        )
+    if q.get("ok"):
+        print(
+            f"  quota: active {q['active']} hottest {q['hottest_pct']}%, cool standbys "
+            f"{q['eligible']} of {q.get('eligible_raw', q['eligible'])} eligible, hold={q['hold']}, "
+            f"drain band {q.get('drain_band')}%"
+        )
+    if mix:
+        shown = " + ".join(f"{n} {k} x{PRICE[k]}" for k, n in mix.items())
+        print(f"  COST: {priced['units']} haiku-units for {shown}{_mix_story(a, mix, full)}")
+        print(
+            f"  + {adjudicator['units']} for the orchestrator/adjudicator on fable x10 — one per run, "
+            "not in the seat total. RELATIVE and dimensionless: assumes equal tokens per seat, and "
+            "the orchestrator's own reading (at its own multiplier, growing with every seat's "
+            "report) is NOT counted — the absolute anchor waits on `round --seats` rows."
+        )
+    else:
+        print("  COST: 0 haiku-units — nothing to dispatch (see the reasons above)")
+    print(
+        "  record the dispatch BEFORE you send it: python3 scripts/command_run.py dispatch "
+        "--seats <n>   (the stamp sibling sessions subtract; a round --seats at the close "
+        "reserves nothing while the seats run)"
+    )
+    print(
+        "  then close the round: python3 scripts/command_run.py round --seats <n> "
+        "--findings <n> --classes-swept … --classes-new …"
+    )
+    print("  tiers (model by the seat's JOB; the per-dispatch token is Agent(model=...)):")
+    for k, v in TIERS.items():
+        print(f"    {k:7} {v}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

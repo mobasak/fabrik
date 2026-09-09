@@ -1,0 +1,55 @@
+{
+  "session_id": "t10-r1",
+  "command": "fabrik-probe",
+  "phases": 2,
+  "phase": 1,
+  "phase_title": "",
+  "terminal": "confirmed: 0",
+  "state": "running",
+  "started_at": "2026-09-09T18:54:09+0300",
+  "started_epoch": 1788969249.3232405,
+  "repo_root": "/opt/fabrik/.claude/worktrees/agent-abc469fc23e742303",
+  "agent": "",
+  "surface": "",
+  "account": "ob-ocoron-com-s-organization",
+  "rounds": [
+    {
+      "n": 1,
+      "findings": 9,
+      "confirmed": 3,
+      "seats": 0,
+      "ts": 1788969249.3792286,
+      "swept": [],
+      "new": [
+        "auth"
+      ],
+      "phase": 1
+    },
+    {
+      "n": 2,
+      "findings": 0,
+      "seats": 0,
+      "ts": 1788969249.4360282,
+      "swept": [
+        "auth"
+      ],
+      "new": [],
+      "phase": 1
+    }
+  ],
+  "classes": {
+    "auth": "clean"
+  },
+  "stack": [],
+  "event_seq": 3,
+  "covered": [],
+  "updated_at": "2026-09-09T18:54:09+0300",
+  "updated_ts": 1788969249,
+  "dispatch": {
+    "ts": 1788969249.4360297,
+    "seats": 0,
+    "phase": 1,
+    "round": 2,
+    "released": true
+  }
+}
