@@ -1,6 +1,6 @@
 # Review convergence redesign — partitioned single pass, delta rounds, zero-CONFIRMED quiet round
 
-Status: CONVERGED
+Status: IN-PROGRESS
 **Owner:** —
 Spec: docs/superpowers/specs/2026-09-08-review-convergence-redesign-design.md (CONVERGED 509c1b10, approved by the operator's `/fabrik-plan-after-chat` invocation 2026-09-09 — D-205; rulings D-203; supersede rows D-206, D-207, D-208)
 
