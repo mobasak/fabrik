@@ -45,5 +45,51 @@
     "red_checks": [],
     "note": "final_gate.py --lean --json at start: success, no red checks; sibling format-only WIP on scripts/enforcement/check_convergence.py, tests/enforcement/test_review_exit_contract.py, tests/test_check_convergence.py (not this plan's; peers messaged)"
   },
-  "tickets": {}
+  "tickets": {
+    "T01": {
+      "state": "review-round10-orchestrator-delta",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-af8499344e0b19818",
+      "branch": "worktree-agent-af8499344e0b19818",
+      "base_commit": "0c1f2d50",
+      "started_at": "2026-09-09T10:00:00",
+      "head": "4d17499e",
+      "returned_at": "2026-09-09T10:23:00"
+    },
+    "T03": {
+      "state": "review-closed-awaits-merge-order",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a4bbf77228ac7424c",
+      "branch": "worktree-agent-a4bbf77228ac7424c",
+      "base_commit": "0c1f2d50",
+      "head": "375ca554",
+      "started_at": "2026-09-09T10:00:00",
+      "returned_at": "2026-09-09T10:08:00"
+    },
+    "T04": {
+      "state": "review-closed-awaits-merge-order",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-aad985623a34a9689",
+      "branch": "worktree-agent-aad985623a34a9689",
+      "base_commit": "0c1f2d50",
+      "started_at": "2026-09-09T10:00:00",
+      "head": "ada72df4",
+      "returned_at": "2026-09-09T10:22:54"
+    },
+    "T05": {
+      "state": "review-closed-awaits-merge-order",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-aa2e080bd9e8b5f24",
+      "branch": "worktree-agent-aa2e080bd9e8b5f24",
+      "base_commit": "0c1f2d50",
+      "started_at": "2026-09-09T10:11:18",
+      "head": "b407555b",
+      "returned_at": "2026-09-09T10:22:54"
+    },
+    "T09": {
+      "state": "review-closed-awaits-merge-order",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-ae7fa077961ff5618",
+      "branch": "worktree-agent-ae7fa077961ff5618",
+      "base_commit": "0c1f2d50",
+      "started_at": "2026-09-09T10:22:54",
+      "head": "2816e78d",
+      "returned_at": "2026-09-09T10:26:00"
+    }
+  }
 }
