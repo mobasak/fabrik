@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Run-record protocol + event-stream docs carry `round --confirmed` and the confirmed-based TERMINAL rule (2026-09-09)
+
+- Plan `2026-09-09-plan-1-review-convergence-redesign` T09 (D-203 R9), documented ahead of T10's code. `docs/reference/command-run-protocol.md`: `round` gains `--confirmed <n>`; the TERMINAL verdict fires on `confirmed == 0` with a class-ledger close when the LAST round states it, the old `--findings 0` rule standing otherwise; the oscillation advisory, the `FEEDBACK:` trend and the ledger row read the `confirmed` series only when every round of the RECORD states it (one unstated round reads `findings`). `docs/workstation/kaizen-event-stream.md`: the `round` event row lists `seats` and `confirmed` (absent when not stated). Three executed review rounds (1 → 1 → 0 confirmed), receipt `docs/development/reviews/2026-09-09-plan-1-review-convergence-redesign-T09-review.md`.
+
 ### Changed — The review loop's seat rule and exit: a partition, delta rounds, and a CONFIRMED quiet (2026-09-09)
 
 - **`.windsurf/rules/core/62-using-subagents.md` § Dispatch policy (fleet-synced):** native sizing now has TWO

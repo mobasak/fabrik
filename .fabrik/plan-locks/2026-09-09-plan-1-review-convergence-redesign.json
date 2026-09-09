@@ -87,7 +87,7 @@
       "commit": "a46b751b"
     },
     "T09": {
-      "state": "review-closed-awaits-merge-order",
+      "state": "merging",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-ae7fa077961ff5618",
       "branch": "worktree-agent-ae7fa077961ff5618",
       "base_commit": "0c1f2d50",
@@ -117,6 +117,10 @@
       "branch": "worktree-agent-a639659c92152423a",
       "base_commit": "5559fdcf",
       "head": "99529107"
+    },
+    "T07": {
+      "state": "dispatched",
+      "base_commit": "0fc15cae"
     }
   }
 }
