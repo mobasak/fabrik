@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — `check_convergence.py` QUIET_PASS follows the D-206 grammar (2026-09-09)
+
+- Plan `2026-09-09-plan-1-review-convergence-redesign` T03. `scripts/enforcement/check_convergence.py` (fleet-synced): the presence gate's `QUIET_PASS` carries the spec's pair verbatim — branch 1 keeps the legacy `found: 0 … fixed: 0` match unless a numeric `confirmed:` or a nonzero `unexecuted:` follows on the row, branch 2 reads `confirmed: 0 … fixed: 0` as quiet however large `found:` is (D-206, the receipt's `confirmed:` counter). Backward compatibility measured over the 275 committed receipts at 8092e8a8: 166 quiet under the retired regex, 166 under the new one, 0 flips — the parity test pins that denominator to the tree at 8092e8a8 instead of the live corpus. RECORDED by design (D-205): a counter LEFT of its anchor reads quiet at this presence gate; the depth gate (`check_review_coverage.py`) refuses the displaced row by name. Guards in `tests/test_check_convergence.py` (78 collected); two executed review rounds (8 → 0 confirmed), receipt `docs/development/reviews/2026-09-09-plan-1-review-convergence-redesign-T03-review.md`.
+
 ### Added — Review-coverage gate: the D7 refusal half, the RECORDED verdicts and the residual licences (2026-09-09)
 
 - Plan `2026-09-09-plan-1-review-convergence-redesign` T02 (D-206/D-207; spec D-205). `scripts/enforcement/check_review_coverage.py` gains the TOKEN rule (a `confirmed:`/`unexecuted:`

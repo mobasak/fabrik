@@ -1350,3 +1350,96 @@ def test_an_in_progress_review_skeleton_is_not_a_convergence_claim(tmp_path):
     flipped = f.read_text().replace("IN-PROGRESS", "CONVERGED")
     f.write_text(flipped, encoding="utf-8")
     assert cc._check_review(tmp_path, f), "the flip must re-arm the evidence demand"
+
+
+# ── V13: QUIET_PASS follows the D-206 grammar ────────────────────────────────────────────────────
+# D-203 re-cut the review loop and D-206 (supersedes D-048) made `confirmed:` the exit counter: a
+# round is quiet when its CONFIRMED count is zero and nothing stands unexecuted — `found:` is prose.
+# These rows are the shared V13 ↔ V1 fixtures (the same rows grade at check_review_coverage.py's
+# exit rule); the whole-document quiet fixtures above (ADJUDICATED_REVIEW, TRAILING_FOUND_REVIEW)
+# are the OLD-grammar shape this pair must keep matching.
+
+# D9's round 18 of the D-191 receipt — three defects confirmed by execution, so not quiet.
+D9_ROUND_18_ROW = (
+    "| Pass 18 | opus×1 | found: 11, new: 9, confirmed: 3, fixed: 3, unexecuted: 0 | m |"
+)
+# V1's round 19 — the delta round that closes it: a non-zero `found:` with `confirmed: 0`.
+V1_ROUND_19_ROW = "| Pass 19 | opus×1 | found: 5, new: 0, confirmed: 0, fixed: 0 | delta |"
+# `unexecuted:` above zero: old-grammar quiet on its face, two code candidates still standing.
+UNEXECUTED_ROW = "| u | x | found: 0 | fixed: 0 | unexecuted: 2 |"
+# Zero-padded — must read the same at both gates.
+CONFIRMED_00_ROW = "| 19 | found: 0 | confirmed: 00 | fixed: 0 |"
+# A numeric `confirmed:` above zero beside `found: 0`: quiet under the old pair, never under D-206.
+CONFIRMED_3_ROW = "| 18 | found: 0, confirmed: 3, fixed: 0 |"
+
+
+def test_quiet_pass_grades_the_five_v13_rows():
+    """The D-206 grammar, row by row (the design spec's V13)."""
+    q = _cc().QUIET_PASS
+    assert not q.search(D9_ROUND_18_ROW), "three confirmed defects is not a quiet round"
+    assert q.search(V1_ROUND_19_ROW), "confirmed: 0 + fixed: 0 is quiet however large `found:` is"
+    assert not q.search(UNEXECUTED_ROW), "unexecuted: 2 stands — the old pair must not read quiet"
+    assert q.search(CONFIRMED_00_ROW), "a zero-padded confirmed: 00 is confirmed: 0"
+    assert not q.search(CONFIRMED_3_ROW), "a numeric confirmed: 3 kills the old found:/fixed: pair"
+
+
+def test_a_prose_confirmed_label_keeps_an_old_grammar_rows_quiet_match():
+    """The lookaheads are anchored to a DIGIT: this gate runs re.I and is deliberately
+    zero-false-positive (check_convergence.py:186-199), so a prose `CONFIRMED: see residual`
+    label on an honest old-grammar row must not fail a genuinely converged receipt."""
+    q = _cc().QUIET_PASS
+    assert q.search("| 19 | found: 0 | fixed: 0 | delta — CONFIRMED: see residual |")
+
+
+# The receipt corpus PINNED at the plan's base commit. The working tree's corpus grows — the next
+# converged receipt a sibling commits would red an exact count here for a reason that has nothing
+# to do with the regex — so the denominator is read out of a fixed tree object, never `ls-files`
+# and never the working tree. 275 receipts / 166 quiet / 166 quiet / 0 flips is stable forever.
+_CORPUS_SHA = "8092e8a8"
+
+
+def test_quiet_pass_is_set_identical_to_the_retired_regex_over_the_committed_receipts():
+    """Backward compatibility is a CONTRACT (DD4): re-cutting the grammar must not flip a single
+    committed receipt. The retired value is carried here as a LITERAL — it no longer exists in the
+    module — and both are run whole-text, exactly as _check_executed_plan does
+    (check_convergence.py:768-772)."""
+    old = re.compile(r"found:\s*0\b[^\n]*?fixed:\s*0\b", re.I)
+    new = _cc().QUIET_PASS
+    root = Path(__file__).resolve().parent.parent
+    ls_tree = ["git", "-C", str(root), "ls-tree", "-r", "--name-only", _CORPUS_SHA]
+    listing = subprocess.run(
+        [*ls_tree, "--", "docs/development/reviews/"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.split()
+    files = [f for f in listing if f.endswith(".md")]
+    assert len(files) == 275, (
+        f"the pinned corpus at {_CORPUS_SHA} is 275 receipts, got {len(files)}"
+    )
+    old_quiet: set[str] = set()
+    new_quiet: set[str] = set()
+    for rel in files:
+        text = subprocess.run(
+            ["git", "-C", str(root), "show", f"{_CORPUS_SHA}:{rel}"],
+            capture_output=True,
+            text=True,
+            check=True,
+            errors="replace",
+        ).stdout
+        if old.search(text):
+            old_quiet.add(rel)
+        if new.search(text):
+            new_quiet.add(rel)
+    old_only = sorted(old_quiet - new_quiet)
+    new_only = sorted(new_quiet - old_quiet)
+    # Counts first, then a BOUNDED sample of each flip direction — the full lists live in the
+    # assertion message below, and printing 166 paths here makes a real failure unreadable.
+    print(
+        f"pinned corpus {_CORPUS_SHA}: {len(files)} receipts, "
+        f"old quiet {len(old_quiet)}, new quiet {len(new_quiet)}, "
+        f"flips {len(old_only)} old-only + {len(new_only)} new-only "
+        f"(first 3 each: {old_only[:3]} / {new_only[:3]})"
+    )
+    assert old_quiet == new_quiet, {"old-only": old_only, "new-only": new_only}
+    assert len(new_quiet) == 166, f"{len(new_quiet)} quiet of {len(files)} pinned receipts"
