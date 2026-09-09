@@ -574,9 +574,12 @@ def check_file(p: Path) -> list[str]:
         )
     ev_tables, ev_prose, ordered_rows, refusals = _ledger_shapes(text)
     # NOT blocked_ok-gated, like the unparsed-row legibility check above it (round 123): a row
-    # whose counter run cannot be read is a STRUCTURAL defect, and an escalated report's counter
-    # history matters most. The row itself stayed in `ordered` with `confirmed`/`unexecuted`
-    # None, so the exit still grades — refused by name rather than silently inert.
+    # whose counter run cannot be read — a mis-ordered run, a second new-grammar token, or two
+    # rows joined onto one physical line — is a STRUCTURAL defect, and an escalated report's
+    # counter history matters most. In EVERY case the row stays in `ordered` (a Pass row with
+    # `confirmed`/`unexecuted` None; a joined line as its FIRST run), so the exit still grades on
+    # something real — refused BY NAME rather than silently inert or silently dropped. All three
+    # readers report these: here, `check_mega_validation`, and `_committed_nonquiet`.
     errs.extend(f"Pass row refused: {reason}" for reason in refusals)
     groups = len(ev_tables) + len(ev_prose)
     if groups > 1 and not _in_progress(text) and not blocked_ok:
@@ -1166,6 +1169,52 @@ _COUNTER_ORDER = {name: i for i, name in enumerate(_COUNTER_NAMES)}
 _ROW_LEAD = re.compile(r"^\s*" + _LIST_MARK + r"\s*")
 
 
+# A ledger row's HEAD, wherever it sits on the line: `_PASS_HEAD` only ever anchors the FIRST
+# one, so a second head is the signature of two rows on one physical line. Counted together with
+# the strict `found:` tokens, because a Pass row that merely CITES another round ("the round-3
+# row said found: 3", "same as Pass 2") has one of the two, never both — the over-broad
+# `found:`-only count refused exactly those honest rows.
+_PASS_HEAD_TOK = re.compile(r"(?<![\w-])\**Pass\s*\d", re.I)
+# The cell-anchored equivalent: two `| found:` CELL openings on one line (a joined pair of
+# cell-anchored rows carries no Pass head at all). A citing cell (`| the round-3 row said
+# found: 3 |`) does not open with the counter, so it is not one.
+_CELL_FOUND = re.compile(r"\|\s*\**found:\s*\d")
+
+
+def _joined_row(line: str) -> bool:
+    """Does this ONE physical line carry two ledger rows? (the U+2028/U+2029 join)
+
+    Detected on the ROW HEADS, never on the counter tokens: the normalisation above joins a row
+    split at a line-ish character, and `_MEGA_ROW` is LAZY — it would match the FIRST run and
+    lose the second, grading a receipt quiet off its own first half. Both grammars' shapes are
+    covered (a Pass-headed pair, and a cell-anchored pair with no head at all), on the
+    list-marker-stripped text so a bulleted row is read like a bare one.
+    """
+    body = _ROW_LEAD.sub("", line, count=1)
+    if len(_PASS_HEAD_TOK.findall(body)) >= 2 and len(_FOUND_TOK.findall(body)) >= 2:
+        return True
+    return len(_CELL_FOUND.findall(body)) >= 2
+
+
+def _first_run(line: str) -> tuple[int, int] | None:
+    """The FIRST run's `(found, fixed)` on a joined line — the counters the refused row KEEPS.
+
+    A refused row is never dropped (dropping it hands the exit to the previous round, the
+    fail-open this whole guard exists to close), so it stays in `ordered` with the counters a
+    reader can see first. `fixed:` defaults to 0 when the first run has none — the refusal
+    itself, reported by all three readers, is what the author acts on; the counter is only
+    there so the row is not inert.
+    """
+    f = _FOUND_TOK.search(line)
+    if f is None:
+        return None
+    x = _FIXED_TOK.search(line, f.end())
+    return int(f.group(1)), (int(x.group(1)) if x else 0)
+
+
+_JOINED_REASON = "two ledger rows on ONE physical line (a U+2028/U+2029 joined them?) — "
+
+
 def _toks_in_span(tok: re.Pattern[str], line: str, start: int, stop: int) -> list[str]:
     """Counter values matched on the FULL line whose token lies inside the run's span."""
     return [m.group(1) for m in tok.finditer(line) if start <= m.start() and m.end() <= stop]
@@ -1360,21 +1409,23 @@ def _ledger_shapes(
                 p_run = []
             if re.fullmatch(r"[|\-: ]+", stripped):
                 continue  # separator row — never data, never a boundary
+            row: _Row | None = None
+            # A JOINED line is refused by name and KEPT as its first run — never dropped (the
+            # exit would grade the previous round) and never a table boundary (flushing `current`
+            # splits one ledger into two groups and the multi-group guards then accuse the author
+            # of a decoy ledger). Every shape is covered here, not just the one `_MEGA_ROW`
+            # happens to match: the comma-run table form and the prose form parse under
+            # `_pass_counters`, which refuses two `found:` tokens, so they were SILENT.
+            if _joined_row(line):
+                refusals.append(f"{_JOINED_REASON}{line.strip()[:90]}")
+                pair = _first_run(line)
+                if pair is not None:
+                    row = (pair[0], None, pair[1], None, line)
+                    current.append(row)
+                    ordered.append(row)
+                continue
             m = _MEGA_ROW.match(line)
             pc = _pass_counters(line) if m is None else None
-            # ⚠️ `_MEGA_ROW` is LAZY, so on a line holding two rows it matches the FIRST run and
-            # the second is lost. That line exists: the GFM normalisation above joins rows split
-            # at a `U+2028`, and `| … found: 0 | fixed: 0 |<U+2028>| … found: 5 | fixed: 0 |`
-            # graded QUIET off its first half (`_pass_counters` refuses it for two `found:`
-            # tokens and `_unparsed_pass_lines` skips it under the multi-strict INERT clause, so
-            # nothing else spoke). Refused by name instead — the row is not graded at all.
-            if m is not None and len(_FOUND_TOK.findall(line)) > 1:
-                refusals.append(
-                    "two counter runs on ONE line (a U+2028/U+2029 joined two rows?) — "
-                    f"{line.strip()[:90]}"
-                )
-                m = None
-            row: _Row | None = None
             if m is not None:
                 row = (
                     int(m.group(1)),
@@ -1397,7 +1448,16 @@ def _ledger_shapes(
                 tables.append(current)
                 current = []
             pc = _pass_counters(line)
-            if pc:
+            if _joined_row(line):
+                # the same refusal on the prose path — `Pass 9: … <U+2028>Pass 10: …` is one
+                # physical line to every reader here, and `_pass_counters` refuses it silently
+                refusals.append(f"{_JOINED_REASON}{line.strip()[:90]}")
+                pair = _first_run(line)
+                if pair is not None:
+                    row = (pair[0], None, pair[1], None, line)
+                    p_run.append(row)
+                    ordered.append(row)
+            elif pc:
                 row = _ext_row(line, pc, refusals)
                 p_run.append(row)
                 ordered.append(row)
@@ -1487,7 +1547,10 @@ def check_mega_validation(
             "the Step-3 anti-cheat (`find docs/development/epics -name '*.md' … | md5sum`), "
             "untruncated; `TBD`, prose, or a truncated stub do not anchor anything"
         )
-    tables, prose_rows, _ordered, _refusals = _ledger_shapes(text)
+    tables, prose_rows, _ordered, refusals = _ledger_shapes(text)
+    # the THIRD reader owes the refusal too (round 125's lesson, one refusal kind later): a row
+    # this grammar cannot read must be NAMED here, or on a mega report it vanishes with no message
+    errs.extend(f"Pass row refused: {r}" for r in refusals)
     rows: list[_Row] | None
     if prose_rows and tables:
         errs.append(

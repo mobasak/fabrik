@@ -223,7 +223,7 @@ def test_corpus_every_committed_receipt_parses_and_grades_exactly_as_it_did_at_t
     base = _base_gate(tmp_path)
     files = _corpus()
     assert len(files) > 200, f"corpus looks wrong: {len(files)} receipts"
-    rows_old = rows_new = 0
+    rows_old = rows_new = errs_old = errs_new = 0
     for p in files:
         text = p.read_text(encoding="utf-8", errors="replace")
         o_tables, o_prose, o_ordered, *_ = base._ledger_shapes(text)
@@ -237,14 +237,19 @@ def test_corpus_every_committed_receipt_parses_and_grades_exactly_as_it_did_at_t
         assert (len(n_tables), len(n_prose)) == (len(o_tables), len(o_prose)), p
         assert crc._unparsed_pass_lines(text) == base._unparsed_pass_lines(text), p
         # reader 1 — the blocking gate, verbatim errors modulo the D-048 -> D-206 rewording
-        assert _normalize(crc.check_file(p)) == _normalize(base.check_file(p)), p
+        new_errs, old_errs = crc.check_file(p), base.check_file(p)
+        errs_new += len(new_errs)
+        errs_old += len(old_errs)
+        assert _normalize(new_errs) == _normalize(old_errs), p
         # reader 2 — the mega grammar, for the reports routed to it
         if crc._is_mega_report(p, text):
             assert _normalize(crc.check_mega_validation(p, REPO, live=False)) == _normalize(
                 base.check_mega_validation(p, REPO, live=False)
             ), p
     print(f"parsed Pass rows: base={rows_old}, widened={rows_new} over {len(files)} receipts")
+    print(f"check_file errors: base={errs_old}, widened={errs_new} over {len(files)} receipts")
     assert rows_new == rows_old
+    assert errs_new == errs_old
     # reader 3 — the committed advisory, one sweep per gate version
     new_c = [e.split(": COMMITTED")[0] for e in crc._committed_nonquiet(REPO, set())]
     old_c = [e.split(": COMMITTED")[0] for e in base._committed_nonquiet(REPO, set())]
@@ -391,22 +396,89 @@ def test_the_legacy_pair_is_byte_identical_to_the_base_sha(tmp_path):
     assert body_of(now_src) == body_of(base_src), "_pass_counters' body moved — DD4 forbids it"
 
 
-def test_a_line_holding_two_counter_runs_is_refused_not_graded_as_its_first(tmp_path):
-    """F5 — the normalisation's own mirror. Joining a row split at a `U+2028` is right, but the
-    joined line then holds TWO rows, and `_MEGA_ROW` is LAZY: it matched the first run and the
-    second was lost, so a receipt whose real final round raised 5 graded QUIET. Nothing else
-    spoke — `_pass_counters` refuses two `found:` tokens and `_unparsed_pass_lines` skips
-    multi-strict lines under the round-11 INERT clause. Both readers must say so."""
-    joined = "| Pass 1 | f | found: 0 | fixed: 0 |\u2028| Pass 2 | f | found: 5 | fixed: 0 |\n"
-    assert len(joined.splitlines()) == 2, "fixture must split in Python but not in a renderer"
-    _t, _p, ordered, refusals = crc._ledger_shapes(joined)
-    assert ordered == [], f"the joined line must not be graded as its first run: {ordered}"
-    assert refusals and "two counter runs on ONE line" in refusals[0], refusals
+def _joined(a: str, b: str) -> str:
+    """Two ledger rows on ONE physical line — a real `U+2028`, the way a paste produces it."""
+    return a + "\u2028" + b + "\n"
 
+
+MEGA_PAIR = ("| Pass 1 | f | found: 0 | fixed: 0 |", "| Pass 2 | f | found: 5 | fixed: 0 |")
+COMMA_PAIR = ("| Pass 9 | o | found: 0, fixed: 0 |", "| Pass 10 | o | found: 5, fixed: 0 |")
+PROSE_PAIR = ("Pass 9: found: 0, fixed: 0", "Pass 10: found: 5, fixed: 0")
+CELL_PAIR = ("| 1 | found: 0 | fixed: 0 |", "| 2 | found: 5 | fixed: 0 |")
+
+
+def test_every_joined_row_shape_is_refused_by_name_and_kept_in_the_ledger(tmp_path):
+    """F5, redesigned (round-2 D1/D3). The first cut keyed on `_MEGA_ROW` + a `found:` count, so
+    it saw ONLY the cell-anchored shape: the comma-run table form and the PROSE form still went
+    silent, because `_pass_counters` refuses two `found:` tokens and `_unparsed_pass_lines` skips
+    multi-strict lines. Detection is on the row HEADS now, which every shape has (or, for a
+    head-less cell-anchored pair, on the `| found:` cell openings), and the row is KEPT as its
+    FIRST run — dropping it hands the exit to the previous round, the fail-open the guard exists
+    to close."""
+    for label, (a, b) in (
+        ("mega", MEGA_PAIR),
+        ("comma-run", COMMA_PAIR),
+        ("prose", PROSE_PAIR),
+        ("cell-anchored, head-less", CELL_PAIR),
+    ):
+        line = _joined(a, b)
+        assert len(line.splitlines()) == 2, f"{label}: fixture must split in Python"
+        _t, _p, ordered, refusals = crc._ledger_shapes(line)
+        assert refusals and refusals[0].startswith("two ledger rows on ONE physical line"), (
+            label,
+            refusals,
+        )
+        assert [r[:4] for r in ordered] == [(0, None, 0, None)], (label, ordered)
+
+
+def test_a_row_that_merely_cites_another_round_is_not_a_joined_row(tmp_path):
+    """F5's mirror (round-2 D2): counting `found:` tokens refused the honest
+    `| … | found: 1 | fixed: 1 | the round-3 row said found: 3 |`, DROPPED it from the ledger
+    (so the exit graded the previous round — fail-open on the refused row) and blamed a `U+2028`
+    that was not there. One head plus a cited counter is one row."""
+    citing = "| Pass 4 | o | found: 1 | fixed: 1 | the round-3 row said found: 3 |\n"
+    _t, _p, ordered, refusals = crc._ledger_shapes(citing)
+    assert refusals == [], refusals
+    assert [r[:4] for r in ordered] == [(1, None, 1, None)], ordered
+    prose_citing = "Pass 3: found: 0, fixed: 0 — same as Pass 2\n"
+    _t, _p, ordered2, refusals2 = crc._ledger_shapes(prose_citing)
+    assert refusals2 == [] and [r[:4] for r in ordered2] == [(0, None, 0, None)], (
+        refusals2,
+        ordered2,
+    )
+    errs = _graded(tmp_path, citing)
+    assert not any(e.startswith("Pass row refused:") for e in errs), errs
+    # ...and the same shape with a quiet first run passes the blocking gate outright
+    quiet = "| Pass 4 | o | found: 0 | fixed: 0 | the round-3 row said found: 3 |\n"
+    assert _graded(tmp_path, quiet) == [], _graded(tmp_path, quiet)
+
+
+def test_a_joined_line_mid_ledger_leaves_the_table_as_one_group(tmp_path):
+    """F5's second mirror (round-2 D4): the refusal used to fall through to the table-boundary
+    flush, so ONE ledger became two groups and the multi-group guards accused the author of a
+    decoy ledger — a second, wrong error on top of the right one."""
+    ledger = (
+        "| Pass 1 | f | found: 3 | fixed: 3 |\n"
+        + _joined("| Pass 2 | f | found: 2 | fixed: 2 |", "| Pass 3 | f | found: 1 | fixed: 1 |")
+        + "| Pass 4 | f | found: 0 | fixed: 0 |\n"
+    )
+    tables, prose, ordered, refusals = crc._ledger_shapes(ledger)
+    assert [len(t) for t in tables] == [3], f"the ledger must stay ONE group: {tables}"
+    assert prose == [] and len(ordered) == 3 and len(refusals) == 1, (prose, ordered, refusals)
+    errs = _graded(tmp_path, ledger)
+    assert any(e.startswith("Pass row refused:") for e in errs), errs
+    assert not any("separate groups" in e for e in errs), errs
+
+
+def test_all_three_readers_report_a_joined_row(tmp_path):
+    """F5 (round-2 D3): the blocking gate, the committed advisory AND the mega grammar. The mega
+    reader bound `refusals` to `_`, so on a mega report the row vanished with no message at all —
+    this file's founding enemy (a hardening that lands in one ledger reader and not its siblings)."""
     d = tmp_path / "docs" / "development" / "reviews"
     d.mkdir(parents=True)
     p = d / "2026-09-09-joined-review.md"
-    p.write_text(HEAD.replace("| Pass 2 | method", "| Pass 8 | method") + joined, encoding="utf-8")
+    body = HEAD.replace("| Pass 2 | method", "| Pass 8 | method") + _joined(*COMMA_PAIR)
+    p.write_text(body, encoding="utf-8")
     assert any(e.startswith("Pass row refused:") for e in crc.check_file(p)), crc.check_file(p)
     subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
     for args in (
@@ -416,6 +488,16 @@ def test_a_line_holding_two_counter_runs_is_refused_not_graded_as_its_first(tmp_
         subprocess.run(["git", "-C", str(tmp_path), *args], check=True)
     advisory = crc._committed_nonquiet(tmp_path, set())
     assert any("refused Pass row" in a for a in advisory), advisory
+    # reader 3 — a mega report carrying the same joined pair
+    h1, h2 = "a" * 32, "b" * 32
+    mega = tmp_path / "2026-09-09-mega-x-validation-review.md"
+    mega.write_text(
+        MEGA.format(h1=h1, h2=h2, c=0)
+        + _joined(f"| 3 | found: 0 | fixed: 0 | {h2} → {h2} |", "| 4 | found: 5 | fixed: 0 | x |"),
+        encoding="utf-8",
+    )
+    errs = crc.check_mega_validation(mega, tmp_path, live=False)
+    assert any(e.startswith("Pass row refused:") for e in errs), errs
 
 
 def test_both_readers_name_the_same_counter_for_a_row_without_confirmed(tmp_path):
