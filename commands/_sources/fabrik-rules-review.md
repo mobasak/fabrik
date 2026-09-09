@@ -135,7 +135,7 @@ the gaps (fixing is a separate, user-authorized step).
 **Record each pass in the run record:** `python3 scripts/command_run.py round --seats <seats dispatched this pass> --findings <n>
 --classes-swept <the packs swept> --classes-new <…>` — where **`<n>` counts gaps NEW or
 RECLASSIFIED this pass, never the standing gap-table size: a standing gap re-listed by a later
-pass is CITED, not counted (D-048), so the stable pass honestly records `--findings 0` and the
+pass is CITED, not counted (D-206), so the stable pass honestly records `--findings 0` and the
 TERMINAL verdict is reachable while real gaps stand** — the round ledger is what proves the stable
 pass, and it is this command's persisted trace: the audit itself is deliberately chat-only (the GAP
 table lands in the final response for the operator to fold into a plan; a READ-ONLY command writes

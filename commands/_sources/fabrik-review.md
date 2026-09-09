@@ -1,5 +1,5 @@
 ---
-description: Adversarial code review of the CHANGED SURFACE (diff/PR/branch) — independent finders → refute false positives → prove & fix with regression guards → LOOP until every Coverage-Checklist class is CLEAN/FIXED/REFUTED and a full fresh round returns found:0·new:0·fixed:0 with every candidate adjudicated (re-raises of adjudicated standing rows cited, not counted; no round cap). TRIGGER — EN: "review this diff", "is this PR safe to merge"; TR: "bu diff'i incele", "bu değişiklikleri gözden geçir" — fires on a changed-surface review, not a whole-repo one. SKIP: whole-repo audits (→ /fabrik-repo-review), rules-pack compliance (→ /fabrik-rules-review), Traycer artifact convergence (→ /fabrik-workflow-review), rendered-UI review (→ /design-review). Stage: gate.
+description: Adversarial code review of the CHANGED SURFACE (diff/PR/branch) — the surface partitioned into disjoint file slices → independent finders → YOU execute every candidate and refutation → fix with regression guards → LOOP in DELTA rounds until every Coverage-Checklist class is CLEAN/FIXED/REFUTED/RECORDED and a delta round with a fresh non-authoring seat returns confirmed:0·fixed:0 (refuted/recorded never count; no round cap). TRIGGER — EN: "review this diff", "is this PR safe to merge"; TR: "bu diff'i incele", "bu değişiklikleri gözden geçir" — fires on a changed-surface review, not a whole-repo one. SKIP: whole-repo audits (→ /fabrik-repo-review), rules-pack compliance (→ /fabrik-rules-review), Traycer artifact convergence (→ /fabrik-workflow-review), rendered-UI review (→ /design-review). Stage: gate.
 argument-hint: "[path, PR number, or git range — omit to review the working-tree/branch diff]"
 ---
 
@@ -8,26 +8,26 @@ first and then DEPTH.
 
 {{include:term-coverage}}
 {{include:grounding-code}}
-## Run record — open it FIRST, keep it current, close it only at the no-op round
+## Run record — open it FIRST, keep it current, close it only at the quiet delta round
 
-This command has **5 phases (0–4)** and exactly one terminal condition, and it has TWO parts that are BOTH required (neither alone is enough — see § Termination): **a full fresh round that
-returns **`found: 0 · new: 0 · fixed: 0`** with every candidate ever raised adjudicated** (a re-raise of an
+This command has **5 phases (0–4)** and exactly one terminal condition, and it has TWO parts that are BOTH required (neither alone is enough — see § Termination): **a DELTA round carrying a fresh
+non-authoring finder seat that returns **`confirmed: 0 · fixed: 0`** with `unexecuted:` 0 or absent, and every candidate ever raised adjudicated** (a re-raise of an
 already-adjudicated STANDING row is cited in its row, never counted — see § Reporting). Open the record before Phase 0 does anything else:
 
 ```bash
 python3 scripts/command_run.py start --command fabrik-review --phases 5 \
   --surface "<what this run is OVER — the spec | plan dir | ticket | diff range>" \
-  --terminal "found:0 no-op round"
+  --terminal "confirmed:0 delta round"
 ```
 
 Then, for the whole run: `step --phase <N> --title "<the phase title>"` on entering each phase, and
 **one `round` call per Phase-4 pass** —
-`python3 scripts/command_run.py round --seats <seats dispatched this pass> --findings <this pass's found count> --classes-swept <the
+`python3 scripts/command_run.py round --seats <seats dispatched this pass> --findings <this pass's RAW candidate count> --confirmed <the candidates you EXECUTED and reproduced> --classes-swept <the
 Coverage-Checklist classes this pass swept CLEAN> --classes-new <classes this pass opened>`.
 The class ledger persists across rounds: **re-sweep it, never re-scope it** — a pass that invents a
-fresh brief is why a review runs 30 rounds instead of 4. When a round sweeps every known class with
-`--findings 0`, `command_run.py` prints the TERMINAL verdict; **only then**
-`done --command fabrik-review --evidence "<the round number + its found:0 · new:0>" --feedback "<what you filed, to whom | none — surfaces exercised>"`. A genuinely stuck
+fresh brief is why a review runs 30 rounds instead of 4. When a round sweeps every known class and
+confirms zero (`--confirmed 0`), `command_run.py` prints the TERMINAL verdict; **only then**
+`done --command fabrik-review --evidence "<the round number + its confirmed:0 · fixed:0 and the fresh seat that read it>" --feedback "<what you filed, to whom | none — surfaces exercised>"`. A genuinely stuck
 review exits via `blocked --command fabrik-review --reason "…" --feedback "<what you filed, to whom | none — surfaces exercised>"` on one of the three sanctioned cases —
 never by simply stopping. **Always name the run you close**: a bare close would end whatever is live,
 which after this review pops back to its CALLER (`/fabrik-execute-plan`) means silently ending the
@@ -138,8 +138,18 @@ that a change re-exposes are in scope).
 
 ## Phase 1 — Independent finders (recall)
 
-Dispatch several independent finder subagents in parallel, **each committing to a DIFFERENT subset of
-failure classes** before seeing the others' results. **Every brief carries the Phase-0 surface digest** (HEAD + `git diff HEAD | md5sum`) **and the instruction to RE-READ the file before concluding**: finders sweep a tree the orchestrator is fixing concurrently, so a finder can read a file mid-edit and CONFIRM a defect the fix already removed (web-ecommerce-factory 2026-09-02: 2 of 5 finders raced the fixer — 01M1HFSR); a finding whose digest differs from the round's is re-verified by the orchestrator against the current tree, never adjudicated from the finder's stale read. **Worker: while the pool is OFF (D-181) both layers are NATIVE** — ≥1 `fabrik-reviewer` on Opus (the authoritative seat, always) plus ONE Sonnet seat per independent failure-class group AND the Haiku mechanical seats the script prints — the group list is the PARTITION and `dispatch_headroom.py --units <groups>` prints the seats — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them — (D-191), never a token 1–2, all dispatched in ONE message; nothing records to the flywheel and no `NO-POOL:` is owed (`check_subagent_flywheel.py` stands down by the same ruling, D-182). The pool-breadth contract follows, commented for re-enable:
+**Run the review-hygiene check on the surface FIRST and fix its hits before the seats go out**
+(D4) — `check_review_hygiene.py`, which sits with the other enforcement checks under
+`scripts/enforcement/`, called with `--surface <the diff's dir|file>` plus, as the round needs them,
+`--receipt <the review file>`, `--phrase "<a phrase the brief calls stale>"` and `--symbol <a symbol
+that should be gone>` — advisory, always exit 0. It owns the grep-shaped classes (template residue,
+fence parity, raw pipes, dual verdicts, changelog quality, dead symbols, stale phrases), so a seat
+is never spent on one; each hit is a CANDIDATE you adjudicate into the ledger as FIXED (a hygiene
+hit fixed at the round's start is a confirmed doc defect of that round and IS counted) or as
+`RECORDED — hygiene false positive (<why>)`. Run it again at the round's close.
+
+Dispatch independent finder subagents in parallel, **each owning a DISJOINT SLICE of the surface**
+(the partition below) and hunting the 16 failure classes over it. **Every brief carries the Phase-0 surface digest** (HEAD + `git diff HEAD | md5sum`) **and the instruction to RE-READ the file before concluding**: finders sweep a tree the orchestrator is fixing concurrently, so a finder can read a file mid-edit and CONFIRM a defect the fix already removed (web-ecommerce-factory 2026-09-02: 2 of 5 finders raced the fixer — 01M1HFSR); a finding whose digest differs from the round's is re-verified by the orchestrator against the current tree, never adjudicated from the finder's stale read. **Worker: while the pool is OFF (D-181) every seat is NATIVE `fabrik-reviewer`, and the surface is PARTITIONED into DISJOINT slices by FILE (D-207)** — **Opus** on the risky slices only (concurrency and locks, record and file formats, fleet-synced paths — `scripts/enforcement/`, `scripts/command_run.py`, the hooks, `templates/governance/` — auth, schema, migrations, secrets handling; a surface with no risky unit still gets ONE Opus seat over its most consequential slice, carved OUT of Sonnet's allocation, never added to it), **Sonnet** on every other code and doc slice, and **at most ONE Haiku class seat** — only when the brief names a judgement-shaped inventory class the hygiene script cannot express; it sweeps that one class across the whole surface and is the only seat that touches a file another seat owns. The union of the Opus and Sonnet slices IS the full pass and **every file is read once** — no file's LOGIC is read by two seats. Size it with `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --slices opus=N,sonnet=N,haiku=N` (SEATS is Σ slices, no floor padding; run it however small the partition), stamp BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them, and dispatch all of them in ONE message. **YOU are never a finder** — you partition, dispatch and adjudicate, and Phase 2 makes you EXECUTE every candidate; that execution is what replaced D-191's Opus re-read of every file. Nothing records to the flywheel and no `NO-POOL:` is owed (`check_subagent_flywheel.py` stands down by the same ruling, D-182). The pool-breadth contract follows, commented for re-enable:
 <!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 never either/or (per `62-using-subagents.md` § Dispatch policy).** The **pool breadth layer is MANDATORY**:
 dispatch cheap pool finders via **`fanout("review", …, mode="read_only")`** in parallel — it picks the
@@ -162,14 +172,27 @@ Opus finder covers the secret-bearing hunks with the secret redacted from its br
 (a diff that is ENTIRELY secret-material → all-native, which every diff is while the pool is OFF; no
 `NO-POOL:` waiver is owed — `check_subagent_flywheel.py` stands down by the same ruling, D-182). The two mechanisms:
 
-- **Claude finders (native · subscription · the authoritative pass):** the **`fabrik-reviewer`** Claude Code agent
-  (`subagent_type: "fabrik-reviewer"`). **Floor — at least one Opus, ALWAYS:** every review dispatches **≥1 native
-  `fabrik-reviewer` on Opus** (`model: "opus"`) as the authoritative pass, **regardless of diff risk** — the pool
-  never runs Opus (no `anthropic/*`), so this native Opus finder is the review's only Opus eyes and pool-only is
-  **not a valid review**. **Add** cheaper native finders for extra recall breadth — **Sonnet** routine, **Haiku**
-  trivial — but the Opus finder is mandatory, not conditional. Recall matters most where a missed bug is expensive.
-- **Breadth seats (native, while the pool is OFF — D-181):** add **ONE native `fabrik-reviewer` seat on Sonnet per independent failure-class GROUP, plus the Haiku mechanical seats `dispatch_headroom.py --units <groups>` prints (D-191 — class-wide when trimmed)** — **all dispatched in ONE message** so they run in parallel with the Opus seat; a seat that returns nothing is a FAILED seat (re-dispatch), never a clean round. Nothing records to the flywheel; no `NO-POOL:` is owed.
-  ⚠️ **The GROUPS come from the failure-class list in Phase 1 (16 classes), never from the Coverage Checklist** — the checklist is the ADJUDICATION ledger, one row per changed FILE plus the standing recurrence rows, and its two axes overlap by construction (a fail-open in file X belongs to both its `Hunt:` row and the `Recurrence: fail-open` row), so one seat per checklist row would violate the independence cap. Collapse the 16 classes into **4–6 groups such that no candidate defect can be claimed by two groups** — e.g. `state/ordering/idempotency` · `error paths + fail direction` · `contract/signature/callers` · `auth/tenant/secrets` · `tests` · `12-Factor/config` — and pass the group count as `--units` — the GROUP count is the PARTITION; `dispatch_headroom.py` prints the seats — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them — (D-191).
+- **The seats (native `fabrik-reviewer`, `subagent_type: "fabrik-reviewer"`, model by the per-dispatch
+  token `model: "opus"|"sonnet"|"haiku"`):** one per SLICE, as partitioned above. A seat that returns
+  nothing is a FAILED seat (re-dispatch), never a clean round. The **16 failure classes are the HUNT
+  LIST every seat carries over its own slice**, not the partition — the partition is by FILE, so two
+  seats never read one file's logic and no candidate is claimed twice. (The Coverage Checklist is the
+  ADJUDICATION ledger — one row per changed FILE plus the standing recurrence rows — and its axes
+  overlap by construction: it is never a seat list.)
+- **Every finder brief carries these lessons VERBATIM (D8 — each one cost a round of the D-191
+  review):** pin dirs are created ONCE before the first dispatch and never touched while seats run ·
+  `git init` inside a `git archive` pin (a bare pin fails through `_repo_root()`) · every
+  `command_run.py` probe sets `COMMAND_RUN_DIR`, `COMMAND_RUN_TRANSCRIPT` and `KAIZEN_EVENTS_DIR` (a
+  test without them writes fabricated rounds under the LIVE sid) · every mutation is applied, tested
+  and restored inside ONE Bash call with an ASSERTED restore (a `trap` across calls is unreliable) ·
+  never bare-grep a tracked path — `git show <sha>:<path>` · Python `time.sleep` in fixture scripts,
+  never a foreground shell sleep · a quote verified against a session transcript filters out the
+  Stop-hook feedback, the skill-invocation payloads and the re-invocation notice (all arrive as
+  `type: user`; a brief's ARGUMENTS text is not the operator's words) and prefilters the raw line by
+  timestamp before parsing (a 793 MB session file parses in under a second that way, ~40 s
+  otherwise) · the Read tool truncates a long file on a token cap with NO marker — read in offset
+  pages and confirm the last line · print a DENOMINATOR beside every count, and the match count
+  beside any grep piped through `cut` · **HARD TIME BOX 15 minutes** · report `MACHINERY:` last.
 <!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 - **OpenRouter finders (the pool — Claude *and* OpenRouter models via one API):** when `libs/subagents/` is
   vendored, dispatch through the pool via **`fanout`** — it replaces the hand-rolled `run_agents`+`AgentSpec`
@@ -257,22 +280,49 @@ carry the full mandates; this is the hunt list:
 | V | `docker exec` to edit code/config in a running container; any runtime code mutation | Releases are **immutable**; the git SHA is the release ID. |
 | II | `subprocess`/`spawn` of a binary (`ffmpeg`, `yt-dlp`, `poppler`, `tesseract`) that is **not installed + pinned in the Dockerfile** | Works in WSL (dev's PATH), `FileNotFoundError` in the container. Vendor the tool + `shutil.which()` probe at startup. |
 
-## Phase 2 — Verify / refute (kill false positives)
+## Phase 2 — EXECUTE every candidate and every refutation (you, never a seat)
 
-Dedup near-duplicates. For each remaining candidate, try to REFUTE it from the code:
-mark REFUTED only when it is provably impossible (quote the type/constant/invariant/
-guard that prevents it), factually wrong (quote the actual line), or already handled in
-this change (cite the guard). Otherwise keep it as CONFIRMED or PLAUSIBLE — do not
-refute something merely for needing a "rare but reachable" state (error handler, cold
-cache, missing optional field, race, falsy-zero, boundary, retry / partial failure,
-lost regex anchor). A defect the code's own author cannot see is exactly what this step
-exists to catch, so do not defer to the implementation's apparent intent.
+Dedup near-duplicates. Then, for each remaining candidate, **CONFIRMED means EXECUTED**: you run a
+probe on a pinned copy, a failing test, or a mutation on a copy that the grader turns red — and for
+a DOC claim, a pinned read of the artifact the doc describes, **quoted beside the sentence**. A
+seat's concrete failure scenario is a claim; your execution is what makes it a defect. **Execute the
+REFUTATION too** — a refutation is proof, not a shrug — and cite the command and its output in the
+candidate's disposition row. This execution is what replaced D-191's Opus re-read of every file, so
+it is not optional and never delegated to a finder.
 
-## Phase 3 — Prove & fix (depth) — every survivor terminates FIXED or REFUTED
+Every candidate lands on ONE of these, and only the first counts toward `confirmed:`:
 
-Every finding that survived Phase 2 — **CONFIRMED and PLAUSIBLE alike** — must reach one of exactly TWO
-terminal states. **There is no third "noted / probably fine / to-watch / deferred" state, and the user does
-NOT accept an unfixed CONFIRMED or PLAUSIBLE finding.**
+- **CONFIRMED** — executed and reproduced. Fix it in THIS round (Phase 3); a confirmed defect is
+  never carried to the next.
+- **REFUTED** — executed and shown false (quote the type/constant/invariant/guard that makes it
+  impossible, or the exact line that makes it factually wrong, beside the command you ran). Do not
+  refute something merely for needing a "rare but reachable" state (error handler, cold cache,
+  missing optional field, race, falsy-zero, boundary, retry / partial failure, lost regex anchor).
+  A defect the code's own author cannot see is exactly what this step exists to catch, so do not
+  defer to the implementation's apparent intent.
+- **`RECORDED — unexecuted (<why>)`** — a ONE-SEAT candidate you could not reproduce. Parentheses,
+  NEVER a colon: a reason beginning with a number ("3 attempts timed out") would otherwise spell the
+  `unexecuted: 3` counter the ledger gate refuses. It is not dropped — it rides the ledger and the
+  `unexecuted:` counter, and an unexecuted CODE candidate on the closing row blocks the exit.
+- **`RECORDED — by design (<the owning row's first-cell id>, round N[; …])`** or **`(D-nnn)`** —
+  reproduced and kept on purpose. The owning row is a receipt row adjudicated in an EARLIER round N
+  (never the round being closed — otherwise the closing round mints its own licence) or a D-row,
+  which needs no round token.
+- **`RECORDED — measured (<why>)`** — executed and shown TRUE but making no code or doc claim (a
+  prevalence figure). It never enters `unexecuted:`.
+- **`RECORDED — hygiene false positive (<why>)`** — a hygiene-script hit you adjudicated false; note
+  it in the round's method cell, never in a counter.
+
+None of the RECORDED forms and no REFUTED reopens the loop (D-206). A candidate you kept but could
+not classify is still CONFIRMED — under ambiguity, execute it.
+
+## Phase 3 — Prove & fix (depth) — every survivor terminates FIXED, REFUTED or RECORDED
+
+Every finding that survived Phase 2 — **CONFIRMED and PLAUSIBLE alike** — must reach one of exactly THREE
+terminal states: FIXED, REFUTED, or one of Phase 2's four `RECORDED — <kind> (<why>)` forms, which are a
+NARROW, grammar-bound disposition the gate reads, not a bucket. **There is no "noted / probably fine /
+to-watch / deferred" state, and the user does NOT accept an unfixed CONFIRMED finding** — a candidate you
+reproduced is FIXED in the round that confirmed it, or it is `RECORDED — by design` with its owning row named.
 
 - **FIXED** — reproduce it with a runnable test/execution FIRST, fix it, keep the test as a regression guard
   (verify red→green). A deliberate design decision that resolves it (e.g. choosing fail-open with a logged
@@ -359,17 +409,37 @@ it does not test logic, so never cite it as proof of correctness.
 
 ## Phase 4 — Converge (the loop — you are here after EVERY pass, not once)
 
-Log the pass you just finished in the **Pass Ledger** (Reporting: its `found`/`fixed` counts), then decide:
+Log the pass you just finished in the **Pass Ledger** (Reporting: its `found`/`confirmed`/`fixed`/`unexecuted` counts), then decide:
 
-- **This pass found or fixed anything** → you are **structurally not done**. Go back to Phase 1 and run a
-  fresh, fully-independent finder round on the updated code (the fixes themselves can introduce defects).
-  Do not skip this because the change was small or "obviously safe" — that judgment is exactly what the
-  next round exists to check.
-- **Every Coverage Checklist row is adjudicated** (CLEAN / FIXED / REFUTED), the last code-changing pass has
-  had its touched classes re-checked, and the mechanical gates are green → **EXIT** (the Termination
-  contract's conditions). This — not an empty pass — is the ONLY thing that ends the review and lets the
+- **Round 1 is the ONLY full partitioned pass. Every round ≥ 2 is a DELTA round.** Its surface is
+  computed, not judged: `git diff <the last round's commit>..HEAD -- <the review's surface>`, PLUS one
+  hop of callers and callees (the files that reference a symbol the diff changed — `serena`
+  `find_referencing_symbols` where the language server is up, else `grep -rn '<symbol>'` — and the
+  tests that import the changed module), PLUS any sibling commit that landed on the original surface
+  since the last round. The brief lists that file set. **Same partition rule** — risky hunks to Opus,
+  the rest to Sonnet, the grep classes to the hygiene script (run at the round's start and close) —
+  and the **class ledger PERSISTS**: a delta round sweeps the classes its diff touches and CITES the
+  classes it did not touch as standing-clean from the last full pass, naming them in the receipt. **A
+  round is never a re-scope**: the brief for a delta round is the fixed class ledger applied to the
+  delta surface.
+- **This pass CONFIRMED anything** → fix it in THIS round, then run the next DELTA round (the fixes
+  themselves can introduce defects, and a fix that creates one is confirmed in that delta round). Do
+  not skip this because the change was small or "obviously safe" — that judgment is exactly what the
+  next round exists to check. A pass that confirmed nothing is quiet however many candidates it
+  raised: refuted and `RECORDED` candidates never reopen the loop (D-206).
+- ⚠️ **The closing delta round ALWAYS carries a fresh, non-authoring finder seat** (Opus if any hunk
+  in the delta is risky, else Sonnet) — the fix diff is YOUR work, and `62-using-subagents.md`
+  § Role separation binds: the loop-closing round's finder pass runs in a context that did not author
+  the artifact. **A delta round that dispatched no finder seat may not close**; the hygiene script and
+  your own execution never close a review alone.
+- **Every Coverage Checklist row is adjudicated** (CLEAN / FIXED / REFUTED / RECORDED), the delta round
+  returned **`confirmed: 0` and `fixed: 0` with `unexecuted:` 0 or absent**, it carried that fresh seat,
+  and the mechanical gates are green → **EXIT** (the Termination
+  contract's conditions). This is the ONLY thing that ends the review and lets the
   caller (e.g. `/fabrik-execute-plan` at a phase boundary) proceed. A finding stuck after 3 fix attempts:
   BLOCKED-escalate it per the contract and keep looping on the rest.
+- **The only other exit is `## BLOCKED: NON-CONVERGENCE`** after three non-decreasing nonzero delta
+  rounds, naming the suspected foundation error. There is no round cap.
 - **No flywheel rows while the pool is OFF (D-181/D-182)** — every seat is native and records nothing; the exit check is the adjudication ledger (every candidate FIXED or REFUTED with proof), never a score back-fill.
 <!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 - **Every pool row this review dispatched is `set_quality`-scored — a round with unscored pool rows is
@@ -381,14 +451,14 @@ Log the pass you just finished in the **Pass Ledger** (Reporting: its `found`/`f
 -->
 
 **The round in which you made a fix is NEVER the last look at the classes it touched.** "I fixed what the
-first pass found" is not an exit — those classes return to UNCHECKED until a fresh round re-adjudicates them.
+first pass found" is not an exit — those classes return to UNCHECKED until the next delta round re-adjudicates them.
 
-**Record the pass before you decide:** `python3 scripts/command_run.py round --seats <seats dispatched this pass> --findings <found> \
+**Record the pass before you decide:** `python3 scripts/command_run.py round --seats <seats dispatched this pass> --findings <raw candidates> --confirmed <executed and reproduced> \
 --classes-swept <classes swept CLEAN this pass> --classes-new <classes this pass opened>`. Its TERMINAL
-verdict — every known class clean, `--findings 0` — is the machine-readable form of the EXIT above, and
+verdict — every known class clean, `--confirmed 0` — is the machine-readable form of the EXIT above, and
 its NON-CONVERGENCE warning names the failure mode this loop actually has: re-scoping instead of
 re-sweeping. Close the run at that verdict with
-`done --command fabrik-review --evidence "round <n> quiet: found:0 · new:0, all adjudicated" --feedback "<what you filed, to whom | none — surfaces exercised>"`.
+`done --command fabrik-review --evidence "round <n> quiet: confirmed:0 · fixed:0, read by <the fresh seat>, all adjudicated" --feedback "<what you filed, to whom | none — surfaces exercised>"`.
 
 ## Behavior Contract test generation — native seats author, you curate (the fix for an untested behavior)
 
@@ -412,46 +482,54 @@ a pass that finds nothing must still enumerate that coverage — an empty pass w
 
 **The artifact carries a `## Per-phase verdicts` section with one `### Phase N — <title>: <verdict>` heading per phase** — `check_convergence.py` keys on a `## Phase`/`## Step` HEADING (its `PHASE` regex), so a per-phase TABLE, however complete, fails the gate (trade-intelligence 2026-09-02: two extra gate runs to learn this — 01M1H64D).
 
-**Both exit proofs live in `docs/development/reviews/YYYY-MM-DD-<scope>-review.md` (created before Pass 1 per the Termination contract; skeleton via `python scripts/review_receipt.py --init --changed <paths> --scope <slug>` — the rubric run, the `Surface:` hash, the standing rows and the ledger/phase shapes, every verdict slot `UNCHECKED` under `Status: IN-PROGRESS`) — the adjudicated Coverage Checklist (every row: verdict + evidence naming the files/paths hunted) AND the numbered Pass Ledger. Chat output is a courtesy copy; the FILE is the review:**
+**Both exit proofs live in `docs/development/reviews/YYYY-MM-DD-<scope>-review.md` (created before Pass 1 per the Termination contract; skeleton via `python scripts/review_receipt.py --init --changed <paths> --scope <slug>` — the rubric run, the `Surface:` hash, the standing rows, the ledger/phase shapes and the `## Residual` section, every verdict slot `UNCHECKED` under `Status: IN-PROGRESS`) — the adjudicated Coverage Checklist (every row: verdict + evidence naming the files/paths hunted), the numbered Pass Ledger AND the `## Residual` rows. Chat output is a courtesy copy; the FILE is the review:**
 
 ⚠️ **A long review's artifact outgrows the Read tool (256 KB) — rotate, never truncate.** When the artifact passes **200 KB**, move the per-round FINDING tables (dispositions, refutations, mirror measurements) older than the last three passes into a sibling `…-review-archive.md` in the same directory and leave one pointer line where they were; the Coverage Checklist, the Pass Ledger, the per-phase verdicts, the Gate and the declared residuals STAY in the head — the exit checks read them there, and a finder's brief points at the head. The archive is not a review artifact: it carries no checklist, and `check_review_coverage.py` skips `*-archive.md`. Measured at web-ecommerce-factory (01M1QT171DPCGA43Q0739WGGNP, 2026-09-05): a 53-round review reached 417 KB / 493 disposition rows, and every finder was reduced to `sed`/`grep` over the document whose central rule is that a bounded search is not a read. Short reviews (5–12 rounds, 40–90 KB) never hit it.
 
 ⚠️ **Concurrent lanes: when the repo gate reds on ANOTHER lane's work, do NOT stamp `IN-PROGRESS` on a loop that actually closed.** `final_gate` has no surface-scoped mode, so on a shared tree "my work is clean" and "the repo is clean" are the same assertion, and a converged surface-scoped review could not honestly embed a success block through no property of the surface reviewed (wef1, `01M1KVAZGNJAXXSB4XFMKPQG0Z` — that repo accumulated four records stuck IN-PROGRESS for this reason, which then read as abandoned loops to `check_review_coverage`). Embed the FAILING gate verbatim and declare the attribution beside it, with its denominator, **on ONE line**: `GATE-SCOPE: out-of-surface — <failing check>; findings naming this surface: 0 of <N>; measured by: <command>` — `<N>` is the failing check's TOTAL findings and must be ≥ 1 (a failing gate with zero findings is a contradiction, and `0 of 0` is refused); the `measured by:` value stays on that line (plain text, a backtick span, or an inline fence; a block fence on the following lines is NOT read as the value, and a hard-wrapped declaration is not a declaration). `check_convergence.py` accepts that pair. A non-zero count is YOUR debt, not another lane's — fix it and re-run.
 
-```
-Pass 1 — method: citation | found: 3 | new: 3 | fixed: 3 | finders: <classes covered> | → not done (changed code)
-Pass 2 — method: citation | found: 2 | new: 1 | fixed: 1 | finders: <classes covered> | → not done (changed code)
-Pass 3 — method: re-derivation | found: 0 | new: 0 | fixed: 0 | finders: <classes covered> | → EXIT (the standing DESIGN-GAP
-                                                   re-raise is CITED in its row, not counted)
+```text
+| Pass 1 | opus×1 + sonnet×3 | found: 5, new: 5, confirmed: 3, fixed: 3, unexecuted: 0 | full partitioned pass; hygiene run at start and close |
+| Pass 2 | sonnet×1 | found: 2, new: 1, confirmed: 1, fixed: 1, unexecuted: 0 | delta over pass 1's fix diff + one hop |
+| Pass 3 | sonnet×1 | found: 1, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | delta, fresh non-authoring seat; classes not touched standing-clean from pass 1 → EXIT |
 ```
 
 Note pass 3: the finder DID re-raise the standing DESIGN-GAP row (an unbuilt endpoint, a missing
-feature the run may not decide) — that re-raise is RECORDED in the disposition ledger row, citing its
-standing adjudication, but **`found:` counts only candidates NEEDING adjudication**, so an
-already-adjudicated re-raise never increments it. This is the ruling that reconciles the loop with its
-graders (2026-08-31): `check_convergence.py`'s QUIET_PASS demands a `found: 0 · fixed: 0` pair and
-`check_review_coverage.py` demands a quiet FINAL row — counting the re-raise made honest termination
-impossible (transdoc, 2026-08-27), while suppressing it would hide a real observation; citing-not-counting
-does neither. `new:` stays the stopped-learning signal.
+feature the run may not decide) — that re-raise is cited in its disposition ledger row, and it is a raw
+candidate, so it shows in `found:`. It closes the loop anyway, because **`found:` is RAW RECALL — the
+seats' reach — and `confirmed:` is the EXIT COUNTER: the candidates you EXECUTED and reproduced**
+(D-206, superseding D-048's "a fresh candidate counts even when refuted"). This is what reconciles the
+loop with its graders: `check_convergence.py`'s QUIET_PASS and `check_review_coverage.py` both read
+`confirmed: 0` with `fixed: 0` and `unexecuted:` absent or 0 on the FINAL row. Counting refutations made
+honest termination impossible (transdoc, 2026-08-27); suppressing them would hide real observations;
+executing and recording them does neither. `new:` stays PROSE on the row — the stopped-learning signal,
+which no grader parses.
 
-You may claim completion **only** when the last row is `found: 0 · new: 0 · fixed: 0` (all three counters ON the row — the graders parse the `found:`/`fixed:` pair and refuse a row without it) from a demonstrably-thorough
-pass, with every candidate ever raised adjudicated. A ledger ending on a row with fresh candidates is an
-unfinished review — run the next pass. A ledger with a single row is only valid if that row is
-`found: 0 · new: 0 · fixed: 0` from a demonstrably-thorough pass.
+You may claim completion **only** when the last row carries `confirmed: 0, fixed: 0` with `unexecuted: 0`
+or absent (`found:` and `fixed:` are also ON the row — the graders refuse a row without that pair), **from a
+DELTA round that carried a fresh non-authoring seat**, with every candidate ever raised adjudicated
+(FIXED / REFUTED / RECORDED). A ledger ending on a row that confirmed anything is an unfinished review —
+run the next delta round. A ledger with a single row is only valid if that row is a demonstrably-thorough
+full pass carrying those counters, read by a seat that did not author the surface.
 
 **Emit a per-finding disposition ledger — this is what makes a skipped finding impossible to hide.** Every
 candidate raised by any finder across all rounds appears as one row ending in exactly ONE terminal state:
-`FIXED` (cite the commit + the regression test) or `REFUTED` (quote the proof). A finding that appears in no
-row — or sits in a "noted / to-watch / residual / accepted" bucket — **is a skipped finding**, the exact
-failure this command exists to prevent. Count them: `N findings → N FIXED + N REFUTED`, and the two must sum.
+`FIXED` (cite the commit + the regression test), `REFUTED` (quote the proof and the command you ran), or one
+of the four `RECORDED — <kind> (<why>)` forms. A finding that appears in no
+row — or sits in a "noted / to-watch / accepted" bucket — **is a skipped finding**, the exact
+failure this command exists to prevent. Count them: `N candidates → N FIXED + N REFUTED + N RECORDED`, and the three must sum.
 
-**"Residual risks" is NOT a parking lot for PLAUSIBLE findings.** It may hold ONLY: (a) pre-existing issues
-this change did not introduce (inherited, genuinely out of scope — say so); (b) findings in code this change
-does not OWN that you EXPLICITLY escalated / upstreamed (name where — e.g. an `UPSTREAM_FEEDBACK.md` entry);
-(c) deliberate, documented design tradeoffs that a FIX decision already resolved. An in-scope CONFIRMED or
-PLAUSIBLE finding **never** belongs here — it goes to FIXED or REFUTED.
+**Every candidate that did not enter `confirmed:` is rowed in the receipt's `## Residual` section**, in that
+same verdict grammar — `RECORDED — by design` names the OWNING row's first-cell id and the EARLIER round that
+adjudicated it (or a `D-nnn` with no round token); the gate refuses an absent owner and a round that is not
+below the closing `Pass N`. That section is NOT a parking lot: nothing enters it un-executed except a
+`RECORDED — unexecuted (<why>)` row, which the closing row's `unexecuted:` counter then holds open.
+Pre-existing issues this change did not introduce, and findings in code this change does not OWN that you
+EXPLICITLY escalated / upstreamed (name where — e.g. an `UPSTREAM_FEEDBACK.md` entry), are rowed there with
+their reason. An in-scope CONFIRMED finding **never** belongs there — it goes to FIXED.
 
-Do NOT claim convergence on your own say-so: convergence = a full independent finder round that **found
-nothing new AND changed nothing** (zero new CONFIRMED **or PLAUSIBLE** findings, zero fixes) **AND** every
-finding ever raised sits at FIXED or REFUTED in the ledger. "I fixed what I found" is not convergence. When
-unsure whether something is a bug, surface it and discharge it — never assume it's fine.
+Do NOT claim convergence on your own say-so: convergence = a DELTA round, read by a fresh non-authoring
+seat, that **CONFIRMED nothing and changed nothing** (`confirmed: 0`, `fixed: 0`, `unexecuted:` 0 or absent)
+**AND** every candidate ever raised sitting at FIXED, REFUTED or RECORDED in the ledger. "I fixed what I
+found" is not convergence, and neither is a round you read yourself. When unsure whether something is a bug,
+surface it and EXECUTE it — never assume it's fine.

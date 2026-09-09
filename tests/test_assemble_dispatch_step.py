@@ -11,7 +11,9 @@ name no Haiku seat: a judgement unit has no grep-able angle.
 from __future__ import annotations
 
 import importlib.util
+import json
 import re
+import subprocess
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -82,8 +84,29 @@ def test_judgement_floors_name_no_haiku_seat_and_review_floors_name_a_class_wide
     # both judgement kinds — dropping "adjudication" from the set reopened F27 unnoticed (round 4)
     adjudication = ac._floor("adjudication", "`fabrik-reviewer`")
     assert "an adjudication unit" in adjudication and "haiku" not in adjudication.lower()
-    assert "one Haiku mechanical seat per INDEPENDENT unit" in review
-    assert "sweeps ONE grep-able class across every unit" in review
+    # D-208: the units-sized mix stays for the sweep/audit/docs-review/review kinds, rephrased
+    # off the retired D-191 literal — one Haiku seat per grep-able CLASS, not per unit.
+    assert "one Haiku mechanical seat per grep-able class the surface has" in review
+    assert "sweeps ONE class across every unit" in review
+    assert "units-sized mix for a review, docs-review, sweep or audit surface" in review
+
+
+def test_the_two_partitioned_review_loops_get_the_slice_floor_and_nothing_else_does():
+    """D-207 gives the partition ONLY to `/fabrik-review` and `/fabrik-repo-review`, through a
+    third `_floor` kind. Graded on the PARAMS table, not on a source list: a fourth command
+    silently switched to the `review loop` kind is exactly the drift this catches."""
+    loop = ac._floor("review loop", "`fabrik-reviewer`")
+    assert "cut into DISJOINT slices by file" in loop
+    assert "--slices opus=N,sonnet=N,haiku=N" in loop
+    assert "every file read once" in loop
+    assert "one Haiku mechanical seat per grep-able class" not in loop
+    slice_floors = sorted(
+        name
+        for name, frags in ac.PARAMS.items()
+        if "cut into DISJOINT slices by file"
+        in (frags.get("subagents-core", {}).get("FLOOR") or "")
+    )
+    assert slice_floors == ["fabrik-repo-review", "fabrik-review"], slice_floors
 
 
 def test_the_native_half_of_a_commands_extra_renders_in_the_live_paragraph(tmp_path):
@@ -128,3 +151,121 @@ def test_a_judgement_floor_span_never_names_a_haiku_seat_in_the_rendered_text(tm
         "fabrik-conformance-review",
     }, seen
     assert offenders == [], offenders
+
+
+# --- V7/V8 (T07) — the retired D-191 seat-mix literal, box-wide -----------------------------
+#
+# D-207 replaced the mix for the two partitioned review loops and D-208 rescoped the units-sized
+# floor for every other command, so the retired sentence must survive NOWHERE that renders or
+# prints. It hid in THREE wordings a line grep cannot see whole: the fragment's, the board
+# banner's two adjacent string literals, and the rotation doc's line-wrapped one — hence the
+# LINE-JOINED, case-insensitive read below, with a printed denominator (never a bare zero).
+
+_RETIRED_LITERALS = (
+    "one sonnet breadth seat and one haiku mechanical seat",
+    "one sonnet + one haiku",
+    # interpolation-tolerant: `_floor()` splits the sentence around `{native}`
+    "breadth seat and one haiku mechanical seat per independent unit",
+)
+
+
+def _joined(text: str) -> str:
+    """Line-joined, lower-cased — a wrapped or interpolated sentence reads as one string."""
+    return " ".join(text.split()).lower()
+
+
+def _v7_surface(tmp_path) -> dict[str, str]:
+    """Every surface the retired literal could still render or print from, keyed by a readable
+    name. `scripts/**/*.py` comes from `git ls-files` — a bare glob walks ~3,200 vendored files
+    under the gitignored `scripts/kilo-benchmarks/.lcb-venv/`."""
+    ac.render(tmp_path, tmp_path / "_skills", agents_dest=tmp_path / "_agents")
+    files: dict[str, Path] = {f"rendered:{f.stem}": f for f in tmp_path.glob("*.md")}
+    for f in (REPO / "commands" / "_sources").glob("*.md"):
+        files[f"source:{f.stem}"] = f
+    tracked = subprocess.run(
+        ["git", "ls-files", "scripts"], cwd=REPO, capture_output=True, text=True, check=True
+    ).stdout.split()
+    for rel in tracked:
+        if rel.endswith(".py"):
+            files[rel] = REPO / rel
+    for f in (REPO / "docs" / "workstation").glob("*.md"):
+        files[f"docs/workstation/{f.name}"] = f
+    for rel in (
+        "commands/_fragments/subagents-core.md",
+        ".windsurf/rules/core/62-using-subagents.md",
+        "CLAUDE.md",
+        "templates/governance/CLAUDE.md",
+        "docs/reference/convergence-prompts.md",
+        "docs/reference/MD/ai-prompt-templates.md",
+    ):
+        files[rel] = REPO / rel
+    return {name: p.read_text(errors="replace") for name, p in files.items()}
+
+
+def test_v7_the_retired_d191_seat_mix_literal_survives_nowhere(tmp_path):
+    surface = _v7_surface(tmp_path)
+    assert len(surface) > 200, len(surface)  # the denominator this zero is measured against
+    rendered = [n for n in surface if n.startswith("rendered:")]
+    assert len(rendered) >= 30, len(rendered)
+    carriers = {
+        lit: sorted(n for n, t in surface.items() if lit in _joined(t)) for lit in _RETIRED_LITERALS
+    }
+    assert all(not v for v in carriers.values()), (
+        f"{sum(len(v) for v in carriers.values())} of {len(surface)} files carry a retired "
+        f"literal: {carriers}"
+    )
+
+
+def test_v7_the_units_sized_mix_keeps_its_scope_words_where_it_is_still_live():
+    """The units-sized mix is NOT deleted — D-208 keeps it for every non-partitioned surface, so
+    the absence check above must not be satisfiable by deleting the sentence. These are its
+    positive controls: the script's own printed sentences and the two convergence docs."""
+    printed = _joined((REPO / "scripts" / "sysadmin" / "dispatch_headroom.py").read_text())
+    assert "units-sized grounding surface" in printed
+    assert not [lit for lit in _RETIRED_LITERALS if lit in printed]
+    for rel in (
+        "docs/reference/convergence-prompts.md",
+        "docs/reference/MD/ai-prompt-templates.md",
+    ):
+        assert "confirmed: 0" in (REPO / rel).read_text(), rel
+
+
+_BANNER_PAYLOAD = {
+    "caps": {"box_cap": 23, "concurrency_cap": 17},
+    "box_caps": {"read_only": 23, "heavy": 12},
+    "box_caps_floored": {"read_only": False, "heavy": False},
+    "siblings": {"seats": 0, "ok": True},
+    "quota": {"ok": True, "active": "a@x", "hottest_pct": 7.0, "eligible": 1},
+}
+
+
+def test_v7_the_rendered_board_banner_carries_no_retired_literal(tmp_path, monkeypatch):
+    """`_budget_probe` swallows every exception into `Box budget unavailable: …`, so the positive
+    control comes FIRST — an absence check against that fallback would pass vacuously."""
+    monkeypatch.setenv("QUOTA_DASH_OUT_DIR", str(tmp_path / "out"))
+    monkeypatch.setenv("QUOTA_DASH_POINTER", str(tmp_path / "active"))
+    src = REPO / "scripts" / "sysadmin" / "quota_dashboard.py"
+    spec = importlib.util.spec_from_file_location(f"qd_v7_{tmp_path.name}", src)
+    qd = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(qd)
+
+    class _Run:
+        stdout = json.dumps(_BANNER_PAYLOAD)
+        returncode = 0
+        stderr = ""
+
+    monkeypatch.setattr(qd.subprocess, "run", lambda args, **kw: _Run())
+    html = qd._budget_probe()
+    assert "Box budget (D-189" in html, html  # positive control: the real banner, not the fallback
+    joined = _joined(html)
+    assert not [lit for lit in _RETIRED_LITERALS if lit in joined], html
+
+
+def test_v8_the_fragments_delta_round_sentence_survives_a_render(tmp_path):
+    """The partition + delta-round rule lives in ONE fragment included by 20 sources; a render
+    that drops it (an EXTRACT/PARAMS mismatch) leaves the two review loops with no seat rule."""
+    ac.render(tmp_path, tmp_path / "_skills", agents_dest=tmp_path / "_agents")
+    live = ac._HTML_COMMENT_RE.sub("", (tmp_path / "fabrik-review.md").read_text())
+    assert "every later round is a DELTA over the fix diff" in live
+    assert "--slices opus=N,sonnet=N,haiku=N" in live

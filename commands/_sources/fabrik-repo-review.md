@@ -1,5 +1,5 @@
 ---
-description: Full-project adversarial code review + fix — discover units → parallel read-only review waves → triage → risk-ordered serial fixes with regression tests → incremental convergence, with a coverage ledger. TRIGGER — EN: "audit the whole repo", "sweep the entire project for bugs"; TR: "tüm repoyu denetle", "projenin tamamını incele" — fires for a whole-repo sweep, not one diff. SKIP: a single diff/PR's changed-surface gate (→ /fabrik-review). Stage: gate.
+description: Full-project adversarial code review + fix — partition the repo into disjoint file slices → parallel read-only review slices → triage → risk-ordered serial fixes with regression tests → incremental convergence, with a coverage ledger. TRIGGER — EN: "audit the whole repo", "sweep the entire project for bugs"; TR: "tüm repoyu denetle", "projenin tamamını incele" — fires for a whole-repo sweep, not one diff. SKIP: a single diff/PR's changed-surface gate (→ /fabrik-review). Stage: gate.
 argument-hint: "[subsystem/dir/risk-tier to scope — omit for the whole repo]"
 ---
 
@@ -40,8 +40,12 @@ and say so.
 
 ## PHASE 1 — PARALLEL ADVERSARIAL REVIEW (read-only)
 
-One reviewer per unit, READ-ONLY — no edits, so parallel workers can't collide. **Scale the
-fan-out to the repo — as many seats as `dispatch_headroom.py` prints for each wave's units, never a token 2–3.** Dispatch the bulk of units as
+One reviewer per SLICE, READ-ONLY — no edits, so parallel workers can't collide. **The repo is cut
+into DISJOINT slices by file and every file is read once (D-207): Opus on the risky slices
+(concurrency and locks, record and file formats, fleet-synced paths, auth, schema, migrations,
+secrets), Sonnet on the rest, at most ONE Haiku class seat when the brief names a non-scriptable
+inventory class — a slice the Opus seat takes is carved OUT of Sonnet's allocation, never added to
+it. Scale the fan-out to the repo — as many seats as `dispatch_headroom.py --slices opus=N,sonnet=N,haiku=N` prints for each slice batch, never a token 2–3.** Dispatch the bulk of slices as
 **native `fabrik-reviewer` seats (Sonnet; Opus for the highest-blast-radius units — each one priced at 5× a Sonnet seat (D-190): name them and count them, never "the risky ones" unbounded) — the pool is OFF, D-181.** A unit touching secret-material paths (`.env` / `.env.*` except `.env.example`, `secrets/`, key files) still goes to the Opus seat with the secret redacted from the brief.
 <!-- POOL OFF (D-181): **`fanout("review", units=[<unit code inlined> …], repo=…, project="repo-review", mode="read_only", max_concurrency=…)`** -->
 <!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
@@ -61,8 +65,8 @@ contains one ships it to a third-party model, and a leaked secret cannot be unle
 per worker (⚠️ never `record_run` — it silently no-ops). **Batch the fan-out in WAVES by
 risk tier (cap concurrency via `max_concurrency`; don't spawn all 20+ at literally once)** —
 -->
-Batch the fan-out in WAVES by risk tier, highest-blast-radius units first — a wave IS a round: `dispatch_headroom.py --units <this wave's units> [--risky <R>] [--mechanical <M>]` → `command_run.py dispatch --seats <n>` → the seats → `round --seats <n> --findings <the raw candidates the wave's seats raised>` with NO `--classes-swept` — a wave's round is a RESERVATION close, never a class-ledger close, so the tool's terminal verdict cannot fire mid-pass (only the pass's final round sweeps classes); each wave's sibling reservation runs on its own clock (a stamp accumulated across waves would expire on the FIRST wave's 25 minutes), and the oscillation advisory is off for this command because per-wave counts rise and fall with the subsystem, not with convergence; the box and the quota cap what is in flight, never a hand-picked number. Each reviewer applies the `/fabrik-review` adversarial
-methodology to its unit PLUS everything it calls / is called by, hunting these failure
+Batch the slices by risk tier, highest-blast-radius first — a slice batch IS a round: `dispatch_headroom.py --slices opus=N,sonnet=N,haiku=N` (SEATS is Σ slices, no floor padding) → `command_run.py dispatch --seats <n>` → the seats → `round --seats <n> --findings <the raw candidates the batch's seats raised>` with NO `--classes-swept` — a batch's round is a RESERVATION close, never a class-ledger close, so the tool's terminal verdict cannot fire mid-pass (only the pass's final round sweeps classes); each batch's sibling reservation runs on its own clock (a stamp accumulated across batches would expire on the FIRST batch's 25 minutes), and the oscillation advisory is off for this command because per-batch counts rise and fall with the subsystem, not with convergence; the box and the quota cap what is in flight, never a hand-picked number. Each reviewer applies the `/fabrik-review` adversarial
+methodology to its slice PLUS everything it calls / is called by, hunting these failure
 classes:
 
 - CORRECTNESS/LOGIC: off-by-one, null/empty/None, idempotency, effective-dating/ordering,
@@ -102,7 +106,7 @@ Return STRUCTURED findings only: `{file:line, failure_class, severity:
 correctness|security|style, reproduction, root-cause, proposed_fix, confidence,
 fabrik_synced: yes/no}`. A unit that finds nothing must still enumerate exactly what it
 inspected (files × failure classes × rule packs) — empty claims without coverage evidence
-don't count. Update the ledger with each unit's coverage as waves complete.
+don't count. Update the ledger with each slice's coverage as the batches complete.
 
 ## PHASE 2 — MERGE, DEDUPE, TRIAGE (you)
 
@@ -149,21 +153,27 @@ don't count as new failures.
 
 After each fix cluster, re-review ONLY the CHANGED surface + its callers/callees (fixes
 create new surface) and update the ledger — do NOT re-run all units from scratch every
-iteration. When the incremental re-reviews stop producing findings, run ONE final,
-demonstrably-thorough FULL certification pass across all in-scope units — a complete re-adjudication of the
-**Coverage Checklist (unit × failure-class × rule-pack)**. You EXIT when, after that pass, **every checklist
-row is adjudicated** (CLEAN / FIXED / REFUTED — the only standing residual being the explicitly-tracked
-deferred backlog) and every class the certification's own fixes touched has been re-checked. If certification
+iteration — those are the DELTA rounds, over the fix diff plus one hop of callers and callees, same
+partition and the same persisting class ledger. When a delta round CONFIRMS zero, run ONE final,
+demonstrably-thorough FULL certification pass across all in-scope slices — a complete re-adjudication of the
+**Coverage Checklist (slice × failure-class × rule-pack)**. You EXIT when, after that pass, **every checklist
+row is adjudicated** (CLEAN / FIXED / REFUTED / RECORDED — the only standing residual being the
+explicitly-tracked deferred backlog) and it **CONFIRMED zero** — a candidate counts only once you
+EXECUTED it and it reproduced; refuted and `RECORDED` candidates never reopen the loop (D-206) — and
+every class the certification's own fixes touched has been re-checked. If certification
 surfaces anything new, adjudicate it (fix, or budget it into the backlog) and re-certify the touched classes
 — with no round ceiling; a finding stuck after 3 fix attempts is BLOCKED-escalated per the Termination
 contract while the rest keeps converging. Do not claim the exit without embedded proof: the adjudicated Coverage Checklist + the verbatim `final_gate.py --json` success
 + each fix's regression test. `check_review_coverage.py` grades the review artifact, and the run
 record's round entries (`command_run.py round`, Stop-hook-enforced) trace the loop — record every
-pass in both; the certification pass's round is the CLASS-LEDGER close — `python3 scripts/command_run.py round --seats <n> --findings <n> --classes-swept <every class in the checklist> --classes-new none` — the only round shape that can print the TERMINAL verdict (a wave's round carries no classes); the embedded proof above is what the operator audits. Run the FULL test suite (pytest and, if a web surface was touched, vitest/tsc)
+pass in both; the certification pass's round is the CLASS-LEDGER close — `python3 scripts/command_run.py round --seats <n> --findings <raw> --confirmed <n> --classes-swept <every class in the checklist> --classes-new none` — the only round shape that can print the TERMINAL verdict (a slice batch's round carries no classes); the embedded proof above is what the operator audits. Run the FULL test suite (pytest and, if a web surface was touched, vitest/tsc)
 — not just the in-scope tests.
 
-**`found` counts every candidate a unit-reviewer RAISED — including ones you drop as false positives in
-triage** (a certification pass that raised 3 and refuted all 3 still re-opens the touched classes). Run every
+**`found` counts every candidate a slice reviewer RAISED — including ones you drop as false positives in
+triage — and `confirmed` counts only the ones you EXECUTED and reproduced.** `confirmed` is the exit
+counter: a certification pass that raised 3 and refuted all 3 CLOSES (`confirmed: 0`), because a
+refutation you executed is knowledge, not an open defect (D-206); a pass that confirms anything fixes
+it in that round and re-opens the touched classes for the next delta round. Run every
 owed pass **UNPROMPTED** — *"already reviewed per-unit," "I triaged them all away," "obviously clean"* each
 mean: run the pass.
 
