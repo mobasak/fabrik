@@ -11,15 +11,17 @@ message). A revert of any rule turns the corresponding row red here, permanently
 
 The corpus tests are pinned to the plan's base SHA with `git ls-tree`/`git show`, never the
 working tree, so the orchestrator's Delta repair of the ONE refused committed row cannot flip
-the measurement afterwards. That row's refusal reaches NO gate output: the T20 receipt carries no
-Coverage Checklist, so it is not `check_file`'s subject and `_committed_nonquiet` skips it — the
-refusal exists at `_ledger_shapes` level only (executed: `check_file` and the advisory are
-byte-identical to the pre-T02 gate on all 275). The repair is hygiene, not a red being cleared.
+the measurement afterwards. THAT FILE's refusal reaches no gate output — the T20 receipt carries no
+Coverage Checklist, so `check_file` returns early and `_committed_nonquiet` skips it (executed:
+both are byte-identical to the pre-T02 gate on all 275) — but the CLASS is not silent: the same
+citation idiom on a receipt that HAS a checklist section is refused by `check_file`, which is why
+its message names the citation repair (round 2).
 """
 
 from __future__ import annotations
 
 import importlib.util
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -153,6 +155,16 @@ REFUSED_BY_TOKEN = [
     ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: <3> |", "silent"),
     ("| Pass 7 | native verifier | found: 0 | fixed: 0 | UNEXECUTED: **2** |", "silent"),
     ("| Pass 7 | native verifier | found: 0 | fixed: 0 | UNEXECUTED: [2] |", "silent"),
+    # ROUND 2 — the class is closed by CHARACTER FAMILY, not by the shapes anyone listed: quotes
+    # (straight and curly), braces, the dash family, `#` and a leading ellipsis were each one
+    # character away from the wrappers round 1 closed, and each graded the row QUIET.
+    ('| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: "3" |', "silent"),
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: \u201c3\u201d |", "silent"),
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: {3} |", "silent"),
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: \u20143 |", "silent"),
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: #3 |", "silent"),
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: ...3 |", "silent"),
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | UNEXECUTED: \u20182\u2019 |", "silent"),
 ]
 
 # The PROSE path: a Pass-headed line the prose arm reads, `_PASS_HEAD` the scope test.
@@ -190,6 +202,7 @@ PARSED_AND_NOT_REFUSED = [
 OUT_OF_THREAT_MODEL = [
     "| 19 | found: 0 | fixed: 0 | CONFIRMED: thirteen defects stand |",
     "| 19 | found: 0 | fixed: 0 | delta — CONFIRMED: see residual |",
+    "| … | delta — CONFIRMED: see residual |",  # the spec's own elision, verbatim
     "| Pass 19 | opus×1 | found: 0, fixed: 0 | delta — CONFIRMED: thirteen defects stand |",
 ]
 
@@ -336,6 +349,25 @@ def test_a_stray_separator_never_splits_a_block_or_hides_a_row() -> None:
     assert _refusals("\n".join(rows)), "the row after a stray separator is still a data row"
     # and standalone as the block's FIRST row — a counter-bearing row is never a header
     assert _refusals("| Pass 19 | opus×1 | found: 0, fixed: 0 | delta (confirmed: 3) |")
+
+
+def test_a_row_with_no_counter_run_gets_the_citation_repair_not_a_counter_one() -> None:
+    """ROUND 2 — the message must be actionable WHERE THE RULE CAN FIRE. The reach (a checklist or
+    disposition row enters scope on a `_TOKEN_LIT` occurrence) is spec-frozen and unchanged; but a
+    row that states no counters cannot act on "write `confirmed:` between `new:` and `fixed:`".
+    Its real repair is one character: `confirmed at :63`."""
+    idiom = (
+        "| (d) labeled evidence | CONFORMS — the code-path set (verifier confirmed :63; :47-53) |"
+    )
+    block = "\n".join(["| intersection | verdict |", "|---|---|", idiom])
+    errs = _refusals(block)
+    assert errs and all("no counter run" in e and "confirmed at :63" in e for e in errs), errs
+    assert not any("between `new:` and `fixed:`" in e for e in errs), errs
+    # the repaired row is silent — the repair the message names actually works
+    assert _refusals(block.replace("confirmed :63", "confirmed at :63")) == []
+    # a row that DOES carry counters still gets the counter-placement repair
+    counters = _embed("| 19 | found: 0 | fixed: 0 | confirmed: 3 |")
+    assert any("`| confirmed: C |`" in e for e in _refusals(counters)), _refusals(counters)
 
 
 def test_the_recorded_dispositions_are_verdicts_not_missing_ones() -> None:
@@ -506,6 +538,33 @@ def test_corpus_the_finders_rule_is_scoped_to_the_new_grammar_by_measurement() -
     assert (graded, unscoped, scoped) == (70, 66, 0)
 
 
+# The V2 cell's items that are NOT fixtures: two symbol names and three code line-references.
+# Every OTHER backticked item in that cell must appear in this file — the executable denominator
+# for "did the suite carry the spec's fixtures", which is how round 1 and round 2 both found
+# missing rows by hand.
+_V2_NON_FIXTURES = {"_pass_counters", "_MEGA_ROW", ":205-210", ":165-166", ":576-581"}
+
+
+def test_the_suite_carries_every_fixture_the_specs_v2_cell_names() -> None:
+    spec = (
+        REPO / "docs/superpowers/specs/2026-09-08-review-convergence-redesign-design.md"
+    ).read_text(encoding="utf-8")
+    cell = spec.splitlines()[232]
+    assert cell.startswith("| V2 |"), cell[:40]
+    items = [i.replace("\\|", "|") for i in re.findall(r"`([^`]+)`", cell)]
+    uniq = list(dict.fromkeys(items))
+    mine = Path(__file__).read_text(encoding="utf-8")
+    # the U+2028 fixture is carried as the LITERAL character, which is the only honest way to
+    # assert what it asserts — the spec spells it `<U+2028>`
+    mine_cmp = mine.replace("\u2028", "<U+2028>")
+    missing = [i for i in uniq if i not in _V2_NON_FIXTURES and i not in mine_cmp]
+    print(
+        f"V2 cell: {len(items)} backticked items, {len(uniq)} unique, "
+        f"{len(_V2_NON_FIXTURES)} non-fixtures, {len(missing)} missing"
+    )
+    assert missing == [], missing
+
+
 # --- the pinned corpus --------------------------------------------------------
 _corpus_cache: list[Path] = []
 
@@ -533,11 +592,11 @@ def _corpus() -> list[Path]:
 def test_corpus_the_token_rule_refuses_exactly_one_committed_row() -> None:
     """FIRE RATE of the token rule over the ledger-block path (the header exempt), pinned at the
     base SHA: 28 in-scope rows / 30 occurrences, of which 27 cells / 29 occurrences are exempt
-    under the carve-out and ONE row is refused — the T20 receipt's verdict cell. That refusal
-    surfaces in NO gate output (the receipt has no Coverage Checklist, so neither `check_file` nor
-    the committed advisory reads it); the orchestrator's Delta repair is hygiene on the live file.
-    A rule that refused the other 27 would be wallpaper; one that refused none would not close the
-    fail-open."""
+    under the carve-out and ONE row is refused — the T20 receipt's verdict cell. In THAT FILE the
+    refusal surfaces in no gate output (it carries no Coverage Checklist, so neither `check_file`
+    nor the committed advisory reads it) and the orchestrator's Delta repair is hygiene; the CLASS
+    does reach `check_file` on any receipt that HAS a checklist section. A rule that refused the
+    other 27 would be wallpaper; one that refused none would not close the fail-open."""
     files = _corpus()
     print(f"receipts examined: {len(files)}")
     rows = occ = exempt_rows = exempt_occ = 0

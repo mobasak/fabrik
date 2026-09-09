@@ -179,6 +179,58 @@ def test_the_closing_row_must_name_its_finder_seats(repo: Path) -> None:
     assert any("carries no `Pass N` head" in e for e in errs), errs
 
 
+def test_v11_is_satisfiable_on_a_prose_ledger(repo: Path) -> None:
+    """ROUND 2 — `_row_cells` returns [] for a prose row, so `len(cells) < 2` made V11 impossible
+    to satisfy there: a prose closing row that NAMED its seats was refused for naming none. The
+    prose ledger is a legal grammar, so its seats are read from the row text before the counters."""
+    out = repo / "r-review.md"
+    assert _init(repo, "--out", str(out), "--changed", "app.py", "new.py").returncode == 0
+    done = _complete(out.read_text(encoding="utf-8"))
+    table = (
+        "| Pass 1 | native opus×1 + sonnet×2 | found: 1, new: 1, confirmed: 1, fixed: 1 "
+        "| citation |\n"
+        "| Pass 2 | native opus×1 + sonnet×2 | found: 0, new: 0, confirmed: 0, fixed: 0, "
+        "unexecuted: 0 | method: re-derivation |\n"
+    )
+    assert table in done
+    seated = done.replace(
+        table,
+        "\nPass 1 (native opus×1 + sonnet×2): found: 1, confirmed: 1, fixed: 1\n"
+        "Pass 2 (native opus×1 + sonnet×2): found: 0, confirmed: 0, fixed: 0 — "
+        "method: re-derivation\n\n",
+        1,
+    )
+    out.write_text(seated, encoding="utf-8")
+    assert crc.check_file(out) == [], crc.check_file(out)
+    # and a prose closing row that names NO seat is still refused, in the prose row's own shape
+    seatless = seated.replace(
+        "Pass 2 (native opus×1 + sonnet×2): found: 0", "Pass 2 (the orchestrator): found: 0", 1
+    )
+    out.write_text(seatless, encoding="utf-8")
+    errs = crc.check_file(out)
+    assert any("names no finder seat before its counters" in e for e in errs), errs
+
+
+def test_a_checklist_row_citing_a_line_is_told_the_citation_repair(repo: Path) -> None:
+    """ROUND 2 — where the citation-idiom refusal CAN fire (a receipt with a checklist section),
+    the message must name an edit the row's author can make."""
+    out = repo / "r-review.md"
+    assert _init(repo, "--out", str(out), "--changed", "app.py", "new.py").returncode == 0
+    done = _complete(out.read_text(encoding="utf-8"))
+    out.write_text(done, encoding="utf-8")
+    assert crc.check_file(out) == []
+    cited = done.replace(
+        "| CLEAN (hunted app.py:1 and new.py:1 with their callers, nothing found) |",
+        "| CLEAN (hunted app.py:1 and new.py:1; verifier confirmed :63; :47-53) |",
+        1,
+    )
+    assert cited != done
+    out.write_text(cited, encoding="utf-8")
+    errs = crc.check_file(out)
+    assert any("confirmed at :63" in e for e in errs), errs
+    assert not any("between `new:` and `fixed:`" in e for e in errs), errs
+
+
 def test_the_surface_anchor_covers_untracked_files(repo: Path) -> None:
     out = repo / "r-review.md"
     r = _init(repo, "--out", str(out), "--changed", "new.py")  # untracked only: git diff is empty

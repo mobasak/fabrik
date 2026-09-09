@@ -631,7 +631,28 @@ def check_file(p: Path) -> list[str]:
     if ordered_rows and not blocked_ok and not _in_progress(text):
         last = ordered_rows[-1]
         closing = _closing_pass_row(ordered_rows)
+        # THE FINDERS TEXT, per grammar (round 2): a table row keeps its second cell; a PROSE row
+        # has no cells at all, so `len(cells) < 2` made V11 UNSATISFIABLE there — a prose closing
+        # row that named `opus×1 + sonnet×2` in its head was refused for naming no seat. The prose
+        # ledger is a legal grammar (the spec parses `Pass 19: found: 0, confirmed: 3, fixed: 0`),
+        # so its seats are read where that grammar writes them: the row text BEFORE the counter
+        # run — the head and its parenthetical.
         cells = _row_cells(last[4])
+        run = _counter_run(last[4])
+        if cells:
+            finders = cells[1] if len(cells) > 1 else ""
+            shape = (
+                "in its finders cell (the second cell) — a round the orchestrator alone read "
+                "cannot close the loop; name the seats by model token (`opus×1`, `sonnet×2`, "
+                "`native opus×1 + sonnet×3`)"
+            )
+        else:
+            finders = last[4][: run[0]] if run is not None else last[4]
+            shape = (
+                "before its counters — a round the orchestrator alone read cannot close the "
+                "loop; name the seats in the row head (`Pass N (native opus×1 + sonnet×2): "
+                "found: …`)"
+            )
         if last[1] is not None and closing is None:
             errs.append(
                 "the closing ledger row states `confirmed:` but carries no `Pass N` head, so it "
@@ -639,16 +660,8 @@ def check_file(p: Path) -> list[str]:
                 "`| Pass N | native opus×1 + sonnet×2 | found: F, new: N, confirmed: C, fixed: X, "
                 "unexecuted: U | method: … |`"
             )
-        elif (
-            last[1] is not None
-            and closing is not None
-            and (len(cells) < 2 or not _MODEL_TOK.search(cells[1]))
-        ):
-            errs.append(
-                f"the closing `Pass {closing[0]}` row names no finder seat in its finders cell "
-                "(the second cell) — a round the orchestrator alone read cannot close the loop; "
-                "name the seats by model token (`opus×1`, `sonnet×2`, `native opus×1 + sonnet×3`)"
-            )
+        elif last[1] is not None and closing is not None and not _MODEL_TOK.search(finders):
+            errs.append(f"the closing `Pass {closing[0]}` row names no finder seat {shape}")
     body = "\n".join(rows)
     missing = [name for name, pat in RECURRENCE.items() if not pat.search(body)]
     if missing:
@@ -1593,22 +1606,41 @@ _NUMERIC_TOK = re.compile(r"(?<![\w-])(?:found|fixed|confirmed|unexecuted)\s*:\s
 # block walk, or a stray separator would split one ledger block into two.
 _SEP_ROW = re.compile(r"[|\-: ]+")
 # A VALUE after the colon — what makes an occurrence a counter attempt rather than a prose label.
-# ⚠️ The leading run of WRAPPERS and sign punctuation is skipped before the digit test (round 1).
-# `^\d` alone exempted `CONFIRMED: **3**` — and `(3)`, `` `3` ``, `_3_`, `-3`, `+3` — as a prose
-# LABEL on an old-grammar row, so a closing row stating three standing defects graded QUIET. The
-# spec puts exactly that wrapper in the threat model for the lowercase form (`**unexecuted: 2**`
-# is REFUSED); a wrapped digit is a value wearing markdown, not a label.
-# ⚠️ AND IT STOPS THERE, measured: a "the value CARRIES a digit anywhere" rule refuses 27 of the
-# 29 exempt occurrences in the 275 committed receipts (their prose cites round numbers —
+# ⚠️ A leading run of WRAPPER and PUNCTUATION characters is skipped before the digit test. `^\d`
+# alone exempted `CONFIRMED: **3**` as a prose LABEL, so a closing row stating three standing
+# defects graded QUIET; the spec puts exactly that wrapper in the threat model for the lowercase
+# form (`**unexecuted: 2**` is REFUSED). A wrapped digit is a value wearing punctuation.
+# THE CLASS IS CLOSED BY CHARACTER FAMILY, not by the shapes anyone happened to think of (round 2:
+# the first cut listed `*_`~([<+-` and left `"3"`, `“3”`, `{3}`, `—3`, `#3`, `...3` green — each
+# one wrapper character away from the shape it had just closed). Markdown emphasis, every bracket,
+# both quote families incl. curly, the dash family incl. en/em, `#`, `.` and `!`.
+# MEASURED over the 275 committed receipts at 8092e8a8 — the widening's OWN measurement, not the
+# one below: 1 refused row before, the SAME 1 after (the T20 citation cell), 27 cells / 29
+# occurrences still exempt. `thirteen defects stand`, `still 2`, `see round 3` and `two MORE
+# anti-cheat errors` are untouched by it.
+# ⚠️ AND THE VALUE TEST STOPS AT THE LEADING RUN, measured separately: a "the value CARRIES a digit
+# ANYWHERE" rule refuses 27 of the 29 exempt occurrences (their prose cites round numbers —
 # `(round 121)`, `3 doc-tracking hits`), and a "digit within the first 12 characters" rule still
-# refuses 3 of them (`round 88's adjacency was necessary but not SUFFICIENT`). Both are wallpaper.
-# So `CONFIRMED: still 2` / `CONFIRMED: see round 3` after an ALL-CAPS label stay in the same
-# residual the spec already accepts for `CONFIRMED: thirteen defects stand` — the operator's eye's
-# job, named in this ticket's report rather than closed with a rule that fires on honest prose.
-_VALUEISH = re.compile(r"^[\s*_`~([<+-]*(?:\d|n\s*/\s*a\b)", re.I)
+# refuses 3 (`round 88's adjacency was necessary but not SUFFICIENT`). Both are wallpaper, so
+# `CONFIRMED: still 2` / `see round 3` stay in the residual the spec already accepts for
+# `CONFIRMED: thirteen defects stand` — the operator's eye's job.
+# ⚠️ THE KNOWN FAIL-CLOSED RESIDUAL, on the other side: `CONFIRMED: (3 rows re-read, all clean)` —
+# an honest digit-led parenthetical after an ALL-CAPS label — IS refused. That is the spec's own
+# line ("a non-lowercase literal followed by a digit, anywhere on the row — refused by name"), and
+# it occurs 0 times in the 275 receipts; the repair is to move the count out of the lead.
+_VALUEISH = re.compile(r"^[\s*_`~([<{+\-#\"'“”‘’–—.!]*(?:\d|n\s*/\s*a\b)", re.I)
 _REPAIR_CELL = (
     "write `| confirmed: C |` between `found:` and `fixed:`, one counter per cell, no `new:` "
     "cell, no wrapper"
+)
+# The repair for a row that carries NO counter run at all — a checklist or disposition row that
+# CITES a line (`(verifier confirmed :63; :47-53)`). Telling its author to "write `confirmed:`
+# between `new:` and `fixed:`" names counters the row does not have and never will; the real edit
+# is one character. The REACH that lets such a row be refused at all is spec-frozen and filed for
+# the plan-review adoption — this changes the message, never the scope.
+_REPAIR_CITE = (
+    "this row carries no counter run — it CITES a line; drop the colon after the word "
+    "(`confirmed at :63`, never `confirmed :63`), or fence the citation"
 )
 _REPAIR_PASS = (
     "write `confirmed:` between `new:` and `fixed:` inside the counter cell — inside the "
@@ -1701,7 +1733,12 @@ def _row_refusals(line: str) -> list[str]:
     out: list[str] = []
     snippet = line.strip()[:90]
     spans, cell_path, resolved = _consumed_counters(line)
-    repair = _REPAIR_CELL if cell_path else _REPAIR_PASS
+    # A row with no counter run states no counters: neither counter-placement repair can be acted
+    # on there, so it gets the citation repair instead (round 2).
+    if _counter_run(line) is None:
+        repair = _REPAIR_CITE
+    else:
+        repair = _REPAIR_CELL if cell_path else _REPAIR_PASS
     # THE COUNTER RULE (both grammars): `unexecuted:` captured with no `confirmed:`. Without it
     # `| u | x | found: 0 | fixed: 0 | unexecuted: 2 |` reads old-grammar QUIET with two
     # unexecuted candidates standing — the fail-open on the one counter the redesign added to

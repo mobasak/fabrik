@@ -305,9 +305,11 @@ def test_corpus_every_committed_receipt_parses_and_grades_exactly_as_it_did_at_t
         # T20 receipt's verdict cell, `(verifier confirmed :63; :47-53)` — measured at 28 in-scope
         # rows / 30 occurrences, 27 cells exempt, in
         # `tests/enforcement/test_review_refusals.py::test_corpus_the_token_rule_refuses_exactly_
-        # one_committed_row`. It is a `_ledger_shapes`-level refusal and NOTHING ELSE: that receipt
-        # carries no Coverage Checklist, so `check_file` returns early and `_committed_nonquiet`
-        # skips it — the `errs`/advisory comparisons below stay byte-identical. The pin is at
+        # one_committed_row`. In THIS FILE it reaches no gate output — the receipt carries no
+        # Coverage Checklist, so `check_file` returns early and `_committed_nonquiet` skips it, and
+        # the `errs`/advisory comparisons below stay byte-identical. That is a fact about this
+        # receipt, NOT about the rule: the same idiom on a receipt with a checklist section is
+        # refused by `check_file` (with the citation repair). The pin is at
         # BASE_SHA by design, so the hit stands here forever and is allowed BY NAME AND COUNT
         # rather than by weakening either rule. Every other receipt still asserts a clean parse.
         expected = [T02_TOKEN_ROW_REFUSAL] if p.name == T02_TOKEN_ROW else []
