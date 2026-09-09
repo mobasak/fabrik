@@ -197,9 +197,11 @@ REFUSED_BY_TOKEN = [
     ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: \u2162 |", "silent"),
     ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: \u00bd |", "silent"),
     ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: \u0663 |", "silent"),
-    # the WRAPPER-ONLY class, declared: a label whose value is punctuation states nothing. This
-    # one was EXEMPT through round 3 and is refused now — the widening is deliberate, and it
-    # costs 0 rows over the 275 receipts.
+    # ⚠️ CHARACTERIZATION GUARDS, not round-4 proof: `—` (the wrapper-only class), `٣` and `½`
+    # were ALREADY refused at 08b588d5 — measured, after the round-4 report claimed `—` was a
+    # deliberate widening and the claim turned out executed-false. The other 8 fixtures above
+    # (`✓3`, `©3`, `°3`, `$3`, `€3`, `£3`, the combining mark, `Ⅲ`) are the round-4 red-on-base
+    # set; these three pin behaviour the complement rule must not lose.
     ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: \u2014 |", "silent"),
 ]
 
@@ -490,14 +492,23 @@ def test_the_citation_repair_never_fabricates_a_line_reference() -> None:
         assert errs, cell
         assert not any(forbidden in e for e in errs), (cell, errs)
         assert all("otherwise reword the label without a colon" in e for e in errs), errs
-    # a REAL line reference is still named, and a range is one too
+    # a REAL line reference is still named, and a range is one too. ROUND 5: a citation ENDING A
+    # SENTENCE (`:63.`) is one as well — round 4's `(?![\\w.-])` lookahead excluded the full stop
+    # and silently regressed it to the generic message, which 08b588d5 did not do.
     for cell, shown in (
         ("| F4 | the probe table (2 probes unexecuted :12) |", "`unexecuted at :12`"),
         ("| F5 | the code-path set (verifier confirmed :47-53) |", "`confirmed at :47-53`"),
+        ("| F7 | the code-path set (verifier confirmed :63.) |", "`confirmed at :63`"),
+        ("| F8 | the probe table (verifier confirmed :63;) |", "`confirmed at :63`"),
     ):
         block = "\n".join(["| id | note |", "|---|---|", cell])
         errs = _refusals(block)
         assert errs and all(shown in e for e in errs), (cell, errs)
+    # DECLARED generic on purpose: an unfinished range, and a label whose own colon is the defect
+    for cell in ("| F9 | (verifier confirmed :63-) |", "| F10 | the finder confirmed: :63 |"):
+        block = "\n".join(["| id | note |", "|---|---|", cell])
+        errs = _refusals(block)
+        assert errs and all("otherwise reword the label without a colon" in e for e in errs), errs
     # a row carrying BOTH tokens shows the FIRST and says so
     both = "| F6 | verifier confirmed :63 and 2 probes unexecuted :12 |"
     block = "\n".join(["| id | note |", "|---|---|", both])

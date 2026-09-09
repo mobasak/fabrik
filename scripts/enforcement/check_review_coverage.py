@@ -1615,14 +1615,19 @@ _SEP_ROW = re.compile(r"[|\-: ]+")
 # THE RULE: strip the leading run of every character that is neither a LETTER (`str.isalpha()`)
 # nor NUMERIC (`str.isnumeric()`), then read what is left —
 #   numeric first  -> a VALUE, refused. `isnumeric()` is Nd ∪ Nl ∪ No in one predicate, so `３`,
-#                     `٣`, `³`, `½` and `Ⅲ` are all values; the separate `No` branch it replaces
-#                     was never exercised by a fixture `isdigit()` did not already cover (a
-#                     round-4 mutant survived on it — the branch was untested, so it is gone).
+#                     `٣`, `³`, `½` and `Ⅲ` are all values. Of those only `Ⅲ` (Nl) is NEW at
+#                     round 4 — `٣`, `³` and `½` were already values at 08b588d5 (`isdigit()`
+#                     covers Arabic-Indic digits; the retired `No` branch covered the fractions),
+#                     so their fixtures are CHARACTERIZATION guards, not proof of this change.
+#                     The `No` branch is gone because no fixture exercised anything `isdigit()`
+#                     did not already cover — a round-4 mutant survived on it.
 #   letter first   -> PROSE, exempt — unless the tail is `n/a`.
-#   nothing left   -> a VALUE, refused. ⚠️ DECLARED: this is the WRAPPER-ONLY class, and it is a
-#                     deliberate widening. `CONFIRMED: —` was exempt through round 3 and is
-#                     refused now; a label whose value is punctuation states nothing, and the
-#                     class costs 0 rows over the corpus (see the figure below).
+#   nothing left   -> a VALUE, refused. This is the WRAPPER-ONLY class: a label whose value is
+#                     punctuation states nothing. ⚠️ NOT a round-4 widening — round 3's own
+#                     `if not tail: return True` already refused it, and the claim that
+#                     `CONFIRMED: —` "was exempt through round 3" was executed-false when it was
+#                     checked (`_valueish("—")` returns True at 08b588d5). Round 4 made the class
+#                     CATEGORICAL, not new; it costs 0 rows over the corpus either way.
 # Currency lands on the REFUSED side (`CONFIRMED: $3`) by the spec's own words — "a non-lowercase
 # literal followed by a digit, anywhere on the row — refused by name"; the symbol is a wrapper
 # like any other.
@@ -1669,7 +1674,14 @@ _REPAIR_PASS = (
 # the fix holds |` was told to write `confirmed at :the` and `unexecuted: pending operator` got
 # `unexecuted at :pending` — a fabricated citation, which is worse than a generic message because
 # it looks specific. A line reference is digits, optionally a range.
-_CITE_REF = re.compile(r"(\d+(?:-\d+)?)(?![\w.-])")
+# ⚠️ The lookahead excludes word characters and a hyphen, NOT a full stop: round 4's `(?![\w.-])`
+# made `(verifier confirmed :63.)` — a citation ENDING A SENTENCE — fall to the generic message,
+# a regression against 08b588d5 which gave it the specific repair (`:63;`, `:63,` and `:63)` kept
+# it). A dot may follow a line number; `:6a` stays generic because `6a` is not one.
+# ⚠️ DECLARED, both generic on purpose: a trailing bare hyphen (`:63-`) is an unfinished range,
+# and `confirmed: :63` (colon, space, colon) is a label whose own colon is the defect — the
+# generic message ("reword the label without a colon after it") is the right advice for both.
+_CITE_REF = re.compile(r"(\d+(?:-\d+)?)(?![\w-])")
 
 
 def _cite_repair(line: str, occ: re.Match[str], more: bool) -> str:
