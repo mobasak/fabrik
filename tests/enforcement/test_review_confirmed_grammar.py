@@ -440,6 +440,14 @@ def test_a_row_that_merely_cites_another_round_is_not_a_joined_row(tmp_path):
     _t, _p, ordered, refusals = crc._ledger_shapes(citing)
     assert refusals == [], refusals
     assert [r[:4] for r in ordered] == [(1, None, 1, None)], ordered
+    # the CELL-OPENING twin (round-3 D1): `_CELL_FOUND` had neither `_FOUND_TOK`'s stand-alone
+    # guard nor a head requirement, so any two cells merely BEGINNING `found: <digit>` tripped
+    # the cell-anchored branch — this honest row was refused where the base gate saw 0 errors
+    cell_citing = "| Pass 3 | o | found: 0 | fixed: 0 | found: 3 was the round-3 number |\n"
+    _t, _p, ordered3, refusals3 = crc._ledger_shapes(cell_citing)
+    assert refusals3 == [], refusals3
+    assert [r[:4] for r in ordered3] == [(0, None, 0, None)], ordered3
+    assert _graded(tmp_path, cell_citing) == [], _graded(tmp_path, cell_citing)
     prose_citing = "Pass 3: found: 0, fixed: 0 — same as Pass 2\n"
     _t, _p, ordered2, refusals2 = crc._ledger_shapes(prose_citing)
     assert refusals2 == [] and [r[:4] for r in ordered2] == [(0, None, 0, None)], (
@@ -468,6 +476,24 @@ def test_a_joined_line_mid_ledger_leaves_the_table_as_one_group(tmp_path):
     errs = _graded(tmp_path, ledger)
     assert any(e.startswith("Pass row refused:") for e in errs), errs
     assert not any("separate groups" in e for e in errs), errs
+
+
+def test_a_line_with_no_first_run_is_not_joined_and_still_ends_its_table(tmp_path):
+    """Round-3 D2, the same root as D1 seen from the other side. `| stage | found: 3 issues |
+    found: 4 issues |` matched the unguarded cell opening twice, so it emitted a refusal while
+    `_first_run` returned None — nothing was kept AND the `continue` skipped the table flush, so
+    two adjacent ledgers merged into ONE group and the multi-group guard was disarmed, against
+    this file's own "never silently dropped" contract. Both detectors are subsets of
+    `_FOUND_TOK` now; a line with no first run simply is not joined and takes the ordinary path."""
+    stage = "| stage | found: 3 issues | found: 4 issues |\n"
+    _t, _p, ordered, refusals = crc._ledger_shapes(stage)
+    assert refusals == [] and ordered == [], (refusals, ordered)
+    sandwich = (
+        "| Pass 1 | f | found: 0 | fixed: 0 |\n" + stage + "| Pass 2 | f | found: 0 | fixed: 0 |\n"
+    )
+    tables, prose, ordered2, refusals2 = crc._ledger_shapes(sandwich)
+    assert [len(t) for t in tables] == [1, 1], f"the table boundary must survive: {tables}"
+    assert prose == [] and len(ordered2) == 2 and refusals2 == [], (prose, ordered2, refusals2)
 
 
 def test_all_three_readers_report_a_joined_row(tmp_path):

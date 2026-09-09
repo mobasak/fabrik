@@ -1177,8 +1177,12 @@ _ROW_LEAD = re.compile(r"^\s*" + _LIST_MARK + r"\s*")
 _PASS_HEAD_TOK = re.compile(r"(?<![\w-])\**Pass\s*\d", re.I)
 # The cell-anchored equivalent: two `| found:` CELL openings on one line (a joined pair of
 # cell-anchored rows carries no Pass head at all). A citing cell (`| the round-3 row said
-# found: 3 |`) does not open with the counter, so it is not one.
-_CELL_FOUND = re.compile(r"\|\s*\**found:\s*\d")
+# found: 3 |`) does not open with the counter, so it is not one — and the opening carries
+# `_FOUND_TOK`'s OWN stand-alone guard, without which any cell merely BEGINNING `found: <digit>`
+# counted: `| Pass 3 | o | found: 0 | fixed: 0 | found: 3 was the round-3 number |` was refused
+# as joined, the cell-opening twin of the citing-row false positive. The guard also makes this
+# set a SUBSET of `_FOUND_TOK`, so a line this branch calls joined always has a first run.
+_CELL_FOUND = re.compile(r"\|\s*\**found:\s*\d+(?!\s*\w)")
 
 
 def _joined_row(line: str) -> bool:
@@ -1188,7 +1192,11 @@ def _joined_row(line: str) -> bool:
     split at a line-ish character, and `_MEGA_ROW` is LAZY — it would match the FIRST run and
     lose the second, grading a receipt quiet off its own first half. Both grammars' shapes are
     covered (a Pass-headed pair, and a cell-anchored pair with no head at all), on the
-    list-marker-stripped text so a bulleted row is read like a bare one.
+    list-marker-stripped text so a bulleted row is read like a bare one. A row that both NAMES
+    another round and cites its counter (`| Pass 4 | … | re-ran as Pass 3 | found: 3 |`) is
+    refused as joined — the adjudicated fail-CLOSED choice: it is indistinguishable from a real
+    join, and fencing the citation is a one-keystroke repair while a missed join grades a
+    receipt quiet off its own first half.
     """
     body = _ROW_LEAD.sub("", line, count=1)
     if len(_PASS_HEAD_TOK.findall(body)) >= 2 and len(_FOUND_TOK.findall(body)) >= 2:
@@ -1416,13 +1424,17 @@ def _ledger_shapes(
             # of a decoy ledger). Every shape is covered here, not just the one `_MEGA_ROW`
             # happens to match: the comma-run table form and the prose form parse under
             # `_pass_counters`, which refuses two `found:` tokens, so they were SILENT.
-            if _joined_row(line):
+            # ⚠️ The KEPT ROW IS THE PRECONDITION, not a nicety: a "joined" line with no first
+            # run would refuse, keep nothing AND skip the flush below — silently dropped, with
+            # two adjacent tables merged into one group and the multi-group guard disarmed. Both
+            # detectors are subsets of `_FOUND_TOK` now, so this cannot happen; when it does the
+            # line is simply NOT joined and takes the ordinary path.
+            joined = _first_run(line) if _joined_row(line) else None
+            if joined is not None:
                 refusals.append(f"{_JOINED_REASON}{line.strip()[:90]}")
-                pair = _first_run(line)
-                if pair is not None:
-                    row = (pair[0], None, pair[1], None, line)
-                    current.append(row)
-                    ordered.append(row)
+                row = (joined[0], None, joined[1], None, line)
+                current.append(row)
+                ordered.append(row)
                 continue
             m = _MEGA_ROW.match(line)
             pc = _pass_counters(line) if m is None else None
@@ -1448,15 +1460,14 @@ def _ledger_shapes(
                 tables.append(current)
                 current = []
             pc = _pass_counters(line)
-            if _joined_row(line):
+            joined = _first_run(line) if _joined_row(line) else None
+            if joined is not None:
                 # the same refusal on the prose path — `Pass 9: … <U+2028>Pass 10: …` is one
                 # physical line to every reader here, and `_pass_counters` refuses it silently
                 refusals.append(f"{_JOINED_REASON}{line.strip()[:90]}")
-                pair = _first_run(line)
-                if pair is not None:
-                    row = (pair[0], None, pair[1], None, line)
-                    p_run.append(row)
-                    ordered.append(row)
+                row = (joined[0], None, joined[1], None, line)
+                p_run.append(row)
+                ordered.append(row)
             elif pc:
                 row = _ext_row(line, pc, refusals)
                 p_run.append(row)
