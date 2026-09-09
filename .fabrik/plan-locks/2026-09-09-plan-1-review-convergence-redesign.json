@@ -104,11 +104,12 @@
       "commit": "5559fdcf"
     },
     "T06": {
-      "state": "merging",
+      "state": "merged",
       "base_commit": "bd58e5c0",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a8c5edb8cd1086193",
       "branch": "worktree-agent-a8c5edb8cd1086193",
-      "head": "08371cb5"
+      "head": "08371cb5",
+      "commit": "0fc15cae"
     },
     "T08": {
       "state": "fixup3-pending",
