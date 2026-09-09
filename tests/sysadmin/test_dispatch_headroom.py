@@ -1058,12 +1058,12 @@ def test_json_carries_slices_and_mix_by_slice_beside_every_key_it_carries_today(
     assert d["seats"] == 2
 
 
-def test_the_wording_names_a_units_sized_grounding_surface_never_the_retired_phrasing(
-    monkeypatch, capsys
-):
+def test_the_wording_names_the_mechanical_angle_never_the_retired_phrasing(monkeypatch, capsys):
     """The module docstring, `full_mix()`'s and `_mix_story()`'s (`_mix_story`'s no longer quotes
     the retired literal) never carry "one Sonnet breadth seat AND one Haiku mechanical seat" or
-    "one Sonnet + one Haiku"; the two printed sentences carry "units-sized grounding surface"."""
+    "one Sonnet + one Haiku". And the printed label names the surface this mix is FOR: "grounding"
+    is the governance term for a judgement surface — the very case the rule orders `--mechanical 0`
+    for — so calling the DEFAULT (mechanical) mix a grounding surface collided with it (T06)."""
     joined = " ".join(
         [dh.__doc__ or "", dh.full_mix.__doc__ or "", dh._mix_story.__doc__ or ""]
     ).lower()
@@ -1080,17 +1080,21 @@ def test_the_wording_names_a_units_sized_grounding_surface_never_the_retired_phr
     out_units = capsys.readouterr().out.lower()
     assert "one sonnet breadth seat and one haiku mechanical seat" not in out_units
     assert "one sonnet + one haiku" not in out_units
-    assert "units-sized grounding surface" in out_units
-    # the "MAXIMUM useful mix" printed sentence (:606 historically)
+    assert "units-sized surface with a mechanical angle" in out_units
+    assert "units-sized grounding surface" not in out_units  # it HAS a mechanical angle
+    # the "MAXIMUM useful mix" printed sentence (:606 historically) — `--mechanical 0` IS the
+    # grounding/judgement surface the governance texts name, and keeps the word
     assert dh.main(["--units", "2", "--mechanical", "0"]) == 0
     out_mech0 = capsys.readouterr().out.lower()
     assert "units-sized grounding surface" in out_mech0
+    assert "units-sized surface with a mechanical angle" not in out_mech0
     assert "one sonnet + one haiku" not in out_mech0
     # the --slices story prints the partition, not the units-sized sentence
     assert dh.main(["--slices", "opus=1,sonnet=1"]) == 0
     out_slices = capsys.readouterr().out.lower()
     assert "orchestrator-computed partition" in out_slices
     assert "units-sized grounding surface" not in out_slices
+    assert "units-sized surface with a mechanical angle" not in out_slices
     assert "one sonnet + one haiku" not in out_slices
     assert "one sonnet breadth seat and one haiku mechanical seat" not in out_slices
 

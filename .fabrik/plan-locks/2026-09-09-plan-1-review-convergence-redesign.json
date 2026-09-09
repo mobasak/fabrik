@@ -113,18 +113,29 @@
       "commit": "0fc15cae"
     },
     "T08": {
-      "state": "review-round5",
+      "state": "merged",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-a639659c92152423a",
       "branch": "worktree-agent-a639659c92152423a",
       "base_commit": "5559fdcf",
-      "head": "d93f3824"
+      "head": "d93f3824",
+      "commit": "e007a3f2"
     },
     "T07": {
-      "state": "fixup1-pending",
+      "state": "review-closed-awaits-T10-code-merge",
       "base_commit": "0fc15cae",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-ad7144e53b2348934",
       "branch": "worktree-agent-ad7144e53b2348934",
-      "head": "1221d4c0"
+      "head": "c49f389e"
+    },
+    "T10": {
+      "state": "code-merged",
+      "base_commit": "e007a3f2",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-abc469fc23e742303",
+      "branch": "worktree-agent-abc469fc23e742303",
+      "head": "9a4d839d",
+      "rounds": 3,
+      "series": "28 \u2192 15 \u2192 7 candidates; 6 \u2192 3 \u2192 0 confirmed",
+      "integration": "pending: D-191 flip, docs review, dry-run gate, forced sync, receipt CONVERGED"
     }
   },
   "merge_order_note": "T08 and T10 (code) land before T07: the commands render box-wide and order round --confirmed and the hygiene script; the Integration acts of T10 (D-191 flip, docs review, dry run, forced sync) stay last"

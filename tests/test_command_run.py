@@ -3070,21 +3070,25 @@ def test_a_siblings_dirty_midloop_report_cannot_veto_a_committed_converged_close
     assert r.returncode == 0, r.stdout + r.stderr
 
 
-def test_terminal_verdict_names_the_full_sweep_condition_and_oscillation_names_both_diagnoses():
+def test_terminal_verdict_names_the_delta_round_rule_and_oscillation_names_both_diagnoses():
     """01M1GYB7 (trade-intelligence ×3) + 01M1H7ZQ item 4 (youtube): the TERMINAL line fired on a
     SCOPED round and agents closed two rounds early; the oscillation line diagnosed re-scoping on a
-    loop whose ledger was identical every round. The verdicts now state their own precondition."""
+    loop whose ledger was identical every round. The verdicts state their own precondition — and
+    D-206/D-207 REPLACED the full-sweep one: round 1 is the only full pass, every later round is a
+    DELTA over the fix diff, and it closes when it carried a fresh non-authoring finder seat."""
     spec = importlib.util.spec_from_file_location("cr_wording", _SCRIPT)
     cr = importlib.util.module_from_spec(spec)
     assert spec.loader
     spec.loader.exec_module(cr)
     rec = {
         "command": "fabrik-review",
-        "rounds": [{"findings": 0, "swept": ["a"]}],
+        "rounds": [{"findings": 3, "confirmed": 0, "swept": ["a"]}],
         "classes": {"a": "clean"},
     }
     text = cr._round_report(rec)
-    assert "FULL fresh sweep" in text and "scoped round never closes" in text
+    assert "CONFIRMED 0 defects" in text and "delta round" in text.lower(), text
+    assert "non-authoring" in text and "standing-clean" in text, text
+    assert "FULL fresh sweep" not in text and "scoped round never closes" not in text, text
     warn = cr.convergence_warning([9, 15, 10, 6, 4, 9, 9], "fabrik-review")
     assert "RE-SCOPING" in warn and "ledger was IDENTICAL" in warn
 
@@ -3785,3 +3789,303 @@ def test_the_scratch_advisory_never_runs_under_the_record_lock(
         f"a writer waited {elapsed:.2f}s — the advisory is holding the record lock (pristine "
         "measures 0.17 s; the in-lock mutant measures 1.45 s)"
     )
+
+
+# ── T10 (spec D7/DD8/V3, plan 2026-09-09-plan-1-review-convergence-redesign): `round --confirmed
+# <n>` is the EXIT counter. Quiet is zero CONFIRMED code or doc defects (D-206/D-203), never zero
+# raised — a refuted or recorded candidate never reopens the loop, so `--findings` (the RAW
+# candidates a pass raised) can no longer be the test. Backward compatibility is a contract
+# (DD4): `command_run.py` is a fleet-synced RUN_SCRIPT, so a record whose rounds never state
+# `--confirmed` closes on the old `--findings 0` rule, unchanged. ─────────────────────────────
+
+
+def test_confirmed_zero_with_every_class_swept_is_terminal(run_dir: Path) -> None:
+    """The counter that closes the loop is CONFIRMED, and it closes even with raw candidates
+    still raised — the whole point of D-206: 7 candidates, none reproduced, is a quiet round."""
+    _start(run_dir)
+    _cr(run_dir, "round", "--findings", "11", "--confirmed", "3", "--classes-new", "auth,races")
+    final = _cr(
+        run_dir, "round", "--findings", "7", "--confirmed", "0", "--classes-swept", "auth,races"
+    )
+    assert "TERMINAL" in final.stdout, final.stdout
+
+
+def test_confirmed_zero_without_a_swept_class_is_not_terminal(run_dir: Path) -> None:
+    """An empty ledger can never be terminal — the class sweep is a conjunct, not a fallback."""
+    _start(run_dir)
+    r = _cr(run_dir, "round", "--confirmed", "0")
+    # rc + the recorded value, not just the absent banner: on the pre-flag script `--confirmed`
+    # exits 2 with empty stdout, which satisfies a bare "TERMINAL not in stdout" (review round 1)
+    assert r.returncode == 0, r.stderr
+    assert "TERMINAL" not in r.stdout, r.stdout
+    assert _rec(run_dir)["rounds"][-1]["confirmed"] == 0, _rec(run_dir)["rounds"][-1]
+
+
+def test_a_stated_nonzero_confirmed_never_closes_the_loop(run_dir: Path) -> None:
+    """A round that CONFIRMED something is never the closing row, whatever it swept (D-206). The
+    sharper discriminator — `--findings 0 --confirmed 2` — is now an INVALID input: review round 1
+    made `confirmed > findings` a refusal, so this asserts the same rule on a legal row."""
+    _start(run_dir)
+    _cr(run_dir, "round", "--findings", "4", "--confirmed", "2", "--classes-new", "auth")
+    r = _cr(run_dir, "round", "--findings", "3", "--confirmed", "2", "--classes-swept", "auth")
+    assert r.returncode == 0, r.stderr
+    assert "TERMINAL" not in r.stdout, r.stdout
+    assert _rec(run_dir)["rounds"][-1]["confirmed"] == 2, _rec(run_dir)["rounds"][-1]
+
+
+def test_findings_zero_still_closes_a_record_that_never_stated_confirmed(run_dir: Path) -> None:
+    """DD4, the backward-compatibility contract: a fleet caller that never types `--confirmed`
+    behaves exactly as before — and the banner names the counter that actually fired, never a
+    CONFIRMED claim no round made."""
+    _start(run_dir)
+    _cr(run_dir, "round", "--findings", "4", "--classes-new", "auth")
+    final = _cr(run_dir, "round", "--findings", "0", "--classes-swept", "auth").stdout
+    assert "TERMINAL" in final, final
+    assert "CONFIRMED 0 defects" not in final, final
+
+
+def test_the_record_and_the_event_carry_confirmed_only_when_it_is_stated(run_dir: Path) -> None:
+    """ABSENT, never 0 (unlike `seats`): "nobody counted" and "counted zero" are exactly the two
+    answers the exit rule must tell apart — a defaulted 0 would close every legacy loop."""
+    _start(run_dir)
+    _cr(run_dir, "round", "--findings", "9", "--confirmed", "3", "--classes-new", "auth")
+    assert _rec(run_dir)["rounds"][-1]["confirmed"] == 3, _rec(run_dir)["rounds"][-1]
+    assert _events(run_dir, "s1")[-1]["confirmed"] == 3, _events(run_dir, "s1")[-1]
+    _cr(run_dir, "round", "--findings", "1", "--classes-swept", "auth")
+    assert "confirmed" not in _rec(run_dir)["rounds"][-1], _rec(run_dir)["rounds"][-1]
+    assert "confirmed" not in _events(run_dir, "s1")[-1], _events(run_dir, "s1")[-1]
+
+
+def test_the_round_line_prints_confirmed_beside_findings(run_dir: Path) -> None:
+    _start(run_dir)
+    stated = _cr(
+        run_dir, "round", "--findings", "9", "--confirmed", "3", "--classes-new", "auth"
+    ).stdout
+    assert "findings: 9" in stated and "confirmed: 3" in stated, stated
+    unstated = _cr(run_dir, "round", "--findings", "2", "--classes-new", "races").stdout
+    assert "confirmed: unstated" in unstated, unstated
+
+
+def test_the_terminal_banner_names_confirmed_zero_and_the_delta_round_rule(run_dir: Path) -> None:
+    """D-206/D-207 retired "a scoped round never closes the loop": round 1 is the only full pass,
+    every later round is a DELTA over the fix diff, and it closes when it carried a fresh
+    non-authoring finder seat and cited the standing-clean classes from the last full pass."""
+    _start(run_dir)
+    _cr(run_dir, "round", "--findings", "5", "--confirmed", "2", "--classes-new", "auth")
+    final = _cr(
+        run_dir, "round", "--findings", "1", "--confirmed", "0", "--classes-swept", "auth"
+    ).stdout
+    assert "CONFIRMED 0 defects" in final, final
+    assert "delta round" in final.lower() and "non-authoring" in final, final
+    assert "FULL fresh sweep" not in final and "scoped round never closes" not in final, final
+
+
+def test_the_oscillation_advisory_reads_the_confirmed_series_when_every_round_states_it(
+    run_dir: Path,
+) -> None:
+    """The discriminator: `findings` is FLAT at 50 across these five rounds, so the old reader says
+    nothing; the CONFIRMED series is the pathological 43 → 11 → 30 → 13 → 22. (Flat at 50, not 0:
+    review round 1 made `confirmed > findings` a refusal.)"""
+    _start(run_dir)
+    outs = [
+        _cr(run_dir, "round", "--findings", "50", "--confirmed", str(n)).stdout
+        for n in (43, 11, 30, 13, 22)
+    ]
+    assert "NON-CONVERGENCE" in outs[-1], outs[-1]
+    assert "30 → 13 → 22" in outs[-1], outs[-1]
+
+
+def test_one_unstated_round_makes_the_advisory_read_the_findings_series(run_dir: Path) -> None:
+    """EVERY round or none: one round that never stated `confirmed` makes the confirmed series a
+    partial record, and a partial series is not a trend — the advisory falls back to `findings`."""
+    _start(run_dir)
+    _cr(run_dir, "round", "--findings", "50")  # states no `confirmed`
+    outs = [
+        _cr(run_dir, "round", "--findings", "50", "--confirmed", str(n)).stdout
+        for n in (11, 30, 13, 22)
+    ]
+    # every round recorded (a refused round would leave too few to trip the detector at all)
+    assert len(_rec(run_dir)["rounds"]) == 5, _rec(run_dir)["rounds"]
+    assert "NON-CONVERGENCE" not in outs[-1], outs[-1]
+
+
+def test_round_warns_when_confirmed_is_absent_after_an_earlier_round_stated_it(
+    run_dir: Path,
+) -> None:
+    """A loop that starts stating the exit counter and stops has no readable exit — say so where
+    the agent stands. ADVISORY: it may never refuse a round."""
+    _start(run_dir)
+    _cr(run_dir, "round", "--findings", "5", "--confirmed", "2", "--classes-new", "auth")
+    lapsed = _cr(run_dir, "round", "--findings", "3", "--classes-new", "races")
+    assert "NO --confirmed" in lapsed.stderr, lapsed.stderr
+    assert lapsed.returncode == 0, lapsed.stderr
+    # …and on a round that raised NOTHING too: gating the nudge on `findings > 0` made it
+    # mutually exclusive with the close it exists to protect (review round 1, all 12 cells)
+    quiet = _cr(run_dir, "round", "--findings", "0", "--classes-swept", "auth,races")
+    assert "NO --confirmed" in quiet.stderr, quiet.stderr
+
+
+def test_the_warning_never_fires_on_a_record_that_never_stated_confirmed(run_dir: Path) -> None:
+    """The fleet's untouched callers must stay silent — the warning is keyed to a record that
+    already spoke the grammar, never to the grammar's existence."""
+    _start(run_dir)
+    _cr(run_dir, "round", "--findings", "5", "--classes-new", "auth")
+    out = _cr(run_dir, "round", "--findings", "3", "--classes-new", "races")
+    assert "NO --confirmed" not in out.stderr, out.stderr
+
+
+def test_the_feedback_trend_and_the_ledger_row_carry_the_confirmed_series(run_dir: Path) -> None:
+    """The `FEEDBACK:` line is the chat-visible 7th line of every close fleet-wide; the ledger row
+    is the durable record `command_feedback_report.py` will read when a reader is built."""
+    _start(run_dir)
+    _cr(run_dir, "round", "--findings", "9", "--confirmed", "3", "--classes-new", "auth")
+    _cr(run_dir, "round", "--findings", "4", "--confirmed", "0", "--classes-swept", "auth")
+    out = _cr(run_dir, "done", "--command", _PROBE, "--evidence", "round 2 confirmed: 0").stdout
+    assert "rounds 2 (3→0)" in out, out
+    row = json.loads(
+        (run_dir.parent / "command-feedback.jsonl").read_text(encoding="utf-8").splitlines()[-1]
+    )
+    assert row["confirmed"] == [3, 0], row
+    assert row["findings"] == [9, 4], row  # the raw series stays, beside it
+
+
+def test_the_feedback_trend_falls_back_to_findings_and_the_row_records_the_gap(
+    run_dir: Path,
+) -> None:
+    """A record with one unstated round shows the RAW trend, and its ledger row says which round
+    left the counter unstated — `null`, never a fabricated 0."""
+    _start(run_dir)
+    _cr(run_dir, "round", "--findings", "9", "--classes-new", "auth")
+    _cr(run_dir, "round", "--findings", "4", "--confirmed", "0", "--classes-swept", "auth")
+    out = _cr(run_dir, "done", "--command", _PROBE, "--evidence", "round 2 found: 4").stdout
+    assert "rounds 2 (9→4)" in out, out
+    row = json.loads(
+        (run_dir.parent / "command-feedback.jsonl").read_text(encoding="utf-8").splitlines()[-1]
+    )
+    assert row["confirmed"] == [None, 0], row
+
+
+def test_a_confirmed_terminal_string_is_loop_shaped_for_the_zero_rounds_nudge(
+    run_dir: Path,
+) -> None:
+    """The nudge reads the terminal string the run DECLARED. D-206 rewrote every review command's
+    terminal to speak of `confirmed:`, and a nudge keyed only to the retired vocabulary would go
+    silent on exactly the loops it was built for."""
+    _cr(
+        run_dir,
+        "start",
+        "--command",
+        _PROBE,
+        "--phases",
+        "5",
+        "--terminal",
+        "confirmed: 0, fixed: 0",
+    )
+    out = _cr(run_dir, "step", "--phase", "3", "--title", "later")
+    assert "ZERO rounds recorded" in out.stderr, out.stderr
+
+
+# ── Review round 1 (3 seats over e007a3f2..7ee3c415): the exit counter is STICKY PER RECORD.
+# The fail-open: `--confirmed 3` then a bare `--findings 0` printed the TERMINAL verdict AND
+# claimed "no round stated `--confirmed`" while round 1 had — quiet reached by RELABELLING, which
+# D-206 (R1/R9) forbids. The nudge built for the omission could never fire on a closing round
+# (it required `findings > 0`, which makes the counter non-zero), so warning and TERMINAL were
+# mutually exclusive across all 12 cells. ────────────────────────────────────────────────────
+
+
+def test_an_adopted_record_cannot_close_on_findings_when_confirmed_is_omitted(
+    run_dir: Path,
+) -> None:
+    _start(run_dir)
+    _cr(run_dir, "round", "--findings", "9", "--confirmed", "3", "--classes-new", "auth")
+    lapsed = _cr(run_dir, "round", "--findings", "0", "--classes-swept", "auth")
+    assert "TERMINAL VERDICT" not in lapsed.stdout, lapsed.stdout
+    assert "NOT TERMINAL" in lapsed.stdout, lapsed.stdout
+    assert "adopted `--confirmed` at round 1" in lapsed.stdout, lapsed.stdout
+    assert "NO --confirmed" in lapsed.stderr, lapsed.stderr  # both streams say it
+    assert lapsed.returncode == 0, lapsed.stderr  # the ROUND is still recorded
+    # …and stating it closes the very same round
+    final = _cr(run_dir, "round", "--findings", "0", "--confirmed", "0", "--classes-swept", "auth")
+    assert "TERMINAL" in final.stdout and "NOT TERMINAL" not in final.stdout, final.stdout
+
+
+def test_the_sticky_exit_counter_over_every_cell_of_findings_by_prior_adoption(
+    run_dir: Path,
+) -> None:
+    """The exhaustive sweep the round-1 seat ran by hand: findings 0-3 x the record's prior state
+    (never adopted / adopted with 0 / adopted with 3). TERMINAL is reachable on an unstated round
+    ONLY in the never-adopted column, and only at findings 0."""
+    for findings in (0, 1, 2, 3):
+        for prior in (None, 0, 3):
+            d = run_dir / f"c{findings}-{prior}"
+            d.mkdir()
+            _cr(d, "start", "--command", _PROBE, "--phases", "2", "--terminal", "found:0")
+            if prior is None:
+                _cr(d, "round", "--findings", "5", "--classes-new", "auth")
+            else:
+                _cr(
+                    d,
+                    "round",
+                    "--findings",
+                    "5",
+                    "--confirmed",
+                    str(prior),
+                    "--classes-new",
+                    "auth",
+                )
+            out = _cr(d, "round", "--findings", str(findings), "--classes-swept", "auth").stdout
+            want = prior is None and findings == 0
+            got = "TERMINAL VERDICT" in out
+            assert got is want, (findings, prior, out)
+
+
+def test_the_oscillation_advisory_names_the_series_it_printed(run_dir: Path) -> None:
+    """It printed "findings are OSCILLATING: 4 → 1 → 3" over the CONFIRMED series while the
+    findings column was strictly converging — sending the reader to the wrong column."""
+    _start(run_dir)
+    for f, c in ((50, 40), (30, 4), (20, 1), (10, 3)):
+        _cr(run_dir, "round", "--findings", str(f), "--confirmed", str(c))
+    last = _cr(run_dir, "round", "--findings", "10", "--confirmed", "3").stdout
+    assert "confirmed counts are OSCILLATING" in last, last
+    assert "findings are OSCILLATING" not in last, last
+
+
+def test_the_advisory_still_says_findings_when_it_read_the_findings_series(run_dir: Path) -> None:
+    _start(run_dir)
+    outs = [_cr(run_dir, "round", "--findings", str(n)).stdout for n in (43, 11, 30, 13, 22)]
+    assert "findings are OSCILLATING" in outs[-1], outs[-1]
+
+
+def test_a_negative_confirmed_is_refused(run_dir: Path) -> None:
+    """A counter that can never reach 0 describes a loop with no exit — refuse it, never record
+    it (the pre-fix build accepted `-1` with rc 0)."""
+    _start(run_dir)
+    r = _cr(run_dir, "round", "--findings", "3", "--confirmed", "-1", "--classes-new", "auth")
+    assert r.returncode == 2, (r.returncode, r.stdout, r.stderr)
+    assert "REFUSED" in r.stderr, r.stderr
+    assert _rec(run_dir)["rounds"] == [], _rec(run_dir)["rounds"]  # nothing was recorded
+
+
+def test_a_negative_findings_is_refused(run_dir: Path) -> None:
+    """The mirror of the negative `--confirmed` guard: a negative raw count makes `counter == 0`
+    unreachable on a record that never adopted the exit counter — so the loop it describes has no
+    exit either. The pre-fix build recorded `-5` with rc 0."""
+    _start(run_dir)
+    r = _cr(run_dir, "round", "--findings", "-5", "--classes-new", "auth")
+    assert r.returncode == 2, (r.returncode, r.stdout, r.stderr)
+    assert "REFUSED — round --findings must be >= 0" in r.stderr, r.stderr
+    assert _rec(run_dir)["rounds"] == [], _rec(run_dir)["rounds"]  # nothing was recorded
+
+
+def test_a_delta_round_may_confirm_more_than_it_raised(run_dir: Path) -> None:
+    """`--findings` counts the candidates THIS pass raised; `--confirmed` counts what execution
+    reproduced, carried-over rows included. A delta round that raises nothing NEW and reproduces
+    three standing rows is the receipt grammar `check_review_coverage.py` already parses
+    (`found: 0, … confirmed: 3`) — and the sticky-adoption nudge tells the agent to type
+    `round --confirmed <n>` with `--findings` at its default 0. Refusing it made that nudge
+    unexecutable."""
+    _start(run_dir)
+    r = _cr(run_dir, "round", "--findings", "0", "--confirmed", "2", "--classes-new", "x")
+    assert r.returncode == 0, (r.returncode, r.stdout, r.stderr)
+    assert "confirmed: 2" in r.stdout, r.stdout
+    assert _rec(run_dir)["rounds"][-1]["confirmed"] == 2, _rec(run_dir)["rounds"]

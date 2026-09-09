@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — `round --confirmed <n>`: the convergence exit counter is CONFIRMED defects (2026-09-09)
+`scripts/command_run.py round` gains `--confirmed <n>` (default: not stated). Quiet is zero
+CONFIRMED code or doc defects (D-206/D-203), never zero raised: the TERMINAL verdict fires on
+`confirmed == 0` when the LAST round states it, and the old `--findings 0` rule stands for a record
+whose rounds never do — adoption is a property of the whole RECORD: once a round states the
+counter, a later round that omits it cannot close (review round 1), and a delta round may state
+`--confirmed` above `--findings` (it reproduces carried-over candidates — the receipt grammar's
+`found: 0, confirmed: 3` row; review round 2); a negative `--findings` or `--confirmed` is refused — backward compatibility on a fleet-synced RUN_SCRIPT is a contract. The
+round line prints `confirmed: <n|unstated>`; the TERMINAL banner names CONFIRMED 0 and the
+delta-round closing rule (a fresh non-authoring finder seat over the fix diff, citing the
+standing-clean classes from the last full pass) in place of the retired "a scoped round never
+closes the loop"; the oscillation advisory, the `FEEDBACK:` trend — the chat-visible 7th line of
+every close, whose shape is now `rounds <n> (<confirmed trend, or the findings trend when a round
+never stated confirmed>)` — and the feedback-ledger row read the `confirmed` series when every
+round states it. `dispatch_headroom.py`'s COST label no longer calls the DEFAULT `--units` mix a
+"grounding surface", the term the governance texts reserve for `--mechanical 0`.
+
 ### Added — Review hygiene: the grep-shaped review classes as an advisory gate check (2026-09-09)
 - `scripts/enforcement/check_review_hygiene.py` — six classes the review loop otherwise re-sweeps by hand
   each round: unrendered `{{…}}` residue, CommonMark fence parity (the same-char-run rule copied with

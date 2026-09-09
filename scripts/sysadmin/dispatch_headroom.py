@@ -13,7 +13,7 @@ cannot hold five constraints in an agent's head at dispatch time; this prints th
     python3 scripts/sysadmin/dispatch_headroom.py --slices opus=1,sonnet=2   # an orchestrator partition
 
 seats = min(units × angles + the Opus seat(s), CONCURRENCY_CAP, box_cap, quota_cap) for a units-sized
-grounding surface — D-191: every unit wants one Sonnet breadth seat plus one Haiku mechanical seat
+surface — D-191: every unit wants one Sonnet breadth seat plus one Haiku mechanical seat
 (`--mechanical <M>`, 0 on a judgement surface), plus one Opus seat per risky unit and at least one;
 `full_mix` pads to the floor (3, D-188) with real seats and `trim` cuts for coverage when a cap binds.
 The floor never raises past a HARD cap — a box with room for two heavy seats gets two, with the
@@ -361,7 +361,7 @@ def cost(mix: dict[str, int]) -> dict:
 
 
 def full_mix(units: int, risky: int = 0, mechanical: int | None = None) -> dict[str, int]:
-    """The MAXIMUM useful mix for a units-sized grounding surface of `units`: one Sonnet breadth
+    """The MAXIMUM useful mix for a units-sized surface of `units`: one Sonnet breadth
     seat per unit, the authoritative Opus seats (one per risky unit, at least one), and the Haiku
     mechanical seats — one per unit by default, or `mechanical` of them: the count of grep-able
     classes the surface HAS (0 for a grounding/adjudication surface — a judgement unit has no
@@ -639,7 +639,7 @@ def budget(
 
 def _mix_story(a: argparse.Namespace, mix: dict[str, int], full: dict[str, int]) -> str:
     """The sentence beside COST must describe THIS mix — the first draft glued the units-sized
-    grounding surface's per-unit sentence to a mix the budget had already trimmed, and an agent
+    surface's per-unit sentence to a mix the budget had already trimmed, and an agent
     reading it literally would dispatch past a hard cap (round-2 finding).
     `b` (from `box()`) carries `ok`, and when ok: `mem_available_gb`, `cores`, `load1` (optionally
     `commit_headroom_gb`) — a hand-built `ok: True` dict without them raises (round 11).
@@ -648,7 +648,7 @@ def _mix_story(a: argparse.Namespace, mix: dict[str, int], full: dict[str, int])
     if a.mix:
         return tail
     if a.slices:
-        # DD2/D3: an orchestrator-computed partition, not a units-sized grounding surface — the
+        # DD2/D3: an orchestrator-computed partition, not a units-sized surface — the
         # floor-padding sentence below never applies to it (`mix == full` here is the partition
         # itself, unmodified or trimmed, never the D-188 padded mix)
         # F5 (round-1 review): a partition without an Opus slice must not be told it has one — the
@@ -679,11 +679,16 @@ def _mix_story(a: argparse.Namespace, mix: dict[str, int], full: dict[str, int])
                 "; no mechanical seat (--mechanical 0: a judgement surface has no grep-able angle)"
             )
         elif haiku == a.units:
-            mech = f", {haiku} Haiku mechanical seat(s) — one per unit of the units-sized grounding surface"
+            mech = f", {haiku} Haiku mechanical seat(s) — one per unit of the units-sized surface"
         else:
             mech = f", {haiku} Haiku mechanical seat(s) — one per grep-able class, each swept across every unit"
         return (
-            f" — the MAXIMUM useful mix for a units-sized grounding surface of {a.units} unit(s): "
+            # the label names the SURFACE this mix is for: "grounding" is the governance term for
+            # a judgement surface, which is exactly the `--mechanical 0` case — calling the
+            # DEFAULT mix grounding collided with the rule ordering `--mechanical 0` there (T06)
+            " — the MAXIMUM useful mix for a units-sized "
+            + ("surface with a mechanical angle" if haiku else "grounding surface")
+            + f" of {a.units} unit(s): "
             f"one Sonnet breadth seat per unit, the Opus authoritative seat(s) (--risky N: one per "
             f"risky unit){mech}{padded}; dispatch ALL of it in ONE message, each seat a distinct "
             "unit x angle brief" + tail
