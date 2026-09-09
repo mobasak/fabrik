@@ -55,7 +55,7 @@ empty universe and a clean result must stay distinguishable.
 | `schema` | int | Schema version (currently **1**). Bump on any breaking envelope change; the collector keys off it. |
 | `ts` | str | UTC ISO-8601, millisecond precision. |
 | `sid` | str | Session id, sanitized to `[A-Za-z0-9_-]` — identical to the file stem, so value and file can never diverge. Sanitization is **injective**: if it changed or truncated the raw id, an 8-hex digest of the raw value is appended (`a/b` and `a.b` must never merge into one stream). A clean id passes through untouched. |
-| `sid_source` | str | `explicit` \| `env` (`$CLAUDE_SESSION_ID`) \| `none` \| `join`. `none` makes the `nosession` collision measurable even where it is not yet solvable; `join` marks an id a sensor **reconstructed** from this stream (`command_run.py --adopt-sid`) — an inferred id must never be indistinguishable from one the session actually carried. |
+| `sid_source` | str | `explicit` \| `env` (`$CLAUDE_SESSION_ID`, else `$CLAUDE_CODE_SESSION_ID` — the harness's real session uuid, which a Bash-tool shell carries when the first is empty) \| `none` \| `join`. `none` makes the `nosession` collision measurable even where it is not yet solvable; `join` marks an id a sensor **reconstructed** from this stream (`command_run.py --adopt-sid`) — an inferred id must never be indistinguishable from one the session actually carried. |
 | `event` | str | One of the vocabulary below. |
 | `exposure` | obj | Stratification metadata (next section). |
 | `truncated` | bool | Present only when a value was clipped. |
@@ -106,7 +106,7 @@ Every `scripts/command_run.py` row additionally carries `command` + `seq` + `per
 
 | Event | Required fields | Producer |
 |---|---|---|
-| `session_start` | `cwd`, `project` | `.claude/hooks/session_orient.py` — only where a Stop hook also runs (payload cwd has `scripts/final_gate.py`) and only on `source=startup` |
+| `session_start` | `cwd`, `source` (`probe_cwd` steers the exposure probe, it is not a field) | `.claude/hooks/session_orient.py` — only where a Stop hook also runs (payload cwd has `scripts/final_gate.py`) and only on `source=startup` |
 | `stop_pass` | `outcome` (`clean`\|`warned_through`), `warned` | `.claude/hooks/final_gate_stop.py` — the Stop pass-through, i.e. it did NOT block |
 | `session_end` | `closed_by` (`coroner`\|`ttl`) | `scripts/sysadmin/kaizen_coroner.py` — the genuinely session-scoped, post-hoc close; a TTL-expired run record's close emits one too (`closed_by: ttl`) |
 | `run_open` | `command`, `phases`, `terminal`, `nested` | `scripts/command_run.py start` |
@@ -115,11 +115,11 @@ Every `scripts/command_run.py` row additionally carries `command` + `seq` + `per
 | `round` | `n`, `findings`, `seats`, `confirmed` (absent when not stated), `classes_swept`, `classes_new`, `classes_open` | `scripts/command_run.py round` |
 | `run_close` | `verdict` (`done`\|`blocked`\|`handoff`), `resume` (handoff only — the artifact carrying the open rows), `evidence_hash`, `closed_by`, `rounds`, `resumed`, `resumed_phase`, `resumed_rounds`, **`feedback`** (`filed`\|`none`\|`unstated`), **`feedback_to`** (subset of `infra`/`fleet`/`intel`), **`feedback_hash`** | `scripts/command_run.py done`/`blocked` |
 | `gate_run` | `tier`, `mode`, `status`, `checks: [{name, outcome}]` (every EXECUTED check, advisory rows labelled) | `scripts/final_gate.py` |
-| `rule_activation` | `packs: [{pack, globs_fired}]` — labelled *invocation-time* activation | `scripts/select_rules.py`, `scripts/review_rubric.py` (`rubric_injection`) |
-| `stop_block` | `cause` (`gate-red`\|`uncommitted`\|`unpushed`\|`promise-stall`\|`run-record`), `outcome` (`blocked`\|`warned_through`) | `.claude/hooks/final_gate_stop.py` |
+| `rule_activation` | `kind` (`select_rules`\|`rubric_injection`), `label` (*invocation-time*), `packs` — `[{pack, globs_fired}]` from `select_rules.py`, `[{pack}]` plus `packs_missing` from `review_rubric.py` | `scripts/select_rules.py`, `scripts/review_rubric.py` (`rubric_injection`) |
+| `stop_block` | `cause` (`gate-red`\|`uncommitted`\|`unpushed`\|`promise-stall`\|`run-record`\|`unreviewed-spontaneous`), `outcome` (`blocked`\|`warned_through`) | `.claude/hooks/final_gate_stop.py` |
 | `final_block_emitted` | — | `.claude/hooks/final_gate_stop.py` — emitted on the NON-BLOCKING exit only |
-| `death` | `class`, `reconstructed: true` | `scripts/sysadmin/kaizen_coroner.py` (post-hoc; hooks go silent exactly when things get interesting) |
-| `revival` | `class`, `reconstructed: true` | `scripts/sysadmin/kaizen_coroner.py` |
+| `death` | `class`, `key`, `died_at`, `reconstructed: true` | `scripts/sysadmin/kaizen_coroner.py` (post-hoc; hooks go silent exactly when things get interesting) |
+| `revival` | `class`, `revived_at`, `reconstructed: true` | `scripts/sysadmin/kaizen_coroner.py` |
 | `operator_override` | `marker`, `kind` (`human-gate`\|`blocked-escalation`), `stalls` (count of waived stalls this turn), `kinds` (every waived kind, in order) | `.claude/hooks/final_gate_stop.py` — turns sanctioned skips from noise into labelled data; ONE event per turn carries the whole waiver ledger |
 | `fleet_health` | `project`, `swept`, `cell`, `reason`, `checks` (`{check: verdict}`), `duration_s` | `scripts/sysadmin/kaizen_outcomes.py --sweep` — one per swept project (T07's nightly outcome tier) |
 | `instrument_alarm` | `reason`, `mismatches` (first 10) | `scripts/sysadmin/kaizen_collect_v2.py` — golden-corpus refusal or a delta darkening; instrument health is metric zero |
@@ -324,8 +324,10 @@ passes the exposure it joined from that dead session's own last trusted events, 
 the resolved exposure instead of stamping the coroner's own process — merged over an all-`unknown`
 `EXPOSURE_KEYS` baseline, so a partial override still ships every schema key (missing ones the
 literal `unknown`, never absent). It is a parameter, not a caller field, so it is never
-`f_`-re-keyed; a non-dict value is ignored in favour of the live exposure. No live sensor should
-pass it — stamping your own process is what `exposure()` is for.
+`f_`-re-keyed; a non-dict value is ignored in favour of the live exposure. Two live hooks also pass it —
+`session_orient.py` and `final_gate_stop.py` reuse ONE cwd-pinned `exposure()` probe across the several
+emits of a single invocation — but only the coroner REPLACES a *different* session's exposure; a sensor
+stamping its own process calls `exposure()` itself.
 
 ```python
 kaizen_events.emit("death", sid=dead_sid, exposure_override=joined, reconstructed=True)
@@ -341,7 +343,7 @@ before.
 | Env | Default | Effect |
 |---|---|---|
 | `KAIZEN_EVENTS_DIR` | `~/.claude/state/events/` | Where session files land (tests and fixtures point it at a temp dir). |
-| `CLAUDE_SESSION_ID` | — | The session id when none is passed explicitly. Bash-tool shells carry it EMPTY → `unknown`; the literal `unknown` also resolves as `sid_source: none`. |
+| `CLAUDE_SESSION_ID` | — | The session id when none is passed explicitly. Bash-tool shells carry it EMPTY → `$CLAUDE_CODE_SESSION_ID` (the harness's real uuid) → `unknown`; the literal `unknown` also resolves as `sid_source: none`. |
 | `CLAUDE_MODEL` / `ANTHROPIC_MODEL` | — | `exposure.model`. |
 | `CLAUDE_MESH_HEADLESS` | — | Present (any value) ⇒ `exposure.headless: true`; absent ⇒ `false`. |
 

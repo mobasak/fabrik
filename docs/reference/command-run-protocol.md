@@ -52,7 +52,7 @@ The Stop hook keys on `state == "running"` **alone**, so neither field can chang
 | `start --command <name> --phases <N> [--terminal "<cond>"]` | begin a run at phase 1 (a running record is pushed onto `stack`) |
 | `step --phase <N> [--title "<t>"]` | advance |
 | `dispatch --seats <n>` | stamp a fan-out BEFORE its seats go out — `rec["dispatch"] = {ts, seats, phase, round}`; the STAMP accumulates across the messages of one round, and that round's `round` (or the close) rewrites it as a release marker (`seats: 0, released: true`) — never a pop, because an absent stamp reads as "never dispatched" and the sibling probe would fall back to the round row and re-reserve the returned seats; `dispatch_headroom.py` subtracts a live stamp for 25 minutes on every OTHER session (a `round --seats` at the round's close reserves nothing while the seats run — D-193/D-194) |
-| `round [--seats <n>] [--findings <N>] [--classes-swept a,b] [--classes-new c,d] [--confirmed <N>]` | record one convergence pass; merge the class ledger. `--findings` counts the RAW candidates the pass raised, before adjudication — a receipt's rows are the adjudicated ledger, so the two figures differ by design. `--confirmed <N>` counts the candidates CONFIRMED by execution in that pass (default: not stated); when stated on the LAST round it is the exit counter — TERMINAL fires on `confirmed == 0` with every class swept; the `--findings 0` rule stands only while NO round of the record has ever stated it, because adoption is STICKY — a pass that omits `--confirmed` under a record that adopted it draws a stderr warning and cannot close the RECORD (adoption is a property of ONE record, never of the session: a `handoff`/`blocked` and a fresh `start` open a new, un-adopted record); `--confirmed` MAY exceed `--findings` — a delta round raises no new candidate and reproduces the carried-over ones — but a NEGATIVE count of either is REFUSED (rc 2). `--seats` omitted = the round inherits its `dispatch` stamp; `0` = a deliberate zero; a typed count that disagrees with the stamp is said on stderr and recorded as typed; a partial close releases only what closed (`dispatch.seats` keeps the remainder); negative is refused; a round with NO stamp that finds seat transcripts whose newest in-window line is newer than the previous round (or a nested child's close — a `step` never narrows the window) says so on stderr; a partial close keeps the original stamp's clock |
+| `round [--seats <n>] [--findings <N>] [--classes-swept a,b] [--classes-new c,d] [--confirmed <N>]` | record one convergence pass; merge the class ledger. `--findings` counts the RAW candidates the pass raised, before adjudication — a receipt's rows are the adjudicated ledger, so the two figures differ by design. `--confirmed <N>` counts the candidates CONFIRMED by execution in that pass (default: not stated); when stated on the LAST round it is the exit counter — TERMINAL fires on `confirmed == 0` with every class swept; the `--findings 0` rule stands only while NO round of the record has ever stated it, because adoption is STICKY — a pass that omits `--confirmed` under a record that adopted it draws a stderr warning and cannot close the RECORD (adoption is a property of ONE record, never of the session: after a `handoff`/`blocked`/`done` close, the next `start` opens a new, un-adopted record); `--confirmed` MAY exceed `--findings` — a delta round raises no new candidate and reproduces the carried-over ones — but a NEGATIVE count of either is REFUSED (rc 2). `--seats` omitted = the round inherits its `dispatch` stamp; `0` = a deliberate zero; a typed count that disagrees with the stamp is said on stderr and recorded as typed; a partial close releases only what closed (`dispatch.seats` keeps the remainder); negative is refused; a round with NO stamp that finds seat transcripts whose newest in-window line is newer than the previous round (or a nested child's close — a `step` never narrows the window) says so on stderr; a partial close keeps the original stamp's clock |
 | `done --command <name> --evidence "<proof>"` | terminal — the contract IS met |
 | `blocked --command <name> --reason "<sanctioned case>"` | terminal — a real halt |
 | `handoff --command <name> --reason "<why rows remain open>" --resume "<RESUME block>"` | terminal — NOT-QUIET: the loop is quiet but rows stay OPEN and are routed (the close `/fabrik-user-test` and `/fabrik-service-test` mandate); `--feedback` owed like `done`/`blocked` |
@@ -116,9 +116,10 @@ persists across rounds:
   states `--confirmed`, TERMINAL fires on `confirmed == 0`. The old **`--findings 0`** rule stands only
   for a record whose rounds **NEVER** state `confirmed` — adoption is **sticky per record**: once any
   round has stated the exit counter, a later round that omits it can NOT close the record, and `round`
-  says so on both streams (`NOT TERMINAL — … the record adopted `--confirmed` at round N; state it on
-  this round`) rather than falling back to the raw candidate count, which would be quiet reached by
-  relabelling. The closing round is the no-op round the corpus already demands, and the agent then
+  says so on both streams — the plain `round` call's stderr nudge (`round with NO --confirmed: … adopted
+  the exit counter at round N … Type round --confirmed <n>`) and the boxed report line (`⛔ NOT TERMINAL —
+  … The record adopted `--confirmed` at round N; state it on this round`) — rather than falling back to
+  the raw candidate count, which would be quiet reached by relabelling. The closing round is the no-op round the corpus already demands, and the agent then
   calls `done`.
 - An empty ledger can never be terminal — a round that declared no classes swept nothing.
 
@@ -180,6 +181,17 @@ Every line carries `seq` (from `event_seq`) and `command`, so the collector orde
 `(command, seq)` rather than by `ts` — timestamps are millisecond-quantized and concurrent subagents
 collide in the same millisecond. `run_close` additionally carries `resumed` / `resumed_phase` /
 `resumed_rounds`, so a nested close is attributable without replaying the stack.
+
+### `done` on a review-family command requires its persisted report
+
+For `fabrik-review` and `fabrik-review-scoped` (`REVIEW_FAMILY` in `scripts/command_run.py`), `done`
+additionally REFUSES (rc 1) unless a non-empty `docs/development/reviews/*.md` was written or committed
+in the repo SINCE THE RUN STARTED — the refusal reads `REFUSED — closing /fabrik-review with done requires
+its persisted report: no docs/development/reviews/*.md written or committed SINCE THIS RUN STARTED in
+<repo>. A review that exists only in chat does not exist.` This is the mechanical half of "did a review
+actually happen": the loop's counters live in the record, its adjudicated ledger in the receipt, and a
+close without the receipt is the chat-only review the corpus forbids. `blocked` stays available for a
+genuinely halted review.
 
 ### `step` refuses to open a phase whose predecessor left no review artifact
 
