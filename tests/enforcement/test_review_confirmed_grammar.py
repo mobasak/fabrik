@@ -101,6 +101,10 @@ def test_the_canonical_v1_row_exits_quiet_on_confirmed_zero_although_found_is_fo
 
 
 def test_a_confirmed_defect_in_the_final_round_fails_naming_confirmed(tmp_path):
+    """The other half of D-206: `confirmed: 1` is a defect this round proved by EXECUTION, so
+    the loop is not done however small `found:` is — and the message must name the counter it
+    graded (an author who cannot see which counter failed edits the wrong one) and cite D-206,
+    not the D-048 clause it replaces."""
     errs = _graded(
         tmp_path,
         "| Pass 19 | opus×1 | found: 4, new: 2, confirmed: 1, fixed: 1, unexecuted: 0 | delta |\n",
@@ -111,6 +115,9 @@ def test_a_confirmed_defect_in_the_final_round_fails_naming_confirmed(tmp_path):
 
 
 def test_an_unexecuted_candidate_in_the_final_round_fails_naming_unexecuted(tmp_path):
+    """`unexecuted:` counts code candidates RECORDED but never executed (D1). A round that ends
+    with one standing has left work the loop cannot see, so it is not the exit round even when
+    `confirmed:` and `fixed:` are both 0 — the third conjunct of the quiet rule."""
     errs = _graded(
         tmp_path,
         "| Pass 19 | opus×1 | found: 4, new: 2, confirmed: 0, fixed: 0, unexecuted: 1 | delta |\n",
@@ -170,6 +177,10 @@ def test_corpus_the_widened_mega_row_matches_the_same_rows_and_the_new_slot_vari
 
 
 def test_pass_counters_ext_reads_the_counter_run_and_leaves_pass_counters_alone():
+    """The extraction contract's two halves at once: the NEW reader reads `confirmed:` from the
+    counter run on all three row shapes (prose, narrated, separate-cell), and the LEGACY pair
+    keeps returning its two values unchanged — six narrow callers and the mega battery's 2-tuple
+    expectations depend on that, and a widened return would break every one of them silently."""
     line = "Pass 19: found: 0, confirmed: 3, fixed: 0"
     assert crc._pass_counters_ext(line) == (0, 3, 0, None)
     assert crc._pass_counters(line) == (0, 0), "the legacy strict pair must not widen"
@@ -279,6 +290,10 @@ MEGA = (
 
 
 def test_the_mega_grammar_unpacks_the_widened_row_and_reads_confirmed(tmp_path):
+    """The THIRD reader. It unpacks the row tuple positionally (a 5-tuple into 3 names raises
+    ValueError, which is why the widening enumerated every reader) and it must take the same
+    D-206 branch as the other two — this file's founding enemy is a hardening that lands in one
+    ledger reader and not its siblings. The hash-chain pairs still read the row's RAW line."""
     h1, h2 = "a" * 32, "b" * 32
     p = tmp_path / "2026-09-09-mega-x-validation-review.md"
     p.write_text(MEGA.format(h1=h1, h2=h2, c=0), encoding="utf-8")
@@ -286,3 +301,156 @@ def test_the_mega_grammar_unpacks_the_widened_row_and_reads_confirmed(tmp_path):
     p.write_text(MEGA.format(h1=h1, h2=h2, c=3), encoding="utf-8")
     errs = crc.check_mega_validation(p, tmp_path, live=False)
     assert any("final ledger round reads confirmed: 3" in e for e in errs), errs
+
+
+# --- round-1 review fixes (F1-F7): each of these was RED on the pinned module at afb8243c ----
+
+
+def test_an_unexecuted_counter_without_confirmed_is_never_quiet_in_any_reader(tmp_path):
+    """F1 — the fail-open the two-branch rule left open. `unexecuted: 3` with no `confirmed:`
+    fell to every reader's LEGACY rule, so `found: 0, fixed: 0` read QUIET with three unexecuted
+    code candidates standing. D7 calls that row malformed (T02 refuses it by name); until then
+    the exit must fail CLOSED on it, and say which counter it graded."""
+    prose = "Pass 19: found: 0, fixed: 0, unexecuted: 3"
+    row = crc._ledger_shapes(prose + "\n")[2][-1]
+    assert row[:4] == (0, None, 0, 3), row
+    assert crc._confirmed_quiet(row) is False, "a stated unexecuted: N is never quiet"
+    # reader 1 — the blocking gate
+    errs = _exit_errors(_graded(tmp_path, "| Pass 19 | o | found: 0, fixed: 0, unexecuted: 3 |\n"))
+    assert errs and "unexecuted: 3" in errs[0], errs
+    # the cell-anchored shape resolves MEGA-first and must fail the same way
+    cell = "| 19 | found: 0 | fixed: 0 | unexecuted: 3 |"
+    mrow = crc._ledger_shapes(cell + "\n")[2][-1]
+    assert mrow[:4] == (0, None, 0, 3), mrow
+    assert crc._confirmed_quiet(mrow) is False
+    # a stated ZERO still falls to the legacy rule — absence and 0 are not the same statement
+    assert crc._confirmed_quiet((0, None, 0, 0, "x")) is None
+    assert crc._confirmed_quiet((0, None, 0, None, "x")) is None
+
+
+def test_a_counter_token_trailed_by_a_word_is_not_a_counter_even_inside_the_run():
+    """F2 — the stand-alone token guard was defeated by scanning the run's SLICE: the slice ends
+    at the digit, so `(?!\\s*\\w)` never saw the word after it and `confirmed: 0 candidates
+    reproduced` read as `confirmed: 0` — QUIET with 3 raised. `_FOUND_TOK` refuses the identical
+    shape (`found: 0 clean`, the round-11 defence), so the grammars now agree."""
+    forgery = "Pass 19: found: 3, confirmed: 0 candidates reproduced, fixed: 0"
+    assert crc._pass_counters_ext(forgery) == (3, None, 0, None), "must degrade to no counter"
+    row = crc._ledger_shapes(forgery + "\n")[2][-1]
+    assert crc._confirmed_quiet(row) is None and row[0] == 3, row
+    # and the shapes that legitimately end in a non-word must still parse
+    for line, want in (
+        ("| Pass 19 | o | **found: 0, confirmed: 0** | **fixed: 0** |", (0, 0, 0, None)),
+        ("| Pass 19 | o | found: 0, confirmed: 0, unexecuted: 1** | fixed: 0 |", (0, 0, 0, 1)),
+        ("| Pass 19 | o | found: 0, confirmed: 0, unexecuted: 0 | m | fixed: 0 |", (0, 0, 0, 0)),
+        ("Pass 19: found: 0, confirmed: 0, fixed: 0.", (0, 0, 0, None)),
+    ):
+        assert crc._pass_counters_ext(line) == want, (line, crc._pass_counters_ext(line))
+
+
+def test_a_non_counter_item_does_not_end_the_counter_run():
+    """F3 — the run's boundary is the spec's: "the first character that is not part of a
+    comma-joined `key: value` item". A numeric-only item value ended the run at
+    `method: re-derivation`, dropping the `unexecuted: 3` behind it (quiet) and hiding a
+    displaced counter from the order check. A value is a bare WORD, so a spaced narration
+    (` — delta (confirmed: 0)`) still ends the run."""
+    keeps = "Pass 19: found: 0, confirmed: 0, fixed: 0, method: re-derivation, unexecuted: 3"
+    assert crc._pass_counters_ext(keeps) == (0, 0, 0, 3), crc._pass_counters_ext(keeps)
+    displaced = "Pass 19: found: 0, fixed: 0, note: x, confirmed: 5"
+    reason = crc._pass_counters_ext(displaced)
+    assert isinstance(reason, str) and "`confirmed:`" in reason, reason
+    # the narration boundary is unmoved
+    assert crc._pass_counters_ext("Pass 19: found: 5, fixed: 0 — delta (confirmed: 0)") == (
+        5,
+        None,
+        0,
+        None,
+    )
+
+
+def test_the_legacy_pair_is_byte_identical_to_the_base_sha(tmp_path):
+    """F4 — DD4's literal clause. `_pass_counters` has six narrow callers and five 2-tuple
+    expectations in the mega battery, so its BODY may not move at all: an added docstring is an
+    added statement in the AST. Compared as an AST body, not as text, so comments and formatting
+    stay free."""
+    import ast
+
+    def body_of(src: str) -> str:
+        tree = ast.parse(src)
+        fn = next(
+            n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "_pass_counters"
+        )
+        return ast.dump(ast.Module(body=fn.body, type_ignores=[]))
+
+    base_src = subprocess.run(
+        ["git", "-C", str(REPO), "show", f"{BASE_SHA}:{GATE_REL}"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    now_src = (REPO / GATE_REL).read_text(encoding="utf-8")
+    assert body_of(now_src) == body_of(base_src), "_pass_counters' body moved — DD4 forbids it"
+
+
+def test_a_line_holding_two_counter_runs_is_refused_not_graded_as_its_first(tmp_path):
+    """F5 — the normalisation's own mirror. Joining a row split at a `U+2028` is right, but the
+    joined line then holds TWO rows, and `_MEGA_ROW` is LAZY: it matched the first run and the
+    second was lost, so a receipt whose real final round raised 5 graded QUIET. Nothing else
+    spoke — `_pass_counters` refuses two `found:` tokens and `_unparsed_pass_lines` skips
+    multi-strict lines under the round-11 INERT clause. Both readers must say so."""
+    joined = "| Pass 1 | f | found: 0 | fixed: 0 |\u2028| Pass 2 | f | found: 5 | fixed: 0 |\n"
+    assert len(joined.splitlines()) == 2, "fixture must split in Python but not in a renderer"
+    _t, _p, ordered, refusals = crc._ledger_shapes(joined)
+    assert ordered == [], f"the joined line must not be graded as its first run: {ordered}"
+    assert refusals and "two counter runs on ONE line" in refusals[0], refusals
+
+    d = tmp_path / "docs" / "development" / "reviews"
+    d.mkdir(parents=True)
+    p = d / "2026-09-09-joined-review.md"
+    p.write_text(HEAD.replace("| Pass 2 | method", "| Pass 8 | method") + joined, encoding="utf-8")
+    assert any(e.startswith("Pass row refused:") for e in crc.check_file(p)), crc.check_file(p)
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    for args in (
+        ["add", "-A"],
+        ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "r"],
+    ):
+        subprocess.run(["git", "-C", str(tmp_path), *args], check=True)
+    advisory = crc._committed_nonquiet(tmp_path, set())
+    assert any("refused Pass row" in a for a in advisory), advisory
+
+
+def test_both_readers_name_the_same_counter_for_a_row_without_confirmed(tmp_path):
+    """F6 — consistency. The committed advisory named `(found: 3, fixed: 0)` where the blocking
+    reader said `raised 3`: two readers describing ONE row with two different counter sets is
+    how the reader-divergence class starts. The legacy branch names `found:` in both."""
+    d = tmp_path / "docs" / "development" / "reviews"
+    d.mkdir(parents=True)
+    p = d / "2026-09-09-legacy-review.md"
+    p.write_text(HEAD + "| Pass 3 | o | found: 3 | fixed: 0 |\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    for args in (
+        ["add", "-A"],
+        ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "r"],
+    ):
+        subprocess.run(["git", "-C", str(tmp_path), *args], check=True)
+    advisory = crc._committed_nonquiet(tmp_path, set())
+    assert advisory and "(found: 3)" in advisory[0], advisory
+    assert "fixed:" not in advisory[0].split(" — ")[0], advisory
+    assert any("raised 3" in e for e in _exit_errors(crc.check_file(p))), crc.check_file(p)
+
+
+def test_a_list_wrapped_table_row_is_cell_bounded_like_its_bare_twin():
+    """F7 — `_PASS_HEAD` tolerates a leading list marker, so "is this written in cells?" must be
+    asked of the marker-stripped text; asking it of the raw line made `- | Pass 19 | … |` the
+    only Pass row whose run was bounded by the LINE. Defence in depth: under today's
+    `_RUN_ITEM` no item can cross a `|`, so both bounds agree on every input — the guard is
+    what keeps that true if the item grammar ever widens. The property tested is the
+    EQUIVALENCE, plus the invariant it protects (a counter in a LATER cell is never this row's)."""
+    bare = "| Pass 19 | found: 0, confirmed: 3 | fixed: 0 | unexecuted: 9 |"
+    wrapped = "- " + bare
+    b_start, b_stop, b_names = crc._counter_run(bare)
+    w_start, w_stop, w_names = crc._counter_run(wrapped)
+    assert bare[b_start:b_stop] == wrapped[w_start:w_stop] == "found: 0, confirmed: 3"
+    assert b_names == w_names == ["found", "confirmed"]
+    assert crc._pass_counters_ext(bare) == crc._pass_counters_ext(wrapped) == (0, 3, 0, None), (
+        "the `unexecuted: 9` in a later cell belongs to no row's run"
+    )

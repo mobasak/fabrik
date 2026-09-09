@@ -593,7 +593,7 @@ def check_file(p: Path) -> list[str]:
             quiet = last[0] == 0
             named = f"raised {last[0]}"
         else:
-            named = _exit_counters(last)
+            named = _exit_counters(last, f"found: {last[0]}")
         if not quiet:
             errs.append(
                 f"final ledger round {named} (a candidate CONFIRMED by execution counts; RECORDED and REFUTED rows never reopen the loop — D-206) — the exit round must be quiet, or the stuck finding must be BLOCKED-escalated (named + 3 failed attempts), or the report must declare `Status: IN-PROGRESS`"
@@ -1094,10 +1094,13 @@ _CONFIRMED_TOK = _counter_tok("confirmed")
 _UNEXECUTED_TOK = _counter_tok("unexecuted")
 # The LOOSE scan (`_unparsed_pass_lines`): a counter-shaped token of ANY kind, strict or not.
 _LOOSE_TOK = re.compile(rf"(?<![\w-])(?:{'|'.join(_GRAMMAR_TOKENS)}):\s*\d+")
-# One comma-joined `key: value` item of a counter run. The value is NUMERIC by construction:
-# a permissive value would swallow `fixed: 0 — delta (confirmed: 0)` whole and read the
-# narrated token as this row's counter.
-_RUN_ITEM = re.compile(r"\s*,\s*\**\s*([\w-]+)\s*:\s*\**(\d+)\**")
+# One comma-joined `key: value` item of a counter run — the spec's own boundary definition
+# ("the first character that is not part of a comma-joined `key: value` item"), so a
+# `method: re-derivation` item does NOT end the run and a counter after it is still inside.
+# The value is a BARE WORD: no spaces, so ` — delta (confirmed: 0)` still ends the run and
+# `confirmed: 0 candidates reproduced` ends after `0` — where the stand-alone TOKEN guard then
+# refuses it (a run item is a boundary rule; only a real token is ever read as a counter).
+_RUN_ITEM = re.compile(r"\s*,\s*\**\s*([\w-]+)\s*:\s*\**([\w-]+)\**")
 
 
 def _unparsed_pass_lines(text: str) -> list[str]:
@@ -1135,14 +1138,14 @@ def _unparsed_pass_lines(text: str) -> list[str]:
     return out
 
 
+# THE LEGACY STRICT PAIR — its body is BYTE-IDENTICAL by contract (D7/DD4), which is why this
+# note is a COMMENT and not a docstring: an added docstring is an added statement in the AST body,
+# and the contract clause is literal (a test diffs this body against the base SHA). Six call sites
+# read the two-tuple (_grammar_shaped, the list-wrapped-row refusal, _unparsed_pass_lines,
+# _ledger_shapes twice, and the mega battery's five 2-tuple expectations); widening the RETURN
+# would break every narrow consumer. The new-grammar reader is `_pass_counters_ext` beside it,
+# and it never replaces this one.
 def _pass_counters(line: str) -> tuple[int, int] | None:
-    """The LEGACY strict pair — BYTE-IDENTICAL by contract (D7/DD4).
-
-    Six call sites read this two-tuple (_grammar_shaped, the list-wrapped-row refusal,
-    _unparsed_pass_lines, _ledger_shapes twice, and the mega test battery's five 2-tuple
-    expectations). Widening the RETURN here would break every narrow consumer — the
-    new-grammar reader is `_pass_counters_ext` beside it, and it never replaces this one.
-    """
     if not _PASS_HEAD.match(line):
         return None
     founds = _FOUND_TOK.findall(line)
@@ -1158,10 +1161,18 @@ def _pass_counters(line: str) -> tuple[int, int] | None:
 # and `unexecuted:` legally follows `confirmed:` — the same strictly-increasing rank test covers
 # both shapes, because `fixed:` is simply absent from the run.
 _COUNTER_ORDER = {name: i for i, name in enumerate(_COUNTER_NAMES)}
+# What `_PASS_HEAD` skips before the row's first pipe (indent + the shared `_LIST_MARK`), so
+# "is this written in cells?" is asked of the same text both grammars anchor on.
+_ROW_LEAD = re.compile(r"^\s*" + _LIST_MARK + r"\s*")
 
 
-def _counter_run(line: str) -> tuple[str, list[str]] | None:
-    """The COUNTER RUN of a ledger line: (its text, its item names in document order).
+def _toks_in_span(tok: re.Pattern[str], line: str, start: int, stop: int) -> list[str]:
+    """Counter values matched on the FULL line whose token lies inside the run's span."""
+    return [m.group(1) for m in tok.finditer(line) if start <= m.start() and m.end() <= stop]
+
+
+def _counter_run(line: str) -> tuple[int, int, list[str]] | None:
+    """The COUNTER RUN of a ledger line: (start, stop, its item names in document order).
 
     The run is the contiguous comma-joined `key: value` chain that BEGINS at the first `found:`
     TOKEN (never a `found:` literal such as `sample found: 0 clean`, which is not a token), and
@@ -1177,7 +1188,10 @@ def _counter_run(line: str) -> tuple[str, list[str]] | None:
     if m is None:
         return None
     seg_end = len(line)
-    if line.strip().startswith("|"):
+    # A TABLE row is cell-bounded — and `_PASS_HEAD` tolerates a leading list marker, so the
+    # test is on the marker-stripped text: `- | Pass 19 | … |` renders as a bullet but is written
+    # in cells, and bounding it by the whole line would put another cell's token in this row's run.
+    if _ROW_LEAD.sub("", line, count=1).startswith("|"):
         right = line.find("|", m.start())
         seg_end = right if right != -1 else len(line)
     end = m.end()
@@ -1188,7 +1202,7 @@ def _counter_run(line: str) -> tuple[str, list[str]] | None:
             break
         names.append(item.group(1))
         end = item.end()
-    return line[m.start() : end], names
+    return m.start(), end, names
 
 
 def _pass_counters_ext(line: str) -> tuple[int, int | None, int, int | None] | str | None:
@@ -1209,9 +1223,15 @@ def _pass_counters_ext(line: str) -> tuple[int, int | None, int, int | None] | s
     run = _counter_run(line)
     if run is None:  # unreachable: _pass_counters already found exactly one `found:` token
         return (base[0], None, base[1], None)
-    run_text, names = run
-    confirmed = _CONFIRMED_TOK.findall(run_text)
-    unexecuted = _UNEXECUTED_TOK.findall(run_text)
+    start, stop, names = run
+    run_text = line[start:stop]
+    # ⚠️ SCANNED ON THE FULL LINE, then filtered by the span. Applying the token regex to the
+    # SLICE defeats its own stand-alone guard: the slice ends at the digit, so the `(?!\s*\w)`
+    # lookahead never sees the word that follows and `found: 3, confirmed: 0 candidates
+    # reproduced, fixed: 0` read `confirmed: 0` — quiet, with 3 raised. `_FOUND_TOK` refuses the
+    # identical shape (`found: 0 clean`); the two grammars now agree.
+    confirmed = _toks_in_span(_CONFIRMED_TOK, line, start, stop)
+    unexecuted = _toks_in_span(_UNEXECUTED_TOK, line, start, stop)
     for kind, hits in (("confirmed", confirmed), ("unexecuted", unexecuted)):
         if len(hits) > 1:
             return f"a second `{kind}:` counter in the run ({run_text[:60]!r})"
@@ -1260,15 +1280,26 @@ def _confirmed_quiet(row: _Row) -> bool | None:
     grades both counters), so only the new branch is centralized here.
     """
     if row[1] is None:
-        return None
+        # ⚠️ FAIL-CLOSED on a stated `unexecuted:` with no `confirmed:` (D7 calls that row
+        # malformed and T02 refuses it BY NAME). Falling to a legacy rule here reads
+        # `| 19 | found: 0 | fixed: 0 | unexecuted: 3 |` as QUIET with three unexecuted code
+        # candidates standing — the fail-open direction, on the one counter the redesign added
+        # to make standing work visible.
+        return False if row[3] else None
     return row[1] == 0 and row[2] == 0 and row[3] in (None, 0)
 
 
-def _exit_counters(row: _Row) -> str:
-    """The counters that DECIDED the exit, named — for the readers' error messages."""
-    if row[1] is None:
-        return f"found: {row[0]}, fixed: {row[2]}"
+def _exit_counters(row: _Row, legacy: str) -> str:
+    """The counters that DECIDED the exit, named — for the readers' error messages.
+
+    `legacy` is what THIS reader grades when the row carries no `confirmed:` (check_file and the
+    committed advisory name `found:`; the mega grammar names both old counters), and an
+    `unexecuted:` counter is appended whenever the row states one — it is the reason a row with
+    no `confirmed:` can still be non-quiet.
+    """
     tail = "" if row[3] is None else f", unexecuted: {row[3]}"
+    if row[1] is None:
+        return f"{legacy}{tail}"
     return f"confirmed: {row[1]}, fixed: {row[2]}{tail}"
 
 
@@ -1331,6 +1362,18 @@ def _ledger_shapes(
                 continue  # separator row — never data, never a boundary
             m = _MEGA_ROW.match(line)
             pc = _pass_counters(line) if m is None else None
+            # ⚠️ `_MEGA_ROW` is LAZY, so on a line holding two rows it matches the FIRST run and
+            # the second is lost. That line exists: the GFM normalisation above joins rows split
+            # at a `U+2028`, and `| … found: 0 | fixed: 0 |<U+2028>| … found: 5 | fixed: 0 |`
+            # graded QUIET off its first half (`_pass_counters` refuses it for two `found:`
+            # tokens and `_unparsed_pass_lines` skips it under the multi-strict INERT clause, so
+            # nothing else spoke). Refused by name instead — the row is not graded at all.
+            if m is not None and len(_FOUND_TOK.findall(line)) > 1:
+                refusals.append(
+                    "two counter runs on ONE line (a U+2028/U+2029 joined two rows?) — "
+                    f"{line.strip()[:90]}"
+                )
+                m = None
             row: _Row | None = None
             if m is not None:
                 row = (
@@ -1499,12 +1542,13 @@ def check_mega_validation(
         # exit into a done one.
         # ONE branch rule, all three readers (D7): a final row carrying `confirmed:` grades on
         # the D-206 trio; otherwise THIS reader's legacy rule — both counters — stands.
+        mega_legacy = f"found: {f_found}, fixed: {f_fixed}"
         mega_quiet = _confirmed_quiet(final)
         if mega_quiet is None:
             mega_quiet = f_found == 0 and f_fixed == 0
         if not mega_quiet:
             errs.append(
-                f"final ledger round reads {_exit_counters(final)} — the exit round "
+                f"final ledger round reads {_exit_counters(final, mega_legacy)} — the exit round "
                 "must be quiet in BOTH counters (a fix in the final round means the round that "
                 "changed the set called itself the no-op), or declare `Status: IN-PROGRESS` "
                 "within the report's FIRST 10 LINES (the template's slot is line 3). A "
@@ -1769,7 +1813,11 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
             # raw-matching BLOCKED_HEAD (no fence-strip, no evidence), one commit after the
             # centralization claimed "every reader"; a claim is only as true as its grep
             continue
-        c_tables, c_prose, ordered_rows, _c_refusals = _ledger_shapes(text)
+        c_tables, c_prose, ordered_rows, c_refusals = _ledger_shapes(text)
+        for reason in c_refusals[:1]:
+            # the same LEGIBILITY class as the unparsed-row advisory above: a row the grammar
+            # refuses is a row the exit cannot grade, and the blocking reader already says so
+            out.append(f"{p.relative_to(root)}: COMMITTED with a refused Pass row — {reason}")
         if len(c_tables) + len(c_prose) > 1:
             out.append(
                 f"{p.relative_to(root)}: COMMITTED with counter rows in multiple groups — the "
@@ -1794,9 +1842,14 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
         if ordered_rows:
             last = ordered_rows[-1]
             quiet = _confirmed_quiet(last)
+            # the SAME counter `check_file` names for this row: two readers describing ONE
+            # row with different counter sets is how the reader-divergence class starts
+            legacy = f"found: {last[0]}"
             if quiet is None:
                 quiet = last[0] == 0
-            named = _exit_counters(last)
+                named = legacy
+            else:
+                named = _exit_counters(last, legacy)
         if not quiet:
             out.append(
                 f"{p.relative_to(root)}: COMMITTED with a non-quiet exit round ({named}) "
