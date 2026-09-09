@@ -77,9 +77,16 @@ def test_kaizen_events_dir_is_pinned_under_basetemp(tmp_path):
 
     env = dict(os.environ, COMMAND_RUN_DIR=str(tmp_path / "runs"), CLAUDE_SESSION_ID="pin-probe")
     script = Path(__file__).resolve().parents[1] / "scripts" / "command_run.py"
-    env["KAIZEN_EVENTS_DIR"] = (
-        d  # explicit, so the grader's own RED path can never leak into the real dir
-    )
+    # the pin is already inherited (`dict(os.environ)`); what the grader's own RED path must sandbox
+    # is the writer's FALLBACK — a child that ignores KAIZEN_EVENTS_DIR falls back to
+    # `Path.home()/.claude/state/events`, so HOME goes under tmp too (D-191 review round 19: with a
+    # writer mutated to ignore the env, the old explicit line still deposited pin-probe.jsonl in the
+    # real dir before the assertion fired). HOME also relocates `.active-account`; the other two
+    # seams a hand-built env must force are the transcript and an ambient CLAUDE_AGENT.
+    env["HOME"] = str(tmp_path / "home")
+    (tmp_path / "home").mkdir(exist_ok=True)
+    env["COMMAND_RUN_TRANSCRIPT"] = str(tmp_path / "no-transcript.jsonl")
+    env.pop("CLAUDE_AGENT", None)
     cp = subprocess.run(
         [
             sys.executable,

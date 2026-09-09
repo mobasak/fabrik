@@ -1,6 +1,6 @@
 # Box-bound seats — units × angles (D-191)
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 **Surface:** the D-191 commits e8b4757d 9917a02d f794b7cd eb6df895 a0d3b92d e622970a c4b1b90c on master — the surface as reviewed BEFORE the closing rounds' own fixes (those are graded by the round that follows them, never by the header) — `git diff 23189ea4..c4b1b90c -- <the 48 files below>`; sibling commits inside the range (D-195/D-197, the manifest, scratch_sweep) are NOT this review's surface. Regenerated at round 8 from `git show --name-only` over those commits (round-7 Opus finding F203: the header named 30 of 47 files and `review_rubric.py` never injected core/45-testing-strategy).
 **Command:** /fabrik-review · **Changed:** `CHANGELOG.md`, `CLAUDE.md`, `commands/assemble_commands.py`, `commands/_fragments/subagents-core.md`, `commands/_fragments/test-generation-loop.md`, `commands/_sources/design-review.md`, `commands/_sources/fabrik-data-contract.md`, `commands/_sources/fabrik-deploy-checklist.md`, `commands/_sources/fabrik-deploy-plan-review.md`, `commands/_sources/fabrik-docs-review.md`, `commands/_sources/fabrik-epics.md`, `commands/_sources/fabrik-epics-review.md`, `commands/_sources/fabrik-execute-plan.md`, `commands/_sources/fabrik-flows.md`, `commands/_sources/fabrik-generate-tests.md`, `commands/_sources/fabrik-plan-after-chat.md`, `commands/_sources/fabrik-plan-review.md`, `commands/_sources/fabrik-repo-review.md`, `commands/_sources/fabrik-review.md`, `commands/_sources/fabrik-review-scoped.md`, `commands/_sources/fabrik-rivals.md`, `commands/_sources/fabrik-rules-review.md`, `commands/_sources/fabrik-service-test.md`, `commands/_sources/fabrik-spec.md`, `commands/_sources/fabrik-ui-design.md`, `commands/_sources/fabrik-upstream.md`, `commands/_sources/fabrik-user-test.md`, `commands/_sources/fabrik-vision.md`, `commands/_sources/fabrik-workflow-review.md`, `docs/DECISIONS.md`, `docs/reference/command-run-protocol.md`, `docs/workstation/claude-account-rotation.md`, `docs/workstation/kaizen-event-stream.md`, `docs/workstation/quota-dashboard.md`, `scripts/command_feedback_report.py`, `scripts/command_run.py`, `scripts/sysadmin/dispatch_headroom.py`, `scripts/sysadmin/kaizen_events.py`, `scripts/sysadmin/quota_dashboard.py`, `templates/governance/CLAUDE.md`, `tests/sysadmin/test_dispatch_headroom.py`, `tests/test_assemble_dispatch_step.py`, `tests/test_command_feedback.py`, `tests/test_command_feedback_report.py`, `tests/test_command_run.py`, `tests/test_kaizen_events.py`, `tests/test_quota_dashboard.py`, `.windsurf/rules/core/62-using-subagents.md`
 
@@ -315,7 +315,9 @@ the last; the closing pass re-derives every count and anchor and says so in its 
 | Pass 15 | native opus×1 + sonnet×4 + haiku×2 (7 seats stamped) | found: 8, fixed: 5 | citation |
 | Pass 16 | native opus×1 + sonnet×3 + haiku×2 (6 seats stamped) | found: 14, fixed: 7 | citation |
 | Pass 17 | native opus×1 + sonnet×3 + haiku×2 (6 seats stamped) | found: 12, fixed: 4 | citation |
-| Pass 18 | native opus×1 + sonnet×3 + haiku×2 (6 seats stamped) | found: 11, fixed: 3 | method: re-derivation — 0 CONFIRMED code/doc defects (the Opus seat: none); the 11 are grader-hardening, doc and refuted mechanical candidates; see `## BLOCKED: spec contradiction` |
+| Pass 18 | native opus×1 + sonnet×3 + haiku×2 (6 seats stamped) | found: 11, new: 9, confirmed: 3, fixed: 3, unexecuted: 0 | 3 CONFIRMED — F361 a grader whose red path leaked a file (observed), F362 a missing guard (mutation-proven), F363 a doc row read against the code — 9 fresh candidates: 3 confirmed and fixed, 4 refuted, 2 recorded — one by design, one a measured prevalence figure |
+| Pass 19 | native opus×1 + sonnet×1 finders + opus×1 ADJUDICATOR (3 seats stamped — the first delta round under D-203: the Opus finder on 69f01b92's two test files, the Sonnet finder on its protocol-doc line, the adjudicator holding no finder role executing every candidate on its own copies) | found: 11, new: 11, confirmed: 4, fixed: 4, unexecuted: 0 | delta re-derivation over 69f01b92's fix diff plus one hop (the hygiene script first: 5 dual-verdict rows, the known set; `dispatch_headroom.py --slices opus=1,sonnet=1` → 2, stamped). 4 CONFIRMED, all residue of round 18's fix, each re-executed by the adjudicator with the mutation asserted on disk — the F362 grader covers the head-scan floor but not the `return None` guard (a 9 MB line with a nested 2020 stamp at size − 8 MB + 100 dated the seat instead of "skipped" with the guard removed, 211 of 211 runnable tests green); the F361 explicit `KAIZEN_EVENTS_DIR` line is a no-op (the inherited env already carries the pin) and the grader's red path still deposits `pin-probe.jsonl` outside tmp (0 → 1 with a writer that ignores the env); the same hunk reads the box's real `.active-account` and an ambient `CLAUDE_AGENT` (the class the sibling helper force-assigns); the "bounded I/O" comment is ungraded (a whole-line read passes identically). The 7 doc candidates re-execute as TRUE (REFUTED as defects; the `handoff`/`blocked` wording fixed by the T10 docs review at 633e38ce). Fixed by the orchestrator out of lock: an in-process guard test on the 9 MB fixture, the HOME pin sandboxing the writer's fallback, the two remaining env seams, the comment reworded |
+| Pass 20 | native sonnet×1 (1 seat stamped — the fresh non-authoring seat of the closing delta round) | found: 3, new: 3, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — round 19's fix diff (78 lines over the two test files) executed whole on copies: the in-process guard test green on the pin and RED with the `return None` guard replaced (`1577836800.0 is None`, mutation asserted), the fixture geometry recomputed from the bytes (nested stamp inside the 64 KB fallback window, no newline before the trailer), the positive control's epoch recomputed (2020-06-15T00:00:00Z), the HOME pin RED with a writer ignoring the env and the leaked event found INSIDE the test's tmp home (never the box), `start` under `env -i` recording empty `account`/`agent`, the module loader's `__main__` guard read, ruff clean; 3 candidates, 0 CONFIRMED — quiet under D-203 (the review closes: 18 rounds under the old bar, 24 → … → 11 never quiet; two delta rounds under the new one, 11 → 3 candidates, 4 → 0 confirmed). RECORDED — measured (the docstring's "size − 8 MB + 100" is 97 by the 3-byte trailer; the window holds either way), the fixed synthetic module name registered once (one caller), the pre-existing hard-coded `/opt/fabrik/scripts/sysadmin` sys.path fallback in `_kaizen()` (never reached in any probe; backlog) |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -324,31 +326,18 @@ Row shapes (quoted here, so the gate does not read them as passes):
 | Pass 2 | pool <model×n> + native <model×n> | found: 0, fixed: 0 | method: re-derivation |
 ```
 
-## BLOCKED: spec contradiction — the convergence bar
+## Resolved at round 19 — the convergence-bar contradiction (BLOCKED at round 18)
 
-Two contracts disagree on when this review may close, and only the operator can settle it:
-
-- **The corpus bar** (`/fabrik-review` + `check_review_coverage.py`, D-048): the exit round must be QUIET —
-  `found: 0` — and a FRESH candidate counts even when refuted. Rounds 16 → 17 → 18 raised 14 → 12 → 11 raw
-  candidates; round 18's authoritative Opus seat found **no confirmed defect** in the delta, and the 11 are
-  grader hardening (3 fixed), doc wording and refuted mechanical claims (odd backticks on wrapped prose, a
-  phrase that is the surviving check). On a surface this size the mechanical and breadth seats raise a
-  handful of such candidates every round, so a quiet round is not in sight at ~40 minutes and ~1.3M seat
-  tokens per round.
-- **The operator's directive** (2026-09-08: *"finish the commands/skills task fastest with affordable token
-  usage"*, *"all my day is passing while waiting reviews"*): close on a round with **zero CONFIRMED code/doc
-  defects**, RECORDED/REFUTED rows not reopening the loop — proposed as an [infra] row in
-  `docs/STRATEGIC_BACKLOG.md` on 2026-09-08, awaiting the D-row.
-
-Under the corpus bar this receipt stays `IN-PROGRESS`; under the operator's bar it is converged at round 18.
-The three attempts the BLOCKED shape requires are rounds 16, 17 and 18 — each a full re-sweep of the persisted
-class ledger, each fixing what was confirmed, none quiet. **Resolution needed:** a D-row adopting the
-zero-CONFIRMED bar (then this receipt flips to CONVERGED with round 18 as the closing round and the gate text
-follows), or the ruling that the corpus bar stands (then rounds continue from `command_run.py start`).
+Settled by D-203 (the operator's rulings of 2026-09-08, recorded by the sibling hub session) and the approved spec
+`docs/superpowers/specs/2026-09-08-review-convergence-redesign-design.md` (D-205; D-206 supersedes D-048): quiet is a round
+whose partitioned pass CONFIRMS zero code or doc defects, refuted and recorded candidates never reopen the loop, and every
+round after the first is a delta round over the fix diff with a fresh non-authoring seat. Round 18's row is re-adjudicated
+in that grammar above (11 raised, 9 new, 3 confirmed and fixed), rounds 19–20 are the first application of the landed
+loop (plan 2026-09-09-plan-1-review-convergence-redesign, T10), and the receipt closes on round 20.
 
 ## Per-phase verdicts
 
-### Phase 1 — D-191: the box is the ceiling, units the partition (23189ea4..HEAD): IN ROUND 18 — BLOCKED on the convergence-bar contradiction (see below)
+### Phase 1 — D-191: the box is the ceiling, units the partition (23189ea4..HEAD): CLEAN — closed at round 20 under D-203 (rounds 1–18 under the old bar, never quiet; round 19 the first delta round, 4 confirmed residue of round 18's fix, fixed out of lock at the plan's Finish; round 20 quiet: 3 raised, 0 confirmed)
 
 Eleven seats in ONE message — the number `dispatch_headroom.py --units 5 --risky 1` printed for this change's five units (1 opus authoritative + 5 sonnet breadth + 5 haiku mechanical, cost 20) — over pinned copies in a per-dispatch subdirectory, one file per file, plus the orchestrator's own executable sweep.
 
@@ -717,40 +706,34 @@ Eleven seats in ONE message — the number `dispatch_headroom.py --units 5 --ris
 | F361 | the events-pin grader inherited the pin implicitly and discarded the subprocess result — its own red path leaked `pin-probe.jsonl` into the real events dir (twice: round 17's run, round 18's seat s2) and a failed `start` left only `assert []` (opus + sonnet s2, round 18) | grader blast radius | FIXED — the pin is passed explicitly, `returncode == 0` asserted with stderr |
 | F362 | `_giant_line_epoch`'s one-extra-window floor had no grader — `floor = 0` survived the suite (sonnet s1, round 18; mutation) | ungraded bound | FIXED — t9: a 9 MB single line past the cap is "skipped" |
 | F363 | `round --findings` counts raw candidates while the receipt's rows are adjudicated — the two figures differ (14 vs 8, 12 vs 9) and nothing said so (sonnet s3, round 18) | undocumented meaning | FIXED — the protocol doc's `round` row says it |
-| F364 | an undatable seat ("skipped": unreadable, torn, past the cap) re-fires the nudge on a bare touch after its close (sonnet s1, round 18; reproduced) | the accepted fail-toward-counting trade (F342, F358, round-18 Opus) | RECORDED — advisory only; a size fingerprint per seat is the next step if it ever cries wolf in practice |
-| F365 | the seat-transcript population carries 0 two-stamp lines in 932,029 (sonnet s1, round 18) — the two-stamp branch is defensive, its prevalence figure is the parent population's; the 8,778 / 15,175 counts are snapshots that grow daily (sonnet s3) | prevalence prose | RECORDED — F352's cell names the parent figure as context |
-| F366 | mechanical claims (round 18): `if torn:` at the small-line skip is the surviving check, not a stale one (haiku h1); inline code spans wrapped across prose lines are legitimate markdown, not odd-backtick defects (haiku h2, 142 lines); "RESERVATION close" appears twice in repo-review — Phase 1 and the fragment — by design (haiku h2); the receipt's `## Gate` block is filled at the CONVERGED flip (sonnet s3) | — | REFUTED |
+| F364 | an undatable seat ("skipped": unreadable, torn, past the cap) re-fires the nudge on a bare touch after its close (sonnet s1, round 18; reproduced) | the fail-toward-counting trade (F342, F358, round-18 Opus) | RECORDED — by design (F342, round 15; F358, round 17) — advisory only; a size fingerprint per seat is the next step if it ever cries wolf in practice |
+| F365 | the seat-transcript population carries 0 two-stamp lines in 932,029 (sonnet s1, round 18) — the two-stamp branch is defensive, its prevalence figure is the parent population's; the 8,778 / 15,175 counts are snapshots that grow daily (sonnet s3) | prevalence prose | RECORDED — measured (a prevalence figure over 932,029 seat-transcript lines and two daily-growing snapshot counts; F356 re-raised; makes no code or doc claim) — F352's cell names the parent figure as context |
+| F366 | mechanical claims (round 18): `if torn:` at the small-line skip is the surviving check, not a stale one (haiku h1); inline code spans wrapped across prose lines are legitimate markdown, not odd-backtick defects (haiku h2, 142 lines); "RESERVATION close" appears twice in repo-review — Phase 1 and the fragment — by design (haiku h2); the receipt's `## Gate
 
-
-## Gate
-
-`final_gate.py --check --json`, pasted verbatim at the flip (check_convergence reads the fenced
-`"status": "success"`):
+`final_gate.py --lean --check --json` on a `git clone --shared` of master 633e38ce with this receipt and the two round-19 test fixes staged, pasted verbatim at the CONVERGED flip (check_convergence reads the fenced `"status": "success"`):
 
 ```json
 {
   "status": "success",
-  "tier": 2,
-  "passed": 60,
+  "tier": 1,
+  "passed": 34,
   "failed": 0,
-  "skipped": 1,
-  "skipped_checks": [
-    "pytest"
-  ],
+  "skipped": 0,
+  "skipped_checks": [],
   "advisory": [
     {
-      "check": "pytest (NOT RUN)",
-      "output": "this repo's CI does not invoke pytest, so the gate does not either \u2014 PERMANENT, not a per-diff skip. Deliberate (a CI that never reds has no red to prevent, and a hub-scale suite would brick every completion gate), but it means THIS GREEN ASSERTS NOTHING ABOUT THE TEST SUITE. Run it yourself: `python -m pytest tests/ -q`, or make the gate run it every time with `mkdir -p .fabrik && touch .fabrik/run-pytest` \u2014 required if this repo retires its GitHub workflows, since deleting them otherwise disarms this check \u2014 the suite is OUTSIDE this gate",
+      "check": "Vendored Drift (sync-excluded repos)",
+      "output": "",
       "truncated": false,
       "omitted_lines": 0,
       "rerun": null
     },
     {
-      "check": "Vendored Drift (sync-excluded repos)",
-      "output": "\u26a0 check_vendored_drift ADVISORY \u2014 sync-excluded repos PULL, nothing is pushed to them; undeclared divergence below is invisible debt until someone opens it:\n  \u26a0 fabrik-lib: 17 identical \u00b7 19 declared-design \u00b7 51 UNREVIEWED diff \u00b7 11 local-only\n    \u26a0 fabrik-lib/scripts/enforcement/check_decisions_unique.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_doc_sprawl.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_duplicates.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_env_vars.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_feedback_duty.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_imports_resolvable.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fa\n\u2026 [truncated: ~42 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_vendored_drift.py` for the FULL set; NEVER scope a fix to this preview] \u2026\nre it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/.windsurf/rules/saas/95-multi-tenant-saas.md: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/review_rubric.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/mail.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist",
-      "truncated": true,
-      "omitted_lines": 42,
-      "rerun": "python scripts/enforcement/check_vendored_drift.py"
+      "check": "Review hygiene (advisory)",
+      "output": "[ADVISORY] dual-verdict docs/development/reviews/2026-09-08-box-bound-seats-d191-review.md:408 \u2014 the disposition cell carries 2 bare verdict words (FIXED, RECORDED) \u2014 one leading verdict per cell\n[ADVISORY] dual-verdict docs/development/reviews/2026-09-08-box-bound-seats-d191-review.md:529 \u2014 the disposition cell carries 2 bare verdict words (REFUTED, RECORDED) \u2014 one leading verdict per cell\n[ADVISORY] dual-verdict docs/development/reviews/2026-09-08-box-bound-seats-d191-review.md:638 \u2014 the disposition cell carries 2 bare verdict words (FIXED, REFUTED) \u2014 one leading verdict per cell\n[ADVISORY] dual-verdict docs/development/reviews/2026-09-08-box-bound-seats-d191-review.md:659 \u2014 the disposition cell carries 2 bare verdict words (RECORDED, RECORDED) \u2014 one leading verdict per cell\n[ADVISORY] dual-verdict docs/development/reviews/2026-09-08-box-bound-seats-d191-review.md:672 \u2014 the disposition cell carries 2 bare verdict words (FIXED, REFUTED) \u2014 one leading verdict per cell\nhygiene: 5 hit(s) over 1 file(s), 0 rows ungraded",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
     },
     {
       "check": "Routing Policy (operator deny + allowlist)",
@@ -775,7 +758,7 @@ Eleven seats in ONE message — the number `dispatch_headroom.py --units 5 --ris
     },
     {
       "check": "Spec convergence",
-      "output": "spec convergence: 26 CONVERGED spec(s) examined, 13 with findings (artifact-only; citations not re-fetched)\n  SILENT-1a: 2026-07-15-autonomous-factory-driver-design.md no cited source and no 'no external facts' statement - indistinguishable from skipping the research gate\n  ... 20 more finding(s) - run the check directly\n  -> run /fabrik-spec-review to a no-op; a spec with no external facts must SAY so, and a converged spec must enumerate its residual unknowns",
+      "output": "spec convergence: 27 CONVERGED spec(s) examined, 13 with findings (artifact-only; citations not re-fetched)\n  SILENT-1a: 2026-07-15-autonomous-factory-driver-design.md no cited source and no 'no external facts' statement - indistinguishable from skipping the research gate\n  ... 20 more finding(s) - run the check directly\n  -> run /fabrik-spec-review to a no-op; a spec with no external facts must SAY so, and a converged spec must enumerate its residual unknowns",
       "truncated": false,
       "omitted_lines": 0,
       "rerun": null
@@ -789,14 +772,14 @@ Eleven seats in ONE message — the number `dispatch_headroom.py --units 5 --ris
     },
     {
       "check": "Citations resolve (path:line lands)",
-      "output": "\u26a0 check_citations_resolve ADVISORY \u2014 2 citation(s) do not land, of 6 examined across 6 docs (a wrong `path:line` reads as verified and is not):\n   - docs/development/plans/2026-09-06-plan-2-multi-agent-adoption/T03-check-advisory.md: BLANK-TARGET scripts/docs_updater.py:1357 \u2192 ''\n   - docs/development/plans/2026-09-06-plan-2-multi-agent-adoption/T03-check-advisory.md: BLANK-TARGET scripts/docs_updater.py:1357 \u2192 ''",
+      "output": "",
       "truncated": false,
       "omitted_lines": 0,
       "rerun": null
     },
     {
       "check": "Feedback duty",
-      "output": "feedback duty: 20 close(s) in 14d, 1 with NO verdict (verdict given or not; honesty not gradeable)\n  UNSTATED: fabrik-probe (probe-fb)\n  -> close with --feedback: what you filed and to whom, or 'none' plus the surfaces you exercised (commands/_fragments/close-feedback.md)",
+      "output": "",
       "truncated": false,
       "omitted_lines": 0,
       "rerun": null
@@ -835,80 +818,17 @@ Eleven seats in ONE message — the number `dispatch_headroom.py --units 5 --ris
       "truncated": false,
       "omitted_lines": 0,
       "rerun": null
-    },
-    {
-      "check": "User-Level Hooks Registered",
-      "output": "user-level hooks: present in every account dir",
-      "truncated": false,
-      "omitted_lines": 0,
-      "rerun": null
-    },
-    {
-      "check": "Retired-Tech Tripwire",
-      "output": "WARN: docs/CAPABILITIES.md:16: unmarked retired-tech mention: - [fabrik domain ready](../AGENTS.md) (owner: fleet): Check if domain is ready for Coolify deployment.\nWARN: docs/CAPABILITIES.md:62: unmarked retired-tech mention: - [authelia](SERVICES.md) (owner: fleet): Authelia access-control rule provisioning for the Coolify-managed container.\nWARN: docs/CAPABILITIES.md:71: unmarked retired-tech mention: - [meilisearch](SERVICES.md) (owner: fleet): MeiliSearch index provisioning on the shared Coolify-managed instance.\nWARN: docs/CAPABILITIES.md:297: unmarked retired-tech mention: - [ai/00-ai-model-selection.md](../.windsurf/rules/ai/00-ai-model-selection.md) (owner: infra): AI model & tool selectio\nWARN: docs/CAPABILITIES.md:304: unmarked retired-tech mention: - [ai/60-code.md](../.windsurf/rules/ai/60-code.md) (owner: infra): Code & Developer AI (category 6) \u2014 generate or expla\nWARN: docs/CONFIGURATION.md:799: unmarked retired-tech mention: DATABASE_URL = os.getenv('DATABASE_URL')  # Supabase provides this, for the exception path only\nWARN: docs/DEPLOYMENT_ARCHITECTURE.md:397: unmarked retired-tech mention: | `/etc/iptables/add-docker-user-rules.sh` | DOCKER-USER chain rules. Only 80/443 serve traffic; the script also RETURNs\nWARN: docs/DEPLOYMENT_ARCHITECTURE.md:428: unmarked retired-tech mention: - **Allowed public TCP ports:** 80, 443 (the only ports serving traffic). The i\n\u2026 [truncated: ~53 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_retired_terms.py` for the FULL set; NEVER scope a fix to this preview] \u2026\ns for Windsurf Cascade\nWARN: docs/workflows/SYNC_ENFORCEMENT_WORKFLOW.md:44: unmarked retired-tech mention: | `opencode.json` | Kilo CLI configuration |\nWARN: docs/workflows/SYNC_ENFORCEMENT_WORKFLOW.md:70: unmarked retired-tech mention: | `kilo_code_review.py` | Kilo CLI review integration |\nWARN: docs/workstation/WSL2-DNS-FIX.md:24: unmarked retired-tech mention: 5. Node.js relies on `getaddrinfo()`, so Kilo CLI fails\nWARN: docs/workstation/WSL2-DNS-FIX.md:150: unmarked retired-tech mention: Verified by: Kilo CLI connectivity test\ncheck_retired_terms: 65 WARN(s) \u2014 advisory only, not blocking",
-      "truncated": true,
-      "omitted_lines": 53,
-      "rerun": "python scripts/enforcement/check_retired_terms.py"
-    },
-    {
-      "check": "Rule-pack reachability",
-      "output": "reachable: core/75-workers-jobs.md @ file-worker \u2014 via worker\n  reachable: core/app-audit-log.md @ saas-skeleton \u2014 via server/src/probe_saas_skeleton/auth.py\nExamined 2 pack(s) / 2 claim-pair(s) declaring applies_to for a checked type (of 13 scaffold type(s) checked).\nOK \u2014 every VERIFIABLE applies_to claim reaches at least one emitted path (2 of 2 examined pack(s) verified).",
-      "truncated": false,
-      "omitted_lines": 0,
-      "rerun": null
-    },
-    {
-      "check": ".env.example Completeness",
-      "output": "",
-      "truncated": false,
-      "omitted_lines": 0,
-      "rerun": null
-    },
-    {
-      "check": "Phase Tests (plan-window)",
-      "output": "PHASE-TESTS (advisory): OK \u2014 no active plan window shipping behavior without tests.",
-      "truncated": false,
-      "omitted_lines": 0,
-      "rerun": null
-    },
-    {
-      "check": "Ticket Breadth (plan sets)",
-      "output": "\u26a0 TICKET BREADTH \u2014 5 of 7 ticket(s) graded score \u2265 5 independent risk classes (advisory)\n  T02a (/opt/fabrik/docs/development/plans/2026-09-06-plan-2-multi-agent-adoption/T02a-adopt-core.md): score 8\n    components: areas=1 (scripts) [+1 test surface(s), not counted] \u00b7 behaviors=7 \u00b7 code+governance mix=no\n    predicted review cost: ~4-12 rounds (basis: this repo's review ledgers \u2014 4.2 rounds/plan (n=14/22, max 16); per-ticket receipts n=14 give rounds ~= 1.0 x score (spread 0.3x-1.6x))\n    split: split the 7 Behavior-Contract rows into tickets of <=2 behaviours each (one review class apiece)\n  T04 (/opt/fabrik/docs/development/plans/2026-09-06-plan-2-multi-agent-adoption/T04-session-advisory.md): score 6\n    components: areas=1 (.claude) [+1 test surface(s), not counted] [+1 doc-sync surface(s), travel with the code] \u00b7 behaviors=4 \u00b7 code+governance mix=yes\n    predicted review cost: ~3-9 rounds (basis: this repo's review ledgers \u2014 4.2 rounds/plan (n=14/22, max 16); per-ticket receipts n=14 give rounds ~= 1.0 x score (spread 0.3x-1.6x))\n    split: split the 4 Behavior-Contract rows into tickets of <=2 behaviours each (one review class apiece); separate the fleet-synced surface (.claude/hooks/session_orient.py) from the local code \u2014 a ~46-repo blast radius reviews on its own axis\n  T06 (/opt/fabrik/docs/development/plans/2026-09-06-plan-2-multi-agent-adoption/T06-integration.md):\n\u2026 [truncated: ~10 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_ticket_breadth.py` for the FULL set; NEVER scope a fix to this preview] \u2026\nr-ticket receipts n=14 give rounds ~= 1.0 x score (spread 0.3x-1.6x))\n    split: split the 4 Behavior-Contract rows into tickets of <=2 behaviours each (one review class apiece)\n  Calibration honesty: in the n=14 retroactive set, 2 of 4 flags with round receipts matched a ticket that actually ran >=4 rounds (score-vs-rounds Spearman rho=0.45). Treat a flag as a prompt to LOOK, not a verdict.\n  Advisory only \u2014 the threshold is provisional (docs/reference/ticket-breadth.md). Narrowing is the operator's call.\n\u26a0 TICKET BREADTH \u2014 5 of 7 ticket(s) graded score \u2265 5 independent risk classes (advisory)",
-      "truncated": true,
-      "omitted_lines": 10,
-      "rerun": "python scripts/enforcement/check_ticket_breadth.py"
     }
   ],
-  "blocking": 40,
+  "blocking": 20,
   "failures": [],
   "warnings": [
     {
       "check": "Coverage Checklist (reviews)",
-      "output": "\u26a0 check_review_coverage ADVISORY \u2014 committed review(s) needing attention:\n  \u26a0 docs/development/reviews/2026-08-10-hub-governance-gates-review.md: COMMITTED with a non-quiet exit round (found: 10) \u2014 committing a review does not converge it. Finish the loop; BLOCKED-escalate the stuck finding (`## BLOCKED: <finding>` with its 3 attempts); when the LOOP itself failed (3 rounds of non-decreasing, nonzero `new:`), emit `## BLOCKED: NON-CONVERGENCE` naming the suspected foundation error; or mark the report `Status: IN-PROGRESS`.\n  \u26a0 docs/development/reviews/2026-08-19-plan-1-kaizen-m1-event-stream-review.md: COMMITTED with a Pass-shaped ledger line that does not parse ('Pass 1 (WIDE) \u2014 finders: pool fanout \u00d73 (deepseek-v3.2 raised 9 on the') \u2014 punctuate the counts or fence the quote\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T01-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T02-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T03-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026\n\u2026 [truncated: ~4 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_review_coverage.py` for the FULL set; NEVER scope a fix to this preview] \u2026\nse-C-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-09-01-mail-handling-enforcement-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-09-02-external-services-chain-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\ncheck_review_coverage: OK \u2014 0 unproven coverage claims across 2 changed review artifact(s)",
+      "output": "\u26a0 check_review_coverage ADVISORY \u2014 committed review(s) needing attention:\n  \u26a0 docs/development/reviews/2026-08-10-hub-governance-gates-review.md: COMMITTED with a non-quiet exit round (found: 10) \u2014 committing a review does not converge it. Finish the loop; BLOCKED-escalate the stuck finding (`## BLOCKED: <finding>` with its 3 attempts); when the LOOP itself failed (3 rounds of non-decreasing, nonzero `new:`), emit `## BLOCKED: NON-CONVERGENCE` naming the suspected foundation error; or mark the report `Status: IN-PROGRESS`.\n  \u26a0 docs/development/reviews/2026-08-19-plan-1-kaizen-m1-event-stream-review.md: COMMITTED with a Pass-shaped ledger line that does not parse ('Pass 1 (WIDE) \u2014 finders: pool fanout \u00d73 (deepseek-v3.2 raised 9 on the') \u2014 punctuate the counts or fence the quote\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T01-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T02-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T03-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026\n\u2026 [truncated: ~4 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_review_coverage.py` for the FULL set; NEVER scope a fix to this preview] \u2026\nse-C-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-09-01-mail-handling-enforcement-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-09-02-external-services-chain-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\ncheck_review_coverage: OK \u2014 0 unproven coverage claims across 1 changed review artifact(s)",
       "truncated": true,
       "omitted_lines": 4,
       "rerun": "python scripts/enforcement/check_review_coverage.py"
-    },
-    {
-      "check": "Vendored Drift (sync-excluded repos)",
-      "output": "\u26a0 check_vendored_drift ADVISORY \u2014 sync-excluded repos PULL, nothing is pushed to them; undeclared divergence below is invisible debt until someone opens it:\n  \u26a0 fabrik-lib: 17 identical \u00b7 19 declared-design \u00b7 51 UNREVIEWED diff \u00b7 11 local-only\n    \u26a0 fabrik-lib/scripts/enforcement/check_decisions_unique.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_doc_sprawl.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_duplicates.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_env_vars.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_feedback_duty.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_imports_resolvable.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fa\n\u2026 [truncated: ~42 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_vendored_drift.py` for the FULL set; NEVER scope a fix to this preview] \u2026\nre it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/.windsurf/rules/saas/95-multi-tenant-saas.md: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/review_rubric.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/mail.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist",
-      "truncated": true,
-      "omitted_lines": 42,
-      "rerun": "python scripts/enforcement/check_vendored_drift.py"
-    },
-    {
-      "check": "Citations resolve (path:line lands)",
-      "output": "\u26a0 check_citations_resolve ADVISORY \u2014 2 citation(s) do not land, of 6 examined across 6 docs (a wrong `path:line` reads as verified and is not):\n   - docs/development/plans/2026-09-06-plan-2-multi-agent-adoption/T03-check-advisory.md: BLANK-TARGET scripts/docs_updater.py:1357 \u2192 ''\n   - docs/development/plans/2026-09-06-plan-2-multi-agent-adoption/T03-check-advisory.md: BLANK-TARGET scripts/docs_updater.py:1357 \u2192 ''",
-      "truncated": false,
-      "omitted_lines": 0,
-      "rerun": null
-    },
-    {
-      "check": "Ticket Breadth (plan sets)",
-      "output": "\u26a0 TICKET BREADTH \u2014 5 of 7 ticket(s) graded score \u2265 5 independent risk classes (advisory)\n  T02a (/opt/fabrik/docs/development/plans/2026-09-06-plan-2-multi-agent-adoption/T02a-adopt-core.md): score 8\n    components: areas=1 (scripts) [+1 test surface(s), not counted] \u00b7 behaviors=7 \u00b7 code+governance mix=no\n    predicted review cost: ~4-12 rounds (basis: this repo's review ledgers \u2014 4.2 rounds/plan (n=14/22, max 16); per-ticket receipts n=14 give rounds ~= 1.0 x score (spread 0.3x-1.6x))\n    split: split the 7 Behavior-Contract rows into tickets of <=2 behaviours each (one review class apiece)\n  T04 (/opt/fabrik/docs/development/plans/2026-09-06-plan-2-multi-agent-adoption/T04-session-advisory.md): score 6\n    components: areas=1 (.claude) [+1 test surface(s), not counted] [+1 doc-sync surface(s), travel with the code] \u00b7 behaviors=4 \u00b7 code+governance mix=yes\n    predicted review cost: ~3-9 rounds (basis: this repo's review ledgers \u2014 4.2 rounds/plan (n=14/22, max 16); per-ticket receipts n=14 give rounds ~= 1.0 x score (spread 0.3x-1.6x))\n    split: split the 4 Behavior-Contract rows into tickets of <=2 behaviours each (one review class apiece); separate the fleet-synced surface (.claude/hooks/session_orient.py) from the local code \u2014 a ~46-repo blast radius reviews on its own axis\n  T06 (/opt/fabrik/docs/development/plans/2026-09-06-plan-2-multi-agent-adoption/T06-integration.md):\n\u2026 [truncated: ~10 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_ticket_breadth.py` for the FULL set; NEVER scope a fix to this preview] \u2026\nr-ticket receipts n=14 give rounds ~= 1.0 x score (spread 0.3x-1.6x))\n    split: split the 4 Behavior-Contract rows into tickets of <=2 behaviours each (one review class apiece)\n  Calibration honesty: in the n=14 retroactive set, 2 of 4 flags with round receipts matched a ticket that actually ran >=4 rounds (score-vs-rounds Spearman rho=0.45). Treat a flag as a prompt to LOOK, not a verdict.\n  Advisory only \u2014 the threshold is provisional (docs/reference/ticket-breadth.md). Narrowing is the operator's call.\n\u26a0 TICKET BREADTH \u2014 5 of 7 ticket(s) graded score \u2265 5 independent risk classes (advisory)",
-      "truncated": true,
-      "omitted_lines": 10,
-      "rerun": "python scripts/enforcement/check_ticket_breadth.py"
     }
   ]
 }

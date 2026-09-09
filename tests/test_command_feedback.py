@@ -1938,7 +1938,9 @@ def test_a_round_with_no_stamp_names_the_seats_that_ran_unstamped(
     p = _cr(run_dir, "round", "--findings", "1")
     assert "1 seat transcript(s) since the last round and NO `dispatch --seats` stamp" in p.stderr
     # the head scan is capped at one extra window (F347): a 9 MB single line whose stamp sits
-    # past that cap is "skipped" — counted by mtime, bounded I/O (round 18: the bound was ungraded)
+    # past that cap is "skipped" — counted by mtime. This round-trip grades the ANSWER (the stamp
+    # past the cap is not adopted); the bound itself stays ungraded here (D-191 review round 19),
+    # and the guard behind it is graded in-process by test_giant_line_epoch_skips_a_nested_stamp…
     time.sleep(1.1)
     (sub / "agent-t9.jsonl").write_text(
         '{"type":"user","timestamp":"2020-01-01T00:00:00.000Z","toolUseResult":{"stdout":"'
@@ -1990,3 +1992,38 @@ def test_a_round_with_no_stamp_names_the_seats_that_ran_unstamped(
     p = _cr(run_dir, "round", "--findings", "0", "--classes-swept", "a")
     assert p.returncode == 0 and "error, continuing" not in p.stderr
     assert len(json.loads(rp.read_text())["rounds"]) == len(rec["rounds"]) + 1
+
+
+def _command_run_module():
+    """Load the script as a module (it is a CLI; the guard is a pure function of one file)."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("command_run_guard_probe", SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_giant_line_epoch_skips_a_nested_stamp_inside_the_window(tmp_path: Path) -> None:
+    """F347's guard, graded directly (D-191 review round 19: the CLI round-trip above proves only that
+    a stamp past the cap is not adopted — with the `return None` guard removed, a 9 MB single line
+    whose only stamp is a NESTED one sitting inside the 64 KB window the back-scan lands on dated the
+    seat 2020-01-01 while 211 of 211 runnable tests stayed green). Geometry that matters: the nested
+    stamp at size − 8 MB + 100, nothing in the last 64 KB, no newline anywhere before the end."""
+    mod = _command_run_module()
+    head = b'{"type":"user","message":{"content":"'
+    nested = b'","nested":{"timestamp":"2020-01-01T00:00:00.000Z"},"z":"'
+    total = 9 << 20
+    pad = total - (8 << 20) + 100 - len(head)
+    q = tmp_path / "agent-nested.jsonl"
+    q.write_bytes(
+        head + b"y" * pad + nested + b"z" * (total - pad - len(head) - len(nested)) + b'"}\n'
+    )
+    size = q.stat().st_size
+    assert size > 9 << 20
+    assert mod._giant_line_epoch(q, size) is None  # the guard: "skipped", never dated by the nest
+    # positive control — a trailing envelope stamp inside the last 64 KB IS read
+    r = tmp_path / "agent-tail.jsonl"
+    r.write_bytes(head + b"y" * (5 << 20) + b'","timestamp":"2020-06-15T00:00:00.000Z"}\n')
+    assert mod._giant_line_epoch(r, r.stat().st_size) == 1592179200.0
