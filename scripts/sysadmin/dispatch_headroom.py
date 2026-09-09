@@ -406,7 +406,7 @@ def parse_mix(text: str, flag: str = "--mix") -> dict[str, int]:
     a bare name, an empty name or a non-numeric count is refused with the part quoted; a kind given
     more than once is refused too — a dict silently keeps only the LAST value, so
     "haiku=5,HAIKU=1" (case folds together) or "opus=1,opus=2" understated a caller's real count
-    with no reason (round-2 delta finding, item 1: this was first fixed for `--slices` alone, but
+    with no reason (round-3 delta review, item 1: this was first fixed for `--slices` alone, but
     the grammar underlies `--mix` too — "--mix haiku=7,haiku=7" priced 7 seats when the caller
     asked for 14). Detected HERE, in the grammar itself, so both callers get it for free: `flag`
     names the CLI flag being parsed in the error text — `--slices` shares this grammar with `--mix`

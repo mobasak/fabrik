@@ -242,8 +242,10 @@ all — it names the DD2 gap in a reason rather than inventing an Opus seat, sin
 orchestrator's judgement call, not the script's). Kinds are exactly `opus`/`sonnet`/`haiku` (Fable is never
 a finder, D2), every count must be `>= 0`, and no kind may be given twice (a repeated kind is refused
 rather than silently overwritten — the same grammar underlies `--mix`, which refuses a repeated kind the
-same way, e.g. `--mix haiku=7,haiku=7`). Any of the three violations is refused (exit 2) before anything
-runs. `--slices` wins when both are given; `--units` is then optional and defaults to the slice count, so
+same way, e.g. `--mix haiku=7,haiku=7`). Any of the three violations refuses `--slices` (exit 2) before
+anything runs; on `--mix` the same refusal lands after the box/quota probe (the fleet round-trip pays
+before the error prints — the units path stays byte-identical, so this is not moved earlier).
+`--slices` wins when both are given; `--units` is then optional and defaults to the slice count, so
 `--slices … --units 0` still prints its real seat count rather than the "nothing to partition" message. A
 zero-sum partition (`opus=0,sonnet=0`) is not refused — it prints `SEATS: 0` with a NAMED reason, never a
 bare number with nothing for "see the reasons above" to point at.
