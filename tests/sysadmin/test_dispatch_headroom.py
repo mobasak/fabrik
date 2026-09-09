@@ -1146,6 +1146,9 @@ def test_slices_zero_sum_partition_is_never_a_silent_seats_zero():
 
 
 def test_slices_cli_zero_sum_prints_seats_zero_with_a_reason(monkeypatch, capsys):
+    """F2, CLI-level: the zero-sum reason from `budget()` must actually reach stdout through
+    `main()`'s printed reasons list, not just the return dict `test_slices_zero_sum_partition_is_
+    never_a_silent_seats_zero` already covers at the `budget()` level."""
     monkeypatch.setattr(dh, "box", lambda: BOX_OK)
     monkeypatch.setattr(dh, "quota", lambda: Q_OK)
     monkeypatch.setattr(
@@ -1211,16 +1214,25 @@ def test_mix_by_slice_is_the_trimmed_partition_independent_of_a_mix_price_overri
 
 
 def test_mix_by_slice_trims_to_the_seat_budget_under_a_cap(monkeypatch, capsys):
+    """F6/R2 (round-2 review): the PREVIOUS version of this test used no `--mix` override, so
+    `mix_by_slice == mix` was a tautology — on the pre-fix code (e2e57ff5) `mix_by_slice` was
+    simply `dict(mix)`, and without an override `mix` already equals `trim(full, seats)`, so the
+    assertion passed for the WRONG reason and never caught F6. A `--mix` override forces `mix` and
+    `mix_by_slice` to genuinely differ, proving `mix_by_slice` is re-derived from `slices`
+    independently, not read off `mix`. Red-first proof against e2e57ff5 confirmed the previous
+    (tautological) test passed on the broken code; this version fails there — see the T04 report's
+    Tests section for the scratch-mirror run."""
     monkeypatch.setattr(dh, "box", lambda: dict(BOX_OK, mem_available_gb=1.0))  # 1 read-only seat
     monkeypatch.setattr(dh, "quota", lambda: Q_OK)
     monkeypatch.setattr(
         dh, "siblings", lambda: {"ok": True, "seats": 0, "sessions": 0, "skipped": []}
     )
-    assert dh.main(["--slices", "opus=1,sonnet=5", "--json"]) == 0
+    assert dh.main(["--slices", "opus=1,sonnet=5", "--mix", "haiku=3", "--json"]) == 0
     d = json.loads(capsys.readouterr().out)
     assert d["seats"] == 1
-    assert d["mix_by_slice"] == {"opus": 1}  # trimmed the same way `mix` is
-    assert d["mix_by_slice"] == d["mix"]  # no --mix override here, so the two agree
+    assert d["mix"] == {"haiku": 3}  # the --mix price override, unaffected by the box cap
+    assert d["mix_by_slice"] == {"opus": 1}  # the partition, trimmed to the box cap — NOT `mix`
+    assert d["mix_by_slice"] != d["mix"]
 
 
 def test_binding_cap_reason_under_slices_names_the_slice_counts_summed():
@@ -1249,3 +1261,44 @@ def test_the_wording_never_claims_one_seat_per_kind_as_the_sizing_rule():
     doc = (REPO / "docs" / "workstation" / "claude-account-rotation.md").read_text()
     assert "one seat per non-empty slice kind" not in doc
     assert "SUMMED" in doc
+
+
+# --- T04 round 2 review fixes (R1-R2): duplicated kinds, mix_by_slice tautology -----------------
+
+
+@pytest.mark.parametrize(
+    "argv,expected_stderr",
+    [
+        (
+            ["--slices", "opus=1,sonnet=4,opus=1"],
+            "--slices kind 'opus' given more than once",
+        ),
+        (
+            ["--slices", "opus=1,opus=2,sonnet=1,sonnet=2"],
+            "--slices kind 'opus', 'sonnet' given more than once",
+        ),
+    ],
+)
+def test_slices_cli_refuses_a_duplicated_kind_and_names_every_one(argv, expected_stderr, capsys):
+    """R1 (round-2 review): `parse_mix`'s dict silently OVERWRITES a duplicated kind's earlier
+    value — "opus=1,sonnet=4,opus=1" summed to SEATS: 5 with one Opus slice vanishing and no
+    reason, exit 0. Now refused, exit 2, naming every duplicated kind (not just the first)."""
+    assert dh.main(argv) == 2
+    assert expected_stderr in capsys.readouterr().err
+
+
+def test_slices_duplicate_kind_is_detected_before_parse_mix_collapses_it():
+    """The duplicate check runs on the RAW `--slices` text, not the parsed dict — by the time
+    `parse_mix` has run, the dict has already lost the information that a kind repeated. A
+    same-value duplicate ("opus=1,...,opus=1") is refused exactly like a differing-value one."""
+    assert dh.main(["--slices", "opus=1,sonnet=4,opus=1"]) == 2  # same value both times
+    assert dh.main(["--slices", "opus=1,sonnet=4,opus=9"]) == 2  # differing value
+
+
+def test_slices_duplicate_check_runs_before_the_unknown_kind_check(capsys):
+    """Cross-check that the R1 duplicate refusal composes with the existing F3 check: a duplicated
+    kind is caught FIRST (on raw text), before the unknown-kind check ever sees the collapsed
+    dict — a duplicate of an otherwise-invalid kind still reports the duplicate, not "is not one
+    of opus, sonnet, haiku"."""
+    assert dh.main(["--slices", "fable=1,fable=2"]) == 2
+    assert "given more than once" in capsys.readouterr().err

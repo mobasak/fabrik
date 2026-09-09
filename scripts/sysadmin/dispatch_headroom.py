@@ -753,6 +753,24 @@ def main(argv: list[str] | None = None) -> int:
         print(f"dispatch_headroom.py: error: {exc}", file=sys.stderr)
         return 2
     if slices is not None:
+        # R1 (round-2 review): `parse_mix`'s dict silently OVERWRITES a duplicated kind's earlier
+        # value — "opus=1,sonnet=4,opus=1" summed to SEATS: 5 with one Opus slice vanishing and no
+        # reason. The parsed dict has already collapsed duplicates by the time we get here, so this
+        # is detected on the RAW `--slices` text, before parsing; every duplicated kind is named,
+        # not just the first (mirrors the negative-count check's "report every bad one" shape).
+        raw_keys = [
+            part.partition("=")[0].strip().lower()
+            for part in filter(None, (x.strip() for x in a.slices.split(",")))
+        ]
+        dupes = sorted({k for k in raw_keys if raw_keys.count(k) > 1})
+        if dupes:
+            print(
+                "dispatch_headroom.py: error: --slices kind "
+                + ", ".join(f"{k!r}" for k in dupes)
+                + " given more than once",
+                file=sys.stderr,
+            )
+            return 2
         # F3 (round-1 review): a partition's kinds are exactly opus/sonnet/haiku (Fable is never a
         # finder, D2) — checked BEFORE the negative-count check, the more fundamental refusal
         unknown = [k for k in slices if k not in _SLICE_KINDS]
