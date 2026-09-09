@@ -519,6 +519,15 @@ def test_a_joined_line_with_no_readable_first_run_is_refused_and_ends_its_table(
     tables, _p2, ordered2, refusals2 = crc._ledger_shapes(ledger)
     assert [len(t) for t in tables] == [1, 1], f"the table boundary must survive: {tables}"
     assert len(ordered2) == 2 and len(refusals2) == 1, (ordered2, refusals2)
+    # Round-5 item 3: assert what the GATE SAYS, not only the shapes it derived. The boundary the
+    # refusal creates DOES reach the multi-group guard, so a mid-ledger join is reported TWICE —
+    # once truthfully, once as a decoy-group accusation the author did not earn. Fail-CLOSED but
+    # wrong-reason, and pinned here so the comment above the branch can never drift from it again.
+    errs = _graded(tmp_path, joined + "| Pass 5 | f | found: 0 | fixed: 0 |\n")
+    assert any(e.startswith("Pass row refused:") for e in errs), errs
+    assert any("separate groups" in e and "decoy" in e for e in errs), (
+        f"the decoy-group accusation is the RECORDED wrong-reason second error: {errs}"
+    )
 
 
 def test_a_word_trailed_counter_never_hides_a_join(tmp_path):
@@ -639,3 +648,104 @@ def test_a_list_wrapped_table_row_is_cell_bounded_like_its_bare_twin():
     assert crc._pass_counters_ext(bare) == crc._pass_counters_ext(wrapped) == (0, 3, 0, None), (
         "the `unexecuted: 9` in a later cell belongs to no row's run"
     )
+
+
+def test_a_prose_ledger_join_is_refused_even_when_a_counter_is_word_trailed(tmp_path):
+    """Round-5 item 1 — a PRE-EXISTING fail-open this ticket's class closes, on the prose grammar.
+
+    `Pass 3: … found: 5 issues, fixed: 0` joined to `Pass 4: … found: 0, fixed: 0` has no cells
+    (so arms A and B cannot see it) and only ONE strict `_FOUND_TOK` (so the legacy head arm
+    cannot either). Executed on b00a7755: `_joined_row` False, the row parsed as `(0, 0)`, and
+    `check_file` returned `[]` — GREEN. A round that raised 5 was invisible and the exit was
+    graded off the join's SECOND half. The prose arm keys on the COLON head form and only on
+    pipe-less lines, so a cell row whose method cell narrates `Pass 3: found: 7 issues remain`
+    is untouched."""
+    line = (
+        "Pass 3: method: re-derivation, found: 5 issues, fixed: 0 "
+        "Pass 4: method: re-derivation, found: 0, fixed: 0"
+    )
+    assert crc._row_cells(line) == [], "the prose arm must only ever see pipe-less lines"
+    assert len(crc._FOUND_TOK.findall(line)) == 1, "one STRICT token — why the legacy arm missed"
+    assert crc._joined_row(line) is True
+    _t, _p, ordered, refusals = crc._ledger_shapes(line + "\n")
+    assert refusals and refusals[0].startswith("two ledger rows on ONE physical line"), refusals
+    assert not any(r[0] == 0 for r in ordered), f"never a quiet row off the second half: {ordered}"
+
+
+def test_a_prose_pass_mention_is_not_a_second_prose_row(tmp_path):
+    """The mirror of the arm above: `_PASS_HEAD_TOK` matches a bare MENTION, so keying the prose
+    arm on it would refuse an honest prose row that merely NAMES another round. The colon is the
+    row-start signal and a mention has none, so the new arm stays silent here.
+
+    The citation is word-trailed on purpose (`found: 4 issues`), which keeps the LEGACY strict arm
+    off too — that arm's own behaviour on a readable citation is the adjudicated fail-CLOSED
+    choice recorded in `_joined_row`'s docstring and pinned by
+    `test_a_row_that_merely_cites_another_round_is_not_a_joined_row`; this test is about the prose
+    arm not WIDENING it."""
+    line = "Pass 3: method: re-derivation, found: 0, fixed: 0 — same surface as Pass 2, found: 4 issues"
+    assert crc._row_cells(line) == []
+    assert len(crc._PASS_HEAD_TOK.findall(line)) == 2, "two MENTIONS"
+    assert len(crc._PASS_HEAD_COLON.findall(line)) == 1, "one row START — why the arm stays off"
+    assert len(crc._LOOSE_FOUND.findall(line)) == 2, "two LOOSE counters — the arm's other input"
+    assert crc._joined_row(line) is False
+
+
+def test_arm_b_needs_a_found_left_of_the_empty_cell(tmp_path):
+    """Round-5 item 4, condition 1. An empty finders cell with nothing counting to its left is not
+    a join, however many counters the row CITES to its right. Both rows here were refused
+    fleet-wide by b00a7755's `any(empty) and >=2 loose fixed` arm (BASE green) — honest receipts
+    told to unjoin a line they never joined."""
+    for honest in (
+        "| Pass 3 | | found: 0 | fixed: 0 | method: round 2 read found: 2, fixed: 2 |",
+        '| Pass 3 | | found: 0, fixed: 0 — verdict "found: 0, fixed: 0" |',
+    ):
+        cells = crc._row_cells(honest)
+        assert any(not c.strip() for c in cells), "the empty cell IS present — position decides"
+        assert crc._joined_row(honest) is False, honest
+
+
+def test_arm_b_needs_the_cell_right_of_the_empty_one_to_open_with_the_counter(tmp_path):
+    """Round-5 item 4, condition 2. A `found:` left of the empty cell is not enough: the second
+    row must actually START there. Neither of the two cells right of the gap opens with the
+    counter, so this is one row with a gap, not two rows."""
+    honest = "| R1 | found: 3 issues | fixed: 1 | | R2 | notes, fixed: 0 | found: 0 |"
+    assert crc._joined_row(honest) is False, honest
+
+
+def test_arm_b_joins_when_both_conditions_hold_including_a_second_row_with_no_fixed(tmp_path):
+    """Round-5 item 4, condition 3 — and the RECORDED F4 shape, which b00a7755 MISSED because its
+    arm demanded two loose `fixed:` and F4's second row states none. Dropping that condition (it
+    was the untested one — removing it survived all 25 tests) is what lets F4 be seen."""
+    for joined_line in (
+        "| R1 | found: 3 issues | fixed: 1 | | R2 | found: 0 | fixed: 0 |",
+        "| R1 | found: 5 issues | fixed: 0 | | R2 | found: 0 |",
+    ):
+        assert crc._joined_row(joined_line) is True, joined_line
+        _t, _p, ordered, refusals = crc._ledger_shapes(joined_line + "\n")
+        assert refusals and refusals[0].startswith("two ledger rows on ONE physical line"), (
+            joined_line
+        )
+        assert not any(r[0] == 0 for r in ordered), f"no quiet row off the second half: {ordered}"
+
+
+def test_the_prose_arm_never_reaches_a_cell_row_that_narrates_two_pass_heads(tmp_path):
+    """Round-5 item 4, the prose arm's own untested condition — dropping its `not cells` guard
+    survived all 30 tests, so nothing held the arm to pipe-LESS lines.
+
+    A cell row decides its join structure by CELLS (arms A and B); `Pass N:` text inside a cell is
+    NARRATION. Measured over the 275 committed receipts (36,465 fence-stripped lines) the guard
+    changes 0 verdicts today — the corpus row it was written for,
+    `2026-08-18-mega-enforcement-e2bf0f6e-review.md:304`, carries only ONE colon head — so the
+    guard is a near-miss, not a live save, and this fixture is the shape that realizes it: a
+    receipt whose notes cell quotes TWO rounds' counters, which any review OF this grammar
+    will eventually contain."""
+    narrating = (
+        "| Pass 5 | delta | found: 0 | fixed: 0 | note: the round-4 log read "
+        "Pass 3: found: 7 issues remain and Pass 4: found: 2 issues |"
+    )
+    assert crc._row_cells(narrating), "it IS a cell row — which is the whole point"
+    assert len(crc._PASS_HEAD_COLON.findall(narrating)) == 2, "two NARRATED colon heads"
+    assert len(crc._LOOSE_FOUND.findall(narrating)) >= 2, "and two loose counters"
+    assert crc._joined_row(narrating) is False, "cells decide a cell row, never narrated prose"
+    _t, _p, ordered, refusals = crc._ledger_shapes(narrating + "\n")
+    assert refusals == [] and len(ordered) == 1, (refusals, ordered)

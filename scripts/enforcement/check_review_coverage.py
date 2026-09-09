@@ -1184,6 +1184,14 @@ _HEAD_CELL = re.compile(r"\**Pass\s*\d+[a-z]?\**", re.I)
 # invisible and the receipt graded quiet off its SECOND half.
 _LOOSE_FOUND = re.compile(r"(?<![\w-])found:\s*\d")
 _LOOSE_FIXED = re.compile(r"(?<![\w-])fixed:\s*\d")
+# A PROSE row head — `Pass 3:` with its colon, the shape a prose ledger line actually STARTS
+# with. `_PASS_HEAD_TOK` (no colon) matches a mere mention ("same as Pass 2"), which is why the
+# prose arm below keys on this one and on pipe-LESS lines only.
+_PASS_HEAD_COLON = re.compile(r"(?<![\w-])\**Pass\s*\d+[a-z]?\**\s*:", re.I)
+# A cell that OPENS with the counter — how the second row of a head-less join begins once the
+# join has eaten the newline (`| found: 0 | fixed: 0 |`). A cell that merely CITES a counter
+# ("method: round 2 read found: 2") does not open with it.
+_CELL_OPENS_FOUND = re.compile(r"^\s*\**found:\s*\d")
 
 
 def _row_cells(line: str) -> list[str]:
@@ -1219,6 +1227,35 @@ def _row_cells(line: str) -> list[str]:
 _CELL_FOUND = re.compile(r"\|\s*\**found:\s*\d+(?!\s*\w)")
 
 
+def _empty_cell_join(cells: list[str]) -> bool:
+    """The HEAD-LESS join, keyed on the empty cell's POSITION rather than its mere existence.
+
+    A join between two cell rows leaves row 1's closing pipe against row 2's opening one, i.e. an
+    EMPTY cell with row 1's counters to its LEFT and row 2 starting immediately to its RIGHT. So a
+    join is: some empty cell that has a `found:` somewhere left of it AND, within the first two
+    cells right of it, a cell that OPENS with `found:` — the second row is either `| found: … |`
+    or `| <head> | found: … |`.
+
+    Position is what makes it honest. The first cut asked only "is there an empty cell, and are
+    there two `fixed:` anywhere" and so refused two HONEST shapes fleet-wide: a row with an empty
+    finders cell whose method cell cites the previous round (`| Pass 3 | | found: 0 | fixed: 0 |
+    method: round 2 read found: 2, fixed: 2 |`) and one quoting its own verdict back
+    (`| Pass 3 | | found: 0, fixed: 0 — verdict "found: 0, fixed: 0" |`). Neither has anything
+    left of its empty cell, so neither is a join. The `fixed:` count is gone with it: it was an
+    untested condition (removing it survived all 25 tests) AND it hid the RECORDED F4 shape,
+    a second row that states no `fixed:` at all (`| R1 | found: 5 issues | fixed: 0 | | R2 |
+    found: 0 |`), which is now correctly joined.
+    """
+    for i, cell in enumerate(cells):
+        if cell.strip():
+            continue
+        if not any(_LOOSE_FOUND.search(c) for c in cells[:i]):
+            continue
+        if any(_CELL_OPENS_FOUND.match(c) for c in cells[i + 1 : i + 3]):
+            return True
+    return False
+
+
 def _joined_row(line: str) -> bool:
     """Does this ONE physical line carry two ledger rows? (the U+2028/U+2029 join)
 
@@ -1231,10 +1268,13 @@ def _joined_row(line: str) -> bool:
     an unambiguous signature of a shape the others miss:
       * two HEAD CELLS (a cell whose whole content is `Pass N`) + two loose `found:` — the
         Pass-headed pair in any cell layout, whether or not its counters are readable;
-      * an EMPTY CELL (what `| … |<U+2028>| … |` leaves behind once normalised) + two loose
-        `found:` + two loose `fixed:` — the HEAD-LESS pair;
-      * two Pass HEADS + two strict `found:` tokens — the pair with no cell structure to key on
-        (a bare `Pass 9: …` prose run), which the two arms above cannot see;
+      * an EMPTY CELL POSITIONED like a join — `found:` to its left, a cell OPENING with
+        `found:` just to its right (`_empty_cell_join`) — the HEAD-LESS pair;
+      * a PIPE-LESS line carrying two `Pass N:` prose heads + two loose `found:` — the prose
+        ledger's own join, which no cell arm can see and which the strict arm below MISSES the
+        moment either counter is word-trailed (`Pass 3: … found: 5 issues … Pass 4: … found: 0`
+        graded a receipt QUIET off its second half, with `check_file` returning []);
+      * two Pass HEADS + two strict `found:` tokens — the legacy strict pair;
       * two strict `| found:` CELL openings — a head-less pair whose second row states no
         `fixed:`.
 
@@ -1255,7 +1295,9 @@ def _joined_row(line: str) -> bool:
     if len(_LOOSE_FOUND.findall(line)) >= 2:
         if sum(1 for c in cells if _HEAD_CELL.fullmatch(c.strip())) >= 2:
             return True
-        if any(not c.strip() for c in cells) and len(_LOOSE_FIXED.findall(line)) >= 2:
+        if _empty_cell_join(cells):
+            return True
+        if not cells and len(_PASS_HEAD_COLON.findall(line)) >= 2:
             return True
     if len(_PASS_HEAD_TOK.findall(line)) >= 2 and len(_FOUND_TOK.findall(line)) >= 2:
         return True
@@ -1502,8 +1544,19 @@ def _ledger_shapes(
             # `_FOUND_TOK`. It is refused by name like any other join, keeps NOTHING (borrowing
             # the second row's counters is the quiet-off-the-second-half fail-open), and is never
             # handed to the ordinary path below: `_MEGA_ROW` is lazy and would match the SECOND
-            # row's cells. It ends the table exactly as any unparsed line does, so no two ledgers
-            # merge into one group and no author is accused of a decoy.
+            # row's cells. It ends the table exactly as any unparsed line does.
+            # ⚠️ CORRECTED (round 5) — the previous claim here, "so no two ledgers merge into one
+            # group and no author is accused of a decoy", was FALSE in its second half and was
+            # executed to prove it: a join MID-ledger (Pass 1, Pass 2, <join 3/4>, Pass 5) yields
+            # TWO errors — the refusal, and "counter rows appear in 2 separate groups … decoy
+            # group"; on the mega reader the same split makes `rows = None` and raises the "MORE
+            # THAN ONE counter table" accusation. That is fail-CLOSED but WRONG-REASON: the author
+            # is told they planted a decoy when they actually pasted a line break away. It is left
+            # standing deliberately. The receipt is broken either way and the one repair — unjoin
+            # the line — clears BOTH errors at once, while suppressing the group error needs a
+            # `joined_split` count threaded out of this function, whose return is unpacked
+            # positionally at 21 sites (3 readers + 18 tests); that is a contract widening far
+            # past the fix's worth for a message that never blocks an honest receipt.
             if _joined_row(line):
                 refusals.append(f"{_JOINED_REASON}{line.strip()[:90]}")
                 pair = _first_run(line, _second_row_pos(line))
