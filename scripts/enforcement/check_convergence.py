@@ -13,8 +13,9 @@ changed/untracked files under the plans/ and reviews/ dirs (cheap — git status
   docs/development/plans/*.md   '**Status:** EXECUTED'  (incl. plans/archived/)
       -> must CITE a persisted whole-plan review artifact
          (docs/development/reviews/*.md) that EXISTS on disk and shows a
-         coverage-adjudicated exit (a 'Coverage Checklist' + a final 'found: 0'
-         pass). Closes the hole where an agent flips Status: EXECUTED (and
+         coverage-adjudicated exit (a 'Coverage Checklist' + a final quiet
+         pass — D-206's 'confirmed: 0', or 'found: 0' under the older
+         grammar). Closes the hole where an agent flips Status: EXECUTED (and
          archives) without the whole-plan /fabrik-review the execute-plan Finish
          mandates ever having run — check_review_coverage.py is INERT when no
          review file exists, so this is what forces one to exist.
@@ -183,21 +184,39 @@ def _cite_matches_plan(cite_name: str, plan_stem: str) -> bool:
 # possible — _is_spine requires a lowercase-only dir name ([a-z0-9-]+), so a
 # whole-plan review's stem can never contain the uppercase -T## this demands.
 _TICKET_REVIEW_RE = re.compile(r"-T\d{2}[a-z]?-review\.md$")
-# The /fabrik-review termination signature (term-coverage): a quiet round
-# ``found: 0 … fixed: 0``. We require this PAIR to appear *somewhere* — a
-# deliberately ZERO-FALSE-POSITIVE signal: a genuinely-converged review ALWAYS
-# has one, so this never cries wolf (the failure mode that gets a fleet gate
-# ``# noqa``'d — worse than a false-accept). It rejects a prose-only "found:0"
-# with no same-LINE ``fixed:0`` (D-053: same-line, any gap — the old adjacency window is
-# gone) and a cited review with no quiet round at all. It does
-# NOT try to prove the quiet round was the FINAL one — that DEPTH (no UNCHECKED
-# rows, every class adjudicated, the loop truly converged) is
-# check_review_coverage.py's job when the review is staged. This gate's ceiling
-# is evidence PRESENCE, not truth (see module docstring).
+# The /fabrik-review termination signature (term-coverage): a quiet round. We require the PAIR
+# to appear *somewhere* — a deliberately ZERO-FALSE-POSITIVE signal: a genuinely-converged review
+# ALWAYS has one, so this never cries wolf (the failure mode that gets a fleet gate ``# noqa``'d —
+# worse than a false-accept). It rejects a prose-only "found:0" with no same-LINE "fixed:0"
+# (D-053: same-line, any gap — the old adjacency window is gone) and a cited review with no quiet
+# round at all. It does NOT try to prove the quiet round was the FINAL one — that DEPTH (no
+# UNCHECKED rows, every class adjudicated, the loop truly converged) is check_review_coverage.py's
+# job when the review is staged. This gate's ceiling is evidence PRESENCE, not truth (see module
+# docstring), so a narrated ``confirmed: 0`` can satisfy it while the coverage gate refuses the row.
+#
+# D-206 (supersedes D-048; the ruling is D-203) re-cut what QUIET means: the exit counter is
+# ``confirmed:``, and a REFUTED or RECORDED candidate never counts — so a round is quiet when its
+# CONFIRMED count is zero and nothing stands ``unexecuted:``, however large ``found:`` is
+# (``found:`` became prose). The pair below is one definition of quiet across both gates (DD9):
+#   * branch 1 — the OLD pair, ``found: 0 … fixed: 0``, kept for every receipt written before the
+#     re-cut (backward compatibility is a contract, DD4), but only on a row carrying no NUMERIC
+#     ``confirmed:`` counter and no ``unexecuted:`` above zero — else ``found: 0, confirmed: 3``
+#     or ``found: 0, fixed: 0, unexecuted: 2`` would read quiet HERE and not at the coverage gate;
+#   * branch 2 — the new pair, ``confirmed: 0 … fixed: 0``, likewise dead to a standing
+#     ``unexecuted:``. ``0+`` so a zero-padded ``confirmed: 00`` reads the same at both gates.
+# Both lookaheads are anchored to a DIGIT and carry the coverage token's ``\s*`` before the colon:
+# this gate runs re.I, so a label-killed match would fail a genuinely converged receipt — a prose
+# ``CONFIRMED: see residual`` on an honest old-grammar row keeps its quiet match, while
+# ``unexecuted : 2`` cannot read quiet here and be refused there.
 # D-053 re-grounding (2026-08-31): the 40-char window made row ORDERING load-bearing — a
 # finder manifest between the counters failed an honest quiet round (13-round review proof).
-# Same-LINE is the constraint; the gap is not.
-QUIET_PASS = re.compile(r"found:\s*0\b[^\n]*?fixed:\s*0\b", re.I)
+# Same-LINE is the constraint (``[^\n]``); the gap is not.
+QUIET_PASS = re.compile(
+    r"found:\s*0\b(?![^\n]*(?<![\w-])(?:confirmed\s*:\s*\d|unexecuted\s*:\s*\d*[1-9]))"
+    r"[^\n]*?fixed:\s*0\b"
+    r"|confirmed\s*:\s*0+\b(?![^\n]*(?<![\w-])unexecuted\s*:\s*\d*[1-9])[^\n]*?fixed:\s*0+\b",
+    re.I,
+)
 REVIEWED = re.compile(r"\b(reviewed|converged|sign[- ]?off)\b", re.I)
 PHASE = re.compile(r"^#{2,}\s*(Phase|Step)\b", re.I | re.M)
 PROOF = re.compile(r"[\w./-]+\.(?:py|ts|tsx|js|sql|md|csv|ya?ml|sh|json):\d+")
@@ -766,14 +785,16 @@ def _check_executed_plan(root: Path, path: Path) -> list[str]:
         if not rp.is_file():
             continue
         rtext = rp.read_text(encoding="utf-8", errors="replace")
-        # A quiet round (found: 0 … fixed: 0) appears somewhere → the cited review
-        # ran the loop to (at least one) quiet pass. Zero-false-positive by design
-        # (see QUIET_PASS); DEPTH is check_review_coverage.py's at staging time.
+        # A quiet round (D-206's confirmed: 0 … fixed: 0, or the pre-D-206 found: 0 … fixed: 0)
+        # appears somewhere → the cited review ran the loop to (at least one) quiet pass.
+        # Zero-false-positive by design (see QUIET_PASS); DEPTH is
+        # check_review_coverage.py's at staging time.
         if QUIET_PASS.search(rtext):
             return fails  # citation satisfied; spine-set findings (if any) still surface
     return fails + [
         f"{rel}: claims EXECUTED but its cited whole-plan review is missing on disk or not "
-        "coverage-adjudicated (needs a quiet final pass — a 'found: 0, fixed: 0' round) — "
+        "coverage-adjudicated (needs a quiet final pass — a 'confirmed: 0, fixed: 0' round, or "
+        "'found: 0, fixed: 0' under the pre-D-206 grammar) — "
         "finish the /fabrik-review loop to a quiet round, or revert Status"
         + (
             " (for a plan SET the citation must be the WHOLE-PLAN validation review — "
