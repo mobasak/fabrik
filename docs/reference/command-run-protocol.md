@@ -52,7 +52,7 @@ The Stop hook keys on `state == "running"` **alone**, so neither field can chang
 | `start --command <name> --phases <N> [--terminal "<cond>"]` | begin a run at phase 1 (a running record is pushed onto `stack`) |
 | `step --phase <N> [--title "<t>"]` | advance |
 | `dispatch --seats <n>` | stamp a fan-out BEFORE its seats go out — `rec["dispatch"] = {ts, seats, phase, round}`; the STAMP accumulates across the messages of one round, and that round's `round` (or the close) rewrites it as a release marker (`seats: 0, released: true`) — never a pop, because an absent stamp reads as "never dispatched" and the sibling probe would fall back to the round row and re-reserve the returned seats; `dispatch_headroom.py` subtracts a live stamp for 25 minutes on every OTHER session (a `round --seats` at the round's close reserves nothing while the seats run — D-193/D-194) |
-| `round [--seats <n>] [--findings <N>] [--classes-swept a,b] [--classes-new c,d] [--confirmed <N>]` | record one convergence pass; merge the class ledger. `--findings` counts the RAW candidates the pass raised, before adjudication — a receipt's rows are the adjudicated ledger, so the two figures differ by design. `--confirmed <N>` counts the candidates CONFIRMED by execution in that pass (default: not stated); when stated on the LAST round it is the exit counter — TERMINAL fires on `confirmed == 0` with every class swept; when no round states it the `--findings 0` rule stands; a pass with `--findings > 0` and no `--confirmed` under a command whose earlier rounds stated it draws a stderr warning. `--seats` omitted = the round inherits its `dispatch` stamp; `0` = a deliberate zero; a typed count that disagrees with the stamp is said on stderr and recorded as typed; a partial close releases only what closed (`dispatch.seats` keeps the remainder); negative is refused; a round with NO stamp that finds seat transcripts whose newest in-window line is newer than the previous round (or a nested child's close — a `step` never narrows the window) says so on stderr; a partial close keeps the original stamp's clock |
+| `round [--seats <n>] [--findings <N>] [--classes-swept a,b] [--classes-new c,d] [--confirmed <N>]` | record one convergence pass; merge the class ledger. `--findings` counts the RAW candidates the pass raised, before adjudication — a receipt's rows are the adjudicated ledger, so the two figures differ by design. `--confirmed <N>` counts the candidates CONFIRMED by execution in that pass (default: not stated); when stated on the LAST round it is the exit counter — TERMINAL fires on `confirmed == 0` with every class swept; the `--findings 0` rule stands only while NO round of the record has ever stated it, because adoption is STICKY — a pass that omits `--confirmed` under a record that adopted it draws a stderr warning and cannot close the loop; a negative count, or one greater than `--findings`, is REFUSED (rc 2). `--seats` omitted = the round inherits its `dispatch` stamp; `0` = a deliberate zero; a typed count that disagrees with the stamp is said on stderr and recorded as typed; a partial close releases only what closed (`dispatch.seats` keeps the remainder); negative is refused; a round with NO stamp that finds seat transcripts whose newest in-window line is newer than the previous round (or a nested child's close — a `step` never narrows the window) says so on stderr; a partial close keeps the original stamp's clock |
 | `done --command <name> --evidence "<proof>"` | terminal — the contract IS met |
 | `blocked --command <name> --reason "<sanctioned case>"` | terminal — a real halt |
 | `handoff --command <name> --reason "<why rows remain open>" --resume "<RESUME block>"` | terminal — NOT-QUIET: the loop is quiet but rows stay OPEN and are routed (the close `/fabrik-user-test` and `/fabrik-service-test` mandate); `--feedback` owed like `done`/`blocked` |
@@ -113,10 +113,13 @@ persists across rounds:
 - `--classes-swept` retires one (`clean`) — **only a round that swept it clean retires it.** Sweeps apply
   before opens, so a class both swept and re-found in the same round stays `open`.
 - A round that leaves **every known class clean** prints the **TERMINAL verdict**: when the LAST round
-  states `--confirmed`, TERMINAL fires on `confirmed == 0`; when the last round does not state it, the
-  old **`--findings 0`** rule stands, and `round` WARNS when `--confirmed` is absent while
-  `--findings > 0` under a command whose earlier rounds stated it — that is the no-op round the corpus
-  already demands, and the agent then calls `done`.
+  states `--confirmed`, TERMINAL fires on `confirmed == 0`. The old **`--findings 0`** rule stands only
+  for a record whose rounds **NEVER** state `confirmed` — adoption is **sticky per record**: once any
+  round has stated the exit counter, a later round that omits it can NOT close the loop, and `round`
+  says so on both streams (`NOT TERMINAL — … the record adopted `--confirmed` at round N; state it on
+  this round`) rather than falling back to the raw candidate count, which would be quiet reached by
+  relabelling. The closing round is the no-op round the corpus already demands, and the agent then
+  calls `done`.
 - An empty ledger can never be terminal — a round that declared no classes swept nothing.
 
 ### The non-convergence detector
@@ -248,7 +251,7 @@ cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — 
 - **The ledger:** one JSON row per close appended to `~/.claude/state/command-feedback.jsonl`
   (`COMMAND_RUN_DIR`'s parent when that is set), box-wide across every repo whose `command_run.py`
   is current (fleet-synced; fabrik-lib pulls). Fields: `ts sid repo command state wall_s rounds
-  findings phases phase_reached agent surface account confusion waste change filed cost cost_usd
+  findings confirmed phases phase_reached agent surface account confusion waste change filed cost cost_usd
   tok_in tok_out tok_cache_read tok_cache_create tok_msgs models tok_partial tok_seat_in tok_seat_out
   tok_seat_cache_read tok_seat_cache_create seats_seen seats_declared seats_partial seats_skipped`.
   **The analysis dimensions** (operator, 2026-09-07 — "which repo, which agent, which command,
@@ -411,7 +414,9 @@ Three properties are load-bearing and each has a grader:
 
 `tests/test_command_run.py` — line format · idle/corrupt/unwritable silence · ledger persistence ·
 terminal verdict (`confirmed == 0` as the exit counter when the last round states it, the old
-`--findings 0` fallback when it does not, including 0 findings with a class still open) · the
+`--findings 0` fallback only for a record that NEVER states it, the sticky-adoption refusal swept
+over all 12 cells of findings 0-3 x previously-adopted none/0/3, including 0 findings with a class
+still open) · the
 detector on `43,11,30,13,22` vs `5,3,0` · nested pop/restore · duplicate-`done` refusal ·
 double-close no-op · 20 real concurrent
 `round` processes losing nothing · session-id collision · hook↔script filename agreement.

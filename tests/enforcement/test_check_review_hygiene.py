@@ -578,3 +578,16 @@ def test_the_fire_rate_over_the_committed_receipt_corpus():
     )
     assert (hits["raw-pipe"], len(files["raw-pipe"])) == CORPUS_RAW_PIPE
     assert (hits["dual-verdict"], len(files["dual-verdict"])) == CORPUS_DUAL_VERDICT
+
+
+def test_every_repeatable_flag_says_so_in_its_help() -> None:
+    """All four collectors are `action="append"`, but only two said "(repeatable)" — so `--surface`
+    and `--receipt` read as single-valued and a caller passes one, silently sweeping a fraction of
+    the surface (T10 review round 1). The help text IS the contract for a CLI nobody imports."""
+    out = subprocess.run(
+        [sys.executable, str(SCRIPT), "--help"], capture_output=True, text=True, check=True
+    ).stdout
+    assert out.count("(repeatable)") == 4, out
+    for flag in ("--surface", "--receipt", "--phrase", "--symbol"):
+        i = out.index(flag)
+        assert "(repeatable)" in out[i : i + 400], (flag, out[i : i + 400])

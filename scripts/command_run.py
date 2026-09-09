@@ -276,7 +276,7 @@ PER_UNIT_ROUND_COMMANDS = frozenset(
 )  # waves: round 15
 
 
-def convergence_warning(series: list[int], command: str = "") -> str:
+def convergence_warning(series: list[int], command: str = "", label: str = "findings") -> str:
     """Advisory oscillation diagnosis, or "" — NEVER blocks (a heuristic must not trap).
 
     A converging loop trends DOWN (5 → 3 → 0). A pathological one oscillates
@@ -293,7 +293,7 @@ def convergence_warning(series: list[int], command: str = "") -> str:
     arrow = " → ".join(str(n) for n in window)
     full = " → ".join(str(n) for n in series)
     return (
-        f"\n⚠️  NON-CONVERGENCE — findings are OSCILLATING: {arrow} "
+        f"\n⚠️  NON-CONVERGENCE — {label} are OSCILLATING: {arrow} "
         f"(round {len(series)}; full series: {full}).\n"
         "    Diagnosis (advisory): EITHER the loop is RE-SCOPING each round — inventing a fresh "
         "brief instead of RE-SWEEPING the persisted class ledger — OR the ledger was IDENTICAL "
@@ -320,6 +320,21 @@ def _confirmed(row: Any) -> int | None:
     return None
 
 
+def _adopted_confirmed(rounds: list[Any]) -> int | None:
+    """The 1-based round at which this record ADOPTED `--confirmed`, or None.
+
+    Adoption is a whole-RECORD property and it is STICKY (review round 1, D-206 R1/R9): once any
+    round has stated the exit counter, a later round that omits it may not close the loop on the
+    raw candidate count. Without stickiness the loop is a fail-open — `--confirmed 3` then a bare
+    `--findings 0` printed the TERMINAL verdict and claimed "no round stated `--confirmed`" while
+    round 1 had, which is quiet reached by RELABELLING, exactly what D-206 forbids.
+    """
+    for i, r in enumerate(rounds, start=1):
+        if _confirmed(r) is not None:
+            return i
+    return None
+
+
 def _trend_series(rounds: list[Any]) -> list[int]:
     """The `confirmed` series when EVERY round states it, the `findings` series otherwise.
 
@@ -331,6 +346,17 @@ def _trend_series(rounds: list[Any]) -> list[int]:
     if rounds and all(_confirmed(r) is not None for r in rounds):
         return [_confirmed(r) or 0 for r in rounds]
     return [int(r.get("findings", 0)) for r in rounds if isinstance(r, dict)]
+
+
+def _trend_label(rounds: list[Any]) -> str:
+    """Which series `_trend_series` just returned — the advisory must NAME it (review round 1):
+    printing "findings are OSCILLATING: 4 → 1 → 3" over the CONFIRMED series sent the reader to a
+    findings column that was strictly converging (50 → 10)."""
+    return (
+        "confirmed counts"
+        if rounds and all(_confirmed(r) is not None for r in rounds)
+        else "findings"
+    )
 
 
 def _round_report(rec: dict[str, Any]) -> str:
@@ -346,18 +372,25 @@ def _round_report(rec: dict[str, Any]) -> str:
         f"· classes open: {', '.join(open_c) or 'none'} "
         f"· clean: {', '.join(clean_c) or 'none'}"
     ]
-    # the EXIT counter is CONFIRMED the moment the LAST round states it (D-206/D-203: quiet is
-    # zero confirmed code or doc defects, never zero raised — a refuted candidate never reopens
-    # the loop). A record whose last round does not state it keeps the old `--findings 0` rule.
+    # the EXIT counter is CONFIRMED once the RECORD has adopted it (D-206/D-203: quiet is zero
+    # confirmed code or doc defects, never zero raised — a refuted candidate never reopens the
+    # loop). Adoption is STICKY: the old `--findings 0` rule survives only for a record whose
+    # rounds NEVER state `confirmed`. A round that omits it on an adopted record cannot close the
+    # loop — falling back to `findings` there is quiet by RELABELLING (review round 1).
     # a round that swept NO classes is a reservation close (a wave, round 16): it never reads
     # terminal, whatever the persisted ledger says
+    adopted_at = _adopted_confirmed(rounds)
+    swept_all = bool(classes) and not open_c and bool(last.get("swept"))
+    lapsed = last_confirmed is None and adopted_at is not None
     counter = int(last.get("findings", 0)) if last_confirmed is None else last_confirmed
-    terminal = (
-        bool(classes)
-        and not open_c
-        and counter == 0
-        and bool(last.get("swept"))  # the record's key; the event stream says classes_swept
-    )
+    terminal = swept_all and not lapsed and counter == 0
+    if lapsed and swept_all:
+        lines.append(
+            f"⛔ NOT TERMINAL — this round swept every known class but did not state "
+            f"`--confirmed`. The record adopted `--confirmed` at round {adopted_at}; state it on "
+            "this round. The exit counter cannot fall back to `findings` once a record has "
+            "adopted it — quiet is zero CONFIRMED defects, never zero raised (D-206)."
+        )
     if terminal:
         lines.append(
             f"✅ TERMINAL VERDICT — round {len(rounds)} swept every known class "
@@ -365,8 +398,9 @@ def _round_report(rec: dict[str, Any]) -> str:
             + (
                 "CONFIRMED 0 defects"
                 if last_confirmed is not None
-                else "found 0 new findings (no round stated `--confirmed`, so the old findings "
-                "rule closed it — the exit counter is `round --confirmed 0`)"
+                else "found 0 new findings (no round of this record has ever stated "
+                "`--confirmed`, so the old findings rule closed it — the exit counter is "
+                "`round --confirmed 0`)"
             )
             + ". A delta round closes when it carried a fresh non-authoring finder seat over "
             "the fix diff and its receipt cites the standing-clean classes from the last full "
@@ -378,7 +412,9 @@ def _round_report(rec: dict[str, Any]) -> str:
         # drop TO zero is what non-increasing was asking for; the series test alone
         # reads `13 → 22 → 0` as a rise (live smoke, 2026-08-16).
         return "\n".join(lines)
-    warn = convergence_warning(_trend_series(rounds), str(rec.get("command") or ""))
+    warn = convergence_warning(
+        _trend_series(rounds), str(rec.get("command") or ""), _trend_label(rounds)
+    )
     if warn:
         lines.append(warn)
     return "\n".join(lines)
@@ -1980,6 +2016,22 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
 
     if args.cmd == "round":
         rounds = list(rec.get("rounds") or [])
+        # A COUNT THAT CANNOT BE TRUE is refused at the door, before any advisory or mutation: a
+        # negative `confirmed` can never reach 0, so the loop it describes has no exit at all,
+        # and `confirmed > findings` claims more defects reproduced than candidates raised, which
+        # makes both numbers unreadable. rc 2, by name (review round 1).
+        if args.confirmed is not None and args.confirmed < 0:
+            print("[command_run] REFUSED — round --confirmed must be >= 0", file=sys.stderr)
+            return 2
+        if args.confirmed is not None and args.confirmed > args.findings:
+            print(
+                f"[command_run] REFUSED — round --confirmed {args.confirmed} exceeds --findings "
+                f"{args.findings}: a pass cannot CONFIRM more defects than the candidates it "
+                "raised (`--findings` is the RAW count, `--confirmed` the subset execution "
+                "reproduced). Re-state --findings, or count the carried-over candidate in it.",
+                file=sys.stderr,
+            )
+            return 2
         # Stamp the PHASE onto every round. Without it, "rounds since the last step" is not
         # derivable and the only signal available is "zero rounds at phase N" — which job-agent
         # (2026-08-28) showed misses the real case: their pinned line read `phase 5/9` for six
@@ -2053,18 +2105,16 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 ),
                 file=sys.stderr,
             )
-        # a loop that STARTED stating the exit counter and stopped has no readable exit: the
-        # terminal rule falls back to the raw candidate count, which D-206 retired. Advisory —
-        # a round may never be refused over a missing advisory field.
-        if (
-            args.confirmed is None
-            and args.findings > 0
-            and any(_confirmed(r) is not None for r in rounds)
-        ):
+        # a loop that STARTED stating the exit counter and stopped has no readable exit — and
+        # since adoption is STICKY the omission also blocks the close, so the nudge fires on
+        # EVERY omitted round, not only one that raised something (review round 1: gating it on
+        # `findings > 0` made warning and TERMINAL mutually exclusive across all 12 cells).
+        _adopted_at = _adopted_confirmed(rounds)
+        if args.confirmed is None and _adopted_at is not None:
             print(
-                f"[command_run] round --findings {args.findings} with NO --confirmed: earlier "
-                f"rounds of /{rec.get('command') or '?'} stated it, so the exit counter for this "
-                "loop is CONFIRMED and this round leaves it unstated — quiet is zero confirmed "
+                f"[command_run] round with NO --confirmed: /{rec.get('command') or '?'} adopted "
+                f"the exit counter at round {_adopted_at}, so this round cannot close the loop "
+                "and the terminal rule will NOT fall back to `findings` — quiet is zero confirmed "
                 "defects, never zero raised (D-206). Type `round --confirmed <n>`.",
                 file=sys.stderr,
             )

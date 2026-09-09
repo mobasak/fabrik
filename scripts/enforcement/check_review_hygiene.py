@@ -611,8 +611,15 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         description="Advisory review-hygiene sweep — never blocks, always exits 0."
     )
-    ap.add_argument("--surface", action="append", default=[], help="file or dir on the surface")
-    ap.add_argument("--receipt", action="append", default=[], help="a docs/development/reviews/ md")
+    ap.add_argument(
+        "--surface", action="append", default=[], help="file or dir on the surface (repeatable)"
+    )
+    ap.add_argument(
+        "--receipt",
+        action="append",
+        default=[],
+        help="a docs/development/reviews/ md (repeatable)",
+    )
     ap.add_argument("--phrase", action="append", default=[], help="a stale phrase (repeatable)")
     ap.add_argument("--symbol", action="append", default=[], help="a live symbol (repeatable)")
     ap.add_argument("--json", action="store_true", help="emit the hits as JSON")
