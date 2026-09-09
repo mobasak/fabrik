@@ -4066,14 +4066,26 @@ def test_a_negative_confirmed_is_refused(run_dir: Path) -> None:
     assert _rec(run_dir)["rounds"] == [], _rec(run_dir)["rounds"]  # nothing was recorded
 
 
-def test_confirmed_greater_than_findings_is_refused(run_dir: Path) -> None:
-    """`--findings 2 --confirmed 9` reproduces more defects than candidates raised: both numbers
-    are then unreadable, and the pre-fix build took it silently."""
+def test_a_negative_findings_is_refused(run_dir: Path) -> None:
+    """The mirror of the negative `--confirmed` guard: a negative raw count makes `counter == 0`
+    unreachable on a record that never adopted the exit counter — so the loop it describes has no
+    exit either. The pre-fix build recorded `-5` with rc 0."""
     _start(run_dir)
-    r = _cr(run_dir, "round", "--findings", "2", "--confirmed", "9", "--classes-new", "auth")
+    r = _cr(run_dir, "round", "--findings", "-5", "--classes-new", "auth")
     assert r.returncode == 2, (r.returncode, r.stdout, r.stderr)
-    assert "exceeds --findings" in r.stderr, r.stderr
-    assert _rec(run_dir)["rounds"] == [], _rec(run_dir)["rounds"]
-    # the boundary is INCLUSIVE — confirming every candidate you raised is legal
-    ok = _cr(run_dir, "round", "--findings", "2", "--confirmed", "2", "--classes-new", "auth")
-    assert ok.returncode == 0, ok.stderr
+    assert "REFUSED — round --findings must be >= 0" in r.stderr, r.stderr
+    assert _rec(run_dir)["rounds"] == [], _rec(run_dir)["rounds"]  # nothing was recorded
+
+
+def test_a_delta_round_may_confirm_more_than_it_raised(run_dir: Path) -> None:
+    """`--findings` counts the candidates THIS pass raised; `--confirmed` counts what execution
+    reproduced, carried-over rows included. A delta round that raises nothing NEW and reproduces
+    three standing rows is the receipt grammar `check_review_coverage.py` already parses
+    (`found: 0, … confirmed: 3`) — and the sticky-adoption nudge tells the agent to type
+    `round --confirmed <n>` with `--findings` at its default 0. Refusing it made that nudge
+    unexecutable."""
+    _start(run_dir)
+    r = _cr(run_dir, "round", "--findings", "0", "--confirmed", "2", "--classes-new", "x")
+    assert r.returncode == 0, (r.returncode, r.stdout, r.stderr)
+    assert "confirmed: 2" in r.stdout, r.stdout
+    assert _rec(run_dir)["rounds"][-1]["confirmed"] == 2, _rec(run_dir)["rounds"]

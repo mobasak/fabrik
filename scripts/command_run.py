@@ -2016,21 +2016,18 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
 
     if args.cmd == "round":
         rounds = list(rec.get("rounds") or [])
-        # A COUNT THAT CANNOT BE TRUE is refused at the door, before any advisory or mutation: a
-        # negative `confirmed` can never reach 0, so the loop it describes has no exit at all,
-        # and `confirmed > findings` claims more defects reproduced than candidates raised, which
-        # makes both numbers unreadable. rc 2, by name (review round 1).
+        # A COUNT THAT CANNOT BE TRUE is refused at the door, before any advisory or mutation:
+        # a NEGATIVE count can never reach 0, so the loop either counter describes has no exit at
+        # all. rc 2, by name (review round 1; `--findings` was the untested mirror, round 2).
+        # `confirmed > findings` is NOT such a count: a DELTA round raises no new candidate and
+        # reproduces the carried-over ones, which is the receipt grammar check_review_coverage.py
+        # already parses (`found: 0, … confirmed: 3`) — and refusing it made the sticky-adoption
+        # nudge below unexecutable at the `--findings` default of 0 (review round 2).
         if args.confirmed is not None and args.confirmed < 0:
             print("[command_run] REFUSED — round --confirmed must be >= 0", file=sys.stderr)
             return 2
-        if args.confirmed is not None and args.confirmed > args.findings:
-            print(
-                f"[command_run] REFUSED — round --confirmed {args.confirmed} exceeds --findings "
-                f"{args.findings}: a pass cannot CONFIRM more defects than the candidates it "
-                "raised (`--findings` is the RAW count, `--confirmed` the subset execution "
-                "reproduced). Re-state --findings, or count the carried-over candidate in it.",
-                file=sys.stderr,
-            )
+        if args.findings < 0:
+            print("[command_run] REFUSED — round --findings must be >= 0", file=sys.stderr)
             return 2
         # Stamp the PHASE onto every round. Without it, "rounds since the last step" is not
         # derivable and the only signal available is "zero rounds at phase N" — which job-agent
