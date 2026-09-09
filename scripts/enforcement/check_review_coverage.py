@@ -1175,48 +1175,121 @@ _ROW_LEAD = re.compile(r"^\s*" + _LIST_MARK + r"\s*")
 # row said found: 3", "same as Pass 2") has one of the two, never both — the over-broad
 # `found:`-only count refused exactly those honest rows.
 _PASS_HEAD_TOK = re.compile(r"(?<![\w-])\**Pass\s*\d", re.I)
+# A head CELL — a cell whose WHOLE content is the head, which is what a real row STARTS with.
+# `Pass 3: found: 7 issues remain` narrated inside a method cell is prose, not a row start.
+_HEAD_CELL = re.compile(r"\**Pass\s*\d+[a-z]?\**", re.I)
+# The counters, counted LOOSELY for "how many rows are on this line" — `found: 5 issues` IS a
+# counter for that question even though `_FOUND_TOK` rightly refuses to READ it. Keying detection
+# on the strict token alone was a fail-OPEN: one word-trailed counter made a genuinely joined line
+# invisible and the receipt graded quiet off its SECOND half.
+_LOOSE_FOUND = re.compile(r"(?<![\w-])found:\s*\d")
+_LOOSE_FIXED = re.compile(r"(?<![\w-])fixed:\s*\d")
+
+
+def _row_cells(line: str) -> list[str]:
+    """The row's CELLS — `|`-split, with the fragments outside the outer pipes dropped (GFM lets
+    the closing pipe go). Empty for a line that is not written in cells.
+
+    Named apart from the nested `_cells` COUNTER in `_indented_grammar_error` on purpose: that one
+    returns a GFM-faithful cell COUNT and neutralises an ESCAPED pipe, because a wrong count there
+    mis-pairs a header with its separator. This one only asks "which cells are there", and the
+    escape is immaterial to it — an escaped pipe can add a fragment but can never delete the head
+    cell or the empty cell the arms below key on, so it cannot hide a join.
+    """
+    body = _ROW_LEAD.sub("", line, count=1).strip()
+    if not body.startswith("|"):
+        return []
+    parts = body.split("|")
+    return parts[1:-1] if body.endswith("|") else parts[1:]
+
+
 # The cell-anchored equivalent: two `| found:` CELL openings on one line (a joined pair of
 # cell-anchored rows carries no Pass head at all). A citing cell (`| the round-3 row said
 # found: 3 |`) does not open with the counter, so it is not one — and the opening carries
 # `_FOUND_TOK`'s OWN stand-alone guard, without which any cell merely BEGINNING `found: <digit>`
 # counted: `| Pass 3 | o | found: 0 | fixed: 0 | found: 3 was the round-3 number |` was refused
-# as joined, the cell-opening twin of the citing-row false positive. The guard also makes this
-# set a SUBSET of `_FOUND_TOK`, so a line this branch calls joined always has a first run.
+# as joined, the cell-opening twin of the citing-row false positive.
+# ⚠️ THE MIRROR, named: that guard makes THIS arm a subset of `_FOUND_TOK` — and it made the
+# whole detector one, back when it was the only cell-aware arm. That was itself a fail-OPEN: one
+# word-trailed counter (`found: 5 issues`) made a genuinely joined line invisible and the receipt
+# graded QUIET off its second half. So the structural arms above deliberately reach PAST
+# `_FOUND_TOK`, and the invariant "a joined line always has a readable first run" is GONE. The
+# cost is paid at the two call sites, which must handle a join with no first run (refuse it, keep
+# nothing, still end the table) rather than assume one — see `_ledger_shapes`.
 _CELL_FOUND = re.compile(r"\|\s*\**found:\s*\d+(?!\s*\w)")
 
 
 def _joined_row(line: str) -> bool:
     """Does this ONE physical line carry two ledger rows? (the U+2028/U+2029 join)
 
-    Detected on the ROW HEADS, never on the counter tokens: the normalisation above joins a row
-    split at a line-ish character, and `_MEGA_ROW` is LAZY — it would match the FIRST run and
-    lose the second, grading a receipt quiet off its own first half. Both grammars' shapes are
-    covered (a Pass-headed pair, and a cell-anchored pair with no head at all), on the
-    list-marker-stripped text so a bulleted row is read like a bare one. A row that both NAMES
-    another round and cites its counter (`| Pass 4 | … | re-ran as Pass 3 | found: 3 |`) is
-    refused as joined — the adjudicated fail-CLOSED choice: it is indistinguishable from a real
-    join, and fencing the citation is a one-keystroke repair while a missed join grades a
-    receipt quiet off its own first half.
+    The normalisation above joins a row split at a line-ish character, and `_MEGA_ROW` is LAZY —
+    it would match the FIRST run and lose the second, grading a receipt quiet off its own first
+    half. So a join has to be NAMED before either grammar reads the line.
+
+    Detected on the ROW STRUCTURE, because a join duplicates a STRUCTURE — never on the counter
+    tokens alone, which reads prose that merely QUOTES a counter as a second row. Four arms, each
+    an unambiguous signature of a shape the others miss:
+      * two HEAD CELLS (a cell whose whole content is `Pass N`) + two loose `found:` — the
+        Pass-headed pair in any cell layout, whether or not its counters are readable;
+      * an EMPTY CELL (what `| … |<U+2028>| … |` leaves behind once normalised) + two loose
+        `found:` + two loose `fixed:` — the HEAD-LESS pair;
+      * two Pass HEADS + two strict `found:` tokens — the pair with no cell structure to key on
+        (a bare `Pass 9: …` prose run), which the two arms above cannot see;
+      * two strict `| found:` CELL openings — a head-less pair whose second row states no
+        `fixed:`.
+
+    ⚠️ THE COST, named: these arms cannot see a join whose second row has neither a head cell,
+    an empty cell, nor a readable counter. That residual is deliberate — the counter-only version
+    refused two COMMITTED receipts (a row quoting its own verdict verbatim, and a method cell
+    narrating another round's example line), and repairing history to fit a gate is not on the
+    table. Measured: 0 of the 275 committed receipts are refused by any arm. They are also NOT
+    subsets of `_FOUND_TOK`, so a joined line can have no readable first run — which is why the
+    caller's no-first-run branch is reachable and load-bearing, not decoration.
+
+    RECORDED (round 3, unchanged): a row that NAMES another round and cites its counter in its
+    own cell (`| Pass 4 | … found: 1 | fixed: 1 | re-ran as Pass 3 | found: 3 |`) still trips the
+    third arm and is refused — the adjudicated fail-CLOSED choice, since it is indistinguishable
+    from a real join and fencing the citation is a one-keystroke repair. 0 committed exemplars.
     """
-    body = _ROW_LEAD.sub("", line, count=1)
-    if len(_PASS_HEAD_TOK.findall(body)) >= 2 and len(_FOUND_TOK.findall(body)) >= 2:
+    cells = _row_cells(line)
+    if len(_LOOSE_FOUND.findall(line)) >= 2:
+        if sum(1 for c in cells if _HEAD_CELL.fullmatch(c.strip())) >= 2:
+            return True
+        if any(not c.strip() for c in cells) and len(_LOOSE_FIXED.findall(line)) >= 2:
+            return True
+    if len(_PASS_HEAD_TOK.findall(line)) >= 2 and len(_FOUND_TOK.findall(line)) >= 2:
         return True
-    return len(_CELL_FOUND.findall(body)) >= 2
+    return len(_CELL_FOUND.findall(line)) >= 2
 
 
-def _first_run(line: str) -> tuple[int, int] | None:
-    """The FIRST run's `(found, fixed)` on a joined line — the counters the refused row KEEPS.
+def _second_row_pos(line: str) -> int | None:
+    """Where the SECOND row on a joined line begins — the bound on the FIRST row's counters.
 
-    A refused row is never dropped (dropping it hands the exit to the previous round, the
-    fail-open this whole guard exists to close), so it stays in `ordered` with the counters a
-    reader can see first. `fixed:` defaults to 0 when the first run has none — the refusal
-    itself, reported by all three readers, is what the author acts on; the counter is only
-    there so the row is not inert.
+    Without it `_first_run` reaches past the join and keeps the SECOND row's counters, which is
+    how a joined line yields a quiet row: exactly the fail-open the refusal exists to close.
     """
-    f = _FOUND_TOK.search(line)
+    heads = [m.start() for m in _PASS_HEAD_TOK.finditer(line)]
+    if len(heads) >= 2:
+        return heads[1]
+    founds = [m.start() for m in _LOOSE_FOUND.finditer(line)]
+    return founds[1] if len(founds) >= 2 else None
+
+
+def _first_run(line: str, stop: int | None = None) -> tuple[int, int] | None:
+    """The FIRST row's `(found, fixed)` on a joined line — the counters the refused row KEEPS,
+    read STRICTLY and only BEFORE `stop` (where the second row begins).
+
+    A refused row is kept rather than dropped (dropping it hands the exit to the previous round,
+    the fail-open this whole guard exists to close). `None` means the first row states no
+    READABLE counter — a word-trailed `found: 5 issues` — and the caller then keeps nothing at
+    all rather than borrow the SECOND row's numbers. `fixed:` defaults to 0 when the first row
+    has none: the refusal itself, reported by all three readers, is what the author acts on.
+    """
+    seg = line if stop is None else line[:stop]
+    f = _FOUND_TOK.search(seg)
     if f is None:
         return None
-    x = _FIXED_TOK.search(line, f.end())
+    x = _FIXED_TOK.search(seg, f.end())
     return int(f.group(1)), (int(x.group(1)) if x else 0)
 
 
@@ -1424,17 +1497,23 @@ def _ledger_shapes(
             # of a decoy ledger). Every shape is covered here, not just the one `_MEGA_ROW`
             # happens to match: the comma-run table form and the prose form parse under
             # `_pass_counters`, which refuses two `found:` tokens, so they were SILENT.
-            # ⚠️ The KEPT ROW IS THE PRECONDITION, not a nicety: a "joined" line with no first
-            # run would refuse, keep nothing AND skip the flush below — silently dropped, with
-            # two adjacent tables merged into one group and the multi-group guard disarmed. Both
-            # detectors are subsets of `_FOUND_TOK` now, so this cannot happen; when it does the
-            # line is simply NOT joined and takes the ordinary path.
-            joined = _first_run(line) if _joined_row(line) else None
-            if joined is not None:
+            # ⚠️ A joined line with NO readable first run (its counters word-trailed) is a LIVE
+            # case, not a theoretical one — the structural arms deliberately reach past
+            # `_FOUND_TOK`. It is refused by name like any other join, keeps NOTHING (borrowing
+            # the second row's counters is the quiet-off-the-second-half fail-open), and is never
+            # handed to the ordinary path below: `_MEGA_ROW` is lazy and would match the SECOND
+            # row's cells. It ends the table exactly as any unparsed line does, so no two ledgers
+            # merge into one group and no author is accused of a decoy.
+            if _joined_row(line):
                 refusals.append(f"{_JOINED_REASON}{line.strip()[:90]}")
-                row = (joined[0], None, joined[1], None, line)
-                current.append(row)
-                ordered.append(row)
+                pair = _first_run(line, _second_row_pos(line))
+                if pair is not None:
+                    row = (pair[0], None, pair[1], None, line)
+                    current.append(row)
+                    ordered.append(row)
+                elif current:
+                    tables.append(current)
+                    current = []
                 continue
             m = _MEGA_ROW.match(line)
             pc = _pass_counters(line) if m is None else None
@@ -1460,14 +1539,16 @@ def _ledger_shapes(
                 tables.append(current)
                 current = []
             pc = _pass_counters(line)
-            joined = _first_run(line) if _joined_row(line) else None
-            if joined is not None:
+            if _joined_row(line):
                 # the same refusal on the prose path — `Pass 9: … <U+2028>Pass 10: …` is one
-                # physical line to every reader here, and `_pass_counters` refuses it silently
+                # physical line to every reader here, and `_pass_counters` refuses it silently.
+                # No readable first row ⇒ nothing is kept (never the second row's counters).
                 refusals.append(f"{_JOINED_REASON}{line.strip()[:90]}")
-                row = (joined[0], None, joined[1], None, line)
-                p_run.append(row)
-                ordered.append(row)
+                pair = _first_run(line, _second_row_pos(line))
+                if pair is not None:
+                    row = (pair[0], None, pair[1], None, line)
+                    p_run.append(row)
+                    ordered.append(row)
             elif pc:
                 row = _ext_row(line, pc, refusals)
                 p_run.append(row)
