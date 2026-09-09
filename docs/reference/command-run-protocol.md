@@ -26,7 +26,7 @@ Writes are atomic (tmp + `os.replace`).
 {
   "command": "fabrik-review", "phases": 5, "phase": 4, "phase_title": "Converge",
   "terminal": "found:0 no-op round", "state": "running",
-  "rounds": [{"n": 1, "findings": 5, "swept": ["auth"], "new": ["concurrency"]}],
+  "rounds": [{"n": 1, "findings": 5, "confirmed": 0, "swept": ["auth"], "new": ["concurrency"]}],
   "classes": {"auth": "clean", "concurrency": "open"},
   "updated_ts": 1755300000, "stack": [], "event_seq": 7
 }
@@ -52,7 +52,7 @@ The Stop hook keys on `state == "running"` **alone**, so neither field can chang
 | `start --command <name> --phases <N> [--terminal "<cond>"]` | begin a run at phase 1 (a running record is pushed onto `stack`) |
 | `step --phase <N> [--title "<t>"]` | advance |
 | `dispatch --seats <n>` | stamp a fan-out BEFORE its seats go out — `rec["dispatch"] = {ts, seats, phase, round}`; the STAMP accumulates across the messages of one round, and that round's `round` (or the close) rewrites it as a release marker (`seats: 0, released: true`) — never a pop, because an absent stamp reads as "never dispatched" and the sibling probe would fall back to the round row and re-reserve the returned seats; `dispatch_headroom.py` subtracts a live stamp for 25 minutes on every OTHER session (a `round --seats` at the round's close reserves nothing while the seats run — D-193/D-194) |
-| `round [--seats <n>] [--findings <N>] [--classes-swept a,b] [--classes-new c,d]` | record one convergence pass; merge the class ledger. `--findings` counts the RAW candidates the pass raised, before adjudication — a receipt's rows are the adjudicated ledger, so the two figures differ by design. `--seats` omitted = the round inherits its `dispatch` stamp; `0` = a deliberate zero; a typed count that disagrees with the stamp is said on stderr and recorded as typed; a partial close releases only what closed (`dispatch.seats` keeps the remainder); negative is refused; a round with NO stamp that finds seat transcripts whose newest in-window line is newer than the previous round (or a nested child's close — a `step` never narrows the window) says so on stderr; a partial close keeps the original stamp's clock |
+| `round [--seats <n>] [--findings <N>] [--classes-swept a,b] [--classes-new c,d] [--confirmed <N>]` | record one convergence pass; merge the class ledger. `--findings` counts the RAW candidates the pass raised, before adjudication — a receipt's rows are the adjudicated ledger, so the two figures differ by design. `--confirmed <N>` counts the candidates CONFIRMED by execution in that pass (default: not stated); when stated on the LAST round it is the exit counter — TERMINAL fires on `confirmed == 0` with every class swept; when no round states it the `--findings 0` rule stands; a pass with `--findings > 0` and no `--confirmed` under a command whose earlier rounds stated it draws a stderr warning. `--seats` omitted = the round inherits its `dispatch` stamp; `0` = a deliberate zero; a typed count that disagrees with the stamp is said on stderr and recorded as typed; a partial close releases only what closed (`dispatch.seats` keeps the remainder); negative is refused; a round with NO stamp that finds seat transcripts whose newest in-window line is newer than the previous round (or a nested child's close — a `step` never narrows the window) says so on stderr; a partial close keeps the original stamp's clock |
 | `done --command <name> --evidence "<proof>"` | terminal — the contract IS met |
 | `blocked --command <name> --reason "<sanctioned case>"` | terminal — a real halt |
 | `handoff --command <name> --reason "<why rows remain open>" --resume "<RESUME block>"` | terminal — NOT-QUIET: the loop is quiet but rows stay OPEN and are routed (the close `/fabrik-user-test` and `/fabrik-service-test` mandate); `--feedback` owed like `done`/`blocked` |
@@ -63,6 +63,8 @@ Two flags are accepted on **either side** of the subcommand (`--adopt-sid round`
 `round --adopt-sid` both parse): `--session <id>` and `--adopt-sid` (§ Events). ⚠️ The join flag is
 deliberately **not** named `--session-*`: argparse resolves abbreviations, so a second `--sess…` flag
 makes the long-standing `--sess <id>` spelling ambiguous and every caller using it starts exiting 2.
+The same mechanism cuts the other way for `--confirmed`: no other `round` flag shares the `--conf…`
+prefix, so an abbreviated `--conf` now resolves unambiguously to it.
 
 Every **mutating** subcommand (`start` · `step` · `dispatch` · `round` · `done` · `blocked` · `handoff`) holds an exclusive
 `fcntl.flock` over the record across its whole read-modify-write. Subagents routinely inherit the
@@ -110,8 +112,11 @@ persists across rounds:
 - `--classes-new` opens a class (`open`).
 - `--classes-swept` retires one (`clean`) — **only a round that swept it clean retires it.** Sweeps apply
   before opens, so a class both swept and re-found in the same round stays `open`.
-- A round that leaves **every known class clean with `--findings 0`** prints the **TERMINAL verdict**:
-  that is the no-op round the corpus already demands, and the agent then calls `done`.
+- A round that leaves **every known class clean** prints the **TERMINAL verdict**: when the LAST round
+  states `--confirmed`, TERMINAL fires on `confirmed == 0`; when the last round does not state it, the
+  old **`--findings 0`** rule stands, and `round` WARNS when `--confirmed` is absent while
+  `--findings > 0` under a command whose earlier rounds stated it — that is the no-op round the corpus
+  already demands, and the agent then calls `done`.
 - An empty ledger can never be terminal — a round that declared no classes swept nothing.
 
 ### The non-convergence detector
@@ -121,10 +126,13 @@ pathological one **oscillates**: `43 → 11 → 30 → 13 → 22` (a real peer r
 converging) — because each round *re-scopes*, inventing a fresh brief, instead of *re-sweeping* the
 persisted ledger with the same one.
 
-From round 5, when the last 3 findings counts are not non-increasing, `round` prints a loud warning
-naming the sequence and that diagnosis. It is **advisory only and never blocks** — the operator must not
-be trapped by a heuristic, and a legitimately widening review (a fix that opens a new surface) must be
+From round 5, when the last 3 counts are not non-increasing, `round` prints a loud warning naming the
+sequence and that diagnosis. It is **advisory only and never blocks** — the operator must not be
+trapped by a heuristic, and a legitimately widening review (a fix that opens a new surface) must be
 able to say so and continue.
+
+The advisory reads the `confirmed` series when every round in the window states it, and the
+`findings` series otherwise — the same fallback the TERMINAL rule uses.
 
 ## Coverage — which commands open a record
 
@@ -232,10 +240,10 @@ cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — 
   The D-036 substance floor now grades the `filed:` field (a bare `filed: none` is refused; a
   `none — surfaces exercised: …` or a filing with its id passes), and the kaizen filing verdict
   (`filed` / `none` / `unstated`) is classified from that field alone.
-- **Auto-captured:** wall-clock (`now − started_epoch`), the round count and the findings trend, the
-  phase reached. The close prints the finished line — `FEEDBACK: /<command> · <wall> · rounds <n>
-  (<trend>) · confusion: … · waste: … · change: … · filed: …` — which IS the FINAL OUTPUT block's
-  seventh line; paste it.
+- **Auto-captured:** wall-clock (`now − started_epoch`), the round count and the trend (the `confirmed`
+  series when every round states it, the `findings` series otherwise), the phase reached. The close
+  prints the finished line — `FEEDBACK: /<command> · <wall> · rounds <n> (<trend>) · confusion: … ·
+  waste: … · change: … · filed: …` — which IS the FINAL OUTPUT block's seventh line; paste it.
 - **The ledger:** one JSON row per close appended to `~/.claude/state/command-feedback.jsonl`
   (`COMMAND_RUN_DIR`'s parent when that is set), box-wide across every repo whose `command_run.py`
   is current (fleet-synced; fabrik-lib pulls). Fields: `ts sid repo command state wall_s rounds
@@ -401,8 +409,10 @@ Three properties are load-bearing and each has a grader:
 ## Tests
 
 `tests/test_command_run.py` — line format · idle/corrupt/unwritable silence · ledger persistence ·
-terminal verdict (including 0 findings with a class still open) · the detector on `43,11,30,13,22` vs
-`5,3,0` · nested pop/restore · duplicate-`done` refusal · double-close no-op · 20 real concurrent
+terminal verdict (`confirmed == 0` as the exit counter when the last round states it, the old
+`--findings 0` fallback when it does not, including 0 findings with a class still open) · the
+detector on `43,11,30,13,22` vs `5,3,0` · nested pop/restore · duplicate-`done` refusal ·
+double-close no-op · 20 real concurrent
 `round` processes losing nothing · session-id collision · hook↔script filename agreement.
 
 `tests/test_final_gate_stop_hook.py` — the fifth cause (running blocks · done/blocked/corrupt/missing/
