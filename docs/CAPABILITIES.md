@@ -178,6 +178,7 @@
 - [scripts/review_receipt.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_review_receipt.py, commands/_sources/fabrik-review.md, commands/_sources/fabrik-execute-plan.md, scripts/enforcement/check_review_coverag
 - [scripts/review_rubric.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/select_rules.py scripts/rules_match.py tests/test_review_rubric.py
 - [scripts/rivals_run.py](../INDEX.md) (owner: infra): AFTER-EDIT: commands/_sources/fabrik-rivals.md | docs/reference/rivals-command.md | INDEX.md
+- [scripts/scratch_sweep.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/cleanup-automation.md | docs/workstation/hooks-index.md | tests/test_scratch_sweep.py
 - [scripts/seed_real_ports.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
 - [scripts/select_rules.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/rules_match.py scripts/review_rubric.py tests/test_select_rules.py
 - [scripts/snapshot_vps_state.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
@@ -186,6 +187,7 @@
 - [scripts/sync_schema_to_projects.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/DATA_SYNC_WORKFLOW.md
 - [scripts/sysadmin/archive_transcripts.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/development/plans/2026-09-06-plan-1-session-history-retention.md | docs/superpowers/specs/2026-09-05-session-history-retention-design.md
 - [scripts/sysadmin/claude_broker.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_claude_broker.py | scripts/sysadmin/quota_governor.py
+- [scripts/sysadmin/dispatch_headroom.py](../INDEX.md) (owner: infra): AFTER-EDIT: .windsurf/rules/core/62-using-subagents.md, docs/workstation/claude-account-rotation.md, commands/_fragments/subagents-core.md
 - [scripts/sysadmin/emit_mcp_project_config.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/mcp-roster.md (per-type sets + per-repo overlays are CANONICAL there) · tests/test_emit_mcp_project_config.py | none
 - [scripts/sysadmin/ensure-apprise-alerts-config.sh](../INDEX.md) (owner: infra): ensure-apprise-alerts-config.sh — guarantee Apprise's stateful "alerts" config exists. Idempotent.
 - [scripts/sysadmin/feedback_relay.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/kaizen.md, scripts/sysadmin/weekly_catchup.sh | none
