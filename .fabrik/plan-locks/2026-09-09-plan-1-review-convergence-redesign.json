@@ -47,13 +47,14 @@
   },
   "tickets": {
     "T01": {
-      "state": "review-round10-orchestrator-delta",
+      "state": "merged",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-af8499344e0b19818",
       "branch": "worktree-agent-af8499344e0b19818",
       "base_commit": "0c1f2d50",
       "started_at": "2026-09-09T10:00:00",
       "head": "4d17499e",
-      "returned_at": "2026-09-09T10:23:00"
+      "returned_at": "2026-09-09T10:23:00",
+      "commit": "0fcafed5"
     },
     "T03": {
       "state": "review-closed-awaits-merge-order",
@@ -74,7 +75,7 @@
       "returned_at": "2026-09-09T10:22:54"
     },
     "T05": {
-      "state": "review-closed-awaits-merge-order",
+      "state": "review-closed-2-rounds-awaits-merge-order",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-aa2e080bd9e8b5f24",
       "branch": "worktree-agent-aa2e080bd9e8b5f24",
       "base_commit": "0c1f2d50",
@@ -90,6 +91,13 @@
       "started_at": "2026-09-09T10:22:54",
       "head": "2816e78d",
       "returned_at": "2026-09-09T10:26:00"
+    },
+    "T02": {
+      "state": "merging",
+      "base_commit": "0fcafed5",
+      "worktree_path": "/opt/fabrik/.claude/worktrees/agent-ab5f2b90e0207a0d2",
+      "branch": "worktree-agent-ab5f2b90e0207a0d2",
+      "head": "fc1edc8f"
     }
   }
 }

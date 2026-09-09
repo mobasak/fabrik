@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Review-coverage gate: the D7 refusal half, the RECORDED verdicts and the residual licences (2026-09-09)
+
+- Plan `2026-09-09-plan-1-review-convergence-redesign` T02 (D-206/D-207; spec D-205). `scripts/enforcement/check_review_coverage.py` gains the TOKEN rule (a `confirmed:`/`unexecuted:`
+  literal no grammar read as a numeric counter refuses the row by name, with the repair for its
+  path and a five-conjunct carve-out for a prose verdict LABEL), the COUNTER rule (`unexecuted:`
+  with no `confirmed:` refuses the row under both grammars, so it is never old-grammar quiet), and
+  the HEADER rule by CONTENT (at most one header per contiguous pipe block — its first
+  non-separator row, and only if it states no numeric counter).
+- `VERDICT` accepts the four `RECORDED — <kind> (…)` forms (D6), so a RECORDED checklist row is no
+  longer a `noverdict` row — here and, by import, in `check_convergence.py`.
+- New V5 residual check: a `RECORDED — by design (…)` licence must name an existing owning row and
+  a round EARLIER than the closing `Pass N`; `(D-nnn)` takes no round token; a receipt with no
+  Pass-headed row fails closed. New V11 check: the closing round's finders cell must name a seat by
+  model token (scoped to rows written under D-206).
+- `scripts/review_receipt.py --init` writes the five-counter Pass Ledger row shape
+  (`found: F, new: N, confirmed: C, fixed: X, unexecuted: U`), the four RECORDED verdicts and a
+  fenced `## Residual` section.
+- Measured over the 275 committed receipts at `8092e8a8`: 28 in-scope rows / 30 occurrences, 27
+  cells exempt, exactly ONE row refused; `check_file` and the committed advisory are unchanged on
+  all 275.
+
 ### Changed — Coverage gate: both ledger grammars accept `confirmed:`/`unexecuted:` and the exit rule grades them (2026-09-09)
 
 - Plan `2026-09-09-plan-1-review-convergence-redesign` T01 (D-206/D-207; spec D-205). `scripts/enforcement/check_review_coverage.py` (fleet-synced): `_MEGA_ROW` gains optional `| confirmed: C |` and `| unexecuted: U |` cells and every counter cell now terminates on `|` OR end-of-line (GFM lets the closing pipe go; a `|`-only terminator made a correct closing row INERT, so `founds[-1]` graded the previous round — fail-open). Deliberately NO `new:` slot: over the 275 committed receipts the widened regex matches the same 2 rows while a `new:`-slotted variant matches 269.

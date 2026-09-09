@@ -44,7 +44,7 @@ Intake: 8 items — 5 IN, 3 OUT-OF-SCOPE (I3, I4 → the backlog row; I5 → § 
 | Ticket | Title | Depends | Parallel | State | Commit |
 |---|---|---|---|---|---|
 | T01 | Coverage gate: both grammars learn `confirmed:`/`unexecuted:`, the extended counters and every reader, the exit rule in all three readers, the line normalisation | — | ⚡ | ✅ | 4d17499e (squash-applied; review: 10 rounds, closing on confirmed: 0) |
-| T02 | Coverage gate: the token, counter and header rules, the RECORDED verdicts, the residual and finders-cell checks, the receipt template | T01 | ⛓️ | ⬜ | |
+| T02 | Coverage gate: the token, counter and header rules, the RECORDED verdicts, the residual and finders-cell checks, the receipt template | T01 | ⛓️ | ✅ | fc1edc8f (squash-applied; review: 6 rounds, closing on confirmed: 0) |
 | T03 | `check_convergence.py` QUIET_PASS follows the new grammar | — | ⚡ | ⬜ | |
 | T04 | `dispatch_headroom.py --slices`: the floor stands down under a partition; the docstrings, printed sentences and the CLI reference doc | — | ⚡ | ⬜ | |
 | T05 | The board banner sentence, its doc and its own grader | — | ⚡ | ⬜ | |
