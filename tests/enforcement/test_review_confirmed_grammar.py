@@ -43,6 +43,12 @@ crc = _load("crc_confirmed", REPO / GATE_REL)
 CORPUS_AT_BASE = 275  # receipts under docs/development/reviews at BASE_SHA — the DD4 denominator
 
 _corpus_cache: list[Path] = []
+# The root the pinned corpus is materialised under. READER 3 (`_committed_nonquiet`) takes a ROOT
+# and rglobs it, so handing it `REPO` walked the LIVE filesystem and bypassed the pin entirely —
+# one throwaway receipt with a D-206-quiet closing row committed anywhere under
+# docs/development/reviews and the invariance test reds (`base=14, widened=13`). All three readers
+# must see the SAME pinned corpus or the comparison is not one comparison.
+_corpus_root: Path | None = None
 
 
 def _corpus() -> list[Path]:
@@ -59,6 +65,7 @@ def _corpus() -> list[Path]:
     The content is materialized into a tmp mirror under the same relative path, because
     `check_file` takes a Path; nothing is ever read from the working tree.
     """
+    global _corpus_root
     if _corpus_cache:
         return _corpus_cache
     rels = [
@@ -86,6 +93,7 @@ def _corpus() -> list[Path]:
         "DD4 denominator makes every 'N of 275' claim in this suite a different assertion"
     )
     root = Path(tempfile.mkdtemp(prefix="corpus-at-base-"))
+    _corpus_root = root
     for rel in rels:
         blob = subprocess.run(
             ["git", "-C", str(REPO), "show", f"{BASE_SHA}:{rel}"],
@@ -300,9 +308,11 @@ def test_corpus_every_committed_receipt_parses_and_grades_exactly_as_it_did_at_t
     print(f"check_file errors: base={errs_old}, widened={errs_new} over {len(files)} receipts")
     assert rows_new == rows_old
     assert errs_new == errs_old
-    # reader 3 — the committed advisory, one sweep per gate version
-    new_c = [e.split(": COMMITTED")[0] for e in crc._committed_nonquiet(REPO, set())]
-    old_c = [e.split(": COMMITTED")[0] for e in base._committed_nonquiet(REPO, set())]
+    # reader 3 — the committed advisory, one sweep per gate version, over the PINNED mirror.
+    # It takes a ROOT and rglobs it, so `REPO` here walked the live tree and bypassed `_corpus()`.
+    assert _corpus_root is not None, "_corpus() must have materialised the mirror"
+    new_c = [e.split(": COMMITTED")[0] for e in crc._committed_nonquiet(_corpus_root, set())]
+    old_c = [e.split(": COMMITTED")[0] for e in base._committed_nonquiet(_corpus_root, set())]
     print(f"committed advisories: base={len(old_c)}, widened={len(new_c)}")
     assert new_c == old_c
 
@@ -840,20 +850,44 @@ def test_the_canonical_second_row_keeps_its_counter_in_the_third_cell(tmp_path):
     assert any(e.startswith("Pass row refused:") for e in errs), errs
 
 
-def test_a_cell_opening_with_a_citation_is_not_a_row_start(tmp_path):
-    """Round-6 item 2 — `_CELL_OPENS_FOUND` lacked the stand-alone guard its sibling `_CELL_FOUND`
-    carries, and the comment beside it claimed "a cell that merely CITES a counter does not open
-    with it". A citation CAN open a cell, and only the trailing-word guard tells them apart, so
-    this honest row was refused on the pin."""
-    honest = "| Pass 3 | o | found: 0 | fixed: 0 | | see Pass 2 | found: 3 was cited |"
-    assert crc._CELL_OPENS_FOUND.match(" found: 3 was cited ") is None, "word-trailed: not a start"
-    assert crc._CELL_OPENS_FOUND.match(" found: 3 ") is not None, "readable: a real start"
-    assert crc._joined_row(honest) is False, honest
-    _t, _p, ordered, refusals = crc._ledger_shapes(honest + "\n")
-    assert refusals == [] and len(ordered) == 1, (refusals, ordered)
-    # RECORDED residual, fail-CLOSED by choice: a BARE citing cell right of a gap still reads as a
-    # row start, because that is precisely what a row start looks like. 0 of the 275 receipts.
-    assert crc._joined_row("| R1 | found: 1 | fixed: 0 | | note | found: 2 |") is True
+def test_a_citing_cell_right_of_a_gap_is_refused_fail_closed(tmp_path):
+    """Round 7 REVERSES round 6 item 2, which was wrong. `_CELL_OPENS_FOUND` was given
+    `_CELL_FOUND`'s stand-alone guard so a word-trailed citing cell would stop reading as a row
+    start — but a citing cell and a REAL word-trailed second row are the same string shape, so the
+    guard only chose which way to be wrong, and it chose fail-OPEN (see the test below).
+
+    This file's adjudicated policy on that exact tie is fail-CLOSED: fencing a citation is one
+    keystroke; a missed join grades a receipt quiet off another round's numbers. Both halves of
+    the residual are asserted here so the choice is visible rather than inferred, and 0 of the 275
+    committed receipts pay it."""
+    assert crc._CELL_OPENS_FOUND.match(" found: 3 was cited ") is not None, "unguarded ON PURPOSE"
+    for citing in (
+        "| Pass 3 | o | found: 0 | fixed: 0 | | see Pass 2 | found: 3 was cited |",
+        "| R1 | found: 1 | fixed: 0 | | note | found: 2 |",
+    ):
+        assert crc._joined_row(citing) is True, citing
+        _t, _p, _o, refusals = crc._ledger_shapes(citing + "\n")
+        assert refusals and refusals[0].startswith("two ledger rows on ONE physical line"), citing
+
+
+def test_a_head_less_join_whose_second_row_is_word_trailed_is_still_seen(tmp_path):
+    """Round-7 item 1, the fail-OPEN round 6's guard re-opened — the round-4 hole, one arm over.
+
+    A HEAD-LESS second row states its counter and nothing else (`| found: 0 issues | fixed: 0 |`),
+    so guarding `_CELL_OPENS_FOUND` against a trailing word made the row invisible: executed on
+    3ddcb146, `_joined_row` was False, `_ledger_shapes` returned `ordered=[]` and `refusals=[]` —
+    the line DROPPED WHOLE — and `check_file` came back GREEN off the previous quiet round. The
+    `confirmed:` variant of the second row behaves identically, so both are pinned."""
+    for second in ("| found: 0 issues | fixed: 0 |", "| found: 0 issues, confirmed: 0, fixed: 0 |"):
+        line = "| Pass 3 (a) | found: 5 issues | fixed: 1 | " + second
+        assert crc._joined_row(line) is True, line
+        _t, _p, ordered, refusals = crc._ledger_shapes(line + "\n")
+        assert refusals and refusals[0].startswith("two ledger rows on ONE physical line"), line
+        assert not any(r[0] == 0 for r in ordered), f"never quiet off the second half: {ordered}"
+        errs = _graded(tmp_path, line + "\n")
+        assert any(e.startswith("Pass row refused:") for e in errs), (
+            f"a dropped join is a GREEN receipt graded off the previous round: {errs}"
+        )
 
 
 def test_the_corpus_is_pinned_to_the_base_sha_not_the_working_tree(tmp_path):

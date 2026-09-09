@@ -1189,13 +1189,18 @@ _LOOSE_FIXED = re.compile(r"(?<![\w-])fixed:\s*\d")
 # prose arm below keys on this one and on pipe-LESS lines only.
 _PASS_HEAD_COLON = re.compile(r"(?<![\w-])\**Pass\s*\d+[a-z]?\**\s*:", re.I)
 # A cell that OPENS with the counter — how the second row of a head-less join begins once the
-# join has eaten the newline (`| found: 0 | fixed: 0 |`). It carries `_FOUND_TOK`'s OWN stand-alone
-# guard, exactly like its sibling `_CELL_FOUND`: without it a cell that opens with a CITATION
-# (`| found: 3 was cited |`) counted as a row start, and
-# `| Pass 3 | o | found: 0 | fixed: 0 | | see Pass 2 | found: 3 was cited |` was refused. The
-# earlier claim here — "a cell that merely CITES a counter does not open with it" — was simply
-# false: a citation can open a cell, and only the trailing-word guard separates the two.
-_CELL_OPENS_FOUND = re.compile(r"^\s*\**found:\s*\d+(?!\s*\w)")
+# join has eaten the newline (`| found: 0 | fixed: 0 |`).
+# ⚠️ DELIBERATELY UNGUARDED, unlike its sibling `_CELL_FOUND` — reverted in round 7 after round 6
+# added `(?!\s*\w)` here. A citing cell (`| found: 3 was cited |`) and a real word-trailed second
+# row (`| found: 0 issues | fixed: 0 |`) are THE SAME STRING SHAPE, so the guard cannot tell them
+# apart: it just picks which way to be wrong. Round 6 picked fail-OPEN and re-opened the round-4
+# hole — `| Pass 3 (a) | found: 5 issues | fixed: 1 | | found: 0 issues | fixed: 0 |` scored not-
+# joined and was DROPPED WHOLE, `check_file` green off the previous quiet round. This file's
+# adjudicated policy on exactly that tie is fail-CLOSED (see `_joined_row`'s cost block): fencing
+# a citation is one keystroke, a missed join grades a receipt quiet off someone else's numbers.
+# The guard on `_CELL_FOUND` is NOT the same call — it fires on a whole-line count, where nothing
+# to its left establishes that a second row has begun.
+_CELL_OPENS_FOUND = re.compile(r"^\s*\**found:\s*\d")
 
 
 def _row_cells(line: str) -> list[str]:
@@ -1301,9 +1306,14 @@ def _joined_row(line: str) -> bool:
     join, one keystroke to repair (fence the citation), 0 committed exemplars among the 275:
       * (round 3) a row that NAMES another round and cites its counter in its own cell
         (`| Pass 4 | … found: 1 | fixed: 1 | re-ran as Pass 3 | found: 3 |`) trips the strict arm;
-      * (round 6) a bare CITING cell standing right of an empty cell (`| R1 | found: 1 |
-        fixed: 0 | | note | found: 2 |`) is a join to `_empty_cell_join`, because "opens with a
-        readable counter, right of a gap, with a counter to the left" is exactly a row start;
+      * (rounds 6-7) ANY citing cell standing right of an empty cell — bare (`| R1 | found: 1 |
+        fixed: 0 | | note | found: 2 |`) or word-trailed (`| … | | see Pass 2 | found: 3 was
+        cited |`) — is a join to `_empty_cell_join`, because "opens with a counter, right of a
+        gap, with a counter to the left" is precisely what a row start looks like. Round 6 tried
+        to exempt the word-trailed half with a stand-alone guard on `_CELL_OPENS_FOUND` and so
+        re-opened the round-4 fail-open for HEAD-LESS joins, whose real second row wears the same
+        shape (`| … | | found: 0 issues | fixed: 0 |`). Reverted in round 7: the two are
+        indistinguishable, and this is the tie the whole block exists to break;
       * (round 6) an honest PROSE round line citing a prior round with a word-trailed counter
         (`Pass 4: found: 0 issues, fixed: 0 — same as Pass 3: found: 0 issues last time`) is
         refused by the prose arm, just as its strict-counter twin always was under the legacy
