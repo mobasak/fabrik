@@ -165,6 +165,24 @@ REFUSED_BY_TOKEN = [
     ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: #3 |", "silent"),
     ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: ...3 |", "silent"),
     ("| Pass 7 | native verifier | found: 0 | fixed: 0 | UNEXECUTED: \u20182\u2019 |", "silent"),
+    # ROUND 3 — the class is CATEGORICAL (unicodedata), not a third hand-extended literal list:
+    # German and French quotes, CJK brackets, inverted punctuation, the katakana middle dot, a
+    # bullet, a slash, an equals sign, a superscript digit and a full-width digit all exited GREEN
+    # against round 2's enumeration — each one character later than the last list's edge.
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: \u201e3\u201c |", "silent"),
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: \u00ab3\u00bb |", "silent"),
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: \u20393\u203a |", "silent"),
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: \u30143\u3015 |", "silent"),
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: \u00a13 |", "silent"),
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: \u30fb3 |", "silent"),
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: \u20223 |", "silent"),
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: /3 |", "silent"),
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: =3 |", "silent"),
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: \u00b3 |", "silent"),
+    (
+        "| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: \u00ab\uff13\u00bb |",
+        "silent",
+    ),
 ]
 
 # The PROSE path: a Pass-headed line the prose arm reads, `_PASS_HEAD` the scope test.
@@ -276,6 +294,20 @@ def test_an_all_caps_prose_label_on_an_old_grammar_row_is_exempt(row: str) -> No
     assert _refusals(_embed(row)) == [], row
 
 
+def test_the_value_test_is_categorical_and_the_prose_labels_survive_it() -> None:
+    """ROUND 3 — the class is closed by unicode CATEGORY, and the four shapes the spec keeps
+    exempt must survive that widening (the risk of a categorical strip is that it eats prose)."""
+    for prose in ("thirteen defects stand", "still 2", "see round 3", "two MORE anti-cheat errors"):
+        row = f"| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: {prose} |"
+        assert _refusals(row) == [], (prose, _refusals(row))
+    # the categories themselves, at the unit: a wrapped digit is a value whatever wraps it
+    assert (
+        crc._valueish("\u00ab\uff13\u00bb") and crc._valueish("\u00b3") and crc._valueish("**3**")
+    )
+    assert crc._valueish("n/a") and crc._valueish("(n / a)") and crc._valueish("")
+    assert not crc._valueish("thirteen") and not crc._valueish("see round 3")
+
+
 def test_the_carve_out_conjuncts_are_each_load_bearing() -> None:
     base = "| 19 | found: 0 | fixed: 0 | CONFIRMED: thirteen defects stand |"
     assert _refusals(_embed(base)) == []
@@ -368,6 +400,27 @@ def test_a_row_with_no_counter_run_gets_the_citation_repair_not_a_counter_one() 
     # a row that DOES carry counters still gets the counter-placement repair
     counters = _embed("| 19 | found: 0 | fixed: 0 | confirmed: 3 |")
     assert any("`| confirmed: C |`" in e for e in _refusals(counters)), _refusals(counters)
+
+
+def test_the_citation_repair_names_the_token_that_fired() -> None:
+    """ROUND 3 — the example is BUILT from the match, never hardcoded: a row citing
+    `(2 probes unexecuted :12)` was told to write `confirmed at :63`, an edit that has nothing to
+    do with the row in front of the author."""
+    block = "\n".join(
+        [
+            "| intersection | verdict |",
+            "|---|---|",
+            "| (e) captured disorder | CONFORMS — the probe table (2 probes unexecuted :12) |",
+        ]
+    )
+    errs = _refusals(block)
+    assert errs and all("`unexecuted at :12`" in e for e in errs), errs
+    assert not any("confirmed at :63" in e for e in errs), errs
+    # and the repair it names silences the row
+    assert _refusals(block.replace("unexecuted :12", "unexecuted at :12")) == []
+    # the confirmed-token twin names ITS own line reference, not the other one
+    cited = block.replace("2 probes unexecuted :12", "verifier confirmed :63; :47-53")
+    assert any("`confirmed at :63`" in e for e in _refusals(cited)), _refusals(cited)
 
 
 def test_the_recorded_dispositions_are_verdicts_not_missing_ones() -> None:
@@ -542,26 +595,57 @@ def test_corpus_the_finders_rule_is_scoped_to_the_new_grammar_by_measurement() -
 # Every OTHER backticked item in that cell must appear in this file — the executable denominator
 # for "did the suite carry the spec's fixtures", which is how round 1 and round 2 both found
 # missing rows by hand.
+# Rows the spec names that this suite carries INSIDE a test body rather than in a table above —
+# registered here so every "covered" verdict is an EXACT string somewhere, never a substring of
+# the module's prose.
+_BODY_FIXTURES = (
+    "| Pass | Finders | found: F, confirmed: C, fixed: X | Method |",
+    "| Pass | Finders | Counters | Method |",
+    "| F212 | grader | RECORDED — unexecuted (3 attempts timed out) |",
+    "| 19 | found: 0 | Confirmed: 3 | fixed: 0 |",
+    "| 20 | found: 0 | fixed: 0 |",
+    "| N | found: 0 | confirmed: C | unexecuted: U | fixed: 0 |",
+    "| Pass 19 | opus×1 | found: 0, fixed: 0 | delta (confirmed: 3) |",
+    "| 19 | found: 0 | confirmed: 0 | fixed: 0 | CONFIRMED: see residual |",
+    "| Pass 19 | o×1 | found: 0, CONFIRMED: three, fixed: 0 | m |",
+)
+_ALL_FIXTURES = (
+    {row for row, _ in REFUSED_BY_TOKEN}
+    | {row for row, _ in REFUSED_PROSE}
+    | set(REFUSED_BY_COUNTER)
+    | {row for row, _ in PARSED_AND_NOT_REFUSED}
+    | set(OUT_OF_THREAT_MODEL)
+    | set(_BODY_FIXTURES)
+)
 _V2_NON_FIXTURES = {"_pass_counters", "_MEGA_ROW", ":205-210", ":165-166", ":576-581"}
 
 
 def test_the_suite_carries_every_fixture_the_specs_v2_cell_names() -> None:
-    spec = (
-        REPO / "docs/superpowers/specs/2026-09-08-review-convergence-redesign-design.md"
-    ).read_text(encoding="utf-8")
-    cell = spec.splitlines()[232]
+    """ROUND 3 — compared against the SET OF FIXTURE STRINGS, EXACT match per item, never a
+    substring of the module text: `| 19 | found: 0 | fixed: 0 | confirmed: 3` (the no-closing-pipe
+    variant) is a SUBSTRING of its sibling with the pipe, so deleting that fixture left the
+    file-text version of this test reporting `0 missing`. A denominator that cannot see a deletion
+    is not a denominator.
+
+    Which items are FIXTURES is decided STRUCTURALLY, not by an allowlist anyone maintains: a
+    fixture is a row (`|`-leading, list marker tolerated) or a Pass-headed prose line. The other
+    items in that cell are the gate's own vocabulary (`confirmed:`, `found: 0`), symbol names and
+    code line-references.
+    """
+    spec_path = REPO / "docs/superpowers/specs/2026-09-08-review-convergence-redesign-design.md"
+    cell = spec_path.read_text(encoding="utf-8").splitlines()[232]
     assert cell.startswith("| V2 |"), cell[:40]
     items = [i.replace("\\|", "|") for i in re.findall(r"`([^`]+)`", cell)]
     uniq = list(dict.fromkeys(items))
-    mine = Path(__file__).read_text(encoding="utf-8")
-    # the U+2028 fixture is carried as the LITERAL character, which is the only honest way to
-    # assert what it asserts — the spec spells it `<U+2028>`
-    mine_cmp = mine.replace("\u2028", "<U+2028>")
-    missing = [i for i in uniq if i not in _V2_NON_FIXTURES and i not in mine_cmp]
+    shaped = [i for i in uniq if i.lstrip("- ").startswith("|") or re.match(r"-?\s*Pass\s*\d", i)]
+    # the `<U+2028>` item is carried as the LITERAL character — the only honest way to assert what
+    # it asserts — so the spec's spelling is folded to it before the exact comparison
+    missing = [i for i in shaped if i.replace("<U+2028>", "\u2028") not in _ALL_FIXTURES]
     print(
-        f"V2 cell: {len(items)} backticked items, {len(uniq)} unique, "
-        f"{len(_V2_NON_FIXTURES)} non-fixtures, {len(missing)} missing"
+        f"V2 cell: {len(items)} backticked items, {len(uniq)} unique, {len(shaped)} fixture-shaped,"
+        f" {len(_ALL_FIXTURES)} fixture strings in this suite, {len(missing)} missing"
     )
+    assert (len(uniq), len(shaped)) == (79, 64), (len(uniq), len(shaped))
     assert missing == [], missing
 
 
@@ -590,8 +674,16 @@ def _corpus() -> list[Path]:
 
 
 def test_corpus_the_token_rule_refuses_exactly_one_committed_row() -> None:
-    """FIRE RATE of the token rule over the ledger-block path (the header exempt), pinned at the
-    base SHA: 28 in-scope rows / 30 occurrences, of which 27 cells / 29 occurrences are exempt
+    """FIRE RATE of the token rule over the LEDGER-BLOCK PATH, pinned at the base SHA.
+
+    ⚠️ WHAT THESE NUMBERS COUNT, said once so the next reader does not re-derive a different
+    denominator: rows returned by `_ledger_block_rows` — i.e. the DATA rows of contiguous pipe
+    blocks that hold at least one row a grammar parsed or that carries a new-grammar token, with
+    each block's header row EXCLUDED. They do NOT count every `_TOKEN_LIT` line in the receipts
+    (a census over that wider set returns 35 rows / 37 occurrences, 31 / 33 exempt — the same 1
+    refusal), nor the Pass-headed PROSE path, whose own figure is 0 refusals at this SHA.
+
+    The numbers: 28 in-scope rows / 30 occurrences, of which 27 cells / 29 occurrences are exempt
     under the carve-out and ONE row is refused — the T20 receipt's verdict cell. In THAT FILE the
     refusal surfaces in no gate output (it carries no Coverage Checklist, so neither `check_file`
     nor the committed advisory reads it) and the orchestrator's Delta repair is hygiene; the CLASS

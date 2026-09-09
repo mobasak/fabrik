@@ -31,6 +31,7 @@ import argparse
 import re
 import subprocess
 import sys
+import unicodedata
 from pathlib import Path
 
 REVIEWS_DIR = "docs/development/reviews/"
@@ -1606,18 +1607,21 @@ _NUMERIC_TOK = re.compile(r"(?<![\w-])(?:found|fixed|confirmed|unexecuted)\s*:\s
 # block walk, or a stray separator would split one ledger block into two.
 _SEP_ROW = re.compile(r"[|\-: ]+")
 # A VALUE after the colon — what makes an occurrence a counter attempt rather than a prose label.
-# ⚠️ A leading run of WRAPPER and PUNCTUATION characters is skipped before the digit test. `^\d`
-# alone exempted `CONFIRMED: **3**` as a prose LABEL, so a closing row stating three standing
-# defects graded QUIET; the spec puts exactly that wrapper in the threat model for the lowercase
-# form (`**unexecuted: 2**` is REFUSED). A wrapped digit is a value wearing punctuation.
-# THE CLASS IS CLOSED BY CHARACTER FAMILY, not by the shapes anyone happened to think of (round 2:
-# the first cut listed `*_`~([<+-` and left `"3"`, `“3”`, `{3}`, `—3`, `#3`, `...3` green — each
-# one wrapper character away from the shape it had just closed). Markdown emphasis, every bracket,
-# both quote families incl. curly, the dash family incl. en/em, `#`, `.` and `!`.
-# MEASURED over the 275 committed receipts at 8092e8a8 — the widening's OWN measurement, not the
-# one below: 1 refused row before, the SAME 1 after (the T20 citation cell), 27 cells / 29
-# occurrences still exempt. `thirteen defects stand`, `still 2`, `see round 3` and `two MORE
-# anti-cheat errors` are untouched by it.
+# THE VALUE TEST, BY UNICODE CATEGORY — never a literal list (round 3: the third hand-extended
+# list failed the same way the first two did, one character later. `„3“`, `«3»`, `‹3›`, `〔3〕`,
+# `¡3`, `・3`, `•3`, `/3`, `=3`, `³` and the full-width `«３»` all exited GREEN with three defects
+# standing). `^\d` alone exempted `CONFIRMED: **3**` as a prose LABEL, and every wrapper anyone
+# forgets re-opens that hole; the spec puts exactly this shape in the threat model for the
+# lowercase form (`**unexecuted: 2**` is REFUSED). So the leading run is stripped by CATEGORY:
+#   Ps Pe Pi Pf  — every opening/closing/initial/final punctuation (brackets, quotes, all scripts)
+#   Pd Po        — dashes (incl. en/em) and other punctuation (`.`, `!`, `#`, `/`, `¡`, `・`, `•`)
+#   Sm Sk        — math and modifier symbols (`=`, `+`, `<`, `` ` ``, `^`)
+#   Cf Zs        — format characters and every space
+#   plus the ASCII markdown wrappers `*` and `_`, which are Po/Pc and would otherwise need naming
+# and what follows must then be a DIGIT (`str.isdigit()`, so full-width `３` counts, plus category
+# `No` for `³`/`½`) or `n/a`. A digit wearing punctuation is a value, not a label.
+# ⚠️ MEASURED over the 275 committed receipts at 8092e8a8, this widening's OWN figures: 1 refused
+# row before, the SAME 1 after; 27 cells / 29 occurrences still exempt; 0 `check_file` deltas.
 # ⚠️ AND THE VALUE TEST STOPS AT THE LEADING RUN, measured separately: a "the value CARRIES a digit
 # ANYWHERE" rule refuses 27 of the 29 exempt occurrences (their prose cites round numbers —
 # `(round 121)`, `3 doc-tracking hits`), and a "digit within the first 12 characters" rule still
@@ -1628,20 +1632,52 @@ _SEP_ROW = re.compile(r"[|\-: ]+")
 # an honest digit-led parenthetical after an ALL-CAPS label — IS refused. That is the spec's own
 # line ("a non-lowercase literal followed by a digit, anywhere on the row — refused by name"), and
 # it occurs 0 times in the 275 receipts; the repair is to move the count out of the lead.
-_VALUEISH = re.compile(r"^[\s*_`~([<{+\-#\"'“”‘’–—.!]*(?:\d|n\s*/\s*a\b)", re.I)
+_WRAPPER_CATS = frozenset({"Ps", "Pe", "Pi", "Pf", "Pd", "Po", "Sm", "Sk", "Cf", "Zs"})
+_MD_WRAPPERS = "*_`~"
+_NA = re.compile(r"n\s*/\s*a\b", re.I)
+
+
+def _valueish(rest: str) -> bool:
+    """Is what follows the colon a VALUE (a wrapped digit, or `n/a`) rather than prose?"""
+    i = 0
+    while i < len(rest) and (
+        rest[i] in _MD_WRAPPERS
+        or rest[i].isspace()
+        or unicodedata.category(rest[i]) in _WRAPPER_CATS
+    ):
+        i += 1
+    tail = rest[i:]
+    if not tail:  # nothing but wrappers after the colon — no prose follows, so not a label
+        return True
+    return tail[0].isdigit() or unicodedata.category(tail[0]) == "No" or bool(_NA.match(tail))
+
+
 _REPAIR_CELL = (
     "write `| confirmed: C |` between `found:` and `fixed:`, one counter per cell, no `new:` "
     "cell, no wrapper"
 )
-# The repair for a row that carries NO counter run at all — a checklist or disposition row that
-# CITES a line (`(verifier confirmed :63; :47-53)`). Telling its author to "write `confirmed:`
-# between `new:` and `fixed:`" names counters the row does not have and never will; the real edit
-# is one character. The REACH that lets such a row be refused at all is spec-frozen and filed for
-# the plan-review adoption — this changes the message, never the scope.
-_REPAIR_CITE = (
-    "this row carries no counter run — it CITES a line; drop the colon after the word "
-    "(`confirmed at :63`, never `confirmed :63`), or fence the citation"
-)
+_CITE_REF = re.compile(r"[\w.:/-]+")
+
+
+def _cite_repair(line: str, occ: re.Match[str]) -> str:
+    """The repair for a row that carries NO counter run — built from the match that fired, never
+    a hardcoded example (round 3: a row citing `(2 probes unexecuted :12)` was told to write
+    `confirmed at :63`). Such a row is a checklist or disposition row CITING a line; telling its
+    author to place counters names counters the row does not have, and the real edit is one
+    character. The REACH that lets such a row be refused at all is spec-frozen and filed for the
+    plan-review adoption — this is the message, never the scope.
+    """
+    lit = occ.group(1)
+    after = line[occ.end() : _cell_end(line, occ.end())].strip()
+    m = _CITE_REF.match(after)
+    ref = m.group(0).rstrip(";,.)") if m is not None else ""
+    shown = f"`{lit} at :{ref}`" if ref else f"`{lit} at :<line>`"
+    return (
+        f"this row carries no counter run — it CITES a line; drop the colon after the word "
+        f"(write {shown}, never `{lit} :{ref}`), or fence the citation"
+    )
+
+
 _REPAIR_PASS = (
     "write `confirmed:` between `new:` and `fixed:` inside the counter cell — inside the "
     "`found:` cell when `found:` and `fixed:` sit in separate cells, where `unexecuted:` "
@@ -1705,7 +1741,7 @@ def _label_exempt(
     if run is not None and run[0] <= occ.start() < run[1]:  # 2 — outside the counter cell/run
         return False
     rest = line[occ.end() : _cell_end(line, occ.end())].strip()
-    if not rest or _VALUEISH.match(rest):  # 3 — what follows is not a VALUE
+    if not rest or _valueish(rest):  # 3 — what follows is not a VALUE
         return False
     if spans:  # 4 — the row states no numeric confirmed:/unexecuted: counter
         return False
@@ -1735,10 +1771,8 @@ def _row_refusals(line: str) -> list[str]:
     spans, cell_path, resolved = _consumed_counters(line)
     # A row with no counter run states no counters: neither counter-placement repair can be acted
     # on there, so it gets the citation repair instead (round 2).
-    if _counter_run(line) is None:
-        repair = _REPAIR_CITE
-    else:
-        repair = _REPAIR_CELL if cell_path else _REPAIR_PASS
+    cites = _counter_run(line) is None
+    repair = "" if cites else (_REPAIR_CELL if cell_path else _REPAIR_PASS)
     # THE COUNTER RULE (both grammars): `unexecuted:` captured with no `confirmed:`. Without it
     # `| u | x | found: 0 | fixed: 0 | unexecuted: 2 |` reads old-grammar QUIET with two
     # unexecuted candidates standing — the fail-open on the one counter the redesign added to
@@ -1762,14 +1796,15 @@ def _row_refusals(line: str) -> list[str]:
     # ONE message per ROW, naming every literal left unread — the rule refuses the ROW, and a
     # row whose `confirmed:` AND `unexecuted:` are both displaced has ONE repair, not two.
     unread = [
-        occ.group(1)
+        occ
         for occ in _TOKEN_LIT.finditer(line)
         if not _consumed(line, occ, spans) and not _label_exempt(line, occ, spans, resolved)
     ]
     if unread:
-        named = "`, `".join(dict.fromkeys(f"{u}:" for u in unread))
+        named = "`, `".join(dict.fromkeys(f"{u.group(1)}:" for u in unread))
+        how = _cite_repair(line, unread[0]) if cites else repair
         out.append(
-            f"`{named}` on a ledger row that no grammar read as a counter — {snippet!r}: {repair}"
+            f"`{named}` on a ledger row that no grammar read as a counter — {snippet!r}: {how}"
         )
     return out
 
