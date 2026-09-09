@@ -47,7 +47,7 @@ Intake: 8 items — 5 IN, 3 OUT-OF-SCOPE (I3, I4 → the backlog row; I5 → § 
 | T02 | Coverage gate: the token, counter and header rules, the RECORDED verdicts, the residual and finders-cell checks, the receipt template | T01 | ⛓️ | ✅ | fc1edc8f (squash-applied; review: 6 rounds, closing on confirmed: 0) |
 | T03 | `check_convergence.py` QUIET_PASS follows the new grammar | — | ⚡ | ✅ | 375ca554 (squash-applied; review: 2 rounds, closing on confirmed: 0) |
 | T04 | `dispatch_headroom.py --slices`: the floor stands down under a partition; the docstrings, printed sentences and the CLI reference doc | — | ⚡ | ✅ | ada72df4 (squash-applied; review: 5 rounds, closing on confirmed: 0) |
-| T05 | The board banner sentence, its doc and its own grader | — | ⚡ | ⬜ | |
+| T05 | The board banner sentence, its doc and its own grader | — | ⚡ | ✅ | b407555b (squash-applied; review: 2 rounds, closing on confirmed: 0) |
 | T06 | core/62, both CLAUDE.md files, the convergence prompts and the prompt template carry the partition rule and the new exit | T04 | ⛓️ | ⬜ | |
 | T09 | The run-record protocol doc and the event-stream doc carry `--confirmed` and the confirmed-based TERMINAL rule | — | ⚡ | ⬜ | |
 | T07 | The three review commands, the rules-review D-048 cite, the subagents fragment, the assembler's rendered floor; the V7/V8 corpus tests | T04, T05, T06 | ⛓️ | ⬜ | |

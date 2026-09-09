@@ -67,16 +67,17 @@
       "commit": "5fc80b60"
     },
     "T04": {
-      "state": "merging",
+      "state": "merged",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-aad985623a34a9689",
       "branch": "worktree-agent-aad985623a34a9689",
       "base_commit": "0c1f2d50",
       "started_at": "2026-09-09T10:00:00",
       "head": "ada72df4",
-      "returned_at": "2026-09-09T10:22:54"
+      "returned_at": "2026-09-09T10:22:54",
+      "commit": "bd58e5c0"
     },
     "T05": {
-      "state": "review-closed-2-rounds-awaits-merge-order",
+      "state": "merging",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-aa2e080bd9e8b5f24",
       "branch": "worktree-agent-aa2e080bd9e8b5f24",
       "base_commit": "0c1f2d50",
