@@ -1,6 +1,46 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## 2026-09-09 — The redesigned review loop, applied to itself: what ten tickets and 44 executed rounds taught
+
+Plan `2026-09-09-plan-1-review-convergence-redesign` (D-203/D-205, spec `2026-09-08-review-convergence-redesign-design.md`)
+rebuilt the review loop — a partitioned single pass, delta rounds over the fix diff, quiet = zero CONFIRMED — and every
+one of its ten tickets was reviewed under the rules it was landing. Per-ticket rounds: 10 · 6 · 2 · 5 · 2 · 4 · 3 · 5 · 3 · 3,
+then a D7 seam round and the D-191 receipt's first application (two delta rounds closing a review that had run 18 under
+the old bar). What held across all of them:
+
+- **Fix residue is the loop's main input, and the orchestrator's own brief is a claim like any seat's.** T01 needed ten
+  rounds because 15 of its 21 confirmed defects were residue of the previous fix — two of them ordered by the
+  orchestrator (a guard that re-opened a fail-open the file's own docstring had adjudicated fail-closed; a "one
+  keystroke" remedy written into a comment without executing it). Before routing a fix that EXEMPTS a shape, grep the
+  file for its adjudication of that shape; never write a remedy anywhere without running its repair matrix first.
+- **A rule measured only against its fixtures has an unknown blast radius.** T02's finders-cell rule read as a one-line
+  shape rule and, applied literally, refused 66 of the 70 committed closing rows in the hub's own receipts; the token
+  rule came out at 1 hit in 275. Only running the rule over the PINNED corpus (`git ls-tree <sha>`, never the live
+  tree) shows that — a corpus test that enumerates the working tree is a landmine for the first receipt written under
+  the new grammar.
+- **A survived mutant can be the assertion's defect.** T08's second mutant survived because the guard asserted a path
+  TAIL substring that the mutant's absolute path also carried; both halves of the mutation were asserted on disk, so
+  the survival was information about the assertion. Anchor on what precedes the tail.
+- **The seam round finds what ten converged tickets cannot.** With every ticket quiet in isolation, the whole-plan D7
+  round still confirmed three cross-ticket contradictions: the run record's TERMINAL verdict closing a clean ROUND 1
+  while the receipt gate demands a confirming Pass 2; `--slices` trimmed by a cap dropping slices under a COST line
+  that still said "every file read once"; the hygiene dual-verdict class grading zero rows of template-generated
+  receipts and reporting zero ungraded. Seams are a surface of their own — partition them, pin them, execute them.
+- **A refused receipt is the cheapest defect to find and the costliest to find late.** Every one of the plan's own
+  receipts was refused at least once by the gate it was landing (bare tokens, labels with colons, raw pipes, citations
+  `confirmed :63`, a missing `method: re-derivation`, a quiet round 1 with no confirming round) — and one CONVERGED
+  receipt was COMMITTED refused because the chain printed the grade instead of exiting on it. Grade the receipt on a
+  clone before the commit, and chain every gate with `exit ${PIPESTATUS[0]}) || exit 1`, never `| tail`.
+- **Scratch survives nothing.** A session interruption emptied the scratchpad mid-plan (briefs, pins, merge helpers,
+  coder reports) and cancelled the running coder. Everything the orchestrator needs to merge must be regenerable from
+  git objects — briefs from a generator, pins from `git archive <sha>`, the merge helper's text in the transcript — and
+  a cancelled coder's harness worktree is re-adopted by path with a new coder that reads the staged WIP, never trusts it.
+- **Probe isolation is per shell AND per record.** A seat's probe opened a nested run record under the live session
+  (the F349 class) and the plan's round went into it; `export`s leaked between calls in one Bash. Every
+  `command_run.py` probe sets `COMMAND_RUN_DIR`/`COMMAND_RUN_TRANSCRIPT`/`KAIZEN_EVENTS_DIR`/`HOME` to scratch in a
+  subshell AND passes its own `--session`; a nested record is closed by name with the four-field feedback, never left.
+
 # Lesson 162: a fix's GRADER is the thing to attack, not the fix — three of them passed with the guard deleted, and one cited a test that does not exist
 
 **What happened.** Building the scratch sweeper (plan `2026-09-08-plan-1-scratch-sweep`), the

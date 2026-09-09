@@ -112,7 +112,10 @@ persists across rounds:
 - `--classes-new` opens a class (`open`).
 - `--classes-swept` retires one (`clean`) — **only a round that swept it clean retires it.** Sweeps apply
   before opens, so a class both swept and re-found in the same round stays `open`.
-- A round that leaves **every known class clean** prints the **TERMINAL verdict**: when the LAST round
+- A round that leaves **every known class clean** prints the **TERMINAL verdict** — never on round 1
+  (round 1 is the full pass; the receipt gate demands a confirming Pass 2, so a clean first round prints
+  `⛔ NOT TERMINAL — round 1 is the full pass, never the closing round` and the next quiet delta round
+  closes): when the LAST round
   states `--confirmed`, TERMINAL fires on `confirmed == 0`. The old **`--findings 0`** rule stands only
   for a record whose rounds **NEVER** state `confirmed` — adoption is **sticky per record**: once any
   round has stated the exit counter, a later round that omits it can NOT close the record, and `round`
@@ -426,7 +429,8 @@ Three properties are load-bearing and each has a grader:
 
 `tests/test_command_run.py` — line format · idle/corrupt/unwritable silence · ledger persistence ·
 terminal verdict (`confirmed == 0` as the exit counter when the last round states it, the old
-`--findings 0` fallback only for a record that NEVER states it, the sticky-adoption refusal swept
+`--findings 0` fallback only for a record that NEVER states it, the two-round floor — a clean round 1 is
+NOT TERMINAL under either rule — the sticky-adoption refusal swept
 over all 12 cells of findings 0-3 x previously-adopted none/0/3, including 0 findings with a class
 still open) · the
 detector on `43,11,30,13,22` vs `5,3,0` · nested pop/restore · duplicate-`done` refusal ·

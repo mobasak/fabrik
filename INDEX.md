@@ -624,6 +624,7 @@ docs/
 │   │   ├── fleet-doc-audit-2026-08-07.md
 │   │   ├── fleet-doc-audit-2026-08-10.md
 │   │   ├── fleet-doc-audit-2026-08-19.md
+│   │   ├── fleet-doc-audit-2026-09-09.md
 │   │   ├── fleet-doc-audit-2026-08-26.md
 │   │   ├── fleet-doc-audit-2026-09-02.md
 │   │   ├── fleet-doc-audit-latest.md

@@ -1330,3 +1330,43 @@ def test_unknown_slices_kinds_are_all_named_not_just_the_first(capsys):
     assert dh.main(["--slices", "fable=1,claude=2"]) == 2
     err = capsys.readouterr().err
     assert "kind 'claude', 'fable' is not one of opus, sonnet, haiku" in err
+
+
+# --- D7 seam #2 (whole-plan validation, seat `opus`): a TRIMMED partition may not claim complete
+# --- coverage. Under `--slices` the COST line asserted "every file read once" whatever the budget
+# --- had cut, so a 10-slice partition bound to 3 seats told an orchestrator obeying CLAUDE.md's
+# --- "dispatch exactly the SEATS: and mix it prints" that 3/10 of the surface WAS the full pass.
+
+
+def test_a_trimmed_slices_partition_never_claims_every_file_read_once(monkeypatch, capsys):
+    monkeypatch.setattr(dh, "box", lambda: dict(BOX_OK, mem_available_gb=5.0))
+    monkeypatch.setattr(dh, "quota", lambda: Q_OK)
+    monkeypatch.setattr(
+        dh, "siblings", lambda: {"ok": True, "seats": 0, "sessions": 0, "skipped": []}
+    )
+    assert dh.main(["--slices", "opus=2,sonnet=6,haiku=2"]) == 0
+    out = capsys.readouterr().out
+    assert "SEATS: 5" in out, out
+    assert "TRIMMED partition" in out, out
+    assert "every file read once" not in out, out
+    # the story must name the SIZE of the gap and every kind it dropped, so the receipt can list
+    # the unread slices — 10 wanted, 5 dispatched, {opus: 1, sonnet: 2, haiku: 2} cut
+    assert "10 slices wanted, 5 dispatched" in out, out
+    for dropped in ("haiku: 2", "opus: 1", "sonnet: 2"):
+        assert dropped in out, (dropped, out)
+    assert "NOT the full pass" in out, out
+    assert "re-sweep them next round" in out, out
+    assert "haiku 1x · sonnet 2x · opus 5x · fable 10x" in out, out  # the D-190 tail survives
+
+
+def test_an_untrimmed_slices_partition_still_says_every_file_read_once(monkeypatch, capsys):
+    """The discriminating half: the claim is CORRECT when the budget cut nothing."""
+    monkeypatch.setattr(dh, "box", lambda: BOX_OK)
+    monkeypatch.setattr(dh, "quota", lambda: Q_OK)
+    monkeypatch.setattr(
+        dh, "siblings", lambda: {"ok": True, "seats": 0, "sessions": 0, "skipped": []}
+    )
+    assert dh.main(["--slices", "opus=1,sonnet=1"]) == 0
+    out = capsys.readouterr().out
+    assert "every file read once" in out, out
+    assert "TRIMMED partition" not in out, out

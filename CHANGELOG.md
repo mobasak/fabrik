@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The review loop's three cross-ticket seams, found by the plan's own whole-plan validation (2026-09-09)
+- `scripts/command_run.py`: the TERMINAL verdict needs a confirming round — round 1 is the full pass and
+  never the closing delta round, mirroring `check_review_coverage.py`'s "minimum two rounds ALWAYS"; a
+  clean round 1 prints `⛔ NOT TERMINAL — round 1 is the full pass …` under both the confirmed and the
+  legacy `--findings 0` rule (D-211).
+- `scripts/sysadmin/dispatch_headroom.py --slices`: a partition trimmed by a quota, box or concurrency
+  cap prints `TRIMMED partition: N slices wanted, M dispatched (…)` and never "every file read once";
+  the subagents-core fragment tells the orchestrator to name the unread slices and re-sweep them.
+- `scripts/enforcement/check_review_hygiene.py`: a headed table with no disposition column now counts
+  its rows as UNGRADED in the summary and `--json` (4,241 of the corpus's 5,917 rows — 71.7 %, where the
+  old summary implied 254); the predicate is NOT widened — `status` re-admits the leading-verdict-plus-
+  prose class a prior round excluded (measured over 284 receipts: 3.91 % hits, 2 of 10 sampled false).
+
 ### Changed — The review corpus carries the file partition and the CONFIRMED exit (2026-09-09)
 
 - `/fabrik-review` states its seat rule once: the surface is partitioned into DISJOINT slices by

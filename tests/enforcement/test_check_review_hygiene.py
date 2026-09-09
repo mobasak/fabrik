@@ -512,7 +512,13 @@ def test_the_gate_registers_it_warn_only():
 CORPUS_RECEIPTS = 275
 CORPUS_ROWS = 5917
 CORPUS_DISPOSITION_ROWS = 1645
-CORPUS_UNGRADED = 254
+# D7 seam #3: 254 → 4241 (71.7 % of the corpus's rows). The old number counted ONLY rows in a
+# header-less table; a HEADED table that declares no disposition column was skipped silently and
+# fell out of the denominator entirely, so the summary read "254 ungraded" over a corpus in which
+# the dual-verdict class actually graded 1,645 of 5,917 rows. The rise IS the fix — a bounded
+# search now states its real bound. ⚠️ docs/workflows/FINAL_GATE_WORKFLOW.md TRANSCRIBES this
+# test's printed output and must be re-transcribed in the same change.
+CORPUS_UNGRADED = 4241
 CORPUS_RAW_PIPE = (33, 19)  # (hits, receipts)
 CORPUS_DUAL_VERDICT = (27, 5)  # round 2: the four leading-count tally cells fire again
 
@@ -591,3 +597,68 @@ def test_every_repeatable_flag_says_so_in_its_help() -> None:
     for flag in ("--surface", "--receipt", "--phrase", "--symbol"):
         i = out.index(flag)
         assert "(repeatable)" in out[i : i + 400], (flag, out[i : i + 400])
+
+
+# ── D7 seam #3 (whole-plan validation, seat `opus`): a HEADED table that declares no disposition
+# column was skipped SILENTLY and the summary still read `0 rows ungraded`. `review_receipt.py`'s
+# generated grammar declares none (`| Class | Status |`, `| Pass | Finders | Counters | Method |`),
+# so on a template-generated receipt the dual-verdict class graded nothing while claiming a full
+# denominator. The denominator first; the coverage is a separate question. ────────────────────
+
+
+def test_a_headed_table_with_no_disposition_column_is_ungraded_not_clean(tmp_path):
+    receipt = tmp_path / "generated-review.md"
+    receipt.write_text(
+        "# Review\n\n"
+        "## Coverage Checklist\n\n"
+        "| Class | Status |\n"
+        "|---|---|\n"
+        "| shape | RECORDED — the F250 shape; RECORDED again by design |\n"
+        "| races | CLEAN |\n",
+        encoding="utf-8",
+    )
+    sweep = crh.scan(receipts=[receipt])
+    # the class cannot grade these rows — but the denominator must SAY it swept nothing
+    assert sweep.hits == []
+    assert sweep.ungraded == 2, sweep
+
+
+def test_the_declared_disposition_column_still_grades_and_counts_zero_ungraded(tmp_path):
+    """The discriminating half: a table that DOES declare the column is graded as before, and its
+    two-bare-verdict cell is still the one hit — the counter must not swallow the coverage."""
+    receipt = tmp_path / "declared-review.md"
+    receipt.write_text(
+        "# Review\n\n"
+        "| # | Class | Disposition |\n"
+        "|---|---|---|\n"
+        "| F1 | shape | RECORDED — the F250 shape; RECORDED again by design |\n"
+        "| F2 | races | CLEAN |\n",
+        encoding="utf-8",
+    )
+    sweep = crh.scan(receipts=[receipt])
+    assert [(h.cls, h.line) for h in sweep.hits] == [("dual-verdict", 5)], sweep.hits
+    assert sweep.ungraded == 0, sweep
+
+
+def test_the_summary_line_reports_the_true_ungraded_denominator(tmp_path):
+    """The user-observable half — the CLI summary and `--json` both carry it, so an operator
+    reading `0 hit(s) … 0 rows ungraded` can tell "swept clean" from "swept nothing"."""
+    receipt = tmp_path / "generated-review.md"
+    receipt.write_text(
+        "| Class | Status |\n|---|---|\n| shape | CLEAN |\n| races | CLEAN |\n| io | CLEAN |\n",
+        encoding="utf-8",
+    )
+    r = subprocess.run(
+        [sys.executable, str(SCRIPT), "--receipt", str(receipt)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert "hygiene: 0 hit(s) over 1 file(s), 3 rows ungraded" in r.stdout, r.stdout
+    j = subprocess.run(
+        [sys.executable, str(SCRIPT), "--receipt", str(receipt), "--json"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert json.loads(j.stdout)["ungraded_rows"] == 3, j.stdout

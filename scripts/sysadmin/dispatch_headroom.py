@@ -655,6 +655,22 @@ def _mix_story(a: argparse.Namespace, mix: dict[str, int], full: dict[str, int])
         # story describes the TRIMMED mix it actually prints, never the risky-slices sentence when
         # `mix` carries no Opus seat (the budget's own "partition carries no Opus slice" reason
         # names the DD2 gap; this sentence only avoids lying about the mix beside it)
+        # D7 seam #2: "every file read once" is TRUE of the partition the orchestrator computed
+        # and FALSE of the one the budget dispatched whenever a cap cut it. An orchestrator obeying
+        # "dispatch exactly the SEATS: and mix it prints" then reads a fraction of the surface and
+        # closes believing it read all of it — so a trimmed partition names its gap instead.
+        if mix != full:
+            dropped = ", ".join(
+                f"{k}: {full.get(k, 0) - mix.get(k, 0)}"
+                for k in sorted(full)
+                if full.get(k, 0) > mix.get(k, 0)
+            )
+            return (
+                f" — TRIMMED partition: {sum(full.values())} slices wanted, "
+                f"{sum(mix.values())} dispatched ({dropped}). The union of the seats you dispatch "
+                "is NOT the full pass — name the unread slices in the receipt and re-sweep them "
+                "next round" + tail
+            )
         opus_clause = (
             "Opus on the risky slices, Sonnet on the rest"
             if mix.get("opus", 0) > 0

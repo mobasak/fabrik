@@ -52,7 +52,7 @@ Intake: 8 items — 5 IN, 3 OUT-OF-SCOPE (I3, I4 → the backlog row; I5 → § 
 | T09 | The run-record protocol doc and the event-stream doc carry `--confirmed` and the confirmed-based TERMINAL rule | — | ⚡ | ✅ | 2816e78d (squash-applied; review: 3 rounds, closing on confirmed: 0) |
 | T07 | The three review commands, the rules-review D-048 cite, the subagents fragment, the assembler's rendered floor; the V7/V8 corpus tests | T04, T05, T06 | ⛓️ | ✅ | c49f389e (squash-applied; review: 3 rounds, closing on confirmed: 0; merged after T08 and T10's code — the commands order `round --confirmed` and name the hygiene script; one merge-time seam: the V7 positive control re-pointed at T10's split COST label) |
 | T08 | `check_review_hygiene.py`: the grep-shaped classes as an advisory script | T02 | ⛓️ | ✅ | d93f3824 (squash-applied; review: 5 rounds, closing on confirmed: 0; merged before T07 — the commands render box-wide and name this script) |
-| T10 | Integration: `command_run.py --confirmed` (the READ-budget hatch), the first application on the D-191 receipt, the whole-plan gate | T01, T02, T03, T04, T05, T06, T07, T08, T09 | ⛓️ | ⬜ | |
+| T10 | Integration: `command_run.py --confirmed` (the READ-budget hatch), the first application on the D-191 receipt, the whole-plan gate | T01, T02, T03, T04, T05, T06, T07, T08, T09 | ⛓️ | ✅ | 3e90a6a8 (code, squash-applied before T07; review: 3 rounds, closing on confirmed: 0) + the Integration acts on master: the D-191 flip 170b1989 (CONVERGED at round 20, the first application), the docs review 633e38ce, the render after T07, the dry run (505 receipts, 2 token-rule refusals mailed; web-ecommerce-factory repaired edcb7e6d), the whole-plan seam round (3 confirmed, fixed at the Finish); the ONE forced sync HELD on trade-intelligence's pending repair (mail 01M23G21EBSS4BC187HQ7PS02X) |
 
 ## Merge Order
 
@@ -231,6 +231,10 @@ Serialized: scripts/enforcement/check_review_coverage.py — T01, T02
 - docs/reference/command-run-protocol.md
 - docs/workstation/kaizen-event-stream.md
 - docs/development/reviews/2026-09-09-plan-1-review-convergence-redesign-review.md
+
+## Execution (2026-09-09)
+
+All ten tickets merged with executed reviews (rounds 10 · 6 · 2 · 5 · 2 · 4 · 3 · 5 · 3 · 3); whole-plan validation review `docs/development/reviews/2026-09-09-plan-1-review-convergence-redesign-review.md` CONVERGED (the D7 seam round confirmed three cross-ticket contradictions, fixed at the Finish with red-first graders: the run record's TERMINAL verdict now needs a confirming round — a real tightening of `/fabrik-review-scoped`, the lightest loop, which can no longer close on one round, in line with the coverage gate's minimum of two; `--slices` names a trimmed partition; the hygiene summary counts the rows it declines). The ONE forced sync of § Global Constraints has NOT run: the pre-sync dry run found 2 project receipts refused by the token rule, web-ecommerce-factory repaired theirs (edcb7e6d), trade-intelligence's reply is pending — per T10's contract the sync runs only after a 0-refusal re-run; `Status: EXECUTED` and the archive follow it.
 
 ## Evidence
 

@@ -308,8 +308,11 @@ def _headers(lines: list[str]) -> dict[int, tuple[int, int | None]]:
 
 def _receipt_hits(path: str, text: str) -> tuple[list[Hit], int]:
     """(hits, rows graded by NEITHER class) — a row in a table with no header pair has no cell-count
-    denominator and no named disposition column, so both classes decline it. A bounded search states
-    its bound: the count rides the summary line."""
+    denominator and no named disposition column, so both classes decline it; so does a row in a
+    HEADED table that declares no disposition column at all (the generated receipt grammar —
+    `| Class | Status |`, `| Pass | Finders | Counters | Method |` — declares none, so the
+    dual-verdict class grades zero of its rows). A bounded search states its bound: the count rides
+    the summary line."""
     lines = _blank_quoted(text.splitlines())
     headers = _headers(lines)
     hits: list[Hit] = []
@@ -348,6 +351,12 @@ def _receipt_hits(path: str, text: str) -> tuple[list[Hit], int]:
             )
             continue
         if col is None or col >= len(cells):
+            # A headed table that declares NO disposition column is UNGRADED, never clean — the
+            # dual-verdict class swept nothing here and must say so. Skipping it silently made the
+            # summary read `0 rows ungraded` over a template-generated receipt whose every table
+            # is header-less of a `Disposition` column, i.e. a full denominator claimed while the
+            # class graded nothing at all (D7 seam #3).
+            ungraded += 1
             continue
         found = _verdict_words(cells[col][1])
         if len(found) > 1:

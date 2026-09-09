@@ -383,7 +383,18 @@ def _round_report(rec: dict[str, Any]) -> str:
     swept_all = bool(classes) and not open_c and bool(last.get("swept"))
     lapsed = last_confirmed is None and adopted_at is not None
     counter = int(last.get("findings", 0)) if last_confirmed is None else last_confirmed
-    terminal = swept_all and not lapsed and counter == 0
+    # D-206/D-207 + `check_review_coverage.py`'s "Minimum two rounds ALWAYS": round 1 is the FULL
+    # pass, never the closing DELTA round. A banner that closed it sent the agent to write a
+    # one-`Pass`-row receipt the coverage gate hard-refuses — the two halves of the same redesign
+    # disagreeing about whether one clean pass can end a loop (D7 seam #1).
+    quiet = swept_all and not lapsed and counter == 0
+    terminal = quiet and len(rounds) >= 2
+    if quiet and len(rounds) < 2:
+        lines.append(
+            "⛔ NOT TERMINAL — round 1 is the full pass, never the closing round; run one delta "
+            "round with a fresh non-authoring seat over the fix diff (the receipt gate demands a "
+            "confirming Pass 2)"
+        )
     if lapsed and swept_all:
         lines.append(
             f"⛔ NOT TERMINAL — this round swept every known class but did not state "

@@ -121,25 +121,30 @@
       "commit": "e007a3f2"
     },
     "T07": {
-      "state": "merging",
+      "state": "merged",
       "base_commit": "0fc15cae",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-ad7144e53b2348934",
       "branch": "worktree-agent-ad7144e53b2348934",
       "head": "c49f389e",
       "rounds": 3,
       "series": "20 \u2192 19 \u2192 13 candidates; 4 \u2192 5 \u2192 0 confirmed",
-      "seam": "V7 positive control re-pointed at the T10-split COST label at merge"
+      "seam": "V7 positive control re-pointed at the T10-split COST label at merge",
+      "commit": "5026e90f"
     },
     "T10": {
-      "state": "code-merged",
+      "state": "integration-done",
       "base_commit": "e007a3f2",
       "worktree_path": "/opt/fabrik/.claude/worktrees/agent-abc469fc23e742303",
       "branch": "worktree-agent-abc469fc23e742303",
       "head": "9a4d839d",
       "rounds": 3,
       "series": "28 \u2192 15 \u2192 7 candidates; 6 \u2192 3 \u2192 0 confirmed",
-      "integration": "pending: D-191 flip, docs review, dry-run gate, forced sync, receipt CONVERGED"
+      "integration": "D-191 flip 170b1989; docs review 633e38ce; render; dry run 505/2 refusals (wef repaired edcb7e6d, trade-intelligence pending 01M23G21EBSS4BC187HQ7PS02X); seam round 3 confirmed fixed at Finish; forced sync HELD"
     }
   },
-  "merge_order_note": "T08 and T10 (code) land before T07: the commands render box-wide and order round --confirmed and the hygiene script; the Integration acts of T10 (D-191 flip, docs review, dry run, forced sync) stay last"
+  "merge_order_note": "T08 and T10 (code) land before T07: the commands render box-wide and order round --confirmed and the hygiene script; the Integration acts of T10 (D-191 flip, docs review, dry run, forced sync) stay last",
+  "finish": {
+    "whole_plan_receipt": "docs/development/reviews/2026-09-09-plan-1-review-convergence-redesign-review.md",
+    "sync": "held \u2014 awaiting trade-intelligence repair, then dry run 0 \u2192 sync_enforcement_to_projects.py --force \u2192 Status EXECUTED \u2192 archive \u2192 release"
+  }
 }

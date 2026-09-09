@@ -3080,9 +3080,15 @@ def test_terminal_verdict_names_the_delta_round_rule_and_oscillation_names_both_
     cr = importlib.util.module_from_spec(spec)
     assert spec.loader
     spec.loader.exec_module(cr)
+    # TWO rounds, not one: round 1 is the full pass and can never be the closing round (D7 seam
+    # #1 — `check_review_coverage.py` refuses a one-`Pass`-row ledger), so the banner this test is
+    # about only exists on a DELTA round. Same wording assertions, on the round that can print it.
     rec = {
         "command": "fabrik-review",
-        "rounds": [{"findings": 3, "confirmed": 0, "swept": ["a"]}],
+        "rounds": [
+            {"findings": 9, "confirmed": 2, "swept": ["a"]},
+            {"findings": 3, "confirmed": 0, "swept": ["a"]},
+        ],
         "classes": {"a": "clean"},
     }
     text = cr._round_report(rec)
@@ -4089,3 +4095,34 @@ def test_a_delta_round_may_confirm_more_than_it_raised(run_dir: Path) -> None:
     assert r.returncode == 0, (r.returncode, r.stdout, r.stderr)
     assert "confirmed: 2" in r.stdout, r.stdout
     assert _rec(run_dir)["rounds"][-1]["confirmed"] == 2, _rec(run_dir)["rounds"]
+
+
+# ── D7 seam #1 (whole-plan validation, seat `opus`): the run-record TERMINAL banner vs
+# `check_review_coverage.py`'s "Minimum two rounds ALWAYS". Round 1 is the FULL pass, never the
+# closing delta round: a banner that closes it sends the agent to write a one-`Pass`-row receipt
+# the coverage gate hard-refuses, so the two halves of the same redesign disagreed about whether
+# one clean pass can end a loop. ──────────────────────────────────────────────────────────────
+
+
+def test_a_clean_round_one_is_not_terminal_but_round_two_is(run_dir: Path) -> None:
+    """A clean round 1 that swept every class STILL owes its confirming delta round."""
+    _start(run_dir)
+    one = _cr(run_dir, "round", "--confirmed", "0", "--classes-swept", "auth,races")
+    assert "TERMINAL VERDICT" not in one.stdout, one.stdout
+    assert "NOT TERMINAL" in one.stdout, one.stdout
+    assert "round 1 is the full pass" in one.stdout, one.stdout
+    assert "fresh non-authoring seat" in one.stdout, one.stdout
+    two = _cr(run_dir, "round", "--confirmed", "0", "--classes-swept", "auth,races")
+    assert "TERMINAL VERDICT" in two.stdout, two.stdout
+    assert "NOT TERMINAL" not in two.stdout, two.stdout
+
+
+def test_the_legacy_findings_rule_also_needs_two_rounds(run_dir: Path) -> None:
+    """DD4's backward-compatible caller gets the same bar — the receipt gate does not
+    exempt a record that never typed `--confirmed`."""
+    _start(run_dir)
+    one = _cr(run_dir, "round", "--findings", "0", "--classes-swept", "auth")
+    assert "TERMINAL VERDICT" not in one.stdout, one.stdout
+    assert "NOT TERMINAL" in one.stdout, one.stdout
+    two = _cr(run_dir, "round", "--findings", "0", "--classes-swept", "auth")
+    assert "TERMINAL VERDICT" in two.stdout, two.stdout
