@@ -94,24 +94,26 @@ ITERATE your review of the implementation against the finalized plan until it CO
   5. The CLOSING delta round always carries a FRESH, non-authoring finder seat over the fix
      diff (Opus if any hunk is risky, else Sonnet): the fix diff is your own work, so a
      delta round that dispatches no finder seat may not close the loop.
-Converged = a delta round with a fresh seat whose last Pass Ledger row reads
-`found: F, new: N, confirmed: C, fixed: X, unexecuted: U` (placeholders — write the digits)
-with `confirmed: 0`, `fixed: 0` and `unexecuted: 0` (or no `unexecuted` cell at all) AND both
-gate runs show "status":"success". Quiet is zero CONFIRMED code or doc defects — never zero
-raised.
+Converged = a delta round with a fresh seat whose last Pass Ledger row is PASS-HEADED —
+`| Pass N | <finders> | found: F, new: N, confirmed: C, fixed: X, unexecuted: U | method: … |`
+(placeholders — write the digits) — carrying `confirmed: 0`, `fixed: 0` and `unexecuted: 0` (or
+no `unexecuted` cell at all) AND both gate runs show "status":"success". The `Pass N` head is
+not decoration: the cell-anchored grammar has no `new:` slot, so the SAME counters under an
+`| R5 |` head are REFUSED. Quiet is zero CONFIRMED code or doc defects — never zero raised.
 Write docs/development/reviews/<plan>-review.md (`scripts/review_receipt.py --init`) with
 the per-Phase verdicts, the Pass Ledger, every confirmed bug+fix (file:line), and the
 VERBATIM output of both green gate runs; grade it with
 `python scripts/enforcement/check_review_coverage.py <receipt>` BEFORE you commit it.
-Receipt shapes the gate refuses: the counters run in the order found, new, confirmed,
-fixed, unexecuted and live ONLY in the counter cell — a method or disposition cell must
-never spell `confirmed:` or `unexecuted:` with a colon, a row that states counters must
-never carry a `CONFIRMED:` label with a colon, a quoted fixture must never carry a raw
-`|` (escape it, or move it out of the table), and a citation must never put a colon after
-the word — `confirmed :63` is refused ("drop the colon after the word"), `confirmed at :63`
-is accepted. A template ROW never mixes placeholders with real digits — not inside one cell,
-and not as placeholder cells beside digit cells — because the gate reads a count trailed by a
-word as ambiguous and refuses the row.
+Receipt shapes the gate refuses: on a Pass-headed row the counters live in the ONE counter
+cell, in the order found, new, confirmed, fixed, unexecuted (the cell-anchored form — one
+counter per cell, no `new:` — is the legacy shape the gate still reads); a method or
+disposition cell must never spell `confirmed:` or `unexecuted:` with a colon; a row that
+states counters must never carry a `CONFIRMED:` label with a colon; a quoted fixture must
+never carry a raw `|` (escape it, or move it out of the table); and a citation must never
+put a colon after the word — `confirmed :63` is refused ("drop the colon after the word"),
+`confirmed at :63` is accepted. A template ROW never mixes placeholders with real digits —
+not inside one cell, and not as placeholder cells beside digit cells — because the gate reads
+a count trailed by a word as ambiguous and refuses the row.
 Seat briefs state: pin dirs are created ONCE before the first dispatch and never touched
 while seats run; `git init` inside a `git archive` pin; every `command_run.py` probe sets
 COMMAND_RUN_DIR, COMMAND_RUN_TRANSCRIPT and KAIZEN_EVENTS_DIR; every mutation is applied,
