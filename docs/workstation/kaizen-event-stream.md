@@ -112,7 +112,7 @@ Every `scripts/command_run.py` row additionally carries `command` + `seq` + `per
 | `run_open` | `command`, `phases`, `terminal`, `nested` | `scripts/command_run.py start` |
 | `phase` | `n`, `title` | `scripts/command_run.py step` |
 | `dispatch` | `seats` (accumulated within the round), `phase` | `scripts/command_run.py dispatch --seats` — stamped BEFORE a fan-out's seats go out; the reservation `dispatch_headroom.py` subtracts on sibling sessions (D-193) |
-| `round` | `n`, `findings`, `confirmed` (absent when not stated), `classes_swept`, `classes_new`, `classes_open` | `scripts/command_run.py round` |
+| `round` | `n`, `findings`, `seats`, `confirmed` (absent when not stated), `classes_swept`, `classes_new`, `classes_open` | `scripts/command_run.py round` |
 | `run_close` | `verdict` (`done`\|`blocked`\|`handoff`), `resume` (handoff only — the artifact carrying the open rows), `evidence_hash`, `closed_by`, `rounds`, `resumed`, `resumed_phase`, `resumed_rounds`, **`feedback`** (`filed`\|`none`\|`unstated`), **`feedback_to`** (subset of `infra`/`fleet`/`intel`), **`feedback_hash`** | `scripts/command_run.py done`/`blocked` |
 | `gate_run` | `tier`, `mode`, `status`, `checks: [{name, outcome}]` (every EXECUTED check, advisory rows labelled) | `scripts/final_gate.py` |
 | `rule_activation` | `packs: [{pack, globs_fired}]` — labelled *invocation-time* activation | `scripts/select_rules.py`, `scripts/review_rubric.py` (`rubric_injection`) |
