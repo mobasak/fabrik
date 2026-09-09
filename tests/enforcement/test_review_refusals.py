@@ -183,6 +183,24 @@ REFUSED_BY_TOKEN = [
         "| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: \u00ab\uff13\u00bb |",
         "silent",
     ),
+    # ROUND 4 — the CATEGORY set was the third list: symbols (So/Sc), a combining mark (Mn) and a
+    # Roman numeral (Nl — a counter with no digit in it at all) walked straight through it. The
+    # complement rule (strip everything that is neither letter nor numeric) closes them by
+    # construction, and `str.isnumeric()` (Nd ∪ Nl ∪ No) is what makes the last three values.
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: \u27133 |", "silent"),
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: \u00a93 |", "silent"),
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: \u00b03 |", "silent"),
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: $3 |", "silent"),
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: \u20ac3 |", "silent"),
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: \u00a33 |", "silent"),
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: \u03013 |", "silent"),
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: \u2162 |", "silent"),
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: \u00bd |", "silent"),
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: \u0663 |", "silent"),
+    # the WRAPPER-ONLY class, declared: a label whose value is punctuation states nothing. This
+    # one was EXEMPT through round 3 and is refused now — the widening is deliberate, and it
+    # costs 0 rows over the 275 receipts.
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: \u2014 |", "silent"),
 ]
 
 # The PROSE path: a Pass-headed line the prose arm reads, `_PASS_HEAD` the scope test.
@@ -294,18 +312,52 @@ def test_an_all_caps_prose_label_on_an_old_grammar_row_is_exempt(row: str) -> No
     assert _refusals(_embed(row)) == [], row
 
 
+# The four prose values this suite proves stay EXEMPT — TWO of them are the spec's own words and
+# TWO are measured over the corpus, and the docstring used to credit all four to the spec. Counted
+# at round 4 over the spec's 350 lines: `thirteen defects stand` x2, `two MORE anti-cheat errors`
+# x1, `still 2` x0, `see round 3` x0.
+_SPEC_EXEMPT = frozenset({"thirteen defects stand", "two MORE anti-cheat errors"})
+_MEASURED_EXEMPT = frozenset({"still 2", "see round 3"})
+
+
 def test_the_value_test_is_categorical_and_the_prose_labels_survive_it() -> None:
-    """ROUND 3 — the class is closed by unicode CATEGORY, and the four shapes the spec keeps
-    exempt must survive that widening (the risk of a categorical strip is that it eats prose)."""
-    for prose in ("thirteen defects stand", "still 2", "see round 3", "two MORE anti-cheat errors"):
+    """The value test is closed by COMPLEMENT (neither letter nor numeric is a wrapper), and the
+    four prose values must survive that widening — the risk of a complement strip is that it eats
+    prose. TWO are named by the spec (`thirteen defects stand`, `two MORE anti-cheat errors`); TWO
+    are MEASURED-exempt over the corpus and appear nowhere in the spec (`still 2`, `see round 3`)
+    — an attribution this docstring got wrong until round 4 checked it."""
+    exempt = _SPEC_EXEMPT | _MEASURED_EXEMPT
+    assert len(exempt) == 4, exempt
+    spec = (
+        REPO / "docs/superpowers/specs/2026-09-08-review-convergence-redesign-design.md"
+    ).read_text(encoding="utf-8")
+    for phrase in _SPEC_EXEMPT:
+        assert phrase in spec, f"claimed as the spec's own but absent from it: {phrase}"
+    for phrase in _MEASURED_EXEMPT:
+        assert phrase not in spec, f"claimed as measured-only but the spec names it: {phrase}"
+    print(
+        f"exempt prose values proven: {len(exempt)} ({len(_SPEC_EXEMPT)} named by the spec, "
+        f"{len(_MEASURED_EXEMPT)} measured over the corpus)"
+    )
+    for prose in sorted(exempt):
         row = f"| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: {prose} |"
         assert _refusals(row) == [], (prose, _refusals(row))
-    # the categories themselves, at the unit: a wrapped digit is a value whatever wraps it
-    assert (
-        crc._valueish("\u00ab\uff13\u00bb") and crc._valueish("\u00b3") and crc._valueish("**3**")
-    )
-    assert crc._valueish("n/a") and crc._valueish("(n / a)") and crc._valueish("")
-    assert not crc._valueish("thirteen") and not crc._valueish("see round 3")
+    # the complement itself, at the unit: every wrapper family, and the numeric families
+    for value in (
+        "\u00ab\uff13\u00bb",
+        "\u00b3",
+        "**3**",
+        "\u2713 3",
+        "$3",
+        "\u2162",
+        "\u00bd",
+        "n/a",
+        "(n / a)",
+        "",
+    ):
+        assert crc._valueish(value), value
+    for prose in ("thirteen", "see round 3", "still 2", "\u02e33"):
+        assert not crc._valueish(prose), prose
 
 
 def test_the_carve_out_conjuncts_are_each_load_bearing() -> None:
@@ -421,6 +473,37 @@ def test_the_citation_repair_names_the_token_that_fired() -> None:
     # the confirmed-token twin names ITS own line reference, not the other one
     cited = block.replace("2 probes unexecuted :12", "verifier confirmed :63; :47-53")
     assert any("`confirmed at :63`" in e for e in _refusals(cited)), _refusals(cited)
+
+
+def test_the_citation_repair_never_fabricates_a_line_reference() -> None:
+    """ROUND 4 — `[\\w.:/-]+` matched any word, so a row reading `the finder confirmed: the fix
+    holds` was told to write `confirmed at :the`. A fabricated citation is worse than a generic
+    message: it looks specific. The reference must BE a line reference (digits, optional range);
+    otherwise the message stays generic."""
+    for cell, forbidden in (
+        ("| F1 | the finder confirmed: the fix holds |", "at :the"),
+        ("| F2 | probes unexecuted: pending operator |", "at :pending"),
+        ("| F3 | the note confirmed: see the appendix |", "at :see"),
+    ):
+        block = "\n".join(["| id | note |", "|---|---|", cell])
+        errs = _refusals(block)
+        assert errs, cell
+        assert not any(forbidden in e for e in errs), (cell, errs)
+        assert all("otherwise reword the label without a colon" in e for e in errs), errs
+    # a REAL line reference is still named, and a range is one too
+    for cell, shown in (
+        ("| F4 | the probe table (2 probes unexecuted :12) |", "`unexecuted at :12`"),
+        ("| F5 | the code-path set (verifier confirmed :47-53) |", "`confirmed at :47-53`"),
+    ):
+        block = "\n".join(["| id | note |", "|---|---|", cell])
+        errs = _refusals(block)
+        assert errs and all(shown in e for e in errs), (cell, errs)
+    # a row carrying BOTH tokens shows the FIRST and says so
+    both = "| F6 | verifier confirmed :63 and 2 probes unexecuted :12 |"
+    block = "\n".join(["| id | note |", "|---|---|", both])
+    errs = _refusals(block)
+    assert errs and all("the first unread token is shown" in e for e in errs), errs
+    assert all("`confirmed at :63`" in e for e in errs), errs
 
 
 def test_the_recorded_dispositions_are_verdicts_not_missing_ones() -> None:
