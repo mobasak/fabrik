@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: scripts/enforcement/check_convergence.py | tests/enforcement/test_mega_validation_reports.py | tests/enforcement/test_review_exit_contract.py | tests/test_check_review_coverage_rederivation.py | tests/test_check_review_coverage_blocked.py | tests/test_check_review_coverage_precommit.py | tests/enforcement/test_review_confirmed_grammar.py
+# AFTER-EDIT: scripts/enforcement/check_convergence.py | tests/enforcement/test_mega_validation_reports.py | tests/enforcement/test_review_exit_contract.py | tests/test_check_review_coverage_rederivation.py | tests/test_check_review_coverage_blocked.py | tests/test_check_review_coverage_precommit.py | tests/enforcement/test_review_confirmed_grammar.py | tests/enforcement/test_review_refusals.py
 """Coverage-checklist gate — run by final_gate via run_optional_check (non-zero = fail).
 
 Companion to check_convergence.py for the coverage-adjudicated review commands
@@ -48,7 +48,20 @@ COMMAND_MARK = re.compile(r"/fabrik-(?:repo-)?review\b")  # noqa: F841 — retir
 # /fabrik-conformance-review run): gate-stage commands whose Phase-3 contract is
 # ROUTE-not-fix had no honest terminal token — authors were forced to write
 # "FIXED(n, via routing)" to parse. A routed finding is adjudicated, not open.
-VERDICT = re.compile(r"\b(CLEAN|FIXED\s*\(?\d*\)?|REFUTED|ROUTED\s*\(?\d*\)?)\b")
+# RECORDED (D6/D-206): the three residual dispositions plus the hygiene adjudication are
+# VERDICTS, not missing ones — a candidate executed and kept on purpose, one that could not be
+# executed, one that makes no code or doc claim, and a hygiene hit adjudicated false. The reason
+# is PARENTHESISED, never colon-delimited: a colon form would spell the `unexecuted: 3` counter
+# token the ledger rules refuse, so the two vocabularies can never collide. The trailing `\(` is
+# what keeps `RECORDED` alone (no reason) a non-verdict.
+# ⚠️ MIRROR: `check_convergence.py` imports this name (`:429`/`:439`) and grades its own checklist
+# rows with it at `:477` — the widening reaches that gate on the same sync, where a RECORDED row
+# likewise stops being a `noverdict` row. That is intended (T03 carries the note); nothing else
+# reads this pattern's groups, so the added alternative is deliberately NON-capturing.
+VERDICT = re.compile(
+    r"\b(?:(CLEAN|FIXED\s*\(?\d*\)?|REFUTED|ROUTED\s*\(?\d*\)?)\b"
+    r"|RECORDED\s*—\s*(?:unexecuted|by design|measured|hygiene false positive)\s*\()"
+)
 UNCHECKED = re.compile(r"\bUNCHECKED\b")
 BLOCKED_HEAD = re.compile(r"^#{2,4}\s*.*BLOCKED", re.M)
 # The loop-level exit's two anchors: the heading names NON-CONVERGENCE, the section names the
@@ -600,6 +613,26 @@ def check_file(p: Path) -> list[str]:
         if not quiet:
             errs.append(
                 f"final ledger round {named} (a candidate CONFIRMED by execution counts; RECORDED and REFUTED rows never reopen the loop — D-206) — the exit round must be quiet, or the stuck finding must be BLOCKED-escalated (named + 3 failed attempts), or the report must declare `Status: IN-PROGRESS`"
+            )
+    # V5 — the residual section's licences, whole-document and fence-stripped (never inside
+    # `_checklist_section`'s scope: a by-design verdict lives in `## Residual`, not the checklist).
+    errs.extend(_residual_errors(text_s, ordered_rows))
+    # V11 — the closing round carried a finder seat. A delta round whose fix diff is the
+    # orchestrator's own work cannot close on the orchestrator's own reading (core/62 § Role
+    # separation), and the finders cell is where the receipt says who read it. Scoped to the NEW
+    # contract's rows — a closing row that states `confirmed:` is written under D-206 — because
+    # the shape rule is a rule about the redesigned loop, and applying it to the pre-D-206 corpus
+    # would retro-red committed receipts whose finders cell honestly reads `native verifier`
+    # (measured over the 275 receipts at 8092e8a8: 0 carry `confirmed:` on their closing row).
+    closing = _closing_pass_row(ordered_rows) if ordered_rows else None
+    if closing is not None and not blocked_ok and not _in_progress(text):
+        c_row = next(r for r in reversed(ordered_rows) if r[4] == closing[1])
+        cells = _row_cells(closing[1])
+        if c_row[1] is not None and (len(cells) < 2 or not _MODEL_TOK.search(cells[1])):
+            errs.append(
+                f"the closing `Pass {closing[0]}` row names no finder seat in its finders cell "
+                "(the second cell) — a round the orchestrator alone read cannot close the loop; "
+                "name the seats by model token (`opus×1`, `sonnet×2`, `native opus×1 + sonnet×3`)"
             )
     body = "\n".join(rows)
     missing = [name for name, pat in RECURRENCE.items() if not pat.search(body)]
@@ -1525,6 +1558,337 @@ def _exit_counters(row: _Row, legacy: str) -> str:
     return f"confirmed: {row[1]}, fixed: {row[2]}{tail}"
 
 
+# --- The REFUSAL half of D7 (T02): the token, counter and header rules --------
+# These consume the grammars above; they never re-parse. A refused row is named with the repair
+# for ITS path, because the two paths place the counter differently (a cell of its own vs inside
+# the counter run), and a message that names the wrong one is a message the author cannot act on.
+#
+# THE TOKEN RULE closes the fail-OPEN the widening created: `_CONFIRMED_TOK`/`_UNEXECUTED_TOK` are
+# case-SENSITIVE and run-bounded, so `| 19 | found: 0 | fixed: 0 | Confirmed: 3 |` and
+# `| Pass 19 | … | found: 0, fixed: 0 | delta (confirmed: 3) |` both read QUIET today — a row that
+# states three standing defects graded as the quiet exit. Every `confirmed:`/`unexecuted:`
+# occurrence on an in-scope row must therefore have been READ as a numeric counter, or be a prose
+# verdict LABEL under the five-conjunct carve-out below.
+_TOKEN_LIT = re.compile(r"(?<![\w-])(confirmed|unexecuted)\s*:", re.I)
+# A NUMERIC counter token of ANY grammar name — the CONTENT test that separates a header from a
+# data row. A bare `found:` with no digit is vocabulary, not a counter (the mega battery's header
+# fixtures rely on exactly that), which is why the digit is required here.
+_NUMERIC_TOK = re.compile(r"(?<![\w-])(?:found|fixed|confirmed|unexecuted)\s*:\s*\d", re.I)
+# The separator row test, spelled ONCE — `_ledger_shapes` skips these in-table and so must the
+# block walk, or a stray separator would split one ledger block into two.
+_SEP_ROW = re.compile(r"[|\-: ]+")
+# A VALUE after the colon — what makes an occurrence a counter attempt rather than a prose label.
+_VALUEISH = re.compile(r"^(?:\d|n\s*/\s*a\b)", re.I)
+_REPAIR_CELL = (
+    "write `| confirmed: C |` between `found:` and `fixed:`, one counter per cell, no `new:` "
+    "cell, no wrapper"
+)
+_REPAIR_PASS = (
+    "write `confirmed:` between `new:` and `fixed:` inside the counter cell — inside the "
+    "`found:` cell when `found:` and `fixed:` sit in separate cells, where `unexecuted:` "
+    "follows `confirmed:` in that same cell"
+)
+
+
+def _row_parses(line: str) -> bool:
+    """Does EITHER grammar resolve this row? (The header is never asked — see `_block_refusals`.)"""
+    return _MEGA_ROW.match(line) is not None or _pass_counters(line) is not None
+
+
+def _consumed_counters(line: str) -> tuple[list[tuple[int, int]], bool, bool]:
+    """(the spans the resolving grammar READ as numeric counters, is-the-cell-path, resolved?).
+
+    Cell path: the span runs from the literal to the end of its `(\\d+)` group, so an occurrence
+    is consumed when its colon is followed — modulo whitespace — by that group's digits. Pass
+    path: only the strict tokens INSIDE the run `_pass_counters_ext` read; a token past the run's
+    end is exactly what the rule exists to refuse.
+    """
+    m = _MEGA_ROW.match(line)
+    if m is not None:
+        spans = [(m.start(g), m.end(g)) for g in (2, 4) if m.group(g) is not None]
+        return spans, True, True
+    if _pass_counters(line) is None:
+        # Unresolved: nothing was read. The repair named is the one for the shape the author
+        # WROTE — a Pass-headed line is repaired inside its counter cell, anything else in cells.
+        return [], not _PASS_HEAD.match(line), False
+    run = _counter_run(line)
+    spans = []
+    if run is not None:
+        start, stop = run[0], run[1]
+        for tok in (_CONFIRMED_TOK, _UNEXECUTED_TOK):
+            spans += [
+                (t.start(), t.end())
+                for t in tok.finditer(line)
+                if start <= t.start() and t.end() <= stop
+            ]
+    return spans, False, True
+
+
+def _cell_end(line: str, pos: int) -> int:
+    """End of the cell the occurrence sits in — the next `|`, or end of line."""
+    nxt = line.find("|", pos)
+    return len(line) if nxt == -1 else nxt
+
+
+def _label_exempt(
+    line: str, occ: re.Match[str], spans: list[tuple[int, int]], resolved: bool
+) -> bool:
+    """The carve-out, FIVE conjuncts, per occurrence — a prose verdict LABEL, not a counter.
+
+    Measured over the 275 receipts at 8092e8a8 (the ledger-block path, header exempt): 28 in-scope
+    rows / 30 occurrences, of which 27 cells / 29 occurrences are exempt. Without it the rule
+    would refuse a legitimate `HIGH/CONFIRMED: two MORE anti-cheat errors` method cell on an
+    honest old-grammar row — wallpaper, and wallpaper is how enforcement dies.
+    """
+    if not occ.group(1).isupper():  # 1 — an ALL-CAPS literal, never a mis-cased counter
+        return False
+    run = _counter_run(line)
+    if run is not None and run[0] <= occ.start() < run[1]:  # 2 — outside the counter cell/run
+        return False
+    rest = line[occ.end() : _cell_end(line, occ.end())].strip()
+    if not rest or _VALUEISH.match(rest):  # 3 — what follows is not a VALUE
+        return False
+    if spans:  # 4 — the row states no numeric confirmed:/unexecuted: counter
+        return False
+    # 5 — the row is resolved by a grammar, or states no numeric found:/fixed: token at all
+    return resolved or not (_LOOSE_FOUND.search(line) or _LOOSE_FIXED.search(line))
+
+
+def _consumed(line: str, occ: re.Match[str], spans: list[tuple[int, int]]) -> bool:
+    """Was THIS occurrence read as a numeric counter by the resolving grammar?
+
+    Two span shapes, one predicate: the Pass path's spans are whole strict-token matches (the
+    occurrence sits inside one), the cell path's are the `(\\d+)` groups alone (the occurrence's
+    colon is followed, modulo whitespace, by those digits).
+    """
+    return any(
+        (s <= occ.start() and occ.end() <= e)
+        or (occ.end() <= s and not line[occ.end() : s].strip())
+        for s, e in spans
+    )
+
+
+def _row_refusals(line: str) -> list[str]:
+    """The TOKEN and COUNTER rules for ONE in-scope row (a ledger-block data row, or a
+    Pass-headed prose line the prose path reads)."""
+    out: list[str] = []
+    snippet = line.strip()[:90]
+    spans, cell_path, resolved = _consumed_counters(line)
+    repair = _REPAIR_CELL if cell_path else _REPAIR_PASS
+    # THE COUNTER RULE (both grammars): `unexecuted:` captured with no `confirmed:`. Without it
+    # `| u | x | found: 0 | fixed: 0 | unexecuted: 2 |` reads old-grammar QUIET with two
+    # unexecuted candidates standing — the fail-open on the one counter the redesign added to
+    # make standing work visible. A refusal always preempts the quiet computation.
+    m = _MEGA_ROW.match(line)
+    ext = _pass_counters_ext(line) if m is None else None
+    stated_u = False
+    if m is not None:
+        stated_u = m.group(4) is not None and m.group(2) is None
+    elif isinstance(ext, tuple):
+        stated_u = ext[3] is not None and ext[1] is None
+    if stated_u:
+        out.append(
+            f"`unexecuted:` with no `confirmed:` counter — {snippet!r}: a round that states "
+            f"unexecuted candidates must state what it CONFIRMED; {repair}"
+        )
+    # THE TOKEN RULE. A row whose counter run T01 already refused BY NAME (a displaced item, a
+    # second token) is not refused twice — its message already carries the order to write.
+    if isinstance(ext, str):
+        return out
+    # ONE message per ROW, naming every literal left unread — the rule refuses the ROW, and a
+    # row whose `confirmed:` AND `unexecuted:` are both displaced has ONE repair, not two.
+    unread = [
+        occ.group(1)
+        for occ in _TOKEN_LIT.finditer(line)
+        if not _consumed(line, occ, spans) and not _label_exempt(line, occ, spans, resolved)
+    ]
+    if unread:
+        named = "`, `".join(dict.fromkeys(f"{u}:" for u in unread))
+        out.append(
+            f"`{named}` on a ledger row that no grammar read as a counter — {snippet!r}: {repair}"
+        )
+    return out
+
+
+def _block_refusals(block: list[str]) -> list[str]:
+    """The HEADER RULE, by CONTENT, then the row rules over the block's DATA rows.
+
+    At most ONE header per contiguous pipe block: its FIRST non-separator row, and only if it
+    carries no numeric counter token in any cell. The header is exempt from the token rule (its
+    `found: F, confirmed: C` vocabulary is the template's own) and is NOT counted when testing
+    whether the block is a ledger — so `review_receipt.py --init`'s header-and-separator skeleton,
+    and a counter-vocabulary header alone, are not yet ledgers and are never refused. A SECOND
+    header-shaped row inside the block is a data row: its vocabulary carries the colon token and
+    the token rule refuses it there.
+
+    ⚠️ NOT `_table_rows`'s separator-adjacency test (`:176-213`): `_ledger_shapes` reads
+    `founds[-1]` from `ordered`, which knows nothing of separators, so the two readers must agree
+    on which row is DATA — a content test agrees with it definitionally, an adjacency test does
+    not (the round-89 swallow is the standing proof).
+    """
+    out: list[str] = []
+    for ln in _ledger_block_rows(block):
+        out.extend(_row_refusals(ln))
+    return out
+
+
+def _ledger_block_rows(block: list[str]) -> list[str]:
+    """The DATA rows of a contiguous pipe block, or [] when the block is not a ledger.
+
+    A LEDGER BLOCK holds >=1 data row that a grammar parsed OR that carries a new-grammar token.
+    The second arm is what puts a token-bearing block in which NOTHING parses in scope (refused
+    by name, never dismissed as "not a ledger"), and what keeps the disposition and checklist
+    tables OUT: their verdicts are parenthetical and carry no colon token. A disposition block
+    that DOES carry a colon token is in scope, and refused by name.
+    """
+    rows = [ln for ln in block if not _SEP_ROW.fullmatch(ln.strip())]
+    if not rows:
+        return []
+    data = rows[1:] if not _NUMERIC_TOK.search(rows[0]) else rows
+    if not any(_row_parses(ln) or _TOKEN_LIT.search(ln) for ln in data):
+        return []
+    return data
+
+
+def _structural_refusals(body: str) -> list[str]:
+    """Every token/counter/header refusal in a fence-stripped receipt, in document order."""
+    out: list[str] = []
+    block: list[str] = []
+    for line in body.splitlines():
+        if line.strip().startswith("|"):
+            block.append(line)
+            continue
+        if block:
+            out.extend(_block_refusals(block))
+            block = []
+        # The PROSE path's own scope: a Pass-headed line the prose arm of `_ledger_shapes` reads
+        # (`_PASS_HEAD`, never ordinary narrative). A list-marked table row (`- | Pass 19 | … |`)
+        # is read here too — it is not `|`-leading, so the block walk above never sees it.
+        if _PASS_HEAD.match(line):
+            out.extend(_row_refusals(line))
+    if block:
+        out.extend(_block_refusals(block))
+    return out
+
+
+# --- The RESIDUAL section (V5) and the FINDERS cell (V11) ---------------------
+# A `RECORDED — by design` verdict is a LICENCE: a candidate reproduced and kept on purpose. Its
+# owner must exist and its round must be EARLIER than the round being closed — otherwise the
+# closing round mints its own licence, which is quiet-by-relabelling with extra steps.
+_BY_DESIGN = re.compile(r"RECORDED\s*—\s*by design\s*\(([^)]*)\)")
+# The id shapes ledger rows actually carry, measured over the 275 receipts at 8092e8a8: of the
+# 543 first cells that fullmatch `[A-Za-z0-9-]{1,12}` and contain `F<digit>`, 503 are `Fnnn[a-z]`
+# (500 bare, 3 sub-findings `F8a`–`F8c`) and 40 are prefixed (`AF1`–`AF15`, `BF1`, `A-F1`–`A-F4`,
+# `U0-F1`–`U3-F2`); 0 are hyphenated `F-nnn`. FULLMATCHED, never searched — a search would lift
+# `F9` out of `AF9` and pass an owner that does not exist.
+_OWNER_ID = re.compile(r"[A-Za-z0-9]{0,3}-?F\d+[a-z]?")
+_D_OWNER = re.compile(r"D-\d+")
+_BY_DESIGN_ENTRY = re.compile(r"^(?P<owner>.*?)\s*,\s*round\s*(?P<n>\d+)$", re.I)
+# `| F9, F12–F16 |` — one multi-owner cell exists in the corpus, and its range must expand or
+# `F12` reads as absent. The prefix is back-referenced so `F12–AF16` never expands.
+_OWNER_RANGE = re.compile(r"^([A-Za-z0-9]{0,3}-?F)(\d+)\s*[-–—]\s*(?:\1)?(\d+)$")
+# The closing `Pass N`, CAPTURED and multi-digit: `_PASS_HEAD` identifies the row but has no
+# group and its `\d` matches ONE digit, so reusing it would read `Pass 19` as round 1.
+_CLOSING_PASS = re.compile(r"^\s*" + _LIST_MARK + r"\s*\|?\s*\**Pass\s*(\d+)", re.I)
+# V11: the closing round's finders cell must name a seat by its model token — the shape every
+# receipt already writes (`native opus×1 + sonnet×3`). The run record's stamp stays the
+# orchestrator's duty (DD10); this gate has no run-record reader and adding one would be a new
+# mechanism.
+_MODEL_TOK = re.compile(r"(?<![\w-])(?:opus|sonnet|haiku)\s*[×x]\s*\d+", re.I)
+
+
+def _closing_pass_row(ordered: list[_Row]) -> tuple[int, str] | None:
+    """The LAST Pass-headed counter row in document order — table or prose — with its number.
+
+    NOT `ordered[-1]`: on 1 of the 71 ledger-bearing receipts at 8092e8a8 that row is a
+    cell-anchored `_MEGA_ROW` with no `Pass` head at all, and grading a bound against a row that
+    states no round is how a bound silently stops binding.
+    """
+    for row in reversed(ordered):
+        m = _CLOSING_PASS.match(row[4])
+        if m is not None:
+            return int(m.group(1)), row[4]
+    return None
+
+
+def _row_ids(text_s: str) -> set[str]:
+    """Every ledger/finding row id in the receipt — the FIRST cell of every `|`-leading,
+    non-separator row ANYWHERE in the fence-stripped text, comma/semicolon split and ranges
+    expanded. Deliberately wider than the LEDGER BLOCKS of the token rule: 514 of the 543 owner
+    rows at 8092e8a8 sit in findings tables, outside any ledger block.
+    """
+    ids: set[str] = set()
+    for line in text_s.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("|") or _SEP_ROW.fullmatch(stripped):
+            continue
+        cells = _row_cells(line)
+        if not cells:
+            continue
+        for tok in re.split(r"[,;]", cells[0]):
+            tok = tok.strip().strip("*`").strip()
+            if not tok:
+                continue
+            ids.add(tok)
+            rng = _OWNER_RANGE.match(tok)
+            if rng is not None:
+                lo, hi = int(rng.group(2)), int(rng.group(3))
+                if lo <= hi and hi - lo < 200:
+                    ids.update(f"{rng.group(1)}{i}" for i in range(lo, hi + 1))
+    return ids
+
+
+def _residual_errors(text_s: str, ordered: list[_Row]) -> list[str]:
+    """V5 — every `RECORDED — by design (…)` verdict names an EXISTING owner and an EARLIER round.
+
+    Whole-document (it is a residual-section verdict, not a checklist one) and run over the
+    fence-stripped text, so the template's own fenced example is invisible to it.
+    """
+    verdicts = list(_BY_DESIGN.finditer(text_s))
+    if not verdicts:
+        return []
+    ids = _row_ids(text_s)
+    closing = _closing_pass_row(ordered)
+    repair = "cite the owning row's first-cell id verbatim, or `(D-nnn)`"
+    out: list[str] = []
+    for v in verdicts:
+        for raw in v.group(1).split(";"):
+            entry = raw.strip()
+            if not entry:
+                continue
+            em = _BY_DESIGN_ENTRY.match(entry)
+            owner = em.group("owner").strip() if em else entry
+            n = int(em.group("n")) if em else None
+            if _D_OWNER.fullmatch(owner):
+                if n is not None:
+                    out.append(
+                        f"`RECORDED — by design ({entry})`: a `D-nnn` owner takes NO round token "
+                        "— a D-row is earlier than any closing round by construction"
+                    )
+                continue
+            if not _OWNER_ID.fullmatch(owner) or owner not in ids:
+                out.append(f"`RECORDED — by design ({entry})`: the owning row is absent — {repair}")
+                continue
+            if n is None:
+                out.append(
+                    f"`RECORDED — by design ({entry})`: a receipt-row owner needs its adjudicating "
+                    f"`, round N` — {repair}"
+                )
+                continue
+            if closing is None:
+                out.append(
+                    f"`RECORDED — by design ({entry})`: no closing `Pass N` row to bound the "
+                    "round against — the ledger's last row must be a Pass-headed counter row"
+                )
+                continue
+            if n >= closing[0]:
+                out.append(
+                    f"`RECORDED — by design ({entry})`: round {n} is not EARLIER than the closing "
+                    f"`Pass {closing[0]}` — a licence minted by the round it closes is no licence"
+                )
+    return out
+
+
 def _ledger_shapes(
     text: str,
 ) -> tuple[list[list[_Row]], list[list[_Row]], list[_Row], list[str]]:
@@ -1666,6 +2030,11 @@ def _ledger_shapes(
         tables.append(current)
     if p_run:
         prose_runs.append(p_run)
+    # The T02 refusal half, on TOP of the parse (never a second parse of it): the token, counter
+    # and header rules read the same fence-stripped body and the same two grammars. They live
+    # here so all THREE readers report them from the one extraction contract — the founding
+    # lesson of this function.
+    refusals.extend(_structural_refusals(body))
     return tables, prose_runs, ordered, refusals
 
 

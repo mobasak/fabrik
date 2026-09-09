@@ -41,6 +41,15 @@ crc = _load("crc_confirmed", REPO / GATE_REL)
 
 
 CORPUS_AT_BASE = 275  # receipts under docs/development/reviews at BASE_SHA — the DD4 denominator
+# The ONE committed row T02's token rule refuses over that pinned corpus (T02's own test owns the
+# measurement; this file only refuses a SECOND one from appearing unnoticed).
+T02_TOKEN_ROW = "2026-08-31-plan-1-manifesto-command-pass-T20-fabrik-release-review.md"
+T02_TOKEN_ROW_REFUSAL = "token"
+
+
+def _refusal_kind(reason: str) -> str:
+    return "token" if "no grammar read as a counter" in reason else reason
+
 
 _corpus_cache: list[Path] = []
 # The root the pinned corpus is materialised under. READER 3 (`_committed_nonquiet`) takes a ROOT
@@ -282,6 +291,7 @@ def test_corpus_every_committed_receipt_parses_and_grades_exactly_as_it_did_at_t
     files = _corpus()
     assert len(files) > 200, f"corpus looks wrong: {len(files)} receipts"
     rows_old = rows_new = errs_old = errs_new = 0
+    token_hits: list[str] = []
     for p in files:
         text = p.read_text(encoding="utf-8", errors="replace")
         o_tables, o_prose, o_ordered, *_ = base._ledger_shapes(text)
@@ -291,7 +301,17 @@ def test_corpus_every_committed_receipt_parses_and_grades_exactly_as_it_did_at_t
         assert [r[-1] for r in n_ordered] == [r[-1] for r in o_ordered], p
         assert [(r[0], r[2]) for r in n_ordered] == [(r[0], r[1]) for r in o_ordered], p
         assert all(r[1] is None and r[3] is None for r in n_ordered), p
-        assert refusals == [], (p, refusals)
+        # T02's refusal half (the token rule) has exactly ONE hit over this PINNED corpus: the
+        # T20 receipt's verdict cell, `(verifier confirmed :63; :47-53)` — measured at 28 in-scope
+        # rows / 30 occurrences, 27 cells exempt, in
+        # `tests/enforcement/test_review_refusals.py::test_corpus_the_token_rule_refuses_exactly_
+        # one_committed_row`. The orchestrator repairs that cell in the LIVE tree at T02's merge,
+        # but the pin is at BASE_SHA by design, so the hit stands here forever: it is allowed BY
+        # NAME (and by count) rather than by weakening either rule. Every other receipt still
+        # asserts a clean parse.
+        expected = [T02_TOKEN_ROW_REFUSAL] if p.name == T02_TOKEN_ROW else []
+        assert [_refusal_kind(r) for r in refusals] == expected, (p, refusals)
+        token_hits.extend([p.name] * len(refusals))
         assert (len(n_tables), len(n_prose)) == (len(o_tables), len(o_prose)), p
         assert crc._unparsed_pass_lines(text) == base._unparsed_pass_lines(text), p
         # reader 1 — the blocking gate, verbatim errors modulo the D-048 -> D-206 rewording
@@ -306,6 +326,8 @@ def test_corpus_every_committed_receipt_parses_and_grades_exactly_as_it_did_at_t
             ), p
     print(f"parsed Pass rows: base={rows_old}, widened={rows_new} over {len(files)} receipts")
     print(f"check_file errors: base={errs_old}, widened={errs_new} over {len(files)} receipts")
+    print(f"token-rule refusals over {len(files)} receipts: {token_hits}")
+    assert token_hits == [T02_TOKEN_ROW], token_hits
     assert rows_new == rows_old
     assert errs_new == errs_old
     # reader 3 — the committed advisory, one sweep per gate version, over the PINNED mirror.

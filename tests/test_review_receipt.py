@@ -76,6 +76,15 @@ def test_a_mechanically_completed_skeleton_passes_the_coverage_grammar(repo: Pat
     assert _init(repo, "--out", str(out), "--changed", "app.py", "new.py").returncode == 0
     text = out.read_text(encoding="utf-8")
     done = text.replace("**Status:** IN-PROGRESS", "**Status:** CONVERGED")
+    # ONE row takes a RECORDED verdict — the hygiene adjudication of D4/DD13. Before the D6
+    # widening of `VERDICT` this row was a `noverdict` row and the completed skeleton failed;
+    # the four RECORDED forms are verdicts, not missing ones.
+    done = done.replace(
+        "| UNCHECKED |",
+        "| RECORDED — hygiene false positive (the `{{` sits inside a fenced example, "
+        "scripts/review_receipt.py:170) |",
+        1,
+    )
     done = done.replace(
         "| UNCHECKED |",
         "| CLEAN (hunted app.py:1 and new.py:1 with their callers, nothing found) |",
@@ -83,15 +92,23 @@ def test_a_mechanically_completed_skeleton_passes_the_coverage_grammar(repo: Pat
     done = done.replace(
         "### Phase 1 — <title>: UNCHECKED", "### Phase 1 — skeleton: CLEAN (app.py)"
     )
+    # The D-206 closing row: `confirmed: 0` is the exit counter, the Finders cell names the seats
+    # that read the fix diff (V11), and `unexecuted: 0` states that nothing was left unexecuted.
     done = done.replace(
         "| Pass | Finders | Counters | Method |\n|---|---|---|---|\n",
         "| Pass | Finders | Counters | Method |\n|---|---|---|---|\n"
-        "| Pass 1 | pool qwen×3 + native opus×1 | found: 1, fixed: 1 | citation |\n"
-        "| Pass 2 | pool qwen×3 + native opus×1 | found: 0, fixed: 0 | method: re-derivation |\n",
+        "| Pass 1 | native opus×1 + sonnet×2 | found: 1, new: 1, confirmed: 1, fixed: 1 "
+        "| citation |\n"
+        "| Pass 2 | native opus×1 + sonnet×2 | found: 0, new: 0, confirmed: 0, fixed: 0, "
+        "unexecuted: 0 | method: re-derivation |\n",
     )
     assert done != text
     out.write_text(done, encoding="utf-8")
     assert crc.check_file(out) == [], crc.check_file(out)
+    # the closing row is read under the NEW grammar, not the legacy pair
+    *_, ordered, refusals = crc._ledger_shapes(done)
+    assert refusals == [], refusals
+    assert ordered[-1][:4] == (0, 0, 0, 0), ordered[-1]
 
 
 def test_the_surface_anchor_covers_untracked_files(repo: Path) -> None:

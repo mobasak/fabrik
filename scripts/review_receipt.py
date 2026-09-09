@@ -153,14 +153,23 @@ Rubric invocation (verbatim output — the gate reads the generated header, neve
 
 Verdict grammar (the gate refuses anything else): `CLEAN (<the paths/lines hunted>)` — a CLEAN row
 must name a path and run past 70 characters · `FIXED r<n> (<what changed>)` · `REFUTED (<the
-disproving line>)`. `UNCHECKED` may survive only under a `## BLOCKED` escalation (a finding + 3
-failed attempts).
+disproving line>)` · `RECORDED — unexecuted (<why>)` · `RECORDED — by design`, parenthesising the
+owning row's first-cell id and the EARLIER round that adjudicated it, or a `D-nnn` with no round
+(the § Residual block below shows the shape) · `RECORDED — measured (<why>)` ·
+`RECORDED — hygiene false positive (<why>)` — every RECORDED reason is PARENTHESISED, never
+colon-delimited (a colon would spell the `unexecuted: N` counter the ledger refuses). `UNCHECKED`
+may survive only under a `## BLOCKED` escalation (a finding + 3 failed attempts).
 
 ## Pass Ledger
 
-ONE table, one row per pass, counts punctuated (`found: N, fixed: M`) — the gate reads the LAST row
-as the exit round and refuses a second ledger group. Minimum two passes; the fixing pass is never
-the last; the closing pass re-derives every count and anchor and says so in its Method cell.
+ONE table, one row per pass, counts punctuated (`found: F, new: N, confirmed: C, fixed: X,
+unexecuted: U`) — the gate reads the LAST row as the exit round and refuses a second ledger group.
+`found:` counts raw candidates, `new:` is prose the graders do not parse, `confirmed:` counts the
+candidates EXECUTED and reproduced (the exit counter — a round is quiet at `confirmed: 0` and
+`fixed: 0` with `unexecuted:` 0 or absent), `unexecuted:` counts code candidates RECORDED
+unexecuted. Minimum two passes; the fixing pass is never the last; the closing pass re-derives
+every count and anchor and says so in its Method cell, and its Finders cell names the seats that
+read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alone read cannot close.
 
 | Pass | Finders | Counters | Method |
 |---|---|---|---|
@@ -168,9 +177,25 @@ the last; the closing pass re-derives every count and anchor and says so in its 
 Row shapes (quoted here, so the gate does not read them as passes):
 
 ```text
-| Pass 1 | pool <model×n> + native <model×n> | found: N, fixed: M | citation |
-| Pass 2 | pool <model×n> + native <model×n> | found: 0, fixed: 0 | method: re-derivation |
+| Pass 1 | native opus×1 + sonnet×2 | found: N, new: N, confirmed: C, fixed: X, unexecuted: U | citation |
+| Pass 2 | native opus×1 + sonnet×2 | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation |
 ```
+
+## Residual
+
+Every candidate that did not enter `confirmed:` is recorded here, one row each, in the verdict
+grammar above (quoted so the residual scan never reads this template's own example as a row):
+
+```text
+| F12 | RECORDED — unexecuted (3 probe attempts timed out) |
+| F19 | RECORDED — by design (F4, round 3; D-203) |
+| F31 | RECORDED — measured (a prevalence figure; makes no code or doc claim) |
+```
+
+`RECORDED — by design` names the OWNING row's first-cell id and the EARLIER round that adjudicated
+it (or a `D-nnn` with no round); the gate refuses an absent owner and a round that is not below the
+closing `Pass N`. `RECORDED — measured` and `RECORDED — unexecuted` never enter `confirmed:`;
+`unexecuted:` on the closing row is what keeps an unexecuted CODE candidate from closing the loop.
 
 ## Per-phase verdicts
 
