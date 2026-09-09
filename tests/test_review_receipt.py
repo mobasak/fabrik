@@ -71,10 +71,9 @@ def test_init_writes_an_in_progress_skeleton_that_only_its_status_exempts(repo: 
     assert findings and any("UNCHECKED" in f for f in findings), findings
 
 
-def test_a_mechanically_completed_skeleton_passes_the_coverage_grammar(repo: Path) -> None:
-    out = repo / "r-review.md"
-    assert _init(repo, "--out", str(out), "--changed", "app.py", "new.py").returncode == 0
-    text = out.read_text(encoding="utf-8")
+def _complete(text: str) -> str:
+    """The MECHANICAL completion of a skeleton — ONE definition, shared by every test that needs
+    a receipt the gate accepts, so a change to what "passing" means cannot drift between them."""
     done = text.replace("**Status:** IN-PROGRESS", "**Status:** CONVERGED")
     # ONE row takes a RECORDED verdict — the hygiene adjudication of D4/DD13. Before the D6
     # widening of `VERDICT` this row was a `noverdict` row and the completed skeleton failed;
@@ -102,6 +101,15 @@ def test_a_mechanically_completed_skeleton_passes_the_coverage_grammar(repo: Pat
         "| Pass 2 | native opus×1 + sonnet×2 | found: 0, new: 0, confirmed: 0, fixed: 0, "
         "unexecuted: 0 | method: re-derivation |\n",
     )
+    assert done != text, "the completion changed nothing — the template's anchors moved"
+    return done
+
+
+def test_a_mechanically_completed_skeleton_passes_the_coverage_grammar(repo: Path) -> None:
+    out = repo / "r-review.md"
+    assert _init(repo, "--out", str(out), "--changed", "app.py", "new.py").returncode == 0
+    text = out.read_text(encoding="utf-8")
+    done = _complete(text)
     assert done != text
     out.write_text(done, encoding="utf-8")
     assert crc.check_file(out) == [], crc.check_file(out)
@@ -109,6 +117,66 @@ def test_a_mechanically_completed_skeleton_passes_the_coverage_grammar(repo: Pat
     *_, ordered, refusals = crc._ledger_shapes(done)
     assert refusals == [], refusals
     assert ordered[-1][:4] == (0, 0, 0, 0), ordered[-1]
+
+
+def test_init_writes_the_five_counter_row_shape_the_residual_section_and_the_verdicts(
+    repo: Path,
+) -> None:
+    """The TEMPLATE's own text, read from `--init`'s output — not a row the test hand-builds.
+
+    Round 1: every test in this file passed against the PRE-T02 template because each one
+    constructed the ledger row itself, so the template could have shipped the old shape and no
+    test would have known. These assertions read `render()`'s bytes.
+    """
+    out = repo / "r-review.md"
+    assert _init(repo, "--out", str(out), "--changed", "app.py").returncode == 0
+    text = out.read_text(encoding="utf-8")
+    # LINE-JOINED and whitespace-normalised, never a line grep: the ledger prose wraps, and a
+    # sentence that renders correctly but is split across a newline is exactly what a raw `in`
+    # check misses (the spec names that trap for its own three D-191 wordings).
+    joined = " ".join(text.split())
+    # the five counters, in the spec's order, in the Pass Ledger prose AND in the fenced example
+    assert "found: F, new: N, confirmed: C, fixed: X, unexecuted: U" in joined, text
+    assert "found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0" in text, text
+    # the four RECORDED verdict forms the widened `VERDICT` accepts
+    for kind in ("unexecuted", "by design", "measured", "hygiene false positive"):
+        assert f"RECORDED — {kind}" in text, kind
+    # a `## Residual` section, and its example rows FENCED so the residual scan never reads the
+    # template's own literal as a by-design row
+    assert "\n## Residual\n" in text, text
+    stripped = crc._strip_fences(text)
+    assert "## Residual" in stripped
+    assert not crc._BY_DESIGN.search(stripped), "the template's own example must be fenced"
+    # and the skeleton still passes the gate it is written for
+    assert crc.check_file(out) == []
+
+
+def test_the_closing_row_must_name_its_finder_seats(repo: Path) -> None:
+    """V11 end-to-end on a receipt that otherwise PASSES: the closing round names who read it."""
+    out = repo / "r-review.md"
+    assert _init(repo, "--out", str(out), "--changed", "app.py", "new.py").returncode == 0
+    done = _complete(out.read_text(encoding="utf-8"))
+    out.write_text(done, encoding="utf-8")
+    assert crc.check_file(out) == []
+    # the finders cell names no model token
+    seatless = done.replace(
+        "| Pass 2 | native opus×1 + sonnet×2 |", "| Pass 2 | the orchestrator |"
+    )
+    assert seatless != done
+    out.write_text(seatless, encoding="utf-8")
+    errs = crc.check_file(out)
+    assert any("names no finder seat" in e for e in errs), errs
+    # a CELL-ANCHORED closing row appended after the Pass rows has no finders cell at all — and
+    # it must not bypass the check by being a row the Pass-head scan walks back past (round 1)
+    appended = done.replace(
+        "| method: re-derivation |\n",
+        "| method: re-derivation |\n| 99 | found: 0 | confirmed: 0 | fixed: 0 |\n",
+        1,
+    )
+    assert appended != done
+    out.write_text(appended, encoding="utf-8")
+    errs = crc.check_file(out)
+    assert any("carries no `Pass N` head" in e for e in errs), errs
 
 
 def test_the_surface_anchor_covers_untracked_files(repo: Path) -> None:

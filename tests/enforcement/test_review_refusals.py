@@ -10,8 +10,11 @@ its own row — `silent` (the old grammar read it inert or QUIET, the fail-open 
 message). A revert of any rule turns the corresponding row red here, permanently.
 
 The corpus tests are pinned to the plan's base SHA with `git ls-tree`/`git show`, never the
-working tree: the orchestrator repairs the ONE refused committed row as a Delta at this ticket's
-merge, and a live-tree corpus would silently flip that measurement afterwards.
+working tree, so the orchestrator's Delta repair of the ONE refused committed row cannot flip
+the measurement afterwards. That row's refusal reaches NO gate output: the T20 receipt carries no
+Coverage Checklist, so it is not `check_file`'s subject and `_committed_nonquiet` skips it — the
+refusal exists at `_ledger_shapes` level only (executed: `check_file` and the advisory are
+byte-identical to the pre-T02 gate on all 275). The repair is hygiene, not a red being cleared.
 """
 
 from __future__ import annotations
@@ -128,6 +131,28 @@ REFUSED_BY_TOKEN = [
     # the counter run's own order, already named by T01's reader — no second message is added
     ("| Pass 19 | opus×1 | found: 0, confirmed: 0, fixed: 0, confirmed: 3 | m |", "t01"),
     ("| Pass 19 | opus×1 | found: 0, fixed: 0, confirmed: 0 | m |", "t01"),
+    # the spec's `| 1 |`-numbered forms, verbatim (the same rules, a different first cell)
+    ("| 1 | found: 0 | fixed: 0 | confirmed: 3 |", "silent"),
+    ("| 1 | found: 0 | fixed: 0 | confirmed: 0 |", "silent"),
+    ("| 1 | found: 3 | fixed: 3 | delta (confirmed: 0) |", "silent"),
+    ("| 1 | confirmed: 3 | found: 0 | fixed: 0 |", "silent"),
+    ("| 1 | unexecuted: 2 | found: 0 | fixed: 0 |", "silent"),
+    # the placeholder-lettered row of the spec's three-row all-token block: `confirmed: C` is a
+    # bare-colon token on a row whose `found: 0` makes it DATA, so it is refused like any other
+    ("| N | found: 0 | confirmed: C | unexecuted: U | fixed: 0 |", "silent"),
+    # ROUND 1 — a WRAPPED or punctuated value after an ALL-CAPS label is a counter wearing
+    # markdown, not a prose label. `^\\d` alone exempted every one of these as a label and the
+    # closing row then graded QUIET with defects standing; the spec puts the same wrapper in the
+    # threat model for the lowercase form (`**unexecuted: 2**` is REFUSED).
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: **3** |", "silent"),
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: (3) |", "silent"),
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: -3 |", "silent"),
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: +3 |", "silent"),
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: `3` |", "silent"),
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: _3_ |", "silent"),
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | CONFIRMED: <3> |", "silent"),
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | UNEXECUTED: **2** |", "silent"),
+    ("| Pass 7 | native verifier | found: 0 | fixed: 0 | UNEXECUTED: [2] |", "silent"),
 ]
 
 # The PROSE path: a Pass-headed line the prose arm reads, `_PASS_HEAD` the scope test.
@@ -164,6 +189,7 @@ PARSED_AND_NOT_REFUSED = [
 # threat model by the spec — the operator's eye's job, not the parser's.
 OUT_OF_THREAT_MODEL = [
     "| 19 | found: 0 | fixed: 0 | CONFIRMED: thirteen defects stand |",
+    "| 19 | found: 0 | fixed: 0 | delta — CONFIRMED: see residual |",
     "| Pass 19 | opus×1 | found: 0, fixed: 0 | delta — CONFIRMED: thirteen defects stand |",
 ]
 
@@ -401,6 +427,35 @@ def test_a_receipt_with_no_closing_pass_row_fails_closed_on_a_round_bound() -> N
     assert _residual("by design (D-203)", closing=mega_only, prior="") == []
 
 
+def test_the_round_bound_reads_the_closing_row_never_an_earlier_pass_row() -> None:
+    """ROUND 1 — the LAST-match class, again. A cell-anchored closing row appended after a Pass
+    row let V5 bound a licence against the EARLIER round and pass it: `(F342, round 5)` under a
+    trailing `| 99 | … |` was graded against `Pass 7` and accepted. The bound now reads
+    `ordered[-1]` — the row the exit rule itself grades — and refuses when it has no Pass head."""
+    cell_anchored = "| 99 | found: 0 | confirmed: 0 | fixed: 0 |"
+    pass_seven = "| Pass 7 | opus×1 | found: 0, confirmed: 0, fixed: 0 | m |"
+    errs = _residual("by design (F342, round 5)", closing=cell_anchored, prior=pass_seven)
+    assert errs and any("no closing `Pass N` row" in e for e in errs), errs
+    # the same licence under a real Pass-headed closing row is fine
+    assert _residual("by design (F342, round 5)", closing=CLOSING, prior=pass_seven) == []
+
+
+def test_the_closing_pass_row_is_ordered_minus_one_and_nothing_else() -> None:
+    rows = "\n".join(
+        [
+            HEADER,
+            SEP,
+            "| Pass 7 | opus×1 | found: 0, confirmed: 0, fixed: 0 | m |",
+            "| 99 | found: 0 | confirmed: 0 | fixed: 0 |",
+        ]
+    )
+    ordered = crc._ledger_shapes(rows)[2]
+    assert len(ordered) == 2, ordered
+    assert crc._closing_pass_row(ordered) is None, "a cell-anchored last row carries no Pass N"
+    assert crc._closing_pass_row(ordered[:1]) == (7, ordered[0][4])
+    assert crc._closing_pass_row([]) is None
+
+
 def test_the_residual_scan_never_reads_a_fenced_example() -> None:
     fenced = "\n".join(
         [
@@ -478,9 +533,11 @@ def _corpus() -> list[Path]:
 def test_corpus_the_token_rule_refuses_exactly_one_committed_row() -> None:
     """FIRE RATE of the token rule over the ledger-block path (the header exempt), pinned at the
     base SHA: 28 in-scope rows / 30 occurrences, of which 27 cells / 29 occurrences are exempt
-    under the carve-out and ONE row is refused — the T20 receipt's verdict cell, repaired by the
-    orchestrator as a Delta at this ticket's merge. A rule that refused the other 27 would be
-    wallpaper; a rule that refused none would not close the fail-open."""
+    under the carve-out and ONE row is refused — the T20 receipt's verdict cell. That refusal
+    surfaces in NO gate output (the receipt has no Coverage Checklist, so neither `check_file` nor
+    the committed advisory reads it); the orchestrator's Delta repair is hygiene on the live file.
+    A rule that refused the other 27 would be wallpaper; one that refused none would not close the
+    fail-open."""
     files = _corpus()
     print(f"receipts examined: {len(files)}")
     rows = occ = exempt_rows = exempt_occ = 0

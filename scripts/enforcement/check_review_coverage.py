@@ -624,11 +624,26 @@ def check_file(p: Path) -> list[str]:
     # the shape rule is a rule about the redesigned loop, and applying it to the pre-D-206 corpus
     # would retro-red committed receipts whose finders cell honestly reads `native verifier`
     # (measured over the 275 receipts at 8092e8a8: 0 carry `confirmed:` on their closing row).
-    closing = _closing_pass_row(ordered_rows) if ordered_rows else None
-    if closing is not None and not blocked_ok and not _in_progress(text):
-        c_row = next(r for r in reversed(ordered_rows) if r[4] == closing[1])
-        cells = _row_cells(closing[1])
-        if c_row[1] is not None and (len(cells) < 2 or not _MODEL_TOK.search(cells[1])):
+    # ⚠️ Graded on `ordered_rows[-1]` — the row the EXIT rule grades — never on "the last
+    # Pass-headed row anywhere": a cell-anchored closing row appended after an old Pass row
+    # bypassed the check entirely (round 1). A closing row written under D-206 that carries no
+    # Pass head has no finders cell at all, and is refused for that.
+    if ordered_rows and not blocked_ok and not _in_progress(text):
+        last = ordered_rows[-1]
+        closing = _closing_pass_row(ordered_rows)
+        cells = _row_cells(last[4])
+        if last[1] is not None and closing is None:
+            errs.append(
+                "the closing ledger row states `confirmed:` but carries no `Pass N` head, so it "
+                "names no finder seats — write the closing round as the template's row: "
+                "`| Pass N | native opus×1 + sonnet×2 | found: F, new: N, confirmed: C, fixed: X, "
+                "unexecuted: U | method: … |`"
+            )
+        elif (
+            last[1] is not None
+            and closing is not None
+            and (len(cells) < 2 or not _MODEL_TOK.search(cells[1]))
+        ):
             errs.append(
                 f"the closing `Pass {closing[0]}` row names no finder seat in its finders cell "
                 "(the second cell) — a round the orchestrator alone read cannot close the loop; "
@@ -1578,7 +1593,19 @@ _NUMERIC_TOK = re.compile(r"(?<![\w-])(?:found|fixed|confirmed|unexecuted)\s*:\s
 # block walk, or a stray separator would split one ledger block into two.
 _SEP_ROW = re.compile(r"[|\-: ]+")
 # A VALUE after the colon — what makes an occurrence a counter attempt rather than a prose label.
-_VALUEISH = re.compile(r"^(?:\d|n\s*/\s*a\b)", re.I)
+# ⚠️ The leading run of WRAPPERS and sign punctuation is skipped before the digit test (round 1).
+# `^\d` alone exempted `CONFIRMED: **3**` — and `(3)`, `` `3` ``, `_3_`, `-3`, `+3` — as a prose
+# LABEL on an old-grammar row, so a closing row stating three standing defects graded QUIET. The
+# spec puts exactly that wrapper in the threat model for the lowercase form (`**unexecuted: 2**`
+# is REFUSED); a wrapped digit is a value wearing markdown, not a label.
+# ⚠️ AND IT STOPS THERE, measured: a "the value CARRIES a digit anywhere" rule refuses 27 of the
+# 29 exempt occurrences in the 275 committed receipts (their prose cites round numbers —
+# `(round 121)`, `3 doc-tracking hits`), and a "digit within the first 12 characters" rule still
+# refuses 3 of them (`round 88's adjacency was necessary but not SUFFICIENT`). Both are wallpaper.
+# So `CONFIRMED: still 2` / `CONFIRMED: see round 3` after an ALL-CAPS label stay in the same
+# residual the spec already accepts for `CONFIRMED: thirteen defects stand` — the operator's eye's
+# job, named in this ticket's report rather than closed with a rule that fires on honest prose.
+_VALUEISH = re.compile(r"^[\s*_`~([<+-]*(?:\d|n\s*/\s*a\b)", re.I)
 _REPAIR_CELL = (
     "write `| confirmed: C |` between `found:` and `fixed:`, one counter per cell, no `new:` "
     "cell, no wrapper"
@@ -1738,8 +1765,14 @@ def _ledger_block_rows(block: list[str]) -> list[str]:
     A LEDGER BLOCK holds >=1 data row that a grammar parsed OR that carries a new-grammar token.
     The second arm is what puts a token-bearing block in which NOTHING parses in scope (refused
     by name, never dismissed as "not a ledger"), and what keeps the disposition and checklist
-    tables OUT: their verdicts are parenthetical and carry no colon token. A disposition block
-    that DOES carry a colon token is in scope, and refused by name.
+    tables OUT: their verdicts are parenthetical and carry no colon token.
+
+    ⚠️ THE REACH, stated because it is wider than "the ledger": a DISPOSITION or CHECKLIST table
+    enters scope the moment any of its rows carries a `_TOKEN_LIT` occurrence — including the
+    citation idiom `(verifier confirmed :63; :47-53)`, which is prose, not a counter. Measured at
+    1 of 275 committed receipts, and the row is then refused by name. This reach is what the spec
+    froze (a token-bearing block is in scope wherever it sits); it is filed for the plan-review
+    adoption rather than narrowed here.
     """
     rows = [ln for ln in block if not _SEP_ROW.fullmatch(ln.strip())]
     if not rows:
@@ -1798,17 +1831,24 @@ _MODEL_TOK = re.compile(r"(?<![\w-])(?:opus|sonnet|haiku)\s*[×x]\s*\d+", re.I)
 
 
 def _closing_pass_row(ordered: list[_Row]) -> tuple[int, str] | None:
-    """The LAST Pass-headed counter row in document order — table or prose — with its number.
+    """The CLOSING row's `Pass N` — read from `ordered[-1]` and NOWHERE ELSE, or None when the
+    closing row carries no Pass head.
 
-    NOT `ordered[-1]`: on 1 of the 71 ledger-bearing receipts at 8092e8a8 that row is a
-    cell-anchored `_MEGA_ROW` with no `Pass` head at all, and grading a bound against a row that
-    states no round is how a bound silently stops binding.
+    ⚠️ ROUND 1 CORRECTION. This scanned BACKWARDS for the last Pass-headed row, which is the same
+    LAST-match class this file has been hardened against three times: a cell-anchored closing row
+    (`| 99 | found: 0 | confirmed: 0 | fixed: 0 |`) appended after an old `| Pass 7 | … |` row
+    silently handed BOTH consumers the wrong row — V5 bounded a `round 8` licence against Pass 7
+    and passed it, and V11 graded Pass 7's finders cell instead of refusing a closing row that
+    names no seat at all. The exit rule itself has always read `ordered[-1]`; these two now read
+    the SAME row, which is the only way three readers can agree on which round closed.
+
+    `None` (a closing row with no Pass head) is the FAIL-CLOSED case both callers name by hand:
+    V5 refuses the licence for want of a bound, V11 refuses the row for want of a finders cell.
     """
-    for row in reversed(ordered):
-        m = _CLOSING_PASS.match(row[4])
-        if m is not None:
-            return int(m.group(1)), row[4]
-    return None
+    if not ordered:
+        return None
+    m = _CLOSING_PASS.match(ordered[-1][4])
+    return (int(m.group(1)), ordered[-1][4]) if m is not None else None
 
 
 def _row_ids(text_s: str) -> set[str]:
