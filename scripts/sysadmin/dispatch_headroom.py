@@ -25,9 +25,10 @@ subtracted first (their DISPATCH stamps, `command_run.py dispatch --seats`), so 
 the whole box in the same minute.
 
 For an orchestrator-computed PARTITION (a review loop's disjoint slices), pass `--slices
-opus=<n>,sonnet=<n>,haiku=<n>` instead of `--units`: SEATS sizes from the partition directly — one
-seat per non-empty slice kind, no floor padding (DD2 — the third angle in a review is the
-orchestrator's execution, not a third reader); `--units` then defaults to the slice count.
+opus=<n>,sonnet=<n>,haiku=<n>` instead of `--units`: SEATS = the slice counts SUMMED (Σ slices,
+against the same CONCURRENCY_CAP/box_cap/quota_cap caps), no floor padding — the DD2 floor (every
+non-empty kind keeps at least its own seat) is satisfied by construction, since the partition IS
+that seat count; `--units` then defaults to the slice count.
 
 Every probe fails SOFT and says so: an unreadable /proc, a rotation script that raises, or an
 unidentifiable active account prints the floor with the reason — never a silent 20, and never
@@ -59,6 +60,9 @@ FLOOR = 3
 # trims below one per unit, each remaining Haiku seat sweeps ONE grep-able class across every
 # unit; a grounding or adjudication unit has no grep-able angle at all (`--mechanical 0`).
 ANGLES = {"breadth": "sonnet", "mechanical": "haiku", "authoritative": "opus"}
+# a `--slices` partition's kinds are exactly these three — Fable is never a finder (spec D2), so
+# `--slices fable=1` is refused rather than silently priced as a Fable seat (round-1 review F3)
+_SLICE_KINDS = ("opus", "sonnet", "haiku")
 # CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS ?? 20 — read out of the CLI bundle v2.1.263 (core/62
 # § Parallelism (Runtime A)); a seat past it is REFUSED, not queued. A non-numeric value must not
 # kill the script at import ("fails SOFT" is the contract): it falls back to 20 with a reason.
@@ -397,15 +401,17 @@ def trim(mix: dict[str, int], seats: int) -> dict[str, int]:
     return {k: v for k, v in out.items() if v > 0}
 
 
-def parse_mix(text: str) -> dict[str, int]:
+def parse_mix(text: str, flag: str = "--mix") -> dict[str, int]:
     """`opus=1,sonnet=5` -> {"opus": 1, "sonnet": 5}. Every part is `name=count`, nothing implied:
-    a bare name, an empty name or a non-numeric count is refused with the part quoted."""
+    a bare name, an empty name or a non-numeric count is refused with the part quoted. `flag` names
+    the CLI flag being parsed in the error text — `--slices` shares this grammar with `--mix` but
+    an error naming "--mix part ..." while parsing `--slices` points the caller at the wrong flag."""
     mix: dict[str, int] = {}
     for part in filter(None, (x.strip() for x in text.split(","))):
         k, eq, v = part.partition("=")
         k = k.strip().lower()
         if not eq or not k or not re.fullmatch(r"-?\d+", v.strip()):
-            raise ValueError(f"--mix part {part!r} is not name=count (e.g. opus=1,sonnet=5)")
+            raise ValueError(f"{flag} part {part!r} is not name=count (e.g. opus=1,sonnet=5)")
         mix[k] = int(v)
     return mix
 
@@ -427,8 +433,10 @@ def budget(
         reasons.append(CAP_NOTE)
     # D-191: the units are the partition, not the cap — the WANTED count is one seat per unit per
     # angle plus the authoritative seats; the box, the CLI cap and the quota are the caps.
-    # DD2/D3: an orchestrator-computed `slices` partition sizes `wanted` DIRECTLY — one seat per
-    # non-empty slice kind, no `full_mix()` floor padding; `slices=None` is byte-identical to today.
+    # DD2/D3: an orchestrator-computed `slices` partition sizes `wanted` DIRECTLY as the slice
+    # counts SUMMED (Σ slices) — no `full_mix()` floor padding; the DD2 floor (every non-empty kind
+    # keeps at least its own seat) is satisfied BY CONSTRUCTION, since the partition already IS
+    # that seat count. `slices=None` is byte-identical to today.
     wanted = (
         sum(slices.values())
         if slices is not None
@@ -576,11 +584,31 @@ def budget(
             f"angles over the whole surface (D-188)"
         )
         caps["wanted"] = FLOOR
+    elif slices is not None and caps["wanted"] == 0:
+        # mirror of the units-mode "nothing to partition" branch above: a zero-sum partition
+        # (every kind absent, or every count explicitly 0) is not a silent SEATS: 0 (round-1
+        # review finding F1: "SEATS: 0" with no reason line pointed "see the reasons above" at
+        # nothing)
+        reasons.append("slices sum to 0 — nothing to partition; give at least one seat in one kind")
+    if slices is not None and caps["wanted"] > 0 and slices.get("opus", 0) == 0:
+        # DD2 carves the authoritative seat OUT of the Sonnet count on the orchestrator's own
+        # judgement of the most consequential slice — this script accepts any partition the CLI
+        # grammar allows (round-1 review finding F5) but SAYS when the caller's partition has no
+        # Opus slice at all, so `_mix_story` below can tell the truth about the mix it prints
+        reasons.append(
+            "partition carries no Opus slice — DD2 wants one authoritative seat over the most "
+            "consequential slice, carved out of the Sonnet count"
+        )
     seats = min(caps.values())
     if seats < caps["wanted"]:
         binding = [k for k, v in caps.items() if v == seats and k != "wanted"]
+        # F7 (round-1 review): under slices `caps["wanted"]` is Σ slices, not "units x angles +
+        # authoritative" — the reason must name the basis it actually used
+        basis = (
+            "the slice counts summed" if slices is not None else "units x angles + authoritative"
+        )
         reasons.append(
-            f"wanted {caps['wanted']} (units x angles + authoritative), bound to {seats} by "
+            f"wanted {caps['wanted']} ({basis}), bound to {seats} by "
             f"{', '.join(binding)} — the box/quota decide, the surface only asks"
         )
     if slices is None and seats < FLOOR and units > 0:
@@ -610,10 +638,19 @@ def _mix_story(a: argparse.Namespace, mix: dict[str, int], full: dict[str, int])
         # DD2/D3: an orchestrator-computed partition, not a units-sized grounding surface — the
         # floor-padding sentence below never applies to it (`mix == full` here is the partition
         # itself, unmodified or trimmed, never the D-188 padded mix)
+        # F5 (round-1 review): a partition without an Opus slice must not be told it has one — the
+        # story describes the TRIMMED mix it actually prints, never the risky-slices sentence when
+        # `mix` carries no Opus seat (the budget's own "partition carries no Opus slice" reason
+        # names the DD2 gap; this sentence only avoids lying about the mix beside it)
+        opus_clause = (
+            "Opus on the risky slices, Sonnet on the rest"
+            if mix.get("opus", 0) > 0
+            else "no Opus slice in this partition (see the reason above)"
+        )
         return (
-            " — the orchestrator-computed partition (DD2): Opus on the risky slices, Sonnet on "
-            "the rest, at most one Haiku class seat; every file read once — the third angle is "
-            "the orchestrator's execution, not a third reader" + tail
+            f" — the orchestrator-computed partition (DD2): {opus_clause}, at most one Haiku "
+            "class seat; every file read once — the third angle is the orchestrator's execution, "
+            "not a third reader" + tail
         )
     haiku = mix.get("haiku", 0)
     if mix == full:
@@ -694,9 +731,9 @@ def main(argv: list[str] | None = None) -> int:
         "--slices",
         default="",
         help=(
-            'an orchestrator-computed partition, e.g. "opus=1,sonnet=1" (DD2/D3: SEATS sizes from '
-            "the partition directly — one seat per non-empty slice kind, no floor padding; --units "
-            "then defaults to the slice count)"
+            'an orchestrator-computed partition, e.g. "opus=1,sonnet=1" (DD2/D3: SEATS is the '
+            "slice counts SUMMED, no floor padding; kinds are opus/sonnet/haiku only, counts >= 0; "
+            "--units then defaults to the slice count)"
         ),
     )
     ap.add_argument(
@@ -711,10 +748,30 @@ def main(argv: list[str] | None = None) -> int:
     )
     a = ap.parse_args(argv)
     try:
-        slices = parse_mix(a.slices) if a.slices else None
+        slices = parse_mix(a.slices, flag="--slices") if a.slices else None
     except ValueError as exc:
         print(f"dispatch_headroom.py: error: {exc}", file=sys.stderr)
         return 2
+    if slices is not None:
+        # F3 (round-1 review): a partition's kinds are exactly opus/sonnet/haiku (Fable is never a
+        # finder, D2) — checked BEFORE the negative-count check, the more fundamental refusal
+        unknown = [k for k in slices if k not in _SLICE_KINDS]
+        if unknown:
+            print(
+                f"dispatch_headroom.py: error: --slices kind {unknown[0]!r} is not one of "
+                + ", ".join(_SLICE_KINDS),
+                file=sys.stderr,
+            )
+            return 2
+        # F1 (round-1 review): `_count` refuses a negative --units/--risky/--mechanical; --slices
+        # shared no such gate — "opus=-5" silently priced a negative seat count as SEATS: -5
+        bad = ", ".join(f"{k}={v}" for k, v in slices.items() if v < 0)
+        if bad:
+            print(
+                f"dispatch_headroom.py: error: --slices count must be >= 0 (got {bad})",
+                file=sys.stderr,
+            )
+            return 2
     if a.units is None:
         if slices is None:
             print(
@@ -774,7 +831,10 @@ def main(argv: list[str] | None = None) -> int:
         reasons_read_only=_ro["reasons"],  # both halves, whatever `--heavy` was (round 11)
         floor=FLOOR,  # the board labels a cap the floor raised (round-7 finding)
         slices=slices,  # the parsed --slices partition, or None (DD2/D3)
-        mix_by_slice=(dict(mix) if slices is not None else None),  # the priced mix, slices-keyed
+        # F6 (round-1 review): the TRIMMED PARTITION, independent of a `--mix` price override — a
+        # `--mix` price the caller passes alongside `--slices` must not leak into this key, so it
+        # is re-derived from `slices` and `r["seats"]` here, never read off `mix`
+        mix_by_slice=(trim(dict(slices), r["seats"]) if slices is not None else None),
     )
     if a.json:
         print(json.dumps(r, indent=2, default=str))

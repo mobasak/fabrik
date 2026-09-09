@@ -230,18 +230,25 @@ risky unit costs an Opus authoritative seat too (at least one Opus seat total; D
 ceiling, the units the partition; a 3-unit surface on an idle box is 7 seats), padded to the D-186/D-188
 floor of three REAL seats when the surface has fewer angles than that (a one-unit judgement surface gets a
 second breadth reader as its third seat). **Partitioned** (`--slices opus=<n>,sonnet=<n>,haiku=<n>`, the
-orchestrator's own disjoint slices for a review loop): `wanted` is the slice counts SUMMED directly — one
-seat per non-empty slice kind, NO floor padding (DD2: the D-186/D-188 "three seats on different angles"
-floor is RETIRED for a review loop — the third angle there is the orchestrator's execution of every
-candidate, not a third reader — and stays live only for grounding/adjudication surfaces and
-`/fabrik-review-scoped`'s own one-unit duplicate-brief floor); a partition with no risky unit still
-dispatches one Opus seat over its most consequential slice, carved OUT of the Sonnet count, never added to
-it. `--slices` wins when both are given; `--units` is then optional and defaults to the slice count, so
-`--slices … --units 0` still prints its real seat count rather than the "nothing to partition" message.
+orchestrator's own disjoint slices for a review loop): `wanted` is the slice counts SUMMED (Σ slices;
+`opus=1,sonnet=5` sizes to 6, not "one seat per kind" — the DD2 floor, every non-empty kind keeps at least
+its own seat, is satisfied BY CONSTRUCTION, since the partition already IS that seat count), NO floor
+padding (the D-186/D-188 "three seats on different angles" floor is RETIRED for a review loop — the third
+angle there is the orchestrator's execution of every candidate, not a third reader — and stays live only
+for grounding/adjudication surfaces and `/fabrik-review-scoped`'s own one-unit duplicate-brief floor); a
+partition with no risky unit still dispatches one Opus seat over its most consequential slice, carved OUT
+of the Sonnet count, never added to it (the CLI accepts any partition, including one with no Opus slice at
+all — it names the DD2 gap in a reason rather than inventing an Opus seat, since the carve-out is the
+orchestrator's judgement call, not the script's). Kinds are exactly `opus`/`sonnet`/`haiku` (Fable is never
+a finder, D2) and every count must be `>= 0` — either violation is refused (exit 2) before anything runs.
+`--slices` wins when both are given; `--units` is then optional and defaults to the slice count, so
+`--slices … --units 0` still prints its real seat count rather than the "nothing to partition" message. A
+zero-sum partition (`opus=0,sonnet=0`) is not refused — it prints `SEATS: 0` with a NAMED reason, never a
+bare number with nothing for "see the reasons above" to point at.
 Both modes trim cheapest angle first when a cap binds (Haiku first, then the extra Opus seats, then Sonnet — coverage over cost; D-192); `--mechanical <M>` is the number of
 grep-able classes the surface has (units-sized mode only; default one per unit, 0 for a grounding/adjudication surface — a judgement has no mechanical angle; a
 negative count is refused), a trimmed Haiku seat sweeps one class across every unit; never below the applicable floor unless a hard cap binds or the fleet HOLD is on (then 0); `--units 0` with no `--slices` is
-nothing to partition and prints 0 with the reason. `--json` also carries `box_caps` (read-only + heavy from the one box probe) for callers like the board, plus `slices` (the parsed partition, or `null`) and `mix_by_slice` (the priced mix under `--slices`). `quota_cap` drops to the
+nothing to partition and prints 0 with the reason. `--json` also carries `box_caps` (read-only + heavy from the one box probe) for callers like the board, plus `slices` (the parsed partition, or `null`) and `mix_by_slice` (the partition TRIMMED to the seat budget, independent of a `--mix` price override — `null` when `--slices` is not given). `quota_cap` drops to the
 floor when the active account's hottest window is ≥85% or no standby account is eligible (`eligible` counts standbys; the active account is `state=active`) —
 the same bands `core/62` § Dispatch economics names. `--heavy` is for seats whose TOOLS load the box
 (pytest, builds, renders): a native seat lives inside its parent `claude` process, so only its
