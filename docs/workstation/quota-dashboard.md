@@ -108,6 +108,10 @@ number is the FLOOR rather than the remainder ("= the floor, K reserved"); and e
 reason the script emits (a failed box/quota/sibling probe "held at the floor" / "not subtracted",
 sibling sessions with no seat figure = a LOWER bound, an env-only own id, a warm-only standby set)
 renders after a ⚠️ — a confident number over a failed probe is the defect the banner exists to end.
+The banner's closing sentence names how a fan-out sizes its seats from these numbers: a review loop
+partitions its files into slices (Opus on the risky slices, Sonnet on the rest, at most one Haiku
+class seat) and sizes by `--slices`; a grounding or adjudication surface sizes by `--units` with the
+three-seat floor (`tests/test_quota_dashboard_banner.py` is the grader for this sentence's wording).
 The probe carries three reason halves — the run's own, the read-only and the heavy budget's — and the caveat line merges them (a heavy-only cause is labelled "heavy half —"); a probe payload that predates the halves says so instead of passing as "no heavy caveats". An account switch bumps the cache generation: a probe already in flight may not land its
 old-account line, and an orphaned one re-kicks a probe for the current generation.
 

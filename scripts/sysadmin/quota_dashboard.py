@@ -1907,9 +1907,11 @@ def _budget_probe(gen: int | None = None) -> str:
         html = (
             '<p class="muted">Box budget (D-189/D-191, `dispatch_headroom.py`): '
             + " · ".join(parts)
-            + f" · CLI cap {escape(str(cli))} · {quota}. A command's units are the partition; the box "
-            "is the ceiling — every fan-out dispatches the SEATS the script prints, one Sonnet + one "
-            "Haiku seat per unit plus the Opus authoritative seat(s)." + _budget_caveats(d) + "</p>"
+            + f" · CLI cap {escape(str(cli))} · {quota}. The box is the ceiling — every fan-out "
+            "dispatches the SEATS the script prints: a review loop partitions its files into slices "
+            "(Opus on the risky slices, Sonnet on the rest, at most one Haiku class seat) and sizes by "
+            "<code>--slices</code>; a grounding or adjudication surface sizes by <code>--units</code> "
+            "with the three-seat floor." + _budget_caveats(d) + "</p>"
         )
     except Exception as exc:  # noqa: BLE001 — a panel may never break the board
         html = f'<p class="muted">Box budget unavailable: {escape(str(exc))}</p>'
