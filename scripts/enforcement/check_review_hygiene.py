@@ -59,25 +59,35 @@ TEMPLATE_RESIDUE = re.compile(r"\{\{[^{}\n]*\}\}")
 # reads `RECORDED — the F250 shape …`, which carries two bare RECORDEDs and satisfies the
 # widened `VERDICT` zero times. Counting VERDICT matches here would miss the whole class.
 VERDICT_WORD = re.compile(r"\b(?:CLEAN|FIXED|REFUTED|ROUTED|RECORDED)\b")
-_TALLY = re.compile(r"\b(?:CLEAN|FIXED|REFUTED|ROUTED|RECORDED)\s+\d")
-# ⚠️ A verdict word FOLLOWED BY A COUNT is a TALLY REFERENCE, not a disposition — `the round-14
-# tally reads FIXED 12 · RECORDED 2`. Structural (the word, then a number), not a phrase list: the
-# receipts write tallies in several spellings and a hand-listed set is one entry away from the next
-# bypass. Round 1 measured this on the D-191 receipt's own remediation row (`:694`); round 2
-# narrowed it from "a digit on EITHER side", which also ate `F280 FIXED` and `round 14 FIXED`.
+_TALLY = re.compile(r"\b(?:CLEAN|FIXED|REFUTED|ROUTED|RECORDED)\s+\d{1,3}(?![\w-])")
+# ⚠️ A verdict word FOLLOWED BY A BOUNDED COUNT is a TALLY REFERENCE, not a disposition — `the
+# round-14 tally reads FIXED 12 · RECORDED 2`. Structural (the word, then a short number that ends
+# there), not a phrase list: the receipts write tallies in several spellings and a hand-listed set
+# is one entry away from the next bypass. Round 1 measured this on the D-191 receipt's own
+# remediation row (`:694`); round 2 narrowed it from "a digit on EITHER side", which also ate
+# `F280 FIXED` and `round 14 FIXED`; round 3 BOUNDED the number, because an unbounded `\d` read a
+# DATE or an ID as a count (`FIXED 2026-09-09`, `ROUTED 01M1K6A15M` — every hub mail id starts
+# `01M`, so the whole disposition vanished). The lookahead is `(?![\w-])`, not `(?![\d-])`: `01M`
+# ends its digit run at a LETTER, which a digits-only lookahead happily accepts.
 
 
 def _verdict_words(cell: str) -> list[str]:
-    """The verdict words in a cell that are DISPOSITIONS, tally references dropped.
+    r"""The verdict words in a cell that are DISPOSITIONS, tally references dropped.
 
-    A TALLY is the verdict word FOLLOWED by a count — `FIXED 12 · RECORDED 2`. A digit BEFORE the
-    word is not one: `F280 FIXED — escaped the pipe` is a finding id and `round 14 FIXED; round 15
-    REFUTED` is two real dispositions, both of which a symmetric adjacency rule silently ate
-    (round 2). ⚠️ STATED COST of the narrowing: a cell that is nothing but a leading count —
-    `6 FIXED · 1 REFUTED`, `5 FIXED / 16 REFUTED` — fires again, because nothing structural
-    separates it from two dispositions written side by side. Those are Pass-Ledger tally cells and
-    the orchestrator adjudicates them `RECORDED — hygiene false positive (a tally, not a
-    disposition)`; that adjudication is DD6's own measurement input.
+    A TALLY is the verdict word FOLLOWED by a BOUNDED count — `FIXED 12 · RECORDED 2`. Two shapes
+    are NOT tallies: a digit BEFORE the word (`F280 FIXED — escaped the pipe` is a finding id,
+    `round 14 FIXED; round 15 REFUTED` is two real dispositions — both silently eaten by round 1's
+    symmetric adjacency rule), and a long token AFTER it (`FIXED 2026-09-09` is a date,
+    `ROUTED 01M1K6A15M to infra` a mail id — both eaten by round 2's unbounded `\d`).
+
+    ⚠️ STATED COST, two shapes, both by design. (a) A cell that is nothing but a LEADING count —
+    `6 FIXED · 1 REFUTED`, `5 FIXED / 16 REFUTED` — fires, because nothing structural separates it
+    from two dispositions written side by side. (b) A tally with PUNCTUATION between the word and
+    the number — `FIXED — 12 rows`, `RECORDED — 2 · FIXED — 3` — fires, because the same
+    `<word> — <text>` shape is exactly how an honest single disposition is written. Both are
+    Pass-Ledger/tally cells the orchestrator adjudicates
+    `RECORDED — hygiene false positive (a tally, not a disposition)`; that adjudication is DD6's
+    own measurement input.
     """
     return VERDICT_WORD.findall(_TALLY.sub("", cell))
 
@@ -355,14 +365,26 @@ _SOURCE_DIRS = frozenset({"_sources", "_fragments"})
 
 
 def _is_template_source(path: str) -> bool:
-    # RESOLVED parts, never the parts as given: `cd commands/_sources && … --surface .` hands over
-    # bare basenames, which carry no `_sources` ancestor at all — the same 36 files then produced
-    # 127 hits from inside the directory and 0 from the repo root (round 2).
+    """Is this file part of the RENDERER'S INPUT TREE — `commands/_sources` or
+    `commands/_fragments`?
+
+    RESOLVED parts, never the parts as given: `cd commands/_sources && … --surface .` hands over
+    bare basenames, which carry no `_sources` ancestor at all — the same 36 files produced 127 hits
+    from inside the directory and 0 from the repo root (round 2).
+
+    ⚠️ But resolving made the test ABSOLUTE, and a bare `_sources` ANYWHERE on the box then
+    silenced the whole class beneath it, silently — `/anything/_fragments/proj/docs/rendered.md`
+    carrying real residue scored 0 (round 3). The exemption belongs to the renderer's tree, so the
+    test is the ADJACENT PAIR `commands/_sources` (or `commands/_fragments`): a directory pair no
+    unrelated tree forms by accident, and the pair the assembler actually reads.
+    """
     try:
         parts = Path(path).resolve().parts
     except OSError:  # a path the OS refuses to resolve is judged as written
         parts = Path(path).parts
-    return bool(_SOURCE_DIRS.intersection(parts))
+    return any(
+        parts[i] == "commands" and parts[i + 1] in _SOURCE_DIRS for i in range(len(parts) - 1)
+    )
 
 
 def _surface_hits(path: str, text: str, phrases: list[str]) -> list[Hit]:

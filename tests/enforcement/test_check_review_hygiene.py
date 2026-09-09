@@ -89,8 +89,15 @@ def test_the_dual_verdict_class_counts_bare_verdict_words(tmp_path):
 
 
 def test_a_tally_reference_is_not_a_second_disposition(tmp_path):
-    """`6 FIXED · 1 REFUTED` and `reads FIXED 12 · RECORDED 2` are COUNTS of verdicts, not two
-    verdicts. Structural (a digit on either side), never a phrase list."""
+    """A TALLY is the verdict word FOLLOWED by a BOUNDED count — `reads FIXED 12 · RECORDED 2`.
+
+    Structural (the word, then a short number that ends there), never a phrase list. ⚠️ A LEADING
+    count fires BY DESIGN: the shipped code returns `['FIXED', 'REFUTED']` for `6 FIXED · 1
+    REFUTED`, because nothing structural separates it from two dispositions written side by side —
+    the stated cost, adjudicated `RECORDED — hygiene false positive (…)`. (This docstring carried
+    round 1's superseded "a digit on either side" rule for two rounds, and claimed the opposite of
+    what the code does — a comment stating a rule is a claim.)
+    """
     assert crh._verdict_words("FIXED — moved; the spans REFUTED again") == ["FIXED", "REFUTED"]
     assert crh._verdict_words("FIXED — one per cell; the tally reads FIXED 12 · RECORDED 2") == [
         "FIXED"
@@ -100,6 +107,21 @@ def test_a_tally_reference_is_not_a_second_disposition(tmp_path):
     assert crh._verdict_words("F280 FIXED — escaped the pipe") == ["FIXED"]
     assert crh._verdict_words("round 14 FIXED; round 15 REFUTED") == ["FIXED", "REFUTED"]
     assert crh._verdict_words("RECORDED — the 2 RECORDED rows above") == ["RECORDED", "RECORDED"]
+    # A long token after the word is a DATE or an ID, not a count — an unbounded `\d` ate both,
+    # and every hub mail id starts `01M`, so `ROUTED 01M…` lost its whole disposition.
+    assert crh._verdict_words("FIXED 2026-09-09") == ["FIXED"]
+    assert crh._verdict_words("ROUTED 01M1K6A15M to infra; the rest FIXED") == ["ROUTED", "FIXED"]
+    assert crh._verdict_words("FIXED 2026-09-09 · REFUTED 2026-09-10") == ["FIXED", "REFUTED"]
+    assert crh._verdict_words("RECORDED 2026-09-09; RECORDED 2026-09-08") == [
+        "RECORDED",
+        "RECORDED",
+    ]
+    # …and the bounded count still suppresses
+    assert crh._verdict_words("the tally reads FIXED 12 and RECORDED 2") == []
+    # STATED COST (b): PUNCTUATION between the word and the number is not a tally to this rule —
+    # `<word> — <text>` is exactly how an honest single disposition is written, so the leading
+    # `FIXED — 12 rows` survives while the trailing `FIXED 12` is dropped.
+    assert crh._verdict_words("FIXED — 12 rows; the tally reads FIXED 12") == ["FIXED"]
 
 
 def test_the_raw_pipe_class_fires_on_f280_before_it_was_escaped(tmp_path):
@@ -196,6 +218,25 @@ def test_template_residue_is_not_reported_in_a_command_source_tree(tmp_path):
         src = d / "fabrik-thing.md"
         src.write_text("# Thing\n\n{{include:run-record}}\n", encoding="utf-8")
         assert _lines(crh.scan(surfaces=[src]), "template-residue") == [], parent
+
+
+def test_only_the_renderers_own_tree_is_exempt_from_the_residue_class(tmp_path):
+    """The exemption belongs to `commands/_sources` and `commands/_fragments` — the assembler's
+    input tree. A BARE `_sources`/`_fragments` ancestor anywhere on the box silenced the whole
+    class beneath it, with no NOTE: real `{{include:…}}` residue in an unrelated tree scored 0."""
+    unrelated = [
+        tmp_path / "fx" / "_sources" / "sub" / "rendered.md",
+        tmp_path / "fx" / "_fragments" / "proj" / "docs" / "rendered.md",
+    ]
+    for f in unrelated:
+        f.parent.mkdir(parents=True)
+        f.write_text("{{include:run-record}}\n", encoding="utf-8")
+        assert _lines(crh.scan(surfaces=[f]), "template-residue") == [1], f
+    # the renderer's own pair stays exempt, at any depth
+    exempt = tmp_path / "repo" / "commands" / "_sources" / "deep" / "fabrik-thing.md"
+    exempt.parent.mkdir(parents=True)
+    exempt.write_text("{{include:run-record}}\n", encoding="utf-8")
+    assert _lines(crh.scan(surfaces=[exempt]), "template-residue") == []
 
 
 def test_the_source_tree_skip_survives_a_run_from_inside_the_directory(tmp_path):
