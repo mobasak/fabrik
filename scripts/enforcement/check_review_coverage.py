@@ -1189,9 +1189,13 @@ _LOOSE_FIXED = re.compile(r"(?<![\w-])fixed:\s*\d")
 # prose arm below keys on this one and on pipe-LESS lines only.
 _PASS_HEAD_COLON = re.compile(r"(?<![\w-])\**Pass\s*\d+[a-z]?\**\s*:", re.I)
 # A cell that OPENS with the counter — how the second row of a head-less join begins once the
-# join has eaten the newline (`| found: 0 | fixed: 0 |`). A cell that merely CITES a counter
-# ("method: round 2 read found: 2") does not open with it.
-_CELL_OPENS_FOUND = re.compile(r"^\s*\**found:\s*\d")
+# join has eaten the newline (`| found: 0 | fixed: 0 |`). It carries `_FOUND_TOK`'s OWN stand-alone
+# guard, exactly like its sibling `_CELL_FOUND`: without it a cell that opens with a CITATION
+# (`| found: 3 was cited |`) counted as a row start, and
+# `| Pass 3 | o | found: 0 | fixed: 0 | | see Pass 2 | found: 3 was cited |` was refused. The
+# earlier claim here — "a cell that merely CITES a counter does not open with it" — was simply
+# false: a citation can open a cell, and only the trailing-word guard separates the two.
+_CELL_OPENS_FOUND = re.compile(r"^\s*\**found:\s*\d+(?!\s*\w)")
 
 
 def _row_cells(line: str) -> list[str]:
@@ -1231,10 +1235,17 @@ def _empty_cell_join(cells: list[str]) -> bool:
     """The HEAD-LESS join, keyed on the empty cell's POSITION rather than its mere existence.
 
     A join between two cell rows leaves row 1's closing pipe against row 2's opening one, i.e. an
-    EMPTY cell with row 1's counters to its LEFT and row 2 starting immediately to its RIGHT. So a
-    join is: some empty cell that has a `found:` somewhere left of it AND, within the first two
-    cells right of it, a cell that OPENS with `found:` — the second row is either `| found: … |`
-    or `| <head> | found: … |`.
+    EMPTY cell with row 1's counters to its LEFT and row 2 starting to its RIGHT. So a join is:
+    some empty cell that has a `found:` somewhere left of it AND, ANYWHERE right of it, a cell
+    that OPENS with `found:`.
+
+    ⚠️ The right side is deliberately UNBOUNDED. It was `cells[i + 1 : i + 3]` for one round, on
+    the assumption that a second row is either `| found: … |` or `| <head> | found: … |` — an
+    enumeration this file's own `HEAD` test fixture refutes, since the canonical row is
+    `| Pass N | finders | found: … |` and puts its counter in the THIRD cell. That window was a
+    fail-OPEN: `| Pass 3 | o | found: 5 issues | fixed: 0 | | Pass 4 (delta) | o | found: 0 |
+    fixed: 0 |` slipped every arm and was kept as a QUIET row off its second half. Counting cells
+    is guessing at a layout; the LEFT-side condition is what keeps the arm honest.
 
     Position is what makes it honest. The first cut asked only "is there an empty cell, and are
     there two `fixed:` anywhere" and so refused two HONEST shapes fleet-wide: a row with an empty
@@ -1251,7 +1262,7 @@ def _empty_cell_join(cells: list[str]) -> bool:
             continue
         if not any(_LOOSE_FOUND.search(c) for c in cells[:i]):
             continue
-        if any(_CELL_OPENS_FOUND.match(c) for c in cells[i + 1 : i + 3]):
+        if any(_CELL_OPENS_FOUND.match(c) for c in cells[i + 1 :]):
             return True
     return False
 
@@ -1286,10 +1297,17 @@ def _joined_row(line: str) -> bool:
     subsets of `_FOUND_TOK`, so a joined line can have no readable first run — which is why the
     caller's no-first-run branch is reachable and load-bearing, not decoration.
 
-    RECORDED (round 3, unchanged): a row that NAMES another round and cites its counter in its
-    own cell (`| Pass 4 | … found: 1 | fixed: 1 | re-ran as Pass 3 | found: 3 |`) still trips the
-    third arm and is refused — the adjudicated fail-CLOSED choice, since it is indistinguishable
-    from a real join and fencing the citation is a one-keystroke repair. 0 committed exemplars.
+    RECORDED, all three the SAME adjudicated fail-CLOSED choice — indistinguishable from a real
+    join, one keystroke to repair (fence the citation), 0 committed exemplars among the 275:
+      * (round 3) a row that NAMES another round and cites its counter in its own cell
+        (`| Pass 4 | … found: 1 | fixed: 1 | re-ran as Pass 3 | found: 3 |`) trips the strict arm;
+      * (round 6) a bare CITING cell standing right of an empty cell (`| R1 | found: 1 |
+        fixed: 0 | | note | found: 2 |`) is a join to `_empty_cell_join`, because "opens with a
+        readable counter, right of a gap, with a counter to the left" is exactly a row start;
+      * (round 6) an honest PROSE round line citing a prior round with a word-trailed counter
+        (`Pass 4: found: 0 issues, fixed: 0 — same as Pass 3: found: 0 issues last time`) is
+        refused by the prose arm, just as its strict-counter twin always was under the legacy
+        arm — the rule applied consistently rather than a new cost.
     """
     cells = _row_cells(line)
     if len(_LOOSE_FOUND.findall(line)) >= 2:

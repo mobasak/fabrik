@@ -17,6 +17,7 @@ from __future__ import annotations
 import importlib.util
 import re
 import subprocess
+import tempfile
 from pathlib import Path
 from types import ModuleType
 
@@ -39,15 +40,64 @@ def _load(name: str, path: Path) -> ModuleType:
 crc = _load("crc_confirmed", REPO / GATE_REL)
 
 
+CORPUS_AT_BASE = 275  # receipts under docs/development/reviews at BASE_SHA — the DD4 denominator
+
+_corpus_cache: list[Path] = []
+
+
 def _corpus() -> list[Path]:
-    """Every COMMITTED review receipt, from git itself — never a bare glob of a tracked path."""
-    out = subprocess.run(
-        ["git", "-C", str(REPO), "ls-files", "docs/development/reviews/*.md"],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.split()
-    return [REPO / f for f in out]
+    """Every review receipt AS OF `BASE_SHA` — enumerated with `ls-tree` and read with `git show`,
+    never `ls-files` over the working tree.
+
+    ⚠️ This pin is the whole point. The invariance tests below compare the CURRENT gate against
+    the gate at `BASE_SHA`, so the corpus must be the one that SHA graded. Reading live files made
+    that a landmine: the moment this plan's own receipts land — their closing rows are
+    `found: N, …, confirmed: 0, fixed: 0`, quiet under the new grammar and NOT under the old — the
+    comparison reds the hub suite for every session, blaming the gate for a receipt written after
+    it. The denominator drifts the same way, silently rebasing the "2 of N" counts.
+
+    The content is materialized into a tmp mirror under the same relative path, because
+    `check_file` takes a Path; nothing is ever read from the working tree.
+    """
+    if _corpus_cache:
+        return _corpus_cache
+    rels = [
+        f
+        for f in subprocess.run(
+            [
+                "git",
+                "-C",
+                str(REPO),
+                "ls-tree",
+                "-r",
+                "--name-only",
+                BASE_SHA,
+                "--",
+                "docs/development/reviews",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.split()
+        if f.endswith(".md")
+    ]
+    assert len(rels) == CORPUS_AT_BASE, (
+        f"the pinned corpus is {len(rels)} receipts, not {CORPUS_AT_BASE} — a silent shrink of the "
+        "DD4 denominator makes every 'N of 275' claim in this suite a different assertion"
+    )
+    root = Path(tempfile.mkdtemp(prefix="corpus-at-base-"))
+    for rel in rels:
+        blob = subprocess.run(
+            ["git", "-C", str(REPO), "show", f"{BASE_SHA}:{rel}"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        p = root / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(blob, encoding="utf-8")
+        _corpus_cache.append(p)
+    return _corpus_cache
 
 
 def _base_gate(tmp_path: Path) -> ModuleType:
@@ -705,11 +755,25 @@ def test_arm_b_needs_a_found_left_of_the_empty_cell(tmp_path):
 
 
 def test_arm_b_needs_the_cell_right_of_the_empty_one_to_open_with_the_counter(tmp_path):
-    """Round-5 item 4, condition 2. A `found:` left of the empty cell is not enough: the second
-    row must actually START there. Neither of the two cells right of the gap opens with the
-    counter, so this is one row with a gap, not two rows."""
-    honest = "| R1 | found: 3 issues | fixed: 1 | | R2 | notes, fixed: 0 | found: 0 |"
+    """Round-5 item 4, condition 2. A `found:` left of the empty cell is not enough: some cell
+    right of it must actually OPEN with the counter.
+
+    ⚠️ Round-6 item 1 REPLACED this fixture. It used to be
+    `| R1 | found: 3 issues | fixed: 1 | | R2 | notes, fixed: 0 | found: 0 |`, asserted NOT joined
+    because the counter sat in the third cell right of the gap and the window was `[i+1:i+3]`.
+    That was the fail-open itself, pinned as if it were the contract: the CANONICAL ledger row is
+    `| Pass N | finders | found: … |`, so the third cell is exactly where a real second row keeps
+    its counter. The window is unbounded now, and the honest shape is one where NO cell right of
+    the gap opens with a counter at all."""
+    honest = "| R1 | found: 3 issues | fixed: 1 | | R2 | notes, fixed: 0 | the prior found: 0 |"
+    assert any(not c.strip() for c in crc._row_cells(honest)), "the gap IS there"
     assert crc._joined_row(honest) is False, honest
+    canonical = (
+        "| Pass 3 | o | found: 5 issues | fixed: 0 | | Pass 4 (delta) | o | found: 0 | fixed: 0 |"
+    )
+    assert crc._joined_row(canonical) is True, (
+        "the canonical second row keeps its counter in the THIRD cell — the old window missed it"
+    )
 
 
 def test_arm_b_joins_when_both_conditions_hold_including_a_second_row_with_no_fixed(tmp_path):
@@ -749,3 +813,65 @@ def test_the_prose_arm_never_reaches_a_cell_row_that_narrates_two_pass_heads(tmp
     assert crc._joined_row(narrating) is False, "cells decide a cell row, never narrated prose"
     _t, _p, ordered, refusals = crc._ledger_shapes(narrating + "\n")
     assert refusals == [] and len(ordered) == 1, (refusals, ordered)
+
+
+def test_the_canonical_second_row_keeps_its_counter_in_the_third_cell(tmp_path):
+    """Round-6 item 1 — a fail-OPEN regression that round 5 introduced with `cells[i + 1 : i + 3]`.
+
+    A real ledger row is `| Pass N | finders | found: … |` (this file's own `HEAD` fixture is
+    exactly that), so a join puts the second row's counter THREE cells right of the gap — outside
+    the two-cell window. Executed on the pin: every one of the five arms missed it, the row was
+    kept as `(0, None, 0, None)` and `check_file` returned GREEN, grading the exit quiet off the
+    join's second half. Counting cells was guessing at a layout; the left-side condition is what
+    keeps the arm from over-reaching."""
+    line = (
+        "| Pass 3 | o | found: 5 issues | fixed: 0 | | Pass 4 (delta) | o | found: 0 | fixed: 0 |"
+    )
+    cells = crc._row_cells(line)
+    gap = next(i for i, c in enumerate(cells) if not c.strip())
+    assert not any(crc._CELL_OPENS_FOUND.match(c) for c in cells[gap + 1 : gap + 3]), (
+        "the counter is OUTSIDE the old two-cell window — that is the whole defect"
+    )
+    assert crc._joined_row(line) is True
+    _t, _p, ordered, refusals = crc._ledger_shapes(line + "\n")
+    assert refusals and refusals[0].startswith("two ledger rows on ONE physical line"), refusals
+    assert not any(r[0] == 0 for r in ordered), f"never quiet off the second half: {ordered}"
+    errs = _graded(tmp_path, line + "\n")
+    assert any(e.startswith("Pass row refused:") for e in errs), errs
+
+
+def test_a_cell_opening_with_a_citation_is_not_a_row_start(tmp_path):
+    """Round-6 item 2 — `_CELL_OPENS_FOUND` lacked the stand-alone guard its sibling `_CELL_FOUND`
+    carries, and the comment beside it claimed "a cell that merely CITES a counter does not open
+    with it". A citation CAN open a cell, and only the trailing-word guard tells them apart, so
+    this honest row was refused on the pin."""
+    honest = "| Pass 3 | o | found: 0 | fixed: 0 | | see Pass 2 | found: 3 was cited |"
+    assert crc._CELL_OPENS_FOUND.match(" found: 3 was cited ") is None, "word-trailed: not a start"
+    assert crc._CELL_OPENS_FOUND.match(" found: 3 ") is not None, "readable: a real start"
+    assert crc._joined_row(honest) is False, honest
+    _t, _p, ordered, refusals = crc._ledger_shapes(honest + "\n")
+    assert refusals == [] and len(ordered) == 1, (refusals, ordered)
+    # RECORDED residual, fail-CLOSED by choice: a BARE citing cell right of a gap still reads as a
+    # row start, because that is precisely what a row start looks like. 0 of the 275 receipts.
+    assert crc._joined_row("| R1 | found: 1 | fixed: 0 | | note | found: 2 |") is True
+
+
+def test_the_corpus_is_pinned_to_the_base_sha_not_the_working_tree(tmp_path):
+    """Round-6 item 3 — the landmine under the first merge. The invariance tests grade the current
+    gate against the gate at `BASE_SHA`, so the corpus must be the corpus that SHA saw. Reading
+    live files meant this plan's own receipts (closing rows carrying `confirmed: 0`, quiet under
+    the new grammar and not the old) would red the hub suite for every session the moment they
+    landed, and would rebase the denominator silently besides."""
+    files = _corpus()
+    assert len(files) == CORPUS_AT_BASE, len(files)
+    assert not any(str(p).startswith(str(REPO / "docs")) for p in files), (
+        "a pinned receipt must never resolve into the live working tree"
+    )
+    live = subprocess.run(
+        ["git", "-C", str(REPO), "ls-files", "docs/development/reviews/*.md"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.split()
+    # Equal TODAY; the pin is what keeps the tests correct on the day it stops being equal.
+    assert len(live) >= CORPUS_AT_BASE, (len(live), CORPUS_AT_BASE)
