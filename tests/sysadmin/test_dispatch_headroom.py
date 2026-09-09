@@ -946,3 +946,383 @@ def test_a_parked_parent_frame_keeps_its_reservation_and_the_two_no_standby_fact
         "NO active account in the picture" in x
         for x in dh.budget(6, False, BOX_OK, no_active)["reasons"]
     )
+
+
+# --- T04: --slices, an orchestrator-computed partition (D3/DD2) --------------------------------
+
+
+def test_slices_sizes_the_partition_directly_and_the_d188_floor_stands_down():
+    """D3/DD2: a 2-slice partition is meant to print SEATS: 2, never raised to the D-186/D-188
+    floor of 3. Red-first: on the unmodified script `budget(..., slices=...)` raises TypeError (no
+    such keyword); after the signature lands but before the FLOOR sites stand down this reads
+    SEATS: 3 with "raised to the floor" among the reasons — the exact defect this test pins."""
+    r = dh.budget(0, False, BOX_OK, Q_OK, slices={"opus": 1, "sonnet": 1})
+    assert r["seats"] == 2 and r["caps"]["wanted"] == 2
+    assert not any("raised to the floor" in x for x in r["reasons"])
+    assert not any("below the floor" in x for x in r["reasons"])
+    assert not any("nothing to partition" in x for x in r["reasons"])
+    assert r["floor_granted"] == 0
+
+
+def test_slices_never_hits_the_nothing_to_partition_branch_even_at_units_zero():
+    """`--units 0 --slices opus=1` must print SEATS: 1, never SEATS: 0 through the units<=0 branch
+    — `units` is 0 here on purpose (the CLI default when --units is omitted with --slices given)."""
+    r = dh.budget(0, False, BOX_OK, Q_OK, slices={"opus": 1})
+    assert r["seats"] == 1 and r["caps"]["wanted"] == 1
+    assert not any("nothing to partition" in x for x in r["reasons"])
+
+
+def test_slices_when_none_is_byte_identical_to_the_31_positional_callers():
+    """Every existing caller passes `slices=None` implicitly (the keyword-only default) — the
+    D-186/D-188 floor and `full_mix()` padding must still apply exactly as before."""
+    assert dh.budget(1, False, BOX_OK, Q_OK) == dh.budget(1, False, BOX_OK, Q_OK, slices=None)
+    r = dh.budget(1, False, BOX_OK, Q_OK)
+    assert r["seats"] == dh.FLOOR == 3
+
+
+def test_slices_trim_order_under_a_cap_is_reused_unchanged():
+    """`trim()` (D3: reused unchanged) cuts Haiku first, then the extra Opus seats, then Sonnet,
+    never below one Opus — the same order a units-sized mix trims under, applied to a slices dict."""
+    full = {"opus": 2, "sonnet": 5, "haiku": 1}
+    assert dh.trim(full, 8) == full  # nothing to cut
+    assert dh.trim(full, 5) == {"opus": 1, "sonnet": 4}  # haiku first, then extra opus, then sonnet
+    assert dh.trim(full, 1) == {"opus": 1}  # never below one opus
+    tight = dict(BOX_OK, mem_available_gb=5.0)  # 5 GB / 1 GB read-only = 5 read-only seats
+    r = dh.budget(0, False, tight, Q_OK, slices=full)
+    assert r["seats"] == 5
+
+
+def test_floor_granted_stays_box_driven_under_slices_never_hardcoded_zero():
+    """Implementation note: `floor_granted` is driven by BOX capacity alone and must NOT be gated
+    on `slices` — a capacity-constrained box still grants the floor's OOM-preventing overcommit for
+    a tiny partition, or a capacity-constrained box loses the signal the module exists for."""
+    sib = {"ok": True, "seats": 21, "sessions": 2, "skipped": []}
+    r = dh.budget(0, False, BOX_OK, Q_OK, sib, slices={"opus": 1, "sonnet": 1})
+    assert r["caps"]["box_cap"] == 3 and r["floor_granted"] == 1
+    assert any("floor granted" in x for x in r["reasons"])
+
+
+def test_cli_slices_without_units_defaults_units_to_the_slice_count(monkeypatch, capsys):
+    monkeypatch.setattr(dh, "box", lambda: BOX_OK)
+    monkeypatch.setattr(dh, "quota", lambda: Q_OK)
+    monkeypatch.setattr(
+        dh, "siblings", lambda: {"ok": True, "seats": 0, "sessions": 0, "skipped": []}
+    )
+    assert dh.main(["--slices", "opus=1,sonnet=2"]) == 0
+    out = capsys.readouterr().out
+    assert "SEATS: 3" in out and "units=3" in out
+    assert "raised to the floor" not in out and "below the floor" not in out
+
+
+def test_cli_units_zero_with_slices_prints_seats_one_never_zero(monkeypatch, capsys):
+    monkeypatch.setattr(dh, "box", lambda: BOX_OK)
+    monkeypatch.setattr(dh, "quota", lambda: Q_OK)
+    monkeypatch.setattr(
+        dh, "siblings", lambda: {"ok": True, "seats": 0, "sessions": 0, "skipped": []}
+    )
+    assert dh.main(["--units", "0", "--slices", "opus=1"]) == 0
+    out = capsys.readouterr().out
+    assert "SEATS: 1" in out and "nothing to partition" not in out
+
+
+def test_cli_units_without_slices_behaves_exactly_as_today(monkeypatch, capsys):
+    """Omitting BOTH --units and --slices is refused with a message, never a bare argparse
+    traceback (the flag is optional in argparse now, so the script itself enforces the pair)."""
+    assert dh.main([]) == 2
+    assert "--units is required unless --slices is given" in capsys.readouterr().err
+    monkeypatch.setattr(dh, "box", lambda: BOX_OK)
+    monkeypatch.setattr(dh, "quota", lambda: Q_OK)
+    monkeypatch.setattr(
+        dh, "siblings", lambda: {"ok": True, "seats": 0, "sessions": 0, "skipped": []}
+    )
+    assert dh.main(["--units", "5"]) == 0
+    assert "SEATS: 11" in capsys.readouterr().out  # unchanged from the units-only path
+
+
+def test_json_carries_slices_and_mix_by_slice_beside_every_key_it_carries_today(
+    monkeypatch, capsys
+):
+    monkeypatch.setattr(dh, "box", lambda: BOX_OK)
+    monkeypatch.setattr(dh, "quota", lambda: Q_OK)
+    monkeypatch.setattr(
+        dh, "siblings", lambda: {"ok": True, "seats": 0, "sessions": 0, "skipped": []}
+    )
+    assert dh.main(["--units", "3", "--json"]) == 0
+    d = json.loads(capsys.readouterr().out)
+    assert d["slices"] is None and d["mix_by_slice"] is None
+    assert dh.main(["--slices", "opus=1,sonnet=1", "--json"]) == 0
+    d = json.loads(capsys.readouterr().out)
+    assert d["slices"] == {"opus": 1, "sonnet": 1}
+    assert d["mix_by_slice"] == d["mix"] == {"opus": 1, "sonnet": 1}
+    assert d["box_caps_floored"] == {"read_only": False, "heavy": False}  # idle box, no overcommit
+    assert d["seats"] == 2
+
+
+def test_the_wording_names_a_units_sized_grounding_surface_never_the_retired_phrasing(
+    monkeypatch, capsys
+):
+    """The module docstring, `full_mix()`'s and `_mix_story()`'s (`_mix_story`'s no longer quotes
+    the retired literal) never carry "one Sonnet breadth seat AND one Haiku mechanical seat" or
+    "one Sonnet + one Haiku"; the two printed sentences carry "units-sized grounding surface"."""
+    joined = " ".join(
+        [dh.__doc__ or "", dh.full_mix.__doc__ or "", dh._mix_story.__doc__ or ""]
+    ).lower()
+    assert "one sonnet breadth seat and one haiku mechanical seat" not in joined
+    assert "one sonnet + one haiku" not in joined
+
+    monkeypatch.setattr(dh, "box", lambda: BOX_OK)
+    monkeypatch.setattr(dh, "quota", lambda: Q_OK)
+    monkeypatch.setattr(
+        dh, "siblings", lambda: {"ok": True, "seats": 0, "sessions": 0, "skipped": []}
+    )
+    # the "one per unit" printed sentence (:602 historically)
+    assert dh.main(["--units", "3"]) == 0
+    out_units = capsys.readouterr().out.lower()
+    assert "one sonnet breadth seat and one haiku mechanical seat" not in out_units
+    assert "one sonnet + one haiku" not in out_units
+    assert "units-sized grounding surface" in out_units
+    # the "MAXIMUM useful mix" printed sentence (:606 historically)
+    assert dh.main(["--units", "2", "--mechanical", "0"]) == 0
+    out_mech0 = capsys.readouterr().out.lower()
+    assert "units-sized grounding surface" in out_mech0
+    assert "one sonnet + one haiku" not in out_mech0
+    # the --slices story prints the partition, not the units-sized sentence
+    assert dh.main(["--slices", "opus=1,sonnet=1"]) == 0
+    out_slices = capsys.readouterr().out.lower()
+    assert "orchestrator-computed partition" in out_slices
+    assert "units-sized grounding surface" not in out_slices
+    assert "one sonnet + one haiku" not in out_slices
+    assert "one sonnet breadth seat and one haiku mechanical seat" not in out_slices
+
+
+# --- T04 round 1 review fixes (F1-F8): negative/unknown kinds, zero-sum, no-opus honesty, -------
+# --- mix_by_slice independence, binding-cap wording, sizing wording -----------------------------
+
+
+@pytest.mark.parametrize(
+    "argv,expected_stderr",
+    [
+        (["--slices", "opus=-5"], "--slices count must be >= 0 (got opus=-5)"),
+        (["--slices", "opus=1,sonnet=-2"], "--slices count must be >= 0 (got sonnet=-2)"),
+        (["--slices", "fable=1"], "--slices kind 'fable' is not one of opus, sonnet, haiku"),
+        (["--slices", "opus=1,sonnet=x"], "--slices part 'sonnet=x' is not name=count"),
+    ],
+)
+def test_slices_cli_refuses_negative_counts_unknown_kinds_and_names_the_right_flag(
+    argv, expected_stderr, capsys
+):
+    """F1: `--slices opus=-5` used to print SEATS: -5 and exit 0 — `_count` refuses a negative
+    --units/--risky/--mechanical but --slices shared no such gate. F3: a partition's kinds are
+    exactly opus/sonnet/haiku (Fable is never a finder, D2) — `--slices fable=1` used to price a
+    Fable seat. F4: `parse_mix`'s error text hard-coded "--mix" even when parsing --slices."""
+    assert dh.main(argv) == 2
+    assert expected_stderr in capsys.readouterr().err
+
+
+def test_slices_zero_is_still_a_legal_per_kind_count(monkeypatch, capsys):
+    """`haiku=0` alongside a non-zero kind stays legal — only the SUM being 0 is refused."""
+    monkeypatch.setattr(dh, "box", lambda: BOX_OK)
+    monkeypatch.setattr(dh, "quota", lambda: Q_OK)
+    monkeypatch.setattr(
+        dh, "siblings", lambda: {"ok": True, "seats": 0, "sessions": 0, "skipped": []}
+    )
+    assert dh.main(["--slices", "opus=1,haiku=0", "--json"]) == 0
+    d = json.loads(capsys.readouterr().out)
+    assert d["slices"] == {"opus": 1, "haiku": 0} and d["seats"] == 1
+
+
+def test_slices_zero_sum_partition_is_never_a_silent_seats_zero():
+    """F2: `--slices opus=0,sonnet=0` used to print SEATS: 0 with no reason line — "see the
+    reasons above" pointed at nothing. Mirrors the units-mode "nothing to partition" branch."""
+    r = dh.budget(0, False, BOX_OK, Q_OK, slices={"opus": 0, "sonnet": 0})
+    assert r["seats"] == 0
+    assert any(
+        "slices sum to 0 — nothing to partition; give at least one seat in one kind" in x
+        for x in r["reasons"]
+    )
+    r_empty = dh.budget(0, False, BOX_OK, Q_OK, slices={})
+    assert r_empty["seats"] == 0
+    assert any("slices sum to 0" in x for x in r_empty["reasons"])
+
+
+def test_slices_cli_zero_sum_prints_seats_zero_with_a_reason(monkeypatch, capsys):
+    """F2, CLI-level: the zero-sum reason from `budget()` must actually reach stdout through
+    `main()`'s printed reasons list, not just the return dict `test_slices_zero_sum_partition_is_
+    never_a_silent_seats_zero` already covers at the `budget()` level."""
+    monkeypatch.setattr(dh, "box", lambda: BOX_OK)
+    monkeypatch.setattr(dh, "quota", lambda: Q_OK)
+    monkeypatch.setattr(
+        dh, "siblings", lambda: {"ok": True, "seats": 0, "sessions": 0, "skipped": []}
+    )
+    assert dh.main(["--slices", "opus=0,sonnet=0"]) == 0
+    out = capsys.readouterr().out
+    assert "SEATS: 0" in out
+    assert "slices sum to 0 — nothing to partition" in out
+
+
+def test_slices_no_opus_slice_names_the_dd2_gap_never_injects_a_seat():
+    """F5(a): the budget must not invent an Opus seat for a no-Opus partition (any count is
+    accepted, DD2's carve-out is the orchestrator's duty) — but it says so."""
+    r = dh.budget(0, False, BOX_OK, Q_OK, slices={"sonnet": 5})
+    assert r["caps"]["wanted"] == 5  # no phantom Opus seat added to the count
+    assert any(
+        "partition carries no Opus slice — DD2 wants one authoritative seat over the most "
+        "consequential slice, carved out of the Sonnet count" in x
+        for x in r["reasons"]
+    )
+    # a partition that DOES carry an Opus slice never gets this reason
+    r_ok = dh.budget(0, False, BOX_OK, Q_OK, slices={"opus": 1, "sonnet": 5})
+    assert not any("carries no Opus slice" in x for x in r_ok["reasons"])
+
+
+def test_slices_story_never_claims_opus_on_the_risky_slices_without_an_opus_seat(
+    monkeypatch, capsys
+):
+    """F5(b): `_mix_story` must not print "Opus on the risky slices" beside a mix with no Opus
+    seat — that was an untruthful story about the mix actually printed."""
+    monkeypatch.setattr(dh, "box", lambda: BOX_OK)
+    monkeypatch.setattr(dh, "quota", lambda: Q_OK)
+    monkeypatch.setattr(
+        dh, "siblings", lambda: {"ok": True, "seats": 0, "sessions": 0, "skipped": []}
+    )
+    assert dh.main(["--slices", "sonnet=5"]) == 0
+    out = capsys.readouterr().out
+    assert "Opus on the risky slices" not in out
+    assert "no Opus slice in this partition (see the reason above)" in out
+    # a partition WITH an Opus slice keeps the original sentence
+    assert dh.main(["--slices", "opus=1,sonnet=5"]) == 0
+    out2 = capsys.readouterr().out
+    assert "Opus on the risky slices, Sonnet on the rest" in out2
+    assert "no Opus slice in this partition" not in out2
+
+
+def test_mix_by_slice_is_the_trimmed_partition_independent_of_a_mix_price_override(
+    monkeypatch, capsys
+):
+    """F6: `mix_by_slice` must reflect the PARTITION trimmed to the seat budget, never a `--mix`
+    price override passed alongside `--slices` — the two are independent concerns."""
+    monkeypatch.setattr(dh, "box", lambda: BOX_OK)
+    monkeypatch.setattr(dh, "quota", lambda: Q_OK)
+    monkeypatch.setattr(
+        dh, "siblings", lambda: {"ok": True, "seats": 0, "sessions": 0, "skipped": []}
+    )
+    assert dh.main(["--slices", "opus=1,sonnet=1", "--mix", "opus=1,sonnet=5", "--json"]) == 0
+    d = json.loads(capsys.readouterr().out)
+    assert d["mix"] == {"opus": 1, "sonnet": 5}  # the --mix price override, unaffected
+    assert d["mix_by_slice"] == {"opus": 1, "sonnet": 1}  # the partition, trimmed, NOT the --mix
+    assert d["slices"] == {"opus": 1, "sonnet": 1}
+
+
+def test_mix_by_slice_trims_to_the_seat_budget_under_a_cap(monkeypatch, capsys):
+    """F6/R2 (round-2 review): the PREVIOUS version of this test used no `--mix` override, so
+    `mix_by_slice == mix` was a tautology — on the pre-fix code (e2e57ff5) `mix_by_slice` was
+    simply `dict(mix)`, and without an override `mix` already equals `trim(full, seats)`, so the
+    assertion passed for the WRONG reason and never caught F6. A `--mix` override forces `mix` and
+    `mix_by_slice` to genuinely differ, proving `mix_by_slice` is re-derived from `slices`
+    independently, not read off `mix`. Red-first proof against e2e57ff5 confirmed the previous
+    (tautological) test passed on the broken code; this version fails there — see the T04 report's
+    Tests section for the scratch-mirror run."""
+    monkeypatch.setattr(dh, "box", lambda: dict(BOX_OK, mem_available_gb=1.0))  # 1 read-only seat
+    monkeypatch.setattr(dh, "quota", lambda: Q_OK)
+    monkeypatch.setattr(
+        dh, "siblings", lambda: {"ok": True, "seats": 0, "sessions": 0, "skipped": []}
+    )
+    assert dh.main(["--slices", "opus=1,sonnet=5", "--mix", "haiku=3", "--json"]) == 0
+    d = json.loads(capsys.readouterr().out)
+    assert d["seats"] == 1
+    assert d["mix"] == {"haiku": 3}  # the --mix price override, unaffected by the box cap
+    assert d["mix_by_slice"] == {"opus": 1}  # the partition, trimmed to the box cap — NOT `mix`
+    assert d["mix_by_slice"] != d["mix"]
+
+
+def test_binding_cap_reason_under_slices_names_the_slice_counts_summed():
+    """F7: `--slices opus=1,sonnet=40` used to say "wanted 41 (units x angles + authoritative)" —
+    wrong basis under a partition."""
+    r = dh.budget(0, False, BOX_OK, Q_OK, slices={"opus": 1, "sonnet": 40})
+    assert r["caps"]["wanted"] == 41
+    assert any("wanted 41 (the slice counts summed), bound to" in x for x in r["reasons"])
+    assert not any("units x angles + authoritative" in x for x in r["reasons"])
+    # the units-mode wording is unchanged
+    tight = dict(BOX_OK, mem_available_gb=0.0)
+    r_units = dh.budget(6, False, tight, Q_OK)
+    assert any("units x angles + authoritative" in x for x in r_units["reasons"])
+
+
+def test_the_wording_never_claims_one_seat_per_kind_as_the_sizing_rule():
+    """F8: the module docstring, `budget()`'s comment above `wanted`, the --slices argparse help,
+    and the rotation doc all called the sizing rule "one seat per non-empty slice kind" even
+    though `wanted = sum(slices.values())` — `--slices opus=1,sonnet=5` sizes to 6, not 2. All
+    four sites must say SUMMED (Σ) and reserve "one seat per kind" for the DD2 FLOOR guarantee,
+    never the sizing arithmetic."""
+    src = (REPO / "scripts" / "sysadmin" / "dispatch_headroom.py").read_text()
+    assert "one seat per non-empty slice kind" not in src
+    assert src.count("SUMMED") >= 2  # the module docstring + the budget() comment, at minimum
+    assert (dh.__doc__ or "").count("SUMMED") >= 1
+    doc = (REPO / "docs" / "workstation" / "claude-account-rotation.md").read_text()
+    assert "one seat per non-empty slice kind" not in doc
+    assert "SUMMED" in doc
+
+
+# --- T04 round 2 review fixes (R1-R2): duplicated kinds, mix_by_slice tautology -----------------
+
+
+@pytest.mark.parametrize(
+    "argv,expected_stderr",
+    [
+        (
+            ["--slices", "opus=1,sonnet=4,opus=1"],
+            "--slices kind 'opus' given more than once",
+        ),
+        (
+            ["--slices", "opus=1,opus=2,sonnet=1,sonnet=2"],
+            "--slices kind 'opus', 'sonnet' given more than once",
+        ),
+    ],
+)
+def test_slices_cli_refuses_a_duplicated_kind_and_names_every_one(argv, expected_stderr, capsys):
+    """R1 (round-2 review): `parse_mix`'s dict silently OVERWRITES a duplicated kind's earlier
+    value — "opus=1,sonnet=4,opus=1" summed to SEATS: 5 with one Opus slice vanishing and no
+    reason, exit 0. Now refused, exit 2, naming every duplicated kind (not just the first)."""
+    assert dh.main(argv) == 2
+    assert expected_stderr in capsys.readouterr().err
+
+
+def test_slices_duplicate_kind_is_detected_before_parse_mix_collapses_it():
+    """Item 1 (round-3 delta review): the duplicate check moved INTO `parse_mix` itself — it tracks
+    every parsed key as it goes (`seen`), so it still catches a repeat before the dict has any
+    chance to collapse it, without a second raw-text scan at the call site. A same-value duplicate
+    ("opus=1,...,opus=1") is refused exactly like a differing-value one."""
+    assert dh.main(["--slices", "opus=1,sonnet=4,opus=1"]) == 2  # same value both times
+    assert dh.main(["--slices", "opus=1,sonnet=4,opus=9"]) == 2  # differing value
+
+
+def test_slices_duplicate_check_runs_before_the_unknown_kind_check(capsys):
+    """Cross-check that the duplicate refusal composes with the existing F3 check: `parse_mix`
+    (called before any dict-level check runs) catches a duplicate FIRST — a duplicate of an
+    otherwise-invalid kind still reports the duplicate, not "is not one of opus, sonnet, haiku"."""
+    assert dh.main(["--slices", "fable=1,fable=2"]) == 2
+    assert "given more than once" in capsys.readouterr().err
+
+
+def test_mix_also_refuses_a_duplicated_kind_the_same_grammar_underlies_both_flags(capsys):
+    """Item 1 (round-3 delta review, FIX THE CLASS not the call site): the duplicate check used to
+    live only in the `--slices` validation block, so `parse_mix`'s silent last-wins overwrite was
+    still live on `--mix` — "--mix haiku=7,haiku=7" priced 7 seats when the caller asked for 14,
+    with no reason, exit 0. Now `parse_mix` itself refuses it, so BOTH callers get the fix for
+    free, with no second call site to keep in sync."""
+    assert dh.main(["--units", "3", "--mix", "opus=1,opus=2"]) == 2
+    assert "--mix kind 'opus' given more than once" in capsys.readouterr().err
+    assert dh.main(["--units", "3", "--mix", "haiku=7,haiku=7"]) == 2
+    assert "--mix kind 'haiku' given more than once" in capsys.readouterr().err
+    # case folds together — "HAIKU" and "haiku" are the same kind
+    assert dh.main(["--units", "3", "--mix", "haiku=5,HAIKU=1"]) == 2
+    assert "--mix kind 'haiku' given more than once" in capsys.readouterr().err
+
+
+def test_unknown_slices_kinds_are_all_named_not_just_the_first(capsys):
+    """Item 3 (round-3 delta review, cheap consistency): the unknown-kind message used to report
+    only `unknown[0]` — mirrors the negative-count and duplicate-kind checks, which already report
+    every offender."""
+    assert dh.main(["--slices", "fable=1,claude=2"]) == 2
+    err = capsys.readouterr().err
+    assert "kind 'claude', 'fable' is not one of opus, sonnet, haiku" in err
