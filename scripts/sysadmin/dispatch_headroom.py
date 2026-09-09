@@ -403,16 +403,29 @@ def trim(mix: dict[str, int], seats: int) -> dict[str, int]:
 
 def parse_mix(text: str, flag: str = "--mix") -> dict[str, int]:
     """`opus=1,sonnet=5` -> {"opus": 1, "sonnet": 5}. Every part is `name=count`, nothing implied:
-    a bare name, an empty name or a non-numeric count is refused with the part quoted. `flag` names
-    the CLI flag being parsed in the error text — `--slices` shares this grammar with `--mix` but
-    an error naming "--mix part ..." while parsing `--slices` points the caller at the wrong flag."""
+    a bare name, an empty name or a non-numeric count is refused with the part quoted; a kind given
+    more than once is refused too — a dict silently keeps only the LAST value, so
+    "haiku=5,HAIKU=1" (case folds together) or "opus=1,opus=2" understated a caller's real count
+    with no reason (round-2 delta finding, item 1: this was first fixed for `--slices` alone, but
+    the grammar underlies `--mix` too — "--mix haiku=7,haiku=7" priced 7 seats when the caller
+    asked for 14). Detected HERE, in the grammar itself, so both callers get it for free: `flag`
+    names the CLI flag being parsed in the error text — `--slices` shares this grammar with `--mix`
+    but an error naming "--mix part ..." while parsing `--slices` points the caller at the wrong
+    flag."""
     mix: dict[str, int] = {}
+    seen: list[str] = []
     for part in filter(None, (x.strip() for x in text.split(","))):
         k, eq, v = part.partition("=")
         k = k.strip().lower()
         if not eq or not k or not re.fullmatch(r"-?\d+", v.strip()):
             raise ValueError(f"{flag} part {part!r} is not name=count (e.g. opus=1,sonnet=5)")
+        seen.append(k)
         mix[k] = int(v)
+    dupes = sorted({k for k in seen if seen.count(k) > 1})
+    if dupes:
+        raise ValueError(
+            f"{flag} kind " + ", ".join(f"{k!r}" for k in dupes) + " given more than once"
+        )
     return mix
 
 
@@ -753,30 +766,20 @@ def main(argv: list[str] | None = None) -> int:
         print(f"dispatch_headroom.py: error: {exc}", file=sys.stderr)
         return 2
     if slices is not None:
-        # R1 (round-2 review): `parse_mix`'s dict silently OVERWRITES a duplicated kind's earlier
-        # value — "opus=1,sonnet=4,opus=1" summed to SEATS: 5 with one Opus slice vanishing and no
-        # reason. The parsed dict has already collapsed duplicates by the time we get here, so this
-        # is detected on the RAW `--slices` text, before parsing; every duplicated kind is named,
-        # not just the first (mirrors the negative-count check's "report every bad one" shape).
-        raw_keys = [
-            part.partition("=")[0].strip().lower()
-            for part in filter(None, (x.strip() for x in a.slices.split(",")))
-        ]
-        dupes = sorted({k for k in raw_keys if raw_keys.count(k) > 1})
-        if dupes:
-            print(
-                "dispatch_headroom.py: error: --slices kind "
-                + ", ".join(f"{k!r}" for k in dupes)
-                + " given more than once",
-                file=sys.stderr,
-            )
-            return 2
+        # R1 (round-3 delta review): the duplicate-kind check used to live HERE, scanning the raw
+        # `--slices` text — but that scoped the fix to one caller of a shared grammar. It now lives
+        # INSIDE `parse_mix` itself (raised as the same ValueError this `except` above already
+        # catches), so `--mix` gets it too, for free, with no second call site to keep in sync.
         # F3 (round-1 review): a partition's kinds are exactly opus/sonnet/haiku (Fable is never a
-        # finder, D2) — checked BEFORE the negative-count check, the more fundamental refusal
-        unknown = [k for k in slices if k not in _SLICE_KINDS]
+        # finder, D2) — checked BEFORE the negative-count check, the more fundamental refusal.
+        # Item 3 (round-3 delta review): every unknown kind is named, not just the first — mirrors
+        # the negative-count check's "report every bad one" shape.
+        unknown = sorted(k for k in slices if k not in _SLICE_KINDS)
         if unknown:
             print(
-                f"dispatch_headroom.py: error: --slices kind {unknown[0]!r} is not one of "
+                "dispatch_headroom.py: error: --slices kind "
+                + ", ".join(f"{k!r}" for k in unknown)
+                + " is not one of "
                 + ", ".join(_SLICE_KINDS),
                 file=sys.stderr,
             )

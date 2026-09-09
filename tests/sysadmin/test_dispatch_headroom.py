@@ -1288,17 +1288,41 @@ def test_slices_cli_refuses_a_duplicated_kind_and_names_every_one(argv, expected
 
 
 def test_slices_duplicate_kind_is_detected_before_parse_mix_collapses_it():
-    """The duplicate check runs on the RAW `--slices` text, not the parsed dict — by the time
-    `parse_mix` has run, the dict has already lost the information that a kind repeated. A
-    same-value duplicate ("opus=1,...,opus=1") is refused exactly like a differing-value one."""
+    """Item 1 (round-3 delta review): the duplicate check moved INTO `parse_mix` itself — it tracks
+    every parsed key as it goes (`seen`), so it still catches a repeat before the dict has any
+    chance to collapse it, without a second raw-text scan at the call site. A same-value duplicate
+    ("opus=1,...,opus=1") is refused exactly like a differing-value one."""
     assert dh.main(["--slices", "opus=1,sonnet=4,opus=1"]) == 2  # same value both times
     assert dh.main(["--slices", "opus=1,sonnet=4,opus=9"]) == 2  # differing value
 
 
 def test_slices_duplicate_check_runs_before_the_unknown_kind_check(capsys):
-    """Cross-check that the R1 duplicate refusal composes with the existing F3 check: a duplicated
-    kind is caught FIRST (on raw text), before the unknown-kind check ever sees the collapsed
-    dict — a duplicate of an otherwise-invalid kind still reports the duplicate, not "is not one
-    of opus, sonnet, haiku"."""
+    """Cross-check that the duplicate refusal composes with the existing F3 check: `parse_mix`
+    (called before any dict-level check runs) catches a duplicate FIRST — a duplicate of an
+    otherwise-invalid kind still reports the duplicate, not "is not one of opus, sonnet, haiku"."""
     assert dh.main(["--slices", "fable=1,fable=2"]) == 2
     assert "given more than once" in capsys.readouterr().err
+
+
+def test_mix_also_refuses_a_duplicated_kind_the_same_grammar_underlies_both_flags(capsys):
+    """Item 1 (round-3 delta review, FIX THE CLASS not the call site): the duplicate check used to
+    live only in the `--slices` validation block, so `parse_mix`'s silent last-wins overwrite was
+    still live on `--mix` — "--mix haiku=7,haiku=7" priced 7 seats when the caller asked for 14,
+    with no reason, exit 0. Now `parse_mix` itself refuses it, so BOTH callers get the fix for
+    free, with no second call site to keep in sync."""
+    assert dh.main(["--units", "3", "--mix", "opus=1,opus=2"]) == 2
+    assert "--mix kind 'opus' given more than once" in capsys.readouterr().err
+    assert dh.main(["--units", "3", "--mix", "haiku=7,haiku=7"]) == 2
+    assert "--mix kind 'haiku' given more than once" in capsys.readouterr().err
+    # case folds together — "HAIKU" and "haiku" are the same kind
+    assert dh.main(["--units", "3", "--mix", "haiku=5,HAIKU=1"]) == 2
+    assert "--mix kind 'haiku' given more than once" in capsys.readouterr().err
+
+
+def test_unknown_slices_kinds_are_all_named_not_just_the_first(capsys):
+    """Item 3 (round-3 delta review, cheap consistency): the unknown-kind message used to report
+    only `unknown[0]` — mirrors the negative-count and duplicate-kind checks, which already report
+    every offender."""
+    assert dh.main(["--slices", "fable=1,claude=2"]) == 2
+    err = capsys.readouterr().err
+    assert "kind 'claude', 'fable' is not one of opus, sonnet, haiku" in err
