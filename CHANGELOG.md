@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — The review loop's seat rule and exit: a partition, delta rounds, and a CONFIRMED quiet (2026-09-09)
+
+- **`.windsurf/rules/core/62-using-subagents.md` § Dispatch policy (fleet-synced):** native sizing now has TWO
+  shapes. The two partitioned review loops (`/fabrik-review`, `/fabrik-repo-review`) cut the surface into
+  DISJOINT slices by file — Opus on the risky units only (the always-Opus re-read of every file is retired),
+  Sonnet on every other code and doc unit, at most ONE Haiku seat for a judgement-shaped inventory class the
+  close-out hygiene script cannot express, Fable (Opus by name on a refusal) orchestrating and EXECUTING every
+  refutation and every confirmed reproduction, never a finder; sized by `dispatch_headroom.py --slices
+  opus=N,sonnet=N,haiku=N` and stamped with `command_run.py dispatch --seats <n>` before dispatch. Round 1 is
+  the only full pass; every later round is a COMPUTED delta (`git diff <last round's commit>..HEAD -- <surface>`
+  plus one hop of callers/callees, the tests that import a changed module, and sibling commits on the surface)
+  over a persisting class ledger, and a delta round that dispatches no finder seat may not close the loop.
+  Quiet is zero CONFIRMED code or doc defects (D-206) — RECORDED and REFUTED rows never reopen it. The
+  three-seat floor is scoped to every command that is NOT one of the two partitioned loops (D-208).
+- **`CLAUDE.md` + `templates/governance/CLAUDE.md` (fleet-synced):** the § Subagent fan-out bullet carries the
+  same rule; § COMMAND RUN-RECORD's no-op round becomes the quiet round (`round --confirmed 0`, with the
+  `--findings 0` rule kept for records whose rounds never state `confirmed`); the `round` example gains
+  `--confirmed <N>`; § FINAL OUTPUT's `FEEDBACK:` placeholder names the confirmed trend. Every anchor in
+  § UNIVERSAL governance markers and every `<!-- POOL OFF -->` block is byte-identical.
+- **`docs/reference/convergence-prompts.md` § CODE REVIEW CONVERGENCE:** the prompt now states the partition,
+  adjudication BY EXECUTION (a refutation cites the command it ran and its output), the delta-round surface and
+  the fresh non-authoring closing seat, the receipt shapes the coverage gate refuses, and the seat-brief lessons
+  (pin dirs, `git init` in a pin, the three `command_run.py` env vars, one-Bash-call mutations, `git show` over
+  a bare grep, the 15-minute box, `MACHINERY:` last).
+- **`docs/reference/MD/ai-prompt-templates.md`:** the Pass Ledger closes on `confirmed: 0, fixed: 0` (and
+  `unexecuted: 0` or no such cell) from a delta round with a fresh seat; a ledger that never states `confirmed:`
+  still closes on `found: 0, fixed: 0`.
+- Not distributed by this change: T10 runs the plan's single `sync_enforcement_to_projects.py --force`.
+
 ### Changed — Quota-dashboard board banner names the seat partition, not the retired D-191 literal (2026-09-09)
 
 - Plan `2026-09-09-plan-1-review-convergence-redesign` T05. `scripts/sysadmin/quota_dashboard.py`: the box-budget banner's sizing sentence now says a review loop partitions its files into slices (Opus on the risky slices, Sonnet on the rest, at most one Haiku class seat) and sizes by `--slices`, while a grounding or adjudication surface sizes by `--units` with the three-seat floor — "one Sonnet + one Haiku per unit" is gone; no other banner text changed. Doc: `docs/workstation/quota-dashboard.md` § The box-budget banner. Guard: `tests/test_quota_dashboard_banner.py` (new; red on the pre-fix module by copy-based revert); two executed review rounds (2 → 6 candidates, 0 confirmed — the confirming round the corpus gate demands), receipt `docs/development/reviews/2026-09-09-plan-1-review-convergence-redesign-T05-review.md`.
