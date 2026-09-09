@@ -27,8 +27,8 @@ Coverage-Checklist classes this pass swept CLEAN> --classes-new <classes this pa
 The class ledger persists across rounds: **re-sweep it, never re-scope it** — a pass that invents a
 fresh brief is why a review runs 30 rounds instead of 4. When a round sweeps every known class and
 confirms zero (`--confirmed 0`), `command_run.py` prints the TERMINAL verdict; **only then**
-`done --command fabrik-review --evidence "<the round number + its confirmed:0 · fixed:0 and the fresh seat that read it>" --feedback "<what you filed, to whom | none — surfaces exercised>"`. A genuinely stuck
-review exits via `blocked --command fabrik-review --reason "…" --feedback "<what you filed, to whom | none — surfaces exercised>"` on one of the three sanctioned cases —
+`done --command fabrik-review --evidence "<the round number + its confirmed:0 · fixed:0 and the fresh seat that read it>" --feedback "confusion: <what in the command text misled you | none> · waste: <steps, turns or tokens spent without changing the outcome | none> · change: <the ONE edit to this command or a rule that would have made the run faster | none> · filed: <mail id(s) to infra|fleet|intel | none — surfaces exercised: …>"`. A genuinely stuck
+review exits via `blocked --command fabrik-review --reason "…" --feedback "confusion: <what in the command text misled you | none> · waste: <steps, turns or tokens spent without changing the outcome | none> · change: <the ONE edit to this command or a rule that would have made the run faster | none> · filed: <mail id(s) to infra|fleet|intel | none — surfaces exercised: …>"` on one of the three sanctioned cases —
 never by simply stopping. **Always name the run you close**: a bare close would end whatever is live,
 which after this review pops back to its CALLER (`/fabrik-execute-plan`) means silently ending the
 plan. A mismatched name is refused; closing an already-closed run is a warned no-op.
@@ -141,11 +141,16 @@ that a change re-exposes are in scope).
 **Run the review-hygiene check on the surface FIRST and fix its hits before the seats go out**
 (D4): `python3 scripts/enforcement/check_review_hygiene.py --surface <a file or dir on the surface>
 [--receipt <a docs/development/reviews/ md>] [--phrase "<a stale phrase>"] [--symbol <a live
-symbol>] [--json]` — every flag is REPEATABLE (`action="append"`), and `--json` emits the hits for a
-brief. It is ADVISORY and ALWAYS exits 0, so read its OUTPUT, never its status: it prints a `[NOTE]`
-line for every path it could not read — *"unreadable — NOT scanned, not in the denominator"*, which
-is how a typo'd `--surface` shows itself instead of reading clean — and its summary line states how
-many receipt rows it could not grade. It owns the grep-shaped classes (template residue,
+symbol>] [--json]`. The four selector flags are REPEATABLE (`action="append"`); `--json` is a
+`store_true` that emits the whole sweep — hits, files, notes, `ungraded_rows` — for a brief. It is
+ADVISORY and ALWAYS exits 0, so read its OUTPUT, never its status. It reports a path it did not scan
+in TWO shapes, and the distinction is the point: an ABSENT path (a typo'd `--surface`) reads
+*"<path>: no such path — NOT scanned, not in the denominator"*, a path that exists but cannot be read
+*"<path>: unreadable — NOT scanned, not in the denominator"* — either way it is out of the
+denominator, so an unscanned surface never reads clean. Those lines print as `[NOTE] …` in the text
+output ONLY; **under `--json` they ride the `notes` key and nothing is printed**, so a brief that
+passes `--json` must read `notes` or it is blind to both. The summary line (text mode) states how
+many receipt rows it could not grade — `ungraded_rows` in JSON. It owns the grep-shaped classes (template residue,
 fence parity, raw pipes, dual verdicts, changelog quality, dead symbols, stale phrases), so a seat
 is never spent on one; each hit is a CANDIDATE you adjudicate into the ledger as FIXED (a hygiene
 hit fixed at the round's start is a confirmed doc defect of that round and IS counted) or as
@@ -461,7 +466,7 @@ first pass found" is not an exit — those classes return to UNCHECKED until the
 verdict — every known class clean, `--confirmed 0` — is the machine-readable form of the EXIT above, and
 its NON-CONVERGENCE warning names the failure mode this loop actually has: re-scoping instead of
 re-sweeping. Close the run at that verdict with
-`done --command fabrik-review --evidence "round <n> quiet: confirmed:0 · fixed:0, read by <the fresh seat>, all adjudicated" --feedback "<what you filed, to whom | none — surfaces exercised>"`.
+`done --command fabrik-review --evidence "round <n> quiet: confirmed:0 · fixed:0, read by <the fresh seat>, all adjudicated" --feedback "confusion: <what in the command text misled you | none> · waste: <steps, turns or tokens spent without changing the outcome | none> · change: <the ONE edit to this command or a rule that would have made the run faster | none> · filed: <mail id(s) to infra|fleet|intel | none — surfaces exercised: …>"`.
 
 ## Behavior Contract test generation — native seats author, you curate (the fix for an untested behavior)
 
@@ -485,11 +490,18 @@ a pass that finds nothing must still enumerate that coverage — an empty pass w
 
 **The artifact carries a `## Per-phase verdicts` section with one `### Phase N — <title>: <verdict>` heading per phase** — `check_convergence.py` keys on a `## Phase`/`## Step` HEADING (its `PHASE` regex), so a per-phase TABLE, however complete, fails the gate (trade-intelligence 2026-09-02: two extra gate runs to learn this — 01M1H64D).
 
-**Both exit proofs live in `docs/development/reviews/YYYY-MM-DD-<scope>-review.md` (created before Pass 1 per the Termination contract; skeleton via `python scripts/review_receipt.py --init --changed <paths> --scope <slug>` — the rubric run, the `Surface:` hash, the standing rows, the ledger/phase shapes and the `## Residual` section, every verdict slot `UNCHECKED` under `Status: IN-PROGRESS`) — the adjudicated Coverage Checklist (every row: verdict + evidence naming the files/paths hunted), the numbered Pass Ledger AND the `## Residual` rows. Chat output is a courtesy copy; the FILE is the review:**
+**Both exit proofs live in `docs/development/reviews/YYYY-MM-DD-<scope>-review.md` (created before Pass 1 per the Termination contract; skeleton via `python scripts/review_receipt.py --init --changed <paths> --scope <slug> [--range <base>..HEAD]` — **`--range` is REQUIRED for committed work**: `--init` hashes `git diff HEAD` by default, and on the committed surface Phase 0 mandates that is empty, so it exits 1 with *"the surface is EMPTY … pass `--range <base>..HEAD` for committed work"* — the rubric run, the `Surface:` hash, the standing rows, the ledger/phase shapes and the `## Residual` section, every verdict slot `UNCHECKED` under `Status: IN-PROGRESS`) — the adjudicated Coverage Checklist (every row: verdict + evidence naming the files/paths hunted), the numbered Pass Ledger AND the `## Residual` rows. Chat output is a courtesy copy; the FILE is the review:**
 
 ⚠️ **A long review's artifact outgrows the Read tool (256 KB) — rotate, never truncate.** When the artifact passes **200 KB**, move the per-round FINDING tables (dispositions, refutations, mirror measurements) older than the last three passes into a sibling `…-review-archive.md` in the same directory and leave one pointer line where they were; the Coverage Checklist, the Pass Ledger, the per-phase verdicts, the Gate and the declared residuals STAY in the head — the exit checks read them there, and a finder's brief points at the head. The archive is not a review artifact: it carries no checklist, and `check_review_coverage.py` skips `*-archive.md`. Measured at web-ecommerce-factory (01M1QT171DPCGA43Q0739WGGNP, 2026-09-05): a 53-round review reached 417 KB / 493 disposition rows, and every finder was reduced to `sed`/`grep` over the document whose central rule is that a bounded search is not a read. Short reviews (5–12 rounds, 40–90 KB) never hit it.
 
 ⚠️ **Concurrent lanes: when the repo gate reds on ANOTHER lane's work, do NOT stamp `IN-PROGRESS` on a loop that actually closed.** `final_gate` has no surface-scoped mode, so on a shared tree "my work is clean" and "the repo is clean" are the same assertion, and a converged surface-scoped review could not honestly embed a success block through no property of the surface reviewed (wef1, `01M1KVAZGNJAXXSB4XFMKPQG0Z` — that repo accumulated four records stuck IN-PROGRESS for this reason, which then read as abandoned loops to `check_review_coverage`). Embed the FAILING gate verbatim and declare the attribution beside it, with its denominator, **on ONE line**: `GATE-SCOPE: out-of-surface — <failing check>; findings naming this surface: 0 of <N>; measured by: <command>` — `<N>` is the failing check's TOTAL findings and must be ≥ 1 (a failing gate with zero findings is a contradiction, and `0 of 0` is refused); the `measured by:` value stays on that line (plain text, a backtick span, or an inline fence; a block fence on the following lines is NOT read as the value, and a hard-wrapped declaration is not a declaration). `check_convergence.py` accepts that pair. A non-zero count is YOUR debt, not another lane's — fix it and re-run.
+
+⚠️ **The fence below is THIS PAGE's presentation — the ledger in the RECEIPT is never fenced.**
+`check_review_coverage.py` blanks every fenced block before it grades (`_strip_fences`), so a ledger
+copied WITH its fence is not a ledger at all: the same three rows parse as three when bare and as
+**zero** inside a ```text fence, and a receipt with zero ledger rows grades on nothing. (Same class
+as the `measured by:` rule above, where a block fence on the following lines is not read as the
+value.) Write the rows bare, under the `## Pass Ledger` heading.
 
 ```text
 | Pass 1 | opus×1 + sonnet×3 | found: 5, new: 5, confirmed: 3, fixed: 3, unexecuted: 0 | full partitioned pass; hygiene run at start and close |

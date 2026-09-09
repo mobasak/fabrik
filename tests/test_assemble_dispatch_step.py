@@ -100,12 +100,20 @@ _PARTITION_SENTENCE = (
     "brief names a non-scriptable inventory class; every file read once; sized by "
     "`dispatch_headroom.py --slices opus=N,sonnet=N,haiku=N` (D-207)"
 )
-_UNITS_SENTENCE = (
-    "**plus one Sonnet `fabrik-reviewer` breadth seat per INDEPENDENT unit and one Haiku "
-    "mechanical seat per grep-able class the surface has (trimmed, each Haiku seat sweeps ONE "
-    "class across every unit) — the units-sized mix for a review, docs-review, sweep or audit "
-    "surface (D-208)"
-)
+
+
+def _units_sentence(native: str) -> str:
+    """The D-208 sentence as it renders for a given `{native}` token — the `else`-branch commands
+    use `fabrik-reviewer` or `fabrik-researcher`, so a single literal grades only half of them."""
+    return (
+        f"**plus one Sonnet {native} breadth seat per INDEPENDENT unit and one Haiku "
+        "mechanical seat per grep-able class the surface has (trimmed, each Haiku seat sweeps ONE "
+        "class across every unit) — the units-sized mix for a review, docs-review, sweep or audit "
+        "surface (D-208)"
+    )
+
+
+_UNITS_SENTENCE = _units_sentence("`fabrik-reviewer`")
 
 
 def test_the_two_partitioned_review_loops_get_the_slice_floor_and_nothing_else_does():
@@ -125,17 +133,34 @@ def test_the_two_partitioned_review_loops_get_the_slice_floor_and_nothing_else_d
     assert slice_floors == ["fabrik-repo-review", "fabrik-review"], slice_floors
 
 
-def test_the_partition_sentence_reaches_the_two_rendered_commands_whole(tmp_path):
-    """`_floor()` alone cannot see an interpolation or PARAMS change that mangles the sentence on
-    its way into a command — grade the RENDERED text, comments stripped, and count the carriers."""
+def test_both_floor_sentences_reach_their_rendered_commands_whole(tmp_path):
+    """`_floor()` alone cannot see an interpolation or PARAMS change that mangles a sentence on its
+    way into a command — grade the RENDERED text, comments stripped, and count the carriers. BOTH
+    sentences: grading only the partition one left a D-208-cite mutant red at `_floor()` level and
+    green here (delta round 2)."""
     ac.render(tmp_path, tmp_path / "_skills", agents_dest=tmp_path / "_agents")
-    rendered = {f.stem: f.read_text() for f in tmp_path.glob("*.md")}
-    carriers = sorted(
-        n
-        for n, text in rendered.items()
-        if _PARTITION_SENTENCE in ac._HTML_COMMENT_RE.sub("", text)
-    )
-    assert carriers == ["fabrik-repo-review", "fabrik-review"], (carriers, len(rendered))
+    rendered = {f.stem: ac._HTML_COMMENT_RE.sub("", f.read_text()) for f in tmp_path.glob("*.md")}
+    partition = sorted(n for n, text in rendered.items() if _PARTITION_SENTENCE in text)
+    assert partition == ["fabrik-repo-review", "fabrik-review"], (partition, len(rendered))
+    # The units sentence interpolates `{native}`, so it renders in TWO shapes — assert BOTH, by
+    # command NAME, so dropping one from PARAMS is not absorbed by a count with slack, and the two
+    # partitioned loops must appear in NEITHER (D-208 vs D-207).
+    units = {
+        native: sorted(n for n, text in rendered.items() if _units_sentence(native) in text)
+        for native in ("`fabrik-reviewer`", "`fabrik-researcher`")
+    }
+    assert units == {
+        "`fabrik-reviewer`": ["fabrik-doc-converge", "fabrik-features"],
+        "`fabrik-researcher`": [
+            "fabrik-docs-review",
+            "fabrik-flows-review",
+            "fabrik-rules-review",
+            "fabrik-spec-review",
+            "fabrik-ui-design-review",
+            "fabrik-workflow-review",
+        ],
+    }, (units, len(rendered))
+    assert not {"fabrik-review", "fabrik-repo-review"} & {n for v in units.values() for n in v}
 
 
 def test_the_native_half_of_a_commands_extra_renders_in_the_live_paragraph(tmp_path):
