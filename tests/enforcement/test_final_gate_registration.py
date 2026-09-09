@@ -139,6 +139,7 @@ def test_mutation_registration_is_env_strip_guarded():
 # running in a tier while the pin stays green. Two independent reviewers implemented the mirrored
 # form and proved it accepts both mutants.
 
+
 def _mentions_tier(node: ast.AST) -> bool:
     return any(isinstance(x, ast.Name) and x.id == "tier" for x in ast.walk(node))
 
@@ -214,3 +215,73 @@ def test_plan_lock_release_registered_every_tier():
         "insertion point, and the likeliest place a later edit moves it"
     )
     assert not _plan_lock_release_every_tier(_PLR_MUTANT_GE), "pin accepted the `tier >= 2` mutant"
+
+
+def _review_hygiene_warn_only(src: str) -> bool:
+    """True iff EVERY `check_review_hygiene.py` registration passes `warn_only=True` (and at
+    least one exists). AST, not `str.index` proximity: the textual pin in the check's own suite
+    reads 400 characters past the literal and would accept a `warn_only=True` belonging to the
+    NEXT registration."""
+    tree = ast.parse(src)
+    total = ok = 0
+    for node in ast.walk(tree):
+        if not (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "run_optional_check"
+        ):
+            continue
+        if not any(
+            isinstance(a, ast.Constant)
+            and isinstance(a.value, str)
+            and a.value.endswith("check_review_hygiene.py")
+            for a in node.args
+        ):
+            continue
+        total += 1
+        ok += any(
+            kw.arg == "warn_only" and isinstance(kw.value, ast.Constant) and kw.value.value is True
+            for kw in node.keywords
+        )
+    return total >= 1 and ok == total
+
+
+_RH_MUTANT_NO_FLAG = """
+def run_consistency_checks(tier):
+    results = []
+    results.append(
+        run_optional_check(
+            "scripts/enforcement/check_review_hygiene.py", "Review hygiene (advisory)"
+        )
+    )
+    return results
+"""
+
+_RH_MUTANT_ADVISORY_ONLY = """
+def run_consistency_checks(tier):
+    results = []
+    results.append(
+        run_optional_check(
+            "scripts/enforcement/check_review_hygiene.py",
+            "Review hygiene (advisory)",
+            advisory=True,
+        )
+    )
+    return results
+"""
+
+
+def test_review_hygiene_registered_warn_only():
+    """The check has NO failing exit path by contract (it always exits 0). Registered without
+    `warn_only=True` it is graded as a blocking row in every output mode across ~46 repos, and
+    its advisory stdout is discarded on success — the visibility it exists for."""
+    src = GATE.read_text(encoding="utf-8")
+    assert _review_hygiene_warn_only(src), (
+        "check_review_hygiene.py must be registered with warn_only=True — an always-exits-0 "
+        "check registered as blocking is a contract the gate cannot honour"
+    )
+    # Built-in red: the two mutants a careless edit produces.
+    assert not _review_hygiene_warn_only(_RH_MUTANT_NO_FLAG), "pin accepted a bare registration"
+    assert not _review_hygiene_warn_only(_RH_MUTANT_ADVISORY_ONLY), (
+        "pin accepted advisory=True — advisory preserves stdout but keeps the row BLOCKING"
+    )

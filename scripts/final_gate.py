@@ -1187,6 +1187,21 @@ def run_consistency_checks(
         )
     )
 
+    # Review hygiene (every tier): the grep-shaped classes every review round re-sweeps by hand —
+    # `{{…}}` residue, fence parity, a receipt row whose cells do not line up with its header, a
+    # disposition cell carrying two verdicts. Passed NO arguments on purpose (the comment block at
+    # the Coverage Checklist registration above says why): it self-selects the CHANGED receipts
+    # from `git status` and is silent when none changed, so it is inert on every unrelated commit.
+    # ADVISORY by contract until infra measures its false-positive rate below 5 % over 20 receipts
+    # (DD6) — it never blocks, and its script has no failing exit path.
+    results.append(
+        run_optional_check(
+            "scripts/enforcement/check_review_hygiene.py",
+            "Review hygiene (advisory)",
+            warn_only=True,
+        )
+    )
+
     # Routing policy: the operator's deny + allowlist (D-159) live in a GENERATED, tracked doc that
     # other processes also write, so "the generator applies the policy" is not the same claim as
     # "the policy is in force". Measured 2026-09-06: the hub's own daily_refresh regenerated the doc

@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Review hygiene: the grep-shaped review classes as an advisory gate check (2026-09-09)
+- `scripts/enforcement/check_review_hygiene.py` — six classes the review loop otherwise re-sweeps by hand
+  each round: unrendered `{{…}}` residue, CommonMark fence parity (the same-char-run rule copied with
+  attribution from `check_command_corpus.py::_fence_step`), a receipt table row whose cells do not line up
+  with its header (F280's unescaped mid-cell `|`), a disposition cell carrying more than one BARE verdict
+  word (F314's class — its cell matches the D-206 `VERDICT` grammar zero times, which is why the class
+  counts words and not `VERDICT` matches), `check_changelog.py`'s `check_changelog_quality()` called rather
+  than copied, a dead `--symbol`, and a stale `--phrase` matched across line wraps.
+- ALWAYS exits 0 (`check_retired_terms.py`'s `warn_only` contract) and is registered `warn_only=True` in
+  `final_gate.py` beside Vendored Drift. The gate registration passes NO arguments: it self-selects the
+  changed receipts under `docs/development/reviews/` from `git status` and prints nothing when none changed.
+- Fire rate over the 275 committed receipts at `8092e8a8` (re-measured after five review rounds): `raw-pipe` 33 hits in 19 receipts (0.558 % of 5,917 table rows), `dual-verdict` 27 hits in 5 receipts (1.641 % of 1,645 disposition-bearing rows), 254 rows ungraded (4.3 %).
+  Advisory until infra measures its false-positive rate below 5 % over 20 receipts (DD6).
+
 ### Changed — Run-record protocol + event-stream docs carry `round --confirmed` and the confirmed-based TERMINAL rule (2026-09-09)
 
 - Plan `2026-09-09-plan-1-review-convergence-redesign` T09 (D-203 R9), documented ahead of T10's code. `docs/reference/command-run-protocol.md`: `round` gains `--confirmed <n>`; the TERMINAL verdict fires on `confirmed == 0` with a class-ledger close when the LAST round states it, the old `--findings 0` rule standing otherwise; the oscillation advisory, the `FEEDBACK:` trend and the ledger row read the `confirmed` series only when every round of the RECORD states it (one unstated round reads `findings`). `docs/workstation/kaizen-event-stream.md`: the `round` event row lists `seats` and `confirmed` (absent when not stated). Three executed review rounds (1 → 1 → 0 confirmed), receipt `docs/development/reviews/2026-09-09-plan-1-review-convergence-redesign-T09-review.md`.
