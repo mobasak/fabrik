@@ -173,8 +173,9 @@ ignored files even without `--force`, a worktree holding ignored DATA outside th
 **What it never touches** (hard-coded, printed by `--help` and by every apply run): repo files, except
 a worktree it classified removable · transcripts and `~/.claude*/state`, beyond the one lock file it
 creates · `<repo>/.tmp/**` as a scan root · docker anything · another LIVE session's scratch · the
-session's own `tasks/` dir · a symlink's target · a worktree another session registered, one holding
-ignored data, or one git does not register · anything holding a backup shape (`*.bak`, `*.original`,
+session's own `tasks/` dir · a symlink's target · a worktree another session registered (unless
+`--foreign-older-than`, below), one holding ignored data, or one git does not register · anything
+holding a backup shape (`*.bak`, `*.original`,
 `*pristine*`, `before.txt`/`after.txt`, `.keep`) — the entry's own NAME included, which is what keeps
 the operator's `pristine/` and `fe-pristine/` baselines.
 
@@ -195,6 +196,21 @@ younger than 7 days — one of them 8 minutes old.
 and `flock(1)` holds it across the exec — so a wrapper on the same path makes the child's own
 non-blocking acquire fail and the janitor exits 0 having swept nothing, silently, every night.
 Reproduced 2026-09-08.
+
+**`--foreign-older-than DURATION` — the dormant-residue flag.** Provenance alone made `--apply` a
+guaranteed no-op for the only population the mode exists for: accumulated residue is BY DEFINITION
+older than every future session, so the one session permitted to remove it is the one that created
+it, and that session is gone. Two repos filed it the same day with the same shape —
+web-ecommerce-factory 30 of 30 rows `wt-foreign`, fabrik-lib 10 of 10, oldest 66–68 d. The flag does
+not weaken the chain, it lets the chain RUN: a foreign tree older than DURATION is judged on its own
+state, and **only a `wt-removable` verdict is promoted** — merged, clean, unlocked, unheld. Every
+refusal keeps its own class, which is strictly more informative than the blanket `wt-foreign` it
+replaces. Two things it deliberately will not do: a dormant tree whose registration is merely STALE
+stays `wt-foreign`, because acting on it runs the REPO-WIDE `git worktree prune` and would drop other
+sessions' registrations as a side effect; and a non-positive DURATION is refused (rc 1) rather than
+read as "every tree qualifies". Measured on the hub the day it shipped: at `1d`, all 13 rows that had
+been `wt-foreign` resolved to `wt-dirty` — each holding an uncommitted `.venv` — and **zero** became
+removable. That is the flag working, not failing: the blanket verdict had been hiding the real reason.
 
 **Test seams** (env vars, all with production defaults): `SCRATCH_SWEEP_ROOT` · `SCRATCH_SWEEP_NOW`
 · `SCRATCH_SWEEP_SESSIONS_DIRS` · `SCRATCH_SWEEP_TRANSCRIPT_DIRS` · `SCRATCH_SWEEP_BTIME` ·

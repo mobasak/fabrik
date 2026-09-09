@@ -64,13 +64,18 @@ REFUSAL_SET = """NEVER TOUCHES (hard-coded; this text is printed by --help and b
   * a symlink's target — a symlinked entry is `unclassified` and is never followed
   * a HARNESS-owned worktree (<repo>/.claude/worktrees/**, or a .git/worktrees/<n>/CLAUDE_BASE
     marker) unless --include-harness AND its own chain verdict is wt-removable
-  * a worktree this session did not create (wt-foreign), one holding IGNORED files outside the
-    cache allowlist (wt-ignored-data), or a directory git does not register (wt-orphan-dir)
+  * a worktree this session did not create (wt-foreign) unless --foreign-older-than DURATION, and
+    then ONLY when its own chain verdict is wt-removable — merged, clean, unlocked and unheld; a
+    dormant tree whose registration is merely STALE stays wt-foreign, because acting on it runs
+    the REPO-WIDE `git worktree prune` and would drop other sessions' registrations too
+  * a worktree holding IGNORED files outside the cache allowlist (wt-ignored-data), or a directory
+    git does not register (wt-orphan-dir)
   * anything holding a BACKUP SHAPE — *.bak, *.original, *pristine* (case-insensitive),
     before.txt/after.txt, .keep — the entry's OWN NAME included, unless --include-backups
   * a root-level entry of the scratch root, unless --unowned-older-than DAYS
-Held, kept, fresh, dirty, unmerged, locked, foreign, orphan-dir, ignored-data and unclassifiable
-entries are LISTED with their reason and never removed."""
+Held, kept, fresh, dirty, unmerged, locked, orphan-dir, ignored-data and unclassifiable entries are
+LISTED with their reason and never removed. Foreign is the one CONDITIONAL class: listed and never
+removed by default, and judged on its own state only under --foreign-older-than (see above)."""
 
 # Ignored paths that are rebuildable caches, not data — a worktree holding only these stays removable.
 CACHE_ALLOWLIST = (
@@ -1004,6 +1009,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="also remove root-level entries older than DAYS",
     )
     ap.add_argument(
+        "--foreign-older-than",
+        default=None,
+        metavar="DURATION",
+        help=(
+            "let a worktree registered before this session started be judged on its own state "
+            "once it is older than DURATION (e.g. 14d) — every refusal still applies"
+        ),
+    )
+    ap.add_argument(
         "--include-harness",
         action="store_true",
         help="let a harness worktree be removed when its own verdict is wt-removable",
@@ -1505,6 +1519,7 @@ def classify_worktrees(
     proc_root: Path,
     session_start: float | None,
     include_harness: bool = False,
+    foreign_older_than_s: float | None = None,
 ) -> list[Row]:
     """One row per registration, plus every unregistered directory under `.claude/worktrees/`."""
     entries = _worktree_registrations(repo)
@@ -1555,6 +1570,7 @@ def classify_worktrees(
                 held,
                 session_start,
                 now,
+                foreign_older_than_s,
             )
         )
     rows.extend(_orphan_worktree_dirs(repo, {e.get("worktree", "") for e in entries}))
@@ -1572,6 +1588,7 @@ def _classify_worktree(
     held: dict[str, str],
     session_start: float | None,
     now: float,
+    foreign_older_than_s: float | None = None,
 ) -> Row:
     p = str(path)
     # `refs/heads/feat/foo` is the branch `feat/foo`, not `foo`. Truncating at the LAST slash
@@ -1600,13 +1617,27 @@ def _classify_worktree(
         registered = gitdir_meta.stat().st_mtime
     except OSError:
         return Row(p, "worktree", "wt-foreign", "no registration metadata — provenance unprovable")
-    if registered < session_start:
+    # DORMANCY, not authorship. The provenance guard used to RETURN here, so dirty / unmerged /
+    # held / ignored-data were never evaluated for a foreign tree — which made `--apply` a
+    # guaranteed no-op for the only population this mode exists for: accumulated residue is BY
+    # DEFINITION older than every future session, so the one session allowed to remove it is the
+    # one that created it, and that session is gone. Filed independently by two repos on the same
+    # day with the same denominator shape (web-ecommerce-factory 30 of 30 rows `wt-foreign`,
+    # fabrik-lib 10 of 10, oldest 66-68d). `--foreign-older-than` does not WEAKEN the chain — it
+    # lets the chain RUN, and only a `wt-removable` verdict is promoted.
+    dormant = (
+        registered < session_start
+        and foreign_older_than_s is not None
+        and (now - registered) >= foreign_older_than_s
+    )
+    if registered < session_start and not dormant:
         return Row(
             p,
             "worktree",
             "wt-foreign",
             "registered before this session started — not this run's to remove",
-            f"registered {_human(now - registered)} ago",
+            f"registered {_human(now - registered)} ago"
+            + ("" if foreign_older_than_s is None else "; --foreign-older-than to judge it"),
         )
 
     is_harness = (
@@ -1616,6 +1647,18 @@ def _classify_worktree(
     verdict, reason, evidence = _worktree_chain(
         path, entry, main_path, target, branch, stashed, detached_stash, held
     )
+    if dormant and verdict == "wt-prunable":
+        # `wt-prunable` is in REMOVABLE, but acting on it runs `git worktree prune`, which is
+        # REPO-WIDE: it would drop OTHER sessions' stale registrations as a side effect of a flag
+        # aimed at one dormant tree. The dormancy flag never buys that; the operator runs prune.
+        return Row(
+            p,
+            "worktree",
+            "wt-foreign",
+            "dormant, but its registration is stale and `git worktree prune` is repo-wide — "
+            "run it yourself rather than have one tree's flag drop every session's registration",
+            f"registered {_human(now - registered)} ago",
+        )
     if is_harness:
         # TAG, never short-circuit — and the tag is only applied when the CHAIN said removable.
         # Returning `wt-harness` for a dirty / unmerged / ignored-data tree too would let
@@ -1634,6 +1677,18 @@ def _classify_worktree(
                 reason,
             )
         return Row(p, "worktree", verdict, f"harness-created; {reason}", evidence)
+    if dormant:
+        # Every refusal keeps its OWN class — dirty / unmerged / held / locked / ignored-data are
+        # each strictly more informative than the blanket `wt-foreign` this used to return, and
+        # only `wt-removable` is in REMOVABLE. The dormancy is named in the reason so an operator
+        # reading the table sees WHY this row became actionable when it never was before.
+        return Row(
+            p,
+            "worktree",
+            verdict,
+            f"dormant {_human(now - registered)} — {reason}",
+            evidence,
+        )
     return Row(p, "worktree", verdict, reason, evidence)
 
 
@@ -1786,7 +1841,14 @@ def run_worktrees_mode(args: argparse.Namespace) -> int:
     elif sid and SID_RE.match(sid):
         by_sid, _ = read_sessions(sessions_dirs())
         start = session_start_epoch(by_sid.get(sid, []))
-    rows = classify_worktrees(repo, _now(), _proc_root(), start, args.include_harness)
+    foreign_s: float | None = None
+    if args.foreign_older_than is not None:
+        try:
+            foreign_s = parse_duration(args.foreign_older_than)
+        except ValueError as exc:
+            print(f"--foreign-older-than: {exc}", file=sys.stderr)
+            return RC_USAGE
+    rows = classify_worktrees(repo, _now(), _proc_root(), start, args.include_harness, foreign_s)
     if args.strict_proc:
         _held, wt_gaps, _ok = probe_holders([Path(r.path) for r in rows], _proc_root())
         if wt_gaps:

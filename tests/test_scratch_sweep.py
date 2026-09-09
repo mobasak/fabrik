@@ -1643,3 +1643,108 @@ def test_the_close_out_brief_truncates_rather_than_being_killed(scratch: Path) -
         f"the close-out walk ({walk_deadline}s) must finish inside its caller's timeout "
         f"({timeout}s), or the biggest scratchpads are killed and print nothing"
     )
+
+
+# ── dormant foreign worktrees: the no-op that two repos filed ───────────────────────────────────
+def _dormant(repo: Path, age_days: int = 30) -> dict[str, str]:
+    """Age EVERY registration past the threshold, and start this session AFTER all of them.
+
+    That is the real population: a dormant worktree is by definition one a PAST session left, so
+    `registered < session_start` holds for every row and the provenance guard alone returns
+    `wt-foreign` for all of them.
+    """
+    wtdir = repo / ".git" / "worktrees"
+    if wtdir.is_dir():
+        for child in wtdir.iterdir():
+            gitdir = child / "gitdir"
+            if gitdir.exists():
+                os.utime(gitdir, (NOW - age_days * DAY, NOW - age_days * DAY))
+    return _wt_env(SCRATCH_SWEEP_FORCE_START=str(NOW + DAY))
+
+
+def test_dormant_foreign_worktrees_are_unreachable_without_the_flag(repo: Path) -> None:
+    """The filed defect: `--apply` is a guaranteed no-op for the population the mode exists for.
+
+    web-ecommerce-factory measured 30 of 30 rows `wt-foreign`, fabrik-lib 10 of 10. The guard
+    compares each registration against the CURRENT session's start, and accumulated residue is
+    older than every future session — so the session that could remove it is the one that created
+    it, and that session is gone. This pins the baseline the flag has to change.
+    """
+    proc = _run("--worktrees", str(repo), env=_dormant(repo))
+    assert proc.returncode == 0, proc.stderr
+    classes = set(_classes(proc.stdout).values())
+    assert classes <= {"wt-foreign", "wt-orphan-dir", "unclassified"}, proc.stdout
+    assert "wt-removable" not in classes, "baseline: nothing is reachable without the flag"
+
+
+def test_foreign_older_than_promotes_only_the_clean_merged_tree(repo: Path) -> None:
+    """Liveness-and-state, not authorship — and EVERY existing refusal keeps its own class.
+
+    The point of the flag is not to weaken the chain but to let the chain RUN: today the
+    provenance guard short-circuits before dirty / unmerged / ignored-data / held are ever
+    evaluated, so a blanket `wt-foreign` hides which trees are actually unsafe.
+    """
+    proc = _run("--worktrees", str(repo), "--foreign-older-than", "7d", env=_dormant(repo))
+    assert proc.returncode == 0, proc.stderr
+    cls = _classes(proc.stdout)
+    by_name = {Path(p).name: c for p, c in cls.items()}
+
+    assert by_name.get("wt-merged") == "wt-removable", proc.stdout
+    # the refusals survive AS THEMSELVES — strictly more informative than wt-foreign
+    assert by_name.get("wt-dirty") == "wt-dirty", proc.stdout
+    assert by_name.get("wt-unmerged") == "wt-unmerged", proc.stdout
+    assert by_name.get("wt-nearmiss") == "wt-unmerged", proc.stdout
+    assert by_name.get("wt-stashed") == "wt-dirty", proc.stdout
+    assert by_name.get("wt-ignored-data") == "wt-ignored-data", proc.stdout
+
+
+def test_foreign_older_than_respects_its_own_age_gate(repo: Path) -> None:
+    """A dormant-looking flag that ignores the age is a blanket override wearing a threshold."""
+    proc = _run("--worktrees", str(repo), "--foreign-older-than", "60d", env=_dormant(repo, 30))
+    assert proc.returncode == 0, proc.stderr
+    classes = set(_classes(proc.stdout).values())
+    assert "wt-removable" not in classes, (
+        "30d of dormancy must not satisfy a 60d threshold:\n" + proc.stdout
+    )
+
+
+def test_foreign_older_than_apply_removes_the_merged_tree_and_keeps_the_rest(repo: Path) -> None:
+    """The end-to-end proof, and the data-loss constraint: only the clean merged tree goes."""
+    tmp = repo.parent
+    proc = _run(
+        "--worktrees", str(repo), "--apply", "--foreign-older-than", "7d", env=_dormant(repo)
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert not (tmp / "wt-merged").exists(), (
+        "the clean merged dormant tree is removable:\n" + proc.stdout
+    )
+    for keep in ("wt-dirty", "wt-unmerged", "wt-nearmiss", "wt-stashed", "wt-ignored-data"):
+        assert (tmp / keep).exists(), f"{keep} must survive --apply:\n{proc.stdout}"
+
+
+def test_foreign_older_than_refuses_a_non_positive_threshold(repo: Path) -> None:
+    """A negative threshold would make `(now - registered) >= T` true for EVERY row.
+
+    That is a blanket override wearing a duration, so the flag must route through
+    `parse_duration` (which refuses non-positive) rather than a bare `float()`.
+    """
+    for bad in ("-5d", "banana"):
+        proc = _run("--worktrees", str(repo), f"--foreign-older-than={bad}", env=_dormant(repo))
+        assert proc.returncode == 1, f"{bad!r} must be refused (rc 1), got rc {proc.returncode}"
+        assert "--foreign-older-than" in proc.stderr, proc.stderr
+
+
+def test_a_dormant_foreign_tree_never_triggers_a_repo_wide_prune(repo: Path) -> None:
+    """`wt-prunable` is in REMOVABLE, but acting on it runs `git worktree prune` — REPO-WIDE.
+
+    Promoting a dormant prunable row would drop OTHER sessions' stale registrations as a side
+    effect of a flag aimed at one tree. The dormancy flag must never buy that: the row stays
+    `wt-foreign` and says why, so the operator runs prune deliberately or not at all.
+    """
+    proc = _run("--worktrees", str(repo), "--foreign-older-than", "7d", env=_dormant(repo))
+    assert proc.returncode == 0, proc.stderr
+    by_name = {Path(p).name: c for p, c in _classes(proc.stdout).items()}
+    assert by_name.get("wt-gone") == "wt-foreign", (
+        "a dormant tree whose registration is stale must NOT become removable:\n" + proc.stdout
+    )
+    assert "prune" in proc.stdout, "the row must say what to run instead:\n" + proc.stdout
