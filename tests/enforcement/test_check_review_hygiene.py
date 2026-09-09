@@ -239,6 +239,24 @@ def test_only_the_renderers_own_tree_is_exempt_from_the_residue_class(tmp_path):
     assert _lines(crh.scan(surfaces=[exempt]), "template-residue") == []
 
 
+def test_a_symlink_loop_does_not_raise_out_of_the_source_tree_test(tmp_path):
+    """Non-strict `Path.resolve()` raises RuntimeError — NOT OSError — on a symlink loop (3.12).
+    Latent through the CLI (the existence gate fires first), but this script's contract is that no
+    input reaches an uncaught raise, and a direct caller has no such gate."""
+    a, b = tmp_path / "loopa", tmp_path / "loopb"
+    a.symlink_to(b)
+    b.symlink_to(a)
+    assert crh._is_template_source(str(a / "rendered.md")) is False
+
+
+def test_the_tally_rules_false_negative_shape_is_named(tmp_path):
+    """STATED COST (c): the tally is DELETED before the words are counted, so a real disposition
+    opening with a small count is erased with it. 0 of the 9 live tally fires at 8092e8a8 are of
+    this shape, so the rule stands — the shape is PINNED so it is not rediscovered as a surprise."""
+    assert crh._verdict_words("FIXED 12 of the rows and REFUTED 1") == []
+    assert crh._verdict_words("RECORDED 2 as false positives; FIXED 1") == []
+
+
 def test_the_source_tree_skip_survives_a_run_from_inside_the_directory(tmp_path):
     """`cd commands/_sources && … --surface .` hands over bare basenames, which carry no
     `_sources` ancestor: the same 36 files gave 127 hits from inside and 0 from the repo root."""
@@ -487,8 +505,10 @@ def test_the_gate_registers_it_warn_only():
 # ---------------------------------------------------------------- the measured fire rate
 
 # Pinned from the run whose output is quoted in docs/workflows/FINAL_GATE_WORKFLOW.md. The doc's
-# numbers are copied FROM this test's printed output, never typed by hand — a prose-only fire rate
-# is a claim nothing re-derives, and this class of check earns its place only while the rate holds.
+# numbers are TRANSCRIBED FROM this test's printed output, never typed from memory — the doc adds
+# `%`-spacing and thousands separators by hand, and says `TRANSCRIBED from` for exactly that
+# reason. A prose-only fire rate is a claim nothing re-derives, and this class of check earns its
+# place only while the rate holds.
 CORPUS_RECEIPTS = 275
 CORPUS_ROWS = 5917
 CORPUS_DISPOSITION_ROWS = 1645

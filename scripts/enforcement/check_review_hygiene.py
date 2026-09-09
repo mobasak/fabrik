@@ -88,6 +88,13 @@ def _verdict_words(cell: str) -> list[str]:
     Pass-Ledger/tally cells the orchestrator adjudicates
     `RECORDED — hygiene false positive (a tally, not a disposition)`; that adjudication is DD6's
     own measurement input.
+
+    ⚠️ And the cost in the OTHER direction, a false NEGATIVE: the tally is DELETED before the words
+    are counted, so a genuine disposition that opens with a small count is erased with it —
+    `FIXED 12 of the rows and REFUTED 1` and `RECORDED 2 as false positives; FIXED 1` both score
+    zero verdict words, not two. Measured at 8092e8a8: 0 of the 9 live tally fires are of that
+    shape, so the rule stays as it is; the shape is named here so the next reader does not have to
+    rediscover it.
     """
     return VERDICT_WORD.findall(_TALLY.sub("", cell))
 
@@ -380,7 +387,11 @@ def _is_template_source(path: str) -> bool:
     """
     try:
         parts = Path(path).resolve().parts
-    except OSError:  # a path the OS refuses to resolve is judged as written
+    except (OSError, RuntimeError):
+        # A path the OS refuses to resolve is judged AS WRITTEN. RuntimeError belongs here too:
+        # non-strict `Path.resolve()` raises it — not OSError — on a symlink loop (3.12). Latent
+        # today because the CLI's existence gate fires first, but this script's whole contract is
+        # that no input reaches an uncaught raise, and a direct caller has no such gate.
         parts = Path(path).parts
     return any(
         parts[i] == "commands" and parts[i + 1] in _SOURCE_DIRS for i in range(len(parts) - 1)
