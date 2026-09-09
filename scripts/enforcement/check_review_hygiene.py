@@ -59,23 +59,27 @@ TEMPLATE_RESIDUE = re.compile(r"\{\{[^{}\n]*\}\}")
 # reads `RECORDED — the F250 shape …`, which carries two bare RECORDEDs and satisfies the
 # widened `VERDICT` zero times. Counting VERDICT matches here would miss the whole class.
 VERDICT_WORD = re.compile(r"\b(?:CLEAN|FIXED|REFUTED|ROUTED|RECORDED)\b")
-# ⚠️ A verdict word ADJACENT TO A DIGIT is a TALLY REFERENCE, not a disposition — `6 FIXED ·
-# 1 REFUTED`, `the round-14 tally reads FIXED 12 · RECORDED 2`. Structural (a digit on either
-# side), not a phrase list: the receipts write tallies in at least four spellings and a
-# hand-listed set is one entry away from the next bypass. Round 1 measured this on the D-191
-# receipt's own remediation row (`:694`) and four pure Pass-Ledger tally cells.
+_TALLY = re.compile(r"\b(?:CLEAN|FIXED|REFUTED|ROUTED|RECORDED)\s+\d")
+# ⚠️ A verdict word FOLLOWED BY A COUNT is a TALLY REFERENCE, not a disposition — `the round-14
+# tally reads FIXED 12 · RECORDED 2`. Structural (the word, then a number), not a phrase list: the
+# receipts write tallies in several spellings and a hand-listed set is one entry away from the next
+# bypass. Round 1 measured this on the D-191 receipt's own remediation row (`:694`); round 2
+# narrowed it from "a digit on EITHER side", which also ate `F280 FIXED` and `round 14 FIXED`.
 
 
 def _verdict_words(cell: str) -> list[str]:
-    """The verdict words in a cell that are DISPOSITIONS, tally references dropped."""
-    out: list[str] = []
-    for m in VERDICT_WORD.finditer(cell):
-        before = cell[: m.start()].rstrip()
-        after = cell[m.end() :].lstrip()
-        if (before and before[-1].isdigit()) or (after and after[0].isdigit()):
-            continue
-        out.append(m.group(0))
-    return out
+    """The verdict words in a cell that are DISPOSITIONS, tally references dropped.
+
+    A TALLY is the verdict word FOLLOWED by a count — `FIXED 12 · RECORDED 2`. A digit BEFORE the
+    word is not one: `F280 FIXED — escaped the pipe` is a finding id and `round 14 FIXED; round 15
+    REFUTED` is two real dispositions, both of which a symmetric adjacency rule silently ate
+    (round 2). ⚠️ STATED COST of the narrowing: a cell that is nothing but a leading count —
+    `6 FIXED · 1 REFUTED`, `5 FIXED / 16 REFUTED` — fires again, because nothing structural
+    separates it from two dispositions written side by side. Those are Pass-Ledger tally cells and
+    the orchestrator adjudicates them `RECORDED — hygiene false positive (a tally, not a
+    disposition)`; that adjudication is DD6's own measurement input.
+    """
+    return VERDICT_WORD.findall(_TALLY.sub("", cell))
 
 
 REVIEWS_PREFIX = "docs/development/reviews/"
@@ -351,7 +355,14 @@ _SOURCE_DIRS = frozenset({"_sources", "_fragments"})
 
 
 def _is_template_source(path: str) -> bool:
-    return bool(_SOURCE_DIRS.intersection(Path(path).parts))
+    # RESOLVED parts, never the parts as given: `cd commands/_sources && … --surface .` hands over
+    # bare basenames, which carry no `_sources` ancestor at all — the same 36 files then produced
+    # 127 hits from inside the directory and 0 from the repo root (round 2).
+    try:
+        parts = Path(path).resolve().parts
+    except OSError:  # a path the OS refuses to resolve is judged as written
+        parts = Path(path).parts
+    return bool(_SOURCE_DIRS.intersection(parts))
 
 
 def _surface_hits(path: str, text: str, phrases: list[str]) -> list[Hit]:
@@ -414,9 +425,18 @@ def _changelog_hits(path: str, text: str) -> list[Hit]:
 
 
 # --------------------------------------------------------------------------- driver
-def _expand(paths: list[Path]) -> list[Path]:
+def _expand(paths: list[Path]) -> tuple[list[Path], list[str]]:
+    """(files to read, notes for the paths that are neither). A caller-named path that simply
+    vanishes from both the hits and the denominator is byte-identical to a clean sweep — the exact
+    shape the unreadable-file NOTE exists to prevent, one branch earlier."""
     out: list[Path] = []
+    missing: list[str] = []
     for p in paths:
+        if not p.exists():
+            missing.append(
+                f"{_display(str(p))}: no such path — NOT scanned, not in the denominator"
+            )
+            continue
         if p.is_dir():
             out.extend(
                 sorted(
@@ -433,7 +453,7 @@ def _expand(paths: list[Path]) -> list[Path]:
         if p not in seen:
             seen.add(p)
             uniq.append(p)
-    return uniq
+    return uniq, missing
 
 
 def _read(p: Path) -> str | None:
@@ -463,10 +483,10 @@ def scan(
     """Never raises for a missing or unreadable file — it NOTES it instead."""
     phrases = phrases or []
     symbols = symbols or []
-    surface_files = _expand([Path(p) for p in (surfaces or [])])
-    receipt_files = _expand([Path(p) for p in (receipts or [])])
+    surface_files, surface_missing = _expand([Path(p) for p in (surfaces or [])])
+    receipt_files, receipt_missing = _expand([Path(p) for p in (receipts or [])])
     hits: list[Hit] = []
-    notes: list[str] = []
+    notes: list[str] = [*surface_missing, *receipt_missing]
     ungraded = 0
     read: dict[Path, str] = {}
     for p in surface_files:

@@ -10,6 +10,7 @@ when absent (a shallow clone).
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -91,10 +92,14 @@ def test_a_tally_reference_is_not_a_second_disposition(tmp_path):
     """`6 FIXED · 1 REFUTED` and `reads FIXED 12 · RECORDED 2` are COUNTS of verdicts, not two
     verdicts. Structural (a digit on either side), never a phrase list."""
     assert crh._verdict_words("FIXED — moved; the spans REFUTED again") == ["FIXED", "REFUTED"]
-    assert crh._verdict_words("6 FIXED · 1 REFUTED") == []
     assert crh._verdict_words("FIXED — one per cell; the tally reads FIXED 12 · RECORDED 2") == [
         "FIXED"
     ]
+    # A digit BEFORE the word is a finding id or a round number, NEVER a tally — a symmetric
+    # adjacency rule dropped all three of these, two of them silently halving a real cell.
+    assert crh._verdict_words("F280 FIXED — escaped the pipe") == ["FIXED"]
+    assert crh._verdict_words("round 14 FIXED; round 15 REFUTED") == ["FIXED", "REFUTED"]
+    assert crh._verdict_words("RECORDED — the 2 RECORDED rows above") == ["RECORDED", "RECORDED"]
 
 
 def test_the_raw_pipe_class_fires_on_f280_before_it_was_escaped(tmp_path):
@@ -191,6 +196,30 @@ def test_template_residue_is_not_reported_in_a_command_source_tree(tmp_path):
         src = d / "fabrik-thing.md"
         src.write_text("# Thing\n\n{{include:run-record}}\n", encoding="utf-8")
         assert _lines(crh.scan(surfaces=[src]), "template-residue") == [], parent
+
+
+def test_the_source_tree_skip_survives_a_run_from_inside_the_directory(tmp_path):
+    """`cd commands/_sources && … --surface .` hands over bare basenames, which carry no
+    `_sources` ancestor: the same 36 files gave 127 hits from inside and 0 from the repo root."""
+    d = tmp_path / "commands" / "_sources"
+    d.mkdir(parents=True)
+    (d / "fabrik-thing.md").write_text("{{include:run-record}}\n", encoding="utf-8")
+    r = _run(["--surface", "."], d)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "template-residue" not in r.stdout
+    assert "hygiene: 0 hit(s) over 1 file(s), 0 rows ungraded" in r.stdout
+
+
+def test_a_nonexistent_surface_path_is_noted_not_silently_dropped(tmp_path):
+    """rc 0 + `0 hit(s) over 0 file(s)` for a path that never existed is byte-identical to a clean
+    sweep — the same blindness the unreadable-file NOTE closes, one branch earlier."""
+    sweep = crh.scan(surfaces=[tmp_path / "nope.md"], receipts=[tmp_path / "gone-review.md"])
+    assert sweep.hits == []
+    assert sweep.files == 0
+    assert [n.split(": ", 1)[1] for n in sweep.notes] == [
+        "no such path — NOT scanned, not in the denominator",
+        "no such path — NOT scanned, not in the denominator",
+    ]
 
 
 def test_fence_parity_follows_the_commonmark_same_char_run_rule(tmp_path):
@@ -294,13 +323,21 @@ def test_a_hygiene_false_positive_is_a_verdict_the_coverage_gate_accepts():
 # ---------------------------------------------------------------- the CLI contract
 
 
-def _run(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
+def _run(
+    args: list[str], cwd: Path, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
+    """PROJECT_ROOT is POPPED unless a test sets it: `final_gate.py` exports that variable to every
+    check it runs, so a developer (or a gate) with it exported in the ambient shell made the CLI
+    self-select against a DIFFERENT repo and these tests failed for a reason none of them named."""
+    child = {k: v for k, v in os.environ.items() if k != "PROJECT_ROOT"}
+    child.update(env or {})
     return subprocess.run(
         [sys.executable, str(SCRIPT), *args],
         cwd=cwd,
         capture_output=True,
         text=True,
         check=False,
+        env=child,
     )
 
 
@@ -346,7 +383,9 @@ def _scratch_repo(tmp_path: Path) -> Path:
     return root
 
 
-def test_no_argument_mode_self_selects_a_changed_receipt(tmp_path):
+def test_no_argument_mode_self_selects_a_changed_receipt(tmp_path, monkeypatch):
+    # An ambient PROJECT_ROOT (exported by final_gate to every check) must not reach the child.
+    monkeypatch.setenv("PROJECT_ROOT", str(REPO))
     root = _scratch_repo(tmp_path)
     (root / "docs/development/reviews/2026-09-09-x-review.md").write_text(
         "| # | Class | Finding | Disposition |\n"
@@ -376,14 +415,7 @@ def test_no_argument_mode_prefers_the_project_root_the_gate_exports(tmp_path):
     # cwd OUTSIDE any repo: the git-toplevel fallback cannot answer from here, so a run that
     # finds the receipt can only have read PROJECT_ROOT. (Running from `root/docs` does NOT
     # discriminate — git walks UP to the same toplevel, and that mutant survived.)
-    r = subprocess.run(
-        [sys.executable, str(SCRIPT)],
-        cwd=tmp_path,
-        capture_output=True,
-        text=True,
-        check=False,
-        env={**dict(__import__("os").environ), "PROJECT_ROOT": str(root)},
-    )
+    r = _run([], tmp_path, env={"PROJECT_ROOT": str(root)})
     assert r.returncode == 0, r.stdout + r.stderr
     assert "2026-09-09-y-review.md:3" in r.stdout
 
@@ -421,7 +453,7 @@ CORPUS_ROWS = 5917
 CORPUS_DISPOSITION_ROWS = 1645
 CORPUS_UNGRADED = 254
 CORPUS_RAW_PIPE = (33, 19)  # (hits, receipts)
-CORPUS_DUAL_VERDICT = (23, 4)
+CORPUS_DUAL_VERDICT = (27, 5)  # round 2: the four leading-count tally cells fire again
 
 
 def test_the_fire_rate_over_the_committed_receipt_corpus():
