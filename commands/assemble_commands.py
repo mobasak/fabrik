@@ -983,56 +983,66 @@ def _write_agents(dest: Path, bodies: list[tuple[str, str]]) -> None:
     # Prune ONLY what we generated. An operator's own agent definition must survive — deleting a
     # hand-authored file here would be data loss, and the banner is what tells them apart.
     for stale in dest.glob("*.md"):
-        if stale.name not in keep and BANNER.strip() in stale.read_text(errors="replace"):
-            stale.unlink()
+        if (
+            stale.name not in keep
+            and stale.exists()
+            and BANNER.strip() in stale.read_text(errors="replace")
+        ):
+            stale.unlink()  # a symlinked orphan: this removes the LINK, never the target
 
 
 def _preflight(
     dest: Path, skills_dest: Path | None, agents_dest: Path, names: list[str], files: list[Path]
 ) -> None:
     """Every path the render will write through — or prune over — must have the right shape or be
-    absent — checked BEFORE the first write, so a plain file where a tree belongs, a broken symlink,
-    or a directory where a FILE belongs is a loud SystemExit over untouched trees, never a traceback
-    over a half-written one."""
+    absent — checked BEFORE the first write, so a plain file where a tree belongs, a symlink where a
+    generated path belongs (the render never writes THROUGH a link, dangling or not), or a directory
+    where a FILE belongs is a loud SystemExit over untouched trees, never a traceback over a
+    half-written one. A symlink in an ORPHAN position is the prune's (it unlinks the link itself)."""
+
+    def _no_link(p: Path, what: str) -> None:
+        if p.is_symlink():
+            raise SystemExit(
+                f"{what}: {p} is a symlink where the generated {what} belongs — the render never writes "
+                "through a link; replace it with a real path, then re-render (no file was written)"
+            )
 
     def _dir_or_absent(p: Path, what: str) -> None:
-        if (p.exists() or p.is_symlink()) and not p.is_dir():
+        _no_link(p, what)
+        if p.exists() and not p.is_dir():
             raise SystemExit(
-                f"{what}: {p} exists (or is a broken symlink) and is not a directory — remove it, "
-                "then re-render (no file was written)"
+                f"{what}: {p} exists and is not a directory — remove it, then re-render (no file was written)"
             )
 
     def _file_or_absent(p: Path, leaf: str) -> None:
+        _no_link(p, leaf)
         if p.is_dir():
             raise SystemExit(
                 f"{p} is a directory where the {leaf} belongs — remove it, then re-render "
                 "(no file was written)"
             )
-        if p.is_symlink() and not p.exists():
-            raise SystemExit(
-                f"{p} is a broken symlink where the {leaf} belongs — remove it, then re-render "
-                "(no file was written)"
-            )
 
-    _dir_or_absent(dest, "commands")
-    _dir_or_absent(agents_dest, "agents")
+    _dir_or_absent(dest, "commands tree")
+    _dir_or_absent(agents_dest, "agents tree")
     for f in files:
         _file_or_absent(f, "command file" if f.parent == dest else "agent file")
     # the prune loops read every `*.md` entry of each tree — a DIRECTORY wearing that name breaks
-    # them after the writes; refuse it up front
+    # them after the writes; refuse it up front (a symlink there is an orphan the prune unlinks)
     for tree in (dest, agents_dest):
         if tree.is_dir():
             for entry in tree.glob("*.md"):
+                if entry.is_symlink():
+                    continue
                 _file_or_absent(entry, "command file" if tree == dest else "agent file")
     if skills_dest is not None:
-        _dir_or_absent(skills_dest, "skills")
+        _dir_or_absent(skills_dest, "skills tree")
         for name in names:
-            _dir_or_absent(skills_dest / name, "skills")
+            _dir_or_absent(skills_dest / name, "skill directory")
             _file_or_absent(skills_dest / name / "SKILL.md", "SKILL.md wrapper")
         if skills_dest.is_dir():
             for entry in skills_dest.glob("*/SKILL.md"):
                 if entry.parent.is_symlink():
-                    continue  # a symlinked skill dir is not ours — neither pruned nor pre-flighted
+                    continue  # an orphan link is the prune's to unlink
                 _file_or_absent(entry, "SKILL.md wrapper")
 
 
@@ -1145,18 +1155,26 @@ def render(dest: Path, skills_dest: Path | None = None, agents_dest: Path | None
     # through this prune (the retired orchestrator wrappers, 2026-09-05, went this way).
     keep = source_names
     for cmd in dest.glob("*.md"):
-        if cmd.stem not in keep and BANNER.strip() in cmd.read_text(errors="replace"):
-            cmd.unlink()
+        if (
+            cmd.stem not in keep
+            and cmd.exists()
+            and BANNER.strip() in cmd.read_text(errors="replace")
+        ):
+            cmd.unlink()  # a symlinked orphan: this removes the LINK, never the target
     if skills_dest is not None:
         for sk in skills_dest.glob("*/SKILL.md"):
+            if sk.parent.name in keep or not sk.exists():
+                continue
+            if SKILL_BANNER not in sk.read_text(errors="replace"):
+                continue
             if sk.parent.is_symlink():
-                continue  # never prune THROUGH a symlink — the target is not ours to delete
-            if sk.parent.name not in keep and SKILL_BANNER in sk.read_text(errors="replace"):
-                # remove ONLY the generated wrapper; the directory goes only when that empties it
-                # (an orphan dir can hold hand-authored siblings — never `rmtree`)
-                sk.unlink()
-                with contextlib.suppress(OSError):
-                    sk.parent.rmdir()
+                sk.parent.unlink()  # a symlinked orphan: remove the LINK, never touch the target
+                continue
+            # remove ONLY the generated wrapper; the directory goes only when that empties it
+            # (an orphan dir can hold hand-authored siblings — never `rmtree`)
+            sk.unlink()
+            with contextlib.suppress(OSError):
+                sk.parent.rmdir()
     n = len(emitted)
     n_agents = len(list(AGENT_SRC.glob("*.md")))
     print(
@@ -1208,12 +1226,24 @@ def check():
         # (catches a rename/delete that wasn't followed by a re-render — the prune).
         src_names = {s.stem for s in SRC.glob("*.md")}
         for cmd in sorted(OUT.glob("*.md")):
-            if cmd.stem not in src_names and BANNER.strip() in cmd.read_text(errors="replace"):
+            if cmd.stem in src_names:
+                continue
+            if cmd.is_dir() or not cmd.exists():
+                drift.append(
+                    f"{cmd.name}: not a file (a directory or a broken symlink) — remove it by hand"
+                )
+                continue
+            if BANNER.strip() in cmd.read_text(errors="replace"):
                 drift.append(f"{cmd.name}: ORPHAN (generated, no _source — re-render to prune)")
         for sk in sorted(SKILLS.glob("*/SKILL.md")):
-            if sk.parent.is_symlink():
-                continue  # the prune never follows a symlink, so the gate never demands that prune
-            if sk.parent.name not in src_names and SKILL_BANNER in sk.read_text(errors="replace"):
+            if sk.parent.name in src_names:
+                continue
+            if sk.is_dir() or not sk.exists():
+                drift.append(
+                    f"skills/{sk.parent.name}: not a file (a directory or a broken symlink) — remove it by hand"
+                )
+                continue
+            if SKILL_BANNER in sk.read_text(errors="replace"):
                 drift.append(
                     f"skills/{sk.parent.name}: ORPHAN (generated, no _source — re-render to prune)"
                 )

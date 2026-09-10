@@ -403,11 +403,18 @@ def _trees(tmp_path):
 
 def _census(tmp_path):
     d, s, a = _trees(tmp_path)
-    # FILES only: a planted directory named SKILL.md (an abort fixture) is not a written wrapper
+    # FILES only, and never through a link: a planted directory named SKILL.md (an abort fixture) or
+    # a symlink to a file elsewhere is not a written wrapper
     return (
-        len([p for p in d.glob("*.md") if p.is_file()]),
-        len([p for p in s.glob("*/SKILL.md") if p.is_file()]),
-        len([p for p in a.glob("*.md") if p.is_file()]),
+        len([p for p in d.glob("*.md") if p.is_file() and not p.is_symlink()]),
+        len(
+            [
+                p
+                for p in s.glob("*/SKILL.md")
+                if p.is_file() and not p.is_symlink() and not p.parent.is_symlink()
+            ]
+        ),
+        len([p for p in a.glob("*.md") if p.is_file() and not p.is_symlink()]),
     )
 
 
@@ -509,11 +516,16 @@ def test_an_aborted_render_writes_into_none_of_the_three_trees(tmp_path, monkeyp
             "a directory where an agent file belongs": "agent file",
             "a directory named like a command in the agents tree": "agent file",
         }
-        match = (
-            "is not a directory"
-            if abort in tree_shapes
-            else f"where the {leaf_noun[abort]} belongs"
+        symlink_shapes = (
+            "a dangling symlink where a skill dir belongs",
+            "a broken symlink where a command file belongs",
         )
+        if abort in symlink_shapes:
+            match = "is a symlink"  # the ONE symlink rule, dangling or not
+        elif abort in tree_shapes:
+            match = "is not a directory"
+        else:
+            match = f"where the {leaf_noun[abort]} belongs"
     d, s, a = _trees(tmp_path)
     if abort == "the commands tree is a file":
         d = tmp_path / "cmds"
@@ -651,7 +663,7 @@ def test_the_section_partition_floor_reaches_both_rendered_reviews(tmp_path):
 def test_the_skills_prune_removes_only_the_generated_wrapper_and_never_through_a_symlink(tmp_path):
     """An orphan skill directory can hold hand-authored siblings (a reference file, a script) — the
     prune removes the banner-carrying SKILL.md and the directory only when that leaves it empty;
-    a symlinked orphan is never followed."""
+    a symlinked orphan is unlinked as a LINK, its target never touched."""
     d, s, a = _trees(tmp_path)
     orphan = s / "zz-retired"
     orphan.mkdir(parents=True)
@@ -663,7 +675,9 @@ def test_the_skills_prune_removes_only_the_generated_wrapper_and_never_through_a
     (s / "zz-linked").symlink_to(real)
     ac.render(d, s, agents_dest=a)
     assert not (orphan / "SKILL.md").exists() and (orphan / "reference.md").exists()
-    assert (real / "SKILL.md").exists() and (s / "zz-linked").is_symlink()
+    assert (real / "SKILL.md").exists() and not (
+        s / "zz-linked"
+    ).is_symlink()  # the LINK went, the target stayed
 
 
 def test_an_orphan_skill_dir_holding_only_the_wrapper_is_removed_whole(tmp_path):
@@ -675,26 +689,103 @@ def test_an_orphan_skill_dir_holding_only_the_wrapper_is_removed_whole(tmp_path)
     assert not orphan.exists()
 
 
-def test_a_symlinked_orphan_skill_is_neither_pruned_nor_reported_nor_refused(
-    tmp_path, monkeypatch, capsys
+@pytest.mark.parametrize("tree", ["commands", "skills", "agents"])
+def test_a_symlink_where_a_generated_path_belongs_is_refused_before_any_write(tmp_path, tree):
+    """ONE symlink policy for the three trees (round 6 found the prune, the gate and the pre-flight
+    disagreeing by shape and by tree): a symlink at a path the render would WRITE through is refused
+    up front — the render never writes through a link, dangling or not."""
+    d, s, a = _trees(tmp_path)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    name = next(iter(ac.NEXT))
+    agent = sorted(ac.AGENT_SRC.glob("*.md"))[0].name
+    if tree == "commands":
+        (outside / f"{name}.md").write_text("theirs")
+        (d / f"{name}.md").symlink_to(outside / f"{name}.md")
+    elif tree == "skills":
+        (outside / "SKILL.md").write_text("theirs")
+        s.mkdir()
+        (s / name).symlink_to(outside)
+    else:
+        (outside / agent).write_text("theirs")
+        a.mkdir()
+        (a / agent).symlink_to(outside / agent)
+    with pytest.raises(SystemExit, match="symlink"):
+        ac.render(d, s, agents_dest=a)
+    assert _census(tmp_path) == (0, 0, 0)
+    assert all(f.read_text() == "theirs" for f in outside.rglob("*.md"))
+
+
+@pytest.mark.parametrize("tree", ["commands", "skills", "agents"])
+def test_a_symlinked_orphan_is_reported_by_the_gate_and_unlinked_by_the_prune(
+    tmp_path, monkeypatch, capsys, tree
 ):
-    """The prune skips a symlinked orphan (not ours to delete), so the read-only gate must not keep
-    reporting it as an ORPHAN whose remedy is that prune, and the pre-flight must not follow it into
-    a target outside the tree (round 5: the gate's remedy could never succeed; a target whose SKILL.md
-    was a directory refused the whole render)."""
+    """A link in OUR tree is ours to remove, never to delete THROUGH: the gate reports a bannered
+    symlinked orphan as an ORPHAN, the re-render it prescribes unlinks the LINK, the target survives,
+    and the gate then reads OK — the same fixed point in every tree."""
     d, s, a = _trees(tmp_path)
     ac.render(d, s, agents_dest=a)
     outside = tmp_path / "outside"
-    (outside / "SKILL.md").mkdir(
-        parents=True
-    )  # a DIRECTORY where the wrapper belongs — outside the tree
-    (s / "zz-linked").symlink_to(outside)
-    ac.render(d, s, agents_dest=a)  # the pre-flight must not refuse over the link's target
-    assert (s / "zz-linked").is_symlink()
+    outside.mkdir()
+    if tree == "commands":
+        (outside / "zz-old.md").write_text(ac.BANNER + "\n# old\n")
+        link = d / "zz-old.md"
+        link.symlink_to(outside / "zz-old.md")
+    elif tree == "skills":
+        (outside / "SKILL.md").write_text(ac.SKILL_BANNER + "\n# old\n")
+        link = s / "zz-old"
+        link.symlink_to(outside)
+    else:
+        (outside / "zz-old.md").write_text(ac.BANNER + "\n# old\n")
+        link = a / "zz-old.md"
+        link.symlink_to(outside / "zz-old.md")
     monkeypatch.setattr(ac, "OUT", d)
     monkeypatch.setattr(ac, "SKILLS", s)
     monkeypatch.setattr(ac, "AGENTS", a)
-    (outside / "SKILL.md").rmdir()
-    (outside / "SKILL.md").write_text(ac.SKILL_BANNER + "\n# linked orphan\n")
+    if tree != "agents":  # check() has orphan rules for the commands and skills trees
+        with pytest.raises(SystemExit) as exc:
+            ac.check()
+        assert exc.value.code == 1 and "ORPHAN" in capsys.readouterr().out
+    ac.render(d, s, agents_dest=a)
+    assert not link.is_symlink() and not link.exists()
+    assert list(outside.rglob("*.md"))  # the target survives
     ac.check()
     assert "check OK" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("shape", ["a directory", "a broken symlink"])
+def test_the_gate_reports_a_malformed_orphan_position_instead_of_crashing(
+    tmp_path, monkeypatch, capsys, shape
+):
+    d, s, a = _trees(tmp_path)
+    ac.render(d, s, agents_dest=a)
+    monkeypatch.setattr(ac, "OUT", d)
+    monkeypatch.setattr(ac, "SKILLS", s)
+    monkeypatch.setattr(ac, "AGENTS", a)
+    if shape == "a directory":
+        (d / "zz-odd.md").mkdir()
+        (s / "zz-odd" / "SKILL.md").mkdir(parents=True)
+    else:
+        (d / "zz-odd.md").symlink_to(tmp_path / "gone.md")
+        (s / "zz-odd").mkdir()
+        (s / "zz-odd" / "SKILL.md").symlink_to(tmp_path / "gone-too.md")
+    with pytest.raises(SystemExit) as exc:
+        ac.check()
+    out = capsys.readouterr().out
+    assert exc.value.code == 1 and out.count("not a file") == 2, out
+
+
+def test_the_orphan_preflight_still_refuses_behind_a_symlinked_sibling(tmp_path):
+    """The symlink skip in the orphan glob must `continue`, never `break`: a link that sorts first
+    must not hide a real directory where SKILL.md belongs behind it."""
+    d, s, a = _trees(tmp_path)
+    s.mkdir()
+    (tmp_path / "elsewhere" / "SKILL.md").parent.mkdir()
+    (tmp_path / "elsewhere" / "SKILL.md").write_text(
+        "theirs"
+    )  # a REAL target, so the glob visits the link
+    (s / "aa-linked").symlink_to(tmp_path / "elsewhere")
+    (s / "zz-broken" / "SKILL.md").mkdir(parents=True)
+    with pytest.raises(SystemExit, match="SKILL.md wrapper belongs"):
+        ac.render(d, s, agents_dest=a)
+    assert _census(tmp_path) == (0, 0, 0)

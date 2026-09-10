@@ -1709,3 +1709,36 @@ def test_a_longer_backtick_run_does_not_close_a_shorter_span():
         "| Pass 2 | seat | method: re-derivation | confirmed: 0 | notes: `x ``confirmed: 3`` y` |\n"
     )
     assert cc._closing_row_fail(raw) is None
+
+
+def test_the_span_masker_blanks_exactly_the_content_between_equal_runs():
+    """Pins the masker's arithmetic (round 6 fuzz found verdict-flipping cells for every off-by-one):
+    delimiters kept, content blanked, a shorter closer never closes a longer opener, a longer one
+    never closes a shorter, the scan resumes AFTER the closer."""
+    sys.path.insert(0, str(CHECK.parent))
+    import check_convergence as cc  # noqa: E402
+
+    assert cc._mask_spans("a `b` c") == "a `x` c"
+    assert cc._mask_spans("``x`y``") == "``xxx``"
+    assert (
+        cc._mask_spans("notes ``confirmed: 3` |") == "notes ``confirmed: 3` |"
+    )  # unclosed double run: literal
+    assert cc._mask_spans("`a``b`") == "`xxxx`"  # a longer run INSIDE a shorter span is content
+    row = "| Pass 2 | seat | method: re-derivation | confirmed: 0 | notes ``confirmed: 3` |\n"
+    assert cc._closing_row_fail(row) is not None  # the unclosed double run leaves the 3 live
+    cell = "| Pass 2 | seat | confirmed: 0 | ````confirmed: 3confirmed: 3`` x |\n"
+    assert cc._closing_row_fail(cell) is not None  # a 4-run opener, a 2-run closer: literal
+    cell2 = "| Pass 2 | seat | confirmed: 3 x ``<!--|confirmed: 0``confirmed: 0`` |\n"
+    assert (
+        cc._closing_row_fail(cell2) is None
+    )  # the span closes at the first equal run; the last token is 0
+
+
+def test_the_fence_strip_runs_before_the_span_masker():
+    """An inline fence quote (```…``` on one line) is stripped whole; a span masker running first would
+    read its backticks as a run and leave the counter inside the quote live."""
+    sys.path.insert(0, str(CHECK.parent))
+    import check_convergence as cc  # noqa: E402
+
+    raw = "```<!--`-->```| Pass 1 | method: re-derivation | confirmed: 3 |\n"
+    assert cc._closing_row_fail(raw) is None

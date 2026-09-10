@@ -810,8 +810,8 @@ def test_a_comment_opener_inside_a_code_span_does_not_blank_the_rows_after_it(tm
 
 
 def test_a_comment_opener_inside_a_fence_does_not_start_a_comment(tmp_path):
-    """The fence state is decided first; markers inside a fenced example are quoted text (a copy of
-    a live rules pack with a planted fenced `<!--` lost 152 of 191 lines; 0 live files differ)."""
+    """The fence state is decided first; markers inside a fenced example are quoted text (with the
+    opener tested first, a fenced `<!--` blanked every later line of a probe copy; 0 live files differ)."""
     p = tmp_path / "pack.md"
     p.write_text(
         "# P\n\n```\n<!-- an example opener -->\n<!-- unclosed in the example\n```\n\n| a | b | c |\n|---|---|---|\n| 1 | 2 | 3 | 4 |\n"

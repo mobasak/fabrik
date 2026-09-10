@@ -151,8 +151,11 @@ def _mask_spans(s: str) -> str:
     swallow a ledger — or refused a ledger whose Notes cited an earlier count in the double-backtick
     spelling the rule's own remedy names). An unclosed run is literal text, and a span never crosses
     a LINE: the closer is searched on the opener's line only (an unbounded search let a stray
-    backtick before the ledger pair with one after it and swallow every row between — and cost
-    O(runs × n) on adversarial input)."""
+    backtick before the ledger pair with one after it and swallow every row between). STATED COSTS:
+    a code span that legitimately wraps across lines is read as two literal runs, so a `<!--` inside
+    it opens a comment (0 live instances); and a single pathological line holding hundreds of runs of
+    distinct lengths is still quadratic (a 721 KB line of 800 runs: ~11 s) — the bound moved the cliff
+    from the document to the line, it did not remove it."""
     out = list(s)
     i, n = 0, len(s)
     while i < n:
@@ -179,8 +182,7 @@ def _mask_spans(s: str) -> str:
             i = j
             continue
         for q in range(i + run, close - run):
-            if out[q] != "\n":
-                out[q] = "x"
+            out[q] = "x"  # the closer sits on the opener's line, so no newline lies in the range
         i = close
     return "".join(out)
 
