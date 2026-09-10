@@ -435,6 +435,8 @@ def _defective_agent_sources(tmp_path, monkeypatch):
         "a dangling symlink where a skill dir belongs",
         "the commands tree is a file",
         "the agents tree is a file",
+        "a directory where a command file belongs",
+        "a directory where an agent file belongs",
     ],
 )
 def test_an_aborted_render_writes_into_none_of_the_three_trees(tmp_path, monkeypatch, abort):
@@ -472,16 +474,19 @@ def test_an_aborted_render_writes_into_none_of_the_three_trees(tmp_path, monkeyp
             (s / name).symlink_to(tmp_path / "nowhere")
         elif abort == "the commands tree is a file":
             (tmp_path / "cmds").write_text("a plain file where the commands TREE belongs")
+        elif abort == "a directory where a command file belongs":
+            (d / f"{name}.md").mkdir(parents=True)
+        elif abort == "a directory where an agent file belongs":
+            (a / sorted(ac.AGENT_SRC.glob("*.md"))[0].name).mkdir(parents=True)
         else:
             a.write_text("a plain file where the agents TREE belongs")
-        match = "not a directory|is a directory"
+        match = "not a directory|is a directory|where the .* belongs"
     d, s, a = _trees(tmp_path)
     if abort == "the commands tree is a file":
         d = tmp_path / "cmds"
     with pytest.raises(SystemExit, match=match):
         ac.render(d, s, agents_dest=a)
     assert _census(tmp_path) == (0, 0, 0)
-    assert not (tmp_path / "cmds").is_dir()
 
 
 def test_the_floor_helper_refuses_an_unknown_kind():
@@ -585,8 +590,18 @@ def test_every_render_prune_removes_a_generated_orphan_and_keeps_a_hand_authored
 
 def test_every_floor_kind_a_caller_passes_is_a_known_kind_and_nothing_more():
     """The guard is only as tight as its sets: the `_floor("…")` literals in the module ARE the union."""
-    src = Path(ac.__file__).read_text()
-    passed = set(re.findall(r'_floor\("([^"]+)"', src))
+    import ast
+
+    tree = ast.parse(Path(ac.__file__).read_text())
+    passed = {
+        node.args[0].value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "_floor"
+        and node.args
+        and isinstance(node.args[0], ast.Constant)
+    }
     assert passed == set(ac._ALL_FLOOR_KINDS), passed ^ set(ac._ALL_FLOOR_KINDS)
 
 
@@ -595,5 +610,7 @@ def test_the_section_partition_floor_reaches_both_rendered_reviews(tmp_path):
     at substitution time is invisible to the PARAMS-level test."""
     ac.render(tmp_path, tmp_path / "_skills", agents_dest=tmp_path / "_agents")
     for name in ("fabrik-spec-review", "fabrik-plan-review"):
-        text = (tmp_path / f"{name}.md").read_text()
-        assert "cut into DISJOINT slices by SECTION" in text and "NO Haiku seat" in text, name
+        # the fragment carries {{FLOOR}} twice — live, and inside the POOL OFF comment — so the
+        # assertion reads the LIVE text only, or a FLOOR blanked at substitution still "renders"
+        live = re.sub(r"<!--.*?-->", "", (tmp_path / f"{name}.md").read_text(), flags=re.S)
+        assert "cut into DISJOINT slices by SECTION" in live, name

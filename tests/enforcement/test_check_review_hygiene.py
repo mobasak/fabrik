@@ -510,16 +510,21 @@ def test_the_gate_registers_it_warn_only():
 # reason. A prose-only fire rate is a claim nothing re-derives, and this class of check earns its
 # place only while the rate holds.
 CORPUS_RECEIPTS = 275
-CORPUS_ROWS = 5917
-CORPUS_DISPOSITION_ROWS = 1645
+# Re-pinned 2026-09-10 (review-family adoption, Finish round 3): `_blank_quoted` read the comment
+# markers on the RAW line, so a cell quoting `<!-- POOL OFF` opened a phantom comment and every later
+# row went ungraded — 9 of 805 fleet receipts, a real raw-pipe defect lost behind "0 hits". Masking
+# code spans first surfaced 75 rows, 2 raw-pipe hits in 2 more receipts; the recall rose, the rate
+# barely moved (0.558 % → 0.584 %).
+CORPUS_ROWS = 5992
+CORPUS_DISPOSITION_ROWS = 1663
 # D7 seam #3: 254 → 4241 (71.7 % of the corpus's rows). The old number counted ONLY rows in a
 # header-less table; a HEADED table that declares no disposition column was skipped silently and
 # fell out of the denominator entirely, so the summary read "254 ungraded" over a corpus in which
 # the dual-verdict class actually graded 1,645 of 5,917 rows. The rise IS the fix — a bounded
 # search now states its real bound. ⚠️ docs/workflows/FINAL_GATE_WORKFLOW.md TRANSCRIBES this
 # test's printed output and must be re-transcribed in the same change.
-CORPUS_UNGRADED = 4241
-CORPUS_RAW_PIPE = (33, 19)  # (hits, receipts)
+CORPUS_UNGRADED = 4296
+CORPUS_RAW_PIPE = (35, 21)  # (hits, receipts)
 CORPUS_DUAL_VERDICT = (27, 5)  # round 2: the four leading-count tally cells fire again
 
 
@@ -787,3 +792,17 @@ def test_a_file_reached_through_its_directory_and_by_name_is_scanned_once(tmp_pa
     sweep = crh.scan(surfaces=[Path("specs"), p])
     assert _lines(sweep, "table-parity") == [5]
     assert sweep.files == 1
+
+
+def test_a_comment_opener_inside_a_code_span_does_not_blank_the_rows_after_it(tmp_path):
+    """`` `<!--` `` in a cell is prose (a D-181 receipt quotes `<!-- POOL OFF` by convention); the
+    blanking must read the line with code spans masked, or every later row goes ungraded and a real
+    raw-pipe defect is lost (9 of 805 fleet receipts carried the shape on 2026-09-10)."""
+    p = tmp_path / "2026-09-10-x-review.md"
+    p.write_text(
+        "# R\n\n| Id | Disposition |\n|---|---|\n"
+        "| F1 | RECORDED — the cell quotes `<!-- POOL OFF` by convention |\n"
+        "| F2 | FIXED | an unescaped pipe |\n"
+    )
+    sweep = crh.scan(receipts=[p])
+    assert _lines(sweep, "raw-pipe") == [6]

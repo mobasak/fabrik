@@ -1631,3 +1631,46 @@ def test_an_html_comment_marker_inside_a_code_span_does_not_swallow_the_ledger()
 
     raw = "Park a superseded ledger in `<!--` at the top.\n\n| Pass 1 | seats | method: citation | confirmed: 3 |\n| Pass 2 | seat | method: re-derivation | confirmed: 4 |\n\nClose it with `-->` at the end.\n"
     assert cc._closing_row_fail(raw) is not None
+
+
+def test_a_zero_padded_closing_counter_reads_as_zero_at_both_gates(repo):
+    """`QUIET_PASS` writes `0+` so `confirmed: 00` reads the same at both gates — this rule too."""
+    rc, out = _run_ledger(
+        repo,
+        "| Pass 1 | seats | method: citation — full | confirmed: 3 |\n| Pass 2 | seat | method: re-derivation — delta | confirmed: 00 |\n",
+    )
+    assert rc == 0, out
+
+
+def test_two_parked_comments_do_not_swallow_the_live_rows_between_them():
+    sys.path.insert(0, str(CHECK.parent))
+    import check_convergence as cc  # noqa: E402
+
+    raw = "<!-- parked one -->\n| Pass 9 | seat | method: re-derivation | confirmed: 7 |\n<!-- parked two -->\n"
+    assert cc._closing_row_fail(raw) is not None
+
+
+def test_an_inline_fence_marker_in_prose_does_not_swallow_the_live_rows_after_it():
+    """The documented parsing contract: balanced line-anchored fences, never a naive ```.*?```."""
+    sys.path.insert(0, str(CHECK.parent))
+    import check_convergence as cc  # noqa: E402
+
+    raw = "see the ``` marker in prose\n| Pass 9 | seat | method: re-derivation | confirmed: 7 |\n```\nquoted\n```\n"
+    assert cc._closing_row_fail(raw) is not None
+
+
+def test_a_plan_whose_slug_contains_archived_is_still_graded(tmp_path):
+    """The carve-out is the `archived/` DIRECTORY part, never a name fragment."""
+    sys.path.insert(0, str(CHECK.parent))
+    import check_convergence as cc  # noqa: E402
+
+    d = tmp_path / "docs" / "development" / "plans" / "2026-09-10-plan-1-archived-ledger-cleanup"
+    d.mkdir(parents=True)
+    (d / "T01-fixture.md").write_text(_LEDGER_TICKET)
+    spine = d / "2026-09-10-plan-1-archived-ledger-cleanup.md"
+    spine.write_text(
+        _LEDGER_SPINE_HEAD
+        + "| Pass 1 | seats | method: citation | confirmed: 0 |\n| Pass 2 | seat | method: re-derivation | confirmed: 7 |\n"
+    )
+    fails = cc._check_spine_set(tmp_path, spine, spine.read_text())
+    assert any("last Pass row does not read confirmed: 0" in f for f in fails), fails

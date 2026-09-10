@@ -160,7 +160,10 @@ def _closing_row_fail(text: str) -> str | None:
     claim: `_check_spine_set` runs on the CONVERGED and the EXECUTED path alike, and quotes the
     counter as WRITTEN (`confirmed: 03` reads `03`)."""
     # ORDER: fences first (line-anchored, so a stray backtick pair cannot eat a marker), then code
-    # spans masked (a `<!--` in backticks is prose), then HTML comments blanked
+    # spans masked (a `<!--` in backticks is prose — and so is a `-->`: a comment closes only at a
+    # bare closer, the stated cost of the same rule; 0 of 47 spines and 0 of 805 receipts change
+    # verdict), then HTML comments blanked. The archived carve-out in the caller is the lowercase
+    # DIRECTORY part `archived` — `Archived/` and a slug carrying the word are graded.
     text = _HTML_COMMENT.sub("", _CODE_SPAN.sub("`x`", FENCE_STRIP.sub("", text)))
     last: str | None = None
     for m in _PASS_ROW.finditer(text):

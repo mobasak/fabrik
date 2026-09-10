@@ -194,12 +194,16 @@ def _blank_quoted(lines: list[str]) -> list[str]:
     char, length = "", 0
     in_comment = False
     for ln in lines:
+        # the comment markers are read with code spans MASKED: a cell that quotes `<!-- POOL OFF`
+        # (the D-181 convention) is prose, and an unmasked read blanked every later row of 9 of 805
+        # fleet receipts — a real raw-pipe defect lost behind "0 hits" (2026-09-10)
+        masked = _mask_code_spans(ln)
         if in_comment:
             out.append("")
-            if "-->" in ln:
+            if "-->" in masked:
                 in_comment = False
             continue
-        if "<!--" in ln and "-->" not in ln:
+        if "<!--" in masked and "-->" not in masked:
             in_comment = True
             out.append("")
             continue

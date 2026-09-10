@@ -987,28 +987,37 @@ def _write_agents(dest: Path, bodies: list[tuple[str, str]]) -> None:
             stale.unlink()
 
 
-def _preflight(dest: Path, skills_dest: Path | None, agents_dest: Path, names: list[str]) -> None:
-    """Every path the render will write through must be a directory or absent — checked BEFORE
-    the first write, so a plain file, a dangling symlink or a directory-where-a-file-belongs is a
-    loud SystemExit over untouched trees, never a traceback over a half-written one."""
+def _preflight(
+    dest: Path, skills_dest: Path | None, agents_dest: Path, names: list[str], files: list[Path]
+) -> None:
+    """Every path the render will write through must have the right shape or be absent — checked
+    BEFORE the first write, so a plain file where a tree belongs, a broken symlink, or a directory
+    where a FILE belongs is a loud SystemExit over untouched trees, never a traceback over a
+    half-written one."""
 
     def _dir_or_absent(p: Path, what: str) -> None:
         if (p.exists() or p.is_symlink()) and not p.is_dir():
             raise SystemExit(
-                f"{what}: {p} exists and is not a directory — remove it, then re-render (no file was written)"
+                f"{what}: {p} exists (or is a broken symlink) and is not a directory — remove it, "
+                "then re-render (no file was written)"
+            )
+
+    def _file_or_absent(p: Path, what: str) -> None:
+        if p.is_dir():
+            raise SystemExit(
+                f"{what}: {p} is a directory where the {what} FILE belongs — remove it, then "
+                "re-render (no file was written)"
             )
 
     _dir_or_absent(dest, "commands")
     _dir_or_absent(agents_dest, "agents")
+    for f in files:
+        _file_or_absent(f, "commands" if f.parent == dest else "agents")
     if skills_dest is not None:
         _dir_or_absent(skills_dest, "skills")
         for name in names:
             _dir_or_absent(skills_dest / name, "skills")
-            leaf = skills_dest / name / "SKILL.md"
-            if leaf.is_dir():
-                raise SystemExit(
-                    f"skills: {leaf} is a directory where the wrapper FILE belongs — remove it, then re-render (no file was written)"
-                )
+            _file_or_absent(skills_dest / name / "SKILL.md", "skills")
 
 
 def render(dest: Path, skills_dest: Path | None = None, agents_dest: Path | None = None):
@@ -1099,7 +1108,13 @@ def render(dest: Path, skills_dest: Path | None = None, agents_dest: Path | None
     # the skill-description cap is composed for EVERY command before the first write (a trip used
     # to fire inside the skills loop, after all 36 commands and part of the skills were on disk)
     skill_bodies = [(name, _compose_skill(name, desc)) for name, desc in emitted]
-    _preflight(dest, skills_dest, agents_dest, [name for name, _ in skill_bodies])
+    _preflight(
+        dest,
+        skills_dest,
+        agents_dest,
+        [name for name, _ in skill_bodies],
+        [dest / fname for fname, _ in pending] + [agents_dest / name for name, _ in agent_bodies],
+    )
     dest.mkdir(parents=True, exist_ok=True)
     _write_agents(agents_dest, agent_bodies)
     for fname, text in pending:
