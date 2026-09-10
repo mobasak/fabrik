@@ -1,5 +1,5 @@
 ---
-description: Converge a /fabrik-spec design to a fixed point — adversarially re-verify every cited external fact against the LIVE web, audit the fabrik-lib vendor→enhance→build verdict, stress the approach + completeness, iterate to a quiet closing round (three counters at zero, md5 unchanged; all in ONE invocation). Sets Status: CONVERGED, STOPS for design approval (no auto-chain); on approval → /fabrik-data-contract | /fabrik-ui-design | /fabrik-plan-after-chat. TRIGGER — EN: "review/harden/converge this spec", "is this spec solid/ready"; TR: "bu spec'i gözden geçir/sağlamlaştır", "bu tasarım hazır mı" — fires on an EXISTING draft spec, never a fresh idea (→ /fabrik-spec) or a plan review (→ /fabrik-plan-review). Stage: 1-design.
+description: Converge a /fabrik-spec design to a fixed point — adversarially re-verify every cited external fact against the LIVE web, audit the fabrik-lib vendor→enhance→build verdict, stress the approach + completeness, iterate to a quiet closing round (all in ONE invocation). Sets Status: CONVERGED, STOPS for design approval (no auto-chain); on approval → /fabrik-data-contract | /fabrik-ui-design | /fabrik-plan-after-chat. TRIGGER — EN: "review/harden/converge this spec", "is this spec solid/ready"; TR: "bu spec'i gözden geçir/sağlamlaştır", "bu tasarım hazır mı" — fires on an EXISTING draft spec, never a fresh idea (→ /fabrik-spec) or a plan review (→ /fabrik-plan-review). Stage: 1-design.
 argument-hint: "[path to the spec file — omit to use the spec under discussion]"
 ---
 
@@ -36,10 +36,10 @@ requirement, and the `shape:` flags. Consult only the **design-shaping** `.winds
 default, vendor-from-fabrik-lib, the AI model-selection packs *if* it's an AI feature) — the full
 rules/invariant grounding is `/fabrik-plan-after-chat`'s job, not this pass's.
 
-## Phase 1 — Adversarial grounding to a fixed point (parallel grounders per axis)
+## Phase 1 — Adversarial grounding to a fixed point (the section partition)
 
 Treat every design claim as unproven until verified. Run rounds until the closing round CONFIRMS zero (§ Termination contract
-defines it). Cover SIX axes — one INDEPENDENT grounder each when the spec is large:
+defines it). Cover SIX axes — the Opus and Sonnet seats split them by SECTION (§ Parallelism below), a `fabrik-researcher` seat only for a fact the spec cites:
 
 **A0) Intake coverage — re-derive the conversation's denominator AUTHOR-BLIND, then diff.** The spec
 carries an `## Intake Inventory` (its authoring contract); do NOT trust it. Re-read the conversation

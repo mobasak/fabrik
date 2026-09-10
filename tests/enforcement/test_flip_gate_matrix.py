@@ -66,7 +66,8 @@ MATRIX: list[tuple[str, str, str, str]] = [
         "real tree — PLAN_DIR is bound to the cwd at import; the fixture inside it is FLIPPED "
         "(the gate reads Status: a DRAFT is graded to WARN, a CONVERGED to ERROR); a path outside "
         "it returns []",
-        "check_file() returns the missing-section finding inside PLAN_DIR",
+        "check_file() returns the missing-section finding inside PLAN_DIR (a DRAFT's WARN is "
+        "--strict-exempt; a CONVERGED's ERROR fails validate_conventions)",
     ),
 ]
 
