@@ -39,7 +39,7 @@ rules/invariant grounding is `/fabrik-plan-after-chat`'s job, not this pass's.
 ## Phase 1 — Adversarial grounding to a fixed point (the section partition)
 
 Treat every design claim as unproven until verified. Run rounds until the closing round CONFIRMS zero (§ Termination contract
-defines it). Cover SIX axes — the Opus and Sonnet seats split them by SECTION (§ Parallelism below), a `fabrik-researcher` seat only for a fact the spec cites:
+defines it). Cover every axis below — A0, A0b and A–E — the Opus and Sonnet seats split them by SECTION (§ Parallelism below), a `fabrik-researcher` seat only for a fact the spec cites:
 
 **A0) Intake coverage — re-derive the conversation's denominator AUTHOR-BLIND, then diff.** The spec
 carries an `## Intake Inventory` (its authoring contract); do NOT trust it. Re-read the conversation

@@ -8,7 +8,8 @@ discovery reads ``git status --porcelain`` and skips ``??``); ``check_plan_quali
 ``PLAN_DIR`` to the cwd at import; ``check_citations_resolve --root <scratch>`` ticks green over 0
 examined anchors; ``check_plan_tickets --plan-dir <non-dated>`` refuses. ``MATRIX`` is the documented
 form (``docs/workflows/FINAL_GATE_WORKFLOW.md``); every row is pinned by a test that plants a minimal
-fixture and asserts the gate's OWN examined marker names it, plus the negative control the row exists
+fixture and asserts the gate's OWN examined marker names it (the ``check_plan_quality`` row, whose gate
+prints nothing, asserts its findings and their severity instead), plus the negative control the row exists
 to avoid. Characterisation tests: every gate already behaves this way — the watched-fail half is a
 MUTANT per row on a scratch copy of ``scripts/enforcement/`` (``FLIP_GATE_MATRIX_ENFORCEMENT_DIR``),
 asserted on disk and kept in the plan's receipt.
@@ -63,9 +64,10 @@ MATRIX: list[tuple[str, str, str, str]] = [
     (
         "check_plan_quality.py",
         "validate_conventions --strict --git-diff from the REAL tree (no CLI; advisory)",
-        "real tree — PLAN_DIR is bound to the cwd at import; the fixture inside it is FLIPPED "
-        "(the gate reads Status: a DRAFT is graded to WARN, a CONVERGED to ERROR); a path outside "
-        "it returns []",
+        "a scratch plans dir with BOTH PLAN_DIR bindings patched (this test's own method — the gate "
+        "binds PLAN_DIR to the cwd at import, so the real tree is only the unpatched default); the "
+        "fixture inside it is FLIPPED (the gate reads Status: a DRAFT is graded to WARN, a CONVERGED "
+        "to ERROR); a path outside it returns []",
         "check_file() returns the missing-section finding inside PLAN_DIR (a DRAFT's WARN is "
         "--strict-exempt; a CONVERGED's ERROR fails validate_conventions)",
     ),
@@ -308,6 +310,14 @@ def test_the_pinned_artifact_is_in_the_gates_examined_set(gate: str, tmp_path: P
         inside.write_text(PLAN_FIXTURE.replace("## Evidence", "## Notes"))
         findings = cpq.check_file(inside)
         assert any("Evidence" in f.message for f in findings), [f.message for f in findings]
+        # the severity contract the row states: the gate reads Status — CONVERGED grades the gap ERROR
+        # (fails validate_conventions), a DRAFT grades it WARN (--strict-exempt)
+        evidence = [f for f in findings if "Evidence" in f.message]
+        assert evidence[0].severity is cpq.Severity.ERROR, [(f.message, f.severity) for f in findings]
+        inside.write_text(inside.read_text().replace("Status: CONVERGED (fixture)", "Status: DRAFT (fixture)"))
+        draft = [f for f in cpq.check_file(inside) if "Evidence" in f.message]
+        assert draft and draft[0].severity is cpq.Severity.WARN, [(f.message, f.severity) for f in draft]
+        inside.write_text(inside.read_text().replace("Status: DRAFT (fixture)", "Status: CONVERGED (fixture)"))
         # the naming pre-check is LIVE for the scratch dir: a mis-named plan inside it is
         # check_plans' finding, so this gate returns [] for it (precedence 0) — not the section finding
         misnamed = plans / "notes.md"
