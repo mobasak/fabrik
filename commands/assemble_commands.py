@@ -148,7 +148,7 @@ EXTRACT = {
         (
             "termination",
             "term-edit",
-            "\n(After the no-op: the approval gate below — unlike `/fabrik-plan-review`, this command ends at user approval, not auto-handoff.)",
+            "\n(After the quiet delta round: the approval gate below — unlike `/fabrik-plan-review`, this command ends at user approval, not auto-handoff.)",
         ),
         ("grounding", "grounding-artifact", None),
         ("subagents", "subagents-core", None),
@@ -218,11 +218,19 @@ _EX_ITEM = 'an API "reused" that doesn\'t exist, a column "stored" with the wron
 # recall (D-191 round-2 finding). The floor for them names Sonnet + Opus only and `--mechanical 0`.
 _JUDGEMENT_KINDS = {"grounding", "adjudication"}
 
-# The two PARTITIONED review loops (`/fabrik-review`, `/fabrik-repo-review`) size by slice, not by
-# unit: D-207 cuts their surface into disjoint file slices and D-208 retires the three-angle floor
-# there (it is satisfied by construction — the union of the slices IS the full pass). Every other
-# kind keeps the units-sized mix. This kind is used by exactly those two PARAMS entries.
+# The PARTITIONED review loops size by slice, not by unit, in two shapes. By FILE — `/fabrik-review`
+# and `/fabrik-repo-review`: D-207 cuts their surface into disjoint file slices and D-208 retires the
+# three-angle floor there (satisfied by construction — the union of the slices IS the full pass);
+# used by exactly those two PARAMS entries. By SECTION — the `term-edit` family's `/fabrik-spec-review`
+# and `/fabrik-plan-review` (D-212, D-218; the review-family adoption plan of 2026-09-10): the
+# artifact is cut into disjoint SECTION slices, Opus on the rule/grammar sections and Sonnet on the
+# rest, researcher seats only for cited external facts, and NO Haiku seat — the grep-shaped classes
+# run as `check_review_hygiene.py`, which is why this is its OWN kind: the file-partition kind would
+# render "at most ONE Haiku class seat", and the judgement kinds' `--mechanical 0` clause names a
+# seat these loops never dispatch. Used by exactly those two PARAMS entries. Every other kind keeps
+# the units-sized mix.
 _PARTITION_KINDS = {"review loop"}
+_SECTION_PARTITION_KINDS = {"section partition"}
 
 
 def _floor(kind: str, native: str) -> str:
@@ -234,6 +242,13 @@ def _floor(kind: str, native: str) -> str:
             f"risky slices, Sonnet {native} seats on the rest, at most ONE Haiku class seat when "
             f"the brief names a non-scriptable inventory class; every file read once; sized by "
             f"`dispatch_headroom.py --slices opus=N,sonnet=N,haiku=N` (D-207)"
+        )
+    elif kind in _SECTION_PARTITION_KINDS:
+        angles = (
+            f"**plus the partition — the artifact cut into DISJOINT slices by SECTION: Opus on the "
+            f"rule/grammar sections, Sonnet {native} seats on the rest, `fabrik-researcher` seats "
+            f"only for the external facts the artifact cites, NO Haiku seat (the hygiene script is "
+            f"the class sweep); sized by `dispatch_headroom.py --slices opus=N,sonnet=N` (D-207, D-218)"
         )
     elif kind in _JUDGEMENT_KINDS:
         angles = (
@@ -438,7 +453,9 @@ PARAMS = {
             "HEADLINE": "`fanout` the grounders, `set_quality` the verdict",
             "TASK_TYPE": '"research"',
             "PROJECT": "spec-review",
-            "FLOOR": _floor("review", "`fabrik-researcher`"),
+            # a term-edit loop partitions by SECTION (D-212, D-218): Opus + Sonnet reviewers on
+            # disjoint sections, researcher seats only for the facts the spec cites, no Haiku seat
+            "FLOOR": _floor("section partition", "`fabrik-reviewer`"),
             "EXTRA": ' Grounders: `fanout("research", units, mode="read_only", system=methodology("research"), web_tools=["web_search","web_scrape","docs_lookup"])`; score anchors: 0 = the grounding didn\'t hold / was stale · 5 = it confirmed the cited fact.',
         },
     },
@@ -456,10 +473,11 @@ PARAMS = {
             "HEADLINE": "pool-default for gradeable fan-out (records to the flywheel)",
             "TASK_TYPE": '"review"',
             "PROJECT": "plan-review",
-            # a grounder is a judgement (round 7): the plan-review seats verify claims against the
-            # repo and the spec — no grep-able class for a Haiku seat to sweep
-            "FLOOR": _floor("grounding", "`fabrik-researcher`"),
-            "EXTRA": " A cheaper Haiku/Sonnet native verify-sample MAY add breadth on top; keep Opus for the authoritative pass + the convergence decide + the ask-before-not-during residual sweep.",
+            # a term-edit loop partitions by SECTION (D-212, D-218): the plan-review seats verify
+            # claims against the repo and the spec on disjoint sections — no grep-able class for a
+            # Haiku seat to sweep (the hygiene script is the class sweep), so no mechanical seat
+            "FLOOR": _floor("section partition", "`fabrik-reviewer`"),
+            "EXTRA": " A fresh Sonnet seat MAY add breadth on top — never a Haiku seat on a section partition (D-218); keep Opus for the authoritative pass + the convergence decide + the ask-before-not-during residual sweep.",
         },
     },
     "fabrik-ui-design": {

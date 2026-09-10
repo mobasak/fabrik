@@ -1,0 +1,29 @@
+{
+  "plan": "docs/development/plans/2026-09-10-plan-1-review-family-adoption.md",
+  "owned_paths": [
+    "commands/_fragments/term-edit.md",
+    "commands/_sources/fabrik-spec-review.md",
+    "commands/_sources/fabrik-plan-review.md",
+    "commands/_sources/fabrik-plan-after-chat.md",
+    "commands/_fragments/subagents-core.md",
+    "commands/assemble_commands.py",
+    "tests/enforcement/test_flip_gate_matrix.py",
+    "tests/test_assemble_dispatch_step.py",
+    "scripts/enforcement/check_review_hygiene.py",
+    "tests/enforcement/test_check_review_hygiene.py",
+    "scripts/enforcement/check_convergence.py",
+    "tests/test_check_convergence.py",
+    "docs/workflows/FINAL_GATE_WORKFLOW.md",
+    ".windsurf/rules/core/62-using-subagents.md",
+    "templates/governance/CLAUDE.md",
+    "CLAUDE.md",
+    "docs/development/reviews/2026-09-10-plan-1-review-family-adoption-review.md"
+  ],
+  "branch": "master",
+  "started_at": "2026-09-10T15:47:31",
+  "status": "active",
+  "baseline_commit": "237516dc",
+  "baseline_gate": "final_gate.py --lean --check --json at start: status success, 0 red checks (captured at 237516dc before Phase A)",
+  "orchestrator": "the unnamed hub window fabrik-06 (session dd3c06d1), main checkout, Profile: small \u2014 every phase coded inline, no coder worktrees",
+  "overlap_note": "two other locks read status:active at start: 2026-09-03-plan-1-multi-agent-per-repo is this same session's EXECUTED plan (all 33 tickets merged, released 2026-09-05 \u2014 the release wrote state:released instead of status; repaired in Phase A's commit); 2026-09-09-plan-1-review-convergence-redesign is this window's own plan HELD at Finish on trade-intelligence's reply (mail 01M23G21EBSS4BC187HQ7PS02X) \u2014 its remaining Finish steps (dry run, sync --force, spine flip, archive, lock release) touch none of the code paths both locks name; the operator's go-word on 2026-09-10 is the ruling to proceed (D-row minted with Phase A)"
+}

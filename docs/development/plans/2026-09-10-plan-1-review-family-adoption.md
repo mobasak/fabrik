@@ -1,6 +1,6 @@
 # Review-family adoption of D-203 — the `term-edit` family closes on CONFIRMED, partitions by section, runs delta rounds
 
-Status: CONVERGED (2026-09-10 — 4 passes under D-212/D-218, closing pass confirmed 0; flip row D-220)
+Status: IN-PROGRESS (execution started 2026-09-10 by /fabrik-execute-plan; was CONVERGED 2026-09-10 — 4 passes under D-212/D-218, closing pass confirmed 0; flip row D-220)
 Profile: small
 **Owner:** —
 Spec: docs/superpowers/specs/2026-09-10-review-family-adoption-design.md (CONVERGED 338c96d7, flip row D-215; approved 2026-09-10 by the operator's `/fabrik-plan-after-chat` invocation — the approval rows are minted with this plan's commit)

@@ -86,7 +86,7 @@
   ],
   "branch": "master",
   "started_at": "2026-09-05T12:08:23",
-  "status": "active",
+  "status": "released",
   "baseline_commit": "50977a1e5215e431bb02f41053d1ba59a449bb25",
   "baseline_gate": "final_gate.py --lean --json -> status: success, 32 passed / 0 failed, 0 red checks (captured at 50977a1e before D1; the --check tier's two reds \u2014 Convergence Evidence + Coverage Checklist \u2014 are a SIBLING's staged review artifact 2026-09-05-windowed-cost-sidecar-phase-A-review.md, not this plan's)",
   "tickets": {
@@ -454,5 +454,7 @@
   "orchestrator": "infra session dd3c06d1, main checkout (the plan's own C14 + merge-time-render law keep the orchestrator in the main checkout; coders isolate by worktree per D2)",
   "state": "released",
   "released_at": "2026-09-05T23:54:42+00:00",
-  "released_by": "infra"
+  "released_by": "infra",
+  "completed_at": "2026-09-05T23:54:42+00:00",
+  "release_note": "status flipped to released on 2026-09-10 by the same session (dd3c06d1) that released it on 2026-09-05 \u2014 the release wrote state:released and left status:active (found by the review-family adoption plan lock scan)"
 }

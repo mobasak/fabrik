@@ -18,6 +18,12 @@ First capture the **source of truth** — do NOT invent scope:
   external dependencies (already grounded with cited URLs), the **fabrik-lib vendor→enhance→build verdict**,
   and the `shape:`/infra implications. A spec-fed plan is `RICH` by definition — do not re-brainstorm what
   the spec already settled.
+- **A spec-fed plan CITES the spec, never re-narrates it (review-family adoption, D-212 — spec D8):** every
+  ticket's `## Scope` and `## Behavior Contract` rows (a monolith: every phase's) CITE the spec section they
+  implement — `spec § <heading>` or `<spec path>:<line>` — and restate nothing that section already says; the
+  "What we already agreed" list below is a list of citations. `/fabrik-plan-review` grades each cite → section
+  as an anchor (`check_citations_resolve.py --changed` covers the `path:line` form at pin time). No grader on
+  the prose yet — measured after the first five spec-fed plans under the rule (backlog row of 2026-09-10).
 - **If that spec was fed by an EPIC, read the epic file too** (`/fabrik-spec docs/development/epics/<file>`
   is the epic intake path; the spec names the epic file it consumed). Capture two things from the epic's
   frontmatter and carry them into Phase 4: its **path** (the plan's `Epic:` header line) and its
@@ -35,6 +41,8 @@ First capture the **source of truth** — do NOT invent scope:
 - Write a bullet list, "**What we already agreed**", extracted from the `/fabrik-spec` doc (if any) + this
   conversation + `$ARGUMENTS`: the goal, the chosen approach, explicitly rejected alternatives, named
   external dependencies, and any constraints/decisions the user stated. Quote the user where a decision is theirs.
+  For a spec-fed plan every line CITES the spec section it comes from (`spec § <heading>` or
+  `<spec path>:<line>`) and restates nothing the section already says.
   **Chat-born decisions in that list (an approach chosen, an alternative rejected, a scope ruling) are
   RECEIVED decisions — mint their `docs/DECISIONS.md` rows, classified at mint (a ONE-WAY decision grows
   the § Binding field block), and STAGE the rows WITH the plan file in Phase 5's commit — same change means
@@ -416,7 +424,7 @@ shape, don't invent):
 ```markdown
 # T01 — <title>
 ## Scope
-<one paragraph of the WHAT>. DO-NOT: <the adjacent surface this ticket must not touch>.
+<one paragraph of the WHAT — spec-fed: `implements spec § <heading>` (or `<spec path>:<line>`), restating nothing that section already says>. DO-NOT: <the adjacent surface this ticket must not touch>.
 
 Depends: —
 Parallel: ⚡
@@ -428,7 +436,7 @@ Docs: <the Doc Sync Matrix rows this ticket owns>
 - src/app/x.py — PRIMARY PATH
 
 ## Behavior Contract
-- **Given** <state>, **When** <action>, **Then** <observable> (src/app/x.py:12)
+- **Given** <state>, **When** <action>, **Then** <observable> (src/app/x.py:12; spec-fed: `spec § <heading>`)
 
 ## Context Files
 - .windsurf/rules/core/10-python.md
@@ -590,7 +598,7 @@ carries none of the three is a defective plan, not a shape difference:
    surface *plus everything it calls/is called by* — independent finder subagents (parallel) for recall
    → refute false positives → **prove-before-fix** with a kept regression test → classify
    correctness/security vs style → **re-run the gate after each fix**. Phase N+1 does not begin until a
-   demonstrably-thorough pass yields **zero new correctness/security findings**. Not a one-line "review here" — the full
+   delta round with a fresh non-authoring seat CONFIRMS **zero code or doc defects** (D-206). Not a one-line "review here" — the full
    methodology, and progression is gated on it.
 2. **Subagents mandated where the work is independently decomposable** — implementation, research,
    grounding, and review are dispatched to subagents, stated in each phase's steps. **The plan must specify

@@ -5,14 +5,14 @@ argument-hint: "[path to the plan file OR a spine+ticket plan-set directory — 
 
 > **⚠️ POOL OFF — D-181 (operator, 2026-09-07).** The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable). Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy.
 
-Converge this plan to a fixed point — do not stop after one pass. **Fixed point = one full, demonstrably-thorough review pass that changes nothing;** the pass in which you *made* edits is never the last one.
+Converge this plan to a fixed point — do not stop after one pass. **Fixed point = the fragment's quiet delta round — a delta round with a fresh non-authoring seat that CONFIRMED zero defects, md5 unchanged (D-206, D-212);** the round in which you *made* edits is never the last one.
 
 {{include:run-record}}
 {{include:term-edit}}
 (Flip preconditions this gate reads mechanically: a MONOLITH plan must carry `## Coverage
 Checklist` + an embedded `review_rubric.py` invocation — `_checklist_section` and `RUBRIC_RUN` in
 `check_convergence.py` (grep for the symbols — line anchors into that file drift); verify
-both BEFORE the no-op round, or the flip fails after the loop.)
+both before the closing delta round, or the flip fails after the loop.)
 (This command is fully autonomous — `/fabrik-plan-after-chat` auto-invokes it and it runs itself to `CONVERGED` with no approval gate, unlike `/fabrik-spec-review`.)
 
 {{include:grounding-artifact}}
@@ -32,8 +32,9 @@ unit is the WHOLE SET: the spine AND every `T##[a-z]?-<slug>.md` ticket. A pass 
   `find <plan-dir> -name '*.md' -print0 | sort -z | xargs -0 md5sum | md5sum` — recorded per pass. A
   mid-loop artifact change (a ticket added, split, or renamed) changes the combined hash and is simply
   the next pass, standard ledger semantics — never a reason to restart the ledger.
-- **Fresh grounders per ticket** (§ Parallelism below): one independent grounding unit per TICKET
-  (native `fabrik-researcher` seats — the pool is OFF, D-181) plus ≥1 native Opus authoritative pass over the whole set. The
+- **The partition per ticket** (the **Parallelism — the partition** paragraph in Phase 1 below): every ticket sits in exactly one slice and each slice is read by one fresh seat —
+  Opus for a ticket touching fleet-synced grammars or gates, Sonnet for the rest, `fabrik-researcher` seats only
+  for the external facts the plan itself cites (the pool is OFF, D-181) — plus your own decide/refute/execute. The
   AUTHORING session's own re-read NEVER counts as the independent pass — author-blindness is the point
   of this command.
 - **Convergence precondition (mechanical):** `python -m scripts.enforcement.check_plan_tickets
@@ -102,17 +103,21 @@ AS A TASK."* The documented pipeline is plan-after-chat → plan-review → exec
 `/fabrik-review` step on the plan artifact** — this is its only armed review. Without the two obligations
 above, convergence means "nothing further occurred to the reviewer", not "every known failure class was
 swept." Measured (transdoc, 2026-08-23): an out-of-band `/fabrik-review` on a plan set this command had
-already converged to an md5-verified no-op found **5 further real defects — 4 of them named explicitly in
+already converged to an md5-verified quiet round under the retired exit rule (a full pass that made no edits) found **5 further real defects — 4 of them named explicitly in
 the rubric that was never injected**, including a `task_name` the DB `CHECK` constraint refuses to store
 (so the plan's own fix for a previous unreachable-handler defect was another unreachable handler) and a
 per-tenant job created every 300s forever. A checklist can still be filled without real hunting; it raises
 a floor, it does not guarantee a ceiling.
 
-In this single turn, run repeated grounding passes until one demonstrably-thorough pass finds zero new ungrounded
-items. Treat every claim as unproven until verified against the actual code and database schema, adversarially:
+In this single turn, run grounding rounds until a delta round with a fresh non-authoring seat CONFIRMS zero
+(§ Termination contract). Treat every claim as unproven until verified against the actual code and database schema, adversarially:
 
 - For each `path:line` citation, OPEN the file and READ those lines — confirm the symbol/behavior is really there.
   A path that looks right is not grounding; a column name is not its values (read them).
+- For each `spec § <heading>` cite in a spec-fed plan's Scope or Behavior Contract, OPEN the spec at that section and
+  confirm the ticket implements it and restates nothing it already says — the cite → section correspondence is an
+  anchor of this review (`/fabrik-plan-after-chat`'s emit rule); `check_citations_resolve.py --changed` grades only the
+  `path:line` form, so the `§` form is the seat's read.
 - For each table/field/migration, verify it exists in the real schema with the stated type/constraints.
 - For each external dependency or data source, either ground it by executing the research NOW
   (`mcp__exa__web_search_exa` / `WebSearch` / `mcp__brave-search__brave_web_search` /
@@ -225,23 +230,33 @@ Also verify the plan's **structural pillars** are present and sound (add/fix any
 Also hunt: plan↔reality drift, unstated assumptions, missing edge cases and failure modes, and steps whose
 validation gate is vague or unrunnable.
 
-**Parallelism — UNCONDITIONAL, every round.** Dispatch one INDEPENDENT native `fabrik-researcher` grounder per phase/dependency/ticket (the pool is
-OFF, D-181<!-- POOL OFF: `fanout("research", …, mode="read_only", web_tools=["web_search","web_scrape","docs_lookup"])` for live search; recipe in § Subagents -->),
-an Opus `fabrik-researcher` for the authoritative verify-sample — sized, stamped and closed at THIS point: `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <N> --mechanical 0` prints the seats, `python3 scripts/command_run.py dispatch --seats <n>` BEFORE they go out, `python3 scripts/command_run.py round --seats <n> --findings <n> …` at the round's close (the recipe in § Subagents below is the same one) — run them in parallel, then merge + dedupe their
-findings (refute any that are provably wrong — quote the line/schema that disproves them — before acting) before
-the next pass. **Never solo, never two:** a surface with fewer than three units still dispatches **THREE seats on DIFFERENT angles** over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186). (This replaces the old GREENFIELD-monolith exemption: a monolith that modifies or
-wires into EXISTING code still owes ≥1 author-blind native pass (live proof: a ~40-line monolith's
-author nearly converged solo; the author-blind finder returned a CONFIRMED-HIGH invalidating the
-plan's core mechanism — every anchor was real, the defect was the author's inference) — and a plan
-SET always fans out per ticket (the
-Phase-0 per-ticket mandate), regardless of how few tickets it has.
+**Parallelism — the partition (D-207, D-212, D-218).** Round 1 is ONE combined pass with DISJOINT slices:
+one Opus `fabrik-reviewer` on the RULE/GRAMMAR content — for a set, the tickets that touch fleet-synced
+grammars or gates plus the spine's Interfaces, Behavior Contract, Global Constraints and Execution Discipline;
+for a monolith, the phases that touch them plus § Global Constraints, § File Scope, § Constraints digest,
+§ Coverage Checklist and § Evidence — one Sonnet `fabrik-reviewer` on every other ticket or section, and
+`fabrik-researcher` seats only for the external facts the plan itself cites (a spec-fed plan cites none: the
+spec grounded them; the pool is OFF, D-181<!-- POOL OFF: `fanout("research", …, mode="read_only", web_tools=["web_search","web_scrape","docs_lookup"])` for live search; recipe in § Subagents -->) — no ticket's or
+section's text read by two seats; the union IS the pass. Size, stamp and close it at THIS point:
+`python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --slices opus=N,sonnet=N` prints the seats (never
+dispatch past `SEATS: 0` — re-run it until the box frees), `python3 scripts/command_run.py dispatch --seats <n>`
+BEFORE they go out, the seats in ONE message, `python3 scripts/command_run.py round --seats <n> --findings <found> --confirmed <confirmed> …`
+at the round's close (the recipe in § Subagents below is the same one); then merge + dedupe their findings,
+refute any that are provably wrong (quote the line/schema that disproves them) and EXECUTE every candidate you
+keep before acting — CONFIRMED means you ran it. Under the partition the three-seat floor stands down (D-208,
+D-218). Every later round is a DELTA over the fix diff plus one hop — the tickets and sections whose tokens
+cite the edited step — sized by the fix: one Opus seat for a rule or gate step, one Sonnet seat for wording,
+plus the hygiene script on the re-pin. (This replaces the old GREENFIELD-monolith exemption: a monolith that
+modifies or wires into EXISTING code still owes its author-blind pass (live proof: a ~40-line monolith's
+author nearly converged solo; the author-blind finder returned a CONFIRMED-HIGH invalidating the plan's core
+mechanism — every anchor was real, the defect was the author's inference) — and a plan SET always partitions
+per ticket (the Phase-0 per-ticket mandate), regardless of how few tickets it has.
 
 After each pass, list what you VERIFIED (which `path:line` you actually read, which schema objects) and what you
-found, then fix the plan. **The loop terminates ONLY when a full, demonstrably-thorough pass makes ZERO edits to
-the plan** — a no-op verification round is the only proof of convergence. "I fixed everything I found this pass"
-is NOT done: run one MORE round afterward, and if it changes anything (a fix, an addition, a re-grounding), you
-weren't converged — keep going. A pass that finds nothing must still enumerate its coverage (what it actually
-read); an empty pass with no evidence doesn't count.
+found, then fix the plan. **The loop terminates per § Termination contract — the quiet delta round** (a fresh non-authoring seat, zero
+CONFIRMED defects, md5 unchanged). "I fixed everything I found this pass" is NOT done: the next delta round is
+owed, and if it CONFIRMS anything you weren't converged — keep going. A round that confirms nothing must still
+enumerate its coverage (what it actually read and executed); an empty round with no evidence doesn't count.
 
 ## Phase 2 — Make every step executable
 
@@ -303,17 +318,17 @@ or auditing agent — can see it, and any executor other than the full dispatche
 
 Do not promise "100% accuracy" — iterate to a fixed point, then explicitly enumerate every residual unknown,
 assumption, and out-of-scope risk that remains, separating ones the plan resolved from ones still open.
-**Convergence = a full grounding round (all grounders + merge/refute) that produced ZERO edits to the plan** — no
-fixes, no additions, no re-grounding. That edit-free round is mandatory and is the ONLY thing that earns
-`Status: CONVERGED`; your say-so or "I fixed what I found" does not. If you cannot reach an edit-free round
+**Convergence = the quiet delta round (§ Termination contract: a fresh non-authoring seat, zero CONFIRMED
+defects, md5 unchanged).** That round is mandatory and is the ONLY thing that earns
+`Status: CONVERGED`; your say-so or "I fixed what I found" does not. If you cannot reach a quiet round
 because a BLOCKING unknown remains, stop at `Status: DRAFT`, name the blocker, and do NOT mark CONVERGED.
 **The CONVERGED flip is a Status flip — mint its `docs/DECISIONS.md` row, staged with the flipped
 plan and committed together per CLAUDE.md § EXIT (classify at mint; plain row
 normally), together with a row for each operator ruling RESOLVED
 during this review** (an answered real question is a received decision — CLAUDE.md § the decision ledger).
 
-**An edit-free round is necessary but NOT sufficient — the Coverage Checklist (Phase 1) must be fully
-adjudicated too.** Zero edits on a pass that never swept a class proves only that you did not look there
+**A quiet delta round is necessary but NOT sufficient — the Coverage Checklist (Phase 1) must be fully
+adjudicated too.** A quiet round that never swept a class proves only that you did not look there
 again. Every row CLEAN / FIXED / REFUTED with evidence, or the class is not swept and the flip is not
 earned. `check_convergence.py` enforces this mechanically on NEW convergence transitions; a plan already
 `CONVERGED` at HEAD is settled and is never retroactively invalidated by this rule.

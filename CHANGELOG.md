@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — The review family adopts D-203, Phase A: the fragment, the two sources, the assembler, the emit rule, the flip-gate matrix (2026-09-10)
+
+`commands/_fragments/term-edit.md` (13 consumers) now closes on a delta round that carried a fresh
+non-authoring seat and CONFIRMED zero defects with the md5 unchanged (D-206, D-212): round 1 is the only
+full pass, partitioned by SECTION; every later round is a delta over the fix diff plus one hop, sized by
+the fix; verdicts are executed, never argued (the RECORDED family replaces the retired `Standing:` line,
+D-219); the stall breaker keys on `confirmed:`; a "Before Pass 1 and before every pin" block pins per
+round, runs the hygiene script and the anchor check at every pin and the flip gates per the invocation
+matrix. `fabrik-spec-review.md` and `fabrik-plan-review.md` lose their seven restatements each of the
+zero-edits exit (the five-phrase grep reads 0 / 0 / 0 on the three source surfaces; 5 / 6 / 10 before) and
+their § Parallelism paragraphs describe the section partition. `commands/assemble_commands.py` gains the
+`"section partition"` `_floor` kind for those two commands — Opus and Sonnet reviewers on disjoint
+sections, researcher seats only for cited facts, no Haiku seat and no `--mechanical` clause; reusing the
+file-partition kind would have rendered a Haiku class seat. `subagents-core.md` names the four partitioned
+loops. `/fabrik-plan-after-chat` emits spec-fed tickets that CITE the spec section they implement (spec
+D8). The flip-gate invocation matrix ships as `tests/enforcement/test_flip_gate_matrix.py::MATRIX` — five
+rows, each pinned by a fixture plus its negative control, one mutant per row proven red on a scratch copy of
+the gate — and is documented in `docs/workflows/FINAL_GATE_WORKFLOW.md`. Measured and NOT changed here (out
+of the plan's scope, filed to the pass-3 backlog row): the other 11 `term-edit` consumers carry 66
+restatements of the retired exit in their own prose (`fabrik-ui-design.md` 14 … `fabrik-rivals.md` 1).
+
 ### Fixed — The governance-table check was advising ~46 repos to re-create the bug it guards (2026-09-10)
 
 Its advisory read *"an unescaped `|` (escape it as `\|`, even inside a code span) truncates this rule"* —

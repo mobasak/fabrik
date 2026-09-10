@@ -133,6 +133,34 @@ def test_the_two_partitioned_review_loops_get_the_slice_floor_and_nothing_else_d
     assert slice_floors == ["fabrik-repo-review", "fabrik-review"], slice_floors
 
 
+_SECTION_PARTITION_SENTENCE = (
+    "plus the partition — the artifact cut into DISJOINT slices by SECTION: Opus on the "
+    "rule/grammar sections, Sonnet `fabrik-reviewer` seats on the rest, `fabrik-researcher` seats "
+    "only for the external facts the artifact cites, NO Haiku seat (the hygiene script is the class "
+    "sweep); sized by `dispatch_headroom.py --slices opus=N,sonnet=N` (D-207, D-218)"
+)
+
+
+def test_the_term_edit_review_family_gets_the_section_partition_floor_and_nothing_else_does():
+    """D-212/D-218 (review-family adoption): `/fabrik-spec-review` and `/fabrik-plan-review` partition by
+    SECTION, through a fourth `_floor` kind of their own. Reusing the file-partition kind would render
+    "at most ONE Haiku class seat" and lose the judgement kinds' `--mechanical 0` clause — so the
+    sentence is graded WHOLE and for the absence of both, on the PARAMS table (a third command
+    silently switched to the kind is the drift this catches)."""
+    floor = ac._floor("section partition", "`fabrik-reviewer`")
+    assert _SECTION_PARTITION_SENTENCE in floor, floor
+    assert "Haiku mechanical seat" not in floor and "Haiku class seat" not in floor, floor
+    assert "--mechanical" not in floor, floor
+    section_floors = sorted(
+        name
+        for name, frags in ac.PARAMS.items()
+        if _SECTION_PARTITION_SENTENCE in (frags.get("subagents-core", {}).get("FLOOR") or "")
+    )
+    assert section_floors == ["fabrik-plan-review", "fabrik-spec-review"], section_floors
+    # the file-partition kind is untouched by the new one
+    assert _SECTION_PARTITION_SENTENCE not in ac._floor("review loop", "`fabrik-reviewer`")
+
+
 def test_both_floor_sentences_reach_their_rendered_commands_whole(tmp_path):
     """`_floor()` alone cannot see an interpolation or PARAMS change that mangles a sentence on its
     way into a command — grade the RENDERED text, comments stripped, and count the carriers. BOTH
@@ -151,11 +179,11 @@ def test_both_floor_sentences_reach_their_rendered_commands_whole(tmp_path):
     }
     assert units == {
         "`fabrik-reviewer`": ["fabrik-doc-converge", "fabrik-features"],
+        # `/fabrik-spec-review` left this list for the SECTION-partition floor (D-212/D-218)
         "`fabrik-researcher`": [
             "fabrik-docs-review",
             "fabrik-flows-review",
             "fabrik-rules-review",
-            "fabrik-spec-review",
             "fabrik-ui-design-review",
             "fabrik-workflow-review",
         ],
@@ -194,16 +222,17 @@ def test_a_judgement_floor_span_never_names_a_haiku_seat_in_the_rendered_text(tm
         seen.add(f.stem)
         if "haiku" in live[i:j].lower():
             offenders.append(f.stem)
-    # the six judgement floors BY NAME — a count with slack absorbed the loss of either of the
-    # two round-7 kind changes (round-8 finding)
+    # the judgement floors BY NAME — a count with slack absorbed the loss of either of the
+    # two round-7 kind changes (round-8 finding); `/fabrik-plan-review` moved to the SECTION-partition
+    # kind (D-212/D-218), which names no mechanical seat and no Haiku seat at all
     assert seen >= {
         "fabrik-spec",
         "fabrik-vision",
         "fabrik-plan-after-chat",
         "fabrik-epics",
-        "fabrik-plan-review",
         "fabrik-conformance-review",
     }, seen
+    assert "fabrik-plan-review" not in seen, seen
     assert offenders == [], offenders
 
 
