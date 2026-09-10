@@ -789,3 +789,23 @@ def test_the_orphan_preflight_still_refuses_behind_a_symlinked_sibling(tmp_path)
     with pytest.raises(SystemExit, match="SKILL.md wrapper belongs"):
         ac.render(d, s, agents_dest=a)
     assert _census(tmp_path) == (0, 0, 0)
+
+
+def test_trees_that_are_symlinks_to_directories_are_a_legitimate_layout(tmp_path):
+    """The no-symlink rule is for paths INSIDE the trees (the render never writes THROUGH a link to
+    reach a generated file); an operator whose ~/.claude/commands, skills or agents is itself a
+    symlink to a real directory is a layout, not a defect — the render lands in the target."""
+    real = {k: tmp_path / f"real_{k}" for k in ("c", "s", "a")}
+    for r in real.values():
+        r.mkdir()
+    d, s, a = tmp_path / "c", tmp_path / "s", tmp_path / "a"
+    d.symlink_to(real["c"])
+    s.symlink_to(real["s"])
+    a.symlink_to(real["a"])
+    ac.render(d, s, agents_dest=a)
+    n_src, n_ag = len(list(ac.SRC.glob("*.md"))), len(list(ac.AGENT_SRC.glob("*.md")))
+    assert (
+        len(list(real["c"].glob("*.md"))),
+        len(list(real["s"].glob("*/SKILL.md"))),
+        len(list(real["a"].glob("*.md"))),
+    ) == (n_src, n_src, n_ag)

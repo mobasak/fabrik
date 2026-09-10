@@ -1007,6 +1007,15 @@ def _preflight(
                 "through a link; replace it with a real path, then re-render (no file was written)"
             )
 
+    def _tree(p: Path, what: str) -> None:
+        # a TREE may be a symlink to a real directory — an operator's layout; the no-link rule is
+        # for the paths INSIDE it that the render writes through
+        if (p.exists() or p.is_symlink()) and not p.is_dir():
+            raise SystemExit(
+                f"{what}: {p} exists (or is a broken symlink) and is not a directory — remove it, "
+                "then re-render (no file was written)"
+            )
+
     def _dir_or_absent(p: Path, what: str) -> None:
         _no_link(p, what)
         if p.exists() and not p.is_dir():
@@ -1022,8 +1031,8 @@ def _preflight(
                 "(no file was written)"
             )
 
-    _dir_or_absent(dest, "commands tree")
-    _dir_or_absent(agents_dest, "agents tree")
+    _tree(dest, "commands tree")
+    _tree(agents_dest, "agents tree")
     for f in files:
         _file_or_absent(f, "command file" if f.parent == dest else "agent file")
     # the prune loops read every `*.md` entry of each tree — a DIRECTORY wearing that name breaks
@@ -1035,7 +1044,7 @@ def _preflight(
                     continue
                 _file_or_absent(entry, "command file" if tree == dest else "agent file")
     if skills_dest is not None:
-        _dir_or_absent(skills_dest, "skills tree")
+        _tree(skills_dest, "skills tree")
         for name in names:
             _dir_or_absent(skills_dest / name, "skill directory")
             _file_or_absent(skills_dest / name / "SKILL.md", "SKILL.md wrapper")
