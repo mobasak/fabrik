@@ -63,7 +63,8 @@ MATRIX: list[tuple[str, str, str, str]] = [
     ),
     (
         "check_plan_quality.py",
-        "validate_conventions --strict --git-diff from the REAL tree (no CLI; advisory)",
+        "no CLI — check_file() through its import (the gate reaches it via validate_conventions "
+        "--strict --git-diff from the REAL tree; advisory)",
         "a scratch plans dir with BOTH PLAN_DIR bindings patched (this test's own method — the gate "
         "binds PLAN_DIR to the cwd at import, so the real tree is only the unpatched default); the "
         "fixture inside it is FLIPPED (the gate reads Status: a DRAFT is graded to WARN, a CONVERGED "
@@ -312,6 +313,7 @@ def test_the_pinned_artifact_is_in_the_gates_examined_set(gate: str, tmp_path: P
         assert any("Evidence" in f.message for f in findings), [f.message for f in findings]
         # the severity contract the row states: the gate reads Status — CONVERGED grades the gap ERROR
         # (fails validate_conventions), a DRAFT grades it WARN (--strict-exempt)
+        assert "WARN" in marker and "ERROR" in marker, marker  # the row text states what is asserted below
         evidence = [f for f in findings if "Evidence" in f.message]
         assert evidence[0].severity is cpq.Severity.ERROR, [(f.message, f.severity) for f in findings]
         inside.write_text(inside.read_text().replace("Status: CONVERGED (fixture)", "Status: DRAFT (fixture)"))

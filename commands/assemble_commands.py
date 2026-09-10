@@ -93,10 +93,12 @@ def _yaml_dq(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"')
 
 
-def _emit_skill(name: str, description: str, skills_dest: Path) -> None:
-    """Write a thin SKILL.md wrapper so every command is ALSO a model-invokable
+def _compose_skill(name: str, description: str) -> str:
+    """Compose the thin SKILL.md wrapper so every command is ALSO a model-invokable
     skill. Triggering lives in `description`; the body redirects to the canonical
-    rendered command (single source of truth) and names the next pipeline step."""
+    rendered command (single source of truth) and names the next pipeline step.
+    Raises on the 1024-char cap — `render()` composes EVERY wrapper before it writes
+    anything, so a trip never leaves a half-written tree."""
     nxt = NEXT.get(name, "(no defined successor — this command is terminal or standalone).")
     desc = " ".join(description.split())  # collapse newlines for YAML one-line
     if desc and desc[-1] not in ".!?":  # avoid a run-on before "Invoke for"
@@ -124,6 +126,14 @@ def _emit_skill(name: str, description: str, skills_dest: Path) -> None:
         f"wrapper). Follow that file exactly.\n\n"
         f"**Next in the pipeline:** {nxt}\n"
     )
+    return body
+
+
+def _emit_skill(name: str, description: str, skills_dest: Path) -> None:
+    _write_skill(name, _compose_skill(name, description), skills_dest)
+
+
+def _write_skill(name: str, body: str, skills_dest: Path) -> None:
     d = skills_dest / name
     d.mkdir(parents=True, exist_ok=True)
     (d / "SKILL.md").write_text(body)
@@ -450,7 +460,7 @@ PARAMS = {
             "ARTIFACT": "spec",
             "DONE_ACT": "flip `Status: DRAFT → CONVERGED`",
             "DONE_WORD": "CONVERGED",
-            "AXES": "facts · vendor · approach · completeness · constraints",
+            "AXES": "intake · personas · facts · vendor · approach · completeness · constraints",
             "EXEMPT_NOTE": "",
         },
         "grounding-artifact": {"SUBJECT": "spec item", "EXAMPLES": _EX_ITEM},
@@ -974,6 +984,7 @@ def render(dest: Path, skills_dest: Path | None = None, agents_dest: Path | None
         agents_dest = AGENTS if dest.resolve() == OUT.resolve() else dest / "_agents"
     _emit_agents(agents_dest, frags)
     errs = []
+    pending: list[tuple[str, str]] = []
     emitted: list[tuple[str, str]] = []
     for s in sorted(SRC.glob("*.md")):
         name, text = s.stem, s.read_text()
@@ -1040,17 +1051,23 @@ def render(dest: Path, skills_dest: Path | None = None, agents_dest: Path | None
             text = text[:end] + "\n" + BANNER + text[end:].lstrip("\n")
         else:
             text = BANNER + text
-        (dest / s.name).write_text(text)
+        pending.append((s.name, text))
         emitted.append((name, desc_raw))
-    if errs:  # gate BEFORE touching the skills tree — a failed render never mutates skills
+    if errs:  # gate BEFORE touching either tree — a failed render never mutates commands or skills
         print("RENDER ERRORS:")
         for e in errs:
             print(" -", e)
         sys.exit(2)
+    # the skill-description cap is composed for EVERY command before the first write (a trip used
+    # to fire inside the skills loop, after all 36 commands and part of the skills were on disk)
+    skill_bodies = (
+        [(name, _compose_skill(name, desc)) for name, desc in emitted] if skills_dest is not None else []
+    )
+    for fname, text in pending:
+        (dest / fname).write_text(text)
     source_names = {n for n, _ in emitted}
-    if skills_dest is not None:
-        for name, desc in emitted:
-            _emit_skill(name, desc, skills_dest)
+    for name, body in skill_bodies:
+        _write_skill(name, body, skills_dest)
     # Prune orphans (ONLY files carrying our generator banner — never a hand-authored
     # or sibling skill/command): a renamed/deleted source must not leave an invokable stale.
     # The keep-set IS the source set: a generated skill whose name is no longer a source leaves

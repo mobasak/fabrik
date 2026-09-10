@@ -16,6 +16,8 @@ import re
 import subprocess
 from pathlib import Path
 
+import pytest
+
 REPO = Path(__file__).resolve().parents[1]
 _spec = importlib.util.spec_from_file_location("ac", REPO / "commands" / "assemble_commands.py")
 ac = importlib.util.module_from_spec(_spec)
@@ -388,3 +390,15 @@ def test_v8_the_fragments_delta_round_sentence_survives_a_render(tmp_path):
     live = ac._HTML_COMMENT_RE.sub("", (tmp_path / "fabrik-review.md").read_text())
     assert "every later round is a DELTA over the fix diff" in live
     assert "--slices opus=N,sonnet=N,haiku=N" in live
+
+
+def test_a_render_that_trips_the_skill_description_cap_writes_nothing(tmp_path, monkeypatch):
+    """The 1024-char skill-description gate fires BEFORE any command or skill is written — a render
+    that cannot finish leaves the destination trees exactly as it found them (Phase A heavy round 11:
+    the raise sat inside the skills loop, after all 36 commands were on disk and 16 of 36 skills)."""
+    name = next(iter(ac.NEXT))
+    monkeypatch.setitem(ac.NEXT, name, "x" * 1100)
+    with pytest.raises(SystemExit, match="composed skill description"):
+        ac.render(tmp_path, tmp_path / "_skills", agents_dest=tmp_path / "_agents")
+    assert list(tmp_path.glob("*.md")) == []
+    assert list((tmp_path / "_skills").glob("*/SKILL.md")) == []
