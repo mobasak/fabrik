@@ -148,7 +148,7 @@ EXTRACT = {
         (
             "termination",
             "term-edit",
-            "\n(After the quiet delta round: the approval gate below — unlike `/fabrik-plan-review`, this command ends at user approval, not auto-handoff.)",
+            "\n(After the quiet closing round: the approval gate below — unlike `/fabrik-plan-review`, this command ends at user approval, not auto-handoff.)",
         ),
         ("grounding", "grounding-artifact", None),
         ("subagents", "subagents-core", None),
@@ -157,7 +157,7 @@ EXTRACT = {
         (
             "termination",
             "term-edit",
-            "\n(Flip preconditions this gate reads mechanically: a MONOLITH plan must carry `## Coverage\nChecklist` + an embedded `review_rubric.py` invocation — `_checklist_section` and `RUBRIC_RUN` in\n`check_convergence.py` (grep for the symbols — line anchors into that file drift); verify\nboth before the closing delta round, or the flip fails after the loop.)\n(This command is fully autonomous — `/fabrik-plan-after-chat` auto-invokes it and it runs itself to `CONVERGED` with no approval gate, unlike `/fabrik-spec-review`.)",
+            "\n(Flip preconditions this gate reads mechanically: a MONOLITH plan must carry `## Coverage\nChecklist` + an embedded `review_rubric.py` invocation — `_checklist_section` and `RUBRIC_RUN` in\n`check_convergence.py` (grep for the symbols — line anchors into that file drift); verify\nboth before the closing round, or the flip fails after the loop.)\n(This command is fully autonomous — `/fabrik-plan-after-chat` auto-invokes it and it runs itself to `CONVERGED` with no approval gate, unlike `/fabrik-spec-review`.)",
         ),
         ("grounding", "grounding-artifact", None),
         ("subagents", "subagents-core", None),

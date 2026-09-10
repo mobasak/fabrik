@@ -1,9 +1,9 @@
 ---
-description: Converge a /fabrik-spec design to a fixed point — adversarially re-verify every cited external fact against the LIVE web, audit the fabrik-lib vendor→enhance→build verdict, stress the approach + completeness, iterate to a quiet delta round — zero CONFIRMED, md5 unchanged (all in ONE invocation). Sets Status: CONVERGED, STOPS for design approval (no auto-chain); on approval → /fabrik-data-contract | /fabrik-ui-design | /fabrik-plan-after-chat. TRIGGER — EN: "review/harden/converge this spec", "is this spec solid/ready"; TR: "bu spec'i gözden geçir/sağlamlaştır", "bu tasarım hazır mı" — fires on an EXISTING draft spec, never a fresh idea (→ /fabrik-spec) or a plan review (→ /fabrik-plan-review). Stage: 1-design.
+description: Converge a /fabrik-spec design to a fixed point — adversarially re-verify every cited external fact against the LIVE web, audit the fabrik-lib vendor→enhance→build verdict, stress the approach + completeness, iterate to a quiet closing round (three counters at zero, md5 unchanged; all in ONE invocation). Sets Status: CONVERGED, STOPS for design approval (no auto-chain); on approval → /fabrik-data-contract | /fabrik-ui-design | /fabrik-plan-after-chat. TRIGGER — EN: "review/harden/converge this spec", "is this spec solid/ready"; TR: "bu spec'i gözden geçir/sağlamlaştır", "bu tasarım hazır mı" — fires on an EXISTING draft spec, never a fresh idea (→ /fabrik-spec) or a plan review (→ /fabrik-plan-review). Stage: 1-design.
 argument-hint: "[path to the spec file — omit to use the spec under discussion]"
 ---
 
-Converge this design spec to a fixed point — do not stop after one pass. **Fixed point = the fragment's quiet delta round — a delta round with a fresh non-authoring seat that CONFIRMED zero defects, md5 unchanged (D-206, D-212).** This is to
+Converge this design spec to a fixed point — do not stop after one pass. **Fixed point = the fragment's quiet CLOSING round (§ Termination contract defines it; D-206, D-212).** This is to
 `/fabrik-spec` what `/fabrik-plan-review` is to `/fabrik-plan-after-chat`: the adversarial, independent
 hardening of a DRAFT before it is trusted. The two things a spec gets wrong — and the two this pass exists to
 catch — are **(1) an external fact taken from training memory or backed by a dead/hallucinated citation**, and
@@ -12,7 +12,7 @@ against the real world.
 
 {{include:run-record}}
 {{include:term-edit}}
-(After the quiet delta round: the approval gate below — unlike `/fabrik-plan-review`, this command ends at user approval, not auto-handoff.)
+(After the quiet closing round: the approval gate below — unlike `/fabrik-plan-review`, this command ends at user approval, not auto-handoff.)
 
 {{include:grounding-artifact}}
 ## Phase 0 — Establish scope
@@ -38,8 +38,8 @@ rules/invariant grounding is `/fabrik-plan-after-chat`'s job, not this pass's.
 
 ## Phase 1 — Adversarial grounding to a fixed point (parallel grounders per axis)
 
-Treat every design claim as unproven until verified. Run rounds until a delta round with a fresh non-authoring
-seat CONFIRMS zero (§ Termination contract). Cover SIX axes — one INDEPENDENT grounder each when the spec is large:
+Treat every design claim as unproven until verified. Run rounds until the closing round CONFIRMS zero (§ Termination contract
+defines it). Cover SIX axes — one INDEPENDENT grounder each when the spec is large:
 
 **A0) Intake coverage — re-derive the conversation's denominator AUTHOR-BLIND, then diff.** The spec
 carries an `## Intake Inventory` (its authoring contract); do NOT trust it. Re-read the conversation
@@ -230,8 +230,7 @@ fetch, the re-derived count, the resolved anchor); reserve **Opus** for the merg
 md5-verified close you own.
 
 After each pass, list what you re-verified (which URLs you fetched, which modules you read) and what you
-found, then fix the spec. **The loop terminates per § Termination contract — the quiet delta round** (a fresh non-authoring seat,
-zero CONFIRMED defects, md5 unchanged); the round in which you fixed anything is never the last.
+found, then fix the spec. **The loop terminates per § Termination contract — the quiet closing round** (its three counters at zero, md5 unchanged); the round in which you fixed anything is never the last.
 
 ## Phase 2 — Handoff-readiness (so `/fabrik-plan-after-chat` can INHERIT, not re-derive)
 
@@ -261,8 +260,7 @@ Verify (add/fix if missing):
 
 Do not promise "100% accuracy" — iterate to a fixed point, then enumerate residual unknowns / assumptions /
 out-of-scope risks, separating **resolved** from **still-open** (each open one with a named resolution step).
-**Convergence = the quiet delta round (§ Termination contract: a fresh non-authoring seat, zero CONFIRMED
-defects, md5 unchanged).** That round is the ONLY thing that earns `Status: CONVERGED` — flip it in place (`/fabrik-spec` wrote
+**Convergence = the quiet closing round (§ Termination contract defines it: three counters at zero, md5 unchanged).** That round is the ONLY thing that earns `Status: CONVERGED` — flip it in place (`/fabrik-spec` wrote
 `Status: DRAFT`); your say-so or "I fixed what I found" does not. **The flip is a Status flip — mint its
 `docs/DECISIONS.md` row STAGED in the same commit as the flip** (classify at mint; plain row normally —
 CLAUDE.md § the decision ledger). If a BLOCKING unknown remains — an
@@ -272,7 +270,7 @@ external fact you cannot verify live, or a fabrik-lib capability you cannot conf
 ## After CONVERGED — STOP and ask for the user's approval (do NOT auto-chain)
 
 `/fabrik-spec-review` ends at the **design approval gate** — a **human approves the hardened design** before any
-field-freeze / UI / plan work begins. Once the quiet delta round (md5 unchanged) earns `Status: CONVERGED`:
+field-freeze / UI / plan work begins. Once the quiet closing round (§ Termination contract) earns `Status: CONVERGED`:
 
 - **Present, in this order:** (1) the **ask ↔ spec comparison table** — defined in `/fabrik-spec` Phase 6
   (hub ruling D-153): one row per item of the operator's brief in the operator's OWN WORDS · what the

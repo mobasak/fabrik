@@ -63,7 +63,9 @@ MATRIX: list[tuple[str, str, str, str]] = [
     (
         "check_plan_quality.py",
         "validate_conventions --strict --git-diff from the REAL tree (no CLI; advisory)",
-        "real tree — PLAN_DIR is bound to the cwd at import; a path outside it returns []",
+        "real tree — PLAN_DIR is bound to the cwd at import; the fixture inside it is FLIPPED "
+        "(the gate reads Status: a DRAFT is graded to WARN, a CONVERGED to ERROR); a path outside "
+        "it returns []",
         "check_file() returns the missing-section finding inside PLAN_DIR",
     ),
 ]

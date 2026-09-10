@@ -5,14 +5,14 @@ argument-hint: "[path to the plan file OR a spine+ticket plan-set directory — 
 
 > **⚠️ POOL OFF — D-181 (operator, 2026-09-07).** The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable). Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy.
 
-Converge this plan to a fixed point — do not stop after one pass. **Fixed point = the fragment's quiet delta round — a delta round with a fresh non-authoring seat that CONFIRMED zero defects, md5 unchanged (D-206, D-212);** the round in which you *made* edits is never the last one.
+Converge this plan to a fixed point — do not stop after one pass. **Fixed point = the fragment's quiet CLOSING round (§ Termination contract defines it; D-206, D-212);** the round in which you *made* edits is never the last one.
 
 {{include:run-record}}
 {{include:term-edit}}
 (Flip preconditions this gate reads mechanically: a MONOLITH plan must carry `## Coverage
 Checklist` + an embedded `review_rubric.py` invocation — `_checklist_section` and `RUBRIC_RUN` in
 `check_convergence.py` (grep for the symbols — line anchors into that file drift); verify
-both before the closing delta round, or the flip fails after the loop.)
+both before the closing round, or the flip fails after the loop.)
 (This command is fully autonomous — `/fabrik-plan-after-chat` auto-invokes it and it runs itself to `CONVERGED` with no approval gate, unlike `/fabrik-spec-review`.)
 
 {{include:grounding-artifact}}
@@ -109,8 +109,8 @@ the rubric that was never injected**, including a `task_name` the DB `CHECK` con
 per-tenant job created every 300s forever. A checklist can still be filled without real hunting; it raises
 a floor, it does not guarantee a ceiling.
 
-In this single turn, run grounding rounds until a delta round with a fresh non-authoring seat CONFIRMS zero
-(§ Termination contract). Treat every claim as unproven until verified against the actual code and database schema, adversarially:
+In this single turn, run grounding rounds until the closing round CONFIRMS zero
+(§ Termination contract defines it). Treat every claim as unproven until verified against the actual code and database schema, adversarially:
 
 - For each `path:line` citation, OPEN the file and READ those lines — confirm the symbol/behavior is really there.
   A path that looks right is not grounding; a column name is not its values (read them).
@@ -253,8 +253,7 @@ mechanism — every anchor was real, the defect was the author's inference) — 
 per ticket (the Phase-0 per-ticket mandate), regardless of how few tickets it has.
 
 After each pass, list what you VERIFIED (which `path:line` you actually read, which schema objects) and what you
-found, then fix the plan. **The loop terminates per § Termination contract — the quiet delta round** (a fresh non-authoring seat, zero
-CONFIRMED defects, md5 unchanged). "I fixed everything I found this pass" is NOT done: the next delta round is
+found, then fix the plan. **The loop terminates per § Termination contract — the quiet closing round** (its three counters at zero, md5 unchanged). "I fixed everything I found this pass" is NOT done: the next delta round is
 owed, and if it CONFIRMS anything you weren't converged — keep going. A round that confirms nothing must still
 enumerate its coverage (what it actually read and executed); an empty round with no evidence doesn't count.
 
@@ -318,8 +317,7 @@ or auditing agent — can see it, and any executor other than the full dispatche
 
 Do not promise "100% accuracy" — iterate to a fixed point, then explicitly enumerate every residual unknown,
 assumption, and out-of-scope risk that remains, separating ones the plan resolved from ones still open.
-**Convergence = the quiet delta round (§ Termination contract: a fresh non-authoring seat, zero CONFIRMED
-defects, md5 unchanged).** That round is mandatory and is the ONLY thing that earns
+**Convergence = the quiet closing round (§ Termination contract defines it: three counters at zero, md5 unchanged).** That round is mandatory and is the ONLY thing that earns
 `Status: CONVERGED`; your say-so or "I fixed what I found" does not. If you cannot reach a quiet round
 because a BLOCKING unknown remains, stop at `Status: DRAFT`, name the blocker, and do NOT mark CONVERGED.
 **The CONVERGED flip is a Status flip — mint its `docs/DECISIONS.md` row, staged with the flipped
@@ -327,7 +325,7 @@ plan and committed together per CLAUDE.md § EXIT (classify at mint; plain row
 normally), together with a row for each operator ruling RESOLVED
 during this review** (an answered real question is a received decision — CLAUDE.md § the decision ledger).
 
-**A quiet delta round is necessary but NOT sufficient — the Coverage Checklist (Phase 1) must be fully
+**A quiet closing round is necessary but NOT sufficient — the Coverage Checklist (Phase 1) must be fully
 adjudicated too.** A quiet round that never swept a class proves only that you did not look there
 again. Every row CLEAN / FIXED / REFUTED with evidence, or the class is not swept and the flip is not
 earned. `check_convergence.py` enforces this mechanically on NEW convergence transitions; a plan already
