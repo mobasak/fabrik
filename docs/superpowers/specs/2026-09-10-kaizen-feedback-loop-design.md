@@ -225,6 +225,19 @@ spec:
    ledger — invisible, not absent. → D1 closes this; the canary is that the ledger reader emits
    `ledger_rows_seen` beside every derived value.
 
+**Reconciled against D6 of `2026-09-10-review-family-adoption-design.md` (CONVERGED, infra) — the two
+are DISJOINT, and no shared mechanism is owed.** That spec's D6 extends
+`check_review_hygiene.py` with `table-parity` on `--surface`; its `_surface_hits` gates every class on
+`path.endswith(".md")` (`:413`, `:419`), so D6 grades **markdown text**. The Q5 canaries above live
+inside the Python collectors and their JSONL stores and grade **data**. Neither can run on the other's
+medium, and building one script for both would produce a tool with two unrelated halves.
+
+What they DO share is one law, worth naming because it is the same defect wearing two costumes: D6's
+`dead-symbol` (*"a `--symbol` the surface references 0 times"*) and Q5's canary 2 (a bounded read
+returning zero) are both **denominator honesty** — a zero that means "not found in N" being read as
+"does not exist". The hub's own HARD STOP already states the law; these are its markdown and its data
+enforcement points. A future reviewer should treat them as siblings, never as duplicates to merge.
+
 ### Q6 — Fire rate before shipping (FIX DIRECTIVE 5, binding)
 
 Before `check_corpus_weight.py` moves from ADVISORY to blocking, replay it over the **last 30 days of
