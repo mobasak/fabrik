@@ -779,7 +779,7 @@ def test_the_gate_reports_a_malformed_orphan_position_instead_of_crashing(
 
 def test_the_orphan_preflight_still_refuses_behind_a_symlinked_sibling(tmp_path):
     """The symlink skip in the orphan glob must `continue`, never `break`: a link that sorts first
-    must not hide a real directory where SKILL.md belongs behind it."""
+    (the walk is sorted) must not hide a real directory where SKILL.md belongs behind it."""
     d, s, a = _trees(tmp_path)
     s.mkdir()
     (tmp_path / "elsewhere" / "SKILL.md").parent.mkdir()
@@ -847,7 +847,10 @@ def test_a_dangling_orphan_link_survives_the_render_and_a_link_to_a_directory_is
 
 @pytest.mark.parametrize("tree", ["commands", "agents"])
 def test_the_prune_glob_preflight_still_refuses_behind_a_symlinked_sibling(tmp_path, tree):
-    """The symlink skip in the commands/agents orphan globs must `continue`, never `break`."""
+    """The symlink skip in the commands/agents orphan globs must `continue`, never `break` — the
+    walk is SORTED, so `aa-link.md` is visited first and a `break` there would hide `zz-dir.md`
+    (an unsorted walk visited the directory first on one box and the link first on another, and
+    the test passed either way: Finish round 8)."""
     d, s, a = _trees(tmp_path)
     t = d if tree == "commands" else a
     t.mkdir(exist_ok=True)
@@ -860,6 +863,55 @@ def test_the_prune_glob_preflight_still_refuses_behind_a_symlinked_sibling(tmp_p
     with pytest.raises(SystemExit, match="belongs"):
         ac.render(d, s, agents_dest=a)
     assert _census(tmp_path) == (0, 0, 0)
+
+
+def test_a_directory_wrapper_behind_a_symlinked_orphan_dir_is_the_prunes_not_the_preflights(
+    tmp_path,
+):
+    """`entry.parent.is_symlink()` in the skills orphan glob: a DIRECTORY named SKILL.md inside a
+    symlinked orphan skill dir is skipped by the pre-flight (the whole link is the prune's) — without
+    that disjunct the render aborts with "is a directory where the SKILL.md wrapper belongs"."""
+    d, s, a = _trees(tmp_path)
+    s.mkdir()
+    outside = tmp_path / "outside"
+    (outside / "SKILL.md").mkdir(parents=True)
+    (s / "zz-link").symlink_to(outside)
+    ac.render(d, s, agents_dest=a)
+    assert (s / "zz-link").is_symlink() and (outside / "SKILL.md").is_dir()
+
+
+def test_an_orphan_fifo_never_hangs_the_render_or_the_gate(tmp_path, monkeypatch, capsys):
+    """`is_file()` is the only read guard: a FIFO in an orphan position is neither read (a read would
+    block forever) nor removed by the prune, and the gate reports it as not a regular file."""
+    import os
+    import signal
+
+    if not hasattr(os, "mkfifo"):
+        pytest.skip("no mkfifo on this platform")
+    d, s, a = _trees(tmp_path)
+    ac.render(d, s, agents_dest=a)
+    os.mkfifo(d / "zz-fifo.md")
+    (s / "zz-fifo").mkdir()
+    os.mkfifo(s / "zz-fifo" / "SKILL.md")
+
+    def _hang(signum, frame):
+        raise TimeoutError("a read guard let a FIFO through — the render or the gate blocked on it")
+
+    old = signal.signal(signal.SIGALRM, _hang)
+    signal.alarm(20)
+    try:
+        ac.render(d, s, agents_dest=a)
+        monkeypatch.setattr(ac, "OUT", d)
+        monkeypatch.setattr(ac, "SKILLS", s)
+        monkeypatch.setattr(ac, "AGENTS", a)
+        with pytest.raises(SystemExit) as exc:
+            ac.check()
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old)
+    out = capsys.readouterr().out
+    assert (d / "zz-fifo.md").exists() and (s / "zz-fifo" / "SKILL.md").exists()
+    assert exc.value.code == 1 and out.count("not a regular file") == 2, out
 
 
 def test_a_symlinked_orphan_wrapper_file_is_unlinked_not_refused(tmp_path):

@@ -982,7 +982,7 @@ def _write_agents(dest: Path, bodies: list[tuple[str, str]]) -> None:
         keep.add(name)
     # Prune ONLY what we generated. An operator's own agent definition must survive — deleting a
     # hand-authored file here would be data loss, and the banner is what tells them apart.
-    for stale in dest.glob("*.md"):
+    for stale in sorted(dest.glob("*.md")):
         # `is_file()` follows a link: a dangling link or a link to a directory is left where it is
         if (
             stale.name not in keep
@@ -1040,7 +1040,7 @@ def _preflight(
     # them after the writes; refuse it up front (a symlink there is an orphan the prune unlinks)
     for tree in (dest, agents_dest):
         if tree.is_dir():
-            for entry in tree.glob("*.md"):
+            for entry in sorted(tree.glob("*.md")):  # sorted: the first offender is deterministic
                 if entry.is_symlink():
                     continue  # an orphan link is the prune's to unlink
                 _file_or_absent(entry, "command file" if tree == dest else "agent file")
@@ -1050,7 +1050,7 @@ def _preflight(
             _dir_or_absent(skills_dest / name, "skill directory")
             _file_or_absent(skills_dest / name / "SKILL.md", "SKILL.md wrapper")
         if skills_dest.is_dir():
-            for entry in skills_dest.glob("*/SKILL.md"):
+            for entry in sorted(skills_dest.glob("*/SKILL.md")):
                 if entry.is_symlink() or entry.parent.is_symlink():
                     continue  # an orphan link (the wrapper or its dir) is the prune's to unlink
                 _file_or_absent(entry, "SKILL.md wrapper")
@@ -1164,7 +1164,7 @@ def render(dest: Path, skills_dest: Path | None = None, agents_dest: Path | None
     # The keep-set IS the source set: a generated skill whose name is no longer a source leaves
     # through this prune (the retired orchestrator wrappers, 2026-09-05, went this way).
     keep = source_names
-    for cmd in dest.glob("*.md"):
+    for cmd in sorted(dest.glob("*.md")):
         # `is_file()` follows a link: a dangling link or a link to a directory is neither read nor
         # removed; a link to a bannered file is unlinked as a LINK, its target never touched
         if (
@@ -1174,7 +1174,7 @@ def render(dest: Path, skills_dest: Path | None = None, agents_dest: Path | None
         ):
             cmd.unlink()
     if skills_dest is not None:
-        for sk in skills_dest.glob("*/SKILL.md"):
+        for sk in sorted(skills_dest.glob("*/SKILL.md")):
             if sk.parent.name in keep or not sk.is_file():
                 continue  # a dangling wrapper link or a link to a directory is left where it is
             if SKILL_BANNER not in sk.read_text(errors="replace"):
@@ -1182,13 +1182,9 @@ def render(dest: Path, skills_dest: Path | None = None, agents_dest: Path | None
             if sk.parent.is_symlink():
                 sk.parent.unlink()  # a symlinked orphan dir: remove the LINK, never touch the target
                 continue
-            if sk.is_symlink():
-                sk.unlink()  # a symlinked orphan wrapper: the link goes, the target stays
-                with contextlib.suppress(OSError):
-                    sk.parent.rmdir()  # and its directory, when that emptied it
-                continue
-            # remove ONLY the generated wrapper; the directory goes only when that empties it
-            # (an orphan dir can hold hand-authored siblings — never `rmtree`)
+            # remove ONLY the generated wrapper — a symlinked wrapper goes as a LINK by the same call
+            # (`unlink` never follows a link; the target stays) — and the directory goes only when
+            # that empties it (an orphan dir can hold hand-authored siblings — never `rmtree`)
             sk.unlink()
             with contextlib.suppress(OSError):
                 sk.parent.rmdir()
