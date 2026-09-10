@@ -16,7 +16,7 @@ invisible until a non-author re-walks the journeys against the spec.
 
 {{include:run-record}}
 {{include:term-edit}}
-(After the no-op: the approval gate at the end.)
+(After the quiet delta round: the approval gate at the end.)
 
 {{include:grounding-artifact}}
 - Also read `docs/data-contract.md` IF it already exists — a journey implying an entity/field the contract

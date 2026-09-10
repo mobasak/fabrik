@@ -136,8 +136,9 @@ def test_the_two_partitioned_review_loops_get_the_slice_floor_and_nothing_else_d
 _SECTION_PARTITION_SENTENCE = (
     "plus the partition — the artifact cut into DISJOINT slices by SECTION: Opus on the "
     "rule/grammar sections, Sonnet `fabrik-reviewer` seats on the rest, `fabrik-researcher` seats "
-    "only for the external facts the artifact cites, NO Haiku seat (the hygiene script is the class "
-    "sweep); sized by `dispatch_headroom.py --slices opus=N,sonnet=N` (D-207, D-218)"
+    "only for the external facts the artifact cites (counted inside `opus=`/`sonnet=` by their model "
+    "token), NO Haiku seat (the hygiene script is the class sweep); sized by "
+    "`dispatch_headroom.py --slices opus=N,sonnet=N` (D-207, D-218)"
 )
 
 

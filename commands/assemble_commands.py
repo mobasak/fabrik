@@ -157,7 +157,7 @@ EXTRACT = {
         (
             "termination",
             "term-edit",
-            "\n(This command is fully autonomous — `/fabrik-plan-after-chat` auto-invokes it and it runs itself to `CONVERGED` with no approval gate, unlike `/fabrik-spec-review`.)",
+            "\n(Flip preconditions this gate reads mechanically: a MONOLITH plan must carry `## Coverage\nChecklist` + an embedded `review_rubric.py` invocation — `_checklist_section` and `RUBRIC_RUN` in\n`check_convergence.py` (grep for the symbols — line anchors into that file drift); verify\nboth before the closing delta round, or the flip fails after the loop.)\n(This command is fully autonomous — `/fabrik-plan-after-chat` auto-invokes it and it runs itself to `CONVERGED` with no approval gate, unlike `/fabrik-spec-review`.)",
         ),
         ("grounding", "grounding-artifact", None),
         ("subagents", "subagents-core", None),
@@ -171,7 +171,11 @@ EXTRACT = {
         ("questionbar", "questionbar", None),
     ],
     "fabrik-ui-design-review": [
-        ("termination", "term-edit", "\n(After the no-op: the approval gate at the end.)"),
+        (
+            "termination",
+            "term-edit",
+            "\n(After the quiet delta round: the approval gate at the end.)",
+        ),
         (
             "grounding",
             "grounding-artifact",
@@ -247,8 +251,9 @@ def _floor(kind: str, native: str) -> str:
         angles = (
             f"**plus the partition — the artifact cut into DISJOINT slices by SECTION: Opus on the "
             f"rule/grammar sections, Sonnet {native} seats on the rest, `fabrik-researcher` seats "
-            f"only for the external facts the artifact cites, NO Haiku seat (the hygiene script is "
-            f"the class sweep); sized by `dispatch_headroom.py --slices opus=N,sonnet=N` (D-207, D-218)"
+            f"only for the external facts the artifact cites (counted inside `opus=`/`sonnet=` by their "
+            f"model token), NO Haiku seat (the hygiene script is the class sweep); sized by "
+            f"`dispatch_headroom.py --slices opus=N,sonnet=N` (D-207, D-218)"
         )
     elif kind in _JUDGEMENT_KINDS:
         angles = (

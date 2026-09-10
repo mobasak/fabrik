@@ -23,7 +23,7 @@ This command is #1: it never opens a browser — it grounds text against text.
 
 {{include:run-record}}
 {{include:term-edit}}
-(After the no-op: the approval gate at the end.)
+(After the quiet delta round: the approval gate at the end.)
 
 {{include:grounding-artifact}}
 - Also read the frozen `docs/data-contract.md` for every field a screen binds — a field not backed by a real column is an invented-surface defect.

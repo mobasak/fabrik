@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -68,9 +69,18 @@ MATRIX: list[tuple[str, str, str, str]] = [
 ]
 
 
-def _load(name: str):
-    """Import a gate module from ENF by file, so a mutant copy is what the test grades."""
-    spec = importlib.util.spec_from_file_location(name, ENF / f"{name}.py")
+def _load(name: str, enf: Path = ENF):
+    """Import a gate module from ``enf`` by file, so a mutant copy is what the test grades.
+
+    The gates reach their siblings through a bare ``sys.path`` fallback import, and Python caches
+    bare modules — so every sibling of ``enf`` is purged from ``sys.modules`` and ``enf`` is put
+    first on ``sys.path`` before the load, or a second load would keep the FIRST directory's
+    siblings (a mutant proof would read green over the real module).
+    """
+    for sibling in enf.glob("*.py"):
+        sys.modules.pop(sibling.stem, None)
+    sys.path.insert(0, str(enf))
+    spec = importlib.util.spec_from_file_location(name, enf / f"{name}.py")
     mod = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(mod)
@@ -298,6 +308,22 @@ def test_the_pinned_artifact_is_in_the_gates_examined_set(gate: str, tmp_path: P
 
     else:  # pragma: no cover - a MATRIX row without a test is exactly the gap this file closes
         raise AssertionError(f"no test for matrix row {gate}")
+
+
+def test_load_resolves_a_gates_sibling_imports_from_the_enforcement_dir_under_test(tmp_path):
+    """`check_plan_quality.py` reaches `check_plans` through a bare `sys.path` fallback import, and
+    Python caches bare modules in `sys.modules` — so a second `_load()` from a scratch copy would keep
+    the FIRST directory's `check_plans` and a mutant there would be invisible (a false-green mutant
+    proof). `_load` purges the gate's sibling modules first; this test loads the real gate, then a
+    copy whose `check_plans` is marked, and asserts the copy's sibling is the one bound."""
+    _load("check_plan_quality")  # the real one first — the cache the second load must not inherit
+    root = tmp_path / "scripts" / "enforcement"
+    shutil.copytree(REPO / "scripts" / "enforcement", root)
+    marker = root / "check_plans.py"
+    marker.write_text(marker.read_text() + "\nMATRIX_MARKER = 'copy'\n")
+    cpq = _load("check_plan_quality", enf=root)
+    bound = cpq._check_plans_naming.__globals__
+    assert bound.get("MATRIX_MARKER") == "copy", bound.get("__file__")
 
 
 def test_every_matrix_row_names_a_gate_that_exists():
