@@ -191,7 +191,9 @@ def test_every_extract_after_text_round_trips_against_its_source():
             if kept != (after or "").strip("\n"):
                 mismatched.append((name, fragment, kept[:60]))
     # every entry, none skipped — and an absolute floor, so an emptied EXTRACT cannot read green
-    assert examined == sum(len(p) for p in ac.EXTRACT.values()) and examined >= 6, examined
+    # pinned to the map's size on purpose: a map that lost 23 of its 29 after-texts read green under
+    # a `>= 6` floor — changing EXTRACT means changing this number deliberately
+    assert examined == sum(len(p) for p in ac.EXTRACT.values()) == 29, examined
     assert mismatched == [], mismatched
 
 
@@ -401,7 +403,12 @@ def _trees(tmp_path):
 
 def _census(tmp_path):
     d, s, a = _trees(tmp_path)
-    return len(list(d.glob("*.md"))), len(list(s.glob("*/SKILL.md"))), len(list(a.glob("*.md")))
+    # FILES only: a planted directory named SKILL.md (an abort fixture) is not a written wrapper
+    return (
+        len([p for p in d.glob("*.md") if p.is_file()]),
+        len([p for p in s.glob("*/SKILL.md") if p.is_file()]),
+        len([p for p in a.glob("*.md") if p.is_file()]),
+    )
 
 
 def _defective_agent_sources(tmp_path, monkeypatch):
@@ -418,7 +425,17 @@ def _defective_agent_sources(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize(
     "abort",
-    ["over-cap NEXT", "defective agent source", "render error", "a file where a skill dir belongs"],
+    [
+        "over-cap NEXT",
+        "defective agent source",
+        "render error",
+        "a file where a skill dir belongs",
+        "the skills tree is a file",
+        "SKILL.md is a directory",
+        "a dangling symlink where a skill dir belongs",
+        "the commands tree is a file",
+        "the agents tree is a file",
+    ],
 )
 def test_an_aborted_render_writes_into_none_of_the_three_trees(tmp_path, monkeypatch, abort):
     """Every render gate fires BEFORE the first write: an aborted render leaves the commands, skills
@@ -439,16 +456,32 @@ def test_an_aborted_render_writes_into_none_of_the_three_trees(tmp_path, monkeyp
         first = sorted(src.glob("*.md"))[0]
         first.write_text(first.read_text() + "\n{{include:nope}}\n")
         monkeypatch.setattr(ac, "SRC", src)
-        match = "2"  # sys.exit(2) after RENDER ERRORS
+        match = r"^2$"  # the exit code itself, never a digit inside some other message
     else:
-        s = tmp_path / "_skills"
-        s.mkdir()
-        (s / next(iter(ac.NEXT))).write_text("a plain file where the skill DIRECTORY belongs")
-        match = "not a directory"
+        d, s, a = _trees(tmp_path)
+        name = next(iter(ac.NEXT))
+        if abort == "a file where a skill dir belongs":
+            s.mkdir()
+            (s / name).write_text("a plain file where the skill DIRECTORY belongs")
+        elif abort == "the skills tree is a file":
+            s.write_text("a plain file where the skills TREE belongs")
+        elif abort == "SKILL.md is a directory":
+            (s / name / "SKILL.md").mkdir(parents=True)
+        elif abort == "a dangling symlink where a skill dir belongs":
+            s.mkdir()
+            (s / name).symlink_to(tmp_path / "nowhere")
+        elif abort == "the commands tree is a file":
+            (tmp_path / "cmds").write_text("a plain file where the commands TREE belongs")
+        else:
+            a.write_text("a plain file where the agents TREE belongs")
+        match = "not a directory|is a directory"
     d, s, a = _trees(tmp_path)
+    if abort == "the commands tree is a file":
+        d = tmp_path / "cmds"
     with pytest.raises(SystemExit, match=match):
         ac.render(d, s, agents_dest=a)
     assert _census(tmp_path) == (0, 0, 0)
+    assert not (tmp_path / "cmds").is_dir()
 
 
 def test_the_floor_helper_refuses_an_unknown_kind():
@@ -548,3 +581,19 @@ def test_every_render_prune_removes_a_generated_orphan_and_keeps_a_hand_authored
     assert all(stray.exists() for stray in strays)
     n_src, n_ag = len(list(ac.SRC.glob("*.md"))), len(list(ac.AGENT_SRC.glob("*.md")))
     assert _census(tmp_path) == (n_src + 1, n_src + 1, n_ag + 1)
+
+
+def test_every_floor_kind_a_caller_passes_is_a_known_kind_and_nothing_more():
+    """The guard is only as tight as its sets: the `_floor("…")` literals in the module ARE the union."""
+    src = Path(ac.__file__).read_text()
+    passed = set(re.findall(r'_floor\("([^"]+)"', src))
+    assert passed == set(ac._ALL_FLOOR_KINDS), passed ^ set(ac._ALL_FLOOR_KINDS)
+
+
+def test_the_section_partition_floor_reaches_both_rendered_reviews(tmp_path):
+    """The sentence D-212/D-218 added must reach the RENDERED spec and plan reviews — a FLOOR blanked
+    at substitution time is invisible to the PARAMS-level test."""
+    ac.render(tmp_path, tmp_path / "_skills", agents_dest=tmp_path / "_agents")
+    for name in ("fabrik-spec-review", "fabrik-plan-review"):
+        text = (tmp_path / f"{name}.md").read_text()
+        assert "cut into DISJOINT slices by SECTION" in text and "NO Haiku seat" in text, name

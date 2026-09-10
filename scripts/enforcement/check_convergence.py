@@ -134,37 +134,41 @@ _REDERIVATION_ROW = re.compile(
 # `confirmed: 3` row is prose) and the LAST `confirmed: N` token is the row's own counter (a row
 # that mentions an earlier count before its own grades on its own). A ledger with no counter row
 # at all keeps today's checks (the `edits:`-only and colon-less shapes are not counters).
-# `Pass` OR `Round` — the same words `_REDERIVATION_ROW` accepts, so the two rules in this file agree
-# about what a ledger row is; `(?<![\w-])` in front of the token, as `QUIET_PASS` carries, so an
+# `Pass` OR `Round` — the words `_REDERIVATION_ROW` accepts (that matcher also takes a bulleted
+# line, which is prose, never a ledger row, and never carries the counter — the table row is the
+# unit both rules grade); `(?<![\w-])` in front of the token, as `QUIET_PASS` carries, so an
 # `unconfirmed:` or `re-confirmed:` cell never reads as the counter. STATED COST of the last-token
 # rule: a Notes cell that cites an EARLIER round's count AFTER the row's own counter (`confirmed: 0 |
 # notes: pass 1 stood at confirmed: 3`) is refused — write the citation before the counter, or in
-# a code span. Measured 2026-09-10: 0 of 47 fleet spines and 0 of 454 receipts carry >1 token on one row.
+# a code span. Measured 2026-09-10: 0 of 47 fleet spines and 0 of 805 fleet review artifacts carry >1 token on one row.
 _PASS_ROW = re.compile(r"^[ \t]*\|\s*\**(?:Pass|Round)\b[^\n]*", re.I | re.M)
 _CODE_SPAN = re.compile(r"`[^`\n]*`")
 _HTML_COMMENT = re.compile(r"<!--.*?-->", re.S)
 _CONFIRMED_TOKEN = re.compile(r"(?<![\w-])confirmed\s*:\s*(\d+)", re.I)
-CLOSING_ROW_REFUSAL = "its last Pass row does not read confirmed: 0"
+CLOSING_ROW_REFUSAL = "the flip is refused: the last Pass row does not read confirmed: 0"
 
 
 def _closing_row_fail(text: str) -> str | None:
-    """The refusal for a spine text, or None. The quoting policy is applied HERE — fences and HTML
-    comments blanked (a parked ledger is a quote) — so a fleet census that calls this on raw text
-    grades every spine through the SAME rule the flip check applies (never a look-alike grep);
-    the caller's own strip is harmless. A later Pass row WITHOUT a counter does not un-count the
-    ledger: the last COUNTER row decides (a ledger that stopped counting mid-way is graded on its
-    last count). The message names the flip, not the claim: `_check_spine_set` runs on the
-    CONVERGED and the EXECUTED path alike."""
-    text = _HTML_COMMENT.sub("", FENCE_STRIP.sub("", text))
-    last_counter: int | None = None
+    """The refusal for a spine text, or None. The quoting policy is applied HERE — fences stripped,
+    then code spans masked (a `<!--` inside backticks is prose, not a comment opener), then HTML
+    comments blanked (a parked ledger is a quote; the receipt-side `_blank_quoted` does the same, and also
+    runs an UNCLOSED comment to end-of-file where this rule needs the closer — fail-closed) — so a
+    fleet census that calls this on raw text grades every spine through the SAME rule the flip
+    check applies (never a look-alike grep); the caller's own strip is harmless. A later Pass row
+    WITHOUT a counter does not un-count the ledger: the last COUNTER row decides (a ledger that
+    stopped counting mid-way is graded on its last count). The message names the flip, not the
+    claim: `_check_spine_set` runs on the CONVERGED and the EXECUTED path alike, and quotes the
+    counter as WRITTEN (`confirmed: 03` reads `03`)."""
+    # ORDER: fences first (line-anchored, so a stray backtick pair cannot eat a marker), then code
+    # spans masked (a `<!--` in backticks is prose), then HTML comments blanked
+    text = _HTML_COMMENT.sub("", _CODE_SPAN.sub("`x`", FENCE_STRIP.sub("", text)))
+    last: str | None = None
     for m in _PASS_ROW.finditer(text):
-        tokens = _CONFIRMED_TOKEN.findall(_CODE_SPAN.sub("`x`", m.group(0)))
+        tokens = _CONFIRMED_TOKEN.findall(m.group(0))
         if tokens:
-            last_counter = int(tokens[-1])
-    if last_counter is not None and last_counter != 0:
-        return (
-            f"the flip {CLOSING_ROW_REFUSAL} (its last counter row reads confirmed: {last_counter})"
-        )
+            last = tokens[-1]
+    if last is not None and int(last) != 0:
+        return f"{CLOSING_ROW_REFUSAL} (its last counter row reads confirmed: {last})"
     return None
 
 

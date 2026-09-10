@@ -1483,7 +1483,7 @@ def _run_ledger(tmp_path: Path, ledger: str, archived: bool = False) -> tuple[in
     return proc.returncode, proc.stdout
 
 
-REFUSAL = "its last Pass row does not read confirmed: 0"
+REFUSAL = "the last Pass row does not read confirmed: 0"
 
 
 def test_a_converged_spine_whose_last_pass_row_confirms_more_than_zero_is_refused(repo):
@@ -1575,9 +1575,59 @@ def test_unconfirmed_is_not_a_confirmed_counter(repo):
 
 def test_a_ledger_parked_in_an_html_comment_is_not_graded(repo):
     """Commenting out a superseded ledger is the standard markdown park; the receipt-side
-    `_blank_quoted` blanks comments and fences alike."""
+    `_blank_quoted` blanks comments and fences alike (it also runs an unclosed comment to the end
+    of the file; this rule needs the closer — fail-closed, by design)."""
     rc, out = _run_ledger(
         repo,
         "| Pass 1 | seats | method: citation — full | confirmed: 3 |\n| Pass 2 | seat | method: re-derivation — delta | confirmed: 0 |\n\n<!-- the old ledger, parked:\n| Pass 3 | seats | method: citation | confirmed: 9 |\n-->\n",
     )
     assert rc == 0, out
+
+
+def _spine_set_fails(tmp_path: Path, ledger: str, archived: bool = False) -> list[str]:
+    """`_check_spine_set` in-process — the function the closing-row rule lives in — so the archived
+    carve-out and the message are graded on the path the rule takes (the CONVERGED target list
+    already skips `archived/`; the EXECUTED one does not)."""
+    sys.path.insert(0, str(CHECK.parent))
+    import check_convergence as cc  # noqa: E402
+
+    spine = _ledger_spine(tmp_path, archived)
+    spine.write_text(_LEDGER_SPINE_HEAD + ledger)
+    return cc._check_spine_set(tmp_path, spine, spine.read_text())
+
+
+def test_the_archived_carve_out_keeps_settled_history_out_of_the_closing_row_rule(tmp_path):
+    ledger = "| Pass 1 | seats | method: citation — full | confirmed: 3 |\n| Pass 2 | seat | method: re-derivation — delta | confirmed: 4 |\n"
+    assert _spine_set_fails(tmp_path, ledger, archived=True) == []
+    live = _spine_set_fails(tmp_path, ledger, archived=False)
+    assert any("last Pass row does not read confirmed: 0" in f for f in live), live
+
+
+def test_the_refusal_is_a_sentence_that_quotes_the_row_as_written(tmp_path):
+    """Both flip paths print this line; it must read as a sentence and quote the counter verbatim
+    (`confirmed: 03` is `03`, not `3`)."""
+    ledger = "| Pass 1 | seats | method: citation — full | confirmed: 0 |\n| Pass 2 | seat | method: re-derivation — delta | confirmed: 03 |\n"
+    fails = _spine_set_fails(tmp_path, ledger)
+    assert (
+        len(fails) == 1
+        and "the flip is refused: the last Pass row does not read confirmed: 0" in fails[0]
+    ), fails
+    assert "reads confirmed: 03" in fails[0], fails
+
+
+def test_the_rule_strips_fences_itself_for_the_census_path():
+    sys.path.insert(0, str(CHECK.parent))
+    import check_convergence as cc  # noqa: E402
+
+    # the quoted row comes LAST, so only a real strip keeps it out of the verdict
+    raw = "| Pass 1 | seats | method: re-derivation | confirmed: 0 |\n\n```\n| Pass 2 | quoted | confirmed: 4 |\n```\n"
+    assert cc._closing_row_fail(raw) is None
+
+
+def test_an_html_comment_marker_inside_a_code_span_does_not_swallow_the_ledger():
+    """`` `<!--` `` in prose is a code span, not a comment opener — masking runs before blanking."""
+    sys.path.insert(0, str(CHECK.parent))
+    import check_convergence as cc  # noqa: E402
+
+    raw = "Park a superseded ledger in `<!--` at the top.\n\n| Pass 1 | seats | method: citation | confirmed: 3 |\n| Pass 2 | seat | method: re-derivation | confirmed: 4 |\n\nClose it with `-->` at the end.\n"
+    assert cc._closing_row_fail(raw) is not None

@@ -244,10 +244,14 @@ _UNITS_KINDS = frozenset({"review", "sweep", "audit", "docs review"})
 # the units-sized mix.
 _PARTITION_KINDS = {"review loop"}
 _SECTION_PARTITION_KINDS = {"section partition"}
+# the ONE union the guard reads; the kind-census test pins it to the call sites' literals
+_ALL_FLOOR_KINDS = frozenset(
+    _PARTITION_KINDS | _SECTION_PARTITION_KINDS | _JUDGEMENT_KINDS | _UNITS_KINDS
+)
 
 
 def _floor(kind: str, native: str) -> str:
-    if kind not in _PARTITION_KINDS | _SECTION_PARTITION_KINDS | _JUDGEMENT_KINDS | _UNITS_KINDS:
+    if kind not in _ALL_FLOOR_KINDS:
         # a one-character slip in a PARAMS literal must never render the DEFAULT contract (with
         # its Haiku seat) into a partitioned review — loud, at render time
         raise ValueError(f"_floor: unknown floor kind {kind!r}")
@@ -983,8 +987,31 @@ def _write_agents(dest: Path, bodies: list[tuple[str, str]]) -> None:
             stale.unlink()
 
 
+def _preflight(dest: Path, skills_dest: Path | None, agents_dest: Path, names: list[str]) -> None:
+    """Every path the render will write through must be a directory or absent — checked BEFORE
+    the first write, so a plain file, a dangling symlink or a directory-where-a-file-belongs is a
+    loud SystemExit over untouched trees, never a traceback over a half-written one."""
+
+    def _dir_or_absent(p: Path, what: str) -> None:
+        if (p.exists() or p.is_symlink()) and not p.is_dir():
+            raise SystemExit(
+                f"{what}: {p} exists and is not a directory — remove it, then re-render (no file was written)"
+            )
+
+    _dir_or_absent(dest, "commands")
+    _dir_or_absent(agents_dest, "agents")
+    if skills_dest is not None:
+        _dir_or_absent(skills_dest, "skills")
+        for name in names:
+            _dir_or_absent(skills_dest / name, "skills")
+            leaf = skills_dest / name / "SKILL.md"
+            if leaf.is_dir():
+                raise SystemExit(
+                    f"skills: {leaf} is a directory where the wrapper FILE belongs — remove it, then re-render (no file was written)"
+                )
+
+
 def render(dest: Path, skills_dest: Path | None = None, agents_dest: Path | None = None):
-    dest.mkdir(parents=True, exist_ok=True)
     frags = {p.stem: p.read_text().rstrip("\n") for p in FRAG.glob("*.md")}
     if agents_dest is None:
         # Follow dest: only a render aimed at the LIVE commands dir may touch the LIVE agents
@@ -1072,14 +1099,8 @@ def render(dest: Path, skills_dest: Path | None = None, agents_dest: Path | None
     # the skill-description cap is composed for EVERY command before the first write (a trip used
     # to fire inside the skills loop, after all 36 commands and part of the skills were on disk)
     skill_bodies = [(name, _compose_skill(name, desc)) for name, desc in emitted]
-    if skills_dest is not None:
-        for name, _body in skill_bodies:
-            target = skills_dest / name
-            if target.exists() and not target.is_dir():
-                raise SystemExit(
-                    f"skills: {target} exists and is not a directory — a plain file where the "
-                    "skill directory belongs; remove it, then re-render (nothing was written)"
-                )
+    _preflight(dest, skills_dest, agents_dest, [name for name, _ in skill_bodies])
+    dest.mkdir(parents=True, exist_ok=True)
     _write_agents(agents_dest, agent_bodies)
     for fname, text in pending:
         (dest / fname).write_text(text)
