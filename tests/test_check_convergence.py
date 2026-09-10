@@ -391,7 +391,9 @@ def test_a_converged_lane_may_embed_a_gate_a_sibling_lane_reds(repo: Path) -> No
 
     # the declaration is not a magic word: it must carry its own denominator ...
     no_denominator = honest.replace("findings naming this surface: 0 of 7; ", "")
-    assert _run(repo, "docs/development/reviews/2026-09-03-aspect-18b-review.md", no_denominator) == 1
+    assert (
+        _run(repo, "docs/development/reviews/2026-09-03-aspect-18b-review.md", no_denominator) == 1
+    )
 
     # ... it must name how it was measured ...
     unmeasured = honest.split("; measured by:")[0] + "\n\n" + honest.split("```", 1)[1]
@@ -406,7 +408,9 @@ def test_a_converged_lane_may_embed_a_gate_a_sibling_lane_reds(repo: Path) -> No
     assert _run(repo, "docs/development/reviews/2026-09-03-aspect-18e-review.md", no_embed) == 1
 
 
-def test_a_fenced_quote_of_the_gate_scope_grammar_is_documentation_not_a_declaration(repo: Path) -> None:
+def test_a_fenced_quote_of_the_gate_scope_grammar_is_documentation_not_a_declaration(
+    repo: Path,
+) -> None:
     """The first cut read the declaration on the RAW record, so a review documenting this very
     mechanism — one real sign-off claim, the grammar quoted inside a fence as an example, and an
     unrelated fenced `"status": "failure"` — passed with zero evidence. Found and reproduced by
@@ -419,7 +423,7 @@ def test_a_fenced_quote_of_the_gate_scope_grammar_is_documentation_not_a_declara
         "reviewed — sign-off.\n\n"
         "The declaration shape is:\n\n```\nGATE-SCOPE: out-of-surface — Plan-Set Contract; "
         "findings naming this surface: 0 of 7; measured by: `grep`\n```\n\n"
-        "and an unrelated example of a failing run:\n\n```\n{\"status\": \"failure\", \"failed\": 1}\n```\n"
+        'and an unrelated example of a failing run:\n\n```\n{"status": "failure", "failed": 1}\n```\n'
     )
     assert _run(repo, "docs/development/reviews/2026-09-05-quoted-grammar-review.md", quoted) == 1
 
@@ -427,7 +431,7 @@ def test_a_fenced_quote_of_the_gate_scope_grammar_is_documentation_not_a_declara
     zero = (
         "# Review of aspect 19\n\n## Phase 1 verdict\nConverged.\n\nreviewed — sign-off.\n\n"
         "GATE-SCOPE: out-of-surface — Plan-Set Contract; findings naming this surface: 0 of 0; "
-        "measured by: `grep`\n\n```\n{\"status\": \"failure\", \"failed\": 1}\n```\n"
+        'measured by: `grep`\n\n```\n{"status": "failure", "failed": 1}\n```\n'
     )
     assert _run(repo, "docs/development/reviews/2026-09-05-zero-denominator-review.md", zero) == 1
 
@@ -437,10 +441,11 @@ def test_a_fenced_quote_of_the_gate_scope_grammar_is_documentation_not_a_declara
         "# Review of aspect 20\n\n## Phase 1 verdict\nConverged.\n\nreviewed — sign-off.\n\n"
         "GATE-SCOPE: out-of-surface — Plan-Set Contract; findings naming this surface: 0 of 7; "
         "measured by:\n\n## Notes\n\nWe did not record the command.\n\n"
-        "```\n{\"status\": \"failure\", \"failed\": 1}\n```\n"
+        '```\n{"status": "failure", "failed": 1}\n```\n'
     )
-    assert _run(repo, "docs/development/reviews/2026-09-05-dangling-measured-review.md", dangling) == 1
-
+    assert (
+        _run(repo, "docs/development/reviews/2026-09-05-dangling-measured-review.md", dangling) == 1
+    )
 
 
 def test_an_honest_declaration_with_a_fenced_value_passes(repo: Path) -> None:
@@ -452,9 +457,11 @@ def test_an_honest_declaration_with_a_fenced_value_passes(repo: Path) -> None:
         "# Review of aspect 21\n\n## Phase 1 verdict\nConverged.\n\nreviewed — sign-off.\n\n"
         "GATE-SCOPE: out-of-surface — Plan-Set Contract; findings naming this surface: 0 of 7; "
         "measured by: ```check_plan_tickets --plan-dir x | grep mine```\n\n"
-        "```\n{\"status\": \"failure\", \"failed\": 1}\n```\n"
+        '```\n{"status": "failure", "failed": 1}\n```\n'
     )
-    assert _run(repo, "docs/development/reviews/2026-09-05-fenced-value-review.md", fenced_value) == 0
+    assert (
+        _run(repo, "docs/development/reviews/2026-09-05-fenced-value-review.md", fenced_value) == 0
+    )
 
 
 def test_review_withholding_claims_is_not_a_claim(repo: Path) -> None:
@@ -480,11 +487,7 @@ def test_fenced_claim_words_are_quotes_not_claims(repo: Path) -> None:
 def test_unnegated_claim_wins_over_nearby_negations(repo: Path) -> None:
     # Plan-branch precedence mirrored: ONE unnegated affirmative claims, even if
     # other sentences carry negated forms — and it still owes the evidence.
-    doc = (
-        "# Review of plan Y\n\n"
-        "One residual is not converged (filed).\n\n"
-        "reviewed — sign-off.\n"
-    )
+    doc = "# Review of plan Y\n\nOne residual is not converged (filed).\n\nreviewed — sign-off.\n"
     assert _run(repo, "docs/development/reviews/2026-08-08-plan-y-review.md", doc) == 1
 
 
@@ -933,6 +936,7 @@ def test_executed_citation_must_be_plan_relevant_not_any_quiet_review(tmp_path):
     non-quiet validation review must FAIL — the quiet round must come from a review
     whose filename references this plan (the accidental-satisfaction loophole)."""
     import scripts.enforcement.check_convergence as cc
+
     root = tmp_path
     (root / "docs/development/plans").mkdir(parents=True)
     (root / "docs/development/reviews").mkdir(parents=True)
@@ -959,6 +963,7 @@ def test_executed_single_unrelated_citation_also_fails(tmp_path):
     satisfy the EXECUTED flip — the stem rule is unconditional (retro-safe: all
     archived EXECUTED plans stem-match their citations)."""
     import scripts.enforcement.check_convergence as cc
+
     root = tmp_path
     (root / "docs/development/plans").mkdir(parents=True)
     (root / "docs/development/reviews").mkdir(parents=True)
@@ -1071,7 +1076,7 @@ def test_elided_probes_outside_a_fence_are_ignored():
 
 def test_multiple_elided_probes_are_all_counted():
     cc = _cc()
-    text = '```\n$ ... one\nout\n```\n\n```\n$ ... two\nout\n```\n'
+    text = "```\n$ ... one\nout\n```\n\n```\n$ ... two\nout\n```\n"
     assert cc._elided_probes(text) == 2
 
 
@@ -1170,7 +1175,9 @@ def test_a_trimmed_fence_is_actually_reported_through_check_plan(tmp_path):
         "```\n$ sed -n '1,40p' src/app.py\ndef handler():\n...\n```\n\n## Self-audit\n\nok.\n",
         encoding="utf-8",
     )
-    assert any("TRIMMED" in f for f in cc._check_plan(tmp_path, plan)), cc._check_plan(tmp_path, plan)
+    assert any("TRIMMED" in f for f in cc._check_plan(tmp_path, plan)), cc._check_plan(
+        tmp_path, plan
+    )
 
 
 def test_the_marker_is_a_token_so_a_language_tag_survives():
@@ -1203,7 +1210,10 @@ def _archived_repo(tmp_path, name: str, status: str | None):
     d.mkdir(parents=True)
     body = f"# Plan\n\n{'Status: ' + status if status else '(no status line)'}\n\nwork\n"
     (d / name).write_text(body, encoding="utf-8")
-    for args in (["add", "-A"], ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "a"]):
+    for args in (
+        ["add", "-A"],
+        ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "a"],
+    ):
         subprocess.run(["git", "-C", str(tmp_path), *args], check=True)
     # re-touch so it appears in git status (the check only reads CHANGED files)
     (d / name).write_text(body + "\ntouched\n", encoding="utf-8")
@@ -1443,3 +1453,81 @@ def test_quiet_pass_is_set_identical_to_the_retired_regex_over_the_committed_rec
     )
     assert old_quiet == new_quiet, {"old-only": old_only, "new-only": new_only}
     assert len(new_quiet) == 166, f"{len(new_quiet)} quiet of {len(files)} pinned receipts"
+
+
+# ------------------------------- the closing-row `confirmed: 0` rule (review-family adoption, Phase C)
+
+_LEDGER_SPINE_HEAD = '# Plan: ledger fixture\n\nStatus: CONVERGED\n\n## Goal\n\nx.\n\n## Ticket Board\n\n| Ticket | Title | Depends | Parallel | State | Commit |\n|---|---|---|---|---|---|\n| T01 | fixture | — | ⚡ | ⬜ | — |\n\n## Merge Order\n\n1. T01\n\n## Behavior Contract\n\n- **Given** x, **When** y, **Then** z (src/app/handler.py:1).\n\n## Coverage Checklist\n\n```\n$ python scripts/review_rubric.py --changed src/app/handler.py\n# REVIEW RUBRIC — inject into EVERY finder prompt (generated by review_rubric.py)\nFLOOR …\n```\n\n| Class | Status |\n|---|---|\n| fail-open | CLEAN |\n\n## Evidence\n\nGrounded in src/app/handler.py:42.\n\n```\n$ python scripts/final_gate.py --lean\n{"status": "success", "passed": 15, "failed": 0}\n```\n\n## Self-audit\nTraced.\n\n## Pass Ledger\n\n'
+
+_LEDGER_TICKET = "# T01 — fixture\n\nDepends: none\nParallel: ⚡\nComplexity: native\nIntegration: true\nDocs: none\nGate: pytest -q\n\n## Scope\nFixture. DO-NOT touch api.\n\n## Touches\n- src/app/handler.py\n\n## Behavior Contract\n- **Given** x, **When** y, **Then** z (src/app/handler.py:1).\n\n## Context Files\n- .windsurf/rules/core/10-python.md\n"
+
+
+def _ledger_spine(tmp_path: Path) -> Path:
+    d = tmp_path / "docs" / "development" / "plans" / "2026-09-10-plan-1-ledger"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "T01-fixture.md").write_text(_LEDGER_TICKET)
+    return d / "2026-09-10-plan-1-ledger.md"
+
+
+def _run_ledger(tmp_path: Path, ledger: str) -> tuple[int, str]:
+    spine = _ledger_spine(tmp_path)
+    spine.write_text(_LEDGER_SPINE_HEAD + ledger)
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True, timeout=15)
+    proc = subprocess.run(
+        [sys.executable, str(CHECK), "--project-root", str(tmp_path)],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    return proc.returncode, proc.stdout
+
+
+REFUSAL = "claims CONVERGED but its last Pass row does not read confirmed: 0"
+
+
+def test_a_converged_spine_whose_last_pass_row_confirms_more_than_zero_is_refused(repo):
+    rc, out = _run_ledger(
+        repo,
+        "| Pass 1 | seats | method: citation — full | found: 3 | confirmed: 3 |\n| Pass 2 | seat | method: re-derivation — delta | found: 2 | confirmed: 2 |\n",
+    )
+    assert rc == 1 and REFUSAL in out, out
+
+
+def test_a_converged_spine_whose_last_pass_row_confirms_zero_passes(repo):
+    rc, out = _run_ledger(
+        repo,
+        "| Pass 1 | seats | method: citation — full | found: 3 | confirmed: 3 |\n| Pass 2 | seat | method: re-derivation — delta | found: 0 | confirmed: 0 |\n",
+    )
+    assert rc == 0, out
+
+
+def test_a_counter_inside_a_code_span_and_a_colonless_counter_are_not_counter_rows(repo):
+    rc, out = _run_ledger(
+        repo,
+        "| Pass 1 | seats | method: citation — quoted a fifth `confirmed: 3` row | edits: 2 |\n| Pass 2 | seat | method: re-derivation — delta; confirmed 0 | edits: 0 |\n",
+    )
+    assert rc == 0, out
+
+
+def test_an_edits_only_ledger_without_a_counter_keeps_todays_checks(repo):
+    rc, out = _run_ledger(
+        repo,
+        "| Pass 1 | all | method: citation | edits: 7 |\n| Pass 2 | all | method: re-derivation | edits: 0 |\n",
+    )
+    assert rc == 0, out
+
+
+def test_an_indented_closing_row_under_a_list_item_is_still_a_counter_row(repo):
+    rc, out = _run_ledger(
+        repo,
+        "- the ledger:\n  | Pass 1 | seats | method: citation — full | confirmed: 3 |\n  | Pass 2 | seat | method: re-derivation — delta | confirmed: 2 |\n",
+    )
+    assert rc == 1 and REFUSAL in out, out
+
+
+def test_the_last_confirmed_token_on_the_closing_row_is_the_one_that_counts(repo):
+    rc, out = _run_ledger(
+        repo,
+        "| Pass 1 | seats | method: citation — full | confirmed: 4 |\n| Pass 2 | seat | method: re-derivation — delta; notes: confirmed: 4 earlier, now confirmed: 0 |\n",
+    )
+    assert rc == 0, out

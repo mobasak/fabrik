@@ -123,7 +123,40 @@ CONVERGED = _ConvergedSearch()
 # lost the block on 6 real files. The anchor is the METHOD CELL, not the word — same-line,
 # any gap, `method: re-derivation` (bold/colon variants tolerated).
 _REDERIVATION_ROW = re.compile(
-    r"\b(?:pass|round)\b[^\n]*\bmethod\W{0,4}\s*:?\s*\*{0,2}\s*re-?deriv", re.I)
+    r"\b(?:pass|round)\b[^\n]*\bmethod\W{0,4}\s*:?\s*\*{0,2}\s*re-?deriv", re.I
+)
+# The CLOSING-ROW rule (D-206, the review-family adoption plan, Phase C): once a spine's Pass
+# Ledger carries a `confirmed:` counter, the LAST Pass-headed row must read `confirmed: 0` — a
+# CONVERGED claim over a ledger whose closing round confirmed defects is refused. A Pass-headed
+# row is `| Pass …` at line start, INDENTED rows included (a ledger nested under a list item is
+# still a ledger; `^\|` was proven blind to them) and blockquoted rows excluded (quoted content —
+# the `_blank_quoted` policy). Per row, code spans are masked first (a cell that QUOTES a
+# `confirmed: 3` row is prose) and the LAST `confirmed: N` token is the row's own counter (a row
+# that mentions an earlier count before its own grades on its own). A ledger with no counter row
+# at all keeps today's checks (the `edits:`-only and colon-less shapes are not counters).
+_PASS_ROW = re.compile(r"^[ \t]*\|\s*\**Pass\b[^\n]*", re.I | re.M)
+_CODE_SPAN = re.compile(r"`[^`\n]*`")
+_CONFIRMED_TOKEN = re.compile(r"confirmed\s*:\s*(\d+)", re.I)
+CLOSING_ROW_REFUSAL = "claims CONVERGED but its last Pass row does not read confirmed: 0"
+
+
+def _closing_row_fail(text: str) -> str | None:
+    """The refusal for a fence-stripped spine text, or None. Exposed so a fleet census can grade
+    every spine through the SAME rule the flip check applies (never a look-alike grep)."""
+    last_counter: int | None = None
+    for m in _PASS_ROW.finditer(text):
+        tokens = _CONFIRMED_TOKEN.findall(_CODE_SPAN.sub("`x`", m.group(0)))
+        if tokens:
+            last_counter = int(tokens[-1])
+        elif last_counter is not None:
+            # a later Pass row WITHOUT a counter does not un-count the ledger: the last COUNTER
+            # row decides (a ledger that stopped counting mid-way is graded on its last count)
+            pass
+    if last_counter is not None and last_counter != 0:
+        return f"{CLOSING_ROW_REFUSAL} (its last counter row reads confirmed: {last_counter})"
+    return None
+
+
 # EXECUTED must be the status VALUE (right after `Status:`), not the word
 # "executed" appearing in prose — else a `Status: CLOSED … never executed
 # directly` / `Status: Done … was executed unauthorized` line false-positives.
@@ -177,6 +210,8 @@ def _cite_matches_plan(cite_name: str, plan_stem: str) -> bool:
     if not (pd and cd):
         return False
     return cd.group(1) >= pd.group(1)
+
+
 # D4 per-ticket review files (<plan>-T##[a-z]?-review.md): cited by spines
 # routinely, but they prove one ticket — never the whole-plan D7 validation.
 # Naming-convention-scoped BY DESIGN (this module's ceiling: evidence presence,
@@ -317,6 +352,9 @@ def _check_spine_set(root: Path, spine: Path, text: str) -> list[str]:
     for row_id in rows:
         if row_id not in ticket_ids_on_disk:
             fails.append(f"{rel}: Board row {row_id} has no ticket file on disk (orphan row)")
+    closing = _closing_row_fail(text)
+    if closing:
+        fails.append(f"{rel}: {closing}")
     for f in sorted(spine.parent.glob("*.md")):
         if not TICKET_FILE.match(f.name):
             continue

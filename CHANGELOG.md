@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — The review family adopts D-203, Phase C: the closing-row grader, the fleet-synced text (2026-09-10)
+
+`scripts/enforcement/check_convergence.py` refuses a CONVERGED flip whose Pass Ledger carries a `confirmed:`
+counter row but whose LAST Pass-headed row does not read `confirmed: 0` (`_PASS_ROW`: indented rows
+included, blockquoted excluded; code spans masked so a quoted `confirmed: 3` is prose; the row's last
+token counts; a ledger with no counter row keeps today's checks) — `_closing_row_fail` is the one
+function the flip check and a fleet census share. Six red-first tests (84 pass; the refusal branch
+proven by a mutant); measured through that function before the docs claimed it: 1,062 fleet plan
+files, 71 spines with a Pass Ledger, 1 with a counter row, 0 refusals. The fleet-synced text follows
+Phase A: `.windsurf/rules/core/62-using-subagents.md` names the partitioned review loops as the file-cut
+pair plus the `term-edit` family's `/fabrik-spec-review` and `/fabrik-plan-review` by SECTION (D-212,
+D-218), drops the two from the three-seat floor's list, and § Role separation states the `term-edit`
+closing round and the solo self-convergence exception by SEAT CLASS (a drafting seat is not a finder);
+both `CLAUDE.md` fan-out bullets (root, `templates/governance/`) say the same; the `term-edit` fragment
+cites the closing-row rule (13 consumers re-rendered); `docs/workflows/FINAL_GATE_WORKFLOW.md`'s
+convergence rows name it; `INDEX.md` gains the flip-gate matrix test's row; `docs/STRATEGIC_BACKLOG.md`
+closes the adoption row as SHIPPED, extends the pass-3 row, and records the follow-ons the three phases'
+reviews measured (assembler gate completeness, `command_run.py` closing-round gaps, `dispatch_headroom.py`'s
+box floor under `--slices`, the hygiene script's pre-existing parser edges).
+
+
 ### Changed — The review family adopts D-203, Phase B: the hygiene script learns the spec and plan classes (2026-09-10)
 
 `scripts/enforcement/check_review_hygiene.py` grades table rows on ANY `.md` surface — a spec, a plan, a

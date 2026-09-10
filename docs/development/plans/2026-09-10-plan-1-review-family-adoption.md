@@ -115,7 +115,7 @@ Intake: 22 items — 18 IN, 4 OUT-OF-SCOPE (each named above), 0 ASK.
 
 (The seven `GOVERNANCE_FILES` — CHANGELOG.md, INDEX.md, docs/README.md, docs/FEATURES.md, docs/LESSONS_LEARNT.md, docs/DECISIONS.md, docs/STRATEGIC_BACKLOG.md, `check_plan_tickets.py:409-417` (`:419-420` adds the lowercase alias `docs/lessons-learnt.md`) — stay outside the lock and are written as HEAD blobs. Root `CLAUDE.md` is NOT one of them, so it is owned here; it is a SERIALIZATION POINT: a sibling session had it dirty on 2026-09-10, so Phase C writes it as a HEAD blob plus this plan's one hunk, never from the working tree. Rendered `~/.claude/commands/` is never ownable — Phase A's render step.)
 
-## Phase A — The fragment, the two sources, the assembler, the emit rule, the matrix — ✅ EXECUTED 2026-09-10 (its own phase commit; the short hash is backfilled by Phase B's commit)
+## Phase A — The fragment, the two sources, the assembler, the emit rule, the matrix — ✅ EXECUTED 2026-09-10 (6f023088; 14 review-fix commits dcbea709 … c3286733 before it)
 
 **Interfaces.** Consumes: nothing (first phase). Produces: the `term-edit` ledger row grammar `| Pass N | <seats by model> | method: re-derivation — <scope> | found: F | new: N | confirmed: C | fixed: X | unexecuted: U | edits: E | md5 start → end |` — the D-206 counter names IN THE D-206 ORDER (`.windsurf/rules/core/62-using-subagents.md:65` states it for the receipts; `check_convergence.py`'s `QUIET_PASS` at `:226-230` keys its old branch on `found:`), with `edits:` and the md5 added for the document loops; a non-closing pass writes `method: citation — <scope>` in the same cell. This corrects the spec's D1 wording that `unexecuted:` is prose in the document loops: the fragment renders into 13 commands and one counter vocabulary fleet-wide beats two; the coverage gate's token rule binds only `docs/development/reviews/`, so no receipt refusal follows. Phase C's grader reads the `confirmed:` token of that row; the rendered commands `~/.claude/commands/fabrik-spec-review.md` and `fabrik-plan-review.md`; `tests/enforcement/test_flip_gate_matrix.py::MATRIX` (a list of five rows `(gate, invocation, tree, expected examined marker)`) that Phase C's docs cite.
 
@@ -149,7 +149,7 @@ Intake: 22 items — 18 IN, 4 OUT-OF-SCOPE (each named above), 0 ASK.
 - **Given** the three rewritten source surfaces after Phase A, **When** the five-phrase grep (`ZERO edits`, `no-op`, `edit-free`, `changes nothing`, `needs no edits`; case-insensitive) runs over them, **Then** all three counts are 0 and `assemble_commands.py --check` is clean (commands/_fragments/term-edit.md:3)
 - **Given** the fragment's ledger template, **When** `check_convergence.py`'s `_REDERIVATION_ROW` is applied to its closing form, **Then** it matches, and the non-closing `method: citation — <scope>` form does not (scripts/enforcement/check_convergence.py:125-126)
 
-## Phase B — The hygiene script learns the spec and plan classes
+## Phase B — The hygiene script learns the spec and plan classes — ✅ EXECUTED 2026-09-10 (ece06333)
 
 **Interfaces.** Consumes: nothing from A (independent surface; ordered after A only for the review cadence). Produces: `check_review_hygiene.py::_table_parity_hits(path, lines, cls)` (the helper both callers use), the class name `table-parity` in `hits[].cls`, and the narrowed `TEMPLATE_RESIDUE` (`scripts/enforcement/check_review_hygiene.py:65` post-edit; `:57` before) that Phase C's docs list.
 
@@ -169,7 +169,7 @@ Intake: 22 items — 18 IN, 4 OUT-OF-SCOPE (each named above), 0 ASK.
 - **Given** a surface containing the Go-template form, **When** the sweep runs, **Then** it reports 0 `template-residue` hits, while an include marker and an upper-case parameter each report 1 (scripts/enforcement/check_review_hygiene.py:65)
 - **Given** the rendered corpus, **When** the sweep runs over `~/.claude/commands/`, **Then** the last line reads `hygiene: 0 hit(s)` (docs/workflows/FINAL_GATE_WORKFLOW.md:164)
 
-## Phase C — The closing-row grader, the fleet-synced text, the sync, the heavy round
+## Phase C — The closing-row grader, the fleet-synced text, the sync, the heavy round — ✅ EXECUTED 2026-09-10 (its own phase commit; the short hash is backfilled by the archive commit)
 
 **Interfaces.** Consumes: Phase A's ledger grammar (the `confirmed:` counter on a Pass-headed row). Produces: `check_convergence.py::_PASS_ROW` (+ the last-`confirmed:` rule inside `_check_spine_set`) and the refusal `claims CONVERGED but its last Pass row does not read confirmed: 0`; the widened sentence in three fleet-synced files; the whole-plan receipt.
 
