@@ -393,12 +393,27 @@ def test_v8_the_fragments_delta_round_sentence_survives_a_render(tmp_path):
 
 
 def test_a_render_that_trips_the_skill_description_cap_writes_nothing(tmp_path, monkeypatch):
-    """The 1024-char skill-description gate fires BEFORE any command or skill is written — a render
-    that cannot finish leaves the destination trees exactly as it found them (Phase A heavy round 11:
-    the raise sat inside the skills loop, after all 36 commands were on disk and 16 of 36 skills)."""
+    """The 1024-char skill-description gate fires BEFORE any command, skill or agent is written — a
+    render that cannot finish leaves all three destination trees exactly as it found them (Phase A
+    heavy round 11: the raise sat inside the skills loop, after all 36 commands were on disk and 16
+    of 36 skills; round 12: the agents tree was still written first)."""
     name = next(iter(ac.NEXT))
     monkeypatch.setitem(ac.NEXT, name, "x" * 1100)
     with pytest.raises(SystemExit, match="composed skill description"):
         ac.render(tmp_path, tmp_path / "_skills", agents_dest=tmp_path / "_agents")
     assert list(tmp_path.glob("*.md")) == []
     assert list((tmp_path / "_skills").glob("*/SKILL.md")) == []
+    assert list((tmp_path / "_agents").glob("*.md")) == []
+
+
+def test_the_orphan_prune_tolerates_a_non_utf8_stray(tmp_path):
+    """A hand-dropped non-UTF-8 `.md` in the commands or skills tree must not kill the render
+    AFTER every file is written (the agents prune already reads with errors="replace")."""
+    tmp_path.mkdir(exist_ok=True)
+    (tmp_path / "zz-stray.md").write_bytes(b"\xff\xfe not utf8 \xff\n")
+    sk = tmp_path / "_skills" / "zz-stray"
+    sk.mkdir(parents=True)
+    (sk / "SKILL.md").write_bytes(b"\xff\xfe not utf8 \xff\n")
+    ac.render(tmp_path, tmp_path / "_skills", agents_dest=tmp_path / "_agents")
+    assert (tmp_path / "zz-stray.md").exists() and (sk / "SKILL.md").exists()  # hand-authored: kept
+    assert len(list((tmp_path / "_skills").glob("*/SKILL.md"))) > 30

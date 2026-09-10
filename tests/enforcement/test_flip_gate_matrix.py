@@ -297,6 +297,7 @@ def test_the_pinned_artifact_is_in_the_gates_examined_set(gate: str, tmp_path: P
         spine.write_text(SPINE_FIXTURE)
         _git(tmp_path, "add", "-A")
         _git(tmp_path, "commit", "-q", "-m", "pin")
+        assert "_converged_targets" in marker, marker  # the row text states what is asserted below
         assert cc._converged_targets(tmp_path) == []
 
     elif gate == "check_plan_quality.py":

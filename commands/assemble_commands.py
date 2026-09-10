@@ -109,7 +109,7 @@ def _compose_skill(name: str, description: str) -> str:
     full_desc = f"{desc} Invoke for /{name}, or when a task matches this stage. NEXT: {nxt}"
     if len(full_desc) > 1024:
         raise SystemExit(
-            f"_emit_skill: {name}: composed skill description is {len(full_desc)} chars, "
+            f"_compose_skill: {name}: composed skill description is {len(full_desc)} chars, "
             f"exceeds the 1024-char limit — trim the source description or the NEXT entry"
         )
     body = (
@@ -127,10 +127,6 @@ def _compose_skill(name: str, description: str) -> str:
         f"**Next in the pipeline:** {nxt}\n"
     )
     return body
-
-
-def _emit_skill(name: str, description: str, skills_dest: Path) -> None:
-    _write_skill(name, _compose_skill(name, description), skills_dest)
 
 
 def _write_skill(name: str, body: str, skills_dest: Path) -> None:
@@ -851,7 +847,7 @@ def _description_of(text: str) -> str:
 
 def _requote_command_description(text: str) -> str:
     """Rewrite a rendered command's frontmatter `description:` scalar as a YAML
-    double-quoted scalar — the same `_yaml_dq` escaping `_emit_skill` already
+    double-quoted scalar — the same `_yaml_dq` escaping `_compose_skill` already
     applies to the skill wrapper — but ONLY when the plain (unquoted) scalar
     doesn't actually parse. A hand-authored plain scalar containing a bare
     `: ` (e.g. "Stage: utility", "found: 0", `TRIGGER — EN: "..."`) is invalid
@@ -959,12 +955,18 @@ def agent_drift(dest: Path) -> list[str]:
     return drift
 
 
-def _emit_agents(dest: Path, frags: dict[str, str]) -> None:
+def _compose_agents(frags: dict[str, str]) -> list[tuple[str, str]]:
+    """Render every agent source to text — `_render_agent` raises on a frontmatter defect, so
+    `render()` composes ALL of them before it writes anything."""
+    return [(src.name, _render_agent(src, frags)) for src in sorted(AGENT_SRC.glob("*.md"))]
+
+
+def _write_agents(dest: Path, bodies: list[tuple[str, str]]) -> None:
     dest.mkdir(parents=True, exist_ok=True)
     keep = set()
-    for src in sorted(AGENT_SRC.glob("*.md")):
-        (dest / src.name).write_text(_render_agent(src, frags))
-        keep.add(src.name)
+    for name, text in bodies:
+        (dest / name).write_text(text)
+        keep.add(name)
     # Prune ONLY what we generated. An operator's own agent definition must survive — deleting a
     # hand-authored file here would be data loss, and the banner is what tells them apart.
     for stale in dest.glob("*.md"):
@@ -982,7 +984,7 @@ def render(dest: Path, skills_dest: Path | None = None, agents_dest: Path | None
         # on 2026-08-31 (STRATEGIC_BACKLOG promotion trigger), which is why this derives
         # instead of defaulting.
         agents_dest = AGENTS if dest.resolve() == OUT.resolve() else dest / "_agents"
-    _emit_agents(agents_dest, frags)
+    agent_bodies = _compose_agents(frags)  # raises on a defective agent source before any write
     errs = []
     pending: list[tuple[str, str]] = []
     emitted: list[tuple[str, str]] = []
@@ -1043,7 +1045,7 @@ def render(dest: Path, skills_dest: Path | None = None, agents_dest: Path | None
             text = text.rstrip("\n") + "\n\n" + frags[_CLOSE_FEEDBACK] + "\n"
         desc_raw = _description_of(
             text
-        )  # captured BEFORE requoting — _emit_skill applies its own _yaml_dq
+        )  # captured BEFORE requoting — _compose_skill applies its own _yaml_dq
         text = _requote_command_description(text)
         # banner after frontmatter
         if text.startswith("---"):
@@ -1063,22 +1065,24 @@ def render(dest: Path, skills_dest: Path | None = None, agents_dest: Path | None
     skill_bodies = (
         [(name, _compose_skill(name, desc)) for name, desc in emitted] if skills_dest is not None else []
     )
+    _write_agents(agents_dest, agent_bodies)
     for fname, text in pending:
         (dest / fname).write_text(text)
     source_names = {n for n, _ in emitted}
-    for name, body in skill_bodies:
-        _write_skill(name, body, skills_dest)
+    if skills_dest is not None:
+        for name, body in skill_bodies:
+            _write_skill(name, body, skills_dest)
     # Prune orphans (ONLY files carrying our generator banner — never a hand-authored
     # or sibling skill/command): a renamed/deleted source must not leave an invokable stale.
     # The keep-set IS the source set: a generated skill whose name is no longer a source leaves
     # through this prune (the retired orchestrator wrappers, 2026-09-05, went this way).
     keep = source_names
     for cmd in dest.glob("*.md"):
-        if cmd.stem not in keep and BANNER.strip() in cmd.read_text():
+        if cmd.stem not in keep and BANNER.strip() in cmd.read_text(errors="replace"):
             cmd.unlink()
     if skills_dest is not None:
         for sk in skills_dest.glob("*/SKILL.md"):
-            if sk.parent.name not in keep and SKILL_BANNER in sk.read_text():
+            if sk.parent.name not in keep and SKILL_BANNER in sk.read_text(errors="replace"):
                 shutil.rmtree(sk.parent)
     n = len(emitted)
     n_agents = len(list(AGENT_SRC.glob("*.md")))
