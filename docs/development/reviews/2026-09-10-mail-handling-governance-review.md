@@ -687,3 +687,58 @@ The lint finding is the one worth keeping: an untracked file is OUTSIDE the gate
 ratchet cannot see its debt until it is staged. Running the gate before staging asserts less than it looks
 like it does — the same shape as this commit's own subject.
 
+## BLOCKED: NON-CONVERGENCE
+
+The stall circuit-breaker has fired, and I am stopping on it rather than running round 7.
+
+```
+round:      1    2    3    4    5    6
+new:        9   15    8    4    7    8
+confirmed:  8   13    3    4    7    6
+```
+
+Rounds 4 → 5 → 6 are **three consecutive non-decreasing, nonzero** `new:` counts (4, 7, 8). The contract's
+own words: *"the defect lives UPSTREAM of the surface; re-ground it, then resume."* Every round found real,
+reproduced defects — nothing here is a false alarm and nothing was refuted away — but a loop whose fresh-find
+rate is RISING after six rounds is not converging, and stamping CONVERGED on it would be the exact dishonesty
+the whole change is about.
+
+### The suspected foundation error: the review is generating its own surface
+
+This change's story is carried in NINE artifacts, and one of them — this receipt — GROWS with every round.
+Round 6's eight findings break down as:
+
+| where the finding was | count |
+|---|---|
+| in this receipt (adjudication rows written by earlier rounds) | 3 |
+| in tests **added by round 5** | 2 |
+| in a shared file, caused by my own commit | 1 |
+| in the check's docstring (a number never re-derived) | 1 |
+| a citation introduced two commits earlier | 1 |
+
+So **five of eight** were in artifacts the REVIEW itself produced. The surface does not shrink as the code
+converges, because each round appends adjudication that the next round can — correctly — find defects in.
+That is a property of the artifact set, not of the code, and no number of further rounds fixes it.
+
+### What is actually true about the code right now
+
+- The gate is green at `3bdf3390`: `status: success`, 0 failed, 40 blocking, `skipped_checks: ['pytest']`.
+- 12 tests, and the two that round 6 proved vacuous are now mutation-proven: the OSError guard fails against
+  a restored `return 1`, and the remedy pin fails against the reviewer's own reworded dodge.
+- The rule is live in ~46 repos and was tested from `/opt/transdoc`, a repo with no part in deriving it:
+  both sanctioned recipes agree at 11, the shim returns 0, the unsanctioned `rg --no-ignore` returns 8.
+- The check fired on 47 of 49 contracts before the sync and 2 after — both stale fabrik-lib worktree copies.
+- The sibling's deleted CHANGELOG record is restored and on master.
+
+### What re-grounding would look like, for whoever resumes
+
+Not another round over the same nine artifacts. Either (a) cut the artifact set — let the receipt hold the
+adjudication and let CHANGELOG/INDEX/the ledger carry ONE sentence each that points at it, so a correction
+has one home instead of nine; or (b) accept that a review receipt is an append-only log and EXCLUDE it from
+its own review's surface, reviewing only the code and the contracts it certifies. (b) is smaller and is
+probably right: a receipt is evidence, and evidence that must itself converge is a regress.
+
+Recorded as `blocked` on the run record with this section as the named foundation error, per § Termination's
+stall circuit-breaker. The code is committed, pushed, gate-green and guarded; what is unfinished is the
+CONVERGED stamp, and it is unfinished honestly.
+
