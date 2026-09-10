@@ -173,15 +173,24 @@ def test_every_extract_after_text_round_trips_against_its_source():
     for name, plan in ac.EXTRACT.items():
         source = (src_dir / f"{name}.md").read_text()
         for _block, fragment, after in plan:
-            if after is None:
-                continue
             examined += 1
             marker = "{{include:" + fragment + "}}"
             assert marker in source, (name, fragment)
+            # `extract()` replaces the WHOLE rendered section with marker + after-text, so the
+            # round-trip holds only if NOTHING else sits between the marker and the next include
+            # or heading — a prefix compare would let trailing source prose be silently deleted
             start = source.index(marker) + len(marker)
-            if source[start : start + len(after)] != after:
-                mismatched.append((name, fragment))
-    assert examined >= 6, examined  # the denominator: a loop over nothing proves nothing
+            tail = source[start:]
+            end = min(
+                (i for i in (tail.find("\n{{include:"), tail.find("\n#")) if i >= 0),
+                default=len(tail),
+            )
+            kept = tail[:end].strip("\n")
+            if kept != (after or "").strip("\n"):
+                mismatched.append((name, fragment, kept[:60]))
+    assert examined == sum(len(p) for p in ac.EXTRACT.values()), (
+        examined
+    )  # every entry, none skipped
     assert mismatched == [], mismatched
 
 
