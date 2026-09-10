@@ -392,28 +392,82 @@ def test_v8_the_fragments_delta_round_sentence_survives_a_render(tmp_path):
     assert "--slices opus=N,sonnet=N,haiku=N" in live
 
 
-def test_a_render_that_trips_the_skill_description_cap_writes_nothing(tmp_path, monkeypatch):
-    """The 1024-char skill-description gate fires BEFORE any command, skill or agent is written — a
-    render that cannot finish leaves all three destination trees exactly as it found them (Phase A
-    heavy round 11: the raise sat inside the skills loop, after all 36 commands were on disk and 16
-    of 36 skills; round 12: the agents tree was still written first)."""
-    name = next(iter(ac.NEXT))
-    monkeypatch.setitem(ac.NEXT, name, "x" * 1100)
+_STRAY = b"\xff\xfe not utf8 \xff\n"
+
+
+def _trees(tmp_path):
+    return tmp_path, tmp_path / "_skills", tmp_path / "_agents"
+
+
+def _census(tmp_path):
+    d, s, a = _trees(tmp_path)
+    return len(list(d.glob("*.md"))), len(list(s.glob("*/SKILL.md"))), len(list(a.glob("*.md")))
+
+
+def _defective_agent_sources(tmp_path, monkeypatch):
+    src = tmp_path / "_agent_src"
+    src.mkdir()
+    for f in ac.AGENT_SRC.glob("*.md"):
+        (src / f.name).write_text(f.read_text())
+    first = sorted(src.glob("*.md"))[0]
+    text = first.read_text()
+    assert text.startswith("---\n")
+    first.write_text(text.replace("---\n", "---\n\n", 1))  # a blank line inside the frontmatter
+    monkeypatch.setattr(ac, "AGENT_SRC", src)
+
+
+@pytest.mark.parametrize("abort", ["over-cap NEXT", "defective agent source"])
+def test_an_aborted_render_writes_into_none_of_the_three_trees(tmp_path, monkeypatch, abort):
+    """Every render gate fires BEFORE the first write: an aborted render leaves the commands, skills
+    AND agents trees exactly as it found them (Phase A heavy rounds 11–13: the cap raise sat inside
+    the skills loop after all 36 commands were on disk; the agents tree was written before any gate;
+    the defective-agent abort had no grader)."""
+    if abort == "over-cap NEXT":
+        monkeypatch.setitem(ac.NEXT, next(iter(ac.NEXT)), "x" * 1100)
+        match = "composed skill description"
+    else:
+        _defective_agent_sources(tmp_path, monkeypatch)
+        match = "blank line"
+    d, s, a = _trees(tmp_path)
+    with pytest.raises(SystemExit, match=match):
+        ac.render(d, s, agents_dest=a)
+    assert _census(tmp_path) == (0, 0, 0)
+
+
+def test_a_preview_render_without_a_skills_tree_still_trips_the_cap(tmp_path, monkeypatch):
+    """`render(dest)` (the `--dest /tmp/x` preview and the bare import form) composes the skill
+    wrappers too, so a preview never reports success on a corpus the real render refuses."""
+    monkeypatch.setitem(ac.NEXT, next(iter(ac.NEXT)), "x" * 1100)
     with pytest.raises(SystemExit, match="composed skill description"):
-        ac.render(tmp_path, tmp_path / "_skills", agents_dest=tmp_path / "_agents")
-    assert list(tmp_path.glob("*.md")) == []
-    assert list((tmp_path / "_skills").glob("*/SKILL.md")) == []
-    assert list((tmp_path / "_agents").glob("*.md")) == []
+        ac.render(tmp_path, agents_dest=tmp_path / "_agents")
+    assert _census(tmp_path) == (0, 0, 0)
 
 
-def test_the_orphan_prune_tolerates_a_non_utf8_stray(tmp_path):
-    """A hand-dropped non-UTF-8 `.md` in the commands or skills tree must not kill the render
-    AFTER every file is written (the agents prune already reads with errors="replace")."""
-    tmp_path.mkdir(exist_ok=True)
-    (tmp_path / "zz-stray.md").write_bytes(b"\xff\xfe not utf8 \xff\n")
-    sk = tmp_path / "_skills" / "zz-stray"
-    sk.mkdir(parents=True)
-    (sk / "SKILL.md").write_bytes(b"\xff\xfe not utf8 \xff\n")
-    ac.render(tmp_path, tmp_path / "_skills", agents_dest=tmp_path / "_agents")
-    assert (tmp_path / "zz-stray.md").exists() and (sk / "SKILL.md").exists()  # hand-authored: kept
-    assert len(list((tmp_path / "_skills").glob("*/SKILL.md"))) > 30
+def test_the_orphan_prunes_tolerate_a_non_utf8_stray_in_every_tree(tmp_path):
+    """A hand-dropped non-UTF-8 `.md` in any of the three trees must neither kill the render after
+    every file is written nor be pruned (it carries no banner)."""
+    d, s, a = _trees(tmp_path)
+    (s / "zz-stray").mkdir(parents=True)
+    a.mkdir()
+    strays = [d / "zz-stray.md", s / "zz-stray" / "SKILL.md", a / "zz-stray.md"]
+    for stray in strays:
+        stray.write_bytes(_STRAY)
+    ac.render(d, s, agents_dest=a)
+    assert all(stray.exists() for stray in strays)
+    n_src, n_ag = len(list(ac.SRC.glob("*.md"))), len(list(ac.AGENT_SRC.glob("*.md")))
+    assert _census(tmp_path) == (n_src + 1, n_src + 1, n_ag + 1)
+
+
+def test_check_tolerates_a_non_utf8_stray_in_the_installed_trees(tmp_path, monkeypatch, capsys):
+    """`check()` walks the INSTALLED trees with its own orphan loop — the same stray must not crash
+    the read-only gate either (round 13)."""
+    d, s, a = _trees(tmp_path)
+    ac.render(d, s, agents_dest=a)
+    monkeypatch.setattr(ac, "OUT", d)
+    monkeypatch.setattr(ac, "SKILLS", s)
+    monkeypatch.setattr(ac, "AGENTS", a)
+    (d / "zz-stray.md").write_bytes(_STRAY)
+    (s / "zz-stray").mkdir()
+    (s / "zz-stray" / "SKILL.md").write_bytes(_STRAY)
+    ac.check()
+    assert "check OK" in capsys.readouterr().out

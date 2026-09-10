@@ -884,7 +884,7 @@ def test_deploy_checklist_renders_to_the_anatomy(tmp_path: Path):
 
 
 def test_deploy_checklist_skill_description_within_limit(tmp_path: Path):
-    """`_emit_skill` refuses a composed description over 1024 chars — the first draft composed to 1366."""
+    """`_compose_skill` refuses a composed description over 1024 chars — the first draft composed to 1366."""
     out = _render_corpus(tmp_path)
     skill = (out / "_skills" / "fabrik-deploy-checklist" / "SKILL.md").read_text(encoding="utf-8")
     desc = next(line for line in skill.splitlines() if line.startswith("description:"))

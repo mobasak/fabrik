@@ -1062,9 +1062,7 @@ def render(dest: Path, skills_dest: Path | None = None, agents_dest: Path | None
         sys.exit(2)
     # the skill-description cap is composed for EVERY command before the first write (a trip used
     # to fire inside the skills loop, after all 36 commands and part of the skills were on disk)
-    skill_bodies = (
-        [(name, _compose_skill(name, desc)) for name, desc in emitted] if skills_dest is not None else []
-    )
+    skill_bodies = [(name, _compose_skill(name, desc)) for name, desc in emitted]
     _write_agents(agents_dest, agent_bodies)
     for fname, text in pending:
         (dest / fname).write_text(text)
@@ -1112,11 +1110,11 @@ def check():
             if not inst.exists():
                 drift.append(f"{f.name}: MISSING in {OUT}")
                 continue
-            if inst.read_text() != f.read_text():
+            if inst.read_text(errors="replace") != f.read_text():
                 d = list(
                     difflib.unified_diff(
                         f.read_text().splitlines(),
-                        inst.read_text().splitlines(),
+                        inst.read_text(errors="replace").splitlines(),
                         "rendered",
                         "installed",
                         lineterm="",
@@ -1129,16 +1127,16 @@ def check():
             if not inst.exists():
                 drift.append(f"skills/{sd.parent.name}: MISSING SKILL.md in {SKILLS}")
                 continue
-            if inst.read_text() != sd.read_text():
+            if inst.read_text(errors="replace") != sd.read_text():
                 drift.append(f"skills/{sd.parent.name}: HAND-EDITED SKILL.md")
         # orphan detection: an installed GENERATED command/skill whose _source is gone
         # (catches a rename/delete that wasn't followed by a re-render — the prune).
         src_names = {s.stem for s in SRC.glob("*.md")}
         for cmd in sorted(OUT.glob("*.md")):
-            if cmd.stem not in src_names and BANNER.strip() in cmd.read_text():
+            if cmd.stem not in src_names and BANNER.strip() in cmd.read_text(errors="replace"):
                 drift.append(f"{cmd.name}: ORPHAN (generated, no _source — re-render to prune)")
         for sk in sorted(SKILLS.glob("*/SKILL.md")):
-            if sk.parent.name not in src_names and SKILL_BANNER in sk.read_text():
+            if sk.parent.name not in src_names and SKILL_BANNER in sk.read_text(errors="replace"):
                 drift.append(
                     f"skills/{sk.parent.name}: ORPHAN (generated, no _source — re-render to prune)"
                 )
