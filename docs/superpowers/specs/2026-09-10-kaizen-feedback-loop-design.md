@@ -1,0 +1,323 @@
+# Kaizen feedback loop — a DELTA on the converged closed-loop v2 spec
+
+Status: DRAFT
+Date: 2026-09-10
+Author: fleet (Claude, /fabrik-spec) — operator: Özgür
+Delta on: `docs/superpowers/specs/2026-08-16-kaizen-closed-loop-v2-design.md` (Status: CONVERGED, 588 lines, author infra)
+
+## Why this is a DELTA and not a new spec
+
+The operator asked: *"i want all statistics recorded, evaluated and commands, rules, claude.mds and
+similar governance files kept optimum to have fast, lean, accurate, permanent, resilient
+commands/skills/rulepacks"*, then *"now will we collect all feedbacks from the agents into kaizen and
+act accordingly"*.
+
+**Most of that is already designed and converged.** The v2 spec's **M2** milestone already contains
+*"finding registry + tested selection policy + fix ledger"* (`:463`) — which is the "change queue"
+this delta was originally scoped to invent — and *"deletion-candidate report (the shrink-first
+question, answered with evidence)"*, adjacent to the weight budget below. Authoring a second spec
+over that surface would fork a converged one.
+
+So this delta covers **only what the v2 spec cannot have covered**, plus the one thing blocking it:
+
+| # | Item | Why it is not in v2 |
+|---|---|---|
+| D1 | The **D-175 feedback ledger** as kaizen series | The ledger shipped **2026-09-07**, three weeks AFTER v2 converged. `grep -c "command-feedback"` against v2 = **0**. Chronology, not decision. |
+| D2 | The **corpus weight budget** | v2's shrink question is a *report* (M0/M2, deletion candidates). Nothing anywhere measures BYTES, and nothing ratchets them. |
+| D3 | The **M1→M2 gate is met and untriggered** | v2 defines the gate; it could not know it would sit unclaimed for 11 days. Not a design change — a state finding this delta records so it stops being invisible. |
+
+Everything else the operator asked for is **activation, not design**. That is the finding, and it is
+the most valuable line in this document.
+
+---
+
+## Ground truth (measured 2026-09-10; every claim re-derivable)
+
+### The three stores
+
+| Store | Path | Holds | Size |
+|---|---|---|---|
+| Run record | `~/.claude/state/command-runs/<sid>.json` | `feedback_text` (full prose), `feedback`, `feedback_to`, state/rounds/phases/agent/surface/account/usage | 52 files |
+| **Feedback ledger** | `~/.claude/state/command-feedback.jsonl` (path built at `scripts/command_run.py:904`) | the four prose fields **+** repo, agent, surface, account, wall_s, rounds, findings, `cost_usd`, `tok_in/out/cache_read/cache_create`, `tok_seat_*`, `seats_declared/seen/partial/skipped`, `models` | **68 rows, 34 keys** |
+| Event stream | `~/.claude/state/events/<sid>.jsonl` | `run_close` with `verdict` + a **one-word** `feedback` (`filed`/`none`/absent⇒`unstated`). **No prose.** | 38,249 files |
+
+Verified on this session's own event file: 287 `run_close` events, zero prose keys.
+
+### Who reads what
+
+- `scripts/sysadmin/kaizen_collect_v2.py` (143 KB — **the live collector**; `kaizen_collect.py` at 17 KB
+  is the older file and is NOT what the cron runs — confirmed via `weekly_catchup.sh`) reads the
+  **event stream** (`KAIZEN_EVENTS_DIR`, default `~/.claude/state/events`) and at `:384` buckets
+  `row.get("feedback")` into `fb_filed`/`fb_none`/`fb_unstated`, counting anything else as
+  `unknown-feedback-verdict` — *"an instrument defect, counted, never bucketed."*
+  **It never reads the ledger** (`grep -c command-feedback` = 0).
+- `scripts/sysadmin/feedback_relay.py` reads the **run records** (not the ledger), watermarked at
+  `~/.claude/state/feedback-relay.watermark`, mails one digest to `fabrik`/`infra`; rides the kaizen
+  cron slot as a non-fatal rider at `weekly_catchup.sh:87` (cron `27 * * * *`).
+- `scripts/command_feedback_report.py` reads the **ledger** and is scheduled by **nothing**
+  (`crontab -l | grep -c feedback_report` = 0).
+
+Three stores, three readers, no cross-cutting question answerable, and the richest store has one
+consumer nothing runs.
+
+### The instrument is better than assumed — extend it, do not rebuild it
+
+`kaizen_collect_v2.py` already provides everything a metrics engine needs, and this delta **inherits
+all of it rather than restating it**:
+
+- **Versioned series** — `~/.claude/state/kaizen/series/<metric>@v<N>.jsonl`; *"a definition change
+  writes a NEW series file … a published series is never overwritten"* (`:23-24`). 29 files live.
+- **`def_hash`** — *"the same def_hash must never span differently-populated points in one series"* (`:1027`).
+- **Honest absence** — *"A wrong metric is worse than an absent one — unmeasurable renders `—` with its
+  reason … never a fabricated 0"* (`kaizen.md:210`). Observed live: `death_occurrences` flipped
+  `0` → `[NOT MEASURED]` between 09-07 and 09-08 rather than fabricate a zero.
+- **Single-source law** — *"weekly cells aggregate the published day series"* (`:1136`).
+- **A noise floor** — `~/.claude/state/kaizen/noise-floor@v1.md`, regenerated by
+  `kaizen_backfill.py --report`: *"M2's adjudication reads the variance column; a change it cannot
+  distinguish from this floor is Tuesday, not a signal."*
+
+### The state finding (D3)
+
+`docs/workstation/kaizen.md:224` — the M1→M2 gate is **calendar time, not execution time**, needing
+(a) 7 days of daily event collection and (b) variance sign-off, and *"the gate review is a named
+operator-triggered follow-up."*
+
+| Condition | Measured | Verdict |
+|---|---|---|
+| (a) ≥7 days of event-era collection | `premature_stop_rate@v3` 18 days · `hole_count@v3` 19 · `rule_activation@v3` 17 · `review_rounds@v10` 17, spanning **2026-08-21 → 2026-09-09** | **MET, ~11 days ago** |
+| (b) variance sign-off | `noise-floor@v1.md` still dated **2026-08-20**, corpus *"0 event-era session(s)"*, every metric `—`, n=0 weeks | **NEVER RUN** |
+
+Consequence, and it is concrete: `premature_stop_rate` moved **43% (131/304) → 55% (254/463)** between
+09-07 and 09-08, and **nobody can adjudicate it** — the instrument built to say whether 12 points is
+signal or Tuesday has never been populated.
+
+⚠️ Causality is NOT established: the denominator nearly doubled (304→463), so more sessions or a
+counting change could contribute. That is exactly what a variance sign-off would settle.
+
+### The analyst half barely runs
+
+`docs/reference/agents/kaizen-log-{infra,fleet}.md` — columns `Top friction fixed` and `Filed` are
+*"the analyst's and a re-run never overwrites them"* (`:10`). Across infra's five rows both are `—`
+every time. Fleet's log carries exactly one real entry (2026-09-06, the relief-wake finding).
+
+Capacity context, not blame: infra currently holds **64 of the 65 `ack=required` items** in the fabrik
+inbox, 24 of them ≥3 days old.
+
+### Corpus weight — nothing measures it (D2)
+
+| Surface | Bytes | Files |
+|---|---|---|
+| `CLAUDE.md` | 85,627 | read **every session** |
+| `templates/governance/CLAUDE.md` | 78,223 | fleet-synced to ~46 repos |
+| `commands/_sources/` | 1,027,968 | 36 |
+| `.windsurf/rules/` | 1,247,121 | 56 |
+| `commands/_sources/fabrik-review.md` | 55,034 | ~14k tokens per invocation |
+
+Measured against infra's just-finished review-convergence plan (T01→Finish `a1b2509f`, 52 files):
+
+| File | Before | After | Δ |
+|---|---|---|---|
+| `commands/_sources/fabrik-review.md` | 45,640 | 55,034 | **+9,394 (+20%)** |
+| `.windsurf/rules/core/62-using-subagents.md` | 46,051 | 50,309 | +4,258 |
+| `CLAUDE.md` | 83,369 | 85,627 | +2,258 |
+| `templates/governance/CLAUDE.md` | 75,965 | 78,223 | +2,258 |
+| `commands/_sources/fabrik-review-scoped.md` | 10,682 | 11,421 | +739 |
+
+**≈ +19 KB from a project whose purpose was leaner, faster reviews.** This is not a criticism of that
+work — D-203 needed explaining and it was implemented faithfully. It is the evidence that **nothing
+counts**: `check_command_corpus.py` checks source↔render sync, not weight (its `st_size` at `:318` is
+about not reading a 64 MiB banner into RAM), and `READ_BUDGET_BYTES = 262144`
+(`check_plan_tickets.py:100`) budgets a plan TICKET's read list, not the corpus.
+
+Two ratchet precedents to copy rather than invent: `.fabrik/doc-script-baseline.json` (seeded on first
+run, blocks nothing, may only go DOWN) and `.fabrik/lint-baseline.json`.
+
+---
+
+## The six design questions, SETTLED
+
+### Q1 — One store, or a declared derivation?
+
+**Settled: a declared derivation, with the LEDGER as canonical for close-out feedback.** Not a
+migration.
+
+The ledger is already box-wide (every row carries `repo`), already the richest (34 keys), and already
+written atomically at close. The event stream stays canonical for *events*; the run record stays the
+live in-flight state. What changes is only that **kaizen gains a second reader**.
+
+Rejected — **unify into one store**: it would rewrite 38,249 event files or 68 ledger rows to
+back-fill history that was never captured, which is the fabrication the instrument's own honesty rule
+forbids. A derivation costs one reader; a migration costs the corpus's credibility.
+
+**Migration answer:** none. Series start the day the reader ships, with `era` recorded, exactly as the
+existing transcript/event eras already are.
+
+### Q2 — Which series earn their place, and the minimum-n rule
+
+Ship **four**, all computable from ledger columns that already exist, all at `@v1`:
+
+| Series | Definition | Why it earns a slot |
+|---|---|---|
+| `command_cost_per_round` | Σ`cost_usd` ÷ Σ`rounds`, per command | **Grades D-203's own prediction.** The delta-round rule predicts this FALLS. First self-test of the loop. |
+| `command_tokens_per_round` | Σ(`tok_in`+`tok_out`) ÷ Σ`rounds`, per command | Cache-independent companion; `cost_usd` alone hides a cache-ratio change |
+| `rounds_to_converge` | mean `rounds` per command over closes | The corpus-optimisation target the FEEDBACK line exists to serve |
+| `feedback_substance` | closes whose `change:` ≠ `none` ÷ all closes | Distinguishes "a verdict was given" (today's only measure) from "a verdict said something" |
+
+**Minimum-n rule (Q2's hard half):** a series may be **published** at any n, but may **fire nothing** —
+no alert, no queue entry, no adjudication — until its own noise floor exists at **n ≥ 4 weekly points**
+and the observed change exceeds that floor's variance. Below that it renders with its n and no verdict.
+
+This rule is written from a mistake made during this spec's own grounding: `rule_activation` moved
+12% (2/16) → 21% (3/14) and was cited as meaningful. It is a **one-event difference**. A loop that
+acts on n=14 will spend the operator's attention on Tuesday.
+
+Deliberately NOT shipped now: a `waste:`/`confusion:` taxonomy (free-text clustering — no honest
+definition yet, and a bad taxonomy is worse than none) and `filed:` cross-checked against real mail ids
+(needs a mail-id resolver; deferred to M2's finding registry where it belongs).
+
+### Q3 — The change-queue state machine
+
+**Settled: do not build one. M2's "finding registry + tested selection policy + fix ledger" IS it.**
+
+This delta contributes exactly one thing to it — the **verification clause**, which the v2 spec leaves
+open and which is what makes an edit permanent rather than churn:
+
+> An applied change declares the series it expects to move and the direction. At its next **4 weekly
+> points**, the change is graded against that series' noise floor. A change whose series did not move
+> beyond the floor is **REVERTED**, and the revert is a fix-ledger row, not a silent rollback.
+
+The v2 spec's `weakening classifier` (`:426`) already governs the builder's own diffs to kaizen
+surfaces from M2 onward, so the revert path inherits an existing guard rather than inventing one.
+
+### Q4 — The weight budget
+
+**`scripts/enforcement/check_corpus_weight.py`**, on the `.fabrik/doc-script-baseline.json` pattern:
+
+- **Surfaces**: `CLAUDE.md`, `templates/governance/CLAUDE.md`, `commands/_sources/` (total + per-file),
+  `.windsurf/rules/` (total + per-file), `commands/_fragments/` (total).
+- **Baseline**: `.fabrik/corpus-weight-baseline.json`, seeded on first run, **blocks nothing on the
+  seeding run**.
+- **Rule**: a surface's bytes may only go **DOWN**, except with an escape hatch (below).
+- **Escape hatch**: a `docs/DECISIONS.md` row whose text names the surface authorises an increase, and
+  the check re-baselines to the new value. Growth is never forbidden — it is made **deliberate and
+  attributable**. Infra's +19 KB would have been legitimate under a D-row; what is not legitimate is
+  that nothing recorded it.
+- **Tier**: ADVISORY until its fire rate is measured (Q6). It never blocks a commit on day one.
+
+Rejected — **a token budget instead of bytes**: tokenisation is model-dependent and would make the
+baseline unstable across model changes. Bytes are exact, comparable, and monotone with tokens for
+prose.
+
+### Q5 — Instrument canaries
+
+Most of what was scoped here **already exists** (versioned series, `def_hash`, `—`-with-reason,
+`unknown-feedback-verdict`). Three real gaps remain, each from a failure hit while grounding **this**
+spec:
+
+1. **Wrong-version-live.** `kaizen_collect.py` (17 KB) and `kaizen_collect_v2.py` (143 KB) both exist
+   and only the second runs. Reading the wrong one produced a confidently wrong conclusion.
+   → the collector asserts it is the file `weekly_catchup.sh` dispatches, and says so in its output.
+2. **A bounded read that returns zero silently.** `cat ~/.claude/state/events/*.jsonl` over 38,249
+   files exceeds `ARG_MAX`; the pipeline returned nothing and read as "0 run_close events".
+   → any reader over the event store reports the **file count it actually opened** beside every
+   count, so a zero always carries its denominator.
+3. **Categorical-where-prose-exists.** Kaizen buckets a one-word verdict while full prose sits in the
+   ledger — invisible, not absent. → D1 closes this; the canary is that the ledger reader emits
+   `ledger_rows_seen` beside every derived value.
+
+### Q6 — Fire rate before shipping (FIX DIRECTIVE 5, binding)
+
+Before `check_corpus_weight.py` moves from ADVISORY to blocking, replay it over the **last 30 days of
+commits** and record what it would have fired on. The answer is already partly known: infra's plan
+would have fired 5 times in one merge. If the measured rate makes it wallpaper, **narrowing or
+rejecting it is a valid recorded outcome** — a D-row, not a silent removal.
+
+Same discipline for every series in Q2: publish first, fire never, until the floor exists.
+
+---
+
+## fabrik-lib verdict: BUILD (nothing to vendor), ENHANCE the hub's own collector
+
+Checked the module table and the tree. `observability/` is logging + Sentry/GlitchTip;
+`request-metering/` is per-request live-service telemetry on `db-pool`; `cost-budget/` is spend caps
+and reservation. None is a box-local agent-feedback analytics engine, and all three are service-shaped
+(they assume a running app and a database).
+
+**The correct reuse is internal**: `kaizen_collect_v2.py` already implements versioned series,
+`def_hash`, the honesty rule and the single-source law. D1 is a **reader added to it**, not a parallel
+engine. Building a second metrics store beside it would create exactly the fragmentation this delta
+exists to remove.
+
+---
+
+## Approaches considered
+
+**A — Activate first, build second (RECOMMENDED).** Trigger the M1→M2 variance sign-off (operator act,
+one command plus a review), then ship D1's four series and D2's ratchet as advisory. Cost: near zero to
+start, because the loop already exists. Risk: the sign-off may reveal the floors are too wide to
+adjudicate anything yet — which is itself the answer, and cheaper to learn now than after building.
+
+**B — Build the series first, activate later.** Ship D1+D2, leave the gate closed. Rejected: it adds
+four unadjudicable series to a loop whose adjudication half is already stalled — more recorded, still
+not evaluated, which is the exact failure the operator named.
+
+**C — Full new closed-loop mechanism.** Rejected on sight once the converged v2 spec was read: it
+forks a converged design and re-implements M2.
+
+**Recommendation: A.** It follows the law D-203 taught on the review loop — *prefer activating or
+removing mechanism over adding it* — applied to this design itself. This spec is deliberately a delta
+of ~200 lines rather than a second 588-line spec for the same reason.
+
+---
+
+## Who builds what
+
+| Item | Owner | Rationale |
+|---|---|---|
+| M1→M2 variance sign-off (D3) | **operator-triggered**, executed by whoever holds the window | `kaizen.md:224` names it a *"named operator-triggered follow-up"* — it is not an agent's call to make |
+| D1 — ledger reader + 4 series | **infra** (kaizen is their beat) — **fleet may build it** if infra's queue makes that slower | infra holds 64 of 65 `ack=required` items; routing by beat alone would park this |
+| D2 — `check_corpus_weight.py` | **fleet** (this window), infra reviews | New file, no collision with infra's finished plan; fleet holds the measurements |
+| M2's finding registry / fix ledger | **infra**, per the converged v2 spec | Already theirs; this delta only adds the verification clause |
+
+## Constraints (binding)
+
+1. **Never auto-edit a fleet-synced governance file.** The loop PROPOSES with evidence; a session
+   applies through the normal review path. A bad edit to `CLAUDE.md` or a rules pack reaches ~46 repos
+   before anyone reads it.
+2. **Zero command-file changes.** The close-out contract is single-sourced in
+   `commands/_fragments/close-feedback.md` (9,377 B), appended to all 36 commands by
+   `assemble_commands.py:1008-1009`. Agents already emit everything these series need. If the design
+   ever appears to need new agent behaviour, that is a signal the design is wrong — building a
+   leanness mechanism by adding text to 36 commands would repeat the +19 KB finding above.
+3. **Every new metric ships with a canary** that fires when its own input goes missing — never a
+   silent 0 (Q5).
+4. **No series fires anything below its noise floor at n ≥ 4** (Q2).
+
+## Open — needs the operator, not derivable here
+
+- **Sequencing vs the held fleet sync.** Infra's Finish HELD the one forced
+  `sync_enforcement_to_projects.py --force` pending trade-intelligence's receipt repair
+  (`01M23G21EBSS4BC187HQ7PS02X`; wef repaired at `edcb7e6d`). `scripts/enforcement/` is a
+  governance-sync TRIGGER surface, so `check_corpus_weight.py` distributes on the post-commit sync.
+  Land normally, or hold the commit until that clears? **This spec does not decide it, and this run
+  will not run the forced sync.**
+- **Whether seat/model/cost series belong to kaizen or to intel's flywheel-shaped store.** Asked intel
+  directly (`01M25E4SRWVYFBC4R48ANW7Z3W`); unanswered at authoring time. If intel claims them, D1 ships
+  the two non-seat series and links rather than annexes.
+
+## Self-audit — where this spec could be wrong
+
+- **The M1→M2 gate reading rests on one doc paragraph** (`kaizen.md:224`) plus series line counts. If
+  "7 days of daily event collection" means something stricter than 7 published series days, condition
+  (a) may not be met. The line counts are real; the interpretation is mine.
+- **`premature_stop_rate` 43%→55% is stated as a regression and is not proven as one.** The denominator
+  nearly doubled. It is offered as a series nobody watches, not as a defect.
+- **The +19 KB measurement is five files, not the whole corpus.** It is a bound, not a total: other
+  files in that 52-file set may have shrunk. The claim is that nothing counts, which stands regardless.
+- **The "v2 does not cover the ledger" claim is now verified beyond the literal string.** A single
+  `grep -c "command-feedback"` = 0 would only have proven one spelling absent, so the concept was
+  re-checked by vocabulary: `feedback`, `close-out`, `confusion:`, `waste:`, `cost_usd`, `tok_in`,
+  `seats` — **all zero matches across all 588 lines**. D1 is genuinely uncovered, not renamed. What
+  remains unverified is the reverse direction: I did not read all 588 lines, so v2 may contain a
+  metric that D1's four series duplicate under a different definition. A reviewer should diff D1's
+  series against v2's full metric register before any of them is published.
