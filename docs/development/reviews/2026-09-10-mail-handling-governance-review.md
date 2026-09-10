@@ -40,6 +40,7 @@ Union of the slices IS the full pass; no file read by two seats. Third angle = t
 | Pass 2 | method: re-derivation | found: 15 | new: 15 | confirmed: 13 | fixed: 13 | unexecuted: 0 | finders: dispatched 2, returned 2 — Opus (new check + rewritten clause), Sonnet (ledgers + fragment); DELTA over pass 1's fix diff. Every asserted number re-derived from its primary source, and the two example commands EXECUTED rather than read |
 | Pass 3 | method: re-derivation | found: 8 | new: 8 | confirmed: 3 | fixed: 3 | unexecuted: 0 | finders: dispatched 2, returned 2 — fresh Opus (check, tests, registration; 13 mutants executed), fresh Sonnet (clause + pending ledger; whole-table render and every command re-run live) |
 | Pass 4 | method: re-derivation | found: 4 | new: 4 | confirmed: 4 | fixed: 4 | unexecuted: 0 | finders: dispatched 1, returned 1 — a fresh non-authoring Opus seat over the round-3 fix diff; it rebuilt all three mutants, re-derived both new numbers, and re-read the JUSTIFICATION text nobody had graded |
+| Pass 5 | method: re-derivation | found: 7 | new: 7 | confirmed: 7 | fixed: 7 | unexecuted: 0 | finders: dispatched 1, returned 1 — a fresh non-authoring Opus seat over the COMMITTED state (5ccc4fdb), the first that could pin its surface by SHA |
 
 ## Adjudication — round 1 (slice B returned; slice A outstanding)
 
@@ -84,7 +85,7 @@ tracked repos as un-ignored. Both are now in the clause's own advice or in this 
 | Fix | Files | Guard |
 |---|---|---|
 | SEVENTH shape rewritten from a single string — recipe corrected to `rg --no-ignore --hidden`, line-number citation dropped, `git grep` claim scoped, call-sites count corrected, shim fall-through added | `CLAUDE.md`, `templates/governance/CLAUDE.md` (byte-identical, 2,184 chars) | D-216 supersedes D-214 on the recipe list; ledger rows are immutable so D-214 stands as written |
-| Three unescaped pipes escaped as `\|` | both contracts | **NEW** `scripts/enforcement/check_governance_tables.py`, registered advisory in `final_gate.py`. ⚠️ Its first draft returned 1 on a finding, which `run_optional_check`'s own docstring says would HARD-FAIL the gate in every synced repo the first time it fired (`warn_only` = no failing exit path by contract; all 33 other warn_only checks return 0 on every path). Caught by the S1 standing class against my own code before the delta seats returned: `main()` now returns 0 always and `--strict` carries the regression signal. Both paths proven against a HEAD fixture in a temp root — advisory rc=0 with the finding printed, `--strict` rc=1, both files named — and rc=0 on the fixed tree, live tree never mutated |
+| Three unescaped pipes escaped as `\|` | both contracts | **NEW** `scripts/enforcement/check_governance_tables.py`, registered advisory in `final_gate.py`. ⚠️ Its first draft returned 1 on a finding, which `run_optional_check`'s own docstring says would HARD-FAIL the gate in every synced repo the first time it fired (`warn_only` = no failing exit path by contract; all 32 other warn_only checks return 0 on every path). Caught by the S1 standing class against my own code before the delta seats returned: `main()` now returns 0 always and `--strict` carries the regression signal. Both paths proven against a HEAD fixture in a temp root — advisory rc=0 with the finding printed, `--strict` rc=1, both files named — and rc=0 on the fixed tree, live tree never mutated |
 | Coverage claim given its denominator | `CHANGELOG.md` | the number is now "36 of 36 … 20 of the 30", and the ten hand-inliners are FILED (F4), not silently absorbed |
 | Point-of-use clause trimmed to POINT rather than restate | `commands/_fragments/subagents-core.md` | re-rendered; `assemble_commands.py --check` rc=0 |
 
@@ -275,13 +276,16 @@ aborts the apply rather than colliding.
 | cA-F1 | **BLOCKING** — the `final_gate.py` registration comment restates `127 times in 34,415 rows`, a figure the co-located check's own docstring RETRACTS as an undeclared-bound scan; neither number reproduces under either bound, and the comment states no file denominator at all. In a file that syncs to ~46 repos | **CONFIRMED → FIXED** | the seat's own wide scan: 1,301 files / 40,290 rows / 125 fires with archives, 1,010 / 30,257 / 114 without — file count matches the docstring exactly, rows and fires within ~2% (a tree three sessions are editing). Fixed the way the seat proposed and the way the doc-script coupling rule demands: the comment no longer restates the number at all, it POINTS at the docstring as the single source. The docstring's figure is now dated. A comment restating another file's values is the drift class itself, and this one had gone stale against the docstring beside it within the same hour. |
 | cA-M | **8 of 13 mutants SURVIVED the tests** — the grader bound less than the fix depends on. The three that matter: `_TARGETS` reduced to the root contract (the FLEET-SYNCED half silently unscanned), `_root()` returning the wrong directory (prints `SKIPPED`, returns 0, i.e. a permanently GREEN advisory row in every synced repo), and the advisory losing its `file:line` (for a warn_only check the stdout IS the product) | **CONFIRMED → FIXED** | three tests added and each proven to KILL its mutant: `_TARGETS` mutant now **2 failed** (was 7 passed), `_root()` mutant **1 failed** (was 7 passed), file:line mutant **3 failed** (was 7 passed); live suite **10 passed**. `_root()` had ZERO coverage because every other test monkeypatches it — that is the gap that would have shipped a green check that reads nothing. |
 | cA-F3/F4/F5/F6 | Latent classes in the row predicate: fence-state inversion (nested/4-backtick/indented fences), tab-indented pipe lines read as tables, GFM tables without outer pipes, and two pipe-lines with no delimiter row firing as a false positive | **RECORDED — latent, zero live occurrences** | the seat measured the whole population of 50 contracts: tab-indented pipe lines **0**, `~~~` fences **0**, 4+-backtick fences **0**, outer-pipe-less delimiter rows **0**, lone `\|` lines **0**; and on the 302 real fence lines the tracker is BYTE-EXACT against markdown_it's own spans (0 code lines scanned, 0 prose lines skipped, state closed at EOF). Building for a class with no live instance is the wallpaper the FIX DIRECTIVE forbids; queued instead. |
-| cA-P1 | No read-error guard: an unreadable contract raises and `run_optional_check` then blames the registration ("drop `warn_only=True`") rather than the OSError | **RECORDED — pre-existing, shared by all 34 warn_only checks** | the misleading wording is not this check's; it is `final_gate.py:395-398` and it fires for ANY non-zero exit including a crash. Filed as machinery rather than patched here — fixing it inside one check would leave 33 with the same face. |
+| cA-P1 | No read-error guard: an unreadable contract raises and `run_optional_check` then blames the registration ("drop `warn_only=True`") rather than the OSError | **RECORDED — pre-existing, shared by all 33 warn_only checks** | the misleading wording is not this check's; it is `final_gate.py:395-398` and it fires for ANY non-zero exit including a crash. Filed as machinery rather than patched here — fixing it inside one check would leave 32 with the same face. ⚠️ **Round 5 superseded the second half of this row:** the wording IS shared, but the CRASH is this check's own — an unreadable contract raised `PermissionError`, reached a non-zero exit, and would have been promoted to a gate FAILURE in every synced repo, breaking `main()`'s own "returns 0 always" guarantee through a door the exit-contract fix had not closed. Now caught and reported as a finding, guarded by `test_unreadable_contract_is_reported_not_raised`, proven red against the committed check. |
 | cA-G2/G4 | The exit contract end to end, and fleet safety | **CLEAN — both measured** | through the gate's OWN call path on a finding: `passed=True` with the advisory text; on a CRASH: `passed=False` with the traceback preserved (so a broken check is loud, not silent). Fleet differential over all 50 live contracts with markdown_it as ground truth: **0 fire-only rows, 0 lost-only rows** — precision and recall both 1.0. Recall against the real historical defect: `git show HEAD:CLAUDE.md` loses row 250 and the check reports exactly `(250, 5, 2)`. |
 | cA-G5 | fail-open/closed edges · cost · boundary/sentinel | **CLEAN** | missing file, a DIRECTORY where the file should be, invalid UTF-8, CRLF — all handled; no `walk`/`glob`/`rglob` in the source, exactly `len(_TARGETS)` opens, ~0.17 s per run; `_DELIM` correct on alignment colons and padding; a bare `\|` excluded; an escaped pipe in a body cell correctly does not fire. |
 
-**And the remedy the rule prescribes was itself verified**: a cell written as an escaped pipe inside a code
-span renders as a proper table with the literal pipe intact, and the check goes quiet on it. The advice is
-executable, not just plausible.
+⚠️ **That row was WRONG and round 5 caught it.** It said "the remedy the rule prescribes was itself
+verified" on the strength of a RENDER test only — and "the literal pipe intact" is false for the raw bytes an
+agent receives, which contain the backslash. Round 4 had already concluded the opposite about the identical
+construct; this row stood unrevised beside it. Superseded by round 5's D1 below: the check's remediation text
+now sends the reader to a REPHRASE inside a code span and reserves the escape for prose, guarded by
+`test_remediation_does_not_prescribe_escaping_inside_a_code_span`, proven red against the committed check.
 
 ## Adjudication — CLOSING round, slice B (fresh Sonnet seat on the clause and the pending ledger)
 
@@ -513,6 +517,60 @@ check exists — and it carried three false measurements about the tree it names
 **Why this round mattered most:** the first three rounds hardened the rule and the mechanism. This one read the
 *evidence* — and found that the story justifying a new fleet-adjacent check was wrong in three ways about the
 very tree it cites. A check whose stated reason for existing is false is a check nobody can audit later.
+
+## Adjudication — round 5, and the FOUNDATION finding the loop had been circling
+
+The seat reviewed the COMMITTED state, so it could pin by SHA — the first round free of the moving-target
+problem. It found seven, all confirmed, and the most serious is a fleet-shipping one.
+
+| # | Candidate | Verdict | Proof executed here |
+|---|---|---|---|
+| r5-D1 | **The check's own remediation advice told ~46 repos to do the thing this commit proved wrong** — the advisory read "an unescaped pipe (escape it as a backslash-pipe, even inside a code span) truncates this rule", while the same commit concluded escaping inside a code span breaks the RAW path, which is primary for these files | **CONFIRMED → FIXED** | reproduced on my own fixture: the unescaped pattern counts **3**, the escaped form **5**; the escaped pipeline printed its own arguments and never filtered. The advisory now says: escape in PROSE, but inside a CODE SPAN rephrase so the example carries no literal pipe, *because* these contracts are read raw as well as rendered. Guarded by `test_remediation_does_not_prescribe_escaping_inside_a_code_span`, proven RED against the committed check. Nothing had guarded the wording — the tests asserted only that an advisory appeared. |
+| r5-P2 | An unreadable contract raises `PermissionError`, reaches a non-zero exit, and `run_optional_check` promotes that to a gate FAILURE in every synced repo — breaking `main()`'s own "returns 0 always" guarantee through a door the exit-contract fix never closed | **CONFIRMED → FIXED** | reproduced with `chmod 000`: rc=1 and a traceback. Now caught and reported as a finding (`could not be read (PermissionError) — not checked`), rc 0. Guarded by `test_unreadable_contract_is_reported_not_raised`, proven RED. Round 4 had adjudicated the *message* half of this as pre-existing machinery; the *crash* half was this check's own and the disposition had covered a different claim. |
+| r5-D2 | A round-3 adjudication row claimed "the remedy the rule prescribes was itself verified" on a RENDER test only — and "the literal pipe intact" is false for the raw bytes | **CONFIRMED → FIXED** | the row stood unrevised beside round 4's opposite conclusion about the identical construct. Corrected in place with the supersede named. |
+| r5-D3 | `INDEX.md:1184` — my own new row shipped BOTH claims the same commit retracts ("three shapes … invisible", "both fleet-synced copies") | **CONFIRMED → FIXED** | added by `5ccc4fdb` itself, which means round 4's "FIXED in five places" was false: there were six sites, and `INDEX.md` is the file map an auditor reads first. |
+| r5-D4 | The 33/34 off-by-one that a round-4 row adjudicates as FIXED, still present twice in the same document | **CONFIRMED → FIXED** | `grep -c 'warn_only=True'` = 33 at the commit, so 32 others. Fix 4 had landed in the docstring only. |
+| r5-D5 | `CHANGELOG.md` — the leading clause said "the three unescaped pipes the FIFTH shape brought in", contradicting its own parenthetical two lines later | **CONFIRMED → FIXED** | `git log -S` confirms two at `adce3017` and the third at `66aa32a5`. The lead clause is what a skimming reader takes away. |
+| r5-P1 | The test module's docstring still enumerated the 4-test first draft | **CONFIRMED → FIXED** | the file has 12 tests. |
+
+### The foundation finding: nine artifacts tell one story, and every correction has to be propagated to all nine
+
+Rounds 3, 4 and 5 each found the SAME class — a claim corrected in one place and left standing in another.
+The cause is structural, not careless: this change's story is restated in **nine** artifacts (both contracts,
+the check's docstring, the gate's registration comment, three CHANGELOG entries, D-216, the INDEX row and
+this receipt), and each correction has to reach all of them. Round 5's own D3/D4/D5 are three separate
+instances of it in one commit.
+
+So instead of waiting for a sixth round to find the next one, I swept **every retracted claim across every
+artifact** mechanically:
+
+| retracted claim | still live outside this receipt? |
+|---|---|
+| `rg --no-ignore` sanctioned without `--hidden` | clear |
+| "both fleet-synced contracts" / "the two files that ship" | clear |
+| "three shapes … absent/invisible" | clear |
+| "27 different `.gitignore` line numbers" | clear |
+| "3 of 47 synced repos" (unnamed population) | clear |
+| "the other 33 warn_only checks" | clear |
+| "20/20 fan-out commands" | **FOUND — and fixed** |
+| "93 of 723 files" (unit dropped) | clear |
+| literal `%%` format artifact | clear |
+
+**The sweep caught one the seat did not:** `CHANGELOG.md`'s third entry still read "20/20 fan-out commands"
+— my ROUND 1 fix to that number, lost when a sibling's commit reverted my ledger edits, and never
+re-propagated when I restored the other two entries from the payload. A correction can be undone by
+someone else's commit and silently stay undone; only a sweep of the CLAIM, not of the file, finds that.
+Every remaining hit is inside this receipt, where quoting the retracted claim is the point.
+
+## Two more, caught by my own reading rather than by a seat
+
+- **The rewritten advisory had a duplicated tail.** My edit inserted the new clause but left the original
+  trailing `— for every rendered reader:` in the following f-string line, so the phrase read twice. Found by
+  PRINTING the advisory as the fleet will actually see it against a fixture, not by re-reading the f-string.
+  The seat could not have caught it: it reviewed the committed bytes, and this was introduced by the fix TO
+  its own finding.
+- **The Doc Sync Matrix refused the commit** until the round-5 code change carried its own `[Unreleased]`
+  entry. The gate doing exactly its job on a change whose subject is documentation truth.
 
 ## Gate — re-measured in this round, not inherited
 

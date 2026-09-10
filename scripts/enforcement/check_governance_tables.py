@@ -146,13 +146,24 @@ def main(argv: list[str] | None = None) -> int:
         if not path.is_file():
             continue  # a project copy has no templates/ tree — absence is not a defect
         checked += 1
-        for lineno, cells, header, preview in _overflowing_rows(
-            path.read_text(encoding="utf-8", errors="replace")
-        ):
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            # `main()` returns 0 ALWAYS (see the exit-code contract above) — and an OSError is the one
+            # door that reached a non-zero exit anyway, which `run_optional_check` promotes to a gate
+            # FAILURE in every synced repo while blaming the registration. Report it as what it is.
+            findings.append(
+                f"  ⚠ {rel}: could not be read ({exc.__class__.__name__}) — not checked"
+            )
+            continue
+        for lineno, cells, header, preview in _overflowing_rows(text):
             findings.append(
                 f"  ⚠ {rel}:{lineno}: table row renders {cells} cells against a {header}-cell header — "
-                f"an unescaped `|` (escape it as `\\|`, even inside a code span) truncates this rule "
-                f"for every rendered reader: {preview}…"
+                f"an unescaped `|` truncates this rule for every rendered reader — escape it as "
+                f"`\\|` in PROSE, but inside a CODE SPAN rephrase the example so it carries no literal "
+                f"pipe: `\\|` is alternation in GNU BRE and these contracts are read RAW as well as "
+                f"rendered, so escaping there silently changes what the example command does. The row: "
+                f"{preview}…"
             )
     if not checked:
         print("check_governance_tables: SKIPPED — no governance contract found under this root")

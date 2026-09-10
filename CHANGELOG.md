@@ -4,10 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The governance-table check was advising ~46 repos to re-create the bug it guards (2026-09-10)
+
+Its advisory read *"an unescaped `|` (escape it as `\|`, even inside a code span) truncates this rule"* —
+the opposite of what the same change had concluded. These contracts are injected VERBATIM into every
+agent's prompt, and `\|` is alternation in GNU BRE, so escaping inside a code span silently changes what
+the example command does: measured, a row-counting example goes from 3 to 5, and an example pipeline stops
+filtering entirely while still exiting 0. The advisory now says escape in PROSE and rephrase inside a CODE
+SPAN, and says why. Nothing had guarded the wording — the tests only asserted that an advisory appeared.
+
+Also closed the one door left in `main()`'s "returns 0 always" contract: an unreadable contract raised
+`PermissionError`, reached a non-zero exit, and `run_optional_check` promotes that to a gate FAILURE in
+every synced repo while blaming the registration. Now reported as a finding at rc 0. Both guarded by new
+tests proven red against the committed check — twelve tests, nine red-proven against mutants.
+
+Found by the fifth review round, the first able to pin its surface by SHA. It also found four
+documentation self-contradictions inside artifacts this change itself added, and a mechanical sweep of
+every retracted claim across every artifact found a fifth that no seat had: a round-1 fix of mine that a
+sibling's commit reverted and that was never re-propagated. A correction can be undone by someone else's
+commit and silently stay undone; only sweeping the CLAIM, not the file, finds that.
+
 ### Fixed — Governance rules that did not render, and the escape that would have broken them the other way (2026-09-10)
 
 GFM discards a table row's cells past the header's width, code spans included, so the three unescaped pipes
-the FIFTH shape brought in on 2026-09-03 had been silently deleting the FIFTH and SIXTH shapes from every
+that arrived on 2026-09-03 had been silently deleting the FIFTH and SIXTH shapes from every
 rendered view of the hub contract and of `templates/governance/CLAUDE.md` — the one of the two that actually
 ships to ~46 repos — for a week, and would have deleted the new SEVENTH too. (Precisely: the FIFTH shape was
 cut mid-sentence at the first stray pipe and the SIXTH was gone entirely; two of the three pipes arrived with
@@ -31,7 +51,6 @@ commit that extends it.)
 
 ### Added — Plan: review-family adoption of D-203 (2026-09-10)
 
-- CONVERGED at the close of the in-turn `/fabrik-plan-review` run under D-212/D-218 (4 passes, 67 min, raised/confirmed 24/14 → 15/11 → 9/6 → 3/0; flip row D-220); next: `/fabrik-execute-plan docs/development/plans/2026-09-10-plan-1-review-family-adoption.md` on the operator's word.
 - `docs/development/plans/2026-09-10-plan-1-review-family-adoption.md` (DRAFT, `Profile: small`, three inline phases) from the approved spec; approval rows D-217 (the approval), D-218 (the floor stands down under a section partition for `term-edit` loops), D-219 (D-048's `Standing:` line retired for the RECORDED family).
 
 ### Changed — Bounded-search HARD STOP gains its SEVENTH shape: the `grep` shim is blind to every synced file (2026-09-10)
@@ -58,8 +77,11 @@ but the only written escape hatch for an older vendored copy named `--feedback`.
 `--confirmed`. `commands/_fragments/close-feedback.md` now states the CLASS — a subcommand or flag the corpus
 names that your local script rejects is a stale copy, never a licence to skip the step — with the two
 consequences to declare while it lasts (unstamped seats are invisible to `dispatch_headroom.py`; an unrecorded
-`--confirmed` leaves D-206's exit counter in prose). `subagents-core.md` says the same at the dispatch stamp.
-Re-rendered: 36/36 commands carry the class clause, 20/20 fan-out commands the dispatch note.
+`--confirmed` leaves D-206's exit counter in prose). `subagents-core.md` POINTS at that section from the
+dispatch stamp rather than restating it. Re-rendered: **36 of 36** commands carry the class clause
+(`close-feedback.md` is appended to every command); the point-of-use note reaches **20 of the 30** that
+instruct `dispatch --seats` — the 20 including the shared `subagents-core` fragment. The other ten
+hand-inline their own copy of that paragraph, a pre-existing corpus defect filed rather than widened here.
 
 ### Changed — Tree-wide `ruff format` churn adopted; hook-generated docs committed (2026-09-10)
 

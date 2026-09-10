@@ -9,10 +9,13 @@ gate in every one of the ~46 repos `scripts/enforcement/` syncs to, on the first
 registration rather than the table. The first draft did exactly that; an author-blind seat measured
 47 of 49 `/opt` CLAUDE.md files failing. `test_findings_do_not_fail_the_gate` is that guard.
 
-The other three tests pin the boundaries the same seat found by rendering fixtures with markdown_it:
-an indented table (live in CLAUDE.md's own § Orient), a fenced example of a bad row (false positive),
-and a header row that itself carries a pipe (GFM renders no table at all and the naive check is
-silent — strictly worse than the defect being guarded).
+The rest pin boundaries later seats found by rendering fixtures with markdown_it and by mutating the
+check: an indented table (live in CLAUDE.md's own § Orient), a fenced example of a bad row (a false
+positive), a header row that itself carries a pipe (GFM renders no table at all and a naive check is
+silent — strictly worse than the defect being guarded), both contracts actually being scanned, the
+advisory carrying its file:line, `_root()` resolving at all (it had ZERO coverage), the remediation
+text not prescribing an escape inside a code span, and an unreadable contract not crashing a
+warn_only check into a gate failure.
 """
 
 from __future__ import annotations
@@ -136,3 +139,40 @@ def test_root_resolves_to_the_repo_that_owns_the_script(monkeypatch):
     root = mod._root()
     assert (root / "scripts" / "enforcement" / "check_governance_tables.py").is_file()
     assert (root / "CLAUDE.md").is_file()
+
+
+def test_remediation_does_not_prescribe_escaping_inside_a_code_span(tmp_path, monkeypatch, capsys):
+    """The advisory ships to ~46 repos, so its ADVICE is fleet-shipping code, not decoration.
+
+    An earlier draft said "escape it as `\\|`, even inside a code span" — the exact thing this repo had
+    just proved wrong: these contracts are injected RAW into every agent's prompt, and `\\|` is alternation
+    in GNU BRE, so escaping inside a code span silently changes what the example command does (a row-count
+    example went from 3 to 5). Nothing else guards the wording.
+    """
+    mod = _load()
+    _run(mod, _root(tmp_path, _BAD), [], monkeypatch)
+    out = capsys.readouterr().out
+    assert "even inside a code span" not in out
+    assert "inside a CODE SPAN rephrase" in out, (
+        "the advisory must send the reader to a rephrase, not an escape"
+    )
+
+
+def test_unreadable_contract_is_reported_not_raised(tmp_path, monkeypatch, capsys):
+    """`main()` returns 0 ALWAYS — an OSError was the one door that reached a non-zero exit anyway.
+
+    A warn_only check exiting non-zero is promoted by `run_optional_check` to a gate FAILURE in every
+    synced repo, with a message blaming the registration rather than the unreadable file.
+    """
+    import os
+
+    mod = _load()
+    root = _root(tmp_path, _GOOD)
+    os.chmod(root / "CLAUDE.md", 0o000)
+    try:
+        rc = _run(mod, root, ["--strict"], monkeypatch)
+        out = capsys.readouterr().out
+    finally:
+        os.chmod(root / "CLAUDE.md", 0o644)
+    assert rc in (0, 1), "must not raise"
+    assert "could not be read" in out
