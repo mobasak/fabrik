@@ -134,26 +134,37 @@ _REDERIVATION_ROW = re.compile(
 # `confirmed: 3` row is prose) and the LAST `confirmed: N` token is the row's own counter (a row
 # that mentions an earlier count before its own grades on its own). A ledger with no counter row
 # at all keeps today's checks (the `edits:`-only and colon-less shapes are not counters).
-_PASS_ROW = re.compile(r"^[ \t]*\|\s*\**Pass\b[^\n]*", re.I | re.M)
+# `Pass` OR `Round` — the same words `_REDERIVATION_ROW` accepts, so the two rules in this file agree
+# about what a ledger row is; `(?<![\w-])` in front of the token, as `QUIET_PASS` carries, so an
+# `unconfirmed:` or `re-confirmed:` cell never reads as the counter. STATED COST of the last-token
+# rule: a Notes cell that cites an EARLIER round's count AFTER the row's own counter (`confirmed: 0 |
+# notes: pass 1 stood at confirmed: 3`) is refused — write the citation before the counter, or in
+# a code span. Measured 2026-09-10: 0 of 47 fleet spines and 0 of 454 receipts carry >1 token on one row.
+_PASS_ROW = re.compile(r"^[ \t]*\|\s*\**(?:Pass|Round)\b[^\n]*", re.I | re.M)
 _CODE_SPAN = re.compile(r"`[^`\n]*`")
-_CONFIRMED_TOKEN = re.compile(r"confirmed\s*:\s*(\d+)", re.I)
-CLOSING_ROW_REFUSAL = "claims CONVERGED but its last Pass row does not read confirmed: 0"
+_HTML_COMMENT = re.compile(r"<!--.*?-->", re.S)
+_CONFIRMED_TOKEN = re.compile(r"(?<![\w-])confirmed\s*:\s*(\d+)", re.I)
+CLOSING_ROW_REFUSAL = "its last Pass row does not read confirmed: 0"
 
 
 def _closing_row_fail(text: str) -> str | None:
-    """The refusal for a fence-stripped spine text, or None. Exposed so a fleet census can grade
-    every spine through the SAME rule the flip check applies (never a look-alike grep)."""
+    """The refusal for a spine text, or None. The quoting policy is applied HERE — fences and HTML
+    comments blanked (a parked ledger is a quote) — so a fleet census that calls this on raw text
+    grades every spine through the SAME rule the flip check applies (never a look-alike grep);
+    the caller's own strip is harmless. A later Pass row WITHOUT a counter does not un-count the
+    ledger: the last COUNTER row decides (a ledger that stopped counting mid-way is graded on its
+    last count). The message names the flip, not the claim: `_check_spine_set` runs on the
+    CONVERGED and the EXECUTED path alike."""
+    text = _HTML_COMMENT.sub("", FENCE_STRIP.sub("", text))
     last_counter: int | None = None
     for m in _PASS_ROW.finditer(text):
         tokens = _CONFIRMED_TOKEN.findall(_CODE_SPAN.sub("`x`", m.group(0)))
         if tokens:
             last_counter = int(tokens[-1])
-        elif last_counter is not None:
-            # a later Pass row WITHOUT a counter does not un-count the ledger: the last COUNTER
-            # row decides (a ledger that stopped counting mid-way is graded on its last count)
-            pass
     if last_counter is not None and last_counter != 0:
-        return f"{CLOSING_ROW_REFUSAL} (its last counter row reads confirmed: {last_counter})"
+        return (
+            f"the flip {CLOSING_ROW_REFUSAL} (its last counter row reads confirmed: {last_counter})"
+        )
     return None
 
 
@@ -221,7 +232,7 @@ def _cite_matches_plan(cite_name: str, plan_stem: str) -> bool:
 _TICKET_REVIEW_RE = re.compile(r"-T\d{2}[a-z]?-review\.md$")
 # The /fabrik-review termination signature (term-coverage): a quiet round. We require the PAIR
 # to appear *somewhere* — a deliberately ZERO-FALSE-POSITIVE signal: a genuinely-converged review
-# ALWAYS has one, so this never cries wolf (the failure mode that gets a fleet gate ``# noqa``'d —
+# ALWAYS has one, so this never cries wolf (the failure mode that gets a fleet gate noqa-ed —
 # worse than a false-accept). It rejects a prose-only "found:0" with no same-LINE "fixed:0"
 # (D-053: same-line, any gap — the old adjacency window is gone) and a cited review with no quiet
 # round at all. It does NOT try to prove the quiet round was the FINAL one — that DEPTH (no

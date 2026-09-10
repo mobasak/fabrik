@@ -163,7 +163,7 @@ EXTRACT = {
         (
             "termination",
             "term-edit",
-            "\n(Flip preconditions this gate reads mechanically: a MONOLITH plan must carry `## Coverage\nChecklist` + an embedded `review_rubric.py` invocation — `_checklist_section` and `RUBRIC_RUN` in\n`check_convergence.py` (grep for the symbols — line anchors into that file drift); verify\nboth before the closing round, or the flip fails after the loop.)\n(This command is fully autonomous — `/fabrik-plan-after-chat` auto-invokes it and it runs itself to `CONVERGED` with no approval gate, unlike `/fabrik-spec-review`.)",
+            "\n(Flip preconditions this gate reads mechanically: a MONOLITH plan must carry\n`## Coverage Checklist` + an embedded `review_rubric.py` invocation — `_checklist_section` and `RUBRIC_RUN` in\n`check_convergence.py` (grep for the symbols — line anchors into that file drift); verify\nboth before the closing round, or the flip fails after the loop.)\n(This command is fully autonomous — `/fabrik-plan-after-chat` auto-invokes it and it runs itself to `CONVERGED` with no approval gate, unlike `/fabrik-spec-review`.)",
         ),
         ("grounding", "grounding-artifact", None),
         ("subagents", "subagents-core", None),
@@ -227,6 +227,9 @@ _EX_ITEM = 'an API "reused" that doesn\'t exist, a column "stored" with the wron
 # angle: a Haiku seat briefed on one returns a claim the orchestrator must refute, spend without
 # recall (D-191 round-2 finding). The floor for them names Sonnet + Opus only and `--mechanical 0`.
 _JUDGEMENT_KINDS = {"grounding", "adjudication"}
+# every kind the default (units-sized) branch is allowed to render — the callers' literals, listed
+# so an unknown kind is a render error rather than a silent default
+_UNITS_KINDS = frozenset({"review", "sweep", "audit", "docs review"})
 
 # The PARTITIONED review loops size by slice, not by unit, in two shapes. By FILE — `/fabrik-review`
 # and `/fabrik-repo-review`: D-207 cuts their surface into disjoint file slices and D-208 retires the
@@ -244,6 +247,10 @@ _SECTION_PARTITION_KINDS = {"section partition"}
 
 
 def _floor(kind: str, native: str) -> str:
+    if kind not in _PARTITION_KINDS | _SECTION_PARTITION_KINDS | _JUDGEMENT_KINDS | _UNITS_KINDS:
+        # a one-character slip in a PARAMS literal must never render the DEFAULT contract (with
+        # its Haiku seat) into a partitioned review — loud, at render time
+        raise ValueError(f"_floor: unknown floor kind {kind!r}")
     # D-181/D-182 (2026-09-07): the pool is OFF by ruling, so the floor is stated in native seats only.
     # The pool form ("pool breadth AND ≥1 native Opus") is kept in git history for re-enable.
     if kind in _PARTITION_KINDS:
@@ -1065,6 +1072,14 @@ def render(dest: Path, skills_dest: Path | None = None, agents_dest: Path | None
     # the skill-description cap is composed for EVERY command before the first write (a trip used
     # to fire inside the skills loop, after all 36 commands and part of the skills were on disk)
     skill_bodies = [(name, _compose_skill(name, desc)) for name, desc in emitted]
+    if skills_dest is not None:
+        for name, _body in skill_bodies:
+            target = skills_dest / name
+            if target.exists() and not target.is_dir():
+                raise SystemExit(
+                    f"skills: {target} exists and is not a directory — a plain file where the "
+                    "skill directory belongs; remove it, then re-render (nothing was written)"
+                )
     _write_agents(agents_dest, agent_bodies)
     for fname, text in pending:
         (dest / fname).write_text(text)

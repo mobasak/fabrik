@@ -1462,15 +1462,16 @@ _LEDGER_SPINE_HEAD = '# Plan: ledger fixture\n\nStatus: CONVERGED\n\n## Goal\n\n
 _LEDGER_TICKET = "# T01 — fixture\n\nDepends: none\nParallel: ⚡\nComplexity: native\nIntegration: true\nDocs: none\nGate: pytest -q\n\n## Scope\nFixture. DO-NOT touch api.\n\n## Touches\n- src/app/handler.py\n\n## Behavior Contract\n- **Given** x, **When** y, **Then** z (src/app/handler.py:1).\n\n## Context Files\n- .windsurf/rules/core/10-python.md\n"
 
 
-def _ledger_spine(tmp_path: Path) -> Path:
-    d = tmp_path / "docs" / "development" / "plans" / "2026-09-10-plan-1-ledger"
+def _ledger_spine(tmp_path: Path, archived: bool = False) -> Path:
+    base = tmp_path / "docs" / "development" / "plans"
+    d = (base / "archived" if archived else base) / "2026-09-10-plan-1-ledger"
     d.mkdir(parents=True, exist_ok=True)
     (d / "T01-fixture.md").write_text(_LEDGER_TICKET)
     return d / "2026-09-10-plan-1-ledger.md"
 
 
-def _run_ledger(tmp_path: Path, ledger: str) -> tuple[int, str]:
-    spine = _ledger_spine(tmp_path)
+def _run_ledger(tmp_path: Path, ledger: str, archived: bool = False) -> tuple[int, str]:
+    spine = _ledger_spine(tmp_path, archived)
     spine.write_text(_LEDGER_SPINE_HEAD + ledger)
     subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True, timeout=15)
     proc = subprocess.run(
@@ -1482,7 +1483,7 @@ def _run_ledger(tmp_path: Path, ledger: str) -> tuple[int, str]:
     return proc.returncode, proc.stdout
 
 
-REFUSAL = "claims CONVERGED but its last Pass row does not read confirmed: 0"
+REFUSAL = "its last Pass row does not read confirmed: 0"
 
 
 def test_a_converged_spine_whose_last_pass_row_confirms_more_than_zero_is_refused(repo):
@@ -1529,5 +1530,54 @@ def test_the_last_confirmed_token_on_the_closing_row_is_the_one_that_counts(repo
     rc, out = _run_ledger(
         repo,
         "| Pass 1 | seats | method: citation — full | confirmed: 4 |\n| Pass 2 | seat | method: re-derivation — delta; notes: confirmed: 4 earlier, now confirmed: 0 |\n",
+    )
+    assert rc == 0, out
+
+
+def test_an_archived_spine_is_never_graded_by_the_closing_row_rule(repo):
+    """28 of the 47 fleet spines are archived; `_executed_targets` does not skip `archived/`, so the
+    `return []` at the top of `_check_spine_set` is the only thing keeping settled history out."""
+    rc, out = _run_ledger(
+        repo,
+        "| Pass 1 | seats | method: citation — full | confirmed: 3 |\n| Pass 2 | seat | method: re-derivation — delta | confirmed: 4 |\n",
+        archived=True,
+    )
+    assert rc == 0 and REFUSAL not in out, out
+
+
+@pytest.mark.parametrize("label", ["**Pass 2**", "pass 2", "Round 2"])
+def test_a_bold_lowercase_or_round_headed_closing_row_is_still_a_counter_row(repo, label):
+    """`_REDERIVATION_ROW` accepts `pass|round`; the closing-row rule must not disagree about what a
+    ledger row is, and the corpus writes bold labels for emphasis."""
+    rc, out = _run_ledger(
+        repo,
+        f"| Pass 1 | seats | method: citation — full | confirmed: 0 |\n| {label} | seat | method: re-derivation — delta | confirmed: 4 |\n",
+    )
+    assert rc == 1 and "confirmed: 4" in out, out  # only a matched row can carry the 4
+
+
+def test_a_two_digit_counter_is_read_whole(repo):
+    rc, out = _run_ledger(
+        repo,
+        "| Pass 1 | seats | method: citation — full | confirmed: 3 |\n| Pass 2 | seat | method: re-derivation — delta | confirmed: 12 |\n",
+    )
+    assert rc == 1 and "confirmed: 12" in out, out
+
+
+def test_unconfirmed_is_not_a_confirmed_counter(repo):
+    """`QUIET_PASS` carries `(?<![\\w-])` in front of its token for exactly this reason."""
+    rc, out = _run_ledger(
+        repo,
+        "| Pass 1 | seats | method: citation — full | confirmed: 3 |\n| Pass 2 | seat | method: re-derivation — delta | confirmed: 0, unconfirmed: 2 |\n",
+    )
+    assert rc == 0, out
+
+
+def test_a_ledger_parked_in_an_html_comment_is_not_graded(repo):
+    """Commenting out a superseded ledger is the standard markdown park; the receipt-side
+    `_blank_quoted` blanks comments and fences alike."""
+    rc, out = _run_ledger(
+        repo,
+        "| Pass 1 | seats | method: citation — full | confirmed: 3 |\n| Pass 2 | seat | method: re-derivation — delta | confirmed: 0 |\n\n<!-- the old ledger, parked:\n| Pass 3 | seats | method: citation | confirmed: 9 |\n-->\n",
     )
     assert rc == 0, out

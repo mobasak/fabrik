@@ -12,7 +12,7 @@ included, blockquoted excluded; code spans masked so a quoted `confirmed: 3` is 
 token counts; a ledger with no counter row keeps today's checks) — `_closing_row_fail` is the one
 function the flip check and a fleet census share. Six red-first tests (84 pass; the refusal branch
 proven by a mutant); measured through that function before the docs claimed it: 1,062 fleet plan
-files, 71 spines with a Pass Ledger, 1 with a counter row, 0 refusals. The fleet-synced text follows
+readable files, 70 carrying a `## Pass Ledger` heading (21 of them plan-set spines — the population the rule grades; 47 spines fleet-wide), 1 counter row, 0 refusals. The fleet-synced text follows
 Phase A: `.windsurf/rules/core/62-using-subagents.md` names the partitioned review loops as the file-cut
 pair plus the `term-edit` family's `/fabrik-spec-review` and `/fabrik-plan-review` by SECTION (D-212,
 D-218), drops the two from the three-seat floor's list, and § Role separation states the `term-edit`

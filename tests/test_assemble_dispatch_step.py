@@ -416,7 +416,10 @@ def _defective_agent_sources(tmp_path, monkeypatch):
     monkeypatch.setattr(ac, "AGENT_SRC", src)
 
 
-@pytest.mark.parametrize("abort", ["over-cap NEXT", "defective agent source"])
+@pytest.mark.parametrize(
+    "abort",
+    ["over-cap NEXT", "defective agent source", "render error", "a file where a skill dir belongs"],
+)
 def test_an_aborted_render_writes_into_none_of_the_three_trees(tmp_path, monkeypatch, abort):
     """Every render gate fires BEFORE the first write: an aborted render leaves the commands, skills
     AND agents trees exactly as it found them (Phase A heavy rounds 11–13: the cap raise sat inside
@@ -425,13 +428,34 @@ def test_an_aborted_render_writes_into_none_of_the_three_trees(tmp_path, monkeyp
     if abort == "over-cap NEXT":
         monkeypatch.setitem(ac.NEXT, next(iter(ac.NEXT)), "x" * 1100)
         match = "composed skill description"
-    else:
+    elif abort == "defective agent source":
         _defective_agent_sources(tmp_path, monkeypatch)
         match = "blank line"
+    elif abort == "render error":
+        src = tmp_path / "_src"
+        src.mkdir()
+        for f in ac.SRC.glob("*.md"):
+            (src / f.name).write_text(f.read_text())
+        first = sorted(src.glob("*.md"))[0]
+        first.write_text(first.read_text() + "\n{{include:nope}}\n")
+        monkeypatch.setattr(ac, "SRC", src)
+        match = "2"  # sys.exit(2) after RENDER ERRORS
+    else:
+        s = tmp_path / "_skills"
+        s.mkdir()
+        (s / next(iter(ac.NEXT))).write_text("a plain file where the skill DIRECTORY belongs")
+        match = "not a directory"
     d, s, a = _trees(tmp_path)
     with pytest.raises(SystemExit, match=match):
         ac.render(d, s, agents_dest=a)
     assert _census(tmp_path) == (0, 0, 0)
+
+
+def test_the_floor_helper_refuses_an_unknown_kind():
+    """A one-character slip in a PARAMS kind literal must never render the DEFAULT units-sized
+    contract (with its Haiku seat) into a partitioned review — an unknown kind is loud."""
+    with pytest.raises(ValueError, match="unknown floor kind"):
+        ac._floor("section-partition", "`fabrik-reviewer`")
 
 
 def test_a_preview_render_without_a_skills_tree_still_trips_the_cap(tmp_path, monkeypatch):
