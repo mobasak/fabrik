@@ -1219,6 +1219,24 @@ def run_consistency_checks(
         )
     )
 
+    # Governance tables: a rule that lives in a markdown table row is DISCARDED past the header's
+    # width by every GFM renderer, so one unescaped `|` inside a code span silently deletes that
+    # rule for every rendered reader while the raw file still reads fine. Measured 2026-09-10: the
+    # denominator HARD STOP row had carried three of them since 2026-09-03 and rendered as 2 cells —
+    # its FIFTH shape cut mid-sentence, its SIXTH gone — in the hub contract and in the template that
+    # ships to ~46 repos. Scoped to the governance
+    # contracts on purpose — the same rule over the wider markdown scope is wallpaper. The measured
+    # fire rate and its denominator live in the check's own module docstring, single-sourced: a
+    # comment restating another file's numbers is the drift class, and this one had already gone
+    # stale against the docstring beside it. ADVISORY on landing per the standing rollout law.
+    results.append(
+        run_optional_check(
+            "scripts/enforcement/check_governance_tables.py",
+            "Governance Tables (rules must render)",
+            warn_only=True,
+        )
+    )
+
     # Certification coverage: /fabrik-user-test and /fabrik-service-test graded their own
     # denominator. The inventory was PROSE WITH COUNTS authored by the agent later graded against it,
     # and NOTHING read it — there was no certification grader at all. On an inherited surface it

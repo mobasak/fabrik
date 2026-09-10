@@ -51,6 +51,18 @@ with `--evidence` so the record does not stay `running`, **state your `FEEDBACK:
 gets re-synced. A verdict you spoke is information; a verdict you skipped because the parser could not take
 it is not.
 
+⚠️ **And the trap is not limited to `--feedback` — it is the whole class: a subcommand or flag this
+corpus names that your local `command_run.py` REJECTS is a stale copy, never a licence to skip the
+step.** Measured 2026-09-10 at fabrik-lib (`01M25D3PRA766HXCHAAGSJBV9X`): the same vendored script also
+predates the dispatch accounting — `dispatch` is an `invalid choice`, and `round` has no `--seats` and
+no `--confirmed` — while every fan-out in the corpus now instructs all three. So DO the step's work and
+state its number in the response (the seats you dispatched, the CONFIRMED count that closed the round),
+close with what the parser accepts, and file the stale-copy fact. Say the two consequences out loud
+while it lasts: seats you cannot stamp are INVISIBLE to `dispatch_headroom.py`, so a sibling sizing its
+own fan-out over-allocates against a box busier than the number it read — size down and name the gap;
+and a round you cannot close with `--confirmed` cannot record D-206's exit counter, so the convergence
+verdict lives in your prose and the `--findings 0` rule still binds it.
+
 This is not ceremony bolted onto the exit: it is the only moment you still hold the context
 to answer, and the duty was measurably inert for as long as it was merely written down (13 closes in
 14 days, 12 with no verdict, zero filings — with the text below already present in all 31 commands).

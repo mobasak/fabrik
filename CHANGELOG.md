@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Governance rules that did not render, and the escape that would have broken them the other way (2026-09-10)
+
+GFM discards a table row's cells past the header's width, code spans included, so the three unescaped pipes
+the FIFTH shape brought in on 2026-09-03 had been silently deleting the FIFTH and SIXTH shapes from every
+rendered view of the hub contract and of `templates/governance/CLAUDE.md` — the one of the two that actually
+ships to ~46 repos — for a week, and would have deleted the new SEVENTH too. (Precisely: the FIFTH shape was
+cut mid-sentence at the first stray pipe and the SIXTH was gone entirely; two of the three pipes arrived with
+the FIFTH shape at adce3017 and the third with the SIXTH's example at 66aa32a5.) Escaping them as `\|` fixed the render and BROKE the raw path, which is the primary one: these
+files are injected verbatim into every agent's prompt, and in GNU BRE `\|` is alternation, so the SIXTH
+shape's own example command went from counting 3 rows to 5, while the FIFTH shape's pipeline stopped being a
+pipeline at all (rc=0, no filter ran) — the exact silent-plausible-number failure that row warns about. Both
+escapes are gone: the two example commands are now phrased without a literal pipe, which is the only form
+correct on BOTH paths. Guarded by `scripts/enforcement/check_governance_tables.py` (advisory, registered in
+`final_gate.py`) plus `tests/enforcement/test_check_governance_tables.py`. The exit contract matters more than
+the check — `run_optional_check`'s `warn_only` means NO failing exit path, and a warn_only check that exits
+non-zero hard-fails the gate in every synced repo the first time it fires (measured: 47 of 49 `/opt`
+`CLAUDE.md` files would have failed on the first sync) — so `main()` returns 0 always and `--strict` carries
+the regression signal. Ten tests, seven of them proven RED against mutants — the pre-fix exit code, the pre-hardening row
+scanner, and the three that a closing-round seat proved survived the first draft (the fleet-synced contract
+silently unscanned, a wrong repo root, an advisory without its file:line) — live tree never mutated. Scoped to the contracts deliberately — the same rule
+over the six governance and corpus roots, archives included, fired 128 times in 41,115 rows across 1,301
+files when measured, which is wallpaper. (An earlier draft published 127/34,415/1,117 — the same scan with `*/archive/*`
+silently excluded; a delta-round reviewer could not reproduce it, which is the denominator rule firing on the
+commit that extends it.)
+
 ### Added — Plan: review-family adoption of D-203 (2026-09-10)
 
 - `docs/development/plans/2026-09-10-plan-1-review-family-adoption.md` (DRAFT, `Profile: small`, three inline phases) from the approved spec; approval rows D-217 (the approval), D-218 (the floor stands down under a section partition for `term-edit` loops), D-219 (D-048's `Standing:` line retired for the RECORDED family).
@@ -14,9 +39,15 @@ The shell `grep` is a snapshot-defined function re-execing the Claude binary as 
 so it honours `.gitignore` — and in a project repo every Fabrik-synced file is gitignored by design. A
 root-anchored search therefore returns a FALSE ZERO over the distributed machinery, with no warning and no
 exit-code difference. Measured in `/opt/youtube` (same pattern, same minute): `command grep` 57 · shim 0 ·
-`rg` default 4 · `git grep` 0 · shim `--no-ignore-files` 57. Added to the denominator row of both `CLAUDE.md`
-and `templates/governance/CLAUDE.md` (fleet-synced) with the recipes that see ignored files. Reported by
-youtube (`01M25D51A9BBK44MK03G4T65TR`); D-214 records why no mechanism was built.
+`rg` default 4 · `git grep` 0 · shim `--no-ignore-files` 57. Added to the denominator row of the hub contract and of
+`templates/governance/CLAUDE.md` (the fleet-synced one; the hub's own CLAUDE.md is never distributed) with the recipes that DO see ignored files. Two work in
+ANY shell — `command grep` and `rg --no-ignore --hidden`; `grep --no-ignore-files` is a ugrep flag and works
+only while the shim is live (real GNU grep answers `unrecognized option`, and a failed search reads exactly
+like a clean zero). Plain `rg --no-ignore` is explicitly NOT sanctioned: it un-ignores but does not un-hide,
+so it skips `.claude/` and `.windsurf/` — 51 hits against 1,551 in web-ecommerce-factory that hour (a live repo:
+the absolutes move, the 94–97% ratio under `.claude/` does not). Reported by youtube
+(`01M25D51A9BBK44MK03G4T65TR`); D-214 records why no mechanism was built for the shim itself, D-216 the
+corrected recipe list.
 
 ### Fixed — The corpus's stale-vendored-copy escape hatch covered `--feedback` only (2026-09-10)
 
