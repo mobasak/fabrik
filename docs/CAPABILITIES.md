@@ -138,6 +138,7 @@
 - [scripts/enforcement/check_readme_md.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
 - [scripts/enforcement/check_retired_terms.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_check_retired_terms.py docs/workflows/FINAL_GATE_WORKFLOW.md
 - [scripts/enforcement/check_reusable_modules.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
+- [scripts/enforcement/check_review_hygiene.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_check_review_hygiene.py docs/workflows/FINAL_GATE_WORKFLOW.md
 - [scripts/enforcement/check_rivals_dossier.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_rivals_dossier.py
 - [scripts/enforcement/check_rule_grounding.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_rule_grounding.py
 - [scripts/enforcement/check_spec_convergence.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_spec_convergence.py
@@ -376,8 +377,8 @@
 - [fabrik-plan-after-chat](../CLAUDE.md) (owner: infra): Turn this conversation into a grounded, execution-ready plan — distill the decisions already made, ground every claim in real path:line, emit phases with runnab
 - [fabrik-plan-review](../CLAUDE.md) (owner: infra): Converge a plan to a fixed point — adversarial grounding (parallel grounders) → refute/merge → runnable gates per step, embedding the code-review gate + subagen
 - [fabrik-release](../CLAUDE.md) (owner: infra): Surface-aware release runner — the last mile between "built and reviewed" and Gate 2 (human approval, R14). Reads project.yaml::type and dispatches the matching
-- [fabrik-repo-review](../CLAUDE.md) (owner: infra): Full-project adversarial code review + fix — discover units → parallel read-only review waves → triage → risk-ordered serial fixes with regression tests → incre
-- [fabrik-review](../CLAUDE.md) (owner: infra): Adversarial code review of the CHANGED SURFACE (diff/PR/branch) — independent finders → refute false positives → prove & fix with regression guards → LOOP until
+- [fabrik-repo-review](../CLAUDE.md) (owner: infra): Full-project adversarial code review + fix — partition the repo into disjoint file slices → parallel read-only review slices → triage → risk-ordered serial fixe
+- [fabrik-review](../CLAUDE.md) (owner: infra): Adversarial code review of the CHANGED SURFACE (diff/PR/branch) — the surface partitioned into disjoint file slices → independent finders → YOU execute every ca
 - [fabrik-review-scoped](../CLAUDE.md) (owner: infra): LIGHT diff-scoped review with the full convergence spine — for SPONTANEOUS plain-chat changes made under no command. Rubric-armed passes over the changed surfac
 - [fabrik-rivals](../CLAUDE.md) (owner: infra): Competitive evidence BEFORE a spec exists — drives fabrik-lib's `competitor-intel` to a match-then-beat dossier at `docs/reference/rivals/<market>.md` that feed
 - [fabrik-rules-review](../CLAUDE.md) (owner: infra): Read-only .windsurf/rules compliance POSTURE audit — the full-coverage complement to /fabrik-review's per-diff rubric floor: establish real stack + spec shape f
