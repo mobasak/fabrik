@@ -188,9 +188,8 @@ def test_every_extract_after_text_round_trips_against_its_source():
             kept = tail[:end].strip("\n")
             if kept != (after or "").strip("\n"):
                 mismatched.append((name, fragment, kept[:60]))
-    assert examined == sum(len(p) for p in ac.EXTRACT.values()), (
-        examined
-    )  # every entry, none skipped
+    # every entry, none skipped — and an absolute floor, so an emptied EXTRACT cannot read green
+    assert examined == sum(len(p) for p in ac.EXTRACT.values()) and examined >= 6, examined
     assert mismatched == [], mismatched
 
 
