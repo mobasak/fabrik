@@ -877,6 +877,7 @@ docs/
 │   ├── spine-ticket-plans-usage.md
 │   ├── vps-claude-quota-governance.md
 │   ├── vscode-configuration.md
+│   ├── volkan-mac.md              # the remote Volkan-Mac transfer: access, what is installed where, the review-queue + self-watch channel, ledger 001-012, resume checklist
 │   ├── wip-backup-safety-net.md
 │   ├── wsl-shell-mcp-setup.md
 │   └── wsl-startup-inventory.md

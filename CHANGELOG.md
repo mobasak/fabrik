@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Volkan's Mac handover runbook (2026-09-10)
+
+- `docs/workstation/volkan-mac.md`: the canonical record of the 2026-09-09 remote transfer — `ssh mac` bridge + its two moving parts, every installed layer with its Mac path (contract, 22 skills, gate + 25 re-keyed checks + debt ratchet, 10 hooks incl. the PreToolUse guard, self-watch, 11 rewritten rule packs, native subagents, research chain), the standing rules (his branch only, single writer, MODIFY-with-files, measure on the clone, classifier boundaries), the request ledger 001–012, the queue + self-watch protocol (socket wake retired), open items and a resume checklist. Written so a new session catches up from the doc alone.
+- `docs/DECISIONS.md`: D-213 — the transfer and the channel, with the two wrong assumptions the first port paid for.
+
 ### Added — Spec: the review family adopts D-203 (2026-09-10)
 
 - `docs/superpowers/specs/2026-09-10-review-family-adoption-design.md` (DRAFT, `Profile: delta`): `/fabrik-spec-review`, `/fabrik-plan-review` and every other consumer of the shared termination fragment `commands/_fragments/term-edit.md` move to the CONFIRMED exit, a section partition, delta rounds sized by the fix, executed-critic verdicts, a CONFIRMED-keyed NON-CONVERGENCE breaker, the hygiene script's spec/plan class (`table-parity`) and a `template-residue` precision fix (anchors stay with `check_citations_resolve.py`), the pre-pin duty, and a "tickets CITE the spec section" emit rule for `/fabrik-plan-after-chat` — specced from `docs/STRATEGIC_BACKLOG.md`'s review-family row, which D-205 deferred.
