@@ -1,6 +1,6 @@
 # Review-family adoption of D-203 — the `term-edit` family closes on CONFIRMED, partitions by section, runs delta rounds
 
-Status: DRAFT
+Status: CONVERGED (2026-09-10 — 4 passes under D-212/D-218, closing pass confirmed 0; flip row D-220)
 Profile: small
 **Owner:** —
 Spec: docs/superpowers/specs/2026-09-10-review-family-adoption-design.md (CONVERGED 338c96d7, flip row D-215; approved 2026-09-10 by the operator's `/fabrik-plan-after-chat` invocation — the approval rows are minted with this plan's commit)
@@ -254,7 +254,7 @@ $ grep -l '^## Pass Ledger' /opt/*/docs/development/plans/*/*.md /opt/*/docs/dev
 
 ## Coverage Checklist
 
-Rubric over every § File Scope entry (16 with root `CLAUDE.md`; FLOOR core/35, core/25, core/30; MATCHED core/10, core/40, core/45, core/62), each row UNCHECKED until the review adjudicates it, plus the four standing recurrence classes.
+Rubric over every § File Scope entry (16 with root `CLAUDE.md`; FLOOR core/35, core/25, core/30; MATCHED core/10, core/40, core/45, core/62), each row adjudicated by the review (CLEAN / FIXED / REFUTED with evidence), plus the four standing recurrence classes.
 
 ```
 $ python scripts/review_rubric.py --changed commands/_sources/fabrik-spec-review.md commands/_sources/fabrik-plan-review.md commands/_sources/fabrik-plan-after-chat.md commands/_fragments/term-edit.md commands/_fragments/subagents-core.md commands/assemble_commands.py scripts/enforcement/check_review_hygiene.py tests/enforcement/test_check_review_hygiene.py scripts/enforcement/check_convergence.py tests/test_check_convergence.py tests/enforcement/test_flip_gate_matrix.py docs/workflows/FINAL_GATE_WORKFLOW.md .windsurf/rules/core/62-using-subagents.md templates/governance/CLAUDE.md CLAUDE.md docs/development/reviews/2026-09-10-plan-1-review-family-adoption-review.md
@@ -455,12 +455,25 @@ $ python scripts/review_rubric.py --changed commands/_sources/fabrik-spec-review
 
 | Class | Row | Status |
 |---|---|---|
-| core/40 heading depth + fenced code | the fragment and the two sources | UNCHECKED |
-| core/62 role separation | the closing delta round's fresh seat in the fragment text | UNCHECKED |
-| core/10 `uv` / `ruff` sets / no logfile | the two scripts and three test files | UNCHECKED |
-| core/45 watched-fail-first | every new test's red half recorded | UNCHECKED |
-| core/35, core/25, core/30 | unconstrained here — no secret, DB or service surface | UNCHECKED |
-| fail-open vs fail-closed on every gate/guard | `_PASS_ROW` + the last-`confirmed:` rule on a masked spine; the matrix's five rows | UNCHECKED |
-| cost/quota/limit accounting edges | seats per round under `--slices`; the sync's repo count | UNCHECKED |
-| boundary/sentinel/prefix collisions | `confirmed:` vs `confirmed` (no colon) vs a quoted fixture; the Go-template form vs a fragment parameter | UNCHECKED |
-| behaviour-without-a-test | every Behavior Contract row above has its test named | UNCHECKED |
+| core/40 heading depth + fenced code | the fragment and the two sources | CLEAN — the plan's own headings `##`/`###` only; every probe fenced; hunted on the pin by the Sonnet seat pass 1 (§ Evidence fences, § Coverage Checklist fence) |
+| core/62 role separation | the closing delta round's fresh seat in the fragment text | CLEAN — Phase A step 3 names the fresh non-authoring seat on the closing delta round; this review's own closing pass was a fresh Opus seat |
+| core/10 `uv` / `ruff` sets / no logfile | the two scripts and three test files | CLEAN — every gate line runs `uv run pytest`; `ruff check` named at each phase gate; no logging change in either script (Phase B/C steps) |
+| core/45 watched-fail-first | every new test's red half recorded | FIXED (pass 1, Opus #9) — the matrix test was re-framed from a trivial missing-file red to a per-row on-disk mutant (Phase A step 2); Phases B/C keep red-first |
+| core/35, core/25, core/30 | unconstrained here — no secret, DB or service surface | CLEAN — no `.env`, schema or compose surface in File Scope; the scripts read `PROJECT_ROOT` from the env as today |
+| fail-open vs fail-closed on every gate/guard | `_PASS_ROW` + the last-`confirmed:` rule on a masked spine; the matrix's five rows | FIXED (passes 1–3) — `^\|` blind to indented rows → `^[ \t]*\|`; the refusal routed through `_check_spine_set` (an append to `fails` after `:565` is dropped); `check_plan_tickets` non-dated dir exits 1, asserted; the matrix rows' negative controls named |
+| cost/quota/limit accounting edges | seats per round under `--slices`; the sync's repo count | CLEAN — Phase C step 6 asserts the `--force` count against the `--dry-run` list; the box was the ceiling for every dispatch of this review (four waits at `SEATS: 0`) |
+| boundary/sentinel/prefix collisions | `confirmed:` vs `confirmed` (no colon) vs a quoted fixture; the Go-template form vs a fragment parameter | FIXED (pass 2, Opus #14) — the residue regex anchored at both braces; the counter matcher keeps code spans masked and takes the LAST token per row; the census carries `re.I` like the gate |
+| behaviour-without-a-test | every Behavior Contract row above has its test named | FIXED (pass 2, Sonnet #3) — the assembler's FLOOR change gained its red-first sibling in `tests/test_assemble_dispatch_step.py` and joined the Phase A/C gates and File Scope |
+
+## Pass Ledger
+
+Every pass under D-212/D-218 (the command's zero-edits exit, three-seat floor and all-grounders-every-round text superseded for this run; this plan lands the text). Every pass md5-pinned; the hygiene script and the anchor check on every pin; the flip gates (rule grounding, citations, convergence via `--project-root`, plan quality by import) on a flipped tracked-and-uncommitted scratch copy at pass 1 and at the close; every candidate executed by the orchestrator.
+
+| Pass | seats | method | found: | new: | confirmed: | fixed: | unexecuted: | edits: | md5 start → end |
+|---|---|---|---|---|---|---|---|---|---|
+| Pass 1 | 1 Opus `fabrik-reviewer` (rules, gates, digest, checklist, evidence) + 1 Sonnet `fabrik-reviewer` (the rest + the author-blind intake), partitioned by section | method: citation + execution — under D-212; the fragment text lags | found: 24 | new: 24 | confirmed: 14 | fixed: 14 | unexecuted: 0 | edits: 39 lines | 6e00b249 → 310b89d9 |
+| Pass 2 | 1 Opus + 1 Sonnet, delta over the pass-1 fix diff + one hop | method: re-derivation — delta; under D-212 | found: 15 | new: 15 | confirmed: 11 | fixed: 11 | unexecuted: 0 | edits: 59/40 lines (incl. the sibling-stash revert, restored from the pin) | 310b89d9 → 8d564012 |
+| Pass 3 | 1 Opus + 1 Sonnet, delta | method: re-derivation — delta; under D-212 | found: 9 | new: 9 | confirmed: 6 | fixed: 6 | unexecuted: 0 | edits: 28 lines | 8d564012 → 7ddfc8b3 |
+| Pass 4 | 1 fresh Opus, delta | method: re-derivation — delta over § DONE WHEN, Phase A steps 3–5/9, Phase C step 3, the census probe; under D-212 | found: 3 | new: 3 | confirmed: 0 | fixed: 0 | unexecuted: 0 | edits: 0 | 7ddfc8b3 → 7ddfc8b3 ✓ |
+
+Machinery: 67 min wall-clock from the nested record's open; raised/confirmed series 24/14 → 15/11 → 9/6 → 3/0; the box read `SEATS: 0` before passes 1, 3 and 4 and each dispatch waited for it (never past a hard cap); round 1 found the fleet-synced contradiction at `core/62:65`, nine surviving restatements of the old exit, the `_check_spine_set` channel and the section-partition kind by execution; rounds 2–3 were the orchestrator's own residue (the acceptance-grep surface, the fragment's lines 10/16/18/20, a census that crashed on a dangling symlink); pass 4 quiet — its one CONFIRMED-labelled candidate (the census masks inline code spans, 'the gate does not') was REFUTED by execution: Phase C step 2 specifies the span mask and under that rule the 61 spines with a ledger carry 0 counter rows; two wording items RECORDED for the executor: (r1) Phase A step 9's hygiene line asserts nothing without `--phrase` — pass the five phrases; (r2) Phase C step 2 attributes the blockquote rule to a `_blank_quoted` policy that lives in `check_review_hygiene.py`, not `check_convergence.py` — cite it as that script's policy.

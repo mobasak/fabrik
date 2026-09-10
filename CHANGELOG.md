@@ -31,6 +31,7 @@ commit that extends it.)
 
 ### Added — Plan: review-family adoption of D-203 (2026-09-10)
 
+- CONVERGED at the close of the in-turn `/fabrik-plan-review` run under D-212/D-218 (4 passes, 67 min, raised/confirmed 24/14 → 15/11 → 9/6 → 3/0; flip row D-220); next: `/fabrik-execute-plan docs/development/plans/2026-09-10-plan-1-review-family-adoption.md` on the operator's word.
 - `docs/development/plans/2026-09-10-plan-1-review-family-adoption.md` (DRAFT, `Profile: small`, three inline phases) from the approved spec; approval rows D-217 (the approval), D-218 (the floor stands down under a section partition for `term-edit` loops), D-219 (D-048's `Standing:` line retired for the RECORDED family).
 
 ### Changed — Bounded-search HARD STOP gains its SEVENTH shape: the `grep` shim is blind to every synced file (2026-09-10)
