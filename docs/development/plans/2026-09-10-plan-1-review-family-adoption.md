@@ -115,7 +115,7 @@ Intake: 22 items — 18 IN, 4 OUT-OF-SCOPE (each named above), 0 ASK.
 
 (The seven `GOVERNANCE_FILES` — CHANGELOG.md, INDEX.md, docs/README.md, docs/FEATURES.md, docs/LESSONS_LEARNT.md, docs/DECISIONS.md, docs/STRATEGIC_BACKLOG.md, `check_plan_tickets.py:409-417` (`:419-420` adds the lowercase alias `docs/lessons-learnt.md`) — stay outside the lock and are written as HEAD blobs. Root `CLAUDE.md` is NOT one of them, so it is owned here; it is a SERIALIZATION POINT: a sibling session had it dirty on 2026-09-10, so Phase C writes it as a HEAD blob plus this plan's one hunk, never from the working tree. Rendered `~/.claude/commands/` is never ownable — Phase A's render step.)
 
-## Phase A — The fragment, the two sources, the assembler, the emit rule, the matrix
+## Phase A — The fragment, the two sources, the assembler, the emit rule, the matrix — ✅ EXECUTED 2026-09-10 (its own phase commit; the short hash is backfilled by Phase B's commit)
 
 **Interfaces.** Consumes: nothing (first phase). Produces: the `term-edit` ledger row grammar `| Pass N | <seats by model> | method: re-derivation — <scope> | found: F | new: N | confirmed: C | fixed: X | unexecuted: U | edits: E | md5 start → end |` — the D-206 counter names IN THE D-206 ORDER (`.windsurf/rules/core/62-using-subagents.md:65` states it for the receipts; `check_convergence.py`'s `QUIET_PASS` at `:226-230` keys its old branch on `found:`), with `edits:` and the md5 added for the document loops; a non-closing pass writes `method: citation — <scope>` in the same cell. This corrects the spec's D1 wording that `unexecuted:` is prose in the document loops: the fragment renders into 13 commands and one counter vocabulary fleet-wide beats two; the coverage gate's token rule binds only `docs/development/reviews/`, so no receipt refusal follows. Phase C's grader reads the `confirmed:` token of that row; the rendered commands `~/.claude/commands/fabrik-spec-review.md` and `fabrik-plan-review.md`; `tests/enforcement/test_flip_gate_matrix.py::MATRIX` (a list of five rows `(gate, invocation, tree, expected examined marker)`) that Phase C's docs cite.
 
@@ -251,6 +251,11 @@ $ grep -l '^## Pass Ledger' /opt/*/docs/development/plans/*/*.md /opt/*/docs/dev
 
 - Resolved: the grader placement (run record for every consumer, `check_convergence.py` for spines); the matrix rows for five gates (verified by execution 2026-09-10); the 13-consumer widening (approved).
 - Resolved at review: the two FLOOR strings need a NEW `"section partition"` kind and a third `_floor` branch (the existing `"review loop"` kind renders a Haiku seat and loses `--mechanical 0` — Phase A step 6, with a red-first test in `tests/test_assemble_dispatch_step.py`); the sync has `--dry-run` (Phase C step 6). No open unknown rides into execution.
+
+## Execution notes
+
+- **Phase A (2026-09-10).** Executed inline in the main checkout (Profile: small). The scoped review routed up to a full `/fabrik-review` at its step-5 trigger (three rounds each confirmed findings); the heavy review's receipt is `docs/development/reviews/2026-09-10-plan-1-review-family-adoption-phase-A-review.md` — a PHASE receipt beside the Finish receipt File Scope names, because `command_run.py step --phase 2` requires the phase's own artifact. It converged at round 15 (14 review-fix commits dcbea709 … c3286733); rounds 11–14 hardened `commands/assemble_commands.py`'s write order and installed-tree reads beyond the `_floor` kind this phase planned, and the round-15 breaker answer routes the residual class (the read-only gate's agents orphan rule, the `MISSING` branches, the dispatch-step wiring — pre-existing, ungraded) to one backlog row written in Phase C.
+- **Carried into Phase C step 4.** The solo self-convergence carve-out lives ONLY in `62-using-subagents.md` § Role separation (the fragment cites it and restates nothing, receipt ZG7/ZI5): that clause's edit also carries the seat-class wording — a command whose loop dispatches NO seat that reads the artifact for defects (finder, grounder, auditor, reconciler) anywhere; a seat that DRAFTS a section of it is none of those.
 
 ## Coverage Checklist
 

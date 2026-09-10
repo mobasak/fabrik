@@ -6,6 +6,16 @@ All notable changes to this project will be documented in this file.
 
 ### Changed — The review family adopts D-203, Phase A: the fragment, the two sources, the assembler, the emit rule, the flip-gate matrix (2026-09-10)
 
+Phase A's heavy `/fabrik-review` (receipt `docs/development/reviews/2026-09-10-plan-1-review-family-adoption-phase-A-review.md`,
+15 rounds, 14 review-fix commits) also hardened `commands/assemble_commands.py`: a render composes every
+agent, command and skill wrapper — and trips the 1024-char skill-description cap, a render error or a
+defective agent frontmatter — BEFORE its first write, so an aborted render leaves all three installed trees
+untouched (the cap used to fire inside the skills loop after all 36 commands were on disk); every
+installed-tree read (`render()`'s prunes, `check()`'s compares and orphan loops, `agent_drift`) tolerates a
+non-UTF-8 file, so a hand-dropped stray is kept and a corrupted generated file is reported as drift instead
+of a traceback; the spec-review `AXES` ledger cell names all seven axes. Graded by the mutant-proven table in
+`tests/test_assemble_dispatch_step.py`.
+
 `commands/_fragments/term-edit.md` (13 consumers) now closes on a delta round that carried a fresh
 non-authoring seat and CONFIRMED zero defects with the md5 unchanged (D-206, D-212): round 1 is the only
 full pass, partitioned by SECTION; every later round is a delta over the fix diff plus one hop, sized by

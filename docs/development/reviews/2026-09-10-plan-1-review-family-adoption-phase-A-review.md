@@ -1,6 +1,6 @@
 # Review-family adoption — Phase A review (routed up from /fabrik-review-scoped)
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED (2026-09-10 — round 15, the quiet closing round with fresh non-authoring seats; TERMINAL on the run record)
 **Surface:** range `bdd4798f..HEAD` over the Phase A files (the checkpoint 8c8e8a0b plus the review-fix commits dcbea709 → a1297ad9 → 981c1f1f → 5903badc → 33aa1130 → this one); at the close `git rev-parse HEAD` = 33aa113047d950542c40b3d42870eefaa1f56ec2 and the working-tree fixes of this round are the delta — the hash pair is rewritten at every checkpoint commit, so the anchor rule reads the LATEST commit's pair.
 **Command:** /fabrik-review · **Changed:** `commands/_fragments/term-edit.md`, `commands/_sources/fabrik-spec-review.md`, `commands/_sources/fabrik-plan-review.md`, `commands/_sources/fabrik-plan-after-chat.md`, `commands/_fragments/subagents-core.md`, `commands/assemble_commands.py`, `tests/test_assemble_dispatch_step.py`, `tests/enforcement/test_flip_gate_matrix.py`, `docs/workflows/FINAL_GATE_WORKFLOW.md`
 **Plan:** `docs/development/plans/2026-09-10-plan-1-review-family-adoption.md`
@@ -210,21 +210,21 @@ $ python scripts/review_rubric.py --changed commands/_fragments/term-edit.md com
 
 | Class | Status |
 |---|---|
-| Hunt: `commands/_fragments/term-edit.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `commands/_sources/fabrik-spec-review.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `commands/_sources/fabrik-plan-review.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `commands/_sources/fabrik-plan-after-chat.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `commands/_fragments/subagents-core.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `commands/assemble_commands.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_assemble_dispatch_step.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/enforcement/test_flip_gate_matrix.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `docs/workflows/FINAL_GATE_WORKFLOW.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | UNCHECKED |
-| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | UNCHECKED |
-| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | UNCHECKED |
-| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | UNCHECKED |
-| Recurrence: denominator on every count — bounded searches state their bound | UNCHECKED |
-| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | UNCHECKED |
+| Hunt: `commands/_fragments/term-edit.md` — every changed hunk, its enclosing function, its callers | FIXED r1–r8 (H2–H5, H7, H9, A1–A6, A8, A9, U1–U14, W1–W7, Y1–Y7, ZA1–ZA7, ZC1–ZC10, ZE1–ZE3, ZE5, ZE7 — hunted by a fresh Opus fragment seat every round and re-derived through `QUIET_PASS`, `_pass_counters_ext`, `_confirmed_quiet`, `_MODEL_TOK`, `_REDERIVATION_ROW`; the five-phrase grep 0 at every close; the rendered fragment read inside spec-review, features, rivals and ui-design) |
+| Hunt: `commands/_sources/fabrik-spec-review.md` — every changed hunk, its enclosing function, its callers | FIXED r8 (ZE4 — its exit sites now say the quiet closing round and point at § Termination contract; before that CLEAN across H11–H17: the rendered file read whole, the § Parallelism paragraph vs the section-partition Floor, the cited flags via `--help`, the D-rows, the 12-cell tables; five-phrase grep 0) |
+| Hunt: `commands/_sources/fabrik-plan-review.md` — every changed hunk, its enclosing function, its callers | FIXED r8 (ZE4 — the same rename at its four sites, its after-text mirrored; before that CLEAN across H11–H17: Phase 0's partition bullet, § Parallelism, the `spec §` grounding bullet and the § Subagents Floor read as five statements of one seat rule; five-phrase grep 0) |
+| Hunt: `commands/_sources/fabrik-plan-after-chat.md` — every changed hunk, its enclosing function, its callers | CLEAN (H22, H23 — the cite-the-spec rule at its four sites and the D-206 phase-gate sentence vs `fabrik-review.md`'s exit, read by the pass-1 sources seat; `{{` residue 0; heading depth clean) |
+| Hunt: `commands/_fragments/subagents-core.md` — every changed hunk, its enclosing function, its callers | CLEAN (H11 — the By FILE / By SECTION restructure diffed against bdd4798f: additive, every clause of the two code loops kept verbatim; rendered into fabrik-review and fabrik-spec-review and read in both) |
+| Hunt: `commands/assemble_commands.py` — every changed hunk, its enclosing function, its callers | FIXED r1–r8 (H1 reverted, H4, H6, A7, and the two after-texts that follow the sources' renamed sites — `_floor`'s section kind, the EXTRACT after-texts round-tripped over all 29 entries and graded by `test_every_extract_after_text_round_trips_against_its_source`, which caught the round-8 miss; `--check` clean and `check_command_corpus.py` green after every render) |
+| Hunt: `tests/test_assemble_dispatch_step.py` — every changed hunk, its enclosing function, its callers | FIXED r2–r4 (A7's grader, U11/U12's whole-section compare, V1's floor; H10 the placement-test shape RECORDED; carrier tests diffed against bdd4798f — additive) |
+| Hunt: `tests/enforcement/test_flip_gate_matrix.py` — every changed hunk, its enclosing function, its callers | FIXED r1–r8 (H20's `_load` purge, S1's dotted-fallback guard, both regression assertions seen red then green; ZE6 the `check_plan_quality` row says its fixture is flipped; the five MATRIX rows re-derived against the gates' print sites and the mutant log; S3/S4/S5 order and cache probes REFUTED) |
+| Hunt: `docs/workflows/FINAL_GATE_WORKFLOW.md` — every changed hunk, its enclosing function, its callers | FIXED r4, r8 (V5/Z-round the second `PLAN_DIR` clause; ZE6 the flipped fixture; before that H24 — every row's flags, marker strings, exit codes and the `_converged_targets` `??` skip cross-checked against the gate code, one-to-one with `MATRIX`; the doc's own `{{…}}` literals at :164/:266 RECORDED — HY1's class) |
+| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | FIXED (H2, H5, A2, A3, U1–U7, Y5 — every exit path the fragment states was executed against the code it cites; the fail-open shapes (a green over nothing, a DRAFT skipped, a `blocked` that refuses, a `done` that never checks TERMINAL) are named in the fragment or filed) |
+| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | FIXED (H4, A3/A4, U4 — researcher seats counted inside the slices; the `SEATS: 0` producers executed on the pin's headroom script; W8 the HOLD-under-failed-probe defect RECORDED to the backlog) |
+| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | CLEAN (the five-phrase grep, `_REDERIVATION_ROW`, `QUIET_PASS`, `_MODEL_TOK`, the confirmed-counter token and the round-trip grader's marker/heading boundaries executed on the exemplar rows and on scratch mutants every round; U11's prefix-compare escape closed) |
+| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | FIXED (A7, U11, U12, V1 — the EXTRACT round-trip had no grader and now has one proven by mutants; H20/S1 — the `_load` isolation had none and now has two assertions seen red; the five matrix rows' mutants in `mutants_A.log`) |
+| Recurrence: denominator on every count — bounded searches state their bound | FIXED (T1, X1–X4 — the pass rows are recomputed from the ledger rows by an escape-aware parser; every count in the fragment carries its population (13 consumers, 29 entries, 7 fresh-seat sites); F16/U15 the consumer censuses with their denominators) |
+| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | CLEAN (every CONFIRMED row names the command run — the graders loaded by `importlib`, scratch records with all four env vars, scratch projects for the frozen-chain and headroom scripts, mutants on scratch copies; a seat's `argued` verdict never entered the confirmed counter) |
 
 Verdict grammar (the gate refuses anything else): `CLEAN (<the paths/lines hunted>)` — a CLEAN row
 must name a path and run past 70 characters · `FIXED r<n> (<what changed>)` · `REFUTED (<the
@@ -430,12 +430,17 @@ The preceding `/fabrik-review-scoped` run (three rounds: 27 → 31 → 26 raised
 | ZJ8 | opus r13 · sweep | ZI8's rename left two live references: `tests/test_check_command_corpus.py:887`'s docstring (`_emit_skill`) and `docs/STRATEGIC_BACKLOG.md:837`'s open row (`_emit_agents`) | `command grep` over the tree, 25 hits, 2 live | FIXED r13 for the docstring; the backlog row is a shared file edited by HEAD blob in Phase C's STRATEGIC_BACKLOG hunk (nit, counted) |
 | ZJ9 | opus r13 · assembler | `render(dest)` without a skills tree (the `--dest` preview and the bare import form) skipped the cap — a preview reported success on a corpus the real render refuses | executed both call forms; red-first test watched fail | FIXED r13 (the wrappers are composed for every render, written only when a skills tree is given; `test_a_preview_render_without_a_skills_tree_still_trips_the_cap`) |
 | ZJ10 | opus r13 · assembler | `agent_drift()` (typed `-> list[str]`) raises `SystemExit` on a defective agent SOURCE instead of reporting | executed on a copy | RECORDED — measured (pre-existing; reachable today only from `tests/test_agent_definitions.py:126`, where the red is confusing, not wrong; backlog note) |
-| ZK1 | opus r14 · assembler | `check()` performs a SIXTH installed-tree read FIRST, inside `agent_drift()` (`live.read_text()` bare) — a corrupted installed agent definition killed the read-only gate before any of round 13's five guarded reads ran | probe: a non-UTF-8 installed agent → `UnicodeDecodeError` at `:951`; red-first test watched fail | FIXED r14 (`errors="replace"`; every `read_text` site in the assembler classified once — the nine installed-tree reads all guarded, the source/fragment/temp-render reads deliberately bare) |
+| ZK1 | opus r14 · assembler | `check()` performs a SIXTH installed-tree read FIRST, inside `agent_drift()` (`live.read_text()` bare) — a corrupted installed agent definition killed the read-only gate before any of round 13's five guarded reads ran | probe: a non-UTF-8 installed agent → `UnicodeDecodeError` at `:951`; red-first test watched fail | FIXED r14 (`errors="replace"`; every `read_text` site in the assembler classified once — the nine installed-tree reads all guarded; the source, fragment and temp-render reads and `extract()`'s backup read at `:809` deliberately bare — a corrupt source or backup must be loud, never rewritten with U+FFFD) |
 | ZK2 | opus r14 · tests | the round-13 `check()` stray test exercised two of the three installed trees | read | FIXED r14 (all three trees; nit, counted) |
 | ZK3 | opus r14 · assembler | the commands hand-edit compare's `errors="replace"` had no grader (a mutant dropping it survived 33 tests) | mutant Mb: survived before, `1 failed` after | FIXED r14 (`test_check_reports_a_corrupted_installed_file_instead_of_crashing`, parametrized over the three trees) |
 | ZK4 | opus r14 · assembler | the skills hand-edit compare's guard likewise ungraded | mutant Mc: survived before, `1 failed` after | FIXED r14 (same grader) |
 | ZK5 | opus r14 · assembler | the COMMANDS render prune had no grader anywhere — a mutant deleting the loop survived, because the round-13 census cannot tell a working prune from a deleted one | mutant Md: survived before, `1 failed` after; Me (skills prune) and Mf (`check()`'s orphan loop) likewise | FIXED r14 (`test_every_render_prune_removes_a_generated_orphan_and_keeps_a_hand_authored_file` over all three trees; `test_check_reports_a_generated_orphan_in_the_installed_trees` for the read-only mirror) |
 | ZK6 | opus r14 · assembler | `# noqa-file: template-generator` makes ruff warn on every lint of the file | executed | RECORDED — measured (pre-existing; the backlog row already written at ZG9's — a marker, not a defect) |
+| ZL1 | sonnet+opus r15 · assembler | `check()` has no ORPHAN rule for the agents tree — a banner-stamped installed agent with no source stays dispatchable and the read-only gate prints `check OK`, while the identical condition on the commands tree exits 1; `render()`'s agents prune removes it | probe on a scratch install: agents orphan → exit 0; commands orphan → exit 1 | RECORDED — measured (pre-existing since `agent_drift` was written, one hop from the delta, documented in the round-14 test's own docstring; a fail-open gate gap that EXTENDS `check()` — the backlog row "assembler gate completeness", this window) |
+| ZL2 | opus r15 · assembler | the three `MISSING` branches of `check()`/`agent_drift` are graded by nothing — four mutants dropping them survive 39 tests | mutants M6/M7/M8/M30 executed by the seat; the branches confirmed live by deleting one installed file per tree | RECORDED — measured (pre-existing behaviour, ungraded; the same backlog row) |
+| ZL3 | opus r15 · assembler | `dispatch_step_gaps`'s WIRING into `check()` is graded nowhere (the detector is, twice) — a mutant deleting the block survives | mutant M25 executed by the seat | RECORDED — measured (pre-existing, one hop; the same backlog row — D-192's enforcement of D-191 wants a wiring test) |
+| ZL4 | opus r15 · tests | the `check()` stray test's docstring says "any of the three" trees while its agents arm reaches no read (nothing in `check()` visits an unknown agents file) | mutant M13 red only the corrupted-file test | RECORDED — wording nit (never edited at the close; ZL1's fix makes the arm load-bearing) |
+| ZL5 | opus r15 · receipt | ZK1's classification sentence omitted `extract()`'s backup read (`:809`), which is strict by design | full census: 18 `read_text` calls at 16 lines — 9 guarded, 9 bare | RECORDED — wording nit (the ZK1 cell amended in this receipt's own text: the backup read is deliberately strict so a corrupt backup never becomes a corrupt source) |
 
 ## Pass Ledger
 
@@ -464,6 +469,7 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 | Pass 12 | native opus×1 + sonnet×1 (fresh seats; delta = round 11's fix diff over 98a13b24 + one hop; the receipt read as a doc) | found: 10, new: 10, confirmed: 6, fixed: 6, unexecuted: 0 | method: re-derivation — delta over the round-11 fixes (the render order executed on a scratch copy of `commands/` under over-cap, `errs`, defective-agent and non-UTF-8-stray conditions, mypy run at both commits, the parsed skill descriptions measured with a YAML parser, `62:189-193` quoted, the 13-consumer sentence md5-censused); every candidate executed by the orchestrator; the record's round 12 carries `confirmed 3` (the three executed defects — the mypy regression, the agents tree, the prune) |
 | Pass 13 | native opus×1 + sonnet×1 (fresh seats; delta = round 12's fix diff over e6087286 + one hop; the receipt read as a doc) | found: 10, new: 10, confirmed: 8, fixed: 8, unexecuted: 0 | method: re-derivation — delta over the round-12 fixes (four mutants on a scratch copy of `commands/` + the test file — M1 defective-agent raise, M2 agents-before-gate, M3 agents prune, M4 `check()` orphan read — each caught by exactly one grader after the fix; `ruff format --check`; the parsed description lengths re-read; 37 tests across four files); every candidate executed by the orchestrator; the record's round 13 carries `confirmed 3` (the three executed defects — `check()`'s stray crash, the ungraded agents prune, the ungraded defective-agent abort) |
 | Pass 14 | native opus×1 + sonnet×1 (fresh seats; delta = round 13's fix diff over 83ad062d + one hop; the receipt read as a doc) | found: 6, new: 6, confirmed: 5, fixed: 5, unexecuted: 0 | method: re-derivation — delta over the round-13 fixes (the Sonnet seat executed nine checks and confirmed nothing; the Opus seat's four defects re-executed by the orchestrator, then the CLASS swept: every `read_text` site classified, six mutants — Ma the `agent_drift` read, Mb/Mc the two compares, Md/Me the two render prunes, Mf `check()`'s orphan loop — each caught by exactly one grader); the record's round 14 carries `confirmed 4`. NON-CONVERGENCE NOTE: the record's confirmed series over rounds 11–14 read 3 · 3 · 3 · 4 — the contract's breaker condition; the foundation error is named here as ONE question and answered in this round: the loop had been guarding one installed-tree read of `commands/assemble_commands.py` per round instead of the class, so this round classifies every read site once and grades every prune, compare and abort across all three trees as one table; a nonzero round 15 escalates to `## BLOCKED: NON-CONVERGENCE` |
+| Pass 15 | native opus×1 + sonnet×1 (fresh seats; delta = round 14's fix diff over c3286733 + one hop; the receipt read as a doc) | found: 5, new: 5, **confirmed: 0**, fixed: 0, unexecuted: 0 | method: re-derivation — delta over the round-14 fixes: the Sonnet seat executed nine checks (23 tests, the file twice, the coverage gate, Pass 14's counters, the record's series `3 · 3 · 3 · 4` read back from `status --json`); the Opus seat ran 21 mutants over the round-14 grader table — 18 caught, each by exactly one grader — plus the U+FFFD masking census (0 of 62 sources, 0 of 76 installed files) and the `_installed` index-independence probes; the 5 candidates raised are pre-existing gate behaviours one hop from the delta (ZL1–ZL3) and two wording nits (ZL4–ZL5), every one executed and RECORDED with a backlog destination. THE BREAKER'S ONE QUESTION, ANSWERED: from round 11 the loop had counted pre-existing, ungraded behaviours of the neighbouring `render()`/`check()` code as defects of this change; the contract routes a finding that EXTENDS the surface (new graders for behaviour this plan did not touch) to the backlog as RECORDED — the round 11–14 fixes stand as delivered hardening, the residual class is one backlog row, and this round confirms zero on unchanged md5s (assembler 84fd90f7e19a, test file cbbae5349560, fragment 4e4dc6d62701) → **CONVERGED** |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -513,16 +519,161 @@ Every candidate that did not enter `confirmed:` is rowed here, one row each, in 
 | ZI5 | RECORDED — by design (D-220) — the solo carve-out's definition lives only in `62` § Role separation; Phase C step 4's edit of that clause (`:184-190`) carries the seat-class wording (a drafting seat is not a finder), recorded in the plan's Execution note and the Phase C todo |
 | ZJ10 | RECORDED — measured (`agent_drift()` raises `SystemExit` on a defective agent source instead of returning a report — pre-existing, one test caller; backlog note beside the assembler rows) |
 | ZK6 | RECORDED — measured (`# noqa-file: template-generator` on `commands/assemble_commands.py:2` — ruff warns on every lint; the backlog row is written with ZG9's) |
+| ZL1 | RECORDED — measured (`check()` has no ORPHAN rule for the agents tree — a fail-open gap of the read-only gate, pre-existing; backlog row "assembler gate completeness": agents orphan loop, `MISSING` graders, dispatch-step wiring test — infra, this window, after this plan) |
+| ZL2 | RECORDED — measured (the `MISSING` branches are ungraded — same backlog row) |
+| ZL3 | RECORDED — measured (`dispatch_step_gaps` wiring into `check()` is ungraded — same backlog row) |
+| ZL4 | RECORDED — wording nit (the stray test's docstring over-claims the agents arm by one tree; closed by ZL1's loop) |
+| ZL5 | RECORDED — wording nit (ZK1's classification sentence, amended in place) |
 
 ## Per-phase verdicts
 
-### Phase A — The fragment, the two sources, the assembler, the emit rule, the matrix: UNCHECKED
+### Phase A — The fragment, the two sources, the assembler, the emit rule, the matrix: CONVERGED — 15 rounds (round 1 the full partitioned pass, rounds 2–15 delta rounds with fresh Opus + Sonnet seats); 14 review-fix commits dcbea709 … c3286733; the closing round 15 CONFIRMED zero on unchanged md5s (assembler 84fd90f7e19a, test file cbbae5349560, fragment 4e4dc6d62701); 15 checklist rows adjudicated; the residual class (assembler gate completeness) is one backlog row
 
 ## Gate
 
-`final_gate.py --check --json`, pasted verbatim at the flip (check_convergence reads the fenced
-`"status": "success"`):
+`python3 scripts/final_gate.py --lean --check --json` in the REAL tree, read-only, at the flip (2026-09-10; the hub's pytest leg is OFF by design — the slice this phase touched runs as 42 tests across four files, all green). Verbatim output:
 
 ```json
-UNCHECKED — paste the gate output here at the CONVERGED flip
+{
+  "status": "success",
+  "tier": 1,
+  "passed": 33,
+  "failed": 0,
+  "skipped": 1,
+  "skipped_checks": [
+    "static tier"
+  ],
+  "advisory": [
+    {
+      "check": "Vendored Drift (sync-excluded repos)",
+      "output": "\u26a0 check_vendored_drift ADVISORY \u2014 sync-excluded repos PULL, nothing is pushed to them; undeclared divergence below is invisible debt until someone opens it:\n  \u26a0 fabrik-lib: 17 identical \u00b7 19 declared-design \u00b7 51 UNREVIEWED diff \u00b7 11 local-only\n    \u26a0 fabrik-lib/scripts/enforcement/check_decisions_unique.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_doc_sprawl.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_duplicates.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_env_vars.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_feedback_duty.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_imports_resolvable.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fa\n\u2026 [truncated: ~42 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_vendored_drift.py` for the FULL set; NEVER scope a fix to this preview] \u2026\nre it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/.windsurf/rules/saas/95-multi-tenant-saas.md: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/review_rubric.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/mail.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist",
+      "truncated": true,
+      "omitted_lines": 42,
+      "rerun": "python scripts/enforcement/check_vendored_drift.py"
+    },
+    {
+      "check": "Review hygiene (advisory)",
+      "output": "[ADVISORY] dual-verdict docs/development/reviews/2026-09-10-plan-1-review-family-adoption-phase-A-review.md:286 \u2014 the disposition cell carries 2 bare verdict words (FIXED, FIXED) \u2014 one leading verdict per cell\n[ADVISORY] dual-verdict docs/development/reviews/2026-09-10-plan-1-review-family-adoption-phase-A-review.md:310 \u2014 the disposition cell carries 2 bare verdict words (FIXED, FIXED) \u2014 one leading verdict per cell\n[ADVISORY] dual-verdict docs/development/reviews/2026-09-10-plan-1-review-family-adoption-phase-A-review.md:312 \u2014 the disposition cell carries 2 bare verdict words (FIXED, RECORDED) \u2014 one leading verdict per cell\n[ADVISORY] dual-verdict docs/development/reviews/2026-09-10-plan-1-review-family-adoption-phase-A-review.md:341 \u2014 the disposition cell carries 2 bare verdict words (RECORDED, FIXED) \u2014 one leading verdict per cell\n[ADVISORY] dual-verdict docs/development/reviews/2026-09-10-plan-1-review-family-adoption-phase-A-review.md:507 \u2014 the disposition cell carries 2 bare verdict words (RECORDED, FIXED) \u2014 one leading verdict per cell\nhygiene: 5 hit(s) over 1 file(s), 30 rows ungraded",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Routing Policy (operator deny + allowlist)",
+      "output": "check_routing_policy: OK \u2014 6 of 6 task kinds have a routing section, 30 routable model entries, all allowed and none denied",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Governance Tables (rules must render)",
+      "output": "check_governance_tables: OK \u2014 every table row renders at its header width across 2 contract(s)",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Plan-lock release",
+      "output": "0 stale | 1 likely-stale | 0 half-applied | 0 plan-field-stale | 0 orphan | 0 foreign | 0 unknown-status | 0 unevaluable\n  LIKELY STALE LOCK: 2026-09-05-plan-1-windowed-cost-sidecar.json its plan reads Status: \"EXECUTED (2026-09-05 \\u2014 all three phases shipped and reviewed to a quiet round: A `a43f3...\" (matched EXECUTED)\n  -> the plan's OWNER releases it (Finish step 5); if that run is confirmed dead the OPERATOR deletes the lock (fabrik-execute-plan.md:77). Never edit another session's lock.",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Rivals dossier",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Spec convergence",
+      "output": "spec convergence: 29 CONVERGED spec(s) examined, 14 with findings (artifact-only; citations not re-fetched)\n  SILENT-1a: 2026-07-15-autonomous-factory-driver-design.md no cited source and no 'no external facts' statement - indistinguishable from skipping the research gate\n  ... 25 more finding(s) - run the check directly\n  -> run /fabrik-spec-review to a no-op; a spec with no external facts must SAY so, and a converged spec must enumerate its residual unknowns",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Rule grounding (plans)",
+      "output": "rule grounding: 2 CONVERGED in-window plan(s) examined, 2 with findings (artifact-only; reading quality is the review's)\n  NO-DIGEST: 2026-09-05-plan-2-glitchtip-deny-by-default.md no '## Constraints Digest' section - a CONVERGED plan proves its packs were open with per-pack verbatim quotes, never by self-assertion\n  ... 6 more finding(s) suppressed by the advisory budget - they surface a few per run as earlier ones are fixed\n  -> quote one mandate verbatim per MATCHED pack (file:line) in the Constraints Digest - the quote is the proof the pack was open; run review_rubric.py --changed <File Scope> for the MATCHED set",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Citations resolve (path:line lands)",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Feedback duty",
+      "output": "feedback duty: 23 close(s) in 14d, 1 with NO verdict (verdict given or not; honesty not gradeable)\n  UNSTATED: fabrik-probe (probe-fb)\n  -> close with --feedback: what you filed and to whom, or 'none' plus the surfaces you exercised (commands/_fragments/close-feedback.md)",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Trigger routing (advertised phrase -> its own command)",
+      "output": "trigger routing: 149 advertised phrase(s) - 108 reach their own command, 41 route nowhere, 0 mis-routed (sees whether an advertised phrase reaches its own command; cannot tell whether the phrase is one an operator would ever type, and deliberately does not grade phrases that route nowhere)",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Frozen Chain (contract pins)",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Mutation (opt-in FABRIK_MUTMUT)",
+      "output": "MUTATION (advisory): skipped in the per-commit gate \u2014 mutation testing is diff-scoped + nightly (45-testing-strategy.md), not per-PR blocking. Run it on changed code with:\n    FABRIK_MUTMUT=1 python scripts/enforcement/check_mutation.py",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Doc stub fill",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Script Coupling Header",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    }
+  ],
+  "blocking": 18,
+  "failures": [],
+  "warnings": [
+    {
+      "check": "static tier (diff-sensed skip)",
+      "output": "\u26a0 static checks skipped \u2014 only .md files in the diff; this green asserts nothing about lint/type debt",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Coverage Checklist (reviews)",
+      "output": "\u26a0 check_review_coverage ADVISORY \u2014 committed review(s) needing attention:\n  \u26a0 docs/development/reviews/2026-08-10-hub-governance-gates-review.md: COMMITTED with a non-quiet exit round (found: 10) \u2014 committing a review does not converge it. Finish the loop; BLOCKED-escalate the stuck finding (`## BLOCKED: <finding>` with its 3 attempts); when the LOOP itself failed (3 rounds of non-decreasing, nonzero `new:`), emit `## BLOCKED: NON-CONVERGENCE` naming the suspected foundation error; or mark the report `Status: IN-PROGRESS`.\n  \u26a0 docs/development/reviews/2026-08-19-plan-1-kaizen-m1-event-stream-review.md: COMMITTED with a Pass-shaped ledger line that does not parse ('Pass 1 (WIDE) \u2014 finders: pool fanout \u00d73 (deepseek-v3.2 raised 9 on the') \u2014 punctuate the counts or fence the quote\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T01-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T02-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T03-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026\n\u2026 [truncated: ~5 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_review_coverage.py` for the FULL set; NEVER scope a fix to this preview] \u2026\nement-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-09-02-external-services-chain-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-09-10-mail-handling-governance-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\ncheck_review_coverage: OK \u2014 0 unproven coverage claims across 1 changed review artifact(s)",
+      "truncated": true,
+      "omitted_lines": 5,
+      "rerun": "python scripts/enforcement/check_review_coverage.py"
+    },
+    {
+      "check": "Vendored Drift (sync-excluded repos)",
+      "output": "\u26a0 check_vendored_drift ADVISORY \u2014 sync-excluded repos PULL, nothing is pushed to them; undeclared divergence below is invisible debt until someone opens it:\n  \u26a0 fabrik-lib: 17 identical \u00b7 19 declared-design \u00b7 51 UNREVIEWED diff \u00b7 11 local-only\n    \u26a0 fabrik-lib/scripts/enforcement/check_decisions_unique.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_doc_sprawl.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_duplicates.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_env_vars.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_feedback_duty.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_imports_resolvable.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fa\n\u2026 [truncated: ~42 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_vendored_drift.py` for the FULL set; NEVER scope a fix to this preview] \u2026\nre it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/.windsurf/rules/saas/95-multi-tenant-saas.md: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/review_rubric.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/mail.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist",
+      "truncated": true,
+      "omitted_lines": 42,
+      "rerun": "python scripts/enforcement/check_vendored_drift.py"
+    }
+  ]
+}
 ```
