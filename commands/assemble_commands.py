@@ -14,9 +14,9 @@ Rendered files carry a DO-NOT-HAND-EDIT banner. Edit fragments/sources, re-rende
 from __future__ import annotations
 
 import argparse
+import contextlib
 import difflib
 import re
-import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -990,10 +990,10 @@ def _write_agents(dest: Path, bodies: list[tuple[str, str]]) -> None:
 def _preflight(
     dest: Path, skills_dest: Path | None, agents_dest: Path, names: list[str], files: list[Path]
 ) -> None:
-    """Every path the render will write through must have the right shape or be absent — checked
-    BEFORE the first write, so a plain file where a tree belongs, a broken symlink, or a directory
-    where a FILE belongs is a loud SystemExit over untouched trees, never a traceback over a
-    half-written one."""
+    """Every path the render will write through — or prune over — must have the right shape or be
+    absent — checked BEFORE the first write, so a plain file where a tree belongs, a broken symlink,
+    or a directory where a FILE belongs is a loud SystemExit over untouched trees, never a traceback
+    over a half-written one."""
 
     def _dir_or_absent(p: Path, what: str) -> None:
         if (p.exists() or p.is_symlink()) and not p.is_dir():
@@ -1002,22 +1002,36 @@ def _preflight(
                 "then re-render (no file was written)"
             )
 
-    def _file_or_absent(p: Path, what: str) -> None:
+    def _file_or_absent(p: Path, leaf: str) -> None:
         if p.is_dir():
             raise SystemExit(
-                f"{what}: {p} is a directory where the {what} FILE belongs — remove it, then "
-                "re-render (no file was written)"
+                f"{p} is a directory where the {leaf} belongs — remove it, then re-render "
+                "(no file was written)"
+            )
+        if p.is_symlink() and not p.exists():
+            raise SystemExit(
+                f"{p} is a broken symlink where the {leaf} belongs — remove it, then re-render "
+                "(no file was written)"
             )
 
     _dir_or_absent(dest, "commands")
     _dir_or_absent(agents_dest, "agents")
     for f in files:
-        _file_or_absent(f, "commands" if f.parent == dest else "agents")
+        _file_or_absent(f, "command file" if f.parent == dest else "agent file")
+    # the prune loops read every `*.md` entry of each tree — a DIRECTORY wearing that name breaks
+    # them after the writes; refuse it up front
+    for tree in (dest, agents_dest):
+        if tree.is_dir():
+            for entry in tree.glob("*.md"):
+                _file_or_absent(entry, "command file" if tree == dest else "agent file")
     if skills_dest is not None:
         _dir_or_absent(skills_dest, "skills")
         for name in names:
             _dir_or_absent(skills_dest / name, "skills")
-            _file_or_absent(skills_dest / name / "SKILL.md", "skills")
+            _file_or_absent(skills_dest / name / "SKILL.md", "SKILL.md wrapper")
+        if skills_dest.is_dir():
+            for entry in skills_dest.glob("*/SKILL.md"):
+                _file_or_absent(entry, "SKILL.md wrapper")
 
 
 def render(dest: Path, skills_dest: Path | None = None, agents_dest: Path | None = None):
@@ -1133,8 +1147,14 @@ def render(dest: Path, skills_dest: Path | None = None, agents_dest: Path | None
             cmd.unlink()
     if skills_dest is not None:
         for sk in skills_dest.glob("*/SKILL.md"):
+            if sk.parent.is_symlink():
+                continue  # never prune THROUGH a symlink — the target is not ours to delete
             if sk.parent.name not in keep and SKILL_BANNER in sk.read_text(errors="replace"):
-                shutil.rmtree(sk.parent)
+                # remove ONLY the generated wrapper; the directory goes only when that empties it
+                # (an orphan dir can hold hand-authored siblings — never `rmtree`)
+                sk.unlink()
+                with contextlib.suppress(OSError):
+                    sk.parent.rmdir()
     n = len(emitted)
     n_agents = len(list(AGENT_SRC.glob("*.md")))
     print(

@@ -142,7 +142,49 @@ _REDERIVATION_ROW = re.compile(
 # notes: pass 1 stood at confirmed: 3`) is refused — write the citation before the counter, or in
 # a code span. Measured 2026-09-10: 0 of 47 fleet spines and 0 of 805 fleet review artifacts carry >1 token on one row.
 _PASS_ROW = re.compile(r"^[ \t]*\|\s*\**(?:Pass|Round)\b[^\n]*", re.I | re.M)
-_CODE_SPAN = re.compile(r"`[^`\n]*`")
+_CODE_SPAN = re.compile(
+    r"`[^`\n]*`"
+)  # the single-run shape; `_mask_spans` below is the rule's masker
+
+
+def _mask_spans(s: str) -> str:
+    """Same-length copy with every CommonMark code span blanked to `x`s — RUN-LENGTH aware (6.1): a
+    span opens with a backtick run and closes with a run of the SAME length, so ``<!--`` is one span,
+    not an empty span plus a bare opener (the single-run regex read it that way and let a comment
+    swallow a ledger — or refused a ledger whose Notes cited an earlier count in the double-backtick
+    spelling the rule's own remedy names). An unclosed run is literal text."""
+    out = list(s)
+    i, n = 0, len(s)
+    while i < n:
+        if s[i] != "`":
+            i += 1
+            continue
+        j = i
+        while j < n and s[j] == "`":
+            j += 1
+        run = j - i
+        k, close = j, -1
+        while k < n:
+            if s[k] != "`":
+                k += 1
+                continue
+            m = k
+            while m < n and s[m] == "`":
+                m += 1
+            if m - k == run:
+                close = m
+                break
+            k = m
+        if close < 0:
+            i = j
+            continue
+        for q in range(i + run, close - run):
+            if out[q] != "\n":
+                out[q] = "x"
+        i = close
+    return "".join(out)
+
+
 _HTML_COMMENT = re.compile(r"<!--.*?-->", re.S)
 _CONFIRMED_TOKEN = re.compile(r"(?<![\w-])confirmed\s*:\s*(\d+)", re.I)
 CLOSING_ROW_REFUSAL = "the flip is refused: the last Pass row does not read confirmed: 0"
@@ -164,7 +206,7 @@ def _closing_row_fail(text: str) -> str | None:
     # bare closer, the stated cost of the same rule; 0 of 47 spines and 0 of 805 receipts change
     # verdict), then HTML comments blanked. The archived carve-out in the caller is the lowercase
     # DIRECTORY part `archived` — `Archived/` and a slug carrying the word are graded.
-    text = _HTML_COMMENT.sub("", _CODE_SPAN.sub("`x`", FENCE_STRIP.sub("", text)))
+    text = _HTML_COMMENT.sub("", _mask_spans(FENCE_STRIP.sub("", text)))
     last: str | None = None
     for m in _PASS_ROW.finditer(text):
         tokens = _CONFIRMED_TOKEN.findall(m.group(0))

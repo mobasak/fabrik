@@ -517,7 +517,8 @@ CORPUS_RECEIPTS = 275
 # barely moved (0.558 % → 0.584 %).
 CORPUS_ROWS = 5992
 CORPUS_DISPOSITION_ROWS = 1663
-# D7 seam #3: 254 → 4241 (71.7 % of the corpus's rows). The old number counted ONLY rows in a
+# D7 seam #3: 254 → 4241 (71.7 % of the corpus's rows; since re-pinned to 4,296 of 5,992 — the constants
+# above are current, this paragraph is the history). The old number counted ONLY rows in a
 # header-less table; a HEADED table that declares no disposition column was skipped silently and
 # fell out of the denominator entirely, so the summary read "254 ungraded" over a corpus in which
 # the dual-verdict class actually graded 1,645 of 5,917 rows. The rise IS the fix — a bounded
@@ -803,6 +804,46 @@ def test_a_comment_opener_inside_a_code_span_does_not_blank_the_rows_after_it(tm
         "# R\n\n| Id | Disposition |\n|---|---|\n"
         "| F1 | RECORDED — the cell quotes `<!-- POOL OFF` by convention |\n"
         "| F2 | FIXED | an unescaped pipe |\n"
+    )
+    sweep = crh.scan(receipts=[p])
+    assert _lines(sweep, "raw-pipe") == [6]
+
+
+def test_a_comment_opener_inside_a_fence_does_not_start_a_comment(tmp_path):
+    """The fence state is decided first; markers inside a fenced example are quoted text (a live
+    rules pack lost 152 of 191 lines to a fenced `<!--`)."""
+    p = tmp_path / "pack.md"
+    p.write_text(
+        "# P\n\n```\n<!-- an example opener -->\n<!-- unclosed in the example\n```\n\n| a | b | c |\n|---|---|---|\n| 1 | 2 | 3 | 4 |\n"
+    )
+    sweep = crh.scan(surfaces=[p])
+    assert _lines(sweep, "table-parity") == [10]
+
+
+def test_a_parked_comment_closes_and_the_rows_after_it_are_graded(tmp_path):
+    p = tmp_path / "2026-09-10-x-review.md"
+    p.write_text(
+        "# R\n\n<!-- parked:\n| old | rows |\n-->\n\n| Id | Disposition |\n|---|---|\n| F1 | FIXED | extra |\n"
+    )
+    sweep = crh.scan(receipts=[p])
+    assert _lines(sweep, "raw-pipe") == [9]
+
+
+def test_a_closer_inside_a_code_span_does_not_close_the_comment_early(tmp_path):
+    p = tmp_path / "2026-09-10-x-review.md"
+    # the span sits on a line INSIDE the comment: a raw read of the closer would end the comment
+    # there and grade the parked F0 row as live
+    p.write_text(
+        "# R\n\n<!-- parked\n(mentions `-->` in prose)\n| Id | Disposition |\n|---|---|\n| F0 | FIXED | still parked |\n-->\n\n| Id | Disposition |\n|---|---|\n| F1 | FIXED | extra |\n"
+    )
+    sweep = crh.scan(receipts=[p])
+    assert _lines(sweep, "raw-pipe") == [12]
+
+
+def test_a_same_line_comment_is_left_raw(tmp_path):
+    p = tmp_path / "2026-09-10-x-review.md"
+    p.write_text(
+        "# R\n\n<!-- a note on one line -->\n| Id | Disposition |\n|---|---|\n| F1 | FIXED | extra |\n"
     )
     sweep = crh.scan(receipts=[p])
     assert _lines(sweep, "raw-pipe") == [6]

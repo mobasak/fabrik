@@ -437,6 +437,8 @@ def _defective_agent_sources(tmp_path, monkeypatch):
         "the agents tree is a file",
         "a directory where a command file belongs",
         "a directory where an agent file belongs",
+        "a broken symlink where a command file belongs",
+        "a directory named like a command in the agents tree",
     ],
 )
 def test_an_aborted_render_writes_into_none_of_the_three_trees(tmp_path, monkeypatch, abort):
@@ -478,9 +480,25 @@ def test_an_aborted_render_writes_into_none_of_the_three_trees(tmp_path, monkeyp
             (d / f"{name}.md").mkdir(parents=True)
         elif abort == "a directory where an agent file belongs":
             (a / sorted(ac.AGENT_SRC.glob("*.md"))[0].name).mkdir(parents=True)
+        elif abort == "a broken symlink where a command file belongs":
+            d.mkdir(exist_ok=True)
+            (d / f"{name}.md").symlink_to(tmp_path / "gone" / "target.md")
+        elif abort == "a directory named like a command in the agents tree":
+            (a / "zz-notasource.md").mkdir(parents=True)
         else:
             a.write_text("a plain file where the agents TREE belongs")
-        match = "not a directory|is a directory|where the .* belongs"
+        match = (
+            "is not a directory"
+            if abort
+            in (
+                "the skills tree is a file",
+                "the commands tree is a file",
+                "the agents tree is a file",
+                "a file where a skill dir belongs",
+                "a dangling symlink where a skill dir belongs",
+            )
+            else "belongs"
+        )
     d, s, a = _trees(tmp_path)
     if abort == "the commands tree is a file":
         d = tmp_path / "cmds"
@@ -599,7 +617,6 @@ def test_every_floor_kind_a_caller_passes_is_a_known_kind_and_nothing_more():
         if isinstance(node, ast.Call)
         and isinstance(node.func, ast.Name)
         and node.func.id == "_floor"
-        and node.args
         and isinstance(node.args[0], ast.Constant)
     }
     assert passed == set(ac._ALL_FLOOR_KINDS), passed ^ set(ac._ALL_FLOOR_KINDS)
@@ -614,3 +631,21 @@ def test_the_section_partition_floor_reaches_both_rendered_reviews(tmp_path):
         # assertion reads the LIVE text only, or a FLOOR blanked at substitution still "renders"
         live = re.sub(r"<!--.*?-->", "", (tmp_path / f"{name}.md").read_text(), flags=re.S)
         assert "cut into DISJOINT slices by SECTION" in live, name
+
+
+def test_the_skills_prune_removes_only_the_generated_wrapper_and_never_through_a_symlink(tmp_path):
+    """An orphan skill directory can hold hand-authored siblings (a reference file, a script) — the
+    prune removes the banner-carrying SKILL.md and the directory only when that leaves it empty;
+    a symlinked orphan is never followed."""
+    d, s, a = _trees(tmp_path)
+    orphan = s / "zz-retired"
+    orphan.mkdir(parents=True)
+    (orphan / "SKILL.md").write_text(ac.SKILL_BANNER + "\n# orphan\n")
+    (orphan / "reference.md").write_text("hand-authored")
+    real = tmp_path / "elsewhere"
+    real.mkdir()
+    (real / "SKILL.md").write_text(ac.SKILL_BANNER + "\n# linked orphan\n")
+    (s / "zz-linked").symlink_to(real)
+    ac.render(d, s, agents_dest=a)
+    assert not (orphan / "SKILL.md").exists() and (orphan / "reference.md").exists()
+    assert (real / "SKILL.md").exists() and (s / "zz-linked").is_symlink()

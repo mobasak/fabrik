@@ -197,19 +197,24 @@ def _blank_quoted(lines: list[str]) -> list[str]:
         # the comment markers are read with code spans MASKED: a cell that quotes `<!-- POOL OFF`
         # (the D-181 convention) is prose, and an unmasked read blanked every later row of 9 of 805
         # fleet receipts — a real raw-pipe defect lost behind "0 hits" (2026-09-10)
-        masked = _mask_code_spans(ln)
         if in_comment:
             out.append("")
-            if "-->" in masked:
+            if "-->" in _mask_code_spans(ln):
                 in_comment = False
             continue
+        # the FENCE state is decided first: a marker inside a fenced example is quoted text (a live
+        # rules pack lost 152 of 191 lines to a fenced `<!--` when the opener was tested first)
+        was_open = bool(char)
+        char, length, is_fence = _fence_step(ln, char, length)
+        if was_open or is_fence:
+            out.append("")
+            continue
+        masked = _mask_code_spans(ln)
         if "<!--" in masked and "-->" not in masked:
             in_comment = True
             out.append("")
             continue
-        was_open = bool(char)
-        char, length, is_fence = _fence_step(ln, char, length)
-        out.append("" if (was_open or is_fence) else ln)
+        out.append(ln)
     return out
 
 

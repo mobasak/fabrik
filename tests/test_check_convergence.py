@@ -1674,3 +1674,16 @@ def test_a_plan_whose_slug_contains_archived_is_still_graded(tmp_path):
     )
     fails = cc._check_spine_set(tmp_path, spine, spine.read_text())
     assert any("last Pass row does not read confirmed: 0" in f for f in fails), fails
+
+
+def test_a_double_backtick_span_is_masked_like_a_single_one():
+    """CommonMark code spans are run-length delimited — `` ``<!--`` `` is a span, not an empty span
+    plus a bare opener; and the rule's own remedy ("cite an earlier count in a code span") must hold
+    for the double-backtick spelling too."""
+    sys.path.insert(0, str(CHECK.parent))
+    import check_convergence as cc  # noqa: E402
+
+    opener = "A parked ledger opens at ``<!--`` here.\n| Pass 1 | seat | method: re-derivation | confirmed: 3 |\nand closes at ``-->`` there.\n"
+    assert cc._closing_row_fail(opener) is not None
+    cited = "| Pass 2 | seat | method: re-derivation | confirmed: 0 | notes: pass 1 stood at ``confirmed: 3`` |\n"
+    assert cc._closing_row_fail(cited) is None
