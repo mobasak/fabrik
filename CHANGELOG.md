@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Plan: review-family adoption of D-203 (2026-09-10)
+
+- `docs/development/plans/2026-09-10-plan-1-review-family-adoption.md` (DRAFT, `Profile: small`, three inline phases) from the approved spec; approval rows D-217 (the approval), D-218 (the floor stands down under a section partition for `term-edit` loops), D-219 (D-048's `Standing:` line retired for the RECORDED family).
+
 ### Changed — Bounded-search HARD STOP gains its SEVENTH shape: the `grep` shim is blind to every synced file (2026-09-10)
 
 The shell `grep` is a snapshot-defined function re-execing the Claude binary as ugrep with `--ignore-files`,
