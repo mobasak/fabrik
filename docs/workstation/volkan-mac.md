@@ -108,7 +108,7 @@ hub hooks for sounds, quota rotation, mail, agent charters, run records, scratch
 | 005 | answers (pdfrx, doc wording, MODIFY protocol) | `.fvmrc` 3.47.2 (`c57cc3e`), pdfrx 0.4.7 + liboqs relink → desktop suite 111/111 (`d7f5222`), D-004 |
 | 006 | the 29 re-keyed corpus checks + gate + hook + 3 doc drafts | deployed with 3 adaptations; full gate 40 checks / 52.7 s; `CONFIGURATION.md`, README, D-001..003 tool-neutral, watermark link fixed (`3590dfb`…`e5e1956`) |
 | 007 | operating contract (user-level) + repo working agreement | applied; Part 2 byte-identical; `0a12b53`; Volkan told it we are authoritative |
-| 008 | Q1–Q11 + rules + agents + router | packs **rewritten** for the stack (right refusal); router replaced (105 L, 0 false routes); agents proven via `claude -p`; debt ratchet + `docs/quality-baseline.json` (`8156894`, D-005) |
+| 008 | Q1–Q11 + rules + agents + router | packs **rewritten** for the stack (right refusal); router replaced (105 L, 0 false routes); agents proven via `claude -p`; debt ratchet + `~/dev/cryptnshare/docs/quality-baseline.json` (`8156894`, D-005) |
 | 009 | hooks (guard/orient/mcp_watch), plugin, statusline, MACHINE.md | guard hardened +9 shapes; orient/mcp_watch rewritten small; superpowers; 0.12 s statusline; map imported |
 | 010 | fabrik-lib research chain + `/rivals` | 4 run-path defects fixed by them (D1–D4), D5 engine defect filed upstream; dossier 12/6/127 at `$0.504`, `partial`, **uncommitted** |
 | 011 | self-watch (death resume + queue knock) | armed; (a)(b)(c)(e) proven; **CNS_HEADLESS** defect class found (headless children ran all hooks) and fixed |
