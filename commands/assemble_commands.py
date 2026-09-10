@@ -174,7 +174,7 @@ EXTRACT = {
         (
             "termination",
             "term-edit",
-            "\n(After the quiet delta round: the approval gate at the end.)",
+            "\n(After the no-op: the approval gate at the end.)",
         ),
         (
             "grounding",
@@ -206,7 +206,7 @@ EXTRACT = {
         (
             "grounding",
             "grounding-artifact",
-            "\n- Verify globs via `scripts/select_rules.py` — a plausible-looking glob is not proof it matches.",
+            "\n- Verify globs via `python scripts/select_rules.py` — a plausible-looking glob is not proof it matches.",
         ),
         ("subagents", "subagents-core", None),
     ],

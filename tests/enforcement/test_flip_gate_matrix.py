@@ -75,8 +75,18 @@ def _load(name: str, enf: Path = ENF):
     The gates reach their siblings through a bare ``sys.path`` fallback import, and Python caches
     bare modules — so every sibling of ``enf`` is purged from ``sys.modules`` and ``enf`` is put
     first on ``sys.path`` before the load, or a second load would keep the FIRST directory's
-    siblings (a mutant proof would read green over the real module).
+    siblings (a mutant proof would read green over the real module). A gate whose fallback is the
+    DOTTED ``from scripts.enforcement.X import`` cannot be isolated this way at all (the cached
+    package resolves X from the real directory), so a copy of one is REFUSED here — such a gate's
+    mutant runs in a fresh process (``FLIP_GATE_MATRIX_ENFORCEMENT_DIR`` + ``PYTHONPATH=<root>``).
     """
+    source = (enf / f"{name}.py").read_text()
+    if enf != ENF and "from scripts.enforcement" in source:
+        raise RuntimeError(
+            f"{name} falls back to a dotted `from scripts.enforcement.X import` — the cached "
+            "`scripts.enforcement` package resolves X from the REAL directory, so a copy cannot be "
+            "isolated in-process; run it in a fresh process with PYTHONPATH=<root> instead"
+        )
     for sibling in enf.glob("*.py"):
         sys.modules.pop(sibling.stem, None)
     sys.path.insert(0, str(enf))
@@ -324,6 +334,12 @@ def test_load_resolves_a_gates_sibling_imports_from_the_enforcement_dir_under_te
     cpq = _load("check_plan_quality", enf=root)
     bound = cpq._check_plans_naming.__globals__
     assert bound.get("MATRIX_MARKER") == "copy", bound.get("__file__")
+    # a gate whose fallback is the DOTTED `from scripts.enforcement.X import` resolves X through the
+    # cached `scripts.enforcement` package — the REAL directory — however the purge is shaped, so an
+    # in-process load of such a gate from a copy can never isolate it: `_load` refuses, and the copy
+    # runs in a fresh process instead (`FLIP_GATE_MATRIX_ENFORCEMENT_DIR` + `PYTHONPATH=<root>`)
+    with pytest.raises(RuntimeError, match="dotted"):
+        _load("check_convergence", enf=root)
 
 
 def test_every_matrix_row_names_a_gate_that_exists():

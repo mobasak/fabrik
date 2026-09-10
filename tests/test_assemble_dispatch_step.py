@@ -162,6 +162,29 @@ def test_the_term_edit_review_family_gets_the_section_partition_floor_and_nothin
     assert _SECTION_PARTITION_SENTENCE not in ac._floor("review loop", "`fabrik-reviewer`")
 
 
+def test_every_extract_after_text_round_trips_against_its_source():
+    """`extract()` REWRITES `_sources/*.md` from the installed backup using each EXTRACT entry's
+    after-text — a stored copy of prose the source owns. Two stale copies were found by hand on
+    2026-09-10 (a retired exit wording; a dropped `python ` in a runnable line); this is the grader
+    that hand check lacked: for every entry with an after-text, the source's text right after its
+    `{{include:<fragment>}}` marker IS that string."""
+    src_dir = REPO / "commands" / "_sources"
+    examined, mismatched = 0, []
+    for name, plan in ac.EXTRACT.items():
+        source = (src_dir / f"{name}.md").read_text()
+        for _block, fragment, after in plan:
+            if after is None:
+                continue
+            examined += 1
+            marker = "{{include:" + fragment + "}}"
+            assert marker in source, (name, fragment)
+            start = source.index(marker) + len(marker)
+            if source[start : start + len(after)] != after:
+                mismatched.append((name, fragment))
+    assert examined >= 6, examined  # the denominator: a loop over nothing proves nothing
+    assert mismatched == [], mismatched
+
+
 def test_both_floor_sentences_reach_their_rendered_commands_whole(tmp_path):
     """`_floor()` alone cannot see an interpolation or PARAMS change that mangles a sentence on its
     way into a command — grade the RENDERED text, comments stripped, and count the carriers. BOTH
