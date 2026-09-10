@@ -143,7 +143,8 @@ _REDERIVATION_ROW = re.compile(
 # a code span. Measured 2026-09-10: 0 of 47 plan-set spines under `docs/development/plans` in the
 # /opt main checkouts (the `_is_spine` population, archived INCLUDED — 19 live + 28 archived; the
 # per-agent worktree copies excluded, the convention the 805 fleet review artifacts share) and 0 of
-# 805 fleet review artifacts carry >1 token on one row.
+# 805 fleet review artifacts carry >1 token on one row READ THROUGH THE RULE'S OWN MASKING (on raw
+# text 1 of 47 carries two, both inside code spans — the receipt-side spelling the rule exists for).
 _PASS_ROW = re.compile(r"^[ \t]*\|\s*\**(?:Pass|Round)\b[^\n]*", re.I | re.M)
 
 
@@ -158,8 +159,8 @@ def _mask_spans(s: str) -> str:
     a code span that legitimately wraps across lines is read as two literal runs, so a `<!--` inside
     it opens a comment and the rule then FAILS OPEN over every row that comment swallows (0 live
     instances); and a single pathological line holding hundreds of runs of distinct lengths is still
-    quadratic (a 721 KB line of 800 runs: ~11 s) — the bound moved the cliff from the document to the
-    line, it did not remove it."""
+    quadratic (a 721 KB line of 800 runs: ~11 s) — the bound moved the cliff from the document to
+    the line, it did not remove it."""
     out = list(s)
     i, n = 0, len(s)
     while i < n:
@@ -209,8 +210,8 @@ def _closing_row_fail(text: str) -> str | None:
     counter as WRITTEN (`confirmed: 03` reads `03`)."""
     # ORDER: fences first (line-anchored, so a stray backtick pair cannot eat a marker), then code
     # spans masked (a `<!--` in backticks is prose — and so is a `-->`: a comment closes only at a
-    # bare closer, the stated cost of the same rule; 0 of 47 spines and 0 of 805 receipts change
-    # verdict), then HTML comments blanked. The archived carve-out in the caller is the lowercase
+    # bare closer, the stated cost of the same rule; 0 of 47 spines and 0 of 805 receipts — the
+    # population the `_PASS_ROW` comment states — change verdict), then HTML comments blanked. The archived carve-out in the caller is the lowercase
     # DIRECTORY part `archived` — `Archived/` and a slug carrying the word are graded.
     text = _HTML_COMMENT.sub("", _mask_spans(FENCE_STRIP.sub("", text)))
     last: str | None = None

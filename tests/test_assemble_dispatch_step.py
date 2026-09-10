@@ -865,12 +865,13 @@ def test_the_prune_glob_preflight_still_refuses_behind_a_symlinked_sibling(tmp_p
     assert _census(tmp_path) == (0, 0, 0)
 
 
-def test_a_directory_wrapper_behind_a_symlinked_orphan_dir_is_the_prunes_not_the_preflights(
+def test_a_directory_wrapper_behind_a_symlinked_orphan_dir_is_the_gates_not_the_preflights(
     tmp_path,
 ):
     """`entry.parent.is_symlink()` in the skills orphan glob: a DIRECTORY named SKILL.md inside a
-    symlinked orphan skill dir is skipped by the pre-flight (the whole link is the prune's) — without
-    that disjunct the render aborts with "is a directory where the SKILL.md wrapper belongs"."""
+    symlinked orphan skill dir is skipped by the pre-flight, left by the prune (not a file) and
+    reported by the GATE for a hand removal — without that disjunct the render aborts with "is a
+    directory where the SKILL.md wrapper belongs"."""
     d, s, a = _trees(tmp_path)
     s.mkdir()
     outside = tmp_path / "outside"
@@ -910,8 +911,63 @@ def test_an_orphan_fifo_never_hangs_the_render_or_the_gate(tmp_path, monkeypatch
         signal.alarm(0)
         signal.signal(signal.SIGALRM, old)
     out = capsys.readouterr().out
-    assert (d / "zz-fifo.md").exists() and (s / "zz-fifo" / "SKILL.md").exists()
+    survived = (d / "zz-fifo.md").exists() and (s / "zz-fifo" / "SKILL.md").exists()
+    (d / "zz-fifo.md").unlink()  # pytest keeps tmp dirs; a FIFO left behind has no sweeper
+    (s / "zz-fifo" / "SKILL.md").unlink()
+    assert survived
     assert exc.value.code == 1 and out.count("not a regular file") == 2, out
+
+
+def _reversed_glob(monkeypatch):
+    """Force every `Path.glob` to yield in REVERSE sorted order: a walk the assembler wraps in
+    `sorted()` still runs ascending, an unwrapped walk now runs descending — so a test's order
+    claim no longer rides on what the filesystem happens to return (ext4 handed the round-8 seat and
+    the orchestrator different orders for one fixture; here the order is forced)."""
+    real = Path.glob
+    monkeypatch.setattr(
+        Path, "glob", lambda self, pat, **kw: iter(sorted(real(self, pat, **kw), reverse=True))
+    )
+
+
+@pytest.mark.parametrize("tree", ["commands", "agents", "skills"])
+def test_the_preflight_names_the_first_offender_in_sorted_order(tmp_path, monkeypatch, tree):
+    """The orphan globs are `sorted()`: two offenders, the refusal names the one that sorts first —
+    under a reversed `Path.glob` an unsorted walk would name the other."""
+    d, s, a = _trees(tmp_path)
+    t = {"commands": d, "agents": a, "skills": s}[tree]
+    t.mkdir(exist_ok=True)
+    if tree == "skills":
+        (s / "aa-x" / "SKILL.md").mkdir(parents=True)
+        (s / "zz-x" / "SKILL.md").mkdir(parents=True)
+    else:
+        (t / "aa-dir.md").mkdir()
+        (t / "zz-dir.md").mkdir()
+    _reversed_glob(monkeypatch)
+    with pytest.raises(SystemExit, match=r"aa-(dir\.md|x)"):
+        ac.render(d, s, agents_dest=a)
+
+
+@pytest.mark.parametrize("tree", ["commands", "agents", "skills"])
+def test_the_prune_walks_in_sorted_order_so_a_link_goes_before_its_target(
+    tmp_path, monkeypatch, tree
+):
+    """The prunes are `sorted()`: an orphan LINK that sorts before its bannered orphan TARGET is
+    unlinked first (it still resolves), then the target — nothing dangles. Under a reversed
+    `Path.glob` an unsorted walk removes the target first and leaves the link dangling forever."""
+    d, s, a = _trees(tmp_path)
+    ac.render(d, s, agents_dest=a)
+    if tree == "skills":
+        (s / "zz-t").mkdir()
+        (s / "zz-t" / "SKILL.md").write_text(ac.SKILL_BANNER + "\n# t\n")
+        link, target = s / "aa-link", s / "zz-t"
+    else:
+        t = d if tree == "commands" else a
+        (t / "zz-target.md").write_text(ac.BANNER + "\n# t\n")
+        link, target = t / "aa-link.md", t / "zz-target.md"
+    link.symlink_to(target)
+    _reversed_glob(monkeypatch)
+    ac.render(d, s, agents_dest=a)
+    assert not link.is_symlink() and not link.exists() and not target.exists()
 
 
 def test_a_symlinked_orphan_wrapper_file_is_unlinked_not_refused(tmp_path):
