@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — The review family adopts D-203, Phase B: the hygiene script learns the spec and plan classes (2026-09-10)
+
+`scripts/enforcement/check_review_hygiene.py` grades table rows on ANY `.md` surface — a spec, a plan, a
+rendered command — through the one cell-count helper the receipt class already used
+(`_table_parity_hits`; `raw-pipe` on a receipt, `table-parity` elsewhere; fenced and commented lines
+blanked first), and `template-residue` narrows to the renderer's own shapes anchored at both braces
+(`{{include:<name>}}`, `{{UPPER_CASE}}`), so a Go template such as `{{.Image}}` is no longer residue:
+the rendered corpus reads `hygiene: 0 hit(s) over 36 file(s)` (was 1). Measured before the docs
+claimed it, over 911 fleet spec and plan files: table-parity 32 hits in 16 files (real table defects,
+surfaced at those documents' next review), template-residue 78 in 13 (plans that quote the fragment
+grammar), fence-parity 2 in 2 — the class stays advisory (no failing exit path; the DD6 graduation
+rule stands). Eleven red-first tests (47 pass), every fix proven by a mutant on a scratch copy: the
+surface call, the blanking, the headerless count the surface path keeps, the receipt-under-surface
+exclusion, the resolved path keys (one file under two spellings, or reached through its directory and
+by name, is one file scanned once) and both emission orders; `docs/workflows/FINAL_GATE_WORKFLOW.md`'s
+two hygiene rows describe the changes.
+
+
 ### Changed — The review family adopts D-203, Phase A: the fragment, the two sources, the assembler, the emit rule, the flip-gate matrix (2026-09-10)
 
 Phase A's heavy `/fabrik-review` (receipt `docs/development/reviews/2026-09-10-plan-1-review-family-adoption-phase-A-review.md`,

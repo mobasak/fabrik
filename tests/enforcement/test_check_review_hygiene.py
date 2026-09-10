@@ -662,3 +662,128 @@ def test_the_summary_line_reports_the_true_ungraded_denominator(tmp_path):
         check=False,
     )
     assert json.loads(j.stdout)["ungraded_rows"] == 3, j.stdout
+
+
+# ------------------------------------------ the spec/plan classes (review-family adoption, Phase B)
+
+
+def test_a_surface_table_row_with_more_cells_than_its_header_is_a_table_parity_hit(tmp_path):
+    """`table-parity` on ANY `.md` surface, through the cell-count helper `raw-pipe` also uses
+    (a shared helper, never a move — the receipt class is unchanged)."""
+    p = tmp_path / "spec.md"
+    p.write_text("# S\n\n| a | b | c |\n|---|---|---|\n| 1 | 2 | 3 | 4 |\n| 1 | 2 | 3 |\n")
+    sweep = crh.scan(surfaces=[p])
+    assert _lines(sweep, "table-parity") == [5]
+    assert _lines(sweep, "raw-pipe") == []
+
+
+def test_a_receipt_row_with_the_same_defect_still_fires_raw_pipe(tmp_path):
+    p = tmp_path / "2026-09-10-x-review.md"
+    p.write_text("# R\n\n| a | b | c |\n|---|---|---|\n| 1 | 2 | 3 | 4 |\n")
+    sweep = crh.scan(receipts=[p])
+    assert _lines(sweep, "raw-pipe") == [5]
+    assert _lines(sweep, "table-parity") == []
+
+
+def test_template_residue_is_the_fragment_parameter_shape_only(tmp_path):
+    """The narrowing: `{{include:<name>}}` and `{{UPPER_CASE}}` fire; a Go template (`{{.Image}}`,
+    the one standing false positive over the 36 rendered commands) and a literal `{{…}}` in a doc
+    describing the class do not."""
+    p = tmp_path / "doc.md"
+    p.write_text(
+        "go: `docker inspect --format '{{.Image}}' c`\n"
+        "doc: the `{{…}}` residue class\n"
+        "inc: {{include:run-record}}\n"
+        "par: {{ARTIFACT}} and {{DONE_WORD}}\n"
+        "low: {{artifact}}\n"
+    )
+    sweep = crh.scan(surfaces=[p])
+    assert _lines(sweep, "template-residue") == [3, 4, 4]
+
+
+def test_a_row_inside_a_fence_is_not_graded_for_table_parity(tmp_path):
+    p = tmp_path / "spec.md"
+    p.write_text("# S\n\n```\n| a | b | c |\n|---|---|---|\n| 1 | 2 | 3 | 4 |\n```\n")
+    sweep = crh.scan(surfaces=[p])
+    assert _lines(sweep, "table-parity") == []
+
+
+def test_a_headerless_table_on_a_surface_is_counted_as_ungraded(tmp_path):
+    """The surface path keeps the helper's third value: rows no header pair claims are graded by
+    nothing and the summary must say so (D7 seam #3, re-opened on the wider surface by Phase B's
+    first cut — `--surface` printed `0 rows ungraded` over 313 headerless rows in docs/)."""
+    p = tmp_path / "spec.md"
+    p.write_text("# S\n\n| 1 | 2 | 3 |\n| 4 | 5 | 6 |\n")
+    sweep = crh.scan(surfaces=[p])
+    assert sweep.ungraded == 2
+    assert _lines(sweep, "table-parity") == []
+
+
+def test_a_receipt_inside_the_surface_set_is_graded_by_the_receipt_class_only(tmp_path):
+    """`--surface docs/ --receipt docs/…-review.md` — the documented shape — must not report one
+    broken row twice (`table-parity` AND `raw-pipe` at the same `path:line`)."""
+    d = tmp_path / "reviews"
+    d.mkdir()
+    r = d / "2026-09-10-x-review.md"
+    r.write_text("# R\n\n| a | b | c |\n|---|---|---|\n| 1 | 2 | 3 | 4 |\n")
+    sweep = crh.scan(surfaces=[d], receipts=[r])
+    assert _lines(sweep, "raw-pipe") == [5]
+    assert _lines(sweep, "table-parity") == []
+    assert sweep.files == 1
+
+
+def test_receipt_hits_are_emitted_in_line_order(tmp_path):
+    """Lifting the parity pass out of the dual-verdict loop must not reorder the advisory lines —
+    an orchestrator reads them top-down."""
+    p = tmp_path / "2026-09-10-x-review.md"
+    p.write_text(
+        "# R\n\n| Id | Disposition |\n|---|---|\n"
+        "| A | RECORDED — the F250 shape, RECORDED twice |\n"
+        "| B | FIXED | extra |\n"
+    )
+    sweep = crh.scan(receipts=[p])
+    lines = [h.line for h in sweep.hits]
+    assert sorted(lines) == lines, lines
+    assert _lines(sweep, "dual-verdict") == [5] and _lines(sweep, "raw-pipe") == [6]
+
+
+@pytest.mark.parametrize(
+    "spelling", ["absolute surface, relative receipt", "relative surface, absolute receipt"]
+)
+def test_one_file_under_two_spellings_is_one_file_and_one_class(tmp_path, monkeypatch, spelling):
+    """`--surface <abs dir> --receipt <rel file>` is the gate's own shape (the no-argument mode
+    self-selects ABSOLUTE receipt paths): one physical file is ONE entry in the denominator and is
+    table-graded by the receipt class only, whichever way each side is spelled."""
+    d = tmp_path / "reviews"
+    d.mkdir()
+    r = d / "2026-09-10-x-review.md"
+    r.write_text("# R\n\n| a | b | c |\n|---|---|---|\n| 1 | 2 | 3 | 4 |\n")
+    monkeypatch.chdir(tmp_path)
+    if spelling.startswith("absolute surface"):
+        sweep = crh.scan(surfaces=[d], receipts=[Path("reviews/2026-09-10-x-review.md")])
+    else:
+        sweep = crh.scan(surfaces=[Path("reviews")], receipts=[r])
+    assert _lines(sweep, "raw-pipe") == [5]
+    assert _lines(sweep, "table-parity") == []
+    assert sweep.files == 1
+
+
+def test_surface_hits_are_emitted_in_line_order(tmp_path):
+    p = tmp_path / "spec.md"
+    p.write_text("# S\n\n| a | b | c |\n|---|---|---|\n| 1 | 2 | 3 | 4 |\n\ntext {{ARTIFACT}}\n")
+    sweep = crh.scan(surfaces=[p])
+    lines = [h.line for h in sweep.hits]
+    assert sorted(lines) == lines, lines
+
+
+def test_a_file_reached_through_its_directory_and_by_name_is_scanned_once(tmp_path, monkeypatch):
+    """`--surface <dir> --surface <dir>/x.md` — one physical file, one entry, its hits emitted once
+    (the expansion step dedupes on the RESOLVED path, whatever the spelling)."""
+    d = tmp_path / "specs"
+    d.mkdir()
+    p = d / "spec.md"
+    p.write_text("# S\n\n| a | b | c |\n|---|---|---|\n| 1 | 2 | 3 | 4 |\n")
+    monkeypatch.chdir(tmp_path)
+    sweep = crh.scan(surfaces=[Path("specs"), p])
+    assert _lines(sweep, "table-parity") == [5]
+    assert sweep.files == 1

@@ -10,12 +10,17 @@ orchestrator adjudicates each one into the receipt's ledger as FIXED or as
 accepts (``check_review_coverage.py``, D-206).
 
 Classes (each hit is a `path:line` with its class name):
-  template-residue   unrendered `{{…}}` in an `.md` on the surface — a rendered command that kept
-                     its fragment marker. NOT covered by ``check_command_corpus.py``, whose `{{`
-                     tests are PRESENCE tests for `{{include:run-record}}`, never residue tests.
+  template-residue   an unrendered fragment marker or parameter in an `.md` on the surface — the
+                     renderer's own shapes only, anchored at both braces: `{{include:<name>}}` or
+                     `{{UPPER_CASE}}` (a Go template such as `{{.Image}}` or a doc's literal
+                     `{{…}}` is not residue). NOT covered by ``check_command_corpus.py``, whose
+                     `{{` tests are PRESENCE tests for `{{include:run-record}}`, never residue tests.
   fence-parity       an unclosed code fence, by the CommonMark same-char-run rule.
   raw-pipe           a receipt table row whose cell count differs from its header's — an
                      unescaped `|` inside a cell (F280's class).
+  table-parity       the same cell-count defect on ANY `.md` surface (a spec, a plan, a rendered
+                     command) — one shared helper, named by where it was found; fenced and
+                     commented lines are blanked first, as the receipt path already does.
   dual-verdict       a receipt table cell carrying more than one BARE verdict word (F314's class:
                      its cell carries `RECORDED` twice and matches ``VERDICT`` zero times, so a
                      VERDICT-based detector is blind to it).
@@ -54,7 +59,10 @@ except ImportError:  # direct-script invocation
     sys.path.insert(0, str(_HERE))
     from check_review_coverage import _table_rows  # type: ignore[no-redef]
 
-TEMPLATE_RESIDUE = re.compile(r"\{\{[^{}\n]*\}\}")
+# Anchored at BOTH braces to the renderer's two shapes — a marker (`include:` + a name) or a
+# parameter (an upper-case letter, then upper-case letters, digits, underscores). An unanchored
+# upper-case-initial rule would still fire on `{{.Image}}`; this one cannot (it starts with a dot).
+TEMPLATE_RESIDUE = re.compile(r"\{\{(?:include:[^{}\s]+|[A-Z][A-Z0-9_]*)\}\}")
 # BARE verdict WORDS, deliberately not `VERDICT` (T02 → T08, spine § Interfaces): F314's cell
 # reads `RECORDED — the F250 shape …`, which carries two bare RECORDEDs and satisfies the
 # widened `VERDICT` zero times. Counting VERDICT matches here would miss the whole class.
@@ -306,17 +314,19 @@ def _headers(lines: list[str]) -> dict[int, tuple[int, int | None]]:
     return out
 
 
-def _receipt_hits(path: str, text: str) -> tuple[list[Hit], int]:
-    """(hits, rows graded by NEITHER class) — a row in a table with no header pair has no cell-count
-    denominator and no named disposition column, so both classes decline it; so does a row in a
-    HEADED table that declares no disposition column at all (the generated receipt grammar —
-    `| Class | Status |`, `| Pass | Finders | Counters | Method |` — declares none, so the
-    dual-verdict class grades zero of its rows). A bounded search states its bound: the count rides
-    the summary line."""
-    lines = _blank_quoted(text.splitlines())
+def _table_parity_hits(
+    path: str, lines: list[str], cls: str
+) -> tuple[list[Hit], list[tuple[int, list[tuple[str, str]], int | None]], int]:
+    """The cell-count comparison BOTH table classes share — `raw-pipe` on a receipt, `table-parity`
+    on any `.md` surface: the same defect, named by where it was found. Returns (hits, aligned,
+    headerless): `aligned` is every data row whose cells DO line up with its header, as (line
+    index, cells, disposition column) for the receipt path's dual-verdict grading; `headerless`
+    counts the rows no header pair claims — no denominator, graded by nothing. `lines` is the
+    caller's BLANKED copy (`_blank_quoted`), so a quoted or fenced row is never graded."""
     headers = _headers(lines)
     hits: list[Hit] = []
-    ungraded = 0
+    aligned: list[tuple[int, list[tuple[str, str]], int | None]] = []
+    headerless = 0
     # `_table_rows` returns the visible DATA rows verbatim and in order (headers and separators
     # already skipped); walk the physical lines in step to recover each row's line number.
     cursor = 0
@@ -329,7 +339,7 @@ def _receipt_hits(path: str, text: str) -> tuple[list[Hit], int]:
         cells = _split_cells(row)
         width, col = headers.get(idx, (None, None))
         if width is None:
-            ungraded += 1
+            headerless += 1
             continue
         if len(cells) != width:
             # A row whose cells do not line up with its header has NO trustworthy disposition
@@ -338,7 +348,7 @@ def _receipt_hits(path: str, text: str) -> tuple[list[Hit], int]:
             short = len(cells) < width
             hits.append(
                 Hit(
-                    "raw-pipe",
+                    cls,
                     path,
                     idx + 1,
                     f"{len(cells)} cells against the header's {width} — "
@@ -350,6 +360,20 @@ def _receipt_hits(path: str, text: str) -> tuple[list[Hit], int]:
                 )
             )
             continue
+        aligned.append((idx, cells, col))
+    return hits, aligned, headerless
+
+
+def _receipt_hits(path: str, text: str) -> tuple[list[Hit], int]:
+    """(hits, rows graded by NEITHER class) — a row in a table with no header pair has no cell-count
+    denominator and no named disposition column, so both classes decline it; so does a row in a
+    HEADED table that declares no disposition column at all (the generated receipt grammar —
+    `| Class | Status |`, `| Pass | Finders | Counters | Method |` — declares none, so the
+    dual-verdict class grades zero of its rows). A bounded search states its bound: the count rides
+    the summary line."""
+    lines = _blank_quoted(text.splitlines())
+    hits, aligned, ungraded = _table_parity_hits(path, lines, "raw-pipe")
+    for idx, cells, col in aligned:
         if col is None or col >= len(cells):
             # A headed table that declares NO disposition column is UNGRADED, never clean — the
             # dual-verdict class swept nothing here and must say so. Skipping it silently made the
@@ -369,6 +393,7 @@ def _receipt_hits(path: str, text: str) -> tuple[list[Hit], int]:
                     f"({', '.join(found)}) — one leading verdict per cell",
                 )
             )
+    hits.sort(key=lambda h: h.line)  # the parity pass runs first; the advisory lines read top-down
     return hits, ungraded
 
 
@@ -407,9 +432,15 @@ def _is_template_source(path: str) -> bool:
     )
 
 
-def _surface_hits(path: str, text: str, phrases: list[str]) -> list[Hit]:
+def _surface_hits(
+    path: str, text: str, phrases: list[str], table: bool = True
+) -> tuple[list[Hit], int]:
+    """(hits, rows graded by nothing) — `table=False` for a surface file that is ALSO a receipt of
+    this sweep: the receipt path grades its tables as `raw-pipe`, and one broken row must never be
+    reported twice at the same `path:line`."""
     lines = text.splitlines()
     hits: list[Hit] = []
+    ungraded = 0
     if path.endswith(".md") and not _is_template_source(path):
         for i, ln in enumerate(lines, start=1):
             for m in TEMPLATE_RESIDUE.finditer(ln):
@@ -418,6 +449,13 @@ def _surface_hits(path: str, text: str, phrases: list[str]) -> list[Hit]:
                 )
     if path.endswith(".md"):
         hits.extend(_fence_hits(path, lines))
+        # the table scan alone runs over the blanked copy — `template-residue` reads raw lines and
+        # `fence-parity` needs the fences themselves
+        if table:
+            thits, _aligned, ungraded = _table_parity_hits(
+                path, _blank_quoted(lines), "table-parity"
+            )
+            hits.extend(thits)
     for phrase in phrases:
         # Whitespace-tolerant so a phrase matches ACROSS a line wrap (two of the D-191 sentence's
         # sites wrap) — the same effect as searching line-joined text, with exact offsets kept.
@@ -433,7 +471,8 @@ def _surface_hits(path: str, text: str, phrases: list[str]) -> list[Hit]:
             )
     if Path(path).name == "CHANGELOG.md":
         hits.extend(_changelog_hits(path, text))
-    return hits
+    hits.sort(key=lambda h: h.line)  # residue, fences, tables and phrases are separate passes
+    return hits, ungraded
 
 
 def _changelog_hits(path: str, text: str) -> list[Hit]:
@@ -489,13 +528,26 @@ def _expand(paths: list[Path]) -> tuple[list[Path], list[str]]:
             )
         elif p.is_file():
             out.append(p)
+    # dedupe on the RESOLVED path (the original spelling is kept for display): one physical file
+    # reached through a directory and again by name — or spelled relative and absolute — is
+    # ONE file in the denominator and is scanned once
     seen: set[Path] = set()
     uniq = []
     for p in out:
-        if p not in seen:
-            seen.add(p)
+        key = _resolved(p)
+        if key not in seen:
+            seen.add(key)
             uniq.append(p)
     return uniq, missing
+
+
+def _resolved(p: Path) -> Path:
+    """`Path.resolve()` under this script's no-raise contract — a path the OS refuses to resolve
+    is keyed as written (the same guard `_is_template_source` carries)."""
+    try:
+        return p.resolve()
+    except (OSError, RuntimeError):
+        return p
 
 
 def _read(p: Path) -> str | None:
@@ -527,10 +579,11 @@ def scan(
     symbols = symbols or []
     surface_files, surface_missing = _expand([Path(p) for p in (surfaces or [])])
     receipt_files, receipt_missing = _expand([Path(p) for p in (receipts or [])])
+    receipt_set = {_resolved(p) for p in receipt_files}
     hits: list[Hit] = []
     notes: list[str] = [*surface_missing, *receipt_missing]
     ungraded = 0
-    read: dict[Path, str] = {}
+    read: dict[Path, str] = {}  # keyed by RESOLVED path, like `receipt_set` — one file, one entry
     for p in surface_files:
         text = _read(p)
         if text is None:
@@ -538,14 +591,18 @@ def scan(
             # surface indistinguishable from a clean one — say it, every time.
             notes.append(f"{_display(str(p))}: unreadable — NOT scanned, not in the denominator")
             continue
-        read[p] = text
-        hits.extend(_surface_hits(str(p), text, phrases))
+        read[_resolved(p)] = text
+        shits, sungraded = _surface_hits(
+            str(p), text, phrases, table=_resolved(p) not in receipt_set
+        )
+        hits.extend(shits)
+        ungraded += sungraded
     for p in receipt_files:
         text = _read(p)
         if text is None:
             notes.append(f"{_display(str(p))}: unreadable — NOT scanned, not in the denominator")
             continue
-        read.setdefault(p, text)
+        read.setdefault(_resolved(p), text)
         rhits, rungraded = _receipt_hits(str(p), text)
         hits.extend(rhits)
         ungraded += rungraded
