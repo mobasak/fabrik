@@ -86,7 +86,7 @@ def _section(text: str, head_re: re.Pattern[str]) -> str:
     m = head_re.search(text)
     if not m:
         return ""
-    rest = text[m.end():]
+    rest = text[m.end() :]
     nxt = SECTION_HEAD_RE.search(rest)
     return rest[: nxt.start()] if nxt else rest
 
@@ -226,7 +226,9 @@ def _audit(root: Path) -> tuple[int, list[Finding]]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Advisory: a CONVERGED plan proves its rule reading.")
+    parser = argparse.ArgumentParser(
+        description="Advisory: a CONVERGED plan proves its rule reading."
+    )
     parser.add_argument("--root", default=".", help="repo root to audit (default: cwd)")
     # parse_KNOWN_args INSIDE the guard: argparse's SystemExit derives from BaseException — the
     # sibling checks' proven frame (a warn_only check may never exit non-zero).
@@ -266,7 +268,9 @@ def main(argv: list[str] | None = None) -> int:
         budget -= len(line) + 1
         emitted += 1
     if emitted < len(findings):
-        _say(f"  ... {len(findings) - emitted} more finding(s) suppressed by the advisory budget - they surface a few per run as earlier ones are fixed")
+        _say(
+            f"  ... {len(findings) - emitted} more finding(s) suppressed by the advisory budget - they surface a few per run as earlier ones are fixed"
+        )
     _say(f"  -> {REMEDY}")
     return 0
 

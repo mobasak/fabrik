@@ -46,11 +46,15 @@ def test_the_prune_spares_a_flock_held_lock_but_still_prunes_litter(tmp_path):
     _old(litter)
     fd = os.open(held, os.O_RDWR)
     try:
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)  # the watcher's shape: exec 9>lock; flock -n 9
+        fcntl.flock(
+            fd, fcntl.LOCK_EX | fcntl.LOCK_NB
+        )  # the watcher's shape: exec 9>lock; flock -n 9
         mod.acquire_lock("prune-probe")
     finally:
         os.close(fd)
-    assert held.exists(), "a flock-held lock file older than 2h was pruned — the orphaned-watch class"
+    assert held.exists(), (
+        "a flock-held lock file older than 2h was pruned — the orphaned-watch class"
+    )
     assert not litter.exists(), "an unheld stale file must still be pruned"
 
 

@@ -450,6 +450,10 @@
     "status": "active",
     "match": [
       "R2_"
+    ],
+    "hosts": [
+      "066f5cf1dfe20ba18549a592809aa080.r2.cloudflarestorage.com",
+      "your-account.r2.cloudflarestorage.com"
     ]
   },
   "aws": {
@@ -1286,6 +1290,80 @@
     "match": []
   },
   "client": {
+    "category": "unidentified",
+    "cost": "?",
+    "capability": "web could not classify; add a real entry or remove the key",
+    "url": "?",
+    "status": "unidentified",
+    "match": []
+  },
+  "clinicaltrials": {
+    "category": "research-data",
+    "cost": "free",
+    "capability": "registry of clinical studies worldwide",
+    "url": "https://clinicaltrials.gov",
+    "status": "active",
+    "match": []
+  },
+  "clinicaltrialsregister": {
+    "category": "research-data",
+    "cost": "free",
+    "capability": "EU public registry of interventional clinical trials",
+    "url": "https://www.clinicaltrialsregister.eu/",
+    "status": "active",
+    "match": []
+  },
+  "cnki": {
+    "category": "research-data",
+    "cost": "paid",
+    "capability": "Chinese academic literature search, retrieval & download platform",
+    "url": "https://oversea.cnki.net",
+    "status": "active",
+    "match": []
+  },
+  "cornell": {
+    "category": "research-data",
+    "cost": "free",
+    "capability": "Free US legal research: constitution, statutes, regulations & case law",
+    "url": "https://www.law.cornell.edu",
+    "status": "active",
+    "match": []
+  },
+  "concawe": {
+    "category": "unidentified",
+    "cost": "?",
+    "capability": "web could not classify; add a real entry or remove the key",
+    "url": "?",
+    "status": "unidentified",
+    "match": []
+  },
+  "consumer": {
+    "category": "unidentified",
+    "cost": "?",
+    "capability": "web could not classify; add a real entry or remove the key",
+    "url": "?",
+    "status": "unidentified",
+    "match": [
+      "CONSUMER"
+    ]
+  },
+  "containerownersassociation": {
+    "category": "unidentified",
+    "cost": "?",
+    "capability": "web could not classify; add a real entry or remove the key",
+    "url": "?",
+    "status": "unidentified",
+    "match": []
+  },
+  "continentalcarbon": {
+    "category": "unidentified",
+    "cost": "?",
+    "capability": "web could not classify; add a real entry or remove the key",
+    "url": "?",
+    "status": "unidentified",
+    "match": []
+  },
+  "cottontech": {
     "category": "unidentified",
     "cost": "?",
     "capability": "web could not classify; add a real entry or remove the key",

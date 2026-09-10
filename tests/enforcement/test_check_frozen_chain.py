@@ -215,6 +215,7 @@ def test_body_prose_warn_names_the_line_number(tmp_path):
     assert any("ui-design.md:8" in f for f in body), body
     # …and the line numbers must be DIFFERENT — one shared number would defeat the point.
     import re as _re
+
     nums = {_re.search(r"ui-design\.md:(\d+)", f).group(1) for f in body}
     assert len(nums) == 2, nums
 

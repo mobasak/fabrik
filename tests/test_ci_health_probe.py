@@ -32,9 +32,13 @@ def test_zero_step_failure_is_never_started_not_a_test_failure():
 
 
 def test_real_failure_with_steps_is_a_test_failure():
-    job = {"conclusion": "failure",
-           "steps": [{"name": "ruff", "conclusion": "failure"},
-                     {"name": "checkout", "conclusion": "success"}]}
+    job = {
+        "conclusion": "failure",
+        "steps": [
+            {"name": "ruff", "conclusion": "failure"},
+            {"name": "checkout", "conclusion": "success"},
+        ],
+    }
     assert cp.classify_run(job) == "test-failure"
 
 
@@ -52,11 +56,19 @@ def _quota(monkeypatch, plan: str, minutes: float, month="2026-08"):
         if "/user" in cmd and "--jq" in cmd:
             return 0, f"tester {plan}\n"
         if "settings/billing/usage" in " ".join(cmd):
-            return 0, _json.dumps({"usageItems": [
-                {"date": f"{month}-01T00:00:00Z", "sku": "Actions Linux", "quantity": minutes},
-                {"date": f"{month}-01T00:00:00Z", "sku": "Actions storage", "quantity": 99},
-                {"date": "2026-01-01T00:00:00Z", "sku": "Actions Linux", "quantity": 5000},
-            ]})
+            return 0, _json.dumps(
+                {
+                    "usageItems": [
+                        {
+                            "date": f"{month}-01T00:00:00Z",
+                            "sku": "Actions Linux",
+                            "quantity": minutes,
+                        },
+                        {"date": f"{month}-01T00:00:00Z", "sku": "Actions storage", "quantity": 99},
+                        {"date": "2026-01-01T00:00:00Z", "sku": "Actions Linux", "quantity": 5000},
+                    ]
+                }
+            )
         return 1, ""
 
     monkeypatch.setattr(cp, "sh", fake_sh)
@@ -88,7 +100,7 @@ def test_quota_counts_only_this_month_and_only_actions_minutes(monkeypatch):
 
 
 def test_free_plan_allowance_is_2000(monkeypatch):
-    q = _quota(monkeypatch, "free", 2074)   # the real July figure that caused the outage
+    q = _quota(monkeypatch, "free", 2074)  # the real July figure that caused the outage
     assert q["included"] == 2000 and q["pct"] > 100
 
 
@@ -112,14 +124,24 @@ def test_one_alert_for_many_blocked_repos(tmp_path, monkeypatch, capsys):
     for name in ("alpha", "beta", "gamma"):
         (tmp_path / "opt" / name / ".git").mkdir(parents=True)
     monkeypatch.setattr(cp, "repo_slug", lambda d: f"acme/{d.name}")
-    monkeypatch.setattr(cp, "probe_repo", lambda slug: {
-        "repo": slug, "run_id": 1, "workflow": "CI", "verdict": "never-started",
-        "created": "2026-08-14T20:20:19Z",
-        "reason": "The job was not started because recent account payments have failed"})
+    monkeypatch.setattr(
+        cp,
+        "probe_repo",
+        lambda slug: {
+            "repo": slug,
+            "run_id": 1,
+            "workflow": "CI",
+            "verdict": "never-started",
+            "created": "2026-08-14T20:20:19Z",
+            "reason": "The job was not started because recent account payments have failed",
+        },
+    )
     assert cp.main([]) == 0
     assert len(sent) == 1, f"a fleet stop is ONE message, got {len(sent)}"
     assert "3 repo(s)" in sent[0][1] and "alpha" in sent[0][1] and "gamma" in sent[0][1]
-    assert "2026-08-14" in sent[0][1], "the alert must date the run — a stale block reads as live otherwise"
+    assert "2026-08-14" in sent[0][1], (
+        "the alert must date the run — a stale block reads as live otherwise"
+    )
 
 
 def test_suppression_blocks_the_second_tick(tmp_path, monkeypatch):
@@ -165,19 +187,36 @@ def test_public_repo_minutes_are_not_counted(monkeypatch):
         if "/user" in cmd and "--jq" in cmd:
             return 0, "tester pro\n"
         if "settings/billing/usage" in joined:
-            return 0, _json.dumps({"usageItems": [
-                {"date": "2026-08-01T00:00:00Z", "sku": "Actions Linux", "quantity": 2559,
-                 "repositoryName": "fabrik"},
-                {"date": "2026-08-01T00:00:00Z", "sku": "Actions Linux", "quantity": 40,
-                 "repositoryName": "tryton-crm"},
-                {"date": "2026-08-01T00:00:00Z", "sku": "Actions Linux", "quantity": 7,
-                 "repositoryName": "mystery"},
-            ]})
+            return 0, _json.dumps(
+                {
+                    "usageItems": [
+                        {
+                            "date": "2026-08-01T00:00:00Z",
+                            "sku": "Actions Linux",
+                            "quantity": 2559,
+                            "repositoryName": "fabrik",
+                        },
+                        {
+                            "date": "2026-08-01T00:00:00Z",
+                            "sku": "Actions Linux",
+                            "quantity": 40,
+                            "repositoryName": "tryton-crm",
+                        },
+                        {
+                            "date": "2026-08-01T00:00:00Z",
+                            "sku": "Actions Linux",
+                            "quantity": 7,
+                            "repositoryName": "mystery",
+                        },
+                    ]
+                }
+            )
         return 1, ""
 
     monkeypatch.setattr(cp, "sh", fake_sh)
     monkeypatch.setattr(cp, "datetime", _FrozenNow("2026-08"))
-    monkeypatch.setattr(cp, "_repo_is_private", lambda owner, repo: {
-        "fabrik": False, "tryton-crm": True}.get(repo))  # mystery -> None (unknown)
+    monkeypatch.setattr(
+        cp, "_repo_is_private", lambda owner, repo: {"fabrik": False, "tryton-crm": True}.get(repo)
+    )  # mystery -> None (unknown)
     q = cp.actions_quota()
     assert q["used"] == 47, "public fabrik excluded; private + unknown counted (fail-loud)"

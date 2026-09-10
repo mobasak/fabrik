@@ -28,27 +28,35 @@ def test_classification_and_allowlist(tmp_path, capsys, monkeypatch):
     """identical / declared-design / UNREVIEWED / local-only, with the repo-owned allowlist
     splitting design from debt; sync-managed repos (synced.lock) and the hub are skipped."""
     hub = tmp_path / "fabrik"
-    _tree(hub, {
-        "scripts/enforcement/check_a.py": "A\n",
-        "scripts/enforcement/check_b.py": "B\n",
-        "scripts/final_gate.py": "G\n",
-        "scripts/select_rules.py": "S\n",
-        "scripts/review_rubric.py": "R\n",
-    })
+    _tree(
+        hub,
+        {
+            "scripts/enforcement/check_a.py": "A\n",
+            "scripts/enforcement/check_b.py": "B\n",
+            "scripts/final_gate.py": "G\n",
+            "scripts/select_rules.py": "S\n",
+            "scripts/review_rubric.py": "R\n",
+        },
+    )
     vendor = tmp_path / "vendorer"
-    _tree(vendor, {
-        "scripts/enforcement/check_a.py": "A\n",            # identical
-        "scripts/enforcement/check_b.py": "B-local\n",       # differs → allowlisted = design
-        "scripts/final_gate.py": "G-old\n",                  # differs → UNREVIEWED
-        "scripts/enforcement/check_mine.py": "M\n",          # local-only
-        ".fabrik/vendored-divergence-allowlist":
-            "# deliberate strip\nscripts/enforcement/check_b.py\n",
-    })
+    _tree(
+        vendor,
+        {
+            "scripts/enforcement/check_a.py": "A\n",  # identical
+            "scripts/enforcement/check_b.py": "B-local\n",  # differs → allowlisted = design
+            "scripts/final_gate.py": "G-old\n",  # differs → UNREVIEWED
+            "scripts/enforcement/check_mine.py": "M\n",  # local-only
+            ".fabrik/vendored-divergence-allowlist": "# deliberate strip\nscripts/enforcement/check_b.py\n",
+        },
+    )
     managed = tmp_path / "managed"
-    _tree(managed, {
-        "scripts/enforcement/check_a.py": "STALE\n",
-        ".fabrik/synced.lock": "{}",
-    })
+    _tree(
+        managed,
+        {
+            "scripts/enforcement/check_a.py": "STALE\n",
+            ".fabrik/synced.lock": "{}",
+        },
+    )
     monkeypatch.setattr(cvd, "HUB", hub)
     monkeypatch.setattr(cvd, "OPT", tmp_path)
     monkeypatch.chdir(hub)
@@ -63,13 +71,23 @@ def test_classification_and_allowlist(tmp_path, capsys, monkeypatch):
 
 def test_quiet_when_everything_is_declared(tmp_path, capsys, monkeypatch):
     hub = tmp_path / "fabrik"
-    _tree(hub, {"scripts/enforcement/check_a.py": "A\n", "scripts/final_gate.py": "G\n",
-                "scripts/select_rules.py": "S\n", "scripts/review_rubric.py": "R\n"})
+    _tree(
+        hub,
+        {
+            "scripts/enforcement/check_a.py": "A\n",
+            "scripts/final_gate.py": "G\n",
+            "scripts/select_rules.py": "S\n",
+            "scripts/review_rubric.py": "R\n",
+        },
+    )
     vendor = tmp_path / "v2"
-    _tree(vendor, {
-        "scripts/enforcement/check_a.py": "A-strip\n",
-        ".fabrik/vendored-divergence-allowlist": "scripts/enforcement/check_a.py\n",
-    })
+    _tree(
+        vendor,
+        {
+            "scripts/enforcement/check_a.py": "A-strip\n",
+            ".fabrik/vendored-divergence-allowlist": "scripts/enforcement/check_a.py\n",
+        },
+    )
     monkeypatch.setattr(cvd, "HUB", hub)
     monkeypatch.setattr(cvd, "OPT", tmp_path)
     monkeypatch.chdir(hub)
@@ -79,8 +97,9 @@ def test_quiet_when_everything_is_declared(tmp_path, capsys, monkeypatch):
 
 
 def test_real_script_runs_clean_at_repo_root():
-    r = subprocess.run([sys.executable, str(CHECK)], capture_output=True, text=True,
-                       timeout=30, cwd="/opt/fabrik")
+    r = subprocess.run(
+        [sys.executable, str(CHECK)], capture_output=True, text=True, timeout=30, cwd="/opt/fabrik"
+    )
     assert r.returncode == 0, r.stderr
     assert r.stdout.strip(), "at the hub the report always says something"
 
@@ -95,15 +114,21 @@ def test_real_script_runs_clean_at_repo_root():
 
 def test_stale_rules_pack_is_reported(tmp_path, capsys, monkeypatch):
     hub = tmp_path / "fabrik"
-    _tree(hub, {
-        "scripts/enforcement/check_a.py": "A\n",
-        ".windsurf/rules/core/25-data-postgres.md": "MANDATE v2\n",
-    })
+    _tree(
+        hub,
+        {
+            "scripts/enforcement/check_a.py": "A\n",
+            ".windsurf/rules/core/25-data-postgres.md": "MANDATE v2\n",
+        },
+    )
     vendor = tmp_path / "vendorer"
-    _tree(vendor, {
-        "scripts/enforcement/check_a.py": "A\n",                       # identical
-        ".windsurf/rules/core/25-data-postgres.md": "MANDATE v1\n",     # STALE → must be reported
-    })
+    _tree(
+        vendor,
+        {
+            "scripts/enforcement/check_a.py": "A\n",  # identical
+            ".windsurf/rules/core/25-data-postgres.md": "MANDATE v1\n",  # STALE → must be reported
+        },
+    )
     monkeypatch.setattr(cvd, "HUB", hub)
     monkeypatch.setattr(cvd, "OPT", tmp_path)
     monkeypatch.chdir(hub)
@@ -117,11 +142,14 @@ def test_allowlist_covers_a_rules_pack_too(tmp_path, capsys, monkeypatch):
     hub = tmp_path / "fabrik"
     _tree(hub, {"scripts/enforcement/check_a.py": "A\n", ".windsurf/rules/x.md": "HUB\n"})
     vendor = tmp_path / "vendorer"
-    _tree(vendor, {
-        "scripts/enforcement/check_a.py": "A\n",
-        ".windsurf/rules/x.md": "LOCAL\n",
-        ".fabrik/vendored-divergence-allowlist": "# deliberate\n.windsurf/rules/x.md\n",
-    })
+    _tree(
+        vendor,
+        {
+            "scripts/enforcement/check_a.py": "A\n",
+            ".windsurf/rules/x.md": "LOCAL\n",
+            ".fabrik/vendored-divergence-allowlist": "# deliberate\n.windsurf/rules/x.md\n",
+        },
+    )
     monkeypatch.setattr(cvd, "HUB", hub)
     monkeypatch.setattr(cvd, "OPT", tmp_path)
     monkeypatch.chdir(hub)

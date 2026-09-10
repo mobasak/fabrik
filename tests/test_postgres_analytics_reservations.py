@@ -107,7 +107,9 @@ def test_cost_ledger_stays_append_only_when_the_role_is_granted(run):
     ledger_lines = [ln for ln in decoded.splitlines() if "cost_ledger" in ln and "GRANT" in ln]
     assert ledger_lines, "no GRANT on cost_ledger found"
     for ln in ledger_lines:
-        assert "UPDATE" not in ln.upper(), f"cost_ledger granted UPDATE — history becomes rewritable: {ln}"
+        assert "UPDATE" not in ln.upper(), (
+            f"cost_ledger granted UPDATE — history becomes rewritable: {ln}"
+        )
         assert "DELETE" not in ln.upper(), f"cost_ledger granted DELETE: {ln}"
 
 
@@ -131,17 +133,16 @@ def test_no_reservation_grant_when_the_lane_was_not_applied(run, tmp_path):
     """Granting on a table the run just failed to create would error the whole GRANT batch."""
     import base64
 
-    _, calls = run(
-        grant_to_role=ROLE, reservations_schema_path=str(tmp_path / "missing.sql")
-    )
+    _, calls = run(grant_to_role=ROLE, reservations_schema_path=str(tmp_path / "missing.sql"))
     decoded = "\n".join(
         base64.b64decode(c.split("echo ")[1].split(" |")[0]).decode(errors="replace")
         for c in calls
         if "echo " in c and "base64 -d" in c
     )
-    assert "cost_reservations" not in decoded or "GRANT" not in decoded.split("cost_reservations")[0][-80:], (
-        "granted on cost_reservations although the DDL was skipped — the batch would fail"
-    )
+    assert (
+        "cost_reservations" not in decoded
+        or "GRANT" not in decoded.split("cost_reservations")[0][-80:]
+    ), "granted on cost_reservations although the DDL was skipped — the batch would fail"
 
 
 def test_dry_run_touches_nothing(run):

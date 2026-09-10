@@ -39,14 +39,21 @@ SCRIPT = Path(os.environ.get("VPS_LIMITS_SCRIPT", REPO / "scripts" / "vps_apply_
 # name -> (container id, HostConfig.Memory in bytes)
 MIB = 1024 * 1024
 LIVE_TODAY = {
-    "cadvisor": 0, "loki": 0, "promtail": 0, "grafana": 0, "traefik": 0,
-    "alertmanager": 0, "postgres-exporter": 0, "node-exporter": 0,
-    "redis-exporter": 0, "redis-main": 0,
-    "prometheus": 1536 * MIB,          # the container the old script would have shrunk
+    "cadvisor": 0,
+    "loki": 0,
+    "promtail": 0,
+    "grafana": 0,
+    "traefik": 0,
+    "alertmanager": 0,
+    "postgres-exporter": 0,
+    "node-exporter": 0,
+    "redis-exporter": 0,
+    "redis-main": 0,
+    "prometheus": 1536 * MIB,  # the container the old script would have shrunk
     "postgres-main": 2048 * MIB,
 }
 
-FAKE_DOCKER = r'''#!/usr/bin/env python3
+FAKE_DOCKER = r"""#!/usr/bin/env python3
 import os, sys
 STATE = os.environ["FAKE_DOCKER_STATE"]
 CALLS = os.environ["FAKE_DOCKER_CALLS"]
@@ -121,7 +128,7 @@ if a[0] == "update":
     sys.exit(0)
 
 sys.exit(0)
-'''
+"""
 
 
 @pytest.fixture
@@ -158,15 +165,12 @@ def env(tmp_path):
 
     def limits():
         return {
-            ln.split()[0]: int(ln.split()[2])
-            for ln in state.read_text().splitlines() if ln.strip()
+            ln.split()[0]: int(ln.split()[2]) for ln in state.read_text().splitlines() if ln.strip()
         }
 
     ns = type("Env", (), {})()
     ns.run, ns.limits, ns.write_state = run, limits, write_state
-    ns.updates = lambda: [
-        ln for ln in calls.read_text().splitlines() if ln.startswith("update")
-    ]
+    ns.updates = lambda: [ln for ln in calls.read_text().splitlines() if ln.startswith("update")]
     return ns
 
 
@@ -187,8 +191,12 @@ def test_apply_sets_every_unbounded_container(env):
 
     assert r.returncode == 0, r.stderr
     got = env.limits()
-    assert got["redis-main"] == 640 * MIB, "redis-main FORKS on BGSAVE/AOF — 640M is the COW ceiling"
-    assert got["promtail"] == 256 * MIB, "promtail is page-cache heavy; 128m is below its working set"
+    assert got["redis-main"] == 640 * MIB, (
+        "redis-main FORKS on BGSAVE/AOF — 640M is the COW ceiling"
+    )
+    assert got["promtail"] == 256 * MIB, (
+        "promtail is page-cache heavy; 128m is below its working set"
+    )
     assert got["traefik"] == 256 * MIB
     assert got["cadvisor"] == 512 * MIB
     assert "0 of 12 containers unbounded" in r.stdout
@@ -203,7 +211,9 @@ def test_it_never_lowers_an_existing_ceiling(env):
 
     assert env.limits()["loki"] == 1024 * MIB, "an existing higher ceiling was LOWERED"
     assert env.limits()["prometheus"] == 1536 * MIB, "an unmanaged container was touched"
-    assert not any("loki" in u for u in env.updates()), "issued a needless call on a compliant container"
+    assert not any("loki" in u for u in env.updates()), (
+        "issued a needless call on a compliant container"
+    )
     assert "OK" in r.stdout and "already ≥ target" in r.stdout
 
 
@@ -271,7 +281,7 @@ def test_the_recurrence_check_is_wired_into_the_fleet_health_sweep():
     # Without this branch the check reports GREEN on a host whose Docker is gone, and its silence
     # is supposed to carry information.
     assert "docker_daemon_unreachable" in sweep, "a dead docker daemon would report green"
-    assert 'if ! _ids=$(sudo docker ps -aq' in sweep, "the daemon failure is not detected at all"
+    assert "if ! _ids=$(sudo docker ps -aq" in sweep, "the daemon failure is not detected at all"
     assert "docker ps -aq" in sweep, "the sweep reads only running containers"
     # It must land in ANOMALIES, which is what actually reaches the operator.
     assert 'ANOMALIES+="container_no_memory_limit' in sweep
@@ -286,8 +296,13 @@ def _spec_ceilings() -> dict[str, int]:
     mutation during the review that added this. A test that cannot fail is worse than no test,
     because it is counted as coverage.
     """
-    spec = (REPO / "docs" / "superpowers" / "specs"
-            / "2026-09-04-vps1-container-memory-limits-design.md").read_text()
+    spec = (
+        REPO
+        / "docs"
+        / "superpowers"
+        / "specs"
+        / "2026-09-04-vps1-container-memory-limits-design.md"
+    ).read_text()
     rows = re.findall(r"^\|\s*`([a-z0-9-]+)`\s*\|[^|]*\|\s*(\d+)M\s*\|", spec, re.M)
     return {name: int(mib) for name, mib in rows}
 
@@ -322,7 +337,9 @@ def test_the_ceilings_match_the_converged_spec():
     assert not mismatched, f"script vs spec ceiling disagreement (script, spec): {mismatched}"
 
     # The ten the spec actually decided must all be carried, or the applier silently under-covers.
-    assert len(script) == 10, f"expected the spec's ten ceilings, parsed {len(script)}: {sorted(script)}"
+    assert len(script) == 10, (
+        f"expected the spec's ten ceilings, parsed {len(script)}: {sorted(script)}"
+    )
 
 
 def test_an_unreadable_limit_is_skipped_rather_than_overwritten(env):
@@ -381,8 +398,14 @@ def test_the_compose_files_declare_the_same_ceilings_the_applier_asserts():
         "infra/vps1/traefik/compose.yaml": ["traefik"],
         "infra/vps1/redis/compose.yaml": ["redis-main"],
         "infra/vps1/monitoring/compose.yaml": [
-            "loki", "promtail", "alertmanager", "node-exporter",
-            "cadvisor", "grafana", "postgres-exporter", "redis-exporter",
+            "loki",
+            "promtail",
+            "alertmanager",
+            "node-exporter",
+            "cadvisor",
+            "grafana",
+            "postgres-exporter",
+            "redis-exporter",
         ],
     }
     expected = _script_ceilings()

@@ -17,4 +17,5 @@ means no real source supports that metric — the reason is in the hand-off mail
 | 2026-08-12 | — | — | — | — | — | (baseline row — first real pass fills metrics) | — |
 | 2026-08-22 | 50% (1/2) | — | — | — | — | — | — |
 | 2026-08-30 | 100% (1/1) | — | — | 9.7 (n=21) | — | — | 18 filed / 9 none / 17 unstated |
-| 2026-08-31 | — | — | — | 12.2 (n=8) | — | — | 62 filed / 33 none / 0 unstated |
+| 2026-09-06 | — | 0 occ / 0 cls | — | 20.8 (n=23) | — | — | 62 filed / 33 none / 0 unstated |
+| 2026-09-08 | — | 0 occ / 0 cls | — | 9.7 (n=38) | — | — | 327 filed / 2059 none / 0 unstated |

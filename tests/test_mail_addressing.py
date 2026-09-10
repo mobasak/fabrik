@@ -49,7 +49,9 @@ def test_unaddressed_hub_send_is_refused_and_writes_nothing(env):
 
 def test_each_beat_and_broadcast_pass(env):
     for beat in ("infra", "fleet", "intel"):
-        assert mail.send(to="fabrik", kind="finding", body=beat, frm="alpha", to_agent=beat).is_file()
+        assert mail.send(
+            to="fabrik", kind="finding", body=beat, frm="alpha", to_agent=beat
+        ).is_file()
     assert mail.send(to="fabrik", kind="finding", body="all", frm="alpha", broadcast=True).is_file()
 
 
@@ -60,7 +62,9 @@ def test_typoed_beat_is_refused_on_hub_sends(env):
 
 def test_broadcast_with_ack_required_is_a_refused_contradiction(env):
     with pytest.raises(mail.MailRefusedError, match="contradiction"):
-        mail.send(to="fabrik", kind="finding", body="x", frm="alpha", broadcast=True, ack="required")
+        mail.send(
+            to="fabrik", kind="finding", body="x", frm="alpha", broadcast=True, ack="required"
+        )
     # the EFFECTIVE ack counts: kind=request defaults to ack:required
     with pytest.raises(mail.MailRefusedError, match="contradiction"):
         mail.send(to="fabrik", kind="request", body="x", frm="alpha", broadcast=True)
@@ -93,7 +97,9 @@ def test_reply_with_resolvable_parent_is_exempt(env):
 def test_prose_re_reply_is_exempt_preserving_the_auto_fail_soft(env):
     """The exemption keys on KIND, never resolvability — a prose/legacy --re reply is the
     sanctioned --auto fail-soft path and must not be re-refused as an addressing problem."""
-    assert mail.send(to="fabrik", kind="reply", body="a", frm="alpha", re="prose ref, no parent").is_file()
+    assert mail.send(
+        to="fabrik", kind="reply", body="a", frm="alpha", re="prose ref, no parent"
+    ).is_file()
 
 
 def test_non_reply_kinds_cannot_bypass_via_a_forged_re(env):
@@ -133,7 +139,9 @@ def test_secret_refusal_outranks_the_addressing_guard(env):
     # E1: an unaddressed hub send CARRYING a secret is diagnosed as a LEAK first
     with pytest.raises(mail.MailRefusedError, match="secret"):
         mail.send(
-            to="fabrik", kind="finding", frm="alpha",
+            to="fabrik",
+            kind="finding",
+            frm="alpha",
             body="postgres://user:hunter2secret@db:5432/x",
         )
 
@@ -168,8 +176,18 @@ def test_hold_still_exits_3_not_2(env, capsys, monkeypatch):
     parent = mail.send(to="fabrik", kind="finding", body="p", frm="alpha", to_agent="infra")
     monkeypatch.setattr("sys.stdin", __import__("io").StringIO("body"))
     rc = mail.main(
-        ["send", "--to", "fabrik", "--kind", "reply", "--from", "fabrik",
-         "--re", parent.stem, "--auto"]
+        [
+            "send",
+            "--to",
+            "fabrik",
+            "--kind",
+            "reply",
+            "--from",
+            "fabrik",
+            "--re",
+            parent.stem,
+            "--auto",
+        ]
     )
     assert rc == 3, capsys.readouterr().err
 
@@ -219,7 +237,9 @@ def test_kaizen_sends_one_addressed_obligation_per_beat():
     src = _KAIZEN.read_text(encoding="utf-8")
     m = _re.search(r'for beat in \("infra", "fleet"\):.*?"send",.*?\]', src, _re.S)
     assert m, "kaizen per-beat addressed send loop not found"
-    argv = " ".join(m.group(0).split())  # formatting-insensitive: the source is ruff-formatted one arg per line
+    argv = " ".join(
+        m.group(0).split()
+    )  # formatting-insensitive: the source is ruff-formatted one arg per line
     assert '"--to-agent", beat' in argv, argv
     assert '"--broadcast"' not in argv and '"--ack"' not in argv, (
         "the obligation must keep kind-default ack:required and never broadcast: " + argv
@@ -233,7 +253,15 @@ def test_a_lane_may_mail_its_own_repo(monkeypatch, env):
     the same-repo handoff the constitution advertises."""
     monkeypatch.setattr(mail, "_current_repo", lambda: "web-ecommerce-factory")
     monkeypatch.setattr(mail, "_valid_recipient", lambda to: True)
-    p = mail.send("web-ecommerce-factory", "finding", "WHAT: a\nWHERE: b\nWHEN: c\nWHO: d\nWHY: e\nHOW: f\nSYSTEMIC: g\n", ack="no", frm="wef1")
+    p = mail.send(
+        "web-ecommerce-factory",
+        "finding",
+        "WHAT: a\nWHERE: b\nWHEN: c\nWHO: d\nWHY: e\nHOW: f\nSYSTEMIC: g\n",
+        ack="no",
+        frm="wef1",
+    )
     assert p.parent.name == "inbox" and "web-ecommerce-factory" in str(p)
-    with pytest.raises(mail.MailRefusedError):  # a lane in one project still cannot mail ANOTHER project
+    with pytest.raises(
+        mail.MailRefusedError
+    ):  # a lane in one project still cannot mail ANOTHER project
         mail.send("youtube", "finding", "x", ack="no", frm="wef1")

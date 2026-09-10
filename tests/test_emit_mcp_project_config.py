@@ -22,9 +22,22 @@ sys.modules["emit_mcp_project_config"] = emitter
 _spec.loader.exec_module(_spec and emitter)
 
 ALL_SERVERS = [
-    "session-recall", "exa", "brave-search", "firecrawl", "postgres-pro", "serena",
-    "playwright", "chrome-devtools", "shadcn", "magicui", "maestro", "mobile-mcp",
-    "pubchem", "media-engine", "fabrik-citation-verifier", "grafana",
+    "session-recall",
+    "exa",
+    "brave-search",
+    "firecrawl",
+    "postgres-pro",
+    "serena",
+    "playwright",
+    "chrome-devtools",
+    "shadcn",
+    "magicui",
+    "maestro",
+    "mobile-mcp",
+    "pubchem",
+    "media-engine",
+    "fabrik-citation-verifier",
+    "grafana",
 ]
 UNIVERSAL6 = {"session-recall", "exa", "brave-search", "firecrawl", "postgres-pro", "serena"}
 U5_NO_DB = UNIVERSAL6 - {"postgres-pro"}  # absent-until-configured (no connecting DATABASE_URL)
@@ -65,8 +78,9 @@ def servers_of(repo: Path) -> set[str]:
 
 def test_headless_gets_exactly_universal_6(tmp_path, defs_file, monkeypatch):
     monkeypatch.setattr(emitter, "_uri_connects", lambda uri: True)
-    r = make_repo(tmp_path, "some-api", "python-api",
-                  env="DATABASE_URL=postgresql://u:p@localhost:5432/x\n")
+    r = make_repo(
+        tmp_path, "some-api", "python-api", env="DATABASE_URL=postgresql://u:p@localhost:5432/x\n"
+    )
     run(tmp_path, defs_file)
     assert servers_of(r) == UNIVERSAL6
 
@@ -98,8 +112,12 @@ def test_postgres_pro_env_only_when_uri_connects(tmp_path, defs_file, monkeypatc
     v1.29 blocks its MCP handshake ~30s on ANY non-connecting URI (DNS and auth alike,
     both measured 2026-08-30), which reads as a dead server in Claude's 30s timeout."""
     monkeypatch.setattr(emitter, "_uri_connects", lambda uri: True)
-    r = make_repo(tmp_path, "db-api", "python-api",
-                  env="DATABASE_URL=postgresql://u:p@localhost:5432/db_api\n")
+    r = make_repo(
+        tmp_path,
+        "db-api",
+        "python-api",
+        env="DATABASE_URL=postgresql://u:p@localhost:5432/db_api\n",
+    )
     run(tmp_path, defs_file)
     entry = json.loads((r / ".mcp.json").read_text())["mcpServers"]["postgres-pro"]
     assert entry["env"]["DATABASE_URI"] == "postgresql://u:p@localhost:5432/db_api"
@@ -107,8 +125,12 @@ def test_postgres_pro_env_only_when_uri_connects(tmp_path, defs_file, monkeypatc
 
 def test_postgres_pro_env_omitted_when_uri_refused(tmp_path, defs_file):
     """REAL probe, deterministic refusal: a closed local port refuses instantly."""
-    r = make_repo(tmp_path, "dead-db-api", "python-api",
-                  env="DATABASE_URL=postgresql://u:p@localhost:59999/nope\n")
+    r = make_repo(
+        tmp_path,
+        "dead-db-api",
+        "python-api",
+        env="DATABASE_URL=postgresql://u:p@localhost:59999/nope\n",
+    )
     run(tmp_path, defs_file)
     assert "postgres-pro" not in servers_of(r)
 
@@ -197,15 +219,21 @@ def test_postgres_pro_container_host_rewritten_to_localhost(tmp_path, defs_file)
     — past Claude's 30s handshake timeout. .mcp.json is consumed ONLY by WSL
     windows, where the env-layer host mapping is localhost (CLAUDE.md two-envs law)."""
     seen = {}
-    r = make_repo(tmp_path, "vps-env-api", "python-api",
-                  env="DATABASE_URL=postgresql://u:p@postgres-main:5432/appdb\n")
+    r = make_repo(
+        tmp_path,
+        "vps-env-api",
+        "python-api",
+        env="DATABASE_URL=postgresql://u:p@postgres-main:5432/appdb\n",
+    )
     real = emitter._uri_connects
     emitter._uri_connects = lambda uri: seen.setdefault("uri", uri) and True
     try:
         run(tmp_path, defs_file)
     finally:
         emitter._uri_connects = real
-    assert seen["uri"] == "postgresql://u:p@localhost:5432/appdb", "probe must see the LOCALHOST form"
+    assert seen["uri"] == "postgresql://u:p@localhost:5432/appdb", (
+        "probe must see the LOCALHOST form"
+    )
     entry = json.loads((r / ".mcp.json").read_text())["mcpServers"]["postgres-pro"]
     assert entry["env"]["DATABASE_URI"] == "postgresql://u:p@localhost:5432/appdb"
 
@@ -226,8 +254,12 @@ def test_sqlalchemy_driver_suffix_normalized(tmp_path, defs_file, monkeypatch):
     choke postgres-mcp itself — normalize the scheme for both probe and emission."""
     seen = {}
     monkeypatch.setattr(emitter, "_uri_connects", lambda uri: seen.setdefault("uri", uri) and True)
-    r = make_repo(tmp_path, "async-api", "python-api",
-                  env="DATABASE_URL=postgresql+asyncpg://u:p@localhost:5432/adb\n")
+    r = make_repo(
+        tmp_path,
+        "async-api",
+        "python-api",
+        env="DATABASE_URL=postgresql+asyncpg://u:p@localhost:5432/adb\n",
+    )
     run(tmp_path, defs_file)
     assert seen["uri"] == "postgresql://u:p@localhost:5432/adb"
     entry = json.loads((r / ".mcp.json").read_text())["mcpServers"]["postgres-pro"]
@@ -239,9 +271,19 @@ def test_catalog_placeholders_overlaid_from_later_sources(tmp_path):
     placeholders only; _load_defs overlays real values from the LATER chain sources
     (here: the live gitignored hub .mcp.json, which carries grafana's real env)."""
     cat = tmp_path / "cat.json"
-    cat.write_text(json.dumps({"mcpServers": {
-        "grafana": {"command": "docker", "args": [],
-                    "env": {"GRAFANA_URL": "${GRAFANA_URL}"}}}}))
+    cat.write_text(
+        json.dumps(
+            {
+                "mcpServers": {
+                    "grafana": {
+                        "command": "docker",
+                        "args": [],
+                        "env": {"GRAFANA_URL": "${GRAFANA_URL}"},
+                    }
+                }
+            }
+        )
+    )
     defs = emitter._load_defs(str(cat))
     got = defs["grafana"]["env"]["GRAFANA_URL"]
     assert not got.startswith("${"), "placeholder must be overlaid from the gitignored chain"
@@ -250,6 +292,7 @@ def test_catalog_placeholders_overlaid_from_later_sources(tmp_path):
 def test_committed_catalog_carries_no_token_shapes():
     """The catalog is a COMMITTED file: placeholders only, never live credentials."""
     import re as _re
+
     txt = (Path(__file__).resolve().parent.parent / "scripts/sysadmin/mcp_defs.json").read_text()
     assert not _re.search(r"glsa_|sk-[A-Za-z0-9]{20}|fc-[A-Za-z0-9]{20}", txt)
     assert "${GRAFANA_SERVICE_ACCOUNT_TOKEN}" in txt

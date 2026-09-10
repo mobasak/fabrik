@@ -92,7 +92,10 @@ def _redactor():
     hub venv does not carry, and the redactor itself does not need it."""
     start = EMITTED.index("_SECRET_PATTERNS = [")
     end = EMITTED.index("def _setup_logging")
-    src = "import re\nfrom typing import Any\nfrom collections.abc import MutableMapping\n" + EMITTED[start:end]
+    src = (
+        "import re\nfrom typing import Any\nfrom collections.abc import MutableMapping\n"
+        + EMITTED[start:end]
+    )
     ns: dict = {}
     exec(compile(src, "redactor.py", "exec"), ns)  # noqa: S102
     return ns["_redact_sensitive"]
@@ -122,7 +125,13 @@ def test_message_level_secrets_are_redacted_by_execution():
     }
     out = redact(None, "info", dict(leaky))
     blob = repr(out)
-    for secret in ("sk-LIVE-SECRET", "abc123def456", "PAYLOAD.SIG", "sk-proj-ABCDEFGHIJKLMNOP", "hunter2"):
+    for secret in (
+        "sk-LIVE-SECRET",
+        "abc123def456",
+        "PAYLOAD.SIG",
+        "sk-proj-ABCDEFGHIJKLMNOP",
+        "hunter2",
+    ):
         assert secret not in blob, f"{secret} survived redaction"
 
 

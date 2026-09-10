@@ -62,7 +62,9 @@ def _precommit_ids(root: Path) -> list[str]:
     p = root / ".pre-commit-config.yaml"
     if not p.is_file():
         return []
-    return re.findall(r"^\s*-\s*id:\s*([\w-]+)", p.read_text(encoding="utf-8", errors="replace"), re.M)
+    return re.findall(
+        r"^\s*-\s*id:\s*([\w-]+)", p.read_text(encoding="utf-8", errors="replace"), re.M
+    )
 
 
 def main() -> int:
@@ -89,8 +91,13 @@ def main() -> int:
         required |= set(_settings_hooks(Path(home) / ".claude/settings.json"))
     required |= set(_precommit_ids(root)) - {
         # generic pre-commit-hooks ids ride the "standard safety" row, not names
-        "check-added-large-files", "check-merge-conflict", "detect-private-key",
-        "forbid-secrets", "check-yaml", "end-of-file-fixer", "trailing-whitespace",
+        "check-added-large-files",
+        "check-merge-conflict",
+        "detect-private-key",
+        "forbid-secrets",
+        "check-yaml",
+        "end-of-file-fixer",
+        "trailing-whitespace",
     }
 
     missing = sorted(n for n in required if n not in index)

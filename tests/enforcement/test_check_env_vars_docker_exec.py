@@ -20,7 +20,7 @@ def test_docker_exec_internal_localhost_is_sanctioned(tmp_path):
     literal — a multi-line Python string) redded the gate on every unrelated touch."""
     body = (
         "cmd = (\n"
-        "    \"sudo docker exec $CONT sh -c \"\n"
+        '    "sudo docker exec $CONT sh -c "\n'
         "    \"'curl -s http://localhost:7700/indexes' 2>/dev/null\"\n"
         ")\n"
     )

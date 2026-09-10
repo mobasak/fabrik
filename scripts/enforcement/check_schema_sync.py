@@ -208,7 +208,9 @@ def warn_if_data_contract_stale(staged_files: list[str]) -> None:
             f"{names}."
         )
         print("    A frozen contract that declares a dropped table sends the next agent to plan")
-        print("    against it — UndefinedTable at build time, from the artifact meant to prevent it.")
+        print(
+            "    against it — UndefinedTable at build time, from the artifact meant to prevent it."
+        )
         print("    Run /fabrik-data-contract to re-freeze (bump Version), then re-stage.")
         raise SystemExit(1)
     print(f"⚠️  WARN: schema changed but {DATA_CONTRACT_FILE} was not updated.")

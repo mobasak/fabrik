@@ -44,7 +44,9 @@ def test_the_governance_and_cost_steps_are_not_paused():
     for step in UNGATED:
         i = t.index(f'_step "{step}"')
         window = t[max(0, i - 400) : i]
-        assert "_pool_eval_paused" not in window, f"{step} must keep running while the pool is paused"
+        assert "_pool_eval_paused" not in window, (
+            f"{step} must keep running while the pool is paused"
+        )
 
 
 def test_deliver_and_rank_share_one_condition():
@@ -68,11 +70,20 @@ def test_the_guard_actually_pauses_and_the_seam_actually_re_enables():
     """Executed, not read: the predicate must return paused today, and FABRIK_POOL_POLICY=on must
     flip it — otherwise 'we can enable them' is a claim nobody tested."""
     t = _text()
-    body = t[t.index("_pool_eval_paused() {") : t.index("}\n", t.index("_pool_eval_paused() {")) + 1]
-    probe = f'FABRIK_ROOT=/opt/fabrik\nVENV_PY=/opt/fabrik/.venv/bin/python\n{body}\n'
-    off = subprocess.run(["bash", "-c", probe + "if _pool_eval_paused; then echo PAUSED; else echo ACTIVE; fi"],
-                         capture_output=True, text=True)
+    body = t[
+        t.index("_pool_eval_paused() {") : t.index("}\n", t.index("_pool_eval_paused() {")) + 1
+    ]
+    probe = f"FABRIK_ROOT=/opt/fabrik\nVENV_PY=/opt/fabrik/.venv/bin/python\n{body}\n"
+    off = subprocess.run(
+        ["bash", "-c", probe + "if _pool_eval_paused; then echo PAUSED; else echo ACTIVE; fi"],
+        capture_output=True,
+        text=True,
+    )
     assert off.stdout.strip() == "PAUSED", off.stdout + off.stderr
-    on = subprocess.run(["bash", "-c", probe + "if _pool_eval_paused; then echo PAUSED; else echo ACTIVE; fi"],
-                        capture_output=True, text=True, env={"PATH": "/usr/bin:/bin", "FABRIK_POOL_POLICY": "on", "HOME": str(Path.home())})
+    on = subprocess.run(
+        ["bash", "-c", probe + "if _pool_eval_paused; then echo PAUSED; else echo ACTIVE; fi"],
+        capture_output=True,
+        text=True,
+        env={"PATH": "/usr/bin:/bin", "FABRIK_POOL_POLICY": "on", "HOME": str(Path.home())},
+    )
     assert on.stdout.strip() == "ACTIVE", on.stdout + on.stderr

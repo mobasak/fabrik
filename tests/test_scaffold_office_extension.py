@@ -64,6 +64,11 @@ def test_registry_types_appear_in_the_corpus_enumerations():
     from pathlib import Path
 
     root = Path(__file__).resolve().parent.parent / "commands" / "_sources"
-    for f in ("fabrik-spec-review.md", "fabrik-user-test.md", "fabrik-flows.md", "fabrik-release.md"):
+    for f in (
+        "fabrik-spec-review.md",
+        "fabrik-user-test.md",
+        "fabrik-flows.md",
+        "fabrik-release.md",
+    ):
         text = (root / f).read_text(encoding="utf-8")
         assert "office-extension" in text, f"{f} enumerates scaffold types without office-extension"

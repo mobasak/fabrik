@@ -125,7 +125,9 @@ def test_one_row_per_claimed_pack_type_pair(tmp_path, monkeypatch):
 
     by_type = {f.scaffold_type: f for f in findings}
     assert "file-worker" not in by_type, "one of its two globs matched — not inert for this type"
-    assert "node-api" in by_type, "neither glob matches anything node-api emits — inert for this type"
+    assert "node-api" in by_type, (
+        "neither glob matches anything node-api emits — inert for this type"
+    )
     assert len(findings) == 1
     assert by_type["node-api"].pack == "core/two-types.md"
     assert set(by_type["node-api"].globs) == {"**/worker.py", "**/worker/**"}
@@ -135,7 +137,7 @@ def test_no_applies_to_field_claims_nothing(tmp_path, monkeypatch):
     """A pack with no `applies_to:` at all (the corpus state BEFORE this ticket's fix)
     claims zero types and can never produce a Finding — the exact fail-silent-green gap
     the ticket calls out: "without at least one pack declaring applies_to, the check
-    ships asking nothing.\""""
+    ships asking nothing.\" """
     _write_pack(tmp_path, "core/legacy-no-claim.md", globs=["**/workers/**"], applies_to=None)
     _patch_emitted(monkeypatch, {"file-worker": ("worker/main.py",)})
 
@@ -153,7 +155,10 @@ def test_real_corpus_after_fix_has_no_findings_for_declared_types():
     emits. RED before the frontmatter fix (no `applies_to:` on either pack -> the pack
     claims nothing -> this assertion fails because the FIRST assert below — that the
     pack actually declared the type — is what catches it); GREEN after."""
-    packs = {rel: (globs, activation, applies_to) for rel, globs, activation, applies_to in pla._packs_with_meta(REPO)}
+    packs = {
+        rel: (globs, activation, applies_to)
+        for rel, globs, activation, applies_to in pla._packs_with_meta(REPO)
+    }
 
     # A bare packs[...] raises KeyError, which reads as a test bug rather than the real
     # cause (pack renamed/removed). Name the cause. (D7 test-honesty finding, 2026-08-25.)
@@ -164,10 +169,14 @@ def test_real_corpus_after_fix_has_no_findings_for_declared_types():
         )
 
     globs_75, _activation_75, applies_to_75 = packs["core/75-workers-jobs.md"]
-    assert "file-worker" in applies_to_75, "75-workers-jobs.md must declare applies_to: [..., \"file-worker\", ...]"
+    assert "file-worker" in applies_to_75, (
+        '75-workers-jobs.md must declare applies_to: [..., "file-worker", ...]'
+    )
 
     globs_audit, _activation_audit, applies_to_audit = packs["core/app-audit-log.md"]
-    assert "saas-skeleton" in applies_to_audit, "app-audit-log.md must declare applies_to: [..., \"saas-skeleton\", ...]"
+    assert "saas-skeleton" in applies_to_audit, (
+        'app-audit-log.md must declare applies_to: [..., "saas-skeleton", ...]'
+    )
 
     findings = pla.audit_layout(REPO, ["file-worker", "saas-skeleton"])
 
@@ -189,7 +198,7 @@ def test_applies_to_accepts_bare_yaml_items() -> None:
     for frontmatter, expected in (
         ('applies_to: ["file-worker"]', ["file-worker"]),
         ("applies_to: ['file-worker']", ["file-worker"]),
-        ("applies_to: [file-worker]", ["file-worker"]),                      # the bare form
+        ("applies_to: [file-worker]", ["file-worker"]),  # the bare form
         ("applies_to: [file-worker, saas-skeleton]", ["file-worker", "saas-skeleton"]),
         ('applies_to: [file-worker, "saas-skeleton"]', ["file-worker", "saas-skeleton"]),
         ("applies_to: []", []),
@@ -211,7 +220,7 @@ def test_activation_regex_is_line_anchored() -> None:
     from pack_layout_audit import _parse_extra_frontmatter
 
     activation, applies_to = _parse_extra_frontmatter(
-        '---\nactivation: glob\n'
+        "---\nactivation: glob\n"
         'description: "Uses activation: manual strategy internally"\n'
         'applies_to: ["file-worker"]\n---\n'
     )
@@ -387,9 +396,15 @@ def test_applies_to_accepts_every_legal_yaml_shape() -> None:
 
     # every form that MUST yield the claim
     assert parsed("applies_to: [file-worker]") == ["file-worker"]
-    assert parsed('applies_to: ["file-worker", "saas-skeleton"]') == ["file-worker", "saas-skeleton"]
+    assert parsed('applies_to: ["file-worker", "saas-skeleton"]') == [
+        "file-worker",
+        "saas-skeleton",
+    ]
     assert parsed("applies_to: [file-worker, saas-skeleton]") == ["file-worker", "saas-skeleton"]
-    assert parsed("applies_to:\n  - file-worker\n  - saas-skeleton") == ["file-worker", "saas-skeleton"]
+    assert parsed("applies_to:\n  - file-worker\n  - saas-skeleton") == [
+        "file-worker",
+        "saas-skeleton",
+    ]
     assert parsed("applies_to: file-worker") == ["file-worker"], "bare scalar is legal YAML"
     assert parsed('applies_to: "file-worker"') == ["file-worker"], "quoted scalar is legal YAML"
 

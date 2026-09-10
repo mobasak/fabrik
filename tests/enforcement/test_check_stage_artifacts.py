@@ -533,9 +533,7 @@ def test_data_contract_footer_style_freeze_rule_passes(repo: Path) -> None:
 # --- Gap (NEW-2): the placeholder-form guard must not evade a real '|'-header -
 
 DC_PIPE_HEADER_INCOMPLETE = (
-    "# Data Contract\n\n"
-    "**Status:** FROZEN | **Version:** v2\n\n"
-    "## Entity: user\n"
+    "# Data Contract\n\n**Status:** FROZEN | **Version:** v2\n\n## Entity: user\n"
 )
 
 
@@ -588,7 +586,9 @@ def test_data_contract_reversed_placeholder_order_is_not_a_frozen_claim(repo: Pa
     # already-complete header. Only the placeholder-pair guard catches this:
     # its first token "frozen" is not in cc._NON_CLAIM_TOKENS, so the
     # non-claim-token guard alone would NOT skip it.
-    broken = DC_COMPLETE.replace("Status: FROZEN\n", "Status: FROZEN | DRAFT\n").replace("Mode: A\n", "")
+    broken = DC_COMPLETE.replace("Status: FROZEN\n", "Status: FROZEN | DRAFT\n").replace(
+        "Mode: A\n", ""
+    )
     _write_stage(repo, {"docs/data-contract.md": broken})
     rc, out = _check(repo)
     assert rc == 0, out

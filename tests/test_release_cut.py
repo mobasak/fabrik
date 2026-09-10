@@ -39,7 +39,9 @@ def _repo(tmp_path: Path, changelog: str = CHANGELOG, tag: str | None = "v0.3.1"
     subprocess.run(["git", "add", "-A"], cwd=r, check=True, timeout=15)
     subprocess.run(
         ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "base"],
-        cwd=r, check=True, timeout=15,
+        cwd=r,
+        check=True,
+        timeout=15,
     )
     if tag:
         subprocess.run(["git", "tag", tag], cwd=r, check=True, timeout=15)
@@ -49,7 +51,10 @@ def _repo(tmp_path: Path, changelog: str = CHANGELOG, tag: str | None = "v0.3.1"
 def _run(repo: Path, *args: str) -> tuple[int, str]:
     proc = subprocess.run(
         [sys.executable, str(SCRIPT), *args],
-        cwd=repo, capture_output=True, text=True, timeout=30,
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
     return proc.returncode, proc.stdout + proc.stderr
 
@@ -68,7 +73,10 @@ def test_patch_bump_when_only_fixed_changed(tmp_path: Path) -> None:
 
 
 def test_breaking_gives_major(tmp_path: Path) -> None:
-    cl = CHANGELOG.replace("### Fixed — off-by-one", "### Changed — BREAKING: pager API removed\nx.\n\n### Fixed — off-by-one")
+    cl = CHANGELOG.replace(
+        "### Fixed — off-by-one",
+        "### Changed — BREAKING: pager API removed\nx.\n\n### Fixed — off-by-one",
+    )
     rc, out = _run(_repo(tmp_path, changelog=cl), "--dry-run")
     assert rc == 0 and "1.0.0" in out
 
@@ -91,7 +99,9 @@ def test_execute_graduates_and_tags(tmp_path: Path) -> None:
     tags = subprocess.run(["git", "tag"], cwd=r, capture_output=True, text=True).stdout
     assert "v0.4.0" in tags
     # the graduation is committed
-    dirty = subprocess.run(["git", "status", "--porcelain"], cwd=r, capture_output=True, text=True).stdout
+    dirty = subprocess.run(
+        ["git", "status", "--porcelain"], cwd=r, capture_output=True, text=True
+    ).stdout
     assert dirty.strip() == ""
 
 
@@ -106,7 +116,10 @@ def test_missing_gh_binary_is_nonfatal(tmp_path: Path) -> None:
     (gitonly / "git").symlink_to(shutil.which("git"))  # git available, gh NOT
     proc = subprocess.run(
         [sys.executable, str(SCRIPT), "--execute", "--no-push"],
-        cwd=r, capture_output=True, text=True, timeout=30,
+        cwd=r,
+        capture_output=True,
+        text=True,
+        timeout=30,
         env={"PATH": str(gitonly), "HOME": str(tmp_path)},
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
@@ -154,8 +167,10 @@ def test_first_cut_on_template_changelog_no_duplication(tmp_path: Path) -> None:
 
 def test_breaking_is_case_sensitive_marker(tmp_path: Path) -> None:
     # 'breaking' as prose must NOT major-bump; the law is the uppercase marker.
-    cl = CHANGELOG.replace("### Fixed — off-by-one in pager (2026-08-08)",
-                           "### Fixed — stop breaking long lines in export (2026-08-08)")
+    cl = CHANGELOG.replace(
+        "### Fixed — off-by-one in pager (2026-08-08)",
+        "### Fixed — stop breaking long lines in export (2026-08-08)",
+    )
     rc, out = _run(_repo(tmp_path, changelog=cl), "--dry-run")
     assert rc == 0 and "0.4.0" in out  # minor (Added), NOT 1.0.0
 
@@ -166,7 +181,9 @@ def test_release_commit_trailers_parse(tmp_path: Path) -> None:
     assert rc == 0
     got = subprocess.run(
         ["git", "log", "-1", "--format=%(trailers:key=Agent-Role,valueonly)"],
-        cwd=r, capture_output=True, text=True,
+        cwd=r,
+        capture_output=True,
+        text=True,
     ).stdout.strip()
     assert got == "primary"  # trailers must live in ONE block git can parse
 

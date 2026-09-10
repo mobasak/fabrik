@@ -33,9 +33,7 @@ def _tree(root: Path, files: dict[str, str]) -> None:
 def test_verdict_reports_the_walk_size(tmp_path, capsys, monkeypatch) -> None:
     _tree(tmp_path, {"a.py": "x\n", "b.py": "y\n", "docs/c.md": "z\n"})
     monkeypatch.chdir(tmp_path)
-    rc = runner.run_as_main(
-        lambda _p: [], check_name="probe", description="probe", argv=[]
-    )
+    rc = runner.run_as_main(lambda _p: [], check_name="probe", description="probe", argv=[])
     out = capsys.readouterr().out
     assert rc == 0
     m = re.search(r"across (\d+) file\(s\) walked", out)

@@ -31,8 +31,10 @@ def _mk(tmp_path: Path, servers: dict) -> Path:
 
 
 def test_live_stdio_server_reports_connected(tmp_path):
-    repo = _mk(tmp_path, {"fake-ok": {"type": "stdio", "command": sys.executable,
-                                      "args": ["-c", FAKE_OK_SERVER]}})
+    repo = _mk(
+        tmp_path,
+        {"fake-ok": {"type": "stdio", "command": sys.executable, "args": ["-c", FAKE_OK_SERVER]}},
+    )
     report = health.check(repo, timeout=8)
     assert report["fake-ok"] == "CONNECTED"
 
@@ -80,16 +82,32 @@ def test_slow_but_live_server_is_connected_not_timeout(tmp_path):
     via communicate(), so a server slower than the probe's own (shorter) timeout was
     reported TIMEOUT even though Claude connects it fine.
     """
-    repo = _mk(tmp_path, {"slow": {"type": "stdio", "command": sys.executable,
-                                   "args": ["-c", FAKE_SLOW_SERVER.format(delay=2)]}})
+    repo = _mk(
+        tmp_path,
+        {
+            "slow": {
+                "type": "stdio",
+                "command": sys.executable,
+                "args": ["-c", FAKE_SLOW_SERVER.format(delay=2)],
+            }
+        },
+    )
     report = health.check(repo, timeout=20)
     assert report["slow"] == "CONNECTED", "a slow-but-answering server is not dead"
 
 
 def test_server_that_exits_after_answering_is_connected(tmp_path):
     """The frame is the evidence — not the exit code, not waiting for EOF."""
-    repo = _mk(tmp_path, {"exiter": {"type": "stdio", "command": sys.executable,
-                                     "args": ["-c", FAKE_SLOW_SERVER.format(delay=0)]}})
+    repo = _mk(
+        tmp_path,
+        {
+            "exiter": {
+                "type": "stdio",
+                "command": sys.executable,
+                "args": ["-c", FAKE_SLOW_SERVER.format(delay=0)],
+            }
+        },
+    )
     assert health.check(repo, timeout=20)["exiter"] == "CONNECTED"
 
 
@@ -97,10 +115,13 @@ def test_skipped_is_not_counted_as_not_live(tmp_path, capsys):
     """A docker-run entry is deliberately NOT PROBED — reporting it as 'NOT live' is
     asserting a negative from a non-measurement (denominator honesty). It must be
     reported as unprobed, and must not inflate the NOT-live count."""
-    repo = _mk(tmp_path, {
-        "dockerish": {"type": "stdio", "command": "docker", "args": ["run", "--rm", "-i", "x"]},
-        "fake-ok": {"type": "stdio", "command": sys.executable, "args": ["-c", FAKE_OK_SERVER]},
-    })
+    repo = _mk(
+        tmp_path,
+        {
+            "dockerish": {"type": "stdio", "command": "docker", "args": ["run", "--rm", "-i", "x"]},
+            "fake-ok": {"type": "stdio", "command": sys.executable, "args": ["-c", FAKE_OK_SERVER]},
+        },
+    )
     rc = health.main(["--repo", str(repo), "--timeout", "20"])
     out = capsys.readouterr().out
     assert rc == 0
@@ -111,10 +132,13 @@ def test_skipped_is_not_counted_as_not_live(tmp_path, capsys):
 
 def test_real_dead_server_still_reported_with_skip_present(tmp_path, capsys):
     """The skip fix must not mute a genuine failure (fail-open, not fail-blind)."""
-    repo = _mk(tmp_path, {
-        "dockerish": {"type": "stdio", "command": "docker", "args": ["run", "--rm", "-i", "x"]},
-        "corpse": {"type": "stdio", "command": "/bin/false", "args": []},
-    })
+    repo = _mk(
+        tmp_path,
+        {
+            "dockerish": {"type": "stdio", "command": "docker", "args": ["run", "--rm", "-i", "x"]},
+            "corpse": {"type": "stdio", "command": "/bin/false", "args": []},
+        },
+    )
     health.main(["--repo", str(repo), "--timeout", "10"])
     out = capsys.readouterr().out
     # the denominator is what was actually PROBED (1), never what was assigned (2)
@@ -131,8 +155,8 @@ FAKE_STDIN_SENSITIVE_SERVER = (
     "line=sys.stdin.readline()\n"
     "req=json.loads(line)\n"
     "def _die_on_eof():\n"
-    "    sys.stdin.read()\n"          # blocks while stdin stays OPEN; returns at EOF
-    "    os._exit(1)\n"               # exited without ever answering
+    "    sys.stdin.read()\n"  # blocks while stdin stays OPEN; returns at EOF
+    "    os._exit(1)\n"  # exited without ever answering
     "threading.Thread(target=_die_on_eof,daemon=True).start()\n"
     "time.sleep(1.5)\n"
     "print(json.dumps({'jsonrpc':'2.0','id':req['id'],'result':{'ok':True}}),flush=True)\n"
@@ -146,6 +170,14 @@ def test_server_that_dies_on_stdin_close_is_connected(tmp_path):
     answers, so the probe manufactured a death Claude never sees. Claude keeps the
     stream open; so must we.
     """
-    repo = _mk(tmp_path, {"jvm-ish": {"type": "stdio", "command": sys.executable,
-                                      "args": ["-c", FAKE_STDIN_SENSITIVE_SERVER]}})
+    repo = _mk(
+        tmp_path,
+        {
+            "jvm-ish": {
+                "type": "stdio",
+                "command": sys.executable,
+                "args": ["-c", FAKE_STDIN_SENSITIVE_SERVER],
+            }
+        },
+    )
     assert health.check(repo, timeout=20)["jvm-ish"] == "CONNECTED"

@@ -16,7 +16,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 
 spec = importlib.util.spec_from_file_location(
-    "ci_fix_dispatcher", REPO / "scripts" / "ci_fix_dispatcher.py")
+    "ci_fix_dispatcher", REPO / "scripts" / "ci_fix_dispatcher.py"
+)
 cfd = importlib.util.module_from_spec(spec)
 sys.modules["ci_fix_dispatcher"] = cfd
 spec.loader.exec_module(cfd)

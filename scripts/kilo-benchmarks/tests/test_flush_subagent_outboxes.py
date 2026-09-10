@@ -47,12 +47,22 @@ def throwaway_db():
 
 
 def _row(agent_id: str, project: str = "some-run-label") -> str:
-    return json.dumps({
-        "project": project, "agent_id": agent_id, "task_type": "review",
-        "model": "m/x", "provider": "p", "status": "scored", "cost_usd": 0.1,
-        "turns": 1, "latency_s": 2.0, "quality_score": 4.0, "tool_calls": "{}",
-        "session_id": None,
-    })
+    return json.dumps(
+        {
+            "project": project,
+            "agent_id": agent_id,
+            "task_type": "review",
+            "model": "m/x",
+            "provider": "p",
+            "status": "scored",
+            "cost_usd": 0.1,
+            "turns": 1,
+            "latency_s": 2.0,
+            "quality_score": 4.0,
+            "tool_calls": "{}",
+            "session_id": None,
+        }
+    )
 
 
 def _seed(d: Path, *, live: int = 0, residual: int = 0, project: str = "some-run-label") -> None:
@@ -60,11 +70,13 @@ def _seed(d: Path, *, live: int = 0, residual: int = 0, project: str = "some-run
     if live:
         (d / "pg_outbox.jsonl").write_text(
             "\n".join(_row(f"a-{uuid.uuid4().hex[:8]}", project) for _ in range(live)) + "\n",
-            encoding="utf-8")
+            encoding="utf-8",
+        )
     if residual:
         (d / "pg_outbox.flushing.jsonl").write_text(
             "\n".join(_row(f"r-{uuid.uuid4().hex[:8]}", project) for _ in range(residual)) + "\n",
-            encoding="utf-8")
+            encoding="utf-8",
+        )
 
 
 def _count(dsn: str) -> int:
@@ -78,7 +90,9 @@ def _run_walker(root: Path, dsn: str, *extra: str) -> subprocess.CompletedProces
     env = dict(os.environ, SUBAGENT_RUNS_DSN=dsn)
     return subprocess.run(
         [sys.executable, str(SCRIPTS / "flush_subagent_outboxes.py"), "--root", str(root), *extra],
-        capture_output=True, text=True, env=env,
+        capture_output=True,
+        text=True,
+        env=env,
     )
 
 
@@ -188,7 +202,9 @@ def test_an_unset_dsn_claims_nothing_and_still_exits_zero(tmp_path):
     env["SUBAGENT_RUNS_DSN"] = ""
     p = subprocess.run(
         [sys.executable, str(SCRIPTS / "flush_subagent_outboxes.py"), "--root", str(tmp_path)],
-        capture_output=True, text=True, env=env,
+        capture_output=True,
+        text=True,
+        env=env,
     )
     assert p.returncode == 0
     assert "SINK UNREACHABLE" in p.stderr, p.stdout + p.stderr
@@ -231,9 +247,18 @@ def test_an_unwritable_manifest_path_does_not_red_the_daily_refresh(tmp_path):
     env = dict(os.environ)
     env["SUBAGENT_RUNS_DSN"] = ""
     p = subprocess.run(
-        [sys.executable, str(SCRIPTS / "flush_subagent_outboxes.py"), "--root", str(tmp_path),
-         "--dry-run", "--manifest", "/nonexistent-dir/m.json"],
-        capture_output=True, text=True, env=env,
+        [
+            sys.executable,
+            str(SCRIPTS / "flush_subagent_outboxes.py"),
+            "--root",
+            str(tmp_path),
+            "--dry-run",
+            "--manifest",
+            "/nonexistent-dir/m.json",
+        ],
+        capture_output=True,
+        text=True,
+        env=env,
     )
     assert p.returncode == 0, p.stdout + p.stderr
 
@@ -247,7 +272,9 @@ def test_nothing_can_escape_non_zero(tmp_path, monkeypatch):
     victim.write_text("x", encoding="utf-8")
     p = subprocess.run(
         [sys.executable, str(script), "--root", str(victim)],
-        capture_output=True, text=True, env=dict(os.environ),
+        capture_output=True,
+        text=True,
+        env=dict(os.environ),
     )
     assert p.returncode == 0, p.stdout + p.stderr
 

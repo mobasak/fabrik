@@ -46,9 +46,7 @@ def test_health_disabled_up_without_wait_and_stable_running_ok() -> None:
 
 def test_health_disabled_crashloop_raises() -> None:
     # container never holds a running state (restarting, RestartCount climbing) → DeployError.
-    ssh = MagicMock(
-        side_effect=[""] + [f"restarting {i}" for i in range(1, 9)]
-    )
+    ssh = MagicMock(side_effect=[""] + [f"restarting {i}" for i in range(1, 9)])
     with patch("fabrik.orchestrator.deployer_ssh.time.sleep"):
         with pytest.raises(DeployError):
             _compose_up("svc", health_disabled=True, ssh_fn=ssh)

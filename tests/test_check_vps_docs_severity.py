@@ -104,9 +104,7 @@ def test_a_clean_run_passes_in_both_modes(findings, capsys: pytest.CaptureFixtur
 # the count lands in all of them at once. See docs/reference/enforcement-battery-audit.md.
 
 
-def test_verdict_states_its_own_denominator(
-    findings, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_verdict_states_its_own_denominator(findings, capsys: pytest.CaptureFixture[str]) -> None:
     """check_vps_docs does NOT walk the repo — its unit is the fixed VPS_DOCS list.
 
     Asserting the runner's "files walked" here would be a borrowed unit: this check never calls
@@ -118,4 +116,6 @@ def test_verdict_states_its_own_denominator(
     out = capsys.readouterr().out
     m = re.search(r"across (\d+) VPS doc\(s\)", out)
     assert m is not None, f"verdict carries no denominator: {out!r}"
-    assert int(m.group(1)) == len(cvd.VPS_DOCS), "the count must be the real subject list, not a literal"
+    assert int(m.group(1)) == len(cvd.VPS_DOCS), (
+        "the count must be the real subject list, not a literal"
+    )

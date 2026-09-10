@@ -46,6 +46,8 @@ REQUIRED = "Agent-Role"
 # CRASH. Anything else the interpreter returns means the guard broke, and a broken guard must
 # never block a commit.
 REJECT_CODE = 9
+
+
 # Git's cut line is ONE exact string — 24 dashes, space, >8, space, 24 dashes — confirmed by
 # reading a real `git commit -v` buffer. Accepting "any run of dashes" made the guard truncate a
 # message at any prose line of that rough shape, and then reject it for having its trailers
@@ -112,7 +114,9 @@ def hooks_dir() -> Path | None:
     try:
         configured = subprocess.run(
             ["git", "config", "--get", "core.hooksPath"],
-            capture_output=True, text=True, check=False,
+            capture_output=True,
+            text=True,
+            check=False,
         )
         if configured.returncode == 0 and configured.stdout.strip():
             # If this is ever set, installing into .git/hooks would put the guard somewhere git
@@ -126,7 +130,9 @@ def hooks_dir() -> Path | None:
             # <repo>/.githooks/ — the exact blindness this branch was added to prevent.
             top = subprocess.run(
                 ["git", "rev-parse", "--show-toplevel"],
-                capture_output=True, text=True, check=False,
+                capture_output=True,
+                text=True,
+                check=False,
             )
             if top.returncode != 0:
                 return None
@@ -215,7 +221,9 @@ def verdict_comment_char() -> str:
     try:
         got = subprocess.run(
             ["git", "config", "--get", "core.commentChar"],
-            capture_output=True, text=True, check=False,
+            capture_output=True,
+            text=True,
+            check=False,
         )
     except OSError:
         return "#"
@@ -231,7 +239,9 @@ def comment_char(message: str | None = None) -> str:
     try:
         got = subprocess.run(
             ["git", "config", "--get", "core.commentChar"],
-            capture_output=True, text=True, check=False,
+            capture_output=True,
+            text=True,
+            check=False,
         )
     except OSError:
         return "#"
@@ -268,9 +278,7 @@ def comment_char(message: str | None = None) -> str:
 
 def diff_region_start(lines: list[str], after: int) -> int | None:
     """Index of the `diff --git` line that begins a `git commit -v` diff, if one follows."""
-    return next(
-        (i for i in range(after, len(lines)) if lines[i].startswith("diff --git ")), None
-    )
+    return next((i for i in range(after, len(lines)) if lines[i].startswith("diff --git ")), None)
 
 
 def cut_index(lines: list[str]) -> int | None:
@@ -313,7 +321,6 @@ def authored_text(message: str) -> str:
     # line can never hide a trailer, since git ignores those lines too.
     chars = {verdict_comment_char(), comment_char(message)}
     return "\n".join(ln for ln in lines if not any(ln.startswith(c) for c in chars))
-
 
 
 TRAILER_LINE = re.compile(r"^[A-Za-z][A-Za-z0-9-]*:\s")
@@ -393,8 +400,7 @@ def diagnose(message: str) -> str:
     """Name the specific defect, so the fix is obvious without re-deriving git's rules."""
     lines = message.rstrip().splitlines()
     idx = next(
-        (i for i, ln in enumerate(lines)
-         if ln.strip().lower().startswith(f"{REQUIRED.lower()}:")),
+        (i for i, ln in enumerate(lines) if ln.strip().lower().startswith(f"{REQUIRED.lower()}:")),
         None,
     )
     if idx is None:
@@ -523,15 +529,13 @@ def install(force: bool = False) -> int:
             backup = hook.with_suffix(f".replaced-by-fabrik.{os.getpid()}.{n}")
         backup.write_text(hook.read_text(errors="replace"))
         print(f"backed up the previous hook to {backup}", file=sys.stderr)
-    payload = (
-        SHIM.format(
-            guard=shlex.quote(str(guard_path)),
-            # shlex.quote: an apostrophe anywhere in a path (`/opt/o'brien/...`) produced an
-            # unterminated string and rc=2 — every commit rejected, the exact opposite of the
-            # FAIL OPEN the shim promises.
-            pythons=" ".join(shlex.quote(x) for x in (sys.executable, "python3", "python")),
-            reject=REJECT_CODE,
-        )
+    payload = SHIM.format(
+        guard=shlex.quote(str(guard_path)),
+        # shlex.quote: an apostrophe anywhere in a path (`/opt/o'brien/...`) produced an
+        # unterminated string and rc=2 — every commit rejected, the exact opposite of the
+        # FAIL OPEN the shim promises.
+        pythons=" ".join(shlex.quote(x) for x in (sys.executable, "python3", "python")),
+        reject=REJECT_CODE,
     )
     # Atomic: install() now runs on every interactive shell, and a `git commit` that started the
     # hook inside a truncate->write window would read a partial (or empty) script — an empty sh

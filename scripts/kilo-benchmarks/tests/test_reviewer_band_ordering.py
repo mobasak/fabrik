@@ -74,9 +74,7 @@ def test_the_rendered_table_uses_the_same_band_as_the_router():
     # ⚠️ STRIP COMMENTS FIRST. The first version of this assertion matched the phrase inside the
     # explanatory comment ABOVE the query — a test reading prose, not code, and it failed on the
     # very sentence describing the bug it guards. Grade the executable text only.
-    shortlist = "\n".join(
-        ln for ln in window.splitlines() if not ln.lstrip().startswith("#")
-    )
+    shortlist = "\n".join(ln for ln in window.splitlines() if not ln.lstrip().startswith("#"))
     assert "ORDER BY m.score5 DESC" not in shortlist, (
         "the SELECTED reviewer shortlist is back on a raw-score5 sort and no longer matches the router"
     )

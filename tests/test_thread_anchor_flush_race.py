@@ -23,7 +23,9 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 
-_spec = importlib.util.spec_from_file_location("thread_anchor", REPO / "scripts" / "thread_anchor.py")
+_spec = importlib.util.spec_from_file_location(
+    "thread_anchor", REPO / "scripts" / "thread_anchor.py"
+)
 ta = importlib.util.module_from_spec(_spec)
 sys.modules["thread_anchor"] = ta
 _spec.loader.exec_module(ta)
@@ -46,7 +48,10 @@ def _race_transcript(tmp_path: Path) -> Path:
             "type": "assistant",
             "message": {
                 "content": [
-                    {"type": "text", "text": "closing.\nNEXT: probe race — item 2 of 9 — keep going"}
+                    {
+                        "type": "text",
+                        "text": "closing.\nNEXT: probe race — item 2 of 9 — keep going",
+                    }
                 ]
             },
         },

@@ -72,12 +72,8 @@ def test_empty_matches_all_is_keyword_only_no_default() -> None:
 
 
 def test_directory_glob_pack_matches_path() -> None:
-    assert rm.pack_matches_path(
-        "src/uploads/img.png", "**/uploads/**", empty_matches_all=False
-    )
-    assert not rm.pack_matches_path(
-        "src/other/img.png", "**/uploads/**", empty_matches_all=False
-    )
+    assert rm.pack_matches_path("src/uploads/img.png", "**/uploads/**", empty_matches_all=False)
+    assert not rm.pack_matches_path("src/other/img.png", "**/uploads/**", empty_matches_all=False)
 
 
 def test_directory_glob_any_path_matches(tmp_path: Path) -> None:
@@ -89,9 +85,7 @@ def test_directory_glob_any_path_matches(tmp_path: Path) -> None:
 
 
 def test_brace_expansion_pack_matches_path() -> None:
-    assert rm.pack_matches_path(
-        "src/main.ts", "**/main.{js,ts,mjs,cjs}", empty_matches_all=False
-    )
+    assert rm.pack_matches_path("src/main.ts", "**/main.{js,ts,mjs,cjs}", empty_matches_all=False)
     assert not rm.pack_matches_path(
         "src/main.py", "**/main.{js,ts,mjs,cjs}", empty_matches_all=False
     )
@@ -140,8 +134,8 @@ def test_packs_for_paths_matches_review_rubric_changed_output() -> None:
         "scripts/select_rules.py",
         "scripts/review_rubric.py",
         ".windsurf/rules/core/75-workers-jobs.md",
-        "db/schema.sql",      # hits core/25-data-postgres.md, a FLOOR pack
-        "Dockerfile",         # hits core/30-ops.md, a FLOOR pack
+        "db/schema.sql",  # hits core/25-data-postgres.md, a FLOOR pack
+        "Dockerfile",  # hits core/30-ops.md, a FLOOR pack
     ]
     proc = subprocess.run(
         [sys.executable, str(_SCRIPTS / "review_rubric.py"), "--changed", *changed],
@@ -204,7 +198,9 @@ def test_strip_wildcards_asymmetry_is_inherited() -> None:
     assert rm.pack_matches_path("any/file.py", "**/", empty_matches_all=False) is False
     assert rm.pack_matches_path("any/file.py", "**/", empty_matches_all=True) is True
     for wildcard_only in ("/**", "**"):
-        assert rm.pack_matches_path("any/file.py", wildcard_only, empty_matches_all=False) is True, (
+        assert (
+            rm.pack_matches_path("any/file.py", wildcard_only, empty_matches_all=False) is True
+        ), (
             f"{wildcard_only!r} is expected to bypass empty_matches_all (inherited); if this "
             "now fails, the normalization changed and rule-pack activation moved fleet-wide"
         )

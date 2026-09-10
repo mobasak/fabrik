@@ -65,7 +65,14 @@ def _patch_emitted(monkeypatch, mapping: dict[str, tuple[str, ...]]) -> None:
 def _run_json(root: Path, types: list[str]) -> dict:
     buf = io.StringIO()
     argv = sys.argv
-    sys.argv = ["check_pack_reachability.py", "--project-root", str(root), "--types", *types, "--json"]
+    sys.argv = [
+        "check_pack_reachability.py",
+        "--project-root",
+        str(root),
+        "--types",
+        *types,
+        "--json",
+    ]
     try:
         with redirect_stdout(buf):
             rc = cpr.main()
@@ -160,7 +167,13 @@ def test_row3_zero_declared_reads_as_zero_examined_not_a_pass(tmp_path, monkeypa
     _patch_emitted(monkeypatch, {"file-worker": ("worker/main.py",)})
 
     argv = sys.argv
-    sys.argv = ["check_pack_reachability.py", "--project-root", str(tmp_path), "--types", "file-worker"]
+    sys.argv = [
+        "check_pack_reachability.py",
+        "--project-root",
+        str(tmp_path),
+        "--types",
+        "file-worker",
+    ]
     try:
         rc = cpr.main()
     finally:
@@ -311,8 +324,13 @@ def test_unavailable_scaffolder_with_explicit_types_is_not_a_crash_and_not_a_pas
     )
 
     argv = sys.argv
-    sys.argv = ["check_pack_reachability.py", "--project-root", str(tmp_path),
-                "--types", "file-worker"]
+    sys.argv = [
+        "check_pack_reachability.py",
+        "--project-root",
+        str(tmp_path),
+        "--types",
+        "file-worker",
+    ]
     try:
         rc = cpr.main()
     finally:
@@ -358,8 +376,14 @@ def test_unevaluable_type_is_not_reported_unreachable_and_not_counted_verified(
     )
 
     argv = sys.argv
-    sys.argv = ["check_pack_reachability.py", "--project-root", str(tmp_path),
-                "--types", "file-worker", "wordpress"]
+    sys.argv = [
+        "check_pack_reachability.py",
+        "--project-root",
+        str(tmp_path),
+        "--types",
+        "file-worker",
+        "wordpress",
+    ]
     try:
         rc = cpr.main()
     finally:
@@ -368,8 +392,10 @@ def test_unevaluable_type_is_not_reported_unreachable_and_not_counted_verified(
 
     out = capsys.readouterr().out
     assert rc == 0
-    assert "wp.md" not in out.split("NOT EVALUATED")[-1].split("Examined")[0] or \
-        "UNREACHABLE: core/wp.md" not in out, "must not condemn a pack whose type is unbuildable"
+    assert (
+        "wp.md" not in out.split("NOT EVALUATED")[-1].split("Examined")[0]
+        or "UNREACHABLE: core/wp.md" not in out
+    ), "must not condemn a pack whose type is unbuildable"
     assert "UNREACHABLE" not in out, "an unbuildable type yields no findings at all"
     assert "NOT EVALUATED: scaffold type 'wordpress'" in out
     assert "1 of 2 examined pack(s) verified" in out, (
@@ -465,8 +491,13 @@ def test_masked_scaffolder_failure_is_reported_not_silent(tmp_path, monkeypatch,
     )
 
     argv = sys.argv
-    sys.argv = ["check_pack_reachability.py", "--project-root", str(tmp_path),
-                "--types", "wordpress"]
+    sys.argv = [
+        "check_pack_reachability.py",
+        "--project-root",
+        str(tmp_path),
+        "--types",
+        "wordpress",
+    ]
     try:
         rc = cpr.main()
     finally:
@@ -514,7 +545,7 @@ def test_duplicate_types_argument_yields_one_finding(tmp_path, monkeypatch) -> N
 def test_unknown_type_is_judged_against_the_registry_not_the_types_subset(
     tmp_path, monkeypatch, capsys
 ) -> None:
-    """"Unknown" must mean NOT A SCAFFOLD TYPE — never "not in the --types I was given".
+    """ "Unknown" must mean NOT A SCAFFOLD TYPE — never "not in the --types I was given".
 
     The round-6 unknown-type fix compared each claim to `known = set(types)`, the SUBSET
     being checked. So a pack claiming a perfectly valid type that simply was not in this
@@ -543,8 +574,13 @@ def test_unknown_type_is_judged_against_the_registry_not_the_types_subset(
     )
 
     argv = sys.argv
-    sys.argv = ["check_pack_reachability.py", "--project-root", str(tmp_path),
-                "--types", "file-worker"]
+    sys.argv = [
+        "check_pack_reachability.py",
+        "--project-root",
+        str(tmp_path),
+        "--types",
+        "file-worker",
+    ]
     try:
         rc = cpr.main()
     finally:

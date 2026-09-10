@@ -25,7 +25,9 @@ def _git(repo: Path, *args: str) -> str:
 def _run(repo: Path) -> tuple[int, str]:
     r = subprocess.run(
         [sys.executable, str(SCRIPT)],
-        capture_output=True, text=True, cwd=repo,
+        capture_output=True,
+        text=True,
+        cwd=repo,
         env={"PATH": "/usr/bin:/bin", "PYTHONPATH": str(ENFORCE_DIR)},
     )
     return r.returncode, r.stdout + r.stderr
@@ -42,7 +44,9 @@ def _repo(tmp_path: Path, given_rows: int = 2) -> tuple[Path, str]:
     rows = "\n".join(
         f"- **Given** state {i}, **When** action, **Then** outcome {i}" for i in range(given_rows)
     )
-    (plan_dir / "p.md").write_text(f"# Plan\n\nStatus: IN-PROGRESS\n\n## Behavior Contract\n{rows}\n")
+    (plan_dir / "p.md").write_text(
+        f"# Plan\n\nStatus: IN-PROGRESS\n\n## Behavior Contract\n{rows}\n"
+    )
     (repo / "src").mkdir()
     (repo / "src/app.py").write_text("A = 1\n")
     _git(repo, "add", "-A")
@@ -50,10 +54,16 @@ def _repo(tmp_path: Path, given_rows: int = 2) -> tuple[Path, str]:
     baseline = _git(repo, "rev-parse", "HEAD")
     locks = repo / ".fabrik/plan-locks"
     locks.mkdir(parents=True)
-    (locks / "p.json").write_text(json.dumps({
-        "plan": "docs/development/plans/p.md", "status": "active",
-        "baseline_commit": baseline, "owned_paths": ["src/", "tests/"],
-    }))
+    (locks / "p.json").write_text(
+        json.dumps(
+            {
+                "plan": "docs/development/plans/p.md",
+                "status": "active",
+                "baseline_commit": baseline,
+                "owned_paths": ["src/", "tests/"],
+            }
+        )
+    )
     return repo, baseline
 
 
@@ -142,7 +152,8 @@ def test_deleted_test_does_not_satisfy_accompaniment(tmp_path: Path) -> None:
     plan_dir = repo / "docs/development/plans"
     plan_dir.mkdir(parents=True)
     (plan_dir / "p.md").write_text(
-        "# Plan\n\n## Behavior Contract\n- **Given** s, **When** a, **Then** o\n")
+        "# Plan\n\n## Behavior Contract\n- **Given** s, **When** a, **Then** o\n"
+    )
     (repo / "src").mkdir()
     (repo / "src/app.py").write_text("A = 1\n")
     t = repo / "tests"
@@ -153,9 +164,16 @@ def test_deleted_test_does_not_satisfy_accompaniment(tmp_path: Path) -> None:
     baseline = _git(repo, "rev-parse", "HEAD")
     locks = repo / ".fabrik/plan-locks"
     locks.mkdir(parents=True)
-    (locks / "p.json").write_text(json.dumps({
-        "plan": "docs/development/plans/p.md", "status": "active",
-        "baseline_commit": baseline, "owned_paths": ["src/", "tests/"]}))
+    (locks / "p.json").write_text(
+        json.dumps(
+            {
+                "plan": "docs/development/plans/p.md",
+                "status": "active",
+                "baseline_commit": baseline,
+                "owned_paths": ["src/", "tests/"],
+            }
+        )
+    )
     (repo / "src/app.py").write_text("A = 2\n")
     (t / "test_app.py").unlink()
     _git(repo, "add", "-A")
@@ -325,9 +343,16 @@ def test_hostile_lock_field_types_isolated_per_lock(tmp_path: Path) -> None:
     repo, _ = _repo(tmp_path)
     locks = repo / ".fabrik/plan-locks"
     # sorts BEFORE p.json; baseline is a dict → str() → git error → per-lock skip, not abort
-    (locks / "aaa-hostile.json").write_text(json.dumps({
-        "plan": "docs/development/plans/p.md", "status": "active",
-        "baseline_commit": {"x": 1}, "owned_paths": ["src/"]}))
+    (locks / "aaa-hostile.json").write_text(
+        json.dumps(
+            {
+                "plan": "docs/development/plans/p.md",
+                "status": "active",
+                "baseline_commit": {"x": 1},
+                "owned_paths": ["src/"],
+            }
+        )
+    )
     (repo / "src/app.py").write_text("A = 2\n")
     _git(repo, "add", "src/app.py")
     _git(repo, "commit", "-qm", "behavior shipped, no tests, hostile sibling lock")
@@ -443,7 +468,8 @@ def test_pure_test_rename_does_not_silence(tmp_path: Path) -> None:
     plan_dir = repo / "docs/development/plans"
     plan_dir.mkdir(parents=True)
     (plan_dir / "p.md").write_text(
-        "# Plan\n\n## Behavior Contract\n- **Given** s, **When** a, **Then** o\n")
+        "# Plan\n\n## Behavior Contract\n- **Given** s, **When** a, **Then** o\n"
+    )
     (repo / "src").mkdir()
     (repo / "src/app.py").write_text("A = 1\n")
     t = repo / "tests"
@@ -453,9 +479,16 @@ def test_pure_test_rename_does_not_silence(tmp_path: Path) -> None:
     _git(repo, "commit", "-qm", "baseline with a test")
     baseline = _git(repo, "rev-parse", "HEAD")
     (repo / ".fabrik/plan-locks").mkdir(parents=True)
-    (repo / ".fabrik/plan-locks/p.json").write_text(json.dumps({
-        "plan": "docs/development/plans/p.md", "status": "active",
-        "baseline_commit": baseline, "owned_paths": ["src/", "tests/"]}))
+    (repo / ".fabrik/plan-locks/p.json").write_text(
+        json.dumps(
+            {
+                "plan": "docs/development/plans/p.md",
+                "status": "active",
+                "baseline_commit": baseline,
+                "owned_paths": ["src/", "tests/"],
+            }
+        )
+    )
     (repo / "src/app.py").write_text("A = 2\n")
     _git(repo, "mv", "tests/test_app.py", "tests/test_app_renamed.py")
     _git(repo, "add", "src/app.py")
@@ -512,7 +545,8 @@ def test_verbatim_test_copy_does_not_silence(tmp_path: Path) -> None:
     _git(repo, "config", "user.name", "t")
     (repo / "docs/development/plans").mkdir(parents=True)
     (repo / "docs/development/plans/p.md").write_text(
-        "# Plan\n\n## Behavior Contract\n- **Given** s, **When** a, **Then** o\n")
+        "# Plan\n\n## Behavior Contract\n- **Given** s, **When** a, **Then** o\n"
+    )
     (repo / "src").mkdir()
     (repo / "src/app.py").write_text("A = 1\n")
     t = repo / "tests"
@@ -523,9 +557,16 @@ def test_verbatim_test_copy_does_not_silence(tmp_path: Path) -> None:
     _git(repo, "commit", "-qm", "baseline with a big test")
     baseline = _git(repo, "rev-parse", "HEAD")
     (repo / ".fabrik/plan-locks").mkdir(parents=True)
-    (repo / ".fabrik/plan-locks/p.json").write_text(json.dumps({
-        "plan": "docs/development/plans/p.md", "status": "active",
-        "baseline_commit": baseline, "owned_paths": ["src/", "tests/"]}))
+    (repo / ".fabrik/plan-locks/p.json").write_text(
+        json.dumps(
+            {
+                "plan": "docs/development/plans/p.md",
+                "status": "active",
+                "baseline_commit": baseline,
+                "owned_paths": ["src/", "tests/"],
+            }
+        )
+    )
     (repo / "src/app.py").write_text("A = 2\n")
     (t / "test_app_copy.py").write_text(body + "\n")  # verbatim copy, zero new coverage
     _git(repo, "add", "-A")
@@ -546,7 +587,8 @@ def test_edited_rename_counts_as_accompaniment(tmp_path: Path) -> None:
     _git(repo, "config", "user.name", "t")
     (repo / "docs/development/plans").mkdir(parents=True)
     (repo / "docs/development/plans/p.md").write_text(
-        "# Plan\n\n## Behavior Contract\n- **Given** s, **When** a, **Then** o\n")
+        "# Plan\n\n## Behavior Contract\n- **Given** s, **When** a, **Then** o\n"
+    )
     (repo / "src").mkdir()
     (repo / "src/app.py").write_text("A = 1\n")
     t = repo / "tests"
@@ -557,13 +599,19 @@ def test_edited_rename_counts_as_accompaniment(tmp_path: Path) -> None:
     _git(repo, "commit", "-qm", "baseline")
     baseline = _git(repo, "rev-parse", "HEAD")
     (repo / ".fabrik/plan-locks").mkdir(parents=True)
-    (repo / ".fabrik/plan-locks/p.json").write_text(json.dumps({
-        "plan": "docs/development/plans/p.md", "status": "active",
-        "baseline_commit": baseline, "owned_paths": ["src/", "tests/"]}))
+    (repo / ".fabrik/plan-locks/p.json").write_text(
+        json.dumps(
+            {
+                "plan": "docs/development/plans/p.md",
+                "status": "active",
+                "baseline_commit": baseline,
+                "owned_paths": ["src/", "tests/"],
+            }
+        )
+    )
     (repo / "src/app.py").write_text("A = 2\n")
     _git(repo, "mv", "tests/test_app.py", "tests/test_app_renamed.py")
-    (t / "test_app_renamed.py").write_text(
-        body + "\ndef test_new_behavior():\n    assert True\n")
+    (t / "test_app_renamed.py").write_text(body + "\ndef test_new_behavior():\n    assert True\n")
     _git(repo, "add", "-A")
     _git(repo, "commit", "-qm", "ship behavior + rename WITH a new test function")
     rc, out = _run(repo)

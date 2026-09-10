@@ -217,7 +217,7 @@ def test_strategic_backlog_is_universal_by_operator_rule():
     row = next(r for r in reg.PROJECT_DOCS if r.name == "docs/STRATEGIC_BACKLOG.md")
     assert row.applies_to == frozenset({"universal"})
     for t in sorted(reg.ALL_TYPES):
-        assert any(
-            r.name == "docs/STRATEGIC_BACKLOG.md" for r in reg.seed_rows(t)
-        ), f"{t} does not seed STRATEGIC_BACKLOG.md"
+        assert any(r.name == "docs/STRATEGIC_BACKLOG.md" for r in reg.seed_rows(t)), (
+            f"{t} does not seed STRATEGIC_BACKLOG.md"
+        )
         assert "STRATEGIC_BACKLOG.md" in reg.docs_allowlist(t), f"{t} does not allow it"

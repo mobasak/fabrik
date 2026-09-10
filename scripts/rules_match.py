@@ -189,8 +189,6 @@ def packs_for_paths(paths: list[str], root: Path) -> list[str]:
         for pack in rules_dir.rglob("*.md"):
             text = pack.read_text(encoding="utf-8", errors="replace")
             globs, _desc = select_rules._parse_frontmatter(text)
-            if any(
-                pack_matches_path(p, g, empty_matches_all=True) for p in paths for g in globs
-            ):
+            if any(pack_matches_path(p, g, empty_matches_all=True) for p in paths for g in globs):
                 matched.add(pack.relative_to(rules_dir).as_posix())
     return sorted(matched)

@@ -51,7 +51,10 @@ def _clean_env(**extra: str) -> dict:
     env.update(extra)
     return env
 
-def _drive(tmp_path: Path, repo: Path, *, cfg_files: str | None, env_extra: dict) -> subprocess.CompletedProcess:
+
+def _drive(
+    tmp_path: Path, repo: Path, *, cfg_files: str | None, env_extra: dict
+) -> subprocess.CompletedProcess:
     """Run the REAL script against a scratch repo, with the pwd guard, the config it reads, and the
     real fleet sync ALL redirected. Nothing here may reach /opt/fabrik or the 48 project trees.
 
@@ -64,7 +67,9 @@ def _drive(tmp_path: Path, repo: Path, *, cfg_files: str | None, env_extra: dict
     if cfg_files is not None:
         hook["files"] = cfg_files
     cfg = tmp_path / "cfg.yaml"
-    cfg.write_text(yaml.safe_dump({"repos": [{"repo": "local", "hooks": [hook]}]}), encoding="utf-8")
+    cfg.write_text(
+        yaml.safe_dump({"repos": [{"repo": "local", "hooks": [hook]}]}), encoding="utf-8"
+    )
 
     marker = tmp_path / "real_sync_marker.sh"
     marker.write_text("#!/usr/bin/env bash\necho REAL_SYNC_RAN\n", encoding="utf-8")
@@ -90,7 +95,6 @@ def _drive(tmp_path: Path, repo: Path, *, cfg_files: str | None, env_extra: dict
     return subprocess.run(
         ["bash", str(shim)], cwd=repo, capture_output=True, text=True, timeout=120, env=env
     )
-
 
 
 def _hub_clone(tmp_path: Path, changed: list[str]) -> Path:
@@ -246,7 +250,9 @@ def test_a_trigger_commit_syncs_even_with_thousands_of_changed_files(tmp_path: P
     )
     for _ in range(3):
         r = _drive(tmp_path, repo, cfg_files=r"^\.windsurf/rules/", env_extra={})
-        assert "REAL_SYNC_RAN" in r.stdout, f"the sync was SKIPPED on a trigger commit: {r.stdout!r}"
+        assert "REAL_SYNC_RAN" in r.stdout, (
+            f"the sync was SKIPPED on a trigger commit: {r.stdout!r}"
+        )
 
 
 def test_a_merge_commit_that_touches_a_trigger_path_still_syncs(tmp_path: Path) -> None:
@@ -263,7 +269,11 @@ def test_a_merge_commit_that_touches_a_trigger_path_still_syncs(tmp_path: Path) 
     genv = _clean_env()
     g = ["git", "-C", str(repo), "-c", "commit.gpgsign=false"]
     base = subprocess.run(
-        [*g, "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True, text=True, check=True, env=genv
+        [*g, "rev-parse", "--abbrev-ref", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+        env=genv,
     ).stdout.strip()  # master or main, depending on the box's git default
     subprocess.run([*g, "checkout", "-qb", "feat"], check=True, env=genv)
     trig = repo / ".windsurf" / "rules" / "core" / "00-x.md"
@@ -290,7 +300,9 @@ def test_the_wrapper_still_no_ops_outside_the_hub_checkout() -> None:
     provides no coverage of detection or sync. Stated so it is never mistaken for broader proof —
     the previous version of this file offered exactly this as its behavioural test.
     """
-    r = subprocess.run(["bash", str(SCRIPT)], cwd="/tmp", capture_output=True, text=True, timeout=60)
+    r = subprocess.run(
+        ["bash", str(SCRIPT)], cwd="/tmp", capture_output=True, text=True, timeout=60
+    )
     assert r.returncode == 0, f"the wrapper must exit 0 outside /opt/fabrik: {r.stderr}"
 
 
@@ -306,5 +318,7 @@ def test_sync_cmd_is_ignored_without_the_test_sentinel(tmp_path: Path) -> None:
     hijack.write_text("#!/usr/bin/env bash\necho HIJACKED\n", encoding="utf-8")
     hijack.chmod(0o755)
     r = _drive(tmp_path, repo, cfg_files=r"^\.windsurf/rules/", env_extra={"SYNC_CMD": str(hijack)})
-    assert "HIJACKED" not in r.stdout, f"SYNC_CMD hijacked the sync without the sentinel: {r.stdout!r}"
+    assert "HIJACKED" not in r.stdout, (
+        f"SYNC_CMD hijacked the sync without the sentinel: {r.stdout!r}"
+    )
     assert "REAL_SYNC_RAN" in r.stdout, f"the real sync did not run: {r.stdout!r}"

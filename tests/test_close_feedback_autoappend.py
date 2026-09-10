@@ -67,7 +67,9 @@ def test_none_must_be_stated_rather_than_left_silent():
     assert "FEEDBACK:" in body, "no stated verdict line"
     # the fragment's wording of the same demand has moved twice (87c09d16 rewrote it 2026-09-01 and this
     # anchor went red at every baseline since); any of its three phrasings satisfies the intent
-    flat = " ".join(body.split())  # the fragment wraps at ~100 cols; match the sentence, not the line
+    flat = " ".join(
+        body.split()
+    )  # the fragment wraps at ~100 cols; match the sentence, not the line
     assert (
         "never left as silence" in flat
         or "must be STATED" in flat

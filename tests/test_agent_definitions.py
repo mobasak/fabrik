@@ -52,7 +52,9 @@ def test_a_blank_line_in_the_frontmatter_fails_the_render_loudly():
     assert asm._agent_frontmatter_defect(good) is None
     bad = "---\nname: x\ndescription: one line\n\n**A second paragraph.**\n\ntools: Read\n---\n\nbody\n"
     assert "blank line" in (asm._agent_frontmatter_defect(bad) or "")
-    assert "no `name:` key" in (asm._agent_frontmatter_defect("---\ndescription: d\n---\nb\n") or "")
+    assert "no `name:` key" in (
+        asm._agent_frontmatter_defect("---\ndescription: d\n---\nb\n") or ""
+    )
     assert asm._agent_frontmatter_defect("no frontmatter at all\n")
 
 
@@ -93,7 +95,9 @@ def test_the_rendered_name_matches_the_filename():
     out = _render()
     for p in out.glob("*.md"):
         head = p.read_text(encoding="utf-8").split("\n---", 1)[0]
-        declared = next(ln.split(":", 1)[1].strip() for ln in head.splitlines() if ln.startswith("name:"))
+        declared = next(
+            ln.split(":", 1)[1].strip() for ln in head.splitlines() if ln.startswith("name:")
+        )
         assert declared == p.stem, f"{p.name} declares name: {declared}"
 
 

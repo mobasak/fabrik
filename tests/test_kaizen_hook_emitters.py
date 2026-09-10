@@ -506,9 +506,11 @@ def test_final_block_split_across_text_blocks_still_counts(tmp_path: Path) -> No
     proj = _project(tmp_path)
     tp = _transcript(
         proj,
-        text_blocks=["Done.\n\nGATE: … → success\nDOCS UPDATED: none\nCHANGELOG: n/a\n",
-                     "LESSONS LEARNT: none\nDONE: shipped it\nNEXT: none — terminal\n"
-                     "FEEDBACK: none — surfaces exercised: the splitter\n"],
+        text_blocks=[
+            "Done.\n\nGATE: … → success\nDOCS UPDATED: none\nCHANGELOG: n/a\n",
+            "LESSONS LEARNT: none\nDONE: shipped it\nNEXT: none — terminal\n"
+            "FEEDBACK: none — surfaces exercised: the splitter\n",
+        ],
     )
     _run_stop(proj, tmp_path, "sidsplit", transcript=tp)
     assert len(_of_type(_events(tmp_path, "sidsplit"), "final_block_emitted")) == 1
@@ -711,7 +713,9 @@ def test_six_key_block_without_feedback_line_blocks(tmp_path: Path) -> None:
         "DOCS UPDATED: none\nCHANGELOG: n/a\nLESSONS LEARNT: none\n"
         "DONE: shipped it\nNEXT: none — terminal\n"
     )
-    cp = _run_stop(proj, tmp_path, "sidfb", transcript=_transcript(proj, text="Done.\n\n" + old_block))
+    cp = _run_stop(
+        proj, tmp_path, "sidfb", transcript=_transcript(proj, text="Done.\n\n" + old_block)
+    )
     out = json.loads(cp.stdout.strip().splitlines()[-1])
     assert out.get("decision") == "block"
     assert "FEEDBACK" in out.get("reason", "")
@@ -719,6 +723,8 @@ def test_six_key_block_without_feedback_line_blocks(tmp_path: Path) -> None:
 
 def test_seven_key_block_passes_the_feedback_gate(tmp_path: Path) -> None:
     proj = _project(tmp_path)
-    cp = _run_stop(proj, tmp_path, "sidfb7", transcript=_transcript(proj, text="Done.\n\n" + _SIX_LINE_BLOCK))
+    cp = _run_stop(
+        proj, tmp_path, "sidfb7", transcript=_transcript(proj, text="Done.\n\n" + _SIX_LINE_BLOCK)
+    )
     decisions = [json.loads(x) for x in cp.stdout.strip().splitlines() if x.startswith("{")]
     assert not any("FEEDBACK" in (d.get("reason") or "") for d in decisions)

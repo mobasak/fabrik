@@ -508,7 +508,9 @@ def test_a_sweeping_pathspec_or_a_forced_refspec_is_held_and_the_template_has_a_
         "python3 /opt/my.repo-2/scripts/mail.py list",
     ):
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=1.0)[0] == "allow", cmd
-    assert "git commit -m '<msg>' -- <paths>" in hook._reason("Bash")  # the shape that PASSES the masker: a single-quoted body
+    assert "git commit -m '<msg>' -- <paths>" in hook._reason(
+        "Bash"
+    )  # the shape that PASSES the masker: a single-quoted body
 
 
 def test_an_unquoted_variable_word_splits_and_is_held_but_a_quoted_one_is_data():
@@ -769,11 +771,17 @@ def test_a_trailered_commit_passes_the_hold_and_a_multiline_command_does_not():
     hold; infra 01M1W6KVH7Y0HQMQ9W3QTXDM7V), so a held session could only commit WITHOUT trailers,
     a HARD STOP. Inside a git-commit line's quoted span (either quote) a newline is data; anywhere
     else it is still the multi-line veto."""
-    body = 'fix(x): subject\n\nAgent-Role: primary\nAgent-Context: x\nCo-Authored-By: y <n@e>'
-    allowed = hook.decide("Bash", f'git commit -m "{body}" -- f.py', stamp_exists=True, tick_age_s=10.0)
+    body = "fix(x): subject\n\nAgent-Role: primary\nAgent-Context: x\nCo-Authored-By: y <n@e>"
+    allowed = hook.decide(
+        "Bash", f'git commit -m "{body}" -- f.py', stamp_exists=True, tick_age_s=10.0
+    )
     assert allowed[0] == "allow", allowed
-    single = hook.decide("Bash", f"git commit -m '{body}' -- f.py", stamp_exists=True, tick_age_s=10.0)
-    assert single[0] == "allow", single  # a single-quoted body is data to the shell exactly the same
+    single = hook.decide(
+        "Bash", f"git commit -m '{body}' -- f.py", stamp_exists=True, tick_age_s=10.0
+    )
+    assert single[0] == "allow", (
+        single
+    )  # a single-quoted body is data to the shell exactly the same
     for refused in (
         "git status\ntouch m",
         'git commit -m "x" -- f.py\nrm -rf y',
@@ -783,8 +791,10 @@ def test_a_trailered_commit_passes_the_hold_and_a_multiline_command_does_not():
         'git commit -m "x" -- "\\\n$F"',
         'git push origin "a\nb"',  # the exception is the commit verb's, not git's
         'git add -- "a\nb"',
-        'git commit-tree HEAD^{tree} -m a',  # `commit\b` admitted the object-writing cousins (F5)
-        'git commit-graph write',
+        "git commit-tree HEAD^{tree} -m a",  # `commit\b` admitted the object-writing cousins (F5)
+        "git commit-graph write",
         'echo "a\nb"',
     ):
-        assert hook.decide("Bash", refused, stamp_exists=True, tick_age_s=10.0)[0] == "deny", refused
+        assert hook.decide("Bash", refused, stamp_exists=True, tick_age_s=10.0)[0] == "deny", (
+            refused
+        )

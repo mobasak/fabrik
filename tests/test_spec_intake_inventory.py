@@ -30,16 +30,19 @@ Source: https://example.com/doc (fetched 2026-09-01)
 """
 
 SPEC_NO_INVENTORY = SPEC_OK.replace("## Intake Inventory", "## Not An Inventory")
-SPEC_HOLLOW = SPEC_OK.replace("| I2 | \"dark mode someday\" | OUT-OF-SCOPE | backlog row L9 |",
-                              "| I2 | \"dark mode someday\" |  |  |")
+SPEC_HOLLOW = SPEC_OK.replace(
+    '| I2 | "dark mode someday" | OUT-OF-SCOPE | backlog row L9 |',
+    '| I2 | "dark mode someday" |  |  |',
+)
 
 
 def run(root: Path) -> tuple[int, str]:
     # ⚠️ --root, not --project-root: the enforcement family is inconsistent on this flag, and
     # parse_known_args (the anti-pattern-91 guard) SWALLOWS an unknown flag — the first version of
     # this test passed --project-root and silently audited the LIVE hub tree instead of the fixture.
-    proc = subprocess.run([sys.executable, str(CHECK), "--root", str(root)],
-                          capture_output=True, text=True)
+    proc = subprocess.run(
+        [sys.executable, str(CHECK), "--root", str(root)], capture_output=True, text=True
+    )
     return proc.returncode, proc.stdout + proc.stderr
 
 

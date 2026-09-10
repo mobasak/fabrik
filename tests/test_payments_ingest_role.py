@@ -40,7 +40,10 @@ def test_grant_batch_pins_the_three_tables_readwrite() -> None:
     for t in ("customers", "subscriptions"):
         assert f"to_regclass('public.{t}')" in grant_sql
         assert f"GRANT SELECT ON {t}" in grant_sql
-        assert f"CREATE POLICY payments_ingest_sel ON {t} FOR SELECT" in grant_sql and "USING (true)" in grant_sql
+        assert (
+            f"CREATE POLICY payments_ingest_sel ON {t} FOR SELECT" in grant_sql
+            and "USING (true)" in grant_sql
+        )
     # WRITE table: INSERT+SELECT + BOTH policies (SELECT for RETURNING, INSERT WITH CHECK)
     assert "GRANT INSERT, SELECT ON webhook_events" in grant_sql
     assert "CREATE POLICY payments_ingest_sel ON webhook_events FOR SELECT" in grant_sql
@@ -93,41 +96,57 @@ def test_resolve_applicability_payments_ingest() -> None:
     assert off["payments_ingest"][0] is False
     # set without a DB → not applicable (defensive; the Shape validator also blocks it)
     bad = resolve_applicability({"shape": {"needs_payments_ingest": True, "needs_database": False}})
-    assert bad["payments_ingest"][0] is False and "needs_database=false" in bad["payments_ingest"][1]
+    assert (
+        bad["payments_ingest"][0] is False and "needs_database=false" in bad["payments_ingest"][1]
+    )
 
 
 def _prov_with(pi_result, flag=True):
     prov = InfrastructureProvisioner(deployer=_mock.MagicMock())
     ctx = DeploymentContext(spec_path=Path("specs/services/x.yaml"))
     with (
-        _mock.patch("fabrik.drivers.postgres.create_database",
-                    side_effect=lambda db, *a, **k: {"status": "exists", "database": db}),
+        _mock.patch(
+            "fabrik.drivers.postgres.create_database",
+            side_effect=lambda db, *a, **k: {"status": "exists", "database": db},
+        ),
         _mock.patch("fabrik.drivers.postgres.database_exists", side_effect=lambda *a, **k: False),
-        _mock.patch("fabrik.drivers.postgres.create_payments_ingest_role",
-                    side_effect=lambda db, dry_run=False, **k: pi_result(db)) as m,
+        _mock.patch(
+            "fabrik.drivers.postgres.create_payments_ingest_role",
+            side_effect=lambda db, dry_run=False, **k: pi_result(db),
+        ) as m,
     ):
         prov._provision_postgres("ti", {}, ctx, dry_run=False, provision_payments_ingest=flag)
     return prov, ctx, m
 
 
 def test_provision_injects_dsn_and_records_resource_on_fresh_create() -> None:
-    prov, ctx, m = _prov_with(lambda db: {"user": f"{db}_payments_ingest", "password": "PW", "status": "created"})
+    prov, ctx, m = _prov_with(
+        lambda db: {"user": f"{db}_payments_ingest", "password": "PW", "status": "created"}
+    )
     m.assert_called_once()
     injected = dict(kw for c in prov.deployer.inject_env.call_args_list for kw in c.args[1].items())
     assert "PAYMENTS_INGEST_DATABASE_URL" in injected
-    assert injected["PAYMENTS_INGEST_DATABASE_URL"].startswith("postgresql://ti_payments_ingest:PW@")
-    assert ctx.get_resources_by_type("payments-ingest-role")[0].metadata.get("status") == "provisioned"
+    assert injected["PAYMENTS_INGEST_DATABASE_URL"].startswith(
+        "postgresql://ti_payments_ingest:PW@"
+    )
+    assert (
+        ctx.get_resources_by_type("payments-ingest-role")[0].metadata.get("status") == "provisioned"
+    )
 
 
 def test_no_dsn_injected_when_role_already_exists() -> None:
-    prov, ctx, m = _prov_with(lambda db: {"user": f"{db}_payments_ingest", "password": None, "status": "exists"})
+    prov, ctx, m = _prov_with(
+        lambda db: {"user": f"{db}_payments_ingest", "password": None, "status": "exists"}
+    )
     m.assert_called_once()
     injected_keys = [k for c in prov.deployer.inject_env.call_args_list for k in c.args[1]]
     assert "PAYMENTS_INGEST_DATABASE_URL" not in injected_keys  # None password → no fresh DSN
 
 
 def test_not_provisioned_when_flag_false() -> None:
-    prov, _ctx, m = _prov_with(lambda db: {"user": "x", "password": "PW", "status": "created"}, flag=False)
+    prov, _ctx, m = _prov_with(
+        lambda db: {"user": "x", "password": "PW", "status": "created"}, flag=False
+    )
     m.assert_not_called()
 
 

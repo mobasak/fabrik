@@ -155,8 +155,15 @@ def main(argv: list[str] | None = None) -> int:
             f"flushed {flushed:>5} · left {after:>5} · rounds {rounds} · reasons {uniq or '[]'}"
         )
         manifest.append(
-            {"repo": repo, "dir": str(d), "pending_before": before,
-             "flushed": flushed, "left": after, "rounds": rounds, "reasons": uniq}
+            {
+                "repo": repo,
+                "dir": str(d),
+                "pending_before": before,
+                "flushed": flushed,
+                "left": after,
+                "rounds": rounds,
+                "reasons": uniq,
+            }
         )
 
     # NOT an equality assertion — see the module docstring. `flushed` counts parse survivors and
@@ -173,8 +180,10 @@ def main(argv: list[str] | None = None) -> int:
             Path(args.manifest).write_text(json.dumps(manifest, indent=1), encoding="utf-8")
             print(f"[flush-outboxes] manifest written to {args.manifest}")
         except OSError as exc:
-            print(f"[flush-outboxes] manifest NOT written ({exc}) — the flush itself succeeded",
-                  file=sys.stderr)
+            print(
+                f"[flush-outboxes] manifest NOT written ({exc}) — the flush itself succeeded",
+                file=sys.stderr,
+            )
     return 0
 
 
@@ -188,6 +197,9 @@ if __name__ == "__main__":
     except SystemExit:
         raise
     except BaseException as exc:  # noqa: BLE001 — fail-open is the contract
-        print(f"[flush-outboxes] UNEXPECTED FAILURE ({exc!r}) — exiting 0 by contract; "
-              "rows are left in place and the next run retries", file=sys.stderr)
+        print(
+            f"[flush-outboxes] UNEXPECTED FAILURE ({exc!r}) — exiting 0 by contract; "
+            "rows are left in place and the next run retries",
+            file=sys.stderr,
+        )
         raise SystemExit(0) from None

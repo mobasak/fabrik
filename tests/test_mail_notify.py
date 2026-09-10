@@ -43,8 +43,10 @@ def _write_msg(inbox: Path, mid: str, frm="alpha", kind="request", body="do the 
 # ---------------------------------------------------------------------------
 def test_hook_exits_zero_when_summaries_raises(monkeypatch):
     monkeypatch.setattr(hook, "_resolve_repo", lambda cwd: "testrepo")
+
     def boom(_inbox):
         raise RuntimeError("inbox read exploded")
+
     monkeypatch.setattr(hook, "_summaries", boom)
     assert _run_main(monkeypatch, '{"cwd":"/opt/testrepo"}') == 0
 
@@ -70,6 +72,7 @@ def test_hook_exits_zero_when_not_opt_repo(monkeypatch):
 def test_resolve_repo_opt_project(monkeypatch):
     class R:
         stdout = "worktree /opt/myproj\nHEAD abc\nbranch refs/heads/master\n"
+
     monkeypatch.setattr(hook.subprocess, "run", lambda *a, **k: R())
     assert hook._resolve_repo("/opt/myproj/sub") == "myproj"
 
@@ -77,6 +80,7 @@ def test_resolve_repo_opt_project(monkeypatch):
 def test_resolve_repo_rejects_non_opt(monkeypatch):
     class R:
         stdout = "worktree /home/user/proj\n"
+
     monkeypatch.setattr(hook.subprocess, "run", lambda *a, **k: R())
     assert hook._resolve_repo("/home/user/proj") is None
 
@@ -84,6 +88,7 @@ def test_resolve_repo_rejects_non_opt(monkeypatch):
 def test_resolve_repo_none_on_git_failure(monkeypatch):
     def boom(*a, **k):
         raise OSError("git missing")
+
     monkeypatch.setattr(hook.subprocess, "run", boom)
     assert hook._resolve_repo("/opt/x") is None
 
@@ -176,8 +181,14 @@ def test_hook_process_level_failopen_on_garbage():
     # exiting 0 through the __main__ guard — assert it as a real subprocess.
     import subprocess as sp
     import sys as _sys
-    r = sp.run([_sys.executable, str(_HOOK_PY)], input="garbage {{{ not json",
-               capture_output=True, text=True, timeout=15)
+
+    r = sp.run(
+        [_sys.executable, str(_HOOK_PY)],
+        input="garbage {{{ not json",
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
     assert r.returncode == 0
 
 
@@ -202,5 +213,7 @@ def test_summary_skips_colonless_frontmatter_line(tmp_path):
     # frontmatter line is malformed → surfaced as NOTHING (mail.py quarantines it).
     inbox = tmp_path / "inbox"
     inbox.mkdir(parents=True)
-    (inbox / "01CL.md").write_text("---\nid: 01CL\nthis line has no colon\nkind: request\n---\nbody\n")
+    (inbox / "01CL.md").write_text(
+        "---\nid: 01CL\nthis line has no colon\nkind: request\n---\nbody\n"
+    )
     assert hook._summaries(inbox) == []

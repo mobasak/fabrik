@@ -81,11 +81,7 @@ def test_check_docker_red_on_non_amd64_platform(tmp_path: Path) -> None:
     platform in a production compose deployed to an x86_64 VPS.
     """
     (tmp_path / "compose.yaml").write_text(
-        "services:\n"
-        "  app:\n"
-        "    platform: linux/arm64\n"
-        "    build:\n"
-        "      context: .\n",
+        "services:\n  app:\n    platform: linux/arm64\n    build:\n      context: .\n",
         encoding="utf-8",
     )
     result = run_check("check_docker", tmp_path)
@@ -120,11 +116,7 @@ def test_check_docker_green_on_compose_alpine_service_image(tmp_path: Path) -> N
 
 def test_check_docker_green_on_compliant_compose(tmp_path: Path) -> None:
     (tmp_path / "compose.yaml").write_text(
-        "services:\n"
-        "  app:\n"
-        "    platform: linux/amd64\n"
-        "    build:\n"
-        "      context: .\n",
+        "services:\n  app:\n    platform: linux/amd64\n    build:\n      context: .\n",
         encoding="utf-8",
     )
     result = run_check("check_docker", tmp_path)

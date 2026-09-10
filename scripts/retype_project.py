@@ -112,7 +112,9 @@ def plan_retype(repo: Path, target_type: str, *, require_clean: bool = True) -> 
         plan.blocked = f"no project.yaml at {repo} — not a scaffolded project"
         return plan
     if require_clean and _git_dirty(repo):
-        plan.blocked = "repo is git-DIRTY — uncommitted work is a sibling's WIP; commit or stash first"
+        plan.blocked = (
+            "repo is git-DIRTY — uncommitted work is a sibling's WIP; commit or stash first"
+        )
         return plan
     present, missing = scaffold.validate_project(repo, target_type)
     plan.present, plan.missing = present, missing
@@ -160,7 +162,10 @@ def _default_scaffold(dest: Path, name: str, description: str, project_type: str
     """Real scaffold into a throwaway dir (never the repo)."""
     dest.parent.mkdir(parents=True, exist_ok=True)
     scaffold.create_project(
-        name=name, description=description, base=dest.parent, project_type=project_type,
+        name=name,
+        description=description,
+        base=dest.parent,
+        project_type=project_type,
         generate_spec=False,
     )
 
@@ -171,11 +176,19 @@ def _render(plan: RetypePlan, applied: bool) -> str:
         return f"BLOCKED  {head}\n         {plan.blocked}"
     lines = [f"{'APPLIED ' if applied else 'DRY-RUN '} {head}"]
     lines.append(f"         satisfied already: {len(plan.present)}")
-    lines.append(f"         missing for new type: {len(plan.missing)}" + (f" — {', '.join(plan.missing)}" if plan.missing else ""))
+    lines.append(
+        f"         missing for new type: {len(plan.missing)}"
+        + (f" — {', '.join(plan.missing)}" if plan.missing else "")
+    )
     if applied:
-        lines.append(f"         copied: {len(plan.copied)}" + (f" — {', '.join(plan.copied)}" if plan.copied else ""))
+        lines.append(
+            f"         copied: {len(plan.copied)}"
+            + (f" — {', '.join(plan.copied)}" if plan.copied else "")
+        )
         if plan.skipped_existing:
-            lines.append(f"         SKIPPED (already present, never overwritten): {', '.join(plan.skipped_existing)}")
+            lines.append(
+                f"         SKIPPED (already present, never overwritten): {', '.join(plan.skipped_existing)}"
+            )
     return "\n".join(lines)
 
 

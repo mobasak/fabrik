@@ -99,7 +99,9 @@ def test_db_name_is_name_first_matching_the_registrar() -> None:
         return_value={"status": "created", "password": "PW"},
     ) as pg:
         orch._pre_provision_db_for_boot(ctx, ctx.spec)
-    assert pg.call_args.args[0] == "svc_name", "db_name must derive from spec.name (registrar parity), not spec.id"
+    assert pg.call_args.args[0] == "svc_name", (
+        "db_name must derive from spec.name (registrar parity), not spec.id"
+    )
     assert ctx.secrets["DATABASE_URL"] == "postgresql://svc_name:PW@postgres-main:5432/svc_name"
 
 
@@ -165,7 +167,9 @@ def test_deploy_calls_pre_provision_before_deployer_deploy() -> None:
     order: list[str] = []
     orch.deployer.deploy.side_effect = lambda ctx: order.append("deploy")
     with (
-        patch.object(orch, "_pre_provision_db_for_boot", side_effect=lambda ctx, spec: order.append("pre")),
+        patch.object(
+            orch, "_pre_provision_db_for_boot", side_effect=lambda ctx, spec: order.append("pre")
+        ),
         patch.object(orch, "_load_secrets"),
         patch.object(orch, "_provision_dns"),
         patch.object(orch, "_persist_state"),
@@ -175,7 +179,9 @@ def test_deploy_calls_pre_provision_before_deployer_deploy() -> None:
         except Exception:  # noqa: BLE001 — downstream mocks may raise; we only assert order
             pass
     assert "pre" in order and "deploy" in order, f"both steps must run; got {order}"
-    assert order.index("pre") < order.index("deploy"), f"pre-provision must precede deploy; got {order}"
+    assert order.index("pre") < order.index("deploy"), (
+        f"pre-provision must precede deploy; got {order}"
+    )
 
 
 def test_created_db_is_tracked_for_rollback() -> None:
@@ -190,4 +196,6 @@ def test_created_db_is_tracked_for_rollback() -> None:
     ):
         orch._pre_provision_db_for_boot(ctx, ctx.spec)
     pg_resources = ctx.get_resources_by_type("postgres")
-    assert any(r.resource_id == "zitadel" for r in pg_resources), "pre-provisioned DB not tracked in ctx.created_resources"
+    assert any(r.resource_id == "zitadel" for r in pg_resources), (
+        "pre-provisioned DB not tracked in ctx.created_resources"
+    )

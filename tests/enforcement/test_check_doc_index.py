@@ -107,11 +107,7 @@ def test_untracked_doc_fires_on_the_authoring_run(monkeypatch):
         if "ls-files" in cmd:
 
             class R:
-                stdout = (
-                    "docs/reference/brand-new-proposal.md\n"
-                    if "--others" in cmd
-                    else ""
-                )
+                stdout = "docs/reference/brand-new-proposal.md\n" if "--others" in cmd else ""
 
             return R()
         return real_run(cmd, **kw)

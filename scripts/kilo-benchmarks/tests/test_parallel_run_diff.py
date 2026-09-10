@@ -50,7 +50,7 @@ _VOLATILE_PREFIXES = (
     "**Generated:**",
     "Last content verification:",
     "_Last updated:",
-    '"generated_at":',   # JSON artifacts stamp the run time too
+    '"generated_at":',  # JSON artifacts stamp the run time too
 )
 
 # ⚠️ C-B5 — THE COMPARISON IS ONLY MEANINGFUL WITHIN ONE WINDOW, and the plan does not say so.
@@ -147,4 +147,6 @@ def test_shadow_matches_fabrik_byte_for_byte(rel):
 
 def test_the_comparison_set_is_not_empty():
     """Guard the guard: an empty _WHOLE_FILE list would make the whole window vacuously green."""
-    assert len(_WHOLE_FILE) >= 6, f"only {len(_WHOLE_FILE)} artifacts compared — the window proves little"
+    assert len(_WHOLE_FILE) >= 6, (
+        f"only {len(_WHOLE_FILE)} artifacts compared — the window proves little"
+    )

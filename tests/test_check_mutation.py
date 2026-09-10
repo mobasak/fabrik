@@ -141,8 +141,11 @@ def test_wall_cap_timeout_kills_group_and_stays_advisory(monkeypatch, capsys):
             killed["direct"] = True
 
     monkeypatch.setattr(cm.subprocess, "Popen", lambda cmd, **kw: FakeProc())
-    monkeypatch.setattr(cm.subprocess, "run",
-                        lambda *a, **k: types.SimpleNamespace(stdout="0 survived", returncode=0))
+    monkeypatch.setattr(
+        cm.subprocess,
+        "run",
+        lambda *a, **k: types.SimpleNamespace(stdout="0 survived", returncode=0),
+    )
     monkeypatch.setattr(cm.os, "getpgid", lambda pid: pid)
     monkeypatch.setattr(cm.os, "killpg", lambda pgid, sig: killed.setdefault("group", (pgid, sig)))
     assert cm.main() == 0
@@ -169,8 +172,11 @@ def test_malformed_wall_cap_falls_back_to_default(monkeypatch, capsys):
             return 0
 
     monkeypatch.setattr(cm.subprocess, "Popen", lambda cmd, **kw: FakeProc())
-    monkeypatch.setattr(cm.subprocess, "run",
-                        lambda *a, **k: types.SimpleNamespace(stdout="0 survived", returncode=0))
+    monkeypatch.setattr(
+        cm.subprocess,
+        "run",
+        lambda *a, **k: types.SimpleNamespace(stdout="0 survived", returncode=0),
+    )
     assert cm.main() == 0
     assert "malformed FABRIK_MUTMUT_WALL_CAP_S" in capsys.readouterr().out
 
@@ -199,8 +205,9 @@ def test_negative_wall_cap_caps_immediately_and_stays_advisory(monkeypatch, caps
             return 0
 
     monkeypatch.setattr(cm.subprocess, "Popen", lambda cmd, **kw: FakeProc())
-    monkeypatch.setattr(cm.subprocess, "run",
-                        lambda *a, **k: types.SimpleNamespace(stdout="", returncode=0))
+    monkeypatch.setattr(
+        cm.subprocess, "run", lambda *a, **k: types.SimpleNamespace(stdout="", returncode=0)
+    )
     monkeypatch.setattr(cm.os, "getpgid", lambda pid: pid)
     monkeypatch.setattr(cm.os, "killpg", lambda pgid, sig: killed.setdefault("group", (pgid, sig)))
     assert cm.main() == 0

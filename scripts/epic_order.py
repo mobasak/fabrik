@@ -16,6 +16,7 @@ Pure stdlib. Project-agnostic: operates on --epics-dir under the current repo.
 
 Exit codes: 0 = ok; 1 = integrity failure; 2 = usage/parse error.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -72,7 +73,17 @@ _LIST_KEYS = frozenset({"depends_on", "parallel_with", "owned_paths"})
 # would otherwise match first): CR+LF, CR, LF, vertical tab, form feed, the
 # three C1 separators, NEL, and the two Unicode line/paragraph separators.
 _LINE_TERMINATORS = (
-    "\r\n", "\r", "\n", "\v", "\f", "\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029",
+    "\r\n",
+    "\r",
+    "\n",
+    "\v",
+    "\f",
+    "\x1c",
+    "\x1d",
+    "\x1e",
+    "\x85",
+    "\u2028",
+    "\u2029",
 )
 
 
@@ -183,8 +194,11 @@ def _find_fences(lines: list[str]) -> tuple[int, int] | None:
     if not lines or _classify_fm_line(_line_content(lines[0]))[0] != "fence":
         return None
     close_idx = next(
-        (idx for idx in range(1, len(lines))
-         if _classify_fm_line(_line_content(lines[idx]))[0] == "fence"),
+        (
+            idx
+            for idx in range(1, len(lines))
+            if _classify_fm_line(_line_content(lines[idx]))[0] == "fence"
+        ),
         None,
     )
     if close_idx is None:
@@ -292,6 +306,7 @@ def load_epics(epics_dir: str) -> list[dict]:
         if fm is None:
             epics.append({"_path": path, "_no_frontmatter": True})
             continue
+
         def _ints(v):
             out = []
             for x in v if isinstance(v, list) else [v]:
@@ -299,27 +314,38 @@ def load_epics(epics_dir: str) -> list[dict]:
                 if m:
                     out.append(int(m.group()))
             return out
-        epics.append({
-            "_path": path,
-            "epic_n": int(re.search(r"\d+", str(fm.get("epic_n", ""))).group())
-                      if re.search(r"\d+", str(fm.get("epic_n", ""))) else None,
-            "slug": fm.get("slug", ""),
-            "title": fm.get("title", ""),
-            "status": fm.get("status", "0"),
-            "owner": fm.get("owner"),
-            "_dup_owner": "owner" in fm.get("_dup_keys", []),
-            "_malformed_keys": fm.get("_malformed_keys", []),
-            "depends_on": _ints(fm.get("depends_on", [])),
-            "parallel_with": _ints(fm.get("parallel_with", [])),
-            # An empty/absent `owned_paths:` (bare key, `""`, or `[]`) is NO
-            # paths — never the one-element list [''] the scalar branch used to
-            # produce, which two parallel epics then "shared" as a finding.
-            # A whitespace-only entry is dropped too: with no segments it
-            # would read as the whole repo (`_forms` -> [[], ['**']]). `/` and
-            # `./` survive as a DELIBERATE root-ownership entry.
-            "owned_paths": [p for p in (fm.get("owned_paths", []) if isinstance(
-                fm.get("owned_paths", []), list) else [fm.get("owned_paths")]) if str(p).strip()],
-        })
+
+        epics.append(
+            {
+                "_path": path,
+                "epic_n": int(re.search(r"\d+", str(fm.get("epic_n", ""))).group())
+                if re.search(r"\d+", str(fm.get("epic_n", "")))
+                else None,
+                "slug": fm.get("slug", ""),
+                "title": fm.get("title", ""),
+                "status": fm.get("status", "0"),
+                "owner": fm.get("owner"),
+                "_dup_owner": "owner" in fm.get("_dup_keys", []),
+                "_malformed_keys": fm.get("_malformed_keys", []),
+                "depends_on": _ints(fm.get("depends_on", [])),
+                "parallel_with": _ints(fm.get("parallel_with", [])),
+                # An empty/absent `owned_paths:` (bare key, `""`, or `[]`) is NO
+                # paths — never the one-element list [''] the scalar branch used to
+                # produce, which two parallel epics then "shared" as a finding.
+                # A whitespace-only entry is dropped too: with no segments it
+                # would read as the whole repo (`_forms` -> [[], ['**']]). `/` and
+                # `./` survive as a DELIBERATE root-ownership entry.
+                "owned_paths": [
+                    p
+                    for p in (
+                        fm.get("owned_paths", [])
+                        if isinstance(fm.get("owned_paths", []), list)
+                        else [fm.get("owned_paths")]
+                    )
+                    if str(p).strip()
+                ],
+            }
+        )
     return epics
 
 
@@ -390,8 +416,9 @@ def _match_segs(psegs: list[str], ssegs: list[str]) -> bool:
             first = min(reach)
             reach = set(range(first + 1 if i == len(psegs) - 1 else first, m + 1))
         else:
-            reach = {j + 1 for j in reach
-                     if j < m and ssegs[j] != "**" and _seg_matches(seg, ssegs[j])}
+            reach = {
+                j + 1 for j in reach if j < m and ssegs[j] != "**" and _seg_matches(seg, ssegs[j])
+            }
         if not reach:
             return False
     return m in reach
@@ -458,9 +485,21 @@ def _tracked_files(epics_dir: str) -> list[str]:
     are then empty and the pattern-level predicate carries the check alone."""
     try:
         proc = subprocess.run(
-            ["git", "-C", epics_dir, "ls-files", "-z", "--cached", "--others",
-             "--exclude-standard", "--full-name", "--", ":/"],
-            capture_output=True, check=False,
+            [
+                "git",
+                "-C",
+                epics_dir,
+                "ls-files",
+                "-z",
+                "--cached",
+                "--others",
+                "--exclude-standard",
+                "--full-name",
+                "--",
+                ":/",
+            ],
+            capture_output=True,
+            check=False,
         )
     except OSError:
         return []
@@ -484,15 +523,21 @@ def _owns_migrations(patterns: list[str]) -> bool:
     the migration glob counts (`db/*` covers the bare `db/schema.sql` though
     not `db/schema.sql/**`, and it plainly owns the file), where the strict
     all-forms quantifier would say False."""
-    return any(any(_match_segs(o, _pattern_segs(g)) for o in _forms(p)) or _glob_subsumes(g, p)
-               for p in patterns for g in MIGRATION_GLOBS)
+    return any(
+        any(_match_segs(o, _pattern_segs(g)) for o in _forms(p)) or _glob_subsumes(g, p)
+        for p in patterns
+        for g in MIGRATION_GLOBS
+    )
 
 
-def check_integrity(epics: list[dict], expected_count: int | None,
-                     owners: set[str] | None = None,
-                     epics_dir: str | None = None,
-                     require_epics: bool = False,
-                     tree: list[str] | None = None) -> list[str]:
+def check_integrity(
+    epics: list[dict],
+    expected_count: int | None,
+    owners: set[str] | None = None,
+    epics_dir: str | None = None,
+    require_epics: bool = False,
+    tree: list[str] | None = None,
+) -> list[str]:
     """Returns a list of finding strings; empty == PASS. (Was 05 Step 1.)
 
     Disjointness is keyed on the PHASE `phased_order()` assigns — that is
@@ -536,12 +581,16 @@ def check_integrity(epics: list[dict], expected_count: int | None,
     findings: list[str] = []
     if require_epics and not epics and expected_count != 0:
         where = f" in {epics_dir}" if epics_dir else ""
-        findings.append(f"no epics found{where} — nothing to verify or assign "
-                        f"(pass --expected-count 0 if this is deliberate).")
+        findings.append(
+            f"no epics found{where} — nothing to verify or assign "
+            f"(pass --expected-count 0 if this is deliberate)."
+        )
     for e in epics:
         if e.get("_no_frontmatter"):
-            findings.append(f"{e['_path']}: no frontmatter — cannot map to a graph node "
-                            f"(03 must emit the epic-artifact schema).")
+            findings.append(
+                f"{e['_path']}: no frontmatter — cannot map to a graph node "
+                f"(03 must emit the epic-artifact schema)."
+            )
     good = [e for e in epics if not e.get("_no_frontmatter")]
     for e in good:
         if e["epic_n"] is None:
@@ -554,24 +603,31 @@ def check_integrity(epics: list[dict], expected_count: int | None,
             # last-wins, so --assign and --check --owners would otherwise act
             # on two different values from the same file. Refuse instead of
             # guessing which one is real.
-            findings.append(f"{e['_path']}: multiple owner: lines in frontmatter — "
-                            f"the writer updates only the first, the reader takes the "
-                            f"last; fix by hand to a single owner: line.")
+            findings.append(
+                f"{e['_path']}: multiple owner: lines in frontmatter — "
+                f"the writer updates only the first, the reader takes the "
+                f"last; fix by hand to a single owner: line."
+            )
         if e.get("_malformed_keys"):
             # Unconditional too: a "  - item" block under a SCALAR field
             # (title/owner/slug/kind/status/scaffold/port/target_vps) is a
             # malformed frontmatter, not a list — flagged here instead of
             # crashing every downstream consumer that assumes a string.
-            findings.append(f"{e['_path']}: malformed value for "
-                            f"{', '.join(sorted(e['_malformed_keys']))} — a block list "
-                            f"('  - item' lines) is only valid for {sorted(_LIST_KEYS)}.")
+            findings.append(
+                f"{e['_path']}: malformed value for "
+                f"{', '.join(sorted(e['_malformed_keys']))} — a block list "
+                f"('  - item' lines) is only valid for {sorted(_LIST_KEYS)}."
+            )
         if owners is not None and e.get("owner") not in owners:
-            findings.append(f"{e['_path']}: owner {e.get('owner')!r} is not in allowed "
-                            f"set {sorted(owners)}.")
+            findings.append(
+                f"{e['_path']}: owner {e.get('owner')!r} is not in allowed set {sorted(owners)}."
+            )
     nums = sorted(e["epic_n"] for e in good if e["epic_n"] is not None)
     if expected_count is not None and len(good) != expected_count:
-        findings.append(f"count mismatch: {len(good)} epic files vs {expected_count} "
-                        f"expected from 02's proposal (deficit or orphan).")
+        findings.append(
+            f"count mismatch: {len(good)} epic files vs {expected_count} "
+            f"expected from 02's proposal (deficit or orphan)."
+        )
     dups = sorted({n for n in nums if nums.count(n) > 1})
     if dups:
         findings.append(f"duplicate epic numbers: {dups} (stale/redundant copy).")
@@ -602,15 +658,20 @@ def check_integrity(epics: list[dict], expected_count: int | None,
             if other_n == n:
                 # `phase_of[n] != phase_of[n]` is never true — a self-reference
                 # slipped through where every other malformed value is a finding.
-                findings.append(f"epic {n}: parallel_with names itself — an epic is not its "
-                                f"own co-phase peer.")
+                findings.append(
+                    f"epic {n}: parallel_with names itself — an epic is not its own co-phase peer."
+                )
             elif other_n not in by_n:
-                findings.append(f"epic {n}: parallel_with names unknown epic {other_n} — "
-                                f"contradicts phased_order().")
+                findings.append(
+                    f"epic {n}: parallel_with names unknown epic {other_n} — "
+                    f"contradicts phased_order()."
+                )
             elif phases and phase_of[other_n] != phase_of[n]:
-                findings.append(f"epic {n}: parallel_with [{other_n}] contradicts phased_order() "
-                                f"— epic {n} is phase {phase_of[n]}, epic {other_n} is phase "
-                                f"{phase_of[other_n]}; they never run concurrently.")
+                findings.append(
+                    f"epic {n}: parallel_with [{other_n}] contradicts phased_order() "
+                    f"— epic {n} is phase {phase_of[n]}, epic {other_n} is phase "
+                    f"{phase_of[other_n]}; they never run concurrently."
+                )
     tree_index: list[str] | None = tree
     for k, phase in enumerate(phases, 1):
         if len(phase) < 2:
@@ -622,18 +683,23 @@ def check_integrity(epics: list[dict], expected_count: int | None,
             pa, pb = by_n[a]["owned_paths"], by_n[b]["owned_paths"]
             shared = sorted(realised[a] & realised[b])
             if shared:
-                findings.append(f"phase {k} epics {a} & {b} share owned_paths — {len(shared)} "
-                                f"realised file(s), e.g. {shared[:3]} — concurrency-unsafe.")
+                findings.append(
+                    f"phase {k} epics {a} & {b} share owned_paths — {len(shared)} "
+                    f"realised file(s), e.g. {shared[:3]} — concurrency-unsafe."
+                )
             else:
-                sub = [(x, y) for x in pa for y in pb if _glob_subsumes(x, y) or _glob_subsumes(y, x)]
+                sub = [
+                    (x, y) for x in pa for y in pb if _glob_subsumes(x, y) or _glob_subsumes(y, x)
+                ]
                 if sub:
                     x, y = sub[0]
-                    findings.append(f"phase {k} epics {a} & {b} share owned_paths — glob {x!r} "
-                                    f"(epic {a}) and {y!r} (epic {b}) cover the same paths "
-                                    f"(no realised file in common yet) — concurrency-unsafe.")
+                    findings.append(
+                        f"phase {k} epics {a} & {b} share owned_paths — glob {x!r} "
+                        f"(epic {a}) and {y!r} (epic {b}) cover the same paths "
+                        f"(no realised file in common yet) — concurrency-unsafe."
+                    )
             if _owns_migrations(pa) and _owns_migrations(pb):
-                findings.append(f"phase {k} epics {a} & {b} both own migrations "
-                                f"— at most one may.")
+                findings.append(f"phase {k} epics {a} & {b} both own migrations — at most one may.")
     return findings
 
 
@@ -660,7 +726,7 @@ def render_phases(epics: list[dict], phases: list[list[int]]) -> str:
     lines = []
     for i, phase in enumerate(phases, 1):
         names = " ⚡ ".join(f"Epic {n} — {by_n[n]['slug']}" for n in phase)
-        when = "root — no upstream dependencies" if i == 1 else f"after Phase {i-1} completes"
+        when = "root — no upstream dependencies" if i == 1 else f"after Phase {i - 1} completes"
         lines.append(f"Phase {i} ({when}): {names}")
     return "\n".join(lines) if lines else "(no epics found)"
 
@@ -712,7 +778,9 @@ def _write_owner(path: str, owner: str) -> None:
             if key == "owned_paths":
                 j = i + 1
                 while j < close_idx and _classify_fm_line(_line_content(lines[j]))[0] in (
-                    "blank", "comment", "item",
+                    "blank",
+                    "comment",
+                    "item",
                 ):
                     j += 1
                 owned_paths_end = j
@@ -761,19 +829,29 @@ def _validate_names(names: list[str], ap: argparse.ArgumentParser, flag: str) ->
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--epics-dir", default="docs/development/epics")
-    ap.add_argument("--expected-count", type=int, default=None,
-                    help="epic count from 02's proposal (enables the count-match check)")
+    ap.add_argument(
+        "--expected-count",
+        type=int,
+        default=None,
+        help="epic count from 02's proposal (enables the count-match check)",
+    )
     ap.add_argument("--check", action="store_true", help="integrity only; exit 1 on any finding")
     ap.add_argument("--json", action="store_true", help="emit machine-readable JSON")
-    ap.add_argument("--assign", metavar="NAMES",
-                    help="round-robin assign the phased epics to these comma-separated "
-                         "agent names, writing owner: into each epic's frontmatter "
-                         "(epic_n order within each phase); refuses to write (exit 1, "
-                         "no file touched) when the --check --owners grade of integrity "
-                         "(including the empty-dir refusal) would report a finding")
-    ap.add_argument("--owners", metavar="NAMES",
-                    help="with --check: comma-separated allowed owners — adds a finding "
-                         "for any epic whose owner is missing or outside this set")
+    ap.add_argument(
+        "--assign",
+        metavar="NAMES",
+        help="round-robin assign the phased epics to these comma-separated "
+        "agent names, writing owner: into each epic's frontmatter "
+        "(epic_n order within each phase); refuses to write (exit 1, "
+        "no file touched) when the --check --owners grade of integrity "
+        "(including the empty-dir refusal) would report a finding",
+    )
+    ap.add_argument(
+        "--owners",
+        metavar="NAMES",
+        help="with --check: comma-separated allowed owners — adds a finding "
+        "for any epic whose owner is missing or outside this set",
+    )
     args = ap.parse_args(argv)
     if args.owners is not None and not args.check:
         ap.error("--owners requires --check")
@@ -807,8 +885,9 @@ def main(argv=None) -> int:
     epics = load_epics(args.epics_dir)
 
     if assign_names is not None:
-        assign_findings = check_integrity(epics, args.expected_count, epics_dir=args.epics_dir,
-                                           require_epics=True)
+        assign_findings = check_integrity(
+            epics, args.expected_count, epics_dir=args.epics_dir, require_epics=True
+        )
         if assign_findings:
             print("ASSIGN: REFUSED (integrity failure)")
             for f in assign_findings:
@@ -834,8 +913,13 @@ def main(argv=None) -> int:
         print("ASSIGN: OK")
         return 0
 
-    findings = check_integrity(epics, args.expected_count, owners if args.check else None,
-                                epics_dir=args.epics_dir, require_epics=owners is not None)
+    findings = check_integrity(
+        epics,
+        args.expected_count,
+        owners if args.check else None,
+        epics_dir=args.epics_dir,
+        require_epics=owners is not None,
+    )
 
     if args.check:
         if args.json:

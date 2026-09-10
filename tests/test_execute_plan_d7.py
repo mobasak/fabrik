@@ -18,7 +18,9 @@ from pathlib import Path
 # Resolve from THIS file, never cwd: `pytest tests/...` from the repo root and
 # `pytest test_execute_plan_d7.py` from inside tests/ must both work. A cwd-relative
 # path made the second form die with FileNotFoundError (review finding, 2026-08-25).
-_D7_SOURCE = Path(__file__).resolve().parents[1] / "commands" / "_sources" / "fabrik-execute-plan.md"
+_D7_SOURCE = (
+    Path(__file__).resolve().parents[1] / "commands" / "_sources" / "fabrik-execute-plan.md"
+)
 
 
 def _d7_section(text: str) -> str:
@@ -27,27 +29,27 @@ def _d7_section(text: str) -> str:
     The section starts at the D7 heading and ends at the next section header (### or ##)
     or the end of the file.
     """
-    lines = text.split('\n')
+    lines = text.split("\n")
     d7_start = None
     d7_end = None
 
     for i, line in enumerate(lines):
-        if '### D7 — Final validation + terminal states' in line:
+        if "### D7 — Final validation + terminal states" in line:
             d7_start = i
             # Find next section header (### or ##)
             for j in range(i + 1, len(lines)):
-                if lines[j].startswith('### ') or lines[j].startswith('## '):
+                if lines[j].startswith("### ") or lines[j].startswith("## "):
                     d7_end = j
                     break
             break
 
     if d7_start is None:
-        return ''
+        return ""
 
     if d7_end is None:
         d7_end = len(lines)
 
-    return '\n'.join(lines[d7_start:d7_end])
+    return "\n".join(lines[d7_start:d7_end])
 
 
 def _pins_live_request(section: str) -> bool:
@@ -125,13 +127,16 @@ def test_d7_pin_is_not_vacuous():
 
     # Remove lines that contain both "live" and "request" (case-insensitive)
     # and lines that contain "## Evidence"
-    lines = mutated.split('\n')
+    lines = mutated.split("\n")
     filtered_lines = [
-        line for line in lines
-        if not (re.search(r'live', line, re.IGNORECASE) and re.search(r'request', line, re.IGNORECASE))
-        and '## Evidence' not in line
+        line
+        for line in lines
+        if not (
+            re.search(r"live", line, re.IGNORECASE) and re.search(r"request", line, re.IGNORECASE)
+        )
+        and "## Evidence" not in line
     ]
-    mutated = '\n'.join(filtered_lines)
+    mutated = "\n".join(filtered_lines)
 
     # The mutated section should NOT satisfy the requirement
     assert not _pins_live_request(mutated), (

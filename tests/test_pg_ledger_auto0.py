@@ -82,9 +82,14 @@ class _Conn:
 
 def _recorded_quality(result, sink):
     ok = record_agent_run(
-        _Spec(), result, quality_score=None, project="auto0-test",
-        dsn="postgresql://fake", connect=lambda dsn: _Conn(sink),
-        receipt_dir=None, outbox_dir=None,
+        _Spec(),
+        result,
+        quality_score=None,
+        project="auto0-test",
+        dsn="postgresql://fake",
+        connect=lambda dsn: _Conn(sink),
+        receipt_dir=None,
+        outbox_dir=None,
     )
     assert ok, "the fake-connection insert must be treated as confirmed"
     assert sink, "no INSERT captured"

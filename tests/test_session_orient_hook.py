@@ -135,8 +135,12 @@ def test_headless_run_gets_no_arm_order(tmp_path: Path) -> None:
     _mesh_home(tmp_path)
     proj = tmp_path / "opt" / "p4"
     proj.mkdir(parents=True)
-    rc, out = _run(proj, tmp_path, json.dumps({"cwd": str(proj), "session_id": "s4"}),
-                   extra_env={"CLAUDE_MESH_HEADLESS": "1"})
+    rc, out = _run(
+        proj,
+        tmp_path,
+        json.dumps({"cwd": str(proj), "session_id": "s4"}),
+        extra_env={"CLAUDE_MESH_HEADLESS": "1"},
+    )
     assert rc == 0 and "ARM YOUR SELF-WATCH" not in out
     assert "Governance" in out  # the rest of ORIENT still prints
 
@@ -147,11 +151,13 @@ def test_compact_source_gets_no_arm_order(tmp_path: Path) -> None:
     _mesh_home(tmp_path)
     proj = tmp_path / "opt" / "p5"
     proj.mkdir(parents=True)
-    rc, out = _run(proj, tmp_path,
-                   json.dumps({"cwd": str(proj), "session_id": "s5", "source": "compact"}))
+    rc, out = _run(
+        proj, tmp_path, json.dumps({"cwd": str(proj), "session_id": "s5", "source": "compact"})
+    )
     assert rc == 0 and "ARM YOUR SELF-WATCH" not in out
-    rc, out = _run(proj, tmp_path,
-                   json.dumps({"cwd": str(proj), "session_id": "s5", "source": "resume"}))
+    rc, out = _run(
+        proj, tmp_path, json.dumps({"cwd": str(proj), "session_id": "s5", "source": "resume"})
+    )
     assert rc == 0 and "ARM YOUR SELF-WATCH" in out  # a resumed PROCESS is new — arm
 
 
@@ -236,11 +242,7 @@ def test_hook_is_synced_and_wired() -> None:
 
     assert ".claude/hooks/session_orient.py" in m.AGENT_HOOK_FILES
     settings = json.loads((FABRIK / ".claude/settings.json").read_text(encoding="utf-8"))
-    cmds = [
-        h["command"]
-        for grp in settings["hooks"]["SessionStart"]
-        for h in grp["hooks"]
-    ]
+    cmds = [h["command"] for grp in settings["hooks"]["SessionStart"] for h in grp["hooks"]]
     assert any("session_orient.py" in c for c in cmds)
 
 
@@ -252,11 +254,18 @@ def test_autonomous_env_drops_a_marker(tmp_path: Path) -> None:
     state = tmp_path / "state"
     proj = tmp_path / "opt" / "auto"
     proj.mkdir(parents=True)
-    rc, _ = _run(proj, tmp_path,
-                 json.dumps({"cwd": str(proj), "session_id": "sid-auto",
-                             "transcript_path": str(tmp_path / "t.jsonl")}),
-                 extra_env={"CLAUDE_MESH_AUTONOMOUS": "1",
-                            "MESH_STATE_DIR": str(state)})
+    rc, _ = _run(
+        proj,
+        tmp_path,
+        json.dumps(
+            {
+                "cwd": str(proj),
+                "session_id": "sid-auto",
+                "transcript_path": str(tmp_path / "t.jsonl"),
+            }
+        ),
+        extra_env={"CLAUDE_MESH_AUTONOMOUS": "1", "MESH_STATE_DIR": str(state)},
+    )
     assert rc == 0
     marker = state / "sid-auto.autonomous"
     assert marker.is_file()
@@ -273,11 +282,16 @@ def test_marker_never_lands_in_the_lock_dir(tmp_path: Path) -> None:
     locks.mkdir()
     proj = tmp_path / "opt" / "auto3"
     proj.mkdir(parents=True)
-    rc, _ = _run(proj, tmp_path,
-                 json.dumps({"cwd": str(proj), "session_id": "sid-b"}),
-                 extra_env={"CLAUDE_MESH_AUTONOMOUS": "1",
-                            "MESH_STATE_DIR": str(state),
-                            "CLAUDE_SOUND_LOCKDIR": str(locks)})
+    rc, _ = _run(
+        proj,
+        tmp_path,
+        json.dumps({"cwd": str(proj), "session_id": "sid-b"}),
+        extra_env={
+            "CLAUDE_MESH_AUTONOMOUS": "1",
+            "MESH_STATE_DIR": str(state),
+            "CLAUDE_SOUND_LOCKDIR": str(locks),
+        },
+    )
     assert rc == 0
     assert (state / "sid-b.autonomous").is_file()
     assert not (locks / "sid-b.autonomous").exists()
@@ -290,10 +304,12 @@ def test_unwritable_state_dir_is_fail_open(tmp_path: Path) -> None:
     proj = tmp_path / "opt" / "auto4"
     proj.mkdir(parents=True)
     try:
-        rc, out = _run(proj, tmp_path,
-                       json.dumps({"cwd": str(proj), "session_id": "sid-ro"}),
-                       extra_env={"CLAUDE_MESH_AUTONOMOUS": "1",
-                                  "MESH_STATE_DIR": str(state)})
+        rc, out = _run(
+            proj,
+            tmp_path,
+            json.dumps({"cwd": str(proj), "session_id": "sid-ro"}),
+            extra_env={"CLAUDE_MESH_AUTONOMOUS": "1", "MESH_STATE_DIR": str(state)},
+        )
     finally:
         state.chmod(0o700)
     assert rc == 0
@@ -316,11 +332,14 @@ def test_state_dir_defaults_agree_writer_and_sweep() -> None:
     hook_src = HOOK.read_text()
     sweep_src = sweep.read_text()
     # writer side: the three Path components that build the default
-    assert '/ ".claude" / "state" / "autonomous"' in hook_src, \
+    assert '/ ".claude" / "state" / "autonomous"' in hook_src, (
         "writer default no longer derives ~/.claude/state/autonomous"
+    )
     m = re.search(r'state="\$\{MESH_STATE_DIR:-\$HOME/([^}]+)\}"', sweep_src)
     assert m and m.group(1) == ".claude/state/autonomous", (
-        "sweep default drifted from the writer's", m.group(1) if m else None)
+        "sweep default drifted from the writer's",
+        m.group(1) if m else None,
+    )
 
 
 def test_rerun_rewrites_a_consumed_marker(tmp_path: Path) -> None:
@@ -350,11 +369,18 @@ def test_autonomous_marker_even_when_headless(tmp_path: Path) -> None:
     locks.mkdir()
     proj = tmp_path / "opt" / "auto2"
     proj.mkdir(parents=True)
-    rc, out = _run(proj, tmp_path, json.dumps({"cwd": str(proj), "session_id": "sid-h"}),
-                   extra_env={"CLAUDE_MESH_AUTONOMOUS": "1", "CLAUDE_MESH_HEADLESS": "1",
-                              "MESH_STATE_DIR": str(locks / "state")})
+    rc, out = _run(
+        proj,
+        tmp_path,
+        json.dumps({"cwd": str(proj), "session_id": "sid-h"}),
+        extra_env={
+            "CLAUDE_MESH_AUTONOMOUS": "1",
+            "CLAUDE_MESH_HEADLESS": "1",
+            "MESH_STATE_DIR": str(locks / "state"),
+        },
+    )
     assert rc == 0
-    assert "ARM YOUR SELF-WATCH" not in out           # headless: no pane to wake
+    assert "ARM YOUR SELF-WATCH" not in out  # headless: no pane to wake
     assert (locks / "state" / "sid-h.autonomous").is_file()  # but still swept
 
 
@@ -363,10 +389,14 @@ def test_no_autonomous_env_no_marker(tmp_path: Path) -> None:
     locks.mkdir()
     proj = tmp_path / "opt" / "manual"
     proj.mkdir(parents=True)
-    rc, _ = _run(proj, tmp_path, json.dumps({"cwd": str(proj), "session_id": "sid-m"}),
-                 extra_env={"CLAUDE_SOUND_LOCKDIR": str(locks)})
+    rc, _ = _run(
+        proj,
+        tmp_path,
+        json.dumps({"cwd": str(proj), "session_id": "sid-m"}),
+        extra_env={"CLAUDE_SOUND_LOCKDIR": str(locks)},
+    )
     assert rc == 0
-    assert not (locks / "sid-m.autonomous").exists()   # panes are never swept
+    assert not (locks / "sid-m.autonomous").exists()  # panes are never swept
 
 
 # --- T04: _sessions_line — the "N sessions share this main checkout" advisory ---

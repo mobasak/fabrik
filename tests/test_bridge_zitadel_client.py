@@ -61,9 +61,14 @@ def test_list_authorizations_mints_token_then_parses():
             # Create/Update REQUEST. The original mock returned `roleKeys`, matching the
             # buggy pass-through instead of the API: against real Zitadel every consumer
             # read None -> the fail-closed gate denied EVERYONE, silently.
-            return httpx.Response(200, json={"authorizations": [
-                {"id": "a1", "roles": [{"key": "pro_user", "displayName": "Pro"}]}
-            ]})
+            return httpx.Response(
+                200,
+                json={
+                    "authorizations": [
+                        {"id": "a1", "roles": [{"key": "pro_user", "displayName": "Pro"}]}
+                    ]
+                },
+            )
         return httpx.Response(404)
 
     c = _client(handler)

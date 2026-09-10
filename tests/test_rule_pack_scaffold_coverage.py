@@ -95,9 +95,7 @@ def test_provider_failover_breaker_granularity_is_per_model() -> None:
     primary model went ReadTimeout-down while other models of the SAME provider stayed up.
     Writing off the whole provider discards live capacity and hides the real failure."""
     text = (RULES / "76-gpu-workers.md").read_text(encoding="utf-8")
-    assert not re.search(
-        r"Circuit-breaker per provider \(not per model\)", text
-    ), (
+    assert not re.search(r"Circuit-breaker per provider \(not per model\)", text), (
         "76-gpu-workers.md still mandates a per-provider (not per-model) circuit breaker — "
         "the granularity that made youtube's model-specific provider death invisible."
     )

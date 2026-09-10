@@ -30,8 +30,7 @@ _BOLD_PLAN = (
 )
 
 _HEADING_PLAN = (
-    "# Plan — X\n\n## Behavior Contract\n\n"
-    "- **Given** a **When** b **Then** c\n\n## Next section\n"
+    "# Plan — X\n\n## Behavior Contract\n\n- **Given** a **When** b **Then** c\n\n## Next section\n"
 )
 
 

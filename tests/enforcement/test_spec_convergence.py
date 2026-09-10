@@ -84,7 +84,9 @@ def test_output_is_ascii_by_construction(tmp_path, capsys):
 def test_output_fits_the_advisory_budget(tmp_path, capsys):
     """`final_gate` truncates advisory output at 500 chars with NO ellipsis."""
     for i in range(12):
-        _spec_file(tmp_path, name=f"2026-08-{i:02d}-a-very-long-design-name-here-design.md", body=CONVERGED)
+        _spec_file(
+            tmp_path, name=f"2026-08-{i:02d}-a-very-long-design-name-here-design.md", body=CONVERGED
+        )
     chk.main(["--root", str(tmp_path)])
     out = capsys.readouterr().out
     assert len(out) <= chk.ADVISORY_BUDGET, f"{len(out)} chars"
@@ -108,7 +110,9 @@ def test_a_draft_spec_is_not_graded(tmp_path, capsys):
 
 
 def test_the_census_states_its_denominator(tmp_path, capsys):
-    _spec_file(tmp_path, body=CONVERGED + "no external dependencies\n## Residual unknowns\n- none\n")
+    _spec_file(
+        tmp_path, body=CONVERGED + "no external dependencies\n## Residual unknowns\n- none\n"
+    )
     chk.main(["--root", str(tmp_path)])
     out = capsys.readouterr().out
     assert "1" in out and "spec" in out.lower()
@@ -139,7 +143,8 @@ def test_saying_it_has_no_external_facts_clears_the_finding(tmp_path, capsys):
 def test_citing_real_sources_clears_the_finding(tmp_path, capsys):
     _spec_file(
         tmp_path,
-        body=CONVERGED + "per https://docs.stripe.com/api (fetched 2026-08-27)\n## Residual\n- none\n",
+        body=CONVERGED
+        + "per https://docs.stripe.com/api (fetched 2026-08-27)\n## Residual\n- none\n",
     )
     chk.main(["--root", str(tmp_path)])
     assert "1A" not in capsys.readouterr().out.upper()
@@ -160,7 +165,9 @@ def test_the_check_states_what_it_cannot_grade(tmp_path):
 
 
 def test_no_module_constant_is_dead():
-    src = (REPO / "scripts" / "enforcement" / "check_spec_convergence.py").read_text(encoding="utf-8")
+    src = (REPO / "scripts" / "enforcement" / "check_spec_convergence.py").read_text(
+        encoding="utf-8"
+    )
     for name in [n for n in dir(chk) if n.isupper() and not n.startswith("_")]:
         assert src.count(name) > 1, f"{name} is defined and never used"
 

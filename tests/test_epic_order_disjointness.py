@@ -108,8 +108,7 @@ def test_same_phase_realised_file_overlap_names_the_shared_file(tmp_path):
     _write_epic(epics / "e1.md", 1, '["src/app/**"]')
     _write_epic(epics / "e2.md", 2, '["src/app/models/*.py"]')
 
-    findings = check_integrity(load_epics(str(epics)), expected_count=None,
-                               epics_dir=str(epics))
+    findings = check_integrity(load_epics(str(epics)), expected_count=None, epics_dir=str(epics))
 
     hits = _overlap_findings(findings)
     assert len(hits) == 1, findings
@@ -131,17 +130,19 @@ def test_check_cli_exits_1_and_prints_the_overlap(tmp_path, capsys):
 
 
 def test_same_phase_libs_globs_with_shared_literal_prefix_is_not_a_finding(tmp_path):
-    _git_repo_with(tmp_path, [
-        "libs/a/product_entitlements_bridge/bridge.py",
-        "libs/b/other/thing.py",
-    ])
+    _git_repo_with(
+        tmp_path,
+        [
+            "libs/a/product_entitlements_bridge/bridge.py",
+            "libs/b/other/thing.py",
+        ],
+    )
     epics = tmp_path / "epics"
     epics.mkdir()
     _write_epic(epics / "e1.md", 1, '["libs/**/product_entitlements_bridge/**"]')
     _write_epic(epics / "e2.md", 2, '["libs/**/other/**"]')
 
-    findings = check_integrity(load_epics(str(epics)), expected_count=None,
-                               epics_dir=str(epics))
+    findings = check_integrity(load_epics(str(epics)), expected_count=None, epics_dir=str(epics))
 
     assert findings == [], findings
 
@@ -156,8 +157,7 @@ def test_single_star_never_crosses_a_separator(tmp_path):
     _write_epic(epics / "e1.md", 1, '["src/a/*"]')
     _write_epic(epics / "e2.md", 2, '["src/a/b/**"]')
 
-    findings = check_integrity(load_epics(str(epics)), expected_count=None,
-                               epics_dir=str(epics))
+    findings = check_integrity(load_epics(str(epics)), expected_count=None, epics_dir=str(epics))
 
     assert findings == [], findings
 
@@ -175,8 +175,7 @@ def test_bare_directory_entry_overlaps_the_glob_of_its_subtree(tmp_path, bare):
     _write_epic(epics / "e1.md", 1, f'["{bare}"]')
     _write_epic(epics / "e2.md", 2, '["src/app/**"]')
 
-    findings = check_integrity(load_epics(str(epics)), expected_count=None,
-                               epics_dir=str(epics))
+    findings = check_integrity(load_epics(str(epics)), expected_count=None, epics_dir=str(epics))
 
     hits = _overlap_findings(findings)
     assert len(hits) == 1, findings
@@ -190,8 +189,17 @@ def test_bare_directory_entry_subsumes_before_any_file_exists(tmp_path):
     assert len(_overlap_findings(_check_no_tree(tmp_path))) == 1
 
 
-@pytest.mark.parametrize("entry", ["alembic/versions", "alembic/versions/", "db", "alembic",
-                                   "db/*", "alembic/versions/0001_x.py"])
+@pytest.mark.parametrize(
+    "entry",
+    [
+        "alembic/versions",
+        "alembic/versions/",
+        "db",
+        "alembic",
+        "db/*",
+        "alembic/versions/0001_x.py",
+    ],
+)
 def test_bare_migration_directory_owns_migrations(entry):
     # `db/*` is the mirror of the strict subsumption predicate: it covers the
     # bare `db/schema.sql` but not `db/schema.sql/**`, so migration ownership
@@ -199,12 +207,18 @@ def test_bare_migration_directory_owns_migrations(entry):
     assert _owns_migrations([entry]) is True
 
 
-@pytest.mark.parametrize(("outer", "bare", "files"), [
-    ("docs/*", "docs/reference", ["docs/README.md", "docs/reference/agents.md"]),
-    ("src/*", "src/app", ["src/main.py", "src/app/x.py"]),
-])
+@pytest.mark.parametrize(
+    ("outer", "bare", "files"),
+    [
+        ("docs/*", "docs/reference", ["docs/README.md", "docs/reference/agents.md"]),
+        ("src/*", "src/app", ["src/main.py", "src/app/x.py"]),
+    ],
+)
 def test_glob_covering_only_the_bare_form_of_a_directory_is_not_an_overlap(
-    tmp_path, outer, bare, files,
+    tmp_path,
+    outer,
+    bare,
+    files,
 ):
     # Round-2 item 1: `docs/*` "subsumed" `docs/reference` because the
     # predicate OR'd over both sides' forms — accepting an outer that covers
@@ -216,8 +230,7 @@ def test_glob_covering_only_the_bare_form_of_a_directory_is_not_an_overlap(
     _write_epic(epics / "e1.md", 1, f'["{outer}"]')
     _write_epic(epics / "e2.md", 2, f'["{bare}"]')
 
-    findings = check_integrity(load_epics(str(epics)), expected_count=None,
-                               epics_dir=str(epics))
+    findings = check_integrity(load_epics(str(epics)), expected_count=None, epics_dir=str(epics))
 
     assert findings == [], findings
 
@@ -225,7 +238,9 @@ def test_glob_covering_only_the_bare_form_of_a_directory_is_not_an_overlap(
 def test_two_literal_files_in_one_phase_are_silent(tmp_path):
     # The hub's own epic-1 shape vs a sibling doc — two distinct literal
     # paths never overlap, subtree reading or not.
-    _write_epic(tmp_path / "e1.md", 1, '["specs/services/zitadel.yaml", "docs/reference/zitadel.md"]')
+    _write_epic(
+        tmp_path / "e1.md", 1, '["specs/services/zitadel.yaml", "docs/reference/zitadel.md"]'
+    )
     _write_epic(tmp_path / "e2.md", 2, '["docs/reference/umbrella-sso-integration.md"]')
 
     assert _check_no_tree(tmp_path) == []
@@ -407,50 +422,56 @@ def test_parallel_with_agreeing_with_phased_order_is_silent(tmp_path):
 # --- the matchers themselves ---------------------------------------------------
 
 
-@pytest.mark.parametrize(("pattern", "path", "expected"), [
-    ("src/app/**", "src/app/models/m.py", True),
-    ("src/app/**", "src/app", False),  # trailing ** needs at least one segment
-    ("src/a/*", "src/a/x.py", True),
-    ("src/a/*", "src/a/b/deep.py", False),  # never crosses a separator
-    ("libs/**/peb/**", "libs/peb/x.py", True),  # mid ** spans zero segments
-    ("libs/**/peb/**", "libs/a/b/peb/x.py", True),
-    ("libs/**/peb/**", "libs/a/other/x.py", False),
-    ("db/schema.sql", "db/schema.sql", True),
-    ("db/schema.sql", "db/schema.sql.bak", False),
-    ("app/(admin)/**", "app/(admin)/page.tsx", True),  # parens are literals
-    ("src/?.py", "src/a.py", True),
-    ("src/?.py", "src/ab.py", False),
-    ("src/app", "src/app/models/m.py", True),  # bare directory realises its subtree
-    ("src/app/", "src/app/models/m.py", True),
-    ("src/app", "src/apple/x.py", False),
-])
+@pytest.mark.parametrize(
+    ("pattern", "path", "expected"),
+    [
+        ("src/app/**", "src/app/models/m.py", True),
+        ("src/app/**", "src/app", False),  # trailing ** needs at least one segment
+        ("src/a/*", "src/a/x.py", True),
+        ("src/a/*", "src/a/b/deep.py", False),  # never crosses a separator
+        ("libs/**/peb/**", "libs/peb/x.py", True),  # mid ** spans zero segments
+        ("libs/**/peb/**", "libs/a/b/peb/x.py", True),
+        ("libs/**/peb/**", "libs/a/other/x.py", False),
+        ("db/schema.sql", "db/schema.sql", True),
+        ("db/schema.sql", "db/schema.sql.bak", False),
+        ("app/(admin)/**", "app/(admin)/page.tsx", True),  # parens are literals
+        ("src/?.py", "src/a.py", True),
+        ("src/?.py", "src/ab.py", False),
+        ("src/app", "src/app/models/m.py", True),  # bare directory realises its subtree
+        ("src/app/", "src/app/models/m.py", True),
+        ("src/app", "src/apple/x.py", False),
+    ],
+)
 def test_glob_matches_is_separator_aware(pattern, path, expected):
     assert _glob_matches(pattern, path) is expected
 
 
-@pytest.mark.parametrize(("outer", "inner", "expected"), [
-    ("src/app/**", "src/app/models/**", True),
-    ("src/app/models/**", "src/app/**", False),
-    ("src/app/**", "src/app/**", True),
-    ("libs/**/peb/**", "libs/**/other/**", False),
-    ("libs/**/other/**", "libs/**/peb/**", False),
-    ("src/a/*", "src/a/b/**", False),
-    ("src/a/b/**", "src/a/*", False),
-    ("src/*/x", "src/**/x", False),  # * spans one segment, ** many
-    ("src/**/x", "src/*/x", True),
-    ("src/a/f*", "src/a/f?", True),
-    ("src/a/f?", "src/a/f*", False),
-    ("docs/**", "docs/reference/zitadel.md", True),
-    ("src/app", "src/app/**", True),  # a bare directory entry IS its subtree
-    ("src/app/**", "src/app", False),  # ...but the glob does not contain the bare PATH
-    ("docs/*", "docs/reference", False),  # covers the bare form only, never the subtree
-    ("src/*", "src/app", False),
-    ("src/app/", "src/app/models/**", True),
-    ("db", "db/schema.sql", True),
-    ("db/schema.sql", "db/*", False),  # a literal FILE covers nothing else
-    ("db/*", "db/schema.sql/**", False),
-    ("specs/services/zitadel.yaml", "docs/reference/zitadel.md", False),
-])
+@pytest.mark.parametrize(
+    ("outer", "inner", "expected"),
+    [
+        ("src/app/**", "src/app/models/**", True),
+        ("src/app/models/**", "src/app/**", False),
+        ("src/app/**", "src/app/**", True),
+        ("libs/**/peb/**", "libs/**/other/**", False),
+        ("libs/**/other/**", "libs/**/peb/**", False),
+        ("src/a/*", "src/a/b/**", False),
+        ("src/a/b/**", "src/a/*", False),
+        ("src/*/x", "src/**/x", False),  # * spans one segment, ** many
+        ("src/**/x", "src/*/x", True),
+        ("src/a/f*", "src/a/f?", True),
+        ("src/a/f?", "src/a/f*", False),
+        ("docs/**", "docs/reference/zitadel.md", True),
+        ("src/app", "src/app/**", True),  # a bare directory entry IS its subtree
+        ("src/app/**", "src/app", False),  # ...but the glob does not contain the bare PATH
+        ("docs/*", "docs/reference", False),  # covers the bare form only, never the subtree
+        ("src/*", "src/app", False),
+        ("src/app/", "src/app/models/**", True),
+        ("db", "db/schema.sql", True),
+        ("db/schema.sql", "db/*", False),  # a literal FILE covers nothing else
+        ("db/*", "db/schema.sql/**", False),
+        ("specs/services/zitadel.yaml", "docs/reference/zitadel.md", False),
+    ],
+)
 def test_glob_subsumes_is_star_star_aware(outer, inner, expected):
     assert _glob_subsumes(outer, inner) is expected
 

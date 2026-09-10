@@ -103,9 +103,11 @@ def _verified_as_active(monkeypatch):
     """Identity-gate seams (shipped 2026-08-13): the live token verifies as the account the
     marker names — the pre-gate tests' implicit assumption, now explicit."""
     monkeypatch.setattr(rot, "_live_email", lambda **kw: "acct@example.com")
-    monkeypatch.setattr(rot, "_store_for_email",
-                        lambda email, accounts: next(
-                            (a for a in accounts if a.name == "acct-b"), None))
+    monkeypatch.setattr(
+        rot,
+        "_store_for_email",
+        lambda email, accounts: next((a for a in accounts if a.name == "acct-b"), None),
+    )
 
 
 def test_drift_check_captures_when_the_token_diverged(box, monkeypatch):
@@ -161,10 +163,12 @@ def test_drift_check_captures_when_only_the_refresh_token_rotated(box, monkeypat
     snapshot — exactly what broke the operator's login on 2026-08-10.
     """
     snap = box / "manager-accounts/acct-b/.credentials.json"
-    snap.write_text(json.dumps(
-        {"claudeAiOauth": {"accessToken": "tok-SAME", "refreshToken": "rt-OLD"}}))
-    (box / ".credentials.json").write_text(json.dumps(
-        {"claudeAiOauth": {"accessToken": "tok-SAME", "refreshToken": "rt-NEW"}}))
+    snap.write_text(
+        json.dumps({"claudeAiOauth": {"accessToken": "tok-SAME", "refreshToken": "rt-OLD"}})
+    )
+    (box / ".credentials.json").write_text(
+        json.dumps({"claudeAiOauth": {"accessToken": "tok-SAME", "refreshToken": "rt-NEW"}})
+    )
     assert rot._cmd_drift_check() == 0
     assert json.loads(snap.read_text())["claudeAiOauth"]["refreshToken"] == "rt-NEW"
 
@@ -181,13 +185,20 @@ def test_capture_rolls_the_outgoing_snapshot_aside(box):
 def test_drift_check_reports_a_failed_capture_without_failing_the_hook(box, monkeypatch, capsys):
     _verified_as_active(monkeypatch)
     monkeypatch.setattr(rot, "_cmd_capture_current", lambda: 1)
-    assert rot._cmd_drift_check() == 0          # a hook must never fail
+    assert rot._cmd_drift_check() == 0  # a hook must never fail
     assert "capture FAILED" in capsys.readouterr().err  # but it must be visible
 
 
 def _creds_gen(token: str, expires_at: int) -> str:
-    return json.dumps({"claudeAiOauth": {
-        "accessToken": token, "refreshToken": f"rt-{token}", "expiresAt": expires_at}})
+    return json.dumps(
+        {
+            "claudeAiOauth": {
+                "accessToken": token,
+                "refreshToken": f"rt-{token}",
+                "expiresAt": expires_at,
+            }
+        }
+    )
 
 
 def test_capture_refuses_to_regress_a_newer_snapshot(box):
@@ -195,7 +206,7 @@ def test_capture_refuses_to_regress_a_newer_snapshot(box):
     snapshot (the previous code only skipped byte-identical content — idempotency, not
     monotonicity)."""
     snap = box / "manager-accounts/acct-b/.credentials.json"
-    snap.write_text(_creds_gen("tok-B", 2_000_000_000_000))          # newer generation
+    snap.write_text(_creds_gen("tok-B", 2_000_000_000_000))  # newer generation
     (box / ".credentials.json").write_text(_creds_gen("tok-B", 1_000_000_000_000))  # older
     assert rot._cmd_capture_current() != 0
     assert json.loads(snap.read_text())["claudeAiOauth"]["expiresAt"] == 2_000_000_000_000
@@ -316,19 +327,36 @@ def _rotation_sandbox(tmp_path, monkeypatch, accounts):
     The rotate STATE dir is redirected too: `_rotate_active_account` reads the operator's
     switch-paused marker there, and the real ~/.claude/state one may be set on this box."""
     import time as _t
+
     now = _t.time()
     (tmp_path / "manager-accounts").mkdir()
     for name, (access_h, refresh_h) in accounts.items():
         d = tmp_path / "manager-accounts" / name
         d.mkdir()
-        d.joinpath(".credentials.json").write_bytes(json.dumps({"claudeAiOauth": {
-            "accessToken": f"tok-{name}", "refreshToken": f"r-{name}",
-            "expiresAt": int((now + access_h * 3600) * 1000),
-            "refreshTokenExpiresAt": int((now + refresh_h * 3600) * 1000)}}).encode())
-    (tmp_path / ".credentials.json").write_bytes(json.dumps({"claudeAiOauth": {
-        "accessToken": "tok-live", "refreshToken": "r-live",
-        "expiresAt": int((now + 5 * 3600) * 1000),
-        "refreshTokenExpiresAt": int((now + 700 * 3600) * 1000)}}).encode())
+        d.joinpath(".credentials.json").write_bytes(
+            json.dumps(
+                {
+                    "claudeAiOauth": {
+                        "accessToken": f"tok-{name}",
+                        "refreshToken": f"r-{name}",
+                        "expiresAt": int((now + access_h * 3600) * 1000),
+                        "refreshTokenExpiresAt": int((now + refresh_h * 3600) * 1000),
+                    }
+                }
+            ).encode()
+        )
+    (tmp_path / ".credentials.json").write_bytes(
+        json.dumps(
+            {
+                "claudeAiOauth": {
+                    "accessToken": "tok-live",
+                    "refreshToken": "r-live",
+                    "expiresAt": int((now + 5 * 3600) * 1000),
+                    "refreshTokenExpiresAt": int((now + 700 * 3600) * 1000),
+                }
+            }
+        ).encode()
+    )
     rot.CLAUDE_DIR = tmp_path
     rot.ACTIVE_CREDS = tmp_path / ".credentials.json"
     rot.ACCOUNTS_DIR = tmp_path / "manager-accounts"
@@ -372,7 +400,9 @@ def test_a_snapshot_with_no_refresh_token_is_refused_by_both_layers():
     """Cross-layer divergence (F6): the picker refused it, the installer allowed it. Once the
     access token lapses there is no way back, and every non-picker path — --switch, --next,
     run_claude's rotation, and the VPS fleet where no picker exists — takes the installer."""
-    blob = json.dumps({"claudeAiOauth": {"accessToken": "x", "expiresAt": 9_999_999_999_000}}).encode()
+    blob = json.dumps(
+        {"claudeAiOauth": {"accessToken": "x", "expiresAt": 9_999_999_999_000}}
+    ).encode()
     reason = rot._stale_snapshot_reason(blob)
     assert reason is not None and "no refresh token" in reason
 
@@ -384,9 +414,11 @@ def test_gate_retargets_capture_to_the_verified_store(box, monkeypatch, capsys):
     """Marker says acct-b but the LIVE token verifies as acct-a's owner → the capture must
     land in acct-a (the mis-filing class, inverted)."""
     monkeypatch.setattr(rot, "_live_email", lambda **kw: "owner-a@example.com")
-    monkeypatch.setattr(rot, "_store_for_email",
-                        lambda email, accounts: next(
-                            (a for a in accounts if a.name == "acct-a"), None))
+    monkeypatch.setattr(
+        rot,
+        "_store_for_email",
+        lambda email, accounts: next((a for a in accounts if a.name == "acct-a"), None),
+    )
     assert rot._cmd_drift_check() == 0
     snap = json.loads((box / "manager-accounts/acct-a/.credentials.json").read_text())
     assert snap["claudeAiOauth"]["accessToken"] == "tok-B-LIVE"
@@ -428,9 +460,11 @@ def test_gate_files_a_bootstrap_store_with_no_credentials_yet(box, monkeypatch, 
     holds no .credentials.json yet must FILE, not skip — _list_accounts excludes credential-less
     dirs, so the identity gate saw 'no store for live account' and quarantined a valid pair."""
     fresh = box / "manager-accounts" / "acct-c-example-com-s-organization"
-    fresh.mkdir()                     # store dir exists, no credentials inside
+    fresh.mkdir()  # store dir exists, no credentials inside
     monkeypatch.setattr(rot, "_live_email", lambda **kw: "acct-c@example.com")
     assert rot._cmd_drift_check() == 0
     assert (fresh / ".credentials.json").is_file(), "bootstrap capture must land"
-    assert json.loads((fresh / ".credentials.json").read_text())[
-        "claudeAiOauth"]["accessToken"] == "tok-B-LIVE"
+    assert (
+        json.loads((fresh / ".credentials.json").read_text())["claudeAiOauth"]["accessToken"]
+        == "tok-B-LIVE"
+    )

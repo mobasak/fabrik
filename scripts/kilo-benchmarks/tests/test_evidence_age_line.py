@@ -79,7 +79,9 @@ def test_an_unreadable_evidence_query_never_emits_an_empty_line(monkeypatch):
     line = rts._evidence_age("2026-09-08")
     assert line.strip() and "UNKNOWN" in line and "OSError" in line
 
-    _stub(monkeypatch, f"not-a-date{rts.PSQL_FIELD_SEP}12\n")  # real separator; the DATE is the junk
+    _stub(
+        monkeypatch, f"not-a-date{rts.PSQL_FIELD_SEP}12\n"
+    )  # real separator; the DATE is the junk
     assert "UNKNOWN" in rts._evidence_age("2026-09-08")
 
 

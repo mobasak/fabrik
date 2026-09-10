@@ -43,12 +43,19 @@ def test_failed_redis_registrar_is_recorded_and_others_still_run():
         patch.object(prov, "_provision_shared_analytics"),
         patch(
             "fabrik.drivers.redis.acquire_db_index",
-            side_effect=RuntimeError("invalid literal for int() with base 10: '2026-05-15T11:52:05+03:00'"),
+            side_effect=RuntimeError(
+                "invalid literal for int() with base 10: '2026-05-15T11:52:05+03:00'"
+            ),
         ),
         patch("fabrik.drivers.gatus.add_endpoint", return_value={"status": "created"}) as gatus,
-        patch("fabrik.drivers.glitchtip.create_project", return_value={"status": "created", "dsn": "http://x@h/1"}),
+        patch(
+            "fabrik.drivers.glitchtip.create_project",
+            return_value={"status": "created", "dsn": "http://x@h/1"},
+        ),
         patch("fabrik.drivers.glitchtip.verify_dsn_injection", return_value=True),
-        patch("fabrik.drivers.grafana.post_deployment_annotation", return_value={"status": "created"}),
+        patch(
+            "fabrik.drivers.grafana.post_deployment_annotation", return_value={"status": "created"}
+        ),
     ):
         prov.provision(ctx)  # must NOT raise — non-fatal contract preserved
 
@@ -75,9 +82,14 @@ def _provision_with_analytics_down(watchdog_enabled: bool) -> DeploymentContext:
         ),
         patch.object(prov, "_provision_watchdog"),
         patch("fabrik.drivers.gatus.add_endpoint", return_value={"status": "created"}),
-        patch("fabrik.drivers.glitchtip.create_project", return_value={"status": "created", "dsn": "http://x@h/1"}),
+        patch(
+            "fabrik.drivers.glitchtip.create_project",
+            return_value={"status": "created", "dsn": "http://x@h/1"},
+        ),
         patch("fabrik.drivers.glitchtip.verify_dsn_injection", return_value=True),
-        patch("fabrik.drivers.grafana.post_deployment_annotation", return_value={"status": "created"}),
+        patch(
+            "fabrik.drivers.grafana.post_deployment_annotation", return_value={"status": "created"}
+        ),
     ):
         prov.provision(ctx)
     return ctx
@@ -113,9 +125,14 @@ def test_all_green_records_no_failures():
     with (
         patch.object(prov, "_provision_shared_analytics"),
         patch("fabrik.drivers.gatus.add_endpoint", return_value={"status": "created"}),
-        patch("fabrik.drivers.glitchtip.create_project", return_value={"status": "created", "dsn": "http://x@h/1"}),
+        patch(
+            "fabrik.drivers.glitchtip.create_project",
+            return_value={"status": "created", "dsn": "http://x@h/1"},
+        ),
         patch("fabrik.drivers.glitchtip.verify_dsn_injection", return_value=True),
-        patch("fabrik.drivers.grafana.post_deployment_annotation", return_value={"status": "created"}),
+        patch(
+            "fabrik.drivers.grafana.post_deployment_annotation", return_value={"status": "created"}
+        ),
     ):
         prov.provision(ctx)
 
@@ -217,8 +234,13 @@ def test_glitchtip_no_dsn_degraded_return_is_recorded():
     with (
         patch.object(prov, "_provision_shared_analytics"),
         patch("fabrik.drivers.gatus.add_endpoint", return_value={"status": "created"}),
-        patch("fabrik.drivers.glitchtip.create_project", return_value={"status": "created", "dsn": None}),
-        patch("fabrik.drivers.grafana.post_deployment_annotation", return_value={"status": "created"}),
+        patch(
+            "fabrik.drivers.glitchtip.create_project",
+            return_value={"status": "created", "dsn": None},
+        ),
+        patch(
+            "fabrik.drivers.grafana.post_deployment_annotation", return_value={"status": "created"}
+        ),
     ):
         prov.provision(ctx)
     assert any(f.startswith("glitchtip: ") and "no DSN" in f for f in ctx.registrar_failures)
@@ -246,7 +268,9 @@ def test_glitchtip_config_error_records_instead_of_rolling_back():
             "fabrik.drivers.glitchtip.create_project",
             side_effect=RuntimeError("GLITCHTIP_AUTH_TOKEN not set"),
         ),
-        patch("fabrik.drivers.grafana.post_deployment_annotation", return_value={"status": "created"}),
+        patch(
+            "fabrik.drivers.grafana.post_deployment_annotation", return_value={"status": "created"}
+        ),
     ):
         prov.provision(ctx)  # must NOT raise
     assert any(f.startswith("glitchtip: ") for f in ctx.registrar_failures)
@@ -268,15 +292,23 @@ def test_postgres_watchdog_role_failure_is_recorded():
     with (
         patch.object(prov, "_provision_shared_analytics"),
         patch.object(prov, "_provision_watchdog"),
-        patch("fabrik.drivers.postgres.create_database", return_value={"status": "created", "database": "db_svc"}),
+        patch(
+            "fabrik.drivers.postgres.create_database",
+            return_value={"status": "created", "database": "db_svc"},
+        ),
         patch(
             "fabrik.drivers.postgres.create_watchdog_roles",
             side_effect=RuntimeError("SQL error minting roles"),
         ),
         patch("fabrik.drivers.gatus.add_endpoint", return_value={"status": "created"}),
-        patch("fabrik.drivers.glitchtip.create_project", return_value={"status": "created", "dsn": "http://x@h/1"}),
+        patch(
+            "fabrik.drivers.glitchtip.create_project",
+            return_value={"status": "created", "dsn": "http://x@h/1"},
+        ),
         patch("fabrik.drivers.glitchtip.verify_dsn_injection", return_value=True),
-        patch("fabrik.drivers.grafana.post_deployment_annotation", return_value={"status": "created"}),
+        patch(
+            "fabrik.drivers.grafana.post_deployment_annotation", return_value={"status": "created"}
+        ),
     ):
         prov.provision(ctx)
     assert any(f.startswith("postgres/watchdog-roles: ") for f in ctx.registrar_failures)
@@ -296,4 +328,8 @@ def test_deploy_router_denies_success_on_registrar_failures():
     ):
         rc = deploy_router._deploy_generic(Path("/tmp/proj"), dry_run=False)
     assert rc == 1
-    assert notify.call_args.kwargs.get("success") is False or notify.call_args.args and False in notify.call_args.args
+    assert (
+        notify.call_args.kwargs.get("success") is False
+        or notify.call_args.args
+        and False in notify.call_args.args
+    )

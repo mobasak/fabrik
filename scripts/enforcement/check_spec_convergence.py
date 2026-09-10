@@ -202,9 +202,7 @@ def _audit(root: Path) -> tuple[int, list[Finding]]:
                 )
             else:
                 hollow = sum(
-                    1
-                    for row in INTAKE_ROW_RE.findall(text)
-                    if not INTAKE_DISPO_RE.search(row)
+                    1 for row in INTAKE_ROW_RE.findall(text) if not INTAKE_DISPO_RE.search(row)
                 )
                 if hollow:
                     findings.append(

@@ -78,7 +78,7 @@ def test_the_commit_is_scoped_to_a_pathspec_and_it_matches_what_was_staged():
     assert all(p.startswith("docs/infrastructure/vps-") for p in uvd.VPS_DOC_PATHS)
 
     # The commit invocation must contain the pathspec separator followed by the same constant.
-    commit_call = src[src.index('"commit",'):]
+    commit_call = src[src.index('"commit",') :]
     commit_call = commit_call[: commit_call.index("check=True")]
     assert '"--",' in commit_call, "git commit has NO pathspec — it will take the whole index"
     assert "*VPS_DOC_PATHS" in commit_call, "the commit pathspec is not the list that was staged"

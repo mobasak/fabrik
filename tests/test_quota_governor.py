@@ -26,8 +26,17 @@ _SPEC.loader.exec_module(quota_governor)  # type: ignore[union-attr]
 QuotaGovernor = quota_governor.QuotaGovernor
 
 
-def _payload(*, active="ob", five_hour=0.0, seven_day=0.0, model_windows=None, cap_walled=False,
-             weekly_cap=None, five_hour_epoch=1.0, seven_day_epoch=1.0):
+def _payload(
+    *,
+    active="ob",
+    five_hour=0.0,
+    seven_day=0.0,
+    model_windows=None,
+    cap_walled=False,
+    weekly_cap=None,
+    five_hour_epoch=1.0,
+    seven_day_epoch=1.0,
+):
     """A fleet-shape --status --json dict with a single active ob@ account row."""
     row = {
         "email": "ob@ocoron.com",
@@ -63,15 +72,27 @@ def test_routine_sheds_on_five_hour_wall(tmp_path):
 
 # (a2) routine sheds when ONLY a model_windows entry (Opus/model-weekly) >= reserve
 def test_routine_sheds_on_model_window_wall(tmp_path):
-    gov = _gov(tmp_path, _payload(five_hour=0.0, seven_day=10.0,
-                                  model_windows={"Opus": {"utilization": 85.0, "resets_at_epoch": 1.0}}))
+    gov = _gov(
+        tmp_path,
+        _payload(
+            five_hour=0.0,
+            seven_day=10.0,
+            model_windows={"Opus": {"utilization": 85.0, "resets_at_epoch": 1.0}},
+        ),
+    )
     assert gov.route("routine") == "pool"
 
 
 # (b) routine runs on ob@ below the reserve
 def test_routine_runs_on_obat_below_reserve(tmp_path):
-    gov = _gov(tmp_path, _payload(five_hour=10.0, seven_day=20.0,
-                                  model_windows={"Fable": {"utilization": 40.0, "resets_at_epoch": 1.0}}))
+    gov = _gov(
+        tmp_path,
+        _payload(
+            five_hour=10.0,
+            seven_day=20.0,
+            model_windows={"Fable": {"utilization": 40.0, "resets_at_epoch": 1.0}},
+        ),
+    )
     assert gov.route("routine") == "ob@"
 
 
@@ -97,6 +118,7 @@ def test_incident_pool_diagnose_when_capped(tmp_path):
 def test_bootstrap_runs_routine_on_status_failure(tmp_path):
     def boom():
         raise RuntimeError("claude_rotate --probe-current failed")
+
     gov = _gov(tmp_path, boom)
     assert gov.route("routine") == "ob@"
     assert gov.route("incident") == "ob@"
@@ -114,6 +136,7 @@ def test_reactive_cap_still_sheds_routine_when_telemetry_is_dark(tmp_path):
     # routine sheds even though the probe returns nothing.
     def boom():
         raise RuntimeError("probe down")
+
     gov = _gov(tmp_path, boom, now=1000.0)
     gov.mark_capped("Claude usage limit reached. Resets at 3pm")
     assert gov.route("routine") == "pool"
@@ -166,27 +189,36 @@ def test_none_epoch_in_window_does_not_crash_routing(tmp_path):
 def test_routine_bootstraps_when_utilization_unparseable(tmp_path):
     drifted = {
         "active": "ob",
-        "accounts": [{
-            "email": "ob@ocoron.com", "slugs": ["ob"],
-            "five_hour": {"utilization": "N/A"},   # string, not numeric
-            "seven_day": {"pct": 90},              # renamed key → no 'utilization'
-            "cap_walled": False, "weekly_cap": None,
-        }],
+        "accounts": [
+            {
+                "email": "ob@ocoron.com",
+                "slugs": ["ob"],
+                "five_hour": {"utilization": "N/A"},  # string, not numeric
+                "seven_day": {"pct": 90},  # renamed key → no 'utilization'
+                "cap_walled": False,
+                "weekly_cap": None,
+            }
+        ],
     }
     gov = _gov(tmp_path, drifted)
-    assert gov.route("routine") == "ob@"       # unknown headroom, no cap evidence → bootstrap run
-    assert gov.route("incident") == "ob@"      # the fix still runs on ob@ (never dropped)
+    assert gov.route("routine") == "ob@"  # unknown headroom, no cap evidence → bootstrap run
+    assert gov.route("incident") == "ob@"  # the fix still runs on ob@ (never dropped)
 
 
 def test_cap_walled_sheds_even_with_unparseable_windows(tmp_path):
     # the authoritative wall outranks bootstrap: cap_walled=True sheds routine with dark windows
     walled = {
         "active": "ob",
-        "accounts": [{
-            "email": "ob@ocoron.com", "slugs": ["ob"],
-            "five_hour": None, "seven_day": None,
-            "cap_walled": True, "weekly_cap": 90,
-        }],
+        "accounts": [
+            {
+                "email": "ob@ocoron.com",
+                "slugs": ["ob"],
+                "five_hour": None,
+                "seven_day": None,
+                "cap_walled": True,
+                "weekly_cap": 90,
+            }
+        ],
     }
     gov = _gov(tmp_path, walled)
     assert gov.route("routine") == "pool"
@@ -207,13 +239,15 @@ def test_mark_capped_past_epoch_falls_back_to_ttl(tmp_path):
 
 # a malformed env var must fall back to the default, never crash construction (fail-safety).
 def test_malformed_env_falls_back_to_default(tmp_path, monkeypatch):
-    monkeypatch.setenv("QUOTA_RESERVE_PCT", "80%")   # garbage
+    monkeypatch.setenv("QUOTA_RESERVE_PCT", "80%")  # garbage
     monkeypatch.setenv("QUOTA_CAP_TTL_S", "six-hours")
     payload = _payload(five_hour=85.0, seven_day=10.0)
     # built with reserve_pct=None so it reads the (garbage) env → must default, not crash
     gov = QuotaGovernor(
-        status_fn=lambda: payload, now_fn=lambda: 1000.0,
-        cap_state_path=tmp_path / "cap.json", lock_path=tmp_path / "incident.lock",
+        status_fn=lambda: payload,
+        now_fn=lambda: 1000.0,
+        cap_state_path=tmp_path / "cap.json",
+        lock_path=tmp_path / "incident.lock",
         alert_fn=lambda *a, **k: None,
     )
     assert gov.reserve_pct == 80.0
@@ -224,12 +258,14 @@ def test_malformed_env_falls_back_to_default(tmp_path, monkeypatch):
 # a NON-FINITE env value (inf/nan) parses without ValueError but would silently disable shedding /
 # wedge the cap — it must fall back to the default like any garbage.
 def test_nonfinite_env_falls_back_to_default(tmp_path, monkeypatch):
-    monkeypatch.setenv("QUOTA_RESERVE_PCT", "inf")   # would make max>=inf always False → no shed
-    monkeypatch.setenv("QUOTA_CAP_TTL_S", "nan")     # would make now<nan always False → no cap
+    monkeypatch.setenv("QUOTA_RESERVE_PCT", "inf")  # would make max>=inf always False → no shed
+    monkeypatch.setenv("QUOTA_CAP_TTL_S", "nan")  # would make now<nan always False → no cap
     payload = _payload(five_hour=85.0, seven_day=10.0)
     gov = QuotaGovernor(
-        status_fn=lambda: payload, now_fn=lambda: 1000.0,
-        cap_state_path=tmp_path / "cap.json", lock_path=tmp_path / "incident.lock",
+        status_fn=lambda: payload,
+        now_fn=lambda: 1000.0,
+        cap_state_path=tmp_path / "cap.json",
+        lock_path=tmp_path / "incident.lock",
         alert_fn=lambda *a, **k: None,
     )
     assert gov.reserve_pct == 80.0
@@ -265,8 +301,10 @@ def test_mark_capped_pid_unique_tmp_no_race(tmp_path, monkeypatch):
     for pid in (111, 222):
         monkeypatch.setattr(quota_governor.os, "getpid", lambda pid=pid: pid)
         gov = QuotaGovernor(
-            status_fn=lambda: payload, now_fn=lambda: 1000.0,
-            cap_state_path=cap, lock_path=tmp_path / "incident.lock",
+            status_fn=lambda: payload,
+            now_fn=lambda: 1000.0,
+            cap_state_path=cap,
+            lock_path=tmp_path / "incident.lock",
             alert_fn=lambda *a, **k: None,
         )
         gov.mark_capped("usage limit reached")
@@ -294,10 +332,10 @@ def test_single_flight_second_incident_pool_diagnose(tmp_path):
     payload = _payload(five_hour=10.0, seven_day=10.0)
     gov1 = _gov(tmp_path, payload)
     gov2 = _gov(tmp_path, payload)
-    assert gov1.route("incident") == "ob@"          # acquires + holds the incident lock
+    assert gov1.route("incident") == "ob@"  # acquires + holds the incident lock
     assert gov2.route("incident") == "pool-diagnose"  # lock held → non-blocking shed
     gov1.release_incident()
-    assert gov2.route("incident") == "ob@"          # lock freed → the next incident gets ob@
+    assert gov2.route("incident") == "ob@"  # lock freed → the next incident gets ob@
 
 
 def test_single_flight_routine_never_takes_the_lock(tmp_path):
@@ -312,7 +350,9 @@ def test_single_flight_routine_never_takes_the_lock(tmp_path):
 # the CLI (used by claude-run.sh + shell consumers) prints the routing destination on stdout
 def test_cli_route_prints_shed_destination(tmp_path, capsys):
     gov = _gov(tmp_path, _payload(five_hour=85.0, seven_day=10.0))  # over reserve → shed
-    rc = quota_governor._main(["route", "--kind", "routine", "--caller", "morning-report"], governor=gov)
+    rc = quota_governor._main(
+        ["route", "--kind", "routine", "--caller", "morning-report"], governor=gov
+    )
     assert rc == 0
     assert capsys.readouterr().out.strip() == "pool"
 
@@ -328,12 +368,13 @@ def test_cli_mark_capped_reads_stdin_and_sets_reactive_cap(tmp_path, capsys, mon
     # the run_claude wiring: on a final usage-limit result, claude_rotate pipes the response text to
     # `quota_governor.py mark-capped` — the reactive cap that makes bootstrap-on-unknown safe.
     import io
+
     payload = _payload(five_hour=10.0, seven_day=10.0, seven_day_epoch=2000.0)
     gov = _gov(tmp_path, payload, now=1000.0)
     monkeypatch.setattr("sys.stdin", io.StringIO("Claude usage limit reached. Resets at 3pm"))
     rc = quota_governor._main(["mark-capped"], governor=gov)
     assert rc == 0
-    assert gov.route("routine") == "pool"           # capped now sheds routine
+    assert gov.route("routine") == "pool"  # capped now sheds routine
     assert gov.route("incident") == "pool-diagnose"
 
 
@@ -341,6 +382,7 @@ def test_cli_mark_capped_no_op_on_plain_text(tmp_path, monkeypatch):
     # non-limit text must NOT cap (the CLI is called on every final-limit suspicion; only a real
     # usage-limit render arms the cap)
     import io
+
     gov = _gov(tmp_path, _payload(five_hour=10.0, seven_day=10.0))
     monkeypatch.setattr("sys.stdin", io.StringIO("all healthy, nothing to report"))
     rc = quota_governor._main(["mark-capped"], governor=gov)
@@ -362,4 +404,5 @@ def test_capped_false_below_wall_and_on_status_failure(tmp_path):
 
     def boom():
         raise RuntimeError("status down")
+
     assert _gov(tmp_path, boom).capped() is False  # fail-safe: no row → not capped (bot runs)

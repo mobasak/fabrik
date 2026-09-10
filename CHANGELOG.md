@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Tree-wide `ruff format` churn adopted; hook-generated docs committed (2026-09-10)
+
+- On the operator's directive ("fix the source control 135"): every dirty `.py` proven byte-identical to `ruff format` of its own HEAD blob is committed as pure formatting (the proof re-run at commit time; the 2026-09-09 backlog row's method), together with the hook-generated `INDEX.md`, `PORTS.md`, `scripts/service_catalog.json`, the two kaizen logs, and a comment-only edit in `scripts/enforcement/check_command_corpus.py`. `libs/subagents/` (fabrik-lib's post-commit re-vendor, D-210) is restored to HEAD; five stray `diff_*.txt` at the repo root are parked in the session scratchpad, not deleted.
+
 ### Added — Volkan's Mac handover runbook (2026-09-10)
 
 - `docs/workstation/volkan-mac.md`: the canonical record of the 2026-09-09 remote transfer — `ssh mac` bridge + its two moving parts, every installed layer with its Mac path (contract, 22 skills, gate + 25 re-keyed checks + debt ratchet, 10 hooks incl. the PreToolUse guard, self-watch, 11 rewritten rule packs, native subagents, research chain), the standing rules (his branch only, single writer, MODIFY-with-files, measure on the clone, classifier boundaries), the request ledger 001–012, the queue + self-watch protocol (socket wake retired), open items and a resume checklist. Written so a new session catches up from the doc alone.

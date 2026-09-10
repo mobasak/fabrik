@@ -232,8 +232,6 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 │   ├── prompts/                     # Prompt templates for AI commands
 │   └── docs/                        # Document templates
 ├── tests/                           # Test suite
-│   ├── scratch_sweep.py               # Sweep your OWN session scratch, agent worktrees, dead-session scratch (dry-run by default)
-│   ├── … tests/test_scratch_sweep.py  # 57 graders — every removal path, every refusal
 │   ├── test_deploy_validator.py     # deploy_validator.py tests (7 classes, 21 tests)
 │   ├── test_watchdog_db_roles.py    # create_watchdog_roles RO/RW provisioning + registrar wiring (28 tests)
 │   ├── test_watchdog_governance_mount.py # _push_governance ship + /governance:ro mount + WATCHDOG_GOVERNANCE_MOUNT gate, fail-soft (12 tests)
@@ -258,7 +256,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ## Documentation Structure Map
 
 <!-- AUTO-GENERATED:STRUCTURE:START -->
-<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-09-06T02:51 -->
+<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-09-06T19:56 -->
 ```text
 docs/
 ├── BUSINESS_MODEL.md               # Monetization strategy
@@ -351,6 +349,15 @@ docs/
 │   │   │   ├── T03-the-guard-asserts-the-captured-event.md
 │   │   │   └── T04-rule-55-states-the-shape.md
 │   │   ├── 2026-09-06-plan-1-session-history-retention.md
+│   │   ├── 2026-09-06-plan-2-multi-agent-adoption
+│   │   │   ├── 2026-09-06-plan-2-multi-agent-adoption.md
+│   │   │   ├── T01-merge-owner-read.md
+│   │   │   ├── T02a-adopt-core.md
+│   │   │   ├── T02b-adopt-backlog-tags.md
+│   │   │   ├── T03-check-advisory.md
+│   │   │   ├── T04-session-advisory.md
+│   │   │   ├── T05-vision-and-epics-review-text.md
+│   │   │   └── T06-integration.md
 │   │   └── archived
 │   └── reviews
 │       ├── 2026-07-21-claude-p-scoring-review.md
@@ -581,6 +588,7 @@ docs/
 │       ├── 2026-09-03-plan-1-multi-agent-per-repo-T14g-review.md
 │       ├── 2026-09-03-plan-1-multi-agent-per-repo-T14h-review.md
 │       ├── 2026-09-03-plan-1-multi-agent-per-repo-T15-review.md
+│       ├── 2026-09-03-plan-1-multi-agent-per-repo-review.md
 │       ├── 2026-09-03-resume-mesh-standing-watch-review.md
 │       ├── 2026-09-03-rotation-95-urgent-drain-review.md
 │       ├── 2026-09-03-rotation-dwell-exempt-trip-review.md
@@ -598,6 +606,17 @@ docs/
 │       ├── 2026-09-05-windowed-cost-sidecar-phase-A-review.md
 │       ├── 2026-09-05-windowed-cost-sidecar-phase-B-review.md
 │       ├── 2026-09-05-windowed-cost-sidecar-phase-C-review.md
+│       ├── 2026-09-06-d159-routing-allowlist-review.md
+│       ├── 2026-09-06-daily-chain-review.md
+│       ├── 2026-09-06-plan-2-multi-agent-adoption-T01-review.md
+│       ├── 2026-09-06-plan-2-multi-agent-adoption-T02a-review.md
+│       ├── 2026-09-06-plan-2-multi-agent-adoption-T02b-review.md
+│       ├── 2026-09-06-plan-2-multi-agent-adoption-T03-review.md
+│       ├── 2026-09-06-plan-2-multi-agent-adoption-T04-review.md
+│       ├── 2026-09-06-plan-2-multi-agent-adoption-T05-review.md
+│       ├── 2026-09-06-plan-2-multi-agent-adoption-T06-review.md
+│       ├── 2026-09-06-plan-2-multi-agent-adoption-review.md
+│       ├── 2026-09-06-usage-collector-review.md
 │       ├── archived
 │       ├── docs-truth-infra-ops-review.md
 │       ├── docs-truth-orchestrator-review.md
@@ -624,7 +643,6 @@ docs/
 │   │   ├── fleet-doc-audit-2026-08-07.md
 │   │   ├── fleet-doc-audit-2026-08-10.md
 │   │   ├── fleet-doc-audit-2026-08-19.md
-│   │   ├── fleet-doc-audit-2026-09-09.md
 │   │   ├── fleet-doc-audit-2026-08-26.md
 │   │   ├── fleet-doc-audit-2026-09-02.md
 │   │   ├── fleet-doc-audit-latest.md
@@ -726,6 +744,7 @@ docs/
 │   ├── convergence-prompts.md
 │   ├── decision-ledger.md
 │   ├── deployment-verification.md
+│   ├── doc-script-coupling.md
 │   ├── enforcement-battery-audit.md
 │   ├── external-services-registry.md
 │   ├── fabrik-cli-reference.md     # Fabrik CLI command reference
@@ -837,6 +856,7 @@ docs/
 │       ├── 2026-09-03-multi-agent-per-repo-design.md
 │       ├── 2026-09-04-vps1-container-memory-limits-design.md
 │       ├── 2026-09-05-session-history-retention-design.md
+│       ├── 2026-09-06-multi-agent-adoption-design.md
 │       └── archived
 ├── traycer
 │   ├── PLAN_OUTPUT_LOCATION.md     # Plan output location
@@ -1055,6 +1075,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | [2026-08-31-plan-1-manifesto-command-pass-review.md](docs/development/reviews/2026-08-31-plan-1-manifesto-command-pass-review.md) | Manifesto pass WHOLE-PLAN receipt (T01–T34): 32/32 command verdict enumeration, cumulative-diff review Coverage Checklist + Pass Ledger (found: 0 · fixed: 0), gate + render proofs, standing observations. |
 | [2026-09-03-infra-mailbox-second-pass-review.md](docs/development/reviews/2026-09-03-infra-mailbox-second-pass-review.md) | `/fabrik-review` of the mailbox second pass (66aa32a5) reviewed as a COMMITTED range after a sibling's pre-commit stashed the working tree — 3 passes, 7 findings → 5 FIXED (af7005bf) + 2 REFUTED, closing re-derivation 0/0/0, gate success embedded |
 | [2026-09-03-deploy-triad-frozen-contract-precondition-review.md](docs/development/reviews/2026-09-03-deploy-triad-frozen-contract-precondition-review.md) | `/fabrik-review` (routed up from `/fabrik-review-scoped`) of the deploy-triad change: `/fabrik-deploy-plan` + `/fabrik-deploy` read the FROZEN parity contract before the deploy, the no-interpreter leg class, the shared deploy-chain fragment — 4 passes, 9 findings → 6 FIXED + 3 REFUTED, closing re-derivation 0/0/0, gate success embedded |
+| [2026-09-07-feedback-ledger-dimensions-review.md](docs/development/reviews/2026-09-07-feedback-ledger-dimensions-review.md) | Full /fabrik-review of the feedback ledger's analysis dimensions + per-run token usage (61b0e8ac..71314d47): 29-pass ledger to found: 0 · fixed: 0, 149 candidates adjudicated (82 FIXED red-first, 56 REFUTED with executed proof), pool trio + native seats + orchestrator re-derivation per pass, embedded gate success at 44756889. |
 | [test_canary_grounding_column.py](scripts/kilo-benchmarks/tests/test_canary_grounding_column.py) | Phase B canary-column tests — real-throwaway-PG execution of the generator's QUERY/CANARY_QUERY (reconcile contract, canary exclusion, ≥2 floor, 30-day decay) + `load_task_ranking` as the column-position oracle (min_n engaged) + per-table width invariant. |
 | [test_canary_grounding.py](tests/test_canary_grounding.py) | sandboxed canary-harness tests — binary prefix judge (fabrication/refusal/wrong-path/trailing-prose/soft-summary), roster dedupe + anthropic exclusion + env-driven N, probe text, per-model row counts, fail-soft unit errors, cost alarm + unknown-cost reporting, loud nonzero dispatch-impossible exits. |
 | [mail_escalate.py](scripts/sysadmin/mail_escalate.py) | fabrik-mail escalation digest (hub cron): aged `ack: required` obligations across ALL mailboxes (inbox · archive strands · resolve-windows) → ≤1 Telegram/local-day via `libs.alerting.send_alert`; day-stamp after send success; fail-soft. Install: docs/workstation/fabrik-mail.md § Escalation. |
@@ -1164,12 +1185,13 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | [fleet-doc-audit-2026-08-19.md](docs/infrastructure/probe-reports/fleet-doc-audit-2026-08-19.md) | Dated fleet doc-freshness report (2026-08-19 — first wake-proof catch-up run after the slept-through 2026-08-17 slot) |
 | [fleet-doc-audit-2026-08-26.md](docs/infrastructure/probe-reports/fleet-doc-audit-2026-08-26.md) | Dated fleet doc-freshness report (2026-08-26 cron run) |
 | [fleet-doc-audit-2026-09-02.md](docs/infrastructure/probe-reports/fleet-doc-audit-2026-09-02.md) | Dated fleet doc-freshness report (2026-09-02 cron run) |
+| [fleet-doc-audit-2026-09-09.md](docs/infrastructure/probe-reports/fleet-doc-audit-2026-09-09.md) | Dated fleet doc-freshness report (2026-09-09 cron run) |
 | [fleet-doc-audit-latest.md](docs/infrastructure/probe-reports/fleet-doc-audit-latest.md) | Newest fleet doc-freshness report (cron-regenerated weekly; dated copies alongside, e.g. fleet-doc-audit-2026-08-07.md) |
 | [fleet_doc_audit.py](scripts/fleet_doc_audit.py) | Weekly fleet-wide doc-freshness audit (wake-proof via weekly_catchup.sh hourly stamp check) — mechanical rot probes over every /opt project (code-vs-docs lag, per-doc staleness ≥14d, untracked key docs, template stub sentinels, registry-obligated missing docs) → dated report in docs/infrastructure/probe-reports/. Truth-level fixes route to /fabrik-doc-converge or /fabrik-docs-review in the flagged project. Since 2026-09-02 it also INDEXES its dated report (INDEX.md row before the -latest anchor) and self-commits INDEX.md only when INDEX.md was clean before the run — never sweeping a sibling's WIP. |
 | [test_fleet_doc_audit.py](tests/test_fleet_doc_audit.py) | 12 tests — the audit's pure probes (lag arithmetic incl. no-code/docs-newer cases, stub-sentinel counting, registry basename compare, never-committed labelling) + the INDEX self-indexing helper (inserts one row before the -latest anchor, matched by link TARGET; idempotent; no anchor → no write) + `index_is_clean()` (HEAD-based, so a staged sibling edit is dirty). |
 | [check_plan_tickets.py](scripts/enforcement/check_plan_tickets.py) | Tier 2 + cli/flip: the spine+ticket plan-set contract — Board↔ticket structure (orphans, duplicate rows/IDs, exactly-one-Integration-last), Depends DAG + per-row Serialized licences, Touches/File-Scope ownership + token hygiene (globs, residue, out-of-repo, governance surfaces, stem-scoped metadata territory), Complexity↔never-route routing cross-check, READ-budget sizing, ⬜-staleness vs `Agent-Task:` trailers. Context-aware severity (gate path softens on DRAFT/PLANNED spines; cli/flip full). `--plan-dir` CLI; consumed in-process by check_convergence at the flips. |
 | [test_cli_orchestrator_hint.py](tests/test_cli_orchestrator_hint.py) | guard: the `fabrik create` next-step hint names the assembled chain (`/fabrik-vision` → `/fabrik-epics` → `/fabrik-epics-review` → `/fabrik-spec`) and never the retired `docs/traycer` path — reads `cli._orchestrator_hint()` directly; watched red on the old text (T14c) |
-| [test_check_plan_tickets.py](tests/enforcement/test_check_plan_tickets.py) | 149 tests for the plan-set gate — structure/DAG/Serialized/ownership/routing/sizing/staleness fixtures, fixpoint path-normalization matrix, blockquote-doctrine regressions, CLI rejection branches (subprocess). |
+| [test_check_plan_tickets.py](tests/enforcement/test_check_plan_tickets.py) | 147 tests for the plan-set gate — structure/DAG/Serialized/ownership/routing/sizing/staleness fixtures, fixpoint path-normalization matrix, blockquote-doctrine regressions, CLI rejection branches (subprocess). |
 | [test_plan_tickets_epic_scope.py](tests/enforcement/test_plan_tickets_epic_scope.py) | 84 tests — T05a: epic containment in `check_plan_tickets` at both levels (the spine's File Scope and every ticket's Touches inside the epic's `owned_paths`; the `Epic:` header read with paired emphasis and prefixes; unusable, glob and valueless headers refused by name; 20 ported frontmatter fixtures; mutation-graded across ten rounds) |
 | [check_phase_tests.py](scripts/enforcement/check_phase_tests.py) | Tier-2 advisory: an ACTIVE plan lock's baseline..HEAD window declaring Behavior-Contract Given rows with source changes and zero ADDED/MODIFIED test changes WARNs, listing the rows (whole-window by design; per-row coverage = the phase-boundary review's; GIVEN_ROW_RE reused from check_plan_tickets; always exits 0, fail-soft, repo-confined plan paths). |
 | [test_phase_tests_gate.py](tests/enforcement/test_phase_tests_gate.py) | 34 end-to-end behavior tests for the plan-window gate — throwaway git repos per case: WARN path (red-on-revert proven), accompaniment boundaries (code tests incl. `.sh` vs test-named non-code vs test-adjacent conftest/fixtures vs utility scripts; co-located specs + cased Tests/; pure-rename AND verbatim-copy gaming; edited renames count; pure source renames don't WARN; non-ASCII paths visible both directions via NUL-record parsing), docs-only, no-rows, no-lock, released lock, broken/hostile-lock fault isolation, deleted-test regression, absolute-path confinement, sibling-window scoping, Behavior-Contract scoping (heading + bold-label forms, nested dedupe, backtick + tilde fence strip). |

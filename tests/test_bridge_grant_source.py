@@ -52,7 +52,9 @@ def test_product_access_maps_role_keys_to_products():
 
 def test_unmapped_role_keys_are_ignored_not_errored():
     # a role with no product mapping is simply not a product — never a crash.
-    client = _FakeClient(authorizations=[{"id": "a1", "roleKeys": ["pro_user", "some_internal_role"]}])
+    client = _FakeClient(
+        authorizations=[{"id": "a1", "roleKeys": ["pro_user", "some_internal_role"]}]
+    )
     gs = ZitadelGrantSource(client, ROLE_PRODUCTS)
     assert asyncio.run(gs.product_access("u1")) == frozenset({"pro"})
 

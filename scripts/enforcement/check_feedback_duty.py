@@ -122,11 +122,14 @@ def _audit(runs: Path) -> tuple[int, list[tuple[str, str]], list[tuple[str, str,
         # report compliance that never happened.
         if str(body.get("feedback") or "unstated") == "unstated":
             unstated.append((str(body.get("command") or "?"), path.stem[:8]))
-        digest.append((
-            str(body.get("updated_at") or "")[:10],
-            str(body.get("command") or "?"),
-            str(body.get("feedback_text") or "") or f"<{body.get('feedback', 'unstated')}: text not persisted — pre-D-055 close>",
-        ))
+        digest.append(
+            (
+                str(body.get("updated_at") or "")[:10],
+                str(body.get("command") or "?"),
+                str(body.get("feedback_text") or "")
+                or f"<{body.get('feedback', 'unstated')}: text not persisted — pre-D-055 close>",
+            )
+        )
     return examined, unstated, digest
 
 

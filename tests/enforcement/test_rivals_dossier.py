@@ -26,8 +26,15 @@ chk = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(chk)
 
 
-def _dossier(root: Path, name: str = "crm", *, rivals: int = 3, partial: str = "False",
-             truncated: str = "False", header: bool = True) -> Path:
+def _dossier(
+    root: Path,
+    name: str = "crm",
+    *,
+    rivals: int = 3,
+    partial: str = "False",
+    truncated: str = "False",
+    header: bool = True,
+) -> Path:
     d = root / "docs" / "reference" / "rivals"
     d.mkdir(parents=True, exist_ok=True)
     f = d / f"{name}.md"
@@ -190,8 +197,13 @@ def test_output_never_exceeds_final_gates_500_char_truncation(tmp_path, capsys):
     '... N more' marker line is how the reference implementation's `marker_cost` came to exist."""
     for m in ("crm", "invoice-ocr", "payroll", "hr-tools", "ats", "field-service"):
         _dossier(tmp_path, name=m, rivals=0, partial="True", truncated="True")
-    _index(tmp_path, "\n".join(f"- `docs/reference/rivals/{m}.md`" for m in
-                               ("crm", "invoice-ocr", "payroll", "hr-tools", "ats", "field-service")))
+    _index(
+        tmp_path,
+        "\n".join(
+            f"- `docs/reference/rivals/{m}.md`"
+            for m in ("crm", "invoice-ocr", "payroll", "hr-tools", "ats", "field-service")
+        ),
+    )
     chk.main(["--root", str(tmp_path)])
     out = capsys.readouterr().out
     assert len(out) <= chk.ADVISORY_BUDGET, f"{len(out)} chars - final_gate would truncate"
@@ -230,7 +242,9 @@ def test_an_undated_dossier_is_a_finding(tmp_path, capsys):
     and it is the artifact a product spec gets decided on. The grader must say so."""
     d = tmp_path / "docs" / "reference" / "rivals"
     d.mkdir(parents=True)
-    (d / "crm.md").write_text("**rivals:** 3 · **partial:** False · **truncated:** False\n", "utf-8")
+    (d / "crm.md").write_text(
+        "**rivals:** 3 · **partial:** False · **truncated:** False\n", "utf-8"
+    )
     _index(tmp_path, "- `docs/reference/rivals/crm.md`\n")
     chk.main(["--root", str(tmp_path)])
     assert "UNDATED" in capsys.readouterr().out.upper()

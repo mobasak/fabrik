@@ -64,7 +64,9 @@ def test_teardown_terminates_sessions_even_with_no_grant():
 
 
 def test_teardown_deletes_all_of_the_users_authorizations():
-    client = _RecordingClient(authz=[{"id": "a1", "roleKeys": ["pro_user"]}, {"id": "a2", "roleKeys": ["x"]}])
+    client = _RecordingClient(
+        authz=[{"id": "a1", "roleKeys": ["pro_user"]}, {"id": "a2", "roleKeys": ["x"]}]
+    )
     gate = _RecordingGate()
     asyncio.run(revoke_and_teardown(client, gate, "u1", "pro"))
     deleted = [c[1] for c in client.calls if c[0] == "delete_auth"]
@@ -104,7 +106,9 @@ def test_grant_delete_precedes_cache_bust():
         async def revoke(self, user_id, product=None):
             order.append("revoke")
 
-    asyncio.run(revoke_and_teardown(_Client(authz=[{"id": "a1", "roleKeys": []}]), _Gate(), "u1", "pro"))
+    asyncio.run(
+        revoke_and_teardown(_Client(authz=[{"id": "a1", "roleKeys": []}]), _Gate(), "u1", "pro")
+    )
     assert order == ["delete", "revoke"]
 
 

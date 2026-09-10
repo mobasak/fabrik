@@ -62,7 +62,8 @@ def _status_counts(dsn: str) -> dict[str, int]:
 def _run(dsn: str, *extra: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, str(SCRIPTS / "reclassify_cap_rows.py"), "--dsn", dsn, *extra],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
 
 
@@ -79,10 +80,10 @@ def test_only_the_enumerated_model_and_date_are_touched(db):
     """The blast radius IS the candidate set. A neighbouring model, a neighbouring DATE, and a
     non-error status must all survive untouched — this is what stops the set drifting into a
     date-only sweep, which would erase a caller's deliberate `max_cost_per_mtok` rejections."""
-    _ins(db, "moonshotai/kimi-k2.5", "2026-07-18", "error", 3)   # in scope
-    _ins(db, "moonshotai/kimi-k2.5", "2026-07-19", "error", 2)   # AFTER the cap came off
+    _ins(db, "moonshotai/kimi-k2.5", "2026-07-18", "error", 3)  # in scope
+    _ins(db, "moonshotai/kimi-k2.5", "2026-07-19", "error", 2)  # AFTER the cap came off
     _ins(db, "deepseek/deepseek-v4-pro", "2026-07-18", "error", 4)  # not a priced-out model
-    _ins(db, "z-ai/glm-5", "2026-07-18", "done", 2)              # not an error
+    _ins(db, "z-ai/glm-5", "2026-07-18", "done", 2)  # not an error
     p = _run(db, "--apply")
     assert "APPLIED: 3 row(s)" in p.stdout, p.stdout + p.stderr
     c = _status_counts(db)
@@ -127,12 +128,16 @@ def test_blank_status_rows_are_tolerated_by_the_aggregation(db):
 
     _ins(db, "deepseek/deepseek-v3.2-exp", "2026-08-01", "done", 6)
     _ins(db, "deepseek/deepseek-v3.2-exp", "2026-08-01", "error", 2)
-    q = ("WITH r AS (SELECT agent_id, max(model) m, bool_or(status='done') ok FROM subagent_runs "
-         "WHERE status IN ('done','error','capped') GROUP BY agent_id) "
-         "SELECT count(*), count(*) FILTER (WHERE ok) FROM r")
+    q = (
+        "WITH r AS (SELECT agent_id, max(model) m, bool_or(status='done') ok FROM subagent_runs "
+        "WHERE status IN ('done','error','capped') GROUP BY agent_id) "
+        "SELECT count(*), count(*) FILTER (WHERE ok) FROM r"
+    )
     with psycopg.connect(db) as c:
         before = c.execute(q).fetchone()
     _ins(db, "deepseek/deepseek-v3.2-exp", "2026-07-18", "", 100)
     with psycopg.connect(db) as c:
         after = c.execute(q).fetchone()
-    assert before == after == (8, 6), f"blank-status rows moved the aggregation: {before} -> {after}"
+    assert before == after == (8, 6), (
+        f"blank-status rows moved the aggregation: {before} -> {after}"
+    )

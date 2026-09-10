@@ -313,7 +313,9 @@ def test_no_section_carries_a_duplicate_model_or_a_duplicate_rank():
                     continue
                 ranks.append(cells[0])
                 models.append(cells[1].strip("`"))
-            assert len(models) == len(set(models)), f"{kind}: duplicate model in one section: {models}"
+            assert len(models) == len(set(models)), (
+                f"{kind}: duplicate model in one section: {models}"
+            )
             assert len(ranks) == len(set(ranks)), f"{kind}: duplicate rank in one section: {ranks}"
 
 
@@ -396,7 +398,9 @@ def test_the_code_fallback_section_respects_the_deny(monkeypatch):
     filtering only the top-up would leave the deny half-applied on that path. The construction is
     `_denied`-filtered; this asserts the emitted OUTPUT, which is what a reader and the parser see."""
     banned = "deepseek/deepseek-v4-flash"
-    monkeypatch.setattr(rank, "_load_coding_fallback", lambda: [banned, "deepseek/deepseek-v3.2-exp"])
+    monkeypatch.setattr(
+        rank, "_load_coding_fallback", lambda: [banned, "deepseek/deepseek-v3.2-exp"]
+    )
     monkeypatch.setattr(rank, "OPERATOR_DENY", {"code": frozenset({banned})})
     out = rank.render(
         [("docs", "deepseek/deepseek-v4-flash", 40, 0.01, 3.0, 0.9)],

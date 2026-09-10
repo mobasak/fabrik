@@ -43,7 +43,10 @@ def test_manifest_declares_the_seed_class_and_pair():
     assert "docs/DECISIONS.md" in manifest.SEED_IF_MISSING
     assert "docs/DECISIONS.md" in manifest.SEEDED_NOT_ENFORCED  # excluded from unmodified-gate
     assert "PORTS.md" not in manifest.SEED_IF_MISSING  # PORTS keeps its existing semantics
-    assert ("templates/governance/DECISIONS.md", "docs/DECISIONS.md") in manifest.GOVERNANCE_TEMPLATES
+    assert (
+        "templates/governance/DECISIONS.md",
+        "docs/DECISIONS.md",
+    ) in manifest.GOVERNANCE_TEMPLATES
 
 
 def test_missing_ledger_is_seeded(tmp_path):
@@ -93,5 +96,8 @@ def test_mcp_config_group_in_gitignore_block():
     it is emitted by emit_mcp_project_config.py, not the sync, so it must not ride
     a group whose header names a different pusher (author-blind review finding 8)."""
     block = manifest.gitignore_block_text()
-    assert "# MCP config (emitted by emit_mcp_project_config.py, gitignored: carries the repo's resolved DATABASE_URL)" in block
+    assert (
+        "# MCP config (emitted by emit_mcp_project_config.py, gitignored: carries the repo's resolved DATABASE_URL)"
+        in block
+    )
     assert "\n.mcp.json\n" in block

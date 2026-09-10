@@ -43,8 +43,12 @@ def test_db_backed_scaffold_documents_throwaway_test_database_url(tmp_path, monk
 
     local = (proj / ".env.local").read_text()
     assert "TEST_DATABASE_URL=" in local, ".env.local must give a working local TEST_DATABASE_URL"
-    assert "tdb_check_test" in local, "local test DB must be the disposable _test database, not _dev"
+    assert "tdb_check_test" in local, (
+        "local test DB must be the disposable _test database, not _dev"
+    )
 
     example = (proj / ".env.example").read_text()
     assert "TEST_DATABASE_URL=" in example, ".env.example must document TEST_DATABASE_URL"
-    assert "tdb_check_test" in example, ".env.example test DB must end in _test (require_throwaway guard)"
+    assert "tdb_check_test" in example, (
+        ".env.example test DB must end in _test (require_throwaway guard)"
+    )

@@ -90,7 +90,9 @@ class TestCheckSecrets:
         from scripts.enforcement.check_secrets import check_file
 
         f = tmp_path / "spec.yaml"
-        f.write_text('DATABASE_URL: "postgresql://placeholder:placeholder@postgres-main:5432/placeholder"\n')
+        f.write_text(
+            'DATABASE_URL: "postgresql://placeholder:placeholder@postgres-main:5432/placeholder"\n'
+        )
         assert check_file(f) == []
         f.write_text('DATABASE_URL: "postgresql://u:change-me@postgres-main:5432/db"\n')
         assert check_file(f) == []
@@ -113,8 +115,12 @@ class TestCheckSecrets:
         from scripts.enforcement.check_secrets import check_file
 
         f = tmp_path / "spec.yaml"
-        f.write_text('DATABASE_URL: "postgresql://seo:placeholder@Xk9d2RealPw@postgres-main:5432/seo"\n')
-        assert len(check_file(f)) >= 1, "@-containing real password must not be exempted by its prefix"
+        f.write_text(
+            'DATABASE_URL: "postgresql://seo:placeholder@Xk9d2RealPw@postgres-main:5432/seo"\n'
+        )
+        assert len(check_file(f)) >= 1, (
+            "@-containing real password must not be exempted by its prefix"
+        )
 
     def test_dsn_exemption_never_suppresses_other_patterns(self, tmp_path: Path) -> None:
         """A placeholder DSN embedded in a longer secret-bearing literal must not suppress
@@ -123,7 +129,9 @@ class TestCheckSecrets:
 
         f = tmp_path / "settings.py"
         f.write_text('password = "mysecretpassword123 (see postgresql://u:placeholder@h:5/db)"\n')
-        assert len(check_file(f)) >= 1, "hardcoded-credential finding must survive an embedded placeholder DSN"
+        assert len(check_file(f)) >= 1, (
+            "hardcoded-credential finding must survive an embedded placeholder DSN"
+        )
 
     def test_allowed_lines_scopes_to_changed_lines(self, tmp_path: Path) -> None:
         """A secret on an UNTOUCHED line is dropped when allowed_lines is scoped.

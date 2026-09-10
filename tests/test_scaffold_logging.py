@@ -131,7 +131,9 @@ def test_create_project_to_tmp_base_does_not_pollute_hub_specs(temp_dir: Path) -
         generate_spec=True,
     )
     after = {p.name for p in hub_specs.glob("*.yaml")} if hub_specs.exists() else set()
-    assert after == before, f"scaffold to a tmp base polluted the hub specs/services: {sorted(after - before)}"
+    assert after == before, (
+        f"scaffold to a tmp base polluted the hub specs/services: {sorted(after - before)}"
+    )
     assert (temp_dir / "specs" / "services" / "xtmp-spec-isolation.yaml").exists(), (
         "the deploy spec must land UNDER the tmp base instead of the hub"
     )

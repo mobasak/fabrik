@@ -115,8 +115,17 @@ def test_json_schema_9_keys(tmp_path) -> None:
     # must never KeyError on a healthy catalog (closer round 3)
     assert "unassigned" in payload["owners"]
     assert payload["capabilities"]
-    keys = {"name", "kind", "summary", "invoke", "status", "owner", "defects", "doc_link",
-            "verified_at"}
+    keys = {
+        "name",
+        "kind",
+        "summary",
+        "invoke",
+        "status",
+        "owner",
+        "defects",
+        "doc_link",
+        "verified_at",
+    }
     for rec in payload["capabilities"]:
         assert set(rec) == keys, set(rec) ^ keys
         assert rec["status"] in {"ok", "broken", "retired", "manual"}
@@ -310,11 +319,13 @@ def test_owner_spot_anchors_match_the_beat_tables() -> None:
     assert gci._owner("registrar", "specs/services/x.yaml") == "fleet"
     assert gci._owner("command", "/fabrik-review") == "infra"
     assert gci._owner("rules-pack", ".windsurf/rules/core/10-python.md") == "infra"
-    intel_scripts = [c for c in catalog if c["kind"] == "script"
-                     and c["invoke"].find("scripts/kilo-benchmarks/") != -1]
+    intel_scripts = [
+        c
+        for c in catalog
+        if c["kind"] == "script" and c["invoke"].find("scripts/kilo-benchmarks/") != -1
+    ]
     assert intel_scripts and all(c["owner"] == "intel" for c in intel_scripts)
-    enf = [c for c in catalog if c["kind"] == "script"
-           and "scripts/enforcement/" in c["invoke"]]
+    enf = [c for c in catalog if c["kind"] == "script" and "scripts/enforcement/" in c["invoke"]]
     assert enf and all(c["owner"] == "infra" for c in enf)
 
 
@@ -358,7 +369,12 @@ def test_a_docs_prefixed_link_drops_the_prefix_rather_than_climbing() -> None:
 
 
 def test_absolute_and_external_links_pass_through_untouched() -> None:
-    for link in ("/opt/fabrik-lib/payments/README.md", "https://example.com/x", "#anchor", "../a.md"):
+    for link in (
+        "/opt/fabrik-lib/payments/README.md",
+        "https://example.com/x",
+        "#anchor",
+        "../a.md",
+    ):
         assert gci._doc_link_from_docs(link) == link
 
 

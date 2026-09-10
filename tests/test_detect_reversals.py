@@ -42,11 +42,26 @@ def test_entry_epoch_accepts_float_iso_and_rejects_garbage():
 
 def test_collect_host_actions_survives_iso_ts_entries(tmp_path, monkeypatch):
     # the exact crash shape: a bot-written ISO-ts entry present in the log
-    log = _write_log(tmp_path, [
-        {"ts": "2026-08-30T20:15:00", "message": "chat", "response_preview": "x"},  # bot entry (no action)
-        {"ts": time.time(), "action_name": "docker restart", "target": "n8n"},      # actionable float-ts
-        {"ts": "garbage", "action_name": "docker restart", "target": "ghost"},      # unparseable → skipped
-    ])
+    log = _write_log(
+        tmp_path,
+        [
+            {
+                "ts": "2026-08-30T20:15:00",
+                "message": "chat",
+                "response_preview": "x",
+            },  # bot entry (no action)
+            {
+                "ts": time.time(),
+                "action_name": "docker restart",
+                "target": "n8n",
+            },  # actionable float-ts
+            {
+                "ts": "garbage",
+                "action_name": "docker restart",
+                "target": "ghost",
+            },  # unparseable → skipped
+        ],
+    )
     monkeypatch.setattr(detect_reversals, "ACTIONS_LOG_PATH", log)
     rows = detect_reversals.collect_host_sysadmin_actions()  # must NOT raise
     targets = [r["target"] for r in rows]
@@ -60,9 +75,17 @@ def test_iso_entry_is_collected_with_local_epoch(tmp_path, monkeypatch):
     # UTC shifts the epoch by the host's UTC offset (hours) — failing both assertions on any
     # non-UTC host and the approx assertion's intent everywhere.
     import datetime as dt
-    log = _write_log(tmp_path, [
-        {"ts": dt.datetime.now().isoformat(), "action_name": "docker restart", "target": "fresh"},
-    ])
+
+    log = _write_log(
+        tmp_path,
+        [
+            {
+                "ts": dt.datetime.now().isoformat(),
+                "action_name": "docker restart",
+                "target": "fresh",
+            },
+        ],
+    )
     monkeypatch.setattr(detect_reversals, "ACTIONS_LOG_PATH", log)
     rows = detect_reversals.collect_host_sysadmin_actions()
     assert [r["target"] for r in rows] == ["fresh"], "a fresh ISO-ts action must be collected"
@@ -71,10 +94,14 @@ def test_iso_entry_is_collected_with_local_epoch(tmp_path, monkeypatch):
 
 def test_collect_host_actions_honors_cutoff_for_iso_entries(tmp_path, monkeypatch):
     import datetime as dt
+
     old_iso = (dt.datetime.now() - dt.timedelta(days=30)).isoformat()
-    log = _write_log(tmp_path, [
-        {"ts": old_iso, "action_name": "docker restart", "target": "ancient"},
-    ])
+    log = _write_log(
+        tmp_path,
+        [
+            {"ts": old_iso, "action_name": "docker restart", "target": "ancient"},
+        ],
+    )
     monkeypatch.setattr(detect_reversals, "ACTIONS_LOG_PATH", log)
     rows = detect_reversals.collect_host_sysadmin_actions()
     assert all(r["target"] != "ancient" for r in rows), "30-day-old entry is past the cutoff"

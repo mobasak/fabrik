@@ -29,18 +29,33 @@ def _series(dirp: Path, name: str, version: int, points: list[dict]) -> None:
 
 
 def test_digest_composes_latest_point_with_delta(tmp_path):
-    _series(tmp_path, "review_rounds", 10, [
-        {"day": "2026-08-27", "metric": "review_rounds", "value": 11.0, "cell": "11.0 (n=10)"},
-        {"day": "2026-08-28", "metric": "review_rounds", "value": 8.9, "cell": "8.9 (n=15)"},
-    ])
+    _series(
+        tmp_path,
+        "review_rounds",
+        10,
+        [
+            {"day": "2026-08-27", "metric": "review_rounds", "value": 11.0, "cell": "11.0 (n=10)"},
+            {"day": "2026-08-28", "metric": "review_rounds", "value": 8.9, "cell": "8.9 (n=15)"},
+        ],
+    )
     out = kd.compose(tmp_path)
     assert "review_rounds" in out and "8.9 (n=15)" in out
     assert "↓" in out or "-2.1" in out, f"delta missing: {out}"
 
 
 def test_digest_picks_the_highest_series_version(tmp_path):
-    _series(tmp_path, "hole_count", 1, [{"day": "2026-08-20", "metric": "hole_count", "value": 9, "cell": "9"}])
-    _series(tmp_path, "hole_count", 3, [{"day": "2026-08-28", "metric": "hole_count", "value": 2, "cell": "2"}])
+    _series(
+        tmp_path,
+        "hole_count",
+        1,
+        [{"day": "2026-08-20", "metric": "hole_count", "value": 9, "cell": "9"}],
+    )
+    _series(
+        tmp_path,
+        "hole_count",
+        3,
+        [{"day": "2026-08-28", "metric": "hole_count", "value": 2, "cell": "2"}],
+    )
     out = kd.compose(tmp_path)
     assert "2" in out and "2026-08-20" not in out, "a retired series version leaked into the digest"
 

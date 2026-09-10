@@ -59,7 +59,13 @@ def _load_guard_module(tmp_path):
     if override:
         path = Path(override)
     else:
-        template = Path(__file__).resolve().parents[1] / "templates" / "scaffold" / "python" / "glitchtip_init.py"
+        template = (
+            Path(__file__).resolve().parents[1]
+            / "templates"
+            / "scaffold"
+            / "python"
+            / "glitchtip_init.py"
+        )
         src = template.read_text().replace("{pkg}", "guarded_pkg").replace("{name}", "guarded-svc")
         path = tmp_path / "glitchtip_init_under_guard.py"
         path.write_text(src)
@@ -179,10 +185,15 @@ def test_python_glitchtip_captured_event_and_transaction_carry_no_secret(tmp_pat
 
 def test_node_glitchtip_init_strips_locals_without_bogus_body_flag(tmp_path):
     create_project(
-        name="gt-node-sec", project_type="node-api", description="glitchtip security regression", base=tmp_path
+        name="gt-node-sec",
+        project_type="node-api",
+        description="glitchtip security regression",
+        base=tmp_path,
     )
     init = (tmp_path / "gt-node-sec" / "src" / "glitchtip_init.js").read_text()
-    assert "includeLocalVariables: false" in init, "Node frame-locals channel not closed (default ON in Node)"
+    assert "includeLocalVariables: false" in init, (
+        "Node frame-locals channel not closed (default ON in Node)"
+    )
     # The Python-only flag must NOT be emitted in Node: @sentry/node has no such option, so it would be
     # a silently-ignored no-op that reads like a fix. sendDefaultPii:false already restricts the body to
     # size-only in Node.
@@ -211,16 +222,26 @@ def test_vendored_module_is_deny_by_default_and_registers_both_hooks():
     import importlib.util
     from pathlib import Path
 
-    path = Path(__file__).resolve().parents[1] / "templates" / "scaffold" / "python" / "glitchtip_init.py"
+    path = (
+        Path(__file__).resolve().parents[1]
+        / "templates"
+        / "scaffold"
+        / "python"
+        / "glitchtip_init.py"
+    )
     assert path.exists(), "the vendored scrubber is missing from the template tree"
     src = path.read_text()
 
     tree = ast.parse(src)  # Gate: it must parse as Python before anything else is worth asserting
     funcs = {n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)}
-    assert {"init_glitchtip", "_scrub_event"} <= funcs, f"missing entry points; has {sorted(funcs)[:8]}"
+    assert {"init_glitchtip", "_scrub_event"} <= funcs, (
+        f"missing entry points; has {sorted(funcs)[:8]}"
+    )
 
     # BOTH hooks. The second is the whole point — see the client.py quote above.
-    assert src.count("before_send=_scrub_event") == 1, "before_send hook not registered exactly once"
+    assert src.count("before_send=_scrub_event") == 1, (
+        "before_send hook not registered exactly once"
+    )
     assert src.count("before_send_transaction=_scrub_event") == 1, (
         "before_send_transaction NOT registered — every sampled transaction would ship unscrubbed, "
         "because the SDK skips before_send for transaction events"
@@ -237,12 +258,16 @@ def test_vendored_module_is_deny_by_default_and_registers_both_hooks():
         if isinstance(n, ast.Call)
         and getattr(n.func, "id", getattr(n.func, "attr", None)) == "LoggingIntegration"
     ]
-    assert len(logging_calls) == 1, f"expected one LoggingIntegration call, found {len(logging_calls)}"
+    assert len(logging_calls) == 1, (
+        f"expected one LoggingIntegration call, found {len(logging_calls)}"
+    )
     kwargs = {k.arg: ast.unparse(k.value) for k in logging_calls[0].keywords}
     assert kwargs.get("event_level") == "logging.ERROR", (
         f"fleet logging default (D-126) missing — upstream uses event_level=None; got {kwargs.get('event_level')!r}"
     )
-    assert kwargs.get("level") == "None", f"level must stay None (no breadcrumbs); got {kwargs.get('level')!r}"
+    assert kwargs.get("level") == "None", (
+        f"level must stay None (no breadcrumbs); got {kwargs.get('level')!r}"
+    )
     # The THIRD handler. `_sentry_logs_handler` defaults to INFO and emits `log` envelope
     # items carrying `sentry.message.parameter.0` — the interpolated log parameter — through
     # `before_send_log`, a hook this module does not register. `_scrub_event` therefore has
@@ -289,7 +314,9 @@ def test_vendored_module_is_deny_by_default_and_registers_both_hooks():
 
     # Leaf shape: an allowlisted key holding an unexpected CONTAINER is nulled. This is the rule
     # that closes channels nobody enumerated, so it is exercised against the real function.
-    scrubbed = module._scrub_event({"event_id": {"secret": "leaked-via-container"}, "level": "error"}, {})
+    scrubbed = module._scrub_event(
+        {"event_id": {"secret": "leaked-via-container"}, "level": "error"}, {}
+    )
     assert scrubbed.get("event_id") is None, (
         f"leaf-shape rule did not null a container in a scalar-valued key: {scrubbed.get('event_id')!r}"
     )
@@ -309,7 +336,8 @@ def test_vendored_module_is_deny_by_default_and_registers_both_hooks():
     # the strongest available check rather than the weakest — recorded so it is not later
     # "upgraded" into a behavioural one that does not exist.
     init_calls = [
-        n for n in ast.walk(tree)
+        n
+        for n in ast.walk(tree)
         if isinstance(n, ast.Call) and getattr(n.func, "attr", None) == "init"
     ]
     assert len(init_calls) == 1, f"expected one sentry_sdk.init call, found {len(init_calls)}"
@@ -358,9 +386,7 @@ def test_scaffold_emits_the_vendored_module_byte_for_byte(tmp_path, project_type
         base=tmp_path,
         generate_spec=False,
     )
-    emitted = next(
-        p for p in (tmp_path / name).rglob("glitchtip_init.py") if ".venv" not in str(p)
-    )
+    emitted = next(p for p in (tmp_path / name).rglob("glitchtip_init.py") if ".venv" not in str(p))
     package_name = emitted.parent.name
 
     expected = (
@@ -373,7 +399,9 @@ def test_scaffold_emits_the_vendored_module_byte_for_byte(tmp_path, project_type
         f"{project_type}: emitted glitchtip_init.py is not the substituted template — it has drifted"
     )
     body = emitted.read_text()
-    assert "{pkg}" not in body and "{name}" not in body, "a substitution token survived into the project"
+    assert "{pkg}" not in body and "{name}" not in body, (
+        "a substitution token survived into the project"
+    )
     # The other ~40 braces are the module's own dict/set literals, regexes and f-strings; they must
     # survive untouched, which is why the emitter uses str.replace and never .format().
     assert "_ALLOWED_EVENT_KEYS" in body and "before_send_transaction=_scrub_event" in body
@@ -396,6 +424,6 @@ def test_scaffold_raises_when_the_vendored_template_is_missing(tmp_path, monkeyp
             base=tmp_path,
             generate_spec=False,
         )
-    assert "glitchtip_init.py" in str(excinfo.value) or isinstance(excinfo.value, (FileNotFoundError, OSError)), (
-        f"scaffold failed for an unrelated reason: {excinfo.value!r}"
-    )
+    assert "glitchtip_init.py" in str(excinfo.value) or isinstance(
+        excinfo.value, (FileNotFoundError, OSError)
+    ), f"scaffold failed for an unrelated reason: {excinfo.value!r}"

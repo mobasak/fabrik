@@ -89,7 +89,11 @@ def main() -> int:
             continue
         base = Path(p).name
         if p not in index_text and base not in index_text:
-            tag = " (untracked — the run that creates a doc owes its INDEX row)" if p in untracked else ""
+            tag = (
+                " (untracked — the run that creates a doc owes its INDEX row)"
+                if p in untracked
+                else ""
+            )
             problems.append(f"live doc not in INDEX.md: {p}{tag}")
 
     if as_json:

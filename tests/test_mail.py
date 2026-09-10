@@ -166,7 +166,13 @@ def test_send_refuses_pem_header(env):
 
 def test_send_warns_low_confidence_but_delivers(env, capsys):
     # a lone 'password' word is low-confidence: warn, still send
-    p = mail.send(to="fabrik", to_agent="infra", kind="finding", body="remember your password policy", frm="alpha")
+    p = mail.send(
+        to="fabrik",
+        to_agent="infra",
+        kind="finding",
+        body="remember your password policy",
+        frm="alpha",
+    )
     assert p.exists()
     err = capsys.readouterr().err.lower()
     assert "warn" in err or "low-confidence" in err
@@ -191,7 +197,9 @@ def test_send_allows_body_at_cap(env):
 # ack / requeue / digest
 # ---------------------------------------------------------------------------
 def test_ack_moves_to_archive_and_appends_line(env):
-    p = mail.send(to="fabrik", to_agent="infra", kind="request", body="do X", frm="alpha")  # ack:required by kind
+    p = mail.send(
+        to="fabrik", to_agent="infra", kind="request", body="do X", frm="alpha"
+    )  # ack:required by kind
     mid = p.name.removesuffix(".md")
     arch = mail.ack(msg_id=mid, repo="fabrik", disposition="done")
     assert arch.exists() and not p.exists()
@@ -291,7 +299,8 @@ def test_digest_not_fooled_by_acked_by_prose_in_body(env):
     # a request (ack:required) whose BODY casually mentions "acked-by:" must NOT
     # be treated as acked when archived without a REAL ack line (old substring bug).
     p = mail.send(
-        to="fabrik", to_agent="infra",
+        to="fabrik",
+        to_agent="infra",
         kind="request",
         body="the boss said acked-by: someone should handle this",
         frm="alpha",
@@ -321,14 +330,16 @@ def test_send_refuses_jwt(env):
 def test_send_refuses_bearer_and_db_url(env):
     with pytest.raises(mail.MailRefusedError):
         mail.send(
-            to="fabrik", to_agent="infra",
+            to="fabrik",
+            to_agent="infra",
             kind="finding",
             body="Authorization: Bearer abcdef1234567890XYZ",
             frm="alpha",
         )
     with pytest.raises(mail.MailRefusedError):
         mail.send(
-            to="fabrik", to_agent="infra",
+            to="fabrik",
+            to_agent="infra",
             kind="finding",
             body="db at postgresql://user:s3cretpass@host:5432/db",
             frm="alpha",
@@ -350,7 +361,8 @@ def test_send_refuses_redis_url_without_user(env):
     # native review F3: redis://:pw@ has an EMPTY username — must still refuse
     with pytest.raises(mail.MailRefusedError):
         mail.send(
-            to="fabrik", to_agent="infra",
+            to="fabrik",
+            to_agent="infra",
             kind="finding",
             body="cache at redis://:sup3rs3cr3tpw@10.99.0.1:6379/0",
             frm="alpha",
@@ -1311,7 +1323,11 @@ def test_prose_re_with_spaces_still_allowed(env):
     """P2-1 counter-direction: the R1 prose fail-soft survives — only line
     separators are refused, not ordinary text."""
     out = mail.send(
-        "fabrik", "request", "x", frm="alpha", to_agent="infra",
+        "fabrik",
+        "request",
+        "x",
+        frm="alpha",
+        to_agent="infra",
         re="U3: is validate_conventions the path",
     )
     assert out.is_file()
@@ -1344,10 +1360,14 @@ def test_ack_field_cannot_inject_frontmatter(env):
     the self-guard) and can plant an acked-by line (permanently un-ackable +
     digest-invisible). Same splitlines() test as --re, plus a vocabulary check."""
     with pytest.raises(mail.MailRefusedError, match="ack"):
-        mail.send("fabrik", "request", "x", frm="alpha", to_agent="infra", ack="required\nfrom: attacker")
+        mail.send(
+            "fabrik", "request", "x", frm="alpha", to_agent="infra", ack="required\nfrom: attacker"
+        )
     with pytest.raises(mail.MailRefusedError, match="ack"):
         mail.send("fabrik", "request", "x", frm="alpha", to_agent="infra", ack="bogus")
-    assert mail.send("fabrik", "request", "x", frm="alpha", to_agent="infra", ack="required").is_file()
+    assert mail.send(
+        "fabrik", "request", "x", frm="alpha", to_agent="infra", ack="required"
+    ).is_file()
 
 
 def test_should_reply_unsafe_repo_holds_not_allows(env, capsys):
@@ -1921,7 +1941,9 @@ def test_the_widened_patterns_do_not_refuse_an_ordinary_doc_link(env):
     with a path and an anchor is NOT a credential, and neither is prose."""
     assert mail._secret_level("see https://docs.example.com/guide:section@anchor") is None
     assert mail._secret_level("the deploy ran at 10:00@vps1 and passed") is None
-    p = mail.send(to="fabrik", to_agent="infra", kind="finding", body="see https://x.dev/a/b:c@d", frm="alpha")
+    p = mail.send(
+        to="fabrik", to_agent="infra", kind="finding", body="see https://x.dev/a/b:c@d", frm="alpha"
+    )
     assert p.is_file()
 
 
@@ -2018,7 +2040,9 @@ def test_a_stray_directory_does_not_shadow_a_real_message_elsewhere(env):
     loop — so a stray directory at `inbox/<id>.md` aborted the search before
     `archive/` (and the resolving-window and malformed fallbacks) were ever tried.
     A perfectly readable archived parent became a spurious HOLD."""
-    p = mail.send(to="fabrik", to_agent="infra", kind="request", body="the real parent", frm="alpha")
+    p = mail.send(
+        to="fabrik", to_agent="infra", kind="request", body="the real parent", frm="alpha"
+    )
     mid = p.name.removesuffix(".md")
     mail.claim(msg_id=mid, repo="fabrik")  # now lives in archive/
     (env["mail_root"] / "fabrik" / "inbox" / f"{mid}.md").mkdir(parents=True)
@@ -2033,9 +2057,18 @@ def test_max_re_boundary_is_bound(env):
     empty — so mutating `>` to `>=` (refusing a legal 512-char ref) survived the
     whole suite. Both sides of the boundary now bite."""
     ok = "x" * mail.MAX_RE
-    assert mail.send(to="fabrik", kind="reply", body="b", frm="alpha", to_agent="infra", re=ok).is_file()
+    assert mail.send(
+        to="fabrik", kind="reply", body="b", frm="alpha", to_agent="infra", re=ok
+    ).is_file()
     with pytest.raises(mail.MailRefusedError):
-        mail.send(to="fabrik", kind="reply", body="b", frm="alpha", to_agent="infra", re="x" * (mail.MAX_RE + 1))
+        mail.send(
+            to="fabrik",
+            kind="reply",
+            body="b",
+            frm="alpha",
+            to_agent="infra",
+            re="x" * (mail.MAX_RE + 1),
+        )
 
 
 def test_digest_age_threshold_is_inclusive_on_both_legs(env):
@@ -2233,7 +2266,9 @@ def test_every_credential_url_refuses_with_no_placeholder_exemption(env):
         "found: postgres:// user:REDACTED @dbhost/finaldb",
     ):
         assert mail._secret_level(quotable) != "high", quotable
-        assert mail.send(to="fabrik", to_agent="infra", kind="finding", body=quotable, frm="alpha").is_file()
+        assert mail.send(
+            to="fabrik", to_agent="infra", kind="finding", body=quotable, frm="alpha"
+        ).is_file()
     # Ordinary doc links are untouched.
     assert mail._secret_level("see https://docs.example.com/guide:section@anchor") is None
 
@@ -2303,15 +2338,33 @@ def test_send_warns_on_a_duplicate_open_report_but_never_refuses(env, capsys):
     the sender threads instead — but NEVER refuse: today's advisory bug proved
     that suppressing a repeat also suppresses a genuine escalation."""
     subject = "command_run.py shares one nosession.json across repos"
-    mail.send(to="fabrik", to_agent="infra", kind="finding", body=subject + "\n\nfirst report", frm="alpha")
+    mail.send(
+        to="fabrik",
+        to_agent="infra",
+        kind="finding",
+        body=subject + "\n\nfirst report",
+        frm="alpha",
+    )
     capsys.readouterr()
-    p = mail.send(to="fabrik", to_agent="infra", kind="finding", body=subject + "\n\nsecond report", frm="beta")
+    p = mail.send(
+        to="fabrik",
+        to_agent="infra",
+        kind="finding",
+        body=subject + "\n\nsecond report",
+        frm="beta",
+    )
     err = capsys.readouterr().err
     assert p.is_file(), "a duplicate must still be DELIVERED — never refused"
     assert "similar open message" in err and "--re" in err, err
     # an unrelated subject stays quiet
     capsys.readouterr()
-    mail.send(to="fabrik", to_agent="infra", kind="finding", body="unrelated topic entirely\n\nx", frm="alpha")
+    mail.send(
+        to="fabrik",
+        to_agent="infra",
+        kind="finding",
+        body="unrelated topic entirely\n\nx",
+        frm="alpha",
+    )
     assert "similar open message" not in capsys.readouterr().err
 
 

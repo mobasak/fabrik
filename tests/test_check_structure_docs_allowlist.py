@@ -197,12 +197,14 @@ def test_site_package_markdown_is_allowed():
     factory's shared docs/). Same nested-root reasoning as docs-site/ — without this branch the
     catch-all flags every per-site doc as "unexpected location" and instructs the project to
     violate the policy its own docs/README.md wrote down first."""
-    flagged = _paths_violations([
-        "sites/bhdtrade/INDEX.md",
-        "sites/bhdtrade/page-layouts.md",
-        "sites/bhdtrade/BHD_global_market_strategy.md",
-        "sites/acme/README.md",
-    ])
+    flagged = _paths_violations(
+        [
+            "sites/bhdtrade/INDEX.md",
+            "sites/bhdtrade/page-layouts.md",
+            "sites/bhdtrade/BHD_global_market_strategy.md",
+            "sites/acme/README.md",
+        ]
+    )
     assert flagged == set(), f"site-package docs must not be flagged: {sorted(flagged)}"
 
 

@@ -23,8 +23,9 @@ PROBE_HELPER = (
 
 
 def _run(code: str) -> str:
-    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
-                       timeout=60, cwd="/opt/fabrik")
+    r = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, timeout=60, cwd="/opt/fabrik"
+    )
     assert r.returncode == 0, r.stderr
     return r.stdout.strip()
 

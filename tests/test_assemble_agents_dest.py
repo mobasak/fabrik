@@ -4,12 +4,14 @@ Red-proven 2026-08-31: two review finders' inspection renders (render(tmpdir) /
 --dest /tmp/x) silently overwrote the live agent files — the STRATEGIC_BACKLOG
 promotion trigger that landed this guard.
 """
+
 import importlib.util
 import tempfile
 from pathlib import Path
 
 _spec = importlib.util.spec_from_file_location(
-    "ac", Path(__file__).resolve().parents[1] / "commands" / "assemble_commands.py")
+    "ac", Path(__file__).resolve().parents[1] / "commands" / "assemble_commands.py"
+)
 ac = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(ac)
 

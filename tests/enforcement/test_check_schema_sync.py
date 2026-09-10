@@ -65,9 +65,7 @@ def test_alembic_drop_table_is_parsed(tmp_path):
 
 def test_raw_sql_drop_table_is_parsed(tmp_path):
     r = _repo(tmp_path, 'op.execute("DROP TABLE IF EXISTS password_reset_tokens")\n', None)
-    assert c._dropped_tables(["alembic/versions/0007_drop.py"], str(r)) == {
-        "password_reset_tokens"
-    }
+    assert c._dropped_tables(["alembic/versions/0007_drop.py"], str(r)) == {"password_reset_tokens"}
 
 
 def test_only_tables_the_contract_still_declares_are_returned(tmp_path):
@@ -130,7 +128,9 @@ def test_an_additive_migration_still_only_warns(tmp_path, monkeypatch, capsys):
         'def upgrade():\n    op.create_table("new_thing")\n', encoding="utf-8"
     )
     (tmp_path / "docs").mkdir()
-    (tmp_path / "docs" / "data-contract.md").write_text("Status: FROZEN v9\n- users\n", encoding="utf-8")
+    (tmp_path / "docs" / "data-contract.md").write_text(
+        "Status: FROZEN v9\n- users\n", encoding="utf-8"
+    )
     monkeypatch.setattr(c, "_repo_root", lambda: str(tmp_path))
     c.warn_if_data_contract_stale(["alembic/versions/0008_add.py"])  # must NOT raise
     assert "WARN" in capsys.readouterr().out

@@ -36,9 +36,16 @@ def repo(tmp_path: Path) -> Path:
 def _shell_hash(repo: Path) -> str:
     """The Step-3 anti-cheat pipeline VERBATIM — the value a real mega-04 run records."""
     out = subprocess.run(
-        ["bash", "-c",
-         "find docs/development/epics -name '*.md' -print0 | LC_ALL=C sort -z | xargs -0 md5sum | md5sum"],
-        cwd=repo, capture_output=True, text=True, timeout=15, check=True,
+        [
+            "bash",
+            "-c",
+            "find docs/development/epics -name '*.md' -print0 | LC_ALL=C sort -z | xargs -0 md5sum | md5sum",
+        ],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=True,
     ).stdout
     return out.split()[0]
 
@@ -50,19 +57,28 @@ def _gate(repo: Path, name: str, content: str, *, commit: bool = False) -> tuple
     if commit:
         subprocess.run(
             ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "x"],
-            cwd=repo, check=True, timeout=15, capture_output=True,
+            cwd=repo,
+            check=True,
+            timeout=15,
+            capture_output=True,
         )
     r = subprocess.run(
         [sys.executable, str(CHECK), "--root", str(repo)],
-        capture_output=True, text=True, timeout=30,
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
     return r.returncode, r.stdout + r.stderr
 
 
 def _report(h: str, *, rounds: str | None = None, surface: str | None = None) -> str:
-    rounds = rounds if rounds is not None else (
-        f"| 1 | found: 7 | fixed: 6 | {'a' * 32} → {h} |\n"
-        f"| 2 | found: 0 | fixed: 0 | {h} → {h} |\n"
+    rounds = (
+        rounds
+        if rounds is not None
+        else (
+            f"| 1 | found: 7 | fixed: 6 | {'a' * 32} → {h} |\n"
+            f"| 2 | found: 0 | fixed: 0 | {h} → {h} |\n"
+        )
     )
     return (
         "# Cross-Epic Validation Report\n"
@@ -70,8 +86,8 @@ def _report(h: str, *, rounds: str | None = None, surface: str | None = None) ->
         "Rounds:\n"
         "| round | found: | fixed: | md5(start) → md5(end) |\n"
         "|---|---|---|---|\n"
-        + rounds +
-        "\n## Feature Coverage: PASS — 12 features across 2 epics\n"
+        + rounds
+        + "\n## Feature Coverage: PASS — 12 features across 2 epics\n"
         "## Overall: PASS · Fixups this run: 6 · Routed back: none\n"
     )
 
@@ -113,9 +129,10 @@ def test_fabricated_identical_strings_no_longer_pass(repo: Path) -> None:
 
 def test_a_year_is_not_a_hash(repo: Path) -> None:
     h = _shell_hash(repo)
-    rounds = "| 1 | found: 1 | fixed: 1 | 2025 → 2026 |\n| 2 | found: 0 | fixed: 0 | 2026 → 2026 |\n"
-    rc, out = _gate(repo, "2026-08-18-mega-vision-validation-review.md",
-                    _report(h, rounds=rounds))
+    rounds = (
+        "| 1 | found: 1 | fixed: 1 | 2025 → 2026 |\n| 2 | found: 0 | fixed: 0 | 2026 → 2026 |\n"
+    )
+    rc, out = _gate(repo, "2026-08-18-mega-vision-validation-review.md", _report(h, rounds=rounds))
     assert rc == 1
     assert "no full `md5(start)" in out or "≥12 hex" in out
 
@@ -143,7 +160,9 @@ def test_a_prose_mention_is_not_a_second_round(repo: Path) -> None:
 
 def test_final_round_must_be_quiet_in_both_counters(repo: Path) -> None:
     h = _shell_hash(repo)
-    rounds = f"| 1 | found: 3 | fixed: 2 | {'a' * 32} → {h} |\n| 2 | found: 0 | fixed: 3 | {h} → {h} |\n"
+    rounds = (
+        f"| 1 | found: 3 | fixed: 2 | {'a' * 32} → {h} |\n| 2 | found: 0 | fixed: 3 | {h} → {h} |\n"
+    )
     rc, out = _gate(repo, "2026-08-18-mega-vision-validation-review.md", _report(h, rounds=rounds))
     assert rc == 1
     assert "fixed: 3" in out
@@ -160,8 +179,7 @@ def test_broken_hash_chain_is_flagged(repo: Path) -> None:
 def test_surface_must_equal_the_final_rounds_end_hash(repo: Path) -> None:
     h = _shell_hash(repo)
     other = "e" * 32
-    rc, out = _gate(repo, "2026-08-18-mega-vision-validation-review.md",
-                    _report(h, surface=other))
+    rc, out = _gate(repo, "2026-08-18-mega-vision-validation-review.md", _report(h, surface=other))
     assert rc == 1
     assert "does not equal the final round" in out or "epic set on disk" in out
 
@@ -237,7 +255,8 @@ def test_h1_with_a_vision_suffix_still_routes_to_the_mega_gate(repo: Path) -> No
 def test_the_reserved_filename_routes_even_with_a_foreign_title(repo: Path) -> None:
     """Fail-closed backstop: a mega-shaped NAME can never reach a weaker grammar."""
     rc, out = _gate(
-        repo, "2026-08-19-mega-chimera-validation-review.md",
+        repo,
+        "2026-08-19-mega-chimera-validation-review.md",
         "# Some Other Title\n\nno ledger at all\n",
     )
     assert rc == 1
@@ -366,9 +385,9 @@ def test_hash_decoration_is_tolerated_uniformly_across_both_matchers(repo: Path)
     h, g = "a" * 32, "b" * 32
     for wrap in ("{}", "`{}`", "**{}**", "_{}_", "'{}'"):
         assert crc._MEGA_SURFACE.search(f"**Surface:** {wrap.format(h)}"), f"Surface: {wrap} missed"
-        assert crc._MEGA_HASH_PAIR.search(
-            f"| 2 | {wrap.format(h)} -> {wrap.format(g)} |"
-        ), f"pair: {wrap} missed"
+        assert crc._MEGA_HASH_PAIR.search(f"| 2 | {wrap.format(h)} -> {wrap.format(g)} |"), (
+            f"pair: {wrap} missed"
+        )
     # ...and the fixed width still binds: 33 hex is not a 32-hex hash.
     assert crc._MEGA_SURFACE.search("Surface: " + "a" * 33) is None, "33 hex matched as 32"
 
@@ -396,16 +415,21 @@ def test_committed_scan_is_narrow_exit_conditions_only(repo: Path) -> None:
 def test_a_glued_table_with_no_blank_line_cannot_extend_the_ledger(repo: Path) -> None:
     """Round-5 defeat: no blank line = one table to the parser; a decoy quiet row won."""
     h = _shell_hash(repo)
-    body = _report(h, rounds=(
-        f"| 1 | found: 9 | fixed: 2 | {'a' * 32} → {'b' * 32} |\n"
-        f"| 2 | found: 3 | fixed: 3 | {'b' * 32} → {h} |\n"
-        "| lens | found: | fixed: | hashes |\n"
-        "|---|---|---|---|\n"
-        f"| A | found: 0 | fixed: 0 | {h} → {h} |\n"
-    ))
+    body = _report(
+        h,
+        rounds=(
+            f"| 1 | found: 9 | fixed: 2 | {'a' * 32} → {'b' * 32} |\n"
+            f"| 2 | found: 3 | fixed: 3 | {'b' * 32} → {h} |\n"
+            "| lens | found: | fixed: | hashes |\n"
+            "|---|---|---|---|\n"
+            f"| A | found: 0 | fixed: 0 | {h} → {h} |\n"
+        ),
+    )
     rc, out = _gate(repo, "2026-08-19-mega-vision-validation-review.md", body)
     assert rc == 1, "the glued tally's quiet row became the final round"
-    assert "MORE THAN ONE" in out, "a second table must be refused as ambiguous, not selected around"
+    assert "MORE THAN ONE" in out, (
+        "a second table must be refused as ambiguous, not selected around"
+    )
 
 
 def test_a_decoy_table_before_the_rounds_label_is_ignored(repo: Path) -> None:
@@ -423,7 +447,9 @@ def test_a_decoy_table_before_the_rounds_label_is_ignored(repo: Path) -> None:
     assert "MORE THAN ONE" in out, "a decoy table must be refused as ambiguous, not selected around"
 
 
-def test_non_mega_validation_review_filename_is_not_forced_into_the_mega_grammar(repo: Path) -> None:
+def test_non_mega_validation_review_filename_is_not_forced_into_the_mega_grammar(
+    repo: Path,
+) -> None:
     """A future ettw-10 report named ...-crossartifact-validation-review.md is not mega's."""
     body = (
         "# Cross-Artifact Validation — ettw 10\n\nSurface: abc123\n\n"
@@ -451,7 +477,9 @@ def test_two_counter_tables_are_refused_as_ambiguous(repo: Path) -> None:
     body = body.replace("Rounds:", decoy + "Rounds:", 1)
     rc, out = _gate(repo, "2026-08-19-mega-vision-validation-review.md", body)
     assert rc == 1
-    assert "MORE THAN ONE" in out, "a decoy table must make the report fail loudly, not win selection"
+    assert "MORE THAN ONE" in out, (
+        "a decoy table must make the report fail loudly, not win selection"
+    )
 
 
 def test_a_mid_table_separator_does_not_drop_later_rounds(repo: Path) -> None:
@@ -642,7 +670,10 @@ def test_corpus_punctuation_styles_parse_as_counters(repo: Path) -> None:
         ("Pass 5: found: 0, fixed: 0. All 14 verified.", (0, 0)),
         ("| Pass 2 | sweep | found: 3 · fixed: 2 (seams partition) | x |", (3, 2)),
         ("Pass 2: found: 3, fixed: 0 → not done, BLOCKED next round", (3, 0)),
-        ("Pass 2: sample found: 0 clean, full sweep found: 4, fixed: 0.", None),  # two tokens? no: 'clean' kills the first -> one strict pair
+        (
+            "Pass 2: sample found: 0 clean, full sweep found: 4, fixed: 0.",
+            None,
+        ),  # two tokens? no: 'clean' kills the first -> one strict pair
     ]:
         got = crc._pass_counters(line)
         if expect is None:
@@ -788,8 +819,9 @@ def test_long_bounded_blocked_section_with_late_evidence_is_accepted(repo: Path)
         "## Coverage Checklist\n| Class | Verdict | Evidence |\n|---|---|---|\n"
         "| fail-open cost boundary untested behavior | UNCHECKED |  |\n\n"
         "## Pass Ledger\n| Pass 1 | x | found: 1 · fixed: 0 | y |\n| Pass 2 | x | found: 1 · fixed: 0 | y |\n\n"
-        "## BLOCKED — deep repro in scripts/x.py\n" + filler +
-        "After all of the above: failed 3 attempts on the same test; escalated to the operator.\n\n"
+        "## BLOCKED — deep repro in scripts/x.py\n"
+        + filler
+        + "After all of the above: failed 3 attempts on the same test; escalated to the operator.\n\n"
         "## Closing\ndone.\n"
     )
     rc, out = _gate(repo, "2026-08-19-ordinary12-review.md", body)
@@ -811,6 +843,7 @@ def test_absent_epic_set_fails_the_blocking_gate_loudly(tmp_path: Path) -> None:
     """Round-23 finding 1: no epics dir = the anti-cheat silently skipped = a fabricated
     hash chain passed the BLOCKING gate. Unverifiable must mean FAIL, not shrug."""
     import subprocess as sp
+
     sp.run(["git", "init", "-q"], cwd=tmp_path, check=True, timeout=15)
     fake = "d" * 32
     body = _report(fake)  # no docs/development/epics at all
@@ -864,6 +897,7 @@ def test_note_lines_print_after_the_advisory_header(repo: Path) -> None:
     (repo / "docs/development/reviews/2026-08-19-draft-review.md").write_text("# draft\n")
     import subprocess
     import sys as _s
+
     r = subprocess.run(
         [_s.executable, str(CHECK), "--root", str(repo)], capture_output=True, text=True, timeout=30
     )
@@ -885,7 +919,9 @@ def test_prose_discussing_a_coverage_checklist_is_not_a_subject(repo: Path) -> N
 
 def test_a_real_checklist_heading_is_still_fully_gated(repo: Path) -> None:
     """The structural contract's other half: the heading alone pulls the full obligation set."""
-    body = "# Anything\n\n## Coverage Checklist\n| C | V | E |\n|---|---|---|\n| x | UNCHECKED |  |\n"
+    body = (
+        "# Anything\n\n## Coverage Checklist\n| C | V | E |\n|---|---|---|\n| x | UNCHECKED |  |\n"
+    )
     rc, out = _gate(repo, "2026-08-19-real14-review.md", body)
     assert rc == 1
     assert "Surface" in out and "UNCHECKED" in out
@@ -1136,8 +1172,7 @@ def test_indented_code_block_cannot_mask_the_final_round(repo: Path) -> None:
     reproduced end-to-end and cross-checked against markdown-it-py)."""
     body = _everyday(
         "Pass 1: found: 0, fixed: 0\nPass 2: found: 7, fixed: 6\n",
-        "\nAppendix — indented example of a quiet row:\n\n"
-        "    Pass 99: found: 0, fixed: 0\n",
+        "\nAppendix — indented example of a quiet row:\n\n    Pass 99: found: 0, fixed: 0\n",
     )
     rc, out = _gate(repo, "2026-08-20-indented-mask-review.md", body)
     # CONTRACT CHANGE (round 55): the silent strip round 54 answered this with itself failed
@@ -1221,9 +1256,7 @@ def test_indented_filler_cannot_shrink_the_header_zone(repo: Path) -> None:
     anchors to RAW line positions (stripped within the slice)."""
     filler = "".join(f"\n    filler line {i}\n" for i in range(7))
     body = (
-        "# Review — some diff (/fabrik-review)\n"
-        + filler
-        + "\nprose\n\nStatus: IN-PROGRESS\n\n"
+        "# Review — some diff (/fabrik-review)\n" + filler + "\nprose\n\nStatus: IN-PROGRESS\n\n"
         "## Coverage Checklist\n| C | V | E |\n|---|---|---|\n"
         "| fail-open cost boundary untested behavior | UNCHECKED |  |\n"
     )
@@ -1323,7 +1356,7 @@ def test_inline_comment_opener_cannot_eat_a_fence(repo: Path) -> None:
     body = (
         "# How to write a review — internal documentation\n\n"
         "Some prose <!-- unterminated note about example:\n"
-        "```python\nvalue = \"-->\"\nprint(\"real fence content\")\n```\n\n"
+        '```python\nvalue = "-->"\nprint("real fence content")\n```\n\n'
         "more prose\n"
     )
     rc, out = _gate(repo, "2026-08-20-inline-comment-review.md", body)
@@ -1467,8 +1500,7 @@ def test_prose_decoy_in_a_later_section_is_refused(repo: Path) -> None:
     prose+prose did not). Prose runs are now heading-bounded groups."""
     body = _everyday(
         "Pass 1: found: 3, fixed: 0\nPass 2: found: 4, fixed: 0\n",
-        "\n## Appendix — unrelated retro note\n\n"
-        "Pass 2 of onboarding docs: found: 0, fixed: 0.\n",
+        "\n## Appendix — unrelated retro note\n\nPass 2 of onboarding docs: found: 0, fixed: 0.\n",
     )
     rc, out = _gate(repo, "2026-08-20-prose-decoy-review.md", body)
     assert rc == 1, "a prose decoy past a heading silently became the final round"
@@ -1493,8 +1525,7 @@ def test_blockquoted_and_setext_headings_also_bound_prose_runs(repo: Path) -> No
     a setext underline (both real heading elements to a renderer) failed to close the prose
     run, so the round-71 decoy bypass survived one heading syntax over."""
     decoy_tail_bq = (
-        "\n> ## Appendix — unrelated retro note\n\n"
-        "Pass 2 of onboarding docs: found: 0, fixed: 0.\n"
+        "\n> ## Appendix — unrelated retro note\n\nPass 2 of onboarding docs: found: 0, fixed: 0.\n"
     )
     decoy_tail_setext = (
         "\nAppendix — unrelated retro note\n-------------------------------\n\n"
@@ -1517,8 +1548,7 @@ def test_bare_hash_heading_bounds_a_prose_run(repo: Path) -> None:
     regex required a trailing space — the decoy bypass revived one syntax over again."""
     body = _everyday(
         "Pass 1: found: 3, fixed: 0\nPass 2: found: 2, fixed: 0\n",
-        "\n#\nAppendix — unrelated retro note\n\n"
-        "Pass 2 of onboarding docs: found: 0, fixed: 0.\n",
+        "\n#\nAppendix — unrelated retro note\n\nPass 2 of onboarding docs: found: 0, fixed: 0.\n",
     )
     rc, out = _gate(repo, "2026-08-20-bare-hash-review.md", body)
     assert rc == 1, "a decoy after a bare-# heading silently became the final round"
@@ -1625,8 +1655,10 @@ def test_quoted_title_mention_over_a_divider_is_not_a_heading(repo: Path) -> Non
     mention of the checklist title directly above an unrelated `---` divider (paragraph +
     thematic break to a renderer, NOT a heading) hard-refused a fully converged report."""
     for i, mention in enumerate(
-        ["> Coverage Checklist section reference below for context",
-         "- Coverage Checklist row explained further down"]
+        [
+            "> Coverage Checklist section reference below for context",
+            "- Coverage Checklist row explained further down",
+        ]
     ):
         body = _everyday(
             "Pass 1: found: 0, fixed: 0\nPass 2 (method: re-derivation): found: 0, fixed: 0\n",
@@ -1869,7 +1901,9 @@ def test_valid_separator_shapes_are_recognized(repo: Path) -> None:
             "## Pass Ledger\nPass 1: found: 0, fixed: 0\nPass 2 (method: re-derivation): found: 0, fixed: 0\n"
         )
         rc, out = _gate(repo, f"2026-08-21-valid-sep{i}-review.md", body)
-        assert rc == 0, f"valid separator {sep!r} was unrecognized and the header failed as data: {out}"
+        assert rc == 0, (
+            f"valid separator {sep!r} was unrecognized and the header failed as data: {out}"
+        )
 
 
 def test_bare_dash_under_a_pipe_row_is_refused_as_ambiguous(repo: Path) -> None:
@@ -2004,7 +2038,9 @@ def test_unfenced_handoff_mention_in_cert_named_doc_is_the_loud_remedy(repo: Pat
         "HANDOFF P1 OPEN checkout crashes — repro: docs/x.md — route: /fabrik-review src/x",
         "```\nHANDOFF P1 OPEN checkout crashes — repro: docs/x.md — route: /fabrik-review src/x\n```",
     )
-    rc, out = _gate(repo, "2026-08-21-postmortem2-user-test-failures-review.md", fenced, commit=True)
+    rc, out = _gate(
+        repo, "2026-08-21-postmortem2-user-test-failures-review.md", fenced, commit=True
+    )
     assert rc == 0
     assert "postmortem2" not in out, "the fenced example must silence both paths"
 
@@ -2122,6 +2158,7 @@ def test_untracked_draft_is_never_labeled_committed(repo: Path) -> None:
     sibling's mid-write scratch COMMITTED — the shared-tree misattribution the '??'
     carve-out exists to avoid. Untracked paths now join the skip set."""
     import subprocess as sp
+
     (repo / "docs/development/reviews").mkdir(parents=True, exist_ok=True)
     (repo / "docs/development/reviews/2026-08-21-sibling-draft-review.md").write_text(
         "# Review draft\n\n## Coverage Checklist\n| C | V | E |\n|---|---|---|\n"
@@ -2129,7 +2166,9 @@ def test_untracked_draft_is_never_labeled_committed(repo: Path) -> None:
     )
     r = sp.run(
         [sys.executable, str(CHECK), "--root", str(repo)],
-        capture_output=True, text=True, timeout=30,
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
     outall = r.stdout + r.stderr
     assert "COMMITTED" not in outall, f"an untracked draft was labeled COMMITTED: {outall}"
@@ -2197,10 +2236,13 @@ def test_committed_mega_keeps_hash_pair_and_surface_anchor_errors(repo: Path) ->
     IS the exit proof). Errors are now classified at emission; structural survives every
     scope by default."""
     h = _shell_hash(repo)
-    nopair = _report(h, rounds=(
-        f"| 1 | found: 7 | fixed: 6 | {'a' * 32} → {h} |\n"
-        "| 2 | found: 0 | fixed: 0 | (hashes omitted) |\n"
-    ))
+    nopair = _report(
+        h,
+        rounds=(
+            f"| 1 | found: 7 | fixed: 6 | {'a' * 32} → {h} |\n"
+            "| 2 | found: 0 | fixed: 0 | (hashes omitted) |\n"
+        ),
+    )
     rc, out = _gate(repo, "2026-08-21-mega-vc-validation-review.md", nopair, commit=True)
     assert rc == 0
     assert "carries no full" in out, "the committed path dropped the missing-hash-pair error"
@@ -2217,10 +2259,13 @@ def test_every_round_owes_its_hash_pair(repo: Path) -> None:
     skips None sides — a non-quiet earlier round with no pair at all carried zero proof of
     its claimed history and passed both paths."""
     h = _shell_hash(repo)
-    body = _report(h, rounds=(
-        "| 1 | found: 7 | fixed: 6 | (no hash recorded this round) |\n"
-        f"| 2 | found: 0 | fixed: 0 | {h} → {h} |\n"
-    ))
+    body = _report(
+        h,
+        rounds=(
+            "| 1 | found: 7 | fixed: 6 | (no hash recorded this round) |\n"
+            f"| 2 | found: 0 | fixed: 0 | {h} → {h} |\n"
+        ),
+    )
     rc, out = _gate(repo, "2026-08-21-mega-ve-validation-review.md", body)
     assert rc == 1, "a non-final round with no hash pair carried zero proof and passed"
     assert "round 1 carries no full" in out
@@ -2277,10 +2322,7 @@ def test_tokenfree_pipe_bounded_bullet_is_prose(repo: Path) -> None:
     """Round-137: the pipe-BOUNDED proxy still false-fired on token-free prose sitting
     between two pipes (renderer-verified non-table). Only obligation-bearing content is
     refused; a bulleted MEGA round row joins the token set."""
-    body = (
-        "# Deploy retro notes\n\n"
-        "- | this text sits between two pipe characters |\n"
-    )
+    body = "# Deploy retro notes\n\n- | this text sits between two pipe characters |\n"
     rc, out = _gate(repo, "2026-08-21-pipe-bounded-prose.md", body)
     assert rc == 0, f"token-free pipe-bounded prose was refused: {out}"
     h = _shell_hash(repo)

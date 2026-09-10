@@ -88,6 +88,7 @@ def test_upstream_feedback_is_admitted_at_any_depth(tmp_path):
     artifact (finding 01M03KTXJTVAADM4KQZS433DBR). Applied via .match, so the pattern must
     fire on nested paths, and the guard must not over-admit lookalikes."""
     import check_doc_sprawl as d
+
     for rel, allowed in [
         ("app-audit-log/UPSTREAM_FEEDBACK.md", True),
         ("UPSTREAM_FEEDBACK.md", True),

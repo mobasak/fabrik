@@ -40,18 +40,35 @@ def _seed_hub(tmp_path: Path, *, index: str) -> Path:
         ' ".windsurf/hooks.json"]\n'
     )
     (root / ".claude").mkdir()
-    (root / ".claude/settings.json").write_text(json.dumps({
-        "hooks": {"Stop": [{"matcher": "", "hooks": [
-            {"type": "command", "command": "python3 x/.claude/hooks/final_gate_stop.py"}]}]}
-    }))
+    (root / ".claude/settings.json").write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "Stop": [
+                        {
+                            "matcher": "",
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": "python3 x/.claude/hooks/final_gate_stop.py",
+                                }
+                            ],
+                        }
+                    ]
+                }
+            }
+        )
+    )
     (root / "docs/workstation").mkdir(parents=True)
     (root / "docs/workstation/hooks-index.md").write_text(index)
     return root
 
 
 def test_hub_with_complete_index_passes(tmp_path: Path) -> None:
-    idx = ("# Hooks Index\nfinal_gate_stop.py skill_router.py session_orient.py"
-           " settings.json hooks.json\nStop SessionStart\n")
+    idx = (
+        "# Hooks Index\nfinal_gate_stop.py skill_router.py session_orient.py"
+        " settings.json hooks.json\nStop SessionStart\n"
+    )
     root = _seed_hub(tmp_path, index=idx)
     rc, out = _run(root, home=tmp_path)
     assert rc == 0, out
@@ -85,12 +102,18 @@ def test_event_registrations_are_required_not_just_basenames(tmp_path: Path) -> 
     # A NEW EVENT registration of an already-listed script must flag (live
     # finding: three sound-hook events were invisible because the basename
     # already appeared once).
-    idx = ("# Hooks Index\nfinal_gate_stop.py skill_router.py session_orient.py"
-           " settings.json hooks.json\nSessionStart Stop UserPromptSubmit\n")  # no PreCompact
+    idx = (
+        "# Hooks Index\nfinal_gate_stop.py skill_router.py session_orient.py"
+        " settings.json hooks.json\nSessionStart Stop UserPromptSubmit\n"
+    )  # no PreCompact
     root = _seed_hub(tmp_path, index=idx)
     settings = json.loads((root / ".claude/settings.json").read_text())
-    settings["hooks"]["PreCompact"] = [{"matcher": "", "hooks": [
-        {"type": "command", "command": "bash x/claude-sound.sh compact-start"}]}]
+    settings["hooks"]["PreCompact"] = [
+        {
+            "matcher": "",
+            "hooks": [{"type": "command", "command": "bash x/claude-sound.sh compact-start"}],
+        }
+    ]
     (root / ".claude/settings.json").write_text(json.dumps(settings))
     rc, out = _run(root, home=tmp_path)
     assert rc == 1 and "PreCompact" in out

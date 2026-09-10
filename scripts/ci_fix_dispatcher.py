@@ -59,9 +59,7 @@ SKIP_REPOS = {"fabrik-dr-store"}
 def sh(cmd: list[str], cwd: Path | None = None, timeout: int = 60) -> tuple[int, str]:
     """Run a command, return (exit_code, stdout+stderr)."""
     try:
-        p = subprocess.run(
-            cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout
-        )
+        p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout)
         return p.returncode, (p.stdout or "") + (p.stderr or "")
     except subprocess.TimeoutExpired:
         return 124, f"timeout after {timeout}s"
@@ -110,8 +108,19 @@ def recent_failures(slug: str, max_age_hours: int, extra_branch: str = "") -> li
     """Failed runs on eligible branches within the age window."""
     allowed = {"master", "main"} | ({extra_branch} if extra_branch else set())
     rc, out = sh(
-        ["gh", "run", "list", "-R", slug, "--status", "failure", "--limit", "10",
-         "--json", "databaseId,workflowName,headBranch,createdAt"],
+        [
+            "gh",
+            "run",
+            "list",
+            "-R",
+            slug,
+            "--status",
+            "failure",
+            "--limit",
+            "10",
+            "--json",
+            "databaseId,workflowName,headBranch,createdAt",
+        ],
         timeout=45,
     )
     if rc != 0:
@@ -135,11 +144,21 @@ def recent_failures(slug: str, max_age_hours: int, extra_branch: str = "") -> li
         # an invalid workflow or a dispatch-time cancellation produces conclusion=failure with
         # ZERO steps and no logs. Dispatching `claude -p` at those burns the exact resource
         # whose exhaustion caused them. The CI-health probe reports them instead.
-        rc2, out2 = sh(["gh", "api", f"repos/{slug}/actions/runs/{r['databaseId']}/jobs",
-                        "--jq", ".jobs[0].steps | length"], timeout=30)
+        rc2, out2 = sh(
+            [
+                "gh",
+                "api",
+                f"repos/{slug}/actions/runs/{r['databaseId']}/jobs",
+                "--jq",
+                ".jobs[0].steps | length",
+            ],
+            timeout=30,
+        )
         if rc2 == 0 and out2.strip() == "0":
-            print(f"    [skip] {slug} run {r['databaseId']}: job never started "
-                  "(billing/workflow refusal) — not a code failure")
+            print(
+                f"    [skip] {slug} run {r['databaseId']}: job never started "
+                "(billing/workflow refusal) — not a code failure"
+            )
             continue
         picked.append(r)
     return picked
@@ -153,17 +172,30 @@ def worktree_dirty(repo_dir: Path) -> bool:
 def failed_steps(slug: str, run_id: int) -> str:
     """Best-effort failing job/step names — a hint for the worker, not a need."""
     rc, out = sh(
-        ["gh", "run", "view", "-R", slug, str(run_id), "--json", "jobs", "-q",
-         '.jobs[] | select(.conclusion=="failure") | .name + ": " + '
-         '([.steps[] | select(.conclusion=="failure") | .name] | join(", "))'],
+        [
+            "gh",
+            "run",
+            "view",
+            "-R",
+            slug,
+            str(run_id),
+            "--json",
+            "jobs",
+            "-q",
+            '.jobs[] | select(.conclusion=="failure") | .name + ": " + '
+            '([.steps[] | select(.conclusion=="failure") | .name] | join(", "))',
+        ],
         timeout=45,
     )
     return out.strip() if rc == 0 else ""
 
 
 def fix_brief(slug: str, run: dict, steps: str) -> str:
-    hint = f"Failing job/step(s): {steps}." if steps else \
-        "Failing step names unavailable — discover by reproducing locally."
+    hint = (
+        f"Failing job/step(s): {steps}."
+        if steps
+        else "Failing step names unavailable — discover by reproducing locally."
+    )
     return (
         f"CI auto-fix task. GitHub Actions run {run['databaseId']} of workflow "
         f"'{run['workflowName']}' FAILED on {slug} (branch {run['headBranch']}, "
@@ -200,7 +232,9 @@ def dispatch(repo_dir: Path, brief: str, log_path: Path, dry_run: bool) -> int:
         try:
             p = subprocess.run(
                 ["claude", "--dangerously-skip-permissions", "-p", brief],
-                cwd=repo_dir, stdout=lf, stderr=subprocess.STDOUT,
+                cwd=repo_dir,
+                stdout=lf,
+                stderr=subprocess.STDOUT,
                 timeout=WORKER_TIMEOUT_S,
                 # resume-mesh: mark the worker AUTONOMOUS so session_orient.py drops the
                 # persistent sweep marker — a VM cut mid-fix gets revived at next boot
@@ -217,10 +251,15 @@ def dispatch(repo_dir: Path, brief: str, log_path: Path, dry_run: bool) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--dry-run", action="store_true", help="report; dispatch nothing")
-    ap.add_argument("--max-dispatches", type=int, default=2,
-                    help="quota guard: max fix runs per invocation (default 2)")
-    ap.add_argument("--max-age-hours", type=int, default=48,
-                    help="ignore failures older than this (default 48)")
+    ap.add_argument(
+        "--max-dispatches",
+        type=int,
+        default=2,
+        help="quota guard: max fix runs per invocation (default 2)",
+    )
+    ap.add_argument(
+        "--max-age-hours", type=int, default=48, help="ignore failures older than this (default 48)"
+    )
     args = ap.parse_args()
 
     rc, _ = sh(["gh", "auth", "status"], timeout=30)
@@ -242,7 +281,9 @@ def main() -> int:
             continue
         if worktree_dirty(repo_dir):
             # NOT recorded: retried next cycle when the sibling's work is committed.
-            print(f"  {slug}: {len(failures)} failure(s) but worktree dirty (sibling agent working) — skipped this cycle")
+            print(
+                f"  {slug}: {len(failures)} failure(s) but worktree dirty (sibling agent working) — skipped this cycle"
+            )
             continue
         for run in failures:
             run_id = str(run["databaseId"])
@@ -259,8 +300,10 @@ def main() -> int:
             code = dispatch(repo_dir, fix_brief(slug, run, steps), log_path, args.dry_run)
             if not args.dry_run:
                 state["runs"][run_id] = {
-                    "repo": slug, "workflow": run["workflowName"],
-                    "outcome": f"worker-exit-{code}", "ts": time.time(),
+                    "repo": slug,
+                    "workflow": run["workflowName"],
+                    "outcome": f"worker-exit-{code}",
+                    "ts": time.time(),
                     "log": str(log_path),
                 }
                 state["attempts"][attempt_key] = state["attempts"].get(attempt_key, 0) + 1

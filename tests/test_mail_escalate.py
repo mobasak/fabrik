@@ -27,7 +27,18 @@ _spec.loader.exec_module(me)
 DAYS = 3 * 86400
 
 
-def _msg(root: Path, repo: str, name: str, *, ack="required", agent="", ts=None, body="b", acked=False, sub="inbox"):
+def _msg(
+    root: Path,
+    repo: str,
+    name: str,
+    *,
+    ack="required",
+    agent="",
+    ts=None,
+    body="b",
+    acked=False,
+    sub="inbox",
+):
     ts = ts or dt.datetime.now(dt.UTC).isoformat()
     d = root / repo / sub
     d.mkdir(parents=True, exist_ok=True)
@@ -133,7 +144,14 @@ def test_broken_ts_escalates_and_renders_sanely(env):
 
 def test_digest_caps_rows_and_the_count_line_survives(env):
     items = [
-        me.Obligation(ulid=f"01M{i:023d}", repo="repo_`x`", sender="x_y*z", agent="[a]", age_days=5 + i, kind="inbox")
+        me.Obligation(
+            ulid=f"01M{i:023d}",
+            repo="repo_`x`",
+            sender="x_y*z",
+            agent="[a]",
+            age_days=5 + i,
+            kind="inbox",
+        )
         for i in range(50)
     ]
     text = me.build_digest(items)
@@ -149,7 +167,9 @@ def test_budget_trim_drops_rows_and_recounts_from_the_final_set(monkeypatch):
     count-from-final-set order is pinned."""
     monkeypatch.setattr(me, "BODY_BUDGET", 300)
     items = [
-        me.Obligation(ulid=f"01M{i:023d}", repo="fabrik", sender="s", agent="-", age_days=5 + i, kind="inbox")
+        me.Obligation(
+            ulid=f"01M{i:023d}", repo="fabrik", sender="s", agent="-", age_days=5 + i, kind="inbox"
+        )
         for i in range(20)
     ]
     text = me.build_digest(items)
@@ -193,6 +213,7 @@ def test_todays_stamp_suppresses_a_second_send(env, monkeypatch):
     _msg(env, "fabrik", "01PPPPPPPPPPPPPPPPPPPPPPPP", ts=_old_ts(4))
     me.STATE_DIR.mkdir(parents=True, exist_ok=True)
     me.DAY_STAMP.write_text(dt.date.today().isoformat() + "\n", encoding="utf-8")
+
     def boom():
         raise AssertionError("must not resolve a sender today")
 

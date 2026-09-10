@@ -52,8 +52,9 @@ def _repo(tmp_path: Path) -> Path:
 
 
 def _scan(repo: Path, *args: str) -> subprocess.CompletedProcess:
-    return subprocess.run([sys.executable, str(CHECK), *args], cwd=repo,
-                          capture_output=True, text=True, check=False)
+    return subprocess.run(
+        [sys.executable, str(CHECK), *args], cwd=repo, capture_output=True, text=True, check=False
+    )
 
 
 # ── the __main__ entry point (final_gate's path) ───────────────────────────────
@@ -141,7 +142,7 @@ def test_t3_check_file_agrees_on_relative_and_absolute_paths(tmp_path, monkeypat
 def test_t4_grandfathered_docs_stay_green_in_both_paths(tmp_path, monkeypatch):
     cds = _load("cds_t4")
 
-    r = _repo(tmp_path)          # docs/LEGACY_SPRAWL.md is committed
+    r = _repo(tmp_path)  # docs/LEGACY_SPRAWL.md is committed
     monkeypatch.chdir(r)
     assert cds.check_file(Path("docs/LEGACY_SPRAWL.md")) == []
     out = _scan(r, "--strict")
@@ -229,8 +230,12 @@ def test_f2_cross_check_agreement_on_nested_roots(tmp_path):
     """F2: check_structure allows README.md at any depth, libs/**, ops/**, sites/**,
     docs-site/** — two synced checks giving opposite verdicts on one file is unsatisfiable."""
     r = _repo(tmp_path)
-    for rel in ("libs/captcha/README.md", "ops/mypkg/runbook.md",
-                "sites/acme/INDEX.md", "docs-site/docs/intro.md"):
+    for rel in (
+        "libs/captcha/README.md",
+        "ops/mypkg/runbook.md",
+        "sites/acme/INDEX.md",
+        "docs-site/docs/intro.md",
+    ):
         p = r / rel
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text("x\n")

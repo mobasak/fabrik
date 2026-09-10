@@ -62,7 +62,7 @@ def _unreleased_body(text: str) -> str | None:
     m = UNRELEASED_RE.search(text)
     if not m:
         return None
-    rest = text[m.end():]
+    rest = text[m.end() :]
     nxt = ANY_H2_RE.search(rest)
     return rest[: nxt.start()] if nxt else rest
 
@@ -140,11 +140,9 @@ def main() -> int:
     new_section = f"## [{version}] — {today}\n{body.rstrip()}\n\n"
     m = UNRELEASED_RE.search(text)
     assert m is not None
-    rest = text[m.end():]
-    tail = rest[len(body):].lstrip("\n")
-    cl_path.write_text(
-        text[: m.end()] + "\n\n" + new_section + tail, encoding="utf-8"
-    )
+    rest = text[m.end() :]
+    tail = rest[len(body) :].lstrip("\n")
+    cl_path.write_text(text[: m.end()] + "\n\n" + new_section + tail, encoding="utf-8")
 
     _git("add", "--", "CHANGELOG.md", cwd=cwd)
     # Trailers must share ONE paragraph — git parses only the final block as
@@ -156,10 +154,15 @@ def main() -> int:
         "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
     )
     _git(
-        "commit", "-q",
-        "-m", f"release: v{version}",
-        "-m", trailers,
-        "--", "CHANGELOG.md", cwd=cwd,
+        "commit",
+        "-q",
+        "-m",
+        f"release: v{version}",
+        "-m",
+        trailers,
+        "--",
+        "CHANGELOG.md",
+        cwd=cwd,
     )
     _git("tag", "-a", f"v{version}", "-m", f"v{version}", cwd=cwd)
     print(f"cut v{version} (CHANGELOG graduated, tag created)")
@@ -171,12 +174,26 @@ def main() -> int:
     if not args.no_gh_release:
         try:
             r = subprocess.run(
-                ["gh", "release", "create", f"v{version}", "--title", f"v{version}",
-                 "--notes", body.strip()],
-                cwd=cwd, capture_output=True, text=True, timeout=120,
+                [
+                    "gh",
+                    "release",
+                    "create",
+                    f"v{version}",
+                    "--title",
+                    f"v{version}",
+                    "--notes",
+                    body.strip(),
+                ],
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+                timeout=120,
             )
-            print("GitHub Release created" if r.returncode == 0
-                  else f"gh release failed (non-fatal): {r.stderr.strip()[:120]}")
+            print(
+                "GitHub Release created"
+                if r.returncode == 0
+                else f"gh release failed (non-fatal): {r.stderr.strip()[:120]}"
+            )
         except (OSError, subprocess.SubprocessError) as e:
             # gh not installed (projects) — the cut itself already succeeded.
             print(f"gh unavailable (non-fatal): {e}")

@@ -23,7 +23,8 @@ CHECK = REPO / "scripts" / "enforcement" / "check_certification_coverage.py"
 def run(root: Path, *extra: str) -> tuple[int, str]:
     proc = subprocess.run(
         [sys.executable, str(CHECK), "--project-root", str(root), *extra],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     return proc.returncode, proc.stdout + proc.stderr
 

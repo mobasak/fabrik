@@ -85,7 +85,7 @@ def test_json_value_is_escaped_not_bare_wrapped():
 def _compose_config(tmp_path: Path, env_body: str) -> subprocess.CompletedProcess:
     (tmp_path / "probe.env").write_text(env_body)
     (tmp_path / "compose.yaml").write_text(
-        "services:\n  t:\n    image: alpine:3\n    env_file: probe.env\n    command: [\"true\"]\n"
+        'services:\n  t:\n    image: alpine:3\n    env_file: probe.env\n    command: ["true"]\n'
     )
     return subprocess.run(
         ["docker", "compose", "-f", "compose.yaml", "config"],

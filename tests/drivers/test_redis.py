@@ -120,7 +120,6 @@ class TestAcquireHoldsTheLock:
         assert entered == [True]
         assert result["db_index"] == 3  # existing assignment read under the lock
 
-
     def test_release_serializes_via_the_same_lock(self):
         # release is the other read-modify-write on the file; unlocked it
         # races acquire on last-writer-wins (round-2 re-sweep finding).

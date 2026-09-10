@@ -87,9 +87,7 @@ def test_role_drift_updates_not_duplicates():
     # authorization to the new role set, never create a second.
     client = _FakeClient(authz=[{"id": "a1", "roleKeys": ["pro_user"]}])
     audit = _RecordingAudit()
-    res = asyncio.run(
-        reconcile_user_grants(client, "u1", {"pro", "studio"}, ROLE_MAP, audit=audit)
-    )
+    res = asyncio.run(reconcile_user_grants(client, "u1", {"pro", "studio"}, ROLE_MAP, audit=audit))
     assert client.creates == []
     assert client.updates == [("a1", ["pro_user", "studio_admin", "studio_user"])]
     assert res.updated == 1
@@ -200,8 +198,6 @@ def test_subset_retained_role_emits_no_revoke():
     # was actually revoked in Zitadel, so nothing is audited (correct, not a missed revoke).
     client = _FakeClient(authz=[{"id": "a1", "roleKeys": ["base", "extra"]}])
     audit = _RecordingAudit()
-    res = asyncio.run(
-        reconcile_user_grants(client, "u1", {"plus"}, SHARED_MAP, audit=audit)
-    )
+    res = asyncio.run(reconcile_user_grants(client, "u1", {"plus"}, SHARED_MAP, audit=audit))
     assert res.unchanged == 1
     assert audit.events == []  # base retained via plus → trial not revoked, no phantom

@@ -117,7 +117,9 @@ def test_cli_prints_survivors_and_drops_the_regression(tmp_path):
     env = dict(os.environ, GUARD_REPO=str(r))
     p = subprocess.run(
         [sys.executable, str(TESTS_DIR.parent / "guard_selection_freshness.py"), DOC, other],
-        capture_output=True, text=True, env=env,
+        capture_output=True,
+        text=True,
+        env=env,
     )
     assert p.returncode == 0
     staged = p.stdout.split()
@@ -181,7 +183,6 @@ def test_fail_open_when_subprocess_itself_raises(monkeypatch, tmp_path):
     monkeypatch.setattr(g.subprocess, "run", boom)
     assert g.head_text(DOC, repo=r) is None
     assert g.is_regression(DOC, repo=r)[0] is False, "a git failure must KEEP, never drop"
-
 
 
 def test_a_quoted_header_deeper_in_the_doc_cannot_be_read_as_the_real_one():

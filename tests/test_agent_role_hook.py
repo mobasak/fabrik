@@ -29,14 +29,17 @@ def _assert_matches_charter_marker_contract(path: Path) -> None:
     legitimate non-charter reference doc, e.g. a README or INDEX, would also fail here and
     would need the directory's contract revisited, not this message reworded again)."""
     lines = path.read_text(encoding="utf-8").splitlines()
-    first_line = lines[0] if lines else ""  # empty file -> fail the assertion below, never IndexError
+    first_line = (
+        lines[0] if lines else ""
+    )  # empty file -> fail the assertion below, never IndexError
     if path.name.startswith("kaizen-log-"):
         assert not first_line.startswith("# Agent charter"), (
             f"{path.name}: a kaizen log must NOT carry the charter marker"
         )
     else:
         assert first_line.startswith("# Agent charter") and (
-            len(first_line) == len("# Agent charter") or first_line[len("# Agent charter")].isspace()
+            len(first_line) == len("# Agent charter")
+            or first_line[len("# Agent charter")].isspace()
         ), (
             f"{path.name}: docs/reference/agents/ contract violation — every file here that is "
             "not kaizen-log-* must carry the '# Agent charter' marker on its first line (the "
@@ -138,8 +141,9 @@ def test_empty_charter_is_silent(tmp_path: Path) -> None:
 def test_cwd_fallback_without_project_dir() -> None:
     env = {k: v for k, v in os.environ.items() if k not in ("CLAUDE_AGENT", "CLAUDE_PROJECT_DIR")}
     env["CLAUDE_AGENT"] = "infra"
-    r = subprocess.run([sys.executable, str(HOOK)], capture_output=True, text=True,
-                       timeout=30, env=env, cwd=REPO)
+    r = subprocess.run(
+        [sys.executable, str(HOOK)], capture_output=True, text=True, timeout=30, env=env, cwd=REPO
+    )
     assert r.returncode == 0
     assert "AGENT ROLE: infra" in r.stdout
 
@@ -164,7 +168,9 @@ def test_truncation_binds_in_bytes_for_multibyte(tmp_path: Path) -> None:
     """A CJK charter must be capped in BYTES (the old char-read emitted 3x the cap)."""
     d = tmp_path / "docs" / "reference" / "agents"
     d.mkdir(parents=True)
-    (d / "infra.md").write_text("# Agent charter — infra\n" + "世" * 40_000, encoding="utf-8")  # 3 bytes/char
+    (d / "infra.md").write_text(
+        "# Agent charter — infra\n" + "世" * 40_000, encoding="utf-8"
+    )  # 3 bytes/char
     r = _run("infra", cwd=tmp_path)
     assert r.returncode == 0
     assert "TRUNCATED" in r.stdout
@@ -203,7 +209,9 @@ def test_invalid_name_shape_is_silent_noop(tmp_path: Path) -> None:
     name = "Alpha_1"
     d = tmp_path / "docs" / "reference" / "agents"
     d.mkdir(parents=True)
-    (d / f"{name}.md").write_text("# Agent charter\n\nMandate: unreachable — name gate must reject first.\n")
+    (d / f"{name}.md").write_text(
+        "# Agent charter\n\nMandate: unreachable — name gate must reject first.\n"
+    )
     r = _run(name, cwd=tmp_path)
     assert r.returncode == 0
     assert r.stdout.strip() == ""
@@ -217,7 +225,9 @@ def test_33_char_name_is_silent_noop(tmp_path: Path) -> None:
     name = "a" * 33
     d = tmp_path / "docs" / "reference" / "agents"
     d.mkdir(parents=True)
-    (d / f"{name}.md").write_text("# Agent charter\n\nMandate: unreachable — name gate must reject first.\n")
+    (d / f"{name}.md").write_text(
+        "# Agent charter\n\nMandate: unreachable — name gate must reject first.\n"
+    )
     r = _run(name, cwd=tmp_path)
     assert r.returncode == 0
     assert r.stdout.strip() == ""

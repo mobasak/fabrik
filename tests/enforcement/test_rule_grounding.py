@@ -35,7 +35,9 @@ PACK_TEXT = (
     "- Another mandate line entirely.\n"
 )
 # The wrapped mandate above, quoted on ONE line the way a digest would carry it:
-WRAPPED_QUOTE = "Use Pydantic BaseSettings for config loading — never raw os.getenv for an app setting."
+WRAPPED_QUOTE = (
+    "Use Pydantic BaseSettings for config loading — never raw os.getenv for an app setting."
+)
 
 FAKE_RUBRIC = (
     "#!/usr/bin/env python3\n"
@@ -139,7 +141,11 @@ def test_cli_always_exits_zero(tmp_path):
     env = dict(os.environ)
     for args in ([], ["--root", str(root)], ["--definitely-not-a-flag"]):
         r = subprocess.run(
-            [sys.executable, str(REPO / "scripts" / "enforcement" / "check_rule_grounding.py"), *args],
+            [
+                sys.executable,
+                str(REPO / "scripts" / "enforcement" / "check_rule_grounding.py"),
+                *args,
+            ],
             capture_output=True,
             text=True,
             env=env,
@@ -172,4 +178,9 @@ def test_a_quote_beginning_with_the_word_rule_is_data_not_a_header():
         "| Rule: Edit existing sections, never append blindly | .windsurf/rules/core/40-documentation.md:185 |\n"
     )
     rows = chk._digest_rows(section)
-    assert rows == [("Rule: Edit existing sections, never append blindly", ".windsurf/rules/core/40-documentation.md")]
+    assert rows == [
+        (
+            "Rule: Edit existing sections, never append blindly",
+            ".windsurf/rules/core/40-documentation.md",
+        )
+    ]

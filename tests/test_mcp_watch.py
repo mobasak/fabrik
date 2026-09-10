@@ -1,5 +1,6 @@
 # AFTER-EDIT: .claude/hooks/mcp_watch.py | none
 """D-041 per-message MCP forcing layer — staleness + cached-liveness banners."""
+
 import importlib.util
 import json
 import os
@@ -9,7 +10,8 @@ from datetime import UTC
 from pathlib import Path
 
 _spec = importlib.util.spec_from_file_location(
-    "mcp_watch", Path(__file__).resolve().parent.parent / ".claude/hooks/mcp_watch.py")
+    "mcp_watch", Path(__file__).resolve().parent.parent / ".claude/hooks/mcp_watch.py"
+)
 watch = importlib.util.module_from_spec(_spec)
 sys.modules["mcp_watch"] = watch
 _spec.loader.exec_module(watch)
@@ -18,7 +20,10 @@ _spec.loader.exec_module(watch)
 def test_stale_config_detected(tmp_path):
     (tmp_path / ".mcp.json").write_text("{}")
     past = time.time() - 3600
-    assert watch.stale_configs(str(tmp_path), past) and "repo .mcp.json" in watch.stale_configs(str(tmp_path), past)[0]
+    assert (
+        watch.stale_configs(str(tmp_path), past)
+        and "repo .mcp.json" in watch.stale_configs(str(tmp_path), past)[0]
+    )
     future = time.time() + 3600
     assert all("repo" not in s for s in watch.stale_configs(str(tmp_path), future))
 
@@ -35,6 +40,7 @@ def test_cache_read_shapes(tmp_path, monkeypatch):
 
 
 # ── session start = when the TOOL UNIVERSE was loaded (2026-09-02, wef finding 01M1GE3PWBPKZWETCANJXWGGRC) ──
+
 
 def _write_jsonl(tmp_path, lines):
     p = tmp_path / "session.jsonl"
@@ -67,11 +73,14 @@ def test_session_start_immune_to_appends(tmp_path, monkeypatch):
 
 
 def test_first_event_ts_skips_unparseable_and_ts_less_head(tmp_path):
-    p = _write_jsonl(tmp_path, [
-        "not json at all",
-        json.dumps({"type": "file-history-snapshot"}),  # no timestamp
-        json.dumps({"type": "user", "timestamp": "2026-09-01T06:00:00Z"}),
-    ])
+    p = _write_jsonl(
+        tmp_path,
+        [
+            "not json at all",
+            json.dumps({"type": "file-history-snapshot"}),  # no timestamp
+            json.dumps({"type": "user", "timestamp": "2026-09-01T06:00:00Z"}),
+        ],
+    )
     got = watch._first_event_ts(p)
     assert got is not None and abs(got - 1788242400.0) < 1
 
@@ -116,7 +125,8 @@ def test_ancestor_walk_finds_claude_and_walks_past_non_matches(monkeypatch):
     monkeypatch.setattr(watch.os, "getppid", lambda: 10)
     monkeypatch.setattr(watch, "_btime", lambda: 1000.0)
     monkeypatch.setattr(
-        watch.Path, "read_text",
+        watch.Path,
+        "read_text",
         lambda self, *a, **k: tree[int(str(self).split("/")[2])],
     )
     expect = 1000.0 + 500 / os.sysconf("SC_CLK_TCK")
@@ -124,7 +134,8 @@ def test_ancestor_walk_finds_claude_and_walks_past_non_matches(monkeypatch):
 
     no_claude = {10: _fake_stat(10, "bash", 11), 11: _fake_stat(11, "sh", 1)}
     monkeypatch.setattr(
-        watch.Path, "read_text",
+        watch.Path,
+        "read_text",
         lambda self, *a, **k: no_claude[int(str(self).split("/")[2])],
     )
     assert watch._claude_ancestor_start() is None, "no harness ⇒ None (fallback), never a guess"
@@ -148,10 +159,16 @@ def test_proc_start_epoch_pins_the_field_index_both_directions():
 
     me = watch._proc_start_epoch(os.getpid())
     assert me is not None and me <= time.time() + 1, "self start must be at or before now"
-    assert time.time() - me < 3600, "self start must be RECENT, not the boot epoch (off-by-one guard)"
+    assert time.time() - me < 3600, (
+        "self start must be RECENT, not the boot epoch (off-by-one guard)"
+    )
     init = watch._proc_start_epoch(1)
-    if init is not None:  # pid 1 stat may be unreadable in some sandboxes — then skip the ordering half
-        assert init < me, "init started before this test process — index/always-now mutants break this"
+    if (
+        init is not None
+    ):  # pid 1 stat may be unreadable in some sandboxes — then skip the ordering half
+        assert init < me, (
+            "init started before this test process — index/always-now mutants break this"
+        )
 
 
 def test_btime_is_the_boot_epoch():
@@ -164,7 +181,9 @@ def test_main_emits_stale_banner_and_never_raises(tmp_path, monkeypatch, capsys)
     monkeypatch.setattr(watch, "_claude_ancestor_start", lambda: 1000.0)  # ancient start
     monkeypatch.setattr(watch, "_refresh_detached", lambda cwd: None)  # no real subprocess/tmp leak
     (tmp_path / ".mcp.json").write_text("{}")  # exists, mtime = now > 1000 ⇒ stale
-    monkeypatch.setattr("sys.stdin", _Stdin(json.dumps({"cwd": str(tmp_path), "transcript_path": ""})))
+    monkeypatch.setattr(
+        "sys.stdin", _Stdin(json.dumps({"cwd": str(tmp_path), "transcript_path": ""}))
+    )
     assert watch.main() == 0
     assert "CHECK YOUR ASSIGNED MCPs" in capsys.readouterr().out
 
@@ -177,7 +196,9 @@ def test_main_over_warns_when_session_start_is_undetermined(tmp_path, monkeypatc
     monkeypatch.setattr(watch, "_first_event_ts", lambda p: None)  # ⇒ start undetermined
     monkeypatch.setattr(watch, "_refresh_detached", lambda cwd: None)
     (tmp_path / ".mcp.json").write_text("{}")
-    monkeypatch.setattr("sys.stdin", _Stdin(json.dumps({"cwd": str(tmp_path), "transcript_path": ""})))
+    monkeypatch.setattr(
+        "sys.stdin", _Stdin(json.dumps({"cwd": str(tmp_path), "transcript_path": ""}))
+    )
     assert watch.main() == 0
     out = capsys.readouterr().out
     assert "OUTDATED" in out, "undetermined start must OVER-WARN, never go silent"
@@ -192,10 +213,14 @@ def test_main_fail_open_on_numeric_timestamp_and_null_path(tmp_path, monkeypatch
     monkeypatch.setattr(watch, "_refresh_detached", lambda cwd: None)
     p = tmp_path / "session.jsonl"
     p.write_text(json.dumps({"type": "user", "timestamp": 1788242400}) + "\n")  # numeric, not ISO
-    monkeypatch.setattr("sys.stdin", _Stdin(json.dumps({"cwd": str(tmp_path), "transcript_path": str(p)})))
+    monkeypatch.setattr(
+        "sys.stdin", _Stdin(json.dumps({"cwd": str(tmp_path), "transcript_path": str(p)}))
+    )
     assert watch.main() == 0  # must not raise
     assert "OUTDATED" in capsys.readouterr().out  # …and the banner still reaches the agent
-    monkeypatch.setattr("sys.stdin", _Stdin(json.dumps({"cwd": str(tmp_path), "transcript_path": None})))
+    monkeypatch.setattr(
+        "sys.stdin", _Stdin(json.dumps({"cwd": str(tmp_path), "transcript_path": None}))
+    )
     assert watch.main() == 0  # open(None) must not raise either
 
 
@@ -210,7 +235,10 @@ def test_main_survives_non_dict_payload_and_bad_cache(tmp_path, monkeypatch):
         assert watch.main() == 0, f"main raised on payload {payload}"
     f = watch._cache_file(str(tmp_path))
     f.parent.mkdir(parents=True, exist_ok=True)
-    for bad in ({"ts": time.time(), "report": ["a"]}, {"ts": "not-a-number", "report": {"x": "DEAD"}}):
+    for bad in (
+        {"ts": time.time(), "report": ["a"]},
+        {"ts": "not-a-number", "report": {"x": "DEAD"}},
+    ):
         f.write_text(json.dumps(bad))
         assert watch.read_cache(str(tmp_path)) is None, f"bad cache must be rejected: {bad}"
 
@@ -218,10 +246,13 @@ def test_main_survives_non_dict_payload_and_bad_cache(tmp_path, monkeypatch):
 def test_first_event_ts_skips_a_bad_ts_and_continues_to_the_next_line(tmp_path):
     """The inner `except ValueError: continue` is masked by the outer handler — its only
     distinct behavior is CONTINUING to a later line, which was untested."""
-    p = _write_jsonl(tmp_path, [
-        json.dumps({"timestamp": 1788242400}),  # numeric epoch — unparseable
-        json.dumps({"timestamp": "2026-09-01T06:00:00Z"}),  # the real one
-    ])
+    p = _write_jsonl(
+        tmp_path,
+        [
+            json.dumps({"timestamp": 1788242400}),  # numeric epoch — unparseable
+            json.dumps({"timestamp": "2026-09-01T06:00:00Z"}),  # the real one
+        ],
+    )
     assert abs(watch._first_event_ts(p) - 1788242400.0) < 1
 
 
@@ -318,6 +349,7 @@ def test_stale_banner_leads_with_fix_first():
 
 
 # ── the banner is a RATIO shown to every session; both halves must mean the same ──
+
 
 def test_skipped_excluded_from_both_halves_of_the_ratio():
     """Live shape (2026-08-30): 15 assigned, grafana SKIPPED (docker-run, unprobed),

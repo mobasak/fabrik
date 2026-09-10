@@ -49,7 +49,12 @@ def test_stale_claims_window_and_supersede_semantics():
     rows = [
         {"id": "fresh", "last_verified": "2027-01-01", "window_days": 90},
         {"id": "stale", "last_verified": "2026-09-01", "window_days": 90},
-        {"id": "superseded", "last_verified": "2026-01-01", "window_days": 90, "superseded": "2026-06-01"},
+        {
+            "id": "superseded",
+            "last_verified": "2026-01-01",
+            "window_days": 90,
+            "superseded": "2026-06-01",
+        },
         {"id": "broken-row"},  # unparseable = stale by definition, must surface
         {"id": "default-window", "last_verified": "2026-08-01"},  # 180d default -> stale at 212d
     ]
@@ -78,7 +83,9 @@ def test_auto_update_preserves_versions_yaml_comments():
     assert 'python_stable: "3.14"' in new  # untouched key keeps value AND comment
     assert "updated: 2026-10-29" in new
     # shape drift (key missing) -> None; the caller falls back to the drift mail
-    assert _update_versions_text("versions: {}\n", {"node": ("24", "26")}, date(2026, 10, 29)) is None
+    assert (
+        _update_versions_text("versions: {}\n", {"node": ("24", "26")}, date(2026, 10, 29)) is None
+    )
 
 
 def test_register_parses_and_all_claims_fresh_at_seed():

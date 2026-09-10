@@ -90,7 +90,9 @@ def qualifying_paths(repo: Path = REPO) -> list[str]:
     try:
         dirty = subprocess.run(
             ["git", "-C", str(repo), "diff", "--name-only", "--", GLOB],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True,
+            text=True,
+            timeout=30,
         ).stdout.split()
     except Exception as exc:
         print(f"[stage-ai-renders] git diff failed: {exc}", file=sys.stderr)
@@ -99,7 +101,9 @@ def qualifying_paths(repo: Path = REPO) -> list[str]:
         try:
             old = subprocess.run(
                 ["git", "-C", str(repo), "show", f"HEAD:{rel}"],
-                capture_output=True, text=True, timeout=30,
+                capture_output=True,
+                text=True,
+                timeout=30,
             ).stdout
             new = (repo / rel).read_text(encoding="utf-8")
         except Exception as exc:
@@ -107,7 +111,10 @@ def qualifying_paths(repo: Path = REPO) -> list[str]:
             continue
         if old == new:
             # mode-only/metadata dirt — content identical; staging would auto-commit a chmod
-            print(f"[stage-ai-renders] SKIP {rel}: content identical (mode-only change?)", file=sys.stderr)
+            print(
+                f"[stage-ai-renders] SKIP {rel}: content identical (mode-only change?)",
+                file=sys.stderr,
+            )
             continue
         ok, offender = diff_is_engine_only(old, new)
         if ok:

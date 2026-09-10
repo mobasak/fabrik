@@ -50,7 +50,9 @@ def test_live_corpus_cleaned_packs_round_trip():
     versions = load_versions()
     for pack, min_spans in CLEANED_PACKS.items():
         text = Path(pack).read_text(encoding="utf-8")
-        assert len(_SPAN.findall(text)) >= min_spans, f"{pack}: expected >= {min_spans} marker spans"
+        assert len(_SPAN.findall(text)) >= min_spans, (
+            f"{pack}: expected >= {min_spans} marker spans"
+        )
         _, changed, unknown = inject_text(text, versions)
         assert changed == 0 and unknown == [], f"{pack}: HEAD disagrees with versions.yaml"
 

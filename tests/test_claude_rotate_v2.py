@@ -2820,7 +2820,8 @@ def test_the_lockstep_holds_when_proc_locks_is_blind(tmp_path, monkeypatch):
     import os  # local, like _hold_lock — the module has no top-level os
 
     spec = importlib.util.spec_from_file_location(
-        "selfwatch_check_blind", Path(__file__).resolve().parents[1] / "scripts/sysadmin/selfwatch_check.py"
+        "selfwatch_check_blind",
+        Path(__file__).resolve().parents[1] / "scripts/sysadmin/selfwatch_check.py",
     )
     swc = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(swc)

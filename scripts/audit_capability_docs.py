@@ -88,10 +88,14 @@ def run(catalog_path: Path, apply: bool = False, root: Path = REPO) -> dict:
     for cap in catalog:
         if not isinstance(cap, dict):
             continue
-        name = str(cap.get("name", "unnamed"))  # coerce — a non-string name must not crash _slug (untrusted)
+        name = str(
+            cap.get("name", "unnamed")
+        )  # coerce — a non-string name must not crash _slug (untrusted)
         kind = cap.get("kind", "")
         defects = cap.get("defects", [])
-        if not isinstance(defects, list):  # a stray string would make `"dead_doc" in defects` a substring test
+        if not isinstance(
+            defects, list
+        ):  # a stray string would make `"dead_doc" in defects` a substring test
             defects = []
         doc = cap.get("doc_link")
 
@@ -107,10 +111,14 @@ def run(catalog_path: Path, apply: bool = False, root: Path = REPO) -> dict:
                     (root / doc).unlink(missing_ok=True)
                 fixed.append(f"{tag}delete dead doc: {doc}")
             else:
-                operator_action.append({
-                    "name": name, "kind": kind, "defect": "dead_doc",
-                    "action": f"SKIPPED unlink of {doc!r} — {why}; resolve by hand.",
-                })
+                operator_action.append(
+                    {
+                        "name": name,
+                        "kind": kind,
+                        "defect": "dead_doc",
+                        "action": f"SKIPPED unlink of {doc!r} — {why}; resolve by hand.",
+                    }
+                )
 
         if "undocumented" in defects:
             stub_rel = f"{_STUB_DIR_REL}/{_slug(name)}.md"
@@ -125,15 +133,21 @@ def run(catalog_path: Path, apply: bool = False, root: Path = REPO) -> dict:
 
         for d in _OPERATOR_DEFECTS:
             if d in defects:
-                operator_action.append({"name": name, "kind": kind, "defect": d, "action": _RECOMMEND[d]})
+                operator_action.append(
+                    {"name": name, "kind": kind, "defect": d, "action": _RECOMMEND[d]}
+                )
 
     _write_report(root, fixed, operator_action, drift, apply, catalog_path)
     return {"fixed": fixed, "operator_action": operator_action}
 
 
 def _write_report(
-    root: Path, fixed: list[str], operator_action: list[dict], drift: list[dict],
-    apply: bool, catalog_path: Path,
+    root: Path,
+    fixed: list[str],
+    operator_action: list[dict],
+    drift: list[dict],
+    apply: bool,
+    catalog_path: Path,
 ) -> None:
     report = root / _REPORT_REL
     report.parent.mkdir(parents=True, exist_ok=True)
@@ -152,8 +166,13 @@ def _write_report(
     lines += [
         f"- `{c.get('name', 'unnamed')}` ({c.get('kind', '')}) → {c.get('doc_link')}" for c in drift
     ] or ["- _(none)_"]
-    lines += ["", "## Operator action required", "", "| Capability | Kind | Defect | Recommended action |",
-              "|---|---|---|---|"]
+    lines += [
+        "",
+        "## Operator action required",
+        "",
+        "| Capability | Kind | Defect | Recommended action |",
+        "|---|---|---|---|",
+    ]
     lines += [
         f"| `{o['name']}` | {o['kind']} | {o['defect']} | {o['action']} |" for o in operator_action
     ] or ["| _(none)_ | | | |"]

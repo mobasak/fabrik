@@ -175,7 +175,9 @@ def test_the_check_states_what_it_cannot_grade():
 
 
 def test_no_module_constant_is_dead():
-    src = (REPO / "scripts" / "enforcement" / "check_trigger_routing.py").read_text(encoding="utf-8")
+    src = (REPO / "scripts" / "enforcement" / "check_trigger_routing.py").read_text(
+        encoding="utf-8"
+    )
     for name in [n for n in dir(chk) if n.isupper() and not n.startswith("_")]:
         assert src.count(name) > 1, f"{name} is defined and never used"
 

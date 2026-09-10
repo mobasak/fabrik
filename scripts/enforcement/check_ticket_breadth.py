@@ -351,7 +351,9 @@ def measure_ticket(path: Path) -> Breadth:
         # with the code that invalidates them — the Matrix mandates it).
         prod = [p for p in touches if not _is_test_path(p) and not _is_docsync_path(p)]
         test_areas = len({_area(p) for p in touches if _is_test_path(p)})
-        docsync_areas = len({_area(p) for p in touches if not _is_test_path(p) and _is_docsync_path(p)})
+        docsync_areas = len(
+            {_area(p) for p in touches if not _is_test_path(p) and _is_docsync_path(p)}
+        )
         areas: list[str] = []
         for p in prod:
             a = _area(p)
@@ -362,11 +364,7 @@ def measure_ticket(path: Path) -> Breadth:
         # for the governance-mix signal — excluding them dropped mix on a
         # governance+docs ticket, the exact blast-radius pairing the signal
         # exists for (review round 1, measured mix=True -> False).
-        has_code = any(
-            not _is_governance(p)
-            for p in touches
-            if not _is_test_path(p)
-        )
+        has_code = any(not _is_governance(p) for p in touches if not _is_test_path(p))
         # A companions-ONLY ticket still touches something — score it as one
         # area rather than zero, but never as a multi-area ticket; label by
         # what it actually holds (a docs-only ticket read "<tests-only>",
