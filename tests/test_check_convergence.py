@@ -1735,10 +1735,22 @@ def test_the_span_masker_blanks_exactly_the_content_between_equal_runs():
 
 
 def test_the_fence_strip_runs_before_the_span_masker():
-    """An inline fence quote (```…``` on one line) is stripped whole; a span masker running first would
-    read its backticks as a run and leave the counter inside the quote live."""
+    """The ORDER pin: with the fence strip first, this line keeps its leading ``` and is never a Pass
+    row (the line-start anchor); with the masker first, the inner backtick is blanked, the inline
+    fence quote then matches and its delimiters are stripped, and the row surfaces at line start —
+    the mask-first order was refused by fuzz for exactly that reason."""
     sys.path.insert(0, str(CHECK.parent))
     import check_convergence as cc  # noqa: E402
 
     raw = "```<!--`-->```| Pass 1 | method: re-derivation | confirmed: 3 |\n"
     assert cc._closing_row_fail(raw) is None
+
+
+def test_a_run_touching_the_newline_before_the_ledger_never_hides_it():
+    """The closer scan must stop AT the newline, not step over it (round 7's surviving mutant: a
+    non-matching run whose last backtick touches the line end let the scan continue into the ledger)."""
+    sys.path.insert(0, str(CHECK.parent))
+    import check_convergence as cc  # noqa: E402
+
+    doc = "notes `x ``\n| Pass 1 | seat | method: re-derivation | confirmed: 3 | see `\n"
+    assert cc._closing_row_fail(doc) is not None

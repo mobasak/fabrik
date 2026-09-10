@@ -140,7 +140,8 @@ _REDERIVATION_ROW = re.compile(
 # `unconfirmed:` or `re-confirmed:` cell never reads as the counter. STATED COST of the last-token
 # rule: a Notes cell that cites an EARLIER round's count AFTER the row's own counter (`confirmed: 0 |
 # notes: pass 1 stood at confirmed: 3`) is refused — write the citation before the counter, or in
-# a code span. Measured 2026-09-10: 0 of 47 fleet spines and 0 of 805 fleet review artifacts carry >1 token on one row.
+# a code span. Measured 2026-09-10: 0 of 47 non-archived plan-set spines under `docs/development/plans` (the
+# `_is_spine` population) and 0 of 805 fleet review artifacts carry >1 token on one row.
 _PASS_ROW = re.compile(r"^[ \t]*\|\s*\**(?:Pass|Round)\b[^\n]*", re.I | re.M)
 
 
@@ -153,7 +154,8 @@ def _mask_spans(s: str) -> str:
     a LINE: the closer is searched on the opener's line only (an unbounded search let a stray
     backtick before the ledger pair with one after it and swallow every row between). STATED COSTS:
     a code span that legitimately wraps across lines is read as two literal runs, so a `<!--` inside
-    it opens a comment (0 live instances); and a single pathological line holding hundreds of runs of
+    it opens a comment and the rule then FAILS OPEN over every row that comment swallows (0 live
+    instances); and a single pathological line holding hundreds of runs of
     distinct lengths is still quadratic (a 721 KB line of 800 runs: ~11 s) — the bound moved the cliff
     from the document to the line, it did not remove it."""
     out = list(s)

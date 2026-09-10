@@ -404,7 +404,9 @@ def _trees(tmp_path):
 def _census(tmp_path):
     d, s, a = _trees(tmp_path)
     # FILES only, and never through a link: a planted directory named SKILL.md (an abort fixture) or
-    # a symlink to a file elsewhere is not a written wrapper
+    # a symlink to a file elsewhere is not a written wrapper. A (0, 0, 0) therefore proves no file
+    # was written INSIDE the trees; a write THROUGH a link is proved by the target's content (the
+    # symlink matrix asserts `theirs` survives), never by this count alone
     return (
         len([p for p in d.glob("*.md") if p.is_file() and not p.is_symlink()]),
         len(
@@ -495,7 +497,7 @@ def test_an_aborted_render_writes_into_none_of_the_three_trees(tmp_path, monkeyp
         elif abort == "a directory named like a command in the agents tree":
             (a / "zz-notasource.md").mkdir(parents=True)
         elif abort == "a directory named like a command in the commands tree":
-            (d / "zz-notasource.md").mkdir(parents=True, exist_ok=True)
+            (d / "zz-notasource.md").mkdir(parents=True)
         elif abort == "an orphan skill whose SKILL.md is a directory":
             (s / "zz-orphan" / "SKILL.md").mkdir(parents=True)
         else:
@@ -772,7 +774,7 @@ def test_the_gate_reports_a_malformed_orphan_position_instead_of_crashing(
     with pytest.raises(SystemExit) as exc:
         ac.check()
     out = capsys.readouterr().out
-    assert exc.value.code == 1 and out.count("not a file") == 2, out
+    assert exc.value.code == 1 and out.count("not a regular file") == 2, out
 
 
 def test_the_orphan_preflight_still_refuses_behind_a_symlinked_sibling(tmp_path):
@@ -809,3 +811,66 @@ def test_trees_that_are_symlinks_to_directories_are_a_legitimate_layout(tmp_path
         len(list(real["s"].glob("*/SKILL.md"))),
         len(list(real["a"].glob("*.md"))),
     ) == (n_src, n_src, n_ag)
+
+
+@pytest.mark.parametrize("tree", ["commands", "skills", "agents"])
+def test_a_dangling_orphan_link_survives_the_render_and_a_link_to_a_directory_is_left_alone(
+    tmp_path, tree
+):
+    """The prunes read an orphan link only when it points at a FILE: a dangling `*.md` link (or a
+    skill wrapper link gone stale under a symlinked parent) is left where it is, never a crash — and
+    a link whose target is a DIRECTORY is neither read nor removed (round 7)."""
+    d, s, a = _trees(tmp_path)
+    ac.render(d, s, agents_dest=a)
+    target_dir = tmp_path / "somedir"
+    target_dir.mkdir()
+    if tree == "commands":
+        dangling, todir = d / "zz-dangle.md", d / "zz-todir.md"
+    elif tree == "agents":
+        dangling, todir = a / "zz-dangle.md", a / "zz-todir.md"
+    else:
+        linked = tmp_path / "linked"
+        linked.mkdir()
+        (linked / "SKILL.md").symlink_to(tmp_path / "gone.md")
+        (s / "zz-link").symlink_to(linked)
+        dangling = linked / "SKILL.md"
+        (tmp_path / "linked2").mkdir()
+        (tmp_path / "linked2" / "SKILL.md").symlink_to(target_dir)
+        (s / "zz-link2").symlink_to(tmp_path / "linked2")
+        todir = tmp_path / "linked2" / "SKILL.md"
+    if tree != "skills":
+        dangling.symlink_to(tmp_path / "gone.md")
+        todir.symlink_to(target_dir)
+    ac.render(d, s, agents_dest=a)
+    assert dangling.is_symlink() and todir.is_symlink() and target_dir.is_dir()
+
+
+@pytest.mark.parametrize("tree", ["commands", "agents"])
+def test_the_prune_glob_preflight_still_refuses_behind_a_symlinked_sibling(tmp_path, tree):
+    """The symlink skip in the commands/agents orphan globs must `continue`, never `break`."""
+    d, s, a = _trees(tmp_path)
+    t = d if tree == "commands" else a
+    t.mkdir(exist_ok=True)
+    (tmp_path / "elsewhere").mkdir()
+    (tmp_path / "elsewhere" / "theirs.md").write_text(
+        "theirs"
+    )  # outside the commands tree (= tmp_path)
+    (t / "aa-link.md").symlink_to(tmp_path / "elsewhere" / "theirs.md")  # sorts first
+    (t / "zz-dir.md").mkdir()
+    with pytest.raises(SystemExit, match="belongs"):
+        ac.render(d, s, agents_dest=a)
+    assert _census(tmp_path) == (0, 0, 0)
+
+
+def test_a_symlinked_orphan_wrapper_file_is_unlinked_not_refused(tmp_path):
+    """`tests/test_assemble_orch_retired.py` plants a retired skill whose SKILL.md is a symlink: an
+    orphan LINK to a bannered file is the prune's to unlink, never the pre-flight's to refuse."""
+    d, s, a = _trees(tmp_path)
+    ac.render(d, s, agents_dest=a)
+    outside = tmp_path / "outside" / "SKILL.md"
+    outside.parent.mkdir()
+    outside.write_text(ac.SKILL_BANNER + "\n# retired\n")
+    (s / "zz-retired").mkdir()
+    (s / "zz-retired" / "SKILL.md").symlink_to(outside)
+    ac.render(d, s, agents_dest=a)
+    assert not (s / "zz-retired" / "SKILL.md").is_symlink() and outside.exists()
