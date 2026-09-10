@@ -443,31 +443,84 @@ def test_a_preview_render_without_a_skills_tree_still_trips_the_cap(tmp_path, mo
     assert _census(tmp_path) == (0, 0, 0)
 
 
-def test_the_orphan_prunes_tolerate_a_non_utf8_stray_in_every_tree(tmp_path):
-    """A hand-dropped non-UTF-8 `.md` in any of the three trees must neither kill the render after
-    every file is written nor be pruned (it carries no banner)."""
-    d, s, a = _trees(tmp_path)
-    (s / "zz-stray").mkdir(parents=True)
-    a.mkdir()
-    strays = [d / "zz-stray.md", s / "zz-stray" / "SKILL.md", a / "zz-stray.md"]
-    for stray in strays:
-        stray.write_bytes(_STRAY)
-    ac.render(d, s, agents_dest=a)
-    assert all(stray.exists() for stray in strays)
-    n_src, n_ag = len(list(ac.SRC.glob("*.md"))), len(list(ac.AGENT_SRC.glob("*.md")))
-    assert _census(tmp_path) == (n_src + 1, n_src + 1, n_ag + 1)
-
-
-def test_check_tolerates_a_non_utf8_stray_in_the_installed_trees(tmp_path, monkeypatch, capsys):
-    """`check()` walks the INSTALLED trees with its own orphan loop — the same stray must not crash
-    the read-only gate either (round 13)."""
+def _installed(tmp_path, monkeypatch):
+    """A clean install rendered into scratch trees, with `check()` pointed at them."""
     d, s, a = _trees(tmp_path)
     ac.render(d, s, agents_dest=a)
     monkeypatch.setattr(ac, "OUT", d)
     monkeypatch.setattr(ac, "SKILLS", s)
     monkeypatch.setattr(ac, "AGENTS", a)
-    (d / "zz-stray.md").write_bytes(_STRAY)
-    (s / "zz-stray").mkdir()
-    (s / "zz-stray" / "SKILL.md").write_bytes(_STRAY)
+    first_cmd = sorted(d.glob("*.md"))[0]
+    first_agent = sorted(a.glob("*.md"))[0]
+    return {
+        "commands": (first_cmd, d / "zz-stray.md", d / "zz-orphan.md"),
+        "skills": (
+            s / first_cmd.stem / "SKILL.md",
+            s / "zz-stray" / "SKILL.md",
+            s / "zz-orphan" / "SKILL.md",
+        ),
+        "agents": (first_agent, a / "zz-stray.md", a / "zz-orphan.md"),
+    }
+
+
+def test_check_tolerates_a_non_utf8_stray_in_the_installed_trees(tmp_path, monkeypatch, capsys):
+    """`check()` walks the INSTALLED trees with its own reads — a banner-less non-UTF-8 stray in any
+    of the three must not crash the read-only gate (round 13; the agents tree in round 14)."""
+    trees = _installed(tmp_path, monkeypatch)
+    for _generated, stray, _orphan in trees.values():
+        stray.parent.mkdir(parents=True, exist_ok=True)
+        stray.write_bytes(_STRAY)
     ac.check()
     assert "check OK" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("tree", ["commands", "skills", "agents"])
+def test_check_reports_a_corrupted_installed_file_instead_of_crashing(
+    tmp_path, monkeypatch, capsys, tree
+):
+    """A GENERATED installed file that acquired non-UTF-8 bytes (a bad-encoding hand edit, a truncated
+    write) is reported as HAND-EDITED drift, never a traceback — for every installed tree, including the
+    agents tree `agent_drift` reads first (round 14: that sixth read was still bare)."""
+    generated, _stray, _orphan = _installed(tmp_path, monkeypatch)[tree]
+    generated.write_bytes(_STRAY)
+    with pytest.raises(SystemExit) as exc:
+        ac.check()
+    assert exc.value.code == 1
+    assert "HAND-EDITED" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("tree", ["commands", "skills"])
+def test_check_reports_a_generated_orphan_in_the_installed_trees(
+    tmp_path, monkeypatch, capsys, tree
+):
+    """An installed GENERATED command or skill whose source is gone is reported as an ORPHAN — the
+    read-only mirror of the render prune (the agents tree has no orphan rule in `check()`)."""
+    _generated, _stray, orphan = _installed(tmp_path, monkeypatch)[tree]
+    orphan.parent.mkdir(parents=True, exist_ok=True)
+    banner = ac.BANNER if tree == "commands" else ac.SKILL_BANNER
+    orphan.write_text(banner + "\n# orphan\n")
+    with pytest.raises(SystemExit) as exc:
+        ac.check()
+    assert exc.value.code == 1
+    assert "ORPHAN" in capsys.readouterr().out
+
+
+def test_every_render_prune_removes_a_generated_orphan_and_keeps_a_hand_authored_file(tmp_path):
+    """The three render prunes, graded as one set: a banner-carrying orphan in each tree is removed,
+    a banner-less file (hand-authored, or a non-UTF-8 stray) survives — the census alone cannot tell a
+    working prune from a deleted one (round 14)."""
+    d, s, a = _trees(tmp_path)
+    (s / "zz-orphan").mkdir(parents=True)
+    (s / "zz-stray").mkdir()
+    a.mkdir()
+    orphans = [d / "zz-orphan.md", s / "zz-orphan" / "SKILL.md", a / "zz-orphan.md"]
+    for orphan, banner in zip(orphans, (ac.BANNER, ac.SKILL_BANNER, ac.BANNER), strict=True):
+        orphan.write_text(banner + "\n# orphan\n")
+    strays = [d / "zz-stray.md", s / "zz-stray" / "SKILL.md", a / "zz-stray.md"]
+    for stray in strays:
+        stray.write_bytes(_STRAY)
+    ac.render(d, s, agents_dest=a)
+    assert not any(orphan.exists() for orphan in orphans)
+    assert all(stray.exists() for stray in strays)
+    n_src, n_ag = len(list(ac.SRC.glob("*.md"))), len(list(ac.AGENT_SRC.glob("*.md")))
+    assert _census(tmp_path) == (n_src + 1, n_src + 1, n_ag + 1)

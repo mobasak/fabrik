@@ -948,7 +948,9 @@ def agent_drift(dest: Path) -> list[str]:
         if not live.exists():
             drift.append(f"agents/{src.name}: MISSING in {dest}")
             continue
-        want, have = _render_agent(src, frags), live.read_text()
+        # an INSTALLED file: read with errors="replace" like every other installed-tree read, so a
+        # corrupted agent definition is reported as drift instead of killing the read-only gate
+        want, have = _render_agent(src, frags), live.read_text(errors="replace")
         if want != have:
             n = len(list(difflib.unified_diff(want.splitlines(), have.splitlines())))
             drift.append(f"agents/{src.name}: HAND-EDITED ({n} diff lines)")
