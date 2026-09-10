@@ -34,8 +34,12 @@ measured, promoted on evidence). Expected rate is zero; one fire is a real regre
 documents `warn_only` as "this check has no failing exit path BY CONTRACT … a warn_only check that
 somehow exits non-zero still FAILS the gate" — so an advisory check that returns 1 on a finding does
 not warn, it HARD-FAILS every gate in ~46 synced repos the first time it fires, which is exactly the
-run it exists for. Every one of the other 32 warn_only checks returns 0 on every path (see
-`check_routing_policy.py`, six `return 0`); the stdout IS the product. So: `main()` returns 0 always,
+run it exists for. Every one of the other 21 warn_only checks returns 0 on every path (see
+`check_routing_policy.py`, six `return 0`); the stdout IS the product. ⚠️ Derive that figure with
+`grep -cE '^\\s+warn_only=True,\\s*$' scripts/final_gate.py` → 22 REGISTRATIONS, of which this check is
+one. A bare `grep -c 'warn_only=True'` returns 33 because eleven of those lines are comments and one is
+the f-string that PRINTS the phrase — a structural line counted as a data row, which is the SIXTH shape
+of the very HARD STOP this check guards, and it is how an earlier draft of this sentence said 32. So: `main()` returns 0 always,
 and `--strict` (never used by the gate) returns 1 on findings, which is what a regression test binds
 to and what a future promotion to blocking would flip.
 """
@@ -51,6 +55,19 @@ from pathlib import Path
 _PIPE = re.compile(r"(?<!\\)\|")
 # A GFM delimiter row: the line under a header that makes a table a table.
 _DELIM = re.compile(r"^\|(?:\s*:?-+:?\s*\|)+$")
+
+# THE REMEDY, as its own constant — it is ADVICE that ships to ~46 repos, so it is the most
+# consequential string in this file and it must be editable only deliberately. An earlier draft
+# said "escape it as `\\|`, even inside a code span", which is the exact defect this change fixed:
+# these contracts are read RAW as well as rendered, and `\\|` is alternation in GNU BRE, so escaping
+# inside a code span silently changes what the example command does. `test_remediation_is_the_pinned_
+# text` holds a byte-for-byte copy, so any rewording fails until it is changed in BOTH places.
+REMEDY = (
+    "an unescaped `|` truncates this rule for every rendered reader — escape it as `\\|` in PROSE, "
+    "but inside a CODE SPAN rephrase the example so it carries no literal pipe: `\\|` is alternation "
+    "in GNU BRE and these contracts are read RAW as well as rendered, so escaping there silently "
+    "changes what the example command does."
+)
 
 # The governance contracts: a rule truncated here is a rule the fleet cannot read.
 _TARGETS = ("CLAUDE.md", "templates/governance/CLAUDE.md")
@@ -158,12 +175,8 @@ def main(argv: list[str] | None = None) -> int:
             continue
         for lineno, cells, header, preview in _overflowing_rows(text):
             findings.append(
-                f"  ⚠ {rel}:{lineno}: table row renders {cells} cells against a {header}-cell header — "
-                f"an unescaped `|` truncates this rule for every rendered reader — escape it as "
-                f"`\\|` in PROSE, but inside a CODE SPAN rephrase the example so it carries no literal "
-                f"pipe: `\\|` is alternation in GNU BRE and these contracts are read RAW as well as "
-                f"rendered, so escaping there silently changes what the example command does. The row: "
-                f"{preview}…"
+                f"  ⚠ {rel}:{lineno}: table row renders {cells} cells against a "
+                f"{header}-cell header — {REMEDY} The row: {preview}…"
             )
     if not checked:
         print("check_governance_tables: SKIPPED — no governance contract found under this root")

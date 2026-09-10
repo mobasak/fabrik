@@ -41,6 +41,7 @@ Union of the slices IS the full pass; no file read by two seats. Third angle = t
 | Pass 3 | method: re-derivation | found: 8 | new: 8 | confirmed: 3 | fixed: 3 | unexecuted: 0 | finders: dispatched 2, returned 2 — fresh Opus (check, tests, registration; 13 mutants executed), fresh Sonnet (clause + pending ledger; whole-table render and every command re-run live) |
 | Pass 4 | method: re-derivation | found: 4 | new: 4 | confirmed: 4 | fixed: 4 | unexecuted: 0 | finders: dispatched 1, returned 1 — a fresh non-authoring Opus seat over the round-3 fix diff; it rebuilt all three mutants, re-derived both new numbers, and re-read the JUSTIFICATION text nobody had graded |
 | Pass 5 | method: re-derivation | found: 7 | new: 7 | confirmed: 7 | fixed: 7 | unexecuted: 0 | finders: dispatched 1, returned 1 — a fresh non-authoring Opus seat over the COMMITTED state (5ccc4fdb), the first that could pin its surface by SHA |
+| Pass 6 | method: re-derivation | found: 8 | new: 8 | confirmed: 6 | fixed: 6 | unexecuted: 0 | finders: dispatched 1, returned 1 — a fresh non-authoring Opus seat pinned to 237516dc; it mutated both new tests and found both of them vacuous, and re-derived the warn_only figure from the code rather than from the grep |
 
 ## Adjudication — round 1 (slice B returned; slice A outstanding)
 
@@ -85,7 +86,7 @@ tracked repos as un-ignored. Both are now in the clause's own advice or in this 
 | Fix | Files | Guard |
 |---|---|---|
 | SEVENTH shape rewritten from a single string — recipe corrected to `rg --no-ignore --hidden`, line-number citation dropped, `git grep` claim scoped, call-sites count corrected, shim fall-through added | `CLAUDE.md`, `templates/governance/CLAUDE.md` (byte-identical, 2,184 chars) | D-216 supersedes D-214 on the recipe list; ledger rows are immutable so D-214 stands as written |
-| Three unescaped pipes escaped as `\|` | both contracts | **NEW** `scripts/enforcement/check_governance_tables.py`, registered advisory in `final_gate.py`. ⚠️ Its first draft returned 1 on a finding, which `run_optional_check`'s own docstring says would HARD-FAIL the gate in every synced repo the first time it fired (`warn_only` = no failing exit path by contract; all 32 other warn_only checks return 0 on every path). Caught by the S1 standing class against my own code before the delta seats returned: `main()` now returns 0 always and `--strict` carries the regression signal. Both paths proven against a HEAD fixture in a temp root — advisory rc=0 with the finding printed, `--strict` rc=1, both files named — and rc=0 on the fixed tree, live tree never mutated |
+| Three unescaped pipes REPHRASED so no code span carries a literal pipe — round 1 escaped them as a backslash-pipe, round 4 found that broke the RAW path and removed the escapes; the tree now carries ZERO of them | both contracts | **NEW** `scripts/enforcement/check_governance_tables.py`, registered advisory in `final_gate.py`. ⚠️ Its first draft returned 1 on a finding, which `run_optional_check`'s own docstring says would HARD-FAIL the gate in every synced repo the first time it fired (`warn_only` = no failing exit path by contract; all 32 other warn_only checks return 0 on every path). Caught by the S1 standing class against my own code before the delta seats returned: `main()` now returns 0 always and `--strict` carries the regression signal. Both paths proven against a HEAD fixture in a temp root — advisory rc=0 with the finding printed, `--strict` rc=1, both files named — and rc=0 on the fixed tree, live tree never mutated |
 | Coverage claim given its denominator | `CHANGELOG.md` | the number is now "36 of 36 … 20 of the 30", and the ten hand-inliners are FILED (F4), not silently absorbed |
 | Point-of-use clause trimmed to POINT rather than restate | `commands/_fragments/subagents-core.md` | re-rendered; `assemble_commands.py --check` rc=0 |
 
@@ -506,7 +507,7 @@ check exists — and it carried three false measurements about the tree it names
 |---|---|---|---|
 | qA-1a | "the FIFTH, SIXTH and SEVENTH shapes were absent from the output entirely" — FALSE for two of the three | **CONFIRMED → FIXED** | rendered `git show HEAD:CLAUDE.md` with markdown_it: the pre-fix row contains `A FIFTH shape` **True**, `A SIXTH shape` **False**. The FIFTH rendered and was cut mid-sentence at the first stray pipe; only the SIXTH vanished. Text now says exactly that. |
 | qA-1b | "…and SEVENTH" — the SEVENTH shape did not EXIST at HEAD; this change adds it, so it cannot have been lost from a rendering | **CONFIRMED → FIXED** | same render: `A SEVENTH shape` **False** at HEAD, by construction. A reader re-deriving from HEAD would find the claim incoherent. |
-| qA-1c | **"in both fleet-synced contracts" / "the two files that ship to ~46 repos" — wrong by a factor of two** | **CONFIRMED → FIXED in five places** | `scripts/fabrik_synced_manifest.py:98-101`: *"/opt/fabrik/CLAUDE.md is the HUB agents' contract and is NEVER distributed; projects receive the template."* `GOVERNANCE_TEMPLATES` carries `('templates/governance/CLAUDE.md', 'CLAUDE.md')` and `'CLAUDE.md' in GOVERNANCE_FILES` is **False**. Corrected in the check's docstring, the gate comment, both CHANGELOG entries, D-216's where-cell and the commit body. |
+| qA-1c | **"in both fleet-synced contracts" / "the two files that ship to ~46 repos" — wrong by a factor of two** | **CONFIRMED → FIXED in five places** | `scripts/fabrik_synced_manifest.py:99-101`: *"/opt/fabrik/CLAUDE.md is the HUB agents' contract and is NEVER distributed; projects receive the template."* `GOVERNANCE_TEMPLATES` carries `('templates/governance/CLAUDE.md', 'CLAUDE.md')` and `'CLAUDE.md' in GOVERNANCE_FILES` is **False**. Corrected in the check's docstring, the gate comment, both CHANGELOG entries, D-216's where-cell and the commit body. |
 | qA-1d | The pipe ATTRIBUTION: all three blamed on the FIFTH shape's example | **CONFIRMED → FIXED** | `git log -S` puts two at `adce3017` (FIFTH) and the third at `66aa32a5` (the SIXTH's own example), both 2026-09-03. Now attributed per commit. |
 | qA-2 | "the other 33 warn_only checks" is **32** — the sentence counts itself | **CONFIRMED → FIXED** | `grep -c 'warn_only=True'` → **33** in the working tree, **32** at HEAD; the 33rd is this check's own registration. |
 | qA-3 | Lint + format debt invisible while the files were untracked | **CONFIRMED → FIXED** | `ruff check` found `F401 import sys` and `ruff format --diff` four hunks — both files now `All checks passed!` and `already formatted`, suite still 10 passed, and the check's exit codes re-verified unchanged (advisory 0, `--strict` 0 on a clean tree). |
@@ -571,6 +572,97 @@ Every remaining hit is inside this receipt, where quoting the retracted claim is
   its own finding.
 - **The Doc Sync Matrix refused the commit** until the round-5 code change carried its own `[Unreleased]`
   entry. The gate doing exactly its job on a change whose subject is documentation truth.
+
+## Round 5's two open classes, re-swept with the SAME brief by orchestrator EXECUTION
+
+**`advice-truth`** — the class round 5 opened: the check's advisory is fleet-shipping ADVICE, so the test is
+whether an agent FOLLOWING it produces a row that both renders and executes. Both branches of the advice were
+taken literally and measured with `markdown_it` and with the shell:
+
+| the cell | renders | keeps its tail | the real command |
+|---|---|---|---|
+| unfixed (the defect) | 2 cells | **no — the tail is discarded** | — |
+| advice branch 1: rephrase inside a CODE SPAN | 2 cells | yes | returns **3**, correct |
+| advice branch 2: escape in PROSE, outside a span | 2 cells | yes | n/a — prose |
+| what the OLD advice said (escape inside a span) | 2 cells | yes | returns **5**, WRONG |
+
+Both branches are correct on both paths, and the branch the old advice prescribed is the one that renders
+fine and executes wrong — which is exactly why it survived a render-only verification for two rounds.
+**CLEAN.**
+
+**`artifact-echo`** — re-swept over all **10** non-receipt artifacts (the receipt is excluded because quoting
+the retraction is its job; it carries 8 such quoted lines): `rg --no-ignore` without `--hidden`, "both
+fleet-synced"/"two files that ship", "shapes absent/invisible", "27 distinct line numbers", "3 of 47", "33
+other"/"all 34 warn_only", "20/20 fan-out", "93 of 723 files", the old advice string, the `%%` artifact, and
+"seven tests/four proven red" — **every one clear**.
+
+⚠️ Two patterns came back LIVE and both were my own instrument, not a defect: `rg --no-ignore\`` also matches
+the sentence *retracting* it ("Plain `rg --no-ignore` is NOT one of them"), and the old advice string matches
+the new test that asserts its ABSENCE. A sweep pattern that cannot tell a sanction from its retraction is a
+bounded search whose bound is the pattern — so each hit was opened and read rather than counted. That is the
+same rule this commit ships, applied to the tool used to verify this commit. **CLEAN.**
+
+## The sync's effect, measured after the fact
+
+The receipt claimed the 47 advisories would "self-clear on the same sync that ships the check". That is now
+a measurement rather than a prediction. Before the sync, the check's algorithm fired on **47 of 49** `/opt`
+`CLAUDE.md` files (all at the pre-fix row). After `5ccc4fdb` + `237516dc` and their post-commit governance
+sync:
+
+```
+scanned 49 /opt CLAUDE.md files; 2 still fire
+   /opt/fabrik-lib-account/CLAUDE.md   line 214: 4 cells against a 2-cell header
+   /opt/fabrik-lib-review/CLAUDE.md    line 214: 4 cells against a 2-cell header
+```
+
+`templates/governance/CLAUDE.md`, `/opt/youtube/CLAUDE.md` and `/opt/transdoc/CLAUDE.md` are md5-identical,
+and the corrected check with its corrected advisory is byte-identical in youtube, transdoc and seo — so both
+halves landed together as designed.
+
+⚠️ **And I nearly filed a wrong finding off that residue.** The two remaining hits look like "fabrik-lib's
+hand-maintained contract carries the defect and the sync will never fix it", which would have been a real
+cross-repo finding — except `/opt/fabrik-lib/CLAUDE.md` itself is **clean**. The two hits are stale copies in
+their WORKTREES, which carry whatever branch they are on and pick the fix up on their next merge. My first
+probe also rendered a 5-line window around the row, which excluded the table header, so markdown_it did not
+parse it as a table at all and reported every shape "absent" — a false positive from my own measurement
+window. Opened the real files before writing the mail; there is no mail to write.
+
+## The shipped rule, tested from a repo that just received it
+
+Not the hub, and not the repo it was derived from: `/opt/transdoc`, one of the ~46 that took the clause on
+this commit's sync. Pattern `final_gate_stop`, shim sourced in the same shell:
+
+| recipe | result | what the rule says |
+|---|---|---|
+| `command grep` | **11** | sanctioned |
+| `rg --no-ignore --hidden` | **11** | sanctioned — agrees exactly |
+| the shim | **0** | the blindness the rule exists for |
+| `rg --no-ignore` | **8** | explicitly NOT sanctioned — undercounts |
+
+Every clause of the rule holds in a repo that had no part in deriving it, including the one the rule
+singles out as unsafe. That is the end-to-end check the whole change is for.
+
+## Adjudication — round 6: the loop's best round, and the one that had to happen
+
+Six confirmed. Two are the most serious findings of the entire review, and one of them is a shared-tree
+event I caused.
+
+| # | Candidate | Verdict | Proof executed here |
+|---|---|---|---|
+| r6-1 | **My commit `237516dc` silently DELETED a sibling's CHANGELOG record** — the bullet from `92cb87a3` recording their plan CONVERGED, its 4-pass ledger and the D-220 flip row | **CONFIRMED → RESTORED** | `git diff 92cb87a3 237516dc -- CHANGELOG.md` has four deleted lines; three are my intended fixes and the fourth is theirs. `git log -S` attributes it to `92cb87a3`, whose own `Agent-Context` names it. At `237516dc` the tree had **0** occurrences of `D-220` while their plan file's line 3 reads `Status: CONVERGED … flip row D-220`, so CHANGELOG answered "is that plan ready to execute?" with DRAFT. Cause: `git commit -- CHANGELOG.md` reads the WORKING TREE, and my copy of that region predated their commit — the mechanism my own memory records and this very commit's message celebrates catching in the other direction. Restored verbatim in its original position; `diff` of the whole section against `92cb87a3` is now byte-identical. |
+| r6-2 | **"the other 32 warn_only checks" is wrong at the root — it is 21** — I derived it from `grep -c 'warn_only=True'` (33 LINES) instead of from registrations | **CONFIRMED → FIXED** | `grep -cE '^\s+warn_only=True,\s*$'` → **22 registrations**, of which this check is one, so 21 others. The other 11 lines are comments and one f-string that PRINTS the phrase. This is the SIXTH bounded-search shape — *a structural line counted as a data row* — committed inside the check that guards that row, and my round-5 sweep certified the retracted STRING "33" clear while the NUMBER underneath was never re-derived. The docstring now carries the correct figure AND the derivation, so the next reader cannot repeat the line-count. |
+| r6-3 | `test_unreadable_contract_is_reported_not_raised` asserted `rc in (0, 1)` under `--strict` — a predicate EVERY return satisfies | **CONFIRMED → FIXED** | the seat restored the r5-P2 defect (`return 1` in the handler) and the suite passed **12/12** while gate mode exited 1. Now the test calls the GATE's own path (no `--strict`) and asserts `rc == 0`, plus `--strict` → 1. Re-mutated here: the same defect now **fails** the suite. A test that cannot fail is not a guard, and this one was written in the round that was congratulating itself for adding guards. |
+| r6-4 | `test_remediation_does_not_prescribe_escaping_inside_a_code_span` bound WORDING, not the invariant | **CONFIRMED → FIXED** | the seat restored the defect in different words ("escape it as a backslash-pipe ANYWHERE it appears, code spans included; the rephrase is merely an alternative") and the suite passed **12/12** with the wrong advice reaching the fleet. The remedy is now a module constant `REMEDY` pinned BYTE-FOR-BYTE in the test. Re-mutated here with the seat's own dodge: it now **fails**. |
+| r6-5 | `INDEX.md`'s row for the TEST file still enumerated the 4-test first draft, one line below the row round 5 fixed | **CONFIRMED → FIXED** | 12 tests; the row named three boundaries and omitted the five added since, including both safety-critical ones. The FOUNDATION class, in the adjacent line of a file the same commit edited. |
+| r6-6 | The round-1 Fix table still named the RETRACTED remedy: "Three unescaped pipes escaped as a backslash-pipe" | **CONFIRMED → FIXED** | measured in Python (not a shell pattern, to avoid the alternation trap this change is about): **0** such escapes in either contract; they were REPHRASED. Line 296 of the same receipt already said so. An auditor reading the Fix table would conclude the sanctioned remedy is an escape — the exact belief r5-D1 exists to destroy. |
+| r6-7 | A citation that does not land: `fabrik_synced_manifest.py:98` is blank, the comment starts at 99 | **CONFIRMED → FIXED** | flagged by the gate's own `check_citations_resolve`; introduced at `5ccc4fdb`, outside this commit's bytes, raised rather than swallowed. |
+| r6-8 | The check is fail-OPEN when a contract is a DIRECTORY or a dangling symlink — `is_file()` is False, so it is skipped without incrementing `checked` | **RECORDED — the summary cannot lie** | executed all five cases. `across N contract(s)` is only reachable when `findings` is empty, which requires every counted file to have been read, so the line is honest; but in the hub a vanished root contract degrades the check to one target silently and stays green. Latent (both files present); queued rather than built, per FIX DIRECTIVE 5. |
+
+**Why this round matters most:** rounds 1–5 improved the artifact. Round 6 found that two of the guards
+round 5 added *could not fail* — both written in the round that was congratulating itself for adding them —
+and that my own commit had destroyed another session's record. Neither is visible to any gate. Both were
+found by a seat that MUTATED the code rather than read it, which is the difference between a review and a
+reading.
 
 ## Gate — re-measured in this round, not inherited
 

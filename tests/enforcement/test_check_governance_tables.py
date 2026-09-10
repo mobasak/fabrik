@@ -141,21 +141,29 @@ def test_root_resolves_to_the_repo_that_owns_the_script(monkeypatch):
     assert (root / "CLAUDE.md").is_file()
 
 
-def test_remediation_does_not_prescribe_escaping_inside_a_code_span(tmp_path, monkeypatch, capsys):
-    """The advisory ships to ~46 repos, so its ADVICE is fleet-shipping code, not decoration.
+# A byte-for-byte pin of the shipped remedy. Asserting substrings was the first draft and it is DODGEABLE:
+# a reviewer restored the defect in different words ("escape it as `\\|` ANYWHERE it appears, code spans
+# included; inside a CODE SPAN rephrase is merely an alternative") and the substring test passed 12/12 while
+# the fleet-facing advice was wrong again. A golden pin cannot be reworded by accident — only deliberately,
+# in both places, which is the point.
+_PINNED_REMEDY = (
+    "an unescaped `|` truncates this rule for every rendered reader — escape it as `\\|` in PROSE, "
+    "but inside a CODE SPAN rephrase the example so it carries no literal pipe: `\\|` is alternation "
+    "in GNU BRE and these contracts are read RAW as well as rendered, so escaping there silently "
+    "changes what the example command does."
+)
 
-    An earlier draft said "escape it as `\\|`, even inside a code span" — the exact thing this repo had
-    just proved wrong: these contracts are injected RAW into every agent's prompt, and `\\|` is alternation
-    in GNU BRE, so escaping inside a code span silently changes what the example command does (a row-count
-    example went from 3 to 5). Nothing else guards the wording.
-    """
+
+def test_remediation_is_the_pinned_text(tmp_path, monkeypatch, capsys):
+    """The advisory ships to ~46 repos, so its ADVICE is fleet-shipping code, not decoration."""
     mod = _load()
+    assert mod.REMEDY == _PINNED_REMEDY, (
+        "the shipped remedy changed — update the pin ONLY after re-checking that the new advice is "
+        "correct on BOTH paths: it must render AND the example must still execute correctly"
+    )
     _run(mod, _root(tmp_path, _BAD), [], monkeypatch)
     out = capsys.readouterr().out
-    assert "even inside a code span" not in out
-    assert "inside a CODE SPAN rephrase" in out, (
-        "the advisory must send the reader to a rephrase, not an escape"
-    )
+    assert _PINNED_REMEDY in out, "the pinned remedy must be what actually reaches the reader"
 
 
 def test_unreadable_contract_is_reported_not_raised(tmp_path, monkeypatch, capsys):
@@ -170,9 +178,14 @@ def test_unreadable_contract_is_reported_not_raised(tmp_path, monkeypatch, capsy
     root = _root(tmp_path, _GOOD)
     os.chmod(root / "CLAUDE.md", 0o000)
     try:
-        rc = _run(mod, root, ["--strict"], monkeypatch)
+        rc_gate = _run(mod, root, [], monkeypatch)  # the GATE's own call — no --strict
         out = capsys.readouterr().out
+        rc_strict = _run(mod, root, ["--strict"], monkeypatch)
+        capsys.readouterr()
     finally:
         os.chmod(root / "CLAUDE.md", 0o644)
-    assert rc in (0, 1), "must not raise"
+    # `rc in (0, 1)` was the first draft and it is a TAUTOLOGY: every return of main() satisfies it,
+    # so restoring `return 1` in the handler passed the test while hard-failing the gate in ~46 repos.
+    assert rc_gate == 0, "warn_only contract: an unreadable contract must not exit non-zero"
+    assert rc_strict == 1, "--strict must still carry the regression signal"
     assert "could not be read" in out
