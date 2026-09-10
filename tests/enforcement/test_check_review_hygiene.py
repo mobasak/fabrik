@@ -810,8 +810,8 @@ def test_a_comment_opener_inside_a_code_span_does_not_blank_the_rows_after_it(tm
 
 
 def test_a_comment_opener_inside_a_fence_does_not_start_a_comment(tmp_path):
-    """The fence state is decided first; markers inside a fenced example are quoted text (a live
-    rules pack lost 152 of 191 lines to a fenced `<!--`)."""
+    """The fence state is decided first; markers inside a fenced example are quoted text (a copy of
+    a live rules pack with a planted fenced `<!--` lost 152 of 191 lines; 0 live files differ)."""
     p = tmp_path / "pack.md"
     p.write_text(
         "# P\n\n```\n<!-- an example opener -->\n<!-- unclosed in the example\n```\n\n| a | b | c |\n|---|---|---|\n| 1 | 2 | 3 | 4 |\n"
@@ -847,3 +847,14 @@ def test_a_same_line_comment_is_left_raw(tmp_path):
     )
     sweep = crh.scan(receipts=[p])
     assert _lines(sweep, "raw-pipe") == [6]
+
+
+def test_a_fence_opener_line_carrying_a_comment_opener_is_a_fence(tmp_path):
+    """The opener line of a fence is itself fenced text: ```<!-- … opens a fence, not a comment, so
+    the rows after the block stay live."""
+    p = tmp_path / "pack.md"
+    p.write_text(
+        "# R\n\n```<!-- an example opener\nbody\n```\n\n| a | b | c |\n|---|---|---|\n| 1 | 2 | 3 | 4 |\n"
+    )
+    sweep = crh.scan(surfaces=[p])
+    assert _lines(sweep, "table-parity") == [9]

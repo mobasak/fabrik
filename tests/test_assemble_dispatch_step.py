@@ -439,6 +439,8 @@ def _defective_agent_sources(tmp_path, monkeypatch):
         "a directory where an agent file belongs",
         "a broken symlink where a command file belongs",
         "a directory named like a command in the agents tree",
+        "a directory named like a command in the commands tree",
+        "an orphan skill whose SKILL.md is a directory",
     ],
 )
 def test_an_aborted_render_writes_into_none_of_the_three_trees(tmp_path, monkeypatch, abort):
@@ -485,19 +487,32 @@ def test_an_aborted_render_writes_into_none_of_the_three_trees(tmp_path, monkeyp
             (d / f"{name}.md").symlink_to(tmp_path / "gone" / "target.md")
         elif abort == "a directory named like a command in the agents tree":
             (a / "zz-notasource.md").mkdir(parents=True)
+        elif abort == "a directory named like a command in the commands tree":
+            (d / "zz-notasource.md").mkdir(parents=True, exist_ok=True)
+        elif abort == "an orphan skill whose SKILL.md is a directory":
+            (s / "zz-orphan" / "SKILL.md").mkdir(parents=True)
         else:
             a.write_text("a plain file where the agents TREE belongs")
+        tree_shapes = (
+            "the skills tree is a file",
+            "the commands tree is a file",
+            "the agents tree is a file",
+            "a file where a skill dir belongs",
+            "a dangling symlink where a skill dir belongs",
+        )
+        leaf_noun = {
+            "SKILL.md is a directory": "SKILL.md wrapper",
+            "an orphan skill whose SKILL.md is a directory": "SKILL.md wrapper",
+            "a directory where a command file belongs": "command file",
+            "a broken symlink where a command file belongs": "command file",
+            "a directory named like a command in the commands tree": "command file",
+            "a directory where an agent file belongs": "agent file",
+            "a directory named like a command in the agents tree": "agent file",
+        }
         match = (
             "is not a directory"
-            if abort
-            in (
-                "the skills tree is a file",
-                "the commands tree is a file",
-                "the agents tree is a file",
-                "a file where a skill dir belongs",
-                "a dangling symlink where a skill dir belongs",
-            )
-            else "belongs"
+            if abort in tree_shapes
+            else f"where the {leaf_noun[abort]} belongs"
         )
     d, s, a = _trees(tmp_path)
     if abort == "the commands tree is a file":
@@ -649,3 +664,37 @@ def test_the_skills_prune_removes_only_the_generated_wrapper_and_never_through_a
     ac.render(d, s, agents_dest=a)
     assert not (orphan / "SKILL.md").exists() and (orphan / "reference.md").exists()
     assert (real / "SKILL.md").exists() and (s / "zz-linked").is_symlink()
+
+
+def test_an_orphan_skill_dir_holding_only_the_wrapper_is_removed_whole(tmp_path):
+    d, s, a = _trees(tmp_path)
+    orphan = s / "zz-retired"
+    orphan.mkdir(parents=True)
+    (orphan / "SKILL.md").write_text(ac.SKILL_BANNER + "\n# orphan\n")
+    ac.render(d, s, agents_dest=a)
+    assert not orphan.exists()
+
+
+def test_a_symlinked_orphan_skill_is_neither_pruned_nor_reported_nor_refused(
+    tmp_path, monkeypatch, capsys
+):
+    """The prune skips a symlinked orphan (not ours to delete), so the read-only gate must not keep
+    reporting it as an ORPHAN whose remedy is that prune, and the pre-flight must not follow it into
+    a target outside the tree (round 5: the gate's remedy could never succeed; a target whose SKILL.md
+    was a directory refused the whole render)."""
+    d, s, a = _trees(tmp_path)
+    ac.render(d, s, agents_dest=a)
+    outside = tmp_path / "outside"
+    (outside / "SKILL.md").mkdir(
+        parents=True
+    )  # a DIRECTORY where the wrapper belongs — outside the tree
+    (s / "zz-linked").symlink_to(outside)
+    ac.render(d, s, agents_dest=a)  # the pre-flight must not refuse over the link's target
+    assert (s / "zz-linked").is_symlink()
+    monkeypatch.setattr(ac, "OUT", d)
+    monkeypatch.setattr(ac, "SKILLS", s)
+    monkeypatch.setattr(ac, "AGENTS", a)
+    (outside / "SKILL.md").rmdir()
+    (outside / "SKILL.md").write_text(ac.SKILL_BANNER + "\n# linked orphan\n")
+    ac.check()
+    assert "check OK" in capsys.readouterr().out

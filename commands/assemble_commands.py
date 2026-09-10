@@ -1031,6 +1031,8 @@ def _preflight(
             _file_or_absent(skills_dest / name / "SKILL.md", "SKILL.md wrapper")
         if skills_dest.is_dir():
             for entry in skills_dest.glob("*/SKILL.md"):
+                if entry.parent.is_symlink():
+                    continue  # a symlinked skill dir is not ours — neither pruned nor pre-flighted
                 _file_or_absent(entry, "SKILL.md wrapper")
 
 
@@ -1209,6 +1211,8 @@ def check():
             if cmd.stem not in src_names and BANNER.strip() in cmd.read_text(errors="replace"):
                 drift.append(f"{cmd.name}: ORPHAN (generated, no _source — re-render to prune)")
         for sk in sorted(SKILLS.glob("*/SKILL.md")):
+            if sk.parent.is_symlink():
+                continue  # the prune never follows a symlink, so the gate never demands that prune
             if sk.parent.name not in src_names and SKILL_BANNER in sk.read_text(errors="replace"):
                 drift.append(
                     f"skills/{sk.parent.name}: ORPHAN (generated, no _source — re-render to prune)"

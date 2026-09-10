@@ -202,8 +202,9 @@ def _blank_quoted(lines: list[str]) -> list[str]:
             if "-->" in _mask_code_spans(ln):
                 in_comment = False
             continue
-        # the FENCE state is decided first: a marker inside a fenced example is quoted text (a live
-        # rules pack lost 152 of 191 lines to a fenced `<!--` when the opener was tested first)
+        # the FENCE state is decided first: a marker inside a fenced example is quoted text (probed
+        # on a COPY of a live rules pack with a planted fenced `<!--`: 152 of 191 lines blanked when the
+        # opener was tested first; 0 live files differ under the two orders — the shape is latent)
         was_open = bool(char)
         char, length, is_fence = _fence_step(ln, char, length)
         if was_open or is_fence:

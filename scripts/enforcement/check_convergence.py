@@ -142,9 +142,6 @@ _REDERIVATION_ROW = re.compile(
 # notes: pass 1 stood at confirmed: 3`) is refused — write the citation before the counter, or in
 # a code span. Measured 2026-09-10: 0 of 47 fleet spines and 0 of 805 fleet review artifacts carry >1 token on one row.
 _PASS_ROW = re.compile(r"^[ \t]*\|\s*\**(?:Pass|Round)\b[^\n]*", re.I | re.M)
-_CODE_SPAN = re.compile(
-    r"`[^`\n]*`"
-)  # the single-run shape; `_mask_spans` below is the rule's masker
 
 
 def _mask_spans(s: str) -> str:
@@ -152,7 +149,10 @@ def _mask_spans(s: str) -> str:
     span opens with a backtick run and closes with a run of the SAME length, so ``<!--`` is one span,
     not an empty span plus a bare opener (the single-run regex read it that way and let a comment
     swallow a ledger — or refused a ledger whose Notes cited an earlier count in the double-backtick
-    spelling the rule's own remedy names). An unclosed run is literal text."""
+    spelling the rule's own remedy names). An unclosed run is literal text, and a span never crosses
+    a LINE: the closer is searched on the opener's line only (an unbounded search let a stray
+    backtick before the ledger pair with one after it and swallow every row between — and cost
+    O(runs × n) on adversarial input)."""
     out = list(s)
     i, n = 0, len(s)
     while i < n:
@@ -164,7 +164,7 @@ def _mask_spans(s: str) -> str:
             j += 1
         run = j - i
         k, close = j, -1
-        while k < n:
+        while k < n and s[k] != "\n":
             if s[k] != "`":
                 k += 1
                 continue

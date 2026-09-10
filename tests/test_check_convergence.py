@@ -1687,3 +1687,25 @@ def test_a_double_backtick_span_is_masked_like_a_single_one():
     assert cc._closing_row_fail(opener) is not None
     cited = "| Pass 2 | seat | method: re-derivation | confirmed: 0 | notes: pass 1 stood at ``confirmed: 3`` |\n"
     assert cc._closing_row_fail(cited) is None
+
+
+def test_a_stray_backtick_in_prose_never_swallows_the_ledger():
+    """A code span never crosses a line: an unmatched backtick before the ledger and another after it
+    are literal text, not one span (round 5 caught the unbounded closer scan)."""
+    sys.path.insert(0, str(CHECK.parent))
+    import check_convergence as cc  # noqa: E402
+
+    raw = "Notes: use the `--slices flag here\n| Pass 2 | seat | method: re-derivation | confirmed: 3 |\nLater: the `--units flag there\n"
+    assert cc._closing_row_fail(raw) is not None
+
+
+def test_a_longer_backtick_run_does_not_close_a_shorter_span():
+    """CommonMark 6.1: a span closes with a run of the SAME length — `x ``confirmed: 3`` y` is one
+    single-backtick span whose content holds a double run; the counter inside stays masked."""
+    sys.path.insert(0, str(CHECK.parent))
+    import check_convergence as cc  # noqa: E402
+
+    raw = (
+        "| Pass 2 | seat | method: re-derivation | confirmed: 0 | notes: `x ``confirmed: 3`` y` |\n"
+    )
+    assert cc._closing_row_fail(raw) is None
