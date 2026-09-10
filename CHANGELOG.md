@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Bounded-search HARD STOP gains its SEVENTH shape: the `grep` shim is blind to every synced file (2026-09-10)
+
+The shell `grep` is a snapshot-defined function re-execing the Claude binary as ugrep with `--ignore-files`,
+so it honours `.gitignore` — and in a project repo every Fabrik-synced file is gitignored by design. A
+root-anchored search therefore returns a FALSE ZERO over the distributed machinery, with no warning and no
+exit-code difference. Measured in `/opt/youtube` (same pattern, same minute): `command grep` 57 · shim 0 ·
+`rg` default 4 · `git grep` 0 · shim `--no-ignore-files` 57. Added to the denominator row of both `CLAUDE.md`
+and `templates/governance/CLAUDE.md` (fleet-synced) with the recipes that see ignored files. Reported by
+youtube (`01M25D51A9BBK44MK03G4T65TR`); D-214 records why no mechanism was built.
+
+### Fixed — The corpus's stale-vendored-copy escape hatch covered `--feedback` only (2026-09-10)
+
+Every fan-out in the corpus now instructs `command_run.py dispatch --seats` and `round --seats/--confirmed`,
+but the only written escape hatch for an older vendored copy named `--feedback`. fabrik-lib measured the gap
+(`01M25D3PRA766HXCHAAGSJBV9X`): their copy answers `invalid choice: 'dispatch'` and has no `--seats`/
+`--confirmed`. `commands/_fragments/close-feedback.md` now states the CLASS — a subcommand or flag the corpus
+names that your local script rejects is a stale copy, never a licence to skip the step — with the two
+consequences to declare while it lasts (unstamped seats are invisible to `dispatch_headroom.py`; an unrecorded
+`--confirmed` leaves D-206's exit counter in prose). `subagents-core.md` says the same at the dispatch stamp.
+Re-rendered: 36/36 commands carry the class clause, 20/20 fan-out commands the dispatch note.
+
 ### Changed — Tree-wide `ruff format` churn adopted; hook-generated docs committed (2026-09-10)
 
 - On the operator's directive ("fix the source control 135"): every dirty `.py` proven byte-identical to `ruff format` of its own HEAD blob is committed as pure formatting (the proof re-run at commit time; the 2026-09-09 backlog row's method), together with the hook-generated `INDEX.md`, `PORTS.md`, `scripts/service_catalog.json`, the two kaizen logs, and a comment-only edit in `scripts/enforcement/check_command_corpus.py`. `libs/subagents/` (fabrik-lib's post-commit re-vendor, D-210) is restored to HEAD; five stray `diff_*.txt` at the repo root are parked in the session scratchpad, not deleted.
@@ -15,6 +36,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added — Spec: the review family adopts D-203 (2026-09-10)
 
+- CONVERGED at the close of the in-turn `/fabrik-spec-review` run under D-212 (9 passes, 69 min, seats per pass 4/2/1/1/1/1/1/1/1, raised/confirmed 18/14 → 14/3 → 10/1 → 8/2 → 6/2 → 9/5 → 10/5 → 5/2 → 6/0; flip row D-215) — the first application of the rules it proposes; awaiting the operator's approval.
 - `docs/superpowers/specs/2026-09-10-review-family-adoption-design.md` (DRAFT, `Profile: delta`): `/fabrik-spec-review`, `/fabrik-plan-review` and every other consumer of the shared termination fragment `commands/_fragments/term-edit.md` move to the CONFIRMED exit, a section partition, delta rounds sized by the fix, executed-critic verdicts, a CONFIRMED-keyed NON-CONVERGENCE breaker, the hygiene script's spec/plan class (`table-parity`) and a `template-residue` precision fix (anchors stay with `check_citations_resolve.py`), the pre-pin duty, and a "tickets CITE the spec section" emit rule for `/fabrik-plan-after-chat` — specced from `docs/STRATEGIC_BACKLOG.md`'s review-family row, which D-205 deferred.
 - `docs/DECISIONS.md`: D-212 — the operator's bootstrap ruling (2026-09-10) that D-203's exit, partition and delta rules bind the review family now; the spec's own in-turn review runs under it and is the first application.
 - Measured for the spec (2026-09-10): the fragment is included by 13 commands; 56 of 693 plan md files fleet-wide persist a `## Pass Ledger`, 19 of 214 specs do, and 0 of 907 carry a `confirmed:` counter on a Pass-headed row outside code spans; the previous spec review ran 44 rounds / 451 min, the plan review 13 rounds.
