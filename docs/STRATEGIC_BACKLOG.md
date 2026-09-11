@@ -1548,3 +1548,41 @@ therefore exclusive; three axes cannot pair, and inventing counters that guard n
 primary metric by Q2's own rule) · an observer on every run (7.3% of all tokens; production norm is
 1–10% sampling) · eight judged axes (the exact configuration measured to collapse: >0.93 factor
 correlations, >90% unexplained variance).
+
+## [infra] Nine confirmed candidates in the kaizen spec's amendment — filed, NOT fixed, deliberately (2026-09-11, owner: infra)
+
+`docs/superpowers/specs/2026-09-10-kaizen-feedback-loop-design.md` at HEAD `e7d5f7f6` (committed
+`3639ba6e`). An amendment-only review of its last 97 lines confirmed **9 candidates, 3 blocking**, all
+in text the spec's own author wrote. Filed to infra as `01M28VKD807M6QZB31NJ5D9W1T` with each item's
+executed disproof.
+
+**They are unfixed on purpose, and the reason is the finding.** That spec's review ran fifteen rounds
+and closed BLOCKED on the stall circuit-breaker: rounds 10–15 each confirmed defects the PREVIOUS
+round's fixes introduced — a fresh finder every round, the **same fixer** every round. The sharpest of
+the nine is that pattern in its purest form: a residue list naming three remaining items, **two of which
+the same diff had already fixed**. A sixteenth pass by the same author is the mechanism, not the remedy.
+The reviewing seat reached that disposition independently.
+
+**The three blocking ones, so nobody has to re-derive them:** the defect series prints 14 values and
+calls itself fourteen rounds when fifteen ran (round 15's `confirmed = 7` is in the event stream and the
+document cites it ten lines later) · the residue list is stale and incomplete · the universal negative
+*"not one was a defect in the DESIGN … not a citation, not a ledger figure"* is false twice, once for a
+struck claim about what `validate_registry` forbids and once for a corrected ledger figure.
+
+⚠️ **One refutation worth keeping, because it kills a recommendation I had already made to the
+operator:** the spec claimed handing residue to `/fabrik-plan-after-chat` *"breaks the finder-is-fixer
+identity by construction"*. It does not — that command changes no author, and session `1970a0ff` ran it
+and committed the resulting plan (`8bf4787d`) six minutes before the amendment was pinned. **Only a
+different SESSION supplies the break.** Any future "hand it to the next pipeline stage" reasoning must
+clear that bar.
+
+**The systemic gap this exposes, and the real backlog item:** when a review's foundation error IS the
+fixer's identity, the loop has no verb for it. `command_run.py` offers `done`, `blocked` and `handoff`;
+the breaker text says name the foundation error as one operator question; neither expresses *"same
+findings, different author"*. That is why this is a mail and a backlog row rather than a round 16. Worth
+either a `handoff --resume` shape that carries a findings brief, or a line in
+`commands/_fragments/term-edit.md`.
+
+**Nothing downstream is blocked:** the spec is `Status: DRAFT — BLOCKED`, and the tier-1 plan
+(`docs/development/plans/2026-09-11-plan-2-kaizen-tier1-report.md`, `8bf4787d`) depends on none of the
+contested lines.
