@@ -65,24 +65,52 @@ last `cwd: …/.claude/worktrees/store-content-set`, which is the whole story in
 reports the session as alive when it is not (cost 20 minutes on 2026-09-11). Walk `/proc` and read each
 `cmdline`, or check `readlink /proc/<pid>/cwd`, before claiming a session is running.
 
-## The OTHER reason history looks missing: compaction, not filing
+## ⚠️ The REAL reason a window comes back empty: `restored_owner_mismatch`
 
-The cwd-keying above explains a session absent from the PICKER. A session you can open but which shows
-only the last exchange is a different thing entirely — **compaction**, working as designed.
+**Corrected 2026-09-11.** An earlier revision of this section blamed compaction. That was wrong, and the
+number in it was wrong too (48 compact boundaries, not 96 — the detector counted each compaction twice,
+matching both its `compact_boundary` subtype and its `isCompactSummary` record). Compaction was never the
+cause: the window before the final boundary held **1,519** user/assistant turns.
 
-Measured 2026-09-11 on the two live `/opt/trade-intelligence` lanes:
+The real mechanism is an ownership veto. Claude Code stamps some sessions with an owner account and
+**refuses to restore their history when a different account is active**, writing a record that says so:
 
-| session | records | compactions | records AFTER the last one | what the window shows |
-|---|---|---|---|---|
-| `37887efc` | 116,388 | 96 | **31** | almost nothing |
-| `1991fa9b` | 105,741 | 86 | 3,917 | a normal-looking session |
+```json
+{"type":"history-suppression","cause":"restored_owner_mismatch",
+ "vetoedAgainstAccountUuid":"cedaed58-…","ts":"2026-09-11T09:38:43.952Z"}
+```
 
-`37887efc` spans 2026-06-06 → 2026-09-09. Ninety-six compactions later the window renders the 31 records
-after the final boundary; the other 116,357 are still in the file, just not live chat. Nothing is lost —
-`get_chat` on that id returns its 7 June turns verbatim.
+**This collides head-on with account rotation.** Measured on 2026-09-11: `claude_rotate.py --status`
+reported `last flip: Thu 21:01 ob -> sarp (relief)`, matching the `~/.claude-fleet/active` symlink mtime to
+the minute — and every session owned by `ob` stopped restoring from that moment.
 
-**So the triage is:** session absent from the picker → a cwd/filing problem (above). Session present but
-nearly empty → compaction, and the history is in `get_chat`/`search_chats`, never in the window.
+| session | owner account | what the operator saw |
+|---|---|---|
+| `35204643` (iie1, iterative_image_editor) | `can` | window blank |
+| `1991fa9b` (agent-1, trade-intelligence) | `ob` | window blank |
+| `37887efc` (agent-2, trade-intelligence) | `ob` | only the last exchange |
+
+**The claim is rare and it is NOT on most sessions.** Box-wide: **11 of 5,307** transcripts carry a
+`bridge-session` record (the thing that names `ownerAccountUuid`); `restored_owner_mismatch` has fired
+**10 times ever**, first on 2026-09-06. The other 5,296 sessions have no owner claim and restore under any
+account. The claimed ones cluster by project and by whichever account was active when the bridge attached —
+all three iterative_image_editor lanes owned by `can`, both trade-intelligence lanes by `ob`, all three
+site-provisioner lanes by `sarp` — i.e. it lands on exactly the long-lived working windows, never on
+throwaways.
+
+**Recovery** (fleet-wide, one account at a time — this is the unresolved part):
+
+```bash
+python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --switch ob    # then reload the window
+```
+
+⚠️ **The open problem.** Rotation exists to spread quota; the owner veto binds history to one account.
+Today they are in direct conflict and nothing warns you: a relief flip silently blinds every window owned
+by the account it rotated away from, and you cannot satisfy two owners at once. The content is never lost —
+`get_chat`/`search_chats` are account-agnostic because they read the shared transcripts — but the WINDOW
+cannot be made continuous by switching. Designing that out (most plausibly by keeping working windows from
+acquiring the claim at all, since an unclaimed session restores under any account) is open work, not a
+documented answer.
 
 ## Making a re-filed session visible again (measured, and safe)
 
