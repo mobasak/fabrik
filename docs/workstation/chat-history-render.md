@@ -61,24 +61,36 @@ python3 /opt/fabrik/scripts/render_chat_history.py --all                        
   `<command-name>` invocations shown as `` `/command` ``; each compaction summary folded in a `<details>`
   block; every `## ⟲ Compaction #N — <timestamp>` heading dated, the LAST one carrying the note
   *"A reloaded VS Code window starts HERE"*.
-- `INDEX.md` per project: every session newest-first with id, span, compaction count and turn counts.
+- `INDEX.md` per project: every session newest-first with id, span, compaction count, turn counts and the
+  number of unparseable records dropped from that transcript (also a `WARN` per transcript).
 - `--name ID-PREFIX=LABEL` names a session's file after the window's session name; the mapping persists
   in `names.json` beside the renders, so later runs without `--name` keep the names. One label on two
   sessions never shares a file: the second renders as `<label>-<id8>.md` with a `WARN` on stderr.
-- **Incremental:** `.render-state.json` records each transcript's size and mtime; an unchanged session is
-  skipped, so a refresh over 276 sessions costs seconds.
+- **Incremental:** `.render-state.json` records each transcript's size and mtime; a session whose size and
+  mtime are unchanged is skipped, so a refresh over 276 sessions costs seconds.
+- **Contained failures, at every grain:** a record that is not a JSON object, a compaction record whose
+  metadata is not an object, a non-string timestamp or a lone surrogate never crash a render; a transcript
+  that cannot be read (permissions, a broken symlink, a malformed sidecar row) is a `WARN` and a skip; a
+  project whose output folder is blocked is a `WARN` and a skip under `--all`; the exit code is 1 when
+  anything was skipped. Every file (render, `INDEX.md`, sidecars) is written through a per-process temp
+  file and rename, and a project directory is locked (`.render.lock`, `flock`) so two overlapping runs —
+  the cron line and a hand run — never interleave: the second backs off with a `WARN`.
 - A project with no transcripts is a named `ERROR` on stderr and exit 1, never a traceback. One unreadable
   transcript (a file mid-write, a permission slip) is a `WARN` on stderr and is skipped — the rest of the
   project and every other project under `--all` still render; the exit code is then 1. A malformed
   `names.json` or `.render-state.json` reads as empty rather than crashing.
 - A `--name` prefix must carry at least 8 id characters, so a prefix does not sweep up unrelated
-  sessions; a label is one plain file name (no `/`, not hidden, not `INDEX` or `names`), refused on the
-  command line and, if hand-edited into `names.json`, replaced by the session id with a `WARN`.
+  sessions; a label is letters, digits, `.`, `_`, `-` (up to 120 characters, not starting with `.`, not
+  `INDEX` or `names`) so it is both a safe file name and a clean markdown link — refused on the command
+  line and, if hand-edited into `names.json`, replaced by the session id with a `WARN`. Under `--all` a
+  `--name` is persisted only in the project where that session lives. A `--project` value is a repo
+  path, an `/opt/<name>` shorthand or an existing project key; anything that would resolve outside the
+  history root is refused.
 - A render outlives its transcript on purpose: if retention or a hand deletes the `.jsonl`, the `.md` stays
   (it is then the last copy of that conversation), drops out of `INDEX.md`, and is never overwritten — a
-  later `--name` that lands on its file name renders as `<label>-<id8>.md` instead. Renders are written
-  atomically (temp file + rename), so a failed write never truncates the previous one, and an old file is
-  unlinked only after its replacement landed.
+  later `--name` that lands on its file name renders as `<label>-<id8>.md` instead, and that suffixed
+  name is checked again (longer id slices, then a counter) until it is free. An old file is unlinked
+  only after its replacement landed.
 - A `names.json` or `.render-state.json` that is not a JSON object is moved aside to
   `<name>.bad-<stamp>` with a `WARN`, never silently replaced.
 

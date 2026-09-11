@@ -337,3 +337,248 @@ def test_a_half_written_state_entry_reads_as_never_rendered(box: dict[str, Path]
     )
     assert rch.main(["--project", "/opt/demo"]) == 0
     assert (out / "aaaa1111.md").exists()
+
+
+def test_meta_records_are_never_rendered(box: dict[str, Path]) -> None:
+    recs = _demo_records()
+    recs.append(_rec("user", "meta-hidden text", "2026-09-02T09:00:00.000Z", isMeta=True))
+    _write_session(box["projects"], "aaaa1111-0000-0000-0000-000000000000", recs)
+    rch.main(["--project", "/opt/demo"])
+    md = (box["out"] / "-opt-demo" / "aaaa1111.md").read_text()
+    assert "meta-hidden" not in md
+    assert "second ask" in md
+
+
+def test_a_failed_write_never_truncates_the_previous_render_or_leaves_a_temp_file(
+    box: dict[str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rch.main(["--project", "/opt/demo"])
+    out = box["out"] / "-opt-demo"
+    target = out / "aaaa1111.md"
+    before = target.read_text()
+    bad = box["projects"] / "aaaa1111-0000-0000-0000-000000000000.jsonl"
+    bad.write_text(bad.read_text() + "\n")  # new signature → a re-render is attempted
+    real_write = Path.write_text
+
+    def partial_write(self: Path, data: str, *a: object, **k: object) -> int:
+        if self.name.startswith("aaaa1111.md"):  # the render's own write dies mid-way (ENOSPC)
+            real_write(self, data[:10], *a, **k)
+            raise OSError(28, "No space left on device")
+        return real_write(self, data, *a, **k)
+
+    monkeypatch.setattr(Path, "write_text", partial_write)
+    assert rch.main(["--project", "/opt/demo"]) == 1
+    assert target.read_text() == before
+    assert not list(out.glob("*.tmp"))
+
+
+def test_a_stale_old_name_that_another_session_just_took_is_not_unlinked(
+    box: dict[str, Path],
+) -> None:
+    # A rendered as x.md, then its render was deleted; in the same later run A is renamed to z
+    # and B takes x — B (sorted after A? no: bbbb sorts after aaaa, so render order is A then B)
+    # so make the RENAMED session sort AFTER the one taking its old name.
+    _write_session(box["projects"], "bbbb2222-0000-0000-0000-000000000000", _demo_records())
+    rch.main(["--project", "/opt/demo", "--name", "bbbb2222=x"])
+    out = box["out"] / "-opt-demo"
+    (out / "x.md").unlink()  # B's render is gone; its state entry still says file x.md
+    rch.main(["--project", "/opt/demo", "--name", "aaaa1111=x", "--name", "bbbb2222=z"])
+    assert (out / "x.md").exists() and "aaaa1111" in (out / "x.md").read_text()
+    assert (out / "z.md").exists()
+    index = (out / "INDEX.md").read_text()
+    assert "(x.md)" in index and "(z.md)" in index
+
+
+# ---- pass-1 seat A residue (heavy review): every guard must hold for every shape, not one type ----
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "null",
+        '{"type":"system","subtype":"compact_boundary","uuid":"b9","timestamp":"2026-09-02T08:00:00.000Z","compactMetadata":"manual"}',
+        '{"type":"user","uuid":"u9","timestamp":"2026-09-02T08:00:00.000Z","message":"oops"}',
+        '{"type":"user","uuid":"u8","timestamp":1757577600,"message":{"content":"numeric stamp"}}',
+        "{not json",
+    ],
+)
+def test_a_malformed_record_is_dropped_with_a_warning_not_a_crash(
+    box: dict[str, Path], line: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = box["projects"] / "aaaa1111-0000-0000-0000-000000000000.jsonl"
+    path.write_text(path.read_text() + line + "\n")
+    assert rch.main(["--project", "/opt/demo"]) == 0
+    md = (box["out"] / "-opt-demo" / "aaaa1111.md").read_text()
+    assert "second answer" in md
+    assert "1757577600" not in md  # a non-string timestamp never becomes a span
+
+
+def test_an_unparseable_record_is_counted_in_the_index(
+    box: dict[str, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = box["projects"] / "aaaa1111-0000-0000-0000-000000000000.jsonl"
+    path.write_bytes(path.read_bytes() + b'{"type":"user","message":{"content":"bad \xff byte"}}\n')
+    assert rch.main(["--project", "/opt/demo"]) == 0
+    assert "unparseable record" in capsys.readouterr().err
+    index = (box["out"] / "-opt-demo" / "INDEX.md").read_text()
+    assert "| dropped |" in index.splitlines()[3] or "dropped" in index
+    row = next(ln for ln in index.splitlines() if "`aaaa1111`" in ln)
+    assert row.rstrip().endswith("| 1 |")
+
+
+def test_a_lone_surrogate_in_a_message_renders_and_leaves_no_temp_file(
+    box: dict[str, Path],
+) -> None:
+    path = box["projects"] / "aaaa1111-0000-0000-0000-000000000000.jsonl"
+    path.write_text(
+        path.read_text()
+        + '{"type":"user","uuid":"s1","timestamp":"2026-09-02T08:02:00.000Z","message":{"content":"bad \\ud800 char"}}\n'
+    )
+    assert rch.main(["--project", "/opt/demo"]) == 0
+    out = box["out"] / "-opt-demo"
+    assert (out / "aaaa1111.md").exists() and not list(out.glob("*.tmp"))
+
+
+@pytest.mark.parametrize("value", ['"x\\u0000y"', "7", '"' + "a" * 300 + '"', '"a b"', '"a|b"'])
+def test_an_unusable_label_in_names_json_falls_back_to_the_id(
+    box: dict[str, Path], value: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    out = box["out"] / "-opt-demo"
+    out.mkdir(parents=True)
+    (out / "names.json").write_text('{"aaaa1111": ' + value + "}")
+    assert rch.main(["--project", "/opt/demo"]) == 0
+    assert (out / "aaaa1111.md").exists()
+    assert "WARN" in capsys.readouterr().err
+
+
+def test_a_names_file_with_invalid_utf8_is_moved_aside(box: dict[str, Path]) -> None:
+    out = box["out"] / "-opt-demo"
+    out.mkdir(parents=True)
+    (out / "names.json").write_bytes(b'{"aaaa1111": "ag\xffent"}')
+    assert rch.main(["--project", "/opt/demo"]) == 0
+    assert list(out.glob("names.json.bad*"))
+
+
+@pytest.mark.parametrize(
+    "row", ['{"file": "aaaa1111.md"}', '{"file": null, "last": ""}', '{"file": 5}']
+)
+def test_a_state_row_missing_its_shape_reads_as_never_rendered_twice_in_a_row(
+    box: dict[str, Path], row: str
+) -> None:
+    out = box["out"] / "-opt-demo"
+    out.mkdir(parents=True)
+    (out / ".render-state.json").write_text(
+        '{"aaaa1111-0000-0000-0000-000000000000": {"sig": "x", "row": ' + row + "}}"
+    )
+    assert rch.main(["--project", "/opt/demo"]) == 0
+    assert rch.main(["--project", "/opt/demo"]) == 0  # never sticky
+    assert (out / "aaaa1111.md").exists()
+
+
+def test_a_suffixed_label_is_itself_checked_against_orphans_and_live_sessions(
+    box: dict[str, Path],
+) -> None:
+    out = box["out"] / "-opt-demo"
+    out.mkdir(parents=True)
+    (out / "foo-bbbb2222.md").write_text("# ORPHAN — the last copy\n")
+    _write_session(box["projects"], "bbbb2222-0000-0000-0000-000000000000", _demo_records())
+    _write_session(box["projects"], "0000cccc-0000-0000-0000-000000000000", _demo_records())
+    (out / "names.json").write_text(
+        json.dumps({"aaaa1111": "foo", "bbbb2222": "foo", "0000cccc": "foo-bbbb2222"})
+    )
+    assert rch.main(["--project", "/opt/demo"]) == 0
+    assert (out / "foo-bbbb2222.md").read_text().startswith("# ORPHAN")
+    files = {p.name for p in out.glob("*.md")} - {"INDEX.md"}
+    assert len(files) == 4, files  # orphan + three live sessions, no shared file
+    index = (out / "INDEX.md").read_text()
+    for name in files - {"foo-bbbb2222.md"}:
+        assert f"({name})" in index
+
+
+def test_all_survives_one_broken_project_and_scopes_names_to_matching_projects(
+    box: dict[str, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    other = box["projects"].parent / "-opt-other"
+    _write_session(other, "bbbb2222-0000-0000-0000-000000000000", _demo_records())
+    (box["out"] / "-opt-demo").parent.mkdir(parents=True, exist_ok=True)
+    (box["out"] / "-opt-demo").write_text("a file where the project folder should be")
+    assert rch.main(["--all", "--name", "bbbb2222=agent-9"]) == 1
+    assert (box["out"] / "-opt-other" / "agent-9.md").exists()
+    assert "WARN" in capsys.readouterr().err
+    # the mapping is persisted only where its session lives
+    other_names = json.loads((box["out"] / "-opt-other" / "names.json").read_text())
+    assert other_names == {"bbbb2222": "agent-9"}
+
+
+def test_a_second_concurrent_render_of_the_same_project_backs_off(
+    box: dict[str, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    import fcntl
+
+    out = box["out"] / "-opt-demo"
+    out.mkdir(parents=True)
+    with (out / ".render.lock").open("w") as held:
+        fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        assert rch.main(["--project", "/opt/demo"]) == 1
+    assert "another render" in capsys.readouterr().err
+    assert not (out / "aaaa1111.md").exists()
+
+
+@pytest.mark.parametrize("key", ["../evil", "", "a/b", "."])
+def test_a_project_argument_can_never_write_outside_the_history_root(
+    box: dict[str, Path], key: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # a key that EXISTS as a directory relative to the projects dir is the escape the guard closes
+    evil = box["projects"].parent.parent / "evil"
+    _write_session(evil, "eeee1111-0000-0000-0000-000000000000", _demo_records())
+    rc = rch.main(["--project", key])
+    assert rc != 0
+    err = capsys.readouterr().err
+    assert "ERROR" in err
+    assert not (box["out"].parent / "evil").exists()
+    assert not (box["out"] / "INDEX.md").exists()  # never the history root itself
+
+
+def test_a_render_with_no_state_entry_is_recognised_as_its_own_by_its_header(
+    box: dict[str, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    rch.main(["--project", "/opt/demo"])
+    out = box["out"] / "-opt-demo"
+    (out / ".render-state.json").unlink()  # a schema change or a lost sidecar
+    assert rch.main(["--project", "/opt/demo"]) == 0
+    files = sorted(p.name for p in out.glob("*.md") if p.name != "INDEX.md")
+    assert files == ["aaaa1111.md"], files  # never suffixed, never duplicated
+    assert "already used" not in capsys.readouterr().err
+
+
+def test_under_all_a_name_is_persisted_only_where_its_session_lives(box: dict[str, Path]) -> None:
+    other = box["projects"].parent / "-opt-other"
+    _write_session(other, "bbbb2222-0000-0000-0000-000000000000", _demo_records())
+    assert rch.main(["--all", "--name", "bbbb2222=agent-9"]) == 0
+    assert json.loads((box["out"] / "-opt-other" / "names.json").read_text()) == {
+        "bbbb2222": "agent-9"
+    }
+    assert not (box["out"] / "-opt-demo" / "names.json").exists()
+
+
+def test_a_state_row_whose_file_name_is_unusable_reads_as_never_rendered(
+    box: dict[str, Path],
+) -> None:
+    out = box["out"] / "-opt-demo"
+    out.mkdir(parents=True)
+    row = {
+        "label": "x",
+        "id": "aaaa1111-0000-0000-0000-000000000000",
+        "file": "x\u0000y.md",
+        "first": "",
+        "last": "",
+        "compactions": 0,
+        "user": 0,
+        "assistant": 0,
+        "dropped": 0,
+    }
+    (out / ".render-state.json").write_text(
+        json.dumps({"aaaa1111-0000-0000-0000-000000000000": {"sig": "x", "row": row}})
+    )
+    assert rch.main(["--project", "/opt/demo"]) == 0
+    assert (out / "aaaa1111.md").exists()
