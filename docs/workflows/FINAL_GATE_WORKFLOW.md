@@ -216,7 +216,7 @@ no `tests/` dir, pytest not installed, no src/tests/scripts changes, or exit 5 (
 - **Phase Tests (plan-window)** - `check_phase_tests.py` *(ADVISORY row)*
   - WARNs when an ACTIVE plan lock's window declares Behavior-Contract rows and ships lock-owned source with zero test changes
 - **Doc Link Integrity (live tree)** - `check_doc_links.py` (2026-07-20: every repo-path reference in the live knowledge tree must resolve; archives/pipeline artifacts/LESSONS ledger/scaffold `*_TEMPLATE.md` + `scaffold-templates/` exempt — templates carry intentional placeholder refs; blocking)
-- **INDEX.md ↔ docs tree drift** - `check_doc_index.py` (2026-07-20: INDEX targets exist + every live doc indexed by path/basename; blocking)
+- **INDEX.md ↔ docs tree drift** - `check_doc_index.py` (2026-07-20: INDEX targets exist + every live doc indexed by path/basename; blocking; an UNTRACKED doc counts as live — except the hub-seeded `docs/DECISIONS.md`, exempt only until the repo adopts it by committing it, D-225; a missing INDEX.md is a named finding, not a traceback)
 - **Retired-Tech Tripwire** - `check_retired_terms.py` *(ADVISORY row)* (2026-07-20: WARN-only — the script always exits 0; flags unmarked Kilo CLI / Windsurf Cascade / Coolify / Supabase live-framing. 73 open WARNs in the hub, which is why it advises rather than blocks)
 - **Stage-Skip Artifact Gate** - `check_stage_artifacts.py`
   - Spec freshness + FROZEN header shape for a stage that was skipped

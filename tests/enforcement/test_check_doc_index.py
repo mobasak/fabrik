@@ -115,3 +115,59 @@ def test_untracked_doc_fires_on_the_authoring_run(monkeypatch):
     monkeypatch.setattr(cdi.subprocess, "run", fake_run)
     rc = cdi.main()
     assert rc == 1
+
+
+def _fake_ls(monkeypatch, *, tracked="", untracked=""):
+    """Stand in for both `git ls-files` calls — the second is the one carrying --others."""
+    real_run = subprocess.run
+
+    def fake_run(cmd, **kw):
+        if "ls-files" in cmd:
+
+            class R:
+                stdout = untracked if "--others" in cmd else tracked
+
+            return R()
+        return real_run(cmd, **kw)
+
+    monkeypatch.setattr(cdi.subprocess, "run", fake_run)
+
+
+def _isolated_index(monkeypatch, tmp_path, body="# INDEX\n\n- [README](README.md)\n"):
+    """Point the check at a throwaway root whose INDEX.md names nothing under docs/.
+
+    Without this the check reads the HUB's own INDEX.md, which DOES carry a DECISIONS.md
+    row — so an exemption test run against the live tree passes identically whether or not
+    the exemption exists. That vacuous shape is exactly what these three tests must avoid.
+    """
+    (tmp_path / "INDEX.md").write_text(body, encoding="utf-8")
+    monkeypatch.setattr(cdi, "REPO", tmp_path)
+
+
+def test_seeded_ledger_is_exempt_while_it_is_still_untracked(monkeypatch, tmp_path):
+    """20 of the 45 git repos under /opt sit in exactly this state (measured 2026-09-11):
+    the hub's governance sync wrote docs/DECISIONS.md, no session in that repo authored it,
+    nobody ever committed it — and this gate then billed the INDEX row to whoever happened
+    to run next. The untracked-counts-as-live rule assumes an author; a seeded file has none."""
+    _isolated_index(monkeypatch, tmp_path)
+    _fake_ls(monkeypatch, tracked="", untracked="docs/DECISIONS.md\n")
+    assert cdi.main() == 0
+
+
+def test_an_adopted_ledger_still_owes_its_index_row(monkeypatch, tmp_path):
+    """The exemption is keyed on TRACKED-NESS, not on the path — which is the whole reason
+    docs/DECISIONS.md is not simply an EXCLUDE_EXACT entry. The moment a repo commits its
+    ledger it is that project's own durable doc and owes its row like any other; 9 of the 45
+    are already in that state, and a blanket path exemption would have silenced all nine."""
+    _isolated_index(monkeypatch, tmp_path)
+    _fake_ls(monkeypatch, tracked="docs/DECISIONS.md\n", untracked="")
+    assert cdi.main() == 1
+
+
+def test_missing_index_is_a_finding_not_a_traceback(monkeypatch, tmp_path, capsys):
+    """5 of the 45 repos carry this synced check and have no INDEX.md at all; the unguarded
+    read raised FileNotFoundError, so the gate reported a stack trace — which names no file
+    to fix and reads as a broken check rather than a finding."""
+    monkeypatch.setattr(cdi, "REPO", tmp_path)  # deliberately no INDEX.md
+    assert cdi.main() == 1
+    assert "INDEX.md is missing" in capsys.readouterr().out

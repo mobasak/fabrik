@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The INDEX gate stops billing every repo for the decision ledger the hub seeded into it (2026-09-11)
+
+`check_doc_index.py` treats an untracked doc as live so the run that CREATES a doc owes its INDEX row. `docs/DECISIONS.md` is the one file that premise fails on: the governance sync seeds it into every repo and deliberately leaves it out of the .gitignore block, so no session in that repo authored it and the red landed on whoever next ran a gate. Measured over the 45 git repos under /opt — all 45 carry the file, the finding fired in 29 and the check crashed outright in the 6 with no INDEX.md. It is now exempt WHILE UNTRACKED, with the obligation attaching on adoption: after the change it fires in 9, every one of them a repo that has committed its ledger and genuinely owes the row. A missing INDEX.md now reports a named finding instead of a FileNotFoundError traceback. Three graders, each proven red against its own mutant — including one that fails if the exemption is ever made unconditional. Fleet-synced; D-225 records the two rejected alternatives.
+
 ### Added — Review-family pass 3 spec CONVERGED: the last five loops, the bounded hop, the six review-loop cost fixes (2026-09-11)
 
 `docs/superpowers/specs/2026-09-11-review-family-pass3-design.md` converged under D-212 with its own bounded-hop and delta-sizing rules applied to its review. It finishes the family's move under D-203 (the five loops that include neither termination fragment, the five `term-coverage` consumers, 66 restatements in 11 commands) and specifies six text-only fixes for the measured cost of every review loop (838 of 882 minutes of the archived adoption plan): the bounded delta hop, delta rounds sized by the fix, a route-up that fires before the scoped record opens or ends it one round early, a mandatory round zero, the git-verb prohibition in every seat brief, and no second docs loop over docs the heavy review already graded. Decision row minted at the flip.

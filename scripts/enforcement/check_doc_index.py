@@ -50,10 +50,42 @@ EXCLUDE_EXACT = {
 }
 _SELECTION_RE = re.compile(r"^docs/reference/kilo/[A-Z_]*_?SELECTION\.md$")
 
+# Hub-SEEDED and project-OWNED — exempt only while UNADOPTED (still untracked).
+#
+# The governance sync drops docs/DECISIONS.md into every repo ONCE
+# (fabrik_synced_manifest.SEED_IF_MISSING) and deliberately keeps it OUT of the generated
+# .gitignore block, because an ignored ledger can never be committed and its git history IS
+# the who/when corroboration layer. Every OTHER doc the sync writes under docs/ IS gitignored
+# and therefore invisible to `ls-files --others --exclude-standard` — so this is the single
+# file for which the untracked-counts-as-live rule above rests on a false premise: no session
+# in this repo authored it, so "the run that creates a doc owes its INDEX row" has no author
+# to bill, and the red lands on whoever next runs a gate. Measured 2026-09-11 across the 45
+# git repos under /opt: all 45 carry the file, 35 have no INDEX row, 20 of those have never
+# tracked it.
+#
+# The obligation attaches on ADOPTION, not on arrival: the moment a repo commits its ledger it
+# is that project's own durable doc and owes its INDEX row like any other — 9 of the 45 are in
+# exactly that state today, and their finding is a TRUE positive this exemption must not eat.
+# That is the whole reason the exemption is keyed on tracked-ness rather than added to
+# EXCLUDE_EXACT, which would have silenced those 9 too.
+SEEDED_UNADOPTED = {"docs/DECISIONS.md"}
+
 
 def main() -> int:
     as_json = "--json" in sys.argv
-    index_text = (REPO / "INDEX.md").read_text(encoding="utf-8", errors="replace")
+    index_path = REPO / "INDEX.md"
+    if not index_path.is_file():
+        # 5 of the 45 /opt repos carry this synced check and have no INDEX.md (measured
+        # 2026-09-11), where the unguarded read raised FileNotFoundError: the gate saw a
+        # TRACEBACK, which names no remedy and reads like a broken check rather than a
+        # finding. Same exit code, diagnosable cause.
+        msg = "INDEX.md is missing — the docs index every Doc Sync Matrix row points at"
+        if as_json:
+            print(json.dumps({"status": "failure", "drift": [msg]}))
+        else:
+            print(f"ERROR: {msg}")
+        return 1
+    index_text = index_path.read_text(encoding="utf-8", errors="replace")
     problems: list[str] = []
 
     # (a) INDEX targets exist
@@ -87,6 +119,8 @@ def main() -> int:
     for p in dict.fromkeys([*tracked, *untracked]):
         if p.startswith(EXCLUDE_PREFIXES) or p in EXCLUDE_EXACT or _SELECTION_RE.match(p):
             continue
+        if p in SEEDED_UNADOPTED and p in untracked:
+            continue  # seeded by the hub, never adopted here — not this repo's row to owe
         base = Path(p).name
         if p not in index_text and base not in index_text:
             tag = (
