@@ -65,52 +65,38 @@ last `cwd: …/.claude/worktrees/store-content-set`, which is the whole story in
 reports the session as alive when it is not (cost 20 minutes on 2026-09-11). Walk `/proc` and read each
 `cmdline`, or check `readlink /proc/<pid>/cwd`, before claiming a session is running.
 
-## ⚠️ The REAL reason a window comes back empty: `restored_owner_mismatch`
+## ⚠️ Why a reloaded window shows only the last compaction (measured 2026-09-11, D-235)
 
-**Corrected 2026-09-11.** An earlier revision of this section blamed compaction. That was wrong, and the
-number in it was wrong too (48 compact boundaries, not 96 — the detector counted each compaction twice,
-matching both its `compact_boundary` subtype and its `isCompactSummary` record). Compaction was never the
-cause: the window before the final boundary held **1,519** user/assistant turns.
+**Corrected twice on 2026-09-11.** The first revision of this section blamed compaction; the second
+replaced it with the owner veto as "the REAL reason". Both were inferred from symptoms and neither had
+read the loader. The measured rule (detail: `docs/workstation/chat-history-render.md`): a reloaded window
+(`claude --resume <id>`) rebuilds its view by walking `parentUuid` from the newest record back to a root,
+and every `compact_boundary` record has **`parentUuid: null`** — a new root — so the view ALWAYS starts at
+the last compaction. Simulated on the two trade-intelligence lanes: **8 records** rendered of 116,389
+(agent-2, `37887efc`, compacted 2026-09-09 and idle since) and **2,093** of 105,742 (agent-1, `1991fa9b`,
+compacted 2026-09-02). A LIVE window keeps whatever it streamed since it opened, which is why an
+un-reloaded window can still show earlier text. There is no time window, no setting and no load-more;
+rewriting transcripts to re-link the tree is rejected (D-235: the same tree feeds the model's context).
 
-The real mechanism is an ownership veto. Claude Code stamps some sessions with an owner account and
-**refuses to restore their history when a different account is active**, writing a record that says so:
-
-```json
-{"type":"history-suppression","cause":"restored_owner_mismatch",
- "vetoedAgainstAccountUuid":"cedaed58-…","ts":"2026-09-11T09:38:43.952Z"}
-```
-
-**This collides head-on with account rotation.** Measured on 2026-09-11: `claude_rotate.py --status`
-reported `last flip: Thu 21:01 ob -> sarp (relief)`, matching the `~/.claude-fleet/active` symlink mtime to
-the minute — and every session owned by `ob` stopped restoring from that moment.
-
-| session | owner account | what the operator saw |
-|---|---|---|
-| `35204643` (iie1, iterative_image_editor) | `can` | window blank |
-| `1991fa9b` (agent-1, trade-intelligence) | `ob` | window blank |
-| `37887efc` (agent-2, trade-intelligence) | `ob` | only the last exchange |
-
-**The claim is rare and it is NOT on most sessions.** Box-wide: **11 of 5,307** transcripts carry a
-`bridge-session` record (the thing that names `ownerAccountUuid`); `restored_owner_mismatch` has fired
-**10 times ever**, first on 2026-09-06. The other 5,296 sessions have no owner claim and restore under any
-account. The claimed ones cluster by project and by whichever account was active when the bridge attached —
-all three iterative_image_editor lanes owned by `can`, both trade-intelligence lanes by `ob`, all three
-site-provisioner lanes by `sarp` — i.e. it lands on exactly the long-lived working windows, never on
-throwaways.
-
-**Recovery** (fleet-wide, one account at a time — this is the unresolved part):
+**The fix is a render beside the panel, not a panel change:**
 
 ```bash
-python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --switch ob    # then reload the window
+python3 /opt/fabrik/scripts/render_chat_history.py --project /opt/trade-intelligence --name 1991fa9b=agent-1 --name 37887efc=agent-2
+# → ~/.claude/state/history/-opt-trade-intelligence/{agent-1,agent-2,…}.md + INDEX.md
 ```
 
-⚠️ **The open problem.** Rotation exists to spread quota; the owner veto binds history to one account.
-Today they are in direct conflict and nothing warns you: a relief flip silently blinds every window owned
-by the account it rotated away from, and you cannot satisfy two owners at once. The content is never lost —
-`get_chat`/`search_chats` are account-agnostic because they read the shared transcripts — but the WINDOW
-cannot be made continuous by switching. Designing that out (most plausibly by keeping working windows from
-acquiring the claim at all, since an unclaimed session restores under any account) is open work, not a
-documented answer.
+**The owner veto is real, but it gates the BRIDGE, not the conversation.** Long-lived sessions carry a
+`bridge-session` pointer with an `ownerAccountUuid` (both trade-intelligence lanes: `ob`, 234 and 462 such
+records). When the credential-store account differs from the owner at resume, the binary logs
+`{"type":"history-suppression","cause":"restored_owner_mismatch","vetoedAgainstAccountUuid":…}` and prints
+`[bridge:repl] Restored-pointer reattach vetoed: the credential store account changed since this
+conversation's pointer…` — it refuses to re-attach the remote-control bridge under another account and
+nothing else. Measured: it fired **5 times on each lane** (2026-09-05, 2026-09-08, and three times on
+2026-09-11 — 09:38 and 09:40 against `sarp`, 18:34 against `can`), and on that 18:34 reload agent-1 still
+rendered its six days from the last compaction. **Rotation therefore does not blind a window, and
+`claude_rotate.py --switch` is not a history recovery** (the operator's standing rule is no switching).
+What a rotation costs an owned session is only the bridge reattach. Content is never lost either way:
+`get_chat` / `search_chats` and the render script read the shared transcripts, account-agnostically.
 
 ## Making a re-filed session visible again (measured, and safe)
 

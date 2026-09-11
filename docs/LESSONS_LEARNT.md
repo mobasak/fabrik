@@ -1,6 +1,32 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## 2026-09-11 — Three wrong diagnoses of "my chat history is gone": read the loader, don't pattern-match the symptom
+
+The operator could not see history in reloaded VS Code windows. Over one day this session named three causes —
+account rotation (an owner veto), transcript size, then compaction — and the operator disproved two of them
+from their own screen. Each was inferred from a symptom that matched; none came from reading the code path
+that renders the window. The real rule took twenty minutes once the extension's loader was opened: a reloaded
+window walks `parentUuid` from the newest record to a root, every `compact_boundary` has `parentUuid: null`,
+so the view starts at the last compaction — and simulating that walk on the two transcripts reproduced the
+operator's exact numbers (8 and 2,093 records). D-235.
+
+- **"Read it, don't recall it" applies to closed code too.** A 200 MB minified binary is still greppable;
+  `isCompactSummary` had 50 hits and the loader was among them. The cost of reading was a fraction of one
+  wrong diagnosis.
+- **A disproof of one path is not a disproof of the mechanism.** "The live hub window shows text from before
+  its compaction" refuted compaction for a LIVE window only; the reload path has a different rule. I withdrew
+  a correct mechanism because I never asked which path the counter-example exercised.
+- **Sweep the claim when the diagnosis changes.** The wrong "owner veto" diagnosis had already been written into
+  `docs/workstation/session-recall.md` as "the REAL reason", with a `--switch` recovery the operator had
+  already forbidden. The veto exists and fired that very evening — but the binary's own message says what
+  it gates: `[bridge:repl] Restored-pointer reattach vetoed`, the remote-control bridge, not the view. A
+  corrected diagnosis owes a pass over every place the old one landed, and a pre-compaction "0 owner
+  claims" figure carried in a summary was itself wrong until re-grepped (234 and 462 records).
+- **Scope the fix to what is buildable.** The panel is Anthropic's closed extension; the deliverable was the
+  render beside it, which is one script and fits the small profile. Offering a spec for an unbuildable panel
+  change would have been a stall wearing process.
+
 ## 2026-09-09 — The redesigned review loop, applied to itself: what ten tickets and 44 executed rounds taught
 
 Plan `2026-09-09-plan-1-review-convergence-redesign` (D-203/D-205, spec `2026-09-08-review-convergence-redesign-design.md`)

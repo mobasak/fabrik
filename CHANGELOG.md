@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `scripts/render_chat_history.py`: the full per-project chat history the VS Code panel cannot show (2026-09-11)
+
+Measured why a reloaded Claude Code window shows only the last compaction: the extension's loader walks `parentUuid` from the newest record to a root, and every `compact_boundary` record has `parentUuid: null` — a new root — so everything before it is on disk but never rendered (no time window, no setting, no load-more; `CLAUDE_CODE_DISABLE_PRECOMPACT_SKIP` does not help; simulated on two 300 MB trade-intelligence transcripts: 8 and 2,093 records rendered of 116,389 and 105,742). The new script renders every session of a project to markdown under `~/.claude/state/history/<project-key>/` — one file per session, `--name id=label` naming persisted in `names.json`, every compaction a dated heading with the last one marked as where a reload starts, tool calls / results / hook injections stripped, an `INDEX.md` newest-first, incremental by transcript size+mtime. Eight red-first graders in `tests/test_render_chat_history.py` (incl. the same-label collision guard). Doc: `docs/workstation/chat-history-render.md`; `docs/workstation/session-recall.md` § "What was I doing?" re-corrected (the 2026-09-11 revision that un-blamed compaction was itself wrong for the reload path). D-235.
+
+
 ### Changed — Claude Code transcript retention raised from 30 days to ~10 years (2026-09-11)
 
 `cleanupPeriodDays: 3650` added to `~/.claude/settings.json` on the operator's word. The key was unset, so the 30-day default applied and the oldest surviving transcript on disk was always exactly 30 days old — while nothing backs up `~/.claude/projects/` and there is no dump of the session-recall database, which made a recall row the last copy of any aged-out session. That became concrete when a documented `--full` reindex reclaimed 5,791 orphaned files. Value taken from the binary's own error text rather than invented; schema is `int().positive()`, minimum 1, no maximum. Backed up before the edit, mirrored to the DR store and verified byte-identical. D-233; the second half — whether `--full` should refuse to reclaim without an explicit opt-in — stays open in the backlog.
