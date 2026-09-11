@@ -6526,3 +6526,33 @@ own eight arms since Thursday had all gone that way.
 - **A mutant "kill" can ride on filesystem order.** A `continue→break` mutant died on one box and survived on another because `Path.glob` returned a fixture's directory before its symlink there. Every walk over a generated tree is now `sorted()`, the grader forces the order with a self-proving reversed `Path.glob`, and a mutant is asserted dead by the NAME of the failing test on a fresh copy — with environment-bound tests (`HOME`-reading) deselected explicitly, and `__pycache__` purged between mutants (a stale cache produced a false SURVIVED).
 - **Bound the hop, or the loop reconciles the whole doc.** The Finish docs review of a 1,118-line reference took twelve passes because each rewrite of one per-script section invited the next fresh seat to re-derive its neighbours; it closed only after the bar was stated: a discrepancy is a wrong claim inside the previous pass's hunks or a live contradiction — pre-existing imprecision one hop out is RECORDED to a backlog row.
 - **A finder seat's prohibition is phrased as verbs.** "Never write into /opt/fabrik" did not stop a Bash-capable reviewer seat from running `git stash --keep-index` in the shared tree (three sessions' files swept mid-pass); the pop was classifier-blocked, the recovery was `git show 'stash@{0}':<path> > <path>` per file with md5s verified. Seat briefs now say: no git command that mutates state, read-only git only, every probe on a copy.
+
+## The finder and the fixer must not be the same agent — fifteen rounds, and the loop broke on who wrote the fixes (2026-09-11)
+
+`2026-09-10-kaizen-feedback-loop-design.md` ran fifteen review rounds. Confirmed defects:
+`17 · 5 · 5 · 4 · 3 · 1 · 2 · 4 · 26 · 23 · 13 · 3 · 6 · 7 · 7`. It converged on CONTENT by round 12 and
+then stopped converging, and the stall circuit-breaker fired at round 14. The reason is not in the
+document.
+
+- **Every round from 10 to 15 confirmed defects that the PREVIOUS round's fixes introduced.** Two
+  `## Reproduce` recipes that did not regenerate their own cited figures; a comma splice that welded two
+  unrelated claims; an over-claim ("the registry forbids an odd axis count outright") drawn from a
+  narrow executed result that did not support it; and — the worst — an edit to the review's own
+  defect-count series that deleted the one round where the count ROSE, leaving the text claiming a
+  monotonic fall the record does not show. **A fresh reader found each of them. The same author wrote
+  every fix. That author's fix seeded the next round.**
+- **The asymmetry is the lesson.** The finders varied (3 seats at round 9, 2 at round 10, 1 thereafter);
+  the fixer never did. So the loop's recall was fine and its *repair* was the defect generator. No
+  further round of the same shape can close that — which is what the breaker exists to say.
+- **A check can pass for the wrong reason and look like proof.** Verifying the registry claim, the first
+  probe returned four refusals — apparent confirmation. The probe dicts were missing a required
+  `formula` key, so every refusal was a schema error, not a pairing error. Build probe objects by
+  COPYING a real one and overriding fields; a hand-built fixture that fails for its own reasons is
+  indistinguishable from a passing test.
+- **Count your own stopping rule strictly.** The breaker paragraph counted transitions where the
+  document's own precedent counts windows, concluded "two rounds away", and so licensed the round the
+  rule forbade. An agent that counts its own stopping rule loosely will always find it has not stopped.
+- **What to do instead:** when a review's confirmed count stops falling and its findings are all inside
+  the previous round's fixes, stop editing and change WHO edits. Hand the residue to a different session
+  (or to the next pipeline stage, which has a different author and its own review) — that breaks the
+  finder-is-fixer identity by construction, and nothing inside the loop can.
