@@ -257,8 +257,9 @@ def _assign_labels(
 ) -> dict[str, str]:
     """One label per session, unique among this run's sessions AND against every `.md` already
     on disk that this session does not own (an orphan is the last copy of a deleted
-    conversation). A colliding label is suffixed with more and more of the session id until it
-    is free — and the suffixed form is checked again, never trusted."""
+    conversation). A colliding label is suffixed with more and more of the session id, then a
+    counter, until it is free — every suffixed form checked again, never trusted — and a session
+    that finds no free name in 104 candidates is left OUT of the returned map (skipped, WARNed)."""
     labels: dict[str, str] = {}
     for path in transcripts:
         sid = path.stem
@@ -282,15 +283,14 @@ def _assign_labels(
 
         label = wanted
         if taken(label):
-            for n in (8, 12, 16, 36):
-                label = f"{wanted}-{sid[:n]}"
-                if not taken(label):
-                    break
-            else:
-                n = 1
-                while taken(f"{wanted}-{sid}-{n}"):
-                    n += 1
-                label = f"{wanted}-{sid}-{n}"
+            candidates = [f"{wanted}-{sid[:n]}" for n in (8, 12, 16, 36)]
+            candidates += [f"{wanted}-{sid}-{n}" for n in range(1, 101)]
+            label = next((c for c in candidates if not taken(c)), None)
+            if label is None:  # bounded: a filesystem that rejects every name never spins the run
+                _warn(
+                    f"{sid[:8]}: no free file name for label {wanted!r} after 104 candidates; skipped"
+                )
+                continue
             _warn(f"label {wanted!r} is already used; {sid[:8]} renders as {label}")
         labels[sid] = label
     return labels
@@ -337,9 +337,14 @@ def _render_project_locked(
     rendered = failed = 0
     for path in transcripts:
         sid = path.stem
+        prev = state.get(sid) if _is_entry(state.get(sid)) else None
+        if sid not in labels:  # no usable file name this run (warned above)
+            failed += 1
+            if prev and (out_dir / prev["row"]["file"]).exists():
+                rows.append(prev["row"])
+            continue
         label = labels[sid]
         out = out_dir / f"{label}.md"
-        prev = state.get(sid) if _is_entry(state.get(sid)) else None
         try:  # one unreadable, vanished or malformed transcript never aborts the batch
             st = path.stat()
             sig = f"{st.st_size}:{st.st_mtime_ns}:{label}"

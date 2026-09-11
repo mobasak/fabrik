@@ -392,18 +392,29 @@ def test_a_stale_old_name_that_another_session_just_took_is_not_unlinked(
 # ---- pass-1 seat A residue (heavy review): every guard must hold for every shape, not one type ----
 
 
+@pytest.mark.parametrize("line", ["null", "{not json", "[1, 2]"])
+def test_a_record_that_is_not_an_object_is_dropped_and_warned(
+    box: dict[str, Path], line: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = box["projects"] / "aaaa1111-0000-0000-0000-000000000000.jsonl"
+    path.write_text(path.read_text() + line + "\n")
+    assert rch.main(["--project", "/opt/demo"]) == 0
+    assert "1 unparseable record" in capsys.readouterr().err
+    md = (box["out"] / "-opt-demo" / "aaaa1111.md").read_text()
+    assert "second answer" in md and "unparseable records: 1" in md
+
+
 @pytest.mark.parametrize(
     "line",
     [
-        "null",
         '{"type":"system","subtype":"compact_boundary","uuid":"b9","timestamp":"2026-09-02T08:00:00.000Z","compactMetadata":"manual"}',
         '{"type":"user","uuid":"u9","timestamp":"2026-09-02T08:00:00.000Z","message":"oops"}',
         '{"type":"user","uuid":"u8","timestamp":1757577600,"message":{"content":"numeric stamp"}}',
-        "{not json",
+        '{"type":"user","uuid":"u7","timestamp":"2026-09-02T08:00:00.000Z","message":{"content":["not a block", {"type":"text","text":"listed text"}]}}',
     ],
 )
-def test_a_malformed_record_is_dropped_with_a_warning_not_a_crash(
-    box: dict[str, Path], line: str, capsys: pytest.CaptureFixture[str]
+def test_a_record_with_an_unexpected_nested_shape_is_tolerated_not_a_crash(
+    box: dict[str, Path], line: str
 ) -> None:
     path = box["projects"] / "aaaa1111-0000-0000-0000-000000000000.jsonl"
     path.write_text(path.read_text() + line + "\n")
@@ -411,6 +422,7 @@ def test_a_malformed_record_is_dropped_with_a_warning_not_a_crash(
     md = (box["out"] / "-opt-demo" / "aaaa1111.md").read_text()
     assert "second answer" in md
     assert "1757577600" not in md  # a non-string timestamp never becomes a span
+    assert "not a block" not in md
 
 
 def test_an_unparseable_record_is_counted_in_the_index(
@@ -467,12 +479,17 @@ def test_a_state_row_missing_its_shape_reads_as_never_rendered_twice_in_a_row(
 ) -> None:
     out = box["out"] / "-opt-demo"
     out.mkdir(parents=True)
+    st = (box["projects"] / "aaaa1111-0000-0000-0000-000000000000.jsonl").stat()
+    sig = f"{st.st_size}:{st.st_mtime_ns}:aaaa1111"  # a MATCHING signature: only _is_entry decides
+    (out / "aaaa1111.md").write_text(
+        "# aaaa1111 — aaaa1111\n\nstale\n"
+    )  # this session's own render
     (out / ".render-state.json").write_text(
-        '{"aaaa1111-0000-0000-0000-000000000000": {"sig": "x", "row": ' + row + "}}"
+        json.dumps({"aaaa1111-0000-0000-0000-000000000000": {"sig": sig, "row": json.loads(row)}})
     )
     assert rch.main(["--project", "/opt/demo"]) == 0
     assert rch.main(["--project", "/opt/demo"]) == 0  # never sticky
-    assert (out / "aaaa1111.md").exists()
+    assert "second answer" in (out / "aaaa1111.md").read_text()  # re-rendered, not trusted
 
 
 def test_a_suffixed_label_is_itself_checked_against_orphans_and_live_sessions(
@@ -528,15 +545,19 @@ def test_a_second_concurrent_render_of_the_same_project_backs_off(
 def test_a_project_argument_can_never_write_outside_the_history_root(
     box: dict[str, Path], key: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    # a key that EXISTS as a directory relative to the projects dir is the escape the guard closes
-    evil = box["projects"].parent.parent / "evil"
-    _write_session(evil, "eeee1111-0000-0000-0000-000000000000", _demo_records())
-    rc = rch.main(["--project", key])
-    assert rc != 0
-    err = capsys.readouterr().err
-    assert "ERROR" in err
+    # every case names a directory that EXISTS relative to the projects dir and holds a transcript,
+    # so only the key guard — not the "no transcripts" fallback — can refuse it
+    projects = box["projects"].parent
+    _write_session(
+        projects.parent / "evil", "eeee1111-0000-0000-0000-000000000000", _demo_records()
+    )
+    _write_session(projects / "a" / "b", "eeee2222-0000-0000-0000-000000000000", _demo_records())
+    _write_session(projects, "eeee3333-0000-0000-0000-000000000000", _demo_records())
+    assert rch.main(["--project", key]) == 2
+    assert "is not a project path or key" in capsys.readouterr().err
     assert not (box["out"].parent / "evil").exists()
     assert not (box["out"] / "INDEX.md").exists()  # never the history root itself
+    assert not (box["out"] / "a").exists()
 
 
 def test_a_render_with_no_state_entry_is_recognised_as_its_own_by_its_header(
@@ -582,3 +603,54 @@ def test_a_state_row_whose_file_name_is_unusable_reads_as_never_rendered(
     )
     assert rch.main(["--project", "/opt/demo"]) == 0
     assert (out / "aaaa1111.md").exists()
+
+
+def test_an_existing_render_with_a_corrupt_header_never_crashes_the_owner_check(
+    box: dict[str, Path],
+) -> None:
+    out = box["out"] / "-opt-demo"
+    out.mkdir(parents=True)
+    (out / "aaaa1111.md").write_bytes(b"# \xff\xfe broken header\n")
+    assert rch.main(["--project", "/opt/demo"]) == 0
+    rendered = [
+        p for p in out.glob("aaaa1111*.md") if "second answer" in p.read_text(errors="replace")
+    ]
+    assert rendered
+
+
+def test_the_suffix_search_is_bounded_when_the_filesystem_rejects_every_name(
+    box: dict[str, Path], monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import signal
+
+    _write_session(box["projects"], "bbbb2222-0000-0000-0000-000000000000", _demo_records())
+    out = box["out"] / "-opt-demo"
+    out.mkdir(parents=True)
+    (out / "names.json").write_text(json.dumps({"aaaa1111": "samelabel", "bbbb2222": "samelabel"}))
+    real = Path.exists
+
+    def name_too_long(self: Path) -> bool:
+        if len(self.name) > 20:
+            raise OSError(36, "File name too long")
+        return real(self)
+
+    monkeypatch.setattr(Path, "exists", name_too_long)
+
+    class SpunError(
+        Exception
+    ):  # not an OSError: the guard under test must not be able to swallow it
+        pass
+
+    def spun(*_: object) -> None:
+        raise SpunError("suffix search spun")
+
+    signal.signal(signal.SIGALRM, spun)
+    signal.alarm(10)
+    try:
+        rc = rch.main(["--project", "/opt/demo"])
+    finally:
+        signal.alarm(0)
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "SpunError" not in err  # the search must END, not be rescued by the per-project guard
+    assert "no free file name" in err
