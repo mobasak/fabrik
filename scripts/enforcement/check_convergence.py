@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_check_convergence.py, commands/_sources/fabrik-execute-plan.md, commands/_sources/fabrik-plan-review.md | none
+# AFTER-EDIT: tests/test_check_convergence.py, commands/_sources/fabrik-execute-plan.md, commands/_sources/fabrik-plan-review.md, docs/workflows/FINAL_GATE_WORKFLOW.md
 """Convergence-evidence gate — run by final_gate via run_optional_check (non-zero = fail).
 
 A markdown artifact that CLAIMS convergence must PROVE it. Inspects only

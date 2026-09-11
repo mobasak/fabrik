@@ -1,6 +1,6 @@
 # Final Gate Workflow
 
-**Last Updated:** 2026-08-16
+**Last Updated:** 2026-09-11
 **Script:** `scripts/final_gate.py`
 
 > Complete reference for `scripts/final_gate.py` — deterministic quality checks that validate code and documentation before Traycer commit.
@@ -157,11 +157,11 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 
 **Purpose:** Fast showstoppers only (syntax, secrets, schema sync, doc sync)
 
-**Phase 3: Repo Consistency (18 checks)** — `run_consistency_checks(tier=1)`: 16 in the `if tier in (1, 2):` block + 2 unconditional
-- **Convergence Evidence (plans + reviews)** - `check_convergence.py` — runs every tier, unconditionally; the CLOSING-ROW rule (D-206, 2026-09-10): once a spine's Pass Ledger carries a `confirmed:` counter row, a CONVERGED flip whose LAST Pass row does not read `confirmed: 0` is refused (`_PASS_ROW` — indented rows included, blockquoted excluded; code spans masked; the row's last `confirmed:` token counts; `_closing_row_fail` is the one function the flip check and a fleet census share) — measured 2026-09-10 through that function on RAW text over 1,062 readable fleet plan files: 70 carry a case-sensitive `## Pass Ledger` heading (76 case-insensitively), 21 of them plan-set spines (the population the rule grades; 47 spines fleet-wide), 1 file with a counter row, 0 refusals
-- **Coverage Checklist (reviews)** - `check_review_coverage.py` — runs every tier, unconditionally (the check every eyeball recount dropped — counts here are derived by instrumented execution)
+**Phase 3: Repo Consistency (34 checks)** — the results list of `run_consistency_checks(tier=1, changed_files=set())`, instrumented 2026-09-11 (stub `run_optional_check` and `run_cmd`, count the rows; at tier 1 the call count is the same 34); fourteen run unconditionally outside the `if tier in (1, 2):` block — among them `check_convergence.py`, `check_review_coverage.py`, `check_review_hygiene.py` and `check_plan_lock_release.py`. **The 20 CHECK ROWS bulleted below carry the Tier-1 notes (a 21st bullet, the flip-gate invocation matrix, documents a command-side gate battery, not a `run_consistency_checks` row); four of them (Convergence Evidence, Coverage Checklist, Plan-lock release, Review hygiene) are unconditional rows also bulleted under Tier 3, where the remaining ten are named.** Four Tier-1/2-only rows carry no note here and are listed only under § Enforcement Scripts: Frozen Chain (`check_frozen_chain.py`), Decision Ledger (`check_decisions_unique.py`), Doc-Script Links and Doc-Script Coverage (`render_doc_script_links.py`)
+- **Convergence Evidence (plans + reviews)** - `check_convergence.py` — runs every tier, unconditionally; the CLOSING-ROW rule (D-206, 2026-09-09; landed by the review-family adoption plan on 2026-09-10): once a NON-ARCHIVED plan-set spine carries any `| Pass …` / `| Round …` table row with a `confirmed:` counter — anywhere in the file, no `## Pass Ledger` heading required — a CONVERGED or EXECUTED flip whose LAST such row does not read `confirmed: 0` is refused (`_check_spine_set` is reached from both claim paths; an `archived/` spine returns unchecked; `_PASS_ROW` — indented rows included, blockquoted excluded; fences stripped, code spans masked, HTML comments blanked, in that order; the row's last `confirmed:` token counts; `_closing_row_fail` is the single function the flip check calls and the one any fleet census must call — the census here is an ad-hoc measurement through that import, not a committed caller) — measured 2026-09-11 through that function over the 1,061 readable plan files under `/opt/*/docs/development/plans` in the 43 main checkouts (the registered worktrees excluded via `git worktree list`, not by path name — `/opt/fabrik-lib-account` is one and carries a byte-identical copy; 1,062 on disk, 1 a dangling symlink): 71 contain the substring `## Pass Ledger` (77 case-insensitively), 21 of them plan-set spines — 10 of those under `archived/`, which the rule never grades, leaving 11 (the heading is incidental: the GRADED population is every non-archived spine — 19 live of 47 fleet-wide, 28 archived) — 1 of the 1,061 carries a counter row (`2026-09-10-plan-1-review-family-adoption.md`, a bare dated plan that is NOT a plan-set spine, so the rule never reaches it) and 0 of the 19 live spines do, hence 0 refusals; separately, the last-token design's own cost is 0 of 47 spines and 0 of 805 fleet receipts carrying more than one `confirmed:` token on one Pass row when read through the rule's own masking (`check_convergence.py`'s `_PASS_ROW` comment states the convention)
+- **Coverage Checklist (reviews)** - `check_review_coverage.py` — runs every tier, unconditionally
 - **Plan-lock release** - `check_plan_lock_release.py` — runs every tier, unconditionally (advisory `warn_only=True`): reports a `.fabrik/plan-locks/<id>.json` left NON-TERMINAL (`active`/`paused`/`blocked`) after its plan finished. Every-tier ON PURPOSE — `--lean` is the mode agents run while a lock is live. Doc: [plan-lock-lifecycle.md](../reference/plan-lock-lifecycle.md)
-- **Review hygiene (advisory)** - `check_review_hygiene.py` — runs every tier, unconditionally (advisory `warn_only=True`, no failing exit path): the grep-shaped classes a review round otherwise re-sweeps by hand — fragment residue (`template-residue`: the renderer's own shapes only, `{{include:<name>}}` or `{{UPPER_CASE}}` anchored at both braces — a Go template such as `{{.Image}}` is not residue), CommonMark fence parity, a table row whose cells do not line up with its header (`raw-pipe` on a receipt; `table-parity` on ANY `.md` surface — a spec, a plan, a rendered command — through one shared helper, fenced and commented lines blanked first), and a disposition cell carrying two bare verdict words. Registered with NO arguments on purpose: it self-selects the CHANGED receipts under `docs/development/reviews/` from `git status` and prints nothing when none changed, so it is inert on every unrelated commit. The orchestrator invokes it directly at each round's start and close (`--surface` · `--receipt` · `--phrase` · `--symbol` · `--json`). Fire rate over the 275 committed hub receipts at `8092e8a8` — the numbers are TRANSCRIBED from `tests/enforcement/test_check_review_hygiene.py::test_the_fire_rate_over_the_committed_receipt_corpus`'s printed output, which pins them, never typed by hand: raw-pipe 35 hits in 21 receipts (0.584 % of 5,992 table data rows), dual-verdict 27 hits in 5 receipts (1.624 % of 1,663 disposition-bearing rows) — re-pinned 2026-09-10 after the comment blanking learned to read code spans (a cell quoting `<!-- POOL OFF` had blanked every later row of 9 of 805 fleet receipts); 4,296 rows (71.7 %) sit in a table with no header pair, or in a headed table that declares no disposition column, and are graded by neither class — counted in the summary, never read as clean — the summary line states that bound on every run. Advisory until infra measures its false-positive rate below 5 % over 20 receipts, counted from the receipts' own `RECORDED — hygiene false positive (…)` rows.
+- **Review hygiene (advisory)** - `check_review_hygiene.py` — runs every tier, unconditionally (advisory `warn_only=True`, no failing exit path): the grep-shaped classes a review round otherwise re-sweeps by hand — fragment residue (`template-residue`: the renderer's own shapes only, `{{include:<name>}}` or `{{UPPER_CASE}}` anchored at both braces — a Go template such as `{{.Image}}` is not residue), CommonMark fence parity, a table row whose cells do not line up with its header (`raw-pipe` on a receipt; `table-parity` on ANY `.md` surface — a spec, a plan, a rendered command — through one shared helper, fenced and commented lines blanked first), and a disposition cell carrying two or more bare verdict words (five of the script's eight classes — `changelog-entry`, `dead-symbol` and `stale-phrase` are the other three: the last two answer `--symbol` / `--phrase`, and `changelog-entry` runs `check_changelog.py`'s own quality rule whenever a `CHANGELOG.md` is on the surface). Registered with NO arguments on purpose: it self-selects the CHANGED receipts under `docs/development/reviews/` from `git status` and prints nothing when none changed, so it is inert on every unrelated commit. The orchestrator invokes it directly at each round's start and close (`--surface` · `--receipt` · `--phrase` · `--symbol` · `--json`). Fire rate over the 275 committed hub receipts at `8092e8a8` — the numbers are TRANSCRIBED from `tests/enforcement/test_check_review_hygiene.py::test_the_fire_rate_over_the_committed_receipt_corpus`'s printed output, which pins them, never typed by hand: raw-pipe 35 hits in 21 receipts (0.584 % of 5,992 table data rows), dual-verdict 27 hits in 5 receipts (1.624 % of 1,663 disposition-bearing rows) — re-pinned 2026-09-10 after the comment blanking learned to read code spans (a cell quoting `<!-- POOL OFF` had blanked every later row of 9 of the 805 fleet receipts (measured 2026-09-10; the population was 805 again on 2026-09-11, when the same-shaped probe found 11 receipts quoting the marker)); 4,296 rows (71.7 %) were graded by NO disposition class — which is not the same as carrying no verdict; a row with three verdict words in a header-less table lands here: a row in a table with no header pair is graded by neither class, and a row in a headed table that declares no disposition column (the header cell must be that one word, case-insensitively, bold tolerated — `Disposition (round)` is not recognised) is cell-count-checked by `raw-pipe` and never dual-verdict-graded — counted as ungraded when its cells line up, and reported as a `raw-pipe` hit when they do not (such a hit row is in neither bucket — 33 of the 35 raw-pipe hits, exactly the gap between 4,296 + 1,663 and the 5,992 denominator; the other 2 hits sit in disposition-declaring tables and are counted in the 1,663); never read as clean; every run that prints a summary states that bound (`--json` carries it as `ungraded_rows`; the no-argument gate run prints nothing at all when no receipt changed). Advisory until infra measures its false-positive rate below 5 % over 20 receipts, counted from the receipts' own `RECORDED — hygiene false positive (…)` rows.
 - **The flip-gate invocation matrix** — the gates a `term-edit` review loop (`/fabrik-spec-review`, `/fabrik-plan-review` and the eleven other consumers of `commands/_fragments/term-edit.md`) runs on the artifact at pass 1 and again at the close (review-family adoption, 2026-09-10). A gate run COUNTS only when the runner can show the artifact was in the gate's examined set — four invocation shapes were measured to return green over NOTHING that day. The rows below are `tests/enforcement/test_flip_gate_matrix.py::MATRIX`, each pinned by a test that plants a fixture and asserts the gate's own examined marker names it (the watched-fail half is one mutant per row on a scratch copy of the gate, kept in the plan's receipt); one row per gate: invocation · tree · the examined marker · the fail-open shape it avoids.
   - `check_spec_convergence.py --root <scratch>` · a scratch root with the FLIPPED spec copy under `docs/superpowers/specs/` · marker `1 CONVERGED spec(s) examined` · avoids: an empty or mis-rooted scratch prints nothing and exits 0.
   - `check_rule_grounding.py --root <scratch>` · a scratch root with `scripts/` and `.windsurf/` linked in and the FLIPPED plan copy (dated on or after the floor cutoff) carrying a `## Constraints digest` · marker `1 CONVERGED in-window plan(s) examined` · avoids: a plan dated before the cutoff, or a root without the rubric script, examines nothing and exits 0.
@@ -181,7 +181,7 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 - **Schema Sync (DB Models)** - `check_schema_sync.py` *(advisory)*
   - Only runs if .py or .sql files changed
 - **Doc Sync Matrix** - `check_doc_sync.py`
-  - The single "update docs when code changes" gate — consolidates what `check_changelog.py` / `check_index_md.py` / `check_configuration_md.py` / `check_openapi_sync.py` used to check (those 5 scripts still exist on disk but are dead code, never invoked — see § All Checks Reference)
+  - The single "update docs when code changes" gate — consolidates what `check_changelog.py` / `check_index_md.py` / `check_configuration_md.py` / `check_openapi_sync.py` used to check (those scripts still exist on disk with no gate row of their own — `check_changelog.py` is still imported by `check_review_hygiene.py`; the rest have no caller — see § All Checks Reference)
 - **Subagent Flywheel (pool-or-declare — BLOCKING; STANDS DOWN under D-181)** - `check_subagent_flywheel.py` — the pool is OFF by ruling (D-181/D-182, 2026-09-07 — the committed constant `_POOL_POLICY_ON = False` in the script; `FABRIK_POOL_POLICY=on|off` is the test seam): Layer 1 never blocks and no `NO-POOL:` is owed, Layer 2 prints one line. With the constant flipped back on it fails the gate when a substantial code change ran zero pool subagent runs and carries no `NO-POOL:` declaration
 - **Mutation (opt-in FABRIK_MUTMUT)** - `check_mutation.py` *(ADVISORY row)* — through the gate it ALWAYS prints the pointer and exits 0: `final_gate.py` deliberately strips `FABRIK_MUTMUT` for this one child (a set flag would start a session-detached mutmut the gate's 120s timeout then orphans). A real mutation run happens only by DIRECT invocation (`FABRIK_MUTMUT=1 python scripts/enforcement/check_mutation.py`) or the Sunday 05:00 cron
 - **Doc stub fill** - `check_doc_stubs.py` *(ADVISORY row)*
@@ -210,7 +210,7 @@ trading-intelligence 2026-07-24). A repo whose CI doesn't run pytest is skipped 
 fabrik's own ~2,500-test suite takes ~3h — never run it inside a completion gate). Graceful skips:
 no `tests/` dir, pytest not installed, no src/tests/scripts changes, or exit 5 (nothing collected).
 
-**Phase 3: Repo Consistency** — inherits all **18** Tier-1 checks above (16 in the `tier in (1, 2)` block; TWO run unconditionally outside it: `check_convergence.py` AND `check_review_coverage.py` — the earlier "17/37" arithmetic silently dropped the second, a drift caught by the plan-2 closing review), **plus 16 Tier-2-only checks** (the `if tier == 2:` block — incl. the 3 docs-truth durability gates: Doc Link Integrity, INDEX↔tree drift, Retired-Tech Tripwire [ADVISORY row] — plus the Plan-Set Contract, Hooks Index Fresh, Sync Trigger Coverage, and Phase Tests [ADVISORY row, plan-window]; 17 where `scripts/epic_order.py` exists — the hub-conditional `epic_order --check` row below), **plus the Kilo CLI Health Check** (shared with Tier 3, `tier >= 2`) — **35 checks total** (36 where `scripts/epic_order.py` exists). (Re-measured 2026-08-16 after the registration audit unwired four Tier-2 checks that could not fail — `check_env_updates`, `check_test_coverage`, `check_compose_services`, `check_reusable_modules`; the previous "19 / 38" had also drifted one low against `run_consistency_checks(tier=2)`'s real 39.) (Counts verified by INSTRUMENTED EXECUTION — stubbing `run_optional_check`/`run_cmd` and counting `run_consistency_checks(tier=…)`'s actual results list: tier 1 → 18, tier 2 → 38 — never by eyeballing the call sites; the line-number ranges that used to be cited here are deliberately dropped — they drifted on every insertion and a wrong `path:line` is worse than none.)
+**Phase 3: Repo Consistency** — inherits all **34** Tier-1 checks above (fourteen run unconditionally outside the `tier in (1, 2)` block — the earlier "TWO unconditional" was twelve short by 2026-09-11, every count here is by instrumented execution, never by eyeballing the call sites), **plus 18 Tier-2-only checks** — 14 with notes below plus the hub-conditional `epic_order --check` bullet the "19 where …" clause counts; four more run with no note: User-Level Hooks Registered (`scripts/sysadmin/install_user_hooks.py`), Rule-pack reachability (`check_pack_reachability.py`), Command Corpus [BLOCKING] (`check_command_corpus.py`), Ticket Breadth (`check_ticket_breadth.py`) — (the `if tier == 2:` block — incl. the 3 docs-truth durability gates: Doc Link Integrity, INDEX↔tree drift, Retired-Tech Tripwire [ADVISORY row] — plus the Plan-Set Contract, Hooks Index Fresh, Sync Trigger Coverage, and Phase Tests [ADVISORY row, plan-window]; 19 where `scripts/epic_order.py` exists — the hub-conditional `epic_order --check` row below), **plus the Kilo CLI Health Check** (shared with Tier 3, `tier >= 2`) — **54 checks total** on this hub with an empty changed set (instrumented 2026-09-11 — the results list of `run_consistency_checks(tier=2, changed_files=set())`). Two of the 54 are not `run_optional_check` rows — `epic_order --check` and the Kilo CLI Health Check — so a probe that counts CALLS rather than the results list answers 52; neither is changed-set-gated; only `epic_order --check` is gated on file existence at all (`_epic_order_row` returns no row where `scripts/epic_order.py` is absent, so a project's Tier-2 total is 53), while the Kilo row is appended on every `tier >= 2` run and degrades to an UNLABELLED green `(check not present, skipping)` row when its script is missing — it reaches neither `--json` warnings nor `skipped_checks`. A REAL changed set gives FEWER, not more (52 for a one-`.md` diff, 53 for a one-`.py` diff): every `if not changed or …` predicate is satisfied by an empty set. (The 2026-08-16 registration audit unwired four Tier-2 checks that could not fail — `check_env_updates`, `check_test_coverage`, `check_compose_services`, `check_reusable_modules`.) (Counts verified by INSTRUMENTED EXECUTION — stubbing `run_optional_check`/`run_cmd` and counting `run_consistency_checks(tier=…)`'s actual results list: tier 1 → 34, tier 2 → 54, tier 3 → 22, all from the results list with `changed_files=set()` (2026-09-11); by `run_optional_check` calls alone the same runs read 34 / 52 / 20 — never by eyeballing the call sites; the line-number ranges that used to be cited here are deliberately dropped — they drifted on every insertion and a wrong `path:line` is worse than none.)
 
 **The Tier-2-only checks:**
 - **Phase Tests (plan-window)** - `check_phase_tests.py` *(ADVISORY row)*
@@ -259,26 +259,18 @@ chatter and plain `WARNING:` output are excluded — a check opts in by prefixin
 
 **Purpose:** On-demand repo/system hygiene (no showstoppers)
 
-**Phase 3: Repo Consistency (14 checks)** — `run_consistency_checks` (the `tier >= 2` / Tier-3 selections; count verified by instrumented execution 2026-08-11 — the old "13" dropped the unconditional Coverage Checklist, the same bug as the tier-1/2 counts)
-- **Convergence Evidence (plans + reviews)** - `check_convergence.py` — runs every tier, unconditionally; the CLOSING-ROW rule (D-206, 2026-09-10): once a spine's Pass Ledger carries a `confirmed:` counter row, a CONVERGED flip whose LAST Pass row does not read `confirmed: 0` is refused (`_PASS_ROW` — indented rows included, blockquoted excluded; code spans masked; the row's last `confirmed:` token counts; `_closing_row_fail` is the one function the flip check and a fleet census share) — measured 2026-09-10 through that function on RAW text over 1,062 readable fleet plan files: 70 carry a case-sensitive `## Pass Ledger` heading (76 case-insensitively), 21 of them plan-set spines (the population the rule grades; 47 spines fleet-wide), 1 file with a counter row, 0 refusals
+**Phase 3: Repo Consistency (22 checks)** — `run_consistency_checks` (the `tier >= 2` / Tier-3 selections; the results list under an empty changed set, instrumented 2026-09-11 — no Tier-3 row is changed-set-gated, and 20 is the `run_optional_check` call count; the old "13" and then "14" each dropped unconditional rows). **Twelve rows are bulleted below — seven Tier-3-specific, the Kilo CLI Health Check row shared with Tier 2, plus the four unconditional every-tier rows repeated from Tier 1 (Convergence Evidence, Coverage Checklist, Plan-lock release, Review hygiene). The remaining ten are the rest of the fourteen unconditional rows** (Vendored Drift, Routing Policy, Governance Tables, Certification Coverage, Rivals dossier, Spec convergence, Rule grounding, Citations resolve, Feedback duty, Trigger routing)
+- **Convergence Evidence (plans + reviews)** - `check_convergence.py` — runs every tier, unconditionally; the CLOSING-ROW rule (D-206, 2026-09-09; landed by the review-family adoption plan on 2026-09-10): once a NON-ARCHIVED plan-set spine carries any `| Pass …` / `| Round …` table row with a `confirmed:` counter — anywhere in the file, no `## Pass Ledger` heading required — a CONVERGED or EXECUTED flip whose LAST such row does not read `confirmed: 0` is refused (`_check_spine_set` is reached from both claim paths; an `archived/` spine returns unchecked; `_PASS_ROW` — indented rows included, blockquoted excluded; fences stripped, code spans masked, HTML comments blanked, in that order; the row's last `confirmed:` token counts; `_closing_row_fail` is the single function the flip check calls and the one any fleet census must call — the census here is an ad-hoc measurement through that import, not a committed caller) — measured 2026-09-11 through that function over the 1,061 readable plan files under `/opt/*/docs/development/plans` in the 43 main checkouts (the registered worktrees excluded via `git worktree list`, not by path name — `/opt/fabrik-lib-account` is one and carries a byte-identical copy; 1,062 on disk, 1 a dangling symlink): 71 contain the substring `## Pass Ledger` (77 case-insensitively), 21 of them plan-set spines — 10 of those under `archived/`, which the rule never grades, leaving 11 (the heading is incidental: the GRADED population is every non-archived spine — 19 live of 47 fleet-wide, 28 archived) — 1 of the 1,061 carries a counter row (`2026-09-10-plan-1-review-family-adoption.md`, a bare dated plan that is NOT a plan-set spine, so the rule never reaches it) and 0 of the 19 live spines do, hence 0 refusals; separately, the last-token design's own cost is 0 of 47 spines and 0 of 805 fleet receipts carrying more than one `confirmed:` token on one Pass row when read through the rule's own masking (`check_convergence.py`'s `_PASS_ROW` comment states the convention)
 - **Coverage Checklist (reviews)** - `check_review_coverage.py` — runs every tier, unconditionally
 - **Plan-lock release** - `check_plan_lock_release.py` — runs every tier, unconditionally (advisory `warn_only=True`): reports a `.fabrik/plan-locks/<id>.json` left NON-TERMINAL (`active`/`paused`/`blocked`) after its plan finished. Every-tier ON PURPOSE — `--lean` is the mode agents run while a lock is live. Doc: [plan-lock-lifecycle.md](../reference/plan-lock-lifecycle.md)
-- **Review hygiene (advisory)** - `check_review_hygiene.py` — runs every tier, unconditionally (advisory `warn_only=True`, no failing exit path): the grep-shaped classes a review round otherwise re-sweeps by hand — fragment residue (`template-residue`: the renderer's own shapes only, `{{include:<name>}}` or `{{UPPER_CASE}}` anchored at both braces — a Go template such as `{{.Image}}` is not residue), CommonMark fence parity, a table row whose cells do not line up with its header (`raw-pipe` on a receipt; `table-parity` on ANY `.md` surface — a spec, a plan, a rendered command — through one shared helper, fenced and commented lines blanked first), and a disposition cell carrying two bare verdict words. Registered with NO arguments on purpose: it self-selects the CHANGED receipts under `docs/development/reviews/` from `git status` and prints nothing when none changed, so it is inert on every unrelated commit. The orchestrator invokes it directly at each round's start and close (`--surface` · `--receipt` · `--phrase` · `--symbol` · `--json`). Fire rate over the 275 committed hub receipts at `8092e8a8` — the numbers are TRANSCRIBED from `tests/enforcement/test_check_review_hygiene.py::test_the_fire_rate_over_the_committed_receipt_corpus`'s printed output, which pins them, never typed by hand: raw-pipe 35 hits in 21 receipts (0.584 % of 5,992 table data rows), dual-verdict 27 hits in 5 receipts (1.624 % of 1,663 disposition-bearing rows) — re-pinned 2026-09-10 after the comment blanking learned to read code spans (a cell quoting `<!-- POOL OFF` had blanked every later row of 9 of 805 fleet receipts); 4,296 rows (71.7 %) sit in a table with no header pair, or in a headed table that declares no disposition column, and are graded by neither class — counted in the summary, never read as clean — the summary line states that bound on every run. Advisory until infra measures its false-positive rate below 5 % over 20 receipts, counted from the receipts' own `RECORDED — hygiene false positive (…)` rows.
+- **Review hygiene (advisory)** - `check_review_hygiene.py` — runs every tier, unconditionally (advisory `warn_only=True`, no failing exit path): the grep-shaped classes a review round otherwise re-sweeps by hand — fragment residue (`template-residue`: the renderer's own shapes only, `{{include:<name>}}` or `{{UPPER_CASE}}` anchored at both braces — a Go template such as `{{.Image}}` is not residue), CommonMark fence parity, a table row whose cells do not line up with its header (`raw-pipe` on a receipt; `table-parity` on ANY `.md` surface — a spec, a plan, a rendered command — through one shared helper, fenced and commented lines blanked first), and a disposition cell carrying two or more bare verdict words (five of the script's eight classes — `changelog-entry`, `dead-symbol` and `stale-phrase` are the other three: the last two answer `--symbol` / `--phrase`, and `changelog-entry` runs `check_changelog.py`'s own quality rule whenever a `CHANGELOG.md` is on the surface). Registered with NO arguments on purpose: it self-selects the CHANGED receipts under `docs/development/reviews/` from `git status` and prints nothing when none changed, so it is inert on every unrelated commit. The orchestrator invokes it directly at each round's start and close (`--surface` · `--receipt` · `--phrase` · `--symbol` · `--json`). Fire rate over the 275 committed hub receipts at `8092e8a8` — the numbers are TRANSCRIBED from `tests/enforcement/test_check_review_hygiene.py::test_the_fire_rate_over_the_committed_receipt_corpus`'s printed output, which pins them, never typed by hand: raw-pipe 35 hits in 21 receipts (0.584 % of 5,992 table data rows), dual-verdict 27 hits in 5 receipts (1.624 % of 1,663 disposition-bearing rows) — re-pinned 2026-09-10 after the comment blanking learned to read code spans (a cell quoting `<!-- POOL OFF` had blanked every later row of 9 of the 805 fleet receipts (measured 2026-09-10; the population was 805 again on 2026-09-11, when the same-shaped probe found 11 receipts quoting the marker)); 4,296 rows (71.7 %) were graded by NO disposition class — which is not the same as carrying no verdict; a row with three verdict words in a header-less table lands here: a row in a table with no header pair is graded by neither class, and a row in a headed table that declares no disposition column (the header cell must be that one word, case-insensitively, bold tolerated — `Disposition (round)` is not recognised) is cell-count-checked by `raw-pipe` and never dual-verdict-graded — counted as ungraded when its cells line up, and reported as a `raw-pipe` hit when they do not (such a hit row is in neither bucket — 33 of the 35 raw-pipe hits, exactly the gap between 4,296 + 1,663 and the 5,992 denominator; the other 2 hits sit in disposition-declaring tables and are counted in the 1,663); never read as clean; every run that prints a summary states that bound (`--json` carries it as `ungraded_rows`; the no-argument gate run prints nothing at all when no receipt changed). Advisory until infra measures its false-positive rate below 5 % over 20 receipts, counted from the receipts' own `RECORDED — hygiene false positive (…)` rows.
 - **Docker** - `check_docker.py`
   - Validates amd64 compatibility, No-Alpine base images, HEALTHCHECK presence
-- **Port Registration** - `check_ports.py`
-  - Ensures PORTS.md is updated with port allocations
 - **.env Contract Sync** - `check_env_contract.py`
   - Validates environment variable contracts are consistent
-- **Dependencies Sync** - `check_deps_sync.py`
-  - Ensures dependencies are properly documented
 - **Documentation Sprawl** - `check_doc_sprawl.py` (2026-07-20: new-file detection is HEAD-or-staged-rename — a merely-staged new .md no longer bypasses the allowlist)
   - Detects documentation sprawl and duplication
   - (Doc Link Integrity, INDEX↔tree drift, and Retired-Tech Tripwire are registered in the `if tier == 2:` block — they are Tier-2-only, listed above, and do NOT run at Tier 3)
-- **Watchdog Scripts** - `check_watchdog.py`
-  - Ensures watchdog monitoring scripts are present
-- **Health Endpoint** - `check_health.py`
-  - Validates /health endpoint tests actual dependencies
 - **Duplicate Detection** - `check_duplicates.py`
   - Detects duplicate files and configurations
 - **Documentation Drift** - `docs_updater.py --check`
@@ -286,7 +278,7 @@ chatter and plain `WARNING:` output are excluded — a check opts in by prefixin
 - **VPS Docs Freshness** - `check_vps_docs.py` *(ADVISORY row)*
   - Checks VPS-facing docs haven't gone stale against the live fleet
   - Every finding it can construct is `Severity.WARN`; until 2026-08-16 its `__main__` exited 1 on ANY finding, so a `vps-status.md` the check couldn't find (it pointed at `docs/operations/`; the file is in `docs/infrastructure/`) redded a blocking row. Exit now follows severity (ERROR fails; `--strict` promotes WARN), matching `_check_runner.run_as_main`
-- **Fabrik Conventions** - `validate_conventions.py --strict --git-diff`
+- **Fabrik Convention Validator** - `validate_conventions.py --strict --git-diff` (the gate's display name; appended directly — a missing script yields an UNLABELLED green `(check not present, skipping)` row, the Kilo row's shape)
   - Validates naming conventions and structure
 - **Kilo CLI Health Check** - `check_kilo_health.sh` (shared with Tier 2, `tier >= 2`)
   - Validates Kilo CLI installation and configuration
@@ -329,7 +321,7 @@ registration in `final_gate.py`:
 | `check_env_updates` | UNWIRED | asserts about `.env` — gitignored, machine-local, never part of the commit; 482 divergences, 17/44 repos |
 | `check_test_coverage` | UNWIRED | 2063 findings, 20/44 repos; its rule is the 100%-coverage dogma the Behavior Contract rejects |
 | `check_compose_services` | UNWIRED | blind to a service added to an EXISTING compose; `service_documented` is a substring match; covered by `check_doc_sync` |
-| `check_reusable_modules` | UNWIRED | universe is empty — 0/44 repos have `src/utils/` or `src/lib/` |
+| `check_reusable_modules` | UNWIRED | universe is empty — 0/44 repos had `src/utils/` or `src/lib/` on 2026-08-16; 3 of 43 main checkouts carry a `src/lib/` on 2026-09-11, none containing a single `.py` file |
 
 `warn_only=` is **not** `advisory=`. `advisory=` only preserves stdout on exit 0; several checks carrying
 it (`check_docker`, `check_env_contract`, `check_doc_sprawl --strict`, `check_lint_ratchet`,
@@ -419,58 +411,88 @@ python -m sqlfluff lint --dialect postgres *.sql
 
 ### Enforcement Scripts
 
-All repo consistency checks are implemented by scripts in `scripts/enforcement/`, with one exception: the hub-conditional `scripts/epic_order.py --check` row. Each script validates specific Fabrik conventions. This list is reconciled against the actual `run_static_checks`/`run_consistency_checks` call sites in `scripts/final_gate.py` (2026-07-20):
+All repo consistency checks are implemented by scripts in `scripts/enforcement/` — the bare rows below, `check_*.py` and `validate_conventions.py` — with five exceptions the list spells out in full: `scripts/docs_updater.py`, `scripts/render_doc_script_links.py` (two rows), `scripts/sysadmin/install_user_hooks.py`, `scripts/check_kilo_health.sh`, and the hub-conditional `scripts/epic_order.py --check`. Each script validates specific Fabrik conventions. The list is GENERATED from `run_consistency_checks`'s own call sites in `scripts/final_gate.py` (the generation note below); `run_static_checks` contributes no rows to it — the Phase-2 tools are documented under § Static Analysis Checks:
 
-**Gate-wired (invoked by `final_gate.py`):**
-- `check_convergence.py` — Convergence-evidence gate for changed plans/reviews (every tier)
-- `check_structure.py` — Validates required directories exist
-- `check_opencode_json.py` — Validates Kilo-safe instruction list
-- `check_test_proposal.py` — Enforces Behavior Contract / One-Test Rule documentation
-- `check_plan_tickets.py` — Spine↔ticket plan-set contract (see Tier-2 list)
-- `check_readme_md.py` — Validates README.md structure
-- `check_env_vars.py` — Bans hardcoded `localhost`/`127.0.0.1` hosts and DSNs (row: "Hardcoded localhost/127.0.0.1 Ban")
-- `check_schema_sync.py` — Checks DB models match schema.sql (advisory)
-- `check_env_example.py` — Validates .env.example completeness (ADVISORY row)
-- `check_docker.py` — Enforces amd64, no-Alpine, HEALTHCHECK
-- `check_secrets.py` — Scans for hardcoded secrets
-- `check_env_contract.py` — Validates env var contracts
-- `check_ports.py` — Checks PORTS.md registration
-- `check_health.py` — Validates /health endpoint
-- `check_deps_sync.py` — Validates dependencies documented
-- `validate_conventions.py` — Enforces naming/structure conventions (Tier 3, `--strict --git-diff`)
-- `check_doc_sync.py` — Doc Sync Matrix (the consolidated "update docs when code changes" gate)
-- `check_imports_resolvable.py` — Phantom-import guard (clean-checkout parity, advisory)
-- `check_lint_ratchet.py` — Repo-wide ruff count may only go down (advisory)
-- `check_subagent_flywheel.py` — Pool-or-declare subagent flywheel (BLOCKING while the pool policy is ON; stands down under D-181/D-182 — the committed `_POOL_POLICY_ON` constant)
-- `check_mutation.py` — Mutation testing (ADVISORY row; a real run only via direct `FABRIK_MUTMUT=1` invocation or the Sunday cron — the gate strips the flag for its own child, orphan protection)
-- `check_doc_stubs.py` — Doc stub force-fill (ADVISORY row)
-- `check_script_headers.py` — Script `# AFTER-EDIT:` coupling header (ADVISORY row)
-- `check_print_ban.py` — Bans `print()`/`console.log()` in production code
-- `check_no_host_ports.py` — No host-bound ports on Traefik-routed compose services
-- `check_traefik_labels.py` — Full Traefik label set on `traefik.enable=true` services
-- `check_spec_db_match.py` — Spec ↔ project DB-name consistency
-- `check_undeclared_imports.py` — Undeclared-import guard vs requirements.txt
-- `check_synced_unmodified.py` — Fabrik-synced files match `/opt/fabrik` canonical bytes
-- `check_user_guide.py` — User-guide presence when `project.yaml::has_user_guide` is true
-- `scripts/epic_order.py --check` — Epic-graph integrity over `docs/development/epics/` (Tier 2; hub-conditional: no row without the script, a labelled `(N/A — …)` skip without the dir)
-- `check_doc_sprawl.py` — Documentation sprawl/duplication detection (HEAD-or-rename existing-file test)
-- `check_doc_links.py` — Live-tree link integrity (docs-truth durability gate)
-- `check_doc_index.py` — INDEX.md ↔ docs tree bidirectional drift
-- `check_retired_terms.py` — Retired-tech tripwire (ADVISORY row, always exit 0)
-- `check_watchdog.py` — Watchdog monitoring scripts present
-- `check_duplicates.py` — Duplicate file/config detection
-- `check_vps_docs.py` — VPS-facing docs freshness vs the live fleet (ADVISORY row; exit follows severity)
-- `docs_updater.py --check` — Documentation drift vs code implementation
-- `check_kilo_health.sh` — Kilo CLI installation/config (runs at `tier >= 2`)
+**Gate-wired (invoked by `final_gate.py`):** — this list is GENERATED from an instrumented run of `run_consistency_checks(tier=t, changed_files=set())` for t = 1, 2, 3 with `check_only=True`, `run_optional_check` stubbed to record `(script_path, check_name, warn_only, advisory)` and return `(check_name, True, "")`, and `run_cmd` stubbed to `(0, "")` (2026-09-11; 61 rows: 58 through `run_optional_check`, 3 appended directly). Regenerate it the same way — never by hand: three hand-kept versions drifted (2026-07-20, 2026-08-16, 2026-09-11). A row whose display name says BLOCKING but is registered `advisory=True` (Command Corpus, Subagent Flywheel) is printed as registered — the flag, not the name, is what the gate does.
 
-**On disk but NOT gate-wired** (dead code — no call site in `final_gate.py`; verified via grep 2026-07-20). Their intent is now covered by `check_doc_sync.py` (Doc Sync Matrix) + `docs_updater.py --check`, not by these files:
-- `check_changelog.py` — was: validates CHANGELOG.md updated
+- `scripts/docs_updater.py` — Documentation Drift (Tier 3; ADVISORY row)
+- `check_certification_coverage.py` — Certification Coverage (advisory; board mix-up BLOCKS) (every tier; ADVISORY row)
+- `check_citations_resolve.py` — Citations resolve (path:line lands) (every tier; advisory — `warn_only`, never blocks)
+- `check_command_corpus.py` — Command Corpus (references resolve — BLOCKING) (Tier 2; ADVISORY row)
+- `check_convergence.py` — Convergence Evidence (plans + reviews) (every tier; BLOCKING)
+- `check_decisions_unique.py` — Decision Ledger (unique ids) (Tier 1/2; BLOCKING)
+- `check_doc_index.py` — INDEX.md ↔ docs tree drift (Tier 2; BLOCKING)
+- `check_doc_links.py` — Doc Link Integrity (live tree) (Tier 2; BLOCKING)
+- `check_doc_sprawl.py` — Documentation Sprawl (Tier 3; ADVISORY row)
+- `check_doc_stubs.py` — Doc stub fill (Tier 1/2; advisory — `warn_only`, never blocks)
+- `check_doc_sync.py` — Doc Sync Matrix (Tier 1/2; BLOCKING)
+- `check_docker.py` — Docker (amd64 platform, No-Alpine builds, HEALTHCHECK) (Tier 3; ADVISORY row)
+- `check_duplicates.py` — Duplicate Detection (Tier 3; BLOCKING)
+- `check_env_contract.py` — .env Contract Sync (Tier 3; ADVISORY row)
+- `check_env_example.py` — .env.example Completeness (Tier 2; advisory — `warn_only`, never blocks)
+- `check_env_vars.py` — Hardcoded localhost/127.0.0.1 Ban (Tier 1/2; BLOCKING)
+- `check_feedback_duty.py` — Feedback duty (every tier; advisory — `warn_only`, never blocks)
+- `check_frozen_chain.py` — Frozen Chain (contract pins) (Tier 1/2; advisory — `warn_only`, never blocks)
+- `check_governance_tables.py` — Governance Tables (rules must render) (every tier; advisory — `warn_only`, never blocks)
+- `check_hooks_index.py` — Hooks Index Fresh (Tier 2; BLOCKING)
+- `check_imports_resolvable.py` — Imports Resolvable (clean checkout) (Tier 1/2; ADVISORY row)
+- `check_lint_ratchet.py` — Lint Ratchet (repo-wide, no new debt) (Tier 1/2; ADVISORY row)
+- `check_mutation.py` — Mutation (opt-in FABRIK_MUTMUT) (Tier 1/2; advisory — `warn_only`, never blocks)
+- `check_no_host_ports.py` — No Host Ports on Traefik Services (Tier 1/2; BLOCKING)
+- `check_opencode_json.py` — opencode.json (Kilo-Safe Rules) (Tier 2; BLOCKING)
+- `check_pack_reachability.py` — Rule-pack reachability (Tier 2; advisory — `warn_only`, never blocks)
+- `check_phase_tests.py` — Phase Tests (plan-window) (Tier 2; advisory — `warn_only`, never blocks)
+- `check_plan_lock_release.py` — Plan-lock release (every tier; advisory — `warn_only`, never blocks)
+- `check_plan_tickets.py` — Plan-Set Contract (Spine+Tickets) (Tier 2; BLOCKING)
+- `check_print_ban.py` — Print/Console.log Ban (Tier 1/2; BLOCKING)
+- `check_readme_md.py` — README.md (Primary Entry Point) (Tier 2; BLOCKING)
+- `check_retired_terms.py` — Retired-Tech Tripwire (Tier 2; advisory — `warn_only`, never blocks)
+- `check_review_coverage.py` — Coverage Checklist (reviews) (every tier; ADVISORY row)
+- `check_review_hygiene.py` — Review hygiene (advisory) (every tier; advisory — `warn_only`, never blocks)
+- `check_rivals_dossier.py` — Rivals dossier (every tier; advisory — `warn_only`, never blocks)
+- `check_routing_policy.py` — Routing Policy (operator deny + allowlist) (every tier; advisory — `warn_only`, never blocks)
+- `check_rule_grounding.py` — Rule grounding (plans) (every tier; advisory — `warn_only`, never blocks)
+- `check_schema_sync.py` — Schema Sync (DB Models) (Tier 1/2; ADVISORY row)
+- `check_script_headers.py` — Script Coupling Header (Tier 1/2; advisory — `warn_only`, never blocks)
+- `check_secrets.py` — Secrets (Zero Hardcoding) (Tier 1/2; BLOCKING)
+- `check_spec_convergence.py` — Spec convergence (every tier; advisory — `warn_only`, never blocks)
+- `check_spec_db_match.py` — Spec <-> Project DB Name Match (Phase 1c) (Tier 1/2; BLOCKING)
+- `check_stage_artifacts.py` — Stage-Skip Artifact Gate (spec freshness + FROZEN header shape) (Tier 2; BLOCKING)
+- `check_structure.py` — Project Structure (Tier 2; BLOCKING)
+- `check_subagent_flywheel.py` — Subagent Flywheel (pool-or-declare — BLOCKING) (Tier 1/2; ADVISORY row)
+- `check_sync_trigger_coverage.py` — Sync Trigger Coverage (Tier 2; BLOCKING)
+- `check_synced_unmodified.py` — Fabrik-Synced Files Unmodified (Tier 1/2; BLOCKING)
+- `check_test_proposal.py` — Behavior Contract Proposal (Tier 2; BLOCKING)
+- `check_ticket_breadth.py` — Ticket Breadth (plan sets) (Tier 2; advisory — `warn_only`, never blocks)
+- `check_traefik_labels.py` — Full Traefik Label Set (§7) (Tier 1/2; BLOCKING)
+- `check_trigger_routing.py` — Trigger routing (advertised phrase -> its own command) (every tier; advisory — `warn_only`, never blocks)
+- `check_undeclared_imports.py` — Undeclared Imports (requirements.txt) (Tier 1/2; BLOCKING)
+- `check_user_guide.py` — User Guide Presence (Tier 2; BLOCKING)
+- `check_vendored_drift.py` — Vendored Drift (sync-excluded repos) (every tier; advisory — `warn_only`, never blocks)
+- `check_vps_docs.py` — VPS Docs Freshness (Tier 3; advisory — `warn_only`, never blocks)
+- `scripts/render_doc_script_links.py` — Doc-Script Coverage (ratchet) (Tier 1/2; BLOCKING)
+- `scripts/render_doc_script_links.py` — Doc-Script Links (Tier 1/2; BLOCKING)
+- `scripts/sysadmin/install_user_hooks.py` — User-Level Hooks Registered (Tier 2; advisory — `warn_only`, never blocks)
+- `validate_conventions.py --strict --git-diff` — Fabrik Convention Validator (Tier 3; appended outside `run_optional_check` — appended directly; a missing script yields an UNLABELLED green `(check not present, skipping)` row that reaches neither `--json` warnings nor `skipped_checks`)
+- `scripts/check_kilo_health.sh` — Kilo CLI Health Check (Tier 2/3; appended outside `run_optional_check` — appended directly; a missing script yields an UNLABELLED green `(check not present, skipping)` row that reaches neither `--json` warnings nor `skipped_checks`)
+- `scripts/epic_order.py --check` — epic_order --check (Tier 2; appended outside `run_optional_check` — hub-conditional: no row where `scripts/epic_order.py` is absent)
+
+**On disk but NOT gate-wired as their own row** (no `run_optional_check` call site in `final_gate.py`; NOT all dead — five are reached through another row's import and a sixth only through an explicit `--surface` run, see each bullet; re-verified 2026-09-11 against `final_gate.py`'s eight `# UNWIRED —` markers — the four retired from the Tier-2 block (`check_env_updates.py`, `check_test_coverage.py`, `check_compose_services.py`, `check_reusable_modules.py`) and the four from the Tier-3 block (`check_ports.py`, `check_deps_sync.py`, `check_watchdog.py`, `check_health.py`); all eight carry a 2026-08-16 measurement beside their marker). Their intent is now covered by `check_doc_sync.py` (Doc Sync Matrix) + `docs_updater.py --check`, not by these files:
+- `check_changelog.py` — was: validates CHANGELOG.md updated (not gate-wired as a ROW; imported behind a `try/except ImportError` by `check_review_hygiene.py`'s `changelog-entry` class, reached only by a `--surface` run whose expansion contains a file named `CHANGELOG.md`)
 - `check_index_md.py` — was: verifies INDEX.md reflects current structure
 - `check_configuration_md.py` — was: ensures env vars documented in CONFIGURATION.md
 - `check_openapi_sync.py` — was: validates API docs match routes
-- `check_docs.py` — was: ensures required docs present (removed per `final_gate.py`'s inline removal comment — hardcoded to `src/fabrik/`, dead in every scaffolded project; line numbers deliberately not cited, they drift)
+- `check_docs.py` — was: warns when a new `src/fabrik/` module's `__init__.py` has no mention in `docs/INDEX.md` and no dedicated doc file (removed as a ROW per `final_gate.py`'s inline removal comment — hardcoded to `src/fabrik/`; line numbers deliberately not cited, they drift); LIVE via `validate_conventions.py` on every changed `__init__.py`
+- `check_ports.py` — was: PORTS.md registration (`# UNWIRED —` marker, 2026-08-16); LIVE via `validate_conventions.py` on every changed Dockerfile and `.py/.ts/.tsx/.js/.yaml/.yml` file
+- `check_deps_sync.py` — was: dependencies documented (`# UNWIRED —` marker, 2026-08-16); LIVE via `validate_conventions.py` on a changed `requirements.txt`
+- `check_watchdog.py` — was: watchdog scripts present (`# UNWIRED —` marker, 2026-08-16); LIVE via `validate_conventions.py` on every changed compose file it dispatches (`check_watchdog.py` itself silently skips `docker-compose.yml` and any case-variant — its guard matches the un-lowercased name while the dispatcher lowercases first)
+- `check_health.py` — was: /health endpoint validation (`# UNWIRED —` marker, 2026-08-16); LIVE via `validate_conventions.py` on every changed `.py` file (the check itself skips any file with `test` in its name)
+- `check_env_updates.py` — was: .env Updates (Secrets) (`# UNWIRED —` marker, 2026-08-16: could not fail)
+- `check_test_coverage.py` — was: Test Coverage (New Code) (`# UNWIRED —` marker, 2026-08-16)
+- `check_compose_services.py` — was: Compose Services Docs (`# UNWIRED —` marker, 2026-08-16)
+- `check_reusable_modules.py` — was: Reusable Module Tagging (`# UNWIRED —` marker, 2026-08-16: 0 of 44 repos had `src/utils/` or `src/lib/` then; 3 of 43 main checkouts carry a `src/lib/` on 2026-09-11, none containing a single `.py` file)
 
-Do not delete these 5 files yourself — they are dead but undecided (kept for reference / possible future re-wiring).
+Do not delete any of these 13 files yourself. Five are LIVE through an import — `check_health.py`, `check_ports.py`, `check_watchdog.py`, `check_deps_sync.py` and `check_docs.py` are imported by `validate_conventions.py` (`check_docs` inline in `run_all_checks`, the other four in the `run_check_*` wrappers it calls; the Tier-3 Fabrik Convention Validator row runs it with `--git-diff` over every changed file; the imports are unguarded and deferred, so deleting one reds the Tier-3 row with a `ModuleNotFoundError` the first time a file its dispatch matches appears in the diff — `__init__.py` for `check_docs`, any `.py` for `check_health`, a compose file for `check_watchdog`, `requirements.txt` for `check_deps_sync`, a Dockerfile or `.py/.ts/.tsx/.js/.yaml/.yml` for `check_ports`). `check_changelog.py` is imported — behind a `try/except ImportError` that degrades to an advisory hit — by `check_review_hygiene.py`'s `changelog-entry` class, which the gate's argument-less row never reaches: it fires on any `--surface` run whose expansion contains a file named `CHANGELOG.md` — a directory surface counts, since `--surface <dir>` rglobs every `.md` and `.py` beneath it — which is how `/fabrik-review` and the `term-edit` fragment reach it when the surface they name includes the CHANGELOG (no corpus invocation names the file itself). The other seven carry no gate row: four — `check_env_updates.py`, `check_test_coverage.py`, `check_compose_services.py`, `check_reusable_modules.py` — are still EXECUTED as vacuity canaries by `scripts/sysadmin/liveness_audit.py` (`CANARIES`), and `check_reusable_modules.py` is imported by `tests/test_cross_cutting_enforcement.py`, so deleting one breaks that audit (and that test), not the gate; only `check_index_md.py`, `check_configuration_md.py` and `check_openapi_sync.py` have no caller at all.
 
 ---
 
@@ -607,6 +629,8 @@ entire API becomes unresponsive. This test verifies graceful degradation.
 
 #### check_env_updates.py — UNWIRED 2026-08-16
 
+**⚠️ NOT gate-wired** — `final_gate.py`'s own `# UNWIRED — check_env_updates.py` marker retired the row on 2026-08-16 (the measurement sits beside it); still EXECUTED as a vacuity canary by `scripts/sysadmin/liveness_audit.py` (`CANARIES`), so it is not dead code.
+
 **Purpose (actual):** compares `.env.example` against the local `.env` and reminds you which declared
 variables have no local value. It never scanned code for secrets — that is `check_secrets.py`.
 
@@ -622,9 +646,9 @@ part of the change under gate and legitimately omits every optional variable. 48
 
 #### check_changelog.py
 
-**⚠️ NOT gate-wired** — exists on disk, no call site in `final_gate.py` (verified 2026-07-20). Covered instead by `check_doc_sync.py` (Doc Sync Matrix), which folds in the CHANGELOG-on-change rule.
+**⚠️ NOT gate-wired as its own row — imported behind a guard** — no `run_optional_check` call site in `final_gate.py` (re-verified 2026-09-11); `check_review_hygiene.py`'s `changelog-entry` class imports and calls its `check_changelog_quality` behind a `try/except ImportError` (a missing file degrades to an advisory hit), and only a `--surface` run whose expansion contains a file named `CHANGELOG.md` (a directory surface counts) reaches that class — the gate's argument-less row never does. The CHANGELOG-on-change rule itself is `check_doc_sync.py`'s (Doc Sync Matrix).
 
-**Purpose (as written, dead):** Ensures CHANGELOG.md is updated for significant code changes.
+**Purpose:** Ensures CHANGELOG.md is updated for significant code changes.
 
 **Triggers when:**
 - Changes in `src/`, `scripts/`, `templates/`
@@ -677,6 +701,8 @@ part of the change under gate and legitimately omits every optional variable. 48
 
 #### check_test_coverage.py — UNWIRED 2026-08-16
 
+**⚠️ NOT gate-wired** — `final_gate.py`'s own `# UNWIRED — check_test_coverage.py` marker retired the row on 2026-08-16 (the measurement sits beside it); still EXECUTED as a vacuity canary by `scripts/sysadmin/liveness_audit.py` (`CANARIES`), so it is not dead code.
+
 **Purpose (actual):** greps `tests/` for the NAME of each new public `def`/`class` added under `src/`. It
 cannot tell a meaningful test from a name collision, and it never sees `scripts/` or `libs/`.
 
@@ -696,6 +722,8 @@ repos already violate it — 2223 undeclared vars, 240 in the hub. Decomposed by
 mistaken for a loose regex: `os.getenv` 1720, `os.environ.get` 535, `os.environ[...]` 88, `settings.X` 1.
 
 #### check_compose_services.py — UNWIRED 2026-08-16
+
+**⚠️ NOT gate-wired** — `final_gate.py`'s own `# UNWIRED — check_compose_services.py` marker retired the row on 2026-08-16 (the measurement sits beside it); still EXECUTED as a vacuity canary by `scripts/sysadmin/liveness_audit.py` (`CANARIES`), so it is not dead code.
 
 **Purpose (actual):** looks for each newly-added compose service NAME as a case-insensitive substring of
 `docs/SERVICES.md` / `README.md`. It never inspected ports, env vars or volumes.
@@ -757,7 +785,22 @@ API_KEY = os.getenv('API_KEY')
 - Prevents deployment failures due to missing env vars
 - Ensures clear documentation for setup
 
+#### check_reusable_modules.py
+
+**⚠️ NOT gate-wired** — `final_gate.py`'s own `# UNWIRED — check_reusable_modules.py` marker retired it on 2026-08-16 (its universe was empty: 0 findings fleet-wide — 3 of 43 main checkouts now carry a `src/lib/`, none containing a single `.py` file, re-derived 2026-09-11; the marker's own 2026-08-16 figure was 0 of 44 repos with either directory); this section was added on 2026-09-11 — the doc had none for it before.
+
+**Purpose (from the script's docstring):** Tier 2 enforcement (warning-level, non-blocking): verifies that every .py module in src/utils/ and src/lib/ is listed in INDEX.md with a [reusable] marker.
+
+**Validates:**
+- what the docstring states above — no gate row and no gate-side import reach it
+
+**Why this matters:**
+- still EXECUTED as a vacuity canary by `scripts/sysadmin/liveness_audit.py` (`CANARIES`) and imported by `tests/test_cross_cutting_enforcement.py` — deleting it breaks that audit and that test, not the gate
+- the retirement measurement sits beside its marker in `final_gate.py`
+
 #### check_ports.py
+
+**⚠️ NOT gate-wired as its own row — LIVE via import** — `final_gate.py`'s `# UNWIRED — check_ports.py` marker retired the row with the measurement that did so (re-verified 2026-09-11); `validate_conventions.py` imports `check_file` from it and runs it on every changed Dockerfile and `.py/.ts/.tsx/.js/.yaml/.yml` file under the Tier-3 row, so the file is not dead.
 
 **Purpose:** Ensures PORTS.md is updated with port allocations.
 
@@ -773,36 +816,45 @@ API_KEY = os.getenv('API_KEY')
 
 #### check_deps_sync.py
 
-**Purpose:** Ensures dependencies are properly documented and synchronized.
+**⚠️ NOT gate-wired as its own row — LIVE via import** — `final_gate.py`'s `# UNWIRED — check_deps_sync.py` marker retired the row (re-verified 2026-09-11); `validate_conventions.py` imports `check_file` from it and runs it on a changed `requirements.txt` under the Tier-3 row, so the file is not dead.
+
+**Purpose:** Ensures `requirements.txt` and `pyproject.toml` declare the same dependency set (its three message shapes: a package in one file and not the other, plus a `pyproject.toml` that fails to parse, which short-circuits the comparison).
 
 **Validates:**
-- `requirements.txt` contains production dependencies only
-- `requirements-dev.txt` contains development dependencies
-- Package versions are pinned
-- No dependency conflicts
-- Development dependencies properly separated
+- on a changed `requirements.txt` with a sibling `pyproject.toml`: every package named in the file's `[project] dependencies` is named in the other and vice versa (two set differences over package names with version specifiers stripped) — `[project.optional-dependencies]`, PEP-735 `[dependency-groups]` and `[tool.poetry.dependencies]` are NOT read, so a dev dependency listed in both files is still reported as missing from `pyproject.toml`; a `pyproject.toml` that fails to parse is reported and ends the check — nothing about pins, conflicts or dev/prod separation
 
 **Why this matters:**
-- Prevents import errors in deployment
-- Ensures reproducible builds
+- Catches an install-set divergence between the two files before it reaches a deployment (it does NOT pin, resolve or reconcile versions)
+- Prevents import errors in deployment when a package is declared in one install file only
 
 #### check_docs.py
 
-**⚠️ NOT gate-wired** — removed from the gate per `final_gate.py`'s inline removal comment ("hardcoded to `src/fabrik/`, dead in every scaffolded project"; line numbers deliberately not cited, they drift); the file still exists on disk. Covered instead by `check_doc_sync.py` (Doc Sync Matrix) + `docs_updater.py --check` (Tier 3).
+**⚠️ NOT gate-wired as its own row — LIVE via import** — removed as a row per `final_gate.py`'s inline removal comment (it "was hardcoded to src/fabrik/ and dead in every scaffolded project"; line numbers deliberately not cited, they drift); `validate_conventions.py` still imports `check_file` from it and runs it on every changed `__init__.py` under the Tier-3 row. Covered instead by `check_doc_sync.py` (Doc Sync Matrix) + `docs_updater.py --check` (Tier 3).
 
-**Purpose (as written, dead):** Ensures all required documentation files are present.
+**Purpose:** "Check that new src/ modules have corresponding documentation" (the docstring) — it warns when a new `src/fabrik/` module's `__init__.py` has no mention in `docs/INDEX.md` and no dedicated doc file; it never checks that a set of required doc FILES is present.
 
 **Validates:**
-- README.md exists and has required sections
-- CONFIGURATION.md documents all env vars
-- CHANGELOG.md exists for version tracking
-- Required API docs are generated
+- for each changed `__init__.py` of a `src/fabrik/` SUB-package (the package's own `src/fabrik/__init__.py` is dispatched and then silently skipped by the check's has-subdirectory gate), that the module's name appears in `docs/INDEX.md` or that one of `docs/<name>.md`, `docs/reference/<name>.md`, `docs/api/<name>.md` exists — a warning otherwise; nothing else
 
 **Why this matters:**
 - Ensures project is self-documenting
 - Prevents missing critical documentation
 
+#### check_watchdog.py
+
+**⚠️ NOT gate-wired as its own row — LIVE via import** — `final_gate.py`'s `# UNWIRED — check_watchdog.py` marker retired the row (re-verified 2026-09-11); `validate_conventions.py` imports `check_file` from it and runs it on every changed compose file it dispatches under the Tier-3 row (the check itself silently skips `docker-compose.yml` and any case-variant — its own guard matches `file_path.name` un-lowercased against `compose.yaml`, `compose.yml`, `docker-compose.yaml`, while the dispatcher lowercases first), so the file is not dead. This section was added on 2026-09-11 — the doc had none for it before.
+
+**Purpose (from the script's docstring):** Check that services have watchdog scripts.
+
+**Validates:**
+- what the docstring states above, per changed compose file `validate_conventions.py` dispatches (it dispatches all four names, lowercased); the check's own guard then drops `docker-compose.yml` and any case-variant, as the banner above says
+
+**Why this matters:**
+- the row is gone but the check still runs on every dispatched compose change — a deletion breaks the Tier-3 validator with an unguarded, deferred import: the raise lands the first time a compose file is in the diff
+
 #### check_health.py
+
+**⚠️ NOT gate-wired as its own row — LIVE via import** — `final_gate.py`'s `# UNWIRED — check_health.py` marker retired the row (re-verified 2026-09-11); `validate_conventions.py` imports `check_file` from it and runs it on every changed `.py` file under the Tier-3 Fabrik Convention Validator row (the check itself skips any file with `test` in its name), so the file is not dead.
 
 **Purpose:** Ensures health endpoints test actual dependencies.
 
@@ -832,7 +884,9 @@ API_KEY = os.getenv('API_KEY')
 
 #### update_agents_toc.py
 
-**Purpose:** Ensures AGENTS.md table of contents is current.
+**⚠️ ARCHIVED, NOT gate-wired** — the script lives at `scripts/archived/update_agents_toc.py`; no call site in `final_gate.py` (re-verified 2026-09-11).
+
+**Purpose (as written, dead):** Ensures AGENTS.md table of contents is current.
 
 **Validates:**
 - All sections are listed in TOC
@@ -1088,6 +1142,7 @@ means updating this page in the same change. This list is generated from those h
 - `scripts/enforcement/check_changelog.py`
 - `scripts/enforcement/check_compose_services.py`
 - `scripts/enforcement/check_configuration_md.py`
+- `scripts/enforcement/check_convergence.py`
 - `scripts/enforcement/check_deps_sync.py`
 - `scripts/enforcement/check_doc_index.py`
 - `scripts/enforcement/check_doc_links.py`
