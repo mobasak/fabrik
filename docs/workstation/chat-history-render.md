@@ -55,7 +55,13 @@ python3 /opt/fabrik/scripts/render_chat_history.py --all                        
   sessions never shares a file: the second renders as `<label>-<id8>.md` with a `WARN` on stderr.
 - **Incremental:** `.render-state.json` records each transcript's size and mtime; an unchanged session is
   skipped, so a refresh over 276 sessions costs seconds.
-- A project with no transcripts is a named `ERROR` on stderr and exit 1, never a traceback.
+- A project with no transcripts is a named `ERROR` on stderr and exit 1, never a traceback. One unreadable
+  transcript (a file mid-write, a permission slip) is a `WARN` on stderr and is skipped — the rest of the
+  project and every other project under `--all` still render; the exit code is then 1. A malformed
+  `names.json` or `.render-state.json` reads as empty rather than crashing.
+- A `--name` prefix must carry at least 8 id characters, so one prefix never claims several sessions.
+- A render outlives its transcript on purpose: if retention or a hand deletes the `.jsonl`, the `.md` stays
+  (it is then the last copy of that conversation) and simply drops out of `INDEX.md`.
 
 ## How to use it from a window
 

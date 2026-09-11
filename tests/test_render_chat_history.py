@@ -172,3 +172,57 @@ def test_two_sessions_given_one_label_never_share_a_file(box: dict[str, Path]) -
     index = (box["out"] / "-opt-demo" / "INDEX.md").read_text()
     assert index.count("| `") == 2
     assert index.count("(agent-1.md)") == 1
+
+
+def test_relabel_onto_an_existing_label_never_deletes_the_other_sessions_file(
+    box: dict[str, Path],
+) -> None:
+    _write_session(box["projects"], "bbbb2222-0000-0000-0000-000000000000", _demo_records())
+    rch.main(["--project", "/opt/demo", "--name", "aaaa1111=x", "--name", "bbbb2222=y"])
+    rch.main(["--project", "/opt/demo", "--name", "aaaa1111=y"])
+    out = box["out"] / "-opt-demo"
+    files = sorted(p.name for p in out.glob("*.md") if p.name != "INDEX.md")
+    assert len(files) == 2, files
+    index = out.read_text() if out.is_file() else (out / "INDEX.md").read_text()
+    for name in files:
+        assert f"({name})" in index, (name, index)
+
+
+@pytest.mark.parametrize("fname", ["names.json", ".render-state.json"])
+def test_a_non_dict_sidecar_is_ignored_not_a_crash(box: dict[str, Path], fname: str) -> None:
+    out = box["out"] / "-opt-demo"
+    out.mkdir(parents=True)
+    (out / fname).write_text("[]")
+    assert rch.main(["--project", "/opt/demo"]) == 0
+    assert (out / "aaaa1111.md").exists()
+
+
+def test_an_unreadable_transcript_is_skipped_with_a_warning_and_the_rest_renders(
+    box: dict[str, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    bad = _write_session(box["projects"], "bbbb2222-0000-0000-0000-000000000000", _demo_records())
+    bad.chmod(0)
+    try:
+        rc = rch.main(["--project", "/opt/demo"])
+    finally:
+        bad.chmod(0o600)
+    assert rc == 1
+    assert "WARN" in capsys.readouterr().err
+    assert (box["out"] / "-opt-demo" / "aaaa1111.md").exists()
+
+
+def test_a_deleted_render_is_regenerated_even_when_the_transcript_is_unchanged(
+    box: dict[str, Path],
+) -> None:
+    rch.main(["--project", "/opt/demo"])
+    target = box["out"] / "-opt-demo" / "aaaa1111.md"
+    target.unlink()
+    rch.main(["--project", "/opt/demo"])
+    assert target.exists()
+
+
+def test_a_name_prefix_shorter_than_eight_chars_is_refused(
+    box: dict[str, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert rch.main(["--project", "/opt/demo", "--name", "aaa=agent-1"]) == 2
+    assert "at least 8" in capsys.readouterr().err

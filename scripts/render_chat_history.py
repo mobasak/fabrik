@@ -146,10 +146,12 @@ def render_session(path: Path, out: Path, label: str) -> dict:
 
 
 def _load_json(path: Path) -> dict:
+    """A missing, unreadable, malformed or non-object sidecar reads as empty — never a crash."""
     try:
-        return json.loads(path.read_text())
+        loaded = json.loads(path.read_text())
     except (OSError, ValueError):
         return {}
+    return loaded if isinstance(loaded, dict) else {}
 
 
 def render_project(key: str, names: dict[str, str]) -> int:
@@ -168,7 +170,7 @@ def render_project(key: str, names: dict[str, str]) -> int:
         names_path.write_text(json.dumps(stored_names, indent=2, sort_keys=True) + "\n")
     state = _load_json(state_path)
     rows: list[dict] = []
-    rendered = 0
+    rendered = failed = 0
     labels: dict[str, str] = {}
     for path in transcripts:
         sid = path.stem
@@ -180,6 +182,7 @@ def render_project(key: str, names: dict[str, str]) -> int:
             )
             label = f"{label}-{sid[:8]}"
         labels[sid] = label
+    taken = {f"{label}.md" for label in labels.values()}
     for path in transcripts:
         sid = path.stem
         label = labels[sid]
@@ -191,9 +194,16 @@ def render_project(key: str, names: dict[str, str]) -> int:
             rows.append(prev["row"])
             continue
         old = prev.get("row", {}).get("file") if prev else None
-        if old and old != out.name:
+        if old and old != out.name and old not in taken:  # never another session's live file
             (out_dir / old).unlink(missing_ok=True)
-        row = render_session(path, out, label)
+        try:
+            row = render_session(path, out, label)
+        except OSError as exc:  # one unreadable transcript must not abort the batch
+            print(f"WARN: skipped {path}: {exc}", file=sys.stderr)
+            failed += 1
+            if prev:
+                rows.append(prev["row"])
+            continue
         state[sid] = {"sig": sig, "row": row}
         rows.append(row)
         rendered += 1
@@ -212,8 +222,10 @@ def render_project(key: str, names: dict[str, str]) -> int:
         )
     (out_dir / "INDEX.md").write_text("\n".join(index) + "\n")
     state_path.write_text(json.dumps(state, indent=1, sort_keys=True) + "\n")
-    print(f"{key}: {len(rows)} sessions, {rendered} (re)rendered → {out_dir}/INDEX.md")
-    return 0
+    print(
+        f"{key}: {len(rows)} sessions, {rendered} (re)rendered, {failed} skipped → {out_dir}/INDEX.md"
+    )
+    return 1 if failed else 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -237,8 +249,11 @@ def main(argv: list[str] | None = None) -> int:
     names: dict[str, str] = {}
     for item in args.name:
         prefix, _, label = item.partition("=")
-        if not prefix or not label or "/" in label:
-            print(f"ERROR: --name expects ID-PREFIX=LABEL, got {item!r}", file=sys.stderr)
+        if len(prefix) < 8 or not label or "/" in label:
+            print(
+                f"ERROR: --name expects ID-PREFIX=LABEL with at least 8 id characters, got {item!r}",
+                file=sys.stderr,
+            )
             return 2
         names[prefix] = label
     if args.all:
