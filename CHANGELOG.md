@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Review-family pass 3 spec CONVERGED: the last five loops, the bounded hop, the six review-loop cost fixes (2026-09-11)
+
+`docs/superpowers/specs/2026-09-11-review-family-pass3-design.md` converged under D-212 with its own bounded-hop and delta-sizing rules applied to its review. It finishes the family's move under D-203 (the five loops that include neither termination fragment, the five `term-coverage` consumers, 66 restatements in 11 commands) and specifies six text-only fixes for the measured cost of every review loop (838 of 882 minutes of the archived adoption plan): the bounded delta hop, delta rounds sized by the fix, a route-up that fires before the scoped record opens or ends it one round early, a mandatory round zero, the git-verb prohibition in every seat brief, and no second docs loop over docs the heavy review already graded. Decision row minted at the flip.
+
 ### Changed — The review family adopts D-203, Finish: the whole-plan review, the archive, the forced sync (2026-09-11)
 
 Plan `2026-09-10-plan-1-review-family-adoption` EXECUTED and archived (Phases A 6f023088 · B ece06333 ·
