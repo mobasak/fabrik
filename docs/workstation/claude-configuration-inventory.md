@@ -33,7 +33,7 @@ carry their own MCP roster.
 
 | Path | Size | Function | State |
 |---|---|---|---|
-| `~/.claude/projects/` | **6.9 GB** | Per-project session transcripts (`.jsonl`) — the corpus `session-recall` indexes | Live; largest item on the box |
+| `~/.claude/projects/` | **6.9 GB** | Per-project session transcripts (`.jsonl`) — the corpus `session-recall` indexes | Live; largest item on the box. ⚠️ **Claude Code DELETES these on a timer**: `cleanupPeriodDays` in `~/.claude/settings.json`, default 30 days, left UNSET here until 2026-09-11 — so the oldest surviving transcript was always exactly 30 days old. `dr_claude_backup.sh` deliberately does NOT mirror `projects/` and there is no dump of the recall DB, which made a recall row the LAST copy of an aged-out session. Now set to **3650** (~10 years, the value the binary's own error text suggests; schema is `int().positive()`, minimum 1, no maximum). D-233 |
 | `~/.claude/file-history/` | **2.2 GB** | Edit undo history per session | Live; never pruned automatically |
 | `~/.claude/session-env/` | 186 MB (46,789 entries) | Ephemeral per-session env dirs | Live; entry count is the real cost, not bytes |
 | `~/.claude/telemetry/` | 141 MB | Anthropic usage telemetry queue | Live |

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Claude Code transcript retention raised from 30 days to ~10 years (2026-09-11)
+
+`cleanupPeriodDays: 3650` added to `~/.claude/settings.json` on the operator's word. The key was unset, so the 30-day default applied and the oldest surviving transcript on disk was always exactly 30 days old — while nothing backs up `~/.claude/projects/` and there is no dump of the session-recall database, which made a recall row the last copy of any aged-out session. That became concrete when a documented `--full` reindex reclaimed 5,791 orphaned files. Value taken from the binary's own error text rather than invented; schema is `int().positive()`, minimum 1, no maximum. Backed up before the edit, mirrored to the DR store and verified byte-identical. D-233; the second half — whether `--full` should refuse to reclaim without an explicit opt-in — stays open in the backlog.
+
 ### Fixed — validate_conventions crashed at the exact moment its pending-activation downgrade had work to do (2026-09-11)
 
 `_as_warnings` built `Severity.WARNING` on an enum whose members are `PASS` / `WARN` / `ERROR`, so it raised `AttributeError` the instant a result carried `Severity.ERROR` — which is precisely when the downgrade fires, since its only caller is the anti-sprawl check held at WARN until activation. The mechanism was green only because it had never had anything to downgrade. Reproduced before fixing. One word, plus `tests/enforcement/test_validate_conventions.py`: a grader for the behaviour, and a second that checks the CLASS — every `Severity.<NAME>` referenced anywhere in the module must be a real member. Found by mypy while reviewing a sibling file in the same directory, where it was also making `mypy scripts/enforcement/<anything>` exit 1.

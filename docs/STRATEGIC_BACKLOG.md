@@ -1450,7 +1450,7 @@ docstring says so. The loss skewed SHORT (26,941 turns over 5,781 sessions, ~4.7
 for the survivors — mostly pings, one-shot subagent runs and headless calls), and it is not
 recoverable.
 
-TWO decisions, both the operator's because both edit files outside any project tree:
+TWO decisions, both the operator's because both edit files outside any project tree — **(1) is now DONE, D-233: `cleanupPeriodDays: 3650` is set, DR-mirrored and verified. (2) remains OPEN.**
 (1) raise `cleanupPeriodDays` so transcripts stop aging out at all — the root cause, one settings
 key; (2) whether `--full` should refuse to reclaim without an explicit `--reclaim-orphans` opt-in,
 or take a dump first. Until (1) lands, treat `--full` as a destructive operation and prefer the
