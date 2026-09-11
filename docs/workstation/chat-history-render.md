@@ -73,8 +73,8 @@ python3 /opt/fabrik/scripts/render_chat_history.py --all                        
   metadata is not an object, a non-string timestamp or a lone surrogate never crash a render; a transcript
   that cannot be read (permissions, a broken symlink) is a `WARN` and a skip; a project whose output
   folder is blocked is a `WARN` and a skip under `--all`; the exit code is 1 when anything was skipped. A
-  state row that lost its shape (a half-written sidecar) reads silently as "never rendered" and the
-  session simply renders again. Every file (render, `INDEX.md`, sidecars) is written through a
+  state row that lost its shape (a hand-edited or older-schema row) reads silently as "never rendered"
+  and the session simply renders again. Every file (render, `INDEX.md`, sidecars) is written through a
   per-process temp file and rename, and a project directory is locked (`.render.lock`, `flock`) so two
   overlapping runs — the cron line and a hand run — never interleave: the second backs off with a `WARN`.
 - A project with no transcripts is a named `ERROR` on stderr and exit 1, never a traceback. One unreadable
@@ -91,9 +91,10 @@ python3 /opt/fabrik/scripts/render_chat_history.py --all                        
 - A render outlives its transcript on purpose: if retention or a hand deletes the `.jsonl`, the `.md` stays
   (it is then the last copy of that conversation), drops out of `INDEX.md`, and is never overwritten — a
   later `--name` that lands on its file name renders as `<label>-<id8>.md` instead, and that suffixed
-  name is checked again (longer id slices, then a counter, 104 candidates in all; a session that finds
-  no free name is skipped with a `WARN`, never left spinning). An old file is unlinked only after its
-  replacement landed.
+  name is checked again (longer id slices, then a counter, 104 candidates in all, each trimmed to the
+  120-character rule so the session stays incremental; a session that finds no free name is skipped with
+  a `WARN` and counts toward the exit code 1, never left spinning; the collision is warned about once,
+  when it is first resolved). An old file is unlinked only after its replacement landed.
 - A `names.json` or `.render-state.json` that is not a JSON object is moved aside to
   `<name>.bad-<stamp>` with a `WARN`, never silently replaced.
 

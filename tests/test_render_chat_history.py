@@ -644,13 +644,33 @@ def test_the_suffix_search_is_bounded_when_the_filesystem_rejects_every_name(
     def spun(*_: object) -> None:
         raise SpunError("suffix search spun")
 
-    signal.signal(signal.SIGALRM, spun)
+    previous = signal.signal(signal.SIGALRM, spun)
     signal.alarm(10)
     try:
         rc = rch.main(["--project", "/opt/demo"])
     finally:
         signal.alarm(0)
+        signal.signal(signal.SIGALRM, previous)  # never leak the handler into later tests
     assert rc == 1
     err = capsys.readouterr().err
     assert "SpunError" not in err  # the search must END, not be rescued by the per-project guard
     assert "no free file name" in err
+
+
+def test_a_suffixed_label_still_obeys_the_label_rule_so_the_session_stays_incremental(
+    box: dict[str, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write_session(box["projects"], "bbbb2222-0000-0000-0000-000000000000", _demo_records())
+    out = box["out"] / "-opt-demo"
+    out.mkdir(parents=True)
+    long = "L" * 120
+    (out / "names.json").write_text(json.dumps({"aaaa1111": long, "bbbb2222": long}))
+    assert rch.main(["--project", "/opt/demo"]) == 0
+    for p in out.glob("*.md"):
+        if p.name != "INDEX.md":
+            assert rch._safe_label(p.name[:-3]), p.name  # every chosen name obeys the rule
+    capsys.readouterr()
+    assert rch.main(["--project", "/opt/demo"]) == 0
+    out_text = capsys.readouterr()
+    assert "0 (re)rendered" in out_text.out  # second run is fully incremental
+    assert "already used" not in out_text.err  # and quiet

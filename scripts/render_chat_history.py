@@ -283,15 +283,18 @@ def _assign_labels(
 
         label = wanted
         if taken(label):
-            candidates = [f"{wanted}-{sid[:n]}" for n in (8, 12, 16, 36)]
-            candidates += [f"{wanted}-{sid}-{n}" for n in range(1, 101)]
+            suffixes = [sid[:n] for n in (8, 12, 16, 36)] + [f"{sid}-{n}" for n in range(1, 101)]
+            # the suffixed name must still obey the label rule (≤ 120 chars), or the state row
+            # written with it is rejected on every later run and the session re-renders forever
+            candidates = [f"{wanted[: 119 - len(sfx)]}-{sfx}" for sfx in suffixes]
             label = next((c for c in candidates if not taken(c)), None)
             if label is None:  # bounded: a filesystem that rejects every name never spins the run
                 _warn(
                     f"{sid[:8]}: no free file name for label {wanted!r} after 104 candidates; skipped"
                 )
                 continue
-            _warn(f"label {wanted!r} is already used; {sid[:8]} renders as {label}")
+            if f"{label}.md" != own:  # warn when a collision is first resolved, not on every run
+                _warn(f"label {wanted!r} is already used; {sid[:8]} renders as {label}")
         labels[sid] = label
     return labels
 
