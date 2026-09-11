@@ -6520,3 +6520,9 @@ own eight arms since Thursday had all gone that way.
    lock protocol from the code; one finder that ran `readlink /proc/<pid>/fd/9` over the live
    processes found it in minutes. For a mechanism that acts on box state, one census of the live box
    belongs in the review brief.
+
+## A delta-review loop converges only when the kill and the hop are both pinned (2026-09-11, plan 2026-09-10-plan-1-review-family-adoption)
+
+- **A mutant "kill" can ride on filesystem order.** A `continue→break` mutant died on one box and survived on another because `Path.glob` returned a fixture's directory before its symlink there. Every walk over a generated tree is now `sorted()`, the grader forces the order with a self-proving reversed `Path.glob`, and a mutant is asserted dead by the NAME of the failing test on a fresh copy — with environment-bound tests (`HOME`-reading) deselected explicitly, and `__pycache__` purged between mutants (a stale cache produced a false SURVIVED).
+- **Bound the hop, or the loop reconciles the whole doc.** The Finish docs review of a 1,118-line reference took twelve passes because each rewrite of one per-script section invited the next fresh seat to re-derive its neighbours; it closed only after the bar was stated: a discrepancy is a wrong claim inside the previous pass's hunks or a live contradiction — pre-existing imprecision one hop out is RECORDED to a backlog row.
+- **A finder seat's prohibition is phrased as verbs.** "Never write into /opt/fabrik" did not stop a Bash-capable reviewer seat from running `git stash --keep-index` in the shared tree (three sessions' files swept mid-pass); the pop was classifier-blocked, the recovery was `git show 'stash@{0}':<path> > <path>` per file with md5s verified. Seat briefs now say: no git command that mutates state, read-only git only, every probe on a copy.

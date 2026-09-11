@@ -1,5 +1,5 @@
 {
-  "plan": "docs/development/plans/2026-09-10-plan-1-review-family-adoption.md",
+  "plan": "docs/development/plans/archived/2026-09-10-plan-1-review-family-adoption.md",
   "owned_paths": [
     "commands/_fragments/term-edit.md",
     "commands/_sources/fabrik-spec-review.md",
@@ -21,7 +21,7 @@
   ],
   "branch": "master",
   "started_at": "2026-09-10T15:47:31",
-  "status": "active",
+  "status": "released",
   "baseline_commit": "237516dc",
   "baseline_gate": "final_gate.py --lean --check --json at start: status success, 0 red checks (captured at 237516dc before Phase A)",
   "orchestrator": "the unnamed hub window fabrik-06 (session dd3c06d1), main checkout, Profile: small — every phase coded inline, no coder worktrees",
@@ -33,5 +33,29 @@
     "review_rounds": 15,
     "review_fix_commits": "dcbea709 … c3286733 (14)",
     "checkpoint": "8c8e8a0b"
+  },
+  "completed_at": "2026-09-11",
+  "final_commit": "391d1852 (the last content commit; the archive commit that releases this lock follows it)",
+  "phase_b": {
+    "status": "executed",
+    "executed_at": "2026-09-10",
+    "commit": "ece06333",
+    "review": "scoped, 3 rounds"
+  },
+  "phase_c": {
+    "status": "executed",
+    "executed_at": "2026-09-10",
+    "commit": "cdd8f2b5",
+    "review": "scoped, then the Finish heavy round"
+  },
+  "finish": {
+    "whole_plan_review": "docs/development/reviews/2026-09-10-plan-1-review-family-adoption-review.md",
+    "review_rounds": 12,
+    "review_series": "10 7 4 6 4 3 3 5 2 3 1 0",
+    "review_fix_commits": "e45c309b … 74459d0e (11)",
+    "receipt_converged_at": "8444f901",
+    "docs_review": "85293510 (12 passes, 81 fixes)",
+    "forced_sync": "2026-09-11: 45 projects synced, 0 failed",
+    "full_gate": "final_gate.py --json --check success at the archive commit"
   }
 }

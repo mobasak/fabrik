@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — The review family adopts D-203, Finish: the whole-plan review, the archive, the forced sync (2026-09-11)
+
+Plan `2026-09-10-plan-1-review-family-adoption` EXECUTED and archived (Phases A 6f023088 · B ece06333 ·
+C cdd8f2b5; whole-plan receipt `docs/development/reviews/2026-09-10-plan-1-review-family-adoption-review.md`
+CONVERGED). The Finish heavy `/fabrik-review` over the whole-plan diff hardened three fleet-synced surfaces
+beyond the phases' own reviews: `check_convergence.py`'s closing-row rule quotes its text with a CommonMark
+run-length span masker, blanks fences and HTML comments in that order, carries the `(?<![\w-])` token
+boundary, accepts `Round`-headed rows, refuses a slug that merely contains "archived", and prints a sentence
+that quotes the counter as written; `check_review_hygiene.py`'s `_blank_quoted` decides the fence state
+before it reads a comment marker and reads both markers with code spans masked (a quoted `<!-- POOL OFF`
+had blanked every later row of 9 of 805 fleet receipts, and a fenced `<!--` every later line of a probe copy —
+the corpus ratchet re-pinned to the repaired parser: raw-pipe 35 hits in 21 of 275 receipts, dual-verdict
+27 in 5); `commands/assemble_commands.py` refuses an unknown floor kind, pre-flights every tree, leaf and
+prune path before its first write under ONE symlink policy (a tree that is a link to a directory is a layout;
+a link at any path the render writes through is refused; an orphan link is unlinked as a link only when it
+resolves to a bannered file, and a dangling link or a link to a directory is left alone), walks every
+generated tree in sorted order so the first offender is deterministic, and prunes an orphan skill by
+unlinking only the generated wrapper. The
+governance sentence in `.windsurf/rules/core/62-using-subagents.md`, both `CLAUDE.md` fan-out bullets and the
+`subagents-core` fragment qualify `--slices` for the section partition (no Haiku seat, D-218). The Finish `/fabrik-docs-review` over the plan's doc surface
+reconciled `docs/workflows/FINAL_GATE_WORKFLOW.md` to a no-op: the closing-row and hygiene rows state the
+grader's real scope (the EXECUTED flip too; no `## Pass Ledger` heading required; the 11 graded of 21 ledger
+spines; the 8 hygiene classes; what `ungraded` counts), the three Phase-3 counts are re-instrumented
+(34 / 54 / 22 by the results list with an empty changed set), the gate-wired list carries the three
+every-tier rows it lacked and drops the four `# UNWIRED` scripts, and `check_convergence.py`'s coupling
+header names the doc so its Related-scripts block renders from one declaration. The plan's ONE
+forced `sync_enforcement_to_projects.py --force` ran at this Finish.
+
 ### Changed — The review family adopts D-203, Phase C: the closing-row grader, the fleet-synced text (2026-09-10)
 
 `scripts/enforcement/check_convergence.py` refuses a CONVERGED flip whose Pass Ledger carries a `confirmed:`
