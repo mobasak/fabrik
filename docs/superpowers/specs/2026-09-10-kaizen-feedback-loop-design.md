@@ -1,9 +1,12 @@
 # Kaizen feedback loop — a DELTA on the converged closed-loop v2 spec
 
-Status: DRAFT — BLOCKED: NON-CONVERGENCE (the stall circuit-breaker fired at round 14; the ONE operator
-question is at the end of § BLOCKED). The 1c blocker that blocked rounds 6–8 is CLEARED. The operator
-RULED the loop approved on 2026-09-11 (**D-224**: they own the goal, the mechanism is derived from
-measurement and is not a menu). Round 9 was D4's first independent read; rounds 10–15 were delta rounds, each scoped to the previous
+Status: DRAFT — BLOCKED: NON-CONVERGENCE on the wording residue of rounds 13–15 (with infra,
+`01M28VKD807M6QZB31NJ5D9W1T`); **§ D4 RE-CUT under D-234 and the re-cut is under its own amendment
+review — § Amendment review at the end carries that ledger.** The stall circuit-breaker fired at round
+14; the operator's answer to § BLOCKED's question was not "who writes the residue" but that the design
+had misread the ask (**D-234**, 2026-09-11). The 1c blocker that blocked rounds 6–8 is CLEARED. The
+operator RULED the loop approved on 2026-09-11 (**D-224**: they own the goal, the mechanism is derived
+from measurement and is not a menu). Round 9 was D4's first independent read; rounds 10–15 were delta rounds, each scoped to the previous
 round's fix diff. Rounds 9–14 confirmed **26 · 23 · 13 · 3 · 6 · 7** defects — among them two of the
 operator's own eight axes left without a disposition, two `## Reproduce` recipes that did not
 regenerate their own figures, an over-claim about the metric registry, and an edit to the review's own
@@ -85,7 +88,7 @@ a timestamp, never an assertion — and every figure below is stamped with the r
 at. A figure whose stamp you cannot see is a defect; a figure whose stamp differs from today's count is
 working as designed. Re-run the recipes, do not re-read the numbers.
 
-- **R1 — the key census** (tier 1's coverage; `nonnull` is what matters, not `present`):
+- **R1 — the key census** (piece 4's coverage; `nonnull` is what matters, not `present`):
   `python3 -c 'import json,sys;rows=[json.loads(l) for l in open(sys.argv[1])];ks=sorted({k for r in rows for k in r});print(len(rows));[print(k,sum(1 for r in rows if k in r),sum(1 for r in rows if r.get(k) not in (None,"",[]))) for k in ks]' ~/.claude/state/command-feedback.jsonl`
 - **R2 — the candidate selector fire rates** (which thresholds can hit 5–10%): compute
   `tok_in+tok_out` and `wall_s` percentiles with `statistics.quantiles(vals, n=10, method="inclusive")[8]`
@@ -102,7 +105,7 @@ working as designed. Re-run the recipes, do not re-read the numbers.
   the other two are addressing. At 107 rows the three-field stems give rule 29 · token 10 · lean 6 ·
   infra 3 · accuracy 0 · manifesto 0 · continuous 0 (also `improve` 0 — the axis table cites seven
   values against this recipe, so the seventh stem is named here rather than left underivable).
-- **R8 — the three-BARE-metric refusal** (tier 1's registry claim; ⚠️ an earlier draft named this
+- **R8 — the three-BARE-metric refusal** (piece 4's registry claim; ⚠️ an earlier draft named this
   recipe for an over-claim about odd axis counts that the same round withdrew — arity is never the
   reason for any refusal): build three probe metrics from a REAL `kc.METRIC_DEFS` entry (copy it, then
   override `id`/`counter_metric`/`version`) and pass `kc.METRIC_DEFS + ko.OUTCOME_METRIC_DEFS + probes`
@@ -132,9 +135,13 @@ working as designed. Re-run the recipes, do not re-read the numbers.
   it cannot ground a negative about a synced path.
 - **R6 — `feedback_substance`:** the Q2 predicate — `change` longer than 40 characters AND matching
   `/fabrik-[a-z0-9-]+` or a path bearing `.py .md .sh .ya?ml .json .toml` — over all closes. 40/102 at
-  the Q2 snapshot; 44/108 now. ⚠️ **There is no rule-pack clause**: an earlier draft carried one and it
+  the Q2 snapshot; 44/108 at 108 rows; 48/116 at 116. ⚠️ **There is no rule-pack clause**: an earlier draft carried one and it
   matched a two-digit number followed by a hyphenated word ANYWHERE in prose, adding one row and giving
   41/102 — a recipe that did not regenerate its own cited figure, the same defect class as R4.
+- **R9 — the seat cost** (piece 1's price): Σ(`tok_seat_in`+`tok_seat_out`) ÷ Σ`seats_seen` over the rows
+  carrying BOTH (55 at 116 rows, Σ`seats_seen` 1,449 → 15,680), cache-read and cache-create tokens
+  EXCLUDED on both sides — including them gives 3,967,073 per seat, 253× larger. The per-close means it
+  is divided by are R3's (÷ the command's TOTAL row count), so both sides of each ratio exclude cache.
 
 ## Personas
 
@@ -187,7 +194,7 @@ Every number in the draft was also stale within a day (R6–R17, twelve rows in 
 | D1 | The D-175 feedback ledger as kaizen series | **SURVIVES, halved** — two reciprocally paired series, not four (Q2) |
 | D2 | Governance weight | **REFRAMED** — not a gap in v2 but v2's own unbuilt guardrail; the unit question is CLOSED in v2's favour, so nothing is superseded (Q4) |
 | D3 | The M1→M2 gate is MET and untriggered | **SURVIVES, strengthened** — condition (a) met 2026-08-29, provable from the cron log |
-| D4 | The OBSERVER + per-usage improvement (operator, 2026-09-11) | **ADDED, and reshaped by evidence** — three of the four design choices are contradicted by measured research (observer-on-every-run · eight axes · after-each-usage); the fourth — *record the verdict so the hub improves commands* — SURVIVES, and § D4 names where a verdict lands. See § D4 |
+| D4 | The OBSERVER + per-usage improvement (operator, 2026-09-11) | **ADDED, then RE-CUT (D-234)** — rounds 9–15 read the eight axes as criteria for grading a RUN and cut the observer down on run-grading research; the operator's confirmed reading is that the axes are properties of the COMMAND TEXT and the loop's gap is that nobody ACTS on the `change:` queue. Four pieces, three of which exist in some form. See § D4 |
 
 `grep -c` against v2 for `feedback`, `close-out`, `confusion:`, `waste:`, `cost_usd`, `tok_in`,
 `seats`, `command-feedback` = **0 each across all 588 lines** (re-run by the review seat). The forward
@@ -195,19 +202,25 @@ direction of the delta claim holds: the D-175 ledger shipped 2026-09-07, three w
 converged, and is uncovered by any spelling. It was the REVERSE direction — does v2 already register
 what D1 proposes — that failed, as R1/R2 record.
 
-## D4 — the OBSERVER, as the evidence supports it (operator-requested and RULED 2026-09-11 — D-224)
+## D4 — the OBSERVER and the loop that acts on it (operator-requested, RULED D-224; RE-CUT on the confirmed reading, D-234)
 
-**The ask, verbatim:** every agent, while working, assigns a subagent as an observer whose duty is to
-utilise kaizen/feedback and judge the run on eight axes — lean · fast executable · accurate · no token
-waste · continuous improvement · infra aware · rules aware · manifesto aware — recording the verdict so
-the hub improves commands and skills **after each usage, not weekly**.
+**The ask, verbatim** (operator, 2026-09-11, recovered by `session-recall`; quoted with line breaks
+collapsed and the operator's spellings kept — an earlier draft labelled
+its own paraphrase "verbatim", and the paraphrase — *"judge the run on eight axes"* — was the
+misreading): *"while working they must assign a subagent as an observer so that, duty will be utilize
+kaizen, feedback mechanisms, the goal is to have 1 lean 2 fast executable 3 accurate 4 no token waste
+5 continous improvement 6 infra aware 7 rules aware 8 our manifesto aware then record these into
+kaizen/feedback. afterwards here in fabrik hub, you(infra) and or intel will read them and make our
+commands better and better after each usage, not weeAkly. commands/skills"* — and, when the re-cut
+below was read back: *"yes exactly, thx."* The two earlier asks it builds on are quoted in D-234.
 
-**The pattern has a name:** *Agent-as-a-Judge* — a judge that reads the whole trajectory, not the final
-output. Not evaluator-optimizer (that loops back into the same run) and not LLM-as-a-judge (one output).
-The specific composition asked for — a judge writing telemetry that later rewrites the agents' own
-instruction files — was **not found under any name** in the sources four `fabrik-researcher` seats
-searched on 2026-09-11 (arXiv, vendor engineering blogs, the agent-evaluation literature). That is a
-bounded absence, not a proof of novelty: it means we have no prior art to copy, not that none exists.
+**The pattern the first draft matched it to** was *Agent-as-a-Judge* — a judge that reads the whole
+trajectory — and that match is where the misreading came from: it made the observer a grader of the
+RUN. The composition actually asked for — a reviewer of the INSTRUCTIONS a run is executing, writing
+records a hub agent later applies to those instructions — was **not found under any name** in the
+sources four `fabrik-researcher` seats searched on 2026-09-11 (arXiv, vendor engineering blogs, the
+agent-evaluation literature). That is a bounded absence, not a proof of novelty: we have no prior art
+to copy, not that none exists.
 
 ### What the run-grading literature measured — KEPT as evidence, RETIRED as design (D-234)
 
@@ -308,26 +321,31 @@ means "does this command reflect the infra as it is today"; *rules aware* means 
 rule pack"; *lean* means "is the instruction text carrying weight it does not need". The observer's duty
 is to catch where the command it is running MISLED or OVERCHARGED the agent, and say so, per run. That
 is a reviewer of instructions, not a grader of outputs; the factor-collapse and self-preference results
-above are real but do not transfer. Likewise *"after each usage, not weekly"* was read as a demand for
-AUTO-apply and argued against with Knight Capital; the operator never said automate — *"you (infra) and
-or intel will read them and make our commands better"* is an agent applying a fix through review, which
-Constraint 1 already permits. The measured facts in the two sections above stand; the design drawn from
+above are real but do not transfer. Likewise *"after each usage, not weeAkly"* was read as a demand for
+AUTO-apply and argued against twice — with Knight Capital (a cadence section the re-cut deleted) and, in
+the table above, with Deming's funnel and the 26.1% peeking figure; both objections answer a demand that
+was never made. The operator never said automate — *"you (infra) and or intel will read them and make
+our commands better"* is an agent applying a fix through review, which Constraint 1 already permits, at
+the speed of the queue. The measured facts in the two sections above stand; the design drawn from
 them did not.
 
-**The loop is FOUR pieces, and three of the four already exist in some form — the gap is at step 3.**
+**The loop is FOUR pieces, and three of the four already exist in some form — the gap is at step 2, ACT** (step 3 is the only piece with nothing built at all, but a ratchet is not the loop's answer to the ask; D-234 says the same: *"the loop is open at ACT"*).
 
 | # | Piece | What exists today | What is built |
 |---|---|---|---|
-| 1 | **OBSERVE** — the `change:` field IS the observer. It already asks *"the ONE concrete edit to the command that would have made the run faster or more accurate"* | every close writes it; 91 of 107 say something substantive | make it **axis-keyed** (`lean` / `fast` / `accurate` / `waste` / `infra` / `rules` / `manifesto`) so it is routable, and for the expensive commands (`fabrik-execute-plan`, `fabrik-review`, `fabrik-spec-review`, `fabrik-plan-after-chat` — 48 of 109 closes, most of the token mass) have a **subagent** write it rather than the agent grading its own run. ONE fragment edit to `close-feedback.md` — Constraint 2's named exception, infra's beat |
-| 2 | **ROUTE + ACT** — the `change:` rows reach a hub agent who edits the command | `feedback_relay.py` already mails the digest to infra hourly; **nothing acts** — the queue is unread under 200+ inbox items | a `/fabrik-command-improve <command>` command: read every `change:` row for that command from the ledger, propose the edit, render, review, commit. Run it whenever a command's queue is non-empty — **that is "after each usage"**. The duty that makes it run belongs in the hub CLAUDE.md, not in a cron |
-| 3 | **KEEP LEAN** — the weight ratchet | nothing budgets any governance byte; `CLAUDE.md` 89,214 B read every session, `commands/_sources/` 1,042,530 B, `.windsurf/rules/` 1,251,876 B | `scripts/enforcement/check_corpus_weight.py` on the pattern this repo already runs twice (`.fabrik/doc-script-baseline.json`, `.fabrik/lint-baseline.json`): baseline seeded on first run, blocks nothing, bytes-per-surface may only go DOWN unless a D-row names what the growth retires. **Needs no sign-off** — an earlier draft deferred it behind the M1→M2 noise floor, which exists to stop a *metric* firing on noise; a ratchet is one committed number, not a metric |
-| 4 | **PROVE** — tokens per round per command, behind the mass rule (Q5 canary 4) | tokens per CLOSE exists in `command_feedback_report.py`; per ROUND does not | the tier-1 addition already planned in `2026-09-11-plan-2-kaizen-tier1-report.md` — kept, but LAST: it is the thermometer that shows steps 1–3 working, not the loop |
+| 1 | **OBSERVE** — the `change:` field IS the observer. It already asks *"the ONE concrete edit to the command that would have made the run faster or more accurate"* | every close writes it; **112 of 116 are not `none`, and 48 of 116 name a command or a file (41.4%)** (Q2's `feedback_substance` predicate — the honest "substantive" count; an earlier draft put the `waste:` field's 91 of 107 here) | make it **axis-keyed — SEVEN keys for the seven per-run axes** (`lean` / `fast` / `accurate` / `waste` / `infra` / `rules` / `manifesto`; the fifth, continuous improvement, is read cross-run and has no per-run key — axis table row 5) so it is routable, and for the expensive commands (`fabrik-execute-plan`, `fabrik-review`, `fabrik-spec-review`, `fabrik-plan-after-chat` — **54 of 116 closes = 46.6%, carrying 74.7% of the token mass**, R3) have a **subagent** write it rather than the agent grading its own run. ONE fragment edit to `close-feedback.md` — Constraint 2's named exception, infra's beat. **Priced, since rejecting the flat policy on a measured figure and leaving this one unpriced would be the asserted-cost defect** (R9 at 116 rows: mean **15,680 tok/seat** over the 55 rows carrying seat data, Σ`seats_seen` 1,449, cache tokens excluded; the per-close means are R3's): the seat costs **3.0%** of a `fabrik-execute-plan` close (mean 522,376 tok, n=11), **4.6%** of `fabrik-review` (338,382, n=27), **10.6%** of `fabrik-spec-review` (148,294, n=9), **8.5%** of `fabrik-plan-after-chat` (185,303, n=7) — cheapest where runs are longest |
+| 2 | **ROUTE + ACT** — the `change:` rows reach a hub agent who edits the command | `feedback_relay.py` already mails the digest to infra **once a day** (the crontab polls `weekly_catchup.sh` at minute 27 of every hour; the wrapper stamps the kaizen jobs `DAILY` — an earlier draft said hourly, reading the crontab line and not the wrapper); **nothing acts** — the queue is unread under 200+ inbox items | a `/fabrik-command-improve <command>` command: read every `change:` row for that command from the ledger, propose the edit, render, review, commit — **and the applied edit is a COMMIT on the command source whose trailer names the ledger rows it answers and carries Q3's declaration** (`Agent-Context: command-improve <command> · rows <ts,…> · expects <series> <direction>`): the ledger has no row id — `ts` is its only per-row handle (`sid` is per session), and a `rid` written by `command_run.py`'s ledger writer is piece 2's one prerequisite if `ts` proves ambiguous. The declaration is Q3's unconditional half (the series the edit expects to move, and the direction); the trailer is what axis 5 reads. When M2's fix ledger exists those commits ARE its rows, already carrying what Q3 requires of a row; until the M1→M2 sign-off no edit is graded against a series — Q3's grading-and-revert clause is what waits, the edit does not, and piece 2 depends on nothing that M2 must build first. Run it whenever a command's queue is non-empty — **that is "after each usage"**. **Holder of the duty: infra** (`commands/_sources/` and `.windsurf/rules/` are that beat); intel may run it too, in the operator's words. The duty lives in the hub `CLAUDE.md`, not in a cron — a NEW command source plus one contract line, both through the normal review path (Constraint 2, as re-cut) |
+| 3 | **KEEP LEAN** — the weight ratchet | nothing budgets any governance byte; `CLAUDE.md` 89,214 B read every session, `commands/_sources/` 1,042,530 B, `.windsurf/rules/` 1,251,876 B of `.md` (1,319,036 B for the whole directory) | `scripts/enforcement/check_corpus_weight.py` on the pattern this repo already runs twice (`.fabrik/doc-script-baseline.json`, `.fabrik/lint-baseline.json`): baseline seeded on first run (that run blocks nothing), and the count may only go DOWN — the pattern returns 1 on a rise (`render_doc_script_links.py --coverage`, `check_lint_ratchet.py`); for BYTES that rise is a gate **WARN, never a red**, because § Q4 rules bytes a trend signal and never the enforced ceiling — unless a D-row names what the growth retires. It is the **byte TREND signal § Q4 keeps** ("bytes only as the free, CI-native trend signal") — it is NOT Q4's transcript-token guardrail, which still waits on the M1→M2 sign-off. **Needs no sign-off** — an earlier draft deferred it behind that noise floor, which exists to stop a *metric* firing on noise; a ratchet is one committed number, not a metric. **fleet builds, infra reviews** (`scripts/enforcement/` is infra's beat and a governance-sync trigger surface; the script syncs to ~46 repos and must budget only the surfaces a repo has — Constraint 2). § Q4 names two ratchet failure modes; one binds this check and one does not. **Re-baselining upward** binds: the check needs Q4's second gate — compare the surface's bytes against the BASE branch, not only against the committed baseline. **Baseline drift** (dead ESLint suppressions) has no analogue: a byte ratchet holds one number and re-seeds downward on a shrink. Because the rise only WARNs, the D-row requirement is a review convention, not a gate |
+| 4 | **PROVE** — tokens per round per command, behind the mass rule (Q5 canary 4) | tokens per CLOSE exists in `command_feedback_report.py`; per ROUND does not | the addition already planned as piece 4 in `2026-09-11-plan-2-kaizen-tier1-report.md` — kept, but LAST: it is the thermometer that shows steps 1–3 working, not the loop |
 
 **Sequencing against the live tree (2026-09-11):** infra's review-family plan is IN-PROGRESS under an
 active lock that owns `commands/assemble_commands.py`, and `commands/_fragments/` is dirty with their
 edits. So **pieces 3 and 4 build now** (no lock, no collision — the ratchet's BASELINE is seeded only
 after infra's corpus edits land, or it freezes a number they are changing); **pieces 1 and 2 build after
-infra's plan closes**, because both touch the corpus they are mid-edit on.
+infra's plan closes** — not because their files are locked (`close-feedback.md` is neither locked nor
+dirty) but because piece 1's RENDER goes through `assemble_commands.py`, which the lock owns and which
+is dirty, and piece 2's duty line lands in `CLAUDE.md` and `templates/governance/CLAUDE.md`, both in the
+lock's owned paths.
 
 **THE EIGHT AXES, as properties of the COMMAND TEXT — what the observer records under each key, and the
 instrument that already exists for it.** This is the table an earlier re-cut deleted by accident; it is
@@ -335,13 +353,13 @@ what makes piece 1's axis keys mean something rather than being labels.
 
 | # | The operator's axis | What it means of the COMMAND being run | What the observer records under this key | Existing instrument |
 |---|---|---|---|---|
-| 1 | lean | the instruction text carries weight the run never used | the sections the command loaded that the run did not cite or act on | piece 3's ratchet (bytes per surface); `check_command_corpus.py` for source↔render |
+| 1 | lean | the instruction text carries weight the run never used | the sections the command loaded that the run did not cite or act on | piece 3's ratchet (bytes per surface) |
 | 2 | fast executable | the command's steps ran without a stall the text caused — an ask it could have answered, a re-derivation it could have carried | where the run stopped to ask or re-derive something the command should have stated | `wall_s`, `rounds`; the `confusion:` field |
-| 3 | accurate | no instruction turned out false — a path, flag, symbol, count or script that does not exist or does not do what the text says | the false instruction, quoted, with the executed disproof | `check_citations_resolve.py`; `check_script_headers.py`; the `confusion:` field |
+| 3 | accurate | no instruction turned out false — a path, flag, symbol, count or script that does not exist or does not do what the text says | the false instruction, quoted, with the executed disproof | `check_command_corpus.py` (BLOCKING, registered in `final_gate.py`) already grades the EXISTENCE half of this axis over `commands/_sources/` — script paths, chain targets, web-tool names, the advertised close flag. What nothing grades is the SEMANTIC half: whether a path that exists does what the text says, and whether a stated count is true — the observer's own executed disproof (`ls`, `grep -n`, a live probe) and the `confusion:` field cover that residue, which is why this axis is observed, not derived. (`check_citations_resolve.py` is not an instrument here: its globs are specs, plans, reviews and reference docs, never `commands/_sources/`, and it skips a path that does not exist) |
 | 4 | no token waste | the command did not make the agent read, dispatch or re-derive what the outcome never needed | the read, seat or round the run could have skipped, and its cost | the `waste:` field (85% populated already); piece 4's tokens-per-round |
-| 5 | continuous improvement | the last `change:` filed against this command was applied, and THIS run benefited | whether the previous change landed, and whether this run hit the same wall anyway | piece 2's applied-edit ledger, joined to the next close — a cross-run check, never scored per run |
+| 5 | continuous improvement | the last `change:` filed against this command was applied, and THIS run benefited | **no per-run key** — read cross-run: whether the previous change landed, and whether the next close of the same command hit the same wall anyway | the commit trailer of piece 2's applied edit on the command source (`git log` of that file), joined to the next close — a cross-run check, never scored per run |
 | 6 | infra aware | the command names infra as it is TODAY — paths, hosts, services, scripts, flags | the stale or retired infra fact the command relies on, with the live value | `agents-fabrik.md`, `scripts/service_catalog.json`, `mcp_health.py`; a live probe beats the doc |
-| 7 | rules aware | the command neither contradicts nor duplicates a rule pack the run activated | the pack and the clause it contradicts or restates | `select_rules.py` ACTIVE set; `check_rule_grounding.py` |
+| 7 | rules aware | the command neither contradicts nor duplicates a rule pack the run activated | the pack and the clause it contradicts or restates | `select_rules.py` ACTIVE set — the observer reads the activated pack against the command text; **no check detects a command contradicting or duplicating a pack today** (`check_rule_grounding.py` grades a CONVERGED plan's constraints digest, not a command) |
 | 8 | manifesto aware | the command conforms to the operating manifesto's binding intersections | which of 63b's six intersections (a)–(f) it fails, or *"N/A because X"* | `docs/reference/command-evaluation-checklist.md` item 63b — six criteria already written and applied corpus-wide once; see the manifesto note above |
 
 The observer's output is therefore a short structured record — key, quoted instruction, executed
@@ -350,8 +368,11 @@ makes it cheap: it names what was wrong with the text, which is the only thing a
 
 **What this supersedes:** the three-tier observer, the "judge 5–10% on 2–3 criteria" selector, the
 kappa-validated rubric, the batch-and-gate cadence table, and the deferral of the ratchet — all of them
-answers to a question the operator did not ask. The percentile selector, the M1→M2 dependency for the
-cut-off, and § Q2's series are unchanged: they belong to piece 4 and were right for it.
+answers to a question the operator did not ask. The percentile cut keeps its M1→M2
+dependency but is RE-AIMED and RE-CUT: it no longer chooses which RUNS a judge scores, and its threshold
+moves from per-ROW (R2) to per-COMMAND token mass (R3) — the four-command list is whatever commands sit
+above the cut once the sign-off opens (§ Who builds what, § Constraints 4). § Q2's
+series are unchanged and belong to piece 4, which was right for them.
 
 
 ### Does bloat actually hurt? — the honest strength judgment
@@ -479,7 +500,7 @@ back-fill history never captured, which is the fabrication the instrument's hone
 | Series | Definition | Role |
 |---|---|---|
 | `command_tokens_per_round@v1` | Σ(`tok_in`+`tok_out`) ÷ Σ`rounds` **over rounds-carrying rows ONLY** — a row with `rounds == 0` contributes to NEITHER side. Emits `rows_with_numerator` AND `rows_with_denominator` per command; renders `—` per the mass rule in Q5 canary 4 | **driving** — D-203's delta-round rule predicts this FALLS; the loop's first self-test |
-| `feedback_substance@v1` | closes whose `change:` is **> 40 characters AND matches `/fabrik-[a-z0-9-]+` or a path bearing a `.py .md .sh .ya?ml .json .toml` extension** ÷ all closes. ⚠️ **The "or a named rule pack" clause is REMOVED — round 11 executed it and it is a false-positive generator.** As `\b\d{2}-[a-z][a-z0-9-]*\b` it matches `31-component` inside the ordinary English phrase *"a one-rule fix instead of a 31-component sweep"*, on a row whose `change:` begins with the word **none** — so the counter scored a non-substantive close as substantive, which is the one thing a counter must never do. A rule pack cited the way agents actually cite one (`62-using-subagents.md`) is already caught by the `.md` clause, so the removal costs nothing. It moves the rate 41 → 40 of 102 | **counter** — guards the Goodhart: tokens must not fall because agents said LESS. Measured on the live ledger with THIS predicate: **40 of 102 (39.2%)**; 44 of 108 (40.7%) today (`## Reproduce`, R6) |
+| `feedback_substance@v1` | closes whose `change:` is **> 40 characters AND matches `/fabrik-[a-z0-9-]+` or a path bearing a `.py .md .sh .ya?ml .json .toml` extension** ÷ all closes. ⚠️ **The "or a named rule pack" clause is REMOVED — round 11 executed it and it is a false-positive generator.** As `\b\d{2}-[a-z][a-z0-9-]*\b` it matches `31-component` inside the ordinary English phrase *"a one-rule fix instead of a 31-component sweep"*, on a row whose `change:` begins with the word **none** — so the counter scored a non-substantive close as substantive, which is the one thing a counter must never do. A rule pack cited the way agents actually cite one (`62-using-subagents.md`) is already caught by the `.md` clause, so the removal costs nothing. It moves the rate 41 → 40 of 102 | **counter** — guards the Goodhart: tokens must not fall because agents said LESS. Measured on the live ledger with THIS predicate: **40 of 102 (39.2%)**; 44 of 108 (40.7%) at 108 rows; 48 of 116 (41.4%) at 116 (`## Reproduce`, R6) |
 
 ⚠️ **Both definitions are the round-2 versions, and the round-1 versions were unsound.** They are
 recorded because each failure is the spec's own stated defect class reappearing one step to the side:
@@ -699,14 +720,17 @@ is chronological, not a degradation. The **build** half — a ledger reader, two
 absence canaries, a new enforcement check, its baseline, a bindable escape hatch, a 30-day replay,
 tests and docs — is real, unestimated engineering. Not free because the collector exists.
 
-⚠️ **D4's build half, enumerated so it is not omitted by silence** (it was, until round 9): the tier-1
-per-command report over the ledger · the static attach-list edit in four command sources · the judge
-seat and its 2–3 binary criteria per axis · a hand-labelled validation set and the kappa run that gates
-any verdict · the fix-ledger path by which a verdict becomes a promotable finding. **Five items, and all
-five are accounted for:** three are new TEXT rather than new machinery (the attach-list edit, the judge's
-criteria, the fix-ledger path), one is new CODE (the tier-1 report), and one (the labelled set) needs a
-human who is not the seat's dispatcher. Unestimated, like A's — but **larger than A's**, and the
-recommendation below must not be read as having priced it.
+⚠️ **D4's build half, enumerated so it is not omitted by silence** (it was, until round 9; re-cut
+under D-234): piece 1 — ONE `close-feedback.md` fragment edit (axis keys + the four-command subagent
+condition) · piece 2 — a new command source `/fabrik-command-improve` plus one duty line in the hub
+`CLAUDE.md`, each applied edit a commit whose trailer names the ledger rows it answers · piece 3 — `check_corpus_weight.py` with its baseline file
+and tests · piece 4 — the tokens-per-round addition to `command_feedback_report.py` behind the mass
+rule, with its tests (plan `2026-09-11-plan-2-kaizen-tier1-report.md`). **Four items, and all four
+are accounted for:** two are corpus TEXT through the review path (pieces 1 and 2's command source),
+two are CODE (pieces 3 and 4), and the only human in the loop is the hub agent who runs piece 2 — no
+labelled set, no kappa run, no judge: those were the misread design's costs and are gone with it.
+Unestimated, like A's — and no longer larger than A's, but the recommendation below must still not be
+read as having priced it.
 
 **B — Build the series first, activate later.** Rejected: it adds unadjudicable series to a loop whose
 adjudication half is already stalled — more recorded, still not evaluated, the exact failure named.
@@ -729,40 +753,50 @@ collecting.
 | D1 — ledger reader + the paired series | **infra** (kaizen is their beat) — **fleet may build it** if infra's queue makes that slower | infra holds 64 of 65 `ack=required` items |
 | Q4's guardrail (transcript-token mass), when M1→M2 opens | **fleet**, infra reviews | New reader over transcripts, not a new unit; fleet holds the measurements |
 | `rounds_to_converge` as a DIMENSION on `review_rounds@v10` | a proposal to that series' owner | R2 — never a new metric id |
-| M2's finding registry / fix ledger | **infra**, per v2 | Already theirs; this delta adds only the verification clause, and tier-3 verdicts land here (§ D4) |
-| D4 tier 1 — the derived per-command report (`command_feedback_report.py`) | **fleet** | Not a series, so not kaizen's registry; it is a reader over the ledger fleet already measures. Smallest item, ships first |
-| D4 tier 3 — the observer's static attach-list (a command-corpus edit) | **infra** (`commands/_sources/` is their beat) | Constraint 2's named exception; a corpus edit distributes fleet-wide and must not be fleet's unilateral change |
-| D4 tier 3 — the judge seat + its 2–3 binary criteria per axis | **fleet**, infra reviews | fleet holds the measurements and the research; the criteria are new text, not new machinery |
-| D4 — the hand-labelled set and the **kappa validation** that gates any verdict | **fleet builds, operator or infra labels** | A judge validated by its own author is the self-preference failure D4 cites; the labeller must not be the seat's dispatcher |
-| D4 — the percentile cut-off that replaces the static attach-list | **deferred to the M1→M2 sign-off** | Same owner as Q2's minimum-n and for the same reason; the ledger is 4.7 days old and Q6's 30-day replay cannot run yet |
+| M2's finding registry / fix ledger | **infra**, per v2 | Already theirs; this delta adds only the verification clause; piece 2's applied edits land here as fix-ledger rows once M2 exists — until then the commit trailer on the command source is the record (§ D4) |
+| D4 piece 1 — the axis-keyed, subagent-written `change:` field (ONE `close-feedback.md` fragment edit) | **infra** (`commands/_sources/` is their beat) | Constraint 2's named exception; a corpus edit distributes fleet-wide and must not be fleet's unilateral change. Builds AFTER infra's review-family plan closes (§ D4 sequencing) |
+| D4 piece 2 — `/fabrik-command-improve <command>` + the CLAUDE.md duty line | **infra**; intel may run the command | The holder of the duty is the beat that owns the surface being edited; a new command source is a corpus change. Same sequencing as piece 1 |
+| D4 piece 3 — `check_corpus_weight.py`, the byte ratchet | **fleet builds, infra reviews** | `scripts/enforcement/` is infra's beat and a governance-sync trigger; the pattern (`doc-script-baseline.json`, `lint-baseline.json`) is proven; with its `final_gate.py` registration it is TWO fleet-synced files (Constraint 2). Builds now; the BASELINE seeds only after infra's corpus edits land |
+| D4 piece 4 — tokens per round per command behind the mass rule (`command_feedback_report.py`) | **fleet** — plan `2026-09-11-plan-2-kaizen-tier1-report.md` | Not a series, so not kaizen's registry; it is a reader over the ledger fleet already measures. Builds now, LAST of the four |
+| D4 — the percentile cut over per-command token mass (R3) that would TUNE piece 1's four-command list | **deferred to the M1→M2 sign-off** | Same owner as Q2's minimum-n and for the same reason; the ledger is days old and Q6's 30-day replay cannot run yet. The static list runs meanwhile |
 
 ## Constraints (binding)
 
 1. **Never auto-edit a fleet-synced governance file.** The loop PROPOSES with evidence; a session
    applies through the normal review path. A bad edit to `CLAUDE.md` or a rules pack reaches ~46 repos
    before anyone reads it.
-2. **D1 and Q4 change no command file; D4 changes exactly one.** (The headline read "zero command-file
-   changes" flat until D4 falsified it.) The close-out contract is
+2. **D1 and Q4 change no command file; D4 changes the corpus in TWO places, adds ONE enforcement
+   script and registers it in `final_gate.py` — two fleet-synced files for piece 3, not one.** (The
+   headline read "zero command-file changes" flat until D4 falsified it; the re-cut raised the corpus
+   count from one to two — piece 1's fragment edit and piece 2's new command source.) `scripts/enforcement/`
+   syncs recursively into every project and `final_gate.py` is in the synced manifest, so
+   `check_corpus_weight.py` ships to ~46 repos: it must be correct for ALL of them — it budgets the
+   surfaces a repo HAS (`CLAUDE.md`, `.windsurf/rules/`; a project has no `commands/_sources/`) and is a
+   silent no-op on an absent surface, never a red. The close-out contract is
    single-sourced in `commands/_fragments/close-feedback.md` (10,485 B), appended to all 36 commands by
    `assemble_commands.py`. Agents already emit the columns these two series read — with `rounds` **present but 0** (never absent **by construction** — `command_run.py` writes `"rounds": len(rec.get("rounds") or [])`, always an int; a builder coding to "absent" writes a branch that never fires) for
    commands whose lifecycle has no round semantics (17 of 102 rows carried `rounds == 0` when measured, 15 of
    them holding 24.2% of all token mass — re-derive, the ledger grows: `rounds == 0` rows ÷ all rows), which Q5's mass rule handles with `—` rather than a fragment edit. The draft's broader
    claim — "everything these series need" — was false for `cost_usd` (R5), which is why that series is
    dropped rather than patched. No fragment edit is required for D1 or Q4 as scoped. ⚠️ **D4 is the
-   exception and it is a real one:** the observer's static attach-list is per-run agent behaviour, and
-   the only fleet-wide place that behaviour can be specified is the command corpus — the attach-list in
-   the four named command sources, or one line in `close-feedback.md` if it proves better single-sourced
-   there. That edit goes through the normal review path like any other (Constraint 1); what Constraint 2
-   forbids is the LOOP editing it, not the loop needing it.
+   exception and it is a real one:** piece 1 — the axis-keyed `change:` field, subagent-written on the
+   four named commands — is per-run agent behaviour, and the only fleet-wide place that behaviour can be
+   specified is the command corpus: one edit to `close-feedback.md` (single-sourced into all 36
+   commands), with the four-command condition expressed there rather than in four sources. Piece 2 is a
+   new command source plus one duty line in the hub `CLAUDE.md`. Each goes through the normal review
+   path like any other (Constraint 1); what Constraint 2 forbids is the LOOP editing them, not the loop
+   needing them.
 3. **Every new metric ships with a canary** that fires when its own input goes missing — never a
    silent 0 (Q5).
 4. **No series fires anything until the noise floor exists** (Q2); the threshold comes from the
-   sign-off, not from this spec. ⚠️ **This binds SERIES, not the tier-3 selector.** Read any wider,
+   sign-off, not from this spec. ⚠️ **This binds SERIES — not piece 1's four-command list, not piece 2's edits (reviewed, never series-graded until the sign-off: Q3's grading clause is what waits), and not piece 3's ratchet.** Read any wider,
    this constraint would make D4 — an approved decision (D-224) — unrunnable until an operator-triggered sign-off that § D3
    records as never run, which is not what the constraint is for: the noise floor exists to stop a
-   *published metric* firing a verdict on noise. The tier-3 selector publishes no metric; it chooses
-   whom to observe. So the static attach-list runs now, and only the **percentile cut-off** that would
-   replace it waits on the sign-off (§ D4 tier 3).
+   *published metric* firing a verdict on noise. The four-command list publishes no metric; it says
+   whose close gets a subagent-written `change:`. The ratchet is one committed number that warns and
+   never reds. So all three run now, and only the **percentile cut** that would tune the list waits on the
+   sign-off — not because it publishes a metric but because its THRESHOLD is an output of the
+   sign-off, like Q2's minimum-n (§ Who builds what).
 5. **Nothing in `~/.claude/state/` is written by a review of this spec** — regenerating the noise floor
    IS the operator's M1→M2 sign-off, and an agent running it would forge the evidence.
 
@@ -775,11 +809,13 @@ collecting.
 - **Graded by its own first prediction.** `command_tokens_per_round` exists to test D-203's claim that
   delta rounds lower cost per round. If it does not fall, the prediction was wrong and the series
   earned its keep by saying so.
-- **D4 runs in PARALLEL with D1, and does not wait on D3.** Order inside D4: tier 1 (a reader over data
-  that already exists) → the attach-list corpus edit → the judge and its criteria → the kappa
-  validation, which gates whether any verdict is *trusted*, never whether the loop *runs*. Only the
-  percentile cut-off waits on the sign-off (Constraint 4 as narrowed). D4 is the largest approved item
-  (D-224) and the one whose absence from this section was a real defect until round 9.
+- **D4 runs in PARALLEL with D1, and does not wait on D3.** Order inside D4 is set by the live tree,
+  not by preference (§ D4 sequencing): pieces 3 and 4 now — the ratchet's script first, its baseline
+  seeded only after infra's corpus edits land, and the tokens-per-round report last — then pieces 1
+  and 2 once infra's review-family plan releases `assemble_commands.py` and the two `CLAUDE.md` files. Only the percentile cut that would tune
+  piece 1's list waits on the sign-off (Constraint 4 as narrowed); Q4's token guardrail waits on it
+  separately and is not piece 3. D4 is the largest approved item (D-224) and the one whose absence from
+  this section was a real defect until round 9.
 - **Extends v2, never supersedes it.** A conflict is resolved in v2's favour unless a D-row says
   otherwise — and Q4 is the worked example: the conflict was real, v2 won, and no D-row was owed.
 
@@ -818,16 +854,19 @@ collecting.
   remaining probably true.
 - **The corpus byte figures will be stale again within a day.** They are supporting evidence, not a
   metric, and the citation convention at the top is the only durable part.
-- **D4's own hazards are residual risks of this spec, not just cited literature.** (a) **Self-preference**
-  — the judge is Claude reading Claude, and the measured correlation between self-recognition and
-  self-preference means our accuracy axis may reward familiarity. (b) **The rubric is unvalidated.** The
-  kappa validation D4 requires has not been done, no hand-labelled set exists, and § Who builds what now
-  names an owner for it — an owner is not a result. Until it clears, every tier-3 verdict is a
-  *candidate*, never evidence. (c) **The selector may miss the runs worth judging.** Its static
-  attach-list is chosen on COST, which is a proxy for where waste is dense, not for where the agent was
-  *wrong*; a cheap run that broke a rule is invisible to it by construction. (d) **Reward-model drift** —
-  feeding verdicts into instruction files is reward-model optimisation, and "lean" is satisfied by
-  writing less; `feedback_substance` counters that for tokens-per-round and for **nothing in tier 1**.
+- **D4's own hazards are residual risks of this spec, not just cited literature — re-cut for the
+  four pieces.** (a) **Self-preference** still applies to piece 1: the subagent reviewing the
+  instructions is the same model family that executed them. The mitigation is the record's SHAPE — a
+  quoted instruction plus executed evidence, never a score — which leaves nothing to prefer; a key
+  with no quoted instruction is an empty record, not a verdict. (b) **Piece 2 is a duty, and this
+  ledger's own relay proves a duty in prose can sit unread under 200 items.** The risk is that
+  `/fabrik-command-improve` never runs. The test is countable: applied-edit commits carrying its trailer on `commands/_sources/` in its
+  first fortnight; zero is the finding. (c) **Axis keys can hollow the field.** An agent that writes a
+  key and no edit satisfies the format and defeats the purpose; `feedback_substance` (Q2) is the counter
+  and it already measures the predicate. (d) **Reward-model drift** — feeding edits back into the
+  instruction files is reward-model optimisation, and "lean" is satisfied by writing LESS; `feedback_substance`
+  counters that for tokens-per-round, and the byte ratchet has NO counter of its own — a clause deleted
+  to satisfy the ratchet is caught only by piece 2's review path, which is why the ratchet warns and never reds.
 - **This spec measures a ledger that grows while it is being read.** `feedback_substance` moved
   40/102 → 44/108 → 44/109 during the review, and the `change:` length statistic changes its median with
   a single appended row (`## Reproduce`, R7). ⚠️ **An earlier version of this bullet also claimed the
@@ -944,3 +983,40 @@ remainder**, for three reasons that are checkable rather than felt:
 If instead you want this document closed to zero here, the answer is not another round by me — it is to
 hand the residue to **infra** as a scoped fix request, and let a second session's author write the fixes
 a first session's seats found. That is the only shape that breaks the loop, and it is yours to call.
+
+⚠️ **ANSWERED 2026-09-11 — and the answer was to the design, not to the question.** The operator did
+not choose between the two options above; they said *"i dont think you have understand what i asked
+for"*, and the re-read confirmed that reason 1's list — *"not the three tiers, not the selector … not
+the cadence"* — named as settled exactly the things that were wrong: the three tiers, the selector and
+the cadence were answers to a misread ask (**D-234**). § D4 was re-cut in `ad612bc6`, the eight-axis
+table the re-cut had deleted was restored in `df349acd`, and the sections outside § D4 that still
+described the tiers were re-cut in the round-zero sweep of the amendment review below. The nine wording
+residues remain with infra (`01M28VKD807M6QZB31NJ5D9W1T`, backlog row `d01a378a`). The recommendation
+above — let `/fabrik-plan-after-chat` absorb the remainder — does NOT stand as written: backlog row
+`d01a378a` records that the same session ran that command six minutes before the amendment was pinned,
+so it breaks nothing; only a different SESSION breaks the finder-is-fixer identity, which is why the nine
+sit with infra. The design defect was not theirs to absorb either.
+
+## Amendment review — rounds 16+ over the D-234 re-cut (`/fabrik-spec-review`, amendment-scoped, 2026-09-11)
+
+**Scope, as the operator set it:** the D-234 amendment only — `3639ba6e..df349acd` (2 hunks, 64/151
+lines) plus the round-zero class sweep above — and the one-hop sections whose text cites § D4. The
+fifteen earlier rounds' classes stand as the spec's § BLOCKED records them; nothing outside the hop is
+re-read. **The author of the amendment is the orchestrator of this review** (the same session, after a
+compaction), which is the finder-is-fixer shape § BLOCKED names — so every finder is a fresh native
+seat, every verdict is executed by the orchestrator, and a delta round whose confirmed defects sit
+inside the previous round's hunks twice running forces a paragraph rewrite (D-231), never a third patch.
+
+**Round zero (orchestrator pre-pin sweep — authoring, not a pass):** `check_review_hygiene.py --surface <spec> --claim <term>`
+over `tier 1` · `tier 3` · `judge` · `attach-list` · `percentile` · `cadence` · `selector` listed the
+mirror sites; the re-cut had reached § D4 only. Rewritten in ONE batch: the Status line, § The delta's
+D4 row, the D4 heading and its "verbatim" ask (which was a paraphrase — the actual words are now
+quoted), the four-piece table (the `change:` substance figure had borrowed the `waste:` field's 91 of
+107; the four-command share and the seat cost re-derived at 116 rows), § Who builds what (six tier rows
+→ five piece rows), § Constraints 2 and 4, § Lifecycle's D4 bullet, § Self-audit's D4 hazards, the R1/R8
+labels, and this postscript. The retired design's tier vocabulary (`tier 1`, `tier 3`, `three tiers`) now appears only as NAMED HISTORY — ⚠️ notes, § What this supersedes, the plan's filename — never as live design; `grep -n -i '\btier'` over the spec is the check, and its one other hit, *"the outcome tier"* in § Approaches, is kaizen's registry vocabulary, not the retired design's.
+
+| Pass | seats · sections re-checked | counters | method | spec md5 (start → end) |
+|-----:|---|---|---|---|
+| 16 (the amendment's full pass) | opus×1 (rule sections + every count) + sonnet×1 (prose + the document's claims about itself) · the amendment's 11 hunks + one hop (Q2 · Q3 · Q4 · Q5 canary 4 · R3/R6 · D-234) | found: 21, new: 21, confirmed: 18, fixed: 18, unexecuted: 0, edits: 33 (9 + 20 + 3 + this count's own correction, a round-16 residue fixed before pin 17) | method: citation — full pass over the amendment; every ledger count re-derived at 116 rows (10 exact); 5 orchestrator probes pinned as scripts (`<scratchpad>/kaizen-amendment-review/probes/`: seat cost, relay cadence, report per-round, ratchet pattern, fragment append). Confirmed classes: false instrument facts (relay "hourly" is daily; "blocks nothing" is first-run-only; axes 3 and 7 named checks that grade plans, not commands), design contradictions the round-zero sweep introduced (piece 2 wired to an M2 fix ledger behind the sign-off; the gap named at step 3; the percentile cut in two pieces; seven keys for eight axes; Constraint 2's count low by `final_gate.py` and the ~46-repo blast radius), stale stamps (44/108 in a 116-row cell), the "verbatim" ask silently normalised (`weeAkly`), the sequencing reason not true of the file it names, the hygiene invocation missing `--surface`, a self-claim about `tier` falsified by § What this supersedes, a recommendation the cited backlog row had killed, the `.md`-only byte bound undeclared. RECORDED — measured (wording, one hop): the comma splice in the manifesto note. RECORDED — filed: the Status paragraph's *"Rounds 9–14 confirmed …"* sentence (the nine, `01M28VKD807M6QZB31NJ5D9W1T`). RECORDED — by design: this table empty while the round ran. RECORDED — cross-artifact: D-234's WHY carries the `waste:` figure as `change:` — erratum row D-237, immutable-row discipline. One-hop stamps in R6/Q2 corrected, uncounted · mirrors: 4 read (`Q3 fix-ledger row` sites — 2 rewritten in the batch, 2 caught by the phrase sweep) | 0874225a… → 6d5def1d… (the round-17 pin) |
+| 17 (delta) | opus×1 (fresh; rule hunks + counts) + sonnet×1 (fresh; prose hunks + the ledger's self-claims) · round 16's fix diff (84 changed lines, 14 hunks) + one hop (Q3 · Q4 · D3 · D-234/D-237 · the lock JSON · `final_gate.py` · the synced manifest) | found: 14, new: 14, confirmed: 13, fixed: 13, unexecuted: 0, edits: 15 | method: re-derivation — every count re-derived at 117 rows (10 of 10 exact, incl. D-237's `91 of 107` as the `waste:` rate); byte figures, the lock's owned paths, the relay cadence, `Agent-Context` parsing (200 of 200), `check_command_corpus.py`'s registration all executed. Every confirmed defect sat INSIDE round 16's hunks — the second consecutive residue pass, so per D-231 this round's edit is a **class rewrite — the piece-2 and piece-3 cells, the axis-3 cell, Constraint 4's conclusion, § What this supersedes' percentile sentence** — from the seats' executed evidence, not a third patch. Confirmed: a false universal in axis 3 (`check_command_corpus.py` DOES grade existence over the corpus); `rows <ids>` naming a ledger field that does not exist (`ts` is the only per-row handle); "the eighth" for axis 5; "both run now" over a three-item exemption; Constraint 4 deferring the cut on a principle it had just exempted; Q4's two failure modes mis-mapped and a "gate" that only warns; a sentence stating the converse of its intent; "keeps its MECHANISM" across a per-row→per-command change; the seat figure cited to R3, which contains no seat recipe (R9 added); one `[sic]` on a quote that preserves the other typo unmarked; the mirror count 2 where 4 sites were rewritten; "the Status line" for a sentence in the Status paragraph; a self-check whose categories missed kaizen's own "outcome tier". RECORDED — out of hop, destinations named: § Q3's closing "(the fix-ledger row)" location sentence — row 2 now carries Q3's declaration, Q3 itself untouched (next non-delta pass); D-234's WHY quoting `not weekly` — second erratum in D-237, same change; the ledger header's "Append-at-top" vs D-228…D-237 appended at the bottom — filed to infra at close; trade-intelligence's dangling `D-007 supersedes D-048` — mailed to trade-intelligence at close. RECORDED — measured (historical illustration): § Self-audit's `40/102 → 44/108 → 44/109 during the review` | 6d5def1d… → the round-18 pin's md5(start), stamped in its row |
