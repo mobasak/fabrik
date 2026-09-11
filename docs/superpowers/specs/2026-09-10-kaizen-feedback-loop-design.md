@@ -1,7 +1,9 @@
 # Kaizen feedback loop — a DELTA on the converged closed-loop v2 spec
 
-Status: DRAFT — the 1c blocker is CLEARED (see § BLOCKED: NON-CONVERGENCE — LIFTED); D4 added
-2026-09-11 and not yet reviewed, so a review round is owed before any flip
+Status: DRAFT — the 1c blocker is CLEARED (see § BLOCKED: NON-CONVERGENCE — LIFTED). The operator
+RULED the loop approved on 2026-09-11 (**D-224**: they own the goal, the mechanism is derived from
+measurement and is not a menu), so § D4 is no longer an open ask. D4 is still UNREVIEWED — a delta
+review round is owed before the flip, and the ruling does not substitute for it.
 Date: 2026-09-10 (round-1 review 2026-09-11)
 Author: fleet (Claude, /fabrik-spec) — operator: Özgür
 Delta on: `docs/superpowers/specs/2026-08-16-kaizen-closed-loop-v2-design.md` (Status: CONVERGED, 588 lines, author infra)
@@ -95,7 +97,7 @@ direction of the delta claim holds: the D-175 ledger shipped 2026-09-07, three w
 converged, and is uncovered by any spelling. It was the REVERSE direction — does v2 already register
 what D1 proposes — that failed, as R1/R2 record.
 
-## D4 — the OBSERVER, as the evidence supports it (operator-requested 2026-09-11)
+## D4 — the OBSERVER, as the evidence supports it (operator-requested and RULED 2026-09-11 — D-224)
 
 **The ask, verbatim:** every agent, while working, assigns a subagent as an observer whose duty is to
 utilise kaizen/feedback and judge the run on eight axes — lean · fast executable · accurate · no token
@@ -545,8 +547,6 @@ series to two, so activation is now an even larger share of the available value.
 
 ## Open — needs the operator, not derivable here
 
-- **The Q4 unit**: build v2's transcript-token guardrail, or supersede it with a D-row and measure disk
-  bytes. (R3 — the draft chose without noticing it was choosing.)
 - **Sequencing vs the held fleet sync.** Infra's Finish HELD the one forced
   `sync_enforcement_to_projects.py --force` pending trade-intelligence's receipt repair
   (`01M23G21EBSS4BC187HQ7PS02X`; wef repaired at `edcb7e6d`). `scripts/enforcement/` is a
