@@ -930,11 +930,15 @@ def _reversed_glob(monkeypatch, tmp_path):
     them, not silently pass them."""
     real = Path.glob
     monkeypatch.setattr(Path, "glob", lambda self, pat: sorted(real(self, pat), reverse=True))
+    # the probe sits INSIDE the commands tree (`_trees` returns `tmp_path` itself): four bare names
+    # no `*.md` or `*/SKILL.md` glob matches — invisible to the render, the pre-flight and
+    # `_census` — and four rather than two so a filesystem whose raw order happens to be
+    # descending cannot pass a fake that reverses nothing (1 in 24, not 1 in 2)
     probe = tmp_path / "_glob-probe"
-    probe.mkdir()
-    (probe / "a").touch()
-    (probe / "b").touch()
-    assert [p.name for p in probe.glob("*")] == ["b", "a"], "the reversed glob is not reversing"
+    probe.mkdir(exist_ok=True)
+    for name in ("a", "b", "c", "d"):
+        (probe / name).touch()
+    assert [p.name for p in probe.glob("*")] == ["d", "c", "b", "a"], "the fake is not reversing"
 
 
 @pytest.mark.parametrize("tree", ["commands", "skills", "agents"])
@@ -965,7 +969,8 @@ def test_the_prune_walks_in_sorted_order_so_a_link_that_sorts_first_goes_before_
     TARGET's is unlinked first (it still resolves), then the target — for that pair nothing dangles.
     Under a reversed `Path.glob` an unsorted walk removes the target first and leaves the link
     dangling forever. The sorted walk is DETERMINISTIC, not dangle-free: a link whose name sorts
-    AFTER its target's still dangles (receipt row M6, the assembler backlog row)."""
+    AFTER its target's still dangles (the Finish receipt's row M6; the interlinked-links item of
+    the assembler's row in `docs/STRATEGIC_BACKLOG.md`)."""
     d, s, a = _trees(tmp_path)
     ac.render(d, s, agents_dest=a)
     if tree == "skills":
