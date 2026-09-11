@@ -122,7 +122,7 @@ def _as_warnings(results: list[CheckResult]) -> list[CheckResult]:
         if getattr(r, "severity", None) is Severity.ERROR:
             r = CheckResult(
                 check_name=r.check_name,
-                severity=Severity.WARNING,
+                severity=Severity.WARN,
                 message=r.message,
                 file_path=r.file_path,
                 fix_hint=r.fix_hint,

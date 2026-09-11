@@ -1431,3 +1431,80 @@ means updating this page in the same change. This list is generated from those h
 ## [fleet] Quota board: a render-failure banner, not a fresh-looking page over a stale render (2026-09-07, owner: fleet = me)
 
 The board froze for 16 regeneration cycles on a `TypeError` in `_pool_credits` (introduced 610c01b8, fixed a9e5fd4a by a peer, mails 01M1W7FEAJVNDVK8F4CP55R1VA / 01M1W9DPSPYPDS6RH6KYH2CD8Q): the traceback WAS logged, to `~/.claude/quota-dashboard.log`, which nobody reads — while the page's own header kept advertising a 20-second refresh over a render 67 s old and climbing. The defect class is not "unlogged"; it is that the artifact cannot tell the reader it is stale. Owed: a banner carrying the last successful render time + the error class of the last failed one (the external-services page's mtime-age embed is the pattern to copy). Small, a design call; the crash itself is fixed and graded.
+
+## [operator] Claude Code deletes its own transcripts at 30 days, and session-recall is the only copy (2026-09-11, owner: operator + infra)
+
+`cleanupPeriodDays` is UNSET in both `~/.claude/settings.json` and `~/.claude.json`, so Claude Code's
+default transcript retention applies. Verified as a real setting in the running binary (2.1.263 —
+"Transcript retention cleanup"); corroborated on disk, where the oldest surviving
+`~/.claude/projects/*/*.jsonl` was dated exactly 30 days back. `scripts/dr_claude_backup.sh`
+deliberately does NOT mirror `projects/` ("regenerable or huge"), and there is no pg_dump of the
+session-recall database — so once a transcript ages out, the recall row is the last remaining record
+of that conversation.
+
+That became concrete on 2026-09-11: a `python -m ingest.reindex --full` in `/opt/session-recall`,
+run to apply the new worktree project labels, also ran `_reclaim_orphans` — which by design removes
+rows whose file is gone from disk — and reclaimed **5,791** files / 5,781 sessions, taking the DB
+from 11,107 to 5,326 sessions. Not a bug: `--full` is the only path that sweeps orphans, and the
+docstring says so. The loss skewed SHORT (26,941 turns over 5,781 sessions, ~4.7 each, against ~46
+for the survivors — mostly pings, one-shot subagent runs and headless calls), and it is not
+recoverable.
+
+TWO decisions, both the operator's because both edit files outside any project tree:
+(1) raise `cleanupPeriodDays` so transcripts stop aging out at all — the root cause, one settings
+key; (2) whether `--full` should refuse to reclaim without an explicit `--reclaim-orphans` opt-in,
+or take a dump first. Until (1) lands, treat `--full` as a destructive operation and prefer the
+plain incremental reindex (what the SessionStart hook and the MCP self-heal already run).
+
+## [infra] check_doc_index's basename matching is a measured fail-open — 140 of 213 hub docs pass on a bare filename, 4 live false negatives (2026-09-11, owner: infra)
+
+Found by an author-blind Opus seat closing the `/fabrik-review` on D-227, RECORDED rather than fixed
+because it is pre-existing, untouched by that change, and far larger than the one-file exemption the
+review was about — folding it in would have been the scope creep that stops a loop converging.
+
+`scripts/enforcement/check_doc_index.py` direction (b) passes a doc when EITHER its full path OR its
+bare basename appears anywhere in INDEX.md. Measured on the hub tree with the check's own exclusion
+logic: **213 docs examined, 73 matched by full path, 140 matched only by basename.** Five files are
+named `README.md`; exactly one of them is indexed by path, and the other four
+(`docs/infrastructure/audit-prompts/`, `docs/infrastructure/probe-reports/`, `docs/preplans/`,
+`docs/traycer/`) are in INDEX.md by neither path nor row — they ride the single string `README.md`
+and are green today while being genuinely unindexed.
+
+Minimum honest fix named by the seat: require the full path for any doc deeper than
+`docs/<name>.md`, or accept a basename only when it is unique among examined docs. Either changes
+fleet behaviour materially, which is why it wants its own measured change rather than a ride-along.
+
+Two smaller members of the same file, same disposition:
+* a non-UTF-8 doc path crashes the check — `_ls` uses `text=True` with strict decoding while the
+  INDEX read two functions away uses `errors="replace"`. The complete fix is `surrogateescape` PLUS
+  a surrogate-safe print (the seat verified that fixing only the decode moves the crash to the
+  plain-text branch). Pre-existing; this file already carries a documented non-ASCII-path incident.
+* `/opt/scratch_bhd` flips green -> red as an accepted consequence of the `_ls` fail-closed fix
+  landed under D-227: it holds 21 markdown files under `docs/` and an INDEX.md but is NOT a git
+  repo, so the check can no longer report OK over zero examined docs. Correct, and the only
+  directory of the 48 carrying the check that changes verdict.
+
+## [infra] check_doc_index decodes `%20` on ONE side of its membership test — 52 docs fleet-wide are reachable (2026-09-11, owner: infra)
+
+Found by an author-blind Opus seat on the consolidation round of the D-227 review, RECORDED rather
+than fixed for the same reason as the basename fail-open above: it is pre-existing, untouched by
+that change, and fixing it inside a converging review is the scope creep that stops loops closing.
+
+`scripts/enforcement/check_doc_index.py` unescapes `%20` on the direction-(a) side (the INDEX link
+target) and compares raw paths on the direction-(b) side. So a doc whose name contains a SPACE, linked the
+correct markdown way with the space percent-escaped, passes (a) and FAILS (b) — the check reports
+`live doc not in INDEX.md: <the space form>` naming a doc that IS in INDEX.md. Reproduced in a fixture.
+
+Denominator: **52 non-archive `docs/**/*.md` paths containing a space, across the 45 git repos
+under /opt (5,051 docs total)**; 11 of the 52 are in the hub's own `docs/reference/research/`.
+`/opt/job-agent/INDEX.md:295` already ships a `%20` link and is green only by accident — its link
+TEXT repeats the raw basename, which satisfies the basename branch. A human-written title there
+turns it red.
+
+Fix named by the seat (2 lines at the membership test): compare the index text against `p`, `base`
+and their `%20` forms. ⚠️ Its MIRROR must be decided at the same time, not after: a doc named with
+a LITERAL the percent-escaped form currently produces `INDEX.md names missing path: docs/a b.md` — a path
+that neither exists nor appears in INDEX.md, with NO link spelling that can satisfy it, because
+there is no escape for a literal `%`. Same shape for a literal `#` (the anchor strip). Both are
+the no-reachable-remedy class this review already hit twice. Honest denominator for the mirror:
+**0 of 5,051** docs carry a literal `%20` or `#` today, so it is latent, not firing.

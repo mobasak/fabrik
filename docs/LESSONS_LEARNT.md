@@ -6556,3 +6556,29 @@ document.
   the previous round's fixes, stop editing and change WHO edits. Hand the residue to a different session
   (or to the next pipeline stage, which has a different author and its own review) — that breaks the
   finder-is-fixer identity by construction, and nothing inside the loop can.
+
+## A flag that reads as a refresh can be a garbage collection — and a premise-level exemption beats a path-level one (2026-09-11)
+
+- **`--full` is not "do it again", it is "and sweep".** `ingest.reindex --full` in `/opt/session-recall`
+  was run to re-apply new project labels to already-indexed sessions; it ALSO runs `_reclaim_orphans`,
+  which deletes rows whose transcript is gone from disk. It removed 5,791 files / 5,781 sessions
+  (11,107 → 5,326). Nothing malfunctioned: the reclaim is documented three lines below the `--full`
+  flag I had already grepped, and I read the flag's sentence without reading the branch it enables.
+  The generalisation: before running a flag that widens a job, read every branch the flag GATES, not
+  the sentence that names it — and where the widened job is destructive and unbacked, that is a
+  decision to present, not a default to take. Compounding factor worth knowing once:
+  `cleanupPeriodDays` is unset, so Claude Code deletes transcripts at 30 days and `dr_claude_backup.sh`
+  deliberately skips `projects/` — which is what made recall's rows the last copy. Filed to
+  `docs/STRATEGIC_BACKLOG.md`.
+- **Exempt on the PREMISE, not on the path.** The INDEX gate demanded a row for `docs/DECISIONS.md` in
+  every repo the hub seeds it into. The obvious fix was one `EXCLUDE_EXACT` line; measuring first showed
+  9 of 45 repos had COMMITTED that ledger and genuinely owed the row, so the path-level fix would have
+  silenced 9 true positives to clear 20 false ones. The rule the check actually relies on is "an
+  untracked doc had an author in this repo" — false only for a hub-seeded file — so keying the exemption
+  on tracked-ness fixes the premise and leaves every true positive standing. A grader now fails if the
+  exemption is ever made unconditional, which is the part that keeps the distinction alive after the
+  reasoning is forgotten.
+- **Two right numbers can look like a contradiction.** "48 directories under /opt carry the check" and
+  "45 git repos under /opt" are both true and are different populations (the sync adopts non-git `/opt`
+  dirs; two git repos are worktrees whose `.git` is a FILE, which a `-d .git` test misses — that test is
+  why my first count said 43). State which population a count is over, every time.
