@@ -1,6 +1,6 @@
 # Review-family pass 3 — the last five loops, the bounded hop, and the seven cost fixes land
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Profile: small
 **Owner:** —
 Spec: docs/superpowers/specs/2026-09-11-review-family-pass3-design.md (CONVERGED 9e9545af, re-flip row D-226 superseding D-223; approved 2026-09-11 by the operator's word "approved" — the four approval rows the spec's § Decisions taken names are minted with this plan's commit: D-228 the approval, D-229 the D-208 narrowing, D-230 the bounded hop as the family's delta rule, D-231 the D10 rules bound to the family)

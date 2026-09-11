@@ -26,7 +26,12 @@ Classes (each hit is a `path:line` with its class name):
                      VERDICT-based detector is blind to it).
   changelog-entry    ``check_changelog.py``'s ``check_changelog_quality()`` — called, not copied.
   dead-symbol        a `--symbol` the surface references 0 times.
-  stale-phrase       a `--phrase` the brief named as stale, matched across line wraps.
+  stale-phrase       a `--phrase` the brief named as stale — matched across a line wrap, never
+                     across a blank line; one row per line (the same walk as `claim`).
+  claim              a `--claim` term's mirror sites, LISTED for the pre-pin sweep (D10 rule 2) —
+                     never a verdict; a `claim` row pasted into a receipt is dispositioned
+                     ``RECORDED — measured (<n> mirrors read)`` — a verdict form
+                     ``check_review_coverage.py`` already accepts — never FIXED or false positive.
 
 CONTRACT: this script has NO failing exit path. It is registered ``warn_only=True`` in
 ``final_gate.py`` and invoked by the orchestrator; it is NOT a pre-commit hook and it writes to no
@@ -443,7 +448,11 @@ def _is_template_source(path: str) -> bool:
 
 
 def _surface_hits(
-    path: str, text: str, phrases: list[str], table: bool = True
+    path: str,
+    text: str,
+    phrases: list[str],
+    table: bool = True,
+    claims: list[str] | None = None,
 ) -> tuple[list[Hit], int]:
     """(hits, rows graded by nothing) — `table=False` for a surface file that is ALSO a receipt of
     this sweep: the receipt path grades its tables as `raw-pipe`, and one broken row must never be
@@ -467,22 +476,49 @@ def _surface_hits(
             )
             hits.extend(thits)
     for phrase in phrases:
-        # Whitespace-tolerant so a phrase matches ACROSS a line wrap (two of the D-191 sentence's
-        # sites wrap) — the same effect as searching line-joined text, with exact offsets kept.
-        pat = re.compile(r"\s+".join(re.escape(tok) for tok in phrase.split()), re.I)
-        for m in pat.finditer(text):
-            hits.append(
-                Hit(
-                    "stale-phrase",
-                    path,
-                    text.count("\n", 0, m.start()) + 1,
-                    f"stale phrase {phrase!r} still present",
-                )
-            )
+        for ln in _term_sites(text, phrase):
+            hits.append(Hit("stale-phrase", path, ln, f"stale phrase {phrase!r} still present"))
+    for term in claims or []:
+        # D10 rule (2): a NEUTRAL listing of every site carrying the term — the SAME walk
+        # `stale-phrase` uses; fences are NOT stripped, a mirror inside a fence is still a mirror
+        # the orchestrator reads before the pin. Differs from `--phrase` ONLY in its label: a
+        # `stale-phrase` hit is adjudicated as a defect, a `claim` row is read.
+        for ln in _term_sites(text, term):
+            hits.append(Hit("claim", path, ln, f"claim {term!r} at this line"))
     if Path(path).name == "CHANGELOG.md":
         hits.extend(_changelog_hits(path, text))
     hits.sort(key=lambda h: h.line)  # residue, fences, tables and phrases are separate passes
     return hits, ungraded
+
+
+def _term_sites(text: str, term: str) -> list[int]:
+    """The LINES where `term` occurs — the one walk `stale-phrase` and `claim` share (they differ
+    only in label). Whitespace-tolerant, so a term WRAPPED across a line is a site (two of the
+    D-191 sentence's sites wrap; a substring-per-line walk missed a wrapped mirror — round 1);
+    case-insensitive; never across a BLANK line (a paragraph break is not a wrap — round 2: the
+    bare whitespace join listed the last word of one paragraph glued to the first of the next);
+    ONE row per line (a term twice on one line is one site — the `· mirrors: <n> read` count is
+    a count of lines); an EMPTY term names no site (the empty pattern matches every character
+    offset)."""
+    if not term.strip():
+        return []
+    pat = re.compile(r"\s+".join(re.escape(tok) for tok in term.split()), re.I)
+    lines: list[int] = []
+    pos = 0
+    seen, ln = 0, 1  # newlines counted incrementally: a per-match count from 0 was O(n·matches)
+    while (m := pat.search(text, pos)) is not None:
+        if re.search(r"\n[ \t]*\n", m.group(0)):
+            # a skipped match must NOT consume its span: a real site starting inside it (a term
+            # whose first token repeats — `fresh\n\nfresh fresh seat`) was swallowed by a
+            # `finditer` walk and never listed (round 3)
+            pos = m.start() + 1
+            continue
+        pos = m.end()
+        ln += text.count("\n", seen, m.start())
+        seen = m.start()
+        if not lines or lines[-1] != ln:
+            lines.append(ln)
+    return lines
 
 
 def _changelog_hits(path: str, text: str) -> list[Hit]:
@@ -583,10 +619,12 @@ def scan(
     receipts: list[Path] | None = None,
     phrases: list[str] | None = None,
     symbols: list[str] | None = None,
+    claims: list[str] | None = None,
 ) -> Sweep:
     """Never raises for a missing or unreadable file — it NOTES it instead."""
     phrases = phrases or []
     symbols = symbols or []
+    claims = claims or []
     surface_files, surface_missing = _expand([Path(p) for p in (surfaces or [])])
     receipt_files, receipt_missing = _expand([Path(p) for p in (receipts or [])])
     receipt_set = {_resolved(p) for p in receipt_files}
@@ -603,7 +641,7 @@ def scan(
             continue
         read[_resolved(p)] = text
         shits, sungraded = _surface_hits(
-            str(p), text, phrases, table=_resolved(p) not in receipt_set
+            str(p), text, phrases, table=_resolved(p) not in receipt_set, claims=claims
         )
         hits.extend(shits)
         ungraded += sungraded
@@ -698,11 +736,45 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument("--phrase", action="append", default=[], help="a stale phrase (repeatable)")
     ap.add_argument("--symbol", action="append", default=[], help="a live symbol (repeatable)")
+    ap.add_argument(
+        "--claim",
+        action="append",
+        default=[],
+        help="a claim term whose mirror sites are LISTED — neutral, never a verdict (D10)",
+    )
     ap.add_argument("--json", action="store_true", help="emit the hits as JSON")
     args = ap.parse_args(argv)
 
     surfaces = [Path(p) for p in args.surface]
     receipts = [Path(p) for p in args.receipt]
+
+    def _refuse(why: str) -> int:
+        # printed, never raised — every path here returns 0 (the CONTRACT); under `--json` the
+        # refusal rides the envelope's `notes`, so a consumer parsing stdout is never handed prose
+        if args.json:
+            print(
+                json.dumps({"hits": [], "files": 0, "notes": [why], "ungraded_rows": 0}, indent=2)
+            )
+        else:
+            print(why)
+        return 0
+
+    for flag, terms in (
+        ("--claim", args.claim),
+        ("--phrase", args.phrase),
+        ("--symbol", args.symbol),
+    ):
+        if any(not term.strip() for term in terms):
+            # an empty term names no site (`_term_sites` skips it — the empty pattern would match
+            # every character offset; `"".count` is len+1, so an empty symbol is always "live");
+            # on the CLI the caller is told, aloud — a `--phrase "$OLD"` whose variable expanded
+            # empty must never read as a clean sweep (rounds 3–4)
+            return _refuse(f"REFUSED — {flag} needs a non-empty term")
+    if args.claim and not surfaces:
+        # a mirror sweep is over a PIN the caller names; without one the flag would inherit the
+        # no-argument self-selection below and print a green over the changed receipts (the
+        # spec's executed mutant)
+        return _refuse("REFUSED — --claim needs --surface")
     self_selected = not (surfaces or receipts or args.phrase or args.symbol)
     if self_selected:
         # THE GATE REGISTRATION passes no arguments: self-select the changed receipts and stay
@@ -713,7 +785,7 @@ def main(argv: list[str] | None = None) -> int:
             # handed an empty string, which is not JSON.
             return 0
 
-    sweep = scan(surfaces, receipts, args.phrase, args.symbol)
+    sweep = scan(surfaces, receipts, args.phrase, args.symbol, args.claim)
     if args.json:
         print(
             json.dumps(

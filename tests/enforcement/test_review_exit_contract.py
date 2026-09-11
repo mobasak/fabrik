@@ -266,3 +266,44 @@ def test_01m1djyh_verify_review_named_by_service_satisfies_the_flip():
     # no-op) — only the exact-substring rule remains available to it
     assert not ccv._cite_matches_plan("2026-01-01-cleanup-phase5-review.md", "phase5-cleanup")
     assert not ccv._cite_matches_plan("tryton-crm-deploy-review.md", plan)
+
+
+def test_both_fragments_carry_the_bounded_hop_the_delta_budget_and_the_round_zero_rules():
+    """Review-family pass 3 (D-229, D-230, D-231): D4's counting sentence, D5's budget — the ONE
+    number, bound to `dispatch_headroom.DELTA_BUDGET` by this test — and D10's three rule phrases
+    live in BOTH termination fragments; `term-coverage` reads the `confirmed:` exit row and carries
+    no retired `found: 0 · new: 0 · fixed: 0` literal (D2)."""
+    _dh_spec = importlib.util.spec_from_file_location(
+        "dh", REPO / "scripts" / "sysadmin" / "dispatch_headroom.py"
+    )
+    assert _dh_spec and _dh_spec.loader
+    dh = importlib.util.module_from_spec(_dh_spec)
+    _dh_spec.loader.exec_module(dh)
+    frag = REPO / "commands" / "_fragments"
+    te = (frag / "term-edit.md").read_text(encoding="utf-8")
+    tc = (frag / "term-coverage.md").read_text(encoding="utf-8")
+    for name, text in (("term-edit", te), ("term-coverage", tc)):
+        assert "INSIDE the previous round's fix hunks" in text, name  # D4
+        assert f"at or under {dh.DELTA_BUDGET} changed lines" in text, name  # D5
+        for phrase in ("probe script", "--claim", "class rewrite"):  # D10 (1)–(3)
+            assert phrase in text, (name, phrase)
+    assert "confirmed: 0 · fixed: 0 · unexecuted: 0" in tc
+    assert "found: 0 · new: 0 · fixed: 0" not in tc
+    # the canonical row template the fragment ships PARSES through both graders in the stated
+    # order (round-1 finding: the prose said "`found:` before `fixed:`", and a row honouring only
+    # that — `confirmed:` after `fixed:` — is refused by `_pass_counters_ext` and misses QUIET_PASS)
+    import re as _re
+
+    tmpl = next(
+        s for s in _re.findall(r"`([^`\n]*)`", tc) if "method: citation|re-derivation|gate" in s
+    )
+    row = tmpl.replace("citation|re-derivation|gate", "re-derivation").replace("Pass k", "Pass 2")
+    assert isinstance(crc._pass_counters_ext(row), tuple), crc._pass_counters_ext(row)
+    _cc = importlib.util.spec_from_file_location(
+        "ccv2", REPO / "scripts" / "enforcement" / "check_convergence.py"
+    )
+    ccv2 = importlib.util.module_from_spec(_cc)
+    _cc.loader.exec_module(ccv2)
+    assert ccv2.QUIET_PASS.search(row), row
+    displaced = row.replace("confirmed: 0, fixed: 0", "fixed: 0, confirmed: 0")
+    assert isinstance(crc._pass_counters_ext(displaced), str)  # refused by name, as the text says

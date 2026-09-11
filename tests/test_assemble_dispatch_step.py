@@ -135,6 +135,22 @@ def test_the_two_partitioned_review_loops_get_the_slice_floor_and_nothing_else_d
     assert slice_floors == ["fabrik-repo-review", "fabrik-review"], slice_floors
 
 
+_DELTA_CLAUSE = (
+    "a delta round at or under the fragment's budget dispatches ONE fresh seat plus the hygiene "
+    "script (`--delta`, D5)"
+)
+
+
+def test_the_two_partition_floors_carry_the_delta_clause_and_the_judgement_floors_do_not():
+    """D5 (review-family pass 3, D-229): round 1 keeps its partition; every later round is sized
+    by the fix — the two partition FLOOR sentences say so, the judgement kinds (no partition,
+    `--mechanical 0`) do not."""
+    for kind in ("review loop", "section partition"):
+        assert _DELTA_CLAUSE in ac._floor(kind, "`fabrik-reviewer`"), kind
+    for kind in ("grounding", "adjudication"):
+        assert _DELTA_CLAUSE not in ac._floor(kind, "`fabrik-reviewer`"), kind
+
+
 _SECTION_PARTITION_SENTENCE = (
     "plus the partition — the artifact cut into DISJOINT slices by SECTION: Opus on the "
     "rule/grammar sections, Sonnet `fabrik-reviewer` seats on the rest, `fabrik-researcher` seats "

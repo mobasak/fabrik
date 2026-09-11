@@ -858,3 +858,118 @@ def test_a_fence_opener_line_carrying_a_comment_opener_is_a_fence(tmp_path):
     )
     sweep = crh.scan(surfaces=[p])
     assert _lines(sweep, "table-parity") == [9]
+
+
+# ---------------------------------------------------------------- `--claim` (D10 rule 2)
+
+
+def _claim_rows(stdout: str) -> list[int]:
+    import re
+
+    return [
+        int(m.group(1))
+        for m in re.finditer(r"^\[ADVISORY\] claim \S+:(\d+) — claim ", stdout, re.M)
+    ]
+
+
+def test_a_claim_term_lists_every_mirror_site_as_a_neutral_claim_row(tmp_path):
+    """D10 rule (2): the pre-pin sweep is a COMMAND — `--surface <pin> --claim <term>` lists every
+    line carrying the term (case-insensitively; a mirror inside a fence is still a mirror) so the
+    orchestrator reads each site of a rewritten claim before the pin. The class is `claim`, never
+    `stale-phrase`: a listing is neutral, not a verdict."""
+    doc = tmp_path / "spec.md"
+    doc.write_text(
+        "The done window reaches back to the previous close.\n"
+        "an unrelated line\n"
+        "A DONE close REACHES BACK too.\n"
+        "```\n"
+        "$ probe: done reaches back inside a fence\n"
+        "```\n",
+        encoding="utf-8",
+    )
+    r = _run(["--surface", str(doc), "--claim", "reaches back"], REPO)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert _claim_rows(r.stdout) == [1, 3, 5], r.stdout
+    assert "hygiene: 3 hit(s) over 1 file(s)" in r.stdout, r.stdout
+    assert "stale-phrase" not in r.stdout
+    # a mirror WRAPPED across a line is listed too — the same whitespace-tolerant walk `--phrase`
+    # uses (round-1 finding: a substring-per-line walk listed 1 of 2 and the pin went out with a
+    # mirror unread)
+    doc.write_text(
+        "The done window reaches\nback to the close.\nA close reaches back.\n", encoding="utf-8"
+    )
+    r = _run(["--surface", str(doc), "--claim", "reaches back"], REPO)
+    assert _claim_rows(r.stdout) == [1, 3], r.stdout
+    # never across a BLANK line (a paragraph break is not a wrap), ONE row per line (a term
+    # twice on one line is one site), and an empty term names no site — round-2 findings
+    doc.write_text(
+        "ends with fresh\n\nseat opens the next\nfresh seat here, FRESH SEAT twice\n",
+        encoding="utf-8",
+    )
+    r = _run(["--surface", str(doc), "--claim", "fresh seat"], REPO)
+    assert _claim_rows(r.stdout) == [4], r.stdout
+    assert crh.scan(surfaces=[doc], claims=[""]).hits == []
+    assert crh.scan(surfaces=[doc], phrases=[""]).hits == []  # the shared walk, same rule
+    # a skipped blank-line match must not swallow a real site that starts inside its span
+    # (round 3: a term whose first token repeats)
+    assert crh._term_sites("para ends fresh\n\nfresh fresh seat\n", "fresh fresh") == [3]
+    # an empty --phrase is refused aloud like an empty --claim (a `--phrase "$OLD"` whose
+    # variable expanded empty must never read as a clean sweep)
+    r = _run(["--surface", str(doc), "--phrase", ""], REPO)
+    assert r.stdout.strip() == "REFUSED — --phrase needs a non-empty term", r.stdout
+    r = _run(["--surface", str(doc), "--symbol", ""], REPO)  # `"".count` is len+1: always "live"
+    assert r.stdout.strip() == "REFUSED — --symbol needs a non-empty term", r.stdout
+    # the guard names the FIRST empty flag in (--claim, --phrase, --symbol) order (round 5)
+    r = _run(["--surface", str(doc), "--symbol", "", "--phrase", ""], REPO)
+    assert r.stdout.strip() == "REFUSED — --phrase needs a non-empty term", r.stdout
+    r = _run(["--surface", str(doc), "--phrase", "", "--claim", ""], REPO)
+    assert r.stdout.strip() == "REFUSED — --claim needs a non-empty term", r.stdout
+    # line numbers are counted incrementally: the same answer, without the O(n·matches) walk
+    assert crh._term_sites("a\nb a\n\na a\n", "a") == [1, 2, 4]
+
+
+def test_a_claim_without_a_surface_is_refused_aloud_and_never_self_selects(tmp_path):
+    """The spec's executed mutant: a dropped guard inherits the no-argument self-selection and
+    prints `hygiene: 0 hit(s) over 1 file(s)` against the changed receipts — a green over nothing.
+    PROJECT_ROOT is pinned to a fixture repo carrying one changed receipt so that path is live."""
+    root = _scratch_repo(tmp_path)
+    committed = root / "docs/development/reviews/2026-09-10-a-review.md"
+    committed.write_text("| # | Class |\n|---|---|\n| F1 | x |\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(root), "commit", "-qm", "receipt"], check=True)
+    (root / "docs/development/reviews/2026-09-11-b-review.md").write_text(
+        "| # | Class | Finding | Disposition |\n|---|---|---|---|\n| F1 | shape | a row | FIXED |\n",
+        encoding="utf-8",
+    )
+    r = _run(["--claim", "x"], root, env={"PROJECT_ROOT": str(root)})
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert r.stdout.strip() == "REFUSED — --claim needs --surface", r.stdout
+    assert "hygiene:" not in r.stdout
+    # an empty term would list EVERY line of the surface (round-zero probe: 9 of 9) — refused too
+    doc = tmp_path / "spec.md"
+    doc.write_text("a\nb\n", encoding="utf-8")
+    r = _run(["--surface", str(doc), "--claim", " "], root)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert r.stdout.strip() == "REFUSED — --claim needs a non-empty term", r.stdout
+    # under --json the refusal rides the envelope's notes — a stdout consumer never gets prose
+    r = _run(["--claim", "x", "--json"], root, env={"PROJECT_ROOT": str(root)})
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert json.loads(r.stdout) == {
+        "hits": [],
+        "files": 0,
+        "notes": ["REFUSED — --claim needs --surface"],
+        "ungraded_rows": 0,
+    }
+
+
+def test_claim_hits_carry_the_claim_class_in_json_and_beside_a_phrase(tmp_path):
+    doc = tmp_path / "spec.md"
+    doc.write_text("the old wording stays here\nthe claim term sits here\n", encoding="utf-8")
+    r = _run(["--surface", str(doc), "--claim", "claim term", "--json"], REPO)
+    assert r.returncode == 0, r.stdout + r.stderr
+    hits = json.loads(r.stdout)["hits"]
+    assert [(h["class"], h["line"]) for h in hits] == [("claim", 2)], hits
+    r = _run(["--surface", str(doc), "--claim", "claim term", "--phrase", "old wording"], REPO)
+    assert r.returncode == 0, r.stdout + r.stderr
+    kinds = [ln.split()[1] for ln in r.stdout.splitlines() if ln.startswith("[ADVISORY] ")]
+    assert kinds == ["stale-phrase", "claim"], r.stdout

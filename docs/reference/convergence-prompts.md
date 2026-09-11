@@ -86,7 +86,9 @@ ITERATE your review of the implementation against the finalized plan until it CO
      "status":"success", fix and repeat.
   4. DELTA ROUND — every round after the first. Its surface is COMPUTED, not judged:
      `git diff <last round's commit>..HEAD -- <the review's surface>`, plus one hop of
-     callers and callees (grep the changed symbols, or `find_referencing_symbols`), plus
+     callers and callees (grep the changed symbols, or `find_referencing_symbols`) (the hop
+     bounds the EXTENT; what a delta round may COUNT is the fragments' bounded-hop rule —
+     `term-edit`/`term-coverage`), plus
      the tests that import a changed module, plus any sibling commit that landed on the
      surface since the last round. The class ledger PERSISTS: sweep the classes the diff
      touches and CITE the rest as standing-clean from the last full pass, naming them in

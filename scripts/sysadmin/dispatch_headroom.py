@@ -48,6 +48,11 @@ import time
 from pathlib import Path
 
 FLOOR = 3
+# D5 (review-family pass 3, D-229): a delta round whose fix diff — changed lines, the review
+# receipt excluded — is at or under this many lines dispatches ONE fresh non-authoring seat; above
+# it the round-1 partition over the touched slices stands. The ONE place the number lives: both
+# termination fragments cite it and `tests/enforcement/test_review_exit_contract.py` binds them.
+DELTA_BUDGET = 20
 # D-191 (operator, three times: "maximum count of viable and useful subagents"): the BOX is the
 # ceiling and the units are the PARTITION. Every unit gets one seat per ANGLE — breadth (Sonnet),
 # mechanical (Haiku) — plus the authoritative Opus seats (one per risky unit, at least one). A
@@ -439,6 +444,7 @@ def budget(
     mechanical: int | None = None,
     *,
     slices: dict[str, int] | None = None,
+    delta: int | None = None,
 ) -> dict:
     s = s or {"ok": True, "seats": 0, "sessions": 0, "skipped": []}
     reasons: list[str] = []
@@ -455,6 +461,16 @@ def budget(
         if slices is not None
         else sum(full_mix(max(units, 0), risky, mechanical).values())
     )
+    # D5 (D-229): a later round is sized by the previous round's FIX, not by the round-1
+    # partition or the units floor — at or under the budget it is ONE fresh seat plus the hygiene
+    # script, under `--slices` AND under `--units` alike (D-229 narrows the D-208 floor to round 1;
+    # 14 of the 18 termination-fragment consumers are units-sized — scoped review round 1). The mix
+    # needs no code: `trim()` already yields the highest seat for 1. A zero-sum partition or a
+    # zero-unit surface keeps its own refusal below; `delta=None` is byte-identical to today.
+    delta_sized = delta is not None and delta <= DELTA_BUDGET and wanted > 0
+    if delta_sized:
+        wanted = 1
+        reasons.append(f"delta {delta} ≤ {DELTA_BUDGET} changed lines → one fresh seat (D5)")
     caps = {"wanted": wanted, "concurrency_cap": CONCURRENCY_CAP}
     if risky > units > 0:
         reasons.append(
@@ -462,6 +478,14 @@ def budget(
             "are a subset of the surface"
         )
     floor_granted = 0  # seats the FLOOR granted past the sibling remainder (0 = none)
+    # THE ONE FLOOR RULE for a round: it asks for `need` seats — the D-188 floor for a units-sized
+    # round 1, ONE for a delta-sized round (D-229 narrows the floor to round 1). Every cap site
+    # below reads `need`, never FLOOR: a delta round is one seat by design and is never "raised",
+    # "granted past", "held at" or "below" the floor of three (rounds 3–4: a class rewrite of the
+    # two patched sites, then a sweep of the remaining four). The prose beside a non-delta round is
+    # byte-identical to before — the board's caveat tests pin it.
+    need = 1 if delta_sized else FLOOR
+    floor_word = "the delta round's one seat" if delta_sized else f"the floor of {FLOOR}"
     per_seat = HEAVY_GB_PER_SEAT if heavy else LIGHT_GB_PER_SEAT
     if b.get("ok"):
         mem = b["mem_available_gb"]
@@ -477,19 +501,21 @@ def budget(
         # min(phys, FLOOR))` let three sessions each claim a 2-seat box (round-3 finding)
         cap = max(phys - taken, 0)
         overcommit = 0
-        if cap < FLOOR <= phys:
+        if cap < need <= phys:
             # the floor is granted against the BOX, not the remainder: a session never waits a
-            # sibling's 25-minute window out, at the price of up to FLOOR-1 seats past the
+            # sibling's 25-minute window out, at the price of up to need-1 seats past the
             # remainder — bounded, and SAID (round-8 finding: it was silent)
-            overcommit = FLOOR - cap
-            cap = FLOOR
+            overcommit = need - cap
+            cap = need
         caps["box_cap"] = cap
         floor_granted = overcommit  # exported beside caps (never INSIDE them: `seats` is their
         # min) — the board keys its label on it, not on `box_cap == FLOOR` (round-9 Opus finding)
         if overcommit:
             reasons.append(
                 f"floor granted: {overcommit} seat(s) past what the box has left after the "
-                f"sibling reservation (bounded by the floor of {FLOOR}; a session never starves)"
+                f"sibling reservation (bounded by "
+                + (f"the round's own floor of {need}" if delta_sized else f"the floor of {FLOOR}")
+                + "; a session never starves)"
             )
         reasons.append(
             f"box allows {cap} {'heavy' if heavy else 'read-only'} seats "
@@ -499,15 +525,18 @@ def budget(
                 f"{s.get('sessions')} running record(s)"
                 # the guarantee is stated only where it holds (round-9 Opus finding: "never below
                 # the floor of 3" printed beside "box allows 0 seats")
-                + (f", never below the floor of {FLOOR}" if phys >= FLOOR else "")
+                + (f", never below {floor_word}" if phys >= need else "")
                 if taken
                 else ""
             )
             + ")"
         )
     else:
-        caps["box_cap"] = FLOOR
-        reasons.append(f"{b.get('why')} — box unknown, held at the floor")
+        caps["box_cap"] = need
+        reasons.append(
+            f"{b.get('why')} — box unknown, held at "
+            + ("the delta round's one seat" if delta_sized else "the floor")
+        )
     if not s.get("ok"):
         reasons.append(f"{s.get('why')} — sibling seats unknown, not subtracted")
     if s.get("skipped"):
@@ -542,7 +571,7 @@ def budget(
             # the picture publishes its own in_drain_band predicate; read it, don't re-derive it
             hot = unknown or bool(q.get("active_in_band")) or q["hottest_pct"] >= band
             if hot:
-                caps["quota_cap"] = FLOOR
+                caps["quota_cap"] = need
                 reasons.append(
                     (
                         (
@@ -555,7 +584,11 @@ def budget(
                         else f"quota: active {q['active']} is at {q['hottest_pct']}% — in the drain "
                         f"band ({band}%, the rotation picture's own predicate)"
                     )
-                    + " — run the FLOOR, sweep the rest next round"
+                    + (
+                        " — run the delta round's one seat"
+                        if delta_sized
+                        else " — run the FLOOR, sweep the rest next round"
+                    )
                 )
             if q["eligible"] == 0:
                 # `--status` names a warm standby as the next flip while this said "none" — the
@@ -572,8 +605,11 @@ def budget(
                     "the seats you dispatch proportionate to its remaining window"
                 )
     else:
-        caps["quota_cap"] = FLOOR
-        reasons.append(f"{q.get('why')} — quota unknown, held at the floor")
+        caps["quota_cap"] = need
+        reasons.append(
+            f"{q.get('why')} — quota unknown, held at "
+            + ("the delta round's one seat" if delta_sized else "the floor")
+        )
     # The floor raises the UNIT-derived count (D-188: never solo, never two) — it never overrides a
     # HARD cap. The first draft raised any sub-floor result back to 3, including a box_cap of 0, so
     # "--heavy" on a box with no room printed 3 heavy seats: the exact OOM this tool exists to
@@ -588,7 +624,8 @@ def budget(
         reasons.append(
             f"units={units} — nothing to partition; give --units >= 1 (one unit is already the floor of 3)"
         )
-    elif slices is None and caps["wanted"] < FLOOR:
+    elif slices is None and caps["wanted"] < need:
+        # …and a delta-sized round never pads: D-208's floor binds round 1 only (D-229)
         # reachable for units=1 with a Haiku-less mechanical=0 mix (opus 1 + sonnet 1 = 2 < 3); a
         # `slices` caller reaching here would be a bug in the discriminator, not a real partition,
         # so the guard above keeps this branch closed under slices rather than merely rare
@@ -618,26 +655,47 @@ def budget(
         # F7 (round-1 review): under slices `caps["wanted"]` is Σ slices, not "units x angles +
         # authoritative" — the reason must name the basis it actually used
         basis = (
-            "the slice counts summed" if slices is not None else "units x angles + authoritative"
+            "the delta budget, one fresh seat (D5)"
+            if delta_sized
+            else (
+                "the slice counts summed"
+                if slices is not None
+                else "units x angles + authoritative"
+            )
         )
         reasons.append(
             f"wanted {caps['wanted']} ({basis}), bound to {seats} by "
             f"{', '.join(binding)} — the box/quota decide, the surface only asks"
         )
-    if slices is None and seats < FLOOR and units > 0:
+    if caps["wanted"] > 0 and seats < need and (slices is None or delta_sized):
+        # a delta-sized round is ONE seat by design — never "below the floor" at 1 — but at 0 it
+        # still cannot run, under `--units` AND under `--slices`, and this imperative is the only
+        # line that says so (rounds 3–4); a non-delta partition keeps its cap-only reason above
         hard = [k for k, v in caps.items() if v == seats and k != "wanted"]
         reasons.append(
-            f"below the floor because a HARD cap binds ({', '.join(hard)}={seats}) — "
+            (
+                f"below the delta round's one seat because a HARD cap binds ({', '.join(hard)}={seats}) — "
+                if delta_sized
+                else f"below the floor because a HARD cap binds ({', '.join(hard)}={seats}) — "
+            )
             + (
                 "dispatch nothing until relief"
                 if seats == 0 and "quota_cap" in hard
                 else "wait for the box or the sibling rounds to finish; never dispatch past a hard cap"
             )
         )
-    return {"seats": seats, "caps": caps, "reasons": reasons, "floor_granted": floor_granted}
+    return {
+        "seats": seats,
+        "caps": caps,
+        "reasons": reasons,
+        "floor_granted": floor_granted,
+        "delta_sized": delta_sized,  # a JSON consumer never substring-matches the reason prose
+    }
 
 
-def _mix_story(a: argparse.Namespace, mix: dict[str, int], full: dict[str, int]) -> str:
+def _mix_story(
+    a: argparse.Namespace, mix: dict[str, int], full: dict[str, int], delta_sized: bool = False
+) -> str:
     """The sentence beside COST must describe THIS mix — the first draft glued the units-sized
     surface's per-unit sentence to a mix the budget had already trimmed, and an agent
     reading it literally would dispatch past a hard cap (round-2 finding).
@@ -647,6 +705,14 @@ def _mix_story(a: argparse.Namespace, mix: dict[str, int], full: dict[str, int])
     tail = " — D-190: haiku 1x · sonnet 2x · opus 5x · fable 10x"
     if a.mix:
         return tail
+    if delta_sized:
+        # D5: the one seat IS the round — never the TRIMMED-partition sentence below, which orders
+        # a re-sweep of "unread slices" and would make a delta round unclosable (round-1 finding)
+        return (
+            f" — sized by the fix (D5): {a.delta} changed lines ≤ {DELTA_BUDGET}, ONE fresh "
+            "non-authoring seat over the most consequential slice plus the hygiene script — this "
+            "IS the round, not a trimmed partition" + tail
+        )
     if a.slices:
         # DD2/D3: an orchestrator-computed partition, not a units-sized surface — the
         # floor-padding sentence below never applies to it (`mix == full` here is the partition
@@ -780,7 +846,18 @@ def main(argv: list[str] | None = None) -> int:
         help="Haiku seats wanted: the grep-able classes the surface HAS (default: one per unit; "
         "0 for a grounding/adjudication surface — a judgement unit has no mechanical angle)",
     )
+    ap.add_argument(
+        "--delta",
+        type=_count,
+        default=None,
+        help="changed lines of the previous round's fix (receipt excluded) — at or under "
+        "DELTA_BUDGET sizes ONE fresh seat, D5; beside --slices or --units",
+    )
     a = ap.parse_args(argv)
+    if a.delta is not None and not a.slices and a.units is None:
+        # argparse's own usage error (SystemExit 2) — a delta sizes a round-1 partition (--slices)
+        # or a units-sized surface (--units); the --slices grammar's own refusals `return 2`
+        ap.error("--delta needs --slices or --units")
     try:
         slices = parse_mix(a.slices, flag="--slices") if a.slices else None
     except ValueError as exc:
@@ -823,8 +900,12 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         a.units = sum(slices.values())  # DD2/D3: the slice count, not the D-186/D-188 unit floor
     b, q, s = box(), quota(), siblings()
-    r = budget(a.units, a.heavy, b, q, s, a.risky, a.mechanical, slices=slices)
+    r = budget(a.units, a.heavy, b, q, s, a.risky, a.mechanical, slices=slices, delta=a.delta)
     full = dict(slices) if slices is not None else full_mix(a.units, a.risky, a.mechanical)
+    if r["delta_sized"]:
+        # D5: the round WANTS one seat — `full_mix` says so in the JSON, and `_mix_story` below
+        # never mistakes the one seat for a cap-trimmed partition (one discriminator, round 3)
+        full = trim(full, 1)
     try:
         # the MAXIMUM useful mix, trimmed to what is viable — never the minimum by default
         mix = parse_mix(a.mix) if a.mix else trim(full, r["seats"])
@@ -843,8 +924,8 @@ def main(argv: list[str] | None = None) -> int:
         )
     # both box bounds in one probe, so a caller that wants the pair (the board banner) runs this
     # script — and its fleet round-trip — ONCE, not twice
-    _ro = budget(a.units, False, b, q, s, a.risky, a.mechanical, slices=slices)
-    _hv = budget(a.units, True, b, q, s, a.risky, a.mechanical, slices=slices)
+    _ro = budget(a.units, False, b, q, s, a.risky, a.mechanical, slices=slices, delta=a.delta)
+    _hv = budget(a.units, True, b, q, s, a.risky, a.mechanical, slices=slices, delta=a.delta)
     # the mix/budget caution was appended to `r` AFTER the halves were computed, so the half that
     # matches this run never carried it (round-12 finding) — the halves are the run's own list
     (_hv if a.heavy else _ro)["reasons"] = list(r["reasons"])
@@ -860,6 +941,7 @@ def main(argv: list[str] | None = None) -> int:
         tiers=TIERS,
         units=a.units,
         heavy=a.heavy,
+        delta=a.delta,  # the D5 input, exported like `units`/`slices` (round-2 finding)
         price=PRICE,
         mix=mix,
         full_mix=full,
@@ -905,7 +987,9 @@ def main(argv: list[str] | None = None) -> int:
         )
     if mix:
         shown = " + ".join(f"{n} {k} x{PRICE[k]}" for k, n in mix.items())
-        print(f"  COST: {priced['units']} haiku-units for {shown}{_mix_story(a, mix, full)}")
+        print(
+            f"  COST: {priced['units']} haiku-units for {shown}{_mix_story(a, mix, full, r['delta_sized'])}"
+        )
         print(
             f"  + {adjudicator['units']} for the orchestrator/adjudicator on fable x10 — one per run, "
             "not in the seat total. RELATIVE and dimensionless: assumes equal tokens per seat, and "
