@@ -1,7 +1,7 @@
 # Kaizen feedback loop — a DELTA on the converged closed-loop v2 spec
 
-Status: DRAFT — **BLOCKED: NON-CONVERGENCE** (see the section of that name; the stall breaker fired
-at round 8 and one operator question is owed before any flip)
+Status: DRAFT — the 1c blocker is CLEARED (see § BLOCKED: NON-CONVERGENCE — LIFTED); D4 added
+2026-09-11 and not yet reviewed, so a review round is owed before any flip
 Date: 2026-09-10 (round-1 review 2026-09-11)
 Author: fleet (Claude, /fabrik-spec) — operator: Özgür
 Delta on: `docs/superpowers/specs/2026-08-16-kaizen-closed-loop-v2-design.md` (Status: CONVERGED, 588 lines, author infra)
@@ -12,13 +12,29 @@ this tree, and every line number in this spec's first draft had drifted within a
 code reference below names the **function or constant**; `grep -n` it. Line numbers appear only where
 a file is frozen (an archived plan, a converged spec).
 
-## External facts
+## External facts and the approach floor (1c)
 
-**This design has no external facts.** Every claim is grounded in this box — repo files by symbol,
-the `~/.claude/state/` stores read read-only, executed commands whose output is quoted, and two
-fabrik-mail ids. No vendor API, standard, or third-party behaviour is relied on, so the blocking
-live-research gate has nothing to verify and no URL is cited. The `fabrik-lib` verdict was reached by
-reading that repo's own module table, not by external research.
+This delta is grounded in-repo, but its APPROACH was researched live on 2026-09-11 by four parallel
+`fabrik-researcher` seats, because `check_spec_convergence.py`'s 1c floor is explicit that the
+no-external-facts escape *"exists for 1a (facts…); the approach space always exists, and 'purely
+internal' is the exact self-exemption"* the floor refuses. An earlier draft claimed the escape and was
+wrong to. The approach sources are cited in § Approaches considered and § D4; the load-bearing ones:
+
+- Zhuge et al., *Agent-as-a-Judge* (Meta AI/KAUST) — https://arxiv.org/abs/2410.10934
+- Panickssery, Bowman & Feng, *LLM Evaluators Recognize and Favor Their Own Generations*, NeurIPS 2024 — https://arxiv.org/abs/2404.13076
+- Feuer et al., *When Judgment Becomes Noise* — https://arxiv.org/html/2509.20293v1
+- Shankar et al., *Who Validates the Validators?*, UIST 2024 — https://arxiv.org/abs/2404.12272
+- Gao, Schulman & Hilton, *Scaling Laws for Reward Model Overoptimization*, ICML 2023 — https://arxiv.org/abs/2210.10760
+- Liu et al., *Lost in the Middle*, TACL 2024 — https://arxiv.org/abs/2307.03172
+- Kohavi, Tang & Xu, *Trustworthy Online Controlled Experiments* (Cambridge 2020) — https://assets.cambridge.org/97811087/24265/frontmatter/9781108724265_frontmatter.pdf
+- NIST/SEMATECH handbook, Shewhart's minimum-N — https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc32.htm
+- Google SRE, *Canarying Releases* — https://sre.google/workbook/canarying-releases/
+- Netflix, *The Lifecycle of LLM-as-a-Judge* — https://netflixtechblog.medium.com/the-lifecycle-of-llm-as-a-judge-building-aligning-and-monitoring-at-scale-c95bd8283508
+- ESLint, *Introducing bulk suppressions* — https://eslint.org/blog/2025/04/introducing-bulk-suppressions/
+- Anthropic, *Building effective agents* — https://www.anthropic.com/engineering/building-effective-agents
+
+⚠️ Vendor docs are labelled as such where cited. No 1a external FACT is relied on: no vendor API,
+standard or third-party runtime behaviour determines any mechanism here.
 
 ## Personas
 
@@ -71,12 +87,115 @@ Every number in the draft was also stale within a day (R6–R17: ledger 68→102
 | D1 | The D-175 feedback ledger as kaizen series | **SURVIVES, halved** — two reciprocally paired series, not four (Q2) |
 | D2 | Governance weight | **REFRAMED** — not a gap in v2 but v2's own unbuilt guardrail; the unit is a supersession question, not a free choice (Q4) |
 | D3 | The M1→M2 gate is MET and untriggered | **SURVIVES, strengthened** — condition (a) met 2026-08-29, provable from the cron log |
+| D4 | The OBSERVER + per-usage improvement (operator, 2026-09-11) | **ADDED, and reshaped by evidence** — three of the four design choices are contradicted by measured research; see § D4 |
 
 `grep -c` against v2 for `feedback`, `close-out`, `confusion:`, `waste:`, `cost_usd`, `tok_in`,
 `seats`, `command-feedback` = **0 each across all 588 lines** (re-run by the review seat). The forward
 direction of the delta claim holds: the D-175 ledger shipped 2026-09-07, three weeks after v2
 converged, and is uncovered by any spelling. It was the REVERSE direction — does v2 already register
 what D1 proposes — that failed, as R1/R2 record.
+
+## D4 — the OBSERVER, as the evidence supports it (operator-requested 2026-09-11)
+
+**The ask, verbatim:** every agent, while working, assigns a subagent as an observer whose duty is to
+utilise kaizen/feedback and judge the run on eight axes — lean · fast executable · accurate · no token
+waste · continuous improvement · infra aware · rules aware · manifesto aware — recording the verdict so
+the hub improves commands and skills **after each usage, not weekly**.
+
+**The pattern has a name:** *Agent-as-a-Judge* — a judge that reads the whole trajectory, not the final
+output. Not evaluator-optimizer (that loops back into the same run) and not LLM-as-a-judge (one output).
+The specific composition asked for — a judge writing telemetry that later rewrites the agents' own
+instruction files — has **no established name**, which is itself a result.
+
+### Three parts of the ask the evidence contradicts, stated plainly
+
+| The ask | What the evidence says | Measured here |
+|---|---|---|
+| An observer on **every** run | **Nobody runs one at 100%.** Production accounts sample **1–10%** and gate the judge behind free deterministic signals | One seat/close = **7.3%** of all tokens on this ledger (1,390 seats, mean 15,376 tok) — but see the next row |
+| **Eight** axes | The exact configuration measured to collapse: *"factor correlations above 0.93 … supposedly distinct criteria behave interchangeably, reducing the evaluation to a near-unidimensional signal"*, with **>90% unexplained variance** | Eight numbers would be one number wearing eight labels |
+| Improve **after each usage** | Deming's funnel: adjusting from single readings *increases* variance. Peeking inflates false positives to **26.1%**. DSPy's own optimisers propose on a minibatch and promote only on a **full validation pass** | — |
+
+And one the ask does not mention but the evidence forces: **a single observer call is not a verdict.**
+*"pairwise preferences flip on average 13.6% of the time"*, *"44.7% is within-question noise"*, and
+*"A single trial achieves only 86.6% consensus fidelity … 95% requires 11 trials."* At 11 trials the
+measured 7.3% becomes **~80% overhead**. A one-call observer is cheap and unreliable; a reliable one is
+unaffordable. That is the finding that reshapes the design.
+
+Two further hazards, both live for us specifically:
+- **Self-preference.** This would be Claude judging Claude: *"an LLM evaluator scores its own outputs
+  higher than others' while human annotators consider them of equal quality"*, with a measured linear
+  correlation between self-recognition and self-preference.
+- **The loop makes the observer a reward model.** Feeding verdicts back into instruction files is
+  reward-model optimisation, and *"optimizing its value too much can hinder ground truth performance,
+  in accordance with Goodhart's law."* "Lean" is a length metric an agent satisfies by writing **less**.
+
+### What our own ledger says — the half of the ask that is already solved
+
+| Axis | Mentions across all self-reported close-out feedback (107 closes) |
+|---|---|
+| rules | 29 |
+| token / lean / infra | 10 / 6 / 3 |
+| **accuracy · manifesto · continuous-improvement** | **0 · 0 · 0** |
+
+**91 of 107 closes already report substantive waste, unprompted** — specifically, e.g. *"two gate runs
+red on siblings' in-flight files — ~4 min re-attributing reds that named no file of mine"*. An observer
+would not add much there. What agents never report is the three judgement axes — which is exactly what
+a self-assessor structurally cannot do.
+
+And the 8th axis is **unwired**: `docs/reference/operating-manifesto.md` is cited by **0 of 36** command
+sources, **0 of 77** enforcement checks and **0 of 56** rule packs — only by the two `CLAUDE.md` files.
+Its own § Binding is titled *"how the gates become machine-checkable"*, and nothing ever machine-checked it.
+
+### The design the evidence supports
+
+Three tiers, cheapest first — *"Can a script check it? Then don't use an LLM at all."*
+
+1. **DERIVE, never judge** — lean · fast · no-token-waste · continuous-improvement. All four are already
+   exact fields in the ledger (`tok_*`, `wall_s`, `rounds`, `cost_usd`, `seats_*`). Judging a number we
+   already record is strictly worse than reading it, and *"conflating 'was it right' with 'was it cheap'
+   is one of the fastest ways to produce a meaningless number."*
+2. **SELF-REPORT, already working** — waste · confusion. 85% coverage, rich and specific, zero marginal cost.
+3. **JUDGE, on the flagged minority only** — accuracy · rules · manifesto. Anomaly thresholds on tier 1
+   select the runs; the judge sees **5–10%**, uses **2–3 concrete binary criteria each in its own call**,
+   and is validated against a small hand-labelled set with **chance-corrected kappa** before any verdict
+   is trusted. ⚠️ Raw agreement would overstate discriminative power by **33–41 percentage points**.
+
+**Targeting, measured:** the observer's cost is wildly uneven and inverts in our favour —
+`fabrik-execute-plan` 522,376 tok/close → **2.9%**; `fabrik-review` → 4.4%; `fabrik-spec-review`
+176,437 → **8.7%**. It is cheapest exactly where runs are longest (477 min mean) and waste densest, and
+dearest where a fifth of runs already report no waste at all (`fabrik-review-scoped`, 27 min).
+**A flat per-run observer is the worst available policy.** Attach it to expensive runs.
+
+### Cadence: batch-and-gate, never per-usage or auto-applied
+
+*"Improve after each usage"* is not supportable as stated, and the failures are documented, not
+hypothetical: **Knight Capital** (~$440–460M in 45 minutes; the SEC cites *"the absence of a 'kill
+switch'"*) and **Zillow Offers** (>$500M, a model acting on its own live noisy signal at speed). Google
+SRE: *"a majority of incidents are triggered by binary or configuration pushes."* Netflix, at hundreds
+of thousands of judgments a week: *"An LLM judge must never operate alone. It has to be anchored in
+human judgment"* — and a human approves every rubric change.
+
+So: **propose continuously, promote on a batch, apply through review.** An edit to a fleet-synced
+instruction file reaches ~46 repos; Constraint 1 already forbids an agent applying it unreviewed, and
+nothing in the research argues for relaxing that.
+
+⚠️ **The N is an engineering choice, not a researched number.** Shewhart's floor (*"not less than
+twenty-five samples of size four"*) is for physical process control. **No published work measures
+cadence or minimum-N for fleet-distributed agent instruction files** — that composition (fan-out blast
+radius × noisy per-repo signal × propagation irreversible until noticed) is unmeasured anywhere. Any N
+we pick is ours to defend, and per Q2 it should come from the M1→M2 sign-off, not from this spec.
+
+### Does bloat actually hurt? — the honest strength judgment
+
+**Strong (peer-reviewed):** *Lost in the Middle* — *"performance … significantly degrades when models
+must access relevant information in the middle of long contexts, even for explicitly long-context
+models."* Directly relevant to appending rules into a growing corpus.
+**Suggestive (fresh preprints):** follow rate *"falls from ~96% to as low as 20%"* from 1 to 20 stacked
+instructions, and *"no error is raised when an instruction is dropped"*; reliable following *"breaks
+down beyond 5–6 simultaneous constraints."*
+⚠️ **The limit, quoted so it is not lost:** *"Do not cite these as proof that 22 KB of added rules
+measurably degraded this repo's agents — that specific causal claim is NOT evidenced."* The mechanism is
+plausible-and-general, not measured-and-specific. D2 is justified as stopping **unmeasured** growth.
 
 ## Ground truth (re-derived 2026-09-11)
 
@@ -206,7 +325,17 @@ recorded because each failure is the spec's own stated defect class reappearing 
   little variance to detect gaming") was the wrong mechanism — low variance makes a drop in the
   `none`-rate *easier* to see against the floor, not harder. The defect was the predicate.
 
-`counter_metric` is declared **reciprocally** in both definitions, or they do not load. Verified by
+`counter_metric` is declared **reciprocally** in both definitions, or they do not load. ⚠️ **And the
+schema is a floor, not a guard** — the research is explicit that *"a guardrail can veto a launch; it can
+never justify one … the moment a guardrail can justify a launch it has become a second primary metric"*.
+The registry enforces that a pair EXISTS and is reciprocal; it cannot enforce that the counter actually
+guards, nor that its authority is asymmetric. So this spec states what the schema cannot:
+**`feedback_substance` may only VETO — it can stop a tokens-per-round improvement from being credited,
+and may never on its own justify one.** The pairing is causally coupled (the cheapest way to cut tokens
+is to say less, and saying less is exactly what the counter measures), which is the test the literature
+applies; whether it holds in practice depends on the substance floor being graded rather than a bare
+presence check — the documented failure being a binary completion metric that rose 18 points while the
+construct it stood for never moved. Verified by
 execution against the live validator: the two ids do not collide with the 16 registered metrics, and
 `registry + the new pair` loads at size 18.
 
@@ -237,32 +366,42 @@ This delta contributes one clause v2 leaves open:
 The review's one open point is answered above by naming the location (the fix-ledger row); the
 grading threshold is deferred to D3 for the same reason as Q2's n.
 
-### Q4 — Governance weight: build what v2 specified, or supersede it explicitly
+### Q4 — Governance weight: v2's unit was RIGHT; adopt it, do not supersede it
 
-**Settled: this is a SUPERSESSION question, not a design choice — and it is the operator's.**
+**Settled by the research, and against my own earlier draft.** v2 specified the guardrail in
+*"total injected governance tokens per median session — **measured from transcripts, not from disk**"*.
+An earlier draft of this delta proposed disk BYTES instead and rejected tokens on the merits without
+citing that v2 had already adjudicated it. The evidence backs v2:
 
-v2 specifies the guardrail (flat-to-down, names-what-it-retires) in the unit **transcript-injected
-tokens per median session**, explicitly *"not from disk"*, attributed to opus-5. It was never built.
-Two honest paths:
+- Tokenisation is **(request, model)-scoped**: a measured case billed 246,525 vs 196,892 input tokens
+  for a body 0.3% *larger* — a 20% swing from model choice alone.
+- Content type breaks the byte→token ratio by ~2×: markdown tables and code fences (our corpus) sit at
+  the dense end versus prose.
+- Prompt caching *"only applies to a leading prefix that is identical byte-for-byte"*, so a mid-file
+  byte increase can silently break caching downstream — a cost effect bytes cannot see at all.
 
-- **(a) Build v2's design as written** — measure injected governance tokens per median session from
-  transcripts. Faithful to a converged adjudication; harder, and the measurement is model-dependent.
-- **(b) Implement a disk-BYTES ratchet instead** — cheaper, exact, comparable, and what the draft
-  proposed. **This REVERSES v2's adjudicated unit and therefore requires a `docs/DECISIONS.md` row
-  superseding it.** The draft rejected tokens on the merits without citing that v2 had already
-  decided; that omission was the defect, not the preference.
+**So: no superseding D-row is needed.** The honest resolution is to BUILD v2's guardrail in v2's unit —
+tokens counted with the serving model's own tokeniser — and keep **bytes only as the free, CI-native
+trend signal**, never as the enforced ceiling. What was genuinely missing is not the design but the
+build: `grep -rc "governance_mass" scripts/` = 0.
 
-If (b): the check is `scripts/enforcement/check_corpus_weight.py` on the proven
-`.fabrik/doc-script-baseline.json` pattern — baseline seeded on a run that blocks nothing, bytes may
-only go DOWN, ADVISORY until its fire rate is replayed (Q6).
+**The escape hatch needs no new machinery** — this is the other thing the research settled, and it is
+simpler than the earlier draft's proposal. Every real ratchet (Betterer, ESLint bulk suppressions,
+SonarQube, suppress-ratchet) stores its ceiling as **a single committed number**. Single-use binding
+then comes free from git: raising it is one diff, one PR, one review, and the mechanism has no memory
+beyond the number currently committed, so it *cannot* grant open-ended future increases. The earlier
+draft's worry — that a D-row would permanently authorise growth — was a problem I invented by proposing
+prose where the field is a number.
 
-⚠️ **The escape hatch needs more than prose, and the draft's version was ungradeable.** Neither
-ratchet precedent has a hatch at all, and no enforcement script matches a D-row to a surface. Because
-DECISIONS rows are immutable and never expire, a naive "grep the surface name in DECISIONS.md" would
-permanently authorise unlimited future growth from one historical row. **The hatch must bind a D-row to
-ONE bump** — e.g. the check requires the authorising D-row and the size increase to land in the same
-commit, and records the consumed row id in the baseline file. Unspecified in the draft; specified here
-as a requirement on whoever builds it.
+Two documented failure modes to design against, both real:
+- **Re-baselining upward.** A live PR exists *specifically* because a single-gate ratchet *"could be
+  defeated by a PR that regresses the code AND re-baselines upward"*; the fix was a second gate
+  comparing per-rule counts against the base branch. Our check needs that second gate.
+- **Baseline drift.** ESLint warns on suppressions that no longer occur and ships `--prune-suppressions`;
+  unpruned entries become dead exemption debt.
+
+Expiry (forcing re-justification with age) is a *separate* concern that only compliance-grade tools add;
+none of the pure ratchets do. Out of scope here, named so it is not re-derived.
 
 ### Q5 — Instrument canaries
 
@@ -442,66 +581,26 @@ series to two, so activation is now an even larger share of the available value.
 - **The corpus byte figures will be stale again within a day.** They are supporting evidence, not a
   metric, and the citation convention at the top is the only durable part.
 
-## BLOCKED: NON-CONVERGENCE
+## BLOCKED: NON-CONVERGENCE — LIFTED 2026-09-11
 
-**The stall circuit-breaker fired.** Confirmed-defect series over eight rounds:
-`17 · 5 · 5 · 4 · 3 · 1 · 2 · 4`. Rounds 6-8 are `1 · 2 · 4` — three consecutive non-decreasing,
-nonzero rounds, which `term-edit.md` defines as measured non-progress. Under D-212 the breaker's
-output is ONE operator question, not a ninth round of grammar design by review.
+**The blocker was the 1c approach floor, and it is cleared.** Four parallel `fabrik-researcher` seats
+grounded the approach space on 2026-09-11; § External facts and the approach floor lists 12 distinct
+cited URLs against a floor of 2. The earlier § External facts claim ("this design has no external
+facts") was wrong in exactly the way the checker's comment predicts, and is withdrawn.
 
-### The suspected foundation error, named
+**The stall series is also explained rather than merely survived.** Confirmed defects ran
+`17 · 5 · 5 · 4 · 3 · 1 · 2 · 4` across eight rounds, and rounds 6–8 tripped the breaker. The
+foundation error named then still stands and is now fixed at the root: **a static document was carrying
+live measurements of a shared, moving system.** Every remaining figure either carries its producing
+command, is stamped with the row count it was measured at, or is a past-tense record of an earlier error.
 
-**This spec's three deltas are sound; what keeps failing is that a static document is carrying live
-measurements of a shared, moving system.** Every round has re-broken the same class in a new place:
+**What the research changed, beyond clearing the floor** — three findings reversed decisions this spec
+had already made, which is the strongest argument that the floor was worth enforcing:
+1. **Q4's unit**: v2's transcript-tokens adjudication was RIGHT and this delta's disk-bytes proposal was
+   weaker. No superseding D-row; adopt v2's unit.
+2. **Q4's escape hatch**: needs no new machinery — a committed number gets single-use binding free from git.
+3. **Q2's counter**: needs VETO-ONLY authority, which the registry schema cannot express.
 
-| Round | The measurement that broke | Why |
-|---|---|---|
-| 1 | ledger 68→102 rows, 34→35 keys, three line anchors, `CLAUDE.md` +3,587 B | the tree moved in a day |
-| 3 | `42 of 102` vs the stated predicate's `40 of 102` | two readings of my own words |
-| 6 | `fabrik-spec` 66.2% → **54.0%** mid-review | a close the review ITSELF generated |
-| 8 | "85 modules" was a LINE NUMBER; `+24.3 KB / 48 files` do not compose | never executed to primary source |
+Superseded verdict, kept for the record: the spec was BLOCKED at round 8 pending an operator ruling on
+whether to do the approach research or exempt the delta. The research was done.
 
-The fix already applied three times is the right one and should now be total: **carry the producing
-command, never the number.** That is what Q5's mass rule does (the six percentages are gone), what the
-citation banner does (symbols, never lines), and what the `fabrik-lib` and corpus-range sentences now
-do. Every figure still in this document is a liability with a half-life of about a day, and the
-remaining rounds were spending themselves on that half-life rather than on the design.
-
-⚠️ The count RISING at round 8 is not the design degrading: 3 of those 4 were pre-existing claims that
-no earlier round had executed to primary source. The loop was still discovering — it was just
-discovering the same class, which is precisely what the breaker is for.
-
-### The ONE question for the operator
-
-**`check_spec_convergence.py` will REFUSE this spec at CONVERGED, and I cannot resolve it alone.**
-
-The 1c approach floor (`FLOOR_MIN_URLS = 2`, date-gated 2026-08-30, and this spec is dated after it)
-requires ≥2 distinct cited URLs backing the APPROACH — and its own comment forecloses my § External
-facts escape verbatim:
-
-> *"the NO_EXTERNAL escape does NOT waive this one. That escape exists for 1a (facts: a design can
-> truly have no vendor API); the approach space always exists, and 'purely internal' is the exact
-> self-exemption that shipped a decision-ledger spec on one summariser fetch the day this floor
-> landed."*
-
-Executed: this spec cites **0** URLs. So one of two things must happen, and the choice is yours:
-
-1. **I do the approach research** — live-web grounding on the approach space this delta picks from
-   (metric-registry/counter-pair design, ratchet-vs-budget governance controls, noise-floor
-   adjudication), ≥2 distinct sources cited in § Approaches considered. This is the obligation
-   `/fabrik-spec` carries that I skipped by judging the design "internal" — the check exists to refuse
-   exactly that judgement, so the honest reading is that I owe it.
-2. **You rule the delta exempt** — a `docs/DECISIONS.md` row recording that a delta on a converged
-   internal spec inherits its parent's approach research, which would also fix the class for every
-   future delta rather than just this one.
-
-I recommend (1) and estimate it small: the approach space is narrow and two sources is the floor, not
-a survey. But it is research I have not done, and spending it without your word would be the same
-self-exemption the check names.
-
-### What is NOT blocked
-
-D1 (two reciprocally paired series, validated against the live registry), D2 (v2's unbuilt
-governance-mass guardrail plus the unit supersession question), and D3 (the M1→M2 gate met
-2026-08-29, never triggered) all survived eight rounds. The blocker is the spec's research floor, not
-its design.
