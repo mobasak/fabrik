@@ -1508,3 +1508,43 @@ that neither exists nor appears in INDEX.md, with NO link spelling that can sati
 there is no escape for a literal `%`. Same shape for a literal `#` (the anchor strip). Both are
 the no-reachable-remedy class this review already hit twice. Honest denominator for the mirror:
 **0 of 5,051** docs carry a literal `%20` or `#` today, so it is latent, not firing.
+
+## [fleet] Kaizen observer tiers 2–3 are DEFERRED behind tier 1 and one kappa experiment (2026-09-11, owner: fleet)
+
+The operator ruled the feedback→kaizen→command-improvement loop approved (**D-224**) and scoped the
+build **tier 1 first** on 2026-09-11. Spec: `docs/superpowers/specs/2026-09-10-kaizen-feedback-loop-design.md`
+§ D4 (content converged at review round 12, committed `3639ba6e`; the review itself closed **BLOCKED** on
+the stall breaker — see below).
+
+**Deferred, in order, with the trigger that releases each:**
+
+- **Tier 3's judge** — released by ONE experiment, not by a decision: hand-label **20 closes on the
+  `rules aware` axis** (the axis with the most ledger signal, 29 mentions at 107 rows) and measure the
+  judge's **chance-corrected kappa** against them. Clears ⇒ build with 2–3 binary criteria per axis,
+  each in its own call. Doesn't ⇒ an afternoon spent instead of a fortnight. Until it clears, every
+  tier-3 verdict is a *candidate*, never evidence. ⚠️ Raw agreement overstates discriminative power by
+  **33–41 pp** (Norman et al.), so the kappa is the whole test.
+- **The tier-3 percentile cut-off** — waits on the M1→M2 variance sign-off (operator-triggered), the
+  same owner as Q2's minimum-n and Q5's ⅔ threshold. **The sign-off is now the named owner of three
+  distinct quantities and must be handed all three explicitly.** Until then the static attach-list runs
+  (`fabrik-execute-plan`, `fabrik-review`, `fabrik-spec-review`, `fabrik-plan-after-chat` = 48 of 109
+  closes = 44.0%) and the percentile is reported beside it, unused.
+- **The manifesto axis (the operator's 8th)** — buildable, but **reuse `docs/reference/command-evaluation-checklist.md`
+  item 63b's six intersections; do not write new criteria.** The three measured zeros are real and the
+  neglect inference drawn from them was refuted: the 2026-08-31 manifesto command pass is `Status: EXECUTED`
+  with *"do not inject manifesto vocabulary where an intersection is genuinely N/A"* as a global
+  constraint. Residual gaps that ARE real: 4 of today's 36 command sources post-date that pass and were
+  never walked, and the **56 rule packs were never walked at all** — no fact in the spec disposes of that
+  third zero.
+- **The spec's wording residue** — a parenthetical's ordering claim, an enumeration saying "four" where
+  the text supports two, and a provenance phrase naming one artifact where two are needed. None changes a
+  build decision. Released only by a DIFFERENT author: rounds 10–15 each confirmed defects the previous
+  round's fixes introduced, fresh finder each round, same fixer every round, so another round by the
+  spec's author is the mechanism that generates the next one.
+
+**Do not re-propose:** `cost_usd` as a tier-1 field (13.9% non-null at 108 rows; dropped twice already
+and re-imported once anyway) · tier-1 derivations as kaizen series (`counter_metric` is reciprocal and
+therefore exclusive; three axes cannot pair, and inventing counters that guard nothing is a second
+primary metric by Q2's own rule) · an observer on every run (7.3% of all tokens; production norm is
+1–10% sampling) · eight judged axes (the exact configuration measured to collapse: >0.93 factor
+correlations, >90% unexplained variance).
