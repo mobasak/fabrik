@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Review-family pass 3 spec re-CONVERGED with D10: the orchestrator's fix graded by an executed mechanism (2026-09-11)
+
+`docs/superpowers/specs/2026-09-11-review-family-pass3-design.md` gains D10 on the operator's word: the mechanism under review is a probe script pinned at round 1 and cited, `check_review_hygiene.py --claim <term>` lists every mirror site of a rewritten claim before the pin, and two consecutive residue passes force a paragraph rewrite. Measured cause: seats fell 134 → 14 across three spec reviews while the pass count stayed 44 → 9 → 11. One delta review round; decision row minted at the re-flip.
+
 ### Fixed — The INDEX gate stops billing every repo for the decision ledger the hub seeded into it (2026-09-11)
 
 `check_doc_index.py` treats an untracked doc as live so the run that CREATES a doc owes its INDEX row. `docs/DECISIONS.md` is the one file that premise fails on: the governance sync seeds it into every repo and deliberately leaves it out of the .gitignore block, so no session in that repo authored it and the red landed on whoever next ran a gate. Measured over the 45 git repos under /opt — all 45 carry the file, the finding fired in 29 and the check crashed outright in the 6 with no INDEX.md. It is now exempt WHILE UNTRACKED, with the obligation attaching on adoption: after the change it fires in 9, every one of them a repo that has committed its ledger and genuinely owes the row. A missing INDEX.md now reports a named finding instead of a FileNotFoundError traceback. Three graders, each proven red against its own mutant — including one that fails if the exemption is ever made unconditional. Fleet-synced; D-225 records the two rejected alternatives.
