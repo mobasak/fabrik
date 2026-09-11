@@ -118,7 +118,7 @@
 - [scripts/enforcement/check_android_env.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
 - [scripts/enforcement/check_certification_coverage.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_certification_coverage.py | scripts/final_gate.py | docs/reference/certification-denominator.md | commands/_sources/fabrik-us
 - [scripts/enforcement/check_configuration_md.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
-- [scripts/enforcement/check_convergence.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_check_convergence.py, commands/_sources/fabrik-execute-plan.md, commands/_sources/fabrik-plan-review.md | none
+- [scripts/enforcement/check_convergence.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_check_convergence.py, commands/_sources/fabrik-execute-plan.md, commands/_sources/fabrik-plan-review.md, docs/workflows/FINAL_GATE_WORKFL
 - [scripts/enforcement/check_decisions_unique.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
 - [scripts/enforcement/check_doc_stubs.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
 - [scripts/enforcement/check_doc_sync.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
@@ -126,6 +126,7 @@
 - [scripts/enforcement/check_env_example.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
 - [scripts/enforcement/check_env_updates.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
 - [scripts/enforcement/check_feedback_duty.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_feedback_duty.py
+- [scripts/enforcement/check_governance_tables.py](../INDEX.md) (owner: infra): AFTER-EDIT: CLAUDE.md | templates/governance/CLAUDE.md
 - [scripts/enforcement/check_health.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
 - [scripts/enforcement/check_hooks_index.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/hooks-index.md, tests/enforcement/test_check_hooks_index.py
 - [scripts/enforcement/check_index_md.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
