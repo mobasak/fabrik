@@ -292,154 +292,42 @@ for it. It reuses checklist item 63b's six intersections, which are already writ
 corpus-wide once, and already admit *"N/A because X"*. That is cheaper and better-grounded than anything
 this spec would write, and it is the difference between judging conformance and judging vocabulary.
 
-### The design the evidence supports
+### The design — RE-CUT 2026-09-11 on the operator's confirmed reading (D-234)
 
-Three tiers, cheapest first — *"Can a script check it? Then don't use an LLM at all."*
+⚠️ **The three-tier design that stood here from round 9 to round 15 was built on a misreading, and the
+operator confirmed the correct one on 2026-09-11.** The earlier draft read the eight axes as criteria
+for GRADING A RUN, went to the LLM-as-a-judge literature, and cut the observer down on the strength of
+research about scoring outputs. **The eight axes are properties of the COMMAND TEXT** — *infra aware*
+means "does this command reflect the infra as it is today"; *rules aware* means "does it contradict a
+rule pack"; *lean* means "is the instruction text carrying weight it does not need". The observer's duty
+is to catch where the command it is running MISLED or OVERCHARGED the agent, and say so, per run. That
+is a reviewer of instructions, not a grader of outputs; the factor-collapse and self-preference results
+above are real but do not transfer. Likewise *"after each usage, not weekly"* was read as a demand for
+AUTO-apply and argued against with Knight Capital; the operator never said automate — *"you (infra) and
+or intel will read them and make our commands better"* is an agent applying a fix through review, which
+Constraint 1 already permits. The measured facts in the two sections above stand; the design drawn from
+them did not.
 
-**THE EIGHT AXES, ONE ROW EACH — no axis is dropped and none is assigned twice.** ⚠️ This table exists
-because **round 10** found two of the operator's eight unaccounted for: *continuous improvement*
-was listed in tier 1's label and excluded in tier 1's own body, and *infra aware* had no disposition
-anywhere. Both are settled here, and this table is the authority wherever a tier's shorthand disagrees
-with it.
+**The loop is FOUR pieces, and three of the four already exist in some form — the gap is at step 3.**
 
-| # | The operator's axis | Disposition | Where |
+| # | Piece | What exists today | What is built |
 |---|---|---|---|
-| 1 | lean | **DERIVE** — Σ(`tok_in`+`tok_out`) per run | tier 1 |
-| 2 | fast executable | **DERIVE** — `wall_s` | tier 1 |
-| 3 | accurate | **JUDGE** | tier 3 |
-| 4 | no token waste | **DERIVE** for the quantity (tokens per round), **SELF-REPORT** for the cause (the `waste:` field, already 85% populated) — the two halves are different questions and neither alone answers the axis | tier 1 + tier 2 |
-| 5 | continuous improvement | **NEITHER DERIVED NOR JUDGED per run — it is a cross-run TREND** and the only axis that is not a property of a single run. It is `command_tokens_per_round@v1` (Q2), read over time and guarded by `feedback_substance@v1`. An observer asked to score it per run would be scoring noise | Q2, not a tier |
-| 6 | infra aware | **JUDGE**, on the same flagged minority as the other three judged axes, with its own binary criteria: did the run use the box's own instruments (`dispatch_headroom.py` before a fan-out, `mcp_health.py` on an MCP failure, `claude_rotate.py --status` near a cap, the run record itself) rather than route around them? ⚠️ This axis is the one with NO ledger signal at all today — `infra` appears 3 times in 107 closes and those are prose mentions, not compliance — so unlike accuracy and rules it has no cheap precursor and its criteria must be written from the contract, not mined from the ledger | tier 3 |
-| 7 | rules aware | **JUDGE** | tier 3 |
-| 8 | manifesto aware | **JUDGE**, and it is the best-equipped of the four, not the weakest — it does NOT need criteria invented for it. `docs/reference/command-evaluation-checklist.md` item **63b** already carries six named intersections with *"N/A because X"* valid per item, and they have been applied corpus-wide once (the EXECUTED 2026-08-31 pass). Reuse them. ⚠️ An earlier draft called this axis unjudgeable "until the manifesto is citable by something" — that rested on the neglect inference the note below refutes | tier 3 |
+| 1 | **OBSERVE** — the `change:` field IS the observer. It already asks *"the ONE concrete edit to the command that would have made the run faster or more accurate"* | every close writes it; 91 of 107 say something substantive | make it **axis-keyed** (`lean` / `fast` / `accurate` / `waste` / `infra` / `rules` / `manifesto`) so it is routable, and for the expensive commands (`fabrik-execute-plan`, `fabrik-review`, `fabrik-spec-review`, `fabrik-plan-after-chat` — 48 of 109 closes, most of the token mass) have a **subagent** write it rather than the agent grading its own run. ONE fragment edit to `close-feedback.md` — Constraint 2's named exception, infra's beat |
+| 2 | **ROUTE + ACT** — the `change:` rows reach a hub agent who edits the command | `feedback_relay.py` already mails the digest to infra hourly; **nothing acts** — the queue is unread under 200+ inbox items | a `/fabrik-command-improve <command>` command: read every `change:` row for that command from the ledger, propose the edit, render, review, commit. Run it whenever a command's queue is non-empty — **that is "after each usage"**. The duty that makes it run belongs in the hub CLAUDE.md, not in a cron |
+| 3 | **KEEP LEAN** — the weight ratchet | nothing budgets any governance byte; `CLAUDE.md` 89,214 B read every session, `commands/_sources/` 1,042,530 B, `.windsurf/rules/` 1,251,876 B | `scripts/enforcement/check_corpus_weight.py` on the pattern this repo already runs twice (`.fabrik/doc-script-baseline.json`, `.fabrik/lint-baseline.json`): baseline seeded on first run, blocks nothing, bytes-per-surface may only go DOWN unless a D-row names what the growth retires. **Needs no sign-off** — an earlier draft deferred it behind the M1→M2 noise floor, which exists to stop a *metric* firing on noise; a ratchet is one committed number, not a metric |
+| 4 | **PROVE** — tokens per round per command, behind the mass rule (Q5 canary 4) | tokens per CLOSE exists in `command_feedback_report.py`; per ROUND does not | the tier-1 addition already planned in `2026-09-11-plan-2-kaizen-tier1-report.md` — kept, but LAST: it is the thermometer that shows steps 1–3 working, not the loop |
 
-1. **DERIVE, never judge** — lean · fast · no-token-waste (the quantity half). Judging a number we
-   already record is strictly worse than reading it, and *"conflating 'was it right' with 'was it cheap'
-   is one of the fastest ways to produce a meaningless number."* ⚠️ **The fields are NOT uniformly
-   exact, and the earlier draft's list was wrong.** Census over the live ledger, 2026-09-11 at 108 rows
-   (`## Reproduce`, R1): `wall_s` and `rounds` **100%** non-null · `tok_in`/`tok_out`/`tok_cache_*`
-   **88.0%** · `seats_*` **55.6%** · `tok_seat_*` **44.4%** · `cost_usd` **13.9%**. So: *fast* derives
-   from `wall_s`; *lean* and *no-token-waste* derive from `tok_in`+`tok_out` at 88% coverage with the
-   honest-absence rule; **`cost_usd` derives nothing** — R5 and Q2 already dropped it for exactly this
-   sparsity and tier 1 must not re-import it. (*continuous improvement* is NOT here; see the axis table
-   above — it is a cross-run trend, and the earlier draft's tier-1 label wrongly claimed it.)
-   ⚠️ **These derivations are a REPORT, not new kaizen series — and that is OUR choice, not the
-   validator's.** What the validator does forbid (executed): a third metric naming `feedback_substance`
-   refuses to load, because `counter_metric` is reciprocal and therefore exclusive; and four UNPAIRED
-   counters refuse to load, the same shape R1 killed. What it permits: an EVEN number of new metrics registered as
-   reciprocal pairs loads cleanly — four of them take the canonical registry
-   (`kaizen_outcomes.registry()`, 16 metrics; the symbol Q2 settles) to size **20**, or
-   `kaizen_collect_v2.METRIC_DEFS` alone to 14, that being the 10-metric base and not what "the
-   registry" means here. ⚠️ **But tier 1 is THREE axes, not four** (lean · fast · no-token-waste; an
-   earlier draft's four included continuous-improvement, which the axis table rules a cross-run trend),
-   and three BARE metrics cannot be reciprocally paired — executed exhaustively, **0 of 64** assignments load
-   (`## Reproduce`, R8). ⚠️ **That is the narrow claim, and an earlier draft over-claimed from it.** It
-   does NOT follow that an odd axis count is forbidden: give each of the three axes its own invented
-   counter and you have six metrics in three reciprocal pairs, which loads standalone (size 6) and
-   against the live registry (size 22). The registry refuses the UNPAIRED arrangement, nothing more. So the registry is not what stops tier 1 being
-   series — we stop it, because tier 1's three axes would each need a counter invented for it, and an
-   invented counter that guards nothing is a second primary metric wearing a guardrail's name (Q2). The
-   validator would accept them; that is exactly why the decision has to be ours.
-   Tier 1 renders per-command rows in `command_feedback_report.py`; only Q2's pair enters the registry.
-2. **SELF-REPORT, already working** — waste · confusion. 85% coverage, rich and specific, zero marginal cost.
-3. **JUDGE, on the flagged minority only** — accuracy · rules · **infra** · manifesto. The judge uses **2–3 concrete
-   binary criteria each in its own call**, and its rubric is validated against a hand-labelled set with
-   **chance-corrected kappa** before any verdict is trusted — raw agreement overstates discriminative
-   power by **33–41 percentage points** (Norman, Rivera & Hughes, https://arxiv.org/html/2606.19544v1).
+**Sequencing against the live tree (2026-09-11):** infra's review-family plan is IN-PROGRESS under an
+active lock that owns `commands/assemble_commands.py`, and `commands/_fragments/` is dirty with their
+edits. So **pieces 3 and 4 build now** (no lock, no collision — the ratchet's BASELINE is seeded only
+after infra's corpus edits land, or it freezes a number they are changing); **pieces 1 and 2 build after
+infra's plan closes**, because both touch the corpus they are mid-edit on.
 
-   **SELECTION IS TWO MECHANISMS, NOT ONE — the earlier draft conflated them and that was the defect.**
-   Tier-1 fields are written **at close** (§ Q1), so nothing derived from them can choose an observer
-   for a run that has not happened. So:
-   - **At dispatch (pre-run), the selector is the COMMAND NAME** — the only signal that exists before a
-     run produces tokens. The static attach-list is the expensive commands: `fabrik-execute-plan`,
-     `fabrik-review`, `fabrik-spec-review`, `fabrik-plan-after-chat` (§ Targeting prices the first
-     three; `fabrik-plan-after-chat` is 227,958 tok/close at 107 rows, n=5 — cheap per close only
-     because its five closes are long and few). This is what satisfies the operator's *"while working"*.
-   - **After close, a percentile cut over RAW ledger rows tunes that list** — it never reads the
-     published series, because Q5's mass rule renders `—` for the round-poor commands, and **two of the
-     four on the attach-list are exactly those**: `fabrik-execute-plan` and `fabrik-plan-after-chat` sit
-     far below ⅔ and publish nothing, while `fabrik-review` and `fabrik-spec-review` publish normally.
-     (⚠️ No q/T figure is quoted here — § Q5 forbids pinning them and an earlier draft pinned three,
-     two of which went stale inside this review. Re-derive per `## Reproduce`.) Half the attach-list
-     being invisible is enough to settle it: a series-reading selector cannot tune a list it cannot see.
-     Reading raw rows is therefore deliberate, and it **carries its own canary**: the selector refuses
-     to run and says so when fewer than ⅔ of the window's rows carry `tok_in`+`tok_out`, rather than
-     silently selecting from the populated minority. Measured 2026-09-11: coverage is 88.1%, so the
-     canary does not fire and the cut is computable today.
-   - ⚠️ **The cut-off itself is NOT set here, and the reason is measured, not stylistic.** Only a
-     percentile cut can hit the intended rate. At 108 rows (`## Reproduce`, R2), **and the denominators
-     differ, which the earlier draft hid under one stamp**: tokens > p90 flags 10 rows — **10.5% of the
-     95 token-carrying rows but 9.3% of all 108 closes**, and since the selector chooses among *closes*
-     the policy-relevant figure is **9.3%** · `wall_s` > p90 flags 11 of 108 = **10.2%** · `rounds >= 3`
-     flags 61 of 108 = **56.5%** · a non-`none` `waste:` field flags 91 of 108 = **84.3%**. The two
-     fixed-value candidates describe the *modal* run, not an anomaly. But a p90 cut is ~10% **by
-     construction** and says nothing about whether it selects the right runs, and § Q6's binding
-     30-day replay **cannot be executed today**: the ledger's whole span is 2026-09-06T22:19Z →
-     2026-09-11 (five distinct LOCAL dates on this `+03` box), **4.73 days** at 109 rows, so a 30-day window is the entire population. The cut-off is therefore an output of
-     the same M1→M2 sign-off that owns Q2's minimum-n, on the same grounds — not a number this spec may
-     guess. Until then the static attach-list runs and the percentile is reported beside it, unused.
+**What this supersedes:** the three-tier observer, the "judge 5–10% on 2–3 criteria" selector, the
+kappa-validated rubric, the batch-and-gate cadence table, and the deferral of the ratchet — all of them
+answers to a question the operator did not ask. The percentile selector, the M1→M2 dependency for the
+cut-off, and § Q2's series are unchanged: they belong to piece 4 and were right for it.
 
-   **WHERE A VERDICT GOES.** A verdict is **a finding-registry row in v2's M2** (§ Q3) — not a series
-   (it has no variance and Constraint 4 does not gate it), not a new store (§ Q1 adds one reader and no
-   writer), and not a close-out field (Constraint 2). Its fix-ledger row carries the same clause every
-   applied change carries: the series it expects to move and the direction. A verdict nothing promotes
-   is a verdict nothing reads — naming the store is what keeps tier 3 from being decorative.
-
-**Targeting, measured at 107 rows on 2026-09-11** (`## Reproduce`, R3; every mean is Σ(`tok_in`+`tok_out`)
-÷ the command's TOTAL row count, **not** ÷ its rows carrying tokens — the other convention gives 574,614
-for `fabrik-execute-plan`, a 10% difference, so the divisor is stated rather than assumed): the
-observer's cost is wildly uneven and inverts in our favour — `fabrik-execute-plan` 522,376 tok/close
-(n=11) → **2.9%**; `fabrik-review` 351,137 (n=25) → **4.4%**; `fabrik-spec-review` 176,437 (n=6) →
-**8.7%**. It is cheapest exactly where runs are longest (477 min mean, n=11) and waste densest, and
-dearest where 8 of 36 runs already report no waste at all (`fabrik-review-scoped`, 27 min mean).
-**A flat per-run observer is the worst available policy.** Attach it to the named commands above —
-**and price what that costs**, since rejecting the flat policy on a measured 7.3% while leaving the
-adopted one unpriced would be the same asserted-cost defect one paragraph later. Measured 2026-09-11 at
-109 rows: those four commands account for **48 of 109 closes = 44.0%**, and they are the token-heaviest,
-so the attach-list observes fewer than half the runs while covering most of the token mass — which is
-the whole point of choosing by cost. The blended overhead is derivable from R3 once the list is fixed;
-it is not stated here because the list is the plan's to finalise, and an unpriced number is better named
-than guessed.
-
-### Cadence: batch-and-gate, never per-usage or auto-applied
-
-*"Improve after each usage"* is not supportable as **auto-apply**, and the failures are documented, not
-hypothetical: **Knight Capital** — SEC Release 34-70694 records *"4 million executions in 154 stocks for
-more than 397 million shares in approximately 45 minutes"* and a *"$460 million loss"*; its finding is
-that Knight *"did not have procedures in place to halt SMARS's operations in response to its own
-aberrant activity"* (⚠️ *"kill switch"* is the industry paraphrase of that finding, **not** SEC
-language — an earlier draft quoted it as if it were) — and **Zillow Offers** (>$500M, a model acting on
-its own live noisy signal at speed). Google SRE: *"a majority of incidents are triggered by binary or
-configuration pushes."* Netflix, generating *"hundreds of thousands"* of judged explanations *"a week"*:
-*"An LLM judge must never operate alone. It has to be anchored in human judgment"* — and *"a human
-approves every change before it is rolled out to the system."*
-
-**So, mechanically — and this is what answers the operator's *"continuously … not weekly"*:**
-
-| Stage | Cadence | Trigger | Who |
-|---|---|---|---|
-| **PROPOSE** | **continuous — every close, no batching, no clock** | the close itself: `command_run.py done\|blocked\|handoff` already writes the row; tier 1 derives from it and tier 2 is already in it | the closing agent, at zero marginal cost |
-| **JUDGE** | per selected run | the static attach-list at dispatch (tier 3 above) | the observer seat |
-| **PROMOTE** | batched | a queue-depth trigger, **N deferred to the M1→M2 sign-off** — see the ⚠️ below | v2's M2 selection policy |
-| **APPLY** | per promoted change | a session running the normal review path | a hub agent, never the loop |
-
-Nothing here is weekly: the *proposal* stream runs at the speed of the fleet's closes. What is batched
-is **promotion**, and only because adjusting from single readings increases variance. An edit to a
-fleet-synced instruction file reaches ~46 repos; Constraint 1 already forbids an agent applying it
-unreviewed, and nothing in the research argues for relaxing that.
-
-⚠️ **The N is an engineering choice, not a researched number.** Shewhart's floor (*"not less than
-twenty-five samples of size four"*) is for physical process control. **No published work measures
-cadence or minimum-N for fleet-distributed agent instruction files** — that composition (fan-out blast
-radius × noisy per-repo signal × propagation irreversible until noticed) is unmeasured anywhere. Any N
-we pick is ours to defend. ⚠️ **And it is a DIFFERENT quantity from Q2's minimum-n** — Q2 defers a
-*statistical adequacy floor* for a published series; this is a *promotion batch size*. They share an
-owner (the M1→M2 sign-off) and nothing else. ⚠️ **That sign-off is now the named owner of THREE
-distinct quantities** — Q2's minimum-n (a series-adequacy floor), D4's promotion batch size N, and D4
-tier 3's percentile cut-off — plus a fourth conditionally (Q5's ⅔ threshold, if a later re-derivation
-finds the gap has closed). They are different quantities with different failure modes, and § Who builds
-what carries a row for the cut-off but none for N. **The sign-off must be handed all three explicitly,
-or it will answer one and the other two will look settled.**
 
 ### Does bloat actually hurt? — the honest strength judgment
 

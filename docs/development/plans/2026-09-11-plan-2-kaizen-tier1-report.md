@@ -2,6 +2,13 @@
 
 Status: DRAFT
 Profile: small
+
+⚠️ **RE-SCOPED 2026-09-11 (D-234) — this plan is PIECE 4 of a four-piece loop, and it builds LAST.** The
+operator confirmed the spec's three-tier observer was a misreading; the loop is (1) an axis-keyed `change:`
+observer, (2) `/fabrik-command-improve` that ACTS on the queue, (3) the corpus weight ratchet, (4) THIS —
+tokens-per-round as the proof. Pieces 3 and 4 have no lock overlap and build now; 1 and 2 wait for infra's
+review-family plan to close. The content below is unchanged and still correct for piece 4; its review
+should treat it as the thermometer, not the loop. Authority: spec § D4 (re-cut), D-234.
 Date: 2026-09-11
 Owner: fleet
 Spec: `docs/superpowers/specs/2026-09-10-kaizen-feedback-loop-design.md` § D4 (tier 1), § Q5 canary 4, § Reproduce
