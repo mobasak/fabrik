@@ -14,21 +14,33 @@
 
 Measured 2026-09-11 by reading the extension's own loader and simulating it on two 300 MB transcripts:
 
-1. A reloaded window runs `claude --resume <session>` and rebuilds the view by walking the transcript's
-   **`parentUuid` links from the newest record back to a root**.
+1. A reloaded window's panel is rebuilt by the **extension host**, not by a CLI process: the webview sends
+   `get_session_request`, `extension.js` reads the `.jsonl` and its loader (function `i11`) walks the
+   transcript's **`parentUuid` links from the newest record back to a root**.
 2. Every compaction writes a `{"type":"system","subtype":"compact_boundary"}` record whose `parentUuid`
-   is **`null`** — a new root. The compaction summary hangs off it; the pre-compaction records are linked
-   only through `logicalParentUuid`, which the walk never follows.
-3. So the panel renders: the last boundary, its summary, the three preserved messages, and whatever
-   came after. On the two sessions measured that was **8 records** (agent-2, compacted 2026-09-09 and
-   idle since) and **2,093 records** (agent-1, compacted 2026-09-02).
+   is **`null`** — a new root — **and** the loader's `compactMetadata` pass then re-parents that boundary's
+   preserved messages onto the compaction summary, discarding the real `parentUuid` links they still carry
+   into pre-compaction history. The two together end the walk at the boundary; the boundary's
+   `logicalParentUuid` back-link is never followed. (Measured: with only the re-parenting pass disabled in
+   a simulation the chain grows 8 → 881 on `37887efc` and 2,093 → 9,306 on `1991fa9b`.)
+3. So the walk yields the last boundary, its summary, that boundary's preserved messages (3 on both
+   sessions measured; 2–43 and 2–160 across their 91 boundaries) and whatever came after: **8 records**
+   on agent-2 (compacted 2026-09-09 and idle since) and **2,093** on agent-1 (compacted 2026-09-02), out
+   of the **83,161** and **76,867** records the loader parses (116,389 and 105,742 lines on disk). The
+   loader then drops `system` and meta records, so the panel receives **4** and about **1,370** messages.
 
-There is no time window ("7 days", "30 days") in that path, no history-depth setting, no load-more
-control (the only related string in the webview is the error *"Couldn't load this conversation's
-earlier messages"*), and the 5 MB byte-skip switch `CLAUDE_CODE_DISABLE_PRECOMPACT_SKIP` does not help —
-the walk stops at the boundary even over the full file. Reloading, restarting VS Code, renaming the
-session or rotating accounts changes nothing (the `restored_owner_mismatch` veto a rotation triggers gates only the remote-control bridge reattach — `session-recall.md` § Why a reloaded window). Rewriting transcripts to re-link the tree is **rejected**
-(D-235): the same tree feeds the model's context on resume and would overflow it on the next turn.
+There is no time window ("7 days", "30 days") in that path and no history-depth setting. The loader
+API can page (`offset`/`limit`) but nothing wires it — the webview sends neither, has no load-more
+control, and its only related string is the error *"Couldn't load this conversation's earlier
+messages"* — and paging would not help anyway, because the walk, not the slice, is the limiter. The 5 MB
+byte-skip switch `CLAUDE_CODE_DISABLE_PRECOMPACT_SKIP` does not help either: the skip only cuts back to
+the last boundary that carries **no** preserved metadata, and all 91 boundaries in these two files carry
+it, so the skip is inert here and the full-file walk still returns 8 and 2,093. Reloading, restarting
+VS Code, renaming the session or rotating accounts changes nothing (the `restored_owner_mismatch` veto a
+rotation triggers gates the remote-control bridge and remote backfill, never the panel —
+`session-recall.md` § Why a reloaded window). Rewriting transcripts to re-link the tree is **rejected**
+(D-235, restated by D-236): the CLI's own resume reconstruction walks the same `parentUuid` chain to
+build the model's context, so a re-linked tree would hand it the whole file.
 
 A **live** window is different: it keeps whatever it streamed since it was opened, which is why an
 un-reloaded window can still show text from before its last compaction.
@@ -59,9 +71,16 @@ python3 /opt/fabrik/scripts/render_chat_history.py --all                        
   transcript (a file mid-write, a permission slip) is a `WARN` on stderr and is skipped — the rest of the
   project and every other project under `--all` still render; the exit code is then 1. A malformed
   `names.json` or `.render-state.json` reads as empty rather than crashing.
-- A `--name` prefix must carry at least 8 id characters, so one prefix never claims several sessions.
+- A `--name` prefix must carry at least 8 id characters, so a prefix does not sweep up unrelated
+  sessions; a label is one plain file name (no `/`, not hidden, not `INDEX` or `names`), refused on the
+  command line and, if hand-edited into `names.json`, replaced by the session id with a `WARN`.
 - A render outlives its transcript on purpose: if retention or a hand deletes the `.jsonl`, the `.md` stays
-  (it is then the last copy of that conversation) and simply drops out of `INDEX.md`.
+  (it is then the last copy of that conversation), drops out of `INDEX.md`, and is never overwritten — a
+  later `--name` that lands on its file name renders as `<label>-<id8>.md` instead. Renders are written
+  atomically (temp file + rename), so a failed write never truncates the previous one, and an old file is
+  unlinked only after its replacement landed.
+- A `names.json` or `.render-state.json` that is not a JSON object is moved aside to
+  `<name>.bad-<stamp>` with a `WARN`, never silently replaced.
 
 ## How to use it from a window
 
@@ -74,22 +93,27 @@ To keep the renders current without thinking about it, add a cron line yourself 
 classifier-blocked for agents — `docs/workstation/wsl-startup-inventory.md`):
 
 ```
-*/30 * * * * python3 /opt/fabrik/scripts/render_chat_history.py --all >/dev/null 2>&1
+*/30 * * * * python3 /opt/fabrik/scripts/render_chat_history.py --all >>~/.claude/state/history/render.log 2>&1
 ```
+
+The log, not `/dev/null`: a skipped transcript is a `WARN` line and exit code 1, and cron mails nothing
+on this box, so the log is the only place the signal survives.
 
 ## Limits
 
 - The transcripts are the source of truth; a session deleted by retention (`cleanupPeriodDays`, raised
-  to 3650 by D-233) is gone from here too. Nothing backs `~/.claude/projects/` up.
+  to 3650 by D-233) before it was ever rendered is gone from here too — an existing render survives
+  (above). Nothing backs `~/.claude/projects/` up.
 - Subagent transcripts (`<session>/subagents/`) are not rendered — only the main conversation.
-- Renders are large (a 300 MB transcript → ~10 MB markdown); VS Code opens them, but search inside with
-  the editor's find, not the preview.
+- Renders are large (the two 300 MB transcripts → 6.7 and 7.9 MB of markdown); VS Code opens them, but
+  search inside with the editor's find, not the preview.
 
 ## Related
 
 - `docs/workstation/session-recall.md` — the searchable index over the same transcripts.
 - `docs/workstation/claude-configuration-inventory.md` — where `~/.claude/projects/` and retention live.
-- `docs/DECISIONS.md` D-233 (retention) · D-235 (this render; rewriting transcripts rejected).
+- `docs/DECISIONS.md` D-233 (retention) · D-235 (this render; rewriting transcripts rejected) · D-236
+  (the mechanism restated: null-parent boundary **and** the loader's re-parenting pass).
 
 <!-- BEGIN related-scripts: generated by scripts/render_doc_script_links.py — do not hand-edit -->
 ## Related scripts

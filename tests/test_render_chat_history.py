@@ -226,3 +226,114 @@ def test_a_name_prefix_shorter_than_eight_chars_is_refused(
 ) -> None:
     assert rch.main(["--project", "/opt/demo", "--name", "aaa=agent-1"]) == 2
     assert "at least 8" in capsys.readouterr().err
+
+
+def test_a_broken_symlink_transcript_is_skipped_not_a_traceback(
+    box: dict[str, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    (box["projects"] / "bbbb2222-0000-0000-0000-000000000000.jsonl").symlink_to(
+        "/nonexistent/x.jsonl"
+    )
+    assert rch.main(["--project", "/opt/demo"]) == 1
+    assert "WARN" in capsys.readouterr().err
+    assert (box["out"] / "-opt-demo" / "aaaa1111.md").exists()
+
+
+def test_a_rename_whose_render_fails_keeps_the_old_file_and_a_true_index(
+    box: dict[str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rch.main(["--project", "/opt/demo", "--name", "aaaa1111=old-label"])
+    out = box["out"] / "-opt-demo"
+    real = rch.render_session
+
+    def failing(path: Path, target: Path, label: str) -> dict:  # the new name cannot be written
+        if label == "new-label":
+            raise OSError(28, "No space left on device")
+        return real(path, target, label)
+
+    monkeypatch.setattr(rch, "render_session", failing)
+    assert rch.main(["--project", "/opt/demo", "--name", "aaaa1111=new-label"]) == 1
+    assert (out / "old-label.md").exists()
+    index = (out / "INDEX.md").read_text()
+    assert "(old-label.md)" in index and "(new-label.md)" not in index
+
+
+def test_a_relabel_never_overwrites_an_orphaned_render(
+    box: dict[str, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    rch.main(["--project", "/opt/demo", "--name", "aaaa1111=keep"])
+    out = box["out"] / "-opt-demo"
+    orphan = out / "keep.md"
+    (
+        box["projects"] / "aaaa1111-0000-0000-0000-000000000000.jsonl"
+    ).unlink()  # transcript gone; render stays
+    _write_session(box["projects"], "bbbb2222-0000-0000-0000-000000000000", _demo_records())
+    before = orphan.read_text()
+    assert rch.main(["--project", "/opt/demo", "--name", "bbbb2222=keep"]) == 0
+    assert orphan.read_text() == before
+    assert (out / "keep-bbbb2222.md").exists()
+    assert "WARN" in capsys.readouterr().err
+
+
+def test_a_non_object_names_file_is_preserved_and_warned_before_being_replaced(
+    box: dict[str, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    out = box["out"] / "-opt-demo"
+    out.mkdir(parents=True)
+    (out / "names.json").write_text("[1, 2]")
+    assert rch.main(["--project", "/opt/demo", "--name", "aaaa1111=agent-1"]) == 0
+    assert "WARN" in capsys.readouterr().err
+    kept = list(out.glob("names.json.bad*"))
+    assert kept and kept[0].read_text() == "[1, 2]"
+    assert json.loads((out / "names.json").read_text()) == {"aaaa1111": "agent-1"}
+
+
+def test_after_a_skip_the_index_row_survives_only_while_its_file_does(
+    box: dict[str, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    rch.main(["--project", "/opt/demo"])
+    out = box["out"] / "-opt-demo"
+    bad = box["projects"] / "aaaa1111-0000-0000-0000-000000000000.jsonl"
+    bad.write_text("changed\n")  # new signature → a re-render is attempted
+    bad.chmod(0)
+    try:
+        assert rch.main(["--project", "/opt/demo"]) == 1
+        assert "(aaaa1111.md)" in (out / "INDEX.md").read_text()  # previous render still there
+        (out / "aaaa1111.md").unlink()
+        assert rch.main(["--project", "/opt/demo"]) == 1
+        assert (
+            "(aaaa1111.md)" not in (out / "INDEX.md").read_text()
+        )  # never advertise a missing file
+    finally:
+        bad.chmod(0o600)
+    capsys.readouterr()
+
+
+def test_a_label_from_names_json_can_never_leave_the_project_folder(
+    box: dict[str, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    out = box["out"] / "-opt-demo"
+    out.mkdir(parents=True)
+    (out / "names.json").write_text(json.dumps({"aaaa1111": "../escaped"}))
+    assert rch.main(["--project", "/opt/demo"]) == 0
+    assert not (box["out"] / "escaped.md").exists()
+    assert (out / "aaaa1111.md").exists()
+    assert "WARN" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("label", ["INDEX", "names", ".hidden", "..", "a/b"])
+def test_reserved_or_unsafe_labels_are_refused_on_the_command_line(
+    box: dict[str, Path], label: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert rch.main(["--project", "/opt/demo", "--name", f"aaaa1111={label}"]) == 2
+    assert "ERROR" in capsys.readouterr().err
+
+
+def test_a_half_written_state_entry_reads_as_never_rendered(box: dict[str, Path]) -> None:
+    out = box["out"] / "-opt-demo"
+    out.mkdir(parents=True)
+    (out / ".render-state.json").write_text(
+        json.dumps({"aaaa1111-0000-0000-0000-000000000000": "corrupted"})
+    )
+    assert rch.main(["--project", "/opt/demo"]) == 0
+    assert (out / "aaaa1111.md").exists()

@@ -69,14 +69,19 @@ reports the session as alive when it is not (cost 20 minutes on 2026-09-11). Wal
 
 **Corrected twice on 2026-09-11.** The first revision of this section blamed compaction; the second
 replaced it with the owner veto as "the REAL reason". Both were inferred from symptoms and neither had
-read the loader. The measured rule (detail: `docs/workstation/chat-history-render.md`): a reloaded window
-(`claude --resume <id>`) rebuilds its view by walking `parentUuid` from the newest record back to a root,
-and every `compact_boundary` record has **`parentUuid: null`** — a new root — so the view ALWAYS starts at
-the last compaction. Simulated on the two trade-intelligence lanes: **8 records** rendered of 116,389
-(agent-2, `37887efc`, compacted 2026-09-09 and idle since) and **2,093** of 105,742 (agent-1, `1991fa9b`,
-compacted 2026-09-02). A LIVE window keeps whatever it streamed since it opened, which is why an
-un-reloaded window can still show earlier text. There is no time window, no setting and no load-more;
-rewriting transcripts to re-link the tree is rejected (D-235: the same tree feeds the model's context).
+read the loader. The measured rule (detail: `docs/workstation/chat-history-render.md`): a reloaded
+window's panel is rebuilt by the VS Code extension host (`extension.js`, loader `i11`, reached from the
+webview's `get_session_request`), which walks `parentUuid` from the newest record back to a root; every
+`compact_boundary` record has **`parentUuid: null`** — a new root — **and** the loader re-parents that
+boundary's preserved messages onto the compaction summary, discarding their real links into earlier
+history. So the view ALWAYS starts at the last compaction. Simulated on the two trade-intelligence lanes:
+the walk yields **8 records** of the 83,161 the loader parses (116,389 lines; agent-2, `37887efc`,
+compacted 2026-09-09 and idle since) and **2,093** of 76,867 (105,742 lines; agent-1, `1991fa9b`,
+compacted 2026-09-02); after the loader's system/meta filter the panel receives 4 and about 1,370
+messages. A LIVE window keeps whatever it streamed since it opened, which is why an un-reloaded window can
+still show earlier text. There is no time window, no setting and no wired load-more; rewriting transcripts
+to re-link the tree is rejected (D-235, D-236: the CLI's resume reconstruction walks the same chain to
+build the model's context).
 
 **The fix is a render beside the panel, not a panel change:**
 
@@ -90,13 +95,18 @@ python3 /opt/fabrik/scripts/render_chat_history.py --project /opt/trade-intellig
 records). When the credential-store account differs from the owner at resume, the binary logs
 `{"type":"history-suppression","cause":"restored_owner_mismatch","vetoedAgainstAccountUuid":…}` and prints
 `[bridge:repl] Restored-pointer reattach vetoed: the credential store account changed since this
-conversation's pointer…` — it refuses to re-attach the remote-control bridge under another account and
-nothing else. Measured: it fired **5 times on each lane** (2026-09-05, 2026-09-08, and three times on
-2026-09-11 — 09:38 and 09:40 against `sarp`, 18:34 against `can`), and on that 18:34 reload agent-1 still
-rendered its six days from the last compaction. **Rotation therefore does not blind a window, and
-`claude_rotate.py --switch` is not a history recovery** (the operator's standing rule is no switching).
-What a rotation costs an owned session is only the bridge reattach. Content is never lost either way:
-`get_chat` / `search_chats` and the render script read the shared transcripts, account-agnostically.
+conversation's pointer was persisted — minting fresh, history channels suppressed`. What that costs the
+session: the remote-control bridge is not re-attached under the other account, the conversation is
+refused remote backfill from then on (`[persistence-sync] Refusing backfill: conversation carries a
+history-suppression taint`), and a fork inherits the taint. What it does NOT touch is the panel: the
+strings `restored_owner_mismatch`, `history-suppression` and `historySuppressed` occur zero times in
+`extension.js` and `webview/index.js`, and the loader's type filter drops `history-suppression` records
+before the walk sees them. Measured: it fired **5 times on each lane** (2026-09-05, 2026-09-08, and three
+times on 2026-09-11 — 09:38 and 09:40 against `sarp`, 18:34 against `can`), and on that 18:34 reload
+agent-1 still rendered its six days from the last compaction. **Rotation therefore does not blind a
+window, and `claude_rotate.py --switch` is not a history recovery** (the operator's standing rule is no
+switching). Content is never lost either way: `get_chat` / `search_chats` and the render script read the
+shared transcripts, account-agnostically.
 
 ## Making a re-filed session visible again (measured, and safe)
 

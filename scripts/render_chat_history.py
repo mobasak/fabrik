@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from datetime import datetime
@@ -132,7 +133,9 @@ def render_session(path: Path, out: Path, label: str) -> dict:
         "Every `## ⟲ Compaction` heading is a point where the live window was summarised. "
         "The VS Code panel shows only what follows the LAST one; this file is the rest.\n\n---\n"
     )
-    out.write_text(head + "".join(lines))
+    tmp = out.with_name(out.name + ".tmp")
+    tmp.write_text(head + "".join(lines))
+    os.replace(tmp, out)  # atomic: a failed write never truncates the previous render
     return {
         "label": label,
         "id": path.stem,
@@ -145,13 +148,49 @@ def render_session(path: Path, out: Path, label: str) -> dict:
     }
 
 
+_RESERVED_LABELS = frozenset({"INDEX", "names"})
+
+
+def _safe_label(label: str) -> bool:
+    """A label becomes `<label>.md` inside the project folder: one path segment, never hidden,
+    never one of the folder's own files."""
+    return (
+        bool(label)
+        and "/" not in label
+        and not label.startswith(".")
+        and label not in _RESERVED_LABELS
+    )
+
+
+def _is_entry(entry: object) -> bool:
+    return isinstance(entry, dict) and isinstance(entry.get("row"), dict) and "file" in entry["row"]
+
+
 def _load_json(path: Path) -> dict:
-    """A missing, unreadable, malformed or non-object sidecar reads as empty — never a crash."""
+    """A missing, unreadable, malformed or non-object sidecar reads as empty — never a crash.
+
+    A file that exists but is not a JSON object is moved aside to `<name>.bad-<stamp>` with a
+    WARN, so a later write of the sidecar never silently discards what was there."""
     try:
-        loaded = json.loads(path.read_text())
-    except (OSError, ValueError):
+        raw = path.read_text()
+    except OSError:
         return {}
-    return loaded if isinstance(loaded, dict) else {}
+    try:
+        loaded = json.loads(raw)
+    except ValueError:
+        loaded = None
+    if isinstance(loaded, dict):
+        return loaded
+    kept = path.with_name(f"{path.name}.bad-{datetime.now().strftime('%Y%m%d-%H%M%S')}")
+    try:
+        os.replace(path, kept)
+        print(f"WARN: {path} is not a JSON object; moved aside to {kept.name}", file=sys.stderr)
+    except OSError as exc:
+        print(
+            f"WARN: {path} is not a JSON object and could not be moved aside: {exc}",
+            file=sys.stderr,
+        )
+    return {}
 
 
 def render_project(key: str, names: dict[str, str]) -> int:
@@ -175,7 +214,18 @@ def render_project(key: str, names: dict[str, str]) -> int:
     for path in transcripts:
         sid = path.stem
         label = next((v for k, v in stored_names.items() if sid.startswith(k)), sid[:8])
-        if label in labels.values():  # one label on two sessions: never one file for both
+        if not _safe_label(label):  # a hand-edited names.json must not escape the folder
+            print(
+                f"WARN: label {label!r} for {sid[:8]} is not a safe file name; using the id",
+                file=sys.stderr,
+            )
+            label = sid[:8]
+        prev_entry = state.get(sid)
+        own = prev_entry["row"].get("file") if _is_entry(prev_entry) else None
+        target = out_dir / f"{label}.md"
+        # One label on two sessions — in this run, or against a render whose transcript is gone
+        # (an orphan is the last copy of that conversation) — never one file for both.
+        if label in labels.values() or (target.exists() and target.name != own):
             print(
                 f"WARN: label {label!r} is already used; {sid[:8]} renders as {label}-{sid[:8]}",
                 file=sys.stderr,
@@ -187,23 +237,25 @@ def render_project(key: str, names: dict[str, str]) -> int:
         sid = path.stem
         label = labels[sid]
         out = out_dir / f"{label}.md"
-        st = path.stat()
-        sig = f"{st.st_size}:{st.st_mtime_ns}:{label}"
         prev = state.get(sid)
-        if prev and prev.get("sig") == sig and out.exists():
-            rows.append(prev["row"])
-            continue
-        old = prev.get("row", {}).get("file") if prev else None
-        if old and old != out.name and old not in taken:  # never another session's live file
-            (out_dir / old).unlink(missing_ok=True)
-        try:
+        if not _is_entry(prev):  # a half-written state entry reads as "never rendered"
+            prev = None
+        try:  # one unreadable or vanished transcript must not abort the batch
+            st = path.stat()
+            sig = f"{st.st_size}:{st.st_mtime_ns}:{label}"
+            if prev and prev.get("sig") == sig and out.exists():
+                rows.append(prev["row"])
+                continue
             row = render_session(path, out, label)
-        except OSError as exc:  # one unreadable transcript must not abort the batch
+        except OSError as exc:
             print(f"WARN: skipped {path}: {exc}", file=sys.stderr)
             failed += 1
-            if prev:
-                rows.append(prev["row"])
+            if prev and (out_dir / prev["row"]["file"]).exists():
+                rows.append(prev["row"])  # the previous render is still there; keep its row
             continue
+        old = prev.get("row", {}).get("file") if prev else None
+        if old and old != out.name and old not in taken:  # only after the new render landed
+            (out_dir / old).unlink(missing_ok=True)
         state[sid] = {"sig": sig, "row": row}
         rows.append(row)
         rendered += 1
@@ -249,9 +301,10 @@ def main(argv: list[str] | None = None) -> int:
     names: dict[str, str] = {}
     for item in args.name:
         prefix, _, label = item.partition("=")
-        if len(prefix) < 8 or not label or "/" in label:
+        if len(prefix) < 8 or not _safe_label(label):
             print(
-                f"ERROR: --name expects ID-PREFIX=LABEL with at least 8 id characters, got {item!r}",
+                f"ERROR: --name expects ID-PREFIX=LABEL with at least 8 id characters and a plain "
+                f"file name (no '/', not hidden, not INDEX/names), got {item!r}",
                 file=sys.stderr,
             )
             return 2

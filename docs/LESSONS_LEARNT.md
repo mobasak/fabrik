@@ -3,17 +3,21 @@
 
 ## 2026-09-11 — Three wrong diagnoses of "my chat history is gone": read the loader, don't pattern-match the symptom
 
-The operator could not see history in reloaded VS Code windows. Over one day this session named three causes —
-account rotation (an owner veto), transcript size, then compaction — and the operator disproved two of them
-from their own screen. Each was inferred from a symptom that matched; none came from reading the code path
-that renders the window. The real rule took twenty minutes once the extension's loader was opened: a reloaded
-window walks `parentUuid` from the newest record to a root, every `compact_boundary` has `parentUuid: null`,
-so the view starts at the last compaction — and simulating that walk on the two transcripts reproduced the
-operator's exact numbers (8 and 2,093 records). D-235.
+The operator could not see history in reloaded VS Code windows. Over one day this session named three causes
+in chat — account rotation (an owner veto), transcript size, then compaction — and wrote two of them into
+`docs/workstation/session-recall.md` in the opposite order (compaction at 13:22, the veto at 13:37); the
+operator disproved two of them from their own screen. Each was inferred from a symptom that matched; none came
+from reading the code path that renders the window. The real rule took twenty minutes once the extension's
+loader was opened: the walk runs `parentUuid` from the newest record to a root, every `compact_boundary` has
+`parentUuid: null` AND the loader re-parents the boundary's preserved messages onto the summary, so the view
+starts at the last compaction — and simulating that walk on the two transcripts gave 8 and 2,093 records, the
+operator's view once the loader's own filter reduces them to 4 and about 1,370 messages. D-235, D-236.
 
-- **"Read it, don't recall it" applies to closed code too.** A 200 MB minified binary is still greppable;
-  `isCompactSummary` had 50 hits and the loader was among them. The cost of reading was a fraction of one
-  wrong diagnosis.
+- **"Read it, don't recall it" applies to closed code too.** A minified 3 MB `extension.js` is still
+  greppable; `compact_boundary` had 4 hits and the loader was one of them. The cost of reading was a
+  fraction of one wrong diagnosis — and an author-blind seat then corrected the mechanism I wrote from that
+  read (the re-parenting pass, not the null parent alone, is what severs the chain): reading the code is
+  necessary, a second reader of the same code is what makes the statement safe to put in governance.
 - **A disproof of one path is not a disproof of the mechanism.** "The live hub window shows text from before
   its compaction" refuted compaction for a LIVE window only; the reload path has a different rule. I withdrew
   a correct mechanism because I never asked which path the counter-example exercised.
