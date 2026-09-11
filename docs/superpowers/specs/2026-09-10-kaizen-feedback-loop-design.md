@@ -209,9 +209,15 @@ instruction files — was **not found under any name** in the sources four `fabr
 searched on 2026-09-11 (arXiv, vendor engineering blogs, the agent-evaluation literature). That is a
 bounded absence, not a proof of novelty: it means we have no prior art to copy, not that none exists.
 
-### Three parts of the ask the evidence contradicts, stated plainly
+### What the run-grading literature measured — KEPT as evidence, RETIRED as design (D-234)
 
-| The ask | What the evidence says | Measured here |
+⚠️ **Read this table as a record of what was measured, not as an argument against the ask.** It was
+written when the eight axes were misread as criteria for grading a RUN. The figures are real and stay;
+the column heading "what the evidence contradicts" does not, because the evidence is about scoring
+outputs and the ask is about reviewing instructions. Where a row still bites the four-piece loop, the
+loop's own table below says how.
+
+| The ask, as first misread | What the literature says about RUN-grading | Measured here |
 |---|---|---|
 | An observer on **every** run | **No sampled production account runs one at 100%** — the published accounts sample **1–10%** and gate the judge behind free deterministic signals (not found at 100% in any account searched; an absence over a bounded search) | One seat/close = **7.3%** of all tokens on this ledger — Σ`seats_seen` = 1,390 over the 47 of 107 rows carrying seat data, mean 15,376 tok/seat (at 107 rows) |
 | **Eight** axes | The exact configuration measured to collapse: *"factor correlations above 0.93 … supposedly distinct criteria behave interchangeably, reducing the evaluation to a near-unidimensional signal"*, with **>90% unexplained variance** | Eight numbers would be one number wearing eight labels |
@@ -287,8 +293,8 @@ that archived plan set (the directory holds exactly 35) + **9** others — the e
 files" was a whole-repo negative asserted from a three-directory search, this spec's own denominator law
 turned on its author.
 
-**What this changes for tier 3, concretely:** the manifesto axis does **not** need 2–3 criteria invented
-for it. It reuses checklist item 63b's six intersections, which are already written, already applied
+**What this changes for piece 1's `manifesto` key, concretely:** the manifesto axis does **not** need
+criteria invented for it. The observer records against checklist item 63b's six intersections, which are already written, already applied
 corpus-wide once, and already admit *"N/A because X"*. That is cheaper and better-grounded than anything
 this spec would write, and it is the difference between judging conformance and judging vocabulary.
 
@@ -322,6 +328,25 @@ active lock that owns `commands/assemble_commands.py`, and `commands/_fragments/
 edits. So **pieces 3 and 4 build now** (no lock, no collision — the ratchet's BASELINE is seeded only
 after infra's corpus edits land, or it freezes a number they are changing); **pieces 1 and 2 build after
 infra's plan closes**, because both touch the corpus they are mid-edit on.
+
+**THE EIGHT AXES, as properties of the COMMAND TEXT — what the observer records under each key, and the
+instrument that already exists for it.** This is the table an earlier re-cut deleted by accident; it is
+what makes piece 1's axis keys mean something rather than being labels.
+
+| # | The operator's axis | What it means of the COMMAND being run | What the observer records under this key | Existing instrument |
+|---|---|---|---|---|
+| 1 | lean | the instruction text carries weight the run never used | the sections the command loaded that the run did not cite or act on | piece 3's ratchet (bytes per surface); `check_command_corpus.py` for source↔render |
+| 2 | fast executable | the command's steps ran without a stall the text caused — an ask it could have answered, a re-derivation it could have carried | where the run stopped to ask or re-derive something the command should have stated | `wall_s`, `rounds`; the `confusion:` field |
+| 3 | accurate | no instruction turned out false — a path, flag, symbol, count or script that does not exist or does not do what the text says | the false instruction, quoted, with the executed disproof | `check_citations_resolve.py`; `check_script_headers.py`; the `confusion:` field |
+| 4 | no token waste | the command did not make the agent read, dispatch or re-derive what the outcome never needed | the read, seat or round the run could have skipped, and its cost | the `waste:` field (85% populated already); piece 4's tokens-per-round |
+| 5 | continuous improvement | the last `change:` filed against this command was applied, and THIS run benefited | whether the previous change landed, and whether this run hit the same wall anyway | piece 2's applied-edit ledger, joined to the next close — a cross-run check, never scored per run |
+| 6 | infra aware | the command names infra as it is TODAY — paths, hosts, services, scripts, flags | the stale or retired infra fact the command relies on, with the live value | `agents-fabrik.md`, `scripts/service_catalog.json`, `mcp_health.py`; a live probe beats the doc |
+| 7 | rules aware | the command neither contradicts nor duplicates a rule pack the run activated | the pack and the clause it contradicts or restates | `select_rules.py` ACTIVE set; `check_rule_grounding.py` |
+| 8 | manifesto aware | the command conforms to the operating manifesto's binding intersections | which of 63b's six intersections (a)–(f) it fails, or *"N/A because X"* | `docs/reference/command-evaluation-checklist.md` item 63b — six criteria already written and applied corpus-wide once; see the manifesto note above |
+
+The observer's output is therefore a short structured record — key, quoted instruction, executed
+evidence — not a score. That is what makes it routable (piece 2 groups by key and by command) and what
+makes it cheap: it names what was wrong with the text, which is the only thing a hub agent can act on.
 
 **What this supersedes:** the three-tier observer, the "judge 5–10% on 2–3 criteria" selector, the
 kappa-validated rubric, the batch-and-gate cadence table, and the deferral of the ratchet — all of them
