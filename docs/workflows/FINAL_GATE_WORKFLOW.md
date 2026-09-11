@@ -482,7 +482,7 @@ All repo consistency checks are implemented by scripts in `scripts/enforcement/`
 - `check_index_md.py` — was: verifies INDEX.md reflects current structure
 - `check_configuration_md.py` — was: ensures env vars documented in CONFIGURATION.md
 - `check_openapi_sync.py` — was: validates API docs match routes
-- `check_docs.py` — was: warns when a new `src/fabrik/` module's `__init__.py` has no mention in `docs/INDEX.md` and no dedicated doc file (removed as a ROW per `final_gate.py`'s inline removal comment — hardcoded to `src/fabrik/`; line numbers deliberately not cited, they drift); LIVE via `validate_conventions.py` on every changed `__init__.py`
+- `check_docs.py` — was: warns when a new `src/fabrik/` module's `__init__.py` has no mention in `INDEX.md` under `docs/` (the script's own path; the hub keeps `INDEX.md` at the root) and no dedicated doc file (removed as a ROW per `final_gate.py`'s inline removal comment — hardcoded to `src/fabrik/`; line numbers deliberately not cited, they drift); LIVE via `validate_conventions.py` on every changed `__init__.py`
 - `check_ports.py` — was: PORTS.md registration (`# UNWIRED —` marker, 2026-08-16); LIVE via `validate_conventions.py` on every changed Dockerfile and `.py/.ts/.tsx/.js/.yaml/.yml` file
 - `check_deps_sync.py` — was: dependencies documented (`# UNWIRED —` marker, 2026-08-16); LIVE via `validate_conventions.py` on a changed `requirements.txt`
 - `check_watchdog.py` — was: watchdog scripts present (`# UNWIRED —` marker, 2026-08-16); LIVE via `validate_conventions.py` on every changed compose file it dispatches (`check_watchdog.py` itself silently skips `docker-compose.yml` and any case-variant — its guard matches the un-lowercased name while the dispatcher lowercases first)
@@ -831,10 +831,10 @@ API_KEY = os.getenv('API_KEY')
 
 **⚠️ NOT gate-wired as its own row — LIVE via import** — removed as a row per `final_gate.py`'s inline removal comment (it "was hardcoded to src/fabrik/ and dead in every scaffolded project"; line numbers deliberately not cited, they drift); `validate_conventions.py` still imports `check_file` from it and runs it on every changed `__init__.py` under the Tier-3 row. Covered instead by `check_doc_sync.py` (Doc Sync Matrix) + `docs_updater.py --check` (Tier 3).
 
-**Purpose:** "Check that new src/ modules have corresponding documentation" (the docstring) — it warns when a new `src/fabrik/` module's `__init__.py` has no mention in `docs/INDEX.md` and no dedicated doc file; it never checks that a set of required doc FILES is present.
+**Purpose:** "Check that new src/ modules have corresponding documentation" (the docstring) — it warns when a new `src/fabrik/` module's `__init__.py` has no mention in `INDEX.md` under `docs/` (the script's own path; the hub keeps `INDEX.md` at the root) and no dedicated doc file; it never checks that a set of required doc FILES is present.
 
 **Validates:**
-- for each changed `__init__.py` of a `src/fabrik/` SUB-package (the package's own `src/fabrik/__init__.py` is dispatched and then silently skipped by the check's has-subdirectory gate), that the module's name appears in `docs/INDEX.md` or that one of `docs/<name>.md`, `docs/reference/<name>.md`, `docs/api/<name>.md` exists — a warning otherwise; nothing else
+- for each changed `__init__.py` of a `src/fabrik/` SUB-package (the package's own `src/fabrik/__init__.py` is dispatched and then silently skipped by the check's has-subdirectory gate), that the module's name appears in `INDEX.md` under `docs/` (the script's own path; the hub keeps `INDEX.md` at the root) or that one of `docs/<name>.md`, `docs/reference/<name>.md`, `docs/api/<name>.md` exists — a warning otherwise; nothing else
 
 **Why this matters:**
 - Ensures project is self-documenting
