@@ -65,6 +65,53 @@ last `cwd: …/.claude/worktrees/store-content-set`, which is the whole story in
 reports the session as alive when it is not (cost 20 minutes on 2026-09-11). Walk `/proc` and read each
 `cmdline`, or check `readlink /proc/<pid>/cwd`, before claiming a session is running.
 
+## The OTHER reason history looks missing: compaction, not filing
+
+The cwd-keying above explains a session absent from the PICKER. A session you can open but which shows
+only the last exchange is a different thing entirely — **compaction**, working as designed.
+
+Measured 2026-09-11 on the two live `/opt/trade-intelligence` lanes:
+
+| session | records | compactions | records AFTER the last one | what the window shows |
+|---|---|---|---|---|
+| `37887efc` | 116,388 | 96 | **31** | almost nothing |
+| `1991fa9b` | 105,741 | 86 | 3,917 | a normal-looking session |
+
+`37887efc` spans 2026-06-06 → 2026-09-09. Ninety-six compactions later the window renders the 31 records
+after the final boundary; the other 116,357 are still in the file, just not live chat. Nothing is lost —
+`get_chat` on that id returns its 7 June turns verbatim.
+
+**So the triage is:** session absent from the picker → a cwd/filing problem (above). Session present but
+nearly empty → compaction, and the history is in `get_chat`/`search_chats`, never in the window.
+
+## Making a re-filed session visible again (measured, and safe)
+
+Claude Code **appends to the transcript in place** — proven on a throwaway session: the inode was stable
+across a `--resume` write. So a **hardlink** of the transcript into a second project key costs zero blocks,
+keeps one inode (both names stay in sync through further writes), and is undone with a plain `rm` of the
+extra name, because the data lives on through the other link.
+
+```bash
+# make every worktree-filed session of a repo visible from the repo-root picker
+REPO=-opt-<repo>                     # e.g. -opt-iterative-image-editor
+P=~/.claude/projects
+for src in "$P/$REPO--claude-worktrees-"*/*.jsonl; do
+  [ -e "$src" ] || continue
+  dst="$P/$REPO/$(basename "$src")"
+  [ -e "$dst" ] || ln "$src" "$dst"        # hardlink; never a copy
+done
+```
+
+Two facts that make this safe rather than clever, both established by experiment rather than assumed:
+**`--resume <session-id>` resolves the id GLOBALLY** — resuming from an unrelated cwd worked — so the
+transcript is always reachable by id even with no hardlink; and **a resume does NOT migrate the file** — the
+turn written from the second cwd landed in the ORIGINAL key, so the hardlink is what puts it in the other
+picker, not the resume.
+
+Scale, measured 2026-09-11: 21 worktree keys box-wide holding 23 transcripts out of 5,327 — but only
+**3 keys in real `/opt` repos** (fabrik, iterative_image_editor, transdoc); the rest are `/tmp` probes.
+Small today, and it grows with every lane that enters a worktree.
+
 ## Code files — where each part lives (all under `/opt/session-recall/`)
 
 | File | Role | Key symbols |
