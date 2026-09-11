@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Review-family pass 3 plan CONVERGED: three inline phases for the approved spec (2026-09-11)
+
+`docs/development/plans/2026-09-11-plan-1-review-family-pass3.md` (Profile: small) converged under D-212 and the spec's own rulings D-229/D-230/D-231 — the approval rows D-228–D-231 were minted with its DRAFT. It lands the ten deltas of the pass-3 spec: both fragments carry the bounded hop, the delta budget and the round-zero paragraph with D10's three rules; `dispatch_headroom.py --delta` and `check_review_hygiene.py --claim` ship red-first; the five fragment-less loops move under D-203; the scoped review routes up before its record or after the second confirming round; the Finish docs loop skips docs the heavy review graded. Next: `/fabrik-execute-plan` on the operator's word.
+
 ### Changed — Review-family pass 3 spec re-CONVERGED with D10: the orchestrator's fix graded by an executed mechanism (2026-09-11)
 
 `docs/superpowers/specs/2026-09-11-review-family-pass3-design.md` gains D10 on the operator's word: the mechanism under review is a probe script pinned at round 1 and cited, `check_review_hygiene.py --claim <term>` lists every mirror site of a rewritten claim before the pin, and two consecutive residue passes force a paragraph rewrite. Measured cause: seats fell 134 → 14 across three spec reviews while the pass count stayed 44 → 9 → 11. One delta review round; decision row minted at the re-flip.
