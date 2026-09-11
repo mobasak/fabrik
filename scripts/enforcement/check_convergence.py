@@ -211,7 +211,8 @@ def _closing_row_fail(text: str) -> str | None:
     # ORDER: fences first (line-anchored, so a stray backtick pair cannot eat a marker), then code
     # spans masked (a `<!--` in backticks is prose — and so is a `-->`: a comment closes only at a
     # bare closer, the stated cost of the same rule; 0 of 47 spines and 0 of 805 receipts — the
-    # population the `_PASS_ROW` comment states — change verdict), then HTML comments blanked. The archived carve-out in the caller is the lowercase
+    # population the `_PASS_ROW` comment states — change verdict), then HTML comments blanked.
+    # The archived carve-out in the caller is the lowercase
     # DIRECTORY part `archived` — `Archived/` and a slug carrying the word are graded.
     text = _HTML_COMMENT.sub("", _mask_spans(FENCE_STRIP.sub("", text)))
     last: str | None = None

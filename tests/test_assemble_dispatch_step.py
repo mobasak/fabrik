@@ -907,32 +907,41 @@ def test_an_orphan_fifo_never_hangs_the_render_or_the_gate(tmp_path, monkeypatch
         monkeypatch.setattr(ac, "AGENTS", a)
         with pytest.raises(SystemExit) as exc:
             ac.check()
+        out = capsys.readouterr().out
+        survived = (d / "zz-fifo.md").exists() and (s / "zz-fifo" / "SKILL.md").exists()
     finally:
         signal.alarm(0)
         signal.signal(signal.SIGALRM, old)
-    out = capsys.readouterr().out
-    survived = (d / "zz-fifo.md").exists() and (s / "zz-fifo" / "SKILL.md").exists()
-    (d / "zz-fifo.md").unlink()  # pytest keeps tmp dirs; a FIFO left behind has no sweeper
-    (s / "zz-fifo" / "SKILL.md").unlink()
-    assert survived
+        # pytest keeps tmp dirs and nothing sweeps a FIFO left behind — remove BOTH on every path,
+        # tolerating one a regressed prune already removed (the assertion below reports that)
+        (d / "zz-fifo.md").unlink(missing_ok=True)
+        (s / "zz-fifo" / "SKILL.md").unlink(missing_ok=True)
+    assert survived, "a prune removed a FIFO it must not read"
     assert exc.value.code == 1 and out.count("not a regular file") == 2, out
 
 
-def _reversed_glob(monkeypatch):
+def _reversed_glob(monkeypatch, tmp_path):
     """Force every `Path.glob` to yield in REVERSE sorted order: a walk the assembler wraps in
     `sorted()` still runs ascending, an unwrapped walk now runs descending — so a test's order
     claim no longer rides on what the filesystem happens to return (ext4 handed the round-8 seat and
-    the orchestrator different orders for one fixture; here the order is forced)."""
+    the orchestrator different orders for one fixture; here the order is forced). The fake is eager
+    (a list; no caller passes `case_sensitive=`) and PROVES ITSELF on a probe dir before it is
+    trusted: the whole kill power of the two order tests is `reverse=True`, so losing it must fail
+    them, not silently pass them."""
     real = Path.glob
-    monkeypatch.setattr(
-        Path, "glob", lambda self, pat, **kw: iter(sorted(real(self, pat, **kw), reverse=True))
-    )
+    monkeypatch.setattr(Path, "glob", lambda self, pat: sorted(real(self, pat), reverse=True))
+    probe = tmp_path / "_glob-probe"
+    probe.mkdir()
+    (probe / "a").touch()
+    (probe / "b").touch()
+    assert [p.name for p in probe.glob("*")] == ["b", "a"], "the reversed glob is not reversing"
 
 
-@pytest.mark.parametrize("tree", ["commands", "agents", "skills"])
+@pytest.mark.parametrize("tree", ["commands", "skills", "agents"])
 def test_the_preflight_names_the_first_offender_in_sorted_order(tmp_path, monkeypatch, tree):
     """The orphan globs are `sorted()`: two offenders, the refusal names the one that sorts first —
-    under a reversed `Path.glob` an unsorted walk would name the other."""
+    under a reversed `Path.glob` an unsorted walk would name the other — and, like every abort,
+    nothing was written."""
     d, s, a = _trees(tmp_path)
     t = {"commands": d, "agents": a, "skills": s}[tree]
     t.mkdir(exist_ok=True)
@@ -942,18 +951,21 @@ def test_the_preflight_names_the_first_offender_in_sorted_order(tmp_path, monkey
     else:
         (t / "aa-dir.md").mkdir()
         (t / "zz-dir.md").mkdir()
-    _reversed_glob(monkeypatch)
+    _reversed_glob(monkeypatch, tmp_path)
     with pytest.raises(SystemExit, match=r"aa-(dir\.md|x)"):
         ac.render(d, s, agents_dest=a)
+    assert _census(tmp_path) == (0, 0, 0)
 
 
-@pytest.mark.parametrize("tree", ["commands", "agents", "skills"])
-def test_the_prune_walks_in_sorted_order_so_a_link_goes_before_its_target(
+@pytest.mark.parametrize("tree", ["commands", "skills", "agents"])
+def test_the_prune_walks_in_sorted_order_so_a_link_that_sorts_first_goes_before_its_target(
     tmp_path, monkeypatch, tree
 ):
-    """The prunes are `sorted()`: an orphan LINK that sorts before its bannered orphan TARGET is
-    unlinked first (it still resolves), then the target — nothing dangles. Under a reversed
-    `Path.glob` an unsorted walk removes the target first and leaves the link dangling forever."""
+    """The prunes are `sorted()`: an orphan LINK whose name sorts BEFORE its bannered orphan
+    TARGET's is unlinked first (it still resolves), then the target — for that pair nothing dangles.
+    Under a reversed `Path.glob` an unsorted walk removes the target first and leaves the link
+    dangling forever. The sorted walk is DETERMINISTIC, not dangle-free: a link whose name sorts
+    AFTER its target's still dangles (receipt row M6, the assembler backlog row)."""
     d, s, a = _trees(tmp_path)
     ac.render(d, s, agents_dest=a)
     if tree == "skills":
@@ -965,7 +977,7 @@ def test_the_prune_walks_in_sorted_order_so_a_link_goes_before_its_target(
         (t / "zz-target.md").write_text(ac.BANNER + "\n# t\n")
         link, target = t / "aa-link.md", t / "zz-target.md"
     link.symlink_to(target)
-    _reversed_glob(monkeypatch)
+    _reversed_glob(monkeypatch, tmp_path)
     ac.render(d, s, agents_dest=a)
     assert not link.is_symlink() and not link.exists() and not target.exists()
 
