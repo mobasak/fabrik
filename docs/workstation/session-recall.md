@@ -34,6 +34,37 @@ an agent answer, from the *real transcripts* rather than its own memory:
         └── session_context.py     → SessionStart hook: prints the orientation digest at session start
 ```
 
+## ⚠️ How that `**` is keyed — and why a session can vanish from the history picker
+
+The `**` in `~/.claude/projects/**/*.jsonl` is **the session's current working directory, path-mangled**
+(`/opt/iterative_image_editor` → `-opt-iterative-image-editor`). Two consequences that look like data loss
+and are not:
+
+- **A session that CHANGES cwd is RE-FILED mid-session.** `EnterWorktree` (and any `--worktree` launch) moves
+  the cwd into `<repo>/.claude/worktrees/<name>`, so the transcript moves from `-opt-<repo>` to
+  `-opt-<repo>--claude-worktrees-<name>`. Nothing is copied back.
+- **The VS Code history picker lists only the sessions filed under the window's OWN cwd key.** Reload the
+  window at the repo root and a lane that had entered a worktree is simply not in the list — and a reload
+  also ends its process, so the reopened window shows no history either.
+
+**Measured 2026-09-11** (`/opt/iterative_image_editor`, three concurrent lanes): after a VS Code reload at
+the repo root the picker showed two of three. The missing lane's transcript was intact — 259 MB, written
+minutes earlier — filed under `-opt-iterative-image-editor--claude-worktrees-store-content-set` because that
+session's cwd had moved into the worktree. Its first record carried `cwd: /opt/iterative_image_editor`, its
+last `cwd: …/.claude/worktrees/store-content-set`, which is the whole story in two lines.
+
+**Recovery, in order of cost:**
+
+| you want | do this |
+|---|---|
+| the conversation CONTENT, from any window | `search_chats` / `recent_chats` / `get_chat` — the index is keyed by session id and project, so it finds a transcript under any cwd key. For a 259 MB thread this is the cheap option. |
+| the session BACK, interactively | `cd <the worktree path> && claude --resume <session-id>`, or open that worktree folder as the VS Code workspace |
+| to find which key a session is under | `ls ~/.claude/projects/*/<session-id>.jsonl`, or `recent_chats` with the project name |
+
+⚠️ **Do not diagnose this with `pgrep -f <session-id>`** — the pattern matches the grep's own command line and
+reports the session as alive when it is not (cost 20 minutes on 2026-09-11). Walk `/proc` and read each
+`cmdline`, or check `readlink /proc/<pid>/cwd`, before claiming a session is running.
+
 ## Code files — where each part lives (all under `/opt/session-recall/`)
 
 | File | Role | Key symbols |
