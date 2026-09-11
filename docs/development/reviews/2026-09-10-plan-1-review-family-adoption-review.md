@@ -1,6 +1,6 @@
 # Review — 2026-09-10-plan-1-review-family-adoption
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED (2026-09-11 — the closing delta round with fresh non-authoring seats CONFIRMED zero)
 **Surface:** `git rev-parse HEAD` = cdd8f2b523563449df9bb57972cb857ba9890ceb; range tip cdd8f2b523563449df9bb57972cb857ba9890ceb; `git diff 237516dc..cdd8f2b5 -- commands/_fragments/term-edit.md commands/_sources/fabrik-spec-review.md commands/_sources/fabrik-plan-review.md commands/_sources/fabrik-plan-after-chat.md commands/_fragments/subagents-core.md commands/assemble_commands.py tests/test_assemble_dispatch_step.py tests/enforcement/test_flip_gate_matrix.py scripts/enforcement/check_review_hygiene.py tests/enforcement/test_check_review_hygiene.py scripts/enforcement/check_convergence.py tests/test_check_convergence.py docs/workflows/FINAL_GATE_WORKFLOW.md .windsurf/rules/core/62-using-subagents.md templates/governance/CLAUDE.md CLAUDE.md` md5 e33267ccbec1b2e28e94734b9d4e9550 (236789 bytes)
 **Command:** /fabrik-review · **Changed:** `commands/_fragments/term-edit.md`, `commands/_sources/fabrik-spec-review.md`, `commands/_sources/fabrik-plan-review.md`, `commands/_sources/fabrik-plan-after-chat.md`, `commands/_fragments/subagents-core.md`, `commands/assemble_commands.py`, `tests/test_assemble_dispatch_step.py`, `tests/enforcement/test_flip_gate_matrix.py`, `scripts/enforcement/check_review_hygiene.py`, `tests/enforcement/test_check_review_hygiene.py`, `scripts/enforcement/check_convergence.py`, `tests/test_check_convergence.py`, `docs/workflows/FINAL_GATE_WORKFLOW.md`, `.windsurf/rules/core/62-using-subagents.md`, `templates/governance/CLAUDE.md`, `CLAUDE.md`
 **Plan:** `docs/development/plans/2026-09-10-plan-1-review-family-adoption.md`
@@ -208,28 +208,28 @@ $ python scripts/review_rubric.py --changed commands/_fragments/term-edit.md com
 
 | Class | Status |
 |---|---|
-| Hunt: `commands/_fragments/term-edit.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `commands/_sources/fabrik-spec-review.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `commands/_sources/fabrik-plan-review.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `commands/_sources/fabrik-plan-after-chat.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `commands/_fragments/subagents-core.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `commands/assemble_commands.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_assemble_dispatch_step.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/enforcement/test_flip_gate_matrix.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/enforcement/check_review_hygiene.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/enforcement/test_check_review_hygiene.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/enforcement/check_convergence.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_check_convergence.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `docs/workflows/FINAL_GATE_WORKFLOW.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `.windsurf/rules/core/62-using-subagents.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `templates/governance/CLAUDE.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `CLAUDE.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | UNCHECKED |
-| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | UNCHECKED |
-| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | UNCHECKED |
-| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | UNCHECKED |
-| Recurrence: denominator on every count — bounded searches state their bound | UNCHECKED |
-| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | UNCHECKED |
+| Hunt: `commands/_fragments/term-edit.md` — every changed hunk, its enclosing function, its callers | CLEAN (commands/_fragments/term-edit.md — the 13 consumers substitute and read grammatically, the five retired phrases at 0, the graders' claims quoted from the code; sonnet C round 1; the Phase A heavy review's 15 rounds precede this one) |
+| Hunt: `commands/_sources/fabrik-spec-review.md` — every changed hunk, its enclosing function, its callers | CLEAN (commands/_sources/fabrik-spec-review.md — every exit site names the quiet closing round, seven axes = the AXES cell; sonnet C round 1) |
+| Hunt: `commands/_sources/fabrik-plan-review.md` — every changed hunk, its enclosing function, its callers | FIXED r1 (F20 — the `## Coverage Checklist` code span kept on one line in source and after-text) · LOCAL |
+| Hunt: `commands/_sources/fabrik-plan-after-chat.md` — every changed hunk, its enclosing function, its callers | CLEAN (commands/_sources/fabrik-plan-after-chat.md — the cite-the-spec bullet names its backlog row honestly; sonnet C round 1) |
+| Hunt: `commands/_fragments/subagents-core.md` — every changed hunk, its enclosing function, its callers | FIXED r2, r4 (G22 the section-partition clause cites D-218; I17 both qualifiers worded as the pack's) · LOCAL |
+| Hunt: `commands/assemble_commands.py` — every changed hunk, its enclosing function, its callers | FIXED r1, r2 (F14 the errs gate graded, F15 the unknown-kind guard, F17/G13/H11/I7/I9 the pre-flight over every tree, every file path, every leaf shape and the prune globs, G15 the kind census, G17 mkdir after the gates, H15/I14 the messages, I10/I11/J9/J10/K11–K14/K17/L5–L10 ONE symlink policy across the pre-flight, the three prunes and the gate (a symlinked TREE tolerated, a symlinked path inside refused, an orphan link read only when it resolves to a file and unlinked as a link); F16 `--extract`, F19 the AXES cell, I16 RECORDED) · LOCAL |
+| Hunt: `tests/test_assemble_dispatch_step.py` — every changed hunk, its enclosing function, its callers | FIXED r1, r2 (F14/F15/F17/H11/I7/I9/J11/J12 cases — fifteen abort shapes with the leaf noun pinned per shape —, G12/H10 the rendered FLOOR read outside comments, G14 the exit-code matcher, G15/H12/I12 the AST kind census, G16 the round-trip pin, I10/J13 the prune tests, J9/K11/K17/L6–L10 the three-tree symlink matrix, its fixed point, the symlinked-tree layout, dangling and directory-target orphan links, the sibling link in every tree, K13 the malformed orphan positions, H13/H14 dead assertions gone; 57 pass and the four sibling assembler suites stay green, every mutant listed in Pass 1–7 fails a test) · LOCAL |
+| Hunt: `tests/enforcement/test_flip_gate_matrix.py` — every changed hunk, its enclosing function, its callers | CLEAN (tests/enforcement/test_flip_gate_matrix.py — 7 pass; `_load` purges siblings; the plan_quality row asserts severity; sonnet E round 1) |
+| Hunt: `scripts/enforcement/check_review_hygiene.py` — every changed hunk, its enclosing function, its callers | FIXED r3, r4 (H1 — `_blank_quoted` reads the comment markers with code spans masked, a quoted `<!-- POOL OFF` had blanked every later row of 9 of 805 fleet receipts; I2 — the fence state decided first, a fenced `<!--` blanked 152 of 191 lines of a probe copy; J3 the fence-opener line graded; the corpus ratchet re-pinned) · LOCAL |
+| Hunt: `tests/enforcement/test_check_review_hygiene.py` — every changed hunk, its enclosing function, its callers | FIXED r3, r4, r5 (H1/I2 red-first tests, the closer graders I3–I5, J3 the fence-opener line, the ratchet re-pinned — 53 pass) · LOCAL |
+| Hunt: `scripts/enforcement/check_convergence.py` — every changed hunk, its enclosing function, its callers | FIXED r1, r2 (F1/G3/G4 the refusal sentence on both flip paths, F5 the token boundary, F7/G7 the quoting policy — fences, spans, comments in that order —, F8 `Round` rows, F10/F11/G2 the shared census path, G10 the verbatim counter, H2/H7/K1/K8/L3 the stated costs and their directions, I1/J1 the run-length span masker bound to its line; F2/F3/F4/G1/H3–H6/J2/K2/K5/K10/L1 graders) · LOCAL |
+| Hunt: `tests/test_check_convergence.py` — every changed hunk, its enclosing function, its callers | FIXED r1, r2 (23 tests added over the ledger fixture and in-process; 105 pass; twenty-one mutants each fail a test; L2 a docstring corrected) · LOCAL |
+| Hunt: `docs/workflows/FINAL_GATE_WORKFLOW.md` — every changed hunk, its enclosing function, its callers | FIXED r1, r2 (F9/G9 the census with exact definitions, H1 the ratchet transcription — both tiers) · LOCAL |
+| Hunt: `.windsurf/rules/core/62-using-subagents.md` — every changed hunk, its enclosing function, its callers | FIXED r1, r2 (F13/G21/H20 — both `--slices` sentences carry the same D-218 qualifier; F24 the carve-out definition REFUTED as a defect) · LOCAL |
+| Hunt: `templates/governance/CLAUDE.md` — every changed hunk, its enclosing function, its callers | FIXED r1 (F13 the qualifier, F23 the semicolon; byte-identical to the root bullet) · LOCAL |
+| Hunt: `CLAUDE.md` — every changed hunk, its enclosing function, its callers | FIXED r1 (F13 the qualifier, F23 the semicolon; byte-identical to the template bullet) · LOCAL |
+| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | FIXED r1, r2 (F5 fail-closed on `unconfirmed:`, F7 fail-closed on a parked ledger, F8 fail-open on `Round` rows, F15 fail-open on an unknown kind, G7 fail-open on a code-span opener, G13/H11/I7/I9 the half-write shapes, H1/I2 the hygiene blanking fail-opens, I1/J1 the span masker both ways and bound to its line, I10 the prune data loss, J9/K11 the gate's unfulfillable remedy and the policy split, K13 the gate's crash on a malformed orphan, L5/L6 the prunes reading through an orphan link to a directory; G8/J4/K6/L11 RECORDED) · LOCAL |
+| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | CLEAN (every seat sized by dispatch_headroom.py --slices and stamped before dispatch — 5 + 3 + 3 seats; the section-partition qualifier now in every governance sentence — F13/G21) |
+| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | FIXED r1, r2 (F5 the `(?<![\w-])` boundary, F4 multi-digit counters, G10 the verbatim `03`, G14 the `^2$` matcher, the fence-marker/backtick-pair collision in G7's ordering, I1/J2/K2/K5 the run-length span boundary and its arithmetic, J1 the line boundary of a span) · LOCAL |
+| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | FIXED r1, r2 (F2/F3/F4/F14/G1/G2/G3/G12/G15/G16/H3–H6/H10/H12/I3–I5/I12/J2/J3/J11–J14/K2/K5/K10/K11/L1/L7–L9 — every grader gap the seats' mutants exposed closed with a test that fails the mutant; F19/G20/H9/I13/J16/K6/L11 RECORDED) · LOCAL |
+| Recurrence: denominator on every count — bounded searches state their bound | FIXED r1, r2 (F9/G5/G9/H1/H19/J7/K4 — the census, the receipts count, the ratchet stated with their definitions and the unreproducible probe figure withdrawn; every seat's negatives carried denominators) · LOCAL |
+| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | CLEAN (every CONFIRMED row names the command run — fixtures through `_check_spine_set` and `_closing_row_fail`, renders on scratch copies, mutants on git-backed overlays, the census through the pinned functions; a seat's argued verdict never entered the counters) |
 
 Verdict grammar (the gate refuses anything else): `CLEAN (<the paths/lines hunted>)` — a CLEAN row
 must name a path and run past 70 characters · `FIXED r<n> (<what changed>)` · `REFUTED (<the
@@ -242,7 +242,7 @@ may survive only under a `## BLOCKED` escalation (a finding + 3 failed attempts)
 
 ## Disposition ledger
 
-Every candidate the seats raised, one row each; `FIXED rN` rows enter `confirmed:`/`fixed:`; REFUTED and RECORDED rows never do (D-206).
+Every candidate the seats raised, one row each; `FIXED rN` rows enter the confirmed and fixed counters; REFUTED and RECORDED rows never do (D-206).
 
 | Id | Seat · slice | Candidate | Executed by the orchestrator | Disposition |
 |---|---|---|---|---|
@@ -397,16 +397,16 @@ Every candidate the seats raised, one row each; `FIXED rN` rows enter `confirmed
 | M9 | opus-1 r6 (late) · check_review_hygiene | R2 — `_fence_step`'s backtick-in-info-string guard ungraded, with a measured live consequence (a real table-parity row ungraded plus a bogus fence-parity hit; the enabling line shape in 61 of 76,088 `/opt` markdown files) | the seat's mutant survived at both commits | RECORDED — measured (K6's row; the hygiene backlog row item (l) names the fix) |
 | M10 | opus-1 r6 (late) · check_convergence | R6 — "no fixture pins the fence-then-span order" (the `M11` order swap survived 102 at the round-6 pin) | order swap re-run on a copy of c75ead3b: 2 failed of 105 (`test_the_fence_strip_runs_before_the_span_masker` and the newline-run grader) | REFUTED (the order is pinned since round 7 — the seat's report predates c75ead3b and says so in its post-pin section) |
 | N1 | opus-1 r8 · check_convergence | round 7's census qualifier "47 non-archived plan-set spines" names a population that does not produce 47 — the seat's seven definitions give 577 / 276 / 47 / 19 / 28 / 10, and only "main checkouts, archived INCLUDED" is 47 (19 live + 28 archived — the receipt's own F2 row says so); the measurement itself holds (0 of 47 / 577 / 802 / 9,783 through the real rule) | executed by the seat's census scripts; re-read against F2 | FIXED r8 (the comment states the convention — main checkouts, archived included, 19 + 28, worktree copies excluded, the same convention as the 805 receipts; L4's cell corrected) |
-| N2 | opus-1 r8 · check_convergence | `_CONFIRMED_TOKEN` without `re.I` survives 105 — a `Confirmed:` counter would go ungraded (fail-open; 0 of 47 spines / 0 of 9,783 receipts spell it so) | mutant survived; executed | RECORDED — measured (pre-existing line, one hop; the convergence backlog row) |
-| N3 | opus-1 r8 · check_convergence | `confirmed:3` (no space) is graded and nothing pins it (`\s*` → `\s+` survives) | mutant survived | RECORDED — measured (the convergence backlog row) |
+| N2 | opus-1 r8 · check_convergence | `_CONFIRMED_TOKEN` without `re.I` survives 105 — a capitalised `Confirmed` counter would go ungraded (fail-open; 0 of 47 spines / 0 of 9,783 receipts spell it so) | mutant survived; executed | RECORDED — measured (pre-existing line, one hop; the convergence backlog row) |
+| N3 | opus-1 r8 · check_convergence | a counter written with no space after its colon is graded and nothing pins it (`\s*` → `\s+` survives) | mutant survived | RECORDED — measured (the convergence backlog row) |
 | N4 | opus-1 r8 · check_convergence | `_PASS_ROW`'s `\|\s*` → `\|\s+` survives — an unpadded pipe row (legal GFM) is graded and no test writes one | mutant survived | RECORDED — measured (the convergence backlog row; the likeliest of the eight to meet a real spine) |
 | N5 | opus-1 r8 · check_convergence | the documented "a later Pass row without a counter does not un-count the ledger" rule has no named test (a reset mutant survives) | mutant survived | RECORDED — measured (the convergence backlog row) |
 | N6 | opus-1 r8 · check_convergence | the documented blockquote exclusion (`^[ \t]*`) is pinned by nothing (`^[ \t>]*` survives) | mutant survived | RECORDED — measured (the convergence backlog row) |
-| N7 | opus-1 r8 · check_convergence | the leading pipe's necessity (prose "Pass 3 of the audit confirmed: 3") is pinned by nothing | mutant survived | RECORDED — measured (the convergence backlog row) |
+| N7 | opus-1 r8 · check_convergence | the leading pipe's necessity (a prose line reading "Pass 3 of the audit confirmed 3 open items") is pinned by nothing | mutant survived | RECORDED — measured (the convergence backlog row) |
 | N8 | opus-1 r8 · check_convergence | the `\b` after `Pass|Round` is pinned by nothing (`Passage of arms`) | mutant survived | RECORDED — measured (the convergence backlog row; lowest severity) |
 | N9 | opus-1 r8 · check_convergence | `_is_spine`'s stem equality (`==` → `in` survives) is now load-bearing for the comment's population and pinned by no test | mutant survived | RECORDED — measured (the convergence backlog row) |
 | N10 | opus-1 r8 · check_convergence | round 7's edited lines were not reflowed (143 at 108 chars; 158 at 74) — `E501` is ignored by the repo's ruff config | measured | FIXED r8 (reflowed with N1; nit, counted) |
-| P1 | sonnet r9 · receipt | Pass 8's counters read `confirmed: 5, fixed: 7` against six FIXED-r8 rows (M1–M4, N1, N10) — the record's executed-defect count and a miscount of the fixes had been written into the ledger cell, breaking the ledger's own `confirmed == fixed == FIXED rows` identity | recounted against every prior Pass row | FIXED r9 (6 / 6; the Method cell states the two-number convention — the ledger counts FIXED rows, the record `--confirmed` counts executed defects — instead of leaving it implicit) |
+| P1 | sonnet r9 · receipt | Pass 8's counters read 5 confirmed and 7 fixed against six FIXED-r8 rows (M1–M4, N1, N10) — the record's executed-defect count and a miscount of the fixes had been written into the ledger cell, breaking the ledger's own `confirmed == fixed == FIXED rows` identity | recounted against every prior Pass row | FIXED r9 (6 / 6; the Method cell states the two-number convention — the ledger counts FIXED rows, the record `--confirmed` counts executed defects — instead of leaving it implicit) |
 | P2 | opus-1 r9 · assembler | the five `sorted()` calls round 8 added are graded by nothing — dropping any one, or reversing it, survives 194 (ext4 happens to return sorted order, so the naive fixture passes either way — the very mechanism Pass 8 named) | five mutants re-run on pin copies: all SURVIVED | FIXED r9 (`_reversed_glob` forces `Path.glob` to yield descending; `test_the_preflight_names_the_first_offender_in_sorted_order` and `test_the_prune_walks_in_sorted_order_so_a_link_goes_before_its_target` (renamed `…_a_link_that_sorts_first_goes_before_its_target` in round 10), each over the three trees; every one of the five mutants now fails exactly its tree's test by name) |
 | P3 | opus-1 r9 · tests | the naive order fixture (two offenders, no forcing) passes with and without `sorted()` on ext4 — a method trap for whoever closes P2 | executed by the seat | FIXED r9 (P2's fixture forces the order; nit, counted) |
 | P4 | opus-1 r9 · assembler | `# noqa-file: template-generator` on line 2 makes every ruff run warn "Invalid # noqa directive" | executed | RECORDED — measured (the assembler backlog row's item (b), pre-existing) |
@@ -430,6 +430,8 @@ Every candidate the seats raised, one row each; `FIXED rN` rows enter `confirmed
 | R4 | opus r11 · tests | the helper plants its probe INSIDE the commands tree (`_trees` returns `tmp_path`) three lines before a docstring says "nothing was written" — inert because `_census` is `*.md`-scoped | executed | FIXED r11 (a comment states the probe is invisible to every glob the assembler and `_census` run; nit, counted) |
 | R5 | opus r11 · tests | `probe.mkdir()` is not idempotent — a second call in one test raises `FileExistsError` naming the probe | executed | FIXED r11 (`exist_ok=True`; called twice by the orchestrator: ok; nit, counted) |
 | R6 | opus r11 · receipt | P2's FIXED cell cites the test by its round-9 name, which round 10 renamed (0 definitions tree-wide) | grep | FIXED r11 (the cell carries the rename; nit, counted) |
+| S1 | sonnet r12 · receipt | R1's "69 rows, 2 assembler-relevant" has no stated definition — 3 of the 69 name `assemble_commands.py`, 5 mention "assembl" in any form | re-derived by the seat (PLAUSIBLE, not confirmed) | RECORDED — nit (the row's claim — none of them holds the residue — holds under every reading; the precise counts are in the Residual row; a historical cell is not re-edited at the close) |
+| S2 | sonnet r12 · receipt | R2's "24 citations, 12 distinct rows" needs one enumeration rule for both numbers — 26 literal occurrences over 14 distinct rows including R1/R2 themselves | re-derived by the seat (PLAUSIBLE, not confirmed) | RECORDED — nit (26 occurrences / 14 rows with R1 and R2 counted, 24 / 12 without them — the same population; the Residual row states the rule) |
 
 ## Pass Ledger
 
@@ -451,10 +453,11 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 | Pass 5 | native opus×2 + sonnet×1 (fresh seats; delta = round 4's fix diff over 00007dc7 + one hop) | found: 19, new: 19, confirmed: 13, fixed: 13, unexecuted: 0 | method: re-derivation — delta over the round-4 fixes (the masker timed and executed through both versions, the fence-opener line, the symlinked-orphan remedy loop executed to its fixed point; seven mutants each fail a test; the orchestrator's own pre-pin probes — odd backtick counts, a run at line end, a span across a cell, CRLF, a dangling symlinked skill dir through the pre-flight and the gate — all as expected; the census on raw text); every candidate executed by the orchestrator; the record's round 5 carries `confirmed 4` — the executed defects of the delta (J1, J9, J10, J19) |
 | Pass 6 | native opus×2 + sonnet×1 (fresh seats; delta = round 5's fix diff over 43d2d9ad + one hop) | found: 17, new: 17, confirmed: 14, fixed: 14, unexecuted: 0 | method: re-derivation — delta over the round-5 fixes (fuzz-found masker cells executed and pinned; the symlink class swept as ONE policy across the pre-flight, the three prunes and the gate with a three-tree matrix; ten mutants run — eight caught by a new test, K6/K7's survive by design and are RECORDED; the orchestrator's own pre-pin probe found and fixed the symlinked-TREE shape before the seats; the census on raw text); every candidate executed by the orchestrator; the record's round 6 carries `confirmed 3` — the executed defects of the delta (K11's policy split, K13's crash, K16's grammar; K17 was the orchestrator's own) |
 | Pass 7 | native opus×2 + sonnet×1 (fresh seats; delta = round 6's fix diff over 43d2d9ad..4bce7298 + one hop) | found: 18, new: 18, confirmed: 15, fixed: 15, unexecuted: 0 | method: re-derivation — delta over the round-6 fixes (the masker's newline-touching run executed; the symlink policy against 25 link shapes through the pre-flight, the three prunes and the gate at both commits; the sibling assembler suites run — 193 across five files; six mutants each fail a test; the orchestrator's own probes — a wrapper link inside a real dir with a sibling, relative and chained orphan links); every candidate executed by the orchestrator; the record's round 7 carries `confirmed 3` — the executed defects of the delta (L5 the sibling red, L6 the read-through regression, L16 the unlanded fix) |
-| Pass 8 | native opus×2 + sonnet×1 (fresh seats; delta = round 7's fix diff over 4bce7298..c75ead3b + one hop; plus the late round-6 Opus-1 report, adjudicated here) | found: 20, new: 20, confirmed: 6, fixed: 6, unexecuted: 0 | method: re-derivation — delta over the round-7 fixes (the Sonnet seat executed ten checks and confirmed nothing; Opus-2's four grader gaps and dead branch re-executed on pin copies — every one survived; Opus-1's census re-read against the receipt's own F2 row; the late round-6 R6 refuted on a copy of c75ead3b, R2 folded into K6); the CLASS swept: every walk over a generated tree `sorted()`, the dead branch deleted, four mutants each asserted dead by the NAME of the failing test on a fresh copy with the HOME-bound live-box test deselected; the six FIXED rows (M1–M4, N1, N10) enter `confirmed:`/`fixed:` per the ledger's rule; the record's round 8 was stamped `confirmed 5` before N10's reflow was counted — the ledger's 6 is authoritative, the record's 5 stands as stamped (round 9's Sonnet seat caught the row's first draft reading 5/7). NON-CONVERGENCE NOTE: the record's confirmed series over rounds 6–8 reads 3 · 3 · 5 — the contract's breaker condition; the foundation error is named here as ONE question and answered in this round: had the loop been asserting a mutant dead by a test that fails for the REASON the mutant names, or by any red at all? It had not — round 7's `continue→break` kill depended on filesystem order (`Path.glob` yielded the fixture's link first on the orchestrator's box and its directory first on the seat's), and the branch-per-round fixes each left a sibling branch ungraded; this round makes every walk deterministic and grades every branch of the delta by a named test. A round 9 that keeps the series non-decreasing escalates to `## BLOCKED: NON-CONVERGENCE` (the contract's breaker: three consecutive non-decreasing nonzero delta rounds) |
-| Pass 9 | native opus×2 + sonnet×1 (fresh seats; delta = round 8's fix diff over c75ead3b..06f50d37 + one hop) | found: 11, new: 11, confirmed: 9, fixed: 9, unexecuted: 0 | method: re-derivation — delta over the round-8 fixes (Opus-2 re-derived the census's four numbers exactly — 19 + 28 = 47 over 10 repos, 805 receipts — and confirmed nothing on the grader; Opus-1's five `sorted()` mutants re-run by the orchestrator on pin copies, all survived, then killed by the order-forcing fixtures; the Sonnet seat recounted every Pass row and caught Pass 8's 5/7); the nine FIXED rows (P1–P3, P5–P10) enter `confirmed:`/`fixed:`; the record's round 9 carries `confirmed 2` — the executed defects of the delta (P1 the ledger arithmetic, P2 the ungraded walks); the series 3 · 3 · 5 · 2 is decreasing, so the breaker does not fire — the class named in Pass 8 is closed by forcing the walk order in the graders instead of trusting the filesystem's |
-| Pass 10 | native opus×1 + sonnet×1 (fresh seats; delta = round 9's fix diff over 06f50d37..e91ea6f5 + one hop) | found: 7, new: 7, confirmed: 7, fixed: 7, unexecuted: 0 | method: re-derivation — delta over the round-9 fixes (the Opus seat executed 19 mutants across the two order tests and the helper and held the delta's two central claims — each `sorted()` fails exactly its tree's test, the monkeypatched render is md5-identical over 76 files — then confirmed three defects of the tests themselves; the Sonnet seat re-derived the raw-text 1 of 47 and the counters and found the one over-long line); the seven FIXED rows enter `confirmed:`/`fixed:`; the record's round 10 carries `confirmed 3` — the executed defects of the delta (Q1 the red-path leak, Q2 the ungraded helper, Q3 the overclaim); the orchestrator's own adversarial probes of the fixes before the pin: the helper without `reverse=True` (6 red on the self-proof), the prune removing the FIFO (red on the assertion, no traceback, no pipe left), and every earlier kill site re-run (five `sorted()`, `continue→break`, the parent disjunct — all still red by name) |
-| Pass 11 | native opus×1 + sonnet×1 (fresh seats; delta = round 10's fix diff over e91ea6f5..b22471ce + one hop) | found: 6, new: 6, confirmed: 5, fixed: 5, unexecuted: 0 | method: re-derivation — delta over the round-10 fixes (the Sonnet seat executed ten checks over the reflow and the receipt and confirmed nothing; the Opus seat held the delta's claims — the self-proof guards `reverse=True`, the FIFO test reds on its own assertion with no traceback and no pipe left, every earlier kill lands by name — and raised one claim defect plus four nits on the tests); the five FIXED rows enter `confirmed:`/`fixed:`; the record's round 11 carries `confirmed 1` — the executed defect (R1, a citation to a row that does not exist at HEAD); the orchestrator's pre-pin probes: the no-op fake against the four-name proof (6 red), the helper called twice (ok), every added line under 100 chars |
+| Pass 8 | native opus×2 + sonnet×1 (fresh seats; delta = round 7's fix diff over 4bce7298..c75ead3b + one hop; plus the late round-6 Opus-1 report, adjudicated here) | found: 20, new: 20, confirmed: 6, fixed: 6, unexecuted: 0 | method: re-derivation — delta over the round-7 fixes (the Sonnet seat executed ten checks and confirmed nothing; Opus-2's four grader gaps and dead branch re-executed on pin copies — every one survived; Opus-1's census re-read against the receipt's own F2 row; the late round-6 R6 refuted on a copy of c75ead3b, R2 folded into K6); the CLASS swept: every walk over a generated tree `sorted()`, the dead branch deleted, four mutants each asserted dead by the NAME of the failing test on a fresh copy with the HOME-bound live-box test deselected; the six FIXED rows (M1–M4, N1, N10) enter the confirmed and fixed counters per the ledger's rule; the record's round 8 was stamped `confirmed 5` before N10's reflow was counted — the ledger's 6 is authoritative, the record's 5 stands as stamped (round 9's Sonnet seat caught the row's first draft reading 5/7). NON-CONVERGENCE NOTE: the record's confirmed series over rounds 6–8 reads 3 · 3 · 5 — the contract's breaker condition; the foundation error is named here as ONE question and answered in this round: had the loop been asserting a mutant dead by a test that fails for the REASON the mutant names, or by any red at all? It had not — round 7's `continue→break` kill depended on filesystem order (`Path.glob` yielded the fixture's link first on the orchestrator's box and its directory first on the seat's), and the branch-per-round fixes each left a sibling branch ungraded; this round makes every walk deterministic and grades every branch of the delta by a named test. A round 9 that keeps the series non-decreasing escalates to `## BLOCKED: NON-CONVERGENCE` (the contract's breaker: three consecutive non-decreasing nonzero delta rounds) |
+| Pass 9 | native opus×2 + sonnet×1 (fresh seats; delta = round 8's fix diff over c75ead3b..06f50d37 + one hop) | found: 11, new: 11, confirmed: 9, fixed: 9, unexecuted: 0 | method: re-derivation — delta over the round-8 fixes (Opus-2 re-derived the census's four numbers exactly — 19 + 28 = 47 over 10 repos, 805 receipts — and confirmed nothing on the grader; Opus-1's five `sorted()` mutants re-run by the orchestrator on pin copies, all survived, then killed by the order-forcing fixtures; the Sonnet seat recounted every Pass row and caught Pass 8's 5/7); the nine FIXED rows (P1–P3, P5–P10) enter the confirmed and fixed counters; the record's round 9 carries `confirmed 2` — the executed defects of the delta (P1 the ledger arithmetic, P2 the ungraded walks); the series 3 · 3 · 5 · 2 is decreasing, so the breaker does not fire — the class named in Pass 8 is closed by forcing the walk order in the graders instead of trusting the filesystem's |
+| Pass 10 | native opus×1 + sonnet×1 (fresh seats; delta = round 9's fix diff over 06f50d37..e91ea6f5 + one hop) | found: 7, new: 7, confirmed: 7, fixed: 7, unexecuted: 0 | method: re-derivation — delta over the round-9 fixes (the Opus seat executed 19 mutants across the two order tests and the helper and held the delta's two central claims — each `sorted()` fails exactly its tree's test, the monkeypatched render is md5-identical over 76 files — then confirmed three defects of the tests themselves; the Sonnet seat re-derived the raw-text 1 of 47 and the counters and found the one over-long line); the seven FIXED rows enter the confirmed and fixed counters; the record's round 10 carries `confirmed 3` — the executed defects of the delta (Q1 the red-path leak, Q2 the ungraded helper, Q3 the overclaim); the orchestrator's own adversarial probes of the fixes before the pin: the helper without `reverse=True` (6 red on the self-proof), the prune removing the FIFO (red on the assertion, no traceback, no pipe left), and every earlier kill site re-run (five `sorted()`, `continue→break`, the parent disjunct — all still red by name) |
+| Pass 11 | native opus×1 + sonnet×1 (fresh seats; delta = round 10's fix diff over e91ea6f5..b22471ce + one hop) | found: 6, new: 6, confirmed: 5, fixed: 5, unexecuted: 0 | method: re-derivation — delta over the round-10 fixes (the Sonnet seat executed ten checks over the reflow and the receipt and confirmed nothing; the Opus seat held the delta's claims — the self-proof guards `reverse=True`, the FIFO test reds on its own assertion with no traceback and no pipe left, every earlier kill lands by name — and raised one claim defect plus four nits on the tests); the five FIXED rows enter the confirmed and fixed counters; the record's round 11 carries `confirmed 1` — the executed defect (R1, a citation to a row that does not exist at HEAD); the orchestrator's pre-pin probes: the no-op fake against the four-name proof (6 red), the helper called twice (ok), every added line under 100 chars |
+| Pass 12 | native sonnet×1 (a fresh non-authoring seat; delta = round 11's fix diff over b22471ce..74459d0e + one hop) | found: 2, new: 2, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — delta over the round-11 fixes: the seat ran the five assembler suites from a copy of the pin (201; the HOME-bound live-box test deselected), executed the no-op-fake mutant (the four-name self-proof reds all six order params — this box's raw order for the probe was `a, c, b, d`, neither ascending nor descending), one `sorted()` drop, re-derived Pass 11's counters from R1–R6, every FIXED row's claim against the r12 diff, the coverage and hygiene gates from the pin, and the rendered corpus md5s file-by-file (36 of 36 equal); its two candidates are count-precision nits inside adjudication cells, labelled PLAUSIBLE by the seat and RECORDED with their exact numbers — the round CONFIRMED zero executed defects; the record's series 10 · 7 · 4 · 6 · 4 · 3 · 3 · 5 · 2 · 3 · 1 · 0 |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -505,8 +508,8 @@ grammar above (quoted so the residual scan never reads this template's own examp
 | M7 | RECORDED — nit (a refusal message no consumer greps) |
 | M8 | RECORDED — measured (three pre-existing mypy errors in the test file's importlib preamble; the mypy backlog note written at the archive commit) |
 | M9 | RECORDED — measured (`_fence_step`'s backtick-in-info-string guard — K6's row; the hygiene backlog row) |
-| N2 | RECORDED — measured (`_CONFIRMED_TOKEN`'s case-insensitivity ungraded — fail-open; the convergence backlog row) |
-| N3 | RECORDED — measured (a spaceless `confirmed:3` graded and unpinned; the convergence backlog row) |
+| N2 | RECORDED — measured (the counter token's case-insensitivity ungraded — fail-open; the convergence backlog row) |
+| N3 | RECORDED — measured (a counter with no space after its colon graded and unpinned; the convergence backlog row) |
 | N4 | RECORDED — measured (an unpadded pipe row graded and unpinned; the convergence backlog row) |
 | N5 | RECORDED — measured (the counterless-later-row rule has no named test; the convergence backlog row) |
 | N6 | RECORDED — measured (the blockquote exclusion is unpinned; the convergence backlog row) |
@@ -517,6 +520,8 @@ grammar above (quoted so the residual scan never reads this template's own examp
 | P6 | RECORDED — measured (34 pre-existing FIFOs under `/tmp/pytest-of-<user>` from other suites, no sweeper — a tests-hygiene backlog note) |
 | P11 | RECORDED — measured (`check_script_headers.py` has no comment-only escape — the doc-script-coupling backlog) |
 | R2 | RECORDED — measured (seven rows cite the assembler backlog row generically; each is an item of the row the archive commit writes) |
+| S1 | RECORDED — nit (R1's count restated: of 69 open backlog rows at HEAD, 3 name `assemble_commands.py` and 5 mention "assembl"; none holds M6's residue — the archive commit's assembler row does) |
+| S2 | RECORDED — nit (R2's count restated: "assembler backlog row" occurs 26 times over 14 distinct ledger rows counting R1 and R2 themselves, 24 over 12 without them; the seven rows R2 names are each an item of the archive commit's assembler row) |
 
 `RECORDED — by design` names the OWNING row's first-cell id and the EARLIER round that adjudicated
 it (or a `D-nnn` with no round); the gate refuses an absent owner and a round that is not below the
@@ -525,13 +530,155 @@ closing `Pass N`. `RECORDED — measured` and `RECORDED — unexecuted` never en
 
 ## Per-phase verdicts
 
-### Phase 1 — <title>: UNCHECKED
+### Phase A — the fragment, the two sources, the assembler, the emit rule, the matrix: CONVERGED — the closing delta round with fresh non-authoring seats CONFIRMED zero over the whole-plan diff
+### Phase B — the hygiene script learns the spec and plan classes: CONVERGED — same round
+### Phase C — the closing-row grader, the fleet-synced text, the sync, the heavy round: CONVERGED — same round
 
 ## Gate
 
-`final_gate.py --check --json`, pasted verbatim at the flip (check_convergence reads the fenced
-`"status": "success"`):
+`python scripts/final_gate.py --lean --check --json` (read-only, run in the closing turn):
 
 ```json
-UNCHECKED — paste the gate output here at the CONVERGED flip
+{
+  "status": "success",
+  "tier": 1,
+  "passed": 33,
+  "failed": 0,
+  "skipped": 1,
+  "skipped_checks": [
+    "static tier"
+  ],
+  "advisory": [
+    {
+      "check": "Vendored Drift (sync-excluded repos)",
+      "output": "\u26a0 check_vendored_drift ADVISORY \u2014 sync-excluded repos PULL, nothing is pushed to them; undeclared divergence below is invisible debt until someone opens it:\n  \u26a0 fabrik-lib: 17 identical \u00b7 19 declared-design \u00b7 51 UNREVIEWED diff \u00b7 11 local-only\n    \u26a0 fabrik-lib/scripts/enforcement/check_decisions_unique.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_doc_sprawl.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_duplicates.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_env_vars.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_feedback_duty.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_imports_resolvable.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fa\n\u2026 [truncated: ~42 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_vendored_drift.py` for the FULL set; NEVER scope a fix to this preview] \u2026\nre it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/.windsurf/rules/saas/95-multi-tenant-saas.md: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/review_rubric.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/mail.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist",
+      "truncated": true,
+      "omitted_lines": 42,
+      "rerun": "python scripts/enforcement/check_vendored_drift.py"
+    },
+    {
+      "check": "Review hygiene (advisory)",
+      "output": "hygiene: 0 hit(s) over 1 file(s), 22 rows ungraded",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Routing Policy (operator deny + allowlist)",
+      "output": "check_routing_policy: OK \u2014 6 of 6 task kinds have a routing section, 30 routable model entries, all allowed and none denied",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Governance Tables (rules must render)",
+      "output": "check_governance_tables: OK \u2014 every table row renders at its header width across 2 contract(s)",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Plan-lock release",
+      "output": "0 stale | 1 likely-stale | 0 half-applied | 0 plan-field-stale | 0 orphan | 0 foreign | 0 unknown-status | 0 unevaluable\n  LIKELY STALE LOCK: 2026-09-05-plan-1-windowed-cost-sidecar.json its plan reads Status: \"EXECUTED (2026-09-05 \\u2014 all three phases shipped and reviewed to a quiet round: A `a43f3...\" (matched EXECUTED)\n  -> the plan's OWNER releases it (Finish step 5); if that run is confirmed dead the OPERATOR deletes the lock (fabrik-execute-plan.md:77). Never edit another session's lock.",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Rivals dossier",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Spec convergence",
+      "output": "spec convergence: 29 CONVERGED spec(s) examined, 14 with findings (artifact-only; citations not re-fetched)\n  SILENT-1a: 2026-07-15-autonomous-factory-driver-design.md no cited source and no 'no external facts' statement - indistinguishable from skipping the research gate\n  ... 25 more finding(s) - run the check directly\n  -> run /fabrik-spec-review to a no-op; a spec with no external facts must SAY so, and a converged spec must enumerate its residual unknowns",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Rule grounding (plans)",
+      "output": "rule grounding: 2 CONVERGED in-window plan(s) examined, 2 with findings (artifact-only; reading quality is the review's)\n  NO-DIGEST: 2026-09-05-plan-2-glitchtip-deny-by-default.md no '## Constraints Digest' section - a CONVERGED plan proves its packs were open with per-pack verbatim quotes, never by self-assertion\n  ... 6 more finding(s) suppressed by the advisory budget - they surface a few per run as earlier ones are fixed\n  -> quote one mandate verbatim per MATCHED pack (file:line) in the Constraints Digest - the quote is the proof the pack was open; run review_rubric.py --changed <File Scope> for the MATCHED set",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Citations resolve (path:line lands)",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Feedback duty",
+      "output": "feedback duty: 23 close(s) in 14d, 1 with NO verdict (verdict given or not; honesty not gradeable)\n  UNSTATED: fabrik-probe (probe-fb)\n  -> close with --feedback: what you filed and to whom, or 'none' plus the surfaces you exercised (commands/_fragments/close-feedback.md)",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Trigger routing (advertised phrase -> its own command)",
+      "output": "trigger routing: 149 advertised phrase(s) - 108 reach their own command, 41 route nowhere, 0 mis-routed (sees whether an advertised phrase reaches its own command; cannot tell whether the phrase is one an operator would ever type, and deliberately does not grade phrases that route nowhere)",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Frozen Chain (contract pins)",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Mutation (opt-in FABRIK_MUTMUT)",
+      "output": "MUTATION (advisory): skipped in the per-commit gate \u2014 mutation testing is diff-scoped + nightly (45-testing-strategy.md), not per-PR blocking. Run it on changed code with:\n    FABRIK_MUTMUT=1 python scripts/enforcement/check_mutation.py",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Doc stub fill",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Script Coupling Header",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    }
+  ],
+  "blocking": 18,
+  "failures": [],
+  "warnings": [
+    {
+      "check": "static tier (diff-sensed skip)",
+      "output": "\u26a0 static checks skipped \u2014 only .md files in the diff; this green asserts nothing about lint/type debt",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Coverage Checklist (reviews)",
+      "output": "\u26a0 check_review_coverage ADVISORY \u2014 committed review(s) needing attention:\n  \u26a0 docs/development/reviews/2026-08-10-hub-governance-gates-review.md: COMMITTED with a non-quiet exit round (found: 10) \u2014 committing a review does not converge it. Finish the loop; BLOCKED-escalate the stuck finding (`## BLOCKED: <finding>` with its 3 attempts); when the LOOP itself failed (3 rounds of non-decreasing, nonzero `new:`), emit `## BLOCKED: NON-CONVERGENCE` naming the suspected foundation error; or mark the report `Status: IN-PROGRESS`.\n  \u26a0 docs/development/reviews/2026-08-19-plan-1-kaizen-m1-event-stream-review.md: COMMITTED with a Pass-shaped ledger line that does not parse ('Pass 1 (WIDE) \u2014 finders: pool fanout \u00d73 (deepseek-v3.2 raised 9 on the') \u2014 punctuate the counts or fence the quote\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T01-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T02-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T03-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026\n\u2026 [truncated: ~5 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_review_coverage.py` for the FULL set; NEVER scope a fix to this preview] \u2026\nement-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-09-02-external-services-chain-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-09-10-mail-handling-governance-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\ncheck_review_coverage: OK \u2014 0 unproven coverage claims across 1 changed review artifact(s)",
+      "truncated": true,
+      "omitted_lines": 5,
+      "rerun": "python scripts/enforcement/check_review_coverage.py"
+    },
+    {
+      "check": "Vendored Drift (sync-excluded repos)",
+      "output": "\u26a0 check_vendored_drift ADVISORY \u2014 sync-excluded repos PULL, nothing is pushed to them; undeclared divergence below is invisible debt until someone opens it:\n  \u26a0 fabrik-lib: 17 identical \u00b7 19 declared-design \u00b7 51 UNREVIEWED diff \u00b7 11 local-only\n    \u26a0 fabrik-lib/scripts/enforcement/check_decisions_unique.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_doc_sprawl.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_duplicates.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_env_vars.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_feedback_duty.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_imports_resolvable.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fa\n\u2026 [truncated: ~42 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_vendored_drift.py` for the FULL set; NEVER scope a fix to this preview] \u2026\nre it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/.windsurf/rules/saas/95-multi-tenant-saas.md: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/review_rubric.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/mail.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist",
+      "truncated": true,
+      "omitted_lines": 42,
+      "rerun": "python scripts/enforcement/check_vendored_drift.py"
+    }
+  ]
+}
 ```
