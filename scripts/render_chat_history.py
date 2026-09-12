@@ -106,11 +106,26 @@ def _owner_of(path: Path) -> str | None:
     return first.rsplit(" — ", 1)[-1].strip() if first.startswith("# ") and " — " in first else None
 
 
+def _safe_id(sid: str) -> str:
+    """The session id made a safe label body: unsafe characters become '-', leading punctuation
+    is dropped (a transcript name may be anything the filesystem allows)."""
+    return re.sub(r"[^A-Za-z0-9._-]", "-", sid).lstrip("._-")
+
+
 def _default_label(sid: str) -> str:
-    """The first 8 characters of the session id, made a safe label (a transcript name may be
-    anything the filesystem allows — a leading dot would make a hidden, unusable render)."""
-    cleaned = re.sub(r"[^A-Za-z0-9._-]", "-", sid[:8]).lstrip("._-")
-    return cleaned or "session"
+    """The first 8 safe characters of the session id, or `session` when it has none."""
+    return _safe_id(sid)[:8] or "session"
+
+
+def _candidates(wanted: str, sid: str):
+    """`wanted` first; then `wanted` suffixed with growing slices of the safe id, then a counter —
+    every candidate obeys the label rule by construction: a safe `wanted`, a safe suffix of at most
+    40 characters, and the base trimmed so the whole stays within 120."""
+    yield wanted
+    safe = _safe_id(sid) or "session"
+    suffixes = [safe[:n] for n in (8, 12, 16, 36)] + [f"{safe[:36]}-{n}" for n in range(1, 101)]
+    for sfx in suffixes:
+        yield f"{wanted[: 119 - len(sfx)]}-{sfx}"  # the suffix is at most 40 chars
 
 
 def _is_entry(entry: object) -> bool:
@@ -290,20 +305,16 @@ def _assign_labels(
             # ours by the state entry, or — with no usable entry — by the render's own header
             return file != own and _owner_of(out_dir / file) != sid8
 
-        label = wanted
-        if taken(label):
-            suffixes = [sid[:n] for n in (8, 12, 16, 36)] + [f"{sid}-{n}" for n in range(1, 101)]
-            # the suffixed name must still obey the label rule (≤ 120 chars), or the state row
-            # written with it is rejected on every later run and the session re-renders forever
-            candidates = [f"{wanted[: 119 - len(sfx)]}-{sfx}" for sfx in suffixes]
-            label = next((c for c in candidates if not taken(c)), None)
-            if label is None:  # bounded: a filesystem that rejects every name never spins the run
-                _warn(
-                    f"{sid[:8]}: no free file name for label {wanted!r} after 104 candidates; skipped"
-                )
-                continue
-            if f"{label}.md" != own:  # warn when a collision is first resolved, not on every run
-                _warn(f"label {wanted!r} is already used; {sid[:8]} renders as {label}")
+        label = next((c for c in _candidates(wanted, sid) if not taken(c)), None)
+        if label is None:  # bounded: a filesystem that rejects every name never spins the run
+            _warn(
+                f"{sid[:8]}: no free file name for label {wanted!r} after 104 candidates; skipped"
+            )
+            continue
+        if (
+            label != wanted and f"{label}.md" != own
+        ):  # warn once, when a collision is first resolved
+            _warn(f"label {wanted!r} is already used; {sid[:8]} renders as {label}")
         labels[sid] = label
     return labels
 
@@ -335,6 +346,9 @@ def _render_project_locked(
     names_path = out_dir / "names.json"
     state_path = out_dir / ".render-state.json"
     stored_names = _load_json(names_path)
+    for short in [k for k in stored_names if not isinstance(k, str) or len(k) < 8]:
+        _warn(f"{names_path}: key {short!r} is shorter than the 8-character prefix floor; ignored")
+        del stored_names[short]
     # Only a name whose session lives HERE is persisted here (--all hands every project the
     # same --name list).
     stored_names.update(

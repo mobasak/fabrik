@@ -711,3 +711,62 @@ def test_the_longest_name_prefix_wins_deterministically_across_runs(box: dict[st
     rch.main(["--project", "/opt/demo"])
     files = sorted(p.name for p in out.glob("*.md") if p.name != "INDEX.md")
     assert files == ["deep.md"], files
+
+
+def test_sessions_whose_ids_share_unsafe_characters_get_safe_labels_and_stay_incremental(
+    box: dict[str, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    for sid in ("my session id 1", "my session id 2"):
+        _write_session(box["projects"], sid, _demo_records())
+    assert rch.main(["--project", "/opt/demo"]) == 0
+    out = box["out"] / "-opt-demo"
+    names = sorted(p.name for p in out.glob("*.md") if p.name != "INDEX.md")
+    assert len(names) == 3, names  # aaaa1111 + the two
+    for n in names:
+        assert rch._safe_label(n[:-3]), n
+    capsys.readouterr()
+    assert rch.main(["--project", "/opt/demo"]) == 0
+    captured = capsys.readouterr()
+    assert "0 (re)rendered" in captured.out
+    assert "already used" not in captured.err
+
+
+def test_a_very_long_transcript_name_never_produces_a_negative_trim(box: dict[str, Path]) -> None:
+    long_sid = "L" * 130
+    for suffix in (
+        "A",
+        "B",
+        "C",
+        "D",
+        "E",
+        "F",
+    ):  # six sessions sharing a 36-char prefix → the counter tail
+        _write_session(box["projects"], long_sid + suffix, _demo_records())
+    (box["out"] / "-opt-demo").mkdir(parents=True)
+    (box["out"] / "-opt-demo" / "names.json").write_text(json.dumps({long_sid[:8]: "same"}))
+    assert rch.main(["--project", "/opt/demo"]) == 0
+    out = box["out"] / "-opt-demo"
+    names = sorted(p.name for p in out.glob("*.md") if p.name != "INDEX.md")
+    assert len(names) == 7, names
+    for n in names:
+        assert rch._safe_label(n[:-3]), n
+
+
+def test_an_all_punctuation_id_prefix_falls_back_to_a_named_label() -> None:
+    assert rch._default_label("..--..--") == "session"
+    assert (
+        rch._default_label("..--..--A") == "A"
+    )  # derived from the id whenever anything safe remains
+    assert rch._default_label(".hidden-session-0000") == "hidden-s"
+    assert rch._default_label("aaaa1111-0000") == "aaaa1111"
+
+
+def test_a_names_json_key_shorter_than_the_prefix_floor_is_ignored_with_a_warning(
+    box: dict[str, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    out = box["out"] / "-opt-demo"
+    out.mkdir(parents=True)
+    (out / "names.json").write_text(json.dumps({"": "zz", "aaaa1111": "agent-1"}))
+    assert rch.main(["--project", "/opt/demo"]) == 0
+    assert (out / "agent-1.md").exists() and not (out / "zz.md").exists()
+    assert "WARN" in capsys.readouterr().err
