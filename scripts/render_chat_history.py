@@ -106,6 +106,13 @@ def _owner_of(path: Path) -> str | None:
     return first.rsplit(" — ", 1)[-1].strip() if first.startswith("# ") and " — " in first else None
 
 
+def _default_label(sid: str) -> str:
+    """The first 8 characters of the session id, made a safe label (a transcript name may be
+    anything the filesystem allows — a leading dot would make a hidden, unusable render)."""
+    cleaned = re.sub(r"[^A-Za-z0-9._-]", "-", sid[:8]).lstrip("._-")
+    return cleaned or "session"
+
+
 def _is_entry(entry: object) -> bool:
     """A state entry is usable only when its row carries every column the index prints."""
     if not isinstance(entry, dict) or not isinstance(entry.get("row"), dict):
@@ -263,10 +270,12 @@ def _assign_labels(
     labels: dict[str, str] = {}
     for path in transcripts:
         sid = path.stem
-        wanted = next((v for k, v in stored_names.items() if sid.startswith(k)), sid[:8])
+        # the longest matching prefix wins, whatever order names.json was written in
+        prefix = max((k for k in stored_names if sid.startswith(k)), key=len, default=None)
+        wanted = stored_names[prefix] if prefix is not None else _default_label(sid)
         if not _safe_label(wanted):  # a hand-edited names.json must not escape the folder
             _warn(f"label {wanted!r} for {sid[:8]} is not a usable file name; using the id")
-            wanted = sid[:8]
+            wanted = _default_label(sid)
         own = state[sid]["row"]["file"] if _is_entry(state.get(sid)) else None
 
         def taken(candidate: str, own: str | None = own, sid8: str = sid[:8]) -> bool:

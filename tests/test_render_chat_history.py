@@ -625,12 +625,14 @@ def test_the_suffix_search_is_bounded_when_the_filesystem_rejects_every_name(
 
     _write_session(box["projects"], "bbbb2222-0000-0000-0000-000000000000", _demo_records())
     out = box["out"] / "-opt-demo"
-    out.mkdir(parents=True)
+    rch.main(["--project", "/opt/demo"])  # both sessions rendered once under their ids
     (out / "names.json").write_text(json.dumps({"aaaa1111": "samelabel", "bbbb2222": "samelabel"}))
     real = Path.exists
+    asked: list[str] = []
 
     def name_too_long(self: Path) -> bool:
         if len(self.name) > 20:
+            asked.append(self.name)
             raise OSError(36, "File name too long")
         return real(self)
 
@@ -655,6 +657,14 @@ def test_the_suffix_search_is_bounded_when_the_filesystem_rejects_every_name(
     err = capsys.readouterr().err
     assert "SpunError" not in err  # the search must END, not be rescued by the per-project guard
     assert "no free file name" in err
+    # only the second session collides; its ladder is 4 id slices + 100 counters, id8 form first
+    tried = [n for n in asked if n.startswith("samelabel-")]
+    assert len(tried) == 104, len(tried)
+    assert tried[0] == "samelabel-bbbb2222.md"
+    # the skipped session rendered before, so it keeps its INDEX row while its file is still there
+    index = (out / "INDEX.md").read_text()
+    assert "(samelabel.md)" in index and "(bbbb2222.md)" in index
+    assert (out / "bbbb2222.md").exists()
 
 
 def test_a_suffixed_label_still_obeys_the_label_rule_so_the_session_stays_incremental(
@@ -674,3 +684,30 @@ def test_a_suffixed_label_still_obeys_the_label_rule_so_the_session_stays_increm
     out_text = capsys.readouterr()
     assert "0 (re)rendered" in out_text.out  # second run is fully incremental
     assert "already used" not in out_text.err  # and quiet
+
+
+def test_a_hidden_transcript_name_never_yields_a_hidden_or_unusable_render(
+    box: dict[str, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write_session(box["projects"], ".hidden-session-0000-0000-0000-000000000000", _demo_records())
+    assert rch.main(["--project", "/opt/demo"]) == 0
+    out = box["out"] / "-opt-demo"
+    names = sorted(p.name for p in out.glob("*.md") if p.name != "INDEX.md")
+    assert not any(n.startswith(".") for n in names), names
+    for n in names:
+        assert rch._safe_label(n[:-3]), n
+    capsys.readouterr()
+    assert rch.main(["--project", "/opt/demo"]) == 0
+    assert "0 (re)rendered" in capsys.readouterr().out  # incremental on the second run
+
+
+def test_the_longest_name_prefix_wins_deterministically_across_runs(box: dict[str, Path]) -> None:
+    out = box["out"] / "-opt-demo"
+    rch.main(
+        ["--project", "/opt/demo", "--name", "aaaa1111-0000=deep", "--name", "aaaa1111=shallow"]
+    )
+    assert (out / "deep.md").exists()
+    rch.main(["--project", "/opt/demo"])  # names.json re-read in sorted order — must not flip
+    rch.main(["--project", "/opt/demo"])
+    files = sorted(p.name for p in out.glob("*.md") if p.name != "INDEX.md")
+    assert files == ["deep.md"], files
