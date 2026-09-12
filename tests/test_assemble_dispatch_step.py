@@ -1137,6 +1137,7 @@ _REVIEW_LOOP_CONSUMERS = (
 _MAIL_TRIAGE_PHASE_A = {
     # mail-triage plan Phase A (T2): every sentence lands once in its RENDERED command
     "fabrik-review-scoped.md": (
+        "the previous reader's REFUTED list verbatim",  # T2.8 — scoped includes no fragment
         "Every pass's seats are STAMPED first",  # T2.1 (01M2368XB)
         "Every seat brief names a PIN",  # T2.2 (01M236V84)
         "counted on the DIFF surface",  # T2.3 (01M1VVPJS)
@@ -1178,6 +1179,15 @@ def test_the_mail_triage_phase_a_sentences_reach_their_rendered_commands_once(tm
     # a rule that lives in a FRAGMENT renders once per consumer — a second fragment carrying the
     # same rule in other words doubles it in every command that includes both (round 1 of the
     # Phase A review found the REFUTED-list rule twice in five commands)
+    # every consumer of EITHER termination fragment carries the REFUTED-list rule once (17 term-edit
+    # + 3 term-coverage consumers at the time of writing; round 2 found three that had lost it)
+    lost = [
+        p.name
+        for p in tmp_path.glob("fabrik-*.md")
+        if "before any seat sees a delta" in p.read_text() or "before any finder sees a delta" in p.read_text()
+        if ac._HTML_COMMENT_RE.sub("", p.read_text()).count("REFUTED list verbatim") != 1
+    ]
+    assert not lost, lost
     doubled = []
     for name in _REVIEW_LOOP_CONSUMERS:
         live = ac._HTML_COMMENT_RE.sub("", (tmp_path / name).read_text())

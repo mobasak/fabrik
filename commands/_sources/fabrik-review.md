@@ -194,7 +194,7 @@ Opus finder covers the secret-bearing hunks with the secret redacted from its br
   `git init` inside a `git archive` pin (a bare pin fails through `_repo_root()`) · every
   `command_run.py` probe sets `COMMAND_RUN_DIR`, `COMMAND_RUN_TRANSCRIPT` and `KAIZEN_EVENTS_DIR` (a
   test without them writes fabricated rounds under the LIVE sid) · every mutation is applied, tested
-  and restored inside ONE Bash call with an ASSERTED restore (a `trap` across calls is unreliable) · a MUTATION-TESTING brief works on a COPY of the surface, never the tree, and the orchestrator holds its own edits to those files while that seat is live (01M25RZC3) ·
+  and restored inside ONE Bash call with an ASSERTED restore (a `trap` across calls is unreliable) · a MUTATION-TESTING brief works on a COPY of the surface, never the tree, runs its battery under the `timeout` the brief names — at or above the battery's measured runtime (01M25Y93M) — and the orchestrator holds its own edits to those files while that seat is live (01M25RZC3) ·
   never bare-grep a tracked path — `git show <sha>:<path>` · Python `time.sleep` in fixture scripts,
   never a foreground shell sleep · a quote verified against a session transcript filters out the
   Stop-hook feedback, the skill-invocation payloads and the re-invocation notice (all arrive as

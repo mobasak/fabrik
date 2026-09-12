@@ -314,13 +314,14 @@ _MAIL_TRIAGE_FRAGMENT_SENTENCES = {
     "commands/_fragments/term-coverage.md": (
         "under an explicit `timeout` at or above its own measured runtime",  # T2.4 (01M25Y93M)
         "Scope-growth stop",  # T2.6 (01M2AJG97)
+        "the previous seat's REFUTED list verbatim",  # T2.8 — in BOTH termination fragments
     ),
     "commands/_fragments/term-edit.md": (
         "Scope-growth stop",  # T2.6
+        "the previous seat's REFUTED list verbatim",  # T2.8 — in BOTH termination fragments
         "verify the check CAN fail",  # T2.14 (01M1SNGE4)
     ),
     "commands/_fragments/subagents-core.md": (
-        "the previous seat's REFUTED list verbatim",  # T2.8
         "pins a commit SHA beside them",  # T2.20 (01M206NBV)
     ),
 }
