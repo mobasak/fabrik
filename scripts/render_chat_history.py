@@ -113,8 +113,10 @@ def _safe_id(sid: str) -> str:
 
 
 def _default_label(sid: str) -> str:
-    """The first 8 safe characters of the session id, or `session` when it has none."""
-    return _safe_id(sid)[:8] or "session"
+    """The first 8 safe characters of the session id — or `session` when it has none, or when
+    they spell one of the folder's own files."""
+    cleaned = _safe_id(sid)[:8]
+    return cleaned if cleaned and cleaned not in _RESERVED_LABELS else "session"
 
 
 def _candidates(wanted: str, sid: str):
@@ -281,7 +283,7 @@ def _assign_labels(
     on disk that this session does not own (an orphan is the last copy of a deleted
     conversation). A colliding label is suffixed with more and more of the session id, then a
     counter, until it is free — every suffixed form checked again, never trusted — and a session
-    that finds no free name in 104 candidates is left OUT of the returned map (skipped, WARNed)."""
+    that finds no free name in 104 suffixed candidates is left OUT of the returned map (skipped, WARNed)."""
     labels: dict[str, str] = {}
     for path in transcripts:
         sid = path.stem
@@ -308,7 +310,7 @@ def _assign_labels(
         label = next((c for c in _candidates(wanted, sid) if not taken(c)), None)
         if label is None:  # bounded: a filesystem that rejects every name never spins the run
             _warn(
-                f"{sid[:8]}: no free file name for label {wanted!r} after 104 candidates; skipped"
+                f"{sid[:8]}: no free file name for label {wanted!r} after 104 suffixed candidates; skipped"
             )
             continue
         if (
@@ -346,18 +348,19 @@ def _render_project_locked(
     names_path = out_dir / "names.json"
     state_path = out_dir / ".render-state.json"
     stored_names = _load_json(names_path)
-    for short in [k for k in stored_names if not isinstance(k, str) or len(k) < 8]:
-        _warn(f"{names_path}: key {short!r} is shorter than the 8-character prefix floor; ignored")
-        del stored_names[short]
     # Only a name whose session lives HERE is persisted here (--all hands every project the
     # same --name list).
     stored_names.update(
         {k: v for k, v in names.items() if any(p.stem.startswith(k) for p in transcripts)}
     )
+    usable = dict(stored_names)  # a view: an ignored key stays in the operator's file, unused
+    for short in [k for k in usable if len(k) < 8]:
+        _warn(f"{names_path}: key {short!r} is shorter than the 8-character prefix floor; ignored")
+        del usable[short]
     if stored_names != _load_json(names_path):
         _write_atomic(names_path, json.dumps(stored_names, indent=2, sort_keys=True) + "\n")
     state = _load_json(state_path)
-    labels = _assign_labels(transcripts, stored_names, state, out_dir)
+    labels = _assign_labels(transcripts, usable, state, out_dir)
     taken_files = {f"{label}.md" for label in labels.values()}
     rows: list[dict] = []
     rendered = failed = 0

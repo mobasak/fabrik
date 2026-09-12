@@ -732,15 +732,11 @@ def test_sessions_whose_ids_share_unsafe_characters_get_safe_labels_and_stay_inc
 
 
 def test_a_very_long_transcript_name_never_produces_a_negative_trim(box: dict[str, Path]) -> None:
+    # six 131-char ids sharing all 36 safe characters: the four slice rungs are exhausted by
+    # sessions 2–5 and the sixth takes the counter's first candidate; every name must stay a
+    # legal label (the ladder's SHAPE is pinned by the bounded-suffix grader, not here)
     long_sid = "L" * 130
-    for suffix in (
-        "A",
-        "B",
-        "C",
-        "D",
-        "E",
-        "F",
-    ):  # six sessions sharing a 36-char prefix → the counter tail
+    for suffix in ("A", "B", "C", "D", "E", "F"):
         _write_session(box["projects"], long_sid + suffix, _demo_records())
     (box["out"] / "-opt-demo").mkdir(parents=True)
     (box["out"] / "-opt-demo" / "names.json").write_text(json.dumps({long_sid[:8]: "same"}))
@@ -750,10 +746,13 @@ def test_a_very_long_transcript_name_never_produces_a_negative_trim(box: dict[st
     assert len(names) == 7, names
     for n in names:
         assert rch._safe_label(n[:-3]), n
+    assert any(n.endswith("-1.md") for n in names), names  # the counter tail was reached
 
 
 def test_an_all_punctuation_id_prefix_falls_back_to_a_named_label() -> None:
     assert rch._default_label("..--..--") == "session"
+    assert rch._default_label("INDEX") == "session"  # never one of the folder's own files
+    assert rch._default_label("!!!!!!!!names") == "session"
     assert (
         rch._default_label("..--..--A") == "A"
     )  # derived from the id whenever anything safe remains
@@ -766,7 +765,19 @@ def test_a_names_json_key_shorter_than_the_prefix_floor_is_ignored_with_a_warnin
 ) -> None:
     out = box["out"] / "-opt-demo"
     out.mkdir(parents=True)
-    (out / "names.json").write_text(json.dumps({"": "zz", "aaaa1111": "agent-1"}))
+    # a 4-char key that WOULD match the session: only the floor keeps it from naming the file,
+    # and the operator's file must keep the key — ignored is not deleted
+    (out / "names.json").write_text(json.dumps({"aaaa": "zz"}))
     assert rch.main(["--project", "/opt/demo"]) == 0
-    assert (out / "agent-1.md").exists() and not (out / "zz.md").exists()
-    assert "WARN" in capsys.readouterr().err
+    assert (out / "aaaa1111.md").exists() and not (out / "zz.md").exists()
+    assert "prefix floor" in capsys.readouterr().err
+    assert json.loads((out / "names.json").read_text()) == {"aaaa": "zz"}
+
+
+def test_a_transcript_named_like_the_index_never_overwrites_the_index(box: dict[str, Path]) -> None:
+    _write_session(box["projects"], "INDEX", _demo_records())
+    assert rch.main(["--project", "/opt/demo"]) == 0
+    out = box["out"] / "-opt-demo"
+    assert (out / "INDEX.md").read_text().startswith("# Chat history")
+    names = sorted(p.name for p in out.glob("*.md") if p.name != "INDEX.md")
+    assert len(names) == 2 and all(rch._safe_label(n[:-3]) for n in names), names

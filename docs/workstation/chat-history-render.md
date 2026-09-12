@@ -66,7 +66,8 @@ python3 /opt/fabrik/scripts/render_chat_history.py --all                        
 - `--name ID-PREFIX=LABEL` names a session's file after the window's session name; the mapping persists
   in `names.json` beside the renders, so later runs without `--name` keep the names. When several
   prefixes match one session the longest wins, whatever order the file was written in; a key shorter
-  than the 8-character floor is ignored with a `WARN`. A session with no name renders as the first 8
+  than the 8-character floor is ignored with a `WARN` on every run until it is fixed (it stays in the
+  file, unused — never deleted). A session with no name renders as the first 8
   safe characters of its id (unsafe characters become `-`, leading punctuation is dropped, `session` if
   nothing safe remains), so a transcript whose name starts with a dot never yields a hidden render. One label on two
   sessions never shares a file: the second renders as `<label>-<id8>.md` with a `WARN` on stderr.
