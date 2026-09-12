@@ -4126,3 +4126,73 @@ def test_the_legacy_findings_rule_also_needs_two_rounds(run_dir: Path) -> None:
     assert "NOT TERMINAL" in one.stdout, one.stdout
     two = _cr(run_dir, "round", "--findings", "0", "--classes-swept", "auth")
     assert "TERMINAL VERDICT" in two.stdout, two.stdout
+
+
+def _cr_module(tag: str):
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(f"cr_{tag}", _SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_the_phase_gate_binds_a_ticket_artifact_to_the_plan_stem_and_the_record_start(
+    tmp_path,
+) -> None:
+    """T3.1 (01M1RHJY, 01M1RJXN6): the DISPATCHER alternative `-T##-review.md` bound to NO plan and
+    NO time — 24 August artifacts of another plan satisfied every phase of every plan forever.
+    With the record's plan stem and start given, a foreign-plan ticket receipt and a pre-start one
+    both fail; the plan's own, written after the start, passes."""
+    import os
+    import time
+
+    cr = _cr_module("stem")
+    d = tmp_path / "docs" / "development" / "reviews"
+    d.mkdir(parents=True)
+    other = d / "2026-08-19-plan-1-kaizen-m1-event-stream-T02-review.md"
+    other.write_text("real content\n", encoding="utf-8")
+    start = time.time()
+    assert not cr._phase_review_exists(
+        str(tmp_path), 1, plan_stem="2026-09-12-plan-2-mail-triage", since=start
+    ), "another plan's ticket receipt must not satisfy this plan's boundary"
+    mine = d / "2026-09-12-plan-2-mail-triage-T01-review.md"
+    mine.write_text("real content\n", encoding="utf-8")
+    os.utime(mine, (start - 3600, start - 3600))
+    assert not cr._phase_review_exists(
+        str(tmp_path), 1, plan_stem="2026-09-12-plan-2-mail-triage", since=start
+    ), "a receipt older than the record's start is not this run's evidence"
+    os.utime(mine, None)
+    assert cr._phase_review_exists(
+        str(tmp_path), 1, plan_stem="2026-09-12-plan-2-mail-triage", since=start
+    )
+    # the legacy call (no stem, no start) keeps the permissive behaviour for records that carry
+    # neither — the fleet's older records must not start refusing
+    assert cr._phase_review_exists(str(tmp_path), 1)
+
+
+def test_round_derives_new_from_the_classes_ledger_and_refuses_a_new_above_findings(
+    run_dir: Path,
+) -> None:
+    """T3.2 (01M1SWQJ): the receipt ledger's `new:` was hand-typed; the record now prints a
+    DERIVED `new: <n>` (the classes opened this round) and refuses `--new` above `--findings`."""
+    _start(run_dir)
+    r = _cr(run_dir, "round", "--findings", "3", "--confirmed", "1", "--new", "5")
+    assert r.returncode == 2, r.stderr
+    assert "--new" in r.stderr and "findings" in r.stderr
+    r = _cr(run_dir, "round", "--findings", "3", "--confirmed", "1", "--classes-new", "a,b")
+    assert r.returncode == 0, r.stderr
+    assert "new: 2" in r.stdout, r.stdout
+
+
+def test_the_oscillation_advisory_stays_quiet_over_delta_rounds_under_the_budget() -> None:
+    """T3.3 (01M215G84): a 1 → 3 bump across ≤ 20-line delta rounds is a fix's residue, not a
+    re-scope — the advisory reads the rounds' `delta` sizes and stays quiet when every round in
+    its window is under the budget; without deltas the same series still fires."""
+    cr = _cr_module("osc")
+    series = [9, 5, 3, 1, 3, 2, 1, 3]
+    assert cr.convergence_warning(series, "fabrik-review"), "the bare series must still fire"
+    deltas = [None, 330, 50, 22, 10, 8, 12, 8]
+    assert cr.convergence_warning(series, "fabrik-review", deltas=deltas) == ""
+    big = [None, 330, 50, 22, 10, 8, 40, 8]  # one round in the window above the budget
+    assert cr.convergence_warning(series, "fabrik-review", deltas=big)

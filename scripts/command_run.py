@@ -276,7 +276,15 @@ PER_UNIT_ROUND_COMMANDS = frozenset(
 )  # waves: round 15
 
 
-def convergence_warning(series: list[int], command: str = "", label: str = "findings") -> str:
+DELTA_BUDGET = 20  # mirrors scripts/sysadmin/dispatch_headroom.py — one fresh seat at or under it
+
+
+def convergence_warning(
+    series: list[int],
+    command: str = "",
+    label: str = "findings",
+    deltas: list[Any] | None = None,
+) -> str:
     """Advisory oscillation diagnosis, or "" — NEVER blocks (a heuristic must not trap).
 
     A converging loop trends DOWN (5 → 3 → 0). A pathological one oscillates
@@ -290,6 +298,12 @@ def convergence_warning(series: list[int], command: str = "", label: str = "find
     window = series[-CONVERGENCE_WINDOW:]
     if all(a >= b for a, b in zip(window, window[1:], strict=False)):
         return ""  # still non-increasing — converging, say nothing
+    # T3.3 (01M215G84): a bump across DELTA rounds at or under the budget is a fix's residue swept
+    # by one fresh seat over a shrinking surface, not a re-scope — the counts are not comparable
+    if deltas is not None and len(deltas) == len(series):
+        dw = deltas[-CONVERGENCE_WINDOW:]
+        if all(isinstance(d, (int, float)) and 0 <= d <= DELTA_BUDGET for d in dw):
+            return ""
     arrow = " → ".join(str(n) for n in window)
     full = " → ".join(str(n) for n in series)
     return (
@@ -368,6 +382,7 @@ def _round_report(rec: dict[str, Any]) -> str:
     clean_c = sorted(k for k, v in classes.items() if v == "clean")
     lines = [
         f"ROUND {len(rounds)} recorded · findings: {last.get('findings', 0)} "
+        f"· new: {last.get('new_count', len(last.get('new') or []))} "
         f"· confirmed: {'unstated' if last_confirmed is None else last_confirmed} "
         f"· classes open: {', '.join(open_c) or 'none'} "
         f"· clean: {', '.join(clean_c) or 'none'}"
@@ -424,7 +439,10 @@ def _round_report(rec: dict[str, Any]) -> str:
         # reads `13 → 22 → 0` as a rise (live smoke, 2026-08-16).
         return "\n".join(lines)
     warn = convergence_warning(
-        _trend_series(rounds), str(rec.get("command") or ""), _trend_label(rounds)
+        _trend_series(rounds),
+        str(rec.get("command") or ""),
+        _trend_label(rounds),
+        deltas=[r.get("delta") if isinstance(r, dict) else None for r in rounds],
     )
     if warn:
         lines.append(warn)
@@ -434,7 +452,19 @@ def _round_report(rec: dict[str, Any]) -> str:
 PHASE_REVIEW_COMMANDS = frozenset({"fabrik-execute-plan"})
 
 
-def _phase_review_exists(root: str, phase: int) -> bool:
+def _plan_stem(rec: dict[str, Any]) -> str | None:
+    """The plan stem a record's `--surface` names (`docs/development/plans/<stem>.md` or `<stem>/`),
+    or None — the DISPATCHER ticket artifact `<stem>-T##-review.md` binds to it (T3.1)."""
+    m = re.search(
+        r"docs/development/plans/(?:archived/)?([^/\s`'\"]+?)(?:\.md)?(?=[/\s`'\"]|$)",
+        str(rec.get("surface") or ""),
+    )
+    return m.group(1) if m else None
+
+
+def _phase_review_exists(
+    root: str, phase: int, *, plan_stem: str | None = None, since: float | None = None
+) -> bool:
     """Is there a review artifact for ``phase`` under docs/development/reviews/?
 
     transdoc finding 1.1 (2026-08-23), the highest-damage item in their report:
@@ -470,9 +500,16 @@ def _phase_review_exists(root: str, phase: int) -> bool:
     # two contracts unsatisfiable together: an executor naming artifacts correctly per D4 could
     # never satisfy `step`, and one that satisfied `step` had misnamed them (transdoc, 2026-08-28).
     # A ticket artifact is evidence a review ran, which is all this gate binds.
-    pat = re.compile(
-        rf"(?:^|[^0-9a-z])p(?:hase)?[-_ ]?{phase}(?:[^0-9]|$)|-T\d{{2}}[a-z]?-review\.md$", re.I
+    # T3.1 (01M1RHJY, 01M1RJXN6): the DISPATCHER alternative bound to NO plan and NO time — 24
+    # August artifacts of another plan satisfied every phase of every plan here, forever. When the
+    # record carries a plan stem the ticket form must start with it; when it carries a start, the
+    # artifact must have been written at or after it. A record with neither keeps the old shape.
+    ticket = (
+        rf"^{re.escape(plan_stem)}-T\d{{2}}[a-z]?-review\.md$"
+        if plan_stem
+        else r"-T\d{2}[a-z]?-review\.md$"
     )
+    pat = re.compile(rf"(?:^|[^0-9a-z])p(?:hase)?[-_ ]?{phase}(?:[^0-9]|$)|{ticket}", re.I)
     try:
         for f in d.rglob("*.md"):
             if not f.is_file() or not pat.search(f.name):
@@ -480,7 +517,8 @@ def _phase_review_exists(root: str, phase: int) -> bool:
             try:
                 # NON-EMPTY: `touch` created a complete silent bypass. This still binds
                 # existence, not quality — but an empty file is not even existence.
-                if f.stat().st_size > 0:
+                st = f.stat()
+                if st.st_size > 0 and (since is None or st.st_mtime >= float(since) - 2.0):
                     return True
             except OSError:
                 continue
@@ -961,6 +999,13 @@ def _parse_usage_feedback(text: str) -> tuple[dict[str, str], list[str]]:
             dupes.append(key)
         fields[key] = value
     missing = [f for f in _USAGE_FIELDS if not fields.get(f)]
+    # T3.4 (backlog F25/F26): a value pasted verbatim from the grammar — `<…>` — names nothing;
+    # it is refused as a placeholder, by label, so the grammar string cannot pass its own parser
+    missing += [
+        f"{f} (placeholder)"
+        for f in _USAGE_FIELDS
+        if fields.get(f) and re.fullmatch(r"<.*>\s*\[?", fields[f].strip(), re.S)
+    ]
     missing += [f"{d} (duplicate)" for d in dupes if f"{d} (duplicate)" not in missing]
     return fields, missing
 
@@ -1647,6 +1692,18 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--classes-swept", default="", help="comma-separated, swept CLEAN")
     p.add_argument("--classes-new", default="", help="comma-separated, newly opened")
+    p.add_argument(
+        "--new",
+        type=int,
+        default=None,
+        help="candidates NEW this round (derived from --classes-new when omitted; never above --findings)",
+    )
+    p.add_argument(
+        "--delta",
+        type=int,
+        default=None,
+        help="changed lines of the fix this delta round swept (dispatch_headroom --delta)",
+    )
     # D-186 made fan-out SIZE a rule, and the ledger had no column to evaluate it with: the ruling's
     # own "seats do not drive wall-clock" was an inference, not a measurement, because nothing here
     # recorded a seat count. One field makes the next audit possible.
@@ -1930,7 +1987,12 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             (
                 n
                 for n in range(1, target)
-                if not _phase_review_exists(str(rec.get("repo_root") or ""), n)
+                if not _phase_review_exists(
+                    str(rec.get("repo_root") or ""),
+                    n,
+                    plan_stem=_plan_stem(rec),
+                    since=_finite_ts(rec.get("started_epoch")),
+                )
             ),
             0,
         )
@@ -2039,6 +2101,13 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             return 2
         if args.findings < 0:
             print("[command_run] REFUSED — round --findings must be >= 0", file=sys.stderr)
+            return 2
+        if args.new is not None and (args.new < 0 or args.new > args.findings):
+            print(
+                f"[command_run] REFUSED — round --new {args.new} must be between 0 and --findings "
+                f"({args.findings}): a round cannot raise more NEW candidates than it found",
+                file=sys.stderr,
+            )
             return 2
         # Stamp the PHASE onto every round. Without it, "rounds since the last step" is not
         # derivable and the only signal available is "zero rounds at phase N" — which job-agent
@@ -2152,6 +2221,10 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 "ts": time.time(),
                 "swept": swept,
                 "new": new_c,
+                # T3.2 (01M1SWQJ): the receipt ledger's `new:` is DERIVED here — the classes opened
+                # this round — never hand-typed; an explicit --new is bounded by --findings above
+                "new_count": args.new if args.new is not None else len(new_c),
+                **({} if args.delta is None else {"delta": args.delta}),
                 "phase": _phase_now,
             }
         )

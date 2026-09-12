@@ -258,3 +258,26 @@ def test_usage_requirement_fails_open_like_the_feedback_requirement():
         assert cr._usage_is_required(bad) is False, bad
     assert cr._usage_is_required({"started_at": "2026-09-08T00:00:00+00:00"}) is True
     assert cr._usage_is_required({"started_at": "2026-08-01T00:00:00+00:00"}) is False
+
+
+def test_a_verbatim_placeholder_is_refused_and_the_grammar_round_trips():
+    """T3.4 (backlog F25/F26): a FEEDBACK value pasted verbatim from the grammar (`<…>`) is not
+    a verdict — it is listed as `<label> (placeholder)`; and the grammar string itself parses
+    into exactly its five labels, every required one missing as a placeholder."""
+    import importlib.util
+    from pathlib import Path
+
+    script = Path(__file__).resolve().parents[1] / "scripts" / "command_run.py"
+    spec = importlib.util.spec_from_file_location("cr_ph", script)
+    cr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cr)
+    fields, missing = cr._parse_usage_feedback(
+        "confusion: <what in the command text misled you | none> · waste: none · "
+        "change: none · filed: none — surfaces exercised: x"
+    )
+    assert "confusion (placeholder)" in missing, missing
+    assert "waste" not in missing and "change" not in missing and "filed" not in missing
+    fields, missing = cr._parse_usage_feedback(cr._USAGE_GRAMMAR)
+    assert set(fields) == {"confusion", "waste", "change", "filed", "cost"}, fields
+    for label in ("confusion", "waste", "change", "filed"):
+        assert f"{label} (placeholder)" in missing, missing
