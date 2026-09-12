@@ -371,6 +371,7 @@ docs/
 │   │   │   ├── T09-run-record-docs.md
 │   │   │   └── T10-integration.md
 │   │   ├── 2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round.md
+│   │   ├── 2026-09-12-plan-2-mail-triage-command-machinery.md
 │   │   └── archived
 │   └── reviews
 │       ├── 2026-07-21-claude-p-scoring-review.md
