@@ -1754,3 +1754,86 @@ def test_a_run_touching_the_newline_before_the_ledger_never_hides_it():
 
     doc = "notes `x ``\n| Pass 1 | seat | method: re-derivation | confirmed: 3 | see `\n"
     assert cc._closing_row_fail(doc) is not None
+
+
+# --- mail-triage plan Phase B (T4.1, T4.2, T4.3, T4.10) --------------------------------------
+
+_REVIEW_QUIET_IN_PROSE = (
+    "# R\n\n## Pass Ledger\n\nThe loop needs a quiet final pass — a "
+    "'found: 0, fixed: 0' round — which this text merely DESCRIBES.\n"
+)
+_REVIEW_QUIET_ROW = (
+    "# R\n\n## Pass Ledger\n\n| Pass | Counters |\n|---|---|\n"
+    "| Pass 2 | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 |\n"
+)
+_EXECUTED_CITING = """# Plan X
+
+**Status:** EXECUTED 2026-08-03 (whole-plan review: docs/development/reviews/2026-08-03-plan-x-review.md)
+
+## Phase A
+Done. src/app/handler.py:42
+"""
+
+
+def test_an_untracked_converged_plan_is_graded_before_it_is_staged(repo: Path) -> None:
+    """T4.1 (01M1RFN3): a plan written and committed in one motion was untracked at the gate
+    run and skipped as "checked at staging" — then staged and committed with no gate between.
+    An untracked plan that CLAIMS convergence is a target now."""
+    _git(repo, "commit", "--allow-empty", "-qm", "seed")
+    p = repo / "docs/development/plans/2026-06-18-plan-x.md"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(PLAN_NO_EVIDENCE)
+    assert _check(repo) == 1, "an untracked CONVERGED plan with no evidence must fail"
+    p.write_text(PLAN_NO_CLAIM)
+    assert _check(repo) == 0, "an untracked draft that claims nothing stays ignored"
+
+
+def test_a_quiet_round_in_prose_never_satisfies_the_executed_citation(repo: Path) -> None:
+    """T4.3 (01M1SQZ80): the EXECUTED branch searched the cited review's WHOLE text for the quiet
+    pattern, so pasting the gate's own error message satisfied it; the pattern is read from a
+    Pass-Ledger ROW only."""
+    _git(repo, "commit", "--allow-empty", "-qm", "seed")
+    rv = repo / "docs/development/reviews/2026-08-03-plan-x-review.md"
+    rv.parent.mkdir(parents=True, exist_ok=True)
+    plan = repo / "docs/development/plans/2026-08-03-plan-x.md"
+    plan.parent.mkdir(parents=True, exist_ok=True)
+    plan.write_text(_EXECUTED_CITING)
+    rv.write_text(_REVIEW_QUIET_IN_PROSE)
+    _git(repo, "add", "-A")
+    assert _check(repo) == 1, "prose that describes a quiet round is not a quiet round"
+    rv.write_text(_REVIEW_QUIET_ROW)
+    _git(repo, "add", "-A")
+    assert _check(repo) == 0
+
+
+def test_a_committed_executed_plan_whose_review_is_missing_is_reported_advisory(
+    repo: Path,
+) -> None:
+    """T4.2 (01M1SNCXH6, 01M1SNX21, 01M1SP32G): once the EXECUTED flip is COMMITTED the plan left
+    the worklist forever. A committed EXECUTED plan whose cited review is missing, and an
+    archived plan committed mid-flight, are now REPORTED on every run — advisory, never a red
+    (the same asymmetry as check_review_coverage's committed-nonquiet sweep)."""
+    plan = repo / "docs/development/plans/2026-08-03-plan-x.md"
+    plan.parent.mkdir(parents=True, exist_ok=True)
+    plan.write_text(_EXECUTED_CITING)
+    arch = repo / "docs/development/plans/archived/2026-07-01-plan-y.md"
+    arch.parent.mkdir(parents=True, exist_ok=True)
+    arch.write_text("# Y\n\n**Status:** DRAFT\n\n## Phase 1\nx\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "landed ungated")
+    rc, out = _check_out(repo)
+    assert rc == 0, out
+    assert out.startswith("⚠"), out
+    assert "2026-08-03-plan-x.md" in out and "2026-07-01-plan-y.md" in out, out
+
+
+def test_the_rederivation_message_names_the_closing_row_grammar(repo: Path) -> None:
+    """T4.10 (01M1SR1WK): the refusal names the exact cell grammar the grader accepts, so a
+    reader does not guess where the label goes."""
+    p = repo / "docs/development/plans/2026-06-18-plan-x.md"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(COMPLIANT_PLAN.replace("re-derivation", "citation"))
+    _git(repo, "add", "-A")
+    rc, out = _check_out(repo)
+    assert rc == 1
+    assert "`| Pass N | … | method: re-derivation — … |`" in out, out

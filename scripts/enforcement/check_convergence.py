@@ -146,6 +146,9 @@ _REDERIVATION_ROW = re.compile(
 # 805 fleet review artifacts carry >1 token on one row READ THROUGH THE RULE'S OWN MASKING (on raw
 # text 1 of 47 carries two, both inside code spans — the receipt-side spelling the rule exists for).
 _PASS_ROW = re.compile(r"^[ \t]*\|\s*\**(?:Pass|Round)\b[^\n]*", re.I | re.M)
+# a ledger LINE in any shape the corpus writes — a table row (`| Pass N |`), a bulleted one
+# (`- Pass 2 (CLOSING) — …`) or a bare `Pass 2 — …`; the LABEL leads the line, prose never does (T4.3)
+_LEDGER_LINE = re.compile(r"^[ \t]*(?:\|\s*|[-*]\s+)?\**(?:Pass|Round)\b[^\n]*", re.I | re.M)
 
 
 def _mask_spans(s: str) -> str:
@@ -664,7 +667,8 @@ def _check_plan(root: Path, path: Path) -> list[str]:
     # the operator reading the ledger, not a deeper parser.
     if not _REDERIVATION_ROW.search(scan):
         fails.append(
-            "claims CONVERGED with no re-derivation Pass-Ledger row — the CLOSING pass must "
+            "claims CONVERGED with no re-derivation Pass-Ledger row (the shape is "
+            "`| Pass N | … | method: re-derivation — … |`, the label LEADING the method cell) — the CLOSING pass must "
             "RE-DERIVE every count/enumeration/anchor from its primary source (a row naming "
             "`method: re-derivation`), not re-verify citations; run it, then record it"
         )
@@ -775,8 +779,9 @@ def _executed_targets(root: Path) -> list[Path]:
     seen: set[str] = set()
     targets: list[Path] = []
     for line in out.splitlines():
-        if line[:2] == "??":
-            continue  # untracked in-flight draft — checked at staging (see _changed_md)
+        # T4.1 (01M1RFN3): an UNTRACKED plan that claims EXECUTED is a target — a plan written
+        # and committed in one motion was skipped here, then staged and committed with no gate
+        # run between, and once committed it left this worklist forever
         rest = line[3:].strip()
         if " -> " in rest:  # rename: "old -> new"
             src, dst = (s.strip().strip('"') for s in rest.split(" -> ", 1))
@@ -824,8 +829,7 @@ def _converged_targets(root: Path) -> list[Path]:
     seen: set[str] = set()
     targets: list[Path] = []
     for line in out.splitlines():
-        if line[:2] == "??":
-            continue  # untracked in-flight draft — checked at staging
+        # T4.1 (01M1RFN3): an untracked plan that claims CONVERGED is a target (see _executed_targets)
         rest = line[3:].strip()
         if " -> " in rest:
             src, dst = (s.strip().strip('"') for s in rest.split(" -> ", 1))
@@ -907,7 +911,10 @@ def _check_executed_plan(root: Path, path: Path) -> list[str]:
         # appears somewhere → the cited review ran the loop to (at least one) quiet pass.
         # Zero-false-positive by design (see QUIET_PASS); DEPTH is
         # check_review_coverage.py's at staging time.
-        if QUIET_PASS.search(rtext):
+        # T4.3 (01M1SQZ80): a Pass-Ledger ROW, never prose — the gate's own error message, a
+        # negation ("never returned found: 0"), and a description of the requirement all matched
+        # the whole-text search; the row grammar is the only witness of a round that ran
+        if any(QUIET_PASS.search(m.group(0)) for m in _LEDGER_LINE.finditer(rtext)):
             return fails  # citation satisfied; spine-set findings (if any) still surface
     return fails + [
         f"{rel}: claims EXECUTED but its cited whole-plan review is missing on disk or not "
@@ -1033,6 +1040,38 @@ def _check_review(root: Path, path: Path) -> list[str]:
     return [f"{rel}: {x}" for x in fails]
 
 
+def _committed_claims_advisory(root: Path, skip: set[Path]) -> list[str]:
+    """Plans COMMITTED with a claim this gate can no longer see (T4.2 — 01M1SNCXH6, 01M1SNX21,
+    01M1SP32G): the worklists above derive from `git status`, so an EXECUTED flip that was
+    committed ungated, and an archived plan committed mid-flight, left them forever — the
+    check's verdict was correct and simply never arrived. ADVISORY, never a failure (the same
+    asymmetry as check_review_coverage's committed-nonquiet sweep: a gate that reds a sibling's
+    unrelated commit over history is a gate that gets switched off). Deliberately narrow: only
+    the missing-review citation and the archived-midflight Status, never the full evidence set.
+    Measured before shipping on the hub, 2026-09-12: 11 committed EXECUTED plans flagged — real
+    debt the blocking path could never reach, which is the finding; advisory keeps it visible."""
+    out: list[str] = []
+    for p in sorted((root / PLANS_DIR).rglob("*.md")):
+        if p in skip or not p.is_file():
+            continue
+        rel = p.relative_to(root)
+        try:
+            text = FENCE_STRIP.sub("", p.read_text(encoding="utf-8", errors="replace"))
+        except OSError:
+            continue
+        if _ARCHIVED_PLAN.search("/" + str(rel)):
+            m = _STATUS_LINE.search(text[:4000])
+            if m and m.group(1).strip().upper() in _MIDFLIGHT:
+                out.append(f"{rel}: archived while its own Status reads {m.group(1).strip()!r}")
+            continue
+        if not EXECUTED.search(text):
+            continue
+        for f in _check_executed_plan(root, p):
+            if "review" in f and ("missing on disk" in f or "cites no whole-plan review" in f):
+                out.append(f)
+    return out
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Convergence-evidence gate (plans + reviews).")
     parser.add_argument("--project-root", type=Path, default=Path.cwd())
@@ -1047,6 +1086,14 @@ def main() -> int:
     fails.extend(_archived_midflight(root))
     for p in _changed_md(root, REVIEWS_DIR):
         fails += _check_review(root, p)
+    stale = _committed_claims_advisory(
+        root, skip=set(_converged_targets(root)) | set(_executed_targets(root))
+    )
+    if stale:
+        # ⚠ FIRST: final_gate ships a passing check's stdout only when it starts with ⚠
+        print("⚠ check_convergence ADVISORY — committed plan(s) needing attention:")
+        for s in dict.fromkeys(stale):
+            print(f"  ⚠ {s}")
 
     fails = list(dict.fromkeys(fails))  # dual-claim paths may repeat a finding — dedupe
     if fails:

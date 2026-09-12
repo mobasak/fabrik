@@ -79,3 +79,86 @@ def test_a_rotated_archive_md_is_not_a_review_artifact(tmp_path: Path):
     paths, _notes, untracked = crc._changed_md(tmp_path, "docs/development/reviews/")
     names = sorted(p.name for p in [*paths, *untracked])  # untracked drafts ride the third slot
     assert names == ["2026-09-05-x-review.md"], names
+
+
+def test_a_changed_path_with_no_hunt_row_is_refused(tmp_path):
+    """T4.4 (01M20W9QK): the grader graded the Hunt rows that EXIST and never compared them with
+    the receipt's own Changed list — 11 of 18 files went unhunted for seven rounds. A Changed
+    path without a `Hunt:` row is refused; the template's own shape (one row per path) passes."""
+    changed = "**Command:** /fabrik-review · **Changed:** `x.py`, `y.py`\n\n"
+    hunt_x = "| 5 | Hunt: `x.py` — every changed hunk | CLEAN | read |\n"
+    text = (
+        _BAD_REVIEW.replace("# R\n", "# R\n" + changed)
+        .replace(
+            "| 4 | behavior-without-a-test | CLEAN | tests/test_x.py |\n",
+            "| 4 | behavior-without-a-test | CLEAN | tests/test_x.py |\n" + hunt_x,
+        )
+        .replace("- Pass 2 (CLOSING) — method: citation — found: 0, fixed: 0\n", _GOOD_TAIL)
+    )
+    r = _run_on(tmp_path, text)
+    assert r.returncode == 1, r.stdout
+    assert "`y.py`" in r.stdout and "Hunt" in r.stdout, r.stdout
+    r = _run_on(
+        tmp_path,
+        text.replace(hunt_x, hunt_x + "| 6 | Hunt: `y.py` — every changed hunk | CLEAN | read |\n"),
+    )
+    assert r.returncode == 0, r.stdout
+
+
+def test_a_running_review_records_own_receipt_is_graded_even_when_unchanged(tmp_path, monkeypatch):
+    """T4.5 (01M28K3F44): a receipt COMMITTED and unchanged was invisible to the blocking scan
+    while its review was still RUNNING. With a live review-family record in COMMAND_RUN_DIR, the
+    receipts written since its start are graded with the full battery regardless of git state."""
+    import json
+    import subprocess as sp
+    import time
+
+    repo = tmp_path / "repo"
+    (repo / "docs/development/reviews").mkdir(parents=True)
+    sp.run(["git", "init", "-q"], cwd=repo, check=True)
+    sp.run(["git", "config", "user.email", "t@t"], cwd=repo, check=True)
+    sp.run(["git", "config", "user.name", "t"], cwd=repo, check=True)
+    started = time.time() - 60
+    f = repo / "docs/development/reviews/2026-08-30-x-review.md"
+    f.write_text(
+        _BAD_REVIEW.replace(
+            "| 1 | fail-open/fail-closed | CLEAN | hunted x.py guards |",
+            "| 1 | fail-open/fail-closed | UNCHECKED |",
+        ),
+        encoding="utf-8",
+    )
+    sp.run(["git", "add", "-A"], cwd=repo, check=True)
+    sp.run(["git", "commit", "-qm", "receipt committed unchanged"], cwd=repo, check=True)
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    (runs / "s9.json").write_text(
+        json.dumps(
+            {
+                "command": "fabrik-review",
+                "state": "running",
+                "started_epoch": started,
+                "repo_root": str(repo),
+            }
+        )
+    )
+    env = dict(__import__("os").environ, COMMAND_RUN_DIR=str(runs), CLAUDE_SESSION_ID="s9")
+    r = sp.run(
+        [sys.executable, str(SCRIPT), "--root", str(repo)],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        env=env,
+    )
+    assert r.returncode == 1, f"rc={r.returncode} out={r.stdout!r}"
+    assert "UNCHECKED" in r.stdout, r.stdout
+    env.pop("CLAUDE_SESSION_ID")
+    r = sp.run(
+        [sys.executable, str(SCRIPT), "--root", str(repo)],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        env=env,
+    )
+    assert r.returncode == 0, "with no running record the committed receipt stays an advisory"

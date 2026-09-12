@@ -28,6 +28,8 @@ Checklist and are not this gate's subject (check_convergence.py covers them).
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import re
 import subprocess
 import sys
@@ -2627,6 +2629,60 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
     return out
 
 
+_CHANGED_LINE = re.compile(r"\*\*Changed:\*\*\s*([^\n]*)")
+_BACKTICKED = re.compile(r"`([^`\n]+)`")
+_HUNT_ROW = re.compile(r"Hunt:\s*`([^`\n]+)`")
+
+
+def _hunt_gaps(text: str) -> list[str]:
+    """T4.4 (01M20W9QK): the rows that EXIST were graded and never compared with the receipt's own
+    Changed list — 11 of 18 files went unhunted for seven rounds. Every path the receipt's
+    `**Changed:**` line names must carry a `Hunt:` row; the template writes one per path."""
+    m = _CHANGED_LINE.search(_strip_fences(text))
+    if not m:
+        return []
+    changed = [c.strip() for c in _BACKTICKED.findall(m.group(1))]
+    hunted = {h.strip() for h in _HUNT_ROW.findall(text)}
+    return [
+        f"Changed path `{c}` has no `Hunt:` row — the checklist grades only the rows that exist, "
+        "so a file never claimed is never hunted (add the row, then adjudicate it)"
+        for c in changed
+        if c and c not in hunted
+    ]
+
+
+def _running_review_receipts(root: Path) -> list[Path]:
+    """T4.5 (01M28K3F44): the receipts of a RUNNING review-family record — written at or after
+    its start — graded with the blocking battery regardless of git state; a receipt committed
+    unchanged was invisible while its review still ran and fixed."""
+    sid = os.environ.get("CLAUDE_SESSION_ID", "").strip()
+    if not sid:
+        return []
+    runs = Path(os.environ.get("COMMAND_RUN_DIR") or (Path.home() / ".claude/state/command-runs"))
+    try:
+        rec = json.loads((runs / f"{sid}.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    if not isinstance(rec, dict) or rec.get("state") != "running":
+        return []
+    if "review" not in str(rec.get("command") or ""):
+        return []
+    try:
+        since = float(rec.get("started_epoch") or 0)
+    except (TypeError, ValueError):
+        return []
+    if since <= 0:
+        return []
+    out: list[Path] = []
+    for p in sorted((root / REVIEWS_DIR).rglob("*.md")):
+        try:
+            if p.is_file() and p.stat().st_mtime >= since - 2.0:
+                out.append(p)
+        except OSError:
+            continue
+    return out
+
+
 def _grade(p: Path, root: Path) -> list[str]:
     """Full blocking battery for ONE review artifact — the routing main() always applied.
 
@@ -2646,6 +2702,7 @@ def _grade(p: Path, root: Path) -> list[str]:
     if _is_mega_report(p, body):
         # a mega validation report is exit-proof-gated, not checklist-gated
         return [f"{rel}: {e}" for e in check_mega_validation(p, root, live=True)]
+    errs.extend(f"{rel}: {e}" for e in _hunt_gaps(body))
     if CERT_REPORT.search(p.name):
         errs.extend(f"{rel}: {e}" for e in check_cert_dispositions(p, root))
         # NO `continue` past a present checklist (round 37): the filename substring routed
@@ -2700,6 +2757,11 @@ def main() -> int:
         )
         return 0
     changed, skip_notes, untracked = _changed_md(root, REVIEWS_DIR)
+    # T4.5: a RUNNING review-family record's own receipts join the blocking set even when git
+    # sees no change in them (committed unchanged while the review still ran)
+    for _p in _running_review_receipts(root):
+        if _p not in changed:
+            changed.append(_p)
     # ⚠️ ADVISORY, not a failure — and the asymmetry is deliberate. The hole was that a committed
     # unconverged review was INVISIBLE; printing it fixes that. Hard-failing it would retro-grade
     # every historical report across ~46 synced repos on the next sync, on artifacts whose authors
