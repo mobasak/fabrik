@@ -78,7 +78,7 @@ Every disposition below was checked against the tree at 091439d4 with `grep`, `h
 |---|---|---|
 | "**`uv`** is the mandated Python package manager. Never use raw `pip`, `pip install`, `poetry`, or `pipenv`." | `.windsurf/rules/core/10-python.md:21` | every grader runs under the hub .venv via uv |
 | "Ruff's selected rule-sets MUST include `ASYNC` (blocking IO in async code — machine-enforces" | `.windsurf/rules/core/10-python.md:245` | the enforcement scripts keep the ASYNC rule-set green |
-| "**Update when:** Any change to code (`src/`, `scripts/`, `templates/`) or config (`Dockerfile`, `compose.yaml`, `.env.example`, `pyproject.toml`, `pac" | `.windsurf/rules/core/40-documentation.md:129` | a CHANGELOG entry per phase (HEAD blob + hunk) |
+| "**Update when:** Any change to code (`src/`, `scripts/`, `templates/`)" | `.windsurf/rules/core/40-documentation.md:129` | a CHANGELOG entry per phase (HEAD blob + hunk) |
 | "**Update when:** Any file added, removed, or moved." | `.windsurf/rules/core/40-documentation.md:139` | INDEX rows for the plan and its receipts |
 | "- **No skipped heading levels** — `##` to `###`, never `##` to `####`" | `.windsurf/rules/core/40-documentation.md:240` | the plan and the fragments keep heading depth |
 | "- **Fenced code blocks only** — never indented code (AI treats it inconsistently)" | `.windsurf/rules/core/40-documentation.md:242` | every Evidence and verdict block fenced |
