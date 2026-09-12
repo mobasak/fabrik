@@ -163,5 +163,5 @@ def test_the_mail_triage_agent_sentences_are_present_once():
     T2.19: the researcher names the two exa web_fetch drops (tables, late sections)."""
     reviewer = (SRC / "fabrik-reviewer.md").read_text(encoding="utf-8")
     researcher = (SRC / "fabrik-researcher.md").read_text(encoding="utf-8")
-    assert reviewer.count("`git -C <repo> show <sha>:<path>`") == 1
+    assert reviewer.count("with `git -C <repo>` when the repo is not your cwd") == 1
     assert researcher.count("silently DROPS TABLES") == 1

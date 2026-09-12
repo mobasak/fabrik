@@ -317,7 +317,6 @@ _MAIL_TRIAGE_FRAGMENT_SENTENCES = {
     ),
     "commands/_fragments/term-edit.md": (
         "Scope-growth stop",  # T2.6
-        "the previous seat's REFUTED list verbatim",  # T2.8
         "verify the check CAN fail",  # T2.14 (01M1SNGE4)
     ),
     "commands/_fragments/subagents-core.md": (

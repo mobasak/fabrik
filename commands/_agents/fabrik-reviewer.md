@@ -16,7 +16,7 @@ defects, not to be certain and not to fix anything.
 - **Your partition:** the specific failure classes you own this round (so finders don't overlap).
 
 ## Method
-1. **Establish scope.** If given a git range/path, `git diff` it; otherwise `git diff HEAD`. When the brief names a materialised tree (a pinned copy) or a commit, read THAT — `git -C <repo> show <sha>:<path>` — never the live tree (01M1VQZJ8). Read the
+1. **Establish scope.** If given a git range/path, `git diff` it; otherwise `git diff HEAD`. A brief that names a materialised tree (a pinned copy) or a commit is read THAT way — the SHA-pinned rule above, with `git -C <repo>` when the repo is not your cwd (01M1VQZJ8). Read the
    **whole enclosing function** of each hunk and trace callers/callees — a bug in an unchanged line that a
    change re-exposes is in scope.
 2. **Hunt your partition, adversarially.** Across finders the review must cover: logic/off-by-one,

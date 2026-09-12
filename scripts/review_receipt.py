@@ -184,7 +184,7 @@ Row shapes (quoted here, so the gate does not read them as passes):
 ## Residual
 
 Every candidate that did not enter `confirmed:` is recorded here, one row each, in the verdict
-grammar above.
+grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading is an EXAMPLE, never rows).
 
 ### Verdict grammar — an EXAMPLE, never rows
 

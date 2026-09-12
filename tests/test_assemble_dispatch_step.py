@@ -1123,6 +1123,17 @@ def test_every_hop_site_cites_the_bounded_hop_rule():
     assert not missing, missing
 
 
+_REVIEW_LOOP_CONSUMERS = (
+    "fabrik-plan-review.md",
+    "fabrik-spec-review.md",
+    "fabrik-docs-review.md",
+    "fabrik-ui-design-review.md",
+    "fabrik-flows-review.md",
+    "fabrik-review.md",
+    "fabrik-repo-review.md",
+    "fabrik-conformance-review.md",
+)
+
 _MAIL_TRIAGE_PHASE_A = {
     # mail-triage plan Phase A (T2): every sentence lands once in its RENDERED command
     "fabrik-review-scoped.md": (
@@ -1145,9 +1156,9 @@ _MAIL_TRIAGE_PHASE_A = {
         "MEASURE it: a `Status: EXECUTED` plan whose phase receipts",  # T2.7 (01M2AJG97)
         "The probe covers the LANE it dispatches to",  # T2.7 D2 (01M2803TM)
     ),
-    "fabrik-doc-converge.md": ("project-local `docs/reference/<name>.md`",),  # T2.13 (01M1V443)
-    "fabrik-ui-design.md": ("Size ceiling",),  # T2.11 (01M25G1BN)
-    "fabrik-ui-design-review.md": ("Size ceiling",),  # T2.11 twin
+    "fabrik-doc-converge.md": ("project-local `docs/reference/<name>.md`",),  # T2.13 (01M1V443G)
+    "fabrik-ui-design.md": ("Split history (retired screens, superseded versions) into `docs/ui-design-history.md`",),  # T2.11 (01M25G1BN)
+    "fabrik-ui-design-review.md": ("the review's first finding is the split",),  # T2.11 twin
     "fabrik-decommission.md": ("`command grep -rn` across `/opt/*`",),  # T2.21
 }
 
@@ -1164,3 +1175,13 @@ def test_the_mail_triage_phase_a_sentences_reach_their_rendered_commands_once(tm
             if live.count(needle) != 1:
                 missing.append((name, needle, live.count(needle)))
     assert not missing, missing
+    # a rule that lives in a FRAGMENT renders once per consumer — a second fragment carrying the
+    # same rule in other words doubles it in every command that includes both (round 1 of the
+    # Phase A review found the REFUTED-list rule twice in five commands)
+    doubled = []
+    for name in _REVIEW_LOOP_CONSUMERS:
+        live = ac._HTML_COMMENT_RE.sub("", (tmp_path / name).read_text())
+        for needle in ("REFUTED list verbatim", "explicit `timeout` at or above", "Scope-growth stop"):
+            if live.count(needle) > 1:
+                doubled.append((name, needle, live.count(needle)))
+    assert not doubled, doubled
