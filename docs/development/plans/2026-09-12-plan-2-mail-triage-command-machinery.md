@@ -63,6 +63,29 @@ Every disposition below was checked against the tree at 091439d4 with `grep`, `h
 | 7 kaizen collections | hub | daily requests 09-04 … 09-11 | OPEN | T8 |
 | 7 FEEDBACK relays | hub | 35 close verdicts | see T2 | the recurring asks mapped in § Phase A |
 
+## Context Ledger
+
+| Source | What binds | Grounded ref |
+|---|---|---|
+| `.windsurf/rules/core/10-python.md` (MATCHED) | every grader runs under the hub .venv via uv; the enforcement scripts keep the ASYNC rule-set green | `:21`, `:245` |
+| `.windsurf/rules/core/40-documentation.md` (MATCHED) | a CHANGELOG entry per phase (HEAD blob + hunk); INDEX rows for the plan and its receipts; the plan and the fragments keep heading depth; every Evidence and verdict block fenced | `:129`, `:139`, `:240`, `:242` |
+| `.windsurf/rules/core/45-testing-strategy.md` (MATCHED) | each Phase's Behavior Contract enumerates the behaviours its steps add, one test each; every grader T3/T4/T5/T12 adds is seen red first | `:19`, `:21` |
+| `CLAUDE.md` § Shared repo, § HARD STOPS (FLOOR) | private-index commits of explicit paths, the hunk-level guard at hashing time; the seventh bounded-search shape; config via env only | the shared-tree bullet, the denominator row |
+
+## Constraints Digest
+
+| Verbatim quote | Source | Applies to |
+|---|---|---|
+| "**`uv`** is the mandated Python package manager. Never use raw `pip`, `pip install`, `poetry`, or `pipenv`." | `.windsurf/rules/core/10-python.md:21` | every grader runs under the hub .venv via uv |
+| "Ruff's selected rule-sets MUST include `ASYNC` (blocking IO in async code — machine-enforces" | `.windsurf/rules/core/10-python.md:245` | the enforcement scripts keep the ASYNC rule-set green |
+| "**Update when:** Any change to code (`src/`, `scripts/`, `templates/`) or config (`Dockerfile`, `compose.yaml`, `.env.example`, `pyproject.toml`, `pac" | `.windsurf/rules/core/40-documentation.md:129` | a CHANGELOG entry per phase (HEAD blob + hunk) |
+| "**Update when:** Any file added, removed, or moved." | `.windsurf/rules/core/40-documentation.md:139` | INDEX rows for the plan and its receipts |
+| "- **No skipped heading levels** — `##` to `###`, never `##` to `####`" | `.windsurf/rules/core/40-documentation.md:240` | the plan and the fragments keep heading depth |
+| "- **Fenced code blocks only** — never indented code (AI treats it inconsistently)" | `.windsurf/rules/core/40-documentation.md:242` | every Evidence and verdict block fenced |
+| "- **Behavior Contract**: every ticket enumerates its distinct **user-observable behaviors / acceptance criteria** and tests **each one** — one high-va" | `.windsurf/rules/core/45-testing-strategy.md:19` | each Phase's Behavior Contract enumerates the behaviours its steps add, one test each |
+| "- **Watched-fail-first** (for tests this change adds or modifies; trivia stays skipped per the Behavior Contract): a non-trivial behavior's test prove" | `.windsurf/rules/core/45-testing-strategy.md:21` | every grader T3/T4/T5/T12 adds is seen red first |
+| "=> Mandate: config via env vars only (`os.getenv("KEY", "default")`); **ZERO secrets/constants in code**. Apply the open" | `.windsurf/rules/core/35-security-auth.md:266` | every script this plan edits reads its knobs from the environment, none hardcodes a path or key |
+
 ## File Scope (owned paths)
 
 - `commands/_sources/fabrik-review-scoped.md`, `fabrik-review.md`, `fabrik-plan-review.md`, `fabrik-execute-plan.md`, `fabrik-ui-design.md`, `fabrik-ui-design-review.md`, `fabrik-doc-converge.md`; `commands/_fragments/term-edit.md`, `term-coverage.md`, `subagents-core.md`; `commands/_agents/fabrik-reviewer.md`; `scripts/review_receipt.py`
