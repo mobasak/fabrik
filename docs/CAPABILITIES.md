@@ -175,6 +175,7 @@
 - [scripts/provision_glitchtip_project.sh](../INDEX.md) (owner: infra): provision_glitchtip_project.sh — Idempotently provision a GlitchTip project + DSN.
 - [scripts/registry_sync.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/registry_db.py db/services_registry_schema.sql scripts/tests/test_registry_sync.py scripts/gen_dashboard.py
 - [scripts/release_cut.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_release_cut.py, commands/_sources/fabrik-release.md
+- [scripts/render_chat_history.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workstation/chat-history-render.md | tests/test_render_chat_history.py
 - [scripts/render_doc_script_links.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_doc_script_links.py | docs/reference/doc-script-coupling.md | scripts/enforcement/check_script_headers.py
 - [scripts/retype_project.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_retype_project.py | docs/workstation/mcp-roster.md
 - [scripts/review_receipt.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_review_receipt.py, commands/_sources/fabrik-review.md, commands/_sources/fabrik-execute-plan.md, scripts/enforcement/check_review_coverag
