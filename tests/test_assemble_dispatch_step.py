@@ -1098,3 +1098,26 @@ def test_every_printed_feedback_template_parses_once_its_slots_are_filled():
                 bad.append((src.name, missing, tpl[:80]))
     assert seen >= 1, "no printed-label feedback template found — the scan is blind"
     assert not bad, bad
+
+
+_HOP_SITES = (
+    ".windsurf/rules/core/62-using-subagents.md",
+    "CLAUDE.md",
+    "templates/governance/CLAUDE.md",
+    "docs/reference/convergence-prompts.md",
+    "commands/_fragments/subagents-core.md",
+    "commands/_sources/fabrik-review.md",
+    "commands/_sources/fabrik-repo-review.md",
+)
+
+
+def test_every_hop_site_cites_the_bounded_hop_rule():
+    """Spec D4 (pass 3): the seven sites that say "plus one hop of callers and callees" also say
+    what a delta round may COUNT — the fragments' bounded-hop rule. Per file, by the key phrase;
+    the extent clause is not the change."""
+    missing = [
+        rel
+        for rel in _HOP_SITES
+        if "bounded-hop rule" not in (REPO / rel).read_text(encoding="utf-8")
+    ]
+    assert not missing, missing

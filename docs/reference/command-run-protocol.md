@@ -187,7 +187,10 @@ collide in the same millisecond. `run_close` additionally carries `resumed` / `r
 
 ### `done` on a review-family command requires its persisted report
 
-For `fabrik-review` and `fabrik-review-scoped` (`REVIEW_FAMILY` in `scripts/command_run.py`), `done`
+For the six commands of the persisted-report tuple in `scripts/command_run.py`'s `done` branch —
+`fabrik-review`, `fabrik-repo-review`, `fabrik-user-test`, `fabrik-service-test`, `fabrik-epics-review`,
+`fabrik-conformance-review`; NOT `fabrik-review-scoped`, whose round ledger is its artifact (`REVIEW_FAMILY`
+is the reach-back set below, not this tuple) — `done`
 additionally REFUSES (rc 1) unless a non-empty `docs/development/reviews/*.md` was written or committed
 in the repo SINCE THE RUN STARTED — the refusal reads `REFUSED — closing /fabrik-review with done requires
 its persisted report: no docs/development/reviews/*.md written or committed SINCE THIS RUN STARTED in
@@ -195,6 +198,21 @@ its persisted report: no docs/development/reviews/*.md written or committed SINC
 actually happen": the loop's counters live in the record, its adjudicated ledger in the receipt, and a
 close without the receipt is the chat-only review the corpus forbids. `blocked` stays available for a
 genuinely halted review.
+
+### The covered window, the route-up before the record, and the `done`-closed escalation
+
+A review-family `done` covers every code edit since the previous AGENT-closed record — `REVIEW_FAMILY`
+(`fabrik-review` + `fabrik-review-scoped`) is that reach-back set, and only `done` reaches back: a
+`blocked` or `handoff` reviewed nothing and caps the window. Two consequences the review-family pass-3 plan
+wrote into `/fabrik-review-scoped` (2026-09-12): (1) a change that trips its step-1 trigger BEFORE any
+record exists routes up at once — the heavy review starts with `--surface "ROUTED-UP: step 1 — …"` and
+its `done` covers the pre-start edits, no scoped record in between; (2) a scoped review whose SECOND
+consecutive round confirms defects escalates in ONE shell line — `done --command fabrik-review-scoped
+--evidence "ROUTED-UP after 2 confirming rounds — continued in <receipt>" … && start --command
+fabrik-review …` — so no turn boundary can fall between the close and the heavy start; that routed-up
+`done` names no reader by design and is not a converging close (the heavy review is), and a second `done`
+naming the scoped command while the heavy record is live is refused by name. No code changed for this:
+the reach-back and the wrong-name refusal were already the record's behaviour.
 
 ### `step` refuses to open a phase whose predecessor left no review artifact
 

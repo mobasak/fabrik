@@ -125,3 +125,34 @@ def test_the_live_box_matches_the_repo_sources():
     """The point of the whole change: what the box actually dispatches is what the repo says."""
     drift = asm.agent_drift(asm.AGENTS)
     assert drift == [], f"~/.claude/agents drifted from commands/_agents: {drift}"
+
+
+def test_every_agent_definition_carries_the_git_verb_prohibition():
+    """Spec D8 (pass 3): every native seat definition carries the shared git-verb sentence — a
+    reviewer seat's `git stash --keep-index` swept three sessions' uncommitted work mid-pass
+    (2026-09-11). Asserted on the SOURCES, per file, by the key phrase."""
+    phrase = "no git command that mutates state"
+    srcs = sorted(SRC.glob("*.md"))
+    assert len(srcs) == 4, [p.name for p in srcs]
+    missing = [p.name for p in srcs if phrase not in p.read_text(encoding="utf-8").lower()]
+    assert not missing, missing
+
+
+def test_the_stash_recovery_recipe_is_byte_identical_in_both_contracts():
+    """The recipe sentence (pass 3, spec D8) lives INSIDE the § Shared repo bullet of both
+    contracts; the bullets differ by design, the recipe substring — from the start anchor to the
+    end anchor inclusive — must not."""
+    start, end = "git stash show --name-only 'stash@{0}'", "never a pop"
+
+    def recipe(path: Path) -> str:
+        text = path.read_text(encoding="utf-8")
+        i = text.find(start)
+        assert i >= 0, f"{path.name}: start anchor absent"
+        j = text.find(end, i)
+        assert j >= 0, f"{path.name}: end anchor absent after the start anchor"
+        return text[i : j + len(end)]
+
+    hub = recipe(REPO / "CLAUDE.md")
+    tpl = recipe(REPO / "templates" / "governance" / "CLAUDE.md")
+    assert hub == tpl
+    assert "git show 'stash@{0}':<path>" in hub

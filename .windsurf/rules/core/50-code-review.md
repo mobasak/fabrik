@@ -75,10 +75,12 @@ code-changing chunk of work gets one:
   changes. (The Stop hook BLOCKS a code-editing session that never opened a review record.)
 - **`/fabrik-review`** — the full command. Escalate to it for: a new mechanism, any
   gate/hook/enforcement path, auth/schema/migrations/concurrency, >5 files, anything the owner
-  asked for by name, or a scoped review still finding after 3 rounds.
+  asked for by name, or a scoped review whose SECOND consecutive round CONFIRMS defects (it routes
+  up by its own rule, in one shell line).
 
 Both arm their finders from `scripts/review_rubric.py --changed <paths>` (synced to every project),
-converge to a round that raises **zero new** candidates, and are **fix-in-run**: findings are fixed
+converge to a delta round that CONFIRMS **zero** code or doc defects (D-206 — refuted and RECORDED
+candidates never count; `round --confirmed` every pass), and are **fix-in-run**: findings are fixed
 or refuted with the disproving line — never filed as someone else's problem. Stage specific files
 by name, never `git add -A`.
 
