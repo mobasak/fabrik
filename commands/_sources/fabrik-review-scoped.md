@@ -59,7 +59,7 @@ proportionate answer.
 5. **Loop:** pass 1 reads the whole changed surface; every later pass is a DELTA round exactly as the
    fragment defines it (COUNTED under D-230, SIZED under D-229 — the floor paragraph below), over the
    same class ledger (a pass is never a re-scope). Done ONLY on a delta pass with a fresh non-authoring reader that **CONFIRMS zero** —
-   minimum two passes, the fixing pass is never the last. Every pass's seats are STAMPED first, before the message that dispatches them (the floor paragraph below carries the command; 01M2368XB). Every seat brief names a PIN — a copy of the surface under the scratchpad and the md5 of `git diff HEAD -- <surface>` — and the finder re-diffs the pin before reporting (01M236V84, 01M23ESF5); a delta reader's brief carries the previous reader's REFUTED list verbatim, so a refuted candidate is never re-raised as new. **After the SECOND consecutive round that
+   minimum two passes, the fixing pass is never the last. Every pass's seats are STAMPED first, before the message that dispatches them (the floor paragraph below carries the command; 01M2368XB). Every seat brief names a PIN — a copy of the surface under the scratchpad and the md5 of `git diff HEAD -- <surface>` — and the finder re-diffs the pin before reporting (01M236V84, 01M23ESF5); a delta seat's brief carries the previous seat's REFUTED list verbatim, so a refuted candidate is never re-raised as new. **After the SECOND consecutive round that
    confirms defects** the surface outgrew this command (spec D6, path ii): escalate in the SAME turn and in
    ONE shell line, so no turn boundary can fall between the close and the heavy `start`:
    `python3 scripts/command_run.py done --command fabrik-review-scoped --evidence "ROUTED-UP after 2

@@ -1137,7 +1137,7 @@ _REVIEW_LOOP_CONSUMERS = (
 _MAIL_TRIAGE_PHASE_A = {
     # mail-triage plan Phase A (T2): every sentence lands once in its RENDERED command
     "fabrik-review-scoped.md": (
-        "the previous reader's REFUTED list verbatim",  # T2.8 — scoped includes no fragment
+        "the previous seat's REFUTED list verbatim",  # T2.8 — scoped includes no fragment
         "Every pass's seats are STAMPED first",  # T2.1 (01M2368XB)
         "Every seat brief names a PIN",  # T2.2 (01M236V84)
         "counted on the DIFF surface",  # T2.3 (01M1VVPJS)
@@ -1145,7 +1145,7 @@ _MAIL_TRIAGE_PHASE_A = {
     "fabrik-review.md": (
         "A class check must LOAD the artefact it grades",  # T2.5 (01M25Q9S0)
         "handed to a `fabrik-researcher` seat, never refuted from memory",  # T2.9 (01M215G84)
-        "a MUTATION-TESTING brief works on a COPY of the surface",  # T2.18 (01M25RZC3)
+        "a MUTATION-TESTING seat works on a COPY of the surface",  # T2.18 (01M25RZC3)
         "`command grep -rn --exclude-dir=.claude",  # T2.21 (01M25H4SR)
     ),
     "fabrik-plan-review.md": (
@@ -1180,10 +1180,11 @@ def test_the_mail_triage_phase_a_sentences_reach_their_rendered_commands_once(tm
     # same rule in other words doubles it in every command that includes both (round 1 of the
     # Phase A review found the REFUTED-list rule twice in five commands)
     # every consumer of EITHER termination fragment carries the REFUTED-list rule once (17 term-edit
-    # + 3 term-coverage consumers at the time of writing; round 2 found three that had lost it)
+    # + 5 term-coverage consumers = 22 at the time of writing, design-review.md among them; round 2
+    # found three that had lost it)
     lost = [
         p.name
-        for p in tmp_path.glob("fabrik-*.md")
+        for p in tmp_path.glob("*.md")  # design-review.md carries no fabrik- prefix
         if "before any seat sees a delta" in p.read_text() or "before any finder sees a delta" in p.read_text()
         if ac._HTML_COMMENT_RE.sub("", p.read_text()).count("REFUTED list verbatim") != 1
     ]
