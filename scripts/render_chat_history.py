@@ -126,9 +126,14 @@ def _candidates(wanted: str, sid: str):
     yield wanted
     safe = _safe_id(sid) or "session"
     suffixes = [safe[:n] for n in (8, 12, 16, 36)] + [f"{safe[:36]}-{n}" for n in range(1, 101)]
-    # a short safe id makes the four slices one rung: never retry an identical name
-    for sfx in dict.fromkeys(suffixes):
-        yield f"{wanted[: 119 - len(sfx)]}-{sfx}"  # the suffix is at most 40 chars
+    # never retry an identical name: a short safe id makes the four slices one rung, and a
+    # 120-char `wanted` ending in its own id8 reconstructs itself as its first rung
+    seen = {wanted}
+    for sfx in suffixes:
+        candidate = f"{wanted[: 119 - len(sfx)]}-{sfx}"  # the suffix is at most 40 chars
+        if candidate not in seen:
+            seen.add(candidate)
+            yield candidate
 
 
 def _is_entry(entry: object) -> bool:

@@ -661,6 +661,8 @@ def test_the_suffix_search_is_bounded_when_the_filesystem_rejects_every_name(
     tried = [n for n in asked if n.startswith("samelabel-")]
     assert len(tried) == 104, len(tried)
     assert tried[0] == "samelabel-bbbb2222.md"
+    assert tried[4] == "samelabel-bbbb2222-0000-0000-0000-000000000000-1.md"  # the counter tail
+    assert tried[5].endswith("-2.md") and tried[-1].endswith("-100.md")  # ascends in order
     # the skipped session rendered before, so it keeps its INDEX row while its file is still there
     index = (out / "INDEX.md").read_text()
     assert "(samelabel.md)" in index and "(bbbb2222.md)" in index
@@ -804,3 +806,26 @@ def test_a_short_safe_id_does_not_retry_identical_rungs_and_reports_the_real_cou
     assert rch.main(["--project", "/opt/demo"]) == 1
     assert len(asked) == len(set(asked)) == 101, len(asked)  # one slice rung + 100 counters
     assert "after 101 candidates" in capsys.readouterr().err
+
+
+def test_a_label_that_reconstructs_itself_as_its_own_first_rung_is_never_retried(
+    box: dict[str, Path], monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write_session(box["projects"], "bbbb2222-0000-0000-0000-000000000000", _demo_records())
+    out = box["out"] / "-opt-demo"
+    out.mkdir(parents=True)
+    label = "X" * 111 + "-bbbb2222"  # 120 chars: trimmed base + id8 suffix == the label itself
+    (out / "names.json").write_text(json.dumps({"bbbb2222": label}))  # only this session climbs
+    real = Path.exists
+    asked: list[str] = []
+
+    def name_too_long(self: Path) -> bool:
+        if self.name.startswith("XXXX"):
+            asked.append(self.name)
+            raise OSError(36, "File name too long")
+        return real(self)
+
+    monkeypatch.setattr(Path, "exists", name_too_long)
+    assert rch.main(["--project", "/opt/demo"]) == 1
+    assert len(asked) == len(set(asked)), "an identical name was retried"
+    assert "after 103 candidates" in capsys.readouterr().err
