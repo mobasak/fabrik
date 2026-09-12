@@ -30,7 +30,7 @@ the Phase 1 outcome and WAIT; an outcome stated but not confirmed is not yet act
 ## Phase 0 — GROUND TRUTH (read-only; no move yet)
 
 1. **Consumer sweep.** Grep every fleet project's `.env`, `.env.example`, `specs/services/*.yaml`, and
-   code for the target's hostname, URL, API base, or import path (`grep -rn` across `/opt/*` excluding
+   code for the target's hostname, URL, API base, or import path (`command grep -rn` across `/opt/*` excluding
    `/opt/archived/`). Enumerate every hit with `path:line` — a project referencing the target is a
    consumer whether or not it currently calls the reference.
 2. **Liveness probe — DNS vs siblings, never registry rows.** Resolve the target's public domain

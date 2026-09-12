@@ -291,3 +291,13 @@ def test_a_range_surface_names_the_range_tip(repo: Path) -> None:
     assert r.returncode == 0, r.stderr
     line = next(ln for ln in out.read_text("utf-8").splitlines() if ln.startswith("**Surface:**"))
     assert "range tip" in line and "git diff HEAD~1..HEAD" in line, line
+
+
+def test_the_residual_grammar_example_sits_under_a_heading_that_says_example(repo: Path) -> None:
+    """T2.15 (01M22VA3X): the quoted row-shape block is an EXAMPLE, never rows — a heading says so,
+    so no reader (human or scan) takes the template's own sample rows for the receipt's residuals."""
+    out = repo / "r-review.md"
+    assert _init(repo, "--out", str(out), "--changed", "app.py").returncode == 0
+    text = out.read_text(encoding="utf-8")
+    assert text.count("### Verdict grammar — an EXAMPLE, never rows") == 1
+    assert text.index("### Verdict grammar") < text.index("| F12 | RECORDED — unexecuted")

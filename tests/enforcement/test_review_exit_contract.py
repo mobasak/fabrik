@@ -307,3 +307,34 @@ def test_both_fragments_carry_the_bounded_hop_the_delta_budget_and_the_round_zer
     assert ccv2.QUIET_PASS.search(row), row
     displaced = row.replace("confirmed: 0, fixed: 0", "fixed: 0, confirmed: 0")
     assert isinstance(crc._pass_counters_ext(displaced), str)  # refused by name, as the text says
+
+
+_MAIL_TRIAGE_FRAGMENT_SENTENCES = {
+    # mail-triage plan Phase A (T2.4, T2.6, T2.8, T2.14, T2.20): the fragments' new rules
+    "commands/_fragments/term-coverage.md": (
+        "under an explicit `timeout` at or above its own measured runtime",  # T2.4 (01M25Y93M)
+        "Scope-growth stop",  # T2.6 (01M2AJG97)
+    ),
+    "commands/_fragments/term-edit.md": (
+        "Scope-growth stop",  # T2.6
+        "the previous seat's REFUTED list verbatim",  # T2.8
+        "verify the check CAN fail",  # T2.14 (01M1SNGE4)
+    ),
+    "commands/_fragments/subagents-core.md": (
+        "the previous seat's REFUTED list verbatim",  # T2.8
+        "pins a commit SHA beside them",  # T2.20 (01M206NBV)
+    ),
+}
+
+
+def test_the_mail_triage_fragment_sentences_are_present_once_at_their_source():
+    """One sentence per mailed rule, in the fragment that every consumer includes; a fragment
+    that drops or doubles it changes every review loop at the next render."""
+    repo = Path(__file__).resolve().parents[2]
+    bad = []
+    for rel, needles in _MAIL_TRIAGE_FRAGMENT_SENTENCES.items():
+        text = (repo / rel).read_text(encoding="utf-8")
+        for needle in needles:
+            if text.count(needle) != 1:
+                bad.append((rel, needle, text.count(needle)))
+    assert not bad, bad

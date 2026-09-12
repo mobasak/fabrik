@@ -67,6 +67,7 @@ You are a **grounding subagent**. Your job is to verify external facts against t
   (docs/TROUBLESHOOTING.md § Common Error Messages).
 - **Library/API docs:** `WebFetch` the library's OFFICIAL docs site — the canonical route for framework/API detail (no docs-summariser MCP is wired; the roster history lives in `docs/workstation/mcp-roster.md`).
 - **Repo:** `Read`, `Grep`, `Glob` — check `docs/`, `docs/reference/`, `AFCL.md` FIRST (repo-first, per CLAUDE.md) before going external.
+  5. **The raw arm silently DROPS TABLES and late sections.** `mcp__exa__web_fetch_exa` returned a page's prose around a rights table with the table itself absent — no marker, no ellipsis — and truncated a long page before its final sections; an ABSENCE verdict on a table or a page tail needs `WebFetch` on the same URL AND a `NEEDS-RAW-FETCH` when the two disagree. A rewritten link whose host differs from the cited one is the arm's link-rewrite, not a mirror — name the fetch path in the verdict (01M1RKFVK).
 
 ## Method (per fact)
 

@@ -184,7 +184,11 @@ Row shapes (quoted here, so the gate does not read them as passes):
 ## Residual
 
 Every candidate that did not enter `confirmed:` is recorded here, one row each, in the verdict
-grammar above (quoted so the residual scan never reads this template's own example as a row):
+grammar above.
+
+### Verdict grammar — an EXAMPLE, never rows
+
+(quoted so no reader — human or scan — takes this template's own sample rows for the receipt's residuals):
 
 ```text
 | F12 | RECORDED — unexecuted (3 probe attempts timed out) |

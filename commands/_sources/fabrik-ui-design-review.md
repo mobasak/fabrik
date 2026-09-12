@@ -41,7 +41,7 @@ checked against its four binding sources, all read THIS session:
   `docs/design-system.md` — the only components/tokens/states a screen may use),
 - the **surface pack** for the contract's `Surface:` — `saas/60-saas-ui.md` (web page inventory) ·
   `mobile-app/80-mobile.md` (RN screen inventory + a11y) · `chrome-ext/70-chrome-ext.md` (MV3 surfaces) ·
-  `desktop-app/72-desktop.md`. Read the pack(s) that match.
+  `desktop-app/72-desktop.md`. Read the pack(s) that match. **Size ceiling: 25,000 tokens (about 1,100 lines) — the Read tool's page cap; a contract above it is read PARTIALLY by every seat, so the review's first finding is the split: history to `docs/ui-design-history.md`, the live contract under the ceiling (01M25G1BN).**
 
 ## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later rounds sized by the fix, D-229)
 

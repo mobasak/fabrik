@@ -21,7 +21,7 @@ python3 scripts/command_run.py start --command fabrik-execute-plan --phases <pla
 ```
 
 `step --phase <N> --title "<the plan's phase title>"` on entering each phase. **The `/fabrik-review` at a
-phase boundary opens its OWN nested record and restores this one when it closes** — so a green phase gate
+phase boundary opens its OWN nested record — the storage parks this run in the record's `stack` and the child's `done` restores it (01M280CV7)** — so a green phase gate
 never reads as "the plan is done" — and every close NAMES its own run, so a retried `done` from the
 nested review can never end the plan by accident (it is refused). Close this run with
 `done --command fabrik-execute-plan --evidence "<the phases + their review verdicts>" --feedback "<what you filed, to whom | none — surfaces exercised>"` only when the
@@ -53,7 +53,7 @@ TASK terminator, and the record is what proves the task is actually over.
 5. Read `AFCL.md` if it exists — known friction points.
 6. Identify all phases, their dependency order, and the Subagent Mandates table (in the design spec).
 7. **Acquire the scope lock (this is what lets several scoped runs share one project, AND what makes a run
-   resumable after a crash / disconnect / quota-hit).** Read the plan's `## File Scope (owned paths)`. Scan
+   resumable after a crash / disconnect / quota-hit).** Before trusting the plan's `Status:` line, MEASURE it: a `Status: EXECUTED` plan whose phase receipts are absent on disk is not executed, and a `CONVERGED` one whose Pass Ledger is missing is not converged (01M2AJG97). Read the plan's `## File Scope (owned paths)`. Scan
    `.fabrik/plan-locks/*.json` for any lock with `status:"active"` whose paths overlap yours, and resolve:
    - **Your OWN plan's lock (same plan-id) left `active` by an interrupted / crashed / quota-killed prior
      run → RESUME is permitted** (check `.fabrik/plan-locks/<plan-id>.json` directly by id, not only via the
@@ -467,7 +467,7 @@ its Touches (contract violation → its diff is rejected at acceptance).
   pre-start finding — do NOT fall back to `bypassPermissions` (unbounded grant) and do NOT
   run the coders' tests yourself (that collapses coder and reviewer — the separation is what
   catches the findings). The failure PRESENTS as "BLOCKED: missing infra"; it is a missing
-  capability grant — check the settings first.
+  capability grant — check the settings first. The probe covers the LANE it dispatches to: the native lane's `permissions.allow` above; a pool lane (when re-enabled) its allowlist carrying the repo's venv paths — a precondition that probes one lane while dispatching to another certifies nothing (01M2803TM, 01M1S923X).
 - **The orchestrator writes NO ticket code**, with exactly ONE exception — trivial ≤1-file/≤50-LOC
   **strictly-mechanical** inline edits (**no-new-logic** defined: no conditional/loop/function-body
   change). Any orchestrator-authored fixup is bound by the same numeric limits, lands **inside the

@@ -265,7 +265,7 @@ project's WSL dev; rewrite it as an inspection-based assert (read the spec `shap
 file). Make the creation/execution of the **FULL** gate `python scripts/final_gate.py --check --json` (Tier 2 —
 mypy + bandit + semgrep, never `--lean`) and `check_convergence.py` the final step. These gates are necessary but
 not sufficient — green proves citations/format, not that the design is sound; the real proof is your verification
-evidence, so cite it.
+evidence, so cite it. A gate the REVIEW itself authors ships only with its positive control recorded beside it: (a) self-identical, (b) ignores what it must ignore, (c) STILL FAILS on a change it must catch, injected and watched red — (a) and (b) alone are satisfied by a check that matches nothing (01M1VDFYH).
 
 ## Phase 3 — The plan must enforce review + subagents + parallelism
 
@@ -318,7 +318,7 @@ or auditing agent — can see it, and any executor other than the full dispatche
 Do not promise "100% accuracy" — iterate to a fixed point, then explicitly enumerate every residual unknown,
 assumption, and out-of-scope risk that remains, separating ones the plan resolved from ones still open.
 **Convergence = the quiet closing round (§ Termination contract defines it: three counters at zero, md5 unchanged).** That round is mandatory and is the ONLY thing that earns
-`Status: CONVERGED`; your say-so or "I fixed what I found" does not. If you cannot reach a quiet round
+`Status: CONVERGED`; your say-so or "I fixed what I found" does not. A class check must LOAD the artefact it grades — a grep for the wording that describes a defect matches the artifact's own correction and is refuted by any rewording; narrowing such a check is not converging (01M25Q9S0). If you cannot reach a quiet round
 because a BLOCKING unknown remains, stop at `Status: DRAFT`, name the blocker, and do NOT mark CONVERGED.
 **The CONVERGED flip is a Status flip — mint its `docs/DECISIONS.md` row, staged with the flipped
 plan and committed together per CLAUDE.md § EXIT (classify at mint; plain row

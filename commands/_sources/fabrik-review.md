@@ -27,7 +27,7 @@ Then, for the whole run: `step --phase <N> --title "<the phase title>"` on enter
 `python3 scripts/command_run.py round --seats <seats dispatched this pass> --findings <this pass's RAW candidate count> --confirmed <the candidates you EXECUTED and reproduced> --classes-swept <the
 Coverage-Checklist classes this pass swept CLEAN> --classes-new <classes this pass opened>`.
 The class ledger persists across rounds: **re-sweep it, never re-scope it** — a pass that invents a
-fresh brief is why a review runs 30 rounds instead of 4. When a round sweeps every known class and
+fresh brief is why a review runs 30 rounds instead of 4. A class check must LOAD the artefact it grades — a grep for the wording that describes a defect matches the artifact's own correction and is refuted by any rewording; narrowing such a check is not converging (01M25Q9S0). When a round sweeps every known class and
 confirms zero (`--confirmed 0`), `command_run.py` prints the TERMINAL verdict; **only then**
 `done --command fabrik-review --evidence "<the round number + its confirmed:0 · fixed:0 and the fresh seat that read it>" --feedback "confusion: <what in the command text misled you | none> · waste: <steps, turns or tokens spent without changing the outcome | none> · change: <the ONE edit to this command or a rule that would have made the run faster | none> · filed: <mail id(s) to infra|fleet|intel | none — surfaces exercised: …>"`. A genuinely stuck
 review exits via `blocked --command fabrik-review --reason "…" --feedback "confusion: <what in the command text misled you | none> · waste: <steps, turns or tokens spent without changing the outcome | none> · change: <the ONE edit to this command or a rule that would have made the run faster | none> · filed: <mail id(s) to infra|fleet|intel | none — surfaces exercised: …>"` on one of the three sanctioned cases —
@@ -128,7 +128,7 @@ and brief the finder against that path. If a finder must read the live tree inst
 review, `git diff HEAD`), say so IN the brief so the finder knows what it is looking at — and tell it
 to EXCLUDE the tree's stale copies: `.claude/worktrees/**` and `.tmp/**` (subagent scratch) hold whole
 duplicate `src/` + `tests/` trees at DIFFERENT line numbers, so an unscoped repo-root grep returns
-anchors that resolve in a worktree and not in HEAD (`grep -rn --exclude-dir=.claude
+anchors that resolve in a worktree and not in HEAD (`command grep -rn --exclude-dir=.claude
 --exclude-dir=.tmp …`; web-ecommerce-factory 01M1QEY5, 2026-09-05: two finders lost a result set to it). This is the
 same class as the `Surface:` anchor rule — both are about the finder actually looking at the thing it
 was told to look at.
@@ -194,7 +194,7 @@ Opus finder covers the secret-bearing hunks with the secret redacted from its br
   `git init` inside a `git archive` pin (a bare pin fails through `_repo_root()`) · every
   `command_run.py` probe sets `COMMAND_RUN_DIR`, `COMMAND_RUN_TRANSCRIPT` and `KAIZEN_EVENTS_DIR` (a
   test without them writes fabricated rounds under the LIVE sid) · every mutation is applied, tested
-  and restored inside ONE Bash call with an ASSERTED restore (a `trap` across calls is unreliable) ·
+  and restored inside ONE Bash call with an ASSERTED restore (a `trap` across calls is unreliable), on a COPY and under an explicit `timeout` at or above the battery's measured runtime (01M25Y93M) · a MUTATION-TESTING brief works on a COPY of the surface, never the tree, and the orchestrator holds its own edits to those files while that seat is live (01M25RZC3) ·
   never bare-grep a tracked path — `git show <sha>:<path>` · Python `time.sleep` in fixture scripts,
   never a foreground shell sleep · a quote verified against a session transcript filters out the
   Stop-hook feedback, the skill-invocation payloads and the re-invocation notice (all arrive as
@@ -295,7 +295,7 @@ carry the full mandates; this is the hunt list:
 Dedup near-duplicates. Then, for each remaining candidate, **CONFIRMED means EXECUTED**: you run a
 probe on a pinned copy, a failing test, or a mutation on a copy that the grader turns red — and for
 a DOC claim, a pinned read of the artifact the doc describes, **quoted beside the sentence**. A
-seat's concrete failure scenario is a claim; your execution is what makes it a defect. **Execute the
+seat's concrete failure scenario is a claim; your execution is what makes it a defect. A PLAUSIBLE whose ground truth is OUTSIDE the repo (a vendor API, a documented status value) is handed to a `fabrik-researcher` seat, never refuted from memory (01M215G84). **Execute the
 REFUTATION too** — a refutation is proof, not a shrug — and cite the command and its output in the
 candidate's disposition row. This execution is what replaced D-191's Opus re-read of every file, so
 it is not optional and never delegated to a finder.
@@ -424,7 +424,7 @@ Log the pass you just finished in the **Pass Ledger** (Reporting: its `found`/`c
 - **Round 1 is the ONLY full partitioned pass. Every round ≥ 2 is a DELTA round.** Its surface is
   computed, not judged: `git diff <the last round's commit>..HEAD -- <the review's surface>`, PLUS one
   hop of callers and callees (the files that reference a symbol the diff changed — `serena`
-  `find_referencing_symbols` where the language server is up, else `grep -rn '<symbol>'` — and the
+  `find_referencing_symbols` where the language server is up, else `command grep -rn '<symbol>'` (the shell `grep` is a gitignore-honouring shim — CLAUDE.md's seventh bounded-search shape) — and the
   tests that import the changed module) (the hop bounds the EXTENT; what a delta round may COUNT is the fragments' bounded-hop rule — `term-edit`/`term-coverage`), PLUS any sibling commit that landed on the original surface
   since the last round. The brief lists that file set. **Same partition rule** — risky hunks to Opus,
   the rest to Sonnet, the grep classes to the hygiene script (run at the round's start and close) —

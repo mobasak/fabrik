@@ -156,3 +156,12 @@ def test_the_stash_recovery_recipe_is_byte_identical_in_both_contracts():
     tpl = recipe(REPO / "templates" / "governance" / "CLAUDE.md")
     assert hub == tpl
     assert "git show 'stash@{0}':<path>" in hub
+
+
+def test_the_mail_triage_agent_sentences_are_present_once():
+    """T2.12: the reviewer reads a materialised tree or a commit with `git -C <repo> show`;
+    T2.19: the researcher names the two exa web_fetch drops (tables, late sections)."""
+    reviewer = (SRC / "fabrik-reviewer.md").read_text(encoding="utf-8")
+    researcher = (SRC / "fabrik-researcher.md").read_text(encoding="utf-8")
+    assert reviewer.count("`git -C <repo> show <sha>:<path>`") == 1
+    assert researcher.count("silently DROPS TABLES") == 1

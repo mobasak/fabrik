@@ -1121,3 +1121,46 @@ def test_every_hop_site_cites_the_bounded_hop_rule():
         if "bounded-hop rule" not in (REPO / rel).read_text(encoding="utf-8")
     ]
     assert not missing, missing
+
+
+_MAIL_TRIAGE_PHASE_A = {
+    # mail-triage plan Phase A (T2): every sentence lands once in its RENDERED command
+    "fabrik-review-scoped.md": (
+        "Every pass's seats are STAMPED first",  # T2.1 (01M2368XB)
+        "Every seat brief names a PIN",  # T2.2 (01M236V84)
+        "counted on the DIFF surface",  # T2.3 (01M1VVPJS)
+    ),
+    "fabrik-review.md": (
+        "A class check must LOAD the artefact it grades",  # T2.5 (01M25Q9S0)
+        "handed to a `fabrik-researcher` seat, never refuted from memory",  # T2.9 (01M215G84)
+        "a MUTATION-TESTING brief works on a COPY of the surface",  # T2.18 (01M25RZC3)
+        "`command grep -rn --exclude-dir=.claude",  # T2.21 (01M25H4SR)
+    ),
+    "fabrik-plan-review.md": (
+        "positive control recorded beside it",  # T2.17 (01M1VDFYH)
+        "A class check must LOAD the artefact it grades",  # T2.5 mirror
+    ),
+    "fabrik-execute-plan.md": (
+        "parks this run in the record's `stack`",  # T2.22 (01M280CV7)
+        "MEASURE it: a `Status: EXECUTED` plan whose phase receipts",  # T2.7 (01M2AJG97)
+        "The probe covers the LANE it dispatches to",  # T2.7 D2 (01M2803TM)
+    ),
+    "fabrik-doc-converge.md": ("project-local `docs/reference/<name>.md`",),  # T2.13 (01M1V443)
+    "fabrik-ui-design.md": ("Size ceiling",),  # T2.11 (01M25G1BN)
+    "fabrik-ui-design-review.md": ("Size ceiling",),  # T2.11 twin
+    "fabrik-decommission.md": ("`command grep -rn` across `/opt/*`",),  # T2.21
+}
+
+
+def test_the_mail_triage_phase_a_sentences_reach_their_rendered_commands_once(tmp_path):
+    """Phase A of docs/development/plans/2026-09-12-plan-2-mail-triage-command-machinery.md:
+    each mailed fix is ONE sentence in its command source; a render that loses or doubles it
+    ships the old behaviour box-wide. Presence is asserted on the RENDERED file, count == 1."""
+    ac.render(tmp_path, tmp_path / "_skills", agents_dest=tmp_path / "_agents")
+    missing = []
+    for name, needles in _MAIL_TRIAGE_PHASE_A.items():
+        live = ac._HTML_COMMENT_RE.sub("", (tmp_path / name).read_text())
+        for needle in needles:
+            if live.count(needle) != 1:
+                missing.append((name, needle, live.count(needle)))
+    assert not missing, missing
