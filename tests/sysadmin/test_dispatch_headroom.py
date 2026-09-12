@@ -1539,7 +1539,9 @@ def test_the_delta_round_floor_invariants_hold_across_the_whole_grid():
         assert r["seats"] <= 1 and r["floor_granted"] <= 1, (u, sl, d, r)
         assert not any(t in joined for t in forbidden), (u, sl, d, r["reasons"])
         if r["seats"] == 0:
-            # the ONE imperative a delta round at 0 carries (round 7: three dead alternatives)
+            # the imperative a delta round at 0 ALWAYS carries ("nothing to partition"/"sum to 0"
+            # need wanted == 0, so they cannot be delta-sized; "dispatch nothing" rides the SAME
+            # line under a quota hold — round 8)
             assert "HARD cap binds" in joined, r["reasons"]
         else:
             assert "HARD cap binds" not in joined, r["reasons"]

@@ -50,5 +50,12 @@
  "baseline_commit": "76c2f15c",
  "baseline_gate": "final_gate.py --lean --check --json at start: status success, 0 red checks, skipped_checks ['static tier'] (captured at 76c2f15c before Phase A)",
  "orchestrator": "the unnamed hub window fabrik-06 (session dd3c06d1), main checkout, Profile: small — every phase coded inline, no coder worktrees",
- "overlap_note": "one other lock reads status:active with overlapping paths at start: 2026-09-09-plan-1-review-convergence-redesign is this window's own plan HELD at Finish on trade-intelligence's reply (mail 01M23G21EBSS4BC187HQ7PS02X) — its remaining Finish steps (dry run, sync --force, spine flip, archive, lock release) touch none of the 18 overlapping code/doc paths; the same reading D-221 recorded for the 2026-09-10 plan; the operator's go-word on 2026-09-11 is the ruling to proceed (D-row minted with Phase A). The 2026-09-05 windowed-cost-sidecar lock overlaps nothing."
+ "overlap_note": "one other lock reads status:active with overlapping paths at start: 2026-09-09-plan-1-review-convergence-redesign is this window's own plan HELD at Finish on trade-intelligence's reply (mail 01M23G21EBSS4BC187HQ7PS02X) — its remaining Finish steps (dry run, sync --force, spine flip, archive, lock release) touch none of the 18 overlapping code/doc paths; the same reading D-221 recorded for the 2026-09-10 plan; the operator's go-word on 2026-09-11 is the ruling to proceed (D-row minted with Phase A). The 2026-09-05 windowed-cost-sidecar lock overlaps nothing.",
+ "phase_a": {
+  "status": "executed",
+  "executed_at": "2026-09-12",
+  "checkpoint": "a64f9b2d",
+  "review": "scoped, 9 rounds across two records (fleet-quota hold between), confirmed 10 8 7 6 5 4 3 1 0, 21 seats",
+  "decision": "D-238"
+ }
 }
