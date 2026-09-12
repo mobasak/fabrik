@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — The mail-triage plan CONVERGED: every hub-inbox message recorded, Phases A–H address the command corpus, the graders, the hooks, the packs and fabrik-mail (2026-09-12)
+
+- `docs/development/plans/2026-09-12-plan-2-mail-triage-command-machinery.md` flipped DRAFT → CONVERGED after ten `/fabrik-plan-review` passes (22 · 17 · 4 · 3 · 2 · 1 · 3 · 2 · 1 · 0 confirmed); four mailed findings refuted at HEAD by execution and replied; the inbox register (219 at the snapshot) with 144 ids in a step row and 75 closed the same day; D-243.
+
 ### Changed — Review-family pass 3, Phase C: the git-verb prohibition in every agent definition, the stash recovery recipe in both contracts, the bounded-hop citation at the fleet-synced sites (2026-09-12)
 
 The four `commands/_agents/*.md` definitions carry the D8 sentence (no git verb that mutates the shared tree; read-only git is an allowlist; every probe on a copy), graded per file; `CLAUDE.md` and `templates/governance/CLAUDE.md` carry the byte-identical stash recovery recipe (`git stash show --name-only`, then `git show 'stash@{0}':<path>` per file, md5-verified, never a pop) inside their § Shared repo bullets, graded by substring equality; `.windsurf/rules/core/62-using-subagents.md` and both fan-out bullets cite the bounded-hop rule and the D-229 delta sizing (one fresh seat plus the hygiene script at or under 20 changed lines; the three-seat floor binds round 1 only) — the seven hop sites graded per file; `core/50-code-review.md`'s scoped trigger is the second consecutive confirming round and its exit is CONFIRMED zero (D-206); `docs/reference/command-run-protocol.md` names the six persisted-report commands (not `fabrik-review-scoped`) and the covered-window route-up; `FINAL_GATE_WORKFLOW.md`'s convergence and coverage rows state the five-counter closing row and the bounded-hop rule; backlog row 61 SHIPPED, six residue rows added. Whole-plan heavy review: receipt `docs/development/reviews/2026-09-11-plan-1-review-family-pass3-review.md`.
