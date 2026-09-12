@@ -76,10 +76,10 @@ Every disposition below was checked against the tree at 091439d4 with `grep`, `h
 
 **Steps.**
 1. T1 — ✅ DONE 2026-09-12 (replies 01M2AT9NNCWZB9TJDXFJN1KBHT, 01M2AT9YGP3ZC24V0S6B276SH4, 01M2ATA99CQDFW1E652KX50G95; all seven acked) — reply + ack the seven fixed/addressed items: 01M21FB59 (D-206), 01M25HTDF (2ec89bb5), 01M1VRMZ6 (acb50492), 01M1Z91JBG (2d5419a8 + spec-review :100), 01M1XJTT (their re-vendor), 01M23D1BF (finding 1 synced 09-12; finding 2 → T4.6), 01M1XKVN8P (D-206/D-212). Six ack-free items already acked on 2026-09-12: 01M1XKEVX, 01M288YHD, 01M1YXTTCX, 01M1YXTTEY, 01M1YXNK4, 01M1RJXN6.
-2. T7.1 — 01M2AJKKV: the `final_gate.py` registration block + the `FINAL_GATE_WORKFLOW.md` bullet for `check_corpus_weight.py` (`warn_only=True`, `--check` threaded); reply with the sha.
-3. T7.2 — 01M28VKD8: the nine kaizen-spec amendment candidates C1–C9, fixed by THIS session (the pen change the breaker demands), reviewed scoped, reply with the sha.
-4. T8 — the seven kaizen daily collections (09-04 … 09-11): reply each with this beat's entries (or `none`), ack.
-5. T9 — 01M20B0CH, 01M1VPA9C, 01M1VQZJ8 (3): backlog rows (harness-side), acks; 01M1VQZJ8 (3) routed to fleet (hooks).
+2. T7.1 — ✅ DONE 2026-09-12 (a63bda73, reviewed to confirmed 0 through 418f86b0 · 4662aad1 · b43d679f · bd69e10e · 205bdd29 · 6049a968 · 052c32d8 · 0a1fe8bc — nine passes, receipt `docs/development/reviews/2026-09-12-mail-triage-t7-review.md`; the six-surface bullet per D-241) — 01M2AJKKV: the `final_gate.py` registration block + the `FINAL_GATE_WORKFLOW.md` bullet for `check_corpus_weight.py` (`warn_only=True`, `--check` threaded); reply with the sha.
+3. T7.2 — ✅ DONE 2026-09-12 (a63bda73 + 418f86b0 + 4662aad1; the same heavy review) — 01M28VKD8: the nine kaizen-spec amendment candidates C1–C9, fixed by THIS session (the pen change the breaker demands), reviewed scoped, reply with the sha.
+4. T8 — ✅ DONE 2026-09-12 (eight replies, eight acks — the metrics carry no ask) — the kaizen daily collections (09-04 … 09-11): reply each with this beat's entries (or `none`), ack.
+5. T9 — ✅ DONE 2026-09-12 (one backlog row; 01M20B0CH and 01M1VPA9C acked; 01M1VQZJ8 stays open for T2.12/T4.11/T4.12) — 01M20B0CH, 01M1VPA9C, 01M1VQZJ8 (3): backlog rows (harness-side), acks; 01M1VQZJ8 (3) routed to fleet (hooks).
 
 **Behavior Contract.**
 - **Given** the 62 ids, **When** `mail.py list` runs at Finish, **Then** none of them is in the inbox.
