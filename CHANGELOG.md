@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Mail-triage plan Phase A: twenty-two mailed command-text fixes land in their sections, graded on the rendered corpus (2026-09-12)
+
+- The scoped review stamps seats first, pins every brief, counts the >5-files trigger on the diff surface and carries the previous seat's REFUTED list; fabrik-review loads the artifact a class check grades, hands an out-of-repo PLAUSIBLE to a researcher seat, runs a mutation battery on a copy under a timeout and reads `command grep`; plan-review demands a positive control for a gate the review authors; execute-plan's run-record sentence matches the storage, a resume measures Status against receipts, D2's precondition probes the lane it dispatches to; both termination fragments carry the scope-growth stop and the REFUTED-list rule, term-edit the CLEAN-can-fail rule, subagents-core the line-numbers-pin-a-SHA rule; doc-converge gains the project-local reference-doc row; both ui-design commands the 25k-token size ceiling; the reviewer agent reads a materialised tree with `git -C`, the researcher names exa's table and tail drops; the receipt template's grammar example sits under a heading that says so. Heavy review 5 · 2 · 2 · 0; b9981f45…219ebe6a.
+
 ### Changed — The mail-triage plan CONVERGED: every hub-inbox message recorded, Phases A–H address the command corpus, the graders, the hooks, the packs and fabrik-mail (2026-09-12)
 
 - `docs/development/plans/2026-09-12-plan-2-mail-triage-command-machinery.md` flipped DRAFT → CONVERGED after ten `/fabrik-plan-review` passes (22 · 17 · 4 · 3 · 2 · 1 · 3 · 2 · 1 · 0 confirmed); four mailed findings refuted at HEAD by execution and replied; the inbox register (219 at the snapshot) with 144 ids in a step row and 75 closed the same day; D-243.
