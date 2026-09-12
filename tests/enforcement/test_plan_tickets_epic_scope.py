@@ -149,6 +149,11 @@ def _build(
     """Writes a two-ticket plan set (+ the epic its spine names); returns the plan dir."""
     plan_dir = root / "docs" / "development" / "plans" / DIRNAME
     plan_dir.mkdir(parents=True)
+    # T4.8 (01M21804): a Gate over a file that exists nowhere and sits in no Touches is refused,
+    # so the fixture's `tests/test_<title>.py` gate targets exist under the project root
+    (root / "tests").mkdir(exist_ok=True)
+    for _title in ("schema", "integration"):
+        (root / "tests" / f"test_{_title}.py").write_text("", encoding="utf-8")
     t01_paths, t99_paths = _as_list(t01_touch), _as_list(integration_touch)
     rows = [(first_tid, "schema", t01_paths[0]), ("T99", "integration", t99_paths[0])]
     if scope is None:

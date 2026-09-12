@@ -57,8 +57,9 @@ MATRIX: list[tuple[str, str, str, str]] = [
     (
         "check_convergence.py",
         "--project-root <scratch> — targets from _converged_targets(root)",
-        "scratch GIT root; the flipped spine TRACKED-AND-UNCOMMITTED (`git add -N`); a "
-        "committed-clean or untracked copy is NOT examined",
+        "scratch GIT root; the flipped spine UNTRACKED or TRACKED-AND-UNCOMMITTED (`git add -N`) — "
+        "both examined since T4.1 (01M1RFN3: a plan written and committed in one motion was never "
+        "graded); a committed-clean copy is NOT examined",
         "the spine path is in _converged_targets(root)",
     ),
     (
@@ -283,8 +284,9 @@ def test_the_pinned_artifact_is_in_the_gates_examined_set(gate: str, tmp_path: P
         d = _plant_set(tmp_path, PLAN_STEM)
         spine = d / f"{PLAN_STEM}.md"
         rel = str(spine.relative_to(tmp_path))
-        # untracked → NOT examined (a `??` in-flight draft is checked at staging)
-        assert cc._converged_targets(tmp_path) == []
+        # untracked → examined (T4.1, 01M1RFN3: a `??` draft flipped and committed in one motion
+        # reached HEAD ungraded while the skip stood)
+        assert [p.resolve() for p in cc._converged_targets(tmp_path)] == [spine.resolve()]
         # tracked-and-uncommitted → examined
         _git(tmp_path, "add", "-N", "--", rel)
         assert [p.resolve() for p in cc._converged_targets(tmp_path)] == [spine.resolve()]
