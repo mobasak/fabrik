@@ -161,6 +161,63 @@ Every disposition below was checked against the tree at 091439d4 with `grep`, `h
 
 **Behavior Contract.** **Given** the five pack edits, **When** the synced corpus is grepped, **Then** each phrase is present once at its pack and the fleet sync carries it (dry-run then force at Finish).
 
+## Phase E — the gate, the enforcement checks, the sync (T12) — validated 2026-09-12 against the tree at 0a1fe8bc
+
+| Step | Mail(s) | Verdict (executed probe) | Fix |
+|---|---|---|---|
+| T12.1 | 01M1RE497, 01M1VB1NF, 01M28N2CB | OPEN — `check_lint_ratchet.py:53` counts via `sys.executable -m ruff`, `:137` reads the version from bare `ruff`; a version change re-seeds silently and the gate stages the baseline on a docs-only run | version from `sys.executable`; a version change FAILS once and asks for an explicit re-seed; grade against the COMMITTED baseline; the failure text names the offending path and whether it is inside the caller's diff |
+| T12.2 | 01M20HW4E | OPEN — `final_gate.py:422` passes `--config-file=pyproject.toml` unconditionally; a mypy usage exit 2 folds into the pass count; `--json` emits an empty `checks` array | pass the flag only when the file exists; exit 2 is a FAILURE; emit the per-check roster |
+| T12.3 | 01M20KVDT, 01M2606BZ (2) | OPEN — `:211` `re.search(r"(\d+) skipped")` takes the FIRST match (pytest's collection banner); `deselected` never counted; the semgrep leg keeps the row name on not-installed/unauth/timeout so `_SKIP_MARKERS` miss it | read the summary line (last match); count deselected; rename the semgrep row with the skip marker on every not-run path |
+| T12.4 | 01M2606BZ (1) | OPEN — `:1022` runs pytest with `-x`; a truncated run is a green over unreached tests | drop `-x` or add `not_reached` to the JSON |
+| T12.5 | 01M28MG90 | OPEN — bandit roots `-r src/` (`:926`) while ruff roots include `scripts/` (`:2299`) | bandit over `scripts/` too; the three `# noqa: S324` sites become `usedforsecurity=False` |
+| T12.6 | 01M28NB2R | OPEN — `--check` never runs `ruff format --check`; `.pre-commit-config.yaml` has no ruff hook | a read-only `ruff format --check` leg over the diff under `--check` |
+| T12.7 | 01M22XDJ7, 01M1RE497 | OPEN — `get_changed_files()` (`:2192`) feeds the fixers a sibling's unstaged TRACKED modifications | fixers scoped to the staged set + `base..HEAD`; a sibling's unstaged tracked files read-only; `--fix-all` opt-in |
+| T12.8 | 01M23CRZZ | OPEN — five measured drifts between `docs/workflows/FINAL_GATE_WORKFLOW.md` and the registry | render the per-check reference from the `run_optional_check` registrations, or a heading↔registration assertion in `check_docs` |
+| T12.9 | 01M1S2MYZ, 01M1Z0PEB | OPEN — `docs_updater.py` has no scaffold-template exclusion (grep 0; `check_doc_links.py:113` has it); `--adopt --dry-run` writes and stages (7 `dry_run` reads, none guarding the writes) | port the predicate; every write and every `git add` behind `not dry_run`; never `git add` (opt-in `--stage`); ownership derived, never cycled |
+| T12.10 | 01M1VPEGG | OPEN — `check_index_md.py` asserts headings, never file↔row (no `diff-filter`/`name-only`, grep 0) | a staged-scope added-path check over scripts/ tests/ .claude/hooks/ .fabrik/, WARN first with the fire rate measured |
+| T12.11 | 01M1VHCH1 | OPEN — `_doc_registry.ALL_TYPES` lacks `office-extension` (13 vs 12); `tests/test_doc_registry.py` is red and nothing runs it | add the type + its PROJECT_DOCS rows; run tests/enforcement + test_doc_registry as the hub's own slice at every gate |
+| T12.12 | 01M295S5G, 01M1T1134 | OPEN — `docs/DECISIONS.md:3` says append-at-top, ten rows sit at the tail; `check_decisions_unique.py` is a line regex that blessed an unrenderable table | header → append at the bottom; a structural assert: every `\| D-` row BELOW the delimiter |
+| T12.13 | 01M1RKEZ3 | RECORDED — `check_stage_artifacts.py` grades new transitions only (its own :36-37); the landed-skip blind spot is the same class as T4.2's committed EXECUTED claims | T4.2 carries it (the `_committed_nonquiet` shape) |
+| T12.14 | 01M1SNNTS, 01M1V2P02 | OPEN — `check_script_headers.py:11-14` inspects STAGED scripts only: empty PASS before `git add`, and a staged DATA/doc file named in a header never fires | symmetrise: if ANY file named in a header is staged, inspect the header; the pre-stage run reads the working tree diff |
+| T12.15 | 01M25EG0N | OPEN — `check_review_coverage.py` reports one problem per artifact (`break` at :244/:1485) | report every failing condition, or the count |
+| T12.16 | 01M206NBV (1) | MOVED — `scripts/repo_lock.py` is not in this tree (fabrik-lib's vendored copy); the "clear" ordering is theirs | reply: the lock check lives in fabrik-lib; the brief-SHA rule → T2.21 |
+| T12.17 | 01M1Y86PQ | OPEN — `sync_enforcement_to_projects.py` copies the WORKING TREE (`shutil.copy2` ~:1557/:1664); 48 copies carried an uncommitted edit on 2026-09-07 | copy tracked synced files from the HEAD blob; working tree only for untracked; grader on a tmp project |
+| T12.18 | 01M1YSBXG, 01M205HN4, 01M205A16 | DONE — `VENDORED_DIRS` no longer lists `libs/subagents` (RETIRED_VENDORED_DIRS, D-198); the hub copy stays until the 17 importers migrate (D-210) | reply + ack (three) |
+| T12.19 | 01M21TGTR, 01M25GEXP, 01M28K3N8 | OPEN — `rivals_run.py:1142-1144` still imports `load_env` from the retired module (fail-open note names the exception, not the missing keys); `doc_reconcile.py:43-48` guards `pick_models`/`run_agents` to None | vendor the standalone `load_env` (SUBAGENTS_ENV_FILE rule) into rivals_run; the note enumerates the absent expected keys; doc_reconcile's fan-out leg → native seats or removed |
+| T12.20 | 01M25EGFY, 01M25H4SR | DONE — the grep-shim rule is the bounded-search HARD STOP's seventh shape in both CLAUDE.md files (D-214/D-216, synced fleet-wide); the corpus audit for bare-root grep verification steps → T2.22 | reply + ack |
+| T12.21 | 01M22KN7 | OPEN — the orphaned `check_command_corpus.py` comment edit is still ` M` (T4.13); the plan-close dirty-scope check is a measured backlog row | T4.13 |
+| T12.22 | 01M1YQVEF | OPEN — `epic_order.py:12` and docs/CAPABILITIES.md cite `EPIC-ARTIFACT-SCHEMA.md`, which resolves only under `docs/orchestrator/_retired/`; the flat-parser `_LIST_KEYS` constraint undocumented | repoint the cite; document the constraint; the state contract adoption → backlog row |
+| T12.23 | 01M23JK2R | OPEN — `scratch_sweep.py --worktrees` calls a worktree dirty ONLY with manifest-owned materialised files (`.worktreeinclude`, synced scripts) `wt-dirty`; the younger-than hint names the flag just passed | the dirty check ignores paths the synced manifest owns; the hint says "younger than the threshold" |
+
+## Phase F — hooks, the hold, the mesh (T13)
+
+| Step | Mail(s) | Verdict | Fix |
+|---|---|---|---|
+| T13.1 | 01M1S2B0S, 01M1S2DQM, 01M1S2P9D, 01M1SN267, 01M1WD26H | FIXED — `git commit` is admitted under the hold since 20c3b557 (`_GIT_VERB_FLAGS["commit"]` = a POSITIVE flag set, `--file` included); trailers under the hold FIXED per 01M1YR362; this session committed and pushed under the 2026-09-12 hold | reply + ack; the held-subagent parent signal (01M1S2B0S) → T9 backlog row |
+| T13.2 | 01M1S6CWX, 01M1VN1D7, 01M1XJ3XT | OPEN — the flock dir `/tmp/claude-sound-locks-$(id -u)` (selfwatch.sh:18) is reapable so duplicate arms pass; watchers have no "my pane is gone" exit; the mesh harness was red at A0a on 2026-09-07 (one run) | lock under a non-reaped dir (`~/.claude/state/`); a transcript-age ceiling backstop; run `claude-mesh-test.sh` once and record the baseline before touching either |
+| T13.3 | 01M1VRVWS, 01M1VVNWY, 01M1VWJWX, 01M1W6SS5, 01M1YB2AK, 01M21JAET, 01M28YN1F, 01M25Y93RB | OPEN — the sixth cause (T5.1–T5.3); plus `_this_sessions_edits` (:716) not holding on a 5.7-day resumed transcript and the block naming no file | T5.1–T5.3 + T5.4: the floor mandatory with a bounded fallback; the block NAMES three files |
+| T13.4 | 01M20E1QN | OPEN — the UNPUSHED cause measures `origin/main..HEAD` and says "push YOUR work" — on a shared tree it orders a sibling's commit published | T5.5: fire only on commits this session authored (the record's session id, the Agent-Context trailer) |
+| T13.5 | 01M23HB2M, 01M23K7XT | OPEN — `mail_notify.py` and `mcp_watch.py` carry no headless guard (grep FABRIK_HEADLESS → 0); `rivals_run.py:_make_llm` spawns a full-turn `claude -p` | the dispatcher sets `FABRIK_HEADLESS=1`; the two advisory hooks stand down on it; rivals' spawn routed through llm-dispatch with the bounded flags (intel's rivals beat informed) |
+| T13.6 | 01M1S5DGF | RECORDED — `isolation: "worktree"` cuts from origin/main (harness) | T9 backlog row |
+| T13.7 | 01M280CV7 | FIXED since — records nest (`command_run.py` parks the parent in `stack`; the T5.1 finding cites :1503) | reply + ack |
+
+## Phase G — fabrik-mail and the trailer text (T14)
+
+| Step | Mail(s) | Verdict | Fix |
+|---|---|---|---|
+| T14.1 | 01M1T129A, 01M1Y0JS1 | OPEN — the D-035 structure advisory (`mail.py:631/:677`) runs after `_publish` (:323); its text lists absent keys, never the rule (`KEY:` or `KEY —`) | check before publish, same advisory; the text states the rule |
+| T14.2 | 01M22M5E1 | OPEN — `send` takes the body on STDIN; `--body`/`--subject` exit 2 on stderr and `\| tail` hides it | the argparse error also on STDOUT naming the delivered-path contract; accept `--body-file` |
+| T14.3 | 01M25EJZG | OPEN — a third trailer trap (an unindented wrapped value discards the whole block) is in neither CLAUDE.md; `mail.py`'s secret matcher refuses the prescribed check | T6.4 (both contracts: the third trap, a long single-line example, `interpret-trailers --parse` as the verify) + the matcher's allow for the check's own text |
+| T14.4 | 01M1RGM1H, 01M1RKG3X | ROUTED fleet — the scaffold's glitchtip_init vendoring and its guards are the scaffolder beat | `mail.py route` to fleet |
+
+## Phase H — the rest of the register (T15): routed, moot, or informational
+
+- Governance text (T6): 01M1RGRVT, 01M1RHJEY, 01M1VS3JP, 01M1VX78Y, 01M1WAKBW, 01M25EWCT, 01M20K2YJ → T6.2 (the private-index recipe with the hunk-level guard AT HASHING TIME; an absorbed hunk's author is READ from the artifact, never inferred); 01M20DXPT → T6.3. Acked when T6 lands.
+- MOOT by retirement (D-132 fabrik-lib, D-181/D-182, D-198/D-210): 01M1RRR6D, 01M1RT02K, 01M1RT46K, 01M1SMZ1R, 01M1SAEB1, 01M1SD2JS, 01M1SA7SW, 01M1S923X (the subagents re-vendor thread), 01M1YPZYF (the hub keeps its copy until the 17 importers migrate — D-210) → ack wontfix naming the ruling.
+- Routed to fleet (consumer distribution, scaffolding, ops): 01M1RSFQ6 (iyzico replay — the vendored-payments consumer list), 01M1S2MNG, 01M1SAAZA (account/ contract changes), 01M1V59MK (fabrik-lib lacks the 4 adoption artifacts), 01M20H4H0, 01M20YBDF (the shared Postgres roles), 01M1RPD62 (the Pages trigger fired — a scaffold rule), 01M1V15GR, 01M1V1EJP (ownership reconcile check — backlog, measure), 01M265PFR, 01M28G6KC, 01M28JW2Y, 01M28KVFX (site-provisioner contract — relayed to site-provisioner).
+- Command text additions found in this pass: T2.17 fabrik-plan-review Phase 2: a gate the REVIEW authors ships with its positive control (01M1VDFYH); T2.18 fabrik-review: a mutation-testing brief gets a COPY, and the orchestrator holds its edits while a mutating seat is live (01M25RZC3); T2.19 fabrik-researcher.md fetch-path routing: exa web_fetch drops tables/late sections, the link-rewrite signature (01M1RKFVK); T2.20 subagents-core: a brief naming line numbers pins a commit SHA (01M206NBV (2)); T2.21 the corpus audit for bare-root `grep` verification steps (01M25H4SR (2)); T2.22 fabrik-execute-plan § Run record: the nesting sentence matches the storage (01M280CV7).
+- Informational, acked: the four URGENT quota advisories (01M297ZNA, 01M2AB4Z2, 01M2AQXM2, 01M2B0DSM), the feedback relay 01M208XBX (its two verdicts are D-206 and the spec-review fold class, both landed), fleet's notice 01M25E4SR, 01M1Y3G4G (relayed to wef2).
+
 ## Finish
 
 Whole-plan `/fabrik-review` (receipt `docs/development/reviews/2026-09-12-plan-2-mail-triage-command-machinery-review.md`), the D9-shaped docs review, `sync_enforcement_to_projects.py --dry-run` then `--force`, the gate, `Status: EXECUTED`, archive, D-row, push.
