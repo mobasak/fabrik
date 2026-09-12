@@ -22,6 +22,7 @@ import ast
 import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -58,6 +59,24 @@ def _settings_hooks(path: Path) -> list[str]:
     return names
 
 
+def _tracked_hooks(root: Path) -> list[str]:
+    """T4.11 (01M1VQZJ8): the required set was DERIVED from the registrations found, so deleting a
+    registration shrank the requirement and the gate stayed green. A hook file TRACKED under
+    .claude/hooks/ owes its index row regardless of what settings.json says today."""
+    try:
+        out = subprocess.run(
+            ["git", "ls-files", "--", ".claude/hooks"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        ).stdout
+    except Exception:
+        return []
+    return [Path(p).name for p in out.split() if p.endswith((".py", ".sh", ".js"))]
+
+
 def _precommit_ids(root: Path) -> list[str]:
     p = root / ".pre-commit-config.yaml"
     if not p.is_file():
@@ -84,6 +103,7 @@ def main() -> int:
     index = idx_path.read_text(encoding="utf-8", errors="replace")
 
     required: set[str] = set(_manifest_hooks(root))
+    required |= set(_tracked_hooks(root))
     required |= set(_settings_hooks(root / ".claude/settings.json"))
     # User-level hooks: best-effort (HOME may be absent in CI) — never a crash.
     home = os.environ.get("HOME")

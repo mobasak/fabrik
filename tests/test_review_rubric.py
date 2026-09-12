@@ -146,3 +146,19 @@ def test_mega_is_the_only_workflow_checklist():
     rr = _load()
     assert sorted(rr.CHECKLISTS) == ["mega"]
     assert rr.CHECKLISTS["mega"].parts[:2] == ("docs", "orchestrator")
+
+
+def test_the_floor_is_surface_aware_for_hub_tooling(tmp_path):
+    """T4.12 (01M1VQZJ8): the ~70 KB service floor (auth, postgres, ops) was injected into every
+    finder brief, including partitions whose files are the hub's own hooks and scripts; a
+    tooling-only surface gets the tooling floor instead, a service surface keeps the full one."""
+    _mk_tree(tmp_path)
+    _mk_pack(tmp_path, "core/10-python.md", ["**/*.py"], ["- Never a bare asyncio.create_task()."])
+    rr = _load()
+    tooling = rr.build_rubric(
+        [".claude/hooks/x.py", "scripts/enforcement/y.py"], workflow=None, root=tmp_path
+    )
+    assert "core/35-security-auth.md" not in tooling and "core/10-python.md" in tooling
+    assert "TOOLING" in tooling
+    service = rr.build_rubric(["src/thing.zzz"], workflow=None, root=tmp_path)
+    assert "core/35-security-auth.md" in service

@@ -422,6 +422,7 @@ def test_the_json_mode_emits_the_same_hits_as_a_list(tmp_path):
                 "path": str(doc),
                 "line": 1,
                 "what": "unrendered template residue `{{X}}`",
+                "occurrences": 1,
             }
         ],
         "files": 1,
@@ -601,7 +602,9 @@ def test_every_repeatable_flag_says_so_in_its_help() -> None:
     ).stdout
     assert out.count("(repeatable)") == 4, out
     for flag in ("--surface", "--receipt", "--phrase", "--symbol"):
-        i = out.index(flag)
+        i = out.index(
+            f"  {flag} "
+        )  # the options block, not the usage synopsis (two flags longer since T4.7)
         assert "(repeatable)" in out[i : i + 400], (flag, out[i : i + 400])
 
 
@@ -973,3 +976,51 @@ def test_claim_hits_carry_the_claim_class_in_json_and_beside_a_phrase(tmp_path):
     assert r.returncode == 0, r.stdout + r.stderr
     kinds = [ln.split()[1] for ln in r.stdout.splitlines() if ln.startswith("[ADVISORY] ")]
     assert kinds == ["stale-phrase", "claim"], r.stdout
+
+
+def test_hits_are_deduped_per_line_with_an_occurrences_field_and_a_stop_heading_and_a_label(
+    tmp_path,
+):
+    """T4.7 (01M2AC95X, 01M285X4H): a phrase repeated on one line yielded one hit per occurrence
+    (15 raw vs 13 unique every round); a surface carrying its own Pass Ledger reported every
+    phrase the ledger retired; and the path echoed was the scratch copy, not the artifact."""
+    s = tmp_path / "spec.pin.md"
+    s.write_text(
+        "# S\n\nnever issued, never issued, never issued\n\n## Pass Ledger\n\n"
+        "| Pass 1 | retired 'never issued' |\n",
+        encoding="utf-8",
+    )
+    sweep = crh.scan(surfaces=[s], phrases=["never issued"])
+    stale = [h for h in sweep.hits if h.cls == "stale-phrase"]
+    assert [h.line for h in stale] == [3, 7], [(h.line, h.what) for h in stale]
+    assert stale[0].occurrences == 3 and stale[0].as_dict()["occurrences"] == 3
+    sweep = crh.scan(surfaces=[s], phrases=["never issued"], stop_at_heading="## Pass Ledger")
+    assert [h.line for h in sweep.hits if h.cls == "stale-phrase"] == [3]
+    r = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--surface",
+            str(s),
+            "--phrase",
+            "never issued",
+            "--stop-at-heading",
+            "## Pass Ledger",
+            "--label",
+            "docs/superpowers/specs/spec.md",
+            "--json",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        cwd=REPO,
+    )
+    payload = json.loads(r.stdout)
+    assert [h["path"] for h in payload["hits"]] == ["docs/superpowers/specs/spec.md"], payload
+    assert payload["hits"][0]["occurrences"] == 3
+
+
+def test_the_docstring_names_the_md_only_classes():
+    """T4.7 (01M285X4H): three of four classes run only on `.md` surfaces — the pin recipe copies
+    to any name, so the docstring says which classes a non-.md surface silently loses."""
+    assert "SURFACE_SUFFIXES" in crh.__doc__ or "only on `.md`" in crh.__doc__, crh.__doc__[:400]

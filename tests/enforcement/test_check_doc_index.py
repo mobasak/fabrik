@@ -765,3 +765,24 @@ def test_a_newline_in_a_filename_cannot_split_a_finding(tmp_path):
     out = _git_repo_with(tmp_path, [b"a\nb.md"]).stdout
     assert len(out.rstrip("\n").splitlines()) == 1, repr(out)
     assert "docs/a\\x0ab.md" in out, out
+
+
+def test_untracked_only_reports_the_creating_runs_docs_and_nothing_else(tmp_path, monkeypatch):
+    """T4.6 (01M23D1BF): the untracked-doc rule billed an arbitrary LATER run at its completion
+    gate; `--untracked-only` is the cheap lean-tier mode that reports only untracked live docs, so
+    the authoring run sees its debt while the file is still in hand."""
+    r = subprocess.run(
+        [
+            sys.executable,
+            str(REPO / "scripts/enforcement/check_doc_index.py"),
+            "--untracked-only",
+            "--json",
+        ],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    payload = json.loads(r.stdout)
+    assert payload.get("mode") == "untracked-only", payload
+    assert all("untracked" in d for d in payload["drift"]), payload

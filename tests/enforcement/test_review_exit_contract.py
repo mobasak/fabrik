@@ -320,6 +320,7 @@ _MAIL_TRIAGE_FRAGMENT_SENTENCES = {
         "Scope-growth stop",  # T2.6
         "the previous seat's REFUTED list verbatim",  # T2.8 — in BOTH termination fragments
         "verify the check CAN fail",  # T2.14 (01M1SNGE4)
+        "taken BEFORE the ledger row is written",  # T4.14 (01M1RFN3)
     ),
     "commands/_fragments/subagents-core.md": (
         "pins a commit SHA beside them",  # T2.20 (01M206NBV)

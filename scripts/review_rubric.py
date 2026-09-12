@@ -69,6 +69,26 @@ FLOOR_PACKS = (
     "core/25-data-postgres.md",
     "core/30-ops.md",
 )
+# T4.12 (01M1VQZJ8): the service floor (~70 KB of auth/postgres/ops) is surface-blind by design,
+# right for a service and wrong for the hub's own tooling — a partition whose every file is a hook,
+# an enforcement script, a command source or a pack gets the TOOLING floor instead
+TOOLING_PREFIXES = (
+    ".claude/hooks/",
+    "scripts/",
+    "commands/",
+    ".windsurf/",
+    "templates/governance/",
+    "tests/",
+)
+FLOOR_PACKS_TOOLING = ("core/10-python.md",)
+
+
+def _floor_for(changed: list[str]) -> tuple[tuple[str, ...], str]:
+    paths = [p.strip().removeprefix("./") for p in changed if p.strip()]
+    if paths and all(p.startswith(TOOLING_PREFIXES) for p in paths):
+        return FLOOR_PACKS_TOOLING, "TOOLING"
+    return FLOOR_PACKS, "SERVICE"
+
 
 # Fixed 12-Factor axis list (always injected with the floor). The matched packs carry the
 # full per-domain mandates; this is the axis map a finder hunts against even when no pack
@@ -238,8 +258,9 @@ def build_rubric(changed: list[str], workflow: str | None, root: Path) -> str:
     promote: list[str] = []
 
     emitted: set[str] = set()
-    out.append("\n## FLOOR — always injected, regardless of glob (spec L3)")
-    for rel in FLOOR_PACKS:
+    floor, kind = _floor_for(changed)
+    out.append(f"\n## FLOOR — always injected, regardless of glob (spec L3; {kind} surface)")
+    for rel in floor:
         out.append(f"\n### {rel}")
         if rel in by_rel:
             lines = _mandate_lines(by_rel[rel][1])

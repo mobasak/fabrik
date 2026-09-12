@@ -1637,6 +1637,17 @@ def run_consistency_checks(
 
     # Tier 1 stops here
     if tier == 1:
+        # T4.6 (01M23D1BF): the untracked-doc half of the INDEX check runs in the LEAN tier as a
+        # warn_only row, so the run that created a doc hears about its row while it still holds
+        # the file — the full check stays a tier-2 blocker
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_doc_index.py",
+                "INDEX.md ↔ new docs (untracked, this run)",
+                "--untracked-only",
+                warn_only=True,
+            )
+        )
         return results
 
     # ── Tier 2: Essential subset ──

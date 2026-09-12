@@ -522,9 +522,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.plan_dir:
         target = args.plan_dir.resolve()
         if not target.is_dir() or not PLAN_DIR_NAME_RE.match(target.name):
-            # Fail SOFT even here: a bad path is never worth reding a gate.
-            print(f"NOTE: ticket_breadth: {args.plan_dir} is not a dated plan-set directory")
-            return 0
+            # T4.9 (01M25Q9S0): an explicit --plan-dir that is not a dated plan-set directory is a
+            # REFUSAL (rc 2), never a green — the gate's no-argument path stays soft
+            print(f"REFUSED: ticket_breadth: {args.plan_dir} is not a dated plan-set directory")
+            return 2
         dirs = [target]
     elif args.all:
         dirs = all_plan_dirs(root)

@@ -326,3 +326,29 @@ def test_a_refused_suite_is_deliberately_not_summarized_because_it_is_already_re
     rows = [("pytest (SUITE REFUSED — usage error)", False, "exit 4")]
     assert fg._summarize_skipped(rows) == {"skipped": 0, "skipped_checks": []}
     assert not any(m in "pytest (SUITE REFUSED — usage error)" for m in fg._SKIP_MARKERS)
+
+
+def test_the_lean_tier_carries_the_untracked_doc_row():
+    """T4.6 (01M23D1BF): `check_doc_index.py --untracked-only` is registered under tier 1 as a
+    warn_only row, so `--lean` tells the authoring run about its own untracked doc."""
+    import ast
+    from pathlib import Path
+
+    src = (Path(__file__).resolve().parents[1] / "scripts" / "final_gate.py").read_text(
+        encoding="utf-8"
+    )
+    tree = ast.parse(src)
+    hits = [
+        n
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Call)
+        and getattr(n.func, "id", "") == "run_optional_check"
+        and n.args
+        and isinstance(n.args[0], ast.Constant)
+        and n.args[0].value == "scripts/enforcement/check_doc_index.py"
+        and any(isinstance(a, ast.Constant) and a.value == "--untracked-only" for a in n.args)
+    ]
+    assert len(hits) == 1, len(hits)
+    assert any(
+        k.arg == "warn_only" and getattr(k.value, "value", None) is True for k in hits[0].keywords
+    )

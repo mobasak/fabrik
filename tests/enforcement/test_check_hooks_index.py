@@ -123,3 +123,18 @@ def test_real_hub_index_is_current() -> None:
     # The live check against the live repo — the actual freshness guarantee.
     rc, out = _run(FABRIK)
     assert rc == 0, out
+
+
+def test_a_tracked_hook_stays_required_when_its_registration_is_deleted(tmp_path: Path) -> None:
+    """T4.11 (01M1VQZJ8): the required set was DERIVED from the registrations it found, so deleting
+    a registration shrank the requirement; a hook file tracked under .claude/hooks/ is required
+    regardless of what settings.json says today."""
+    idx = "# Hooks Index\nfinal_gate_stop.py skill_router.py session_orient.py settings.json hooks.json\nStop SessionStart\n"
+    root = _seed_hub(tmp_path, index=idx)
+    hooks = root / ".claude/hooks"
+    hooks.mkdir(parents=True, exist_ok=True)
+    (hooks / "orphan_guard.py").write_text("# a hook nothing registers today\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    subprocess.run(["git", "add", ".claude/hooks/orphan_guard.py"], cwd=root, check=True)
+    rc, out = _run(root, home=tmp_path)
+    assert rc == 1 and "orphan_guard.py" in out, out

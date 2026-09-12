@@ -217,6 +217,10 @@ def main() -> int:
         with contextlib.suppress(Exception):
             sys.stdout.reconfigure(errors="backslashreplace")
     as_json = "--json" in sys.argv
+    # T4.6 (01M23D1BF): the lean-tier mode — only the UNTRACKED live docs, so the run that
+    # creates a doc sees its own INDEX debt while the file is still in hand, instead of an
+    # arbitrary later run paying for it at its completion gate
+    untracked_only = "--untracked-only" in sys.argv
     index_path = REPO / "INDEX.md"
 
     def _fail(message: str) -> int:
@@ -361,6 +365,8 @@ def main() -> int:
     untracked = set(untracked_list)
     # sorted(): `untracked` is a set, so the finding ORDER varied between runs on identical input.
     for p in dict.fromkeys([*tracked, *sorted(untracked)]):
+        if untracked_only and p not in untracked:
+            continue
         if p.startswith(EXCLUDE_PREFIXES) or p in EXCLUDE_EXACT or _SELECTION_RE.match(p):
             continue
         if p in _PRISTINE_SEEDS and _is_pristine_seed(p):
@@ -383,7 +389,10 @@ def main() -> int:
             problems.append(f"live doc not in INDEX.md: {p}{tag}")
 
     if as_json:
-        print(json.dumps({"status": "success" if not problems else "failure", "drift": problems}))
+        payload = {"status": "success" if not problems else "failure", "drift": problems}
+        if untracked_only:
+            payload["mode"] = "untracked-only"
+        print(json.dumps(payload))
     else:
         for x in problems:
             print(f"ERROR: {_printable(x)}")

@@ -29,6 +29,7 @@ Schema. DO-NOT touch the api.
 ## Touches
 
 - src/app/schema.py
+- tests/test_schema.py
 
 ## Behavior Contract
 
@@ -54,6 +55,7 @@ API layer. DO-NOT touch schema internals.
 ## Touches
 
 - src/app/api.py
+- tests/test_api.py
 
 ## Behavior Contract
 
@@ -131,6 +133,8 @@ None.
 - src/app/schema.py
 - src/app/api.py
 - docs/receipt-notes.md
+- tests/test_schema.py
+- tests/test_api.py
 
 ## Evidence
 
@@ -912,7 +916,7 @@ def test_missing_spine_is_warn_in_gate_context(tmp_path: Path) -> None:
 
 def test_unparseable_file_scope_warns_loudly(tmp_path: Path) -> None:
     spine = SPINE.replace(
-        "- src/app/schema.py\n- src/app/api.py\n- docs/receipt-notes.md",
+        "- src/app/schema.py\n- src/app/api.py\n- docs/receipt-notes.md\n- tests/test_schema.py\n- tests/test_api.py",
         "| Path | Owner |\n|---|---|\n| src/app/schema.py | T01 |",
     )
     plan_dir = _build(tmp_path, spine=spine)
@@ -2453,3 +2457,59 @@ def test_an_inline_integration_ticket_outside_the_profile_errors_once(tmp_path: 
     plan_dir = _build(tmp_path, tickets=tickets)
     t99 = [m for m in _errors(cpt.check_plan_dir(plan_dir)) if m.startswith("T99:")]
     assert len(t99) == 1 and "Profile: small tier" in t99[0], t99
+
+
+def test_a_gate_naming_a_file_that_exists_nowhere_and_prose_inside_touches_are_errors(
+    tmp_path: Path,
+) -> None:
+    """T4.8 (01M21804, 01M218KM): five tickets declared a Gate: over a pytest file that existed
+    nowhere and was named in no Touches; and a prose line inside ## Touches was invisible."""
+    plan_dir = _build(tmp_path)
+    t = next(p for p in plan_dir.glob("T01*.md"))
+    text = t.read_text(encoding="utf-8")
+    text = text.replace(
+        "## Touches\n", "## Touches\nDepends on the shared fixtures — see T00.\n", 1
+    )
+    text += "\nGate: `pytest tests/test_ghost_widget.py -q`\n"
+    t.write_text(text, encoding="utf-8")
+    errs = _errors(cpt.check_plan_dir(plan_dir))
+    assert any("tests/test_ghost_widget.py" in e and "Gate" in e for e in errs), errs
+    assert any("Touches" in e and "prose" in e for e in errs), errs
+
+
+def test_rule_packs_are_exempt_from_the_read_budget(tmp_path: Path) -> None:
+    """T4.8 (01M1T7WPY): 37,054 bytes of glob-activated rule packs arriving by fleet sync failed a
+    merged plan's budget at close-out; packs activate on the paths already in Touches."""
+    plan_dir = _build(tmp_path)
+    root = plan_dir.parents[3]
+    pack = root / ".windsurf/rules/core/10-python.md"
+    pack.parent.mkdir(parents=True, exist_ok=True)
+    pack.write_text("x" * (cpt.READ_BUDGET_BYTES + 10), encoding="utf-8")
+    t = next(p for p in plan_dir.glob("T01*.md"))
+    t.write_text(
+        t.read_text(encoding="utf-8").replace(
+            "## Context Files\n", "## Context Files\n- `.windsurf/rules/core/10-python.md`\n", 1
+        ),
+        encoding="utf-8",
+    )
+    assert not [e for e in _errors(cpt.check_plan_dir(plan_dir)) if "READ budget" in e]
+
+
+def test_notes_go_to_stderr_under_json(tmp_path: Path) -> None:
+    """T4.8 (01M25Q9S0): a `NOTE:` printed on stdout under `--json` broke the consumer's parse."""
+    plan_dir = _build(tmp_path)
+    r = subprocess.run(
+        [
+            "python3",
+            str(Path(cpt.__file__)),
+            "--json",
+            "--allow-external",
+            "--plan-dir",
+            str(plan_dir),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert "NOTE" not in r.stdout, r.stdout[:300]
+    json.loads(r.stdout)

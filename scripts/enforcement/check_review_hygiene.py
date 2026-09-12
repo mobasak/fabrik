@@ -9,6 +9,10 @@ orchestrator adjudicates each one into the receipt's ledger as FIXED or as
 ``RECORDED — hygiene false positive (<why>)`` — the verdict form the coverage gate's ``VERDICT``
 accepts (``check_review_coverage.py``, D-206).
 
+Three of the four classes — template-residue, fence-parity, table-parity — run only on `.md`
+surfaces (`SURFACE_SUFFIXES`); a pin copied to a non-.md name is swept for stale phrases alone, and
+the summary line reads the same — copy a pin as `<name>.md` (T4.7, 01M285X4H).
+
 Classes (each hit is a `path:line` with its class name):
   template-residue   an unrendered fragment marker or parameter in an `.md` on the surface — the
                      renderer's own shapes only, anchored at both braces: `{{include:<name>}}` or
@@ -122,6 +126,7 @@ class Hit:
     path: str
     line: int
     what: str
+    occurrences: int = 1  # T4.7: one row per (path, line, class, what); the count rides here
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -129,13 +134,19 @@ class Hit:
             "path": _display(self.path),
             "line": self.line,
             "what": self.what,
+            "occurrences": self.occurrences,
         }
 
     def line_out(self) -> str:
         return f"[ADVISORY] {self.cls} {_display(self.path)}:{self.line} — {self.what}"
 
 
+_LABEL: dict[str, str] = {}  # T4.7 (--label): the artifact name a scratch COPY stands for
+
+
 def _display(path: str) -> str:
+    if path in _LABEL:
+        return _LABEL[path]
     """Repo-relative when the path is under the cwd, absolute otherwise. The gate's no-argument
     mode self-selects ABSOLUTE receipt paths; printing those raw makes every advisory line
     machine-specific and unclickable from the repo root."""
@@ -477,14 +488,19 @@ def _surface_hits(
             hits.extend(thits)
     for phrase in phrases:
         for ln in _term_sites(text, phrase):
-            hits.append(Hit("stale-phrase", path, ln, f"stale phrase {phrase!r} still present"))
+            # T4.7: the count of the phrase ON that line rides the one hit for it
+            _occ = max(1, lines[ln - 1].count(phrase)) if 0 < ln <= len(lines) else 1
+            hits.append(
+                Hit("stale-phrase", path, ln, f"stale phrase {phrase!r} still present", _occ)
+            )
     for term in claims or []:
         # D10 rule (2): a NEUTRAL listing of every site carrying the term — the SAME walk
         # `stale-phrase` uses; fences are NOT stripped, a mirror inside a fence is still a mirror
         # the orchestrator reads before the pin. Differs from `--phrase` ONLY in its label: a
         # `stale-phrase` hit is adjudicated as a defect, a `claim` row is read.
         for ln in _term_sites(text, term):
-            hits.append(Hit("claim", path, ln, f"claim {term!r} at this line"))
+            _occ = max(1, lines[ln - 1].count(term)) if 0 < ln <= len(lines) else 1
+            hits.append(Hit("claim", path, ln, f"claim {term!r} at this line", _occ))
     if Path(path).name == "CHANGELOG.md":
         hits.extend(_changelog_hits(path, text))
     hits.sort(key=lambda h: h.line)  # residue, fences, tables and phrases are separate passes
@@ -614,12 +630,43 @@ class Sweep:
     ungraded: int
 
 
+def _dedupe(hits: list[Hit]) -> list[Hit]:
+    """T4.7 (01M2AC95X): a phrase repeated on one line yielded one hit per occurrence, so `len(hits)`
+    overstated distinct findings (15 raw vs 13 unique, measured every round); one row per
+    (path, line, class, what) with the count in `occurrences`."""
+    out: dict[tuple[str, str, int, str], Hit] = {}
+    for h in hits:
+        k = (h.cls, h.path, h.line, h.what)
+        if k in out:
+            prev = out[k]
+            out[k] = Hit(
+                prev.cls, prev.path, prev.line, prev.what, prev.occurrences + h.occurrences
+            )
+        else:
+            out[k] = h
+    return list(out.values())
+
+
+def _until_heading(text: str, heading: str | None) -> str:
+    """T4.7 (--stop-at-heading): a surface that carries its own Pass Ledger records every phrase a
+    round retired; the lines from that heading on are history, not live claims — blanked (not
+    cut) so line numbers stay true."""
+    if not heading:
+        return text
+    lines = text.splitlines()
+    for i, ln in enumerate(lines):
+        if ln.strip().lower().startswith(heading.strip().lower()):
+            return "\n".join(lines[:i] + [""] * (len(lines) - i))
+    return text
+
+
 def scan(
     surfaces: list[Path] | None = None,
     receipts: list[Path] | None = None,
     phrases: list[str] | None = None,
     symbols: list[str] | None = None,
     claims: list[str] | None = None,
+    stop_at_heading: str | None = None,
 ) -> Sweep:
     """Never raises for a missing or unreadable file — it NOTES it instead."""
     phrases = phrases or []
@@ -641,7 +688,11 @@ def scan(
             continue
         read[_resolved(p)] = text
         shits, sungraded = _surface_hits(
-            str(p), text, phrases, table=_resolved(p) not in receipt_set, claims=claims
+            str(p),
+            _until_heading(text, stop_at_heading),
+            phrases,
+            table=_resolved(p) not in receipt_set,
+            claims=claims,
         )
         hits.extend(shits)
         ungraded += sungraded
@@ -673,7 +724,7 @@ def scan(
                     f"{len(read)} file(s) on the surface",
                 )
             )
-    return Sweep(hits, len(read), notes, ungraded)
+    return Sweep(_dedupe(hits), len(read), notes, ungraded)
 
 
 def _repo_root() -> Path:
@@ -743,7 +794,20 @@ def main(argv: list[str] | None = None) -> int:
         help="a claim term whose mirror sites are LISTED — neutral, never a verdict (D10)",
     )
     ap.add_argument("--json", action="store_true", help="emit the hits as JSON")
+    ap.add_argument(
+        "--stop-at-heading",
+        default=None,
+        help="grade the surface only ABOVE this heading (e.g. '## Pass Ledger' — the rows below are history)",
+    )
+    ap.add_argument(
+        "--label",
+        default=None,
+        help="the artifact path to echo in hits when --surface is a scratch copy",
+    )
     args = ap.parse_args(argv)
+    if args.label and len(args.surface) == 1:
+        _LABEL[str(Path(args.surface[0]))] = args.label
+        _LABEL[str(Path(args.surface[0]).resolve())] = args.label
 
     surfaces = [Path(p) for p in args.surface]
     receipts = [Path(p) for p in args.receipt]
@@ -785,7 +849,14 @@ def main(argv: list[str] | None = None) -> int:
             # handed an empty string, which is not JSON.
             return 0
 
-    sweep = scan(surfaces, receipts, args.phrase, args.symbol, args.claim)
+    sweep = scan(
+        surfaces,
+        receipts,
+        args.phrase,
+        args.symbol,
+        args.claim,
+        stop_at_heading=args.stop_at_heading,
+    )
     if args.json:
         print(
             json.dumps(

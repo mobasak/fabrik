@@ -98,6 +98,18 @@ except ImportError:  # direct-script invocation (python scripts/enforcement/…p
     from scripts.enforcement.validate_conventions import CheckResult, Severity
 
 READ_BUDGET_BYTES = 262144  # recalibrated from orchestrator-logged SIZING DEFECT rows
+_JSON_MODE = False  # T4.8 (01M25Q9S0): under --json every NOTE goes to stderr, stdout stays JSON
+
+
+def _note(msg: str) -> None:
+    print(msg, file=sys.stderr if _JSON_MODE else sys.stdout)
+
+
+# T4.8 (01M21804): a Gate: that RUNS a file naming it nowhere else — the executor sees one
+# .md in Touches and a gate over a test file nothing told it to write
+_GATE_FILE_RE = re.compile(
+    r"(?<![\w/.-])((?:tests?|src|scripts|server|app|lib)/[\w./-]+\.(?:py|ts|tsx|js|mjs|sh))\b"
+)
 # The FROZEN 2-contract artifacts are MANDATORY reading for any ticket that touches their surface —
 # the commands require citing them, and /fabrik-flows, /fabrik-ui-design and /fabrik-data-contract
 # all push them toward completeness. Counting them against a TICKET's budget measures the contract's
@@ -1021,7 +1033,7 @@ def _staleness(
             check=True,
         ).stdout
     except Exception as e:  # noqa: BLE001 — fail-safe by convention, but observable
-        print(f"NOTE: plan_tickets staleness skipped (git error: {e!r})")
+        _note(f"NOTE: plan_tickets staleness skipped (git error: {e!r})")
         return results
     for record in out.split("\x01"):
         if not record.strip():
@@ -2239,6 +2251,11 @@ def check_plan_dir(
                 _norm = p.strip().lstrip("./")
                 if _norm in BUDGET_EXEMPT_READS:
                     continue  # mandatory shared contract — not this ticket's scope
+                if p.strip().removeprefix("./").startswith(".windsurf/rules/"):
+                    # T4.8 (01M1T7WPY): a rule pack activates by glob on the paths already in
+                    # Touches — listing it buys nothing and 37 KB of packs arriving by fleet
+                    # sync failed a merged plan at close-out
+                    continue
                 if _is_generated_artifact(_norm):
                     continue  # a committed build output is a WRITE, not a read
                 fp = root / p.rstrip("/")
@@ -2295,6 +2312,31 @@ def check_plan_dir(
                     t.path,
                 )
             )
+        # T4.8 (01M21804, 01M218KM): a Gate: over a file that exists nowhere and sits in no
+        # Touches; and prose inside ## Touches, which the bullet collector never saw
+        _scan_t = _strip_fences(t.text)
+        _touch_set = {_norm_path(x) for x in t.touches}
+        for _gm in GATE_CMD_RE.finditer(_scan_t):
+            for _f in dict.fromkeys(_GATE_FILE_RE.findall(_gm.group("cmd"))):
+                if not (root / _f).exists() and _norm_path(_f) not in _touch_set:
+                    results.append(
+                        _err(
+                            f"{t.tid}: Gate: runs `{_f}`, which exists nowhere and is in no "
+                            "Touches — declare it in this ticket's Touches or drop the gate",
+                            t.path,
+                        )
+                    )
+        for _ln in _section(_scan_t, "Touches").splitlines():
+            _st = _ln.strip()
+            if _st and not _st.startswith(("-", "*", "|", "#", "<!--")):
+                results.append(
+                    _err(
+                        f"{t.tid}: prose inside ## Touches is invisible to the gate — `{_st[:60]}` "
+                        "is neither a bullet nor a path; move it out of the section",
+                        t.path,
+                    )
+                )
+                break
         if len(GATE_LINE_RE.findall(_strip_fences(t.text))) > MAX_GATES:
             results.append(
                 _err(f"{t.tid}: more than {MAX_GATES} Gate: lines", t.path, severity=Severity.WARN)
@@ -2387,7 +2429,7 @@ def check_file(file_path: Path) -> list[CheckResult]:
     try:
         found = check_plan_dir(plan_dir, context="gate")
     except Exception as e:  # noqa: BLE001 — fail-safe by convention, but observable
-        print(f"NOTE: plan_tickets adapter suppressed: {e!r}")
+        _note(f"NOTE: plan_tickets adapter suppressed: {e!r}")
         return []
     # This per-file adapter (the Tier-3 validate_conventions path) sees UNTRACKED
     # files and cannot tell whose plan a dir is — it is ALWAYS advisory. The
@@ -2448,7 +2490,7 @@ def _discover_dirs(root: Path) -> tuple[list[Path], set[Path]]:
             if args in wt_cmds:
                 wt_changed.update(found_paths)
     except Exception as e:  # noqa: BLE001
-        print(f"NOTE: plan_tickets discovery skipped (git error: {e!r})")
+        _note(f"NOTE: plan_tickets discovery skipped (git error: {e!r})")
         return [], set()
     # OWN = discovered via MY working-tree/staged edits. A dir seen ONLY via
     # upstream..HEAD is a sibling's committed-but-unpushed work on shared master
@@ -2499,6 +2541,8 @@ def main() -> int:
         "naming rule still applies; discovery mode ignores this flag.",
     )
     args = parser.parse_args()
+    global _JSON_MODE
+    _JSON_MODE = bool(getattr(args, "json", False))
     root = args.project_root.resolve()
     if args.plan_dir:
         target = args.plan_dir.resolve()
