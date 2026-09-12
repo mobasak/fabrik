@@ -1399,6 +1399,23 @@ def run_consistency_checks(
                 advisory=True,
             )
         )
+        # Corpus weight — the byte ratchet of the kaizen loop's piece 3 (spec
+        # docs/superpowers/specs/2026-09-10-kaizen-feedback-loop-design.md § D4 row 3, D-234):
+        # the hub's five governance surfaces may only GROW in a change that cites a D-row; a
+        # synced project owns none of them and the check says so. Registered on the gate owner's
+        # side (mail 01M2AJKKVGH8Q2PK51CM2GJ5FC); the check itself ships under plan
+        # 2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round and is skipped until it
+        # exists. warn_only: exit 0 on every path by contract (`--strict` is the only red, and
+        # the gate never passes it), so a first fire cannot red ~46 repos.
+        cw_args = ("--check",) if check_only else ()
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_corpus_weight.py",
+                "Corpus Weight (byte ratchet — advisory)",
+                *cw_args,
+                warn_only=True,
+            )
+        )
         # Schema sync only if models or .sql changed
         if not changed or _has_extension(changed, ".py", ".sql"):
             results.append(

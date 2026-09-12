@@ -190,6 +190,42 @@ def test_the_command_corpus_row_is_registered_advisory_and_quiet() -> None:
     ), [k.arg for k in call.keywords]
 
 
+def test_the_corpus_weight_row_is_registered_warn_only_with_check_threaded() -> None:
+    """The kaizen loop's piece-3 ratchet (D-234) is registered by the gate's lock-holder on mail
+    01M2AJKKVGH8Q2PK51CM2GJ5FC: `warn_only=True` (exit 0 on every path by contract — a first fire
+    must not red ~46 repos) and `--check` threaded through `cw_args` so a read-only gate never
+    rewrites the ratchet's baseline. Pinned on the AST like the command-corpus row above."""
+    import ast
+
+    tree = ast.parse(
+        (Path(__file__).resolve().parents[1] / "scripts" / "final_gate.py").read_text(
+            encoding="utf-8"
+        )
+    )
+    calls = [
+        n
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Call)
+        and isinstance(n.func, ast.Name)
+        and n.func.id == "run_optional_check"
+        and n.args
+        and isinstance(n.args[0], ast.Constant)
+        and n.args[0].value == "scripts/enforcement/check_corpus_weight.py"
+    ]
+    assert len(calls) == 1, "exactly one corpus-weight registration"
+    call = calls[0]
+    starred = [
+        x.value.id
+        for x in call.args[2:]
+        if isinstance(x, ast.Starred) and isinstance(x.value, ast.Name)
+    ]
+    assert starred == ["cw_args"], starred  # `--check` rides the same shape as the lint ratchet
+    assert any(
+        k.arg == "warn_only" and isinstance(k.value, ast.Constant) and k.value.value is True
+        for k in call.keywords
+    ), [k.arg for k in call.keywords]
+
+
 def test_an_advisory_row_keeps_a_warning_first_stdout_the_json_filter_admits(
     tmp_path: Path,
 ) -> None:

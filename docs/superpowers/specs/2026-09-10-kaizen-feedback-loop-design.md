@@ -892,11 +892,16 @@ and never re-counted, which is the banner rule turned on its author). The earlie
 facts") was wrong in exactly the way the checker's comment predicts, and is withdrawn.
 
 **The stall series is also explained rather than merely survived.** Confirmed defects ran
-`17 · 5 · 5 · 4 · 3 · 1 · 2 · 4 · 26 · 23 · 13 · 3 · 6 · 7` across **fourteen** rounds. Provenance,
-because the banner demands the producing artifact and one artifact does not hold it all: rounds 9–14
-(`26 · 23 · 13 · 3 · 6 · 7`) come from this review's run record's `confirmed` field; rounds 1–8 exist
-only as `round` events in `~/.claude/state/events/<sid>.jsonl`, there being no run record for them on
-this box. Rounds 6–8 (`1 · 2 · 4`) tripped the breaker.
+`17 · 5 · 5 · 4 · 3 · 1 · 2 · 4 · 26 · 23 · 13 · 3 · 6 · 7 · 7` across **fifteen** rounds (the
+first draft of this sentence printed fourteen values and called them fourteen rounds; round 15's `7`
+was in the event stream and cited ten lines below it — infra's correction of 2026-09-12 on mail
+`01M28VKD807M6QZB31NJ5D9W1T`). Provenance, because the banner demands the producing artifact: every one
+of the fifteen `confirmed` values is a `round` event in `~/.claude/state/events/<sid>.jsonl` — the ONE
+artifact that holds them all; the run record this sentence once cited for rounds 9–14 carries
+`rounds: []` today. By the spec's own convention (three consecutive rounds whose `confirmed` counts are
+non-decreasing and nonzero) the breaker fires at THREE windows of this series — rounds 6–8
+(`1 · 2 · 4`), rounds 7–9 (`2 · 4 · 26`) and rounds 13–15 (`6 · 7 · 7`); the paragraphs below name the
+first and the third, and the second is the same firing as the first read one round later, no exception.
 
 ⚠️ **Two corrections to this very series, both found by round 14, and the second is the more serious.**
 (i) The 11th value was written as **14**, which is round 11's *findings* count; its confirmed count is
@@ -917,7 +922,7 @@ forbade. Counting one's own stopping rule loosely, in the paragraph that announc
 not the arithmetic.
 
 **The foundation error, stated as the breaker requires and corrected where the first attempt
-over-claimed:** rounds **10–15** each confirmed defects that the PREVIOUS round's fixes introduced —
+over-claimed:** rounds **10–15** each confirmed defects that the PREVIOUS round's fixes — rounds 9–14's — introduced —
 two `## Reproduce` recipes that did not regenerate their own figures, a splice, an over-claim about the
 registry, and an edit to this very ledger that erased the one round where the count rose. (Round 9 is
 NOT in that set: § D4 was new text having its first read, which the paragraph below says plainly.) The
@@ -925,7 +930,9 @@ NOT in that set: § D4 was new text having its first read, which the paragraph b
 3 seats at round 9 and 2 at round 10. So the invariant is narrower and sharper than the first draft
 claimed: *a fresh reader found each defect, and the same author wrote every fix, and that author's fix
 seeded the next round.* That is a process property, not a text property. No further round of this shape
-closes it — which is why this section ends the loop instead of ordering a round 16. ⚠️ **There are now TWO foundation errors on this document and they must not be confused.** The FIRST,
+closes it — which is why this section ends the loop instead of ordering a round 16.
+
+⚠️ **There are now TWO foundation errors on this document and they must not be confused.** The FIRST,
 named at rounds 6–8, still stands and is fixed at the root: **a static document was carrying live
 measurements of a shared, moving system** — § Reproduce and the row-count stamps are that fix. The
 SECOND is the one above, named at round 14, and it is NOT fixed: it is a property of who writes the
@@ -962,8 +969,8 @@ whether to do the approach research or exempt the delta. The research was done.
 ## The ONE operator question the breaker owes you
 
 **Every CONTENT defect this review found is fixed.** What is not fixed, and cannot be fixed by another
-round of the same shape, is that **the same agent wrote every fix** — and in rounds 10 through 15 that
-agent's fix seeded the next round's defect, six times running. Fresh readers found them all; the author
+round of the same shape, is that **the same agent wrote every fix** — and each fix that agent wrote in rounds 9 through 14 seeded the next
+round's defect, six times running (round 15 confirmed round 14's residue; no round 16 ran). Fresh readers found them all; the author
 closed them all; the closing is where the next defect came from.
 
 **THE QUESTION — who writes the residue?**
@@ -974,15 +981,21 @@ remainder**, for three reasons that are checkable rather than felt:
 1. **The content converged; the process did not.** Rounds 13–15 confirmed 6, 7 and 7 — and every one was
    a wording, arithmetic or round-accounting defect inside a previous fix. Not one was a defect in the
    DESIGN: not the three tiers, not the selector, not the verdict's destination, not the eight axes, not
-   the cadence, not a citation, not a ledger figure. Those were settled by round 12 and have survived
-   three independent re-derivations since.
-2. **The plan stage supplies exactly what the breaker is asking for** — a different author, a different
-   surface, and its own review loop. Handing the residue to `/fabrik-plan-after-chat` breaks the
-   finder-is-fixer identity by construction, which no round of this command can do.
+   the cadence, not a citation, not a ledger figure — the first draft of this list said so and was wrong
+   twice: round 13 struck a false claim about what `validate_registry` forbids ("for an odd axis count it
+   forbids it outright"), load-bearing for tier 1's rationale, and corrected the ledger figure 956 → 1,052;
+   the list was also wrong about the DESIGN itself, as the ⚠️ ANSWERED note below records. What holds is
+   narrower: from round 12 the content changed only under rounds 13–15's delta reads (one fresh seat each,
+   scoped to the previous fix diff — not three independent re-derivations of the whole).
+2. **The plan stage supplies a different surface and its own review loop** — but NOT, by itself, a
+   different author: `/fabrik-plan-after-chat` changes no author, and the same session ran it six
+   minutes before this amendment was pinned (backlog row `d01a378a`). Only a different SESSION breaks the
+   finder-is-fixer identity, which is what the ⚠️ ANSWERED note below records and what happened.
 3. **The alternative is measurable and worse.** Fifteen rounds have cost far more than the residue is
-   worth: the remaining items are a parenthetical's ordering claim, an enumeration that says "four" where
-   the text supports two, and a provenance phrase naming one artifact where two are needed. None changes
-   a build decision.
+   worth. (The residue this sentence first listed — an enumeration saying "four" and a provenance phrase
+   naming one artifact — was fixed by the very diff that wrote the list; the nine wording residues that
+   actually remained are the ones infra fixed on 2026-09-12 from mail `01M28VKD807M6QZB31NJ5D9W1T`.) None
+   changes a build decision.
 
 If instead you want this document closed to zero here, the answer is not another round by me — it is to
 hand the residue to **infra** as a scoped fix request, and let a second session's author write the fixes
@@ -1032,7 +1045,7 @@ quoted), the four-piece table (the `change:` substance figure had borrowed the `
 → five piece rows), § Constraints 2 and 4, § Lifecycle's D4 bullet, § Self-audit's D4 hazards, the R1/R8
 labels, and this postscript. `grep -n -i '\btier'` over the spec lists every remaining occurrence, and each is history or another sense — ⚠️ notes, § What this supersedes, the operator question's account of rounds 13–15, the plan's filename, this review's own account and ledger rows, and kaizen's registry term *"outcome tier"* in § Approaches — none is live design.
 
-`edits:` is the number of `@@` hunks in that round's fix diff (its pin → the next pin, `diff -u`), at its default 3-line context, so it is derivable from the two pins alone; a round that applies no fix has no next pin and reads `edits: 0`; rows 16–20 were restated under this recipe at round 21 (they had counted replacement sites, which no diff reproduces).
+`edits:` is the number of `@@` hunks in that round's fix diff (its pin → the next pin, `diff -u`), at `diff -u`'s default 3-line context, so it is derivable from the two pins alone; a round that applies no fix has no next pin, reads `edits: 0`, and its `spec md5 (start → end)` cell repeats the start hash (the working tree equals the pin); rows 16–20 were restated under this recipe at round 21 (they had counted replacement sites, which no diff reproduces).
 
 | Pass | seats · sections re-checked | counters | method | spec md5 (start → end) |
 |-----:|---|---|---|---|
@@ -1041,6 +1054,6 @@ labels, and this postscript. `grep -n -i '\btier'` over the spec lists every rem
 | 18 (delta) | opus×1 + sonnet×1 (fresh; the first pair DIED on API timeouts at 97% quota and read nothing — dispatched 4, returned 2) · round 17's class rewrite (35 changed lines, 8 hunks) + one hop | found: 9, new: 9, confirmed: 9, fixed: 9, unexecuted: 0, edits: 7 | method: re-derivation — 19 numeric claims re-derived at their stamps (19 of 19 exact), `check_command_corpus.py`'s eight predicates and its BLOCKING registration read, Q4's re-baselining paragraph quoted, `ts` uniqueness (117 of 117) and `Agent-Context` parsing (200 of 200) executed. Every confirmed defect sat inside round 17's rewrite — the third consecutive residue pass, of falling severity (18 · 13 · 9); the one design defect: the round-17 "per-command token mass" criterion selected a DIFFERENT four commands than the list the same section named (`fabrik-plan-review` outranks `fabrik-spec-review` by R3's mean) — the list now follows its rule as a RANK CUT (top four by R3's per-command mean), re-derived at 116 rows, and "percentile" is retired for the selector because a p90 over 14 commands admits two. Also: "token mass" for R3's MEAN; "all three run now" contradicting § D4's sequencing; the piece-3 cell both conditioning and not conditioning the verdict on a D-row; "the fifth" inside a seven-item list; "next run" for a same-run re-seed; R9 silent about the shipped reader's cache-inclusive `_TOK`; Constraint 4's exclusive reason omitting the row's second reason; the `tier` self-check falsified by the operator question's "three tiers" and a second "outcome tier" in row 17. **The fleet-quota HOLD landed while this batch was being written**: rounds 16–17 were committed at `536a5562` with this round's fixes UNAPPLIED, the record closed BLOCKED, and the batch was applied at relief on a new record before pin 19. RECORDED — out of hop, destinations: § Q3's location sentence (unchanged, next non-delta pass); § Q5's figures stamped at 102 rows beside D4's at 116 (§ Reproduce preamble's discipline, next full pass); `command_feedback_report.py`'s `_TOK` includes cache with no flag, and a `test_cmd` fixture row sits inside every `of 116` denominator — both to piece 4's plan as machinery findings | 081b639e… → 05d717e5… (the round-19 pin) |
 | 19 (delta) | opus×1 + sonnet×1 (fresh) · round 18's fix diff (30 changed lines, 7 hunks) + one hop; both seats returned | found: 7, new: 7, confirmed: 7, fixed: 7, unexecuted: 0, edits: 5 | method: re-derivation — 12 of 12 rank-cut figures and 4 of 4 R9 figures exact at 116 rows (ledger live at 122); the contradiction sweep over every site naming the four commands or a percentile executed (0 of 3 / 0 of 6 live). Confirmed, all inside round 18's hunks (the fourth residue pass, still falling: 18 · 13 · 9 · 7): "6th" where `fabrik-spec-review` ranks 7th of 14; R9's clause describing a per-command MEAN and "~400×" for a reader that publishes a MEDIAN over rows-carrying-tokens at 200–320×; Constraint 4's second reason truncated to a non-reason; the selector's lead sentence keeping a dependency the same round's Constraint 4 lifts; the p90 sentence naming neither mean nor mass; the D-row fact stated twice in one cell; the `tier` self-check's categories missing the round-zero paragraph's own search terms. RECORDED — out of hop: the piece-3 cell's "re-baselining upward binds" presupposes a blocking gate the same cell says this one is not (pre-existing text; next full pass); the shipped reader's median-vs-mean and rows-carrying-tokens divisor → piece 4's plan with the `_TOK` finding | 05d717e5… → 713f4e5f… (the round-20 pin) |
 | 20 (delta, one seat) | opus×1 (fresh) · round 19's fix diff (17 changed lines, 5 hunks) + one hop; the hygiene script on the pin (0 hits) | found: 3, new: 3, confirmed: 1, fixed: 1, unexecuted: 0, edits: 4 | method: re-derivation — 38 claims re-derived, 37 held: the rank (7th of 14), the reader's `median_tok` at 200–320× and 0.01–0.04%, the p90 in all four variants, the ledger span (4.84 d at 116 rows), the `tier` sweep (17 of 17 covered), the md5 chain and row shapes. CONFIRMED: Constraint 4's second deferral reason cited § Q6's 30-day replay, which runs over COMMITS (2,036 in the window today) and gates an advisory→blocking promotion piece 3 never proposes — deleted at both its sites (the Who-builds row carried it first; corrected in the same batch, uncounted). RECORDED — measured (wording): the reader's median is 167,069,998.5 (the `.5` restored); `edits:` had no recipe (one sentence added above this table). RECORDED — out of hop: `commands/_sources/` 1,042,530 B is exact at HEAD and 1,043,673 B in the live tree with sibling WIP — a byte figure with no as-of stamp (§ Reproduce preamble, next full pass); a comma splice in § What this supersedes' lead sentence (pre-existing context, wording) | 713f4e5f… → 30620591… (the round-21 pin) |
-| 21 (delta, one seat) | opus×1 (fresh) · round 20's fix diff (14 changed lines, 4 hunks) + one hop; hygiene 0 hits | found: 7, new: 7, confirmed: 2, fixed: 2, unexecuted: 0, edits: 3 | method: re-derivation — 22 claims re-derived, 20 exact, 2 marginal, 0 false (Q6's characterisation exact against § Q6; the rank cut, `median_tok`, R9, the md5 chain, row shapes, the `tier` sweep 18 of 18). CONFIRMED, both inside round 20's hunks: Constraint 4 said "the reason § Who builds what gives" while that row had been given a second clause in the same batch — the second clause DELETED, one reason at both sites; the `edits:` recipe named replacement sites, which no diff reproduces (row 20 read 5 against 6 sites or 4 hunks) — recipe replaced by the hunk count and rows 16–20 restated. RECORDED — measured (wording): the ledger span re-derived at 123 rows where the claim is stamped at 116 (4.84 d, corrected); "0.01–0.04%" whose low end is 0.0094% (rounds to the stated precision); "2,036 in the window today" with an undeclared ref scope; `fixed:` counting confirmed items only while the round also applied its recorded ones (the receipt grammar's `fixed ≤ confirmed`, kept); drafting history inside a binding Constraint — deleted. RECORDED — out of hop: § Q4's "our check needs that second gate" beside a WARN-only ratchet (recorded at round 19; § Q4/piece-3 cell, next full pass). Series 18 · 13 · 9 · 7 · 1 · 2 — every item inside the previous fix | 30620591… → bcdab345… (the round-22 pin) |
-| 22 (delta, one seat) | opus×1 (fresh) · round 21's fix diff (19 changed lines, 3 hunks) + one hop | found: 6, new: 6, confirmed: 1, fixed: 1, unexecuted: 0, edits: 2 | method: re-derivation — the one-reason fix at its three sites, the `edits:` recipe executed for all six pinned pairs (6 of 6 exact, regenerated), the md5 chain (7 pins), the `tier` sweep (19 of 19). CONFIRMED: row 21 misstated the spec's breaker rule ("confirms anything" — a count of 1 gives 1 · 2 · 1, not non-decreasing); the sentence deleted. RECORDED — measured: the recipe's context depth and its value for a no-fix round (both added to the recipe); "the rise is on wording" (deleted). RECORDED — out of hop: § BLOCKED's breaker is the spec's own convention, distinct from `command_run.py`'s advisory window (§ BLOCKED, next full pass) | bcdab345… → d0b6a5dd… (the round-23 pin) |
+| 21 (delta, one seat) | opus×1 (fresh) · round 20's fix diff (14 changed lines, 4 hunks) + one hop; hygiene 0 hits | found: 7, new: 7, confirmed: 2, fixed: 2, unexecuted: 0, edits: 3 | method: re-derivation — 22 claims re-derived, 20 exact, 2 marginal, 0 false (Q6's characterisation exact against § Q6; the rank cut, `median_tok`, R9, the md5 chain, row shapes, the `tier` sweep 18 of 18). CONFIRMED, both inside round 20's hunks: Constraint 4 said "the reason § Who builds what gives" while that row had been given a second clause in the same batch — the second clause DELETED, one reason at both sites; the `edits:` recipe named replacement sites, which no diff reproduces (row 20 read 5 against 6 sites or 4 hunks) — recipe replaced by the hunk count and rows 16–20 restated. RECORDED — measured (wording): the ledger span re-derived at 123 rows where the claim is stamped at 116 (4.84 d, corrected); "0.01–0.04%" whose low end is 0.0094% (rounds to the stated precision); "2,036 in the window today" with an undeclared ref scope; `fixed:` counting confirmed items only while the round also applied its recorded ones (the receipt grammar's `fixed ≤ confirmed`, kept); drafting history inside a binding Constraint — deleted. RECORDED — out of hop: § Q4's "our check needs that second gate" beside a WARN-only ratchet (recorded at round 19; § Q4/piece-3 cell, next full pass). Series 18 · 13 · 9 · 7 · 1 · 2 — every confirmed item of rounds 17–21 inside the previous round's fix (round 16 was the full pass) | 30620591… → bcdab345… (the round-22 pin) |
+| 22 (delta, one seat) | opus×1 (fresh) · round 21's fix diff (19 changed lines, 3 hunks) + one hop | found: 4, new: 4, confirmed: 1, fixed: 1, unexecuted: 0, edits: 2 | method: re-derivation — the one-reason fix at its three sites, the `edits:` recipe executed for all six pinned pairs (6 of 6 exact, regenerated), the md5 chain (7 pins), the `tier` sweep (19 of 19). CONFIRMED: row 21 misstated the spec's breaker rule ("confirms anything" — a count of 1 gives 1 · 2 · 1, not non-decreasing); the sentence deleted. RECORDED — measured: the recipe's context depth and its value for a no-fix round (both added to the recipe); "the rise is on wording" (deleted). RECORDED — out of hop: § BLOCKED's breaker is the spec's own convention, distinct from `command_run.py`'s advisory window (§ BLOCKED, next full pass) | bcdab345… → d0b6a5dd… (the round-23 pin) |
 | 23 (delta, one seat) | opus×1 (fresh) · round 22's fix diff (5 changed lines, 2 hunks) + one hop | found: 5, new: 5, confirmed: 3, fixed: 0, unexecuted: 0, edits: 1 (this row and the § BLOCKED postscript; no fix applied) | method: re-derivation — the `edits:` recipe regenerated from the pins for 7 of 7 rows, the md5 chain 7 of 7, the breaker arithmetic (20·21·22 = 1 · 2 · 1, no trip), the table shape 9 of 9 lines. CONFIRMED and DELIBERATELY UNFIXED: row 22's `found: 6` is 4 by the convention rows 18–21 obey; the recipe's no-fix clause defines `edits:` but not the `spec md5 (start → end)` cell for a round with no next pin; round 22's patch to the recipe sentence was the THIRD patch to one sentence (added at 20, replaced at 21, patched at 22) — the D-231 foundation error. RECORDED — measured (wording): "every item inside the previous fix" read against round 16, which was the full pass; "its" in "at its default 3-line context". RECORDED — out of hop: "2 hunks" (l.~1002, git's count at 3639ba6e..df349acd) beside "11 hunks" (row 16, pin→pin incl. round zero) — two measurements of two things; § BLOCKED's "round 15 should not have been dispatched" beside rounds 16–23 dispatched under a new scope. **The loop stops here**: the series 18 · 13 · 9 · 7 · 1 · 2 · 1 · 3 never trips the three-window rule, but since round 21 every confirmed item is this ledger describing itself, written by the amendment's author — the shape § BLOCKED named at round 14 | d0b6a5dd… → (no fix applied: the working tree equals this pin) |
