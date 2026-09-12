@@ -126,7 +126,8 @@ def _candidates(wanted: str, sid: str):
     yield wanted
     safe = _safe_id(sid) or "session"
     suffixes = [safe[:n] for n in (8, 12, 16, 36)] + [f"{safe[:36]}-{n}" for n in range(1, 101)]
-    for sfx in suffixes:
+    # a short safe id makes the four slices one rung: never retry an identical name
+    for sfx in dict.fromkeys(suffixes):
         yield f"{wanted[: 119 - len(sfx)]}-{sfx}"  # the suffix is at most 40 chars
 
 
@@ -283,7 +284,7 @@ def _assign_labels(
     on disk that this session does not own (an orphan is the last copy of a deleted
     conversation). A colliding label is suffixed with more and more of the session id, then a
     counter, until it is free — every suffixed form checked again, never trusted — and a session
-    that finds no free name in 104 suffixed candidates is left OUT of the returned map (skipped, WARNed)."""
+    that finds no free name in up to 104 suffixed candidates is left OUT of the returned map (skipped, WARNed)."""
     labels: dict[str, str] = {}
     for path in transcripts:
         sid = path.stem
@@ -307,10 +308,16 @@ def _assign_labels(
             # ours by the state entry, or — with no usable entry — by the render's own header
             return file != own and _owner_of(out_dir / file) != sid8
 
-        label = next((c for c in _candidates(wanted, sid) if not taken(c)), None)
+        tried = 0
+        label = None
+        for candidate in _candidates(wanted, sid):
+            if not taken(candidate):
+                label = candidate
+                break
+            tried += 1
         if label is None:  # bounded: a filesystem that rejects every name never spins the run
             _warn(
-                f"{sid[:8]}: no free file name for label {wanted!r} after 104 suffixed candidates; skipped"
+                f"{sid[:8]}: no free file name for label {wanted!r} after {tried - 1} candidates; skipped"
             )
             continue
         if (

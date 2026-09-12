@@ -767,11 +767,11 @@ def test_a_names_json_key_shorter_than_the_prefix_floor_is_ignored_with_a_warnin
     out.mkdir(parents=True)
     # a 4-char key that WOULD match the session: only the floor keeps it from naming the file,
     # and the operator's file must keep the key — ignored is not deleted
-    (out / "names.json").write_text(json.dumps({"aaaa": "zz"}))
+    (out / "names.json").write_text(json.dumps({"aaaa111": "zz"}))  # 7 chars: one below the floor
     assert rch.main(["--project", "/opt/demo"]) == 0
     assert (out / "aaaa1111.md").exists() and not (out / "zz.md").exists()
     assert "prefix floor" in capsys.readouterr().err
-    assert json.loads((out / "names.json").read_text()) == {"aaaa": "zz"}
+    assert json.loads((out / "names.json").read_text()) == {"aaaa111": "zz"}
 
 
 def test_a_transcript_named_like_the_index_never_overwrites_the_index(box: dict[str, Path]) -> None:
@@ -781,3 +781,26 @@ def test_a_transcript_named_like_the_index_never_overwrites_the_index(box: dict[
     assert (out / "INDEX.md").read_text().startswith("# Chat history")
     names = sorted(p.name for p in out.glob("*.md") if p.name != "INDEX.md")
     assert len(names) == 2 and all(rch._safe_label(n[:-3]) for n in names), names
+
+
+def test_a_short_safe_id_does_not_retry_identical_rungs_and_reports_the_real_count(
+    box: dict[str, Path], monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # a 10-char id whose SAFE form is 2 chars: the four id slices collapse to one rung
+    _write_session(box["projects"], "~~~~~~~~s2", _demo_records())  # sorts after aaaa1111
+    out = box["out"] / "-opt-demo"
+    out.mkdir(parents=True)
+    (out / "names.json").write_text(json.dumps({"aaaa1111": "same", "~~~~~~~~s2": "same"}))
+    real = Path.exists
+    asked: list[str] = []
+
+    def name_too_long(self: Path) -> bool:
+        if self.name.startswith("same-"):
+            asked.append(self.name)
+            raise OSError(36, "File name too long")
+        return real(self)
+
+    monkeypatch.setattr(Path, "exists", name_too_long)
+    assert rch.main(["--project", "/opt/demo"]) == 1
+    assert len(asked) == len(set(asked)) == 101, len(asked)  # one slice rung + 100 counters
+    assert "after 101 candidates" in capsys.readouterr().err

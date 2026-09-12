@@ -69,7 +69,8 @@ python3 /opt/fabrik/scripts/render_chat_history.py --all                        
   than the 8-character floor is ignored with a `WARN` on every run until it is fixed (it stays in the
   file, unused — never deleted). A session with no name renders as the first 8
   safe characters of its id (unsafe characters become `-`, leading punctuation is dropped, `session` if
-  nothing safe remains), so a transcript whose name starts with a dot never yields a hidden render. One label on two
+  nothing safe remains or if those characters spell `INDEX` or `names`), so a transcript whose name
+  starts with a dot never yields a hidden render and one named like the index never overwrites it. One label on two
   sessions never shares a file: the second renders as `<label>-<id8>.md` with a `WARN` on stderr.
 - **Incremental:** `.render-state.json` records each transcript's size, mtime and label; a session whose
   size, mtime and label are unchanged is skipped (a renamed session re-renders under its new name), so a
@@ -96,8 +97,9 @@ python3 /opt/fabrik/scripts/render_chat_history.py --all                        
 - A render outlives its transcript on purpose: if retention or a hand deletes the `.jsonl`, the `.md` stays
   (it is then the last copy of that conversation), drops out of `INDEX.md`, and is never overwritten — a
   later `--name` that lands on its file name renders as `<label>-<id8>.md` instead, and that suffixed
-  name is checked again (longer slices of the safe id, then a counter, 104 candidates in all, each
-  trimmed to the label rule so the session stays incremental; a session that finds
+  name is checked again (longer slices of the safe id, then a counter — up to 104 suffixed candidates,
+  identical rungs never retried — each trimmed to the label rule so the session stays incremental; a
+  session that finds
   no free name is skipped with
   a `WARN` and counts toward the exit code 1, never left spinning; the collision is warned about once,
   when it is first resolved). An old file is unlinked only after its replacement landed.
