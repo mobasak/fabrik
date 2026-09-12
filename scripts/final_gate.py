@@ -1405,13 +1405,19 @@ def run_consistency_checks(
         # synced project owns none of them and the check says so. Registered on the gate owner's
         # side (mail 01M2AJKKVGH8Q2PK51CM2GJ5FC); the check itself ships under plan
         # 2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round and is skipped until it
-        # exists. warn_only: exit 0 on every path by contract (`--strict` is the only red, and
-        # the gate never passes it), so a first fire cannot red ~46 repos.
+        # exists. warn_only marks the row non-blocking in the DISPLAY and the --json buckets only —
+        # run_optional_check reds the gate on ANY non-zero exit (its docstring: "never weakens
+        # enforcement"), and advisory= is identical in that respect. What keeps a first fire off
+        # ~46 repos is a PRECONDITION on the shipping check, not this flag: check_corpus_weight.py
+        # MUST accept --check and exit 0 on every path (an unexpected exception included) unless
+        # --strict, which the gate never passes. Until it ships, this row is a green never-run row
+        # that `skipped_checks` does not report — the pre-existing missing-optional-check shape
+        # (see :1849), recorded in the mail-triage plan, not a new marker.
         cw_args = ("--check",) if check_only else ()
         results.append(
             run_optional_check(
                 "scripts/enforcement/check_corpus_weight.py",
-                "Corpus Weight (byte ratchet — advisory)",
+                "Corpus Weight (byte ratchet)",
                 *cw_args,
                 warn_only=True,
             )

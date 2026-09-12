@@ -899,9 +899,10 @@ was in the event stream and cited ten lines below it — infra's correction of 2
 of the fifteen `confirmed` values is a `round` event in `~/.claude/state/events/<sid>.jsonl` — the ONE
 artifact that holds them all; the run record this sentence once cited for rounds 9–14 carries
 `rounds: []` today. By the spec's own convention (three consecutive rounds whose `confirmed` counts are
-non-decreasing and nonzero) the breaker fires at THREE windows of this series — rounds 6–8
-(`1 · 2 · 4`), rounds 7–9 (`2 · 4 · 26`) and rounds 13–15 (`6 · 7 · 7`); the paragraphs below name the
-first and the third, and the second is the same firing as the first read one round later, no exception.
+non-decreasing and nonzero) the breaker fires at FOUR windows of this series — rounds 6–8
+(`1 · 2 · 4`), rounds 7–9 (`2 · 4 · 26`), rounds 12–14 (`3 · 6 · 7`) and rounds 13–15 (`6 · 7 · 7`); the
+paragraphs below name the first and the third, the second is the first read one round later, and the
+fourth is the third read one round later — two firings, each seen twice, no exception.
 
 ⚠️ **Two corrections to this very series, both found by round 14, and the second is the more serious.**
 (i) The 11th value was written as **14**, which is round 11's *findings* count; its confirmed count is
@@ -970,7 +971,8 @@ whether to do the approach research or exempt the delta. The research was done.
 
 **Every CONTENT defect this review found is fixed.** What is not fixed, and cannot be fixed by another
 round of the same shape, is that **the same agent wrote every fix** — and each fix that agent wrote in rounds 9 through 14 seeded the next
-round's defect, six times running (round 15 confirmed round 14's residue; no round 16 ran). Fresh readers found them all; the author
+round's defect, six times running (round 15 confirmed round 14's residue and the loop stopped there; rounds 16–23
+belong to the amendment review below, a new scope opened on the operator's word). Fresh readers found them all; the author
 closed them all; the closing is where the next defect came from.
 
 **THE QUESTION — who writes the residue?**
@@ -983,7 +985,7 @@ remainder**, for three reasons that are checkable rather than felt:
    DESIGN: not the three tiers, not the selector, not the verdict's destination, not the eight axes, not
    the cadence, not a citation, not a ledger figure — the first draft of this list said so and was wrong
    twice: round 13 struck a false claim about what `validate_registry` forbids ("for an odd axis count it
-   forbids it outright"), load-bearing for tier 1's rationale, and corrected the ledger figure 956 → 1,052;
+   forbids it outright"), load-bearing for tier 1's rationale, and corrected a § Reproduce word count ("the": 956 → 1,052);
    the list was also wrong about the DESIGN itself, as the ⚠️ ANSWERED note below records. What holds is
    narrower: from round 12 the content changed only under rounds 13–15's delta reads (one fresh seat each,
    scoped to the previous fix diff — not three independent re-derivations of the whole).
@@ -1045,7 +1047,7 @@ quoted), the four-piece table (the `change:` substance figure had borrowed the `
 → five piece rows), § Constraints 2 and 4, § Lifecycle's D4 bullet, § Self-audit's D4 hazards, the R1/R8
 labels, and this postscript. `grep -n -i '\btier'` over the spec lists every remaining occurrence, and each is history or another sense — ⚠️ notes, § What this supersedes, the operator question's account of rounds 13–15, the plan's filename, this review's own account and ledger rows, and kaizen's registry term *"outcome tier"* in § Approaches — none is live design.
 
-`edits:` is the number of `@@` hunks in that round's fix diff (its pin → the next pin, `diff -u`), at `diff -u`'s default 3-line context, so it is derivable from the two pins alone; a round that applies no fix has no next pin, reads `edits: 0`, and its `spec md5 (start → end)` cell repeats the start hash (the working tree equals the pin); rows 16–20 were restated under this recipe at round 21 (they had counted replacement sites, which no diff reproduces).
+`edits:` is the number of `@@` hunks in that round's fix diff (its pin → the next pin, `diff -u`), at `diff -u`'s default 3-line context, so it is derivable from the two pins alone; a round that applies no fix has no next pin, reads `edits: 0`, and its `spec md5 (start → end)` cell carries the start hash and, in place of an end hash, the note that the working tree equals the pin; rows 16–20 were restated under this recipe at round 21 (they had counted replacement sites, which no diff reproduces).
 
 | Pass | seats · sections re-checked | counters | method | spec md5 (start → end) |
 |-----:|---|---|---|---|

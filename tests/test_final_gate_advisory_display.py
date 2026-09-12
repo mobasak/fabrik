@@ -192,9 +192,10 @@ def test_the_command_corpus_row_is_registered_advisory_and_quiet() -> None:
 
 def test_the_corpus_weight_row_is_registered_warn_only_with_check_threaded() -> None:
     """The kaizen loop's piece-3 ratchet (D-234) is registered by the gate's lock-holder on mail
-    01M2AJKKVGH8Q2PK51CM2GJ5FC: `warn_only=True` (exit 0 on every path by contract — a first fire
-    must not red ~46 repos) and `--check` threaded through `cw_args` so a read-only gate never
-    rewrites the ratchet's baseline. Pinned on the AST like the command-corpus row above."""
+    01M2AJKKVGH8Q2PK51CM2GJ5FC: `warn_only=True` (the display/JSON bucket — a non-zero exit still
+    reds the gate, so the shipping check owes exit 0 on every non-strict path) and `--check`
+    threaded through `cw_args` so a read-only gate never rewrites the ratchet's baseline. Pinned
+    on the AST like the command-corpus row above, definition included."""
     import ast
 
     tree = ast.parse(
@@ -224,6 +225,19 @@ def test_the_corpus_weight_row_is_registered_warn_only_with_check_threaded() -> 
         k.arg == "warn_only" and isinstance(k.value, ast.Constant) and k.value.value is True
         for k in call.keywords
     ), [k.arg for k in call.keywords]
+    # the NAME alone is not the threading (round 1 of the T7 review: a `cw_args = ()` kept the
+    # grader green while --check no longer reached the ratchet) — pin the definition too
+    assigns = [
+        n
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Assign)
+        and any(isinstance(t, ast.Name) and t.id == "cw_args" for t in n.targets)
+    ]
+    assert len(assigns) == 1, "exactly one cw_args definition"
+    val = assigns[0].value
+    assert isinstance(val, ast.IfExp), ast.dump(val)
+    assert isinstance(val.test, ast.Name) and val.test.id == "check_only", ast.dump(val.test)
+    assert [c.value for c in val.body.elts] == ["--check"], ast.dump(val.body)
 
 
 def test_an_advisory_row_keeps_a_warning_first_stdout_the_json_filter_admits(
