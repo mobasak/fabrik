@@ -68,8 +68,7 @@ inspection.
 
 ## Phase 3 — Converge (LOOP to a no-op)
 
-Repeated passes until one demonstrably-thorough pass makes **zero edits** (the Termination
-contract): each pass re-runs a fresh Phase-1 sweep against the CURRENT tree, re-opens every NEW
+Repeated passes until the Termination contract's closing round — `confirmed: 0`, md5 unchanged: each pass re-runs a fresh Phase-1 sweep against the CURRENT tree, re-opens every NEW
 claim plus a STATED sample of old ones (the pass ledger carries the fraction — re-opened k of N;
 the CLOSING pass re-opens every claim any edit touched, plus the full contract clause), re-checks the contract row's "complete when" clause end to end,
 and bumps `Last Updated:` only at the final flip. List what you re-read each pass.
@@ -81,7 +80,7 @@ and bumps `Last Updated:` only at the final flip. List what you re-read each pas
 - Converge two docs in one run — ripples go through the Matrix or become named follow-ups.
 - "Fix" the seeded template's structure locally — shape defects go upstream to
   `templates/scaffold/docs/` (they're Fabrik-maintained), content lives here.
-- Declare converged on the pass that edited — the loop ends only on an edit-free, md5-verified
-  no-op round.
+- Declare converged on the pass that edited — the loop ends only at the Termination contract's closing round
+  (`confirmed: 0`, md5-verified).
 
 {{include:subagents-core}}

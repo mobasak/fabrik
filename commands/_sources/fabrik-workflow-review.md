@@ -5,7 +5,7 @@ argument-hint: "<artifact path> <type — one of the Phase-0 table values>"
 
 > **⚠️ POOL OFF — D-181 (operator, 2026-09-07).** The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable). Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy.
 
-Converge one workflow artifact to a fixed point. This is to the `-fabrik` doer commands what `/fabrik-spec-review` is to `/fabrik-spec`: the separate, fresh-context pass that forces the no-op the doer's own blind-spot-sharing context won't reach. **One lean template** — the loop is artifact-neutral; only the `type` argument selects the yardstick (CC1: "thin files, not ten more heavy ones").
+Converge one workflow artifact to a fixed point. This is to the `-fabrik` doer commands what `/fabrik-spec-review` is to `/fabrik-spec`: the separate, fresh-context pass that forces the closing round (`confirmed: 0`) the doer's own blind-spot-sharing context won't reach. **One lean template** — the loop is artifact-neutral; only the `type` argument selects the yardstick (CC1: "thin files, not ten more heavy ones").
 
 Reads (open NOTHING else to act): the artifact under review · its upstream (the Vision Summary for a decomposition or an expanded epic; the research or interview inputs for a vision) · the doer twin's own `## Acceptance Criteria` · **the checklist Phase 0 names** (see Phase 0 — reference it **by path, never by an item count**). Everything the artifact cites is provenance — do not open it to review; if the artifact's claim can't be acted on without opening a cited file, that IS a finding (the applicable checklist's **hollow-citation** item).
 
@@ -39,7 +39,7 @@ Each finder names a concrete failure scenario. YOU keep refute/merge/decide.
 
 ## Phase 2 — Verify / refute
 
-Dedup; for each candidate try to REFUTE from the real source (quote the line/anchor that disproves it). Refute only when provably impossible or factually wrong — never merely for being rare. Log every candidate raised (including refuted ones) in the ledger; a fix is an edit → the md5 changes → the next pass is owed. A pass whose refutations leave the artifact unchanged still converges only via the md5-verified, edit-free round.
+Dedup; for each candidate try to REFUTE from the real source (quote the line/anchor that disproves it). Refute only when provably impossible or factually wrong — never merely for being rare. Log every candidate raised (including refuted ones) in the ledger; a fix is an edit → the md5 changes → the next pass is owed. A pass whose refutations leave the artifact unchanged still converges only via the md5-verified closing round at `confirmed: 0`.
 
 ## Phase 3 — Fix + re-check
 
@@ -63,4 +63,4 @@ The loop is **autonomous for every type this skill serves**: converge and return
 
 ⚠️ This skill does **not** own either human gate, and neither gate is a `type` here `[canonical: north star § Human gates — R14: "Exactly two gates: plan approval in, deploy approval out"]`. **Plan-in** is the operator's approval of the spec/plan **upstream at the front door** — `/fabrik-spec-review` is the command that stops for it `[canonical: north star R25 — "/fabrik-spec-review stops for operator approval; /fabrik-plan-review runs to no-op autonomously"]`; by the time a mega artifact reaches this review, that gate has already passed. **Deploy-out** is Gate 2 before `/fabrik-deploy` — the operator's explicit go, with the deploy triad (`fabrik apply` underneath, never typed by hand) running after it. Likewise the doer whose paired review is a dedicated command is NOT a type here: the cross-epic validation of `/fabrik-epics`' output belongs to `/fabrik-epics-review`, which self-converges. This skill is the shared review for the **producer** doers only — `/fabrik-vision` (`vision-summary`) and `/fabrik-epics` (`epic-decomposition` · `expanded-epic-files`).
 
-Never leave a non-no-op ledger row for the operator to re-invoke. Converge here.
+Never leave a non-zero ledger row for the operator to re-invoke. Converge here.

@@ -4,7 +4,7 @@ argument-hint: "[path to docs/flows.md — omit to use the current project's fro
 ---
 
 Converge this journey contract to a fixed point — do not stop after one pass. **Fixed point = a full review
-round that needs no edits.** This is to `/fabrik-flows` what `/fabrik-spec-review` is to `/fabrik-spec`: the
+round that CONFIRMS zero — the Termination contract's closing round.** This is to `/fabrik-flows` what `/fabrik-spec-review` is to `/fabrik-spec`: the
 adversarial, INDEPENDENT hardening of an artifact its author already self-converged — the author's pass
 cannot see its own blind spots; this one can (the live lesson: a journey gap survived TWO frozen,
 convergence-verified artifact versions because every verifying pass was run by the artifact's own author).
@@ -16,7 +16,7 @@ invisible until a non-author re-walks the journeys against the spec.
 
 {{include:run-record}}
 {{include:term-edit}}
-(After the no-op: the approval gate at the end.)
+(After the closing round: the approval gate at the end.)
 
 {{include:grounding-artifact}}
 - Also read `docs/data-contract.md` IF it already exists — a journey implying an entity/field the contract
@@ -100,8 +100,8 @@ entity/field/state the journeys imply — an implied field missing from that lis
 `docs/data-contract.md` lacking a listed input routes to **"contract bump needed."**
 
 After each pass, list what you re-walked (which flows, which criteria, which packs) and what you found, then
-fix the contract. **The loop terminates ONLY when a full, demonstrably-thorough pass makes ZERO edits** — a
-no-op round is the only proof. The pass that fixed anything is never the last; run one more. A pass finding
+fix the contract. **The loop terminates ONLY when a full, demonstrably-thorough pass CONFIRMS zero (the Termination contract's closing round, md5 unchanged)** — that
+closing round is the only proof. The pass that fixed anything is never the last; run one more. A pass finding
 nothing must still enumerate its coverage.
 
 ## Phase 2 — Handoff-readiness (the downstream consumers must not invent)
@@ -121,13 +121,13 @@ Reviewed means consumable as-is:
 
 Do not promise "100% coverage" — iterate to the fixed point, then enumerate residual unknowns/assumptions,
 separating **resolved** from **still-open** (each open one with a named resolution step). **Convergence = a
-full review round (all axes + merge/refute) that produced ZERO edits**, md5-verified (hash before/after the
+full review round (all axes + merge/refute) at `confirmed: 0` — the Termination contract's closing round**, md5-verified (hash before/after the
 closing round — identical hashes are the proof). Your say-so does not substitute.
 
-- **Clean no-op:** the FROZEN contract stands. Add the attestation to its header —
-  `Independently reviewed: v<N> — /fabrik-flows-review no-op <YYYY-MM-DD>` — and report the Pass Ledger.
+- **Closing round at `confirmed: 0`:** the FROZEN contract stands. Add the attestation to its header —
+  `Independently reviewed: v<N> — /fabrik-flows-review confirmed: 0 <YYYY-MM-DD>` — and report the Pass Ledger.
 - **You edited the contract:** editing a FROZEN artifact re-opens it — bump `Version`, re-freeze (the
-  edit-free confirming round IS the re-freeze convergence). The bump is a Status-flip event: **mint its
+  closing round IS the re-freeze convergence). The bump is a Status-flip event: **mint its
   `docs/DECISIONS.md` row staged in the same commit as the artifact** (the `/fabrik-flows` freeze law;
   classify at mint — plain row normally). Only then attest.
 - **A BLOCKING gap remains** (a criterion with no resolvable journey; a second actor whose journey cannot
@@ -158,7 +158,7 @@ was used to justify not building the thing that would have caught it.
 ## After the attestation — STOP and ask for the user's approval (do NOT auto-chain)
 
 Like its siblings, this is a **design approval gate**: the frozen journeys commit every downstream stage to
-serve them. Once the edit-free no-op earns the attestation, **present** the contract + the flow index + any
+serve them. Once the closing round (`confirmed: 0`) earns the attestation, **present** the contract + the flow index + any
 "contract bump needed" findings + the full Pass Ledger, and **STOP — ask the user to approve the journeys.**
 Name the successor without invoking it: `/fabrik-data-contract` — freeze the fields the journeys surfaced
 (the Contract inputs section is its evidence list). Only on the user's explicit approval does it run; on

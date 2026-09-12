@@ -7,8 +7,8 @@ argument-hint: "[a specific pack or rules subdir to scope — omit to audit all 
 
 Run a `.windsurf/rules` COMPLIANCE GAP AUDIT. **READ-ONLY — do NOT modify code, config, docs, or the
 rules; produce an audit only.** And do NOT stop after one pass: **iterate the audit until it
-converges** (Phase 4) — a pass whose gap list is identical to the prior pass (a no-op on the finding
-set) is the only proof the audit is complete. Propose nothing as fixed/done until I say so.
+converges** (Phase 4) — the Termination contract's closing round (a delta round with a fresh seat that
+CONFIRMS zero new gaps, the gap list's md5 unchanged) is the only proof the audit is complete. Propose nothing as fixed/done until I say so.
 **Context is never a reason to stop:** the harness auto-compacts and the run continues — keep going.
 
 **Where this sits vs `/fabrik-review`:** every `/fabrik-review` already injects the rules floor into
@@ -39,6 +39,7 @@ compliance drift is suspected) — not per-commit.
     `python scripts/select_rules.py`.
 
 {{include:run-record}}
+{{include:term-edit}}
 {{include:grounding-artifact}}
 - Verify globs via `python scripts/select_rules.py` — a plausible-looking glob is not proof it matches.
 
@@ -122,11 +123,11 @@ line) or spec-consistent-off (cite the shape flag)? If so, reclassify it as 🟡
 that survive this refutation are real. Equally, do not let a finder's ✅ COMPLIANT stand without a
 `path:line` you spot-checked.
 
-## Phase 4 — Iterate to a stable audit (no-op pass), then output
+## Phase 4 — Iterate to the closing round, then output
 
-**Do not stop after one pass.** Re-run the fan-out + merge/refute (Phases 2–3) until a full,
-demonstrably-thorough pass is a **no-op on the finding set**: it surfaces no NEW gap and
-refutes/reclassifies none further — the gap list is unchanged from the prior pass. The pass in which
+**Do not stop after one pass.** Re-run the fan-out + merge/refute (Phases 2–3) until a full
+pass is the Termination contract's closing round: a delta round with a fresh non-authoring seat
+that CONFIRMS no NEW gap and reclassifies none — `confirmed: 0`, the gap list's md5 unchanged. The pass in which
 the list *changed* is never the last; run one more, and if anything is added, removed, or
 reclassified, keep going. A single pass, or "I think I caught them all," is not convergence — the
 stable (identical-to-prior) pass is. This converges the AUDIT to completeness; it does **not** fix

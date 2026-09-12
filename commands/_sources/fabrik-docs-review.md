@@ -8,21 +8,22 @@ DOCS UPDATE CONVERGENCE
 Converge the documentation to a fixed point — do not stop after one pass.
 
 {{include:grounding-artifact}}
-## Run record — open it FIRST, close it only at the edit-free pass
+{{include:term-edit}}
+## Run record — open it FIRST, close it only at the closing round
 
-**5 phases (0–4)**; terminal condition: **an edit-free reconciliation pass with the doc-sync gate green.**
+**5 phases (0–4)**; terminal condition: **the Termination contract's closing round (`confirmed: 0`, md5 unchanged) with the doc-sync gate green.**
 
 ```bash
 python3 scripts/command_run.py start --command fabrik-docs-review --phases 5 \
   --surface "<what this run is OVER — the spec | plan dir | ticket | diff range>" \
-  --terminal "edit-free pass + docs_updater --check green"
+  --terminal "closing round confirmed 0 + docs_updater --check green"
 ```
 
 `step --phase <N> --title "<phase title>"` on entering each phase; one
 `round --seats <seats dispatched this pass> --findings <discrepancies this pass> --classes-swept <doc/claim classes swept clean>
 --classes-new <classes this pass opened>` per Phase-2/3 pass. The ledger is the doc set — re-sweep the
 SAME docs each pass rather than re-scoping to whichever doc looks suspicious now.
-`done --command fabrik-docs-review --evidence "<the edit-free pass + the verbatim gate line>" --feedback "<what you filed, to whom | none — surfaces exercised>"` at the
+`done --command fabrik-docs-review --evidence "<the closing round + the verbatim gate line>" --feedback "<what you filed, to whom | none — surfaces exercised>"` at the
 TERMINAL verdict; `blocked --command fabrik-docs-review --reason "…" --feedback "<what you filed, to whom | none — surfaces exercised>"` otherwise. **Always name the run
 you close** — a bare close would end the CALLER when this command runs nested inside one. **Open the
 `RUN:` line on every reply until the run closes.**
@@ -83,8 +84,8 @@ claims-accounted: if any line is unaccounted for, you skipped it — go back.
 
 ## Phase 2 — Bidirectional reconciliation (to a fixed point)
 
-In this single turn, run repeated reconciliation passes until one demonstrably-thorough
-pass finds zero new discrepancies. Treat every claim as STALE until proven against the
+In this single turn, run reconciliation passes until the Termination contract's closing round
+(the fragment above). Treat every claim as STALE until proven against the
 real source, and check BOTH directions:
 
 - **Doc → code:** for each claim in the ledger, OPEN the actual code/migration and
@@ -125,7 +126,7 @@ features documented-but-removed or shipped-but-undocumented.
 Dispatch one INDEPENDENT native seat per doc/subsystem, every run (recipe in
 § Subagents), run them in parallel, then merge + dedupe their findings — refuting any that are provably wrong
 (quote the code/doc line that disproves the discrepancy) before acting — before the next pass.
-**Never solo, never two:** a surface with fewer than three units still dispatches **THREE seats on DIFFERENT angles** over it — measured, not assumed (1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186).
+**Round 1 keeps the units-sized floor (D-208 — never solo, never two: a surface with fewer than three units still dispatches THREE seats on DIFFERENT angles, measured not assumed — 1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186); every later round is sized by the fragment's D5 sentence (`dispatch_headroom.py --units <N> --delta <n>`).**
 
 **Verify subagents:** after merging subagent ledgers, independently re-check a random
 sample (~20%) of each subagent's VERIFIED claims against the code. Subagent summaries
@@ -137,32 +138,28 @@ found, then fix. **Dispatch the doc author-fixes through the Tier-1 reconcile lo
 `scripts/doc_reconcile.py` (its pool author is OFF — D-181 — so its author leg is a native `general-purpose` seat, or you) emitting a **minimal
 structured patch, verified-before-applied** — rather than hand-editing
 each doc; keep the Opus adjudication (what's actually wrong + the routing decision) yours.
-**The loop ends ONLY when a full, demonstrably-thorough pass finds zero
-new discrepancies AND makes zero doc edits — a no-op pass.** The pass in which you *fixed*
-docs is never the last: run one more, and if it changes anything (a correction, an
-addition), keep going. A pass that finds nothing must still enumerate its coverage (what
-you actually read); an empty pass with no evidence does not count.
+**The loop ends ONLY at the Termination contract's closing round** (the fragment above: a delta
+round with a fresh non-authoring seat at `confirmed: 0`, the md5s unchanged). A pass that finds
+nothing must still enumerate its coverage (what you actually read); an empty pass with no evidence
+does not count.
 
 **Run that next pass UNPROMPTED — the moment a pass makes any doc edit you owe it, automatically.** Never wait
-to be asked *"did you reconcile to a no-op?"*; the obligation is yours and predates any challenge — reframing
+to be asked *"did you reconcile to the closing round?"*; the obligation is yours and predates any challenge — reframing
 your own skipped rule as a *"fair challenge"* you then conceded to is itself the dodge. Three thoughts that
 each mean **run the next pass now**: *"the docs were already in sync,"* *"the fix was trivial,"* *"it's
-obviously clean."* Only the zero-discrepancy, zero-edit round is convergence.
+obviously clean."* Only the closing round is convergence.
 
-**Maintain a numbered Pass Ledger and reproduce it in the report — you are done ONLY when its last row
-reads `discrepancies: 0, edits: 0`.** Record the md5 of each reconciled doc at the final pass's start and
-end; identical hashes prove the no-op. A ledger ending on any non-zero row is an unfinished reconciliation
-— run the next pass.
+**The Pass Ledger is the fragment's** (its counters and md5 pair — the discrepancies you raise are its `found:`, the ones you executed and that held its `confirmed:`, the doc edits its `edits:`); a ledger ending on a non-zero `confirmed:` row is an unfinished reconciliation — run the next pass.
 
 ```
-Pass 1 — reconcilers: <doc types> | discrepancies: 4 | edits: 4 | → not done (changed docs)
-Pass 2 — reconcilers: <doc types> | discrepancies: 0 | edits: 0 | → CONVERGED (no-op, md5 stable)
+Pass 1 — reconcilers: <doc types> | found: 4, new: 4, confirmed: 4, fixed: 4, unexecuted: 0, edits: 4 | → not done (changed docs)
+Pass 2 — sonnet×1 (fresh) · delta over the fixed docs | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | → CONVERGED (the closing round, md5 stable)
 ```
 
 **⚠️ The WHOLE loop runs inside THIS ONE invocation — you do NOT yield control between passes.** **Context is never a reason to stop:** the harness AUTO-COMPACTS long conversations and the run continues in the same invocation — keep durable artifacts current and keep going; "low context" filed as BLOCKED is still the named violation, and a heavy remainder is dispatched to fresh subagents, never deferred. When a pass
 makes any doc edit, do **not** stop, do **not** print "Pass 1 done" and hand back, do **not** wait for the
 caller to re-invoke `/fabrik-docs-review`. Go **straight into the next reconciliation pass** in the SAME turn
-and keep chaining until the zero-discrepancy, zero-edit no-op. **You return control EXACTLY ONCE: at the no-op
+and keep chaining until the closing round. **You return control EXACTLY ONCE: at the closing
 round.** (Invoked as the final step of `/fabrik-execute-plan`, the whole loop completes before the run
 finishes.) Ending the turn with an unresolved discrepancy so the operator has to re-invoke is THE failure this
 kills — run the next pass instead.
@@ -204,8 +201,7 @@ without that embedded proof + the gate green.
 Do not promise "zero discrepancies" as a claim — iterate to a fixed point, then
 explicitly list any residual risks the tooling can't catch (hard-to-verify prose,
 screenshots/diagrams, external-facing copy, examples that need a live service to run).
-Convergence = a full reconciliation round (all reconcilers + merge/refute + the subagent
-verification sample) that produced **zero new discrepancies AND zero doc edits** — a no-op
-round; not your say-so, and not "I fixed what I found."
+Convergence = the Termination contract's closing round (a delta round with a fresh non-authoring
+seat at `confirmed: 0`, md5 unchanged); not your say-so, and not "I fixed what I found."
 
 {{include:subagents-core}}

@@ -4,7 +4,7 @@ argument-hint: "[path to docs/ui-design.md — omit to use the current project's
 ---
 
 Converge this UI/UX design contract to a fixed point — do not stop after one pass. **Fixed point = a full review
-round that needs no edits.** This is to `/fabrik-ui-design` what `/fabrik-spec-review` is to `/fabrik-spec`: the
+round that CONFIRMS zero — the Termination contract's closing round.** This is to `/fabrik-ui-design` what `/fabrik-spec-review` is to `/fabrik-spec`: the
 adversarial, INDEPENDENT hardening of a design artifact its author already self-converged (`/fabrik-ui-design`
 froze it; that pass cannot see its own blind spots — this one can). The things a design contract gets wrong —
 and the ones this pass exists to catch — are **(1) a screen that renders a field the data contract doesn't have
@@ -23,7 +23,7 @@ This command is #1: it never opens a browser — it grounds text against text.
 
 {{include:run-record}}
 {{include:term-edit}}
-(After the no-op: the approval gate at the end.)
+(After the closing round: the approval gate at the end.)
 
 {{include:grounding-artifact}}
 - Also read the frozen `docs/data-contract.md` for every field a screen binds — a field not backed by a real column is an invented-surface defect.
@@ -43,11 +43,11 @@ checked against its four binding sources, all read THIS session:
   `mobile-app/80-mobile.md` (RN screen inventory + a11y) · `chrome-ext/70-chrome-ext.md` (MV3 surfaces) ·
   `desktop-app/72-desktop.md`. Read the pack(s) that match.
 
-## Phase 1 — Adversarial grounding to a fixed point (parallel grounders per axis)
+## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later rounds sized by the fix, D-229)
 
 Treat every screen/flow/mapping as unproven until verified against those sources. Run repeated passes until one
-demonstrably-thorough pass finds zero new gaps. Cover six axes — one INDEPENDENT grounder each when the contract
-is large; **spot-verify against the spec's INTENT, since the written spec can itself be wrong.**
+demonstrably-thorough pass finds zero new gaps. Cover six axes — at round 1 one INDEPENDENT seat per axis when the contract is large, after it one
+fresh seat over the delta; **spot-verify against the spec's INTENT, since the written spec can itself be wrong.**
 
 **A) Design-system integrity.** Every screen's components (Phase-5 blocks) come **only** from the established
 system — flag any bespoke/invented component where a system primitive exists, any off-token visual, any screen
@@ -92,7 +92,7 @@ data-contract field / the pack rule that makes it a non-issue) before editing.
 
 After each pass, list what you re-grounded (which screens you read, which `docs/data-contract.md` fields you
 confirmed, which pack rules you checked) and what you found, then fix the contract. **The loop terminates ONLY
-when a full, demonstrably-thorough pass makes ZERO edits** — a no-op round is the only proof of convergence. The
+at the Termination contract's closing round — a delta round with a fresh seat at `confirmed: 0`, md5 unchanged** — the only proof of convergence. The
 pass in which you fixed anything is never the last; run one more. A pass that finds nothing must still enumerate
 its coverage; an empty pass with no evidence doesn't count.
 
@@ -122,14 +122,14 @@ A contract that can't be build-verified against its own claims isn't done.
 
 Do not promise "100% coverage" — iterate to a fixed point, then enumerate residual unknowns / assumptions /
 out-of-scope risks, separating **resolved** from **still-open** (each open one with a named resolution step).
-**Convergence = a full review round (all axes + merge/refute) that produced ZERO edits.** That edit-free,
+**Convergence = the Termination contract's closing round (all axes + merge/refute, `confirmed: 0`).** That
 md5-verified round is the ONLY thing that earns the independent-review attestation; your say-so or "I fixed what
 I found" does not.
 
-- **Clean no-op (no edits):** the FROZEN contract stands. Add a one-line attestation to its header —
-  `Independently reviewed: v<N> — /fabrik-ui-design-review no-op <YYYY-MM-DD>` — and report the Pass Ledger.
+- **Closing round at `confirmed: 0` (no edits):** the FROZEN contract stands. Add a one-line attestation to its header —
+  `Independently reviewed: v<N> — /fabrik-ui-design-review confirmed: 0 <YYYY-MM-DD>` — and report the Pass Ledger.
 - **You edited the contract:** editing a FROZEN artifact re-opens it — per the freeze rule, **bump `Version` and
-  re-freeze** (the edit-free confirming pass above IS the re-freeze convergence). The bump is a Status-flip
+  re-freeze** (the closing round above IS the re-freeze convergence). The bump is a Status-flip
   event: **mint its `docs/DECISIONS.md` row staged in the same commit as the artifact** (the `/fabrik-ui-design`
   freeze law; classify at mint — plain row normally). Only then attest.
 - **A BLOCKING gap remains** (a screen needs a field the data contract lacks and you can't reconcile it here; a
@@ -161,14 +161,14 @@ was used to justify not building the thing that would have caught it.
 ## After the attestation — STOP and ask for the user's UI approval (do NOT auto-chain)
 
 Like `/fabrik-spec-review`, this is a **design approval gate**: a frozen UI contract commits agents to build
-every screen/flow in it, so a **human signs off on the UI before planning/building begins.** Once the edit-free
-no-op round earns the attestation:
+every screen/flow in it, so a **human signs off on the UI before planning/building begins.** Once the closing
+round (`confirmed: 0`) earns the attestation:
 
 - **Present** the reviewed contract + a short summary (screens, key flows + their click budgets, any
   reconciliations) + the full Pass Ledger, and **STOP — explicitly ask the user to approve the UI design.**
 - **Do NOT auto-invoke planning.** Name what comes next so it's clear, but don't call it: **Claude Code path** →
   `/fabrik-plan-after-chat` (references `docs/ui-design.md` + the design system + `docs/data-contract.md` as
-  binding UI truth, its screen-building phases each running the Build Verification Loop to a no-op); **Traycer
+  binding UI truth, its screen-building phases each running the Build Verification Loop to its closing round); **Traycer
   path** → paste/link the reviewed contract as the UI-epic Context File.
 - Only **on the user's explicit approval (a later turn)** does planning run — and if they're on the Claude Code
   path, then auto-invoke `/fabrik-plan-after-chat` (don't make them re-type it). If they ask for changes,

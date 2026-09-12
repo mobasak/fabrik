@@ -8,7 +8,7 @@ first and then DEPTH.
 
 {{include:term-coverage}}
 {{include:grounding-code}}
-## Run record — open it FIRST, keep it current, close it only at the quiet delta round
+## Run record — open it FIRST, keep it current, close it only at the closing delta round (`confirmed: 0`, the fragment's exit)
 
 This command has **5 phases (0–4)** and exactly one terminal condition, and it has TWO parts that are BOTH required (neither alone is enough — see § Termination): **a DELTA round carrying a fresh
 non-authoring finder seat that returns **`confirmed: 0 · fixed: 0`** with `unexecuted:` 0 or absent, and every candidate ever raised adjudicated** (a re-raise of an
@@ -19,6 +19,8 @@ python3 scripts/command_run.py start --command fabrik-review --phases 5 \
   --surface "<what this run is OVER — the spec | plan dir | ticket | diff range>" \
   --terminal "confirmed:0 delta round"
 ```
+
+A routed-up review names the trigger in its surface: `--surface "ROUTED-UP: step 1 — <the trigger> · <the diff range>"` — the ledger's only positive witness that `/fabrik-review-scoped`'s route-up fired (`command_run.py:1863` → `:2702`); its `done` then reaches back to the previous AGENT-closed window (`:2585`), which is what covers the pre-`start` edits.
 
 Then, for the whole run: `step --phase <N> --title "<the phase title>"` on entering each phase, and
 **one `round` call per Phase-4 pass** —
@@ -423,7 +425,7 @@ Log the pass you just finished in the **Pass Ledger** (Reporting: its `found`/`c
   computed, not judged: `git diff <the last round's commit>..HEAD -- <the review's surface>`, PLUS one
   hop of callers and callees (the files that reference a symbol the diff changed — `serena`
   `find_referencing_symbols` where the language server is up, else `grep -rn '<symbol>'` — and the
-  tests that import the changed module), PLUS any sibling commit that landed on the original surface
+  tests that import the changed module) (the hop bounds the EXTENT; what a delta round may COUNT is the fragments' bounded-hop rule — `term-edit`/`term-coverage`), PLUS any sibling commit that landed on the original surface
   since the last round. The brief lists that file set. **Same partition rule** — risky hunks to Opus,
   the rest to Sonnet, the grep classes to the hygiene script (run at the round's start and close) —
   and the **class ledger PERSISTS**: a delta round sweeps the classes its diff touches and CITES the

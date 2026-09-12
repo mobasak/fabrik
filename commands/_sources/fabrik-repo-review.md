@@ -153,7 +153,7 @@ don't count as new failures.
 
 After each fix cluster, re-review ONLY the CHANGED surface + its callers/callees (fixes
 create new surface) and update the ledger — do NOT re-run all units from scratch every
-iteration — those are the DELTA rounds, over the fix diff plus one hop of callers and callees, same
+iteration — those are the DELTA rounds, over the fix diff plus one hop of callers and callees (the hop bounds the EXTENT; what a delta round may COUNT is the fragments' bounded-hop rule — `term-edit`/`term-coverage`), same
 partition and the same persisting class ledger. When a delta round CONFIRMS zero, run ONE final,
 demonstrably-thorough FULL certification pass across all in-scope slices — a complete re-adjudication of the
 **Coverage Checklist (slice × failure-class × rule-pack)**. You EXIT when, after that pass, **every checklist

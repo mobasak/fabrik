@@ -209,7 +209,7 @@ def test_every_extract_after_text_round_trips_against_its_source():
     # every entry, none skipped — and an absolute floor, so an emptied EXTRACT cannot read green
     # pinned to the map's size on purpose: a map that lost 23 of its 29 after-texts read green under
     # a `>= 6` floor — changing EXTRACT means changing this number deliberately
-    assert examined == sum(len(p) for p in ac.EXTRACT.values()) == 29, examined
+    assert examined == sum(len(p) for p in ac.EXTRACT.values()) == 34, examined  # +5: pass 3, D1
     assert mismatched == [], mismatched
 
 
@@ -227,10 +227,12 @@ def test_both_floor_sentences_reach_their_rendered_commands_whole(tmp_path):
     # partitioned loops must appear in NEITHER (D-208 vs D-207).
     units = {
         native: sorted(n for n, text in rendered.items() if _units_sentence(native) in text)
-        for native in ("`fabrik-reviewer`", "`fabrik-researcher`")
+        for native in ("`fabrik-reviewer`", "`fabrik-researcher`", "`design-review`")
     }
     assert units == {
         "`fabrik-reviewer`": ["fabrik-doc-converge", "fabrik-features"],
+        # the third carrier (review-family pass 3, D1): /design-review keeps its mechanical seat
+        "`design-review`": ["design-review"],
         # `/fabrik-spec-review` left this list for the SECTION-partition floor (D-212/D-218)
         "`fabrik-researcher`": [
             "fabrik-docs-review",
@@ -1015,3 +1017,40 @@ def test_a_symlinked_orphan_wrapper_file_is_unlinked_not_refused(tmp_path):
     (s / "zz-retired" / "SKILL.md").symlink_to(outside)
     ac.render(d, s, agents_dest=a)
     assert not (s / "zz-retired" / "SKILL.md").is_symlink() and outside.exists()
+
+
+def test_the_finish_docs_review_skips_docs_the_heavy_review_graded(tmp_path):
+    """Spec D9 (review-family pass 3): the Finish `/fabrik-docs-review` runs over the plan's changed
+    docs MINUS those the whole-plan `/fabrik-review` receipt graded, and records `SKIPPED — …` when
+    the set is empty. A text-presence grader — `check_plan_quality.py` reads no Execution notes, so
+    the behaviour itself is observed by the spec's V6, never enforced here."""
+    ac.render(tmp_path, tmp_path / "_skills", agents_dest=tmp_path / "_agents")
+    text = (tmp_path / "fabrik-execute-plan.md").read_text()
+    assert "MINUS the docs the whole-plan" in text
+    assert text.count("SKIPPED — every changed doc was review surface") >= 2  # the rule + the loop
+
+
+def test_the_four_fragment_less_loops_now_include_the_termination_fragment(tmp_path):
+    """D1 (review-family pass 3): `/fabrik-docs-review`, `/fabrik-rules-review`, `/fabrik-epics-review`
+    and `/design-review` include `term-edit` with every slot filled; `/fabrik-review-scoped` cites it
+    and stays receipt-less. Graded on the SOURCES and on the rendered slots (an unfilled slot is a
+    render refusal, which `--check` already proves)."""
+    src = REPO / "commands" / "_sources"
+    for name in (
+        "fabrik-docs-review",
+        "fabrik-rules-review",
+        "fabrik-epics-review",
+        "design-review",
+    ):
+        assert "{{include:term-edit}}" in (src / f"{name}.md").read_text(), name
+        assert set(ac.PARAMS[name]["term-edit"]) == {
+            "ARTIFACT",
+            "DONE_ACT",
+            "DONE_WORD",
+            "AXES",
+            "EXEMPT_NOTE",
+        }, name
+    assert "{{include:term-edit}}" not in (src / "fabrik-review-scoped.md").read_text()
+    assert "{{include:term-coverage}}" not in (src / "fabrik-review-scoped.md").read_text()
+    consumers = sorted(p.stem for p in src.glob("*.md") if "{{include:term-edit}}" in p.read_text())
+    assert len(consumers) == 17, consumers

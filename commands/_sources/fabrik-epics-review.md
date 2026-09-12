@@ -16,12 +16,13 @@ fixup agents to close them, and **runs the epic set to its lens-adjudicated exit
 ask** except on the three BLOCKED cases. It writes no epic content itself; the fixup agents do (Phase 4).
 
 **Why a converging review, not an audit.** `/fabrik-epics` produces; a single PASS/FAIL pass would hand
-the owner a defect list and stop. A doer produces, a separate review forces the no-op — this command
+the owner a defect list and stop. A doer produces, a separate review forces the closing round (`confirmed: 0`) — this command
 converges the artifact set instead. It is AUTONOMOUS: the operator already agreed to the decomposition at
 `/fabrik-epics`' checkpoint; there is no human step here (the two human gates are plan-in — the operator's
 spec/plan approval upstream — and deploy-out, Gate 2). It halts only on the 3 BLOCKED cases.
 
 {{include:run-record}}
+{{include:term-edit}}
 
 ## Phase 0 — Reads budget, orientation, and the owner set
 
@@ -327,7 +328,7 @@ a window that specs its epic from conversation loses every Metadata field the in
 | the other **10** fields — present **and value-shaped** (not presence-only) | `Scaffold` · `Shape` · `Concurrency` · `i18n` · `Rule Packs` · `HAS_USER_GUIDE` ∈ {true,false} · **`Universal categories` = comma-separated 1–14, verbatim from `/fabrik-epics`' universal-categories step** (a hand-invented list is a FAIL) · `Email` ∈ {transactional, marketing, two-stream, none, N/A} · `Abuse Detection` = `required` (SaaS w/ free tier) or `N/A — <reason>` · `FINANCIALS` = `required` (SaaS launch gate) or `N/A — <reason>` | missing: [name], **or present with an off-contract value** — a presence-only pass is the same regression this table flags for `Registrars` |
 | Ticket is self-sufficient | the whole corpus chain for one window (`/fabrik-spec <epic file>` → `/fabrik-spec-review` → `/fabrik-features` → `/fabrik-flows` → `/fabrik-data-contract` → *(GUI)* `/fabrik-ui-design` → `/fabrik-plan-after-chat` → `/fabrik-plan-review` → `/fabrik-execute-plan`) runs from ONLY this ticket + the Infrastructure Decisions spec | needs context only the Vision Summary carries |
 
-## Phase 4 — Converge to a no-op — fixup, don't stop
+## Phase 4 — Converge to the closing round — fixup, don't stop
 
 Classify every surviving finding, then handle it autonomously — everything short of a BLOCKED case:
 
@@ -380,7 +381,7 @@ computed".)
 
 Fixups edit epic files, so a round that changed anything shows a different hash — which is exactly why
 **the exit round must show `md5(start) == md5(end)`** on top of its quiet ledger: identical hashes prove
-the final round was genuinely edit-free rather than asserted so. A quiet ledger with a moved hash is a
+the final round was genuinely the closing round (`confirmed: 0`) rather than asserted so. A quiet ledger with a moved hash is a
 round that fixed something and called itself quiet — run the next round.
 
 **Record hashes IN FULL (all 32 hex chars), per round, and let them CHAIN**: round N's `md5(end)` must

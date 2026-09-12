@@ -14,7 +14,7 @@ listed here.** This is the seam between design and build:
 ```
 
 **HARD GATE: no plan and no implementation build against a contract that is still `DRAFT`.** The contract must
-reach `FROZEN` (an edit-free convergence round) before `/fabrik-plan-after-chat` consumes it — a plan built on a
+reach `FROZEN` (the closing round of its Termination contract — `confirmed: 0`, md5 unchanged) before `/fabrik-plan-after-chat` consumes it — a plan built on a
 half-agreed field list is the exact drift this command exists to prevent.
 
 {{include:run-record}}
@@ -141,7 +141,7 @@ project-level and light). Per section:
 
 ## Phase 3 — Converge (the self-audit LOOP — iterate to a no-op)
 
-Run repeated reconciliation passes until one demonstrably-thorough pass makes **zero edits** (see the
+Run repeated reconciliation passes until the Termination contract's closing round — `confirmed: 0`, md5 unchanged (see the
 Termination contract). Each pass checks ALL of:
 
 1. **Coverage** — every entity from the spec (Mode A) / schema (Mode B) is present; every GUI/form field maps to
@@ -159,7 +159,7 @@ Termination contract). Each pass checks ALL of:
    every `personal`/`sensitive` category.
 
 After each pass, list what you reconciled (which `path:line` / spec sections you re-read) and what you changed,
-then run one MORE pass — the loop terminates ONLY on an edit-free, md5-verified no-op round.
+then run one MORE pass — the loop terminates ONLY at the Termination contract's closing round (`confirmed: 0`, md5-verified).
 
 ## Phase 4 — Freeze + wire the truth
 
@@ -171,7 +171,7 @@ then run one MORE pass — the loop terminates ONLY on an edit-free, md5-verifie
   rule verbatim: *"Frozen — no agent adds a field, column, or enum value not listed here. Any change = bump
   Version + re-freeze via `/fabrik-data-contract`."* **This status/header write is a post-convergence action,
   exempt from the no-op rule** — the md5 anti-cheat is measured on the reconciliation *body* during the final
-  reconciliation pass (which must be edit-free), so flipping `DRAFT → FROZEN` *after* that verified no-op does
+  reconciliation pass (the closing round), so flipping `DRAFT → FROZEN` *after* that verified closing round does
   not re-open the loop.
 - **Do not commit** unless the user says so this turn (`git add` is fine). ⚠️ **Superseded where it conflicts with CLAUDE.md § EXIT:** an uncommitted artifact is an UNFINISHED task and the Stop hook BLOCKS the turn on it (causes 2 and 3), so "do not commit" and "commit your own work NOW" cannot both be obeyed. **COMMIT the artifact** — on a shared tree parked WIP is the only work that can be silently destroyed, and committing a `DRAFT`/`FROZEN` artifact is not approving it; its own `Status:` line carries that. What still needs the user's word is the APPROVAL and anything beyond this artifact's own paths (trade-intelligence, 2026-08-28). `docs/data-contract.md` is a
   **committed, project-owned** file (not a gitignored synced doc) — the plan and every agent reference it by
@@ -190,7 +190,7 @@ then run one MORE pass — the loop terminates ONLY on an edit-free, md5-verifie
 
 {{include:questionbar}}
 ## Guardrails — never
-- Freeze on a pass whose *reconciliation* made edits — the no-op, md5-verified round is the ONLY thing that earns
+- Freeze on a pass whose *reconciliation* made edits — the closing round (`confirmed: 0`, md5-verified) is the ONLY thing that earns
   `FROZEN`. (The Phase-4 `Status → FROZEN` header flip is the exempt post-convergence write, not a reconciliation
   edit — see the Termination contract + Phase 4.)
 - Invent a field, type, or enum value not grounded in the spec (Mode A) or the real schema (Mode B) — read it at

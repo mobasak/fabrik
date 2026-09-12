@@ -87,7 +87,7 @@ prevent — enumerate what you READ (files × surfaces), not what you remember.
 
 ## Phase 3 — Converge (the self-audit LOOP — iterate to a no-op)
 
-Run repeated passes until one demonstrably-thorough pass makes **zero edits** (the Termination contract).
+Run repeated passes until the Termination contract's closing round — `confirmed: 0`, md5 unchanged.
 Each pass re-checks ALL of:
 
 1. **Coverage** — re-run a fresh Phase-1 sweep on the CURRENT code: any capability the previous pass
@@ -100,7 +100,7 @@ Each pass re-checks ALL of:
    `QUICKSTART.md`).
 
 After each pass, list what you re-read and what changed, then run one MORE pass — the loop terminates ONLY
-on an edit-free, md5-verified no-op round.
+at the Termination contract's closing round (`confirmed: 0`, md5-verified).
 
 ## Guardrails — never
 

@@ -166,16 +166,7 @@ round AND a fully adjudicated checklist. One pass over the inventory is a first 
   Round 1 verifies every inventory row. Later rounds re-hunt the CLASSES: an adjudication that
   downgraded a verifier's CONFORMS is evidence that class was under-hunted, so re-sweep it across
   rows that already passed. The **closing round runs non-author verifiers** on the full inventory.
-- **DONE requires all of:** the final round is QUIET — **`found: 0 · new: 0 · fixed: 0`** — with every
-  candidate ever raised adjudicated (`found:` counts candidates NEEDING adjudication: a round raising
-  3 FRESH candidates and refuting all 3 is `found: 3 · new: 3` — not quiet; a re-raise of an
-  already-adjudicated candidate is CITED in its disposition row, never counted — D-048. The graders
-  block on a non-zero final `found:` — `check_review_coverage.py` reads that counter, not `new:` —
-  so an exit keyed on `new:` alone stamps a report the gate then refuses); **every Inventory row
-  terminal** (no `PENDING`); **every Checklist row adjudicated** `CLEAN` / `FIXED(n)` /
-  `REFUTED(n, proof)` with no `UNCHECKED`; and the **Pass Ledger** reproduced with a `method:` cell FIRST (the
-  closing round `method: re-derivation` — the gate blocks without it) then `found:` / `new:` /
-  `fixed:` per round, each row naming the verifiers dispatched for THAT round.
+- **DONE requires all of:** the Termination contract's exit above — the closing round at `confirmed: 0 · fixed: 0 · unexecuted: 0` with every candidate adjudicated, every Checklist row adjudicated, the Pass Ledger in the fragment's grammar with `method: re-derivation` on the closing row — and, host-only, **every Inventory row terminal** (no `PENDING`).
 - **Every verdict evidence-anchored with FRESH runs.** A green from last week is not evidence —
   re-run it or mark the row PARTIAL and say why.
 - **Supersessions name their successor. DEVIATES rows state whether the spec was re-frozen** — if

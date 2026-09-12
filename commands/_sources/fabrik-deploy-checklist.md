@@ -161,7 +161,7 @@ that is what makes an under-declared inventory detectable rather than a smaller 
 
 ## Phase 4 — Converge `[anywhere]` (the self-audit LOOP — iterate to a no-op)
 
-Run repeated passes until one demonstrably-thorough pass makes zero edits to the script (Termination
+Run repeated passes until the Termination contract's closing round — `confirmed: 0`, the script's md5 unchanged (Termination
 contract). Each pass checks ALL of: **corpus coverage** (a row per applicable Layer 1–4 + pack check,
 `UNVERIFIABLE` where it must be) · **derived denominators** (every `expected` traces to a Phase-1 command
 and count) · **features cross-check** (both directions) · **executability** (`--json` runs; `--self-check`

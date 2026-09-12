@@ -30,8 +30,8 @@ sent but never accepted — no token-landing surface ever designed), and an *asy
    approval. No converged spec → stop and route back.
 2. **Every scaffolded type runs this — no skip list.** The *journey kind* varies by `project.yaml::type`;
    the discipline never does.
-3. **No contract or UI design against a `DRAFT`.** `docs/flows.md` must reach `FROZEN` (an edit-free
-   convergence round), then pass `/fabrik-flows-review`, before `/fabrik-data-contract` or
+3. **No contract or UI design against a `DRAFT`.** `docs/flows.md` must reach `FROZEN` (the closing round of its
+   Termination contract — `confirmed: 0`, md5 unchanged), then pass `/fabrik-flows-review`, before `/fabrik-data-contract` or
    `/fabrik-ui-design` consumes it.
 
 {{include:run-record}}
@@ -170,7 +170,7 @@ time or, worse, ships the hole (transdoc: two md5-verified convergence loops mis
 paying-customer exit and a missing resume path, because nothing after the authoring phase re-checked the
 arc set).
 
-Then converge: re-walk the whole artifact; fix; repeat until a full pass makes **zero edits** (md5 the file
+Then converge: re-walk the whole artifact; fix; repeat until the Termination contract's closing round — `confirmed: 0` (md5 the file
 before/after the closing pass — identical hashes are the proof). Set `Status: FROZEN`, bump `Version`.
 **The freeze is a Status flip — mint its `docs/DECISIONS.md` row in the same change** (CLAUDE.md § the
 decision ledger); a re-freeze bump N→N+1 is a NEW row, never an edit to the old one. Classify at mint —
@@ -212,7 +212,7 @@ Freezing here is the AUTHOR'S convergence: it cannot catch its own blind spots, 
 one every downstream freeze reads. Before `/fabrik-data-contract`, `/fabrik-ui-design`, or any planner
 consumes it, run **`/fabrik-flows-review`** on it — the independent, author-blind pass that re-traces every
 Success Criterion, re-derives the SECOND-ACTOR and life-cycle-arc coverage, and converges to its own
-edit-free md5 no-op. The split mirrors `/fabrik-spec` → `/fabrik-spec-review`.
+closing round (`confirmed: 0`, md5 unchanged). The split mirrors `/fabrik-spec` → `/fabrik-spec-review`.
 
 **Do NOT let a consumer freeze against a contract the review has not attested** — a `FROZEN` status is the
 author's word; the review is what makes it independent. If the review surfaces something it cannot

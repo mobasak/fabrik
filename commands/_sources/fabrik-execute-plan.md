@@ -270,7 +270,11 @@ Format when blocked: `BLOCKED: <what> — searched: <sources checked> — missin
    changed set MUST be resolved** (update the doc) before you commit — treat it as an error, not a hint.
    The plan's declared doc steps are checked artifacts of their phase gate. As the **final phase of any run
    that shipped a feature / route / service / schema / config change**, run `/fabrik-docs-review` to
-   converge the docs to a truthful fixed point — touch-on-change proves presence; this proves correctness.
+   converge the docs to a truthful fixed point — touch-on-change proves presence; this proves correctness —
+   over the plan's changed docs MINUS the docs the whole-plan `/fabrik-review`'s receipt Coverage Checklist
+   carries a row for (its changed hunks graded — the Finish brief lists the excluded docs with the receipt row that graded each); when
+   that set is empty the step records `SKIPPED — every changed doc was review surface` in the plan's
+   § Execution notes (spec D9 — no second docs loop over docs the heavy review graded).
 6. **LESSONS_LEARNT** — at the end, either add an entry to `docs/LESSONS_LEARNT.md` or confirm `none` in the completion block. This is a Completion Contract requirement.
 
 ## Commit Provenance Trailers
@@ -403,7 +407,8 @@ whole-plan doc-coverage RECEIPT (the free "definitely-done" check): run
     → asserts EVERY fired-trigger doc was touched across the WHOLE plan (not just the last commit); an ERROR-tier miss (CHANGELOG/CONFIGURATION/schema) is BLOCKING — reconcile it (doc_reconcile.py or by hand) before Finish.
 
 if this run shipped a feature/route/service/schema/config change:
-    run /fabrik-docs-review → converge docs to a truthful fixed point
+    run /fabrik-docs-review over the changed docs MINUS the docs the whole-plan /fabrik-review receipt graded → converge to a truthful fixed point
+    (empty set → record `SKIPPED — every changed doc was review surface` in § Execution notes, D9)
 
 run FULL final gate: python scripts/final_gate.py --json     # Tier 2 (mypy+bandit+semgrep), never --lean
 fix until {"status": "success"} (baseline check: a red that was red at step-8 start is a sibling's, not yours — and a review record may then embed that FAILING gate beside a ONE-LINE `GATE-SCOPE: out-of-surface — <check>; findings naming this surface: 0 of <N>; measured by: <command>` declaration — `<N>` is the failing check's TOTAL findings, ≥ 1 (`0 of 0` is refused); the value stays on that line as plain text, a backtick span or an inline fence, never a block fence below, and a hard-wrapped declaration is not a declaration; `check_convergence.py` accepts the pair, and a non-zero count is yours to fix)
@@ -656,7 +661,7 @@ spine↔tickets↔frozen-contract seams + the integrated cumulative diff + a ful
 Behavior-Contract tests and every seam test**. **Finder counts SCALE with the surface:** minimum 3 native Sonnet
 finders + the native authoritative seat (**Fable substitutes for Opus here**; the pool is OFF, D-181), adding ~1 finder per
 2 tickets; NO round cap; closes only on `found: 0, fixed: 0` **(re-raises of already-adjudicated
-standing rows are CITED, never counted — D-048; counting them makes this terminal gate unreachable
+standing rows are CITED, never counted — D-206 (superseding D-048); counting them makes this terminal gate unreachable
 whenever a standing accepted-risk row stays true)**. A flaky test is itself a finding (fix or
 quarantine-with-recorded-ruling — never an excuse to loop). Validation findings are FIXED by fresh
 coders/units bound to the owning ticket's Touches through the per-ticket review loop (cross-cutting

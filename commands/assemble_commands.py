@@ -180,7 +180,7 @@ EXTRACT = {
         (
             "termination",
             "term-edit",
-            "\n(After the no-op: the approval gate at the end.)",
+            "\n(After the closing round: the approval gate at the end.)",
         ),
         (
             "grounding",
@@ -205,15 +205,22 @@ EXTRACT = {
         ("subagents", "subagents-core", None),
     ],
     "fabrik-docs-review": [
+        ("termination", "term-edit", None),
         ("grounding", "grounding-artifact", None),
         ("subagents", "subagents-core", None),
     ],
     "fabrik-rules-review": [
+        ("termination", "term-edit", None),
         (
             "grounding",
             "grounding-artifact",
             "\n- Verify globs via `python scripts/select_rules.py` — a plausible-looking glob is not proof it matches.",
         ),
+        ("subagents", "subagents-core", None),
+    ],
+    "fabrik-epics-review": [("termination", "term-edit", None)],
+    "design-review": [
+        ("termination", "term-edit", None),
         ("subagents", "subagents-core", None),
     ],
     "fabrik-plan-after-chat": [("subagents", "subagents-core", None)],
@@ -428,6 +435,13 @@ PARAMS = {
         },
     },
     "fabrik-epics-review": {
+        "term-edit": {
+            "ARTIFACT": "epic set",
+            "DONE_ACT": "mark the epic set validated (the Cross-Epic Validation Report)",
+            "DONE_WORD": "VALIDATED",
+            "AXES": "features · ticket structure · graph + disjoint owned_paths · infra decisions · handoff",
+            "EXEMPT_NOTE": " (The epic set is a DIRECTORY: its md5 is the SET hash of § Anti-cheat below — `find … | sort -z | xargs -0 md5sum | md5sum` — chained round to round; that is the hash this paragraph means.)",
+        },
         "questionbar": {
             "CHANGES_WHAT": "the epic set's ownership or boundaries (the owner set itself, or a route-back that re-cuts an epic)",
             "RESOLVE_FROM": "the epic files on disk, the persisted Vision Summary + Infrastructure Decisions, `epic_order.py`'s own verdict, or `docs/DECISIONS.md`",
@@ -708,6 +722,13 @@ PARAMS = {
         },
     },
     "fabrik-docs-review": {
+        "term-edit": {
+            "ARTIFACT": "doc set",
+            "DONE_ACT": "return the reconciled docs (the per-file claim→proof table)",
+            "DONE_WORD": "RECONCILED",
+            "AXES": "doc → code · code → doc · doc-type routing · doc-sync gate",
+            "EXEMPT_NOTE": "",
+        },
         "grounding-artifact": {
             "SUBJECT": "doc claim",
             "EXAMPLES": 'an API "documented" that doesn\'t exist, a column "described" with the wrong type, a symbol "referenced" that was deleted, a config "documented" that was never set',
@@ -721,6 +742,13 @@ PARAMS = {
         },
     },
     "fabrik-rules-review": {
+        "term-edit": {
+            "ARTIFACT": "rules gap list",
+            "DONE_ACT": "hand over the audit (the prioritized GAP table)",
+            "DONE_WORD": "AUDITED",
+            "AXES": "stack · spec shape flags · ADR · one lens per applicable pack",
+            "EXEMPT_NOTE": " (READ-ONLY: the audit edits no code, config, docs or rules and persists no artifact — the GAP table is the rules gap list; write it to `<scratchpad>/rules-review/gaps.md` as the working copy, pin that file per round and take the md5 THERE.)",
+        },
         "grounding-artifact": {
             "SUBJECT": "rule verdict",
             "EXAMPLES": 'a glob that matches no real file, an invariant asserted about code that changed, a pattern "enforced" that the source never follows',
@@ -730,6 +758,23 @@ PARAMS = {
             "TASK_TYPE": '"review"',
             "PROJECT": "rules-review",
             "FLOOR": _floor("audit", "`fabrik-researcher`"),
+            "EXTRA": "",
+        },
+    },
+    "design-review": {
+        "term-edit": {
+            "ARTIFACT": "screen set",
+            "DONE_ACT": "deliver the design review report",
+            "DONE_WORD": "REVIEWED",
+            "AXES": "visual · accessibility · front-end implementation · contract conformance",
+            "EXEMPT_NOTE": "",
+        },
+        "subagents-core": {
+            "HEADLINE": "one `design-review` seat per screen (native; the pool is OFF)",
+            "TASK_TYPE": '"review"',
+            "PROJECT": "design-review",
+            # the units kind keeps the Haiku mechanical seat the command's FAN-OUT line already dispatches
+            "FLOOR": _floor("review", "`design-review`"),
             "EXTRA": "",
         },
     },

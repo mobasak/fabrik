@@ -16,7 +16,7 @@ re-open every file — the author's memory of a file is not a read.
 {{include:run-record}}
 {{include:term-edit}}
 
-**Additional sanctioned endings for THIS command** (besides the fragment's no-op flip, stall
+**Additional sanctioned endings for THIS command** (besides the fragment's closing-round flip, stall
 circuit-breaker and per-axis BLOCKED escalation): (a) the **batched operator ask** (Phase 2 — one
 question set, once; record the answers and continue the loop in the same invocation); (b) the
 **status-guard verdicts** (Phase 0 — the already-converged report, the consumed-record route, the
@@ -178,7 +178,7 @@ BLOCKING unknown → the plan stays `DRAFT` until its owner resolves it.
 
 ## Phase 3 — Flip + persist + hand off
 
-Only after the md5-verified no-op round:
+Only after the md5-verified closing round (`confirmed: 0`):
 
 1. Write the literal `Status: CONVERGED` (arrows describe transitions; the FILE carries only the
    target literal — an arrow form is invisible to every gate regex). The flip is the LAST content act — a plan edited after its flip is
