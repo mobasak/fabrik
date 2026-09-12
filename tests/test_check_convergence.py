@@ -1837,3 +1837,15 @@ def test_the_rederivation_message_names_the_closing_row_grammar(repo: Path) -> N
     rc, out = _check_out(repo)
     assert rc == 1
     assert "`| Pass N | … | method: re-derivation — … |`" in out, out
+
+
+def test_proof_citation_accepts_every_scaffold_types_sources(repo: Path) -> None:
+    """T4.8 (01M1V67JR): the grounding floor named py/ts/js/sql/md alone, so a CONVERGED plan
+    whose evidence cites an Astro page, an ESM module or a Vue component read as uncited."""
+    doc = (
+        COMPLIANT_PLAN.replace("src/app/handler.py:42", "src/pages/index.astro:42")
+        .replace("db/schema.sql:10", "src/lib/util.mjs:10")
+        .replace("tests/test_handler.py:11", "src/components/Handler.vue:11")
+    )
+    assert "handler.py" not in doc
+    assert _run(repo, "docs/development/plans/2026-06-18-plan-x.md", doc) == 0

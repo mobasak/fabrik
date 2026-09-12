@@ -337,7 +337,9 @@ QUIET_PASS = re.compile(
 )
 REVIEWED = re.compile(r"\b(reviewed|converged|sign[- ]?off)\b", re.I)
 PHASE = re.compile(r"^#{2,}\s*(Phase|Step)\b", re.I | re.M)
-PROOF = re.compile(r"[\w./-]+\.(?:py|ts|tsx|js|sql|md|csv|ya?ml|sh|json):\d+")
+PROOF = re.compile(
+    r"[\w./-]+\.(?:py|ts|tsx|js|jsx|mjs|cjs|astro|vue|svelte|sql|md|csv|ya?ml|sh|json):\d+"
+)  # T4.8 (01M1V67JR): the grounding floor names every scaffold type's source, not py/ts alone
 EVIDENCE = re.compile(r"^#{2,}\s*Evidence\b", re.I | re.M)
 AUDIT = re.compile(r"self[- ]?audit|convergence floor", re.I)
 GATE_OK = re.compile(r'"status"\s*:\s*"success"')
