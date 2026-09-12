@@ -7,7 +7,7 @@ All feature/execution/design plans live in `docs/development/plans/`.
 ---
 
 <!-- AUTO-GENERATED:PLANS:START -->
-<!-- AUTO-GENERATED:PLANS v1 | 2026-09-06T19:56 -->
+<!-- AUTO-GENERATED:PLANS v1 | 2026-09-12T13:31 -->
 <!-- Phase: epic rows = the epic's position in scripts/epic_order.py phased_order() (1 = no upstream dependency; `cycle` = dependency cycle, see `epic_order.py --check`); plan rows = Board progress, checked/total task boxes (`-` = no boxes). Owner: the leading name token of a plan's **Owner:** line / a spine's Owner: header, or an epic's frontmatter `owner`; `—` = untagged (`--adopt` fills it). Regenerate: python scripts/docs_updater.py --sync -->
 <!-- Merge owner: UNDECLARED — run: python scripts/docs_updater.py --adopt <name> -->
 | Epic/Plan | Owner | Status | Phase |
@@ -36,7 +36,10 @@ All feature/execution/design plans live in `docs/development/plans/`.
 | [2026-09-05-plan-1-windowed-cost-sidecar.md](plans/2026-09-05-plan-1-windowed-cost-sidecar.md) | intel | EXECUTED | - |
 | [2026-09-05-plan-2-glitchtip-deny-by-default.md](plans/2026-09-05-plan-2-glitchtip-deny-by-default/2026-09-05-plan-2-glitchtip-deny-by-default.md) | infra | CONVERGED | 0/4 |
 | [2026-09-06-plan-1-session-history-retention.md](plans/2026-09-06-plan-1-session-history-retention.md) | fleet | CONVERGED | - |
-| [2026-09-06-plan-2-multi-agent-adoption.md](plans/2026-09-06-plan-2-multi-agent-adoption/2026-09-06-plan-2-multi-agent-adoption.md) | infra | IN_PROGRESS | 2/4 |
+| [2026-09-06-plan-2-multi-agent-adoption.md](plans/2026-09-06-plan-2-multi-agent-adoption/2026-09-06-plan-2-multi-agent-adoption.md) | infra | EXECUTED | 2/4 |
+| [2026-09-09-plan-1-review-convergence-redesign.md](plans/2026-09-09-plan-1-review-convergence-redesign/2026-09-09-plan-1-review-convergence-redesign.md) | — | IN_PROGRESS | - |
+| [2026-09-11-plan-1-review-family-pass3.md](plans/2026-09-11-plan-1-review-family-pass3.md) | — | IN_PROGRESS | 0/4 |
+| [2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round.md](plans/2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round.md) | — | DRAFT | - |
 <!-- AUTO-GENERATED:PLANS:END -->
 
 ---

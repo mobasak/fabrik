@@ -256,7 +256,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ## Documentation Structure Map
 
 <!-- AUTO-GENERATED:STRUCTURE:START -->
-<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-09-06T19:56 -->
+<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-09-12T13:31 -->
 ```text
 docs/
 ├── BUSINESS_MODEL.md               # Monetization strategy
@@ -358,6 +358,20 @@ docs/
 │   │   │   ├── T04-session-advisory.md
 │   │   │   ├── T05-vision-and-epics-review-text.md
 │   │   │   └── T06-integration.md
+│   │   ├── 2026-09-09-plan-1-review-convergence-redesign
+│   │   │   ├── 2026-09-09-plan-1-review-convergence-redesign.md
+│   │   │   ├── T01-coverage-gate-grammars.md
+│   │   │   ├── T02-coverage-gate-refusals-and-verdicts.md
+│   │   │   ├── T03-convergence-quiet-pass.md
+│   │   │   ├── T04-dispatch-slices.md
+│   │   │   ├── T05-board-banner.md
+│   │   │   ├── T06-rule-pack-and-governance.md
+│   │   │   ├── T07-review-commands-and-fragment.md
+│   │   │   ├── T08-hygiene-script.md
+│   │   │   ├── T09-run-record-docs.md
+│   │   │   └── T10-integration.md
+│   │   ├── 2026-09-11-plan-1-review-family-pass3.md
+│   │   ├── 2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round.md
 │   │   └── archived
 │   └── reviews
 │       ├── 2026-07-21-claude-p-scoring-review.md
@@ -616,7 +630,37 @@ docs/
 │       ├── 2026-09-06-plan-2-multi-agent-adoption-T05-review.md
 │       ├── 2026-09-06-plan-2-multi-agent-adoption-T06-review.md
 │       ├── 2026-09-06-plan-2-multi-agent-adoption-review.md
+│       ├── 2026-09-06-small-plan-profile-review.md
 │       ├── 2026-09-06-usage-collector-review.md
+│       ├── 2026-09-07-command-feedback-review.md
+│       ├── 2026-09-07-d181-corpus-flip-review.md
+│       ├── 2026-09-07-feedback-ledger-dimensions-review.md
+│       ├── 2026-09-07-final-output-block-review.md
+│       ├── 2026-09-07-plan-1-relief-wake-review.md
+│       ├── 2026-09-07-quota-stop-commit-body-review.md
+│       ├── 2026-09-08-box-bound-seats-d191-review.md
+│       ├── 2026-09-08-dispatch-headroom-d189-review.md
+│       ├── 2026-09-08-fanout-sizing-d186-review.md
+│       ├── 2026-09-08-plan-1-scratch-sweep-review.md
+│       ├── 2026-09-08-pool-dispatch-gates-review.md
+│       ├── 2026-09-08-vendored-dirs-subagents-retirement-review.md
+│       ├── 2026-09-09-plan-1-review-convergence-redesign-T01-review.md
+│       ├── 2026-09-09-plan-1-review-convergence-redesign-T02-review.md
+│       ├── 2026-09-09-plan-1-review-convergence-redesign-T03-review.md
+│       ├── 2026-09-09-plan-1-review-convergence-redesign-T04-review.md
+│       ├── 2026-09-09-plan-1-review-convergence-redesign-T05-review.md
+│       ├── 2026-09-09-plan-1-review-convergence-redesign-T06-review.md
+│       ├── 2026-09-09-plan-1-review-convergence-redesign-T07-review.md
+│       ├── 2026-09-09-plan-1-review-convergence-redesign-T08-review.md
+│       ├── 2026-09-09-plan-1-review-convergence-redesign-T09-review.md
+│       ├── 2026-09-09-plan-1-review-convergence-redesign-T10-review.md
+│       ├── 2026-09-09-plan-1-review-convergence-redesign-review.md
+│       ├── 2026-09-10-mail-handling-governance-review.md
+│       ├── 2026-09-10-plan-1-review-family-adoption-phase-A-review.md
+│       ├── 2026-09-10-plan-1-review-family-adoption-review.md
+│       ├── 2026-09-11-chat-history-render-review.md
+│       ├── 2026-09-11-doc-index-seeded-ledger-review.md
+│       ├── 2026-09-11-plan-1-review-family-pass3-phase-B-review.md
 │       ├── archived
 │       ├── docs-truth-infra-ops-review.md
 │       ├── docs-truth-orchestrator-review.md
@@ -645,6 +689,7 @@ docs/
 │   │   ├── fleet-doc-audit-2026-08-19.md
 │   │   ├── fleet-doc-audit-2026-08-26.md
 │   │   ├── fleet-doc-audit-2026-09-02.md
+│   │   ├── fleet-doc-audit-2026-09-09.md
 │   │   ├── fleet-doc-audit-latest.md
 │   │   ├── infra-probe-2026-05-31T15-49Z.yaml
 │   │   ├── infra-probe-2026-05-31T22-36Z.yaml
@@ -720,6 +765,7 @@ docs/
 │   ├── MD
 │   │   ├── ai-prompt-templates.md
 │   │   └── markdown-cheatsheet.md
+│   ├── agent-machinery-map.md
 │   ├── agents
 │   │   ├── fleet.md
 │   │   ├── infra.md
@@ -857,6 +903,10 @@ docs/
 │       ├── 2026-09-04-vps1-container-memory-limits-design.md
 │       ├── 2026-09-05-session-history-retention-design.md
 │       ├── 2026-09-06-multi-agent-adoption-design.md
+│       ├── 2026-09-08-review-convergence-redesign-design.md
+│       ├── 2026-09-10-kaizen-feedback-loop-design.md
+│       ├── 2026-09-10-review-family-adoption-design.md
+│       ├── 2026-09-11-review-family-pass3-design.md
 │       └── archived
 ├── traycer
 │   ├── PLAN_OUTPUT_LOCATION.md     # Plan output location
@@ -879,7 +929,7 @@ docs/
 │   ├── MCP_HTTP_TRANSPORT.md
 │   ├── WSL2-DNS-FIX.md             # WSL2 DNS resolution fix
 │   ├── agent-command-routing-and-gates.md
-│   ├── chat-history-render.md      # the full per-project chat history the VS Code panel cannot show after a reload (D-235)
+│   ├── chat-history-render.md
 │   ├── ci-health-probe.md
 │   ├── claude-account-rotation.md
 │   ├── claude-config-backup-restore.md
@@ -896,9 +946,9 @@ docs/
 │   ├── quota-dashboard.md
 │   ├── session-recall.md
 │   ├── spine-ticket-plans-usage.md
+│   ├── volkan-mac.md
 │   ├── vps-claude-quota-governance.md
 │   ├── vscode-configuration.md
-│   ├── volkan-mac.md              # the remote Volkan-Mac transfer: access, what is installed where, the review-queue + self-watch channel, ledger 001-012, resume checklist
 │   ├── wip-backup-safety-net.md
 │   ├── wsl-shell-mcp-setup.md
 │   └── wsl-startup-inventory.md
