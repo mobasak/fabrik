@@ -294,7 +294,12 @@ Full Claude Code history on this box is indexed locally. MCP tools: **`search_ch
 `project=`/`after=` filters) · **`get_chat`** (read a session window) · **`recent_chats`** (latest sessions).
 USE THEM when: resuming work ("continue where we left off"), the user references a prior decision/discussion
 not in this conversation ("as we decided", "the bug we fixed"), or after compaction when earlier context is
-unclear. Never claim no previous conversation exists without searching first. **Ledger first:** for a
+unclear. Never claim no previous conversation exists without searching first. **A reloaded VS Code window shows only what follows the LAST compaction** — the panel and the CLI walk the transcript's
+parent chain and every compaction is a new root (hub D-235); nothing before it is loaded, in any account, after any
+restart. The earlier turns are NOT gone: they sit in the same transcript, `search_chats`/`get_chat` read ALL of it,
+and `python3 /opt/fabrik/scripts/render_chat_history.py --project <repo>` renders it per session. **In doubt about anything before the
+visible summary — what was decided, tried, or left half-done — SEARCH it; never assume it and never reconstruct it
+from the summary alone** (operator directive 2026-09-12). **Ledger first:** for a
 DECISION-shaped question, `docs/DECISIONS.md` comes BEFORE session-recall — structured rows beat
 lexical transcripts (a decision phrased differently is invisible to recall).
 
