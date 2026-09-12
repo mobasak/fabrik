@@ -1584,5 +1584,5 @@ either a `handoff --resume` shape that carries a findings brief, or a line in
 `commands/_fragments/term-edit.md`.
 
 **Nothing downstream is blocked:** the spec is `Status: DRAFT — BLOCKED`, and the tier-1 plan
-(`docs/development/plans/2026-09-11-plan-2-kaizen-tier1-report.md`, `8bf4787d`) depends on none of the
+(`docs/development/plans/2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round.md` — superseding the 2026-09-11 plan-2 at 450e5c43, D-240; `8bf4787d`) depends on none of the
 contested lines.
