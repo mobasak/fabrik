@@ -230,9 +230,12 @@ def test_the_corpus_weight_row_is_registered_warn_only_with_check_threaded() -> 
     assigns = [
         n
         for n in ast.walk(tree)
-        if isinstance(n, ast.Assign)
-        and any(isinstance(t, ast.Name) and t.id == "cw_args" for t in n.targets)
-    ]
+        if isinstance(n, ast.Assign | ast.AnnAssign)
+        and any(
+            isinstance(t, ast.Name) and t.id == "cw_args"
+            for t in (n.targets if isinstance(n, ast.Assign) else [n.target])
+        )
+    ]  # an annotated definition is the same threading — pin the VALUE, not the form (T7 round 2)
     assert len(assigns) == 1, "exactly one cw_args definition"
     val = assigns[0].value
     assert isinstance(val, ast.IfExp), ast.dump(val)

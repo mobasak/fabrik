@@ -1412,7 +1412,9 @@ def run_consistency_checks(
         # MUST accept --check and exit 0 on every path (an unexpected exception included) unless
         # --strict, which the gate never passes. Until it ships, this row is a green never-run row
         # that `skipped_checks` does not report — the pre-existing missing-optional-check shape
-        # (see :1849), recorded in the mail-triage plan, not a new marker.
+        # (the "A MISSING script is NOT silently green" note on the Ticket Breadth row: the ⚠ row
+        # lands in --json `warnings`, never in `skipped_checks`), recorded in the mail-triage plan,
+        # not a new marker.
         cw_args = ("--check",) if check_only else ()
         results.append(
             run_optional_check(

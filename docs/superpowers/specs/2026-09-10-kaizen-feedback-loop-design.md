@@ -985,7 +985,7 @@ remainder**, for three reasons that are checkable rather than felt:
    DESIGN: not the three tiers, not the selector, not the verdict's destination, not the eight axes, not
    the cadence, not a citation, not a ledger figure — the first draft of this list said so and was wrong
    twice: round 13 struck a false claim about what `validate_registry` forbids ("for an odd axis count it
-   forbids it outright"), load-bearing for tier 1's rationale, and corrected a § Reproduce word count ("the": 956 → 1,052);
+   forbids it outright"), load-bearing for tier 1's rationale, and corrected a word count in § D4 ("the": 956 → 1,052);
    the list was also wrong about the DESIGN itself, as the ⚠️ ANSWERED note below records. What holds is
    narrower: from round 12 the content changed only under rounds 13–15's delta reads (one fresh seat each,
    scoped to the previous fix diff — not three independent re-derivations of the whole).
