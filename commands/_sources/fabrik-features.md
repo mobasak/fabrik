@@ -87,7 +87,7 @@ prevent — enumerate what you READ (files × surfaces), not what you remember.
 
 ## Phase 3 — Converge (the self-audit LOOP — iterate to a no-op)
 
-Run repeated passes until the Termination contract's closing round — `confirmed: 0`, md5 unchanged.
+Run repeated passes until the Termination contract's closing round — `confirmed: 0`, md5 unchanged — is reached.
 Each pass re-checks ALL of:
 
 1. **Coverage** — re-run a fresh Phase-1 sweep on the CURRENT code: any capability the previous pass

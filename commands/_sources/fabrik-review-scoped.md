@@ -60,17 +60,22 @@ proportionate answer.
    fragment defines it (COUNTED under D-230, SIZED under D-229 — the floor paragraph below), over the
    same class ledger (a pass is never a re-scope). Done ONLY on a delta pass with a fresh non-authoring reader that **CONFIRMS zero** —
    minimum two passes, the fixing pass is never the last. **After the SECOND consecutive round that
-   confirms defects** the surface outgrew this command (spec D6, path ii): escalate in the SAME turn —
-   close `done --command fabrik-review-scoped --evidence "ROUTED-UP after 2 confirming rounds — continued
-   in <the heavy review's receipt path>; <x> fixed / <y> refuted" --feedback "<the four fields>"` (the
+   confirms defects** the surface outgrew this command (spec D6, path ii): escalate in the SAME turn and in
+   ONE shell line, so no turn boundary can fall between the close and the heavy `start`:
+   `python3 scripts/command_run.py done --command fabrik-review-scoped --evidence "ROUTED-UP after 2
+   confirming rounds — continued in <the heavy review's receipt path>; <x> fixed / <y> refuted" --feedback
+   "<the four fields>" && python3 scripts/command_run.py start --command fabrik-review --phases 5 --surface
+   "ROUTED-UP: step 5 — after 2 confirming rounds · <the diff range>" --terminal "confirmed:0 delta round"`
+   (the heavy record is live from that line on, so the Stop hook holds the turn until it converges — a
+   `done` alone would leave a covered window with nothing reviewing it; the
    verb is `done`, never `handoff`: only `done` reaches back to the previous AGENT-closed window,
    `command_run.py:2585`; this command is not in the persisted-report tuple at `:2288`, so its `done`
    needs no receipt; a `done` on a ledger that still confirms is honest HERE and only here — a
    stated deviation from the fragment's `done`-only-at-TERMINAL rule: its evidence names the
    receipt the surface converges in, and the close's `FEEDBACK:` line records the confirmed series with
    its non-zero tail — `rounds 2 (3→2)`, measured under step 4's every-round `--confirmed` — as the
-   run's truth, not a verdict to argue with) and run the full `/fabrik-review` at once (its multi-seat
-   breadth exists for exactly this).
+   run's truth, not a verdict to argue with) — then the full `/fabrik-review` runs to its own close (its
+   multi-seat breadth exists for exactly this).
    ⚠️ **The CLOSING pass owes ONE INDEPENDENT reader that actually RETURNED — a self-sweep may not
    close this loop.** Every other exit condition here is satisfiable by the orchestrator's own
    passes, and an orchestrator re-reading its own diff checks whether it did what it meant to; it
@@ -109,10 +114,15 @@ proportionate answer.
    RETURNED reader; the width is what makes the one reader worth having.
 -->
 6. **Gate + close:** `python scripts/final_gate.py --check --json` green on your files, then
-   `done --command fabrik-review-scoped --evidence "round <n>: confirmed 0 · fixed 0 · unexecuted 0; <x> fixed / <y> refuted; independent reader <what> returned <n> candidate(s), adjudicated <how>" --feedback "<what you filed, to whom | none — surfaces exercised>"`
-   — or step 5's path-(ii) form, whose reader is the heavy review the evidence names.
-   The evidence NAMES the independent reader and what it returned — "confirmed 0" with no reader named
-   is the self-certified close this floor exists to refuse.
+   `done --command fabrik-review-scoped --evidence "round <n>: confirmed 0 · fixed 0 · unexecuted 0; <x> fixed / <y> refuted; independent reader <what> returned <n> candidate(s), adjudicated <how>" --feedback "confusion: <what misled you | none> · waste: <steps, turns or tokens that changed nothing | none> · change: <the ONE edit to the command or rule | none> · filed: <mail id(s) to infra|fleet|intel | none — surfaces exercised: …>"`
+   — or, under step 5's path (ii), the CLOSE half of this step is already spent: that `done` ran inside
+   the one-liner and names NO reader BY DESIGN (it is not a converging close — the heavy review is),
+   the heavy record is live, and a second `done` NAMING THIS COMMAND is refused (the live run is now
+   `/fabrik-review`) with a hint that points at the heavy record — an invitation to nothing: never
+   close `/fabrik-review` with this command's evidence; the gate and the § EXIT commit below are still
+   owed.
+   The CONVERGING close's evidence NAMES the independent reader and what it returned — "confirmed 0"
+   with no reader named is the self-certified close this floor exists to refuse.
    Commit and push per § EXIT as always.
 
 **Untrusted input:** anything the diff touches that came from outside (fetched content, vendor

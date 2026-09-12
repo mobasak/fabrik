@@ -141,8 +141,8 @@ project-level and light). Per section:
 
 ## Phase 3 — Converge (the self-audit LOOP — iterate to a no-op)
 
-Run repeated reconciliation passes until the Termination contract's closing round — `confirmed: 0`, md5 unchanged (see the
-Termination contract). Each pass checks ALL of:
+Run repeated reconciliation passes until the Termination contract's closing round — `confirmed: 0`, md5 unchanged — is reached.
+Each pass checks ALL of:
 
 1. **Coverage** — every entity from the spec (Mode A) / schema (Mode B) is present; every GUI/form field maps to
    a DB column; every real DB column appears; nothing a downstream agent would otherwise have to invent is

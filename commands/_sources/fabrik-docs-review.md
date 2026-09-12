@@ -20,8 +20,8 @@ python3 scripts/command_run.py start --command fabrik-docs-review --phases 5 \
 ```
 
 `step --phase <N> --title "<phase title>"` on entering each phase; one
-`round --seats <seats dispatched this pass> --findings <discrepancies this pass> --classes-swept <doc/claim classes swept clean>
---classes-new <classes this pass opened>` per Phase-2/3 pass. The ledger is the doc set — re-sweep the
+`round --seats <seats dispatched this pass> --findings <discrepancies raised> --confirmed <discrepancies that held, executed>
+--classes-swept <doc/claim classes swept clean> --classes-new <classes this pass opened>` per Phase-2/3 pass. The ledger is the doc set — re-sweep the
 SAME docs each pass rather than re-scoping to whichever doc looks suspicious now.
 `done --command fabrik-docs-review --evidence "<the closing round + the verbatim gate line>" --feedback "<what you filed, to whom | none — surfaces exercised>"` at the
 TERMINAL verdict; `blocked --command fabrik-docs-review --reason "…" --feedback "<what you filed, to whom | none — surfaces exercised>"` otherwise. **Always name the run

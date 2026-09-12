@@ -209,7 +209,7 @@ def test_every_extract_after_text_round_trips_against_its_source():
     # every entry, none skipped — and an absolute floor, so an emptied EXTRACT cannot read green
     # pinned to the map's size on purpose: a map that lost 23 of its 29 after-texts read green under
     # a `>= 6` floor — changing EXTRACT means changing this number deliberately
-    assert examined == sum(len(p) for p in ac.EXTRACT.values()) == 34, examined  # +5: pass 3, D1
+    assert examined == sum(len(p) for p in ac.EXTRACT.values()) == 37, examined  # +8: pass 3, D1
     assert mismatched == [], mismatched
 
 
@@ -1054,3 +1054,47 @@ def test_the_four_fragment_less_loops_now_include_the_termination_fragment(tmp_p
     assert "{{include:term-coverage}}" not in (src / "fabrik-review-scoped.md").read_text()
     consumers = sorted(p.stem for p in src.glob("*.md") if "{{include:term-edit}}" in p.read_text())
     assert len(consumers) == 17, consumers
+
+
+def test_an_empty_term_edit_slot_is_a_render_refusal(tmp_path, monkeypatch):
+    """The leftover guard sees only a literal `{{SLOT}}`; an EMPTY value renders "the WORKING-TREE  at
+    the pin" with no error (heavy review of pass 3, Phase B: 68 tests green over that mutant). Refused
+    the same way an unfilled slot is."""
+    fixed = {k: dict(v) for k, v in ac.PARAMS.items()}
+    fixed["design-review"] = {
+        **fixed["design-review"],
+        "term-edit": {**fixed["design-review"]["term-edit"], "ARTIFACT": ""},
+    }
+    monkeypatch.setattr(ac, "PARAMS", fixed)
+    with pytest.raises(SystemExit) as exc:
+        ac.render(tmp_path, tmp_path / "_skills", agents_dest=tmp_path / "_agents")
+    assert exc.value.code == 2
+
+
+def test_every_printed_feedback_template_parses_once_its_slots_are_filled():
+    """A `--feedback "…"` template that prints the four labels must put each on a parser boundary
+    (`_USAGE_LABEL_RE`: line start, `·`, `|`, `;`) — a prose prefix before `confusion:` made a filled-in
+    template REFUSED with "missing: confusion:" for a field the agent visibly wrote (heavy review of
+    pass 3, Phase B, round 6). Wholesale placeholders (`"<the four fields>"`) print no label and are
+    not this class."""
+    import re
+    import sys
+
+    sys.path.insert(0, str(REPO / "scripts"))
+    import command_run as cr
+
+    bad = []
+    seen = 0
+    for src in sorted((REPO / "commands" / "_sources").glob("*.md")):
+        for m in re.finditer(r'--feedback\s+"([^"]*)"', src.read_text(encoding="utf-8")):
+            tpl = m.group(1)
+            if "confusion:" not in tpl:
+                continue
+            seen += 1
+            filled = re.sub(r"<[^<>]*>", "none", tpl)
+            filled = re.sub(r"<[^<>]*>", "none", filled)  # a nested slot's outer bracket
+            _fields, missing = cr._parse_usage_feedback(filled)
+            if missing:
+                bad.append((src.name, missing, tpl[:80]))
+    assert seen >= 1, "no printed-label feedback template found — the scan is blind"
+    assert not bad, bad

@@ -122,7 +122,7 @@ For each screen, one block that lets an agent build it without inventing anythin
 
 ## Phase 6 — Converge (self-audit LOOP — iterate to a no-op)
 
-Repeat until the Termination contract's closing round — `confirmed: 0` with the md5 unchanged. Each pass checks ALL of:
+Repeat until the Termination contract's closing round — `confirmed: 0` with the md5 unchanged — is reached. Each pass checks ALL of:
 1. **Design system established** and every screen's components come only from it (no ad-hoc visuals).
 2. **Coverage** — every spec task has a flow; every flow's screens are in the inventory; every screen is reachable in the IA.
 3. **Minimal-click** — every flow is within its click budget (or the over-budget one is redesigned, not excused).

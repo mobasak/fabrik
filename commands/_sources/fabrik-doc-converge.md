@@ -68,7 +68,7 @@ inspection.
 
 ## Phase 3 — Converge (LOOP to a no-op)
 
-Repeated passes until the Termination contract's closing round — `confirmed: 0`, md5 unchanged: each pass re-runs a fresh Phase-1 sweep against the CURRENT tree, re-opens every NEW
+Repeated passes until the Termination contract's closing round — `confirmed: 0`, md5 unchanged — is reached: each pass re-runs a fresh Phase-1 sweep against the CURRENT tree, re-opens every NEW
 claim plus a STATED sample of old ones (the pass ledger carries the fraction — re-opened k of N;
 the CLOSING pass re-opens every claim any edit touched, plus the full contract clause), re-checks the contract row's "complete when" clause end to end,
 and bumps `Last Updated:` only at the final flip. List what you re-read each pass.

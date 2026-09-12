@@ -46,8 +46,8 @@ checked against its four binding sources, all read THIS session:
 ## Phase 1 — Adversarial grounding to a fixed point (round 1 one seat per axis — the units floor, D-208; later rounds sized by the fix, D-229)
 
 Treat every screen/flow/mapping as unproven until verified against those sources. Run repeated passes until one
-demonstrably-thorough pass finds zero new gaps. Cover six axes — at round 1 one INDEPENDENT seat per axis when the contract is large, after it one
-fresh seat over the delta; **spot-verify against the spec's INTENT, since the written spec can itself be wrong.**
+demonstrably-thorough pass finds zero new gaps. Cover six axes — at round 1 one INDEPENDENT seat per axis when the contract is large, after it a
+delta round sized by the fix (D-229 — the fragment's D5 sentence); **spot-verify against the spec's INTENT, since the written spec can itself be wrong.**
 
 **A) Design-system integrity.** Every screen's components (Phase-5 blocks) come **only** from the established
 system — flag any bespoke/invented component where a system primitive exists, any off-token visual, any screen

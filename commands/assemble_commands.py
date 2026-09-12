@@ -218,7 +218,16 @@ EXTRACT = {
         ),
         ("subagents", "subagents-core", None),
     ],
-    "fabrik-epics-review": [("termination", "term-edit", None)],
+    "fabrik-epics-review": [
+        ("termination", "term-edit", None),
+        (
+            "grounding",
+            "grounding-rules",
+            '\n⚠️ **Constraints-Digest citation (BINDING):** every architecture, tool, or dependency selection in this\ncommand cites a row of the upstream CONSTRAINTS DIGEST or states `unconstrained`; a selection that collides\nwith a digest row is DEAD. If no digest artifact exists upstream, STOP — run the Rule-grounding gate above\nbefore proceeding. fabrik-lib verdicts follow the same law: vendor/wrap/build cited, never assumed.\n\n**Read all artifacts.** Glob `docs/development/epics/*.md` and read every ticket in full; read the Vision\nSummary + Infrastructure Decisions + Dependency Graph. **If any is missing, do not review — ROUTE BACK**\n(not a halt): state which, hand to the creating command (`/fabrik-vision` for the Vision Summary;\n`/fabrik-epics` for the decomposition, a ticket, the graph, **or the Infrastructure Decisions FILE**), and\nre-enter here once it re-emits. State: *"Read the Vision Summary + Infrastructure Decisions and [M] epic\ntickets; owner set: <names>."*',
+        ),
+        ("questionbar", "questionbar", None),
+        ("subagents", "subagents-core", None),
+    ],
     "design-review": [
         ("termination", "term-edit", None),
         ("subagents", "subagents-core", None),
@@ -1161,6 +1170,16 @@ def render(dest: Path, skills_dest: Path | None = None, agents_dest: Path | None
         leftover = re.findall(r"\{\{(?:include:)?[A-Za-z_-]+\}\}", text)
         if leftover:
             errs.append(f"{name}: unresolved {sorted(set(leftover))}")
+        # an EMPTY required slot renders a sentence with its noun missing ("the WORKING-TREE  at the
+        # pin") and the leftover guard above cannot see it — refuse it the same way (pass 3, D1)
+        empty = [
+            k
+            for k in ("ARTIFACT", "DONE_ACT", "DONE_WORD", "AXES")
+            if "term-edit" in PARAMS.get(name, {})
+            and not str(PARAMS[name]["term-edit"].get(k, "")).strip()
+        ]
+        if empty:
+            errs.append(f"{name}: empty term-edit slot(s) {empty}")
         # AUTO-APPENDED to every command, never hand-included in any source. Operator directive
         # 2026-08-27: a command run is the moment the machinery is exercised, so the agent running
         # it is the only witness to how it actually behaved — and a defect routed around silently

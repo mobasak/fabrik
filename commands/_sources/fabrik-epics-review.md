@@ -355,17 +355,20 @@ Classify every surviving finding, then handle it autonomously — everything sho
 
 **LOOP:** every fixup dispatched → re-reviewed (Phase 3) → re-classified — **until every verdict lens of
 the Phase-5 report template carries an adjudicated PASS-with-evidence, with zero unresolved findings** (the
-template is the single source of the lens set). **The final round must itself be QUIET — `found: 0,
-fixed: 0`, counting every raised candidate including later-refuted ones** (a round that raised 3 and
-refuted all 3 owes the next round; the loop, not the checklist, decides when hunting stops). A quiet round
+template is the single source of the lens set). **The final round must itself be QUIET as the Termination contract above defines it —
+`confirmed: 0, fixed: 0, unexecuted: 0`; refuted and RECORDED candidates never count (D-206)** — with
+`found:` still written on the row as raw recall (the mega grammar needs it to PARSE the row; the exit is
+graded on `confirmed:`/`fixed:`/`unexecuted:` by `check_review_coverage.py`'s `_confirmed_quiet`, so a
+`found: 1 … confirmed: 0` exit row passes and `found:` is never 'fixed' to zero to please the gate);
+the loop, not the checklist, decides when hunting stops. A quiet round
 alone is still not sufficient — every lens must ALSO be adjudicated (a quiet sample from finders that
 looked at too little proves nothing). **Minimum two full rounds, ALWAYS** (the round that first completes
 the lenses is never the exit round — a fresh round must re-adjudicate them); the pass that produced a
 fixup is never the last look at the lenses it touched. **There is NO round ceiling** — while anything is
 still being raised, the next round is owed; the run loops until the exit holds. The ONLY non-quiet stop
 is the command's own **BLOCKED escalation** (a finding surviving 3 consecutive fix attempts → pause that
-finding, keep looping the rest) — never a self-declared residual. Keep the `found:`/`fixed:` ledger per
-round (`found` counts refuted candidates too).
+finding, keep looping the rest) — never a self-declared residual. Keep the fragment's Pass Ledger per
+round (`found:` counts every candidate raised, `confirmed:` only the ones that held).
 
 **Anti-cheat (mechanical, not vibes) — the SET hash** (the same machinery as `/fabrik-plan-review`'s
 combined-hash rule, for the same reason): record the epic set's combined hash at the **start and end of
@@ -406,9 +409,10 @@ enforced. Carry both, always. A report that lives only in chat is invisible to e
 enforces on the persisted file:
 
 - a `Surface:` line at column 0 carrying the **final SET hash** from Phase 4's anti-cheat;
-- the **per-round `found:`/`fixed:` ledger with each round's start/end hash** — minimum two rounds,
-  final round `found: 0, fixed: 0` with `md5(start) == md5(end)`; the ledger TABLE is the report's ONLY
-  `found:`/`fixed:` table, and no Pass-style prose counter lives outside it;
+- the **per-round ledger with each round's start/end hash** — the fragment's Pass Ledger, minimum two
+  rounds, final round `confirmed: 0, fixed: 0` (with `found:` on the row so the mega grammar parses it) and
+  `md5(start) == md5(end)`; that TABLE is the report's ONLY counter table, and no Pass-style prose
+  counter lives outside it;
 - **every lens line adjudicated** — no `[PASS]`/`[N]`/`[list]` template placeholders may survive into
   the persisted report (a placeholder is a lens nobody adjudicated wearing a verdict's clothes);
 - `Status: IN-PROGRESS` at column 0 **within the report's first 10 lines** (the template slots it at
@@ -424,11 +428,11 @@ Surface: <final md5(end), FULL 32 hex — from Phase 4's anti-cheat, never trunc
 Status: <omit when converged; `Status: IN-PROGRESS` for an interrupted or BLOCKED run — the gate reads this ONLY from the report's first 10 lines, which is why its slot is here>
 ## BLOCKED: <finding> — attempts: 3 · <what · searched · missing>   (only on a Status: IN-PROGRESS report; omit when converged)
 
-Rounds (found counts refuted candidates too; FULL hashes, chained — round N's end = round N+1's start):
-| round | found: | fixed: | md5(start) → md5(end) |
-|------:|-------:|-------:|---|
-| 1 | found: 7 | fixed: 6 | <32-hex-A> → <32-hex-B> |
-| 2 | found: 0 | fixed: 0 | <32-hex-B> → <32-hex-B> |
+Rounds (the fragment's counters; FULL hashes, chained — round N's end = round N+1's start):
+| round | counters | md5(start) → md5(end) |
+|------:|---|---|
+| Pass 1 | found: 7, new: 7, confirmed: 6, fixed: 6, unexecuted: 0 | <32-hex-A> → <32-hex-B> |
+| Pass 2 | found: 1, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | <32-hex-B> → <32-hex-B> |
 
 ## Feature Coverage: [PASS] — [N] features across [M] epics · orphans: none · duplicates: none
 ## Epic Tickets: [PASS] — per-epic verdict with evidence
