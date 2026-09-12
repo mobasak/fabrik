@@ -57,5 +57,13 @@
   "checkpoint": "a64f9b2d",
   "review": "scoped, 9 rounds across two records (fleet-quota hold between), confirmed 10 8 7 6 5 4 3 1 0, 21 seats",
   "decision": "D-238"
+ },
+ "phase_b": {
+  "status": "executed",
+  "executed_at": "2026-09-12",
+  "checkpoint": "6cf1131c",
+  "review_fix": "124c61d5",
+  "review": "heavy /fabrik-review routed up from the scoped review — 7 rounds, confirmed 12 3 2 2 0 1 0, 20 fixes, receipt docs/development/reviews/2026-09-11-plan-1-review-family-pass3-phase-B-review.md CONVERGED",
+  "decision": "D-238"
  }
 }
