@@ -1,6 +1,11 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## 2026-09-12 — A document's own closed count of a cited rule is a second source of truth by construction — delete it, never re-cut it; and size a delta by numstat, not by a marker-blind grep (2026-09-12)
+
+**Context:** review-family pass 3 (`docs/development/plans/archived/2026-09-11-plan-1-review-family-pass3.md`). Phase B's scoped review spent rounds 6–8 (1 → 2 → 3 confirmed, the stall-breaker's shape) re-cutting ONE sentence in `/fabrik-review-scoped` that enumerated which of its rules were the fragment's and which its own; every re-cut was falsified by the next reader because the fragment kept moving. The heavy review that followed spent rounds 3–6 on one step-6 clause the same way, and the whole-plan review's rounds 1–3 on one line of `core/62` where a new D-229 clause sat beside three older absolute seat-count statements.
+**Lesson:** (1) a sentence that partitions or counts another document's rules ("laws 1–3 are the fragment's, 4–5 are ours"; "the floor is three, never fewer") is a second source of truth the moment the cited document changes — delete the partition and cite, or qualify every sibling statement on the same line in ONE sweep (D10 rule 3: after two residue passes, rewrite the class — the sweep is `grep -o` over the whole line for every seat-number window, not a patch to the one a seat quoted). (2) `diff -ru a b | grep -c '^[+-][^+-]'` undercounts any hunk that adds or removes a markdown bullet (`- ` doubles the marker — the fifth bounded-search shape); `git diff --no-index --numstat a b` is the honest delta size for D-229. (3) A render chain gated by `cmd | tail -1` hides a red exit for a turn; gate on the exit codes.
+
 ## 2026-09-11 — Three wrong diagnoses of "my chat history is gone": read the loader, don't pattern-match the symptom
 
 The operator could not see history in reloaded VS Code windows. Over one day this session named three causes

@@ -370,7 +370,6 @@ docs/
 │   │   │   ├── T08-hygiene-script.md
 │   │   │   ├── T09-run-record-docs.md
 │   │   │   └── T10-integration.md
-│   │   ├── 2026-09-11-plan-1-review-family-pass3.md
 │   │   ├── 2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round.md
 │   │   └── archived
 │   └── reviews
@@ -661,6 +660,7 @@ docs/
 │       ├── 2026-09-11-chat-history-render-review.md
 │       ├── 2026-09-11-doc-index-seeded-ledger-review.md
 │       ├── 2026-09-11-plan-1-review-family-pass3-phase-B-review.md
+│       ├── 2026-09-11-plan-1-review-family-pass3-review.md
 │       ├── archived
 │       ├── docs-truth-infra-ops-review.md
 │       ├── docs-truth-orchestrator-review.md

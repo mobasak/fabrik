@@ -1,5 +1,5 @@
 {
- "plan": "docs/development/plans/2026-09-11-plan-1-review-family-pass3.md",
+ "plan": "docs/development/plans/archived/2026-09-11-plan-1-review-family-pass3.md",
  "owned_paths": [
   "commands/_fragments/term-edit.md",
   "commands/_fragments/term-coverage.md",
@@ -46,7 +46,7 @@
  ],
  "branch": "master",
  "started_at": "2026-09-11T21:05:51",
- "status": "active",
+ "status": "released",
  "baseline_commit": "76c2f15c",
  "baseline_gate": "final_gate.py --lean --check --json at start: status success, 0 red checks, skipped_checks ['static tier'] (captured at 76c2f15c before Phase A)",
  "orchestrator": "the unnamed hub window fabrik-06 (session dd3c06d1), main checkout, Profile: small — every phase coded inline, no coder worktrees",
@@ -65,5 +65,17 @@
   "review_fix": "124c61d5",
   "review": "heavy /fabrik-review routed up from the scoped review — 7 rounds, confirmed 12 3 2 2 0 1 0, 20 fixes, receipt docs/development/reviews/2026-09-11-plan-1-review-family-pass3-phase-B-review.md CONVERGED",
   "decision": "D-238"
+ },
+ "completed_at": "2026-09-12",
+ "phase_c": {
+  "status": "executed",
+  "executed_at": "2026-09-12",
+  "review": "the whole-plan heavy /fabrik-review — 4 rounds, confirmed 5 3 3 0, receipt docs/development/reviews/2026-09-11-plan-1-review-family-pass3-review.md CONVERGED",
+  "decision": "D-242"
+ },
+ "finish": {
+  "docs_review": "SKIPPED — every changed doc was review surface (D9)",
+  "sync": "dry-run after 2d5419a8: 0 copied, 9360 skipped (the post-commit governance sync had distributed the triggers); --force: 45 projects, 0 failed, 9315 copied (forced writes of identical bytes), 90 skipped",
+  "final_commit": "the archive commit that follows 2d5419a8 (this commit)"
  }
 }
