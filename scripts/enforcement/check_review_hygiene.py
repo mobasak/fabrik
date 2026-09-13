@@ -667,7 +667,7 @@ def _dedupe(hits: list[Hit]) -> list[Hit]:
     reports one row per line and the count rides `occurrences` from the start."""
     out: dict[tuple[str, str, int, str], Hit] = {}
     for h in hits:
-        k = (h.cls, h.path, h.line, h.what)
+        k = (h.cls, h.path, h.line, h.what.lower())  # `the widget` and `The Widget` are one site
         if k in out:
             prev = out[k]
             # the SAME site reported twice (the same selector given twice) is one site — the
@@ -695,9 +695,21 @@ def _until_heading(text: str, heading: str | None) -> tuple[str, int]:
     lines = text.splitlines()
     # the file's ONE quoting model (`_blank_quoted`: fences by `_fence_step`, HTML comments, code
     # spans) — a heading inside a fence OR an HTML comment is quoted text, never the stop
-    # (round 3 tracked fences alone; round 4: a commented-out ledger heading was taken as live)
-    for i, ln in enumerate(_blank_quoted(lines)):
-        st = ln.strip()
+    # (round 3 tracked fences alone; round 4: a commented-out ledger heading was taken as live).
+    # An UNTERMINATED `<!--` is literal text, not a comment that swallows the file (round 5) —
+    # the opener with no closer below it is neutralised before blanking; a heading inside an
+    # indented code block (4 spaces) is quoted too; a closed comment on the heading's own line
+    # is not part of its text.
+    quoted = list(lines)
+    for i in range(len(quoted) - 1, -1, -1):
+        if "<!--" in quoted[i]:
+            if not any("-->" in q for q in quoted[i:]):
+                quoted[i] = quoted[i].replace("<!--", "<!- -")
+            break
+    for i, ln in enumerate(_blank_quoted(quoted)):
+        if ln.startswith("    ") or ln.startswith("\t"):
+            continue
+        st = re.sub(r"<!--.*?-->", "", ln).strip()
         if not st.startswith("#"):
             continue
         if st.lstrip("#").strip().rstrip("#").strip().lower() == want:

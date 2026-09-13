@@ -524,7 +524,7 @@ def _phase_review_exists(
     phase_pat = re.compile(rf"(?:^|[^0-9a-z])p(?:hase)?[-_ ]?{phase}(?:[^0-9]|$)", re.I)
     # the plan number may carry a letter (`plan-2a`, 3 of 166 fleet stems); the escape is bounded
     # by a NON-alphanumeric so plan-2 never matches plan-20 or plan-2a (rounds 2–3)
-    prefix_m = re.match(r"\d{4}-\d{2}-\d{2}-plan-\d+[a-z]*", plan_stem or "", re.I)
+    prefix_m = re.match(r"\d{4}-\d{2}-\d{2}-plan-[^-\s]+", plan_stem or "")  # `2`, `2a`, `2v2`
     plan_prefix = (
         re.compile(re.escape(prefix_m.group(0)) + r"(?![0-9a-z])", re.I) if prefix_m else None
     )
@@ -1050,7 +1050,11 @@ def _is_placeholder(value: str | None) -> bool:
     # alternation rules, whose words its surface list may legitimately carry (round 4: `the mail
     # id router` and `mail.py | command_run.py` were refused); the head is `none` or a mail id
     if re.match(r"(?:(?i:none)|[0-9A-Z]{6,})\b", c) and re.search(r"surfaces? exercised", low):
-        return False
+        # the grammar's own filler after the marker (`what your run touched`) or an EMPTY surface
+        # list is still the placeholder (round 5); a lower-case `none` synonym at the head
+        # (`nothing filed`) is refused on purpose — the grammar's honest value is the word `none`
+        tail = re.split(r"surfaces? exercised", low, maxsplit=1)[1].lstrip(" :—–-").strip()
+        return not tail or tail in _GRAMMAR_NOUNS
     if any(n in low for n in _GRAMMAR_NOUNS):
         return True
     if re.search(r"[a-z]{2,}\s*\||\|\s*[a-z]{2,}", c):

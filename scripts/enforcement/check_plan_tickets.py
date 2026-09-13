@@ -125,11 +125,13 @@ _PATHISH = re.compile(
     r"(?:[\w.-]+/)*[\w.-]+\.(?:py|pyi|ts|tsx|js|jsx|mjs|cjs|sh|md|ya?ml|json|toml|sql|"
     r"astro|vue|svelte|css|html|txt|cfg|ini|env)\b"
     r"|\.env(?:\.[\w-]+)?\b"
-    r"|(?:[\w.-]+/){2,}[\w.-]*"
-    r"|[\w.-]+/(?![\w.-])"
     r")",
     re.I,
 )
+# STATED COST (round 5): a directory path (`scripts/enforcement/`, `src/app/x`) and a slash-joined
+# prose triple (`and/or/nor`, `TCP/IP/UDP`) are the same shape, so directories are not paths here;
+# a URL is stripped before the test
+_URL_RE = re.compile(r"\bhttps?://\S+")
 # The FROZEN 2-contract artifacts are MANDATORY reading for any ticket that touches their surface —
 # the commands require citing them, and /fabrik-flows, /fabrik-ui-design and /fabrik-data-contract
 # all push them toward completeness. Counting them against a TICKET's budget measures the contract's
@@ -2370,7 +2372,7 @@ def check_plan_dir(
                     continue
             _bullet = bool(re.match(r"^(?:[-*+]\s|\d+[.)]\s)", _st))
             if _st.startswith(">"):
-                _rem = _st.lstrip("> ").strip()
+                _rem = _URL_RE.sub(" ", _st.lstrip("> ").strip())
                 _ok = not _PATHISH.search(_rem) and not re.match(r"^[-*+]\s", _rem)
             else:
                 _ok = (

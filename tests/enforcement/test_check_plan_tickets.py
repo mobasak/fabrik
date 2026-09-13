@@ -2620,7 +2620,7 @@ def test_touches_shapes_round_three_quoted_prose_and_separated_continuations(
     quiet = T01.replace(
         "## Touches\n\n",
         "## Touches\n\n> and/or a note\n> runs 24/7\n> requires Python 3.12\n> blocked on T4.8\n"
-        "> the .envrc file\n"
+        "> the .envrc file\n> see https://docs.python.org/3/library/re.html for the shape\n"
         "- src/app/schema.py\n\n  continues the bullet above\n<!-- note -->\n  and again\n"
         "| a | b |\n  and after a table row\n",
     )
@@ -2639,14 +2639,24 @@ def test_touches_shapes_round_three_quoted_prose_and_separated_continuations(
         '> "src/x.py"',
         "> .env.example",
         "> config/.env",
-        "> scripts/enforcement/",
-        "> src/app/x",
         "> docs/NOTES.MD",
         "> also touches schema.py",
     ):
         assert cpt._PATHISH.search(hit), hit
-    for miss in ("> the .envrc file", "> and/or a note", "> version 2.0.1", "> runs 24/7"):
+    for miss in (
+        "> the .envrc file",
+        "> and/or a note",
+        "> version 2.0.1",
+        "> runs 24/7",
+        "> and/or/nor a note",  # round 5: a directory path is the same shape — stated cost
+        "> TCP/IP/UDP",
+        "> runs w/ the flag",
+        "> scripts/enforcement/",
+    ):
         assert not cpt._PATHISH.search(miss), miss
+    assert not cpt._PATHISH.search(
+        cpt._URL_RE.sub(" ", "> see https://docs.python.org/3/library/re.html")
+    )
     flagged = T01.replace(
         "## Touches\n\n", "## Touches\n\n> see `src/app/other.py` for the shape\n"
     )

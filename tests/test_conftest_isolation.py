@@ -117,3 +117,15 @@ def test_the_suite_never_reads_the_operators_live_run_record(tmp_path) -> None:
     assert d and Path(d).resolve().is_relative_to(tmp_path.resolve().parent), d  # under basetemp
     assert os.environ.get("CLAUDE_SESSION_ID") == "pytest-isolated"
     assert "CLAUDE_CODE_SESSION_ID" not in os.environ
+    # the CONSUMER, not the fixture (round 5): command_run resolves its state dir and sid from
+    # exactly these — a renamed env read in the script would send in-process calls to the
+    # operator's live record while this assertion on the fixture stayed green
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "cr_pin_probe", Path(__file__).resolve().parents[1] / "scripts" / "command_run.py"
+    )
+    cr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cr)
+    assert Path(cr._state_dir()).resolve() == Path(d).resolve()
+    assert cr._session_id(None) == "pytest-isolated"

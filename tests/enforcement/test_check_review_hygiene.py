@@ -1075,9 +1075,27 @@ def test_stop_at_heading_matches_a_real_heading_and_blanks_the_symbol_count_too(
     assert [h.line for h in sweep.hits if h.cls == "stale-phrase"] == [8], sweep.hits
     # round 4: a heading inside an HTML comment is quoted text, never the stop
     c = tmp_path / "commented.md"
-    c.write_text("# Doc\n\n<!--\n## Pass Ledger\n-->\nthe widget lives here\n", encoding="utf-8")
+    c.write_text(
+        "# Doc\n\n<!--\n## Pass Ledger\n-->\nthe widget lives here\n\n## Pass Ledger <!-- note -->\n\nthe widget retired\n",
+        encoding="utf-8",
+    )
     sweep = crh.scan(surfaces=[c], phrases=["the widget"], stop_at_heading="## Pass Ledger")
     assert [h.line for h in sweep.hits if h.cls == "stale-phrase"] == [6], sweep.hits
+    assert any("3 line(s) from" in n for n in sweep.notes), sweep.notes  # lines 8–10
+    # round 5: an UNTERMINATED comment is literal text, never a comment that swallows the stop;
+    # a heading inside an indented code block is quoted; `The Widget` and `the widget` are one site
+    u = tmp_path / "unterminated.md"
+    u.write_text(
+        "# Doc\n\n<!-- oops\n\n    ## Pass Ledger\nthe widget lives here\n## Pass Ledger\nthe widget retired\n",
+        encoding="utf-8",
+    )
+    sweep = crh.scan(surfaces=[u], phrases=["the widget"], stop_at_heading="## Pass Ledger")
+    assert [h.line for h in sweep.hits if h.cls == "stale-phrase"] == [6], sweep.hits
+    sweep = crh.scan(surfaces=[u], phrases=["the widget", "The Widget"])
+    assert [(h.line, h.occurrences) for h in sweep.hits if h.cls == "stale-phrase"] == [
+        (6, 1),
+        (8, 1),
+    ], sweep.hits
 
 
 def test_a_label_with_two_surfaces_is_refused_and_a_repeated_selector_dedupes(tmp_path):

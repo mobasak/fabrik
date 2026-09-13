@@ -1173,12 +1173,9 @@ def _committed_claims_advisory(root: Path, skip: set[Path]) -> list[str]:
         # a git failure or a truncated batch would otherwise read as "no committed debt" — an
         # advisory ROW, so the ⚠-first header final_gate keys on carries it (rounds 2–3)
         out.append(
-            f"committed-claims advisory read HEAD for {len(heads)} of {len(plans)} plan file(s) "
-            + (
-                "— the rest were NOT examined (git cat-file failed or was cut short)"
-                if len(heads) < len(plans)
-                else "— git exited non-zero after the last record; the rows below may be short"
-            )
+            f"committed-claims advisory: git cat-file failed or was cut short after "
+            f"{len(heads)} blob(s) of {len(plans)} plan file(s) requested — the plans it never "
+            "reached were NOT examined (a plan absent at HEAD is not counted either way)"
         )
     for p in plans:
         rel = p.relative_to(root)

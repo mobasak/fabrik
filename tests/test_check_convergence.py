@@ -1950,7 +1950,7 @@ def test_a_git_failure_in_the_advisory_is_a_warning_final_gate_can_see(tmp_path:
     plan.parent.mkdir(parents=True)
     plan.write_text(_EXECUTED_CITING)
     rc, out = _check_out(tmp_path)  # not a git repo: cat-file fails
-    assert rc == 0 and out.startswith("⚠") and "0 of 1 plan file(s)" in out, out
+    assert rc == 0 and out.startswith("⚠") and "0 blob(s) of 1 plan file(s)" in out, out
     cc = _load_cc()
     heads, complete = cc._head_texts(tmp_path, ["docs/development/plans/2026-08-03-plan-x.md"])
     assert heads == {} and complete is False

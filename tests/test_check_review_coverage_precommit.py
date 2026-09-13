@@ -220,6 +220,20 @@ def test_the_changed_list_reads_paths_only_across_wrapped_lines_and_never_from_a
     assert r.returncode == 0, r.stdout
     r = _run_on(tmp_path, with_x.replace("# R\n", "# R\n**Changed:**\n1. `x.py`\n> `y.py`\n\n"))
     assert r.returncode == 1 and "`y.py`" in r.stdout, r.stdout
+    # round 5: a bold line and a space-less quote continue the list; a location suffix is a path
+    # with a line; `makefile` in any case; a symbol with a colon is not path-shaped
+    r = _run_on(tmp_path, with_x.replace("# R\n", "# R\n**Changed:**\n`x.py`\n**`y.py`**\n\n"))
+    assert r.returncode == 1 and "`y.py`" in r.stdout, r.stdout
+    r = _run_on(
+        tmp_path, with_x.replace("# R\n", "# R\n**Changed:** `x.py:44`, `x.py::test_a`\n\n")
+    )
+    assert r.returncode == 0, r.stdout
+    r = _run_on(tmp_path, with_x.replace("# R\n", "# R\n**Changed:** `x.py`, `y.py:44`\n\n"))
+    assert r.returncode == 1 and "`y.py`" in r.stdout, (
+        r.stdout
+    )  # the suffix is stripped, y owes a row
+    r = _run_on(tmp_path, with_x.replace("# R\n", "# R\n**Changed:** `x.py`, `makefile`\n\n"))
+    assert r.returncode == 1 and "`makefile`" in r.stdout, r.stdout
     # an IN-PROGRESS receipt (a seat's mid-loop draft) is exempt from the Hunt-row leg too
     r = _run_on(
         tmp_path,
@@ -429,3 +443,17 @@ def test_a_running_record_pulls_only_its_own_receipts(tmp_path):
     assert _rc_env() == 0, "the inner review frame started after the receipt was written"
     _stacked({"command": "fabrik-review", "state": "running", "surface": plan_a})
     assert _rc_env() == 1, "an inner frame with no start falls through to the outer writing frame"
+    _stacked(
+        {"command": "fabrik-review", "state": "running", "started_epoch": "abc", "surface": plan_a}
+    )
+    r = sp.run(
+        [sys.executable, str(SCRIPT), "--root", str(repo)],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        env=env,
+    )
+    assert r.returncode == 1 and "Traceback" not in r.stderr and "UNCHECKED" in r.stdout, (
+        r.stdout + r.stderr
+    )  # a malformed start falls through to the outer frame — never a crash (round 5)

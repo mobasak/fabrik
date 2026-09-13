@@ -79,6 +79,8 @@ TOOLING_PREFIXES = (
     ".windsurf/",
     "templates/governance/",
     "tests/",
+    "docs/reference/",  # the hub machinery's own reference docs (round 5)
+    "docs/workstation/",
 )
 FLOOR_PACKS_TOOLING = ("core/10-python.md",)
 FLOOR_PACKS_TOOLING_DOC = ("core/40-documentation.md",)  # an all-prose tooling partition (round 3)
@@ -103,7 +105,16 @@ def _floor_for(changed: list[str], root: Path | None = None) -> tuple[tuple[str,
 
     voting = [p for p in paths if not _is_doc(p)]
     if not voting:
-        voting = [p for p in paths if "/" in p and not p.startswith("docs/")]
+        # the hub's machinery prose under docs/reference and docs/workstation is tooling prose;
+        # plans, specs, reviews and the rest of docs/ describe service work (round 5)
+        voting = [
+            p
+            for p in paths
+            if "/" in p
+            and (
+                not p.startswith("docs/") or p.startswith(("docs/reference/", "docs/workstation/"))
+            )
+        ]
     if voting and all(p.startswith(TOOLING_PREFIXES) for p in voting):
         floor = FLOOR_PACKS_TOOLING_DOC if all(_is_doc(p) for p in voting) else FLOOR_PACKS_TOOLING
         return floor, "TOOLING"

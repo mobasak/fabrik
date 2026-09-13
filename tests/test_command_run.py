@@ -4214,6 +4214,13 @@ def test_the_phase_gate_binds_a_ticket_artifact_to_the_plan_stem_and_the_record_
     assert cr._phase_review_exists(
         str(tmp_path), "E", plan_stem="2026-08-31-plan-2ab-x", since=start
     )
+    # round 5: an alphanumeric plan suffix (`2v2`) keeps the escape too
+    v2 = d / "2026-08-31-plan-2v2-x-phase-F-review.md"
+    v2.write_text("real content\n", encoding="utf-8")
+    os.utime(v2, (start - 3600, start - 3600))
+    assert cr._phase_review_exists(
+        str(tmp_path), "F", plan_stem="2026-08-31-plan-2v2-x", since=start
+    )
     # the legacy call (no stem, no start) keeps the permissive behaviour for records that carry
     # neither — the fleet's older records must not start refusing
     assert cr._phase_review_exists(str(tmp_path), 1)
@@ -4311,6 +4318,16 @@ def test_a_real_id_inside_angle_brackets_is_not_a_placeholder() -> None:
     ):
         assert not cr._is_placeholder(real), real
     assert cr._is_placeholder("<nothing filed, no surfaces exercised worth naming>")
+    # round 5: the grammar's own filler after the marker, or an empty list, is the placeholder;
+    # a lower-case synonym head is refused on purpose; every noun phrase alone is a placeholder
+    for ph in (
+        "<none — surfaces exercised: what your run touched>",
+        "<none — surfaces exercised:>",
+        "<nothing filed — surfaces exercised: mail.py>",
+    ):
+        assert cr._is_placeholder(ph), ph
+    for noun in cr._GRAMMAR_NOUNS:
+        assert cr._is_placeholder(f"<{noun} here>"), noun
     for ph in (
         "<what you filed|none>",
         "<mail id(s)>",

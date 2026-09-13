@@ -201,3 +201,12 @@ def test_the_floor_is_surface_aware_for_hub_tooling(tmp_path):
         "TOOLING",
     )
     assert rr._floor_for(["CHANGELOG.md"], tmp_path)[1] == "SERVICE"
+    # round 5: the hub's machinery docs are tooling prose; a plan or a spec is not
+    assert rr._floor_for(["docs/reference/x.md"], tmp_path) == (
+        rr.FLOOR_PACKS_TOOLING_DOC,
+        "TOOLING",
+    )
+    assert rr._floor_for(["docs/workstation/x.md", "CHANGELOG.md"], tmp_path)[1] == "TOOLING"
+    assert (
+        rr._floor_for(["docs/development/plans/2026-01-01-plan-1-x.md"], tmp_path)[1] == "SERVICE"
+    )

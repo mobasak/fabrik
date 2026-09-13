@@ -2637,10 +2637,11 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
 # neither; a bullet-list Changed block is still the list)
 # a continuation line starts with a backticked token, plain, bulleted (`-`/`*`/`+`/`1.`/`>`) or bold
 _CHANGED_LINE = re.compile(
-    r"\*\*Changed:\*\*(.*?)(?=\n(?![ \t]*(?:`|(?:\d+[.)]|[-*+]|>)\s+\*{0,2}`))|\Z)", re.S
+    r"\*\*Changed:\*\*(.*?)(?=\n(?![ \t]*(?:\*{0,2}`|(?:\d+[.)]|[-*+]|>+)\s*\*{0,2}`))|\Z)", re.S
 )
 _BACKTICKED = re.compile(r"`([^`\n]+)`")
-_TOKEN_SHAPE = re.compile(r"^[\w.+/-]+$")  # what a path is made of — never a symbol, a flag, prose
+_TOKEN_SHAPE = re.compile(r"^[\w.+/~-]+$")  # what a path is made of — never a symbol, a flag, prose
+_LOCATION_SUFFIX = re.compile(r"(?:::[\w.\[\]-]+|:\d+(?:-\d+)?)$")  # `x.py::test`, `x.py:44`
 _BARE_FILES = frozenset(
     {
         "Makefile",
@@ -2661,20 +2662,26 @@ _BARE_FILES = frozenset(
 )
 
 
+_BARE_FILES_CI = frozenset(f.casefold() for f in _BARE_FILES)
+
+
 def _is_path_token(tok: str) -> bool:
     """A backticked token on the Changed list is a path when it is path-shaped AND carries a `/`
-    or a `.` (or is a well-known bare file); an md5/sha, a count, a range (`a..b` with no slash) or
-    a prose symbol (`_hunt_gaps`, `--json`, `IN-PROGRESS`) is not (rounds 3–4: an allowlist
-    dropped `Taskfile`; a pure exclusion list counted every backticked symbol as a path). STATED
-    COST: an extension-less bare file outside the list (`cafebabe`) is not a path."""
+    or a `.` (or is a well-known bare file, any case); a location suffix (`x.py:44`,
+    `x.py::test`) is stripped first; an md5/sha (no dot, no slash — dropped by the first rule), a
+    count, a version, a range (`a..b` with no slash) or a prose symbol (`_hunt_gaps`, `--json`,
+    `IN-PROGRESS`) is not (rounds 3–5). STATED COSTS: an extension-less bare file outside the
+    list (`cafebabe`) is not a path, and a dotted symbol (`os.getenv`) is indistinguishable from a
+    file name and counts as one."""
+    tok = _LOCATION_SUFFIX.sub("", tok or "")
     if not tok or not _TOKEN_SHAPE.match(tok):
         return False
-    if tok in _BARE_FILES:
+    if tok.casefold() in _BARE_FILES_CI:
         return True
     if "/" not in tok and "." not in tok:
         return False
-    if "/" not in tok and (re.fullmatch(r"[0-9a-f]{7,40}", tok) or ".." in tok):
-        return False  # an md5/sha or a range `a..b`
+    if "/" not in tok and ".." in tok:
+        return False  # a range `a..b`
     return not re.fullmatch(r"\d+(?:\.\d+)*", tok)  # a count or a version
 
 
@@ -2692,7 +2699,11 @@ def _hunt_gaps(text: str) -> list[str]:
     m = _CHANGED_LINE.search(stripped)
     if not m:
         return []
-    changed = [c.strip() for c in _BACKTICKED.findall(m.group(1)) if _is_path_token(c.strip())]
+    changed = [
+        _LOCATION_SUFFIX.sub("", c.strip())
+        for c in _BACKTICKED.findall(m.group(1))
+        if _is_path_token(c.strip())
+    ]
     hunted = {h.strip() for h in _HUNT_ROW.findall(stripped)}
     return [
         f"Changed path `{c}` has no `Hunt:` row — the checklist grades only the rows that exist, "
