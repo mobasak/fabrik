@@ -145,6 +145,7 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 
 | Pass | Finders | Counters | Method |
 |---|---|---|---|
+| Pass 2 | native opus×1 (tool fix diff) + sonnet×2 (tests · docs), dispatched 3, returned 3, all fresh and non-authoring | found: 17, new: 17, confirmed: 14, fixed: 14, unexecuted: 0 | method: re-derivation — delta over the round-1 fix diff `fce96964..82f179c7` (873 changed lines → the round-1 partition, `dispatch_headroom.py --slices opus=1,sonnet=2 --delta 873` → SEATS 3) + one hop; pin md5 d34f03c2; every candidate re-executed by the orchestrator: `claude-sound.sh` read read-only (0 non-zero exits in 325 lines, `.notified` written only on a delivered send, window per key), the drain-stamp reader read (`stat().st_mtime`, never `read_text` — my round-1 R1 claim was FALSE), the 4 pre-existing ping graders counted at `7cb15def~1` (3 removed + 1 kept); round-zero probe — 5 of 7 round-2 graders red with both twins at the pre-round-2 file, green restored; class rewrite — `_tick_telegram`'s delivery paragraph rewritten from the notifier's own source (the artifact, not the rc) |
 | Pass 1 | native opus×1 (tool) + sonnet×2 (tests · docs), dispatched 3, returned 3 (a first Opus dispatch died on an API timeout before reading anything and was re-dispatched — not a reader) | found: 22, new: 22, confirmed: 20, fixed: 20, unexecuted: 0 | method: re-derivation — every candidate executed on the scratch copy (`probes/phase2.py`: O2 raised UnicodeDecodeError, O3 pushed 5 of 5 ticks, O4 named `aa` for a two-dir row, O5 collided, T3 EXPIRED text lacked the clause, D1 the one-line form) or on the box read-only (D2 `keepalive.log` 2 runs of 2, D3 `crontab -l` vs the doc line); pin md5 67e3917d; hygiene at start (4 hits: H1–H4) and at close (3 hits, the same false positives at moved line numbers); round-zero probe — 9 graders red on the pre-fix tool, 2 named mutants killed (5 d push window; temp-dir copy in the kept ping) |
 
 Row shapes (quoted here, so the gate does not read them as passes):
@@ -186,6 +187,28 @@ grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading 
 | D5 | sonnet | the LESSONS bullets unwrapped, unlike their neighbours | FIXED r1 · LOCAL — wrapped at 100 columns with the file's two-space continuation |
 | D6 | sonnet | `fleet-chain-push-<email>` presented as the literal filename | FIXED r1 · LOCAL — `<email slug>-<8 hex of the email>` (with O5) |
 
+### Disposition ledger — round 2 (17 candidates → 14 FIXED + 1 REFUTED + 2 RECORDED)
+
+| id | seat | candidate | disposition |
+|---|---|---|---|
+| P1 | opus | the delivery gate carried no information: `mesh-notify` exits 0 on every outcome (suppressed, curl failure, no keys — 0 of 325 lines exit non-zero; 227 of 511 logged outcomes delivered nothing) and all 9 call sites share one 30-min window under the constant key `quota-rotation`, so a flip in the same tick eats the chain push and it is stamped as sent (executed by the seat with a stub notifier; re-read by the orchestrator in `claude-sound.sh:249-306`) | FIXED r2 · LOCAL — `_tick_telegram(msg, key=…)` returns True only when `<lockdir>/<safe key>.notified` (written by the notifier solely on a delivered send) ADVANCED during the call; the chain push passes `quota-rotation-chain-<hash>` per account; graders `test_tick_telegram_reports_delivery_from_the_notifier_artifact`, `test_chain_push_uses_its_own_notify_key_per_account` |
+| P2 | opus | the `/tmp` fallback stamp: a planted symlink is written through (`write_text` follows links) and a planted regular file holding the key suppresses the warning forever (executed by the seat on a copy) | FIXED r2 · LOCAL — the fallback moved to the resume mesh's lock dir (`_selfwatch_lock_dir()`, user-only 0700); `_write_stamp` opens `O_NOFOLLOW|O_CREAT|O_TRUNC` 0600; `_stamp_holds` refuses symlinks; grader `test_chain_push_refuses_a_planted_symlink_stamp` |
+| P3 | opus | `EXPIRED -0.0d ago` on `left == 0.0` (executed: `f"{-0.0:.1f}"`) | FIXED r2 · LOCAL — `abs(left)` at both sites |
+| P4 | opus | `--touch` still advertised in the usage/help block without the RETIRED annotation its sibling `--keepalive` carries | FIXED r2 · LOCAL — the help block's `--touch` RETIRED 2026-09-13 line |
+| P5 | opus | `_email_for_token` dead (1 mention in 5,373 lines = its def) with a docstring naming the retired touch path | FIXED r2 · LOCAL — deleted (0 references on the surface, hygiene) |
+| P6 | opus | `_file_refreshed_credentials` has no production caller (5 test call sites) | RECORDED — by design (D-230 bounded hop; one hop out of the fix hunks; destination `docs/STRATEGIC_BACKLOG.md` "[fleet] `_file_refreshed_credentials` is a 52-line credential writer with no production caller", 2026-09-13) |
+| P7 | opus | `tempfile.gettempdir()` honours `$TMPDIR`: cron and a shell resolve different fallback paths for the same chain (duplicate push during a state-dir outage) | FIXED r2 · LOCAL — the fallback is the lock dir's fixed path (with P2) |
+| P8 | opus | the `/tmp` stamp is 0644 under the umask in a 1777 dir (email slug + hash + expiry epoch world-readable) and never reaped | FIXED r2 · LOCAL — 0600 inside a 0700 dir (with P2); reaping: one ~10-byte file per account, the same lifetime as the mesh's own `.notified` files |
+| P9 | opus | `hashlib.sha1(email)` is bandit B324 High/High and the hub gate never scans `scripts/` (`final_gate.py:926` walks `src/` only; ruff selects no `S`) | FIXED r2 · LOCAL — `usedforsecurity=False`; the gate scope filed to infra: mail `01M2CEWJQ2S0BWTT21XTZYFQ3T` |
+| Q1 | sonnet | the "stamp unwritable … repeats next tick" branch (both homes refuse the write) had no grader (mutant: `else:` removed → 5 of 5 selected tests green) | FIXED r2 · LOCAL — `test_chain_push_says_so_and_repeats_when_no_stamp_can_be_written` |
+| Q2 | sonnet | `test_chain_push_stamps_do_not_collide_across_lookalike_emails` reached the REAL `~/.claude/state` (no `ROTATE_STATE_DIR`; `_rotate_state_dir()` mkdirs unconditionally) | FIXED r2 · LOCAL — `ROTATE_STATE_DIR` + `CLAUDE_SOUND_LOCKDIR` pinned to `tmp_path` |
+| Q3 | sonnet | the chmod-0500 tests misbehave as root (root ignores modes → `FileNotFoundError` on the fallback read) | FIXED r2 · LOCAL — `@pytest.mark.skipif(os.geteuid() == 0)` on the two mode-dependent graders (a guard for a reachable environment, not a skip of a behaviour) |
+| S1 | sonnet | my round-1 backlog row claimed the `_drain_stamp_path` readers `read_text()` under `except OSError` — FALSE: the only reader stats `st_mtime` (`claude_rotate.py:2561-2565`, re-read by the orchestrator); the row invented follow-on work | FIXED r2 · LOCAL — the row replaced by P6's true one; R1 below re-dispositioned |
+| S2 | sonnet | `wsl-startup-inventory.md` line 61 (retired no-op) contradicted lines 68-69 of the same bullet ("all live", "the rotation pings") | FIXED r2 · LOCAL — the bullet says `--tick`/dashboard live, `--keepalive` a retired no-op, the tick's stale-reading refresh resolves `claude` |
+| S3 | sonnet | § Successor plan's M4 sweep still lists retiring `--touch` as future work | RECORDED — measured (one hop out of the fix hunks — a different section; the sentence was corrected in the same commit anyway, not counted) |
+| S4 | sonnet | the doc says the stamp "lands in `/tmp`" — the code used `tempfile.gettempdir()` (and now the lock dir) | FIXED r2 · LOCAL — the doc names the lock dir path, mode and the fixed-path property (with P2) |
+| S5 | sonnet | "the three ping graders retired" not verifiable from the delta alone | REFUTED (executed: `git show 7cb15def~1:tests/test_claude_fleet.py` held 4 `def test_keepalive_*` — 3 removed at 7cb15def, 1 kept and since retargeted; the CHANGELOG sentence is true) |
+
 Round-1 START hygiene (`check_review_hygiene.py --surface <5 pinned files> --symbol _keepalive_sweep --symbol _KEEPALIVE_MAX_IDLE_S --symbol _chain_expiry_push --symbol _relogin_block --phrase "run one claude turn" --phrase "keepalive cadence"` → 4 hits over 5 files, 0 rows ungraded):
 
 | H1 | stale-phrase `tests/test_claude_fleet.py:2027` 'run one claude turn' | RECORDED — hygiene false positive (the line is the NEGATIVE assertion `assert "run one claude turn" not in out` — the grader that proves the retired remedy is gone) |
@@ -193,7 +216,8 @@ Round-1 START hygiene (`check_review_hygiene.py --surface <5 pinned files> --sym
 | H3 | stale-phrase `docs/LESSONS_LEARNT.md:6624` 'run one claude turn' | RECORDED — hygiene false positive (the LESSONS entry QUOTES the retired remedy as the false claim it was: "run one claude turn" was printed for weeks and was false) |
 | H4 | dead-symbol `_KEEPALIVE_MAX_IDLE_S` referenced 0 times across 5 files | RECORDED — measured (the probe symbol is the REMOVED constant; 0 of 5 files reference it is the removal being complete, not a dead symbol left behind) |
 | H5 | round-1 CLOSE hygiene: the same three stale-phrase hits at moved lines (`tests/test_claude_fleet.py:2205` ×2, `docs/LESSONS_LEARNT.md:6639`); `three weeks` and `fleet-chain-push-<email>` 0 hits; `_touch_run_cli` / `_chain_push_stamp` 0 references | RECORDED — hygiene false positive (H1–H3's negative assertion and quoted false claim, unchanged) |
-| R1 | O2's sibling: the `_drain_stamp_path` readers decode with the default codec under `except OSError` — one hop outside the fix hunks (pre-existing, not introduced by this change) | RECORDED — by design (D-230 bounded hop; destination `docs/STRATEGIC_BACKLOG.md` "[fleet] The tick's other stamp readers decode with the default codec", 2026-09-13) |
+| R1 | O2's sibling: the `_drain_stamp_path` readers decode with the default codec — the round-1 record | REFUTED (round 2, S1: the only `_drain_stamp_path` reader is `stamp.stat().st_mtime` under `except OSError`, `claude_rotate.py:2561-2565`; no reader decodes stamp bytes except the one round 1 fixed; the backlog row was withdrawn) |
+| H6 | round-2 CLOSE hygiene: 7 hits over 7 files — 6 stale-phrase hits are the orchestrator's own probe phrases landing on pre-existing sites (`gettempdir` in the drain/lock fallbacks at 2151/2734/3915/3925 and a v2 test, `returncode == 0` in `_keepalive_ping`'s own rc), 1 dead-symbol `_email_for_token` 0 of 7 = the deletion complete | RECORDED — hygiene false positive (probe phrases on legitimate sites; the dead-symbol hit is the removal measured) |
 
 ### Verdict grammar — an EXAMPLE, never rows
 
@@ -218,7 +242,7 @@ closing `Pass N`. `RECORDED — measured` and `RECORDED — unexecuted` never en
 
 ### Phase 3 — Prove & fix: DONE — 9 graders red on the pre-fix tool, 2 named mutants killed, twins byte-identical, D-247 minted for the `--touch` retirement
 
-### Phase 4 — Converge: UNCHECKED (the delta round over the round-1 fix diff is owed)
+### Phase 4 — Converge: IN PROGRESS — round 2 (delta) confirmed 14 and fixed 14 (the delivery gate rewritten from the notifier's own source); round 3 (delta over the round-2 fix diff, fresh seats) is owed
 
 ## Gate
 

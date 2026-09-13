@@ -1282,7 +1282,9 @@ def _fleet_tick_spies(monkeypatch):
     actions = {"switched": [], "picked": [], "telegrams": [], "mails": []}
     monkeypatch.setattr(cr, "_tick_switch", lambda name: actions["switched"].append(name) or True)
     monkeypatch.setattr(cr, "_pick_successor", lambda *a, **k: actions["picked"].append(a) or None)
-    monkeypatch.setattr(cr, "_tick_telegram", lambda msg: actions["telegrams"].append(msg) or True)
+    monkeypatch.setattr(
+        cr, "_tick_telegram", lambda msg, **kw: actions["telegrams"].append(msg) or True
+    )
     monkeypatch.setattr(cr, "_drain_mail", lambda repos, msg: actions["mails"].extend(repos))
     return actions
 
@@ -1353,7 +1355,7 @@ def test_status_and_push_name_an_expired_chain_with_the_login_block(tmp_path, mo
     assert 'CLAUDE_CONFIG_DIR="$HOME/.claude-fleet/seo"' in out
 
     sent = []
-    monkeypatch.setattr(cr, "_tick_telegram", lambda m: sent.append(m) or True)
+    monkeypatch.setattr(cr, "_tick_telegram", lambda m, **kw: sent.append(m) or True)
     rows, _pending = cr._fleet_account_rows(cr._fleet_dirs(), allow_pings=False)
     assert cr._chain_expiry_push(rows, FLEET_NOW) == 1
     assert "EXPIRED" in sent[0] and "does NOT extend it" in sent[0]
@@ -1399,7 +1401,7 @@ def test_chain_push_stamps_only_a_delivered_notify(tmp_path, monkeypatch, capsys
     2026-09-12 lapse with the new mechanism reporting success."""
     monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
     row = {"email": "sarp@ocoron.com", "slugs": ["seo"], "refresh_expires_epoch": FLEET_NOW + 86400}
-    monkeypatch.setattr(cr, "_tick_telegram", lambda m: False)
+    monkeypatch.setattr(cr, "_tick_telegram", lambda m, **kw: False)
     capsys.readouterr()
     assert cr._chain_expiry_push([row], FLEET_NOW) == 0
     assert cr._chain_expiry_push([row], FLEET_NOW) == 0, "undelivered → retried, never stamped"
@@ -1407,22 +1409,54 @@ def test_chain_push_stamps_only_a_delivered_notify(tmp_path, monkeypatch, capsys
     assert not any(p.exists() for p in cr._chain_push_stamps("sarp@ocoron.com"))
 
     sent = []
-    monkeypatch.setattr(cr, "_tick_telegram", lambda m: sent.append(m) or True)
+    monkeypatch.setattr(cr, "_tick_telegram", lambda m, **kw: sent.append(m) or True)
     assert cr._chain_expiry_push([row], FLEET_NOW) == 1
     assert cr._chain_expiry_push([row], FLEET_NOW) == 0 and len(sent) == 1
 
 
-def test_tick_telegram_reports_delivery(tmp_path, monkeypatch):
-    """The notifier's verdict is real: no `claude-sound.sh` → False; a script that exits 0 → True;
-    one that exits 1 → False. The push above keys on exactly this."""
+def test_tick_telegram_reports_delivery_from_the_notifier_artifact(tmp_path, monkeypatch):
+    """`claude-sound.sh mesh-notify` exits 0 on EVERY outcome (suppressed, curl failure, no keys —
+    0 non-zero exits in 325 lines) and writes `<lockdir>/<safe key>.notified` ONLY on a delivered
+    send. So the verdict is the artifact: no script → False; a script that exits 0 without touching
+    the artifact (the suppressed shape) → False; one that stamps it → True; a stale artifact from
+    an earlier send does not count; and the key names the artifact, so the chain push's own key
+    is never eaten by a rotation notification's window."""
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
-    assert cr._tick_telegram("x") is False
+    locks = tmp_path / "locks"
+    monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(locks))
+    assert cr._tick_telegram("x") is False, "no notifier at all"
     script = tmp_path / ".claude" / "bin" / "claude-sound.sh"
     script.parent.mkdir(parents=True)
     script.write_text("#!/bin/bash\nexit 0\n")
-    assert cr._tick_telegram("x") is True
-    script.write_text("#!/bin/bash\nexit 1\n")
-    assert cr._tick_telegram("x") is False
+    assert cr._tick_telegram("x") is False, "exit 0 without the artifact is NOT delivery"
+    script.write_text(
+        '#!/bin/bash\nmkdir -p "$CLAUDE_SOUND_LOCKDIR"\n'
+        'printf "%s" "$(date +%s)" > "$CLAUDE_SOUND_LOCKDIR/$2.notified"\nexit 0\n'
+    )
+    assert cr._tick_telegram("x", key="k1") is True
+    assert (locks / "k1.notified").is_file() and not (locks / "quota-rotation.notified").exists()
+    script.write_text("#!/bin/bash\nexit 0\n")
+    assert cr._tick_telegram("x", key="k1") is False, "the old artifact did not advance"
+    assert cr._tick_telegram("x", key="k2") is False
+
+
+def test_chain_push_uses_its_own_notify_key_per_account(tmp_path, monkeypatch):
+    """Every rotation notification shares the notifier's 30-minute window under `quota-rotation`;
+    the chain push passes its OWN per-account key so a flip or wall advisory in the same tick can
+    never suppress it — and two accounts pushed in one tick never suppress each other."""
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(tmp_path / "locks"))
+    keys = []
+    monkeypatch.setattr(
+        cr, "_tick_telegram", lambda m, key="quota-rotation": keys.append(key) or True
+    )
+    rows = [
+        {"email": "sarp@ocoron.com", "slugs": ["seo"], "refresh_expires_epoch": FLEET_NOW + 86400},
+        {"email": "ob@ocoron.com", "slugs": ["intel"], "refresh_expires_epoch": FLEET_NOW + 3600},
+    ]
+    assert cr._chain_expiry_push(rows, FLEET_NOW) == 2
+    assert len(keys) == 2 and len(set(keys)) == 2
+    assert all(k.startswith("quota-rotation-chain-") and k != "quota-rotation" for k in keys)
 
 
 def test_chain_push_survives_a_garbage_stamp(tmp_path, monkeypatch):
@@ -1432,7 +1466,7 @@ def test_chain_push_survives_a_garbage_stamp(tmp_path, monkeypatch):
     monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
     row = {"email": "sarp@ocoron.com", "slugs": ["seo"], "refresh_expires_epoch": FLEET_NOW + 86400}
     sent = []
-    monkeypatch.setattr(cr, "_tick_telegram", lambda m: sent.append(m) or True)
+    monkeypatch.setattr(cr, "_tick_telegram", lambda m, **kw: sent.append(m) or True)
     stamp = cr._chain_push_stamps("sarp@ocoron.com")[0]
     stamp.parent.mkdir(parents=True, exist_ok=True)
     stamp.write_bytes(b"\xff\xfe garbage")
@@ -1441,36 +1475,87 @@ def test_chain_push_survives_a_garbage_stamp(tmp_path, monkeypatch):
     assert cr._chain_expiry_push([row], FLEET_NOW) == 0 and len(sent) == 1
 
 
-def test_chain_push_falls_back_to_the_temp_dir_when_the_state_dir_is_read_only(
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores directory modes")
+def test_chain_push_falls_back_to_the_lock_dir_when_the_state_dir_is_read_only(
     tmp_path, monkeypatch
 ):
     """An EXISTING read-only state dir passes `mkdir(exist_ok=True)`, so the old single-path
     stamp silently failed to write and the "once per chain" push fired on EVERY tick (288/day).
-    Now the stamp lands in the temp dir and the second tick is quiet."""
+    Now the stamp lands in the resume mesh's lock dir (user-only, a fixed path — never $TMPDIR)
+    as a 0600 regular file, and the second tick is quiet."""
     state = tmp_path / "state"
     state.mkdir()
     monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
-    monkeypatch.setattr(cr.tempfile, "gettempdir", lambda: str(tmp_path / "tmp"))
-    (tmp_path / "tmp").mkdir()
+    monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(tmp_path / "locks"))
     row = {"email": "sarp@ocoron.com", "slugs": ["seo"], "refresh_expires_epoch": FLEET_NOW + 86400}
     sent = []
-    monkeypatch.setattr(cr, "_tick_telegram", lambda m: sent.append(m) or True)
+    monkeypatch.setattr(cr, "_tick_telegram", lambda m, **kw: sent.append(m) or True)
     state.chmod(0o500)
     try:
         assert cr._chain_expiry_push([row], FLEET_NOW) == 1
         assert cr._chain_expiry_push([row], FLEET_NOW) == 0, "stamped in the fallback → quiet"
         assert len(sent) == 1
         fallback = cr._chain_push_stamps("sarp@ocoron.com")[-1]
-        assert fallback.parent == tmp_path / "tmp" and fallback.read_text() == str(
-            int(FLEET_NOW + 86400)
-        )
+        assert fallback.parent == tmp_path / "locks"
+        assert fallback.read_text() == str(int(FLEET_NOW + 86400))
+        assert oct(fallback.stat().st_mode & 0o777) == "0o600"
     finally:
         state.chmod(0o700)
 
 
-def test_chain_push_stamps_do_not_collide_across_lookalike_emails():
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores directory modes")
+def test_chain_push_says_so_and_repeats_when_no_stamp_can_be_written(tmp_path, monkeypatch, capsys):
+    """Both stamp homes refused (state dir AND lock dir read-only): the push still goes out, the
+    tick says the stamp is unwritable, and — with nothing to remember it by — the next tick pushes
+    again. The documented repeat, never a silent one."""
+    state, locks = tmp_path / "state", tmp_path / "locks"
+    state.mkdir()
+    locks.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(locks))
+    row = {"email": "sarp@ocoron.com", "slugs": ["seo"], "refresh_expires_epoch": FLEET_NOW + 86400}
+    sent = []
+    monkeypatch.setattr(cr, "_tick_telegram", lambda m, **kw: sent.append(m) or True)
+    state.chmod(0o500)
+    locks.chmod(0o500)
+    capsys.readouterr()
+    try:
+        assert cr._chain_expiry_push([row], FLEET_NOW) == 1
+        assert cr._chain_expiry_push([row], FLEET_NOW) == 1, "nothing remembered it → pushed again"
+        out = capsys.readouterr().out
+        assert out.count("stamp unwritable") == 2 and "repeats next tick" in out
+        assert len(sent) == 2
+    finally:
+        state.chmod(0o700)
+        locks.chmod(0o700)
+
+
+def test_chain_push_refuses_a_planted_symlink_stamp(tmp_path, monkeypatch):
+    """The fallback dir is shared with other tools: a symlink planted at the stamp's path is
+    neither read as a stamp (fail toward notifying) nor written through (O_NOFOLLOW) — the write
+    is refused and falls to the "unwritable" branch, the link target keeps its bytes."""
+    state, locks = tmp_path / "state", tmp_path / "locks"
+    state.mkdir()
+    locks.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(locks))
+    victim = tmp_path / "victim"
+    victim.write_text("ORIGINAL")
+    key = str(int(FLEET_NOW + 86400))
+    for p in cr._chain_push_stamps("sarp@ocoron.com"):
+        p.symlink_to(victim)
+    victim.write_text(key)  # a link "holding the key" must still not count as a stamp
+    assert all(not cr._stamp_holds(p, key) for p in cr._chain_push_stamps("sarp@ocoron.com"))
+    with pytest.raises(OSError):
+        cr._write_stamp(cr._chain_push_stamps("sarp@ocoron.com")[0], "1")
+    assert victim.read_text() == key, "never written through the link"
+
+
+def test_chain_push_stamps_do_not_collide_across_lookalike_emails(tmp_path, monkeypatch):
     """`a.b@x.com` and `a-b@x.com` sanitise to the same a-z0-9 slug; the hash suffix keeps their
     stamps apart (two chains alternating on one file would re-push each other every tick)."""
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(tmp_path / "locks"))
     one = cr._chain_push_stamps("a.b@x.com")[0].name
     two = cr._chain_push_stamps("a-b@x.com")[0].name
     assert one != two and one.startswith("fleet-chain-push-a-b-x-com-")

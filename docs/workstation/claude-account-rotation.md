@@ -308,9 +308,13 @@ access expiry with nothing to renew it.
 of expiry (`_CHAIN_EXPIRY_WARN_S`) with that one-line form (an EXPIRED chain gets the same line),
 and the tick pushes it once per chain (mesh-notify) inside 3 days (`_CHAIN_PUSH_S`, strict: exactly
 3 d is not yet). The stamp `~/.claude/state/fleet-chain-push-<email slug>-<8 hex of the email>` holds
-the expiry epoch, so a re-minted chain re-arms by itself; it is written ONLY after mesh-notify
-reported delivery (an undelivered push is retried next tick, never recorded as sent) and lands in
-`/tmp` when the state dir refuses the write. The old `--keepalive` ping is RETIRED (2026-09-12): its
+the expiry epoch, so a re-minted chain re-arms by itself; it is written ONLY after the notifier's
+own success artifact advanced (`claude-sound.sh mesh-notify` exits 0 on every outcome, so delivery
+is read from `<lockdir>/<key>.notified`, which it writes solely on a delivered send), under the
+push's OWN per-account key (`quota-rotation-chain-<hash>`) so a rotation notification's 30-minute
+window can never eat it; an undelivered push is retried next tick, never recorded as sent, and the
+stamp lands in the resume mesh's lock dir (`/tmp/claude-sound-locks-<uid>`, user-only 0700, a fixed
+path) as a 0600 file when the state dir refuses the write. The old `--keepalive` ping is RETIRED (2026-09-12): its
 premise was false and, keyed on a credential mtime the tick renews daily, both logged Monday runs
 (2026-08-31, 2026-09-07 — `~/.claude/keepalive.log`) pinged nothing. The flag is kept as a no-op
 that prints why (rc 0), so the cron line below can be deleted at leisure — crontab edits are the
@@ -469,7 +473,8 @@ stores (`~/.claude/manager-accounts/<name>/`). It retires at the M4 sweep — do
 
 ## Successor plan (named, NOT done)
 
-- **M4 retirement sweep** — retire the switch/capture/touch/drift machinery + the
+- **M4 retirement sweep** — retire the switch/capture/drift machinery (`--touch` is already
+  retired, 2026-09-13 — only its dead code remains to delete) + the
   `manager-accounts` stores (archived to the DR store first), sweeping every consumer:
   `capture-watch.sh` (box-local, `~/.claude/state/`), the removed drift-check triggers'
   remnants, `claude-mesh-test.sh` (box-local, `~/.claude/bin/`)

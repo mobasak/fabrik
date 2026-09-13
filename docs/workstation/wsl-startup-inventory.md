@@ -65,9 +65,9 @@ its project is restored; a permanently-failed unit hides the next real failure.
   sweep, `kaizen_coroner.py` — the weekly `kaizen_metrics.py` is retired to
   `scripts/sysadmin/archived/`; `docs/workstation/kaizen.md`).
   **Post-wipe restore DONE 2026-08-22:** the 2026-08-19 whole-table wipe was reconciled + reinstalled
-  to 41 jobs, now **46** (audited 2026-09-08: every referenced script path exists; backup `~/backups/crontab.backup.20260822-143018`); `--tick`/`--keepalive`/dashboard
-  `--ensure` all live. Cron runs with a minimal `PATH` (no `~/.local/bin`), so the rotation pings
-  resolve `claude` themselves (`claude-account-rotation.md` § Cron PATH) — no crontab `PATH=` line.
+  to 41 jobs, now **46** (audited 2026-09-08: every referenced script path exists; backup `~/backups/crontab.backup.20260822-143018`); `--tick`/dashboard
+  `--ensure` live, `--keepalive` a retired no-op. Cron runs with a minimal `PATH` (no `~/.local/bin`), so the tick's
+  stale-reading refresh resolves `claude` itself (`claude-account-rotation.md` § Cron PATH) — no crontab `PATH=` line.
 - **timers:** `proxy_sync`, `ip_authorization`, `phpsessionclean`, `logrotate`, `dpkg-db-backup`
   (+ stock `apt-daily*`, `man-db`, `motd-news`, `systemd-tmpfiles-clean`, `e2scrub_all`)
 
