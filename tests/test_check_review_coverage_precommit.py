@@ -162,3 +162,111 @@ def test_a_running_review_records_own_receipt_is_graded_even_when_unchanged(tmp_
         env=env,
     )
     assert r.returncode == 0, "with no running record the committed receipt stays an advisory"
+
+
+def test_the_changed_list_reads_paths_only_across_wrapped_lines_and_never_from_a_fence(tmp_path):
+    """Review round 1 (Phase B): every backticked token on the Changed line was demanded a
+    `Hunt:` row (an md5 is not a path); a wrapped list lost every path after the first line;
+    and a `Hunt:` row inside a quoted template example satisfied a real path."""
+    good = _BAD_REVIEW.replace(
+        "- Pass 2 (CLOSING) — method: citation — found: 0, fixed: 0\n", _GOOD_TAIL
+    )
+    hunt_x = "| 5 | Hunt: `x.py` — every changed hunk | CLEAN | read |\n"
+    anchor = "| 4 | behavior-without-a-test | CLEAN | tests/test_x.py |\n"
+    with_x = good.replace(anchor, anchor + hunt_x)
+    r = _run_on(tmp_path, with_x.replace("# R\n", "# R\n**Changed:** `x.py` (md5 `deadbeef`)\n\n"))
+    assert r.returncode == 0, r.stdout
+    r = _run_on(tmp_path, with_x.replace("# R\n", "# R\n**Changed:** `x.py`,\n`y.py`\n\n"))
+    assert r.returncode == 1 and "`y.py`" in r.stdout, r.stdout
+    fenced = "```\n| 6 | Hunt: `y.py` — example | CLEAN | read |\n```\n"
+    r = _run_on(
+        tmp_path,
+        with_x.replace("# R\n", "# R\n**Changed:** `x.py`, `y.py`\n\n" + fenced),
+    )
+    assert r.returncode == 1 and "`y.py`" in r.stdout, r.stdout
+
+
+def test_a_running_record_pulls_only_its_own_receipts(tmp_path):
+    """Review round 1 (Phase B): the running-record read joined every fresh file under reviews/ —
+    a rotated `-archive.md` (no checklist by design), a sibling's receipt of another plan, and
+    it fired for artifact reviews (spec/plan-review) that write no receipt at all."""
+    import json
+    import os
+    import subprocess as sp
+    import time
+
+    repo = tmp_path / "repo"
+    (repo / "docs/development/reviews").mkdir(parents=True)
+    sp.run(["git", "init", "-q"], cwd=repo, check=True)
+    started = time.time() - 60
+    clean = _BAD_REVIEW.replace(
+        "- Pass 2 (CLOSING) — method: citation — found: 0, fixed: 0\n", _GOOD_TAIL
+    )
+    unchecked = _BAD_REVIEW.replace(
+        "| 1 | fail-open/fail-closed | CLEAN | hunted x.py guards |",
+        "| 1 | fail-open/fail-closed | UNCHECKED |",
+    )
+    mine = repo / "docs/development/reviews/2026-09-13-plan-a-review.md"
+    mine.write_text(
+        clean + "\nPlan: docs/development/plans/2026-09-13-plan-a.md\n", encoding="utf-8"
+    )
+    (repo / "docs/development/reviews/2026-09-13-plan-a-review-archive.md").write_text(
+        unchecked + "\nPlan: docs/development/plans/2026-09-13-plan-a.md\n", encoding="utf-8"
+    )  # names the plan too — only the archive rule keeps it out
+    (repo / "docs/development/reviews/2026-09-13-plan-b-review.md").write_text(
+        unchecked + "\nPlan: docs/development/plans/2026-09-13-plan-b.md\n", encoding="utf-8"
+    )
+    sp.run(["git", "add", "-A"], cwd=repo, check=True)
+    sp.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "all committed"],
+        cwd=repo,
+        check=True,
+    )
+    runs = tmp_path / "runs"
+    runs.mkdir()
+
+    def _rc(command: str) -> int:
+        (runs / "s9.json").write_text(
+            json.dumps(
+                {
+                    "command": command,
+                    "state": "running",
+                    "started_epoch": started,
+                    "surface": "docs/development/plans/2026-09-13-plan-a.md (Phase B)",
+                }
+            )
+        )
+        env = dict(os.environ, COMMAND_RUN_DIR=str(runs), CLAUDE_SESSION_ID="s9")
+        return sp.run(
+            [sys.executable, str(SCRIPT), "--root", str(repo)],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            env=env,
+        ).returncode
+
+    assert _rc("fabrik-review") == 0, (
+        "only plan-a's clean receipt is this run's; archive + plan-b stay out"
+    )
+    assert _rc("fabrik-spec-review") == 0
+    mine.write_text(
+        unchecked + "\nPlan: docs/development/plans/2026-09-13-plan-a.md\n", encoding="utf-8"
+    )
+    sp.run(["git", "add", "-A"], cwd=repo, check=True)
+    sp.run(
+        [
+            "git",
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-qm",
+            "own receipt regressed",
+        ],
+        cwd=repo,
+        check=True,
+    )
+    assert _rc("fabrik-review") == 1, "the run's own committed receipt is graded"
+    assert _rc("fabrik-spec-review") == 0, "an artifact review writes no receipt"

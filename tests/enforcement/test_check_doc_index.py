@@ -771,18 +771,50 @@ def test_untracked_only_reports_the_creating_runs_docs_and_nothing_else(tmp_path
     """T4.6 (01M23D1BF): the untracked-doc rule billed an arbitrary LATER run at its completion
     gate; `--untracked-only` is the cheap lean-tier mode that reports only untracked live docs, so
     the authoring run sees its debt while the file is still in hand."""
+    # a SYNTHETIC repo (the script pins REPO to its own parents[2], so it is copied in): one
+    # tracked-and-unindexed doc, one untracked-and-unindexed doc — the lean mode reports only the
+    # untracked one and, being the warn_only row, exits 0 with its findings as the message
+    # (review round 1: the first cut exited 1 and turned the lean tier RED under warn_only)
+    repo = tmp_path / "repo"
+    (repo / "scripts/enforcement").mkdir(parents=True)
+    (repo / "docs").mkdir()
+    # the script UNDER TEST is this tree's, never the hardcoded live REPO's (a mutant on a copy
+    # of the tree must reach it)
+    here = Path(__file__).resolve().parents[2] / "scripts/enforcement/check_doc_index.py"
+    shutil.copy(here, repo / "scripts/enforcement/")
+    (repo / "INDEX.md").write_text("# Index\n\n- docs/indexed.md\n", encoding="utf-8")
+    (repo / "docs/indexed.md").write_text("# i\n", encoding="utf-8")
+    (repo / "docs/tracked-unindexed.md").write_text("# t\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "seed"],
+        cwd=repo,
+        check=True,
+    )
+    (repo / "docs/brand-new.md").write_text("# n\n", encoding="utf-8")
     r = subprocess.run(
         [
             sys.executable,
-            str(REPO / "scripts/enforcement/check_doc_index.py"),
+            str(repo / "scripts/enforcement/check_doc_index.py"),
             "--untracked-only",
             "--json",
         ],
-        cwd=REPO,
+        cwd=repo,
         capture_output=True,
         text=True,
         timeout=120,
     )
     payload = json.loads(r.stdout)
+    assert r.returncode == 0, (r.returncode, payload)
     assert payload.get("mode") == "untracked-only", payload
-    assert all("untracked" in d for d in payload["drift"]), payload
+    assert [d for d in payload["drift"] if "brand-new.md" in d], payload
+    assert not [d for d in payload["drift"] if "tracked-unindexed" in d], payload
+    full = subprocess.run(
+        [sys.executable, str(repo / "scripts/enforcement/check_doc_index.py"), "--json"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert full.returncode == 1 and "mode" not in json.loads(full.stdout), full.stdout

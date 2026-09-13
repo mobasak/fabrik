@@ -1775,17 +1775,71 @@ Done. src/app/handler.py:42
 """
 
 
-def test_an_untracked_converged_plan_is_graded_before_it_is_staged(repo: Path) -> None:
+def test_an_untracked_converged_plan_is_graded_before_it_is_staged(
+    repo: Path, tmp_path: Path, monkeypatch
+) -> None:
     """T4.1 (01M1RFN3): a plan written and committed in one motion was untracked at the gate
     run and skipped as "checked at staging" — then staged and committed with no gate between.
-    An untracked plan that CLAIMS convergence is a target now."""
+    An untracked plan that CLAIMS convergence is a target when THIS session's running record
+    names it; a sibling session's untracked draft never is (review round 1, Phase B — three
+    sessions share the hub tree and `_changed_md` keeps that rule)."""
+    import json as _json
+
     _git(repo, "commit", "--allow-empty", "-qm", "seed")
     p = repo / "docs/development/plans/2026-06-18-plan-x.md"
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(PLAN_NO_EVIDENCE)
-    assert _check(repo) == 1, "an untracked CONVERGED plan with no evidence must fail"
+    monkeypatch.delenv("CLAUDE_SESSION_ID", raising=False)
+    assert _check(repo) == 0, "with no running record an untracked draft is a sibling's"
+    runs = tmp_path / "runs"
+    runs.mkdir(exist_ok=True)
+    (runs / "s7.json").write_text(
+        _json.dumps(
+            {
+                "command": "fabrik-plan-review",
+                "state": "running",
+                "surface": "docs/development/plans/2026-06-18-plan-x.md — pass 3",
+            }
+        )
+    )
+    monkeypatch.setenv("CLAUDE_SESSION_ID", "s7")
+    monkeypatch.setenv("COMMAND_RUN_DIR", str(runs))
+    assert _check(repo) == 1, "an untracked CONVERGED plan this session's record names must fail"
     p.write_text(PLAN_NO_CLAIM)
     assert _check(repo) == 0, "an untracked draft that claims nothing stays ignored"
+    sib = repo / "docs/development/plans/2026-06-18-plan-y.md"
+    sib.write_text(PLAN_NO_EVIDENCE)
+    assert _check(repo) == 0, "a sibling's untracked CONVERGED draft is not this gate's subject"
+
+
+def test_a_prose_line_starting_with_the_label_never_satisfies_the_executed_citation(
+    repo: Path,
+) -> None:
+    """Review round 1 (Phase B): "Round 4 never returned found: 0, fixed: 0" starts with the
+    label and is prose; a row with a status glyph or a blockquote is a row."""
+    _git(repo, "commit", "--allow-empty", "-qm", "seed")
+    rv = repo / "docs/development/reviews/2026-08-03-plan-x-review.md"
+    rv.parent.mkdir(parents=True, exist_ok=True)
+    plan = repo / "docs/development/plans/2026-08-03-plan-x.md"
+    plan.parent.mkdir(parents=True, exist_ok=True)
+    plan.write_text(_EXECUTED_CITING)
+    row = "| Pass 2 | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 |\n"
+    rv.write_text(
+        _REVIEW_QUIET_ROW.replace(row, "Round 4 never returned found: 0, fixed: 0 — still open.\n")
+    )
+    _git(repo, "add", "-A")
+    assert _check(repo) == 1, "a negation that starts with the label is prose"
+    rv.write_text(
+        _REVIEW_QUIET_ROW.replace(row, "Pass 3 confirmed: 0 and fixed: 0 by my reading\n")
+    )
+    _git(repo, "add", "-A")
+    assert _check(repo) == 1, "a sentence that starts with the label is prose"
+    rv.write_text(_REVIEW_QUIET_ROW.replace(row, "| ✅ " + row[2:]))
+    _git(repo, "add", "-A")
+    assert _check(repo) == 0, "a glyph before the label is still a row"
+    rv.write_text(_REVIEW_QUIET_ROW.replace(row, "> " + row))
+    _git(repo, "add", "-A")
+    assert _check(repo) == 0, "a blockquoted row is still a row"
 
 
 def test_a_quiet_round_in_prose_never_satisfies_the_executed_citation(repo: Path) -> None:
@@ -1825,6 +1879,16 @@ def test_a_committed_executed_plan_whose_review_is_missing_is_reported_advisory(
     assert rc == 0, out
     assert out.startswith("⚠"), out
     assert "2026-08-03-plan-x.md" in out and "2026-07-01-plan-y.md" in out, out
+    # review round 1 (Phase B): COMMITTED claims are read at HEAD — a sibling's uncommitted
+    # local revert of the flip does not hide the committed debt
+    plan.write_text(_EXECUTED_CITING.replace("EXECUTED 2026-08-03", "DRAFT"))
+    rc, out = _check_out(repo)
+    assert rc == 0 and "2026-08-03-plan-x.md" in out, out
+    # and an untracked review draft's NOTE never lands AHEAD of the ⚠ header final_gate keys on
+    (repo / "docs/development/reviews").mkdir(parents=True, exist_ok=True)
+    (repo / "docs/development/reviews/2026-09-13-sibling-draft-review.md").write_text("# d\n")
+    rc, out = _check_out(repo)
+    assert rc == 0 and out.startswith("⚠") and "NOTE: skip untracked" in out, out
 
 
 def test_the_rederivation_message_names_the_closing_row_grammar(repo: Path) -> None:

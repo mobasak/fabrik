@@ -9,9 +9,11 @@ orchestrator adjudicates each one into the receipt's ledger as FIXED or as
 ``RECORDED — hygiene false positive (<why>)`` — the verdict form the coverage gate's ``VERDICT``
 accepts (``check_review_coverage.py``, D-206).
 
-Three of the four classes — template-residue, fence-parity, table-parity — run only on `.md`
-surfaces (`SURFACE_SUFFIXES`); a pin copied to a non-.md name is swept for stale phrases alone, and
-the summary line reads the same — copy a pin as `<name>.md` (T4.7, 01M285X4H).
+Three of the four classes — template-residue, fence-parity, table-parity — run only on surfaces
+whose name ends in `.md` (the `path.endswith(".md")` gates in `_surface_hits`; `SURFACE_SUFFIXES`
+is only the directory-walk filter); a pin copied to a non-.md name gets the stale-phrase, claim and
+changelog classes alone, and the summary line reads the same — copy a pin as `<name>.md` (T4.7,
+01M285X4H).
 
 Classes (each hit is a `path:line` with its class name):
   template-residue   an unrendered fragment marker or parameter in an `.md` on the surface — the
@@ -138,18 +140,20 @@ class Hit:
         }
 
     def line_out(self) -> str:
-        return f"[ADVISORY] {self.cls} {_display(self.path)}:{self.line} — {self.what}"
+        times = f" (×{self.occurrences})" if self.occurrences > 1 else ""
+        return f"[ADVISORY] {self.cls} {_display(self.path)}:{self.line} — {self.what}{times}"
 
 
 _LABEL: dict[str, str] = {}  # T4.7 (--label): the artifact name a scratch COPY stands for
 
 
 def _display(path: str) -> str:
-    if path in _LABEL:
-        return _LABEL[path]
     """Repo-relative when the path is under the cwd, absolute otherwise. The gate's no-argument
     mode self-selects ABSOLUTE receipt paths; printing those raw makes every advisory line
-    machine-specific and unclickable from the repo root."""
+    machine-specific and unclickable from the repo root. A `--label` names the artifact a
+    scratch copy stands for (T4.7)."""
+    if path in _LABEL:
+        return _LABEL[path]
     try:
         rel = os.path.relpath(path)
     except (OSError, ValueError):  # different drive / unresolvable
@@ -488,10 +492,16 @@ def _surface_hits(
             hits.extend(thits)
     for phrase in phrases:
         for ln in _term_sites(text, phrase):
-            # T4.7: the count of the phrase ON that line rides the one hit for it
-            _occ = max(1, lines[ln - 1].count(phrase)) if 0 < ln <= len(lines) else 1
+            # T4.7: the count of the phrase ON that line rides the one hit for it — counted with
+            # the same case-insensitive pattern `_term_sites` matched by (review round 1)
             hits.append(
-                Hit("stale-phrase", path, ln, f"stale phrase {phrase!r} still present", _occ)
+                Hit(
+                    "stale-phrase",
+                    path,
+                    ln,
+                    f"stale phrase {phrase!r} still present",
+                    _line_occurrences(lines, ln, phrase),
+                )
             )
     for term in claims or []:
         # D10 rule (2): a NEUTRAL listing of every site carrying the term — the SAME walk
@@ -499,8 +509,15 @@ def _surface_hits(
         # the orchestrator reads before the pin. Differs from `--phrase` ONLY in its label: a
         # `stale-phrase` hit is adjudicated as a defect, a `claim` row is read.
         for ln in _term_sites(text, term):
-            _occ = max(1, lines[ln - 1].count(term)) if 0 < ln <= len(lines) else 1
-            hits.append(Hit("claim", path, ln, f"claim {term!r} at this line", _occ))
+            hits.append(
+                Hit(
+                    "claim",
+                    path,
+                    ln,
+                    f"claim {term!r} at this line",
+                    _line_occurrences(lines, ln, term),
+                )
+            )
     if Path(path).name == "CHANGELOG.md":
         hits.extend(_changelog_hits(path, text))
     hits.sort(key=lambda h: h.line)  # residue, fences, tables and phrases are separate passes
@@ -630,10 +647,22 @@ class Sweep:
     ungraded: int
 
 
+def _line_occurrences(lines: list[str], ln: int, term: str) -> int:
+    """How many times ``term`` occurs on line ``ln`` (1-based), matched the way `_term_sites`
+    matches it — case-insensitively, whitespace-tolerant — never below 1 for a reported site."""
+    if not (0 < ln <= len(lines)):
+        return 1
+    pat = re.compile(r"\s+".join(re.escape(w) for w in term.split()), re.I)
+    return max(1, len(pat.findall(lines[ln - 1])))
+
+
 def _dedupe(hits: list[Hit]) -> list[Hit]:
-    """T4.7 (01M2AC95X): a phrase repeated on one line yielded one hit per occurrence, so `len(hits)`
-    overstated distinct findings (15 raw vs 13 unique, measured every round); one row per
-    (path, line, class, what) with the count in `occurrences`."""
+    """T4.7 (01M2AC95X): `len(hits)` overstated distinct findings (15 raw vs 13 unique, measured
+    every round) whenever two producers reported the same site — the same selector given twice
+    (`--phrase x --phrase x`), or a term reached through both a `--phrase` and a `--claim` walk
+    with an identical message; one row per (class, path, line, what), the counts summed into
+    `occurrences`. A phrase repeated ON one line was never two hits: `_term_sites` reports one
+    row per line and the count rides `occurrences` from the start."""
     out: dict[tuple[str, str, int, str], Hit] = {}
     for h in hits:
         k = (h.cls, h.path, h.line, h.what)
@@ -647,17 +676,30 @@ def _dedupe(hits: list[Hit]) -> list[Hit]:
     return list(out.values())
 
 
-def _until_heading(text: str, heading: str | None) -> str:
+def _until_heading(text: str, heading: str | None) -> tuple[str, int]:
     """T4.7 (--stop-at-heading): a surface that carries its own Pass Ledger records every phrase a
     round retired; the lines from that heading on are history, not live claims — blanked (not
-    cut) so line numbers stay true."""
+    cut) so line numbers stay true. Returns (text, blanked line count). The heading is matched
+    as a markdown HEADING — a `#`-led line whose text equals the given one (case-insensitive,
+    surrounding `#` and whitespace ignored), never a line inside a code fence and never a prose
+    line that merely starts with the words (review round 1, Phase B)."""
     if not heading:
-        return text
+        return text, 0
+    want = heading.strip().lstrip("#").strip().lower()
+    if not want:
+        return text, 0
     lines = text.splitlines()
+    in_fence = False
     for i, ln in enumerate(lines):
-        if ln.strip().lower().startswith(heading.strip().lower()):
-            return "\n".join(lines[:i] + [""] * (len(lines) - i))
-    return text
+        st = ln.strip()
+        if st.startswith("```") or st.startswith("~~~"):
+            in_fence = not in_fence
+            continue
+        if in_fence or not st.startswith("#"):
+            continue
+        if st.lstrip("#").strip().rstrip("#").strip().lower() == want:
+            return "\n".join(lines[:i] + [""] * (len(lines) - i)), len(lines) - i
+    return text, 0
 
 
 def scan(
@@ -686,10 +728,23 @@ def scan(
             # surface indistinguishable from a clean one — say it, every time.
             notes.append(f"{_display(str(p))}: unreadable — NOT scanned, not in the denominator")
             continue
-        read[_resolved(p)] = text
+        live, blanked = _until_heading(text, stop_at_heading)
+        if stop_at_heading and blanked:
+            notes.append(
+                f"{_display(str(p))}: {blanked} line(s) from `{stop_at_heading.strip()}` on are "
+                "history — blanked, not graded"
+            )
+        elif stop_at_heading:
+            notes.append(
+                f"{_display(str(p))}: heading `{stop_at_heading.strip()}` not found — the whole "
+                "file was graded"
+            )
+        # the blanked text is what every later reader sees too — the `--symbol` count over
+        # `read` must not resurrect a symbol whose only mention is in the retired ledger
+        read[_resolved(p)] = live
         shits, sungraded = _surface_hits(
             str(p),
-            _until_heading(text, stop_at_heading),
+            live,
             phrases,
             table=_resolved(p) not in receipt_set,
             claims=claims,
@@ -805,7 +860,10 @@ def main(argv: list[str] | None = None) -> int:
         help="the artifact path to echo in hits when --surface is a scratch copy",
     )
     args = ap.parse_args(argv)
-    if args.label and len(args.surface) == 1:
+    _LABEL.clear()  # a module global: an in-process second run must not inherit the first label
+    if args.label and len(args.surface or []) != 1:
+        ap.error("--label names the artifact ONE --surface stands for; give exactly one")
+    if args.label:
         _LABEL[str(Path(args.surface[0]))] = args.label
         _LABEL[str(Path(args.surface[0]).resolve())] = args.label
 

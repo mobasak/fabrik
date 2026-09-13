@@ -4156,19 +4156,107 @@ def test_the_phase_gate_binds_a_ticket_artifact_to_the_plan_stem_and_the_record_
     assert not cr._phase_review_exists(
         str(tmp_path), 1, plan_stem="2026-09-12-plan-2-mail-triage", since=start
     ), "another plan's ticket receipt must not satisfy this plan's boundary"
+    os.utime(other, None)  # written AFTER the start, so only the stem can refuse it
+    assert not cr._phase_review_exists(
+        str(tmp_path), 1, plan_stem="2026-09-12-plan-2-mail-triage", since=start
+    ), "a fresh receipt of another plan must not satisfy this plan's boundary"
     mine = d / "2026-09-12-plan-2-mail-triage-T01-review.md"
     mine.write_text("real content\n", encoding="utf-8")
     os.utime(mine, (start - 3600, start - 3600))
-    assert not cr._phase_review_exists(
-        str(tmp_path), 1, plan_stem="2026-09-12-plan-2-mail-triage", since=start
-    ), "a receipt older than the record's start is not this run's evidence"
-    os.utime(mine, None)
+    # the stem binds; the time bound does NOT apply to a stem-bound ticket receipt — a plan
+    # resumed in a later session mints a fresh start that every earlier phase's receipt predates
     assert cr._phase_review_exists(
         str(tmp_path), 1, plan_stem="2026-09-12-plan-2-mail-triage", since=start
+    ), "an earlier session's receipt of THIS plan is this plan's evidence"
+    # stem-less records keep the time bound: with every ticket receipt older than the start the
+    # boundary is refused, and a fresh one passes
+    os.utime(other, (start - 3600, start - 3600))
+    assert not cr._phase_review_exists(str(tmp_path), 1, since=start)
+    os.utime(mine, None)
+    assert cr._phase_review_exists(str(tmp_path), 1, since=start)
+    # the PHASE form keeps the time bound, with the plan's date-plan-N prefix as an escape
+    os.utime(mine, (start - 3600, start - 3600))  # no fresh ticket receipt in the way
+    ph = d / "2026-09-12-plan-2-mail-triage-phase-A-review.md"
+    ph.write_text("real content\n", encoding="utf-8")
+    os.utime(ph, (start - 3600, start - 3600))
+    assert not cr._phase_review_exists(str(tmp_path), "A", since=start)
+    assert cr._phase_review_exists(
+        str(tmp_path), "A", plan_stem="2026-09-12-plan-2-mail-triage-command-machinery", since=start
     )
     # the legacy call (no stem, no start) keeps the permissive behaviour for records that carry
     # neither — the fleet's older records must not start refusing
     assert cr._phase_review_exists(str(tmp_path), 1)
+    # a stem WITHOUT the date-plan-N prefix: only the stem-bound ticket branch can accept an
+    # earlier session's receipt (the prefix escape has nothing to match)
+    d2 = tmp_path / "two" / "docs" / "development" / "reviews"
+    d2.mkdir(parents=True)
+    old = d2 / "mail-triage-cleanup-T01-review.md"
+    old.write_text("real content\n", encoding="utf-8")
+    os.utime(old, (start - 3600, start - 3600))
+    assert cr._phase_review_exists(
+        str(tmp_path / "two"), 1, plan_stem="mail-triage-cleanup", since=start
+    ), (
+        "the stem is the evidence — an unprefixed stem's old receipt passes through the ticket branch"
+    )
+    assert not cr._phase_review_exists(str(tmp_path / "two"), 1, since=start)
+
+
+def test_the_plan_stem_survives_trailing_punctuation_in_the_surface() -> None:
+    """Review round 1 (Phase B): a markdown link, a path:line citation or a comma list around
+    the plan path swallowed the punctuation into the stem, and the dead stem refused every
+    correctly named ticket receipt."""
+    cr = _cr_module("stem2")
+    for surface in (
+        "[plan](docs/development/plans/foo.md)",
+        "docs/development/plans/foo.md:141",
+        "docs/development/plans/foo.md, phase B",
+        "docs/development/plans/foo.md; T3",
+        "docs/development/plans/foo/ (a plan set)",
+    ):
+        assert cr._plan_stem({"surface": surface}) == "foo", surface
+    assert cr._plan_stem({"surface": "no plan here"}) is None
+    assert cr._plan_stem({}) is None
+
+
+def test_round_refuses_a_negative_delta_and_the_cli_delta_reaches_the_advisory(
+    run_dir: Path,
+) -> None:
+    """Review round 1 (Phase B): `--delta` was stored unvalidated and no test drove it through
+    the CLI, so a dropped `delta` field or a dropped `deltas=` argument left the suite green."""
+    _start(run_dir)
+    r = _cr(run_dir, "round", "--findings", "0", "--confirmed", "0", "--delta", "-9")
+    assert r.returncode == 2 and "--delta" in r.stderr, r.stderr
+    series = ["9", "5", "3", "1", "3", "2", "1", "3"]  # the series the direct test fires on
+    for (
+        n
+    ) in series:  # findings-trend records: the advisory reads `findings` until `--confirmed` lands
+        r = _cr(run_dir, "round", "--findings", n, "--delta", "5")
+        assert r.returncode == 0, r.stderr
+    assert "oscillat" not in (r.stdout + r.stderr).lower(), r.stdout + r.stderr
+    rec = json.loads(next(run_dir.glob("*.json")).read_text(encoding="utf-8"))
+    assert [x.get("delta") for x in rec["rounds"]] == [5] * 8
+    # the same series without deltas fires
+    run2 = run_dir / "second"
+    run2.mkdir()
+    _start(run2)
+    for n in series:
+        r = _cr(run2, "round", "--findings", n)
+    assert "oscillat" in (r.stdout + r.stderr).lower(), r.stdout + r.stderr
+
+
+def test_a_real_id_inside_angle_brackets_is_not_a_placeholder() -> None:
+    """Review round 1 (Phase B): `filed: <01M1RHJY>` — an agent substituting INSIDE the grammar's
+    brackets — was refused as a placeholder; only bracket content carrying whitespace or a pipe
+    is the grammar's own text."""
+    cr = _cr_module("ph")
+    fields, missing = cr._parse_usage_feedback(
+        "confusion: none · waste: none · change: none · filed: <01M1RHJY>"
+    )
+    assert not [m for m in missing if "placeholder" in m], missing
+    _, missing = cr._parse_usage_feedback(
+        "confusion: none · waste: none · change: none · filed: <mail id(s) to infra|fleet|intel | none>"
+    )
+    assert "filed (placeholder)" in missing, missing
 
 
 def test_round_derives_new_from_the_classes_ledger_and_refuses_a_new_above_findings(

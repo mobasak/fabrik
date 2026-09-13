@@ -39,6 +39,8 @@ Docs convergence is enforced separately by check_doc_sync.py ("Doc Sync Matrix")
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import re
 import subprocess
 import sys
@@ -148,7 +150,13 @@ _REDERIVATION_ROW = re.compile(
 _PASS_ROW = re.compile(r"^[ \t]*\|\s*\**(?:Pass|Round)\b[^\n]*", re.I | re.M)
 # a ledger LINE in any shape the corpus writes — a table row (`| Pass N |`), a bulleted one
 # (`- Pass 2 (CLOSING) — …`) or a bare `Pass 2 — …`; the LABEL leads the line, prose never does (T4.3)
-_LEDGER_LINE = re.compile(r"^[ \t]*(?:\|\s*|[-*]\s+)?\**(?:Pass|Round)\b[^\n]*", re.I | re.M)
+# Review round 1 (Phase B): the label is followed by its NUMBER and a SEPARATOR (`|`, `—`, `-`,
+# `:`, `·`, `(` or end of line) — "Pass 3 confirmed nothing" and "Round 4 never returned
+# found: 0" start with the label and are prose; `| ✅ Pass 3 |` and `> | Pass 3 |` are rows.
+_LEDGER_LINE = re.compile(
+    r"^[ \t]*(?:>\s*)?(?:\|\s*|[-*]\s+)?[^\w\n|]*(?:Pass|Round)\s+\d+[a-z]?\s*(?:[—–\-:|·(]|$)[^\n]*",
+    re.I | re.M,
+)
 
 
 def _mask_spans(s: str) -> str:
@@ -503,6 +511,9 @@ def _elided_probes(text: str) -> int:
     return sum(len(ELIDED_PROBE.findall(inner)) for inner in FENCE_BLOCK.findall(text))
 
 
+_NOTES: list[str] = []  # NOTE lines deferred until main() has printed the ⚠-first advisory
+
+
 def _changed_md(root: Path, prefix: str) -> list[Path]:
     """Changed/untracked .md files under ``prefix`` (per git status), excluding archived/."""
 
@@ -532,7 +543,10 @@ def _changed_md(root: Path, prefix: str) -> list[Path]:
         if line[:2] == "??":
             p = line[3:].strip()
             if _keep(p):
-                print(f"NOTE: skip untracked in-flight draft (checked at staging): {p}")
+                # DEFERRED, not printed: final_gate ships a passing check's stdout only when it
+                # STARTS with ⚠, so a NOTE ahead of the advisory header hid the whole advisory
+                # (review round 1, Phase B — the shape check_review_coverage fixed in its round 25)
+                _NOTES.append(f"NOTE: skip untracked in-flight draft (checked at staging): {p}")
             continue
         p = line[3:].strip()
         if " -> " in p:  # renamed: "old -> new"
@@ -689,6 +703,42 @@ def _check_plan(root: Path, path: Path) -> list[str]:
     return out
 
 
+def _head_texts(root: Path, relpaths: list[str]) -> dict[str, str]:
+    """Contents of ``relpaths`` at HEAD in one `git cat-file --batch`; a path absent at HEAD is
+    absent from the result. Bytes-parsed: the batch format is `<sha> <type> <size>\n<body>\n`
+    or `<spec> missing\n`."""
+    if not relpaths:
+        return {}
+    try:
+        r = subprocess.run(
+            ["git", "cat-file", "--batch"],
+            cwd=root,
+            input="".join(f"HEAD:{p}\n" for p in relpaths).encode(),
+            capture_output=True,
+            timeout=60,
+        )
+    except Exception:
+        return {}
+    out: dict[str, str] = {}
+    buf, i = r.stdout, 0
+    for rel in relpaths:
+        nl = buf.find(b"\n", i)
+        if nl < 0:
+            break
+        header = buf[i:nl].decode("utf-8", "replace")
+        i = nl + 1
+        parts = header.split()
+        if len(parts) < 3 or parts[-1] == "missing":
+            continue
+        try:
+            size = int(parts[2])
+        except ValueError:
+            break
+        out[rel] = buf[i : i + size].decode("utf-8", "replace")
+        i += size + 1  # the trailing newline after the body
+    return out
+
+
 def _head_text(root: Path, relpath: str) -> str:
     """Content of ``relpath`` at HEAD, or "" if it did not exist there."""
     try:
@@ -755,6 +805,35 @@ def _archived_midflight(root: Path) -> list[str]:
     return fails
 
 
+_PLAN_STEM_RE = re.compile(
+    r"docs/development/plans/(?:archived/)?([^/\s`'\"),:;]+?)(?:\.md)?(?=[/\s`'\"),:;]|$)"
+)
+
+
+def _running_plan_stems() -> set[str]:
+    """Review round 1 (Phase B), narrowing T4.1: an UNTRACKED plan is a target only when THIS
+    session's running run record names it — the plan written and committed in one motion
+    (01M1RFN3) is always the plan the writing session's record is about, while a sibling
+    session's untracked draft (three sessions share this tree) is never this gate's subject
+    (`_changed_md`'s standing rule). Same shape as check_review_coverage's running-record read."""
+    sid = os.environ.get("CLAUDE_SESSION_ID", "").strip()
+    if not sid:
+        return set()
+    runs = Path(os.environ.get("COMMAND_RUN_DIR") or (Path.home() / ".claude/state/command-runs"))
+    try:
+        rec = json.loads((runs / f"{sid}.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return set()
+    if not isinstance(rec, dict) or rec.get("state") != "running":
+        return set()
+    return set(_PLAN_STEM_RE.findall(str(rec.get("surface") or "")))
+
+
+def _untracked_is_target(dst: str, running: set[str]) -> bool:
+    m = _PLAN_STEM_RE.search(dst)
+    return bool(m and m.group(1) in running)
+
+
 def _executed_targets(root: Path) -> list[Path]:
     """Plans whose EXECUTED claim is NEW this commit — those must carry the review citation.
 
@@ -780,11 +859,15 @@ def _executed_targets(root: Path) -> list[Path]:
         return []
     seen: set[str] = set()
     targets: list[Path] = []
+    running = _running_plan_stems()
     for line in out.splitlines():
-        # T4.1 (01M1RFN3): an UNTRACKED plan that claims EXECUTED is a target — a plan written
-        # and committed in one motion was skipped here, then staged and committed with no gate
-        # run between, and once committed it left this worklist forever
+        # T4.1 (01M1RFN3): an UNTRACKED plan that claims EXECUTED is a target when this session's
+        # running record names it — a plan written and committed in one motion was skipped here,
+        # then staged and committed with no gate run between, and once committed it left this
+        # worklist forever; a sibling's untracked draft stays out (review round 1, Phase B)
         rest = line[3:].strip()
+        if line[:2] == "??" and not _untracked_is_target(rest.strip().strip('"'), running):
+            continue
         if " -> " in rest:  # rename: "old -> new"
             src, dst = (s.strip().strip('"') for s in rest.split(" -> ", 1))
         else:
@@ -830,9 +913,13 @@ def _converged_targets(root: Path) -> list[Path]:
         return []
     seen: set[str] = set()
     targets: list[Path] = []
+    running = _running_plan_stems()
     for line in out.splitlines():
-        # T4.1 (01M1RFN3): an untracked plan that claims CONVERGED is a target (see _executed_targets)
+        # T4.1 (01M1RFN3): an untracked plan that claims CONVERGED is a target when this session's
+        # running record names it (see _executed_targets)
         rest = line[3:].strip()
+        if line[:2] == "??" and not _untracked_is_target(rest.strip().strip('"'), running):
+            continue
         if " -> " in rest:
             src, dst = (s.strip().strip('"') for s in rest.split(" -> ", 1))
         else:
@@ -856,7 +943,7 @@ def _converged_targets(root: Path) -> list[Path]:
     return targets
 
 
-def _check_executed_plan(root: Path, path: Path) -> list[str]:
+def _check_executed_plan(root: Path, path: Path, text: str | None = None) -> list[str]:
     """A plan claiming EXECUTED must cite a persisted whole-plan review artifact
     that EXISTS on disk and carries a coverage-adjudicated exit signature.
 
@@ -869,7 +956,9 @@ def _check_executed_plan(root: Path, path: Path) -> list[str]:
     """
     if not path.exists():
         return []
-    text = path.read_text(encoding="utf-8", errors="replace")
+    if text is None:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    # `text` given: the COMMITTED claim read at HEAD by the advisory sweep (review round 1)
     if not EXECUTED.search(FENCE_STRIP.sub("", text)):
         return []  # only plans that CLAIM EXECUTED are held to the review proof (fences = quotes)
     rel = path.relative_to(root)
@@ -1053,14 +1142,17 @@ def _committed_claims_advisory(root: Path, skip: set[Path]) -> list[str]:
     Measured before shipping on the hub, 2026-09-12: 11 committed EXECUTED plans flagged — real
     debt the blocking path could never reach, which is the finding; advisory keeps it visible."""
     out: list[str] = []
-    for p in sorted((root / PLANS_DIR).rglob("*.md")):
-        if p in skip or not p.is_file():
-            continue
+    plans = [p for p in sorted((root / PLANS_DIR).rglob("*.md")) if p not in skip and p.is_file()]
+    # COMMITTED claims read the HEAD blobs, never the working tree: a sibling's uncommitted edit
+    # is not committed debt, and a locally reverted claim is still committed (review round 1,
+    # Phase B). ONE `git cat-file --batch` for the whole set — measured on the hub 2026-09-13:
+    # 317 plan files, well under a second either way, but one process instead of 317.
+    heads = _head_texts(root, [str(p.relative_to(root)) for p in plans])
+    for p in plans:
         rel = p.relative_to(root)
-        try:
-            text = FENCE_STRIP.sub("", p.read_text(encoding="utf-8", errors="replace"))
-        except OSError:
-            continue
+        text = FENCE_STRIP.sub("", heads.get(str(rel), ""))
+        if not text:
+            continue  # untracked, or unreadable at HEAD — not a committed claim
         if _ARCHIVED_PLAN.search("/" + str(rel)):
             m = _STATUS_LINE.search(text[:4000])
             if m and m.group(1).strip().upper() in _MIDFLIGHT:
@@ -1068,7 +1160,12 @@ def _committed_claims_advisory(root: Path, skip: set[Path]) -> list[str]:
             continue
         if not EXECUTED.search(text):
             continue
-        for f in _check_executed_plan(root, p):
+        try:
+            findings = _check_executed_plan(root, p, heads[str(rel)])
+        except Exception as e:  # ADVISORY: never a traceback out of the gate
+            out.append(f"{rel}: advisory sweep could not grade this plan ({type(e).__name__}: {e})")
+            continue
+        for f in findings:
             if "review" in f and ("missing on disk" in f or "cites no whole-plan review" in f):
                 out.append(f)
     return out
@@ -1096,6 +1193,9 @@ def main() -> int:
         print("⚠ check_convergence ADVISORY — committed plan(s) needing attention:")
         for s in dict.fromkeys(stale):
             print(f"  ⚠ {s}")
+    for note in dict.fromkeys(_NOTES):
+        print(note)
+    _NOTES.clear()
 
     fails = list(dict.fromkeys(fails))  # dual-claim paths may repeat a finding — dedupe
     if fails:

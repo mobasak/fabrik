@@ -225,10 +225,13 @@ def main() -> int:
 
     def _fail(message: str) -> int:
         if as_json:
-            print(json.dumps({"status": "failure", "drift": [message]}))
+            payload = {"status": "failure", "drift": [message]}
+            if untracked_only:
+                payload["mode"] = "untracked-only"
+            print(json.dumps(payload))
         else:
             print(f"ERROR: {_printable(message)}")
-        return 1
+        return 0 if untracked_only else 1
 
     index_state = _lstat_state(index_path)
     if index_state == "unknown":
@@ -398,7 +401,9 @@ def main() -> int:
             print(f"ERROR: {_printable(x)}")
         if not problems:
             print("check_doc_index: OK — INDEX.md and the live docs tree agree")
-    return 1 if problems else 0
+    # `--untracked-only` is the lean tier's ADVISORY row (final_gate registers it warn_only, whose
+    # contract is "no failing exit"): the findings are the message, the exit is always 0
+    return 0 if untracked_only else (1 if problems else 0)
 
 
 if __name__ == "__main__":

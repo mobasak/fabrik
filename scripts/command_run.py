@@ -456,7 +456,7 @@ def _plan_stem(rec: dict[str, Any]) -> str | None:
     """The plan stem a record's `--surface` names (`docs/development/plans/<stem>.md` or `<stem>/`),
     or None — the DISPATCHER ticket artifact `<stem>-T##-review.md` binds to it (T3.1)."""
     m = re.search(
-        r"docs/development/plans/(?:archived/)?([^/\s`'\"]+?)(?:\.md)?(?=[/\s`'\"]|$)",
+        r"docs/development/plans/(?:archived/)?([^/\s`'\"),:;]+?)(?:\.md)?(?=[/\s`'\"),:;]|$)",
         str(rec.get("surface") or ""),
     )
     return m.group(1) if m else None
@@ -504,27 +504,54 @@ def _phase_review_exists(
     # August artifacts of another plan satisfied every phase of every plan here, forever. When the
     # record carries a plan stem the ticket form must start with it; when it carries a start, the
     # artifact must have been written at or after it. A record with neither keeps the old shape.
-    ticket = (
+    # Review round 1 (Phase B): the time bound is for the STEM-LESS ticket form only. Records are
+    # per session, so a plan resumed in a later session mints a fresh `started_epoch` that every
+    # earlier phase's correctly named receipt predates — bound by BOTH, `step` refused honest
+    # receipts and the only exit was a waiver that lied. When the stem binds, the stem is the
+    # evidence; the PHASE form (no stem in its name by fleet convention — 67 of 132 phase receipts
+    # on this box carry no plan prefix) keeps the time bound, with the plan's `<date>-plan-<n>`
+    # prefix as an ADDITIVE escape for the receipts that do carry it.
+    ticket = re.compile(
         rf"^{re.escape(plan_stem)}-T\d{{2}}[a-z]?-review\.md$"
         if plan_stem
-        else r"-T\d{2}[a-z]?-review\.md$"
+        else r"-T\d{2}[a-z]?-review\.md$",
+        re.I,
     )
-    pat = re.compile(rf"(?:^|[^0-9a-z])p(?:hase)?[-_ ]?{phase}(?:[^0-9]|$)|{ticket}", re.I)
+    phase_pat = re.compile(rf"(?:^|[^0-9a-z])p(?:hase)?[-_ ]?{phase}(?:[^0-9]|$)", re.I)
+    prefix_m = re.match(r"\d{4}-\d{2}-\d{2}-plan-\d+", plan_stem or "")
+    plan_prefix = prefix_m.group(0) if prefix_m else None
     try:
         for f in d.rglob("*.md"):
-            if not f.is_file() or not pat.search(f.name):
+            if not f.is_file():
+                continue
+            is_ticket = bool(ticket.search(f.name))
+            if not (is_ticket or phase_pat.search(f.name)):
                 continue
             try:
                 # NON-EMPTY: `touch` created a complete silent bypass. This still binds
                 # existence, not quality — but an empty file is not even existence.
                 st = f.stat()
-                if st.st_size > 0 and (since is None or st.st_mtime >= float(since) - 2.0):
-                    return True
             except OSError:
                 continue
+            if st.st_size <= 0:
+                continue
+            if is_ticket and plan_stem:
+                return True
+            if since is None or st.st_mtime >= float(since) - 2.0:
+                return True
+            if plan_prefix and f.name.lower().startswith(plan_prefix.lower()):
+                return True
     except OSError:
         return False  # unreadable → treat as absent; the refusal names how to waive
     return False
+
+
+def _since_label(rec: dict[str, Any]) -> str:
+    """The record's start as a human timestamp for the phase-gate refusal, or 'unknown'."""
+    ts = _finite_ts(rec.get("started_epoch"))
+    if ts is None:
+        return "unknown start"
+    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts))
 
 
 def _midloop_report(f: Path) -> bool:
@@ -1004,7 +1031,7 @@ def _parse_usage_feedback(text: str) -> tuple[dict[str, str], list[str]]:
     missing += [
         f"{f} (placeholder)"
         for f in _USAGE_FIELDS
-        if fields.get(f) and re.fullmatch(r"<.*>\s*\[?", fields[f].strip(), re.S)
+        if fields.get(f) and re.fullmatch(r"<(?=[^>]*[\s|]).*>\s*\[?", fields[f].strip(), re.S)
     ]
     missing += [f"{d} (duplicate)" for d in dupes if f"{d} (duplicate)" not in missing]
     return fields, missing
@@ -2012,9 +2039,11 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                     f"REFUSED — phase {prev} has no review artifact under "
                     "docs/development/reviews/, so there is nothing for the review gate to "
                     "read. Emit it as either shape: PHASE mode a filename containing "
-                    f"`phase-{prev}`, DISPATCHER mode `<plan>-T<id>-review.md` "
-                    "(/fabrik-execute-plan D4). Or re-run with "
-                    '--review-waived "<reason>" to record a deliberate skip.',
+                    f"`phase-{prev}` written at or after this record's start "
+                    f"({_since_label(rec)}), DISPATCHER mode "
+                    f"`{_plan_stem(rec) or '<plan>'}-T<id>-review.md` "
+                    "(/fabrik-execute-plan D4; the plan stem is read from --surface). Or re-run "
+                    'with --review-waived "<reason>" to record a deliberate skip.',
                     file=sys.stderr,
                 )
                 return 2
@@ -2101,6 +2130,13 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             return 2
         if args.findings < 0:
             print("[command_run] REFUSED — round --findings must be >= 0", file=sys.stderr)
+            return 2
+        if args.delta is not None and args.delta < 0:
+            print(
+                f"[command_run] REFUSED — round --delta {args.delta} is a changed-line count and "
+                "cannot be negative",
+                file=sys.stderr,
+            )
             return 2
         if args.new is not None and (args.new < 0 or args.new > args.findings):
             print(

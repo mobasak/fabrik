@@ -338,17 +338,36 @@ def test_the_lean_tier_carries_the_untracked_doc_row():
         encoding="utf-8"
     )
     tree = ast.parse(src)
-    hits = [
-        n
-        for n in ast.walk(tree)
-        if isinstance(n, ast.Call)
-        and getattr(n.func, "id", "") == "run_optional_check"
-        and n.args
-        and isinstance(n.args[0], ast.Constant)
-        and n.args[0].value == "scripts/enforcement/check_doc_index.py"
-        and any(isinstance(a, ast.Constant) and a.value == "--untracked-only" for a in n.args)
-    ]
-    assert len(hits) == 1, len(hits)
+
+    def _is_tier1_if(node: ast.AST) -> bool:
+        t = getattr(node, "test", None)
+        return (
+            isinstance(node, ast.If)
+            and isinstance(t, ast.Compare)
+            and getattr(t.left, "id", "") == "tier"
+            and len(t.comparators) == 1
+            and isinstance(t.comparators[0], ast.Constant)
+            and t.comparators[0].value == 1
+        )
+
+    def _calls(scope: ast.AST) -> list[ast.Call]:
+        return [
+            n
+            for n in ast.walk(scope)
+            if isinstance(n, ast.Call)
+            and getattr(n.func, "id", "") == "run_optional_check"
+            and n.args
+            and isinstance(n.args[0], ast.Constant)
+            and n.args[0].value == "scripts/enforcement/check_doc_index.py"
+            and any(isinstance(a, ast.Constant) and a.value == "--untracked-only" for a in n.args)
+        ]
+
+    # review round 1 (Phase B): the first grader walked the whole module, so the row hoisted
+    # OUT of the tier-1 branch (running on every tier) still passed — the call must sit INSIDE
+    # an `if tier == 1:` block and nowhere else
+    inside = [c for n in ast.walk(tree) if _is_tier1_if(n) for c in _calls(n)]
+    hits = _calls(tree)
+    assert len(hits) == 1 and len(inside) == 1, (len(hits), len(inside))
     assert any(
         k.arg == "warn_only" and getattr(k.value, "value", None) is True for k in hits[0].keywords
     )

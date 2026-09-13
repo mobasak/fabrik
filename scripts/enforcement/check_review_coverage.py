@@ -2629,20 +2629,28 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
     return out
 
 
-_CHANGED_LINE = re.compile(r"\*\*Changed:\*\*\s*([^\n]*)")
+# the Changed list runs from `**Changed:**` to the next BLANK line (a wrapped list is still the
+# list) or the next bold label on a later line; only PATH-shaped backticked tokens count (a `/`
+# or a file suffix) — an md5, a range or a count in backticks on that line is not a path
+_CHANGED_LINE = re.compile(r"\*\*Changed:\*\*(.*?)(?=\n[ \t]*\n|\n\*\*[A-Z][^\n]*:\*\*|\Z)", re.S)
 _BACKTICKED = re.compile(r"`([^`\n]+)`")
+_PATH_SHAPED = re.compile(r"^(?:[\w.-]+/)*[\w.-]+\.[A-Za-z0-9]{1,8}$|/")
 _HUNT_ROW = re.compile(r"Hunt:\s*`([^`\n]+)`")
 
 
 def _hunt_gaps(text: str) -> list[str]:
     """T4.4 (01M20W9QK): the rows that EXIST were graded and never compared with the receipt's own
     Changed list — 11 of 18 files went unhunted for seven rounds. Every path the receipt's
-    `**Changed:**` line names must carry a `Hunt:` row; the template writes one per path."""
-    m = _CHANGED_LINE.search(_strip_fences(text))
+    `**Changed:**` list names must carry a `Hunt:` row; the template writes one per path. Both
+    sides are read on the FENCE-STRIPPED text (review round 1, Phase B): a wrapped list is still
+    the list, a non-path token is not a path, and a `Hunt:` row inside a quoted template example
+    hunts nothing."""
+    stripped = _strip_fences(text)
+    m = _CHANGED_LINE.search(stripped)
     if not m:
         return []
-    changed = [c.strip() for c in _BACKTICKED.findall(m.group(1))]
-    hunted = {h.strip() for h in _HUNT_ROW.findall(text)}
+    changed = [c.strip() for c in _BACKTICKED.findall(m.group(1)) if _PATH_SHAPED.search(c.strip())]
+    hunted = {h.strip() for h in _HUNT_ROW.findall(stripped)}
     return [
         f"Changed path `{c}` has no `Hunt:` row — the checklist grades only the rows that exist, "
         "so a file never claimed is never hunted (add the row, then adjudicate it)"
@@ -2665,7 +2673,10 @@ def _running_review_receipts(root: Path) -> list[Path]:
         return []
     if not isinstance(rec, dict) or rec.get("state") != "running":
         return []
-    if "review" not in str(rec.get("command") or ""):
+    # the commands that WRITE a docs/development/reviews/ receipt — the artifact reviews
+    # (spec/plan/flows/ui-design/deploy-plan/epics/workflow/design) write none, so their
+    # running record must not pull every fresh receipt into the blocking set (review round 1)
+    if str(rec.get("command") or "").strip().lower() not in _RECEIPT_WRITING_COMMANDS:
         return []
     try:
         since = float(rec.get("started_epoch") or 0)
@@ -2673,14 +2684,39 @@ def _running_review_receipts(root: Path) -> list[Path]:
         return []
     if since <= 0:
         return []
+    # when the record's surface names a plan, only receipts that name the same plan are this
+    # run's own — a sibling's receipt written since the start is not (review round 1)
+    stems = set(_PLAN_STEM_RE.findall(str(rec.get("surface") or "")))
     out: list[Path] = []
     for p in sorted((root / REVIEWS_DIR).rglob("*.md")):
+        if p.name.endswith("-archive.md"):
+            continue  # a rotated finding table carries no checklist — `_changed_md`'s rule
         try:
-            if p.is_file() and p.stat().st_mtime >= since - 2.0:
-                out.append(p)
+            if not (p.is_file() and p.stat().st_mtime >= since - 2.0):
+                continue
+            if stems:
+                body = p.read_text(encoding="utf-8", errors="replace")
+                if not any(stem in body for stem in stems):
+                    continue
+            out.append(p)
         except OSError:
             continue
     return out
+
+
+_RECEIPT_WRITING_COMMANDS = frozenset(
+    {
+        "fabrik-review",
+        "fabrik-review-scoped",
+        "fabrik-repo-review",
+        "fabrik-docs-review",
+        "fabrik-conformance-review",
+        "fabrik-rules-review",
+    }
+)
+_PLAN_STEM_RE = re.compile(
+    r"docs/development/plans/(?:archived/)?([^/\s`'\"),:;]+?)(?:\.md)?(?=[/\s`'\"),:;]|$)"
+)
 
 
 def _grade(p: Path, root: Path) -> list[str]:

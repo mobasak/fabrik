@@ -1155,7 +1155,8 @@ _README_OK = "# Project\n\n## Overview\n\nx\n\n## Quick Start\n\nx\n\n## Documen
 #           it speaks.
 # "row_warn_only": the CHECK can fail, but the GATE ROW cannot, because the registration
 #           withholds the flag that arms it (check_ticket_breadth exits 1 only under
-#           `--strict`, which final_gate deliberately never passes). The canary still goes
+#           `--strict`, and 2 only for an explicit undated `--plan-dir`; final_gate
+#           deliberately passes neither). The canary still goes
 #           RED — it runs with `strict` — so this key documents the ROW, not the check, and
 #           is what justifies its `warn_only=True` registration.
 #
@@ -1404,8 +1405,9 @@ CANARIES: dict[str, dict[str, Any]] = {
         "git": "add",
         "strict": True,
         "row_warn_only": (
-            "exits 1 only under --strict (check_ticket_breadth.py:516) and final_gate never "
-            "passes it — a heuristic that hard-failed would block planning on a guess"
+            "exits 1 only under --strict and 2 only for an explicit undated --plan-dir "
+            "(check_ticket_breadth.py main()); final_gate passes neither — a heuristic that "
+            "hard-failed would block planning on a guess"
         ),
         "args": ["--project-root", "{fixture}"],
         "base": {f"{_PLAN_DIR}/2026-01-01-plan-canary.md": _SPINE_OK},

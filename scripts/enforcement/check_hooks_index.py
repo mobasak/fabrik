@@ -65,16 +65,22 @@ def _tracked_hooks(root: Path) -> list[str]:
     .claude/hooks/ owes its index row regardless of what settings.json says today."""
     try:
         out = subprocess.run(
-            ["git", "ls-files", "--", ".claude/hooks"],
+            ["git", "ls-files", "-z", "--", ".claude/hooks"],
             cwd=root,
             capture_output=True,
-            text=True,
             timeout=15,
             check=False,
-        ).stdout
+        ).stdout.decode("utf-8", "surrogateescape")
     except Exception:
         return []
-    return [Path(p).name for p in out.split() if p.endswith((".py", ".sh", ".js"))]
+    # `-z` keeps a path with a space whole; a path tracked in the index but DELETED in the working
+    # tree is not a hook anyone can register (review round 1, Phase B); the index row is the
+    # file's basename, the shape the settings.json walk produces
+    return [
+        Path(p).name
+        for p in out.split("\0")
+        if p.endswith((".py", ".sh", ".js")) and (root / p).is_file()
+    ]
 
 
 def _precommit_ids(root: Path) -> list[str]:

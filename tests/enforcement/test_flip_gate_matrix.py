@@ -4,7 +4,9 @@ gate's examined set (review-family adoption plan, Phase A; spec D7).
 
 Four invocation shapes were measured to return GREEN OVER NOTHING on 2026-09-10 (the adoption spec's
 § Machinery report): a committed-clean scratch copy is invisible to ``check_convergence`` (its target
-discovery reads ``git status --porcelain`` and skips ``??``); ``check_plan_quality`` has no CLI and binds
+discovery reads ``git status --porcelain``; a ``??`` path counts only when the session's running run
+record names that plan — T4.1 of the mail-triage plan, narrowed by its review); ``check_plan_quality``
+has no CLI and binds
 ``PLAN_DIR`` to the cwd at import; ``check_citations_resolve --root <scratch>`` ticks green over 0
 examined anchors; ``check_plan_tickets --plan-dir <non-dated>`` refuses. ``MATRIX`` is the documented
 form (``docs/workflows/FINAL_GATE_WORKFLOW.md``); every row is pinned by a test that plants a minimal
@@ -57,9 +59,10 @@ MATRIX: list[tuple[str, str, str, str]] = [
     (
         "check_convergence.py",
         "--project-root <scratch> — targets from _converged_targets(root)",
-        "scratch GIT root; the flipped spine UNTRACKED or TRACKED-AND-UNCOMMITTED (`git add -N`) — "
-        "both examined since T4.1 (01M1RFN3: a plan written and committed in one motion was never "
-        "graded); a committed-clean copy is NOT examined",
+        "scratch GIT root; the flipped spine TRACKED-AND-UNCOMMITTED (`git add -N`), or UNTRACKED "
+        "while the session's running run record (CLAUDE_SESSION_ID + COMMAND_RUN_DIR) names the "
+        "plan (T4.1, 01M1RFN3, narrowed by its review: a sibling's untracked draft is never "
+        "examined); a committed-clean copy is NOT examined",
         "the spine path is in _converged_targets(root)",
     ),
     (
@@ -284,9 +287,21 @@ def test_the_pinned_artifact_is_in_the_gates_examined_set(gate: str, tmp_path: P
         d = _plant_set(tmp_path, PLAN_STEM)
         spine = d / f"{PLAN_STEM}.md"
         rel = str(spine.relative_to(tmp_path))
-        # untracked → examined (T4.1, 01M1RFN3: a `??` draft flipped and committed in one motion
-        # reached HEAD ungraded while the skip stood)
+        # untracked with NO running record → NOT examined (a sibling's draft); untracked while
+        # this session's record names the plan → examined (T4.1, 01M1RFN3: a `??` draft flipped and
+        # committed in one motion reached HEAD ungraded while the skip stood)
+        monkeypatch.delenv("CLAUDE_SESSION_ID", raising=False)
+        assert cc._converged_targets(tmp_path) == []
+        runs = tmp_path / "runs"
+        runs.mkdir()
+        (runs / "s5.json").write_text(
+            '{"command": "fabrik-plan-review", "state": "running", '
+            f'"surface": "docs/development/plans/{PLAN_STEM}.md"}}'
+        )
+        monkeypatch.setenv("CLAUDE_SESSION_ID", "s5")
+        monkeypatch.setenv("COMMAND_RUN_DIR", str(runs))
         assert [p.resolve() for p in cc._converged_targets(tmp_path)] == [spine.resolve()]
+        monkeypatch.delenv("CLAUDE_SESSION_ID", raising=False)
         # tracked-and-uncommitted → examined
         _git(tmp_path, "add", "-N", "--", rel)
         assert [p.resolve() for p in cc._converged_targets(tmp_path)] == [spine.resolve()]
@@ -316,13 +331,23 @@ def test_the_pinned_artifact_is_in_the_gates_examined_set(gate: str, tmp_path: P
         assert any("Evidence" in f.message for f in findings), [f.message for f in findings]
         # the severity contract the row states: the gate reads Status — CONVERGED grades the gap ERROR
         # (fails validate_conventions), a DRAFT grades it WARN (--strict-exempt)
-        assert "WARN" in marker and "ERROR" in marker, marker  # the row text states what is asserted below
+        assert "WARN" in marker and "ERROR" in marker, (
+            marker
+        )  # the row text states what is asserted below
         evidence = [f for f in findings if "Evidence" in f.message]
-        assert evidence[0].severity is cpq.Severity.ERROR, [(f.message, f.severity) for f in findings]
-        inside.write_text(inside.read_text().replace("Status: CONVERGED (fixture)", "Status: DRAFT (fixture)"))
+        assert evidence[0].severity is cpq.Severity.ERROR, [
+            (f.message, f.severity) for f in findings
+        ]
+        inside.write_text(
+            inside.read_text().replace("Status: CONVERGED (fixture)", "Status: DRAFT (fixture)")
+        )
         draft = [f for f in cpq.check_file(inside) if "Evidence" in f.message]
-        assert draft and draft[0].severity is cpq.Severity.WARN, [(f.message, f.severity) for f in draft]
-        inside.write_text(inside.read_text().replace("Status: DRAFT (fixture)", "Status: CONVERGED (fixture)"))
+        assert draft and draft[0].severity is cpq.Severity.WARN, [
+            (f.message, f.severity) for f in draft
+        ]
+        inside.write_text(
+            inside.read_text().replace("Status: DRAFT (fixture)", "Status: CONVERGED (fixture)")
+        )
         # the naming pre-check is LIVE for the scratch dir: a mis-named plan inside it is
         # check_plans' finding, so this gate returns [] for it (precedence 0) — not the section finding
         misnamed = plans / "notes.md"

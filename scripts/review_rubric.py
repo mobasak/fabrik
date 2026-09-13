@@ -83,8 +83,19 @@ TOOLING_PREFIXES = (
 FLOOR_PACKS_TOOLING = ("core/10-python.md",)
 
 
-def _floor_for(changed: list[str]) -> tuple[tuple[str, ...], str]:
-    paths = [p.strip().removeprefix("./") for p in changed if p.strip()]
+def _floor_for(changed: list[str], root: Path | None = None) -> tuple[tuple[str, ...], str]:
+    """The TOOLING floor applies in the HUB only (the platform repo, marked by its own
+    `templates/governance/CLAUDE.md`): in a PROJECT `scripts/` and `tests/` are app code and a
+    tests-only diff must keep the auth/postgres/ops floor (review round 1, Phase B — the mirror
+    the first cut did not name). Doc paths do not vote: a tooling partition that carries its
+    CHANGELOG or a reference doc is still a tooling partition."""
+    if root is None or not (root / "templates" / "governance" / "CLAUDE.md").is_file():
+        return FLOOR_PACKS, "SERVICE"
+    paths = [
+        p.strip().removeprefix("./")
+        for p in changed
+        if p.strip() and not p.strip().lower().endswith((".md", ".txt", ".rst"))
+    ]
     if paths and all(p.startswith(TOOLING_PREFIXES) for p in paths):
         return FLOOR_PACKS_TOOLING, "TOOLING"
     return FLOOR_PACKS, "SERVICE"
@@ -258,7 +269,7 @@ def build_rubric(changed: list[str], workflow: str | None, root: Path) -> str:
     promote: list[str] = []
 
     emitted: set[str] = set()
-    floor, kind = _floor_for(changed)
+    floor, kind = _floor_for(changed, root)
     out.append(f"\n## FLOOR — always injected, regardless of glob (spec L3; {kind} surface)")
     for rel in floor:
         out.append(f"\n### {rel}")

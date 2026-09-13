@@ -138,3 +138,8 @@ def test_a_tracked_hook_stays_required_when_its_registration_is_deleted(tmp_path
     subprocess.run(["git", "add", ".claude/hooks/orphan_guard.py"], cwd=root, check=True)
     rc, out = _run(root, home=tmp_path)
     assert rc == 1 and "orphan_guard.py" in out, out
+    # review round 1 (Phase B): a hook tracked in the INDEX but deleted from the working tree is
+    # not a hook anyone can register — the requirement follows the file, not the index entry
+    (hooks / "orphan_guard.py").unlink()
+    rc, out = _run(root, home=tmp_path)
+    assert rc == 0 and "orphan_guard.py" not in out, out

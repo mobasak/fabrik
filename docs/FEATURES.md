@@ -88,7 +88,7 @@ led at A/4.21 (73% recall, 100% precision, $0.22/1k, 1.6s); the precision term c
 
 Every review boundary now ARMS its finders instead of hoping they read the rules: `scripts/review_rubric.py`
 (fleet-synced, stdlib-only) emits an injectable rubric — the **mandatory-core floor** (`core/35-security-auth`
-+ `core/25-data-postgres` + `core/30-ops` + all twelve 12-Factor axes, always injected regardless of glob, so
++ `core/25-data-postgres` + `core/30-ops` + all twelve 12-Factor axes, always injected regardless of glob (in the HUB a partition whose every code path is a hook, an enforcement script, a command source, a pack or a test gets the TOOLING floor — `core/10-python` — instead; in a project the service floor is unconditional), so
 a review is never un-armed) plus every pack whose glob matches a changed path (mandate lines only), plus —
 only for command-chain reviews (`--workflow mega|ettw`) — the authoring-QA checklist items. Wired into
 `/fabrik-review`, mega-`04`, ettw-`08`/`10`. Byproduct: a `# promote-to-check_*` candidate list feeding the

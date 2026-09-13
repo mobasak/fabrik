@@ -53,8 +53,9 @@ unit is the WHOLE SET: the spine AND every `T##[a-z]?-<slug>.md` ticket. A pass 
   don't route around the gate.
 - **Breadth advisory (mechanical, at the same moment):** `python scripts/enforcement/check_ticket_breadth.py
   --plan-dir <dir>` (from the repo root) — run it with the precondition above, BEFORE the `CONVERGED`
-  flip, because the plan set is still editable here and is not editable after. It always exits 0; the
-  output is what matters. Each flagged ticket prints its components (Touches areas · Behavior-Contract
+  flip, because the plan set is still editable here and is not editable after. It exits 0 on every
+  graded set — the output is what matters — and 2 (`REFUSED:`) only when `--plan-dir` is not a dated
+  plan-set directory, which is a typo to fix, never a verdict. Each flagged ticket prints its components (Touches areas · Behavior-Contract
   rows · code+governance mix), a predicted round cost, a concrete split, and — in the footer — **its
   own measured accuracy**. **The measured basis: review rounds track how many independent RISK CLASSES
   one ticket exposes, not its line count** — a 5-class ticket cost 8 rounds and 34 fixups; a one-line

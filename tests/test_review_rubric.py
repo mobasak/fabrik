@@ -155,10 +155,22 @@ def test_the_floor_is_surface_aware_for_hub_tooling(tmp_path):
     _mk_tree(tmp_path)
     _mk_pack(tmp_path, "core/10-python.md", ["**/*.py"], ["- Never a bare asyncio.create_task()."])
     rr = _load()
+    # a PROJECT (no hub marker): `tests/`-only and `scripts/`-only diffs keep the service floor
+    # (review round 1, Phase B — the mirror: this file is fleet-synced)
+    for changed in (["tests/test_auth.py"], ["scripts/backfill.py"], [".claude/hooks/x.py"]):
+        assert "core/35-security-auth.md" in rr.build_rubric(changed, workflow=None, root=tmp_path)
+    (tmp_path / "templates" / "governance").mkdir(parents=True)
+    (tmp_path / "templates" / "governance" / "CLAUDE.md").write_text("# t\n", encoding="utf-8")
     tooling = rr.build_rubric(
-        [".claude/hooks/x.py", "scripts/enforcement/y.py"], workflow=None, root=tmp_path
+        [".claude/hooks/x.py", "scripts/enforcement/y.py", "tests/test_y.py", "CHANGELOG.md"],
+        workflow=None,
+        root=tmp_path,
     )
     assert "core/35-security-auth.md" not in tooling and "core/10-python.md" in tooling
     assert "TOOLING" in tooling
     service = rr.build_rubric(["src/thing.zzz"], workflow=None, root=tmp_path)
     assert "core/35-security-auth.md" in service
+    mixed = rr.build_rubric(
+        ["scripts/enforcement/y.py", "src/app.py"], workflow=None, root=tmp_path
+    )
+    assert "core/35-security-auth.md" in mixed and "SERVICE" in mixed

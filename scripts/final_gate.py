@@ -1870,9 +1870,9 @@ def run_consistency_checks(
             run_optional_check(
                 "scripts/enforcement/check_ticket_breadth.py",
                 "Ticket Breadth (plan sets)",
-                # `--strict` is its only non-zero exit (check_ticket_breadth.py:516) and the
-                # gate deliberately never passes it, so this ROW cannot fail even though the
-                # check can. Declared here so the two are not confused.
+                # the gate passes neither `--strict` (its exit-1 arm) nor `--plan-dir` (an
+                # undated dir is REFUSED with exit 2 since T4.9), so this ROW cannot fail even
+                # though the check can. Declared here so the two are not confused.
                 warn_only=True,
             )
         )

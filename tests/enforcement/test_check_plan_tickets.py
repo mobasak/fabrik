@@ -7,6 +7,7 @@ and drives check_plan_dir / the check_file adapter / the CLI directly.
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -2496,8 +2497,14 @@ def test_rule_packs_are_exempt_from_the_read_budget(tmp_path: Path) -> None:
 
 
 def test_notes_go_to_stderr_under_json(tmp_path: Path) -> None:
-    """T4.8 (01M25Q9S0): a `NOTE:` printed on stdout under `--json` broke the consumer's parse."""
+    """T4.8 (01M25Q9S0): a `NOTE:` printed on stdout under `--json` broke the consumer's parse.
+    Review round 1 (Phase B): the set lives OUTSIDE docs/development/plans/ so `--allow-external`
+    actually resolves against the cwd and its NOTE fires — the in-layout fixture made this test
+    vacuous (3 of 5 NOTE prints were still bare and it stayed green)."""
     plan_dir = _build(tmp_path)
+    ext = tmp_path / "ext" / plan_dir.name
+    ext.parent.mkdir()
+    shutil.copytree(plan_dir, ext)
     r = subprocess.run(
         [
             "python3",
@@ -2505,7 +2512,7 @@ def test_notes_go_to_stderr_under_json(tmp_path: Path) -> None:
             "--json",
             "--allow-external",
             "--plan-dir",
-            str(plan_dir),
+            str(ext),
         ],
         capture_output=True,
         text=True,
@@ -2513,3 +2520,30 @@ def test_notes_go_to_stderr_under_json(tmp_path: Path) -> None:
     )
     assert "NOTE" not in r.stdout, r.stdout[:300]
     json.loads(r.stdout)
+
+
+def test_touches_shapes_that_are_not_prose_stay_quiet_and_a_dot_slash_ghost_gate_fires(
+    tmp_path: Path,
+) -> None:
+    """Review round 1 (Phase B): the prose rule fired on a multi-line comment's continuation,
+    a wrapped bullet's indented continuation, a numbered item and a blockquote; the ghost-gate
+    rule missed a `./`-prefixed path — the most common shell spelling."""
+    t1 = T01.replace(
+        "## Touches\n\n",
+        "## Touches\n\n<!-- a comment that markdown\nrenders away -->\n"
+        "- src/app/schema.py\n  a wrapped continuation of the bullet above\n"
+        "1. docs/receipt-notes.md\n> a quoted note\n",
+    )
+    plan_dir = _build(
+        tmp_path, tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99}
+    )
+    errs = _errors(cpt.check_plan_dir(plan_dir))
+    assert not [m for m in errs if "prose inside ## Touches" in m], errs
+    t1 = T01.replace("Gate: pytest -q tests/test_schema.py", "Gate: bash ./scripts/probe_ghost.sh")
+    assert "probe_ghost" in t1
+    plan_dir2 = _build(
+        tmp_path / "two",
+        tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99},
+    )
+    errs = _errors(cpt.check_plan_dir(plan_dir2))
+    assert any("scripts/probe_ghost.sh" in m and "exists nowhere" in m for m in errs), errs

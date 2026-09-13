@@ -1020,7 +1020,54 @@ def test_hits_are_deduped_per_line_with_an_occurrences_field_and_a_stop_heading_
     assert payload["hits"][0]["occurrences"] == 3
 
 
+def test_stop_at_heading_matches_a_real_heading_and_blanks_the_symbol_count_too(tmp_path):
+    """Review round 1 (Phase B): `--stop-at-heading` matched any line STARTING with the text —
+    a quoted heading inside a fence blanked the rest of the file, `#` swallowed everything, and
+    the `--symbol` count still read the un-blanked text, so a symbol whose only mention sat in
+    the retired ledger was reported live."""
+    s = tmp_path / "spec.md"
+    s.write_text(
+        "# Doc\n\nthe widget lives here\n\n```\n## Pass Ledger\n```\n\n"
+        "the widget is still live down here\n\n## Pass Ledger\n\nold_helper was removed; "
+        "the widget was renamed\n",
+        encoding="utf-8",
+    )
+    sweep = crh.scan(surfaces=[s], phrases=["the widget"], stop_at_heading="## Pass Ledger")
+    assert [h.line for h in sweep.hits if h.cls == "stale-phrase"] == [3, 9], sweep.hits
+    assert any("history — blanked" in n for n in sweep.notes), sweep.notes
+    sweep = crh.scan(surfaces=[s], phrases=["the widget"], stop_at_heading="#")
+    assert [h.line for h in sweep.hits if h.cls == "stale-phrase"] == [3, 9, 13], sweep.hits
+    assert any("not found" in n for n in sweep.notes), sweep.notes
+    sweep = crh.scan(surfaces=[s], symbols=["old_helper"], stop_at_heading="## Pass Ledger")
+    assert [h.cls for h in sweep.hits] == ["dead-symbol"], sweep.hits
+    sweep = crh.scan(surfaces=[s], symbols=["old_helper"])
+    assert not sweep.hits, sweep.hits
+
+
+def test_a_label_with_two_surfaces_is_refused_and_a_repeated_selector_dedupes(tmp_path):
+    """Review round 1 (Phase B): `--label` was silently dropped with more than one surface, and
+    `_dedupe` was never exercised — the same selector given twice is the producer that doubles
+    a site, and the line output carries the count."""
+    a = tmp_path / "a.md"
+    b = tmp_path / "b.md"
+    a.write_text("# A\n\nThe Widget, the widget\n", encoding="utf-8")
+    b.write_text("# B\n", encoding="utf-8")
+    r = subprocess.run(
+        [sys.executable, str(SCRIPT), "--surface", str(a), "--surface", str(b), "--label", "x.md"],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        cwd=REPO,
+    )
+    assert r.returncode == 2 and "--label" in r.stderr, r.stdout + r.stderr
+    sweep = crh.scan(surfaces=[a], phrases=["the widget", "the widget"])
+    stale = [h for h in sweep.hits if h.cls == "stale-phrase"]
+    assert len(stale) == 1 and stale[0].occurrences == 4, [(h.line, h.occurrences) for h in stale]
+    assert "(×4)" in stale[0].line_out(), stale[0].line_out()
+    assert crh._display.__doc__, "the early return demoted the docstring"
+
+
 def test_the_docstring_names_the_md_only_classes():
     """T4.7 (01M285X4H): three of four classes run only on `.md` surfaces — the pin recipe copies
     to any name, so the docstring says which classes a non-.md surface silently loses."""
-    assert "SURFACE_SUFFIXES" in crh.__doc__ or "only on `.md`" in crh.__doc__, crh.__doc__[:400]
+    assert 'path.endswith(".md")' in crh.__doc__, crh.__doc__[:600]

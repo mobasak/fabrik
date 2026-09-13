@@ -44,7 +44,10 @@ def _repo(tmp: Path, ledger: str) -> Path:
     d = tmp / "docs" / "development" / "reviews"
     d.mkdir(parents=True)
     (d / "2026-08-27-x-review.md").write_text(HEAD + ledger, encoding="utf-8")
-    for args in (["add", "-A"], ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "r"]):
+    for args in (
+        ["add", "-A"],
+        ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "r"],
+    ):
         subprocess.run(["git", "-C", str(tmp), *args], check=True)
     return tmp
 
@@ -56,7 +59,6 @@ def test_a_nonzero_found_final_fires_even_with_new_zero_matching_the_blocking_re
     root = _repo(tmp_path, "| Pass 1 | finders | found: 3 | new: 0 | fixed: 0 |\n")
     out = crc._committed_nonquiet(root, set())
     assert out and "non-quiet" in out[0], out
-
 
 
 def test_a_row_with_fresh_candidates_is_still_rejected(tmp_path):
@@ -216,8 +218,12 @@ def test_d053_amendment_anchors_on_the_method_cell_not_prose():
     te = (frag / "term-edit.md").read_text(encoding="utf-8")
     tc = (frag / "term-coverage.md").read_text(encoding="utf-8")
     te_row = next(
-        (ln for ln in te.splitlines()
-         if "method:" in ln and "re-deriv" in ln and ln.startswith("| Pass")), None
+        (
+            ln
+            for ln in te.splitlines()
+            if "method:" in ln and "re-deriv" in ln and ln.startswith("| Pass")
+        ),
+        None,
     )
     assert te_row is not None, "term-edit's shipped example re-derivation row not found"
     assert crc._REDERIVATION_ROW.search(te_row), te_row
@@ -339,3 +345,19 @@ def test_the_mail_triage_fragment_sentences_are_present_once_at_their_source():
             if text.count(needle) != 1:
                 bad.append((rel, needle, text.count(needle)))
     assert not bad, bad
+
+
+def test_command_run_mirrors_the_delta_budget_of_dispatch_headroom() -> None:
+    """Review round 1 (Phase B): `command_run.DELTA_BUDGET` says it mirrors dispatch_headroom's
+    but nothing bound the two — the oscillation suppression would diverge from the seat budget
+    silently."""
+    mods = {}
+    for name, rel in (
+        ("dh_mirror", "scripts/sysadmin/dispatch_headroom.py"),
+        ("cr_mirror", "scripts/command_run.py"),
+    ):
+        spec = importlib.util.spec_from_file_location(name, REPO / rel)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        mods[name] = mod
+    assert mods["cr_mirror"].DELTA_BUDGET == mods["dh_mirror"].DELTA_BUDGET == 20

@@ -108,8 +108,9 @@ def _note(msg: str) -> None:
 # T4.8 (01M21804): a Gate: that RUNS a file naming it nowhere else — the executor sees one
 # .md in Touches and a gate over a test file nothing told it to write
 _GATE_FILE_RE = re.compile(
-    r"(?<![\w/.-])((?:tests?|src|scripts|server|app|lib)/[\w./-]+\.(?:py|ts|tsx|js|mjs|sh))\b"
+    r"(?<![\w/.-])(?:\./)?((?:tests?|src|scripts|server|app|lib)/[\w./-]+\.(?:py|ts|tsx|js|mjs|sh))\b"
 )
+_TOUCHES_LINE_OK = re.compile(r"^(?:[-*+]\s|\||#|<!--|>|\d+[.)]\s)")
 # The FROZEN 2-contract artifacts are MANDATORY reading for any ticket that touches their surface —
 # the commands require citing them, and /fabrik-flows, /fabrik-ui-design and /fabrik-data-contract
 # all push them toward completeness. Counting them against a TICKET's budget measures the contract's
@@ -2248,10 +2249,10 @@ def check_plan_dir(
                 # never walk either.
                 if p.startswith(("/", "~")) or ".." in Path(p).parts:
                     continue
-                _norm = p.strip().lstrip("./")
+                _norm = p.strip().removeprefix("./")  # a PREFIX, never a char set: `.windsurf/…`
                 if _norm in BUDGET_EXEMPT_READS:
                     continue  # mandatory shared contract — not this ticket's scope
-                if p.strip().removeprefix("./").startswith(".windsurf/rules/"):
+                if _norm.startswith(".windsurf/rules/"):
                     # T4.8 (01M1T7WPY): a rule pack activates by glob on the paths already in
                     # Touches — listing it buys nothing and 37 KB of packs arriving by fleet
                     # sync failed a merged plan at close-out
@@ -2326,17 +2327,29 @@ def check_plan_dir(
                             t.path,
                         )
                     )
+        # prose is a line that is not a bullet, a table row, a heading, a comment, a blockquote, a
+        # numbered item, an INDENTED continuation of the bullet above, or a line inside an open
+        # `<!-- … -->` span (review round 1, Phase B: the first cut fired on all four)
+        _in_comment = False
         for _ln in _section(_scan_t, "Touches").splitlines():
             _st = _ln.strip()
-            if _st and not _st.startswith(("-", "*", "|", "#", "<!--")):
-                results.append(
-                    _err(
-                        f"{t.tid}: prose inside ## Touches is invisible to the gate — `{_st[:60]}` "
-                        "is neither a bullet nor a path; move it out of the section",
-                        t.path,
-                    )
+            if _in_comment:
+                if "-->" in _st:
+                    _in_comment = False
+                continue
+            if _st.startswith("<!--") and "-->" not in _st:
+                _in_comment = True
+                continue
+            if not _st or _TOUCHES_LINE_OK.match(_st) or _ln[:1] in (" ", "\t"):
+                continue
+            results.append(
+                _err(
+                    f"{t.tid}: prose inside ## Touches is invisible to the gate — `{_st[:60]}` "
+                    "is neither a bullet nor a path; move it out of the section",
+                    t.path,
                 )
-                break
+            )
+            break
         if len(GATE_LINE_RE.findall(_strip_fences(t.text))) > MAX_GATES:
             results.append(
                 _err(f"{t.tid}: more than {MAX_GATES} Gate: lines", t.path, severity=Severity.WARN)
@@ -2481,7 +2494,7 @@ def _discover_dirs(root: Path) -> tuple[list[Path], set[Path]]:
             if proc.returncode != 0:
                 # Skip THIS command, keep the others (a stale upstream ref must
                 # not throw away the working-tree diff results).
-                print(
+                _note(
                     f"NOTE: plan_tickets discovery: `git {' '.join(args)}` exit {proc.returncode} — skipped"
                 )
                 continue
@@ -2580,7 +2593,7 @@ def main() -> int:
             # cwd is the default, and a scratch copy checked from the wrong directory measures
             # every Touches path against the wrong tree — 0 bytes each, the exact silent zero
             # this flag's fix removed, reached by another door (review pass 1, native finder).
-            print(
+            _note(
                 f"NOTE: --allow-external is resolving Touches/Context-Files against {root} "
                 "(the cwd default) — pass --project-root <repo> if that is not the repo the "
                 "tickets name"
