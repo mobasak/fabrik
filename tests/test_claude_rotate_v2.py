@@ -1277,9 +1277,10 @@ def test_dead_active_chain_does_not_flip_on_boxwide_outage(monkeypatch):
     assert flips == [], "a box-wide outage must never trigger a flip storm"
 
 
-def test_keepalive_sweep_pings_only_idle_dirs(tmp_path, monkeypatch):
-    """The tick-folded keepalive (2026-08-18: the Monday cron slot was slept through) pings
-    a >7d-idle dir and leaves fresh dirs alone."""
+def test_keepalive_sweep_is_retired_and_pings_nothing(tmp_path, monkeypatch, capsys):
+    """RETIRED 2026-09-12: a ping never moves refreshTokenExpiresAt (measured on mob@), and the
+    mtime idle gate never fired (three weeks of "0 pinged"). The sweep pings NOTHING whatever the
+    mtimes say, returns (0, 0), and prints the one retired line only when not quiet."""
     import os as _os
 
     root = tmp_path / "fleet"
@@ -1288,12 +1289,15 @@ def test_keepalive_sweep_pings_only_idle_dirs(tmp_path, monkeypatch):
         d.mkdir(parents=True)
         (d / ".credentials.json").write_text("{}")
     now = 2_000_000.0
-    _os.utime(root / "stale" / ".credentials.json", (now - 8 * 86400,) * 2)
-    _os.utime(root / "fresh" / ".credentials.json", (now - 1 * 86400,) * 2)
+    _os.utime(root / "stale" / ".credentials.json", (now - 40 * 86400,) * 2)
     pinged = []
     monkeypatch.setattr(cr, "_keepalive_ping", lambda d: pinged.append(d.name) or True)
-    p, f = cr._keepalive_sweep([root / "stale", root / "fresh"], now, quiet=True)
-    assert pinged == ["stale"] and (p, f) == (1, 0)
+    capsys.readouterr()
+    assert cr._keepalive_sweep([root / "stale", root / "fresh"], now, quiet=True) == (0, 0)
+    assert pinged == [] and capsys.readouterr().out == ""
+    assert cr._keepalive_sweep([root / "stale"], now, quiet=False) == (0, 0)
+    out = capsys.readouterr().out
+    assert pinged == [] and "RETIRED" in out and "/login" in out and out.count("\n") == 1
 
 
 # ── 2026-09-02: the successor picker refused every CACHED standby ─────────────────────────────

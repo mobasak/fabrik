@@ -1477,30 +1477,6 @@ def test_fleet_wall_advisory_rearms_after_a_week_of_unbroken_exhaustion(tmp_path
     assert len(actions["telegrams"]) == 2, "a week of unbroken exhaustion re-reminds"
 
 
-def test_keepalive_future_skewed_credentials_mtime_counts_as_due(tmp_path, monkeypatch, capsys):
-    """F55: a credentials mtime AHEAD of now beyond the skew tolerance must be pinged — a
-    spurious ping is harmless, a silently skipped one risks the ~30-day idle lapse."""
-    fleet, *_ = _canonical(tmp_path, monkeypatch)
-    assert cr.main(["--new-dir", "skewed", "sarp@ocoron.com"]) == 0
-    _fleet_creds(fleet, "skewed", "tok-skewed", age_s=-5 * 86400.0)  # mtime 5 days in the FUTURE
-    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
-    runs = []
-
-    def fake_run(argv, **kw):
-        runs.append(list(argv))
-        return subprocess.CompletedProcess(argv, 0, "pong", "")
-
-    monkeypatch.setattr(cr.subprocess, "run", fake_run)
-    capsys.readouterr()
-
-    assert cr.main(["--keepalive"]) == 0
-    out = capsys.readouterr().out
-
-    assert len(runs) == 1, "a future-skewed mtime must be treated as DUE, never as fresh"
-    for line in out.splitlines():
-        assert line.startswith("keepalive:"), f"cron-log lines must be single-line: {line!r}"
-
-
 def test_fleet_flip_path_structurally_writes_no_credentials(tmp_path, monkeypatch):
     """REPLACES test_fleet_tick_branch_has_structurally_no_successor_logic: fleet-mode successor
     selection now exists BY DESIGN (the pointer flip — operator redesign 2026-08-15). The
