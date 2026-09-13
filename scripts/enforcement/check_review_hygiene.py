@@ -680,6 +680,18 @@ def _dedupe(hits: list[Hit]) -> list[Hit]:
     return list(out.values())
 
 
+def _heading_key(s: str) -> str:
+    """ONE reading for the heading ARGUMENT and the heading LINE (round 8: the argument had
+    its own, lossier reading — a closed comment copied with the heading matched nothing, and
+    an unconditional `rstrip("#")` made `## C#` the stop for `## C`): closed comments dropped,
+    surrounding `#` and whitespace ignored, a closing `#` run only when whitespace precedes it
+    (CommonMark 4.2 — `## C#` keeps its `#`, `## Pass Ledger ##` drops the run), runs of
+    whitespace one space, lower-cased."""
+    s = re.sub(r"<!--.*?-->", "", s).strip().lstrip("#").strip()
+    s = re.sub(r"(?:^|(?<=\s))#+$", "", s)
+    return " ".join(s.split()).lower()
+
+
 def _until_heading(text: str, heading: str | None) -> tuple[str, int]:
     """T4.7 (--stop-at-heading): a surface that carries its own Pass Ledger records every phrase a
     round retired; the lines from that heading on are history, not live claims — blanked (not
@@ -689,9 +701,7 @@ def _until_heading(text: str, heading: str | None) -> tuple[str, int]:
     line that merely starts with the words (review round 1, Phase B)."""
     if not heading:
         return text, 0
-    # the argument is read like the line: surrounding `#` and whitespace ignored, runs of
-    # whitespace one space (round 7: a closed ATX argument `## Pass Ledger ##` matched nothing)
-    want = " ".join(heading.strip().lstrip("#").strip().rstrip("#").split()).lower()
+    want = _heading_key(heading)  # the argument is read like the line (rounds 7–8)
     if not want:
         return text, 0
     lines = text.splitlines()
@@ -715,7 +725,7 @@ def _until_heading(text: str, heading: str | None) -> tuple[str, int]:
         st = re.sub(r"<!--.*?-->", "", ln).strip()
         if not st.startswith("#"):
             continue
-        if " ".join(st.lstrip("#").strip().rstrip("#").split()).lower() == want:
+        if _heading_key(ln) == want:
             return "\n".join(lines[:i] + [""] * (len(lines) - i)), len(lines) - i
     return text, 0
 

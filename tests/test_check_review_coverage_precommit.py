@@ -245,7 +245,15 @@ def test_the_changed_list_reads_paths_only_across_wrapped_lines_and_never_from_a
         + "\n| 9 | Hunt: `Makefile` — every hunk | CLEAN | read |\n",
     )
     assert r.returncode == 0, r.stdout
-    for tok in ("`y.py::TestA::test_b`", "`y.py:44:12`", "`y.py::test_a[docs/x.md]`"):
+    for tok in (
+        "`y.py::TestA::test_b`",
+        "`y.py:44:12`",
+        "`y.py::t[a-b]`",
+        "`y.py::test_a[docs/x.md]`",
+        "`y.py::test_a[a,b]`",  # round 8: a bracket param of any alphabet
+        "`y.py::test_a[x=1]`",
+        "`y.py::test_a[RTX 4090]`",
+    ):
         r = _run_on(tmp_path, with_x.replace("# R\n", f"# R\n**Changed:** `x.py`, {tok}\n\n"))
         assert r.returncode == 1 and "`y.py`" in r.stdout, (tok, r.stdout)
     r = _run_on(

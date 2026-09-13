@@ -1053,7 +1053,7 @@ def _is_placeholder(value: str | None) -> bool:
     # the mandated honest shape, written inside the brackets — decided BEFORE the noun and
     # alternation rules, whose words its surface list may legitimately carry (round 4: `the mail
     # id router` and `mail.py | command_run.py` were refused); the head is `none` or a mail id
-    if re.match(r"[\s'\"(\[`]*(?:(?i:none)|[0-9A-Z]{6,})\b", c) and re.search(
+    if re.match(r"[\W_]*(?:(?i:none)|[0-9A-Z]{6,})(?![^\W_])", c) and re.search(
         r"surfaces? exercised", low
     ):
         # the grammar's own filler after the marker (`what your run touched`) or an EMPTY surface
@@ -1061,11 +1061,12 @@ def _is_placeholder(value: str | None) -> bool:
         # (`nothing filed`) is refused on purpose — the grammar's honest value is the word `none`
         tail = re.split(r"surfaces? exercised", low, maxsplit=1)[1]
         # decoration never makes the filler honest — ANY run of non-word characters at either
-        # edge (`(what your run touched)`, quotes, backticks, `!`), on the head as well as the
-        # tail (round 6, widened in round 7 from a hand-listed strip set) — whitespace inside
-        # the marker is already one space, `low` is collapsed above; a tail with no word
-        # character (`...`, `???`, `--`) names no surface
-        tail = re.sub(r"^[^a-z0-9]+|[^a-z0-9]+$", "", tail)
+        # edge (`(what your run touched)`, quotes, backticks, `!`, `_` — markdown emphasis),
+        # on the head as well as the tail, the SAME class on both (round 6; round 7 widened the
+        # tail from a hand-listed set; round 8 the head, and to `\W` so a non-ASCII surface
+        # name keeps its letters) — whitespace inside the marker is already one space, `low`
+        # is collapsed above; a tail with no word character (`...`, `???`, `--`) names no surface
+        tail = re.sub(r"^[\W_]+|[\W_]+$", "", tail)
         return not tail or tail in _GRAMMAR_NOUNS
     if any(n in low for n in _GRAMMAR_NOUNS):
         return True

@@ -2007,6 +2007,7 @@ def test_a_cut_or_malformed_batch_stream_never_grades_a_partial_plan(
     adv = [r for r in rows if r.startswith("committed-claims advisory")]
     assert len(adv) == 1 and "1 blob(s) of 2" in adv[0], rows
     assert "did not exit cleanly" in adv[0] and "never reached" not in adv[0], adv
+    assert "cut short" not in adv[0], adv  # round 8: the head never contradicts the tail
 
 
 def test_the_rederivation_message_names_the_closing_row_grammar(repo: Path) -> None:

@@ -1125,8 +1125,9 @@ def test_stop_at_heading_matches_a_real_heading_and_blanks_the_symbol_count_too(
         f.write_text(text, encoding="utf-8")
         sweep = crh.scan(surfaces=[f], phrases=["the widget"], stop_at_heading="## Pass Ledger")
         assert [h.line for h in sweep.hits if h.cls == "stale-phrase"] == live, (name, sweep.hits)
-    # round 7: the ARGUMENT side of the same rules — irregular whitespace, a closed ATX form and
-    # a code-spanned opener inside the heading text (the opener test reads masked)
+    # the ARGUMENT side of the same rules: the whitespace collapse and the masked opener test
+    # pre-date round 7 (regression guards); the closed ATX form is round 7's; a closed comment
+    # inside the argument and a heading text ending in `#` are round 8's (one key for both sides)
     for name, text, arg in (
         (
             "arg-ws.md",
@@ -1148,6 +1149,23 @@ def test_stop_at_heading_matches_a_real_heading_and_blanks_the_symbol_count_too(
         f.write_text(text, encoding="utf-8")
         sweep = crh.scan(surfaces=[f], phrases=["the widget"], stop_at_heading=arg)
         assert [h.line for h in sweep.hits if h.cls == "stale-phrase"] == [3], (name, sweep.hits)
+    c2 = tmp_path / "arg-comment.md"
+    c2.write_text(
+        "# D\n\nthe widget lives\n## Pass Ledger <!-- x -->\nthe widget retired\n", encoding="utf-8"
+    )
+    sweep = crh.scan(
+        surfaces=[c2], phrases=["the widget"], stop_at_heading="## Pass Ledger <!-- x -->"
+    )
+    assert [h.line for h in sweep.hits if h.cls == "stale-phrase"] == [3], sweep.hits
+    sharp = tmp_path / "sharp.md"  # `## C#` is not `## C`: a closing run needs whitespace before it
+    sharp.write_text(
+        "# D\n\n## C\nthe widget lives here\n## C#\nthe widget retired\n", encoding="utf-8"
+    )
+    sweep = crh.scan(surfaces=[sharp], phrases=["the widget"], stop_at_heading="## C#")
+    assert [h.line for h in sweep.hits if h.cls == "stale-phrase"] == [4], sweep.hits
+    assert (
+        crh._heading_key("## C#") == "c#" and crh._heading_key("## Pass Ledger ##") == "pass ledger"
+    )
     # regression (not a round-6 shape): an earlier opener runs to a LATER closer — that is the
     # comment, by CommonMark and by HTML —
     # so the heading inside it is no stop, nothing is blanked, and the phrase sweep (which reads

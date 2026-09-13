@@ -4349,6 +4349,7 @@ def test_a_real_id_inside_angle_brackets_is_not_a_placeholder() -> None:
         "<none — surfaces exercised: `what your run touched`>",
         "<none — surfaces exercised: [what your run touched]>",
         "<none — surfaces exercised: what your run touched!>",
+        "<none — surfaces exercised: _what your run touched_>",  # round 8: `_` is decoration
     ):
         assert cr._is_placeholder(ph), ph
     # round 7: the OTHER side of the same rule — a decorated head, a doubled space inside the
@@ -4358,7 +4359,11 @@ def test_a_real_id_inside_angle_brackets_is_not_a_placeholder() -> None:
         "<'none' — surfaces exercised: mail.py>",
         '<"none" — surfaces exercised: mail.py>',
         "<(none) — surfaces exercised: mail.py>",
-        "<none — surfaces exercised: (mail.py)>",
+        "<none — surfaces exercised: (mail.py)>",  # a guard that the tail strip never over-eats
+        "<“none” — surfaces exercised: mail.py>",  # round 8: the head class is the tail's —
+        "<**none** — surfaces exercised: mail.py>",  # typographic quotes, emphasis, and a
+        "<_none_ — surfaces exercised: mail.py>",  # non-ASCII surface name keeps its letters
+        "<none — surfaces exercised: 日本語のファイル>",  # no ASCII letter at all
     ):
         assert not cr._is_placeholder(real), real
     # a lower-case synonym head (`nothing filed`) never reaches the honest branch — it is refused

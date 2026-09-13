@@ -715,8 +715,9 @@ def _head_texts(root: Path, relpaths: list[str]) -> tuple[dict[str, str], bool, 
     COMPLETE — a path absent at HEAD is absent from the result; a git failure or a truncated
     stream (round 3: `git` killed mid-batch left the rest silently "not a committed claim")
     returns ``complete=False``. Bytes-parsed: `<sha> <type> <size>\n<body>\n` or `<spec> missing\n`.
-    The third value is how many of ``relpaths`` the batch REACHED — a `missing` plan is reached
-    and not stored, so the count is not ``len(result)`` (round 7)."""
+    The third value is how many of ``relpaths`` the batch answered WHOLE — a `missing` answer
+    counts, a body cut short or a header git never writes does not — so the count is neither
+    ``len(result)`` nor the number of headers seen (rounds 7–8)."""
     if not relpaths:
         return {}, True, 0
     try:
@@ -1192,10 +1193,12 @@ def _committed_claims_advisory(root: Path, skip: set[Path]) -> list[str]:
             else "every plan was read but git did not exit cleanly, so the rows below stand on "
             "an untrusted stream"
         )
+        # the head is neutral (round 8: "cut short after 0 blob(s)" beside "every plan was
+        # read" was one sentence contradicting itself when the only plan was `missing`)
         out.append(
-            f"committed-claims advisory: git cat-file failed or was cut short after "
-            f"{len(heads)} blob(s) of {len(plans)} plan file(s) requested — {tail} (a plan absent "
-            "at HEAD is not counted either way)"
+            f"committed-claims advisory: git cat-file returned {len(heads)} blob(s) of "
+            f"{len(plans)} plan file(s) requested — {tail} (a plan absent at HEAD is not "
+            "counted either way)"
         )
     for p in plans:
         rel = p.relative_to(root)

@@ -2670,7 +2670,12 @@ def test_touches_shapes_round_three_quoted_prose_and_separated_continuations(
         "__https://a.com/x.md__",
         "_https://a.com/x.md_",
     ):
-        assert not cpt._PATHISH.search(cpt._URL_RE.sub(" ", f"> see {url} here")), url
+        # round 8: assert the STRIP itself — `_PATHISH` refused `x.md__` on its own, so the
+        # path test passed for a reason unrelated to the URL rule
+        assert "://" not in cpt._URL_RE.sub(" ", f"> see {url} here"), url
+    assert (
+        cpt._URL_RE.sub(" ", "> see git+ssh://h/x.py here") == "> see   here"
+    )  # the `+` is scheme
     assert cpt._PATHISH.search("> see docs.python.org/3/library/re.html")
     assert cpt._PATHISH.search("> the runtime is Node.js")
     flagged = T01.replace(
