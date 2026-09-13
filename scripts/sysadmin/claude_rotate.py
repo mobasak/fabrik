@@ -2298,9 +2298,10 @@ def _tick_telegram(msg: str, key: str = "quota-rotation") -> bool:
     KEY, so a message that must never be eaten by a rotation notification passes its own key.
     True ONLY when the notifier's success artifact (`_notify_marker`) advanced during the call:
     `mesh-notify` exits 0 on every outcome (suppressed, curl failure, no keys — 0 non-zero
-    `exit` statements in the script; the process can still end non-zero — killed by this call's
-    30 s timeout, or a parse error after a hand edit — and the return code is never read here),
-    so delivery is read from the artifact, never from the return code. A False means the
+    `exit` statements in the script; the process can still end without that status — a parse
+    error after a hand edit, a signal, or this call's 30 s timeout, which raises here instead of
+    returning a status — and no status is read on any path), so delivery is read from the
+    artifact, never from the return code. A False means the
     notifier is absent, could not be run to completion, or its artifact did not advance —
     `_notify_failure_reason` names what this side can know and the causes it cannot tell apart."""
     sound = Path.home() / ".claude" / "bin" / "claude-sound.sh"
@@ -2329,8 +2330,10 @@ def _notify_failure_reason() -> str:
     (a timeout or a failed exec — on which path the artifact is not even re-read); the notifier
     delivered but could not write its own artifact (its lock dir refused the write — bash reports
     that on the notifier's stderr, which `_tick_telegram` captures and discards); or the artifact
-    is unreadable, clock-implausible, or torn short so it did not advance. So the line names
-    them all rather than guess one."""
+    is a symlink (read as nothing), unreadable, clock-implausible, or torn to empty or below the
+    previous reading, so it did not advance (a torn write ABOVE the previous reading — any
+    non-empty write when there was no artifact yet — advances and confirms: the send did go out,
+    only the recorded epoch is wrong). So the line names them all rather than guess one."""
     if not (Path.home() / ".claude" / "bin" / "claude-sound.sh").is_file():
         return "mesh-notify unavailable (no claude-sound.sh)"
     return (
@@ -2338,7 +2341,8 @@ def _notify_failure_reason() -> str:
         " key, the send failed (curl or a custom MESH_NOTIFY_CMD), no Telegram keys and no custom"
         " notifier so it was never attempted, the notifier did not finish (a timeout or a failed"
         " exec), the notifier delivered but could not write its own artifact, or its artifact is"
-        " unreadable, clock-implausible, or torn short so it did not advance"
+        " a symlink (read as nothing), unreadable, clock-implausible, or torn to empty or below"
+        " the previous reading, so it did not advance"
     )
 
 
