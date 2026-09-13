@@ -253,6 +253,9 @@ def test_the_changed_list_reads_paths_only_across_wrapped_lines_and_never_from_a
         "`y.py::test_a[a,b]`",  # round 8: a bracket param of any alphabet
         "`y.py::test_a[x=1]`",
         "`y.py::test_a[RTX 4090]`",
+        "`y.py::test_a[a[0]]`",  # round 9: a param carrying its own brackets
+        "`y.py::TestC::test_a[a[0]]`",
+        "`y.py::test_a[a][b]`",
     ):
         r = _run_on(tmp_path, with_x.replace("# R\n", f"# R\n**Changed:** `x.py`, {tok}\n\n"))
         assert r.returncode == 1 and "`y.py`" in r.stdout, (tok, r.stdout)

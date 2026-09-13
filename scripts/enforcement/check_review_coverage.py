@@ -2644,10 +2644,14 @@ _TOKEN_SHAPE = re.compile(r"^[\w.+/~-]+$")  # what a path is made of — never a
 # `x.py::test`, `x.py::Cls::test[a-b]`, `x.py::t[docs/x.md]`, `x.py::t[a, b=1]`, `x.py:44`,
 # `x.py:44-50`, `x.py:44:12` — every segment, and a bracket param of ANY alphabet (round 6: a
 # two-segment node id kept a colon, failed the shape and was silently DROPPED; round 7: so did
-# a `/` param; round 8: so did `,`, `=`, `:`, a space — the param is its own alternative now).
-# Stated cost: a real path that itself contains `::` (`docs/a::b/c.md`, legal on Linux, 0 on
-# this box) is read as `docs/a` with a suffix.
-_LOCATION_SUFFIX = re.compile(r"(?:(?:::[\w.-]+(?:\[[^\]]*\])?)+|:\d+(?::\d+)?(?:-\d+)?)$")
+# a `/` param; round 8: so did `,`, `=`, `:`, a space — the param is its own alternative now;
+# round 9: a param carrying its own brackets, `t[a[0]]`, `t[a][b]`, one nesting level).
+# Stated costs: a real path that itself contains `::` (`docs/a::b/c.md`, legal on Linux, 0 on
+# this box) is read as `docs/a` with a suffix; an UNBALANCED `t[a` — a truncated id pytest never
+# emits — is not stripped.
+_LOCATION_SUFFIX = re.compile(
+    r"(?:(?:::[\w.-]+(?:\[[^\[\]]*(?:\[[^\[\]]*\][^\[\]]*)*\])*)+|:\d+(?::\d+)?(?:-\d+)?)$"
+)
 _BARE_FILES = frozenset(
     {
         "Makefile",

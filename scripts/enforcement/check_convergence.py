@@ -1184,14 +1184,16 @@ def _committed_claims_advisory(root: Path, skip: set[Path]) -> list[str]:
     if plans and not complete:
         # a git failure or a truncated batch would otherwise read as "no committed debt" — an
         # advisory ROW, so the ⚠-first header final_gate keys on carries it (rounds 2–3)
-        # the tail names what the count means: plans short of the request were never REACHED
-        # (a `missing` plan was reached and is not a blob — round 7); every plan reached with a
-        # non-zero exit is a stream git did not close cleanly (round 6)
+        # the tail names what the count means, in the docstring's own words (round 9: three
+        # readings of one integer — "reached", "read", "answered whole" — were one too many):
+        # plans short of the request were not answered whole (a `missing` answer counts, a cut
+        # body does not); every plan answered with a non-zero exit is a stream git did not close
+        # cleanly (round 6)
         tail = (
-            "the plans it never reached were NOT examined"
+            "the plans it did not answer whole were NOT examined"
             if reached < len(plans)
-            else "every plan was read but git did not exit cleanly, so the rows below stand on "
-            "an untrusted stream"
+            else "every plan was answered (a plan absent at HEAD has no blob) but git did not "
+            "exit cleanly, so the rows below stand on an untrusted stream"
         )
         # the head is neutral (round 8: "cut short after 0 blob(s)" beside "every plan was
         # read" was one sentence contradicting itself when the only plan was `missing`)

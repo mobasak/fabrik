@@ -1067,7 +1067,12 @@ def _is_placeholder(value: str | None) -> bool:
         # name keeps its letters) — whitespace inside the marker is already one space, `low`
         # is collapsed above; a tail with no word character (`...`, `???`, `--`) names no surface
         tail = re.sub(r"^[\W_]+|[\W_]+$", "", tail)
-        return not tail or tail in _GRAMMAR_NOUNS
+        if not tail:
+            return True
+        # the noun equality is ASCII: a `\w` decoration outside [a-z0-9] (`¹`, `①`) never makes
+        # the grammar's own filler honest (round 9), while emptiness was decided above on the
+        # Unicode class so a non-ASCII surface name stays honest
+        return re.sub(r"^[^a-z0-9]+|[^a-z0-9]+$", "", tail) in _GRAMMAR_NOUNS
     if any(n in low for n in _GRAMMAR_NOUNS):
         return True
     if re.search(r"[a-z]{2,}\s*\||\|\s*[a-z]{2,}", c):

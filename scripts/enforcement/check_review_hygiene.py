@@ -686,8 +686,13 @@ def _heading_key(s: str) -> str:
     an unconditional `rstrip("#")` made `## C#` the stop for `## C`): closed comments dropped,
     surrounding `#` and whitespace ignored, a closing `#` run only when whitespace precedes it
     (CommonMark 4.2 — `## C#` keeps its `#`, `## Pass Ledger ##` drops the run), runs of
-    whitespace one space, lower-cased."""
-    s = re.sub(r"<!--.*?-->", "", s).strip().lstrip("#").strip()
+    whitespace one space, lower-cased. Round 9: an UNTERMINATED opener on the line is not
+    heading text either (the line is neutralised before the compare, the argument was not), and
+    the leading `#` run is an ATX run — `#{1,6}` then whitespace — so `## #hashtag` keeps its
+    text's own `#` and the key is idempotent."""
+    s = re.sub(r"<!--.*?-->", "", s)
+    s = re.sub(r"<!--.*$", "", s).strip()
+    s = re.sub(r"^#{1,6}(?=\s|$)", "", s).strip()
     s = re.sub(r"(?:^|(?<=\s))#+$", "", s)
     return " ".join(s.split()).lower()
 
@@ -725,7 +730,7 @@ def _until_heading(text: str, heading: str | None) -> tuple[str, int]:
         st = re.sub(r"<!--.*?-->", "", ln).strip()
         if not st.startswith("#"):
             continue
-        if _heading_key(ln) == want:
+        if _heading_key(lines[i]) == want:  # the RAW line: the key reads openers itself
             return "\n".join(lines[:i] + [""] * (len(lines) - i)), len(lines) - i
     return text, 0
 
