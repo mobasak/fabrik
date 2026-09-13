@@ -313,7 +313,8 @@ own success artifact advanced (`claude-sound.sh mesh-notify` exits 0 on every ou
 is read from `<lockdir>/<key>.notified`, which it writes solely on a delivered send; both readings
 are judged against one clock value taken before the call, so a stale artifact after a backward
 clock step never confirms a send that did not happen, and a forward step past the tolerance in
-that instant only reads a delivered send as unconfirmed, so it is retried), under the push's OWN
+that instant only reads a delivered send as unconfirmed — re-attempted each tick, and delivered
+once more when the notifier's window lapses), under the push's OWN
 per-account key (`quota-rotation-chain-<hash>`) so a rotation notification's 30-minute window can
 never eat it. An unconfirmed push is retried next tick and the line says what this side
 can know: the notifier is absent, or the send could not be confirmed (suppressed by the notifier's

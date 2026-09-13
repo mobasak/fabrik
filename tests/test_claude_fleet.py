@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
-import io
 import json
 import os
 import shutil
@@ -1474,10 +1473,11 @@ def test_tick_telegram_reads_both_artifact_epochs_against_one_clock(tmp_path, mo
 
 
 def test_tick_telegram_never_raises_on_an_unencodable_message(tmp_path, monkeypatch):
-    """A lone surrogate in the message (a JSON-parsed ledger row can carry one) makes
-    `subprocess.run` raise `UnicodeEncodeError` — neither `OSError` nor `SubprocessError` — and it
-    escaped `_tick_telegram` and `_chain_expiry_push`'s "Never raises" contract (review round 15,
-    executed). It is an unconfirmed send: False, nothing spawned, nothing raised."""
+    """A lone surrogate in the message (JSON-parsed ledger text can carry one) made
+    `subprocess.run` raise `UnicodeEncodeError` before the spawn (review round 15); catching it
+    turned the push into a permanent silent miss (round 16). The message is escaped at the sink
+    instead: the notifier runs, receives `\\ud800` in place of the surrogate, and the send is
+    confirmed."""
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     locks = tmp_path / "locks"
     locks.mkdir()
@@ -1485,27 +1485,73 @@ def test_tick_telegram_never_raises_on_an_unencodable_message(tmp_path, monkeypa
     script = tmp_path / ".claude" / "bin" / "claude-sound.sh"
     script.parent.mkdir(parents=True)
     script.write_text(
-        '#!/bin/bash\nprintf "%s" "$(date +%s)" > "$CLAUDE_SOUND_LOCKDIR/$2.notified"\nexit 0\n'
+        '#!/bin/bash\nprintf "%s" "$4" > "$CLAUDE_SOUND_LOCKDIR/seen.txt"\n'
+        'printf "%s" "$(date +%s)" > "$CLAUDE_SOUND_LOCKDIR/$2.notified"\nexit 0\n'
     )
-    assert cr._tick_telegram("push for \ud800bad", key="k") is False
-    assert not (locks / "k.notified").exists(), "nothing was spawned"
+    assert cr._tick_telegram("push for \ud800bad", key="k") is True
+    seen = (locks / "seen.txt").read_bytes().decode("utf-8")
+    assert seen == "push for \\ud800bad", seen
 
 
 @pytest.mark.skipif(not Path("/opt/fabrik/scripts/mail.py").is_file(), reason="no mail.py here")
 def test_drain_mail_never_raises_on_an_unencodable_message(monkeypatch):
-    """The drain writes the message into each send's TEXT pipe; a lone surrogate raised
-    `UnicodeEncodeError` past `(OSError, SubprocessError)` and out of the tick (review round 15 —
-    the class swept from `_tick_telegram`). Every repo is still attempted, nothing raised."""
-    calls: list[tuple] = []
+    """The drain writes the message into each send's TEXT pipe. A lone surrogate raised
+    `UnicodeEncodeError` out of the tick (round 15); catching it per repo left EVERY spawned child
+    on a never-closed pipe, each sending an EMPTY broadcast at the tick's death (round 16). Now the
+    message is escaped once, every child receives it, and the write end is closed on every exit
+    — a broken pipe included."""
+    procs: list = []
+
+    class FakeStdin:
+        """A strict-UTF-8 text pipe end: `write` encodes as the real one does, `close` records."""
+
+        def __init__(self, broken: bool = False):
+            self.buf, self.closed, self.broken = b"", False, broken
+
+        def write(self, text: str) -> int:
+            if self.broken:
+                raise BrokenPipeError
+            self.buf += text.encode("utf-8")  # strict — a lone surrogate raises here
+            return len(text)
+
+        def close(self) -> None:
+            self.closed = True
 
     class FakeProc:
+        broken = False
+
         def __init__(self, *a, **k):
-            calls.append(a)
-            self.stdin = io.TextIOWrapper(io.BytesIO(), encoding="utf-8", errors="strict")
+            self.stdin = FakeStdin(self.broken)
+            procs.append(self)
+
+    class BrokenProc(FakeProc):
+        broken = True
 
     monkeypatch.setattr(cr.subprocess, "Popen", FakeProc)
     cr._drain_mail(["repo-a", "repo-b"], "fleet \ud800 exhausted")
-    assert len(calls) == 2, "every repo attempted; the raise is swallowed per repo"
+    assert len(procs) == 2, "every repo attempted"
+    for proc in procs:
+        assert proc.stdin.closed, "the write end is released"
+        assert proc.stdin.buf == b"fleet \\ud800 exhausted"
+    procs.clear()
+    monkeypatch.setattr(cr.subprocess, "Popen", BrokenProc)
+    cr._drain_mail(["repo-a", "repo-b"], "fleet exhausted")
+    assert len(procs) == 2 and all(p.stdin.closed for p in procs), "closed on a broken pipe too"
+
+
+def test_keepalive_ping_survives_undecodable_output(tmp_path, monkeypatch):
+    """`_keepalive_ping` captures the ping's text; a single invalid UTF-8 byte from `claude` raised
+    `UnicodeDecodeError` past `(OSError, SubprocessError)` mid-liveness-pass (round 16, executed).
+    The text is never read — only the status — so it is decoded with `errors="replace"`."""
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    (fake_bin / "claude").write_text("#!/bin/bash\nprintf '\\xff\\xfe bad\\n'\nexit 0\n")
+    (fake_bin / "claude").chmod(0o755)
+    monkeypatch.setattr(
+        cr, "_with_claude_on_path", lambda env: env.__setitem__("PATH", str(fake_bin))
+    )
+    monkeypatch.setenv("KEEPALIVE_TIMEOUT", "20")
+    assert cr._keepalive_ping(tmp_path) is True
 
 
 def test_chain_push_uses_its_own_notify_key_per_account(tmp_path, monkeypatch):

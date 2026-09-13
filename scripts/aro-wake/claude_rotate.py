@@ -28,6 +28,7 @@ depend on it. A token is never logged, printed, or returned to a caller.
 
 from __future__ import annotations
 
+import contextlib
 import fcntl
 import hashlib
 import json
@@ -2238,7 +2239,9 @@ def _drain_mail(repos: list[str], msg: str) -> None:
     mail = Path("/opt/fabrik/scripts/mail.py")
     if not mail.is_file():
         return
+    msg = _argv_safe(msg)
     for repo in repos:
+        proc = None
         try:
             # fire-and-forget (closer #8): ~49 serial 30s-timeout sends could hold the tick
             # flock for ~25 min at exactly the draining moment; Popen detaches each send
@@ -2264,9 +2267,22 @@ def _drain_mail(repos: list[str], msg: str) -> None:
             )
             if proc.stdin is not None:
                 proc.stdin.write(msg)
-                proc.stdin.close()
-        except (OSError, subprocess.SubprocessError, UnicodeError):
+        except (OSError, subprocess.SubprocessError):
             continue  # one refused mailbox must not stop the broadcast
+        finally:
+            # the write end is released on EVERY exit — a child left on an open pipe would
+            # read EOF only when this process dies, and send an EMPTY message then
+            if proc is not None and proc.stdin is not None:
+                with contextlib.suppress(OSError):
+                    proc.stdin.close()
+
+
+def _argv_safe(text: str) -> str:
+    """*text* made encodable: a lone surrogate (JSON-parsed ledger text can carry one) cannot
+    cross argv or a text pipe — `subprocess` raises `UnicodeEncodeError` before the spawn, or on
+    the pipe write after it — so it is escaped (`\\ud800`) once, at the sink, and the message
+    is delivered as written. `surrogateescape` bytes (filesystem names) round-trip unchanged."""
+    return text.encode("utf-8", "backslashreplace").decode("utf-8")
 
 
 def _stamp_epoch(path: Path, now: float | None = None) -> int:
@@ -2302,21 +2318,24 @@ def _tick_telegram(msg: str, key: str = "quota-rotation") -> bool:
     cannot move between them, and an artifact just past it (stale after a backward clock step, or
     planted) cannot read 0 first and as itself after with nothing written. The mirror is
     fail-closed: a forward clock step past the tolerance in the instant between that value and
-    the notifier's own `date +%s` reads a delivered send as unconfirmed, and the caller retries it
-    next tick — never a silent stamp. `mesh-notify` exits 0 on every outcome (suppressed, curl
-    failure, no keys — 0 non-zero `exit` statements in the script; the process can still end
-    without that status — an unrunnable or hand-broken script, a signal, or this call's 30 s
-    timeout, which raises here instead of returning one — and no status is read on any path), so
-    delivery is read from the artifact, never from the return code. A False means the notifier is
-    absent, could not be run to completion (an unencodable message never spawns it), or its
-    artifact did not advance — `_notify_failure_reason` names what this side can know and the
-    causes it cannot tell apart."""
+    the notifier's own `date +%s` reads a delivered send as unconfirmed, and the caller
+    re-attempts it each tick — the notifier's own window suppresses the resend until it lapses,
+    so the operator may see one duplicate — never a silent stamp. `mesh-notify` exits 0 on every
+    outcome (suppressed, curl failure, no keys — 0 non-zero `exit` statements in the script; the
+    process can still end without that status — an unrunnable or hand-broken script, a signal, or
+    this call's 30 s timeout, which raises here instead of returning one — and no status is read
+    on any path), so delivery is read from the artifact, never from the return code. The message
+    is escaped before it crosses argv (`_argv_safe` — a lone surrogate from JSON-parsed text is
+    delivered as `\\ud800`, never raised on). A False means the notifier is absent, could not be
+    run to completion, or its artifact did not advance — `_notify_failure_reason` names what this
+    side can know and the causes it cannot tell apart."""
     sound = Path.home() / ".claude" / "bin" / "claude-sound.sh"
     if not sound.is_file():
         return False
     marker = _notify_marker(key)
     now = _now()
     before = _stamp_epoch(marker, now)
+    msg = _argv_safe(msg)
     try:
         subprocess.run(
             ["bash", str(sound), "mesh-notify", key, "/opt/fabrik", msg],
@@ -2324,7 +2343,7 @@ def _tick_telegram(msg: str, key: str = "quota-rotation") -> bool:
             capture_output=True,
             timeout=30,
         )
-    except (OSError, subprocess.SubprocessError, UnicodeError):
+    except (OSError, subprocess.SubprocessError):
         return False
     return _stamp_epoch(marker, now) > before
 
@@ -5086,6 +5105,7 @@ def _keepalive_ping(cfg_dir: Path) -> bool:
             stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
+            errors="replace",  # the ping's text is never read; invalid UTF-8 out must not raise
             timeout=timeout,
         )
         return p.returncode == 0
