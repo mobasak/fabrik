@@ -1035,6 +1035,13 @@ _GRAMMAR_NOUNS = (
 )
 
 
+def _is_decoration(ch: str) -> bool:
+    """A character that is neither a letter nor a decimal digit in ANY script — what may wrap the
+    honest head without being part of it (`¹none`, `(none)`, `_none_`); a letter of any script
+    glued to the head is part of the word (`日本語none`, `nonentity`, `01M1ABC日` are no head)."""
+    return not (ch.isalpha() or ch.isdecimal())
+
+
 def _is_placeholder(value: str | None) -> bool:
     """A value that is the grammar's own `<…>` text — its ellipsis, a nested `<`, a prose
     alternation (`what you filed | none`) or the grammar's own noun phrases — or several prose
@@ -1053,9 +1060,12 @@ def _is_placeholder(value: str | None) -> bool:
     # the mandated honest shape, written inside the brackets — decided BEFORE the noun and
     # alternation rules, whose words its surface list may legitimately carry (round 4: `the mail
     # id router` and `mail.py | command_run.py` were refused); the head is `none` or a mail id
-    if re.match(r"[^0-9A-Za-z]*(?:(?i:none)|[0-9A-Z]{6,})(?![a-zA-Z0-9])", c) and re.search(
-        r"surfaces? exercised", low
-    ):
+    k = 0
+    while k < len(c) and _is_decoration(c[k]):
+        k += 1
+    hm = re.match(r"(?:(?i:none)|[0-9A-Z]{6,})", c[k:])
+    head_ok = bool(hm) and (k + hm.end() == len(c) or _is_decoration(c[k + hm.end()]))
+    if head_ok and re.search(r"surfaces? exercised", low):
         # the grammar's own filler after the marker (`what your run touched`) or an EMPTY surface
         # list is still the placeholder (round 5); a lower-case `none` synonym at the head
         # (`nothing filed`) is refused on purpose — the grammar's honest value is the word `none`
@@ -1070,9 +1080,10 @@ def _is_placeholder(value: str | None) -> bool:
         if not tail:
             return True
         # the noun equality is ASCII: a `\w` decoration outside [a-z0-9] (`¹`, `①`) at either
-        # EDGE is decoration (round 9; the head's skip class is the same ASCII complement, round
-        # 10), while emptiness was decided above on the Unicode class so a non-ASCII surface name
-        # stays honest. Stated cost: an INTERIOR homoglyph (`t①uched`) is not caught
+        # EDGE is decoration (round 9), while emptiness was decided above on the Unicode class so
+        # a non-ASCII surface name stays honest; the head uses `_is_decoration` (round 11) — the
+        # two agree on every ASCII character. Stated cost: an INTERIOR homoglyph (`t①uched`) is
+        # not caught
         return re.sub(r"^[^a-z0-9]+|[^a-z0-9]+$", "", tail) in _GRAMMAR_NOUNS
     if any(n in low for n in _GRAMMAR_NOUNS):
         return True

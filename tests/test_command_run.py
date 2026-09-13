@@ -4353,6 +4353,9 @@ def test_a_real_id_inside_angle_brackets_is_not_a_placeholder() -> None:
         "<none — surfaces exercised: what your run touched¹>",  # round 9: a `\w` decoration
         "<none — surfaces exercised: ①what your run touched①>",
         "<nonentity — surfaces exercised: whatever>",  # round 9: `none` inside a word is no head
+        "<日本語none — surfaces exercised: xyz>",  # round 11: a letter of ANY script is a letter
+        "<none日 — surfaces exercised: mail.py>",
+        "<01M1ABC日 — surfaces exercised: mail.py>",
     ):
         assert cr._is_placeholder(ph), ph
     # round 7: the OTHER side of the same rule — a decorated head, a doubled space inside the

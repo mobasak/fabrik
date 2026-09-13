@@ -1191,8 +1191,8 @@ def _committed_claims_advisory(root: Path, skip: set[Path]) -> list[str]:
         # exit is a stream git did not close cleanly (round 6); each branch explains an absent
         # plan once (round 10)
         tail = (
-            "the plans it did not answer whole were NOT examined (a plan absent at HEAD is not "
-            "counted either way)"
+            "the plans it did not answer whole were NOT examined (a plan absent at HEAD was "
+            "answered and has no blob)"
             if reached < len(plans)
             else "every plan was answered (a plan absent at HEAD has no blob) but git did not "
             "exit cleanly, so the rows below stand on an untrusted stream"

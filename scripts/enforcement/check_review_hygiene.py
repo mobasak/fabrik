@@ -695,7 +695,7 @@ def _heading_key(s: str) -> str:
     # round 10: a `-->` inside a span closed a real opener because the closed-comment strip
     # ran on the raw string)
     masked = _mask_code_spans(s)
-    for mo in reversed(list(re.finditer(r"<!--.*?-->", masked))):
+    for mo in reversed(list(re.finditer(r"<!--(?:-?>|.*?-->)", masked))):  # `<!-->` closes too
         s = s[: mo.start()] + s[mo.end() :]
     masked = _mask_code_spans(s)
     if (i := masked.find("<!--")) >= 0:
@@ -731,7 +731,10 @@ def _until_heading(text: str, heading: str | None) -> tuple[str, int]:
     for i, ln in enumerate(quoted):
         masked = _mask_code_spans(ln)
         if "<!--" in masked and "-->" not in masked:
-            if not any("-->" in _mask_code_spans(q) for q in quoted[i + 1 :]):
+            # a closer inside a code span on the opener's OWN line still ends the block for the
+            # renderer (an HTML block knows no spans), so that opener is literal text here too
+            # (round 11: a later real `-->` blanked such a heading before the key saw it)
+            if "-->" in ln or not any("-->" in _mask_code_spans(q) for q in quoted[i + 1 :]):
                 quoted[i] = ln.replace("<!--", "<!- -")
     for i, ln in enumerate(_blank_quoted(quoted)):
         if ln.startswith("    ") or ln.startswith("\t"):

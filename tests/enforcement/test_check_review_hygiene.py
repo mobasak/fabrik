@@ -1192,6 +1192,9 @@ def test_stop_at_heading_matches_a_real_heading_and_blanks_the_symbol_count_too(
     # span is no closer, a `<!--` in a span is no opener even with a real closer later
     assert crh._heading_key("## Pass Ledger <!-- x `-->` y") == "pass ledger"
     assert crh._heading_key("## Pass `a <!-- b` Ledger <!-- n -->") == "pass `a <!-- b` ledger"
+    # round 11: every closed comment goes (the splice runs in reverse), an empty comment closes
+    assert crh._heading_key("## Alpha <!--x--> Beta <!--y--> Gamma") == "alpha beta gamma"
+    assert crh._heading_key("## A <!--> B") == "a b" and crh._heading_key("## A <!---> B") == "a b"
     for name, text, arg in (
         (
             "span-closer.md",
@@ -1202,6 +1205,11 @@ def test_stop_at_heading_matches_a_real_heading_and_blanks_the_symbol_count_too(
             "span-opener.md",
             "# D\n\nthe widget lives\n## Pass `a <!-- b` Ledger <!-- n -->\nthe widget retired\n",
             "## Pass `a <!-- b` Ledger",
+        ),
+        (  # round 11: a later real closer must not turn that heading into a comment opener
+            "span-closer-later.md",
+            "# D\n\nthe widget lives\n## Pass Ledger <!-- x `-->` y\nthe widget retired\n\nprose with --> in it\n",
+            "## Pass Ledger",
         ),
     ):
         f = tmp_path / name

@@ -267,6 +267,11 @@ def test_the_changed_list_reads_paths_only_across_wrapped_lines_and_never_from_a
         with_x.replace("# R\n", "# R\n**Changed:** `x.py`\n>\n`y.py` is a prose symbol here\n\n"),
     )
     assert r.returncode == 0, r.stdout
+    # round 11: the suffix is ANCHORED — a mid-token `:port` is not a location, the token is prose
+    r = _run_on(
+        tmp_path, with_x.replace("# R\n", "# R\n**Changed:** `x.py`, `redis-main:6379/0`\n\n")
+    )
+    assert r.returncode == 0, r.stdout
     # an IN-PROGRESS receipt (a seat's mid-loop draft) is exempt from the Hunt-row leg too
     r = _run_on(
         tmp_path,
