@@ -2264,28 +2264,43 @@ def _drain_mail(repos: list[str], msg: str) -> None:
             continue  # one refused mailbox must not stop the broadcast
 
 
-def _stamp_epoch(path: Path) -> int:
-    """The integer a stamp holds, 0 when it is missing, unreadable, garbage or a symlink (the
-    notifier writes `.notified` as a bare epoch; a torn or planted file must read as nothing)."""
+_STAMP_EPOCH_MAX_AHEAD_S = 86400
+
+
+def _stamp_epoch(path: Path, now: float | None = None) -> int:
+    """The epoch a stamp holds, 0 when it is missing, unreadable, garbage, a symlink, or not a
+    plausible clock reading (negative, or more than a day past *now* — an all-digits garbage
+    artifact would otherwise read as "the future" forever and no later send could ever advance
+    it; the same clamp the drain stamp applies to mtimes). The notifier writes `.notified` as a
+    bare epoch; a torn or planted file must read as nothing."""
     try:
         if path.is_symlink() or not path.is_file():
             return 0
-        return int(path.read_text(errors="replace").strip() or 0)
+        value = int(path.read_text(errors="replace").strip() or 0)
     except (OSError, ValueError):
         return 0
+    limit = (now if now is not None else _now()) + _STAMP_EPOCH_MAX_AHEAD_S
+    return value if 0 <= value <= limit else 0
+
+
+def _notify_marker(key: str) -> Path:
+    """`<lockdir>/<safe key>.notified` — the notifier's own success artifact for *key*
+    (`claude-sound.sh mesh-notify` writes it solely on a DELIVERED send; the safe form is
+    the notifier's `tr -c 'A-Za-z0-9_-' '_' | head -c 64`, vendored as `_selfwatch_safe`)."""
+    return _selfwatch_lock_dir() / f"{_selfwatch_safe(key)}.notified"
 
 
 def _tick_telegram(msg: str, key: str = "quota-rotation") -> bool:
     """mesh-notify the operator under *key*. The notifier's 30-minute suppression window is PER
     KEY, so a message that must never be eaten by a rotation notification passes its own key.
-    True ONLY when the notifier's success artifact — `<lockdir>/<safe key>.notified`, which
-    `claude-sound.sh` writes solely on a DELIVERED send — advanced during the call: `mesh-notify`
-    exits 0 on every outcome (suppressed, curl failure, no keys — 0 non-zero exits in the script),
-    so delivery is read from the artifact, never from the return code (review 2026-09-13)."""
+    True ONLY when the notifier's success artifact (`_notify_marker`) advanced during the call:
+    `mesh-notify` exits 0 on every outcome (suppressed, curl failure, no keys — 0 non-zero exits
+    in the script), so delivery is read from the artifact, never from the return code. A False
+    has three causes — `_notify_failure_reason` names the one that applies."""
     sound = Path.home() / ".claude" / "bin" / "claude-sound.sh"
     if not sound.is_file():
         return False
-    marker = _selfwatch_lock_dir() / f"{_selfwatch_safe(key)}.notified"
+    marker = _notify_marker(key)
     before = _stamp_epoch(marker)
     try:
         subprocess.run(
@@ -2297,6 +2312,18 @@ def _tick_telegram(msg: str, key: str = "quota-rotation") -> bool:
     except (OSError, subprocess.SubprocessError):
         return False
     return _stamp_epoch(marker) > before
+
+
+def _notify_failure_reason(key: str, now: float | None = None) -> str:
+    """Why `_tick_telegram(…, key)` just returned False — the operator-visible line must name the
+    real cause: the notifier is absent; it SUPPRESSED the send (its artifact for the key is inside
+    the 30-minute window); or the send FAILED (curl / no keys — the artifact did not move)."""
+    if not (Path.home() / ".claude" / "bin" / "claude-sound.sh").is_file():
+        return "mesh-notify unavailable (no claude-sound.sh)"
+    last = _stamp_epoch(_notify_marker(key), now)
+    if last and (now if now is not None else _now()) - last < 1800:
+        return "suppressed by the notifier's 30-minute window for this key"
+    return "send FAILED (curl or no Telegram keys — the notifier's artifact did not advance)"
 
 
 def _tick_switch(name: str) -> bool:
@@ -4879,22 +4906,33 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
     return 0
 
 
+_FLEET_STAMP_SUBDIR = "fleet-stamps"
+
+
+def _chain_push_digest(email: str) -> str:
+    """The 8-hex identity of an account's chain-push stamp AND its notify key — one derivation,
+    so the two can never drift apart. Not a security hash (bandit B324): a name."""
+    return hashlib.sha1(email.lower().encode(), usedforsecurity=False).hexdigest()[:8]
+
+
 def _chain_push_stamps(email: str) -> list[Path]:
     """The once-per-chain push stamp's candidate paths, most durable first: the rotate state dir,
-    then the resume mesh's lock dir (`_selfwatch_lock_dir()`: user-only 0700, a fixed path cron
-    and a shell agree on, never $TMPDIR) — the fallback when the state dir cannot be made OR cannot
-    be written (an existing read-only dir passes ``mkdir(exist_ok=True)``). The name carries a
-    short hash of the email because the a-z0-9 slug alone folds ``a.b@x`` and ``a-b@x`` onto one
-    file."""
+    then `<lockdir>/fleet-stamps/` under the resume mesh's lock dir (`_selfwatch_lock_dir()`, the
+    path cron and a shell agree on because it never reads $TMPDIR; user-only 0700 when this tool
+    or the notifier creates it). The SUBDIR matters: every Stop hook prunes the lock dir's top
+    level by mtime at 2 h (`claude-stop-decider.py` `acquire_lock`), and it never descends — a
+    stamp at the top level would be swept and the push would repeat every two hours. The fallback
+    exists for a state dir that cannot be made OR cannot be written (an existing read-only dir
+    passes ``mkdir(exist_ok=True)``). The name carries the email's 8-hex digest because the
+    a-z0-9 slug alone folds ``a.b@x`` and ``a-b@x`` onto one file."""
     safe = re.sub(r"[^a-z0-9]+", "-", email.lower()).strip("-")
-    digest = hashlib.sha1(email.lower().encode(), usedforsecurity=False).hexdigest()[:8]
-    name = f"fleet-chain-push-{safe}-{digest}"
+    name = f"fleet-chain-push-{safe}-{_chain_push_digest(email)}"
     paths: list[Path] = []
     try:
         paths.append(_rotate_state_dir() / name)
     except _STATE_DIR_ERRORS:
         pass
-    paths.append(_selfwatch_lock_dir() / name)
+    paths.append(_selfwatch_lock_dir() / _FLEET_STAMP_SUBDIR / name)
     return paths
 
 
@@ -4911,12 +4949,21 @@ def _stamp_holds(path: Path, key: str) -> bool:
 
 
 def _write_stamp(path: Path, key: str) -> None:
-    """Write *key* to *path* as a fresh 0600 regular file, never through a symlink (O_NOFOLLOW):
-    the fallback dir is shared with other tools, so a planted link must not become a write-through.
-    Raises OSError on any refusal — the caller decides what a failed write means."""
-    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    """Write *key* to *path* as a 0600 regular file, never through a symlink (O_NOFOLLOW): the
+    fallback dir is shared with other tools, so a planted link must not become a write-through.
+    The mode is ENFORCED (`fchmod`) — `os.open`'s mode applies only to a file it creates, so a
+    stamp left at 0644 by an older writer would otherwise keep 0644 across every re-mint. The
+    parent is created 0700, and repaired to 0700 when this uid owns it and it is wider — the
+    delivery gate trusts an artifact in that dir. Raises OSError on any refusal — the caller
+    decides what a failed write means."""
+    parent = path.parent
+    parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    st = parent.stat()
+    if st.st_uid == os.getuid() and st.st_mode & 0o077:
+        os.chmod(parent, 0o700)
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
     with os.fdopen(fd, "w") as fh:
+        os.fchmod(fd, 0o600)
         fh.write(key)
 
 
@@ -4926,19 +4973,29 @@ def _chain_expiry_push(accounts: list[dict], now: float) -> int:
     unnoticed is a fleet-wide hold the moment it is the only account with headroom (2026-09-12).
     The stamp holds the chain's expiry epoch: the same chain never pushes twice, a re-minted chain
     (new expiry) re-arms by itself. The stamp is written ONLY after the notifier's own success
-    artifact advanced (delivery is never inferred from its exit code) under the push's OWN key —
-    a rotation notification's 30-minute window can never eat it — and an undelivered push is
-    retried next tick, never recorded as sent; the stamp falls back to the resume mesh's lock dir
-    when the state dir refuses the write. Returns the number of pushes delivered. Never raises."""
+    artifact advanced (delivery is never inferred from its exit code) under the push's OWN key
+    (`quota-rotation-chain-<digest>`) — a rotation notification's 30-minute window can never eat
+    it — and an undelivered push is retried next tick with the real cause printed; a stamp that
+    still holds the current key has its mtime refreshed every tick so no age-based sweep removes
+    it; the stamp falls back to the mesh lock dir's `fleet-stamps/` when the state dir refuses
+    the write. Returns the number of pushes delivered. Never raises."""
     sent = 0
     for row in accounts:
         exp = row.get("refresh_expires_epoch")
-        if not isinstance(exp, (int, float)) or exp - now >= _CHAIN_PUSH_S:
+        if not isinstance(exp, (int, float)) or not math.isfinite(exp):
+            continue
+        if exp - now >= _CHAIN_PUSH_S:
             continue
         email = str(row.get("email"))
         key = str(int(exp))
         stamps = _chain_push_stamps(email)
-        if any(_stamp_holds(p, key) for p in stamps):
+        held = [p for p in stamps if _stamp_holds(p, key)]
+        if held:
+            for p in held:
+                try:
+                    os.utime(p, None)  # keep it young: the lock dir is swept by mtime
+                except OSError:
+                    pass
             continue
         slugs = row.get("slugs") or []
         slug = row.get("refresh_expires_slug") or (slugs[0] if slugs else "<slug>")
@@ -4948,14 +5005,16 @@ def _chain_expiry_push(accounts: list[dict], now: float) -> int:
             if left <= 0
             else f"expires in {left / 86400:.1f}d"
         )
+        notify_key = f"quota-rotation-chain-{_chain_push_digest(email)}"
         delivered = _tick_telegram(
             f"claude_rotate: {email} refresh chain {state} — a claude turn does NOT extend it; "
             f"ONE /login re-mints it: {_relogin_block(slug, email)}",
-            key=f"quota-rotation-chain-{stamps[-1].name.rsplit('-', 1)[-1]}",
+            key=notify_key,
         )
         if delivered is not True:
             print(
-                f"chain push: {email} NOT delivered (mesh-notify unavailable) — retried next tick"
+                f"chain push: {email} NOT delivered — {_notify_failure_reason(notify_key, now)}"
+                " — retried next tick"
             )
             continue
         sent += 1
