@@ -1701,11 +1701,11 @@ def test_notify_failure_reason_names_every_cause_it_cannot_tell_apart(tmp_path, 
         (locks / f"{key}.notified").write_text(content)
         line = cr._notify_failure_reason()
         assert "suppressed" in line and "failed" in line and "unreadable" in line, content
-        assert "did not finish" in line and "failed exec" in line and "aborted before" in line, (
-            content
-        )
+        assert "did not finish" in line and "failed exec" in line, content
+        assert "abort" not in line, content
         assert "delivered but could not write" in line and "clock-implausible" in line, content
         assert "MESH_NOTIFY_CMD" in line and "never attempted" in line, content
+        assert "torn short" in line and "no custom notifier" in line, content
         assert "unavailable" not in line
     (locks / f"{key}.notified").unlink()
     assert "could not be confirmed" in cr._notify_failure_reason()

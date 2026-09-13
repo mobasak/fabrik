@@ -2298,11 +2298,11 @@ def _tick_telegram(msg: str, key: str = "quota-rotation") -> bool:
     KEY, so a message that must never be eaten by a rotation notification passes its own key.
     True ONLY when the notifier's success artifact (`_notify_marker`) advanced during the call:
     `mesh-notify` exits 0 on every outcome (suppressed, curl failure, no keys — 0 non-zero
-    `exit` statements in the script; an abort under its `set -u` is the one non-zero way out,
-    and it can happen after the artifact was written), so delivery is read from the artifact,
-    never from the return code. A False means the notifier is absent, could not be run to
-    completion, or its artifact did not advance — `_notify_failure_reason` names what this side
-    can know and the causes it cannot tell apart."""
+    `exit` statements in the script; the process can still end non-zero — killed by this call's
+    30 s timeout, or a parse error after a hand edit — and the return code is never read here),
+    so delivery is read from the artifact, never from the return code. A False means the
+    notifier is absent, could not be run to completion, or its artifact did not advance —
+    `_notify_failure_reason` names what this side can know and the causes it cannot tell apart."""
     sound = Path.home() / ".claude" / "bin" / "claude-sound.sh"
     if not sound.is_file():
         return False
@@ -2325,20 +2325,20 @@ def _notify_failure_reason() -> str:
     is absent, or the send could not be CONFIRMED — and an unconfirmed send has causes this side
     cannot tell apart, one of which is a send that DID go out: the notifier suppressed it inside
     its 30-minute window; the send failed (curl or a custom MESH_NOTIFY_CMD); there were no
-    Telegram keys, so no send was attempted; the notifier did not finish (a timeout or a failed
-    exec — on which path the artifact is not even re-read); the notifier aborted before writing
-    its artifact; the notifier delivered but could not write its own artifact (its lock dir
-    refused the write — bash reports that on the notifier's stderr, which `_tick_telegram`
-    captures and discards); or the artifact is unreadable or clock-implausible. So the line
-    names them all rather than guess one."""
+    Telegram keys and no custom notifier, so no send was attempted; the notifier did not finish
+    (a timeout or a failed exec — on which path the artifact is not even re-read); the notifier
+    delivered but could not write its own artifact (its lock dir refused the write — bash reports
+    that on the notifier's stderr, which `_tick_telegram` captures and discards); or the artifact
+    is unreadable, clock-implausible, or torn short so it did not advance. So the line names
+    them all rather than guess one."""
     if not (Path.home() / ".claude" / "bin" / "claude-sound.sh").is_file():
         return "mesh-notify unavailable (no claude-sound.sh)"
     return (
         "the send could not be confirmed — suppressed by the notifier's 30-minute window for this"
-        " key, the send failed (curl or a custom MESH_NOTIFY_CMD), no Telegram keys so it was never"
-        " attempted, the notifier did not finish (a timeout or a failed exec) or aborted before"
-        " writing its artifact, the notifier delivered but could not write its own artifact, or"
-        " its artifact is unreadable or clock-implausible"
+        " key, the send failed (curl or a custom MESH_NOTIFY_CMD), no Telegram keys and no custom"
+        " notifier so it was never attempted, the notifier did not finish (a timeout or a failed"
+        " exec), the notifier delivered but could not write its own artifact, or its artifact is"
+        " unreadable, clock-implausible, or torn short so it did not advance"
     )
 
 
@@ -4996,9 +4996,11 @@ def _chain_expiry_push(accounts: list[dict], now: float) -> int:
     never eat it — and an unconfirmed push is retried next tick with every cause this side can
     know printed. A state dir that refuses the stamp is printed and the push repeats, bounded by
     the notifier's window. A LOCK dir that refuses the notifier's own artifact defeats both,
-    because the stamp is written only after the artifact confirms the send and the notifier's
-    window is read from that same file: every tick then DELIVERS the push again until the
-    operator fixes the dir. Returns the number of pushes delivered. Never raises."""
+    because the stamp is written only after the artifact ADVANCED (that is the confirmation) and
+    the notifier's window is read from that same file: every tick then re-attempts the push —
+    and delivers it again whenever the send itself succeeds — until the operator fixes the dir.
+    Returns the number of pushes CONFIRMED — a delivered push whose artifact never advanced is
+    not counted. Never raises."""
     sent = 0
     for row in accounts:
         exp = row.get("refresh_expires_epoch")
