@@ -2622,7 +2622,7 @@ def test_touches_shapes_round_three_quoted_prose_and_separated_continuations(
         "## Touches\n\n> and/or a note\n> runs 24/7\n> requires Python 3.12\n> blocked on T4.8\n"
         "> the .envrc file\n> see https://docs.python.org/3/library/re.html for the shape\n"
         "> see HTTP://EXAMPLE.COM/a/b/notes.md and file:///opt/fabrik/scripts/x.py (round 6)\n"
-        "> or ftp://mirror.example.com/pub/readme.md\n"
+        "> or ftp://mirror.example.com/pub/readme.md and __https://a.com/x.md emphasised__\n"
         "- src/app/schema.py\n\n  continues the bullet above\n<!-- note -->\n  and again\n"
         "| a | b |\n  and after a table row\n",
     )
@@ -2661,7 +2661,15 @@ def test_touches_shapes_round_three_quoted_prose_and_separated_continuations(
     )
     # round 6: any scheme in any case is a URL; a scheme-less link and `Node.js` still read as
     # paths — the stated cost beside `_URL_RE`
-    for url in ("HTTP://EXAMPLE.COM/a/notes.md", "file:///opt/x.py", "ftp://m.example.com/r.md"):
+    for url in (
+        "HTTP://EXAMPLE.COM/a/notes.md",
+        "file:///opt/x.py",
+        "ftp://m.example.com/r.md",
+        "s3://bucket/key.json",  # round 7: a digit or a `+` in the scheme, an emphasised URL
+        "git+ssh://host/repo/x.py",
+        "__https://a.com/x.md__",
+        "_https://a.com/x.md_",
+    ):
         assert not cpt._PATHISH.search(cpt._URL_RE.sub(" ", f"> see {url} here")), url
     assert cpt._PATHISH.search("> see docs.python.org/3/library/re.html")
     assert cpt._PATHISH.search("> the runtime is Node.js")

@@ -2641,9 +2641,10 @@ _CHANGED_LINE = re.compile(
 )
 _BACKTICKED = re.compile(r"`([^`\n]+)`")
 _TOKEN_SHAPE = re.compile(r"^[\w.+/~-]+$")  # what a path is made of — never a symbol, a flag, prose
-# `x.py::test`, `x.py::Cls::test[a-b]`, `x.py:44`, `x.py:44-50`, `x.py:44:12` — every segment
-# (round 6: a two-segment node id kept a colon, failed the shape and was silently DROPPED)
-_LOCATION_SUFFIX = re.compile(r"(?:(?:::[\w.\[\]-]+)+|:\d+(?::\d+)?(?:-\d+)?)$")
+# `x.py::test`, `x.py::Cls::test[a-b]`, `x.py::t[docs/x.md]`, `x.py:44`, `x.py:44-50`,
+# `x.py:44:12` — every segment, a param that carries a `/` included (round 6: a two-segment
+# node id kept a colon, failed the shape and was silently DROPPED; round 7: so did a `/` param)
+_LOCATION_SUFFIX = re.compile(r"(?:(?:::[\w.\[\]/-]+)+|:\d+(?::\d+)?(?:-\d+)?)$")
 _BARE_FILES = frozenset(
     {
         "Makefile",

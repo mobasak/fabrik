@@ -1952,8 +1952,10 @@ def test_a_git_failure_in_the_advisory_is_a_warning_final_gate_can_see(tmp_path:
     rc, out = _check_out(tmp_path)  # not a git repo: cat-file fails
     assert rc == 0 and out.startswith("⚠") and "0 blob(s) of 1 plan file(s)" in out, out
     cc = _load_cc()
-    heads, complete = cc._head_texts(tmp_path, ["docs/development/plans/2026-08-03-plan-x.md"])
-    assert heads == {} and complete is False
+    heads, complete, reached = cc._head_texts(
+        tmp_path, ["docs/development/plans/2026-08-03-plan-x.md"]
+    )
+    assert heads == {} and complete is False and reached == 0
 
 
 def test_a_cut_or_malformed_batch_stream_never_grades_a_partial_plan(
@@ -1976,14 +1978,15 @@ def test_a_cut_or_malformed_batch_stream_never_grades_a_partial_plan(
 
     two = ["docs/development/plans/a.md", "docs/development/plans/b.md"]
     monkeypatch.setattr(cc.subprocess, "run", fake(b"sha1 blob 4\nAAAA\nsha2 blob 600\nBBB", 0))
-    heads, complete = cc._head_texts(tmp_path, two)
-    assert heads == {two[0]: "AAAA"} and complete is False
+    heads, complete, reached = cc._head_texts(tmp_path, two)
+    assert heads == {two[0]: "AAAA"} and complete is False and reached == 1
     monkeypatch.setattr(cc.subprocess, "run", fake(b"garbage\nsha2 blob 6\nBBBBBB\n", 0))
-    heads, complete = cc._head_texts(tmp_path, two)
-    assert heads == {} and complete is False
+    heads, complete, reached = cc._head_texts(tmp_path, two)
+    assert heads == {} and complete is False and reached == 0
+    # regression: a `missing` plan is REACHED and not stored (the pre-existing arm)
     monkeypatch.setattr(cc.subprocess, "run", fake(b"HEAD:a.md missing\nsha2 blob 6\nBBBBBB\n", 0))
-    heads, complete = cc._head_texts(tmp_path, two)
-    assert heads == {two[1]: "BBBBBB"} and complete is True
+    heads, complete, reached = cc._head_texts(tmp_path, two)
+    assert heads == {two[1]: "BBBBBB"} and complete is True and reached == 2
     # every blob read, exit non-zero: complete is False and the advisory names THAT, not unread plans
     (tmp_path / "docs/development/plans").mkdir(parents=True)
     for rel in two:
@@ -1997,6 +2000,13 @@ def test_a_cut_or_malformed_batch_stream_never_grades_a_partial_plan(
     rows = cc._committed_claims_advisory(tmp_path, set())
     adv = [r for r in rows if r.startswith("committed-claims advisory")]
     assert len(adv) == 1 and "1 blob(s) of 2" in adv[0] and "never reached" in adv[0], rows
+    # round 7: a plan MISSING at HEAD was reached — with a non-zero exit the tail must not say
+    # the plans were never reached (the blob count is short for the other reason)
+    monkeypatch.setattr(cc.subprocess, "run", fake(b"HEAD:x missing\nsha2 blob 4\nBBBB\n", 1))
+    rows = cc._committed_claims_advisory(tmp_path, set())
+    adv = [r for r in rows if r.startswith("committed-claims advisory")]
+    assert len(adv) == 1 and "1 blob(s) of 2" in adv[0], rows
+    assert "did not exit cleanly" in adv[0] and "never reached" not in adv[0], adv
 
 
 def test_the_rederivation_message_names_the_closing_row_grammar(repo: Path) -> None:

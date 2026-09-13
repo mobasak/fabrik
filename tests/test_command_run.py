@@ -4222,7 +4222,8 @@ def test_the_phase_gate_binds_a_ticket_artifact_to_the_plan_stem_and_the_record_
         str(tmp_path), "F", plan_stem="2026-08-31-plan-2v2-x", since=start
     )
     # round 6: the escape is case-blind like the prefix pattern it builds (a mixed-case stem lost
-    # it), and a WORD-slug plan id keys the escape on its first slug token
+    # it); regression: a WORD-slug plan id already keyed the escape on its first slug token —
+    # round 6 only documented that (round 7: the case does not discriminate the fix)
     assert cr._phase_review_exists(
         str(tmp_path), "F", plan_stem="2026-08-31-PLAN-2v2-X", since=start
     )
@@ -4330,8 +4331,10 @@ def test_a_real_id_inside_angle_brackets_is_not_a_placeholder() -> None:
         assert not cr._is_placeholder(real), real
     assert cr._is_placeholder("<nothing filed, no surfaces exercised worth naming>")
     # round 5: the grammar's own filler after the marker, or an empty list, is the placeholder;
-    # round 6: decorating the filler (a period, quotes, doubled spaces, Title Case) or writing a
-    # tail with no word character (`...`, `???`, `--`) names no surface either
+    # round 6: decorating the filler (a period, quotes, doubled spaces) or writing a tail with
+    # no word character (`...`, `???`) names no surface either; round 7: ANY edge decoration
+    # (parentheses, backticks, brackets, `!`). Title Case and `--` were already refused (the
+    # lower-casing and the dash strip pre-date round 6) and stand as regression guards
     for ph in (
         "<none — surfaces exercised: what your run touched>",
         "<none — surfaces exercised:>",
@@ -4342,13 +4345,29 @@ def test_a_real_id_inside_angle_brackets_is_not_a_placeholder() -> None:
         "<none — surfaces exercised: ...>",
         "<none — surfaces exercised: ???>",
         "<none — surfaces exercised: -->",
+        "<none — surfaces exercised: (what your run touched)>",
+        "<none — surfaces exercised: `what your run touched`>",
+        "<none — surfaces exercised: [what your run touched]>",
+        "<none — surfaces exercised: what your run touched!>",
     ):
         assert cr._is_placeholder(ph), ph
+    # round 7: the OTHER side of the same rule — a decorated head, a doubled space inside the
+    # marker — never refuses an honest value (a fail-closed trap with no satisfying value)
+    for real in (
+        "<none — surfaces  exercised: mail.py>",
+        "<'none' — surfaces exercised: mail.py>",
+        '<"none" — surfaces exercised: mail.py>',
+        "<(none) — surfaces exercised: mail.py>",
+        "<none — surfaces exercised: (mail.py)>",
+    ):
+        assert not cr._is_placeholder(real), real
     # a lower-case synonym head (`nothing filed`) never reaches the honest branch — it is refused
     # by the several-prose-tokens rule, on purpose (round 6: the round-5 comment credited the tail
     # check with this verdict; it is the generic rule's)
     assert cr._is_placeholder("<nothing filed — surfaces exercised: mail.py>")
-    assert not cr._is_placeholder("<none — surfaces exercised: mail.py.>")  # a real tail, dotted
+    assert not cr._is_placeholder(
+        "<none — surfaces exercised: mail.py.>"
+    )  # regression: a dotted real tail stays honest
     for noun in cr._GRAMMAR_NOUNS:
         assert cr._is_placeholder(f"<{noun} here>"), noun
     for ph in (

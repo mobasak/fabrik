@@ -523,10 +523,11 @@ def _phase_review_exists(
     )
     phase_pat = re.compile(rf"(?:^|[^0-9a-z])p(?:hase)?[-_ ]?{phase}(?:[^0-9]|$)", re.I)
     # the plan id may be a letter-suffixed number (`plan-2a`, `plan-2v2`) or a WORD slug
-    # (`plan-deploy-…`: 21 of 167 fleet stems carry no number, 2026-09-13) — the escape keys on
-    # the first slug token, bounded by a NON-alphanumeric so plan-2 never matches plan-20 or
+    # (`plan-deploy-…`: 21 of the 110 dated-plan stems that are direct children of
+    # /opt/*/docs/development/plans carry no number — 18 repos, 2026-09-13) — the escape keys
+    # on the first slug token, bounded by a NON-alphanumeric so plan-2 never matches plan-20 or
     # plan-2a (rounds 2–3); two same-day plans sharing that token cross-satisfy — 0 collisions
-    # in 41 repos, a stated cost (round 6); the match is case-blind like the prefix it builds
+    # among those 110, a stated cost (round 6); the match is case-blind like the prefix it builds
     prefix_m = re.match(r"\d{4}-\d{2}-\d{2}-plan-[^-\s]+", plan_stem or "", re.I)  # `2`, `2v2`
     plan_prefix = (
         re.compile(re.escape(prefix_m.group(0)) + r"(?![0-9a-z])", re.I) if prefix_m else None
@@ -1046,21 +1047,26 @@ def _is_placeholder(value: str | None) -> bool:
     if not m:
         return False
     c = m.group("c").strip()
-    low = c.lower()
+    low = " ".join(c.lower().split())  # runs of whitespace are one space (round 7)
     if "…" in c or "<" in c:
         return True
     # the mandated honest shape, written inside the brackets — decided BEFORE the noun and
     # alternation rules, whose words its surface list may legitimately carry (round 4: `the mail
     # id router` and `mail.py | command_run.py` were refused); the head is `none` or a mail id
-    if re.match(r"(?:(?i:none)|[0-9A-Z]{6,})\b", c) and re.search(r"surfaces? exercised", low):
+    if re.match(r"[\s'\"(\[`]*(?:(?i:none)|[0-9A-Z]{6,})\b", c) and re.search(
+        r"surfaces? exercised", low
+    ):
         # the grammar's own filler after the marker (`what your run touched`) or an EMPTY surface
         # list is still the placeholder (round 5); a lower-case `none` synonym at the head
         # (`nothing filed`) is refused on purpose — the grammar's honest value is the word `none`
         tail = re.split(r"surfaces? exercised", low, maxsplit=1)[1]
-        # decoration never makes the filler honest (`what your run touched.`, quoted, doubled
-        # spaces), and a tail with no word character (`...`, `???`, `--`) names no surface (round 6)
-        tail = " ".join(tail.strip(" :—–-").split()).strip(".,;'\"")
-        return not tail or tail in _GRAMMAR_NOUNS or not re.search(r"[a-z0-9]", tail)
+        # decoration never makes the filler honest — ANY run of non-word characters at either
+        # edge (`(what your run touched)`, quotes, backticks, `!`), on the head as well as the
+        # tail (round 6, widened in round 7 from a hand-listed strip set) — whitespace inside
+        # the marker is already one space, `low` is collapsed above; a tail with no word
+        # character (`...`, `???`, `--`) names no surface
+        tail = re.sub(r"^[^a-z0-9]+|[^a-z0-9]+$", "", tail)
+        return not tail or tail in _GRAMMAR_NOUNS
     if any(n in low for n in _GRAMMAR_NOUNS):
         return True
     if re.search(r"[a-z]{2,}\s*\||\|\s*[a-z]{2,}", c):

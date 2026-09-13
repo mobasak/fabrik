@@ -1110,7 +1110,11 @@ def test_stop_at_heading_matches_a_real_heading_and_blanks_the_symbol_count_too(
             "# D\n\n<!-- oops\nsee `-->` in a span\nthe widget lives here\n## Pass Ledger\nthe widget retired\n",
             [5],
         ),
-        ("three.md", "# D\n\nthe widget lives here\n   ## Pass Ledger\nthe widget retired\n", [3]),
+        (
+            "three.md",
+            "# D\n\nthe widget lives here\n   ## Pass Ledger\nthe widget retired\n",
+            [3],
+        ),  # regression: L27 refuted
         (
             "inner.md",
             "# D\n\nthe widget lives here\n## Pass <!-- x --> Ledger <!-- y -->\nthe widget retired\n",
@@ -1121,7 +1125,31 @@ def test_stop_at_heading_matches_a_real_heading_and_blanks_the_symbol_count_too(
         f.write_text(text, encoding="utf-8")
         sweep = crh.scan(surfaces=[f], phrases=["the widget"], stop_at_heading="## Pass Ledger")
         assert [h.line for h in sweep.hits if h.cls == "stale-phrase"] == live, (name, sweep.hits)
-    # an earlier opener runs to a LATER closer — that is the comment, by CommonMark and by HTML —
+    # round 7: the ARGUMENT side of the same rules — irregular whitespace, a closed ATX form and
+    # a code-spanned opener inside the heading text (the opener test reads masked)
+    for name, text, arg in (
+        (
+            "arg-ws.md",
+            "# D\n\nthe widget lives\n## Pass Ledger\nthe widget retired\n",
+            "##  Pass\tLedger",
+        ),
+        (
+            "arg-atx.md",
+            "# D\n\nthe widget lives\n## Pass Ledger\nthe widget retired\n",
+            "## Pass Ledger ##",
+        ),
+        (
+            "span-head.md",
+            "# D\n\nthe widget lives\n## Pass `<!--` Ledger\nthe widget retired\n",
+            "## Pass `<!--` Ledger",
+        ),
+    ):
+        f = tmp_path / name
+        f.write_text(text, encoding="utf-8")
+        sweep = crh.scan(surfaces=[f], phrases=["the widget"], stop_at_heading=arg)
+        assert [h.line for h in sweep.hits if h.cls == "stale-phrase"] == [3], (name, sweep.hits)
+    # regression (not a round-6 shape): an earlier opener runs to a LATER closer — that is the
+    # comment, by CommonMark and by HTML —
     # so the heading inside it is no stop, nothing is blanked, and the phrase sweep (which reads
     # comments on purpose: a mirror inside one is still a mirror) lists both sites
     e = tmp_path / "early.md"
