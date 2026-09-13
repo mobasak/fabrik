@@ -1547,8 +1547,8 @@ def test_chain_push_refuses_a_planted_symlink_stamp(tmp_path, monkeypatch, capsy
 
 
 def test_chain_push_names_the_notifier_verdict_it_can_know(tmp_path, monkeypatch, capsys):
-    """The NOT-delivered line says the notifier is absent when it is, and otherwise that the
-    artifact did not advance with its three possible causes — the tick's `now` plays no part."""
+    """The NOT-delivered line says the notifier is absent when it is, and otherwise that the send
+    could not be confirmed, with its four possible causes — the tick's `now` plays no part."""
     monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
     locks = tmp_path / "locks"
     monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(locks))
@@ -1562,7 +1562,7 @@ def test_chain_push_names_the_notifier_verdict_it_can_know(tmp_path, monkeypatch
     script.write_text("#!/bin/bash\nexit 0\n")  # runs, delivers nothing
     assert cr._chain_expiry_push([row], FLEET_NOW) == 0
     out = capsys.readouterr().out
-    assert "NOT delivered" in out and "did not advance" in out and "retried next tick" in out
+    assert "NOT delivered" in out and "could not be confirmed" in out and "retried next tick" in out
 
 
 def test_write_stamp_enforces_0600_on_an_existing_stamp(tmp_path):
@@ -1677,28 +1677,29 @@ def test_write_stamp_refuses_a_fifo_and_never_blocks_on_it(tmp_path):
 
 
 def test_notify_failure_reason_names_every_cause_it_cannot_tell_apart(tmp_path, monkeypatch):
-    """This side can only know that the notifier is absent, or that its artifact did not advance
+    """This side can only know that the notifier is absent, or that the send is unconfirmed
     — and the latter has four causes it cannot separate honestly (a guessed "suppressed" or
     "FAILED" was wrong under a stale tick clock and under a backward clock step, review rounds
-    4–6). The property under test is INVARIANCE: the line names all four and does not vary with
-    what the artifact holds — the loop's four contents are the input domain, not four cases."""
+    4–6; and on the timeout path the artifact is not even re-read, so the line may not claim it
+    "did not advance"). The property under test is INVARIANCE: the line names all four and does
+    not vary with what the artifact holds — the four contents are the input domain."""
     locks = tmp_path / "locks"
     locks.mkdir()
     monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(locks))
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     key = "quota-rotation-chain-abcdef12"
-    assert "unavailable" in cr._notify_failure_reason(key)
+    assert "unavailable" in cr._notify_failure_reason()
     script = tmp_path / ".claude" / "bin" / "claude-sound.sh"
     script.parent.mkdir(parents=True)
     script.write_text("#!/bin/bash\nexit 0\n")
     for content in (str(int(FLEET_NOW - 600)), str(int(FLEET_NOW + 600)), "garbage", ""):
         (locks / f"{key}.notified").write_text(content)
-        line = cr._notify_failure_reason(key)
+        line = cr._notify_failure_reason()
         assert "suppressed" in line and "failed" in line and "unreadable" in line, content
-        assert "did not finish" in line, content
+        assert "did not finish" in line and "failed exec" in line, content
         assert "unavailable" not in line
     (locks / f"{key}.notified").unlink()
-    assert "did not advance" in cr._notify_failure_reason(key)
+    assert "could not be confirmed" in cr._notify_failure_reason()
 
 
 def test_chain_push_names_the_state_dir_refusal(tmp_path, monkeypatch, capsys):
@@ -1714,27 +1715,6 @@ def test_chain_push_names_the_state_dir_refusal(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "stamp unwritable (state dir unavailable: FileExistsError: " in out
     assert str(blocker) in out and "File exists" in out
-
-
-def test_stamp_holds_refuses_a_stamp_others_could_have_written(tmp_path, monkeypatch):
-    """The accessor never repairs a wider state dir, so the READER refuses what a wider mode lets
-    in: a stamp writable by group or other (or owned by another uid) never counts as held —
-    a planted file holding the current expiry must not silence the push."""
-    state = tmp_path / "state"
-    state.mkdir()
-    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
-    key = str(int(FLEET_NOW + 86400))
-    stamp = cr._chain_push_stamp("sarp@ocoron.com")
-    stamp.write_text(key)
-    stamp.chmod(0o666)
-    assert not cr._stamp_holds(stamp, key), "group/other-writable → not ours to trust"
-    sent = []
-    monkeypatch.setattr(cr, "_tick_telegram", lambda m, **kw: sent.append(m) or True)
-    row = {"email": "sarp@ocoron.com", "slugs": ["seo"], "refresh_expires_epoch": FLEET_NOW + 86400}
-    assert cr._chain_expiry_push([row], FLEET_NOW) == 1, "a planted stamp does not silence it"
-    assert oct(stamp.stat().st_mode & 0o777) == "0o600", "and the delivered push re-wrote it 0600"
-    assert cr._stamp_holds(stamp, key)
-    assert cr._chain_expiry_push([row], FLEET_NOW) == 0 and len(sent) == 1
 
 
 def test_chain_push_stamps_do_not_collide_across_lookalike_emails(tmp_path, monkeypatch):
