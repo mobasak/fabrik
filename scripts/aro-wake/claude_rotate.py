@@ -2126,9 +2126,10 @@ def _fleet_warnings() -> list[str]:
 
 
 def _rotate_state_dir() -> Path:
-    """The tick's state dir — 0700 when this tool creates it; an EXISTING dir keeps the mode it
-    has (`mkdir`'s mode applies only to a dir it creates, and `--status` is a read every agent
-    runs, so this accessor never mutates a mode — the operator owns a dir they made wider)."""
+    """The tick's state dir. Creates it when absent (the leaf 0700, any missing parents at the
+    umask); an EXISTING dir keeps the mode it has — `mkdir`'s mode applies only to a dir it
+    creates, `--status` reaches this accessor and is a read every agent runs, and a dir the
+    operator made wider is the operator's. Never chmods."""
     d = Path(os.environ.get("ROTATE_STATE_DIR") or Path.home() / ".claude" / "state")
     d.mkdir(mode=0o700, parents=True, exist_ok=True)
     return d
@@ -2297,8 +2298,9 @@ def _tick_telegram(msg: str, key: str = "quota-rotation") -> bool:
     KEY, so a message that must never be eaten by a rotation notification passes its own key.
     True ONLY when the notifier's success artifact (`_notify_marker`) advanced during the call:
     `mesh-notify` exits 0 on every outcome (suppressed, curl failure, no keys — 0 non-zero exits
-    in the script), so delivery is read from the artifact, never from the return code. A False
-    has three causes — `_notify_failure_reason` names the one that applies."""
+    in the script), so delivery is read from the artifact, never from the return code. A False means the notifier
+    is absent, could not be run to completion, or its artifact did not advance —
+    `_notify_failure_reason` names what this side can know and the causes it cannot tell apart."""
     sound = Path.home() / ".claude" / "bin" / "claude-sound.sh"
     if not sound.is_file():
         return False
@@ -2316,18 +2318,20 @@ def _tick_telegram(msg: str, key: str = "quota-rotation") -> bool:
     return _stamp_epoch(marker) > before
 
 
-def _notify_failure_reason(key: str, now: float | None = None) -> str:
+def _notify_failure_reason(key: str) -> str:
     """Why `_tick_telegram(…, key)` just returned False. Two things are knowable from here — the
-    notifier is absent, or its success artifact for *key* did not advance — and the artifact
-    not advancing has three causes this side cannot tell apart honestly (the notifier suppressed
-    the send inside its 30-minute window; the send failed on curl or missing keys; the artifact
-    is unreadable or clock-skewed), so the line names all three rather than guess one."""
-    del now  # kept for callers that passed a clock; the verdict below needs none
+    notifier is absent, or its success artifact for *key* did not advance — and the artifact not
+    advancing has four causes this side cannot tell apart honestly (the notifier suppressed the
+    send inside its 30-minute window; the send failed on curl or missing keys; the notifier did
+    not finish — a timeout or a failed exec; the artifact is unreadable), so the line names them
+    all rather than guess one. *key* is unused today: the verdict needs no per-key state."""
+    del key
     if not (Path.home() / ".claude" / "bin" / "claude-sound.sh").is_file():
         return "mesh-notify unavailable (no claude-sound.sh)"
     return (
         "the notifier's artifact did not advance — suppressed by its 30-minute window for this"
-        " key, the send failed (curl / no Telegram keys), or the artifact is unreadable"
+        " key, the send failed (curl / no Telegram keys), the notifier did not finish (timeout),"
+        " or the artifact is unreadable"
     )
 
 
@@ -4925,7 +4929,7 @@ def _chain_push_digest(email: str) -> str:
 
 def _chain_push_stamp(email: str) -> Path:
     """The once-per-chain push stamp — ONE home, the rotate state dir, and deliberately no
-    fallback dir (D-249/D-250: a repeat of this push is bounded by the notifier's own 30-minute
+    fallback dir (D-249/D-251: a repeat of this push is bounded by the notifier's own 30-minute
     window per key, and every fallback design the review tried added a defect class of its own).
     The name carries the email's 8-hex digest because the a-z0-9 slug alone folds ``a.b@x`` and
     ``a-b@x`` onto one file. Raises ``_STATE_DIR_ERRORS`` when the state dir cannot be made."""
@@ -4934,11 +4938,16 @@ def _chain_push_stamp(email: str) -> Path:
 
 
 def _stamp_holds(path: Path, key: str) -> bool:
-    """True when *path* is a regular (never a symlink) readable stamp holding exactly *key*; a
-    missing, unreadable or garbage stamp (a torn write, non-UTF-8 bytes) reads as ABSENT, never
-    as an exception — the failure direction is "notify again"."""
+    """True when *path* is a regular (never a symlink) file THIS uid owns and nobody else can
+    write (a stamp planted through a state dir the operator made wider must not silence the
+    push — the accessor never repairs a mode, so the reader refuses what a wider mode lets in),
+    holding exactly *key*; a missing, unreadable or garbage stamp (a torn write, non-UTF-8
+    bytes) reads as ABSENT, never as an exception — the failure direction is "notify again"."""
     try:
         if path.is_symlink() or not path.is_file():
+            return False
+        st = path.stat()
+        if st.st_uid != os.getuid() or st.st_mode & 0o022:
             return False
         return path.read_text(errors="replace").strip() == key
     except (OSError, ValueError):
@@ -4960,7 +4969,9 @@ def _write_stamp(path: Path, key: str) -> None:
         if not stat.S_ISREG(os.fstat(fd).st_mode):
             raise OSError(f"{path}: not a regular file")
         os.fchmod(fd, 0o600)
-        os.write(fd, key.encode())
+        buf = key.encode()
+        while buf:  # a regular file never short-writes except on error, but the loop costs nothing
+            buf = buf[os.write(fd, buf) :]
     finally:
         os.close(fd)
 
@@ -4973,7 +4984,7 @@ def _chain_expiry_push(accounts: list[dict], now: float) -> int:
     (new expiry) re-arms by itself. The stamp is written ONLY after the notifier's own success
     artifact advanced (delivery is never inferred from its exit code) under the push's OWN key
     (`quota-rotation-chain-<digest>`) — a rotation notification's 30-minute window can never eat
-    it — and an undelivered push is retried next tick with the real cause printed. A state dir
+    it — and an undelivered push is retried next tick with every cause this side can know printed. A state dir
     that refuses the stamp is printed and the push repeats, bounded by the notifier's window.
     Returns the number of pushes delivered. Never raises."""
     sent = 0
@@ -5007,8 +5018,6 @@ def _chain_expiry_push(accounts: list[dict], now: float) -> int:
             key=notify_key,
         )
         if delivered is not True:
-            # the wall clock, not the tick's `now`: the rows leg can run minutes (up to three
-            # 150 s pings) before this line, and the notifier's window is judged against real time
             print(
                 f"chain push: {email} NOT delivered — {_notify_failure_reason(notify_key)}"
                 " — retried next tick"
@@ -5017,7 +5026,7 @@ def _chain_expiry_push(accounts: list[dict], now: float) -> int:
         sent += 1
         try:
             if stamp is None:
-                raise OSError(f"state dir unavailable: {why}")
+                raise OSError(f"state dir unavailable: {type(why).__name__}: {why}")
             _write_stamp(stamp, key)
         except OSError as e:
             print(
