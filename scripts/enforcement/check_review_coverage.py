@@ -2635,17 +2635,47 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
 # the list continues only on lines that START with a backticked token, bulleted or not (review
 # rounds 2–3: the blank-line/bold-label stop ran past the list into prose when a receipt had
 # neither; a bullet-list Changed block is still the list)
-_CHANGED_LINE = re.compile(r"\*\*Changed:\*\*(.*?)(?=\n(?![ \t]*(?:`|[-*+]\s+`))|\Z)", re.S)
+# a continuation line starts with a backticked token, plain, bulleted (`-`/`*`/`+`/`1.`/`>`) or bold
+_CHANGED_LINE = re.compile(
+    r"\*\*Changed:\*\*(.*?)(?=\n(?![ \t]*(?:`|(?:\d+[.)]|[-*+]|>)\s+\*{0,2}`))|\Z)", re.S
+)
 _BACKTICKED = re.compile(r"`([^`\n]+)`")
-_NOT_A_PATH = re.compile(r"^[0-9a-f]{7,40}$|^\d+$|\.\.|\s")  # an md5/sha, a count, a range, prose
+_TOKEN_SHAPE = re.compile(r"^[\w.+/-]+$")  # what a path is made of — never a symbol, a flag, prose
+_BARE_FILES = frozenset(
+    {
+        "Makefile",
+        "Dockerfile",
+        "Justfile",
+        "Procfile",
+        "LICENSE",
+        "CODEOWNERS",
+        "NOTICE",
+        "Taskfile",
+        "Caddyfile",
+        "Vagrantfile",
+        "Gemfile",
+        "Rakefile",
+        "Pipfile",
+        "Brewfile",
+    }
+)
 
 
 def _is_path_token(tok: str) -> bool:
-    """A backticked token on the Changed list is a path unless it is an md5/sha, a bare number,
-    a range or carries whitespace (round 3: an extension allowlist dropped `Taskfile`,
-    `Caddyfile`, `CODEOWNERS` — the inverted rule keeps every real path and drops every shape
-    the receipt template puts in backticks beside them)."""
-    return bool(tok) and not _NOT_A_PATH.search(tok)
+    """A backticked token on the Changed list is a path when it is path-shaped AND carries a `/`
+    or a `.` (or is a well-known bare file); an md5/sha, a count, a range (`a..b` with no slash) or
+    a prose symbol (`_hunt_gaps`, `--json`, `IN-PROGRESS`) is not (rounds 3–4: an allowlist
+    dropped `Taskfile`; a pure exclusion list counted every backticked symbol as a path). STATED
+    COST: an extension-less bare file outside the list (`cafebabe`) is not a path."""
+    if not tok or not _TOKEN_SHAPE.match(tok):
+        return False
+    if tok in _BARE_FILES:
+        return True
+    if "/" not in tok and "." not in tok:
+        return False
+    if "/" not in tok and (re.fullmatch(r"[0-9a-f]{7,40}", tok) or ".." in tok):
+        return False  # an md5/sha or a range `a..b`
+    return not re.fullmatch(r"\d+(?:\.\d+)*", tok)  # a count or a version
 
 
 _HUNT_ROW = re.compile(r"Hunt:\s*`([^`\n]+)`")
@@ -2696,20 +2726,16 @@ def _running_review_receipts(root: Path) -> list[Path]:
     # A nested non-writing command (a data-contract run inside an execute-plan) parks the
     # writing parent in `stack`: the INNERMOST writing frame's start is the window (round 3)
     frames = [rec] + [f for f in reversed(rec.get("stack") or []) if isinstance(f, dict)]
-    owner = next(
-        (
-            f
-            for f in frames
-            if str(f.get("command") or "").strip().lower() in _RECEIPT_WRITING_COMMANDS
-        ),
-        None,
-    )
-    if owner is None:
-        return []
-    try:
-        since = float(owner.get("started_epoch") or 0)
-    except (TypeError, ValueError):
-        return []
+    since = 0.0
+    for f in frames:  # the innermost writing frame WITH a usable start (round 4)
+        if str(f.get("command") or "").strip().lower() not in _RECEIPT_WRITING_COMMANDS:
+            continue
+        try:
+            since = float(f.get("started_epoch") or 0)
+        except (TypeError, ValueError):
+            since = 0.0
+        if since > 0:
+            break
     if since <= 0:
         return []
     # when the record's surface names a plan, only receipts that name the same plan are this

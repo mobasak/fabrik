@@ -147,9 +147,9 @@ _REDERIVATION_ROW = re.compile(
 # per-agent worktree copies excluded, the convention the 805 fleet review artifacts share) and 0 of
 # 805 fleet review artifacts carry >1 token on one row READ THROUGH THE RULE'S OWN MASKING (on raw
 # text 1 of 47 carries two, both inside code spans — the receipt-side spelling the rule exists for).
-_PASS_ROW = re.compile(
-    r"^[ \t]*\|\s*[*_`]*(?:Pass|Round)\b[^\n]*", re.I | re.M
-)  # emphasis tolerated (round 3)
+# emphasis around the label tolerated (round 3); a code-span label is masked before matching, so
+# `` | `Pass 3` | `` is out of grammar by design (round 4 dropped the inert backtick)
+_PASS_ROW = re.compile(r"^[ \t]*\|\s*[*_]*(?:Pass|Round)\b[^\n]*", re.I | re.M)
 # a ledger LINE in any shape the corpus writes — a table row (`| Pass N |`), a bulleted one
 # (`- Pass 2 (CLOSING) — …`) or a bare `Pass 2 — …`; the LABEL leads the line, prose never does (T4.3)
 # Review round 1 (Phase B): the label is followed by its NUMBER and a SEPARATOR (`|`, `—`, `-`,
@@ -1174,7 +1174,11 @@ def _committed_claims_advisory(root: Path, skip: set[Path]) -> list[str]:
         # advisory ROW, so the ⚠-first header final_gate keys on carries it (rounds 2–3)
         out.append(
             f"committed-claims advisory read HEAD for {len(heads)} of {len(plans)} plan file(s) "
-            "— the rest were NOT examined (git cat-file failed or was cut short)"
+            + (
+                "— the rest were NOT examined (git cat-file failed or was cut short)"
+                if len(heads) < len(plans)
+                else "— git exited non-zero after the last record; the rows below may be short"
+            )
         )
     for p in plans:
         rel = p.relative_to(root)

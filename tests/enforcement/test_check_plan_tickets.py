@@ -2620,7 +2620,9 @@ def test_touches_shapes_round_three_quoted_prose_and_separated_continuations(
     quiet = T01.replace(
         "## Touches\n\n",
         "## Touches\n\n> and/or a note\n> runs 24/7\n> requires Python 3.12\n> blocked on T4.8\n"
-        "- src/app/schema.py\n\n  continues the bullet above\n<!-- note -->\n  and again\n",
+        "> the .envrc file\n"
+        "- src/app/schema.py\n\n  continues the bullet above\n<!-- note -->\n  and again\n"
+        "| a | b |\n  and after a table row\n",
     )
     plan_dir = _build(
         tmp_path, tickets={"T01-schema.md": quiet, "T02-api.md": T02, "T99-integration.md": T99}
@@ -2628,3 +2630,28 @@ def test_touches_shapes_round_three_quoted_prose_and_separated_continuations(
     errs = [m for m in _errors(cpt.check_plan_dir(plan_dir)) if "prose inside ## Touches" in m]
     assert not errs, errs
     assert cpt._PATHISH.search("> see docs/notes.md") and not cpt._PATHISH.search("e.g. this")
+    # round 4: a path delimited by markdown, a dotfile, a directory and an upper-cased extension
+    # are paths; `.envrc`, `and/or`, a bare version are not; a bare filename is
+    for hit in (
+        "> see `src/x.py`",
+        "> see **src/x.py**",
+        "> see [the schema](docs/data-contract.md)",
+        '> "src/x.py"',
+        "> .env.example",
+        "> config/.env",
+        "> scripts/enforcement/",
+        "> src/app/x",
+        "> docs/NOTES.MD",
+        "> also touches schema.py",
+    ):
+        assert cpt._PATHISH.search(hit), hit
+    for miss in ("> the .envrc file", "> and/or a note", "> version 2.0.1", "> runs 24/7"):
+        assert not cpt._PATHISH.search(miss), miss
+    flagged = T01.replace(
+        "## Touches\n\n", "## Touches\n\n> see `src/app/other.py` for the shape\n"
+    )
+    plan_dir = _build(
+        tmp_path / "f",
+        tickets={"T01-schema.md": flagged, "T02-api.md": T02, "T99-integration.md": T99},
+    )
+    assert any("prose inside ## Touches" in m for m in _errors(cpt.check_plan_dir(plan_dir)))

@@ -524,7 +524,7 @@ def _phase_review_exists(
     phase_pat = re.compile(rf"(?:^|[^0-9a-z])p(?:hase)?[-_ ]?{phase}(?:[^0-9]|$)", re.I)
     # the plan number may carry a letter (`plan-2a`, 3 of 166 fleet stems); the escape is bounded
     # by a NON-alphanumeric so plan-2 never matches plan-20 or plan-2a (rounds 2–3)
-    prefix_m = re.match(r"\d{4}-\d{2}-\d{2}-plan-\d+[a-z]?", plan_stem or "", re.I)
+    prefix_m = re.match(r"\d{4}-\d{2}-\d{2}-plan-\d+[a-z]*", plan_stem or "", re.I)
     plan_prefix = (
         re.compile(re.escape(prefix_m.group(0)) + r"(?![0-9a-z])", re.I) if prefix_m else None
     )
@@ -1028,7 +1028,6 @@ _GRAMMAR_NOUNS = (
     "steps, turns",
     "the one edit",
     "the one concrete edit",
-    "surfaces exercised: …",
 )
 
 
@@ -1045,12 +1044,17 @@ def _is_placeholder(value: str | None) -> bool:
         return False
     c = m.group("c").strip()
     low = c.lower()
-    if "…" in c or "<" in c or any(n in low for n in _GRAMMAR_NOUNS):
+    if "…" in c or "<" in c:
+        return True
+    # the mandated honest shape, written inside the brackets — decided BEFORE the noun and
+    # alternation rules, whose words its surface list may legitimately carry (round 4: `the mail
+    # id router` and `mail.py | command_run.py` were refused); the head is `none` or a mail id
+    if re.match(r"(?:(?i:none)|[0-9A-Z]{6,})\b", c) and re.search(r"surfaces? exercised", low):
+        return False
+    if any(n in low for n in _GRAMMAR_NOUNS):
         return True
     if re.search(r"[a-z]{2,}\s*\||\|\s*[a-z]{2,}", c):
         return True  # a prose alternation is the grammar's, `01M1AAA|01M1BBB` is a value
-    if re.match(r"(?:none|[0-9A-Z]{6,})\b", c, re.I) and re.search(r"surfaces? exercised", low):
-        return False  # the mandated honest shape, written inside the brackets
     return len(c.split()) > 1 and re.search(r"[a-z]{2,}", c) is not None
 
 
@@ -2085,9 +2089,14 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                         f"`{_plan_stem(rec)}-T<id>-review.md` (the plan stem read from --surface, "
                         "any age)"
                         if _plan_stem(rec)
-                        else f"`-T<id>-review.md`{_since_label(rec)} (this record's --surface names "
-                        "no plan, so the ticket form is bound only by this record's start — name "
-                        "the plan in --surface to bind it to the stem instead)"
+                        else "`-T<id>-review.md` (this record's --surface names no plan, so the "
+                        "ticket form is "
+                        + (
+                            "bound only by this record's start, the same bound"
+                            if _since_label(rec)
+                            else "UNBOUND — this record carries no finite start"
+                        )
+                        + " — name the plan in --surface to bind it to the stem instead)"
                     )
                     + " (/fabrik-execute-plan D4). Or re-run with "
                     '--review-waived "<reason>" to record a deliberate skip.',

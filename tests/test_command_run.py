@@ -4207,6 +4207,13 @@ def test_the_phase_gate_binds_a_ticket_artifact_to_the_plan_stem_and_the_record_
     assert not cr._phase_review_exists(
         str(tmp_path), "D", plan_stem="2026-08-31-plan-2-other", since=start
     )
+    # round 4: two letters keep the escape too
+    two = d / "2026-08-31-plan-2ab-x-phase-E-review.md"
+    two.write_text("real content\n", encoding="utf-8")
+    os.utime(two, (start - 3600, start - 3600))
+    assert cr._phase_review_exists(
+        str(tmp_path), "E", plan_stem="2026-08-31-plan-2ab-x", since=start
+    )
     # the legacy call (no stem, no start) keeps the permissive behaviour for records that carry
     # neither — the fleet's older records must not start refusing
     assert cr._phase_review_exists(str(tmp_path), 1)
@@ -4299,8 +4306,11 @@ def test_a_real_id_inside_angle_brackets_is_not_a_placeholder() -> None:
         "<none — surfaces exercised: mail.py>",
         "<01M1AAA — surfaces exercised: x>",
         "<01M1AAA|01M1BBB>",
+        "<none — surfaces exercised: mail.py send, the mail id router>",  # round 4: a noun inside
+        "<none — surfaces exercised: mail.py | command_run.py>",  # round 4: a pipe inside
     ):
         assert not cr._is_placeholder(real), real
+    assert cr._is_placeholder("<nothing filed, no surfaces exercised worth naming>")
     for ph in (
         "<what you filed|none>",
         "<mail id(s)>",
@@ -4339,11 +4349,31 @@ def test_the_phase_gate_refusal_names_the_stem_and_states_the_bound_only_when_in
     assert "written at or after this record's start (" in r.stderr, r.stderr
     run2 = run_dir / "nosurface"
     run2.mkdir()
-    _cr(run2, "start", "--command", "fabrik-execute-plan", "--phases", "5", "--terminal", "x")
+    # cwd = a non-git scratch dir: the record's repo_root is "" and the gate reads no live
+    # reviews directory (the hub's own would satisfy a stem-less, start-less record)
+    _cr(
+        run2,
+        "start",
+        "--command",
+        "fabrik-execute-plan",
+        "--phases",
+        "5",
+        "--terminal",
+        "x",
+        cwd=run2,
+    )
     (run2 / "docs" / "development" / "reviews").mkdir(parents=True)
-    r = _cr(run2, "step", "--phase", "2", "--title", "B")
+    r = _cr(run2, "step", "--phase", "2", "--title", "B", cwd=run2)
     assert r.returncode == 2 and "names no plan" in r.stderr, r.stderr
-    assert "bound only by this record's start" in r.stderr and "unbound" not in r.stderr, r.stderr
+    assert "bound only by this record's start" in r.stderr and "UNBOUND" not in r.stderr, r.stderr
+    assert r.stderr.count("written at or after") == 1, r.stderr  # round 4: one time clause
+    # round 4: with no finite start the stem-less form is stated UNBOUND, never "bound"
+    rec_path = next(run2.glob("*.json"))
+    rec = json.loads(rec_path.read_text(encoding="utf-8"))
+    rec["started_epoch"] = str(rec["started_epoch"])
+    rec_path.write_text(json.dumps(rec), encoding="utf-8")
+    r = _cr(run2, "step", "--phase", "2", "--title", "B", cwd=run2)
+    assert r.returncode == 2 and "UNBOUND" in r.stderr and "bound only" not in r.stderr, r.stderr
 
 
 def test_round_derives_new_from_the_classes_ledger_and_refuses_a_new_above_findings(

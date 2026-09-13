@@ -117,9 +117,18 @@ _GATE_FILE_RE = re.compile(
 _TOUCHES_LINE_OK = re.compile(r"^(?:[-*+]\s|\||#|<!--|-->|\d+[.)]\s)")
 # a quoted PATH: a slash-joined or bare token ending in a source/doc extension — `and/or`, `24/7`,
 # `Python 3.12` and `T4.8` are prose (round 3: the first cut flagged all four at ERROR severity)
+# delimited however markdown delimits it — a backtick, a bold, a link, a quote (round 4: a
+# whitespace anchor missed every delimited path); a dotfile, a directory path (two segments, or a
+# trailing slash), and an upper-cased extension count too
 _PATHISH = re.compile(
-    r"(?:^|\s)(?:[\w.-]+/)*[\w.-]+\.(?:py|pyi|ts|tsx|js|jsx|mjs|cjs|sh|md|ya?ml|json|toml|sql|"
+    r"(?<![\w.-])(?:"
+    r"(?:[\w.-]+/)*[\w.-]+\.(?:py|pyi|ts|tsx|js|jsx|mjs|cjs|sh|md|ya?ml|json|toml|sql|"
     r"astro|vue|svelte|css|html|txt|cfg|ini|env)\b"
+    r"|\.env(?:\.[\w-]+)?\b"
+    r"|(?:[\w.-]+/){2,}[\w.-]*"
+    r"|[\w.-]+/(?![\w.-])"
+    r")",
+    re.I,
 )
 # The FROZEN 2-contract artifacts are MANDATORY reading for any ticket that touches their surface —
 # the commands require citing them, and /fabrik-flows, /fabrik-ui-design and /fabrik-data-contract
@@ -2373,7 +2382,7 @@ def check_plan_dir(
             # (CommonMark list-item continuation; round 3)
             _prev_bullet = _bullet or (
                 _prev_bullet
-                and (not _st or _ln[:1] in (" ", "\t") or bool(_TOUCHES_LINE_OK.match(_st)))
+                and (not _st or _ln[:1] in (" ", "\t") or bool(re.match(r"^(?:\||<!--|-->)", _st)))
             )
             if _ok:
                 continue

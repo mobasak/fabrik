@@ -208,6 +208,18 @@ def test_the_changed_list_reads_paths_only_across_wrapped_lines_and_never_from_a
         ),
     )
     assert r.returncode == 1 and "`Taskfile`" in r.stdout and "1f4d05aa" not in r.stdout, r.stdout
+    # round 4: a backticked SYMBOL on the Changed line is not a path; a numbered or quoted bullet
+    # continues the list
+    r = _run_on(
+        tmp_path,
+        with_x.replace(
+            "# R\n",
+            "# R\n**Changed:** `x.py` (the `_hunt_gaps` handler, `--json`, `IN-PROGRESS`)\n\n",
+        ),
+    )
+    assert r.returncode == 0, r.stdout
+    r = _run_on(tmp_path, with_x.replace("# R\n", "# R\n**Changed:**\n1. `x.py`\n> `y.py`\n\n"))
+    assert r.returncode == 1 and "`y.py`" in r.stdout, r.stdout
     # an IN-PROGRESS receipt (a seat's mid-loop draft) is exempt from the Hunt-row leg too
     r = _run_on(
         tmp_path,
@@ -381,3 +393,39 @@ def test_a_running_record_pulls_only_its_own_receipts(tmp_path):
         )
     )
     assert _rc_env() == 1, "the parked execute-plan frame owns the receipt window"
+
+    # round 4: the INNERMOST writing frame with a usable start owns the window — an inner review
+    # frame that started AFTER the receipt hides it; an inner frame with no start falls through
+    def _stacked(inner: dict) -> None:
+        (runs / "s9.json").write_text(
+            json.dumps(
+                {
+                    "command": "fabrik-data-contract",
+                    "state": "running",
+                    "started_epoch": time.time(),
+                    "surface": "docs/data-contract.md",
+                    "stack": [
+                        {
+                            "command": "fabrik-execute-plan",
+                            "state": "running",
+                            "started_epoch": started,
+                            "surface": "docs/development/plans/2026-09-13-plan-a.md",
+                        },
+                        inner,
+                    ],
+                }
+            )
+        )
+
+    plan_a = "docs/development/plans/2026-09-13-plan-a.md"
+    _stacked(
+        {
+            "command": "fabrik-review",
+            "state": "running",
+            "started_epoch": time.time() + 60,
+            "surface": plan_a,
+        }
+    )
+    assert _rc_env() == 0, "the inner review frame started after the receipt was written"
+    _stacked({"command": "fabrik-review", "state": "running", "surface": plan_a})
+    assert _rc_env() == 1, "an inner frame with no start falls through to the outer writing frame"

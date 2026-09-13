@@ -82,9 +82,6 @@ TOOLING_PREFIXES = (
 )
 FLOOR_PACKS_TOOLING = ("core/10-python.md",)
 FLOOR_PACKS_TOOLING_DOC = ("core/40-documentation.md",)  # an all-prose tooling partition (round 3)
-# the ledger docs every change touches never decide a partition's kind (round 3: the mandated
-# CHANGELOG entry beside a command source flipped the hub's most common tooling shape to SERVICE)
-_NON_VOTING_DOCS = ("CHANGELOG.md", "INDEX.md", "PORTS.md", "AGENTS.md", "AGENTS-compact.md")
 
 
 def _floor_for(changed: list[str], root: Path | None = None) -> tuple[tuple[str, ...], str]:
@@ -92,9 +89,10 @@ def _floor_for(changed: list[str], root: Path | None = None) -> tuple[tuple[str,
     `templates/governance/CLAUDE.md`): in a PROJECT `scripts/` and `tests/` are app code and a
     tests-only diff must keep the auth/postgres/ops floor (review round 1, Phase B — the mirror
     the first cut did not name). Code paths vote; when the partition is all prose, the tooling
-    prose votes (a command source, a pack, the governance template) while the ledger docs
-    (`_NON_VOTING_DOCS`) and `docs/` never do — so a command source beside its mandated CHANGELOG
-    entry is still a tooling partition (round 3). An all-prose tooling partition gets the
+    prose votes (a command source, a pack, the governance template) while ROOT-LEVEL docs (the
+    ledgers and the governance prose every change touches — CHANGELOG, INDEX, AGENTS, CLAUDE,
+    README, AFCL …) and `docs/` never do — so a command source beside its mandated CHANGELOG
+    entry is still a tooling partition (rounds 3–4). An all-prose tooling partition gets the
     documentation floor, not the Python one."""
     if root is None or not (root / "templates" / "governance" / "CLAUDE.md").is_file():
         return FLOOR_PACKS, "SERVICE"
@@ -105,7 +103,7 @@ def _floor_for(changed: list[str], root: Path | None = None) -> tuple[tuple[str,
 
     voting = [p for p in paths if not _is_doc(p)]
     if not voting:
-        voting = [p for p in paths if p not in _NON_VOTING_DOCS and not p.startswith("docs/")]
+        voting = [p for p in paths if "/" in p and not p.startswith("docs/")]
     if voting and all(p.startswith(TOOLING_PREFIXES) for p in voting):
         floor = FLOOR_PACKS_TOOLING_DOC if all(_is_doc(p) for p in voting) else FLOOR_PACKS_TOOLING
         return floor, "TOOLING"

@@ -107,3 +107,13 @@ def test_kaizen_events_dir_is_pinned_under_basetemp(tmp_path):
     assert cp.returncode == 0, cp.stderr
     written = list(Path(d).glob("*.jsonl"))
     assert written and any("pin-probe" in w.name for w in written), written
+
+
+def test_the_suite_never_reads_the_operators_live_run_record(tmp_path) -> None:
+    """Round 3 (B3-S1): the graders read the session's own run record, so the conftest pins a
+    scratch COMMAND_RUN_DIR and a fixed fake session id for every test — a suite run inside a live
+    Claude session must never grade fixtures against the operator's real record."""
+    d = os.environ.get("COMMAND_RUN_DIR", "")
+    assert d and Path(d).resolve().is_relative_to(tmp_path.resolve().parent), d  # under basetemp
+    assert os.environ.get("CLAUDE_SESSION_ID") == "pytest-isolated"
+    assert "CLAUDE_CODE_SESSION_ID" not in os.environ

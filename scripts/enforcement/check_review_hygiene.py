@@ -661,10 +661,10 @@ def _line_occurrences(lines: list[str], ln: int, term: str) -> int:
 def _dedupe(hits: list[Hit]) -> list[Hit]:
     """T4.7 (01M2AC95X): `len(hits)` overstated distinct findings (15 raw vs 13 unique, measured
     every round) whenever two producers reported the same site — the same selector given twice
-    (`--phrase x --phrase x`), or a term reached through both a `--phrase` and a `--claim` walk
-    with an identical message; one row per (class, path, line, what), the counts summed into
-    `occurrences`. A phrase repeated ON one line was never two hits: `_term_sites` reports one
-    row per line and the count rides `occurrences` from the start."""
+    (`--phrase x --phrase x`); one row per (class, path, line, what), the LINE's count kept
+    (`max`), never summed over producers. A `--phrase` and a `--claim` walk carry different
+    classes and never merge. A phrase repeated ON one line was never two hits: `_term_sites`
+    reports one row per line and the count rides `occurrences` from the start."""
     out: dict[tuple[str, str, int, str], Hit] = {}
     for h in hits:
         k = (h.cls, h.path, h.line, h.what)
@@ -693,14 +693,12 @@ def _until_heading(text: str, heading: str | None) -> tuple[str, int]:
     if not want:
         return text, 0
     lines = text.splitlines()
-    # the file's ONE CommonMark fence tracker (`_fence_step`: same char, at least the opening run's
-    # length, no info string closes) — a char-only tracker closed a 4-backtick block on a
-    # 3-backtick line inside it and blanked the live text below the quoted heading (round 3)
-    ch, run = "", 0
-    for i, ln in enumerate(lines):
+    # the file's ONE quoting model (`_blank_quoted`: fences by `_fence_step`, HTML comments, code
+    # spans) — a heading inside a fence OR an HTML comment is quoted text, never the stop
+    # (round 3 tracked fences alone; round 4: a commented-out ledger heading was taken as live)
+    for i, ln in enumerate(_blank_quoted(lines)):
         st = ln.strip()
-        ch, run, is_fence = _fence_step(ln, ch, run)
-        if is_fence or ch or not st.startswith("#"):
+        if not st.startswith("#"):
             continue
         if st.lstrip("#").strip().rstrip("#").strip().lower() == want:
             return "\n".join(lines[:i] + [""] * (len(lines) - i)), len(lines) - i

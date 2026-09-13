@@ -190,8 +190,12 @@ def test_the_floor_is_surface_aware_for_hub_tooling(tmp_path):
         ["commands/_sources/x.md", "CHANGELOG.md"],
         ["commands/_sources/x.md", "docs/reference/y.md"],
         [".windsurf/rules/core/10-python.md", "CHANGELOG.md"],
+        ["templates/governance/CLAUDE.md", "CLAUDE.md"],  # round 4: root governance prose
+        ["commands/_sources/x.md", "README.md"],
+        ["commands/_sources/x.md", "INDEX.md"],
+        ["commands/_sources/x.md", "changelog.md"],
     ):
-        assert rr._floor_for(pair, tmp_path)[1] == "TOOLING", pair
+        assert rr._floor_for(pair, tmp_path) == (rr.FLOOR_PACKS_TOOLING_DOC, "TOOLING"), pair
     assert rr._floor_for(["templates/governance/CLAUDE.md"], tmp_path) == (
         rr.FLOOR_PACKS_TOOLING_DOC,
         "TOOLING",

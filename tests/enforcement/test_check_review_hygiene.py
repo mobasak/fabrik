@@ -1073,6 +1073,11 @@ def test_stop_at_heading_matches_a_real_heading_and_blanks_the_symbol_count_too(
     )
     sweep = crh.scan(surfaces=[q], phrases=["the widget"], stop_at_heading="## Pass Ledger")
     assert [h.line for h in sweep.hits if h.cls == "stale-phrase"] == [8], sweep.hits
+    # round 4: a heading inside an HTML comment is quoted text, never the stop
+    c = tmp_path / "commented.md"
+    c.write_text("# Doc\n\n<!--\n## Pass Ledger\n-->\nthe widget lives here\n", encoding="utf-8")
+    sweep = crh.scan(surfaces=[c], phrases=["the widget"], stop_at_heading="## Pass Ledger")
+    assert [h.line for h in sweep.hits if h.cls == "stale-phrase"] == [6], sweep.hits
 
 
 def test_a_label_with_two_surfaces_is_refused_and_a_repeated_selector_dedupes(tmp_path):
