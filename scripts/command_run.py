@@ -1063,7 +1063,7 @@ def _is_placeholder(value: str | None) -> bool:
     k = 0
     while k < len(c) and _is_decoration(c[k]):
         k += 1
-    hm = re.match(r"(?:(?i:none)|[0-9A-Z]{6,})", c[k:])
+    hm = re.match(r"(?:[0-9A-Z]{6,}|(?i:none))", c[k:])  # the id first: `NONEXISTENT` is an id
     head_ok = bool(hm) and (k + hm.end() == len(c) or _is_decoration(c[k + hm.end()]))
     if head_ok and re.search(r"surfaces? exercised", low):
         # the grammar's own filler after the marker (`what your run touched`) or an EMPTY surface
@@ -1081,9 +1081,10 @@ def _is_placeholder(value: str | None) -> bool:
             return True
         # the noun equality is ASCII: a `\w` decoration outside [a-z0-9] (`¹`, `①`) at either
         # EDGE is decoration (round 9), while emptiness was decided above on the Unicode class so
-        # a non-ASCII surface name stays honest; the head uses `_is_decoration` (round 11) — the
-        # two agree on every ASCII character. Stated cost: an INTERIOR homoglyph (`t①uched`) is
-        # not caught
+        # a non-ASCII surface name stays honest; the head uses `_is_decoration` (round 11), which
+        # agrees with the emptiness class `[\W_]` on every ASCII character (the noun-edge class
+        # `[^a-z0-9]` differs on A–Z, moot: `tail` comes from `low`). Stated cost: an INTERIOR
+        # homoglyph (`t①uched`) is not caught
         return re.sub(r"^[^a-z0-9]+|[^a-z0-9]+$", "", tail) in _GRAMMAR_NOUNS
     if any(n in low for n in _GRAMMAR_NOUNS):
         return True

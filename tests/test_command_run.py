@@ -4356,6 +4356,8 @@ def test_a_real_id_inside_angle_brackets_is_not_a_placeholder() -> None:
         "<日本語none — surfaces exercised: xyz>",  # round 11: a letter of ANY script is a letter
         "<none日 — surfaces exercised: mail.py>",
         "<01M1ABC日 — surfaces exercised: mail.py>",
+        "<none3 — surfaces exercised: mail.py>",  # round 12: a decimal digit glued to the head too
+        "<none٣ — surfaces exercised: mail.py>",
     ):
         assert cr._is_placeholder(ph), ph
     # round 7: the OTHER side of the same rule — a decorated head, a doubled space inside the
@@ -4372,6 +4374,7 @@ def test_a_real_id_inside_angle_brackets_is_not_a_placeholder() -> None:
         "<none — surfaces exercised: 日本語のファイル>",  # no ASCII letter at all
         "<¹none — surfaces exercised: mail.py>",  # round 10: the head skips a `\w` decoration too
         "<none¹ — surfaces exercised: mail.py>",
+        "<NONEXISTENT — surfaces exercised: mail.py>",  # round 12: a 6+ upper-case word is an id (R8)
     ):
         assert not cr._is_placeholder(real), real
     # a lower-case synonym head (`nothing filed`) never reaches the honest branch — it is refused

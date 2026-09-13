@@ -1195,6 +1195,20 @@ def test_stop_at_heading_matches_a_real_heading_and_blanks_the_symbol_count_too(
     # round 11: every closed comment goes (the splice runs in reverse), an empty comment closes
     assert crh._heading_key("## Alpha <!--x--> Beta <!--y--> Gamma") == "alpha beta gamma"
     assert crh._heading_key("## A <!--> B") == "a b" and crh._heading_key("## A <!---> B") == "a b"
+    # round 12: the line-side prefilter reads the same closed-comment pattern (a heading behind a
+    # leading `<!-->` is the stop), and a closer BEFORE the opener on the same line closes nothing
+    assert (
+        crh._until_heading("# D\n\nlive\n<!--> ## Pass Ledger\nretired\n", "## Pass Ledger")[1] == 2
+    )
+    before = tmp_path / "span-closer-before.md"
+    before.write_text(
+        "# D\n\nthe widget lives\nprose with a `-->` span here <!-- a real comment opens\n## Pass Ledger\nthe widget retired\n-->\nlive tail\n",
+        encoding="utf-8",
+    )
+    sweep = crh.scan(surfaces=[before], phrases=["the widget"], stop_at_heading="## Pass Ledger")
+    assert [h.line for h in sweep.hits if h.cls == "stale-phrase"] == [3, 6], (
+        sweep.hits
+    )  # no stop: the heading is inside the comment
     for name, text, arg in (
         (
             "span-closer.md",

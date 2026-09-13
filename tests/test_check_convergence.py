@@ -2015,13 +2015,20 @@ def test_a_cut_or_malformed_batch_stream_never_grades_a_partial_plan(
     assert len(adv) == 1 and "0 blob(s) of 2" in adv[0] and "was answered" in adv[0], rows
     assert "was read" not in adv[0] and "not answer whole" not in adv[0], adv
     assert adv[0].count("a plan absent at HEAD") == 1, adv  # round 10: explained once per branch
-    # round 11: BOTH branches explain an absent plan with the one phrase, the retired one gone
-    assert "has no blob" in adv[0] and "not counted either way" not in adv[0], adv
+    # round 11: the retired phrase is gone; round 12: EACH branch's parenthetical is asserted
+    # whole — tail B (every plan answered) says so plainly, tail A (plans short of the request,
+    # some never answered) qualifies the absent plan as an ANSWERED one
+    assert "(a plan absent at HEAD has no blob)" in adv[0], adv
+    assert "answered plan absent" not in adv[0] and "not counted either way" not in adv[0], adv
     monkeypatch.setattr(cc.subprocess, "run", fake(b"sha1 blob 4\nAAAA\n", 0))
     rows = cc._committed_claims_advisory(tmp_path, set())
     adv = [r for r in rows if r.startswith("committed-claims advisory")]
-    assert "has no blob" in adv[0] and "not counted either way" not in adv[0], adv
-    assert adv[0].count("a plan absent at HEAD") == 1 and "not answer whole" in adv[0], adv
+    assert "(an answered plan absent at HEAD has no blob)" in adv[0], adv
+    assert (
+        "(a plan absent at HEAD has no blob)" not in adv[0]
+        and "not counted either way" not in adv[0]
+    ), adv
+    assert adv[0].count("plan absent at HEAD") == 1 and "not answer whole" in adv[0], adv
 
 
 def test_the_rederivation_message_names_the_closing_row_grammar(repo: Path) -> None:
