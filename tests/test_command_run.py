@@ -4353,13 +4353,35 @@ def test_a_real_id_inside_angle_brackets_is_not_a_placeholder() -> None:
         "<none — surfaces exercised: what your run touched¹>",  # round 9: a `\w` decoration
         "<none — surfaces exercised: ①what your run touched①>",
         "<nonentity — surfaces exercised: whatever>",  # round 9: `none` inside a word is no head
-        "<日本語none — surfaces exercised: xyz>",  # round 11: a letter of ANY script is a letter
-        "<none日 — surfaces exercised: mail.py>",
-        "<01M1ABC日 — surfaces exercised: mail.py>",
-        "<none3 — surfaces exercised: mail.py>",  # round 12: a decimal digit glued to the head too
-        "<none٣ — surfaces exercised: mail.py>",
     ):
         assert cr._is_placeholder(ph), ph
+    # the honest-head rule, EVERY arm and boundary in one table (round 13): `none` in any case
+    # or a 6+ upper-case alnum id, wrapped in decoration on either side; a letter or a decimal
+    # digit of any script glued to it is part of the word, so it is no head
+    for head, honest in (
+        ("none", True),
+        ("None", True),
+        ("NONE", True),
+        ("nOnE", True),
+        ("NONE12", True),
+        ("NONEXISTENT", True),
+        ("01M1AAAA", True),
+        ("¹none", True),
+        ("none¹", True),
+        ("(none)", True),
+        ("_none_", True),
+        ("**none**", True),
+        ("“none”", True),
+        ("NONE3", False),
+        ("none3", False),
+        ("none٣", False),
+        ("nonentity", False),
+        ("日本語none", False),
+        ("none日", False),
+        ("01M1ABC日", False),
+        ("01m1aaaa", False),
+    ):
+        assert cr._is_placeholder(f"<{head} — surfaces exercised: mail.py>") is (not honest), head
     # round 7: the OTHER side of the same rule — a decorated head, a doubled space inside the
     # marker — never refuses an honest value (a fail-closed trap with no satisfying value)
     for real in (
@@ -4368,13 +4390,7 @@ def test_a_real_id_inside_angle_brackets_is_not_a_placeholder() -> None:
         '<"none" — surfaces exercised: mail.py>',
         "<(none) — surfaces exercised: mail.py>",
         "<none — surfaces exercised: (mail.py)>",  # a guard that the tail strip never over-eats
-        "<“none” — surfaces exercised: mail.py>",  # round 8: the head class is the tail's —
-        "<**none** — surfaces exercised: mail.py>",  # typographic quotes, emphasis, and a
-        "<_none_ — surfaces exercised: mail.py>",  # non-ASCII surface name keeps its letters
         "<none — surfaces exercised: 日本語のファイル>",  # no ASCII letter at all
-        "<¹none — surfaces exercised: mail.py>",  # round 10: the head skips a `\w` decoration too
-        "<none¹ — surfaces exercised: mail.py>",
-        "<NONEXISTENT — surfaces exercised: mail.py>",  # round 12: a 6+ upper-case word is an id (R8)
     ):
         assert not cr._is_placeholder(real), real
     # a lower-case synonym head (`nothing filed`) never reaches the honest branch — it is refused

@@ -2672,8 +2672,10 @@ _BARE_FILES_CI = frozenset(f.casefold() for f in _BARE_FILES)
 def _is_path_token(tok: str) -> bool:
     """A backticked token on the Changed list is a path when it is path-shaped AND carries a `/`
     or a `.` (or is a well-known bare file, any case); a location suffix (`x.py:44`,
-    `x.py::test`) is stripped first — END-anchored, so a token carrying a mid-token `:port`
-    (`redis-main:6379/0`, `10.99.0.1:8080/x.py`) is not a path at all; an md5/sha (no dot, no slash — dropped by the first rule), a
+    `x.py::test`) is stripped first — END-anchored, so a MID-token `:port` (`redis-main:6379/0`,
+    `10.99.0.1:8080/x.py`) is not a path at all while a TRAILING `:port` is indistinguishable
+    from `:line` and IS stripped (`a/b:80` → the path `a/b`); a bare dotted version (`1.2.3` —
+    `v1.2.3` is a path by the dotted-symbol cost); an md5/sha (no dot, no slash — dropped by the first rule), a
     count, a version, a range (`a..b` with no slash) or a prose symbol (`_hunt_gaps`, `--json`,
     `IN-PROGRESS`) is not (rounds 3–5). STATED COSTS: an extension-less bare file outside the
     list (`cafebabe`) is not a path, and a dotted symbol (`os.getenv`) is indistinguishable from a

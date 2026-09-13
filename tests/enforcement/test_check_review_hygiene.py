@@ -1209,6 +1209,45 @@ def test_stop_at_heading_matches_a_real_heading_and_blanks_the_symbol_count_too(
     assert [h.line for h in sweep.hits if h.cls == "stale-phrase"] == [3, 6], (
         sweep.hits
     )  # no stop: the heading is inside the comment
+    # round 13: ONE comment reader — a span holding a closed comment does not move the opener,
+    # an empty comment before a real opener does not close it, the alternation order and the raw
+    # prefilter are pinned
+    holds = tmp_path / "span-holds-closed.md"
+    holds.write_text(
+        "# D\n\nthe widget lives\nprose with a `<!-- x -->` span here <!-- a real comment opens\n## Pass Ledger\nthe widget retired\n-->\nlive tail\nthe widget lives again\n",
+        encoding="utf-8",
+    )
+    sweep = crh.scan(surfaces=[holds], phrases=["the widget"], stop_at_heading="## Pass Ledger")
+    assert [h.line for h in sweep.hits if h.cls == "stale-phrase"] == [3, 6, 9], sweep.hits
+    assert (
+        crh._until_heading(
+            "# D\n\nlive\n<!--> note <!-- opens\n## Pass Ledger\nretired\n-->\ntail\n",
+            "## Pass Ledger",
+        )[1]
+        == 0
+    )
+    assert crh._blank_quoted(["<!--> note <!-- opens", "inside", "-->", "after"]) == [
+        "",
+        "",
+        "",
+        "after",
+    ]
+    assert crh._heading_key("## A <!--> B --> C") == "a b --> c"
+    assert (
+        crh._until_heading(
+            "# D\n\nlive\n<!-- `-->` --> ## Pass Ledger\nretired\n", "## Pass Ledger"
+        )[1]
+        == 0
+    )
+    for ln, cuts in (
+        ("## A <!--x--> B <!--y--> C", ([(5, 13), (16, 24)], -1)),
+        ("prose `<!-- x -->` here <!-- opens", ([], 24)),
+        ("<!--> note <!-- opens", ([(0, 5)], 11)),
+        ("## Pass Ledger <!-- x `-->` y", ([], 15)),
+        ("<!-- a <!-- b -->", ([(0, 17)], -1)),
+        ("plain", ([], -1)),
+    ):
+        assert crh._comment_cuts(ln) == cuts, ln
     for name, text, arg in (
         (
             "span-closer.md",

@@ -230,8 +230,7 @@ def _blank_quoted(lines: list[str]) -> list[str]:
         if was_open or is_fence:
             out.append("")
             continue
-        masked = _mask_code_spans(ln)
-        if "<!--" in masked and "-->" not in masked:
+        if _comment_cuts(ln)[1] >= 0:  # an opener with no closer after it on the line
             in_comment = True
             out.append("")
             continue
@@ -680,10 +679,23 @@ def _dedupe(hits: list[Hit]) -> list[Hit]:
     return list(out.values())
 
 
-# a CLOSED HTML comment, CommonMark's empty forms `<!-->` / `<!--->` included — the ONE pattern
-# every closed-comment reader in this file uses (round 12: the heading-line prefilter kept an
-# older spelling and a heading behind a leading `<!-->` was never the stop)
+# a CLOSED HTML comment, CommonMark's empty forms `<!-->` / `<!--->` included
 _CLOSED_COMMENT = re.compile(r"<!--(?:-?>|.*?-->)")
+
+
+def _comment_cuts(ln: str) -> tuple[list[tuple[int, int]], int]:
+    """The HTML comments on ONE line, read through the code-span mask — the ONE reading
+    `_blank_quoted`, `_heading_key` and `_until_heading` share (round 13: three substring
+    readers and one regex reader disagreed on an empty comment before a real opener and on a
+    span holding a closed comment). Returns the closed comments as (start, end) offsets into the
+    raw line, and the offset of an opener with no closer after it (-1 if none); a closer inside
+    a code span is no closer, an opener inside one is no opener."""
+    masked = _mask_code_spans(ln)
+    closed = [(m.start(), m.end()) for m in _CLOSED_COMMENT.finditer(masked)]
+    rest = masked
+    for a, b in closed:
+        rest = rest[:a] + " " * (b - a) + rest[b:]
+    return closed, rest.find("<!--")
 
 
 def _heading_key(s: str) -> str:
@@ -697,15 +709,12 @@ def _heading_key(s: str) -> str:
     the leading `#` run is an ATX run — `#{1,6}` then whitespace — so `## #hashtag` keeps its
     text's own `#` (and exactly ONE closing run is dropped: `## Pass Ledger # #` is the text
     `Pass Ledger #`, so a key is not a heading and keying it again is not a no-op)."""
-    # both markers are read through the code-span mask, the closed comments first (round 9;
-    # round 10: a `-->` inside a span closed a real opener because the closed-comment strip
-    # ran on the raw string)
-    masked = _mask_code_spans(s)
-    for mo in reversed(list(_CLOSED_COMMENT.finditer(masked))):
-        s = s[: mo.start()] + s[mo.end() :]
-    masked = _mask_code_spans(s)
-    if (i := masked.find("<!--")) >= 0:
-        s = s[:i]
+    closed, opener = _comment_cuts(s)
+    if opener >= 0:
+        s = s[:opener]
+        closed = [c for c in closed if c[1] <= opener]
+    for a, b in reversed(closed):
+        s = s[:a] + s[b:]
     s = s.strip()
     s = re.sub(r"^#{1,6}(?=\s|$)", "", s).strip()
     s = re.sub(r"(?:^|(?<=\s))#+$", "", s)
@@ -735,16 +744,16 @@ def _until_heading(text: str, heading: str | None) -> tuple[str, int]:
     # on the heading's own line is not part of its text, and runs of whitespace are one space.
     quoted = list(lines)
     for i, ln in enumerate(quoted):
-        masked = _mask_code_spans(ln)
-        if "<!--" in masked and "-->" not in masked:
+        opener = _comment_cuts(ln)[1]
+        if opener >= 0:
             # a closer inside a code span AFTER the opener on its own line still ends the block
             # for the renderer (an HTML block knows no spans), so that opener is literal text
-            # here too (round 11: a later real `-->` blanked such a heading before the key saw
-            # it; round 12: a closer BEFORE the opener closes nothing — the test is anchored)
-            if "-->" in ln[ln.find("<!--") :] or not any(
+            # here too (round 11; round 12: a closer BEFORE the opener closes nothing; round 13:
+            # the opener is the one `_comment_cuts` found, never a span's)
+            if "-->" in ln[opener:] or not any(
                 "-->" in _mask_code_spans(q) for q in quoted[i + 1 :]
             ):
-                quoted[i] = ln.replace("<!--", "<!- -")
+                quoted[i] = ln[:opener] + ln[opener:].replace("<!--", "<!- -")
     for i, ln in enumerate(_blank_quoted(quoted)):
         if ln.startswith("    ") or ln.startswith("\t"):
             continue

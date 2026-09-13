@@ -1189,7 +1189,7 @@ def _committed_claims_advisory(root: Path, skip: set[Path]) -> list[str]:
         # plans short of the request were not answered whole (a `missing` answer counts, a cut
         # body or a header git never writes does not); every plan answered with a non-zero
         # exit is a stream git did not close cleanly (round 6); each branch explains an absent
-        # plan once (round 10)
+        # plan once (round 10; round 12: tail A qualifies it as an answered one, tail B need not)
         tail = (
             "the plans it did not answer whole were NOT examined (an answered plan absent at "
             "HEAD has no blob)"

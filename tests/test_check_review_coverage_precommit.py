@@ -272,6 +272,14 @@ def test_the_changed_list_reads_paths_only_across_wrapped_lines_and_never_from_a
         tmp_path, with_x.replace("# R\n", "# R\n**Changed:** `x.py`, `redis-main:6379/0`\n\n")
     )
     assert r.returncode == 0, r.stdout
+    # round 13: the OTHER side of the anchor — a trailing `:port` is a `:line` (stated cost); a
+    # bare dotted version is prose, a decorated one a path (stated cost)
+    r = _run_on(tmp_path, with_x.replace("# R\n", "# R\n**Changed:** `x.py`, `a/b:80`\n\n"))
+    assert r.returncode == 1 and "`a/b`" in r.stdout, r.stdout
+    r = _run_on(tmp_path, with_x.replace("# R\n", "# R\n**Changed:** `x.py`, `1.2.3`\n\n"))
+    assert r.returncode == 0, r.stdout
+    r = _run_on(tmp_path, with_x.replace("# R\n", "# R\n**Changed:** `x.py`, `v1.2.3`\n\n"))
+    assert r.returncode == 1 and "`v1.2.3`" in r.stdout, r.stdout
     # an IN-PROGRESS receipt (a seat's mid-loop draft) is exempt from the Hunt-row leg too
     r = _run_on(
         tmp_path,

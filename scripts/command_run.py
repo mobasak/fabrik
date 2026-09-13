@@ -1081,10 +1081,10 @@ def _is_placeholder(value: str | None) -> bool:
             return True
         # the noun equality is ASCII: a `\w` decoration outside [a-z0-9] (`¹`, `①`) at either
         # EDGE is decoration (round 9), while emptiness was decided above on the Unicode class so
-        # a non-ASCII surface name stays honest; the head uses `_is_decoration` (round 11), which
-        # agrees with the emptiness class `[\W_]` on every ASCII character (the noun-edge class
-        # `[^a-z0-9]` differs on A–Z, moot: `tail` comes from `low`). Stated cost: an INTERIOR
-        # homoglyph (`t①uched`) is not caught
+        # a non-ASCII surface name stays honest; the head uses `_is_decoration` on `c`
+        # (un-lowered), which agrees with the emptiness class `[\W_]` on every ASCII character;
+        # the noun-edge class `[^a-z0-9]` differs on A–Z, moot there because `tail` comes from
+        # `low`. Stated cost: an INTERIOR homoglyph (`t①uched`) is not caught
         return re.sub(r"^[^a-z0-9]+|[^a-z0-9]+$", "", tail) in _GRAMMAR_NOUNS
     if any(n in low for n in _GRAMMAR_NOUNS):
         return True
