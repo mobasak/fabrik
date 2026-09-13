@@ -276,23 +276,43 @@ is; a mismatch against the pinned identity warns loudly, names the dir and both 
 the verdict is sticky until a later probe clears it. **Recovery is ONE `/login` in that dir —
 never a credential-file copy.**
 
-## Keepalive — the only recurring duty, automated
+## Re-login — the only recurring duty, monthly, per account
+
+A refresh chain runs **~30 days from its `/login` and nothing extends it** — not a claude turn,
+not a `claude -p ping`, not the tick's own refresh. Measured 2026-09-12: mob@'s chain was
+refreshed at 14:48 and its `refreshTokenExpiresAt` did not move; ob@ lapsed at its stored expiry
+(12:28) while it was the ACTIVE account serving a session every ten minutes. When a chain lapses
+the tool refuses to `--switch` onto it (`_stale_snapshot_reason`) and the dashboard shows
+`Switch failed (502)`; when it is the only account with headroom, the fleet HOLD stays on.
+
+The duty is one `/login` per account per month, in THAT account's dir, with the browser signed in
+as that account (or a private window). Each block writes only its own dir; the active pointer is
+a symlink to a slug dir, so a login in `ob` cannot touch `sarp`:
 
 ```bash
-python3 scripts/sysadmin/claude_rotate.py --keepalive
+CLAUDE_CONFIG_DIR="$HOME/.claude-fleet/<slug>" CLAUDE_QUOTA_HOME="$HOME/.claude-fleet/<slug>" claude
+/login        # as <slug>@ocoron.com
+/exit
 ```
 
-A chain idle ~30 days lapses. The weekly cron pings every fleet dir whose `.credentials.json`
-**mtime** (never content) is older than 7 days (`_KEEPALIVE_MAX_IDLE_S`): one in-place
-`claude -p ping` bound to that dir, so the CLI rolls THAT dir's own chain. A future-skewed
-mtime counts as DUE. rc 0 when every stale dir refreshed; rc 1 + a Telegram alert on any
-failed ping. Per-ping timeout `KEEPALIVE_TIMEOUT` (default 150s).
+Re-login the ACTIVE account only after switching away (a live session reads that file when it
+refreshes). Never `CLAUDE_ROTATE_ALLOW_STALE=1`: it lands the fleet on a token that dies at the
+access expiry with nothing to renew it.
+
+**How the tool tells you in time.** `--status` and the tick print the chain warning inside 5 days
+of expiry (`_CHAIN_EXPIRY_WARN_S`) WITH the re-login line above, and the tick pushes it once per
+chain (mesh-notify) inside 3 days (`_CHAIN_PUSH_S`; stamp `~/.claude/state/fleet-chain-push-<email>`
+holds the expiry epoch, so a re-minted chain re-arms by itself). The old `--keepalive` ping is
+RETIRED (2026-09-12): its premise was false and, keyed on a credential mtime the tick renews
+daily, it pinged nothing in three weeks of runs (`~/.claude/keepalive.log`). The flag is kept as a
+no-op that prints why (rc 0), so the cron line below can be deleted at leisure — crontab edits are
+the operator's.
 
 ## Recovery rules
 
 - **Reload, never login.** A window that lost auth mid-session holds a superseded pair in
   memory while the dir's on-disk chain is current. Reload the window — `/login` is only for a
-  dir whose chain itself lapsed (keepalive alert) or a brand-new dir.
+  dir whose chain itself lapsed (the tick's 5-day warning or 3-day push) or a brand-new dir.
 - **DR: a fleet-dir restore = ONE `/login` in that dir, never a credentials-file restore.** A
   stored chain is consumed the moment the live one rolls, so restoring bytes installs a spent
   single-use token. Backups exclude `.credentials.json` by design.
@@ -318,7 +338,7 @@ flip; nothing installs into `~/.claude`.
 
 ```cron
 */5 * * * * flock -n $HOME/.claude/state/rotate.lock python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --tick >> $HOME/.claude/rotate-tick.log 2>&1
-20 6 * * 1 python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --keepalive >> $HOME/.claude/keepalive.log 2>&1
+20 6 * * 1 python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --keepalive >> $HOME/.claude/keepalive.log 2>&1   # RETIRED 2026-09-12 (a no-op that says why) — delete when convenient
 @reboot sleep 20 && /usr/bin/python3 /opt/fabrik/scripts/sysadmin/quota_dashboard.py --ensure >> $HOME/.claude/quota-dashboard.log 2>&1
 */10 * * * * /usr/bin/python3 /opt/fabrik/scripts/sysadmin/quota_dashboard.py --ensure >> $HOME/.claude/quota-dashboard.log 2>&1
 ```
@@ -347,7 +367,7 @@ and `::test_a_skipped_account_is_served_on_the_next_run_*`.
 
 **Cron PATH — why the pings resolve `claude` without a `PATH=` line.** Cron runs with a minimal
 `PATH` (`/usr/bin:/bin`) that excludes `~/.local/bin`, where the `claude` CLI installs. Every
-`claude -p ping` (the tick's stale-reading refresh **and** the keepalive) therefore prepends
+`claude -p ping` (the tick's stale-reading refresh) therefore prepends
 `~/.local/bin` to its own subprocess env via `_with_claude_on_path(env)` before spawning, so the
 CLI resolves under cron exactly as in a login shell — no crontab `PATH=` line is required, on
 this host or the vendored `aro-wake` copy. Without it the spawn raises `FileNotFoundError`,
@@ -373,7 +393,7 @@ in `tests/test_claude_fleet.py` (`test_oauth_get_*`).
 
 ## Runbook
 
-### The logins (done — chains date from 2026-08-15, which is when their idle clocks start)
+### The logins (chains run ~30 days from each /login — § Re-login is the monthly duty)
 
 Every account is logged in once and never again. The fifth, `ozgurbasak` (2026-09-06), was
 scaffolded with `--new-dir ozgurbasak ozgurbasak@ocoron.com --from ob` — **`--from` matters**:
@@ -423,7 +443,7 @@ stores (`~/.claude/manager-accounts/<name>/`). It retires at the M4 sweep — do
   + one Telegram (24h suppress), keep-warm for parked snapshots.
 - `--capture-current` · `--drift-check` — snapshot the live chain (identity-gated); the cron
   and hook triggers are removed, the flags remain invocable by hand until the sweep.
-- `--touch [<account>]` — the temp-dir-copy refresh; superseded by `--keepalive`'s in-place path.
+- `--touch [<account>]` — the temp-dir-copy refresh; superseded by `--keepalive`'s in-place path, itself retired 2026-09-12 (a ping never extends a chain — § Re-login). ⚠️ Never refresh on a COPY of a credential file: refresh tokens are single-use, so the copy consumes the live token and the real dir dies on its next refresh (mob@, 2026-09-12).
 - Safety invariants: atomic credential writes under the rotation flock with a `.prev` backup;
   nothing filed without positive identity verification; the tick never signals processes.
 - Audit trail: `~/.claude/state/rotate-ledger.jsonl` (size-capped), which now also records

@@ -1399,9 +1399,15 @@ OPT_DIR = Path("/opt")
 # life); the freshness signal is the credential file's MTIME — the CLI rewrites it on every
 # refresh, so mtime IS last-use. Older than this → the cached last-known row (marked stale).
 _FLEET_TOKEN_FRESH_S = 8 * 3600
-# --keepalive pings a dir whose chain has idled longer than this (weekly cron beats the ~30-day
+# The refresh chain runs ~30 days from the last /login and NOTHING extends it — not a claude turn,
+# not a `claude -p ping`, not the tick's own refresh (measured 2026-09-12: mob@ refreshed at 14:48
+# and its refreshTokenExpiresAt did not move; ob@ lapsed at its stored expiry while in daily use).
+# So the recurring duty is a monthly /login per account, and the tool's job is to SAY SO in time:
+# --status/--tick warn inside _CHAIN_EXPIRY_WARN_S with the exact re-login block, and the tick
+# pushes once per chain (mesh-notify) inside _CHAIN_PUSH_S. The old --keepalive ping is retired.
+_CHAIN_PUSH_S = 3 * 86400
+# --keepalive (RETIRED 2026-09-12) used to ping a dir whose chain had idled longer than this
 # refresh-token idle lapse with three weeks of margin).
-_KEEPALIVE_MAX_IDLE_S = 7 * 86400
 
 
 def _pull_opts(args: list[str], names: tuple[str, ...]) -> tuple[list[str], dict[str, str], bool]:
@@ -3664,30 +3670,42 @@ def _fleet_quota_text(row: dict) -> str:
     return text
 
 
+def _relogin_block(slug: str, email: str) -> str:
+    """The ONE recovery for a lapsed or lapsing chain, as a copy/paste line: a /login in THAT
+    dir. Single-line on purpose (the tick's cron log and --status are line-oriented)."""
+    return (
+        f'CLAUDE_CONFIG_DIR="$HOME/.claude-fleet/{slug}" CLAUDE_QUOTA_HOME="$HOME/.claude-fleet/{slug}" claude'
+        f" → /login as {email} → /exit"
+    )
+
+
 def _fleet_row_warnings(accounts: list[dict]) -> list[str]:
     """Chain-health warnings derived from data already on the account rows (this function adds
     no probes; the rows were built with at most one hourly identity probe per account), printed
     by --status and the tick alike: (1) a refresh chain inside the 5-day expiry window — the
-    keepalive cadence is 7d, so this firing means that net already missed it; (2) the F-P4/F-P6
+    chain is ~30 days from its /login and nothing extends it, so the remedy printed is the re-login block; (2) the F-P4/F-P6
     identity-mismatch net — a dir whose probed token answers as a DIFFERENT account than its
     pinned identity (a flip landed inside a CLI credential refresh, or a login went into the
     wrong dir). Recovery for both is a /login or a claude turn IN THAT DIR — never a file copy."""
     warns: list[str] = []
     now = _now()
     for row in accounts:
-        label = ", ".join(row.get("slugs") or [])
+        slugs = row.get("slugs") or []
+        label = ", ".join(slugs)
+        block = _relogin_block(slugs[0] if slugs else "<slug>", str(row.get("email")))
         exp = row.get("refresh_expires_epoch")
         if isinstance(exp, (int, float)):
             left = exp - now
             if left <= 0:
                 warns.append(
                     f"⚠ {row['email']}: refresh chain EXPIRED {-left / 86400:.1f}d ago — "
-                    f"ONE /login in [{label}] re-mints it"
+                    f"ONE /login in [{label}] re-mints it: {block}"
                 )
             elif left < _CHAIN_EXPIRY_WARN_S:
                 warns.append(
-                    f"⚠ {row['email']}: refresh chain expires in {left / 86400:.1f}d — run one "
-                    f"claude turn in [{label}] before it lapses (keepalive cadence is 7d)"
+                    f"⚠ {row['email']}: refresh chain expires in {left / 86400:.1f}d — a claude "
+                    f"turn does NOT extend it (the chain is ~30 d from the last /login); ONE /login "
+                    f"in [{label}] re-mints it: {block}"
                 )
         for mm in row.get("identity_mismatches") or []:
             warns.append(
@@ -4878,10 +4896,6 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
     now = _now()
     accounts, pending = _fleet_account_rows(dirs, allow_pings=True)
     _fleet_flip_leg(dirs, accounts, threshold)
-    # Unmissable keepalive (2026-08-18): the weekly cron slot can be slept through — the tick
-    # cannot, while WSL is up at all. quiet=True: the fresh-dir lines would spam every 5 min;
-    # due pings and failures still print + alert.
-    _keepalive_sweep(dirs, now, quiet=True)
     for row in accounts:
         windows = [w for w in (row["five_hour"], row["seven_day"]) if isinstance(w, dict)]
         utils = [
@@ -4920,10 +4934,55 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
     _fleet_active_wall_advisory(accounts, now, threshold)
     for warn in _fleet_row_warnings(accounts):
         print(warn)
+    _chain_expiry_push(accounts, now)
     for p in pending:
         print(f"tick: {p['slug']} pending-login — excluded from account telemetry")
     _ledger_rotate()
     return 0
+
+
+def _chain_push_stamp(email: str) -> Path:
+    safe = re.sub(r"[^a-z0-9]+", "-", email.lower()).strip("-")
+    try:
+        return _rotate_state_dir() / f"fleet-chain-push-{safe}"
+    except _STATE_DIR_ERRORS:
+        return Path(tempfile.gettempdir()) / f"claude-fleet-chain-push-{safe}"
+
+
+def _chain_expiry_push(accounts: list[dict], now: float) -> int:
+    """Push (mesh-notify) ONCE PER CHAIN when a refresh chain is inside ``_CHAIN_PUSH_S`` of its
+    expiry or already past it — the operator does not read the tick log, and a chain that lapses
+    unnoticed is a fleet-wide hold the moment it is the only account with headroom (2026-09-12).
+    The stamp holds the chain's expiry epoch: the same chain never pushes twice, a re-minted chain
+    (new expiry) re-arms by itself. Returns the number of pushes sent. Never raises."""
+    sent = 0
+    for row in accounts:
+        exp = row.get("refresh_expires_epoch")
+        if not isinstance(exp, (int, float)) or exp - now >= _CHAIN_PUSH_S:
+            continue
+        email = str(row.get("email"))
+        stamp = _chain_push_stamp(email)
+        key = str(int(exp))
+        try:
+            if stamp.is_file() and stamp.read_text().strip() == key:
+                continue
+        except OSError:
+            pass
+        slugs = row.get("slugs") or []
+        left = exp - now
+        state = (
+            f"EXPIRED {-left / 86400:.1f}d ago" if left <= 0 else f"expires in {left / 86400:.1f}d"
+        )
+        _tick_telegram(
+            f"claude_rotate: {email} refresh chain {state} — a claude turn does NOT extend it; "
+            f"ONE /login re-mints it: {_relogin_block(slugs[0] if slugs else '<slug>', email)}"
+        )
+        sent += 1
+        try:
+            stamp.write_text(key)
+        except OSError:
+            pass
+    return sent
 
 
 def _keepalive_ping(cfg_dir: Path) -> bool:
@@ -4956,56 +5015,30 @@ def _keepalive_ping(cfg_dir: Path) -> bool:
         return False
 
 
+_KEEPALIVE_RETIRED_LINE = (
+    "keepalive: RETIRED 2026-09-12 — a `claude -p ping` never extends a refresh chain (it is ~30 d"
+    " from the last /login and only a /login re-mints it); the tick warns inside 5 d with the"
+    " re-login block and pushes once per chain inside 3 d; nothing pinged"
+)
+
+
 def _keepalive_sweep(dirs: list, now: float, quiet: bool = False) -> tuple[int, int]:
-    """The keepalive core: ping every dir whose credential mtime exceeds the idle ceiling.
-    Shared by the weekly cron command AND the 5-minute tick (2026-08-18: the Monday 06:20
-    cron missed its slot because WSL was asleep — cron has no catch-up, so a one-shot weekly
-    schedule can silently skip; the tick folding this in makes the idle check unmissable
-    while WSL is up at all: the stat is ~free, the ping fires only when a dir is >7d idle)."""
-    pinged = failures = 0
-    for d in dirs:
-        try:
-            idle_s = now - (d / ".credentials.json").stat().st_mtime
-        except OSError:
-            if not quiet:
-                print(f"keepalive: {d.name} — no credentials yet (pending /login), skipped")
-            continue
-        skewed = idle_s < -_CLOCK_SKEW_TOLERANCE_S
-        if not skewed and idle_s <= _KEEPALIVE_MAX_IDLE_S:
-            if not quiet:
-                print(f"keepalive: {d.name} — fresh ({idle_s / 86400:.1f}d idle), no ping needed")
-            continue
-        idle_desc = (
-            "future-skewed mtime, treated as due" if skewed else f"{idle_s / 86400:.1f}d idle"
-        )
-        pinged += 1
-        if _keepalive_ping(d):
-            print(f"keepalive: {d.name} — pinged ok ({idle_desc})")
-        else:
-            failures += 1
-            print(f"keepalive: {d.name} — PING FAILED ({idle_desc}) — alerted")
-            _tick_telegram(
-                f"keepalive FAILED for fleet dir {d.name} ({idle_desc}) — its"
-                " refresh chain risks the ~30-day idle lapse; run one claude turn in that dir"
-                " (or ONE /login if it already lapsed)"
-            )
-    return pinged, failures
+    """RETIRED 2026-09-12. The premise was false: a chain's ``refreshTokenExpiresAt`` runs ~30
+    days from the /login and a CLI refresh does not move it (measured on mob@ 2026-09-12), so
+    the weekly ping could never do what it claimed — and in three weeks of runs it pinged
+    nothing anyway, because the idle gate read the credential mtime that the tick's own refresh
+    renews daily (`~/.claude/keepalive.log`: "0 pinged" every run). Kept as a no-op so the
+    cron line and any caller exit 0 and are TOLD why; returns (0, 0) always."""
+    if not quiet:
+        print(_KEEPALIVE_RETIRED_LINE)
+    return 0, 0
 
 
 def _cmd_keepalive() -> int:
-    """Idle-chain keepalive: ping every fleet dir whose credential MTIME (never content — the
-    CLI rewrites the file on each refresh, so mtime IS last-use) is >7 days old, so no chain
-    ever reaches the ~30-day idle lapse. Cron-safe: one line per dir on stdout, rc 0 when
-    every stale dir refreshed (or none was stale), rc 1 when any ping failed — a failed ping
-    also alerts via mesh-notify (the ci_health_probe invocation, via _tick_telegram)."""
-    now = _now()
-    dirs = _fleet_dirs()
-    if not dirs:
-        print(f"keepalive: no fleet dirs under {_fleet_root()} — nothing to do")
-        return 0
-    pinged, failures = _keepalive_sweep(dirs, now, quiet=False)
-    print(f"keepalive: done — {pinged} pinged, {failures} failed")
-    return 1 if failures else 0
+    """RETIRED 2026-09-12 (see :func:`_keepalive_sweep`): prints the retired line, pings
+    nothing, exits 0 — a cron line that still calls it is told why on every run."""
+    _keepalive_sweep(_fleet_dirs(), _now(), quiet=False)
+    return 0
 
 
 def _live_email(timeout_s: float = 10.0) -> str | None:
@@ -5241,8 +5274,8 @@ def main(argv: list[str] | None = None) -> int:
         ``--new-dir <slug> <email> [--project /opt/<repo>]``  scaffold a dir + its carrier
         ``--sync-mcp``      re-push the MCP roster into every fleet dir
         ``--sync-shared``   …and the settings.json copy with it
-        ``--keepalive``     one in-place ``claude -p ping`` per fleet dir idle >7 days
-                            (weekly cron; rc 1 + mesh-notify alert on any failed ping)
+        ``--keepalive``     RETIRED 2026-09-12 — a no-op that says why (rc 0): a ping never
+                            extends a refresh chain; re-login monthly per account instead
 
     Once ≥1 fleet dir exists, ``--status``, ``--tick`` and ``--switch`` switch to the fleet
     view: per-ACCOUNT dirs (pinned identity), quota from the freshest dir's token or the cached

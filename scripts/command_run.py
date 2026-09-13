@@ -508,9 +508,12 @@ def _phase_review_exists(
     # per session, so a plan resumed in a later session mints a fresh `started_epoch` that every
     # earlier phase's correctly named receipt predates — bound by BOTH, `step` refused honest
     # receipts and the only exit was a waiver that lied. When the stem binds, the stem is the
-    # evidence; the PHASE form (no stem in its name by fleet convention — 67 of 132 phase receipts
-    # on this box carry no plan prefix) keeps the time bound, with the plan's `<date>-plan-<n>`
-    # prefix as an ADDITIVE escape for the receipts that do carry it.
+    # evidence — STATED COST (review round 2): a plan RE-EXECUTED from scratch inherits its old
+    # ticket receipts, since DISPATCHER mode's contract (/fabrik-execute-plan § D4) never binds a
+    # ticket receipt to a phase at all. The PHASE form (no stem in its name by fleet convention —
+    # 67 of 132 phase receipts on this box carry no plan prefix) keeps the time bound, with the
+    # plan's `<date>-plan-<n>` prefix as an ADDITIVE escape for the receipts that do carry it —
+    # DELIMITED by the `-` every real receipt continues with (plan-2 is a prefix of plan-20).
     ticket = re.compile(
         rf"^{re.escape(plan_stem)}-T\d{{2}}[a-z]?-review\.md$"
         if plan_stem
@@ -539,7 +542,7 @@ def _phase_review_exists(
                 return True
             if since is None or st.st_mtime >= float(since) - 2.0:
                 return True
-            if plan_prefix and f.name.lower().startswith(plan_prefix.lower()):
+            if plan_prefix and f.name.lower().startswith(plan_prefix.lower() + "-"):
                 return True
     except OSError:
         return False  # unreadable → treat as absent; the refusal names how to waive
@@ -547,11 +550,14 @@ def _phase_review_exists(
 
 
 def _since_label(rec: dict[str, Any]) -> str:
-    """The record's start as a human timestamp for the phase-gate refusal, or 'unknown'."""
+    """The phase-form clause of the refusal: the time bound with the record's start as a local
+    timestamp (zone named), or NO clause when the record carries no finite start — a bound that
+    is not in force is not stated (review round 2)."""
     ts = _finite_ts(rec.get("started_epoch"))
     if ts is None:
-        return "unknown start"
-    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts))
+        return ""
+    stamp = time.strftime("%Y-%m-%d %H:%M:%S %Z", time.localtime(ts))
+    return f" written at or after this record's start ({stamp})"
 
 
 def _midloop_report(f: Path) -> bool:
@@ -1009,6 +1015,20 @@ def _usage_is_required(rec: dict[str, Any]) -> bool:
     return started is not None and started >= _USAGE_REQUIRED_FROM
 
 
+def _is_placeholder(value: str | None) -> bool:
+    """A value that is the grammar's own `<…>` text: a bracketed value carrying a `|` (the
+    alternation the grammar writes) or several tokens with prose words in them. `<01M1RHJY>`,
+    `<none>` and `<01M1AAA, 01M1BBB>` are an agent's REAL values written inside the brackets
+    (review rounds 1–2), never the placeholder."""
+    if not value:
+        return False
+    m = re.fullmatch(r"<(?P<c>.*)>\s*\[?", value.strip(), re.S)
+    if not m:
+        return False
+    c = m.group("c")
+    return "|" in c or (len(c.split()) > 1 and re.search(r"[a-z]{2,}", c) is not None)
+
+
 def _parse_usage_feedback(text: str) -> tuple[dict[str, str], list[str]]:
     """Split a FEEDBACK line into its labelled fields. Returns (fields, missing) — `missing`
     names every required label that is absent OR empty, so the refusal can say which; a label
@@ -1028,11 +1048,7 @@ def _parse_usage_feedback(text: str) -> tuple[dict[str, str], list[str]]:
     missing = [f for f in _USAGE_FIELDS if not fields.get(f)]
     # T3.4 (backlog F25/F26): a value pasted verbatim from the grammar — `<…>` — names nothing;
     # it is refused as a placeholder, by label, so the grammar string cannot pass its own parser
-    missing += [
-        f"{f} (placeholder)"
-        for f in _USAGE_FIELDS
-        if fields.get(f) and re.fullmatch(r"<(?=[^>]*[\s|]).*>\s*\[?", fields[f].strip(), re.S)
-    ]
+    missing += [f"{f} (placeholder)" for f in _USAGE_FIELDS if _is_placeholder(fields.get(f))]
     missing += [f"{d} (duplicate)" for d in dupes if f"{d} (duplicate)" not in missing]
     return fields, missing
 
@@ -2039,11 +2055,15 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                     f"REFUSED — phase {prev} has no review artifact under "
                     "docs/development/reviews/, so there is nothing for the review gate to "
                     "read. Emit it as either shape: PHASE mode a filename containing "
-                    f"`phase-{prev}` written at or after this record's start "
-                    f"({_since_label(rec)}), DISPATCHER mode "
-                    f"`{_plan_stem(rec) or '<plan>'}-T<id>-review.md` "
-                    "(/fabrik-execute-plan D4; the plan stem is read from --surface). Or re-run "
-                    'with --review-waived "<reason>" to record a deliberate skip.',
+                    f"`phase-{prev}`{_since_label(rec)}, DISPATCHER mode "
+                    + (
+                        f"`{_plan_stem(rec)}-T<id>-review.md` (the plan stem read from --surface)"
+                        if _plan_stem(rec)
+                        else "`-T<id>-review.md` (this record's --surface names no plan, so the "
+                        "ticket form is unbound — name the plan in --surface to bind it)"
+                    )
+                    + " (/fabrik-execute-plan D4). Or re-run with "
+                    '--review-waived "<reason>" to record a deliberate skip.',
                     file=sys.stderr,
                 )
                 return 2

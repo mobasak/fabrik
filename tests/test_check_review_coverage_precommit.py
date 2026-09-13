@@ -184,6 +184,18 @@ def test_the_changed_list_reads_paths_only_across_wrapped_lines_and_never_from_a
         with_x.replace("# R\n", "# R\n**Changed:** `x.py`, `y.py`\n\n" + fenced),
     )
     assert r.returncode == 1 and "`y.py`" in r.stdout, r.stdout
+    # review round 2: a prose line right after the list (no blank line, a lowercase label) is
+    # not part of the list even when it carries a backticked path; Makefile/Dockerfile ARE paths
+    r = _run_on(
+        tmp_path,
+        with_x.replace(
+            "# R\n",
+            "# R\n**Changed:** `x.py`\nsome prose `runaway/z.py` more\n**md5:** `deadbeef`\n\n",
+        ),
+    )
+    assert r.returncode == 0, r.stdout
+    r = _run_on(tmp_path, with_x.replace("# R\n", "# R\n**Changed:** `x.py`, `Makefile`\n\n"))
+    assert r.returncode == 1 and "`Makefile`" in r.stdout, r.stdout
 
 
 def test_a_running_record_pulls_only_its_own_receipts(tmp_path):
@@ -198,6 +210,9 @@ def test_a_running_record_pulls_only_its_own_receipts(tmp_path):
     repo = tmp_path / "repo"
     (repo / "docs/development/reviews").mkdir(parents=True)
     sp.run(["git", "init", "-q"], cwd=repo, check=True)
+    sp.run(
+        ["git", "config", "core.hooksPath", "/dev/null"], cwd=repo, check=True
+    )  # no global hooks
     started = time.time() - 60
     clean = _BAD_REVIEW.replace(
         "- Pass 2 (CLOSING) — method: citation — found: 0, fixed: 0\n", _GOOD_TAIL
@@ -270,3 +285,49 @@ def test_a_running_record_pulls_only_its_own_receipts(tmp_path):
     )
     assert _rc("fabrik-review") == 1, "the run's own committed receipt is graded"
     assert _rc("fabrik-spec-review") == 0, "an artifact review writes no receipt"
+    assert _rc("fabrik-execute-plan") == 1, "the plan's Finish writes the whole-plan receipt"
+    # review round 2: the harness's CLAUDE_CODE_SESSION_ID resolves the record, and a nested
+    # record's parked parent names the plan
+    (runs / "s9.json").write_text(
+        json.dumps(
+            {
+                "command": "fabrik-review",
+                "state": "running",
+                "started_epoch": started,
+                "surface": "the fix diff",
+                "stack": [
+                    {
+                        "command": "fabrik-execute-plan",
+                        "state": "running",
+                        "surface": "docs/development/plans/2026-09-13-plan-a.md",
+                    }
+                ],
+            }
+        )
+    )
+    env = dict(os.environ, COMMAND_RUN_DIR=str(runs), CLAUDE_CODE_SESSION_ID="s9")
+    env.pop("CLAUDE_SESSION_ID", None)
+
+    def _rc_env() -> int:
+        return sp.run(
+            [sys.executable, str(SCRIPT), "--root", str(repo)],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            env=env,
+        ).returncode
+
+    assert _rc_env() == 1, "own regressed receipt, found through the parked parent's plan"
+    # with plan-a's receipt clean again, ONLY the parked parent's stem keeps plan-b's UNCHECKED
+    # receipt out — an unread stack would pull every fresh receipt in and red this run
+    mine.write_text(
+        clean + "\nPlan: docs/development/plans/2026-09-13-plan-a.md\n", encoding="utf-8"
+    )
+    sp.run(["git", "add", "-A"], cwd=repo, check=True)
+    sp.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "own receipt clean"],
+        cwd=repo,
+        check=True,
+    )
+    assert _rc_env() == 0, "the parked parent's plan stem filters a sibling plan's receipt out"

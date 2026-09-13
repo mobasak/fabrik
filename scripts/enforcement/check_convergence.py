@@ -153,8 +153,12 @@ _PASS_ROW = re.compile(r"^[ \t]*\|\s*\**(?:Pass|Round)\b[^\n]*", re.I | re.M)
 # Review round 1 (Phase B): the label is followed by its NUMBER and a SEPARATOR (`|`, `—`, `-`,
 # `:`, `·`, `(` or end of line) — "Pass 3 confirmed nothing" and "Round 4 never returned
 # found: 0" start with the label and are prose; `| ✅ Pass 3 |` and `> | Pass 3 |` are rows.
+# Review round 2: emphasis around the label — `| **Pass 23** |`, `| _Pass 4_ |`, `` | `Pass 4` | ``
+# — closes BEFORE the separator (2 of 8 bold shapes in the hub's receipts were refused by the
+# round-1 grammar); a comma is a separator too (`Pass 3, found 0`).
 _LEDGER_LINE = re.compile(
-    r"^[ \t]*(?:>\s*)?(?:\|\s*|[-*]\s+)?[^\w\n|]*(?:Pass|Round)\s+\d+[a-z]?\s*(?:[—–\-:|·(]|$)[^\n]*",
+    r"^[ \t]*(?:>\s*)?(?:\|\s*|[-*]\s+)?(?:[^\w\n|]|_)*(?:Pass|Round)\s+\d+[a-z]?[*_`]*\s*"
+    r"(?:[—–\-:|·(,]|$)[^\n]*",
     re.I | re.M,
 )
 
@@ -816,7 +820,12 @@ def _running_plan_stems() -> set[str]:
     (01M1RFN3) is always the plan the writing session's record is about, while a sibling
     session's untracked draft (three sessions share this tree) is never this gate's subject
     (`_changed_md`'s standing rule). Same shape as check_review_coverage's running-record read."""
-    sid = os.environ.get("CLAUDE_SESSION_ID", "").strip()
+    # the SAME chain command_run.py keys its record on (`_session_id`): a Bash-tool shell carries
+    # an EMPTY CLAUDE_SESSION_ID but the harness's CLAUDE_CODE_SESSION_ID — read only the first
+    # and the whole rule is dead in the shell every gate runs in (review round 2)
+    sid = (
+        os.environ.get("CLAUDE_SESSION_ID") or os.environ.get("CLAUDE_CODE_SESSION_ID") or ""
+    ).strip()
     if not sid:
         return set()
     runs = Path(os.environ.get("COMMAND_RUN_DIR") or (Path.home() / ".claude/state/command-runs"))
@@ -826,7 +835,12 @@ def _running_plan_stems() -> set[str]:
         return set()
     if not isinstance(rec, dict) or rec.get("state") != "running":
         return set()
-    return set(_PLAN_STEM_RE.findall(str(rec.get("surface") or "")))
+    # a NESTED record (/fabrik-review inside /fabrik-execute-plan) parks its parent in `stack`
+    # — the parent is the record whose surface names the plan (review round 2)
+    surfaces = [rec.get("surface")] + [
+        f.get("surface") for f in (rec.get("stack") or []) if isinstance(f, dict)
+    ]
+    return {stem for s in surfaces for stem in _PLAN_STEM_RE.findall(str(s or ""))}
 
 
 def _untracked_is_target(dst: str, running: set[str]) -> bool:
@@ -1148,6 +1162,12 @@ def _committed_claims_advisory(root: Path, skip: set[Path]) -> list[str]:
     # Phase B). ONE `git cat-file --batch` for the whole set — measured on the hub 2026-09-13:
     # 317 plan files, well under a second either way, but one process instead of 317.
     heads = _head_texts(root, [str(p.relative_to(root)) for p in plans])
+    if plans and not heads:
+        # a git failure would otherwise read as "no committed debt" (review round 2)
+        _NOTES.append(
+            f"NOTE: committed-claims advisory could not read HEAD for {len(plans)} plan file(s) "
+            "— nothing examined"
+        )
     for p in plans:
         rel = p.relative_to(root)
         text = FENCE_STRIP.sub("", heads.get(str(rel), ""))

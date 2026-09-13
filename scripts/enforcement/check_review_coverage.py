@@ -2632,9 +2632,13 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
 # the Changed list runs from `**Changed:**` to the next BLANK line (a wrapped list is still the
 # list) or the next bold label on a later line; only PATH-shaped backticked tokens count (a `/`
 # or a file suffix) — an md5, a range or a count in backticks on that line is not a path
-_CHANGED_LINE = re.compile(r"\*\*Changed:\*\*(.*?)(?=\n[ \t]*\n|\n\*\*[A-Z][^\n]*:\*\*|\Z)", re.S)
+# the list continues only on lines that START with a backticked token (review round 2: the
+# blank-line/bold-label stop ran past the list into prose when a receipt had neither)
+_CHANGED_LINE = re.compile(r"\*\*Changed:\*\*(.*?)(?=\n(?![ \t]*`)|\Z)", re.S)
 _BACKTICKED = re.compile(r"`([^`\n]+)`")
-_PATH_SHAPED = re.compile(r"^(?:[\w.-]+/)*[\w.-]+\.[A-Za-z0-9]{1,8}$|/")
+_PATH_SHAPED = re.compile(
+    r"^(?:[\w.-]+/)*[\w.-]+\.[A-Za-z0-9]{1,8}$|/|^(?:Makefile|Dockerfile|Justfile|Procfile|LICENSE)$"
+)
 _HUNT_ROW = re.compile(r"Hunt:\s*`([^`\n]+)`")
 
 
@@ -2663,7 +2667,11 @@ def _running_review_receipts(root: Path) -> list[Path]:
     """T4.5 (01M28K3F44): the receipts of a RUNNING review-family record — written at or after
     its start — graded with the blocking battery regardless of git state; a receipt committed
     unchanged was invisible while its review still ran and fixed."""
-    sid = os.environ.get("CLAUDE_SESSION_ID", "").strip()
+    # command_run.py's own chain: a Bash-tool shell carries CLAUDE_CODE_SESSION_ID, not
+    # CLAUDE_SESSION_ID (review round 2 — T4.5 was dead in the shell every gate runs in)
+    sid = (
+        os.environ.get("CLAUDE_SESSION_ID") or os.environ.get("CLAUDE_CODE_SESSION_ID") or ""
+    ).strip()
     if not sid:
         return []
     runs = Path(os.environ.get("COMMAND_RUN_DIR") or (Path.home() / ".claude/state/command-runs"))
@@ -2685,8 +2693,12 @@ def _running_review_receipts(root: Path) -> list[Path]:
     if since <= 0:
         return []
     # when the record's surface names a plan, only receipts that name the same plan are this
-    # run's own — a sibling's receipt written since the start is not (review round 1)
-    stems = set(_PLAN_STEM_RE.findall(str(rec.get("surface") or "")))
+    # run's own — a sibling's receipt written since the start is not (review round 1); a nested
+    # record's parent (parked in `stack`) names the plan too (review round 2)
+    surfaces = [rec.get("surface")] + [
+        f.get("surface") for f in (rec.get("stack") or []) if isinstance(f, dict)
+    ]
+    stems = {stem for s in surfaces for stem in _PLAN_STEM_RE.findall(str(s or ""))}
     out: list[Path] = []
     for p in sorted((root / REVIEWS_DIR).rglob("*.md")):
         if p.name.endswith("-archive.md"):
@@ -2712,6 +2724,7 @@ _RECEIPT_WRITING_COMMANDS = frozenset(
         "fabrik-docs-review",
         "fabrik-conformance-review",
         "fabrik-rules-review",
+        "fabrik-execute-plan",  # its Finish writes the whole-plan receipt (review_receipt.py --init)
     }
 )
 _PLAN_STEM_RE = re.compile(

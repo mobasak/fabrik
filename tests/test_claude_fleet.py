@@ -1184,62 +1184,11 @@ def test_empty_fleet_root_keeps_the_legacy_view_and_one_dir_flips_it(tmp_path, m
     assert "fleet" in capsys.readouterr().out
 
 
-# ── B10: --keepalive — mtime-gated, one in-place ping per stale dir ───────────────────────────
-
-
-def test_keepalive_pings_exactly_the_stale_dirs_with_their_own_env(tmp_path, monkeypatch, capsys):
-    fleet, *_ = _canonical(tmp_path, monkeypatch)
-    for slug in ("old", "fresh", "empty"):
-        assert cr.main(["--new-dir", slug, "sarp@ocoron.com"]) == 0
-    _fleet_creds(fleet, "old", "tok-old", age_s=8 * 86400.0)  # 8 days idle → ping
-    _fleet_creds(fleet, "fresh", "tok-fresh", age_s=1 * 86400.0)  # 1 day → skip
-    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
-    runs = []
-
-    def fake_run(argv, **kw):
-        runs.append((list(argv), dict(kw.get("env") or {})))
-        return subprocess.CompletedProcess(argv, 0, "pong", "")
-
-    monkeypatch.setattr(cr.subprocess, "run", fake_run)
-    capsys.readouterr()
-
-    assert cr.main(["--keepalive"]) == 0
-    out = capsys.readouterr().out
-
-    assert len(runs) == 1, "exactly ONE ping — the stale dir only"
-    argv, env = runs[0]
-    assert argv == ["claude", "-p", "ping"]
-    # in-place sole-owner refresh: BOTH carrier variables point at the dir ITSELF, no temp copy
-    assert env["CLAUDE_CONFIG_DIR"] == str(fleet / "old")
-    assert env["CLAUDE_QUOTA_HOME"] == str(fleet / "old")
-    for line in out.splitlines():
-        assert line.startswith("keepalive:"), f"cron-log lines must be single-line: {line!r}"
-
-
-def test_keepalive_failed_ping_alerts_via_mesh_notify_and_exits_nonzero(
-    tmp_path, monkeypatch, capsys
-):
-    fleet, *_ = _canonical(tmp_path, monkeypatch)
-    assert cr.main(["--new-dir", "old", "sarp@ocoron.com"]) == 0
-    _fleet_creds(fleet, "old", "tok-old", age_s=8 * 86400.0)
-    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
-
-    def fake_run(argv, **kw):
-        return subprocess.CompletedProcess(argv, 1, "", "boom")
-
-    monkeypatch.setattr(cr.subprocess, "run", fake_run)
-    alerts = []
-    # _tick_telegram IS the ci_health_probe mesh-notify invocation
-    # (bash ~/.claude/bin/claude-sound.sh mesh-notify <sid> /opt/fabrik "<msg>")
-    monkeypatch.setattr(cr, "_tick_telegram", lambda msg: alerts.append(msg))
-    capsys.readouterr()
-
-    assert cr.main(["--keepalive"]) == 1, "a failed ping must be visible to cron (rc 1)"
-    assert alerts and "old" in alerts[0]
+# ── B10: --keepalive — RETIRED 2026-09-12: a ping never extends a chain; the flag is a no-op that says why ───────────────────────────
 
 
 def test_keepalive_never_reads_credential_bytes(tmp_path, monkeypatch):
-    """The staleness gate is MTIME-only: a keepalive pass must never open the credential file."""
+    """The retired flag must still never open the credential file (it reads nothing at all)."""
     fleet, *_ = _canonical(tmp_path, monkeypatch)
     assert cr.main(["--new-dir", "old", "sarp@ocoron.com"]) == 0
     creds = _fleet_creds(fleet, "old", "tok-old", age_s=8 * 86400.0)
@@ -1264,6 +1213,46 @@ def test_keepalive_never_reads_credential_bytes(tmp_path, monkeypatch):
     assert creds.read_text  # fixture intact
 
 
+def test_keepalive_is_retired_spawns_nothing_and_says_why(tmp_path, monkeypatch, capsys):
+    """2026-09-12: a `claude -p ping` never moves refreshTokenExpiresAt (measured on mob@), and
+    the old mtime idle gate never fired anyway — so --keepalive pings NOTHING, exits 0 (the cron
+    line keeps working) and prints the one line that says what replaced it."""
+    fleet, *_ = _canonical(tmp_path, monkeypatch)
+    assert cr.main(["--new-dir", "old", "sarp@ocoron.com"]) == 0
+    _fleet_creds(fleet, "old", "tok-old", age_s=40 * 86400.0)  # 40 days idle: the old gate's DUE
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
+
+    def forbidden_run(argv, **kw):
+        raise AssertionError(f"the retired keepalive spawned a process: {argv!r}")
+
+    monkeypatch.setattr(cr.subprocess, "run", forbidden_run)
+    capsys.readouterr()
+
+    assert cr.main(["--keepalive"]) == 0
+    out = capsys.readouterr().out
+    assert "RETIRED" in out and "/login" in out and "nothing pinged" in out
+    assert len(out.splitlines()) == 1, "one cron-log line, nothing per dir"
+
+
+def test_tick_never_calls_the_retired_keepalive_sweep(tmp_path, monkeypatch, capsys):
+    """The tick used to fold the sweep in every 5 minutes; with the mechanism retired the tick
+    must not spend a call on it (structural: the sweep symbol is not reached from the tick)."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(10.0, 10.0), "tok-intel": _usage_blob(10.0, 10.0)},
+    )
+    _fleet_tick_spies(monkeypatch)
+    calls = []
+    monkeypatch.setattr(cr, "_keepalive_sweep", lambda *a, **k: calls.append(a) or (0, 0))
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    capsys.readouterr()
+    assert cr._cmd_tick() == 0
+    assert calls == [], "the tick must not call the retired sweep"
+
+
 # ── B11: the fleet tick — per-account advisory; legacy install machinery never touched ────────
 
 
@@ -1274,6 +1263,42 @@ def _fleet_tick_spies(monkeypatch):
     monkeypatch.setattr(cr, "_tick_telegram", lambda msg: actions["telegrams"].append(msg))
     monkeypatch.setattr(cr, "_drain_mail", lambda repos, msg: actions["mails"].extend(repos))
     return actions
+
+
+def test_fleet_tick_pushes_once_per_chain_inside_three_days(tmp_path, monkeypatch, capsys):
+    """A chain inside 3 d of its expiry (or past it) is pushed to the operator ONCE — the tick log
+    is not read, and an unnoticed lapse becomes a fleet hold (2026-09-12). The stamp keys on the
+    chain's expiry epoch: the same chain never pushes twice, a re-minted chain re-arms."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0, refresh_expires_s=2 * 86400.0)  # 2 d left
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)  # 30 d → silent
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(10.0, 10.0), "tok-intel": _usage_blob(10.0, 10.0)},
+    )
+    actions = _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    capsys.readouterr()
+
+    assert cr._cmd_tick() == 0
+    pushes = [m for m in actions["telegrams"] if "refresh chain" in m]
+    assert len(pushes) == 1, "one push for the one chain inside 3 d"
+    assert "sarp@ocoron.com" in pushes[0] and "/login as sarp@ocoron.com" in pushes[0]
+    assert "ob@ocoron.com" not in pushes[0]
+
+    assert cr._cmd_tick() == 0
+    assert len([m for m in actions["telegrams"] if "refresh chain" in m]) == 1, (
+        "the same chain never pushes twice"
+    )
+
+    # re-minted (a /login happened): a new expiry re-arms, and a fresh 30 d chain pushes nothing
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0, refresh_expires_s=30 * 86400.0)
+    assert cr._cmd_tick() == 0
+    assert len([m for m in actions["telegrams"] if "refresh chain" in m]) == 1
+    # …and a NEW short chain (different expiry) pushes again, once
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0, refresh_expires_s=1 * 86400.0)
+    assert cr._cmd_tick() == 0
+    assert len([m for m in actions["telegrams"] if "refresh chain" in m]) == 2
 
 
 def test_fleet_tick_no_advisory_while_a_sibling_has_headroom(tmp_path, monkeypatch, capsys):
@@ -1582,28 +1607,16 @@ def test_new_dir_refuses_the_reserved_active_slug(tmp_path, monkeypatch, capsys)
     assert "reserved" in capsys.readouterr().err
 
 
-def test_fleet_dirs_and_keepalive_ignore_the_active_pointer(tmp_path, monkeypatch, capsys):
+def test_fleet_dirs_ignore_the_active_pointer(tmp_path, monkeypatch, capsys):
     fleet, *_ = _canonical(tmp_path, monkeypatch)
     for slug in ("ob", "sarp"):
         assert cr.main(["--new-dir", slug, f"{slug}@ocoron.com"]) == 0
-    _fleet_creds(fleet, "ob", "tok-ob", age_s=8 * 86400.0)  # stale → exactly one ping
+    _fleet_creds(fleet, "ob", "tok-ob", age_s=8 * 86400.0)
     _fleet_creds(fleet, "sarp", "tok-sarp", age_s=86400.0)
     monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
     assert cr._flip_active("ob", manual=True)
     assert [d.name for d in cr._fleet_dirs()] == ["ob", "sarp"], (
         "the active symlink must never be counted as a fleet dir"
-    )
-    runs = []
-
-    def fake_run(argv, **kw):
-        runs.append(dict(kw.get("env") or {})["CLAUDE_CONFIG_DIR"])
-        return subprocess.CompletedProcess(argv, 0, "pong", "")
-
-    monkeypatch.setattr(cr.subprocess, "run", fake_run)
-    capsys.readouterr()
-    assert cr.main(["--keepalive"]) == 0
-    assert runs == [str(fleet / "ob")], (
-        "one ping for the stale dir only — never a double ping through the pointer"
     )
 
 
@@ -2028,6 +2041,14 @@ def test_status_warns_when_a_chain_nears_expiry(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "sarp@ocoron.com: refresh chain expires in 3.0d" in out
     assert "ob@ocoron.com: refresh chain expires" not in out, "a healthy chain warns nothing"
+    # the remedy is the ONE thing that works — a /login in that dir, as a copy/paste line —
+    # never "run a claude turn", which does not move refreshTokenExpiresAt (measured 2026-09-12)
+    assert (
+        'CLAUDE_CONFIG_DIR="$HOME/.claude-fleet/seo" CLAUDE_QUOTA_HOME="$HOME/.claude-fleet/seo" claude'
+        in out
+    )
+    assert "/login as sarp@ocoron.com" in out and "does NOT extend it" in out
+    assert "run one claude turn" not in out and "keepalive cadence" not in out
 
     assert cr.main(["--status", "--json"]) == 0
     rows = {r["email"]: r for r in json.loads(capsys.readouterr().out)["accounts"]}

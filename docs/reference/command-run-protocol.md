@@ -216,16 +216,24 @@ the reach-back and the wrong-name refusal were already the record's behaviour.
 
 ### `step` refuses to open a phase whose predecessor left no review artifact
 
-For `fabrik-execute-plan` runs only, `step --phase N+1` requires a file under
-`docs/development/reviews/` whose name contains `phase-<N>`. This binds `/fabrik-execute-plan`'s
+For `fabrik-execute-plan` runs only, `step --phase N+1` requires a non-empty file under
+`docs/development/reviews/` in one of two shapes: PHASE mode — a name containing `phase-<N>`,
+written at or after the record's start (or, when the record's `--surface` names the plan, a name
+starting with the plan's `<date>-plan-<n>-` prefix, whatever its age); DISPATCHER mode — a ticket
+receipt `<plan-stem>-T<id>-review.md` bound to the plan stem the record's `--surface` names, with
+no time bound (a plan resumed in a later session keeps its earlier phases' receipts). A record
+whose `--surface` names no plan keeps the older, unbound ticket form under the time bound. This
+binds `/fabrik-execute-plan`'s
 per-phase `/fabrik-review` clause, which was previously enforced on an artifact that was never
 required to exist: `check_review_coverage.py` inspects that DIRECTORY, so a phase review emitting
 nothing there gave the gate no subject and it passed on an empty set. transdoc ran 17 phases that
 way and the first real adversarial gate found 71 defects (upstream finding 1.1, 2026-08-23).
 
-The name match is deliberately loose — projects date and slug plans differently, and a rule that
-guessed the stem would fail honest runs. Existence is bound here; QUALITY stays
-`check_review_coverage.py`'s job, which it can finally do because it now has a subject.
+The PHASE-form name match is deliberately loose — projects date and slug plans differently, and a
+rule that guessed the stem would fail honest runs (67 of 132 phase receipts on this box carry no
+plan prefix). Existence is bound here; QUALITY stays `check_review_coverage.py`'s job, which it can
+finally do because it now has a subject. The refusal names the stem it read and the window in
+force.
 
 `--review-waived "<reason>"` advances anyway and appends `{phase, reason, at}` to
 `waived_reviews` in the record. In-flight runs that predate the rule are the case it exists for.

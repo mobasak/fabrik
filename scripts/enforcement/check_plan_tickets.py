@@ -110,7 +110,12 @@ def _note(msg: str) -> None:
 _GATE_FILE_RE = re.compile(
     r"(?<![\w/.-])(?:\./)?((?:tests?|src|scripts|server|app|lib)/[\w./-]+\.(?:py|ts|tsx|js|mjs|sh))\b"
 )
-_TOUCHES_LINE_OK = re.compile(r"^(?:[-*+]\s|\||#|<!--|>|\d+[.)]\s)")
+# a line the bullet collector (`_list_paths`) READS or a line that carries no path: a bullet (`-`,
+# `*`, `+` — all three parsed), a numbered item, a heading, a comment, a table row; a blockquote
+# is quiet only when its remainder is not path-shaped (a quoted path is an invisible path —
+# review round 2)
+_TOUCHES_LINE_OK = re.compile(r"^(?:[-*+]\s|\||#|<!--|-->|\d+[.)]\s)")
+_PATHISH = re.compile(r"[\w.-]+/[\w./-]*|\.[A-Za-z0-9]{1,8}$")
 # The FROZEN 2-contract artifacts are MANDATORY reading for any ticket that touches their surface —
 # the commands require citing them, and /fabrik-flows, /fabrik-ui-design and /fabrik-data-contract
 # all push them toward completeness. Counting them against a TICKET's budget measures the contract's
@@ -540,7 +545,7 @@ def _list_paths(section_body: str) -> list[str]:
     checks with zero signal."""
     out: list[str] = []
     for line in section_body.splitlines():
-        m = re.match(r"^\s*(?:[-*]|\d+[.)])\s+(\S+)", line)
+        m = re.match(r"^\s*(?:[-*+]|\d+[.)])\s+(\S+)", line)
         if m:
             token = _norm_path(m.group(1))
             if token:
@@ -2327,20 +2332,40 @@ def check_plan_dir(
                             t.path,
                         )
                     )
-        # prose is a line that is not a bullet, a table row, a heading, a comment, a blockquote, a
-        # numbered item, an INDENTED continuation of the bullet above, or a line inside an open
-        # `<!-- … -->` span (review round 1, Phase B: the first cut fired on all four)
+        # prose is a line that is not a bullet, a table row, a heading, a comment, a numbered
+        # item, an INDENTED continuation of the bullet directly above, a blockquote carrying no
+        # path, or a line inside an open `<!-- … -->` span — wherever on a line the span opened
+        # (review rounds 1–2: the first cut fired on comment continuations, wrapped bullets,
+        # numbered items and blockquotes; the second let a `+` bullet, a quoted path, any
+        # indented line and a comment opened mid-bullet through, and swallowed prose after `-->`)
         _in_comment = False
+        _prev_bullet = False
         for _ln in _section(_scan_t, "Touches").splitlines():
             _st = _ln.strip()
             if _in_comment:
-                if "-->" in _st:
-                    _in_comment = False
-                continue
-            if _st.startswith("<!--") and "-->" not in _st:
+                if "-->" not in _st:
+                    continue
+                _in_comment = False
+                _st = _st.split("-->", 1)[1].strip()  # prose after the close is still prose
+                if not _st:
+                    continue
+            if "<!--" in _st and "-->" not in _st.split("<!--", 1)[1]:
                 _in_comment = True
-                continue
-            if not _st or _TOUCHES_LINE_OK.match(_st) or _ln[:1] in (" ", "\t"):
+                _st = _st.split("<!--", 1)[0].strip()
+                if not _st:
+                    continue
+            _bullet = bool(re.match(r"^(?:[-*+]\s|\d+[.)]\s)", _st))
+            if _st.startswith(">"):
+                _rem = _st.lstrip("> ").strip()
+                _ok = not _PATHISH.search(_rem) and not re.match(r"^[-*+]\s", _rem)
+            else:
+                _ok = (
+                    not _st
+                    or bool(_TOUCHES_LINE_OK.match(_st))
+                    or (_ln[:1] in (" ", "\t") and _prev_bullet)
+                )
+            _prev_bullet = _bullet or (_prev_bullet and _ln[:1] in (" ", "\t") and bool(_st))
+            if _ok:
                 continue
             results.append(
                 _err(
@@ -2603,7 +2628,9 @@ def main() -> int:
         dirs, lock_only = _discover_dirs(root)
         external_root = None  # discovery only ever yields in-layout dirs
     if not dirs:
-        print("no plan directories in scope")
+        # under --json stdout is the envelope, whatever discovery found (review round 2 — the
+        # same class as T4.8's NOTEs: a consumer parsing stdout was handed prose)
+        print("[]" if _JSON_MODE else "no plan directories in scope")
         return 0
     # Explicit --plan-dir = the author's own emit gate → full severity ("cli").
     # No-arg discovery = the shared Tier-2 gate path → "gate" (DRAFT downgrade

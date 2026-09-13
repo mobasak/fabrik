@@ -73,13 +73,22 @@ def _tracked_hooks(root: Path) -> list[str]:
         ).stdout.decode("utf-8", "surrogateescape")
     except Exception:
         return []
+
     # `-z` keeps a path with a space whole; a path tracked in the index but DELETED in the working
     # tree is not a hook anyone can register (review round 1, Phase B); the index row is the
     # file's basename, the shape the settings.json walk produces
+    def _present(p: str) -> bool:
+        # tri-state like check_doc_index._lstat_state: a path that CANNOT be examined still owes
+        # its row; only a path that is provably absent drops (review round 2)
+        try:
+            return not (root / p).is_dir()
+        except OSError:
+            return True
+
     return [
         Path(p).name
         for p in out.split("\0")
-        if p.endswith((".py", ".sh", ".js")) and (root / p).is_file()
+        if p.endswith((".py", ".sh", ".js")) and (root / p).exists() and _present(p)
     ]
 
 

@@ -1042,6 +1042,28 @@ def test_stop_at_heading_matches_a_real_heading_and_blanks_the_symbol_count_too(
     assert [h.cls for h in sweep.hits] == ["dead-symbol"], sweep.hits
     sweep = crh.scan(surfaces=[s], symbols=["old_helper"])
     assert not sweep.hits, sweep.hits
+    # review round 2: the RECEIPT path honours the flag too (it was a silent no-op there), and a
+    # `~~~` line inside a ``` block is content, not a fence close
+    sweep = crh.scan(receipts=[s], symbols=["old_helper"], stop_at_heading="## Pass Ledger")
+    assert [h.cls for h in sweep.hits] == ["dead-symbol"], sweep.hits
+    assert any("history — blanked" in n for n in sweep.notes), sweep.notes
+    # and the receipt's OWN table classes read the blanked text: a dual-verdict row below the
+    # heading is history, not a hit
+    rec = tmp_path / "receipt.md"
+    rec.write_text(
+        "# R\n\n| # | Class | Disposition |\n|---|---|---|\n| 1 | x | CLEAN (a.py) |\n\n"
+        "## Pass Ledger\n\n| # | Class | Disposition |\n|---|---|---|\n| 2 | y | FIXED r1 REFUTED |\n",
+        encoding="utf-8",
+    )
+    assert [h.cls for h in crh.scan(receipts=[rec]).hits] == ["dual-verdict"]
+    assert not [h for h in crh.scan(receipts=[rec], stop_at_heading="## Pass Ledger").hits]
+    t = tmp_path / "tilde.md"
+    t.write_text(
+        "# Doc\n\n```\n~~~\n```\n\nthe widget lives here\n\n## Pass Ledger\n\nthe widget retired\n",
+        encoding="utf-8",
+    )
+    sweep = crh.scan(surfaces=[t], phrases=["the widget"], stop_at_heading="## Pass Ledger")
+    assert [h.line for h in sweep.hits if h.cls == "stale-phrase"] == [7], sweep.hits
 
 
 def test_a_label_with_two_surfaces_is_refused_and_a_repeated_selector_dedupes(tmp_path):
@@ -1059,7 +1081,34 @@ def test_a_label_with_two_surfaces_is_refused_and_a_repeated_selector_dedupes(tm
         timeout=120,
         cwd=REPO,
     )
-    assert r.returncode == 2 and "--label" in r.stderr, r.stdout + r.stderr
+    # review round 2: the CONTRACT is exit 0 — the refusal is printed, and under --json it rides
+    # the envelope's notes
+    assert r.returncode == 0 and "REFUSED" in r.stdout and "--label" in r.stdout, (
+        r.stdout + r.stderr
+    )
+    r = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--surface",
+            str(a),
+            "--surface",
+            str(b),
+            "--label",
+            "x.md",
+            "--json",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        cwd=REPO,
+    )
+    assert r.returncode == 0 and "REFUSED" in json.loads(r.stdout)["notes"][0], r.stdout
+    # the label does not leak into a second in-process run
+    crh.main(["--surface", str(a), "--label", "first.md"])
+    crh.main(["--surface", str(a)])
+    assert not crh._LABEL, crh._LABEL
+    assert crh._line_occurrences(["Foo foo"], 1, "foo") == 2
     sweep = crh.scan(surfaces=[a], phrases=["the widget", "the widget"])
     stale = [h for h in sweep.hits if h.cls == "stale-phrase"]
     assert len(stale) == 1 and stale[0].occurrences == 4, [(h.line, h.occurrences) for h in stale]

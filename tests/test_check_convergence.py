@@ -1805,6 +1805,32 @@ def test_an_untracked_converged_plan_is_graded_before_it_is_staged(
     monkeypatch.setenv("CLAUDE_SESSION_ID", "s7")
     monkeypatch.setenv("COMMAND_RUN_DIR", str(runs))
     assert _check(repo) == 1, "an untracked CONVERGED plan this session's record names must fail"
+    # review round 2: the shell every gate runs in carries CLAUDE_CODE_SESSION_ID, not
+    # CLAUDE_SESSION_ID — the rule must fire there too
+    monkeypatch.delenv("CLAUDE_SESSION_ID")
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s7")
+    assert _check(repo) == 1, "the harness's CLAUDE_CODE_SESSION_ID resolves the record too"
+    # and a NESTED record (a review inside the plan's execution) parks the plan-naming parent
+    # in `stack` — the plan is still this session's
+    (runs / "s7.json").write_text(
+        _json.dumps(
+            {
+                "command": "fabrik-review",
+                "state": "running",
+                "surface": "Phase B fix diff",
+                "stack": [
+                    {
+                        "command": "fabrik-execute-plan",
+                        "state": "running",
+                        "surface": "docs/development/plans/2026-06-18-plan-x.md",
+                    }
+                ],
+            }
+        )
+    )
+    assert _check(repo) == 1, "a nested record's parked parent names the plan"
+    monkeypatch.delenv("CLAUDE_CODE_SESSION_ID")
+    monkeypatch.setenv("CLAUDE_SESSION_ID", "s7")
     p.write_text(PLAN_NO_CLAIM)
     assert _check(repo) == 0, "an untracked draft that claims nothing stays ignored"
     sib = repo / "docs/development/plans/2026-06-18-plan-y.md"
@@ -1840,6 +1866,16 @@ def test_a_prose_line_starting_with_the_label_never_satisfies_the_executed_citat
     rv.write_text(_REVIEW_QUIET_ROW.replace(row, "> " + row))
     _git(repo, "add", "-A")
     assert _check(repo) == 0, "a blockquoted row is still a row"
+    # review round 2: emphasis closes before the separator — 2 of 8 bold shapes in the hub's
+    # receipts were refused by the round-1 grammar
+    for shape in (
+        "| **Pass 2** |",
+        "| _Pass 2_ |",
+        "| Pass 2, ",
+    ):  # a code span is masked by design
+        rv.write_text(_REVIEW_QUIET_ROW.replace("| Pass 2 |", shape))
+        _git(repo, "add", "-A")
+        assert _check(repo) == 0, shape
 
 
 def test_a_quiet_round_in_prose_never_satisfies_the_executed_citation(repo: Path) -> None:

@@ -2547,3 +2547,66 @@ def test_touches_shapes_that_are_not_prose_stay_quiet_and_a_dot_slash_ghost_gate
     )
     errs = _errors(cpt.check_plan_dir(plan_dir2))
     assert any("scripts/probe_ghost.sh" in m and "exists nowhere" in m for m in errs), errs
+
+
+def test_touches_shapes_round_two_a_plus_bullet_a_quoted_path_and_a_mid_bullet_comment(
+    tmp_path: Path,
+) -> None:
+    """Review round 2: a `+` bullet was quiet but unparsed (silently invisible), a `> path` was
+    quiet, ANY indented line was exempt, a comment opened mid-bullet reported its continuation,
+    prose after a `-->` was swallowed, and an orphan `-->` line read as prose."""
+    plus = T01.replace("- src/app/schema.py\n", "+ src/app/schema.py\n")
+    plan_dir = _build(
+        tmp_path, tickets={"T01-schema.md": plus, "T02-api.md": T02, "T99-integration.md": T99}
+    )
+    res = cpt.check_plan_dir(plan_dir)
+    assert not [m for m in _errors(res) if "prose inside ## Touches" in m], _errors(res)
+    assert cpt._list_paths("+ src/app/schema.py\n- b.py\n") == ["src/app/schema.py", "b.py"]
+    )
+    quoted = T01.replace("## Touches\n\n", "## Touches\n\n> src/app/other.py\n")
+    plan_dir = _build(
+        tmp_path / "q",
+        tickets={"T01-schema.md": quoted, "T02-api.md": T02, "T99-integration.md": T99},
+    )
+    assert any(
+        "prose inside ## Touches" in m and "src/app/other.py" in m
+        for m in _errors(cpt.check_plan_dir(plan_dir))
+    )
+    indented = T01.replace("## Touches\n\n", "## Touches\n\n  a paragraph indented for no reason\n")
+    plan_dir = _build(
+        tmp_path / "i",
+        tickets={"T01-schema.md": indented, "T02-api.md": T02, "T99-integration.md": T99},
+    )
+    assert any("prose inside ## Touches" in m for m in _errors(cpt.check_plan_dir(plan_dir)))
+    mid = T01.replace(
+        "- src/app/schema.py\n",
+        "- src/app/schema.py <!-- note\ncontinued note -->\n<!-- x\ny --> real prose after the close\n",
+    )
+    plan_dir = _build(
+        tmp_path / "m", tickets={"T01-schema.md": mid, "T02-api.md": T02, "T99-integration.md": T99}
+    )
+    errs = [m for m in _errors(cpt.check_plan_dir(plan_dir)) if "prose inside ## Touches" in m]
+    assert errs and "real prose after the close" in errs[0], errs
+    orphan = T01.replace("## Touches\n\n", "## Touches\n\n-->\n")
+    plan_dir = _build(
+        tmp_path / "o",
+        tickets={"T01-schema.md": orphan, "T02-api.md": T02, "T99-integration.md": T99},
+    )
+    assert not [m for m in _errors(cpt.check_plan_dir(plan_dir)) if "prose inside ## Touches" in m]
+
+
+def test_a_discovery_note_rides_stderr_under_json(tmp_path: Path) -> None:
+    """Review round 2: the discovery-mode NOTE (a git error while listing plan sets) had no
+    grader — the `--plan-dir` test never reaches `_discover_dirs`."""
+    root = tmp_path / "notgit"
+    (root / "docs" / "development" / "plans").mkdir(parents=True)
+    r = subprocess.run(
+        ["python3", str(Path(cpt.__file__)), "--json", "--project-root", str(root)],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        cwd=root,
+    )
+    import json as _json
+
+    _json.loads(r.stdout)  # stdout is the JSON envelope, whatever the notes said

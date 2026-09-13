@@ -174,3 +174,9 @@ def test_the_floor_is_surface_aware_for_hub_tooling(tmp_path):
         ["scripts/enforcement/y.py", "src/app.py"], workflow=None, root=tmp_path
     )
     assert "core/35-security-auth.md" in mixed and "SERVICE" in mixed
+    # review round 2: a command-source-only or pack-only partition is a tooling partition (the
+    # doc-path exclusion emptied the vote and fell to SERVICE)
+    for docs_only in (["commands/_sources/x.md"], [".windsurf/rules/core/10-python.md"]):
+        assert "TOOLING" in rr.build_rubric(docs_only, workflow=None, root=tmp_path), docs_only
+    assert "SERVICE" in rr.build_rubric(["docs/x.md"], workflow=None, root=tmp_path)
+    assert rr._floor_for(["scripts/x.py"], None)[1] == "SERVICE"

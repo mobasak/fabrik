@@ -649,7 +649,9 @@ class Sweep:
 
 def _line_occurrences(lines: list[str], ln: int, term: str) -> int:
     """How many times ``term`` occurs on line ``ln`` (1-based), matched the way `_term_sites`
-    matches it — case-insensitively, whitespace-tolerant — never below 1 for a reported site."""
+    matches it — case-insensitively, whitespace-tolerant — never below 1 for a reported site (an
+    occurrence WRAPPED across two lines contributes that floor of 1: its tokens are not all on
+    the site line, so a site line that also carries a whole occurrence reads 1 where there are 2)."""
     if not (0 < ln <= len(lines)):
         return 1
     pat = re.compile(r"\s+".join(re.escape(w) for w in term.split()), re.I)
@@ -689,17 +691,37 @@ def _until_heading(text: str, heading: str | None) -> tuple[str, int]:
     if not want:
         return text, 0
     lines = text.splitlines()
-    in_fence = False
+    fence = ""  # the OPENING run's character — a `~~~` inside a ``` block is content, not a close
     for i, ln in enumerate(lines):
         st = ln.strip()
         if st.startswith("```") or st.startswith("~~~"):
-            in_fence = not in_fence
+            ch = st[0]
+            if not fence:
+                fence = ch
+            elif ch == fence:
+                fence = ""
             continue
-        if in_fence or not st.startswith("#"):
+        if fence or not st.startswith("#"):
             continue
         if st.lstrip("#").strip().rstrip("#").strip().lower() == want:
             return "\n".join(lines[:i] + [""] * (len(lines) - i)), len(lines) - i
     return text, 0
+
+
+def _note_stop(notes: list[str], path: str, heading: str | None, blanked: int) -> None:
+    """The `--stop-at-heading` note, one per graded file: how much was blanked, or that the heading
+    was not found and the whole file was graded."""
+    if not heading:
+        return
+    if blanked:
+        notes.append(
+            f"{_display(path)}: {blanked} line(s) from `{heading.strip()}` on are history — "
+            "blanked, not graded"
+        )
+    else:
+        notes.append(
+            f"{_display(path)}: heading `{heading.strip()}` not found — the whole file was graded"
+        )
 
 
 def scan(
@@ -729,16 +751,7 @@ def scan(
             notes.append(f"{_display(str(p))}: unreadable — NOT scanned, not in the denominator")
             continue
         live, blanked = _until_heading(text, stop_at_heading)
-        if stop_at_heading and blanked:
-            notes.append(
-                f"{_display(str(p))}: {blanked} line(s) from `{stop_at_heading.strip()}` on are "
-                "history — blanked, not graded"
-            )
-        elif stop_at_heading:
-            notes.append(
-                f"{_display(str(p))}: heading `{stop_at_heading.strip()}` not found — the whole "
-                "file was graded"
-            )
+        _note_stop(notes, str(p), stop_at_heading, blanked)
         # the blanked text is what every later reader sees too — the `--symbol` count over
         # `read` must not resurrect a symbol whose only mention is in the retired ledger
         read[_resolved(p)] = live
@@ -756,8 +769,13 @@ def scan(
         if text is None:
             notes.append(f"{_display(str(p))}: unreadable — NOT scanned, not in the denominator")
             continue
-        read.setdefault(_resolved(p), text)
-        rhits, rungraded = _receipt_hits(str(p), text)
+        # the receipt is the file that CARRIES a Pass Ledger — `--stop-at-heading` blanks it here
+        # too, and says so (review round 2: it was a silent no-op on this path)
+        live, blanked = _until_heading(text, stop_at_heading)
+        if _resolved(p) not in read:
+            _note_stop(notes, str(p), stop_at_heading, blanked)
+        read.setdefault(_resolved(p), live)
+        rhits, rungraded = _receipt_hits(str(p), live)
         hits.extend(rhits)
         ungraded += rungraded
     for symbol in symbols:
@@ -861,11 +879,6 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = ap.parse_args(argv)
     _LABEL.clear()  # a module global: an in-process second run must not inherit the first label
-    if args.label and len(args.surface or []) != 1:
-        ap.error("--label names the artifact ONE --surface stands for; give exactly one")
-    if args.label:
-        _LABEL[str(Path(args.surface[0]))] = args.label
-        _LABEL[str(Path(args.surface[0]).resolve())] = args.label
 
     surfaces = [Path(p) for p in args.surface]
     receipts = [Path(p) for p in args.receipt]
@@ -881,6 +894,15 @@ def main(argv: list[str] | None = None) -> int:
             print(why)
         return 0
 
+    if args.label and len(args.surface or []) != 1:
+        # exit 0 with the refusal in the envelope — the file's CONTRACT (review round 2: an
+        # argparse error exited 2 under a warn_only registration, prose on stderr under --json)
+        return _refuse(
+            "REFUSED — --label names the artifact ONE --surface stands for; give exactly one"
+        )
+    if args.label:
+        _LABEL[str(Path(args.surface[0]))] = args.label
+        _LABEL[str(Path(args.surface[0]).resolve())] = args.label
     for flag, terms in (
         ("--claim", args.claim),
         ("--phrase", args.phrase),

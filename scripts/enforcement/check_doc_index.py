@@ -227,7 +227,9 @@ def main() -> int:
         if as_json:
             payload = {"status": "failure", "drift": [message]}
             if untracked_only:
+                # review round 2: the lean row exits 0 here too, so say that NOTHING was examined
                 payload["mode"] = "untracked-only"
+                payload["examined"] = 0
             print(json.dumps(payload))
         else:
             print(f"ERROR: {_printable(message)}")
@@ -395,6 +397,7 @@ def main() -> int:
         payload = {"status": "success" if not problems else "failure", "drift": problems}
         if untracked_only:
             payload["mode"] = "untracked-only"
+            payload["examined"] = len(untracked)
         print(json.dumps(payload))
     else:
         for x in problems:

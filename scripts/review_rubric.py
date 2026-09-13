@@ -91,12 +91,11 @@ def _floor_for(changed: list[str], root: Path | None = None) -> tuple[tuple[str,
     CHANGELOG or a reference doc is still a tooling partition."""
     if root is None or not (root / "templates" / "governance" / "CLAUDE.md").is_file():
         return FLOOR_PACKS, "SERVICE"
-    paths = [
-        p.strip().removeprefix("./")
-        for p in changed
-        if p.strip() and not p.strip().lower().endswith((".md", ".txt", ".rst"))
-    ]
-    if paths and all(p.startswith(TOOLING_PREFIXES) for p in paths):
+    paths = [p.strip().removeprefix("./") for p in changed if p.strip()]
+    # doc paths do not vote — unless they are the WHOLE partition (a command-source-only or
+    # pack-only diff is the hub's most common tooling shape; review round 2)
+    voting = [p for p in paths if not p.lower().endswith((".md", ".txt", ".rst"))] or paths
+    if voting and all(p.startswith(TOOLING_PREFIXES) for p in voting):
         return FLOOR_PACKS_TOOLING, "TOOLING"
     return FLOOR_PACKS, "SERVICE"
 

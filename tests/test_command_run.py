@@ -4183,6 +4183,20 @@ def test_the_phase_gate_binds_a_ticket_artifact_to_the_plan_stem_and_the_record_
     assert cr._phase_review_exists(
         str(tmp_path), "A", plan_stem="2026-09-12-plan-2-mail-triage-command-machinery", since=start
     )
+    # review round 2: the prefix escape is DELIMITED — plan-2 is a prefix of plan-20 — and
+    # case-insensitive (an upper-cased receipt name still binds)
+    p20 = d / "2026-09-12-plan-20-other-phase-B-review.md"
+    p20.write_text("real content\n", encoding="utf-8")
+    os.utime(p20, (start - 3600, start - 3600))
+    assert not cr._phase_review_exists(
+        str(tmp_path), "B", plan_stem="2026-09-12-plan-2-mail-triage-command-machinery", since=start
+    ), "a stale receipt of plan-20 must not satisfy plan-2's boundary"
+    up = d / "2026-09-12-PLAN-2-mail-triage-phase-C-review.md"
+    up.write_text("real content\n", encoding="utf-8")
+    os.utime(up, (start - 3600, start - 3600))
+    assert cr._phase_review_exists(
+        str(tmp_path), "C", plan_stem="2026-09-12-plan-2-mail-triage-command-machinery", since=start
+    )
     # the legacy call (no stem, no start) keeps the permissive behaviour for records that carry
     # neither — the fleet's older records must not start refusing
     assert cr._phase_review_exists(str(tmp_path), 1)
@@ -4257,6 +4271,53 @@ def test_a_real_id_inside_angle_brackets_is_not_a_placeholder() -> None:
         "confusion: none · waste: none · change: none · filed: <mail id(s) to infra|fleet|intel | none>"
     )
     assert "filed (placeholder)" in missing, missing
+    # review round 2: several real ids inside the brackets are real values; the grammar's own
+    # text (prose words, or a `|`) is the placeholder; `<none>` alone is a value
+    for real in ("<01M1AAA, 01M1BBB>", "<01M1AAA 01M1BBB>", "<none>"):
+        _, missing = cr._parse_usage_feedback(
+            f"confusion: none · waste: none · change: none · filed: {real}"
+        )
+        assert not [m for m in missing if "placeholder" in m], (real, missing)
+    for ph in ("<mail id(s) to a beat>", "<what you filed | none>", "<the ONE edit>"):
+        _, missing = cr._parse_usage_feedback(
+            f"confusion: none · waste: none · change: {ph} · filed: x"
+        )
+        assert "change (placeholder)" in missing, (ph, missing)
+    for f in ("confusion", "waste", "change", "filed"):
+        assert cr._is_placeholder(f"<{f} placeholder text here>")
+
+
+def test_the_phase_gate_refusal_names_the_stem_and_states_the_bound_only_when_in_force(
+    run_dir: Path,
+) -> None:
+    """Review round 2: the refusal named "written at or after this record's start (unknown
+    start)" when no bound was in force, and printed the literal `<plan>` when the surface named
+    no plan — the grammar's own placeholder shape. The message names the stem it read, and the
+    time clause only with a finite start."""
+    _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-execute-plan",
+        "--phases",
+        "5",
+        "--terminal",
+        "x",
+        "--surface",
+        "docs/development/plans/2026-09-12-plan-2-mail-triage.md phase B",
+    )
+    (run_dir / "docs" / "development" / "reviews").mkdir(parents=True)
+    r = _cr(run_dir, "step", "--phase", "2", "--title", "B")
+    assert r.returncode == 2, r.stdout + r.stderr
+    assert "`2026-09-12-plan-2-mail-triage-T<id>-review.md`" in r.stderr, r.stderr
+    assert "<plan>" not in r.stderr and "unknown start" not in r.stderr, r.stderr
+    assert "written at or after this record's start (" in r.stderr, r.stderr
+    run2 = run_dir / "nosurface"
+    run2.mkdir()
+    _cr(run2, "start", "--command", "fabrik-execute-plan", "--phases", "5", "--terminal", "x")
+    (run2 / "docs" / "development" / "reviews").mkdir(parents=True)
+    r = _cr(run2, "step", "--phase", "2", "--title", "B")
+    assert r.returncode == 2 and "names no plan" in r.stderr, r.stderr
 
 
 def test_round_derives_new_from_the_classes_ledger_and_refuses_a_new_above_findings(

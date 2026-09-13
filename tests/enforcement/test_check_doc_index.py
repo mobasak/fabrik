@@ -810,6 +810,7 @@ def test_untracked_only_reports_the_creating_runs_docs_and_nothing_else(tmp_path
     assert payload.get("mode") == "untracked-only", payload
     assert [d for d in payload["drift"] if "brand-new.md" in d], payload
     assert not [d for d in payload["drift"] if "tracked-unindexed" in d], payload
+    assert payload.get("examined") == 1, payload  # review round 2: the denominator rides the row
     full = subprocess.run(
         [sys.executable, str(repo / "scripts/enforcement/check_doc_index.py"), "--json"],
         cwd=repo,

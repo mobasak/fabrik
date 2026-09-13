@@ -143,3 +143,9 @@ def test_a_tracked_hook_stays_required_when_its_registration_is_deleted(tmp_path
     (hooks / "orphan_guard.py").unlink()
     rc, out = _run(root, home=tmp_path)
     assert rc == 0 and "orphan_guard.py" not in out, out
+    # review round 2: a tracked hook whose path carries a SPACE is required by its whole basename
+    # (`git ls-files -z` — a whitespace split demanded `hook.py`)
+    (hooks / "my hook.py").write_text("# spaced\n", encoding="utf-8")
+    subprocess.run(["git", "add", ".claude/hooks/my hook.py"], cwd=root, check=True)
+    rc, out = _run(root, home=tmp_path)
+    assert rc == 1 and "my hook.py" in out, out
