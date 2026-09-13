@@ -2562,7 +2562,6 @@ def test_touches_shapes_round_two_a_plus_bullet_a_quoted_path_and_a_mid_bullet_c
     res = cpt.check_plan_dir(plan_dir)
     assert not [m for m in _errors(res) if "prose inside ## Touches" in m], _errors(res)
     assert cpt._list_paths("+ src/app/schema.py\n- b.py\n") == ["src/app/schema.py", "b.py"]
-    )
     quoted = T01.replace("## Touches\n\n", "## Touches\n\n> src/app/other.py\n")
     plan_dir = _build(
         tmp_path / "q",
