@@ -4221,6 +4221,17 @@ def test_the_phase_gate_binds_a_ticket_artifact_to_the_plan_stem_and_the_record_
     assert cr._phase_review_exists(
         str(tmp_path), "F", plan_stem="2026-08-31-plan-2v2-x", since=start
     )
+    # round 6: the escape is case-blind like the prefix pattern it builds (a mixed-case stem lost
+    # it), and a WORD-slug plan id keys the escape on its first slug token
+    assert cr._phase_review_exists(
+        str(tmp_path), "F", plan_stem="2026-08-31-PLAN-2v2-X", since=start
+    )
+    slug = d / "2026-05-30-plan-worker-phase-G-review.md"
+    slug.write_text("real content\n", encoding="utf-8")
+    os.utime(slug, (start - 3600, start - 3600))
+    assert cr._phase_review_exists(
+        str(tmp_path), "G", plan_stem="2026-05-30-plan-worker-node", since=start
+    )
     # the legacy call (no stem, no start) keeps the permissive behaviour for records that carry
     # neither — the fleet's older records must not start refusing
     assert cr._phase_review_exists(str(tmp_path), 1)
@@ -4319,13 +4330,25 @@ def test_a_real_id_inside_angle_brackets_is_not_a_placeholder() -> None:
         assert not cr._is_placeholder(real), real
     assert cr._is_placeholder("<nothing filed, no surfaces exercised worth naming>")
     # round 5: the grammar's own filler after the marker, or an empty list, is the placeholder;
-    # a lower-case synonym head is refused on purpose; every noun phrase alone is a placeholder
+    # round 6: decorating the filler (a period, quotes, doubled spaces, Title Case) or writing a
+    # tail with no word character (`...`, `???`, `--`) names no surface either
     for ph in (
         "<none — surfaces exercised: what your run touched>",
         "<none — surfaces exercised:>",
-        "<nothing filed — surfaces exercised: mail.py>",
+        "<none — surfaces exercised: what your run touched.>",
+        "<none — surfaces exercised: 'what your run touched'>",
+        "<none — surfaces exercised: what  your run touched>",
+        "<none — surfaces exercised: What Your Run Touched>",
+        "<none — surfaces exercised: ...>",
+        "<none — surfaces exercised: ???>",
+        "<none — surfaces exercised: -->",
     ):
         assert cr._is_placeholder(ph), ph
+    # a lower-case synonym head (`nothing filed`) never reaches the honest branch — it is refused
+    # by the several-prose-tokens rule, on purpose (round 6: the round-5 comment credited the tail
+    # check with this verdict; it is the generic rule's)
+    assert cr._is_placeholder("<nothing filed — surfaces exercised: mail.py>")
+    assert not cr._is_placeholder("<none — surfaces exercised: mail.py.>")  # a real tail, dotted
     for noun in cr._GRAMMAR_NOUNS:
         assert cr._is_placeholder(f"<{noun} here>"), noun
     for ph in (

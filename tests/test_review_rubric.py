@@ -210,3 +210,11 @@ def test_the_floor_is_surface_aware_for_hub_tooling(tmp_path):
     assert (
         rr._floor_for(["docs/development/plans/2026-01-01-plan-1-x.md"], tmp_path)[1] == "SERVICE"
     )
+    # round 6: a hub plan beside a reference doc is a documentation partition — the plan abstains
+    # and the reference doc votes (by design; it was the service floor before round 5)
+    assert (
+        rr._floor_for(
+            ["docs/reference/x.md", "docs/development/plans/2026-01-01-plan-1-x.md"], tmp_path
+        )[1]
+        == "TOOLING"
+    )

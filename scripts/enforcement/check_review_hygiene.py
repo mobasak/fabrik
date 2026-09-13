@@ -697,22 +697,24 @@ def _until_heading(text: str, heading: str | None) -> tuple[str, int]:
     # spans) — a heading inside a fence OR an HTML comment is quoted text, never the stop
     # (round 3 tracked fences alone; round 4: a commented-out ledger heading was taken as live).
     # An UNTERMINATED `<!--` is literal text, not a comment that swallows the file (round 5) —
-    # the opener with no closer below it is neutralised before blanking; a heading inside an
-    # indented code block (4 spaces) is quoted too; a closed comment on the heading's own line
-    # is not part of its text.
+    # EVERY opener with no closer below it is neutralised before blanking (round 6: the first cut
+    # looked at the last opener only, and read a closer inside a code span that `_blank_quoted`
+    # masks); a heading inside an indented code block (4 spaces) is quoted too; a closed comment
+    # on the heading's own line is not part of its text, and runs of whitespace are one space.
     quoted = list(lines)
-    for i in range(len(quoted) - 1, -1, -1):
-        if "<!--" in quoted[i]:
-            if not any("-->" in q for q in quoted[i:]):
-                quoted[i] = quoted[i].replace("<!--", "<!- -")
-            break
+    for i, ln in enumerate(quoted):
+        masked = _mask_code_spans(ln)
+        if "<!--" in masked and "-->" not in masked:
+            if not any("-->" in _mask_code_spans(q) for q in quoted[i + 1 :]):
+                quoted[i] = ln.replace("<!--", "<!- -")
+    want = " ".join(want.split())
     for i, ln in enumerate(_blank_quoted(quoted)):
         if ln.startswith("    ") or ln.startswith("\t"):
             continue
         st = re.sub(r"<!--.*?-->", "", ln).strip()
         if not st.startswith("#"):
             continue
-        if st.lstrip("#").strip().rstrip("#").strip().lower() == want:
+        if " ".join(st.lstrip("#").strip().rstrip("#").split()).lower() == want:
             return "\n".join(lines[:i] + [""] * (len(lines) - i)), len(lines) - i
     return text, 0
 

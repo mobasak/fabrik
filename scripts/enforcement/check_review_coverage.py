@@ -2637,11 +2637,13 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
 # neither; a bullet-list Changed block is still the list)
 # a continuation line starts with a backticked token, plain, bulleted (`-`/`*`/`+`/`1.`/`>`) or bold
 _CHANGED_LINE = re.compile(
-    r"\*\*Changed:\*\*(.*?)(?=\n(?![ \t]*(?:\*{0,2}`|(?:\d+[.)]|[-*+]|>+)\s*\*{0,2}`))|\Z)", re.S
+    r"\*\*Changed:\*\*(.*?)(?=\n(?![ \t]*(?:\*{0,2}`|(?:\d+[.)]|[-*+]|>+)[ \t]*\*{0,2}`))|\Z)", re.S
 )
 _BACKTICKED = re.compile(r"`([^`\n]+)`")
 _TOKEN_SHAPE = re.compile(r"^[\w.+/~-]+$")  # what a path is made of — never a symbol, a flag, prose
-_LOCATION_SUFFIX = re.compile(r"(?:::[\w.\[\]-]+|:\d+(?:-\d+)?)$")  # `x.py::test`, `x.py:44`
+# `x.py::test`, `x.py::Cls::test[a-b]`, `x.py:44`, `x.py:44-50`, `x.py:44:12` — every segment
+# (round 6: a two-segment node id kept a colon, failed the shape and was silently DROPPED)
+_LOCATION_SUFFIX = re.compile(r"(?:(?:::[\w.\[\]-]+)+|:\d+(?::\d+)?(?:-\d+)?)$")
 _BARE_FILES = frozenset(
     {
         "Makefile",
@@ -2699,17 +2701,25 @@ def _hunt_gaps(text: str) -> list[str]:
     m = _CHANGED_LINE.search(stripped)
     if not m:
         return []
+
+    # BOTH sides are read the same way — the location suffix stripped, a bare file name
+    # (`makefile`/`Makefile`) case-folded (round 6: a hand-written `Hunt: \`x.py:44\`` row never
+    # satisfied its own `\`x.py\`` entry)
+    def _key(tok: str) -> str:
+        tok = _LOCATION_SUFFIX.sub("", tok.strip())
+        return tok.casefold() if tok.casefold() in _BARE_FILES_CI else tok
+
     changed = [
-        _LOCATION_SUFFIX.sub("", c.strip())
+        (_LOCATION_SUFFIX.sub("", c.strip()), _key(c))
         for c in _BACKTICKED.findall(m.group(1))
         if _is_path_token(c.strip())
     ]
-    hunted = {h.strip() for h in _HUNT_ROW.findall(stripped)}
+    hunted = {_key(h) for h in _HUNT_ROW.findall(stripped)}
     return [
         f"Changed path `{c}` has no `Hunt:` row — the checklist grades only the rows that exist, "
         "so a file never claimed is never hunted (add the row, then adjudicate it)"
-        for c in changed
-        if c and c not in hunted
+        for c, k in changed
+        if c and k not in hunted
     ]
 
 
@@ -2747,7 +2757,7 @@ def _running_review_receipts(root: Path) -> list[Path]:
             since = 0.0
         if since > 0:
             break
-    if since <= 0:
+    if not since > 0:  # a non-finite start (`nan`) is no start either (round 6)
         return []
     # when the record's surface names a plan, only receipts that name the same plan are this
     # run's own — a sibling's receipt written since the start is not (review round 1); a nested

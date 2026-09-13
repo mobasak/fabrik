@@ -1956,6 +1956,49 @@ def test_a_git_failure_in_the_advisory_is_a_warning_final_gate_can_see(tmp_path:
     assert heads == {} and complete is False
 
 
+def test_a_cut_or_malformed_batch_stream_never_grades_a_partial_plan(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Round 6: a body cut short by a killed `git` sliced past the buffer and graded 3 bytes of a
+    600-byte plan as COMPLETE; a header git never writes desynced every later plan silently; and
+    the advisory said "the plans it never reached were NOT examined" when every plan was read
+    and only the exit code was bad."""
+    import subprocess as sp
+    import types
+
+    cc = _load_cc()
+
+    def fake(stdout: bytes, rc: int):
+        def run(*a, **k):
+            return types.SimpleNamespace(stdout=stdout, returncode=rc)
+
+        return run
+
+    two = ["docs/development/plans/a.md", "docs/development/plans/b.md"]
+    monkeypatch.setattr(cc.subprocess, "run", fake(b"sha1 blob 4\nAAAA\nsha2 blob 600\nBBB", 0))
+    heads, complete = cc._head_texts(tmp_path, two)
+    assert heads == {two[0]: "AAAA"} and complete is False
+    monkeypatch.setattr(cc.subprocess, "run", fake(b"garbage\nsha2 blob 6\nBBBBBB\n", 0))
+    heads, complete = cc._head_texts(tmp_path, two)
+    assert heads == {} and complete is False
+    monkeypatch.setattr(cc.subprocess, "run", fake(b"HEAD:a.md missing\nsha2 blob 6\nBBBBBB\n", 0))
+    heads, complete = cc._head_texts(tmp_path, two)
+    assert heads == {two[1]: "BBBBBB"} and complete is True
+    # every blob read, exit non-zero: complete is False and the advisory names THAT, not unread plans
+    (tmp_path / "docs/development/plans").mkdir(parents=True)
+    for rel in two:
+        (tmp_path / rel).write_text("# p\n", encoding="utf-8")
+    monkeypatch.setattr(cc.subprocess, "run", fake(b"sha1 blob 4\nAAAA\nsha2 blob 6\nBBBBBB\n", 1))
+    rows = cc._committed_claims_advisory(tmp_path, set())
+    adv = [r for r in rows if r.startswith("committed-claims advisory")]
+    assert len(adv) == 1 and "2 blob(s) of 2 plan file(s)" in adv[0], rows
+    assert "did not exit cleanly" in adv[0] and "never reached" not in adv[0], adv
+    monkeypatch.setattr(cc.subprocess, "run", fake(b"sha1 blob 4\nAAAA\n", 1))
+    rows = cc._committed_claims_advisory(tmp_path, set())
+    adv = [r for r in rows if r.startswith("committed-claims advisory")]
+    assert len(adv) == 1 and "1 blob(s) of 2" in adv[0] and "never reached" in adv[0], rows
+
+
 def test_the_rederivation_message_names_the_closing_row_grammar(repo: Path) -> None:
     """T4.10 (01M1SR1WK): the refusal names the exact cell grammar the grader accepts, so a
     reader does not guess where the label goes."""

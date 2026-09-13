@@ -105,8 +105,10 @@ def _floor_for(changed: list[str], root: Path | None = None) -> tuple[tuple[str,
 
     voting = [p for p in paths if not _is_doc(p)]
     if not voting:
-        # the hub's machinery prose under docs/reference and docs/workstation is tooling prose;
-        # plans, specs, reviews and the rest of docs/ describe service work (round 5)
+        # the hub's machinery prose under docs/reference and docs/workstation is tooling prose
+        # and VOTES; plans, specs, reviews and the rest of docs/ ABSTAIN — alone they leave the
+        # service floor standing, beside a tooling doc they are outvoted (round 5; round 6 pinned
+        # the mixed case: a hub plan beside a reference doc is a documentation partition)
         voting = [
             p
             for p in paths

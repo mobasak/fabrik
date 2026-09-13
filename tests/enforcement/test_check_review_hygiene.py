@@ -1096,6 +1096,41 @@ def test_stop_at_heading_matches_a_real_heading_and_blanks_the_symbol_count_too(
         (6, 1),
         (8, 1),
     ], sweep.hits
+    # round 6: EVERY unterminated opener is neutralised (not only the last one); a closer inside
+    # a code span is no closer; a 3-space-indented heading is a heading; a closed comment inside
+    # the heading text leaves one space behind
+    for name, text, live in (
+        (
+            "two.md",
+            "# D\n\n<!-- a\n\n<!-- b\nthe widget lives here\n## Pass Ledger\nthe widget retired\n",
+            [6],
+        ),
+        (
+            "span.md",
+            "# D\n\n<!-- oops\nsee `-->` in a span\nthe widget lives here\n## Pass Ledger\nthe widget retired\n",
+            [5],
+        ),
+        ("three.md", "# D\n\nthe widget lives here\n   ## Pass Ledger\nthe widget retired\n", [3]),
+        (
+            "inner.md",
+            "# D\n\nthe widget lives here\n## Pass <!-- x --> Ledger <!-- y -->\nthe widget retired\n",
+            [3],
+        ),
+    ):
+        f = tmp_path / name
+        f.write_text(text, encoding="utf-8")
+        sweep = crh.scan(surfaces=[f], phrases=["the widget"], stop_at_heading="## Pass Ledger")
+        assert [h.line for h in sweep.hits if h.cls == "stale-phrase"] == live, (name, sweep.hits)
+    # an earlier opener runs to a LATER closer — that is the comment, by CommonMark and by HTML —
+    # so the heading inside it is no stop, nothing is blanked, and the phrase sweep (which reads
+    # comments on purpose: a mirror inside one is still a mirror) lists both sites
+    e = tmp_path / "early.md"
+    e.write_text(
+        "# D\n\n<!-- early\n## Pass Ledger\nthe widget lives\n<!-- closed -->\nthe widget retired\n",
+        encoding="utf-8",
+    )
+    sweep = crh.scan(surfaces=[e], phrases=["the widget"], stop_at_heading="## Pass Ledger")
+    assert [h.line for h in sweep.hits if h.cls == "stale-phrase"] == [5, 7], sweep.hits
 
 
 def test_a_label_with_two_surfaces_is_refused_and_a_repeated_selector_dedupes(tmp_path):

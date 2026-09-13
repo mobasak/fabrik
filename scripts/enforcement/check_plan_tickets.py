@@ -130,8 +130,11 @@ _PATHISH = re.compile(
 )
 # STATED COST (round 5): a directory path (`scripts/enforcement/`, `src/app/x`) and a slash-joined
 # prose triple (`and/or/nor`, `TCP/IP/UDP`) are the same shape, so directories are not paths here;
-# a URL is stripped before the test
-_URL_RE = re.compile(r"\bhttps?://\S+")
+# a URL — any scheme, any case (round 6: `HTTP://…`, `file:///…`) — is stripped before the test,
+# while a scheme-less link (`docs.python.org/3/x.html`) and a dotted product name (`Node.js`)
+# still read as paths: quote links with their scheme (0 of 638 `## Touches` lines in the hub's
+# 317 plan files are blockquotes, 2026-09-13 — the whole branch is prospective)
+_URL_RE = re.compile(r"\b[a-z][\w+.-]*://\S+", re.I)
 # The FROZEN 2-contract artifacts are MANDATORY reading for any ticket that touches their surface —
 # the commands require citing them, and /fabrik-flows, /fabrik-ui-design and /fabrik-data-contract
 # all push them toward completeness. Counting them against a TICKET's budget measures the contract's

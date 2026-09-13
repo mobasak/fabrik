@@ -234,6 +234,25 @@ def test_the_changed_list_reads_paths_only_across_wrapped_lines_and_never_from_a
     )  # the suffix is stripped, y owes a row
     r = _run_on(tmp_path, with_x.replace("# R\n", "# R\n**Changed:** `x.py`, `makefile`\n\n"))
     assert r.returncode == 1 and "`makefile`" in r.stdout, r.stdout
+    # round 6: a location suffix on the HUNT side is stripped too, a bare file name matches in any
+    # case, every `::` segment of a node id is a suffix (a two-segment id was silently dropped),
+    # and a lone `>` line ends the list
+    r = _run_on(
+        tmp_path,
+        with_x.replace("# R\n", "# R\n**Changed:** `x.py`, `makefile`\n\n").replace(
+            "Hunt: `x.py`", "Hunt: `x.py:44`"
+        )
+        + "\n| 9 | Hunt: `Makefile` — every hunk | CLEAN | read |\n",
+    )
+    assert r.returncode == 0, r.stdout
+    for tok in ("`y.py::TestA::test_b`", "`y.py:44:12`", "`y.py::t[a-b]`"):
+        r = _run_on(tmp_path, with_x.replace("# R\n", f"# R\n**Changed:** `x.py`, {tok}\n\n"))
+        assert r.returncode == 1 and "`y.py`" in r.stdout, (tok, r.stdout)
+    r = _run_on(
+        tmp_path,
+        with_x.replace("# R\n", "# R\n**Changed:** `x.py`\n>\n`y.py` is a prose symbol here\n\n"),
+    )
+    assert r.returncode == 0, r.stdout
     # an IN-PROGRESS receipt (a seat's mid-loop draft) is exempt from the Hunt-row leg too
     r = _run_on(
         tmp_path,

@@ -738,12 +738,18 @@ def _head_texts(root: Path, relpaths: list[str]) -> tuple[dict[str, str], bool]:
         header = buf[i:nl].decode("utf-8", "replace")
         i = nl + 1
         parts = header.split()
-        if len(parts) < 3 or parts[-1] == "missing":
+        if parts and parts[-1] == "missing":
             continue
+        if len(parts) < 3:
+            complete = False  # a header git never writes (`<spec> ambiguous`): out of step
+            break
         try:
             size = int(parts[2])
         except ValueError:
             complete = False
+            break
+        if len(buf) - i < size:
+            complete = False  # the body was cut short — a PARTIAL plan is never graded (round 6)
             break
         out[rel] = buf[i : i + size].decode("utf-8", "replace")
         i += size + 1  # the trailing newline after the body
@@ -1172,10 +1178,18 @@ def _committed_claims_advisory(root: Path, skip: set[Path]) -> list[str]:
     if plans and not complete:
         # a git failure or a truncated batch would otherwise read as "no committed debt" — an
         # advisory ROW, so the ⚠-first header final_gate keys on carries it (rounds 2–3)
+        # the tail names what the count means: blobs short of the request were never reached; a
+        # full count with a non-zero exit is a stream git did not close cleanly (round 6)
+        tail = (
+            "the plans it never reached were NOT examined"
+            if len(heads) < len(plans)
+            else "every plan was read but git did not exit cleanly, so the rows below stand on "
+            "an untrusted stream"
+        )
         out.append(
             f"committed-claims advisory: git cat-file failed or was cut short after "
-            f"{len(heads)} blob(s) of {len(plans)} plan file(s) requested — the plans it never "
-            "reached were NOT examined (a plan absent at HEAD is not counted either way)"
+            f"{len(heads)} blob(s) of {len(plans)} plan file(s) requested — {tail} (a plan absent "
+            "at HEAD is not counted either way)"
         )
     for p in plans:
         rel = p.relative_to(root)
