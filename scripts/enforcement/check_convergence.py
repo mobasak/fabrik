@@ -710,13 +710,15 @@ def _check_plan(root: Path, path: Path) -> list[str]:
     return out
 
 
-def _head_texts(root: Path, relpaths: list[str]) -> tuple[dict[str, str], bool]:
+def _head_texts(root: Path, relpaths: list[str]) -> tuple[dict[str, str], bool, int]:
     """Contents of ``relpaths`` at HEAD in one `git cat-file --batch`, and whether the batch was
     COMPLETE — a path absent at HEAD is absent from the result; a git failure or a truncated
     stream (round 3: `git` killed mid-batch left the rest silently "not a committed claim")
-    returns ``complete=False``. Bytes-parsed: `<sha> <type> <size>\n<body>\n` or `<spec> missing\n`."""
+    returns ``complete=False``. Bytes-parsed: `<sha> <type> <size>\n<body>\n` or `<spec> missing\n`.
+    The third value is how many of ``relpaths`` the batch REACHED — a `missing` plan is reached
+    and not stored, so the count is not ``len(result)`` (round 7)."""
     if not relpaths:
-        return {}, True
+        return {}, True, 0
     try:
         r = subprocess.run(
             ["git", "cat-file", "--batch"],
@@ -726,10 +728,11 @@ def _head_texts(root: Path, relpaths: list[str]) -> tuple[dict[str, str], bool]:
             timeout=60,
         )
     except Exception:
-        return {}, False
+        return {}, False, 0
     out: dict[str, str] = {}
     buf, i = r.stdout, 0
     complete = r.returncode == 0
+    reached = 0
     for rel in relpaths:
         nl = buf.find(b"\n", i)
         if nl < 0:
@@ -739,6 +742,7 @@ def _head_texts(root: Path, relpaths: list[str]) -> tuple[dict[str, str], bool]:
         i = nl + 1
         parts = header.split()
         if parts and parts[-1] == "missing":
+            reached += 1
             continue
         if len(parts) < 3:
             complete = False  # a header git never writes (`<spec> ambiguous`): out of step
@@ -752,8 +756,9 @@ def _head_texts(root: Path, relpaths: list[str]) -> tuple[dict[str, str], bool]:
             complete = False  # the body was cut short — a PARTIAL plan is never graded (round 6)
             break
         out[rel] = buf[i : i + size].decode("utf-8", "replace")
+        reached += 1
         i += size + 1  # the trailing newline after the body
-    return out, complete
+    return out, complete, reached
 
 
 def _head_text(root: Path, relpath: str) -> str:
@@ -1174,15 +1179,16 @@ def _committed_claims_advisory(root: Path, skip: set[Path]) -> list[str]:
     # is not committed debt, and a locally reverted claim is still committed (review round 1,
     # Phase B). ONE `git cat-file --batch` for the whole set — measured on the hub 2026-09-13:
     # 317 plan files, well under a second either way, but one process instead of 317.
-    heads, complete = _head_texts(root, [str(p.relative_to(root)) for p in plans])
+    heads, complete, reached = _head_texts(root, [str(p.relative_to(root)) for p in plans])
     if plans and not complete:
         # a git failure or a truncated batch would otherwise read as "no committed debt" — an
         # advisory ROW, so the ⚠-first header final_gate keys on carries it (rounds 2–3)
-        # the tail names what the count means: blobs short of the request were never reached; a
-        # full count with a non-zero exit is a stream git did not close cleanly (round 6)
+        # the tail names what the count means: plans short of the request were never REACHED
+        # (a `missing` plan was reached and is not a blob — round 7); every plan reached with a
+        # non-zero exit is a stream git did not close cleanly (round 6)
         tail = (
             "the plans it never reached were NOT examined"
-            if len(heads) < len(plans)
+            if reached < len(plans)
             else "every plan was read but git did not exit cleanly, so the rows below stand on "
             "an untrusted stream"
         )

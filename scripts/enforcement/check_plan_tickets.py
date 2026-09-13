@@ -130,11 +130,15 @@ _PATHISH = re.compile(
 )
 # STATED COST (round 5): a directory path (`scripts/enforcement/`, `src/app/x`) and a slash-joined
 # prose triple (`and/or/nor`, `TCP/IP/UDP`) are the same shape, so directories are not paths here;
-# a URL — any scheme, any case (round 6: `HTTP://…`, `file:///…`) — is stripped before the test,
-# while a scheme-less link (`docs.python.org/3/x.html`) and a dotted product name (`Node.js`)
-# still read as paths: quote links with their scheme (0 of 638 `## Touches` lines in the hub's
-# 317 plan files are blockquotes, 2026-09-13 — the whole branch is prospective)
-_URL_RE = re.compile(r"\b[a-z][\w+.-]*://\S+", re.I)
+# a URL — any scheme, any case, however delimited (round 6: `HTTP://…`, `file:///…`; round 7:
+# `__https://…__` — an underscore is a word character, so a `\b` anchor missed the emphasised
+# form) — is stripped before the test, together with anything glued to it up to the next
+# whitespace (`https://a/x.md,src/y.py` rides along: a stated cost); a scheme-less link
+# (`docs.python.org/3/x.html`) and a dotted product name (`Node.js`) still read as paths, so
+# quote links with their scheme. Fire rate: 0 of the 374 non-blank `## Touches` lines (124 of
+# the hub's 317 plan files carry the section, 2026-09-13) are blockquotes — the branch is
+# prospective
+_URL_RE = re.compile(r"[a-z][\w+.-]*://\S+", re.I)
 # The FROZEN 2-contract artifacts are MANDATORY reading for any ticket that touches their surface —
 # the commands require citing them, and /fabrik-flows, /fabrik-ui-design and /fabrik-data-contract
 # all push them toward completeness. Counting them against a TICKET's budget measures the contract's

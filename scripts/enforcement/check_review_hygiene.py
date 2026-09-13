@@ -689,7 +689,9 @@ def _until_heading(text: str, heading: str | None) -> tuple[str, int]:
     line that merely starts with the words (review round 1, Phase B)."""
     if not heading:
         return text, 0
-    want = heading.strip().lstrip("#").strip().lower()
+    # the argument is read like the line: surrounding `#` and whitespace ignored, runs of
+    # whitespace one space (round 7: a closed ATX argument `## Pass Ledger ##` matched nothing)
+    want = " ".join(heading.strip().lstrip("#").strip().rstrip("#").split()).lower()
     if not want:
         return text, 0
     lines = text.splitlines()
@@ -707,7 +709,6 @@ def _until_heading(text: str, heading: str | None) -> tuple[str, int]:
         if "<!--" in masked and "-->" not in masked:
             if not any("-->" in _mask_code_spans(q) for q in quoted[i + 1 :]):
                 quoted[i] = ln.replace("<!--", "<!- -")
-    want = " ".join(want.split())
     for i, ln in enumerate(_blank_quoted(quoted)):
         if ln.startswith("    ") or ln.startswith("\t"):
             continue
