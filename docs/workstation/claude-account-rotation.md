@@ -295,18 +295,27 @@ CLAUDE_CONFIG_DIR="$HOME/.claude-fleet/<slug>" CLAUDE_QUOTA_HOME="$HOME/.claude-
 /exit
 ```
 
+The tool prints that session as ONE line (`_relogin_block`) — run the command, then type the two
+slash commands: `CLAUDE_CONFIG_DIR="$HOME/.claude-fleet/ob" CLAUDE_QUOTA_HOME="$HOME/.claude-fleet/ob"
+claude → /login as ob@ocoron.com → /exit`. An account pinned in several dirs is named by the DIR whose
+chain lapses soonest (`refresh_expires_slug` on the account row), never the alphabetically first.
+
 Re-login the ACTIVE account only after switching away (a live session reads that file when it
 refreshes). Never `CLAUDE_ROTATE_ALLOW_STALE=1`: it lands the fleet on a token that dies at the
 access expiry with nothing to renew it.
 
 **How the tool tells you in time.** `--status` and the tick print the chain warning inside 5 days
-of expiry (`_CHAIN_EXPIRY_WARN_S`) WITH the re-login line above, and the tick pushes it once per
-chain (mesh-notify) inside 3 days (`_CHAIN_PUSH_S`; stamp `~/.claude/state/fleet-chain-push-<email>`
-holds the expiry epoch, so a re-minted chain re-arms by itself). The old `--keepalive` ping is
-RETIRED (2026-09-12): its premise was false and, keyed on a credential mtime the tick renews
-daily, it pinged nothing in three weeks of runs (`~/.claude/keepalive.log`). The flag is kept as a
-no-op that prints why (rc 0), so the cron line below can be deleted at leisure — crontab edits are
-the operator's.
+of expiry (`_CHAIN_EXPIRY_WARN_S`) with that one-line form (an EXPIRED chain gets the same line),
+and the tick pushes it once per chain (mesh-notify) inside 3 days (`_CHAIN_PUSH_S`, strict: exactly
+3 d is not yet). The stamp `~/.claude/state/fleet-chain-push-<email slug>-<8 hex of the email>` holds
+the expiry epoch, so a re-minted chain re-arms by itself; it is written ONLY after mesh-notify
+reported delivery (an undelivered push is retried next tick, never recorded as sent) and lands in
+`/tmp` when the state dir refuses the write. The old `--keepalive` ping is RETIRED (2026-09-12): its
+premise was false and, keyed on a credential mtime the tick renews daily, both logged Monday runs
+(2026-08-31, 2026-09-07 — `~/.claude/keepalive.log`) pinged nothing. The flag is kept as a no-op
+that prints why (rc 0), so the cron line below can be deleted at leisure — crontab edits are the
+operator's. `--touch` (the temp-dir-copy refresh of the legacy pool) is RETIRED the same way
+(2026-09-13): a copy's refresh consumes the single-use refresh token.
 
 ## Recovery rules
 
@@ -338,10 +347,14 @@ flip; nothing installs into `~/.claude`.
 
 ```cron
 */5 * * * * flock -n $HOME/.claude/state/rotate.lock python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --tick >> $HOME/.claude/rotate-tick.log 2>&1
-20 6 * * 1 python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --keepalive >> $HOME/.claude/keepalive.log 2>&1   # RETIRED 2026-09-12 (a no-op that says why) — delete when convenient
+20 6 * * 1 python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --keepalive >> $HOME/.claude/keepalive.log 2>&1
 @reboot sleep 20 && /usr/bin/python3 /opt/fabrik/scripts/sysadmin/quota_dashboard.py --ensure >> $HOME/.claude/quota-dashboard.log 2>&1
 */10 * * * * /usr/bin/python3 /opt/fabrik/scripts/sysadmin/quota_dashboard.py --ensure >> $HOME/.claude/quota-dashboard.log 2>&1
 ```
+
+The `--keepalive` line is RETIRED (2026-09-12): the flag is a no-op that prints why on every run,
+so the line is harmless until the operator deletes it (crontab edits are the operator's — the block
+above is the crontab as installed, byte for byte).
 
 The `flock -n $HOME/.claude/state/rotate.lock` wrapper is load-bearing, not tidiness: the relief wake fires on the stamp's exists→unlink TRANSITION, and that is single-fire only because two ticks never overlap — a hand-run `--tick` must use the same wrapper (`flock -n ~/.claude/state/rotate.lock python3 scripts/sysadmin/claude_rotate.py --tick`), or a hand tick racing the cron one can wake every pane twice.
 
@@ -443,7 +456,12 @@ stores (`~/.claude/manager-accounts/<name>/`). It retires at the M4 sweep — do
   + one Telegram (24h suppress), keep-warm for parked snapshots.
 - `--capture-current` · `--drift-check` — snapshot the live chain (identity-gated); the cron
   and hook triggers are removed, the flags remain invocable by hand until the sweep.
-- `--touch [<account>]` — the temp-dir-copy refresh; superseded by `--keepalive`'s in-place path, itself retired 2026-09-12 (a ping never extends a chain — § Re-login). ⚠️ Never refresh on a COPY of a credential file: refresh tokens are single-use, so the copy consumes the live token and the real dir dies on its next refresh (mob@, 2026-09-12).
+- `--touch [<account>]` — RETIRED 2026-09-13: prints why, touches nothing, rc 0. It refreshed on a
+  temp-dir COPY of a parked store's credentials to "keep the chain alive" — a premise the 2026-09-12
+  measurement falsified (§ Re-login), and a hazard: refresh tokens are single-use, so the copy
+  consumes the live token and a pair the liveness gate refuses to file leaves the real store dead
+  (mob@, 2026-09-12). ⚠️ Never refresh on a COPY of a credential file; only a `/login` in the
+  account's own dir re-mints a chain.
 - Safety invariants: atomic credential writes under the rotation flock with a `.prev` backup;
   nothing filed without positive identity verification; the tick never signals processes.
 - Audit trail: `~/.claude/state/rotate-ledger.jsonl` (size-capped), which now also records

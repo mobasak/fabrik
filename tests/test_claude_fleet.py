@@ -1187,30 +1187,47 @@ def test_empty_fleet_root_keeps_the_legacy_view_and_one_dir_flips_it(tmp_path, m
 # ── B10: --keepalive — RETIRED 2026-09-12: a ping never extends a chain; the flag is a no-op that says why ───────────────────────────
 
 
-def test_keepalive_never_reads_credential_bytes(tmp_path, monkeypatch):
-    """The retired flag must still never open the credential file (it reads nothing at all)."""
+def test_keepalive_ping_runs_claude_in_place_and_never_reads_credential_bytes(
+    tmp_path, monkeypatch
+):
+    """`_keepalive_ping` is KEPT for the tick's stale-reading refresh and it is the in-place
+    SOLE-OWNER shape: `claude -p ping` with CLAUDE_CONFIG_DIR == CLAUDE_QUOTA_HOME == the dir
+    itself, no temp-dir copy (a copy's refresh consumes the single-use refresh token — mob@
+    2026-09-12), and not one credential byte read by this script."""
     fleet, *_ = _canonical(tmp_path, monkeypatch)
     assert cr.main(["--new-dir", "old", "sarp@ocoron.com"]) == 0
     creds = _fleet_creds(fleet, "old", "tok-old", age_s=8 * 86400.0)
-    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
-    monkeypatch.setattr(
-        cr.subprocess, "run", lambda argv, **kw: subprocess.CompletedProcess(argv, 0, "", "")
-    )
+    seen = {}
+
+    def fake_run(argv, **kw):
+        seen["argv"], seen["env"] = list(argv), dict(kw["env"])
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(cr.subprocess, "run", fake_run)
+
+    def no_copy(*a, **k):
+        raise AssertionError("the in-place ping made a temp-dir copy")
+
+    monkeypatch.setattr(cr.tempfile, "mkdtemp", no_copy)
     real_read_bytes, real_read_text = Path.read_bytes, Path.read_text
 
     def guarded_bytes(self, *a, **k):
-        assert self.name != ".credentials.json", "keepalive read credential BYTES"
+        assert self.name != ".credentials.json", "ping read credential BYTES"
         return real_read_bytes(self, *a, **k)
 
     def guarded_text(self, *a, **k):
-        assert self.name != ".credentials.json", "keepalive read credential BYTES"
+        assert self.name != ".credentials.json", "ping read credential BYTES"
         return real_read_text(self, *a, **k)
 
     monkeypatch.setattr(Path, "read_bytes", guarded_bytes)
     monkeypatch.setattr(Path, "read_text", guarded_text)
 
-    assert cr.main(["--keepalive"]) == 0
-    assert creds.read_text  # fixture intact
+    assert cr._keepalive_ping(fleet / "old") is True
+    assert seen["argv"] == ["claude", "-p", "ping"]
+    env = seen["env"]
+    assert env["CLAUDE_CONFIG_DIR"] == env["CLAUDE_QUOTA_HOME"] == str(fleet / "old")
+    assert env["CLAUDE_MESH_HEADLESS"] == "1" and env["CLAUDE_SOUND_NO_REVIVE"] == "1"
+    assert real_read_text(creds)  # fixture intact, never opened by the ping
 
 
 def test_keepalive_is_retired_spawns_nothing_and_says_why(tmp_path, monkeypatch, capsys):
@@ -1226,6 +1243,11 @@ def test_keepalive_is_retired_spawns_nothing_and_says_why(tmp_path, monkeypatch,
         raise AssertionError(f"the retired keepalive spawned a process: {argv!r}")
 
     monkeypatch.setattr(cr.subprocess, "run", forbidden_run)
+
+    def no_scan():
+        raise AssertionError("the retired keepalive scanned the fleet dirs")
+
+    monkeypatch.setattr(cr, "_fleet_dirs", no_scan)
     capsys.readouterr()
 
     assert cr.main(["--keepalive"]) == 0
@@ -1260,7 +1282,7 @@ def _fleet_tick_spies(monkeypatch):
     actions = {"switched": [], "picked": [], "telegrams": [], "mails": []}
     monkeypatch.setattr(cr, "_tick_switch", lambda name: actions["switched"].append(name) or True)
     monkeypatch.setattr(cr, "_pick_successor", lambda *a, **k: actions["picked"].append(a) or None)
-    monkeypatch.setattr(cr, "_tick_telegram", lambda msg: actions["telegrams"].append(msg))
+    monkeypatch.setattr(cr, "_tick_telegram", lambda msg: actions["telegrams"].append(msg) or True)
     monkeypatch.setattr(cr, "_drain_mail", lambda repos, msg: actions["mails"].extend(repos))
     return actions
 
@@ -1270,7 +1292,7 @@ def test_fleet_tick_pushes_once_per_chain_inside_three_days(tmp_path, monkeypatc
     is not read, and an unnoticed lapse becomes a fleet hold (2026-09-12). The stamp keys on the
     chain's expiry epoch: the same chain never pushes twice, a re-minted chain re-arms."""
     fleet = _fleet_two_accounts(tmp_path, monkeypatch)
-    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0, refresh_expires_s=2 * 86400.0)  # 2 d left
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0, refresh_expires_s=4 * 86400.0)  # 4 d left
     _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)  # 30 d → silent
     _fake_oauth(
         monkeypatch,
@@ -1280,6 +1302,16 @@ def test_fleet_tick_pushes_once_per_chain_inside_three_days(tmp_path, monkeypatc
     monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
     capsys.readouterr()
 
+    # 4 d: inside the 5 d WARNING, outside the 3 d PUSH — warned on stdout, nothing pushed
+    assert cr._cmd_tick() == 0
+    assert "sarp@ocoron.com: refresh chain expires in 4.0d" in capsys.readouterr().out
+    assert [m for m in actions["telegrams"] if "refresh chain" in m] == []
+    # exactly 3 d: the push window is strict (`exp - now >= _CHAIN_PUSH_S` → not yet)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0, refresh_expires_s=cr._CHAIN_PUSH_S)
+    assert cr._cmd_tick() == 0
+    assert [m for m in actions["telegrams"] if "refresh chain" in m] == []
+    # 2 d: pushed, once
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0, refresh_expires_s=2 * 86400.0)
     assert cr._cmd_tick() == 0
     pushes = [m for m in actions["telegrams"] if "refresh chain" in m]
     assert len(pushes) == 1, "one push for the one chain inside 3 d"
@@ -1299,6 +1331,152 @@ def test_fleet_tick_pushes_once_per_chain_inside_three_days(tmp_path, monkeypatc
     _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0, refresh_expires_s=1 * 86400.0)
     assert cr._cmd_tick() == 0
     assert len([m for m in actions["telegrams"] if "refresh chain" in m]) == 2
+
+
+def test_status_and_push_name_an_expired_chain_with_the_login_block(tmp_path, monkeypatch, capsys):
+    """An ALREADY-expired chain gets the same remedy as a dying one: the EXPIRED warning carries
+    the re-login block and says a claude turn does NOT extend it (the text used to omit that
+    clause on this branch), and the push says EXPIRED."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0, refresh_expires_s=-3600.0)  # lapsed 1 h ago
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(10.0, 10.0), "tok-intel": _usage_blob(10.0, 10.0)},
+    )
+    capsys.readouterr()
+
+    assert cr.main(["--status"]) == 0
+    out = capsys.readouterr().out
+    assert "sarp@ocoron.com: refresh chain EXPIRED 0.0d ago" in out
+    assert "does NOT extend it" in out and "/login as sarp@ocoron.com" in out
+    assert 'CLAUDE_CONFIG_DIR="$HOME/.claude-fleet/seo"' in out
+
+    sent = []
+    monkeypatch.setattr(cr, "_tick_telegram", lambda m: sent.append(m) or True)
+    rows, _pending = cr._fleet_account_rows(cr._fleet_dirs(), allow_pings=False)
+    assert cr._chain_expiry_push(rows, FLEET_NOW) == 1
+    assert "EXPIRED" in sent[0] and "does NOT extend it" in sent[0]
+    assert "/login as sarp@ocoron.com" in sent[0]
+
+
+def test_chain_warning_and_push_name_the_dir_whose_chain_lapses_soonest(
+    tmp_path, monkeypatch, capsys
+):
+    """An account pinned in several dirs: the block names the dir carrying the SOONEST expiry
+    (`refresh_expires_slug`), not the alphabetically first member — a /login in the wrong dir
+    leaves the warning firing and the push already stamped on the unchanged expiry."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)  # sarp@ is pinned in seo AND youtube
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)  # 30 d
+    _fleet_creds(fleet, "youtube", "tok-yt", age_s=120.0, refresh_expires_s=2 * 86400.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fake_oauth(
+        monkeypatch,
+        usages={
+            "tok-seo": _usage_blob(10.0, 10.0),
+            "tok-yt": _usage_blob(10.0, 10.0),
+            "tok-intel": _usage_blob(10.0, 10.0),
+        },
+    )
+    capsys.readouterr()
+
+    assert cr.main(["--status"]) == 0
+    out = capsys.readouterr().out
+    warn = [ln for ln in out.splitlines() if "refresh chain expires in 2.0d" in ln]
+    assert len(warn) == 1 and "/.claude-fleet/youtube" in warn[0]
+    assert '/.claude-fleet/seo"' not in warn[0]
+
+    actions = _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    assert cr._cmd_tick() == 0
+    pushes = [m for m in actions["telegrams"] if "refresh chain" in m]
+    assert len(pushes) == 1 and "/.claude-fleet/youtube" in pushes[0]
+
+
+def test_chain_push_stamps_only_a_delivered_notify(tmp_path, monkeypatch, capsys):
+    """The stamp is written ONLY when the notifier reported delivery: a missing or failing
+    `claude-sound.sh` used to be stamped as "pushed" and the chain was never retried — the
+    2026-09-12 lapse with the new mechanism reporting success."""
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
+    row = {"email": "sarp@ocoron.com", "slugs": ["seo"], "refresh_expires_epoch": FLEET_NOW + 86400}
+    monkeypatch.setattr(cr, "_tick_telegram", lambda m: False)
+    capsys.readouterr()
+    assert cr._chain_expiry_push([row], FLEET_NOW) == 0
+    assert cr._chain_expiry_push([row], FLEET_NOW) == 0, "undelivered → retried, never stamped"
+    assert capsys.readouterr().out.count("NOT delivered") == 2
+    assert not any(p.exists() for p in cr._chain_push_stamps("sarp@ocoron.com"))
+
+    sent = []
+    monkeypatch.setattr(cr, "_tick_telegram", lambda m: sent.append(m) or True)
+    assert cr._chain_expiry_push([row], FLEET_NOW) == 1
+    assert cr._chain_expiry_push([row], FLEET_NOW) == 0 and len(sent) == 1
+
+
+def test_tick_telegram_reports_delivery(tmp_path, monkeypatch):
+    """The notifier's verdict is real: no `claude-sound.sh` → False; a script that exits 0 → True;
+    one that exits 1 → False. The push above keys on exactly this."""
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    assert cr._tick_telegram("x") is False
+    script = tmp_path / ".claude" / "bin" / "claude-sound.sh"
+    script.parent.mkdir(parents=True)
+    script.write_text("#!/bin/bash\nexit 0\n")
+    assert cr._tick_telegram("x") is True
+    script.write_text("#!/bin/bash\nexit 1\n")
+    assert cr._tick_telegram("x") is False
+
+
+def test_chain_push_survives_a_garbage_stamp(tmp_path, monkeypatch):
+    """A torn or non-UTF-8 stamp reads as ABSENT: the push proceeds and rewrites it — it used
+    to raise UnicodeDecodeError out of `_chain_expiry_push` ("Never raises") and abort the rest of
+    the tick every five minutes until someone deleted the file."""
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
+    row = {"email": "sarp@ocoron.com", "slugs": ["seo"], "refresh_expires_epoch": FLEET_NOW + 86400}
+    sent = []
+    monkeypatch.setattr(cr, "_tick_telegram", lambda m: sent.append(m) or True)
+    stamp = cr._chain_push_stamps("sarp@ocoron.com")[0]
+    stamp.parent.mkdir(parents=True, exist_ok=True)
+    stamp.write_bytes(b"\xff\xfe garbage")
+    assert cr._chain_expiry_push([row], FLEET_NOW) == 1
+    assert stamp.read_text() == str(int(FLEET_NOW + 86400))
+    assert cr._chain_expiry_push([row], FLEET_NOW) == 0 and len(sent) == 1
+
+
+def test_chain_push_falls_back_to_the_temp_dir_when_the_state_dir_is_read_only(
+    tmp_path, monkeypatch
+):
+    """An EXISTING read-only state dir passes `mkdir(exist_ok=True)`, so the old single-path
+    stamp silently failed to write and the "once per chain" push fired on EVERY tick (288/day).
+    Now the stamp lands in the temp dir and the second tick is quiet."""
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    monkeypatch.setattr(cr.tempfile, "gettempdir", lambda: str(tmp_path / "tmp"))
+    (tmp_path / "tmp").mkdir()
+    row = {"email": "sarp@ocoron.com", "slugs": ["seo"], "refresh_expires_epoch": FLEET_NOW + 86400}
+    sent = []
+    monkeypatch.setattr(cr, "_tick_telegram", lambda m: sent.append(m) or True)
+    state.chmod(0o500)
+    try:
+        assert cr._chain_expiry_push([row], FLEET_NOW) == 1
+        assert cr._chain_expiry_push([row], FLEET_NOW) == 0, "stamped in the fallback → quiet"
+        assert len(sent) == 1
+        fallback = cr._chain_push_stamps("sarp@ocoron.com")[-1]
+        assert fallback.parent == tmp_path / "tmp" and fallback.read_text() == str(
+            int(FLEET_NOW + 86400)
+        )
+    finally:
+        state.chmod(0o700)
+
+
+def test_chain_push_stamps_do_not_collide_across_lookalike_emails():
+    """`a.b@x.com` and `a-b@x.com` sanitise to the same a-z0-9 slug; the hash suffix keeps their
+    stamps apart (two chains alternating on one file would re-push each other every tick)."""
+    one = cr._chain_push_stamps("a.b@x.com")[0].name
+    two = cr._chain_push_stamps("a-b@x.com")[0].name
+    assert one != two and one.startswith("fleet-chain-push-a-b-x-com-")
+    assert (
+        cr._chain_push_stamps("Sarp@Ocoron.com")[0] == cr._chain_push_stamps("sarp@ocoron.com")[0]
+    )
 
 
 def test_fleet_tick_no_advisory_while_a_sibling_has_headroom(tmp_path, monkeypatch, capsys):
@@ -2003,7 +2181,7 @@ def test_selector_skips_an_expired_chain_that_ranks_best_on_quota(tmp_path, monk
 
 def test_status_warns_when_a_chain_nears_expiry(tmp_path, monkeypatch, capsys):
     """F-P1: a dying chain must be visible on --status BEFORE it silently drops out of flip
-    candidacy — under 5d to expiry (the keepalive's 7d cadence has already missed it)."""
+    candidacy — under 5d to expiry (the tick's once-per-chain push follows inside 3 d)."""
     fleet = _fleet_two_accounts(tmp_path, monkeypatch)
     _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0, refresh_expires_s=3 * 86400.0)  # 3d left
     _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)  # 30d left → silent

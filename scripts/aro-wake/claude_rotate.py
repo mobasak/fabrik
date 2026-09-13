@@ -29,6 +29,7 @@ depend on it. A token is never logged, printed, or returned to a caller.
 from __future__ import annotations
 
 import fcntl
+import hashlib
 import json
 import math
 import os
@@ -1406,8 +1407,6 @@ _FLEET_TOKEN_FRESH_S = 8 * 3600
 # --status/--tick warn inside _CHAIN_EXPIRY_WARN_S with the exact re-login block, and the tick
 # pushes once per chain (mesh-notify) inside _CHAIN_PUSH_S. The old --keepalive ping is retired.
 _CHAIN_PUSH_S = 3 * 86400
-# --keepalive (RETIRED 2026-09-12) used to ping a dir whose chain had idled longer than this
-# refresh-token idle lapse with three weeks of margin).
 
 
 def _pull_opts(args: list[str], names: tuple[str, ...]) -> tuple[list[str], dict[str, str], bool]:
@@ -2265,19 +2264,23 @@ def _drain_mail(repos: list[str], msg: str) -> None:
             continue  # one refused mailbox must not stop the broadcast
 
 
-def _tick_telegram(msg: str) -> None:
+def _tick_telegram(msg: str) -> bool:
+    """mesh-notify the operator. True ONLY when the notifier ran and exited 0 — a missing
+    `claude-sound.sh`, a non-zero exit or a timeout is False, so a caller that must know the
+    message was delivered (the once-per-chain push) can hold its stamp and retry next tick."""
     sound = Path.home() / ".claude" / "bin" / "claude-sound.sh"
     if not sound.is_file():
-        return
+        return False
     try:
-        subprocess.run(
+        p = subprocess.run(
             ["bash", str(sound), "mesh-notify", "quota-rotation", "/opt/fabrik", msg],
             stdin=subprocess.DEVNULL,
             capture_output=True,
             timeout=30,
         )
     except (OSError, subprocess.SubprocessError):
-        pass
+        return False
+    return p.returncode == 0
 
 
 def _tick_switch(name: str) -> bool:
@@ -2375,102 +2378,21 @@ def _email_for_token(token: str) -> str | None:
     return email if isinstance(email, str) and "@" in email else None
 
 
-def _touch_run_cli(cfg_dir: Path, store: Path) -> bool:
-    """Run one trivial `claude -p` against an ISOLATED config dir so the official client
-    performs its own token refresh. Never touches the live credentials file — the account
-    being touched is parked, and live sessions keep using ACTIVE_CREDS untouched."""
-    env = os.environ.copy()
-    env["CLAUDE_CONFIG_DIR"] = str(cfg_dir)
-    env["CLAUDE_MESH_HEADLESS"] = "1"
-    env["CLAUDE_SOUND_NO_REVIVE"] = "1"
-    env.setdefault("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "1")
-    _with_claude_on_path(env)  # cron PATH lacks ~/.local/bin → bare spawn would FileNotFoundError
-    try:
-        p = subprocess.run(
-            ["claude", "-p", "ping"],
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=int(os.environ.get("TOUCH_TIMEOUT", "150")),
-        )
-        return p.returncode == 0
-    except (OSError, subprocess.SubprocessError):
-        return False
+_TOUCH_RETIRED_LINE = (
+    "touch: RETIRED 2026-09-13 — a `claude -p ping` never extends a refresh chain (it is ~30 d"
+    " from the last /login; measured 2026-09-12), and refreshing on a COPY of a credential file"
+    " consumes the single-use refresh token, so a pair the liveness gate refuses to file leaves"
+    " the real store holding a spent one. Only a /login in the account's own dir re-mints a"
+    " chain; nothing touched"
+)
 
 
 def _cmd_touch(only: str | None = None) -> int:
-    """Keep PARKED accounts' refresh chains alive (operator ask 2026-08-14: never log in
-    again). Refresh tokens are single-use but ~30-day-lived, and the CLI rotates them on
-    use — so one trivial call per account per week keeps every chain current WITHOUT any
-    login, email automation, or impact on live sessions. Isolated per account via
-    CLAUDE_CONFIG_DIR; a refreshed pair is identity-verified before it is filed."""
-    active = _active_account()
-    live_name = active.name if active is not None else None
-    touched = 0
-    for store in _list_accounts():
-        if store.name == live_name:
-            continue  # the live account refreshes naturally on every real turn
-        if only is not None and not store.name.lower().startswith(only.lower()):
-            continue
-        src = store / ".credentials.json"
-        if not src.is_file():
-            continue
-        before = src.read_bytes()
-        tmpdir = Path(tempfile.mkdtemp(prefix=f"claude-touch-{store.name[:12]}-"))
-        try:
-            os.chmod(tmpdir, 0o700)
-            _secure_write(tmpdir / ".credentials.json", before)
-            cj = store / ".claude.json"
-            if cj.is_file():
-                _secure_write(tmpdir / ".claude.json", cj.read_bytes())
-            _touch_run_cli(tmpdir, store)
-            after_path = tmpdir / ".credentials.json"
-            after = after_path.read_bytes() if after_path.is_file() else before
-            if after == before:
-                print(f"touch: {store.name} — unchanged (chain already current)")
-                continue
-            try:
-                payload = json.loads(after)
-            except ValueError:
-                print(f"touch: {store.name} — unreadable refreshed pair, not filed")
-                continue
-            tok = (payload.get("claudeAiOauth") or {}).get("accessToken")
-            # STRUCTURAL LIVENESS GATE (live defect 2026-08-14): `claude -p` in an isolated
-            # config can write a BLANKED pair (empty refreshToken, expiresAt=0) — filing it
-            # destroys a perfectly good snapshot. A refreshed blob is fileable only when it
-            # is alive: a non-empty refresh token AND a future access-token expiry. And the
-            # identity must POSITIVELY verify — no provenance fallback here, because the
-            # existing snapshot is still valid and doing nothing is always the safer branch.
-            o = payload.get("claudeAiOauth") or {}
-            exp_ms = o.get("expiresAt")
-            alive = (
-                bool(o.get("refreshToken"))
-                and isinstance(exp_ms, (int, float))
-                and (exp_ms / 1000.0) > _now()
-            )
-            if not alive:
-                print(
-                    f"touch: {store.name} — CLI returned a dead/blanked pair, keeping the"
-                    " existing snapshot"
-                )
-                continue
-            email = _email_for_token(tok) if tok else None
-            if not email:
-                print(f"touch: {store.name} — refreshed pair unverifiable, not filed")
-                continue
-            ok = _file_refreshed_credentials(store, payload, verified_email=email)
-            if ok:
-                touched += 1
-                print(f"touch: {store.name} — refreshed and filed")
-                _ledger_append({"event": "touch", "ts": _now(), "store": store.name})
-        finally:
-            try:
-                for f in tmpdir.iterdir():
-                    f.unlink()
-                tmpdir.rmdir()
-            except OSError:
-                pass
-    print(f"touch: done — {touched} account(s) refreshed")
+    """RETIRED 2026-09-13 (see ``_TOUCH_RETIRED_LINE``): the temp-dir-copy refresh of the
+    legacy manager-accounts pool. Prints why, spawns nothing, reads and writes no credential
+    byte, exits 0 so an old invocation is told rather than broken."""
+    del only
+    print(_TOUCH_RETIRED_LINE)
     return 0
 
 
@@ -2725,9 +2647,9 @@ def _ledger_rotate(cap_bytes: int = 1_000_000) -> None:
 
 # The reserved name of the active-pointer symlink under the fleet root. Never a dir slug.
 _ACTIVE_POINTER_NAME: Final = "active"
-# A refresh chain inside this window of its expiry gets a --status/tick warning: the keepalive
-# cadence is 7 days, so a chain seen under 5 days from lapse means the keepalive net has already
-# failed for it and an operator nudge is the remaining defense.
+# A refresh chain inside this window of its expiry gets a --status/tick warning carrying the
+# re-login block: two days of visible warnings before the tick's once-per-chain push at
+# _CHAIN_PUSH_S (3 d). Nothing but a /login moves the expiry (2026-09-12).
 _CHAIN_EXPIRY_WARN_S = 5 * 86400
 # The identity-mismatch net's live leg: ONE profile probe per pinned account per this interval
 # (~24/account/day, not one per 5-min tick). Detection latency ≤1h is deliberate — the
@@ -3509,10 +3431,13 @@ def _fleet_account_rows(
             reverse=True,
         )
         exps = [
-            e
-            for e in (_refresh_expiry_epoch(m["dir"] / ".credentials.json") for m in with_creds)
+            (e, m["slug"])
+            for e, m in (
+                (_refresh_expiry_epoch(m["dir"] / ".credentials.json"), m) for m in with_creds
+            )
             if e is not None
         ]
+        soonest = min(exps, key=lambda t: t[0]) if exps else None
         row = {
             "email": email,
             "slugs": [m["slug"] for m in members],
@@ -3522,7 +3447,10 @@ def _fleet_account_rows(
             "age_s": None,
             # the account's soonest chain lapse — --status/tick warn under 5d (before the
             # F-P1 flip gate would silently drop it from candidacy)
-            "refresh_expires_epoch": min(exps) if exps else None,
+            "refresh_expires_epoch": soonest[0] if soonest else None,
+            # the dir that carries that expiry — the re-login block must name IT, not the
+            # alphabetically first member (an account may be pinned in several dirs)
+            "refresh_expires_slug": soonest[1] if soonest else None,
             "identity_mismatches": [],
             "weekly_cap": caps.get(email.lower()),
             "cap_walled": False,
@@ -3686,20 +3614,22 @@ def _fleet_row_warnings(accounts: list[dict]) -> list[str]:
     chain is ~30 days from its /login and nothing extends it, so the remedy printed is the re-login block; (2) the F-P4/F-P6
     identity-mismatch net — a dir whose probed token answers as a DIFFERENT account than its
     pinned identity (a flip landed inside a CLI credential refresh, or a login went into the
-    wrong dir). Recovery for both is a /login or a claude turn IN THAT DIR — never a file copy."""
+    wrong dir). Recovery for both is a /login IN THAT DIR — never a claude turn (it does not move
+    the chain), never a file copy."""
     warns: list[str] = []
     now = _now()
     for row in accounts:
         slugs = row.get("slugs") or []
         label = ", ".join(slugs)
-        block = _relogin_block(slugs[0] if slugs else "<slug>", str(row.get("email")))
+        slug = row.get("refresh_expires_slug") or (slugs[0] if slugs else "<slug>")
+        block = _relogin_block(slug, str(row.get("email")))
         exp = row.get("refresh_expires_epoch")
         if isinstance(exp, (int, float)):
             left = exp - now
             if left <= 0:
                 warns.append(
-                    f"⚠ {row['email']}: refresh chain EXPIRED {-left / 86400:.1f}d ago — "
-                    f"ONE /login in [{label}] re-mints it: {block}"
+                    f"⚠ {row['email']}: refresh chain EXPIRED {-left / 86400:.1f}d ago — a claude "
+                    f"turn does NOT extend it; ONE /login in [{label}] re-mints it: {block}"
                 )
             elif left < _CHAIN_EXPIRY_WARN_S:
                 warns.append(
@@ -4941,12 +4871,30 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
     return 0
 
 
-def _chain_push_stamp(email: str) -> Path:
+def _chain_push_stamps(email: str) -> list[Path]:
+    """The once-per-chain push stamp's candidate paths, most durable first: the rotate state dir,
+    then the temp dir — the fallback when the state dir cannot be made OR cannot be written (an
+    existing read-only dir passes ``mkdir(exist_ok=True)``). The name carries a short hash of the
+    email because the a-z0-9 slug alone folds ``a.b@x`` and ``a-b@x`` onto one file."""
     safe = re.sub(r"[^a-z0-9]+", "-", email.lower()).strip("-")
+    digest = hashlib.sha1(email.lower().encode()).hexdigest()[:8]
+    name = f"fleet-chain-push-{safe}-{digest}"
+    paths: list[Path] = []
     try:
-        return _rotate_state_dir() / f"fleet-chain-push-{safe}"
+        paths.append(_rotate_state_dir() / name)
     except _STATE_DIR_ERRORS:
-        return Path(tempfile.gettempdir()) / f"claude-fleet-chain-push-{safe}"
+        pass
+    paths.append(Path(tempfile.gettempdir()) / f"claude-{name}")
+    return paths
+
+
+def _stamp_holds(path: Path, key: str) -> bool:
+    """True when *path* is a readable stamp holding exactly *key*; a missing, unreadable or
+    garbage stamp (a torn write, non-UTF-8 bytes) reads as ABSENT, never as an exception."""
+    try:
+        return path.is_file() and path.read_text(errors="replace").strip() == key
+    except (OSError, ValueError):
+        return False
 
 
 def _chain_expiry_push(accounts: list[dict], now: float) -> int:
@@ -4954,34 +4902,47 @@ def _chain_expiry_push(accounts: list[dict], now: float) -> int:
     expiry or already past it — the operator does not read the tick log, and a chain that lapses
     unnoticed is a fleet-wide hold the moment it is the only account with headroom (2026-09-12).
     The stamp holds the chain's expiry epoch: the same chain never pushes twice, a re-minted chain
-    (new expiry) re-arms by itself. Returns the number of pushes sent. Never raises."""
+    (new expiry) re-arms by itself. The stamp is written ONLY after the notifier reported delivery
+    — an undelivered push is retried next tick, never recorded as sent — and falls back to the
+    temp dir when the state dir refuses the write. Returns the number of pushes delivered. Never
+    raises."""
     sent = 0
     for row in accounts:
         exp = row.get("refresh_expires_epoch")
         if not isinstance(exp, (int, float)) or exp - now >= _CHAIN_PUSH_S:
             continue
         email = str(row.get("email"))
-        stamp = _chain_push_stamp(email)
         key = str(int(exp))
-        try:
-            if stamp.is_file() and stamp.read_text().strip() == key:
-                continue
-        except OSError:
-            pass
+        stamps = _chain_push_stamps(email)
+        if any(_stamp_holds(p, key) for p in stamps):
+            continue
         slugs = row.get("slugs") or []
+        slug = row.get("refresh_expires_slug") or (slugs[0] if slugs else "<slug>")
         left = exp - now
         state = (
             f"EXPIRED {-left / 86400:.1f}d ago" if left <= 0 else f"expires in {left / 86400:.1f}d"
         )
-        _tick_telegram(
+        delivered = _tick_telegram(
             f"claude_rotate: {email} refresh chain {state} — a claude turn does NOT extend it; "
-            f"ONE /login re-mints it: {_relogin_block(slugs[0] if slugs else '<slug>', email)}"
+            f"ONE /login re-mints it: {_relogin_block(slug, email)}"
         )
+        if delivered is not True:
+            print(
+                f"chain push: {email} NOT delivered (mesh-notify unavailable) — retried next tick"
+            )
+            continue
         sent += 1
-        try:
-            stamp.write_text(key)
-        except OSError:
-            pass
+        for p in stamps:
+            try:
+                p.write_text(key)
+                break
+            except OSError:
+                continue
+        else:
+            print(
+                f"chain push: {email} stamp unwritable ({', '.join(str(p) for p in stamps)}) — "
+                "the push repeats next tick"
+            )
     return sent
 
 
@@ -5025,9 +4986,9 @@ _KEEPALIVE_RETIRED_LINE = (
 def _keepalive_sweep(dirs: list, now: float, quiet: bool = False) -> tuple[int, int]:
     """RETIRED 2026-09-12. The premise was false: a chain's ``refreshTokenExpiresAt`` runs ~30
     days from the /login and a CLI refresh does not move it (measured on mob@ 2026-09-12), so
-    the weekly ping could never do what it claimed — and in three weeks of runs it pinged
-    nothing anyway, because the idle gate read the credential mtime that the tick's own refresh
-    renews daily (`~/.claude/keepalive.log`: "0 pinged" every run). Kept as a no-op so the
+    the weekly ping could never do what it claimed — and both logged Monday runs (2026-08-31,
+    2026-09-07 — `~/.claude/keepalive.log`) pinged nothing anyway, because the idle gate read the
+    credential mtime that the tick's own refresh renews daily. Kept as a no-op so the
     cron line and any caller exit 0 and are TOLD why; returns (0, 0) always."""
     if not quiet:
         print(_KEEPALIVE_RETIRED_LINE)
@@ -5037,7 +4998,7 @@ def _keepalive_sweep(dirs: list, now: float, quiet: bool = False) -> tuple[int, 
 def _cmd_keepalive() -> int:
     """RETIRED 2026-09-12 (see :func:`_keepalive_sweep`): prints the retired line, pings
     nothing, exits 0 — a cron line that still calls it is told why on every run."""
-    _keepalive_sweep(_fleet_dirs(), _now(), quiet=False)
+    _keepalive_sweep([], _now(), quiet=False)  # no dir scan: nothing is pinged
     return 0
 
 

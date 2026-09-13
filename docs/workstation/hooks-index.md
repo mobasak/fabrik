@@ -170,8 +170,9 @@ switch flock — TOCTOU-free vs manual `--switch`), Telegrams one line; with no 
 at 85 broadcasts the graceful-drain fabrik-mail (commit-and-push checkpoint + revival time;
 24h stamp suppress) + one Telegram; keeps parked snapshots warm (expiry-keyed refresh,
 identity-gated filing). `--status [--json]` = the operator's live quota table (same feature
-detection). Cron sibling: weekly `claude_rotate.py --keepalive` (Mon 06:20) pings each fleet
-dir idle >7 days in place (credential MTIME only, never bytes). Ledger:
+detection). Cron sibling: weekly `claude_rotate.py --keepalive` (Mon 06:20) is RETIRED
+(2026-09-12 — a ping never extends a refresh chain; the tick warns inside 5 d with the re-login
+block and pushes once per chain inside 3 d), a no-op that prints why until the line is deleted. Ledger:
 `~/.claude/state/rotate-ledger.jsonl` (VM-cut-survivable). Reference:
 `docs/workstation/claude-account-rotation.md`.
 

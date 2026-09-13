@@ -484,139 +484,41 @@ def test_t14_unknown_parked_ranks_last_but_is_eligible():
     assert cr._pick_successor([unknown], None, NOW) == unknown["name"]
 
 
-# ── T8: --touch (keep the parked accounts' refresh chains alive) ───────────────
+# ── T8: --touch is RETIRED (2026-09-13) — a temp-dir-copy refresh can never extend a chain ──
 
 
-def _touch_env(tmp_path, monkeypatch, live_name, ran, refreshed_email="ob@ocoron.com", change=True):
-    """Seams: two stores (live + parked), a fake `claude` run that optionally rewrites the
-    isolated config's credentials, and a fake identity probe."""
+def test_t8_touch_is_retired_spawns_nothing_and_mutates_nothing(tmp_path, monkeypatch, capsys):
+    """A `claude -p ping` never moves refreshTokenExpiresAt (measured 2026-09-12), and a refresh
+    on a COPY consumes the single-use refresh token (the liveness gate then refuses the pair and
+    the real store keeps a spent token) — so --touch prints why, spawns nothing, copies nothing,
+    reads and writes no credential byte, and exits 0 for any old invocation."""
     stores = tmp_path / "manager-accounts"
-    for n in ("ob-ocoron-com-s-organization", "sarp-ocoron-com-s-organization"):
-        d = stores / n
-        d.mkdir(parents=True)
-        (d / ".credentials.json").write_text(
-            json.dumps(
-                {"claudeAiOauth": {"accessToken": f"OLD-{n[:3]}", "refreshToken": f"R-{n[:3]}"}}
-            )
-        )
+    d = stores / "sarp-ocoron-com-s-organization"
+    d.mkdir(parents=True)
+    before = json.dumps({"claudeAiOauth": {"accessToken": "OLD", "refreshToken": "R-OLD"}})
+    (d / ".credentials.json").write_text(before)
     monkeypatch.setattr(cr, "ACCOUNTS_DIR", stores)
-    monkeypatch.setattr(cr, "ACTIVE_CREDS", tmp_path / "live.json")
-    (tmp_path / "live.json").write_text(
-        json.dumps({"claudeAiOauth": {"accessToken": "LIVE", "refreshToken": "R-LIVE"}})
-    )
-    monkeypatch.setattr(cr, "_active_account", lambda: stores / live_name)
-    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setattr(cr, "_active_account", lambda: None)
 
-    def fake_run(cfg_dir: Path, store: Path) -> bool:
-        ran.append(store.name)
-        if change:
-            (cfg_dir / ".credentials.json").write_text(
-                json.dumps(
-                    {
-                        "claudeAiOauth": {
-                            "accessToken": "NEW-TOK",
-                            "refreshToken": "NEW-R",
-                            "expiresAt": int((NOW + 8 * 3600) * 1000),
-                        }
-                    }
-                )
-            )
-        return True
+    def forbidden(*a, **k):
+        raise AssertionError(f"the retired touch spawned or copied: {a[:1]!r}")
 
-    monkeypatch.setattr(cr, "_touch_run_cli", fake_run)
-    monkeypatch.setattr(cr, "_email_for_token", lambda tok: refreshed_email)
-    monkeypatch.setattr(cr, "_now", lambda: NOW)
-    return stores
+    monkeypatch.setattr(cr.subprocess, "run", forbidden)
+    monkeypatch.setattr(cr.tempfile, "mkdtemp", forbidden)
+    real_read_bytes = Path.read_bytes
 
+    def guarded(self, *a, **k):
+        assert self.name != ".credentials.json", "touch read credential BYTES"
+        return real_read_bytes(self, *a, **k)
 
-def test_t8_touch_skips_the_live_account(tmp_path, monkeypatch):
-    ran = []
-    _touch_env(tmp_path, monkeypatch, "sarp-ocoron-com-s-organization", ran)
-    assert cr._cmd_touch() == 0
-    assert ran == ["ob-ocoron-com-s-organization"], "the live account refreshes on its own"
+    monkeypatch.setattr(Path, "read_bytes", guarded)
+    capsys.readouterr()
 
-
-def test_t8_touch_files_the_refreshed_pair(tmp_path, monkeypatch):
-    ran = []
-    stores = _touch_env(tmp_path, monkeypatch, "sarp-ocoron-com-s-organization", ran)
-    assert cr._cmd_touch() == 0
-    blob = json.loads((stores / "ob-ocoron-com-s-organization" / ".credentials.json").read_text())
-    assert blob["claudeAiOauth"]["accessToken"] == "NEW-TOK"
-
-
-def test_t8_touch_refuses_a_mismatched_identity(tmp_path, monkeypatch):
-    ran = []
-    stores = _touch_env(
-        tmp_path,
-        monkeypatch,
-        "sarp-ocoron-com-s-organization",
-        ran,
-        refreshed_email="stranger@example.com",
-    )
-    assert cr._cmd_touch() == 0
-    blob = json.loads((stores / "ob-ocoron-com-s-organization" / ".credentials.json").read_text())
-    assert blob["claudeAiOauth"]["accessToken"] == "OLD-ob-", "mismatch must not be filed"
-
-
-def test_t8_touch_never_mutates_the_live_credentials(tmp_path, monkeypatch):
-    ran = []
-    _touch_env(tmp_path, monkeypatch, "sarp-ocoron-com-s-organization", ran)
-    before = (tmp_path / "live.json").read_bytes()
-    assert cr._cmd_touch() == 0
-    assert (tmp_path / "live.json").read_bytes() == before, "touch is isolated from live sessions"
-
-
-def test_t8_touch_noop_when_the_cli_returns_the_same_pair(tmp_path, monkeypatch):
-    ran = []
-    stores = _touch_env(tmp_path, monkeypatch, "sarp-ocoron-com-s-organization", ran, change=False)
-    store = stores / "ob-ocoron-com-s-organization"
-    before = (store / ".credentials.json").read_bytes()
-    assert cr._cmd_touch() == 0
-    assert (store / ".credentials.json").read_bytes() == before
-    assert not (store / ".credentials.json.prev").exists(), "no churn when nothing changed"
-
-
-def test_t8_touch_never_files_a_blanked_credential(tmp_path, monkeypatch):
-    """LIVE DEFECT 2026-08-14: `claude -p` in an isolated config wrote a BLANKED pair (empty
-    refreshToken, expiresAt=0) and the touch filed it over a good snapshot. A refreshed blob
-    is only fileable when it is structurally alive: non-empty refresh token AND a future
-    access-token expiry. Otherwise the existing snapshot stands."""
-    ran = []
-    stores = tmp_path / "manager-accounts"
-    for n in ("ob-ocoron-com-s-organization", "sarp-ocoron-com-s-organization"):
-        d = stores / n
-        d.mkdir(parents=True)
-        (d / ".credentials.json").write_text(
-            json.dumps(
-                {
-                    "claudeAiOauth": {
-                        "accessToken": "GOOD",
-                        "refreshToken": "GOOD-R",
-                        "expiresAt": int((NOW + 3600) * 1000),
-                    }
-                }
-            )
-        )
-    monkeypatch.setattr(cr, "ACCOUNTS_DIR", stores)
-    monkeypatch.setattr(cr, "ACTIVE_CREDS", tmp_path / "live.json")
-    (tmp_path / "live.json").write_text(json.dumps({"claudeAiOauth": {"accessToken": "LIVE"}}))
-    monkeypatch.setattr(cr, "_active_account", lambda: stores / "sarp-ocoron-com-s-organization")
-    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
-    monkeypatch.setattr(cr, "_email_for_token", lambda tok: "ob@ocoron.com")
-
-    def blanking_run(cfg_dir: Path, store: Path) -> bool:
-        ran.append(store.name)
-        (cfg_dir / ".credentials.json").write_text(
-            json.dumps(
-                {"claudeAiOauth": {"accessToken": "BLANK", "refreshToken": "", "expiresAt": 0}}
-            )
-        )
-        return True
-
-    monkeypatch.setattr(cr, "_touch_run_cli", blanking_run)
-    assert cr._cmd_touch() == 0
-    kept = json.loads((stores / "ob-ocoron-com-s-organization" / ".credentials.json").read_text())
-    assert kept["claudeAiOauth"]["refreshToken"] == "GOOD-R", "a blanked pair must never be filed"
+    assert cr._cmd_touch() == 0 and cr._cmd_touch("sarp") == 0
+    out = capsys.readouterr().out
+    assert out.count("RETIRED") == 2 and "/login" in out and "nothing touched" in out
+    assert (d / ".credentials.json").read_text() == before
+    assert not hasattr(cr, "_touch_run_cli"), "the copy-refresh path is gone, not dormant"
 
 
 # ── T14: operator pause — a paused tick must never install a pair ──────────────
@@ -1279,7 +1181,7 @@ def test_dead_active_chain_does_not_flip_on_boxwide_outage(monkeypatch):
 
 def test_keepalive_sweep_is_retired_and_pings_nothing(tmp_path, monkeypatch, capsys):
     """RETIRED 2026-09-12: a ping never moves refreshTokenExpiresAt (measured on mob@), and the
-    mtime idle gate never fired (three weeks of "0 pinged"). The sweep pings NOTHING whatever the
+    mtime idle gate never fired (both logged runs "0 pinged"). The sweep pings NOTHING whatever the
     mtimes say, returns (0, 0), and prints the one retired line only when not quiet."""
     import os as _os
 

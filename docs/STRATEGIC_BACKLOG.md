@@ -1592,3 +1592,7 @@ either a `handoff --resume` shape that carries a findings brief, or a line in
 **Nothing downstream is blocked:** the spec is `Status: DRAFT — BLOCKED`, and the tier-1 plan
 (`docs/development/plans/2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round.md` — superseding the 2026-09-11 plan-2 at 450e5c43, D-240; `8bf4787d`) depends on none of the
 contested lines.
+
+## [fleet] The tick's other stamp readers decode with the default codec — a garbage stamp raises out of a "never raises" path (2026-09-13, owner: fleet)
+
+Found by the rotation refresh-chain review (round 1, Opus seat, `docs/development/reviews/2026-09-13-rotation-refresh-chain-review.md` C2): `_chain_expiry_push` read its stamp under `except OSError` only, so a non-UTF-8 stamp raised `UnicodeDecodeError` (a `ValueError`) out of a function whose docstring says "Never raises" and aborted the rest of the tick every five minutes. Fixed there (`_stamp_holds`: `errors="replace"` + `except (OSError, ValueError)`). The SIBLING readers under `_drain_stamp_path` (the drain stamps) use the same `read_text()` + `except OSError` shape and sit one hop outside the review's surface — RECORDED, not fixed in that review (D-230 bounded hop). Remedy: route every stamp read through `_stamp_holds`-style tolerant reads; grader: a non-UTF-8 drain stamp must read as absent. Fire rate: 0 observed (no garbage stamp has occurred); the class is a torn write on a full disk.
