@@ -1444,6 +1444,34 @@ def test_tick_telegram_reports_delivery_from_the_notifier_artifact(tmp_path, mon
     assert cr._tick_telegram("x", key="k2") is False
 
 
+def test_tick_telegram_reads_both_artifact_epochs_against_one_clock(tmp_path, monkeypatch):
+    """Both artifact readings are judged against the ONE clock value taken before the call. Read
+    against two clocks, an artifact just past the tolerance (stale after a backward clock step,
+    or planted) reads 0 before the call and as itself after it — with NOTHING written — and a
+    send that never happened is confirmed and its chain push stamped (review round 14,
+    executed). A real write inside the tolerance still confirms against that same value."""
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    locks = tmp_path / "locks"
+    locks.mkdir()
+    monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(locks))
+    script = tmp_path / ".claude" / "bin" / "claude-sound.sh"
+    script.parent.mkdir(parents=True)
+    script.write_text("#!/bin/bash\nexit 0\n")
+    clock = iter([FLEET_NOW] + [FLEET_NOW + 10.0] * 8)
+    monkeypatch.setattr(cr, "_now", lambda: next(clock))
+    (locks / "k.notified").write_text(str(int(FLEET_NOW + cr._CLOCK_SKEW_TOLERANCE_S + 1)))
+    assert cr._tick_telegram("x", key="k") is False, "nothing written — a moving limit confirmed"
+    clock = iter([FLEET_NOW] + [FLEET_NOW + 10.0] * 8)
+    monkeypatch.setattr(cr, "_now", lambda: next(clock))
+    (locks / "k.notified").unlink()
+    script.write_text(
+        '#!/bin/bash\nprintf "%s" "'
+        + str(int(FLEET_NOW + 5))
+        + '" > "$CLAUDE_SOUND_LOCKDIR/$2.notified"\nexit 0\n'
+    )
+    assert cr._tick_telegram("x", key="k") is True
+
+
 def test_chain_push_uses_its_own_notify_key_per_account(tmp_path, monkeypatch):
     """Every rotation notification shares the notifier's 30-minute window under `quota-rotation`;
     the chain push passes its OWN per-account key so a flip or wall advisory in the same tick can
@@ -1708,7 +1736,8 @@ def test_notify_failure_reason_names_every_cause_it_cannot_tell_apart(tmp_path, 
         assert "MESH_NOTIFY_CMD" in line and "never attempted" in line, content
         assert "no custom notifier" in line and "torn short" not in line, content
         assert "plausible epoch above the previous reading" in line, content
-        assert "a symlink" in line and "reads as nothing" in line, content
+        assert "a symlink, a non-file, an unreadable or non-numeric file, or a" in line, content
+        assert "clock-implausible value reads as nothing" in line, content
         assert "at or below it" in line and "torn to empty" not in line, content
         assert "unavailable" not in line
     (locks / f"{key}.notified").unlink()

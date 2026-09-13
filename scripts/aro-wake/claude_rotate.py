@@ -2275,8 +2275,8 @@ def _stamp_epoch(path: Path, now: float | None = None) -> int:
     the one future tolerance every stamp in this file uses (the notifier's `date +%s` is the same
     wall clock): an all-digits garbage artifact would otherwise read as "the future" forever and
     no later send could ever advance it. The notifier writes `.notified` as a bare epoch; a torn
-    or planted file reads as nothing or as an epoch no later than that limit, never as the
-    future."""
+    or planted file reads as nothing or as an epoch no further ahead of *now* than that
+    tolerance."""
     try:
         if path.is_symlink() or not path.is_file():
             return 0
@@ -2297,19 +2297,23 @@ def _notify_marker(key: str) -> Path:
 def _tick_telegram(msg: str, key: str = "quota-rotation") -> bool:
     """mesh-notify the operator under *key*. The notifier's 30-minute suppression window is PER
     KEY, so a message that must never be eaten by a rotation notification passes its own key.
-    True ONLY when the notifier's success artifact (`_notify_marker`) advanced during the call:
-    `mesh-notify` exits 0 on every outcome (suppressed, curl failure, no keys — 0 non-zero
-    `exit` statements in the script; the process can still end without that status — an error
-    after a hand edit, a signal, or this call's 30 s timeout, which raises here instead of
-    returning a status — and no status is read on any path), so delivery is read from the
-    artifact, never from the return code. A False means the
-    notifier is absent, could not be run to completion, or its artifact did not advance —
-    `_notify_failure_reason` names what this side can know and the causes it cannot tell apart."""
+    True ONLY when the notifier's success artifact (`_notify_marker`) advanced during the call,
+    both readings judged against the ONE clock value taken before it — so the plausibility limit
+    cannot move between them, and an artifact just past it (stale after a backward clock step, or
+    planted) cannot read 0 first and as itself after with nothing written. `mesh-notify` exits 0
+    on every outcome (suppressed, curl failure, no keys — 0 non-zero `exit` statements in the
+    script; the process can still end without that status — an unrunnable or hand-broken script,
+    a signal, or this call's 30 s timeout, which raises here instead of returning one — and no
+    status is read on any path), so delivery is read from the artifact, never from the return
+    code. A False means the notifier is absent, could not be run to completion, or its artifact
+    did not advance — `_notify_failure_reason` names what this side can know and the causes it
+    cannot tell apart."""
     sound = Path.home() / ".claude" / "bin" / "claude-sound.sh"
     if not sound.is_file():
         return False
     marker = _notify_marker(key)
-    before = _stamp_epoch(marker)
+    now = _now()
+    before = _stamp_epoch(marker, now)
     try:
         subprocess.run(
             ["bash", str(sound), "mesh-notify", key, "/opt/fabrik", msg],
@@ -2319,7 +2323,7 @@ def _tick_telegram(msg: str, key: str = "quota-rotation") -> bool:
         )
     except (OSError, subprocess.SubprocessError):
         return False
-    return _stamp_epoch(marker) > before
+    return _stamp_epoch(marker, now) > before
 
 
 def _notify_failure_reason() -> str:
