@@ -1409,7 +1409,7 @@ def test_chain_push_stamps_only_a_delivered_notify(tmp_path, monkeypatch, capsys
     assert cr._chain_expiry_push([row], FLEET_NOW) == 0
     assert cr._chain_expiry_push([row], FLEET_NOW) == 0, "undelivered → retried, never stamped"
     out = capsys.readouterr().out
-    assert out.count("NOT delivered") == 2 and "unavailable" in out
+    assert out.count("push UNCONFIRMED") == 2 and "unavailable" in out
     assert not cr._chain_push_stamp("sarp@ocoron.com").exists()
 
     sent = []
@@ -1547,8 +1547,10 @@ def test_chain_push_refuses_a_planted_symlink_stamp(tmp_path, monkeypatch, capsy
 
 
 def test_chain_push_names_the_notifier_verdict_it_can_know(tmp_path, monkeypatch, capsys):
-    """The NOT-delivered line says the notifier is absent when it is, and otherwise that the send
-    could not be confirmed, with its four possible causes — the tick's `now` plays no part."""
+    """The UNCONFIRMED line says the notifier is absent when it is, and otherwise that the send
+    could not be confirmed, with every possible cause — one of them a send that DID go out (the
+    notifier delivered but could not write its artifact), which is why the line never says
+    "NOT delivered" — and the tick's `now` plays no part."""
     monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
     locks = tmp_path / "locks"
     monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(locks))
@@ -1562,7 +1564,10 @@ def test_chain_push_names_the_notifier_verdict_it_can_know(tmp_path, monkeypatch
     script.write_text("#!/bin/bash\nexit 0\n")  # runs, delivers nothing
     assert cr._chain_expiry_push([row], FLEET_NOW) == 0
     out = capsys.readouterr().out
-    assert "NOT delivered" in out and "could not be confirmed" in out and "retried next tick" in out
+    assert (
+        "push UNCONFIRMED" in out and "could not be confirmed" in out and "retried next tick" in out
+    )
+    assert "NOT delivered" not in out, "the tick never asserts non-delivery it cannot know"
 
 
 def test_write_stamp_enforces_0600_on_an_existing_stamp(tmp_path):
@@ -1678,10 +1683,10 @@ def test_write_stamp_refuses_a_fifo_and_never_blocks_on_it(tmp_path):
 
 def test_notify_failure_reason_names_every_cause_it_cannot_tell_apart(tmp_path, monkeypatch):
     """This side can only know that the notifier is absent, or that the send is unconfirmed
-    — and the latter has four causes it cannot separate honestly (a guessed "suppressed" or
+    — and the latter has causes it cannot separate honestly, one of them a send that went out (a guessed "suppressed" or
     "FAILED" was wrong under a stale tick clock and under a backward clock step, review rounds
     4–6; and on the timeout path the artifact is not even re-read, so the line may not claim it
-    "did not advance"). The property under test is INVARIANCE: the line names all four and does
+    "did not advance"). The property under test is INVARIANCE: the line names every cause and does
     not vary with what the artifact holds — the four contents are the input domain."""
     locks = tmp_path / "locks"
     locks.mkdir()
@@ -1696,7 +1701,9 @@ def test_notify_failure_reason_names_every_cause_it_cannot_tell_apart(tmp_path, 
         (locks / f"{key}.notified").write_text(content)
         line = cr._notify_failure_reason()
         assert "suppressed" in line and "failed" in line and "unreadable" in line, content
-        assert "did not finish" in line and "failed exec" in line, content
+        assert "did not finish" in line and "failed exec" in line and "abort" in line, content
+        assert "delivered but could not write" in line and "clock-implausible" in line, content
+        assert "MESH_NOTIFY_CMD" in line, content
         assert "unavailable" not in line
     (locks / f"{key}.notified").unlink()
     assert "could not be confirmed" in cr._notify_failure_reason()
@@ -1715,6 +1722,26 @@ def test_chain_push_names_the_state_dir_refusal(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "stamp unwritable (state dir unavailable: FileExistsError: " in out
     assert str(blocker) in out and "File exists" in out
+
+
+def test_stamp_holds_trusts_the_dir_not_the_mode(tmp_path, monkeypatch):
+    """The contract after D-251: the state dir is the trust boundary, so a stamp in it holds
+    whatever its mode (a legacy 0644 stamp, a hand-chmodded 0666 one) — a path-based owner/mode
+    check here was removed because it defended against no principal this box has and mis-fired
+    on mounts that cannot hold a mode. This grader pins the contract, not the absence of a guard."""
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    key = str(int(FLEET_NOW + 86400))
+    stamp = cr._chain_push_stamp("sarp@ocoron.com")
+    for mode in (0o644, 0o666):
+        stamp.write_text(key)
+        stamp.chmod(mode)
+        assert cr._stamp_holds(stamp, key), oct(mode)
+    sent = []
+    monkeypatch.setattr(cr, "_tick_telegram", lambda m, **kw: sent.append(m) or True)
+    row = {"email": "sarp@ocoron.com", "slugs": ["seo"], "refresh_expires_epoch": FLEET_NOW + 86400}
+    assert cr._chain_expiry_push([row], FLEET_NOW) == 0 and sent == []
 
 
 def test_chain_push_stamps_do_not_collide_across_lookalike_emails(tmp_path, monkeypatch):

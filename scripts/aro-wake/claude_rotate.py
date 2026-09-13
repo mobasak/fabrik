@@ -2321,17 +2321,20 @@ def _tick_telegram(msg: str, key: str = "quota-rotation") -> bool:
 
 def _notify_failure_reason() -> str:
     """Why `_tick_telegram` just returned False. Two things are knowable from here — the notifier
-    is absent, or the send could not be CONFIRMED — and an unconfirmed send has four causes this
-    side cannot tell apart (the notifier suppressed it inside its 30-minute window; the send
-    failed on curl or missing keys; the notifier did not finish — a timeout or a failed exec,
-    on which path the artifact is not even re-read; the artifact is unreadable), so the line
-    names them all rather than guess one."""
+    is absent, or the send could not be CONFIRMED — and an unconfirmed send has causes this side
+    cannot tell apart, one of which is a send that DID go out: the notifier suppressed it inside
+    its 30-minute window; the send failed (curl, a custom MESH_NOTIFY_CMD, or no Telegram keys);
+    the notifier did not finish (a timeout, an abort, or a failed exec — on which path the
+    artifact is not even re-read); the notifier delivered but could not write its own artifact
+    (its lock dir refused the write, swallowed by its `2>/dev/null`); or the artifact is
+    unreadable or clock-implausible. So the line names them all rather than guess one."""
     if not (Path.home() / ".claude" / "bin" / "claude-sound.sh").is_file():
         return "mesh-notify unavailable (no claude-sound.sh)"
     return (
         "the send could not be confirmed — suppressed by the notifier's 30-minute window for this"
-        " key, the send failed (curl / no Telegram keys), the notifier did not finish (a timeout"
-        " or a failed exec), or its artifact is unreadable"
+        " key, the send failed (curl, a custom MESH_NOTIFY_CMD, or no Telegram keys), the notifier"
+        " did not finish (a timeout, an abort, or a failed exec), the notifier delivered but could"
+        " not write its own artifact, or its artifact is unreadable or clock-implausible"
     )
 
 
@@ -4941,7 +4944,7 @@ def _stamp_holds(path: Path, key: str) -> bool:
     """True when *path* is a regular (never a symlink) readable stamp holding exactly *key*; a
     missing, unreadable or garbage stamp (a torn write, non-UTF-8 bytes) reads as ABSENT, never
     as an exception — the failure direction is "notify again". The trust boundary is the DIR:
-    the state dir is this uid's, created 0700, and a dir the operator made wider is the
+    the state dir is this uid's, created 0700 less the umask, and a dir the operator made wider is the
     operator's (D-251 — a path-based owner/mode check here defended against no principal this
     box has and mis-fired on mounts that cannot hold a mode)."""
     try:
@@ -4985,9 +4988,11 @@ def _chain_expiry_push(accounts: list[dict], now: float) -> int:
     chain (new expiry) re-arms by itself. The stamp is written ONLY after the notifier's own
     success artifact advanced (delivery is never inferred from its exit code) under the push's
     OWN key (`quota-rotation-chain-<digest>`) — a rotation notification's 30-minute window can
-    never eat it — and an undelivered push is retried next tick with every cause this side can
+    never eat it — and an unconfirmed push is retried next tick with every cause this side can
     know printed. A state dir that refuses the stamp is printed and the push repeats, bounded by
-    the notifier's window. Returns the number of pushes delivered. Never raises."""
+    the notifier's window — a LOCK dir that refuses the notifier's own artifact defeats both the
+    stamp and that window, and the push then repeats per tick until the operator fixes the dir.
+    Returns the number of pushes delivered. Never raises."""
     sent = 0
     for row in accounts:
         exp = row.get("refresh_expires_epoch")
@@ -5020,7 +5025,7 @@ def _chain_expiry_push(accounts: list[dict], now: float) -> int:
         )
         if delivered is not True:
             print(
-                f"chain push: {email} NOT delivered — {_notify_failure_reason()}"
+                f"chain push: {email} push UNCONFIRMED — {_notify_failure_reason()}"
                 " — retried next tick"
             )
             continue
