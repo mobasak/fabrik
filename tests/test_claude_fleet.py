@@ -1540,6 +1540,7 @@ def test_chain_push_refuses_a_planted_symlink_stamp(tmp_path, monkeypatch):
     monkeypatch.setattr(cr, "_tick_telegram", lambda m, **kw: sent.append(m) or True)
     row = {"email": "sarp@ocoron.com", "slugs": ["seo"], "refresh_expires_epoch": FLEET_NOW + 86400}
     assert cr._chain_expiry_push([row], FLEET_NOW) == 1, "a planted link never reads as stamped"
+    assert victim.read_text() == key, "nor does the push path write through it"
 
 
 def test_chain_push_names_the_real_cause_of_a_failed_notify(tmp_path, monkeypatch, capsys):
@@ -1592,6 +1593,7 @@ def test_stamp_epoch_rejects_garbage_and_future_values(tmp_path):
     assert cr._stamp_epoch(p, FLEET_NOW) == 0
     p.write_text(str(int(FLEET_NOW + 2 * 86400)))
     assert cr._stamp_epoch(p, FLEET_NOW) == 0
+    assert cr._CLOCK_SKEW_TOLERANCE_S == 60.0, "seconds of skew, never a day of it"
     edge = int(FLEET_NOW + cr._CLOCK_SKEW_TOLERANCE_S)  # the file's one future tolerance
     p.write_text(str(edge))
     assert cr._stamp_epoch(p, FLEET_NOW) == edge, "exactly at the tolerance is still a reading"
@@ -1637,6 +1639,64 @@ def test_chain_push_key_and_stamp_share_one_digest():
     assert d == cr._chain_push_digest("sarp@ocoron.com") and len(d) == 8
     assert d == hashlib.sha1(b"sarp@ocoron.com").hexdigest()[:8], "the LOWERCASED email"
     assert cr._chain_push_stamp("sarp@ocoron.com").name.endswith(f"-{d}")
+
+
+def test_rotate_state_dir_repairs_a_wider_dir_it_owns(tmp_path, monkeypatch):
+    """`mkdir(mode=0o700, exist_ok=True)` never touches an existing dir's mode, so a state dir
+    left at 0775 (a hand chmod, an older creator) stayed 0775 — and every stamp the tick trusts,
+    the chain-push stamp among them, could then be planted by a group member. The one helper
+    repairs it when this uid owns it."""
+    state = tmp_path / "state"
+    state.mkdir()
+    state.chmod(0o775)
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    assert cr._rotate_state_dir() == state
+    assert oct(state.stat().st_mode & 0o777) == "0o700"
+
+
+def test_write_stamp_never_blocks_on_a_fifo(tmp_path):
+    """O_NOFOLLOW refuses a symlink but not a FIFO: a readerless FIFO at the stamp's path would
+    park the 5-minute tick forever inside `os.open`. O_NONBLOCK turns it into ENXIO — an OSError
+    the caller already handles."""
+    fifo = tmp_path / "fleet-chain-push-x"
+    os.mkfifo(fifo)
+    with pytest.raises(OSError):
+        cr._write_stamp(fifo, "1")
+
+
+def test_notify_failure_reason_names_an_unreadable_or_skewed_artifact(tmp_path, monkeypatch):
+    """A backward clock step past the skew tolerance makes the notifier's artifact read as 0
+    while the notifier itself still suppresses (its arithmetic sees a negative age): the reason
+    must say the artifact is unreadable or skewed — delivery unknown — never "send FAILED"."""
+    locks = tmp_path / "locks"
+    locks.mkdir()
+    monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(locks))
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    script = tmp_path / ".claude" / "bin" / "claude-sound.sh"
+    script.parent.mkdir(parents=True)
+    script.write_text("#!/bin/bash\nexit 0\n")
+    key = "quota-rotation-chain-abcdef12"
+    (locks / f"{key}.notified").write_text(str(int(FLEET_NOW + 600)))  # 10 min "in the future"
+    reason = cr._notify_failure_reason(key, FLEET_NOW)
+    assert "unreadable or clock-skewed" in reason and "FAILED" not in reason
+    (locks / f"{key}.notified").write_bytes(b"\xff garbage")
+    assert "unreadable or clock-skewed" in cr._notify_failure_reason(key, FLEET_NOW)
+    (locks / f"{key}.notified").unlink()
+    assert "FAILED" in cr._notify_failure_reason(key, FLEET_NOW)
+
+
+def test_chain_push_names_the_state_dir_refusal(tmp_path, monkeypatch, capsys):
+    """When the state dir cannot be made the printed line carries the configured dir and the
+    real exception, not a function name."""
+    blocker = tmp_path / "state"
+    blocker.write_text("not a dir")
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(blocker))
+    row = {"email": "sarp@ocoron.com", "slugs": ["seo"], "refresh_expires_epoch": FLEET_NOW + 86400}
+    monkeypatch.setattr(cr, "_tick_telegram", lambda m, **kw: True)
+    capsys.readouterr()
+    assert cr._chain_expiry_push([row], FLEET_NOW) == 1
+    out = capsys.readouterr().out
+    assert str(blocker) in out and "FileExistsError" in out and "_rotate_state_dir" not in out
 
 
 def test_chain_push_stamps_do_not_collide_across_lookalike_emails(tmp_path, monkeypatch):

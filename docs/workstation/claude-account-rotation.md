@@ -314,13 +314,17 @@ is read from `<lockdir>/<key>.notified`, which it writes solely on a delivered s
 push's OWN per-account key (`quota-rotation-chain-<hash>`) so a rotation notification's 30-minute
 window can never eat it; an undelivered push is retried next tick with the real cause printed
 (notifier absent · suppressed by its window · send failed — judged against the wall clock, not the
-tick's start time), never recorded as sent. The stamp has ONE home, `~/.claude/state` (this uid's
-0700 dir, where every other stamp of the tick lives), written 0600 through `O_NOFOLLOW` with the
-mode enforced (`fchmod`) — there is deliberately no fallback dir: three review rounds of a temp-dir
-and then a lock-dir fallback each added a class of defect (symlink write-through, world-readable
-modes, `$TMPDIR` splits, the Stop hook's 2 h sweep) for a condition under which the tick's ledger
-and drain stamps are already failing. A state dir that refuses the stamp is printed and the push
-repeats, bounded by the notifier's window; `--status` prints the warning regardless. The old `--keepalive` ping is RETIRED (2026-09-12): its
+tick's start time; an artifact that reads as nothing — torn, garbage, or a clock stepped backwards
+past the 60 s skew tolerance — is reported as "delivery unknown"), never recorded as sent. The
+stamp has ONE home, `~/.claude/state` (this uid's 0700 dir, repaired to 0700 by the tool when it is
+wider and this uid owns it), written 0600 through `O_NOFOLLOW` + `O_NONBLOCK` (no symlink, no FIFO)
+with the mode enforced (`fchmod`) — deliberately no fallback dir, unlike the drain, advisory,
+exhaustion and identity-probe stamps, which fall back to the temp dir: their repeat is unbounded
+(a drain re-broadcast every 5 min), this one's is already bounded by the notifier's own 30-minute
+window per key, and three review rounds of a temp-dir and then a lock-dir fallback each added a
+class of defect (symlink write-through, world-readable modes, `$TMPDIR` splits, the Stop hook's
+2 h sweep). A state dir that refuses the stamp is printed with the configured path and the error,
+and the push repeats within that bound; `--status` prints the warning regardless. The old `--keepalive` ping is RETIRED (2026-09-12): its
 premise was false and, keyed on a credential mtime the tick renews daily, both logged Monday runs
 (2026-08-31, 2026-09-07 — `~/.claude/keepalive.log`) pinged nothing. The flag is kept as a no-op
 that prints why (rc 0), so the cron line below can be deleted at leisure — crontab edits are the
