@@ -689,9 +689,13 @@ def _heading_key(s: str) -> str:
     whitespace one space, lower-cased. Round 9: an UNTERMINATED opener on the line is not
     heading text either (the line is neutralised before the compare, the argument was not), and
     the leading `#` run is an ATX run — `#{1,6}` then whitespace — so `## #hashtag` keeps its
-    text's own `#` and the key is idempotent."""
+    text's own `#` (and exactly ONE closing run is dropped: `## Pass Ledger # #` is the text
+    `Pass Ledger #`, so a key is not a heading and keying it again is not a no-op)."""
     s = re.sub(r"<!--.*?-->", "", s)
-    s = re.sub(r"<!--.*$", "", s).strip()
+    masked = _mask_code_spans(s)  # an opener inside a code span is heading text (round 9)
+    if (i := masked.find("<!--")) >= 0:
+        s = s[:i]
+    s = s.strip()
     s = re.sub(r"^#{1,6}(?=\s|$)", "", s).strip()
     s = re.sub(r"(?:^|(?<=\s))#+$", "", s)
     return " ".join(s.split()).lower()

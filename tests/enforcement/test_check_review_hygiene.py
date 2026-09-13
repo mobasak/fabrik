@@ -1166,6 +1166,31 @@ def test_stop_at_heading_matches_a_real_heading_and_blanks_the_symbol_count_too(
     assert (
         crh._heading_key("## C#") == "c#" and crh._heading_key("## Pass Ledger ##") == "pass ledger"
     )
+    # round 9: an unterminated opener on the heading line, copied verbatim into the argument, is
+    # still the stop; `## #hashtag` keeps its own `#` (an ATX run needs whitespace after it)
+    for name, text, arg in (
+        (
+            "arg-unterm.md",
+            "# D\n\nthe widget lives\n## Pass Ledger <!-- x\nthe widget retired\n",
+            "## Pass Ledger <!-- x",
+        ),
+        ("hashtag.md", "# D\n\nthe widget lives\n## #hashtag\nthe widget retired\n", "## #hashtag"),
+        (  # the opener is not heading text: the argument WITHOUT it is the same stop
+            "arg-unterm2.md",
+            "# D\n\nthe widget lives\n## Pass Ledger <!-- x\nthe widget retired\n",
+            "## Pass Ledger",
+        ),
+    ):
+        f = tmp_path / name
+        f.write_text(text, encoding="utf-8")
+        sweep = crh.scan(surfaces=[f], phrases=["the widget"], stop_at_heading=arg)
+        assert [h.line for h in sweep.hits if h.cls == "stale-phrase"] == [3], (name, sweep.hits)
+    assert crh._heading_key("## #hashtag") == "#hashtag"
+    assert crh._heading_key("## Pass Ledger # #") == "pass ledger #"  # ONE closing run (CommonMark)
+    assert crh._heading_key("#Pass") == "#pass"  # no whitespace after the run: not an ATX run
+    assert (
+        crh._heading_key("## Pass `<!--` Ledger") == "pass `<!--` ledger"
+    )  # a span keeps its opener
     # regression (not a round-6 shape): an earlier opener runs to a LATER closer — that is the
     # comment, by CommonMark and by HTML —
     # so the heading inside it is no stop, nothing is blanked, and the phrase sweep (which reads
