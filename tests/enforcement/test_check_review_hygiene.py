@@ -1185,12 +1185,29 @@ def test_stop_at_heading_matches_a_real_heading_and_blanks_the_symbol_count_too(
         f.write_text(text, encoding="utf-8")
         sweep = crh.scan(surfaces=[f], phrases=["the widget"], stop_at_heading=arg)
         assert [h.line for h in sweep.hits if h.cls == "stale-phrase"] == [3], (name, sweep.hits)
-    assert crh._heading_key("## #hashtag") == "#hashtag"
-    assert crh._heading_key("## Pass Ledger # #") == "pass ledger #"  # ONE closing run (CommonMark)
+    assert crh._heading_key("## #hashtag") == "#hashtag"  # regression: the space kept it before too
+    assert crh._heading_key("## Pass Ledger # #") == "pass ledger #"  # regression: ONE closing run
     assert crh._heading_key("#Pass") == "#pass"  # no whitespace after the run: not an ATX run
-    assert (
-        crh._heading_key("## Pass `<!--` Ledger") == "pass `<!--` ledger"
-    )  # a span keeps its opener
+    # round 10: the markers are read through the code-span mask in BOTH steps — a `-->` in a
+    # span is no closer, a `<!--` in a span is no opener even with a real closer later
+    assert crh._heading_key("## Pass Ledger <!-- x `-->` y") == "pass ledger"
+    assert crh._heading_key("## Pass `a <!-- b` Ledger <!-- n -->") == "pass `a <!-- b` ledger"
+    for name, text, arg in (
+        (
+            "span-closer.md",
+            "# D\n\nthe widget lives\n## Pass Ledger <!-- x `-->` y\nthe widget retired\n",
+            "## Pass Ledger",
+        ),
+        (
+            "span-opener.md",
+            "# D\n\nthe widget lives\n## Pass `a <!-- b` Ledger <!-- n -->\nthe widget retired\n",
+            "## Pass `a <!-- b` Ledger",
+        ),
+    ):
+        f = tmp_path / name
+        f.write_text(text, encoding="utf-8")
+        sweep = crh.scan(surfaces=[f], phrases=["the widget"], stop_at_heading=arg)
+        assert [h.line for h in sweep.hits if h.cls == "stale-phrase"] == [3], (name, sweep.hits)
     # regression (not a round-6 shape): an earlier opener runs to a LATER closer — that is the
     # comment, by CommonMark and by HTML —
     # so the heading inside it is no stop, nothing is blanked, and the phrase sweep (which reads

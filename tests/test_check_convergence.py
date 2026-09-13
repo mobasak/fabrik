@@ -1995,13 +1995,13 @@ def test_a_cut_or_malformed_batch_stream_never_grades_a_partial_plan(
     rows = cc._committed_claims_advisory(tmp_path, set())
     adv = [r for r in rows if r.startswith("committed-claims advisory")]
     assert len(adv) == 1 and "2 blob(s) of 2 plan file(s)" in adv[0], rows
-    assert "did not exit cleanly" in adv[0] and "never reached" not in adv[0], adv
+    assert "did not exit cleanly" in adv[0] and "not answer whole" not in adv[0], adv
     monkeypatch.setattr(cc.subprocess, "run", fake(b"sha1 blob 4\nAAAA\n", 1))
     rows = cc._committed_claims_advisory(tmp_path, set())
     adv = [r for r in rows if r.startswith("committed-claims advisory")]
     assert len(adv) == 1 and "1 blob(s) of 2" in adv[0] and "not answer whole" in adv[0], rows
-    # round 7: a plan MISSING at HEAD was reached — with a non-zero exit the tail must not say
-    # the plans were never reached (the blob count is short for the other reason)
+    # round 7: a plan MISSING at HEAD was answered — with a non-zero exit the tail must not say
+    # the plans were not answered whole (the blob count is short for the other reason)
     monkeypatch.setattr(cc.subprocess, "run", fake(b"HEAD:x missing\nsha2 blob 4\nBBBB\n", 1))
     rows = cc._committed_claims_advisory(tmp_path, set())
     adv = [r for r in rows if r.startswith("committed-claims advisory")]
@@ -2014,6 +2014,11 @@ def test_a_cut_or_malformed_batch_stream_never_grades_a_partial_plan(
     adv = [r for r in rows if r.startswith("committed-claims advisory")]
     assert len(adv) == 1 and "0 blob(s) of 2" in adv[0] and "was answered" in adv[0], rows
     assert "was read" not in adv[0] and "not answer whole" not in adv[0], adv
+    assert adv[0].count("a plan absent at HEAD") == 1, adv  # round 10: explained once per branch
+    monkeypatch.setattr(cc.subprocess, "run", fake(b"sha1 blob 4\nAAAA\n", 0))
+    rows = cc._committed_claims_advisory(tmp_path, set())
+    adv = [r for r in rows if r.startswith("committed-claims advisory")]
+    assert "not counted either way" in adv[0] and adv[0].count("a plan absent at HEAD") == 1, adv
 
 
 def test_the_rederivation_message_names_the_closing_row_grammar(repo: Path) -> None:

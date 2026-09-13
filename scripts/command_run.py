@@ -1053,7 +1053,7 @@ def _is_placeholder(value: str | None) -> bool:
     # the mandated honest shape, written inside the brackets — decided BEFORE the noun and
     # alternation rules, whose words its surface list may legitimately carry (round 4: `the mail
     # id router` and `mail.py | command_run.py` were refused); the head is `none` or a mail id
-    if re.match(r"[\W_]*(?:(?i:none)|[0-9A-Z]{6,})(?![^\W_])", c) and re.search(
+    if re.match(r"[^0-9A-Za-z]*(?:(?i:none)|[0-9A-Z]{6,})(?![a-zA-Z0-9])", c) and re.search(
         r"surfaces? exercised", low
     ):
         # the grammar's own filler after the marker (`what your run touched`) or an EMPTY surface
@@ -1069,9 +1069,10 @@ def _is_placeholder(value: str | None) -> bool:
         tail = re.sub(r"^[\W_]+|[\W_]+$", "", tail)
         if not tail:
             return True
-        # the noun equality is ASCII: a `\w` decoration outside [a-z0-9] (`¹`, `①`) never makes
-        # the grammar's own filler honest (round 9), while emptiness was decided above on the
-        # Unicode class so a non-ASCII surface name stays honest
+        # the noun equality is ASCII: a `\w` decoration outside [a-z0-9] (`¹`, `①`) at either
+        # EDGE is decoration (round 9; the head's skip class is the same ASCII complement, round
+        # 10), while emptiness was decided above on the Unicode class so a non-ASCII surface name
+        # stays honest. Stated cost: an INTERIOR homoglyph (`t①uched`) is not caught
         return re.sub(r"^[^a-z0-9]+|[^a-z0-9]+$", "", tail) in _GRAMMAR_NOUNS
     if any(n in low for n in _GRAMMAR_NOUNS):
         return True

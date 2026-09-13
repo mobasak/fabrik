@@ -691,8 +691,13 @@ def _heading_key(s: str) -> str:
     the leading `#` run is an ATX run — `#{1,6}` then whitespace — so `## #hashtag` keeps its
     text's own `#` (and exactly ONE closing run is dropped: `## Pass Ledger # #` is the text
     `Pass Ledger #`, so a key is not a heading and keying it again is not a no-op)."""
-    s = re.sub(r"<!--.*?-->", "", s)
-    masked = _mask_code_spans(s)  # an opener inside a code span is heading text (round 9)
+    # both markers are read through the code-span mask, the closed comments first (round 9;
+    # round 10: a `-->` inside a span closed a real opener because the closed-comment strip
+    # ran on the raw string)
+    masked = _mask_code_spans(s)
+    for mo in reversed(list(re.finditer(r"<!--.*?-->", masked))):
+        s = s[: mo.start()] + s[mo.end() :]
+    masked = _mask_code_spans(s)
     if (i := masked.find("<!--")) >= 0:
         s = s[:i]
     s = s.strip()

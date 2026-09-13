@@ -1187,10 +1187,12 @@ def _committed_claims_advisory(root: Path, skip: set[Path]) -> list[str]:
         # the tail names what the count means, in the docstring's own words (round 9: three
         # readings of one integer — "reached", "read", "answered whole" — were one too many):
         # plans short of the request were not answered whole (a `missing` answer counts, a cut
-        # body does not); every plan answered with a non-zero exit is a stream git did not close
-        # cleanly (round 6)
+        # body or a header git never writes does not); every plan answered with a non-zero
+        # exit is a stream git did not close cleanly (round 6); each branch explains an absent
+        # plan once (round 10)
         tail = (
-            "the plans it did not answer whole were NOT examined"
+            "the plans it did not answer whole were NOT examined (a plan absent at HEAD is not "
+            "counted either way)"
             if reached < len(plans)
             else "every plan was answered (a plan absent at HEAD has no blob) but git did not "
             "exit cleanly, so the rows below stand on an untrusted stream"
@@ -1199,8 +1201,7 @@ def _committed_claims_advisory(root: Path, skip: set[Path]) -> list[str]:
         # read" was one sentence contradicting itself when the only plan was `missing`)
         out.append(
             f"committed-claims advisory: git cat-file returned {len(heads)} blob(s) of "
-            f"{len(plans)} plan file(s) requested — {tail} (a plan absent at HEAD is not "
-            "counted either way)"
+            f"{len(plans)} plan file(s) requested — {tail}"
         )
     for p in plans:
         rel = p.relative_to(root)

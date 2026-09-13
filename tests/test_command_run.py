@@ -4367,6 +4367,8 @@ def test_a_real_id_inside_angle_brackets_is_not_a_placeholder() -> None:
         "<**none** — surfaces exercised: mail.py>",  # typographic quotes, emphasis, and a
         "<_none_ — surfaces exercised: mail.py>",  # non-ASCII surface name keeps its letters
         "<none — surfaces exercised: 日本語のファイル>",  # no ASCII letter at all
+        "<¹none — surfaces exercised: mail.py>",  # round 10: the head skips a `\w` decoration too
+        "<none¹ — surfaces exercised: mail.py>",
     ):
         assert not cr._is_placeholder(real), real
     # a lower-case synonym head (`nothing filed`) never reaches the honest branch — it is refused
