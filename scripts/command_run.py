@@ -511,7 +511,8 @@ def _phase_review_exists(
     # evidence — STATED COST (review round 2): a plan RE-EXECUTED from scratch inherits its old
     # ticket receipts, since DISPATCHER mode's contract (/fabrik-execute-plan § D4) never binds a
     # ticket receipt to a phase at all. The PHASE form (no stem in its name by fleet convention —
-    # 67 of 132 phase receipts on this box carry no plan prefix) keeps the time bound, with the
+    # of the 132 files named `*phase*-review.md` under /opt/*/docs/development/reviews on
+    # 2026-09-13, 67 carry no `<date>-plan-<n>` prefix) keeps the time bound, with the
     # plan's `<date>-plan-<n>` prefix as an ADDITIVE escape for the receipts that do carry it —
     # DELIMITED by the `-` every real receipt continues with (plan-2 is a prefix of plan-20).
     ticket = re.compile(
@@ -521,8 +522,12 @@ def _phase_review_exists(
         re.I,
     )
     phase_pat = re.compile(rf"(?:^|[^0-9a-z])p(?:hase)?[-_ ]?{phase}(?:[^0-9]|$)", re.I)
-    prefix_m = re.match(r"\d{4}-\d{2}-\d{2}-plan-\d+", plan_stem or "")
-    plan_prefix = prefix_m.group(0) if prefix_m else None
+    # the plan number may carry a letter (`plan-2a`, 3 of 166 fleet stems); the escape is bounded
+    # by a NON-alphanumeric so plan-2 never matches plan-20 or plan-2a (rounds 2–3)
+    prefix_m = re.match(r"\d{4}-\d{2}-\d{2}-plan-\d+[a-z]?", plan_stem or "", re.I)
+    plan_prefix = (
+        re.compile(re.escape(prefix_m.group(0)) + r"(?![0-9a-z])", re.I) if prefix_m else None
+    )
     try:
         for f in d.rglob("*.md"):
             if not f.is_file():
@@ -542,7 +547,7 @@ def _phase_review_exists(
                 return True
             if since is None or st.st_mtime >= float(since) - 2.0:
                 return True
-            if plan_prefix and f.name.lower().startswith(plan_prefix.lower() + "-"):
+            if plan_prefix and plan_prefix.match(f.name):
                 return True
     except OSError:
         return False  # unreadable → treat as absent; the refusal names how to waive
@@ -1015,18 +1020,38 @@ def _usage_is_required(rec: dict[str, Any]) -> bool:
     return started is not None and started >= _USAGE_REQUIRED_FROM
 
 
+_GRAMMAR_NOUNS = (
+    "mail id",
+    "what in the command",
+    "what you filed",
+    "what your run touched",
+    "steps, turns",
+    "the one edit",
+    "the one concrete edit",
+    "surfaces exercised: …",
+)
+
+
 def _is_placeholder(value: str | None) -> bool:
-    """A value that is the grammar's own `<…>` text: a bracketed value carrying a `|` (the
-    alternation the grammar writes) or several tokens with prose words in them. `<01M1RHJY>`,
-    `<none>` and `<01M1AAA, 01M1BBB>` are an agent's REAL values written inside the brackets
-    (review rounds 1–2), never the placeholder."""
+    """A value that is the grammar's own `<…>` text — its ellipsis, a nested `<`, a prose
+    alternation (`what you filed | none`) or the grammar's own noun phrases — or several prose
+    tokens with no real value at their head. `<01M1RHJY>`, `<none>`, `<01M1AAA, 01M1BBB>`,
+    `<01M1AAA|01M1BBB>` and the mandated `<none — surfaces exercised: mail.py>` are an agent's
+    REAL values written inside the brackets (review rounds 1–3), never the placeholder."""
     if not value:
         return False
     m = re.fullmatch(r"<(?P<c>.*)>\s*\[?", value.strip(), re.S)
     if not m:
         return False
-    c = m.group("c")
-    return "|" in c or (len(c.split()) > 1 and re.search(r"[a-z]{2,}", c) is not None)
+    c = m.group("c").strip()
+    low = c.lower()
+    if "…" in c or "<" in c or any(n in low for n in _GRAMMAR_NOUNS):
+        return True
+    if re.search(r"[a-z]{2,}\s*\||\|\s*[a-z]{2,}", c):
+        return True  # a prose alternation is the grammar's, `01M1AAA|01M1BBB` is a value
+    if re.match(r"(?:none|[0-9A-Z]{6,})\b", c, re.I) and re.search(r"surfaces? exercised", low):
+        return False  # the mandated honest shape, written inside the brackets
+    return len(c.split()) > 1 and re.search(r"[a-z]{2,}", c) is not None
 
 
 def _parse_usage_feedback(text: str) -> tuple[dict[str, str], list[str]]:
@@ -2057,10 +2082,12 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                     "read. Emit it as either shape: PHASE mode a filename containing "
                     f"`phase-{prev}`{_since_label(rec)}, DISPATCHER mode "
                     + (
-                        f"`{_plan_stem(rec)}-T<id>-review.md` (the plan stem read from --surface)"
+                        f"`{_plan_stem(rec)}-T<id>-review.md` (the plan stem read from --surface, "
+                        "any age)"
                         if _plan_stem(rec)
-                        else "`-T<id>-review.md` (this record's --surface names no plan, so the "
-                        "ticket form is unbound — name the plan in --surface to bind it)"
+                        else f"`-T<id>-review.md`{_since_label(rec)} (this record's --surface names "
+                        "no plan, so the ticket form is bound only by this record's start — name "
+                        "the plan in --surface to bind it to the stem instead)"
                     )
                     + " (/fabrik-execute-plan D4). Or re-run with "
                     '--review-waived "<reason>" to record a deliberate skip.',

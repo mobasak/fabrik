@@ -123,6 +123,26 @@ def _isolated_kaizen_events_dir(tmp_path, monkeypatch):
     yield events
 
 
+@pytest.fixture(autouse=True)
+def _isolated_command_run_dir(tmp_path, monkeypatch):
+    """The convergence and coverage graders read the SESSION'S OWN run record (T4.1/T4.5 —
+    `CLAUDE_SESSION_ID` or the harness's `CLAUDE_CODE_SESSION_ID`, under `COMMAND_RUN_DIR` or the
+    operator's live `~/.claude/state/command-runs`): a suite run inside a live Claude session
+    would otherwise grade fixtures against whatever plan the operator's real record names
+    (mail-triage Phase B review, round 3). Same class as the two pins above — one autouse pin,
+    composable: a test that wants a specific record still sets its own dir and sid after this."""
+    runs = (
+        tmp_path / "isolated-command-runs"
+    )  # not `command-runs`: test_command_run's own fixture name
+    runs.mkdir(exist_ok=True)
+    monkeypatch.setenv("COMMAND_RUN_DIR", str(runs))
+    # a FIXED fake sid, never an unset one: two `done` tests key one record across a cwd change,
+    # which the repo-scoped nosession fallback would split into two records
+    monkeypatch.setenv("CLAUDE_SESSION_ID", "pytest-isolated")
+    monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
+    yield runs
+
+
 # ---------------------------------------------------------------------------------------------
 # Bare `tempfile.mkdtemp()` / `NamedTemporaryFile()` land under pytest's basetemp (2026-09-07).
 #

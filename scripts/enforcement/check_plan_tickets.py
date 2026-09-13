@@ -115,7 +115,12 @@ _GATE_FILE_RE = re.compile(
 # is quiet only when its remainder is not path-shaped (a quoted path is an invisible path —
 # review round 2)
 _TOUCHES_LINE_OK = re.compile(r"^(?:[-*+]\s|\||#|<!--|-->|\d+[.)]\s)")
-_PATHISH = re.compile(r"[\w.-]+/[\w./-]*|\.[A-Za-z0-9]{1,8}$")
+# a quoted PATH: a slash-joined or bare token ending in a source/doc extension — `and/or`, `24/7`,
+# `Python 3.12` and `T4.8` are prose (round 3: the first cut flagged all four at ERROR severity)
+_PATHISH = re.compile(
+    r"(?:^|\s)(?:[\w.-]+/)*[\w.-]+\.(?:py|pyi|ts|tsx|js|jsx|mjs|cjs|sh|md|ya?ml|json|toml|sql|"
+    r"astro|vue|svelte|css|html|txt|cfg|ini|env)\b"
+)
 # The FROZEN 2-contract artifacts are MANDATORY reading for any ticket that touches their surface —
 # the commands require citing them, and /fabrik-flows, /fabrik-ui-design and /fabrik-data-contract
 # all push them toward completeness. Counting them against a TICKET's budget measures the contract's
@@ -2364,13 +2369,19 @@ def check_plan_dir(
                     or bool(_TOUCHES_LINE_OK.match(_st))
                     or (_ln[:1] in (" ", "\t") and _prev_bullet)
                 )
-            _prev_bullet = _bullet or (_prev_bullet and _ln[:1] in (" ", "\t") and bool(_st))
+            # a bullet's continuation survives a blank line, a comment or a table row between
+            # (CommonMark list-item continuation; round 3)
+            _prev_bullet = _bullet or (
+                _prev_bullet
+                and (not _st or _ln[:1] in (" ", "\t") or bool(_TOUCHES_LINE_OK.match(_st)))
+            )
             if _ok:
                 continue
             results.append(
                 _err(
                     f"{t.tid}: prose inside ## Touches is invisible to the gate — `{_st[:60]}` "
-                    "is neither a bullet nor a path; move it out of the section",
+                    "is prose, a quoted path or a quoted bullet, none of which the bullet "
+                    "collector reads; write it as a plain bullet or move it out of the section",
                     t.path,
                 )
             )

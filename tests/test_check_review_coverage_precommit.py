@@ -196,6 +196,26 @@ def test_the_changed_list_reads_paths_only_across_wrapped_lines_and_never_from_a
     assert r.returncode == 0, r.stdout
     r = _run_on(tmp_path, with_x.replace("# R\n", "# R\n**Changed:** `x.py`, `Makefile`\n\n"))
     assert r.returncode == 1 and "`Makefile`" in r.stdout, r.stdout
+    # round 3: a bullet-list Changed block is still the list; any backticked token that is not an
+    # md5, a count or a range is a path (`Taskfile`, `CODEOWNERS`)
+    r = _run_on(tmp_path, with_x.replace("# R\n", "# R\n**Changed:**\n- `x.py`\n- `y.py`\n\n"))
+    assert r.returncode == 1 and "`y.py`" in r.stdout, r.stdout
+    r = _run_on(
+        tmp_path,
+        with_x.replace(
+            "# R\n",
+            "# R\n**Changed:** `x.py`, `Taskfile` (md5 `1f4d05aa28cf5cb5`, `fb8e86e3~1..HEAD`, `80950` bytes)\n\n",
+        ),
+    )
+    assert r.returncode == 1 and "`Taskfile`" in r.stdout and "1f4d05aa" not in r.stdout, r.stdout
+    # an IN-PROGRESS receipt (a seat's mid-loop draft) is exempt from the Hunt-row leg too
+    r = _run_on(
+        tmp_path,
+        good.replace("**Status:** CONVERGED", "**Status:** IN-PROGRESS").replace(
+            "# R\n", "# R\n**Changed:** `x.py`, `y.py`\n\n"
+        ),
+    )
+    assert r.returncode == 0, r.stdout
 
 
 def test_a_running_record_pulls_only_its_own_receipts(tmp_path):
@@ -331,3 +351,33 @@ def test_a_running_record_pulls_only_its_own_receipts(tmp_path):
         check=True,
     )
     assert _rc_env() == 0, "the parked parent's plan stem filters a sibling plan's receipt out"
+    # round 3: a nested NON-writing command (a data-contract run inside the plan's execution)
+    # does not switch the parent's receipts off — the innermost writing frame owns the window
+    mine.write_text(
+        unchecked + "\nPlan: docs/development/plans/2026-09-13-plan-a.md\n", encoding="utf-8"
+    )
+    sp.run(["git", "add", "-A"], cwd=repo, check=True)
+    sp.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "regressed again"],
+        cwd=repo,
+        check=True,
+    )
+    (runs / "s9.json").write_text(
+        json.dumps(
+            {
+                "command": "fabrik-data-contract",
+                "state": "running",
+                "started_epoch": time.time(),
+                "surface": "docs/data-contract.md",
+                "stack": [
+                    {
+                        "command": "fabrik-execute-plan",
+                        "state": "running",
+                        "started_epoch": started,
+                        "surface": "docs/development/plans/2026-09-13-plan-a.md",
+                    }
+                ],
+            }
+        )
+    )
+    assert _rc_env() == 1, "the parked execute-plan frame owns the receipt window"

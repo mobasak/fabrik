@@ -368,6 +368,7 @@ def main() -> int:
             + " — direction (b) is not trustworthy"
         )
     untracked = set(untracked_list)
+    examined = 0  # the docs the loop actually graded — the lean row's denominator (round 3)
     # sorted(): `untracked` is a set, so the finding ORDER varied between runs on identical input.
     for p in dict.fromkeys([*tracked, *sorted(untracked)]):
         if untracked_only and p not in untracked:
@@ -385,6 +386,7 @@ def main() -> int:
             # the path STRING, so an unreadable doc still owes its row.
             continue
         base = Path(p).name
+        examined += 1
         if p not in index_text and base not in index_text:
             tag = (
                 " (untracked — the run that creates a doc owes its INDEX row)"
@@ -397,7 +399,7 @@ def main() -> int:
         payload = {"status": "success" if not problems else "failure", "drift": problems}
         if untracked_only:
             payload["mode"] = "untracked-only"
-            payload["examined"] = len(untracked)
+            payload["examined"] = examined
         print(json.dumps(payload))
     else:
         for x in problems:

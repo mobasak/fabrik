@@ -22,6 +22,7 @@ import ast
 import json
 import os
 import re
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -78,17 +79,20 @@ def _tracked_hooks(root: Path) -> list[str]:
     # tree is not a hook anyone can register (review round 1, Phase B); the index row is the
     # file's basename, the shape the settings.json walk produces
     def _present(p: str) -> bool:
-        # tri-state like check_doc_index._lstat_state: a path that CANNOT be examined still owes
-        # its row; only a path that is provably absent drops (review round 2)
+        # tri-state like check_doc_index._lstat_state, on ONE lstat: provably ABSENT drops; a
+        # path that cannot be examined (a mode-000 parent, an embedded NUL) still owes its row; a
+        # dangling symlink is a tracked hook and owes it too (rounds 2–3: `exists()` raised on
+        # EACCES before the tri-state ran and dropped the dangling symlink)
         try:
-            return not (root / p).is_dir()
-        except OSError:
+            st = os.lstat(root / p)
+        except (FileNotFoundError, NotADirectoryError):
+            return False
+        except (OSError, ValueError):
             return True
+        return not stat.S_ISDIR(st.st_mode)
 
     return [
-        Path(p).name
-        for p in out.split("\0")
-        if p.endswith((".py", ".sh", ".js")) and (root / p).exists() and _present(p)
+        Path(p).name for p in out.split("\0") if p.endswith((".py", ".sh", ".js")) and _present(p)
     ]
 
 

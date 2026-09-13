@@ -176,7 +176,24 @@ def test_the_floor_is_surface_aware_for_hub_tooling(tmp_path):
     assert "core/35-security-auth.md" in mixed and "SERVICE" in mixed
     # review round 2: a command-source-only or pack-only partition is a tooling partition (the
     # doc-path exclusion emptied the vote and fell to SERVICE)
+    _mk_pack(tmp_path, "core/40-documentation.md", ["**/*.md"], ["- One source of truth per fact."])
     for docs_only in (["commands/_sources/x.md"], [".windsurf/rules/core/10-python.md"]):
-        assert "TOOLING" in rr.build_rubric(docs_only, workflow=None, root=tmp_path), docs_only
+        out = rr.build_rubric(docs_only, workflow=None, root=tmp_path)
+        floor_part = out.split("## MATCHED")[0]
+        assert "TOOLING" in out and "core/40-documentation.md" in floor_part, docs_only
+        assert "core/10-python.md" not in floor_part, docs_only
     assert "SERVICE" in rr.build_rubric(["docs/x.md"], workflow=None, root=tmp_path)
     assert rr._floor_for(["scripts/x.py"], None)[1] == "SERVICE"
+    # round 3: the ledger docs and docs/ never vote — a command source beside its mandated
+    # CHANGELOG entry or its reference doc is still a tooling partition
+    for pair in (
+        ["commands/_sources/x.md", "CHANGELOG.md"],
+        ["commands/_sources/x.md", "docs/reference/y.md"],
+        [".windsurf/rules/core/10-python.md", "CHANGELOG.md"],
+    ):
+        assert rr._floor_for(pair, tmp_path)[1] == "TOOLING", pair
+    assert rr._floor_for(["templates/governance/CLAUDE.md"], tmp_path) == (
+        rr.FLOOR_PACKS_TOOLING_DOC,
+        "TOOLING",
+    )
+    assert rr._floor_for(["CHANGELOG.md"], tmp_path)[1] == "SERVICE"

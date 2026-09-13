@@ -147,18 +147,21 @@ _REDERIVATION_ROW = re.compile(
 # per-agent worktree copies excluded, the convention the 805 fleet review artifacts share) and 0 of
 # 805 fleet review artifacts carry >1 token on one row READ THROUGH THE RULE'S OWN MASKING (on raw
 # text 1 of 47 carries two, both inside code spans — the receipt-side spelling the rule exists for).
-_PASS_ROW = re.compile(r"^[ \t]*\|\s*\**(?:Pass|Round)\b[^\n]*", re.I | re.M)
+_PASS_ROW = re.compile(
+    r"^[ \t]*\|\s*[*_`]*(?:Pass|Round)\b[^\n]*", re.I | re.M
+)  # emphasis tolerated (round 3)
 # a ledger LINE in any shape the corpus writes — a table row (`| Pass N |`), a bulleted one
 # (`- Pass 2 (CLOSING) — …`) or a bare `Pass 2 — …`; the LABEL leads the line, prose never does (T4.3)
 # Review round 1 (Phase B): the label is followed by its NUMBER and a SEPARATOR (`|`, `—`, `-`,
 # `:`, `·`, `(` or end of line) — "Pass 3 confirmed nothing" and "Round 4 never returned
 # found: 0" start with the label and are prose; `| ✅ Pass 3 |` and `> | Pass 3 |` are rows.
-# Review round 2: emphasis around the label — `| **Pass 23** |`, `| _Pass 4_ |`, `` | `Pass 4` | ``
-# — closes BEFORE the separator (2 of 8 bold shapes in the hub's receipts were refused by the
-# round-1 grammar); a comma is a separator too (`Pass 3, found 0`).
+# Review round 2: emphasis around the label — `| **Pass 23** |`, `| _Pass 4_ |` — closes BEFORE the
+# separator (the two bold rows in the hub's receipts, `**Pass 23**` and `**Pass 25**`, were refused
+# by the round-1 grammar; a code span is masked before matching, by design). Round 3: a comma is
+# NOT a separator — `Round 3, the sweep that never reached confirmed: 0, fixed: 0` is prose.
 _LEDGER_LINE = re.compile(
     r"^[ \t]*(?:>\s*)?(?:\|\s*|[-*]\s+)?(?:[^\w\n|]|_)*(?:Pass|Round)\s+\d+[a-z]?[*_`]*\s*"
-    r"(?:[—–\-:|·(,]|$)[^\n]*",
+    r"(?:[—–\-:|·(]|$)[^\n]*",
     re.I | re.M,
 )
 
@@ -707,12 +710,13 @@ def _check_plan(root: Path, path: Path) -> list[str]:
     return out
 
 
-def _head_texts(root: Path, relpaths: list[str]) -> dict[str, str]:
-    """Contents of ``relpaths`` at HEAD in one `git cat-file --batch`; a path absent at HEAD is
-    absent from the result. Bytes-parsed: the batch format is `<sha> <type> <size>\n<body>\n`
-    or `<spec> missing\n`."""
+def _head_texts(root: Path, relpaths: list[str]) -> tuple[dict[str, str], bool]:
+    """Contents of ``relpaths`` at HEAD in one `git cat-file --batch`, and whether the batch was
+    COMPLETE — a path absent at HEAD is absent from the result; a git failure or a truncated
+    stream (round 3: `git` killed mid-batch left the rest silently "not a committed claim")
+    returns ``complete=False``. Bytes-parsed: `<sha> <type> <size>\n<body>\n` or `<spec> missing\n`."""
     if not relpaths:
-        return {}
+        return {}, True
     try:
         r = subprocess.run(
             ["git", "cat-file", "--batch"],
@@ -722,12 +726,14 @@ def _head_texts(root: Path, relpaths: list[str]) -> dict[str, str]:
             timeout=60,
         )
     except Exception:
-        return {}
+        return {}, False
     out: dict[str, str] = {}
     buf, i = r.stdout, 0
+    complete = r.returncode == 0
     for rel in relpaths:
         nl = buf.find(b"\n", i)
         if nl < 0:
+            complete = False
             break
         header = buf[i:nl].decode("utf-8", "replace")
         i = nl + 1
@@ -737,10 +743,11 @@ def _head_texts(root: Path, relpaths: list[str]) -> dict[str, str]:
         try:
             size = int(parts[2])
         except ValueError:
+            complete = False
             break
         out[rel] = buf[i : i + size].decode("utf-8", "replace")
         i += size + 1  # the trailing newline after the body
-    return out
+    return out, complete
 
 
 def _head_text(root: Path, relpath: str) -> str:
@@ -1161,12 +1168,13 @@ def _committed_claims_advisory(root: Path, skip: set[Path]) -> list[str]:
     # is not committed debt, and a locally reverted claim is still committed (review round 1,
     # Phase B). ONE `git cat-file --batch` for the whole set — measured on the hub 2026-09-13:
     # 317 plan files, well under a second either way, but one process instead of 317.
-    heads = _head_texts(root, [str(p.relative_to(root)) for p in plans])
-    if plans and not heads:
-        # a git failure would otherwise read as "no committed debt" (review round 2)
-        _NOTES.append(
-            f"NOTE: committed-claims advisory could not read HEAD for {len(plans)} plan file(s) "
-            "— nothing examined"
+    heads, complete = _head_texts(root, [str(p.relative_to(root)) for p in plans])
+    if plans and not complete:
+        # a git failure or a truncated batch would otherwise read as "no committed debt" — an
+        # advisory ROW, so the ⚠-first header final_gate keys on carries it (rounds 2–3)
+        out.append(
+            f"committed-claims advisory read HEAD for {len(heads)} of {len(plans)} plan file(s) "
+            "— the rest were NOT examined (git cat-file failed or was cut short)"
         )
     for p in plans:
         rel = p.relative_to(root)

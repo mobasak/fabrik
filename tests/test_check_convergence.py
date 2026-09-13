@@ -286,6 +286,15 @@ def _git(repo: Path, *args: str) -> None:
     subprocess.run(["git", *args], cwd=repo, check=True, timeout=15, capture_output=True)
 
 
+def _load_cc():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("cc_under_test", CHECK)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
 def _check(repo: Path) -> int:
     return subprocess.run(
         [sys.executable, str(CHECK), "--project-root", str(repo)],
@@ -1868,14 +1877,21 @@ def test_a_prose_line_starting_with_the_label_never_satisfies_the_executed_citat
     assert _check(repo) == 0, "a blockquoted row is still a row"
     # review round 2: emphasis closes before the separator — 2 of 8 bold shapes in the hub's
     # receipts were refused by the round-1 grammar
-    for shape in (
-        "| **Pass 2** |",
-        "| _Pass 2_ |",
-        "| Pass 2, ",
-    ):  # a code span is masked by design
+    for shape in ("| **Pass 2** |", "| _Pass 2_ |"):  # a code span is masked by design
         rv.write_text(_REVIEW_QUIET_ROW.replace("| Pass 2 |", shape))
         _git(repo, "add", "-A")
         assert _check(repo) == 0, shape
+    # round 3: a comma is not a separator — a prose line that starts with the label and a
+    # comma must not certify; and `_PASS_ROW` (the closing-row rule) reads the same emphasis
+    rv.write_text(
+        _REVIEW_QUIET_ROW.replace(row, "Round 3, the sweep that never reached found: 0, fixed: 0\n")
+    )
+    _git(repo, "add", "-A")
+    assert _check(repo) == 1, "a comma after the number is prose"
+    cc = _load_cc()
+    assert cc._PASS_ROW.search("| **Pass 3** | confirmed: 0 |") and cc._PASS_ROW.search(
+        "| _Pass 3_ | x |"
+    )
 
 
 def test_a_quiet_round_in_prose_never_satisfies_the_executed_citation(repo: Path) -> None:
@@ -1927,6 +1943,19 @@ def test_a_committed_executed_plan_whose_review_is_missing_is_reported_advisory(
     assert rc == 0 and out.startswith("⚠") and "NOTE: skip untracked" in out, out
 
 
+def test_a_git_failure_in_the_advisory_is_a_warning_final_gate_can_see(tmp_path: Path) -> None:
+    """Round 3: with no readable HEAD the advisory printed a `NOTE:` first line, which
+    final_gate's ⚠-first opt-in drops — the unexamined count is an advisory ROW under the ⚠ header."""
+    plan = tmp_path / "docs/development/plans/2026-08-03-plan-x.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text(_EXECUTED_CITING)
+    rc, out = _check_out(tmp_path)  # not a git repo: cat-file fails
+    assert rc == 0 and out.startswith("⚠") and "0 of 1 plan file(s)" in out, out
+    cc = _load_cc()
+    heads, complete = cc._head_texts(tmp_path, ["docs/development/plans/2026-08-03-plan-x.md"])
+    assert heads == {} and complete is False
+
+
 def test_the_rederivation_message_names_the_closing_row_grammar(repo: Path) -> None:
     """T4.10 (01M1SR1WK): the refusal names the exact cell grammar the grader accepts, so a
     reader does not guess where the label goes."""
@@ -1949,3 +1978,14 @@ def test_proof_citation_accepts_every_scaffold_types_sources(repo: Path) -> None
     )
     assert "handler.py" not in doc
     assert _run(repo, "docs/development/plans/2026-06-18-plan-x.md", doc) == 0
+
+
+def test_the_suite_never_reads_the_operators_live_run_record() -> None:
+    """Round 3 (B3-S1): the graders read the session's own run record, so the conftest pins a
+    scratch COMMAND_RUN_DIR and a fixed fake session id for every test — a suite run inside a live
+    Claude session must never grade fixtures against the operator's real record."""
+    import os
+
+    assert "pytest" in os.environ.get("COMMAND_RUN_DIR", ""), os.environ.get("COMMAND_RUN_DIR")
+    assert os.environ.get("CLAUDE_SESSION_ID") == "pytest-isolated"
+    assert "CLAUDE_CODE_SESSION_ID" not in os.environ

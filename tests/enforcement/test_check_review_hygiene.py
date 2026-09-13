@@ -1056,7 +1056,7 @@ def test_stop_at_heading_matches_a_real_heading_and_blanks_the_symbol_count_too(
         encoding="utf-8",
     )
     assert [h.cls for h in crh.scan(receipts=[rec]).hits] == ["dual-verdict"]
-    assert not [h for h in crh.scan(receipts=[rec], stop_at_heading="## Pass Ledger").hits]
+    assert not crh.scan(receipts=[rec], stop_at_heading="## Pass Ledger").hits
     t = tmp_path / "tilde.md"
     t.write_text(
         "# Doc\n\n```\n~~~\n```\n\nthe widget lives here\n\n## Pass Ledger\n\nthe widget retired\n",
@@ -1064,6 +1064,15 @@ def test_stop_at_heading_matches_a_real_heading_and_blanks_the_symbol_count_too(
     )
     sweep = crh.scan(surfaces=[t], phrases=["the widget"], stop_at_heading="## Pass Ledger")
     assert [h.line for h in sweep.hits if h.cls == "stale-phrase"] == [7], sweep.hits
+    # round 3: a 3-backtick line inside a 4-backtick block is content — the quoted heading below
+    # it is NOT the stop, and the live line after the block is graded
+    q = tmp_path / "quad.md"
+    q.write_text(
+        "# Doc\n\n````md\n```\n## Pass Ledger\n```\n````\nthe widget lives here\n\n## Pass Ledger\n\nthe widget retired\n",
+        encoding="utf-8",
+    )
+    sweep = crh.scan(surfaces=[q], phrases=["the widget"], stop_at_heading="## Pass Ledger")
+    assert [h.line for h in sweep.hits if h.cls == "stale-phrase"] == [8], sweep.hits
 
 
 def test_a_label_with_two_surfaces_is_refused_and_a_repeated_selector_dedupes(tmp_path):
@@ -1111,8 +1120,9 @@ def test_a_label_with_two_surfaces_is_refused_and_a_repeated_selector_dedupes(tm
     assert crh._line_occurrences(["Foo foo"], 1, "foo") == 2
     sweep = crh.scan(surfaces=[a], phrases=["the widget", "the widget"])
     stale = [h for h in sweep.hits if h.cls == "stale-phrase"]
-    assert len(stale) == 1 and stale[0].occurrences == 4, [(h.line, h.occurrences) for h in stale]
-    assert "(×4)" in stale[0].line_out(), stale[0].line_out()
+    # round 3: the same site twice is ONE site with the line's count, never a sum over producers
+    assert len(stale) == 1 and stale[0].occurrences == 2, [(h.line, h.occurrences) for h in stale]
+    assert "(×2)" in stale[0].line_out(), stale[0].line_out()
     assert crh._display.__doc__, "the early return demoted the docstring"
 
 

@@ -4197,6 +4197,16 @@ def test_the_phase_gate_binds_a_ticket_artifact_to_the_plan_stem_and_the_record_
     assert cr._phase_review_exists(
         str(tmp_path), "C", plan_stem="2026-09-12-plan-2-mail-triage-command-machinery", since=start
     )
+    # round 3: a lettered plan number keeps its escape, and plan-2 is not plan-2a
+    lettered = d / "2026-08-31-plan-2a-section-extraction-phase-D-review.md"
+    lettered.write_text("real content\n", encoding="utf-8")
+    os.utime(lettered, (start - 3600, start - 3600))
+    assert cr._phase_review_exists(
+        str(tmp_path), "D", plan_stem="2026-08-31-plan-2a-section-extraction", since=start
+    )
+    assert not cr._phase_review_exists(
+        str(tmp_path), "D", plan_stem="2026-08-31-plan-2-other", since=start
+    )
     # the legacy call (no stem, no start) keeps the permissive behaviour for records that carry
     # neither — the fleet's older records must not start refusing
     assert cr._phase_review_exists(str(tmp_path), 1)
@@ -4283,8 +4293,23 @@ def test_a_real_id_inside_angle_brackets_is_not_a_placeholder() -> None:
             f"confusion: none · waste: none · change: {ph} · filed: x"
         )
         assert "change (placeholder)" in missing, (ph, missing)
-    for f in ("confusion", "waste", "change", "filed"):
-        assert cr._is_placeholder(f"<{f} placeholder text here>")
+    # round 3: the mandated honest value written inside the brackets is a value; the grammar's
+    # prose alternation is the placeholder; a real-id alternation is a value
+    for real in (
+        "<none — surfaces exercised: mail.py>",
+        "<01M1AAA — surfaces exercised: x>",
+        "<01M1AAA|01M1BBB>",
+    ):
+        assert not cr._is_placeholder(real), real
+    for ph in (
+        "<what you filed|none>",
+        "<mail id(s)>",
+        "<x … y>",
+        "<none — surfaces exercised: <what>>",
+    ):
+        assert cr._is_placeholder(ph), ph
+    assert cr._since_label({}) == "" and cr._since_label({"started_epoch": "1789000000"}) == ""
+    assert "written at or after" in cr._since_label({"started_epoch": 1789000000.0})
 
 
 def test_the_phase_gate_refusal_names_the_stem_and_states_the_bound_only_when_in_force(
@@ -4318,6 +4343,7 @@ def test_the_phase_gate_refusal_names_the_stem_and_states_the_bound_only_when_in
     (run2 / "docs" / "development" / "reviews").mkdir(parents=True)
     r = _cr(run2, "step", "--phase", "2", "--title", "B")
     assert r.returncode == 2 and "names no plan" in r.stderr, r.stderr
+    assert "bound only by this record's start" in r.stderr and "unbound" not in r.stderr, r.stderr
 
 
 def test_round_derives_new_from_the_classes_ledger_and_refuses_a_new_above_findings(

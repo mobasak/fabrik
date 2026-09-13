@@ -2632,13 +2632,22 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
 # the Changed list runs from `**Changed:**` to the next BLANK line (a wrapped list is still the
 # list) or the next bold label on a later line; only PATH-shaped backticked tokens count (a `/`
 # or a file suffix) — an md5, a range or a count in backticks on that line is not a path
-# the list continues only on lines that START with a backticked token (review round 2: the
-# blank-line/bold-label stop ran past the list into prose when a receipt had neither)
-_CHANGED_LINE = re.compile(r"\*\*Changed:\*\*(.*?)(?=\n(?![ \t]*`)|\Z)", re.S)
+# the list continues only on lines that START with a backticked token, bulleted or not (review
+# rounds 2–3: the blank-line/bold-label stop ran past the list into prose when a receipt had
+# neither; a bullet-list Changed block is still the list)
+_CHANGED_LINE = re.compile(r"\*\*Changed:\*\*(.*?)(?=\n(?![ \t]*(?:`|[-*+]\s+`))|\Z)", re.S)
 _BACKTICKED = re.compile(r"`([^`\n]+)`")
-_PATH_SHAPED = re.compile(
-    r"^(?:[\w.-]+/)*[\w.-]+\.[A-Za-z0-9]{1,8}$|/|^(?:Makefile|Dockerfile|Justfile|Procfile|LICENSE)$"
-)
+_NOT_A_PATH = re.compile(r"^[0-9a-f]{7,40}$|^\d+$|\.\.|\s")  # an md5/sha, a count, a range, prose
+
+
+def _is_path_token(tok: str) -> bool:
+    """A backticked token on the Changed list is a path unless it is an md5/sha, a bare number,
+    a range or carries whitespace (round 3: an extension allowlist dropped `Taskfile`,
+    `Caddyfile`, `CODEOWNERS` — the inverted rule keeps every real path and drops every shape
+    the receipt template puts in backticks beside them)."""
+    return bool(tok) and not _NOT_A_PATH.search(tok)
+
+
 _HUNT_ROW = re.compile(r"Hunt:\s*`([^`\n]+)`")
 
 
@@ -2653,7 +2662,7 @@ def _hunt_gaps(text: str) -> list[str]:
     m = _CHANGED_LINE.search(stripped)
     if not m:
         return []
-    changed = [c.strip() for c in _BACKTICKED.findall(m.group(1)) if _PATH_SHAPED.search(c.strip())]
+    changed = [c.strip() for c in _BACKTICKED.findall(m.group(1)) if _is_path_token(c.strip())]
     hunted = {h.strip() for h in _HUNT_ROW.findall(stripped)}
     return [
         f"Changed path `{c}` has no `Hunt:` row — the checklist grades only the rows that exist, "
@@ -2683,11 +2692,22 @@ def _running_review_receipts(root: Path) -> list[Path]:
         return []
     # the commands that WRITE a docs/development/reviews/ receipt — the artifact reviews
     # (spec/plan/flows/ui-design/deploy-plan/epics/workflow/design) write none, so their
-    # running record must not pull every fresh receipt into the blocking set (review round 1)
-    if str(rec.get("command") or "").strip().lower() not in _RECEIPT_WRITING_COMMANDS:
+    # running record must not pull every fresh receipt into the blocking set (review round 1).
+    # A nested non-writing command (a data-contract run inside an execute-plan) parks the
+    # writing parent in `stack`: the INNERMOST writing frame's start is the window (round 3)
+    frames = [rec] + [f for f in reversed(rec.get("stack") or []) if isinstance(f, dict)]
+    owner = next(
+        (
+            f
+            for f in frames
+            if str(f.get("command") or "").strip().lower() in _RECEIPT_WRITING_COMMANDS
+        ),
+        None,
+    )
+    if owner is None:
         return []
     try:
-        since = float(rec.get("started_epoch") or 0)
+        since = float(owner.get("started_epoch") or 0)
     except (TypeError, ValueError):
         return []
     if since <= 0:
@@ -2751,8 +2771,13 @@ def _grade(p: Path, root: Path) -> list[str]:
     if _is_mega_report(p, body):
         # a mega validation report is exit-proof-gated, not checklist-gated
         return [f"{rel}: {e}" for e in check_mega_validation(p, root, live=True)]
-    errs.extend(f"{rel}: {e}" for e in _hunt_gaps(body))
-    if CERT_REPORT.search(p.name):
+    # a receipt still IN-PROGRESS (a dispatched seat's mid-loop draft the running-record read now
+    # reaches) is exempt from the Hunt-row and cert legs exactly as `check_file` exempts it — the
+    # carve-out belongs to the whole battery, not one leg (round 3)
+    mid_loop = _in_progress(body)
+    if not mid_loop:
+        errs.extend(f"{rel}: {e}" for e in _hunt_gaps(body))
+    if CERT_REPORT.search(p.name) and not mid_loop:
         errs.extend(f"{rel}: {e}" for e in check_cert_dispositions(p, root))
         # NO `continue` past a present checklist (round 37): the filename substring routed
         # a checklist-obligated report — real UNCHECKED rows and all — to the looser cert

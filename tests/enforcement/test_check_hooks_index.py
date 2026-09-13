@@ -149,3 +149,23 @@ def test_a_tracked_hook_stays_required_when_its_registration_is_deleted(tmp_path
     subprocess.run(["git", "add", ".claude/hooks/my hook.py"], cwd=root, check=True)
     rc, out = _run(root, home=tmp_path)
     assert rc == 1 and "my hook.py" in out, out
+    # round 3: a tracked hook that is a DANGLING symlink is still tracked and owes its row (the
+    # `exists()` conjunct dropped it); a hook under a parent that cannot be examined owes it too
+    (hooks / "my hook.py").unlink()
+    (hooks / "dangling.py").symlink_to(root / "nowhere.py")
+    subprocess.run(["git", "add", ".claude/hooks/dangling.py"], cwd=root, check=True)
+    rc, out = _run(root, home=tmp_path)
+    assert rc == 1 and "dangling.py" in out and "my hook.py" not in out, out
+    import os
+
+    if os.geteuid() != 0:
+        sub = hooks / "locked"
+        sub.mkdir()
+        (sub / "inner.py").write_text("# x\n", encoding="utf-8")
+        subprocess.run(["git", "add", ".claude/hooks/locked/inner.py"], cwd=root, check=True)
+        sub.chmod(0)
+        try:
+            rc, out = _run(root, home=tmp_path)
+        finally:
+            sub.chmod(0o755)
+        assert rc == 1 and "inner.py" in out and "Traceback" not in out, out

@@ -220,7 +220,8 @@ For `fabrik-execute-plan` runs only, `step --phase N+1` requires a non-empty fil
 `docs/development/reviews/` in one of two shapes: PHASE mode — a name containing `phase-<N>`,
 written at or after the record's start (or, when the record's `--surface` names the plan, a name
 starting with the plan's `<date>-plan-<n>-` prefix, whatever its age); DISPATCHER mode — a ticket
-receipt `<plan-stem>-T<id>-review.md` bound to the plan stem the record's `--surface` names, with
+receipt `<plan-stem>-T##[a-z]?-review.md` (two digits, an optional letter — the ticket id shape
+the plan-set contract mandates) bound to the plan stem the record's `--surface` names, with
 no time bound (a plan resumed in a later session keeps its earlier phases' receipts). A record
 whose `--surface` names no plan keeps the older, unbound ticket form under the time bound. This
 binds `/fabrik-execute-plan`'s
@@ -230,8 +231,9 @@ nothing there gave the gate no subject and it passed on an empty set. transdoc r
 way and the first real adversarial gate found 71 defects (upstream finding 1.1, 2026-08-23).
 
 The PHASE-form name match is deliberately loose — projects date and slug plans differently, and a
-rule that guessed the stem would fail honest runs (67 of 132 phase receipts on this box carry no
-plan prefix). Existence is bound here; QUALITY stays `check_review_coverage.py`'s job, which it can
+rule that guessed the stem would fail honest runs (of the 132 files named `*phase*-review.md` under
+`/opt/*/docs/development/reviews` on 2026-09-13, 67 carry no `<date>-plan-<n>` prefix). Existence
+is bound here; QUALITY stays `check_review_coverage.py`'s job, which it can
 finally do because it now has a subject. The refusal names the stem it read and the window in
 force.
 

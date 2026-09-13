@@ -2609,3 +2609,22 @@ def test_a_discovery_note_rides_stderr_under_json(tmp_path: Path) -> None:
     import json as _json
 
     _json.loads(r.stdout)  # stdout is the JSON envelope, whatever the notes said
+
+
+def test_touches_shapes_round_three_quoted_prose_and_separated_continuations(
+    tmp_path: Path,
+) -> None:
+    """Round 3: the quoted-path rule flagged `and/or`, `24/7`, `Python 3.12` and `T4.8` at ERROR
+    severity, and a bullet's continuation after a blank line, a comment or a table row read as
+    prose."""
+    quiet = T01.replace(
+        "## Touches\n\n",
+        "## Touches\n\n> and/or a note\n> runs 24/7\n> requires Python 3.12\n> blocked on T4.8\n"
+        "- src/app/schema.py\n\n  continues the bullet above\n<!-- note -->\n  and again\n",
+    )
+    plan_dir = _build(
+        tmp_path, tickets={"T01-schema.md": quiet, "T02-api.md": T02, "T99-integration.md": T99}
+    )
+    errs = [m for m in _errors(cpt.check_plan_dir(plan_dir)) if "prose inside ## Touches" in m]
+    assert not errs, errs
+    assert cpt._PATHISH.search("> see docs/notes.md") and not cpt._PATHISH.search("e.g. this")

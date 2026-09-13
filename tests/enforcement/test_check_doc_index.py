@@ -793,6 +793,10 @@ def test_untracked_only_reports_the_creating_runs_docs_and_nothing_else(tmp_path
         check=True,
     )
     (repo / "docs/brand-new.md").write_text("# n\n", encoding="utf-8")
+    # an untracked doc under an EXCLUDED prefix is listed by git but never graded — it must not
+    # count toward `examined` (round 3)
+    (repo / "docs/development/plans/2026-01-01-plan-1-x").mkdir(parents=True)
+    (repo / "docs/development/plans/2026-01-01-plan-1-x/b.md").write_text("# b\n", encoding="utf-8")
     r = subprocess.run(
         [
             sys.executable,
