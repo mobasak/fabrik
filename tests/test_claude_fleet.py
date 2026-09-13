@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import io
 import json
 import os
 import shutil
@@ -1470,6 +1471,41 @@ def test_tick_telegram_reads_both_artifact_epochs_against_one_clock(tmp_path, mo
         + '" > "$CLAUDE_SOUND_LOCKDIR/$2.notified"\nexit 0\n'
     )
     assert cr._tick_telegram("x", key="k") is True
+
+
+def test_tick_telegram_never_raises_on_an_unencodable_message(tmp_path, monkeypatch):
+    """A lone surrogate in the message (a JSON-parsed ledger row can carry one) makes
+    `subprocess.run` raise `UnicodeEncodeError` — neither `OSError` nor `SubprocessError` — and it
+    escaped `_tick_telegram` and `_chain_expiry_push`'s "Never raises" contract (review round 15,
+    executed). It is an unconfirmed send: False, nothing spawned, nothing raised."""
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    locks = tmp_path / "locks"
+    locks.mkdir()
+    monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(locks))
+    script = tmp_path / ".claude" / "bin" / "claude-sound.sh"
+    script.parent.mkdir(parents=True)
+    script.write_text(
+        '#!/bin/bash\nprintf "%s" "$(date +%s)" > "$CLAUDE_SOUND_LOCKDIR/$2.notified"\nexit 0\n'
+    )
+    assert cr._tick_telegram("push for \ud800bad", key="k") is False
+    assert not (locks / "k.notified").exists(), "nothing was spawned"
+
+
+@pytest.mark.skipif(not Path("/opt/fabrik/scripts/mail.py").is_file(), reason="no mail.py here")
+def test_drain_mail_never_raises_on_an_unencodable_message(monkeypatch):
+    """The drain writes the message into each send's TEXT pipe; a lone surrogate raised
+    `UnicodeEncodeError` past `(OSError, SubprocessError)` and out of the tick (review round 15 —
+    the class swept from `_tick_telegram`). Every repo is still attempted, nothing raised."""
+    calls: list[tuple] = []
+
+    class FakeProc:
+        def __init__(self, *a, **k):
+            calls.append(a)
+            self.stdin = io.TextIOWrapper(io.BytesIO(), encoding="utf-8", errors="strict")
+
+    monkeypatch.setattr(cr.subprocess, "Popen", FakeProc)
+    cr._drain_mail(["repo-a", "repo-b"], "fleet \ud800 exhausted")
+    assert len(calls) == 2, "every repo attempted; the raise is swallowed per repo"
 
 
 def test_chain_push_uses_its_own_notify_key_per_account(tmp_path, monkeypatch):

@@ -2265,7 +2265,7 @@ def _drain_mail(repos: list[str], msg: str) -> None:
             if proc.stdin is not None:
                 proc.stdin.write(msg)
                 proc.stdin.close()
-        except (OSError, subprocess.SubprocessError):
+        except (OSError, subprocess.SubprocessError, UnicodeError):
             continue  # one refused mailbox must not stop the broadcast
 
 
@@ -2300,14 +2300,17 @@ def _tick_telegram(msg: str, key: str = "quota-rotation") -> bool:
     True ONLY when the notifier's success artifact (`_notify_marker`) advanced during the call,
     both readings judged against the ONE clock value taken before it — so the plausibility limit
     cannot move between them, and an artifact just past it (stale after a backward clock step, or
-    planted) cannot read 0 first and as itself after with nothing written. `mesh-notify` exits 0
-    on every outcome (suppressed, curl failure, no keys — 0 non-zero `exit` statements in the
-    script; the process can still end without that status — an unrunnable or hand-broken script,
-    a signal, or this call's 30 s timeout, which raises here instead of returning one — and no
-    status is read on any path), so delivery is read from the artifact, never from the return
-    code. A False means the notifier is absent, could not be run to completion, or its artifact
-    did not advance — `_notify_failure_reason` names what this side can know and the causes it
-    cannot tell apart."""
+    planted) cannot read 0 first and as itself after with nothing written. The mirror is
+    fail-closed: a forward clock step past the tolerance in the instant between that value and
+    the notifier's own `date +%s` reads a delivered send as unconfirmed, and the caller retries it
+    next tick — never a silent stamp. `mesh-notify` exits 0 on every outcome (suppressed, curl
+    failure, no keys — 0 non-zero `exit` statements in the script; the process can still end
+    without that status — an unrunnable or hand-broken script, a signal, or this call's 30 s
+    timeout, which raises here instead of returning one — and no status is read on any path), so
+    delivery is read from the artifact, never from the return code. A False means the notifier is
+    absent, could not be run to completion (an unencodable message never spawns it), or its
+    artifact did not advance — `_notify_failure_reason` names what this side can know and the
+    causes it cannot tell apart."""
     sound = Path.home() / ".claude" / "bin" / "claude-sound.sh"
     if not sound.is_file():
         return False
@@ -2321,7 +2324,7 @@ def _tick_telegram(msg: str, key: str = "quota-rotation") -> bool:
             capture_output=True,
             timeout=30,
         )
-    except (OSError, subprocess.SubprocessError):
+    except (OSError, subprocess.SubprocessError, UnicodeError):
         return False
     return _stamp_epoch(marker, now) > before
 

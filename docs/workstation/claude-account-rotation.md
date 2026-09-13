@@ -310,9 +310,12 @@ the tick pushes it once per chain (mesh-notify) inside 3 days (`_CHAIN_PUSH_S`, 
 is not yet). The stamp `~/.claude/state/fleet-chain-push-<email slug>-<8 hex of the email>` holds
 the expiry epoch, so a re-minted chain re-arms by itself; it is written ONLY after the notifier's
 own success artifact advanced (`claude-sound.sh mesh-notify` exits 0 on every outcome, so delivery
-is read from `<lockdir>/<key>.notified`, which it writes solely on a delivered send), under the
-push's OWN per-account key (`quota-rotation-chain-<hash>`) so a rotation notification's 30-minute
-window can never eat it. An unconfirmed push is retried next tick and the line says what this side
+is read from `<lockdir>/<key>.notified`, which it writes solely on a delivered send; both readings
+are judged against one clock value taken before the call, so a stale artifact after a backward
+clock step never confirms a send that did not happen, and a forward step past the tolerance in
+that instant only reads a delivered send as unconfirmed, so it is retried), under the push's OWN
+per-account key (`quota-rotation-chain-<hash>`) so a rotation notification's 30-minute window can
+never eat it. An unconfirmed push is retried next tick and the line says what this side
 can know: the notifier is absent, or the send could not be confirmed (suppressed by the notifier's
 window, the send failed, no Telegram keys and no custom notifier so it was never attempted, the
 notifier did not finish, the notifier delivered but could not write its own artifact, or its
