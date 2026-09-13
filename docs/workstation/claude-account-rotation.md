@@ -304,32 +304,30 @@ Re-login the ACTIVE account only after switching away (a live session reads that
 refreshes). Never `CLAUDE_ROTATE_ALLOW_STALE=1`: it lands the fleet on a token that dies at the
 access expiry with nothing to renew it.
 
-**How the tool tells you in time.** `--status` and the tick print the chain warning inside 5 days
-of expiry (`_CHAIN_EXPIRY_WARN_S`) with that one-line form (an EXPIRED chain gets the same line),
-and the tick pushes it once per chain (mesh-notify) inside 3 days (`_CHAIN_PUSH_S`, strict: exactly
-3 d is not yet). The stamp `~/.claude/state/fleet-chain-push-<email slug>-<8 hex of the email>` holds
+**How the tool tells you in time.** `--status` and the tick print the chain warning inside 5 days of
+expiry (`_CHAIN_EXPIRY_WARN_S`) with that one-line form (an EXPIRED chain gets the same line), and
+the tick pushes it once per chain (mesh-notify) inside 3 days (`_CHAIN_PUSH_S`, strict: exactly 3 d
+is not yet). The stamp `~/.claude/state/fleet-chain-push-<email slug>-<8 hex of the email>` holds
 the expiry epoch, so a re-minted chain re-arms by itself; it is written ONLY after the notifier's
 own success artifact advanced (`claude-sound.sh mesh-notify` exits 0 on every outcome, so delivery
 is read from `<lockdir>/<key>.notified`, which it writes solely on a delivered send), under the
 push's OWN per-account key (`quota-rotation-chain-<hash>`) so a rotation notification's 30-minute
-window can never eat it; an undelivered push is retried next tick with the real cause printed
-(notifier absent · suppressed by its window · send failed — judged against the wall clock, not the
-tick's start time; an artifact that reads as nothing — torn, garbage, or a clock stepped backwards
-past the 60 s skew tolerance — is reported as "delivery unknown"), never recorded as sent. The
-stamp has ONE home, `~/.claude/state` (this uid's 0700 dir, repaired to 0700 by the tool when it is
-wider and this uid owns it), written 0600 through `O_NOFOLLOW` + `O_NONBLOCK` (no symlink, no FIFO)
-with the mode enforced (`fchmod`) — deliberately no fallback dir, unlike the drain, advisory,
-exhaustion and identity-probe stamps, which fall back to the temp dir: their repeat is unbounded
-(a drain re-broadcast every 5 min), this one's is already bounded by the notifier's own 30-minute
-window per key, and three review rounds of a temp-dir and then a lock-dir fallback each added a
-class of defect (symlink write-through, world-readable modes, `$TMPDIR` splits, the Stop hook's
-2 h sweep). A state dir that refuses the stamp is printed with the configured path and the error,
-and the push repeats within that bound; `--status` prints the warning regardless. The old `--keepalive` ping is RETIRED (2026-09-12): its
-premise was false and, keyed on a credential mtime the tick renews daily, both logged Monday runs
-(2026-08-31, 2026-09-07 — `~/.claude/keepalive.log`) pinged nothing. The flag is kept as a no-op
-that prints why (rc 0), so the cron line below can be deleted at leisure — crontab edits are the
-operator's. `--touch` (the temp-dir-copy refresh of the legacy pool) is RETIRED the same way
-(2026-09-13): a copy's refresh consumes the single-use refresh token.
+window can never eat it. An undelivered push is retried next tick and the line says what this side
+can know: the notifier is absent, or its artifact did not advance (suppressed by its window, the
+send failed, or the artifact is unreadable — three causes the tick cannot tell apart, so it names
+all three rather than guess). The stamp has ONE home, `~/.claude/state` (0700 when the tool creates
+it; an existing dir keeps the mode the operator gave it — `--status` is a read and never chmods),
+written as a 0600 regular file through `O_NOFOLLOW` + `O_NONBLOCK` with an `S_ISREG` check (no
+symlink, no FIFO) and the mode enforced (`fchmod`) — deliberately no fallback dir (D-249/D-250: a
+repeat of this push is bounded by the notifier's own 30-minute window per key, and every fallback
+design the review tried added a defect class of its own). A state dir that refuses the stamp is
+printed with the error and the push repeats within that bound; `--status` prints the warning
+regardless. The old `--keepalive` ping is RETIRED (2026-09-12): its premise was false and, keyed on
+a credential mtime the tick renews daily, both logged Monday runs (2026-08-31, 2026-09-07 —
+`~/.claude/keepalive.log`) pinged nothing. The flag is kept as a no-op that prints why (rc 0), so
+the cron line below can be deleted at leisure — crontab edits are the operator's. `--touch` (the
+temp-dir-copy refresh of the legacy pool) is RETIRED the same way (2026-09-13): a copy's refresh
+consumes the single-use refresh token.
 
 ## Recovery rules
 

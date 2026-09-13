@@ -17,6 +17,7 @@ import importlib.util
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import threading
@@ -1520,7 +1521,7 @@ def test_chain_push_degrades_when_the_state_dir_cannot_be_made(tmp_path, monkeyp
     assert "stamp unwritable" in capsys.readouterr().out
 
 
-def test_chain_push_refuses_a_planted_symlink_stamp(tmp_path, monkeypatch):
+def test_chain_push_refuses_a_planted_symlink_stamp(tmp_path, monkeypatch, capsys):
     """A symlink planted at the stamp's path is neither read as a stamp (fail toward notifying)
     nor written through (O_NOFOLLOW) — the write is refused, the link target keeps its bytes."""
     state = tmp_path / "state"
@@ -1539,37 +1540,29 @@ def test_chain_push_refuses_a_planted_symlink_stamp(tmp_path, monkeypatch):
     sent = []
     monkeypatch.setattr(cr, "_tick_telegram", lambda m, **kw: sent.append(m) or True)
     row = {"email": "sarp@ocoron.com", "slugs": ["seo"], "refresh_expires_epoch": FLEET_NOW + 86400}
+    capsys.readouterr()
     assert cr._chain_expiry_push([row], FLEET_NOW) == 1, "a planted link never reads as stamped"
     assert victim.read_text() == key, "nor does the push path write through it"
+    assert "stamp unwritable" in capsys.readouterr().out
 
 
-def test_chain_push_names_the_real_cause_of_a_failed_notify(tmp_path, monkeypatch, capsys):
-    """A False from the notifier has three causes and the tick line names the one that applies:
-    the script is absent; the notifier SUPPRESSED the send (its artifact for this key is inside
-    the 30-minute window); or the send FAILED (curl / no keys — the artifact did not move). The
-    old line said "unavailable" for all three."""
+def test_chain_push_names_the_notifier_verdict_it_can_know(tmp_path, monkeypatch, capsys):
+    """The NOT-delivered line says the notifier is absent when it is, and otherwise that the
+    artifact did not advance with its three possible causes — the tick's `now` plays no part."""
     monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
     locks = tmp_path / "locks"
     monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(locks))
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     row = {"email": "sarp@ocoron.com", "slugs": ["seo"], "refresh_expires_epoch": FLEET_NOW + 86400}
-    key = f"quota-rotation-chain-{cr._chain_push_digest('sarp@ocoron.com')}"
-    # the reason is judged against the WALL clock (the tick's `now` can be minutes stale after
-    # the pings leg) — pin it, because the artifact ages are relative to it
-    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
     capsys.readouterr()
-    assert cr._chain_expiry_push([row], FLEET_NOW - 450) == 0  # a stale tick `now` changes nothing
+    assert cr._chain_expiry_push([row], FLEET_NOW - 450) == 0
     assert "unavailable" in capsys.readouterr().out
     script = tmp_path / ".claude" / "bin" / "claude-sound.sh"
     script.parent.mkdir(parents=True)
     script.write_text("#!/bin/bash\nexit 0\n")  # runs, delivers nothing
-    locks.mkdir()
-    (locks / f"{key}.notified").write_text(str(int(FLEET_NOW - 600)))  # sent 10 min ago
     assert cr._chain_expiry_push([row], FLEET_NOW - 450) == 0
-    assert "suppressed" in capsys.readouterr().out
-    (locks / f"{key}.notified").write_text(str(int(FLEET_NOW - 1900)))  # window over by real time
-    assert cr._chain_expiry_push([row], FLEET_NOW - 450) == 0, "a stale now must not say suppressed"
-    assert "FAILED" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "NOT delivered" in out and "did not advance" in out and "retried next tick" in out
 
 
 def test_write_stamp_enforces_0600_on_an_existing_stamp(tmp_path):
@@ -1641,53 +1634,75 @@ def test_chain_push_key_and_stamp_share_one_digest():
     assert cr._chain_push_stamp("sarp@ocoron.com").name.endswith(f"-{d}")
 
 
-def test_rotate_state_dir_repairs_a_wider_dir_it_owns(tmp_path, monkeypatch):
-    """`mkdir(mode=0o700, exist_ok=True)` never touches an existing dir's mode, so a state dir
-    left at 0775 (a hand chmod, an older creator) stayed 0775 — and every stamp the tick trusts,
-    the chain-push stamp among them, could then be planted by a group member. The one helper
-    repairs it when this uid owns it."""
+def test_rotate_state_dir_never_mutates_an_existing_dirs_mode(tmp_path, monkeypatch):
+    """`--status` is a read every agent runs, so the accessor must not chmod: a state dir the
+    operator made wider (0775, a setgid group share) keeps its mode; only a dir this tool CREATES
+    is 0700."""
     state = tmp_path / "state"
     state.mkdir()
-    state.chmod(0o775)
+    state.chmod(0o2775)
     monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
     assert cr._rotate_state_dir() == state
-    assert oct(state.stat().st_mode & 0o777) == "0o700"
+    assert oct(state.stat().st_mode & 0o7777) == "0o2775", "an existing dir is the operator's"
+    fresh = tmp_path / "fresh" / "state"
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(fresh))
+    assert cr._rotate_state_dir() == fresh
+    assert oct(fresh.stat().st_mode & 0o777) == "0o700", "a dir this tool creates is 0700"
 
 
-def test_write_stamp_never_blocks_on_a_fifo(tmp_path):
+def test_write_stamp_refuses_a_fifo_and_never_blocks_on_it(tmp_path):
     """O_NOFOLLOW refuses a symlink but not a FIFO: a readerless FIFO at the stamp's path would
-    park the 5-minute tick forever inside `os.open`. O_NONBLOCK turns it into ENXIO — an OSError
-    the caller already handles."""
+    park the 5-minute tick forever inside `os.open` (O_NONBLOCK → ENXIO), and a FIFO WITH a reader
+    would let the write "succeed" into something `_stamp_holds` never reads (the S_ISREG check).
+    The grader carries its own alarm so a regression fails in seconds instead of hanging pytest."""
     fifo = tmp_path / "fleet-chain-push-x"
     os.mkfifo(fifo)
-    with pytest.raises(OSError):
-        cr._write_stamp(fifo, "1")
+
+    def _hung(signum, frame):
+        raise AssertionError("_write_stamp blocked on a readerless FIFO")
+
+    old = signal.signal(signal.SIGALRM, _hung)
+    signal.alarm(5)
+    try:
+        with pytest.raises(OSError):
+            cr._write_stamp(fifo, "1")
+        reader = os.open(fifo, os.O_RDONLY | os.O_NONBLOCK)
+        try:
+            with pytest.raises(OSError, match="not a regular file"):
+                cr._write_stamp(fifo, "1")
+        finally:
+            os.close(reader)
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old)
 
 
-def test_notify_failure_reason_names_an_unreadable_or_skewed_artifact(tmp_path, monkeypatch):
-    """A backward clock step past the skew tolerance makes the notifier's artifact read as 0
-    while the notifier itself still suppresses (its arithmetic sees a negative age): the reason
-    must say the artifact is unreadable or skewed — delivery unknown — never "send FAILED"."""
+def test_notify_failure_reason_names_every_cause_it_cannot_tell_apart(tmp_path, monkeypatch):
+    """This side can only know that the notifier is absent, or that its artifact did not advance
+    — and the latter has three causes it cannot separate honestly (a guessed "suppressed" or
+    "FAILED" was wrong under a stale tick clock and under a backward clock step, review rounds
+    4–6). So the line names all three, whatever the artifact holds."""
     locks = tmp_path / "locks"
     locks.mkdir()
     monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(locks))
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    key = "quota-rotation-chain-abcdef12"
+    assert "unavailable" in cr._notify_failure_reason(key, FLEET_NOW)
     script = tmp_path / ".claude" / "bin" / "claude-sound.sh"
     script.parent.mkdir(parents=True)
     script.write_text("#!/bin/bash\nexit 0\n")
-    key = "quota-rotation-chain-abcdef12"
-    (locks / f"{key}.notified").write_text(str(int(FLEET_NOW + 600)))  # 10 min "in the future"
-    reason = cr._notify_failure_reason(key, FLEET_NOW)
-    assert "unreadable or clock-skewed" in reason and "FAILED" not in reason
-    (locks / f"{key}.notified").write_bytes(b"\xff garbage")
-    assert "unreadable or clock-skewed" in cr._notify_failure_reason(key, FLEET_NOW)
+    for content in (str(int(FLEET_NOW - 600)), str(int(FLEET_NOW + 600)), "garbage", ""):
+        (locks / f"{key}.notified").write_text(content)
+        line = cr._notify_failure_reason(key, FLEET_NOW)
+        assert "suppressed" in line and "failed" in line and "unreadable" in line, content
+        assert "unavailable" not in line
     (locks / f"{key}.notified").unlink()
-    assert "FAILED" in cr._notify_failure_reason(key, FLEET_NOW)
+    assert "did not advance" in cr._notify_failure_reason(key, FLEET_NOW)
 
 
 def test_chain_push_names_the_state_dir_refusal(tmp_path, monkeypatch, capsys):
-    """When the state dir cannot be made the printed line carries the configured dir and the
-    real exception, not a function name."""
+    """When the state dir cannot be made the printed line carries the real exception — its path
+    and its errno text — not a function name."""
     blocker = tmp_path / "state"
     blocker.write_text("not a dir")
     monkeypatch.setenv("ROTATE_STATE_DIR", str(blocker))
@@ -1696,7 +1711,8 @@ def test_chain_push_names_the_state_dir_refusal(tmp_path, monkeypatch, capsys):
     capsys.readouterr()
     assert cr._chain_expiry_push([row], FLEET_NOW) == 1
     out = capsys.readouterr().out
-    assert str(blocker) in out and "FileExistsError" in out and "_rotate_state_dir" not in out
+    assert "stamp unwritable (state dir unavailable: " in out
+    assert str(blocker) in out and "File exists" in out
 
 
 def test_chain_push_stamps_do_not_collide_across_lookalike_emails(tmp_path, monkeypatch):

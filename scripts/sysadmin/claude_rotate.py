@@ -36,6 +36,7 @@ import os
 import re
 import select
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -2124,23 +2125,12 @@ def _fleet_warnings() -> list[str]:
     return warns
 
 
-def _rotate_state_dir_setting() -> str:
-    """The configured state dir as a string — for a diagnostic when the dir cannot be made."""
-    return os.environ.get("ROTATE_STATE_DIR") or str(Path.home() / ".claude" / "state")
-
-
 def _rotate_state_dir() -> Path:
-    """The tick's state dir, 0700 and this uid's. `mkdir`'s mode applies only to a dir it creates,
-    so an existing wider dir (a hand `chmod`, an older creator) is REPAIRED when this uid owns it —
-    every stamp the tick trusts lives here, the chain-push stamp among them."""
+    """The tick's state dir — 0700 when this tool creates it; an EXISTING dir keeps the mode it
+    has (`mkdir`'s mode applies only to a dir it creates, and `--status` is a read every agent
+    runs, so this accessor never mutates a mode — the operator owns a dir they made wider)."""
     d = Path(os.environ.get("ROTATE_STATE_DIR") or Path.home() / ".claude" / "state")
     d.mkdir(mode=0o700, parents=True, exist_ok=True)
-    try:
-        st = d.stat()
-        if st.st_uid == os.getuid() and st.st_mode & 0o077:
-            os.chmod(d, 0o700)
-    except OSError:
-        pass  # a dir we cannot stat or chmod is reported by whatever writes into it next
     return d
 
 
@@ -2327,20 +2317,18 @@ def _tick_telegram(msg: str, key: str = "quota-rotation") -> bool:
 
 
 def _notify_failure_reason(key: str, now: float | None = None) -> str:
-    """Why `_tick_telegram(…, key)` just returned False — the operator-visible line must name the
-    real cause: the notifier is absent; its artifact for the key exists but reads as nothing (torn,
-    garbage, or a clock stepped backwards past the skew tolerance — delivery unknown); it
-    SUPPRESSED the send (the artifact is inside the 30-minute window); or the send FAILED (curl /
-    no keys — the artifact did not move)."""
+    """Why `_tick_telegram(…, key)` just returned False. Two things are knowable from here — the
+    notifier is absent, or its success artifact for *key* did not advance — and the artifact
+    not advancing has three causes this side cannot tell apart honestly (the notifier suppressed
+    the send inside its 30-minute window; the send failed on curl or missing keys; the artifact
+    is unreadable or clock-skewed), so the line names all three rather than guess one."""
+    del now  # kept for callers that passed a clock; the verdict below needs none
     if not (Path.home() / ".claude" / "bin" / "claude-sound.sh").is_file():
         return "mesh-notify unavailable (no claude-sound.sh)"
-    marker = _notify_marker(key)
-    last = _stamp_epoch(marker, now)
-    if last == 0 and marker.is_file():
-        return "the notifier's artifact is unreadable or clock-skewed — delivery unknown"
-    if last and (now if now is not None else _now()) - last < 1800:
-        return "suppressed by the notifier's 30-minute window for this key"
-    return "send FAILED (curl or no Telegram keys — the notifier's artifact did not advance)"
+    return (
+        "the notifier's artifact did not advance — suppressed by its 30-minute window for this"
+        " key, the send failed (curl / no Telegram keys), or the artifact is unreadable"
+    )
 
 
 def _tick_switch(name: str) -> bool:
@@ -4936,17 +4924,11 @@ def _chain_push_digest(email: str) -> str:
 
 
 def _chain_push_stamp(email: str) -> Path:
-    """The once-per-chain push stamp — ONE home, the rotate state dir (0700, this uid's, repaired
-    by `_rotate_state_dir`). Deliberately NO fallback, unlike the drain, advisory, exhaustion and
-    identity-probe stamps, which fall back to the temp dir: their repeat is unbounded (a drain
-    re-broadcast every 5 min), this one's is already bounded by the notifier's own 30-minute
-    window per key, and three review rounds of a temp-dir / lock-dir fallback each added a class
-    of defect (symlink write-through, world-readable modes, `$TMPDIR` splits, the Stop hook's 2 h
-    sweep). When the state dir refuses the write the push repeats within that bound and
-    `--status` keeps printing the warning regardless (the ledger, which has no fallback either,
-    is already lost in that condition). The name carries the email's 8-hex digest because the
-    a-z0-9 slug alone folds ``a.b@x`` and ``a-b@x`` onto one file. Raises ``_STATE_DIR_ERRORS``
-    when the state dir cannot be made — the caller degrades."""
+    """The once-per-chain push stamp — ONE home, the rotate state dir, and deliberately no
+    fallback dir (D-249/D-250: a repeat of this push is bounded by the notifier's own 30-minute
+    window per key, and every fallback design the review tried added a defect class of its own).
+    The name carries the email's 8-hex digest because the a-z0-9 slug alone folds ``a.b@x`` and
+    ``a-b@x`` onto one file. Raises ``_STATE_DIR_ERRORS`` when the state dir cannot be made."""
     safe = re.sub(r"[^a-z0-9]+", "-", email.lower()).strip("-")
     return _rotate_state_dir() / f"fleet-chain-push-{safe}-{_chain_push_digest(email)}"
 
@@ -4964,19 +4946,23 @@ def _stamp_holds(path: Path, key: str) -> bool:
 
 
 def _write_stamp(path: Path, key: str) -> None:
-    """Write *key* to *path* as a 0600 regular file, never through a symlink (O_NOFOLLOW) and
-    never blocking on a FIFO or device (O_NONBLOCK — a readerless FIFO is ENXIO, not a hung
-    tick), the mode ENFORCED with `fchmod` (`os.open`'s mode applies only to a file it creates).
-    The dir is this uid's 0700 state dir (repaired by `_rotate_state_dir`), so no other uid can
-    plant anything here. Raises OSError on any refusal — the caller decides."""
+    """Write *key* to *path* as a 0600 REGULAR file: never through a symlink (O_NOFOLLOW), never
+    blocking on a FIFO (O_NONBLOCK — a readerless FIFO is ENXIO, a FIFO with a reader is refused
+    after the open by the S_ISREG check, so a stamp can never "succeed" into something
+    `_stamp_holds` will never read), the mode enforced with `fchmod` (`os.open`'s mode applies
+    only to a file it creates). Raises OSError on any refusal — the caller decides."""
     fd = os.open(
         path,
         os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC,
         0o600,
     )
-    with os.fdopen(fd, "w") as fh:
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise OSError(f"{path}: not a regular file")
         os.fchmod(fd, 0o600)
-        fh.write(key)
+        os.write(fd, key.encode())
+    finally:
+        os.close(fd)
 
 
 def _chain_expiry_push(accounts: list[dict], now: float) -> int:
@@ -5003,7 +4989,7 @@ def _chain_expiry_push(accounts: list[dict], now: float) -> int:
         try:
             stamp, why = _chain_push_stamp(email), None
         except _STATE_DIR_ERRORS as e:
-            stamp, why = None, e
+            stamp, why = None, e  # the state dir cannot be made: reported below, never raised
         if stamp is not None and _stamp_holds(stamp, key):
             continue
         slugs = row.get("slugs") or []
@@ -5031,12 +5017,12 @@ def _chain_expiry_push(accounts: list[dict], now: float) -> int:
         sent += 1
         try:
             if stamp is None:
-                raise OSError(f"state dir {_rotate_state_dir_setting()} unavailable: {why!r}")
+                raise OSError(f"state dir unavailable: {why}")
             _write_stamp(stamp, key)
         except OSError as e:
             print(
-                f"chain push: {email} stamp unwritable ({stamp or ''}{e}) — the push repeats "
-                "next tick, bounded by the notifier's window"
+                f"chain push: {email} stamp unwritable ({e}) — the push repeats next tick, "
+                "bounded by the notifier's window"
             )
     return sent
 
