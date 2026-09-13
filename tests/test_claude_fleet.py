@@ -1516,6 +1516,8 @@ def test_drain_mail_never_raises_on_an_unencodable_message(monkeypatch):
 
         def close(self) -> None:
             self.closed = True
+            if self.broken:
+                raise BrokenPipeError  # the flush on close of a dead child's pipe
 
     class FakeProc:
         broken = False
@@ -1552,6 +1554,18 @@ def test_keepalive_ping_survives_undecodable_output(tmp_path, monkeypatch):
     )
     monkeypatch.setenv("KEEPALIVE_TIMEOUT", "20")
     assert cr._keepalive_ping(tmp_path) is True
+
+
+def test_argv_safe_spells_out_what_argv_refuses():
+    """`_argv_safe` exists for the two JSON-legal code points argv refuses — a lone surrogate
+    (`UnicodeEncodeError`) and a NUL (`ValueError: embedded null byte`), neither an `OSError` — and
+    spells a surrogateescape byte out the same way rather than restoring the raw byte (round 17,
+    executed). Ordinary text, an em-dash and an emoji included, is returned byte-identical."""
+    assert cr._argv_safe("push for \ud800bad") == "push for \\ud800bad"
+    assert cr._argv_safe("a\x00b") == "a\\x00b"
+    assert cr._argv_safe(b"dir\xff".decode("utf-8", "surrogateescape")) == "dir\\udcff"
+    plain = "quota — rotation ✅ ünïcode 日本 back\\slash"
+    assert cr._argv_safe(plain) == plain
 
 
 def test_chain_push_uses_its_own_notify_key_per_account(tmp_path, monkeypatch):

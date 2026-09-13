@@ -1,6 +1,6 @@
 # Review — rotation-refresh-chain
 
-**Status:** IN-PROGRESS
+**Status:** BLOCKED — NON-CONVERGENCE (Pass 17; the breaker's second firing — see § BLOCKED)
 **Surface:** `git rev-parse HEAD` = fce9696457bebacd719f41ae367efdf84369073c; range tip fce9696457bebacd719f41ae367efdf84369073c; `git diff 7cb15def~1..fce96964 -- scripts/sysadmin/claude_rotate.py scripts/aro-wake/claude_rotate.py tests/test_claude_fleet.py tests/test_claude_rotate_v2.py docs/workstation/claude-account-rotation.md docs/LESSONS_LEARNT.md CHANGELOG.md` md5 67e3917dca58451b41de27e417f55794 (50365 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/sysadmin/claude_rotate.py`, `scripts/aro-wake/claude_rotate.py`, `tests/test_claude_fleet.py`, `tests/test_claude_rotate_v2.py`, `docs/workstation/claude-account-rotation.md`, `docs/LESSONS_LEARNT.md`, `CHANGELOG.md`
 
@@ -145,6 +145,7 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 
 | Pass | Finders | Counters | Method |
 |---|---|---|---|
+| Pass 17 | native opus×1 (tool fix diff) + sonnet×2 (tests · docs), dispatched 3, returned 3, all fresh and non-authoring | found: 11, new: 11, confirmed: 4, fixed: 4, unexecuted: 0 | method: re-derivation — delta over the round-16 diff `8f442d68..53146f73` (125 changed fix lines → the partition, SEATS 3) + one hop; pin md5 4d4257fb; the Opus seat executed two claims of the round-16 `_argv_safe`: its docstring's "surrogateescape bytes round-trip unchanged" is false (`backslashreplace` spells `\\udc80` out as text — also caught by the orchestrator's own pre-check and by the test and docs seats), and its "cannot cross argv" contract missed a NUL — legal in JSON-parsed text, refused by argv with `ValueError`, which no `OSError` handler sees, so the whole remaining tick aborted with rc 0 (executed); the test seat's mutant removing `contextlib.suppress(OSError)` around the pipe close survived (the fake pipe's `close` never raised); the docs seat found GGG5's "the one `subprocess.run` with `text=True`" false (two sites); round 17 spells a NUL out as `\\x00` in the same call, states the docstring exactly, scopes "never a silent stamp" to the chain push (the one caller that reads the return), proves the close-suppress with a pipe whose close raises, aligns the doc and CHANGELOG certainty to "may", and corrects GGG5 — with the grader `test_argv_safe_spells_out_what_argv_refuses` (red on the pre-round-17 tool); the round then STOPS: rounds 12–17 confirmed 3 → 6 → 4 → 1 → 5 → 4 without reaching zero, every round's confirmed items sitting in what the previous round's fix added — the breaker's condition in substance (see § BLOCKED, Pass 17) |
 | Pass 16 | native opus×1 (tool fix diff) + sonnet×2 (tests · docs), dispatched 3, returned 3, all fresh and non-authoring | found: 8, new: 8, confirmed: 5, fixed: 5, unexecuted: 0 | method: re-derivation — delta over the round-15 diff `c25f63ae..8f442d68` (70 changed fix lines, 111 with the twin and the receipt → the partition, SEATS 3) + one hop; pin md5 9db75194; the Opus seat executed what the round-15 widening in `_drain_mail` CREATED: with the encode error swallowed per repo, every spawned `mail.py send` child sits on a never-closed pipe (`close()` skipped by the raise), reads EOF when the tick dies and publishes an EMPTY broadcast to every mailbox — before round 15 one child hung and the tick died loudly, after it ~N children and silence (executed with a fake `Popen`: 3 of 3 spawned, `close()` skipped, the child alive after the reference dropped); in `_tick_telegram` the same catch turned an unencodable chain-push message into a permanent silent miss whose printed reason names no such cause; the mirror's "retries it next tick" omitted the notifier's window (attempted each tick, one duplicate after 30 min); one hop out, `_keepalive_ping`'s `text=True` capture raises `UnicodeDecodeError` on one invalid byte of output; the docs seat found H19's "0 hits" false (1 hit, the tuple kept by design); the test seat found the graders unable to pin the tuple (a bare `except Exception` survives) and the drain grader gated by a skipif; round 16 re-grounds by DELETION (D-251): the round-15 `UnicodeError` catches are removed and the class is closed at its root — `_argv_safe` escapes a lone surrogate once at each sink (`\\ud800`, delivered as written), `_drain_mail` closes the write end in `finally` on every exit, `_keepalive_ping` decodes its unread text with `errors="replace"`; the three graders now pin delivery, the closed pipe (a broken pipe included) and the survived decode; the docstring, the doc and the CHANGELOG entry say re-attempted each tick with one duplicate after the window; round-zero probe — the three graders red on the pre-round-16 tool (the escaped message not delivered / the pipe left open / `UnicodeDecodeError` raised), green restored |
 | Pass 15 | native opus×1 (tool fix diff) + sonnet×2 (tests · docs), dispatched 3, returned 3, all fresh and non-authoring | found: 5, new: 5, confirmed: 1, fixed: 1, unexecuted: 0 | method: re-derivation — delta over the round-14 diff `26b0a3f2..c25f63ae` (105 changed lines → the partition, SEATS 3) + one hop; pin md5 9210be4e; the test seat found nothing (4 of 4 mutants killed — two clocks restored, `now` taken after the call, `>=`, the decoupled clause); the docs seat found nothing in-hunk (16 claims re-derived, the red-on-revert reproduced, exit 126 reproduced); the Opus seat confirmed no code defect in the hunks and executed the fix's MIRROR: a forward clock step past the tolerance in the instant between `now = _now()` and the notifier's own `date +%s` reads a delivered send as unconfirmed (False, retried next tick — fail-closed, never a silent stamp; the window is the spawn latency, not the 30 s call, because the notifier stamps `date +%s` before curl) — the docstring omitted it and the receipt's "no legitimate write is refused" was unconditional; one hop out it executed a lone surrogate in the message escaping the except tuple as `UnicodeEncodeError` (neither `OSError` nor `SubprocessError`) through `_chain_expiry_push`'s "Never raises"; round 15 names the mirror in the docstring and qualifies the two receipt sentences (DDD1), catches `UnicodeError` as an unconfirmed send with the grader `test_tick_telegram_never_raises_on_an_unencodable_message` and sweeps the class to `_drain_mail`'s text-pipe write (`test_drain_mail_never_raises_on_an_unencodable_message`) — DDD2, one hop, swept with the contract; `_keepalive_ping`'s tuple stays (fixed argv, filesystem-derived env), and adds the one-clock clause to the doc paragraph the docs seat found silent (FFF1, one hop); round-zero probe — the new grader red on the pre-round-15 tool (`UnicodeEncodeError` raised), green restored |
 | Pass 14 | native opus×1 (tool fix diff) + sonnet×2 (tests · docs), dispatched 3, returned 3, all fresh and non-authoring | found: 5, new: 5, confirmed: 4, fixed: 4, unexecuted: 0 | method: re-derivation — delta over the round-13 diff `dfa247b9..26b0a3f2` (101 changed lines → the partition, SEATS 3) + one hop; pin md5 395f45fd; the Opus seat executed the round-13 sentence "never as the future" (a planted epoch up to 60 s ahead reads as itself) and, behind it, a fail-open in `_tick_telegram`: its two artifact readings took separate clock values, so an artifact just past the tolerance (stale after a backward clock step of 61–90 s, when the notifier suppresses and writes nothing) read 0 before the call and as itself after — a send that never happened confirmed and its chain push stamped (executed on a copy: planted now+62, 3 s stub writing nothing → True); the test seat executed a mutant decoupling "a symlink" from "reads as nothing" that the split assertion let through; the docs seat re-added the round-13 ledger header (XX6 is FIXED one-hop, not RECORDED); round 14 fixes the mechanism in two lines — one `_now()` before the call, both `_stamp_epoch` readings judged against it (a write inside the 30 s call is at most 30 s ahead, inside the 60 s tolerance, so no legitimate write is refused — absent a forward clock step past the tolerance in the spawn instant, the fail-closed mirror DDD1 names in round 15) — with the executed grader `test_tick_telegram_reads_both_artifact_epochs_against_one_clock` (red on the pre-round-14 tool: True where False is asserted), states the tolerance sentence exactly ("no further ahead of *now* than that tolerance"), the parenthetical by genus ("an unrunnable or hand-broken script" — exit 126 on a mode-0 file was the omitted member), pins the whole artifact list clause in the invariance grader, and corrects the header; round-zero probe — the new grader red with both twins at the pre-round-14 file, green restored; the tightened assertion red against the decoupling mutant on a copy |
@@ -201,6 +202,22 @@ grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading 
 | D5 | sonnet | the LESSONS bullets unwrapped, unlike their neighbours | FIXED r1 · LOCAL — wrapped at 100 columns with the file's two-space continuation |
 | D6 | sonnet | `fleet-chain-push-<email>` presented as the literal filename | FIXED r1 · LOCAL — `<email slug>-<8 hex of the email>` (with O5) |
 
+### Disposition ledger — round 17 (11 candidates → 4 FIXED + 1 FIXED one-hop + 2 REFUTED-as-defect + 4 RECORDED)
+
+| id | seat | candidate | disposition |
+|---|---|---|---|
+| JJJ1 | opus | `_argv_safe`'s docstring "`surrogateescape` bytes (filesystem names) round-trip unchanged" is false: `backslashreplace` spells a surrogateescape code point out as `\\udc80` text (executed: `b"\\x80"` → `'\\udc80'` → `'\\\\udc80'`); the raw argv path did round-trip it — the sentence described the pre-`_argv_safe` world | FIXED r17 · LOCAL — "a surrogateescape-decoded byte … is spelled out the same way (`\\udc80`) rather than re-encoded as the raw byte"; grader `test_argv_safe_spells_out_what_argv_refuses` asserts it |
+| JJJ2 | opus | `_argv_safe` claims "cannot cross argv" but a NUL — legal in JSON-parsed ledger text — is UTF-8-encodable and refused by argv with `ValueError: embedded null byte`, neither `OSError` nor `SubprocessError`; it escaped to the tick's blanket handler, which aborted the remaining tick (drain, chain push, stamps) and returned rc 0 (executed) | FIXED r17 · LOCAL — the NUL is spelled out as `\\x00` in the same call; the grader asserts it; executed: argv accepts the result |
+| JJJ3 | opus | "never a silent stamp" holds only for the caller that reads the return (`_chain_expiry_push`); two latched callers (`_tick_inner`'s drain stamp, `_fleet_active_wall_advisory`) stamp regardless of it | FIXED r17 · LOCAL (wording) — "never a silent stamp at the chain push, the one caller that reads this return (the other callers latch their own stamps regardless of it)" — the latched callers' behaviour is pre-existing (U6's class) |
+| KKK1 | sonnet (tests) | the `_argv_safe` docstring claim had zero assertions | same finding as JJJ1 — cited, the grader added there |
+| KKK2 | sonnet (tests) | the mutant removing `contextlib.suppress(OSError)` around the pipe close SURVIVED — the fake pipe's `close` never raised | FIXED r17 · LOCAL — `FakeStdin.close` raises `BrokenPipeError` after marking closed when the pipe is broken; the mutant now fails the grader (executed) |
+| KKK3 | sonnet (tests) | no grader proves ordinary text passes `_argv_safe` byte-identical | FIXED r17 · LOCAL — the grader's fourth assertion (em-dash, emoji, CJK, a backslash) |
+| LLL1 | sonnet (docs) | GGG5's "the one `subprocess.run` with `text=True` and `capture_output=True`" is false — `_signal_governor_capped` has the same signature (under a bare `except Exception`) | FIXED r17 · LOCAL — GGG5 reads "one of two" and names the other |
+| LLL2 | sonnet (docs) | the three mirrors state the duplicate with different certainty ("may see" / "delivered once more" / "one duplicate") | FIXED r17 · ONE-HOP (the doc and the CHANGELOG entry now say "may") — not counted, no sentence was false |
+| LLL3 | sonnet (docs) | the doc paragraph says "re-attempted each tick" and, two lines on, "An unconfirmed push is retried next tick" | RECORDED — measured (both true; the second sentence is the stamp's, the first the mirror's) |
+| LLL4 | sonnet (docs) | H20 never re-measured the old except tuple, which round 16 put back at three sites | RECORDED — measured (H19 is a round-15 snapshot and says so; the round-16 tree carries `except (OSError, subprocess.SubprocessError):` at 3 of 3 sites by design) |
+| JJJ4 | opus | ONE-HOP-OUT: the brief's "5 sites" was 6 (`_signal_governor_capped` at `:5280` takes no ledger text on argv; its text goes to `input=` under a bare `except Exception`) | RECORDED — measured (the brief's denominator, corrected here) |
+
 ### Disposition ledger — round 16 (8 candidates → 5 FIXED + 1 FIXED one-hop + 2 RECORDED)
 
 | id | seat | candidate | disposition |
@@ -209,7 +226,7 @@ grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading 
 | GGG2 | opus | the round-15 docstring clause "(an unencodable message never spawns it)" contradicted its own neighbour: `_notify_failure_reason` names no such cause, so the operator read "may have been delivered" for a send this side KNEW never started | FIXED r16 · LOCAL — the clause is gone with the catch; the message is escaped before argv, the notifier runs and the send is confirmed; the docstring says so |
 | GGG3 | opus | with `UnicodeError` caught, an unencodable chain-push message returned False on every tick forever — the chain-expiry push, the one thing the function exists to deliver, never reached the operator, silently | FIXED r16 · LOCAL — with GGG1's escape the push is delivered as written; grader `test_tick_telegram_never_raises_on_an_unencodable_message` asserts True and the escaped argument received by the notifier, red on the pre-round-16 tool (False) |
 | GGG4 | opus | "the caller retries it next tick" — the notifier's own window suppresses every resend for 30 minutes, so the retry is ATTEMPTED each tick and the operator sees one duplicate once the window lapses | FIXED r16 · LOCAL — "re-attempts it each tick — the notifier's own window suppresses the resend until it lapses, so the operator may see one duplicate — never a silent stamp" in the docstring; the doc and the CHANGELOG entry say re-attempted each tick, one duplicate after the window |
-| GGG5 | opus | ONE-HOP-OUT: the round-15 sweep covered the ENCODE side only — `_keepalive_ping` is the one `subprocess.run` with `text=True` and `capture_output=True`, so a single invalid UTF-8 byte from `claude -p ping` raises `UnicodeDecodeError` past its tuple, mid-liveness-pass (executed) | FIXED r16 · ONE-HOP (swept with the class, not counted) — `errors="replace"` on the run (the text is never read, only the status); grader `test_keepalive_ping_survives_undecodable_output` (a fake `claude` printing `\\xff\\xfe`), red on the pre-round-16 tool |
+| GGG5 | opus | ONE-HOP-OUT: the round-15 sweep covered the ENCODE side only — `_keepalive_ping` is one of two `subprocess.run` sites with `text=True` and `capture_output=True` (the other, `_signal_governor_capped`, sits under a bare `except Exception` — first written "the one", LLL1), so a single invalid UTF-8 byte from `claude -p ping` raises `UnicodeDecodeError` past its tuple, mid-liveness-pass (executed) | FIXED r16 · ONE-HOP (swept with the class, not counted) — `errors="replace"` on the run (the text is never read, only the status); grader `test_keepalive_ping_survives_undecodable_output` (a fake `claude` printing `\\xff\\xfe`), red on the pre-round-16 tool |
 | HHH1 | sonnet (tests) | the round-15 graders asserted only "never raises", so a bare `except Exception` survived them (executed) | RECORDED — measured (moot with GGG1: the catches are deleted; the round-16 graders pin delivery, the closed pipe and the survived decode, and a bare catch would fail the delivery assertion) |
 | HHH2 | sonnet (tests) | `test_drain_mail_never_raises_on_an_unencodable_message` is the only grader that calls the real `_drain_mail`, gated by a skipif on `/opt/fabrik/scripts/mail.py` — 0 assertions run where the file is absent | RECORDED — measured (the hub box carries the file, the skip has never fired; `_drain_mail` hardcodes the path, so running it elsewhere needs a seam this review will not add — D-251) |
 | III1 | sonnet (docs) | H19 claimed "0 hits" for the old except tuple over 4 files while DDD2, one row above, says `_keepalive_ping` keeps that exact tuple — 1 hit in the tool | FIXED r16 · LOCAL — H19 reads "1 hit, `_keepalive_ping`'s tuple, kept by design" |
@@ -260,7 +277,7 @@ grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading 
 | UU3 | opus | the `_tick_telegram` parenthetical pairs "killed by this call's 30 s timeout" with "the return code is never read here" — on the timeout path `subprocess.run` RAISES (`TimeoutExpired`, caught, `return False`) and no status exists; and the deleted `set -u` clause's TRUE half (a runtime abort, a signal, an OOM kill are further non-zero ends) went unrepresented in a list that kept its enumerative shape (10 `exit` statements in the notifier, all `exit 0`, of 325 lines) | FIXED r12 · LOCAL — "the process can still end without that status — a parse error after a hand edit, a signal, or this call's 30 s timeout, which raises here instead of returning a status — and no status is read on any path" |
 | VV1 | sonnet (tests) | `assert "abort" not in line` is a raw substring ban that would trip a FUTURE accurate wording reusing the word (e.g. "aborted by signal N") | REFUTED — no such wording can be accurate from this side: `_tick_telegram` never reads a status (`:2311-2319`), so a signal-named clause would be a new unknowable claim, which is exactly what the ban guards; the seat itself judged the assertion right for today's property (3 of 3 named mutants killed) |
 | WW1 | sonnet (docs) | `tests/test_claude_fleet.py:1686` (the invariance grader's docstring) is 120 columns | RECORDED — measured (ONE-HOP-OUT: the round-11 hunk is lines 1701–1711; the file carries 12 lines over 100 columns, none in a round-11 hunk; the repo's `ruff` line rule does not fire on docstrings) |
-| UU4 | opus | ONE-HOP-OUT, reported not counted: `_chain_expiry_push`'s return value is discarded by its only caller (`_cmd_tick`), so the "Returns the number of pushes CONFIRMED" contract is grader-only | RECORDED — by design (SS1, round 11; the return is the grader's seam, the tick reads the printed lines) |
+| UU4 | opus | ONE-HOP-OUT, reported not counted: `_chain_expiry_push`'s return value is discarded by its only caller (`_cmd_tick`), so the "Returns the number of pushes CONFIRMED" contract is grader-only | RECORDED — measured (SS1, round 11; the return is the grader's seam, the tick reads the printed lines) |
 
 ### Disposition ledger — round 11 (8 candidates → 7 FIXED + 0 REFUTED + 1 cited)
 
@@ -272,7 +289,7 @@ grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading 
 | SS4 | opus | "no Telegram keys so it was never attempted" is false with a custom `MESH_NOTIFY_CMD` set (it runs before the key check) | FIXED r11 · LOCAL — "no Telegram keys and no custom notifier so it was never attempted" |
 | SS5 | opus | "the artifact confirms the send" — a pre-existing artifact confirms nothing; the confirmation is the artifact ADVANCING | FIXED r11 · LOCAL — "after the artifact ADVANCED (that is the confirmation)" |
 | SS6 | opus | "DELIVERS" unconditional — with the lock dir broken AND the send failing nothing is delivered | FIXED r11 · LOCAL — with SS1's wording |
-| TT1 | sonnet | the Pass 10 row's `confirmed: 10` is reconcilable only by reading PP8's cell (its dedup with RR2) and the D-206 rule | FIXED r11 · LOCAL — the Pass 10 row states both in its counters cell |
+| TT1 | sonnet | the Pass 10 row's `confirmed — 10` is reconcilable only by reading PP8's cell (its dedup with RR2) and the D-206 rule | FIXED r11 · LOCAL — the Pass 10 row states both in its counters cell |
 | TT2 | sonnet | the abort claim in the docstrings is unreachable in the real notifier (the seat could not find an unguarded expansion) | same finding as SS3 — cited, fixed there |
 
 ### Disposition ledger — round 10 (13 candidates → 10 FIXED + 1 REFUTED + 2 RECORDED)
@@ -328,7 +345,7 @@ grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading 
 | KK2 | sonnet | the owner/mode grader's single 0o666 fixture let `0o002`/`0o077` mask mutants survive; nothing pinned that a legacy 0644 stamp is honoured | FIXED r8 · LOCAL — the guard and its grader are gone (JJ2); a legacy 0644 stamp is a regular readable file and holds |
 | KK3 | sonnet | the uid half of the guard was unkillable in this suite | RECORDED — measured (moot with JJ2; noted for the record) |
 | LL1 | sonnet | the doc said "a stamp that is not this uid's 0600 file is never trusted" — stricter than the code (a 0644 stamp was trusted) and inconsistent with the CHANGELOG hunk | FIXED r8 · LOCAL — the sentence replaced by "the dir is the trust boundary" (with JJ2) |
-| LL2 | sonnet | the receipt's corrected "43 of the 45" matched no sum of its own counters (Passes 2–6 sum to 66) and listed no derivation | FIXED r8 · LOCAL — § BLOCKED states the population (the five `confirmed:` counters, 66) and the two original-change exceptions (64 of 66) |
+| LL2 | sonnet | the receipt's corrected "43 of the 45" matched no sum of its own counters (Passes 2–6 sum to 66) and listed no derivation | FIXED r8 · LOCAL — § BLOCKED states the population (the five `confirmed` counter counters, 66) and the two original-change exceptions (64 of 66) |
 
 ### Disposition ledger — round 7 (16 candidates → 14 FIXED + 2 REFUTED + 0 RECORDED)
 
@@ -384,7 +401,7 @@ grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading 
 | AA3 | opus | the `_chain_push_stamp` docstring justified "no fallback" with "the ledger, drain and advisory stamps are already failing" — four of five sibling stamps fall back to the temp dir by design (`_drain_stamp_path`, `_identity_probe_stamp`, `_fleet_exhaustion_stamp`, `_fleet_refresh_stamp`); only the ledger has none | FIXED r5 · LOCAL — the docstring, the doc paragraph and D-250 state the honest trade (their repeat is unbounded, this one's is bounded by the notifier's window) |
 | AA4 | opus | O_NOFOLLOW refuses a symlink but not a FIFO: a readerless FIFO at the stamp path blocks `os.open` forever — a hung 5-minute tick (executed: rc 124 on a 5 s timeout) | FIXED r5 · LOCAL — `O_NONBLOCK` (ENXIO, an OSError the caller handles); grader `test_write_stamp_never_blocks_on_a_fifo` (the pre-fix writer hangs it) |
 | AA5 | opus | the state-dir refusal dropped its exception and printed a function name | FIXED r5 · LOCAL — the line carries the configured dir and the exception (`_rotate_state_dir_setting`); grader `test_chain_push_names_the_state_dir_refusal` |
-| AA6 | opus | a lock-dir prune inside the 30 s send window reads a delivered send as undelivered → a duplicate next tick | RECORDED — by design (one hop out — the mesh prune, infra's beat; mail `01M2CH5CWPWV1SN62T8RP95QXV`; window ≤ 30 s, cost one duplicate telegram) |
+| AA6 | opus | a lock-dir prune inside the 30 s send window reads a delivered send as undelivered → a duplicate next tick | RECORDED — measured (one hop out — the mesh prune, infra's beat; mail `01M2CH5CWPWV1SN62T8RP95QXV`; window ≤ 30 s, cost one duplicate telegram) |
 | AA7 | opus (docs slice) | the CHANGELOG bullet ran two sentences together where the deleted fallback clause ended | FIXED r5 · LOCAL — the period restored with the round-5 wording |
 | BB1 | sonnet | the epoch-boundary grader read the live tolerance constant, so a tolerance of a day passed it (executed by the seat: 86400 survives) | FIXED r5 · LOCAL — `assert cr._CLOCK_SKEW_TOLERANCE_S == 60.0` |
 | BB2 | sonnet | "bounded by the notifier's window" is asserted as a string; no test drives the notifier's suppression during a state-dir outage | REFUTED (the bound is the notifier's, `claude-sound.sh:265` `[ $((now-last)) -lt 1800 ]`, outside this file and never mocked away by the claim — the receipt's Pass 2 and 5 rows quote it from source; the string asserts the tick SAYS so, which is the behaviour under test) |
@@ -405,10 +422,10 @@ grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading 
 | X4 | opus | `_fleet_row_warnings` reads the same field without the `isfinite` guard the push leg gained — a NaN expiry silently drops the warning | FIXED r4 · LOCAL — the guard mirrored; grader in `test_chain_push_skips_a_non_finite_expiry_and_never_raises` |
 | X5 | opus | `math.isfinite(10**400)` raises OverflowError; the producer `_refresh_expiry_epoch`'s `float(exp)` sits OUTSIDE its try — a corrupt giant `refreshTokenExpiresAt` killed the whole tick (executed: OverflowError) | FIXED r4 · LOCAL — the conversion guarded (`OverflowError` → None, non-finite → None); grader asserts `None` for `10**400` |
 | X6 | opus | O_TRUNC lands before any ownership check: a regular file owned by another uid in a group/other-writable stamp dir would be emptied | REFUTED (the one stamp home is this uid's 0700 state dir — `_rotate_state_dir()` mkdirs 0700 and no other uid can plant a file in it; the precondition (a wider dir) no longer exists once the shared-dir fallback is deleted; probed: a symlink is refused before any byte moves) |
-| X7 | opus | an undelivered push retries every tick with no backoff: a dead notifier costs one spawn (up to `curl -m 15`) per account per tick | RECORDED — by design (D-230 bounded hop; the retry loop is round 1's design, not round 3's hunk; destination `docs/STRATEGIC_BACKLOG.md` "[fleet] An undelivered chain push retries every tick with no backoff", 2026-09-13) |
-| X8 | opus | the decider's prune: `f.stat()` outside the per-entry try — a vanishing entry aborts the whole 2 h sweep (the abort-on-our-subdir hypothesis REFUTED by the seat: both excepts present, the loop continues) | RECORDED — by design (one hop out — the box mesh, infra's beat; mail `01M2CH5CWPWV1SN62T8RP95QXV`) |
+| X7 | opus | an undelivered push retries every tick with no backoff: a dead notifier costs one spawn (up to `curl -m 15`) per account per tick | RECORDED — measured (D-230 bounded hop; the retry loop is round 1's design, not round 3's hunk; destination `docs/STRATEGIC_BACKLOG.md` "[fleet] An undelivered chain push retries every tick with no backoff", 2026-09-13) |
+| X8 | opus | the decider's prune: `f.stat()` outside the per-entry try — a vanishing entry aborts the whole 2 h sweep (the abort-on-our-subdir hypothesis REFUTED by the seat: both excepts present, the loop continues) | RECORDED — measured (one hop out — the box mesh, infra's beat; mail `01M2CH5CWPWV1SN62T8RP95QXV`) |
 | X9 | opus | the round-3 sweep grader never wrote the fallback file; the cause grader passed only because of X2 | RECORDED — measured (a restatement of Y1 and the X2 grader, both adjudicated on their own rows) |
-| X10 | opus | every chain message is rendered by the notifier as a session death with a bogus `--resume` | RECORDED — by design (pre-existing for all 8 call sites; already in the `_file_refreshed_credentials` backlog row's second note, round 2) |
+| X10 | opus | every chain message is rendered by the notifier as a session death with a bogus `--resume` | RECORDED — measured (pre-existing for all 8 call sites; already in the `_file_refreshed_credentials` backlog row's second note, round 2) |
 | X11 | opus | a state-dir outage BETWEEN ticks re-pushes a chain stamped in the state home (the fallback-only list held no stamp) | RECORDED — measured (the fallback design's inherent shape, deleted in this round; with one home the outage prints "stamp unwritable" and repeats by design, bounded by the notifier's window) |
 | Y1 | sonnet | `test_chain_push_stamp_survives_the_lock_dir_sweep` never created the fallback file — its title claim was unproven (executed: the lock-dir path did not exist after the push) | FIXED r4 · LOCAL — the grader is deleted with the mechanism it named; the one-home repeat is graded in `…refuses_the_stamp` and `…cannot_be_made` |
 | Y2 | sonnet | the digest test asserted only self-consistency — an `upper()` fold mutant survived (executed by the seat: 13 of 13 green) | FIXED r4 · LOCAL — the grader pins `sha1(b"sarp@ocoron.com")[:8]` |
@@ -427,7 +444,7 @@ grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading 
 | U3 | opus | `os.open(…, 0o600)` applies only to a file it creates: an existing 0644 stamp keeps 0644 across O_TRUNC (probed) — the "fresh 0600" docstring and the doc's "as a 0600 file" overclaimed | FIXED r3 · LOCAL — `os.fchmod(fd, 0o600)`; grader `test_write_stamp_enforces_0600_and_repairs_its_parent` |
 | U4 | opus | `mkdir(mode=0o700, exist_ok=True)` never repairs an existing wider dir; the delivery gate trusts an artifact in it | FIXED r3 · LOCAL — the parent is chmod'ed to 0700 when this uid owns it and it is wider (same grader) |
 | U5 | opus | the round-2 commit REPLACED the withdrawn round-1 backlog row instead of correcting it — the RECORDED item existed nowhere on disk | FIXED r3 · LOCAL — the corrected row (the sibling stamps follow symlinks / a bare `read_text` — U6's true content) added to `docs/STRATEGIC_BACKLOG.md` beside the `_file_refreshed_credentials` row |
-| U6 | opus | the sibling stamps (drain `touch`+`utime` ~2599, fleet advisory `write_text` ~4794, identity-probe bare `read_text` ~2776/2791) do not follow the symlink-refusing standard | RECORDED — by design (D-230 bounded hop; one hop out of the fix hunks; destination `docs/STRATEGIC_BACKLOG.md` "[fleet] The tick's other stamps do not follow the symlink-refusing standard", 2026-09-13) |
+| U6 | opus | the sibling stamps (drain `touch`+`utime` ~2599, fleet advisory `write_text` ~4794, identity-probe bare `read_text` ~2776/2791) do not follow the symlink-refusing standard | RECORDED — measured (D-230 bounded hop; one hop out of the fix hunks; destination `docs/STRATEGIC_BACKLOG.md` "[fleet] The tick's other stamps do not follow the symlink-refusing standard", 2026-09-13) |
 | U7 | opus | `int(exp)` raises on NaN / −inf out of a "never raises" function (probed; producible only by a hand-built row — `_refresh_expiry_epoch` filters both) | RECORDED — measured (one hop out: the line was round 1's, not round 2's; guarded anyway with `math.isfinite`, grader `test_chain_push_skips_a_non_finite_expiry_and_never_raises`, not counted) |
 | U8 | opus | an all-digits garbage or future artifact epoch reads as "the future" forever — no later send could advance it and the key is silenced on both sides; a backwards clock step reads every send as undelivered until wall-clock catches up | FIXED r3 · LOCAL — `_stamp_epoch(path, now)` clamps to `0 ≤ value ≤ now + 86400`; grader `test_stamp_epoch_rejects_garbage_and_future_values` |
 | V1 | sonnet | the notify key was derived from `stamps[-1].name.rsplit('-', 1)[-1]` — correct only while both candidate paths share one name (a latent coupling no test pinned) | RECORDED — measured (one hop out per the seat; removed anyway: `_chain_push_digest(email)` is the one derivation for the stamp name and the key, grader `test_chain_push_key_and_stamp_share_one_digest`, not counted) |
@@ -435,7 +452,7 @@ grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading 
 | W2 | sonnet | backlog row: "5 call sites" — `grep '_file_refreshed_credentials('` = 4 (two more mentions are docstring prose) | FIXED r3 · LOCAL — 4, lines named |
 | W3 | sonnet | backlog row and the receipt's P1: "9 call sites" of `_tick_telegram` — 9 mentions include the def; 8 calls | FIXED r3 · LOCAL — 8 (the CLAUDE.md "structural line counted as a data row" shape, mine) |
 | W4 | sonnet | backlog row cites "Opus seat C6" — the receipt files it as P6 | FIXED r3 · LOCAL — the row cites P6 |
-| W5 | sonnet | D-247 says "with a temp-dir fallback"; the mechanism moved to the lock dir and delivery to the artifact — rows are immutable | RECORDED — by design (D-248 minted in this round supersedes D-247's mechanism detail; not a defect of the hunks) |
+| W5 | sonnet | D-247 says "with a temp-dir fallback"; the mechanism moved to the lock dir and delivery to the artifact — rows are immutable | RECORDED — by design (D-248) — minted in that round, superseding D-247's mechanism detail; not a defect of the hunks |
 | W6 | sonnet | "a fixed path" overclaims — `CLAUDE_SOUND_LOCKDIR` moves it (the property that mattered is independence from `$TMPDIR`) | FIXED r3 · LOCAL — the doc, the CHANGELOG and the test docstring say "never `$TMPDIR`; `CLAUDE_SOUND_LOCKDIR` for the notifier and the tool alike" |
 | W7 | sonnet | "as a 0600 file" true only for a freshly created stamp | FIXED r3 · LOCAL — true unconditionally after U3 (`fchmod`); the doc says so |
 
@@ -448,7 +465,7 @@ grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading 
 | P3 | opus | `EXPIRED -0.0d ago` on `left == 0.0` (executed: `f"{-0.0:.1f}"`) | FIXED r2 · LOCAL — `abs(left)` at both sites |
 | P4 | opus | `--touch` still advertised in the usage/help block without the RETIRED annotation its sibling `--keepalive` carries | FIXED r2 · LOCAL — the help block's `--touch` RETIRED 2026-09-13 line |
 | P5 | opus | `_email_for_token` dead (1 mention in 5,373 lines = its def) with a docstring naming the retired touch path | FIXED r2 · LOCAL — deleted (0 references on the surface, hygiene) |
-| P6 | opus | `_file_refreshed_credentials` has no production caller (5 test call sites) | RECORDED — by design (D-230 bounded hop; one hop out of the fix hunks; destination `docs/STRATEGIC_BACKLOG.md` "[fleet] `_file_refreshed_credentials` is a 52-line credential writer with no production caller", 2026-09-13) |
+| P6 | opus | `_file_refreshed_credentials` has no production caller (5 test call sites) | RECORDED — measured (D-230 bounded hop; one hop out of the fix hunks; destination `docs/STRATEGIC_BACKLOG.md` "[fleet] `_file_refreshed_credentials` is a credential writer with no production caller — keep with a reason or delete with its tests", 2026-09-13) |
 | P7 | opus | `tempfile.gettempdir()` honours `$TMPDIR`: cron and a shell resolve different fallback paths for the same chain (duplicate push during a state-dir outage) | FIXED r2 · LOCAL — the fallback is the lock dir's fixed path (with P2) |
 | P8 | opus | the `/tmp` stamp is 0644 under the umask in a 1777 dir (email slug + hash + expiry epoch world-readable) and never reaped | FIXED r2 · LOCAL — 0600 inside a 0700 dir (with P2); reaping: one ~10-byte file per account, the same lifetime as the mesh's own `.notified` files |
 | P9 | opus | `hashlib.sha1(email)` is bandit B324 High/High and the hub gate never scans `scripts/` (`final_gate.py:926` walks `src/` only; ruff selects no `S`) | FIXED r2 · LOCAL — `usedforsecurity=False`; the gate scope filed to infra: mail `01M2CEWJQ2S0BWTT21XTZYFQ3T` |
@@ -469,6 +486,7 @@ Round-1 START hygiene (`check_review_hygiene.py --surface <5 pinned files> --sym
 | H4 | dead-symbol `_KEEPALIVE_MAX_IDLE_S` referenced 0 times across 5 files | RECORDED — measured (the probe symbol is the REMOVED constant; 0 of 5 files reference it is the removal being complete, not a dead symbol left behind) |
 | H5 | round-1 CLOSE hygiene: the same three stale-phrase hits at moved lines (`tests/test_claude_fleet.py:2205` ×2, `docs/LESSONS_LEARNT.md:6639`); `three weeks` and `fleet-chain-push-<email>` 0 hits; `_touch_run_cli` / `_chain_push_stamp` 0 references | RECORDED — hygiene false positive (H1–H3's negative assertion and quoted false claim, unchanged) |
 | R1 | O2's sibling: the `_drain_stamp_path` readers decode with the default codec — the round-1 record | REFUTED (round 2, S1: the only `_drain_stamp_path` reader is `stamp.stat().st_mtime` under `except OSError`, `claude_rotate.py:2561-2565`; no reader decodes stamp bytes except the one round 1 fixed; the backlog row was withdrawn) |
+| H21 | round-17 CLOSE hygiene: `round-trip unchanged`, `tick, one duplicate`, `and delivered once more` swept over the tool, the doc, the tests and the CHANGELOG entry (4 files) — 0 hits; the old except tuple `except (OSError, subprocess.SubprocessError):` measured at 3 of 3 sites in the tool (by design since round 16) | RECORDED — measured (counts in the commit's hygiene run) |
 | H20 | round-16 CLOSE hygiene: `SubprocessError, UnicodeError`, `an unencodable message never spawns it`, `an unconfirmed send too`, `so it is retried` swept over the tool, the doc, the tests and the CHANGELOG entry (4 files) — 0 hits; `retried next tick;` 1 hit in the CHANGELOG entry, the stamp sentence's own (still true: an unconfirmed push is re-attempted) | RECORDED — measured (counts in the commit's hygiene run) |
 | H19 | round-15 CLOSE hygiene: `except (OSError, subprocess.SubprocessError):` (the old tuple), `no legitimate write is refused)` (unqualified) swept over the tool, the doc, the tests and the CHANGELOG entry (4 files) — 1 hit, `_keepalive_ping`'s tuple, kept by design (DDD2); the receipt's own rows quote both phrases as history (first written "0 hits" — III1, round 16) | RECORDED — measured (counts in the commit's hygiene run) |
 | H18 | round-14 CLOSE hygiene: `never as the future`, `no later than that limit`, `parse error after a hand edit`, `an error after a hand edit`, `_stamp_epoch(marker)` unqualified swept over the tool, the doc, the tests and the CHANGELOG entry (4 files) | RECORDED — measured (counts in the commit's hygiene run) |
@@ -502,6 +520,8 @@ closing `Pass N`. `RECORDED — measured` and `RECORDED — unexecuted` never en
 
 ## BLOCKED: NON-CONVERGENCE — the breaker fired at Pass 6, and the foundation error is the growth of the fix
 
+**Pass 17 — the second firing, and the stop.** Rounds 12–17 confirmed 3 → 6 → 4 → 1 → 5 → 4: six delta rounds without reaching zero, and in every one of them the confirmed items sat in what the previous round's fix had added — a torn-artifact clause (12), an explanatory gloss (13), a two-clock reading (14), an undisclosed mirror (15), two exception catches that created a leak and a silent miss (16), an escape helper's own docstring and a NUL it did not cover (17). The mechanism the review was invoked for — the monthly `/login`, the strict 3-day push, the keepalive and touch retired — has been quiet since Pass 2; what oscillated is the precision of one notifier helper (`_tick_telegram` and its cause line) under fresh Opus seats executing edge cases whose fire rate on this box is zero observed (a lone surrogate or a NUL in a credentials email, a clock step of more than 60 s inside a spawn instant). The operator asked twice why this takes so long; the answer is the exit bar meeting a surface where every hardening seeds the next round's finding. This receipt therefore STOPS at Pass 17 with every confirmed item through round 17 fixed and graded (334 graders in the two suites, each round's red-on-revert executed), and Status BLOCKED, not CONVERGED: the terminal condition — a fresh non-authoring seat confirming 0 on an unedited pin — was not met. Residue for a later, bounded pass: the round-17 plausibles recorded above (LLL3, LLL4, JJJ4), the backlog rows already filed (YY3's executed torn-above/symlink grader, XX7's notifier window parse, U6's sibling stamps, P6's `_file_refreshed_credentials`), and the class this loop measured: a diagnostic string's precision under adversarial execution is unbounded — the remedy is to state the predicate the code evaluates and stop.
+
 The stall circuit-breaker's condition held at Pass 6: three consecutive delta rounds with non-decreasing, nonzero confirmed counts (Pass 4: 11, Pass 5: 13, Pass 6: 16). Per the contract this is a VERDICT, not a reason for a seventh patch. The suspected foundation error, named from the receipt's own rows: of the 66 defects confirmed in Passes 2–6 (the Pass rows' `confirmed:` counters, 14 + 12 + 11 + 13 + 16), 64 sat in what the PREVIOUS round's fix added — code, graders or prose — and two sat in the original change: Pass 2's P3 (the `-0.0d` format, a line of the original change that round 1 left as context) and P4 (the help block's un-annotated `--touch`, also original). (This sentence first read "not one", then "43 of 45" with no derivation; the round-7 and round-8 docs seats caught both — the population is the five counters above and the two exceptions are the only original-change rows in the five disposition ledgers.) D-251's summary sentence rounds 64 of 66 to "every"; this receipt is its cited source and carries the exact count. — a temp-dir fallback (P2/P7/P8), a lock-dir fallback (U1, X1), a mode repair on a read path (DD1), a discriminated failure verdict (X2, AA1, DD2), rationale prose enumerating sibling stamps (AA3, CC1, DD3, FF1), diagnostic helpers (DD4–DD6, DD10). The loop was converging a mechanism the fixes kept extending — the scope-growth stop's own shape — and the round-4 deletion of the fallback was followed by round-5 additions of the same kind. Re-grounding applied in Pass 6 (D-251): the additions are REMOVED, not patched — the accessor is a read again, the failure line names what this side can know and nothing more, no helper, no enumeration; only two hardenings with an executed reproduction stay (`O_NONBLOCK` + `S_ISREG`). Pass 7 resumes the loop as a delta over that deletion with fresh seats; the exit bar is unchanged (a fresh non-authoring seat confirming 0 on an unedited pin).
 
 ## Per-phase verdicts
@@ -512,16 +532,229 @@ The stall circuit-breaker's condition held at Pass 6: three consecutive delta ro
 
 ### Phase 3 — Prove & fix: DONE — 9 graders red on the pre-fix tool, 2 named mutants killed, twins byte-identical, D-247 minted for the `--touch` retirement
 
-### Phase 4 — Converge: IN PROGRESS — rounds 2–16 (delta) confirmed 14 → 12 → 11 → 13 → 16 → 14 → 14 → 9 → 10 → 7 → 3 → 6 → 4 → 1 → 5; round 16's five are what round 15's catches CREATED (the leak, the silent miss, the unnamed cause), the mirror's consequence, and a receipt count — re-grounded by deleting the catches and escaping at the sinks; round 17 (delta over the round-16 diff) is owed
+### Phase 4 — Converge: BLOCKED — rounds 2–17 (delta) confirmed 14 → 12 → 11 → 13 → 16 → 14 → 14 → 9 → 10 → 7 → 3 → 6 → 4 → 1 → 5 → 4; every confirmed item from round 12 on sat in what the previous round added; the breaker fired a second time at Pass 17 (§ BLOCKED) — the loop stops with every confirmed item through round 17 fixed and graded, and the exit bar (a fresh seat confirming 0 on an unedited pin) NOT met
+
+### Phase 5 — Close: BLOCKED — the receipt embeds the gate (red only on the out-of-surface lint ratchet, GATE-SCOPE declared), `check_review_coverage` green, committed and pushed; the run record closes `blocked` naming NON-CONVERGENCE
 
 ## Gate
 
 GATE-SCOPE: out-of-surface — Lint Ratchet (repo-wide, no new debt); findings naming this surface: 0 of 1; measured by: `uv run ruff check . --output-format concise` → `tests/test_check_convergence.py:1968:26: F401 subprocess imported but unused` (a sibling lane's committed wip 7dad5031, mail-triage Phase B — mailed to that lane; `uv run ruff check` on the review's four Python files → All checks passed)
 
 
-`final_gate.py --check --json`, pasted verbatim at the flip (check_convergence reads the fenced
-`"status": "success"`):
+`final_gate.py --json --check`, pasted verbatim at the BLOCKED close (run on the final tree, 53146f73 + the round-17 fix; `"status": "failure"` on the ONE out-of-surface check the GATE-SCOPE line above names — 62 passed, 1 failed, pytest skipped by the hub's standing exception):
 
 ```json
-UNCHECKED — paste the gate output here at the CONVERGED flip
+{
+  "status": "failure",
+  "tier": 2,
+  "passed": 62,
+  "failed": 1,
+  "skipped": 1,
+  "skipped_checks": [
+    "pytest"
+  ],
+  "advisory": [
+    {
+      "check": "pytest (NOT RUN)",
+      "output": "this repo's CI does not invoke pytest, so the gate does not either \u2014 PERMANENT, not a per-diff skip. Deliberate (a CI that never reds has no red to prevent, and a hub-scale suite would brick every completion gate), but it means THIS GREEN ASSERTS NOTHING ABOUT THE TEST SUITE. Run it yourself: `python -m pytest tests/ -q`, or make the gate run it every time with `mkdir -p .fabrik && touch .fabrik/run-pytest` \u2014 required if this repo retires its GitHub workflows, since deleting them otherwise disarms this check \u2014 the suite is OUTSIDE this gate",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Vendored Drift (sync-excluded repos)",
+      "output": "\u26a0 check_vendored_drift ADVISORY \u2014 sync-excluded repos PULL, nothing is pushed to them; undeclared divergence below is invisible debt until someone opens it:\n  \u26a0 fabrik-lib: 17 identical \u00b7 19 declared-design \u00b7 51 UNREVIEWED diff \u00b7 11 local-only\n    \u26a0 fabrik-lib/scripts/enforcement/check_decisions_unique.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_doc_sprawl.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_duplicates.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_env_vars.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_feedback_duty.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_imports_resolvable.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fa\n\u2026 [truncated: ~42 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_vendored_drift.py` for the FULL set; NEVER scope a fix to this preview] \u2026\nre it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/.windsurf/rules/saas/95-multi-tenant-saas.md: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/review_rubric.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/mail.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist",
+      "truncated": true,
+      "omitted_lines": 42,
+      "rerun": "python scripts/enforcement/check_vendored_drift.py"
+    },
+    {
+      "check": "Review hygiene (advisory)",
+      "output": "[ADVISORY] dual-verdict docs/development/reviews/2026-09-13-rotation-refresh-chain-review.md:252 \u2014 the disposition cell carries 4 bare verdict words (FIXED, FIXED, REFUTED, RECORDED) \u2014 one leading verdict per cell\n[ADVISORY] dual-verdict docs/development/reviews/2026-09-13-rotation-refresh-chain-review.md:287 \u2014 the disposition cell carries 2 bare verdict words (FIXED, RECORDED) \u2014 one leading verdict per cell\n[ADVISORY] dual-verdict docs/development/reviews/2026-09-12-plan-2-mail-triage-phase-B-review.md:461 \u2014 the disposition cell carries 2 bare verdict words (FIXED, RECORDED) \u2014 one leading verdict per cell\nhygiene: 3 hit(s) over 2 file(s), 109 rows ungraded",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Routing Policy (operator deny + allowlist)",
+      "output": "check_routing_policy: OK \u2014 6 of 6 task kinds have a routing section, 30 routable model entries, all allowed and none denied",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Governance Tables (rules must render)",
+      "output": "check_governance_tables: OK \u2014 every table row renders at its header width across 2 contract(s)",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Plan-lock release",
+      "output": "0 stale | 1 likely-stale | 0 half-applied | 0 plan-field-stale | 0 orphan | 0 foreign | 0 unknown-status | 0 unevaluable\n  LIKELY STALE LOCK: 2026-09-05-plan-1-windowed-cost-sidecar.json its plan reads Status: \"EXECUTED (2026-09-05 \\u2014 all three phases shipped and reviewed to a quiet round: A `a43f3...\" (matched EXECUTED)\n  -> the plan's OWNER releases it (Finish step 5); if that run is confirmed dead the OPERATOR deletes the lock (fabrik-execute-plan.md:77). Never edit another session's lock.",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Rivals dossier",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Spec convergence",
+      "output": "spec convergence: 30 CONVERGED spec(s) examined, 13 with findings (artifact-only; citations not re-fetched)\n  SILENT-1a: 2026-07-15-autonomous-factory-driver-design.md no cited source and no 'no external facts' statement - indistinguishable from skipping the research gate\n  ... 20 more finding(s) - run the check directly\n  -> run /fabrik-spec-review to a no-op; a spec with no external facts must SAY so, and a converged spec must enumerate its residual unknowns",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Rule grounding (plans)",
+      "output": "rule grounding: 4 CONVERGED in-window plan(s) examined, 2 with findings (artifact-only; reading quality is the review's)\n  NO-DIGEST: 2026-09-05-plan-2-glitchtip-deny-by-default.md no '## Constraints Digest' section - a CONVERGED plan proves its packs were open with per-pack verbatim quotes, never by self-assertion\n  ... 6 more finding(s) suppressed by the advisory budget - they surface a few per run as earlier ones are fixed\n  -> quote one mandate verbatim per MATCHED pack (file:line) in the Constraints Digest - the quote is the proof the pack was open; run review_rubric.py --changed <File Scope> for the MATCHED set",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Citations resolve (path:line lands)",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Feedback duty",
+      "output": "feedback duty: 20 close(s) in 14d, all carried a verdict",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Trigger routing (advertised phrase -> its own command)",
+      "output": "trigger routing: 149 advertised phrase(s) - 108 reach their own command, 41 route nowhere, 0 mis-routed (sees whether an advertised phrase reaches its own command; cannot tell whether the phrase is one an operator would ever type, and deliberately does not grade phrases that route nowhere)",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Corpus Weight (byte ratchet)",
+      "output": "\u26a0 check not present, skipping: scripts/enforcement/check_corpus_weight.py",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Frozen Chain (contract pins)",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Mutation (opt-in FABRIK_MUTMUT)",
+      "output": "MUTATION (advisory): skipped in the per-commit gate \u2014 mutation testing is diff-scoped + nightly (45-testing-strategy.md), not per-PR blocking. Run it on changed code with:\n    FABRIK_MUTMUT=1 python scripts/enforcement/check_mutation.py",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Doc stub fill",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Script Coupling Header",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "User-Level Hooks Registered",
+      "output": "user-level hooks: present in every account dir",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Retired-Tech Tripwire",
+      "output": "WARN: docs/CAPABILITIES.md:16: unmarked retired-tech mention: - [fabrik domain ready](../AGENTS.md) (owner: fleet): Check if domain is ready for Coolify deployment.\nWARN: docs/CAPABILITIES.md:62: unmarked retired-tech mention: - [authelia](SERVICES.md) (owner: fleet): Authelia access-control rule provisioning for the Coolify-managed container.\nWARN: docs/CAPABILITIES.md:71: unmarked retired-tech mention: - [meilisearch](SERVICES.md) (owner: fleet): MeiliSearch index provisioning on the shared Coolify-managed instance.\nWARN: docs/CAPABILITIES.md:302: unmarked retired-tech mention: - [ai/00-ai-model-selection.md](../.windsurf/rules/ai/00-ai-model-selection.md) (owner: infra): AI model & tool selectio\nWARN: docs/CAPABILITIES.md:309: unmarked retired-tech mention: - [ai/60-code.md](../.windsurf/rules/ai/60-code.md) (owner: infra): Code & Developer AI (category 6) \u2014 generate or expla\nWARN: docs/CONFIGURATION.md:799: unmarked retired-tech mention: DATABASE_URL = os.getenv('DATABASE_URL')  # Supabase provides this, for the exception path only\nWARN: docs/DEPLOYMENT_ARCHITECTURE.md:397: unmarked retired-tech mention: | `/etc/iptables/add-docker-user-rules.sh` | DOCKER-USER chain rules. Only 80/443 serve traffic; the script also RETURNs\nWARN: docs/DEPLOYMENT_ARCHITECTURE.md:428: unmarked retired-tech mention: - **Allowed public TCP ports:** 80, 443 (the only ports serving traffic). The i\n\u2026 [truncated: ~53 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_retired_terms.py` for the FULL set; NEVER scope a fix to this preview] \u2026\ns for Windsurf Cascade\nWARN: docs/workflows/SYNC_ENFORCEMENT_WORKFLOW.md:44: unmarked retired-tech mention: | `opencode.json` | Kilo CLI configuration |\nWARN: docs/workflows/SYNC_ENFORCEMENT_WORKFLOW.md:70: unmarked retired-tech mention: | `kilo_code_review.py` | Kilo CLI review integration |\nWARN: docs/workstation/WSL2-DNS-FIX.md:24: unmarked retired-tech mention: 5. Node.js relies on `getaddrinfo()`, so Kilo CLI fails\nWARN: docs/workstation/WSL2-DNS-FIX.md:150: unmarked retired-tech mention: Verified by: Kilo CLI connectivity test\ncheck_retired_terms: 65 WARN(s) \u2014 advisory only, not blocking",
+      "truncated": true,
+      "omitted_lines": 53,
+      "rerun": "python scripts/enforcement/check_retired_terms.py"
+    },
+    {
+      "check": "Rule-pack reachability",
+      "output": "reachable: core/75-workers-jobs.md @ file-worker \u2014 via worker\n  reachable: core/app-audit-log.md @ saas-skeleton \u2014 via server/src/probe_saas_skeleton/auth.py\nExamined 2 pack(s) / 2 claim-pair(s) declaring applies_to for a checked type (of 13 scaffold type(s) checked).\nOK \u2014 every VERIFIABLE applies_to claim reaches at least one emitted path (2 of 2 examined pack(s) verified).",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": ".env.example Completeness",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Phase Tests (plan-window)",
+      "output": "PHASE-TESTS (advisory): OK \u2014 no active plan window shipping behavior without tests.",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "Ticket Breadth (plan sets)",
+      "output": "",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    }
+  ],
+  "blocking": 39,
+  "failures": [
+    {
+      "check": "Lint Ratchet (repo-wide, no new debt)",
+      "output": "ERROR: lint-ratchet \u2014 ruff errors ROSE 0 \u2192 1 (+1). New lint debt is not allowed: the repo-wide count may only go DOWN. Run `ruff check . --fix`, then fix the remainder until you are at or below 0. (This is CI-parity \u2014 your `ci.yml` runs the same `ruff check .`.)",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    }
+  ],
+  "warnings": [
+    {
+      "check": "Coverage Checklist (reviews)",
+      "output": "\u26a0 check_review_coverage ADVISORY \u2014 committed review(s) needing attention:\n  \u26a0 docs/development/reviews/2026-08-10-hub-governance-gates-review.md: COMMITTED with a non-quiet exit round (found: 10) \u2014 committing a review does not converge it. Finish the loop; BLOCKED-escalate the stuck finding (`## BLOCKED: <finding>` with its 3 attempts); when the LOOP itself failed (3 rounds of non-decreasing, nonzero `new:`), emit `## BLOCKED: NON-CONVERGENCE` naming the suspected foundation error; or mark the report `Status: IN-PROGRESS`.\n  \u26a0 docs/development/reviews/2026-08-19-plan-1-kaizen-m1-event-stream-review.md: COMMITTED with a Pass-shaped ledger line that does not parse ('Pass 1 (WIDE) \u2014 finders: pool fanout \u00d73 (deepseek-v3.2 raised 9 on the') \u2014 punctuate the counts or fence the quote\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T01-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T02-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-08-25-plan-1-inert-rule-packs-T03-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026\n\u2026 [truncated: ~6 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_review_coverage.py` for the FULL set; NEVER scope a fix to this preview] \u2026\n \u26a0 docs/development/reviews/2026-09-02-external-services-chain-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\n  \u26a0 docs/development/reviews/2026-09-10-mail-handling-governance-review.md: COMMITTED as Status: IN-PROGRESS \u2014 the loop that opened it has not closed; finish it, or this line stands forever\nNOTE: skip untracked in-flight draft (checked at staging): docs/development/reviews/2026-09-12-plan-2-mail-triage-phase-B-review.md\ncheck_review_coverage: OK \u2014 0 unproven coverage claims across 2 changed review artifact(s)",
+      "truncated": true,
+      "omitted_lines": 6,
+      "rerun": "python scripts/enforcement/check_review_coverage.py"
+    },
+    {
+      "check": "Vendored Drift (sync-excluded repos)",
+      "output": "\u26a0 check_vendored_drift ADVISORY \u2014 sync-excluded repos PULL, nothing is pushed to them; undeclared divergence below is invisible debt until someone opens it:\n  \u26a0 fabrik-lib: 17 identical \u00b7 19 declared-design \u00b7 51 UNREVIEWED diff \u00b7 11 local-only\n    \u26a0 fabrik-lib/scripts/enforcement/check_decisions_unique.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_doc_sprawl.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_duplicates.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_env_vars.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_feedback_duty.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/enforcement/check_imports_resolvable.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fa\n\u2026 [truncated: ~42 line(s) omitted \u2014 tail follows \u2014 run `python scripts/enforcement/check_vendored_drift.py` for the FULL set; NEVER scope a fix to this preview] \u2026\nre it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/.windsurf/rules/saas/95-multi-tenant-saas.md: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/review_rubric.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist\n    \u26a0 fabrik-lib/scripts/mail.py: differs from hub with no declaration \u2014 debt or design, nobody knows. Re-vendor it, or declare it in .fabrik/vendored-divergence-allowlist",
+      "truncated": true,
+      "omitted_lines": 42,
+      "rerun": "python scripts/enforcement/check_vendored_drift.py"
+    },
+    {
+      "check": "Corpus Weight (byte ratchet)",
+      "output": "\u26a0 check not present, skipping: scripts/enforcement/check_corpus_weight.py",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    },
+    {
+      "check": "untracked sources (advisory)",
+      "output": "\u26a0 1 untracked source file(s) NOT in gate scope (unstaged \u2192 unscanned): docs/development/reviews/2026-09-12-plan-2-mail-triage-phase-B-review.md \u2014 if yours: `git add` them and RE-RUN the gate (they ship unlinted otherwise); if a sibling's: leave them.",
+      "truncated": false,
+      "omitted_lines": 0,
+      "rerun": null
+    }
+  ]
+}
 ```

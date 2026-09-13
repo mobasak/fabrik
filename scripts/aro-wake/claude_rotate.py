@@ -2278,11 +2278,13 @@ def _drain_mail(repos: list[str], msg: str) -> None:
 
 
 def _argv_safe(text: str) -> str:
-    """*text* made encodable: a lone surrogate (JSON-parsed ledger text can carry one) cannot
-    cross argv or a text pipe — `subprocess` raises `UnicodeEncodeError` before the spawn, or on
-    the pipe write after it — so it is escaped (`\\ud800`) once, at the sink, and the message
-    is delivered as written. `surrogateescape` bytes (filesystem names) round-trip unchanged."""
-    return text.encode("utf-8", "backslashreplace").decode("utf-8")
+    """*text* made safe for argv and a text pipe: a lone surrogate (JSON-parsed ledger text can
+    carry one) raises `UnicodeEncodeError` before the spawn or on the pipe write, and a NUL
+    (legal in JSON, refused by argv) raises `ValueError` — both a `ValueError` no `OSError`
+    handler sees. Each is spelled out once, at the sink (`\\ud800`, `\\x00`), and the message is
+    delivered as written. A surrogateescape-decoded byte (a filesystem name with an invalid
+    byte) is spelled out the same way (`\\udc80`) rather than re-encoded as the raw byte."""
+    return text.encode("utf-8", "backslashreplace").decode("utf-8").replace("\x00", "\\x00")
 
 
 def _stamp_epoch(path: Path, now: float | None = None) -> int:
@@ -2320,7 +2322,9 @@ def _tick_telegram(msg: str, key: str = "quota-rotation") -> bool:
     fail-closed: a forward clock step past the tolerance in the instant between that value and
     the notifier's own `date +%s` reads a delivered send as unconfirmed, and the caller
     re-attempts it each tick — the notifier's own window suppresses the resend until it lapses,
-    so the operator may see one duplicate — never a silent stamp. `mesh-notify` exits 0 on every
+    so the operator may see one duplicate — never a silent stamp at the chain push, the one
+    caller that reads this return (the other callers latch their own stamps regardless of it).
+    `mesh-notify` exits 0 on every
     outcome (suppressed, curl failure, no keys — 0 non-zero `exit` statements in the script; the
     process can still end without that status — an unrunnable or hand-broken script, a signal, or
     this call's 30 s timeout, which raises here instead of returning one — and no status is read
