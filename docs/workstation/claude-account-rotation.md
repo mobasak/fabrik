@@ -313,12 +313,14 @@ own success artifact advanced (`claude-sound.sh mesh-notify` exits 0 on every ou
 is read from `<lockdir>/<key>.notified`, which it writes solely on a delivered send), under the
 push's OWN per-account key (`quota-rotation-chain-<hash>`) so a rotation notification's 30-minute
 window can never eat it; an undelivered push is retried next tick with the real cause printed
-(notifier absent · suppressed by its window · send failed), never recorded as sent; a stamp that
-still holds the current key is re-touched every tick, and the stamp lands in `fleet-stamps/` under
-the resume mesh's lock dir (`/tmp/claude-sound-locks-<uid>`, or `CLAUDE_SOUND_LOCKDIR` for the
-notifier and the tool alike — never `$TMPDIR`; user-only 0700, repaired when this uid owns it) as
-a 0600 file (`fchmod`, so an older 0644 stamp is fixed too) when the state dir refuses the write.
-The subdir is load-bearing: every Stop hook prunes the lock dir's top level by mtime at 2 h. The old `--keepalive` ping is RETIRED (2026-09-12): its
+(notifier absent · suppressed by its window · send failed — judged against the wall clock, not the
+tick's start time), never recorded as sent. The stamp has ONE home, `~/.claude/state` (this uid's
+0700 dir, where every other stamp of the tick lives), written 0600 through `O_NOFOLLOW` with the
+mode enforced (`fchmod`) — there is deliberately no fallback dir: three review rounds of a temp-dir
+and then a lock-dir fallback each added a class of defect (symlink write-through, world-readable
+modes, `$TMPDIR` splits, the Stop hook's 2 h sweep) for a condition under which the tick's ledger
+and drain stamps are already failing. A state dir that refuses the stamp is printed and the push
+repeats, bounded by the notifier's window; `--status` prints the warning regardless. The old `--keepalive` ping is RETIRED (2026-09-12): its
 premise was false and, keyed on a credential mtime the tick renews daily, both logged Monday runs
 (2026-08-31, 2026-09-07 — `~/.claude/keepalive.log`) pinged nothing. The flag is kept as a no-op
 that prints why (rc 0), so the cron line below can be deleted at leisure — crontab edits are the

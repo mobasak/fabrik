@@ -2264,22 +2264,20 @@ def _drain_mail(repos: list[str], msg: str) -> None:
             continue  # one refused mailbox must not stop the broadcast
 
 
-_STAMP_EPOCH_MAX_AHEAD_S = 86400
-
-
 def _stamp_epoch(path: Path, now: float | None = None) -> int:
     """The epoch a stamp holds, 0 when it is missing, unreadable, garbage, a symlink, or not a
-    plausible clock reading (negative, or more than a day past *now* — an all-digits garbage
-    artifact would otherwise read as "the future" forever and no later send could ever advance
-    it; the same clamp the drain stamp applies to mtimes). The notifier writes `.notified` as a
-    bare epoch; a torn or planted file must read as nothing."""
+    plausible clock reading — negative, or past *now* by more than ``_CLOCK_SKEW_TOLERANCE_S``,
+    the one future tolerance every stamp in this file uses (the notifier's `date +%s` is the same
+    wall clock): an all-digits garbage artifact would otherwise read as "the future" forever and
+    no later send could ever advance it. The notifier writes `.notified` as a bare epoch; a torn
+    or planted file must read as nothing."""
     try:
         if path.is_symlink() or not path.is_file():
             return 0
         value = int(path.read_text(errors="replace").strip() or 0)
     except (OSError, ValueError):
         return 0
-    limit = (now if now is not None else _now()) + _STAMP_EPOCH_MAX_AHEAD_S
+    limit = (now if now is not None else _now()) + _CLOCK_SKEW_TOLERANCE_S
     return value if 0 <= value <= limit else 0
 
 
@@ -2751,9 +2749,15 @@ def _refresh_expiry_epoch(creds: Path) -> float | None:
         exp = (json.loads(creds.read_bytes()).get("claudeAiOauth") or {}).get(
             "refreshTokenExpiresAt"
         )
-    except (OSError, ValueError, AttributeError, TypeError):
+    except (OSError, ValueError, AttributeError, TypeError, OverflowError):
         return None
-    return float(exp) / 1000.0 if isinstance(exp, (int, float)) and exp > 0 else None
+    if not isinstance(exp, (int, float)) or exp <= 0:
+        return None
+    try:
+        value = float(exp) / 1000.0
+    except OverflowError:  # a corrupt giant int must not kill the whole tick
+        return None
+    return value if math.isfinite(value) else None
 
 
 def _identity_probe_stamp(slug: str) -> Path:
@@ -3659,7 +3663,7 @@ def _fleet_row_warnings(accounts: list[dict]) -> list[str]:
         slug = row.get("refresh_expires_slug") or (slugs[0] if slugs else "<slug>")
         block = _relogin_block(slug, str(row.get("email")))
         exp = row.get("refresh_expires_epoch")
-        if isinstance(exp, (int, float)):
+        if isinstance(exp, (int, float)) and math.isfinite(exp):
             left = exp - now
             if left <= 0:
                 warns.append(
@@ -4906,34 +4910,24 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
     return 0
 
 
-_FLEET_STAMP_SUBDIR = "fleet-stamps"
-
-
 def _chain_push_digest(email: str) -> str:
     """The 8-hex identity of an account's chain-push stamp AND its notify key — one derivation,
     so the two can never drift apart. Not a security hash (bandit B324): a name."""
     return hashlib.sha1(email.lower().encode(), usedforsecurity=False).hexdigest()[:8]
 
 
-def _chain_push_stamps(email: str) -> list[Path]:
-    """The once-per-chain push stamp's candidate paths, most durable first: the rotate state dir,
-    then `<lockdir>/fleet-stamps/` under the resume mesh's lock dir (`_selfwatch_lock_dir()`, the
-    path cron and a shell agree on because it never reads $TMPDIR; user-only 0700 when this tool
-    or the notifier creates it). The SUBDIR matters: every Stop hook prunes the lock dir's top
-    level by mtime at 2 h (`claude-stop-decider.py` `acquire_lock`), and it never descends — a
-    stamp at the top level would be swept and the push would repeat every two hours. The fallback
-    exists for a state dir that cannot be made OR cannot be written (an existing read-only dir
-    passes ``mkdir(exist_ok=True)``). The name carries the email's 8-hex digest because the
-    a-z0-9 slug alone folds ``a.b@x`` and ``a-b@x`` onto one file."""
+def _chain_push_stamp(email: str) -> Path:
+    """The once-per-chain push stamp — ONE home, the rotate state dir (0700, this uid's: the
+    place every other stamp of the tick lives). There is deliberately no fallback: three review
+    rounds of a temp-dir / lock-dir fallback each added a class of defect (symlink write-through,
+    world-readable modes, `$TMPDIR` splits, the Stop hook's 2 h sweep) for a condition — a state
+    dir that refuses the write — under which the tick's ledger, drain and advisory stamps are
+    already failing; in that condition the push repeats, bounded by the notifier's own 30-minute
+    window per key, and `--status` keeps printing the warning regardless. The name carries the
+    email's 8-hex digest because the a-z0-9 slug alone folds ``a.b@x`` and ``a-b@x`` onto one
+    file. Raises ``_STATE_DIR_ERRORS`` when the state dir cannot be made — the caller degrades."""
     safe = re.sub(r"[^a-z0-9]+", "-", email.lower()).strip("-")
-    name = f"fleet-chain-push-{safe}-{_chain_push_digest(email)}"
-    paths: list[Path] = []
-    try:
-        paths.append(_rotate_state_dir() / name)
-    except _STATE_DIR_ERRORS:
-        pass
-    paths.append(_selfwatch_lock_dir() / _FLEET_STAMP_SUBDIR / name)
-    return paths
+    return _rotate_state_dir() / f"fleet-chain-push-{safe}-{_chain_push_digest(email)}"
 
 
 def _stamp_holds(path: Path, key: str) -> bool:
@@ -4949,18 +4943,10 @@ def _stamp_holds(path: Path, key: str) -> bool:
 
 
 def _write_stamp(path: Path, key: str) -> None:
-    """Write *key* to *path* as a 0600 regular file, never through a symlink (O_NOFOLLOW): the
-    fallback dir is shared with other tools, so a planted link must not become a write-through.
-    The mode is ENFORCED (`fchmod`) — `os.open`'s mode applies only to a file it creates, so a
-    stamp left at 0644 by an older writer would otherwise keep 0644 across every re-mint. The
-    parent is created 0700, and repaired to 0700 when this uid owns it and it is wider — the
-    delivery gate trusts an artifact in that dir. Raises OSError on any refusal — the caller
-    decides what a failed write means."""
-    parent = path.parent
-    parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    st = parent.stat()
-    if st.st_uid == os.getuid() and st.st_mode & 0o077:
-        os.chmod(parent, 0o700)
+    """Write *key* to *path* as a 0600 regular file, never through a symlink (O_NOFOLLOW), the
+    mode ENFORCED with `fchmod` (`os.open`'s mode applies only to a file it creates). The dir is
+    this uid's 0700 state dir, so no other uid can plant a file here; a planted symlink is
+    refused before any byte moves. Raises OSError on any refusal — the caller decides."""
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
     with os.fdopen(fd, "w") as fh:
         os.fchmod(fd, 0o600)
@@ -4975,10 +4961,9 @@ def _chain_expiry_push(accounts: list[dict], now: float) -> int:
     (new expiry) re-arms by itself. The stamp is written ONLY after the notifier's own success
     artifact advanced (delivery is never inferred from its exit code) under the push's OWN key
     (`quota-rotation-chain-<digest>`) — a rotation notification's 30-minute window can never eat
-    it — and an undelivered push is retried next tick with the real cause printed; a stamp that
-    still holds the current key has its mtime refreshed every tick so no age-based sweep removes
-    it; the stamp falls back to the mesh lock dir's `fleet-stamps/` when the state dir refuses
-    the write. Returns the number of pushes delivered. Never raises."""
+    it — and an undelivered push is retried next tick with the real cause printed. A state dir
+    that refuses the stamp is printed and the push repeats, bounded by the notifier's window.
+    Returns the number of pushes delivered. Never raises."""
     sent = 0
     for row in accounts:
         exp = row.get("refresh_expires_epoch")
@@ -4988,14 +4973,11 @@ def _chain_expiry_push(accounts: list[dict], now: float) -> int:
             continue
         email = str(row.get("email"))
         key = str(int(exp))
-        stamps = _chain_push_stamps(email)
-        held = [p for p in stamps if _stamp_holds(p, key)]
-        if held:
-            for p in held:
-                try:
-                    os.utime(p, None)  # keep it young: the lock dir is swept by mtime
-                except OSError:
-                    pass
+        try:
+            stamp: Path | None = _chain_push_stamp(email)
+        except _STATE_DIR_ERRORS:
+            stamp = None
+        if stamp is not None and _stamp_holds(stamp, key):
             continue
         slugs = row.get("slugs") or []
         slug = row.get("refresh_expires_slug") or (slugs[0] if slugs else "<slug>")
@@ -5012,22 +4994,22 @@ def _chain_expiry_push(accounts: list[dict], now: float) -> int:
             key=notify_key,
         )
         if delivered is not True:
+            # the wall clock, not the tick's `now`: the rows leg can run minutes (up to three
+            # 150 s pings) before this line, and the notifier's window is judged against real time
             print(
-                f"chain push: {email} NOT delivered — {_notify_failure_reason(notify_key, now)}"
+                f"chain push: {email} NOT delivered — {_notify_failure_reason(notify_key)}"
                 " — retried next tick"
             )
             continue
         sent += 1
-        for p in stamps:
-            try:
-                _write_stamp(p, key)
-                break
-            except OSError:
-                continue
-        else:
+        try:
+            if stamp is None:
+                raise OSError("state dir unavailable")
+            _write_stamp(stamp, key)
+        except OSError as e:
             print(
-                f"chain push: {email} stamp unwritable ({', '.join(str(p) for p in stamps)}) — "
-                "the push repeats next tick"
+                f"chain push: {email} stamp unwritable ({stamp or _rotate_state_dir.__name__}: "
+                f"{e}) — the push repeats next tick, bounded by the notifier's window"
             )
     return sent
 
