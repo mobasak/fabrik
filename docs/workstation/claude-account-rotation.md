@@ -316,10 +316,10 @@ window can never eat it. An unconfirmed push is retried next tick and the line s
 can know: the notifier is absent, or the send could not be confirmed (suppressed by the notifier's
 window, the send failed, no Telegram keys and no custom notifier so it was never attempted, the
 notifier did not finish, the notifier delivered but could not write its own artifact, or its
-artifact is a symlink, unreadable, clock-implausible, or torn to empty or below the previous
-reading — causes the tick cannot tell apart, one of them a send that went out, so it never says
-"not delivered" and names them all rather than guess; a torn write above the previous reading
-confirms the push, the send having gone out, with only its recorded epoch wrong).
+artifact did not read as a plausible epoch above the previous reading — a symlink, a non-file, an
+unreadable or non-numeric file, or a clock-implausible value reads as nothing, and a torn write
+can land at or below it — causes the tick cannot tell apart, some of them a send that went out,
+so it never says "not delivered" and names them all rather than guess).
 The stamp has ONE home, `~/.claude/state` (0700 less the umask when the tool creates it; an existing
 dir keeps the mode the operator gave it — `--status` is a read and never chmods; the dir is the
 trust boundary), written as a 0600 regular file through `O_NOFOLLOW` + `O_NONBLOCK` with an

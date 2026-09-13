@@ -1548,7 +1548,7 @@ def test_chain_push_refuses_a_planted_symlink_stamp(tmp_path, monkeypatch, capsy
 
 def test_chain_push_names_the_notifier_verdict_it_can_know(tmp_path, monkeypatch, capsys):
     """The UNCONFIRMED line says the notifier is absent when it is, and otherwise that the send
-    could not be confirmed, with every possible cause — one of them a send that DID go out (the
+    could not be confirmed, with every possible cause — some of them a send that DID go out (the
     notifier delivered but could not write its artifact), which is why the line never says
     "NOT delivered" — and the tick's `now` plays no part."""
     monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
@@ -1683,11 +1683,12 @@ def test_write_stamp_refuses_a_fifo_and_never_blocks_on_it(tmp_path):
 
 def test_notify_failure_reason_names_every_cause_it_cannot_tell_apart(tmp_path, monkeypatch):
     """This side can only know that the notifier is absent, or that the send is unconfirmed
-    — and the latter has causes it cannot separate honestly, one of them a send that went out (a guessed "suppressed" or
-    "FAILED" was wrong under a stale tick clock and under a backward clock step, review rounds
-    4–6; and on the timeout path the artifact is not even re-read, so the line may not claim it
-    "did not advance"). The property under test is INVARIANCE: the line names every cause and does
-    not vary with what the artifact holds — the four contents are the input domain."""
+    — and the latter has causes it cannot separate honestly, some of them a send that went out
+    (a guessed "suppressed" or "FAILED" was wrong under a stale tick clock and under a backward
+    clock step, review rounds 4–6; and on the timeout path the artifact is not even re-read, so
+    the line may not claim it "did not advance"). The property under test is INVARIANCE: the line
+    names every cause and does not vary with what the artifact holds — the four contents are the
+    input domain."""
     locks = tmp_path / "locks"
     locks.mkdir()
     monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(locks))
@@ -1706,8 +1707,9 @@ def test_notify_failure_reason_names_every_cause_it_cannot_tell_apart(tmp_path, 
         assert "delivered but could not write" in line and "clock-implausible" in line, content
         assert "MESH_NOTIFY_CMD" in line and "never attempted" in line, content
         assert "no custom notifier" in line and "torn short" not in line, content
-        assert "torn to empty or below the previous reading" in line, content
-        assert "a symlink (read as nothing)" in line, content
+        assert "plausible epoch above the previous reading" in line, content
+        assert "a symlink" in line and "reads as nothing" in line, content
+        assert "at or below it" in line and "torn to empty" not in line, content
         assert "unavailable" not in line
     (locks / f"{key}.notified").unlink()
     assert "could not be confirmed" in cr._notify_failure_reason()

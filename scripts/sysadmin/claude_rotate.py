@@ -2275,7 +2275,8 @@ def _stamp_epoch(path: Path, now: float | None = None) -> int:
     the one future tolerance every stamp in this file uses (the notifier's `date +%s` is the same
     wall clock): an all-digits garbage artifact would otherwise read as "the future" forever and
     no later send could ever advance it. The notifier writes `.notified` as a bare epoch; a torn
-    or planted file must read as nothing."""
+    or planted file reads as nothing or as an epoch no later than that limit, never as the
+    future."""
     try:
         if path.is_symlink() or not path.is_file():
             return 0
@@ -2298,8 +2299,8 @@ def _tick_telegram(msg: str, key: str = "quota-rotation") -> bool:
     KEY, so a message that must never be eaten by a rotation notification passes its own key.
     True ONLY when the notifier's success artifact (`_notify_marker`) advanced during the call:
     `mesh-notify` exits 0 on every outcome (suppressed, curl failure, no keys — 0 non-zero
-    `exit` statements in the script; the process can still end without that status — a parse
-    error after a hand edit, a signal, or this call's 30 s timeout, which raises here instead of
+    `exit` statements in the script; the process can still end without that status — an error
+    after a hand edit, a signal, or this call's 30 s timeout, which raises here instead of
     returning a status — and no status is read on any path), so delivery is read from the
     artifact, never from the return code. A False means the
     notifier is absent, could not be run to completion, or its artifact did not advance —
@@ -2324,25 +2325,26 @@ def _tick_telegram(msg: str, key: str = "quota-rotation") -> bool:
 def _notify_failure_reason() -> str:
     """Why `_tick_telegram` just returned False. Two things are knowable from here — the notifier
     is absent, or the send could not be CONFIRMED — and an unconfirmed send has causes this side
-    cannot tell apart, one of which is a send that DID go out: the notifier suppressed it inside
+    cannot tell apart, some of which are sends that DID go out: the notifier suppressed it inside
     its 30-minute window; the send failed (curl or a custom MESH_NOTIFY_CMD); there were no
     Telegram keys and no custom notifier, so no send was attempted; the notifier did not finish
     (a timeout or a failed exec — on which path the artifact is not even re-read); the notifier
     delivered but could not write its own artifact (its lock dir refused the write — bash reports
     that on the notifier's stderr, which `_tick_telegram` captures and discards); or the artifact
-    is a symlink (read as nothing), unreadable, clock-implausible, or torn to empty or below the
-    previous reading, so it did not advance (a torn write ABOVE the previous reading — any
-    non-empty write when there was no artifact yet — advances and confirms: the send did go out,
-    only the recorded epoch is wrong). So the line names them all rather than guess one."""
+    did not read as a plausible epoch above the previous reading — a symlink, a non-file, an
+    unreadable or non-numeric file, or a clock-implausible value reads as nothing
+    (`_stamp_epoch`), and a torn write can land at or below it. So the line names them all rather
+    than guess one."""
     if not (Path.home() / ".claude" / "bin" / "claude-sound.sh").is_file():
         return "mesh-notify unavailable (no claude-sound.sh)"
     return (
         "the send could not be confirmed — suppressed by the notifier's 30-minute window for this"
         " key, the send failed (curl or a custom MESH_NOTIFY_CMD), no Telegram keys and no custom"
         " notifier so it was never attempted, the notifier did not finish (a timeout or a failed"
-        " exec), the notifier delivered but could not write its own artifact, or its artifact is"
-        " a symlink (read as nothing), unreadable, clock-implausible, or torn to empty or below"
-        " the previous reading, so it did not advance"
+        " exec), the notifier delivered but could not write its own artifact, or its artifact did"
+        " not read as a plausible epoch above the previous reading (a symlink, a non-file, an"
+        " unreadable or non-numeric file, or a clock-implausible value reads as nothing; a torn"
+        " write can land at or below it)"
     )
 
 
