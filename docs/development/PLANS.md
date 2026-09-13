@@ -39,7 +39,7 @@ All feature/execution/design plans live in `docs/development/plans/`.
 | [2026-09-06-plan-2-multi-agent-adoption.md](plans/2026-09-06-plan-2-multi-agent-adoption/2026-09-06-plan-2-multi-agent-adoption.md) | infra | EXECUTED | 2/4 |
 | [2026-09-09-plan-1-review-convergence-redesign.md](plans/2026-09-09-plan-1-review-convergence-redesign/2026-09-09-plan-1-review-convergence-redesign.md) | — | IN_PROGRESS | - |
 | [2026-09-11-plan-1-review-family-pass3.md](plans/2026-09-11-plan-1-review-family-pass3.md) | — | IN_PROGRESS | 0/4 |
-| [2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round.md](plans/2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round.md) | — | DRAFT | - |
+| [2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round.md](plans/2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round.md) | — | CONVERGED | - |
 <!-- AUTO-GENERATED:PLANS:END -->
 
 ---
