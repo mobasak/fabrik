@@ -280,6 +280,16 @@ def test_the_changed_list_reads_paths_only_across_wrapped_lines_and_never_from_a
     assert r.returncode == 0, r.stdout
     r = _run_on(tmp_path, with_x.replace("# R\n", "# R\n**Changed:** `x.py`, `v1.2.3`\n\n"))
     assert r.returncode == 1 and "`v1.2.3`" in r.stdout, r.stdout
+    # round 14: the docstring's own examples — a suffixed version and a dotted host with a port
+    # are paths (stated costs), a dotted IP is a bare numeral
+    r = _run_on(tmp_path, with_x.replace("# R\n", "# R\n**Changed:** `x.py`, `1.2.3-rc1`\n\n"))
+    assert r.returncode == 1 and "`1.2.3-rc1`" in r.stdout, r.stdout
+    r = _run_on(
+        tmp_path, with_x.replace("# R\n", "# R\n**Changed:** `x.py`, `db.example.com:5432`\n\n")
+    )
+    assert r.returncode == 1 and "`db.example.com`" in r.stdout, r.stdout
+    r = _run_on(tmp_path, with_x.replace("# R\n", "# R\n**Changed:** `x.py`, `10.99.0.1`\n\n"))
+    assert r.returncode == 0, r.stdout
     # an IN-PROGRESS receipt (a seat's mid-loop draft) is exempt from the Hunt-row leg too
     r = _run_on(
         tmp_path,

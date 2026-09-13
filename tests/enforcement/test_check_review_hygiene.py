@@ -1232,6 +1232,27 @@ def test_stop_at_heading_matches_a_real_heading_and_blanks_the_symbol_count_too(
         "",
         "after",
     ]
+    # round 14: a closer is read through the mask like every marker (I4) and the closing line's
+    # tail after the closer is live at its own offset (G29)
+    assert crh._blank_quoted(["<!-- opens", "in a span `-->` and LIVE", "live"]) == ["", "", ""]
+    assert crh._blank_quoted(["<!-- opens", "closes --> | foo | FIXED, REFUTED |"]) == [
+        "",
+        "           | foo | FIXED, REFUTED |",  # ten blanks for `closes -->`, then the tail
+    ]
+    assert (
+        crh._until_heading(
+            "# D\n\nlive\n<!-- opens\n## Pass Ledger\nretired\n`-->`\nafter\n", "## Pass Ledger"
+        )[1]
+        == 4
+    )
+    # round 14: the neutralisation rewrites only from the opener — a CLOSED comment before it
+    # must survive for the raw prefilter, or the heading behind it is not the stop
+    assert (
+        crh._until_heading(
+            "# D\n\nlive\n<!-- x --> ## Pass Ledger <!-- open\nretired\n", "## Pass Ledger"
+        )[1]
+        == 2
+    )
     assert crh._heading_key("## A <!--> B --> C") == "a b --> c"
     assert (
         crh._until_heading(
@@ -1259,16 +1280,20 @@ def test_stop_at_heading_matches_a_real_heading_and_blanks_the_symbol_count_too(
             "# D\n\nthe widget lives\n## Pass `a <!-- b` Ledger <!-- n -->\nthe widget retired\n",
             "## Pass `a <!-- b` Ledger",
         ),
-        (  # round 11: a later real closer must not turn that heading into a comment opener
-            "span-closer-later.md",
-            "# D\n\nthe widget lives\n## Pass Ledger <!-- x `-->` y\nthe widget retired\n\nprose with --> in it\n",
-            "## Pass Ledger",
-        ),
     ):
         f = tmp_path / name
         f.write_text(text, encoding="utf-8")
         sweep = crh.scan(surfaces=[f], phrases=["the widget"], stop_at_heading=arg)
         assert [h.line for h in sweep.hits if h.cls == "stale-phrase"] == [3], (name, sweep.hits)
+    # round 14 (reverses round 11's same-line exception): a span's `-->` is never a closer, so a
+    # heading line opening a comment that a LATER line closes sits inside that comment — no stop
+    later = tmp_path / "span-closer-later.md"
+    later.write_text(
+        "# D\n\nthe widget lives\n## Pass Ledger <!-- x `-->` y\nthe widget retired\n\nprose with --> in it\n",
+        encoding="utf-8",
+    )
+    sweep = crh.scan(surfaces=[later], phrases=["the widget"], stop_at_heading="## Pass Ledger")
+    assert [h.line for h in sweep.hits if h.cls == "stale-phrase"] == [3, 5], sweep.hits
     # regression (not a round-6 shape): an earlier opener runs to a LATER closer — that is the
     # comment, by CommonMark and by HTML —
     # so the heading inside it is no stop, nothing is blanked, and the phrase sweep (which reads

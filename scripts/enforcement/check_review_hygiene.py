@@ -218,10 +218,19 @@ def _blank_quoted(lines: list[str]) -> list[str]:
         # (the D-181 convention) is prose, and an unmasked read blanked every later row of 9 of 805
         # fleet receipts — a real raw-pipe defect lost behind "0 hits" (2026-09-10)
         if in_comment:
-            out.append("")
-            if "-->" in _mask_code_spans(ln):
-                in_comment = False
-            continue
+            # the closer is read through the code-span mask like every marker in this file (I4:
+            # a receipt cell quoting `-->` is prose); the tail after it is read like any line,
+            # blanked to its offset (G29; round 14: the whole closing line was blanked)
+            j = _mask_code_spans(ln).find("-->")
+            if j < 0:
+                out.append("")
+                continue
+            in_comment = False
+            tail = ln[j + 3 :]
+            if not tail.strip():
+                out.append("")
+                continue
+            ln = " " * (j + 3) + tail  # the tail keeps its offset; the comment part is blank
         # the FENCE state is decided first: a marker inside a fenced example is quoted text (with
         # the opener tested first, a fenced `<!--` blanked every later line of a probe copy; 0 live
         # files differ under the two orders — the shape is latent)
@@ -684,12 +693,16 @@ _CLOSED_COMMENT = re.compile(r"<!--(?:-?>|.*?-->)")
 
 
 def _comment_cuts(ln: str) -> tuple[list[tuple[int, int]], int]:
-    """The HTML comments on ONE line, read through the code-span mask — the ONE reading
-    `_blank_quoted`, `_heading_key` and `_until_heading` share (round 13: three substring
-    readers and one regex reader disagreed on an empty comment before a real opener and on a
-    span holding a closed comment). Returns the closed comments as (start, end) offsets into the
-    raw line, and the offset of an opener with no closer after it (-1 if none); a closer inside
-    a code span is no closer, an opener inside one is no opener."""
+    """The HTML comments on ONE line: the closed ones as (start, end) offsets into the raw line,
+    and the offset of an opener with no closer after it (-1 if none) — read through the code-
+    span mask, so an opener inside a span is no opener and a closed comment is matched masked.
+    This is the reading `_blank_quoted`, `_heading_key` and `_until_heading` share (round 13:
+    three substring readers disagreed on an empty comment before a real opener and on a span
+    holding a closed comment); a closer of an OPEN block is read through the same mask by the
+    `in_comment` exit of `_blank_quoted` and by `_until_heading`'s look-ahead (I4: a receipt
+    cell quoting `-->` is prose — round 11's same-line raw exception is gone, round 14). The one
+    deliberate raw read is `_until_heading`'s heading-line prefilter, which strips closed
+    comments raw so a span-led line is not a heading."""
     masked = _mask_code_spans(ln)
     closed = [(m.start(), m.end()) for m in _CLOSED_COMMENT.finditer(masked)]
     rest = masked
@@ -712,7 +725,7 @@ def _heading_key(s: str) -> str:
     closed, opener = _comment_cuts(s)
     if opener >= 0:
         s = s[:opener]
-        closed = [c for c in closed if c[1] <= opener]
+        closed = [c for c in closed if c[1] <= opener]  # defensive: none can straddle the opener
     for a, b in reversed(closed):
         s = s[:a] + s[b:]
     s = s.strip()
@@ -746,13 +759,10 @@ def _until_heading(text: str, heading: str | None) -> tuple[str, int]:
     for i, ln in enumerate(quoted):
         opener = _comment_cuts(ln)[1]
         if opener >= 0:
-            # a closer inside a code span AFTER the opener on its own line still ends the block
-            # for the renderer (an HTML block knows no spans), so that opener is literal text
-            # here too (round 11; round 12: a closer BEFORE the opener closes nothing; round 13:
-            # the opener is the one `_comment_cuts` found, never a span's)
-            if "-->" in ln[opener:] or not any(
-                "-->" in _mask_code_spans(q) for q in quoted[i + 1 :]
-            ):
+            # the opener `_comment_cuts` found (never a span's — round 13) is literal text when
+            # no later line closes it through the mask (round 14: the same-line raw exception
+            # of rounds 11–13 read a span's `-->` as a closer, against the file's one model)
+            if not any("-->" in _mask_code_spans(q) for q in quoted[i + 1 :]):
                 quoted[i] = ln[:opener] + ln[opener:].replace("<!--", "<!- -")
     for i, ln in enumerate(_blank_quoted(quoted)):
         if ln.startswith("    ") or ln.startswith("\t"):
