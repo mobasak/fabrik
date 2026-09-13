@@ -2297,11 +2297,12 @@ def _tick_telegram(msg: str, key: str = "quota-rotation") -> bool:
     """mesh-notify the operator under *key*. The notifier's 30-minute suppression window is PER
     KEY, so a message that must never be eaten by a rotation notification passes its own key.
     True ONLY when the notifier's success artifact (`_notify_marker`) advanced during the call:
-    `mesh-notify` exits 0 on every outcome (suppressed, curl failure, no keys — 0 non-zero exits
-    in the script), so delivery is read from the artifact, never from the return code. A False
-    means the notifier is absent, could not be run to completion, or its artifact did not
-    advance — `_notify_failure_reason` names what this side can know and the causes it cannot
-    tell apart."""
+    `mesh-notify` exits 0 on every outcome (suppressed, curl failure, no keys — 0 non-zero
+    `exit` statements in the script; an abort under its `set -u` is the one non-zero way out,
+    and it can happen after the artifact was written), so delivery is read from the artifact,
+    never from the return code. A False means the notifier is absent, could not be run to
+    completion, or its artifact did not advance — `_notify_failure_reason` names what this side
+    can know and the causes it cannot tell apart."""
     sound = Path.home() / ".claude" / "bin" / "claude-sound.sh"
     if not sound.is_file():
         return False
@@ -2323,18 +2324,21 @@ def _notify_failure_reason() -> str:
     """Why `_tick_telegram` just returned False. Two things are knowable from here — the notifier
     is absent, or the send could not be CONFIRMED — and an unconfirmed send has causes this side
     cannot tell apart, one of which is a send that DID go out: the notifier suppressed it inside
-    its 30-minute window; the send failed (curl, a custom MESH_NOTIFY_CMD, or no Telegram keys);
-    the notifier did not finish (a timeout, an abort, or a failed exec — on which path the
-    artifact is not even re-read); the notifier delivered but could not write its own artifact
-    (its lock dir refused the write, swallowed by its `2>/dev/null`); or the artifact is
-    unreadable or clock-implausible. So the line names them all rather than guess one."""
+    its 30-minute window; the send failed (curl or a custom MESH_NOTIFY_CMD); there were no
+    Telegram keys, so no send was attempted; the notifier did not finish (a timeout or a failed
+    exec — on which path the artifact is not even re-read); the notifier aborted before writing
+    its artifact; the notifier delivered but could not write its own artifact (its lock dir
+    refused the write — bash reports that on the notifier's stderr, which `_tick_telegram`
+    captures and discards); or the artifact is unreadable or clock-implausible. So the line
+    names them all rather than guess one."""
     if not (Path.home() / ".claude" / "bin" / "claude-sound.sh").is_file():
         return "mesh-notify unavailable (no claude-sound.sh)"
     return (
         "the send could not be confirmed — suppressed by the notifier's 30-minute window for this"
-        " key, the send failed (curl, a custom MESH_NOTIFY_CMD, or no Telegram keys), the notifier"
-        " did not finish (a timeout, an abort, or a failed exec), the notifier delivered but could"
-        " not write its own artifact, or its artifact is unreadable or clock-implausible"
+        " key, the send failed (curl or a custom MESH_NOTIFY_CMD), no Telegram keys so it was never"
+        " attempted, the notifier did not finish (a timeout or a failed exec) or aborted before"
+        " writing its artifact, the notifier delivered but could not write its own artifact, or"
+        " its artifact is unreadable or clock-implausible"
     )
 
 
@@ -4944,9 +4948,10 @@ def _stamp_holds(path: Path, key: str) -> bool:
     """True when *path* is a regular (never a symlink) readable stamp holding exactly *key*; a
     missing, unreadable or garbage stamp (a torn write, non-UTF-8 bytes) reads as ABSENT, never
     as an exception — the failure direction is "notify again". The trust boundary is the DIR:
-    the state dir is this uid's, created 0700 less the umask, and a dir the operator made wider is the
-    operator's (D-251 — a path-based owner/mode check here defended against no principal this
-    box has and mis-fired on mounts that cannot hold a mode)."""
+    the state dir is this uid's, created 0700 less the umask (an existing dir keeps the mode it
+    has), and a dir the operator made wider is the operator's (D-251 — a path-based owner/mode
+    check here defended against no principal this box has and mis-fired on mounts that cannot
+    hold a mode)."""
     try:
         if path.is_symlink() or not path.is_file():
             return False
@@ -4990,9 +4995,10 @@ def _chain_expiry_push(accounts: list[dict], now: float) -> int:
     OWN key (`quota-rotation-chain-<digest>`) — a rotation notification's 30-minute window can
     never eat it — and an unconfirmed push is retried next tick with every cause this side can
     know printed. A state dir that refuses the stamp is printed and the push repeats, bounded by
-    the notifier's window — a LOCK dir that refuses the notifier's own artifact defeats both the
-    stamp and that window, and the push then repeats per tick until the operator fixes the dir.
-    Returns the number of pushes delivered. Never raises."""
+    the notifier's window. A LOCK dir that refuses the notifier's own artifact defeats both,
+    because the stamp is written only after the artifact confirms the send and the notifier's
+    window is read from that same file: every tick then DELIVERS the push again until the
+    operator fixes the dir. Returns the number of pushes delivered. Never raises."""
     sent = 0
     for row in accounts:
         exp = row.get("refresh_expires_epoch")

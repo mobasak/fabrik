@@ -1407,7 +1407,7 @@ def test_chain_push_stamps_only_a_delivered_notify(tmp_path, monkeypatch, capsys
     monkeypatch.setattr(Path, "home", lambda: tmp_path)  # no notifier → the reason says so
     capsys.readouterr()
     assert cr._chain_expiry_push([row], FLEET_NOW) == 0
-    assert cr._chain_expiry_push([row], FLEET_NOW) == 0, "undelivered → retried, never stamped"
+    assert cr._chain_expiry_push([row], FLEET_NOW) == 0, "unconfirmed → retried, never stamped"
     out = capsys.readouterr().out
     assert out.count("push UNCONFIRMED") == 2 and "unavailable" in out
     assert not cr._chain_push_stamp("sarp@ocoron.com").exists()
@@ -1701,9 +1701,11 @@ def test_notify_failure_reason_names_every_cause_it_cannot_tell_apart(tmp_path, 
         (locks / f"{key}.notified").write_text(content)
         line = cr._notify_failure_reason()
         assert "suppressed" in line and "failed" in line and "unreadable" in line, content
-        assert "did not finish" in line and "failed exec" in line and "abort" in line, content
+        assert "did not finish" in line and "failed exec" in line and "aborted before" in line, (
+            content
+        )
         assert "delivered but could not write" in line and "clock-implausible" in line, content
-        assert "MESH_NOTIFY_CMD" in line, content
+        assert "MESH_NOTIFY_CMD" in line and "never attempted" in line, content
         assert "unavailable" not in line
     (locks / f"{key}.notified").unlink()
     assert "could not be confirmed" in cr._notify_failure_reason()
