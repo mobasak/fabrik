@@ -510,7 +510,8 @@ there. Production reference: `/opt/youtube/docs/reference/pipeline-resilience.md
    (300 s) anchored on the last SUCCESSFUL send and re-armed by each one — a suppressed call does
    not extend it, so it is a fixed window, not a sliding one. (2) Not a cadence: it is a FLOOR on
    spacing, so the alert re-fires on the caller's next call past the window, at whatever rate the
-   caller runs — hourly for an hourly cron, not every 5 minutes. ⚠️ And for a CRON the floor does not apply at ALL — each run is a fresh process with an empty dict, so an hourly cron alerts hourly whatever `ALERT_MIN_INTERVAL` says; set it to 24 h and nothing changes. Tuning that variable to throttle a cron alert is a no-op with no error. (3) Not suppression at all while
+   caller runs — a long-lived worker polling every minute alerts at the floor, not faster.
+   ⚠️ And for a CRON the floor does not apply at ALL — each run is a fresh process with an empty dict, so an hourly cron alerts hourly whatever `ALERT_MIN_INTERVAL` says; set it to 24 h and nothing changes. Tuning that variable to throttle a cron alert is a no-op with no error. (3) Not suppression at all while
    delivery is FAILING: `_last_sent` is written only `if delivered`, so a caller looping against a
    dead transport attempts every time, unthrottled. (4) Not exactly-once even INSIDE one process:
    the read and the write straddle a delivery that can block, so concurrent callers all pass the
