@@ -212,3 +212,67 @@ def test_markdown_outside_a_site_package_still_flagged():
     """The allowance is scoped — it must not become a blanket amnesty."""
     flagged = _paths_violations(["random_dir/STRAY.md"])
     assert any("STRAY.md" in f for f in flagged), f"stray doc must still be flagged: {flagged}"
+
+
+# --------------------------------------------------------------------------------------
+# T12.11 (01M1VHCH1) — the registry-drift guard, moved from a test nobody runs into the gate.
+# --------------------------------------------------------------------------------------
+
+
+def _hub_fixture(tmp_path: Path, extra_types: list[str] | None = None) -> Path:
+    """A HUB-shaped tree whose `scaffold.py` declares the LIVE registry's types plus any extras.
+
+    `_scaffold_registry_drift` reads the registry through the loaded `check_structure` module —
+    i.e. the REAL `_doc_registry` — so the fixture varies only the half it can vary: the declared
+    SCAFFOLD_TYPES. An `extra` is exactly the defect shape: a new scaffold type the registry has
+    not learned about. (My first cut varied the scaffold half down to two types and the guard
+    correctly reported the other eleven as unknown — the mechanism was right and the fixture was
+    lying about what it isolated.)
+    """
+    cs = _load_check_structure()
+    types = sorted(set(cs._doc_registry.ALL_TYPES) | set(extra_types or []))
+    (tmp_path / "src" / "fabrik").mkdir(parents=True)
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "src" / "fabrik" / "scaffold.py").write_text(
+        "SCAFFOLD_TYPES = {" + ", ".join(repr(x) for x in types) + "}\n"
+    )
+    return tmp_path
+
+
+def _drift(root: Path) -> list[str]:
+    cs = _load_check_structure()
+    return cs._scaffold_registry_drift(root)
+
+
+def test_the_drift_guard_fires_on_a_type_missing_from_the_registry(tmp_path: Path) -> None:
+    """The exact defect: `ALL_TYPES` carried 12 of the registry's 13 types, `office-extension` was
+    absent, and the grader that would have caught it lived in `tests/test_doc_registry.py` — RED for
+    as long as the drift, because the hub's pytest leg is OFF by design (a 5,913-test suite would
+    brick every completion gate three sessions run). A guard nothing executes is not a guard, so
+    the assertion now rides a gate-wired check."""
+    root = _hub_fixture(tmp_path, extra_types=["quantum-api"])
+    msgs = _drift(root)
+    assert len(msgs) == 1, msgs
+    assert "quantum-api" in msgs[0] and "missing from ALL_TYPES" in msgs[0]
+    assert "no docs allowlist" in msgs[0], "the message must name the CONSEQUENCE, not just the set"
+
+
+def test_the_drift_guard_is_silent_when_the_two_agree(tmp_path: Path) -> None:
+    """The live pair, mirrored into a fixture: no extras, no findings."""
+    assert _drift(_hub_fixture(tmp_path)) == []
+
+
+def test_the_drift_guard_stands_down_in_a_project(tmp_path: Path) -> None:
+    """`src/fabrik/scaffold.py` is hub-only and never synced. In a project the guard must return on
+    the first `if` and import nothing — as permissive there as the check was before."""
+    import shutil
+
+    root = _hub_fixture(tmp_path, extra_types=["quantum-api"])
+    assert _drift(root), "the premise — this tree drifts while scaffold.py is present"
+    shutil.rmtree(root / "src")
+    assert _drift(root) == [], "a project has no SCAFFOLD_TYPES, and that is not a defect"
+
+
+def test_the_shipped_registry_and_scaffold_actually_agree() -> None:
+    """The live assertion, not a fixture's: this repo's own two halves must match."""
+    assert _drift(REPO_ROOT) == []

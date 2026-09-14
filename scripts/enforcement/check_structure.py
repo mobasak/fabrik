@@ -385,6 +385,56 @@ def check_structure(project_root: Path, files: list[str] | None = None) -> list[
     return violations
 
 
+def _scaffold_registry_drift(project_root: Path) -> list[str]:
+    """HUB-ONLY: does `_doc_registry.ALL_TYPES` still mirror `scaffold.py::SCAFFOLD_TYPES`?
+
+    T12.11 (01M1VHCH1). `ALL_TYPES` carried 12 of the registry's 13 types — `office-extension` was
+    missing, so that scaffold type silently got no docs allowlist. A grader for exactly this had
+    existed and been RED in `tests/test_doc_registry.py` for as long as the drift, because the hub's
+    pytest leg is OFF by design (a 5,913-test suite would brick every completion gate three sessions
+    run). A guard nothing executes is not a guard.
+
+    So the assertion moves to a gate-wired check — but it can only run WHERE BOTH HALVES EXIST.
+    `src/fabrik/scaffold.py` is hub-only and never synced, so in a project this returns `[]` on the
+    first `if` and nothing is imported: the check stays exactly as permissive there as it was.
+    """
+    scaffold = project_root / "src" / "fabrik" / "scaffold.py"
+    if not scaffold.is_file():
+        return []  # not the hub — SCAFFOLD_TYPES does not exist here, and that is not a defect
+    try:
+        import ast
+
+        tree = ast.parse(scaffold.read_text(encoding="utf-8"))
+        declared: set[str] | None = None
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign) and any(
+                isinstance(tgt, ast.Name) and tgt.id == "SCAFFOLD_TYPES" for tgt in node.targets
+            ):
+                declared = {
+                    el.value
+                    for el in ast.walk(node.value)
+                    if isinstance(el, ast.Constant) and isinstance(el.value, str)
+                }
+                break
+    except (OSError, SyntaxError, ValueError):
+        return []  # unreadable source is not this check's verdict to give
+    if not declared or _doc_registry is None:
+        return []
+    registry = set(_doc_registry.ALL_TYPES)
+    only_scaffold, only_registry = declared - registry, registry - declared
+    if not only_scaffold and not only_registry:
+        return []
+    parts = []
+    if only_scaffold:
+        parts.append(f"missing from ALL_TYPES: {sorted(only_scaffold)}")
+    if only_registry:
+        parts.append(f"not a scaffold type: {sorted(only_registry)}")
+    return [
+        "_doc_registry.ALL_TYPES has drifted from scaffold.py::SCAFFOLD_TYPES "
+        f"({'; '.join(parts)}) — a type absent from ALL_TYPES gets no docs allowlist at all"
+    ]
+
+
 def main() -> int:
     """CLI entry point for pre-commit hook."""
     import argparse
@@ -402,6 +452,10 @@ def main() -> int:
         project_root = Path.cwd() / project_root
 
     violations = check_structure(project_root, args.files if args.files else None)
+    for msg in _scaffold_registry_drift(project_root):
+        violations.append(
+            {"severity": "error", "message": msg, "file": "scripts/enforcement/_doc_registry.py"}
+        )
 
     if not violations:
         # DENOMINATOR: "structure OK" over a path that does not exist reads identically to a

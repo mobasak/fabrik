@@ -41,6 +41,7 @@ ALL_TYPES: frozenset[str] = frozenset(
         "mobile-app",
         "desktop-app",
         "static-site",
+        "office-extension",
     }
 )
 
@@ -68,6 +69,7 @@ _GUI: frozenset[str] = frozenset(
         "desktop-app",
         "static-site",
         "docusaurus",
+        "office-extension",
     }
 )
 

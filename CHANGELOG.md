@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a scaffold type had no docs allowlist, and the grader that knew it had been red for weeks (2026-09-14)
+
+- Phase E T12.11 of the mail-triage plan (01M1VHCH1) — four graders, each proven RED by name against the previous scripts.
+- **`_doc_registry.ALL_TYPES` carried 12 of the registry's 13 `SCAFFOLD_TYPES`** — `office-extension` was missing, so that scaffold type resolved to no docs allowlist at all. Added to `ALL_TYPES` and to `_GUI` (it is UI-bearing and ships no backend service — `CLAUDE.md` § Pipeline item 2 lists it among the types that run the GUI commands and not among the headless ones), and deliberately **not** to `_DEPLOYED`.
+- **The real finding is why it survived.** `tests/test_doc_registry.py::test_all_types_matches_scaffold_source_of_truth` existed, asserted exactly this, and had been RED for as long as the drift — because the hub's pytest leg is OFF by design (5,913 tests under `-x` would brick every completion gate three sessions run). A guard nothing executes is not a guard. The assertion now rides `check_structure.py`, which **is** gate-wired, as `_scaffold_registry_drift`.
+- **Hub-conditional by construction, and proven so.** `src/fabrik/scaffold.py` is hub-only and never synced, so in a project the guard returns on its first `if` and imports nothing. Three arms executed on copies: parity holds → 0 findings; a type removed → the message names it *and its consequence*; `src/` deleted → 0, as permissive as before.
+- A note on method: the first fixture varied the scaffold half down to two types, and the guard correctly reported the other eleven as unknown. The mechanism was right and the fixture was lying about what it isolated — rewritten to vary only the half it controls.
+
 ### Fixed — `docs_updater.py --adopt --dry-run` wrote five files, including minting a decision row (2026-09-14)
 
 - Phase E T12.9 of the mail-triage plan (01M1S2MYZ, 01M1Z0PEB) — four graders, each proven RED by name against the previous script.
