@@ -291,10 +291,10 @@ def test_the_changed_list_reads_paths_only_across_wrapped_lines_and_never_from_a
     r = _run_on(tmp_path, with_x.replace("# R\n", "# R\n**Changed:** `x.py`, `10.99.0.1`\n\n"))
     assert r.returncode == 0, r.stdout
     # round 17: the six stated costs round 16's docstring NAMED but nothing graded — each reaches
-    # the fullmatch and fails it, so each is a path; and the three the RANGE rule refuses first,
+    # the fullmatch and fails it, so each is a path; and the four the RANGE rule refuses first,
     # which is why that rule stays separate. Two mutants survived the suite without these:
-    # widening the fullmatch to `\d*(?:\.\d*)*` (flips all six) and deleting the range arm
-    # (flips all three).
+    # widening the fullmatch to `\d*(?:\.\d*)*` (flips five of the six — not `1.2e3`, whose `e`
+    # the widened pattern cannot match either) and deleting the range arm (flips all four).
     for tok in ("1.", ".5", "1.2.", ".1.2", "1.2e3", "."):
         r = _run_on(tmp_path, with_x.replace("# R\n", f"# R\n**Changed:** `x.py`, `{tok}`\n\n"))
         assert r.returncode == 1 and f"`{tok}`" in r.stdout, (tok, r.stdout)
@@ -304,6 +304,12 @@ def test_the_changed_list_reads_paths_only_across_wrapped_lines_and_never_from_a
     # a bare count is dropped two rules earlier, by no-dot-no-slash — not by the fullmatch
     r = _run_on(tmp_path, with_x.replace("# R\n", "# R\n**Changed:** `x.py`, `44`\n\n"))
     assert r.returncode == 0, r.stdout
+    # round 18: rules 4 and 5 are BOTH guarded by `"/" not in tok`, so a token carrying a slash
+    # falls past them whatever else it holds. Deleting either guard flips these three and was
+    # invisible to every grader before this loop existed.
+    for tok in ("../x.py", "docs/../x.py", "a..b/c"):
+        r = _run_on(tmp_path, with_x.replace("# R\n", f"# R\n**Changed:** `x.py`, `{tok}`\n\n"))
+        assert r.returncode == 1 and f"`{tok}`" in r.stdout, (tok, r.stdout)
     # an IN-PROGRESS receipt (a seat's mid-loop draft) is exempt from the Hunt-row leg too
     r = _run_on(
         tmp_path,

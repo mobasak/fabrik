@@ -2680,20 +2680,23 @@ def _is_path_token(tok: str) -> bool:
       3. a well-known bare file, casefolded (`_BARE_FILES_CI`) → a path.
       4. no `/` and no `.` → NOT a path (an md5/sha, a bare count).
       5. no `/` and a `..` → NOT a path (a range).
-      6. an exact `\\d+(\\.\\d+)*` → NOT a path (a dotted number). Only tokens that reach
-         rule 6 are decided by it: rules 4 and 5 have already taken the undotted and the `..`
-         shapes.
+      6. an exact `\\d+(\\.\\d+)*` → NOT a path (a dotted number).
       7. anything else → a path.
+
+    Rules 4 and 5 are both guarded by `"/" not in tok`, so they take only the SLASHLESS undotted
+    and `..` shapes. A token carrying a `/` falls past them whatever else it holds: `../x.py`,
+    `a..b/c` and `1..2/x` are paths by rule 7.
 
     STATED COSTS: an extension-less bare file outside the list is not a path, and a dotted
     symbol (`os.getenv`) is indistinguishable from a file name and counts as one.
 
-    EVERY other cost of this ladder — which exact tokens fall either side of rules 4–6 — is
-    enumerated as an EXECUTED table in
+    WHICH EXACT TOKENS fall either side of each rule is enumerated as an EXECUTED table in
     `tests/test_check_review_coverage_precommit.py::test_the_changed_list_reads_paths_only_across_wrapped_lines_and_never_from_a_fence`.
-    It lives there and not here because three consecutive review rounds (15–17) each found a
-    different example in this docstring wrong, incomplete, or credited to the wrong rule: a
-    prose list of shapes drifts from the code, an executed one cannot.
+    That table, not this docstring, is where a newly discovered cost is recorded — it lives there
+    because rounds 15–18 each found an example HERE wrong, incomplete, or credited to the wrong
+    rule (round 18's was rule 5's `"/" not in tok` guard, dropped from the prose and ungraded, so
+    `../x.py` read as a range): a prose list of shapes drifts from the code, an executed one
+    cannot.
     """
     tok = _LOCATION_SUFFIX.sub("", tok or "")
     if not tok or not _TOKEN_SHAPE.match(tok):

@@ -1965,7 +1965,6 @@ def test_a_cut_or_malformed_batch_stream_never_grades_a_partial_plan(
     600-byte plan as COMPLETE; a header git never writes desynced every later plan silently; and
     the advisory said "the plans it never reached were NOT examined" when every plan was read
     and only the exit code was bad."""
-    import subprocess as sp
     import types
 
     cc = _load_cc()
