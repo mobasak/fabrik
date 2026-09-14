@@ -140,65 +140,170 @@ def test_ratchet_down_stages_the_baseline(repo: Path) -> None:
     assert ".fabrik/lint-baseline.json" in staged
 
 
-def test_a_linter_version_change_reseeds_loudly_instead_of_redding_forever(
-    tmp_path, monkeypatch, capsys
-):
-    """01M1H0D5 (youtube, 2026-09-02): the baseline's own seeding commit measured 390 under a newer
-    ruff while the file said 388 — an unpinned linter under an absolute count is a permanent red no
-    code change can clear. The baseline now carries the ruff version; a version change re-seeds."""
+def _mod(tmp_path, monkeypatch, name: str, *, version: str, count: int):
+    """Load the check as a module against a scratch ROOT, with ruff stubbed."""
     import importlib.util
 
-    spec = importlib.util.spec_from_file_location("lint_ratchet_mod", CHECK)
+    spec = importlib.util.spec_from_file_location(name, CHECK)
     lr = importlib.util.module_from_spec(spec)
     assert spec.loader
     spec.loader.exec_module(lr)
     monkeypatch.setattr(lr, "ROOT", tmp_path)
     monkeypatch.setattr(lr, "BASELINE", tmp_path / ".fabrik" / "lint-baseline.json")
     monkeypatch.setattr(lr, "_baseline_is_gitignored", lambda: False)
-    monkeypatch.setattr(lr, "_ruff_version", lambda: "0.15.12")
-    monkeypatch.setattr(lr, "_ruff_count", lambda: 390)
+    monkeypatch.setattr(lr, "_ruff_version", lambda: version)
+    monkeypatch.setattr(lr, "_ruff_count", lambda: count)
+    return lr
+
+
+def _write_baseline_file(tmp_path: Path, text: str) -> None:
+    (tmp_path / ".fabrik").mkdir(exist_ok=True)
+    (tmp_path / ".fabrik" / "lint-baseline.json").write_text(text)
+
+
+def _baseline_text(tmp_path: Path) -> str:
+    return (tmp_path / ".fabrik" / "lint-baseline.json").read_text()
+
+
+def test_a_linter_version_change_fails_once_and_names_the_explicit_reseed(
+    tmp_path, monkeypatch, capsys
+):
+    """T12.1 (01M1RE497): the old behaviour re-seeded at the current count and PASSED, so the
+    reference this ratchet measures against could move on any run with no act by anyone — real debt
+    landing in the same change as a ruff bump was absorbed into the new floor and never seen. A
+    version change is now a one-time RED naming the exact re-seed command."""
+    lr = _mod(tmp_path, monkeypatch, "lint_ratchet_v1", version="0.15.12", count=390)
+    _write_baseline_file(tmp_path, '{"ruff_errors": 388, "ruff_version": "0.14.0"}\n')
+
     monkeypatch.setattr(sys, "argv", ["check_lint_ratchet.py"])
-    (tmp_path / ".fabrik").mkdir()
-    (tmp_path / ".fabrik" / "lint-baseline.json").write_text(
-        '{"ruff_errors": 388, "ruff_version": "0.14.0"}\n'
-    )
     rc = lr.main()
     out = capsys.readouterr().out
-    assert rc == 0 and "re-seed" in out.lower() and "0.14.0" in out and "0.15.12" in out
-    assert json.loads((tmp_path / ".fabrik" / "lint-baseline.json").read_text()) == {
+    assert rc == 1, "a ruleset change must not pass silently"
+    assert "--reseed" in out and "0.14.0" in out and "0.15.12" in out and "390" in out
+    assert json.loads(_baseline_text(tmp_path)) == {
+        "ruff_errors": 388,
+        "ruff_version": "0.14.0",
+    }, "a refusal must not rewrite the floor it refused to trust"
+
+    # the escape exists, is one command, and is explicit.
+    monkeypatch.setattr(sys, "argv", ["check_lint_ratchet.py", "--reseed"])
+    assert lr.main() == 0
+    assert "RE-SEEDED" in capsys.readouterr().out
+    assert json.loads(_baseline_text(tmp_path)) == {
         "ruff_errors": 390,
         "ruff_version": "0.15.12",
     }
-    monkeypatch.setattr(lr, "_ruff_count", lambda: 391)  # same version, more errors → a regression
+
+    # and once re-seeded the ordinary ratchet resumes under the new version.
+    monkeypatch.setattr(lr, "_ruff_count", lambda: 391)
+    monkeypatch.setattr(sys, "argv", ["check_lint_ratchet.py"])
     assert lr.main() != 0
 
 
-def test_a_baseline_without_a_version_is_a_plain_ratchet_and_check_mode_never_writes(
-    tmp_path, monkeypatch, capsys
-):
-    """Every existing repo's baseline predates the version field: no re-seed, the ordinary ratchet
-    applies; and `--check` must never rewrite the baseline even on a version change."""
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location("lint_ratchet_mod2", CHECK)
-    lr = importlib.util.module_from_spec(spec)
-    assert spec.loader
-    spec.loader.exec_module(lr)
-    monkeypatch.setattr(lr, "ROOT", tmp_path)
-    monkeypatch.setattr(lr, "BASELINE", tmp_path / ".fabrik" / "lint-baseline.json")
-    monkeypatch.setattr(lr, "_baseline_is_gitignored", lambda: False)
-    monkeypatch.setattr(lr, "_ruff_version", lambda: "0.15.12")
-    monkeypatch.setattr(lr, "_ruff_count", lambda: 390)
-    (tmp_path / ".fabrik").mkdir()
-    (tmp_path / ".fabrik" / "lint-baseline.json").write_text('{"ruff_errors": 388}\n')
-    monkeypatch.setattr(sys, "argv", ["check_lint_ratchet.py"])
-    assert lr.main() != 0  # 390 > 388 under an unversioned baseline is a regression, not a re-seed
-    (tmp_path / ".fabrik" / "lint-baseline.json").write_text(
-        '{"ruff_errors": 388, "ruff_version": "0.14.0"}\n'
-    )
-    monkeypatch.setattr(sys, "argv", ["check_lint_ratchet.py", "--check"])
+def test_reseed_under_check_refuses_to_write(tmp_path, monkeypatch, capsys):
+    """`--check` is the read-only mode the gate runs; `--reseed --check` reports the re-seed it
+    WOULD do and touches nothing, or `--check` stops being read-only."""
+    lr = _mod(tmp_path, monkeypatch, "lint_ratchet_v2", version="0.15.12", count=390)
+    _write_baseline_file(tmp_path, '{"ruff_errors": 388, "ruff_version": "0.14.0"}\n')
+    monkeypatch.setattr(sys, "argv", ["check_lint_ratchet.py", "--reseed", "--check"])
     assert lr.main() == 0
-    assert json.loads((tmp_path / ".fabrik" / "lint-baseline.json").read_text()) == {
+    out = capsys.readouterr().out
+    assert "would RE-SEED" in out, "read-only mode must not claim a write it did not make"
+    assert json.loads(_baseline_text(tmp_path)) == {
         "ruff_errors": 388,
         "ruff_version": "0.14.0",
     }
+
+    # and WITHOUT --reseed, --check reds on the version change like every other mode — the old
+    # behaviour returned 0 here, which is what made the floor drift invisible in the gate.
+    monkeypatch.setattr(sys, "argv", ["check_lint_ratchet.py", "--check"])
+    assert lr.main() == 1
+    assert json.loads(_baseline_text(tmp_path)) == {
+        "ruff_errors": 388,
+        "ruff_version": "0.14.0",
+    }
+
+
+def test_the_floor_is_the_committed_blob_not_a_working_tree_file(repo: Path) -> None:
+    """T12.1: the floor was read from the working-tree file, so a sibling's uncommitted re-seed —
+    or this gate's own un-pushed tightening — moved a bar that CI reads from HEAD. Three sessions
+    share this tree; the committed blob is the only floor that binds."""
+    _set_errors(repo, 2)
+    _run(repo)  # seed at 2 (written + staged)
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "commit the floor at 2"], cwd=repo, check=True)
+
+    # a sibling (or a stale local run) leaves a LOWER floor in the working tree, uncommitted.
+    (repo / ".fabrik" / "lint-baseline.json").write_text('{"ruff_errors": 0}\n')
+    rc, out = _run(repo, "--check")
+    assert rc == 0, out  # 2 == the COMMITTED floor of 2; the uncommitted 0 must not red it
+    assert "0" not in out.split("baseline")[-1].split("\n")[0] or "== baseline" in out
+
+    # and the reverse: an uncommitted HIGHER floor must not license a rise past the committed one.
+    # Restore the committed blob first — `_set_errors` commits everything, and leaving the 0 in the
+    # tree would commit IT and make the floor 0 for the wrong reason.
+    subprocess.run(
+        ["git", "checkout", "-q", "--", ".fabrik/lint-baseline.json"], cwd=repo, check=True
+    )
+    _set_errors(repo, 5)
+    (repo / ".fabrik" / "lint-baseline.json").write_text('{"ruff_errors": 9}\n')
+    rc2, out2 = _run(repo, "--check")
+    assert rc2 == 1, out2
+    assert "ROSE 2 → 5" in out2
+
+
+def test_the_version_comes_from_the_interpreter_that_produced_the_count(tmp_path) -> None:
+    """T12.1 root cause: the count ran `sys.executable -m ruff` while the version ran a bare `ruff`
+    off PATH — routinely two different installs, so the guard compared a version that did not
+    produce the count. Both must name the same interpreter."""
+    src = CHECK.read_text(encoding="utf-8")
+    count_call = src.split("def _ruff_count")[1].split("def ")[0]
+    version_call = src.split("def _ruff_version")[1].split("def ")[0]
+    assert 'sys.executable, "-m", "ruff", "check"' in count_call
+    assert 'sys.executable, "-m", "ruff", "--version"' in version_call
+    assert '["ruff", "--version"]' not in src, "a bare PATH ruff is a different binary"
+
+
+def test_a_rise_names_the_offending_files_and_marks_the_callers_own(repo: Path) -> None:
+    """T12.1: `ROSE 2 → 5` told the caller nothing about WHERE, and on a tree three sessions share
+    it did not even say whether the debt was theirs. The failure now lists per-file counts and marks
+    the ones inside the caller's own diff."""
+    _set_errors(repo, 2)
+    _run(repo)  # seed at 2
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "floor"], cwd=repo, check=True)
+
+    # a sibling's COMMITTED file raises the count; the caller's own edit is elsewhere and clean.
+    (repo / "src" / "sibling.py").write_text("import os\nimport sys\nimport json\n")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "sibling debt"], cwd=repo, check=True)
+    (repo / "src" / "mine.py").write_text('"""clean."""\n')
+    subprocess.run(["git", "add", "--", "src/mine.py"], cwd=repo, check=True)
+
+    rc, out = _run(repo, "--check")
+    assert rc == 1, out
+    assert "src/sibling.py" in out, "the failure must name the file carrying the debt"
+    assert "3  src/sibling.py" in out.replace("   ", " ").replace("  ", " ").replace("  ", " ") or (
+        "src/sibling.py" in out and "3" in out
+    )
+    assert "in YOUR diff" not in out.split("src/sibling.py")[1].split("\n")[0], (
+        "a sibling's committed file is not in the caller's diff and must not be marked as theirs"
+    )
+    assert "none of the offending files is in your diff" in out
+
+
+def test_a_rise_in_the_callers_own_file_is_marked_as_theirs(repo: Path) -> None:
+    """The mirror of the test above: when the debt IS the caller's, the marker must appear — a
+    marker that never fires is the same as no marker."""
+    _set_errors(repo, 2)
+    _run(repo)
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "floor"], cwd=repo, check=True)
+
+    (repo / "src" / "mine.py").write_text("import os\nimport sys\n")
+    subprocess.run(["git", "add", "--", "src/mine.py"], cwd=repo, check=True)
+    rc, out = _run(repo, "--check")
+    assert rc == 1, out
+    assert "src/mine.py" in out
+    assert "in YOUR diff" in out
+    assert "none of the offending files is in your diff" not in out
