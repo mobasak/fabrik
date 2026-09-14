@@ -919,3 +919,31 @@ def test_only_the_four_code_roots_and_only_added_paths_are_read() -> None:
     assert '"--diff-filter=A"' in body, "added paths only"
     assert '"--cached"' in body, "staged scope only"
     assert cdi._CODE_ROOTS == ("scripts/", "tests/", ".claude/hooks/", ".fabrik/")
+
+
+def test_quiet_silences_the_clean_banner_and_never_a_finding(tmp_path, monkeypatch, capsys):
+    """Round 3 of the Phase E review: `advisory=True` preserves ALL stdout on exit 0, so the
+    clean-path "OK" banner became a green line on every human gate run — and because it carries no
+    ⚠ prefix, the JSON `warnings` filter dropped it, giving chatter in one mode and silence in the
+    other. `--quiet` suppresses the banner ONLY; a ⚠ advisory line must survive it, or the flag
+    has re-created the very hole `advisory=True` was added to close."""
+    import subprocess
+    import sys as _sys
+
+    script = Path("scripts/enforcement/check_doc_index.py").resolve()
+    loud = subprocess.run(
+        [_sys.executable, str(script)], capture_output=True, text=True, check=False
+    )
+    quiet = subprocess.run(
+        [_sys.executable, str(script), "--quiet"], capture_output=True, text=True, check=False
+    )
+    assert loud.returncode == quiet.returncode
+    banner = "check_doc_index: OK"
+    assert banner in loud.stdout
+    assert banner not in quiet.stdout
+    # every ⚠ finding the loud run printed is still printed by the quiet one
+    loud_warnings = [ln for ln in loud.stdout.splitlines() if ln.lstrip().startswith("⚠")]
+    quiet_warnings = [ln for ln in quiet.stdout.splitlines() if ln.lstrip().startswith("⚠")]
+    assert loud_warnings == quiet_warnings, (loud_warnings, quiet_warnings)
+    errors = [ln for ln in loud.stdout.splitlines() if ln.startswith("ERROR:")]
+    assert errors == [ln for ln in quiet.stdout.splitlines() if ln.startswith("ERROR:")]

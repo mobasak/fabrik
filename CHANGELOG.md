@@ -4,6 +4,62 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — round 3 of the Phase E review: 12 defects INSIDE round 1's own fixes (2026-09-15)
+
+Two fresh non-authoring seats read the fix diff `e883d1ff..HEAD`. Every finding below was
+re-executed by me before it was counted, and every fix carries a grader proven red on the
+mutation that removes it.
+
+- **`sync_enforcement_to_projects.py` compared the WORKING TREE while writing HEAD bytes.**
+  `_shipped_hash` was built so the comparison and the writer could not disagree, and it was wired
+  into the worktree leg and the three ledger sites but NOT into `sync_single_file` — the leg that
+  syncs every project's main checkout — while its own docstring claimed "ONE definition, used by
+  the comparison and by the ledger". Two failures, both executed: a drifted file NEVER converged
+  (`COPY · COPY · COPY` over three runs instead of `COPY · SKIP · SKIP`), rewriting it in all 47
+  `.fabrik/synced.lock` repos on every run and counting it as `copied`; and a project copy already
+  holding the hub's UNCOMMITTED bytes hashed EQUAL and returned `SKIP/identical`, so the
+  48-copies-on-2026-09-07 state the mechanism exists to correct was the one state it could not
+  correct. Both now graded.
+- **The gate went silent on the author's own unstaged work.** Scoping the two ruff legs to
+  `get_writable_files()` (staged ∪ `base…HEAD`) fixed reddening on a peer's WIP, but that set
+  cannot tell a sibling's unstaged edit from the author's, and the contract runs `--check` BEFORE
+  `git add`. Executed end-to-end in a throwaway repo: one tracked, modified, unstaged `.py` with
+  two real ruff errors → `status: success, failed: 0, skipped: 0, skipped_checks: [], ruff rows:
+  []`. A narrowing that empties a leg is now a `(SCOPE-NARROWED — N unstaged tracked .py)` row
+  carrying a `_SKIP_MARKERS` token, so `skipped_checks`, the roster outcome and the JSON
+  `warnings` all say so. It fired on this very commit.
+- **The drift report asserted a sync that had not happened.** `_head_source` is consulted on every
+  branch including those that write nothing, so `--dry-run` printed "the COMMITTED bytes were
+  synced" — the inverse of the truth. The verb now comes from the run.
+- **`_head_source` re-shelled out for every caller** (two subprocesses, 5.26 ms measured, twice per
+  copied file × the manifest × 47 repos). Memoised on `(rel, mtime_ns, size)` — 90× on a repeat,
+  a changed stat still misses, drift still recorded on a hit.
+- **`_sync_materialised_paths` walked a whole directory for a verdict its first file decided**:
+  `.venv/` took 1.27 s against 0.006 s for the same answer. Now lazy — 227×.
+- **Three graders that could not fail.** The mtime grader compared two files both born inside the
+  test, so `< 1 second` was satisfied by test speed — executed with `os.utime` neutered in both
+  writers, it still passed; it now pins an old mtime and asserts equality. The anchored-delimiter
+  grader's fixture `| |` is rejected by the repaired regex outright, so the anchor was never
+  reached — deleting the anchor left the result byte-identical; the fixture is now `| - |`, a real
+  delimiter, with the dash requirement graded separately. And two gate graders asserted literal
+  SOURCE SUBSTRINGS of the fix (`"changed if fix_all else changed & get_writable_files()"`) — they
+  could not fail for any semantics, they sat beside the defect above, and this round's own fix
+  invalidated them by reformatting the line. All four are behavioural now.
+- `check_structure.py` reported a MISSING `SCAFFOLD_TYPES` as an unreadable one (`if not declared:`
+  cannot tell `None` from `set()`), sending the reader hunting a comprehension that does not exist.
+- `check_doc_index.py` gained `--quiet`: `advisory=True` preserves ALL stdout, so the clean-path
+  "OK" banner became a green line on every human gate run while lacking the `⚠` the JSON filter
+  keys on — chatter in one mode, silence in the other. Findings are never suppressed by the flag.
+- The skip notice printed twice in human mode (`run_formatting_fixes` printed it AND `print_step`
+  rendered its row) and showed `[PASS]` on a row named "(advisory)" — the one thing `print_step`'s
+  own docstring says must not happen.
+- `docs/STRATEGIC_BACKLOG.md`: the INDEX row's HEADING still carried `584 of 863` while its body
+  two lines down said 865 — a heading is what a TOC and a grep show. Re-derived 585/866 and
+  written with a tilde, dated, because the number moves. The bandit row named THREE exclusions
+  where the gate uses FIVE, so anyone reproducing it got 37 findings and `B608 × 8` against the
+  row's 36 and `× 7`; it now prints the gate's own command, and its totals are dated (480/204 on
+  2026-09-14, 474/199 a day later).
+
 ### Added — Kaizen loop piece 2: `/fabrik-command-improve` — the half of the loop that EDITS (2026-09-15)
 
 - `commands/_sources/fabrik-command-improve.md` (NEW, the 37th command): reads ONE command's `change:` queue out of the close-out ledger, picks the ONE edit the most verdicts name, edits the command source, renders, reviews and commits — the trailer carrying `command-improve <command> · rows <ts,…> · expects <series> <direction>`, which is the loop's only state: `ts` is the row handle (the ledger has no id and `sid` is per session), and a later run reads those trailers back with `git log --grep` to exclude what is already answered. Deliberately small: one command, one edit, `/fabrik-review-scoped` — never the heavy loop.

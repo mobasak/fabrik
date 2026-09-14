@@ -17,6 +17,7 @@ import os
 import stat
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -182,17 +183,24 @@ def test_the_mtime_is_carried_or_the_sync_blocks_itself_forever(hub, tmp_path: P
     source_mtime` ("destination newer"). A dest written with mtime=now refuses every later sync of
     that file — permanently, because `git commit` does not touch the working file's mtime."""
     mod, _hub_root, committed, _untracked = hub
+    # ⚠️ THE SOURCE'S MTIME IS PINNED OLD, and the assertion is EQUALITY, not "within a second".
+    # The first cut of this grader compared two files both created inside this test, so their
+    # mtimes were within the same wall-clock second whether or not the code carried anything —
+    # executed with `os.utime` neutered in BOTH writers, it still passed (round 3 of the Phase E
+    # review). A tolerance wider than the thing you are measuring is not a grader.
+    old = 1_000_000_000  # 2001-09-09, unmistakably not "now"
+    os.utime(committed, (old, old))
     dest = tmp_path / "out" / "committed.py"
     mod._atomic_copy(committed, dest)
-    assert abs(dest.stat().st_mtime - committed.stat().st_mtime) < 1, (
-        f"dest {dest.stat().st_mtime} vs source {committed.stat().st_mtime} — the "
-        "'destination newer' guard would refuse every later sync"
+    assert dest.stat().st_mtime == committed.stat().st_mtime == old, (
+        f"dest {dest.stat().st_mtime} vs source {committed.stat().st_mtime} — a dest stamped "
+        "'now' makes the 'destination newer' guard refuse every later sync of this file, forever"
     )
     # and the byte-level writer, which `sync_single_file` uses and no grader reached before
     head = mod._head_source(committed)
     dest2 = tmp_path / "out2" / "committed.py"
     mod._atomic_write(head[0], head[1], dest2, source=committed)
-    assert abs(dest2.stat().st_mtime - committed.stat().st_mtime) < 1
+    assert dest2.stat().st_mtime == committed.stat().st_mtime == old
 
 
 def test_every_dry_run_branch_reports_drift(hub, tmp_path: Path) -> None:
@@ -237,3 +245,61 @@ def test_there_is_exactly_one_hub_root_constant(hub) -> None:
         "both sides of the relative_to must be resolved, or a symlinked hub root silently "
         "disables the HEAD read fleet-wide"
     )
+
+
+# ── round 3 of the Phase E review: three defects INSIDE round 1's own fixes ──
+
+
+def test_the_comparison_hashes_what_ships_or_the_sync_never_converges(hub, tmp_path: Path) -> None:
+    """`_shipped_hash` exists so the comparison and the writer cannot disagree — and the leg that
+    syncs every project's MAIN checkout kept calling `compute_file_hash(source)`. Executed: a
+    drifted file was re-copied on EVERY run, forever, in all 47 `.fabrik/synced.lock` repos."""
+    mod, _hub_root, committed, _untracked = hub
+    committed.write_text("COMMITTED = 1\nUNCOMMITTED_EDIT = True\n", encoding="utf-8")
+    dest = tmp_path / "proj" / "committed.py"
+    actions = [mod.sync_single_file(committed, dest).action for _ in range(3)]
+    assert actions == ["COPY", "SKIP", "SKIP"], (
+        f"{actions} — a sync that never reaches SKIP rewrites every drifted file in every repo on "
+        "every run, and reports each one as `copied`"
+    )
+
+
+def test_a_project_copy_holding_the_uncommitted_bytes_is_corrected(hub, tmp_path: Path) -> None:
+    """The state T12.17 was built to end — 48 project copies carrying a hub edit that exists in no
+    commit — hashed EQUAL to the working tree and returned SKIP/identical, so it was the one state
+    the mechanism could not correct. The dest is aged because that is the real fleet shape: the
+    project copy was written days ago, the hub edit is recent."""
+    mod, _hub_root, committed, _untracked = hub
+    committed.write_text("COMMITTED = 1\nUNCOMMITTED_EDIT = True\n", encoding="utf-8")
+    dest = tmp_path / "proj" / "committed.py"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(
+        "COMMITTED = 1\nUNCOMMITTED_EDIT = True\n", encoding="utf-8"
+    )  # the hub's WORKING bytes
+    os.utime(dest, (time.time() - 86_400, time.time() - 86_400))
+    result = mod.sync_single_file(committed, dest)
+    assert result.action == "COPY", f"{result.action}/{result.reason} — the uncommitted bytes stay"
+    assert "UNCOMMITTED_EDIT" not in dest.read_text(encoding="utf-8")
+
+
+def test_the_drift_report_never_claims_a_sync_a_dry_run_did_not_do(hub, tmp_path: Path) -> None:
+    """`_head_source` is consulted on every branch, including those that write nothing, so the
+    report's verb has to come from the RUN, not from the drift set being non-empty."""
+    src = Path("scripts/sync_enforcement_to_projects.py").read_text(encoding="utf-8")
+    assert "nothing was written (--dry-run)" in src
+    assert "wherever this run wrote, it wrote the COMMITTED bytes" in src
+    # the flat claim is gone — it was printed verbatim on dry runs and on SKIP/WARN branches
+    assert "the COMMITTED bytes were synced, not what is on disk (T12.17" not in src
+
+
+def test_head_source_is_not_re_shelled_for_every_caller(hub, tmp_path: Path) -> None:
+    """Two subprocesses per call × twice per copied file × the manifest × 47 repos. The cache is
+    keyed on the stat, so an edit mid-run is never served stale — that is what this asserts."""
+    mod, _hub_root, committed, _untracked = hub
+    mod._head_cache.clear()
+    first = mod._head_source(committed)
+    assert len(mod._head_cache) == 1, "nothing was cached — every caller re-shells out"
+    assert mod._head_source(committed) == first
+    os.utime(committed, (1_000_000_000, 1_000_000_000))  # a changed stat must MISS
+    mod._head_source(committed)
+    assert len(mod._head_cache) == 2, "a since-touched file was served from a stale cache entry"

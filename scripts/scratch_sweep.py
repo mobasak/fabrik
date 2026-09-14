@@ -1525,17 +1525,31 @@ def _sync_materialised_paths(worktree: Path, names: list[str]) -> set[str]:
         rel = raw.strip().strip('"')
         if not rel:
             continue
-        candidates = [rel]
-        if rel.endswith("/"):
-            base = worktree / rel
-            if not base.is_dir():
+        if not rel.endswith("/"):
+            if _is_sync_materialised(worktree, rel):
+                out.add(raw)
+            continue
+        base = worktree / rel
+        if not base.is_dir():
+            continue
+        # ⚠️ LAZY ON PURPOSE. Materialising the whole `rglob` into a list before `all()` can
+        # short-circuit walks the entire tree for a verdict the FIRST file already decided.
+        # Measured on this repo: `_sync_materialised_paths(Path("/opt/fabrik"), [".venv/"])` took
+        # 1.27 s (≈32,700 files) against 0.006 s for the same answer — and an untracked
+        # `node_modules/`, `dist/`, `.venv/` or `.tmp/` is exactly the shape a dirty worktree
+        # carries, once per porcelain entry, across every registered worktree (round 3 of the
+        # Phase E review). `any()` over the generator also gives us the empty-directory case for
+        # free: `saw_one` stays False and the entry is left alone, as before.
+        saw_one = False
+        materialised = True
+        for f in base.rglob("*"):
+            if not f.is_file():
                 continue
-            candidates = [
-                str(f.relative_to(worktree).as_posix()) for f in base.rglob("*") if f.is_file()
-            ]
-            if not candidates:
-                continue
-        if all(_is_sync_materialised(worktree, c) for c in candidates):
+            saw_one = True
+            if not _is_sync_materialised(worktree, str(f.relative_to(worktree).as_posix())):
+                materialised = False
+                break
+        if saw_one and materialised:
             out.add(raw)
     return out
 

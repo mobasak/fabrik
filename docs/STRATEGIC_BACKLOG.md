@@ -189,7 +189,7 @@ every word preserved — a SHAPE fix, not a content edit — and the grader is g
 **Kept as the lesson, not as work:** when a grader exists, run the grader. A hand count beside a
 green test is a second opinion nobody asked for, and it is the one that was wrong.
 
-## [infra] The added-code-path INDEX advisory ships ADVISORY; promoting it to blocking is a per-repo ratchet, and 584 of 863 files are the backlog
+## [infra] The added-code-path INDEX advisory ships ADVISORY; promoting it to blocking is a per-repo ratchet, and ~585 of ~866 files are the backlog
 
 T12.10 landed direction (c) of `check_doc_index.py` — an added file under `scripts/`, `tests/`,
 `.claude/hooks/` or `.fabrik/` owes an INDEX.md row naming its PATH — but it never changes the
@@ -198,9 +198,11 @@ exit code. This row is the other half of that decision.
 **Measured 2026-09-14 on the hub, before arming** (tool: `git ls-files` for the population,
 `command grep -qF` per basename against INDEX.md; `git log --diff-filter=A` for the additions):
 
-- **Whole tree: 584 of 865** tracked files under those four roots carry no INDEX mention at
-  all (68 %). ⚠️ It read 584/863 when the check landed and 584/865 three commits later — the two
-  extra are test files this very phase added, which is precisely the drift the row is about. A whole-tree check is 584 findings on landing day — the definition of wallpaper.
+- **Whole tree: 585 of 866** tracked files under those four roots carry no INDEX mention at
+  all (67 %), re-derived 2026-09-15. ⚠️ THE NUMBER MOVES, so it is written with a tilde in the
+  heading and dated here: 584/863 when the check landed, 584/865 three commits later, 585/866 the
+  next day — the extras are files these very phases added, which is precisely the drift the row is
+  about. A whole-tree check is ~585 findings on landing day — the definition of wallpaper.
 - **Staged-scope, added-only: 37 of 113** such files added since 2026-09-01 are still unindexed
   (33 %). These are TRUE positives — the Doc Sync Matrix asks for the row — but a third of every
   code-adding commit is too many to block on day one.
@@ -222,23 +224,32 @@ T12.5 landed bandit over `scripts/` — the root ruff already lints and bandit n
 `-lll` (HIGH), not the `-ll` (MEDIUM) the `src/` leg uses. That asymmetry is deliberate and
 measured, and this row is the other half of the decision.
 
-**Measured 2026-09-14 on the hub** (`bandit -ll -x tests/ -r scripts/`, findings attributed with
-`--msg-template '{relpath}'` and bucketed by subtree): **480** findings over **204** files, of
-which **423 (88 %) are inside the vendored `scripts/kilo-benchmarks/`** and 13 more in
-`scripts/.archive/`. ⚠️ The first cut of this row named only those TWO exclusions; the gate
-excludes **three** — `scripts/kilo-benchmarks/`, `scripts/.archive/` and `scripts/archived/` (no
-dot), the last holding 1 further HIGH B324 in `kilo_code_review.py`. Anyone reproducing the
-figure with a two-exclusion command gets 44 findings and 1 remaining HIGH, which is exactly the
-confusion an author-blind seat hit. Excluding all three: **43** findings in **4.7 s**. Of
-those 43, the 7 HIGH were all B324 (md5 for change detection) and are now closed properly — each
+**Re-derived 2026-09-15 on the hub.** ⚠️ REPRODUCE IT WITH THE GATE'S OWN EXCLUSION LIST, which
+is what every number below is measured under — copied from `final_gate.py`'s `bandit scripts/`
+leg, where it is **five** entries, not the three an earlier cut of this row named:
+
+```
+bandit -ll -x 'tests/,scripts/kilo-benchmarks/,scripts/.archive/,scripts/tests/,scripts/archived/' -r scripts/
+```
+
+A shorter list is a different question with a different answer, and that is the whole confusion an
+author-blind seat hit twice: `-x tests/` alone gives **474** findings over **199** files; naming
+three of the five gives **37** and a by-rule tail of B608 × 8; the gate's own five give **36**.
+Of the unexcluded subtrees, **423 (89 %) are inside the vendored `scripts/kilo-benchmarks/`**, 13
+more in `scripts/.archive/` and 1 in `scripts/archived/` (no dot). ⚠️ The totals MOVE with the
+tree — 480/204 on 2026-09-14, 474/199 a day later — so they are dated rather than quoted as
+standing facts; the exclusion list and the by-rule tail are the stable part. Of the 36, the 7 HIGH
+were all B324 (md5 for change detection) and are now closed properly — each
 call declares `usedforsecurity=False`, which states the purpose to bandit, to the interpreter and
 to the next reader, where the `# noqa: S324` it replaced suppressed a ruff rule this repo does not
 even select (`select` in `pyproject.toml` carries no `S`). HIGH is therefore **0** today and the
 row BLOCKS.
 
-**The 36 remaining MEDIUMs, by rule, so the triage has a subject:** B310 urllib-open × 14 ·
-B108 hardcoded `/tmp` × 12 · B608 SQL built by string × 7 · B104 bind-all-interfaces × 2 ·
-B302 marshal × 1. Most are likely legitimate for a box-local tool; that judgement is the work,
+**The 36 remaining MEDIUMs, by rule, so the triage has a subject** (re-derived 2026-09-15 under
+the five-exclusion command above)**:** B310 urllib-open × 14 · B108 hardcoded `/tmp` × 12 ·
+B608 SQL built by string × 7 · B104 bind-all-interfaces × 2 · B302 marshal × 1. (Drop
+`scripts/tests/` from the exclusions and B608 reads 8 — the 37th is
+`scripts/tests/test_registry_sync.py:754`, a test fixture the gate never lints.) Most are likely legitimate for a box-local tool; that judgement is the work,
 and it is per-finding, not per-rule.
 
 **Do:** triage those 36 — annotate what is fine (`# nosec` with a reason, bandit's own verb),

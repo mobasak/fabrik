@@ -254,6 +254,13 @@ def main() -> int:
     # creates a doc sees its own INDEX debt while the file is still in hand, instead of an
     # arbitrary later run paying for it at its completion gate
     untracked_only = "--untracked-only" in sys.argv
+    # `--quiet` suppresses the CLEAN-path banner only. The gate registers this check
+    # `advisory=True` so direction (c)'s ⚠ lines survive exit 0 — but that flag preserves ALL
+    # stdout, so the "OK" banner became a green line on every human gate run and, lacking the ⚠
+    # prefix the JSON `warnings` filter keys on, appeared nowhere in `--json`. Chatter in one mode
+    # and silence in the other is the worst of both (round 3 of the Phase E review). Findings are
+    # never suppressed by this flag.
+    quiet = "--quiet" in sys.argv
     index_path = REPO / "INDEX.md"
 
     def _fail(message: str) -> int:
@@ -473,7 +480,7 @@ def main() -> int:
             print(f"ERROR: {_printable(x)}")
         for x in code_problems:
             print(f"⚠ {_printable(x)}")
-        if not problems:
+        if not problems and not quiet:
             print("check_doc_index: OK — INDEX.md and the live docs tree agree")
     # `--untracked-only` is the lean tier's ADVISORY row (final_gate registers it warn_only, whose
     # contract is "no failing exit"): the findings are the message, the exit is always 0

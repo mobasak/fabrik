@@ -1564,6 +1564,13 @@ def create_backup(path: Path) -> Path:
 
 
 _head_drift: set[str] = set()  # synced paths whose working tree differs from HEAD, for the report
+# (rel, mtime_ns, size) -> (data, mode, drifted). MEASURED 2026-09-15: `_head_source` costs
+# 5.26 ms (two subprocesses — `git ls-files -s` then `git show`), and after the T12.17 hoist it
+# runs twice per COPIED file and once per skipped one, plus once per `_shipped_hash` call. Over
+# the manifest against the 47 repos carrying `.fabrik/synced.lock` that is tens of seconds of
+# pure re-asking, on a post-commit hook three sessions trigger. Keyed on the stat so an edit
+# DURING a run is never served stale; cleared in `main()` beside `_head_drift`.
+_head_cache: dict[tuple[str, int, int], tuple[bytes, int, bool] | None] = {}
 
 
 def _head_source(source: Path) -> tuple[bytes, int] | None:
@@ -1598,6 +1605,19 @@ def _head_source(source: Path) -> tuple[bytes, int] | None:
     except ValueError:
         return None  # outside the hub tree — not ours to read from git
     try:
+        st = source.stat()
+        key: tuple[str, int, int] | None = (rel, st.st_mtime_ns, st.st_size)
+    except OSError:
+        key = None  # unstattable: answer it the slow way rather than caching a guess
+    if key is not None and key in _head_cache:
+        hit = _head_cache[key]
+        if hit is None:
+            return None
+        data, mode, drifted = hit
+        if drifted:
+            _head_drift.add(rel)  # the drift set is rebuilt per run; a cache hit still records
+        return data, mode
+    try:
         ls = subprocess.run(
             ["git", "ls-files", "-s", "--", rel],
             cwd=FABRIK_ROOT,
@@ -1615,11 +1635,15 @@ def _head_source(source: Path) -> tuple[bytes, int] | None:
     except OSError:
         return None
     data = blob.stdout
+    drifted = False
     try:
-        if source.read_bytes() != data:
-            _head_drift.add(rel)
+        drifted = source.read_bytes() != data
     except OSError:
         pass
+    if drifted:
+        _head_drift.add(rel)
+    if key is not None:
+        _head_cache[key] = (data, mode, drifted)
     return data, mode
 
 
@@ -1785,8 +1809,17 @@ def sync_single_file(
         _atomic_copy(source, destination)
         return SyncResult("COPY", source, destination, "forced overwrite")
 
-    # Compare hashes
-    source_hash = compute_file_hash(source)
+    # Compare the bytes that will actually be WRITTEN against the bytes on the destination.
+    # ⚠️ `compute_file_hash(source)` here was the same writer-vs-reader disagreement `_shipped_hash`
+    # was built to end, left in the one leg that syncs every project's MAIN checkout (round 3 of the
+    # Phase E review; the fix wired the worktree leg and the three ledger sites and missed this one,
+    # while _shipped_hash's own docstring claimed "ONE definition, used by the comparison"). Two
+    # failures, both executed: a drifted file NEVER converged — HEAD bytes written, working-tree
+    # hash compared, so every run re-copied it forever in all 47 `.fabrik/synced.lock` repos and
+    # counted it as `copied`; and a project copy already holding the hub's UNCOMMITTED bytes hashed
+    # EQUAL to the working tree and returned SKIP/identical, so the 48-copies-on-2026-09-07 state
+    # this whole mechanism exists to correct was the exact state it could not correct.
+    source_hash = _shipped_hash(source)
     dest_hash = compute_file_hash(destination)
 
     if source_hash == dest_hash:
@@ -2359,6 +2392,7 @@ def main() -> int:
     # 1 forever.
     _SAFETY_FLOOR_FAILURES.clear()
     _head_drift.clear()  # same reason as the three below — a second in-process run inherits it
+    _head_cache.clear()  # and its cache, or run 2 answers from run 1's stat of a since-edited file
     # Same reasoning for the worktree tally (class 5, 2026-09-05 acceptance round 2): a
     # second in-process call must not accumulate a previous run's worktree numbers into
     # this run's final summary line.
@@ -2480,11 +2514,20 @@ def main() -> int:
     if _head_drift:
         names = sorted(_head_drift)
         shown = ", ".join(names[:8]) + (f" … (+{len(names) - 8} more)" if len(names) > 8 else "")
+        # ⚠️ SAY WHAT THIS RUN ACTUALLY DID. `_head_source` is consulted on EVERY branch — including
+        # the ones that write nothing (SKIP/identical, WARN/destination newer, and every path under
+        # --dry-run) — so a flat "the COMMITTED bytes were synced" asserted a sync on runs where
+        # nothing was written at all, which is the inverse of the truth for a dry run (round 3 of
+        # the Phase E review). The drift observation is worth printing on every run; the verb is not.
+        verb = (
+            "nothing was written (--dry-run); a real run would ship the COMMITTED bytes"
+            if args.dry_run
+            else "wherever this run wrote, it wrote the COMMITTED bytes, not what is on disk"
+        )
         print(
             f"\n⚠️  {len(names)} synced file(s) differ between the hub's WORKING TREE and HEAD; "
-            f"the COMMITTED bytes were synced, not what is on disk (T12.17 — an uncommitted edit "
-            f"used to ship to every project, 48 copies on 2026-09-07). Commit them and re-run to "
-            f"distribute: {shown}"
+            f"{verb} (T12.17 — an uncommitted edit used to ship to every project, 48 copies on "
+            f"2026-09-07). Commit them and re-run to distribute: {shown}"
         )
     summary = f"Results: {success_count} projects synced, {fail_count} failed"
     summary += f" | Files: {total_copied} copied, {total_skipped} skipped"

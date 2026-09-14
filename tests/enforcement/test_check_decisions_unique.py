@@ -10,6 +10,7 @@ about past collisions, and a naive matcher reds on all of them.
 from pathlib import Path
 
 from scripts.enforcement.check_decisions_unique import (
+    _DELIMITER,
     find_duplicates,
     find_rows_outside_the_table,
     main,
@@ -168,8 +169,19 @@ def test_a_fake_delimiter_above_a_stray_row_no_longer_hides_it():
     below it. Executed: with `| |` above a stray row the check reported nothing; moved below it,
     the stray was found. The pattern is now anchored to a real header row above it, which makes
     the cheapest fake cost as much as the real fix."""
-    fake = "# Decisions\n\n| |\n| D-001 | a |\n\n| id | when |\n|---|---|\n| D-002 | b |\n"
+    # ⚠️ THE FIXTURE MUST MATCH `_DELIMITER`, or this grader tests the OTHER half of the fix.
+    # The first cut used `| |`, which the repaired pattern rejects outright on the dash
+    # requirement — so the anchor was never reached and the test passed with the anchor DELETED
+    # (executed both arms, round 3 of the Phase E review: `[(4, 'D-001')]` either way). `| - |` is
+    # a legal delimiter cell and is NOT preceded by a header row, so the anchor is what decides.
+    fake = "# Decisions\n\n| - |\n| D-001 | a |\n\n| id | when |\n|---|---|\n| D-002 | b |\n"
+    assert _DELIMITER.match("| - |"), "the fixture must be a real delimiter or the anchor is idle"
     assert find_rows_outside_the_table(fake) == [(4, "D-001")], find_rows_outside_the_table(fake)
+
+    # the other half of the same fix, graded separately: a cell with no dashes is not a delimiter
+    assert not _DELIMITER.match("| |")
+    two_char = "# Decisions\n\n| |\n| D-001 | a |\n\n| id | when |\n|---|---|\n| D-002 | b |\n"
+    assert find_rows_outside_the_table(two_char) == [(4, "D-001")]
 
 
 def test_the_anchored_delimiter_still_finds_a_real_stray_and_stays_quiet_when_clean():

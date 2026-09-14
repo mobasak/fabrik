@@ -276,3 +276,29 @@ def test_the_drift_guard_stands_down_in_a_project(tmp_path: Path) -> None:
 def test_the_shipped_registry_and_scaffold_actually_agree() -> None:
     """The live assertion, not a fixture's: this repo's own two halves must match."""
     assert _drift(REPO_ROOT) == []
+
+
+def test_a_missing_registry_name_is_not_reported_as_an_unreadable_one(tmp_path: Path) -> None:
+    """Round 3 of the Phase E review: `if not declared:` could not tell `None` (no SCAFFOLD_TYPES
+    assignment anywhere in the module) from `set()` (found it, no string literals in it), so a
+    RENAMED or MOVED constant sent the operator hunting a comprehension that does not exist.
+    Both are "parity was NOT checked" — they are not the same instruction to the reader."""
+    absent = tmp_path / "absent"
+    (absent / "src" / "fabrik").mkdir(parents=True)
+    (absent / "docs").mkdir()
+    (absent / "src" / "fabrik" / "scaffold.py").write_text("SOMETHING_ELSE = {'a'}\n")
+
+    unreadable = tmp_path / "unreadable"
+    (unreadable / "src" / "fabrik").mkdir(parents=True)
+    (unreadable / "docs").mkdir()
+    (unreadable / "src" / "fabrik" / "scaffold.py").write_text(
+        "_T = ('a',)\nSCAFFOLD_TYPES = frozenset(_T)\n"
+    )
+
+    a, u = _drift(absent), _drift(unreadable)
+    assert a and u, (a, u)
+    assert "no SCAFFOLD_TYPES assignment found" in a[0], a[0]
+    assert "carries no string literals" in u[0], u[0]
+    assert a[0] != u[0], "two different facts reported with one message"
+    for msg in (a[0], u[0]):
+        assert "This is not a pass" in msg

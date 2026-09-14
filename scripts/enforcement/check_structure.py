@@ -433,6 +433,16 @@ def _scaffold_registry_drift(project_root: Path) -> list[str]:
         return []  # unreadable source is not this check's verdict to give
     if _doc_registry is None:
         return []
+    if declared is None:
+        # NO assignment found at all (or a bare annotation with no value) — a different fact from
+        # "found it, could not read literals out of it", and the one message covered both until
+        # round 3 of the Phase E review. Sending an operator hunting a comprehension that does not
+        # exist is a worse answer than saying the name is missing.
+        return [
+            "could not read SCAFFOLD_TYPES from src/fabrik/scaffold.py — no SCAFFOLD_TYPES "
+            "assignment found in the module (renamed, moved, or behind an import?), so ALL_TYPES "
+            "parity was NOT checked. This is not a pass"
+        ]
     if not declared:
         # Found the assignment but no string literals in it — `frozenset(_TYPES)`, a comprehension,
         # a conditional. Returning [] here reads as PARITY, which is a lie about a check that could

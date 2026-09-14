@@ -333,6 +333,10 @@ WARN_ONLY_CHECKS: set[str] = {
     # still reports under the plain "pytest" name and can still turn the gate red.
     "pytest (NOT RUN)",
     "pytest (NO TESTS COLLECTED)",
+    # Named "(advisory)" and rendered `[PASS]` — the one thing `print_step`'s own docstring says
+    # must not happen, since an operator reading a green gate has no other way to tell a row that
+    # COULD have been red from one that never could (round 3 of the Phase E review).
+    "auto-fix scope (advisory)",
 }
 
 
@@ -353,6 +357,13 @@ _SKIP_MARKERS: tuple[str, ...] = (
     " (NO TESTS COLLECTED",  # pytest ran and collected nothing
     " (diff-sensed skip",  # the whole static tier skipped: only .md files changed
     " (N/A",  # an optional INPUT the check reads is absent (epic_order: no docs/development/epics/)
+    # T12.7 scoped the fixers, and the Phase E review scoped the two ruff LEGS, to
+    # `get_writable_files()` — staged ∪ base…HEAD. That set cannot tell a sibling's unstaged edit
+    # from the author's own, and the completion contract runs `--check` BEFORE `git add`. So an
+    # author's own unstaged .py silently left the gate: no row, no marker, `status: success`
+    # (executed end-to-end, round 3 of the Phase E review — two real ruff errors, zero rows). A
+    # narrowing that empties a leg is a SKIP, not a pass, and this marker is how it says so.
+    " (SCOPE-NARROWED",
 )
 
 
@@ -682,8 +693,9 @@ def run_formatting_fixes(
                 f"unstaged edit may be a sibling's WIP. `git add` yours to include them, or pass "
                 f"--fix-all: {', '.join(skipped[:6])}{' …' if len(skipped) > 6 else ''}"
             )
-            if not json_mode:
-                print(f"  {YELLOW}{skip_note[2:]}{RESET}")
+            # NOT printed here: it is returned as a row below, and `print_step` renders any
+            # passing row's output in human mode — so printing it too put the same sentence on
+            # screen twice (round 3 of the Phase E review).
     text_files = _changed_text(changed)
     ruff_py = _changed_python(changed)
 
@@ -726,6 +738,38 @@ def run_formatting_fixes(
     return results
 
 
+def _scope_narrowed_row(
+    changed: set[str], writable: set[str], leg: str
+) -> list[tuple[str, bool, str]]:
+    """The row a ruff leg owes when the WRITABLE narrowing — not the diff — emptied its input.
+
+    ⚠️ THE DISTINCTION THIS DRAWS. "The change touched no Python" and "the change touched Python
+    this run is not permitted to lint" are different answers, and returning `[]` for both made the
+    second one invisible: `get_writable_files()` is staged ∪ base…HEAD, the completion contract
+    runs `--check` BEFORE `git add`, so an author's own unstaged tracked `.py` left the gate with
+    no row, no `skipped_checks` entry and `status: success`. Executed round 3 of the Phase E
+    review: two real ruff errors in a tracked, modified, unstaged file → `failed: 0`.
+
+    Green, because a skip must never trap an agent — but named with a `_SKIP_MARKERS` token, so
+    `skipped_checks`, the `_check_roster` outcome and (via the ⚠) the JSON `warnings` all carry it,
+    and an agent asking `skipped == 0` gets the honest answer.
+    """
+    dropped = _changed_python(changed - writable)
+    if not dropped:
+        return []
+    return [
+        (
+            f"{leg} (SCOPE-NARROWED — {len(dropped)} unstaged tracked .py)",
+            True,
+            f"⚠ {len(dropped)} changed Python file(s) were NOT linted: on a shared tree an "
+            f"unstaged tracked edit may be a sibling's WIP, so this leg reads the writable set "
+            f"(staged ∪ base…HEAD). `git add` yours to include them, or pass --fix-all. This "
+            f"green asserts nothing about: {', '.join(dropped[:6])}"
+            f"{' …' if len(dropped) > 6 else ''}",
+        )
+    ]
+
+
 def run_format_check(
     changed_files: set[str] | None = None, fix_all: bool = False
 ) -> list[tuple[str, bool, str]]:
@@ -743,22 +787,27 @@ def run_format_check(
     would correctly leave alone. A check that reds on work its own fixer refuses to do is not
     stricter, it is wrong — and on a shared tree it reds whoever happens to run the gate next.
     """
-    scope = set(changed_files or set())
+    changed = set(changed_files or set())
+    scope = changed
+    narrowed_row: list[tuple[str, bool, str]] = []
     if not fix_all:
-        scope &= get_writable_files()
+        writable = get_writable_files()
+        scope = changed & writable
+        narrowed_row = _scope_narrowed_row(changed, writable, "ruff-format (--check)")
     ruff_py = _changed_python(scope)
     if not ruff_py:
-        return []
+        return narrowed_row
     code, out = run_cmd([RUFF, "format", "--check", *ruff_py], timeout=TIMEOUTS["ruff"])
     if code == 0:
-        return [("ruff-format (--check)", True, "")]
+        return [*narrowed_row, ("ruff-format (--check)", True, "")]
     return [
+        *narrowed_row,
         (
             "ruff-format (--check)",
             False,
             "these file(s) are not formatted; a plain `final_gate.py` run would rewrite them, "
             "and `--check` must not. Run `ruff format <paths>` yourself:\n" + out,
-        )
+        ),
     ]
 
 
@@ -960,7 +1009,12 @@ def run_static_checks(
     # the only escapes were `--fix-all` (re-introducing the destruction T12.7 removed) or
     # hand-editing a peer's WIP. It also matches CI exactly: CI checks out HEAD, which never
     # contains anyone's unstaged edit.
-    ruff_py = _changed_python(changed if fix_all else changed & get_writable_files())
+    if fix_all:
+        ruff_py = _changed_python(changed)
+    else:
+        _writable = get_writable_files()
+        ruff_py = _changed_python(changed & _writable)
+        results.extend(_scope_narrowed_row(changed, _writable, "ruff"))
     if ruff_py:
         code, out = run_cmd(
             [RUFF, "check", *ruff_py],
@@ -1903,6 +1957,9 @@ def run_consistency_checks(
             run_optional_check(
                 "scripts/enforcement/check_doc_index.py",
                 "INDEX.md ↔ docs tree drift",
+                # …and `--quiet` so `advisory=True` carries the FINDINGS, not the clean-path
+                # banner. Same pairing `check_doc_links.py` uses two registrations up.
+                "--quiet",
                 # `advisory=True` PRESERVES STDOUT ON EXIT 0. Without it `run_optional_check`
                 # returns "" for a passing check, so direction (c) — the added-code-path advisory,
                 # which by contract never changes the exit code — reached nobody: the gate row was

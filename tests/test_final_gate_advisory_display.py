@@ -307,7 +307,14 @@ def test_every_green_not_run_row_the_gate_emits_is_summarized():
     literals, 6 of them real skip rows). So the honest contract is this list plus the review habit
     of re-deriving it — a new skip row that lands in neither WARN_ONLY_CHECKS nor this set would
     pass, and that gap is named here rather than pretended away."""
-    produced = set(fg.WARN_ONLY_CHECKS) | {
+    produced = (
+        set(fg.WARN_ONLY_CHECKS)
+        # ⚠️ `WARN_ONLY_CHECKS` carries two kinds of green row and only one of them is a SKIP.
+        # "auto-fix scope (advisory)" is a NOTICE about which files the fixer was permitted to
+        # touch — it ran, it just ran narrower — so it names no skip marker on purpose, and the
+        # leg that genuinely did not run emits its own "(SCOPE-NARROWED …)" row beside it.
+        - {"auto-fix scope (advisory)"}
+    ) | {
         fg.EPIC_ORDER_NA,  # T05b: the hub-conditional epic_order row's labelled skip
         "bandit (NOT INSTALLED — skipped)",
         "sqlfluff (NOT INSTALLED — skipped)",
@@ -558,7 +565,12 @@ def test_check_mode_verifies_formatting_without_mutating(tmp_path: Path, monkeyp
     bad = tmp_path / "bad.py"
     bad.write_text("def f( a,b ):\n    return   a+b\n")
     before = bad.read_bytes()
-    monkeypatch.setattr(fg, "_changed_python", lambda _changed: [str(bad)])
+    # The stub must DISCRIMINATE by scope, or it hands the narrowing check the same list it hands
+    # the lint list and invents a dropped file that is not dropped (the non-grader shape).
+    monkeypatch.setattr(fg, "get_writable_files", lambda: {"bad.py", "good.py"})
+    monkeypatch.setattr(
+        fg, "_changed_python", lambda scope: [str(bad)] if "bad.py" in scope else []
+    )
 
     rows = fg.run_format_check({"bad.py"})
     assert len(rows) == 1
@@ -569,7 +581,9 @@ def test_check_mode_verifies_formatting_without_mutating(tmp_path: Path, monkeyp
 
     good = tmp_path / "good.py"
     good.write_text("def f(a, b):\n    return a + b\n")
-    monkeypatch.setattr(fg, "_changed_python", lambda _changed: [str(good)])
+    monkeypatch.setattr(
+        fg, "_changed_python", lambda scope: [str(good)] if "good.py" in scope else []
+    )
     assert fg.run_format_check({"good.py"}) == [("ruff-format (--check)", True, "")]
 
 
@@ -758,10 +772,21 @@ def test_the_skipped_files_are_named_not_silently_dropped(
     repo = _scratch_repo(tmp_path)
     (repo / "src" / "sibling.py").write_text("def sibling( a,b ):\n    return   a+b\n")
     mod = _fg_in(repo, monkeypatch, "fg_t127_msg")
-    mod.run_formatting_fixes(tier=2, changed_files=mod.get_changed_files(), json_mode=False)
+    rows = mod.run_formatting_fixes(tier=2, changed_files=mod.get_changed_files(), json_mode=False)
+    # The notice is a ROW now, not a bare print — that is what carries it into `--json`'s
+    # `warnings`. It must appear EXACTLY once on screen: `print_step` renders any passing row's
+    # output, so the function printing it too put the same sentence up twice (round 3).
+    notice = [r for r in rows if r[0] == "auto-fix scope (advisory)"]
+    assert len(notice) == 1, rows
+    text = notice[0][2]
+    assert "src/sibling.py" in text
+    assert "git add" in text and "--fix-all" in text
+    assert text.lstrip().startswith("⚠"), "the JSON warnings filter keys on the ⚠ prefix"
+    assert notice[0][0] in mod.WARN_ONLY_CHECKS, "named (advisory) but rendered [PASS]"
     out = capsys.readouterr().out
-    assert "src/sibling.py" in out
-    assert "git add" in out and "--fix-all" in out
+    assert out.count("not auto-fixing") == 0, (
+        f"run_formatting_fixes printed the notice itself; print_step renders the row: {out!r}"
+    )
 
 
 def test_the_writable_scope_carries_committed_but_unpushed_work(
@@ -816,37 +841,92 @@ def test_the_format_check_never_reports_a_file_the_fixer_would_not_touch(
         fg, "_changed_python", lambda scope: sorted(paths[p] for p in scope if p in paths)
     )
     rows = fg.run_format_check({"mine.py", "sibling.py"})
-    assert len(rows) == 1 and rows[0][1] is False, rows
-    assert "mine.py" in rows[0][2] and "sibling.py" not in rows[0][2], rows[0][2]
+    # Two rows now: the VERDICT over the writable file, and the SCOPE-NARROWED skip naming the one
+    # that was held back. The verdict must still mention only mine.py — reporting a file the fixer
+    # refuses to touch is the defect this grader was written for.
+    verdict = [r for r in rows if r[0] == "ruff-format (--check)"]
+    assert len(verdict) == 1 and verdict[0][1] is False, rows
+    assert "mine.py" in verdict[0][2] and "sibling.py" not in verdict[0][2], verdict[0][2]
+    narrowed = [r for r in rows if "SCOPE-NARROWED" in r[0]]
+    assert len(narrowed) == 1 and "sibling.py" in narrowed[0][2], rows
 
-    # and with ONLY the sibling's file in the change set, there is no row at all — not a green one.
-    monkeypatch.setattr(fg, "_changed_python", lambda scope: [])
-    assert fg.run_format_check({"sibling.py"}) == []
+    # and with ONLY the sibling's file in the change set there is no VERDICT row — but there is a
+    # skip row, because "nothing to check" and "not permitted to check it" are different answers.
+    rows = fg.run_format_check({"sibling.py"})
+    assert [r[0] for r in rows] == [
+        "ruff-format (--check) (SCOPE-NARROWED — 1 unstaged tracked .py)"
+    ], rows
 
 
-def test_fix_all_widens_the_format_check_the_same_way_it_widens_the_fixer() -> None:
-    """The escape has to be symmetric or `--check` and a plain run answer different questions."""
-    src = Path(fg.__file__).read_text(encoding="utf-8")
-    body = src.split("def run_format_check")[1].split("\ndef ")[0]
-    assert "if not fix_all:" in body and "get_writable_files()" in body
-    assert "run_format_check(changed_files=changed_files, fix_all=fix_all)" in src, (
-        "the caller must thread fix_all, or the flag is inert for this leg"
+def test_fix_all_widens_the_format_check_the_same_way_it_widens_the_fixer(tmp_path, monkeypatch):
+    """The escape has to be symmetric or `--check` and a plain run answer different questions.
+
+    ⚠️ BEHAVIOURAL, not a source-substring assertion. The first cut read `fg.__file__` and asserted
+    the literal `"if not fix_all:"` was present — a grader that cannot fail for any semantics the
+    line produces, and which round 3 of the Phase E review found sitting beside the very defect it
+    was supposed to cover. It also broke the moment the line was reformatted, which is the other
+    half of why a source-text assertion is not a test."""
+    sibling = tmp_path / "sibling.py"
+    sibling.write_text("def f( a,b ):\n    return   a+b\n")
+    paths = {"sibling.py": str(sibling)}
+    monkeypatch.setattr(fg, "get_writable_files", lambda: set())
+    monkeypatch.setattr(
+        fg, "_changed_python", lambda scope: sorted(paths[p] for p in scope if p in paths)
     )
+    # narrowed away entirely -> no verdict row, and a SCOPE-NARROWED skip row saying so
+    narrow = fg.run_format_check({"sibling.py"})
+    assert [r[0] for r in narrow] == [
+        "ruff-format (--check) (SCOPE-NARROWED — 1 unstaged tracked .py)"
+    ]
+    # --fix-all reaches it and the real verdict comes back
+    wide = fg.run_format_check({"sibling.py"}, fix_all=True)
+    assert [r[0] for r in wide] == ["ruff-format (--check)"] and wide[0][1] is False, wide
 
 
-def test_the_lint_leg_is_scoped_like_the_fixer_and_like_ci() -> None:
-    """Phase E review: T12.7 narrowed the FIXERS to `get_writable_files()`; the `ruff check` leg
-    kept reading the wider change set, so a sibling's unstaged tracked file reddened a row no
-    session was permitted to clear — the fixer refuses to touch it, and the only escapes were
-    `--fix-all` (re-introducing the destruction T12.7 removed) or hand-editing a peer's WIP.
+def test_a_leg_narrowed_to_nothing_is_a_skip_not_a_silent_pass(tmp_path, monkeypatch):
+    """Round 3 of the Phase E review, executed end-to-end in a throwaway repo: one tracked,
+    MODIFIED, UNSTAGED `.py` with two real ruff errors. The shipped gate answered
+    `status: success, failed: 0, skipped: 0, skipped_checks: [], ruff rows: []` — the author's own
+    unstaged work left the gate with nothing said, because the completion contract runs `--check`
+    BEFORE `git add` and `get_writable_files()` is staged ∪ base…HEAD.
 
-    It also matches CI: CI checks out HEAD, which never contains anyone's unstaged edit."""
-    src = Path(fg.__file__).read_text(encoding="utf-8")
-    block = src.split("# --- Ruff check (Tier 1 + Tier 2)")[1].split("results.append")[0]
-    assert "changed if fix_all else changed & get_writable_files()" in block, block[:400]
-    assert "fix_all: bool = False" in src.split("def run_static_checks(")[1][:200], (
-        "run_static_checks must accept fix_all, or the lint leg cannot be widened"
+    Both legs now emit a `_SKIP_MARKERS`-named green row, so `skipped_checks`, the roster outcome
+    and the JSON warnings all carry it."""
+    mine = tmp_path / "mine.py"
+    mine.write_text("import os\ny=1\n")
+    paths = {"mine.py": str(mine)}
+    monkeypatch.setattr(fg, "get_writable_files", lambda: set())
+    monkeypatch.setattr(
+        fg, "_changed_python", lambda scope: sorted(paths[p] for p in scope if p in paths)
     )
-    assert "changed_files=changed_files, fix_all=fix_all" in src, (
-        "the caller must thread fix_all or the flag is inert for the lint leg"
+    rows = fg.run_format_check({"mine.py"})
+    assert rows, "a leg narrowed to nothing returned NO row — the fail-silent-green shape"
+    name, ok, out = rows[0]
+    assert ok is True and "SCOPE-NARROWED" in name and "mine.py" in out
+    assert fg._summarize_skipped(rows) == {
+        "skipped": 1,
+        "skipped_checks": ["ruff-format (--check)"],
+    }, fg._summarize_skipped(rows)
+    assert fg._check_roster(rows)[0]["outcome"] == "skipped"
+    assert out.lstrip().startswith("⚠"), "the JSON `warnings` filter keys on the ⚠ prefix"
+
+
+def test_the_lint_leg_is_scoped_like_the_fixer_and_like_ci(tmp_path, monkeypatch):
+    """T12.7 narrowed the FIXERS to `get_writable_files()`; the `ruff check` leg kept reading the
+    wider change set, so a sibling's unstaged tracked file reddened a row no session was permitted
+    to clear. It also matches CI: CI checks out HEAD, which never contains an unstaged edit.
+
+    ⚠️ Behavioural for the same reason as the test above — the first cut asserted the literal
+    source line `"changed if fix_all else changed & get_writable_files()"`, which could not fail
+    and which this round's own fix immediately invalidated by reformatting it."""
+    sibling = tmp_path / "sibling.py"
+    sibling.write_text("import os\n")
+    paths = {"sibling.py": str(sibling)}
+    monkeypatch.setattr(fg, "get_writable_files", lambda: set())
+    monkeypatch.setattr(
+        fg, "_changed_python", lambda scope: sorted(paths[p] for p in scope if p in paths)
     )
+    rows = fg.run_static_checks(tier=1, changed_files={"sibling.py"})
+    names = [r[0] for r in rows]
+    assert "ruff" not in names, f"the lint leg ran on a file outside the writable set: {names}"
+    assert any(n.startswith("ruff (SCOPE-NARROWED") for n in names), names
