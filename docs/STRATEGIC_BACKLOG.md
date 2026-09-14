@@ -62,7 +62,8 @@ title must be a STABLE key, not a formatted string.
 
 wef2 reported (01M1V2P02) that the coupling is directional and points the wrong way for how the
 files actually change: a checker script is stable, the DATA it measures churns, so editing
-`packages/sections/registry.json` without `docs/reference/section-registry.md` satisfies every
+`packages/sections/registry.json` without the section-registry reference doc beside it (both
+paths are wef2's repo, not this one) satisfies every
 check while breaking exactly the coupling the header declares. Their diagnosis is correct and the
 live instance was real — a doc went nine places stale with the coupling declared and silent.
 
@@ -83,7 +84,7 @@ numbers are recorded in `check_script_headers.py`'s own docstring so the next pe
 re-derive them.
 
 **Do — spec-sized, not a patch:** let a header declare the symmetric half explicitly, e.g.
-`# AFTER-EDIT: docs/x.md | SYMMETRIC: packages/sections/registry.json`, so the author opts in
+`# AFTER-EDIT: <the doc> | SYMMETRIC: <the data file>`, so the author opts in
 exactly where the coupling really is bidirectional. False positives are then zero by construction
 and the fire rate is whatever authors declare. It needs a grammar decision, a parser change, a
 migration story for the 150 headers that already carry couplings, and its own graders — which is
