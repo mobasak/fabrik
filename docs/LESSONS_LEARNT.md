@@ -252,11 +252,16 @@ stat. Nothing was lost — their tree equalled HEAD for those hunks — but HEAD
 alerting consolidation that were still uncommitted in their tree, under my trailers.
 
 The mechanical minimum until worktree-per-agent lands (the 2026-09-03 multi-agent spec, CONVERGED r10):
-**after EVERY commit compare `git show --stat HEAD` against the numstat you expected BEFORE pushing** — a
-wider stat is the tell, and unpushed it is recoverable with `reset --soft`. The only hunk-scoped commit
-on a shared tree is a private-index plumbing commit (`GIT_INDEX_FILE=$(mktemp)` + `read-tree HEAD` +
-`update-index --cacheinfo` per file + `write-tree` / `commit-tree` / `update-ref`), which also skips the
-pre-commit hooks — run the gate and the ledger check yourself first. Second hunk-level sweep in the hub
+**after EVERY commit compare `git show --numstat HEAD` against the file list you expected BEFORE
+pushing** — a wider list is the tell, and unpushed it is recoverable with `reset --soft`. The only
+hunk-scoped commit on a shared tree is a private-index plumbing commit. ⚠️ **The recipe itself lives in
+`CLAUDE.md` § Shared repo and is canonical there — do not restate it here.** This paragraph carried a
+two-line summary of it for six days and the summary was WRONG in two ways at once, both found by the
+2026-09-14 Phase C review: it said the chain "skips the pre-commit hooks" when it runs NO hook at all
+(commit-msg and post-commit included, so on a governance-sync trigger surface the change silently never
+distributes), and the `update-ref` form it summarised carried a compare-and-swap that can never fire.
+A restatement of a live recipe is a second source of truth that goes stale without anyone editing it —
+which is this lesson's own subject, one level up. Second hunk-level sweep in the hub
 in one day; the class is exactly why the sessions move into worktrees.
 
 ⚠️ **`--cacheinfo` TAKES THE FILE MODE AS A LITERAL, and this recipe as written above does not say so —

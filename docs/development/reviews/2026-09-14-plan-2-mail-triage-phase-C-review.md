@@ -195,6 +195,25 @@ but `tests/test_stop_hook_spontaneous_review.py` is NOT, so the ~46 project copi
 are alone" signpost for the private-index recipe (`docs/STRATEGIC_BACKLOG.md`).
 
 
+## Disposition ledger — round 2, orchestrator's class re-sweep (pre-seat)
+
+Four rows by their leading verdict: 3 FIXED · 0 REFUTED · 1 RECORDED. Round 1 left four classes
+OPEN — `ephemeral-fix`, `hook-bypass`, `self-contradicting-prose`, `vacuous-cas` — and the run
+record's own advisory named them. Re-swept here with the SAME brief, across the whole corpus rather
+than only the hunks, before the three round-2 seats reported. Every row executed.
+
+| # | Class re-swept | Where | Disposition |
+|---|---|---|---|
+| C2-R1 | self-contradicting-prose | `CLAUDE.md` + `templates/governance/CLAUDE.md`, the § Shared repo opening line AND the HARD STOPS row | FIXED r2 · doc (**a contradiction my own round-1 rewrite created.** Both still mandated "`git diff --cached --name-only` before every commit" while the new pathspec rule 10 KB further down says the pre-commit guard is `git diff HEAD -- <paths>`, "never `git diff --cached`". Both aligned by naming WHICH flow each belongs to — `--cached` for a STAGED commit, the worktree diff for a PATHSPEC commit — and both spellings added to `T6_CLAIMS`, because they sit in a single-line markdown bullet where no reader ever sees both at once) |
+| C2-R2 | hook-bypass | `docs/LESSONS_LEARNT.md:258` | FIXED r2 · doc (the lesson carried a two-line RESTATEMENT of the private-index recipe that was wrong in two ways at once: "skips the pre-commit hooks" when the chain runs NO hook at all, and an `update-ref` form whose CAS can never fire. Narrowed to its own story and pointed at `CLAUDE.md` § Shared repo as canonical — a restatement of a live recipe is a second source of truth that goes stale with nobody editing it, which is that lesson's own subject one level up) |
+| C2-R3 | vacuous-cas | corpus-wide sweep | FIXED r2 · doc + measured (`command grep -rn 'update-ref'` over `CLAUDE.md`, `templates/`, `commands/`, `docs/`, `scripts/`, `.claude/hooks/`, `.windsurf/`, worktrees excluded: 20 hits. The two prescriptive sites are the corrected recipe; `scripts/wip_backup.sh` passes no oldvalue at all on `refs/wip/*`, which is not a CAS and is force-by-design for backup refs, so not this class; the rest are archived plans and review reports. No second site prescribes the vacuous form) |
+| C2-R4 | hook-bypass | every commit of this phase | RECORDED — measured, deferred BY THE PLAN (re-derived the `governance-sync` files-filter from `.pre-commit-config.yaml` and tested each touched path against it: `.claude/hooks/final_gate_stop.py`, `scripts/command_run.py` and `templates/governance/CLAUDE.md` are TRIGGERS; `CLAUDE.md`, the hooks-index, LESSONS_LEARNT, the tests and CHANGELOG are not. Every commit in this phase used the plumbing chain, so the post-commit sync fired for NONE of them and the ~46 project copies still carry the pre-Phase-C sixth cause. That is the plan's design — ONE forced `sync_enforcement_to_projects.py --force` at Finish after a clean dry-run — and the direction is safe: the old code OVER-blocks, it does not launder) |
+
+`ephemeral-fix` re-swept and CLOSED: of the three fixes, only T5.3's needed persistence and now has it
+(`first_review_reach`); T5.1 reads the live `stack`, which is already on disk, and T5.2's exemption is
+meant to last exactly as long as the record runs. No other derived-not-persisted claim in the phase.
+
+
 ## Pass Ledger
 
 ONE table, one row per pass, counts punctuated (`found: F, new: N, confirmed: C, fixed: X,

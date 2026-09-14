@@ -126,6 +126,14 @@ T6_CLAIMS = (
     # contradicting each other in one sentence, and named the rename as the second false negative.
     "Two different questions, two different expectations",
     "a rename legitimately prints `0 0 <old> => <new>` as a SINGLE combined token",
+    # Round 2 of the review: the bullet's own opening line and the HARD STOPS row still mandated
+    # `git diff --cached --name-only` "before every commit", which the pathspec rule above now
+    # explicitly forbids for a pathspec commit. Both aligned; pinned so they cannot drift apart
+    # again, since they sit ~10 KB apart in a single-line markdown bullet where no reader sees both.
+    "`git diff --cached --name-only` when you STAGED it, `git diff HEAD -- <paths>` when you are "
+    "committing by PATHSPEC",
+    "`git diff --cached --name-only` for a STAGED commit, `git diff HEAD -- <paths>` for a PATHSPEC "
+    "commit",
 )
 
 
