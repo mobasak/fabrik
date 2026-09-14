@@ -29,7 +29,8 @@ answered, a re-derivation it could have carried) · `accurate` (it told you some
 ambiguous) · `waste` (it made you spend turns or tokens that changed nothing) · `infra` (it is
 wrong about this box's machinery — paths, scripts, gates; NOT the infra BEAT of the `filed:` field)
 · `rules` (it contradicts or ignores a rule pack) · `manifesto` (it violates an operating
-principle). The eighth axis, continuous improvement, is read ACROSS runs and has no per-run key.
+principle). The one axis with no per-run key is axis 5, continuous improvement — it is read
+ACROSS runs, which is why seven keys serve eight axes.
 One axis per close — the report groups the queue by it, and a second key after a comma is not read.
 
 **Two traps, both executed against the real parser.** (1) **Keep ` · `, `|`, `;` and newlines out of

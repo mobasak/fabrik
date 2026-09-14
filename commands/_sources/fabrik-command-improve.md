@@ -82,9 +82,10 @@ Three shapes are NOT yours to apply here, and each has a destination:
   If an active lock owns it → **STOP and mail the edit** with the exact text you would have written.
   The lock JSON carries no addressee, so route by BEAT (`commands/_sources/` and `.windsurf/rules/`
   are infra's; `docs/reference/agents/` has the charters) and name the lock file in the mail.
-  ⚠️ This is not rare: as of 2026-09-15 the two deepest queues — `/fabrik-review` (46 rows) and
-  `/fabrik-review-scoped` (43) — are both owned by an ACTIVE lock, so **"the whole queue is
-  lock-blocked" is a legitimate, recordable outcome** exactly like an empty one. Mail it and close.
+  ⚠️ This is not rare: when this command was written the two DEEPEST queues were both owned by an
+  active lock (`/fabrik-review` and `/fabrik-review-scoped` — run `--queue` on each for today's
+  depth rather than trusting a number frozen here), so **"the whole queue is lock-blocked" is a
+  legitimate, recordable outcome** exactly like an empty one. Mail it and close.
 - a verdict that wants a NEW mechanism, a gate, a hook, or a schema → that is SPEC/PLAN work
   (`/fabrik-spec` → `/fabrik-plan-after-chat`), not a command edit. Say so and file it.
 - a verdict about the machinery this command itself reads (the ledger, the close, the report) → file
@@ -151,9 +152,8 @@ private-index recipe, never by pathspec over a working file a sibling is also ed
 
 **NEXT:** re-run this command over the DEEPEST remaining queue — `--queue <name>` prints each
 one's depth in its header, and that order is NOT `--observer-rank`'s: the rank sorts by what a close
-COSTS, this sorts by how many verdicts are waiting, and on live data the two disagree (as of
-2026-09-15 `/fabrik-review-scoped` carries 43 waiting verdicts and does not appear in the rank at
-all). Or stop — it is a utility, not a stage, and nothing downstream waits on
+COSTS, this sorts by how many verdicts are waiting, and on live data the two disagree — when this
+was written the second-deepest queue did not appear in the rank at all. Or stop — it is a utility, not a stage, and nothing downstream waits on
 it. Anything it had to route rather than apply (a locked file, spec/plan work, a machinery defect)
 is a mail, and the mail id belongs in the FEEDBACK line.
 

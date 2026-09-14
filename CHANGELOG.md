@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Kaizen pieces 1+2: the whole-plan review's last two rounds (2026-09-15)
+- Four items round 2 found inside round 1's own fixes, each fixed: a grader whose `or "active" in text` disjunct kept it green with the rule it guards deleted (proved by mutation, then narrowed to a pair that discriminates without pinning a line break); a lead sentence still saying FIVE over a list of six; a "four independent handles" beside a clause corrected to five; and the new `--queue`/`--observer-rank` refusal shipping with no grader. Round 3 found one more — a `path:line` in the receipt pointing 29 lines off, into a different function — and the citation sweep that closed the loop found three figures the tree had moved past while the receipt was being written.
+- The receipt now states each figure with the command that produces it and stamps it at the Finish commit, because a number frozen in prose on a shared tree is wrong by the time it is read. Receipt: `docs/development/reviews/2026-09-14-plan-1-kaizen-observe-and-act-review.md`, closed on the D-252 scope-growth stop.
+
 ### Fixed — the D-252 scope-growth stop is now an exit `check_review_coverage` recognises (2026-09-15)
 
 D-252 gave the review loop a third way to end: when two consecutive rounds each confirm ONLY

@@ -256,7 +256,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ## Documentation Structure Map
 
 <!-- AUTO-GENERATED:STRUCTURE:START -->
-<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-09-14T23:35 -->
+<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-09-15T02:23 -->
 ```text
 docs/
 ├── BUSINESS_MODEL.md               # Monetization strategy
@@ -371,7 +371,6 @@ docs/
 │   │   │   ├── T09-run-record-docs.md
 │   │   │   └── T10-integration.md
 │   │   ├── 2026-09-12-plan-2-mail-triage-command-machinery.md
-│   │   ├── 2026-09-14-plan-1-kaizen-observe-and-act.md
 │   │   └── archived
 │   └── reviews
 │       ├── 2026-07-21-claude-p-scoring-review.md
@@ -668,6 +667,8 @@ docs/
 │       ├── 2026-09-12-plan-2-mail-triage-phase-B-review.md
 │       ├── 2026-09-13-rotation-refresh-chain-review.md
 │       ├── 2026-09-14-cobra-effect-rule-review.md
+│       ├── 2026-09-14-plan-1-kaizen-observe-and-act-review.md
+│       ├── 2026-09-14-plan-2-mail-triage-phase-3-E-review.md
 │       ├── 2026-09-14-plan-2-mail-triage-phase-C-review.md
 │       ├── 2026-09-14-scope-growth-stop-review.md
 │       ├── archived
@@ -1053,6 +1054,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 
 | Document | Purpose |
 |----------|--------|
+| [2026-09-14-plan-1-kaizen-observe-and-act-review.md](docs/development/reviews/2026-09-14-plan-1-kaizen-observe-and-act-review.md) | Whole-plan review of kaizen pieces 1+2 (axis-keyed `change:`, `/fabrik-command-improve`) — 4 rounds over the cross-phase seam, closed on the D-252 scope-growth stop; the six lock-owned edits mailed to infra. |
 | [2026-08-10-finder-shape-ab.md](docs/development/reviews/2026-08-10-finder-shape-ab.md) | Plan-2 Phase A decision record — the pinned-roster 3-arm finder-shape A/B (read-only vs tool-enabled vs find+verify): adjudication ledger with execution-verdicts, parallelism assert, CHOSEN SHAPE: arm 1 (no dispatch change). |
 | [2026-08-11-plan-2-stalled-midstream-resume-review.md](docs/development/reviews/2026-08-11-plan-2-stalled-midstream-resume-review.md) | Whole-plan review of the stalled-mid-stream auto-resume execution: 15-round ledger, requirements coverage, embedded gate success, shared-tree adjudications. |
 | [2026-08-15-plan-1-login-once-credentials-review.md](docs/development/reviews/2026-08-15-plan-1-login-once-credentials-review.md) | Whole-plan validation of the login-once credential architecture (T01–T05): per-ticket verdicts, embedded Tier-2 gate success (46/0), docs-review 3-pass CONVERGED ledger, D7 found: 0, named residuals + successor-plan pointers. |

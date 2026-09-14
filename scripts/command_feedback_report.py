@@ -9,8 +9,10 @@ fields the agent wrote — confusion, waste, change, filed. This report turns th
 list the corpus is optimised from: per command, how long and how many rounds a run takes, and
 the concrete `change:` items agents asked for, ranked by how often they recur.
 
-    python3 scripts/command_feedback_report.py [--since DAYS] [--command NAME] [--json]
-                                               [--ledger PATH]
+    python3 scripts/command_feedback_report.py [--since DAYS] [--command NAME] [--agent NAME]
+                                               [--json] [--ledger PATH]
+    python3 scripts/command_feedback_report.py --observer-rank   # who pays for a writer seat
+    python3 scripts/command_feedback_report.py --queue COMMAND   # one command's change: queue
 
 Every count states its bound: `examined` of `total_rows`. A missing ledger is an empty report.
 """
@@ -26,8 +28,6 @@ import sys
 import time
 from pathlib import Path
 from typing import TypeGuard
-
-_FIELDS = ("confusion", "waste", "change")
 
 
 def _default_ledger() -> Path | None:
@@ -64,8 +64,9 @@ def _rows(path: Path | None) -> list[dict]:
 
 
 # The seven PER-RUN axes a `change:` value may be keyed with (spec § D4, the axis table rows
-# :347-354). The eighth axis — continuous improvement — is read ACROSS runs and has no per-run key,
-# which is why seven keys serve eight axes.
+# :347-350 and :352-354). The one axis with NO per-run key is axis 5, continuous improvement
+# (:351) — it is read ACROSS runs — which is why seven keys serve eight axes. Not "the eighth":
+# the table's eighth row is `manifesto aware`, which does have a key and is in the list below.
 AXES: tuple[str, ...] = ("lean", "fast", "accurate", "waste", "infra", "rules", "manifesto")
 
 # The report's OWN copy of the phrases the close-out grammar prints, NEVER an import of
@@ -846,6 +847,8 @@ def main(argv: list[str] | None = None) -> int:
         and a.queue.lstrip("/") != a.command.lstrip("/")
     ):
         ap.error("--queue and --command name different commands; pass one of them")
+    if a.queue is not None and a.observer_rank:
+        ap.error("--queue and --observer-rank are two different reports; pass one of them")
     if a.queue is not None or a.observer_rank:
         # the same window and filters the report uses — an all-time answer to a --since question
         # would name a command retired months ago, silently. `is not None` and not truthiness:

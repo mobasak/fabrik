@@ -1486,7 +1486,9 @@ def test_queue_prints_one_commands_verdicts_newest_first_with_their_ts(tmp_path:
     r = _run(ledger, "--queue", "a")
     assert r.returncode == 0, r.stderr
     lines = r.stdout.splitlines()
-    assert lines[0] == "queue /a — 2 of 3 row(s) for it carry a change: verdict (4 in the window)", lines[0]
+    assert (
+        lines[0] == "queue /a — 2 of 3 row(s) for it carry a change: verdict (4 in the window)"
+    ), lines[0]
     rows = [ln.split("\t") for ln in lines[1:]]
     assert [c[2] for c in rows] == ["fast: newer", "lean: older"], rows
     assert [c[1] for c in rows] == ["fast", "lean"]
@@ -1568,3 +1570,64 @@ def test_a_bad_ledger_path_says_so_on_stderr_and_still_reports_zero(tmp_path: Pa
     assert r.returncode == 0
     assert "is not a readable file" in r.stderr
     assert json.loads(r.stdout)["total_rows"] == 0
+
+
+# --- the cross-phase pins: piece 2 copies piece 1's vocabulary, and its two refusals are prose ---
+
+COMMAND_SRC = ROOT / "commands" / "_sources" / "fabrik-command-improve.md"
+
+
+def test_the_command_that_reads_the_buckets_names_every_one_of_them() -> None:
+    """Piece 2 hard-codes piece 1's whole output vocabulary in prose. Nothing pinned that copy, so
+    an eighth axis would update `AXES` and the fragment, go green, and leave the command telling its
+    reader there are seven — while the new bucket appeared in a column the text does not explain."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("cfr", SCRIPT)
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    text = COMMAND_SRC.read_text(encoding="utf-8")
+    for axis in m.AXES:
+        assert f"`{axis}`" in text, f"the command never names the axis {axis}"
+    for bucket in ("unkeyed", "bad-axis", "placeholder"):
+        assert f"`{bucket}`" in text, f"the command never names the bucket {bucket}"
+    assert "seven axes" in text and len(m.AXES) == 7
+
+
+def test_the_command_keeps_its_lock_refusal_and_names_the_key_it_reads() -> None:
+    """Behavior Contract row: a target owned by an ACTIVE lock stops and names the holder. It is
+    prose, so its guard is a pin — and the pin includes `owned_paths`, because a recipe that does
+    not name the key returns [] and reads as 'no lock owns this', a silent fail-open past the STOP."""
+    text = COMMAND_SRC.read_text(encoding="utf-8")
+    assert "owned_paths" in text
+    assert "STOP and mail" in text
+    # NOT `"active" in text` — the word appears in ordinary prose two lines away, so that arm kept
+    # this grader green with the status filter deleted (proved by mutation). Not the wrapped literal
+    # either: pinning a line break plus two spaces of indent reds on a pure reflow. The pair below
+    # discriminates without that brittleness.
+    assert "`status`" in text and '`"active"`' in text, "the status filter is unguarded"
+
+
+def test_the_command_spells_the_commit_trailer_it_requires() -> None:
+    """Behavior Contract row: the applied edit's trailer names the rows it answers and the series it
+    expects to move. The exact shape is the loop's only state, so the text is pinned verbatim."""
+    text = COMMAND_SRC.read_text(encoding="utf-8")
+    assert (
+        "Agent-Context: command-improve <command> · rows <ts,…> · expects <series> <direction>"
+        in text
+    )
+    assert "Agent-Role: primary" in text
+    assert "%(trailers:key=Agent-Context,valueonly)" in text
+
+
+def test_the_two_report_modes_refuse_to_be_combined(tmp_path: Path) -> None:
+    """`--queue` and `--observer-rank` are different reports; silently picking one was the defect.
+    A refusal nothing guards is temporary — deleting the two `ap.error` lines must fail here."""
+    ledger = tmp_path / "l.jsonl"
+    _write(ledger, [_row("a", 60, 1, "lean: x")])
+    for args in (("--queue", "a", "--observer-rank"), ("--observer-rank", "--queue", "a")):
+        r = _run(ledger, *args)
+        assert r.returncode == 2, r.stdout
+        assert "two different reports" in r.stderr
+    r = _run(ledger, "--queue", "a", "--command", "b")
+    assert r.returncode == 2 and "name different commands" in r.stderr

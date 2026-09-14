@@ -1,6 +1,6 @@
 # Kaizen feedback loop — pieces 1 + 2: axis-keyed OBSERVE, and a command that ACTS on the queue
 
-Status: CONVERGED
+Status: EXECUTED (2026-09-15 — Phase A `48742920`, Phase B `980f2ca2`, Phase C this commit; whole-plan review closed on the D-252 scope-growth stop at `docs/development/reviews/2026-09-14-plan-1-kaizen-observe-and-act-review.md`)
 Profile: small
 **Owner:** —
 Date: 2026-09-14
@@ -88,9 +88,11 @@ Intake: 10 items — 5 IN, 5 OUT-OF-SCOPE (each named above), 0 ASK.
   nothing from `command_run.py` today and must not start), and **(b) a grader pins that list against
   the fragment's LIVE text** — so any reword that empties the bucket fails a test instead of
   silently passing. The measured starting point: the fragment's blockquoted grammar at `:18-22`
-  prints FOUR of the seven phrases `_GRAMMAR_NOUNS` holds (`steps, turns` at `:19`,
-  `the ONE concrete edit` at `:20`, `mail id` at `:21`, `what your run touched` at `:22`), so the
-  bucket has four independent handles today and the grader is what keeps that true — not a promise
+  prints FIVE of the seven phrases `_GRAMMAR_NOUNS` holds (`steps, turns` at `:19`,
+  `the ONE concrete edit` at `:20`, `mail id` at `:21`, `what your run touched` at `:22`, and
+  `what in the command` across the `:18`–`:19` line break — the count was four until the whole-plan
+  review re-derived it with the blockquote markers stripped, which is how a reader sees it), so the
+  bucket has five independent handles today and the grader is what keeps that true — not a promise
   to preserve any one of them — with or without brackets
   and with or without an axis key; the fragment's worked example is a REAL past edit rather than a
   template, so there is nothing template-shaped to paste; and Phase C step 4's mail carries the one-line parser
@@ -357,7 +359,24 @@ command, newest first, each line carrying its `ts` so the commit can name the ro
 - **Given** an applied edit, **When** it is committed, **Then** the trailer block parses and carries
   the rows by `ts` and the expected series with its direction.
 
-## Phase C — Finish
+## Phase C — Finish — ✅ EXECUTED 2026-09-15
+
+**Phase C as executed (2026-09-15).** Steps 1–2: 137 passed across the three suites, `ruff` clean,
+`final_gate.py --json --check` `"status": "success"` 65/0. Step 3: the ONE heavy `/fabrik-review` ran
+four rounds (confirmed 14 → 4 → 1 → 3) with six author-blind seats and closed on the D-252
+scope-growth stop, which `check_review_coverage.py` recognises as an exit since `130c6ef0`. Step 4:
+ONE mail to infra carrying all SIX lock-owned edits — `01M2H05R2SSTJK166WAVBR3MKG`. Step 5:
+governance rows by private index; `INDEX.md`'s row for the new command source rode Phase B's own
+commit, as Phase B step 4 said. Step 6: this flip, the citations repaired before the archive move,
+the lock released.
+
+**Three things this execution learned that the plan did not say.** (1) A new command source's phase
+count comes from `## PHASE N` headings, and a numbered `## 1 — …` heading silently falls through to a
+section count — a five-step command declared six phases until the headings were renamed. (2) The
+render refuses a composed skill description over 1024 characters, which is a real gate nobody names
+until it fires. (3) The `--ledger` flag's `or` default treated `Path("")` as truthy and read the CWD,
+which is the same falsy-value class as the `--queue ""` defect a seat found one flag over.
+
 
 1. Full suites + `ruff` clean over both changed scripts and their tests.
 2. `python3 scripts/final_gate.py --json --check` → `"status": "success"`; read `skipped_checks`.
@@ -365,7 +384,7 @@ command, newest first, each line carrying its `ts` so the commit can name the ro
    `docs/development/reviews/2026-09-14-plan-1-kaizen-observe-and-act-review.md` with the verbatim
    gate embed and a per-phase verdict. Sized with `dispatch_headroom.py --units 2 --risky 1`,
    stamped with `command_run.py dispatch --seats <n>` before the seats go out.
-4. **ONE mail to infra, carrying FIVE exact edits to lock-owned files — this is the only place the
+4. **ONE mail to infra, carrying SIX exact edits to lock-owned files — this is the only place the
    plan promises a mail, and every other section points here.** Each item is written out verbatim so
    the lock holder applies rather than re-derives: (a) the `CLAUDE.md` contract line making
    `/fabrik-command-improve` a duty when a command's queue is non-empty; (b) the `NEXT` map entry for
@@ -373,9 +392,12 @@ command, newest first, each line carrying its `ts` so the commit can name the ro
    `scripts/command_run.py:1131-1132`, which this plan's fragment edit puts out of step; (d) the
    one-line placeholder fix — strip a leading `<axis>:` before `_is_placeholder`'s `re.fullmatch`
    (`command_run.py:1168`) — which is the only real close of the hole § Global Constraints names;
-   and (e) the two sentences `docs/reference/command-run-protocol.md` and
+   (e) the two sentences `docs/reference/command-run-protocol.md` and
    `docs/workstation/kaizen-event-stream.md` each need, since both are lock-owned and this plan makes
-   them stale. Precedent for the route: `01M2AJKKVGH8Q2PK51CM2GJ5FC`.
+   them stale; and **(f)** the `change:` clause of the FINAL OUTPUT block in `CLAUDE.md` AND
+   `templates/governance/CLAUDE.md` — the fragment tells every session on the box that both twins are
+   "in the edit mailed to infra", so leaving this out would make the shipped fragment's own sentence
+   false. Precedent for the route: `01M2AJKKVGH8Q2PK51CM2GJ5FC`.
 5. Governance rows by private-index plumbing (HEAD + mine, `$base` CAS): `CHANGELOG.md` one entry ·
    `docs/DECISIONS.md` one row minted with `decisions.py --next-id` · `docs/STRATEGIC_BACKLOG.md` for
    any residue · `docs/development/PLANS.md` regenerated by `docs_updater.py --sync`.
@@ -396,8 +418,10 @@ command, newest first, each line carrying its `ts` so the commit can name the ro
 `INDEX.md` is NOT here and must not be: it is one of the seven governance files
 (`check_plan_tickets.py::GOVERNANCE_FILES`), which are orchestrator-applied shared-append surfaces
 deliberately outside the plan lock — listing one is a dedicated gate ERROR. Its row for the new
-command source is written in Phase C step 5 alongside CHANGELOG and the decision row, by the same
-private-index plumbing. `docs/development/PLANS.md` IS here: it is written by
+command source rides PHASE B's own commit — by the same private-index
+plumbing, because a governance file is orchestrator-applied wherever it is written and the Doc Sync
+trigger ("file added") fires in the phase that adds the file. (Phase B step 4 always said so; this
+sentence said Phase C until the whole-plan review caught the two halves disagreeing.) `docs/development/PLANS.md` IS here: it is written by
 `docs_updater.py --sync` in Phase C and is not a governance file, so nothing else covers it.
 
 **OUT of scope because the ACTIVE `2026-09-09-plan-1-review-convergence-redesign` lock owns them —
