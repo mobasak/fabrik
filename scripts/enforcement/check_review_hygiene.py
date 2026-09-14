@@ -224,9 +224,12 @@ def _blank_quoted(lines: list[str]) -> list[str]:
             # two table classes, `_fence_step`, the heading stop), and a live tail joins the pipe
             # run or opens the fence run below it — round 15 measured a `dual-verdict` row lost
             # behind `0 hits` and a `~~~` tail blanking the rest of a receipt, the same fail-open
-            # the mask was written to end. G29 ("prose after the close swallowed") is answered by
-            # the PROSE classes, which read the raw text: `stale-phrase`, `claim` and
-            # `template-residue` all report the tail with the line blanked here (round 15).
+            # the mask was written to end. G29 ("prose after the close swallowed") is answered on
+            # the SURFACE path by the prose classes, which read the raw text: `stale-phrase`,
+            # `claim` and `template-residue` all report the tail with the line blanked here.
+            # STATED COST: a file given only as `--receipt` — which is what the gate's own
+            # self-selection passes — runs the two TABLE classes and nothing else, so the tail's
+            # prose is unreported there, blanked or not (round 16).
             out.append("")
             j = _mask_code_spans(ln).find("-->")
             if j >= 0:
@@ -704,11 +707,12 @@ def _comment_cuts(ln: str) -> tuple[list[tuple[int, int]], int]:
     holding a closed comment); a closer of an OPEN block is read through the same mask by the
     `in_comment` exit of `_blank_quoted` and by `_until_heading`'s look-ahead (I4: a receipt
     cell quoting `-->` is prose — round 11's same-line raw exception is gone, round 14). TWO
-    reads in `_until_heading` are deliberately raw, both on the line it is about to neutralise:
-    the heading-line prefilter, which strips closed comments raw so a span-led line is not a
-    heading, and the neutralisation itself, which rewrites every `<!--` from the opener on (a
-    span's marker included — the line is literal text by then, and a second opener left standing
-    would re-open the block)."""
+    reads in `_until_heading` are deliberately UNMASKED, and they read DIFFERENT copies: the
+    neutralisation, on the raw line it is about to rewrite, replacing every `<!--` from the
+    opener on (a span's marker included — the line is literal text by then, and a second opener
+    left standing would re-open the block); and the heading-line prefilter, which strips closed
+    comments off `_blank_quoted`'s BLANKED copy so a span-led line is not a heading. The heading
+    COMPARE reads the raw `lines[i]`, but through this mask — `_heading_key` calls it."""
     masked = _mask_code_spans(ln)
     closed = [(m.start(), m.end()) for m in _CLOSED_COMMENT.finditer(masked)]
     rest = masked

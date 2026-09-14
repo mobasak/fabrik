@@ -1320,7 +1320,11 @@ def test_a_comment_closing_line_never_joins_the_table_or_fence_run_below_it(tmp_
     opened a fence that blanked the rest of the file, silently. Both are the fail-open the
     code-span mask exists to end. The closing line belongs to the HTML block (CommonMark), so it
     is blanked whole — and the PROSE classes, which read the raw text, still report the tail,
-    which is what G29 (round 2) actually asked for."""
+    which is what G29 (round 2) actually asked for, on the SURFACE path; the receipt path runs
+    the table classes alone, and the last assertion pins that cost (round 16).
+
+    The third tail (`ok`) is the unchanged case — a guard that blanking never invents a hit —
+    not a discriminator: it passes on the round-14 code too."""
     table = "| Finding | Disposition |\n|---|---|\n| F1 | FIXED, REFUTED |\n"
     for tail in ("| x | y |", "~~~", "ok"):
         hits, ungraded = crh._receipt_hits(
@@ -1328,11 +1332,18 @@ def test_a_comment_closing_line_never_joins_the_table_or_fence_run_below_it(tmp_
         )
         assert [(h.cls, h.line) for h in hits] == [("dual-verdict", 7)], tail
         assert ungraded == 0, tail
+    # round 16: the heading-line prefilter reads `_blank_quoted`'s BLANKED copy, not the raw
+    # line — a heading INSIDE a multi-line comment is no stop. Nothing pinned which copy it
+    # reads, so re-pointing it at `lines[i]`/`quoted[i]` passed the whole suite.
+    inside = "intro\n<!-- open\n## Pass Ledger\n-->\nafter\n"
+    assert crh._until_heading(inside, "Pass Ledger") == (inside, 0)
     # G29's real answer: the tail's prose is reported from the RAW text, blanked copy or not
     f = tmp_path / "tail.md"
     f.write_text("# R\n\n<!-- opens\ncloses --> the widget lives on\nafter\n", encoding="utf-8")
     sweep = crh.scan(surfaces=[f], phrases=["the widget lives"])
     assert [h.line for h in sweep.hits if h.cls == "stale-phrase"] == [4], sweep.hits
+    # …and the STATED COST beside it: as a receipt, the prose classes do not run at all
+    assert crh.scan(receipts=[f], phrases=["the widget lives"]).hits == []
 
 
 def test_a_label_with_two_surfaces_is_refused_and_a_repeated_selector_dedupes(tmp_path):
