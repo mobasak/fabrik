@@ -510,6 +510,31 @@ Rubric over the § File Scope entries (FLOOR core/35, core/25, core/30, 12-facto
   - **The record's series reads `… 11 · 0 · 9 · 8` because round 6 was written before its seat was
     adjudicated.** A premature `round` is why the stop's counted condition did not fire two rounds
     earlier, and why the oscillation advisory fired at all.
+- **Phase E — DONE 2026-09-14.** All 23 T12 rows dispositioned: **12 code fixes** with red-first
+  graders, **5 refuted or partly refuted at HEAD** by execution rather than by reading, **1 mechanism
+  measured and REJECTED**, and **22 mails replied to and acked**. Commits `4b9c78ac` · `b6b7145d` ·
+  `5c4fdba4` · `994e2c3d` · `2500f843` · `64ae6dd8` · `c2a41bf5` · `b188b25c` · `1cb7a007` ·
+  `9de5640a` · `5ea5029d`, plus `ac29e778` · `ed2e571a` · `f639aaed` · `84f88595` from the phase's
+  first half.
+  - **The three that mattered most were all "this silently destroyed or misreported real work":** the
+    gate's auto-fixers rewrote a sibling's uncommitted file (T12.7); the fleet sync shipped the hub's
+    WORKING TREE, so an uncommitted edit reached 48 project copies (T12.17); and `--adopt --dry-run`
+    wrote five files including a minted `D-001 (MERGE OWNER)` row (T12.9).
+  - **Both governance contracts carried a falsehood** — `--systemic` was advertised as checking ports
+    and deps; `check_ports.py` and `check_deps_sync.py` are UNWIRED and `final_gate.py` says so in its
+    own comments (T12.8). Corrected byte-identical in `CLAUDE.md` and `templates/governance/CLAUDE.md`.
+  - **One mechanism was measured and rejected** (T12.14): symmetrising the `AFTER-EDIT` coupling fires
+    on 591 of 1,037 commits (57 %); 27 % even after excluding every `docs/` path. Recorded in the
+    check's own docstring; the opt-in design filed as spec-sized.
+  - ⚠️ **Gate step 24 is green EXCEPT for four pre-existing failures, and the exception is stated
+    rather than rounded off.** `pytest tests/enforcement` reads 4 failed / 1378 passed. Three
+    (`test_pack_reachability`) pass in isolation and are suite-ordering pollution; one
+    (`test_frontmatter_parser_matches_epic_order_verbatim`) is a parser-parity drift. Attributed by
+    three executed probes — reverting all six touched scripts, reverting only `_doc_registry.py`, and
+    excluding all four modified test files — each leaving the failures in place. Filed with the
+    diagnosis. `final_gate.py --check --json` is `success`; `sync_enforcement_to_projects.py
+    --dry-run` is clean with 0 failed across 45 projects.
+
 
 ## Finish
 

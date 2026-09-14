@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Phase E of the mail-triage plan closed: 23 rows, 22 replies, one mechanism rejected (2026-09-14)
+
+- All 23 T12 rows dispositioned — **12 code fixes** each with a red-first grader, **5 refuted or partly refuted at HEAD** by execution rather than by reading, **1 mechanism measured and rejected**, and **22 mails replied to and acked**.
+- ⚠️ **Four pre-existing test failures are stated rather than rounded off.** `pytest tests/enforcement` reads **4 failed / 1378 passed**; three (`test_pack_reachability`) pass in isolation and are suite-ordering pollution, one is a parser-parity drift. Attributed by three executed probes — reverting all six touched scripts, reverting only `_doc_registry.py`, and excluding all four modified test files — each leaving the failures in place. A fourth probe is recorded because it does NOT work: a `git archive` scratch tree fails 103 tests, since the archive omits gitignored files the suite needs, so a clone-shaped baseline cannot attribute anything here. Filed with the diagnosis.
+
 ### Fixed — a worktree the governance sync wrote into was classified dirty forever (2026-09-14)
 
 - Phase E T12.23 of the mail-triage plan (01M23JK2R, reported by wef3) — five graders, proven red-on-revert in place.

@@ -58,6 +58,42 @@ surface is missing one. Cross-repo, so it is fabrik-lib's to fix.
 **Do:** mail fabrik-lib — a bounded store (or a documented `reset()`), and a note in the pack that a
 title must be a STABLE key, not a formatted string.
 
+## [infra] Four `tests/enforcement` tests pass in isolation and FAIL in the full-suite run — pre-existing pollution, attributed by execution
+
+`python3 -m pytest tests/enforcement -q` is RED at HEAD and was before Phase E: **4 failed, 1378
+passed**. Three of the four pass cleanly when their file runs alone (`test_pack_reachability.py` →
+16 passed), which makes this a test-ORDERING defect, not a defect in the checks.
+
+**Attribution, executed rather than assumed** (2026-09-14, three independent probes):
+
+1. Reverting all six enforcement scripts Phase E touched to `84f88595` — the three still fail.
+2. Reverting ONLY `_doc_registry.py` (removing `office-extension`, the likeliest suspect since the
+   failures are about scaffold types) — the three still fail.
+3. Running `tests/enforcement` with all FOUR test files Phase E modified excluded via `--ignore` —
+   the three still fail.
+
+So none of it is Phase E's. ⚠️ A fourth probe that does NOT work and is recorded so nobody repeats
+it: `git archive <sha> | tar -x` into a scratch tree fails **103** tests, because the archive omits
+gitignored files the suite needs. A clone-shaped baseline cannot attribute anything here.
+
+**The mechanism, diagnosed but not fixed:** the three failures are the "scaffolder unavailable" and
+"masked scaffolder failure" simulations — they assert the check does NOT condemn a pack it could not
+evaluate. In a full run the scaffolder IS importable, so the simulation never takes effect and the
+check evaluates the pack and condemns it. Something earlier in the run leaves `fabrik.scaffold` in
+`sys.modules` (or `src/` on `sys.path`), and monkeypatching the import path does not defeat an
+already-imported module. `test_pack_layout_audit.py` imports the same module and is the first place
+to look.
+
+The fourth failure is separate and also pre-existing:
+`test_plan_tickets_epic_scope.py::test_frontmatter_parser_matches_epic_order_verbatim` reports
+`['_find_fences']` — the two frontmatter parsers it holds to verbatim parity have drifted by one
+helper.
+
+**Do:** make the unavailability simulation defeat an already-imported module (pop it from
+`sys.modules` in the fixture, or assert the precondition and skip loudly rather than silently
+evaluating), and re-derive the `_find_fences` parity. Both are small; neither belongs inside a phase
+whose scope is 23 mail-triage rows.
+
 ## [infra] `# AFTER-EDIT:` needs a SYMMETRIC coupling it can opt into — blanket symmetry was measured and rejected
 
 wef2 reported (01M1V2P02) that the coupling is directional and points the wrong way for how the
