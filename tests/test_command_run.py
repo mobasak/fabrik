@@ -3027,6 +3027,29 @@ def test_the_scope_growth_stop_fires_when_a_loop_only_reviews_its_own_fixes() ->
     )
 
 
+def test_a_malformed_counter_never_blanks_the_round_report() -> None:
+    """Round-zero class sweep of the `_own_fix` fix (2026-09-14): the same bare `int()` shape sat
+    in `_trend_series` and twice in the report/status paths. `_round_report` has ONE return and
+    sits on the Stop hook's path, so a raise there does not surface — the outer `error,
+    continuing` guard turns it into a BLANK round report, TERMINAL verdict included, while the
+    record keeps accepting rounds. A counter that cannot be read is 0, never an erased report.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("cr_int0", _SCRIPT)
+    cr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cr)
+
+    for bad in ("n/a", ["x"], {"a": 1}, True, None):
+        assert cr._trend_series([{"findings": bad}]) == [0], bad
+    # the report itself survives and still names the round
+    rec = {"command": "fabrik-review", "rounds": [{"n": 1, "findings": "n/a"}], "classes": {}}
+    out = cr._round_report(rec)
+    assert "ROUND 1 recorded" in out, out
+    # a real value is still read as itself — the guard must not flatten everything to 0
+    assert cr._trend_series([{"findings": 7}]) == [7]
+
+
 def test_the_oscillation_detector_still_fires_for_single_brief_loops() -> None:
     """The teeth must survive: /fabrik-review and the gate commands DO run one re-swept brief,
     which is exactly the model the heuristic is right about."""
@@ -4372,6 +4395,56 @@ def test_round_refuses_a_negative_delta_and_the_cli_delta_reaches_the_advisory(
     for n in series:
         r = _cr(run2, "round", "--findings", n)
     assert "oscillat" in (r.stdout + r.stderr).lower(), r.stdout + r.stderr
+
+
+def test_round_refuses_an_own_fix_that_is_not_a_subset_and_notes_an_uncounted_review_round(
+    run_dir: Path,
+) -> None:
+    """Review round 2 of the scope-growth stop: the CLI half of that change — the bounds refusal
+    and both NOTEs — was ENTIRELY ungraded. A seat deleted the whole 2.1 KB block from a copy and
+    the suite stayed green, name for name, which is how the round-1 commit came to claim "each is
+    now red by name" for a fix nothing held. `--own-fix` counts a SUBSET of `--confirmed`; the
+    natural slip is counting it against `--findings`, the larger number on the same line, which
+    records an impossible value the equality can never match and silently disables the stop.
+    """
+    _start(run_dir)
+    # above --confirmed: refused, and the round is NOT persisted
+    r = _cr(run_dir, "round", "--findings", "9", "--confirmed", "3", "--own-fix", "5")
+    assert r.returncode == 2 and "--own-fix" in r.stderr and "SUBSET" in r.stderr, r.stderr
+    r = _cr(run_dir, "round", "--findings", "9", "--confirmed", "3", "--own-fix", "-1")
+    assert r.returncode == 2 and "--own-fix" in r.stderr, r.stderr
+    rec = json.loads(next(run_dir.glob("*.json")).read_text(encoding="utf-8"))
+    assert rec.get("rounds", []) == [], rec.get("rounds")
+    # the boundaries are accepted in silence
+    for own in ("0", "3"):
+        r = _cr(run_dir, "round", "--findings", "9", "--confirmed", "3", "--own-fix", own)
+        assert r.returncode == 0 and "REFUSED" not in r.stderr, (own, r.stderr)
+    # stated without --confirmed: recorded, but noted as unable to trip the stop
+    r = _cr(run_dir, "round", "--findings", "9", "--own-fix", "2")
+    assert r.returncode == 0 and "can never trip it" in r.stderr, r.stderr
+
+
+def test_a_review_round_that_confirms_without_counting_its_own_residue_is_noted(
+    run_dir: Path,
+) -> None:
+    """The stop can only fire on rounds that COUNT, and omission is silent in the DATA by design
+    (a defaulted 0 would assert "no residue" for every loop that has not heard of the flag). So
+    the omission itself must be loud — otherwise the mechanism depends on the orchestrator
+    remembering it, which is the failure it exists to end. Only the review family is prompted:
+    `fabrik-repo-review` is a per-unit loop the stop stands down for, so nagging it would be
+    noise."""
+    _cr(run_dir, "start", "--command", "fabrik-review", "--phases", "5", "--terminal", "quiet")
+    r = _cr(run_dir, "round", "--findings", "5", "--confirmed", "3")
+    assert "without --own-fix" in r.stderr, r.stderr
+    # a quiet round is never nagged — there is no residue to count
+    r = _cr(run_dir, "round", "--findings", "0", "--confirmed", "0")
+    assert "without --own-fix" not in r.stderr, r.stderr
+    # a per-unit loop is not prompted: consecutive rounds there describe different surfaces
+    run2 = run_dir / "perunit"
+    run2.mkdir()
+    _cr(run2, "start", "--command", "fabrik-repo-review", "--phases", "5", "--terminal", "quiet")
+    r = _cr(run2, "round", "--findings", "5", "--confirmed", "3")
+    assert "without --own-fix" not in r.stderr, r.stderr
 
 
 def test_a_real_id_inside_angle_brackets_is_not_a_placeholder() -> None:

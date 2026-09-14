@@ -327,24 +327,36 @@ def convergence_warning(
 SCOPE_GROWTH_ROUNDS = 2
 
 
-def _own_fix(row: Any) -> int | None:
-    """One round's OWN-FIX count, or None when that round never stated it.
+def _count(row: Any, key: str) -> int | None:
+    """One round counter read from the RECORD, or None when that round never stated it.
 
-    Mirrors `_confirmed` exactly, including its suppression: `command_run.py` sits on the Stop
-    hook's path and `_round_report` has ONE return, so an `int()` that raises on a hand-written
-    or foreign-written record does not fail loudly — the outer guard swallows it and the whole
-    round report, TERMINAL verdict included, silently becomes blank (review round 1, C2). A bool
-    and a float are REFUSED rather than coerced: `own_fix=True` and `own_fix=2.5` both compared
-    equal to a confirmed count of 1 and 2 and fired the advisory.
+    ONE reader for both sides of the scope-growth equality: `confirmed` and `own_fix` are
+    compared to each other, so a record read differently depending on which field carries the
+    malformed value is the defect (review round 2, C-4 — a bool on the `confirmed` side still
+    fired after only `own_fix` was hardened).
+
+    A bool is refused (`True` read as 1 compared equal to a confirmed count of 1 and fired the
+    advisory). A float is refused ONLY when it is not integral: JSON has a single number type, so
+    a foreign-written record legitimately carries `2.0`, and refusing every float disabled the
+    stop for that whole record — a fail-open regression (review round 2, C-3). The `int()` is
+    suppressed like `_confirmed`'s always was: `_round_report` has ONE return on the Stop hook's
+    path, and a raise there blanks the whole report, TERMINAL verdict included.
     """
-    if not isinstance(row, dict) or row.get("own_fix") is None:
+    if not isinstance(row, dict) or row.get(key) is None:
         return None
-    v = row["own_fix"]
-    if isinstance(v, (bool, float)):
+    v = row[key]
+    if isinstance(v, bool):
+        return None
+    if isinstance(v, float) and not v.is_integer():
         return None
     with contextlib.suppress(TypeError, ValueError):
         return int(v)
     return None
+
+
+def _own_fix(row: Any) -> int | None:
+    """This round's OWN-FIX count, or None — `_count`'s `own_fix` side."""
+    return _count(row, "own_fix")
 
 
 def scope_growth_warning(rows: list[Any], command: str = "") -> str:
@@ -371,7 +383,10 @@ def scope_growth_warning(rows: list[Any], command: str = "") -> str:
         # when the rounds share no delta. Same stand-down, same reason, as the oscillation
         # advisory above (review round 1, C4).
         return ""
-    rows = [r for r in rows if isinstance(r, dict)]
+    # NO filtering: `_count` returns None for a non-dict, which BREAKS the run exactly as a
+    # missing counter does. Filtering them out closed the window ACROSS them and re-opened the
+    # very hole round 1 fixed (review round 2, C-1); `_trend_series` applies the same rule over
+    # the unfiltered list.
     if len(rows) < SCOPE_GROWTH_ROUNDS:
         return ""
     window = rows[-SCOPE_GROWTH_ROUNDS:]
@@ -400,13 +415,10 @@ def _confirmed(row: Any) -> int | None:
 
     ABSENT is a third answer, never 0: "nobody counted" and "counted zero" are exactly what the
     exit rule must tell apart, and a defaulted 0 would close every fleet loop that has not yet
-    heard of the flag (DD4, the backward-compatibility contract).
+    heard of the flag (DD4, the backward-compatibility contract). Reads through `_count`, the
+    same reader `own_fix` uses — the two are compared to each other.
     """
-    if not isinstance(row, dict) or row.get("confirmed") is None:
-        return None
-    with contextlib.suppress(TypeError, ValueError):
-        return int(row["confirmed"])
-    return None
+    return _count(row, "confirmed")
 
 
 def _adopted_confirmed(rounds: list[Any]) -> int | None:
@@ -424,6 +436,22 @@ def _adopted_confirmed(rounds: list[Any]) -> int | None:
     return None
 
 
+def _int0(v: Any) -> int:
+    """A round counter read from the RECORD, unreadable values as 0.
+
+    Found by the round-zero class sweep of the `_own_fix` fix (2026-09-14): the bare `int()` this
+    replaces raised on a malformed `findings`, and `_round_report` has ONE return on the Stop
+    hook's path — the outer guard turned the raise into a BLANK round report, TERMINAL verdict
+    included, while the record kept accepting rounds. Absence already meant 0 here; unreadable
+    now means the same rather than erasing the whole report.
+    """
+    if isinstance(v, bool):
+        return 0
+    with contextlib.suppress(TypeError, ValueError):
+        return int(v)
+    return 0
+
+
 def _trend_series(rounds: list[Any]) -> list[int]:
     """The `confirmed` series when EVERY round states it, the `findings` series otherwise.
 
@@ -434,7 +462,7 @@ def _trend_series(rounds: list[Any]) -> list[int]:
     """
     if rounds and all(_confirmed(r) is not None for r in rounds):
         return [_confirmed(r) or 0 for r in rounds]
-    return [int(r.get("findings", 0)) for r in rounds if isinstance(r, dict)]
+    return [_int0(r.get("findings", 0)) for r in rounds if isinstance(r, dict)]
 
 
 def _trend_label(rounds: list[Any]) -> str:
@@ -472,7 +500,7 @@ def _round_report(rec: dict[str, Any]) -> str:
     adopted_at = _adopted_confirmed(rounds)
     swept_all = bool(classes) and not open_c and bool(last.get("swept"))
     lapsed = last_confirmed is None and adopted_at is not None
-    counter = int(last.get("findings", 0)) if last_confirmed is None else last_confirmed
+    counter = _int0(last.get("findings", 0)) if last_confirmed is None else last_confirmed
     # D-206/D-207 + `check_review_coverage.py`'s "Minimum two rounds ALWAYS": round 1 is the FULL
     # pass, never the closing DELTA round. A banner that closed it sent the agent to write a
     # one-`Pass`-row receipt the coverage gate hard-refuses — the two halves of the same redesign
@@ -3022,7 +3050,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             "state": args.cmd,
             "wall_s": round(_wall_s, 1),
             "rounds": len(rec.get("rounds") or []),
-            "findings": [int(r.get("findings", 0)) for r in rec.get("rounds") or []],
+            "findings": [_int0(r.get("findings", 0)) for r in rec.get("rounds") or []],
             # the durable exit-counter series beside the raw one; `null` for a round that never
             # stated it, never a fabricated 0 (no reader exists yet — this is the record)
             "confirmed": [_confirmed(r) for r in rec.get("rounds") or []],
