@@ -1232,12 +1232,18 @@ def test_stop_at_heading_matches_a_real_heading_and_blanks_the_symbol_count_too(
         "",
         "after",
     ]
-    # round 14: a closer is read through the mask like every marker (I4) and the closing line's
-    # tail after the closer is live at its own offset (G29)
+    # round 14: a closer is read through the mask like every marker (I4)
     assert crh._blank_quoted(["<!-- opens", "in a span `-->` and LIVE", "live"]) == ["", "", ""]
-    assert crh._blank_quoted(["<!-- opens", "closes --> | foo | FIXED, REFUTED |"]) == [
+    # round 15: the CLOSING line belongs to the block and is blanked WHOLE — a live tail joined
+    # the pipe run below it and the table classes graded nothing (the fail-open below)
+    assert crh._blank_quoted(["<!-- opens", "closes --> | foo | FIXED, REFUTED |"]) == ["", ""]
+    # …but the comment STATE still reads the tail: a second opener there keeps the block open
+    assert crh._blank_quoted(["<!-- a", "--> <!-- b", "inside", "--> live", "after"]) == [
         "",
-        "           | foo | FIXED, REFUTED |",  # ten blanks for `closes -->`, then the tail
+        "",
+        "",
+        "",
+        "after",
     ]
     assert (
         crh._until_heading(
@@ -1305,6 +1311,28 @@ def test_stop_at_heading_matches_a_real_heading_and_blanks_the_symbol_count_too(
     )
     sweep = crh.scan(surfaces=[e], phrases=["the widget"], stop_at_heading="## Pass Ledger")
     assert [h.line for h in sweep.hits if h.cls == "stale-phrase"] == [5, 7], sweep.hits
+
+
+def test_a_comment_closing_line_never_joins_the_table_or_fence_run_below_it(tmp_path):
+    """Review round 15 (Phase B): round 14 left the closing line's tail LIVE at its own offset,
+    so a tail carrying a `|` joined the pipe run of the table beneath it — no header pair formed,
+    every row read `ungraded`, and `dual-verdict` graded nothing; a tail carrying a fence marker
+    opened a fence that blanked the rest of the file, silently. Both are the fail-open the
+    code-span mask exists to end. The closing line belongs to the HTML block (CommonMark), so it
+    is blanked whole — and the PROSE classes, which read the raw text, still report the tail,
+    which is what G29 (round 2) actually asked for."""
+    table = "| Finding | Disposition |\n|---|---|\n| F1 | FIXED, REFUTED |\n"
+    for tail in ("| x | y |", "~~~", "ok"):
+        hits, ungraded = crh._receipt_hits(
+            "r.md", f"# R\n\n<!-- a note opens\ncloses --> {tail}\n{table}"
+        )
+        assert [(h.cls, h.line) for h in hits] == [("dual-verdict", 7)], tail
+        assert ungraded == 0, tail
+    # G29's real answer: the tail's prose is reported from the RAW text, blanked copy or not
+    f = tmp_path / "tail.md"
+    f.write_text("# R\n\n<!-- opens\ncloses --> the widget lives on\nafter\n", encoding="utf-8")
+    sweep = crh.scan(surfaces=[f], phrases=["the widget lives"])
+    assert [h.line for h in sweep.hits if h.cls == "stale-phrase"] == [4], sweep.hits
 
 
 def test_a_label_with_two_surfaces_is_refused_and_a_repeated_selector_dedupes(tmp_path):

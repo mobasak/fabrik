@@ -2675,9 +2675,10 @@ def _is_path_token(tok: str) -> bool:
     `x.py::test`) is stripped first — END-anchored, so a MID-token `:port` (`redis-main:6379/0`,
     `10.99.0.1:8080/x.py`) is not a path at all while a TRAILING `:port` is indistinguishable
     from `:line` and IS stripped (`db.example.com:5432` → the path `db.example.com`; `a/b:80` →
-    `a/b`); a BARE dotted version (`1.2.3`, `10.99.0.1` — `v1.2.3` and `1.2.3-rc1` are paths by
-    the dotted-symbol cost); an md5/sha (no dot, no slash — dropped by the first rule), a
-    count, a range (`a..b` with no slash) or a prose symbol (`_hunt_gaps`, `--json`,
+    `a/b`); a token that is exactly `\\d+(\\.\\d+)*` after the strip is NOT a path (`1.2.3`,
+    `10.99.0.1`, a bare count) — that fullmatch is the whole rule, so `v1.2.3` and `1.2.3-rc1`
+    ARE paths, and so are `1.` and `.5` (a stated cost); an md5/sha (no dot, no slash — dropped
+    by the first rule), a range (`a..b` with no slash) or a prose symbol (`_hunt_gaps`, `--json`,
     `IN-PROGRESS`) is not (rounds 3–5). STATED COSTS: an extension-less bare file outside the
     list (`cafebabe`) is not a path, and a dotted symbol (`os.getenv`) is indistinguishable from a
     file name and counts as one."""

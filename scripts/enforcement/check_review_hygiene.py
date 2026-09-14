@@ -219,18 +219,21 @@ def _blank_quoted(lines: list[str]) -> list[str]:
         # fleet receipts — a real raw-pipe defect lost behind "0 hits" (2026-09-10)
         if in_comment:
             # the closer is read through the code-span mask like every marker in this file (I4:
-            # a receipt cell quoting `-->` is prose); the tail after it is read like any line,
-            # blanked to its offset (G29; round 14: the whole closing line was blanked)
+            # a receipt cell quoting `-->` is prose). The CLOSING LINE belongs to the block, so
+            # it is blanked WHOLE: every consumer of this copy is a line-SHAPE classifier (the
+            # two table classes, `_fence_step`, the heading stop), and a live tail joins the pipe
+            # run or opens the fence run below it — round 15 measured a `dual-verdict` row lost
+            # behind `0 hits` and a `~~~` tail blanking the rest of a receipt, the same fail-open
+            # the mask was written to end. G29 ("prose after the close swallowed") is answered by
+            # the PROSE classes, which read the raw text: `stale-phrase`, `claim` and
+            # `template-residue` all report the tail with the line blanked here (round 15).
+            out.append("")
             j = _mask_code_spans(ln).find("-->")
-            if j < 0:
-                out.append("")
-                continue
-            in_comment = False
-            tail = ln[j + 3 :]
-            if not tail.strip():
-                out.append("")
-                continue
-            ln = " " * (j + 3) + tail  # the tail keeps its offset; the comment part is blank
+            if j >= 0:
+                # the comment STATE still reads the tail — a second opener on the closing line
+                # keeps the block open
+                in_comment = _comment_cuts(ln[j + 3 :])[1] >= 0
+            continue
         # the FENCE state is decided first: a marker inside a fenced example is quoted text (with
         # the opener tested first, a fenced `<!--` blanked every later line of a probe copy; 0 live
         # files differ under the two orders — the shape is latent)
@@ -700,9 +703,12 @@ def _comment_cuts(ln: str) -> tuple[list[tuple[int, int]], int]:
     three substring readers disagreed on an empty comment before a real opener and on a span
     holding a closed comment); a closer of an OPEN block is read through the same mask by the
     `in_comment` exit of `_blank_quoted` and by `_until_heading`'s look-ahead (I4: a receipt
-    cell quoting `-->` is prose — round 11's same-line raw exception is gone, round 14). The one
-    deliberate raw read is `_until_heading`'s heading-line prefilter, which strips closed
-    comments raw so a span-led line is not a heading."""
+    cell quoting `-->` is prose — round 11's same-line raw exception is gone, round 14). TWO
+    reads in `_until_heading` are deliberately raw, both on the line it is about to neutralise:
+    the heading-line prefilter, which strips closed comments raw so a span-led line is not a
+    heading, and the neutralisation itself, which rewrites every `<!--` from the opener on (a
+    span's marker included — the line is literal text by then, and a second opener left standing
+    would re-open the block)."""
     masked = _mask_code_spans(ln)
     closed = [(m.start(), m.end()) for m in _CLOSED_COMMENT.finditer(masked)]
     rest = masked
@@ -763,6 +769,9 @@ def _until_heading(text: str, heading: str | None) -> tuple[str, int]:
             # no later line closes it through the mask (round 14: the same-line raw exception
             # of rounds 11–13 read a span's `-->` as a closer, against the file's one model)
             if not any("-->" in _mask_code_spans(q) for q in quoted[i + 1 :]):
+                # the rewrite GROWS the line by one per occurrence; measured inert (round 15) —
+                # no consumer of this copy reads a column: `_blank_quoted` promises same-length
+                # against ITS OWN input, the prefilters test a prefix, and the key reads `lines[i]`
                 quoted[i] = ln[:opener] + ln[opener:].replace("<!--", "<!- -")
     for i, ln in enumerate(_blank_quoted(quoted)):
         if ln.startswith("    ") or ln.startswith("\t"):
