@@ -126,27 +126,33 @@ and the fire rate is whatever authors declare. It needs a grammar decision, a pa
 migration story for the 150 headers that already carry couplings, and its own graders — which is
 why it is filed rather than half-built inside a WARN check.
 
-## [infra] Nine `docs/DECISIONS.md` rows are off the separator's column width, and a naive repair DESTROYS four of them
+## [infra] RETRACTED — the "nine off-width DECISIONS rows" were ONE, and my count was the defect
 
-`tests/test_decisions_table_shape.py::test_every_decision_row_has_the_separator_column_count` is
-RED at HEAD and was before this session: **9 of 255** rows carry more bare pipes than the
-separator's 7 — lines 23, 67, 125, 132, 134, 137, 140, 149, 169 (measured 2026-09-14; the
-separator's own width is the denominator, and a bare pipe SHIFTS every later column, so a reader
-of the rendered table sees the wrong cell under the wrong heading).
+**This row is a retraction of its own first cut, kept rather than deleted because the way it was
+wrong is the more useful artifact.**
 
-⚠️ **This row exists because I tried the obvious repair and it was wrong.** Merging every cell past
-the sixth back into `where` fixes the three 8-pipe rows (a trailing reversible/one-way cell the
-header has no column for). It DESTROYS the four wide ones — 132, 134, 137, 140 carry the § Binding
-field block (`CLASS/BUDGET/KILL/CONFIDENCE/COUNTER/TRIPWIRE/CLOSE-OUT`) whose internal pipes are
-structure, not accident; collapsing them with a separator turns a field block into prose. The blind
-merge was executed on a scratch copy, inspected, and discarded — no row was edited.
+I filed that `tests/test_decisions_table_shape.py` was red over **9 of 255** rows and named nine line
+numbers. An author-blind seat re-ran the actual grader: **1 of 256**, line 24 (`D-243`). My count
+used `line.count("|")` — every pipe in the line. The grader uses its own `_bare_pipes()`, which
+strips backtick-quoted content first, because a pipe inside `` `a|b|c` `` is CONTENT, not a column
+break. The other eight rows carry exactly 7 structural pipes and always did.
 
-**Do, per row and never in a batch:** the three 8-pipe rows fold their seventh cell into `where`
-(a SHAPE fix that preserves every word — the same distinction `check_decisions_unique.py`'s stray-row
-message draws). The four § Binding rows need the block escaped or moved below the table as a
-footnote keyed by id, which is a small format decision worth making once and applying to all four.
-Rows 149 and 169 are unexamined. ⚠️ Rows are IMMUTABLE: every option here must preserve the words
-exactly, and "fix the table" is never a licence to reword a decision.
+That is the denominator defect this session has filed against others four times over: a count taken
+from a pipeline whose method I assumed instead of the producing tool's own. The grader was right
+there and I counted by hand beside it.
+
+⚠️ **The consequence I got wrong is worse than the number.** On the strength of nine rows I wrote
+that the obvious repair "DESTROYS four of them — 132/134/137/140 carry a § Binding field block whose
+internal pipes are structure". Those four were never violating: their pipes are inside backticks and
+the grader never counted them. There was no destructive repair to warn about, and the warning would
+have deterred the next person from a one-row fix that was safe all along.
+
+**DONE:** the single real row, `D-243`, carried a seventh cell against a six-column header (a
+trailing `reversible — …` classification the header has no column for). Folded into `where` with
+every word preserved — a SHAPE fix, not a content edit — and the grader is green at 256 of 256.
+
+**Kept as the lesson, not as work:** when a grader exists, run the grader. A hand count beside a
+green test is a second opinion nobody asked for, and it is the one that was wrong.
 
 ## [infra] The added-code-path INDEX advisory ships ADVISORY; promoting it to blocking is a per-repo ratchet, and 584 of 863 files are the backlog
 
