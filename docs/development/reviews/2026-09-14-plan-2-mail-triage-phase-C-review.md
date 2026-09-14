@@ -131,7 +131,7 @@ may survive only under a `## BLOCKED` escalation (a finding + 3 failed attempts)
 
 ## Disposition ledger — round 1, orchestrator's own findings (pre-seat)
 
-Six rows by their leading verdict: 5 FIXED · 0 REFUTED · 1 RECORDED. Found by the orchestrator's
+One row per finding; the tallies are derivable from the table and deliberately not restated (see the round-2 seat ledger for why). Found by the orchestrator's
 round-zero probes over the pin `dffcca1a` (diff md5 `6fdcb464ad54c7f8a397f32db9f80568`) BEFORE any
 of the three dispatched seats reported; the seats' rows join this same round. Every candidate
 executed on a copy. The round's class is A FIX THAT REOPENS A CLOSED HOLE: the T5.1 stack walk
@@ -157,7 +157,7 @@ side, and it would raise there on a corrupt field.
 
 ## Disposition ledger — round 1, the three dispatched seats
 
-21 rows by their leading verdict: 19 FIXED · 0 REFUTED · 1 RECORDED · 1 MOOT (re-derived in round 2 from the rows themselves — the first cut of this line said 17/0/4 and used a taxonomy with no MOOT in it, which neither `check_review_hygiene.py` nor `check_review_coverage.py` validates against the table; machinery row filed below). Plus 4 that independently
+One row per finding; tallies derivable from the table, not restated — this line's FIRST cut stated a triple its own rows contradicted (17/0/4 over rows reading 19/0/1 plus one moot), which is the defect the round-2 ledger's note explains and closes. Plus 4 that independently
 re-found orchestrator rows C-R1/C-R2/C-R3/C-R4 and 1 that re-found C-R5 — corroboration, not new).
 Seats: `C1-O1` Opus on the hook body · `C1-O2` Opus on the two fleet-synced contracts · `C1-S1`
 Sonnet on the graders, the docs, the plan note, the CHANGELOG and the commit message. Every row
@@ -197,7 +197,7 @@ are alone" signpost for the private-index recipe (`docs/STRATEGIC_BACKLOG.md`).
 
 ## Disposition ledger — round 2, orchestrator's class re-sweep (pre-seat)
 
-Four rows by their leading verdict: 3 FIXED · 0 REFUTED · 1 RECORDED. Round 1 left four classes
+One row per finding; tallies derivable from the table, not restated. Round 1 left four classes
 OPEN — `ephemeral-fix`, `hook-bypass`, `self-contradicting-prose`, `vacuous-cas` — and the run
 record's own advisory named them. Re-swept here with the SAME brief, across the whole corpus rather
 than only the hunks, before the three round-2 seats reported. Every row executed.
@@ -216,7 +216,7 @@ meant to last exactly as long as the record runs. No other derived-not-persisted
 
 ## Disposition ledger — round 2, the three dispatched seats
 
-31 rows by their leading verdict: 24 FIXED · 0 REFUTED · 7 RECORDED. Seats: `C2-O1` Opus on the hook
+One row per finding below; the verdict tallies are DERIVABLE FROM THE TABLE and deliberately not restated. A hand-written count beside its own table has now been wrong three times in this review — the round-1 ledger (C2-23), the CHANGELOG's grader count (C2-21), and this line's own first cut, which said 24/0/7 over rows that read 23/0/8 — so the class is closed by deleting the restatement rather than by correcting it a third time. Neither `check_review_hygiene.py` nor `check_review_coverage.py` validates such a count against its rows (C2-31, backlogged); until one does, the table is the only claim. Seats: `C2-O1` Opus on the hook
 and writer code, `C2-O2` Opus on the rewritten governance recipe, `C2-S1` Sonnet on the graders,
 the receipt and the prose. Delta pin `dffcca1a..552428e5` (md5 `d4521cbbdcb9b00311ee4045c6ba91bf`,
 1,695 changed lines → the partition, not the one-seat budget). **Every confirmed row is inside
@@ -268,6 +268,21 @@ green" invocation reproduced exactly. Four assertions pass against pre-round-1 c
 correctly classified all four as expected rather than as defects (a dead-code-removal guard, a
 stated-not-changed disposition, a drift grader proven by a hand-built mutant, and a leg added to
 close a coverage gap rather than a code fix).
+
+
+## Disposition ledger — round 3, orchestrator's own sweep (pre-seat)
+
+One row per finding; tallies derivable from the table, not restated. Delta pin
+`552428e5..2d559515` (md5 `a1f2ebcfd7617b62c57931ac01c26f1b`, 528 changed lines → `opus=2`). The run
+record's three open classes — `reopened-hole`, `recipe-as-prose`, `ungraded-own-fix` — re-swept by
+name before the two round-3 seats reported.
+
+| # | Where | Class | Disposition |
+|---|---|---|---|
+| C3-R1 | this receipt's round-2 ledger summary | THE SAME DEFECT ROUND 2 JUST FIXED, BY ME (in-hunk) | FIXED r3 · doc (I wrote a 31-row tally of 24/0/7 over rows that re-derive to 23/0/8 — the third instance of a hand-written count beside its own table in this review, after the round-1 ledger and the CHANGELOG's grader count. Closed as a CLASS rather than corrected a third time: the restatement is DELETED from all four ledgers and the table is the only claim. The backlog row for a grader that would have caught it stands, C2-31) |
+| C3-R2 | `_review_window`'s `_tok(rec, "state")` call site | possible ungraded own-fix | CLEAN — measured (mutated back to `rec.get("state")` on a copy: 1 failed, 38 passed. Graded) |
+| C3-R3 | `_surface_reviewed`'s `live` gate | possible ungraded own-fix | CLEAN — measured (mutated to `live = True` on a copy: 1 failed, 38 passed. Graded) |
+| C3-R4 | the interaction of round 2's three changes | reopened-hole | CLEAN — measured end to end with REAL `command_run.py` commands, not fixtures: a first review closes and sets the reach → a plan starts and CARRIES it → a review NESTS, and the child's own reach is `None` (C2-1's gate) while the parent is parked WITH its reach and `_first_review_base_case` still reads `(1.0, reach)` through the frame (C2-2's fix) → the pop restores the parent with its reach intact, no join needed (C2-6's removal is safe). The three changes compose; none reopens what another closed |
 
 
 ## Pass Ledger
