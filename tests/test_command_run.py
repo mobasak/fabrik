@@ -2986,6 +2986,46 @@ def test_the_scope_growth_stop_fires_when_a_loop_only_reviews_its_own_fixes() ->
     # a QUIET round never trips it — zero confirmed is convergence, not scope growth
     assert cr.scope_growth_warning([{"n": 1, "confirmed": 0, "own_fix": 0}] * 2) == ""
 
+    # round 1 of this change's own review, C1 — CONSECUTIVE means consecutive ROUNDS, never
+    # "the last N that stated the flag". Filtering first made rounds 1 and 4 read as adjacent
+    # while rounds 2 and 3 confirmed 17 defects on the artifact's own surface, and the printed
+    # arrow hid the gap. A round that does not state the counter BREAKS the run.
+    assert (
+        cr.scope_growth_warning(
+            [
+                {"n": 1, "confirmed": 3, "own_fix": 3},
+                {"n": 2, "confirmed": 9},
+                {"n": 3, "confirmed": 8},
+                {"n": 4, "confirmed": 2, "own_fix": 2},
+            ]
+        )
+        == ""
+    )
+
+    # C2 — the value is read like `_confirmed` reads its own: a malformed one returns None
+    # rather than raising. `_round_report` has ONE return and sits on the Stop hook's path, so a
+    # raise here blanks the whole report, TERMINAL verdict included, via the outer guard.
+    for bad in ("n/a", ["x"], {"a": 1}, 2.5, True):
+        assert cr.scope_growth_warning([{"confirmed": 1, "own_fix": bad}] * 2) == "", bad
+
+    # C3's shape — own_fix ABOVE confirmed is not a subset and never trips it (the CLI refuses
+    # it outright; this pins the function so the `==` cannot be loosened to `>=`)
+    assert cr.scope_growth_warning([{"confirmed": 5, "own_fix": 6}] * 2) == ""
+
+    # C4 — per-unit rounds describe DIFFERENT surfaces, so the stop stands down there for the
+    # same reason the oscillation advisory does; its exit sentence has no referent when two
+    # rounds share no delta
+    for cmd in ("fabrik-execute-plan", "fabrik-repo-review"):
+        assert cr.scope_growth_warning([{"confirmed": 2, "own_fix": 2}] * 2, cmd) == "", cmd
+    assert "SCOPE GROWTH" in cr.scope_growth_warning(
+        [{"confirmed": 2, "own_fix": 2}] * 2, "fabrik-review"
+    )
+
+    # S1 — a term-coverage loop never reads term-edit; the exit pointer names both fragments
+    assert "term-edit / term-coverage" in cr.scope_growth_warning(
+        [{"confirmed": 2, "own_fix": 2}] * 2
+    )
+
 
 def test_the_oscillation_detector_still_fires_for_single_brief_loops() -> None:
     """The teeth must survive: /fabrik-review and the gate commands DO run one re-swept brief,

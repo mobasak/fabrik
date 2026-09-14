@@ -327,7 +327,27 @@ def convergence_warning(
 SCOPE_GROWTH_ROUNDS = 2
 
 
-def scope_growth_warning(rows: list[Any]) -> str:
+def _own_fix(row: Any) -> int | None:
+    """One round's OWN-FIX count, or None when that round never stated it.
+
+    Mirrors `_confirmed` exactly, including its suppression: `command_run.py` sits on the Stop
+    hook's path and `_round_report` has ONE return, so an `int()` that raises on a hand-written
+    or foreign-written record does not fail loudly — the outer guard swallows it and the whole
+    round report, TERMINAL verdict included, silently becomes blank (review round 1, C2). A bool
+    and a float are REFUSED rather than coerced: `own_fix=True` and `own_fix=2.5` both compared
+    equal to a confirmed count of 1 and 2 and fired the advisory.
+    """
+    if not isinstance(row, dict) or row.get("own_fix") is None:
+        return None
+    v = row["own_fix"]
+    if isinstance(v, (bool, float)):
+        return None
+    with contextlib.suppress(TypeError, ValueError):
+        return int(v)
+    return None
+
+
+def scope_growth_warning(rows: list[Any], command: str = "") -> str:
     """Advisory scope-growth diagnosis, or "" — NEVER blocks (a heuristic must not trap).
 
     The counted form of term-edit's scope-growth stop. The stall breaker keys on a count that
@@ -335,26 +355,40 @@ def scope_growth_warning(rows: list[Any]) -> str:
     over the mail-triage Phase B review, 2026-09-14) while every finding lands in the review's
     own fix prose, so nothing mechanical ever caught it and the loop ran 21 rounds over a
     surface that had been quiet since round 13. A round reports its own residue with
-    `round --own-fix <n>`; when two consecutive rounds confirm defects and EVERY one of them was
-    own-fix, the review has outgrown the artifact.
+    `round --own-fix <n>`; when the last `SCOPE_GROWTH_ROUNDS` rounds each confirm defects and
+    EVERY one of them was own-fix, the review has outgrown the artifact.
+
+    CONSECUTIVE means consecutive ROUNDS, never "the last N rounds that happened to state the
+    flag" — filtering the series first made a round-1/round-4 pair read as adjacent while rounds
+    2 and 3 confirmed 17 defects on the artifact's own surface, and the emitted arrow hid the
+    gap (review round 1, C1). A round that does not state the counter therefore BREAKS the run,
+    exactly as a round with artifact defects does.
     """
-    counted = [
-        r
-        for r in rows
-        if isinstance(r, dict) and r.get("own_fix") is not None and _confirmed(r) is not None
-    ]
-    if len(counted) < SCOPE_GROWTH_ROUNDS:
+    if str(command or "").strip().lower() in PER_UNIT_ROUND_COMMANDS:
+        # per-unit rounds describe DIFFERENT surfaces (round 4 is T11's review, round 5 is
+        # T08's), so two tickets each closing out their own residue is healthy, and this
+        # advisory's exit sentence — "close on the ORIGINAL delta's state" — has no referent
+        # when the rounds share no delta. Same stand-down, same reason, as the oscillation
+        # advisory above (review round 1, C4).
         return ""
-    window = counted[-SCOPE_GROWTH_ROUNDS:]
-    if not all(int(r["own_fix"]) == _confirmed(r) and _confirmed(r) > 0 for r in window):
+    rows = [r for r in rows if isinstance(r, dict)]
+    if len(rows) < SCOPE_GROWTH_ROUNDS:
         return ""
-    arrow = " → ".join(f"{_confirmed(r)}/{int(r['own_fix'])}" for r in window)
+    window = rows[-SCOPE_GROWTH_ROUNDS:]
+    pairs = [(_confirmed(r), _own_fix(r)) for r in window]
+    if not all(c is not None and o is not None and o == c > 0 for c, o in pairs):
+        return ""
+    arrow = " → ".join(f"{c}/{o}" for c, o in pairs)
     return (
         f"\n⚠️  SCOPE GROWTH — the last {SCOPE_GROWTH_ROUNDS} rounds confirmed ONLY defects "
         f"inside text this review itself added (confirmed/own-fix: {arrow}).\n"
         "    The artifact's own surface is quiet; you are reviewing your previous fix, and "
         "correcting prose regenerates the surface you are correcting.\n"
-        "    Exit (term-edit § Scope-growth stop): STOP the loop — route the remaining own-fix "
+        # the pointer names BOTH fragments: a term-coverage loop (`/fabrik-review`,
+        # `/fabrik-repo-review`) never reads term-edit, and naming one sends the reader to a
+        # section its command does not carry — the `_trend_label` incident's shape (round 1, S1)
+        "    Exit (term-edit / term-coverage § Scope-growth stop): STOP the loop — route the "
+        "remaining own-fix "
         "work to a backlog row with a named destination, and close on the ORIGINAL delta's "
         "state, whose last own-surface round is the one that matters.\n"
         "    (Advisory only — nothing is blocked.)"
@@ -489,7 +523,7 @@ def _round_report(rec: dict[str, Any]) -> str:
         lines.append(warn)
     # A loop can converge on the COUNT and still be reviewing only its own fixes — the two
     # advisories answer different questions and neither subsumes the other, so both may speak.
-    growth = scope_growth_warning(rounds)
+    growth = scope_growth_warning(rounds, str(rec.get("command") or ""))
     if growth:
         lines.append(growth)
     return "\n".join(lines)
@@ -2291,6 +2325,43 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 file=sys.stderr,
             )
             return 2
+        # `--own-fix` counts a SUBSET of --confirmed. Unbounded, the natural slip — counting it
+        # against --findings, the larger number typed on the same line — records an impossible
+        # value that the equality test can never match, silently disabling the stop for the whole
+        # loop; every sibling counter here is bounded and this one was not (review round 1, C3)
+        if args.own_fix is not None and (
+            args.own_fix < 0 or (args.confirmed is not None and args.own_fix > args.confirmed)
+        ):
+            print(
+                f"[command_run] REFUSED — round --own-fix {args.own_fix} counts a SUBSET of this "
+                f"round's --confirmed ({args.confirmed}): it cannot be negative or exceed it",
+                file=sys.stderr,
+            )
+            return 2
+        if args.own_fix is not None and args.confirmed is None:
+            print(
+                "[command_run] NOTE — round --own-fix given without --confirmed: the scope-growth "
+                "stop reads both, so this round can never trip it",
+                file=sys.stderr,
+            )
+        # The stop can only fire on rounds that COUNT. Omission is silent by design (a defaulted
+        # 0 would assert "no residue" for every loop that has not heard of the flag), so the
+        # omission itself is what must be visible — otherwise the mechanism depends on the
+        # orchestrator remembering it, which is the failure it exists to end.
+        if (
+            args.own_fix is None
+            and args.confirmed is not None
+            and args.confirmed > 0
+            and (rec.get("command") or "") in REVIEW_FAMILY
+        ):
+            print(
+                f"[command_run] NOTE — round --confirmed {args.confirmed} without --own-fix: "
+                "state how many of those defects were inside text THIS REVIEW added in an "
+                "earlier round (0 is a fine answer). The scope-growth stop cannot see a round "
+                "that does not count, and a loop reviewing only its own fixes is exactly what "
+                "it exists to stop.",
+                file=sys.stderr,
+            )
         # Stamp the PHASE onto every round. Without it, "rounds since the last step" is not
         # derivable and the only signal available is "zero rounds at phase N" — which job-agent
         # (2026-08-28) showed misses the real case: their pinned line read `phase 5/9` for six
