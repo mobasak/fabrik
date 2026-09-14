@@ -10,6 +10,27 @@ Generated from the end-of-day plan-state on 2026-06-07 after the trio Phase 5.1.
 ---
 
 - **[intel] `/fabrik-rivals` guard debt left after the 2026-09-14 key-autoload review** — four low-severity grader gaps a 25-mutant battery found and the run deliberately did not close, each one line: the unreadable-`.env` fail-open path (`chmod 000`) is claimed by a docstring and pinned by no test; the `expanduser()` on `$SUBAGENTS_ENV_FILE` is documented as a deliberate divergence from `libs/alerting/_dotenv.py` and nothing pins it, so the next re-port reverts it; `main()`'s `load_env(str(REPO))` argument is ungraded, and swapping it for `os.getcwd()` — the historical wrong-repo bug — passes every test; and the `note:` the docs make a contract is not asserted. Plus one behaviour item: running the HUB's copy of the driver from another repo binds `REPO` to the hub, so it reads the hub's `.env` and writes its checkpoint under `/opt/fabrik/.tmp` while preflight calls it repo-local (reproduced; the doc now states the precondition, but no check enforces it). None is a live defect in the shipped path — the closing reader's verdict was SAFE for 48 repos.
+## [infra] Eleven code spans in the rule packs carry `\|`, which is a LITERAL pipe in every language they illustrate
+
+Swept after a Phase D fix escaped two pipes inside a Python regex in `core/45-testing-strategy.md`
+and shipped a destructive-test guard that rejected every legitimate name to 46 of 49 repos (fixed at
+`08c0d005` by rephrasing to `dbname.endswith((...))`, which carries no pipe at all).
+
+**Denominator:** 116 governance files scanned (both contracts, every `.windsurf/rules/**`, every
+`commands/_sources` and `_fragments`); **11** code spans contain a backslash-pipe. None is a
+copy-and-run predicate — they are type and schema NOTATION in don't/do tables — which is why this is
+a backlog row and not a fix-now: `core/10-python.md:310` (`str \| None`), `core/12-node.md:295`
+(`process.env.X \|\| 'default'`), and nine schema illustrations in `core/app-audit-log.md`.
+Severity is still real for the first two: both packs' headers say "Follow verbatim", and a RAW
+reader — which is how a pack reaches an agent — gets invalid Python and invalid JS.
+
+**Do:** rephrase each so the span carries no literal pipe (`Optional[str]` prose, a named constant,
+a fenced block instead of a span), as `check_governance_tables.py`'s own finding message prescribes.
+**And extend that check:** its `_TARGETS` are the two CLAUDE.md files only, so the surface where this
+shipped — `.windsurf/rules/` — has no detector at all. A row-width sweep of all 58 governance files
+found **0 of 1,659** rows off their header width today, so the table half is clean and only the
+code-span half needs the new rule.
+
 ## [infra] The rules packs cite hub-only docs 169 relative / 4 absolute, with no stated rule
 
 Phase D made two `ai/20-vision.md` cites absolute because the doc they name is hub-only and is NOT
