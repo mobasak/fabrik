@@ -87,7 +87,7 @@ Selections that cite no row: the baseline file name and JSON shape (`unconstrain
 
 ---
 
-## Phase A — piece 3: `check_corpus_weight.py`, its graders, and its gate registration — ✅ EXECUTED 2026-09-14
+## Phase A — piece 3: `check_corpus_weight.py`, its graders, and its gate registration — ✅ EXECUTED 2026-09-14 (cfc96f08)
 
 **Interfaces — Produces.** `scripts/enforcement/check_corpus_weight.py`, stdlib-only:
 - `SURFACES: tuple[str, ...] = ("CLAUDE.md", "templates/governance/CLAUDE.md", "commands/_sources", "commands/_fragments", "commands/_agents", ".windsurf/rules")` — the six hub governance surfaces: the spec's three, the template the fleet reads, and the two further directories the assembler renders and installs (`commands/_agents/` holds the seat definitions, 21,821 B at `acb50492`, the plan's base snapshot (2026-09-12 14:11) — `origin/master` has since moved).
@@ -143,7 +143,7 @@ Fourteen behaviour graders and one disclosure grader (A14), each seen RED first.
 
 Evidence for this phase: § Evidence (Phase A).
 
-## Phase B — piece 4: tokens-per-round behind the mass rule
+## Phase B — piece 4: tokens-per-round behind the mass rule — ✅ EXECUTED 2026-09-14
 
 **Interfaces — Produces.** In `scripts/command_feedback_report.py`: `_io_total(r: dict) -> int | None` (Σ `tok_in`+`tok_out` only — the divergence from `_tok_total`'s cache-inclusive sum is stated in its docstring); per-command keys `tok_per_round: float | None`, `tok_per_round_reason: str | None` (`"zero token mass"` · `"mass ratio 0.3038 < 2/3"` · `None` when published), `mass_ratio: float | None`, `rows_with_numerator: int`, `rows_with_denominator: int`, `rows_both: int`, `rows_total: int`; a top-level `conventions` dict in `--json` (`{"tok_per_round": "Σ(tok_in+tok_out) ÷ Σ rounds over the rows carrying both a token pair and rounds > 0; cache excluded", "median_tok": "cache-inclusive, over rows carrying tokens"}`) — the report emits no mean, so no mean-divisor convention is declared (spec R3's per-command mean is a recipe, not a report column); in `render`: a 13th column `tok/round (q/T · num/den/both)` appended to the header (three concatenated literals, `command_feedback_report.py:294-296`) AND to the separator literal (`:297`, twelve `|---|` cells today) AND to the row f-string before its closing `|`; and one population sentence stating the two conventions. **Consumes.** the per-command row list inside `build` (each row's `rounds` via `_num`, its `tok_in`/`tok_out` via the `_TOK` keys), pairing numerator and denominator PER ROW — never the flat `rounds`/`toks` lists at `:170`/`:195`, which discard row identity, keep `rounds == 0`, and (`toks`) are `_tok_total`'s cache-inclusive all-four-fields sum; nothing new from Phase A.
 
@@ -193,15 +193,15 @@ Per phase, ≥1 `path:line` read this run and ≥1 fenced command-output block c
 ```
 $ replay — one commit per day (newest first-parent on master), 2026-08-13 … 2026-09-12 (31 calendar days, 30 of them with a first-parent commit — none on 2026-08-24 — so 29 comparisons), six hub surfaces, EVERY blob (row A13's walk); + = rose vs the previous day in the full 30-row series (not vs the previous row shown); — = absent (no blob that day)
 day         CLAUDE.md  tmpl/CLAUDE.md  cmd/_sources  cmd/_fragments  cmd/_agents  .windsurf/rules
-2026-08-13        36,535         33,536        542,066         28,688              —      1,077,977 
-2026-08-27        45,850+        43,502+       629,893+        37,062+        14,755      1,082,662 
+2026-08-13        36,535         33,536        542,066         28,688              —      1,077,977
+2026-08-27        45,850+        43,502+       629,893+        37,062+        14,755      1,082,662
 2026-08-29        57,589+        53,833+       653,351         63,290+        16,613+     1,121,387+
 2026-08-31        64,115+        59,638+       698,415+        75,130+        18,029      1,127,759+
 2026-09-01        65,172+        60,130+       703,202+        75,130         18,029      1,205,201+
 2026-09-02        65,514+        60,416+       731,632+        75,130         18,029      1,281,621+
 2026-09-05        73,114+        68,138+       967,261+        83,826+        21,418+     1,295,399+
 2026-09-08        83,369+        75,965+     1,027,968+        94,512+        21,821+     1,314,281+
-2026-09-12        89,856+        82,476+     1,049,617+       115,798+        21,821      1,319,036 
+2026-09-12        89,856+        82,476+     1,049,617+       115,798+        21,821      1,319,036
 comparisons=29 (30 days carrying a first-parent commit out of 31 calendar days; 2026-08-24 has none, so one comparison spans 08-23 → 08-25) rises (would-WARN comparisons under the shipped walk): CLAUDE.md=19, tmpl/CLAUDE.md=21, commands/_sources=21, commands/_fragments=16, commands/_agents=5, .windsurf/rules=19
 ```
 (nine of the 30 rows shown; the window is the explicit date range 2026-08-13 … 2026-09-12 at first-parent `acb50492` (2026-09-12 14:11) — 31 calendar days, 30 of them carrying a first-parent commit (2026-08-24 has no commit of any kind, so one of the 29 comparisons spans 08-23 → 08-25) — and reproduces exactly from `git log --first-parent acb50492 --since='2026-08-12 23:00' --format='%h %cd' --date=short`, newest commit per day, keeping days ≥ 2026-08-13, then `git ls-tree -r -l <sha> -- <surface>` summing every blob. A surface with NO blob on a day is ABSENT, never `0` — the contract's own rule, since `base_sizes` returns `None` for an absent surface and A12 grades an absent→present step `base absent — not budgeted`, never a rise — which is why `commands/_agents` reads `—` until its first blobs on 2026-08-27 and that day's cell carries no `+`; at a later HEAD the last row and the `commands/_agents`/`.windsurf/rules` counts move (6 and 20 at `50969085`); and both `.yaml` files under `.windsurf/rules` land on 2026-09-01 (`CLAIMS.yaml` 26,758 B + `versions.yaml` 1,560 B = 28,318 B of that day's +77,442 B over 2026-08-31's 1,127,759 B; the other 49,124 B is `.md` growth), and on 2026-09-02 `CLAIMS.yaml` grows to 65,600 B (+38,842 B of the surface's +76,420 B that day) — the share the `.md`-only series could not show). A ratchet that WARNs on every day-over-day rise would have spoken on 16–21 of the 29 day-over-day comparisons on five surfaces and 5 of 29 on `commands/_agents` (mean 16.8 of 29 across the six), and one that WARNs whenever a surface sits above its baseline would have spoken, after a day-1 seed, on 27–28 of the 29 later days on five surfaces — `commands/_agents` is absent on day 1, so it is never seeded and never sits above a baseline (0 of 29); the WARN is therefore on the change's own delta (tree vs base) and the baseline is the trend line — Q6's narrowing, recorded as D-240 and amended for the sixth surface by D-241.
