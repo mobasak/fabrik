@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the decision ledger claimed an order it has never had, and a row outside the table was blessed (2026-09-14)
+
+- Phase E T12.12 of the mail-triage plan (01M295S5G, 01M1T1134) — five graders, proven red-on-revert in place (with the fix reverted the suite cannot even import).
+- **`docs/DECISIONS.md:3` said "Append-at-top".** Measured: **255 rows, 71 places** where the next row's id is *higher* than the one above it. Nothing reads the order — `decisions.py --next-id` takes a max, `check_decisions_unique.py` takes a set — so the header now says what is actually enforced (unique id, inside the table, immutable) and states plainly that position is a convention and **must never be "fixed" by moving rows**, which would edit immutable history to satisfy a preference.
+- **`check_decisions_unique.py` is a line regex by design** — it must not red on the dozens of legitimate prose mentions a repo carries — and the cost was that it had no idea where the table *is*. A `| D-NNN |` row placed above the `|---|` delimiter is outside the table: no renderer shows it, no reader finds it, and the duplicate check blessed it. It is now reported with its line number and reds the gate. **Blast radius measured before making it blocking: 0 of 49** fleet ledgers carry a stray row today.
+- ⚠️ **A repair I attempted and discarded, recorded because the next person will try it too.** `tests/test_decisions_table_shape.py` is red at HEAD — **9 of 255** rows carry more bare pipes than the separator. Merging every cell past the sixth into `where` fixes the three trailing-cell rows and **destroys** the four carrying a § Binding field block, whose internal pipes are structure. Executed on a scratch copy, inspected, discarded; no row was edited, and the class is filed with the per-row plan.
+
 ### Added — an added code file now owes its INDEX.md row (advisory, fire rate measured) (2026-09-14)
 
 - Phase E T12.10 of the mail-triage plan (01M1VPEGG) — five graders, proven red-on-revert in place (the test file pins `REPO = Path("/opt/fabrik")`, so a copy-tree proof imports the live script and is worthless; backup written first, both halves asserted, md5-verified on restore).

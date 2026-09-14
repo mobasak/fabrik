@@ -48,10 +48,42 @@ def find_duplicates(text: str) -> dict[str, int]:
     return {i: n for i, n in Counter(ids).items() if n > 1}
 
 
+_DELIMITER = re.compile(r"^\|[\s:-]*\|[\s:|-]*$")
+
+
+def find_rows_outside_the_table(text: str) -> list[tuple[int, str]]:
+    """`| D-NNN |` rows sitting ABOVE the header delimiter — i.e. outside the table (T12.12).
+
+    This file is a LINE regex by design: it must not red on the dozens of legitimate prose
+    mentions of ids a repo carries. The cost of that design is that it has no idea where the table
+    IS, so a row placed above the `|---|` delimiter — outside the table, invisible to every
+    markdown renderer and to anyone reading the rendered page — counted as a row and was blessed
+    (brand-identity-creator's reported shape, 01M295S5G/01M1T1134).
+
+    Uniqueness is not the only thing addressability needs: a row nobody can SEE is not addressable
+    either. Reported per-row with its line number; no delimiter at all means no table to be outside
+    of, and that is a different defect this check does not claim to own.
+    """
+    lines = text.splitlines()
+    delim = next((i for i, ln in enumerate(lines) if _DELIMITER.match(ln.strip())), None)
+    if delim is None:
+        return []
+    return [(i + 1, m.group(1)) for i, ln in enumerate(lines[:delim]) if (m := _ID_CELL.match(ln))]
+
+
 def main() -> int:
     if not LEDGER.exists():
         return 0
-    dups = find_duplicates(LEDGER.read_text(encoding="utf-8"))
+    text = LEDGER.read_text(encoding="utf-8")
+    dups = find_duplicates(text)
+    stray = find_rows_outside_the_table(text)
+    for lineno, did in stray:
+        print(
+            f"✗ docs/DECISIONS.md:{lineno} row {did} sits ABOVE the table delimiter — it is "
+            "outside the table, so no renderer shows it and no reader finds it. Move it below "
+            "the `|---|` line (this is a placement fix, not a content edit: the row's cells are "
+            "immutable)"
+        )
     for i, n in sorted(dups.items()):
         print(
             f"✗ docs/DECISIONS.md id {i} appears {n}x — rows are addressable by id; "
@@ -63,8 +95,12 @@ def main() -> int:
             f"✗ {len(dups)} duplicate decision id(s) — citations of these ids now "
             f"resolve to two rows each"
         )
-        return 1
-    return 0
+    if stray:
+        print(
+            f"✗ {len(stray)} decision row(s) outside the table — addressability needs a row to be "
+            f"FINDABLE, not only unique"
+        )
+    return 1 if (dups or stray) else 0
 
 
 if __name__ == "__main__":

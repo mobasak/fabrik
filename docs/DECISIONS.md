@@ -1,7 +1,13 @@
 # Decisions
 
-Append-at-top. One row per decision; rows are IMMUTABLE — a changed decision gets a NEW row whose
-what-cell opens "supersedes D-NNN:"; the old row is never edited. WHY ≤ 2 lines; the full rationale
+New rows go at the TOP, for the reader. ⚠️ Position is a CONVENTION, never an invariant, and this
+file has never obeyed it consistently — measured 2026-09-14: 255 rows, **71** places where the next
+row's id is HIGHER than the one above it. Nothing reads the order (`decisions.py --next-id` takes a
+max, `check_decisions_unique.py` takes a set), so a row's position is never a defect and must never be
+"fixed" by moving rows — that would edit immutable history to satisfy a preference. What IS enforced:
+every `| D-NNN |` row is UNIQUE, sits INSIDE the table (below the `|---|` delimiter — a row above it is
+outside the table and the duplicate check's line regex used to bless it), and is IMMUTABLE — a changed
+decision gets a NEW row whose what-cell opens "supersedes D-NNN:"; the old row is never edited. WHY ≤ 2 lines; the full rationale
 lives at the WHERE links. Subagents and the pipeline never hold the pen — the dispatching session
 appends. Query: grep this file first; fleet-wide: `python3 /opt/fabrik/scripts/decisions.py <term>`
 (`--check` validates ledger integrity — its own `--help` is the current check inventory).

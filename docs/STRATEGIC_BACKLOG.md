@@ -58,6 +58,28 @@ surface is missing one. Cross-repo, so it is fabrik-lib's to fix.
 **Do:** mail fabrik-lib — a bounded store (or a documented `reset()`), and a note in the pack that a
 title must be a STABLE key, not a formatted string.
 
+## [infra] Nine `docs/DECISIONS.md` rows are off the separator's column width, and a naive repair DESTROYS four of them
+
+`tests/test_decisions_table_shape.py::test_every_decision_row_has_the_separator_column_count` is
+RED at HEAD and was before this session: **9 of 255** rows carry more bare pipes than the
+separator's 7 — lines 23, 67, 125, 132, 134, 137, 140, 149, 169 (measured 2026-09-14; the
+separator's own width is the denominator, and a bare pipe SHIFTS every later column, so a reader
+of the rendered table sees the wrong cell under the wrong heading).
+
+⚠️ **This row exists because I tried the obvious repair and it was wrong.** Merging every cell past
+the sixth back into `where` fixes the three 8-pipe rows (a trailing reversible/one-way cell the
+header has no column for). It DESTROYS the four wide ones — 132, 134, 137, 140 carry the § Binding
+field block (`CLASS/BUDGET/KILL/CONFIDENCE/COUNTER/TRIPWIRE/CLOSE-OUT`) whose internal pipes are
+structure, not accident; collapsing them with a separator turns a field block into prose. The blind
+merge was executed on a scratch copy, inspected, and discarded — no row was edited.
+
+**Do, per row and never in a batch:** the three 8-pipe rows fold their seventh cell into `where`
+(a SHAPE fix that preserves every word — the same distinction `check_decisions_unique.py`'s stray-row
+message draws). The four § Binding rows need the block escaped or moved below the table as a
+footnote keyed by id, which is a small format decision worth making once and applying to all four.
+Rows 149 and 169 are unexamined. ⚠️ Rows are IMMUTABLE: every option here must preserve the words
+exactly, and "fix the table" is never a licence to reword a decision.
+
 ## [infra] The added-code-path INDEX advisory ships ADVISORY; promoting it to blocking is a per-repo ratchet, and 584 of 863 files are the backlog
 
 T12.10 landed direction (c) of `check_doc_index.py` — an added file under `scripts/`, `tests/`,

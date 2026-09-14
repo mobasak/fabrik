@@ -9,7 +9,11 @@ about past collisions, and a naive matcher reds on all of them.
 
 from pathlib import Path
 
-from scripts.enforcement.check_decisions_unique import find_duplicates, main
+from scripts.enforcement.check_decisions_unique import (
+    find_duplicates,
+    find_rows_outside_the_table,
+    main,
+)
 
 
 def test_duplicate_id_cells_detected():
@@ -95,3 +99,64 @@ def test_a_duplicate_id_now_reds_the_gate_not_just_warns(tmp_path, monkeypatch):
 
     led.unlink()
     assert main() == 0, "no ledger is not a failure"
+
+
+# --------------------------------------------------------------------------------------
+# T12.12 (01M295S5G, 01M1T1134) — a row ABOVE the delimiter is outside the table.
+# --------------------------------------------------------------------------------------
+
+_ABOVE = (
+    "# Decisions\n"
+    "\n"
+    "| D-999 | x | y | a row ABOVE the delimiter | z | w |\n"
+    "\n"
+    "| id | when | who | what | why | where |\n"
+    "|---|---|---|---|---|---|\n"
+    "| D-001 | a | b | c | d | e |\n"
+)
+
+
+def test_a_row_above_the_delimiter_is_reported_with_its_line():
+    """This check is a LINE regex by design — it must not red on the dozens of legitimate prose
+    mentions a repo carries — and the cost of that design is that it had no idea where the table
+    IS. A row placed above the `|---|` delimiter is outside the table: no renderer shows it and no
+    reader finds it, and the duplicate check blessed it (brand-identity-creator's reported shape).
+    Uniqueness is not all addressability needs."""
+    stray = find_rows_outside_the_table(_ABOVE)
+    assert stray == [(3, "D-999")], stray
+    assert find_duplicates(_ABOVE) == {}, "it is not a duplicate — that is the whole point"
+
+
+def test_rows_inside_the_table_are_never_reported():
+    inside = "# Decisions\n\n| id | when |\n|---|---|\n| D-001 | a |\n| D-002 | b |\n"
+    assert find_rows_outside_the_table(inside) == []
+
+
+def test_a_ledger_with_no_delimiter_is_not_this_checks_verdict():
+    """No delimiter means no table to be outside of. That is a different defect and this check
+    does not claim to own it — silence here, rather than reporting every row as stray."""
+    assert find_rows_outside_the_table("# Decisions\n\n| D-001 | a |\n") == []
+
+
+def test_a_stray_row_reds_the_gate(tmp_path, monkeypatch, capsys):
+    """It has to change the EXIT CODE or it is a comment. Measured before making it blocking:
+    0 of 49 fleet ledgers carry a stray row today, so this reds no repo on landing day — the same
+    denominator that justified promoting the duplicate half."""
+    import scripts.enforcement.check_decisions_unique as mod
+
+    ledger = tmp_path / "docs" / "DECISIONS.md"
+    ledger.parent.mkdir(parents=True)
+    ledger.write_text(_ABOVE, encoding="utf-8")
+    monkeypatch.setattr(mod, "LEDGER", ledger)
+    assert mod.main() == 1
+    out = capsys.readouterr().out
+    assert "ABOVE the table delimiter" in out and "D-999" in out
+    assert "placement fix, not a content edit" in out, (
+        "the message must say the cells stay immutable, or the repair edits history"
+    )
+
+
+def test_the_live_hub_ledger_has_no_stray_rows():
+    """The live assertion, not a fixture's."""
+    text = Path("/opt/fabrik/docs/DECISIONS.md").read_text(encoding="utf-8")
+    assert find_rows_outside_the_table(text) == []
