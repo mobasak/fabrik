@@ -101,3 +101,59 @@ def test_scaffold_seeds_claude_from_template() -> None:
     src = inspect.getsource(scaffold._scaffold_shared)
     assert 'FABRIK_ROOT / "templates/governance/CLAUDE.md"' in src
     assert 'FABRIK_ROOT / "CLAUDE.md"' not in src
+
+
+# ── T6: the shared-tree commit rules must reach the fleet, not just the hub ────────────────────
+
+# The three sentences Phase C adds (T6.1–T6.3). They are quoted by a distinctive fragment rather
+# than in full: the surrounding prose is edited often, the CLAIM is what must not diverge. Each was
+# EXECUTED before it was written (2026-09-14, scratch repo) — a remedy written from reasoning is how
+# a two-operand `test -f` and a nonexistent heading reached this plan's own review.
+T6_CLAIMS = (
+    # T6.1 (01M2803TM) — the omission direction: loud on an untracked path, SILENT on a dropped one
+    "**And VERIFY what actually landed: `git show --numstat HEAD` against the file list you "
+    "intended.**",
+    "it says NOTHING when a tracked path is merely OMITTED",
+    # T6.2 (01M1RGRVT, 01M1RHJEY) — a pathspec reads the WORKING TREE, so shared files need a
+    # private index built on HEAD's blob
+    "**A pathspec protects the FILE LIST, never the CONTENT.**",
+    "export GIT_INDEX_FILE=<scratch>/idx; git read-tree HEAD",
+    # T6.3 (01M20DXPT) — `0 0` is a numstat verdict about LINES, not about emptiness
+    "a pure MODE change numstats as `0 0 <path>`",
+    "`0 0` means 'no line changed', never 'nothing staged'",
+)
+
+
+def test_the_shared_tree_commit_rules_are_identical_in_both_contracts() -> None:
+    """T6 Behavior Contract: the hub's CLAUDE.md and the fleet template carry the same three
+    sentences, byte for byte.
+
+    The two files are deliberately NOT byte-identical overall — the hub's is the hub agents' own
+    contract — so nothing binds a shared rule across them except a grader like this one. A rule
+    added to the hub file alone reaches three sessions; the same rule in the template reaches ~46
+    repos on the next governance sync, and the failure mode is silent: the hub agent who wrote it
+    reads it every session and never notices the fleet does not have it."""
+    hub = (FABRIK / "CLAUDE.md").read_text(encoding="utf-8")
+    template = (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8")
+    missing = [
+        (c[:48], hub.count(c), template.count(c))
+        for c in T6_CLAIMS
+        if hub.count(c) != 1 or template.count(c) != 1
+    ]
+    assert not missing, f"claim | hub count | template count -> {missing}"
+
+
+def test_the_governance_files_are_on_the_sync_trigger_path() -> None:
+    """A T6 sentence in the template is inert until a commit distributes it, and the trigger set is
+    the `governance-sync` files-filter in `.pre-commit-config.yaml` — read, never recalled
+    (CLAUDE.md § Sync-consciousness). This asserts the template is matched by that regex, so the
+    three sentences actually leave this repo."""
+    import re
+
+    cfg = (FABRIK / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+    block = cfg.split("id: governance-sync", 1)
+    assert len(block) == 2, "the governance-sync hook is gone — the trigger set moved"
+    m = re.search(r"^\s*files:\s*(?:\|-?\s*\n\s*)?(.+)$", block[1], re.MULTILINE)
+    assert m, "the governance-sync hook has no files: filter"
+    pattern = m.group(1).strip().strip("'\"")
+    assert re.search(pattern, TEMPLATE_REL), (pattern, TEMPLATE_REL)

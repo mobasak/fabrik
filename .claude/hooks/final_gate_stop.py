@@ -625,6 +625,12 @@ _CLOSED_STATES = frozenset(
 # ever ran, and granting it laundered a 37 h abandoned plan (closing review C-2, reversing P1-9);
 # such a record reads as no record, and the remedy is the review the run never had.
 
+_REVIEW_FAMILY = frozenset(
+    {"fabrik-review", "fabrik-review-scoped"}
+)  # the commands whose contract IS a review — `command_run.py::REVIEW_FAMILY`, bound by a parity
+# grader for the same reason `_CLOSED_STATES` is: this would otherwise be the fifth hand-kept copy
+# of a set the writer owns. Only these may exempt code they did not author (T5.2).
+
 
 def _hold_in_force(tick_age_s: float, stale_s: float) -> bool:
     """Mirror of quota_stop.py's OFF test (`tick_age_s > stale_s`), negated: the hold is in force
@@ -690,20 +696,142 @@ def _review_windows(rec: dict | None, sid: str | None = None) -> list[tuple[floa
     appends `[started_epoch, close]`, and `start` carries the ledger across its overwrite —
     `command_run.py`) plus the current record's own window. One record per session is
     OVERWRITTEN by the next `start`, so a single window destroyed the coverage of every earlier
-    command and made a session with two clean runs permanently unreviewable (review P1-1)."""
+    command and made a session with two clean runs permanently unreviewable (review P1-1).
+
+    ...plus every frame PARKED on `stack`. A nested `start` parks the running parent there and
+    gives the child an EMPTY `covered` ledger deliberately (copying the parent's ledger down and
+    joining it back up doubled it per nest cycle — `command_run.py`, closing review C-4/E1), so
+    for the whole life of a nested run BOTH the parent's live window and every window the session
+    had already closed lived only in that frame. Reading `covered` + the current record alone made
+    them invisible, and code authored under the parent's own contract read as UNREVIEWED
+    SPONTANEOUS WORK the moment a nested review started (T5.1; 01M288YHD, 01M25Y93RB, 01M1YB2AK).
+    A frame's own running window rides the LIVE record's freshness, since it is stored in the live
+    record's file: a stale record disarms the parent's immunity exactly as it disarms the child's,
+    while both ledgers of CLOSED windows survive staleness — a finished contract is a historical
+    fact, not a live claim (the same asymmetry the non-nested path has always had)."""
     out: list[tuple[float, float]] = []
-    for w in (rec or {}).get("covered") or []:
-        if isinstance(w, (list, tuple)) and len(w) == 2:
-            lo, hi = _finite(w[0]), _finite(w[1])
-            if lo is None or hi is None:
-                continue
-            lo = math.floor(lo)  # floor BEFORE the validity test: a legacy `[100.7, 100]` pair
-            if lo <= hi:  # written before the writer floored is a real window, not junk (F7)
-                out.append((lo, hi + 1.0))  # whole seconds at both edges (R2)
+
+    def _ledger(holder: object) -> None:
+        for w in (holder if isinstance(holder, dict) else {}).get("covered") or []:
+            if isinstance(w, (list, tuple)) and len(w) == 2:
+                lo, hi = _finite(w[0]), _finite(w[1])
+                if lo is None or hi is None:
+                    continue
+                lo = math.floor(lo)  # floor BEFORE the validity test: a legacy `[100.7, 100]` pair
+                if lo <= hi:  # written before the writer floored is a real window, not junk (F7)
+                    out.append((lo, hi + 1.0))  # whole seconds at both edges (R2)
+
+    _ledger(rec)
+    # `stack` is FLAT — `start` copies the live record's frames and appends the parent, so every
+    # ancestor of a doubly nested run is already a sibling entry here and no recursion is owed.
+    for frame in (rec or {}).get("stack") or []:
+        _ledger(frame)
+        parked = _review_window(frame, sid)
+        if parked is not None:
+            out.append(parked)
     cur = _review_window(rec, sid)
     if cur is not None:
         out.append(cur)
     return out
+
+
+_SURFACE_SPLIT = re.compile(r"[^A-Za-z0-9_./\\-]+")
+
+
+def _surface_reviewed(rec: object, authored: dict[str, int]) -> set[str]:
+    """The authored paths a RUNNING review-family record already names as its `--surface`.
+
+    T5.2 (01M28YN1F): the sixth cause fired on exactly those files. A review's window opens at its
+    `start`, so the code it exists to review — authored before it — is outside every window until
+    the record closes `done` and the reach-back applies (`command_run.py`). Between those moments
+    the hook blocked a session for not reviewing what it was at that moment reviewing. The
+    reach-back itself cannot move earlier: a `blocked` or `handoff` close must never certify the
+    gap since the last run (reach-back reader F1). So a RUNNING review exempts by NAME instead.
+
+    The rule is equality on a whole token, never a prefix: `scripts/` in the surface exempts
+    nothing under it, because a directory is not a claim about a file. Tokens are read with a
+    leading `./` and a trailing `:12`, `:12-30` or `::node` stripped — the shapes a surface
+    actually writes — and the record's parked `stack` frames are read the same way, since a
+    nested command parks a running review there (T5.1)."""
+    if not isinstance(rec, dict):
+        return set()
+    surfaces: list[str] = []
+    for holder in [rec, *((rec.get("stack") or []) if isinstance(rec.get("stack"), list) else [])]:
+        if not isinstance(holder, dict):
+            continue
+        if holder.get("state") != "running" or holder.get("command") not in _REVIEW_FAMILY:
+            continue
+        s = holder.get("surface")
+        if isinstance(s, str) and s:
+            surfaces.append(s)
+    if not surfaces:
+        return set()
+    tokens: set[str] = set()
+    for s in surfaces:
+        for raw in _SURFACE_SPLIT.split(s):
+            if not raw:
+                continue
+            tok = raw[2:] if raw.startswith("./") else raw
+            tok = re.sub(r"(?:::.*|:\d+(?:-\d+)?)$", "", tok)
+            if tok:
+                tokens.add(tok)
+    return {f for f in authored if f in tokens}
+
+
+def _unreviewed_spontaneous(
+    rec: object, authored: dict[str, int], session_floor: float, sid: str | None = None
+) -> int:
+    """The sixth cause's whole question, in one place: of THIS session's code edits, how many fall
+    outside every window a command of the session covered AND are not named by a running review's
+    surface? Composed here rather than at the call site because the call site sits ~40 lines deep
+    inside `main` where nothing can grade it — a fix whose wiring no test reaches is a fix that can
+    be deleted with a green suite (measured on this hook's sibling, D-252 round 3)."""
+    floor = _sixth_cause_floor(session_floor)
+    windows = _review_windows(rec if isinstance(rec, dict) else None, sid)
+    windows += _first_review_base_case(rec, floor)
+    return _unreviewed_code_files(
+        {
+            f: ts
+            for f, ts in _this_sessions_edits(authored, floor).items()
+            if f not in _surface_reviewed(rec, authored)
+        },
+        windows,
+    )
+
+
+def _first_review_base_case(rec: object, floor: float) -> list[tuple[float, float]]:
+    """The reach-back's missing base case (T5.3, 01M21JAET).
+
+    `command_run.py` gives a review-family `done` close a window reaching BACK to the previous
+    covered window's close — a review reviews the session's work SINCE THE LAST RUN. With an EMPTY
+    ledger there is no previous close, so the writer falls back to the review's own
+    `started_epoch`, and a session interrupted before any command closed can never cover the work
+    that preceded its first review: measured permanently unclearable, round after round. 28ca7443
+    closed only the PRE-LEDGER half of that mail and is transitional by construction; this half is
+    not. The bound this needs — the SessionStart baseline — exists only on this side, which is why
+    the base case is applied here.
+
+    Deliberately narrow. It is a window ADDED, never a pair rewritten; `done` only, so a `blocked`
+    or `handoff` close still certifies nothing (reach-back reader F1); review-family only; and it
+    stands down the moment any ledger window starts before this record's own start, because that
+    is the writer's reach-back having already run. It reads the LIVE record only: a NESTED review
+    pops into its caller before the next stop, so its identity is gone from `command` by then and
+    this side cannot tell the joined pair from any other — RECORDED, with `docs/STRATEGIC_BACKLOG.md`
+    as the destination, since closing it means the writer tagging the pair it appends."""
+    if not isinstance(rec, dict):
+        return []
+    if rec.get("command") not in _REVIEW_FAMILY or rec.get("state") != "done":
+        return []
+    started = _finite(rec.get("started_epoch"))
+    if started is None or started <= 0:
+        return []
+    started = math.floor(started)
+    for w in rec.get("covered") or []:
+        if isinstance(w, (list, tuple)) and len(w) == 2:
+            lo = _finite(w[0])
+            if lo is not None and math.floor(lo) < started:
+                return []  # the writer already reached back over an earlier run
+    return [(float(floor), float(started))]
 
 
 def _sixth_cause_floor(session_floor: float) -> float:
@@ -1520,10 +1648,7 @@ def main(argv: list[str]) -> int:
                     _floor = _baseline_path(sid).stat().st_mtime
                 except OSError:
                     pass
-                _unreviewed = _unreviewed_code_files(
-                    _this_sessions_edits(authored_map, _sixth_cause_floor(_floor)),
-                    _review_windows(_rec, sid),
-                )
+                _unreviewed = _unreviewed_spontaneous(_rec, authored_map, _floor, sid)
                 v_action, v_att = decide_review(_unreviewed, v_att)
                 if v_action == "block_review":
                     counter.write_text(f"{g},{c},0,{p_att},{r_att},{v_att}")

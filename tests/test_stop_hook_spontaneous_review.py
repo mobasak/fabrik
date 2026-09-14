@@ -276,11 +276,21 @@ def test_edits_older_than_the_ledgers_birth_are_not_re_judged():
 def test_the_ledger_floor_is_wired_at_the_sixth_causes_call_site():
     # The helper grader above cannot see the wiring: reverting the call-site edit alone keeps
     # every assertion green. Pin the one line that applies the floor.
+    #
+    # T5.2 moved the composition into `_unreviewed_spontaneous` (which APPLIES the floor and is
+    # graded on it behaviourally, floor-empties-the-count, in
+    # test_the_sixth_cause_counts_through_one_composed_reader). What no behavioural test can see
+    # is whether `main` hands it the REAL baseline, so that is what stays pinned here — plus the
+    # absence of both earlier shapes, so a revert to either is caught rather than silently green.
     src = (REPO / ".claude" / "hooks" / "final_gate_stop.py").read_text(encoding="utf-8")
-    assert src.count("_this_sessions_edits(authored_map, _sixth_cause_floor(_floor))") == 1
+    assert src.count("_unreviewed_spontaneous(_rec, authored_map, _floor, sid)") == 1
     assert src.count("_this_sessions_edits(authored_map, _floor)") == 0, (
         "the unfloored call is gone"
     )
+    assert src.count("_unreviewed_code_files(\n                    _this_sessions_edits(") == 0, (
+        "the inline composition is gone — it is the shape that bypassed the surface exemption"
+    )
+    assert "_sixth_cause_floor(session_floor)" in src, "the floor still rides the composed reader"
 
 
 def test_a_legacy_sub_second_pair_written_before_the_writer_floored_is_read_whole():
@@ -290,3 +300,216 @@ def test_a_legacy_sub_second_pair_written_before_the_writer_floored_is_read_whol
     wins = fgs._review_windows({"state": "done", "covered": [[100.7, 100]]})
     assert wins == [(100, 101.0)], wins
     assert fgs._review_windows({"state": "done", "covered": [[102.2, 100]]}) == [], "still junk"
+
+
+def test_a_parked_parents_window_still_covers_during_a_nested_child(monkeypatch):
+    """T5.1 (01M288YHD, 01M25Y93RB, 01M1YB2AK): the sixth cause asks "inside ANY window this
+    session held" — and during a NESTED child it was not asking about the parent's.
+
+    `command_run.py::start` parks the running parent on `stack` and gives the child an EMPTY
+    `covered` ledger on purpose (copying the parent's down and joining it back up doubled the
+    ledger per nest cycle — its closing review C-4/E1). The cost was never paid on the hook side:
+    `_review_windows` read `covered` plus the CURRENT record only, so for the whole life of a
+    nested `/fabrik-review` BOTH the parent's live window AND every window the session had
+    already closed were invisible, and code authored minutes earlier under the parent's own
+    contract read as UNREVIEWED SPONTANEOUS WORK. Measured before the fix: an edit at t0+60 under
+    a parent started at t0 counted 1 unreviewed once a child started at t0+120, and 0 with the
+    same parent live — the nesting was the whole difference."""
+    t0, t1, t2 = 1_757_000_000.0, 1_757_000_060.0, 1_757_000_120.0
+    parked = {
+        "command": "fabrik-execute-plan",
+        "state": "running",
+        "started_epoch": t0,
+        "covered": [[1_756_000_000, 1_756_000_500]],  # an earlier command of the same session
+    }
+    child = {
+        "command": "fabrik-review",
+        "state": "running",
+        "started_epoch": t2,
+        "covered": [],
+        "stack": [parked],
+    }
+    wins = fgs._review_windows(child)
+    assert (t0, float("inf")) in wins, ("the parked parent's live window", wins)
+    assert (1_756_000_000.0, 1_756_000_501.0) in wins, ("the parent's carried ledger", wins)
+    assert fgs._unreviewed_code_files({"scripts/x.py": int(t1)}, wins) == 0
+    # the control that makes this a nesting bug and not a window bug: parent live, same edit
+    assert (
+        fgs._unreviewed_code_files(
+            {"scripts/x.py": int(t1)}, fgs._review_windows({**parked, "covered": []})
+        )
+        == 0
+    )
+    # an edit BEFORE the parent started is still spontaneous — the fix widens nothing else
+    assert fgs._unreviewed_code_files({"scripts/x.py": int(t0) - 1}, wins) == 1
+
+    # a malformed frame is ignored, never a crash (the `covered` reader's own contract)
+    junk = fgs._review_windows(
+        {"state": "running", "started_epoch": t2, "stack": ["x", {}, {"started_epoch": 0}, None]}
+    )
+    assert junk == [(t2, float("inf"))], junk
+
+    # MIRROR — the stale hatch: when the LIVE record is too old for the fifth cause to act on,
+    # `_review_window` returns None so the sixth cause cannot arm on it. The frames ride the same
+    # file and must fail the same way, or a stale nested record would launder its parent's span.
+    # the asymmetry is the one the non-nested path already has: a CLOSED window is a historical
+    # fact and survives staleness; only the live claims (the child's and the parent's) are dropped.
+    monkeypatch.setattr(fgs, "_run_record", lambda _sid: None)
+    monkeypatch.setattr(fgs, "_stale_bound_s", lambda: 43200.0)
+    assert fgs._review_windows(child, "some-sid") == [(1_756_000_000.0, 1_756_000_501.0)]
+    assert (
+        fgs._unreviewed_code_files({"scripts/x.py": int(t1)}, fgs._review_windows(child, "s")) == 1
+    )
+
+
+def test_the_review_family_set_is_not_a_fifth_hand_kept_copy():
+    """`_CLOSED_STATES` was the fourth hand-kept copy of a set the writer owns, and a parity
+    grader is what stopped the drift (closing review C-3). T5.2 needs the review-family set on the
+    hook side too; it gets the same binding rather than a new copy to drift."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("cr", "/opt/fabrik/scripts/command_run.py")
+    cr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cr)
+    assert fgs._REVIEW_FAMILY == cr.REVIEW_FAMILY
+
+
+def test_a_running_reviews_own_surface_files_are_not_spontaneous_work():
+    """T5.2 (01M28YN1F): the sixth cause fired on the very files a RUNNING /fabrik-review-scoped
+    record already names as its `--surface`.
+
+    A review's window opens at its `start`, so code authored BEFORE it — which is the only code a
+    review can possibly be reviewing — sat outside every window until the record closed `done` and
+    the reach-back applied. Between those two moments the hook blocked the session for not
+    reviewing what it was at that moment reviewing. The reach-back cannot move earlier (a `blocked`
+    or `handoff` close must not certify the gap — reach-back reader F1), so the running record
+    exempts by NAME instead: exactly the paths its surface spells, and only while it runs."""
+    surf = "the working-tree diff over `scripts/a.py`, tests/b.py:44 and ./docs/c.md"
+    rec = {
+        "command": "fabrik-review-scoped",
+        "state": "running",
+        "started_epoch": 9000,
+        "surface": surf,
+    }
+    authored = {"scripts/a.py": 100, "tests/b.py": 200, "docs/c.md": 300, "scripts/other.py": 400}
+    named = fgs._surface_reviewed(rec, authored)
+    assert named == {"scripts/a.py", "tests/b.py", "docs/c.md"}, named
+    # the file the surface does NOT name is still spontaneous — the exemption is by name, not by run
+    assert (
+        fgs._unreviewed_code_files(
+            {k: v for k, v in authored.items() if k not in named}, fgs._review_windows(rec)
+        )
+        == 1
+    )
+
+    # a parked parent review counts too — the T5.1 frames carry state and surface alike
+    nested = {
+        "command": "fabrik-execute-plan",
+        "state": "running",
+        "started_epoch": 9500,
+        "stack": [dict(rec)],
+    }
+    assert fgs._surface_reviewed(nested, authored) == named
+
+    # ...and the three ways this must NOT launder:
+    assert fgs._surface_reviewed({**rec, "command": "fabrik-spec"}, authored) == set(), (
+        "a non-review command naming files in its surface reviews nothing"
+    )
+    assert fgs._surface_reviewed({**rec, "state": "done"}, authored) == set(), (
+        "a CLOSED record is the reach-back's business, and a blocked close must not reach back"
+    )
+    assert (
+        fgs._surface_reviewed({**rec, "surface": "everything under scripts/ and tests/"}, authored)
+        == set()
+    ), "a directory is not a file: equality only, never a prefix"
+
+    # malformed records and surfaces are inert, never a crash
+    for bad in (
+        None,
+        {},
+        {"command": "fabrik-review", "state": "running", "surface": None},
+        {"command": "fabrik-review", "state": "running", "surface": 7},
+        {"command": "fabrik-review", "state": "running", "stack": ["x", None]},
+    ):
+        assert fgs._surface_reviewed(bad, authored) == set(), bad
+
+
+def test_the_sixth_cause_counts_through_one_composed_reader(monkeypatch):
+    """The call site is ~40 lines inside `main`, so the composition is graded here instead —
+    otherwise T5.2's exemption could be deleted with a green suite (D-252 round 3's lesson: a
+    fix whose wiring no test reaches is a fix nothing guards). All three filters are exercised."""
+    monkeypatch.setattr(fgs, "_LEDGER_EPOCH", 0.0)
+    rec = {
+        "command": "fabrik-review",
+        "state": "running",
+        "started_epoch": 5000,
+        "surface": "`scripts/named.py` and nothing else",
+        "covered": [[1000, 1200]],
+    }
+    authored = {
+        "scripts/named.py": 3000,  # outside every window, but the running review NAMES it
+        "scripts/inwindow.py": 1100,  # inside the closed ledger window
+        "scripts/live.py": 5500,  # inside the running window
+        "scripts/old.py": 10,  # below the floor — not this session's
+        "scripts/loose.py": 3000,  # outside every window and named by nobody
+    }
+    assert fgs._unreviewed_spontaneous(rec, authored, 100.0) == 1
+    # drop the surface and the named file joins the loose one
+    assert fgs._unreviewed_spontaneous({**rec, "surface": ""}, authored, 100.0) == 2
+    # raise the floor past everything and the count empties
+    assert fgs._unreviewed_spontaneous(rec, authored, 9e9) == 0
+    # no record at all: every edit above the floor is spontaneous
+    assert fgs._unreviewed_spontaneous(None, authored, 100.0) == 4
+
+
+def test_the_first_review_of_a_session_can_still_cover_work_that_preceded_it(monkeypatch):
+    """T5.3 (01M21JAET): "the sixth cause is permanently unclearable after a fleet-quota
+    interruption — mtimes are historical, windows are not retroactive."
+
+    28ca7443 closed the PRE-LEDGER half of this (edits older than the ledger's birth) and is
+    transitional by construction. The other half was still open and is not transitional. A review's
+    window reaches BACK to the previous covered window's close (`command_run.py`, done-only per
+    reach-back reader F1) — but with an EMPTY ledger there is nothing to reach back TO, so the
+    writer falls back to the review's own `started_epoch`. A session interrupted before any command
+    closed therefore carries edits with historical mtimes above the SessionStart baseline and below
+    its first review's start, and NO review can ever cover them: measured at 1 unreviewed file
+    after a clean `done` close, unchanged for every later round.
+
+    The missing piece is the base case of the rule the writer already applies: a review's contract
+    is "this session's work SINCE THE LAST RUN", and with no last run that is the session's work,
+    whose lower bound is the session floor. The floor lives only on this side — it is the
+    SessionStart baseline's mtime — so the base case is applied here, once, as an ADDED window
+    rather than a mutated pair."""
+    monkeypatch.setattr(fgs, "_LEDGER_EPOCH", 0.0)
+    base, edit, start, close = 1000.0, 2000.0, 9000.0, 9100.0
+    authored = {"scripts/interrupted.py": int(edit)}
+    done = {
+        "command": "fabrik-review-scoped",
+        "state": "done",
+        "started_epoch": start,
+        "updated_ts": int(close),
+        "covered": [[int(start), int(close)]],  # what the writer appends with an empty ledger
+    }
+    assert fgs._unreviewed_spontaneous(done, authored, base) == 0, (
+        "the first review of a session covers the session up to its own start"
+    )
+    # an edit BELOW the session floor is not this session's work and is not swept in
+    assert fgs._unreviewed_spontaneous(done, {"scripts/x.py": int(base) - 5}, base) == 0
+    assert fgs._this_sessions_edits({"scripts/x.py": int(base) - 5}, base) == {}
+
+    # the three ways this base case must NOT fire:
+    assert fgs._unreviewed_spontaneous({**done, "state": "blocked"}, authored, base) == 1, (
+        "F1: a blocked or handoff close certifies nothing — the laundering hatch stays shut"
+    )
+    assert fgs._unreviewed_spontaneous({**done, "command": "fabrik-spec"}, authored, base) == 1, (
+        "only a review's contract is 'this session's work'"
+    )
+    # a ledger with an earlier run is the WRITER's reach-back to do; this side stands down. The
+    # fixture hand-writes the pair WITHOUT the reach-back the writer would have applied, so an edit
+    # in the gap (above the floor, below the review's start) must stay uncovered.
+    with_prior = {**done, "covered": [[1100, 1200], [int(start), int(close)]]}
+    assert fgs._first_review_base_case(with_prior, base) == []
+    assert fgs._unreviewed_spontaneous(with_prior, {"scripts/y.py": 5000}, base) == 1
+    # and the same edit IS covered once the writer's reach-back is present, which is the real shape
+    reached = {**done, "covered": [[1100, 1200], [1200, int(close)]]}
+    assert fgs._unreviewed_spontaneous(reached, {"scripts/y.py": 5000}, base) == 0
