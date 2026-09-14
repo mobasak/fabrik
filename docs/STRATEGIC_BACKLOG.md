@@ -10,6 +10,84 @@ Generated from the end-of-day plan-state on 2026-06-07 after the trio Phase 5.1.
 ---
 
 - **[intel] `/fabrik-rivals` guard debt left after the 2026-09-14 key-autoload review** — four low-severity grader gaps a 25-mutant battery found and the run deliberately did not close, each one line: the unreadable-`.env` fail-open path (`chmod 000`) is claimed by a docstring and pinned by no test; the `expanduser()` on `$SUBAGENTS_ENV_FILE` is documented as a deliberate divergence from `libs/alerting/_dotenv.py` and nothing pins it, so the next re-port reverts it; `main()`'s `load_env(str(REPO))` argument is ungraded, and swapping it for `os.getcwd()` — the historical wrong-repo bug — passes every test; and the `note:` the docs make a contract is not asserted. Plus one behaviour item: running the HUB's copy of the driver from another repo binds `REPO` to the hub, so it reads the hub's `.env` and writes its checkpoint under `/opt/fabrik/.tmp` while preflight calls it repo-local (reproduced; the doc now states the precondition, but no check enforces it). None is a live defect in the shipped path — the closing reader's verdict was SAFE for 48 repos.
+## [infra] The private-index commit recipe is a SCRIPT written as prose, and each review round finds more transcription defects in it
+
+Routed here by the D-252 scope-growth stop at the close of Phase C's review (receipt
+`docs/development/reviews/2026-09-14-plan-2-mail-triage-phase-C-review.md`). Three rounds found, in
+the SAME seven prose steps: a compare-and-swap that can never fire (`update-ref … HEAD` resolves to
+the branch being updated, so it destroys a sibling's in-window commit at rc 0); a realign that reset
+the throwaway index because `GIT_INDEX_FILE` was still exported; a carry-back whose one-command
+reading (`cp`) wipes the sibling WIP the recipe exists to protect; a `printf` that puts the hunk in
+the FORMAT position and eats any `%`; an APPEND that relocates a CHANGELOG entry below the released
+sections; a step that dies on a path new to HEAD; an assert against the wrong ref; and a `-F msg`
+naming a file no step creates. Every one was found by EXECUTING the steps, and every fix was more
+prose. The class is transcription, and prose cannot be executed or tested.
+
+**Do:** make it `scripts/shared_tree_commit.sh` (or `.py`) with graders — captured `$base`, private
+index, mode fallback, CAS against `$base`, `env -u` realign, an insert-not-append carry — and leave
+ONE sentence plus a pointer in `CLAUDE.md` § Shared repo and its `templates/governance/` twin.
+**Why it was not done in-run:** a new fleet-synced mechanism is SPEC/PLAN work per § Behavior's
+SIZING rule, not a round-3 in-run fix. **Bonus:** it also fixes the fleet-template bloat below.
+
+## [infra] The fleet template ships 3 kB of hub plumbing and hub box facts to ~46 mostly single-agent repos
+
+`templates/governance/CLAUDE.md` § Shared repo grew 37.5% (7,958 → 10,944 chars) into a seven-step
+`GIT_INDEX_FILE`/`commit-tree`/CAS recipe, and now also carries "18 of the 45 `.git` entries at
+`/opt/*` … two of those entries being linked worktrees of `fabrik-lib`" — a measurement of the HUB's
+box, shipped byte-identical to repos that are not part of that fleet and where the concurrent-writer
+hazard cannot occur. The one-line rule a project agent needs (stage explicit paths, verify what
+landed) now sits ahead of material that never applies to them. **Do:** with the script row above, cut
+the template to the rule plus the pointer, and keep the box facts hub-side.
+
+## [infra] `check_review_hygiene.py` does not compare a disposition ledger's stated tally to its rows
+
+Five defects across two reviews in one day were a stated verdict triple contradicting its own table
+— the Phase C round-1 ledger, the Phase C round-2 ledger (written by the agent who had just fixed the
+first), the CHANGELOG's grader count, and two in Phase B. All five passed `check_review_hygiene
+--receipt` and `check_review_coverage --root .` green, because neither reads the tally. The class was
+eventually closed by DELETING the restatement from all four ledgers, which works but is not
+enforceable. **Do:** a one-line check — count the leading verdict tokens of a ledger's rows, compare
+to any `N rows … A FIXED · B REFUTED · C RECORDED` line above it, advisory on mismatch.
+
+## [infra] A review's `--surface` is fixed at `start`, so a long review outgrows its own exemption
+
+T5.2 (`_surface_reviewed`) exempts the files a RUNNING review-family record NAMES. The name list is
+written once by `start` and no verb updates it. Phase C's own review demonstrated the gap on the
+session running it: the surface was written at round 1 naming six files, rounds 1–3 pulled in three
+more as the fix spread to the writer half, and the Stop hook's sixth cause fired mid-round-3 —
+executed, 4 of 8 files exempt, 3 unnamed. The longer and more thorough the review, the more of its
+own work reads as spontaneous. **Do:** let the exemption also cover paths the record's own
+`review-fix` commits touched, or add a verb to widen a running record's surface.
+
+## [infra] `command_run.py`'s `start` silently discards every parked frame on a non-running record, and its own readers still die on a corrupt field
+
+Two findings from Phase C's review, both one hop out of its hunks. (1) `scripts/command_run.py:2124`
+reads `list(rec.get("stack") or []) if parent else []`, so a `start` over a record the coroner reaped
+drops the whole ancestry without a word. (2) The same file's `covered`/`stack` readers raise on a
+scalar: a `start` over a record with `stack: 7` prints `error, continuing` and exits 0 with NO record
+written — the agent believes a run opened and none did. The Stop hook's side of this pair was closed
+in Phase C (`_seq`, `_tok`); the writer's was not. **Do:** vendor `_seq`/`_tok` into the writer and
+make that failure non-zero.
+
+## [infra] The Stop hook is fleet-synced; its 39 graders are not
+
+`scripts/fabrik_synced_manifest.py` distributes `.claude/hooks/final_gate_stop.py` to ~46 repos.
+`tests/test_stop_hook_spontaneous_review.py` is not in the manifest, so every project copy of the
+sixth cause ships ungraded — a project agent who edits it has nothing to run. Surfaced while
+reviewing Phase C's three fixes to that hook. **Do:** decide whether the graders ride the sync, or
+whether the hook's project copies are declared read-only and a check enforces it.
+
+## [infra] Two enforcement checks red-line every session's gate for another session's uncommitted work
+
+`check_review_coverage.py --root .` and `check_convergence.py` grade INTENT-TO-ADDED artifacts — by
+design, so an author can grade a receipt before committing it. The cost is that a peer's unfinished
+receipt fails every sibling's completion gate, with a Stop-hook message reading "This session
+introduced gate failures", and the reader cannot fix it without editing uncommitted WIP, which
+§ Shared repo forbids. Measured 2026-09-14: three such failures in one turn, all three from two other
+sessions' in-flight work; `git diff --cached` shows an `add -N` entry as nothing at all, so the owner
+cannot see it either. **Do:** name the owner and the intent-to-add state in the message, and/or add a
+`--mine`/`--since` scoping flag so a session can gate on its own artifacts.
+
 ## [fleet] `check_corpus_weight.py` — three residues the Phase A review rounds recorded rather than cut (2026-09-14, owner: fleet)
 
 Routed here by the SCOPE GROWTH stop (D-252) at the close of `/fabrik-review-scoped` over Phase A of `docs/development/plans/2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round.md`. Four rounds confirmed 16 → 6 → 4 → 2, and rounds 2–4 were entirely own-fix residue: the original change was quiet from round 2 and every later finding lived in the previous round's prose or its consequence. Every CONFIRMED item is fixed and graded; these three are what the closing seat listed as below the bar, kept so the next reader does not re-derive them.

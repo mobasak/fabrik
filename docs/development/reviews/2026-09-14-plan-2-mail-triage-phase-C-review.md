@@ -286,6 +286,41 @@ name before the two round-3 seats reported.
 | C3-R4 | the interaction of round 2's three changes | reopened-hole | CLEAN — measured end to end with REAL `command_run.py` commands, not fixtures: a first review closes and sets the reach → a plan starts and CARRIES it → a review NESTS, and the child's own reach is `None` (C2-1's gate) while the parent is parked WITH its reach and `_first_review_base_case` still reads `(1.0, reach)` through the frame (C2-2's fix) → the pop restores the parent with its reach intact, no join needed (C2-6's removal is safe). The three changes compose; none reopens what another closed |
 
 
+## Disposition ledger — round 3, the recipe seat
+
+One row per finding; tallies derivable from the table, not restated. Seat `C3-O2` (Opus) ran all
+seven recipe steps plus 5b VERBATIM in throwaway repos on git 2.43.0 and **verified round 2's two
+headline claims HOLD on the happy path** — the sibling's WIP survives, the shared index is clean
+afterwards, and 5b's refusal/retry works as documented. Then it broke the edges. The second seat
+(`C3-O1`, the code half) was still running when the D-252 stop fired; see § CLOSE.
+
+| # | Where | Class | Disposition |
+|---|---|---|---|
+| C3-1 | step 7's `printf '<hunk>' >> <file>` | A COMMAND THAT SILENTLY EATS YOUR CONTENT (in-hunk) | FIXED r3 · doc (the hunk sits in printf's FORMAT position: an entry containing `100%` truncates to "### Fixed — rename a => b (100" at rc 0, and `\t`/`\n` are eaten. This bullet's own vocabulary — `rename a => b (100%)`, `100644 → 100755` — is full of both. Executed both ways; `printf '%s\n' "$hunk"`, a here-doc or `git apply` named instead) |
+| C3-2 | step 7 vs the HARD STOPS row six lines down | A CONTRADICTION MY ROUND-2 FIX CREATED (in-hunk) | FIXED r3 · doc (step 7 said APPEND; the row says an entry goes ATOP `[Unreleased]`. A blind `>>` puts it below the released sections and the next pathspec commit makes that the committed truth — executed. Round 2 wrote the APPEND to close a `cp` that destroyed sibling WIP and never checked it against the rule it contradicts) |
+| C3-3 | step 5b's recovery | THE RECOVERY LEAVES A DELETION BEHIND IT (in-hunk) | FIXED r3 · doc (after a 5b retry the sibling's in-window COMMITTED hunk is in HEAD but NOT in your working file, so the next pathspec commit by anyone deletes it. 5b said to rebuild the scratch file and never mentioned the working one. The mandated `git diff HEAD -- <paths>` guard DOES show it as a `-` line; nothing told you to look, and now it does) |
+| C3-4 | step 6's `env -u` and the realign two paragraphs later | prose demanding what the command cannot do (in-hunk) | FIXED r3 · doc (`env -u` covers ONE command while the prose said "unset it here for everything that follows"; no `unset` was ever given, and executed, the mandated pre-commit guard then reads the throwaway index and disagrees with the shared one. The realign at the bullet's end had no guard at all — two spellings of one command, one declared load-bearingly wrong by the other, in the same bullet) |
+| C3-5 | step 2's `\|\| :` fallback | A RATIONALE EXECUTION REFUTES (in-hunk) | FIXED r3 · doc (both arms build the same empty base — `cmp`-identical — and `2>/dev/null`, present in both, is what hides the message. The `\|\|` changes exactly one thing: it turns a `set -e` abort into silent continuation, which is the OPPOSITE of the stated reason. It now says the base was empty) |
+| C3-6 | the `add -N` visibility clause | a back-reference round 2 did not sweep (in-hunk) | FIXED r3 · doc (it called `git diff-index --cached HEAD` "step 4's own command" after round 2 had changed step 4 to `"$base"` against the PRIVATE index, where a shared-index intent-to-add entry does not exist at all) |
+| C3-7 | "17 of the 45 `.git` entries" | A COUNT WHOSE SHIPPED METHOD GUARANTEES THE WRONG ANSWER (in-hunk) | FIXED r3 · doc (four `/opt` repos set `core.hooksPath` — husky, `.githooks` — and the prescribed `[ -x "$d/.git/hooks/pre-commit" ]` sweep is blind to every one. The git-aware count is 18. The denominators 45 and 43 and the two linked worktrees all re-derived EXACTLY; only the method was wrong, which is worse than a stale number because it is reproducible) |
+| C3-8 | "`reference-transaction` does fire; nothing else" | an absolute its own measurement refutes (in-hunk) | FIXED r3 · doc (all fourteen hook types installed: `post-index-change` fires four times across the recipe, at steps 2, 3, 5 and 6. The isolated `commit-tree`/`update-ref` claim survives, so the sentence is now "no COMMIT hook runs" — which is what the enumeration under it always said) |
+| C3-9 | `CHANGELOG.md` "24 confirmed defects … across one round" | stale in the commit that created round 2 (in-hunk) | FIXED r3 · doc (the same commit's receipt records round 2's further 35 rows; round 2 updated three other numbers in that very paragraph and left this clause) |
+| C3-10 | `CHANGELOG.md` "2 in `tests/test_command_run.py`" | a count correct one round ago (in-hunk) | FIXED r3 · doc (3 — round 2 added the third and did not bump it; re-derived by diffing the `def test_` lists at both refs) |
+| C3-11 | `CHANGELOG.md`'s grader attribution | the fix credited to the wrong file (in-hunk) | FIXED r3 · doc (the NON-DISCRIMINATING grader and its `REPO`-relative fix are in `tests/test_stop_hook_spontaneous_review.py`; `test_governance_template_split.py` never mentions `command_run.py`. Round 2 sharpened the misattribution by adding a binding clause immediately before it) |
+| C3-12 | the round-2 ledger's stated triple | the same tally defect, third instance | FIXED r3 · doc (independently re-derived by the seat three ways as 23/0/8 against a stated 24/0/7 — the orchestrator had already found and closed this as C3-R1 by deleting the restatement from all four ledgers; the seat's independent arrival at the same numbers confirms the deletion was the right disposition) |
+| C3-13 | round 1's `--cached` disambiguation | a REMOVED guard (in-hunk) | RECORDED — measured (round 1 added "Here `--cached` IS right: this index is private"; round 2 deleted it while adding two MORE statements of the `--cached`-is-wrong rule. The private-index exception is now re-stated inside step 4 itself, so the guard is back in the place that needs it) |
+| C3-14 | the HARD STOPS row vs the `git mv` guidance | three unqualified rules for one decision | RECORDED — one hop (a `git mv` check is genuinely index-only, so the right fix is to NAME the exception where the `git mv` rule lives rather than qualify it in three places. Destination `docs/STRATEGIC_BACKLOG.md` with the recipe-as-script row, which removes two of the three sites) |
+| C3-15 | `git diff HEAD -- <paths>` stated three times per file | three sources of truth for one rule | RECORDED — one hop (round 1 had one, round 2 added two in different wordings. It is WHY C3-14 became visible. Same destination — the script row collapses them) |
+| C3-16 | the template's hub box facts | hub-local measurements shipped fleet-wide | RECORDED — measured (the `/opt/*` count and a named hub repo ship byte-identical to ~46 project repos where that fleet does not exist. Destination `docs/STRATEGIC_BACKLOG.md`, its own row) |
+
+**Clean classes the seat denominated:** 8 of 8 numbered instructions run verbatim (5 exact, 3
+defective); 14 git-behaviour claims re-derived by execution, 12 exact; 14 hook types probed, 2 fire;
+the three sentences BYTE-IDENTICAL across both contracts with 0 divergences; 8 distinct non-ASCII
+code points, all correctly paired, 0 mojibake and 0 NBSP; 6 of 9 CHANGELOG numbers exact including a
+re-run of the cited 372-test invocation; and a duplicate-clause sweep finding only the two
+restatements recorded as C3-14/C3-15.
+
+
 ## Pass Ledger
 
 ONE table, one row per pass, counts punctuated (`found: F, new: N, confirmed: C, fixed: X,
@@ -301,6 +336,7 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 |---|---|---|---|
 | Pass 1 | native opus×2 + sonnet×1 (dispatched 3, returned 3, all fresh non-authoring: C1-O1 the hook body · C1-O2 the two fleet-synced contracts · C1-S1 the graders, docs, plan note, CHANGELOG and commit message) | found: 30, new: 4, confirmed: 24, fixed: 23, unexecuted: 0 | method: citation — the FULL pass over `dffcca1a` (diff md5 `6fdcb464ad54c7f8a397f32db9f80568`, 565 lines), tree pinned at `execC/pin1/`. SIX of the 24 were found by the orchestrator's own round-zero probes BEFORE any seat reported and were committed first (`e6046139`); every candidate re-executed by the orchestrator on a copy. Battery 10 → 25 mutants, killed 25. Fixes at `e6046139` · `8a8d8b26` · `552428e5` |
 | Pass 2 | native opus×2 + sonnet×1 (dispatched 3, returned 3, all fresh non-authoring: C2-O1 the hook and writer code · C2-O2 the rewritten governance recipe · C2-S1 the graders, receipt and prose) | found: 38, new: 3, confirmed: 31, fixed: 30, unexecuted: 0 | method: citation — DELTA over `dffcca1a..552428e5` (1,695 changed lines → the round-1 partition, D-229; diff md5 `d4521cbbdcb9b00311ee4045c6ba91bf`). ALL 31 inside round 1's own fixes — `own_fix: 31`, the first such round, which D-252 counts but does not stop on. A seat executed all seven recipe steps verbatim and six were defective; two code fixes had reopened holes they had just closed. FIVE of the round's own mutants then survived and were real grading gaps, all closed; 2 dropped as inexpressible with their proofs recorded. Battery 25 → 29, killed 29. Fixes at `3d8baa9d` · `9bcebd42` · `2d559515` |
+| Pass 3 | native opus×2 dispatched (C3-O1 the hook and writer delta · C3-O2 the recipe and prose delta); **C3-O2 returned and is adjudicated in full; C3-O1 was still running at 29 minutes when the stop fired** — both fresh non-authoring, and the round's closing read is C3-O2's, which re-derived every count independently rather than re-citing | found: 24, new: 2, confirmed: 21, fixed: 19, unexecuted: 0 | method: citation — DELTA over `552428e5..2d559515` (528 changed lines → `opus=2`; diff md5 `a1f2ebcfd7617b62c57931ac01c26f1b`). ALL 21 inside round 2's own fixes — `own_fix: 21`, the SECOND consecutive such round, which is the counted condition D-252 defines and the reason there is no round 4. Five found by the orchestrator's own sweep of the three classes the record left open, sixteen by C3-O2, one shared. C3-O2 ran all seven recipe steps plus 5b verbatim and CONFIRMED round 2's two headline claims hold on the happy path before breaking the edges. The Stop hook's sixth cause fired on THIS session mid-round and is recorded as C3-R5 — T5.2's own exemption, demonstrated stale by the review that shipped it. Battery re-run at 29 mutants, killed 29; 372 tests green. Fixes at `e821548c` · `806b6eb9` |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -331,7 +367,44 @@ closing `Pass N`. `RECORDED — measured` and `RECORDED — unexecuted` never en
 
 ## Per-phase verdicts
 
-### Phase 1 — <title>: UNCHECKED
+### Phase C — the Stop hook's sixth cause (T5) and the governance text (T6): CLOSED ON THE SCOPE-GROWTH STOP (D-252)
+
+Three rounds over `dffcca1a`, confirmed 24 → 31 → (round 3). **Round 1 reviewed the Phase C change
+itself and found 24 defects in it — `own_fix: 0`. Rounds 2 and 3 each confirmed defects ONLY inside
+the previous round's fixes.** Two consecutive all-own-fix rounds is the counted condition D-252
+defines, and D-252 exists because Phase B of this same plan ran twenty rounds past the point of
+usefulness on exactly this shape. There is no round 4.
+
+**The loop was not wasted, and the counts say why.** Round 1 found that the T5.1 stack walk had
+REOPENED the coroner-laundering hole closing review C-2 had shut, that T5.3's fix was unreachable
+code in one place and ungraded in another, and that a recipe I had shipped to both fleet-synced
+contracts carried a compare-and-swap that can never fire — which I had been running for every commit
+that session. Round 2 found that round 1's own fix laundered through nesting (an unreviewed edit went
+1 → 0 with nesting as the only difference), that it had reproduced T5.1 on its own new field, and
+that SIX of the recipe's seven steps destroyed data when a seat executed them verbatim. Round 3
+found a `printf` whose format-string position silently eats any hunk containing `%`, an APPEND that
+relocates a CHANGELOG entry below the released sections, and two counts that were measured wrong
+rather than merely stale. None of that is prose residue; all of it was live.
+
+**What the stop is actually stopping** is the third-order work: by round 3 the findings were
+overwhelmingly about the wording of round 2's corrections to round 1's corrections. The class the
+rounds kept re-finding — a recipe whose defects are all TRANSCRIPTION failures, because prose cannot
+be executed or tested — has one real answer, and it is not a fourth round of prose: make the recipe
+an executable script and leave one sentence plus a pointer. That is a new fleet-synced mechanism,
+which is SPEC/PLAN work, so it is a backlog row with a named destination rather than something
+started at round 3 of a review.
+
+Evidence at the close, re-run on this tree: the 29-mutant battery on a fresh `__pycache__`-free copy
+— killed 29, survived 0, other 0, each dead by the failing test's NAME — and 372 tests green over
+the nine stop-hook, final-gate, governance-split, hooks-index and command_run files. Every mutant
+that survived along the way was a real grading gap and was closed; two were dropped as inexpressible
+with their proofs recorded elsewhere rather than left surviving.
+
+**Why the Status stays IN-PROGRESS:** the exit round was not quiet, and `check_review_coverage.py`
+refuses a CONVERGED flip on a non-quiet exit unless the stuck finding is BLOCKED-escalated. Nothing
+here is stuck — the loop is stopped by rule, not blocked by a defect — so the honest record is
+IN-PROGRESS plus a `blocked` close naming the stop, exactly as D-252's own review closed and exactly
+as Phase B closed.
 
 ## Gate
 
@@ -339,5 +412,78 @@ closing `Pass N`. `RECORDED — measured` and `RECORDED — unexecuted` never en
 `"status": "success"`):
 
 ```json
-UNCHECKED — paste the gate output here at the CONVERGED flip
+NOT PASTED AS `"status": "success"`, and that is the honest record rather than an omission.
+
+`final_gate.py --lean --check --json` on this tree reads `status: failure` with ONE blocking row,
+and it is not this phase's:
+
+    - docs/development/reviews/2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round-review.md:
+      no per-phase verdict (no Phase/Step reference)
+
+That file belongs to another session and is NOT COMMITTED — it sits in the shared index as an
+intent-to-add entry (`git ls-files -s` → the empty blob `e69de29b`), which is the sanctioned
+"grade it before you commit it" pattern, and `check_review_coverage` grades those by design. So a
+peer's unfinished receipt fails every sibling's completion gate while they work, and `git diff
+--cached` shows an `add -N` entry as nothing at all. Their file was being edited 18 seconds before
+this was written; leaving it alone is § Shared repo's one hands-off case, not a judgement call.
+Filed to the infra beat as `01M2GAA6GA6SCSXB4F215KBC4E` with the line numbers, the regexes and three
+alternative one-line fixes; a sibling row from the same pair of sessions (`01M2GAEDPVYNPZ8CA4354NCJMH`,
+a lint-ratchet +1 from an uncommitted test name) was fixed by them after filing, and one of these two
+rows cleared the same way while this receipt was being written.
+
+THIS PHASE'S OWN ARTIFACTS pass in isolation, re-run at the close:
+
+```text
+$ python3 scripts/enforcement/check_review_coverage.py --root . docs/development/reviews/2026-09-14-plan-2-mail-triage-phase-C-review.md
+check_review_coverage: OK — 0 unproven coverage claims across 1 staged review artifact(s)
+
+$ python3 scripts/enforcement/check_review_hygiene.py --receipt docs/development/reviews/2026-09-14-plan-2-mail-triage-phase-C-review.md
+hygiene: 0 hit(s) over 1 file(s)
+
+$ python3 scripts/enforcement/check_hooks_index.py
+✓ hooks-index current (31 live hooks all indexed)
+
+$ ruff check <the six changed Python files>
+All checks passed!
+
+$ pytest <the nine named files>
+372 passed
 ```
+```
+
+## CLOSE — stopped by D-252, not converged
+
+`command_run.py` printed the stop at round 3 and this close obeys it verbatim:
+
+```text
+⚠️  SCOPE GROWTH — the last 2 rounds confirmed ONLY defects inside text this review itself added
+    (confirmed/own-fix: 31/31 → 21/21).
+    Exit: STOP the loop — route the remaining own-fix work to a backlog row with a named
+    destination, and close on the ORIGINAL delta's state.
+```
+
+- **The counts that fired it,** recorded round by round with `--own-fix`: `24/0` → `31/31` → `21/21`.
+  Round 1 reviewed the Phase C change itself; rounds 2 and 3 reviewed the previous round's fixes.
+  Two consecutive all-own-fix rounds is the counted condition, and D-252 was built this morning
+  precisely because Phase B of this plan ran twenty rounds past usefulness on the same shape.
+- **One seat was still running when it fired.** `C3-O1` (the hook and writer delta) was at 30
+  minutes; `C3-O2` had returned and is adjudicated in full above. The round therefore closes on a
+  fresh non-authoring seat's read, as the contract requires — but NOT on both. That is deliberate:
+  waiting for a second confirmation of a conclusion the counts already establish is exactly the
+  spending the stop exists to end. If `C3-O1` returns, its findings go to
+  `docs/STRATEGIC_BACKLOG.md` beside the seven rows already routed there — never to a round 4.
+- **Seven backlog rows carry the remaining own-fix work,** each with a named destination: the recipe
+  as an executable script (the class answer — its defects are all transcription failures); the fleet
+  template's 3 kB of hub plumbing and hub box facts; a tally-vs-rows check for
+  `check_review_hygiene.py` (five defects across this review and Phase B); T5.2's `--surface` going
+  stale across a long review's own rounds; `command_run.py`'s discarded parked frames and its
+  unguarded readers; the hook's 39 graders not riding the fleet sync; and two enforcement checks
+  red-lining every session's gate for another session's uncommitted work.
+- **Closed on the ORIGINAL delta's state.** `dffcca1a` plus every fix of all three rounds:
+  `e6046139` · `8a8d8b26` · `552428e5` · `3d8baa9d` · `9bcebd42` · `2d559515` · `e821548c` ·
+  `806b6eb9`. Every CONFIRMED defect across the three rounds is fixed with its grader.
+- **Three findings this loop produced that no quiet round would have:** the T5.1 stack walk had
+  reopened a laundering hole a previous review closed; six of the private-index recipe's seven steps
+  destroyed data when executed verbatim, including a `printf` that eats any hunk containing `%`; and
+  T5.3's fix had become ephemeral, deferring 01M21JAET rather than closing it. The loop was worth
+  running. It was also worth stopping.
