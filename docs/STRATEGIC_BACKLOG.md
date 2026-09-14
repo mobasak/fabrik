@@ -60,19 +60,34 @@ title must be a STABLE key, not a formatted string.
 
 ## [infra] A prose enumeration states its COUNT away from its items, so the next edit falsifies it
 
-Routed here by the D-252 scope-growth stop at the close of Phase D's review. Rounds 5 and 6 were
-11 of 11 and 9 of 9 own-fix — every CONFIRMED finding sat inside text the previous round had
+Routed here by the D-252 scope-growth stop at the close of Phase D's review. Rounds 5 and 7 were
+11 of 11 and 9 of 9 own-fix (round 6 was recorded `0/0` before its seat was adjudicated, which is
+why the record's series reads `… 11 · 0 · 9` and why the stop's counted condition never fired
+mechanically — a recording defect, not a quiet round) — every CONFIRMED finding sat inside text the previous round had
 written — which is the stop's exact condition, and the pattern under all of them is one shape:
 
 a paragraph says how MANY ("wrong in FIVE ways", "three cheap paths", "the five properties") in a
 clause that is not the list, so adding an item leaves the number behind. Measured this session in
-`core/58-resilience.md` (version-dependence became the sixth while still called "a fifth") and in
-`core/45-testing-strategy.md` (a fourth cheap path added under a "three" that stayed). A worked
-EXAMPLE has the same failure mode from the other end: `58-resilience.md`'s cron example was refuted
+`core/58-resilience.md`: version-dependence became the sixth item while a clause away from the list
+still said "wrong in FIVE ways". ⚠️ The first cut of THIS row cited a second example in
+`core/45-testing-strategy.md` — "a fourth cheap path under a 'three'" — which is fabricated:
+`command grep -ci three` over that file returns 0, in the working tree and across its whole history.
+One verified instance, not two. A worked EXAMPLE has the same failure mode from the other end: `58-resilience.md`'s cron example was refuted
 two clauses later by the caveat added beside it, and both stood in the shipped pack.
 
-**Denominator for the class, not yet measured:** no sweep has been run for "N ways / N paths / the N
-properties" against its own list across the 58 governance files — that count is the row's first step.
+**Denominator, measured 2026-09-14 (`find` for the population, `command grep -cE` for the match —
+never the shell's ugrep shim, which is blind to these paths):** population **80** governance files
+(every `.windsurf/rules/**/*.md`, both `CLAUDE.md` contracts, every `commands/_fragments/*.md`);
+**39** count-bearing lines in **17** of them, of which the two contracts carry 15 between them and
+`core/62-using-subagents.md` another 6. That is a CANDIDATE population, not a defect count —
+whether each stated number matches the items a reader can point at needs each line read against
+its own list, and that reading is the row's work.
+
+**Also routed here** (round 8, Opus): the same five-spellings row declares one behaviour both closed
+and open in adjacent sentences — a comment is "path (iii) wearing a bar" (closed) while silence
+about an honest 4/5 is named as a path the row does NOT close. There is a defensible reading under
+which they differ (an author at 4/5 deletes the fifth case and commits 4/4, which the executable-
+CASES bar genuinely does not catch); it is one adjudication, not an edit.
 
 **Do:** an authoring rule with a grader, not a hand sweep — an enumeration carries its count at the
 list or not at all (`the ways below`, not `five ways`), and a worked example is re-read against every
@@ -130,7 +145,7 @@ shape: a review's own fixes REACH, and a name list written before the reaching c
 Phase C's own review demonstrated it first on the
 session running it: the surface was written at round 1 naming six files, rounds 1–3 pulled in three
 more as the fix spread to the writer half, and the Stop hook's sixth cause fired mid-round-3 —
-executed, 4 of 8 files exempt and 4 unnamed — the first cut of this row said "3 unnamed", which leaves 1 of 8 unaccounted; 4+4=8. The longer and more thorough the review, the more of its
+and the receipt's own row (`C3-R5`) records "exempts 4 of the 8 files this review edited and leaves 3 unnamed". ⚠️ Those numbers do NOT reconcile and this row will not pretend they do: six named plus three pulled in is 9 files, the row says 8 edited, and 4 + 3 is 7. An earlier cut of this row "fixed" it by writing 4 + 4 = 8 — a number invented to make the arithmetic close, which is the very defect the row above names. The SHAPE is what is demonstrated and the shape is not in doubt; re-deriving the population at that moment is the first step of this row, and it cannot be done from the receipt alone. The longer and more thorough the review, the more of its
 own work reads as spontaneous. **Do:** let the exemption also cover paths the record's own
 `review-fix` commits touched, or add a verb to widen a running record's surface.
 

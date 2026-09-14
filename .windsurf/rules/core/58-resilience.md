@@ -510,7 +510,9 @@ there. Production reference: `/opt/youtube/docs/reference/pipeline-resilience.md
    (300 s) anchored on the last SUCCESSFUL send and re-armed by each one — a suppressed call does
    not extend it, so it is a fixed window, not a sliding one. (2) Not a cadence: it is a FLOOR on
    spacing, so the alert re-fires on the caller's next call past the window, at whatever rate the
-   caller runs — a long-lived worker polling every minute alerts at the floor, not faster.
+   caller runs — a worker polling every minute alerts once per floor (which is why this reads as a cadence
+   from the outside and is not one), while a caller that runs every ten minutes alerts every ten
+   minutes; the floor never makes a slow caller faster.
    ⚠️ And for a CRON the floor does not apply at ALL — each run is a fresh process with an empty dict, so an hourly cron alerts hourly whatever `ALERT_MIN_INTERVAL` says; set it to 24 h and nothing changes. Tuning that variable to throttle a cron alert is a no-op with no error. (3) Not suppression at all while
    delivery is FAILING: `_last_sent` is written only `if delivered`, so a caller looping against a
    dead transport attempts every time, unthrottled. (4) Not exactly-once even INSIDE one process:
@@ -519,8 +521,8 @@ there. Production reference: `/opt/youtube/docs/reference/pipeline-resilience.md
    the fleet: `fabrik-lib`'s copy and `/opt/youtube`'s key on `title`, while the HUB's own
    `libs/alerting/` has keyed on `severity:title` since 2026-08-16 — deliberately, because
    title-only let an `info` alert swallow the `critical` escalation of the same condition. So a
-   durable latch is yours to build, and "the module does it" is wrong in FIVE ways — the four numbered plus per-process — and version-
-   dependent in a fifth. A
+   durable latch is yours to build, and "the module does it" is wrong in every way the bullet below enumerates — the four
+   numbered, plus per-process, plus a key that is not stable across the fleet. A
    sliding `SETEX` keeps no first-set timestamp — store it beside the flag, or that escalation is
    unimplementable. Detection with no terminus is not autorecovery.
 3. **Queue depth = job count, exactly.** Dispatch-dedup + worker-keeps-flag-on-pause + sweeper-headroom together prevent the pause-then-re-queue-then-re-pause queue-explosion failure mode.
