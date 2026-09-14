@@ -233,8 +233,11 @@ bandit -ll -x 'tests/,scripts/kilo-benchmarks/,scripts/.archive/,scripts/tests/,
 ```
 
 A shorter list is a different question with a different answer, and that is the whole confusion an
-author-blind seat hit twice: `-x tests/` alone gives **474** findings over **199** files; naming
-three of the five gives **37** and a by-rule tail of B608 × 8; the gate's own five give **36**.
+author-blind seat hit twice, and which this row itself then got wrong — re-derived 2026-09-15,
+each by its own bandit run: `-x tests/` alone gives **474** findings over **199** files; naming
+**three** of the five (dropping `scripts/tests/` AND `scripts/archived/`) gives **38**, the extra
+one being the `B324` in `scripts/archived/kilo_code_review.py`; naming **four** (dropping only
+`scripts/tests/`) gives **37** with a by-rule tail of B608 × 8; the gate's own five give **36**.
 Of the unexcluded subtrees, **423 (89 %) are inside the vendored `scripts/kilo-benchmarks/`**, 13
 more in `scripts/.archive/` and 1 in `scripts/archived/` (no dot). ⚠️ The totals MOVE with the
 tree — 480/204 on 2026-09-14, 474/199 a day later — so they are dated rather than quoted as

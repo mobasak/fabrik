@@ -1564,13 +1564,13 @@ def create_backup(path: Path) -> Path:
 
 
 _head_drift: set[str] = set()  # synced paths whose working tree differs from HEAD, for the report
-# (rel, mtime_ns, size) -> (data, mode, drifted). MEASURED 2026-09-15: `_head_source` costs
+# (rel, blob_sha, mtime_ns, size) -> (data, mode, drifted). MEASURED 2026-09-15: `_head_source` costs
 # 5.26 ms (two subprocesses — `git ls-files -s` then `git show`), and after the T12.17 hoist it
 # runs twice per COPIED file and once per skipped one, plus once per `_shipped_hash` call. Over
 # the manifest against the 47 repos carrying `.fabrik/synced.lock` that is tens of seconds of
 # pure re-asking, on a post-commit hook three sessions trigger. Keyed on the stat so an edit
 # DURING a run is never served stale; cleared in `main()` beside `_head_drift`.
-_head_cache: dict[tuple[str, int, int], tuple[bytes, int, bool] | None] = {}
+_head_cache: dict[tuple[str, str, int, int], tuple[bytes, int, bool] | None] = {}
 
 
 def _head_source(source: Path) -> tuple[bytes, int] | None:
@@ -1605,19 +1605,6 @@ def _head_source(source: Path) -> tuple[bytes, int] | None:
     except ValueError:
         return None  # outside the hub tree — not ours to read from git
     try:
-        st = source.stat()
-        key: tuple[str, int, int] | None = (rel, st.st_mtime_ns, st.st_size)
-    except OSError:
-        key = None  # unstattable: answer it the slow way rather than caching a guess
-    if key is not None and key in _head_cache:
-        hit = _head_cache[key]
-        if hit is None:
-            return None
-        data, mode, drifted = hit
-        if drifted:
-            _head_drift.add(rel)  # the drift set is rebuilt per run; a cache hit still records
-        return data, mode
-    try:
         ls = subprocess.run(
             ["git", "ls-files", "-s", "--", rel],
             cwd=FABRIK_ROOT,
@@ -1625,12 +1612,41 @@ def _head_source(source: Path) -> tuple[bytes, int] | None:
             check=False,
         )
         if ls.returncode != 0 or not ls.stdout.strip():
+            # NOT cached: an untracked file has no blob SHA, so there is no HEAD-aware key to
+            # store it under — and a stat-only key here would re-open exactly the staleness the
+            # SHA closes (the file becomes tracked and the memo keeps answering "untracked").
+            # One `ls-files` is the whole cost of this path.
             return None  # untracked: the working tree is the only source there is
         mode = int(ls.stdout.split()[0].decode(), 8)
+        # ⚠️ THE KEY CARRIES THE BLOB SHA, not just the working file's stat. The first cut keyed on
+        # `(rel, st_mtime_ns, st_size)` and claimed "an edit DURING a run is never served stale" —
+        # false for the edit that matters. `git commit` does not touch the working file, so a HEAD
+        # move is invisible to a stat-only key, and this runs as a POST-COMMIT hook on a tree three
+        # sessions commit to, walking 47 repos for tens of seconds. Executed round 4: a sibling's
+        # commit landed mid-run and every remaining repo was served the pre-commit bytes, all
+        # reported `copied`, with the drift report computed against the stale HEAD. `ls-files -s` is
+        # the cheap half of the pair and it already prints the SHA, so keying on it costs nothing
+        # and memoises only the expensive `git show` + `read_bytes`.
+        sha = ls.stdout.split()[1].decode()
+        try:
+            st = source.stat()
+            key: tuple[str, str, int, int] | None = (rel, sha, st.st_mtime_ns, st.st_size)
+        except OSError:
+            key = None  # unstattable: answer it the slow way rather than caching a guess
+        if key is not None and key in _head_cache:
+            hit = _head_cache[key]
+            if hit is None:
+                return None
+            data, mode, drifted = hit
+            if drifted:
+                _head_drift.add(rel)  # rebuilt per run; a cache hit still records
+            return data, mode
         blob = subprocess.run(
             ["git", "show", f"HEAD:{rel}"], cwd=FABRIK_ROOT, capture_output=True, check=False
         )
         if blob.returncode != 0:
+            if key is not None:
+                _head_cache[key] = None
             return None  # tracked but not in HEAD (a staged add) — working tree it is
     except OSError:
         return None

@@ -921,29 +921,53 @@ def test_only_the_four_code_roots_and_only_added_paths_are_read() -> None:
     assert cdi._CODE_ROOTS == ("scripts/", "tests/", ".claude/hooks/", ".fabrik/")
 
 
-def test_quiet_silences_the_clean_banner_and_never_a_finding(tmp_path, monkeypatch, capsys):
-    """Round 3 of the Phase E review: `advisory=True` preserves ALL stdout on exit 0, so the
-    clean-path "OK" banner became a green line on every human gate run — and because it carries no
-    ⚠ prefix, the JSON `warnings` filter dropped it, giving chatter in one mode and silence in the
-    other. `--quiet` suppresses the banner ONLY; a ⚠ advisory line must survive it, or the flag
-    has re-created the very hole `advisory=True` was added to close."""
-    import subprocess
+def test_quiet_silences_the_clean_banner_and_never_a_finding(monkeypatch, capsys):
+    """`advisory=True` preserves ALL stdout, so the clean-path "OK" banner became a green line on
+    every human gate run while lacking the ⚠ the JSON filter keys on — chatter in one mode,
+    silence in the other. `--quiet` suppresses the banner ONLY.
+
+    ⚠️ THE FINDING IS FORCED, not borrowed from the tree. The first cut ran the script twice as a
+    subprocess and compared the ⚠ lines — but this repo currently emits ZERO of them, so it
+    compared two empty lists and passed identically against a mutant where `--quiet` DID eat the
+    findings (proven, Phase E review round 4). A grader whose subject depends on the ambient state
+    of a tree three sessions are editing is not a grader."""
+    import importlib.util
     import sys as _sys
 
-    script = Path("scripts/enforcement/check_doc_index.py").resolve()
-    loud = subprocess.run(
-        [_sys.executable, str(script)], capture_output=True, text=True, check=False
+    spec = importlib.util.spec_from_file_location(
+        "cdi_quiet", Path("scripts/enforcement/check_doc_index.py").resolve()
     )
-    quiet = subprocess.run(
-        [_sys.executable, str(script), "--quiet"], capture_output=True, text=True, check=False
-    )
-    assert loud.returncode == quiet.returncode
+    mod = importlib.util.module_from_spec(spec)
+    _sys.modules["cdi_quiet"] = mod
+    assert spec.loader is not None
+    spec.loader.exec_module(mod)
+
+    # a path that cannot be in INDEX.md, so `code_problems` is guaranteed non-empty
+    forced = "scripts/__forced_by_the_grader__.py"
+    monkeypatch.setattr(mod, "_added_code_paths", lambda: [forced])
+
+    def run(argv: list[str]) -> str:
+        monkeypatch.setattr(_sys, "argv", argv)
+        capsys.readouterr()
+        mod.main()
+        return capsys.readouterr().out
+
+    loud = run(["check_doc_index.py"])
+    quiet = run(["check_doc_index.py", "--quiet"])
+
+    assert forced in loud, "the fixture did not force a finding — the assertions below are vacuous"
+    assert forced in quiet, "--quiet swallowed a real finding, which is the one thing it must not"
+
     banner = "check_doc_index: OK"
-    assert banner in loud.stdout
-    assert banner not in quiet.stdout
-    # every ⚠ finding the loud run printed is still printed by the quiet one
-    loud_warnings = [ln for ln in loud.stdout.splitlines() if ln.lstrip().startswith("⚠")]
-    quiet_warnings = [ln for ln in quiet.stdout.splitlines() if ln.lstrip().startswith("⚠")]
-    assert loud_warnings == quiet_warnings, (loud_warnings, quiet_warnings)
-    errors = [ln for ln in loud.stdout.splitlines() if ln.startswith("ERROR:")]
-    assert errors == [ln for ln in quiet.stdout.splitlines() if ln.startswith("ERROR:")]
+    loud_warnings = [ln for ln in loud.splitlines() if ln.lstrip().startswith("⚠")]
+    quiet_warnings = [ln for ln in quiet.splitlines() if ln.lstrip().startswith("⚠")]
+    assert loud_warnings == quiet_warnings and loud_warnings, (loud_warnings, quiet_warnings)
+    assert [ln for ln in loud.splitlines() if ln.startswith("ERROR:")] == [
+        ln for ln in quiet.splitlines() if ln.startswith("ERROR:")
+    ]
+    # and the banner itself: present only when there is nothing wrong AND --quiet was not passed
+    clean = run(["check_doc_index.py"])
+    monkeypatch.setattr(mod, "_added_code_paths", lambda: [])
+    clean = run(["check_doc_index.py"])
+    clean_quiet = run(["check_doc_index.py", "--quiet"])
+    assert banner in clean and banner not in clean_quiet

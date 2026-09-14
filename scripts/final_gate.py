@@ -568,7 +568,16 @@ def print_step(name: str, passed: bool, output: str = "") -> None:
     Both are exit-0 rows, but only one of them COULD have been red — and an operator
     reading a green gate has no other way to tell them apart.
     """
-    if passed and name in WARN_ONLY_CHECKS:
+    if passed and any(marker in name for marker in _SKIP_MARKERS):
+        # A row whose check NEVER RAN — a missing tool, a diff-sensed skip, a leg narrowed to
+        # nothing. `--json` has always reported these as `skipped`; the human renderer called
+        # them PASS, which is the one thing this docstring says must not happen. Keyed on
+        # `_SKIP_MARKERS` rather than on a name list because `_scope_narrowed_row` builds its
+        # name dynamically (`… (SCOPE-NARROWED — N unstaged tracked .py)`) and so can never be
+        # in a set — the same commit that added the advisory row below shipped that row rendering
+        # [PASS], which is how this was found (Phase E review, round 4).
+        status = f"{YELLOW}SKIP{RESET}"
+    elif passed and name in WARN_ONLY_CHECKS:
         status = f"{YELLOW}ADVISORY{RESET}"
     else:
         status = f"{GREEN}PASS{RESET}" if passed else f"{RED}FAIL{RESET}"

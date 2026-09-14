@@ -292,14 +292,102 @@ def test_the_drift_report_never_claims_a_sync_a_dry_run_did_not_do(hub, tmp_path
     assert "the COMMITTED bytes were synced, not what is on disk (T12.17" not in src
 
 
-def test_head_source_is_not_re_shelled_for_every_caller(hub, tmp_path: Path) -> None:
-    """Two subprocesses per call × twice per copied file × the manifest × 47 repos. The cache is
-    keyed on the stat, so an edit mid-run is never served stale — that is what this asserts."""
+def test_head_source_is_not_re_shelled_for_every_caller(hub, monkeypatch) -> None:
+    """⚠️ COUNT THE SUBPROCESSES, which is the claim in this test's own name.
+
+    The first cut asserted `len(mod._head_cache)` grew — satisfied by a cache that is WRITTEN
+    every call and never READ, which is precisely the bug it would have to catch. Proven: neuter
+    the read branch and the dict still reaches 1 then 2, and the old assertions still passed
+    (Phase E review, round 4). The saving is `git show` + `read_bytes`; `git ls-files` still runs
+    every call because it is where the blob SHA comes from, and the SHA is what makes the memo
+    HEAD-aware."""
     mod, _hub_root, committed, _untracked = hub
+    calls: list[list[str]] = []
+    real = mod.subprocess.run
+
+    def counting(cmd, *a, **k):
+        calls.append(list(cmd))
+        return real(cmd, *a, **k)
+
+    monkeypatch.setattr(mod.subprocess, "run", counting)
     mod._head_cache.clear()
+
     first = mod._head_source(committed)
-    assert len(mod._head_cache) == 1, "nothing was cached — every caller re-shells out"
+    cold = [c for c in calls if c[:2] == ["git", "show"]]
+    assert len(cold) == 1, f"expected one `git show` on a cold call, got {cold}"
+
     assert mod._head_source(committed) == first
+    warm = [c for c in calls if c[:2] == ["git", "show"]]
+    assert len(warm) == 1, (
+        f"the second call re-ran `git show` — the cache is written but never read: {warm}"
+    )
+
     os.utime(committed, (1_000_000_000, 1_000_000_000))  # a changed stat must MISS
     mod._head_source(committed)
-    assert len(mod._head_cache) == 2, "a since-touched file was served from a stale cache entry"
+    after = [c for c in calls if c[:2] == ["git", "show"]]
+    assert len(after) == 2, "a since-touched file was served from a stale cache entry"
+
+
+def _commit_new_blob(hub_dir: Path, rel: str, data: bytes) -> None:
+    """Move HEAD to a new commit for `rel` WITHOUT touching the working file — a sibling's commit
+    landing mid-run, which is the whole point. Plumbing, so no hook fires and no file is written."""
+    sha = (
+        subprocess.run(
+            ["git", "-C", str(hub_dir), "hash-object", "-w", "--stdin"],
+            input=data,
+            capture_output=True,
+            check=True,
+        )
+        .stdout.decode()
+        .strip()
+    )
+    subprocess.run(
+        ["git", "-C", str(hub_dir), "update-index", "--add", "--cacheinfo", f"100755,{sha},{rel}"],
+        check=True,
+    )
+    tree = subprocess.run(
+        ["git", "-C", str(hub_dir), "write-tree"], capture_output=True, text=True, check=True
+    ).stdout.strip()
+    head = subprocess.run(
+        ["git", "-C", str(hub_dir), "rev-parse", "HEAD"], capture_output=True, text=True, check=True
+    ).stdout.strip()
+    new = subprocess.run(
+        ["git", "-C", str(hub_dir), "commit-tree", tree, "-p", head, "-m", "sibling"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    # the branch by NAME, read from the repo — `init.defaultBranch` is a local setting and
+    # hard-coding "master" made an earlier probe of mine print a false negative on a `main` repo
+    branch = subprocess.run(
+        ["git", "-C", str(hub_dir), "rev-parse", "--abbrev-ref", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    subprocess.run(
+        ["git", "-C", str(hub_dir), "update-ref", f"refs/heads/{branch}", new], check=True
+    )
+
+
+def test_the_memo_sees_a_head_that_moved_under_it(hub) -> None:
+    """⚠️ THE EDIT THAT MATTERS IS A COMMIT, and a commit does not touch the working file.
+
+    The first cut keyed on `(rel, st_mtime_ns, st_size)` and its comment claimed "an edit DURING a
+    run is never served stale". Executed round 4: a sibling's commit landed mid-run, the working
+    stat was byte-identical, and the memo served the pre-commit bytes — to every remaining repo of
+    the 47, all reported `copied`, with the drift report computed against the stale HEAD. This runs
+    as a POST-COMMIT hook on a tree three sessions commit to, so that race is the normal case, not
+    an exotic one. The key now carries the blob SHA that `git ls-files -s` already prints."""
+    mod, hub_dir, committed, _untracked = hub
+    mod._head_cache.clear()
+    assert mod._head_source(committed)[0] == b"COMMITTED = 1\n"
+    before = committed.stat()
+    _commit_new_blob(hub_dir, "scripts/enforcement/committed.py", b"COMMITTED = 2\n")
+    after = committed.stat()
+    assert (before.st_mtime_ns, before.st_size) == (after.st_mtime_ns, after.st_size), (
+        "the fixture touched the working file — the staleness this guards would be invisible"
+    )
+    assert mod._head_source(committed)[0] == b"COMMITTED = 2\n", (
+        "the memo served pre-commit bytes after HEAD moved — every later repo in the run gets them"
+    )

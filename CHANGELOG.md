@@ -4,6 +4,56 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — round 4: 8 defects inside round 3's fixes, including a fail-open I shipped (2026-09-15)
+
+Two fresh non-authoring seats over `980f2ca2..HEAD`. Every finding re-executed by me before it was
+counted; every fix proven red on the mutation that removes it. All eight lie inside this review's
+own previous fixes, which is the pattern D-252 names — see the exit note at the end.
+
+- **The scope-growth exit I added one commit earlier was fail-open.** `SCOPE_GROWTH_EXIT` used
+  `[^\n]*` between `Status:` and the phrase, so ANY mention exempted a committed non-quiet review —
+  including a NEGATION. Executed: `CONVERGED — the loop never needed the scope-growth stop` and
+  `(see the appendix for why this is not a scope-growth stop)` both passed the gate. The comment
+  eight lines above the regex forbids exactly this reach-forward, in as many words; I wrote the new
+  escape directly beneath the warning and made the mistake it describes. The mirror image does not
+  work either — the phrase is naturally mid-sentence — so the window now demands the DECLARATIVE
+  construction (a status word, `on the`/`on a`, then the phrase within a short span carrying no
+  sentence break) and the docstring states plainly that this is a window, not a proof, the same
+  honest boundary `_blocked_sections` draws.
+- **A row that never ran rendered `[PASS]`.** The same commit added `"auto-fix scope (advisory)"` to
+  `WARN_ONLY_CHECKS` *because* a green-never-red row must not read as one that passed — and shipped
+  `_scope_narrowed_row`, whose name is built at runtime and so can never be in that set. Executed on
+  the real gate: `[PASS] ruff (SCOPE-NARROWED — 1 unstaged tracked .py)` while `--json` correctly
+  said `skipped`. `print_step` now keys on `_SKIP_MARKERS`, which closes the whole class — the
+  pre-existing `(NOT INSTALLED`, `(N/A` and `(diff-sensed skip` rows rendered `[PASS]` too.
+- **The memo served stale HEAD bytes.** Its comment claimed "keyed on the stat so an edit DURING a
+  run is never served stale" — false for the edit that matters, because `git commit` does not touch
+  the working file. Executed: a sibling's commit landed mid-run, the working stat was byte-identical,
+  and the memo kept answering with the pre-commit bytes — which on a post-commit hook walking 47
+  repos means every remaining repo gets them, all reported `copied`. The key now carries the blob
+  SHA `git ls-files -s` already prints. That costs one subprocess back: the speedup is **2×**, not
+  the 90× the round-3 entry claimed, and that claim is retracted in place below.
+- **The lockstep grader was fail-open**: `startswith("SCOPE_GROWTH_ROUNDS")` parsed
+  `SCOPE_GROWTH_ROUNDS_MIN = 2` declared above `SCOPE_GROWTH_ROUNDS = 4` as 2, so the one guard
+  against twin drift passed while the twins disagreed. Now a real parse, with the shape table as a
+  test — a computed constant falls through to a loud raise rather than a guess.
+- `_head_source` never cached a `None`, so the memo saved nothing on exactly the paths that pay two
+  subprocesses for a guaranteed `None`, and the `| None` value type documented an unreachable
+  branch. The untracked path stays uncached deliberately, and says why.
+- **Two more graders that could not fail.** `test_head_source_is_not_re_shelled_for_every_caller`
+  asserted that a dict GREW — satisfied by a cache written every call and never read, which is the
+  bug it would have to catch; it counts `git show` invocations now. And
+  `test_quiet_silences_the_clean_banner_and_never_a_finding` compared two ⚠ lists that are both
+  EMPTY on this tree, so it passed identically against a mutant where `--quiet` did eat the
+  findings; the finding is forced by the fixture now, not borrowed from a tree three sessions edit.
+- `docs/STRATEGIC_BACKLOG.md` contradicted itself two sentences apart: "three of the five
+  exclusions gives 37" is the FOUR-exclusion number. Three gives **38**, the extra being the `B324`
+  in `scripts/archived/`. Both re-derived by their own bandit runs.
+
+**Why the loop stops here.** Rounds 3 and 4 each confirmed only defects lying inside this review's
+own previous fixes — 12 then 8. That is the D-252 scope-growth stop by its own definition, and the
+exit that recognises it is the one this run built two commits ago.
+
 ### Fixed — Kaizen pieces 1+2: the whole-plan review's last two rounds (2026-09-15)
 - Four items round 2 found inside round 1's own fixes, each fixed: a grader whose `or "active" in text` disjunct kept it green with the rule it guards deleted (proved by mutation, then narrowed to a pair that discriminates without pinning a line break); a lead sentence still saying FIVE over a list of six; a "four independent handles" beside a clause corrected to five; and the new `--queue`/`--observer-rank` refusal shipping with no grader. Round 3 found one more — a `path:line` in the receipt pointing 29 lines off, into a different function — and the citation sweep that closed the loop found three figures the tree had moved past while the receipt was being written.
 - The receipt now states each figure with the command that produces it and stamps it at the Finish commit, because a number frozen in prose on a shared tree is wrong by the time it is read. Receipt: `docs/development/reviews/2026-09-14-plan-1-kaizen-observe-and-act-review.md`, closed on the D-252 scope-growth stop.
@@ -79,8 +129,8 @@ mutation that removes it.
   branch including those that write nothing, so `--dry-run` printed "the COMMITTED bytes were
   synced" — the inverse of the truth. The verb now comes from the run.
 - **`_head_source` re-shelled out for every caller** (two subprocesses, 5.26 ms measured, twice per
-  copied file × the manifest × 47 repos). Memoised on `(rel, mtime_ns, size)` — 90× on a repeat,
-  a changed stat still misses, drift still recorded on a hit.
+  copied file × the manifest × 47 repos). Memoised — see the round-4 entry above, which corrects
+  both the key and the speedup this line first claimed.
 - **`_sync_materialised_paths` walked a whole directory for a verdict its first file decided**:
   `.venv/` took 1.27 s against 0.006 s for the same answer. Now lazy — 227×.
 - **Three graders that could not fail.** The mtime grader compared two files both born inside the

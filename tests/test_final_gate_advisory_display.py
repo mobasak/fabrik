@@ -930,3 +930,31 @@ def test_the_lint_leg_is_scoped_like_the_fixer_and_like_ci(tmp_path, monkeypatch
     names = [r[0] for r in rows]
     assert "ruff" not in names, f"the lint leg ran on a file outside the writable set: {names}"
     assert any(n.startswith("ruff (SCOPE-NARROWED") for n in names), names
+
+
+def test_a_row_that_never_ran_never_renders_pass(capsys):
+    """Round 4 of the Phase E review: the SAME commit that added `"auto-fix scope (advisory)"` to
+    `WARN_ONLY_CHECKS` — because a green-never-red row rendering `[PASS]` is "the one thing
+    `print_step`'s own docstring says must not happen" — shipped `_scope_narrowed_row`, whose name
+    is built at runtime and so can never be in that set. Executed on the real gate in a scratch
+    repo: `[PASS] ruff (SCOPE-NARROWED — 1 unstaged tracked .py)`, while `--json` correctly called
+    it `skipped`. The human renderer is what an operator reads.
+
+    Keyed on `_SKIP_MARKERS`, not on a name list, so the whole class is closed at once — the
+    pre-existing `(NOT INSTALLED`, `(N/A` and `(diff-sensed skip` rows rendered `[PASS]` too."""
+    for name in (
+        "ruff (SCOPE-NARROWED — 1 unstaged tracked .py)",
+        "bandit (NOT INSTALLED — skipped)",
+        "static tier (diff-sensed skip)",
+        "pytest (NOT RUN)",
+    ):
+        capsys.readouterr()
+        fg.print_step(name, True, "")
+        out = capsys.readouterr().out
+        assert "PASS" not in out, f"{name!r} rendered as a check that ran: {out!r}"
+
+    # ...and a row that DID run and pass must still say PASS, or the renderer has stopped
+    # distinguishing the two things it exists to distinguish
+    capsys.readouterr()
+    fg.print_step("ruff", True, "")
+    assert "PASS" in capsys.readouterr().out

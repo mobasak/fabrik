@@ -11,6 +11,7 @@ reddened the SHARED gate for every session in the tree (Phase E review, round 4)
 from __future__ import annotations
 
 import importlib.util
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -83,6 +84,34 @@ def test_the_declared_stop_with_its_ledger_shape_is_a_legitimate_exit():
     assert crc._scope_growth_exit(text, rows)
 
 
+def test_a_status_line_that_merely_mentions_the_stop_is_not_the_exit():
+    """The reach-forward the neighbouring `IN_PROGRESS` comment forbids, re-opened one screen
+    below the warning and caught in round 4. `[^\\n]*` between `Status:` and the phrase made ANY
+    mention an exemption — including a NEGATION. These are the two accidents a window can defend
+    against; a deliberately-worded sentence is not defended against, and the predicate's docstring
+    says so rather than pretending otherwise."""
+    crc = _crc()
+    rows = [_row(1, 14), _row(2, 4)]
+    for line in (
+        "CONVERGED — quiet at Pass 20; the loop never needed the scope-growth stop",
+        "CONVERGED (see the appendix for why this is not a scope-growth stop)",
+        "CONVERGED on the fourth round; this was not a scope-growth stop",
+    ):
+        text = _doc(line, rows)
+        parsed = crc._ledger_shapes(text)[2]
+        assert parsed, "the fixture's ledger did not parse — the assertion below would be vacuous"
+        assert not crc._scope_growth_exit(text, parsed), f"a mention exempted: {line!r}"
+
+    # ...and the honest declarations still work, or the window has eaten the feature
+    for line in (
+        "CONVERGED (2026-09-15) on the D-252 scope-growth stop, not on a quiet exit round",
+        "CLOSED on a scope-growth stop",
+    ):
+        text = _doc(line, rows)
+        parsed = crc._ledger_shapes(text)[2]
+        assert crc._scope_growth_exit(text, parsed), f"an honest declaration was refused: {line!r}"
+
+
 def test_an_undeclared_stop_is_still_refused():
     """The ledger shape alone is NOT the exit — two confirming rounds is also what an ordinary
     unconverged review looks like. The author has to say which it is."""
@@ -149,13 +178,46 @@ def test_the_round_count_stays_in_lockstep_with_the_stop_that_defines_it():
     repo whose `command_run.py` is a different vintage or absent), so this is the guard."""
     crc = _crc()
     src = (ROOT / "scripts" / "command_run.py").read_text(encoding="utf-8")
+    # ⚠️ PARSE the constant, do not `startswith` it. The first cut took the first line beginning
+    # with the name, so a future `SCOPE_GROWTH_ROUNDS_MIN = 2` declared above
+    # `SCOPE_GROWTH_ROUNDS = 4` parsed 2 and this test PASSED while the twins had drifted —
+    # fail-open on the one guard that exists for drift (Phase E review, round 4).
+    rx = re.compile(r"^SCOPE_GROWTH_ROUNDS\s*(?::\s*[^=]+)?=\s*(\d+)\s*(?:#.*)?$")
     for line in src.splitlines():
-        if line.startswith("SCOPE_GROWTH_ROUNDS"):
-            declared = int(line.split("=")[1].strip())
+        m = rx.match(line)
+        if m:
+            declared = int(m.group(1))
             break
     else:  # pragma: no cover - the constant is the subject of this test
-        raise AssertionError("command_run.py no longer declares SCOPE_GROWTH_ROUNDS")
+        raise AssertionError(
+            "command_run.py no longer declares SCOPE_GROWTH_ROUNDS as a plain integer literal — "
+            "if it became computed, this twin cannot be checked and the local copy must go"
+        )
     assert declared == crc._OWN_FIX_ROUNDS_FOR_STOP, (
         f"check_review_coverage says {crc._OWN_FIX_ROUNDS_FOR_STOP}, "
         f"command_run.py says {declared} — the twin drifted"
     )
+
+
+def test_the_lockstep_parser_is_not_defeated_by_a_prefix_sibling(tmp_path):
+    """The shapes that a `startswith` read wrong, and the ones it must still reject LOUDLY.
+
+    Only the prefix-sibling row was fail-open — it is the shape a future `_MIN`/`_MAX`/`_DEFAULT`
+    would take, and it made the drift guard silently agree with a number that was not there."""
+    rx = re.compile(r"^SCOPE_GROWTH_ROUNDS\s*(?::\s*[^=]+)?=\s*(\d+)\s*(?:#.*)?$")
+
+    def parse(src: str) -> int | None:
+        for line in src.splitlines():
+            m = rx.match(line)
+            if m:
+                return int(m.group(1))
+        return None
+
+    assert parse("SCOPE_GROWTH_ROUNDS = 2") == 2
+    assert parse("SCOPE_GROWTH_ROUNDS: int = 2") == 2
+    assert parse("SCOPE_GROWTH_ROUNDS = 3  # the breaker uses three") == 3
+    # the defect: the sibling must NOT be mistaken for the constant
+    assert parse("SCOPE_GROWTH_ROUNDS_MIN = 2\nSCOPE_GROWTH_ROUNDS = 4") == 4
+    # a computed constant is unreadable and must fall through to the loud raise, never to a guess
+    assert parse("SCOPE_GROWTH_ROUNDS = int(os.getenv('X', '2'))") is None
+    assert parse("    SCOPE_GROWTH_ROUNDS = 2") is None  # indented: not a module constant

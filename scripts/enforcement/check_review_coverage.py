@@ -352,11 +352,29 @@ IN_PROGRESS = re.compile(
 # correctly on that stop was refused by the only three exits it knew (quiet · BLOCKED · IN-PROGRESS)
 # and the author's honest close read as an unconverged one. A mechanism that creates a new
 # legitimate state and does not tell its graders is the MIRROR this contract asks for by name.
-SCOPE_GROWTH_EXIT = re.compile(r"^\**Status:\**[^\n]*\bscope-growth stop\b", re.M | re.I)
-# Twin of `command_run.py::SCOPE_GROWTH_ROUNDS` — keep in lockstep. NOT imported: this file is
-# fleet-synced and must grade a review in a repo whose `command_run.py` is a different vintage or
-# absent entirely, so an import turns a missing sibling into a crashed gate. The cost of a local
-# copy is drift, and drift is what the lockstep grader in tests/ exists to catch.
+#
+# ⚠️ THE SHAPE, and why it is not `IN_PROGRESS`'s. Its neighbour eight lines up matches only
+# HORIZONTAL whitespace between `Status:` and its keyword, because a reach-forward across the rest
+# of the line is fail-open — the comment there says so in as many words. The first cut of THIS
+# regex used `[^\n]*` and re-opened exactly that hole one screen below the warning: executed, a
+# Status line reading `CONVERGED — the loop never needed the scope-growth stop` exempted a
+# committed non-quiet review, and so did `(see the appendix for why this is not a scope-growth
+# stop)`. But the mirror image does not work either — the phrase is naturally MID-sentence
+# (`CONVERGED (2026-09-15) on the D-252 scope-growth stop`), so anchoring it to the keyword
+# position refuses every honest declaration. The window instead demands the DECLARATIVE
+# construction — a status word, then `on the`/`on a`, then the phrase within a short span carrying
+# no sentence break — which is what separates "this closed on the stop" from "this is not a stop".
+#
+# ⚠️ AND THE HONEST BOUNDARY, stated rather than implied: this is a WINDOW, not a proof. A
+# deliberately-worded sentence can still satisfy it, exactly as `_blocked_sections` says of its own
+# evidence phrase. What the window defends against is the ACCIDENT — a negation or a passing
+# mention — and what defends against the cheap deliberate path is the ledger requirement below,
+# which costs two real rounds.
+SCOPE_GROWTH_EXIT = re.compile(
+    r"^\**Status:\**[^\S\r\n\v\f\x1c\x1d\x1e\x85\u2028\u2029]*\**\w[^\n]*?"
+    r"\bon\s+(?:the|a)\s+[^;.\u2014\n]{0,40}?\bscope-growth stop\b",
+    re.M | re.I,
+)
 _OWN_FIX_ROUNDS_FOR_STOP = 2
 PASS2 = re.compile(r"\bPass\s*2\b")
 # The proof of a rubric RUN is the script's own generated output header — a prose
