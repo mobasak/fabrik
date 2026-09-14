@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — both governance contracts told every agent `--systemic` checks ports and deps; it checks neither (2026-09-14)
+
+- Phase E T12.8 of the mail-triage plan (01M23CRZZ) — four graders, written FIRST and watched fail, now asserting the gate's tier composition by instrumented execution.
+- **`CLAUDE.md` and `templates/governance/CLAUDE.md` both described Tier 3 as `docker/ports/docs-sprawl/deps`.** `check_ports.py` and `check_deps_sync.py` are UNWIRED — `final_gate.py` says so in its own comments — so two of the four named checks never run, in all ~46 repos, and an agent asking "is X enforced?" got a wrong answer in the dangerous direction. Both contracts corrected, byte-identical.
+- **The workflow doc advertised `watchdog` too**, and its § Phase 4 "Sync Steps" table named `sync_extensions.sh` and `sync_cascade_backup.sh` — `run_sync_steps` runs no shell script at all. Rows removed.
+- **The hand counts had drifted again in three days, by this phase's own additions** (Tier 1 34→36, Tier 2 54→55) — which is the argument for a check rather than another careful re-read. The doc now carries ONE machine-readable declaration, `<!-- GATE-COUNTS: tier1=36 tier2=55 tier3=22 every-tier=14 -->`, and `tests/test_final_gate_tier_counts.py` runs `run_consistency_checks` at each tier with the runners stubbed and compares. A new registration that does not update the declaration fails the author's own gate run. Same one-declaration shape as `# AFTER-EDIT:` → `## Related scripts`.
+- Three of the mail's five drifts were already closed by the 2026-09-11 docs review — re-derived rather than assumed, and said so.
+
 ### Fixed — `final_gate.py`'s auto-fixers rewrote a sibling's uncommitted work (2026-09-14)
 
 - Phase E T12.7 of the mail-triage plan (01M22XDJ7, 01M1RE497) — four graders, each proven RED by name against the previous script.

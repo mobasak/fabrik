@@ -66,7 +66,7 @@ is also true CI-parity (CI's clean checkout has no untracked files).
 |---------|---------|---------|
 | **Agent self-review (Tier 1)** | `python scripts/final_gate.py --lean` | Fast showstoppers only (syntax, secrets, schema sync) |
 | **Phase handover (Tier 2)** | `python scripts/final_gate.py` | Full quality gate before Traycer commit |
-| **Systemic maintenance (Tier 3)** | `python scripts/final_gate.py --systemic` | Repo health only (docker, ports, deps, docs sprawl, env contract, watchdog, health) |
+| **Systemic maintenance (Tier 3)** | `python scripts/final_gate.py --systemic` | Repo health only (docker, env contract, docs sprawl, duplicates, docs drift, VPS docs freshness, convention validator, Kilo health) |
 | **CI read-only** | `python scripts/final_gate.py --check` | Read-only verification (no fixes, tier selected by flags) |
 
 **Note:** Default mode auto-stages changes if all checks pass. Use `--no-stage` to disable.
@@ -141,9 +141,15 @@ FINAL_GATE_AI_FIX=1 python scripts/final_gate.py
 
 **Runs in:** All tiers (1, 2, 3) and modes (except `--sync`), with tier-specific check sets:
 
+<!-- GATE-COUNTS: tier1=36 tier2=55 tier3=22 every-tier=14 -->
+⚠️ The counts below are declared ONCE in the HTML comment above and asserted against instrumented
+execution by `tests/test_final_gate_tier_counts.py` — a new registration that does not update it
+fails the author's own gate run. Do not re-count by hand; do not restate the numbers anywhere a
+second declaration could drift from the first (T12.8, 01M23CRZZ).
+
 - **Tier 1 (`--lean`)**: Showstoppers only (secrets, env vars, schema sync).
 - **Tier 2 (default)**: Full consistency suite (structure, docs, changelog, schema, ports, docker, etc.).
-- **Tier 3 (`--systemic`)**: Systemic repo health only (docker, ports, env contract, deps, docs completeness/drift, doc sprawl, watchdog, health, duplicates).
+- **Tier 3 (`--systemic`)**: Systemic repo health only — 8 tier-3-only rows (Docker, .env Contract Sync, Documentation Sprawl, Duplicate Detection, Documentation Drift, VPS Docs Freshness, Fabrik Convention Validator, Kilo CLI Health Check) plus the every-tier advisory block. ⚠️ It does NOT check ports, deps or watchdog: `check_ports.py`, `check_deps_sync.py` and `check_watchdog.py` are UNWIRED, marked so in `final_gate.py`'s own comments, and runnable only by hand. The earlier wording advertised all three.
 
 ### Tier Matrix
 
@@ -211,7 +217,7 @@ trading-intelligence 2026-07-24). A repo whose CI doesn't run pytest is skipped 
 fabrik's own ~2,500-test suite takes ~3h — never run it inside a completion gate). Graceful skips:
 no `tests/` dir, pytest not installed, no src/tests/scripts changes, or exit 5 (nothing collected).
 
-**Phase 3: Repo Consistency** — inherits all **34** Tier-1 checks above (fourteen run unconditionally outside the `tier in (1, 2)` block — the earlier "TWO unconditional" was twelve short by 2026-09-11, every count here is by instrumented execution, never by eyeballing the call sites), **plus 18 Tier-2-only checks** — 14 with notes below plus the hub-conditional `epic_order --check` bullet the "19 where …" clause counts; four more run with no note: User-Level Hooks Registered (`scripts/sysadmin/install_user_hooks.py`), Rule-pack reachability (`check_pack_reachability.py`), Command Corpus [BLOCKING] (`check_command_corpus.py`), Ticket Breadth (`check_ticket_breadth.py`) — (the `if tier == 2:` block — incl. the 3 docs-truth durability gates: Doc Link Integrity, INDEX↔tree drift, Retired-Tech Tripwire [ADVISORY row] — plus the Plan-Set Contract, Hooks Index Fresh, Sync Trigger Coverage, and Phase Tests [ADVISORY row, plan-window]; 19 where `scripts/epic_order.py` exists — the hub-conditional `epic_order --check` row below), **plus the Kilo CLI Health Check** (shared with Tier 3, `tier >= 2`) — **54 checks total** on this hub with an empty changed set (instrumented 2026-09-11 — the results list of `run_consistency_checks(tier=2, changed_files=set())`). Two of the 54 are not `run_optional_check` rows — `epic_order --check` and the Kilo CLI Health Check — so a probe that counts CALLS rather than the results list answers 52; neither is changed-set-gated; only `epic_order --check` is gated on file existence at all (`_epic_order_row` returns no row where `scripts/epic_order.py` is absent, so a project's Tier-2 total is 53), while the Kilo row is appended on every `tier >= 2` run and degrades to an UNLABELLED green `(check not present, skipping)` row when its script is missing — it reaches neither `--json` warnings nor `skipped_checks`. A REAL changed set gives FEWER, not more (52 for a one-`.md` diff, 53 for a one-`.py` diff): every `if not changed or …` predicate is satisfied by an empty set. (The 2026-08-16 registration audit unwired four Tier-2 checks that could not fail — `check_env_updates`, `check_test_coverage`, `check_compose_services`, `check_reusable_modules`.) (Counts verified by INSTRUMENTED EXECUTION — stubbing `run_optional_check`/`run_cmd` and counting `run_consistency_checks(tier=…)`'s actual results list: tier 1 → 34, tier 2 → 54, tier 3 → 22, all from the results list with `changed_files=set()` (2026-09-11); by `run_optional_check` calls alone the same runs read 34 / 52 / 20 — never by eyeballing the call sites; the line-number ranges that used to be cited here are deliberately dropped — they drifted on every insertion and a wrong `path:line` is worse than none.)
+**Phase 3: Repo Consistency** — inherits all **36** Tier-1 checks above (fourteen run unconditionally outside the `tier in (1, 2)` block — the earlier "TWO unconditional" was twelve short by 2026-09-11, every count here is by instrumented execution, never by eyeballing the call sites), **plus 18 Tier-2-only checks** — 14 with notes below plus the hub-conditional `epic_order --check` bullet the "19 where …" clause counts; four more run with no note: User-Level Hooks Registered (`scripts/sysadmin/install_user_hooks.py`), Rule-pack reachability (`check_pack_reachability.py`), Command Corpus [BLOCKING] (`check_command_corpus.py`), Ticket Breadth (`check_ticket_breadth.py`) — (the `if tier == 2:` block — incl. the 3 docs-truth durability gates: Doc Link Integrity, INDEX↔tree drift, Retired-Tech Tripwire [ADVISORY row] — plus the Plan-Set Contract, Hooks Index Fresh, Sync Trigger Coverage, and Phase Tests [ADVISORY row, plan-window]; 19 where `scripts/epic_order.py` exists — the hub-conditional `epic_order --check` row below), **plus the Kilo CLI Health Check** (shared with Tier 3, `tier >= 2`) — **55 checks total** on this hub with an empty changed set (instrumented 2026-09-11 — the results list of `run_consistency_checks(tier=2, changed_files=set())`). Two of the 54 are not `run_optional_check` rows — `epic_order --check` and the Kilo CLI Health Check — so a probe that counts CALLS rather than the results list answers 52; neither is changed-set-gated; only `epic_order --check` is gated on file existence at all (`_epic_order_row` returns no row where `scripts/epic_order.py` is absent, so a project's Tier-2 total is 53), while the Kilo row is appended on every `tier >= 2` run and degrades to an UNLABELLED green `(check not present, skipping)` row when its script is missing — it reaches neither `--json` warnings nor `skipped_checks`. A REAL changed set gives FEWER, not more (52 for a one-`.md` diff, 53 for a one-`.py` diff): every `if not changed or …` predicate is satisfied by an empty set. (The 2026-08-16 registration audit unwired four Tier-2 checks that could not fail — `check_env_updates`, `check_test_coverage`, `check_compose_services`, `check_reusable_modules`.) (Counts verified by INSTRUMENTED EXECUTION — stubbing `run_optional_check`/`run_cmd` and counting `run_consistency_checks(tier=…)`'s actual results list: tier 1 → 34, tier 2 → 54, tier 3 → 22, all from the results list with `changed_files=set()` (2026-09-11); by `run_optional_check` calls alone the same runs read 34 / 52 / 20 — never by eyeballing the call sites; the line-number ranges that used to be cited here are deliberately dropped — they drifted on every insertion and a wrong `path:line` is worse than none.)
 
 **The Tier-2-only checks:**
 - **Phase Tests (plan-window)** - `check_phase_tests.py` *(ADVISORY row)*
@@ -294,8 +300,6 @@ intent is covered by the Doc Sync Matrix (`check_doc_sync.py`, Tier 1+2) and `do
 
 | Step | Script | Purpose |
 |------|--------|---------|
-| **Windsurf Extensions** | `sync_extensions.sh` | Sync to EXTENSIONS.md |
-| **Cascade Backup** | `sync_cascade_backup.sh` | Check backup freshness |
 
 ---
 
