@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `final_gate.py`'s auto-fixers rewrote a sibling's uncommitted work (2026-09-14)
+
+- Phase E T12.7 of the mail-triage plan (01M22XDJ7, 01M1RE497) — four graders, each proven RED by name against the previous script.
+- **Reproduced before fixing, on a scratch repo:** a sibling's badly-formatted unstaged edit to a tracked `src/sibling.py`, my own file staged, one bare `final_gate.py` run — `ruff format` rewrote their in-progress file. No red, no warning. On a tree three sessions share that is the one hands-off case CLAUDE.md names, and git cannot tell their unstaged edit from yours.
+- **The READ scope and the WRITE scope are now different sets.** `get_changed_files()` still includes unstaged modifications to tracked files — the static tier *should* red on them. `get_writable_files()` is staged plus `base...HEAD` and nothing else, and it is what the fixers get. The rule is this gate's own, extended one layer: **authorship = staging** — the same principle it already applied to untracked files. `--fix-all` opts back into the whole change set for a solo tree, and the files dropped from fix scope are NAMED in the output with both ways out, because a fixer that silently stops fixing is its own defect.
+- Protecting the sibling does not disarm the fixer: the graders assert my own staged file is still formatted in the same run, and that `base...HEAD` stays writable so committed-but-unpushed work keeps being fixed.
+- ⚠️ Also fixed: yesterday's T12.5 comment put a literal `# noqa: S324` in **prose**, and ruff parses any `# noqa` in a comment as a directive — every run in all 49 repos would have printed `Invalid # noqa directive`. Reworded; the class swept clean across all four files this phase touched.
+
 ### Fixed — bandit never saw `scripts/`, the root ruff has always linted (2026-09-14)
 
 - Phase E T12.5 of the mail-triage plan (01M28MG90) — three graders, each proven RED by name against the previous script.

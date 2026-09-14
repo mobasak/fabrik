@@ -642,3 +642,109 @@ def test_the_bandit_no_changes_skip_is_marked_like_semgreps() -> None:
         "skipped": 1,
         "skipped_checks": ["bandit"],
     }
+
+
+def _scratch_repo(tmp_path: Path) -> Path:
+    """A repo with one committed file per actor, so 'staged' and 'unstaged' are real git states."""
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.email", "t@t"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=tmp_path, check=True)
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "mine.py").write_text("def mine(a, b):\n    return a + b\n")
+    (tmp_path / "src" / "sibling.py").write_text("def sibling(a, b):\n    return a + b\n")
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-qm", "base"], cwd=tmp_path, check=True)
+    return tmp_path
+
+
+def _fg_in(repo: Path, monkeypatch, name: str):
+    import importlib.util
+
+    monkeypatch.chdir(repo)
+    spec = importlib.util.spec_from_file_location(name, fg.__file__)
+    mod = importlib.util.module_from_spec(spec)
+    assert spec.loader
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_the_fixers_never_rewrite_an_unstaged_tracked_file(tmp_path: Path, monkeypatch) -> None:
+    """T12.7 (01M22XDJ7, 01M1RE497). `get_changed_files()` is the READ scope and rightly includes
+    unstaged modifications to TRACKED files so the static tier can red on them. But the auto-fixers
+    WRITE, and on a tree three sessions share an unstaged tracked edit is a sibling's uncommitted
+    work as surely as an untracked file is — the one hands-off case in CLAUDE.md, and git cannot
+    tell their unstaged edit from yours.
+
+    Reproduced before fixing: one bare `final_gate.py` run reformatted `src/sibling.py`."""
+    repo = _scratch_repo(tmp_path)
+    (repo / "src" / "sibling.py").write_text("def sibling( a,b ):\n    return   a+b\n")
+    sibling_before = (repo / "src" / "sibling.py").read_bytes()
+    (repo / "src" / "mine.py").write_text("def mine( a,b ):\n    return   a+b\n")
+    subprocess.run(["git", "add", "--", "src/mine.py"], cwd=repo, check=True)
+
+    mod = _fg_in(repo, monkeypatch, "fg_t127_default")
+    changed = mod.get_changed_files()
+    assert changed == {"src/mine.py", "src/sibling.py"}, "the READ scope keeps both"
+    assert mod.get_writable_files() == {"src/mine.py"}, "the WRITE scope is what I staged"
+
+    mod.run_formatting_fixes(tier=2, changed_files=changed, json_mode=True)
+    assert (repo / "src" / "sibling.py").read_bytes() == sibling_before, (
+        "a fixer rewrote a sibling's uncommitted work"
+    )
+    assert (repo / "src" / "mine.py").read_text() == "def mine(a, b):\n    return a + b\n", (
+        "my OWN staged file must still be fixed — protecting the sibling must not disarm the fixer"
+    )
+
+
+def test_fix_all_is_the_documented_opt_in_and_still_reaches_them(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """The escape has to work or the narrowing is a wall, not a rule: a solo tree opts back in."""
+    repo = _scratch_repo(tmp_path)
+    (repo / "src" / "sibling.py").write_text("def sibling( a,b ):\n    return   a+b\n")
+    mod = _fg_in(repo, monkeypatch, "fg_t127_fixall")
+    mod.run_formatting_fixes(
+        tier=2, changed_files=mod.get_changed_files(), fix_all=True, json_mode=True
+    )
+    assert (repo / "src" / "sibling.py").read_text() == "def sibling(a, b):\n    return a + b\n"
+
+
+def test_the_skipped_files_are_named_not_silently_dropped(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """A fixer that silently stops fixing is its own defect: the agent sees a red ruff-format row
+    it cannot clear and does not know why. The skip names the files and the two ways out."""
+    repo = _scratch_repo(tmp_path)
+    (repo / "src" / "sibling.py").write_text("def sibling( a,b ):\n    return   a+b\n")
+    mod = _fg_in(repo, monkeypatch, "fg_t127_msg")
+    mod.run_formatting_fixes(tier=2, changed_files=mod.get_changed_files(), json_mode=False)
+    out = capsys.readouterr().out
+    assert "src/sibling.py" in out
+    assert "git add" in out and "--fix-all" in out
+
+
+def test_the_writable_scope_carries_committed_but_unpushed_work(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """`base...HEAD` is this session's own work too — narrowing to `--cached` alone would stop
+    fixing everything an agent already committed and not yet pushed."""
+    repo = _scratch_repo(tmp_path)
+    # read the default branch rather than assuming "master" — `init.defaultBranch` is a local
+    # setting and this test failed against it before the name was derived (fatal: master: not a
+    # valid SHA1).
+    base_branch = subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    subprocess.run(["git", "checkout", "-qb", "feature"], cwd=repo, check=True)
+    (repo / "src" / "mine.py").write_text("def mine(a, b):\n    return a + b + 1\n")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "my own commit"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "update-ref", "refs/remotes/origin/master", base_branch], cwd=repo, check=True
+    )
+    mod = _fg_in(repo, monkeypatch, "fg_t127_base")
+    assert "src/mine.py" in mod.get_writable_files()

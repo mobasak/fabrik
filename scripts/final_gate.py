@@ -642,7 +642,10 @@ def fix_end_of_files(files: list[str]) -> tuple[bool, str, int]:
 
 
 def run_formatting_fixes(
-    tier: int = 2, changed_files: set[str] | None = None
+    tier: int = 2,
+    changed_files: set[str] | None = None,
+    fix_all: bool = False,
+    json_mode: bool = False,
 ) -> list[tuple[str, bool, str]]:
     """Run auto-fix formatting steps, SCOPED to the current change's files.
 
@@ -658,6 +661,20 @@ def run_formatting_fixes(
         return []
 
     changed = changed_files or set()
+    # T12.7: narrow the WRITE scope to what this session authored. `changed_files` is the read
+    # scope; an unstaged modification to a tracked file inside it may be a sibling's WIP, and a
+    # fixer that rewrites it destroys uncommitted work no gate can give back.
+    if not fix_all:
+        writable = get_writable_files()
+        skipped = sorted(changed - writable)
+        changed = changed & writable
+        if skipped and not json_mode:
+            print(
+                f"  {YELLOW}Not auto-fixing {len(skipped)} unstaged tracked file(s) — on a "
+                f"shared tree an unstaged edit may be a sibling's WIP. `git add` yours to "
+                f"include them, or pass --fix-all: {', '.join(skipped[:6])}"
+                f"{' …' if len(skipped) > 6 else ''}{RESET}"
+            )
     text_files = _changed_text(changed)
     ruff_py = _changed_python(changed)
 
@@ -1016,7 +1033,7 @@ def run_static_checks(
     # T12.5 (01M28MG90): ruff lints BOTH roots (`_RUFF_ROOTS = ("scripts/", "src/")`) while bandit
     # rooted at `src/` alone — and in this repo `scripts/` IS most of the code. Nothing else
     # covered it either: pyproject's ruff `select` carries no "S", so bandit's rule family ran
-    # NOWHERE over scripts/ (which is why the `# noqa: S324` comments there were suppressing a
+    # NOWHERE over scripts/ (which is why the S324 suppressions written there were silencing a
     # rule that was never enabled).
     #
     # SEVERITY FLOOR, measured rather than chosen (FIX DIRECTIVE 5). At `-ll` this scope reports
@@ -2446,6 +2463,35 @@ def get_changed_files() -> set[str]:
     return changed
 
 
+def get_writable_files() -> set[str]:
+    """The subset of the change set this gate may MUTATE — staged plus `base...HEAD`.
+
+    T12.7 (01M22XDJ7, 01M1RE497). `get_changed_files()` is the READ scope and deliberately
+    includes unstaged modifications to TRACKED files, so the static tier can red on them. But the
+    auto-fixers write, and on a tree three sessions share an unstaged tracked edit is a SIBLING's
+    uncommitted work as surely as an untracked file is — CLAUDE.md names uncommitted WIP as the
+    one hands-off case, and git cannot tell their unstaged edit from yours.
+
+    REPRODUCED before fixing, on a scratch repo: a sibling's badly-formatted unstaged edit to a
+    tracked `src/sibling.py`, my own file staged, one bare `final_gate.py` run — `ruff format`
+    rewrote their file. Not a red, not a warning: their in-progress work silently reformatted.
+
+    The rule is the module's own, applied one layer further: AUTHORSHIP = STAGING. The completion
+    contract stages explicit paths anyway, so an authored file is in the writable scope by gate
+    time. `--fix-all` opts back into fixing the whole change set for a solo tree.
+    """
+    writable: set[str] = set()
+    base = _diff_base()
+    if base:
+        code, out = run_cmd(["git", "diff", "--name-only", f"{base}...HEAD"])
+        if code == 0 and out:
+            writable.update(f for f in out.strip().split("\n") if f)
+    code, out = run_cmd(["git", "diff", "--name-only", "--cached"])
+    if code == 0 and out:
+        writable.update(f for f in out.strip().split("\n") if f)
+    return writable
+
+
 def _warn_untracked_sources(emit: bool = True) -> str | None:
     """Advisory (never fails) about untracked source files outside gate scope.
 
@@ -2599,6 +2645,16 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Output results as JSON for agent parsing",
     )
+    parser.add_argument(
+        "--fix-all",
+        action="store_true",
+        help=(
+            "Auto-fix every file in the change set, including unstaged modifications to tracked "
+            "files. OFF by default: on a shared tree an unstaged edit may be a sibling's "
+            "uncommitted work, and a fixer that rewrites it destroys what no gate can give back. "
+            "Authorship = staging (the same rule already applied to untracked files)."
+        ),
+    )
     # Note: --no-sync removed - default now never syncs (use --sync explicitly)
     return parser.parse_args()
 
@@ -2609,6 +2665,7 @@ def run_iteration(
     tier: int = 2,
     changed_files: set[str] | None = None,
     json_mode: bool = False,
+    fix_all: bool = False,
 ) -> list[tuple[str, bool, str]]:
     """Run one iteration of all checks."""
     all_results: list[tuple[str, bool, str]] = []
@@ -2621,7 +2678,12 @@ def run_iteration(
     if not check_only and tier != 3:
         if not json_mode:
             print_header("PHASE 1: AUTO-FIX FORMATTING")
-        results = run_formatting_fixes(tier=tier, changed_files=changed_files)
+        results = run_formatting_fixes(
+            tier=tier,
+            changed_files=changed_files,
+            fix_all=fix_all,
+            json_mode=json_mode,
+        )
         all_results.extend(results)
         if not json_mode:
             for name, passed, out in results:
@@ -2756,6 +2818,7 @@ def main() -> int:
             tier=tier,
             changed_files=changed_files,
             json_mode=args.json,
+            fix_all=args.fix_all,
         )
 
         failed = [r for r in all_results if not r[1]]
