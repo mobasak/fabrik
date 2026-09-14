@@ -868,7 +868,8 @@ def _copy_into_worktree_safely(
         return sync_single_file(src, dst, dry_run=dry_run, backup=backup, force=True)
     try:
         dst_hash = compute_file_hash(dst)
-        src_hash = compute_file_hash(src)
+        # what WILL be written, never the source on disk — see `_shipped_hash`
+        src_hash = _shipped_hash(src)
     except OSError:
         return SyncResult("WARN", src, dst, "unreadable — left in place")
     if dst_hash == src_hash:
@@ -1003,9 +1004,9 @@ def _sync_dir_into_worktree(
             )
             if result.action in ("COPY", "BACKUP"):
                 copied += 1
-                authored[project_rel] = compute_file_hash(src_file)
+                authored[project_rel] = _shipped_hash(src_file)
             elif result.action == "SKIP":
-                authored[project_rel] = compute_file_hash(src_file)
+                authored[project_rel] = _shipped_hash(src_file)
             elif result.action == "WARN":
                 warnings.append(result)
         except OSError as e:
@@ -1388,9 +1389,9 @@ def resync_worktree_artifacts(
                     )
                     if result.action in ("COPY", "BACKUP"):
                         total_copied += 1
-                        authored_this_run[rel] = compute_file_hash(src)
+                        authored_this_run[rel] = _shipped_hash(src)
                     elif result.action == "SKIP":
-                        authored_this_run[rel] = compute_file_hash(src)
+                        authored_this_run[rel] = _shipped_hash(src)
                     elif result.action == "WARN":
                         total_warned += 1
                         print(f"  WARN (worktree, {result.reason}): {dst}")
@@ -1562,7 +1563,6 @@ def create_backup(path: Path) -> Path:
     return backup_path
 
 
-_HUB_ROOT = Path("/opt/fabrik")
 _head_drift: set[str] = set()  # synced paths whose working tree differs from HEAD, for the report
 
 
@@ -1590,13 +1590,17 @@ def _head_source(source: Path) -> tuple[bytes, int] | None:
     MATTERS is preserved: an executable stays executable, which is graded.
     """
     try:
-        rel = source.resolve().relative_to(_HUB_ROOT).as_posix()
+        # BOTH sides resolved. Resolving only the source means a symlinked hub root raises
+        # ValueError here, and the `except` below turns that into a SILENT working-tree
+        # fallback — the fix quietly stopping fleet-wide, at exit 0, with no drift line.
+        # Latent today (/opt/fabrik is a real directory) and one character to close.
+        rel = source.resolve().relative_to(FABRIK_ROOT.resolve()).as_posix()
     except ValueError:
         return None  # outside the hub tree — not ours to read from git
     try:
         ls = subprocess.run(
             ["git", "ls-files", "-s", "--", rel],
-            cwd=_HUB_ROOT,
+            cwd=FABRIK_ROOT,
             capture_output=True,
             check=False,
         )
@@ -1604,7 +1608,7 @@ def _head_source(source: Path) -> tuple[bytes, int] | None:
             return None  # untracked: the working tree is the only source there is
         mode = int(ls.stdout.split()[0].decode(), 8)
         blob = subprocess.run(
-            ["git", "show", f"HEAD:{rel}"], cwd=_HUB_ROOT, capture_output=True, check=False
+            ["git", "show", f"HEAD:{rel}"], cwd=FABRIK_ROOT, capture_output=True, check=False
         )
         if blob.returncode != 0:
             return None  # tracked but not in HEAD (a staged add) — working tree it is
@@ -1619,8 +1623,38 @@ def _head_source(source: Path) -> tuple[bytes, int] | None:
     return data, mode
 
 
-def _atomic_write(data: bytes, mode: int, destination: Path) -> None:
-    """The byte-level twin of `_atomic_copy` — same temp-file-then-rename contract."""
+def _shipped_hash(source: Path) -> str:
+    """The hash of the bytes this sync will actually WRITE — not of the source on disk.
+
+    ⚠️ The two diverged the moment T12.17 made a tracked file ship `git show HEAD:<path>`. The
+    worktree ledger records "last known good content" and `_copy_into_worktree_safely` refuses to
+    refresh a copy whose hash does not match that record — so recording the WORKING-TREE hash while
+    writing HEAD bytes froze every drifted file's worktree copy behind a false "agent edit" WARN,
+    permanently, including after the operator committed and re-ran exactly as the drift report
+    instructs. Found by the Phase E review, reproduced over three runs.
+
+    ONE definition, used by the comparison and by the ledger, so they cannot disagree again.
+    """
+    head = _head_source(source)
+    if head is None:
+        return compute_file_hash(source)
+    # MD5, matching `compute_file_hash` exactly — the two are COMPARED against each other and a
+    # different algorithm is a hash that can never match, i.e. the same permanent freeze wearing a
+    # new coat. (My first cut used sha256 and the grader caught it immediately.)
+    return hashlib.md5(head[0], usedforsecurity=False).hexdigest()
+
+
+def _atomic_write(data: bytes, mode: int, destination: Path, source: Path | None = None) -> None:
+    """The byte-level twin of `_atomic_copy` — same temp-file-then-rename contract.
+
+    ⚠️ CARRIES THE SOURCE'S MTIME when `source` is given. `shutil.copy2` carried content + mode +
+    mtime; reading bytes from git carries content and mode only, and the missing third one is not
+    cosmetic: `sync_single_file` skips a copy whose `dest_mtime > source_mtime` ("destination
+    newer"). A dest written with `mtime = now` therefore refuses every later sync of that file —
+    permanently, including after the operator does exactly what the drift report instructs
+    ("commit them and re-run"), because `git commit` does not touch the working file's mtime.
+    Found by the Phase E review; reproduced across three runs.
+    """
     destination.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(dir=str(destination.parent), prefix=".sync-tmp-")
     os.close(fd)
@@ -1628,6 +1662,12 @@ def _atomic_write(data: bytes, mode: int, destination: Path) -> None:
     try:
         tmp.write_bytes(data)
         os.chmod(tmp, stat.S_IMODE(mode))
+        if source is not None:
+            try:
+                st = source.stat()
+                os.utime(tmp, (st.st_atime, st.st_mtime))
+            except OSError:
+                pass  # an unreadable source mtime is not worth failing a correct write over
         os.replace(tmp, destination)
     except Exception:
         tmp.unlink(missing_ok=True)
@@ -1652,6 +1692,11 @@ def _atomic_copy(source: Path, destination: Path) -> None:
             # T12.17: a tracked synced file ships its COMMITTED bytes, never the working tree.
             tmp.write_bytes(head[0])
             os.chmod(tmp, stat.S_IMODE(head[1]))
+            try:  # carry the mtime `copy2` used to — see `_atomic_write`'s docstring
+                st = source.stat()
+                os.utime(tmp, (st.st_atime, st.st_mtime))
+            except OSError:
+                pass
         else:
             shutil.copy2(source, tmp)  # untracked: the working tree is the only source
         os.replace(tmp, destination)  # atomic on the same filesystem
@@ -1709,6 +1754,12 @@ def sync_single_file(
     if seed_if_missing and destination.exists() and not destination.is_symlink():
         return SyncResult("SKIP", source, destination, "seed-if-missing: project-owned")
     # Replace symlinks with real copies (symlinks break workspace isolation)
+    # T12.17: consult HEAD on EVERY path, dry-run included. A dry run exists to answer "what would
+    # ship?", and an uncommitted hub edit NOT shipping is the surprise it must surface — including
+    # under `--force` and for a brand-new file, the two branches that used to return before the
+    # consult and so reported no drift at all (found in the Phase E review).
+    _head_source(source)
+
     if destination.is_symlink():
         if dry_run:
             return SyncResult("COPY", source, destination, "replacing symlink with copy")
@@ -1765,7 +1816,9 @@ def sync_single_file(
 
     head = _head_source(source)
     if head is not None:
-        _atomic_write(head[0], head[1], destination)  # T12.17: committed bytes, never the tree
+        # T12.17: committed bytes, never the tree — with the source's mtime, or the
+        # "destination newer" guard below refuses every later sync of this file.
+        _atomic_write(head[0], head[1], destination, source=source)
     else:
         shutil.copy2(source, destination)
     return result
@@ -2305,6 +2358,7 @@ def main() -> int:
     # future test, a wrapper, a dry-run-then-real flow) inherits the previous run's failures and returns
     # 1 forever.
     _SAFETY_FLOOR_FAILURES.clear()
+    _head_drift.clear()  # same reason as the three below — a second in-process run inherits it
     # Same reasoning for the worktree tally (class 5, 2026-09-05 acceptance round 2): a
     # second in-process call must not accumulate a previous run's worktree numbers into
     # this run's final summary line.

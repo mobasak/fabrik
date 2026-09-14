@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — two ways yesterday's sync change would have stopped the fleet distributing, permanently (2026-09-15)
+
+- Phase E review, round 1. Both are regressions **I introduced** in T12.17 and shipped; both were caught by an author-blind seat and reproduced before fixing. Six graders, one of which caught a defect in my own fix within a minute.
+- **The ledger recorded the source, the writer wrote HEAD.** The worktree ledger stores "last known good content" and `_copy_into_worktree_safely` refuses to refresh a copy whose hash does not match that record. Recording the working-tree hash while writing HEAD bytes froze every drifted file's project copy behind a false "agent edit" WARN — permanently, including after the operator committed and re-ran exactly as my own drift report instructs. One definition, `_shipped_hash`, now feeds both the comparison and the ledger. ⚠️ My first cut of it used sha256 against an MD5 `compute_file_hash` — a hash that can never match, i.e. the same freeze in a new coat; the grader caught it immediately.
+- **`_atomic_write` dropped the mtime.** `shutil.copy2` carried content + mode + mtime; reading bytes from git carried the first two. `sync_single_file` skips a copy whose `dest_mtime > source_mtime`, so every dest written with `mtime = now` refused every later sync of that file — permanently, because `git commit` does not touch a working file's mtime. Carried on both write paths.
+- **The dry run lied on two of its three branches**: `--dry-run --force` (exactly how the contract says to preview a forced sync) and a brand-new file both returned before the HEAD consult and reported no drift at all. Hoisted above every branch; all three arms verified.
+- Also: `_head_drift` now resets in `main()` like the other three module-level mutables (the reset block's own comment names the dry-run-then-real flow as the reason); and the file has **one** hub-root constant again — two meant a change to one would leave `_head_source` reading git in the wrong tree and silently shipping the working tree, with `relative_to` now resolving both sides so a symlinked hub cannot disable the whole fix at exit 0.
+
 ### Changed — the sync now distributes git's file mode, not the hub box's umask (2026-09-14)
 
 - Found by executing the T12.17 change against real synced files rather than re-reading it: `.claude/hooks/final_gate_stop.py` is `0o775` on this disk and arrives `0o755`. `shutil.copy2` carried the source's FULL mode; git records only `100644` / `100755`.

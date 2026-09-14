@@ -58,7 +58,10 @@ def hub(tmp_path: Path):
     untracked = tmp_path / "scripts" / "enforcement" / "untracked.py"
     untracked.write_text("UNTRACKED = 1\n", encoding="utf-8")
     mod = _mod()
-    mod._HUB_ROOT = tmp_path
+    # the module has ONE hub-root constant (a second one, `_HUB_ROOT`, was removed in review:
+    # two sources of truth for the same path meant a change to one left `_head_source` reading
+    # git in the wrong tree and silently shipping the working tree again).
+    mod.FABRIK_ROOT = tmp_path
     mod._head_drift.clear()
     return mod, tmp_path, committed, untracked
 
@@ -133,3 +136,93 @@ def test_a_source_outside_the_hub_is_left_alone(hub, tmp_path: Path) -> None:
 
 if __name__ == "__main__":  # pragma: no cover
     sys.exit(pytest.main([__file__, "-q"]))
+
+
+# ── found by the Phase E review: three ways the HEAD-bytes writer broke the sync's own machinery ──
+
+
+def test_the_ledger_records_what_ships_not_what_is_on_disk(hub, tmp_path: Path) -> None:
+    """The worktree ledger records "last known good content" and `_copy_into_worktree_safely`
+    refuses to refresh a copy whose hash does not match that record. Recording the WORKING-TREE
+    hash while WRITING HEAD bytes froze every drifted file's project copy behind a false "agent
+    edit" WARN — permanently, including after the operator committed and re-ran exactly as the
+    drift report instructs. One definition (`_shipped_hash`) now feeds both sides."""
+    mod, _hub_root, committed, _untracked = hub
+    committed.write_text("COMMITTED = 1\nUNCOMMITTED_EDIT = True\n", encoding="utf-8")
+    dest = tmp_path / "out" / "committed.py"
+    mod._atomic_copy(committed, dest)
+    assert mod._shipped_hash(committed) == mod.compute_file_hash(dest), (
+        "the ledger would record a hash that disagrees with the bytes on disk"
+    )
+
+
+def test_the_shipped_hash_falls_back_for_an_untracked_source(hub, tmp_path: Path) -> None:
+    """An untracked file has no HEAD blob, so what ships IS the working tree — and the hash must
+    say so, or the fallback path inherits the same disagreement."""
+    mod, _hub_root, _committed, untracked = hub
+    dest = tmp_path / "out" / "untracked.py"
+    mod._atomic_copy(untracked, dest)
+    assert mod._shipped_hash(untracked) == mod.compute_file_hash(dest)
+
+
+def test_the_mtime_is_carried_or_the_sync_blocks_itself_forever(hub, tmp_path: Path) -> None:
+    """`shutil.copy2` carried content + mode + MTIME. Reading bytes from git carries the first two,
+    and the third is not cosmetic: `sync_single_file` skips a copy whose `dest_mtime >
+    source_mtime` ("destination newer"). A dest written with mtime=now refuses every later sync of
+    that file — permanently, because `git commit` does not touch the working file's mtime."""
+    mod, _hub_root, committed, _untracked = hub
+    dest = tmp_path / "out" / "committed.py"
+    mod._atomic_copy(committed, dest)
+    assert abs(dest.stat().st_mtime - committed.stat().st_mtime) < 1, (
+        f"dest {dest.stat().st_mtime} vs source {committed.stat().st_mtime} — the "
+        "'destination newer' guard would refuse every later sync"
+    )
+    # and the byte-level writer, which `sync_single_file` uses and no grader reached before
+    head = mod._head_source(committed)
+    dest2 = tmp_path / "out2" / "committed.py"
+    mod._atomic_write(head[0], head[1], dest2, source=committed)
+    assert abs(dest2.stat().st_mtime - committed.stat().st_mtime) < 1
+
+
+def test_every_dry_run_branch_reports_drift(hub, tmp_path: Path) -> None:
+    """The dry-run HEAD consult sat in ONE branch, so `--dry-run --force` — precisely how an
+    operator previews the forced sync the contract tells them to run — and a brand-new file both
+    reported no drift at all. The consult is hoisted above every branch."""
+    mod, _hub_root, committed, _untracked = hub
+    committed.write_text("COMMITTED = 1\nUNCOMMITTED_EDIT = True\n", encoding="utf-8")
+    for label, kwargs, make_dest in (
+        ("exists+older", {"dry_run": True}, True),
+        ("--force", {"dry_run": True, "force": True}, True),
+        ("new file", {"dry_run": True}, False),
+    ):
+        mod._head_drift.clear()
+        dest = tmp_path / label.replace("+", "_").replace("-", "") / "committed.py"
+        if make_dest:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text("old\n")
+            os.utime(dest, (1, 1))
+        mod.sync_single_file(committed, dest, **kwargs)
+        assert mod._head_drift, f"{label}: a dry run reported no drift for a drifted source"
+
+
+def test_head_drift_is_reset_like_every_other_module_global(hub) -> None:
+    """`main()` clears the other three module-level mutables, with a comment naming the reason (a
+    dry-run-then-real in-process flow inherits the previous run's state). This one was not."""
+    mod, _hub_root, _c, _u = hub
+    src = Path(mod.__file__).read_text(encoding="utf-8")
+    main_body = src.split("def main(")[1]
+    for marker in ("_SAFETY_FLOOR_FAILURES.clear()", "_head_drift.clear()"):
+        assert marker in main_body, f"{marker} missing from main()"
+
+
+def test_there_is_exactly_one_hub_root_constant(hub) -> None:
+    """Two sources of truth for the same path meant a change to one left `_head_source` reading git
+    in the WRONG tree and silently returning None — i.e. shipping the working tree again, with no
+    warning, which is the failure the whole change exists to prevent."""
+    src = Path(Path(__file__).resolve().parents[1] / "scripts" / "sync_enforcement_to_projects.py")
+    text = src.read_text(encoding="utf-8")
+    assert "_HUB_ROOT" not in text, "a second hub-root constant is back"
+    assert "FABRIK_ROOT.resolve()" in text, (
+        "both sides of the relative_to must be resolved, or a symlinked hub root silently "
+        "disables the HEAD read fleet-wide"
+    )
