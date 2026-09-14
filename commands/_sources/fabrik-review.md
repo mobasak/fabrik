@@ -128,8 +128,10 @@ and brief the finder against that path. If a finder must read the live tree inst
 review, `git diff HEAD`), say so IN the brief so the finder knows what it is looking at — and tell it
 to EXCLUDE the tree's stale copies: `.claude/worktrees/**` and `.tmp/**` (subagent scratch) hold whole
 duplicate `src/` + `tests/` trees at DIFFERENT line numbers, so an unscoped repo-root grep returns
-anchors that resolve in a worktree and not in HEAD (`command grep -rn --exclude-dir=.claude
---exclude-dir=.tmp …`; web-ecommerce-factory 01M1QEY5, 2026-09-05: two finders lost a result set to it). This is the
+anchors that resolve in a worktree and not in HEAD (`command grep -rn --exclude-dir=worktrees
+--exclude-dir=.tmp …` — the `worktrees` directory, NOT `.claude`: measured 2026-09-14, `.claude/`
+holds 13,328 `*.py` of which 13,321 are worktree copies and SEVEN are `.claude/hooks/`, the
+fleet-synced hooks, so excluding the parent silently drops real code from the count; web-ecommerce-factory 01M1QEY5, 2026-09-05: two finders lost a result set to it). This is the
 same class as the `Surface:` anchor rule — both are about the finder actually looking at the thing it
 was told to look at.
 
