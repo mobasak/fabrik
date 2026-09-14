@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: docs/development/PLANS.md, scripts/decisions.py (keep MERGE_OWNER_RE identical)
+# AFTER-EDIT: docs/development/PLANS.md, scripts/decisions.py (keep MERGE_OWNER_RE identical),
+# scripts/enforcement/check_doc_links.py (keep the scaffold-template predicate identical)
 """
 Fabrik Documentation Updater
 
@@ -1522,6 +1523,23 @@ def _gitignored(paths: list[Path]) -> set[Path]:
     return {PROJECT_ROOT / n for n in proc.stdout.split("\0") if n}
 
 
+def _is_scaffold_template(rel: str) -> bool:
+    """A scaffold TEMPLATE is not a document — its links are placeholders by design.
+
+    T12.9 (01M1S2MYZ). `check_doc_links.py` has carried this predicate since /opt/seo reported
+    that 21 of 28 "broken" refs were template artifacts; `docs_updater.py`'s own link walk never
+    grew it, so the two synced checks disagreed about the same tree. Measured 2026-09-14 over four
+    repos' `docs/`: seo carries 24 `*_TEMPLATE.md` and a `scaffold-templates/` dir among 176 docs
+    (14 %), the hub 2 of 1,203, and two of the four sampled carry none — so it is not universal, and
+    where it bites it bites hard.
+
+    ⚠️ Kept byte-identical to `check_doc_links.py::_is_template_source` on purpose. Two predicates
+    for one rule is two things to drift; when one moves, move both.
+    """
+    name = rel.rsplit("/", 1)[-1]
+    return name.endswith("_TEMPLATE.md") or "scaffold-templates/" in rel
+
+
 def check_link_integrity() -> list[str]:
     """Check all internal markdown links are valid."""
     issues: list[str] = []
@@ -1562,6 +1580,11 @@ def check_link_integrity() -> list[str]:
 
         # Skip centrally-managed synced copies (gitignored here, owned elsewhere)
         if doc in ignored:
+            continue
+
+        # Skip scaffold TEMPLATES — placeholder links by design (T12.9; the same predicate
+        # `check_doc_links.py` has carried since /opt/seo reported 21 of 28 false "broken" refs).
+        if _is_scaffold_template(str(doc.relative_to(docs_dir.parent)).replace("\\", "/")):
             continue
 
         content = doc.read_text()
@@ -1845,12 +1868,15 @@ def validate_ownership_advisory(proc_root: Path = Path("/proc")) -> list[str]:
     ]
 
 
-def _insert_owner_line(path: Path, name: str) -> bool:
+def _insert_owner_line(path: Path, name: str, dry_run: bool = False) -> bool:
     """Insert `**Owner:** <name>` as the first line after the plan's H1 — after the
     blank line that follows the H1, if one does — never inside a fenced code block,
     and never inside a leading YAML frontmatter block (a `# comment` line there must
     never be mistaken for the document's H1). No-op (returns False, no write) when the
-    file has no H1 at all."""
+    file has no H1 at all.
+
+    `dry_run` computes the same verdict and writes nothing, so `--adopt --dry-run` reports exactly
+    the units a real run would stamp (T12.9)."""
     try:
         text = path.read_text(encoding="utf-8")
     except OSError:
@@ -1884,7 +1910,8 @@ def _insert_owner_line(path: Path, name: str) -> bool:
     if insert_at < len(lines) and lines[insert_at].strip() == "":
         insert_at += 1
     lines.insert(insert_at, f"**Owner:** {name}")
-    path.write_text("\n".join(lines), encoding="utf-8")
+    if not dry_run:
+        path.write_text("\n".join(lines), encoding="utf-8")
     return True
 
 
@@ -1902,7 +1929,12 @@ def _mint_next_decision_id() -> str:
     return f"D-{(max(ids) + 1) if ids else 1:03d}"
 
 
-def run_adopt(names: list[str], single_window: bool, proc_root: Path = Path("/proc")) -> int:
+def run_adopt(
+    names: list[str],
+    single_window: bool,
+    proc_root: Path = Path("/proc"),
+    dry_run: bool = False,
+) -> int:
     """`--adopt <name>[,<name>…]`: seed the PLANS ownership markers, stamp every open
     unowned plan unit's Owner (round-robin), declare the merge owner (the first name)
     when the ledger has none, tag every untagged docs/STRATEGIC_BACKLOG.md row
@@ -1916,7 +1948,15 @@ def run_adopt(names: list[str], single_window: bool, proc_root: Path = Path("/pr
     on a checkout only this session shares unless `single_window` overrides it.
     Returns 3 only when a PRESENT epic_order.py genuinely refused the assignment
     (rc≠0) — never for an absent script. Idempotent: a re-run with the same names
-    touches no byte and prints `(nothing to adopt)`."""
+    touches no byte and prints `(nothing to adopt)`.
+
+    ⚠️ `dry_run` GUARDS EVERY WRITE AND THE EPIC DELEGATION. It was absent until 2026-09-14
+    (T12.9, 01M1S2MYZ/01M1Z0PEB) while `--dry-run`'s own `--help` promised "Preview changes without
+    writing": a preview run on a scratch repo modified three files and CREATED two more, minting a
+    `D-001 (MERGE OWNER)` row in `docs/DECISIONS.md`. On a shared tree that is a preview writing to
+    the decision ledger and the backlog. The report is unchanged either way — the point of a dry run
+    is to see exactly what a real one would do — so every branch still APPENDS to `report`, and only
+    the `write_text`/`subprocess` calls are skipped."""
     bad = [n for n in names if not _ADOPT_NAME_RE.fullmatch(n)]
     if bad:
         sys.stderr.write(
@@ -1945,11 +1985,13 @@ def run_adopt(names: list[str], single_window: bool, proc_root: Path = Path("/pr
     if PLANS_INDEX.exists():
         content = PLANS_INDEX.read_text(encoding="utf-8")
         if not PLANS_BLOCK_RE.search(content):
-            PLANS_INDEX.write_text(content + ownership_block, encoding="utf-8")
+            if not dry_run:
+                PLANS_INDEX.write_text(content + ownership_block, encoding="utf-8")
             report.append(("docs/development/PLANS.md", NO_OWNER, "markers"))
     else:
-        PLANS_INDEX.parent.mkdir(parents=True, exist_ok=True)
-        PLANS_INDEX.write_text(f"# Development Plans\n{ownership_block}", encoding="utf-8")
+        if not dry_run:
+            PLANS_INDEX.parent.mkdir(parents=True, exist_ok=True)
+            PLANS_INDEX.write_text(f"# Development Plans\n{ownership_block}", encoding="utf-8")
         report.append(("docs/development/PLANS.md", NO_OWNER, "markers"))
 
     # (b) stamp Owner on every open (non-terminal), unowned plan unit — round-robin
@@ -1962,7 +2004,7 @@ def run_adopt(names: list[str], single_window: bool, proc_root: Path = Path("/pr
         if status in ("EXECUTED", "COMPLETE"):
             continue
         owner_name = names[i % len(names)]
-        if _insert_owner_line(p, owner_name):
+        if _insert_owner_line(p, owner_name, dry_run=dry_run):
             report.append((rel, owner_name, "owner-line"))
             i += 1
 
@@ -1987,14 +2029,16 @@ def run_adopt(names: list[str], single_window: bool, proc_root: Path = Path("/pr
         if ledger.exists():
             ledger_text = ledger.read_text(encoding="utf-8")
             sep = "" if ledger_text.endswith("\n") else "\n"
-            ledger.write_text(f"{ledger_text}{sep}{row}\n", encoding="utf-8")
+            if not dry_run:
+                ledger.write_text(f"{ledger_text}{sep}{row}\n", encoding="utf-8")
         else:
-            ledger.parent.mkdir(parents=True, exist_ok=True)
-            ledger.write_text(
-                "# Decisions\n\n| id | when | who | what (the decision) | why | where |\n"
-                f"|---|---|---|---|---|---|\n{row}\n",
-                encoding="utf-8",
-            )
+            if not dry_run:
+                ledger.parent.mkdir(parents=True, exist_ok=True)
+                ledger.write_text(
+                    "# Decisions\n\n| id | when | who | what (the decision) | why | where |\n"
+                    f"|---|---|---|---|---|---|\n{row}\n",
+                    encoding="utf-8",
+                )
         report.append((f"{did} (MERGE OWNER)", first, "ledger-row"))
 
     # (c') tag every untagged docs/STRATEGIC_BACKLOG.md row — round-robin over
@@ -2005,7 +2049,8 @@ def run_adopt(names: list[str], single_window: bool, proc_root: Path = Path("/pr
         backlog_text = backlog_path.read_text(encoding="utf-8")
         new_backlog_text, backlog_report = _tag_backlog_rows(backlog_text, names)
         if backlog_report:
-            backlog_path.write_text(new_backlog_text, encoding="utf-8")
+            if not dry_run:
+                backlog_path.write_text(new_backlog_text, encoding="utf-8")
             report.extend(backlog_report)
 
     # (d) the epic half — delegated to epic_order.py --assign, never re-implemented here.
@@ -2021,7 +2066,22 @@ def run_adopt(names: list[str], single_window: bool, proc_root: Path = Path("/pr
     epic_order_failed = False
     epics_dir = _epics_dir()
     epic_order_script = PROJECT_ROOT / "scripts" / "epic_order.py"
-    if epics_dir.is_dir() and any(epics_dir.glob("*.md")) and epic_order_script.is_file():
+    # T12.9: the epic half is ANOTHER PROCESS that writes, so a dry run describes it rather
+    # than running it — `epic_order.py --assign` has no dry-run of its own to pass through.
+    if (
+        dry_run
+        and epics_dir.is_dir()
+        and any(epics_dir.glob("*.md"))
+        and epic_order_script.is_file()
+    ):
+        report.append(
+            (
+                "docs/development/epics/ (epic_order.py --assign)",
+                ",".join(names),
+                "would-delegate",
+            )
+        )
+    elif epics_dir.is_dir() and any(epics_dir.glob("*.md")) and epic_order_script.is_file():
         epic_files = sorted(epics_dir.glob("*.md"))
         before = {p: p.read_bytes() for p in epic_files}
         result = subprocess.run(
@@ -2044,7 +2104,7 @@ def run_adopt(names: list[str], single_window: bool, proc_root: Path = Path("/pr
             report.append(("epics (epic_order.py --assign)", names[0], "epic_order"))
 
     # (e) regenerate the block so the new owners / merge-owner header are visible.
-    sync_plans_index()
+    sync_plans_index(dry_run=dry_run)
 
     if not report:
         print("(nothing to adopt)")
@@ -2229,7 +2289,7 @@ def main() -> None:
         names = [n.strip() for n in args.adopt.split(",") if n.strip()]
         if not names:
             parser.error("--adopt requires at least one name")
-        sys.exit(run_adopt(names, args.single_window))
+        sys.exit(run_adopt(names, args.single_window, dry_run=args.dry_run))
     elif args.check:
         sys.exit(run_check())
     elif args.sync:

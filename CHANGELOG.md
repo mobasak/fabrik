@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `docs_updater.py --adopt --dry-run` wrote five files, including minting a decision row (2026-09-14)
+
+- Phase E T12.9 of the mail-triage plan (01M1S2MYZ, 01M1Z0PEB) — four graders, each proven RED by name against the previous script.
+- **`--dry-run`'s own `--help` says "Preview changes without writing"; `run_adopt` never received the flag.** Reproduced on a scratch repo: `--adopt probe --dry-run` modified `docs/STRATEGIC_BACKLOG.md`, the plan file and `plans/README.md`, and CREATED `docs/DECISIONS.md` and `docs/development/PLANS.md` — minting a `D-001 (MERGE OWNER)` row. On a tree three sessions share, a preview was writing to the decision ledger, whose rows are immutable once written. `dry_run` now guards every write, the owner-line stamper, the PLANS regenerate, and the epic delegation (another process that writes, so a dry run describes it instead of running it). The report is unchanged in either mode — the point of a preview is to see the real plan — and the graders assert both halves: nothing written, and every row the real run performs still reported.
+- **The scaffold-template exclusion was in one of two synced checks.** `check_doc_links.py` has skipped `*_TEMPLATE.md` and `scaffold-templates/` since /opt/seo reported 21 of 28 false "broken" refs; `docs_updater.py`'s own link walk never grew it, so the two disagreed about the same tree. Measured over four repos' `docs/` before porting: seo carries **24** `_TEMPLATE.md` plus a `scaffold-templates/` dir among **176** docs (14 %), the hub 2 of 1,203, and two of the four sampled carry none — not universal, but decisive where it bites. Ported byte-identical, parity asserted across seven cases, and `docs_updater.py`'s `# AFTER-EDIT:` header now names `check_doc_links.py` so the two move together.
+
 ### Fixed — both governance contracts told every agent `--systemic` checks ports and deps; it checks neither (2026-09-14)
 
 - Phase E T12.8 of the mail-triage plan (01M23CRZZ) — four graders, written FIRST and watched fail, now asserting the gate's tier composition by instrumented execution.
