@@ -28,6 +28,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -1561,6 +1562,70 @@ def create_backup(path: Path) -> Path:
     return backup_path
 
 
+_HUB_ROOT = Path("/opt/fabrik")
+_head_drift: set[str] = set()  # synced paths whose working tree differs from HEAD, for the report
+
+
+def _head_source(source: Path) -> tuple[bytes, int] | None:
+    """The COMMITTED bytes and mode of a hub-tracked source, or None when it is untracked.
+
+    T12.17 (01M1Y86PQ). This script is the fleet-distribution mechanism and it copied the WORKING
+    TREE: an uncommitted edit — mine, or a sibling's, on a tree three sessions share — shipped to
+    every project. Measured on 2026-09-07: 48 copies carried one. A project then holds a file that
+    exists in no commit anywhere, and `check_synced_unmodified.py` compares project copies against
+    the hub's HEAD, so the project reds for a divergence it did not cause.
+
+    So a TRACKED synced file is read from HEAD. An UNTRACKED one has no HEAD blob and the working
+    tree is all there is — a new script on its first sync, which is why that path stays and is not
+    an error. Any file whose working tree differs from HEAD is recorded in `_head_drift` and named
+    LOUDLY in the run's report: syncing HEAD silently while the operator is looking at their own
+    unsynced edit would trade one surprise for a quieter one.
+    """
+    try:
+        rel = source.resolve().relative_to(_HUB_ROOT).as_posix()
+    except ValueError:
+        return None  # outside the hub tree — not ours to read from git
+    try:
+        ls = subprocess.run(
+            ["git", "ls-files", "-s", "--", rel],
+            cwd=_HUB_ROOT,
+            capture_output=True,
+            check=False,
+        )
+        if ls.returncode != 0 or not ls.stdout.strip():
+            return None  # untracked: the working tree is the only source there is
+        mode = int(ls.stdout.split()[0].decode(), 8)
+        blob = subprocess.run(
+            ["git", "show", f"HEAD:{rel}"], cwd=_HUB_ROOT, capture_output=True, check=False
+        )
+        if blob.returncode != 0:
+            return None  # tracked but not in HEAD (a staged add) — working tree it is
+    except OSError:
+        return None
+    data = blob.stdout
+    try:
+        if source.read_bytes() != data:
+            _head_drift.add(rel)
+    except OSError:
+        pass
+    return data, mode
+
+
+def _atomic_write(data: bytes, mode: int, destination: Path) -> None:
+    """The byte-level twin of `_atomic_copy` — same temp-file-then-rename contract."""
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(dir=str(destination.parent), prefix=".sync-tmp-")
+    os.close(fd)
+    tmp = Path(tmp_name)
+    try:
+        tmp.write_bytes(data)
+        os.chmod(tmp, stat.S_IMODE(mode))
+        os.replace(tmp, destination)
+    except Exception:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
 def _atomic_copy(source: Path, destination: Path) -> None:
     """Copy ``source`` onto ``destination`` ATOMICALLY: write to a temp file in the SAME directory
     (so it's on the same filesystem, a hard requirement for an atomic rename) then ``os.replace`` it
@@ -1574,7 +1639,13 @@ def _atomic_copy(source: Path, destination: Path) -> None:
     os.close(fd)
     tmp = Path(tmp_name)
     try:
-        shutil.copy2(source, tmp)  # content + mode/mtime, into the dest dir (same filesystem)
+        head = _head_source(source)
+        if head is not None:
+            # T12.17: a tracked synced file ships its COMMITTED bytes, never the working tree.
+            tmp.write_bytes(head[0])
+            os.chmod(tmp, stat.S_IMODE(head[1]))
+        else:
+            shutil.copy2(source, tmp)  # untracked: the working tree is the only source
         os.replace(tmp, destination)  # atomic on the same filesystem
     except Exception:
         tmp.unlink(missing_ok=True)
@@ -1671,6 +1742,9 @@ def sync_single_file(
 
     # Source is newer - proceed with copy
     if dry_run:
+        # T12.17: consult HEAD even here. A dry run exists to answer "what would ship?", and an
+        # uncommitted hub edit not shipping is exactly the surprise it should surface.
+        _head_source(source)
         return SyncResult("COPY", source, destination, "will overwrite")
 
     if backup:
@@ -1681,7 +1755,11 @@ def sync_single_file(
     else:
         result = SyncResult("COPY", source, destination, "overwritten")
 
-    shutil.copy2(source, destination)
+    head = _head_source(source)
+    if head is not None:
+        _atomic_write(head[0], head[1], destination)  # T12.17: committed bytes, never the tree
+    else:
+        shutil.copy2(source, destination)
     return result
 
 
@@ -2336,6 +2414,15 @@ def main() -> int:
             f"non-standard path, which receives nothing from any sync (01M1J0HN): "
             + ", ".join(stray)
             + ". Move the copy to the standard path or record the exception in the repo."
+        )
+    if _head_drift:
+        names = sorted(_head_drift)
+        shown = ", ".join(names[:8]) + (f" … (+{len(names) - 8} more)" if len(names) > 8 else "")
+        print(
+            f"\n⚠️  {len(names)} synced file(s) differ between the hub's WORKING TREE and HEAD; "
+            f"the COMMITTED bytes were synced, not what is on disk (T12.17 — an uncommitted edit "
+            f"used to ship to every project, 48 copies on 2026-09-07). Commit them and re-run to "
+            f"distribute: {shown}"
         )
     summary = f"Results: {success_count} projects synced, {fail_count} failed"
     summary += f" | Files: {total_copied} copied, {total_skipped} skipped"

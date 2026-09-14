@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the fleet sync shipped the hub's WORKING TREE, so an uncommitted edit reached every project (2026-09-14)
+
+- Phase E T12.17 of the mail-triage plan (01M1Y86PQ) — six graders on a throwaway hub, proven red-on-revert in place.
+- **`sync_enforcement_to_projects.py` is the fleet-distribution mechanism and it copied whatever was on disk.** An uncommitted edit — mine, or a sibling's, on a tree three sessions share — shipped to every project; measured on 2026-09-07, **48 copies** carried one. The project then holds a file that exists in no commit anywhere, and `check_synced_unmodified.py` compares project copies against the hub's **HEAD** — so the project reds for a divergence it did not cause.
+- A TRACKED synced file now ships its committed bytes, read from `git show HEAD:<path>`, with its mode taken from `git ls-files -s` (reading bytes loses the mode `shutil.copy2` used to carry, and a synced hook that lands 644 does not run). An UNTRACKED source still ships the working tree — a new script on its first sync has no HEAD blob, and refusing it would make a new check undistributable.
+- **The drift is named, not swallowed.** Syncing HEAD silently while the operator is looking at their own unsynced edit would trade one surprise for a quieter one, so every path whose working tree differs from HEAD is listed in the run's report with the remedy ("commit them and re-run"). The **dry run** consults HEAD too — it exists to answer *what would ship?*, and an uncommitted edit not shipping is exactly what it should surface.
+
 ### Fixed — the coupling-header check could not fire in the workflow the contract prescribes (2026-09-14)
 
 - Phase E T12.14 of the mail-triage plan (01M1SNNTS, 01M1V2P02) — three graders, proven red-on-revert in place.
