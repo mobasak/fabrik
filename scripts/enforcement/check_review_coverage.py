@@ -345,6 +345,19 @@ _HEX_START = r"(?<![0-9a-fA-F])"
 IN_PROGRESS = re.compile(
     r"^\**Status:\**[^\S\r\n\v\f\x1c\x1d\x1e\x85\u2028\u2029]*IN-PROGRESS\b", re.M | re.I
 )
+# The THIRD sanctioned exit, and the one this file did not know existed. D-252 added a
+# scope-growth stop to `command_run.py`: when two consecutive rounds each confirm ONLY defects
+# that lie inside the review's own previous fixes, the loop is generating its own work and must
+# STOP — deliberately, at `confirmed > 0`. Nothing taught THIS reader, so a review that exited
+# correctly on that stop was refused by the only three exits it knew (quiet · BLOCKED · IN-PROGRESS)
+# and the author's honest close read as an unconverged one. A mechanism that creates a new
+# legitimate state and does not tell its graders is the MIRROR this contract asks for by name.
+SCOPE_GROWTH_EXIT = re.compile(r"^\**Status:\**[^\n]*\bscope-growth stop\b", re.M | re.I)
+# Twin of `command_run.py::SCOPE_GROWTH_ROUNDS` — keep in lockstep. NOT imported: this file is
+# fleet-synced and must grade a review in a repo whose `command_run.py` is a different vintage or
+# absent entirely, so an import turns a missing sibling into a crashed gate. The cost of a local
+# copy is drift, and drift is what the lockstep grader in tests/ exists to catch.
+_OWN_FIX_ROUNDS_FOR_STOP = 2
 PASS2 = re.compile(r"\bPass\s*2\b")
 # The proof of a rubric RUN is the script's own generated output header — a prose
 # mention is not an invocation (trade-intelligence 01M17Z7Q: a thrice-converged plan
@@ -383,6 +396,35 @@ def _in_progress(text: str) -> bool:
     # by invisible character. Every other reader gets the normalization inside _strip_fences.
     header = "".join(_normalized(text).splitlines(keepends=True)[:10])
     return bool(IN_PROGRESS.search(_strip_fences(header)))
+
+
+def _scope_growth_exit(text: str, ordered_rows: list[_Row]) -> bool:
+    """The D-252 scope-growth stop as an exit — DECLARED in the header zone AND shown in the ledger.
+
+    Header-zoned exactly like `_in_progress`, and for the same reason: an appendix sentence
+    explaining the escape must not become the escape.
+
+    ⚠️ THE CHEAPEST WAY TO SATISFY THIS WITHOUT THE OUTCOME (cobra-effect — you get the behavior
+    you measure): type "scope-growth stop" into the Status line of an ordinary non-quiet review and
+    walk away from a loop that was still converging. That is why the PHRASE alone is not enough —
+    the ledger must independently show the shape the stop keys on, two consecutive rounds that each
+    confirmed something. Faking that costs two real rounds, which is the work itself. What the
+    ledger CANNOT show is the own-fix half (`own_fix` is a run-record counter, not a ledger column),
+    so that part stays declarative and the Status line is expected to say it — form is checkable,
+    sincerity is not, the same honest boundary `_blocked_sections` draws.
+
+    `unexecuted:` still binds on the exit row under every exit: a CODE candidate nobody executed
+    closes no loop, however the loop ended.
+    """
+    header = "".join(_normalized(text).splitlines(keepends=True)[:10])
+    if not SCOPE_GROWTH_EXIT.search(_strip_fences(header)):
+        return False
+    if len(ordered_rows) < _OWN_FIX_ROUNDS_FOR_STOP:
+        return False
+    tail = ordered_rows[-_OWN_FIX_ROUNDS_FOR_STOP:]
+    if any(r[3] for r in tail):  # a stated unexecuted: on either round
+        return False
+    return all(r[1] is not None and r[1] > 0 for r in tail)
 
 
 def _blocked_sections(text: str) -> int:
@@ -604,7 +646,15 @@ def check_file(p: Path) -> list[str]:
             "after the real ledger becomes the exit round (round-13, reproduced with an "
             "appendix example row). Quote examples inside code fences"
         )
-    if ordered_rows and not blocked_ok and not _in_progress(text):
+    # ⚠️ the scope-growth exit is exempted HERE ONLY — from the quietness rule. The closing-seat
+    # rule below (V11) is NOT exempt: a loop that stopped because it was reviewing its own
+    # fixes needs a fresh non-authoring reader more than a quiet one does, not less.
+    if (
+        ordered_rows
+        and not blocked_ok
+        and not _in_progress(text)
+        and not _scope_growth_exit(text, ordered_rows)
+    ):
         last = ordered_rows[-1]
         quiet = _confirmed_quiet(last)
         if quiet is None:  # no `confirmed:` counter — the legacy rule stands

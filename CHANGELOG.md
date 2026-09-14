@@ -4,6 +4,49 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the D-252 scope-growth stop is now an exit `check_review_coverage` recognises (2026-09-15)
+
+D-252 gave the review loop a third way to end: when two consecutive rounds each confirm ONLY
+defects lying inside the review's own previous fixes, the loop is generating its own work and
+must STOP — deliberately, at `confirmed > 0`. Nothing taught `check_review_coverage.py`, which
+knew three exits (quiet · `## BLOCKED:` · `Status: IN-PROGRESS`) and refused the fourth. A
+mechanism that creates a new legitimate state and does not tell its graders is exactly the MIRROR
+the contract asks for by name, and it went unnoticed because no artifact had used the stop yet.
+
+Found when one did: a sibling's staged review artifact closed correctly on the stop and reddened
+the SHARED gate for every session in this tree. The artifact is their uncommitted work and stays
+untouched — the defect is in the committed checker, which is mine.
+
+- `_scope_growth_exit(text, ordered_rows)`: the stop is an exit only when the header zone DECLARES
+  it (zoned exactly like `_in_progress`, so an appendix sentence explaining the escape cannot
+  become the escape) **and** the ledger independently shows the shape the stop keys on — two
+  consecutive rounds that each confirmed something.
+- **The cobra path, written into the predicate's own docstring:** the cheapest way to satisfy this
+  without the outcome is to type "scope-growth stop" into the Status line of an ordinary non-quiet
+  review and walk away from a loop that was still converging. That is why the phrase alone does not
+  exempt — faking the ledger shape costs two real rounds, which is the work itself. The own-fix
+  half stays declarative (`own_fix` is a run-record counter, not a ledger column), the same honest
+  boundary `_blocked_sections` draws between checkable form and unprovable sincerity.
+- Scoped to the QUIETNESS rule alone. V11 — the closing round carried a fresh non-authoring finder
+  — is deliberately NOT exempt: a loop that stopped because it was reviewing its own fixes needs an
+  outside reader more than a quiet one does, not less. `unexecuted:` still binds under every exit.
+- `_OWN_FIX_ROUNDS_FOR_STOP` is a twin of `command_run.py::SCOPE_GROWTH_ROUNDS`, not an import —
+  this file is fleet-synced and must grade a review in a repo whose `command_run.py` is a different
+  vintage or absent, where an import turns a missing sibling into a crashed gate. A lockstep grader
+  reads the constant back out of the source and fails on drift.
+- Seven graders, each proven red on the mutation that removes its half: un-wiring the exit reds the
+  acceptance test; removing the ledger-evidence guard reds the cobra test AND the unexecuted test.
+- **Blast radius measured before shipping** (this file ships to ~46 repos): **1 of 826** review
+  artifacts under `/opt/*/docs/development/reviews/` declares the stop today — the one that
+  surfaced it. The change can only move a verdict FAIL→PASS and reds nothing that exists.
+
+### Fixed — Kaizen pieces 1+2: what the ONE heavy whole-plan review found across the seam (2026-09-15)
+
+- The two phase reviews each read one phase's delta; the whole-plan review read the seam between them and found what neither could. **The axis ordinal was wrong in both piece-1 surfaces**: continuous improvement is axis 5 of the spec's table, not "the eighth" — the eighth is `manifesto aware`, which DOES have a per-run key — so a reader following the fragment to the spec would have landed on the wrong row and concluded the `manifesto` key it had just been told to use was keyless. Fixed in `commands/_fragments/close-feedback.md` (fleet-facing, rendered into all 37 commands) and in `scripts/command_feedback_report.py`'s comment, whose citation now names `:347-350` and `:352-354` rather than a range that includes the keyless row.
+- **Piece 2 copies piece 1's whole vocabulary in prose and nothing pinned the copy** — an eighth axis would have updated `AXES` and the fragment, gone green, and left `/fabrik-command-improve` telling its reader there are seven. A grader now pins every axis name and all three bucket names against the command source, proven by mutation. Two Behavior-Contract rows that were prose-only — the lock refusal and the commit-trailer shape — gained text pins for the same reason.
+- Smaller, each found by execution: `--queue` and `--observer-rank` silently picked one instead of refusing; the module docstring's usage line listed three of seven flags; a dead `_FIELDS` constant carried a stale copy of the close's field list; and three frozen queue depths were already wrong on the day they were written (43 had become 44), so the text now tells the reader to re-derive rather than trust a number.
+- 90 graders green. Six review rounds across three loops (12 → 5 → 4 · 16 → 5 · 14 → 4); every loop's own surface was quiet after its first round, and each closed on the D-252 scope-growth stop. Six lock-owned edits — including the one-line parser fix that would close the placeholder hole piece 1 opens — ride one mail to infra, `01M2H05R2SSTJK166WAVBR3MKG`.
+
 ### Fixed — round 3 of the Phase E review: 12 defects INSIDE round 1's own fixes (2026-09-15)
 
 Two fresh non-authoring seats read the fix diff `e883d1ff..HEAD`. Every finding below was
