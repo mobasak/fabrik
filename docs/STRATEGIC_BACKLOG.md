@@ -9,6 +9,16 @@ Generated from the end-of-day plan-state on 2026-06-07 after the trio Phase 5.1.
 
 ---
 
+## [fleet] `check_corpus_weight.py` — three residues the Phase A review rounds recorded rather than cut (2026-09-14, owner: fleet)
+
+Routed here by the SCOPE GROWTH stop (D-252) at the close of `/fabrik-review-scoped` over Phase A of `docs/development/plans/2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round.md`. Four rounds confirmed 16 → 6 → 4 → 2, and rounds 2–4 were entirely own-fix residue: the original change was quiet from round 2 and every later finding lived in the previous round's prose or its consequence. Every CONFIRMED item is fixed and graded; these three are what the closing seat listed as below the bar, kept so the next reader does not re-derive them.
+
+1. **A permanently deleted surface keeps its baseline bytes forever, under a transient framing.** `--reseed` preserves a `SURFACES` key it could not measure this run and prints "kept at its previous baseline — not measurable this run". For a surface deleted for good that sentence is true of the run and false of the world, and only a hand edit removes the key. The round-3 fix closed key-immortality for keys OUTSIDE `SURFACES` (they are dropped and named); this is the inside-`SURFACES` twin. Deliberate trade against the erasure round 2 found (a transient `PermissionError` used to wipe the record), so it is a wording-plus-policy question, not a bug: either say "kept — still in the registry, not measurable this run", or add an explicit `--forget <surface>`.
+2. **Two `why` branches are effectively dead.** `_not_written_because`'s `"nothing was writable"` fallback is provably unreachable (the three causes above it are exhaustive), and `"the baseline path is not a regular file"` is reachable in the tightening branch only if a non-regular path yields parseable JSON — on this box only a FIFO with a live writer. Harmless defensive code; noted so a future reader does not mistake either for a live state.
+3. **`docs/TROUBLESHOOTING.md`'s remedy does not silence the ⚠ it answers.** The row offers `--reseed` to "raise the trend record", but the ⚠ is measured against the BASE REF, never the baseline, so reseeding changes nothing about the warning. The row never claims otherwise; a hurried reader may infer it. One clause would settle it.
+
+Fire rate: 0 observed for all three. Grader coverage of the shipped behaviour is 31 graders, every fix proven red-on-revert during the rounds.
+
 ## Ownership — every item carries an owner
 
 Three hub agents share this repo, each with a charter in [`docs/reference/agents/`](reference/agents/)

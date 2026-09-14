@@ -1,6 +1,6 @@
 # Kaizen feedback loop — pieces 3 + 4: the corpus-weight ratchet and tokens-per-round
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Profile: small
 **Owner:** —
 Date: 2026-09-12
@@ -87,7 +87,7 @@ Selections that cite no row: the baseline file name and JSON shape (`unconstrain
 
 ---
 
-## Phase A — piece 3: `check_corpus_weight.py`, its graders, and its gate registration
+## Phase A — piece 3: `check_corpus_weight.py`, its graders, and its gate registration — ✅ EXECUTED 2026-09-14
 
 **Interfaces — Produces.** `scripts/enforcement/check_corpus_weight.py`, stdlib-only:
 - `SURFACES: tuple[str, ...] = ("CLAUDE.md", "templates/governance/CLAUDE.md", "commands/_sources", "commands/_fragments", "commands/_agents", ".windsurf/rules")` — the six hub governance surfaces: the spec's three, the template the fleet reads, and the two further directories the assembler renders and installs (`commands/_agents/` holds the seat definitions, 21,821 B at `acb50492`, the plan's base snapshot (2026-09-12 14:11) — `origin/master` has since moved).

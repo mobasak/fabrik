@@ -1,0 +1,28 @@
+{
+  "plan": "docs/development/plans/2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round.md",
+  "owned_paths": [
+    "scripts/enforcement/check_corpus_weight.py",
+    "tests/enforcement/test_check_corpus_weight.py",
+    "scripts/command_feedback_report.py",
+    "tests/test_command_feedback_report.py",
+    "docs/TROUBLESHOOTING.md",
+    ".fabrik/corpus-weight-baseline.json",
+    "docs/development/reviews/2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round-review.md",
+    ".fabrik/plan-locks/2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round.json"
+  ],
+  "branch": "master",
+  "started_at": "2026-09-14T13:02:21Z",
+  "status": "active",
+  "baseline_commit": "a86950e28d7bf799242cacf71f365e8db5c28a94",
+  "baseline_gate": {
+    "status": "success",
+    "passed": 37,
+    "failed": 0,
+    "red_checks": [],
+    "skipped": [
+      "static tier"
+    ],
+    "tier": "lean",
+    "note": "no pre-existing red \u2014 every red at finish is this run's"
+  }
+}
