@@ -22,6 +22,7 @@ must fail loudly rather than quietly downgrade a check, which is what
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -312,6 +313,13 @@ def test_every_green_not_run_row_the_gate_emits_is_summarized():
         "sqlfluff (NOT INSTALLED — skipped)",
         "vulture (NOT INSTALLED — skipped)",
         "static tier (diff-sensed skip)",
+        # T12.3: the semgrep leg's four not-run paths. They were named plain "semgrep" and so
+        # reached no marker at all — the exact gap this test's own docstring warns about, found
+        # by 01M2606BZ rather than by this list.
+        "semgrep (NOT INSTALLED)",
+        "semgrep (NOT RUN \u2014 not authenticated)",
+        "semgrep (NOT RUN \u2014 timed out after 30s)",
+        "semgrep (diff-sensed skip \u2014 no src/ changes)",
     }
     unmatched = [n for n in produced if not any(m in n for m in fg._SKIP_MARKERS)]
     assert not unmatched, f"green not-run row names no marker covers: {unmatched}"
@@ -371,3 +379,138 @@ def test_the_lean_tier_carries_the_untracked_doc_row():
     assert any(
         k.arg == "warn_only" and getattr(k.value, "value", None) is True for k in hits[0].keywords
     )
+
+
+def test_the_skip_advisory_reads_the_summary_line_not_the_first_match(tmp_path: Path) -> None:
+    """T12.3 (01M20KVDT): the count was `re.search`'s FIRST match over pytest's COMBINED stdout and
+    stderr — which carries every failing test's captured output. This repo is full of graders that
+    shell out to pytest and print what they got, so the first "N skipped" in the stream is
+    routinely an inner run's.
+
+    Reproduced before fixing: one failing test printing "3 skipped in 0.01s" plus two genuinely
+    skipped tests yields matches 3 · 3 · 3 · 2, and the advisory claimed 3 where the truth was 2."""
+    reproduced = (
+        "collected 3 items\n\nsss\n\n3 skipped in 0.01s\n"
+        "=========================== short test summary info ============================\n"
+        "FAILED t/test_inner.py::test_that_prints_pytest_output\n"
+        "1 failed, 2 skipped in 0.12s\n"
+    )
+    out = fg.skip_advisory(reproduced, "TAIL")
+    assert "SKIPPED 2 test(s)" in out, out
+    assert "SKIPPED 3 test(s)" not in out
+
+
+def test_the_skip_advisory_counts_deselected_tests_too(tmp_path: Path) -> None:
+    """A deselected test did not run either, and this advisory exists to say "green does not mean
+    checked". Executed: `-m "not slow"` prints `2 passed, 4 skipped, 2 deselected` and the two
+    untested tests went unmentioned."""
+    out = fg.skip_advisory("2 passed, 4 skipped, 2 deselected in 0.11s\n", "TAIL")
+    assert "SKIPPED 4 test(s)" in out and "DESELECTED 2 test(s)" in out
+    # deselection ALONE must still raise the advisory — it is the same silence.
+    only = fg.skip_advisory("2 passed, 2 deselected in 0.11s\n", "TAIL")
+    assert "DESELECTED 2 test(s)" in only
+    # and a clean run is still untouched.
+    assert fg.skip_advisory("5 passed in 0.10s\n", "TAIL") == "TAIL"
+
+
+def test_every_semgrep_not_run_path_reaches_the_skipped_roster() -> None:
+    """T12.3 (01M2606BZ): all four semgrep not-run paths are GREEN, and `_SKIP_MARKERS` matches on
+    the ROW NAME — so a gate where semgrep never executed still reported `skipped: 0`, which
+    `_summarize_skipped`'s own docstring defines as the answer to "did every configured check
+    run?". A real semgrep run must still count as run."""
+    for name in (
+        "semgrep (NOT INSTALLED)",
+        "semgrep (NOT RUN \u2014 not authenticated)",
+        "semgrep (NOT RUN \u2014 timed out after 30s)",
+        "semgrep (diff-sensed skip \u2014 no src/ changes)",
+    ):
+        assert fg._summarize_skipped([(name, True, "")]) == {
+            "skipped": 1,
+            "skipped_checks": ["semgrep"],
+        }, name
+    assert fg._summarize_skipped([("semgrep", True, "")]) == {"skipped": 0, "skipped_checks": []}
+
+    # ...and the PRODUCER must emit those names, or the four assertions above grade only the
+    # strings this test typed. Read the gate's own semgrep block: every GREEN row it appends
+    # must carry a marker, and the one bare "semgrep" row left is the real-run row, which is
+    # appended with `code == 0` rather than a literal True.
+    src = (Path(fg.__file__).read_text(encoding="utf-8")).split("def semgrep_env_with_token")[1]
+    block = src.split("# Pytest — CI parity")[0]
+    green_rows = re.findall(r'\(\s*\n?\s*"(semgrep[^"]*)",\s*\n?\s*True', block)
+    assert green_rows, "the semgrep block appends no literal-True rows — did the block move?"
+    unmarked = [n for n in green_rows if not any(m in n for m in fg._SKIP_MARKERS)]
+    assert not unmarked, f"green semgrep rows the roster cannot see: {unmarked}"
+    assert 'results.append(("semgrep", code == 0' in block, (
+        "the real-run row must stay unmarked — a marker there would report a check that RAN "
+        "as skipped"
+    )
+
+
+def test_json_carries_a_per_check_roster_naming_every_check_and_its_outcome() -> None:
+    """T12.2 (01M20HW4E): `--json` answered `passed: 37, failed: 1` and named only the FAILURES and
+    the skips, so a consumer could not ask the one question a roster exists for — did check X run
+    here? A never-registered check and a passing check were equally invisible, and they are not
+    the same thing."""
+    # WARN_ONLY_CHECKS is populated at RUNTIME by run_optional_check registrations; at import it
+    # holds only its two static seeds, and both of those happen to carry skip markers. So the
+    # advisory case is graded against a name registered here rather than against whatever the set
+    # happens to contain — a test that reads `next(iter(...))` grades the set's ordering, not the
+    # roster (found by this assertion failing for exactly that reason).
+    fg.WARN_ONLY_CHECKS.add("synthetic advisory row")
+    try:
+        rows = [
+            ("ruff", True, ""),
+            ("mypy", False, "error"),
+            ("pytest (NOT RUN)", True, "pytest is not installed"),
+            ("synthetic advisory row", True, "\u26a0 advisory"),
+        ]
+        roster = fg._check_roster(rows)
+        assert [r["name"] for r in roster] == [r[0] for r in rows], "every row, in order"
+        by_name = {r["name"]: r["outcome"] for r in roster}
+        assert by_name["ruff"] == "pass"
+        assert by_name["mypy"] == "fail"
+        assert by_name["synthetic advisory row"] == "advisory"
+        assert by_name["pytest (NOT RUN)"] == "skipped", (
+            "a skip is its own outcome — reporting it as `pass` is the aggregate defect "
+            "`_summarize_skipped` exists to fix, repeated per row"
+        )
+    finally:
+        fg.WARN_ONLY_CHECKS.discard("synthetic advisory row")
+
+
+def test_a_row_that_is_both_warn_only_and_skipped_reports_skipped() -> None:
+    """Both static WARN_ONLY_CHECKS seeds — `pytest (NOT RUN)` and `pytest (NO TESTS COLLECTED)` —
+    are also skip rows, so the precedence is not hypothetical. SKIPPED wins, deliberately: it is
+    the more informative half (the check did not run at all), and it is what `_summarize_skipped`
+    already counts, so the roster and the `skipped` beside it cannot disagree."""
+    for name in ("pytest (NOT RUN)", "pytest (NO TESTS COLLECTED)"):
+        assert name in fg.WARN_ONLY_CHECKS, "the premise of this test — re-derive if it changes"
+        assert any(m in name for m in fg._SKIP_MARKERS)
+        assert fg._check_roster([(name, True, "")])[0]["outcome"] == "skipped"
+        assert fg._summarize_skipped([(name, True, "")])["skipped"] == 1
+
+
+def test_the_roster_and_the_kaizen_event_cannot_drift_because_they_are_one_builder() -> None:
+    """Two consumers answering differently about the same run is the drift this single-sources.
+    The kaizen `gate_run` emit must read `_check_roster`, not build its own shape."""
+    src = Path(fg.__file__).read_text(encoding="utf-8")
+    assert '"checks": _check_roster(all_results)' in src, "--json must use the shared builder"
+    assert "_checks = _check_roster(all_results)" in src, "kaizen must use the shared builder"
+    assert '"outcome": "fail" if not ok else' not in src, (
+        "the inline roster literal is the second shape this fix removed"
+    )
+
+
+def test_the_roster_agrees_with_the_aggregate_counts_it_sits_beside() -> None:
+    """A roster that disagrees with `failed`/`skipped` beside it is worse than no roster — the
+    reader cannot tell which half to believe."""
+    rows = [
+        ("a", True, ""),
+        ("b", False, "x"),
+        ("c (NOT INSTALLED)", True, ""),
+        ("d (diff-sensed skip)", True, ""),
+    ]
+    roster = fg._check_roster(rows)
+    outcomes = [r["outcome"] for r in roster]
+    assert outcomes.count("fail") == len([r for r in rows if not r[1]])
+    assert outcomes.count("skipped") == fg._summarize_skipped(rows)["skipped"]

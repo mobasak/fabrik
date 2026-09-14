@@ -306,6 +306,10 @@ A check registered `run_optional_check(..., warn_only=True)` has **no failing ex
 under `advisory` alongside a `blocking` count. Read `blocking`, not `passed`: `passed` counts rows that
 were never at risk.
 
+**The per-check roster (`checks`), added 2026-09-14 (T12.1/T12.2, 01M20HW4E).** Until then `--json` carried counts plus the names of the FAILURES and the skips only, so a consumer could not ask the question a roster exists for — *did check X run in this tier?* A check that was never registered and a check that ran and passed were equally invisible. `checks` is now a list of `{name, outcome}` over every row the run built, in order, with `outcome` one of `pass` · `fail` · `skipped` · `advisory`. Precedence, because two of the rows are both: **`skipped` wins over `advisory`** — it is the more informative half (the check did not run at all) and it is what `skipped_checks` already counts, so the roster and the counts beside it cannot disagree. The kaizen `gate_run` event reads the SAME builder (`_check_roster`), so the two consumers cannot drift into two answers about one run.
+
+⚠️ **`skipped_checks` grew on the same date and the growth is a fix, not a regression.** All four semgrep not-run paths — not installed, not authenticated, timed out, no `src/` changes — were GREEN rows named plain `semgrep`, and the skip roster matches on the ROW NAME, so a run where semgrep never executed still reported `skipped: 0` (01M2606BZ). Measured on this hub the hour it landed: a Tier-2 `--check --json` went from `skipped_checks: ['pytest']` to `['semgrep', 'pytest']`.
+
 **Why this exists.** On 2026-08-16 a canary sweep gave eight registered checks a real violation each. Each
 PRINTED the violation and each exited 0 — and produced a row identical to a check that genuinely blocks.
 Four of them (`check_compose_services`, `check_env_example`, `check_env_updates`, `check_test_coverage`)

@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `final_gate.py`: a green that skipped semgrep entirely reported `skipped: 0`, and `--json` never named the checks that ran (2026-09-14)
+
+- Phase E T12.2 + T12.3 of the mail-triage plan (01M20HW4E, 01M20KVDT, 01M2606BZ) — seven graders, each proven RED by name against the previous script.
+- **All four semgrep not-run paths were green rows named plain `semgrep`.** `_SKIP_MARKERS` matches on the ROW NAME, so not-installed, not-authenticated, timed-out and no-`src/`-changes all reported as checks that RAN. `_summarize_skipped`'s own docstring defines `skipped == 0` as the answer to "did every configured check run?" — it was answering wrong. Measured on this hub the hour it landed: Tier-2 `--check --json` went from `skipped_checks: ['pytest']` to `['semgrep', 'pytest']`.
+- **The skip advisory read `re.search`'s FIRST `N skipped`**, over pytest's *combined* stdout and stderr — which carries every failing test's captured output. This repo is full of graders that shell out to pytest and print what they got. Reproduced before fixing: one failing test printing `3 skipped in 0.01s` beside two genuinely skipped tests yields matches `3 · 3 · 3 · 2`, and the advisory claimed **3** where the truth was **2**. It now reads the last match, which is the summary line.
+- **`deselected` was never counted.** A deselected test did not run either. Executed: `-m "not slow"` prints `2 passed, 4 skipped, 2 deselected` and two untested tests went unmentioned; the advisory now names both, and deselection alone raises it.
+- **`--json` gained `checks`** — `{name, outcome}` per row, `outcome` ∈ `pass`/`fail`/`skipped`/`advisory`. `passed: 37, failed: 1` could not answer *did check X run in this tier?*: a never-registered check and a passing one were equally invisible. `skipped` wins over `advisory` where a row is both (both static `WARN_ONLY_CHECKS` seeds are), so the roster cannot disagree with the `skipped` count beside it. The kaizen `gate_run` event now reads the same builder rather than a second inline literal, so the two consumers cannot drift.
+- ⚠️ **The new ratchet attribution caught its own author on its first live firing**, naming the file and marking it `← in YOUR diff` — a lint error in this change's own test file.
+
 ### Fixed — `check_lint_ratchet.py`: the floor could move on its own, and the version guard watched the wrong binary (2026-09-14)
 
 - Phase E T12.1 of the mail-triage plan (01M1RE497, 01M1VB1NF, 01M28N2CB), four defects in one fleet-synced check, six graders each proven RED against the previous script and green against this one.

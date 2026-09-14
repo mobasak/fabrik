@@ -207,12 +207,33 @@ def skip_advisory(pytest_output: str, tail: str) -> str:
 
     Advisory, never blocking: an environment-gated skip is legitimate; an UNEXAMINED
     one is the defect. Returns ``tail`` unchanged when nothing skipped.
+
+    T12.3 (01M20KVDT, 01M2606BZ), two defects, both reproduced before fixing:
+
+    * The count was ``re.search``'s FIRST match, and the gate reads pytest's COMBINED stdout and
+      stderr — which carries the captured output of every failing test. This repo is full of
+      graders that shell out to pytest and print what they got, so the first "N skipped" in the
+      stream is routinely some inner run's. Executed: a suite of one failing test that prints
+      "3 skipped in 0.01s" plus two genuinely skipped tests yields matches ``3 · 3 · 3 · 2`` and
+      the advisory said 3 where the truth was 2. The LAST match is the summary line pytest writes
+      after everything else, so that is the one read here.
+    * ``deselected`` was never counted at all. A deselected test did not run either, and the whole
+      point of this advisory is "green does not mean checked" — executed: ``-m "not slow"`` prints
+      ``2 passed, 4 skipped, 2 deselected`` and two untested tests went unmentioned.
     """
-    m = re.search(r"(\d+) skipped", pytest_output)
-    if not m or int(m.group(1)) == 0:
+    skipped = re.findall(r"(\d+) skipped", pytest_output)
+    deselected = re.findall(r"(\d+) deselected", pytest_output)
+    n_skip = int(skipped[-1]) if skipped else 0
+    n_desel = int(deselected[-1]) if deselected else 0
+    if n_skip == 0 and n_desel == 0:
         return tail
+    parts = []
+    if n_skip:
+        parts.append(f"SKIPPED {n_skip} test(s)")
+    if n_desel:
+        parts.append(f"DESELECTED {n_desel} test(s)")
     return (
-        f"\u26a0 this green SKIPPED {m.group(1)} test(s) and asserts NOTHING about them. "
+        f"\u26a0 this green {' and '.join(parts)} and asserts NOTHING about them. "
         "A suite that silently skips is indistinguishable from one that passes — read WHY "
         "each skipped before trusting this green (a skip on a transient error, e.g. a "
         "throttle misread as 'service unreachable', deletes a whole suite from the gate).\n"
@@ -342,6 +363,33 @@ def _summarize_skipped(rows: list[tuple[str, bool, str]]) -> dict[str, object]:
                 names.append(name.split(marker)[0].strip())
                 break
     return {"skipped": len(names), "skipped_checks": names}
+
+
+def _check_roster(rows: list[tuple[str, bool, str]]) -> list[dict[str, str]]:
+    """Every check the run built, with what became of it — the ROSTER, not a count.
+
+    T12.2 (01M20HW4E): `--json` answered `passed: 37, failed: 1` and named only the FAILURES and
+    the skips. A consumer could not ask the one question a gate roster exists to answer — "did
+    check X run here?" — because a check that was never registered in this tier and a check that
+    ran and passed are both invisible, and they are not the same thing at all.
+
+    One function feeds both consumers on purpose: the kaizen `gate_run` event carried this shape
+    already and `--json` did not, so the two could have drifted into two different answers about
+    the same run. `skipped` is a real outcome here rather than a `pass`, which is the whole
+    argument of `_summarize_skipped` applied per row instead of in aggregate.
+    """
+    out: list[dict[str, str]] = []
+    for name, ok, _ in rows:
+        if not ok:
+            outcome = "fail"
+        elif any(marker in name for marker in _SKIP_MARKERS):
+            outcome = "skipped"
+        elif name in WARN_ONLY_CHECKS:
+            outcome = "advisory"
+        else:
+            outcome = "pass"
+        out.append({"name": name, "outcome": outcome})
+    return out
 
 
 def run_optional_check(
@@ -952,16 +1000,29 @@ def run_static_checks(
         except subprocess.TimeoutExpired:
             code, out = 0, f"(semgrep timed out after {semgrep_timeout}s, skipping)"
 
+        # T12.3 (01M2606BZ): all four not-run paths below are GREEN and were named plain
+        # "semgrep", and `_SKIP_MARKERS` matches on the ROW NAME — so a run where semgrep never
+        # executed reported `skipped: 0`, which `_summarize_skipped`'s own docstring defines as
+        # the answer to "did every configured check run?". The name now carries the marker, which
+        # is the only thing that reaches the roster.
         if "Command not found: semgrep" in out:
-            results.append(("semgrep", True, "(semgrep not installed, skipping)"))
+            results.append(("semgrep (NOT INSTALLED)", True, "(semgrep not installed, skipping)"))
         elif "HTTP 401" in out or "semgrep login" in out.lower():
-            results.append(("semgrep", True, "(semgrep not authenticated - run: semgrep login)"))
+            results.append(
+                (
+                    "semgrep (NOT RUN — not authenticated)",
+                    True,
+                    "(semgrep not authenticated - run: semgrep login)",
+                )
+            )
         elif "timed out" in out:
-            results.append(("semgrep", True, out))
+            results.append((f"semgrep (NOT RUN — timed out after {semgrep_timeout}s)", True, out))
         else:
             results.append(("semgrep", code == 0, out if code != 0 else ""))
     else:
-        results.append(("semgrep", True, "(no src/ changes, skipping)"))
+        results.append(
+            ("semgrep (diff-sensed skip — no src/ changes)", True, "(no src/ changes, skipping)")
+        )
 
     # Pytest — CI parity (only when THIS repo's CI runs pytest). Prevents the
     # #1 local-green/CI-red gap: an agent reaches "status: success" yet pushes
@@ -2649,11 +2710,7 @@ def main() -> int:
     # It reads `all_results`; it never writes it, and emit() never raises (fail-open).
     if kaizen_events:
         _mode = {k: bool(getattr(args, k)) for k in ("check", "lean", "systemic", "json")}
-        _adv = WARN_ONLY_CHECKS  # rows that cannot fail — labelled, never counted as pass
-        _checks = [
-            {"name": n, "outcome": "fail" if not ok else "advisory" if n in _adv else "pass"}
-            for n, ok, _ in all_results
-        ]
+        _checks = _check_roster(all_results)  # the SAME roster --json emits; never a second shape
         _status = "success" if not failed else "failure"
         with contextlib.redirect_stderr(io.StringIO()):  # not one byte on the gate's stderr
             kaizen_events.emit(
@@ -2686,6 +2743,9 @@ def main() -> int:
             **_summarize_skipped(all_results),
             "advisory": advisory_rows,
             "blocking": passed_count - len(advisory_rows),
+            # T12.2: the per-check roster. `passed`/`failed`/`skipped` are counts; this is the
+            # only key that lets a consumer assert a NAMED check actually ran in this tier.
+            "checks": _check_roster(all_results),
             "failures": [
                 {
                     "check": name,
