@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the sync now distributes git's file mode, not the hub box's umask (2026-09-14)
+
+- Found by executing the T12.17 change against real synced files rather than re-reading it: `.claude/hooks/final_gate_stop.py` is `0o775` on this disk and arrives `0o755`. `shutil.copy2` carried the source's FULL mode; git records only `100644` / `100755`.
+- **This is the improvement, not the regression, and it is now stated where the next reader meets it.** `0o775` is a local umask artifact git never tracked and a fresh clone never has — the old behaviour propagated one box's umask to ~46 repos, the new one distributes exactly what CI would check out. The bit that matters is preserved: an executable stays executable, and a grader now pins **both** halves (the `+x` survives; the mode is git's `0o755` even when the source on disk is `0o775`).
+- Also verified while there, since a bytes-based copy is where binary corruption would hide: **0 of the 47** manifest-owned files present on disk are binary, so the text/bytes distinction cannot bite today — and `git show` is read without `text=True`, so it would not bite if one appeared.
+
 ### Fixed — the new `--check` format leg reported files its own fixer refuses to touch (2026-09-14)
 
 - Found by the Stop hook on the live tree within the hour of shipping T12.6: `ruff-format (--check)` failed the gate on `scripts/command_feedback_report.py`, a **sibling's uncommitted 151-line WIP**, which a plain run would correctly leave alone.

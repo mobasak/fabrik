@@ -1580,6 +1580,14 @@ def _head_source(source: Path) -> tuple[bytes, int] | None:
     an error. Any file whose working tree differs from HEAD is recorded in `_head_drift` and named
     LOUDLY in the run's report: syncing HEAD silently while the operator is looking at their own
     unsynced edit would trade one surprise for a quieter one.
+
+    ⚠️ THE SHAPE THIS CHANGED, stated rather than discovered later. `shutil.copy2` carried the
+    source's FULL mode; git records only `100644` / `100755`. Measured on a real synced file the
+    hour this landed: `.claude/hooks/final_gate_stop.py` is `0o775` on this disk and now arrives as
+    `0o755`. That is a deliberate improvement, not a regression — `0o775` is a local umask artifact
+    that git does not track and a fresh clone never has, so the old behaviour propagated one box's
+    umask to ~46 repos while the new one distributes exactly what CI would check out. The bit that
+    MATTERS is preserved: an executable stays executable, which is graded.
     """
     try:
         rel = source.resolve().relative_to(_HUB_ROOT).as_posix()

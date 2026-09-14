@@ -107,6 +107,17 @@ def test_the_executable_bit_survives_the_head_read(hub, tmp_path: Path) -> None:
     dest = tmp_path / "out" / "committed.py"
     mod._atomic_copy(committed, dest)
     assert stat.S_IMODE(os.stat(dest).st_mode) & 0o111, f"lost +x: {oct(os.stat(dest).st_mode)}"
+    # ...and it is GIT's mode, not the local file's. `shutil.copy2` carried the source's full mode;
+    # git records only 100644/100755, so a source that is 0o775 on this box (a umask artifact git
+    # never tracked and a fresh clone never has) now arrives 0o755 — what CI would check out.
+    # Measured live when this landed on `.claude/hooks/final_gate_stop.py`.
+    committed.chmod(0o775)
+    dest2 = tmp_path / "out2" / "committed.py"
+    mod._atomic_copy(committed, dest2)
+    assert stat.S_IMODE(os.stat(dest2).st_mode) == 0o755, (
+        f"expected git's 100755, got {oct(stat.S_IMODE(os.stat(dest2).st_mode))} — the local "
+        "umask must not ride the sync into 46 repos"
+    )
 
 
 def test_a_source_outside_the_hub_is_left_alone(hub, tmp_path: Path) -> None:
