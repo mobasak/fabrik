@@ -436,7 +436,7 @@ def main() -> int:
     # filenames, never a tree↔row comparison, and it is UNWIRED besides.
     #
     # FIRE RATE, measured 2026-09-14 before arming (FIX DIRECTIVE 5):
-    #   * whole tree — 584 of 863 tracked files under scripts/ tests/ .claude/hooks/ .fabrik/
+    #   * whole tree — 584 of 865 tracked files under scripts/ tests/ .claude/hooks/ .fabrik/
     #     carry no INDEX mention. A whole-tree check is 584 findings on landing day: wallpaper.
     #   * staged-scope, ADDED paths only — of 113 such files added since 2026-09-01, 37 (33 %)
     #     are still unindexed today. True positives, not false ones (the Matrix asks for the row),

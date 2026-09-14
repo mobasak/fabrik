@@ -43,6 +43,17 @@ def _mod():
     return mod
 
 
+@pytest.fixture(autouse=True)
+def _pop_the_module_after_each_test():
+    """Leave no module behind. The sibling file added in this same range
+    (`test_scratch_sweep_sync_materialised.py`) pops its module on teardown and this one did not —
+    dead state in `sys.modules` for the rest of the pytest process, and an asymmetry between two
+    files written the same hour. Low risk here (the name is unique), fixed because the review
+    asked whether it was deliberate and the honest answer was no."""
+    yield
+    sys.modules.pop("sync_head_src", None)
+
+
 @pytest.fixture
 def hub(tmp_path: Path):
     """A throwaway 'hub' with one committed synced file and one untracked one."""

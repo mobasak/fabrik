@@ -198,8 +198,9 @@ exit code. This row is the other half of that decision.
 **Measured 2026-09-14 on the hub, before arming** (tool: `git ls-files` for the population,
 `command grep -qF` per basename against INDEX.md; `git log --diff-filter=A` for the additions):
 
-- **Whole tree: 584 of 863** tracked files under those four roots carry no INDEX mention at all
-  (68 %). A whole-tree check is 584 findings on landing day — the definition of wallpaper.
+- **Whole tree: 584 of 865** tracked files under those four roots carry no INDEX mention at
+  all (68 %). ⚠️ It read 584/863 when the check landed and 584/865 three commits later — the two
+  extra are test files this very phase added, which is precisely the drift the row is about. A whole-tree check is 584 findings on landing day — the definition of wallpaper.
 - **Staged-scope, added-only: 37 of 113** such files added since 2026-09-01 are still unindexed
   (33 %). These are TRUE positives — the Doc Sync Matrix asks for the row — but a third of every
   code-adding commit is too many to block on day one.
@@ -224,7 +225,11 @@ measured, and this row is the other half of the decision.
 **Measured 2026-09-14 on the hub** (`bandit -ll -x tests/ -r scripts/`, findings attributed with
 `--msg-template '{relpath}'` and bucketed by subtree): **480** findings over **204** files, of
 which **423 (88 %) are inside the vendored `scripts/kilo-benchmarks/`** and 13 more in
-`scripts/.archive/`. Excluding vendored and archived subtrees: **43** findings in **4.7 s**. Of
+`scripts/.archive/`. ⚠️ The first cut of this row named only those TWO exclusions; the gate
+excludes **three** — `scripts/kilo-benchmarks/`, `scripts/.archive/` and `scripts/archived/` (no
+dot), the last holding 1 further HIGH B324 in `kilo_code_review.py`. Anyone reproducing the
+figure with a two-exclusion command gets 44 findings and 1 remaining HIGH, which is exactly the
+confusion an author-blind seat hit. Excluding all three: **43** findings in **4.7 s**. Of
 those 43, the 7 HIGH were all B324 (md5 for change detection) and are now closed properly — each
 call declares `usedforsecurity=False`, which states the purpose to bandit, to the interpreter and
 to the next reader, where the `# noqa: S324` it replaced suppressed a ruff rule this repo does not

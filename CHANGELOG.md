@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — four stale or incomplete numbers I wrote this phase, each re-derived rather than patched (2026-09-15)
+
+- **`FINAL_GATE_WORKFLOW.md:220` contradicted itself inside one sentence.** My T12.8 edit updated "34"/"54" to "36"/"55" in two places and left three others — "Two of the **54**", the parenthetical "tier 1 → 34, tier 2 → 54", and the call-count aside "34 / 52 / 20" — in the *same paragraph*. The `GATE-COUNTS` grader only reads the HTML comment, so it could not catch prose repeating the numbers later. All re-derived.
+- **The `584 of 863` denominator was stale by the time it landed.** Measured 584/863 at the commit that introduced it and **584/865** three commits later — the two extra are the test files this very phase added. Both the check's comment and the backlog row now carry 865 and say why it moved, which is the drift the number is about.
+- **The bandit row named two excluded subtrees; the gate excludes three.** `scripts/archived/` (no dot) was unnamed, and it holds one further HIGH — so anyone reproducing "43 findings, 0 HIGH" with a two-exclusion command gets 44 and 1, which is exactly the confusion an author-blind seat hit. Named, with the cost of omitting it.
+- **A test file left its module in `sys.modules`** while its sibling — added the same hour, in the same range — popped it on teardown. Low risk, fixed because the review asked whether the asymmetry was deliberate and the honest answer was no.
+
 ### Added — Kaizen loop piece 1: the close-out `change:` field becomes axis-keyed (2026-09-15)
 
 - `commands/_fragments/close-feedback.md` (auto-appended to all 36 rendered commands under `~/.claude/commands/`, box-wide, NOT fleet-synced): a `change:` verdict now leads with ONE axis key naming the property of the command text it improves — `lean` · `fast` · `accurate` · `waste` · `infra` · `rules` · `manifesto`, each glossed in one clause because a vocabulary without definitions produces inconsistent data, and `infra` is disambiguated from the `filed:` field's infra BEAT. The eighth axis, continuous improvement, is read across runs and has no per-run key. The queue 157 of 162 ledger rows already carry becomes sortable instead of prose.
