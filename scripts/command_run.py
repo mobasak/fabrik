@@ -320,6 +320,47 @@ def convergence_warning(
     )
 
 
+# Rounds of ALL-OWN-FIX residue needed before the scope-growth stop speaks. TWO, not the
+# breaker's three: the signal is far stronger than a flat count. A round whose ENTIRE confirmed
+# yield sits inside text the review itself added is not reviewing the artifact any more — it is
+# reviewing its own previous fix, and that surface regenerates every time it is corrected.
+SCOPE_GROWTH_ROUNDS = 2
+
+
+def scope_growth_warning(rows: list[Any]) -> str:
+    """Advisory scope-growth diagnosis, or "" — NEVER blocks (a heuristic must not trap).
+
+    The counted form of term-edit's scope-growth stop. The stall breaker keys on a count that
+    stops FALLING; this failure mode produces a count that keeps falling (8 · 6 · 5 · 7 · 4 · 2
+    over the mail-triage Phase B review, 2026-09-14) while every finding lands in the review's
+    own fix prose, so nothing mechanical ever caught it and the loop ran 21 rounds over a
+    surface that had been quiet since round 13. A round reports its own residue with
+    `round --own-fix <n>`; when two consecutive rounds confirm defects and EVERY one of them was
+    own-fix, the review has outgrown the artifact.
+    """
+    counted = [
+        r
+        for r in rows
+        if isinstance(r, dict) and r.get("own_fix") is not None and _confirmed(r) is not None
+    ]
+    if len(counted) < SCOPE_GROWTH_ROUNDS:
+        return ""
+    window = counted[-SCOPE_GROWTH_ROUNDS:]
+    if not all(int(r["own_fix"]) == _confirmed(r) and _confirmed(r) > 0 for r in window):
+        return ""
+    arrow = " → ".join(f"{_confirmed(r)}/{int(r['own_fix'])}" for r in window)
+    return (
+        f"\n⚠️  SCOPE GROWTH — the last {SCOPE_GROWTH_ROUNDS} rounds confirmed ONLY defects "
+        f"inside text this review itself added (confirmed/own-fix: {arrow}).\n"
+        "    The artifact's own surface is quiet; you are reviewing your previous fix, and "
+        "correcting prose regenerates the surface you are correcting.\n"
+        "    Exit (term-edit § Scope-growth stop): STOP the loop — route the remaining own-fix "
+        "work to a backlog row with a named destination, and close on the ORIGINAL delta's "
+        "state, whose last own-surface round is the one that matters.\n"
+        "    (Advisory only — nothing is blocked.)"
+    )
+
+
 def _confirmed(row: Any) -> int | None:
     """One round's CONFIRMED count, or None when that round never stated it.
 
@@ -446,6 +487,11 @@ def _round_report(rec: dict[str, Any]) -> str:
     )
     if warn:
         lines.append(warn)
+    # A loop can converge on the COUNT and still be reviewing only its own fixes — the two
+    # advisories answer different questions and neither subsumes the other, so both may speak.
+    growth = scope_growth_warning(rounds)
+    if growth:
+        lines.append(growth)
     return "\n".join(lines)
 
 
@@ -1797,6 +1843,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help="candidates CONFIRMED by execution this round — the EXIT counter "
         "(omitted = not stated; the old --findings 0 rule then stands)",
     )
+    p.add_argument(
+        "--own-fix",
+        type=int,
+        default=None,
+        help="of this round's CONFIRMED defects, how many lay inside text THIS REVIEW added in "
+        "an earlier round (its own fix prose or code) rather than the artifact's own surface — "
+        "two consecutive rounds where every confirmed defect is own-fix trips the scope-growth "
+        "stop (omitted = not stated, which asserts nothing)",
+    )
     p.add_argument("--classes-swept", default="", help="comma-separated, swept CLEAN")
     p.add_argument("--classes-new", default="", help="comma-separated, newly opened")
     p.add_argument(
@@ -2338,6 +2393,10 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 # terminal rule reads presence, so a written-through default would silently
                 # re-point every legacy record's exit at a counter nobody typed
                 **({} if args.confirmed is None else {"confirmed": args.confirmed}),
+                # ABSENT when not stated, like `confirmed`: the scope-growth stop reads presence,
+                # and a defaulted 0 would silently assert "none of this round's findings were my
+                # own residue" for every loop that has not yet heard of the flag
+                **({} if args.own_fix is None else {"own_fix": args.own_fix}),
                 # in the RECORD, not only the event stream: dispatch_headroom.py's sibling guard
                 # reads `rounds[-1].seats` off every fresh running record, and the first draft
                 # wrote seats to the event only — the guard read None everywhere and was inert

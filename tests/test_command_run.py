@@ -2947,6 +2947,46 @@ def test_the_oscillation_detector_is_silent_for_per_unit_rounds() -> None:
     assert cr.convergence_warning(oscillating, "fabrik-repo-review") == ""
 
 
+def test_the_scope_growth_stop_fires_when_a_loop_only_reviews_its_own_fixes() -> None:
+    """The mail-triage Phase B review, 2026-09-14: 21 rounds, confirmed 8 · 6 · 5 · 7 · 4 · 2,
+    every finding from round 14 on inside the review's OWN fix prose while the artifact's code
+    had been quiet since round 13. The stall breaker never fired — correctly, its condition is a
+    count that stops FALLING, and this failure mode produces a falling count. term-edit carried
+    the scope-growth stop in prose and nothing counted it, so nobody noticed for eight rounds.
+
+    The rule is now counted: two consecutive rounds whose CONFIRMED yield was ENTIRELY own-fix.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("cr_growth", _SCRIPT)
+    cr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cr)
+
+    # the real series: falling counts, every one of them the review's own residue
+    rows = [
+        {"n": 1, "confirmed": 7, "own_fix": 7},
+        {"n": 2, "confirmed": 4, "own_fix": 4},
+    ]
+    warn = cr.scope_growth_warning(rows)
+    assert "SCOPE GROWTH" in warn, warn
+    assert "7/7 → 4/4" in warn, warn
+    assert "backlog row" in warn, warn
+
+    # ONE such round is not the signal — a fix legitimately yields residue once (D10 rule 3
+    # rewrites on the SECOND, and this stop is its mechanical sibling)
+    assert cr.scope_growth_warning(rows[:1]) == ""
+
+    # a round that found defects in the ARTIFACT is the loop working, however small the count
+    assert cr.scope_growth_warning([rows[0], {"n": 2, "confirmed": 4, "own_fix": 3}]) == ""
+
+    # silence is not assent: a loop that never states the counter asserts nothing, exactly as
+    # `confirmed` does — a defaulted 0 would claim "no residue" for every legacy record
+    assert cr.scope_growth_warning([{"n": 1, "confirmed": 7}, {"n": 2, "confirmed": 4}]) == ""
+
+    # a QUIET round never trips it — zero confirmed is convergence, not scope growth
+    assert cr.scope_growth_warning([{"n": 1, "confirmed": 0, "own_fix": 0}] * 2) == ""
+
+
 def test_the_oscillation_detector_still_fires_for_single_brief_loops() -> None:
     """The teeth must survive: /fabrik-review and the gate commands DO run one re-swept brief,
     which is exactly the model the heuristic is right about."""
