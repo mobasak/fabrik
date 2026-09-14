@@ -1469,6 +1469,35 @@ def _merged_from(repo: Path, target: str, branch: str) -> bool:
     return False
 
 
+def _is_sync_materialised(worktree: Path, rel: str) -> bool:
+    """Is `rel` inside this worktree a file the governance sync PUT there, unmodified?
+
+    Two conditions, both required (T12.23): the path is owned by `fabrik_synced_manifest`, and its
+    bytes match the hub's copy. The second is what keeps this from laundering a hand-edited synced
+    file into "clean" and letting a worktree be deleted over it.
+
+    Any failure to answer — no manifest, an unreadable file, no hub copy — returns False, which
+    keeps the worktree DIRTY. A destructive verdict fails toward keeping the work.
+    """
+    try:
+        import fabrik_synced_manifest as _fsm  # noqa: PLC0415 — optional, hub-only
+    except Exception:  # noqa: BLE001 — no manifest → nothing is provably sync-owned
+        return False
+    rel = rel.strip().strip('"')
+    try:
+        owned: set[str] = set()
+        for group in _fsm.gitignore_dest_paths().values():
+            owned.update(group)
+    except Exception:  # noqa: BLE001
+        return False
+    if not any(rel == o or (o.endswith("/") and rel.startswith(o)) for o in owned):
+        return False
+    try:
+        return (worktree / rel).read_bytes() == (_fsm.FABRIK_ROOT / rel).read_bytes()
+    except OSError:
+        return False
+
+
 def _ignored_data(repo_wt: Path) -> list[str]:
     """Ignored paths that are DATA, not rebuildable cache.
 
@@ -1720,8 +1749,19 @@ def _worktree_chain(
     rc, status = _git(path, "status", "--porcelain")
     if rc == 0 and status.strip():
         all_names = [ln[3:] for ln in status.splitlines()]
-        shown = ", ".join(all_names[:5]) + ("…" if len(all_names) > 5 else "")
-        return "wt-dirty", f"uncommitted work ({len(all_names)}): {shown}", ""
+        # T12.23 (01M23JK2R, reported by wef3): the governance sync MATERIALISES manifest-owned
+        # files into a worktree, so a worktree nobody has touched reads dirty and can never be
+        # removed. Those paths are not "uncommitted work" by any session — nothing authored them.
+        #
+        # ⚠️ NARROW ON PURPOSE. A manifest-owned path is ignored only when it is byte-identical to
+        # the hub's copy, i.e. it really is the sync's own output. A HAND-EDITED synced file stays
+        # dirty and keeps the worktree: `check_synced_unmodified.py` forbids that edit and the next
+        # sync would overwrite it, but removing a worktree is destructive and a destructive verdict
+        # does not get to assume which side of that line an edit falls on.
+        authored = [n for n in all_names if not _is_sync_materialised(path, n)]
+        if authored:
+            shown = ", ".join(authored[:5]) + ("…" if len(authored) > 5 else "")
+            return "wt-dirty", f"uncommitted work ({len(authored)}): {shown}", ""
     if branch in stashed:
         return (
             "wt-dirty",

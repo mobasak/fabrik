@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a worktree the governance sync wrote into was classified dirty forever (2026-09-14)
+
+- Phase E T12.23 of the mail-triage plan (01M23JK2R, reported by wef3) — five graders, proven red-on-revert in place.
+- **The sync materialises manifest-owned files into every registered worktree**, so a worktree nobody has touched reads `git status --porcelain` non-empty and is `wt-dirty` — never removable, permanently. Those paths are not uncommitted work by any session; nothing authored them. The dirty verdict now counts only AUTHORED paths.
+- ⚠️ **Narrow on purpose:** a manifest-owned path is exempt only when it is **byte-identical** to the hub's copy — i.e. it really is the sync's own output. A hand-edited synced file keeps the worktree dirty. Removing a worktree is destructive, and a destructive verdict does not get to assume which side of that line an edit falls on; every failure to answer (no manifest, unreadable file, no hub copy) also returns "dirty".
+- **Denominator, stated rather than implied:** this could not be measured on the hub. All **19** registered worktrees here classify `wt-foreign` or `wt-orphan-dir`, both of which short-circuit before the dirty check, so **0 of 19** reached it. The population wef3 reported is in their repo; the fixture graders stand in for it.
+- T12.22 was re-derived and is **fully refuted at HEAD** — the schema doc already documents the flat-parser constraint in the exact terms the row asked for (`EPIC-ARTIFACT-SCHEMA.md:47`: the block-list shape is valid ONLY for `depends_on`, `parallel_with`, `owned_paths`, and the same shape elsewhere is a malformed-value finding). Nothing to build; the reply is owed.
+
 ### Fixed — the key-autoload note named the exception and not the consequence (2026-09-14)
 
 - Phase E T12.19 of the mail-triage plan (01M21TGTR, 01M25GEXP, 01M28K3N8) — three graders driving the real `main()`, proven red-on-revert in place.
