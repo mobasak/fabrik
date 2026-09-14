@@ -149,6 +149,8 @@ and the receipt's own row (`C3-R5`) records "exempts 4 of the 8 files this revie
 own work reads as spontaneous. **Do:** let the exemption also cover paths the record's own
 `review-fix` commits touched, or add a verb to widen a running record's surface.
 
+⚠️ **And the same gap has a TIME axis, measured 2026-09-14 by reproducing the sixth cause in-process.** Of this session's 29 post-floor edits, exactly **one** file is uncovered: `scripts/final_gate.py`, edited 09-12 15:45:36. That edit was committed in Phase B's own `b3f96c8e`, reviewed by Phase B's 14-round `/fabrik-review`, fixed again by that review at `bb995e60`, and its receipt names the file **13** times — so it is reviewed in substance and uncovered in the ledger, because the review record's window opens AFTER the edit event it reviewed. The name axis (this row) and the time axis are one mechanism: coverage is computed from when the record ran, never from what the record read. A fix that only widens the surface leaves this half open.
+
 ## [infra] `command_run.py`'s `start` silently discards every parked frame on a non-running record, and its own readers still die on a corrupt field
 
 Two findings from Phase C's review, both one hop out of its hunks. (1) `scripts/command_run.py:2124`
