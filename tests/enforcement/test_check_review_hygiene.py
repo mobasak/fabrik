@@ -460,6 +460,20 @@ def test_no_argument_mode_self_selects_a_changed_receipt(tmp_path, monkeypatch):
     # The CLASS NAME must butt straight against `docs/` — a substring assertion on the relative
     # tail alone passes on the absolute path too (that mutant survived until this was tightened).
     assert "[ADVISORY] dual-verdict docs/development/reviews/2026-09-09-x-review.md:3 —" in r.stdout
+    # round 20: `--receipt` suppresses self-selection too — `self_selected` is a FOUR-way
+    # disjunction (surfaces, receipts, phrase, symbol) and only the no-argument run self-selects.
+    # A named receipt elsewhere is scanned instead, and the self-selected one is not.
+    other = tmp_path / "other-review.md"
+    other.write_text(
+        "| # | Class | Finding | Disposition |\n"
+        "|---|---|---|---|\n"
+        "| F1 | shape | a row | FIXED — moved; the spans REFUTED again |\n",
+        encoding="utf-8",
+    )
+    r = _run(["--receipt", str(other)], root)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "2026-09-09-x-review.md" not in r.stdout, r.stdout
+    assert "other-review.md:3 —" in r.stdout, r.stdout
 
 
 def test_no_argument_mode_prefers_the_project_root_the_gate_exports(tmp_path):
