@@ -104,15 +104,51 @@ def test_the_clean_path_states_how_many_scripts_it_inspected(tmp_path: Path) -> 
     )
 
 
-def test_nothing_staged_says_so_rather_than_exiting_mute(tmp_path: Path) -> None:
-    """The early-return path — the shape the bare run in the report actually hit."""
+def test_nothing_staged_or_modified_says_so_rather_than_exiting_mute(tmp_path: Path) -> None:
+    """The early-return path — the shape the bare run in the report actually hit. Reworded at
+    T12.14: the check is no longer staged-ONLY, so the line names both scopes it tried."""
     repo = _repo(tmp_path, "# AFTER-EDIT: none\nx = 1\n")
-    out = _run(repo)  # stage nothing at all
-    assert "nothing staged" in out, f"an empty index must be explained, not silent: {out!r}"
-    assert "staged-scoped" in out, "it must name WHY it inspected nothing"
-    assert "0 of 0 staged script(s) inspected" in out, (
-        out
-    )  # the same `N of M` shape as the clean line (pass 49)
+    out = _run(repo)  # stage nothing at all; the files are untracked, so no diff either
+    assert "nothing staged or modified" in out, f"an empty scope must be explained: {out!r}"
+    assert "falling back to the working tree" in out, "it must name WHY it inspected nothing"
+    assert "0 of 0 script(s) inspected" in out, out
+
+
+def test_a_pre_stage_run_inspects_the_working_tree(tmp_path: Path) -> None:
+    """T12.14 (01M1SNNTS). The completion workflow runs `final_gate.py --check` BEFORE `git add`,
+    because the gate is what tells you the change is ready to commit — so the index is empty and
+    the one check designed to catch a coupled-file omission had nothing to inspect. It cost a real
+    divergence: `scripts/sysadmin/claude_rotate.py` was committed without the vendored twin its own
+    header names, and for one commit the fleet carried two copies broadcasting different resume
+    instants (e8f0473d)."""
+    repo = _repo(tmp_path, "# AFTER-EDIT: docs/coupled.md\nx = 1\n")
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-qm", "base"], check=True)
+    # modify the script ONLY, and stage nothing — the pre-stage moment the gate actually runs in
+    (repo / "scripts" / "thing.py").write_text(
+        "# AFTER-EDIT: docs/coupled.md\nx = 2\n", encoding="utf-8"
+    )
+    out = _run(repo)
+    assert "1 of 1" in out or "thing.py" in out, f"the pre-stage run inspected nothing: {out!r}"
+    assert "docs/coupled.md" in out, (
+        "the coupled file was not also changed, which is exactly what this check exists to say"
+    )
+
+
+def test_the_pre_stage_run_names_its_scope(tmp_path: Path) -> None:
+    """A warning about a file you did not touch must be legible as a sibling's rather than a
+    mystery, so the scope is named — this check reads unstaged files, which on a shared tree may
+    be another session's work. It never writes or stages, which is why READING them is safe."""
+    repo = _repo(tmp_path, "# AFTER-EDIT: docs/coupled.md\nx = 1\n")
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-qm", "base"], check=True)
+    (repo / "scripts" / "thing.py").write_text(
+        "# AFTER-EDIT: docs/coupled.md\nx = 2\n", encoding="utf-8"
+    )
+    out = _run(repo)
+    assert "working-tree" in out or "pre-stage" in out, (
+        f"the output must say which scope produced it: {out!r}"
+    )
 
 
 def test_staged_non_scripts_are_counted_honestly(tmp_path: Path) -> None:

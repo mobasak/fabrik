@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the coupling-header check could not fire in the workflow the contract prescribes (2026-09-14)
+
+- Phase E T12.14 of the mail-triage plan (01M1SNNTS, 01M1V2P02) — three graders, proven red-on-revert in place.
+- **`final_gate.py --check` runs BEFORE `git add`** — the gate is what tells you a change is ready to commit — so a staged-ONLY check had nothing to inspect in the one moment it matters. It cost a real divergence: `scripts/sysadmin/claude_rotate.py` was committed without the vendored twin its own header names, and for one commit the fleet carried two copies that would have broadcast different resume instants to every repo mailbox (`e8f0473d`). The check now falls back to the working-tree diff, and **every line of output names the scope it used** — on a shared tree that diff carries other sessions' unstaged edits, so a warning about a file you did not touch must be legible as a sibling's rather than a mystery. Reading them is safe where writing them would not be; this check never writes or stages.
+- ⚠️ **The other half of the report was measured and REJECTED.** wef2's diagnosis is right — the coupling is directional and a checker script is stable while the data it measures churns — but the proposed remedy (inspect the header whenever any named file is staged) fires on **591 of 1,037** commits since 2026-09-01 (57 %); excluding the Doc-Sync sinks leaves 37 %, excluding every `docs/` path still leaves 27 %. The top trigger is `CHANGELOG.md`, named by exactly one header and touched by nearly every commit — which is why a fan-in heuristic does not help either (fan-in 1 still fires 52 %). At those rates a WARN line teaches readers to skip the block. Rejecting a mechanism after measuring is a valid outcome; the numbers are in the check's own docstring and the real answer — a header opting IN to a symmetric coupling per file — is filed as spec-sized work.
+
 ### Fixed — the decision ledger claimed an order it has never had, and a row outside the table was blessed (2026-09-14)
 
 - Phase E T12.12 of the mail-triage plan (01M295S5G, 01M1T1134) — five graders, proven red-on-revert in place (with the fix reverted the suite cannot even import).

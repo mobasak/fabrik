@@ -58,6 +58,37 @@ surface is missing one. Cross-repo, so it is fabrik-lib's to fix.
 **Do:** mail fabrik-lib — a bounded store (or a documented `reset()`), and a note in the pack that a
 title must be a STABLE key, not a formatted string.
 
+## [infra] `# AFTER-EDIT:` needs a SYMMETRIC coupling it can opt into — blanket symmetry was measured and rejected
+
+wef2 reported (01M1V2P02) that the coupling is directional and points the wrong way for how the
+files actually change: a checker script is stable, the DATA it measures churns, so editing
+`packages/sections/registry.json` without `docs/reference/section-registry.md` satisfies every
+check while breaking exactly the coupling the header declares. Their diagnosis is correct and the
+live instance was real — a doc went nine places stale with the coupling declared and silent.
+
+**The obvious remedy — inspect the header whenever ANY file it names is staged — was measured over
+1,037 commits since 2026-09-01 and REJECTED** (T12.14, 2026-09-14):
+
+| variant | fires on | share |
+|---|---|---|
+| every named file | 591 commits | 57 % |
+| minus the Doc-Sync sinks (CHANGELOG, INDEX, DECISIONS, …) | 383 commits | 37 % |
+| minus sinks and every `docs/` path | 276 commits | 27 % |
+
+The top trigger is `CHANGELOG.md` — named by exactly ONE header (`ci_fix_dispatcher.py`) and
+touched by almost every commit, which is also why a fan-in heuristic does not help (fan-in 1 still
+fires 52 %). At 27 % a WARN line is noise that teaches readers to skip the block, and that is how
+enforcement dies. Rejecting a mechanism after measuring is a valid outcome (FIX DIRECTIVE 5); the
+numbers are recorded in `check_script_headers.py`'s own docstring so the next person does not
+re-derive them.
+
+**Do — spec-sized, not a patch:** let a header declare the symmetric half explicitly, e.g.
+`# AFTER-EDIT: docs/x.md | SYMMETRIC: packages/sections/registry.json`, so the author opts in
+exactly where the coupling really is bidirectional. False positives are then zero by construction
+and the fire rate is whatever authors declare. It needs a grammar decision, a parser change, a
+migration story for the 150 headers that already carry couplings, and its own graders — which is
+why it is filed rather than half-built inside a WARN check.
+
 ## [infra] Nine `docs/DECISIONS.md` rows are off the separator's column width, and a naive repair DESTROYS four of them
 
 `tests/test_decisions_table_shape.py::test_every_decision_row_has_the_separator_column_count` is

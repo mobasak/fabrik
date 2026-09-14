@@ -11,9 +11,33 @@ This gate mirrors check_doc_sync (touch-on-change, WARN-tier — never blocks):
 - WARN if a staged `scripts/**/*.py` has no `# AFTER-EDIT:` header.
 - WARN if the header names a coupled file that was NOT also staged in this change.
 
-Touch-on-change by design: only *staged* scripts are inspected, so there is no mass
-backfill — a script gains its header the next time it is edited. WARN-only (always
-exit 0); promote to an ERROR gate once the active scripts are headered.
+Touch-on-change by design: a script gains its header the next time it is edited, so there is no
+mass backfill. WARN-only (always exit 0); promote to an ERROR gate once the active scripts are
+headered.
+
+SCOPE (T12.14, 01M1SNNTS): the index when anything is staged, ELSE the working-tree diff. The
+completion workflow runs `final_gate.py --check` BEFORE `git add` — the gate is what tells you the
+change is ready to commit — so a staged-ONLY check had nothing to inspect in the one moment it
+matters, and a vendored twin diverged for a commit because of it (e8f0473d). Every line of output
+names the scope it used, because on a shared tree the working-tree diff carries other sessions'
+unstaged edits; reading them is safe where writing them would not be, and this check never writes.
+
+⚠️ WHAT THIS CHECK DELIBERATELY DOES NOT DO, measured rather than assumed. wef2 reported
+(01M1V2P02) that the coupling is DIRECTIONAL and points the wrong way for how these files change —
+a checker script is stable while the DATA it measures churns, so editing `registry.json` without
+its doc satisfies every check while breaking the declared coupling. The proposed remedy was to
+symmetrise: inspect the header whenever ANY file it names is staged. Measured over 1,037 commits
+since 2026-09-01 before building it:
+
+    all named files .................. fires on 591 commits (57 %)
+    minus the Doc-Sync sinks ......... fires on 383 commits (37 %)
+    minus sinks and every docs/ path . fires on 276 commits (27 %)
+
+The top trigger is `CHANGELOG.md` (400 of the 591) — named by exactly one header, touched by
+almost every commit. At 27 % a WARN line is noise that teaches readers to skip the block, which is
+how enforcement dies (FIX DIRECTIVE 5). So the symmetrisation is REJECTED on measurement, and the
+real answer — a header opting IN to a symmetric coupling per file, where the author knows it is
+true — is filed as spec-sized work rather than half-built here.
 """
 
 from __future__ import annotations
@@ -260,6 +284,21 @@ def _main(quiet: bool) -> int:
         # read every real script as "a staged deletion" and printed a clean 0-of-N (EU1)
         os.chdir(top[0])
     staged = _git(["diff", "--cached", "--name-only", "-z"], sep="\0")
+    scope = "staged"
+    if not staged:
+        # T12.14 (01M1SNNTS): the completion workflow runs `final_gate.py --check` BEFORE
+        # `git add`, because the gate is what tells you the change is ready to commit. At that
+        # moment the index is empty and the one check designed to catch a coupled-file omission
+        # had nothing to inspect. It cost a real divergence: `scripts/sysadmin/claude_rotate.py`
+        # was committed without the vendored twin its own header names, and for one commit the
+        # fleet carried two copies broadcasting different resume instants (e8f0473d).
+        #
+        # So the pre-stage run falls back to the WORKING TREE diff. Reading it is safe where
+        # writing it would not be — this check never mutates and never stages; the scope is named
+        # in every line of output so a warning about a file you did not touch is legible as a
+        # sibling's rather than a mystery.
+        staged = _git(["diff", "--name-only", "-z"], sep="\0")
+        scope = "working-tree (pre-stage)"
     if not staged:
         # "Nothing staged" is a REASON, not a silent pass. This early return is the shape the
         # bare run in 01M1E6S1EAK7DNP74C1K9YHP3Z actually hit (the reporter's scripts were
@@ -268,31 +307,39 @@ def _main(quiet: bool) -> int:
             # The same `N of M staged script(s) inspected` shape as the clean path (without its third
             # count — nothing is staged), so a reader (and a test) matches one phrasing for one fact.
             print(
-                "OK — nothing staged; this check is staged-scoped (0 of 0 staged script(s) inspected)."
+                "OK — nothing staged or modified; this check reads the index, "
+                "falling back to the working tree (0 of 0 script(s) inspected)."
             )
         return 0
     staged_set = set(staged)
     scripts = [f for f in staged if f.startswith("scripts/") and f.endswith(".py") and not _skip(f)]
-    index = _index_entries(
-        scripts
-    )  # path → (mode, stage): what will be COMMITTED, never the working tree (EZ6)
+    # path → (mode, stage): what will be COMMITTED, never the working tree (EZ6). In the
+    # pre-stage fallback there IS no index entry for these paths, so the index probe is skipped
+    # and the working-tree file is read directly — the same files, one commit earlier.
+    index = _index_entries(scripts) if scope == "staged" else {}
 
     warnings: list[str] = []
     inspected = 0
     for f in scripts:
         entry = index.get(f)
         p = Path(f)
-        if entry is None:
+        if scope != "staged":
+            # Pre-stage fallback: there is no index entry for these paths BY CONSTRUCTION, so the
+            # index probes below would report every file as a staged deletion. A file the diff
+            # lists but disk no longer has is a deletion here too.
+            if not p.exists():
+                continue
+        elif entry is None:
             # listed by the diff but no index entry: a `git rm` (silent — nothing is committed
             # there) or a `git rm --cached` with the file still on disk (said, so the operator
             # sees the tracking leave) (EW1/EZ6)
             if p.exists():
                 warnings.append(f"{f}: staged deletion or unresolved merge — not checked")
             continue
-        mode, stage = entry
-        if stage != "0":
+        elif entry[1] != "0":
             warnings.append(f"{f}: staged deletion or unresolved merge — not checked")
             continue
+        mode = entry[0] if entry else ("120000" if p.is_symlink() else "100644")
         if mode == "120000":
             # the staged blob of a symlink is its LINK TEXT, never a script (EY1); the index says
             # symlink even when the working tree was rewritten since `git add` (EZ6)
@@ -342,6 +389,13 @@ def _main(quiet: bool) -> int:
                 f"{', '.join(missing)}."
             )
 
+    if warnings and scope != "staged":
+        # A warning about a file you did not touch must be legible as a sibling's rather than a
+        # mystery: on a shared tree the working-tree diff carries their unstaged edits too.
+        print(
+            f"NOTE: nothing is staged, so these were read from the {scope} diff — on a shared "
+            "tree some of these files may be another session's uncommitted work."
+        )
     for w in warnings:
         print(f"WARNING: {w}")
     if not warnings and not quiet:
@@ -359,8 +413,8 @@ def _main(quiet: bool) -> int:
         # unreadable file are skipped above, and "1 inspected" for 0 read was the same
         # collected-vs-attempted overstatement the corpus gate corrected (DY2)
         print(
-            f"OK — {inspected} of {len(scripts)} staged script(s) inspected "
-            f"({len(staged)} staged file(s))."
+            f"OK — {inspected} of {len(scripts)} {scope} script(s) inspected "
+            f"({len(staged)} {scope} file(s))."
         )
     return 0  # WARN-only — never blocks the gate
 
