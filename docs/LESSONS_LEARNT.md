@@ -1,6 +1,16 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## 2026-09-14 — A count of guarded call sites is not a proof of the guarded property, and a property has as many ends as it has consumers
+
+**Context:** the whole-plan `/fabrik-review` over kaizen pieces 3 + 4 (`docs/development/reviews/2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round-review.md`, seven passes, confirmed 12 → 3 → 3 → 3 → 5 → 4 → 0).
+
+**What happened:** rounds 2, 3 and 4 each added an `OverflowError` guard where the last crash was found and closed the class on a COUNT of guard sites — "the only unguarded helper", "six of six now carry the catch", "the two callers those sums reach". Each fix was correct; each claim was false, and the next round proved it by finding the site the enumeration missed. Round 5 changed the KIND of fix instead of its location — one sanitiser over every published figure at the single point they all pass through — and found two silent `float → inf` paths no `except OverflowError` can ever see, because float addition reaches infinity without raising. Round 6 then found the OTHER end still open: the value was clean and the reader was not, because five table cells gated on a sibling row count rather than the value beside them. One of those conversions was round 5's own fix, and it REGRESSED the live report — `sum([]) == 0`, so a command with no measured rows published a confident `0`, on 4 of 14 rows of the real ledger, invisible to every grader because a grader supplies the rows it needs.
+
+**Lesson:** (1) close a class by proving the property, never by counting the guards — the check that closes it is a grader that constructs the breaking value, not a `grep -c` over `except` clauses; (2) a property has as many ends as it has consumers: the value a figure holds and the text a reader is handed are two closures, and closing one says nothing about the other; (3) when a round's fix changes a publish or suppress CONDITION, re-run the tool over its real input and diff against the pre-fix pin before the round closes — a byte-identical diff is the evidence, a changed one is either the fix or a regression and must be named either way (filed to infra as `01M2GBWCEZN3M7A0D28K3V3DES`).
+
+**Cost:** seven passes and twenty native seats over a two-file change that was quiet from round 1. The standing budget for a review this size is six rounds; this one reached the exit bar at the edge of it, and only because two rounds changed method instead of adding another guard.
+
 ## 2026-09-12 — A document's own closed count of a cited rule is a second source of truth by construction — delete it, never re-cut it; and size a delta by numstat, not by a marker-blind grep (2026-09-12)
 
 **Context:** review-family pass 3 (`docs/development/plans/archived/2026-09-11-plan-1-review-family-pass3.md`). Phase B's scoped review spent rounds 6–8 (1 → 2 → 3 confirmed, the stall-breaker's shape) re-cutting ONE sentence in `/fabrik-review-scoped` that enumerated which of its rules were the fragment's and which its own; every re-cut was falsified by the next reader because the fragment kept moving. The heavy review that followed spent rounds 3–6 on one step-6 clause the same way, and the whole-plan review's rounds 1–3 on one line of `core/62` where a new D-229 clause sat beside three older absolute seat-count statements.
