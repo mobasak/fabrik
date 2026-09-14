@@ -691,6 +691,15 @@ def _review_window(rec: object, sid: str | None = None) -> tuple[float, float] |
     return None
 
 
+def _seq(holder: object, key: str) -> list:
+    """A record field that MUST be iterated, read so that it never raises. `x or []` keeps a
+    non-empty non-iterable — `{"stack": 7}` reached `for frame in 7` and raised TypeError, and a
+    raise here costs the stop ALL SIX causes, not one (round 1 of Phase C's own review; the same
+    shape was latent on `covered`). A dict is deliberately NOT iterated as its keys."""
+    v = (holder if isinstance(holder, dict) else {}).get(key)
+    return v if isinstance(v, list) else []
+
+
 def _review_windows(rec: dict | None, sid: str | None = None) -> list[tuple[float, float]]:
     """EVERY window a command of this session covered: the record's `covered` ledger (each close
     appends `[started_epoch, close]`, and `start` carries the ledger across its overwrite —
@@ -712,7 +721,7 @@ def _review_windows(rec: dict | None, sid: str | None = None) -> list[tuple[floa
     out: list[tuple[float, float]] = []
 
     def _ledger(holder: object) -> None:
-        for w in (holder if isinstance(holder, dict) else {}).get("covered") or []:
+        for w in _seq(holder, "covered"):
             if isinstance(w, (list, tuple)) and len(w) == 2:
                 lo, hi = _finite(w[0]), _finite(w[1])
                 if lo is None or hi is None:
@@ -724,9 +733,16 @@ def _review_windows(rec: dict | None, sid: str | None = None) -> list[tuple[floa
     _ledger(rec)
     # `stack` is FLAT — `start` copies the live record's frames and appends the parent, so every
     # ancestor of a doubly nested run is already a sibling entry here and no recursion is owed.
-    for frame in (rec or {}).get("stack") or []:
+    # A frame's RUNNING window is a claim that the session is still live, and only the LIVE record
+    # can make it: `kaizen_coroner.py` writes `died`/`expired` on the top-level record ALONE, so a
+    # reaped session's frames keep the `running` they were parked with and would otherwise cover
+    # `[started, inf)` — the 37 h abandoned plan closing review C-2 refused to launder, wearing a
+    # nested hat (measured 0 unreviewed against 1 for the identical non-nested shape). Frames'
+    # CLOSED ledger pairs are unconditional: those commands really did close.
+    live = isinstance(rec, dict) and rec.get("state") == "running"
+    for frame in _seq(rec, "stack"):
         _ledger(frame)
-        parked = _review_window(frame, sid)
+        parked = _review_window(frame, sid) if live else None
         if parked is not None:
             out.append(parked)
     cur = _review_window(rec, sid)
@@ -749,14 +765,18 @@ def _surface_reviewed(rec: object, authored: dict[str, int]) -> set[str]:
     gap since the last run (reach-back reader F1). So a RUNNING review exempts by NAME instead.
 
     The rule is equality on a whole token, never a prefix: `scripts/` in the surface exempts
-    nothing under it, because a directory is not a claim about a file. Tokens are read with a
-    leading `./` and a trailing `:12`, `:12-30` or `::node` stripped — the shapes a surface
-    actually writes — and the record's parked `stack` frames are read the same way, since a
-    nested command parks a running review there (T5.1)."""
+    nothing under it, because a directory is not a claim about a file. A colon is not a path
+    character here, so the SPLITTER already ends a token at one and the location suffixes a surface
+    actually writes fall off for free — `tests/b.py:44` yields `tests/b.py` and a bare `44`,
+    `a.py::test_x` yields `a.py` and `test_x`. (Round 1 of this change's own review deleted an
+    explicit strip for those suffixes: the splitter runs first, so it could never fire. A leading
+    `./` IS stripped here, because `.` and `/` are both path characters and survive the split.)
+    The record's parked `stack` frames are read the same way, since a nested command parks a
+    running review there (T5.1)."""
     if not isinstance(rec, dict):
         return set()
     surfaces: list[str] = []
-    for holder in [rec, *((rec.get("stack") or []) if isinstance(rec.get("stack"), list) else [])]:
+    for holder in [rec, *_seq(rec, "stack")]:
         if not isinstance(holder, dict):
             continue
         if holder.get("state") != "running" or holder.get("command") not in _REVIEW_FAMILY:
@@ -772,7 +792,6 @@ def _surface_reviewed(rec: object, authored: dict[str, int]) -> set[str]:
             if not raw:
                 continue
             tok = raw[2:] if raw.startswith("./") else raw
-            tok = re.sub(r"(?:::.*|:\d+(?:-\d+)?)$", "", tok)
             if tok:
                 tokens.add(tok)
     return {f for f in authored if f in tokens}
@@ -783,18 +802,17 @@ def _unreviewed_spontaneous(
 ) -> int:
     """The sixth cause's whole question, in one place: of THIS session's code edits, how many fall
     outside every window a command of the session covered AND are not named by a running review's
-    surface? Composed here rather than at the call site because the call site sits ~40 lines deep
-    inside `main` where nothing can grade it — a fix whose wiring no test reaches is a fix that can
+    surface? Composed here rather than at the call site because the call site sits 233 lines deep inside
+    `main` (`def main` at :1443, the call at :1676 — re-derived, not recalled; an earlier cut of
+    this very docstring said "~40" and round 1 of this change's own review measured it) where
+    nothing can grade it — a fix whose wiring no test reaches is a fix that can
     be deleted with a green suite (measured on this hook's sibling, D-252 round 3)."""
     floor = _sixth_cause_floor(session_floor)
     windows = _review_windows(rec if isinstance(rec, dict) else None, sid)
     windows += _first_review_base_case(rec, floor)
+    named = _surface_reviewed(rec, authored)  # once per stop, never once per authored file
     return _unreviewed_code_files(
-        {
-            f: ts
-            for f, ts in _this_sessions_edits(authored, floor).items()
-            if f not in _surface_reviewed(rec, authored)
-        },
+        {f: ts for f, ts in _this_sessions_edits(authored, floor).items() if f not in named},
         windows,
     )
 
@@ -811,6 +829,15 @@ def _first_review_base_case(rec: object, floor: float) -> list[tuple[float, floa
     not. The bound this needs — the SessionStart baseline — exists only on this side, which is why
     the base case is applied here.
 
+    STATED COST, measured rather than assumed: when SessionStart's baseline file cannot be stat'd
+    `main` passes `session_floor = 0.0`, so the floor falls back to `_LEDGER_EPOCH` and one `done`
+    review then covers everything this session authored since the ledger was born. That is the
+    fail-open direction ON PURPOSE — without a baseline the hook already cannot separate this
+    session's work from a resumed transcript's (`_this_sessions_edits`'s own P1-3 filter is
+    disarmed in that state), and the alternative is the permanent block this fix exists to end
+    (01M21JAET). It is bounded by `_LEDGER_EPOCH` and by the review actually closing `done`; it is
+    written down here because an unstated fail-open is the class this phase is closing.
+
     Deliberately narrow. It is a window ADDED, never a pair rewritten; `done` only, so a `blocked`
     or `handoff` close still certifies nothing (reach-back reader F1); review-family only; and it
     stands down the moment any ledger window starts before this record's own start, because that
@@ -826,7 +853,7 @@ def _first_review_base_case(rec: object, floor: float) -> list[tuple[float, floa
     if started is None or started <= 0:
         return []
     started = math.floor(started)
-    for w in rec.get("covered") or []:
+    for w in _seq(rec, "covered"):
         if isinstance(w, (list, tuple)) and len(w) == 2:
             lo = _finite(w[0])
             if lo is not None and math.floor(lo) < started:

@@ -435,7 +435,8 @@ def test_a_running_reviews_own_surface_files_are_not_spontaneous_work():
 
 
 def test_the_sixth_cause_counts_through_one_composed_reader(monkeypatch):
-    """The call site is ~40 lines inside `main`, so the composition is graded here instead —
+    """The call site is 233 lines inside `main` (`def main` :1443, the call :1676), so the
+    composition is graded here instead —
     otherwise T5.2's exemption could be deleted with a green suite (D-252 round 3's lesson: a
     fix whose wiring no test reaches is a fix nothing guards). All three filters are exercised."""
     monkeypatch.setattr(fgs, "_LEDGER_EPOCH", 0.0)
@@ -513,3 +514,158 @@ def test_the_first_review_of_a_session_can_still_cover_work_that_preceded_it(mon
     # and the same edit IS covered once the writer's reach-back is present, which is the real shape
     reached = {**done, "covered": [[1100, 1200], [1200, int(close)]]}
     assert fgs._unreviewed_spontaneous(reached, {"scripts/y.py": 5000}, base) == 0
+
+
+def test_a_coroner_reaped_sessions_parked_parent_launders_nothing():
+    """Round 1 of Phase C's own review, found by the orchestrator's round-zero probe: T5.1's stack
+    walk REINTRODUCED the hole closing review C-2 had shut.
+
+    `kaizen_coroner.py:595` writes `state = "died"` on the TOP-LEVEL record only — the frames parked
+    on `stack` keep the `"running"` they were parked with. So a session reaped mid-nested-run handed
+    the sixth cause a parent window of `[started, inf)` and every edit under it read as reviewed:
+    measured 0 unreviewed for the nested shape against 1 for the identical non-nested one, which is
+    exactly the 37 h abandoned plan C-2 refused to launder, wearing a nested hat.
+
+    A frame's RUNNING window is a claim that the session is still live, so it counts only while the
+    LIVE record says so. Frames' CLOSED ledger pairs are unaffected: those are historical facts and
+    a reaped session's earlier commands really did close."""
+    t0, t1, t2 = 1_800_000_000.0, 1_800_000_060.0, 1_800_000_120.0
+    frame = {
+        "command": "fabrik-execute-plan",
+        "state": "running",
+        "started_epoch": t0,
+        "covered": [[1_799_000_000, 1_799_000_500]],
+    }
+    edit = {"scripts/x.py": int(t1)}
+    for dead in ("died", "expired"):
+        reaped = {
+            "command": "fabrik-review",
+            "state": dead,
+            "closed_by": "coroner",
+            "started_epoch": t2,
+            "covered": [],
+            "stack": [dict(frame)],
+        }
+        assert fgs._unreviewed_spontaneous(reaped, edit, 0.0) == 1, dead
+        # the frame's CLOSED pairs still stand — an earlier command of that session really did close
+        assert (1_799_000_000.0, 1_799_000_501.0) in fgs._review_windows(reaped), dead
+        # and the non-nested control the contract already got right
+        assert (
+            fgs._unreviewed_spontaneous(
+                {"command": "fabrik-review", "state": dead, "started_epoch": t0, "covered": []},
+                edit,
+                0.0,
+            )
+            == 1
+        ), dead
+    # a LIVE nested run still covers, which is the whole point of T5.1
+    live = {
+        "command": "fabrik-review",
+        "state": "running",
+        "started_epoch": t2,
+        "covered": [],
+        "stack": [dict(frame)],
+    }
+    assert fgs._unreviewed_spontaneous(live, edit, 0.0) == 0
+
+
+def test_the_surface_is_parsed_once_per_stop_not_once_per_authored_file(monkeypatch):
+    """Round 1, orchestrator: `_surface_reviewed(rec, authored)` sat in the comprehension's `if`
+    clause, so it re-ran — re-splitting the whole surface string with a regex — once per authored
+    file. This hook runs on EVERY Stop in ~46 repos, and a long session's authored map is hundreds
+    of entries against a surface that can be a paragraph. Hoisted; pinned by call count, which is
+    the only thing that can see a hoist."""
+    calls = []
+    real = fgs._surface_reviewed
+    monkeypatch.setattr(fgs, "_surface_reviewed", lambda r, a: (calls.append(1), real(r, a))[1])
+    rec = {
+        "command": "fabrik-review",
+        "state": "running",
+        "started_epoch": 1,
+        "surface": "scripts/a.py scripts/b.py",
+    }
+    authored = {f"scripts/f{i}.py": 10 for i in range(25)}
+    fgs._unreviewed_spontaneous(rec, authored, 0.0)
+    assert len(calls) == 1, f"parsed the surface {len(calls)} times for {len(authored)} files"
+
+
+def test_the_surface_splitter_ends_a_token_at_a_colon_so_no_suffix_strip_is_owed():
+    """Round 1, orchestrator: the first cut of `_surface_reviewed` ran an explicit
+    `re.sub(r"(?:::.*|:\\d+(?:-\\d+)?)$", ...)` to drop `:12` and `::node` suffixes — UNREACHABLE,
+    because `:` is not in `_SURFACE_SPLIT`'s allowed class, so the split already ended the token
+    there. Measured: of the three suffixed shapes, zero tokens survived the split still carrying a
+    colon. Deleted with the reason stated rather than kept as prose describing code that cannot run
+    (D-252 round 3's finding against its own fix, same class).
+
+    This pins the BEHAVIOUR the deletion relies on, so re-adding `:` to the character class reds
+    here instead of silently re-arming the dead branch."""
+    import re as _re
+
+    assert ":" not in _re.sub(r"\\[\\^|\\]\\+$", "", fgs._SURFACE_SPLIT.pattern)
+    for s, expected in (
+        ("tests/b.py:44", {"tests/b.py", "44"}),
+        ("a.py::test_x", {"a.py", "test_x"}),
+        ("a.py:12-30", {"a.py", "12-30"}),
+        ("./docs/c.md", {"docs/c.md"}),  # the leading ./ IS stripped — both chars survive the split
+    ):
+        rec = {"command": "fabrik-review", "state": "running", "started_epoch": 1, "surface": s}
+        authored = dict.fromkeys(expected, 1)
+        assert fgs._surface_reviewed(rec, authored) == expected, (s, expected)
+    assert "re.sub" not in fgs._surface_reviewed.__doc__
+
+
+def test_the_base_case_without_a_baseline_is_bounded_by_the_ledger_epoch():
+    """Round 1, orchestrator: measured, judged, and STATED rather than changed. `main` passes
+    `session_floor = 0.0` when SessionStart's baseline file cannot be stat'd, so the base case
+    reaches back to `_LEDGER_EPOCH` and one `done` review covers the whole span. That is the
+    intended fail-open — without a baseline `_this_sessions_edits`'s P1-3 filter is disarmed too,
+    and the alternative is the permanent block 01M21JAET reported — but it is a real widening, so
+    the BOUND is pinned here: nothing older than the ledger's birth is ever covered by it."""
+    e = fgs._LEDGER_EPOCH
+    done = {
+        "command": "fabrik-review",
+        "state": "done",
+        "started_epoch": e + 900_000,
+        "updated_ts": int(e + 900_100),
+        "covered": [[int(e + 900_000), int(e + 900_100)]],
+    }
+    lo, hi = fgs._first_review_base_case(done, fgs._sixth_cause_floor(0.0))[0]
+    assert lo == e, "the fallback floor IS the ledger epoch, never 0"
+    assert hi == e + 900_000, "and it stops at the review's own start"
+    # an edit older than the ledger is dropped by the floor, not covered by the window
+    assert fgs._unreviewed_spontaneous(done, {"scripts/ancient.py": int(e) - 10_000}, 0.0) == 0
+    assert (
+        fgs._this_sessions_edits(
+            {"scripts/ancient.py": int(e) - 10_000}, fgs._sixth_cause_floor(0.0)
+        )
+        == {}
+    )
+
+
+def test_a_corrupt_record_field_never_raises_out_of_the_sixth_cause():
+    """Round 1, orchestrator: `(rec or {}).get("stack") or []` keeps a non-empty NON-iterable, so
+    `{"stack": 7}` reached `for frame in 7` and raised TypeError out of `_unreviewed_spontaneous`.
+    A raise there is not one cause failing open — `main`'s outer handler allows the stop, so ALL
+    SIX causes go dark for that turn. `covered` carried the same latent shape.
+
+    Measured before the fix: 53 junk inputs across the three new readers, 1 raise. The reader is
+    now `_seq`, which returns a list or nothing; a dict is deliberately not iterated as its keys."""
+    poison = [7, 7.5, True, object(), {"a": 1}, "abc", None]
+    raised = []
+    for key in ("stack", "covered"):
+        for v in poison:
+            rec = {"command": "fabrik-review", "state": "running", "started_epoch": 1, key: v}
+            for call in (
+                lambda r=rec: fgs._review_windows(r),
+                lambda r=rec: fgs._unreviewed_spontaneous(r, {"a.py": 1}, 0.0),
+                lambda r=rec: fgs._first_review_base_case({**r, "state": "done"}, 0.0),
+            ):
+                try:
+                    call()
+                except Exception as exc:  # noqa: BLE001 — the point of the test
+                    raised.append((key, repr(v), type(exc).__name__))
+    assert not raised, raised
+    assert fgs._seq({"stack": 7}, "stack") == []
+    assert fgs._seq({"stack": [{"a": 1}]}, "stack") == [{"a": 1}]
+    assert fgs._seq({"stack": {"a": 1}}, "stack") == [], "a dict is not iterated as its keys"
+    assert fgs._seq(None, "stack") == [] and fgs._seq("x", "stack") == []
