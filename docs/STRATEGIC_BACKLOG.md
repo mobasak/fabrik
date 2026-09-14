@@ -1835,6 +1835,30 @@ Also: the comment beside the removed filter claims "`_trend_series` applies the 
 
 **Shape of the fix:** assert the mechanism the comment names (`assert "fabrik-repo-review" not in REVIEW_FAMILY`), or re-word the comment to say what is actually being graded.
 
+## [infra] A plan that indexes phases by LETTER cannot satisfy `step`'s review gate, whose matcher is ORDINAL — the only exit is a waiver that has to explain itself
+
+`command_run.py::step` refuses a phase advance unless a file under `docs/development/reviews/`
+matches `(?:^|[^0-9a-z])p(?:hase)?[-_ ]?<N>(?:[^0-9]|$)` for the NUMERIC phase it is leaving, or
+the DISPATCHER ticket form. Every `/fabrik-*` plan in this repo names its phases with LETTERS —
+`## Phase A`, `## Phase B`, … — because that is what the plan template writes and what the
+receipts are then named after (`…-phase-C-review.md`). The two conventions never meet: a receipt
+named exactly as the plan's own heading dictates is invisible to the gate, and `--review-waived`
+is the only way forward.
+
+**Measured 2026-09-14, on this plan:** `step --phase 3` refused with "phase 1 has no review
+artifact", while `docs/development/reviews/2026-09-14-plan-2-mail-triage-phase-C-review.md` was
+committed at `c17750aa` — three rounds, a full Coverage Checklist, closed on the D-252 stop. The
+waiver had to carry a paragraph saying it was not a skip, which is the shape of an escape hatch
+being used as a workaround. **Denominator, not yet measured:** how many of the 132 `*phase*-review.md`
+files under `/opt/*/docs/development/reviews` carry a LETTER rather than a digit — that count
+decides whether this is one plan's habit or the fleet's convention.
+
+**Do:** accept a letter in the matcher and bind it to the plan's own phase headings (read the
+plan at the record's stem, map its Nth `## Phase <X>` heading to ordinal N, accept either key), or
+change the plan template to number its phases. Do NOT just widen the regex to `[0-9a-z]` — that
+makes a phase-A receipt satisfy phase 1 of a plan whose first phase is Phase 0, which is the
+prefix bug the existing comment at `:608` already paid for once.
+
 ## [infra] A review that closes on the SCOPE-GROWTH STOP cannot flip its receipt — the stop has no representation in the receipt grammar (2026-09-14, D-252 review round 3, found by the stop's own close)
 
 D-252 added a counted scope-growth stop whose sanctioned exit is "STOP the loop — route the remaining own-fix work to a backlog row and close on the ORIGINAL delta's state". A review that obeys it ends on a round with `confirmed > 0`, because the whole point is that the loop is still finding things and they are no longer worth another round. `check_review_coverage.py` then refuses the flip: *"the exit round must be quiet, or the stuck finding must be BLOCKED-escalated (named + 3 failed attempts), or the report must declare `Status: IN-PROGRESS`"*. None of the three fits — the round is not quiet, there is no stuck finding with three failed attempts, and IN-PROGRESS understates a review that reached a designed terminal state.
