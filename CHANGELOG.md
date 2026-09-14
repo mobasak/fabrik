@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the lint leg reddened on a peer's WIP too, and the third instance of that class has no scoping fix (2026-09-15)
+
+- Phase E review, round 1. T12.7 narrowed the FIXERS to `get_writable_files()`; the `ruff check` leg kept reading the wider change set, so a sibling's unstaged tracked file reddened a row **no session was permitted to clear** — the fixer refuses to touch it, and the only escapes were `--fix-all` (re-introducing the destruction T12.7 removed) or hand-editing a peer's WIP. Scoped to the writable set, which also matches CI exactly: CI checks out HEAD, and HEAD never contains anyone's unstaged edit.
+- ⚠️ **The third instance of the same class is filed, not fixed, because scoping cannot reach it.** `check_doc_sync.py` reads `git diff --cached` — and on this hub the index is ONE file that three sessions stage into. Executed: it currently returns four paths, none of them mine, and the gate correctly demands a CHANGELOG entry and an INDEX row for work another session is mid-way through. My own commits are clean — `check_doc_sync.py --range 84f88595..HEAD` over every commit of this phase returns **rc 0**. Authorship-is-staging has a floor and this is it: the index has no per-session dimension to narrow along. The backlog row names the three candidate directions and recommends the per-session `GIT_INDEX_FILE` one the private-index commit recipe already uses.
+
 ### Fixed — two ways yesterday's sync change would have stopped the fleet distributing, permanently (2026-09-15)
 
 - Phase E review, round 1. Both are regressions **I introduced** in T12.17 and shipped; both were caught by an author-blind seat and reproduced before fixing. Six graders, one of which caught a defect in my own fix within a minute.

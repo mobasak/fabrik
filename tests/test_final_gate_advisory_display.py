@@ -791,3 +791,21 @@ def test_fix_all_widens_the_format_check_the_same_way_it_widens_the_fixer() -> N
     assert "run_format_check(changed_files=changed_files, fix_all=fix_all)" in src, (
         "the caller must thread fix_all, or the flag is inert for this leg"
     )
+
+
+def test_the_lint_leg_is_scoped_like_the_fixer_and_like_ci() -> None:
+    """Phase E review: T12.7 narrowed the FIXERS to `get_writable_files()`; the `ruff check` leg
+    kept reading the wider change set, so a sibling's unstaged tracked file reddened a row no
+    session was permitted to clear — the fixer refuses to touch it, and the only escapes were
+    `--fix-all` (re-introducing the destruction T12.7 removed) or hand-editing a peer's WIP.
+
+    It also matches CI: CI checks out HEAD, which never contains anyone's unstaged edit."""
+    src = Path(fg.__file__).read_text(encoding="utf-8")
+    block = src.split("# --- Ruff check (Tier 1 + Tier 2)")[1].split("results.append")[0]
+    assert "changed if fix_all else changed & get_writable_files()" in block, block[:400]
+    assert "fix_all: bool = False" in src.split("def run_static_checks(")[1][:200], (
+        "run_static_checks must accept fix_all, or the lint leg cannot be widened"
+    )
+    assert "changed_files=changed_files, fix_all=fix_all" in src, (
+        "the caller must thread fix_all or the flag is inert for the lint leg"
+    )

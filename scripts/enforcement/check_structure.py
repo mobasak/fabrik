@@ -407,19 +407,41 @@ def _scaffold_registry_drift(project_root: Path) -> list[str]:
         tree = ast.parse(scaffold.read_text(encoding="utf-8"))
         declared: set[str] | None = None
         for node in ast.walk(tree):
-            if isinstance(node, ast.Assign) and any(
-                isinstance(tgt, ast.Name) and tgt.id == "SCAFFOLD_TYPES" for tgt in node.targets
-            ):
+            # BOTH assignment forms. Matching only `ast.Assign` meant that annotating the constant
+            # — `SCAFFOLD_TYPES: frozenset[str] = frozenset({...})`, the exact idiom
+            # `_doc_registry.py:31` uses for ALL_TYPES — disabled this guard permanently AND
+            # printed the CLEAN line, which is the "0 findings indistinguishable from having
+            # looked at nothing" shape this file's own DENOMINATOR comment exists to prevent.
+            targets = (
+                node.targets
+                if isinstance(node, ast.Assign)
+                else [node.target]
+                if isinstance(node, ast.AnnAssign)
+                else []
+            )
+            if any(isinstance(tgt, ast.Name) and tgt.id == "SCAFFOLD_TYPES" for tgt in targets):
+                value = node.value
+                if value is None:  # a bare annotation with no value
+                    break
                 declared = {
                     el.value
-                    for el in ast.walk(node.value)
+                    for el in ast.walk(value)
                     if isinstance(el, ast.Constant) and isinstance(el.value, str)
                 }
                 break
     except (OSError, SyntaxError, ValueError):
         return []  # unreadable source is not this check's verdict to give
-    if not declared or _doc_registry is None:
+    if _doc_registry is None:
         return []
+    if not declared:
+        # Found the assignment but no string literals in it — `frozenset(_TYPES)`, a comprehension,
+        # a conditional. Returning [] here reads as PARITY, which is a lie about a check that could
+        # not run. Say which it is.
+        return [
+            "could not read SCAFFOLD_TYPES from src/fabrik/scaffold.py — the assignment carries no "
+            "string literals (built from a name, a comprehension, or a conditional?), so ALL_TYPES "
+            "parity was NOT checked. This is not a pass"
+        ]
     registry = set(_doc_registry.ALL_TYPES)
     only_scaffold, only_registry = declared - registry, registry - declared
     if not only_scaffold and not only_registry:
@@ -454,7 +476,19 @@ def main() -> int:
     violations = check_structure(project_root, args.files if args.files else None)
     for msg in _scaffold_registry_drift(project_root):
         violations.append(
-            {"severity": "error", "message": msg, "file": "scripts/enforcement/_doc_registry.py"}
+            {
+                "severity": "error",
+                "message": msg,
+                "file": "scripts/enforcement/_doc_registry.py",
+                # the error printer below reads `fix_hint` for EVERY error. Omitting it raised
+                # KeyError at the one moment this guard speaks, which also dropped the whole
+                # warnings section of that run — found by the Phase E review, reproduced.
+                "fix_hint": (
+                    "sync ALL_TYPES in scripts/enforcement/_doc_registry.py with "
+                    "src/fabrik/scaffold.py::SCAFFOLD_TYPES, then place the new type in the "
+                    "bucket sets (_GUI / _DEPLOYED / _SAAS) it belongs to"
+                ),
+            }
         )
 
     if not violations:

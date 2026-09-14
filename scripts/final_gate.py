@@ -906,7 +906,7 @@ def _vulture_argv() -> list[str]:
 
 
 def run_static_checks(
-    tier: int = 2, changed_files: set[str] | None = None
+    tier: int = 2, changed_files: set[str] | None = None, fix_all: bool = False
 ) -> list[tuple[str, bool, str]]:
     """Run static analysis checks, filtered by tier and changed files."""
     results: list[tuple[str, bool, str]] = []
@@ -937,7 +937,14 @@ def run_static_checks(
     # line the current change never touched (and, in a project, is forbidden to edit).
     # Bind it to the .py this change actually adds/edits under the lint roots; no
     # changed .py → nothing to lint.
-    ruff_py = _changed_python(changed)
+    #
+    # ⚠️ The WRITABLE set, not the read set (Phase E review). T12.7 narrowed the FIXERS to
+    # `get_writable_files()`; this leg kept reading the wider set, so a sibling's unstaged tracked
+    # file reddened a row no session was permitted to clear — the fixer refuses to touch it, and
+    # the only escapes were `--fix-all` (re-introducing the destruction T12.7 removed) or
+    # hand-editing a peer's WIP. It also matches CI exactly: CI checks out HEAD, which never
+    # contains anyone's unstaged edit.
+    ruff_py = _changed_python(changed if fix_all else changed & get_writable_files())
     if ruff_py:
         code, out = run_cmd(
             [RUFF, "check", *ruff_py],
@@ -1880,6 +1887,14 @@ def run_consistency_checks(
             run_optional_check(
                 "scripts/enforcement/check_doc_index.py",
                 "INDEX.md ↔ docs tree drift",
+                # `advisory=True` PRESERVES STDOUT ON EXIT 0. Without it `run_optional_check`
+                # returns "" for a passing check, so direction (c) — the added-code-path advisory,
+                # which by contract never changes the exit code — reached nobody: the gate row was
+                # green and empty while the check had printed its ⚠ lines. Found by the Phase E
+                # review, which also caught that the docs were asserting the opposite. The row
+                # still BLOCKS on the docs directions (a) and (b); advisory here is about output,
+                # not about whether the check can fail.
+                advisory=True,
             )
         )
         # ADVISORY (B, 2026-08-16 registration audit). The check is honest in its own source
@@ -2719,7 +2734,7 @@ def run_iteration(
     if tier != 3:
         if not json_mode:
             print_header("PHASE 2: STATIC ANALYSIS")
-        results = run_static_checks(tier=tier, changed_files=changed_files)
+        results = run_static_checks(tier=tier, changed_files=changed_files, fix_all=fix_all)
         all_results.extend(results)
         if not json_mode:
             for name, passed, out in results:

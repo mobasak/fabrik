@@ -126,6 +126,41 @@ and the fire rate is whatever authors declare. It needs a grammar decision, a pa
 migration story for the 150 headers that already carry couplings, and its own graders — which is
 why it is filed rather than half-built inside a WARN check.
 
+## [infra] `git diff --cached` is the authorship signal, and on this hub the INDEX IS SHARED — three gate checks read a peer's staging as yours
+
+Measured 2026-09-15, third instance of one class in one day. Two were fixed by scoping to
+`get_writable_files()`; **the third has no such fix and that is the finding.**
+
+| leg | read scope | what it reported | disposition |
+|---|---|---|---|
+| `ruff-format (--check)` | the change set | a sibling's unstaged `command_feedback_report.py` | FIXED — scoped to the writable set |
+| `ruff check` (static tier) | the change set | the same file | FIXED — same scoping, and it matches CI, which checks out HEAD |
+| `check_doc_sync.py` (Doc Sync Matrix) | `git diff --cached` | a sibling's FOUR staged files | ⚠️ NOT fixable by scoping |
+
+The first two read unstaged modifications, which are provably not the caller's under the
+authorship-is-staging rule. The third reads the **index**, which on this hub is one shared file
+that all three sessions stage into. Executed just now: `git diff --cached --name-only` returns four
+paths, none of them mine — a plan-lock, `commands/_fragments/close-feedback.md`,
+`scripts/command_feedback_report.py`, `tests/test_command_feedback_report.py` — and the gate
+correctly demands a CHANGELOG entry and an INDEX row for work another session is mid-way through.
+My own commits are clean: `check_doc_sync.py --range 84f88595..HEAD` over every commit of this
+phase returns **rc 0**.
+
+**So authorship-is-staging has a floor, and this is it.** Narrowing the scope cannot help: the
+index has no per-session dimension to narrow along. The candidates are all real decisions, not
+patches:
+
+- **Attribute by trailer or by mtime** — neither exists for an index entry.
+- **Per-session index** (`GIT_INDEX_FILE` for every session, as the private-index commit recipe
+  already does for commits) — then `--cached` means "mine" again, and the shared index becomes a
+  thing nobody stages into. This is the direction I would take.
+- **Treat a red caused wholly by paths outside your own diff as a WARN** — cheap, but it weakens
+  a real check for everyone to work around one repo's topology.
+
+**Do:** decide the index question once, in a spec. Until then the honest operator move is the
+contract's own ladder — a red the range-scoped run clears is a sibling's in-flight work: defer and
+report, never stage or commit around it.
+
 ## [infra] RETRACTED — the "nine off-width DECISIONS rows" were ONE, and my count was the defect
 
 **This row is a retraction of its own first cut, kept rather than deleted because the way it was
