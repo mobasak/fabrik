@@ -126,8 +126,9 @@ $ git archive <sha> | tar -x -C <scratchpad>/review-<sha>
 
 and brief the finder against that path. If a finder must read the live tree instead (a working-tree
 review, `git diff HEAD`), say so IN the brief so the finder knows what it is looking at — and tell it
-to EXCLUDE the tree's stale copies: `.claude/worktrees/**` and `.tmp/**` (subagent scratch) hold whole
-duplicate `src/` + `tests/` trees at DIFFERENT line numbers, so an unscoped repo-root grep returns
+to EXCLUDE the tree's stale copies: `.claude/worktrees/**` holds whole duplicate `src/` + `tests/`
+trees at DIFFERENT line numbers (`.tmp/**` is subagent scratch — logs and job state, measured 137
+files and ZERO `*.py`, so it is cheap to skip but it is not the duplicate-tree problem), so an unscoped repo-root grep returns
 anchors that resolve in a worktree and not in HEAD (`command grep -rn --exclude-dir=worktrees
 --exclude-dir=.tmp …` — the `worktrees` directory, NOT `.claude`: measured 2026-09-14, `.claude/`
 holds 13,328 `*.py` of which 13,321 are worktree copies and SEVEN are `.claude/hooks/`, the
