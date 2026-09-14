@@ -304,9 +304,8 @@ def test_the_changed_list_reads_paths_only_across_wrapped_lines_and_never_from_a
     r = _run_on(tmp_path, with_x.replace("# R\n", "# R\n**Changed:** `x.py`, `44`\n\n"))
     assert r.returncode == 0, r.stdout
     # round 18: rules 4 and 5 are BOTH guarded by `"/" not in tok`, so a token carrying a slash
-    # falls past them whatever else it holds. Deleting either guard flips these three and was
-    # invisible to every grader before this loop existed.
-    for tok in ("../x.py", "docs/../x.py", "a..b/c"):
+    # falls past them whatever else it holds.
+    for tok in ("../x.py", "docs/../x.py", "a..b/c", "1..2/x"):
         r = _run_on(tmp_path, with_x.replace("# R\n", f"# R\n**Changed:** `x.py`, `{tok}`\n\n"))
         assert r.returncode == 1 and f"`{tok}`" in r.stdout, (tok, r.stdout)
     # an IN-PROGRESS receipt (a seat's mid-loop draft) is exempt from the Hunt-row leg too

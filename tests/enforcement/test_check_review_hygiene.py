@@ -1337,11 +1337,8 @@ def test_a_comment_closing_line_never_joins_the_table_or_fence_run_below_it(tmp_
     # reads, so re-pointing it at `lines[i]`/`quoted[i]` passed the whole suite.
     inside = "intro\n<!-- open\n## Pass Ledger\n-->\nafter\n"
     assert crh._until_heading(inside, "Pass Ledger") == (inside, 0)
-    # round 18: a GUARD, not a discriminator (it passes on the un-blanked code too, measured) —
-    # a table whose header sits on a comment's closing line is ungraded, because that line is
-    # inside the HTML block. It cannot discriminate the whole-line blank: un-blanked, the line
-    # still begins with the text before `-->`, so it forms no header and opens no fence. What
-    # DOES pin the whole-line blank is the `_until_heading` assertion above.
+    # a table whose header sits on a comment's closing line is ungraded — that line is inside
+    # the HTML block.
     hits, ungraded = crh._receipt_hits(
         "r.md",
         "# R\n\n<!-- a note opens\ncloses --> | Finding | Disposition |\n|---|---|\n| F1 | FIXED, REFUTED |\n",

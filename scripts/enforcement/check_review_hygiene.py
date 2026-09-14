@@ -224,11 +224,9 @@ def _blank_quoted(lines: list[str]) -> list[str]:
             # so a live tail would join THEIR runs — the pipe run or the fence run below it —
             # instead of being read as its own line. Prose on that tail is not lost: it is read
             # from the RAW text by `_surface_hits`. STATED COST: `_receipt_hits` runs the two
-            # table classes over the rows and no prose class at all (`--symbol` still counts
-            # over the text), so on a receipt-only invocation — which is what the gate's own
-            # no-argument self-selection passes, see the `self_selected` branch — the tail's
-            # prose is unreported, blanked or not. Both the blanking and this cost are graded
-            # by `test_a_comment_closing_line_never_joins_the_table_or_fence_run_below_it`.
+            # table classes over the rows and no prose class at all, so the tail's prose is
+            # unreported there, blanked or not. That path is the gate's own default: `main`
+            # self-selects the changed receipts when no surface, phrase or symbol is given.
             out.append("")
             j = _mask_code_spans(ln).find("-->")
             if j >= 0:
