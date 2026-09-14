@@ -28,7 +28,9 @@ included. ``run_optional_check`` reds the gate on ANY non-zero exit, ``warn_only
 synced repos, and it invokes this script with ``--check`` or with no flags at all, never with an
 unknown one. ``--strict`` (which the gate never passes) exits 1 when a surface grew against the base
 and 0 otherwise, and an internal error stays 0 even under it. An unparsable command line is
-argparse's own exit 2, as in every other check.
+argparse's own exit 2, as in every other check. ⚠️ ``--strict`` changes only the EXIT CODE — it is
+NOT a read-only mode, and on its own it still takes every write path a bare run takes. Pair it with
+``--check`` for a diagnostic that touches nothing.
 
 WHAT IT WRITES, AND WHEN. Exactly one file, ``.fabrik/corpus-weight-baseline.json``, on three paths:
 ``--seed`` (when none exists), ``--reseed`` (always), and a plain run that finds a surface BELOW its
@@ -38,7 +40,9 @@ index mutation this script makes. ``--check`` reports in full and writes and sta
 else is passed. Nothing is ever deleted — a surface that cannot be MEASURED this run is never ratcheted and keeps the baseline value
 it already had, rather than being dropped from the record by a transient permission error; and a
 worktree checkout reports and never writes — a tightening ``git add`` inside a sibling's worktree is
-a collision, not a ratchet.
+a collision, not a ratchet. The ONE thing a write removes is a key for a surface no longer in
+``SURFACES`` (a retired or renamed one): ``--reseed`` drops it and names it, because a trend record
+nothing measures is a number nobody can ever move.
 
 Pattern and helpers follow ``scripts/enforcement/check_lint_ratchet.py``; the base-ref read follows
 ``scripts/enforcement/check_convergence.py::_head_text``; the ref ladder follows
@@ -381,11 +385,14 @@ def _parser() -> argparse.ArgumentParser:
             "Each write also `git add`s that ONE path, so the tightened record rides with the change\n"
             "that moved it — the only index mutation this script makes. --check reports in full and\n"
             "writes and stages nothing, whatever else is passed. A worktree checkout reports and\n"
-            "never writes. A surface that cannot be measured is never ratcheted. Nothing is ever\n"
-            "deleted.\n\n"
+            "never writes. A surface that cannot be measured is never ratcheted and keeps the\n"
+            "value it already had. The one thing a write removes is a key for a surface no longer\n"
+            "in SURFACES: --reseed drops it and names it.\n\n"
             "EXIT CODES: 0 on every path the gate can reach, an unexpected internal error included.\n"
             "--strict exits 1 when a surface grew against the base ref and 0 otherwise; the gate\n"
-            "never passes it. An unparsable command line is argparse's own exit 2."
+            "never passes it. An unparsable command line is argparse's own exit 2.\n\n"
+            "--strict CHANGES ONLY THE EXIT CODE. It is NOT a read-only mode: on its own it still\n"
+            "takes every write path a bare run takes. Pair it with --check to touch nothing."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -395,7 +402,9 @@ def _parser() -> argparse.ArgumentParser:
         "--reseed", action="store_true", help="overwrite the baseline with today's sizes"
     )
     ap.add_argument(
-        "--strict", action="store_true", help="exit 1 when a surface grew vs the base ref"
+        "--strict",
+        action="store_true",
+        help="exit 1 when a surface grew vs the base ref — exit code only, NOT a read-only mode",
     )
     return ap
 

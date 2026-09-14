@@ -256,7 +256,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ## Documentation Structure Map
 
 <!-- AUTO-GENERATED:STRUCTURE:START -->
-<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-09-12T13:31 -->
+<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-09-14T19:31 -->
 ```text
 docs/
 ├── BUSINESS_MODEL.md               # Monetization strategy
@@ -370,7 +370,6 @@ docs/
 │   │   │   ├── T08-hygiene-script.md
 │   │   │   ├── T09-run-record-docs.md
 │   │   │   └── T10-integration.md
-│   │   ├── 2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round.md
 │   │   ├── 2026-09-12-plan-2-mail-triage-command-machinery.md
 │   │   └── archived
 │   └── reviews
@@ -662,6 +661,14 @@ docs/
 │       ├── 2026-09-11-doc-index-seeded-ledger-review.md
 │       ├── 2026-09-11-plan-1-review-family-pass3-phase-B-review.md
 │       ├── 2026-09-11-plan-1-review-family-pass3-review.md
+│       ├── 2026-09-12-mail-triage-t7-review.md
+│       ├── 2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round-review.md
+│       ├── 2026-09-12-plan-2-mail-triage-phase-A-review.md
+│       ├── 2026-09-12-plan-2-mail-triage-phase-B-review.md
+│       ├── 2026-09-13-rotation-refresh-chain-review.md
+│       ├── 2026-09-14-cobra-effect-rule-review.md
+│       ├── 2026-09-14-plan-2-mail-triage-phase-C-review.md
+│       ├── 2026-09-14-scope-growth-stop-review.md
 │       ├── archived
 │       ├── docs-truth-infra-ops-review.md
 │       ├── docs-truth-orchestrator-review.md
@@ -1174,7 +1181,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | [select_rules.py](scripts/select_rules.py) | Plan-time: lists the `.windsurf/rules` packs applicable to a project (ACTIVE = glob matches own source; AVAILABLE = read if work touches the domain), from pack frontmatter. Run before planning to select the binding ruleset. |
 | [review_rubric.py](scripts/review_rubric.py) | Armed-review rubric extractor (plan-2 WS-B): emits the rubric `/fabrik-review` + mega-`04` + ettw-`08`/`10` inject into every finder prompt — mandatory-core floor (`35-security-auth`+`25-data-postgres`+`30-ops`+12-Factor, always) + glob-matched pack mandates + (with `--workflow mega\|ettw`) the command-chain checklist items; `# promote-to-check_*` byproduct feeds Tier-1 promotion. Fleet-synced, stdlib-only. |
 | [review_receipt.py](scripts/review_receipt.py) | Review-artifact skeleton (`--init`): the pasted rubric run, the `Surface:` hash, the standing recurrence rows and the ledger/phase shapes `check_review_coverage.py` grades — born IN-PROGRESS, every verdict `UNCHECKED`; the Surface anchor covers untracked files and an empty surface is refused; exclusive create; fails closed without a rubric; fleet-synced (D-169) |
-| [command_feedback_report.py](scripts/command_feedback_report.py) | Per-command optimisation report over the close-out usage ledger (`~/.claude/state/command-feedback.jsonl`): runs, median/max wall-clock, median rounds, `change: none` share, and the recurring `change:`/`confusion:`/`waste:` items (D-175) |
+| [command_feedback_report.py](scripts/command_feedback_report.py) | Per-command optimisation report over the close-out usage ledger (`~/.claude/state/command-feedback.jsonl`), rendered as a 13-column table plus `--json`: runs, done/blocked/handoff, median and max wall-clock, median rounds, the `change: none` share, pool spend, median tokens, cache hit, seat tokens, tokens per round behind its mass rule, and the models seen — then the ranked `change:`/`confusion:`/`waste:` backlogs. Every figure carries the row count it was computed over, and the `conventions` block (both in `--json` and above the table) states the population and the token convention of each, because two cells in one row can rest on different sets of rows. | Update when a column, a convention or a ledger field changes | Read by an agent triaging the corpus's own feedback |
 | [render_chat_history.py](scripts/render_chat_history.py) | Renders every Claude Code transcript of a project to readable markdown under `~/.claude/state/history/<project-key>/` — one file per session (named via `--name id=label`, persisted), every compaction a dated heading, tool noise stripped, incremental. The "load more" the VS Code panel lacks: a reloaded window renders only from the last `compact_boundary` (its `parentUuid` is null). Doc: `docs/workstation/chat-history-render.md` (D-235) |
 | [rules_match.py](scripts/rules_match.py) | The ONE path↔`.windsurf/rules` pack glob matcher — `pack_matches_path` (single path, from review_rubric) · `any_path_matches` (root scan, from select_rules) · `packs_for_paths` (plan-stage routing). The keyword-only `empty_matches_all` preserves the two callers' DELIBERATE empty-glob divergence (review_rubric True, select_rules False); collapsing it would change the ACTIVE/AVAILABLE split fleet-wide. Fleet-synced — both importers are CORE_SCRIPTS, so it must ship with them. |
 | [pack_layout_audit.py](scripts/enforcement/pack_layout_audit.py) | Corpus×scaffold-type layout audit — which packs CLAIM a type via `applies_to:` but match zero paths a real scaffold of that type emits. Scaffolds for real (template and scaffold output provably diverge); excludes `activation: manual` packs. |
@@ -1194,7 +1201,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | [test_review_rubric.py](tests/test_review_rubric.py) | 3 hermetic Behavior-Contract tests for the rubric extractor (glob-matched mandates · mandatory-core floor always · `--workflow`-gated checklists) |
 | [test_review_receipt.py](tests/test_review_receipt.py) | 6 tests for the receipt skeleton in a throwaway git repo — only the Status line exempts the skeleton (the bare flip fails naming UNCHECKED), a mechanically completed one passes with zero findings, the anchor covers untracked files, an empty surface is refused, no overwrite, a dated scope is not double-dated |
 | [test_command_feedback.py](tests/test_command_feedback.py) | 5 tests for the structured close-out usage feedback — a close without the four fields is refused and stays running, a structured close lands the ledger row with wall-clock and rounds and prints the FEEDBACK line, `filed:` still classifies, an empty field and a bare `filed: none` are refused |
-| [test_command_feedback_report.py](tests/test_command_feedback_report.py) | 3 tests for the feedback report — per-command aggregates and the ranked change backlog, `--since`/`--command` bounds with the stated denominator, a missing ledger is an empty report |
+| [test_command_feedback_report.py](tests/test_command_feedback_report.py) | Behaviour graders for the per-command optimisation report (count them with `pytest --collect-only`; a number here rots) — the per-command aggregates and the ranked `change:`/`confusion:`/`waste:` backlogs, `--since` / `--command` / `--agent` filtering, malformed rows in old ledger entries, and the tokens-per-round column behind its mass rule: the two ordered silence clauses, the positive-pair and whole-rounds requirements, the three row counts and what each names, cache exclusion against `median_tok`'s cache-inclusive population, `cost_usd` absent from every derivation, pipe and backslash escaping in table cells, and the sign rule that keeps one corrupt row from dragging a published aggregate negative. |
 | [test_review_rubric_edges.py](tests/test_review_rubric_edges.py) | 6 edge tests: promote-to-check_* byproduct present/absent, missing-floor-pack + missing-checklist fallbacks, CLI exit codes |
 | [test_check_review_coverage_blocked.py](tests/test_check_review_coverage_blocked.py) | Both sanctioned BLOCKED exits are evidenced sections: per-finding 3-attempts and the loop-level `## BLOCKED: NON-CONVERGENCE` naming a foundation error; the exit-round message names the third disposition |
 | [test_dr_env_backup.py](tests/test_dr_env_backup.py) | `dr_env_backup.sh` commits with a single-sourced pathspec (`DR_PATHS`) — never a bare `git commit` (D-129) |

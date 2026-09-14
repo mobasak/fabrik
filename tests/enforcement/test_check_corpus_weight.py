@@ -707,3 +707,46 @@ def test_a_tree_with_no_git_is_not_called_a_worktree(tmp_path: Path) -> None:
     assert rc == 0, out
     assert "--reseed skipped — this tree is not a git checkout" in out, out
     assert "a worktree never writes" not in out, out
+
+
+def test_strict_alone_is_not_a_read_only_mode_and_says_so(repo: Path) -> None:
+    """`--strict` changes the EXIT CODE and nothing else — it still takes every write path a bare
+    run takes. A reviewer's own brief called it "read-only, safe" and a seat nearly staged a file on
+    the shared tree on that basis, so the help text and the docstring now say otherwise."""
+    _run(repo, "--seed")
+    _shrink(repo, keep=20)
+    rc, out = _run(repo, "--strict")
+    assert rc == 0, out
+    assert "ratcheted DOWN CLAUDE.md 100 → 20" in out, "--strict alone WROTE, as a bare run does"
+    assert _baseline(repo)["surfaces"]["CLAUDE.md"] == 20  # type: ignore[index]
+
+    rc, help_text = _run(repo, "--help")
+    assert rc == 0, help_text
+    assert "NOT a read-only mode" in help_text, help_text
+    assert "Pair it with --check to touch nothing" in help_text, help_text
+
+
+def test_help_does_not_claim_nothing_is_ever_deleted(repo: Path) -> None:
+    """`--reseed` DOES remove a key for a surface no longer in SURFACES — graded, and named in both
+    the CHANGELOG and INDEX. The help text claimed the opposite, which is the one place an agent
+    reads before running a command against their own tree."""
+    rc, out = _run(repo, "--help")
+    assert rc == 0, out
+    assert "Nothing is ever\ndeleted" not in out and "Nothing is ever deleted" not in out, out
+    assert "--reseed drops it and names it" in out, out
+
+
+def test_a_surface_that_is_neither_file_nor_directory_is_named(repo: Path, tmp_path: Path) -> None:
+    """A FIFO, socket or device node at a governance path (a broken extraction, a stray artifact) is
+    neither readable-as-a-file nor walkable-as-a-dir. It reported correctly and nothing pinned it."""
+    shutil.rmtree(repo / ".windsurf" / "rules")
+    os.mkfifo(repo / ".windsurf" / "rules")
+    rc, out = _run(repo)
+    assert rc == 0, out
+    assert ".windsurf/rules not a regular file or directory" in out, out
+
+    rc, out = _run(repo, "--seed")
+    assert rc == 0, out
+    assert ".windsurf/rules" not in _baseline(repo)["surfaces"], (
+        "never seeded from an unmeasurable path"
+    )  # type: ignore[index]

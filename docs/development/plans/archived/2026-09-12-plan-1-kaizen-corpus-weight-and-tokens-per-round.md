@@ -1,6 +1,6 @@
 # Kaizen feedback loop — pieces 3 + 4: the corpus-weight ratchet and tokens-per-round
 
-Status: IN-PROGRESS
+Status: EXECUTED (2026-09-14 — Phase A `cfc96f08`, Phase B `86499e07`, Phase C this commit; whole-plan review CONVERGED at `docs/development/reviews/2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round-review.md`)
 Profile: small
 **Owner:** —
 Date: 2026-09-12
@@ -143,7 +143,7 @@ Fourteen behaviour graders and one disclosure grader (A14), each seen RED first.
 
 Evidence for this phase: § Evidence (Phase A).
 
-## Phase B — piece 4: tokens-per-round behind the mass rule — ✅ EXECUTED 2026-09-14
+## Phase B — piece 4: tokens-per-round behind the mass rule — ✅ EXECUTED 2026-09-14 (86499e07)
 
 **Interfaces — Produces.** In `scripts/command_feedback_report.py`: `_io_total(r: dict) -> int | None` (Σ `tok_in`+`tok_out` only — the divergence from `_tok_total`'s cache-inclusive sum is stated in its docstring); per-command keys `tok_per_round: float | None`, `tok_per_round_reason: str | None` (`"zero token mass"` · `"mass ratio 0.3038 < 2/3"` · `None` when published), `mass_ratio: float | None`, `rows_with_numerator: int`, `rows_with_denominator: int`, `rows_both: int`, `rows_total: int`; a top-level `conventions` dict in `--json` (`{"tok_per_round": "Σ(tok_in+tok_out) ÷ Σ rounds over the rows carrying both a token pair and rounds > 0; cache excluded", "median_tok": "cache-inclusive, over rows carrying tokens"}`) — the report emits no mean, so no mean-divisor convention is declared (spec R3's per-command mean is a recipe, not a report column); in `render`: a 13th column `tok/round (q/T · num/den/both)` appended to the header (three concatenated literals, `command_feedback_report.py:294-296`) AND to the separator literal (`:297`, twelve `|---|` cells today) AND to the row f-string before its closing `|`; and one population sentence stating the two conventions. **Consumes.** the per-command row list inside `build` (each row's `rounds` via `_num`, its `tok_in`/`tok_out` via the `_TOK` keys), pairing numerator and denominator PER ROW — never the flat `rounds`/`toks` lists at `:170`/`:195`, which discard row identity, keep `rounds == 0`, and (`toks`) are `_tok_total`'s cache-inclusive all-four-fields sum; nothing new from Phase A.
 
@@ -169,7 +169,47 @@ Steps, in order:
 
 Evidence for this phase: § Evidence (Phase B).
 
-## Phase C — Finish
+## Execution notes (written during the run, not part of the frozen plan)
+
+- **Phase B's `conventions` dict shipped WIDER than § Interfaces froze it.** The plan specified two
+  keys with two exact strings; the shipped dict has four (`tok_per_round`, `median_tok`, `mass_rule`,
+  `row_counts`) and both original strings gained clauses. Every widening came from a review round that
+  executed a defect: the `tok_per_round` string gained "POSITIVE token pair" because the frozen wording
+  computed 200 where the table printed 1000; `median_tok` gained its population clause because "over
+  the rows carrying tokens" was false of `_tok_total`, which needs all four token fields; `mass_rule`
+  and `row_counts` exist because a reader could not otherwise tell why a figure was silent or what the
+  three counts counted. The Interfaces block is left as the design record and this note is the
+  correction, per the convergence rule that a frozen section is amended by a dated note, never rewritten.
+- **A row this plan's Behavior Contract B5 deferred is now written.** B5 narrowed its own scope on the
+  promise that Phase C step 5 would file the `max wall` / `cache hit` row-count residue to the backlog;
+  it is filed there, and B5's wording is honoured rather than quietly dropped.
+- **The canary registry gained this check's reason, not a fixture.** `tests/test_gate_check_canaries.py`
+  requires every `warn_only` gate row to record WHY it cannot fail. `check_corpus_weight` returns 0 on
+  every path the gate can reach by design, so an `UNREACHABLE` reason in `liveness_audit.py` is the
+  honest entry; a canary would have to assert a red the check exists never to produce. The suite fails THREE tests and all three
+  predate this plan (verified against the step-8 baseline): 16 other checks have neither a canary nor
+  an UNREACHABLE reason, 15 `warn_only` rows are undocumented (a different, only partly overlapping
+  set — it includes `check_doc_index` and `install_user_hooks`, which are absent from the 16), and the
+  `check_subagent_flywheel` canary is red. This plan's entry removed `check_corpus_weight` from the
+  first two lists, 17 → 16 and 16 → 15; none of the remainder is this run's to fix.
+
+## Phase C — Finish — ✅ EXECUTED 2026-09-14
+
+**Phase C as executed (2026-09-14).** Step 1: 100 passed over the three suites, `ruff` clean on all four
+files. Step 2: `final_gate.py --json --check` `"status": "success"`, 63 passed, 0 failed,
+`skipped_checks: ["pytest"]` (the hub's suite is deliberately out of the gate), the
+`Corpus Weight (byte ratchet)` row in `advisory`. Step 3: the heavy `/fabrik-review` ran SEVEN passes
+(confirmed 12 → 3 → 3 → 3 → 5 → 4 → 0) and closed CONVERGED; its receipt carries the verbatim gate embed
+and per-phase verdicts. Step 4: `/fabrik-docs-review` **SKIPPED — every changed doc was review surface.**
+Both doc surfaces (`docs/TROUBLESHOOTING.md`'s row, the `CHANGELOG.md` entry) are named in the review's
+Coverage Checklist row "Cross-document claim truth", which round 1 adjudicated FIXED (WP1, WP4), and their
+two load-bearing claims were re-executed at this step: the six surfaces the row lists are
+`check_corpus_weight.py:62-69` exactly, and "the gate never passes `--strict`" is
+`scripts/final_gate.py:1418`. Step 6: the review-family pass3 lock reads `released`, so the seed branch was
+taken — `.fabrik/corpus-weight-baseline.json` is seeded at six surfaces against `origin/master`. Step 7: the
+report is UNSCHEDULED — crontab writes are classifier-blocked, so the line is handed to the operator rather
+than installed.
+
 
 1. Full suites: `uv run pytest tests/test_command_feedback_report.py tests/enforcement/test_check_corpus_weight.py tests/enforcement/test_check_lint_ratchet.py -q` green; `uv run ruff check scripts/enforcement/check_corpus_weight.py scripts/command_feedback_report.py tests/enforcement/test_check_corpus_weight.py tests/test_command_feedback_report.py` clean.
 2. `python3 scripts/final_gate.py --json --check` → `"status": "success"`, read `skipped_checks` and the `advisory` list (the new row is there only once infra's registration has landed — record which); `python3 scripts/enforcement/check_convergence.py` — green is necessary, not sufficient; the Evidence above is the proof.

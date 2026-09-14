@@ -4,6 +4,7 @@ fleet-wide close-out ledger (`~/.claude/state/command-feedback.jsonl`)."""
 from __future__ import annotations
 
 import json
+import math
 import re
 import subprocess
 import sys
@@ -926,3 +927,198 @@ def test_the_conventions_never_claim_an_ordering_the_counts_do_not_have(tmp_path
     text = _run(ledger).stdout
     assert "narrower than the overlap" not in text, text
     assert "needs BOTH of the first two AND a positive pair" in text, text
+
+
+def test_a_negative_value_never_drags_a_published_aggregate(tmp_path: Path) -> None:
+    """The sign rule `_tok_total`, `_io_total` and `_seat_total` carry, swept to the four siblings
+    that publish a human-facing number from the same corrupt-row threat model. One bad row used to
+    print a median wall of -45 minutes, a median rounds of -3, a seats_seen of -95 and a pool spend
+    reduced by a refund the writer never emits — each a number a reader cannot read as wrong."""
+    ledger = tmp_path / "l.jsonl"
+    _write(
+        ledger,
+        [
+            _row("neg", 600.0, 3, "none", seats_seen=5, cost_usd=10.0),
+            _row("neg", -6000.0, -9, "none", seats_seen=-100, cost_usd=-500.0),
+        ],
+    )
+    cmd = json.loads(_run(ledger, "--json").stdout)["commands"]["neg"]
+    assert cmd["median_wall_min"] == pytest.approx(10.0), "the negative wall is not a measurement"
+    assert cmd["wall_rows"] == 1
+    assert cmd["median_rounds"] == 3
+    assert cmd["rounds_rows"] == 1
+    assert cmd["seats_seen"] == 5, "a tally never goes negative"
+    assert cmd["seats_seen_rows"] == 1
+    assert cmd["cost_usd"] == pytest.approx(10.0), "a negative amount is corrupt, not a refund"
+    assert cmd["cost_rows"] == 1
+
+
+def test_one_oversized_integer_never_takes_the_whole_report_down(tmp_path: Path) -> None:
+    """`float()` itself overflows on a 400-digit int. Every numeric helper here carries an
+    `OverflowError` catch except `_is_count`, which did not — so one such row in `seats_seen`
+    raised out of `build` and the report exited 1 with no output at all, against the invariant its
+    own call site states ("one malformed row must never take the whole report down")."""
+    ledger = tmp_path / "l.jsonl"
+    _write(
+        ledger,
+        [
+            _row("big", 60.0, 2, "none", seats_seen=5),
+            _row("big", 60.0, 2, "none", seats_seen=int("9" * 400)),
+        ],
+    )
+    proc = _run(ledger, "--json")
+    assert proc.returncode == 0, proc.stderr
+    cmd = json.loads(proc.stdout)["commands"]["big"]
+    assert cmd["seats_seen"] == 5, "the readable row still counts"
+    assert cmd["seats_seen_rows"] == 1
+    assert _run(ledger).returncode == 0, "the rendered report survives it too"
+
+
+def test_a_negative_component_never_publishes_a_tokens_per_round(tmp_path: Path) -> None:
+    """`_io_total` guarded the SUM, so -1000000 and +1000010 netted to a plausible +10 and published
+    a confident figure over a corrupt pair at mass_ratio 1.0 — the last unswept site of the rule
+    `_tok_total` and `_seat_total` already applied per component."""
+    ledger = tmp_path / "l.jsonl"
+    _write(ledger, [_tok("comp", 2, -1000000, 1000010), _tok("comp", 2, 100, 100)])
+    cmd = json.loads(_run(ledger, "--json").stdout)["commands"]["comp"]
+    assert cmd["rows_with_numerator"] == 1, "the corrupt pair carries no tokens"
+    assert cmd["tok_per_round"] == pytest.approx(200 / 2)
+    assert cmd["mass_ratio"] == pytest.approx(1.0), "over the one row that is readable"
+
+
+def test_an_oversized_seat_token_never_takes_the_whole_report_down(tmp_path: Path) -> None:
+    """`_seat_total` was the LAST of the six numeric helpers here without the `OverflowError`
+    catch — round 2 fixed the location (`_is_count`) and not the class, so one 400-digit integer in
+    a seat field still exited 1 with no output. Six of six now carry it."""
+    ledger = tmp_path / "l.jsonl"
+    _write(
+        ledger,
+        [
+            _row("seat", 60.0, 2, "none", tok_seat_in=2000, tok_seat_out=1000),
+            _row("seat", 60.0, 2, "none", tok_seat_in=int("9" * 400)),
+        ],
+    )
+    proc = _run(ledger, "--json")
+    assert proc.returncode == 0, proc.stderr
+    cmd = json.loads(proc.stdout)["commands"]["seat"]
+    assert cmd["seat_total"] == 3000, "the readable row still sums"
+    assert cmd["seat_rows"] == 1
+    assert _run(ledger).returncode == 0, "the rendered report survives it too"
+
+
+def test_a_token_sum_past_the_float_maximum_never_takes_the_report_down(tmp_path: Path) -> None:
+    """Every helper guards its COMPONENTS; they return exact-int SUMS. Four fields each just under
+    the float maximum sum past it, and both `statistics.median` and the final division then fail —
+    rc 1, no output, in text and `--json` alike. A count of guarded call sites was never a proof of
+    the guarded property, which is how three rounds read six-of-six as the class closed."""
+    big = 10**308
+    ledger = tmp_path / "l.jsonl"
+    _write(
+        ledger,
+        [
+            _row(
+                "huge",
+                60.0,
+                2,
+                "none",
+                tok_in=big,
+                tok_out=big,
+                tok_cache_read=big,
+                tok_cache_create=big,
+            ),
+            _tok("huge", 2, 100, 100),
+        ],
+    )
+    proc = _run(ledger, "--json")
+    assert proc.returncode == 0, proc.stderr
+    cmd = json.loads(proc.stdout)["commands"]["huge"]
+    assert cmd["median_tok"] is None, "a sum it cannot reduce is null, never a crash"
+    assert _run(ledger).returncode == 0, "the rendered report survives it too"
+
+    # rounds=1: the divisor cannot bring 2e308 back inside the float range, where rounds=2 could
+    _write(ledger, [_row("one", 60.0, 1, "none", tok_in=big, tok_out=big)])
+    proc = _run(ledger, "--json")
+    assert proc.returncode == 0, proc.stderr
+    cmd = json.loads(proc.stdout)["commands"]["one"]
+    assert cmd["tok_per_round"] is None
+    assert cmd["tok_per_round_reason"] == "token mass too large to divide"
+
+
+def test_every_published_figure_is_finite_or_null(tmp_path: Path) -> None:
+    """The PROPERTY, asserted once over every figure rather than per site.
+
+    Four rounds guarded this file site by site and each declared the class closed; a fifth found a
+    third crashing caller and two silent `float -> inf` paths, because float addition overflows to
+    infinity WITHOUT raising, so no `OverflowError` guard can see it. A per-site guard closes only
+    the sites someone enumerated. This grader takes a ledger built to break every numeric path at
+    once and asserts what a reader actually needs: the report renders, the JSON is valid, and every
+    number in it is finite.
+    """
+    big, huge = 10**308, 17 * 10**307
+    ledger = tmp_path / "l.jsonl"
+    rows = [_tok("ok", 2, 100, 100)]
+    for _ in range(300):  # a seat-token sum past the float maximum — the `_k` crash
+        rows.append(_row("ok", 1.0, 1, "none", tok_seat_in=huge, tok_seat_out=huge))
+    rows += [
+        _row("ok", 1.7e308, 2, "none", cost_usd=1e308),  # float addition -> inf, no exception
+        _row("ok", 1.0, 2, "none", cost_usd=1e308),
+        _row(
+            "ok", 1.0, 2, "none", tok_in=big, tok_out=big, tok_cache_read=big, tok_cache_create=big
+        ),
+        _row("ok", 1.0, int("9" * 400), "none", seats_seen=int("9" * 400)),
+        # finite PER ROW, overflowing only in the sum — the shape that nulls a tally while its row
+        # count stays non-zero, so a cell gated on the count alone prints the nulled value verbatim
+        _row("ok", 1.0, 2, "none", seats_seen=1e308, seats_skipped=1e308),
+        _row("ok", 1.0, 2, "none", seats_seen=1e308, seats_skipped=1e308),
+    ]
+    _write(ledger, rows)
+
+    proc = _run(ledger, "--json")
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout)  # bare Infinity would not be valid JSON
+    assert "Infinity" not in proc.stdout and "NaN" not in proc.stdout, proc.stdout[:400]
+    for name, stats in payload["commands"].items():
+        for key, value in stats.items():
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                continue
+            assert math.isfinite(float(value)), f"{name}.{key} = {value!r}"
+
+    rendered = _run(ledger)
+    assert rendered.returncode == 0, rendered.stderr
+    assert "inf" not in rendered.stdout.split("Conventions:")[0], rendered.stdout[:400]
+    for line in (ln for ln in rendered.stdout.split("\n") if ln.startswith("| /")):
+        assert len(line) < 400, f"an unrenderable cell widened the table: {len(line)} chars"
+        # the READER's half of the property: a nulled figure must read as `—`, never as the string
+        # "None" — five cells gated on a sibling row count while the value beside them was nulled
+        assert "None" not in line, f"a nulled figure reached the reader verbatim: {line[:200]}"
+
+
+def test_a_figure_nobody_measured_reads_as_a_dash_not_a_zero(tmp_path: Path) -> None:
+    """`sum([]) == 0`, so a gate that tests only the VALUE publishes a confident 0 where nothing was
+    measured — the file's own rule, written three times in its comments, is that a 0 over 0 rows is
+    "nothing looked at", not an honest zero. Converting the gates to test the value alone regressed
+    4 of 14 rows on the live ledger before this grader existed; the gate must test BOTH."""
+    ledger = tmp_path / "l.jsonl"
+    _write(ledger, [_tok("bare", 2, 100, 100)])  # no seat fields, no cost, no seats_seen
+    row = next(ln for ln in _run(ledger).stdout.split("\n") if ln.startswith("| /bare"))
+    cells = _cells(row)
+    assert cells[7].strip().startswith("—"), f"pool $ over 0 rows: {cells[7]!r}"
+    assert cells[10].strip().startswith("—"), f"seat tokens over 0 rows: {cells[10]!r}"
+    payload = json.loads(_run(ledger, "--json").stdout)["commands"]["bare"]
+    assert payload["seat_rows"] == 0 and payload["cost_rows"] == 0
+
+
+def test_a_non_finite_since_is_refused_rather_than_silently_emptying(tmp_path: Path) -> None:
+    """`float("nan")` parses, then every `>= cutoff` comparison is False: the report silently
+    emptied while reporting success, and `NaN` reached the JSON document, which no strict parser
+    accepts. The sanitiser is scoped to the per-command figures, so this needed its own guard."""
+    ledger = tmp_path / "l.jsonl"
+    _write(ledger, [_tok("s", 2, 100, 100)])
+    for bad in ("nan", "inf", "-inf"):
+        # the `=` form: argparse reads a bare `-inf` as an option flag, not as this flag's value
+        proc = _run(ledger, f"--since={bad}")
+        assert proc.returncode != 0, f"--since {bad} was accepted: {proc.stdout[:200]}"
+        assert "finite number of days" in proc.stderr, proc.stderr[:200]
+    ok = _run(ledger, "--since", "7", "--json")
+    assert ok.returncode == 0, ok.stderr
+    assert json.loads(ok.stdout)["since_days"] == 7.0

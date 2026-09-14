@@ -88,9 +88,21 @@ sessions' in-flight work; `git diff --cached` shows an `add -N` entry as nothing
 cannot see it either. **Do:** name the owner and the intent-to-add state in the message, and/or add a
 `--mine`/`--since` scoping flag so a session can gate on its own artifacts.
 
+## [fleet] `command_feedback_report.py` — `max wall` and `cache hit` publish no row count (2026-09-14, owner: fleet)
+
+Owed by row **B5** of `docs/development/plans/archived/2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round.md`, which narrowed its own scope on the promise this row would exist: every figure THAT PLAN added carries the population it was computed over, and the two pre-existing columns that do not were left for here rather than quietly widened.
+
+`median wall (rows)`, `median rounds (rows)`, `pool $ (rows)`, `median tokens (rows)` and `seat tokens (rows · seats)` each print their denominator. `max wall` and `cache hit` do not. The file's own rule, written in its `build`, is that "a 0 over 0 rows is 'nothing looked at', not an honest zero" — and both of these can be exactly that: `max_wall_min` is `None` when no row carries a finite non-negative `wall_s`, and `cache_hit` is `None` when no row carries all four token fields, but a reader sees only `—` with nothing saying whether one row was examined or forty.
+
+`cache_hit` also has no entry in the report's `conventions` block, although its denominator is the one figure in the table a reader would most likely guess wrong: it is `tok_in + tok_cache_read + tok_cache_create`, which EXCLUDES `tok_out`. Nothing in the report says so.
+
+Remedy: give both cells their `(rows)` suffix from the counts `build` already computes, and add a `cache_hit` convention naming its denominator. Fire rate: both cells render `—` on the live ledger today for at least one command, so the ambiguity is live, not theoretical.
+
+**Three more, measured by the closing pass of the whole-plan review (2026-09-14) and deliberately NOT counted as defects of that plan** — each is an extension of the surface rather than a wrong number: (1) the `backlog`/`confusion`/`waste` item sections below the table interpolate free text without the flattening `_cell` applies inside the table, so a stored newline breaks one bullet into two lines (0 occurrences across 157 live rows × 6 fields, and `command_run.py` treats a newline as a field boundary, so reaching it needs text after a label spanning lines with no later label); (2) `--since -5` puts the cutoff in the future and empties the report at rc 0 — disclosed in the header, valid JSON, and indistinguishable in outcome from the legitimate `--since 0`, so refusing it is a new policy rather than a bug fix; (3) a `seats_skipped` the sanitiser nulled would read as absent rather than unknown, unreachable as built because the component guard rejects the value that would be needed to get there.
+
 ## [fleet] `check_corpus_weight.py` — three residues the Phase A review rounds recorded rather than cut (2026-09-14, owner: fleet)
 
-Routed here by the SCOPE GROWTH stop (D-252) at the close of `/fabrik-review-scoped` over Phase A of `docs/development/plans/2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round.md`. Four rounds confirmed 16 → 6 → 4 → 2, and rounds 2–4 were entirely own-fix residue: the original change was quiet from round 2 and every later finding lived in the previous round's prose or its consequence. Every CONFIRMED item is fixed and graded; these three are what the closing seat listed as below the bar, kept so the next reader does not re-derive them.
+Routed here by the SCOPE GROWTH stop (D-252) at the close of `/fabrik-review-scoped` over Phase A of `docs/development/plans/archived/2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round.md`. Four rounds confirmed 16 → 6 → 4 → 2, and rounds 2–4 were entirely own-fix residue: the original change was quiet from round 2 and every later finding lived in the previous round's prose or its consequence. Every CONFIRMED item is fixed and graded; these three are what the closing seat listed as below the bar, kept so the next reader does not re-derive them.
 
 1. **A permanently deleted surface keeps its baseline bytes forever, under a transient framing.** `--reseed` preserves a `SURFACES` key it could not measure this run and prints "kept at its previous baseline — not measurable this run". For a surface deleted for good that sentence is true of the run and false of the world, and only a hand edit removes the key. The round-3 fix closed key-immortality for keys OUTSIDE `SURFACES` (they are dropped and named); this is the inside-`SURFACES` twin. Deliberate trade against the erasure round 2 found (a transient `PermissionError` used to wipe the record), so it is a wording-plus-policy question, not a bug: either say "kept — still in the registry, not measurable this run", or add an explicit `--forget <surface>`.
 2. **Two `why` branches are effectively dead.** `_not_written_because`'s `"nothing was writable"` fallback is provably unreachable (the three causes above it are exhaustive), and `"the baseline path is not a regular file"` is reachable in the tightening branch only if a non-regular path yields parseable JSON — on this box only a FIFO with a live writer. Harmless defensive code; noted so a future reader does not mistake either for a live state.
@@ -1679,7 +1691,7 @@ either a `handoff --resume` shape that carries a findings brief, or a line in
 `commands/_fragments/term-edit.md`.
 
 **Nothing downstream is blocked:** the spec is `Status: DRAFT — BLOCKED`, and the tier-1 plan
-(`docs/development/plans/2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round.md` — superseding the 2026-09-11 plan-2 at 450e5c43, D-240; `8bf4787d`) depends on none of the
+(`docs/development/plans/archived/2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round.md` — superseding the 2026-09-11 plan-2 at 450e5c43, D-240; `8bf4787d`) depends on none of the
 contested lines.
 
 ## [fleet] `_file_refreshed_credentials` is a credential writer with no production caller — keep with a reason or delete with its tests (2026-09-13, owner: fleet)

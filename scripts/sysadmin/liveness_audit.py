@@ -1551,6 +1551,16 @@ UNREACHABLE: dict[str, str] = {
         "tests/test_check_vps_docs_severity.py, which drives `main()` directly: every "
         "finding it can construct is Severity.WARN, so it is registered warn_only=True"
     ),
+    "check_corpus_weight": (
+        "registered warn_only=True and it returns 0 on EVERY path the gate can reach: the gate "
+        "invokes it with `--check` or with no flags at all, never with `--strict`, and `--strict` "
+        "is the only flag that can return 1 (on a governance surface that grew vs the base ref). "
+        "`main()` wraps the whole run in one `except Exception` that prints `internal error … "
+        "(reporting only)` and returns 0, so even a traceback cannot red the gate — which is the "
+        "precondition the registration comment in final_gate.py names, because run_optional_check "
+        "reds the gate on ANY non-zero exit in ~46 synced repos. A canary fixture would therefore "
+        "have to assert a red the check is designed never to produce"
+    ),
     "check_phase_tests": (
         "needs an ACTIVE plan lock plus a real baseline_commit whose git window ships source "
         "without tests; and it returns 0 on every path anyway "

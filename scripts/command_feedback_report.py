@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_command_feedback_report.py, docs/reference/command-run-protocol.md | none
+# AFTER-EDIT: tests/test_command_feedback_report.py, docs/reference/command-run-protocol.md
 """Per-command optimisation report over the fleet-wide close-out ledger (D-175).
 
 Every `command_run.py done|blocked|handoff` appends one row to
@@ -69,11 +69,54 @@ def _is_none(value: str) -> bool:
     return not stripped or head in {"none", "nothing", "n/a", "-"}
 
 
-def _median(values: list) -> float | int:
+def _finite_arg(text: str) -> float:
+    """`--since` as a number that can actually filter. `float("nan")` parses, then every `>= cutoff`
+    comparison is False, so the report silently empties while reporting success — and `NaN` reached
+    the JSON document, which no strict parser accepts."""
+    value = float(text)
+    if not math.isfinite(value):
+        raise argparse.ArgumentTypeError(f"--since needs a finite number of days, not {text!r}")
+    return value
+
+
+def _finite(v: object) -> object:
+    """Every PUBLISHED figure, made renderable — or ``None``.
+
+    Four review rounds guarded this file site by site and each declared the class closed: round 2
+    fixed one helper and said "the only", round 3 found a second and said "six of six", round 4
+    proved the sums those six return still crashed two callers — and a fifth round found the third
+    caller, plus two silent `float → inf` paths no `OverflowError` guard can see, because float
+    addition overflows to infinity without raising.
+
+    A per-site guard can only ever close the sites someone enumerated. This closes the PROPERTY, at
+    the one place every figure passes through on its way to a reader: a published number is finite
+    and convertible to float, or it is null. Nothing downstream — `_k`, an f-string, `json.dumps` —
+    can then be handed a value it cannot render, and a report is never lost to one corrupt row.
+    """
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return v
+    try:
+        return v if math.isfinite(float(v)) else None
+    except OverflowError:
+        return None
+
+
+def _median(values: list) -> float | int | None:
+    """The median, or None when the values cannot be reduced to one.
+
+    Every numeric helper here guards its COMPONENTS, but they return exact-int SUMS: four token
+    fields each just under the float maximum sum past it, and `statistics.median` then cannot
+    convert the result. One such row took the whole report down with rc 1 and no output — the very
+    invariant this module states. A COUNT of guarded call sites was never a proof of the guarded
+    property, which is how three review rounds read six-of-six as class closure.
+    """
     if not values:
         return 0
-    m = statistics.median(values)
-    return int(m) if float(m).is_integer() else round(float(m), 1)
+    try:
+        m = statistics.median(values)
+        return int(m) if float(m).is_integer() else round(float(m), 1)
+    except OverflowError:
+        return None
 
 
 def _num(v: object) -> float | None:
@@ -100,6 +143,13 @@ def _cost(r: dict) -> float | None:
     return None  # a non-finite or oversized value in an old row is counted as a run, never summed
 
 
+def _nonneg_cost(r: dict) -> float | None:
+    """`cost_usd` when it is a real amount. A negative dollar figure reduces a command's reported
+    spend, and the writer refuses to emit one — so a negative here is a corrupt row, not a refund."""
+    c = _cost(r)
+    return c if c is not None and c >= 0 else None
+
+
 _TOK = ("tok_in", "tok_out", "tok_cache_read", "tok_cache_create")
 # the SEATS' spend (D-192/D-193): the four fields summed from each seat's own transcript —
 # summed separately from the orchestrator's, never folded into `tok_total` (which stays what the
@@ -109,9 +159,23 @@ _SEAT_TOK = ("tok_seat_in", "tok_seat_out", "tok_seat_cache_read", "tok_seat_cac
 
 
 def _is_count(v: object) -> TypeGuard[int | float]:
-    """A finite non-bool number — the same acceptance `seats_seen` uses, so the two aggregations of
-    one field cannot disagree on a `10.0` (round-6 finding)."""
-    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(float(v))
+    """A finite, NON-NEGATIVE, non-bool number — the same acceptance `seats_seen` uses, so the two
+    aggregations of one field cannot disagree on a `10.0` (round-6 finding).
+
+    The sign half came later, from the whole-plan review: a count of seats is a tally, and one
+    corrupt row of `-100` dragged the whole command's `seats_seen` negative. `_tok_total`,
+    `_io_total` and `_seat_total` all reject a negative COMPONENT for the same reason; this is the
+    fourth site of the same rule, and it carries the overflow half too.
+    """
+    if not isinstance(v, (int, float)) or isinstance(v, bool):
+        return False
+    try:
+        return math.isfinite(float(v)) and v >= 0
+    except OverflowError:
+        # a 400-digit JSON integer: float() itself overflows. Every other numeric helper here
+        # carries this, and without it ONE such row raised out of `build` and took the whole
+        # report down — rc 1, no output — against the call sites' own stated invariant
+        return False
 
 
 def _seat_total(r: dict) -> int | None:
@@ -122,14 +186,18 @@ def _seat_total(r: dict) -> int | None:
         v = r.get(k)
         if v is None:
             continue
-        if (
-            not isinstance(v, (int, float))
-            or isinstance(v, bool)
-            or not math.isfinite(float(v))
-            or v < 0  # the same sign rule: two rows of -10000 and +10000 rendered "0 (2 · —)",
-            # which reads as two rows measured at zero rather than as data nobody can trust
-        ):
+        if not isinstance(v, (int, float)) or isinstance(v, bool):
             return None  # a malformed seat field nulls the row's seat sum, never the count
+        try:
+            # the sign rule: two rows of -10000 and +10000 rendered "0 (2 · —)", which reads as
+            # two rows measured at zero rather than as data nobody can trust. And the overflow
+            # half — a 400-digit JSON integer overflows `float()` itself, and this was the LAST
+            # of the six numeric helpers here without the catch, so one such row took the whole
+            # report down with no output at all
+            if not math.isfinite(float(v)) or v < 0:
+                return None
+        except OverflowError:
+            return None
         total += int(v)
         seen = True
     return total if seen else None
@@ -170,12 +238,13 @@ def _io_total(r: dict) -> int | None:
             for v in vals
         ):
             return None
-        total = int(sum(vals))
+        if any(v < 0 for v in vals):
+            # a NEGATIVE component, not merely a negative sum: -1000000 and +1000010 net to a
+            # plausible +10 and published a confident tok/round over a corrupt pair at ratio 1.0
+            return None
+        return int(sum(vals))
     except OverflowError:
         return None
-    # a negative token count is corrupt data, never mass: signed sums make the ratio unbounded, so
-    # a single bad row could push it over ⅔ and pass the very rule that exists to silence the figure
-    return total if total >= 0 else None
 
 
 def _whole(n: float | None) -> bool:
@@ -237,11 +306,22 @@ def _tok_per_round(rs: list[dict]) -> dict[str, object]:
     if rounds == 0:  # unreachable while pairs require rounds > 0; never divide on a guess
         out["tok_per_round_reason"] = "no round-carrying row"
         return out
-    out["tok_per_round"] = covered / rounds
+    try:
+        out["tok_per_round"] = covered / rounds
+    except OverflowError:  # the same sum path: one row past the float maximum
+        out["tok_per_round_reason"] = "token mass too large to divide"
     return out
 
 
 def _k(n: float) -> str:
+    """A token count as a cell. Astronomical values go to exponent form rather than expanding.
+
+    `_k(1.7e308)` spelled out is a 310-character table cell — one corrupt row made the whole table
+    unreadable, which is the reader-facing half of the same class the `_finite` sanitiser closes on
+    the value side: a figure that cannot be RENDERED is as useless as one that cannot be computed.
+    """
+    if abs(n) >= 1e12:
+        return f"{n:.2e}"
     if round(n / 1000, 1) >= 1000:  # 999,999 rolls over to 1.0M, never "1000.0k"
         return f"{n / 1_000_000:.1f}M"
     return f"{n / 1000:.1f}k" if n >= 1000 else f"{n:.0f}"
@@ -265,10 +345,15 @@ def build(
     commands: dict[str, dict] = {}
     for cmd, rs in sorted(per.items()):
         # rows with a finite value only; the counts beside the medians are their denominators
-        walls = [w / 60 for w in map(_num, (r.get("wall_s") for r in rs)) if w is not None]
+        # a NEGATIVE wall-clock or round count is corrupt data, never a measurement: one such row
+        # used to drag the whole command's median below zero, and a median wall of -45 min is a
+        # number a reader cannot even interpret as wrong
+        walls = [
+            w / 60 for w in map(_num, (r.get("wall_s") for r in rs)) if w is not None and w >= 0
+        ]
         # NOT int(): truncating a 2.7 into the median is the same defect `_whole` rejects for the
         # tok/round divisor. A 0-round run is still a real run and stays in the median's population.
-        rounds = [n for n in map(_num, (r.get("rounds") for r in rs)) if n is not None]
+        rounds = [n for n in map(_num, (r.get("rounds") for r in rs)) if n is not None and n >= 0]
         commands[cmd] = {
             "runs": len(rs),
             "done": sum(1 for r in rs if r.get("state") == "done"),
@@ -290,8 +375,8 @@ def build(
             "rounds_rows": len(rounds),
             "change_none": sum(1 for r in rs if _is_none(str(r.get("change") or ""))),
             # summed over the rows that carry a number; rows without one are counted, not zeroed
-            "cost_usd": round(sum(c for c in map(_cost, rs) if c is not None), 4),
-            "cost_rows": sum(1 for r in rs if _cost(r) is not None),
+            "cost_usd": round(sum(c for c in map(_nonneg_cost, rs) if c is not None), 4),
+            "cost_rows": sum(1 for r in rs if _nonneg_cost(r) is not None),
         }
         toks = [t for t in map(_tok_total, rs) if t is not None]
         ctx = sum(
@@ -364,6 +449,10 @@ def build(
             for (c, v), n in sorted(counter.items(), key=lambda kv: (-kv[1], kv[0]))
         ]
 
+    for stats in commands.values():
+        # the ONE place every published figure passes through: finite and renderable, or null
+        for key, value in list(stats.items()):
+            stats[key] = _finite(value)
     return {
         "conventions": {
             "tok_per_round": (
@@ -417,6 +506,7 @@ def _per_round_cell(c: dict) -> str:
 
 
 def _min(v: float | None) -> str:
+    """A wall-clock cell. `None` covers both "no timed row" and a figure the sanitiser nulled."""
     return f"{v} min" if v is not None else "—"
 
 
@@ -455,13 +545,16 @@ def render(report: dict) -> str:
         lines.append(
             f"| /{_cell(cmd)} | {c['runs']} | {c['done']}/{c['blocked']}/{c['handoff']} | "
             f"{_min(c['median_wall_min'])} ({c['wall_rows']}) | {_min(c['max_wall_min'])} | "
-            f"{c['median_rounds'] if c['rounds_rows'] else '—'} ({c['rounds_rows']}) | "
+            f"{c['median_rounds'] if c['rounds_rows'] and c['median_rounds'] is not None else '—'} "
+            f"({c['rounds_rows']}) | "
             f"{c['change_none']} of {c['runs']} | "
-            f"{c['cost_usd'] if c['cost_rows'] else '—'} ({c['cost_rows']}) | "
+            f"{c['cost_usd'] if c['cost_rows'] and c['cost_usd'] is not None else '—'} "
+            f"({c['cost_rows']}) | "
             f"{_k(c['median_tok']) if c.get('median_tok') is not None else '—'} "
             f"({c['tok_rows']}) | {hit} | "
-            f"{_k(c['seat_total']) if c['seat_rows'] else '—'} ({c['seat_rows']} · "
-            f"{c['seats_seen'] if c['seats_seen_rows'] else '—'}"
+            f"{_k(c['seat_total']) if c['seat_rows'] and c['seat_total'] is not None else '—'} "
+            f"({c['seat_rows']} · "
+            f"{c['seats_seen'] if c['seats_seen_rows'] and c['seats_seen'] is not None else '—'}"
             f"{' · ' + str(c['seats_skipped']) + ' skipped' if c['seats_skipped'] else ''}) | "
             f"{_per_round_cell(c)} | "
             f"{_cell(', '.join(c['models'])) or '—'} |"
@@ -496,7 +589,9 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         description="Per-command optimisation report over the feedback ledger."
     )
-    ap.add_argument("--since", type=float, default=None, help="only rows from the last N days")
+    ap.add_argument(
+        "--since", type=_finite_arg, default=None, help="only rows from the last N days"
+    )
     ap.add_argument("--command", default=None, help="one command name (without the slash)")
     ap.add_argument("--agent", default=None, help="one agent name (CLAUDE_AGENT at start)")
     ap.add_argument("--json", action="store_true")

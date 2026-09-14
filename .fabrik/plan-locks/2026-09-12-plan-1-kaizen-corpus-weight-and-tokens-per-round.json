@@ -1,5 +1,5 @@
 {
-  "plan": "docs/development/plans/2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round.md",
+  "plan": "docs/development/plans/archived/2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round.md",
   "owned_paths": [
     "scripts/enforcement/check_corpus_weight.py",
     "tests/enforcement/test_check_corpus_weight.py",
@@ -12,7 +12,7 @@
   ],
   "branch": "master",
   "started_at": "2026-09-14T13:02:21Z",
-  "status": "active",
+  "status": "released",
   "baseline_commit": "a86950e28d7bf799242cacf71f365e8db5c28a94",
   "baseline_gate": {
     "status": "success",
@@ -24,5 +24,29 @@
     ],
     "tier": "lean",
     "note": "no pre-existing red \u2014 every red at finish is this run's"
+  },
+  "phase_a": {
+    "status": "executed",
+    "executed_at": "2026-09-14",
+    "commit": "cfc96f08",
+    "review": "scoped, 4 delta rounds, confirmed 16 6 4 2, closed on the D-252 scope-growth stop with its residue in a named docs/STRATEGIC_BACKLOG.md row"
+  },
+  "phase_b": {
+    "status": "executed",
+    "executed_at": "2026-09-14",
+    "commit": "86499e07",
+    "review": "scoped, 3 delta rounds, confirmed 12 4 3, closed on the D-252 scope-growth stop"
+  },
+  "phase_c": {
+    "status": "executed",
+    "executed_at": "2026-09-14",
+    "review": "the whole-plan heavy /fabrik-review \u2014 7 passes, confirmed 12 3 3 3 5 4 0, receipt docs/development/reviews/2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round-review.md CONVERGED"
+  },
+  "completed_at": "2026-09-14",
+  "finish": {
+    "docs_review": "SKIPPED \u2014 every changed doc was review surface (the review's Coverage Checklist row 'Cross-document claim truth', WP1 and WP4); both load-bearing claims re-executed at the step",
+    "baseline_seed": "taken \u2014 the 2026-09-11-plan-1-review-family-pass3 lock reads released, so .fabrik/corpus-weight-baseline.json is seeded at six surfaces against origin/master",
+    "cron": "NOT installed \u2014 crontab writes are classifier-blocked; the report line and the stale keepalive line are handed to the operator in the receipt's \u00a7 Hand-offs",
+    "final_commit": "the Finish commit that carries this lock, the receipt and the archived plan (this commit)"
   }
 }
