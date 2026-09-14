@@ -501,15 +501,16 @@ there. Production reference: `/opt/youtube/docs/reference/pipeline-resilience.md
    persists**. That is correct, and it is a trap: the queue is stopped while `/health` deliberately
    still returns 200 and Gatus stays green, so a fleet can sit paused for days with nothing paging.
    ⚠️ **So a pause carries its FIRST-set time and escalates exactly once past N× its TTL**
-   (`self-healing` row 4). ⚠️ **`fabrik-lib/alerting/` does NOT give you that property, and the
-   coverage map's row 3 points here rather than repeating it.** Read at
+   (`self-healing` row 4). ⚠️ **`fabrik-lib/alerting/` does NOT give you that property, and the provider-death row 3 of
+   § Provider-death resilience points here rather than repeating it** — NOT the coverage map's
+   row 3, which is the circuit-breaker row. Read at
    `/opt/fabrik-lib/alerting/__init__.py` (youtube, 01M1SSV9YR), its dedup is a module-level
    `_last_sent` dict, so it is per-process — and a forked child INHERITS the parent's, rather than
    starting clean. Four things it is not. (1) Not a latch: the window is `ALERT_MIN_INTERVAL`
    (300 s) anchored on the last SUCCESSFUL send and re-armed by each one — a suppressed call does
    not extend it, so it is a fixed window, not a sliding one. (2) Not a cadence: it is a FLOOR on
    spacing, so the alert re-fires on the caller's next call past the window, at whatever rate the
-   caller runs — hourly for an hourly cron, not every 5 minutes. (3) Not suppression at all while
+   caller runs — hourly for an hourly cron, not every 5 minutes. ⚠️ And for a CRON the floor does not apply at ALL — each run is a fresh process with an empty dict, so an hourly cron alerts hourly whatever `ALERT_MIN_INTERVAL` says; set it to 24 h and nothing changes. Tuning that variable to throttle a cron alert is a no-op with no error. (3) Not suppression at all while
    delivery is FAILING: `_last_sent` is written only `if delivered`, so a caller looping against a
    dead transport attempts every time, unthrottled. (4) Not exactly-once even INSIDE one process:
    the read and the write straddle a delivery that can block, so concurrent callers all pass the
@@ -517,7 +518,7 @@ there. Production reference: `/opt/youtube/docs/reference/pipeline-resilience.md
    the fleet: `fabrik-lib`'s copy and `/opt/youtube`'s key on `title`, while the HUB's own
    `libs/alerting/` has keyed on `severity:title` since 2026-08-16 — deliberately, because
    title-only let an `info` alert swallow the `critical` escalation of the same condition. So a
-   durable latch is yours to build, and "the module does it" is wrong in four ways and version-
+   durable latch is yours to build, and "the module does it" is wrong in FIVE ways — the four numbered plus per-process — and version-
    dependent in a fifth. A
    sliding `SETEX` keeps no first-set timestamp — store it beside the flag, or that escalation is
    unimplementable. Detection with no terminus is not autorecovery.
@@ -595,7 +596,7 @@ no provider-death handling and no zero-progress alarm is a DEFECT** — what `/f
 |---|---|---|---|
 | 1 | **No single point of death** — one model or endpoint dying must not stop the loop | **Declare** the mechanism in §2b. Outage-aware routing is step 1 of OpenRouter's default strategy and a `models` array falls back on **any** error. ⚠️ **The trap: setting `sort` or `order` DISABLES load balancing, and the outage step is *part of* it** — pinning silently opts you out of the protection you think you have (claims row `openrouter-pin-disables-failover`); if you pin, you owe the `models` array explicitly | **Build it**: probe the quality-ordered candidates **once at run start** (never per item) and rebuild the chain from live survivors, best first, so it self-restores on recovery. Base it on `fabrik-lib/health-probe/`; the shared chain-rebuild helper is requested, not shipped, so promotion logic is project-local today. Needs **intra-provider** (2+ models of one provider) AND **cross-provider** diversity |
 | 2 | **The last rung is actually exercised** | No gateway provides this — exercise it on a schedule | Same |
-| 3 | **Absence of progress is alarmed** — N minutes of zero progress fires ONE alert, cleared on recovery | No gateway provides this. Export a monotonically-increasing **progress** counter (rows done, items classified) and alert on *it*, not on error codes. Threshold ≥ 2 full loop runs, a §7a knob. ⚠️ The exactly-one half is YOURS to build — `fabrik-lib/alerting/` does not provide it; see the pause-escalation bullet in §7 for what it actually does and why | Same |
+| 3 | **Absence of progress is alarmed** — N minutes of zero progress fires ONE alert, cleared on recovery | No gateway provides this. Export a monotonically-increasing **progress** counter (rows done, items classified) and alert on *it*, not on error codes. Threshold ≥ 2 full loop runs, a §7a knob. ⚠️ The exactly-one half is YOURS to build — `fabrik-lib/alerting/` does not provide it; see the pause-escalation bullet under § Advanced: Autonomous Pause-State Pipeline → The Four Properties for what it actually does and why — this file's own section, not `RESILIENCE.md` §7 | Same |
 
 **"We use OpenRouter" is not a resilience design** — it is the name of a gateway that can be configured
 out of the protection being claimed. Name the mechanism, not the vendor.
