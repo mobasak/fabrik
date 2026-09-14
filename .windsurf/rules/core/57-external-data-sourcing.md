@@ -122,7 +122,7 @@ validate strictly at the boundary.
 | 8 | **Health signal** — how do you learn THEY are down, machine-readably? a status API (the Statuspage convention: public read-only `/api/v2/status.json`, `incidents/unresolved.json`, `scheduled-maintenances/upcoming.json`), a health endpoint, an incident feed; is maintenance announced ahead? | decides whether a 5xx burst reads as *pause and wait* or *my bug, stop retrying* — and whether you can pre-pause for announced maintenance instead of discovering it as an outage |
 | 9 | **Credential lifecycle** — does the key/token EXPIRE, on what schedule; can it be rotated with an overlap (two keys valid at once) or only by a hard cut; what does an expired key LOOK like (401? 403? a silent empty 200?) | decides whether rotation can be automated at all, and whether the connector can even tell a dead credential from a dead vendor — an expired key is the failure a retry loop can never fix |
 | 10 | **Interface lifecycle** — versioning scheme; deprecation channel; does the vendor emit `Deprecation` / `Sunset` headers (RFC 9745 / RFC 8594) or a `Link rel="deprecation"` / `successor-version`; notice period; is the same key usable on the successor | decides whether retirement is detectable at RUNTIME or only by someone reading an email — an endpoint that dies on a date is the one failure no retry recovers; the only autorecovery is migrating before it |
-| 11 | **Data contract** — the response schema pinned at profile time; what the vendor changes WITHOUT a version bump (nullable flips, new enum values, added fields, pagination shape); freshness/lag and eventual-consistency window; how deletion shows (tombstone vs vanish); a sample kept for diffing | decides the validation posture: a `200` with a different shape is the failure that corrupts silently — outages page you, drift does not |
+| 11 | **Data contract** — the response schema pinned at profile time; what the vendor changes WITHOUT a version bump (nullable flips, new enum values, added fields, pagination shape); freshness/lag and eventual-consistency window; how deletion shows (tombstone vs vanish); a sample kept for diffing | decides the validation posture: a `200` with a different shape is the failure that corrupts silently — outages page you, drift does not ⚠️ **and the EXPECTED YIELD per page** — a number, or `0 is terminal` for a paginated/delta/search surface. A zero-row page is only a failure against a stated `≥1`; undeclared, it is not one (§ scraper failure classes). |
 | 12 | **Push delivery semantics** (webhooks/streams only) — at-least-once or at-most-once; retry schedule and for how long; an event id for dedup; ordering guarantee; replay window; signature scheme + timestamp tolerance; a way to LIST what was sent | decides whether a missed delivery is recoverable at all — without an event id there is no dedup, without a list-endpoint there is no reconciliation, and a webhook you cannot reconcile is a data loss waiting for a deploy |
 
 ⚠️ **Field 4 is where an operational question becomes a legal one.** Asking "are multiple accounts
@@ -177,9 +177,16 @@ on:**
   challenge page carries the site's own navigation chrome, so a selector keyed on it resolves
   and the fetch reports success with zero rows (trade-intelligence via fleet, 01M1RHJZ3). Do
   not fix this by writing a cleverer selector — that is the same bet one page redesign later.
-  Assert the YIELD: a page whose extraction returns zero rows where the contract expects ≥1 is
-  a failed fetch, counted as one and surfaced as one, whatever the selector and the status code
-  said. This is the measurable half of the markup-change class above, applied at the page.
+  Assert the YIELD — but DECLARE the expectation first, because zero rows is the correct answer
+  more often than it looks. A paginated crawler's page N+1, an empty search result, a section
+  with nothing this quarter, a delta fetch since a cursor: in every one of those zero rows IS
+  the contract, and `58`'s breaker counts consecutive failures per logical operation, so a rule
+  that calls them failures opens the breaker on a healthy site every scheduled run. So: the
+  profile's data-contract field (field 11) states the EXPECTED YIELD per page — a number or
+  `0 is terminal` — and a page that misses a stated `≥1` is a failed fetch, counted and
+  surfaced as one whatever the selector and the status code said. Undeclared, it is not a
+  failure and you have no rule; that is the point of declaring it. This is the measurable half
+  of the markup-change class above, applied at the page.
 - **Some classes stay human-gated, and that is allowed — SAFELY.** A vendor's credit exhaustion
   (`402`) or a retired endpoint with no successor cannot be un-broken by code. The bar is not
   "no human ever" but "no human in the loop of *staying safe*": paused on the pause key, escalated

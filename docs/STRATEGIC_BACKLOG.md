@@ -10,6 +10,33 @@ Generated from the end-of-day plan-state on 2026-06-07 after the trio Phase 5.1.
 ---
 
 - **[intel] `/fabrik-rivals` guard debt left after the 2026-09-14 key-autoload review** — four low-severity grader gaps a 25-mutant battery found and the run deliberately did not close, each one line: the unreadable-`.env` fail-open path (`chmod 000`) is claimed by a docstring and pinned by no test; the `expanduser()` on `$SUBAGENTS_ENV_FILE` is documented as a deliberate divergence from `libs/alerting/_dotenv.py` and nothing pins it, so the next re-port reverts it; `main()`'s `load_env(str(REPO))` argument is ungraded, and swapping it for `os.getcwd()` — the historical wrong-repo bug — passes every test; and the `note:` the docs make a contract is not asserted. Plus one behaviour item: running the HUB's copy of the driver from another repo binds `REPO` to the hub, so it reads the hub's `.env` and writes its checkpoint under `/opt/fabrik/.tmp` while preflight calls it repo-local (reproduced; the doc now states the precondition, but no check enforces it). None is a live defect in the shipped path — the closing reader's verdict was SAFE for 48 repos.
+## [infra] The rules packs cite hub-only docs 169 relative / 4 absolute, with no stated rule
+
+Phase D made two `ai/20-vision.md` cites absolute because the doc they name is hub-only and is NOT
+in `fabrik_synced_manifest.py` — sampled 3 project repos, 3 of 3 carry the pack and 0 of 3 have the
+doc, so the relative form was a dead link in every one. That fix is right and it leaves the
+convention incoherent: `command grep -roh '\`docs/[a-zA-Z0-9_./-]*\.md\`' .windsurf/rules/` → **169**
+relative, `command grep -roh '/opt/fabrik/docs/...'` → **4** absolute, two of them created by that
+change. And both directions are wrong elsewhere: `docs/reference/gui-toolchain.md` and
+`docs/reference/research/chrome-ext-gui-research.md` are hub-only and cited relative (dead in every
+project), while `/opt/fabrik/docs/reference/kilo/TASK_SUBAGENT_SELECTION.md` IS synced and cited
+absolute, which defeats the sync.
+
+**Do:** state the rule once — synced ⇒ relative, hub-only ⇒ `/opt/fabrik/…` — and sweep the three
+inconsistent sites. **Do not** bulk-rewrite the 169: most are correct.
+
+## [infra] `fabrik-lib/alerting/`'s `_last_sent` is unbounded and its only reset is a test reaching into the module
+
+Surfaced reviewing Phase D's correction of `core/58-resilience.md`. Beyond the four properties the
+pack now names, two more the rule does not carry: `_last_sent` has no eviction, so a title carrying a
+varying token (an id, a timestamp) both defeats dedup entirely AND grows the dict for the process's
+lifetime; and the module exposes no reset — its own tests clear it by touching
+`alerting._last_sent.clear()` directly (`test_alerting.py:73`), which is the tell that the public
+surface is missing one. Cross-repo, so it is fabrik-lib's to fix.
+
+**Do:** mail fabrik-lib — a bounded store (or a documented `reset()`), and a note in the pack that a
+title must be a STABLE key, not a formatted string.
+
 ## [infra] The private-index commit recipe is a SCRIPT written as prose, and each review round finds more transcription defects in it
 
 Routed here by the D-252 scope-growth stop at the close of Phase C's review (receipt
