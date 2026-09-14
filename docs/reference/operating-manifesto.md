@@ -44,10 +44,11 @@ survives a long session.
 * **Systemic Thinking:** View the environment holistically, understanding how interconnected parts influence one another within the larger whole.
 * **Counterfactual Thinking:** Explore "what if" scenarios and alternate realities to uncover hidden variables, test assumptions, and understand causality.
 * **Second-Order Effects:** Anticipate the downstream, cascading impacts of any action before making a move.
+  * **`+` The Cobra Effect — you get the behavior you measure, not the behavior you want.** What is counted tends to become what is optimised, in good faith as readily as in bad. So a metric is introduced beside the cheapest way to satisfy it WITHOUT producing the outcome; when that way is cheaper than the real work, change the measure or ship its counter-measure.
 * **Steel-Manning & Falsifiability:** Actively construct the strongest possible counter-arguments against your own ideas, ensuring every hypothesis can be objectively tested.
 * **`+` Blast Radius:** Ask what breaks if you are wrong, not only what pays off if you are right. Size the damage, not just the upside.
 
-> **Gate:** the strongest counter-argument has been stated and answered, or the plan changed in response to it.
+> **Gate:** the strongest counter-argument has been stated and answered, or the plan changed in response to it, and each metric the decision introduces carries its cheapest satisfying move.
 
 ---
 
@@ -111,10 +112,17 @@ already exists and is already enforced — never a parallel system:
   the existing fleet path; a tripwire that pages nobody is a comment.
 - **The parking entry** is a `docs/STRATEGIC_BACKLOG.md` row — one line, no phase, no loop.
 - **Enforcement grows by the standing rollout law:** advisory first, fire rate measured, promoted
-  to a blocking check only on evidence. Candidate checks, in order: (1) a CONVERGED one-way plan
-  whose decision row lacks KILL/BUDGET fields; (2) the WIP limit — count open past-Phase-4 rows in
-  the ledger and warn past 3 (today the only invariant enforced by the operator noticing).
+  to a blocking check only on evidence — **and its Cobra Effect (Phase 3) is answered before it is
+  promoted**, because a check that blocks is a metric with teeth and both failures on record here
+  are enforcement machinery rewarding the wrong move (a review loop's own confirmed counter; a lint
+  ratchet that re-seeds the version it measures against). Candidate checks, in order: (1) a CONVERGED
+  one-way plan whose decision row lacks KILL/BUDGET fields; (2) the WIP limit — count open
+  past-Phase-4 rows in the ledger and warn past 3 (today the only invariant enforced by the operator
+  noticing).
 
 What this document deliberately does NOT add: more reasoning modes, more phases, more
 counterfactual machinery. Phases 2–3 are at diminishing returns; every gain left is in binding,
-budgeting, and instrumentation.
+budgeting, and instrumentation. Phase 3's Cobra Effect (2026-09-14) is stated there because a
+measure's induced behaviour is a second-order effect, and it is BOUND in § Binding, whose rollout
+law demands it be answered before any check is promoted — the additions that sentence forbids are a new reasoning
+mode, a new phase and new counterfactual machinery, and this is none of the three.

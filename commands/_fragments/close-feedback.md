@@ -23,7 +23,14 @@ feedback line:**
 
 **The four labelled fields are the USAGE report (D-175, the operator's 6th ask 2026-09-07): the
 corpus is optimised from them — fewer review rounds, less confusion, fewer tokens, without losing
-function — and `command_run.py` REFUSES a close that lacks any of `confusion:` `waste:` `change:`
+function. ⚠️ Two of those three are COUNTED — `rounds <n>` and `tokens <i>/<o>`, both captured for you —
+and you get the behavior you measure (the Cobra Effect, CLAUDE.md § THE FIX DIRECTIVE item 5): a run
+shortened by closing before the quiet round, or made cheap by skipping a probe, moves both counters the
+right way while the work gets worse. They are a REPORT on the run, never its goal — the goal is the
+terminal condition, and `done --evidence` is where you prove you met it. A shorter run you cannot
+evidence is not a faster run.**
+
+**`command_run.py` REFUSES a close that lacks any of `confusion:` `waste:` `change:`
 `filed:` (or leaves one empty, or writes one twice).** The separator between fields is ` · ` (a middle dot; `|`, `;` or a newline also count) — a label only counts at a field boundary, so a value may mention another label's name in prose. Wall-clock and the round count are captured for you; write what
 you SAW: which sentence you misread, which step you repeated, what you would cut or rename. A run
 that went cleanly still says so per field (`confusion: none`), and `change: none` is a claim you
