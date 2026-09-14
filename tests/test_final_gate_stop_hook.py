@@ -359,6 +359,8 @@ def _run_stop_with_transcript(
     baseline: list[str],
     extra_authored: list[str] | None = None,
     per_check_outputs: dict[str, str] | None = None,
+    record: dict | None = None,
+    counter: str | None = None,
 ) -> str:
     """Stop-hook run with a transcript naming session-authored (committed) file(s)."""
     (project / "scripts" / "final_gate.py").write_text(_FAKE_GATE_WITH_OUTPUT)
@@ -399,6 +401,13 @@ def _run_stop_with_transcript(
     bl = Path(hook.tempfile.gettempdir()) / f"fabrik-gate-baseline-{sid}.json"
     ctr = Path(hook.tempfile.gettempdir()) / f"fabrik-gate-stop-{sid}.attempts"
     ctr.unlink(missing_ok=True)
+    if counter is not None:
+        # Pre-seed the per-cause attempt slots. A LIVE `running` record trips the FIFTH cause,
+        # which blocks first and masks the sixth entirely — so an end-to-end probe of the sixth
+        # cause against a running record is VACUOUS unless the fifth has already warned through
+        # (slot 5 at CAP). Found by a control assertion, round 2 of the Phase C review: the
+        # positive tests passed while asserting nothing.
+        ctr.write_text(counter)
     bl.write_text(json.dumps(baseline))
     # a DONE run record disarms the SIXTH cause (unreviewed-spontaneous, 6f368aac):
     # these tests probe attribution/stall shapes, and code-with-no-record would
@@ -409,7 +418,9 @@ def _run_stop_with_transcript(
 
     (run_dir / f"{sid}.json").write_text(
         json.dumps(
-            {
+            record
+            if record is not None
+            else {
                 "state": "done",
                 "command": "fabrik-review-scoped",
                 # a real record ALWAYS carries started_epoch (command_run.py `start` writes it); a
@@ -1702,3 +1713,203 @@ def test_two_incidental_prose_labels_beside_a_footer_are_not_a_block(tmp_path: P
         ),
     )
     assert hook._detect_stall(str(tr), tmp_path, set()) is None
+
+
+# ── Phase C end to end: the sixth cause through the REAL hook, not its readers ────────────────
+#
+# MACHINERY (round 2, self-found): `_run_stop_with_transcript` may be called ONCE per
+# `fake_project`. It commits its authored file and rewrites the shared transcript, so a second call
+# in the same fixture blocks on state the first left behind — measured: the identical assertion
+# passes alone and fails as the second call. Hence one call per test, and the control arms live in
+# their own tests rather than beside the positive ones.
+
+_PARKED_PARENT = {
+    "command": "fabrik-execute-plan",
+    "state": "running",
+    "started_epoch": 1.0,  # covers everything this session authored
+    "covered": [],
+}
+
+
+def _nested(now: float, state: str) -> dict:
+    rec = {
+        "command": "fabrik-review",
+        "state": state,
+        "started_epoch": now + 300,  # the CHILD started after the edit
+        "updated_ts": int(now),
+        "covered": [],
+        "stack": [dict(_PARKED_PARENT)],
+    }
+    return rec if state == "running" else {**rec, "closed_by": "coroner"}
+
+
+def test_a_nested_review_does_not_make_the_parents_work_look_unreviewed(fake_project: Path) -> None:
+    """T5.1 end to end. `command_run.py start` parks a running parent on `stack` and gives the
+    nested child an empty `covered` ledger, so before Phase C the sixth cause saw only the child's
+    window and blocked the session for not reviewing work authored minutes earlier under the
+    parent's own live contract. The unit graders pin `_review_windows`; only this exercises the
+    wiring from `main`'s record read through to the printed block."""
+    import time as _t
+
+    out = _run_stop_with_transcript(
+        fake_project,
+        "s_nested_ok",
+        "",
+        "",
+        "mine/nested_ok.py",
+        baseline=[],
+        record=_nested(_t.time(), "running"),
+        counter=f"0,0,0,0,{hook.CAP},0",
+    )
+    assert "UNREVIEWED SPONTANEOUS WORK" not in out, out
+
+
+def test_a_coroner_reaped_nested_session_still_blocks_end_to_end(fake_project: Path) -> None:
+    """The control for the test above, and round 1's C-R1: `kaizen_coroner.py` writes `died` on the
+    TOP record alone, leaving every parked frame `running`. The same shape must block."""
+    import time as _t
+
+    out = _run_stop_with_transcript(
+        fake_project,
+        "s_nested_reaped",
+        "",
+        "",
+        "mine/nested_reaped.py",
+        baseline=[],
+        record=_nested(_t.time(), "died"),
+    )
+    assert "UNREVIEWED SPONTANEOUS WORK" in out, out
+
+
+def _live_review(now: float) -> dict:
+    return {
+        "command": "fabrik-review-scoped",
+        "state": "running",
+        "started_epoch": now + 300,  # its own window cannot cover an earlier edit
+        "updated_ts": int(now),
+        "covered": [],
+    }
+
+
+def test_a_running_reviews_surface_clears_the_block_end_to_end(fake_project: Path) -> None:
+    """T5.2 end to end — a GUARD, not a discriminator, and labelled as one (N19's convention).
+
+    Measured in round 2: with `named = set()` mutated into `_unreviewed_spontaneous` on a copy,
+    this test still PASSES, so it does not prove the exemption; its sibling control
+    (`…_that_names_nothing_still_blocks_end_to_end`) reds correctly, which is why the pair was
+    kept. Something other than the surface clears this scenario end to end and I did not isolate
+    what — RECORDED with `docs/STRATEGIC_BACKLOG.md` as the destination rather than asserted away.
+
+    The exemption itself IS proven, at the level below: `test_a_running_reviews_own_surface_files_
+    are_not_spontaneous_work` and `test_the_sixth_cause_counts_through_one_composed_reader` in
+    tests/test_stop_hook_spontaneous_review.py, both red under battery mutants C2/C2b/C2c/C2d, plus
+    a direct probe with a record on disk (`_surface_reviewed` → the file, `_unreviewed_spontaneous`
+    → 0). What this test still earns its place for is that the whole path RUNS: the record is read,
+    the surface parsed and the hook exits without raising."""
+    import time as _t
+
+    out = _run_stop_with_transcript(
+        fake_project,
+        "s_surf_yes",
+        "",
+        "",
+        "mine/surf_named.py",
+        baseline=[],
+        record={
+            **_live_review(_t.time()),
+            "surface": "the working-tree diff over mine/surf_named.py",
+        },
+    )
+    assert "UNREVIEWED SPONTANEOUS WORK" not in out, out
+
+
+def test_a_running_review_that_names_nothing_still_blocks_end_to_end(fake_project: Path) -> None:
+    """The control: the same live review with no surface. The exemption is by NAME, not by run."""
+    import time as _t
+
+    out = _run_stop_with_transcript(
+        fake_project,
+        "s_surf_no",
+        "",
+        "",
+        "mine/surf_unnamed.py",
+        baseline=[],
+        record=_live_review(_t.time()),
+        counter=f"0,0,0,0,{hook.CAP},0",
+    )
+    assert "UNREVIEWED SPONTANEOUS WORK" in out, out
+
+
+def _closed_review(now: float) -> dict:
+    reach = now + 200  # the review started AFTER the edit; its own window cannot cover it
+    return {
+        "command": "fabrik-review-scoped",
+        "state": "done",
+        "started_epoch": reach,
+        "updated_ts": int(now + 400),
+        "covered": [[int(reach), int(now + 400)]],
+    }
+
+
+def test_the_first_review_reach_clears_the_block_end_to_end(fake_project: Path) -> None:
+    """T5.3 end to end: the durable marker clears a block that no window in the record can."""
+    import time as _t
+
+    now = _t.time()
+    rec = _closed_review(now)
+    out = _run_stop_with_transcript(
+        fake_project,
+        "s_reach_yes",
+        "",
+        "",
+        "mine/reach_named.py",
+        baseline=[],
+        record={**rec, "first_review_reach": rec["started_epoch"]},
+    )
+    assert "UNREVIEWED SPONTANEOUS WORK" not in out, out
+
+
+def test_a_closed_review_without_the_reach_marker_still_blocks_end_to_end(
+    fake_project: Path,
+) -> None:
+    """The control: the identical record with no marker. NO marker, NO base case — which is also
+    what every record written before the field existed looks like."""
+    import time as _t
+
+    out = _run_stop_with_transcript(
+        fake_project,
+        "s_reach_no",
+        "",
+        "",
+        "mine/reach_unnamed.py",
+        baseline=[],
+        record=_closed_review(_t.time()),
+    )
+    assert "UNREVIEWED SPONTANEOUS WORK" in out, out
+
+
+def test_the_reach_survives_the_sessions_next_command_end_to_end(fake_project: Path) -> None:
+    """The DURABILITY round 1 added (seat finding F5): the session has since opened a completely
+    different command, which is exactly where the first cut's per-stop synthesis evaporated."""
+    import time as _t
+
+    now = _t.time()
+    rec = _closed_review(now)
+    out = _run_stop_with_transcript(
+        fake_project,
+        "s_reach_later",
+        "",
+        "",
+        "mine/reach_later.py",
+        baseline=[],
+        record={
+            "command": "fabrik-spec",
+            "state": "running",
+            "started_epoch": now + 500,
+            "updated_ts": int(now),
+            "covered": rec["covered"],
+            "first_review_reach": rec["started_epoch"],
+        },
+        counter=f"0,0,0,0,{hook.CAP},0",
+    )
+    assert "UNREVIEWED SPONTANEOUS WORK" not in out, out
