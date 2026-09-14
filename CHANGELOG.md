@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `final_gate.py --check` never verified formatting, and a truncated pytest red hid the rest of the list (2026-09-14)
+
+- Phase E T12.4 + T12.6 of the mail-triage plan (01M2606BZ, 01M28NB2R) — five graders, each proven RED by name against the previous script.
+- **`--check` skipped Phase 1 entirely, and Phase 1 is the only place the gate runs `ruff format`.** So a green `--check` asserted nothing about formatting, and `.pre-commit-config.yaml` registers no ruff hook either — nothing else covered it. A read-only `ruff format --check` leg now runs over the changed Python under `--check` only (the fix-mode branch already formats; two rows would double-count). Proven end to end when it landed: a deliberately mis-formatted staged file came back `fail` in the roster with its md5 unchanged. A change with no Python gets **no row at all** — a formatting verdict over an empty set is not a pass.
+- **T12.4's mail claimed `pytest -x` yields "a green over unreached tests" — REFUTED by execution.** `-x` truncates only on a failure, pytest then exits 1, `code == 0` is False and the row is red; `run_cmd` returns 1 on timeout too. There is no green truncated run. What *is* real is the other half: the red names the FIRST failure and says nothing about the tests that never ran, so an agent fixes one, re-runs, meets the next, and walks the suite serially. Executed on a 4-test suite with 2 failures: `-x` reports `1 failed, 1 passed`, the full run `2 failed, 2 passed`. The red now says its list is partial and names the command that shows all of it. **`-x` stays** — it is a deliberate cost decision (a hub-scale suite under a 900 s budget across ~46 repos), and dropping it to improve a message would trade minutes off every failing gate for one line.
+
 ### Fixed — `final_gate.py`: a green that skipped semgrep entirely reported `skipped: 0`, and `--json` never named the checks that ran (2026-09-14)
 
 - Phase E T12.2 + T12.3 of the mail-triage plan (01M20HW4E, 01M20KVDT, 01M2606BZ) — seven graders, each proven RED by name against the previous script.

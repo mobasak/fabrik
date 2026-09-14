@@ -283,6 +283,12 @@ def clip_output(
     }
 
 
+# pytest's own early-stop banner under `-x` — the literal it prints between the failure list and
+# the summary line ("!!! stopping after N failures !!!"). Matched on the stable middle, never the
+# whole line: the exclamation padding is terminal-width dependent and the count varies.
+_PYTEST_EARLY_STOP = "stopping after "
+
+
 def run_cmd(cmd: list[str], cwd: Path | None = None, timeout: int | None = None) -> tuple[int, str]:
     """Run a command and return (returncode, output)."""
     timeout = timeout or TIMEOUTS["default"]
@@ -685,6 +691,29 @@ def run_formatting_fixes(
             results.append(("ruff --fix", False, out))
 
     return results
+
+
+def run_format_check(changed_files: set[str] | None = None) -> list[tuple[str, bool, str]]:
+    """`ruff format --check` over the changed .py — the read-only half of Phase 1 (T12.6).
+
+    Returns no row when the change touched no Python under the ruff roots: a formatting verdict
+    over an empty set is not a pass, and a green row there would be the same fail-silent-green
+    this leg exists to close.
+    """
+    ruff_py = _changed_python(changed_files or set())
+    if not ruff_py:
+        return []
+    code, out = run_cmd([RUFF, "format", "--check", *ruff_py], timeout=TIMEOUTS["ruff"])
+    if code == 0:
+        return [("ruff-format (--check)", True, "")]
+    return [
+        (
+            "ruff-format (--check)",
+            False,
+            "these file(s) are not formatted; a plain `final_gate.py` run would rewrite them, "
+            "and `--check` must not. Run `ruff format <paths>` yourself:\n" + out,
+        )
+    ]
 
 
 # Infra/scaffold dirs that are never the project's own type-checked source. A src-layout
@@ -1116,6 +1145,24 @@ def run_static_checks(
                     f"collected. Run it yourself if your change touches it."
                 )
             tail = skip_advisory(out, tail)
+            # T12.4 (01M2606BZ): the mail called this "a green over unreached tests". REFUTED by
+            # execution — `-x` truncates only on a FAILURE, pytest then exits 1, `code == 0` is
+            # False and the row is RED; `run_cmd` also returns 1 on timeout. There is no green
+            # truncated run. What IS real is the other half: the red names the FIRST failure and
+            # says nothing about the tests that never ran, so an agent fixes one, re-runs, meets
+            # the next, and walks the suite serially. Executed on a 4-test suite with 2 failures:
+            # `-x` reports "1 failed, 1 passed", the full run "2 failed, 2 passed".
+            #
+            # `-x` STAYS — it is a deliberate cost decision (a hub-scale suite under a 900s budget
+            # across ~46 repos), and dropping it to improve a message would trade minutes of every
+            # failing gate for one line. The fix is to SAY the list is partial.
+            if code != 0 and _PYTEST_EARLY_STOP in out:
+                tail = (
+                    "\u26a0 this suite STOPPED at the first failure (`-x`), so the failure below is "
+                    "the first one, not the only one — the tests after it never ran. Before you "
+                    "conclude the suite is one fix away, see the whole list with "
+                    "`python -m pytest tests/ -q` (no `-x`).\n"
+                ) + tail
             results.append(("pytest", code == 0, tail))
     else:
         # SAY WHICH of the three conditions fired. The old message listed all three, so a
@@ -2530,6 +2577,19 @@ def run_iteration(
         if not json_mode:
             print_header("PHASE 1: AUTO-FIX FORMATTING")
         results = run_formatting_fixes(tier=tier, changed_files=changed_files)
+        all_results.extend(results)
+        if not json_mode:
+            for name, passed, out in results:
+                print_step(name, passed, out)
+    elif check_only and tier != 3:
+        # T12.6 (01M28NB2R): `--check` skipped Phase 1 ENTIRELY, and Phase 1 is the only place the
+        # gate ever runs `ruff format`. So a green `--check` asserted nothing about formatting —
+        # and `.pre-commit-config.yaml` registers no ruff hook either, so nothing else covered it.
+        # The read-only verb exists (`ruff format --check`), so the gate can answer the question
+        # without mutating anything, which is what `--check` promises.
+        if not json_mode:
+            print_header("PHASE 1: FORMATTING (READ-ONLY)")
+        results = run_format_check(changed_files=changed_files)
         all_results.extend(results)
         if not json_mode:
             for name, passed, out in results:

@@ -514,3 +514,80 @@ def test_the_roster_agrees_with_the_aggregate_counts_it_sits_beside() -> None:
     outcomes = [r["outcome"] for r in roster]
     assert outcomes.count("fail") == len([r for r in rows if not r[1]])
     assert outcomes.count("skipped") == fg._summarize_skipped(rows)["skipped"]
+
+
+def test_the_early_stop_marker_matches_what_pytest_actually_prints() -> None:
+    """T12.4: the banner is pytest's own, captured from a real run under the gate's exact flags
+    (`tests/ -x -q --color=no -p no:cacheprovider` over a 4-test suite with 2 failures). Matched on
+    the stable middle only — the `!` padding is terminal-width dependent and the count varies."""
+    real_banner = "!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!"
+    assert fg._PYTEST_EARLY_STOP in real_banner
+    assert fg._PYTEST_EARLY_STOP not in "1 failed, 1 passed in 0.12s"
+    assert fg._PYTEST_EARLY_STOP not in "5 passed in 0.10s"
+
+
+def test_a_truncated_pytest_red_says_its_failure_list_is_partial() -> None:
+    """T12.4 (01M2606BZ) — the mail's claim was a GREEN over unreached tests, which execution
+    REFUTES: `-x` truncates only on a failure, pytest exits 1, `code == 0` is False, the row is
+    red, and `run_cmd` returns 1 on timeout too. The real cost is the other half: the red names
+    the FIRST failure only, so an agent fixes it, re-runs, meets the next, and walks the suite one
+    failure at a time. Executed: `-x` reports `1 failed, 1 passed` where the full run reports
+    `2 failed, 2 passed`.
+
+    Graded on the producer, because the behaviour lives in a branch of `run_consistency_checks`
+    that a unit test cannot reach without running a suite."""
+    src = Path(fg.__file__).read_text(encoding="utf-8")
+    block = src.split("tail = skip_advisory(out, tail)")[1].split("results.append")[0]
+    assert "_PYTEST_EARLY_STOP in out" in block, "the partial-list notice must be emitted"
+    assert "code != 0" in block, (
+        "the notice belongs on the RED path only — a green run never stopped early, and saying so "
+        "there would be the false claim this row exists to remove"
+    )
+    assert "-x" in src.split("_PYTEST_EARLY_STOP in out")[1][:600], (
+        "the notice must name the flag that caused the truncation"
+    )
+
+
+def test_check_mode_verifies_formatting_without_mutating(tmp_path: Path, monkeypatch) -> None:
+    """T12.6 (01M28NB2R): `--check` skipped Phase 1 entirely and Phase 1 is the ONLY place the gate
+    runs `ruff format`, so a green `--check` asserted nothing about formatting — and
+    `.pre-commit-config.yaml` registers no ruff hook either, so nothing else covered it.
+
+    Executed end-to-end when this landed: a deliberately mis-formatted staged file made
+    `ruff-format (--check)` come back `fail` in the roster while the file's md5 was unchanged."""
+    bad = tmp_path / "bad.py"
+    bad.write_text("def f( a,b ):\n    return   a+b\n")
+    before = bad.read_bytes()
+    monkeypatch.setattr(fg, "_changed_python", lambda _changed: [str(bad)])
+
+    rows = fg.run_format_check({"bad.py"})
+    assert len(rows) == 1
+    name, ok, out = rows[0]
+    assert name == "ruff-format (--check)" and ok is False
+    assert "must not" in out, "the row must say why it did not just fix it"
+    assert bad.read_bytes() == before, "--check must not rewrite a single byte"
+
+    good = tmp_path / "good.py"
+    good.write_text("def f(a, b):\n    return a + b\n")
+    monkeypatch.setattr(fg, "_changed_python", lambda _changed: [str(good)])
+    assert fg.run_format_check({"good.py"}) == [("ruff-format (--check)", True, "")]
+
+
+def test_a_change_with_no_python_gets_no_formatting_row_at_all(monkeypatch) -> None:
+    """A formatting verdict over an EMPTY set is not a pass. A green row there would be the same
+    fail-silent-green this leg exists to close — the docs-only diff that reads as 'formatting
+    checked'."""
+    monkeypatch.setattr(fg, "_changed_python", lambda _changed: [])
+    assert fg.run_format_check({"README.md"}) == []
+
+
+def test_run_iteration_wires_the_read_only_format_leg_into_check_mode() -> None:
+    """The function existing is not the fix — it has to be REACHED. Graded on the producer: the
+    `check_only` branch of run_iteration must call it, and the fix-mode branch must NOT (it already
+    runs the mutating `ruff format`, and two format rows would double-count)."""
+    src = Path(fg.__file__).read_text(encoding="utf-8")
+    block = src.split("def run_iteration(")[1].split("# Phase 2")[0]
+    assert "elif check_only and tier != 3:" in block
+    assert "run_format_check(changed_files=changed_files)" in block
+    fix_branch = block.split("if not check_only and tier != 3:")[1].split("elif check_only")[0]
+    assert "run_format_check" not in fix_branch
