@@ -63,6 +63,106 @@ def _rows(path: Path | None) -> list[dict]:
     return out
 
 
+# The seven PER-RUN axes a `change:` value may be keyed with (spec § D4, the axis table rows
+# :347-354). The eighth axis — continuous improvement — is read ACROSS runs and has no per-run key,
+# which is why seven keys serve eight axes.
+AXES: tuple[str, ...] = ("lean", "fast", "accurate", "waste", "infra", "rules", "manifesto")
+
+# The report's OWN copy of the phrases the close-out grammar prints, NEVER an import of
+# `command_run.py::_GRAMMAR_NOUNS`: this file imports nothing from that one and must not start (it is
+# owned by another plan's lock, and a cross-file import of a module-private constant is a dependency
+# nobody declared). A grader pins every phrase here against the LIVE text of
+# `commands/_fragments/close-feedback.md`, so a reword of the fragment fails a test rather than
+# silently emptying the `placeholder` bucket.
+#
+# WHY the bucket exists at all: `command_run.py::_is_placeholder` is a `re.fullmatch` on `<…>`, so an
+# axis key in front of a pasted grammar template defeats it — `change: <the ONE concrete edit…>` is
+# REFUSED at the close today and `change: lean: <the ONE concrete edit…>` is not. Until that one-line
+# parser fix lands, this reader is the only thing that can tell a pasted template from a verdict.
+# LONG clauses on purpose. The short noun phrases these came from (`mail id`, `steps, turns`) are
+# ordinary English that a genuine verdict ABOUT the close-out grammar uses in its own sentence —
+# and the close-out grammar is exactly what this loop's verdicts are about. A paste reproduces the
+# template's whole clause; a verdict borrows three words of it and then says something.
+_GRAMMAR_PHRASES: tuple[str, ...] = (
+    "the one concrete edit to this command or a rule",
+    "what in the command text was ambiguous or misleading",
+    "steps, turns or tokens spent without",
+    "surfaces exercised: <what your run touched",
+    "mail id(s) to infra|fleet|intel | none",
+)
+
+
+def _axis_of(value: str) -> str:
+    """Classify one `change:` value into EXACTLY one bucket, in a fixed precedence.
+
+    ``placeholder`` (the grammar's own noun phrase, bracketed or not, keyed or not) →
+    ``bad-axis`` (a leading ``word:`` outside :data:`AXES` — an attempt that missed) →
+    the named axis → ``unkeyed`` (no ``word:`` head at all).
+
+    The order is what makes the four counts a partition: a value can satisfy two of these rules at
+    once (``foo: <…>`` is both a bad key and a template) and must be counted once, not twice.
+    """
+    text = (value or "").strip()
+    # runs of whitespace collapse before the phrase test: the fragment WRAPS its grammar across
+    # lines, so `what in the\ncommand` is one phrase to a reader and two to a naive substring match
+    low = " ".join(text.lower().split())
+    # the KEY is the token before the first comma (so `a, lean: x` keys nothing), but the phrase
+    # test below reads the WHOLE value: truncating it at the comma made one of the five clauses
+    # structurally inert on the keyed path, since that clause carries a comma of its own
+    head = low.split(",", 1)[0]
+    key, sep, _head_rest = head.partition(":")
+    rest = low.partition(":")[2] if ":" in low else ""
+    key = key.strip()
+    # A KEY ATTEMPT is one alphabetic word, a colon, then whitespace or nothing. The whitespace is
+    # what separates a key from a URL or a Windows path (`https://x`, `c:\users`), whose colon is
+    # punctuation inside a token and never an attempt to key anything.
+    attempt = bool(sep) and key.isalpha() and (rest == "" or rest[:1].isspace())
+    # ⚠ The placeholder test is ANCHORED at the head of the value, never a substring search over it.
+    # Unanchored it ate real verdicts, because the close-out grammar IS this loop's own subject:
+    # `lean: step 7 should print the mail id it filed` is a genuine verdict and matched `mail id`.
+    # A paste STARTS with the grammar; a verdict merely mentions it.
+    body = rest.strip() if attempt else low
+    # A PASTE reproduces the template: it either opens with the angle bracket, or it repeats one of
+    # the grammar's whole clauses verbatim. A VERDICT ABOUT the grammar borrows a few of its words
+    # and then says something of its own. Anchoring alone was not enough: `lean: the ONE concrete edit example is three lines
+    # long — cut it` is a real verdict that starts with a phrase, and four of five realistic
+    # wordings about the close-out text were still eaten. Leading decoration is stripped first,
+    # because the fragment prints the template inside a `> ` blockquote and that marker is the
+    # likeliest copy artifact (the close's own `_is_placeholder` strips decoration the same way).
+    bare = body.lstrip("> -*\"'`(")
+    if bare.startswith("<") or any(bare.startswith(phrase) for phrase in _GRAMMAR_PHRASES):
+        return "placeholder"
+    if not attempt:
+        return "unkeyed"
+    if not body:
+        return "unkeyed"  # `lean:` with nothing after it keys nothing
+    return key if key in AXES else "bad-axis"
+
+
+def _change_is_none(value: str) -> bool:
+    """`_is_none` for the CHANGE field alone — the axis key is stripped before the test.
+
+    ⚠️ The strip does NOT go inside :func:`_is_none`, which is SHARED: ``_items()`` gates `change`,
+    `confusion` and `waste` on it and ``change_none`` reads it too, so teaching it about axis keys
+    would silently re-classify a `confusion:` value whose first word happens to be `lean:`.
+    """
+    text = (value or "").strip()
+    head, sep, rest = text.partition(":")
+    # the SAME key-attempt shape `_axis_of` uses — one alphabetic word, a colon, then whitespace —
+    # or the two helpers disagree about `lean:none` (`unkeyed` there, `none` here) and the row
+    # leaves the tally while being booked as "nothing to change"
+    if sep and not (rest == "" or rest[:1].isspace()):
+        return _is_none(text)
+    # only strip a key that actually has a verdict behind it: `lean:` with nothing after it is a
+    # MALFORMED verdict, not a claim that nothing needed changing, and stripping it would report
+    # the malformation as compliance — the two helpers would then disagree about the same row
+    # (`_axis_of` calls it `unkeyed`, this one would call it `none`) and it would vanish from the
+    # tally altogether
+    if sep and head.strip().lower() in AXES and rest.strip():
+        text = rest
+    return _is_none(text)
+
+
 def _is_none(value: str) -> bool:
     stripped = (value or "").strip()
     head = stripped.lower().split()[0].rstrip(".,;") if stripped else ""
@@ -327,6 +427,24 @@ def _k(n: float) -> str:
     return f"{n / 1000:.1f}k" if n >= 1000 else f"{n:.0f}"
 
 
+def _axis_tally(rs: list[dict]) -> dict[str, int]:
+    """Per-bucket counts over the rows carrying a NON-`none` `change:` value.
+
+    Every bucket that occurs is present; the counts sum to ``axis_rows`` by construction, because
+    :func:`_axis_of` is a total function into a single bucket. An EMPTY dict means no row carried a
+    change at all — the reader says so rather than printing a confident 0 per axis, which is the
+    phantom-zero class this report has already paid for once.
+    """
+    tally: dict[str, int] = {}
+    for r in rs:
+        value = str(r.get("change") or "")
+        if _change_is_none(value):
+            continue
+        bucket = _axis_of(value)
+        tally[bucket] = tally.get(bucket, 0) + 1
+    return dict(sorted(tally.items()))
+
+
 def build(
     rows: list[dict], since_days: float | None, command: str | None, agent: str | None = None
 ) -> dict:
@@ -373,7 +491,12 @@ def build(
             "median_rounds": _median(rounds) if rounds else None,
             "wall_rows": len(walls),
             "rounds_rows": len(rounds),
-            "change_none": sum(1 for r in rs if _is_none(str(r.get("change") or ""))),
+            "change_none": sum(1 for r in rs if _change_is_none(str(r.get("change") or ""))),
+            # the tally's population is the rows carrying a real change — `none` rows are
+            # `change_none`'s and are excluded here, or the bucket that means "the instrument is
+            # broken" would be mostly people following the contract
+            "axes": _axis_tally(rs),
+            "axis_rows": sum(1 for r in rs if not _change_is_none(str(r.get("change") or ""))),
             # summed over the rows that carry a number; rows without one are counted, not zeroed
             "cost_usd": round(sum(c for c in map(_nonneg_cost, rs) if c is not None), 4),
             "cost_rows": sum(1 for r in rs if _nonneg_cost(r) is not None),
@@ -427,9 +550,13 @@ def build(
         counter: collections.Counter[tuple[str, str]] = collections.Counter()
         agents: dict[tuple[str, str], list[str]] = collections.defaultdict(list)
         surfaces: dict[tuple[str, str], list[str]] = collections.defaultdict(list)
+        # the CHANGE field may carry an axis key, so "nothing to change" is read through the
+        # key-stripping helper — otherwise `lean: none` is counted by `change_none` AND printed as
+        # an actionable backlog item, and the two halves of one report disagree about one row
+        dead = _change_is_none if field == "change" else _is_none
         for r in kept:
             v = str(r.get(field) or "").strip()
-            if not _is_none(v):
+            if not dead(v):
                 key = (str(r["command"]), v)
                 counter[key] += 1
                 a = str(r.get("agent") or "")
@@ -572,6 +699,21 @@ def render(report: dict) -> str:
         lines += ["", "⚠ LOWER BOUNDS — the sums above understate these rows:"] + [
             f"- {x}" for x in cav
         ]
+    keyed = {c: v for c, v in report["commands"].items() if v["axis_rows"]}
+    lines += ["", "## change: by axis — which property of the command text each verdict is about"]
+    if not keyed:
+        # never a confident 0 per axis: nothing was measured is a different statement from zero
+        lines.append("- no row in this window carries a change: verdict — nothing to key")
+    else:
+        for c, v in sorted(keyed.items()):
+            cells = " · ".join(f"{k} {n}" for k, n in v["axes"].items())
+            lines.append(
+                f"- /{c} ({v['axis_rows']} with a change: value of {v['runs']} run(s)): {cells}"
+            )
+        lines.append(
+            "  (`placeholder` = the close-out grammar pasted rather than answered; `bad-axis` = a "
+            "key outside the seven; `unkeyed` = no key — each is an instrument reading, not a verdict)"
+        )
     for title, key in (
         ("Optimisation backlog (change:)", "backlog"),
         ("Confusion (confusion:)", "confusion"),
@@ -585,6 +727,43 @@ def render(report: dict) -> str:
     return "\n".join(lines)
 
 
+OBSERVER_SEATS = 4  # how many commands are expensive enough to pay for a writer seat
+
+
+def observer_rank(rows: list[dict], seats: int = OBSERVER_SEATS) -> str:
+    """The commands a close should spend a writer seat on — top N by MEAN `tok_in`+`tok_out`.
+
+    Cache tokens are EXCLUDED: :func:`_io_total` is reused rather than re-summed, because the
+    cache-inclusive figure this file also publishes ran 200-320x higher on the same rows and would
+    rank a long cached conversation as heavy work (spec § Q2, § Reproduce R9).
+
+    The close-out fragment consults this at close time, so the list is DERIVED from live data and
+    cannot rot the way four command names pasted into a box-wide file would. It degrades in both
+    directions on purpose: fewer than N qualifying commands prints the ones that do with the
+    denominator, and no qualifying row at all says so — a closing agent that reads either just
+    writes its own line.
+    """
+    per: dict[str, list[int]] = collections.defaultdict(list)
+    for r in rows:
+        cmd = str(r.get("command") or "")
+        io = _io_total(r)
+        if cmd and io is not None:
+            per[cmd].append(io)
+    commands = {str(r.get("command") or "") for r in rows if r.get("command")}
+    if not per:
+        return (
+            f"observer-rank: nothing measurable — 0 of {len(commands)} command(s) carry a token "
+            "pair; write the change: line yourself"
+        )
+    ranked = sorted(per.items(), key=lambda kv: -(sum(kv[1]) / len(kv[1])))[:seats]
+    head = (
+        f"observer-rank: {len(ranked)} of {len(per)} command(s) with a token pair "
+        f"(of {len(commands)} seen) — a close for one of these dispatches a writer seat"
+    )
+    body = [f"/{cmd}\t{round(sum(v) / len(v)):,} mean tok/close\tn={len(v)}" for cmd, v in ranked]
+    return "\n".join([head, *body])
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         description="Per-command optimisation report over the feedback ledger."
@@ -594,10 +773,36 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument("--command", default=None, help="one command name (without the slash)")
     ap.add_argument("--agent", default=None, help="one agent name (CLAUDE_AGENT at start)")
+    ap.add_argument(
+        "--observer-rank",
+        action="store_true",
+        help=(
+            "print the commands whose closes are expensive enough to pay for a writer seat — the "
+            "top four by MEAN tok_in+tok_out per close, cache excluded — and exit"
+        ),
+    )
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--ledger", type=Path, default=None)
     a = ap.parse_args(argv)
-    report = build(_rows(a.ledger or _default_ledger()), a.since, a.command, a.agent)
+    rows = _rows(a.ledger or _default_ledger())
+    if a.observer_rank:
+        # the same window and filters the report uses — an all-time rank answering a --since
+        # question would name a command retired months ago, silently
+        cutoff = time.time() - a.since * 86400 if a.since is not None else None
+        rows = [
+            r
+            for r in rows
+            if (cutoff is None or (_num(r.get("ts")) or 0) >= cutoff)
+            and (a.command is None or r.get("command") == a.command)
+            and (a.agent is None or str(r.get("agent") or "") == a.agent)
+        ]
+        text = observer_rank(rows)
+        if a.json:
+            sys.stdout.write(json.dumps({"observer_rank": text.split("\n")}, indent=1) + "\n")
+        else:
+            sys.stdout.write(text + "\n")
+        return 0
+    report = build(rows, a.since, a.command, a.agent)
     sys.stdout.write(
         json.dumps(report, indent=1, ensure_ascii=False) + "\n" if a.json else render(report) + "\n"
     )

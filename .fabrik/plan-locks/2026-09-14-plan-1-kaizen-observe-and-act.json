@@ -1,0 +1,29 @@
+{
+  "plan": "docs/development/plans/2026-09-14-plan-1-kaizen-observe-and-act.md",
+  "owned_paths": [
+    "commands/_fragments/close-feedback.md",
+    "commands/_sources/fabrik-command-improve.md",
+    "scripts/command_feedback_report.py",
+    "tests/test_command_feedback_report.py",
+    "docs/development/PLANS.md",
+    "docs/development/reviews/2026-09-14-plan-1-kaizen-observe-and-act-review.md",
+    ".fabrik/plan-locks/2026-09-14-plan-1-kaizen-observe-and-act.json"
+  ],
+  "branch": "master",
+  "started_at": "2026-09-14T20:44:32Z",
+  "status": "active",
+  "baseline_commit": "ef87f2463491b24006b81df1a5110a59424a8b71",
+  "baseline_gate": {
+    "status": "success",
+    "passed": 37,
+    "failed": 0,
+    "red_checks": [],
+    "skipped": [
+      "static tier"
+    ],
+    "tier": "lean",
+    "note": "no pre-existing red \u2014 every red at finish is this run's"
+  },
+  "orchestrator": "the unnamed hub window fabrik-5b (session 1970a0ff), main checkout, Profile: small \u2014 every phase coded inline, no coder worktrees",
+  "overlap_note": "2 other locks active at start (2026-09-05-plan-1-windowed-cost-sidecar, 2026-09-09-plan-1-review-convergence-redesign); intersection with this plan's File Scope is 0 for both, verified path by path. The 2026-09-09 lock owns CLAUDE.md, commands/assemble_commands.py and scripts/command_run.py, which this plan reads and never writes \u2014 its five wanted edits ride one mail to infra at Finish."
+}

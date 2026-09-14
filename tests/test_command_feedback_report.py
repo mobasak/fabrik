@@ -3,6 +3,7 @@ fleet-wide close-out ledger (`~/.claude/state/command-feedback.jsonl`)."""
 
 from __future__ import annotations
 
+import ast
 import json
 import math
 import re
@@ -1122,3 +1123,347 @@ def test_a_non_finite_since_is_refused_rather_than_silently_emptying(tmp_path: P
     ok = _run(ledger, "--since", "7", "--json")
     assert ok.returncode == 0, ok.stderr
     assert json.loads(ok.stdout)["since_days"] == 7.0
+
+
+# ---------------------------------------------------------------------------------------------
+# Piece 1 — the axis key: four buckets in a fixed precedence, a mirror-safe `none` read, and the
+# derived writer rank. Every grader here was proven red-on-revert against the change that added it.
+# ---------------------------------------------------------------------------------------------
+
+FRAGMENT = ROOT / "commands" / "_fragments" / "close-feedback.md"
+
+
+def _axes(ledger: Path, cmd: str) -> dict:
+    r = _run(ledger, "--json")
+    assert r.returncode == 0, r.stderr
+    return json.loads(r.stdout)["commands"][cmd]
+
+
+def test_an_axis_key_at_the_head_tallies_under_that_axis(tmp_path: Path) -> None:
+    ledger = tmp_path / "l.jsonl"
+    _write(
+        ledger,
+        [
+            _row("fabrik-review", 60, 1, "lean: cut the rubric block to the matched rows"),
+            _row("fabrik-review", 60, 1, "ACCURATE: the step cites a line that moved"),
+            _row("fabrik-review", 60, 1, "waste: the seat polled instead of batching"),
+        ],
+    )
+    c = _axes(ledger, "fabrik-review")
+    assert c["axes"] == {"accurate": 1, "lean": 1, "waste": 1}
+    assert c["axis_rows"] == 3
+
+
+def test_a_second_axis_after_a_comma_never_re_keys_the_row(tmp_path: Path) -> None:
+    ledger = tmp_path / "l.jsonl"
+    _write(ledger, [_row("c", 60, 1, "lean: cut the digest, accurate: name the flag")])
+    assert _axes(ledger, "c")["axes"] == {"lean": 1}
+
+
+def test_a_value_with_no_key_is_unkeyed_and_counted_never_dropped(tmp_path: Path) -> None:
+    ledger = tmp_path / "l.jsonl"
+    _write(
+        ledger,
+        [
+            _row("c", 60, 1, "the step should say which flag to pass"),
+            _row("c", 60, 1, "lean shorten step 3 — no colon, so no key"),
+        ],
+    )
+    c = _axes(ledger, "c")
+    assert c["axes"] == {"unkeyed": 2} and c["axis_rows"] == 2
+
+
+def test_a_key_outside_the_seven_is_bad_axis_not_unkeyed(tmp_path: Path) -> None:
+    """An attempt that missed is a different instrument reading from no attempt at all."""
+    ledger = tmp_path / "l.jsonl"
+    _write(ledger, [_row("c", 60, 1, "speed: the loop polls"), _row("c", 60, 1, "no key here")])
+    assert _axes(ledger, "c")["axes"] == {"bad-axis": 1, "unkeyed": 1}
+
+
+def test_a_pasted_grammar_template_is_placeholder_with_or_without_brackets_or_a_key(
+    tmp_path: Path,
+) -> None:
+    """`command_run.py::_is_placeholder` is a `re.fullmatch` on `<…>`, so an axis key in front of a
+    pasted template defeats it at the close. This reader is what still catches it."""
+    ledger = tmp_path / "l.jsonl"
+    _write(
+        ledger,
+        [
+            _row("c", 60, 1, "lean: <the ONE concrete edit to this command or a rule>"),
+            _row("c", 60, 1, "the ONE concrete edit to this command or a rule that would"),
+            _row("c", 60, 1, "foo: <the ONE concrete edit>"),
+        ],
+    )
+    # all three are placeholder — and the third proves the precedence: it is ALSO a bad key
+    assert _axes(ledger, "c")["axes"] == {"placeholder": 3}
+
+
+def test_the_four_buckets_partition_the_non_none_rows(tmp_path: Path) -> None:
+    ledger = tmp_path / "l.jsonl"
+    _write(
+        ledger,
+        [
+            _row("c", 60, 1, "lean: real"),
+            _row("c", 60, 1, "speed: missed the vocabulary"),
+            _row("c", 60, 1, "the ONE concrete edit to this command"),
+            _row("c", 60, 1, "plain prose with no key"),
+            _row("c", 60, 1, "none"),
+            _row("c", 60, 1, "lean: none"),
+        ],
+    )
+    c = _axes(ledger, "c")
+    assert sum(c["axes"].values()) == c["axis_rows"] == 4, c["axes"]
+    assert c["runs"] == 6 and c["change_none"] == 2  # the two `none` rows are NOT in the tally
+
+
+def test_change_is_none_strips_the_axis_key_and_leaves_the_shared_helper_alone() -> None:
+    """The mirror: `_is_none` gates `change`, `confusion` AND `waste` (`_items`) — teaching it about
+    axis keys would silently re-classify a confusion value whose first word is `lean:`."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("cfr", SCRIPT)
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    assert m._change_is_none("lean: none") is True
+    assert m._change_is_none("none") is True
+    assert m._change_is_none("lean: cut the digest") is False
+    # the shared helper is UNTOUCHED — this is the assertion the mirror needs
+    assert m._is_none("lean: none") is False
+    assert m._is_none("none") is True
+
+
+def test_a_keyed_none_does_not_over_report_the_queue(tmp_path: Path) -> None:
+    ledger = tmp_path / "l.jsonl"
+    _write(ledger, [_row("c", 60, 1, "lean: none"), _row("c", 60, 1, "lean: a real edit")])
+    c = _axes(ledger, "c")
+    assert c["change_none"] == 1 and c["axis_rows"] == 1 and c["axes"] == {"lean": 1}
+
+
+def test_an_axis_key_survives_a_value_at_the_ledger_cap(tmp_path: Path) -> None:
+    """`command_run.py:1235` caps a stored field at 2000 chars; the key must still read."""
+    ledger = tmp_path / "l.jsonl"
+    _write(ledger, [_row("c", 60, 1, "lean: " + "x" * 1994)])
+    assert _axes(ledger, "c")["axes"] == {"lean": 1}
+
+
+def test_a_window_with_no_change_verdict_says_so_instead_of_zeroing_every_axis(
+    tmp_path: Path,
+) -> None:
+    """The canary: a tally over zero rows must not print a confident 0 per axis — the phantom-zero
+    class this report has already paid for once."""
+    ledger = tmp_path / "l.jsonl"
+    _write(ledger, [_row("c", 60, 1, "none"), _row("c", 60, 1, "none")])
+    r = _run(ledger)
+    assert r.returncode == 0, r.stderr
+    assert "no row in this window carries a change: verdict" in r.stdout
+    assert _axes(ledger, "c")["axes"] == {} and _axes(ledger, "c")["axis_rows"] == 0
+
+
+def test_observer_rank_names_the_top_four_by_io_mean_and_ignores_cache(tmp_path: Path) -> None:
+    ledger = tmp_path / "l.jsonl"
+    rows = []
+    for i, cmd in enumerate(["a", "b", "c", "d", "e", "f"]):
+        rows.append(_row(cmd, 60, 1, "lean: x", tok_in=1000 * (6 - i), tok_out=0))
+    # a cache-heavy but io-light row must NOT climb: the rank is cache-excluded by construction
+    rows.append(_row("f", 60, 1, "lean: x", tok_in=1, tok_out=0, tok_cache_read=10**9))
+    _write(ledger, rows)
+    r = _run(ledger, "--observer-rank")
+    assert r.returncode == 0, r.stderr
+    named = [ln.split("\t")[0] for ln in r.stdout.splitlines() if ln.startswith("/")]
+    assert named == ["/a", "/b", "/c", "/d"], r.stdout
+    assert "4 of 6 command(s) with a token pair" in r.stdout
+    assert "n=" in r.stdout
+
+
+def test_observer_rank_degrades_when_fewer_than_four_commands_qualify(tmp_path: Path) -> None:
+    ledger = tmp_path / "l.jsonl"
+    _write(
+        ledger,
+        [
+            _row("a", 60, 1, "lean: x", tok_in=10, tok_out=1),
+            _row("b", 60, 1, "lean: x", tok_in=5, tok_out=1),
+            _row("c", 60, 1, "lean: x"),  # no token pair — does not qualify
+        ],
+    )
+    r = _run(ledger, "--observer-rank")
+    assert r.returncode == 0, r.stderr
+    assert "2 of 2 command(s) with a token pair (of 3 seen)" in r.stdout
+    assert len([ln for ln in r.stdout.splitlines() if ln.startswith("/")]) == 2
+
+
+def test_observer_rank_says_nothing_is_measurable_rather_than_crashing(tmp_path: Path) -> None:
+    """A closing agent that reads this falls through to writing its own line — the fragment's
+    escape clause depends on this exiting 0 with a sentence, never on a traceback."""
+    ledger = tmp_path / "l.jsonl"
+    _write(ledger, [_row("a", 60, 1, "lean: x"), _row("b", 60, 1, "none")])
+    r = _run(ledger, "--observer-rank")
+    assert r.returncode == 0, r.stderr
+    assert "nothing measurable" in r.stdout and "0 of 2 command(s)" in r.stdout
+
+
+def test_the_placeholder_phrases_are_pinned_against_the_live_fragment() -> None:
+    """The counter-measure rots the moment the fragment is reworded past every phrase this reader
+    knows, and nothing else would notice. `command_run.py`'s own list is NOT imported — this file
+    imports nothing from it, and that constant belongs to another plan's lock."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("cfr", SCRIPT)
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    # the same collapse the classifier applies, plus the blockquote markers: the fragment prints
+    # its grammar inside a `> ` quote that wraps across lines, so a phrase a reader sees as one
+    # string is split by a marker no stored value ever carries
+    text = " ".join(
+        " ".join(
+            re.sub(r"^\s*>\s?", "", ln) for ln in FRAGMENT.read_text(encoding="utf-8").splitlines()
+        )
+        .lower()
+        .split()
+    )
+    missing = [p for p in m._GRAMMAR_PHRASES if p not in text]
+    assert not missing, f"phrases no longer in the fragment: {missing}"
+    raw = [re.sub(r"^\s*>\s?", "", ln) for ln in FRAGMENT.read_text(encoding="utf-8").splitlines()]
+    i = next(k for k, ln in enumerate(raw) if "· change:" in ln)
+    change_clause = " ".join(" ".join(raw[i : i + 2]).lower().split())
+    assert any(p in change_clause for p in m._GRAMMAR_PHRASES), (
+        "the change: clause matches no phrase this reader knows — a pasted template would now "
+        "count as a real verdict"
+    )
+    # the no-import half, asserted on the AST rather than on prose: the module docstring
+    # legitimately NAMES command_run.py as the writer of the rows it reads
+    tree = ast.parse(SCRIPT.read_text(encoding="utf-8"))
+    imported = {
+        (n.module or "") if isinstance(n, ast.ImportFrom) else a.name
+        for n in ast.walk(tree)
+        if isinstance(n, (ast.Import, ast.ImportFrom))
+        for a in (n.names if isinstance(n, ast.Import) else [None])
+        if a is not None or isinstance(n, ast.ImportFrom)
+    }
+    assert not any("command_run" in name for name in imported), imported
+
+
+def test_the_seven_axes_are_the_vocabulary_the_fragment_publishes() -> None:
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("cfr", SCRIPT)
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    text = FRAGMENT.read_text(encoding="utf-8")
+    for axis in m.AXES:
+        assert f"`{axis}`" in text, f"the fragment never names the axis {axis}"
+    assert len(m.AXES) == 7
+
+
+# --- Phase A review round 1: the five defects five author-blind seats confirmed ---------------
+
+
+def test_a_keyed_none_is_not_printed_as_an_actionable_backlog_item(tmp_path: Path) -> None:
+    """One report, one definition of `none`. `change_none` reads the axis-aware helper and the
+    backlog list read the shared one, so a single row was counted as 'nothing to change' AND
+    listed as a change request — the two halves of one report disagreeing about one row."""
+    ledger = tmp_path / "l.jsonl"
+    _write(ledger, [_row("c", 60, 1, "lean: none"), _row("c", 60, 1, "lean: a real edit")])
+    r = _run(ledger, "--json")
+    assert r.returncode == 0, r.stderr
+    out = json.loads(r.stdout)
+    items = [it["item"] for it in out["backlog"]]
+    assert items == ["lean: a real edit"], items
+    assert out["commands"]["c"]["change_none"] == 1
+    # and the confusion/waste lists are untouched by the axis-aware read
+    _write(ledger, [_row("c", 60, 1, "none", confusion="lean: none")])
+    out2 = json.loads(_run(ledger, "--json").stdout)
+    assert [it["item"] for it in out2["confusion"]] == ["lean: none"]
+
+
+def test_a_verdict_that_mentions_the_close_out_vocabulary_keeps_its_axis(tmp_path: Path) -> None:
+    """The placeholder test is ANCHORED. Unanchored it ate real verdicts: the close-out grammar is
+    this loop's own subject, so `lean: step 7 should print the mail id` — a genuine verdict —
+    matched `mail id` and was filed as a pasted template. Five of six realistic verdicts."""
+    ledger = tmp_path / "l.jsonl"
+    _write(
+        ledger,
+        [
+            _row("c", 60, 1, "lean: step 7 should print the mail id it filed"),
+            _row("c", 60, 1, "waste: the brief asks for steps, turns and tokens twice"),
+            _row(
+                "c", 60, 1, "accurate: the rubric never says what in the command text is canonical"
+            ),
+            _row("c", 60, 1, "rules: name what your run touched in the filed: fallback"),
+            _row("c", 60, 1, "infra: make the ONE concrete edit example machine-checkable"),
+            _row("c", 60, 1, "lean: <the ONE concrete edit to this command>"),  # a real paste
+        ],
+    )
+    assert _axes(ledger, "c")["axes"] == {
+        "accurate": 1,
+        "infra": 1,
+        "lean": 1,
+        "placeholder": 1,
+        "rules": 1,
+        "waste": 1,
+    }
+
+
+def test_a_colon_inside_a_url_or_a_path_is_not_a_key_attempt(tmp_path: Path) -> None:
+    """A key attempt is one alphabetic word, a colon, then whitespace — the whitespace is what
+    separates `lean: x` from `https://x`, whose colon is punctuation inside a token."""
+    ledger = tmp_path / "l.jsonl"
+    _write(
+        ledger,
+        [
+            _row("c", 60, 1, "https://example.test/x 404s in step 3"),
+            _row("c", 60, 1, "C:\\Users\\x is assumed to exist"),
+            _row("c", 60, 1, "lean:nospace"),
+            _row("c", 60, 1, "lean:"),  # a key with nothing after it keys nothing
+        ],
+    )
+    assert _axes(ledger, "c")["axes"] == {"unkeyed": 4}
+
+
+def test_the_comma_split_is_what_stops_a_late_colon_from_keying_the_row(tmp_path: Path) -> None:
+    """Discriminating on purpose: with spaces, `partition(':')` alone would already stop at the
+    first colon, so the earlier grader passed with the comma split REMOVED. This value can only
+    classify correctly because the head is cut at the comma first."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("cfr", SCRIPT)
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    assert m._axis_of("prefix,lean: keyed") == "unkeyed"
+    assert m._axis_of("lean: cut the digest, accurate: name the flag") == "lean"
+
+
+def test_the_axis_section_renders_each_command_with_its_population(tmp_path: Path) -> None:
+    """The human-facing half. The empty branch had a grader; the branch a reader actually sees on
+    a real ledger had none, so the line could have lost its counts and stayed green."""
+    ledger = tmp_path / "l.jsonl"
+    _write(
+        ledger,
+        [
+            _row("c", 60, 1, "lean: one"),
+            _row("c", 60, 1, "lean: two"),
+            _row("c", 60, 1, "speed: missed"),
+            _row("c", 60, 1, "none"),
+        ],
+    )
+    r = _run(ledger)
+    assert r.returncode == 0, r.stderr
+    line = next(ln for ln in r.stdout.splitlines() if ln.startswith("- /c ("))
+    assert line == "- /c (3 with a change: value of 4 run(s)): bad-axis 1 · lean 2", line
+
+
+def test_observer_rank_honours_the_window_and_the_command_filter(tmp_path: Path) -> None:
+    """An all-time rank answering a --since question would name a command retired months ago, and
+    the fragment tells every close to consult this before spending a seat."""
+    ledger = tmp_path / "l.jsonl"
+    _write(
+        ledger,
+        [
+            _row("old", 60, 1, "lean: x", days_ago=400, tok_in=10**6, tok_out=0),
+            _row("new", 60, 1, "lean: x", days_ago=1, tok_in=10, tok_out=1),
+        ],
+    )
+    r = _run(ledger, "--since", "7", "--observer-rank")
+    assert r.returncode == 0, r.stderr
+    assert "/new" in r.stdout and "/old" not in r.stdout, r.stdout
+    r2 = _run(ledger, "--since", "7", "--observer-rank", "--json")
+    assert json.loads(r2.stdout)["observer_rank"][0].startswith("observer-rank:")

@@ -17,9 +17,43 @@ feedback line:**
 
 > `FEEDBACK: /<command> · <wall-clock> · rounds <n> (<findings trend>) · tokens <input> input / <output> output (<n>% cached) · confusion: <what in the
 > command text was ambiguous or misleading | none> · waste: <steps, turns or tokens spent without
-> changing the outcome | none> · change: <the ONE concrete edit to this command or a rule that would
-> have made this run faster or more accurate | none> · filed: <mail id(s) to infra|fleet|intel | none
+> changing the outcome | none> · change: <axis>: <the ONE concrete edit to this command or a rule that
+> would have made this run faster or more accurate | none> · filed: <mail id(s) to infra|fleet|intel | none
 > — surfaces exercised: <what your run touched>> [· cost: <a PLAIN AMOUNT, e.g. `0.0125` or `$0.30` — prose or `10 usd` is refused, it is summed>]`
+
+**`change:` is AXIS-KEYED — lead the value with ONE axis, then a colon:**
+`change: lean: the rubric block is loaded in full and never cited — cut it to the matched rows`.
+The axis is the PROPERTY OF THE COMMAND TEXT your edit improves, not the topic of your run:
+`lean` (it loads weight the run never used) · `fast` (it stalled you — an ask it could have
+answered, a re-derivation it could have carried) · `accurate` (it told you something untrue or
+ambiguous) · `waste` (it made you spend turns or tokens that changed nothing) · `infra` (it is
+wrong about this box's machinery — paths, scripts, gates; NOT the infra BEAT of the `filed:` field)
+· `rules` (it contradicts or ignores a rule pack) · `manifesto` (it violates an operating
+principle). The eighth axis, continuous improvement, is read ACROSS runs and has no per-run key.
+One axis per close — the report groups the queue by it, and a second key after a comma is not read.
+
+**Two traps, both executed against the real parser.** (1) **Keep ` · `, `|`, `;` and newlines out of
+the value.** Precisely: the close splits on one of those four ONLY when a field label
+(`confusion|waste|change|filed|cost`) and a colon follow it — a bare semicolon or pipe in your prose
+is harmless — but when it does split, a ` · waste:` lands a duplicate field and REFUSES the close,
+and a ` · cost:` truncates your sentence SILENTLY and files a phantom cost. Since `waste` is both an
+axis and a field label, a `change: waste: …` value must never begin a line; a wrapped FEEDBACK line
+is the case that bites, and you cannot see where it wraps — which is why the habit is to keep all
+four characters out rather than to reason about what follows them. (2) **Never paste the
+grammar:** an axis key in front of the `<…>` template defeats the close's placeholder refusal
+(`_is_placeholder` is a `re.fullmatch` on `<…>`), so a pasted template that is refused today closes
+cleanly once it is keyed. The report buckets it as `placeholder` and it is visible; write a verdict.
+
+A close with nothing to change writes `change: none`, with no key. **This sentence is canonical:**
+`command_run.py`'s `_USAGE_GRAMMAR` and `CLAUDE.md`'s FINAL OUTPUT block each hold a hand-kept twin
+that does not yet name the axis — both are lock-owned and both are in the edit mailed to infra.
+
+**On an expensive command a SEAT writes the line, not you.** If
+`python3 /opt/fabrik/scripts/command_feedback_report.py --observer-rank` names the command you are
+closing, dispatch ONE Sonnet seat to author the `change:` line, handing it this run's own evidence
+(the record's phases and rounds, the diff, what you actually hit) — an agent grading its own run is
+the weakest reader of it. If that script or the ledger is not readable from where you are, write the
+line yourself: the seat is an optimisation, never a gate, and it needs no dispatch stamp.
 
 **The four labelled fields are the USAGE report (D-175, the operator's 6th ask 2026-09-07): the
 corpus is optimised from them — fewer review rounds, less confusion, fewer tokens, without losing
