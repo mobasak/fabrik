@@ -23,7 +23,7 @@ sections; a step that dies on a path new to HEAD; an assert against the wrong re
 naming a file no step creates. Every one was found by EXECUTING the steps, and every fix was more
 prose. The class is transcription, and prose cannot be executed or tested.
 
-**Do:** make it `scripts/shared_tree_commit.sh` (or `.py`) with graders — captured `$base`, private
+**Do:** make it a new script under `scripts/` — `shared_tree_commit.sh` or the `.py` equivalent — with graders — captured `$base`, private
 index, mode fallback, CAS against `$base`, `env -u` realign, an insert-not-append carry — and leave
 ONE sentence plus a pointer in `CLAUDE.md` § Shared repo and its `templates/governance/` twin.
 **Why it was not done in-run:** a new fleet-synced mechanism is SPEC/PLAN work per § Behavior's

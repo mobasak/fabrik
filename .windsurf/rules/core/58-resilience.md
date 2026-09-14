@@ -501,7 +501,13 @@ there. Production reference: `/opt/youtube/docs/reference/pipeline-resilience.md
    persists**. That is correct, and it is a trap: the queue is stopped while `/health` deliberately
    still returns 200 and Gatus stays green, so a fleet can sit paused for days with nothing paging.
    ⚠️ **So a pause carries its FIRST-set time and escalates exactly once past N× its TTL**
-   (`self-healing` row 4; `fabrik-lib/alerting/`'s title dedup gives the exactly-one property). A
+   (`self-healing` row 4). ⚠️ **`fabrik-lib/alerting/` does NOT give you that property** — its title
+   dedup is a module-level `_last_sent: dict[str, float]`, so it is PER-PROCESS and dies with the
+   worker, suppressing for `ALERT_MIN_INTERVAL` (300 s default) on a SLIDING window with no clear
+   API. That is suppression, not a latch: it cannot give you "ONE alert, cleared on recovery"
+   across restarts or across two workers, and it will re-fire every 5 minutes while the cause
+   persists. A durable latch is yours to build — the module is not it (youtube, 01M1SSV9YR,
+   re-read at `alerting/__init__.py` before this edit). A
    sliding `SETEX` keeps no first-set timestamp — store it beside the flag, or that escalation is
    unimplementable. Detection with no terminus is not autorecovery.
 3. **Queue depth = job count, exactly.** Dispatch-dedup + worker-keeps-flag-on-pause + sweeper-headroom together prevent the pause-then-re-queue-then-re-pause queue-explosion failure mode.

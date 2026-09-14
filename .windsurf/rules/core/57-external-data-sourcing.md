@@ -172,6 +172,14 @@ on:**
   condition, not a retry and not a bypass: `58` says never retry a 403, and § Hard constraints
   says never solve the challenge — the legal move is `adaptive-dispatch`'s strategy switch
   (static → rendered), then a pause, then an operator decision.
+- **A render that SATISFIED its selector and extracted nothing is a FAILURE, and the consumer is
+  what says so.** A `wait_for_selector` is a readiness signal, not a success signal: a 404 or
+  challenge page carries the site's own navigation chrome, so a selector keyed on it resolves
+  and the fetch reports success with zero rows (trade-intelligence via fleet, 01M1RHJZ3). Do
+  not fix this by writing a cleverer selector — that is the same bet one page redesign later.
+  Assert the YIELD: a page whose extraction returns zero rows where the contract expects ≥1 is
+  a failed fetch, counted as one and surfaced as one, whatever the selector and the status code
+  said. This is the measurable half of the markup-change class above, applied at the page.
 - **Some classes stay human-gated, and that is allowed — SAFELY.** A vendor's credit exhaustion
   (`402`) or a retired endpoint with no successor cannot be un-broken by code. The bar is not
   "no human ever" but "no human in the loop of *staying safe*": paused on the pause key, escalated
