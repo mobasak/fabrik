@@ -1478,3 +1478,65 @@ def test_no_web_tools_config_key_field_is_left_unpassed(monkeypatch):
     cfg = rr._web_tools_config()
     unset = [f for f in key_fields if not getattr(cfg, f)]
     assert not unset, f"{unset} declared by WebToolsConfig but never passed by _web_tools_config"
+
+
+# ── the autoload note names the CONSEQUENCE, not just the exception (T12.19) ────────────────────
+# 01M21TGTR / 01M25GEXP / 01M28K3N8: the fail-open note printed the exception class and nothing
+# about impact. The question an operator has at that line is "is my run degraded?", and that is
+# answered by which expected keys the environment does NOT carry — the loader failing is harmless
+# when the keys are already exported, and fatal to coverage when they are not.
+
+
+def _run_main_capturing_the_note(monkeypatch, capsys, *, keys_present: bool) -> str:
+    """Drive the REAL `main()` far enough to print the note, then stop. Re-implementing the
+    message here would grade a copy while production drifted — the defect this file's own header
+    warns about."""
+    import os
+
+    for k in rr._ENV_KEYS:
+        if keys_present:
+            monkeypatch.setenv(k, "x")
+        else:
+            monkeypatch.delenv(k, raising=False)
+    assert bool(os.environ.get(rr._ENV_KEYS[0])) is keys_present
+
+    def boom(_repo):
+        raise OSError("the loader could not read the file")
+
+    monkeypatch.setattr(rr, "load_env", boom)
+    monkeypatch.setattr(rr, "_parse_args", lambda argv: object())
+
+    class _StopError(Exception):
+        pass
+
+    def _no_further(_args):
+        raise _StopError
+
+    monkeypatch.setattr(rr, "_run", _no_further)
+    monkeypatch.setattr(rr.asyncio, "run", lambda coro: (_ for _ in ()).throw(_StopError()))
+    with pytest.raises(_StopError):
+        rr.main([])
+    return capsys.readouterr().out
+
+
+def test_the_autoload_note_names_the_absent_keys(monkeypatch, capsys):
+    out = _run_main_capturing_the_note(monkeypatch, capsys, keys_present=False)
+    assert "key autoload unavailable" in out
+    assert f"{len(rr._ENV_KEYS)} of {len(rr._ENV_KEYS)} expected key(s) absent" in out, out
+    for k in rr._ENV_KEYS:
+        assert k in out, f"{k} missing from the note: {out!r}"
+
+
+def test_the_autoload_note_says_no_impact_when_the_keys_are_exported(monkeypatch, capsys):
+    """The mirror: a loader failure with every key already in the environment is harmless, and a
+    note that cannot say so trains the reader to ignore it."""
+    out = _run_main_capturing_the_note(monkeypatch, capsys, keys_present=True)
+    assert "no impact" in out, out
+    assert "absent" not in out, out
+
+
+def test_the_note_still_names_the_cause(monkeypatch, capsys):
+    """Naming the consequence must not cost the cause — the message carries both, and the
+    exception's own text (not just its class) so the reader is not sent to read the traceback."""
+    out = _run_main_capturing_the_note(monkeypatch, capsys, keys_present=False)
+    assert "OSError" in out and "could not read the file" in out, out

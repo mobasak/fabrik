@@ -39,6 +39,14 @@ for _p in (str(_ROOT), str(_ENF)):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
+# T12.19 (01M21TGTR, 01M25GEXP, 01M28K3N8) asked whether this import should be removed now that
+# `libs/subagents` is being deleted fleet-wide. EXECUTED before deciding: with the module absent
+# this file imports cleanly, all four names are None, and `_pool_policy_on()` returns False from
+# the committed constant — so the leg is doubly dead and nothing here can spend. It STAYS, because
+# D-182's design is that "the pool contract stays in the corpus so re-enabling is an uncomment, not
+# a rewrite"; deleting it would make the ruling harder to reverse than the ruling intends. What was
+# NOT done is also deliberate: converting this leg to native seats would start spending on a
+# fan-out the operator turned off.
 try:  # the pool is vendored in fabrik + every scaffolded project; guard for the not-yet-vendored case
     from libs.subagents import AgentSpec, pick_models, record_agent_run, run_agents
 except Exception:  # noqa: BLE001 — no pool → graceful no-op (the mechanical gates still run)

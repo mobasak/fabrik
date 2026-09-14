@@ -1296,7 +1296,21 @@ def main(argv: list[str] | None = None) -> int:
         # Stays fail-open (a missing autoload must not block a run whose keys are already exported)
         # but SAYS SO. Swallowing it silently is the same diagnosability gap this command filed
         # upstream against the engine's `_safe_research`, which logs a label and not the cause.
-        print(f"note: key autoload unavailable ({type(exc).__name__}); relying on the environment")
+        # T12.19 (01M21TGTR, 01M25GEXP, 01M28K3N8): naming the EXCEPTION answers "why did the
+        # loader stop", which nobody asked. The question an operator has at this line is "is my
+        # run degraded?", and that is answered by which expected keys the environment does NOT
+        # carry — the loader failing is harmless when the keys are already exported, and fatal to
+        # the run's coverage when they are not. So: name the cause AND the consequence.
+        _absent = [k for k in _ENV_KEYS if not os.environ.get(k)]
+        _state = (
+            f"{len(_absent)} of {len(_ENV_KEYS)} expected key(s) absent: {', '.join(_absent)}"
+            if _absent
+            else f"all {len(_ENV_KEYS)} expected keys are already in the environment — no impact"
+        )
+        print(
+            f"note: key autoload unavailable ({type(exc).__name__}: {exc}); "
+            f"relying on the environment — {_state}"
+        )
     try:
         return asyncio.run(_run(args))
     except PreflightError as exc:

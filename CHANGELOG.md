@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the key-autoload note named the exception and not the consequence (2026-09-14)
+
+- Phase E T12.19 of the mail-triage plan (01M21TGTR, 01M25GEXP, 01M28K3N8) — three graders driving the real `main()`, proven red-on-revert in place.
+- **`rivals_run.py`'s fail-open note printed the exception class and nothing about impact.** The question an operator has at that line is *is my run degraded?*, which is answered by which expected keys the environment does not carry — a loader failure is harmless when the keys are already exported and fatal to coverage when they are not. The note now carries the cause (class **and** message, so nobody is sent to the traceback) and the consequence: either the absent keys by name, or "all 4 expected keys are already in the environment — no impact".
+- **Two halves of the row were re-derived as already closed or not defects, rather than assumed open.** The `load_env` import from the retired module is gone — `rivals_run.py` carries its own vendored loader with the `SUBAGENTS_ENV_FILE` rule. And `doc_reconcile.py`'s pool guard was **executed** with `libs.subagents` absent: it imports cleanly, all four names are None, and `_pool_policy_on()` returns False from the committed constant, so the leg is doubly dead. It stays — D-182's design is that the pool contract remains in the corpus so re-enabling is an uncomment, not a rewrite, and deleting it would make the ruling harder to reverse than intended. Converting it to native seats was also declined: that would start spending on a fan-out the operator turned off. Both verdicts are recorded in the file itself.
+
 ### Fixed — the fleet sync shipped the hub's WORKING TREE, so an uncommitted edit reached every project (2026-09-14)
 
 - Phase E T12.17 of the mail-triage plan (01M1Y86PQ) — six graders on a throwaway hub, proven red-on-revert in place.
