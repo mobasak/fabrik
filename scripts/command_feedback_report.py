@@ -727,6 +727,43 @@ def render(report: dict) -> str:
     return "\n".join(lines)
 
 
+def queue(rows: list[dict], command: str) -> str:
+    """One command's `change:` queue — the whole input `/fabrik-command-improve` reads.
+
+    TAB-separated, newest first: ``<ts>\t<bucket>\t<the value>``. A TAB and not the report's
+    usual `` · `` because a stored value may legally contain a middle dot (the close keeps it
+    whenever no field label follows), so a middle-dot delimiter would share an alphabet with its own
+    payload and a three-field line would read as five. Any TAB or newline inside a value is escaped
+    on the way out for the same reason.
+
+    `ts` is the row handle: the ledger has no id, `sid` is per session, and `ts` is unique on every
+    row of the live file — which is what lets an applied edit name the rows it answers in its commit
+    trailer without a writer change to the (lock-owned) close.
+    """
+    command = command.lstrip("/")  # the ledger stores names slash-free; a reader types the slash
+    for_it = [r for r in rows if str(r.get("command") or "") == command]
+    mine = [r for r in for_it if not _change_is_none(str(r.get("change") or ""))]
+    # the denominator is the rows FOR THIS COMMAND, never the whole ledger: "2 of 5 rows carry a
+    # verdict for it" is false of a 5-row ledger where only 3 rows are about it at all, and this is
+    # the figure a reader uses to decide whether the queue is worth a run
+    head = (
+        f"queue /{command} — {len(mine)} of {len(for_it)} row(s) for it carry a change: verdict "
+        f"({len(rows)} in the window)"
+    )
+    if not mine:
+        return head + "\n(nothing to improve from — pick another command)"
+    mine.sort(key=lambda r: _num(r.get("ts")) or 0, reverse=True)
+    out = [head]
+    for r in mine:
+        value = str(r.get("change") or "").replace("\\", "\\\\").replace("\t", "\\t")
+        value = value.replace("\n", "\\n").replace("\r", "\\r")
+        ts = _num(r.get("ts"))
+        out.append(
+            f"{ts if ts is not None else '?'}\t{_axis_of(str(r.get('change') or ''))}\t{value}"
+        )
+    return "\n".join(out)
+
+
 OBSERVER_SEATS = 4  # how many commands are expensive enough to pay for a writer seat
 
 
@@ -781,13 +818,39 @@ def main(argv: list[str] | None = None) -> int:
             "top four by MEAN tok_in+tok_out per close, cache excluded — and exit"
         ),
     )
+    ap.add_argument(
+        "--queue",
+        default=None,
+        metavar="COMMAND",
+        help=(
+            "print one command's change: queue — TAB-separated `<ts> <bucket> <value>`, newest "
+            "first — and exit; the input /fabrik-command-improve reads"
+        ),
+    )
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--ledger", type=Path, default=None)
     a = ap.parse_args(argv)
-    rows = _rows(a.ledger or _default_ledger())
-    if a.observer_rank:
-        # the same window and filters the report uses — an all-time rank answering a --since
-        # question would name a command retired months ago, silently
+    # `a.ledger or _default_ledger()` was the bug: `Path("")` is `PosixPath(".")`, which is TRUTHY
+    # and a directory, so a caller-computed empty path silently read the CWD and reported zero rows.
+    ledger = a.ledger if a.ledger is not None else _default_ledger()
+    if a.ledger is not None and not a.ledger.is_file():
+        # NOT an error: a repo whose agents have never closed a command has no ledger, and an empty
+        # report is the honest answer there (pinned by its own grader). But a typo and an empty
+        # ledger are indistinguishable in stdout, so the difference goes to stderr where a human
+        # sees it and a parsing caller does not.
+        print(f"ledger: {a.ledger} is not a readable file — reporting zero rows", file=sys.stderr)
+    rows = _rows(ledger)
+    if (
+        a.queue is not None
+        and a.command is not None
+        and a.queue.lstrip("/") != a.command.lstrip("/")
+    ):
+        ap.error("--queue and --command name different commands; pass one of them")
+    if a.queue is not None or a.observer_rank:
+        # the same window and filters the report uses — an all-time answer to a --since question
+        # would name a command retired months ago, silently. `is not None` and not truthiness:
+        # `--queue ""` is a name the caller computed, and falling through to the full report on it
+        # is a different program with no diagnostic
         cutoff = time.time() - a.since * 86400 if a.since is not None else None
         rows = [
             r
@@ -796,6 +859,14 @@ def main(argv: list[str] | None = None) -> int:
             and (a.command is None or r.get("command") == a.command)
             and (a.agent is None or str(r.get("agent") or "") == a.agent)
         ]
+    if a.queue is not None:
+        text = queue(rows, a.queue)
+        if a.json:
+            sys.stdout.write(json.dumps({"queue": text.split("\n")}, indent=1) + "\n")
+        else:
+            sys.stdout.write(text + "\n")
+        return 0
+    if a.observer_rank:
         text = observer_rank(rows)
         if a.json:
             sys.stdout.write(json.dumps({"observer_rank": text.split("\n")}, indent=1) + "\n")

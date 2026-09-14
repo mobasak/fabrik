@@ -1467,3 +1467,104 @@ def test_observer_rank_honours_the_window_and_the_command_filter(tmp_path: Path)
     assert "/new" in r.stdout and "/old" not in r.stdout, r.stdout
     r2 = _run(ledger, "--since", "7", "--observer-rank", "--json")
     assert json.loads(r2.stdout)["observer_rank"][0].startswith("observer-rank:")
+
+
+# --- Piece 2: `--queue`, the whole input /fabrik-command-improve reads -------------------------
+
+
+def test_queue_prints_one_commands_verdicts_newest_first_with_their_ts(tmp_path: Path) -> None:
+    ledger = tmp_path / "l.jsonl"
+    _write(
+        ledger,
+        [
+            _row("a", 60, 1, "lean: older", days_ago=3),
+            _row("a", 60, 1, "fast: newer", days_ago=1),
+            _row("b", 60, 1, "lean: another command"),
+            _row("a", 60, 1, "none"),
+        ],
+    )
+    r = _run(ledger, "--queue", "a")
+    assert r.returncode == 0, r.stderr
+    lines = r.stdout.splitlines()
+    assert lines[0] == "queue /a — 2 of 3 row(s) for it carry a change: verdict (4 in the window)", lines[0]
+    rows = [ln.split("\t") for ln in lines[1:]]
+    assert [c[2] for c in rows] == ["fast: newer", "lean: older"], rows
+    assert [c[1] for c in rows] == ["fast", "lean"]
+    assert all(float(c[0]) > 0 for c in rows)  # the ts is the row handle the commit will name
+
+
+def test_queue_says_so_when_a_command_has_nothing_to_improve_from(tmp_path: Path) -> None:
+    ledger = tmp_path / "l.jsonl"
+    _write(ledger, [_row("a", 60, 1, "none"), _row("b", 60, 1, "lean: x")])
+    r = _run(ledger, "--queue", "a")
+    assert r.returncode == 0, r.stderr
+    assert "0 of 1 row(s) for it" in r.stdout and "(2 in the window)" in r.stdout
+    assert "nothing to improve from" in r.stdout
+
+
+def test_queue_escapes_a_tab_or_a_newline_so_a_value_cannot_forge_a_column(tmp_path: Path) -> None:
+    """The delimiter is a TAB because a stored value may legally contain ` · ` — but then the value
+    must not be able to carry a TAB either, or a three-field line reads as four."""
+    ledger = tmp_path / "l.jsonl"
+    _write(ledger, [_row("a", 60, 1, "lean: one\ttwo\nthree · four")])
+    r = _run(ledger, "--queue", "a")
+    assert r.returncode == 0, r.stderr
+    body = [ln for ln in r.stdout.splitlines() if not ln.startswith("queue ")]
+    assert len(body) == 1, body
+    assert body[0].count("\t") == 2, body[0]
+    assert "\\t" in body[0] and "\\n" in body[0] and " · " in body[0]
+
+
+def test_queue_is_unaffected_by_the_axis_key_when_the_verdict_is_none(tmp_path: Path) -> None:
+    ledger = tmp_path / "l.jsonl"
+    _write(ledger, [_row("a", 60, 1, "lean: none"), _row("a", 60, 1, "lean: real")])
+    r = _run(ledger, "--queue", "a")
+    assert "1 of 2 row(s) for it" in r.stdout
+    assert "lean: none" not in r.stdout
+
+
+def test_queue_takes_a_name_with_or_without_the_leading_slash(tmp_path: Path) -> None:
+    """Every other surface of this report prints `/name`; a reader types what they see."""
+    ledger = tmp_path / "l.jsonl"
+    _write(ledger, [_row("a", 60, 1, "lean: x")])
+    bare = _run(ledger, "--queue", "a").stdout
+    slashed = _run(ledger, "--queue", "/a").stdout
+    assert bare == slashed and "queue /a —" in bare
+
+
+def test_queue_honours_the_window_and_the_filters_like_observer_rank(tmp_path: Path) -> None:
+    ledger = tmp_path / "l.jsonl"
+    _write(
+        ledger,
+        [
+            _row("a", 60, 1, "lean: old", days_ago=400),
+            _row("a", 60, 1, "lean: new", days_ago=1),
+        ],
+    )
+    out = _run(ledger, "--queue", "a", "--since", "7").stdout
+    assert "lean: new" in out and "lean: old" not in out
+    assert "1 of 1 row(s) for it" in out and "(1 in the window)" in out
+    j = json.loads(_run(ledger, "--queue", "a", "--json").stdout)
+    assert j["queue"][0].startswith("queue /a —")
+
+
+def test_an_empty_queue_name_is_a_name_not_a_fallthrough(tmp_path: Path) -> None:
+    """`--queue ""` is a name the caller computed; falling through to the full report on it is a
+    different program with no diagnostic."""
+    ledger = tmp_path / "l.jsonl"
+    _write(ledger, [_row("a", 60, 1, "lean: x")])
+    r = _run(ledger, "--queue", "")
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.startswith("queue / —")
+    assert "command feedback —" not in r.stdout
+
+
+def test_a_bad_ledger_path_says_so_on_stderr_and_still_reports_zero(tmp_path: Path) -> None:
+    """`Path("")` is `.` — truthy AND a directory — so the old `a.ledger or default` silently read
+    the CWD and printed a confident zero. A repo with no ledger yet is still an empty report (its
+    own grader pins that), so the difference goes to stderr: visible to a human, invisible to a
+    caller parsing stdout."""
+    r = _run(tmp_path / "nope.jsonl", "--json")
+    assert r.returncode == 0
+    assert "is not a readable file" in r.stderr
+    assert json.loads(r.stdout)["total_rows"] == 0
