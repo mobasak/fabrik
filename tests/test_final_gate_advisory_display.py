@@ -588,7 +588,7 @@ def test_run_iteration_wires_the_read_only_format_leg_into_check_mode() -> None:
     src = Path(fg.__file__).read_text(encoding="utf-8")
     block = src.split("def run_iteration(")[1].split("# Phase 2")[0]
     assert "elif check_only and tier != 3:" in block
-    assert "run_format_check(changed_files=changed_files)" in block
+    assert "run_format_check(changed_files=changed_files, fix_all=fix_all)" in block
     fix_branch = block.split("if not check_only and tier != 3:")[1].split("elif check_only")[0]
     assert "run_format_check" not in fix_branch
 
@@ -748,3 +748,46 @@ def test_the_writable_scope_carries_committed_but_unpushed_work(
     )
     mod = _fg_in(repo, monkeypatch, "fg_t127_base")
     assert "src/mine.py" in mod.get_writable_files()
+
+
+def test_the_format_check_never_reports_a_file_the_fixer_would_not_touch(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """`--check` answers ONE question: would a plain run rewrite anything? After T12.7 a plain run
+    writes only `get_writable_files()`, so reading the wider change set made this leg report files
+    the fixer will never touch.
+
+    Caught on the live tree within the hour of shipping: it failed the gate on
+    `scripts/command_feedback_report.py`, a SIBLING's uncommitted 151-line WIP that a plain run
+    would correctly leave alone. A check that reds on work its own fixer refuses to do is not
+    stricter — it is wrong, and on a shared tree it reds whoever runs the gate next."""
+    sibling = tmp_path / "sibling.py"
+    sibling.write_text("def f( a,b ):\n    return   a+b\n")
+    mine = tmp_path / "mine.py"
+    mine.write_text("def g( a,b ):\n    return   a+b\n")
+
+    monkeypatch.setattr(fg, "get_writable_files", lambda: {"mine.py"})
+    # The stub must DISCRIMINATE: it maps whatever scope it is handed to the real paths, so a leg
+    # that narrows and a leg that does not produce different file lists. My first cut returned the
+    # same list either way and passed against the unfixed code — a non-grader.
+    paths = {"mine.py": str(mine), "sibling.py": str(sibling)}
+    monkeypatch.setattr(
+        fg, "_changed_python", lambda scope: sorted(paths[p] for p in scope if p in paths)
+    )
+    rows = fg.run_format_check({"mine.py", "sibling.py"})
+    assert len(rows) == 1 and rows[0][1] is False, rows
+    assert "mine.py" in rows[0][2] and "sibling.py" not in rows[0][2], rows[0][2]
+
+    # and with ONLY the sibling's file in the change set, there is no row at all — not a green one.
+    monkeypatch.setattr(fg, "_changed_python", lambda scope: [])
+    assert fg.run_format_check({"sibling.py"}) == []
+
+
+def test_fix_all_widens_the_format_check_the_same_way_it_widens_the_fixer() -> None:
+    """The escape has to be symmetric or `--check` and a plain run answer different questions."""
+    src = Path(fg.__file__).read_text(encoding="utf-8")
+    body = src.split("def run_format_check")[1].split("\ndef ")[0]
+    assert "if not fix_all:" in body and "get_writable_files()" in body
+    assert "run_format_check(changed_files=changed_files, fix_all=fix_all)" in src, (
+        "the caller must thread fix_all, or the flag is inert for this leg"
+    )

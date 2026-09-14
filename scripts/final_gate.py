@@ -710,14 +710,27 @@ def run_formatting_fixes(
     return results
 
 
-def run_format_check(changed_files: set[str] | None = None) -> list[tuple[str, bool, str]]:
+def run_format_check(
+    changed_files: set[str] | None = None, fix_all: bool = False
+) -> list[tuple[str, bool, str]]:
     """`ruff format --check` over the changed .py — the read-only half of Phase 1 (T12.6).
 
     Returns no row when the change touched no Python under the ruff roots: a formatting verdict
     over an empty set is not a pass, and a green row there would be the same fail-silent-green
     this leg exists to close.
+
+    ⚠️ SCOPED TO THE WRITABLE SET, exactly as the fixers are (T12.7). `--check` answers one
+    question — "would a plain run rewrite anything?" — and after T12.7 a plain run writes only
+    `get_writable_files()`. Reading the wider change set made this leg report files the fixer will
+    never touch. Caught on the live tree within the hour: it failed the gate on
+    `scripts/command_feedback_report.py`, a SIBLING's uncommitted 151-line WIP, which a plain run
+    would correctly leave alone. A check that reds on work its own fixer refuses to do is not
+    stricter, it is wrong — and on a shared tree it reds whoever happens to run the gate next.
     """
-    ruff_py = _changed_python(changed_files or set())
+    scope = set(changed_files or set())
+    if not fix_all:
+        scope &= get_writable_files()
+    ruff_py = _changed_python(scope)
     if not ruff_py:
         return []
     code, out = run_cmd([RUFF, "format", "--check", *ruff_py], timeout=TIMEOUTS["ruff"])
@@ -2696,7 +2709,7 @@ def run_iteration(
         # without mutating anything, which is what `--check` promises.
         if not json_mode:
             print_header("PHASE 1: FORMATTING (READ-ONLY)")
-        results = run_format_check(changed_files=changed_files)
+        results = run_format_check(changed_files=changed_files, fix_all=fix_all)
         all_results.extend(results)
         if not json_mode:
             for name, passed, out in results:

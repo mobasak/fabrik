@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the new `--check` format leg reported files its own fixer refuses to touch (2026-09-14)
+
+- Found by the Stop hook on the live tree within the hour of shipping T12.6: `ruff-format (--check)` failed the gate on `scripts/command_feedback_report.py`, a **sibling's uncommitted 151-line WIP**, which a plain run would correctly leave alone.
+- The leg read the wider change set while the fixers it mirrors were narrowed to `get_writable_files()` by T12.7 in the same phase. `--check` answers one question — *would a plain run rewrite anything?* — so reading a different scope from the run it predicts makes it answer a different question. Now scoped identically, with `--fix-all` widening both symmetrically.
+- A check that reds on work its own fixer refuses to do is not stricter; it is wrong, and on a shared tree it reds whoever runs the gate next.
+- ⚠️ Two graders, and the first one **passed against the unfixed code** — its stub returned the same file list whatever scope it was handed, so it graded nothing. Rewritten to map the scope it is given to real paths; both now fail on revert.
+
 ### Changed — Phase E of the mail-triage plan closed: 23 rows, 22 replies, one mechanism rejected (2026-09-14)
 
 - All 23 T12 rows dispositioned — **12 code fixes** each with a red-first grader, **5 refuted or partly refuted at HEAD** by execution rather than by reading, **1 mechanism measured and rejected**, and **22 mails replied to and acked**.
