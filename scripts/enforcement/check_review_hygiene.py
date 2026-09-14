@@ -218,19 +218,15 @@ def _blank_quoted(lines: list[str]) -> list[str]:
         # (the D-181 convention) is prose, and an unmasked read blanked every later row of 9 of 805
         # fleet receipts — a real raw-pipe defect lost behind "0 hits" (2026-09-10)
         if in_comment:
-            # the closer is read through the code-span mask like every marker in this file (I4:
-            # a receipt cell quoting `-->` is prose). The CLOSING LINE belongs to the block, so
-            # it is blanked WHOLE: every consumer of this copy is a line-SHAPE classifier (the
-            # two table classes, `_fence_step`, the heading stop), and a live tail joins the pipe
-            # run or opens the fence run below it — round 15 measured a `dual-verdict` row lost
-            # behind `0 hits` and a `~~~` tail blanking the rest of a receipt, the same fail-open
-            # the mask was written to end. G29 ("prose after the close swallowed") is answered on
-            # the SURFACE path by the prose classes, which read the raw text: `stale-phrase`,
-            # `claim` and `template-residue` all report the tail with the line blanked here.
-            # STATED COST: a file given only as `--receipt` — which is what the gate's own
-            # self-selection passes — is graded by the two TABLE classes over its rows, and by
-            # `--symbol` over its text; no PROSE class sees it, so the tail's prose is unreported
-            # there, blanked or not (round 17).
+            # the closer is read through the code-span mask, like every marker in this file
+            # (I4). The CLOSING LINE belongs to the block and is blanked WHOLE: this copy feeds
+            # only line-SHAPE readers (the two table classes, `_fence_step`, the heading stop),
+            # so a live tail would join THEIR runs — the pipe run or the fence run below it —
+            # instead of being read as its own line. Prose on that tail is not lost: it is read
+            # from the RAW text by `_surface_hits`. STATED COST: `_receipt_hits` runs the two
+            # table classes over the rows and no prose class at all (`--symbol` still counts
+            # over the text), so on a receipt-only invocation the tail's prose is unreported,
+            # blanked or not. Both sides graded in `test_a_comment_closing_line_never_joins_…`.
             out.append("")
             j = _mask_code_spans(ln).find("-->")
             if j >= 0:

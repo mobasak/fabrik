@@ -2670,22 +2670,31 @@ _BARE_FILES_CI = frozenset(f.casefold() for f in _BARE_FILES)
 
 
 def _is_path_token(tok: str) -> bool:
-    """A backticked token on the Changed list is a path when it is path-shaped AND carries a `/`
-    or a `.` (or is a well-known bare file, any case); a location suffix (`x.py:44`,
-    `x.py::test`) is stripped first — END-anchored, so a MID-token `:port` (`redis-main:6379/0`,
-    `10.99.0.1:8080/x.py`) is not a path at all while a TRAILING `:port` is indistinguishable
-    from `:line` and IS stripped (`db.example.com:5432` → the path `db.example.com`; `a/b:80` →
-    `a/b`); a token that is exactly `\\d+(\\.\\d+)*` after the strip is NOT a path (`1.2.3`,
-    `10.99.0.1`) — that fullmatch decides every DOTTED NUMBER the `a..b` range rule below has not
-    already refused, so `v1.2.3` and `1.2.3-rc1` ARE paths, and so is every dotted number that
-    REACHES the fullmatch and does not match it: `1.`, `.5`, `1.2.`, `.1.2`, `1.2e3`, a bare `.`
-    (a stated cost). A dotted number carrying `..` never reaches it — `1..2`, `.1..2`, `1..2.3`
-    are refused by the range rule, which is why that rule stays separate; and a bare count (`44`)
-    is dropped two rules earlier, by no-dot-no-slash. An md5/sha (no dot, no slash — dropped
-    by the first rule), a range (`a..b` with no slash) or a prose symbol (`_hunt_gaps`, `--json`,
-    `IN-PROGRESS`) is not (rounds 3–5). STATED COSTS: an extension-less bare file outside the
-    list (`cafebabe`) is not a path, and a dotted symbol (`os.getenv`) is indistinguishable from a
-    file name and counts as one."""
+    """Is a backticked token on the Changed list a PATH? The rules, in the order they run —
+    each line is the predicate the code below evaluates, not a gloss on it:
+
+      1. strip an END-anchored location suffix (`x.py:44`, `x.py::test`). END-anchored, so a
+         MID-token `:port` survives the strip and fails rule 2; a TRAILING `:port` is
+         indistinguishable from `:line` and IS stripped.
+      2. `_TOKEN_SHAPE` must match the remainder, else NOT a path.
+      3. a well-known bare file, casefolded (`_BARE_FILES_CI`) → a path.
+      4. no `/` and no `.` → NOT a path (an md5/sha, a bare count).
+      5. no `/` and a `..` → NOT a path (a range).
+      6. an exact `\\d+(\\.\\d+)*` → NOT a path (a dotted number). Only tokens that reach
+         rule 6 are decided by it: rules 4 and 5 have already taken the undotted and the `..`
+         shapes.
+      7. anything else → a path.
+
+    STATED COSTS: an extension-less bare file outside the list is not a path, and a dotted
+    symbol (`os.getenv`) is indistinguishable from a file name and counts as one.
+
+    EVERY other cost of this ladder — which exact tokens fall either side of rules 4–6 — is
+    enumerated as an EXECUTED table in
+    `tests/test_check_review_coverage_precommit.py::test_the_changed_list_reads_paths_only_across_wrapped_lines_and_never_from_a_fence`.
+    It lives there and not here because three consecutive review rounds (15–17) each found a
+    different example in this docstring wrong, incomplete, or credited to the wrong rule: a
+    prose list of shapes drifts from the code, an executed one cannot.
+    """
     tok = _LOCATION_SUFFIX.sub("", tok or "")
     if not tok or not _TOKEN_SHAPE.match(tok):
         return False
