@@ -347,7 +347,11 @@ fabrik-lib's `check_governance_drift.py` PARSES this list from the hub file (rul
 hub's list canonical; the parse-hardening came later, after `proxy-never-evidence` had to arrive by mail),
 so a new bullet propagates to the drift check without editing any sync-excluded repo's script.
 **Never reword an anchor in place** — detectors key on the exact substring; reword the surrounding prose
-freely, keep the anchor verbatim.
+freely, keep the anchor verbatim. ⚠️ **Exact means CASE-exact, so an anchor is written lowercase and
+MID-sentence in the rule that carries it** — opening a sentence with it capitalises the first letter and
+the check reports the rule MISSING while it is plainly there, which reads as a broken detector rather than
+a capital letter (reproduced on a copy of fabrik-lib's `CLAUDE.md` 2026-09-14: capitalise the anchor, the
+drift check prints `missing: cobra-effect`; fabrik-lib hit it adopting that anchor in good faith).
 
 ## Past sessions are searchable (session-recall)
 
