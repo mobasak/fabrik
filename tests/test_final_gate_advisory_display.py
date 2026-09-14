@@ -591,3 +591,54 @@ def test_run_iteration_wires_the_read_only_format_leg_into_check_mode() -> None:
     assert "run_format_check(changed_files=changed_files)" in block
     fix_branch = block.split("if not check_only and tier != 3:")[1].split("elif check_only")[0]
     assert "run_format_check" not in fix_branch
+
+
+def test_bandit_covers_the_scripts_root_that_ruff_already_lints() -> None:
+    """T12.5 (01M28MG90): ruff lints BOTH roots (`_RUFF_ROOTS`) while bandit rooted at `src/`
+    alone — and in this repo `scripts/` IS most of the code. Nothing else covered it: pyproject's
+    ruff `select` carries no "S", so bandit's rule family ran NOWHERE over scripts/."""
+    src = Path(fg.__file__).read_text(encoding="utf-8")
+    assert '"-r",\n                "scripts/",' in src or '"-r", "scripts/"' in src, (
+        "bandit must be rooted at scripts/ as well as src/"
+    )
+    assert "scripts/" in fg._RUFF_ROOTS, "the premise — re-derive if the roots change"
+    block = src.split("# T12.5 (01M28MG90)")[1].split("# Semgrep")[0]
+    assert '"-lll"' in block, (
+        "the floor is HIGH and it is MEASURED: -ll over this scope reports 480 findings "
+        "(423 of them vendored), -lll reports 0 after the md5 sites declare themselves"
+    )
+    for vendored in ("scripts/kilo-benchmarks/", "scripts/.archive/", "scripts/archived/"):
+        assert vendored in block, f"{vendored} is vendored/archived and must be excluded"
+
+
+def test_every_md5_under_scripts_declares_it_is_not_crypto() -> None:
+    """The seven HIGH findings that scope reported were ALL B324 — md5 used for change detection
+    or as an anchor. `usedforsecurity=False` states that to the interpreter, to bandit and to the
+    next reader; the `# noqa: S324` it replaces suppressed a ruff rule this repo does not even
+    select, so it silenced nothing and documented only to a reader who knew that."""
+    root = Path(fg.__file__).resolve().parents[1] / "scripts"
+    offenders = []
+    for py in root.rglob("*.py"):
+        rel = py.relative_to(root).as_posix()
+        if rel.startswith(("kilo-benchmarks/", ".archive/", "archived/", "tests/")):
+            continue
+        text = py.read_text(encoding="utf-8", errors="ignore")
+        for i, line in enumerate(text.splitlines(), 1):
+            if "hashlib.md5(" in line and "usedforsecurity" not in line:
+                # a call split across lines carries the kwarg on the next one
+                nxt = text.splitlines()[i : i + 2]
+                if not any("usedforsecurity" in n for n in nxt):
+                    offenders.append(f"{rel}:{i}")
+    assert not offenders, f"md5 without a stated purpose: {offenders}"
+
+
+def test_the_bandit_no_changes_skip_is_marked_like_semgreps() -> None:
+    """The bandit leg carried the SAME unmarked-skip defect T12.3 fixed for semgrep, one branch
+    below it — a green row named plain `bandit` that never ran."""
+    src = Path(fg.__file__).read_text(encoding="utf-8")
+    assert 'results.append(("bandit", True, "(no src/ changes, skipping)"))' not in src
+    assert "bandit (diff-sensed skip — no src/ changes)" in src
+    assert fg._summarize_skipped([("bandit (diff-sensed skip — no src/ changes)", True, "")]) == {
+        "skipped": 1,
+        "skipped_checks": ["bandit"],
+    }

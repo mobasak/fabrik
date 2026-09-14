@@ -1008,7 +1008,52 @@ def run_static_checks(
         else:
             results.append(("bandit", code == 0, out if code != 0 else ""))
     else:
-        results.append(("bandit", True, "(no src/ changes, skipping)"))
+        # same unmarked-skip class T12.3 fixed for semgrep, one branch below it
+        results.append(
+            ("bandit (diff-sensed skip — no src/ changes)", True, "(no src/ changes, skipping)")
+        )
+
+    # T12.5 (01M28MG90): ruff lints BOTH roots (`_RUFF_ROOTS = ("scripts/", "src/")`) while bandit
+    # rooted at `src/` alone — and in this repo `scripts/` IS most of the code. Nothing else
+    # covered it either: pyproject's ruff `select` carries no "S", so bandit's rule family ran
+    # NOWHERE over scripts/ (which is why the `# noqa: S324` comments there were suppressing a
+    # rule that was never enabled).
+    #
+    # SEVERITY FLOOR, measured rather than chosen (FIX DIRECTIVE 5). At `-ll` this scope reports
+    # 480 findings, 423 of them inside the vendored `scripts/kilo-benchmarks/`; excluding the
+    # vendored and archived subtrees leaves 43 in 4.7s — still enough to red every gate in the
+    # fleet on landing day. At HIGH the same scope reported 7, ALL of them B324 (md5 used for
+    # change-detection), each now declaring `usedforsecurity=False` — so the floor is HIGH, the
+    # count today is 0, and it BLOCKS. Promoting the floor to MEDIUM is a per-repo ratchet, filed
+    # to docs/STRATEGIC_BACKLOG.md with the 36 remaining mediums named by rule.
+    if not changed or _has_path_prefix(changed, "scripts/"):
+        code, out = run_cmd(
+            [
+                PYTHON,
+                "-m",
+                "bandit",
+                "-lll",
+                "-x",
+                "tests/,scripts/kilo-benchmarks/,scripts/.archive/,scripts/tests/,scripts/archived/",
+                "-r",
+                "scripts/",
+            ],
+            timeout=TIMEOUTS["bandit"],
+        )
+        if "No module named bandit" in out:
+            results.append(
+                ("bandit scripts/ (NOT INSTALLED — skipped)", True, _skip_note("bandit"))
+            )
+        else:
+            results.append(("bandit scripts/ (HIGH only)", code == 0, out if code != 0 else ""))
+    elif (PROJECT_ROOT / "scripts").is_dir():
+        results.append(
+            (
+                "bandit scripts/ (diff-sensed skip — no scripts/ changes)",
+                True,
+                "(no scripts/ changes, skipping)",
+            )
+        )
 
     # Semgrep (skip if no src/ files changed)
     if not changed or _has_path_prefix(changed, "src/"):

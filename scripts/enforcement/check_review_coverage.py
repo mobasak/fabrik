@@ -2202,9 +2202,13 @@ def epics_set_hash(root: Path) -> str | None:
         return None  # an empty epic set validates nothing — no anchor, not a fabricated one
     lines = []
     for rel in files:
-        h = hashlib.md5((root / rel).read_bytes()).hexdigest()  # noqa: S324 — integrity, not crypto
+        h = hashlib.md5(
+            (root / rel).read_bytes(), usedforsecurity=False
+        ).hexdigest()  # integrity, not crypto
         lines.append(f"{h}  {rel}\n")
-    return hashlib.md5("".join(lines).encode()).hexdigest()  # noqa: S324
+    return hashlib.md5(
+        "".join(lines).encode(), usedforsecurity=False
+    ).hexdigest()  # integrity, not crypto
 
 
 def check_mega_validation(

@@ -91,7 +91,7 @@ def _surface(root: Path, changed: list[str], rng: str | None) -> tuple[str, int]
         fp = root / p
         if fp.is_file():
             blob += f"\n--- untracked: {p}\n".encode() + fp.read_bytes()
-    digest = hashlib.md5(blob).hexdigest()  # noqa: S324 — a cross-run anchor, not security
+    digest = hashlib.md5(blob, usedforsecurity=False).hexdigest()  # a cross-run anchor
     shown = f"git diff {rng or 'HEAD'} -- {' '.join(changed)}"
     extra = f" + {len(untracked)} untracked file(s)" if untracked else ""
     line = f"`git rev-parse HEAD` = {head}; `{shown}`{extra} md5 {digest} ({len(blob)} bytes)"

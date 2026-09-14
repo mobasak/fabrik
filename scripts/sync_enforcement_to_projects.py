@@ -1546,7 +1546,7 @@ class ProjectSyncResult:
 
 def compute_file_hash(path: Path) -> str:
     """Compute MD5 hash of a file."""
-    hasher = hashlib.md5()
+    hasher = hashlib.md5(usedforsecurity=False)  # change detection, never crypto
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(8192), b""):
             hasher.update(chunk)

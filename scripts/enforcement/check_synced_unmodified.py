@@ -32,7 +32,7 @@ LOCK_REL = ".fabrik/synced.lock"
 
 
 def _md5(path: Path) -> str:
-    h = hashlib.md5()
+    h = hashlib.md5(usedforsecurity=False)  # drift detection, never crypto
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(8192), b""):
             h.update(chunk)

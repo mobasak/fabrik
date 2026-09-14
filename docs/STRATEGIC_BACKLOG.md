@@ -58,6 +58,33 @@ surface is missing one. Cross-repo, so it is fabrik-lib's to fix.
 **Do:** mail fabrik-lib — a bounded store (or a documented `reset()`), and a note in the pack that a
 title must be a STABLE key, not a formatted string.
 
+## [infra] `bandit scripts/` ships at a HIGH floor; promoting it to MEDIUM is a per-repo ratchet with 36 findings named
+
+T12.5 landed bandit over `scripts/` — the root ruff already lints and bandit never saw — but at
+`-lll` (HIGH), not the `-ll` (MEDIUM) the `src/` leg uses. That asymmetry is deliberate and
+measured, and this row is the other half of the decision.
+
+**Measured 2026-09-14 on the hub** (`bandit -ll -x tests/ -r scripts/`, findings attributed with
+`--msg-template '{relpath}'` and bucketed by subtree): **480** findings over **204** files, of
+which **423 (88 %) are inside the vendored `scripts/kilo-benchmarks/`** and 13 more in
+`scripts/.archive/`. Excluding vendored and archived subtrees: **43** findings in **4.7 s**. Of
+those 43, the 7 HIGH were all B324 (md5 for change detection) and are now closed properly — each
+call declares `usedforsecurity=False`, which states the purpose to bandit, to the interpreter and
+to the next reader, where the `# noqa: S324` it replaced suppressed a ruff rule this repo does not
+even select (`select` in `pyproject.toml` carries no `S`). HIGH is therefore **0** today and the
+row BLOCKS.
+
+**The 36 remaining MEDIUMs, by rule, so the triage has a subject:** B310 urllib-open × 14 ·
+B108 hardcoded `/tmp` × 12 · B608 SQL built by string × 7 · B104 bind-all-interfaces × 2 ·
+B302 marshal × 1. Most are likely legitimate for a box-local tool; that judgement is the work,
+and it is per-finding, not per-rule.
+
+**Do:** triage those 36 — annotate what is fine (`# nosec` with a reason, bandit's own verb),
+fix what is not — then move the floor to `-ll` here. Fleet-wide it is the lint ratchet's shape,
+not a flag day: each repo clears its own `scripts/` and lowers its own floor. ⚠️ Do NOT lower the
+floor before the triage: 43 findings would red every gate in the fleet on landing day, which is
+how enforcement gets disabled rather than obeyed.
+
 ## [infra] A prose enumeration states its COUNT away from its items, so the next edit falsifies it
 
 Routed here by the D-252 scope-growth stop at the close of Phase D's review. Rounds 5 and 7 were

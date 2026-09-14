@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — bandit never saw `scripts/`, the root ruff has always linted (2026-09-14)
+
+- Phase E T12.5 of the mail-triage plan (01M28MG90) — three graders, each proven RED by name against the previous script.
+- **`_RUFF_ROOTS` is `("scripts/", "src/")`; bandit was rooted at `src/` alone.** Nothing else covered the gap either: `pyproject.toml`'s ruff `select` carries no `S`, so bandit's rule family ran **nowhere** over `scripts/` — which is also why the `# noqa: S324` comments there were suppressing a rule that was never enabled.
+- **The severity floor is measured, not chosen** (FIX DIRECTIVE 5). At `-ll` the new scope reports **480** findings over 204 files, **423 of them (88 %) inside the vendored `scripts/kilo-benchmarks/`**; excluding vendored and archived subtrees leaves **43** in 4.7 s — still enough to red every gate in the fleet on landing day. At HIGH the same scope reported **7**, all B324 (md5 for change detection). Those seven now declare `usedforsecurity=False` — same digest, verified — so the floor is HIGH, the count is **0**, and the row BLOCKS rather than advising into the void. The 36 remaining MEDIUMs are filed by rule with the per-repo ratchet that promotes the floor.
+- **The bandit leg carried the same unmarked-skip defect T12.3 had just fixed for semgrep, one branch below it** — a green row named plain `bandit` that never ran. Marked. A Tier-2 `--check --json` on this hub now reports `skipped_checks: ['bandit', 'semgrep', 'pytest']` where this morning it reported `['pytest']`: three checks in a green run that do not execute here, and now say so.
+
 ### Fixed — `final_gate.py --check` never verified formatting, and a truncated pytest red hid the rest of the list (2026-09-14)
 
 - Phase E T12.4 + T12.6 of the mail-triage plan (01M2606BZ, 01M28NB2R) — five graders, each proven RED by name against the previous script.

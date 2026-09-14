@@ -266,7 +266,7 @@ def _apply_patch(patch: str, root: Path | str) -> None:
 
 
 def _docset_md5(docs: list[object], root: Path | str) -> str:
-    h = hashlib.md5()  # noqa: S324 — non-crypto change-detection only
+    h = hashlib.md5(usedforsecurity=False)  # non-crypto change-detection only
     for d in sorted(docs, key=lambda r: getattr(r, "name", "")):
         p = Path(root) / getattr(d, "name", "")
         try:
