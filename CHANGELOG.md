@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — yesterday's worktree fix was a no-op that looked correct: 0 of 118, now 4 of 119 (2026-09-15)
+
+- Phase E review, round 1. `_is_sync_materialised` (T12.23) cleared **nothing** in production. An author-blind seat measured it against every registered worktree on the box and four independent causes came out, each verified by me before fixing:
+  - **The import could never resolve.** `fabrik_synced_manifest` was imported with no `sys.path` insert; from any cwd but the hub's `scripts/` that raises `ModuleNotFoundError`, the broad `except` swallowed it, and every path answered "not sync-owned". This one defect hid the other three.
+  - **The hub source was assumed to be the same path.** 15 of the manifest's 208 `(src, dest)` pairs differ — `CLAUDE.md`'s source is `templates/governance/CLAUDE.md`, and `.worktreeinclude` has no hub file at its dest path at all. It alone blocked **90 of 118**.
+  - **A directory entry was never expanded.** `git status --porcelain` collapses an all-untracked directory to `dir/`, and `read_bytes` on a directory raises — `libs/health_probe/` blocked **62**.
+  - **The comparison read the hub's working tree** while the sync ships `git show HEAD:<src>`, so the verdict depended on whether a sibling happened to have that file dirty.
+- ⚠️ **And the fix could not have achieved what it promised.** `git worktree remove` REFUSES while any untracked file is present, and `scratch_sweep` never passes `--force` — deliberately. Sync output is untracked, so dropping those paths from the dirty list would have promoted a worktree to `wt-removable` and then been refused at runtime: a wrong row plus a failure, in place of a correct informative one. There is now a distinct **`wt-sync-only`** verdict that says nothing was authored there AND that it is not ours to delete. It is excluded from `REMOVABLE` by construction, and documented in both contracts, the script's docstring, and `docs/workstation/cleanup-automation.md`.
+- Measured after the fix: **4 of 119** dirty worktrees now classify `wt-sync-only`. Modest, and the honest number — the rest carry genuinely authored files or paths the manifest does not own.
+
 ### Fixed — the lint leg reddened on a peer's WIP too, and the third instance of that class has no scoping fix (2026-09-15)
 
 - Phase E review, round 1. T12.7 narrowed the FIXERS to `get_writable_files()`; the `ruff check` leg kept reading the wider change set, so a sibling's unstaged tracked file reddened a row **no session was permitted to clear** — the fixer refuses to touch it, and the only escapes were `--fix-all` (re-introducing the destruction T12.7 removed) or hand-editing a peer's WIP. Scoped to the writable set, which also matches CI exactly: CI checks out HEAD, and HEAD never contains anyone's unstaged edit.

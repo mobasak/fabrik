@@ -169,6 +169,7 @@ registers under `<repo>/.tmp` (fabrik-lib has one) is classified like any other 
 by the ordinary guards; it is never swept as a spool. And because `git worktree remove` deletes
 ignored files even without `--force`, a worktree holding ignored DATA outside the cache allowlist is
 `wt-ignored-data` and is never removed — which is what keeps § D's spools safe on that path too.
+- **`wt-sync-only`** (added 2026-09-15) — every dirty path in the worktree is the governance sync's own materialised output, byte-identical to what the sync would write. Nothing was authored there. ⚠️ It is still NOT removable: `git worktree remove` refuses while untracked files are present and `--apply` never passes `--force`, so this verdict informs rather than promising a removal git would refuse. Remove it by hand with `--force` if you mean to.
 
 **What it never touches** (hard-coded, printed by `--help` and by every apply run): repo files, except
 a worktree it classified removable · transcripts and `~/.claude*/state`, beyond the one lock file it

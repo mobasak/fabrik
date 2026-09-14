@@ -70,10 +70,13 @@ REFUSAL_SET = """NEVER TOUCHES (hard-coded; this text is printed by --help and b
     the REPO-WIDE `git worktree prune` and would drop other sessions' registrations too
   * a worktree holding IGNORED files outside the cache allowlist (wt-ignored-data), or a directory
     git does not register (wt-orphan-dir)
+  * a worktree whose dirt is ENTIRELY the governance sync's own output (wt-sync-only) — nothing
+    was authored there, but `git worktree remove` still refuses while untracked files are present
+    and this tool never passes --force, so the row informs rather than promising removal
   * anything holding a BACKUP SHAPE — *.bak, *.original, *pristine* (case-insensitive),
     before.txt/after.txt, .keep — the entry's OWN NAME included, unless --include-backups
   * a root-level entry of the scratch root, unless --unowned-older-than DAYS
-Held, kept, fresh, dirty, unmerged, locked, orphan-dir, ignored-data and unclassifiable entries are
+Held, kept, fresh, dirty, unmerged, locked, orphan-dir, ignored-data, sync-only and unclassifiable entries are
 LISTED with their reason and never removed. Foreign is the one CONDITIONAL class: listed and never
 removed by default, and judged on its own state only under --foreign-older-than (see above)."""
 
@@ -1469,31 +1472,102 @@ def _merged_from(repo: Path, target: str, branch: str) -> bool:
     return False
 
 
-def _is_sync_materialised(worktree: Path, rel: str) -> bool:
-    """Is `rel` inside this worktree a file the governance sync PUT there, unmodified?
+def _sync_source_for(worktree: Path, rel: str) -> Path | None:
+    """The HUB file whose content the sync writes to `rel` inside `worktree`, or None.
 
-    Two conditions, both required (T12.23): the path is owned by `fabrik_synced_manifest`, and its
-    bytes match the hub's copy. The second is what keeps this from laundering a hand-edited synced
-    file into "clean" and letting a worktree be deleted over it.
-
-    Any failure to answer — no manifest, an unreadable file, no hub copy — returns False, which
-    keeps the worktree DIRTY. A destructive verdict fails toward keeping the work.
+    ⚠️ NOT `FABRIK_ROOT / rel`. Of the 208 `(src, dest)` pairs the manifest yields, 15 have
+    `src != dest` — most conspicuously `CLAUDE.md`, whose source is `templates/governance/CLAUDE.md`
+    (the hub's own root `CLAUDE.md` is the hub contract and is never distributed), and
+    `.worktreeinclude`, which has no hub file at its dest path at all. A first cut compared against
+    the dest path and could therefore never recognise the single most common synced file: measured,
+    `.worktreeinclude` blocked 90 of 118 dirty worktrees by itself.
     """
     try:
+        # The manifest lives in the HUB's scripts/ and this module is run from anywhere, so the
+        # path insert is load-bearing: without it the import raises ModuleNotFoundError, the
+        # `except` swallows it, and EVERY path answers "not sync-owned" — which is exactly why the
+        # first cut cleared 0 of 118 worktrees while looking correct. Measured after fixing it.
+        _hub_scripts = str(Path("/opt/fabrik") / "scripts")
+        if _hub_scripts not in sys.path:
+            sys.path.insert(0, _hub_scripts)
         import fabrik_synced_manifest as _fsm  # noqa: PLC0415 — optional, hub-only
-    except Exception:  # noqa: BLE001 — no manifest → nothing is provably sync-owned
-        return False
-    rel = rel.strip().strip('"')
-    try:
-        owned: set[str] = set()
-        for group in _fsm.gitignore_dest_paths().values():
-            owned.update(group)
     except Exception:  # noqa: BLE001
-        return False
-    if not any(rel == o or (o.endswith("/") and rel.startswith(o)) for o in owned):
+        return None
+    try:
+        for src, dest in _fsm.iter_synced_pairs(worktree):
+            if dest == worktree / rel:
+                return src
+    except Exception:  # noqa: BLE001 — a manifest that cannot enumerate owns nothing
+        return None
+    return None
+
+
+def _sync_materialised_paths(worktree: Path, names: list[str]) -> set[str]:
+    """Of `names` (porcelain paths from `git status`), the ones that are the SYNC'S OWN OUTPUT.
+
+    A path qualifies only when the manifest maps it to a hub source AND the bytes match what the
+    sync would write. Three corrections the Phase E review forced, each measured:
+
+    * the hub side is resolved through `iter_synced_pairs`, not assumed to be the same path;
+    * a porcelain entry ending in `/` is an all-untracked DIRECTORY — `read_bytes` on it raises
+      `IsADirectoryError` and the first cut therefore answered "not sync output" for it. Measured:
+      `libs/health_probe/` blocked 62 of 118 worktrees that way. Its files are expanded and each
+      one checked;
+    * the comparison reads the hub's COMMITTED bytes, because `sync_enforcement_to_projects.py`
+      ships `git show HEAD:<src>` for a tracked file. Comparing against the hub's working tree made
+      the verdict depend on whether a sibling happened to have that file dirty.
+
+    Anything unanswerable is simply absent from the result, which keeps the path counted as
+    authored — the verdict this feeds is destructive-adjacent and fails toward keeping the work.
+    """
+    out: set[str] = set()
+    for raw in names:
+        rel = raw.strip().strip('"')
+        if not rel:
+            continue
+        candidates = [rel]
+        if rel.endswith("/"):
+            base = worktree / rel
+            if not base.is_dir():
+                continue
+            candidates = [
+                str(f.relative_to(worktree).as_posix()) for f in base.rglob("*") if f.is_file()
+            ]
+            if not candidates:
+                continue
+        if all(_is_sync_materialised(worktree, c) for c in candidates):
+            out.add(raw)
+    return out
+
+
+def _is_sync_materialised(worktree: Path, rel: str) -> bool:
+    """Is `rel` inside this worktree byte-identical to what the sync would write there?
+
+    The hub side is `git show HEAD:<src>` for a tracked source (what the sync ships) and the
+    working-tree bytes for an untracked one. Any failure to answer returns False, which keeps the
+    worktree counted as carrying authored work: this feeds a verdict about DELETING a directory.
+    """
+    src = _sync_source_for(worktree, rel)
+    if src is None:
         return False
     try:
-        return (worktree / rel).read_bytes() == (_fsm.FABRIK_ROOT / rel).read_bytes()
+        mine = (worktree / rel).read_bytes()
+    except OSError:
+        return False
+    try:
+        rel_src = src.resolve().relative_to(Path("/opt/fabrik").resolve()).as_posix()
+        proc = subprocess.run(
+            ["git", "show", f"HEAD:{rel_src}"],
+            cwd="/opt/fabrik",
+            capture_output=True,
+            check=False,
+        )
+        if proc.returncode == 0:
+            return mine == proc.stdout
+    except (OSError, ValueError):
+        pass
+    try:
+        return mine == src.read_bytes()  # untracked hub source: the tree is all there is
     except OSError:
         return False
 
@@ -1750,18 +1824,30 @@ def _worktree_chain(
     if rc == 0 and status.strip():
         all_names = [ln[3:] for ln in status.splitlines()]
         # T12.23 (01M23JK2R, reported by wef3): the governance sync MATERIALISES manifest-owned
-        # files into a worktree, so a worktree nobody has touched reads dirty and can never be
-        # removed. Those paths are not "uncommitted work" by any session — nothing authored them.
+        # files into a worktree, so a worktree nobody has touched reads dirty. Those paths are not
+        # "uncommitted work" by any session — nothing authored them.
         #
-        # ⚠️ NARROW ON PURPOSE. A manifest-owned path is ignored only when it is byte-identical to
-        # the hub's copy, i.e. it really is the sync's own output. A HAND-EDITED synced file stays
-        # dirty and keeps the worktree: `check_synced_unmodified.py` forbids that edit and the next
-        # sync would overwrite it, but removing a worktree is destructive and a destructive verdict
-        # does not get to assume which side of that line an edit falls on.
-        authored = [n for n in all_names if not _is_sync_materialised(path, n)]
+        # ⚠️ BUT THIS DOES NOT MAKE THE WORKTREE REMOVABLE, and the first cut of this fix wrongly
+        # implied it would. Executed: `git worktree remove` REFUSES while any untracked file is
+        # present ("contains modified or untracked files, use --force"), and `apply_worktrees`
+        # never passes `--force` — deliberately, because forcing is how work disappears. The sync's
+        # output is untracked, so promoting such a worktree to `wt-removable` would trade a correct
+        # informative row for a wrong one plus a refusal at runtime. It gets its OWN verdict:
+        # nothing authored here, and still not ours to delete.
+        sync_only = _sync_materialised_paths(path, all_names)
+        authored = [n for n in all_names if n not in sync_only]
         if authored:
             shown = ", ".join(authored[:5]) + ("…" if len(authored) > 5 else "")
             return "wt-dirty", f"uncommitted work ({len(authored)}): {shown}", ""
+        if sync_only:
+            shown = ", ".join(sorted(sync_only)[:5]) + ("…" if len(sync_only) > 5 else "")
+            return (
+                "wt-sync-only",
+                f"nothing authored — all {len(sync_only)} dirty path(s) are the governance sync's "
+                f"own output ({shown}); NOT removable while `git worktree remove` refuses "
+                f"untracked files, so remove it by hand with --force if you mean to",
+                "",
+            )
     if branch in stashed:
         return (
             "wt-dirty",
