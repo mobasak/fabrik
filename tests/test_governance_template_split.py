@@ -110,20 +110,22 @@ def test_scaffold_seeds_claude_from_template() -> None:
 # EXECUTED before it was written (2026-09-14, scratch repo) — a remedy written from reasoning is how
 # a two-operand `test -f` and a nonexistent heading reached this plan's own review.
 T6_CLAIMS = (
-    # T6.1 (01M2803TM) — the omission direction, qualified in round 1 (a DIRECTORY or GLOB pathspec
-    # is silent) and corrected again in round 2 (the "only these see it" list was wrong, and a
-    # quoted glob is the precondition).
+    # T6.1 (01M2803TM) — the omission direction.
     "A LITERAL file path git does not track fails LOUDLY",
     "a DIRECTORY or a QUOTED GLOB pathspec is silent",
-    # T6.2 (01M1RGRVT, 01M1RHJEY) — the private-index recipe. Round 1 fixed the vacuous CAS; round 2
-    # fixed the four steps that were still wrong when executed verbatim.
+    # T6.2 (01M1RGRVT, 01M1RHJEY) — the private-index recipe. Round 1 fixed a vacuous CAS; round 2
+    # fixed four steps that were wrong when executed; round 3 fixed four more the edges exposed.
     "**A pathspec protects the FILE LIST, never the CONTENT.**",
     "The last argument is the expected OLD value and it MUST be the captured `$base`.",
     "the `env -u` is load-bearing",
+    "follow it with a real `unset GIT_INDEX_FILE`",
     "never `cp <scratch>/<file> <file>`",
+    "never put the hunk in printf's FORMAT position",
     'Assert `git diff-index --cached --numstat "$base"` is YOUR hunk alone',
     "On rc 128 your work is not lost and the fix is not to weaken the guard",
+    "their commit is in HEAD but NOT in your working file",
     "no COMMIT hook runs",
+    "Count it git-aware",
     # T6.3 (01M20DXPT) — `0 0` is a verdict about LINES.
     "Two different questions, two different expectations",
     # Round 2: the bullet's opening line and the HARD STOPS row mandated the guard the pathspec
