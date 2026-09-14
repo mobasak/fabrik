@@ -1929,6 +1929,36 @@ def _mint_next_decision_id() -> str:
     return f"D-{(max(ids) + 1) if ids else 1:03d}"
 
 
+def _epic_assign_would_change(epics_dir: Path, script: Path, names: list[str]) -> bool:
+    """Would `epic_order.py --assign` change any epic file? Answered on a COPY, never in place.
+
+    The dry run must ask the same question the real branch asks, or its report is a different
+    report (Phase E review). Any failure to answer returns True — a dry run that UNDER-reports is
+    worse than one that over-reports, because the operator acts on what it did not say.
+    """
+    import shutil
+    import tempfile
+
+    try:
+        with tempfile.TemporaryDirectory(prefix="adopt-dry-") as tmp:
+            sandbox = Path(tmp) / "docs" / "development" / "epics"
+            sandbox.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(epics_dir, sandbox)
+            before = {p.name: p.read_bytes() for p in sorted(sandbox.glob("*.md"))}
+            (Path(tmp) / "scripts").mkdir(parents=True, exist_ok=True)
+            shutil.copy2(script, Path(tmp) / "scripts" / script.name)
+            subprocess.run(
+                [sys.executable, f"scripts/{script.name}", "--assign", ",".join(names)],
+                cwd=tmp,
+                capture_output=True,
+                check=False,
+            )
+            after = {p.name: p.read_bytes() for p in sorted(sandbox.glob("*.md"))}
+            return before != after
+    except Exception:  # noqa: BLE001 — unanswerable → report it, do not hide it
+        return True
+
+
 def run_adopt(
     names: list[str],
     single_window: bool,
@@ -2074,13 +2104,21 @@ def run_adopt(
         and any(epics_dir.glob("*.md"))
         and epic_order_script.is_file()
     ):
-        report.append(
-            (
-                "docs/development/epics/ (epic_order.py --assign)",
-                ",".join(names),
-                "would-delegate",
+        # ⚠️ The REAL branch appends only when `epic_order.py --assign` actually changed bytes, so
+        # appending here unconditionally made the two reports disagree — and `run_adopt`'s own
+        # docstring promises "a re-run with the same names touches no byte and prints
+        # `(nothing to adopt)`". In any repo with an epics dir AND the script (the hub included) a
+        # dry run could therefore never print it: an operator using `--dry-run` to ask "is
+        # adoption needed?" was told yes, always. Ask the same question the real branch asks —
+        # would the epic files change? — by running the assignment against a COPY.
+        if _epic_assign_would_change(epics_dir, epic_order_script, names):
+            report.append(
+                (
+                    "docs/development/epics/ (epic_order.py --assign)",
+                    ",".join(names),
+                    "would-delegate",
+                )
             )
-        )
     elif epics_dir.is_dir() and any(epics_dir.glob("*.md")) and epic_order_script.is_file():
         epic_files = sorted(epics_dir.glob("*.md"))
         before = {p: p.read_bytes() for p in epic_files}

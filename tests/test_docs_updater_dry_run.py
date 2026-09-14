@@ -134,3 +134,39 @@ def test_the_link_walk_actually_skips_a_template(tmp_path: Path, monkeypatch) ->
     assert "real.md" in blob, "the walk must still report a genuinely broken link"
     assert "tpl_TEMPLATE.md" not in blob
     assert "scaffold-templates" not in blob
+
+
+def test_the_dry_run_epic_row_asks_the_same_question_as_the_real_branch(project: Path) -> None:
+    """Phase E review: the dry branch appended its `would-delegate` row whenever an epics dir and
+    `epic_order.py` both existed; the REAL branch appends only when the assignment actually changed
+    bytes. So in any repo with both — the hub included — `--adopt --dry-run` could never print
+    `(nothing to adopt)`, and an operator using it to ask "is adoption needed?" was told yes,
+    always. It now runs the assignment against a COPY and asks the real question."""
+    epics = project / "docs" / "development" / "epics"
+    epics.mkdir(parents=True)
+    (epics / "2026-09-14-epic-1-x.md").write_text("# Epic 1 — x\n\nowner: probe\n")
+    (project / "scripts" / "epic_order.py").write_text(
+        "import sys\nprint('no-op assignment')\nsys.exit(0)\n"
+    )
+    _rc, out = _adopt(project, "--dry-run")
+    assert "would-delegate" not in out, (
+        f"a no-op assignment must not be reported as work the real run would do:\n{out}"
+    )
+
+
+def test_an_unanswerable_epic_probe_reports_rather_than_hides(project: Path, monkeypatch) -> None:
+    """A dry run that UNDER-reports is worse than one that over-reports: the operator acts on what
+    it did not say. Any failure to answer returns True."""
+    import importlib.util
+    import sys as _sys
+
+    name = "du_epic_probe"
+    spec = importlib.util.spec_from_file_location(name, UPDATER)
+    mod = importlib.util.module_from_spec(spec)
+    _sys.modules[name] = mod
+    try:
+        spec.loader.exec_module(mod)
+        missing = Path("/nonexistent-epics-dir")
+        assert mod._epic_assign_would_change(missing, missing / "epic_order.py", ["probe"]) is True
+    finally:
+        _sys.modules.pop(name, None)

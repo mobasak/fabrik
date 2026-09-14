@@ -48,7 +48,15 @@ def find_duplicates(text: str) -> dict[str, int]:
     return {i: n for i, n in Counter(ids).items() if n > 1}
 
 
-_DELIMITER = re.compile(r"^\|[\s:-]*\|[\s:|-]*$")
+# A GFM delimiter is the line immediately BELOW a header row, and every cell is dashes (with
+# optional alignment colons). Keying on "the first dash-ish line anywhere" let a two-character
+# `| |` — an empty data row — be taken as the delimiter, which silences this check for every row
+# below it. Executed: with `| |` above a stray row the check reported nothing; moved below it, the
+# stray was found. Direction is a MISS, never a false RED (`next()` takes the first match, so a
+# fake delimiter can only appear ABOVE the real one), but a blocking check whose cheapest
+# satisfaction is typing two characters is the cobra shape — see the note on the finder below.
+_DELIMITER = re.compile(r"^\|(?:\s*:?-{1,}:?\s*\|)+$")
+_HEADER_ROW = re.compile(r"^\|(?:[^|]*\|){2,}$")
 
 
 def find_rows_outside_the_table(text: str) -> list[tuple[int, str]]:
@@ -63,9 +71,23 @@ def find_rows_outside_the_table(text: str) -> list[tuple[int, str]]:
     Uniqueness is not the only thing addressability needs: a row nobody can SEE is not addressable
     either. Reported per-row with its line number; no delimiter at all means no table to be outside
     of, and that is a different defect this check does not claim to own.
+
+    ⚠️ THE CHEAPEST WAY TO SATISFY THIS WITHOUT THE OUTCOME (cobra-effect — you get the behavior you
+    measure): type a fake delimiter above the stray row instead of moving the row. The row is then
+    "inside a table" that renders as nonsense, and the check goes quiet. The delimiter pattern is
+    therefore anchored to a real header row above it, which makes the fake cost as much as the fix
+    — but it does not make it impossible, and a reviewer who sees a delimiter appear in the same
+    commit as a stray-row fix should read that commit rather than the check's green.
     """
     lines = text.splitlines()
-    delim = next((i for i, ln in enumerate(lines) if _DELIMITER.match(ln.strip())), None)
+    delim = next(
+        (
+            i
+            for i, ln in enumerate(lines)
+            if _DELIMITER.match(ln.strip()) and i and _HEADER_ROW.match(lines[i - 1].strip())
+        ),
+        None,
+    )
     if delim is None:
         return []
     return [(i + 1, m.group(1)) for i, ln in enumerate(lines[:delim]) if (m := _ID_CELL.match(ln))]

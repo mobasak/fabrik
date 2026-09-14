@@ -160,3 +160,33 @@ def test_the_live_hub_ledger_has_no_stray_rows():
     """The live assertion, not a fixture's."""
     text = Path("/opt/fabrik/docs/DECISIONS.md").read_text(encoding="utf-8")
     assert find_rows_outside_the_table(text) == []
+
+
+def test_a_fake_delimiter_above_a_stray_row_no_longer_hides_it():
+    """Phase E review: `_DELIMITER` took the FIRST dash-ish line anywhere, so a two-character
+    `| |` — an empty data row — was read as the delimiter and silenced the check for every row
+    below it. Executed: with `| |` above a stray row the check reported nothing; moved below it,
+    the stray was found. The pattern is now anchored to a real header row above it, which makes
+    the cheapest fake cost as much as the real fix."""
+    fake = "# Decisions\n\n| |\n| D-001 | a |\n\n| id | when |\n|---|---|\n| D-002 | b |\n"
+    assert find_rows_outside_the_table(fake) == [(4, "D-001")], find_rows_outside_the_table(fake)
+
+
+def test_the_anchored_delimiter_still_finds_a_real_stray_and_stays_quiet_when_clean():
+    real = "# Decisions\n\n| D-999 | x |\n\n| id | when |\n|---|---|\n| D-001 | a |\n"
+    assert find_rows_outside_the_table(real) == [(3, "D-999")]
+    clean = "# Decisions\n\n| id | when |\n|---|---|\n| D-001 | a |\n"
+    assert find_rows_outside_the_table(clean) == []
+
+
+def test_the_cobra_path_is_written_down_where_the_next_reader_finds_it():
+    """FIX DIRECTIVE 5: for every gate introduced, the cheapest way to satisfy it WITHOUT the
+    outcome is recorded in the same change. The measured-fire-rate half was done when this landed;
+    this half was skipped and the review caught it."""
+    from pathlib import Path as _Path
+
+    src = _Path("/opt/fabrik/scripts/enforcement/check_decisions_unique.py").read_text(
+        encoding="utf-8"
+    )
+    body = src.split("def find_rows_outside_the_table")[1].split('"""')[1]
+    assert "cobra-effect" in body and "cheapest" in body.lower(), body[-400:]

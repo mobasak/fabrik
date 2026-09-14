@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — four more Phase E defects, each one a check that graded the wrong thing (2026-09-15)
+
+- **The pre-stage fallback read the INDEX blob, not the working tree.** `check_script_headers.py`'s new fallback listed working-tree files and then called `_staged_head`, which with an empty index returns HEAD's content — so it graded bytes the author had already changed, and the comment on that branch claimed a working-tree read that did not exist. Executed: an edit *adding* a coupling passed green, one *removing* a stale coupling warned about a line that no longer exists. Both arms now behave.
+- **The auto-fix skip notice vanished under `--json`** — the mode the contract mandates — so an agent saw a red formatting row it could not clear and no explanation, which is the exact consequence the notice's own grader describes (and that grader passed `json_mode=False`, so it never covered it). It is now a ⚠-prefixed passing row, the channel `--json` already collects into `warnings`.
+- **The skip count was the raw set difference**, naming a sibling's dirty `.png` or `.toml` and offering `git add` / `--fix-all` as remedies that do nothing for them. Counted from the fixable subset now.
+- **`_DELIMITER` took the first dash-ish line anywhere**, so a two-character `| |` above a stray row silenced a now-blocking check for every row below it. Anchored to a real header row; **0 of 49** fleet ledgers affected. ⚠️ Its cobra path is now written down in the same file, which is the half of FIX DIRECTIVE 5 the original change skipped: the measured-fire-rate half was done, the mirror half was not.
+- **`--adopt --dry-run` could never print `(nothing to adopt)`** in any repo with an epics dir and `epic_order.py` — the hub included. The dry branch appended its `would-delegate` row unconditionally while the real branch appends only when the assignment changes bytes. It now runs the assignment against a copy and asks the real question; an unanswerable probe reports rather than hides, because a dry run that under-reports is worse than one that over-reports.
+
 ### Fixed — a plan lock another session created reddened every session's Doc Sync row (2026-09-15)
 
 - `check_doc_sync.py` demanded an INDEX.md row for any added file, including `.fabrik/plan-locks/*.json` — runtime state deleted again minutes later. On a tree three sessions share, one session's in-flight lock became **everyone's** gate failure until that plan finished. The lock directories now skip, and the exemption is the lock dirs only: a real artifact under `.fabrik/` (a lint baseline, say) still owes its row.

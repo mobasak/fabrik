@@ -664,21 +664,37 @@ def run_formatting_fixes(
     # T12.7: narrow the WRITE scope to what this session authored. `changed_files` is the read
     # scope; an unstaged modification to a tracked file inside it may be a sibling's WIP, and a
     # fixer that rewrites it destroys uncommitted work no gate can give back.
+    skip_note = ""
     if not fix_all:
         writable = get_writable_files()
-        skipped = sorted(changed - writable)
-        changed = changed & writable
-        if skipped and not json_mode:
-            print(
-                f"  {YELLOW}Not auto-fixing {len(skipped)} unstaged tracked file(s) — on a "
-                f"shared tree an unstaged edit may be a sibling's WIP. `git add` yours to "
-                f"include them, or pass --fix-all: {', '.join(skipped[:6])}"
-                f"{' …' if len(skipped) > 6 else ''}{RESET}"
+        # The skipped set is the FIXABLE files dropped, not the raw difference. A sibling's dirty
+        # `.png` or `.toml` was never going to be touched by any fixer, so naming it and offering
+        # `git add` / `--fix-all` as remedies is a count nobody can act on — and it inflates the
+        # notice on a tree that is dirty by design (Phase E review).
+        fixable_before = set(_changed_text(changed)) | set(_changed_python(changed))
+        narrowed = changed & writable
+        fixable_after = set(_changed_text(narrowed)) | set(_changed_python(narrowed))
+        skipped = sorted(fixable_before - fixable_after)
+        changed = narrowed
+        if skipped:
+            skip_note = (
+                f"⚠ not auto-fixing {len(skipped)} unstaged tracked file(s) — on a shared tree an "
+                f"unstaged edit may be a sibling's WIP. `git add` yours to include them, or pass "
+                f"--fix-all: {', '.join(skipped[:6])}{' …' if len(skipped) > 6 else ''}"
             )
+            if not json_mode:
+                print(f"  {YELLOW}{skip_note[2:]}{RESET}")
     text_files = _changed_text(changed)
     ruff_py = _changed_python(changed)
 
-    results = []
+    results: list[tuple[str, bool, str]] = []
+    if skip_note:
+        # A ⚠-prefixed PASSING row is the channel `--json` already collects into `warnings`
+        # (`_warn_untracked_sources` uses it). Printing to stdout alone meant the notice vanished
+        # in `--json` — the mode the contract mandates — so an agent saw a red formatting row it
+        # could not clear and no explanation, which is the exact consequence this notice's own
+        # grader describes.
+        results.append(("auto-fix scope (advisory)", True, skip_note))
 
     # Trim trailing whitespace (changed text files only)
     ok, msg, _ = fix_trailing_whitespace(text_files)

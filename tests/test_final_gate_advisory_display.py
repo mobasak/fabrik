@@ -709,6 +709,47 @@ def test_fix_all_is_the_documented_opt_in_and_still_reaches_them(
     assert (repo / "src" / "sibling.py").read_text() == "def sibling(a, b):\n    return a + b\n"
 
 
+def test_the_skip_notice_reaches_json_not_only_stdout(tmp_path: Path, monkeypatch) -> None:
+    """Phase E review: the notice printed to stdout and was SUPPRESSED under `--json` — the mode
+    CLAUDE.md mandates — so an agent saw a red formatting row it could not clear and no
+    explanation. That is the exact consequence the notice's own grader describes, and the grader
+    passed `json_mode=False`, so it never covered it. It is now a ⚠-prefixed PASSING row, the
+    channel `--json` already collects into `warnings` (as `_warn_untracked_sources` does)."""
+    repo = _scratch_repo(tmp_path)
+    (repo / "src" / "sibling.py").write_text("def sibling( a,b ):\n    return   a+b\n")
+    (repo / "src" / "mine.py").write_text("def mine( a,b ):\n    return   a+b\n")
+    subprocess.run(["git", "add", "--", "src/mine.py"], cwd=repo, check=True)
+    mod = _fg_in(repo, monkeypatch, "fg_skipnote")
+    rows = mod.run_formatting_fixes(tier=2, changed_files=mod.get_changed_files(), json_mode=True)
+    advisory = [r for r in rows if r[0] == "auto-fix scope (advisory)"]
+    assert advisory, f"no advisory row in json mode: {[r[0] for r in rows]}"
+    assert advisory[0][1] is True, "it must be a PASSING row or it turns the gate red"
+    assert advisory[0][2].startswith("⚠"), "the ⚠ prefix is what --json's warnings filter admits"
+    assert "src/sibling.py" in advisory[0][2]
+
+
+def test_the_skip_count_names_only_files_a_fixer_would_touch(tmp_path: Path, monkeypatch) -> None:
+    """A sibling's dirty `.png` or `.toml` was never going to be touched by any fixer, so naming it
+    and offering `git add` / `--fix-all` as remedies is a count nobody can act on — and it inflates
+    the notice on a tree that is dirty by design."""
+    repo = _scratch_repo(tmp_path)
+    (repo / "src" / "sibling.py").write_text("def sibling( a,b ):\n    return   a+b\n")
+    (repo / "notes.txt").write_text("not a fixer's business\n")
+    (repo / "pyproject.toml").write_text("[tool.x]\n")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "seed"], cwd=repo, check=True)
+    (repo / "notes.txt").write_text("edited\n")
+    (repo / "pyproject.toml").write_text("[tool.x]\ny = 1\n")
+    (repo / "src" / "sibling.py").write_text("def sibling( a,b ):\n    return   a+b+1\n")
+    mod = _fg_in(repo, monkeypatch, "fg_skipcount")
+    rows = mod.run_formatting_fixes(tier=2, changed_files=mod.get_changed_files(), json_mode=True)
+    note = next((r[2] for r in rows if r[0] == "auto-fix scope (advisory)"), "")
+    assert "sibling.py" in note, note
+    assert "notes.txt" not in note and "pyproject.toml" not in note, (
+        f"the notice names files no fixer would have touched: {note}"
+    )
+
+
 def test_the_skipped_files_are_named_not_silently_dropped(
     tmp_path: Path, monkeypatch, capsys
 ) -> None:

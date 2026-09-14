@@ -80,6 +80,20 @@ class GitUnavailableError(Exception):
     gate reads as a FAILURE of a warn-only check (EW1)."""
 
 
+def _working_head(path: str) -> str | None:
+    """The first HEADER_SCAN_LINES of the WORKING-TREE file — the pre-stage fallback's source.
+
+    `_staged_head` is right for the staged scope and wrong for this one: with an empty index it
+    answers HEAD's content, so the check would grade bytes the author has already changed. None
+    when the file cannot be read, which the caller reports rather than silently skipping.
+    """
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            return "".join(next(fh, "") for _ in range(HEADER_SCAN_LINES))
+    except OSError:
+        return None
+
+
 def _staged_head(path: str) -> str | None:
     """The first HEADER_SCAN_LINES of the STAGED blob — what will be committed — never the
     working tree, which a later edit or a partial stage can make differ from the index in either
@@ -353,7 +367,13 @@ def _main(quiet: bool) -> int:
             warnings.append(f"{f}: a submodule gitlink — not checked")
             continue
         try:
-            head = _staged_head(f)
+            # PRE-STAGE FALLBACK reads the WORKING TREE: there is no stage-0 blob for those paths
+            # by construction, so `_staged_head` would return HEAD's content and the check would
+            # grade bytes the author has already changed — silently. Executed before fixing: an
+            # edit ADDING a coupling passed green (the committed header said `none`), and one
+            # REMOVING a stale coupling warned about a line that no longer exists. The comment on
+            # this branch claimed a working-tree read that did not exist; now it does.
+            head = _staged_head(f) if scope == "staged" else _working_head(f)
         except GitUnavailableError as exc:
             # ONE path git could not answer for must not discard every other script's finding (EZ6)
             warnings.append(f"{f}: git did not answer ({exc}) — not checked")
