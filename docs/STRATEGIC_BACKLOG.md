@@ -189,6 +189,39 @@ every word preserved — a SHAPE fix, not a content edit — and the grader is g
 **Kept as the lesson, not as work:** when a grader exists, run the grader. A hand count beside a
 green test is a second opinion nobody asked for, and it is the one that was wrong.
 
+## [infra] The Phase E review stopped on D-252 with six classes closed-but-unswept — the next review of this machinery reads the round-4 fix diff as its ORIGINAL surface
+
+The Phase E review of the gate/enforcement/sync surface ran four rounds: 21 confirmed on the graded
+surface, a quiet full re-sweep, then **12 and 8 confirmed entirely inside its own fixes**. That is
+the D-252 scope-growth stop, and the stop's instruction is to route the remainder rather than run a
+fifth round, because correcting prose regenerates the surface being corrected.
+
+**What is routed here** (all six are FIXED with graders proven red on the mutation that removes
+them; what is owed is an independent sweep, not a fix): `exemption-reach-forward` ·
+`skip-row-renders-pass` · `memo-blind-to-head-move` · `lockstep-parse-fail-open` ·
+`grader-cannot-fail` · `uncached-subprocess-per-pair`.
+
+**Do:** when this machinery is next reviewed, pin `750ef704..bebe797e` as the ORIGINAL surface, not
+as a delta of this loop — that is what stops the momentum. The sharpest finding of the whole run is
+the shape to look for first: a fail-open shipped in the previous round's own fix commit
+(`SCOPE_GROWTH_EXIT` matched `[^\n]*` between `Status:` and the phrase, so a NEGATION exempted a
+non-quiet review), written directly beneath a comment forbidding that exact reach-forward.
+
+**Also routed, each with its destination** (from the round-3 and round-4 seats):
+
+- `check_structure.py:434` — `_doc_registry is None` returns `[]`, the same fail-silent-green the
+  round fixed for `declared`, two lines above the fix.
+- `_atomic_copy`'s docstring claims a plain-copy fallback the code does not have.
+- `_summarize_skipped`'s `skipped` counts LEGS, not narrowings — one dropped file yields 2.
+- **`sync_enforcement_to_projects.py --dry-run` names every file it will NOT touch and none of the
+  files it WILL** — COPY lines print only under `--verbose` while SKIP and WARN always print.
+  Measured: `180 copied` reported with 0 named; `--verbose` shows 45 × 4. A dry run exists to
+  answer "what would ship?", and the contract mandates "dry-run first, show diff".
+- `scratch_sweep.py` — `raw.strip().strip('"')` strips git-porcelain quoting without unescaping
+  C-style escapes, so a path git quoted for a tab or newline resolves wrong. Fail-safe.
+- The lockstep grader binds only a session that runs it by hand: the hub's pytest gate leg is OFF
+  by design and there is no CI workflow.
+
 ## [infra] The added-code-path INDEX advisory ships ADVISORY; promoting it to blocking is a per-repo ratchet, and ~585 of ~866 files are the backlog
 
 T12.10 landed direction (c) of `check_doc_index.py` — an added file under `scripts/`, `tests/`,
