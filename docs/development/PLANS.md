@@ -7,7 +7,7 @@ All feature/execution/design plans live in `docs/development/plans/`.
 ---
 
 <!-- AUTO-GENERATED:PLANS:START -->
-<!-- AUTO-GENERATED:PLANS v1 | 2026-09-14T19:31 -->
+<!-- AUTO-GENERATED:PLANS v1 | 2026-09-14T23:35 -->
 <!-- Phase: epic rows = the epic's position in scripts/epic_order.py phased_order() (1 = no upstream dependency; `cycle` = dependency cycle, see `epic_order.py --check`); plan rows = Board progress, checked/total task boxes (`-` = no boxes). Owner: the leading name token of a plan's **Owner:** line / a spine's Owner: header, or an epic's frontmatter `owner`; `—` = untagged (`--adopt` fills it). Regenerate: python scripts/docs_updater.py --sync -->
 <!-- Merge owner: UNDECLARED — run: python scripts/docs_updater.py --adopt <name> -->
 | Epic/Plan | Owner | Status | Phase |
@@ -39,6 +39,7 @@ All feature/execution/design plans live in `docs/development/plans/`.
 | [2026-09-06-plan-2-multi-agent-adoption.md](plans/2026-09-06-plan-2-multi-agent-adoption/2026-09-06-plan-2-multi-agent-adoption.md) | infra | EXECUTED | 2/4 |
 | [2026-09-09-plan-1-review-convergence-redesign.md](plans/2026-09-09-plan-1-review-convergence-redesign/2026-09-09-plan-1-review-convergence-redesign.md) | — | IN_PROGRESS | - |
 | [2026-09-12-plan-2-mail-triage-command-machinery.md](plans/2026-09-12-plan-2-mail-triage-command-machinery.md) | infra | CONVERGED | 0/3 |
+| [2026-09-14-plan-1-kaizen-observe-and-act.md](plans/2026-09-14-plan-1-kaizen-observe-and-act.md) | — | CONVERGED | - |
 <!-- AUTO-GENERATED:PLANS:END -->
 
 ---

@@ -256,7 +256,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ## Documentation Structure Map
 
 <!-- AUTO-GENERATED:STRUCTURE:START -->
-<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-09-14T19:31 -->
+<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-09-14T23:35 -->
 ```text
 docs/
 ├── BUSINESS_MODEL.md               # Monetization strategy
@@ -371,6 +371,7 @@ docs/
 │   │   │   ├── T09-run-record-docs.md
 │   │   │   └── T10-integration.md
 │   │   ├── 2026-09-12-plan-2-mail-triage-command-machinery.md
+│   │   ├── 2026-09-14-plan-1-kaizen-observe-and-act.md
 │   │   └── archived
 │   └── reviews
 │       ├── 2026-07-21-claude-p-scoring-review.md
