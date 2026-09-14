@@ -470,8 +470,11 @@ $ pytest <the nine named files>
   minutes; `C3-O2` had returned and is adjudicated in full above. The round therefore closes on a
   fresh non-authoring seat's read, as the contract requires — but NOT on both. That is deliberate:
   waiting for a second confirmation of a conclusion the counts already establish is exactly the
-  spending the stop exists to end. If `C3-O1` returns, its findings go to
-  `docs/STRATEGIC_BACKLOG.md` beside the seven rows already routed there — never to a round 4.
+  spending the stop exists to end. It was subsequently STOPPED at 43 minutes,
+  deliberately: its round was closed, so its findings could only have gone to
+  `docs/STRATEGIC_BACKLOG.md` — never to a round 4 — and leaving it running was spending on a
+  question already answered, which is the behaviour D-252 exists to end. Recorded here rather than
+  left as a dangling "if it returns".
 - **Seven backlog rows carry the remaining own-fix work,** each with a named destination: the recipe
   as an executable script (the class answer — its defects are all transcription failures); the fleet
   template's 3 kB of hub plumbing and hub box facts; a tally-vs-rows check for
