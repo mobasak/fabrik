@@ -79,7 +79,12 @@ to any `N rows … A FIXED · B REFUTED · C RECORDED` line above it, advisory o
 ## [infra] A review's `--surface` is fixed at `start`, so a long review outgrows its own exemption
 
 T5.2 (`_surface_reviewed`) exempts the files a RUNNING review-family record NAMES. The name list is
-written once by `start` and no verb updates it. Phase C's own review demonstrated the gap on the
+written once by `start` and no verb updates it. DEMONSTRATED THREE TIMES IN ONE SESSION, 2026-09-14 — which is the whole argument for fixing it:
+once in Phase C's review (4 of 8 files exempt, 3 unnamed) and TWICE in Phase D's, the second time
+with 1 of 7 unnamed because a round-2 fix reached `commands/_sources/fabrik-review.md`, a file the
+surface could not have named at `start` because the need for it did not exist yet. That is the
+shape: a review's own fixes REACH, and a name list written before the reaching cannot follow.
+Phase C's own review demonstrated it first on the
 session running it: the surface was written at round 1 naming six files, rounds 1–3 pulled in three
 more as the fix spread to the writer half, and the Stop hook's sixth cause fired mid-round-3 —
 executed, 4 of 8 files exempt, 3 unnamed. The longer and more thorough the review, the more of its
