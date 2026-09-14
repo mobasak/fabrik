@@ -570,3 +570,28 @@ def test_an_orm_models_py_still_demands_the_schema_dump(repo: Path) -> None:
     r = _run(repo)
     assert r.returncode == 1, r.stdout + r.stderr
     assert "schema.sql" in (r.stdout + r.stderr)
+
+
+def test_transient_lock_dirs_never_demand_an_index_row() -> None:
+    """A plan lock is runtime state that is deleted again minutes later; demanding an INDEX row for
+    it asks a doc to track something transient. Found on a live gate red 2026-09-15: a lock another
+    session created reddened EVERY session's Doc Sync row until that plan finished — on a tree
+    three sessions share, one session's in-flight lock became everyone's gate failure."""
+    import importlib.util
+    import sys as _sys
+
+    name = "cds_locks"
+    spec = importlib.util.spec_from_file_location(
+        name, "/opt/fabrik/scripts/enforcement/check_doc_sync.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    _sys.modules[name] = mod
+    try:
+        spec.loader.exec_module(mod)
+        assert mod._skip(".fabrik/plan-locks/2026-09-14-plan-1-x.json") is True
+        assert mod._skip(".fabrik/cert-locks/2026-09-14-cert-1-y.json") is True
+        # the exemption is the LOCK dirs only — a real artifact under .fabrik/ still owes its row
+        assert mod._skip(".fabrik/lint-baseline.json") is False
+        assert mod._skip("scripts/real_thing.py") is False
+    finally:
+        _sys.modules.pop(name, None)

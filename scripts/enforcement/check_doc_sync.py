@@ -40,6 +40,12 @@ SKIP_PATTERNS = (
     ".pytest_cache/",
     "node_modules/",
     ".venv/",
+    # TRANSIENT RUNTIME STATE, never a documented artifact — demanding an INDEX row for a lock
+    # file is asking a doc to track something that is deleted again minutes later. Found on a
+    # live gate red 2026-09-15: a plan lock another session created reddened every session's
+    # Doc Sync row until that plan finished.
+    ".fabrik/plan-locks/",
+    ".fabrik/cert-locks/",
 )
 CODE_EXTENSIONS = {".py", ".ts", ".tsx", ".js", ".jsx", ".sh"}
 SIGNIFICANT_FILES = {"Dockerfile", "compose.yaml", "compose.yml"}

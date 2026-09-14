@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a plan lock another session created reddened every session's Doc Sync row (2026-09-15)
+
+- `check_doc_sync.py` demanded an INDEX.md row for any added file, including `.fabrik/plan-locks/*.json` — runtime state deleted again minutes later. On a tree three sessions share, one session's in-flight lock became **everyone's** gate failure until that plan finished. The lock directories now skip, and the exemption is the lock dirs only: a real artifact under `.fabrik/` (a lint baseline, say) still owes its row.
+- Found on a live gate red while reviewing Phase E, which is also how the `--check` format leg's own scope defect surfaced an hour earlier.
+
 ### Fixed — yesterday's worktree fix was a no-op that looked correct: 0 of 118, now 4 of 119 (2026-09-15)
 
 - Phase E review, round 1. `_is_sync_materialised` (T12.23) cleared **nothing** in production. An author-blind seat measured it against every registered worktree on the box and four independent causes came out, each verified by me before fixing:
