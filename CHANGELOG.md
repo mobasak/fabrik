@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — an added code file now owes its INDEX.md row (advisory, fire rate measured) (2026-09-14)
+
+- Phase E T12.10 of the mail-triage plan (01M1VPEGG) — five graders, proven red-on-revert in place (the test file pins `REPO = Path("/opt/fabrik")`, so a copy-tree proof imports the live script and is worthless; backup written first, both halves asserted, md5-verified on restore).
+- **The Doc Sync Matrix's *File added/removed/renamed → INDEX.md* had no enforcement on the code half.** `check_index_md.py` asserts six headings and seven hardcoded root filenames, never a tree↔row comparison — and it is UNWIRED besides, so building into it would have repeated the lesson T12.11 had just landed. Direction (c) went into `check_doc_index.py`, which **is** gate-wired and already does this for `docs/` both ways.
+- **Fire rate measured before arming** (FIX DIRECTIVE 5): whole-tree, **584 of 863** tracked files under `scripts/`/`tests/`/`.claude/hooks/`/`.fabrik/` carry no INDEX mention — wallpaper; staged-scope and added-only, **37 of 113** such files added since 2026-09-01 (33 %) are unindexed. True positives, but a third of code-adding commits is too many to block on day one, so it never changes the exit code and rides `--json` under `code_index_advisory`. Promotion is a per-repo ratchet, filed.
+- **Its cobra path is written down in the check's own comment and closed once:** pasting the bare basename into INDEX.md was the cheapest way to satisfy it, so the membership test demands the PATH. That makes the cheap edit a real row; it does not make it a good one, and that residue is named rather than papered over.
+- Scope is the design: added-only because the obligation attaches to the act of adding, staged-only because on a tree three sessions share an unstaged new file is typically a sibling's WIP — the same authorship-is-staging rule T12.7 gave the fixers.
+
 ### Fixed — a scaffold type had no docs allowlist, and the grader that knew it had been red for weeks (2026-09-14)
 
 - Phase E T12.11 of the mail-triage plan (01M1VHCH1) — four graders, each proven RED by name against the previous scripts.

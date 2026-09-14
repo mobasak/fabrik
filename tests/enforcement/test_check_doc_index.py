@@ -823,3 +823,99 @@ def test_untracked_only_reports_the_creating_runs_docs_and_nothing_else(tmp_path
         timeout=120,
     )
     assert full.returncode == 1 and "mode" not in json.loads(full.stdout), full.stdout
+
+
+# --------------------------------------------------------------------------------------
+# T12.10 (01M1VPEGG) — direction (c): ADDED code paths owe an INDEX row. Advisory.
+# --------------------------------------------------------------------------------------
+
+
+def _main_output(monkeypatch, *, added: list[str], index_text: str) -> tuple[int, str, object]:
+    """Run `cdi.main()` with the staged-add list and INDEX.md content both stubbed."""
+    monkeypatch.setattr(cdi, "_added_code_paths", lambda: added)
+    # the check reads INDEX.md with `read_bytes().decode(..., "surrogateescape")`, not
+    # `read_text` — stubbing the wrong one made this helper's first cut report a path row as
+    # unsatisfied while the live repo accepted it (the mechanism was right, the stub was not).
+    real_bytes = Path.read_bytes
+
+    def fake_bytes(self, *a, **k):
+        if self.name == "INDEX.md":
+            return index_text.encode("utf-8")
+        return real_bytes(self, *a, **k)
+
+    monkeypatch.setattr(Path, "read_bytes", fake_bytes)
+    # Isolate direction (c): with a stub INDEX.md every REAL doc would look unindexed and
+    # direction (b) would red the run, which is not what these cases are about. Neutralise the
+    # git listing the (b) loop reads. (My first cut skipped this and the exit-code case failed
+    # for the docs direction's reason, not the code advisory's.)
+    real_run = subprocess.run
+
+    def fake_git(cmd, *a, **k):
+        if isinstance(cmd, list) and "ls-files" in cmd:
+            return subprocess.CompletedProcess(cmd, 0, stdout=b"", stderr=b"")
+        return real_run(cmd, *a, **k)
+
+    monkeypatch.setattr(subprocess, "run", fake_git)
+    monkeypatch.setattr(sys, "argv", ["check_doc_index.py", "--json"])
+    import io
+    from contextlib import redirect_stdout
+
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        rc = cdi.main()
+    out = buf.getvalue()
+    return rc, out, json.loads(out)
+
+
+def test_an_added_code_file_without_an_index_row_is_reported(monkeypatch):
+    """The Doc Sync Matrix says "File added/removed/renamed → INDEX.md" and nothing enforced the
+    CODE half: `check_index_md.py` asserts six headings and seven hardcoded root filenames, never
+    a tree↔row comparison — and it is UNWIRED besides."""
+    rc, _out, payload = _main_output(
+        monkeypatch, added=["scripts/brand_new.py"], index_text="# Project File Index\n"
+    )
+    advisory = payload.get("code_index_advisory") or []
+    assert any("scripts/brand_new.py" in x for x in advisory), payload
+
+
+def test_the_code_advisory_never_changes_the_exit_code(monkeypatch):
+    """ADVISORY, and the fire rate is why: measured 2026-09-14, 37 of 113 code files added since
+    2026-09-01 (33 %) are still unindexed — true positives, but a third of code-adding commits is
+    too many to BLOCK on day one. Whole-tree would be 584 of 863: wallpaper."""
+    rc, _out, payload = _main_output(
+        monkeypatch, added=["scripts/brand_new.py"], index_text="# Project File Index\n"
+    )
+    assert rc == 0, "the code advisory must never red the gate"
+    assert payload["status"] == "success"
+
+
+def test_a_bare_basename_does_not_satisfy_the_code_advisory(monkeypatch):
+    """The cheapest way to satisfy this without the outcome (cobra-effect) is to paste the bare
+    basename into INDEX.md and write nothing else. The membership test demands the PATH, so that
+    edit no longer counts — which makes the cheap edit a real row."""
+    _rc, _out, payload = _main_output(
+        monkeypatch,
+        added=["scripts/brand_new.py"],
+        index_text="# Project File Index\n| brand_new.py | a bare basename |\n",
+    )
+    assert any("scripts/brand_new.py" in x for x in payload.get("code_index_advisory") or [])
+
+
+def test_a_row_naming_the_path_satisfies_it(monkeypatch):
+    _rc, _out, payload = _main_output(
+        monkeypatch,
+        added=["scripts/brand_new.py"],
+        index_text="# Project File Index\n| scripts/brand_new.py | a real row |\n",
+    )
+    assert not (payload.get("code_index_advisory") or [])
+
+
+def test_only_the_four_code_roots_and_only_added_paths_are_read() -> None:
+    """Scope is the whole design: added-only because the obligation attaches to the act of adding
+    (whole-tree is 584 findings here), staged-only because on a shared tree an unstaged new file is
+    typically a sibling's WIP — the same authorship-is-staging rule the gate's fixers use."""
+    src = (REPO / "scripts" / "enforcement" / "check_doc_index.py").read_text(encoding="utf-8")
+    body = src.split("def _added_code_paths")[1].split("\ndef ")[0]
+    assert '"--diff-filter=A"' in body, "added paths only"
+    assert '"--cached"' in body, "staged scope only"
+    assert cdi._CODE_ROOTS == ("scripts/", "tests/", ".claude/hooks/", ".fabrik/")

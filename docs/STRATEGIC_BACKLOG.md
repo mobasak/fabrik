@@ -58,6 +58,32 @@ surface is missing one. Cross-repo, so it is fabrik-lib's to fix.
 **Do:** mail fabrik-lib — a bounded store (or a documented `reset()`), and a note in the pack that a
 title must be a STABLE key, not a formatted string.
 
+## [infra] The added-code-path INDEX advisory ships ADVISORY; promoting it to blocking is a per-repo ratchet, and 584 of 863 files are the backlog
+
+T12.10 landed direction (c) of `check_doc_index.py` — an added file under `scripts/`, `tests/`,
+`.claude/hooks/` or `.fabrik/` owes an INDEX.md row naming its PATH — but it never changes the
+exit code. This row is the other half of that decision.
+
+**Measured 2026-09-14 on the hub, before arming** (tool: `git ls-files` for the population,
+`command grep -qF` per basename against INDEX.md; `git log --diff-filter=A` for the additions):
+
+- **Whole tree: 584 of 863** tracked files under those four roots carry no INDEX mention at all
+  (68 %). A whole-tree check is 584 findings on landing day — the definition of wallpaper.
+- **Staged-scope, added-only: 37 of 113** such files added since 2026-09-01 are still unindexed
+  (33 %). These are TRUE positives — the Doc Sync Matrix asks for the row — but a third of every
+  code-adding commit is too many to block on day one.
+
+**Do:** leave it advisory until a repo's own added-path rate is near zero, then flip it blocking
+there — the lint ratchet's shape, per repo, never a flag day. The 584-file backlog is NOT a
+prerequisite: the advisory is added-only by design, so a repo can reach a clean added-path rate
+without backfilling a single historical row. Backfilling is a separate, optional bite.
+
+⚠️ **Its cobra path is already closed once and the residue is stated:** the cheapest way to satisfy
+the check without the outcome was a bare basename pasted into INDEX.md, so the membership test
+demands the PATH. That makes the cheap edit a real row — it does not make it a GOOD row, because
+nothing reads the description cell. Closing THAT would need a judgement no regex can make; the
+honest counter is review, and a longer pattern would only move the cheapest path, not remove it.
+
 ## [infra] `bandit scripts/` ships at a HIGH floor; promoting it to MEDIUM is a per-repo ratchet with 36 findings named
 
 T12.5 landed bandit over `scripts/` — the root ruff already lints and bandit never saw — but at

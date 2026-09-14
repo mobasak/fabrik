@@ -206,6 +206,39 @@ def _is_pristine_seed(rel: str) -> bool:
         return False
 
 
+_CODE_ROOTS = ("scripts/", "tests/", ".claude/hooks/", ".fabrik/")
+
+
+def _added_code_paths() -> list[str]:
+    """Paths ADDED in the staged set under the code roots — the only scope this advisory reads.
+
+    Added-only and staged-only, both deliberate (T12.10). Added-only, because the Doc Sync Matrix
+    obligation attaches to the act of adding a file and a whole-tree sweep is 584 findings here.
+    Staged-only, because on a tree three sessions share an unstaged new file is typically a
+    sibling's WIP — the same authorship-is-staging rule `final_gate.py`'s fixers use, and the same
+    reason `get_changed_files()` excludes untracked-unstaged paths.
+
+    Returns [] on any git failure: an advisory that guesses is worse than one that is silent.
+    """
+    try:
+        proc = subprocess.run(
+            ["git", "diff", "--cached", "--name-only", "--diff-filter=A"],
+            cwd=REPO,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return []
+    if proc.returncode != 0:
+        return []
+    return [
+        ln.strip()
+        for ln in proc.stdout.splitlines()
+        if ln.strip().startswith(_CODE_ROOTS) and not ln.strip().endswith("/")
+    ]
+
+
 def main() -> int:
     # `_printable` below neutralises lone SURROGATES, and an author-blind seat showed that is one
     # member of the set, not the set: a valid non-ASCII character still raises on a non-UTF-8
@@ -395,8 +428,42 @@ def main() -> int:
             )
             problems.append(f"live doc not in INDEX.md: {p}{tag}")
 
+    # ---------------------------------------------------------------------------------
+    # (c) CODE paths — ADVISORY, staged-scope, added-only (T12.10, 01M1VPEGG).
+    # ---------------------------------------------------------------------------------
+    # The Doc Sync Matrix says "File added/removed/renamed → INDEX.md" and nothing enforced
+    # the code half: `check_index_md.py` asserts six headings and seven hardcoded root
+    # filenames, never a tree↔row comparison, and it is UNWIRED besides.
+    #
+    # FIRE RATE, measured 2026-09-14 before arming (FIX DIRECTIVE 5):
+    #   * whole tree — 584 of 863 tracked files under scripts/ tests/ .claude/hooks/ .fabrik/
+    #     carry no INDEX mention. A whole-tree check is 584 findings on landing day: wallpaper.
+    #   * staged-scope, ADDED paths only — of 113 such files added since 2026-09-01, 37 (33 %)
+    #     are still unindexed today. True positives, not false ones (the Matrix asks for the row),
+    #     but a third of code-adding commits is too many to BLOCK on day one.
+    # So: added paths only, and ADVISORY. Promotion to blocking is a backlog row, per repo, once
+    # its own rate is near zero — the lint ratchet's shape, not a flag day.
+    #
+    # ⚠️ THE CHEAPEST WAY TO SATISFY THIS WITHOUT THE OUTCOME (cobra-effect — you get the
+    # behavior you measure): paste the bare basename into INDEX.md and write nothing else. The
+    # membership test below therefore demands the PATH, not the basename — a bare `foo.py`
+    # mention no longer counts — which makes the cheap edit a real row. It does not make it a
+    # GOOD row: nothing here reads the description. That residue is stated rather than pretended
+    # away, and the honest counter is review, not a longer regex.
+    code_problems: list[str] = []
+    if not untracked_only:
+        for rel in _added_code_paths():
+            if rel not in index_text:
+                code_problems.append(
+                    f"added code file not in INDEX.md: {rel} "
+                    "(Doc Sync Matrix: File added/removed/renamed → INDEX.md; the row must name "
+                    "the PATH, not just the basename)"
+                )
+
     if as_json:
         payload = {"status": "success" if not problems else "failure", "drift": problems}
+        if code_problems:
+            payload["code_index_advisory"] = code_problems
         if untracked_only:
             payload["mode"] = "untracked-only"
             payload["examined"] = examined
@@ -404,6 +471,8 @@ def main() -> int:
     else:
         for x in problems:
             print(f"ERROR: {_printable(x)}")
+        for x in code_problems:
+            print(f"⚠ {_printable(x)}")
         if not problems:
             print("check_doc_index: OK — INDEX.md and the live docs tree agree")
     # `--untracked-only` is the lean tier's ADVISORY row (final_gate registers it warn_only, whose
