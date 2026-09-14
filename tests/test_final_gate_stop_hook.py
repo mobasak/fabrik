@@ -1840,76 +1840,14 @@ def test_a_running_review_that_names_nothing_still_blocks_end_to_end(fake_projec
     assert "UNREVIEWED SPONTANEOUS WORK" in out, out
 
 
-def _closed_review(now: float) -> dict:
-    reach = now + 200  # the review started AFTER the edit; its own window cannot cover it
-    return {
-        "command": "fabrik-review-scoped",
-        "state": "done",
-        "started_epoch": reach,
-        "updated_ts": int(now + 400),
-        "covered": [[int(reach), int(now + 400)]],
-    }
-
-
-def test_the_first_review_reach_clears_the_block_end_to_end(fake_project: Path) -> None:
-    """T5.3 end to end: the durable marker clears a block that no window in the record can."""
-    import time as _t
-
-    now = _t.time()
-    rec = _closed_review(now)
-    out = _run_stop_with_transcript(
-        fake_project,
-        "s_reach_yes",
-        "",
-        "",
-        "mine/reach_named.py",
-        baseline=[],
-        record={**rec, "first_review_reach": rec["started_epoch"]},
-    )
-    assert "UNREVIEWED SPONTANEOUS WORK" not in out, out
-
-
-def test_a_closed_review_without_the_reach_marker_still_blocks_end_to_end(
-    fake_project: Path,
-) -> None:
-    """The control: the identical record with no marker. NO marker, NO base case — which is also
-    what every record written before the field existed looks like."""
-    import time as _t
-
-    out = _run_stop_with_transcript(
-        fake_project,
-        "s_reach_no",
-        "",
-        "",
-        "mine/reach_unnamed.py",
-        baseline=[],
-        record=_closed_review(_t.time()),
-    )
-    assert "UNREVIEWED SPONTANEOUS WORK" in out, out
-
-
-def test_the_reach_survives_the_sessions_next_command_end_to_end(fake_project: Path) -> None:
-    """The DURABILITY round 1 added (seat finding F5): the session has since opened a completely
-    different command, which is exactly where the first cut's per-stop synthesis evaporated."""
-    import time as _t
-
-    now = _t.time()
-    rec = _closed_review(now)
-    out = _run_stop_with_transcript(
-        fake_project,
-        "s_reach_later",
-        "",
-        "",
-        "mine/reach_later.py",
-        baseline=[],
-        record={
-            "command": "fabrik-spec",
-            "state": "running",
-            "started_epoch": now + 500,
-            "updated_ts": int(now),
-            "covered": rec["covered"],
-            "first_review_reach": rec["started_epoch"],
-        },
-        counter=f"0,0,0,0,{hook.CAP},0",
-    )
-    assert "UNREVIEWED SPONTANEOUS WORK" not in out, out
+# T5.3's reach is NOT expressible end to end through this harness, and round 2 established why
+# rather than bending a fixture until it passed. The harness stamps its edit at `now + 60` so the
+# SessionStart baseline floor keeps it as this session's work; the base case covers `[floor, reach]`,
+# so the edit is only inside it when `reach > now + 60`; and round 2's clock-skew clamp refuses a
+# reach beyond `now + 60`. The two constants are the same 60 seconds, from opposite sides, and the
+# window between them is a second or two of wall clock — a test that passes on timing is worse than
+# no test. The reach IS graded, at the level below: `_first_review_base_case`'s floor, its clamp,
+# its parked-frame read and its stand-down in tests/test_stop_hook_spontaneous_review.py, and the
+# WRITER's three gates in tests/test_command_run.py. RECORDED, destination docs/STRATEGIC_BACKLOG.md:
+# the harness should take the edit's offset as a parameter so future-dated record fixtures are
+# expressible at all.

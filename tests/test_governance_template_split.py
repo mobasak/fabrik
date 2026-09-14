@@ -110,26 +110,24 @@ def test_scaffold_seeds_claude_from_template() -> None:
 # EXECUTED before it was written (2026-09-14, scratch repo) — a remedy written from reasoning is how
 # a two-operand `test -f` and a nonexistent heading reached this plan's own review.
 T6_CLAIMS = (
-    # T6.1 (01M2803TM) — the omission direction. Round 1 of Phase C's review qualified the "LOUDLY"
-    # half (a DIRECTORY or GLOB pathspec is silent) and dropped an unqualified "only".
+    # T6.1 (01M2803TM) — the omission direction, qualified in round 1 (a DIRECTORY or GLOB pathspec
+    # is silent) and corrected again in round 2 (the "only these see it" list was wrong, and a
+    # quoted glob is the precondition).
     "A LITERAL file path git does not track fails LOUDLY",
-    "a DIRECTORY or GLOB pathspec is silent",
-    "only `git status` and `git ls-files -s` see it",
-    # T6.2 (01M1RGRVT, 01M1RHJEY) — a pathspec reads the WORKING TREE, so a shared file needs a
-    # private index. Round 1 fixed the recipe's vacuous compare-and-swap, its missing realign, and
-    # its silent bypass of every git hook.
+    "a DIRECTORY or a QUOTED GLOB pathspec is silent",
+    # T6.2 (01M1RGRVT, 01M1RHJEY) — the private-index recipe. Round 1 fixed the vacuous CAS; round 2
+    # fixed the four steps that were still wrong when executed verbatim.
     "**A pathspec protects the FILE LIST, never the CONTENT.**",
-    "The last argument is the expected OLD value and it MUST be the captured `$base`",
-    "`commit-tree`/`update-ref` are plumbing: NO git hook runs",
-    "`git diff HEAD -- <paths>` — never `git diff --cached`",
-    # T6.3 (01M20DXPT) — `0 0` is a verdict about LINES. Round 1 split the two questions that were
-    # contradicting each other in one sentence, and named the rename as the second false negative.
+    "The last argument is the expected OLD value and it MUST be the captured `$base`.",
+    "the `env -u` is load-bearing",
+    "never `cp <scratch>/<file> <file>`",
+    'Assert `git diff-index --cached --numstat "$base"` is YOUR hunk alone',
+    "On rc 128 your work is not lost and the fix is not to weaken the guard",
+    "no COMMIT hook runs",
+    # T6.3 (01M20DXPT) — `0 0` is a verdict about LINES.
     "Two different questions, two different expectations",
-    "a rename legitimately prints `0 0 <old> => <new>` as a SINGLE combined token",
-    # Round 2 of the review: the bullet's own opening line and the HARD STOPS row still mandated
-    # `git diff --cached --name-only` "before every commit", which the pathspec rule above now
-    # explicitly forbids for a pathspec commit. Both aligned; pinned so they cannot drift apart
-    # again, since they sit ~10 KB apart in a single-line markdown bullet where no reader sees both.
+    # Round 2: the bullet's opening line and the HARD STOPS row mandated the guard the pathspec
+    # rule forbids. All three sit in one single-line bullet where no reader sees them together.
     "`git diff --cached --name-only` when you STAGED it, `git diff HEAD -- <paths>` when you are "
     "committing by PATHSPEC",
     "`git diff --cached --name-only` for a STAGED commit, `git diff HEAD -- <paths>` for a PATHSPEC "

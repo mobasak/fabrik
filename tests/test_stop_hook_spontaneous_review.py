@@ -571,9 +571,12 @@ def test_a_coroner_reaped_sessions_parked_parent_launders_nothing():
     a reaped session's earlier commands really did close."""
     t0, t1, t2 = 1_800_000_000.0, 1_800_000_060.0, 1_800_000_120.0
     frame = {
-        "command": "fabrik-execute-plan",
+        # a review-family command WITH a surface: round 2 found the coroner hole closed on the
+        # WINDOW axis and left open on the NAME axis, so the frame must exercise both
+        "command": "fabrik-review-scoped",
         "state": "running",
         "started_epoch": t0,
+        "surface": "the delta over scripts/x.py",
         "covered": [[1_799_000_000, 1_799_000_500]],
     }
     edit = {"scripts/x.py": int(t1)}
@@ -667,14 +670,16 @@ def test_the_base_case_without_a_baseline_is_bounded_by_the_ledger_epoch():
     done = {
         "command": "fabrik-review",
         "state": "done",
-        "started_epoch": e + 900_000,
-        "updated_ts": int(e + 900_100),
-        "covered": [[int(e + 900_000), int(e + 900_100)]],
-        "first_review_reach": e + 900_000,
+        # the reach must be in the PAST: round 2 added a clock-skew clamp, so a fixture dated
+        # after `now` exercises the clamp, not the floor (the clamp has its own leg below)
+        "started_epoch": e + 60.0,
+        "updated_ts": int(e + 160),
+        "covered": [[int(e + 60), int(e + 160)]],
+        "first_review_reach": e + 60.0,
     }
     lo, hi = fgs._first_review_base_case(done, fgs._sixth_cause_floor(0.0))[0]
     assert lo == e, "the fallback floor IS the ledger epoch, never 0"
-    assert hi == e + 900_000, "and it stops at the review's own start"
+    assert hi == int(e + 60), "and it stops at the review's own start"
     # an edit older than the ledger is dropped by the floor, not covered by the window
     assert fgs._unreviewed_spontaneous(done, {"scripts/ancient.py": int(e) - 10_000}, 0.0) == 0
     assert (
@@ -683,6 +688,40 @@ def test_the_base_case_without_a_baseline_is_bounded_by_the_ledger_epoch():
         )
         == {}
     )
+    # ABOVE the clock-skew tolerance the base case stands down entirely — an unbounded reach used
+    # to cover everything for the session's whole life (round 2, seat finding 6: 1e300 covered now)
+    import time as _time
+
+    for future in (_time.time() + 3600, 1e300):
+        # the ledger must NOT trip the stand-down, or this leg passes whether the clamp exists or
+        # not — measured in round 2: the mutant deleting the clamp survived the first cut
+        clean = {**done, "first_review_reach": future, "covered": [[int(future), int(future) + 1]]}
+        assert fgs._first_review_base_case(clean, 0.0) == [], future
+        past = {**clean, "first_review_reach": _time.time() - 5}
+        past["covered"] = [[int(past["first_review_reach"]), int(past["first_review_reach"]) + 1]]
+        assert fgs._first_review_base_case(past, 0.0) != [], (
+            "the same record with a PAST reach DOES get a window — so the clamp is what refused it"
+        )
+    recent = _time.time() - 5
+    assert (
+        fgs._first_review_base_case(
+            {**done, "first_review_reach": recent, "covered": [[int(recent), int(recent) + 1]]}, 0.0
+        )
+        != []
+    ), "a reach a few seconds old passes the clamp (its ledger must match it, or the "
+    "stand-down fires on a pair older than the reach — which is the stand-down working)"
+
+    # and a NESTED run no longer goes dark: the marker is read off the parked frames too
+    nested = {
+        "command": "fabrik-review",
+        "state": "running",
+        "started_epoch": e + 500,
+        "covered": [],
+        "stack": [
+            {"command": "fabrik-execute-plan", "state": "running", "first_review_reach": e + 60.0}
+        ],
+    }
+    assert fgs._first_review_base_case(nested, fgs._sixth_cause_floor(0.0)) == [(e, int(e + 60))]
 
 
 def test_a_corrupt_record_field_never_raises_out_of_the_sixth_cause():
@@ -695,7 +734,10 @@ def test_a_corrupt_record_field_never_raises_out_of_the_sixth_cause():
     now `_seq`, which returns a list or nothing; a dict is deliberately not iterated as its keys."""
     poison = [7, 7.5, True, object(), {"a": 1}, "abc", None]
     raised = []
-    for key in ("stack", "covered"):
+    # `state` and `command` are MEMBERSHIP tests, not iterations: an unhashable value raises
+    # `TypeError: unhashable type` rather than "not iterable", which `_seq` never covered. A seat
+    # fuzzed 660 calls in round 2 and every one of the 40 raises was this half.
+    for key in ("stack", "covered", "state", "command"):
         for v in poison:
             rec = {"command": "fabrik-review", "state": "running", "started_epoch": 1, key: v}
             for call in (

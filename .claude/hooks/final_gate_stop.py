@@ -671,7 +671,7 @@ def _review_window(rec: object, sid: str | None = None) -> tuple[float, float] |
     started = _finite(rec.get("started_epoch"))
     if started is None or started <= 0:
         return None  # the writer refuses to record a window unless started_epoch > 0 (E8 mirror)
-    state = rec.get("state")
+    state = _tok(rec, "state")
     started = math.floor(started)  # the writer floors lo (R2): a start second is covered whole
     if state == "running":
         # stale/abandoned — the fifth cause no longer acts on it, nor does this. But the
@@ -689,6 +689,18 @@ def _review_window(rec: object, sid: str | None = None) -> tuple[float, float] |
         # outside). A ≤ 1 s fail-open at the close edge, already inherent in whole-second stamps.
         return (started, closed + 1.0)
     return None
+
+
+def _tok(holder: object, key: str) -> str | None:
+    """A record field used in a MEMBERSHIP or equality test, read so that it never raises.
+
+    `_seq` closed the iteration half of this class; the membership half stayed open — `state in
+    _CLOSED_STATES` and `command not in _REVIEW_FAMILY` both raise `TypeError: unhashable type` on
+    a dict or list value, and a raise here costs the stop ALL SIX causes, not one. Measured in
+    round 2 by a seat: 660 fuzzed calls over 11 record fields, 40 raised, every one of them a
+    membership test on an unhashable value."""
+    v = (holder if isinstance(holder, dict) else {}).get(key)
+    return v if isinstance(v, str) else None
 
 
 def _seq(holder: object, key: str) -> list:
@@ -791,11 +803,18 @@ def _surface_reviewed(rec: object, authored: dict[str, int], sid: str | None = N
     # life while the window it would have granted was correctly refused (round 1, seat finding F2).
     if sid is not None and _stale_bound_s() is not None and _run_record(sid) is None:
         return set()
+    # A parked frame keeps the `running` it was parked with even after the coroner reaps the
+    # session (`kaizen_coroner.py` writes `died`/`expired` on the TOP record alone), so the frames
+    # are readable only while the LIVE record says `running` — the same predicate `_review_windows`
+    # applies. Round 1 closed that hole on the WINDOW axis and left it open on the NAME axis: a
+    # fresh `died` record passed the staleness test above and still exempted its frame's surface
+    # (round 2, seat finding 2 — 14 parity cells, 2 disagreed, both writer-reachable).
+    live = rec.get("state") == "running"
     surfaces: list[str] = []
-    for holder in [rec, *_seq(rec, "stack")]:
+    for holder in [rec, *(_seq(rec, "stack") if live else [])]:
         if not isinstance(holder, dict):
             continue
-        if holder.get("state") != "running" or holder.get("command") not in _REVIEW_FAMILY:
+        if _tok(holder, "state") != "running" or _tok(holder, "command") not in _REVIEW_FAMILY:
             continue
         s = holder.get("surface")
         if isinstance(s, str) and s:
@@ -810,8 +829,10 @@ def _surface_reviewed(rec: object, authored: dict[str, int], sid: str | None = N
             tok = raw[2:] if raw.startswith("./") else raw
             # `.` is a path character, so a surface written as a SENTENCE keeps its full stop on
             # the token and the exemption silently fails — a false BLOCK, the thing T5.2 exists to
-            # end (round 1, seat finding F7). Trailing separators go; a leading `./` is already off.
-            tok = tok.rstrip(".,;:")
+            # end (round 1, seat finding F7). ONLY `.`: `,`, `;` and `:` are not in the splitter's
+            # class, so it has already ended the token at them and stripping them here was dead
+            # (round 2, seat finding 10 — the same unreachable-code class as round 1's C-R3).
+            tok = tok.rstrip(".")
             if tok:
                 tokens.add(tok)
     return {f for f in authored if f in tokens}
@@ -823,8 +844,11 @@ def _unreviewed_spontaneous(
     """The sixth cause's whole question, in one place: of THIS session's code edits, how many fall
     outside every window a command of the session covered AND are not named by a running review's
     surface? Composed here rather than at the call site because the call site sits 233 lines deep inside
-    `main` (`def main` at :1443, the call at :1676 — re-derived, not recalled; an earlier cut of
-    this very docstring said "~40" and round 1 of this change's own review measured it) where
+    `main` — hundreds of lines, not the "~40" an earlier cut of this docstring claimed. The count
+    is deliberately NOT written here: round 2 found both endpoints of the line-number cite stale by
+    34 in the very commit that called them "re-derived, not recalled", because the same commit's
+    other hunks moved them. A self-referential line cite in a file still being edited is
+    unmaintainable by construction — the function NAME is the durable address — where
     nothing can grade it — a fix whose wiring no test reaches is a fix that can
     be deleted with a green suite (measured on this hook's sibling, D-252 round 3)."""
     floor = _sixth_cause_floor(session_floor)
@@ -858,13 +882,13 @@ def _first_review_base_case(rec: object, floor: float) -> list[tuple[float, floa
     (01M21JAET). It is bounded by `_LEDGER_EPOCH` and by the review actually closing `done`; it is
     written down here because an unstated fail-open is the class this phase is closing.
 
-    Deliberately narrow. It is a window ADDED, never a pair rewritten; `done` only, so a `blocked`
-    or `handoff` close still certifies nothing (reach-back reader F1); review-family only; and it
-    stands down the moment any ledger window starts before this record's own start, because that
-    is the writer's reach-back having already run. It reads the LIVE record only: a NESTED review
-    pops into its caller before the next stop, so its identity is gone from `command` by then and
-    this side cannot tell the joined pair from any other — RECORDED, with `docs/STRATEGIC_BACKLOG.md`
-    as the destination, since closing it means the writer tagging the pair it appends."""
+    THE PREDICATE THIS FUNCTION EVALUATES, stated as the code reads rather than as a list of the
+    writer's shapes — round 2 of this change's own review found the previous paragraph describing
+    neither: a durable reach on the record or any parked frame, positive, finite, not beyond the
+    clock-skew tolerance, and no ledger pair starting before it. Everything else — `done` only, a
+    review-family command only, an empty ledger only — is the WRITER's gate on setting the field at
+    all (`command_run.py`), and is graded there. This side adds a window, never rewrites a pair, and
+    reads no `command` or `state` of its own."""
     if not isinstance(rec, dict):
         return []
     # The DURABLE marker the writer leaves at a review-family `done` close that had nothing to
@@ -873,8 +897,29 @@ def _first_review_base_case(rec: object, floor: float) -> list[tuple[float, floa
     # done review" — is what makes the coverage survive the session's next command; the derived
     # form evaporated at that `start` and left the permanent block of 01M21JAET in place (round 1,
     # seat finding F5). A record written before the field existed simply has none.
-    reach = _finite(rec.get("first_review_reach"))
-    if reach is None or reach <= 0:
+    # Read the live record AND every parked frame, earliest wins. `start` gives a nested child
+    # `first_review_reach: None` for the same reason it gives it an empty ledger, so reading `rec`
+    # alone made the marker go DARK for the whole life of a nested run — reproducing T5.1 exactly,
+    # on the field that exists to fix T5.3 (round 2, seat finding 4). `_ledger` already reads the
+    # frames for `covered`; this is the same rule for the same reason.
+    reaches = [
+        v
+        for v in (
+            _finite(h.get("first_review_reach"))
+            for h in [rec, *_seq(rec, "stack")]
+            if isinstance(h, dict)
+        )
+        if v is not None and v > 0
+    ]
+    if not reaches:
+        return []
+    reach = min(reaches)
+    # ...and bound it ABOVE. `_review_window` fail-CLOSES on an absurd `started_epoch` (the window
+    # inverts and matches nothing) and `_run_record` refuses a future `updated_ts` past the skew
+    # tolerance; this had neither, so a clock ahead at the first review's `start` minted a reach
+    # that covered everything and the carry preserved it for the session's whole life (round 2,
+    # seat finding 6: 1e300 covered `now`).
+    if reach > time.time() + _CLOCK_SKEW_TOLERANCE_S:
         return []
     started = math.floor(reach)
     ledger = _seq(rec, "covered")

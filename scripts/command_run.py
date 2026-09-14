@@ -2975,7 +2975,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             ]
             if prev:
                 lo = min(lo, math.floor(max(prev)))
-            else:
+            elif not cov and not rec.get("stack"):
                 # NOTHING to reach back to — the session's first review. Its contract is still
                 # "this session's work", but the session's lower bound is the SessionStart
                 # baseline, which lives only on the Stop hook's side. So record the reach as a
@@ -2984,6 +2984,22 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
                 # (Phase C review round 1, seat finding F5) — the permanent-block symptom of
                 # 01M21JAET deferred rather than closed. Transitional in the same sense as
                 # `_LEDGER_EPOCH`: a record written before this field existed simply has none.
+                #
+                # TWO gates beyond "no reachable close", both from round 2 of this change's own
+                # review. `not cov`: a ledger that is NON-EMPTY but unreadable is still evidence of
+                # an earlier run — `prev` skips pairs it cannot parse and `_carried_windows`
+                # SANITISES them away at the next `start`, so inferring "first review" from `prev`
+                # alone granted the widest window in the file one stop later. `not rec.get("stack")`:
+                # a NESTED child is handed an empty ledger BY CONSTRUCTION (see `start`), not
+                # because the session had no prior run — without this, a `/fabrik-execute-plan`
+                # nesting a `/fabrik-review` at a phase boundary stamped a reach that the pop handed
+                # to the caller, and nesting ALONE flipped an unreviewed plain-chat edit 1 -> 0.
+                # ⚠️ That second gate is now DEFENCE IN DEPTH and is stated as such rather than
+                # implied to be load-bearing: removing the pop's join (below) already makes a nested
+                # child's reach unreachable, so a mutant of this clause alone survives the suite.
+                # Both are kept because the path they guard destroys review coverage fleet-wide, and
+                # the cost of the redundancy is one clause — but a reader must not mistake it for
+                # the only barrier, which is exactly the mistake round 1 made about the join.
                 rec["first_review_reach"] = float(lo)
         cov.append([lo, int(rec["updated_ts"])])
         rec["covered"] = cov
@@ -2996,16 +3012,12 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             if w not in joined:
                 joined.append(w)
         parent["covered"] = joined
-        reaches = [
-            v
-            for v in (
-                _finite_ts(parent.get("first_review_reach")),
-                _finite_ts(rec.get("first_review_reach")),
-            )
-            if v is not None and v > 0
-        ]
-        if reaches:
-            parent["first_review_reach"] = min(reaches)
+        # NO `first_review_reach` join here. Round 1 added one ("joined at a nested pop"); round 2's
+        # seat finding 1 then showed that join WAS the laundering path, and the fix — the writer
+        # refusing to set the field on a record with a non-empty `stack` — makes a nested child's
+        # reach permanently None, so the join could only ever `min` the parent's value with itself.
+        # Dead by construction, and removed rather than left as prose describing a branch that
+        # cannot run: the third time that class surfaced in this review (C-R3, C2-9, here).
     _fb_verdict, _fb_beats = _feedback_verdict(
         _filed_text if getattr(args, "feedback", None) is not None else None
     )

@@ -4763,7 +4763,12 @@ def test_the_first_review_reach_survives_the_sessions_next_command(run_dir: Path
     _cr(run_dir, "done", "--command", _PROBE, "--evidence", "e", sid=sid)
     assert rec().get("first_review_reach") == first
 
-    # nested: a child review's reach joins the parent at the pop
+    # NESTED: a child review records NOTHING, and the parent inherits nothing — round 2 of the
+    # Phase C review, seat finding 1. A nested child is handed an empty ledger BY CONSTRUCTION, not
+    # because the session had no prior run, so reading that emptiness as "the session's first
+    # review" stamped a reach the pop then handed to the caller: an unreviewed plain-chat edit made
+    # before the caller even started flipped from 1 unreviewed to 0, and NESTING ALONE was the
+    # difference. The writer now also requires an empty `stack`.
     (run_dir / f"{sid}.json").unlink(missing_ok=True)
     _cr(run_dir, "start", "--command", _PROBE, "--phases", "1", "--terminal", "t", sid=sid)
     _cr(
@@ -4781,5 +4786,32 @@ def test_the_first_review_reach_survives_the_sessions_next_command(run_dir: Path
     _cr(run_dir, "done", "--command", "fabrik-review-scoped", "--evidence", "e", sid=sid)
     restored = rec()
     assert restored["command"] == _PROBE, "the parent is restored"
-    reach = restored.get("first_review_reach")
-    assert reach is not None and reach > 0, "and it inherited the child's reach"
+    assert restored.get("first_review_reach") is None, (
+        "a NESTED review's empty ledger is not evidence of a first review — the caller inherits "
+        "nothing, because nesting alone must not launder the caller's earlier edits"
+    )
+
+
+def test_a_non_empty_but_unreadable_ledger_still_blocks_the_reach(run_dir: Path) -> None:
+    """Round 2, seat finding 3: the hook stood the base case down on an unreadable ledger, but
+    `start`'s `_carried_windows` SANITISES malformed pairs away, so the evidence vanished and the
+    next stop granted the widest window in the file. A ledger that is non-empty but unparseable is
+    still evidence of an earlier run — the WRITER now refuses to set the reach at all."""
+    sid = "probe-f5c"
+    _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-review-scoped",
+        "--phases",
+        "1",
+        "--terminal",
+        "t",
+        sid=sid,
+    )
+    f = run_dir / f"{sid}.json"
+    r = json.loads(f.read_text(encoding="utf-8"))
+    r["covered"] = [[1_788_800_000, 1_788_800_100, "junk"]]  # non-empty, unparseable by `prev`
+    f.write_text(json.dumps(r), encoding="utf-8")
+    _cr(run_dir, "done", "--command", "fabrik-review-scoped", "--evidence", "e", sid=sid)
+    assert json.loads(f.read_text(encoding="utf-8")).get("first_review_reach") is None
