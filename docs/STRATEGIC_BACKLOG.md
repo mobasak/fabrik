@@ -1608,3 +1608,43 @@ Recorded by the rotation refresh-chain review (round 3, Opus seat, receipt row *
 ## [fleet] An undelivered chain push retries every tick with no backoff — a dead notifier costs a spawn per account per tick (2026-09-13, owner: fleet)
 
 Recorded by the rotation refresh-chain review (round 4, Opus seat, receipt row X7): when the notifier is permanently broken (bad Telegram keys), `_chain_expiry_push` re-attempts every 5-minute tick for every chain inside 3 d of expiry — one `bash claude-sound.sh mesh-notify` spawn per account per tick (each may block on `curl -m 15`), plus one "NOT delivered — send FAILED" line per account per tick in `rotate-tick.log`. Correct (the operator must be told, and the notifier's window bounds delivered sends) but unbounded in spawns. Lean close: skip the attempt while the account's last attempt is younger than the notifier's 30-minute window (an attempt epoch beside the stamp), or suppress the repeated line after N identical reasons. Fire rate: 0 observed (the notifier has keys); the class is a dead notifier for days.
+
+## [infra] The scope-growth stop can never fire for `/fabrik-repo-review` — one command set is serving two different questions (2026-09-14, D-252 review round 2)
+
+`scope_growth_warning` stands down for `PER_UNIT_ROUND_COMMANDS = {"fabrik-execute-plan", "fabrik-repo-review"}`, borrowing the set the OSCILLATION advisory uses. The borrowing is right for `fabrik-execute-plan` (dispatcher mode: round 4 is T11's review, round 5 is T08's — different surfaces, and the stop's exit sentence "close on the ORIGINAL delta's state" has no referent). It is questionable for `/fabrik-repo-review`, which under D-203 is a partitioned re-swept loop over ONE repo and can outgrow its artifact exactly as `/fabrik-review` can. Consequence, measured: the stop can never fire there, and the uncounted-round NOTE never prompts for the counter either, because that NOTE keys on `REVIEW_FAMILY` which excludes it.
+
+**Shape of the fix:** split the set — `PER_UNIT_FOR_OSCILLATION` vs `PER_UNIT_FOR_SCOPE_GROWTH` — or mint a D-row stating that one set answers both questions deliberately. Either way the two advisories should stop sharing a constant sized for the first of them. `scripts/command_run.py` (`PER_UNIT_ROUND_COMMANDS`, `scope_growth_warning`, the round handler's NOTE).
+
+## [infra] `--command` is normalised for its leading slash but not its case, so `--command Fabrik-Review` silences the review-family branches (2026-09-14, D-252 review round 2)
+
+`start` stores `(args.command or "").lstrip("/")` — no `.strip().lower()`. The stand-down predicates in `convergence_warning` and `scope_growth_warning` both apply `.strip().lower()` before their membership test, but the `in REVIEW_FAMILY` tests in the round handler and on the close path are case-SENSITIVE against the stored value. So a record started as `--command Fabrik-Review` silences the uncounted-round NOTE and takes the wrong close branch, while the two advisories still stand down correctly — the same record read two ways.
+
+**Shape of the fix:** normalise once at the start handler (`.strip().lower()` beside the existing `lstrip("/")`), rather than at each reader. Pre-existing on the close path; the new NOTE inherits it. `scripts/command_run.py`.
+
+## [infra] `_trend_series` still filters non-dict rounds out of its series — the sibling half of a defect the scope-growth stop fixed (2026-09-14, D-252 review round 3)
+
+`scope_growth_warning` no longer filters: a row it cannot read BREAKS the run, because closing the window across a malformed round made rounds 1 and 5 read as adjacent. `_trend_series` (`scripts/command_run.py`) still carries `if isinstance(r, dict)`, so the same malformed row is silently dropped from the oscillation and FEEDBACK series and the two rounds either side read as consecutive there. Executed: `_trend_series([{f:1}, "MALFORMED", {f:5}])` → `[1, 5]` while `scope_growth_warning` on the same shape returns `""`.
+
+Also: the comment beside the removed filter claims "`_trend_series` applies the same rule over the unfiltered list" — it does not, so the claim is false as written.
+
+**Shape of the fix:** decide which reader is right (dropping vs breaking), make both do it, and correct the comment either way. Not done here because the choice changes the oscillation advisory's behaviour on live records and deserves its own judgement, not a hurried one inside a review that had already tripped its own scope-growth stop.
+
+## [infra] The `int()`-over-a-record-field class is closed for `findings` only — eight sibling call sites remain (2026-09-14, D-252 review round 3)
+
+`_int0` was introduced after a bare `int()` on `findings` raised inside `_round_report`, whose single return sits on the Stop hook's path, so the outer guard blanked the entire round report — TERMINAL verdict included — while the record kept accepting rounds. The sweep converted the three `findings` readers. The same bare-`int()`-over-a-record-value shape remains at `event_seq` (×2), `seats_skipped`, `seats` (×3) and `phase` (×2) in `scripts/command_run.py`. Executed: a hand-written round carrying `{"phase": "x"}` raises `ValueError` inside that same one-return path and blanks the same report.
+
+**Shape of the fix:** route the remaining eight through `_int0` (or a keyed sibling), or state per site why a raise there is acceptable. Measured, not vibed: only the `findings` path had a reproduced incident, which is why the first sweep stopped there.
+
+## [infra] A test leg attributes its silence to the wrong mechanism (2026-09-14, D-252 review round 3)
+
+`tests/test_command_run.py::test_a_review_round_that_confirms_without_counting_its_own_residue_is_noted` ends with a `fabrik-repo-review` leg commented "a per-unit loop is not prompted". The NOTE it checks is gated on `REVIEW_FAMILY`, which simply does not contain `fabrik-repo-review` — the assertion holds for ANY non-review command and would pass with `PER_UNIT_ROUND_COMMANDS` emptied. Proven: dropping `fabrik-repo-review` from that set reds two other tests and leaves this leg green.
+
+**Shape of the fix:** assert the mechanism the comment names (`assert "fabrik-repo-review" not in REVIEW_FAMILY`), or re-word the comment to say what is actually being graded.
+
+## [infra] A review that closes on the SCOPE-GROWTH STOP cannot flip its receipt — the stop has no representation in the receipt grammar (2026-09-14, D-252 review round 3, found by the stop's own close)
+
+D-252 added a counted scope-growth stop whose sanctioned exit is "STOP the loop — route the remaining own-fix work to a backlog row and close on the ORIGINAL delta's state". A review that obeys it ends on a round with `confirmed > 0`, because the whole point is that the loop is still finding things and they are no longer worth another round. `check_review_coverage.py` then refuses the flip: *"the exit round must be quiet, or the stuck finding must be BLOCKED-escalated (named + 3 failed attempts), or the report must declare `Status: IN-PROGRESS`"*. None of the three fits — the round is not quiet, there is no stuck finding with three failed attempts, and IN-PROGRESS understates a review that reached a designed terminal state.
+
+Measured on the stop's own review: rounds confirmed 5 · 4 · 5 with own-fix 0 · 4 · 5; the stop fired at round 3 (`4/4 → 5/5`); the receipt was written, every finding fixed or routed, and it still cannot say CONVERGED.
+
+**Shape of the fix:** a fourth sanctioned exit in the receipt grammar and in `check_review_coverage.py` — a closing row whose method cell declares the scope-growth stop and whose RECORDED rows all carry backlog destinations, accepted as terminal. It belongs with the `_confirmed_quiet` / `QUIET_PASS` readers that already encode the other exits. Deliberately NOT built inside the review that found it: that review had already tripped its own stop, and building the fix there is the exact scope growth the rule forbids.

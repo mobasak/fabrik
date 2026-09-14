@@ -3026,6 +3026,26 @@ def test_the_scope_growth_stop_fires_when_a_loop_only_reviews_its_own_fixes() ->
         [{"confirmed": 2, "own_fix": 2}] * 2
     )
 
+    # round 3, C4 — three fixes shipped with no grader; a seat reverted each and the suite stayed
+    # green, name for name. Each line below reds exactly one of those reverts.
+    # (a) a MALFORMED row breaks the run — re-adding the `isinstance` filter closes the window
+    #     across it and rounds 1 and 3 read as adjacent, which is the defect round 2 fixed
+    assert (
+        cr.scope_growth_warning(
+            [{"confirmed": 2, "own_fix": 2}, "MALFORMED", {"confirmed": 3, "own_fix": 3}]
+        )
+        == ""
+    )
+    # (b) BOTH sides read by one `_count` — un-sharing it lets a bool on the `confirmed` side fire
+    assert cr.scope_growth_warning([{"confirmed": True, "own_fix": 1}] * 2) == ""
+    # (c) only NON-INTEGRAL floats are refused — refusing every float silenced the stop for any
+    #     JSON record carrying whole floats, a fail-open wider than the `2.5` case it closed
+    assert "SCOPE GROWTH" in cr.scope_growth_warning([{"confirmed": 2, "own_fix": 2.0}] * 2)
+
+    # round 3, C1 — `int(inf)` raises OverflowError, which the first cut did not suppress:
+    # `json.load` overflows `1e999` to `inf`, so the blank-report failure was back on this path
+    assert cr.scope_growth_warning([{"confirmed": 2, "own_fix": float("inf")}] * 2) == ""
+
 
 def test_a_malformed_counter_never_blanks_the_round_report() -> None:
     """Round-zero class sweep of the `_own_fix` fix (2026-09-14): the same bare `int()` shape sat
@@ -3048,6 +3068,16 @@ def test_a_malformed_counter_never_blanks_the_round_report() -> None:
     assert "ROUND 1 recorded" in out, out
     # a real value is still read as itself — the guard must not flatten everything to 0
     assert cr._trend_series([{"findings": 7}]) == [7]
+    # round 3, C1 — OverflowError is the class the first cut missed; `json.load` yields `inf`
+    # for a `1e999` literal and accepts `Infinity` outright
+    assert cr._trend_series([{"findings": float("inf")}]) == [0]
+    assert "ROUND 1 recorded" in cr._round_report(
+        {"command": "fabrik-review", "rounds": [{"n": 1, "findings": float("inf")}], "classes": {}}
+    )
+    # round 3, C3 — ADOPTION is presence, not readability: a round that STATED a malformed
+    # counter still adopted it, or a bare `--findings 0` later relabels the loop quiet
+    assert cr._adopted_confirmed([{"confirmed": True}]) == 1
+    assert cr._adopted_confirmed([{"findings": 0}]) is None
 
 
 def test_the_oscillation_detector_still_fires_for_single_brief_loops() -> None:

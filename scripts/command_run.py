@@ -349,6 +349,9 @@ def _count(row: Any, key: str) -> int | None:
         return None
     if isinstance(v, float) and not v.is_integer():
         return None
+    # no OverflowError here: `inf.is_integer()` is False, so the non-integral guard above already
+    # refuses every float `int()` could overflow on, and nothing else reaching this line raises it.
+    # `_int0` DOES need it — it has no float guard (review round 3, C1)
     with contextlib.suppress(TypeError, ValueError):
         return int(v)
     return None
@@ -430,8 +433,12 @@ def _adopted_confirmed(rounds: list[Any]) -> int | None:
     `--findings 0` printed the TERMINAL verdict and claimed "no round stated `--confirmed`" while
     round 1 had, which is quiet reached by RELABELLING, exactly what D-206 forbids.
     """
+    # PRESENCE, not readability — the one question `_count` cannot answer. Routing this through
+    # the shared reader made a round that STATED a malformed counter read as never having stated
+    # one, turning a loud `⛔ NOT TERMINAL` back into a TERMINAL verdict reached by a bare
+    # `--findings 0`: the relabelling fail-open this function exists to stop (review round 3, C3)
     for i, r in enumerate(rounds, start=1):
-        if _confirmed(r) is not None:
+        if isinstance(r, dict) and r.get("confirmed") is not None:
             return i
     return None
 
@@ -447,7 +454,7 @@ def _int0(v: Any) -> int:
     """
     if isinstance(v, bool):
         return 0
-    with contextlib.suppress(TypeError, ValueError):
+    with contextlib.suppress(TypeError, ValueError, OverflowError):
         return int(v)
     return 0
 
