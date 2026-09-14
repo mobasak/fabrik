@@ -290,11 +290,10 @@ def test_the_changed_list_reads_paths_only_across_wrapped_lines_and_never_from_a
     assert r.returncode == 1 and "`db.example.com`" in r.stdout, r.stdout
     r = _run_on(tmp_path, with_x.replace("# R\n", "# R\n**Changed:** `x.py`, `10.99.0.1`\n\n"))
     assert r.returncode == 0, r.stdout
-    # round 17: the six stated costs round 16's docstring NAMED but nothing graded — each reaches
-    # the fullmatch and fails it, so each is a path; and the four the RANGE rule refuses first,
-    # which is why that rule stays separate. Two mutants survived the suite without these:
-    # widening the fullmatch to `\d*(?:\.\d*)*` (flips five of the six — not `1.2e3`, whose `e`
-    # the widened pattern cannot match either) and deleting the range arm (flips all four).
+    # round 17: the stated costs the docstring NAMES but nothing graded — each reaches the
+    # fullmatch and fails it, so each is a path; then the shapes the RANGE rule refuses first,
+    # which is why that rule stays separate. Widening the fullmatch and deleting the range arm
+    # both survived the suite before these loops existed; each loop is its own denominator.
     for tok in ("1.", ".5", "1.2.", ".1.2", "1.2e3", "."):
         r = _run_on(tmp_path, with_x.replace("# R\n", f"# R\n**Changed:** `x.py`, `{tok}`\n\n"))
         assert r.returncode == 1 and f"`{tok}`" in r.stdout, (tok, r.stdout)

@@ -227,11 +227,8 @@ def _blank_quoted(lines: list[str]) -> list[str]:
             # table classes over the rows and no prose class at all (`--symbol` still counts
             # over the text), so on a receipt-only invocation — which is what the gate's own
             # no-argument self-selection passes, see the `self_selected` branch — the tail's
-            # prose is unreported, blanked or not. Graded in
-            # `test_a_comment_closing_line_never_joins_…`: the three tails pin the round-14
-            # shape (a tail live at its own offset); the whole-line blank itself is pinned by
-            # that test's `_until_heading` assertion, since an un-blanked closing line still
-            # begins with the text before `-->` and so forms no header and opens no fence.
+            # prose is unreported, blanked or not. Both the blanking and this cost are graded
+            # by `test_a_comment_closing_line_never_joins_the_table_or_fence_run_below_it`.
             out.append("")
             j = _mask_code_spans(ln).find("-->")
             if j >= 0:
