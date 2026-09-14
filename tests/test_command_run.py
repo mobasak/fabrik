@@ -988,6 +988,11 @@ def test_record_shape_and_pinned_line_are_unchanged_by_events(run_dir: Path) -> 
     # `started_epoch` + `repo_root` are the review-guard's (mega-enforcement round-31/33).
     assert set(rec) == {
         "covered",  # the closed-window ledger (P1-1)
+        # the session's first review-family `done` close records how far back its contract
+        # reached, for the Stop hook to floor with the SessionStart baseline it alone knows.
+        # Derived per-stop instead, it evaporated at the session's next `start` (Phase C review
+        # round 1, F5).
+        "first_review_reach",
         "session_id",
         "command",
         "phases",
@@ -4675,3 +4680,106 @@ def test_the_oscillation_advisory_stays_quiet_over_delta_rounds_under_the_budget
     assert cr.convergence_warning(series, "fabrik-review", deltas=deltas) == ""
     big = [None, 330, 50, 22, 10, 8, 40, 8]  # one round in the window above the budget
     assert cr.convergence_warning(series, "fabrik-review", deltas=big)
+
+
+def test_only_a_first_review_done_close_records_a_reach(run_dir: Path) -> None:
+    """Phase C review round 1, seat finding F5. The Stop hook's first-review base case used to be
+    DERIVED per stop from the live record ("is it a review-family `done` with an empty ledger?"),
+    so it evaporated at the session's very next `start` — the permanent-block symptom of 01M21JAET
+    deferred, not closed. The reach is now a DURABLE field this writer sets, which moves three
+    guarantees from the hook to here:
+
+    - a `blocked` or `handoff` close records nothing (reach-back reader F1: an honest non-verdict
+      exit must never certify the gap since the last run),
+    - a non-review command records nothing,
+    - a review whose ledger already holds an earlier run records nothing — the ordinary reach-back
+      covers that gap, and this field exists only for the case with nothing to reach back TO.
+
+    `fabrik-review-scoped` is the review-family name used throughout: `_close` additionally
+    demands a persisted report for `fabrik-review`/`fabrik-repo-review`, and this file's own
+    `_PROBE` comment records why naming those here would make the suite a time bomb."""
+    sid = "probe-f5"
+
+    def rec() -> dict:
+        return json.loads((run_dir / f"{sid}.json").read_text(encoding="utf-8"))
+
+    for cmd, close, expect in (
+        ("fabrik-review-scoped", "done", True),
+        ("fabrik-review-scoped", "blocked", False),
+        ("fabrik-review-scoped", "handoff", False),
+        (_PROBE, "done", False),
+    ):
+        (run_dir / f"{sid}.json").unlink(missing_ok=True)
+        _cr(run_dir, "start", "--command", cmd, "--phases", "1", "--terminal", "t", sid=sid)
+        tail = ["--evidence", "e"] if close == "done" else ["--reason", "r"]
+        _cr(run_dir, close, "--command", cmd, *tail, sid=sid)
+        got = rec().get("first_review_reach")
+        assert (got is not None and got > 0) is expect, (cmd, close, got, rec().get("state"))
+
+    # a review with an EARLIER run in the ledger: the ordinary reach-back covers that gap, no marker
+    (run_dir / f"{sid}.json").unlink(missing_ok=True)
+    _cr(run_dir, "start", "--command", _PROBE, "--phases", "1", "--terminal", "t", sid=sid)
+    _cr(run_dir, "done", "--command", _PROBE, "--evidence", "e", sid=sid)
+    _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-review-scoped",
+        "--phases",
+        "1",
+        "--terminal",
+        "t",
+        sid=sid,
+    )
+    _cr(run_dir, "done", "--command", "fabrik-review-scoped", "--evidence", "e", sid=sid)
+    assert rec().get("first_review_reach") is None, rec().get("covered")
+
+
+def test_the_first_review_reach_survives_the_sessions_next_command(run_dir: Path) -> None:
+    """The whole point of making the reach DURABLE (F5): it must still be there after the session
+    opens another record, and a NESTED run's reach must join its caller at the pop rather than be
+    discarded with the child. Derived per stop instead, both of these were lost."""
+    sid = "probe-f5b"
+
+    def rec() -> dict:
+        return json.loads((run_dir / f"{sid}.json").read_text(encoding="utf-8"))
+
+    _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-review-scoped",
+        "--phases",
+        "1",
+        "--terminal",
+        "t",
+        sid=sid,
+    )
+    _cr(run_dir, "done", "--command", "fabrik-review-scoped", "--evidence", "e", sid=sid)
+    first = rec().get("first_review_reach")
+    assert first is not None and first > 0, rec()
+    _cr(run_dir, "start", "--command", _PROBE, "--phases", "1", "--terminal", "t", sid=sid)
+    assert rec().get("first_review_reach") == first, "the next `start` must CARRY it, not drop it"
+    _cr(run_dir, "done", "--command", _PROBE, "--evidence", "e", sid=sid)
+    assert rec().get("first_review_reach") == first
+
+    # nested: a child review's reach joins the parent at the pop
+    (run_dir / f"{sid}.json").unlink(missing_ok=True)
+    _cr(run_dir, "start", "--command", _PROBE, "--phases", "1", "--terminal", "t", sid=sid)
+    _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-review-scoped",
+        "--phases",
+        "1",
+        "--terminal",
+        "t",
+        sid=sid,
+    )
+    assert rec().get("first_review_reach") is None, "a nested child starts without one"
+    _cr(run_dir, "done", "--command", "fabrik-review-scoped", "--evidence", "e", sid=sid)
+    restored = rec()
+    assert restored["command"] == _PROBE, "the parent is restored"
+    reach = restored.get("first_review_reach")
+    assert reach is not None and reach > 0, "and it inherited the child's reach"

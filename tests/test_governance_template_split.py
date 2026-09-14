@@ -110,17 +110,22 @@ def test_scaffold_seeds_claude_from_template() -> None:
 # EXECUTED before it was written (2026-09-14, scratch repo) — a remedy written from reasoning is how
 # a two-operand `test -f` and a nonexistent heading reached this plan's own review.
 T6_CLAIMS = (
-    # T6.1 (01M2803TM) — the omission direction: loud on an untracked path, SILENT on a dropped one
-    "**And VERIFY what actually landed: `git show --numstat HEAD` against the file list you "
-    "intended.**",
-    "it says NOTHING when a tracked path is merely OMITTED",
-    # T6.2 (01M1RGRVT, 01M1RHJEY) — a pathspec reads the WORKING TREE, so shared files need a
-    # private index built on HEAD's blob
+    # T6.1 (01M2803TM) — the omission direction. Round 1 of Phase C's review qualified the "LOUDLY"
+    # half (a DIRECTORY or GLOB pathspec is silent) and dropped an unqualified "only".
+    "A LITERAL file path git does not track fails LOUDLY",
+    "a DIRECTORY or GLOB pathspec is silent",
+    "only `git status` and `git ls-files -s` see it",
+    # T6.2 (01M1RGRVT, 01M1RHJEY) — a pathspec reads the WORKING TREE, so a shared file needs a
+    # private index. Round 1 fixed the recipe's vacuous compare-and-swap, its missing realign, and
+    # its silent bypass of every git hook.
     "**A pathspec protects the FILE LIST, never the CONTENT.**",
-    "export GIT_INDEX_FILE=<scratch>/idx; git read-tree HEAD",
-    # T6.3 (01M20DXPT) — `0 0` is a numstat verdict about LINES, not about emptiness
-    "a pure MODE change numstats as `0 0 <path>`",
-    "`0 0` means 'no line changed', never 'nothing staged'",
+    "The last argument is the expected OLD value and it MUST be the captured `$base`",
+    "`commit-tree`/`update-ref` are plumbing: NO git hook runs",
+    "`git diff HEAD -- <paths>` — never `git diff --cached`",
+    # T6.3 (01M20DXPT) — `0 0` is a verdict about LINES. Round 1 split the two questions that were
+    # contradicting each other in one sentence, and named the rename as the second false negative.
+    "Two different questions, two different expectations",
+    "a rename legitimately prints `0 0 <old> => <new>` as a SINGLE combined token",
 )
 
 

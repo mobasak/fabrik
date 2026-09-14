@@ -754,7 +754,7 @@ def _review_windows(rec: dict | None, sid: str | None = None) -> list[tuple[floa
 _SURFACE_SPLIT = re.compile(r"[^A-Za-z0-9_./\\-]+")
 
 
-def _surface_reviewed(rec: object, authored: dict[str, int]) -> set[str]:
+def _surface_reviewed(rec: object, authored: dict[str, int], sid: str | None = None) -> set[str]:
     """The authored paths a RUNNING review-family record already names as its `--surface`.
 
     T5.2 (01M28YN1F): the sixth cause fired on exactly those files. A review's window opens at its
@@ -772,8 +772,24 @@ def _surface_reviewed(rec: object, authored: dict[str, int]) -> set[str]:
     explicit strip for those suffixes: the splitter runs first, so it could never fire. A leading
     `./` IS stripped here, because `.` and `/` are both path characters and survive the split.)
     The record's parked `stack` frames are read the same way, since a nested command parks a
-    running review there (T5.1)."""
+    running review there (T5.1).
+
+    STATED COST (round 1, seat finding F3): the tokens come from the WHOLE free-text surface, so a
+    path the surface mentions in order to EXCLUDE it ("… explicitly NOT `scripts/b.py`, a sibling
+    owns it") is exempted all the same. Left as is deliberately, and bounded: the exemption lives
+    only while the record RUNS, a `blocked`/`handoff` close takes it straight back, and a `done`
+    close covers the whole session anyway — `command_run.py`'s reach-back is SESSION-granular by
+    design ("a review that narrows its `$ARGUMENTS` scope below the session diff is narrowing its
+    own contract, not this ledger's"). Parsing negation out of agent-written prose would be a
+    detector that fires on legitimate text, which is how enforcement becomes wallpaper."""
     if not isinstance(rec, dict):
+        return set()
+    # A running record buys immunity only while the FIFTH cause would still act on it — the same
+    # stale test `_review_window` applies (A-F3/P1-2). `main` feeds this `_run_record_raw`, which
+    # is freshness-blind BY CONSTRUCTION (:520), so without this an abandoned
+    # `/fabrik-review-scoped --surface scripts/foo.py` exempted that file for the record's whole
+    # life while the window it would have granted was correctly refused (round 1, seat finding F2).
+    if sid is not None and _stale_bound_s() is not None and _run_record(sid) is None:
         return set()
     surfaces: list[str] = []
     for holder in [rec, *_seq(rec, "stack")]:
@@ -792,6 +808,10 @@ def _surface_reviewed(rec: object, authored: dict[str, int]) -> set[str]:
             if not raw:
                 continue
             tok = raw[2:] if raw.startswith("./") else raw
+            # `.` is a path character, so a surface written as a SENTENCE keeps its full stop on
+            # the token and the exemption silently fails — a false BLOCK, the thing T5.2 exists to
+            # end (round 1, seat finding F7). Trailing separators go; a leading `./` is already off.
+            tok = tok.rstrip(".,;:")
             if tok:
                 tokens.add(tok)
     return {f for f in authored if f in tokens}
@@ -810,7 +830,7 @@ def _unreviewed_spontaneous(
     floor = _sixth_cause_floor(session_floor)
     windows = _review_windows(rec if isinstance(rec, dict) else None, sid)
     windows += _first_review_base_case(rec, floor)
-    named = _surface_reviewed(rec, authored)  # once per stop, never once per authored file
+    named = _surface_reviewed(rec, authored, sid)  # once per stop, not once per file
     return _unreviewed_code_files(
         {f: ts for f, ts in _this_sessions_edits(authored, floor).items() if f not in named},
         windows,
@@ -847,18 +867,30 @@ def _first_review_base_case(rec: object, floor: float) -> list[tuple[float, floa
     as the destination, since closing it means the writer tagging the pair it appends."""
     if not isinstance(rec, dict):
         return []
-    if rec.get("command") not in _REVIEW_FAMILY or rec.get("state") != "done":
+    # The DURABLE marker the writer leaves at a review-family `done` close that had nothing to
+    # reach back to (`command_run.py`, `first_review_reach`), carried across every later `start`
+    # and joined at a nested pop. Reading it — rather than re-deriving "is the live record a
+    # done review" — is what makes the coverage survive the session's next command; the derived
+    # form evaporated at that `start` and left the permanent block of 01M21JAET in place (round 1,
+    # seat finding F5). A record written before the field existed simply has none.
+    reach = _finite(rec.get("first_review_reach"))
+    if reach is None or reach <= 0:
         return []
-    started = _finite(rec.get("started_epoch"))
-    if started is None or started <= 0:
-        return []
-    started = math.floor(started)
-    for w in _seq(rec, "covered"):
-        if isinstance(w, (list, tuple)) and len(w) == 2:
-            lo = _finite(w[0])
-            if lo is not None and math.floor(lo) < started:
-                return []  # the writer already reached back over an earlier run
-    return [(float(floor), float(started))]
+    started = math.floor(reach)
+    ledger = _seq(rec, "covered")
+    if ledger and not all(
+        isinstance(w, (list, tuple)) and len(w) == 2 and _finite(w[0]) is not None for w in ledger
+    ):
+        return []  # a CORRUPT pair is still evidence of an earlier run: stand down rather than
+        # grant the widest window in the file on the strength of a record we cannot read (F9)
+    for w in ledger:
+        lo = _finite(w[0])
+        if lo is not None and math.floor(lo) < started:
+            return []  # the writer already reached back over an earlier run
+    lo_f = _finite(floor)
+    if lo_f is None or not math.isfinite(lo_f):
+        return []  # no usable floor, no base case — `float(None)` used to raise here (F10)
+    return [(lo_f, float(started))]
 
 
 def _sixth_cause_floor(session_floor: float) -> float:

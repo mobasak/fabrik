@@ -2164,6 +2164,10 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             # joining it back up doubled the ledger per nest cycle (2047 windows after ten
             # phase boundaries, closing review C-4/E1)
             "covered": [] if parent else _carried_windows(rec),
+            # carried like `covered`, and for the same reason: one record per session, overwritten
+            # by the next `start`. Without this the first review's reach lasted exactly until the
+            # session's next command (Phase C review round 1, F5).
+            "first_review_reach": None if parent else _finite_ts(rec.get("first_review_reach")),
         }
         # The `start` verb's join window is the WHOLE store, so the anchor is cleared —
         # never this record's own start (that would exclude every candidate landing
@@ -2971,6 +2975,16 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             ]
             if prev:
                 lo = min(lo, math.floor(max(prev)))
+            else:
+                # NOTHING to reach back to — the session's first review. Its contract is still
+                # "this session's work", but the session's lower bound is the SessionStart
+                # baseline, which lives only on the Stop hook's side. So record the reach as a
+                # DURABLE marker and let the hook supply the floor. The hook used to synthesise
+                # this from the live record, which evaporated at the session's very next `start`
+                # (Phase C review round 1, seat finding F5) — the permanent-block symptom of
+                # 01M21JAET deferred rather than closed. Transitional in the same sense as
+                # `_LEDGER_EPOCH`: a record written before this field existed simply has none.
+                rec["first_review_reach"] = float(lo)
         cov.append([lo, int(rec["updated_ts"])])
         rec["covered"] = cov
     stack = list(rec.get("stack") or [])
@@ -2982,6 +2996,16 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             if w not in joined:
                 joined.append(w)
         parent["covered"] = joined
+        reaches = [
+            v
+            for v in (
+                _finite_ts(parent.get("first_review_reach")),
+                _finite_ts(rec.get("first_review_reach")),
+            )
+            if v is not None and v > 0
+        ]
+        if reaches:
+            parent["first_review_reach"] = min(reaches)
     _fb_verdict, _fb_beats = _feedback_verdict(
         _filed_text if getattr(args, "feedback", None) is not None else None
     )

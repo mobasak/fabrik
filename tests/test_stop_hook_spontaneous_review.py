@@ -368,7 +368,11 @@ def test_the_review_family_set_is_not_a_fifth_hand_kept_copy():
     hook side too; it gets the same binding rather than a new copy to drift."""
     import importlib.util
 
-    spec = importlib.util.spec_from_file_location("cr", "/opt/fabrik/scripts/command_run.py")
+    # REPO-relative, never the absolute path: this repo runs concurrent worktrees and every
+    # mutation probe runs on a COPY, and an absolute path silently binds the LIVE file instead of
+    # the tree under test — a seat proved the drift it exists to catch stays green that way
+    # (round 1; its sibling grader one page up already used `REPO`).
+    spec = importlib.util.spec_from_file_location("cr", REPO / "scripts" / "command_run.py")
     cr = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(cr)
     assert fgs._REVIEW_FAMILY == cr.REVIEW_FAMILY
@@ -461,6 +465,25 @@ def test_the_sixth_cause_counts_through_one_composed_reader(monkeypatch):
     assert fgs._unreviewed_spontaneous(rec, authored, 9e9) == 0
     # no record at all: every edit above the floor is spontaneous
     assert fgs._unreviewed_spontaneous(None, authored, 100.0) == 4
+    # the THIRD filter needs a `done` record to be anything but a no-op — with the fixture above
+    # left `running`, deleting the `windows += _first_review_base_case(...)` line survived this
+    # node while its sibling test caught it, so the docstring's "all three" was true of the reader
+    # and not of this test (round 1, a seat's mutant). This leg makes the claim its own.
+    closed = {
+        **rec,
+        "state": "done",
+        "updated_ts": 5600,
+        "covered": [[5000, 5600]],
+        "surface": "",
+        "first_review_reach": 5000.0,
+    }
+    assert fgs._unreviewed_spontaneous(closed, {"scripts/before.py": 3000}, 100.0) == 0
+    assert (
+        fgs._unreviewed_spontaneous(
+            {**closed, "covered": [[90, 200], [5000, 5600]]}, {"scripts/before.py": 3000}, 100.0
+        )
+        == 1
+    ), "with an earlier run in the ledger the base case stands down — the writer's job"
 
 
 def test_the_first_review_of_a_session_can_still_cover_work_that_preceded_it(monkeypatch):
@@ -490,6 +513,7 @@ def test_the_first_review_of_a_session_can_still_cover_work_that_preceded_it(mon
         "started_epoch": start,
         "updated_ts": int(close),
         "covered": [[int(start), int(close)]],  # what the writer appends with an empty ledger
+        "first_review_reach": start,  # ...and the durable marker it sets beside it (F5)
     }
     assert fgs._unreviewed_spontaneous(done, authored, base) == 0, (
         "the first review of a session covers the session up to its own start"
@@ -498,12 +522,28 @@ def test_the_first_review_of_a_session_can_still_cover_work_that_preceded_it(mon
     assert fgs._unreviewed_spontaneous(done, {"scripts/x.py": int(base) - 5}, base) == 0
     assert fgs._this_sessions_edits({"scripts/x.py": int(base) - 5}, base) == {}
 
-    # the three ways this base case must NOT fire:
-    assert fgs._unreviewed_spontaneous({**done, "state": "blocked"}, authored, base) == 1, (
-        "F1: a blocked or handoff close certifies nothing — the laundering hatch stays shut"
+    # WHO decides: the marker is set by `command_run.py` and only for a review-family `done` with
+    # nothing to reach back to — so "a blocked close certifies nothing" (F1) and "only a review's
+    # contract is this session's work" are the WRITER's guarantees now, graded in
+    # tests/test_command_run.py::test_only_a_first_review_done_close_records_a_reach. This side's
+    # job is the complement: NO marker, NO base case, whatever the record says about itself.
+    assert (
+        fgs._first_review_base_case(
+            {k: v for k, v in done.items() if k != "first_review_reach"}, base
+        )
+        == []
     )
-    assert fgs._unreviewed_spontaneous({**done, "command": "fabrik-spec"}, authored, base) == 1, (
-        "only a review's contract is 'this session's work'"
+    assert (
+        fgs._unreviewed_spontaneous(
+            {**done, "state": "blocked", "first_review_reach": None}, authored, base
+        )
+        == 1
+    )
+    assert (
+        fgs._unreviewed_spontaneous(
+            {**done, "command": "fabrik-spec", "first_review_reach": None}, authored, base
+        )
+        == 1
     )
     # a ledger with an earlier run is the WRITER's reach-back to do; this side stands down. The
     # fixture hand-writes the pair WITHOUT the reach-back the writer would have applied, so an edit
@@ -577,7 +617,9 @@ def test_the_surface_is_parsed_once_per_stop_not_once_per_authored_file(monkeypa
     the only thing that can see a hoist."""
     calls = []
     real = fgs._surface_reviewed
-    monkeypatch.setattr(fgs, "_surface_reviewed", lambda r, a: (calls.append(1), real(r, a))[1])
+    monkeypatch.setattr(
+        fgs, "_surface_reviewed", lambda r, a, s=None: (calls.append(1), real(r, a, s))[1]
+    )
     rec = {
         "command": "fabrik-review",
         "state": "running",
@@ -628,6 +670,7 @@ def test_the_base_case_without_a_baseline_is_bounded_by_the_ledger_epoch():
         "started_epoch": e + 900_000,
         "updated_ts": int(e + 900_100),
         "covered": [[int(e + 900_000), int(e + 900_100)]],
+        "first_review_reach": e + 900_000,
     }
     lo, hi = fgs._first_review_base_case(done, fgs._sixth_cause_floor(0.0))[0]
     assert lo == e, "the fallback floor IS the ledger epoch, never 0"
@@ -669,3 +712,75 @@ def test_a_corrupt_record_field_never_raises_out_of_the_sixth_cause():
     assert fgs._seq({"stack": [{"a": 1}]}, "stack") == [{"a": 1}]
     assert fgs._seq({"stack": {"a": 1}}, "stack") == [], "a dict is not iterated as its keys"
     assert fgs._seq(None, "stack") == [] and fgs._seq("x", "stack") == []
+
+
+def test_an_abandoned_running_review_stops_exempting_its_surface(monkeypatch):
+    """Round 1, seat finding F2: `_review_window` refuses a STALE running record — "an abandoned
+    `start` must not buy immunity after the fifth cause has failed open on it" (A-F3/P1-2) — but
+    `_surface_reviewed` gated only on `state`, and `main` feeds it `_run_record_raw`, which is
+    freshness-blind by construction. So an abandoned `/fabrik-review-scoped --surface
+    scripts/foo.py` exempted that file for the record's whole life while the window it would have
+    granted was correctly refused. The commit's own test enumerated three ways this must not
+    launder; stale was the untested fourth."""
+    # above `_LEDGER_EPOCH`, or `_this_sessions_edits` drops the edit and the count is 0 for a
+    # reason that has nothing to do with the exemption under test
+    e = fgs._LEDGER_EPOCH
+    rec = {
+        "command": "fabrik-review-scoped",
+        "state": "running",
+        "started_epoch": e + 9000,
+        "surface": "scripts/foo.py",
+    }
+    authored = {"scripts/foo.py": int(e + 100)}
+    assert fgs._surface_reviewed(rec, authored, None) == {"scripts/foo.py"}, "no sid: unchanged"
+    monkeypatch.setattr(fgs, "_stale_bound_s", lambda: 43200.0)
+    monkeypatch.setattr(fgs, "_run_record", lambda _sid: rec)
+    assert fgs._surface_reviewed(rec, authored, "sid") == {"scripts/foo.py"}, "fresh: exempt"
+    monkeypatch.setattr(fgs, "_run_record", lambda _sid: None)
+    assert fgs._surface_reviewed(rec, authored, "sid") == set(), "stale: the immunity is gone"
+    assert fgs._unreviewed_spontaneous(rec, authored, 0.0, "sid") == 1
+    # the operator's COMMAND_RUN_STALE_H<=0 hatch must not ARM this either — no bound, no test
+    monkeypatch.setattr(fgs, "_stale_bound_s", lambda: None)
+    assert fgs._surface_reviewed(rec, authored, "sid") == {"scripts/foo.py"}
+
+
+def test_a_surface_written_as_a_sentence_still_exempts_its_paths():
+    """Round 1, seat finding F7: `.` is a path character, so `"the delta over scripts/foo.py."`
+    kept the full stop on the token and the exemption silently failed — a false BLOCK, which is
+    the thing T5.2 exists to end."""
+    authored = {"scripts/foo.py": 1, "docs/a.md": 2}
+    for surface in (
+        "the delta over scripts/foo.py.",
+        "scripts/foo.py, docs/a.md;",
+        "scripts/foo.py: the hook",
+        "(scripts/foo.py)",
+    ):
+        rec = {
+            "command": "fabrik-review",
+            "state": "running",
+            "started_epoch": 1,
+            "surface": surface,
+        }
+        got = fgs._surface_reviewed(rec, authored)
+        assert "scripts/foo.py" in got, (surface, got)
+
+
+def test_a_corrupt_ledger_still_stands_the_base_case_down():
+    """Round 1, seat finding F9: the stand-down loop SKIPPED any pair it could not read, so a
+    record whose ledger is junk got the widest window in the file — `(floor, started)` — on the
+    strength of a record we cannot read. A corrupt pair is still EVIDENCE of an earlier run.
+    F10: the floor is now read through `_finite`; `float(None)` used to raise here."""
+    base = {
+        "command": "fabrik-review",
+        "state": "done",
+        "started_epoch": 9000,
+        "updated_ts": 9100,
+        "first_review_reach": 9000.0,
+    }
+    assert fgs._first_review_base_case({**base, "covered": [[9000, 9100]]}, 1000.0) == [
+        (1000.0, 9000)
+    ]
+    for junk in ([[1, 2, 3]], [[True, 2]], [[float("nan"), 2]], ["x"], [[9000, 9100], "x"]):
+        assert fgs._first_review_base_case({**base, "covered": junk}, 1000.0) == [], junk
+    for floor in (None, float("nan"), float("inf"), "x", [1]):
+        assert fgs._first_review_base_case({**base, "covered": [[9000, 9100]]}, floor) == [], floor
