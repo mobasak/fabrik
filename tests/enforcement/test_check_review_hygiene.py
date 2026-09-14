@@ -1342,8 +1342,11 @@ def test_a_comment_closing_line_never_joins_the_table_or_fence_run_below_it(tmp_
     f.write_text("# R\n\n<!-- opens\ncloses --> the widget lives on\nafter\n", encoding="utf-8")
     sweep = crh.scan(surfaces=[f], phrases=["the widget lives"])
     assert [h.line for h in sweep.hits if h.cls == "stale-phrase"] == [4], sweep.hits
-    # …and the STATED COST beside it: as a receipt, the prose classes do not run at all
+    # …and the STATED COST beside it: as a receipt, no PROSE class runs — but `--symbol` still
+    # counts over the same text, which is why the cost names the classes and not the path
     assert crh.scan(receipts=[f], phrases=["the widget lives"]).hits == []
+    assert [h.cls for h in crh.scan(receipts=[f], symbols=["NOSUCHSYMBOL"]).hits] == ["dead-symbol"]
+    assert crh.scan(receipts=[f], symbols=["widget"]).hits == []
 
 
 def test_a_label_with_two_surfaces_is_refused_and_a_repeated_selector_dedupes(tmp_path):

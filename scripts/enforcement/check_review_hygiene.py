@@ -228,8 +228,9 @@ def _blank_quoted(lines: list[str]) -> list[str]:
             # the SURFACE path by the prose classes, which read the raw text: `stale-phrase`,
             # `claim` and `template-residue` all report the tail with the line blanked here.
             # STATED COST: a file given only as `--receipt` — which is what the gate's own
-            # self-selection passes — runs the two TABLE classes and nothing else, so the tail's
-            # prose is unreported there, blanked or not (round 16).
+            # self-selection passes — is graded by the two TABLE classes over its rows, and by
+            # `--symbol` over its text; no PROSE class sees it, so the tail's prose is unreported
+            # there, blanked or not (round 17).
             out.append("")
             j = _mask_code_spans(ln).find("-->")
             if j >= 0:
@@ -711,7 +712,9 @@ def _comment_cuts(ln: str) -> tuple[list[tuple[int, int]], int]:
     neutralisation, on the raw line it is about to rewrite, replacing every `<!--` from the
     opener on (a span's marker included — the line is literal text by then, and a second opener
     left standing would re-open the block); and the heading-line prefilter, which strips closed
-    comments off `_blank_quoted`'s BLANKED copy so a span-led line is not a heading. The heading
+    comments off `_blank_quoted`'s blanked copy of the NEUTRALISED lines (blanking the raw ones
+    would swallow the file from any unterminated opener to EOF, which is why the neutralisation
+    runs first) so a span-led line is not a heading. The heading
     COMPARE reads the raw `lines[i]`, but through this mask — `_heading_key` calls it."""
     masked = _mask_code_spans(ln)
     closed = [(m.start(), m.end()) for m in _CLOSED_COMMENT.finditer(masked)]
