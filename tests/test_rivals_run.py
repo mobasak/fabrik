@@ -1121,3 +1121,360 @@ def test_greenfield_match_section_says_the_us_column_was_not_evaluated():
     # a real `us` run carries the name the driver writes into the dossier — no caveat (review of
     # 66aa32a5: the dossier never had a "us" key, so the first version fired on EVERY run)
     assert "NOT EVALUATED" not in rr.render_dossier_md({**d, "us_name": "Fabrik"})
+
+
+# ── the vendored key autoload (fabrik-lib 01M25GEXPY, measured 2026-09-14) ──────────────────────
+# `load_env` used to come from `libs.subagents`, a module being deleted fleet-wide while this
+# script stays synced to every repo — so a repo that finished the delete ran `/fabrik-rivals` with
+# three of four search providers holding no credential, fail-open, one stdout note. Reproduced in
+# /opt/web-ecommerce-factory: both import paths raise ModuleNotFoundError and all four keys are
+# unset. These four pin the resolution RULE the vendored copy has to preserve exactly; each was
+# proven by a mutant (reverse the source order · drop the real-env guard · uncurate the key list).
+
+
+@pytest.fixture()
+def env_tree(tmp_path, monkeypatch):
+    """A repo with its own `.env` and a fleet file under a fake `$XDG_CONFIG_HOME`."""
+    (tmp_path / "repo").mkdir()
+    (tmp_path / "cfg" / "fabrik").mkdir(parents=True)
+    (tmp_path / "repo" / ".env").write_text(
+        'EXA_API_KEY="from-project"\nexport BRAVE_API_KEY=from-project-export\n# comment\nmalformed\n'
+    )
+    (tmp_path / "cfg" / "fabrik" / "subagents.env").write_text(
+        "EXA_API_KEY=from-fleet\nFIRECRAWL_API_KEY=from-fleet\nDATABASE_URL=a-projects-own-secret\n"
+    )
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    # ⚠️ HOME too, not just XDG: `_shared_env_path` falls back to `Path.home()`, and the real
+    # `~/.config/fabrik/subagents.env` on a developer box holds LIVE production keys. If the XDG
+    # override ever slips — a typo, a fixture-ordering change — these tests would read and re-export
+    # real secrets instead of failing loudly with "no such file".
+    monkeypatch.setenv("HOME", str(tmp_path / "fake-home"))
+    monkeypatch.delenv("SUBAGENTS_ENV_FILE", raising=False)
+    for key in (
+        "EXA_API_KEY",
+        "BRAVE_API_KEY",
+        "FIRECRAWL_API_KEY",
+        "CONTEXT7_API_KEY",
+        "DATABASE_URL",
+    ):
+        monkeypatch.delenv(key, raising=False)
+    # ⚠️ `delenv(raising=False)` records NOTHING when the key is already absent, so the values
+    # `load_env` then writes with a bare `os.environ[k] = …` survive the test and leak fake keys into
+    # the rest of the session (measured: three keys still set at pytest_sessionfinish). The finalizer
+    # is what actually cleans up; the same class `tests/conftest.py` pins for the box-state env vars.
+    yield tmp_path
+    import os
+
+    for key in (*rr._ENV_KEYS, "DATABASE_URL"):
+        os.environ.pop(key, None)
+
+
+def test_the_projects_own_dotenv_wins_over_the_fleet_file(env_tree, monkeypatch):
+    """A repo that overrides a shared key in its own `.env` must keep that override — the whole
+    reason the fleet file is a FALLBACK and not the source of truth."""
+    rr.load_env(str(env_tree / "repo"))
+    import os
+
+    assert os.environ["EXA_API_KEY"] == "from-project"
+    assert os.environ["FIRECRAWL_API_KEY"] == "from-fleet"  # the fleet file fills what it omits
+    # the fixture writes this one as `export BRAVE_API_KEY=…`. Without the prefix strip the key
+    # parses as `export BRAVE_API_KEY`, fails isidentifier(), and EVERY key in an export-style
+    # `.env` vanishes silently — the fixture has carried that line since day one and nothing read it
+    assert os.environ["BRAVE_API_KEY"] == "from-project-export"
+
+
+def test_a_key_already_in_the_real_env_is_never_clobbered(env_tree, monkeypatch):
+    """`export BRAVE_API_KEY=...` before the run — or a fabrik-injected deploy var — outranks every
+    file. Clobbering it is how a hub-driven run silently used the wrong project's key."""
+    monkeypatch.setenv("BRAVE_API_KEY", "already-exported")
+    rr.load_env(str(env_tree / "repo"))
+    import os
+
+    assert os.environ["BRAVE_API_KEY"] == "already-exported"
+
+
+def test_only_the_curated_search_keys_are_loaded(env_tree):
+    """A rivals scan must never pull a project's unrelated secrets into the process env — the fleet
+    file and a project `.env` both hold far more than search keys."""
+    rr.load_env(str(env_tree / "repo"))
+    import os
+
+    assert os.environ.get("DATABASE_URL") is None
+
+
+def test_load_env_never_raises_on_a_bad_repo_or_a_missing_file(tmp_path, monkeypatch):
+    """Fail-open is a contract the caller relies on: the autoload is a convenience and must never
+    block a run whose keys are already exported."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "does-not-exist"))
+    assert rr.load_env(str(tmp_path / "nope" / "missing")) == []
+    assert rr.load_env("") == []
+
+
+def test_a_bad_repo_never_falls_back_to_the_current_directory(tmp_path, monkeypatch):
+    """The invariant, not the return value: an empty or non-existent `repo` must NOT walk up from
+    the CWD and load some other tree's `.env`. `Path("").resolve()` is the current directory, so the
+    naive form silently loads the wrong project's keys while preflight reports keys present — the
+    same wrong-keys-no-warning failure the retired module's cwd autoload caused here."""
+    import os
+
+    (tmp_path / "cwd-tree").mkdir()
+    (tmp_path / "cwd-tree" / ".env").write_text("EXA_API_KEY=WRONG-REPO\n")
+    (tmp_path / "cfg" / "fabrik").mkdir(parents=True)
+    (tmp_path / "cfg" / "fabrik" / "subagents.env").write_text("EXA_API_KEY=from-fleet\n")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    monkeypatch.delenv("SUBAGENTS_ENV_FILE", raising=False)
+    monkeypatch.delenv("EXA_API_KEY", raising=False)
+    monkeypatch.chdir(tmp_path / "cwd-tree")
+    # all four CWD-relative spellings, not just the empty one: ".", ".." and a bare relative name each
+    # resolve against the current directory exactly as "" does, and an is_dir() check passes all three
+    (tmp_path / "cwd-tree" / "sub").mkdir()
+    for spelling in ("", ".", "..", "sub"):
+        monkeypatch.delenv("EXA_API_KEY", raising=False)
+        rr.load_env(spelling)
+        assert os.environ["EXA_API_KEY"] == "from-fleet", f"{spelling!r} leaked the cwd tree's .env"
+
+
+def test_the_shared_env_file_override_is_honoured(env_tree, monkeypatch):
+    """`$SUBAGENTS_ENV_FILE` is the documented escape hatch, and the standalone fabrik-lib modules
+    resolve the same variable — a divergence here would split the fleet's key resolution in two."""
+    monkeypatch.setenv("SUBAGENTS_ENV_FILE", str(env_tree / "cfg" / "fabrik" / "subagents.env"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(env_tree / "elsewhere"))
+    rr.load_env(str(env_tree / "repo"))
+    import os
+
+    assert os.environ["FIRECRAWL_API_KEY"] == "from-fleet"
+
+
+# ── parser parity with the canonical `_dotenv` (author-blind review, 2026-09-14) ────────────────
+# The first vendored parser was hand-rolled and diverged from `libs/subagents/_dotenv.py` in 12 of
+# 33 driven cases. Three corrupted a credential SILENTLY — worse than the missing-module bug the
+# vendoring exists to fix, because `_preflight` only checks truthiness, so a corrupted key reads as
+# present and the only symptom is a 401. These pin the three.
+
+
+def test_an_inline_comment_never_becomes_part_of_the_credential(tmp_path, monkeypatch):
+    """`EXA_API_KEY=sk-abc # rotate monthly` is an ordinary human habit. Shipping the comment as part
+    of the key sends `sk-abc # rotate monthly` as a Bearer token: a 401 with no diagnostic, while
+    preflight reports the key present because the string is non-empty."""
+    import os
+
+    (tmp_path / "repo").mkdir()
+    (tmp_path / "repo" / ".env").write_text(
+        "EXA_API_KEY=sk-abc # rotate monthly\n"
+        'BRAVE_API_KEY="sk-brave" # quoted too\n'
+        "FIRECRAWL_API_KEY=pa#ss\n"
+        "CONTEXT7_API_KEY='sk-single'\n"  # single quotes stripped too, not only double
+    )
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "no-fleet-file"))
+    monkeypatch.setenv("HOME", str(tmp_path / "fake-home"))
+    monkeypatch.delenv("SUBAGENTS_ENV_FILE", raising=False)
+    for key in ("EXA_API_KEY", "BRAVE_API_KEY", "FIRECRAWL_API_KEY", "CONTEXT7_API_KEY"):
+        monkeypatch.delenv(key, raising=False)
+    rr.load_env(str(tmp_path / "repo"))
+    assert os.environ["EXA_API_KEY"] == "sk-abc"
+    assert os.environ["BRAVE_API_KEY"] == "sk-brave"
+    assert (
+        os.environ["FIRECRAWL_API_KEY"] == "pa#ss"
+    )  # a `#` with no leading space is part of the value
+    assert os.environ["CONTEXT7_API_KEY"] == "sk-single"
+    # a value that is ENTIRELY a comment is EMPTY, never the comment text — otherwise the run sends
+    # `Authorization: Bearer # add the real one` and 401s while preflight reports the key present
+    placeholder = tmp_path / "repo" / "placeholder.env"
+    placeholder.write_text("EXA_API_KEY= # add the real one\n")
+    assert rr._env_file_values(placeholder) == {"EXA_API_KEY": ""}
+    for key in ("EXA_API_KEY", "BRAVE_API_KEY", "FIRECRAWL_API_KEY", "CONTEXT7_API_KEY"):
+        os.environ.pop(key, None)
+
+
+def test_a_utf8_bom_does_not_swallow_the_first_key(tmp_path, monkeypatch):
+    """A `.env` saved by a Windows editor starts with a BOM. Read as plain utf-8 it glues to the first
+    key, which then matches no curated name and is dropped in silence — the file visibly HAS the line."""
+    import os
+
+    (tmp_path / "repo").mkdir()
+    (tmp_path / "repo" / ".env").write_bytes(b"\xef\xbb\xbfEXA_API_KEY=realsecret123\n")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "no-fleet-file"))
+    monkeypatch.delenv("SUBAGENTS_ENV_FILE", raising=False)
+    monkeypatch.delenv("EXA_API_KEY", raising=False)
+    rr.load_env(str(tmp_path / "repo"))
+    assert os.environ["EXA_API_KEY"] == "realsecret123"
+
+
+def test_an_unterminated_quote_does_not_prefix_the_secret(tmp_path, monkeypatch):
+    """A dropped closing quote is a copy-paste accident. Leaving the opening `"` on the front produces
+    a non-empty, wrong credential — which preflight passes and the provider rejects."""
+    import os
+
+    (tmp_path / "repo").mkdir()
+    (tmp_path / "repo" / ".env").write_text(
+        'EXA_API_KEY="only-one-quote\n123KEY=junk\nA B=junk\n'  # junk keys must be dropped, not stored
+    )
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "no-fleet-file"))
+    monkeypatch.delenv("SUBAGENTS_ENV_FILE", raising=False)
+    monkeypatch.delenv("EXA_API_KEY", raising=False)
+    rr.load_env(str(tmp_path / "repo"))
+    assert os.environ["EXA_API_KEY"] == "only-one-quote"
+    # the canonical parser rejects any key that is not a Python identifier; parity matters because a
+    # junk key that survives could one day collide with a curated name added later
+    assert rr._env_file_values(tmp_path / "repo" / ".env") == {"EXA_API_KEY": "only-one-quote"}
+
+
+def test_an_explicitly_exported_empty_value_is_a_decision_and_is_kept(tmp_path, monkeypatch):
+    """`EXA_API_KEY= python scripts/rivals_run.py …` disables that leg on purpose. A falsy test
+    (`not os.getenv`) would overwrite it from a file; only `not in os.environ` respects it."""
+    import os
+
+    (tmp_path / "repo").mkdir()
+    (tmp_path / "repo" / ".env").write_text("EXA_API_KEY=file-value-must-not-apply\n")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "no-fleet-file"))
+    monkeypatch.delenv("SUBAGENTS_ENV_FILE", raising=False)
+    monkeypatch.setenv("EXA_API_KEY", "")
+    rr.load_env(str(tmp_path / "repo"))
+    assert os.environ["EXA_API_KEY"] == ""
+
+
+def test_the_returned_key_list_never_repeats_a_key(tmp_path, monkeypatch):
+    """A blank value in the project `.env` plus a real one in the fleet file used to set the key twice
+    and return it twice — `load_env` documents the list as the keys it set."""
+    (tmp_path / "repo").mkdir()
+    (tmp_path / "cfg" / "fabrik").mkdir(parents=True)
+    (tmp_path / "repo" / ".env").write_text("EXA_API_KEY=\n")
+    (tmp_path / "cfg" / "fabrik" / "subagents.env").write_text("EXA_API_KEY=from-fleet\n")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    monkeypatch.delenv("SUBAGENTS_ENV_FILE", raising=False)
+    monkeypatch.delenv("EXA_API_KEY", raising=False)
+    loaded = rr.load_env(str(tmp_path / "repo"))
+    assert loaded.count("EXA_API_KEY") == 1
+    import os
+
+    assert os.environ["EXA_API_KEY"] == "from-fleet"  # the blank must not MASK the real value
+    os.environ.pop("EXA_API_KEY", None)
+
+
+def test_every_search_leg_key_reaches_the_engine_config(monkeypatch):
+    """`WebToolsConfig` reads no environment of its own — whatever the driver omits, the leg never
+    sees. `brave_api_key` was omitted, so the FREE leg returned "BRAVE_API_KEY not set" on every run
+    while preflight reported the key present; under `--free-legs-only` that is the only live leg, so
+    the scan ended in zero competitors with the key exported the whole time."""
+    import sys
+
+    sys.path.insert(0, str(REPO / "libs"))
+    monkeypatch.setenv("EXA_API_KEY", "k-exa")
+    monkeypatch.setenv("BRAVE_API_KEY", "k-brave")
+    monkeypatch.setenv("FIRECRAWL_API_KEY", "k-fire")
+    cfg = rr._web_tools_config()
+    assert cfg.exa_api_key == "k-exa"
+    assert cfg.brave_api_key == "k-brave"
+    assert cfg.firecrawl_api_key == "k-fire"
+
+
+def test_the_brave_leg_actually_authenticates_with_that_config(monkeypatch):
+    """The invariant behind the previous test, executed against the real leg: with the key in the
+    environment, `a_brave_search` must not refuse for a missing key. No network — the guard it used
+    to trip returns before any client call."""
+    import asyncio
+    import sys
+
+    sys.path.insert(0, str(REPO / "libs"))
+    from web_tools import a_brave_search
+
+    monkeypatch.setenv("BRAVE_API_KEY", "k-brave")
+    result = asyncio.run(a_brave_search({"query": "x"}, config=rr._web_tools_config(), client=None))
+    assert result.error != "BRAVE_API_KEY not set"
+
+
+def test_an_absolute_but_nonexistent_repo_never_walks_up_into_a_foreign_tree(tmp_path, monkeypatch):
+    """The `is_absolute()` guard alone is not enough. A stale config value or a deleted subdirectory
+    gives an ABSOLUTE path that is not a directory; resolving and walking up from it lands in whatever
+    real project sits above and loads ITS `.env`. Found by a surviving mutant: dropping only the
+    `is_dir()` check kept every other grader green while leaking a foreign project's key."""
+    import os
+
+    (tmp_path / "some-other-project").mkdir()
+    (tmp_path / "some-other-project" / ".env").write_text("EXA_API_KEY=FOREIGN-PROJECT-LEAK\n")
+    (tmp_path / "cfg" / "fabrik").mkdir(parents=True)
+    (tmp_path / "cfg" / "fabrik" / "subagents.env").write_text("EXA_API_KEY=from-fleet\n")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    monkeypatch.setenv("HOME", str(tmp_path / "fake-home"))
+    monkeypatch.delenv("SUBAGENTS_ENV_FILE", raising=False)
+    monkeypatch.delenv("EXA_API_KEY", raising=False)
+    rr.load_env(str(tmp_path / "some-other-project" / "deleted-subdir" / "nested"))
+    assert os.environ["EXA_API_KEY"] == "from-fleet"
+    os.environ.pop("EXA_API_KEY", None)
+
+
+def test_only_the_nearest_dotenv_is_read_not_every_ancestor(tmp_path, monkeypatch):
+    """`load_env` documents "the project's nearest `.env` walking up" — it must STOP there. Without
+    the `break` a monorepo's root `.env` leaks into every sub-repo that has its own. Found by a
+    surviving mutant: no fixture nested two `.env` files at different depths, so removing the `break`
+    changed nothing any grader could see."""
+    import os
+
+    (tmp_path / "monorepo" / "subrepo").mkdir(parents=True)
+    (tmp_path / "monorepo" / ".env").write_text("FIRECRAWL_API_KEY=from-grandparent-leak\n")
+    (tmp_path / "monorepo" / "subrepo" / ".env").write_text("BRAVE_API_KEY=from-subrepo\n")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "no-fleet-file"))
+    monkeypatch.setenv("HOME", str(tmp_path / "fake-home"))
+    monkeypatch.delenv("SUBAGENTS_ENV_FILE", raising=False)
+    for key in ("BRAVE_API_KEY", "FIRECRAWL_API_KEY"):
+        monkeypatch.delenv(key, raising=False)
+    rr.load_env(str(tmp_path / "monorepo" / "subrepo"))
+    assert os.environ["BRAVE_API_KEY"] == "from-subrepo"
+    assert "FIRECRAWL_API_KEY" not in os.environ  # the grandparent's key must NOT leak in
+    os.environ.pop("BRAVE_API_KEY", None)
+
+
+def test_the_curated_key_list_is_exactly_the_four_the_web_surface_declares():
+    """A silent drop from `_ENV_KEYS` is the regression this vendored loader exists to catch, and it
+    was invisible to every other grader: removing `CONTEXT7_API_KEY` kept them all green."""
+    assert rr._ENV_KEYS == (
+        "EXA_API_KEY",
+        "BRAVE_API_KEY",
+        "FIRECRAWL_API_KEY",
+        "CONTEXT7_API_KEY",
+    )
+
+
+def test_load_env_survives_an_unresolvable_home(tmp_path, monkeypatch):
+    """`Path.home()` raises RuntimeError — NOT an OSError — with no HOME and no passwd entry: a cron
+    with a stripped env, a systemd unit, a container. It is called BEFORE the apply loop, so an
+    unguarded raise takes the project's own `.env` down with it and a repo holding all three keys
+    locally gets none of them. The fix shipped without this guard; a mutant narrowing the catch to
+    KeyError alone kept all 124 tests green."""
+    import os
+    import types
+
+    (tmp_path / "repo").mkdir()
+    (tmp_path / "repo" / ".env").write_text("EXA_API_KEY=project-key\n")
+    monkeypatch.delenv("HOME", raising=False)
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    monkeypatch.delenv("SUBAGENTS_ENV_FILE", raising=False)
+    monkeypatch.delenv("EXA_API_KEY", raising=False)
+    fake_pwd = types.ModuleType("pwd")
+    fake_pwd.getpwuid = lambda _uid: (_ for _ in ()).throw(KeyError("no passwd entry"))
+    monkeypatch.setitem(sys.modules, "pwd", fake_pwd)
+    with pytest.raises(RuntimeError):  # the precondition, asserted rather than assumed
+        Path.home()
+    assert rr._shared_env_path() is None
+    rr.load_env(str(tmp_path / "repo"))
+    assert os.environ["EXA_API_KEY"] == "project-key"
+    os.environ.pop("EXA_API_KEY", None)
+
+
+def test_no_web_tools_config_key_field_is_left_unpassed(monkeypatch):
+    """The CLASS, not the instance. `brave_api_key` went missing once and nothing could see it; a
+    grader that hard-codes the same three names would miss the next field the same way. Derive the
+    expectation from the dataclass so a new key field cannot ship unpassed."""
+    import dataclasses
+    import sys as _sys
+
+    _sys.path.insert(0, str(REPO / "libs"))
+    from web_tools import WebToolsConfig
+
+    key_fields = [f.name for f in dataclasses.fields(WebToolsConfig) if f.name.endswith("_api_key")]
+    assert key_fields, "no *_api_key fields found — the probe itself is broken"
+    for field in key_fields:
+        monkeypatch.setenv(field.removesuffix("_api_key").upper() + "_API_KEY", f"k-{field}")
+    cfg = rr._web_tools_config()
+    unset = [f for f in key_fields if not getattr(cfg, f)]
+    assert not unset, f"{unset} declared by WebToolsConfig but never passed by _web_tools_config"

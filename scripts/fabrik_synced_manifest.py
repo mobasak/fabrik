@@ -51,8 +51,12 @@ CORE_SCRIPTS = [
     "mail.py",  # fabrik-mail sender/store — fleet-consumed by /fabrik-upstream (send/list/read/claim/ack/requeue/digest/should-reply)
     "rivals_run.py",  # /fabrik-rivals driver — SYNCED so EVERY repo runs the scan itself. It
     # resolves the engine local-first then falls back to the hub's vendored copy (a READ, which the
-    # cross-repo hard stop does not govern — that rule is about create/edit/COMMIT). Keys already
-    # reach every project via the synced libs/subagents autoloader, so nothing else is needed.
+    # cross-repo hard stop does not govern — that rule is about create/edit/COMMIT). Keys reach every
+    # project through the driver's OWN vendored `load_env` (real env → the calling repo's nearest
+    # `.env` → `~/.config/fabrik/subagents.env`) — no module to import, nothing else needed. It used
+    # to say the synced `libs/subagents` autoloader covered this; that module is RETIRED (see
+    # RETIRED_VENDORED_DIRS below), and the stale premise is what let /fabrik-rivals run with three
+    # of four providers unauthenticated in every repo past the delete.
     "command_run.py",  # COMMAND RUN-RECORD: the pinned `RUN:` line + class ledger; the Stop hook's 5th cause reads its state
     "thread_anchor.py",  # THREAD ANCHORS: durable NEXT:-line memory — the Stop hook harvests, SessionStart/UserPromptSubmit re-inject (settings.json references it, so it must travel with settings.json)
 ]

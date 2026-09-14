@@ -39,7 +39,10 @@ Two things make that work. `scripts/rivals_run.py` is a **`CORE_SCRIPT`**
 every new one. And it resolves the engine **local-first, then the hub's single vendored copy**
 (`rivals_run.py::_resolve_engine`) — a project imports `/opt/fabrik/libs/competitor_intel` rather than
 vendoring `deep-research` + `web-tools` + `competitor-intel` into all ~46 repos. Search keys reach
-every project through the synced `libs/subagents` autoloader. If the engine is in neither place the
+every project through the driver's own vendored autoload, which depends on no module: the real env
+wins, then the NEAREST `.env` walking up from the repo (so a `.env` at a shared ancestor such as
+`/opt` would apply to any project under it that has none of its own — neither exists today), then
+`~/.config/fabrik/subagents.env`. If the engine is in neither place the
 driver says so and names the fix; it never degrades to a hand-off.
 
 ⚠️ **An earlier version of this command split the work across two repos** — a project filed a brief by
@@ -135,9 +138,19 @@ on the next re-vendor. Every path verifies `job_id` first (the engine discards a
 file, and mutating one would corrupt an unrelated scan) and fails **soft** — a checkpoint problem must
 never cost a paid run.
 
-The key autoload itself stays **fail-open but never silent**: if `libs.subagents.load_env` is
-unavailable the driver prints a `note:` and relies on the ambient environment, rather than swallowing
-the failure. Swallowing it would be the same diagnosability gap this command filed upstream against
+The key autoload is vendored into the driver, so it cannot go missing the way `libs.subagents` did —
+that module is being deleted fleet-wide, and until 2026-09-14 a repo past the delete ran this scan
+with three of four providers holding no credential. Finding NO keys is **silent by design**: the
+loader sets what it finds and returns, and the thing that speaks is `_preflight`, which raises a
+`WIRING ERROR` naming every missing key BEFORE anything is spent. Do not look for a `note:` in the
+normal missing-key case — there is none, and there should not be. The one `note:` the loader does
+print covers a caller passing an empty or non-existent repo path; it exists so a future caller cannot
+silently get some other tree's keys. ⚠️ It does NOT cover running the HUB's copy of the script from
+another repo: `REPO` is derived from `__file__`, so `python /opt/fabrik/scripts/rivals_run.py` inside
+project P reads the HUB's `.env` and writes its checkpoint under `/opt/fabrik/.tmp` while preflight
+calls it repo-local (reproduced 2026-09-14). Run each repo's OWN synced copy — the script is synced
+to every repo precisely so that is always possible — and treat a hub path in the command line as the
+wiring bug it is. Swallowing it would be the same diagnosability gap this command filed upstream against
 the engine's `_safe_research`, which logs a stage label and not the cause.
 
 ### The LLM arity trap (found live, filed upstream)

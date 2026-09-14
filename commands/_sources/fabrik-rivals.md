@@ -14,8 +14,10 @@ the hand-off into `/fabrik-spec`.
 
 **Run it from ANY repo — there is no mode to pick and no hand-off.** `scripts/rivals_run.py` is
 fleet-synced, so every project already has it, and it resolves the engine **local-first, then the
-hub's single vendored copy**. The search keys already reach every project through the synced
-`libs/subagents` autoloader. Every artifact it writes lands in the CALLING repo.
+hub's single vendored copy**. The search keys reach every project through the driver's OWN vendored
+key autoload — the real env, then the nearest `.env` walking up from the repo, then the fleet file
+`~/.config/fabrik/subagents.env` — with no module to import. Every artifact it writes lands in the
+CALLING repo.
 
 ```
 python scripts/rivals_run.py --market "<market>" --product-type <type> [--us-name X | --greenfield]

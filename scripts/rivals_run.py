@@ -28,9 +28,11 @@ The LLM is `claude -p` — SUBSCRIPTION-billed, never a metered API and never a 
 dispatch. The only metered spend left is the SEARCH legs (Exa/Firecrawl); `brave` is free, so
 `--free-legs-only` runs the whole scan at zero marginal cost with thinner discovery.
 
-Search keys are read from the environment ONLY, via `libs.subagents.load_env` (the fleet's curated
-autoload already carries `EXA_API_KEY`, `BRAVE_API_KEY`, `FIRECRAWL_API_KEY`). Never prompt for a
-key, never hardcode one.
+Search keys are read from the environment ONLY, by this script's own vendored `load_env`: the real
+env wins, then the calling repo's nearest `.env`, then the fleet file
+`~/.config/fabrik/subagents.env` (`$SUBAGENTS_ENV_FILE` / `$XDG_CONFIG_HOME` override it), which is
+where `EXA_API_KEY`, `BRAVE_API_KEY` and `FIRECRAWL_API_KEY` normally live. Never prompt for a key,
+never hardcode one.
 
 Usage (see `/fabrik-rivals` for the surrounding contract):
 
@@ -47,12 +49,174 @@ import asyncio
 import datetime as _dt
 import json
 import os
+import re
 import sys
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
 REPO = Path(__file__).resolve().parent.parent
+
+# ── KEY AUTOLOAD, VENDORED (fabrik-lib 01M25GEXPY, measured 2026-09-14) ─────────────────────────
+# This used to `from libs.subagents import load_env`. That module is being DELETED fleet-wide, and
+# this script is synced to every repo — so in a repo that finished the delete the import failed,
+# the caller printed one stdout note, and `/fabrik-rivals` ran with THREE OF FOUR search providers
+# holding no credential. Reproduced in /opt/web-ecommerce-factory on 2026-09-14: both import paths
+# raise ModuleNotFoundError and every key is unset in the process env. The curated list below is
+# what THIS script needs — the three search legs plus Context7; `OPENROUTER_API_KEY` is deliberately
+# NOT here, because the LLM is `claude -p` (subscription) and no code path in this file reads it.
+#
+# The keys themselves are NOT going away — `~/.config/fabrik/subagents.env` is fleet infrastructure
+# and the documented home for a key a project should not duplicate. So this vendors the resolution
+# RULE, byte-for-byte in behaviour, and drops the dependency: real env wins, then the project's own
+# `.env` (nearest, walking up), then the fleet file. Fail-open, never raises, curated keys only —
+# a rivals scan must never pull a project's DB URL or Stripe key into the process env.
+# The three search legs, plus CONTEXT7 — which no rivals leg reads today (`docs_lookup` is never
+# wired into `Deps`), carried because the shared `web_tools` surface declares it and a curated
+# list that drifts from that surface is how a key goes missing the next time a leg is added.
+_ENV_KEYS = ("EXA_API_KEY", "BRAVE_API_KEY", "FIRECRAWL_API_KEY", "CONTEXT7_API_KEY")
+
+
+def _env_file_values(path: Path) -> dict:
+    """Parse `KEY=VALUE` lines — a faithful port of `libs/subagents/_dotenv.py::_parse_env_text`, not a
+    re-implementation. A first pass here was hand-rolled and diverged from the canonical rule in 12 of
+    33 cases an author-blind reviewer drove; three of them corrupted credentials SILENTLY, which is
+    worse than the missing-module bug this vendoring exists to fix:
+      · `KEY=sk-abc # rotate monthly` shipped the comment as part of the key — and `_preflight`'s
+        truthiness check then reported that key PRESENT, so the only symptom was a 401;
+      · a UTF-8 BOM from a Windows editor glued itself to the first key, which then matched no curated
+        name and was dropped in silence (`utf-8-sig` is why the canonical reader uses it);
+      · an unterminated quote left a literal `"` on the front of the secret.
+    Keep this and the canonical function byte-identical in behaviour; if one changes, change both.
+    A malformed line is skipped, never raised."""
+    out: dict = {}
+    try:
+        # utf-8-sig exactly as the canonical reader: strips a leading BOM instead of gluing it to the
+        # first key. An undecodable file is dropped WHOLE rather than half-read — a half-read
+        # credential file is the shape that yields a plausible-but-wrong key.
+        text = path.read_text(encoding="utf-8-sig")
+    except (OSError, UnicodeDecodeError):
+        return out
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[len("export ") :].lstrip()
+        key, sep, val = line.partition("=")
+        if not sep:
+            continue
+        key = key.strip()
+        if not key.isidentifier():  # guards against `A B=1` and other junk
+            continue
+        val = val.strip()
+        if val[:1] in ("'", '"'):
+            # quoted: content up to the matching close quote, so an inline comment AFTER the close is
+            # discarded while a `#` INSIDE the quotes survives (a valid secret character).
+            # Unterminated → best-effort drop the opening quote.
+            close = val.find(val[0], 1)
+            val = val[1:close] if close != -1 else val[1:]
+        elif val.startswith("#"):
+            # the value is ENTIRELY a comment (`KEY= # placeholder`) — the user commented it out.
+            # Treat as empty so the truthiness guard skips it, rather than sending a bogus
+            # `Authorization: Bearer # placeholder`.
+            val = ""
+        else:
+            # unquoted: strip a trailing inline comment only when whitespace precedes the `#`, so a
+            # `#` mid-value (a DSN query, a password) stays intact.
+            m = re.search(r"\s#", val)
+            if m:
+                val = val[: m.start()]
+            val = val.rstrip()
+        out[key] = val
+    return out
+
+
+def _shared_env_path() -> Path | None:
+    """`$SUBAGENTS_ENV_FILE`, else `$XDG_CONFIG_HOME/fabrik/subagents.env`, else the default under
+    `~/.config` — the rule the retired module used, so a key set once keeps serving every repo.
+    ⚠️ ONE DELIBERATE DIVERGENCE from the standalone fabrik-lib copies (`libs/alerting/_dotenv.py`):
+    the override is `expanduser()`-ed here, so `SUBAGENTS_ENV_FILE=~/.config/…` resolves instead of
+    silently missing a file whose path begins with a literal `~`. Better, but NOT the same — do not
+    describe the two as identical, and the mirror change is fabrik-lib's to make."""
+    override = os.getenv("SUBAGENTS_ENV_FILE")
+    if override:
+        return Path(override).expanduser()
+    xdg = os.getenv("XDG_CONFIG_HOME")
+    if xdg:
+        return Path(xdg) / "fabrik" / "subagents.env"
+    try:
+        # `Path.home()` raises RuntimeError — NOT an OSError — when the home directory cannot be
+        # resolved (no HOME, no passwd entry: a container, a systemd unit, a cron with a stripped
+        # env). Unguarded it escaped `load_env`'s "Never raises" contract AND, because the call sits
+        # before the apply loop, took the project's own `.env` down with it: a repo holding all three
+        # keys locally got NONE of them. The canonical module guards the same call for the same reason.
+        return Path.home() / ".config" / "fabrik" / "subagents.env"
+    except (KeyError, RuntimeError):
+        return None
+
+
+def load_env(repo: str) -> list:
+    """Populate `os.environ` for `_ENV_KEYS` and return the keys this call set. Precedence: a value
+    already in the real env ALWAYS wins; then the project's nearest `.env` walking up from `repo`;
+    then the fleet-wide shared file. Never raises."""
+    loaded: list = []
+    sources = []
+    # ⚠️ An EMPTY or non-existent `repo` must never fall back to the CWD: `Path("").resolve()` is the
+    # current directory, so the walk would climb out of whatever tree the process happens to sit in
+    # and load a DIFFERENT repo's `.env` — silently, with preflight reporting keys present. That is
+    # the same wrong-keys-no-warning failure the retired module's cwd autoload caused here, and the
+    # reason it warns rather than guesses. Caught by this script's own grader, not in review.
+    start = None
+    if repo:
+        try:
+            candidate = Path(repo)
+            # ABSOLUTE only. `Path(".").resolve()` IS the current directory and IS a directory, so a
+            # guard that merely checks `is_dir()` passes ".", ".." and any relative name — each of
+            # which walks up from wherever the process happens to sit and loads a DIFFERENT repo's
+            # `.env`. That is the same silent wrong-keys failure in a different spelling (measured on
+            # a copy: `load_env(".")` from a victim tree loaded its EXA key). The one caller passes
+            # `str(REPO)`, always absolute; this keeps a future one honest.
+            if candidate.is_absolute():
+                resolved = candidate.resolve()
+                if resolved.is_dir():
+                    start = resolved
+        except (OSError, ValueError):
+            start = None
+    if start is None:
+        print(
+            f"note: no project .env read — {repo!r} is not a directory; "
+            "search keys come from the environment or the fleet file only"
+        )
+    if start is not None:
+        for parent in (start, *start.parents):
+            candidate = parent / ".env"
+            try:
+                if candidate.is_file():
+                    sources.append(candidate)
+                    break
+            except OSError:
+                break
+    shared = _shared_env_path()
+    try:
+        if shared is not None and shared.is_file():
+            sources.append(shared)
+    except OSError:
+        pass
+    for src in sources:  # project .env first — it WINS over the fleet file
+        values = _env_file_values(src)
+        for key in _ENV_KEYS:
+            # `not in os.environ`, NEVER `not os.getenv(...)`: an explicitly EXPORTED EMPTY value is a
+            # decision ("disable this leg") and a falsy test would silently overwrite it from a file.
+            # The truthiness guard on the parsed value is the other half — an empty `.env` value must
+            # not land in the environment either, or the key gets set twice from two sources and the
+            # returned list carries it twice.
+            if key not in os.environ and values.get(key):
+                os.environ[key] = values[key]
+                loaded.append(key)
+    return loaded
+
+
 # The vendored modules use ABSOLUTE internal imports (`from deep_research.engine import ...`), so
 # they must be importable as TOP-LEVEL packages. Rewriting their imports would fork a vendored
 # module, which fabrik-lib's own contract forbids — putting `libs/` on the path is the honest fix.
@@ -68,8 +232,9 @@ sys.path.insert(0, str(REPO))
 # a repo OTHER than the one you were launched in" — writes. This only ever READS and IMPORTS; every
 # artifact it produces is written into the CALLING repo. An earlier design mistook the rule for a
 # ban on reads and built a two-hop mail workflow around a restriction that did not exist, which made
-# a one-rival scan into a cross-repo errand for the operator. Keys need no such hop either: the
-# synced `libs/subagents` autoloader already resolves EXA/FIRECRAWL/BRAVE in every project.
+# a one-rival scan into a cross-repo errand for the operator. Keys need no such hop either: this
+# script's own vendored `load_env` resolves EXA/FIRECRAWL/BRAVE in every project, from the repo's
+# `.env` or the fleet file, with no module to import and none to retire.
 HUB_LIBS = Path("/opt/fabrik/libs")
 
 
@@ -220,9 +385,10 @@ def _preflight(
     if missing_keys:
         raise PreflightError(
             f"{', '.join(missing_keys)} not set — the leg(s) using them would fail silently and the "
-            f"run would return an EMPTY dossier with partial=True. These are autoloaded by "
-            f"libs.subagents.load_env from the repo .env or the operator's fleet env file: provision "
-            f"them there. NEVER prompt for a key and never hardcode one."
+            f"run would return an EMPTY dossier with partial=True. They are autoloaded from this repo's "
+            f".env or the fleet file ~/.config/fabrik/subagents.env (override with "
+            f"$SUBAGENTS_ENV_FILE): provision them in either. NEVER prompt for a key and never "
+            f"hardcode one."
         )
     if required_keys:
         # Only claim the check when it actually ran: "search keys present ()" is a green line for a
@@ -890,13 +1056,35 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return p.parse_args(argv)
 
 
+def _web_tools_config():
+    """Build the engine's web-tools config from the environment — EVERY key the legs need.
+
+    Extracted so it can be graded. `brave_api_key` was missing from the inline version, and nothing
+    could see it: `WebToolsConfig` reads no environment of its own by design, so the free Brave leg
+    got `None` and returned `error="BRAVE_API_KEY not set"` on every run, while `_preflight` — which
+    REQUIRES that key — printed it as present. Under `--free-legs-only` the paid legs are foreclosed
+    by estimate, so Brave is the only live leg and every such scan ended in "⚠ ZERO competitors
+    discovered" with the key sitting in the environment throughout. Found 2026-09-14 by an
+    author-blind seat; it is the same class as the autoload defect this file's vendored loader fixes
+    — a provider unauthenticated while every report says otherwise.
+    """
+    # imported here, not at module scope: the engine only becomes importable after
+    # `_resolve_engine()` puts the right `libs/` on sys.path (local-first, then the hub).
+    from web_tools import WebToolsConfig
+
+    return WebToolsConfig(
+        exa_api_key=os.getenv("EXA_API_KEY", ""),
+        firecrawl_api_key=os.getenv("FIRECRAWL_API_KEY", ""),
+        brave_api_key=os.getenv("BRAVE_API_KEY", ""),
+    )
+
+
 async def _run(args: argparse.Namespace) -> int:
     where = _resolve_engine()
     import httpx
     from competitor_intel import Deps, Us, run
     from deep_research import load_pack, run_research
     from web_tools import (
-        WebToolsConfig,
         a_brave_search,
         a_exa_search,
         a_firecrawl_scrape,
@@ -987,10 +1175,7 @@ async def _run(args: argparse.Namespace) -> int:
                 "SKIPPED and this round CANNOT discover anything. Its zero-new result is NOT a dry "
                 "round. Fix the checkpoint (or pass a fresh --job-id) before trusting convergence."
             )
-    cfg = WebToolsConfig(
-        exa_api_key=os.getenv("EXA_API_KEY", ""),
-        firecrawl_api_key=os.getenv("FIRECRAWL_API_KEY", ""),
-    )
+    cfg = _web_tools_config()
     async with httpx.AsyncClient(timeout=180) as client:
         deps = Deps(
             research_fn=run_research,
@@ -1092,62 +1277,20 @@ async def _run(args: argparse.Namespace) -> int:
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     try:
-        # Same layout split as _LOCAL_ENGINE_DIRS: `libs/subagents` is the vendored fleet
-        # layout, `subagents/` is fabrik-lib's canonical home for the module. Hard-coding the
-        # first made the autoload raise in the second, and preflight then reported the search
-        # keys "not set" when they were present in that repo's .env (fabrik-lib 01M14SG0RQ).
-        # HUB_LIBS is the third candidate, and it is the one that matters since D-196: this script
-        # is a CORE_SCRIPT synced to every project, but `libs/subagents` was retired from
-        # VENDORED_DIRS, so a project no longer HAS it — and a project scaffolded after 2026-09-08
-        # never did. Without this fallback the autoload below raises, preflight reports the search
-        # keys "not set" when they sit in that repo's own .env, and `/fabrik-rivals` exits 2 in
-        # every project (proven by fixture, 2026-09-08: absent → WIRING ERROR rc 2, present → ok
-        # rc 0). The engine resolution 20 lines above already falls back to HUB_LIBS; the KEY
-        # loader did not, and the retirement turned that asymmetry into a fleet-wide break.
-        # FIRST MATCH WINS, and the hub is LAST. The first version of this fix inserted every
-        # candidate, which put /opt/fabrik/libs ahead of the project's own libs at sys.path[0] —
-        # so `_resolve_engine()` bound the HUB's competitor_intel while still printing "local",
-        # in ~45 repos, against a shared tree three sessions write to. That is the same hazard
-        # D-202 removed from the fleet sync, reintroduced through sys.path (caught by the closing
-        # seat, red-on-revert on two fixtures). `HUB_LIBS.parent` was also dropped: /opt/fabrik
-        # has no `subagents/`, so it could never help, and if it ever did it would put the hub
-        # root at sys.path[0] and shadow every top-level `scripts`/`src`/`tests` in the project.
-        for _cand in (REPO, REPO / "libs", HUB_LIBS):
-            if (_cand / "subagents").is_dir():
-                if str(_cand) not in sys.path:
-                    if _cand == HUB_LIBS:
-                        # APPEND, never insert. `insert(0, …)` put /opt/fabrik/libs at the FRONT of
-                        # sys.path in every project — so the hub's `competitor_intel`,
-                        # `health_probe`, `deep_research` and `web_tools` shadowed the project's own
-                        # vendored copies, while `_resolve_engine()` still printed "local". Ordering
-                        # the CANDIDATES hub-last did not fix that, because insert(0) ignores
-                        # candidate order; only the insertion POSITION decides the search order.
-                        # The hub is a fallback, so it must be searched LAST. (Two closing sweeps
-                        # to see this: the first fix moved the loop, the second moved the position.)
-                        sys.path.append(str(_cand))
-                    else:
-                        sys.path.insert(0, str(_cand))
-                break
-        # ⚠️ The package autoloads `load_env(os.getcwd())` AT IMPORT, and `_dotenv` documents
-        # "real env (already set) wins" — so an explicit `load_env(REPO)` AFTER the import cannot
-        # override what the cwd's .env already set. `/fabrik-rivals` runs from ANY repo, so a
-        # hub-driven run for project P was silently using the HUB's search keys while preflight
-        # reported keys present: wrong keys, no warning. Suppressing the cwd autoload makes the
-        # project's own .env the only one that loads. (Caught by the closing seat; the fail
-        # direction changed the moment the hub module became importable from everywhere.)
-        _prior = os.environ.get("SUBAGENTS_NO_AUTOLOAD")
-        os.environ["SUBAGENTS_NO_AUTOLOAD"] = "1"
-        try:
-            try:
-                from libs.subagents import load_env
-            except ModuleNotFoundError:
-                from subagents import load_env  # canonical fabrik-lib layout
-        finally:
-            if _prior is None:
-                os.environ.pop("SUBAGENTS_NO_AUTOLOAD", None)
-            else:
-                os.environ["SUBAGENTS_NO_AUTOLOAD"] = _prior
-
+        # No `subagents` sys.path search happens here any more. That loop existed ONLY so the
+        # deleted `from libs.subagents import load_env` could resolve across three layouts, and
+        # with the loader vendored it stat-ed three paths and mutated `sys.path` for a lookup
+        # nothing consumes — while still able to put a directory at `sys.path[0]` and shadow the
+        # project's own vendored engine, the hazard its own comment described. Deleting it removes
+        # that hazard rather than guarding it. Engine resolution is unaffected: `_resolve_engine`
+        # does its own local-first-then-hub search, and the `REPO/"libs"` insert at the top of the
+        # file serves the engine, not the retired module.
+        # The loader is VENDORED above, so there is no import to fail and no cwd autoload to
+        # suppress. The bug that dance existed for cannot recur by construction: the retired
+        # module autoloaded `load_env(os.getcwd())` at IMPORT, which in a hub-driven run for
+        # project P silently loaded the HUB's search keys while preflight reported keys present.
+        # `load_env` here reads nothing until called, and it is called with REPO — the calling
+        # repo — exactly once.
         load_env(str(REPO))
     except Exception as exc:  # pragma: no cover - the autoload is a convenience, never a hard dep
         # Stays fail-open (a missing autoload must not block a run whose keys are already exported)
