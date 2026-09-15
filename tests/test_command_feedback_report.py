@@ -1659,6 +1659,22 @@ def test_the_command_keeps_its_lock_refusal_and_names_the_key_it_reads() -> None
 
 
 
+def test_the_command_sizes_the_edit_to_the_verdict() -> None:
+    """PHASE 3 rule: an edit is sized to the verdict it answers, because every clause added is a
+    new surface the next round reviews. Measured 2026-09-15: a one-row queue was answered with a
+    28-line bullet; rounds 2 and 3 of its own review then confirmed 7 defects each, all inside that
+    elaboration and none in the original text, and the D-252 stop's exit was to revert it.
+
+    Flat-matched — a literal pinned to hard-wrapped prose reds on a pure reflow.
+    ⚠️ Cobra (D-253): a phrase pin cannot measure brevity. The cheapest pass without the rule is to
+    keep the sentence and write long anyway; what actually catches that is the reviewing round's
+    own-fix count, which is why the scope-growth stop is the counter-measure and this is only a pin.
+    """
+    flat = " ".join(COMMAND_SRC.read_text(encoding="utf-8").split())
+    assert "SIZE THE EDIT TO THE VERDICT" in flat, "PHASE 3 lost the sizing rule"
+    assert "a new surface the next round reviews" in flat, "the sizing rule lost its reason"
+
+
 def test_the_command_spells_the_commit_trailer_it_requires() -> None:
     """Behavior Contract row: the applied edit's trailer names the rows it answers and the series it
     expects to move. The exact shape is the loop's only state, so the text is pinned verbatim."""

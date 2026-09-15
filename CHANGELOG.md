@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-command-improve sizes the edit to the verdict (2026-09-15)
+
+- `commands/_sources/fabrik-command-improve.md` — PHASE 3's cost paragraph gains one sentence: every
+  clause added is a new surface the next round reviews, so a one-sentence row gets one sentence.
+  Answers this command's own queue row, filed by the run before it, which had answered a one-row queue
+  with a 28-line bullet and hit the D-252 scope-growth stop. +148 B.
+- `tests/test_command_feedback_report.py` — one reader for that rule (a section no other test pins);
+  both arms proven red-on-revert independently, and a 72-column reflow leaves them green.
+
 ### Changed — Resolve the write target before reading the locks (/fabrik-command-improve) (2026-09-15)
 
 - `commands/_sources/fabrik-command-improve.md` — PHASE 2's lock bullet now states the ORDER (resolve the

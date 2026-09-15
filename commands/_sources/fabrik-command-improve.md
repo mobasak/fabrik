@@ -114,7 +114,9 @@ DELETE what it replaces. The history lives in git.
 INCLUDES it — 5 commands or 34, so count before you assume — so an edit that adds a
 paragraph should retire one. `python3 /opt/fabrik/scripts/enforcement/check_corpus_weight.py --check`
 reports the delta against the base branch in one reading and exits 0 either way: read its ⚠ line,
-not its exit code, and if the surface grew say in the commit what the growth buys.
+not its exit code, and if the surface grew say in the commit what the growth buys. ⚠️ **And SIZE THE EDIT TO THE
+VERDICT**: every clause you add is a new surface the next round reviews, so a one-sentence row gets
+one sentence.
 
 Then, **from the main master checkout only** (a render from a worktree PRUNES master-only commands
 box-wide):
