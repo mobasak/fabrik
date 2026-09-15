@@ -106,20 +106,20 @@
 - [scripts/ci_fix_dispatcher.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_ci_fix_dispatcher.py, INDEX.md, CHANGELOG.md
 - [scripts/classify_services.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/tests/test_gather_envs.py tests/test_external_services_chain.py scripts/external_services_chain.sh docs/reference/external-services-registry
 - [scripts/claude_p_cost.py](../INDEX.md) (owner: infra): AFTER-EDIT: kilo-benchmarks/claude_price_ratios.json (the ① price source incl. `_model_cache`) · tests/test_claude_p_cost.py · tests/test_claude_p_cost_refresh.
-- [scripts/command_feedback_report.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_command_feedback_report.py, docs/reference/command-run-protocol.md | none
+- [scripts/command_feedback_report.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_command_feedback_report.py, docs/reference/command-run-protocol.md
 - [scripts/command_run.py](../INDEX.md) (owner: infra): AFTER-EDIT: CLAUDE.md | templates/governance/CLAUDE.md | docs/reference/command-run-protocol.md | .claude/hooks/final_gate_stop.py | commands/_sources/fabrik-re
 - [scripts/container_images.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/reference/prebuilt-app-containers.md
 - [scripts/decisions.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_decisions_helper.py, docs/reference/decision-ledger.md, docs/superpowers/specs/2026-08-30-decision-ledger-v2-design.md, scripts/docs_upda
 - [scripts/declare_subscription.py](../INDEX.md) (owner: infra): AFTER-EDIT: db/services_registry_schema.sql
 - [scripts/deploy_doc_policy.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/DATA_SYNC_WORKFLOW.md
 - [scripts/doc_reconcile.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
-- [scripts/docs_updater.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/development/PLANS.md, scripts/decisions.py (keep MERGE_OWNER_RE identical)
+- [scripts/docs_updater.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/development/PLANS.md, scripts/decisions.py (keep MERGE_OWNER_RE identical),
 - [scripts/enforcement/_check_runner.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/final_gate.py | tests/test_check_runner_activation.py
 - [scripts/enforcement/check_android_env.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
 - [scripts/enforcement/check_certification_coverage.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_certification_coverage.py | scripts/final_gate.py | docs/reference/certification-denominator.md | commands/_sources/fabrik-us
 - [scripts/enforcement/check_configuration_md.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
 - [scripts/enforcement/check_convergence.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_check_convergence.py, commands/_sources/fabrik-execute-plan.md, commands/_sources/fabrik-plan-review.md, docs/workflows/FINAL_GATE_WORKFL
-- [scripts/enforcement/check_decisions_unique.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
+- [scripts/enforcement/check_corpus_weight.py](../INDEX.md) (owner: infra): AFTER-EDIT: scripts/final_gate.py, docs/TROUBLESHOOTING.md, tests/enforcement/test_check_corpus_weight.py
 - [scripts/enforcement/check_doc_stubs.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
 - [scripts/enforcement/check_doc_sync.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
 - [scripts/enforcement/check_duplicates.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
@@ -142,6 +142,7 @@
 - [scripts/enforcement/check_review_hygiene.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_check_review_hygiene.py docs/workflows/FINAL_GATE_WORKFLOW.md
 - [scripts/enforcement/check_rivals_dossier.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_rivals_dossier.py
 - [scripts/enforcement/check_rule_grounding.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_rule_grounding.py
+- [scripts/enforcement/check_script_headers.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_check_script_headers.py
 - [scripts/enforcement/check_spec_convergence.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/enforcement/test_spec_convergence.py
 - [scripts/enforcement/check_spec_db_match.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/FINAL_GATE_WORKFLOW.md
 - [scripts/enforcement/check_synced_unmodified.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
@@ -359,6 +360,7 @@
 ## command
 - [design-review](../CLAUDE.md) (owner: infra): Complete a design review of the pending changes on the current branch — rendered UI visual, accessibility, and front-end implementation quality against Stripe/A
 - [fabrik-catchup](../CLAUDE.md) (owner: infra): Resume a neglected project fast: MEASURE plan-state vs locks, doc freshness, stub sentinels, spec `shape:` truth; QUEUE worst-first; EXECUTE via owning converge
+- [fabrik-command-improve](../CLAUDE.md) (owner: infra): Act on ONE command's accumulated `change:` queue — read every axis-keyed verdict agents filed against it at their closes, propose the ONE edit that answers the 
 - [fabrik-conformance-review](../CLAUDE.md) (owner: infra): Reopen EVERY spec + plan in a project and verify each was actually IMPLEMENTED — inventory → one grounded verifier per spec↔plan pair → five-value verdict → adj
 - [fabrik-data-contract](../CLAUDE.md) (owner: infra): Freeze the project's data contract — the frozen truth mapping every GUI/form field to its exact DB column (type, required, validation, PII, FK, enums) so parall
 - [fabrik-decommission](../CLAUDE.md) (owner: infra): Retire a project or service safely: ground truth first (hub-side liveness probe vs sibling domains, fleet consumer sweep — never a catalog/PORTS/env row as evid
