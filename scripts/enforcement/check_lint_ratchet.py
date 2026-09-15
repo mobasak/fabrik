@@ -260,16 +260,20 @@ def _worktree_baseline_version() -> str | None:
     commit while red — in every repo carrying the synced check, the moment its baseline gains a
     `ruff_version` key. The COUNT floor stays HEAD-bound; only the VERSION consults the working
     tree, so a re-seed clears the block immediately while CI still reads the committed floor."""
-    try:
-        import json as _json
-
-        data = _json.loads(BASELINE.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
+    data = _worktree_baseline_payload()
     if not isinstance(data, dict):
         return None
     v = data.get("ruff_version")
     return str(v) if v else None
+
+
+def _worktree_baseline_payload() -> dict | None:
+    """The WORKING-TREE baseline object, or None — the count travels with the version."""
+    try:
+        data = json.loads(BASELINE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
 
 
 def _read_baseline_version() -> str | None:
@@ -331,13 +335,36 @@ def main() -> int:
     stored_version, live_version = _read_baseline_version(), _ruff_version()
     # ⚠️ A RE-SEED MUST CLEAR THE BLOCK BEFORE THE COMMIT, or the remedy this branch prints is
     # unfollowable — see `_worktree_baseline_version`. The count floor is untouched by this.
-    _local_version = _worktree_baseline_version()
-    if stored_version != live_version and _local_version == live_version:
+    _local = _worktree_baseline_payload()
+    _local_version = (
+        str(_local["ruff_version"])
+        if isinstance(_local, dict) and _local.get("ruff_version")
+        else None
+    )
+    if (
+        not check_only  # --check DESCRIBES the committed state; a dirty file must not flip it
+        and baseline is not None
+        and stored_version  # HEAD carries a version at all (15 of 17 fleet baselines do not)
+        and live_version
+        and stored_version != live_version
+        and _local_version == live_version
+    ):
         print(
             f"NOTE: lint-ratchet — the re-seed under ruff {live_version} is written but NOT "
             "COMMITTED; commit .fabrik/lint-baseline.json or CI still holds the old floor."
         )
         stored_version = _local_version
+        # ⚠️ THE COUNT TRAVELS WITH THE VERSION, and the first cut of this relief took the version
+        # ALONE — which re-opened, in the same file, the cobra the error text below names: HEAD's
+        # count was measured under the OLD ruleset, so when the new ruleset is looser the stale
+        # floor sits above the honest one and everything between them is free debt. Executed:
+        # committed floor 5/OLD, today's ruleset reads 2, agent adds 2 REAL new errors — at the
+        # first cut `ratcheted DOWN 5 → 4`, rc 0 GREEN, and the honest floor of 2 overwritten
+        # with 4; at the parent, rc 1. Un-wedging by fail-open is a worse trade than the wedge.
+        try:
+            baseline = max(int(_local["ruff_errors"]), 0)
+        except (KeyError, TypeError, ValueError):
+            pass
     if baseline is not None and stored_version and live_version and stored_version != live_version:
         # A ruleset change is not debt — but it is not nothing either, and it must not be absorbed
         # SILENTLY. The old behaviour re-seeded at the current count and passed, which meant the

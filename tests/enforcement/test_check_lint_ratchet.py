@@ -345,27 +345,89 @@ def test_a_reseed_clears_the_block_before_the_commit(repo: Path) -> None:
     assert "NOT COMMITTED" in out, out
 
 
-def test_the_count_floor_is_still_head_bound_after_the_version_unwedge(repo: Path) -> None:
-    """The MIRROR of the fix above: only the VERSION may consult the working tree. If the COUNT
-    floor followed it, a local edit could raise the floor and wave real debt through — which is
-    the whole reason `_baseline_payload` reads HEAD."""
+def test_the_count_floor_is_still_head_bound_under_the_SAME_ruleset(repo: Path) -> None:
+    """The MIRROR of the version relief — re-cut, because the first version tested the wrong state.
+
+    The HEAD-bound floor exists so a SIBLING's uncommitted re-seed cannot raise the bar under the
+    SAME ruleset. Forging the floor in the MISMATCH state (which the first cut did) is not that
+    state: there, the local count is the only one measured under the live ruleset, so honouring it
+    is the fix for the absorption regression below — and the old grader would have blocked it.
+    """
     _set_errors(repo, 0)
     (repo / ".fabrik").mkdir(exist_ok=True)
-    (repo / ".fabrik" / "lint-baseline.json").write_text(
-        '{"ruff_errors": 0, "ruff_version": "0.0.1-OLD"}\n', encoding="utf-8"
-    )
-    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
-    subprocess.run(["git", "commit", "-qm", "floor 0"], cwd=repo, check=True)
-
-    _set_errors(repo, 3)  # real debt, above the committed floor of 0
-    # forge a permissive LOCAL floor AND a matching version (so the unwedge path is taken)
-    live = _run(repo, "--reseed")  # normalises the version to the live one
+    live = _run(repo, "--reseed")
     assert live[0] == 0
-    (repo / ".fabrik" / "lint-baseline.json").write_text(
-        (repo / ".fabrik" / "lint-baseline.json").read_text(encoding="utf-8").replace(
-            '"ruff_errors": 3', '"ruff_errors": 999'
-        ),
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "floor 0 under the live ruleset"], cwd=repo, check=True)
+
+    _set_errors(repo, 3)  # real debt, above the committed floor of 0, SAME ruleset
+    bl = repo / ".fabrik" / "lint-baseline.json"
+    bl.write_text(
+        bl.read_text(encoding="utf-8").replace('"ruff_errors": 0', '"ruff_errors": 999'),
         encoding="utf-8",
     )
     rc, out = _run(repo)
-    assert rc == 1, f"a forged LOCAL floor lowered the gate:\n{out}"
+    assert rc == 1, f"a forged LOCAL floor lowered the gate under the same ruleset:\n{out}"
+
+
+def test_a_reseed_clears_the_block_when_the_ruleset_RAISED_the_count(repo: Path) -> None:
+    """The direction the motivating incident actually took (youtube 01M1H0D5: 390 against a stored
+    388 after a ruff release WIDENED a rule) — and the direction the first cut of the un-wedge did
+    not handle. There the relief never fired, so the block stayed, the truthful "not comparable"
+    error was replaced by a FALSE "New lint debt is not allowed" sending an agent to fix debt
+    nobody added, and `--reseed` went inert because it is only honoured inside the branch the
+    relief suppressed."""
+    _set_errors(repo, 2)
+    (repo / ".fabrik").mkdir(exist_ok=True)
+    (repo / ".fabrik" / "lint-baseline.json").write_text(
+        '{"ruff_errors": 2, "ruff_version": "0.0.1-OLD"}\n', encoding="utf-8"
+    )
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "floor 2 under an old ruleset"], cwd=repo, check=True)
+
+    _set_errors(repo, 3)  # the RULESET reads more, not the author adding debt
+    assert _run(repo)[0] == 1
+    assert _run(repo, "--reseed")[0] == 0
+    rc, out = _run(repo)
+    assert rc == 0, f"the re-seed did NOT clear the block in the RAISED direction:\n{out}"
+    assert "New lint debt is not allowed" not in out, (
+        f"blamed the caller for a ruleset change:\n{out}"
+    )
+
+
+def test_an_uncommitted_reseed_cannot_absorb_real_debt_into_the_old_floor(repo: Path) -> None:
+    """The regression the first un-wedge introduced, and the reason un-wedging by fail-open is a
+    worse trade than the wedge. Taking the VERSION relief while keeping HEAD's COUNT re-opens the
+    cobra the error text names two lines away: HEAD's count was measured under the OLD ruleset, so
+    when the new ruleset is LOOSER the stale floor sits above the honest one and everything between
+    is free debt. Executed at the first cut: floor 5/OLD, today's ruleset reads 2, the author adds
+    2 REAL errors -> `ratcheted DOWN 5 -> 4`, rc 0 GREEN, honest floor of 2 overwritten with 4."""
+    _set_errors(repo, 2)
+    (repo / ".fabrik").mkdir(exist_ok=True)
+    (repo / ".fabrik" / "lint-baseline.json").write_text(
+        '{"ruff_errors": 5, "ruff_version": "0.0.1-OLD"}\n', encoding="utf-8"
+    )
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "a LOOSER old floor"], cwd=repo, check=True)
+
+    assert _run(repo, "--reseed")[0] == 0  # honest count under the live ruleset is 2
+
+    # ⚠️ NOT `_set_errors` here — it does `git add -A` and COMMITS, which would commit the
+    # re-seeded baseline too and erase the very mismatch this test needs. The scenario is an
+    # UNCOMMITTED re-seed beside newly-written debt, so the source is written directly and the
+    # premise is asserted from HEAD before the verdict is believed.
+    mods = ["os", "sys", "json", "re"]
+    (repo / "src" / "a.py").write_text("".join(f"import {m}\n" for m in mods), encoding="utf-8")
+    head_baseline = subprocess.run(
+        ["git", "show", "HEAD:.fabrik/lint-baseline.json"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert '"ruff_errors": 5' in head_baseline, (
+        f"premise broken — HEAD floor moved: {head_baseline}"
+    )
+
+    rc, out = _run(repo)
+    assert rc == 1, f"2 real new lint errors were absorbed into the old floor:\n{out}"

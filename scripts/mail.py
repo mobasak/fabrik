@@ -238,9 +238,12 @@ _SECRET_LOW = _re.compile(r"\b(?:password|passwd|pwd|secret|token|credential|api
 #     PASSWORD%(trailers:=)Zx82Kf9mQpLr7TAAAA   -> low    (only `password` has a LOW backstop)
 # `KEY` is the one assignment keyword with no `_SECRET_LOW` counterpart (`api[_-]?key`, not bare
 # `key`), so that shape scores None rather than low.
-# ⚠️ ADDING `\bkey\b` TO `_SECRET_LOW` WAS MEASURED AND REJECTED (FIX DIRECTIVE 5): it fires on
-# 405 of 4,789 files in the live mail store — 8% of all traffic — which is wallpaper, and
-# wallpaper is how enforcement dies. A vendor-signature credential (`sk-`, `ghp_`, `AKIA`, a
+# ⚠️ ADDING `\bkey\b` TO `_SECRET_LOW` WAS MEASURED AND REJECTED (FIX DIRECTIVE 5). The gross
+# hit count is 405 of ~4,790 files in the live mail store, but the decision turns on the MARGINAL
+# cost to `_SECRET_LOW`, which already fires on 507: adding the term takes it to 770, i.e. **+263
+# newly-warned files, 5.5% of the store**. Either way it is wallpaper, and wallpaper is how
+# enforcement dies — the rejection stands on the marginal number, which is the one that answers
+# the question asked. A vendor-signature credential (`sk-`, `ghp_`, `AKIA`, a
 # DSN, a JWT, a PEM header) is caught wherever it sits, spliced or not, because every pattern
 # reads the stripped copy; only the bare `KEY=<value>` shape has this residual.
 _GIT_FMT_TOKEN = _re.compile(r"%\(trailers:[^)\n]*\)", _re.I)
@@ -371,10 +374,10 @@ def _secret_level(body: str) -> str | None:
     # `%(trailers:…)`. That is strictly worse than the lookbehind it replaced, which at least
     # carved only the assignment pattern. Scanning the RAW body with everything else keeps the
     # blind region to the one class that needs it.
-    # ⚠️ CHEAPEST WAY TO SATISFY THIS WITHOUT THE OUTCOME (cobra-effect): write a credential as
-    # `KEY=<secret>` inside a CLOSED `%(trailers:…)` span, which still reads as `None` — but only
-    # for the bare-assignment shape. Any credential carrying its own vendor signature (`sk-`,
-    # `ghp_`, `AKIA`, a DSN, a JWT, a PEM header) is caught wherever it appears, wrapped or not.
+    # ⚠️ The cobra path for this carve is stated ONCE, at `_GIT_FMT_TOKEN`, and deliberately not
+    # restated here: an earlier cut described it as "inside a CLOSED span", which the block there
+    # now records as wrong (the bound is the TOKEN'S SPAN wherever it sits, including across the
+    # `[:=]`). Two descriptions of one claim is how the superseded half survives — read that block.
     # ⚠️ STRIP, do not blank. Blanking preserved offsets (nothing in production reads a span
     # from this scan, so that bought nothing) but it SPLIT the value: a short fake token spliced
     # into the MIDDLE of a credential broke the `\S{16,}` run the assignment pattern needs, so

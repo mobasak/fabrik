@@ -40,6 +40,39 @@ All notable changes to this project will be documented in this file.
   message aged past the 14-day threshold as the clock moved and began sweeping alongside the stale
   one. It passed when written and rotted on a calendar date. Pinned to `now`.
 
+**Finish — round 5: my round-4 un-wedge was a FAIL-OPEN regression (2026-09-15).** One fresh seat
+over the 169-line delta; 6 confirmed, all own-fix.
+
+**Un-wedging the lint ratchet by taking the version relief while keeping HEAD's COUNT re-opened the
+exact cobra the guard's own error text names two lines away.** HEAD's count was measured under the
+OLD ruleset, so when the new ruleset is LOOSER the stale floor sits above the honest one and
+everything between is free debt. Executed, committed floor 5/OLD, today's ruleset reads 2, the
+author then adds 2 REAL new errors:
+
+    at round 4's cut : `ratcheted DOWN 5 → 4`, rc 0 GREEN — honest floor of 2 overwritten with 4
+    at its parent    : rc 1, "not comparable"
+
+The parent was wedged but SAFE; my fix traded the wedge for a hole, which is the worse trade. The
+count now travels with the version — the local count is the only one measured under the live
+ruleset — and three further defects of that same cut are closed with it: the relief never fired in
+the RAISED direction (the direction the motivating incident actually took, where it also replaced a
+truthful error with a FALSE "New lint debt is not allowed" and silently made `--reseed` inert);
+`--check` flipped rc on an uncommitted file, so the mode CI parity depends on described a state
+that was not committed; and the NOTE fired forever in the 15 of 17 fleet repos whose baseline
+carries no `ruff_version` key at all.
+
+⚠️ **Both of round 4's graders were blind to all of this**, and one of round 5's replacements was
+too — it used a helper that does `git add -A`, committing the very baseline whose uncommitted state
+the test depends on. Third grader-that-cannot-fail this run, mine each time. The mirror grader was
+also re-cut: it forged its floor in the MISMATCH state, which is not the state the HEAD-bound
+invariant protects, and as written it would have blocked the correct fix.
+
+Also corrected: the `\bkey\b` rejection cited the GROSS hit count (405 of ~4,790) where the decision
+turns on the MARGINAL cost — `_SECRET_LOW` fires on 507 today and 770 with the term added, **+263,
+5.5% of the store**. The rejection stands on the number that answers the question. And the cobra
+claim is now stated ONCE, at `_GIT_FMT_TOKEN`, instead of being re-described in `_secret_level`
+where the superseded half had survived.
+
 **Finish — round 4: the closing round re-swept the PLAN's surface and found a fleet-wide gate
 wedge (2026-09-15).** The D-252 stop had fired on rounds 2 and 3, and its exit sentence says to
 close on the ORIGINAL delta's state. So round 4 was scoped back to the plan's own work rather than
@@ -57,8 +90,13 @@ HEAD-bound (so a local edit cannot lower the committed floor) and a version mism
     run 4 git add   -> rc 1   (`git show HEAD:` is blind to the index)
 
 The contract requires a green gate BEFORE the commit, so the only exit was to commit while red.
-17 baselines exist under `/opt/*`; 15 carry no `ruff_version` key yet and so arm themselves on
-their next write. Fixed: the COUNT floor stays HEAD-bound, only the VERSION consults the working
+17 baselines exist under `/opt/*` (glob + `json.load`); 15 carry no `ruff_version` key yet and so
+arm themselves on their next write, and **2 are armed today — and one of those is WEDGED right
+now**: `/opt/site-provisioner` stores `0.14.10` while its own venv reports ruff `0.15.10`, so its
+completion gate currently cannot be cleared by the remedy it prints. (`/opt/youtube` is armed but
+matching, so it wedges on its next ruff bump.) Checked by reading both baselines and asking each
+repo's own interpreter — never by running the checker in another repo's tree, because its
+ratchet-down arm WRITES. Fixed: the COUNT floor stays HEAD-bound, only the VERSION consults the working
 tree, and a re-seed now clears the block while printing that it is not yet committed. Both the fix
 and its mirror — a forged local floor must still red — ship with graders.
 
