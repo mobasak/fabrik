@@ -3,6 +3,7 @@
 on substantive kinds (finding/request/upstream-feedback); advisory (warn, never refuse)."""
 
 import importlib.util
+import os
 import sys
 from pathlib import Path
 
@@ -220,12 +221,48 @@ def test_a_genuinely_missing_section_is_still_reported():
 def test_the_advisory_names_the_rule_not_only_the_doc():
     """The text named the contract's DOC and never the shape a header must take, so an author
     told "missing: WHERE" could not tell a formatting miss from a real omission — which is the
-    position the spaced-slash defect above put every one of them in."""
-    src = Path("scripts/mail.py").read_text(encoding="utf-8")
-    advisory = src.split("[mail-structure advisory, D-035]")[1][:900]
+    position the spaced-slash defect above put every one of them in.
+
+    ⚠️ EXECUTED, not grepped. The first cut sliced the SOURCE TEXT of `mail.py` around the
+    advisory marker and asserted three substrings — so it passed with the branch that prints it
+    made unreachable (`if _gaps:` -> `if False:`, executed). It proved a string literal exists,
+    not that anything emits it.
+    """
+    import subprocess
+    import sys as _sys
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as root:
+        (Path(root) / "fabrik" / "inbox").mkdir(parents=True)
+        (Path(root) / "fabrik" / "archive").mkdir(parents=True)
+        r = subprocess.run(
+            [
+                _sys.executable,
+                "scripts/mail.py",
+                "send",
+                "--to",
+                "fabrik",
+                "--to-agent",
+                "infra",
+                "--kind",
+                "finding",
+                "--ack",
+                "no",
+            ],
+            input="## WHAT\nbare headings, not KEY: form\n\n## WHERE\nscripts/mail.py\n",
+            capture_output=True,
+            text=True,
+            timeout=120,
+            env={**os.environ, "FABRIK_MAIL_ROOT": root},
+        )
+    assert r.returncode == 0, (r.returncode, r.stderr[:200])
+    advisory = r.stderr
+    assert "[mail-structure advisory, D-035]" in advisory, f"no advisory emitted: {advisory!r}"
     assert "at the START of a line" in advisory, "the advisory does not say where a key must sit"
     assert "`:` or ` — `" in advisory, "the advisory does not name the separators"
     assert "spaces optional" in advisory, "the advisory does not mention the slash-combined form"
+    # ...and it precedes the delivered path, which is the ordering the plan's gate step names
+    assert "/inbox/" in r.stdout, r.stdout
 
 
 def test_there_is_no_body_flag_and_saying_so_costs_stdout_one_line():
@@ -291,8 +328,12 @@ def test_the_prescribed_trailer_verify_command_is_not_read_as_a_secret():
     outright, and that command is the one BOTH governance contracts prescribe for verifying a
     trailer block parsed. The check that certifies a commit's provenance could not be quoted in a
     message about commit provenance."""
-    verify = "git log -1 --format='%(trailers:key=Agent-Role,valueonly)'"
-    assert mail._secret_level(verify) is None, mail._secret_level(verify)
+    for verify in (
+        "git log -1 --format='%(trailers:key=Agent-Role,valueonly)'",
+        "%(trailers:key=Agent-Context,valueonly)",
+        "git log --format='%h %s %(trailers:key=Agent-Role)'",
+    ):
+        assert mail._secret_level(verify) is None, (verify, mail._secret_level(verify))
     clause = Path("CLAUDE.md").read_text(encoding="utf-8").split("⚠️ **And a THIRD trap")[1][:986]
     assert mail._secret_level(clause) is None, "the governance clause itself cannot be mailed"
 
@@ -307,9 +348,19 @@ def test_the_carve_does_not_blunt_the_scanner():
         "PASSWORD: correct-horse-battery-staple-1234",
     ):
         assert mail._secret_level(secret) == "high", secret
-    # ...and the cobra path — prefixing a credential with the literal `trailers:` to slip past —
-    # still trips the LOW tier, so it warns rather than vanishing
-    assert mail._secret_level("trailers:SECRET=AAAAAAAAAAAAAAAAAAAAAAAA") == "low"
+    # ⚠️ ALL SIX KEYWORDS, because the first cut of this grader asserted the safety property using
+    # `SECRET` — one of the five for which it happened to hold — and so certified a property the
+    # code did not have. `KEY` is the ONE keyword with no `_SECRET_LOW` counterpart, and it is
+    # exactly the keyword the git token supplies, so the carve had been cut around the only one
+    # with zero backstop: `trailers:KEY=<credential>` scored None. No refusal, no warning,
+    # delivered. A grader that samples the safe cases certifies nothing.
+    secret = "Zx82Kf9mQpLr7TnV4bWq"
+    for keyword in ("KEY", "TOKEN", "SECRET", "PASSWORD", "PASSWD", "PWD"):
+        assert mail._secret_level(f"trailers:{keyword}={secret}") == "high", keyword
+    # ...and the carve has a LEFT boundary: it is the whole git token `%(trailers:`, not nine
+    # characters that any text can end with.
+    for prefix in ("mytrailers:", "X-Trailers:", "https://internal/p/trailers:", "_trailers:"):
+        assert mail._secret_level(f"{prefix}KEY={secret}") == "high", prefix
 
 
 def test_both_contracts_carry_the_third_trap_byte_identically():
@@ -324,3 +375,77 @@ def test_both_contracts_carry_the_third_trap_byte_identically():
     cb = b[b.index(marker) : b.index("Example:", b.index(marker))]
     assert ca == cb, "the shared clause has drifted between the two contracts"
     assert "interpret-trailers --parse" in ca, "the clause does not name the verify command"
+
+
+def test_a_body_file_that_is_not_utf8_refuses_on_stdout_rather_than_tracebacking(tmp_path):
+    """`UnicodeDecodeError` is a `ValueError`, not an `OSError`, so it escaped the handler AND
+    every arm of `main`'s error ladder — a raw traceback with an EMPTY stdout, which is precisely
+    the failure `--body-file` was added to remove."""
+    import subprocess
+    import sys as _sys
+
+    bad = tmp_path / "cp1252.md"
+    bad.write_bytes(b"WHAT: \xff\xfe bad bytes\n")
+    r = subprocess.run(
+        [
+            _sys.executable,
+            "scripts/mail.py",
+            "send",
+            "--to",
+            "fabrik",
+            "--kind",
+            "finding",
+            "--body-file",
+            str(bad),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        env={**os.environ, "FABRIK_MAIL_ROOT": str(tmp_path / "root")},
+    )
+    assert r.returncode == 2, r.returncode
+    assert "cannot read --body-file" in r.stdout, f"stdout was {r.stdout!r}"
+    assert "Traceback" not in r.stderr, r.stderr[:200]
+
+
+def test_the_send_contract_line_never_hijacks_another_subcommands_stdout():
+    """`read` and `list` put their PAYLOAD on stdout, so an ungated contract line meant
+    `msg=$(mail.py read "$id")` with a malformed id received a paragraph about stdin AS the
+    message body — the "looks like it worked on something" failure one branch later exists to
+    avoid, reintroduced one branch earlier."""
+    import subprocess
+    import sys as _sys
+
+    for argv in (["list", "--bogus-flag"], ["read"]):
+        r = subprocess.run(
+            [_sys.executable, "scripts/mail.py", *argv],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        assert r.returncode == 2, (argv, r.returncode)
+        assert "mail.py send:" not in r.stdout, (argv, r.stdout[:160])
+    # ...and `send` itself still gets it
+    r = subprocess.run(
+        [_sys.executable, "scripts/mail.py", "send", "--to", "fabrik"],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert "mail.py send:" in r.stdout, r.stdout[:160]
+
+
+def test_help_prints_cleanly_and_exits_zero():
+    """argparse raises `SystemExit(0)` for --help; the interceptor must not print over it."""
+    import subprocess
+    import sys as _sys
+
+    for argv in (["--help"], ["send", "--help"]):
+        r = subprocess.run(
+            [_sys.executable, "scripts/mail.py", *argv],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        assert r.returncode == 0, (argv, r.returncode)
+        assert "mail.py send: the body is read from STDIN" not in r.stdout, argv

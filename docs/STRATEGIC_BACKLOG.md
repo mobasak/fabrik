@@ -189,6 +189,30 @@ every word preserved — a SHAPE fix, not a content edit — and the grader is g
 **Kept as the lesson, not as work:** when a grader exists, run the grader. A hand count beside a
 green test is a second opinion nobody asked for, and it is the one that was wrong.
 
+## [infra] The project-facing trailer table has drifted from the hub's — ~46 repos are told a stale, incomplete contract
+
+Found by Phase G's review while grading a NEW clause the two contracts now share byte-identically.
+The clause is in sync; its enclosing `## Agent Provenance Trailers` section is not:
+
+- `CLAUDE.md:312` lists `Agent-Role` values `primary · orchestrator · subagent · review-fix · ci-fix`;
+  `templates/governance/CLAUDE.md:284` omits **`ci-fix`** entirely.
+- The hub carries an **`Agent-Name`** row (with the `CLAUDE_AGENT` env var and the charter-injection
+  mechanism); the template has **no `Agent-Name` row at all** — `command grep -c` gives 1 and 0.
+
+Pre-existing: `git log -L` puts the divergence at `1abbc7dd`/`e8b24ea1`, well before this phase.
+
+⚠️ **NOT a copy-paste fix, which is why it is filed rather than done.** The hub's `Agent-Name` row
+describes a charter injected from `docs/reference/agents/<name>.md` by `.claude/hooks/agent_role.py`
+— hub-local machinery. Copying it verbatim would tell ~46 project repos to expect a mechanism they
+do not have. The row needs a project-facing rewrite (what `CLAUDE_AGENT` means where the operator
+names an agent, and what to do when they have not), and that is a fleet-wide governance change
+deserving its own review rather than a fold-in at a phase close.
+
+**The general shape worth keeping:** a grader that asserts two files share a CLAUSE says nothing
+about the section around it. `test_both_contracts_carry_the_third_trap_byte_identically` compares a
+986-character span and passes — correctly — while the table three lines above it disagrees. The
+narrow assertion is right; the reader's inference from its NAME is what misleads.
+
 ## [infra] Four `claude -p` spawners have not adopted the FABRIK_HEADLESS contract
 
 T13.5 gave the two ADVISORY hooks a stand-down flag and wired it into the two spawn sites the

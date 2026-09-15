@@ -146,15 +146,23 @@ _SECRET_HIGH = [
     #     "value", so the send was REFUSED outright — and that command is the one BOTH governance
     #     contracts prescribe for verifying a trailer block parsed. The check that certifies a
     #     commit's provenance could not be quoted in a message about commit provenance.
-    #     `(?<!trailers:)` is the narrowest possible carve: it keys on a fixed git-internal
-    #     prefix, not on the value's shape.
-    #     ⚠️ THE CHEAPEST WAY TO SATISFY THIS WITHOUT THE OUTCOME (cobra-effect): prefix a real
-    #     credential with the literal `trailers:` to slip it past the scanner. That is both absurd
-    #     to do by accident and trivially visible to a reader, which is exactly why the carve is a
-    #     fixed prefix rather than a relaxation of the value pattern — loosening `\S{16,}` to
-    #     exclude commas or parens would let any secret hide by appending one.
+    #     ⚠️ THE CARVE IS `%(trailers:`, THE WHOLE GIT TOKEN — and the first cut got this wrong in
+    #     the direction that matters. It used `(?<!trailers:)`, which has NO LEFT BOUNDARY, so any
+    #     text ending in those nine characters carved: executed, `mytrailers:KEY=…`,
+    #     `X-Trailers:KEY=…` (the pattern is `re.I`) and `https://internal/p/trailers:KEY=…` all
+    #     went silent. Worse, `KEY` is the ONE keyword of the six with no `_SECRET_LOW` counterpart
+    #     (`:209` lists `api[_-]?key`, not bare `key`), and it is precisely the keyword the git
+    #     token supplies — so `trailers:KEY=<credential>` scored `None`: no refusal, no warning,
+    #     delivered. The other five only dropped to `low`. The carve had been cut around the only
+    #     keyword with zero backstop. `%(` restores the boundary and is still fixed-width, which
+    #     the lookbehind requires.
+    #     ⚠️ THE CHEAPEST WAY TO SATISFY THIS WITHOUT THE OUTCOME (cobra-effect): write a real
+    #     credential as `%(trailers:KEY=…` to slip it past. That is absurd to do by accident and
+    #     visible to any reader — and it is the reason the carve is a fixed TOKEN rather than a
+    #     relaxation of the value pattern: loosening `\S{16,}` to exclude commas or parens would
+    #     let any secret hide by appending one.
     _re.compile(
-        r"(?<!trailers:)(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|PWD)[\w-]{0,64}+\s*[:=](?!:)\s*\S{16,}",
+        r"(?<!%\(trailers:)(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|PWD)[\w-]{0,64}+\s*[:=](?!:)\s*\S{16,}",
         _re.I,
     ),
     _re.compile(r"\bsk-[A-Za-z0-9-]{16,}"),  # sk-, sk-ant-, sk-proj- (hyphens kept)
@@ -1649,10 +1657,16 @@ def main(argv: list[str] | None = None) -> int:
     # message, nothing, and unless they merged stderr they never learn the body goes on stdin.
     # Executed: rc 2, `STDOUT: ''`. One line on stdout names the contract that was violated; the
     # argparse diagnosis stays on stderr where it belongs, so nothing is duplicated or hidden.
+    # ⚠️ GATED ON `send`. Ungated, this printed the send contract on every subcommand's parse
+    # error — and `read`/`list` put their PAYLOAD on stdout, so `msg=$(mail.py read "$id")` with a
+    # malformed id received a paragraph about stdin as the message body. That is the same
+    # "looks like it worked on something" failure the --body refusal one branch later exists to
+    # avoid, reintroduced one branch earlier.
+    _argv = sys.argv[1:] if argv is None else list(argv)
     try:
         args = ap.parse_args(argv)
     except SystemExit as exc:
-        if exc.code not in (0, None):
+        if exc.code not in (0, None) and _argv[:1] == ["send"]:
             print(
                 "mail.py send: the body is read from STDIN (or --body-file PATH); on success this "
                 "stream carries ONE line, the delivered path. The reason for this rejection is on "
@@ -1676,8 +1690,24 @@ def main(argv: list[str] | None = None) -> int:
                 return 2
             if getattr(args, "body_file", None):
                 try:
-                    body = Path(args.body_file).read_text(encoding="utf-8")
-                except OSError as exc:
+                    src = Path(args.body_file)
+                    # ⚠️ SIZE FIRST. `read_text()` is unbounded and `MAX_BODY` is enforced later
+                    # inside `send`, so a --body-file pointing at a multi-GB log blew up memory
+                    # before the cap ever ran.
+                    if src.is_file() and src.stat().st_size > MAX_BODY:
+                        print(
+                            f"mail.py send: cannot read --body-file {args.body_file}: "
+                            f"{src.stat().st_size} bytes exceeds the {MAX_BODY}-byte body cap"
+                        )
+                        return 2
+                    body = src.read_text(encoding="utf-8")
+                # ⚠️ UnicodeDecodeError is a ValueError, NOT an OSError — so a body with one
+                # CP-1252 dash escaped this handler AND every arm of main's error ladder, giving
+                # a raw traceback with an EMPTY stdout: exactly the failure this hunk exists to
+                # remove, reintroduced by the hunk. 11 of the 12 `read_text` sites in this file
+                # pass `errors="replace"`; refusing loudly is the better direction for a body
+                # that is about to be scanned for secrets.
+                except (OSError, UnicodeDecodeError) as exc:
                     # the delivered-path contract again: a caller parsing stdout must not be
                     # told "nothing happened" by an empty stream
                     print(f"mail.py send: cannot read --body-file {args.body_file}: {exc}")

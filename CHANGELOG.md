@@ -8,10 +8,12 @@ All notable changes to this project will be documented in this file.
 
 - **The D-035 mail advisory rejected the header form it invites.** `WHAT/WHERE:` passed;
   `WHAT / WHERE:` reported WHERE missing — and the spaced slash is what the advisory itself suggests
-  by naming keys with slashes. Measured across the whole store: **41 of 4,778** message files use the
+  by naming keys with slashes. Measured across the whole store: **41 of 4,781** message files use the
   spaced form against 53 tight, so nearly half of all slash-combined headers were mis-flagged. Four
   of the 41 were sent by this session while triaging the mail that reported it, each told it had
-  omitted a section it had written. The advisory also named only the contract's DOC, never the shape
+  omitted a section it had written. ⚠️ The denominator first shipped as 4,778 and is **4,781** —
+  the numerators reproduced exactly, the population did not, in a change whose whole subject is
+  denominator honesty. Re-derived two ways (`find -name '*.md'` and `pathlib.rglob`). The advisory also named only the contract's DOC, never the shape
   a header must take, so an author could not tell a formatting miss from a real omission; it states
   the rule now.
 - **The secret scanner refused the trailer-verify command both contracts prescribe.**
@@ -38,7 +40,26 @@ All notable changes to this project will be documented in this file.
   message aged past the 14-day threshold as the clock moved and began sweeping alongside the stale
   one. It passed when written and rotted on a calendar date. Pinned to `now`.
 
-`pytest tests/test_mail*.py` → **257 passed**; `final_gate.py --check --json` → success, 65/0.
+⚠️ **The secret-scanner carve above shipped WRONG and the review caught it within the hour.** The
+first cut used `(?<!trailers:)` — nine characters with NO left boundary — so `mytrailers:KEY=…`,
+`X-Trailers:KEY=…` (the pattern is `re.I`) and `https://internal/p/trailers:KEY=…` all carved. And
+`KEY` is the ONE keyword of the six with no `_SECRET_LOW` counterpart, which is exactly the keyword
+the git token supplies: `trailers:KEY=<credential>` scored **`None`** — no refusal, no warning,
+delivered — while the other five merely dropped to `low`. The carve had been cut around the only
+keyword with zero backstop, in a file synced to ~46 repos. It anchors on the whole token
+`%(trailers:` now, which restores the boundary and is still fixed-width as the lookbehind requires.
+⚠️ **And the grader that certified it asserted the safety property using `SECRET`** — one of the
+five where it held — so it certified a property the code did not have. It loops all six keywords
+and all four boundary shapes now.
+
+Two more from the same review, both in the `--body-file` hunk: `UnicodeDecodeError` is a
+`ValueError`, not an `OSError`, so a body with one CP-1252 dash escaped the handler and every arm of
+`main`'s error ladder, giving a raw traceback with an EMPTY stdout — the exact failure the hunk
+exists to remove. And the send-specific stdout contract line was printed on EVERY subcommand's parse
+error, so `msg=$(mail.py read "$id")` with a malformed id received a paragraph about stdin AS the
+message body. Both fixed, both graded, plus a size bound before the read.
+
+`pytest tests/test_mail*.py` → **260 passed**; `final_gate.py --check --json` → success, 65/0.
 
 ### Fixed — Phase F (T13.3–T13.5): three Stop-hook and headless defects from the mail triage (2026-09-15)
 
