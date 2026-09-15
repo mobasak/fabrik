@@ -122,23 +122,31 @@ def test_the_edit_age_phrase_never_renders_a_lossy_window() -> None:
     """`int(seconds // 3600)` rendered `0h` for any sub-hour value and `1h` for 90 minutes — and
     the message is the only place the window is disclosed, so the lossy form would have started
     lying at exactly the moment someone tuned it down."""
-    import contextlib
-
     original = hook._SIXTH_CAUSE_MAX_EDIT_AGE_S
     try:
         for seconds, expected in (
             (86400.0, "within the last 24h"),
-            (5400.0, "within the last 1.5h"),
-            (3599.0, "within the last 1.0h"),
-            (1800.0, "within the last 0.5h"),
+            (3600.0, "within the last 1h"),
+            (5400.0, "within the last 1.50h"),
+            (3640.0, "within the last 1.01h"),  # was "1.0h" — a rounded hour UNDERSTATES
+            (3599.0, "within the last 60.0m"),  # was "1.0h" for 59m59s
+            (1800.0, "within the last 30m"),  # was "0.5h"
+            (180.0, "within the last 3m"),  # was "0.1h"
+            (120.0, "within the last 2m"),  # was "0.0h" — the lie this function condemns
+            (60.0, "within the last 1m"),  # was "0.0h"
             (30.0, "within the last 30s"),
         ):
             hook._SIXTH_CAUSE_MAX_EDIT_AGE_S = seconds
             assert hook._edit_age_phrase() == expected, (seconds, hook._edit_age_phrase())
+        # ...and the PROPERTY, so a future rendering cannot pass the table and still be lossy:
+        # nothing ever renders a zero magnitude for a non-zero window.
+        for seconds in (30.0, 60.0, 120.0, 900.0, 3599.0, 3600.0, 5400.0, 86400.0):
+            hook._SIXTH_CAUSE_MAX_EDIT_AGE_S = seconds
+            phrase = hook._edit_age_phrase()
+            assert " 0h" not in phrase and " 0.0h" not in phrase and " 0m" not in phrase, phrase
     finally:
         hook._SIXTH_CAUSE_MAX_EDIT_AGE_S = original
-    with contextlib.suppress(AttributeError):
-        assert original == hook._SIXTH_CAUSE_MAX_EDIT_AGE_S
+    assert original == hook._SIXTH_CAUSE_MAX_EDIT_AGE_S, "the constant was not restored"
 
 
 def test_the_block_does_not_claim_a_window_it_exempts_files_from() -> None:
@@ -146,6 +154,16 @@ def test_the_block_does_not_claim_a_window_it_exempts_files_from() -> None:
     COUNTED by `_unreviewed_code_file_names` — both say so in their docstrings — so a message
     reading "edited in the last 24h" was false for exactly those files. The agent opens one,
     finds a months-old committed edit, and learns to warn the block through."""
+    # ⚠️ EXECUTED, not only a substring pin — the class this file condemned two tests earlier.
+    # A source check stays green if the sentence is present but semantically wrong, and it never
+    # exercises a ts == 0 file end to end. This drives the real filter with one.
+    floor = hook._sixth_cause_floor(time.time() - 60)
+    unknown = {"scripts/unparseable.py": 0}
+    assert hook._this_sessions_edits(unknown, floor) == unknown, (
+        "a ts == 0 edit must be KEPT — unknown is not covered"
+    )
+    assert hook._unreviewed_code_file_names(unknown, []) == ["scripts/unparseable.py"]
+    # ...so the block can name a file whose age it does NOT know, and must not claim it does
     src = _HOOK.read_text(encoding="utf-8")
     block = src.split("UNREVIEWED SPONTANEOUS WORK")[1][:900]
     assert "no readable timestamp" in block, "the block still claims a window it exempts files from"
@@ -172,3 +190,46 @@ def test_the_floor_is_one_max_not_a_branch() -> None:
     assert not branches, f"the branch survived alongside the max(): {len(branches)} branch node(s)"
     assert len(maxes) == 1, f"{len(maxes)} max() calls — the rule must live in exactly one place"
     assert len(maxes[0].args) == 3, "the three bounds are baseline, the age window, the ledger"
+
+
+# ── RESTORED. Round 2 deleted these three while replacing the mirror grader above: the edit
+# replaced a text RANGE between two anchors and swallowed everything inside it. That is the SECOND
+# time in this review a range replacement deleted graders — the first took
+# `test_every_headless_claude_spawn_sets_the_flag` out of the headless file — and a deleted grader
+# is worse than one that cannot fail, because there is no red to notice. Executed by round 3's
+# seat: a 3-arg branch-free mutant that reinstates the live false positive passes all five
+# survivors and is caught only by the first of these.
+
+
+def test_the_age_bound_binds_even_with_a_real_baseline(tmp_path=None) -> None:
+    """⚠️ THE CORRECTION THE PHASE F REVIEW FORCED. The first cut applied the bound only when the
+    baseline was MISSING — and the shape 01M25Y93RB reports is a RESUMED transcript, which HAS a
+    baseline; it is merely old. Measured live while this fired on the author's own session: the
+    baseline was 135.3h old, so a 2.5-day-old entry for a file committed and reviewed to `done`
+    was reported as unreviewed, and 87 of the 97 baselines on the box were older than the window."""
+    ancient = time.time() - 135 * 3600
+    floor = hook._sixth_cause_floor(ancient)
+    assert floor > ancient, "an ancient baseline was used verbatim — the bound did not bind"
+    assert time.time() - floor <= hook._SIXTH_CAUSE_MAX_EDIT_AGE_S + 5
+
+    # a 2.5-day-old edit — the live false positive — is dropped
+    assert hook._this_sessions_edits({"scripts/x.py": time.time() - 2.5 * 86400}, floor) == {}
+
+
+def test_a_fresh_baseline_still_wins_over_the_age_bound() -> None:
+    """...or the bound has replaced the measurement instead of bounding it. A session that started
+    two hours ago must judge exactly its own two hours, not a day."""
+    fresh = time.time() - 7200
+    assert hook._sixth_cause_floor(fresh) == fresh
+
+
+def test_the_block_names_the_window_because_the_floor_slides() -> None:
+    """The floor moves between stops, so the same stop run twice can give different verdicts. A
+    verdict that changes on its own, silently, is indistinguishable from a broken one — which is
+    the complaint T5.4's file-naming half exists to answer, and it applies to the window too."""
+    src = _HOOK.read_text(encoding="utf-8")
+    block = src.split("UNREVIEWED SPONTANEOUS WORK")[1][:900]
+    # round 2 replaced the lossy `int(s // 3600)` interpolation with `_edit_age_phrase()`; what
+    # this leg pins is unchanged in substance — the block DISCLOSES its window, because the floor
+    # slides between stops and a verdict that changes on its own is indistinguishable from a bug.
+    assert "_edit_age_phrase()" in block, "the block does not name its window"

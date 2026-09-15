@@ -189,6 +189,31 @@ every word preserved — a SHAPE fix, not a content edit — and the grader is g
 **Kept as the lesson, not as work:** when a grader exists, run the grader. A hand count beside a
 green test is a second opinion nobody asked for, and it is the one that was wrong.
 
+## [infra] Four `claude -p` spawners have not adopted the FABRIK_HEADLESS contract
+
+T13.5 gave the two ADVISORY hooks a stand-down flag and wired it into the two spawn sites the
+phase touched. Round 3 of the Phase F review discovered the population is larger — a grader that
+DISCOVERS spawners rather than listing them now finds six, and four have not adopted it:
+
+- `scripts/sysadmin/claude_rotate.py` — the keepalive `["claude", "-p", "ping"]` whose output is
+  captured and never read
+- `scripts/aro-wake/claude_rotate.py` — byte-identical twin of the above (md5 `f68c15a1…`), so
+  either both change or they drift
+- `scripts/sysadmin/bot.py`
+- `scripts/aro-wake/main.py`
+
+All four are OUTSIDE Phase F's surface, so adopting the contract there is an extension rather than
+a defect in this phase's change, and it is recorded rather than done. They are listed by name in
+`tests/test_hooks_headless_guard.py::_UNADOPTED_SPAWNERS`, which is what lets the discovery test
+distinguish "filed, not adopted yet" from "appeared and nobody noticed" — a new spawner that is in
+neither set reds the suite with the instruction to pick one.
+
+**Why the discovery matters more than the list:** the grader hardcoded two files and asserted
+`checked == 2`. `claude_broker.py` was invisible to it because its argv is built in an assignment
+(`argv = [str(_ENTRYPOINT), "-p", …]`) and passed as a name, so an AST matcher keyed on a call's
+first argument could not see it — it survived two rounds of this review undeclared. The rule now
+walks every list literal, which is what surfaced the other four as well.
+
 ## [infra] Phase F routed four items whose fix crosses a tree boundary — the class a triage pass cannot close by itself
 
 Measured 2026-09-15 while executing T13 of the mail-triage plan. Each is real, each is verified

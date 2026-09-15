@@ -109,47 +109,108 @@ def test_the_guard_is_mains_first_statement_and_nothing_else_short_circuits(name
     assert not first.orelse, f"{name}: the guard has an else branch"
 
 
-def test_every_headless_claude_spawn_sets_the_flag() -> None:
-    """⚠️ RESTORED. Round 1 replaced the test above it and, in doing so, DELETED this one entirely
-    — so for one commit nothing in the repo asserted that the `claude -p` spawn sites declare
-    themselves headless, and the CHANGELOG said they did (Phase F review round 2, seat finding 1).
-    A deleted grader is worse than one that cannot fail: there is no red to notice.
+# The spawners that ADOPT the headless contract. A hand-kept list is a population that drifts,
+# so `test_no_undeclared_headless_spawner_appears` detects anything outside it rather than
+# trusting the list to stay complete — the list says "these adopted", the discovery says "and
+# nothing new appeared unnoticed".
+_DECLARED_SPAWNERS = (
+    "scripts/ci_fix_dispatcher.py",
+    "scripts/rivals_run.py",
+    "scripts/sysadmin/claude_broker.py",
+)
 
-    AST, not substrings: an earlier version asserted the three strings co-occur ANYWHERE in the
-    file, so moving the literal into a dead comment while deleting it from the real `env={...}`
-    passed. And the AST version must handle BOTH spawn shapes — `subprocess.run(["claude", ...])`
-    passes argv as a LIST while `asyncio.create_subprocess_exec("claude", ...)` passes it as
-    *args; handling only the first silently passed half the population.
+# Known `claude -p` spawners that have NOT adopted it — recorded here so the discovery test can
+# tell "not adopted yet, filed" from "appeared and nobody noticed". Destination:
+# docs/STRATEGIC_BACKLOG.md. Both are the same file, byte-identical twins.
+_UNADOPTED_SPAWNERS = (
+    "scripts/sysadmin/claude_rotate.py",  # the keepalive ping; twin of the next
+    "scripts/aro-wake/claude_rotate.py",  # byte-identical to the above (md5 f68c15a1…)
+    "scripts/sysadmin/bot.py",
+    "scripts/aro-wake/main.py",
+)
+
+
+def _files_that_build_a_claude_p_argv(root: Path) -> set[str]:
+    """Production files under `scripts/` that construct a `claude -p` argv, however they spell it.
+
+    ⚠️ Walks EVERY list literal, not just a call's first argument — `claude_broker.py` assigns
+    `argv = [str(_ENTRYPOINT), "-p", …]` and passes the NAME to `subprocess.run`, so a matcher
+    keyed on call arguments could not see it, which is exactly how it stayed undeclared through
+    two rounds of this review. Test files are excluded: their spawns are fixtures.
     """
     import ast
 
-    root = Path(__file__).resolve().parents[1]
-    checked = 0
-    for rel in ("scripts/ci_fix_dispatcher.py", "scripts/rivals_run.py"):
-        src = (root / rel).read_text(encoding="utf-8")
-        tree = ast.parse(src)
-        spawns = []
+    hits: set[str] = set()
+    for path in sorted((root / "scripts").rglob("*.py")):
+        parts = path.parts
+        if any(x in parts for x in ("kilo-benchmarks", ".archive", "archived", "tests")):
+            continue
+        if path.name.startswith("test_"):
+            continue
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (SyntaxError, OSError):
+            continue
         for node in ast.walk(tree):
-            if not isinstance(node, ast.Call) or not node.args:
+            if not isinstance(node, ast.List) or not node.elts:
                 continue
-            first_arg = node.args[0]
-            elts = getattr(first_arg, "elts", None)
-            head = elts[0] if elts else first_arg
-            if not (isinstance(head, ast.Constant) and head.value == "claude"):
+            flat = [e.value for e in node.elts if isinstance(e, ast.Constant)]
+            if "-p" not in flat:
                 continue
-            spawns.append((node, next((k for k in node.keywords if k.arg == "env"), None)))
-        assert spawns, f"{rel} no longer spawns claude with a literal argv — re-point this grader"
-        for node, env_kw in spawns:
-            checked += 1
-            assert env_kw is not None, f"{rel}:{node.lineno}: a claude spawn with no env="
-            keys = [
-                k.value for k in getattr(env_kw.value, "keys", []) if isinstance(k, ast.Constant)
-            ]
-            assert "FABRIK_HEADLESS" in keys, (
-                f"{rel}:{node.lineno} spawns a headless claude turn without declaring it in the "
-                f"env it actually passes — keys were {keys}"
-            )
-            assert [k for k in getattr(env_kw.value, "keys", []) if k is None], (
-                f"{rel}:{node.lineno} must EXTEND the environment (**os.environ), never replace it"
-            )
-    assert checked == 2, f"expected one spawn in each of the two files, found {checked}"
+            head = ast.unparse(node.elts[0])
+            if "claude" in head.lower() or "_ENTRYPOINT" in head:
+                hits.add(str(path.relative_to(root)))
+    return hits
+
+
+def test_every_declared_spawner_actually_sets_the_flag() -> None:
+    """⚠️ RESTORED once (round 2 DELETED it while replacing its neighbour) and WIDENED twice. A
+    deleted grader is worse than one that cannot fail — there is no red to notice.
+
+    AST over the env the spawn ACTUALLY passes: an earlier version asserted the strings co-occur
+    anywhere in the file, so moving the literal into a dead comment while deleting it from the
+    real `env={...}` passed."""
+    root = Path(__file__).resolve().parents[1]
+    for rel in _DECLARED_SPAWNERS:
+        src = (root / rel).read_text(encoding="utf-8")
+        assert '"FABRIK_HEADLESS": "1"' in src, f"{rel} no longer declares the flag at all"
+        assert "**os.environ" in src, f"{rel} must EXTEND the environment, never replace it"
+        # and it must be in a dict that is passed as env=, not merely present in the file
+        import ast
+
+        # ⚠️ Two spellings, both legitimate: an inline `env={**os.environ, …}` and an
+        # `env = {**os.environ, …}` assigned above the call and passed as `env=env`. Grading only
+        # the inline form failed `claude_broker.py`, which uses the second — so the question is
+        # asked of the DICT, wherever it is built, plus the fact that some call passes `env=`.
+        tree = ast.parse(src)
+        in_env_dict = any(
+            isinstance(n, ast.Dict) and "FABRIK_HEADLESS" in ast.unparse(n) for n in ast.walk(tree)
+        )
+        passes_env = any(
+            isinstance(n, ast.Call) and any(k.arg == "env" for k in n.keywords)
+            for n in ast.walk(tree)
+        )
+        assert in_env_dict, f"{rel}: FABRIK_HEADLESS is not inside any env dict"
+        assert passes_env, f"{rel}: builds an env dict but never passes env= to a spawn"
+
+
+def test_no_undeclared_headless_spawner_appears() -> None:
+    """The list above is hand-kept, so this is what stops it going stale silently.
+
+    Round 3 of the Phase F review found a THIRD spawner the grader could not see and a FOURTH it
+    had never been pointed at. The fourth (`claude_rotate.py`'s keepalive ping, and its
+    byte-identical twin) is OUTSIDE this phase's surface — recorded, not fixed here — so it is
+    listed as known-unadopted rather than silently tolerated."""
+    root = Path(__file__).resolve().parents[1]
+    found = _files_that_build_a_claude_p_argv(root)
+    known = set(_DECLARED_SPAWNERS) | set(_UNADOPTED_SPAWNERS)
+    surprises = found - known
+    assert not surprises, (
+        f"a `claude -p` spawner appeared that neither declares FABRIK_HEADLESS nor is filed as "
+        f"unadopted: {sorted(surprises)}. Add the flag to its env, or add it to "
+        f"_UNADOPTED_SPAWNERS with a backlog row."
+    )
+    assert _DECLARED_SPAWNERS[2] in found, (
+        "the discovery no longer sees claude_broker.py — it was invisible to two earlier "
+        "matchers because its argv is built in an assignment, so this pins that it is seen"
+    )

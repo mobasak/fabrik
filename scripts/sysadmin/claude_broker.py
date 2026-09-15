@@ -56,7 +56,12 @@ def _default_run_claude(argv: list[str]) -> str:
 
     # the broker has ALREADY routed this job through the governor (forced routine) — bypass the
     # claude-run.sh gate so it isn't double-gated (which could shed a job the broker meant for ob@).
-    env = {**os.environ, "CLAUDE_GOVERNOR_KIND": "bypass"}
+    # T13.5: HEADLESS too — this spawns a `claude -p` turn whose stdout is captured and parsed,
+    # so the two ADVISORY hooks have nobody to advise and their banners are a parse hazard. Found
+    # by the Phase F review's round 3: the grader for "every headless claude spawn declares
+    # itself" hardcoded TWO files and this was the third, invisible to it because the argv head
+    # here is an entrypoint variable rather than the literal "claude".
+    env = {**os.environ, "CLAUDE_GOVERNOR_KIND": "bypass", "FABRIK_HEADLESS": "1"}
     out = subprocess.run(argv, capture_output=True, text=True, timeout=600, check=True, env=env)
     return out.stdout
 

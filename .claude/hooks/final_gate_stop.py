@@ -309,13 +309,31 @@ def _failure_cites_session(
         for rel in candidates:
             if t == rel or t.endswith("/" + rel) or rel.endswith("/" + t):
                 return True
+
     # No non-governance match. If the output cites ONLY routine-governance names and
     # the session authored one of them, the session may have broken that file ITSELF
     # (malformed CHANGELOG edit) — that is not attributable either way: indeterminate,
     # keep blocking up to the cap. The sibling-obligation incident is different: its
     # output also cites the sibling's trigger file, a non-governance token.
-    non_gov = {t for t in tokens if t not in _ROUTINE_GOVERNANCE}
-    if not non_gov and any(g in authored for g in tokens):
+    # ⚠️ SUFFIX-TOLERANT, exactly like the match above it. `t not in _ROUTINE_GOVERNANCE` is an
+    # EXACT comparison, so `/opt/fabrik/docs/DECISIONS.md` or a bare `DECISIONS.md` fell into
+    # `non_gov`, read as sibling-caused, and WAIVED a failure the session itself had caused —
+    # while the relative form `docs/DECISIONS.md` correctly stayed indeterminate and blocked.
+    # Three spellings of one file, two different verdicts (executed, Phase F review round 3). The
+    # hole opened when this constant was widened to include the ledger files, and it is the
+    # fail-OPEN direction on a gate cause: the session exits with a red gate it caused.
+    def _is_governance(token: str) -> bool:
+        return any(
+            token == g or token.endswith("/" + g) or g.endswith("/" + token)
+            for g in _ROUTINE_GOVERNANCE
+        )
+
+    non_gov = {t for t in tokens if not _is_governance(t)}
+    if not non_gov and any(
+        _is_governance(t)
+        and any(a == t or a.endswith("/" + t) or t.endswith("/" + a) for a in authored)
+        for t in tokens
+    ):
         return None
     return False
 
@@ -606,10 +624,21 @@ def _edit_age_phrase() -> str:
     1800 before this replaced it.
     """
     s = _SIXTH_CAUSE_MAX_EDIT_AGE_S
-    if s >= 3600 and s % 3600 == 0:
-        return f"within the last {int(s // 3600)}h"
+    if s >= 3600:
+        # ⚠️ The hours branch cuts in at ONE HOUR, not at one minute. Round 2 wrote `if s >= 60`
+        # and so rendered `within the last 0.0h` for 120s and `0.1h` for 180s — the very "0h"
+        # this function's docstring was written to condemn, reproduced inside the replacement
+        # (executed, Phase F review round 3). A rounded hour also UNDERSTATES: 3640s read as
+        # "1.0h", so the exact form is used whenever the value is not a whole number of hours.
+        return (
+            f"within the last {int(s // 3600)}h"
+            if s % 3600 == 0
+            else f"within the last {s / 3600:.2f}h"
+        )
     if s >= 60:
-        return f"within the last {s / 3600:.1f}h"
+        return (
+            f"within the last {int(s // 60)}m" if s % 60 == 0 else f"within the last {s / 60:.1f}m"
+        )
     return f"within the last {int(s)}s"
 
 
@@ -624,8 +653,12 @@ def _commit_is_mine(touched: set[str], distinctive: set[str], authored: set[str]
     ⚠️ BUT a commit made ENTIRELY of shared-append files has no distinctive file to offer, and the
     first cut therefore discarded it — so a docs-only task end (CHANGELOG + INDEX and nothing
     else) left the push law SILENT on the session's own unpushed work. Executed: `ahead` returned
-    `None` where the pre-fix code returned 1, and 3 of the last 200 commits here have exactly that
-    shape. Silence there breaks the `push-at-task-end` universal marker, which is the one thing
+    `None` where the pre-fix code returned 1, and **11** of the last 200 commits here have exactly
+    that shape — `touched <= _ROUTINE_GOVERNANCE` over the SEVEN names this constant now holds.
+    (It was first written as 3, which is the count under the FIVE names the same commit replaced:
+    the number was measured against a population the code no longer had, understating this
+    clause's fire rate — and therefore the sibling residue it admits — by nearly 4x. Exactly the
+    defect this round was fixing one function away.) Silence there breaks the `push-at-task-end` universal marker, which is the one thing
     this cause exists to enforce, so a governance-only commit counts when its files are ones this
     session touched.
 
