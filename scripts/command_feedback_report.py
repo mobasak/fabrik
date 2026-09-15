@@ -76,10 +76,13 @@ AXES: tuple[str, ...] = ("lean", "fast", "accurate", "waste", "infra", "rules", 
 # `commands/_fragments/close-feedback.md`, so a reword of the fragment fails a test rather than
 # silently emptying the `placeholder` bucket.
 #
-# WHY the bucket exists at all: `command_run.py::_is_placeholder` is a `re.fullmatch` on `<…>`, so an
-# axis key in front of a pasted grammar template defeats it — `change: <the ONE concrete edit…>` is
-# REFUSED at the close today and `change: lean: <the ONE concrete edit…>` is not. Until that one-line
-# parser fix lands, this reader is the only thing that can tell a pasted template from a verdict.
+# WHY the bucket exists at all: `command_run.py::_is_placeholder` was a `re.fullmatch` on `<…>`, so
+# an axis key in front of a pasted grammar template DEFEATED it — `change: <the ONE concrete edit…>`
+# was refused at the close and `change: lean: <the ONE concrete edit…>` was not. ⚠️ That hole is
+# CLOSED (2026-09-15, 190e487a): the guard now strips one or more leading `<word>:` keys before its
+# bracket test. This reader is no longer the only thing that can tell a pasted template from a
+# verdict — but it stays, because the ledger still holds PRE-FIX rows that closed with a keyed
+# template, and a reader is what makes those visible rather than silently bucketed as verdicts.
 # LONG clauses on purpose. The short noun phrases these came from (`mail id`, `steps, turns`) are
 # ordinary English that a genuine verdict ABOUT the close-out grammar uses in its own sentence —
 # and the close-out grammar is exactly what this loop's verdicts are about. A paste reproduces the

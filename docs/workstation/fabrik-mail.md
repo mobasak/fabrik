@@ -135,9 +135,12 @@ same digest is ALSO delivered into the `fabrik` inbox addressed to `infra` (`--k
 6 h and logged `send=OK` while the hub inbox grew to 132 with a 10-day-old oldest obligation,
 because the only reader was one who does not read dashboards. `ack: no` is load-bearing — an
 `ack: required` digest would count itself on the next run and the number could never fall.
-**EITHER leg delivering stamps the day**; only TOTAL failure retries within 6 h. The agent leg is
-local (no ssh, no DNS), which matters because the operator leg has failed whole days here
-(2026-09-12: ssh to vps timed out and Telegram name resolution failed).
+**Each leg carries its OWN day-stamp** and is retried independently — a single shared stamp let a
+Telegram success suppress the whole day, so one transient failure of the agent leg cost the agent
+that day's digest entirely. The agent leg is local (no ssh, no DNS) where the operator leg goes over
+the network: on 2026-09-12 the operator leg failed on two of the day's runs before succeeding on the
+third. ⚠️ No day in the log has ever gone fully undelivered — the ≤6 h no-stamp retry is what
+recovers it, and that is the argument for the agent leg, not a whole-day outage.
 
 ### Install (operator — crontab writes are classifier-blocked for agents)
 

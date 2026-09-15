@@ -1182,7 +1182,7 @@ def _is_decoration(ch: str) -> bool:
     return not (ch.isalpha() or ch.isdecimal())
 
 
-def _is_placeholder(value: str | None) -> bool:
+def _is_placeholder(value: str | None, field: str | None = None) -> bool:
     """A value that is the grammar's own `<…>` text — its ellipsis, a nested `<`, a prose
     alternation (`what you filed | none`) or the grammar's own noun phrases — or several prose
     tokens with no real value at their head. `<01M1RHJY>`, `<none>`, `<01M1AAA, 01M1BBB>`,
@@ -1191,15 +1191,24 @@ def _is_placeholder(value: str | None) -> bool:
     if not value:
         return False
     v = value.strip()
-    # ⚠️ Strip an AXIS KEY before the bracket test. Piece 1 of the kaizen loop made `change:`
-    # axis-keyed (`change: lean: <edit>`), and this guard anchors on the value STARTING with `<`
-    # — so ANY key in front of the grammar text defeated it and a close could paste the grammar
-    # back at the gate. Stripped for the TEST only: the key is not part of the placeholder.
-    # Keyed or not, per `command_feedback_report.py::_axis_of`, which buckets `placeholder` ahead
-    # of `bad-axis` — so an unknown key (`speed: <…>`) is stripped too, not just the seven AXES;
-    # a key is one word, so a real value's prose (`lean: cut the rubric block`) never matches the
-    # bracket test afterwards either way (01M2HYV1MJ4Q, the operator directive).
-    v = re.sub(r"^[A-Za-z][\w-]*:\s*(?=<)", "", v)
+    # ⚠️ Strip an AXIS KEY before the bracket test — for the `change:` FIELD ONLY. Piece 1 of the
+    # kaizen loop made `change:` axis-keyed (`change: lean: <edit>`), and this guard anchors on the
+    # value STARTING with `<`, so a key in front of the grammar text defeated it and a close could
+    # paste the grammar back at the gate (01M2HYV1MJ4Q, the operator directive).
+    # ⚠️ FIELD-SCOPED, and that is load-bearing. `confusion:`, `waste:` and `filed:` carry NO axis
+    # key, and stripping there made this guard REFUSE honest values — `filed: infra: <01M2ABC —
+    # …>` and `waste: lean: <two rounds re-deriving the same count>` were newly rejected, which
+    # leaves the record `running` and the Stop hook blocking the turn on a close that was correct.
+    # A fail-CLOSED gate that wedges the session is worse than the hole it closed (review round 1).
+    # ⚠️ The strip tolerates DECORATION and REPEATS: a bare `^\w+:` closed exactly one shape while
+    # `**lean**:`, `` `lean`: ``, `lean :`, `lean: waste:` and a fullwidth `：` all still admitted a
+    # verbatim template — measured 13 of 18 probed shapes closing at rc 0. Bounded to 40 chars and
+    # to a single line so it can never eat a real value's prose.
+    if field == "change":
+        v = re.sub(r"^[>\s*_`'\"()\[\]-]+", "", v).strip()
+        v = re.sub(r"^(?:[^<>\n:]{0,40}[:\uff1a\u2236][^\S\n]*)+(?=<)", "", v)
+        # a BRACKETED key carries no colon (`[lean] <…>`) — the one shape the colon form misses
+        v = re.sub(r"^\w[\w-]{0,38}[\]\)][^\S\n]*(?=<)", "", v)
     m = re.fullmatch(r"<(?P<c>.*)>\s*\[?", v, re.S)
     if not m:
         return False
@@ -1262,7 +1271,7 @@ def _parse_usage_feedback(text: str) -> tuple[dict[str, str], list[str]]:
     missing = [f for f in _USAGE_FIELDS if not fields.get(f)]
     # T3.4 (backlog F25/F26): a value pasted verbatim from the grammar — `<…>` — names nothing;
     # it is refused as a placeholder, by label, so the grammar string cannot pass its own parser
-    missing += [f"{f} (placeholder)" for f in _USAGE_FIELDS if _is_placeholder(fields.get(f))]
+    missing += [f"{f} (placeholder)" for f in _USAGE_FIELDS if _is_placeholder(fields.get(f), f)]
     missing += [f"{d} (duplicate)" for d in dupes if f"{d} (duplicate)" not in missing]
     return fields, missing
 

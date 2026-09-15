@@ -135,25 +135,36 @@ def _env_file_values(path: Path) -> dict:
 def _shared_env_path() -> Path | None:
     """`$SUBAGENTS_ENV_FILE`, else `$XDG_CONFIG_HOME/fabrik/subagents.env`, else the default under
     `~/.config` — the rule the retired module used, so a key set once keeps serving every repo.
-    ⚠️ ONE DELIBERATE DIVERGENCE from the standalone fabrik-lib copies (`libs/alerting/_dotenv.py`):
-    the override is `expanduser()`-ed here, so `SUBAGENTS_ENV_FILE=~/.config/…` resolves instead of
-    silently missing a file whose path begins with a literal `~`. Better, but NOT the same — do not
-    describe the two as identical. ⚠️ And the expansion is GUARDED, because `expanduser()` raises the
-    same RuntimeError as `Path.home()` on an unresolvable home: the first cut of this divergence put
-    the raise ABOVE the guard written for it, so neither copy on the box was right — fabrik-lib's
-    silently misses a tilde path, ours could raise. The correct shape is guarded expansion, and it is
-    the one fabrik-lib's SB-003 backlog row now carries (01M2GSRM4T1Y)."""
+    The override is `expanduser()`-ed, GUARDED, so `SUBAGENTS_ENV_FILE=~/.config/…` resolves instead
+    of silently missing a file whose path begins with a literal `~`. The guard matters because
+    `expanduser()` raises the same RuntimeError as `Path.home()` on an unresolvable home, and this
+    branch runs BEFORE the try below (01M2GSRM4T1Y).
+    ⚠️ This is NO LONGER a divergence from fabrik-lib: they closed SB-003 on 2026-09-15 (`88d061f8`)
+    and all 21 canonical `_dotenv` loaders now carry the same guarded expansion — verified at
+    `/opt/fabrik-lib/alerting/_dotenv.py:110-125` (NOT `libs/alerting/…`, a path that does not
+    exist; the old docstring named it unchecked).
+    ⚠️ ONE REAL DIVERGENCE REMAINS, and it is ours: on an unresolvable home fabrik-lib falls back to
+    the literal `Path(override)` while we return None, because a bare `~/...` path is RELATIVE and
+    the caller's `.is_file()` resolves it against the CWD — a cwd-relative credential read. Theirs
+    is the more permissive shape; do not "align" by copying it back."""
     override = os.getenv("SUBAGENTS_ENV_FILE")
     if override:
         try:
             return Path(override).expanduser()
-        except (KeyError, RuntimeError):
+        except (KeyError, RuntimeError, OSError):
             # `expanduser()` resolves the home directory by the SAME mechanism as `Path.home()`
             # below and raises the SAME RuntimeError — and this branch runs BEFORE that guard, so
-            # the guard never covered it. Degrade to the UNEXPANDED path: a literal `~` misses the
-            # file, which is this function's pre-existing behaviour and strictly better than raising
-            # out of `load_env`'s "Never raises" contract (fabrik-lib-sentinel, 01M2GSRM4T1Y).
-            return Path(override)
+            # the guard never covered it (fabrik-lib-sentinel, 01M2GSRM4T1Y).
+            # ⚠️ Degrade to None, NOT to the unexpanded path. A bare `Path("~/.config/...")` is
+            # RELATIVE, and the caller does `shared.is_file()`, which resolves it against the CWD —
+            # so a stray directory named `~` in the repo root turns the fallback into a silent read
+            # of an ATTACKER-PLACED credential file. Executed: `load_env` applied `EXA_API_KEY` and
+            # `BRAVE_API_KEY` from `<cwd>/~/.config/fabrik/subagents.env` (review round 1). Missing
+            # the file is the honest outcome when home cannot be resolved; reading a different one
+            # is not. `OSError` is in the tuple because `pwd` may fail from a broken NSS/sssd
+            # backend, which `posixpath.expanduser` does not swallow (only ImportError/KeyError).
+            p = Path(override)
+            return p if p.is_absolute() else None
     xdg = os.getenv("XDG_CONFIG_HOME")
     if xdg:
         return Path(xdg) / "fabrik" / "subagents.env"

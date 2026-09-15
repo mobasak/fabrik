@@ -4609,9 +4609,7 @@ def test_the_usage_grammar_constant_states_the_axis_key_the_fragment_mandates() 
     is fleet-synced to ~46 repos that have no `commands/_fragments/` — so the drift is pinned by a
     grader instead, the same way `command_feedback_report.py` pins its own phrase copies
     (01M2HYV1MJ4Q (c), the operator directive; the systemic half of its own mail)."""
-    fragment = (
-        Path(__file__).resolve().parents[1] / "commands" / "_fragments" / "close-feedback.md"
-    )
+    fragment = Path(__file__).resolve().parents[1] / "commands" / "_fragments" / "close-feedback.md"
     if not fragment.exists():  # a synced consumer repo has no fragment — nothing to pin against
         pytest.skip("close-feedback.md is hub-only")
     cr = _cr_module("grammarpin")
@@ -4637,15 +4635,32 @@ def test_an_axis_keyed_placeholder_is_still_a_placeholder() -> None:
         "accuracy: <mail id(s)>",
         "speed:<x … y>",
         "  lean:  <what you filed|none>  ",
+        # TWO keys — the first cut of this fix stripped exactly one and let this through.
+        # `waste` is both an axis and a field label, so a double key is the likely slip.
+        "lean: waste: <mail id(s)>",
+        "a: b: c: <x … y>",
     ):
-        assert cr._is_placeholder(ph), ph
+        assert cr._is_placeholder(ph, "change"), ph
     # the axis key must not make a REAL keyed value look like a placeholder
     for real in (
         "lean: cut the rubric block to the matched rows",
         "accuracy: <01M1RHJY>",
         "lean: <none — surfaces exercised: mail.py>",
     ):
-        assert not cr._is_placeholder(real), real
+        assert not cr._is_placeholder(real, "change"), real
+    # ⚠️ FIELD-SCOPED, and this half is the one that wedges sessions if it regresses.
+    # `confusion:`, `waste:` and `filed:` carry NO axis key, so a key-looking head there is part
+    # of an HONEST value. Stripping it made the gate refuse correct closes, which leaves the
+    # record `running` and the Stop hook blocking the turn — fail-closed onto the agent.
+    for field, honest in (
+        ("filed", "infra: <01M2ABC — the axis-key defect, 01M2DEF — the grader hole>"),
+        ("waste", "lean: <two rounds spent re-deriving the same count>"),
+        ("confusion", "accurate: <the step said HEAD but meant the bound SHA>"),
+    ):
+        assert not cr._is_placeholder(honest, field), (field, honest)
+    # …while a BARE template is still refused in every field
+    for field in ("confusion", "waste", "change", "filed"):
+        assert cr._is_placeholder("<mail id(s)>", field), field
 
 
 def test_the_phase_gate_refusal_names_the_stem_and_states_the_bound_only_when_in_force(

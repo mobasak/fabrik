@@ -157,6 +157,19 @@ Details: `docs/reference/command-run-protocol.md` § Events.
 
 ## Consumers — the derived-facts store and the metric registry
 
+⚠️ **The close-out `change:` queue is a SEPARATE stream from this one, and the two are easy to
+confuse.** Events here are emitted per action into `~/.claude/state/kaizen/`; the `change:` verdicts
+live in the run records and the fleet ledger `~/.claude/state/command-feedback.jsonl`, written by
+`scripts/command_run.py`'s close and read by `scripts/command_feedback_report.py`. The verdict is
+AXIS-KEYED (`change: lean: …`; the seven axes are `lean|fast|accurate|waste|infra|rules|manifesto`,
+and `change: none` carries no key), and the report classifies each row into four buckets in a fixed
+precedence — `placeholder` → `bad-axis` → the named axis → `unkeyed` — which is what makes the four
+counts a partition. `--queue <command>` renders one command's rows for `/fabrik-command-improve`;
+`--observer-rank` names the commands whose closes are expensive enough to pay for a writer seat.
+Canonical: `docs/reference/command-run-protocol.md` § the report, and
+`commands/_fragments/close-feedback.md` for the grammar itself.
+
+
 The daily collector (`scripts/sysadmin/kaizen_collect_v2.py --daily`, T06) parses each session's
 event file ONCE into a one-row JSONL store (`~/.claude/state/kaizen/derived-facts.jsonl`,
 append-only, keyed `(sid, facts_version, day)`), publishes per-day deltas into versioned series

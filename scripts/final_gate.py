@@ -2026,7 +2026,14 @@ def run_consistency_checks(
         )
         results.append(
             run_optional_check(
-                "scripts/enforcement/check_plan_tickets.py", "Plan-Set Contract (Spine+Tickets)"
+                "scripts/enforcement/check_plan_tickets.py",
+                "Plan-Set Contract (Spine+Tickets)",
+                # ⚠️ advisory=True so the row KEEPS its stdout on success. The check's
+                # demotion NOTE — "N ERROR(s) demoted to advisory, re-run with --plan-dir" —
+                # only ever prints on an exit-0 run, because demoting is what keeps rc at 0;
+                # without this, `run_optional_check` returns `""` and the operator sees a green
+                # row with no text, which is the exact silence the NOTE was added to end.
+                advisory=True,
             )
         )
         # Stage-skip artifact gate (Tier-2 only, unlike check_convergence.py which runs

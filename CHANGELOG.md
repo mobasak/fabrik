@@ -4,6 +4,45 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Review round 1 of the mail-handling run: 8 seats, 20 confirmed defects in my own fixes (2026-09-15)
+
+- **The completion gate was RED on two of my own files and I had committed anyway** — `ruff format`
+  on `scripts/sysadmin/mail_escalate.py` and an N802 (`..._AGENT_...`) that took the repo-wide lint
+  ratchet 0 → 1, which is CI-parity and blocks every session's gate. Both fixed; `ruff check .` is
+  `All checks passed!` and `final_gate.py --check --json` is `success`, 0 blocking.
+- **`_is_placeholder` was FAIL-CLOSED onto the agent.** The axis-key strip ran on all four feedback
+  fields, but only `change:` is axis-keyed — so honest values (`filed: infra: <01M2ABC — …>`,
+  `waste: lean: <two rounds …>`) were newly REFUSED, leaving the run record `running` and the Stop
+  hook blocking the turn on a close that was correct. The strip is now FIELD-SCOPED, REPEATING (one
+  strip let `lean: waste: <…>` through — `waste` is both an axis and a field label) and
+  decoration-tolerant (13 of 18 probed shapes — `**lean**:`, `` `lean`: ``, `lean :`, `[lean]`, a
+  fullwidth `：` — closed at rc 0 against the first cut). Graded in both directions.
+- **`check_plan_tickets`'s demotion NOTE reached nobody.** `run_optional_check` returns `""` unless
+  the check is registered `advisory=True`, and the NOTE only ever prints on the exit-0 path, because
+  demoting is what keeps rc at 0 — so the operator saw a green row with no text, the exact silence
+  the NOTE was added to end. It also counted post-downgrade severities (reporting 1 where the remedy
+  showed 2, and 0 — never firing — for a DRAFT spine, which is the incident's own case), printed a
+  cwd-relative remedy that silently graded a DIFFERENT repo's same-named plan, and blamed a LOCK for
+  dirs selected by an unpushed plan-file commit. All four fixed; five surviving mutants now killed.
+- **`rivals_run`'s degrade was a credential hazard.** Falling back to the unexpanded `Path(override)`
+  returns a RELATIVE path, and the caller's `.is_file()` resolves it against the CWD — executed,
+  `load_env` applied `EXA_API_KEY` from `<cwd>/~/.config/fabrik/subagents.env`. It now returns None
+  for a non-absolute path and catches `OSError` (a broken NSS/sssd backend, which
+  `posixpath.expanduser` does not swallow). My own test had PINNED the unsafe behaviour.
+- **`mail_escalate`: eight defects in the new leg.** `--ack no` did NOT close the recursion — the
+  `*.md.resolving*` population reads no frontmatter, so a digest whose own ack was SIGKILLed became a
+  PERMANENT obligation and the count could rise on its own. The shared day-stamp let a Telegram
+  success suppress the agent leg for the whole day. The script held no lock (the `flock` is in the
+  cron line, so a hand run now delivers a duplicate AND suppresses the real run). The digest was a
+  bare column of ULIDs failing all seven D-035 sections, invisibly. Three argv mutations survived the
+  whole suite. One `main()` test spawned a REAL `mail.py send`, kept out of the live store only by a
+  fixture line. All fixed and graded.
+- **Corrected claims of mine that were false:** "the operator leg has failed whole days" (every date
+  in the log has at least one `send=OK`; 2026-09-12 failed two runs then succeeded on the third),
+  "all six kaizen edits installed" (item (e) had touched neither of its two target docs — now done),
+  the strand ages (31–34, not 30–33), and two sibling files whose comments still described the
+  placeholder hole as open. `D-258` records the recipe contract change the ratchet asks a D-row for.
+
 ### Fixed — The mail escalation digest now reaches an AGENT, not only the operator (2026-09-15)
 
 - **`scripts/sysadmin/mail_escalate.py` gains a second delivery leg.** The cron has run every 6 h
@@ -15,13 +54,23 @@ All notable changes to this project will be documented in this file.
   got the same leg. The digest is now ALSO delivered into the `fabrik` inbox addressed to `infra`
   (`--kind finding --ack no`), where the handle-now law binds the session that opens it. `ack: no`
   is load-bearing — an `ack: required` digest would count itself on the next run and the number
-  could never fall. **Either leg delivering stamps the day**; only TOTAL failure retries within 6 h,
-  which matters because the operator leg has failed whole days here (2026-09-12: ssh to vps timed
-  out AND Telegram name resolution failed). Three red-first graders, and the three existing tests
-  that encoded the old single-leg contract were updated to pin the new one rather than deleted.
-  The measure's cheapest evasion is written into the module docstring per D-253.
+  could never fall — for the inbox and strand populations, which filter on `ack`. ⚠️ It did NOT cover
+  the third: the `*.md.resolving*` window leg aged purely by mtime and read no frontmatter, so a
+  digest whose own `mail.py ack` was SIGKILLed mid-rename became a PERMANENT obligation and the
+  count could rise on its own. That leg now reads the window's frontmatter. **Each leg carries its
+  OWN day-stamp** and is retried independently — a shared stamp let a Telegram success suppress the
+  whole day, so one transient local failure cost the agent that day's digest entirely, inverting the
+  change's own purpose. The script now takes its own `flock`: the cron line's lock guards cron
+  against cron only, and since the agent leg exists a hand run delivers a duplicate AND stamps the
+  day, suppressing the real run. The digest is delivered as a MESSAGE — subject plus the seven D-035
+  sections — because the first cut sent a bare column of ULIDs that failed the contract this hub
+  enforces on every other sender, invisibly (the advisory goes to stderr, which the success path
+  discarded). Graders now run the REAL delivery leg: three argv mutations (`--ack required`, dropping
+  `--to-agent`, a bad `--to`) survived the whole suite before, and each would have made the leg dead
+  on arrival at rc 2 in a cron log nobody reads. The measure's cheapest evasion is written into the
+  module docstring per D-253.
 - **Eight archive STRANDS resolved** in the `fabrik` mailbox — obligations claimed into `archive/`
-  and never given an `acked-by:` line, aged 30–33 days and invisible to `list`. Each was read before
+  and never given an `acked-by:` line, aged 31–34 days (the digest's own `.0f` rounding; 30.9–33.9 exact) and invisible to `list`. Each was read before
   disposition: seven were superseded (their plans archived, their locks released, their incidents
   long over) and one was `done` — a Turkish-glyph font defect that HAD been correctly relayed to
   brand-identiy-creator the same day (`01M02K8RWR5P1MK7C3KGH8APTW`, acked there) with only the

@@ -1183,8 +1183,10 @@ def test_a_key_outside_the_seven_is_bad_axis_not_unkeyed(tmp_path: Path) -> None
 def test_a_pasted_grammar_template_is_placeholder_with_or_without_brackets_or_a_key(
     tmp_path: Path,
 ) -> None:
-    """`command_run.py::_is_placeholder` is a `re.fullmatch` on `<…>`, so an axis key in front of a
-    pasted template defeats it at the close. This reader is what still catches it."""
+    """An axis key in front of a pasted template DEFEATED `command_run.py::_is_placeholder` (a
+    `re.fullmatch` on `<…>`) until 2026-09-15, when the guard learned to strip leading `<word>:`
+    keys. This reader is independent of that gate and still classifies both shapes as
+    `placeholder` — which is what keeps PRE-FIX ledger rows visible."""
     ledger = tmp_path / "l.jsonl"
     _write(
         ledger,

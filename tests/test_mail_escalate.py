@@ -63,6 +63,7 @@ def env(tmp_path, monkeypatch):
     monkeypatch.delenv("FABRIK_MAIL_ESCALATE_DAYS", raising=False)
     monkeypatch.setattr(me, "STATE_DIR", tmp_path / "state")
     monkeypatch.setattr(me, "DAY_STAMP", tmp_path / "state" / "day-stamp")
+    monkeypatch.setattr(me, "DAY_STAMP_AGENT", tmp_path / "state" / "day-stamp-agent")
     return root
 
 
@@ -189,7 +190,37 @@ def test_digest_leads_with_the_oldest(env):
     )
 
 
-def test_the_digest_also_reaches_an_AGENT_not_only_the_operator(env, monkeypatch, capsys):
+def test_the_real_agent_leg_delivers_an_addressed_ack_no_finding(env, monkeypatch, tmp_path):
+    """The REAL `_deliver_to_agent`, not a monkeypatch — the three claims its docstring makes are
+    each one argv token, and every other test in this file patches the function away, so three
+    mutations survived the whole suite: `--ack no` -> `--ack required` (re-opens the recursion the
+    docstring calls load-bearing), dropping `--to-agent infra` (mail.py REFUSES an unaddressed
+    hub-bound send, rc 2 — the leg dead on arrival, silently, into a cron log nobody reads), and
+    `--to fabrik` -> a bad repo (same). A claim in a docstring that no grader executes is a claim
+    that can silently become false (review round 1)."""
+    assert me._deliver_to_agent("Subject: probe\n\nWHAT: a probe row\n") is True
+    delivered = sorted((env / "fabrik" / "inbox").glob("*.md"))
+    assert delivered, "the real agent leg wrote nothing into the sandbox mailbox"
+    fm = delivered[-1].read_text(encoding="utf-8")
+    assert "\nack: no\n" in fm, f"--ack no is load-bearing and did not land:\n{fm[:400]}"
+    assert "\nagent: infra\n" in fm, f"--to-agent infra did not land:\n{fm[:400]}"
+    assert "\nto: fabrik\n" in fm, f"--to fabrik did not land:\n{fm[:400]}"
+
+
+def test_the_agent_digest_carries_a_subject_and_the_message_contract(env, monkeypatch):
+    """The agent used to receive a bare column of ULIDs: no subject, and zero of the seven D-035
+    sections the hub enforces on every other sender — `mail.py`'s advisory went to stderr, which
+    the success path discarded, so it was unobservable (review round 1)."""
+    body = me._agent_body(
+        "fabrik-mail: 3 unacked obligation(s)", "01AAA · r · s · 9d · - (inbox)", 3
+    )
+    assert body.startswith("Subject: "), body[:80]
+    for section in ("WHAT", "WHO", "WHERE", "WHEN", "WHY", "HOW", "SYSTEMIC"):
+        assert f"{section}:" in body, f"D-035 section {section} missing from the delivered digest"
+    assert "01AAA · r · s · 9d · - (inbox)" in body, "the rows must survive the preamble"
+
+
+def test_the_digest_also_reaches_an_agent_not_only_the_operator(env, monkeypatch, capsys):
     """THE reason this backlog grew to 132 with a 10-day-old oldest while this cron ran every 6h
     and reported `send=OK`: the only delivery leg is a Telegram to the OPERATOR, whose standing
     directive is "i dont read anything, you read". `feedback_relay.py` learned this already — its
@@ -211,15 +242,20 @@ def test_the_digest_also_reaches_an_AGENT_not_only_the_operator(env, monkeypatch
 
 
 def test_the_agent_leg_alone_is_enough_to_stamp_the_day(env, monkeypatch, capsys):
-    """The mailbox leg is LOCAL — no ssh, no DNS — while the Telegram leg has failed whole days on
-    this box (2026-09-12: ssh to vps timed out AND telegram name resolution failed, `send=FAILED`).
-    A day on which the obligation reached someone who can act is a delivered day, so either leg
-    stamps it; only TOTAL failure retries within 6h."""
+    """The mailbox leg is LOCAL — no ssh, no DNS — while the Telegram leg goes over the network and
+    has failed individual RUNS (2026-09-12: two of that day's runs, an ssh timeout then a name-
+    resolution failure, before the third succeeded — no day in the log is fully undelivered). Each
+    leg carries its OWN stamp and is retried independently, so the agent gets the day's digest even
+    when the operator leg is down, and vice versa."""
     _msg(env, "fabrik", "01NNNNNNNNNNNNNNNNNNNNNNNN", ts=_old_ts(9))
     monkeypatch.setattr(me, "_resolve_sender", lambda: (lambda t, b: False))  # Telegram down
     monkeypatch.setattr(me, "_deliver_to_agent", lambda body: True)
     assert me.main() == 0
-    assert me.DAY_STAMP.exists(), "the agent leg delivered — the day must be stamped"
+    # ⚠️ its OWN stamp. A single shared stamp let a Telegram success suppress the whole day, so one
+    # transient agent-leg failure cost the agent that day's digest entirely and the later runs all
+    # printed "already sent today" — inverting this change's own purpose (review round 1).
+    assert me.DAY_STAMP_AGENT.exists(), "the agent leg delivered — its own day must be stamped"
+    assert not me.DAY_STAMP.exists(), "the operator leg FAILED — it must be retried, not suppressed"
 
 
 def test_total_delivery_failure_leaves_no_stamp(env, monkeypatch, capsys):
@@ -258,16 +294,41 @@ def test_todays_stamp_suppresses_a_second_send(env, monkeypatch):
     _msg(env, "fabrik", "01PPPPPPPPPPPPPPPPPPPPPPPP", ts=_old_ts(4))
     me.STATE_DIR.mkdir(parents=True, exist_ok=True)
     me.DAY_STAMP.write_text(dt.date.today().isoformat() + "\n", encoding="utf-8")
+    me.DAY_STAMP_AGENT.write_text(dt.date.today().isoformat() + "\n", encoding="utf-8")
 
     def boom():
         raise AssertionError("must not resolve a sender today")
 
+    def boom_agent(_body):
+        raise AssertionError("must not deliver to the agent today")
+
     monkeypatch.setattr(me, "_resolve_sender", boom)
+    monkeypatch.setattr(me, "_deliver_to_agent", boom_agent)
     assert me.main() == 0
+
+
+def test_one_stamped_leg_does_not_suppress_the_other(env, monkeypatch, capsys):
+    """The per-leg stamp's whole point: the OPERATOR leg already went out today, so it must not
+    re-send — and the AGENT leg, which has not, must still run. Under the single shared stamp the
+    agent silently lost the day (review round 1)."""
+    _msg(env, "fabrik", "01RRRRRRRRRRRRRRRRRRRRRRRR", ts=_old_ts(4))
+    me.STATE_DIR.mkdir(parents=True, exist_ok=True)
+    me.DAY_STAMP.write_text(dt.date.today().isoformat() + "\n", encoding="utf-8")
+
+    def boom():
+        raise AssertionError("the operator leg is already stamped — it must not re-send")
+
+    delivered: list = []
+    monkeypatch.setattr(me, "_resolve_sender", boom)
+    monkeypatch.setattr(me, "_deliver_to_agent", lambda body: delivered.append(body) or True)
+    assert me.main() == 0
+    assert delivered, "the agent leg was suppressed by the OPERATOR's stamp"
+    assert me.DAY_STAMP_AGENT.exists()
 
 
 def test_no_obligations_means_no_send(env, monkeypatch, capsys):
     monkeypatch.setattr(me, "_resolve_sender", lambda: (_ for _ in ()).throw(AssertionError))
+    monkeypatch.setattr(me, "_deliver_to_agent", lambda body: True)
     assert me.main() == 0
     assert "0 aged obligations" in capsys.readouterr().out
 
@@ -291,6 +352,12 @@ def test_stamp_carries_the_send_moment_local_date_even_across_utc_midnight(env, 
 
     monkeypatch.setattr(me._dt, "date", _FakeDate)
     monkeypatch.setattr(me, "_resolve_sender", lambda: (lambda t, b: True))
+    # ⚠️ PIN THE AGENT LEG. Every other main() test does; this one was missed, so it spawned a
+    # REAL `mail.py send` subprocess on every suite run — and the only thing keeping that out of
+    # the live /opt/fabrik-mail store was the `env` fixture's FABRIK_MAIL_ROOT redirect, not the
+    # `_resolve_sender` patch the module docstring credits. A test that writes to the live store
+    # if one fixture line changes is not "fully sandboxed" (review round 1).
+    monkeypatch.setattr(me, "_deliver_to_agent", lambda body: True)
     assert me.main() == 0
     assert me.DAY_STAMP.read_text(encoding="utf-8").strip() == "2026-08-27"
 
@@ -318,6 +385,7 @@ def test_stamp_write_failure_after_delivery_warns_never_crashes(env, monkeypatch
     and exit 0 (a loud duplicate next run beats a crash-loop)."""
     _msg(env, "fabrik", "01TTTTTTTTTTTTTTTTTTTTTTTT", ts=_old_ts(4))
     me.DAY_STAMP.mkdir(parents=True)  # a DIRECTORY occupying the stamp slot
+    me.DAY_STAMP_AGENT.mkdir(parents=True)  # both slots, so the warning path is the one under test
     monkeypatch.setattr(me, "_resolve_sender", lambda: (lambda t, b: True))
     monkeypatch.setattr(me, "_deliver_to_agent", lambda body: True)
     assert me.main() == 0

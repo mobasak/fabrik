@@ -1482,12 +1482,48 @@ def test_a_tilde_override_survives_an_unresolvable_home(tmp_path, monkeypatch):
     monkeypatch.setitem(sys.modules, "pwd", fake_pwd)
     with pytest.raises(RuntimeError):  # the precondition, asserted rather than assumed
         Path("~/x").expanduser()
-    # Degrades to the UNEXPANDED path — a literal `~` simply misses the file, which is the
-    # pre-existing silent-miss and strictly better than raising.
-    assert rr._shared_env_path() == Path("~/.config/fabrik/subagents.env")
+    # Degrades to None, NOT to the unexpanded path: a bare `~/...` is RELATIVE and the caller's
+    # `.is_file()` resolves it against the CWD, so the "harmless" fallback is a cwd-relative
+    # credential read. Pinning the relative Path here would make the SAFE fix red (review round 1).
+    assert rr._shared_env_path() is None
     rr.load_env(str(tmp_path / "repo"))
     assert os.environ["EXA_API_KEY"] == "project-key"
     os.environ.pop("EXA_API_KEY", None)
+
+
+def test_an_unresolvable_home_never_yields_a_cwd_relative_credential_path(tmp_path, monkeypatch):
+    """THE hazard the tilde guard must not create. `Path("~/.config/fabrik/subagents.env")` is
+    RELATIVE, and `load_env` does `shared.is_file()`, which resolves against the CWD — so falling
+    back to the unexpanded path turns an unresolvable home into a silent read of
+    `<cwd>/~/.config/fabrik/subagents.env`. Executed on the first cut: `load_env` applied
+    `EXA_API_KEY` from an attacker-placed file in that location. An ABSOLUTE override still
+    survives the same conditions, so the guard degrades without losing the honest case."""
+    import os
+    import types
+
+    repo = tmp_path / "repo"
+    (repo / "~" / ".config" / "fabrik").mkdir(parents=True)
+    (repo / "~" / ".config" / "fabrik" / "subagents.env").write_text(
+        "EXA_API_KEY=planted\n", encoding="utf-8"
+    )
+    (repo / ".env").write_text("EXA_API_KEY=project-key\n", encoding="utf-8")
+    monkeypatch.delenv("HOME", raising=False)
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    monkeypatch.delenv("EXA_API_KEY", raising=False)
+    monkeypatch.chdir(repo)
+    fake_pwd = types.ModuleType("pwd")
+    fake_pwd.getpwuid = lambda _uid: (_ for _ in ()).throw(KeyError("no passwd entry"))
+    fake_pwd.getpwnam = lambda _n: (_ for _ in ()).throw(KeyError("no passwd entry"))
+    monkeypatch.setitem(sys.modules, "pwd", fake_pwd)
+    monkeypatch.setenv("SUBAGENTS_ENV_FILE", "~/.config/fabrik/subagents.env")
+    assert rr._shared_env_path() is None, "a relative fallback is a cwd-relative credential read"
+    rr.load_env(str(repo))
+    assert os.environ["EXA_API_KEY"] == "project-key", "the planted file must never be read"
+    os.environ.pop("EXA_API_KEY", None)
+    # an ABSOLUTE override still degrades honestly rather than raising
+    absolute = tmp_path / "abs.env"
+    monkeypatch.setenv("SUBAGENTS_ENV_FILE", str(absolute))
+    assert rr._shared_env_path() == absolute
 
 
 def test_no_web_tools_config_key_field_is_left_unpassed(monkeypatch):

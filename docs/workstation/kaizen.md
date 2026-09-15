@@ -323,11 +323,18 @@ and `--help` are read-only. The baseline is a trend, not a gate — which is why
 **CLOSED 2026-09-15 — the axis key no longer defeats the placeholder guard.**
 `command_run.py::_is_placeholder` was a `re.fullmatch` on `<…>`, so any prefix beat it:
 `change: <the ONE concrete edit…>` was refused at a close and `change: lean: <the ONE concrete edit…>`
-was not. It now strips a leading `<word>:` before the bracket test — keyed or not, per
-`command_feedback_report.py::_axis_of`, which buckets `placeholder` ahead of `bad-axis`, so an
-unknown key is stripped too. Graded by `test_an_axis_keyed_placeholder_is_still_a_placeholder`,
-which also pins the real keyed values (`lean: <01M1RHJY>`, `lean: <none — surfaces exercised: …>`)
-that are the regression risk. Installed with the other five edits of `01M2H05R2SSTJK166WAVBR3MKG`
+was not. For the `change:` FIELD it now strips leading decoration and one or more `<word>:` keys
+before the bracket test — keyed or not, per `command_feedback_report.py::_axis_of`, which buckets
+`placeholder` ahead of `bad-axis`, so an unknown key is stripped too. ⚠️ Three narrowings, each
+found by executing the first cut rather than reading it: the strip REPEATS (a single strip let
+`lean: waste: <…>` through, and `waste` is both an axis and a field label); it tolerates decoration
+(`**lean**:`, `` `lean`: ``, `lean :`, `[lean]`, a fullwidth `：` — 13 of 18 probed shapes closed at
+rc 0 against the first cut); and it is FIELD-SCOPED, because `confusion:`/`waste:`/`filed:` carry no
+axis key and stripping there made the gate REFUSE honest values like
+`filed: infra: <01M2ABC — …>`, leaving the record `running` and the Stop hook blocking the turn —
+fail-closed onto the agent, which is worse than the hole it closed. Graded by
+`test_an_axis_keyed_placeholder_is_still_a_placeholder`, which pins all three narrowings plus the
+real keyed values (`lean: <01M1RHJY>`, `lean: <none — surfaces exercised: …>`). Installed with the other five edits of `01M2H05R2SSTJK166WAVBR3MKG`
 on the operator's directive (`01M2HYV1MJ4QMZP5R4DAKFQW2W`).
 
 Cron — the report is UNSCHEDULED (⚠️ operator-installed; agent crontab writes are

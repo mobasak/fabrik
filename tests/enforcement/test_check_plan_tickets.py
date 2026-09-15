@@ -723,9 +723,93 @@ def test_a_demoted_error_says_so_and_prints_the_full_severity_command(
     rc = cpt.main()
     out = capsys.readouterr().out
     assert "1 ERROR(s)" in out and "demoted to advisory" in out, out[:600]
-    assert f"--plan-dir docs/development/plans/{DIRNAME}" in out, out[:600]
-    assert "[sibling plan]" in out, out[:600]
+    # ABSOLUTE path: a cwd-relative remedy either fails loudly from another cwd or, worse,
+    # silently grades a DIFFERENT repo's plan of the same name (measured: promised 2, printed 5)
+    assert f"--plan-dir {plan_dir}" in out, out[:600]
+    # the demotion MARKER must be on a finding line, not merely inside the NOTE's own prose —
+    # asserting the bare literal passed even with the marker stripped from every finding
+    assert any(line.startswith("⚠") and "[sibling plan]" in line for line in out.splitlines()), out[
+        :600
+    ]
     assert rc == 0, "this fix changes VISIBILITY, not severity — the demotion still stands"
+
+
+def test_a_lock_only_dir_with_no_errors_prints_no_demotion_note(
+    tmp_path, capsys, monkeypatch
+) -> None:
+    """The no-fire half. Without a grader, `if demoted:` -> `if True:` walks the whole suite and
+    every sibling plan in the tree announces "0 ERROR(s) demoted" on every gate run."""
+    root = _repo(tmp_path)
+    plan_dir = _build(root)
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "seed")
+    locks = root / ".fabrik" / "plan-locks"
+    locks.mkdir(parents=True)
+    (locks / f"{DIRNAME}.json").write_text(
+        json.dumps({"plan": "x", "status": "active", "owned_paths": ["src/app/schema.py"]}),
+        encoding="utf-8",
+    )
+    (root / "src" / "app").mkdir(parents=True, exist_ok=True)
+    (root / "src" / "app" / "schema.py").write_text("seed\n", encoding="utf-8")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "track schema")
+    (root / "src" / "app" / "schema.py").write_text("changed\n", encoding="utf-8")
+    _, lock_only = cpt._discover_dirs(root)
+    assert plan_dir.resolve() in {d.resolve() for d in lock_only}
+    monkeypatch.setattr(
+        cpt,
+        "check_plan_dir",
+        lambda d, context="gate", external_root=None: [
+            cpt.CheckResult(
+                check_name="x", severity=cpt.Severity.WARN, message="a warning", file_path=str(d)
+            )
+        ],
+    )
+    monkeypatch.setattr("sys.argv", ["check_plan_tickets.py", "--project-root", str(root)])
+    assert cpt.main() == 0
+    out = capsys.readouterr().out
+    assert "demoted" not in out, f"the NOTE fired with zero demoted ERRORs:\n{out[:400]}"
+
+
+def test_the_demotion_note_never_lands_on_json_stdout(tmp_path, capsys, monkeypatch) -> None:
+    """`--json` stdout is a parseable envelope and nothing else. `_note` routes to stderr under
+    `_JSON_MODE`, but the new call site had no grader for it — swapping it for a bare `print()`
+    passed all 159 tests and broke real `--json` consumers."""
+    import json as _json
+
+    root = _repo(tmp_path)
+    plan_dir = _build(root)
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "seed")
+    locks = root / ".fabrik" / "plan-locks"
+    locks.mkdir(parents=True)
+    (locks / f"{DIRNAME}.json").write_text(
+        json.dumps({"plan": "x", "status": "active", "owned_paths": ["src/app/schema.py"]}),
+        encoding="utf-8",
+    )
+    (root / "src" / "app").mkdir(parents=True, exist_ok=True)
+    (root / "src" / "app" / "schema.py").write_text("seed\n", encoding="utf-8")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "track schema")
+    (root / "src" / "app" / "schema.py").write_text("changed\n", encoding="utf-8")
+    _, lock_only = cpt._discover_dirs(root)
+    assert plan_dir.resolve() in {d.resolve() for d in lock_only}
+    monkeypatch.setattr(
+        cpt,
+        "check_plan_dir",
+        lambda d, context="gate", external_root=None: [
+            cpt.CheckResult(
+                check_name="board", severity=cpt.Severity.ERROR, message="e", file_path=str(d)
+            )
+        ],
+    )
+    monkeypatch.setattr(
+        "sys.argv", ["check_plan_tickets.py", "--project-root", str(root), "--json"]
+    )
+    assert cpt.main() == 0
+    cap = capsys.readouterr()
+    _json.loads(cap.out)  # raises if the NOTE leaked onto stdout
+    assert "demoted to advisory" in cap.err, "the NOTE must still be VISIBLE, on stderr"
 
 
 # --- BC 26: no-arg CLI selects active-lock plan dirs ---------------------------------------

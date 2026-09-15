@@ -2519,12 +2519,16 @@ def check_file(file_path: Path) -> list[CheckResult]:
 
 
 def _discover_dirs(root: Path) -> tuple[list[Path], set[Path]]:
-    """No-arg CLI discovery. Returns (dirs, lock_only) where dirs = dated plan dirs
-    containing any changed file PLUS plan dirs whose ACTIVE lock's owned paths
-    intersect the changed set, and lock_only = the subset selected ONLY via a lock
-    (someone ELSE's plan — its findings are downgraded to advisory WARN by the
-    caller: a sibling's mid-execution state must never hard-red this session's
-    gate on files this session is forbidden to touch)."""
+    """No-arg CLI discovery. Returns (dirs, advisory) where dirs = dated plan dirs containing any
+    changed file PLUS plan dirs whose ACTIVE lock's owned paths intersect the changed set.
+
+    `advisory` maps each dir NOT selected by this session's own working-tree/staged plan edits to
+    WHY — `"lock"` (a lock's owned_paths intersected the change set) or `"upstream"` (a plan file
+    changed in `upstream..HEAD`). Its findings are downgraded to advisory WARN by the caller: a
+    sibling's mid-execution state must never hard-red this session's gate on files this session is
+    forbidden to touch. ⚠️ The two reasons are NOT interchangeable — the docstring used to call the
+    whole set "selected ONLY via a lock (someone ELSE's plan)", which is false for the `upstream`
+    half and made the caller's remedy text point at a lock that need not exist."""
     changed: set[str] = set()
     wt_changed: set[str] = set()  # working-tree/staged only — MY session's edits
     try:
@@ -2593,7 +2597,16 @@ def _discover_dirs(root: Path) -> tuple[list[Path], set[Path]]:
                 if cand.is_dir():
                     lock_dirs.add(cand)
     dirs = sorted(d for d in own_dirs | lock_dirs | upstream_dirs if d.is_dir())
-    advisory = {d for d in (lock_dirs | upstream_dirs) if d not in own_dirs}
+    # ⚠️ Carry WHY each dir was demoted, not just that it was. A dir reaches this set two ways and
+    # they have different remedies: via a LOCK whose owned_paths intersect the change set, or via a
+    # plan file changed in `upstream..HEAD` — no lock involved at all. The caller's NOTE used to
+    # say "selected via a LOCK" for both, sending a reader to hunt a `.fabrik/plan-locks/` entry
+    # that does not exist. A dict keeps every `d in advisory` / `for d in advisory` caller working.
+    advisory = {
+        d: ("lock" if d in lock_dirs else "upstream")
+        for d in (lock_dirs | upstream_dirs)
+        if d not in own_dirs
+    }
     return dirs, advisory
 
 
@@ -2684,15 +2697,28 @@ def main() -> int:
             # Attributing severity needs a session identity no lock records — that is filed. What
             # is fixable here and now is the SILENCE: say how many errors were demoted and print
             # the exact command that shows them at full severity.
-            demoted = sum(1 for r in found if r.severity.value == "error")
+            # ⚠️ Count at the severity the printed REMEDY will show, not the one the gate
+            # produced. `found` has already been through the gate-context downgrades
+            # (`_sizing_severity`, the missing-spine WARN, the DRAFT downgrade), so counting it
+            # under-reports — measured 1 vs the remedy's 2 — and for a DRAFT spine it reports 0
+            # and the NOTE never fires at all, which is the very case the incident describes.
+            at_full = check_plan_dir(d, context="cli", external_root=external_root)
+            demoted = sum(1 for r in at_full if r.severity.value == "error")
             if demoted:
                 _note(
                     f"NOTE: plan_tickets — {demoted} ERROR(s) for {d.name} demoted to advisory "
-                    f"[sibling plan]: this dir was selected via a LOCK, not via a changed plan "
-                    f"file, and discovery cannot tell your own lock from a sibling's. If this "
-                    f"plan is YOURS, re-run at full severity: "
-                    f"python3 scripts/enforcement/check_plan_tickets.py --plan-dir "
-                    f"docs/development/plans/{d.name}"
+                    f"[sibling plan]: "
+                    + (
+                        "this dir was selected via an active LOCK, and discovery cannot tell your "
+                        "own lock from a sibling's. "
+                        if lock_only.get(d) == "lock"
+                        else "this dir was selected via a plan file changed in an unpushed commit "
+                        "(upstream..HEAD), which discovery cannot attribute to a session — no lock "
+                        "is involved. "
+                    )
+                    + f"If this plan is YOURS, re-run at full severity: "
+                    f"python3 scripts/enforcement/check_plan_tickets.py --plan-dir {d}"
+                    + ("" if root == Path.cwd().resolve() else f" --project-root {root}")
                 )
             found = [
                 CheckResult(
