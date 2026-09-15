@@ -4,6 +4,41 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Review round 2: 26 more defects, all of them in round 1's own fixes (2026-09-15)
+
+- **Step 5a is now three `|| exit 1` guards, not prose.** Round 1 rewrote it; round 2 refuted the
+  rewrite eight ways by execution. A numstat assertion on `$new` still PASSES when a sibling is
+  staged on the SAME shared-append file — your commit ships THEIR blob and prints a plausible
+  `1 0 <file>` — and it PASSES on a DANGLING `$new` when step 5's compare-and-swap refused at rc 128
+  and execution fell through. Only asserting the committed BLOB, the REF and the absence of stowaway
+  paths catches those. Under the two-residue-passes rule the paragraph was REPLACED rather than
+  patched a third time. `D-259` supersedes `D-258`, which carried two claims round 2 disproved: a
+  detached `HEAD` prints an ANCESTOR's counts (a false green), not empty, and the hub's root
+  `CLAUDE.md` is NOT synced — `GOVERNANCE_TEMPLATES` distributes the template alone.
+- **The `mail_escalate` self-lock failed CLOSED.** A bare `except OSError` covered `mkdir` and
+  `open`, so an unwritable state dir, ENOSPC or a stray path printed "another run holds the lock"
+  and returned 0 — the digest silenced FOREVER behind a message that reads as benign contention, in
+  a module where every other leg fails open by design. Split to `BlockingIOError` (skip) vs `OSError`
+  (warn and proceed UNLOCKED).
+- **The run log reported `OK` for legs that never ran.** `ok`/`agent_ok` were seeded from the STAMP,
+  so three of four daily runs printed `send=OK · agent=OK` having sent nothing — the same shape as
+  the failure this whole change exists to end. A suppressed leg now logs `skipped`.
+- **The digest's own remedy commands failed for most rows.** `mail.py read/ack <id>` omitted
+  `--repo`, and the script scans EVERY mailbox, so every non-hub row's command errored (and a bare
+  `ack` left a stray archive dir behind). Column 2 is the mailbox; the commands now carry it.
+- **A real type error, invisible to the gate.** The `set`→`dict` migration in `_discover_dirs` left
+  the annotation, the exception path and `main()`'s local all declaring `set[Path]`, giving
+  `"set[Path]" has no attribute "get"` under mypy — which the gate never sees because its mypy leg
+  excludes `scripts/`. Aligned; mypy clean on the file.
+- **A grader that matched its own comment.** The new `advisory=True` pin asserted the substring
+  `advisory=True` against source text — and the registration's explanatory COMMENT contains that
+  literal, so deleting the real kwarg left it green. Rewritten to parse the call with `ast`.
+- **Eleven surviving mutants killed** across four suites, each re-run to prove the kill: the window
+  `ack` filter, the self-flock, the `cwd` pin, the skipped-leg log, the demotion count at full
+  severity, the `--project-root` suffix, the lock/upstream reason, and the advisory registration.
+  Plus two lint slips of mine — an unused local and a SECOND N802 from an uppercase acronym in a
+  test name. `ruff check .` → `All checks passed!`; 631 tests green across the six affected suites.
+
 ### Fixed — Review round 1 of the mail-handling run: 8 seats, 20 confirmed defects in my own fixes (2026-09-15)
 
 - **The completion gate was RED on two of my own files and I had committed anyway** — `ruff format`

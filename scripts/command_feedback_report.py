@@ -79,7 +79,9 @@ AXES: tuple[str, ...] = ("lean", "fast", "accurate", "waste", "infra", "rules", 
 # WHY the bucket exists at all: `command_run.py::_is_placeholder` was a `re.fullmatch` on `<…>`, so
 # an axis key in front of a pasted grammar template DEFEATED it — `change: <the ONE concrete edit…>`
 # was refused at the close and `change: lean: <the ONE concrete edit…>` was not. ⚠️ That hole is
-# CLOSED (2026-09-15, 190e487a): the guard now strips one or more leading `<word>:` keys before its
+# CLOSED (2026-09-15, eca8da1d — NOT 190e487a, which is the commit that INTRODUCED the first,
+# still-holed cut): for the `change:` field the guard now strips decoration and one or more leading
+# `<word>:` keys before its
 # bracket test. This reader is no longer the only thing that can tell a pasted template from a
 # verdict — but it stays, because the ledger still holds PRE-FIX rows that closed with a keyed
 # template, and a reader is what makes those visible rather than silently bucketed as verdicts.

@@ -2518,7 +2518,7 @@ def check_file(file_path: Path) -> list[CheckResult]:
     ]
 
 
-def _discover_dirs(root: Path) -> tuple[list[Path], set[Path]]:
+def _discover_dirs(root: Path) -> tuple[list[Path], dict[Path, str]]:
     """No-arg CLI discovery. Returns (dirs, advisory) where dirs = dated plan dirs containing any
     changed file PLUS plan dirs whose ACTIVE lock's owned paths intersect the changed set.
 
@@ -2565,7 +2565,7 @@ def _discover_dirs(root: Path) -> tuple[list[Path], set[Path]]:
                 wt_changed.update(found_paths)
     except Exception as e:  # noqa: BLE001
         _note(f"NOTE: plan_tickets discovery skipped (git error: {e!r})")
-        return [], set()
+        return [], {}
     # OWN = discovered via MY working-tree/staged edits. A dir seen ONLY via
     # upstream..HEAD is a sibling's committed-but-unpushed work on shared master
     # (the normal state here) — advisory, same as lock-only selection.
@@ -2651,7 +2651,7 @@ def main() -> int:
             )
             return 1
         dirs = [target]
-        lock_only: set[Path] = set()
+        lock_only: dict[Path, str] = {}
         # An external set's paths resolve against --project-root (default: cwd), so the READ
         # budget and every other check actually run on a scratch copy instead of being skipped
         # wholesale by the plans-layout guard.

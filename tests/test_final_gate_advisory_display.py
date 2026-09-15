@@ -125,6 +125,42 @@ def test_a_warn_only_check_that_exits_non_zero_still_fails_the_gate(tmp_path: Pa
 # ── the declaration reaches --json, the mode agents read ─────────────────────────
 
 
+def test_the_plan_tickets_row_is_registered_advisory_so_its_note_survives() -> None:
+    """`check_plan_tickets` prints a demotion NOTE — "N ERROR(s) demoted to advisory, re-run with
+    --plan-dir" — and that NOTE only ever appears on an exit-0 run, because demoting is what keeps
+    rc at 0. `run_optional_check` returns `""` instead of stdout unless the row is registered
+    `advisory=True`, so without the flag the operator sees a GREEN row with no text: the exact
+    silence the NOTE was added to end. Dropping the flag passed every test in the repo (review
+    round 2), so the registration itself is pinned here.
+
+    ⚠️ `advisory` is NOT `warn_only`: it preserves stdout on success and changes nothing about
+    failure, which the sibling tests in this file already pin. A genuine rc 1 still reds the gate.
+    """
+    import ast
+
+    # ⚠️ Parsed, not grepped. The registration's own COMMENT contains the literal "advisory=True"
+    # to explain why it is there, so a substring check stays green with the real kwarg deleted —
+    # executed, and it is the comment-matching grader hole this round keeps finding.
+    src = (Path(__file__).resolve().parents[1] / "scripts" / "final_gate.py").read_text(
+        encoding="utf-8"
+    )
+    calls = [
+        n
+        for n in ast.walk(ast.parse(src))
+        if isinstance(n, ast.Call)
+        and getattr(n.func, "id", None) == "run_optional_check"
+        and n.args
+        and isinstance(n.args[0], ast.Constant)
+        and n.args[0].value == "scripts/enforcement/check_plan_tickets.py"
+    ]
+    assert len(calls) == 1, f"expected one check_plan_tickets registration, found {len(calls)}"
+    kw = {k.arg: k.value for k in calls[0].keywords}
+    assert "advisory" in kw and getattr(kw["advisory"], "value", False) is True, (
+        "the check_plan_tickets row lost advisory=True — its demotion NOTE is discarded on the "
+        "exit-0 path it lives on, and the operator sees a green row with no text"
+    )
+
+
 def test_the_json_gate_separates_advisory_rows_from_blocking_ones() -> None:
     """End to end, against the REAL gate: `passed` alone cannot be read.
 

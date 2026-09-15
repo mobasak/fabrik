@@ -346,7 +346,7 @@ escalates), archive strands (claimed, no `acked-by:` line), and stranded `*.md.r
 windows (mtime-aged). **Delivered on TWO legs:** `libs.alerting.send_alert` (Telegram, the
 operator) and — since 2026-09-15 — the `fabrik` inbox addressed to `infra` (`--kind finding
 --ack no`), so an AGENT bound by the handle-now law reads it. The agent leg is what makes this a
-loop rather than a dashboard; either leg delivering stamps the day. Plain-text sanitized rows,
+loop rather than a dashboard. **Each leg carries its OWN day-stamp and is retried independently** — a single shared stamp let a success on one leg suppress the other for the whole day, which inverted the point of having two. Plain-text sanitized rows,
 oldest ≤20 + an always-surviving total. Install + override mechanics (operator-owned):
 `docs/workstation/fabrik-mail.md` § Escalation digest.
 

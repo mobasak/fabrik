@@ -734,6 +734,93 @@ def test_a_demoted_error_says_so_and_prints_the_full_severity_command(
     assert rc == 0, "this fix changes VISIBILITY, not severity — the demotion still stands"
 
 
+def test_the_demotion_count_is_taken_at_full_severity_not_gate_severity(
+    tmp_path, capsys, monkeypatch
+) -> None:
+    """The round's headline fix, and it was unpinned: both other graders mock `check_plan_dir` with
+    a lambda that IGNORES its `context`, so reverting the count to the gate-context list — the
+    original defect, which under-reported 1 vs 2 and reported 0 for a DRAFT spine so the NOTE never
+    fired at all — passed all 161 tests. This mock VARIES BY CONTEXT, which is the only shape that
+    can tell the two calls apart (review round 2)."""
+    root = _repo(tmp_path)
+    plan_dir = _build(root)
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "seed")
+    locks = root / ".fabrik" / "plan-locks"
+    locks.mkdir(parents=True)
+    (locks / f"{DIRNAME}.json").write_text(
+        json.dumps({"plan": "x", "status": "active", "owned_paths": ["src/app/schema.py"]}),
+        encoding="utf-8",
+    )
+    (root / "src" / "app").mkdir(parents=True, exist_ok=True)
+    (root / "src" / "app" / "schema.py").write_text("seed\n", encoding="utf-8")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "track schema")
+    (root / "src" / "app" / "schema.py").write_text("changed\n", encoding="utf-8")
+    _, lock_only = cpt._discover_dirs(root)
+    assert plan_dir.resolve() in {d.resolve() for d in lock_only}
+
+    def by_context(d, context="gate", external_root=None):
+        # the DRAFT downgrade lives inside the real check: gate sees WARNs, cli sees the ERRORs
+        sev = cpt.Severity.ERROR if context == "cli" else cpt.Severity.WARN
+        return [
+            cpt.CheckResult(check_name="a", severity=sev, message="one", file_path=str(d)),
+            cpt.CheckResult(check_name="b", severity=sev, message="two", file_path=str(d)),
+        ]
+
+    monkeypatch.setattr(cpt, "check_plan_dir", by_context)
+    monkeypatch.setattr("sys.argv", ["check_plan_tickets.py", "--project-root", str(root)])
+    assert cpt.main() == 0
+    out = capsys.readouterr().out
+    assert "2 ERROR(s)" in out, f"the count must come from the cli-severity call:\n{out[:400]}"
+    # ...and the remedy must carry --project-root, since root != cwd here
+    assert f"--project-root {root}" in out, out[:400]
+
+
+def test_the_demotion_note_names_the_real_selection_reason(tmp_path, capsys, monkeypatch) -> None:
+    """A dir reaches the advisory set two ways with different remedies — via a LOCK, or via a plan
+    file changed in `upstream..HEAD` with no lock at all. The NOTE blamed a lock for both, sending
+    a reader to hunt a `.fabrik/plan-locks/` entry that does not exist. No test exercised the
+    upstream branch, so making `_discover_dirs` always say "lock" passed the whole suite."""
+    root = _repo(tmp_path)
+    plan_dir = _build(root)
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "seed")
+    # NO lock anywhere; the plan dir is selected purely by an unpushed plan-file commit
+    assert not (root / ".fabrik" / "plan-locks").exists()
+    # the shape the rest of this suite uses for an upstream (a plain local tracking branch)
+    _git(root, "checkout", "-q", "-b", "work")
+    _git(root, "branch", "-q", "base")
+    _git(root, "branch", "-q", "--set-upstream-to=base", "work")
+    (plan_dir / f"{DIRNAME}.md").write_text(
+        (plan_dir / f"{DIRNAME}.md").read_text(encoding="utf-8") + "\n<!-- touched -->\n",
+        encoding="utf-8",
+    )
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "plan edit, committed but unpushed")
+    dirs, advisory = cpt._discover_dirs(root)
+    # asserted, never skipped: a skip here would be a grader that cannot fail, which is the
+    # class this whole round keeps finding
+    assert plan_dir.resolve() in {d.resolve() for d in advisory}, (
+        f"fixture did not reach the upstream branch: {advisory}"
+    )
+    assert advisory[plan_dir] == "upstream", advisory
+    monkeypatch.setattr(
+        cpt,
+        "check_plan_dir",
+        lambda d, context="gate", external_root=None: [
+            cpt.CheckResult(
+                check_name="x", severity=cpt.Severity.ERROR, message="e", file_path=str(d)
+            )
+        ],
+    )
+    monkeypatch.setattr("sys.argv", ["check_plan_tickets.py", "--project-root", str(root)])
+    assert cpt.main() == 0
+    out = capsys.readouterr().out
+    assert "no lock is involved" in out, f"the NOTE must not blame a lock:\n{out[:500]}"
+    assert "via an active LOCK" not in out, out[:500]
+
+
 def test_a_lock_only_dir_with_no_errors_prints_no_demotion_note(
     tmp_path, capsys, monkeypatch
 ) -> None:

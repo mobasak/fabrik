@@ -207,6 +207,114 @@ def test_the_real_agent_leg_delivers_an_addressed_ack_no_finding(env, monkeypatc
     assert "\nto: fabrik\n" in fm, f"--to fabrik did not land:\n{fm[:400]}"
 
 
+def test_an_ack_no_window_is_not_an_obligation(env):
+    """The delta's HEADLINE fix and it had no grader: both existing window tests write the literal
+    "x" into the `.md.resolving` file, so `_mail._parse` returns None and the new `ack` filter is
+    never reached — deleting the filter entirely passed the whole suite. A window IS the message,
+    so this one writes real frontmatter (review round 2)."""
+    old = _old_ts(9)
+    arch = env / "fabrik" / "archive"
+    arch.mkdir(parents=True, exist_ok=True)
+    (arch / "01DIGESTDIGESTDIGESTDIGEST.md.resolving.1").write_text(
+        f"---\nid: 01DIGESTDIGESTDIGESTDIGEST\nfrom: fabrik\nto: fabrik\nts: {old}\n"
+        "kind: finding\nack: no\nagent: infra\n---\nrows\n",
+        encoding="utf-8",
+    )
+    (arch / "01REALREALREALREALREALREAL.md.resolving.2").write_text(
+        f"---\nid: 01REALREALREALREALREALREAL\nfrom: x\nto: fabrik\nts: {old}\n"
+        "kind: finding\nack: required\n---\nbody\n",
+        encoding="utf-8",
+    )
+    for f in arch.glob("*.resolving.*"):
+        os.utime(f, (time.time() - 9 * 86400,) * 2)
+    got = {o.ulid for o in me.collect_obligations(env)}
+    assert "01DIGESTDIGESTDIGESTDIGEST" not in got, "the digest counted ITSELF — permanently"
+    assert "01REALREALREALREALREALREAL" in got, "a real obligation window must still count"
+
+
+def test_a_lock_failure_that_is_not_contention_proceeds_rather_than_silencing(
+    env, monkeypatch, capsys
+):
+    """The lock must fail OPEN. A bare `except OSError` covered `mkdir`/`open` too, so an unwritable
+    state dir printed "another run holds the lock" and returned 0 — the digest silenced FOREVER
+    behind a message that reads as benign contention, while every other leg in this module fails
+    open by design ("a duplicate beats permanent silence")."""
+    _msg(env, "fabrik", "01LOCKLOCKLOCKLOCKLOCKLOCK", ts=_old_ts(9))
+    delivered: list = []
+    monkeypatch.setattr(me, "_resolve_sender", lambda: (lambda t, b: True))
+    monkeypatch.setattr(me, "_deliver_to_agent", lambda body: delivered.append(body) or True)
+
+    def boom(*a, **k):
+        raise PermissionError(13, "state dir is read-only")
+
+    monkeypatch.setitem(me.__builtins__, "open", boom) if isinstance(
+        me.__builtins__, dict
+    ) else monkeypatch.setattr("builtins.open", boom)
+    assert me.main() == 0
+    out = capsys.readouterr().out
+    assert "proceeding UNLOCKED" in out, out[:300]
+    assert delivered, "a non-contention lock failure must NOT silence the digest"
+
+
+def test_a_second_concurrent_run_is_excluded_by_the_scripts_own_lock(env, monkeypatch, capsys):
+    """The `flock` lives in the operator-installed CRON LINE, which guards cron against cron and
+    nothing else. Since the agent leg exists, a hand run does not merely cost an extra Telegram —
+    it DELIVERS a duplicate `finding` into the hub inbox and stamps the day, so the next cron run
+    is suppressed and the real digest is never produced. Removing the flock passed the suite."""
+    import fcntl as _fcntl
+
+    _msg(env, "fabrik", "01CONCURRENTCONCURRENTCON", ts=_old_ts(9))
+    me.STATE_DIR.mkdir(parents=True, exist_ok=True)
+    holder = open(me.STATE_DIR / "run.lock", "w")  # noqa: SIM115 — held for the assertion
+    _fcntl.flock(holder, _fcntl.LOCK_EX | _fcntl.LOCK_NB)
+    delivered: list = []
+    monkeypatch.setattr(me, "_resolve_sender", lambda: (lambda t, b: True))
+    monkeypatch.setattr(me, "_deliver_to_agent", lambda body: delivered.append(body) or True)
+    try:
+        assert me.main() == 0
+    finally:
+        _fcntl.flock(holder, _fcntl.LOCK_UN)
+        holder.close()
+    out = capsys.readouterr().out
+    assert "another run holds the lock" in out, out[:300]
+    assert not delivered, "a concurrent run delivered a DUPLICATE into the measured mailbox"
+    assert not me.DAY_STAMP_AGENT.exists(), "and it would have stamped the day out from under cron"
+
+
+def test_the_agent_leg_attributes_the_digest_to_the_hub_whatever_the_cwd(
+    env, monkeypatch, tmp_path
+):
+    """`mail.py` derives the `from:` field from the cwd's git worktree, so an inherited cwd would
+    attribute the hub's own digest to whatever repo the caller stood in. pytest's cwd is already
+    the repo root, so the existing real-leg grader could not see this — the test must LEAVE it."""
+    elsewhere = tmp_path / "somewhere-else"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    assert me._deliver_to_agent("Subject: probe\n\nWHAT: a row\n") is True
+    delivered = sorted((env / "fabrik" / "inbox").glob("*.md"))
+    assert delivered, "the real agent leg wrote nothing"
+    fm = delivered[-1].read_text(encoding="utf-8")
+    assert f"\nfrom: {me._REPO_ROOT.name}\n" in fm, (
+        f"the digest was attributed to the caller's cwd, not the hub:\n{fm[:300]}"
+    )
+
+
+def test_a_skipped_leg_is_logged_as_skipped_not_ok(env, monkeypatch, capsys):
+    """`ok`/`agent_ok` are seeded from the STAMP, so three of the four daily runs printed
+    `send=OK · agent=OK` having sent nothing — the same shape as the failure this whole change
+    exists to end ("logged send=OK while the inbox grew to 132"). The cron log is the only evidence
+    a cron leaves."""
+    _msg(env, "fabrik", "01SKIPSKIPSKIPSKIPSKIPSKIP", ts=_old_ts(9))
+    me.STATE_DIR.mkdir(parents=True, exist_ok=True)
+    me.DAY_STAMP.write_text(dt.date.today().isoformat() + "\n", encoding="utf-8")
+    monkeypatch.setattr(me, "_resolve_sender", lambda: (lambda t, b: True))
+    monkeypatch.setattr(me, "_deliver_to_agent", lambda body: True)
+    assert me.main() == 0
+    out = capsys.readouterr().out
+    assert "send=skipped" in out, f"a stamp-suppressed leg must not read as OK:\n{out[:300]}"
+    assert "agent=OK" in out, out[:300]
+
+
 def test_the_agent_digest_carries_a_subject_and_the_message_contract(env, monkeypatch):
     """The agent used to receive a bare column of ULIDs: no subject, and zero of the seven D-035
     sections the hub enforces on every other sender — `mail.py`'s advisory went to stderr, which

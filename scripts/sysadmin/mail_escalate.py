@@ -9,11 +9,18 @@ aged ``ack: required`` obligations in three populations (digest()'s unacked legs
 
   1. inbox messages (regardless of ``agent:`` — the population is UNACKED, never unaddressed);
   2. archive STRANDS — claimed into archive but never resolved (no ``acked-by:`` line);
-  3. stranded ``*.md.resolving*`` windows, aged by mtime (invisible to every other verb).
+  3. stranded ``*.md.resolving*`` windows, aged by mtime (invisible to every other verb) — and
+     FILTERED on the window's own ``ack:``, because a window IS the message and this script's own
+     ``ack: no`` digest would otherwise become a permanent obligation the moment an agent's
+     ``mail.py ack`` of it is SIGKILLed mid-rename.
 
-and sends AT MOST ONE Telegram per LOCAL calendar day via ``libs.alerting.send_alert`` (the
-package entry — Apprise primary leg + diagnosis; day-stamp written ONLY after a successful
-send, with the send-moment's local date). Failure is fail-soft: exit 0, loud on OUR stdout
+and delivers on TWO INDEPENDENT LEGS, each at most once per LOCAL calendar day and each with its
+OWN day-stamp written ONLY after ITS OWN successful send: the OPERATOR leg
+(``libs.alerting.send_alert`` — Apprise primary + diagnosis, Telegram in practice) and the AGENT
+leg (``_deliver_to_agent`` — into the hub mailbox addressed to ``infra``, which is the leg that
+produces action; see its docstring). One shared stamp let a success on one leg suppress the other
+for the whole day, which inverted the point of having two. The run holds its own ``flock`` so a
+hand run cannot deliver a duplicate and stamp the day out from under the cron. Failure is fail-soft: exit 0, loud on OUR stdout
 (the library logger has no handler — never rely on it). The one accepted duplicate window:
 a stamp WRITE failure after a delivered send warns loudly and re-sends next run — a
 duplicate beats a crash-loop and beats silence.
@@ -238,16 +245,19 @@ def _agent_body(title: str, rows: str, n: int) -> str:
         "WHAT: the fabrik-mail obligations below are past the escalation threshold "
         f"(`FABRIK_MAIL_ESCALATE_DAYS`, default 3). {n} row(s), oldest first.\n"
         "WHO: `scripts/sysadmin/mail_escalate.py` (hub cron, every 6h) -> infra.\n"
-        "WHERE: the rows are `id · repo · sender · age · agent (population)`; read one with "
-        "`python3 scripts/mail.py read <id>`.\n"
+        "WHERE: the rows are `id · repo · sender · age · agent (population)`. ⚠️ Column 2 is the "
+        "MAILBOX and most rows are NOT the hub's, so every command needs it: read one with "
+        "`python3 scripts/mail.py read <id> --repo <repo>` — without `--repo` mail.py defaults to "
+        "the cwd's repo and the read fails (and a bare `ack` leaves a stray archive dir behind).\n"
         "WHEN: generated this run; each row's age is measured from the message's own `ts` "
         "(a `window` row is aged by mtime, because a rename carries no ts).\n"
         "WHY: an obligation nobody acks is work nobody owns. This digest exists because the "
         "operator-facing Telegram leg reaches someone whose standing directive is that they do "
         "not read it — an AGENT bound by the handle-now law is the reader that closes the loop.\n"
         "HOW: handle each per CLAUDE.md — read -> validate the cited path:line -> SIZE it -> do "
-        "the work -> review -> reply -> `mail.py ack <id> --disposition done|wontfix`. Not yours? "
-        "`ack --disposition wontfix` naming the owner, or `route --to-agent`. Never sweep.\n"
+        "the work -> review -> reply -> `mail.py ack <id> --repo <repo> --disposition "
+        "done|blocked|wontfix`. Not yours? `ack --repo <repo> --disposition wontfix` naming the "
+        "owner, or `mail.py route <id> --to-agent infra|fleet|intel`. Never sweep.\n"
         "SYSTEMIC: the count falls only by ACKing — `sweep` never touches obligations. If it "
         "drops sharply with no commits behind it, read the archive, not the number.\n\n"
         f"{rows}"
@@ -345,13 +355,20 @@ def main() -> int:
     # cost an extra Telegram — it DELIVERS a duplicate `finding` into the hub inbox and stamps
     # the day, so the next cron run is suppressed and the real digest is never produced. The
     # lock belongs to the script (review round 1).
+    # ⚠️ CONTENTION ONLY. A bare `except OSError` here covers `mkdir` and `open` too, so an
+    # unwritable state dir, ENOSPC, or a stray file at either path printed "another run holds the
+    # lock" and returned 0 — the digest silenced FOREVER behind a message that reads as benign
+    # contention, and nothing self-heals. Every other leg in this module fails OPEN by design
+    # ("a duplicate beats permanent silence"); this one inverted that (review round 2).
     try:
         STATE_DIR.mkdir(parents=True, exist_ok=True)
         _lock_fd = open(STATE_DIR / "run.lock", "w")  # noqa: SIM115 — held for the process
         fcntl.flock(_lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except OSError:
+    except BlockingIOError:
         print("mail-escalate: another run holds the lock — skipped")
         return 0
+    except OSError as exc:
+        print(f"mail-escalate: WARNING — lock unavailable ({exc}); proceeding UNLOCKED")
     operator_done = _stamped(DAY_STAMP, today)
     agent_done = _stamped(DAY_STAMP_AGENT, today)
     if operator_done and agent_done:
@@ -382,9 +399,17 @@ def main() -> int:
         agent_ok = _deliver_to_agent(_agent_body(title, rows, len(items)))
         if agent_ok:
             _stamp(DAY_STAMP_AGENT, today, "agent")
+
+    # ⚠️ A SKIPPED leg is not an OK leg. `ok`/`agent_ok` are seeded from the STAMP, so three of the
+    # four daily runs printed `send=OK · agent=OK` having sent nothing — the same shape as the
+    # failure this whole change exists to end ("logged send=OK while the inbox grew to 132"). The
+    # log is the only evidence a cron leaves; it must distinguish delivered from suppressed.
+    def _verdict(done: bool, result: bool) -> str:
+        return "skipped" if done else ("OK" if result else "FAILED")
+
     print(
-        f"mail-escalate: {len(items)} obligation(s) · send={'OK' if ok else 'FAILED'} · "
-        f"agent={'OK' if agent_ok else 'FAILED'} ({today})"
+        f"mail-escalate: {len(items)} obligation(s) · "
+        f"send={_verdict(operator_done, ok)} · agent={_verdict(agent_done, agent_ok)} ({today})"
     )
     return 0  # fail-soft: the no-stamp retry in <=6h is the recovery; stdout is the visibility
 
