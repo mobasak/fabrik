@@ -35,6 +35,7 @@ DOTENV_KEYS: tuple[str, ...] = (
     "SUBAGENT_PROJECT",
     "SUBAGENT_SELECTION_DOC",
     "SUBAGENT_LIVE_PRICING",
+    "SUBAGENT_CREDIT_FLOOR",
     "EXA_API_KEY",
     "BRAVE_API_KEY",
     "FIRECRAWL_API_KEY",
@@ -126,7 +127,30 @@ def _shared_env_path() -> Path | None:
     skips the fleet file and stays fail-open, never propagating the crash."""
     override = os.getenv(_SHARED_ENV_VAR)
     if override:
-        return Path(override)
+        try:
+            # `~` is not a directory name anyone means literally, and a consumer that points
+            # this variable at `~/.config/fabrik/subagents.env` currently loads NOTHING: the
+            # unexpanded path never `.is_file()`, the fleet layer silently does not apply, and
+            # the only evidence is a credential missing later — a 401, or a provider leg running
+            # unauthenticated. Expanding it is safe in the one direction that matters: this file
+            # is the LAST layer and `_apply_env_file` only sets a key `not in os.environ`, so it
+            # can fill a gap and can never override the real env or the project `.env`.
+            return Path(override).expanduser()
+        except (KeyError, RuntimeError, OSError):
+            # HOME unset AND no passwd entry for this uid (a minimal container); `OSError` too,
+            # because a broken NSS/sssd backend surfaces there and `posixpath.expanduser` does
+            # not swallow it. Fail-open rather than raising — the caller autoloads at import.
+            # ⚠️ Degrade to None, NOT to the unexpanded path. A bare `~/...` is RELATIVE, and
+            # `load_env` does `shared.is_file()`, which resolves it against the CWD — so a
+            # directory named `~` in the process CWD becomes a readable credential source.
+            # EXECUTED against this file: with home unresolvable and the override set to a
+            # tilde path, `load_env` applied a planted `TELEGRAM_BOT_TOKEN` from
+            # `<cwd>/~/.config/fabrik/subagents.env`. Missing the file is the honest outcome
+            # when home cannot be resolved; reading a DIFFERENT one is not. Found by the hub
+            # reviewing its own vendored copy (01M2GSRM4T1Y); the unexpanded fallback was the
+            # shape fabrik-lib specified in SB-003, so this corrects our own prescription.
+            p = Path(override)
+            return p if p.is_absolute() else None
     xdg = os.getenv("XDG_CONFIG_HOME")
     if not xdg:
         try:

@@ -1163,7 +1163,9 @@ _MAIL_TRIAGE_PHASE_A = {
         "The probe covers the LANE it dispatches to",  # T2.7 D2 (01M2803TM)
     ),
     "fabrik-doc-converge.md": ("project-local `docs/reference/<name>.md`",),  # T2.13 (01M1V443G)
-    "fabrik-ui-design.md": ("Split history (retired screens, superseded versions) into `docs/ui-design-history.md`",),  # T2.11 (01M25G1BN)
+    "fabrik-ui-design.md": (
+        "Split history (retired screens, superseded versions) into `docs/ui-design-history.md`",
+    ),  # T2.11 (01M25G1BN)
     "fabrik-ui-design-review.md": ("the review's first finding is the split",),  # T2.11 twin
     "fabrik-decommission.md": ("`command grep -rn` across `/opt/*`",),  # T2.21
 }
@@ -1190,14 +1192,19 @@ def test_the_mail_triage_phase_a_sentences_reach_their_rendered_commands_once(tm
     lost = [
         p.name
         for p in tmp_path.glob("*.md")  # design-review.md carries no fabrik- prefix
-        if "before any seat sees a delta" in p.read_text() or "before any finder sees a delta" in p.read_text()
+        if "before any seat sees a delta" in p.read_text()
+        or "before any finder sees a delta" in p.read_text()
         if ac._HTML_COMMENT_RE.sub("", p.read_text()).count("REFUTED list verbatim") != 1
     ]
     assert not lost, lost
     doubled = []
     for name in _REVIEW_LOOP_CONSUMERS:
         live = ac._HTML_COMMENT_RE.sub("", (tmp_path / name).read_text())
-        for needle in ("REFUTED list verbatim", "explicit `timeout` at or above", "Scope-growth stop"):
+        for needle in (
+            "REFUTED list verbatim",
+            "explicit `timeout` at or above",
+            "Scope-growth stop",
+        ):
             if live.count(needle) > 1:
                 doubled.append((name, needle, live.count(needle)))
     assert not doubled, doubled

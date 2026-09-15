@@ -150,20 +150,36 @@ def _fetch_openrouter_prices() -> dict[str, float]:
 #   table is only the last-resort OFFLINE floor.
 _TABLE: dict[str, list[str]] = {
     # judgment/generalist task_types → v4-pro (deepseek) → m3 (minimax) → glm-4.5-air (zai) = 3 families
+    # ⚠️ `deepseek/deepseek-v4-pro` is DEMOTED out of rank 1 in every roster it led — spec,
+    # plan, research (and docs, earlier). Measured by intel on 15,587 `subagent_runs` rows:
+    # n=339 since 2026-08-20, avg quality **1.72**, the WORST of any model with n>=20 in that
+    # window (v3.2-exp 2.95 / v4-flash 2.82 / m3 2.97). Its 22% error rate is NOT the outlier
+    # — the whole-table baseline is 23% — the QUALITY is.
+    #
+    # ⚠️ WHY THIS TABLE AND NOT A HUB DENY: the hub's operator deny filters the SYNCED doc,
+    # and `pick_models` falls back to `_TABLE` **per task type** when the doc has no section
+    # for that kind. `plan` has no fleet rows clearing MIN_RUNS, so no `### plan` section is
+    # emitted, so the deny evaporates exactly where the fallback takes over — and any repo
+    # whose doc is absent or >14 days stale gets this order for EVERY kind. This table is a
+    # POLICY surface, not just a seed: it routes whenever the empirical layer is silent,
+    # which is precisely when nobody is watching. (intel, 01M1SRQV19F8V1A7125N12RE5J)
+    #
+    # KEPT, not removed, in all four: it is not broken, it is worst-in-class, and the flywheel
+    # can still promote it back on real scores. Top-3 family diversity holds everywhere.
     "spec": [
-        "deepseek/deepseek-v4-pro",
         "minimax/minimax-m3",
         "z-ai/glm-4.5-air",
         "deepseek/deepseek-v3.2",
+        "deepseek/deepseek-v4-pro",
         "deepseek/deepseek-v4-flash",
         "minimax/minimax-m2.5",
         "deepseek/deepseek-r1-distill-llama-70b",  # reasoning tail (verbose/slow) — reachable at n>=7
     ],
     "plan": [
-        "deepseek/deepseek-v4-pro",
         "minimax/minimax-m3",
         "z-ai/glm-4.5-air",
         "deepseek/deepseek-v3.2",
+        "deepseek/deepseek-v4-pro",
         "deepseek/deepseek-v4-flash",
         "minimax/minimax-m2.5",
         "deepseek/deepseek-r1-distill-llama-70b",  # reasoning tail (verbose/slow) — reachable at n>=7
@@ -193,20 +209,26 @@ _TABLE: dict[str, list[str]] = {
         "deepseek/deepseek-v4-flash",
         "deepseek/deepseek-v3.2-exp",
     ],
+    # ⚠️ `deepseek/deepseek-v4-pro` was RANK 1 here and is DEMOTED below the reliable models
+    # (D-103/F4). Measured twice, independently: intel reports 81% errors fleet-wide; THIS repo's
+    # own ledger gives 28% (17 of 60 runs). Two samples, two numbers, one verdict — 4-5x the error
+    # rate of every other model in this list, while sitting first in a roster whose whole job is to
+    # be picked first. KEPT, not removed: it is not broken, it is unreliable, and the flywheel can
+    # promote it back on real scores. Top-3 stays 3 distinct families (minimax/z-ai/deepseek).
     "docs": [
-        "deepseek/deepseek-v4-pro",
         "minimax/minimax-m3",
         "z-ai/glm-4.5-air",
         "deepseek/deepseek-v3.2",
+        "deepseek/deepseek-v4-pro",
         "deepseek/deepseek-v4-flash",
         "minimax/minimax-m2.5",
         "deepseek/deepseek-r1-distill-llama-70b",  # reasoning tail (verbose/slow) — reachable at n>=7
     ],
     "research": [
-        "deepseek/deepseek-v4-pro",
         "minimax/minimax-m3",
         "z-ai/glm-4.5-air",
         "deepseek/deepseek-v3.2",
+        "deepseek/deepseek-v4-pro",
         "deepseek/deepseek-v4-flash",
         "minimax/minimax-m2.5",
         "deepseek/deepseek-r1-distill-llama-70b",  # reasoning tail (verbose/slow) — reachable at n>=7

@@ -316,9 +316,7 @@ def test_push_slot_resets_when_cause_resolves_across_a_gate_block(tmp_path: Path
             line = json.dumps(
                 {
                     "type": "assistant",
-                    "timestamp": (
-                        _d.datetime.now(_d.UTC) + _d.timedelta(seconds=60)
-                    ).isoformat(),
+                    "timestamp": (_d.datetime.now(_d.UTC) + _d.timedelta(seconds=60)).isoformat(),
                     "message": {
                         "content": [
                             {

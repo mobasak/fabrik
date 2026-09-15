@@ -26,12 +26,13 @@ from typing import Literal, cast
 
 import httpx
 
-from . import _transport
-from ._client import ContentStallError, TransientError
+from . import _transport, lanes
+from ._client import ContentStallError, HardTimeoutError, TransientError
+from .lanes import FailureCause
 from .mcp_tools import McpProvider, build_mcp_provider
 from .providers import resolve_provider
 from .select import _MAX_POOL_PRICE_PER_MTOK, provider_max_price
-from .tools import TOOL_SCHEMAS, execute_tool
+from .tools import TOOL_SCHEMAS, ToolResult, execute_tool
 from .web_tools import WEB_TOOL_NAMES, WEB_TOOL_SCHEMAS, execute_web_tool
 
 RunFn = Callable[..., _transport.Result]
@@ -170,6 +171,17 @@ class LoopOutcome:
     out_tokens: int = (
         0  # summed completion (output) tokens across turns (value/report metric)
     )
+    # T02a: the structured `lanes.FailureCause` for a run that actually classified a
+    # PROVIDER-SIDE verdict — `None` when the run finished cleanly ("done"), when a cap tripped
+    # with NOTHING to classify (the between-turn `remaining <= 0` check, turn ≥ 2, no exception at
+    # all), OR when a `HardTimeoutError` closes the walk's OWN wall-clock budget rather than
+    # reporting anything about the provider (see `_transport_failure`'s wall-clock carve-out) —
+    # this last case is the DOMINANT one for a single-shot finder, whose one call always reaches
+    # `_transport_failure` on a cap. `failure is not None` is the cascade's re-route trigger, so a
+    # budget-exhausted cap must stay causeless: re-routing it would walk every remaining rung with
+    # ~0s left for the one reason re-routing cannot fix. Appended LAST, after `out_tokens`, with a
+    # `None` default so an existing positional `LoopOutcome(...)` construction still works.
+    failure: FailureCause | None = None
 
 
 def _normalize_tool_calls(result: _transport.Result) -> list[dict[str, object]]:
@@ -194,6 +206,40 @@ def _normalize_tool_calls(result: _transport.Result) -> list[dict[str, object]]:
             seen_ids.add(new_id)
         out.append(norm)
     return out
+
+
+def _failure_content(res: ToolResult) -> str:
+    """The tool message for a FAILED call: the status AND the payload beneath it.
+
+    ⚠️ The payload is the whole point. ``ToolResult``'s own contract says ``output`` "is
+    fed back to the model", and on the failure path this loop used to drop it, handing
+    the model ``"error: exit code 1"`` and nothing else. A coder cannot watch a test fail
+    FOR A REASON when the reason is withheld, and cannot fix a failing test it cannot
+    read — so a red-first proof floor was structurally unreachable for a pool agent.
+
+    The second-order cost is worse than the first: the failure presents as an agent
+    making excuses ("the output was not returned by the tool interface"), so the natural
+    response is to distrust the AGENT rather than the tool. Reported by
+    web-ecommerce-factory (01M1S918DZXBBEJP8T151ZJ5DF) after dispatching a coder twice
+    and disbelieving it both times.
+
+    ⚠️ WHY THIS CANNOT FLOOD THE CONTEXT — stated with its denominator, because three
+    reviewers read the looser claim ("output is already truncated") as FALSE and filed it.
+    Audited by AST over every real ``ToolResult(ok=False, …)`` construction: `web_tools`
+    has 9 and `mcp_tools` 4, and **not one of them carries output at all** (they set
+    ``output=""``), so for those two branches this returns exactly what it always did.
+    `tools` has 15, of which exactly 3 carry output — and all 3 pass it through
+    ``_truncate`` first. So every failure payload that reaches here is already bounded,
+    and the ones that are not bounded do not exist rather than being trusted.
+
+    ⚠️ THE MIRROR, for the ~48 repos that vendor this: the tool message a FAILED call
+    produces changes shape, from ``"error: exit code 1"`` to ``"error: exit code 1\n…"``.
+    A consumer matching that string EXACTLY (a sentinel, a regex anchored with ``$``)
+    stops matching. A consumer testing ``startswith("error: ")`` or ``in`` is unaffected,
+    which is the common shape — but the cost is real and is named here rather than
+    shipped as free.
+    """
+    return f"error: {res.error}\n{res.output}" if res.output else f"error: {res.error}"
 
 
 def _execute_one_tool_call(
@@ -249,7 +295,7 @@ def _execute_one_tool_call(
                     content = res.output
                     _executed()  # count only a real, successful call
                 else:
-                    content = f"error: {res.error}"
+                    content = _failure_content(res)
         elif mcp_provider is not None and name in mcp_provider.tool_names():
             # MCP branch — MUST precede the `not tools_enabled` refusal: the research
             # config is tools_enabled=False + tools, so an MCP call would otherwise be
@@ -260,7 +306,7 @@ def _execute_one_tool_call(
                 content = res.output
                 _executed()  # count only a real, successful call
             else:
-                content = f"error: {res.error}"
+                content = _failure_content(res)
         elif not tools_enabled:
             # file/command tools disabled → refuse even if the model asks (matches
             # the web-tool gate; important now that tools_enabled=False + web_tools
@@ -278,7 +324,7 @@ def _execute_one_tool_call(
                 content = result.output
                 _executed()
             else:
-                content = f"error: {result.error}"
+                content = _failure_content(result)
     return {"role": "tool", "tool_call_id": call_id, "content": content}
 
 
@@ -296,6 +342,21 @@ def _partial_fallback(base: str, exc: object) -> str:
         return base
     partial = getattr(exc, "partial", "")
     return partial if isinstance(partial, str) else ""
+
+
+def _safe_classify(exc: BaseException) -> FailureCause | None:
+    """T02a fixup 4: `lanes.classify` does `getattr(exc, "status", None)` — a `getattr` DEFAULT
+    only swallows `AttributeError`; a `.status` PROPERTY that raises anything else propagates
+    straight through it. `exc` here can come from a hostile/fake `run_fn` (a documented public
+    injection seam this module's own comments already anticipate), so `classify` is NOT total for
+    an arbitrary caller-supplied exception, whatever its own docstring claims for a well-behaved
+    one. A secondary raise here must never propagate: it would mask the ORIGINAL transport
+    failure and break this module's own "never crash" / "TOTAL" contract. Returns `None` (no
+    invented cause) rather than letting a bad `.status` take the whole loop down with it."""
+    try:
+        return lanes.classify(exc)
+    except Exception:
+        return None
 
 
 def run_loop(
@@ -436,7 +497,12 @@ def run_loop(
     start = time.monotonic()
     turns = 0
 
-    def _finish(text: str, status: LoopStatus, error: str | None = None) -> LoopOutcome:
+    def _finish(
+        text: str,
+        status: LoopStatus,
+        error: str | None = None,
+        failure: FailureCause | None = None,
+    ) -> LoopOutcome:
         if mcp_prov is not None:
             mcp_prov.close()  # tear down MCP sessions on EVERY exit path (done/capped/error)
         cost = total_cost if cost_known else None
@@ -450,6 +516,7 @@ def run_loop(
             provider=served_provider,
             tool_calls=dict(tool_counts),
             out_tokens=total_out_tokens,
+            failure=failure,
         )
 
     def _transport_failure(exc: Exception) -> LoopOutcome:
@@ -457,8 +524,24 @@ def run_loop(
         # is spent is it a cap. Surfaces any partial text streamed before the failure.
         text = _partial_fallback(last_text, exc)
         if time.monotonic() - start >= wall_clock_s:
-            return _finish(text, "capped")
-        return _finish(text, "error", error=str(exc))
+            if isinstance(exc, HardTimeoutError):
+                # FIXUP 3 — THE INVARIANT: a `HardTimeoutError` here is OUR OWN wall-clock budget
+                # expiring, not a provider verdict — it is a plain `ConsultError` with
+                # `status=None`, so classifying it would MANUFACTURE a generic "error" cause where
+                # none exists. `failure is not None` is the cascade's re-route trigger, and this is
+                # the DOMINANT shape for a single-shot finder (its one call always lands here on a
+                # cap): re-routing a budget-exhausted unit walks it onto every remaining rung with
+                # ~0s left, each one streaming briefly then hard-timing-out identically — burning
+                # the whole chain for the one reason re-routing cannot fix. Causeless, on purpose.
+                return _finish(text, "capped")
+            # Any OTHER exception landing here (a real provider failure that happened to also
+            # breach wall_clock_s — e.g. a late-arriving 402/404, or a `StuckError` idle-timeout,
+            # which IS a real re-routable verdict — see FIXUP 3's note on why that one is NOT
+            # carved out) still needs its cause: previously this branch discarded `exc` entirely,
+            # so a post-wall-clock provider failure became indistinguishable from our own timeout.
+            return _finish(text, "capped", failure=_safe_classify(exc))
+        # Budget remaining — classify while `exc` is still live (guarded: see `_safe_classify`).
+        return _finish(text, "error", error=str(exc), failure=_safe_classify(exc))
 
     # The whole turn loop is wrapped so the MCP provider is ALWAYS torn down: `_finish`
     # closes it on every normal return, but an unguarded raise in the loop (e.g. a
@@ -529,7 +612,25 @@ def run_loop(
                         # kept content-stalling → cap (partial-tolerant; NOT scored — status !=
                         # "done" ⇒ record_run nulls the quality, see U3). Surface any text streamed
                         # before the stall (exc.partial) so a capped worker isn't silently empty.
-                        return _finish(_partial_fallback(last_text, exc), "capped")
+                        # T02a — THE LOAD-BEARING SITE: a zero-output content-stall cap is exactly
+                        # what `recover_caps` re-dispatches today, and exactly what a later
+                        # widened trigger keys on — without a cause here nothing downstream can
+                        # tell a stall-cap from a wall-clock cap from a turn-budget cap.
+                        # Tagged DIRECTLY rather than routed through `lanes.classify`:
+                        # `ContentStallError` never sets `.status` (it is a client-side liveness
+                        # signal — no content token arrived in time — not an HTTP response), so
+                        # `classify` has no branch for it and would silently fall to its generic
+                        # "error" catch-all, losing exactly the distinction this cause exists to
+                        # preserve. `scope="none"` because the loop has ALREADY handled this
+                        # provider (excluded it and retried in-process, above) — there is nothing
+                        # left for a caller-side bench to act on.
+                        return _finish(
+                            _partial_fallback(last_text, exc),
+                            "capped",
+                            failure=FailureCause(
+                                "content-stall", "none", None, None, False
+                            ),
+                        )
                     stalls += 1
                     # provider.ignore is an OR routing object — only build it for a provider that
                     # sends it. NVIDIA never names a served provider (exc.provider is None) so this
@@ -575,7 +676,21 @@ def run_loop(
             served_provider = result.provider or served_provider
 
             if result.error:
-                return _finish(last_text, "error", error=result.error)
+                # T02a fixup 2: an in-band error is a bare STRING with no `.status` — the exact
+                # same shape `classify` gives ANY status-less exception. Proved by mutation: this
+                # site used to route a fake exception through `lanes.classify`, but
+                # `_is_priced_out`'s marker read only ever runs inside
+                # `if isinstance(status, int) and 400 <= status < 500:` (`lanes.py:297-298`), which
+                # a status-less input can never enter — so the call always landed on the exact same
+                # catch-all constant, regardless of the message. Tagged directly instead, mirroring
+                # the content-stall site: no fake exception constructed just to hand `classify` a
+                # fixed answer it was never going to vary.
+                return _finish(
+                    last_text,
+                    "error",
+                    error=result.error,
+                    failure=FailureCause("error", "none", None, None, False),
+                )
             if result.cost_usd is not None:
                 total_cost += result.cost_usd
                 cost_known = True
@@ -648,6 +763,7 @@ def run_loop(
         # tool-using agent reaches here mid-loop) + remaining wall-clock + cost headroom (don't blow a
         # cost-capped run past its ceiling on the salvage call). TOTAL: any failure degrades to the
         # existing `_partial_fallback` — the never-raises contract is absolute.
+        finalize_failure: FailureCause | None = None
         if (
             advertised
             and (wall_clock_s - (time.monotonic() - start)) > 0
@@ -690,10 +806,19 @@ def run_loop(
                     cost_known = True
                 if fin.text:
                     last_text = fin.text
-            except Exception:  # noqa: BLE001 — finalize is best-effort; the total contract is absolute
-                pass  # degrade to the last_text/partial salvage below — never crash the loop
+            except Exception as exc:  # noqa: BLE001 — finalize is best-effort; the TEXT degrades
+                # FIXUP 5: a classifiable failure on the finalize call (e.g. a 402 — the account is
+                # OUT OF CREDIT) used to be thrown away exactly like the old site-2 bug: `failure`
+                # stayed `None`, which reads as a structural refusal to the walk (never re-route) —
+                # exactly backwards for a 402, where re-routing to another provider is the right
+                # response. Degrade the TEXT only (fall back to the last real turn's `last_text` /
+                # partial salvage below — the never-raises contract is absolute); the CAUSE is
+                # still worth capturing. Guarded the same way as `_transport_failure` (`exc` is
+                # from the same `run_fn` injection seam, so `classify`'s `getattr(exc, "status")`
+                # could still raise on a hostile `.status`).
+                finalize_failure = _safe_classify(exc)
 
-        return _finish(last_text, "capped")
+        return _finish(last_text, "capped", failure=finalize_failure)
     finally:
         if mcp_prov is not None:
             mcp_prov.close()

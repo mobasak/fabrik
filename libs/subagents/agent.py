@@ -35,15 +35,16 @@ import time
 import uuid
 import weakref
 from collections.abc import Callable, Iterator
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Literal, cast
 
-from . import sandbox, spend_cap, workspace
+from . import lanes, sandbox, spend_cap, workspace
 from ._dotenv import load_env
 from ._repo import resolve_repo as _resolve_repo
+from .lanes import FailureCause
 from .ledger import Ledger, agent_record
 from .loop import LoopOutcome, run_loop
 from .nvidia_models import NVIDIA_TOOL_CALLERS, nvidia_supports_tools
@@ -271,6 +272,12 @@ class FanoutBatch:
     __slots__ = (
         "results", "table", "_recorded", "_task_type", "_project", "_models",
         "_state_dir",
+        # ⚠️ T06: a REAL slot. `FanoutBatch` uses `__slots__`, so `b.degradation_events = []`
+        # raises AttributeError without this — prototyped before the ticket was written.
+        "degradation_events",
+        # ⚠️ T11: likewise a REAL slot, APPENDED LAST. Same rule as above, and same rule as every
+        # new AgentResult field: additive, defaulted, and it MUST NOT enter `__iter__`.
+        "dead_units",
     )
 
     def __init__(
@@ -283,6 +290,8 @@ class FanoutBatch:
         _project: str | None = None,
         _models: dict[str, str] | None = None,
         _state_dir: str | None = None,
+        degradation_events: list[dict[str, object]] | None = None,
+        dead_units: int | None = None,
     ) -> None:
         self.results = results
         self.table = table
@@ -290,6 +299,24 @@ class FanoutBatch:
         self._task_type = _task_type
         self._project = _project
         self._models = _models or {}
+        # ⚠️ **T06 — the events are an ATTRIBUTE, never a third yielded value.** `__iter__` must
+        # keep yielding exactly two items so `results, table = fanout(...)` survives in every one of
+        # the ~48 vendored copies; a consumer who wants the detail reads `batch.degradation_events`.
+        self.degradation_events: list[dict[str, object]] = degradation_events or []
+        # ⚠️ **T11 — how many units came back with NOTHING USABLE.** Same attribute-not-a-third-value
+        # rule as above. A caller that reads "11 dispatched" and gets 5 usable reports currently has
+        # to notice the gap themselves; the reporter did not, and *"an agent that trusted
+        # '11 dispatched' would have converged on 45% recall"*. Dead units STAY in `results` — they
+        # are counted, never dropped, because silently shrinking the list is how the gap becomes
+        # invisible in the other direction.
+        # ⚠️ `None` DERIVES the count from `results` rather than defaulting to a comfortable 0.
+        # `FanoutBatch` is PUBLIC and hand-constructible (this suite does it), and a field whose
+        # whole purpose is to stop a gap being invisible must not re-hide it on the very path
+        # that skips `fanout`. A default of 0 on a batch holding two failed units is not a safe
+        # default, it is a wrong answer. `fanout` still passes the value it already computed.
+        self.dead_units: int = (
+            sum(1 for r in results if _is_dead_unit(r)) if dead_units is None else dead_units
+        )
         # The repo-anchored .tmp/subagents that `fanout` outboxed the dispatch rows to.
         # `score()` MUST look in the same place; resolved CWD-relative it finds nothing
         # pending and discards the verdict as a genuine orphan.
@@ -487,6 +514,34 @@ class AgentResult:
         ""  # the model that produced this result (from the spec) — set by _run_one so a
     )
     # caller who only holds the results (e.g. from fanout) can score it via set_quality(model=…)
+    # T02b: the structured `lanes.FailureCause` CARRIED verbatim from `LoopOutcome.failure` —
+    # this ticket only threads it through, never routes/branches on it (T05a) and never
+    # reclassifies it (the cause arrives already built by `loop.classify`). `None` for a "done"
+    # run, a budget-exhausted cap with nothing to classify, or any pre-dispatch/infra refusal that
+    # never reached a `LoopOutcome` at all. Appended LAST, after `model`, with a `None` default so
+    # an existing positional `AgentResult(...)` construction (13 args, the pre-T02b arity) still
+    # succeeds. Mirror (review round 2, evidence-checked — see the module README's Gotchas):
+    #   * `astuple(r)`/`fields(r)` — the tuple/field list grows 13→14.
+    #   * `r == <hand-built 13-arg instance>` — now compares 14 fields and can return False.
+    #   * `astuple(r)[-1]` / `asdict(r)["failure"]` do NOT hand back a `FailureCause` — the
+    #     former is a plain tuple, the latter a plain dict; `asdict(r)["failure"].cause` raises
+    #     `AttributeError`. A distinct footgun from "a key merely appeared".
+    #   * `asdict(r)`/JSON gaining a `"failure"` key: under `additionalProperties: false` this is
+    #     SCHEMA REJECTION, not a serialization crash — a vendoring agent expecting a `TypeError`
+    #     will not get one; the payload is just refused downstream.
+    #   * pickle — the hazard runs NEW → OLD, not the reverse: an old pickle loaded by new code
+    #     reads `failure` as its class-level `None` default (safe). A NEW pickle carrying a
+    #     non-`None` cause embeds a reference to `subagents.lanes.FailureCause`; a PRE-T01
+    #     vendored copy (whose `lanes.py` has no such class) raises `AttributeError` unpickling
+    #     it — real, in a module hand-copied into ~48 repos at mixed versions.
+    #   * a subclass is affected ONLY if it redeclares `model` to control field ordering —
+    #     `model`/`queue_s`/`latency_s` already had defaults before this change, so a subclass
+    #     merely adding a new trailing field already required a default (dataclass field-
+    #     ordering rules), same as always.
+    #   * the ledger is UNAFFECTED: `ledger.agent_record` reads a `_RESULT_FIELDS` whitelist via
+    #     `getattr`, `failure` is not in it, so the JSONL/Postgres row shape is unchanged and
+    #     there is no `json.dumps` risk on the nested dataclass — T04 must add it deliberately.
+    failure: FailureCause | None = None
     # NOTE: `out_of_scope` is computed only for `done`/`capped` runs. An `error`
     # run may still carry a partial `diff` (earlier turns wrote before it failed) —
     # ALWAYS review an error run's diff before applying it; it is not scope-guarded.
@@ -881,12 +936,18 @@ async def _cap_acquire(spec: AgentSpec, agent_id: str) -> _CapHold:
         # (the documented extension seam) would silently uncap a capped provider.
         return _CapHold(
             CAP_UNVERIFIABLE,
+            # ⚠ T03: stamp `model=spec.model` — this refusal never dispatches, so nothing else
+            # will ever set `.model`, and a bare `r.model` downstream would regress this unit to
+            # an empty model name (the very regression `or spec.model` exists to cover; belt AND
+            # suspenders, since a caller reading `r.model` directly — bypassing `fanout` — gets
+            # no fallback at all).
             refusal=AgentResult(
                 agent_id, "", "", "error", None, None, 0,
                 error=_cap_scrub(
                     f"could not resolve provider {spec.provider!r} to check its cap "
                     f"({type(exc).__name__}); refusing rather than spending unbounded"
                 ),
+                model=spec.model,
             ),
         )
     cap_env = getattr(cfg, "monthly_cap_env", None) if cfg is not None else None
@@ -894,9 +955,14 @@ async def _cap_acquire(spec: AgentSpec, agent_id: str) -> _CapHold:
         return _CapHold(CAP_NO_CAP_CONFIGURED)
 
     def _refuse(reason: str, detail: str) -> _CapHold:
+        # ⚠ T03: same stamp — every `_refuse(...)` call site in this function (cap-exceeded,
+        # cap-unverifiable, the $0 kill switch) is a refusal that never dispatched, so `model`
+        # must be set here or it is never set at all.
         return _CapHold(
             reason,
-            refusal=AgentResult(agent_id, "", "", "error", None, None, 0, error=detail),
+            refusal=AgentResult(
+                agent_id, "", "", "error", None, None, 0, error=detail, model=spec.model
+            ),
         )
 
     # ⚠️ The ESTIMATE is resolved OUTSIDE the try, deliberately. It is derived from the caller's own
@@ -1523,6 +1589,13 @@ async def _run_one_uncapped(
                     # We could not capture/scope-check the diff, so we cannot certify
                     # the run stayed in scope → status=error (never a bare "done").
                     # Cost/text/turns/provider are still preserved (paid work isn't lost).
+                    diff_capture_err = f"diff capture failed (scope unverified): {exc}"
+                    if outcome.error:
+                        # T02b FIXUP 4 (review round 2): the loop's OWN error explains WHY
+                        # `outcome.failure` (carried below) says what it says — dropping it left
+                        # `error`/`failure` telling contradictory stories (a rate_limited failure
+                        # with an `error` string that never mentions a provider at all).
+                        diff_capture_err += f" | loop error: {outcome.error}"
                     result = AgentResult(
                         agent_id,
                         outcome.text,
@@ -1531,9 +1604,10 @@ async def _run_one_uncapped(
                         outcome.provider,
                         outcome.cost_usd,
                         outcome.turns,
-                        error=f"diff capture failed (scope unverified): {exc}",
+                        error=diff_capture_err,
                         tool_calls=outcome.tool_calls,
                         out_tokens=outcome.out_tokens,
+                        failure=outcome.failure,  # T02b: carry, never reclassify
                     )
                 else:
                     status: AgentStatus = outcome.status
@@ -1574,6 +1648,7 @@ async def _run_one_uncapped(
                         error=err,
                         tool_calls=outcome.tool_calls,
                         out_tokens=outcome.out_tokens,
+                        failure=outcome.failure,  # T02b: carry, never reclassify
                     )
         except Exception as exc:  # noqa: BLE001 — safety net: _run_one must NEVER raise into the batch
             result = AgentResult(
@@ -1693,6 +1768,7 @@ async def arun_agents(
     loop_fn: LoopFn | None = None,
     on_progress: Callable[[dict[str, object]], None] | None = None,
     load_dotenv: bool = True,
+    warn_unrecorded: bool = True,
 ) -> list[AgentResult]:
     """Async core: run all ``specs`` with owned_paths-aware concurrency.
 
@@ -1780,9 +1856,24 @@ async def arun_agents(
     # a caller can accumulate a large unrecorded pile with ZERO signal, and pick_models then learns
     # nothing. Surface any EARLIER unrecorded runs here (never THIS batch — you score it AFTER
     # adjudication), so the backlog can't grow unseen across dispatches.
-    _warn_unrecorded_backlog(
-        resolved_ledger_path, {getattr(r, "agent_id", None) for r in ordered}
-    )
+    if warn_unrecorded:
+        # ⚠️ **T05b — the cascade's re-dispatches must NOT trigger this, and the fix is a caller
+        # signal rather than a smarter heuristic.** This warns when EARLIER pool runs were ledgered
+        # but never scored+recorded, computing `current_ids` from THIS call only. `fanout`'s walk
+        # re-dispatches one spec at a time and records later, so every rung reported the whole
+        # in-flight batch as an unrecorded backlog — up to 40 false lines, against the module's own
+        # standard that "a warning nobody can act on is worse than silence".
+        #
+        # ⚠️ **PUBLIC API, additive-with-default.** `warn_unrecorded` is a new keyword on two of
+        # this module's most-called functions, shipping to ~48 vendored copies. The mirror: a
+        # consumer that SUBCLASSES or WRAPS either with a fixed signature sees the change; every
+        # positional and keyword call site keeps working, and the default preserves today's
+        # behaviour exactly. Suppression is opt-IN, so a consumer who never passes it never loses
+        # the signal — which is the half that matters, because the warning is the only thing that
+        # makes a forgotten `record_agent_run` visible.
+        _warn_unrecorded_backlog(
+            resolved_ledger_path, {getattr(r, "agent_id", None) for r in ordered}
+        )
     return ordered
 
 
@@ -1795,6 +1886,7 @@ def run_agents(
     loop_fn: LoopFn | None = None,
     on_progress: Callable[[dict[str, object]], None] | None = None,
     load_dotenv: bool = True,
+    warn_unrecorded: bool = True,
 ) -> list[AgentResult]:
     """Synchronous wrapper around :func:`arun_agents`.
 
@@ -1820,11 +1912,87 @@ def run_agents(
             loop_fn=loop_fn,
             on_progress=on_progress,
             load_dotenv=load_dotenv,
+            warn_unrecorded=warn_unrecorded,
         )
     )
 
 
-def results_table(entries: list[dict[str, object]]) -> str:
+def _is_dead_unit(r: AgentResult) -> bool:
+    """A unit that returned NOTHING THE CALLER CAN USE — the count `batch.dead_units` reports.
+
+    ⚠️ **DELIBERATE REFINEMENT OF T11's LITERAL WORDING, and the reason is measured.** The ticket
+    says ``status == "error" or out_tokens == 0``. `out_tokens` is wrong in BOTH directions:
+
+    * it MISSES the reasoning-burn case — a `done` run can spend its whole ``max_tokens`` on a
+      reasoning channel and return an empty completion, so ``out_tokens > 0`` while the payload is
+      blank. That is precisely the "$0.18 for nothing" seam :attr:`AgentResult.empty_output` exists
+      for, and the results table has marked it ``⚠EMPTY`` all along — keyed on the payload, NOT the
+      token count, with a comment saying exactly why. A dead-unit count that disagreed with the
+      ⚠EMPTY column on a ``done`` unit would be worse than no count.
+
+      ⚠️ PRECISELY — the looser version of that sentence was challenged in review and deserved to
+      be. For a ``done`` unit, dead and ``⚠EMPTY`` coincide EXACTLY. For an ``error`` they
+      deliberately do NOT: ``empty_output`` is defined only for ``done``, so an error that emitted
+      partial output before failing shows an ordinary ``Out`` value in the table and is still
+      counted dead. The count is a SUPERSET of ⚠EMPTY, never a mirror of it, and that is the
+      intended relationship — "produced something before it died" is not "produced something you
+      can rely on".
+    * it OVER-COUNTS a provider that does not report usage: text and diff present, ``out_tokens``
+      absent → 0 → the ticket's rule calls a perfectly good report DEAD. The whole point of this
+      count is that a caller must ADJUDICATE a partial batch; a count that cries wolf gets ignored,
+      which is the failure mode the reporter is trying to escape.
+
+    So: dead = an ``error``, or no usable payload at all. This is what the ticket ASKS FOR — the
+    reporter's line is *"6 of 11 review partitions silently un-swept … an agent that trusted
+    '11 dispatched' would have converged on 45% recall"* — and a swept-but-empty partition is
+    un-swept however many tokens it burned.
+
+    The rows the ticket pins all still hold: a ``capped`` unit with PARTIAL output is ALIVE (it has
+    a payload), an ``out_of_scope`` unit with output is ALIVE (which is why this is not
+    ``status != "done"``), and a unit that RECOVERED on the `recover_caps` retry is ALIVE because
+    the count runs after the replacement.
+    """
+    if r.status == "error":
+        return True
+    return not (_payload_present(r.text) or _payload_present(r.diff))
+
+
+def _payload_present(v: object) -> bool:
+    """Is there something a caller could read? Total — this must NEVER raise.
+
+    ⚠️ `_is_dead_unit` runs at the very END of `fanout`, after every unit has dispatched and been
+    BILLED, so anything that raises here discards work the operator already paid for. That is the
+    same batch-killer class as T06's degradation label, in the code meant to REPORT on the batch —
+    which is exactly why it is guarded rather than reasoned about. `(v or "").strip()` looks safe and
+    is not: a non-str truthy payload (a list, an int from a hand-built or vendored-fork
+    `AgentResult`) survives the `or` and then `AttributeError`s on `.strip()`. Measured, not feared.
+
+    DIRECTION, stated: a payload we cannot judge counts as PRESENT (alive), never dead. Over-counting
+    dead is the cry-wolf failure this whole feature exists to avoid — a count nobody trusts is worse
+    than no count — so the unjudgeable case errs toward "there is something here, go look".
+    """
+    # ⚠️ FALSY FIRST, and this order is the fix for a real hole in the rule below. `b""`, `[]` and
+    # `0` are not UNJUDGEABLE — they are judgeably EMPTY, and the earlier `isinstance(v, str)`
+    # version fell through to `return True` and called them a payload. A vendored fork that carries
+    # `text` as bytes would then have counted every genuinely empty output ALIVE, which is the
+    # under-reporting direction this whole feature exists to remove.
+    if not v:
+        return False
+    if isinstance(v, str):
+        return bool(v.strip())
+    # ⚠️ BYTES ARE STRIPPED TOO, and leaving them out was a real inconsistency with this module's
+    # own stated invariant. Round 4 hardened the FALSY half (`b""`, `[]`, `0`) and left
+    # truthy-but-BLANK bytes (`b" "`, `b"\n"`) falling through to "present" — so a `done` unit with
+    # `text=b" "` counted ALIVE while `AgentResult.empty_output` (which does `(self.text or "")
+    # .strip()`) called it ⚠EMPTY. `_is_dead_unit`'s docstring says those two "coincide EXACTLY" for
+    # a `done` unit; they did not. Found by the T09 integration pass.
+    if isinstance(v, (bytes, bytearray)):
+        return bool(v.strip())
+    # Truthy and not a str: genuinely unjudgeable → PRESENT. Direction stated above.
+    return True
+
+
+def results_table(entries: list[dict[str, object]], *, dead_units: int | None = None) -> str:
     """Render the STANDARD post-run report table an orchestrator emits after a pool run.
 
     One row per unit; each ``entry`` is a dict:
@@ -1870,7 +2038,1200 @@ def results_table(entries: list[dict[str, object]]) -> str:
             f"| {e.get('unit', '—')} | {e.get('model', '—')} | {prov} | {cost} | {lat} | "
             f"{out} | {e.get('quality', '—')}/5 | {e.get('fixes', '')} |"
         )
+    # ⚠️ T11: a footer line, NOT a column — a column would change the shape of every row in ~48
+    # vendored copies and break anything parsing the table. `None` (the default for a hand-built
+    # call) renders nothing at all, so an existing `results_table(rows)` is byte-identical.
+    # `and entries` because this footer annotates THIS table: with no rows there is nothing to
+    # annotate, and the denominator would render the nonsense "3 of 0 unit(s)". `fanout` cannot
+    # produce that (the count is derived from the same list the rows are), but `results_table`
+    # is PUBLIC and documented for hand-built rows, and this module's rule for that surface is
+    # to stay total and render sensibly rather than raise.
+    # The leading "\n" is DELIBERATE: it renders a blank line between the table and the footer,
+    # which is what closes a markdown table. Without it a renderer can absorb the footer into the
+    # table body. Row-counting parsers are unaffected — the footer has no leading `|`.
+    if dead_units and entries:
+        rows.append(
+            f"\n⚠️  {min(dead_units, len(entries))} of {len(entries)} unit(s) returned NOTHING USABLE "
+            f"(error, or an empty payload). They are still in `batch.results` — adjudicate the "
+            f"batch as PARTIAL rather than reading the dispatch count as coverage."
+        )
     return "\n".join(rows)
+
+
+# ── T05a: the lane walk — rung selection and re-dispatch for a failed fan-out unit ──────────────
+#
+# ⚠️ `_ROUTABLE_CAUSES` IS AN ALLOWLIST, DELIBERATELY. A cause that `lanes.classify` (or `loop`)
+# starts emitting later is NOT routed until someone triages it here. That is the fail-closed
+# direction: an un-triaged cause that should route merely leaves the cascade inert for it (today's
+# behaviour), whereas an un-triaged cause that should NOT route burns every rung in the chain
+# discovering the same answer. A denylist would fail the other way.
+#
+# The verdict per cause, with the reason — this is the whole design decision, so it is written down
+# rather than implied by the set literal:
+#
+#   * ``rate-limited`` (429, provider-scoped)  — ROUTE. A DIFFERENT provider is precisely the point.
+#   * ``unavailable``  (503, provider-scoped)  — ROUTE. The endpoint is down; its siblings are not.
+#   * ``model-gone``   (404/410, model-scoped) — ROUTE. The model was pulled or renamed; another
+#     model (even on the same provider) is fine, which is why `apply_bench` scopes this to the MODEL.
+#   * ``priced-out``   (our own ``provider.max_price`` 404) — ROUTE. OUR ceiling, not the model's
+#     fault; a cheaper rung may sit under it.
+#   * ``request-too-large`` (413) — ROUTE. Another rung may have a bigger context window.
+#   * ``content-stall`` (loop-tagged: the provider accepted, then went silent) — ROUTE. The loop has
+#     ALREADY excluded that upstream and retried in-process (`loop.py`'s U2 arm); a different lane is
+#     the only move left.
+#   * ``auth`` (401/402; scope ``provider``/``key``) — ROUTE, and this is the one worth arguing.
+#     Inside an all-OpenRouter batch every rung shares one ``OPENROUTER_API_KEY``, so routing a 402
+#     around cannot help — but `SUBAGENT_LANES` is explicitly MULTI-provider ("groq:…,cerebras:…"),
+#     and a different provider has a different key and different credit, which is exactly the case a
+#     fallback chain exists for. The pointless half is already foreclosed by the applier, not by us:
+#     `auth` is PERMANENT, so `apply_bench` benches that provider on the FIRST occurrence and the
+#     rung-skip below drops every remaining rung on it without a dispatch. So routing it is
+#     *useful across providers* and *free within one* — never "actively wasteful". Not routing it
+#     would strand a unit on a spent free tier with a healthy paid lane configured one rung down.
+#   * ``error`` (5xx, a transport timeout, or anything unclassified) — ROUTE. A 5xx is genuinely
+#     transient and `error` is ALSO the catch-all for connection resets and timeouts — the single
+#     most common thing a fallback chain is for. What stops an infinite-ish walk over a systemic
+#     fault: this is ONE forward pass over a finite, deduped chain (never a loop), bounded by
+#     `SUBAGENT_MAX_FALLBACKS` dispatches AND by one total wall-clock/cost budget for the whole
+#     walk. It is the weakest rung in the set precisely because `scope="none"` means it benches
+#     NOTHING, so N units each rediscover a systemic outage; the total-wall-clock clamp is what
+#     keeps that bounded by the budget the unit already had rather than N × it.
+#   * ``bad-request`` (400/422) — **NOT routed.** Our own malformed body 400s IDENTICALLY on every
+#     model of every provider, so the walk would burn the whole chain to learn nothing. `classify`
+#     reaches the same verdict from the other side and says so at its 400/422 arm ("the cascade then
+#     burned each sibling rung rediscovering the same 400"), and it is the same reasoning C3
+#     (`58-resilience.md`) applies to 4xx generally.
+_ROUTABLE_CAUSES = frozenset(
+    {
+        "rate-limited",
+        "unavailable",
+        "model-gone",
+        "priced-out",
+        "request-too-large",
+        "content-stall",
+        "auth",
+        "error",
+    }
+)
+#: The causes TRIAGED AND REJECTED above. Kept as its own named set (rather than left implicit in
+#: the complement) so the drift test can assert every cause the taxonomy can emit has been LOOKED
+#: AT — a cause in neither set is one nobody has decided about yet, which is the failure this pair
+#: exists to make visible.
+_NON_ROUTABLE_CAUSES = frozenset({"bad-request"})
+
+# ⚠️ **T05b's CAP ZERO-RECLAIM WAS REVERTED — read this before re-attempting it.**
+#
+# The row asked for a rung that never billed to have its cap reservation reclaimed at ZERO instead
+# of retaining the estimate. Real problem: `_cap_finalize_once` retains the estimate whenever
+# `cost_usd is None`, which under a 5-rung walk books ~$2.00 of phantom spend for an 8-unit batch.
+#
+# TWO attempts, both wrong, both caught by review:
+#   1. "a classified failure with no OUTPUT tokens cannot have billed" — false. The cap books TOTAL
+#      spend and most vendors charge for INPUT as soon as the prompt is read.
+#   2. "...restricted to gateway-rejection causes, which never reach inference" — also false, and
+#      proven by execution. `_client.call_model` restarts up to `restart_max=2` on
+#      `(StuckError, TruncatedError, TransientError, HardTimeoutError)`; EACH attempt is a separate
+#      BILLED request, and `loop.py` accumulates `total_out_tokens` only from a RETURNED usage, so a
+#      discarded attempt contributes 0. Attempt 1 can stream 3000 tokens (billed) and die, attempt 2
+#      can be refused by the gateway with a 429 — and the unit then presents as
+#      `rate-limited`/`out_tokens=0`/`cost_usd=None`, indistinguishable from a request that never ran.
+#
+# **The missing signal EXISTS but does not reach here.** `_client.py` records `partial_len` per
+# discarded attempt and attaches the chain to the raised exception (`exc.attempts`). Nothing carries
+# it through `lanes.classify` -> `FailureCause` -> `LoopOutcome`, so `_run_one` cannot see it. A
+# correct fix threads "did ANY attempt stream content" to this seam and requires it; that touches
+# `loop.py`/`lanes.py`, outside this ticket's Touches.
+#
+# **Reverted rather than half-fixed, because the two failure directions are not symmetric:** the
+# ratchet OVER-books (the cap trips early — wasteful, safe), while a wrong reclaim UNDER-books (real
+# spend invisible, the cap blown — unsafe). For a money path shipping to ~48 vendored copies, the
+# safe direction wins until the signal is real.
+
+#: Recovery dispatches ONE unit may make, across the whole walk. 5 is the field norm cited in the
+#: design spec's § External grounding. ``SUBAGENT_MAX_FALLBACKS=0`` is a kill switch that disables
+#: the walk entirely — INCLUDING the pre-existing same-model second chance, which is rung 1 of the
+#: walk (`recover_caps=False` remains the parameter-level off switch).
+_DEFAULT_MAX_FALLBACKS = 5
+#: A rung with less than this much wall-clock left "cannot fund another attempt" — dispatching it
+#: buys a connection that caps before a first token. Applied from the SECOND rung onward only: the
+#: first rung is funded by the unit's own budget exactly as the pre-cascade retry always was, so a
+#: caller with a deliberately tiny ``wall_clock_s`` keeps today's behaviour.
+_MIN_RUNG_WALL_CLOCK_S = 1.0
+
+
+def _max_fallbacks() -> int:
+    """Recovery dispatches allowed per unit (``SUBAGENT_MAX_FALLBACKS``, default 5).
+
+    Read at CALL time, never at import (12F-III). Defensive like `lanes._env_int`: a malformed or
+    negative value falls back to the default rather than raising — a typo in a bound must not take
+    a fan-out down. ``0`` is a valid, deliberate value (the kill switch).
+    """
+    raw = os.getenv("SUBAGENT_MAX_FALLBACKS")
+    if not raw:
+        return _DEFAULT_MAX_FALLBACKS
+    try:
+        val = int(raw)
+    except (TypeError, ValueError):
+        return _DEFAULT_MAX_FALLBACKS
+    return val if val >= 0 else _DEFAULT_MAX_FALLBACKS
+
+
+def _cascade_enabled() -> bool:
+    """Is `fanout`'s fallback cascade switched ON? (``SUBAGENT_FANOUT_CASCADE``, default OFF.)
+
+    A SECOND switch, required IN ADDITION to ``SUBAGENT_LANES`` — see `_fallback_rungs` for why the
+    chain variable alone must not activate it. Read at CALL time, never at import (12F-III).
+    """
+    return os.getenv("SUBAGENT_FANOUT_CASCADE", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _payload_chars(r: AgentResult) -> int:
+    """How much USABLE work this result carries: the text a reader grades plus the diff a caller
+    applies. Whitespace-stripped, so a result whose "output" is a newline counts as nothing.
+
+    ⚠️ **Chars of payload, NOT ``out_tokens``, and the choice is load-bearing** (review round 2,
+    fixup 3). ``out_tokens`` is PROVIDER TELEMETRY, and the providers a fallback chain routes to are
+    exactly the ones that omit it — `loop.py:450-452` has to inject ``stream_options
+    {"include_usage": True}`` for non-OpenRouter endpoints precisely because they do not send usage
+    unless asked, and the module already documents that an unreported usage dict leaves this at 0.
+    Judging "did this rung do better" on a field a free lane routinely reports as 0 would rank every
+    such rung below a reporting incumbent and discard genuinely better work. It is also the WRONG
+    UNIT for a ``mode="write"`` unit, whose deliverable is the diff and which has no token count for
+    it at all. ``out_tokens`` is kept only as a tiebreak, below, where it cannot outrank payload.
+    """
+    return len((r.text or "").strip()) + len((r.diff or "").strip())
+
+
+def _usable_payload_chars(r: AgentResult) -> int:
+    """`_payload_chars`, except that an UN-APPLIABLE result is worth ZERO.
+
+    ⚠️ **ROUND 5, C1 — the root fix that F4 and round-5/A were both circling.** Both were written
+    as a VETO on `out_of_scope` REPLACING something, which left the other direction open: with a
+    zero-payload origin (the canonical capped+0 shape) the guard is correctly silent, the refusal
+    BECOMES the incumbent, and its 6000 chars of explanation are then what every later rung must
+    beat — so a rung returning a real 200-char diff lost, and the unit's verdict was the refusal
+    with ``diff=""``. Measured: the coder's patch discarded on rung 2 of 2.
+
+    `out_of_scope` text is the scope guard's own message about work it DELIBERATELY WITHHELD
+    (`:1597`); there is nothing in it a caller can apply. Counting it as zero states that once, in
+    the unit both comparisons share, instead of as a growing list of vetoes.
+    """
+    return 0 if r.status == "out_of_scope" else _payload_chars(r)
+
+
+def _replaces(cand: AgentResult, incumbent: AgentResult) -> bool:
+    """May this rung's result REPLACE the failed original?
+
+    ⚠️ **ROUND 9 — REWRITTEN AS ONE STATED POLICY, because patching it locally was the ticket's
+    single largest defect source.** Rounds 4, 5, 6, 8 and 9 each fixed a case here, and FOUR of
+    those fixes were themselves defective, because the ticket never specified how to rank a
+    COMPLETED-but-small result against a TRUNCATED-but-large one. Three rounds encoded three
+    incompatible answers (R4/F2: payload wins · R5/B: a losing `done` must not end the walk ·
+    R9/F3: four working `done` lanes discarded and the verdict left `capped`). R9/F3 is the direct
+    consequence of R5/B, which is the direct consequence of R4/F2. So the policy is written down
+    ONCE, here, and the code is its direct expression:
+
+    1. A rung that **COMPLETED** (`done`) with usable payload is a SUCCESS: it wins, and it ends
+       the walk — **UNLESS** the incumbent carries a larger ``diff``. In ``mode="write"`` the diff
+       IS the deliverable and must never be traded for prose (R4/F2, R6/C1).
+    2. Otherwise the larger USABLE payload wins, with ``out_tokens`` only as a tiebreak.
+    3. ``out_of_scope`` carries ZERO usable payload (`_usable_payload_chars`) and can never win —
+       including on a tiebreak, which is how R9/F6 slipped a refusal past an empty incumbent.
+
+    This DELIBERATELY overrules the expectation `test_a_done_rung_that_loses_does_not_end_the_walk`
+    asserted in round 5. Under the stated policy a completed answer beats a truncated one in read
+    mode, so that rung SHOULD win and SHOULD stop the walk. The old expectation encoded a policy
+    that had never been stated, and keeping both was the contradiction generating the defects.
+
+    ⚠️ **THE MIRROR, MEASURED — not "exactly one sub-case", which is what this said before round 11
+    counted them.** Executed with BOTH env vars unset, HEAD against `git show main:`, over 8 origin
+    shapes x 11 rung-answer shapes = **88 cells: 79 identical, 9 divergent, and the DISPATCH COUNT
+    is identical in all 88** — no unit gains or loses a retry. All 9 differ only in WHICH result is
+    kept, and each is a deliberate policy decision above:
+
+    - **4 cells** (any origin x an `out_of_scope` rung): `main` installs the refusal as the unit's
+      verdict; here it can never win (rule 3). A consumer reading `status` sees `capped` where
+      `main` said `out_of_scope`, and the honest verdict is the congestion, not the accusation.
+    - **4 cells** (a partial-payload origin x a `done` rung that produced less): `main` adopts the
+      `done` on `out_tokens > 0 or status == "done"`; here the larger payload survives (rules 1-2).
+    - **1 cell** (a 300-char-diff origin x a `done` carrying a 200-char diff): `main` takes the
+      smaller diff; rule 1 keeps the larger.
+
+    A consumer relying on *"the retry's result always replaces a zero-output cap"* gets the ORIGINAL
+    back whenever the retry produced strictly less. The surviving discriminator is that the
+    original's ``text``/``diff`` are non-empty. For the canonical case — a zero-output cap with EMPTY
+    text and diff, the only shape reachable with no chain configured AND no partial output — this is
+    byte-identical to the pre-change test.
+    """
+    if cand.status == "out_of_scope":
+        # Rule 3: an un-appliable result is worth zero. `>` (never `>=`) so it cannot win a TIE.
+        return _usable_payload_chars(cand) > _usable_payload_chars(incumbent)
+    if cand.status == "done" and _usable_payload_chars(cand) > 0:
+        # Rule 1: a success wins on KIND, but may not shed a larger diff.
+        return len((cand.diff or "").strip()) >= len((incumbent.diff or "").strip())
+    if cand.status == "done":
+        # an EMPTY `done` may only fill a result that produced nothing at all
+        return _usable_payload_chars(incumbent) == 0
+    # Rule 2.
+    return (_usable_payload_chars(cand), cand.out_tokens) > (
+        _usable_payload_chars(incumbent),
+        incumbent.out_tokens,
+    )
+
+
+#: Body keys a rung must not inherit: the three that decide WHICH upstream or model serves the
+#: request — i.e. the only ones that fight the cascade's own job.
+#:
+#: ⚠️ **T05b ROUND 2 — THIS SET WAS TOO BIG, AND ITS CITATION WAS MISATTRIBUTED.** It also listed
+#: `transforms`, `response_format`, `logit_bias`, `stream_options` and `reasoning`, citing
+#: `providers.py:130-131`. Those lines say, verbatim, *"an unknown `provider` object is ignored at
+#: best and a 400 at worst"* — a claim about the **`provider` object alone**. One citation was
+#: carrying five keys it does not cover. Measured consequences of the over-drop:
+#:   * `response_format` is a FIRST-CLASS parameter of this module's own transport
+#:     (`_client.py:338`, set at `:358`). Dropping it made a rung return prose where the caller
+#:     demanded JSON — no error, no log line, the caller's parser blaming the model. That is exactly
+#:     the *"a DROPPED knob fails QUIETLY, the worse failure"* class this filter's first version was
+#:     rewritten to avoid.
+#:   * `stream_options` is INJECTED by `loop.py:451-452` for non-OpenRouter providers precisely
+#:     because their streams report no usage without it — and that line says *"a caller-set
+#:     stream_options still wins"*. Dropping the caller's was backwards.
+#:
+#: **Residual, stated rather than implied away:** a CARRIED vendor-specific key that a lane rejects
+#: with a 400 is `bad-request`, which T05a's C3 treats as a chain-ending veto — so one bad key can
+#: still cost the rest of the chain. That is the LOUD failure, and it is the one the operator can
+#: see and fix; the alternative is silently different output. `README.md` § Gotchas carries it.
+_RUNG_DROPPED_BODY_KEYS = frozenset({"provider", "models", "route"})
+
+# Degradation kinds whose `reason` is drawn from a CLOSED set and so may enter the
+# batch-summary group key. `unit-exhausted` is deliberately absent: its reason is prose.
+_REASON_KEYED_KINDS = frozenset({"rung-skipped"})
+
+
+def _rung_body(spec_body: dict[str, object] | None) -> dict[str, object] | None:
+    """The unit's ``body`` as a DIFFERENT model may receive it.
+
+    Drops only the routing directives (`_RUNG_DROPPED_BODY_KEYS`): `provider` pins an upstream
+    chosen for the ORIGINAL model, and `models`/`route` are OpenRouter's own fallback machinery,
+    which would fight this cascade for control of what runs. Everything else is the caller's
+    semantic intent — sampling knobs, response shape, per-model required hints — and is CARRIED,
+    because losing it is silent while a rejection is loud.
+
+    ⚠️ Callers get this ONLY on a real model swap; see `_walk_lanes`, which does not filter the
+    origin's own retry.
+    """
+    if not spec_body:
+        return spec_body
+    kept = {k: v for k, v in spec_body.items() if k not in _RUNG_DROPPED_BODY_KEYS}
+    return kept or None
+
+
+def _rung_is_free(provider: str) -> bool:
+    """Is this rung's provider a free tier — i.e. can a dispatch to it spend money?
+
+    ⚠️ **ROUND 9, F2.** Unknown provider -> ``False`` (assume it meters): an unknown spend must not
+    be assumed to be the cheapest possibility, which is `_rung_cost`'s own stated doctrine.
+    """
+    try:
+        return bool(resolve_provider(provider).free_tier)
+    except ValueError:
+        return False
+
+
+def _rung_cost(cand: AgentResult | None, provider: str, budget_left: float | None) -> float:
+    """What to CHARGE this rung against the walk's ONE cost total.
+
+    ⚠️ **REVIEW ROUND 2, FIXUP 4 — a bare ``cand.cost_usd or 0.0`` made the cost budget VOID.**
+    `loop._finish` reports ``cost_usd=None`` whenever the provider sent no in-stream cost, so
+    against a cost-silent endpoint the decrement never fired and every rung was handed the FULL
+    budget: five rungs at $0.50 each where the caller asked for $0.50 total, i.e. a worst case of
+    ``(1 + max_fallbacks) × X`` against a pre-cascade ``2 × X``.
+
+    The rule, and note it is assembled from decisions this module has ALREADY made rather than
+    invented here:
+
+    * a REPORTED cost is charged as reported;
+    * an UNKNOWN cost on a ``free_tier`` endpoint is charged **$0.00** — the registry row means
+      "bills $0 for ALL runs, including a hung one", and `_attribute_provider` (`agent.py:1679`) and
+      `lanes.py:828` already convert exactly this None into exactly this zero. In practice a
+      dispatched free-tier rung has already been normalised to 0.0 before the walk sees it; this
+      arm covers the pre-dispatch-refusal shape, which `_attribute_provider` never touches;
+    * an UNKNOWN cost on a METERED endpoint is charged the **whole remaining budget**, which zeroes
+      the remainder and ENDS the walk. This is `_cap_finalize_once`'s principle verbatim — *"an
+      unknown spend must not be assumed to be the cheapest possibility"* (`agent.py:1154-1155`) —
+      and the two options the review offered converge here rather than competing: the module's own
+      estimator, `_cap_estimate`, returns ``spec.max_cost_usd`` whenever the caller set one, and the
+      rung's ``max_cost_usd`` IS the remainder, so "charge the caller's estimate" and "stop the walk
+      when cost is unknowable" are the SAME number. Charging it is the honest framing of both.
+
+    The cost of the metered arm is small and worth naming: the realistic chain population is free
+    tiers (that is what `lanes.py` is for), which take the $0 arm and keep walking. The residual is
+    the reverse: a rung that never dispatched (a pre-flight refusal on a METERED provider) is
+    charged the estimate for a run that spent nothing, ending the walk early. That errs toward the
+    budget, which is the direction a spend guard must err.
+
+    ``budget_left is None`` means the caller set no ``max_cost_usd`` at all, so there is no cost
+    total to charge against and the return value is never read — 0.0 keeps the accumulator honest.
+    """
+    # ⚠️ **ROUND 8, F2 — `cand is None` means the rung RAISED, and a raise is the most unknown
+    # spend there is.** Round 7's guard skipped this call entirely on the exception path, so a rung
+    # that raised AFTER the transport billed was charged $0.00 and the next rung was handed the
+    # caller's full cap again — measured 5 rungs x $0.50 = $2.50 against a $0.50 ceiling. That is
+    # precisely the assumption this function exists to forbid, arriving through the new arm.
+    if cand is not None and cand.cost_usd is not None:
+        return cand.cost_usd
+    try:
+        if resolve_provider(provider).free_tier:
+            return 0.0
+    except ValueError:
+        pass  # unknown provider — the `replace` guard owns that case; charge conservatively below
+    # ⚠️ **ROUND 9, F2 — this used to return `budget_left`, charging the whole remainder as a
+    # placeholder for an unknown metered spend. It ended the walk for EVERY later rung, free lanes
+    # included. The pessimism now lives in `_walk_lanes`' `metered_unknown` flag, which bars further
+    # METERED rungs only; a charge must reflect money, not caution.
+    return 0.0
+
+
+def _rung_credential_missing(provider: str) -> bool:
+    """Is this rung's API key absent, so dispatching it can only fail for a config reason?
+
+    ⚠️ **REVIEW ROUND 2, FIXUP 6.** A rung whose key is unset raises a STATUS-LESS ``ConsultError``
+    from `_transport._resolve_client` (`_transport.py:136-141`), which `lanes.classify` can only
+    flatten to the ``error`` catch-all — ``scope="none"``, so it benches NOTHING and is re-dialled
+    by every unit of every batch, forever, at first-token-timeout cost each. A one-character typo in
+    `SUBAGENT_LANES` is otherwise silently permanent. The transport's own message already draws the
+    distinction the cascade was discarding: *"This is an env/onboarding gap, NOT 'the provider is
+    unavailable'."*
+
+    Checked BEFORE the dispatch and from the REGISTRY (``key_env`` / ``key_optional``), never by
+    matching the failure's message: the fact is knowable for free, and a rung skipped here costs
+    nothing at all rather than one wasted call per unit. ``key_optional`` providers (Kilo's
+    anonymous ``:free`` tier) are exempt — an absent key is a supported mode for them.
+
+    ⚠️ **The empty-``key_env`` guard is HARDENING, not a live bug, and both halves of that matter.**
+    All seven shipped registry rows carry a non-empty ``key_env`` and the field is annotated ``str``,
+    so `os.getenv(cfg.key_env)` cannot raise here TODAY. It is guarded anyway because (a) this module
+    ships by being COPIED into ~48 repos and ``providers._REGISTRY`` is a module-level dict a
+    vendored copy can add a row to, while Python enforces no annotation; and (b) this runs INSIDE
+    the recovery path, where `_run_one`'s contract is *"must NEVER raise into the batch"* — a
+    ``TypeError`` from `os.getenv(None)` would not degrade one rung, it would sink the unit. A row
+    with no key env names a provider that needs no key, which is the ``key_optional`` answer.
+    """
+    try:
+        cfg = resolve_provider(provider)
+    except ValueError:
+        return False  # an unknown provider is the `replace` guard's case, not this one
+    if cfg.key_optional or not cfg.key_env:
+        return False
+    return not (os.getenv(cfg.key_env) or "").strip()
+
+
+def _fallback_rungs() -> tuple[list[tuple[str, str]], bool]:
+    """The ordered ``(provider, model)`` rungs a failed unit may advance to — ``[]`` when the
+    cascade is not configured.
+
+    ⚠️ **INERT-SAFE IS A HARD RULE HERE.** `lanes._resolve_chain` RAISES when no chain is
+    configured — correct for `lane_chain`, whose whole job is the chain, and fatal for `fanout`,
+    whose job is the batch. With `SUBAGENT_LANES` unset this returns ``[]`` and `fanout` behaves
+    exactly as it did before the cascade existed: no probe, no bench write, nothing raised. A
+    resilience feature whose UNCONFIGURED state is a crash is a regression in every one of the ~48
+    repos that vendor this module, none of which set the variable.
+
+    A MALFORMED chain is the second raise site (`_resolve_chain` calls `resolve_provider` for the
+    WHOLE chain, so one bad provider name fails at parse time rather than per-rung). It degrades to
+    "no cascade" with a loud warning rather than sinking a batch whose results are already in hand —
+    the batch's completed work is worth more than the misconfigured recovery.
+    """
+    if not _cascade_enabled():
+        # ⚠️ REVIEW ROUND 2, FIXUP 7 — THE BLAST RADIUS, and the reason `SUBAGENT_LANES` alone is
+        # NOT the switch. `README.md:645` documents that variable as "Default chain for
+        # `lane_chain`", which is the only reason any existing consumer has ever set it; `lanes.py`
+        # § "When NOT to use it" says those lanes are FREE TIERS for dev/eval/batch work and "not a
+        # production request path" (NVIDIA's is ToS-restricted to internal testing); and `fanout`
+        # HARD-REFUSES a non-OpenRouter `provider` in `**spec_kwargs` a few dozen lines below.
+        # Activating off `SUBAGENT_LANES` alone would therefore make an operator's PRE-EXISTING env
+        # var silently achieve, on upgrade and with no opt-in, exactly what this function's own API
+        # refuses: `mode="write"`, `tools_enabled=True` coding agents routed onto free,
+        # ToS-restricted lanes. So the cascade needs its OWN switch, and with it unset every one of
+        # the ~48 vendored copies keeps today's same-model retry, chain or no chain. SILENT here on
+        # purpose — a log line would fire on every batch in every repo that set the chain for
+        # `lane_chain`, which is the population this guard exists to leave alone.
+        return [], False
+    if not os.getenv("SUBAGENT_LANES", "").strip():
+        # The opt-in IS set and there is no chain to walk — that is a misconfiguration nobody can
+        # see from the outside, and warning about it cannot reach a consumer who never opted in.
+        logger.warning(
+            "fanout: SUBAGENT_FANOUT_CASCADE is on but SUBAGENT_LANES is empty — there are no "
+            "fallback rungs to walk, so recovery is the same-model second chance only. Set "
+            "SUBAGENT_LANES to a comma-separated 'provider:model' chain, or unset the opt-in."
+        )
+        return [], False
+    try:
+        # Reuse `lanes`' own parser: it splits `provider:model` on the FIRST colon only (free model
+        # ids legitimately contain one), validates every provider against the registry, and dedups
+        # to the first (best) position. Re-implementing any of that here is how the two drift.
+        chain = lanes._resolve_chain(None)
+    except Exception as exc:  # noqa: BLE001 — a bad chain must never sink a completed batch
+        logger.warning(
+            "fanout: SUBAGENT_LANES is misconfigured (%s) — the fallback cascade is DISABLED for "
+            "this batch; results are unaffected. Fix the chain to re-enable rung recovery.",
+            exc,
+        )
+        return [], False
+    # ⚠️ **ROUND 10, F3 — the SECOND element says a chain actually RESOLVED, and it is NOT
+    # `bool(rungs)`.** Two different things produce an empty rung list and they need OPPOSITE
+    # answers: a chain that resolved but whose every rung was dropped for a missing key must keep
+    # the cascade ON (R6/C2 — deriving it from `bool(rungs)` silently killed the ORIGIN bench, so
+    # every unit re-dialled a provider that had just returned a permanent 401), while NO chain at
+    # all — unset, empty or malformed — must leave NO TRACE, which is exactly what the warning
+    # above promises when it says the cascade is DISABLED. `fanout` computed `cascade_on` from the
+    # env var alone, so a malformed chain still wrote process-global bench state that `lane_chain`
+    # reads, and still applied the `bad-request` veto that costs a unit its same-model retry — in a
+    # state with nothing to walk, so the veto bought nothing and cost a dispatch.
+    return [(provider, model) for provider, model, _cap in chain], True
+
+
+def _re_routable(r: AgentResult, *, cascade: bool) -> bool:
+    """Is this failed unit worth another rung?
+
+    ``r.failure is not None`` IS the discriminator, and it is the reason T02b is a hard dependency
+    of the walk rather than a convenience. A TRANSPORT failure carries a `lanes.FailureCause`; a
+    STRUCTURAL refusal (sandbox unavailable, an ungrounded single-shot, a worktree failure, the
+    NVIDIA non-tool-caller refusal) carries ``failure=None`` because it never reached the transport
+    at all. The module already decided the second must never be retried — "a retry can't fix a
+    host/config problem and would burn the pool" — and a bare ``status == "error"`` test cannot tell
+    the two apart.
+
+    The second arm is today's gate, unchanged: a ZERO-OUTPUT cap is provider CONGESTION, not model
+    quality. It is an OR, not an ``elif``, deliberately — narrowing it to "only when `failure` is
+    None" would drop a capped, zero-output unit whose cause happens to be routable-but-unlisted.
+
+    ⚠️ **REVIEW ROUND 2, FIXUP 1 — THE ALLOWLIST HAS TO VETO *BOTH* ARMS, and guarding only arm 1
+    was a real hole, not a theoretical one.** A 400 raised after the unit's wall clock is spent does
+    NOT arrive as ``status == "error"``: `loop._transport_failure` (`loop.py:507-508`) turns a
+    budget-exhausted transport failure into ``_finish(text, "capped", failure=_safe_classify(exc))``
+    — i.e. ``status="capped", out_tokens=0, failure.cause="bad-request"``. Arm 2 then fired
+    regardless of the allowlist and the walk dialled the origin plus every rung, which is verbatim
+    the waste `_NON_ROUTABLE_CAUSES` exists to prevent. Proved by execution against a real
+    `run_loop`, not against a fixture: four rungs dialled for one malformed body. So a TRIAGED-OUT
+    cause is a veto over the whole predicate, evaluated first.
+    """
+    if cascade and r.failure is not None and r.failure.cause in _NON_ROUTABLE_CAUSES:
+        # ⚠️ **ROUND 9, F1 — THE VETO IS CASCADE-GATED, and leaving it ungated broke INERT-SAFETY.**
+        # Round 8 swept the in-walk BREAK for cascade-gating and left this ENTRY predicate ungated,
+        # so a `capped`+0 origin whose cause is `bad-request` (the shape `loop.py:507-508` produces
+        # from a budget-exhausted 400) lost its same-model retry with BOTH env vars unset: `main`
+        # dispatches twice, HEAD dispatched once. Measured 24 divergent cells of 96 in the
+        # origin x rung-answer cross product.
+        #
+        # This SUPERSEDES the third deviation recorded in D-094, which reasoned that the retry was
+        # "always a wasted dispatch" and accepted the change. That reasoning is sound about COST and
+        # wrong about PRECEDENCE: `_walk_lanes` already states that inert-safety outranks a tighter
+        # reading of C3, and ~48 vendored copies upgrade into exactly this unconfigured state. With
+        # the cascade ON the triage still applies and a 400 buys no rungs; with it OFF the unit gets
+        # the same second chance it gets today.
+        return False
+    return (r.failure is not None and r.failure.cause in _ROUTABLE_CAUSES) or (
+        r.status == "capped" and r.out_tokens == 0
+    )
+
+
+def _unit_label(spec: AgentSpec) -> str:
+    """A short, ALWAYS-SAFE label for a unit in a degradation event.
+
+    ⚠️ **T06 REVIEW ROUND 2 — `spec.task[:80]` was a batch-killer, and it was mine.** `AgentSpec.task`
+    is annotated `str`, but `fanout` reads a dict unit's task through `cast(str, unit["task"])` — a
+    type-checker hint, NOT a runtime check — so a caller passing `{"task": None}` reaches here with
+    `None` and the slice raises `TypeError` straight out of `fanout`, discarding every unit's
+    results INCLUDING the ones already dispatched and PAID for. Measured, not reasoned.
+
+    That is verbatim the failure this module records at `_cap_acquire` ("raising here killed the
+    ENTIRE batch"), reintroduced by the observability code meant to prevent silent loss. A label for
+    a log line must never be able to cost a batch, so it coerces instead of assuming.
+    """
+    task = getattr(spec, "task", None)
+    if isinstance(task, str):
+        return task[:80]
+    # ⚠️ **ROUND 3 — `repr(task)` was a SECRET-LEAK path, and it was round 2's own fix.** A repr
+    # carries whatever the object holds: a caller passing an object with an `api_key` attribute got
+    # it written verbatim into a degradation event, which is exactly what this module forbids
+    # ("keys must never reach a log, a ledger row, an error message or a dossier"). I chose `repr`
+    # for diagnostic richness and handed it a leak. The TYPE is what an operator needs to fix a
+    # malformed unit; the CONTENTS are what they must not receive.
+    return f"<non-str task: {type(task).__name__}>"
+
+
+#: ⚠️ **THE HOOK-SAFETY POLICY, STATED ONCE — because patching it instance-by-instance produced
+#: FIVE consecutive defects, each inside the fix for the one before it.**
+#:
+#:   round 1  the label `spec.task[:80]` raised TypeError out of `fanout` on a malformed unit,
+#:            discarding results already dispatched and PAID for;
+#:   round 2  the fix's `dict(event)` was SHALLOW, so a caller could still mutate the
+#:            `never_dialled` LIST in place and reach the batch's stored copy;
+#:   round 3  the fix's `repr(task)` fallback wrote an object's contents — including a live
+#:            `api_key` — into a degradation event;
+#:   round 3  `on_exhausted` received the LIVE `AgentResult` and could rewrite what the caller
+#:            got back;
+#:   round 3  and the snapshot that fixed THAT broke identity against `batch.results`, which is a
+#:            contract change owed to ~48 vendored copies.
+#:
+#: **The policy, from which each of those follows:** a caller-supplied hook is UNTRUSTED CODE
+#: running inside a batch that has already been dispatched and PAID for. It must not be able to
+#: (a) RAISE into it, (b) MUTATE anything the caller will later read, or (c) RECEIVE anything the
+#: module would not put in a log. Therefore every hook gets: its own dict, its own copy of every
+#: CONTAINER value in that dict, a snapshot of any dataclass, a label that names a TYPE rather than
+#: reprs an object, and a `try/except Exception` around the call. When adding a hook or a field to
+#: an existing one, satisfy all five — do not reason about which apply.
+#:
+#: **How to check, rather than assume:** enumerate the value types by introspection
+#: (`{k: type(v).__name__ for k, v in event.items()}`) and the dataclass fields by
+#: `dataclasses.fields(...)`. Round 2's shallow copy and round 3's `tool_calls` alias were both
+#: "I copied the container I was thinking about"; the enumeration is what makes the claim checkable.
+#:
+#: **SCOPE, AUDITED — the three CALLER-SUPPLIED hooks that reach `fanout`, not "every callback".**
+#: The first draft of this note said "every hook", which was a sweeping phrase written before it was
+#: checked. Audited:
+#:   * `on_progress` — own dict (`{**ev, "agent_id": …}` at `:1504`) and guarded downstream at
+#:     `loop.py:683`, whose comment already says "Guarded so a bad callback can never crash the
+#:     agent loop". Pre-dates this ticket and complies.
+#:   * `on_degrade`  — own dict + copied containers via `_own`, wrapped here.
+#:   * `on_exhausted` — own dict, fresh `never_dialled`, dataclass SNAPSHOT, wrapped.
+#: DELIBERATELY OUT OF SCOPE: `_client._emit`'s `cb(event, model, attempt)` is unguarded, but it is
+#: internal plumbing carrying three scalars — not a caller-supplied hook reaching `fanout`, and not
+#: this module's surface to widen. Named here so the omission is a decision rather than an oversight.
+def _emit_degradation(
+    events: list[dict[str, object]],
+    sink: Callable[[dict[str, object]], None] | None,
+    **event: object,
+) -> None:
+    """Record ONE degradation on the batch, and hand it to the caller's sink.
+
+    See the HOOK-SAFETY POLICY note above this function — it is the rule this obeys.
+
+    ⚠️ **stderr, NEVER stdout, NEVER a file.** `fanout`'s write-mode notice a few hundred lines
+    below states the rule and its cost: this module ships into ~48 repos, so a `print` here is *"a
+    gate failure in every one of them, for a warning that is not even theirs"*, and
+    `core/10-python.md` bans a file handler outright. `_client._emit` follows the same rule.
+
+    ⚠️ **The default is deliberately NOT one line per event.** D-041's reading (B) asks for every
+    degradation to be visible, and a channel that emits three lines for a batch that re-routed twice
+    is one people learn to ignore — the exact failure the requirement exists to prevent, arriving by
+    another road. So: the EVENT is always recorded on `batch.degradation_events` (detail on demand,
+    and what a caller's `on_degrade` receives), while the DEFAULT stderr output is ONE aggregated
+    line per batch, emitted by `_flush_degradations` at close. Aggregation is the mitigation, not
+    silence.
+    """
+    # ⚠️ **T06 REVIEW ROUND 1 — the sink gets its OWN dict, and so does the batch.** Three finders
+    # converged on this: handing the SAME object to the caller and storing it meant a logging
+    # callback could silently rewrite what `batch.degradation_events` later reports. This module
+    # already wraps both hooks so they cannot RAISE into a batch that has been paid for; being able
+    # to MUTATE it is the same exposure by another route, and the symmetric protection is one
+    # `dict()` per call.
+    def _own(e: dict[str, object]) -> dict[str, object]:
+        # ⚠️ **ROUND 2 — `dict(event)` is SHALLOW and one value is a LIST.** Round 1 closed the
+        # dict-REBINDING vector and left the list-MUTATION one open: a caller doing
+        # `ev["never_dialled"].append(...)` still reached the batch's stored copy. PROVED by
+        # execution before it was fixed — `['INJECTED-BY-CALLER']` appeared in both stored events.
+        # Same "fixed the instance, missed the neighbourhood" shape this plan keeps producing, so
+        # copy the containers too. Values are str/int/list-of-str; no deeper nesting exists.
+        return {k: (list(v) if isinstance(v, list) else v) for k, v in e.items()}
+
+    events.append(_own(event))
+    if sink is not None:
+        try:
+            sink(_own(event))
+        except Exception as exc:  # noqa: BLE001 — a caller's sink must never sink the batch
+            logger.warning(
+                "fanout: on_degrade raised %s: %s. The event is still on "
+                "batch.degradation_events; the batch is unaffected.",
+                type(exc).__name__,
+                exc,
+            )
+
+
+def _flush_degradations(
+    events: list[dict[str, object]], sink: Callable[[dict[str, object]], None] | None
+) -> None:
+    """ONE aggregated structured line on stderr per batch — suppressed when the caller took the sink.
+
+    A caller who passed `on_degrade=` has already received every event and does not need the module
+    writing to their stderr as well.
+    """
+    if not events or sink is not None:
+        return
+    # ⚠️ **ROUND 7 — group by (kind, REASON) where the reason is enumerable.** Grouping on `kind`
+    # alone reported `rung-skipped=3` whether all three lanes were BENCHED or one was benched and
+    # two were missing credentials — and those demand opposite operator actions (wait/unbench vs
+    # provision a key). A summary that cannot distinguish the actions it should trigger is the
+    # "line people learn to ignore" arriving by another road, which is the same defect the stop
+    # reason went through four rounds to fix. Only `rung-skipped` has a short enumerable reason;
+    # `unit-exhausted` carries a full sentence, so it stays grouped by kind alone.
+    # Group by what changes the ACTION, not by every field. "rung-skipped=3" reads
+    # identically whether the lanes were benched (wait) or keyless (provision a key), so
+    # that kind carries its reason. "unit-exhausted" does NOT: its reason is a free-form
+    # stop sentence (see the reason=stop_reason emission below), and keying on it would
+    # make the group set unbounded and the summary one line per unit. Any NEW kind that
+    # joins the reason key must have an ENUMERABLE reason, or this line stops summarising.
+    kinds: dict[str, int] = {}
+    for e in events:
+        kind = str(e.get("kind", "?"))
+        key = f"{kind}/{e.get('reason')}" if kind in _REASON_KEYED_KINDS else kind
+        kinds[key] = kinds.get(key, 0) + 1
+    detail = ", ".join(f"{k}={v}" for k, v in sorted(kinds.items()))
+    sys.stderr.write(
+        f"⚠️  fanout: {len(events)} degradation event(s) this batch ({detail}). "
+        "Read batch.degradation_events for the per-unit detail, or pass on_degrade= to take "
+        "them yourself.\n"
+    )
+
+
+def _drop_keyless_rungs(rungs: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """Drop rungs whose provider key is unset, warning ONCE PER RUNG for the whole batch.
+
+    ⚠️ **REVIEW ROUND 4, F6.** The check used to live only inside `_walk_lanes`, which runs once
+    per FAILED UNIT — so two keyless rungs across six failed units emitted TWELVE lines carrying
+    two distinct facts. `fanout` documents exactly this shape as a defect a few hundred lines
+    below (the once-per-batch recording warning: *"12 identical lines … train the reader to ignore
+    them"*), and this function was violating its own neighbour's standard. The rung list is
+    computed ONCE per batch and the condition is a pure env read, so the duplication was
+    deterministic, not incidental.
+    """
+    kept: list[tuple[str, str]] = []
+    for provider, model in rungs:
+        if _rung_credential_missing(provider):
+            logger.warning(
+                "fanout: skipping fallback rung %s:%s for this batch — %s is not set. This is an "
+                "env/onboarding gap, not a provider outage: a keyless dispatch fails with a "
+                "status-less error that benches nothing, so every unit would re-dial it forever.",
+                provider,
+                model,
+                resolve_provider(provider).key_env,
+            )
+            continue
+        kept.append((provider, model))
+    return kept
+
+
+def _walk_lanes(
+    spec: AgentSpec,
+    result: AgentResult,
+    *,
+    repo: str,
+    rungs: list[tuple[str, str]],
+    max_fallbacks: int,
+    cascade: bool,
+    events: list[dict[str, object]] | None = None,
+    on_degrade: Callable[[dict[str, object]], None] | None = None,
+    on_exhausted: Callable[[dict[str, object]], None] | None = None,
+) -> AgentResult:
+    """Walk the rungs for ONE failed unit and return the recovered result, or ``result`` unchanged.
+
+    **Rung 1 is the SAME (provider, model)** when — and only when — the unit hit today's
+    zero-output congestion cap. That is not a special case bolted on: it IS the pre-cascade
+    behaviour expressed as a rung, which is what makes the unconfigured path structurally identical
+    to the old code rather than identical by inspection.
+
+    ⚠️ **C3 AND THE ORIGIN RUNG — the honest version (review round 2, fixup 2).** This docstring
+    used to claim the arm "cannot violate" C3's ban on re-dialling a rung that answered a 4xx,
+    "because a 4xx never arrives as ``status == "capped"``". **That claim is false**, and a future
+    editor would have relied on it: `loop._transport_failure` turns a budget-exhausted transport
+    failure into a CAP carrying the classified cause (`loop.py:507-508`), and the finalize arm does
+    the same (`loop.py:787`). So a 4xx-caused ``capped`` with zero output DOES exist, and for the
+    causes that bench nothing (``request-too-large``, ``priced-out``) or a sub-threshold transient,
+    the origin IS re-dialled exactly once. ``bad-request`` is no longer among them — `_re_routable`
+    now vetoes it on both arms — and the behaviour is UNCHANGED from before this ticket (the
+    pre-cascade retry did the same), so it is a residual, not a regression: one extra attempt on the
+    unit's own model, bounded at one, which is the price of keeping the unconfigured path identical.
+    Narrowing it would change behaviour for consumers with no chain configured, and inert-safety
+    outranks a tighter reading of C3 here. C3 still binds the part that is this ticket's to control:
+    the walk never re-dials a CHAIN rung it has already dialled.
+
+    **Rungs are SEQUENTIAL within a unit** — hedging a saturated pool amplifies load. Recovery is
+    also SERIAL ACROSS units (this is a synchronous ``for`` inside a synchronous ``fanout``), and
+    that is a stated cost, not an oversight: parallel unit recovery needs threads or a move into
+    ``arun_agents``. It is exactly why the wall-clock clamp below is not optional — F serially
+    recovering units after the batch has finished is the shape that produces a hung batch.
+
+    **The walk WRITES the bench, it does not only read it.** `lanes._bench` has ONE call site,
+    inside `lane_chain`, which `fanout` never calls — so without the `apply_bench` below the bench
+    stays empty for the life of the process, the rung-skip never skips, and every unit
+    independently rediscovers the same dead lane up to N × ``max_fallbacks`` times. The cascade
+    would AMPLIFY the waste it exists to remove.
+
+    ⚠️ **The bench key is `AgentSpec.provider` — the REQUEST provider — never a provider read off a
+    result.** ``AgentResult.provider`` is the SERVED upstream ("Fireworks", "Together"); the bench
+    maps and `bench_remaining` are keyed by the REGISTRY name ("openrouter", "groq"). Benching the
+    served name writes ``_bench_provider["Fireworks"]`` while ``bench_remaining("openrouter")`` stays
+    0.0 forever — a silent no-op bench, after which the walk re-dials a rung it believes it benched.
+
+    **The threshold is `lanes`'.** This function never counts failures; `apply_bench` owns the
+    grace period (`_DEFAULT_FAIL_THRESHOLD`, `SUBAGENT_LANE_FAIL_THRESHOLD`) and the permanent-vs-
+    transient split. Duplicating that counting here is how the two would disagree about when a lane
+    is dead.
+
+    **Budgets: ONE total across rungs for BOTH axes** — each rung is handed the REMAINDER, and the
+    walk stops when the remainder cannot fund another attempt. ``max_turns`` stays PER-RUNG: it
+    bounds one agent's reasoning depth, and a fresh rung needs its own turns to do the work at all.
+    The time axis bites everyone — ``max_cost_usd`` defaults to ``None`` (opt-in) but
+    ``wall_clock_s`` defaults to 1800.0, so five unclamped rungs is 2.5 hours after the batch has
+    already finished. Residual, stated rather than implied away: the total is across the WALK, not
+    across the unit — the original dispatch had its own budget and is not charged against this one,
+    which is precisely what keeps the unconfigured same-model retry identical to today's.
+    """
+    # ⚠️ **ROUND 5/C2 — `cascade` is PASSED, never derived from `bool(rungs)`.** Round-4's F6 moved
+    # the keyless-rung filter to batch level, which can legitimately EMPTY `rungs` — precisely the
+    # onboarding gap `_drop_keyless_rungs` exists to describe. Deriving the flag from the list then
+    # silently switched the ORIGIN bench off too, so every unit re-dialled a provider that had just
+    # returned a PERMANENT 401 (measured: 8 dispatches and a 0.0s bench where the pre-F6 call site
+    # gave 4 and 900s). "Is the cascade on" and "did any rung survive filtering" are two different
+    # questions, and only the first may gate the bench write.
+    origin = (spec.provider, spec.model)
+    plan: list[tuple[str, str]] = []
+    if result.status == "capped" and result.out_tokens == 0:
+        plan.append(origin)
+    # C3: a failure caused by a 4xx may only ADVANCE to a different rung, never re-dial the one
+    # that answered. The chain is already deduped by `_resolve_chain`, so dropping the origin is
+    # the only repeat left to drop.
+    plan.extend(rung for rung in rungs if rung != origin)
+
+    if max_fallbacks <= 0:
+        # ⚠️ **ROUND 5/LOW — the documented kill switch (`SUBAGENT_MAX_FALLBACKS=0`) disables the
+        # walk ENTIRELY, and that has to include the bench write.** `apply_bench` used to run
+        # before the loop's `walked >= max_fallbacks` guard, so a switch advertised as "disables
+        # the walk" still left 900s of process-global state that `lane_chain` reads. Either the
+        # side effect or the docstring was wrong; the docstring is the contract.
+        return result
+
+    if cascade and result.failure is not None:
+        # The ORIGINAL dispatch's verdict is evidence too — bench it so the NEXT unit in this batch
+        # skips the lane instead of rediscovering it. Gated on `cascade`: with no chain configured
+        # the walk must leave no trace at all, and `_bench_provider`/`_bench_model` are process-wide
+        # state that `lane_chain` also reads.
+        lanes.apply_bench(result.failure, spec.provider, spec.model)
+
+    walked = 0
+    wall_used = 0.0
+    cost_used = 0.0
+    best = result  # the incumbent; a rung only displaces it via `_replaces`
+    # ⚠️ T05b REVIEW ROUND 1: an explicit flag, NOT `best is result`. Identity happens to be
+    # true today only because `best` starts as the same object and is never copied; any
+    # future normalisation of the result would silently stop the exhaustion warning firing.
+    improved = False
+    # ⚠️ T05b REVIEW ROUND 1: the loop has FOUR exits and only one is "the chain ran out". Saying
+    # "exhausted the fallback chain" for all of them tells an operator to provision more lanes when
+    # the real answer may be "fix the malformed body" or "raise the budget" — different actions.
+    stop_reason = "every rung in the chain was tried"
+    # ⚠️ **ROUND 5, THE CLASS RATHER THAN THE INSTANCE.** Three consecutive rounds each found one
+    # more actionable fact this message dropped — which exit fired, which budget, how many rungs
+    # were skipped. So enumerate what an operator can ACT on and carry all of it: why the walk
+    # stopped, how many of how many planned rungs ran, WHICH lanes were never dialled (a count says
+    # two were skipped; the names say which provider to unbench or key), and the original failure.
+    skipped_lanes: list[str] = []  # rungs passed over WITHOUT a dispatch (benched / no credential)
+    # ⚠️ **ROUND 9, F2.** An unknown cost on a METERED rung used to be CHARGED the whole remaining
+    # budget. That is a pessimistic placeholder, not a spend, and it zeroed `cost_left` — which
+    # denied every LATER rung, including free-tier lanes that cannot spend a cent. Measured: a
+    # caller who set `max_cost_usd` and configured three FREE lanes reached NONE of them. Setting a
+    # cost cap is the responsible thing and it disabled the feature it was protecting. The pessimism
+    # is now a FLAG that bars further METERED rungs, leaving real reported spend to the real budget.
+    metered_unknown = False
+    for provider, model in plan:
+        if walked >= max_fallbacks:
+            stop_reason = "the per-unit attempt bound (SUBAGENT_MAX_FALLBACKS) was reached"
+            break
+        if cascade and lanes.bench_remaining(provider, model) > 0.0:
+            skipped_lanes.append(f"{provider}:{model} (benched)")
+            if events is not None:
+                _emit_degradation(
+                    events, on_degrade, kind="rung-skipped", reason="benched",
+                    provider=provider, model=model, unit=_unit_label(spec),
+                )
+            continue  # a benched rung is skipped WITHOUT a dispatch — that is the whole point
+        if cascade and _rung_credential_missing(provider):
+            # Gated on `cascade` like the bench: with no chain the only rung is the unit's OWN
+            # model, and refusing to re-dial it on a missing key would change the unconfigured path.
+            # SILENT here by design — `_drop_keyless_rungs` already warned ONCE for the batch
+            # (ROUND 4, F6). This stays as the guard for a direct caller who assembled `rungs`
+            # themselves and never went through that filter.
+            skipped_lanes.append(f"{provider}:{model} (no credential)")
+            if events is not None:
+                _emit_degradation(
+                    events, on_degrade, kind="rung-skipped", reason="no-credential",
+                    provider=provider, model=model, unit=_unit_label(spec),
+                )
+            continue
+        wall_left = spec.wall_clock_s - wall_used
+        cost_left = (
+            None if spec.max_cost_usd is None else spec.max_cost_usd - cost_used
+        )
+        # ⚠️ **ROUND 9, F2 — a rung that CANNOT SPEND must not be denied by an exhausted cost
+        # budget.** `openrouter` is the only `free_tier=False` row of the 7-provider registry, and
+        # it is the ORIGIN's provider — so a metered origin rung reporting no cost (or raising,
+        # per R8/F2) is charged the whole remainder, `cost_left` hits 0.0, and this guard used to
+        # `break` the ENTIRE walk. Measured: a caller who sets `max_cost_usd` and configures a
+        # chain of three FREE lanes reached NONE of them. Setting a cost cap is the responsible
+        # thing to do and it disabled the feature it was protecting.
+        #
+        # `free_tier` is trusted here exactly as `_rung_cost` already trusts it to charge $0.
+        if walked and (
+            wall_left <= _MIN_RUNG_WALL_CLOCK_S
+            or (cost_left is not None and cost_left <= 0.0)
+            or (metered_unknown and not _rung_is_free(provider))
+        ):
+            # ⚠️ **T05b ROUND 3 — name WHICH budget, which is the whole point of `stop_reason`.**
+            # One string for three distinct exits sends an operator to raise the wrong thing: told
+            # "cost" when the WALL CLOCK ran out, they lift `max_cost_usd` and nothing changes.
+            # ⚠️ **ROUND 6 — the GENERAL form, because the special cases kept missing one.**
+            # Round 3 split this into three branches; round 4 found the both-budgets case; round 6
+            # found that the wall clock also masks `metered_unknown`. Three rounds of enumerating
+            # PAIRS. So enumerate the CONSTRAINTS and report every one that actually holds — an
+            # operator who lifts the only budget they were told about, and hits the next one
+            # immediately, was misled by an incomplete answer rather than a wrong one.
+            blockers = []
+            if wall_left <= _MIN_RUNG_WALL_CLOCK_S:
+                blockers.append(f"the wall-clock remainder ({wall_left:.1f}s)")
+            if cost_left is not None and cost_left <= 0.0:
+                blockers.append("the cost remainder (max_cost_usd)")
+            if metered_unknown and not _rung_is_free(provider):
+                blockers.append(
+                    "a metered rung reported an unknowable cost, barring further metered rungs"
+                )
+            stop_reason = (
+                f"{len(blockers)} budget constraint(s) were hit — " + "; ".join(blockers)
+                if len(blockers) > 1
+                else (blockers[0] + " could not fund another attempt")
+            )
+            break  # the remainder cannot fund another attempt
+        try:
+            # A FRESH AgentSpec per rung, never a mutation of `spec`. Five consumers read the model
+            # off the SPEC — the results table, the score-feed map, `record_agent_run`, and
+            # `_safe_ledger` -> `ledger.agent_record` on all five of `_run_one_uncapped`'s exit
+            # paths — and they are correct today only because `result.model == spec.model` on every
+            # exit. THIS WALK is what makes them able to diverge: a fresh spec keeps
+            # `_run_one_uncapped`'s `result.model = spec.model` stamp true of the rung that RAN, so
+            # the local JSONL row and the Postgres flywheel row cannot disagree about which model
+            # did the work. Mutating `spec.model` at dispatch would break that quietly — nothing
+            # errors, the two ledgers just tell different stories, and the JSONL is the one an
+            # operator greps.
+            #
+            # `replace` RE-RUNS `__post_init__` -> `resolve_provider`, so a rung naming an unknown
+            # provider raises here. `UnknownProviderError` subclasses `ValueError`, so one `except`
+            # covers both. (`_resolve_chain` validates the whole chain at parse time, so this is the
+            # belt to that braces — a rung reaching here bad means the registry changed underneath.)
+            rung_spec = replace(
+                spec,
+                model=model,
+                provider=provider,
+                wall_clock_s=wall_left,
+                max_cost_usd=cost_left,
+                # ⚠️ **T05b ROUND 2, F1 — INERT-SAFETY. Filter ONLY on a real swap.** This was
+                # unconditional, while every sibling guard in this loop is cascade-gated for the
+                # same reason (`apply_bench`, `_rung_credential_missing`, the C3 break, the
+                # `_re_routable` veto). With no chain configured the ONLY rung is the unit's own
+                # model, so there is no swap to protect against — yet the caller's body was being
+                # stripped anyway. Measured: 16 of 64 cross-product cells diverged from `main`,
+                # which retries WITH the caller's upstream pin while HEAD retried unpinned, in the
+                # state every vendored copy upgrades into. Keyed on the SWAP, not on `cascade`,
+                # because that is the actual reason the filter exists.
+                body=(
+                    spec.body
+                    if (provider, model) == origin
+                    else _rung_body(spec.body)
+                ),
+            )
+        except ValueError as exc:
+            logger.warning(
+                "fanout: skipping fallback rung %s:%s — %s. The batch's completed results are "
+                "unaffected.",
+                provider,
+                model,
+                exc,
+            )
+            continue
+        walked += 1
+        started = time.monotonic()
+        try:
+            candidates = run_agents([rung_spec], repo=repo, warn_unrecorded=False)
+        except Exception as exc:  # noqa: BLE001 — a rung must never cost the caller the BATCH
+            # ⚠️ **ROUND 7 — PRE-EXISTING exposure that THIS TICKET multiplies ~5x.** `main`'s
+            # `recover_caps` called `run_agents([spec], repo=repo)` equally unguarded in this same
+            # post-batch loop, so this is not a regression the walk introduced. What the walk
+            # changes is the ODDS: one retry dispatch per capped unit became up to
+            # `SUBAGENT_MAX_FALLBACKS` (default 5) against a WIDER re-routable predicate. A raise
+            # from any of them propagates out of `fanout` and discards every COMPLETED unit's
+            # result in the batch — the outcome the recovery path exists to prevent, arriving
+            # through the recovery path itself.
+            #
+            # Degrade the RUNG, never the batch: warn (never silent — `58-resilience.md:491`) and
+            # walk on. The unit keeps `best`, which is at worst its original failure, so the
+            # caller's floor is exactly the no-cascade outcome.
+            logger.warning(
+                "fanout: fallback rung %s:%s raised %s: %s. Degrading this rung; the batch's "
+                "completed results are unaffected.",
+                provider,
+                model,
+                type(exc).__name__,
+                exc,
+            )
+            cost_used += _rung_cost(None, provider, cost_left)  # ROUND 8, F2
+            if not _rung_is_free(provider):
+                metered_unknown = True  # ROUND 9, F2: a raise is the most unknown spend there is
+            continue
+        finally:
+            wall_used += time.monotonic() - started
+        if not candidates:
+            # ⚠️ **ROUND 10, F2 — an empty return is the SAME unknown-spend shape as a raise, and
+            # round 8's fix covered only the raise.** The rung WAS dispatched (`walked` counted it,
+            # the `finally` charged its wall clock), so a metered provider may well have billed;
+            # falling through to `continue` charged it $0.00 and left `metered_unknown` clear, so
+            # the caller's full remaining cap was handed to the next metered rung. Same treatment
+            # as `cand is None`.
+            cost_used += _rung_cost(None, provider, cost_left)
+            if not _rung_is_free(provider):
+                metered_unknown = True
+            continue
+        cand = candidates[0]
+        cost_used += _rung_cost(cand, provider, cost_left)
+        if cand.cost_usd is None and not _rung_is_free(provider):
+            metered_unknown = True
+        if cascade and cand.failure is not None:
+            lanes.apply_bench(cand.failure, provider, model)
+        if _replaces(cand, best):
+            best = cand
+            improved = True
+        if cand.failure is not None and cand.failure.cause in _NON_ROUTABLE_CAUSES:
+            # ⚠️ **ROUND 5, C3 — the allowlist vetoed the ORIGIN and was never consulted for a
+            # RUNG.** Round-2 fixup 1's whole rationale is "four rungs dialled for one malformed
+            # body … verbatim the waste `_NON_ROUTABLE_CAUSES` exists to prevent" — and inside the
+            # walk that cause was ignored, so the asymmetry was total: an origin `bad-request`
+            # buys ZERO rungs, a rung `bad-request` bought ALL of them. `bad-request` also carries
+            # `scope="none"`, so `apply_bench` records nothing and the next batch repeats it
+            # (measured: 18 rung dispatches for a 6-unit batch, bench 0.0). Our own malformed body
+            # fails identically on every lane, so the chain is over.
+            #
+            # ⚠️ **ROUND 8, F1 — THIS BREAK MOVED BELOW `_replaces`, AND THE BUG WAS INERT-SAFETY.**
+            # It used to fire BEFORE the payload comparison, so a rung answering `bad-request`
+            # WITH payload (`loop.py:507-508` and `:787` both build a 400/422 result carrying the
+            # tokens and text already streamed) was thrown away and the unit returned its empty
+            # origin — "the walk discards a better result", re-entering through C3's own fix. And
+            # the break is NOT gated on `cascade` while the origin rung IS planned for any
+            # `capped`+0 unit, so it fired with both env vars unset: `main` adopts a retry on
+            # `out_tokens > 0`, HEAD returned the empty origin. Keep the payload, THEN stop the
+            # chain.
+            stop_reason = "a rung answered bad-request, which fails identically on every lane"
+            break
+        if best is cand and cand.status == "done" and _usable_payload_chars(cand) > 0:
+            # ⚠️ **ROUND 5, DEFECT B — the break must also require that the `done` actually WON.**
+            # Without `best is cand`, a `done` rung producing LESS than the incumbent (reachable:
+            # an origin that streamed partial text before stalling has `out_tokens == 0` and is
+            # re-routable by arm 2) neither replaced it NOR let the walk continue — the worst of
+            # both, returning a FAILURE while a working lane had just been found and discarded.
+            #
+            # ⚠️ **REVIEW ROUND 4, F3 — the walk stops on a SUCCESS, never merely on an
+            # IMPROVEMENT.** `_replaces` answers "which result survives"; it was doubling as this
+            # loop's continuation condition, and the two are different questions. A lateral move
+            # between two FAILURE statuses satisfies "improvement": a `content-stall` cap carrying
+            # ONE more character than the origin ended the walk and left the rung that would have
+            # answered `done` undialled. `content-stall` is the partial-tolerant cause
+            # (`loop.py:578`), so that is the COMMON rung failure, not an edge case.
+            break
+    if cascade and walked and not improved:
+        if skipped_lanes and stop_reason != "every rung in the chain was tried":
+            # ⚠️ **ROUND 5** — the skipped count is ACTIONABLE whatever ended the walk, and it was
+            # being dropped whenever a more specific reason had been set. An operator told only
+            # "the attempt bound was reached" raises `SUBAGENT_MAX_FALLBACKS` and meets the same
+            # benched lanes on the next batch; they needed to know two rungs were never dialled.
+            stop_reason += f" (also never dialled: {', '.join(skipped_lanes)})"
+        elif skipped_lanes:
+            # ⚠️ **T05b ROUND 2, F3.** Both `continue` paths fall through to the default reason, so
+            # a unit whose chain rungs were all BENCHED (or keyless) was reported as having tried
+            # them. Measured: "every rung in the chain was tried. 1 dispatch(es) attempted" when the
+            # single dispatch was the origin's own retry and neither lane was dialled. That is the
+            # mis-routing this message exists to prevent — the lanes are there, they are benched.
+            stop_reason = (
+                f"these rungs were never dialled: {', '.join(skipped_lanes)}; the rest were tried"
+            )
+        # ⚠️ **T05b — the attempt count must not vanish.** The ticket originally demanded the walk
+        # return "the LAST rung's" result so an operator could tell that N attempts happened. That
+        # remedy now CONTRADICTS D-097 (the stated selection policy): returning the last rung
+        # unconditionally discards a better earlier one, which is the exact class rounds 4-9 spent
+        # 35 defects closing. The CONCERN survives without it — it is an OBSERVABILITY gap, not a
+        # selection rule — so the count is logged instead of changing what is returned.
+        #
+        # Fires only when the cascade actually walked AND nothing displaced the origin: with no
+        # chain configured `cascade` is False and this is silent, so the unconfigured path is
+        # untouched. `on_degrade` is T06's; this uses the module logger deliberately.
+        logger.warning(
+            "fanout: unit recovery stopped — %s. %d of %d planned rung(s) dispatched (the "
+            "same-model retry counts as one), none improved on the original %s result "
+            "(cause=%s). The original stands; see the ledger rows for each attempt.",
+            stop_reason,
+            walked,
+            len(plan),
+            result.status,
+            getattr(result.failure, "cause", None),
+        )
+        if events is not None:
+            # ⚠️ **T06 — exhaustion is a per-UNIT outcome, and NOTHING propagates out of `fanout`.**
+            # `_walk_lanes` runs AFTER every unit has dispatched and been PAID for; raising here
+            # would discard the whole `results` list, which this module already records as measured
+            # ("raising here killed the ENTIRE batch"). The unit keeps `best` per D-097 — the row
+            # that once said "the last rung's" was amended, because returning the last rung
+            # discards a better earlier one, the class thirty-five defects were spent closing.
+            _emit_degradation(
+                events, on_degrade, kind="unit-exhausted", reason=stop_reason,
+                dispatched=walked, planned=len(plan),
+                never_dialled=list(skipped_lanes), unit=_unit_label(spec),
+            )
+            if on_exhausted is not None:
+                # ⚠️ **ROUND 5 — the SNAPSHOT is built BEFORE the try, and defensively.**
+                # A finder claimed `dict(best.tool_calls)` sat OUTSIDE the guard and would kill the
+                # batch. That mechanism is wrong — argument evaluation happens inside the enclosing
+                # `try`, proved by execution: the batch survived. But the scenario exposed a REAL
+                # defect underneath. With `tool_calls=None` the snapshot raised, so:
+                #   * the caller's handler was NEVER CALLED — an operator who asked to be told about
+                #     exhaustion silently was not, which is the failure `on_exhausted` exists to
+                #     prevent; and
+                #   * the log said "on_exhausted raised TypeError", which is FALSE. Their handler
+                #     never ran; MY snapshot raised. They would debug an innocent callback.
+                # So the policy's "a snapshot of any dataclass" must mean a snapshot that CANNOT
+                # raise — not merely one wrapped in a guard. The `except` below is now reserved for
+                # the HANDLER's own failures, which makes its message truthful.
+                # ⚠️ **ROUND 6 — why `dict()` is a COMPLETE copy here, stated rather than assumed.**
+                # A finder argued this needs `deepcopy`, because a shallow dict copy shares its
+                # VALUES: `ev["result"].tool_calls["args"].append(...)` would reach `batch.results`.
+                # True in general, unreachable here: `tool_calls` is a name→COUNT map, built by the
+                # module itself at `loop.py:483` (`dict(tool_counts)`) and documented at `loop.py:230`
+                # as *"counts (name→int) … incremented ONLY for"* a completed call. Every value is an
+                # `int` — immutable — so there is nothing beneath the top level to alias.
+                # The invariant this relies on is therefore: **VALUES ARE SCALARS.** If a future
+                # change ever makes a value a container, this needs a recursive copy and the
+                # hook-safety policy above is violated until it gets one. `deepcopy` was rejected
+                # rather than overlooked: it costs an arbitrary walk on every exhausted unit to
+                # defend against a shape the module cannot produce.
+                _tc = getattr(best, "tool_calls", None)
+                _snapshot = replace(best, tool_calls=dict(_tc) if isinstance(_tc, dict) else {})
+                try:
+                    # ⚠️ **ROUND 3 — `result` is a SNAPSHOT, not the live object.** It used to be
+                    # live, justified as "a handler routing on it needs the real thing". But this
+                    # module already guarantees a hook cannot RAISE into a paid-for batch and
+                    # cannot MUTATE its events; leaving one mutable `AgentResult` reachable was the
+                    # odd one out, and a buggy handler assigning `ev["result"].text = ""` would
+                    # rewrite what the caller gets back. A snapshot costs one `replace()` plus one
+                    # `dict()` — `tool_calls` is the ONLY container on `AgentResult` (enumerated by
+                    # introspection, not assumed); every other field is str/int/float/None or the
+                    # FROZEN `FailureCause`. A handler that genuinely needs the live object reads
+                    # `batch.results`, which stays authoritative.
+                    on_exhausted(
+                        {
+                            "unit": _unit_label(spec), "reason": stop_reason,
+                            "dispatched": walked, "planned": len(plan),
+                            "never_dialled": list(skipped_lanes),
+                            "result": _snapshot,
+                        }
+                    )
+                except Exception as exc:  # noqa: BLE001 — a handler must never sink the batch
+                    logger.warning(
+                        "fanout: on_exhausted raised %s: %s. The batch is unaffected and the "
+                        "unit keeps its best result.",
+                        type(exc).__name__,
+                        exc,
+                    )
+    return best
+
+
+class InsufficientCreditsError(Exception):
+    """Raised by `fanout` BEFORE dispatching anything when the account's remaining credit is
+    below ``SUBAGENT_CREDIT_FLOOR``.
+
+    ⚠️ NOT a ``ConsultError``, deliberately. Two reasons, and the second is the load-bearing one:
+    nothing was consulted (no unit dispatched, no model called), and a consumer that wraps its
+    dispatch loop in ``except ConsultError`` — a reasonable way to tolerate per-unit failures —
+    would SWALLOW this refusal, which is exactly the "loud" this gate exists to be. It inherits
+    ``Exception`` so it is caught only by a handler that means to catch everything.
+
+    ⚠️ This is the one thing `fanout` raises for a RUNTIME condition rather than a config error,
+    and that is deliberate: nothing has dispatched and nothing has been paid for, so there is no
+    batch result to degrade. Contrast the exhaustion path, which never propagates — by the time a
+    unit exhausts, every unit has already dispatched and been BILLED, so raising there would throw
+    away work the operator paid for.
+    """
+
+
+def _credit_floor() -> float | None:
+    """The configured floor, or ``None`` meaning NO FLOOR — the gate is disarmed.
+
+    ⚠️ UNSET, EMPTY and UNPARSEABLE ARE ONE STATE, and that is the whole point. An empty
+    ``SUBAGENT_CREDIT_FLOOR=`` in a `.env` is common, and if it reached ``float()`` it would raise,
+    get swallowed by the probe's fail-open path, and emit a degradation event — so an operator who
+    configured NOTHING would see the cascade report a degradation on every batch. Only a value that
+    parses to a POSITIVE number arms the gate; zero and negatives disarm it, because a floor of 0 is
+    indistinguishable from no floor and a negative one can never trip.
+    """
+    raw = os.getenv("SUBAGENT_CREDIT_FLOOR", "").strip()
+    if not raw:
+        return None
+    try:
+        floor = float(raw)
+    except ValueError:
+        return None
+    # ⚠️ NON-FINITE IS NO FLOOR. `float("inf")` PARSES and is > 0, so a typo'd
+    # `SUBAGENT_CREDIT_FLOOR=inf` would arm a floor no balance can ever satisfy and refuse EVERY
+    # batch forever — with a message quoting a floor of `$inf`. Found by a mutation round: the
+    # mutant was equivalent, but enumerating the inputs to prove that surfaced this one. A floor
+    # that cannot be met is not a floor; an operator who wants to stop dispatching has clearer ways.
+    # (`nan` is already excluded — every comparison with nan is False — but it is covered by the
+    # same predicate rather than left to that coincidence.)
+    if not math.isfinite(floor):
+        return None
+    return floor if floor > 0.0 else None
+
+
+def _fetch_credits() -> float | None:
+    """Remaining account credit in USD, or ``None`` on ANY failure (fail-OPEN).
+
+    Module-level ON PURPOSE: `fanout` takes no injectable client, so this name is the test seam —
+    the same idiom the existing tests use for ``run_agents``/``pick_models``.
+
+    Shape copied from ``select._fetch_openrouter_prices`` rather than invented: ``import httpx``
+    INSIDE the try so a missing dep also fails open, an explicit timeout, ``raise_for_status()``,
+    and a bare ``except Exception`` because a billing endpoint must NEVER crash a dispatch.
+
+    ⚠️ FAIL-OPEN, and it is the OPPOSITE of the joint spend cap's fail-closed rule (D-021) — on
+    purpose. The cap refuses when it cannot verify because that is money the OPERATOR ceilinged.
+    This is a courtesy floor on the VENDOR's balance API: refusing a paid-up batch because
+    `/credits` timed out would be a self-inflicted outage. Different question, different direction.
+
+    The endpoint returns ``data.total_credits`` / ``data.total_usage``; remaining is the difference.
+    Account-wide, so ONE call serves a whole batch — never call it per unit.
+    """
+    try:
+        import httpx  # inside the try so a missing dep also fails OPEN
+
+        key = os.getenv("OPENROUTER_API_KEY", "")
+        resp = httpx.get(
+            "https://openrouter.ai/api/v1/credits",
+            timeout=15.0,
+            headers={"Authorization": f"Bearer {key}"} if key else {},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        payload = data.get("data", {}) if isinstance(data, dict) else {}
+        if not isinstance(payload, dict):
+            return None
+        remaining = float(payload["total_credits"]) - float(payload["total_usage"])
+        # ⚠️ A NON-FINITE remaining is NOT a balance — it is a malformed answer, and it must fail
+        # OPEN like any other malformed answer rather than reach the comparison. `inf - inf` is
+        # `nan`, and EVERY comparison with nan is False, so `nan < floor` would be False and the
+        # gate would SILENTLY ALLOW the batch — the one outcome a credit gate must never produce by
+        # accident. (Found in review. It is the exact mirror of the non-finite guard on the FLOOR
+        # side: I closed that vector and left its neighbour open, one variable away.)
+        return remaining if math.isfinite(remaining) else None
+    except Exception:  # noqa: BLE001 — a billing endpoint must NEVER crash a dispatch
+        return None
 
 
 def fanout(
@@ -1885,6 +3246,12 @@ def fanout(
     max_concurrency: int | None = None,
     record: bool = True,
     recover_caps: bool = True,
+    # ⚠️ **T06 — these MUST be explicit parameters, not `**spec_kwargs`.** Left implicit they are
+    # forwarded into `AgentSpec(**spec_kwargs)` and raise `TypeError`, and the reserved-kwarg guard
+    # below names only fanout's OWN owned fields so it would not catch them. Self-correcting on the
+    # first run, at the cost of a debugging cycle nobody needs.
+    on_degrade: Callable[[dict[str, object]], None] | None = None,
+    on_exhausted: Callable[[dict[str, object]], None] | None = None,
     **spec_kwargs: Any,
 ) -> FanoutBatch:
     """One call for a K-way, family-diverse, parallel-safe, auto-recorded pool fan-out — the
@@ -1944,6 +3311,35 @@ def fanout(
     down-ranks a PERSISTENTLY flaky model statistically over many runs — never reactively on one blip. A
     still-capped unit is recorded UNSCORED (the ledger nulls a non-``done`` quality — a congested provider is
     not a bad model). Set ``recover_caps=False`` to disable.
+
+    ``recover_caps`` ALSO drives the **fallback cascade** (T05a), which is **default-OFF and needs
+    TWO variables, not one**: ``SUBAGENT_FANOUT_CASCADE=1`` (the opt-in) AND ``SUBAGENT_LANES`` (the
+    same comma-separated ``provider:model`` chain :func:`lanes.lane_chain` reads). ⚠️ The chain
+    variable alone is deliberately NOT enough — it predates this feature, is documented as
+    `lane_chain`'s default chain, and names FREE, sometimes ToS-restricted lanes; activating off it
+    would route a consumer's existing ``mode="write"`` coding agents onto those lanes on upgrade
+    with no opt-in, which is what the ``provider=`` guard below already refuses to let a caller do
+    explicitly. With the opt-in unset, `fanout` behaves exactly as the paragraph above describes,
+    chain or no chain. With both set, a unit whose dispatch failed with a ROUTABLE transport cause —
+    429/503/404/410/413,
+    a content stall, an auth/credit wall, a 5xx — walks that chain, rung by rung, until one answers.
+    Each rung is a FRESH :class:`AgentSpec` carrying the unit's own ``task``/``owned_paths``/tools,
+    so the worktree, the scope check and the sandbox gate are re-created by construction. A rung
+    whose lane is benched is skipped WITHOUT a dispatch, one whose provider key is unset is skipped
+    without a dispatch, and a rung that fails WITH A TRANSPORT CAUSE is benched via
+    :func:`lanes.apply_bench` so the NEXT unit skips it too. A rung that fails STRUCTURALLY
+    (``failure is None`` — sandbox unavailable, a worktree failure, an ungrounded single-shot)
+    benches NOTHING, deliberately: those are host/config problems, not lane problems, and pinning
+    one to a ``(provider, model)`` would blacklist an innocent lane while every other rung fails
+    identically. A rung's result replaces the original only when it is a STRICT IMPROVEMENT
+    (more payload, or a clean ``done``), so a re-route can never discard a better partial answer —
+    or, in ``mode="write"``, a diff. Bounded by ``SUBAGENT_MAX_FALLBACKS`` (default 5) dispatches
+    per unit and by ONE TOTAL ``wall_clock_s``/``max_cost_usd`` across the whole walk (``max_turns``
+    stays per-rung); an unknown cost on a metered endpoint is charged as the remaining budget and
+    ends the walk. A 400/422 is NOT routed — our own malformed body fails identically on every rung.
+    **With ``SUBAGENT_FANOUT_CASCADE`` unset nothing above happens at all**: no chain is resolved, no
+    bench is written, nothing is logged, and the only recovery is the same-model second chance
+    described in the paragraph above, exactly as before.
     """
     # Resolved HERE too, not only in `run_agents` below. fanout reads `_subagent_state_dir(repo)`
     # for the receipt/outbox dirs and the returned `_state_dir` AFTER dispatch, so validating only at
@@ -1977,6 +3373,15 @@ def fanout(
         "allow_ungrounded",
         "owned_paths",
         "task_type",
+        # ⚠️ `task` and `model` were MISSING, and the docstring above already promised they would not
+        # be: the guard exists so a reserved field is not "left to Python's per-branch duplicate-kwarg
+        # TypeError". `fanout` sets both itself (task from `units`, model from `pick_models`), so
+        # passing either produced exactly the raw error the guard was written to replace —
+        # `TypeError: AgentSpec() got multiple values for keyword argument 'model'`, from inside a
+        # list comprehension, naming no remedy. Found by tripping over it while pinning a model for a
+        # review run; same defect class as T06's `on_degrade`/`on_exhausted`.
+        "task",
+        "model",
     } & spec_kwargs.keys()
     if reserved:
         raise ValueError(
@@ -1997,6 +3402,68 @@ def fanout(
         raise ValueError(
             f"fanout: max_concurrency must be a positive int (or None), got {max_concurrency}"
         )
+
+    # ── T10: pre-flight credits, ONE probe per batch, refuse loudly below the floor ──────────
+    # The reporter's PRIMARY failure was not a dead provider, it was an EMPTY ACCOUNT: "the first
+    # units consumed the tail, the rest 402'd", 6 of 11 units lost. The lane walk cannot fix that —
+    # every OpenRouter rung draws on the SAME credential, so there is nothing to route to.
+    #
+    # ⚠️ `load_env` FIRST, and this call is why. The loader normally runs inside `arun_agents`,
+    # which fanout does not reach until after this point — so a probe placed here would run BEFORE
+    # any credential was loaded, 401, and make the fail-open escape the default path on EVERY batch.
+    # Safe to call twice: `_dotenv.load_env` is non-overriding (a value already in the real env
+    # always wins) and documented never to raise.
+    #
+    # ⚠️ `load_env` BEFORE `_credit_floor()`, not just before the probe. THE FLOOR ITSELF comes from
+    # `.env`, so reading it first meant a floor configured through the DOCUMENTED channel parsed as
+    # None and the gate silently never armed. My first cut had exactly that bug and only the `.env`
+    # behaviour row caught it — an exported shell var makes every other test pass while the
+    # documented channel stays dead, which is the same defect class as the missing DOTENV_KEYS entry.
+    # ⚠️ SCOPED TO ONE KEY, and the narrowness is the whole point. The floor itself comes from
+    # `.env`, so it must be loaded before `_credit_floor()` reads it — but loading the FULL
+    # `DOTENV_KEYS` here would be a behaviour change for every caller, floor or no floor:
+    # `arun_agents` normally loads the env, and it runs AFTER `pick_models` (:3344 vs :3447).
+    # A blanket `load_env(repo)` here would make `SUBAGENT_SELECTION_DOC` / `SUBAGENT_LIVE_PRICING`
+    # from a project `.env` visible to model SELECTION for the first time — silently changing which
+    # models ~48 vendored copies dispatch to. Loading only the floor key keeps this feature inert
+    # when it is unconfigured, which is the property the whole upgrade rests on.
+    # (`arun_agents` still guards its own load behind `load_dotenv=`; `fanout` never forwards that,
+    # so no caller can opt out and nothing here overrides one.)
+    degradation_events: list[dict[str, object]] = []
+    load_env(repo, keys=("SUBAGENT_CREDIT_FLOOR",))
+    _floor = _credit_floor()
+    if _floor is not None:
+        # ⚠️ THE KEY, and ONLY once the gate is actually armed. Round 1's comment above forbids a
+        # probe that runs before any credential is loaded; round 4 then narrowed the load to the
+        # floor key alone — correctly, to keep the full `.env` out of model SELECTION — and thereby
+        # reintroduced exactly that: floor armed from `.env`, key absent, so the probe 401s and
+        # `credit-probe-failed` fires on EVERY batch while the gate never does. The feature was
+        # inert in the configuration its own README documents. Found by the T09 integration pass;
+        # every other test of this feature stubs `_fetch_credits`, so none of them touched the
+        # credential path.
+        #
+        # Loading it HERE rather than beside the floor keeps both invariants: the unconfigured path
+        # is still untouched (no floor ⇒ this never runs), and an armed gate gets an authenticated
+        # probe. `load_env` is non-overriding, so a real env key still wins.
+        load_env(repo, keys=("OPENROUTER_API_KEY",))
+        _remaining = _fetch_credits()
+        if _remaining is None:
+            # FAIL-OPEN: an unreachable billing endpoint must never stop a paid-up account working.
+            _emit_degradation(
+                degradation_events,
+                on_degrade,
+                kind="credit-probe-failed",
+                reason="unreachable",
+                unit="(batch)",
+            )
+        elif _remaining < _floor:
+            raise InsufficientCreditsError(
+                f"fanout: refusing to dispatch {len(units)} unit(s) — OpenRouter credit "
+                f"${_remaining:.2f} is below the SUBAGENT_CREDIT_FLOOR of ${_floor:.2f}. "
+                "Nothing was dispatched and nothing was billed. Top up, or lower/unset the floor. "
+                "⚠️ This is a START gate, not a running balance: it cannot see a drain that happens "
+                "DURING a batch."
+            )
 
     draw = k if k is not None else len(units)
     if prefer == "value":
@@ -2123,22 +3590,43 @@ def fanout(
     # inheriting the same worktree/cost/wall caps via run_agents. The model is unchanged, so `specs[i]`
     # already names the model that ran; a still-capped unit stays status="capped" and is recorded UNSCORED
     # (the ledger's no-false-0 rule — a congested provider is not a bad model).
+    #
+    # ⚠️ T05a WIDENED THIS from "one more chance on the SAME model" into a bounded WALK over
+    # `(provider, model)` rungs read from `SUBAGENT_LANES` (see `_walk_lanes`). The paragraph above
+    # is unchanged and still describes rung 1 of that walk exactly — the same-model second chance is
+    # the FIRST rung, taken only for a zero-output congestion cap. With no chain configured there
+    # are no other rungs, so the walk IS the old behaviour, structurally rather than by inspection.
+    # The ENTRY condition is what changed: `_re_routable` also admits a unit whose structured
+    # `failure` names a routable transport cause, because a 410/413/429/402 arrives as
+    # `status == "error"` (loop.py's `_finish(text, "error", …)`), not as `"capped"` — the old gate
+    # could NEVER fire for any of them, so widening the loop without widening the predicate would
+    # have shipped a cascade that passes every fixture and never fires in production.
     if recover_caps:
+        rungs, chain_resolved = _fallback_rungs()
+        rungs = _drop_keyless_rungs(rungs)
+        # ROUND 10, F3: opting in is not enough — a chain must have RESOLVED. Deliberately not
+        # `bool(rungs)`, which is the R6/C2 defect this pair of flags exists to keep apart:
+        # `chain_resolved` survives the keyless filter emptying `rungs`.
+        cascade_on = _cascade_enabled() and chain_resolved
+        max_fallbacks = _max_fallbacks()
         for i, (spec, r) in enumerate(zip(specs, results, strict=True)):
-            # ONLY a genuine provider-congestion cap (status="capped", 0 output). NOT a structural "error"
-            # (sandbox-unavailable / ungrounded / worktree-failure refusal): a retry can't fix a host/config
-            # problem and would burn the pool. A capped run that produced partial output (out_tokens > 0)
-            # is not wasted and is left alone.
-            if r.status == "capped" and r.out_tokens == 0:
-                # Re-dispatch the SAME spec (same model) — a fresh call lets OpenRouter route around the
-                # provider that just congested. No model swap, no exclude bookkeeping.
-                retry_list = run_agents([spec], repo=repo)
-                if retry_list and (
-                    retry_list[0].out_tokens > 0 or retry_list[0].status == "done"
-                ):
-                    results[i] = retry_list[
-                        0
-                    ]  # recovered on a healthy provider this time
+            # A structural "error" (sandbox-unavailable / ungrounded / worktree-failure / NVIDIA
+            # non-tool-caller refusal) is still NOT recovered — it carries `failure=None` because it
+            # never reached the transport, and a retry can't fix a host/config problem; it would
+            # just burn the pool. A capped run that produced partial output (out_tokens > 0) is not
+            # wasted and is left alone. Both live in `_re_routable`, with the reasoning.
+            if _re_routable(r, cascade=cascade_on):
+                results[i] = _walk_lanes(
+                    spec,
+                    r,
+                    repo=repo,
+                    rungs=rungs,
+                    max_fallbacks=max_fallbacks,
+                    cascade=cascade_on,
+                    events=degradation_events,
+                    on_degrade=on_degrade,
+                    on_exhausted=on_exhausted,
+                )
 
     # agent_id → was its dispatch row actually written? See FanoutBatch for why this is kept.
     recorded: dict[str, bool] = {}
@@ -2157,6 +3645,27 @@ def fanout(
         # fires on legitimate patterns is wallpaper, and wallpaper is how enforcement dies).
         _reasons: list[str] = []
         for spec, r in zip(specs, results, strict=True):
+            # ⚠ T03 (2026-09-05): build the CORRECTED spec OUTSIDE the `try`. `recover_caps` is
+            # safe only because it re-dispatches the SAME model, so `spec.model` stays true of `r`
+            # today — but that invariant is not guaranteed by this call site, and any future
+            # re-router (the cascade this ticket is independent of) would silently misattribute
+            # every re-routed unit to the model it was ORIGINALLY sent to, poisoning the flywheel
+            # via `ledger._SPEC_FIELDS` (which pulls "model" off the spec, not the result). Fixing
+            # it here — not in `ledger.agent_record` — keeps `ledger.py` untouched.
+            # ⚠ T03 FIXUP 3 (review round 2): OUTSIDE the try, deliberately. `replace(...)` re-runs
+            # `AgentSpec.__post_init__` -> `resolve_provider` once per unit — a pure lookup that
+            # cannot raise for a fanout-built spec today, but INSIDE the try its failure would be
+            # swallowed by the very `except Exception` below that also catches a `record_agent_run`
+            # failure, and reported identically as "record_agent_run failed for model %s" — an
+            # operator reading that investigates the DATABASE, not a spec copy, because
+            # `record_agent_run` is documented to NEVER raise (pg_ledger.py:643). Skips the copy
+            # entirely in the common case (`r.model` empty or already equal to `spec.model`) rather
+            # than allocating one every unit; `r.model` is empty for a cap-refused/unverifiable unit
+            # (`_cap_acquire`'s refusal `AgentResult`s never dispatched), so this still falls back to
+            # the spec's model in that case.
+            _rec_spec = (
+                spec if not r.model or r.model == spec.model else replace(spec, model=r.model)
+            )
             try:
                 # ⚠ USE the return value. `record_agent_run` is documented FAIL-OPEN —
                 # "returns False on any error and NEVER raises" — so the `except` below is
@@ -2175,7 +3684,7 @@ def fanout(
                 # outage becoming a work stoppage was defeated by a path convention.
                 recorded[r.agent_id] = bool(
                     record_agent_run(  # unscored — set_quality later
-                        spec,
+                        _rec_spec,
                         r,
                         project=project,
                         receipt_dir=_subagent_state_dir(repo),
@@ -2188,10 +3697,15 @@ def fanout(
                 # ⚠ Name the agent_id, not just the model. The old message said only
                 # "failed for model X", so the ONE identifier needed to trace or refuse the
                 # later score was absent from the only signal this failure produces.
+                # ⚠ T03: name the model that RAN via `_rec_spec.model` (== `r.model or spec.model`),
+                # not `spec.model` — this is the only signal a dropped flywheel row produces, so it
+                # must name the model that RAN, not the one the spec was built for (they diverge
+                # under any re-router; the empty-`r.model` case already folded into `_rec_spec`
+                # above, so this can never regress to an empty string either).
                 logger.warning(
                     "fanout: record_agent_run failed for model %s (agent_id=%s) — "
                     "this run has NO dispatch row; scoring it would orphan the score",
-                    spec.model,
+                    _rec_spec.model,
                     r.agent_id,
                 )
         # ── D: the drop is now VISIBLE at dispatch time, not discoverable weeks later. ──
@@ -2267,18 +3781,49 @@ def fanout(
             len(_empty), len(results), _empty,
         )
 
+    # ⚠ T03: `r.model or s.model`, not `s.model` — both the results table and the score-feed map
+    # below must name the model that RAN, not the one the spec was built for. `recover_caps` is
+    # safe only because it re-dispatches the SAME model (so `specs[i].model` stays true of
+    # `results[i]` today), but that invariant is not this function's to assume for good; a
+    # cap-refused/unverifiable `r` has an empty `.model` (`_cap_acquire` never dispatched it), so
+    # `or s.model` falls back to the spec's model rather than regressing it to an empty string.
     entries = [
-        {"unit": f"{task_type}[{i}]", "model": s.model, "result": r}
+        {"unit": f"{task_type}[{i}]", "model": r.model or s.model, "result": r}
         for i, (s, r) in enumerate(zip(specs, results, strict=True))
     ]
+    # ⚠️ T06: ONE aggregated line, and only when the caller did NOT take the sink. Emitted here,
+    # at batch close, because per-event stderr is the chatty channel people learn to ignore.
+    try:
+        _flush_degradations(degradation_events, on_degrade)
+    except Exception as exc:  # noqa: BLE001 — a SUMMARY LINE must never cost a paid-for batch
+        # ⚠️ **ROUND 4 — the HOOK-SAFETY POLICY applied to its own flush path.** This runs at the
+        # very END of `fanout`, after every unit has dispatched and been billed, so anything that
+        # raises here discards all of it — the same batch-killer class as round 1's label, in the
+        # code meant to REPORT degradations. Unreachable today (every `kind` is a module-owned
+        # string literal and the events are the module's own copies), which is exactly why it is
+        # worth guarding: the policy says do not reason about which protections apply, and an
+        # unguarded formatting path in the observability layer is how the first one got in.
+        logger.warning(
+            "fanout: the degradation summary failed to render (%s: %s). The batch and "
+            "batch.degradation_events are unaffected.",
+            type(exc).__name__,
+            exc,
+        )
+    # ⚠️ **T11 — counted HERE, after the `recover_caps` replacement, and that placement IS the
+    # contract.** A unit that recovered on its retry has already been substituted into `results` by
+    # this point, so it counts ALIVE; counting earlier would report the pre-recovery state and
+    # over-report exactly the units the module just rescued.
+    _dead = sum(1 for r in results if _is_dead_unit(r))
     return FanoutBatch(
         results,
-        results_table(entries),
+        results_table(entries, dead_units=_dead),
         _recorded=recorded,
         _task_type=task_type,
         _project=project,
-        _models={r.agent_id: s.model for s, r in zip(specs, results, strict=True)},
+        _models={r.agent_id: (r.model or s.model) for s, r in zip(specs, results, strict=True)},
         _state_dir=_subagent_state_dir(repo),
+        degradation_events=degradation_events,
+        dead_units=_dead,
     )
 
 

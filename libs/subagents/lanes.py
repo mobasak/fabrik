@@ -60,6 +60,9 @@ from .providers import resolve_provider
 __all__ = [
     "lane_chain",
     "AllLanesExhaustedError",
+    "FailureCause",
+    "classify",
+    "apply_bench",
     "bench_remaining",
     "lane_progress",
     "reset_lane_state",
@@ -74,10 +77,28 @@ _DEFAULT_DEAD_COOLDOWN_S = 900.0
 #: ``Retry-After``; without a clamp one bad header benches a lane for a week.
 _DEFAULT_MAX_COOLDOWN_S = 3600.0
 
+#: Consecutive TRANSIENT failures a lane is allowed before it is actually benched. The field norm
+#: (LiteLLM's ``allowed_fails``, commonly 3/min) COUNTS failures before cooling a deployment down;
+#: benching on the FIRST one ejects a healthy lane over a single blip. ⚠️ **THE ONE DELIBERATE
+#: BEHAVIOUR CHANGE this module makes to the old ``_bench`` (T07)** — every other line in this
+#: file is T01's byte-for-byte ``classify``/``apply_bench`` split; this constant is not. PERMANENT
+#: causes (401/402/410/model-gone/…) are unaffected — they still bench on the first occurrence.
+_DEFAULT_FAIL_THRESHOLD = 3
+
 #: provider -> monotonic deadline. Rate limits and auth failures are account-scoped.
 _bench_provider: dict[str, float] = {}
 #: (provider, model) -> monotonic deadline. A dead/renamed model, scoped to that model alone.
 _bench_model: dict[tuple[str, str], float] = {}
+#: Consecutive TRANSIENT failure count, keyed by the BENCH TARGET — the provider name alone for a
+#: provider-scoped cause (429/503's default: every model of that provider is equally unavailable,
+#: so a failure on ANY of them is evidence about the SAME account-wide threshold), or
+#: ``"<provider>:<model>"`` when the effective scope is model (a per-provider
+#: ``…_TRANSIENT_SCOPE=model`` override, or a future model-scoped transient cause). Keying by the
+#: LANE instead would dilute a provider-scoped threshold by however many models are in flight —
+#: review round 1, fixup 2. Reset to 0 the instant a bench is actually written (a fresh grace
+#: period starts once the lane is live again), and by ``reset_lane_state()``. Shared,
+#: ``_lock``-guarded state, same as the two bench maps above.
+_fail_count: dict[str, int] = {}
 #: Per-provider in-flight caps, built lazily from the registry + env override.
 _sems: dict[str, threading.Semaphore] = {}
 #: Cursor for ``mode="rotate"``.
@@ -114,6 +135,21 @@ def _env_float(name: str, default: float) -> float:
     except (TypeError, ValueError):
         return default
     return val if val > 0 and val == val and val != float("inf") else default
+
+
+def _env_int(name: str, default: int) -> int:
+    """Read a non-negative int from the env at CALL time. Mirrors ``_env_float``'s defensive
+    parsing — a malformed or negative value falls back to the default rather than raising.
+    ``0`` is a valid, deliberate value (``SUBAGENT_LANE_FAIL_THRESHOLD=0``): it turns the grace
+    period off entirely, i.e. back to benching on the first failure."""
+    raw = os.getenv(name)
+    if not raw:
+        return default
+    try:
+        val = int(raw)
+    except (TypeError, ValueError):
+        return default
+    return val if val >= 0 else default
 
 
 def _provider_limit(provider: str) -> int | None:
@@ -170,50 +206,118 @@ def lane_progress() -> Mapping[str, int]:
 
 
 def reset_lane_state() -> None:
-    """Clear bench maps, semaphores, the rotate cursor, the probe cache and the counters. For tests
-    and long-lived hosts that want a deliberate re-probe; the state is in-process, so a fresh
-    process starts clear anyway."""
+    """Clear bench maps, the failure-threshold counter, semaphores, the rotate cursor, the probe
+    cache and the counters. For tests and long-lived hosts that want a deliberate re-probe; the
+    state is in-process, so a fresh process starts clear anyway."""
     with _lock:
         _bench_provider.clear()
         _bench_model.clear()
+        _fail_count.clear()
         _sems.clear()
         _rotate["i"] = 0
         _progress.update({"attempts": 0, "completions": 0, "defers": 0})
         _probe_state.update({"at": None, "healthy": None})
 
 
-def _bench(provider: str, model: str, exc: BaseException) -> str:
-    """Bench the lane at the right KEY for the cause, and name that cause.
+@dataclass(frozen=True)
+class FailureCause:
+    """The pure verdict ``classify`` reaches about one exception. Carries everything
+    ``apply_bench`` needs to act, with no side effect baked in.
 
-    The key is the whole point: a 429 is the ACCOUNT being throttled (every model of that provider
-    is equally unavailable), while a 404/400 is one MODEL being gone (its siblings are fine).
+    ``scope`` says what a caller SHOULD bench: ``"provider"`` (account-scoped — every model of
+    that provider is equally unavailable), ``"model"`` (this one model alone — its siblings are
+    fine), or ``"none"`` (bench nothing, just try the next lane). ``permanent`` selects the DEAD
+    cooldown over the transient one. ``status``/``retry_after`` are carried through from ``exc``
+    so ``apply_bench`` never has to re-inspect it.
+
+    ⚠️ ``scope="key"`` is what ``classify`` RETURNS for a 402 — it is technically a per-KEY
+    verdict, not per-provider (see the design spec), but no key-scoped bench store exists yet.
+    ``apply_bench`` deliberately falls back to the provider bench for it, visibly, rather than
+    silently dropping the signal or baking the limitation into the classification itself — T07
+    (which owns the applier) is explicit that collapsing this to ``"provider"`` here would make
+    the future key-scoped fix invisible. Do not add a key-scoped store off this value without one.
+    """
+
+    cause: str
+    scope: str
+    status: int | None
+    retry_after: float | None
+    permanent: bool
+
+
+def _is_priced_out(exc: BaseException) -> bool:
+    """Our OWN ``provider.max_price`` ceiling, not a dead model — ``loop.py:65`` documents the
+    live case (kimi-k2.5 ($2.025): 200 bare, 404 at ``max_price=1.5``, 200 at 3×), and
+    ``_apply_max_price`` (``loop.py:40-48``) merges that ceiling into every priced model's outgoing
+    body automatically, so this is the DEFAULT 404, not an edge case. Benching it as
+    ``model-gone`` would blacklist a WORKING model for 900 s.
+
+    Reuses the literal ``ledger.py:191`` discriminator (``"max price"``, lowercased-substring) so
+    the two cannot diverge on wording — do not "improve" it.
+
+    ``ConsultError`` has no ``.body`` attribute: per ``_client._raise_for_http``, a generic 4xx
+    (incl. 404) puts the body IN THE MESSAGE (truncated to 300 chars), while ``AuthError``/
+    ``TransientError`` put it in ``.partial`` (truncated to 500). Checked as two SEPARATE
+    substring tests, never joined into one string first: joining with a separator can manufacture
+    the marker across the boundary (a message ending "...max" + a partial starting "price...") on
+    pure coincidence.
+
+    ⚠️ The ``.partial`` read's ACTUAL reach, traced through ``classify``'s branch order — honestly,
+    not aspirationally: ``AuthError`` (401/403) is short-circuited above this function entirely, and
+    429/503/413 all return before reaching it, so of the classes that populate ``.partial``, only a
+    **408** (``TransientError``, which falls through to the generic-4xx arm) ever arrives here with
+    it non-empty. A 404 is always ``ConsultError`` with no ``.partial`` at all
+    (``_client.py:398`` passes none). The read is still correct to keep — a future family or status
+    could land here with the marker in ``.partial`` — but it is not, today, "every family".
+
+    ⚠️ Guarded: `str(exc)` (and `.partial`, on a hostile subclass) can itself raise, and this is a
+    NEW raise site on the failure-handling path — the old ``_bench`` never called ``str(exc)``. A
+    secondary exception here would mask the original failure and take the lane walk down instead
+    of advancing it, so any read failure falls back to ``False`` (the safe default: ``model-gone``).
+    """
+    try:
+        message = str(exc)
+        partial = str(getattr(exc, "partial", ""))
+    except Exception:
+        return False
+    return "max price" in message.lower() or "max price" in partial.lower()
+
+
+def classify(exc: BaseException) -> FailureCause:
+    """Read the cause out of ``exc`` alone — PURE: no clock, no env, no lock, no module state.
+    Same exception in, an equal ``FailureCause`` out, every time.
+
+    The key (``FailureCause.scope``) is the whole point: a 429 is the ACCOUNT being throttled
+    (every model of that provider is equally unavailable), while a 404/400 is one MODEL being gone
+    (its siblings are fine). ``apply_bench`` is the only place any of this reaches a bench map.
     """
     status = getattr(exc, "status", None)
-    max_cd = _env_float("SUBAGENT_LANE_MAX_COOLDOWN_S", _DEFAULT_MAX_COOLDOWN_S)
-    now = time.monotonic()
+
+    if isinstance(exc, AuthError):
+        return FailureCause("auth", "provider", status, None, True)
 
     # 402 Payment Required is an ACCOUNT verdict, not a model one: the free credit is spent, so
     # every model of that provider will answer identically. Benching one model would make the chain
     # burn a call per sibling model rediscovering the same wall. Found by a LIVE smoke test —
     # Mistral returned 402 and the offline suite had no such fixture, because nothing told me to
-    # write one. Grouped with AuthError: both are "this provider is closed to you", not transient.
-    if isinstance(exc, AuthError) or status == 402:
-        cooldown = min(_env_float("SUBAGENT_LANE_DEAD_COOLDOWN_S", _DEFAULT_DEAD_COOLDOWN_S), max_cd)
-        with _lock:
-            _bench_provider[provider] = max(_bench_provider.get(provider, 0.0), now + cooldown)
-        return "auth"
+    # write one. Same cause string as AuthError: both are "this provider is closed to you", not
+    # transient — but the SCOPE differs. A 402 is technically a per-KEY verdict, not per-provider
+    # (unlike a bad credential, a second key on the same provider might not be broke), so this
+    # returns ``scope="key"`` rather than collapsing it to ``"provider"`` — see the FailureCause
+    # docstring for why ``apply_bench`` still benches the provider today.
+    if status == 402:
+        return FailureCause("auth", "key", status, None, True)
 
     if status in (429, 503):
+        # `retry_after` is read HERE, and only here — the one arm that consumes it — the same
+        # exposure the pre-split `_bench` had. It is a hostile-attribute read on an exception this
+        # module did not author (same reasoning as `_is_priced_out`'s guard below), so it is not
+        # read unconditionally for every exception that reaches `classify`.
         retry_after = getattr(exc, "retry_after", None)
-        base = (
-            float(retry_after)
-            if isinstance(retry_after, (int, float)) and retry_after and retry_after > 0
-            else _env_float("SUBAGENT_LANE_COOLDOWN_S", _DEFAULT_COOLDOWN_S)
-        )
-        cooldown = min(base, max_cd)
-        with _lock:
-            _bench_provider[provider] = max(_bench_provider.get(provider, 0.0), now + cooldown)
-        return "rate-limited" if status == 429 else "unavailable"
+        if not (isinstance(retry_after, (int, float)) and retry_after and retry_after > 0):
+            retry_after = None
+        cause = "rate-limited" if status == 429 else "unavailable"
+        return FailureCause(cause, "provider", status, retry_after, False)
 
     if status == 413:
         # 413 is about OUR REQUEST, not the model — and on a free tier it is usually SELF-INFLICTED:
@@ -222,19 +326,162 @@ def _bench(provider: str, model: str, exc: BaseException) -> str:
         # Observed live on Groq's free tier with `openai/gpt-oss-20b`, whose reasoning arrives before
         # any content. Benching the MODEL for 15 minutes over a request WE malformed would take a
         # perfectly healthy lane out of the chain. Fall through to the next lane, bench nothing.
-        return "request-too-large"
+        return FailureCause("request-too-large", "none", status, None, False)
 
     if isinstance(status, int) and 400 <= status < 500:
-        cooldown = min(_env_float("SUBAGENT_LANE_DEAD_COOLDOWN_S", _DEFAULT_DEAD_COOLDOWN_S), max_cd)
-        with _lock:
-            _bench_model[(provider, model)] = max(
-                _bench_model.get((provider, model), 0.0), now + cooldown
-            )
-        return "model-gone"
+        if _is_priced_out(exc):
+            # OURS, not the model's (mirrors ledger.py:192) — re-route, bench nothing.
+            return FailureCause("priced-out", "none", status, None, False)
+        if status in (400, 422):
+            # ⚠️ DELIBERATE CHANGE (review round 1, fixup 4; review round 2, fixup 5 + the 422
+            # verdict) — a bare 400 used to fall through to `model-gone` below, on the reasoning
+            # "a 404/400 is one MODEL being gone". That held while `lane_chain` owned the request
+            # body; it stopped holding once `classify` was wired into `run_loop` (T02a), where
+            # `extra_body` is a CALLER-supplied passthrough and the loop itself injects
+            # `provider.max_price` + latency preferences. A malformed caller body 400s IDENTICALLY
+            # for every model of that provider — proved live: `FailureCause(cause='model-gone',
+            # scope='model', ..., permanent=True)` benched a perfectly healthy model for 900s over
+            # a request WE malformed, and the cascade then burned each sibling rung rediscovering
+            # the same 400. Exactly the 413 arm's reasoning above, carried onto this status: OUR
+            # REQUEST, not the model — bench nothing, advance a rung.
+            #
+            # 422 joins it for the SAME reason (review round 2 asked the question explicitly
+            # rather than letting it default): a 422 Unprocessable Entity means the server parsed
+            # the request but rejected its SEMANTIC content — an invalid parameter value/shape,
+            # not "the model is gone". Every model behind that provider would 422 identically on
+            # the same malformed body, so benching just one would be exactly the 400 defect again.
+            # Genuinely rarer 4xx codes (405/406/409/411/412/414/415/...) are left as `model-gone`
+            # below — none have been observed live, and this ticket answers only the code the
+            # review named, not every exotic 4xx.
+            #
+            # ⚠️ `cause` is its OWN string here, distinct from 413's `"request-too-large"` — that
+            # string ships to `_bench`'s return value, the degradation-event name, and (T04) the
+            # ledger's `failure_reason` column. Reusing 413's string for a "400 Bad Request" read
+            # as a token-count problem to an operator debugging a run that actually died on a
+            # malformed body — review round 2, fixup 5. `status` was ALREADY the only reliable
+            # discriminator between 400/422 and 413; now `.cause` distinguishes them too.
+            return FailureCause("bad-request", "none", status, None, False)
+        return FailureCause("model-gone", "model", status, None, True)
 
     # 5xx, a transport/timeout error, or anything unclassified: try the next lane now, but do NOT
     # bench — a one-off blip must not cost the best provider its position for the next 15 minutes.
-    return "error"
+    return FailureCause("error", "none", status, None, False)
+
+
+def _bench_scope_for(cause: FailureCause, provider: str) -> str:
+    """The scope ``apply_bench`` actually writes to — ``cause.scope`` unless a provider-specific
+    override applies.
+
+    This module's own docstring (§ 2) asserts a 429 is the ACCOUNT being throttled: true for a
+    per-account free tier, NOT true for a provider with PER-MODEL quotas — an assumption this
+    ticket (T07) inherits rather than fixes. The provider scope stays the DEFAULT (right for the
+    measured lanes); a provider can override it to ``"model"`` via
+    ``SUBAGENT_<PROVIDER>_TRANSIENT_SCOPE=model``.
+
+    Applies to every provider-scoped TRANSIENT cause (today: 429 ``"rate-limited"`` and 503
+    ``"unavailable"``) — never to a PERMANENT one (401/402's ``scope="key"`` fallback stays
+    provider-wide unconditionally; a closed account has no narrower interpretation) and never to
+    ``scope="model"``/``"none"`` (nothing to override). Review round 1, fixup 3: the original gate
+    covered 429 only, which was arbitrary — several vendors use 503 for the identical per-model
+    overload signal, so an operator isolating one provider's throttling still got whole-provider
+    benching on its 503s. Named ``…_TRANSIENT_SCOPE``, not ``…_429_SCOPE``, for exactly that
+    reason — free to rename now, before T08 documents it and before anything vendors it.
+    """
+    if cause.scope == "provider" and not cause.permanent:
+        override = os.getenv(f"SUBAGENT_{provider.upper()}_TRANSIENT_SCOPE", "").strip().lower()
+        if override == "model":
+            return "model"
+    return cause.scope
+
+
+def apply_bench(cause: FailureCause, provider: str, model: str) -> str:
+    """Turn a pure ``classify`` verdict into the side effect, and name the cause.
+
+    Every side effect ``_bench`` used to do lives here: the env-driven cooldowns, the
+    ``min(..., max_cd)`` clamp, the ``max(existing, now+cooldown)`` monotonic extension, the lock.
+
+    ⚠️ **T07's one deliberate departure from that "every side effect `_bench` used to do" claim:**
+    a TRANSIENT cause (``permanent=False``) with something to bench no longer benches on the
+    FIRST occurrence — see ``_DEFAULT_FAIL_THRESHOLD``. A PERMANENT cause (401/402/410/
+    model-gone/…) still benches immediately, exactly as the old ``_bench`` always did; that path
+    is untouched.
+
+    ⚠️ **Concurrency (review round 1, fixup 1).** The increment, the threshold check, the counter
+    reset and the bench write for the TRANSIENT arm all happen inside ONE ``_lock`` acquisition —
+    not four separate ones. Four separate critical sections let two threads failing the SAME lane
+    concurrently each read a sub-threshold count, each release, and both return unbenched where a
+    sequential pair would have crossed the threshold; worse, the window between a reset and its
+    bench write was briefly a state with no count AND no cooldown, so a third thread could start a
+    fresh grace period against a lane that was already about to be benched. `subagents` runs under
+    `run_agents` concurrency, which is exactly why `_bench_provider`/`_bench_model` were already
+    ``_lock``-guarded — the counter added here inherits the same requirement.
+    """
+    if cause.scope == "none":
+        return cause.cause
+
+    scope = _bench_scope_for(cause, provider)
+
+    if not cause.permanent:
+        threshold = _env_int("SUBAGENT_LANE_FAIL_THRESHOLD", _DEFAULT_FAIL_THRESHOLD)
+        # Keyed by the BENCH TARGET, not the lane (review round 1, fixup 2) — see `_fail_count`'s
+        # own comment for why a provider-scoped cause counts failures across every model, not just
+        # the one that happened to fail this time.
+        key = provider if scope in ("provider", "key") else f"{provider}:{model}"
+        with _lock:
+            count = _fail_count.get(key, 0) + 1
+            _fail_count[key] = count
+            if count <= threshold:
+                # Below the grace period: this lane is NOT benched — it stays in the walk for the
+                # next call too. This is the behaviour change: the old `_bench` wrote the bench
+                # right here, on the first failure, for every transient cause.
+                return cause.cause
+            _fail_count[key] = 0  # the bench about to be written starts a fresh grace period
+            now = time.monotonic()
+            max_cd = _env_float("SUBAGENT_LANE_MAX_COOLDOWN_S", _DEFAULT_MAX_COOLDOWN_S)
+            base = (
+                float(cause.retry_after)
+                if cause.retry_after is not None
+                else _env_float("SUBAGENT_LANE_COOLDOWN_S", _DEFAULT_COOLDOWN_S)
+            )
+            cooldown = min(base, max_cd)
+            _write_bench_locked(scope, provider, model, now, cooldown)
+        return cause.cause
+
+    # PERMANENT: unchanged from before this ticket — bench on the first (and only) occurrence,
+    # never counted against the transient threshold above.
+    max_cd = _env_float("SUBAGENT_LANE_MAX_COOLDOWN_S", _DEFAULT_MAX_COOLDOWN_S)
+    now = time.monotonic()
+    dead = _env_float("SUBAGENT_LANE_DEAD_COOLDOWN_S", _DEFAULT_DEAD_COOLDOWN_S)
+    cooldown = min(dead, max_cd)
+    with _lock:
+        _write_bench_locked(scope, provider, model, now, cooldown)
+    return cause.cause
+
+
+def _write_bench_locked(
+    scope: str, provider: str, model: str, now: float, cooldown: float
+) -> None:
+    """The actual bench-map write, shared by both `apply_bench` arms. CALLER MUST ALREADY HOLD
+    `_lock` — this never acquires it, so the transient arm can fold the write into its single
+    increment/check/reset critical section (see `apply_bench`'s fixup-1 note) without a
+    non-reentrant `threading.Lock` deadlocking on itself."""
+    if scope in ("provider", "key"):
+        # "key" has no store yet (see FailureCause docstring) — fall back to the provider bench
+        # deliberately and visibly rather than silently dropping the signal.
+        _bench_provider[provider] = max(_bench_provider.get(provider, 0.0), now + cooldown)
+    elif scope == "model":
+        _bench_model[(provider, model)] = max(
+            _bench_model.get((provider, model), 0.0), now + cooldown
+        )
+
+
+def _bench(provider: str, model: str, exc: BaseException) -> str:
+    """Bench the lane at the right key for the cause, and name that cause.
+
+    Thin wrapper over the pure ``classify`` + side-effecting ``apply_bench`` split — kept as one
+    call so the single call site below never has to know about the split.
+    """
+    return apply_bench(classify(exc), provider, model)
 
 
 def _parse_lane(entry: object) -> tuple[str, str, float | None]:
@@ -630,7 +877,27 @@ def lane_chain(
     with _lock:
         _progress["defers"] += 1  # forward progress did NOT happen — the alarmable event
     if backstop is not None:
-        text = backstop(prompt)
+        # ⚠ The backstop call is GUARDED. It was not, and the sink stayed unfilled whenever the
+        # backstop itself raised — while this function's public docstring promises the sink is
+        # "filled on EVERY exit path (success, backstop, raise)". That promise ships to every
+        # vendored copy, and the unfilled path is the WORST one: every lane dead AND the backstop
+        # dead is exactly the total-outage moment a caller most needs provenance for. Found
+        # 2026-09-02 by an adversarial review of a design that had just claimed this sink closed
+        # its warning-channel hole.
+        try:
+            text = backstop(prompt)
+        except BaseException:
+            _fill(
+                sink,
+                provider=None,
+                model=None,
+                attempts=attempts,
+                benched=benched,
+                failures=failures,
+                cost_usd=None,
+                reason="backstop-failed",
+            )
+            raise
         _fill(
             sink,
             provider=None,

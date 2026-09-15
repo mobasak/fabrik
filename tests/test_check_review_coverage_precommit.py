@@ -568,8 +568,11 @@ def test_an_unscoped_running_record_does_not_block_on_a_siblings_receipt(tmp_pat
 
     repo = tmp_path / "repo"
     (repo / "docs/development/reviews").mkdir(parents=True)
-    for cmd in (["git", "init", "-q"], ["git", "config", "user.email", "t@t"],
-                ["git", "config", "user.name", "t"]):
+    for cmd in (
+        ["git", "init", "-q"],
+        ["git", "config", "user.email", "t@t"],
+        ["git", "config", "user.name", "t"],
+    ):
         sp.run(cmd, cwd=repo, check=True)
     started = time.time() - 60
     # a SIBLING's receipt: unconverged, committed, and about a plan this run never names
@@ -591,18 +594,24 @@ def test_an_unscoped_running_record_does_not_block_on_a_siblings_receipt(tmp_pat
     runs = tmp_path / "runs"
     runs.mkdir()
     (runs / "s10.json").write_text(
-        json.dumps({
-            "command": "fabrik-review",
-            "state": "running",
-            "started_epoch": started,
-            "repo_root": str(repo),
-            "surface": "scripts/mine.py",   # a real surface that names NO plan
-        }),
+        json.dumps(
+            {
+                "command": "fabrik-review",
+                "state": "running",
+                "started_epoch": started,
+                "repo_root": str(repo),
+                "surface": "scripts/mine.py",  # a real surface that names NO plan
+            }
+        ),
         encoding="utf-8",
     )
     env = dict(__import__("os").environ, COMMAND_RUN_DIR=str(runs), CLAUDE_SESSION_ID="s10")
     r = sp.run(
         [sys.executable, str(SCRIPT), "--root", str(repo)],
-        cwd=repo, capture_output=True, text=True, timeout=120, env=env,
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        env=env,
     )
     assert r.returncode == 0, f"a sibling's receipt blocked an unscoped run: {r.stdout!r}"
