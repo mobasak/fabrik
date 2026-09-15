@@ -2321,7 +2321,19 @@ def test_sweep_archives_stale_ack_no_mail_and_never_touches_obligations(env):
     ).isoformat()
     stale = _mint(env, "alpha", "fabrik", "finding", "no", ts=old_ts)
     duty = _mint(env, "alpha", "fabrik", "request", "required", ts=old_ts)
-    fresh = _mint(env, "alpha", "fabrik", "finding", "no")
+    # ⚠️ EXPLICIT "now". `_mint`'s default ts is a hardcoded 2026-08-22, so this message — the one
+    # the test calls FRESH — silently aged past the 14-day threshold as the real clock moved and
+    # began sweeping with the stale one. The test passed when it was written and rotted on a
+    # calendar date, which is why it was red at HEAD before this change: a fixture anchored to a
+    # constant, judged by a sliding window (found 2026-09-15 running the mail suite for T14).
+    fresh = _mint(
+        env,
+        "alpha",
+        "fabrik",
+        "finding",
+        "no",
+        ts=mail.datetime.now(mail.UTC).isoformat(),
+    )
 
     moved = mail.sweep(days=14)
     assert moved == 1, f"exactly the one stale ack:no message, got {moved}"

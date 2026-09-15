@@ -139,8 +139,22 @@ _SECRET_HIGH = [
     #     The trailing run is possessive (`{0,64}+`, Python 3.11+) so it cannot backtrack either;
     #     making the LEADING one possessive was tried and rejected — it swallows the keyword and
     #     misses every real secret.
+    #
+    # (3) FALSE POSITIVE, found 2026-09-15 (T14.3, 01M25EJZG) — a GIT FORMAT TOKEN is shaped like
+    #     an assignment. `git log -1 --format='%(trailers:key=Agent-Role,valueonly)'` gives KEY
+    #     from `key`, `=` for the `[:=]`, and `Agent-Role,valueonly)` as a 20-char `\S{16,}`
+    #     "value", so the send was REFUSED outright — and that command is the one BOTH governance
+    #     contracts prescribe for verifying a trailer block parsed. The check that certifies a
+    #     commit's provenance could not be quoted in a message about commit provenance.
+    #     `(?<!trailers:)` is the narrowest possible carve: it keys on a fixed git-internal
+    #     prefix, not on the value's shape.
+    #     ⚠️ THE CHEAPEST WAY TO SATISFY THIS WITHOUT THE OUTCOME (cobra-effect): prefix a real
+    #     credential with the literal `trailers:` to slip it past the scanner. That is both absurd
+    #     to do by accident and trivially visible to a reader, which is exactly why the carve is a
+    #     fixed prefix rather than a relaxation of the value pattern — loosening `\S{16,}` to
+    #     exclude commas or parens would let any secret hide by appending one.
     _re.compile(
-        r"(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|PWD)[\w-]{0,64}+\s*[:=](?!:)\s*\S{16,}",
+        r"(?<!trailers:)(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|PWD)[\w-]{0,64}+\s*[:=](?!:)\s*\S{16,}",
         _re.I,
     ),
     _re.compile(r"\bsk-[A-Za-z0-9-]{16,}"),  # sk-, sk-ant-, sk-proj- (hyphens kept)
@@ -681,7 +695,13 @@ def _structure_gaps(kind: str, body: str) -> list[str]:
         # `WHEN/WHO:` credits both keys (01M1H52X); a backtick before the colon means the colon
         # belongs to a `path:line`, not to the header (01M1J0KY: `WHERE — \`x.py:496\`:` passed).
         return _re.compile(
-            rf"(?i)^[*#\-]{{0,3}} ?(?:(?:{keys})/)*{k}\b(?:/(?:{keys}))*[^:\n`]{{0,120}}?(?::|\s[—–]\s)(.*)$"
+            # ⚠️ THE SLASH MAY BE SPACED. `WHAT / WHERE:` is what authors actually write — it is
+            # the form this file's own advisory invites by naming the keys with slashes — and the
+            # tight-only pattern reported WHERE missing from a mail that plainly had it. Measured
+            # across the whole store: 41 of 4,778 message files use the spaced form against 53
+            # using the tight one, so very nearly half of all slash-combined headers were being
+            # mis-flagged, and the author had no way to tell a real gap from this one.
+            rf"(?i)^[*#\-]{{0,3}} ?(?:(?:{keys})\s*/\s*)*{k}\b(?:\s*/\s*(?:{keys}))*[^:\n`]{{0,120}}?(?::|\s[—–]\s)(.*)$"
         )
 
     def substantive(s: str) -> bool:
@@ -805,7 +825,11 @@ def send(
         print(
             f"[mail-structure advisory, D-035] this {kind} is missing mandatory sections: "
             f"{', '.join(_gaps)} — the 5W1H + factual-WHY + SYSTEMIC contract "
-            "(docs/reference/fabrik-mail.md § The message contract). Sent anyway (advisory tier).",
+            "(docs/reference/fabrik-mail.md § The message contract). A section header is the KEY "
+            "at the START of a line followed by `:` or ` — `, with content after it: `WHERE: …` "
+            "or `WHERE — …`. Keys may be combined with a slash (`WHAT/WHERE:`, spaces optional). "
+            "A key inside a fenced block or a quoted line is someone else's structure and does "
+            "not count. Sent anyway (advisory tier).",
             file=sys.stderr,
         )
     # D6: the recipient/star checks above run BEFORE the guards — a real
@@ -1529,8 +1553,20 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="mail.py", description="fabrik-mail store + protocol")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
-    p_send = sub.add_parser("send", help="publish a message (body on stdin)")
+    p_send = sub.add_parser("send", help="publish a message (body on STDIN, or --body-file)")
     p_send.add_argument("--to", required=True)
+    p_send.add_argument(
+        "--body",
+        help=argparse.SUPPRESS,  # accepted only to REFUSE it with the right instruction
+    )
+    p_send.add_argument(
+        "--body-file",
+        dest="body_file",
+        help="read the body from this FILE instead of stdin. T14.2 (01M22M5E1): the body has "
+        "always been stdin-only, and a caller reaching for the obvious `--body` got argparse's "
+        "exit 2 on STDERR with an EMPTY stdout — so anyone piping stdout saw nothing at all, not "
+        "even a truncated message. A file is the shape a heredoc-averse caller actually wants.",
+    )
     p_send.add_argument("--kind", required=True, choices=sorted(KINDS))
     p_send.add_argument("--ack", choices=["required", "no"])
     p_send.add_argument("--re")
@@ -1607,10 +1643,47 @@ def main(argv: list[str] | None = None) -> int:
     p_sr.add_argument("id")
     p_sr.add_argument("--repo")
 
-    args = ap.parse_args(argv)
+    # ⚠️ T14.2 (01M22M5E1): argparse writes its rejection to STDERR and exits 2 with stdout EMPTY.
+    # Every caller of this script parses STDOUT for the delivered path — that is the contract —
+    # so `mail.py send --body "x" | tail -2` shows the caller nothing at all: not a truncated
+    # message, nothing, and unless they merged stderr they never learn the body goes on stdin.
+    # Executed: rc 2, `STDOUT: ''`. One line on stdout names the contract that was violated; the
+    # argparse diagnosis stays on stderr where it belongs, so nothing is duplicated or hidden.
+    try:
+        args = ap.parse_args(argv)
+    except SystemExit as exc:
+        if exc.code not in (0, None):
+            print(
+                "mail.py send: the body is read from STDIN (or --body-file PATH); on success this "
+                "stream carries ONE line, the delivered path. The reason for this rejection is on "
+                "stderr — re-run with 2>&1 to see it.",
+                flush=True,
+            )
+        raise
     try:
         if args.cmd == "send":
-            body = sys.stdin.read()
+            if getattr(args, "body", None) is not None:
+                # ⚠️ ADDING `--body-file` made `--body` a valid argparse PREFIX of it, so
+                # `--body "some text"` silently became "read a file named some text" — a worse
+                # failure than the empty stdout it replaced, because it looks like it worked on
+                # something. Declared explicitly so the abbreviation resolves here and is refused
+                # with the instruction, not reinterpreted.
+                print(
+                    "mail.py send: there is no --body. The body is read from STDIN — "
+                    "`mail.py send --to X --kind finding <<'EOF' … EOF` — or from a file with "
+                    "--body-file PATH. On success stdout carries ONE line, the delivered path."
+                )
+                return 2
+            if getattr(args, "body_file", None):
+                try:
+                    body = Path(args.body_file).read_text(encoding="utf-8")
+                except OSError as exc:
+                    # the delivered-path contract again: a caller parsing stdout must not be
+                    # told "nothing happened" by an empty stream
+                    print(f"mail.py send: cannot read --body-file {args.body_file}: {exc}")
+                    return 2
+            else:
+                body = sys.stdin.read()
             path = send(
                 args.to,
                 args.kind,

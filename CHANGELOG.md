@@ -4,6 +4,42 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Phase G (T14): three rules that refused the project's own prescribed text (2026-09-15)
+
+- **The D-035 mail advisory rejected the header form it invites.** `WHAT/WHERE:` passed;
+  `WHAT / WHERE:` reported WHERE missing — and the spaced slash is what the advisory itself suggests
+  by naming keys with slashes. Measured across the whole store: **41 of 4,778** message files use the
+  spaced form against 53 tight, so nearly half of all slash-combined headers were mis-flagged. Four
+  of the 41 were sent by this session while triaging the mail that reported it, each told it had
+  omitted a section it had written. The advisory also named only the contract's DOC, never the shape
+  a header must take, so an author could not tell a formatting miss from a real omission; it states
+  the rule now.
+- **The secret scanner refused the trailer-verify command both contracts prescribe.**
+  `_SECRET_HIGH[1]` read the `%(trailers:key=…` git format token as an assignment of a 20-character
+  value to a KEY, so the check that certifies a commit's provenance could not be quoted in a message
+  about provenance. Carved with a fixed `(?<!trailers:)` lookbehind — the narrowest possible, because
+  relaxing the value pattern to exclude commas or parens would let any secret hide by appending one.
+  ⚠️ The cobra path (prefixing a credential with `trailers:`) still trips the LOW tier, so it warns
+  rather than vanishing — and the reply reporting this fix was itself refused on its first send,
+  correctly, because it quoted the fragment without its prefix.
+- **`mail.py send` had no `--body` and said so with an EMPTY stdout** — argparse's exit 2 goes to
+  stderr, and every caller parses stdout for the delivered path, so a piping caller saw nothing at
+  all. `--body-file PATH` is accepted now and a rejection prints one line on stdout naming the
+  contract. ⚠️ Adding `--body-file` made `--body` a valid argparse PREFIX of it, silently turning
+  inline text into a filename — a worse failure than the empty stdout, because it looks like it
+  acted on something. The flag is declared explicitly so the abbreviation resolves to a refusal.
+- **The third trailer trap is now in both contracts, byte-identically**: a wrapped value with no
+  indentation discards the whole block. Executed — an unindented continuation returns empty from the
+  trailer query and prints nothing from `git interpret-trailers --parse`, while the same value
+  indented by two spaces parses whole. `interpret-trailers --parse` is named as the verify because,
+  unlike `git show`, it cannot look right while parsing as nothing.
+- **A pre-existing red, found by running the suite rather than by the plan**: `test_mail.py`'s sweep
+  test minted its "fresh" message with `_mint`'s DEFAULT `ts` — a hardcoded 2026-08-22 — so that
+  message aged past the 14-day threshold as the clock moved and began sweeping alongside the stale
+  one. It passed when written and rotted on a calendar date. Pinned to `now`.
+
+`pytest tests/test_mail*.py` → **257 passed**; `final_gate.py --check --json` → success, 65/0.
+
 ### Fixed — Phase F (T13.3–T13.5): three Stop-hook and headless defects from the mail triage (2026-09-15)
 
 - **The UNPUSHED cause ordered a sibling's commit published** (T13.4, 01M20E1QN). It counted every

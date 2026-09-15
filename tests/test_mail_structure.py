@@ -184,3 +184,143 @@ def test_a_header_ending_in_a_spaced_dash_is_a_header():
     assert m._structure_gaps("finding", colon_inside) == []
     glued = "\n".join(f"{k}-content" for k in m._STRUCTURE_KEYS)
     assert set(m._structure_gaps("finding", glued)) == set(m._STRUCTURE_KEYS)
+
+
+_BASE = (
+    "WHO: the infra agent\nWHEN: today\nHOW: by hand\nWHY (factual): because\nSYSTEMIC: the class\n"
+)
+
+
+def test_a_spaced_slash_combines_keys_like_a_tight_one():
+    """T14.1 (01M1T129A): `WHAT / WHERE:` is what authors actually write — it is the form the
+    advisory itself invites by naming keys with slashes — and the tight-only pattern reported
+    WHERE missing from a mail that plainly had it.
+
+    Measured across the whole store before the fix: 41 of 4,778 message files use the spaced form
+    against 53 using the tight one, so very nearly half of all slash-combined headers were being
+    mis-flagged, and the author had no way to tell a real gap from this one. (Four of the 41 were
+    sent by the session that then fixed it, each told it had omitted a section it had written.)"""
+    for header in (
+        "WHAT: the thing\nWHERE: the place",
+        "WHAT/WHERE: the thing at the place",
+        "WHAT / WHERE: the thing at the place",
+        "WHAT / WHERE, artifact by artifact: the thing",
+        "WHAT  /  WHERE: extra spaces are still one header",
+        "WHAT — the thing\nWHERE — the place",
+    ):
+        assert mail._structure_gaps("finding", _BASE + header + "\n") == [], header
+
+
+def test_a_genuinely_missing_section_is_still_reported():
+    """...or the widened pattern has simply stopped detecting anything."""
+    gaps = mail._structure_gaps("finding", _BASE + "nothing about what or where\n")
+    assert set(gaps) == {"WHAT", "WHERE"}, gaps
+
+
+def test_the_advisory_names_the_rule_not_only_the_doc():
+    """The text named the contract's DOC and never the shape a header must take, so an author
+    told "missing: WHERE" could not tell a formatting miss from a real omission — which is the
+    position the spaced-slash defect above put every one of them in."""
+    src = Path("scripts/mail.py").read_text(encoding="utf-8")
+    advisory = src.split("[mail-structure advisory, D-035]")[1][:900]
+    assert "at the START of a line" in advisory, "the advisory does not say where a key must sit"
+    assert "`:` or ` — `" in advisory, "the advisory does not name the separators"
+    assert "spaces optional" in advisory, "the advisory does not mention the slash-combined form"
+
+
+def test_there_is_no_body_flag_and_saying_so_costs_stdout_one_line():
+    """T14.2 (01M22M5E1): the body has always been stdin-only, and `--body` got argparse's exit 2
+    on STDERR with an EMPTY stdout — so a caller piping stdout saw nothing at all. Adding
+    `--body-file` then made `--body` a valid argparse PREFIX of it, which silently reinterpreted
+    the text as a filename: a worse failure, because it looks like it acted on something."""
+    import subprocess
+    import sys as _sys
+
+    r = subprocess.run(
+        [
+            _sys.executable,
+            "scripts/mail.py",
+            "send",
+            "--to",
+            "fabrik",
+            "--kind",
+            "finding",
+            "--body",
+            "some inline text",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert r.returncode == 2, r.returncode
+    assert "there is no --body" in r.stdout, f"stdout was {r.stdout!r}"
+    assert "STDIN" in r.stdout and "--body-file" in r.stdout
+    assert "some inline text" not in r.stdout, "the text was reinterpreted as a filename"
+
+
+def test_body_file_is_an_accepted_source_for_the_body(tmp_path):
+    """The flag exists and reads the file — graded through `main`, not by grepping the parser."""
+    import subprocess
+    import sys as _sys
+
+    missing = tmp_path / "nope.md"
+    r = subprocess.run(
+        [
+            _sys.executable,
+            "scripts/mail.py",
+            "send",
+            "--to",
+            "fabrik",
+            "--kind",
+            "finding",
+            "--body-file",
+            str(missing),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert r.returncode == 2
+    # the delivered-path contract again: a caller parsing stdout must not be told nothing happened
+    assert "cannot read --body-file" in r.stdout, f"stdout was {r.stdout!r}"
+
+
+def test_the_prescribed_trailer_verify_command_is_not_read_as_a_secret():
+    """T14.3 (01M25EJZG): `%(trailers:key=Agent-Role,valueonly)` gives the scanner KEY from `key`,
+    `=` for the separator and `Agent-Role,valueonly)` as a 20-char value — so the send was REFUSED
+    outright, and that command is the one BOTH governance contracts prescribe for verifying a
+    trailer block parsed. The check that certifies a commit's provenance could not be quoted in a
+    message about commit provenance."""
+    verify = "git log -1 --format='%(trailers:key=Agent-Role,valueonly)'"
+    assert mail._secret_level(verify) is None, mail._secret_level(verify)
+    clause = Path("CLAUDE.md").read_text(encoding="utf-8").split("⚠️ **And a THIRD trap")[1][:986]
+    assert mail._secret_level(clause) is None, "the governance clause itself cannot be mailed"
+
+
+def test_the_carve_does_not_blunt_the_scanner():
+    """⚠️ The narrowest possible carve is a fixed git-internal PREFIX, not a relaxation of the
+    value pattern — loosening `\\S{16,}` to exclude commas or parens would let any secret hide by
+    appending one. Real credentials must still be refused."""
+    for secret in (
+        "ANTHROPIC_API_KEY=sk-ant-api03-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMIK7MDENGbPxRfiCYEXAMPLEKEY",
+        "PASSWORD: correct-horse-battery-staple-1234",
+    ):
+        assert mail._secret_level(secret) == "high", secret
+    # ...and the cobra path — prefixing a credential with the literal `trailers:` to slip past —
+    # still trips the LOW tier, so it warns rather than vanishing
+    assert mail._secret_level("trailers:SECRET=AAAAAAAAAAAAAAAAAAAAAAAA") == "low"
+
+
+def test_both_contracts_carry_the_third_trap_byte_identically():
+    """The trailer guidance is a SHARED clause: `CLAUDE.md` is the hub's and
+    `templates/governance/CLAUDE.md` is distributed to ~46 repos. A trap named in one and not the
+    other is a contract that means different things in different repos."""
+    a = Path("CLAUDE.md").read_text(encoding="utf-8")
+    b = Path("templates/governance/CLAUDE.md").read_text(encoding="utf-8")
+    marker = "⚠️ **And a THIRD trap"
+    assert marker in a and marker in b, "the third trap is missing from one of the two contracts"
+    ca = a[a.index(marker) : a.index("Example:", a.index(marker))]
+    cb = b[b.index(marker) : b.index("Example:", b.index(marker))]
+    assert ca == cb, "the shared clause has drifted between the two contracts"
+    assert "interpret-trailers --parse" in ca, "the clause does not name the verify command"

@@ -247,10 +247,10 @@ Every disposition below was checked against the tree at 091439d4 with `grep`, `h
 
 | Step | Mail(s) | Verdict | Fix |
 |---|---|---|---|
-| T14.1 | 01M1T129A, 01M1Y0JS1 | PARTLY REFUTED at HEAD — the advisory prints at `mail.py:799-810`, BEFORE `_publish` at `:909` (the comment at :799 records the order as deliberate); OPEN — its text lists the absent keys and the doc, never the rule (`KEY:` or `KEY —`) | the advisory text states the separator rule; reply the refuted half |
-| T14.2 | 01M22M5E1 | OPEN — `send` takes the body on STDIN; `--body`/`--subject` exit 2 on stderr and `\| tail` hides it | the argparse error also on STDOUT naming the delivered-path contract; accept `--body-file` |
-| T14.3 | 01M25EJZG | OPEN — a third trailer trap (an unindented wrapped value discards the whole block) is in neither CLAUDE.md; `mail.py`'s secret matcher refuses the prescribed check | T6.4 (both contracts: the third trap, a long single-line example, `interpret-trailers --parse` as the verify) + the matcher's allow for the check's own text |
-| T14.4 | 01M1RGM1H, 01M1RKG3X | ROUTED fleet — the scaffold's glitchtip_init vendoring and its guards are the scaffolder beat | `mail.py route` to fleet |
+| T14.1 | 01M1T129A, 01M1Y0JS1 | **DONE 2026-09-15** — ordering REFUTED at HEAD; the separator half fixed AND the rule was found rejecting a SPACED slash (41 of 4,778 mails mis-flagged, four of them this session's own). Was: PARTLY REFUTED at HEAD — the advisory prints at `mail.py:799-810`, BEFORE `_publish` at `:909` (the comment at :799 records the order as deliberate); OPEN — its text lists the absent keys and the doc, never the rule (`KEY:` or `KEY —`) | the advisory text states the separator rule; reply the refuted half |
+| T14.2 | 01M22M5E1 | **DONE 2026-09-15** — `--body-file` accepted, a rejection prints the delivered-path contract on STDOUT, and the `--body` argparse PREFIX trap it introduced was closed by declaring the flag explicitly. Was: OPEN — `send` takes the body on STDIN; `--body`/`--subject` exit 2 on stderr and `\| tail` hides it | the argparse error also on STDOUT naming the delivered-path contract; accept `--body-file` |
+| T14.3 | 01M25EJZG | **DONE 2026-09-15** — the third trailer trap documented byte-identically in both contracts with `interpret-trailers --parse` as the verify, and the secret matcher carved so the prescribed check can be quoted. Was: OPEN — a third trailer trap (an unindented wrapped value discards the whole block) is in neither CLAUDE.md; `mail.py`'s secret matcher refuses the prescribed check | T6.4 (both contracts: the third trap, a long single-line example, `interpret-trailers --parse` as the verify) + the matcher's allow for the check's own text |
+| T14.4 | 01M1RGM1H, 01M1RKG3X | **DONE 2026-09-15** — both routed `@fleet`. ROUTED fleet — the scaffold's glitchtip_init vendoring and its guards are the scaffolder beat | `mail.py route` to fleet |
 
 **Steps (the gate).** 5. `python3 -m pytest tests/test_mail*.py -q` green; a send with a `## WHAT` heading body on a scratch mailbox (`FABRIK_MAIL_ROOT` to scratch) prints the rule (on stderr, as today at `mail.py:809`) before the delivered path (stdout), checked on a merged `2>&1` capture; `final_gate.py --check --json` success; `/fabrik-review-scoped` over the phase.
 
@@ -541,6 +541,47 @@ Rubric over the § File Scope entries (FLOOR core/35, core/25, core/30, 12-facto
 Whole-plan `/fabrik-review` (receipt `docs/development/reviews/2026-09-12-plan-2-mail-triage-command-machinery-review.md`), the D9-shaped docs review, `sync_enforcement_to_projects.py --dry-run` then `--force`, the gate, `Status: EXECUTED`, archive, D-row, push.
 
 ## Evidence
+
+### Phase G (T14) — executed 2026-09-15
+
+`path:line` grounding: `scripts/mail.py::_structure_gaps` (the header regex and the D-035 advisory
+text), `_SECRET_HIGH[1]` (the `(?<!trailers:)` carve), the `send` parser (`--body-file`, and the
+explicit `--body` refusal that closes the argparse prefix trap adding it created), and the third
+trailer trap in both `CLAUDE.md` and `templates/governance/CLAUDE.md`.
+
+```
+$ python3 -m pytest tests/test_mail*.py -q
+257 passed
+
+# the plan's named check — the rule is printed BEFORE the delivered path, on a scratch mailbox
+$ FABRIK_MAIL_ROOT=<scratch> python3 scripts/mail.py send --to fabrik --kind finding --ack no <<'EOF'
+## WHAT
+...
+EOF
+  advisory at 1 | path at 630 -> ORDER CORRECT
+  names the rule: True
+
+# the spaced-slash defect, measured over the whole store before the fix
+SPACED slash-combined header (mis-flagged): 41
+TIGHT  slash-combined header (accepted):    53      # of 4,778 message files
+
+# the third trailer trap, executed
+unindented wrap -> Agent-Role parses as ''   and interpret-trailers --parse prints nothing
+indented wrap   -> Agent-Role parses as 'primary'
+
+$ python3 scripts/final_gate.py --check --json | jq '{status, passed, failed}'
+{"status": "success", "passed": 65, "failed": 0}
+```
+
+⚠️ **Three of Phase G's four fixes were a scanner or parser refusing the project's OWN prescribed
+text** — the D-035 advisory rejecting the header form it invites, and the secret matcher refusing
+the trailer-verify command both contracts prescribe. The reply reporting the latter was itself
+refused on its first send, correctly, because it quoted the fragment without its prefix.
+
+⚠️ **A pre-existing red was found and fixed while running the suite**: `test_mail.py`'s sweep test
+minted its "fresh" message with `_mint`'s DEFAULT `ts`, a hardcoded 2026-08-22, so that message
+aged past the 14-day threshold as the real clock moved and began sweeping with the stale one. A
+fixture anchored to a constant, judged by a sliding window — the same class Phase F hit twice.
 
 ### Phase F (T13) — executed 2026-09-15
 
