@@ -542,6 +542,44 @@ Whole-plan `/fabrik-review` (receipt `docs/development/reviews/2026-09-12-plan-2
 
 ## Evidence
 
+### Phase F (T13) — executed 2026-09-15
+
+`path:line` grounding: `.claude/hooks/final_gate_stop.py::_ahead_of_upstream` (T13.4),
+`::_sixth_cause_floor` + `::_unreviewed_spontaneous_files` (T13.3/T5.4),
+`.claude/hooks/mail_notify.py::main` and `mcp_watch.py::main` (T13.5),
+`~/.claude/bin/claude-selfwatch.sh:43` (the W11 orphan guard that refutes half of T13.2) and `:56`
+(`MESH_CEILING`, keyed on the death record's age — the half that survives, routed).
+
+```
+$ bash ~/.claude/bin/claude-mesh-test.sh | tail -1      # BEFORE, as the step requires
+mesh-test: 174 ok, 1 fail                                # A0a, matching hooks-index.md:113
+$ bash ~/.claude/bin/claude-mesh-test.sh | tail -1      # AFTER — the mesh was routed, not patched
+mesh-test: 174 ok, 1 fail
+
+$ python3 -m pytest tests/test_stop_hook*.py tests/test_quota_stop_hook.py tests/test_selfwatch_check.py -q
+131 passed
+
+$ python3 scripts/final_gate.py --check --json | jq '{status, passed, failed}'
+{"status": "success", "passed": 63, "failed": 0}
+
+# T13.2's headline claim re-measured — `pgrep -af` self-matches its own command line and
+# answered 15 processes over 16 "sids"; a /proc walk over argv, excluding self:
+watcher processes: 7  |  distinct sids: 7
+sids with 2+ live watchers: 0 of 7        # the mail reported 11 of 15
+
+# T13.4's blast radius, measured before the fleet-synced change shipped further:
+population: 45 git repos under /opt
+  no upstream (already indeterminate): 14
+  ahead == 0 (silent either way):      29
+  ahead  > 0 (where it can change):     2
+```
+
+⚠️ **Phase F's review found the phase's own work defective twice over.** Round 1 confirmed 11 on
+the Phase F surface; round 2 confirmed 11 more, all inside round 1's fixes, including a REGRESSION
+(a docs-only own commit returned `None`, silencing the push law) and a grader round 1 DELETED while
+claiming to rewrite it. Receipt: `docs/development/reviews/2026-09-15-plan-2-mail-triage-phase-4-F-review.md`.
+
+
 Per phase at execution: ≥1 `path:line` and ≥1 fenced command-output block. The plan review's own evidence (2026-09-12, the tree at f9355e3d):
 
 ```
