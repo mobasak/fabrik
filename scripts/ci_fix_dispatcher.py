@@ -239,7 +239,15 @@ def dispatch(repo_dir: Path, brief: str, log_path: Path, dry_run: bool) -> int:
                 # resume-mesh: mark the worker AUTONOMOUS so session_orient.py drops the
                 # persistent sweep marker — a VM cut mid-fix gets revived at next boot
                 # (plan 2026-08-13-plan-1 Leg A; extend os.environ, never replace it)
-                env={**os.environ, "CLAUDE_MESH_AUTONOMOUS": "1"},
+                # T13.5: and HEADLESS — a `claude -p` worker has no human reading its stdout,
+                # so the two ADVISORY hooks (mail_notify, mcp_watch) stand down and stop paying
+                # for banners nobody sees. Never read by a hook that BLOCKS: an env var that
+                # switches off a blocking check is a documented bypass.
+                env={
+                    **os.environ,
+                    "CLAUDE_MESH_AUTONOMOUS": "1",
+                    "FABRIK_HEADLESS": "1",
+                },
             )
             lf.write(f"\n=== worker exit={p.returncode} ===\n")
             return p.returncode

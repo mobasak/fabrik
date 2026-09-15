@@ -9,7 +9,9 @@ with NO run record at all IS spontaneous work by construction. Commanded work ex
 from __future__ import annotations
 
 import importlib.util
+import re
 import sys
+import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -266,7 +268,16 @@ def test_edits_older_than_the_ledgers_birth_are_not_re_judged():
     )
     assert fgs._sixth_cause_floor(epoch - 100_000) == epoch, "an older baseline is raised"
     assert fgs._sixth_cause_floor(epoch + 5) == epoch + 5, "a newer baseline stands"
-    assert fgs._sixth_cause_floor(0.0) == epoch, "no baseline still floors at the ledger"
+    # T5.4 (01M25Y93RB) replaced the no-baseline value: it used to BE the ledger epoch, which on a
+    # resumed transcript kept months of edits. It is now a bounded window ending now — strictly
+    # tighter, and this asserts the INVARIANT the old equality was standing in for, so a future
+    # change to the window length does not have to edit a grader to stay honest.
+    no_baseline = fgs._sixth_cause_floor(0.0)
+    assert no_baseline >= epoch, "the floor may never reach back past the ledger's birth"
+    assert no_baseline <= time.time(), "the floor may never be in the future"
+    assert time.time() - no_baseline <= fgs._RESUMED_TRANSCRIPT_FALLBACK_S + 5, (
+        "no baseline must still mean a BOUNDED window, never the whole transcript"
+    )
     mine = fgs._this_sessions_edits(
         {"old.py": epoch - 1, "new.py": epoch + 1}, fgs._sixth_cause_floor(epoch - 100_000)
     )
@@ -283,7 +294,15 @@ def test_the_ledger_floor_is_wired_at_the_sixth_causes_call_site():
     # is whether `main` hands it the REAL baseline, so that is what stays pinned here — plus the
     # absence of both earlier shapes, so a revert to either is caught rather than silently green.
     src = (REPO / ".claude" / "hooks" / "final_gate_stop.py").read_text(encoding="utf-8")
-    assert src.count("_unreviewed_spontaneous(_rec, authored_map, _floor, sid)") == 1
+    # T5.4 split the reader in two so the block can NAME the files it counts; the call site now
+    # asks for the names and takes the count from them. What is pinned is unchanged in substance:
+    # `main` hands the composed reader the REAL baseline, not a bare or unfloored one.
+    # ⚠️ WHITESPACE-INSENSITIVE. The first cut pinned the call site's exact text and
+    # `ruff format` reflowed the arguments onto one line minutes later — a grader a formatter
+    # can break is testing the formatter. Normalise, then assert the ARGUMENTS, which is the
+    # actual claim: `main` hands the composed reader the REAL baseline.
+    flat = re.sub(r"\s+", " ", src)
+    assert flat.count("_unreviewed_spontaneous_files(_rec, authored_map, _floor, sid)") == 1
     assert src.count("_this_sessions_edits(authored_map, _floor)") == 0, (
         "the unfloored call is gone"
     )
@@ -666,7 +685,10 @@ def test_the_base_case_without_a_baseline_is_bounded_by_the_ledger_epoch():
     intended fail-open — without a baseline `_this_sessions_edits`'s P1-3 filter is disarmed too,
     and the alternative is the permanent block 01M21JAET reported — but it is a real widening, so
     the BOUND is pinned here: nothing older than the ledger's birth is ever covered by it."""
-    e = fgs._LEDGER_EPOCH
+    # ⚠️ NOW-RELATIVE since T5.4: the no-baseline floor is a bounded window ending now, so a
+    # fixture dated at the ledger's birth sits BELOW it and would exercise the drop, not the
+    # window. The invariant this test exists for is unchanged and asserted directly.
+    e = time.time() - 600.0
     done = {
         "command": "fabrik-review",
         "state": "done",
@@ -677,17 +699,28 @@ def test_the_base_case_without_a_baseline_is_bounded_by_the_ledger_epoch():
         "covered": [[int(e + 60), int(e + 160)]],
         "first_review_reach": e + 60.0,
     }
-    lo, hi = fgs._first_review_base_case(done, fgs._sixth_cause_floor(0.0))[0]
-    assert lo == e, "the fallback floor IS the ledger epoch, never 0"
+    floor = fgs._sixth_cause_floor(0.0)
+    lo, hi = fgs._first_review_base_case(done, floor)[0]
+    assert lo == floor, "the base case reaches back to the fallback floor, never to 0"
+    assert lo >= fgs._LEDGER_EPOCH, "and never past the ledger's birth — the bound this pins"
     assert hi == int(e + 60), "and it stops at the review's own start"
-    # an edit older than the ledger is dropped by the floor, not covered by the window
-    assert fgs._unreviewed_spontaneous(done, {"scripts/ancient.py": int(e) - 10_000}, 0.0) == 0
+    # an edit older than the floor is dropped by the floor, not covered by the window
     assert (
-        fgs._this_sessions_edits(
-            {"scripts/ancient.py": int(e) - 10_000}, fgs._sixth_cause_floor(0.0)
+        fgs._unreviewed_spontaneous(
+            done, {"scripts/ancient.py": int(fgs._LEDGER_EPOCH) - 10_000}, 0.0
         )
-        == {}
+        == 0
     )
+    # "older than the floor" is now measured against a SLIDING floor, so the fixture has to be
+    # older than the window, not merely older than the review — `e - 10_000` is under three hours
+    # ago and is legitimately this session's work under a 24h fallback.
+    floor_now = fgs._sixth_cause_floor(0.0)
+    assert (
+        fgs._this_sessions_edits({"scripts/ancient.py": int(floor_now) - 10_000}, floor_now) == {}
+    )
+    assert fgs._this_sessions_edits({"scripts/recent.py": int(floor_now) + 10_000}, floor_now) == {
+        "scripts/recent.py": int(floor_now) + 10_000
+    }, "and an edit INSIDE the window is still judged — the drop is a floor, not a mute"
     # ABOVE the clock-skew tolerance the base case stands down entirely — an unbounded reach used
     # to cover everything for the session's whole life (round 2, seat finding 6: 1e300 covered now)
     import time as _time
@@ -721,7 +754,11 @@ def test_the_base_case_without_a_baseline_is_bounded_by_the_ledger_epoch():
             {"command": "fabrik-execute-plan", "state": "running", "first_review_reach": e + 60.0}
         ],
     }
-    assert fgs._first_review_base_case(nested, fgs._sixth_cause_floor(0.0)) == [(e, int(e + 60))]
+    # `lo` is the FLOOR, which was incidentally `e` only while the fixture was anchored at the
+    # ledger epoch and the floor was that same constant. What this leg is about is that a nested
+    # run finds the marker on a parked frame at all, and that the window stops at the reach.
+    nested_floor = fgs._sixth_cause_floor(0.0)
+    assert fgs._first_review_base_case(nested, nested_floor) == [(nested_floor, int(e + 60))]
 
 
 def test_a_corrupt_record_field_never_raises_out_of_the_sixth_cause():
@@ -764,13 +801,16 @@ def test_an_abandoned_running_review_stops_exempting_its_surface(monkeypatch):
     scripts/foo.py` exempted that file for the record's whole life while the window it would have
     granted was correctly refused. The commit's own test enumerated three ways this must not
     launder; stale was the untested fourth."""
-    # above `_LEDGER_EPOCH`, or `_this_sessions_edits` drops the edit and the count is 0 for a
-    # reason that has nothing to do with the exemption under test
-    e = fgs._LEDGER_EPOCH
+    # ⚠️ ANCHORED TO NOW, not to `_LEDGER_EPOCH`. The edit must sit above the sixth cause's floor
+    # or `_this_sessions_edits` drops it and the count is 0 for a reason that has nothing to do
+    # with the exemption under test — this comment's own warning, which T5.4 then triggered by
+    # making that floor a bounded window ending now instead of a fixed date. A fixture claiming
+    # to be THIS session's edit should carry a timestamp that says so.
+    e = time.time() - 600.0
     rec = {
         "command": "fabrik-review-scoped",
         "state": "running",
-        "started_epoch": e + 9000,
+        "started_epoch": e + 300,
         "surface": "scripts/foo.py",
     }
     authored = {"scripts/foo.py": int(e + 100)}

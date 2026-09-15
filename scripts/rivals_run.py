@@ -466,6 +466,12 @@ def _make_llm(model: str):
                     cwd=str(neutral),
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
+                    # T13.5: a full-turn `claude -p` whose output is parsed as JSON — any hook
+                    # banner on that stream is both unread and a parse hazard. The two advisory
+                    # hooks stand down on this. (The LARGER fix the mail names — routing this
+                    # spawn through llm-dispatch with its bounded flags — is intel's rivals beat
+                    # and is filed there, not done here.)
+                    env={**os.environ, "FABRIK_HEADLESS": "1"},
                 )
                 try:
                     out, err = await asyncio.wait_for(proc.communicate(), timeout=_LLM_TIMEOUT_S)

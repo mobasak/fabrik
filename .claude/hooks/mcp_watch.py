@@ -182,9 +182,7 @@ def tool_universe_fingerprint(cwd: str) -> str | None:
             "global": d.get("mcpServers"),
             "project": (d.get("projects") or {}).get(cwd, {}).get("mcpServers"),
         }
-        return hashlib.sha256(
-            json.dumps(slice_, sort_keys=True, default=str).encode()
-        ).hexdigest()
+        return hashlib.sha256(json.dumps(slice_, sort_keys=True, default=str).encode()).hexdigest()
     except Exception:
         return None
 
@@ -253,8 +251,11 @@ def read_cache(cwd: str) -> dict | None:
         # TYPE-check, not key-presence: a truncated/racing write from the detached refresh
         # gave `report` a list and `ts` a string, which raised out of main() and suppressed
         # BOTH banners (the harm this hook exists to prevent).
-        if (isinstance(d, dict) and isinstance(d.get("report"), dict)
-                and isinstance(d.get("ts"), (int, float))):
+        if (
+            isinstance(d, dict)
+            and isinstance(d.get("report"), dict)
+            and isinstance(d.get("ts"), (int, float))
+        ):
             return d
         return None
     except Exception:
@@ -308,8 +309,9 @@ def liveness_banner(report: dict, age_m: int) -> str | None:
     Unprobed is not dead, and a ratio whose halves disagree teaches the reader to
     distrust the banner — which is how a fix-first mandate decays into wallpaper.
     """
-    dead = {n: v for n, v in report.items()
-            if v != "CONNECTED" and not str(v).startswith("SKIPPED")}
+    dead = {
+        n: v for n, v in report.items() if v != "CONNECTED" and not str(v).startswith("SKIPPED")
+    }
     if not dead:
         return None
     probed = sum(1 for v in report.values() if not str(v).startswith("SKIPPED"))
@@ -322,12 +324,22 @@ def liveness_banner(report: dict, age_m: int) -> str | None:
 
 
 def main() -> int:
+    # T13.5 (01M23HB2M, 01M23K7XT): an ADVISORY hook has nobody to advise in a headless run.
+    # The mail dispatcher spawns `claude -p` turns that no human reads, and these two print to a
+    # stream that is captured and discarded — cost with no reader. `FABRIK_HEADLESS=1` is the
+    # dispatcher's declaration that this is such a run; both advisory hooks stand down on it.
+    # ⚠️ Advisory ONLY. Nothing that BLOCKS is allowed to read this variable: a blocking check
+    # that can be switched off by an environment variable is a blocking check with a documented
+    # bypass, which is the cobra path here — written down so the next reader finds it before
+    # reaching for the same flag in the Stop hook.
+    if os.environ.get("FABRIK_HEADLESS") == "1":
+        return 0
     try:
         payload = json.loads(sys.stdin.read() or "{}")
     except Exception:
         return 0
     if not isinstance(payload, dict):  # a list/str payload raised out of .get() → both
-        payload = {}                   # banners suppressed; the harm this hook prevents
+        payload = {}  # banners suppressed; the harm this hook prevents
     cwd = str(payload.get("cwd") or os.getcwd())
     lines: list[str] = []
 

@@ -245,9 +245,21 @@ def _push_repo(tmp_path: Path, *, upstream: bool, push: bool) -> Path:
 
 
 def test_unpushed_committed_work_blocks(tmp_path: Path) -> None:
+    """⚠️ THE TRANSCRIPT IS LOAD-BEARING SINCE T13.4. The cause now counts only commits THIS
+    SESSION authored — the block says "push YOUR work", and on a tree three sessions commit to it
+    was ordering a sibling's commit published (01M20E1QN). So a fixture that commits with no
+    transcript is UNATTRIBUTABLE, and unattributable means indeterminate, which never blocks."""
     p = _push_repo(tmp_path, upstream=True, push=False)
-    out = _run_stop(p, "push1", "", baseline=[])
+    out = _run_stop_with_transcript(p, "push1", "", "", "scripts/mine.py", baseline=[])
     assert out and "UNPUSHED" in out, out
+
+
+def test_a_siblings_unpushed_commit_does_not_block_this_session(tmp_path: Path) -> None:
+    """The other half, and the reason the first one needed a transcript: the same repo state with
+    the commit attributable to NOBODY this session edited must let the stop through."""
+    p = _push_repo(tmp_path, upstream=True, push=False)  # b.txt committed by "someone else"
+    out = _run_stop(p, "push1b", "", baseline=[])
+    assert out == "", f"a commit this session never touched blocked the stop: {out}"
 
 
 def test_pushed_work_allows(tmp_path: Path) -> None:
@@ -277,7 +289,15 @@ def test_push_slot_resets_when_cause_resolves_across_a_gate_block(tmp_path: Path
         def stop() -> str:
             proc = subprocess.run(
                 [sys.executable, str(_HOOK)],
-                input=json.dumps({"session_id": sid, "cwd": str(p), "hook_event_name": "Stop"}),
+                input=json.dumps(
+                    {
+                        "session_id": sid,
+                        "cwd": str(p),
+                        "hook_event_name": "Stop",
+                        # the hook needs the transcript to attribute the commit to this session
+                        "transcript_path": str(p / "transcript.jsonl"),
+                    }
+                ),
                 capture_output=True,
                 text=True,
                 timeout=60,
@@ -285,6 +305,35 @@ def test_push_slot_resets_when_cause_resolves_across_a_gate_block(tmp_path: Path
             )
             return proc.stdout.strip()
 
+        # Attribute each commit to THIS session, or the cause is indeterminate (T13.4): it counts
+        # only commits whose files this session edited, so the block can never order a sibling's
+        # commit published. Every commit the test makes needs its transcript line.
+        import datetime as _d
+
+        tr = p / "transcript.jsonl"
+
+        def authored(rel: str) -> None:
+            line = json.dumps(
+                {
+                    "type": "assistant",
+                    "timestamp": (
+                        _d.datetime.now(_d.UTC) + _d.timedelta(seconds=60)
+                    ).isoformat(),
+                    "message": {
+                        "content": [
+                            {
+                                "type": "tool_use",
+                                "name": "Edit",
+                                "input": {"file_path": str(p / rel)},
+                            }
+                        ]
+                    },
+                }
+            )
+            with tr.open("a", encoding="utf-8") as fh:
+                fh.write(line + "\n")
+
+        authored("b.txt")
         assert "UNPUSHED" in stop()  # p -> 1
         subprocess.run(["git", "push", "-q"], cwd=p, check=True, timeout=15)  # cause resolves
         (p / "dirty.txt").write_text("x")  # dirty tree
@@ -294,6 +343,7 @@ def test_push_slot_resets_when_cause_resolves_across_a_gate_block(tmp_path: Path
         env["FAKE_FAILS"] = ""
         (p / "dirty.txt").unlink()
         (p / "c.txt").write_text("z")  # brand-new unpushed streak
+        authored("c.txt")
         subprocess.run(["git", "add", "c.txt"], cwd=p, check=True, timeout=15)
         subprocess.run(
             ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "new"],

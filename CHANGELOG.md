@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Phase F (T13.3–T13.5): three Stop-hook and headless defects from the mail triage (2026-09-15)
+
+- **The UNPUSHED cause ordered a sibling's commit published** (T13.4, 01M20E1QN). It counted every
+  commit in `@{upstream}..HEAD` while its own text says "push YOUR work" — on a tree three sessions
+  commit to, that is an instruction to publish work you did not write. It now counts only commits
+  touching files this session edited. The signal UNDERCOUNTS, and that is the correct direction:
+  this cause BLOCKS an exit, so its failure mode must be letting a stop through, never trapping a
+  session behind someone else's work. An unattributable range is indeterminate, not "everything".
+- **The sixth cause's floor disarmed entirely without a SessionStart baseline** (T13.3 / T5.4,
+  01M25Y93RB), so a resumed transcript's ancient work counted as unreviewed — measured on the hub
+  2026-09-12: 20 code files last edited 2026-06-04…06-16 reported as uncovered while a review
+  record with 55 covered windows was live. No baseline is not no floor: it is now a bounded 24h
+  window, still never reaching past the ledger's birth. Stated cost: work authored more than a day
+  ago in a genuinely long-lived session drops out of this cause — the same fail-open direction the
+  cause already takes, and bounded, unlike the disarmed state it replaces.
+- **…and that block named nothing** — no count, no file — leaving "this session authored code files
+  outside every covered window" as an assertion the reader could neither check nor act on. It names
+  the count and up to three files now, with a `(+N more)` when it truncates. One producer feeds both
+  the names and the count, because a count computed separately from the list it describes is two
+  implementations of one rule and the stale one reads exactly like the current one.
+- **The two ADVISORY hooks stand down under `FABRIK_HEADLESS=1`** (T13.5, 01M23HB2M + 01M23K7XT),
+  and both `claude -p` spawn sites declare it — `ci_fix_dispatcher.py` (stdout is a log file) and
+  `rivals_run.py` (stdout is parsed as JSON, where a hook banner is a parse hazard, not just noise).
+  ⚠️ The cobra path is graded, not just commented: a test asserts `final_gate_stop.py` and
+  `quota_stop.py` never read the flag, because a blocking check an environment variable can switch
+  off is a blocking check with a documented bypass.
+
+Fourteen graders, each proven red on the mutation that removes its half. Six existing graders were
+updated rather than weakened: three encoded the OLD floor value (`_LEDGER_EPOCH`) where the contract
+now says "bounded", two had fixtures anchored to that constant — one of which carried a comment
+warning about this exact hazard — and one pinned the call site's literal text, which `ruff format`
+reflowed minutes after it was written. 377 tests green across every Stop-hook suite.
+
 ### Fixed — round 4: 8 defects inside round 3's fixes, including a fail-open I shipped (2026-09-15)
 
 Two fresh non-authoring seats over `980f2ca2..HEAD`. Every finding re-executed by me before it was

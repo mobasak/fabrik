@@ -563,15 +563,30 @@ def _run_block_reason(rec: dict, attempt: int) -> str:
     )
 
 
-def _ahead_of_upstream(root: Path) -> int | None:
-    """Commits on the current branch not on its upstream; None = indeterminate
-    (no upstream / detached HEAD / any git error — indeterminate never blocks:
+def _ahead_of_upstream(root: Path, authored: set[str] | None = None) -> int | None:
+    """Commits on the current branch not on its upstream that THIS SESSION authored; None =
+    indeterminate (no upstream / detached HEAD / any git error — indeterminate never blocks:
     throwaway repos and mid-plan worktree branches have no upstream by design).
-    Purely local (`rev-list --count @{upstream}..HEAD`) — never touches the
-    network, so an offline box counts correctly and pushes fail visibly later."""
+    Purely local (`rev-list @{upstream}..HEAD`) — never touches the network, so an offline box
+    counts correctly and pushes fail visibly later.
+
+    ⚠️ SCOPED TO THIS SESSION'S OWN COMMITS (T13.4, 01M20E1QN). The count used to be every commit
+    in the range, and the block's text says "push YOUR work" — so on a tree three sessions commit
+    to, it ordered a SIBLING's commit published. Publishing someone else's unpushed commit is not
+    a smaller mistake than leaving your own unpushed; it is the one the push law never asked for.
+
+    A commit is this session's when it touches a file this session edited (`authored`, from the
+    transcript). That signal UNDERCOUNTS — a commit whose files were all written by a tool the
+    transcript did not record drops out — and undercounting is the correct direction here: this
+    cause BLOCKS an exit, so its failure mode must be letting a stop through, never trapping a
+    session behind someone else's work. With `authored` empty or None the count is indeterminate
+    rather than "everything", for the same reason.
+    """
     try:
+        if not authored:
+            return None
         r = subprocess.run(
-            ["git", "rev-list", "--count", "@{upstream}..HEAD"],
+            ["git", "rev-list", "@{upstream}..HEAD"],
             cwd=root,
             capture_output=True,
             text=True,
@@ -579,7 +594,23 @@ def _ahead_of_upstream(root: Path) -> int | None:
         )
         if r.returncode != 0:
             return None
-        return int(r.stdout.strip())
+        shas = [s for s in r.stdout.split() if s]
+        if not shas:
+            return 0
+        mine = 0
+        for sha in shas:
+            f = subprocess.run(
+                ["git", "show", "--name-only", "--format=", sha],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            if f.returncode != 0:
+                return None  # cannot attribute → indeterminate, which never blocks
+            if any(line.strip() in authored for line in f.stdout.splitlines() if line.strip()):
+                mine += 1
+        return mine
     except Exception:
         return None
 
@@ -851,14 +882,26 @@ def _unreviewed_spontaneous(
     unmaintainable by construction — the function NAME is the durable address — where
     nothing can grade it — a fix whose wiring no test reaches is a fix that can
     be deleted with a green suite (measured on this hook's sibling, D-252 round 3)."""
+    return len(_unreviewed_spontaneous_files(rec, authored, session_floor, sid))
+
+
+def _unreviewed_spontaneous_files(
+    rec: object, authored: dict[str, int], session_floor: float, sid: str | None = None
+) -> list[str]:
+    """The same question as `_unreviewed_spontaneous`, answered with the FILE LIST.
+
+    ⚠️ ONE producer, two readers, so the count and the names cannot disagree. The block used to
+    print neither — no count, no file — leaving "this session authored code files outside every
+    covered window" as an assertion the reader had no way to check or act on (T5.4). A block that
+    cannot be verified by the person it blocks is indistinguishable from a broken one, which is
+    how a real cause gets worked around instead of answered.
+    """
     floor = _sixth_cause_floor(session_floor)
     windows = _review_windows(rec if isinstance(rec, dict) else None, sid)
     windows += _first_review_base_case(rec, floor)
     named = _surface_reviewed(rec, authored, sid)  # once per stop, not once per file
-    return _unreviewed_code_files(
-        {f: ts for f, ts in _this_sessions_edits(authored, floor).items() if f not in named},
-        windows,
-    )
+    scoped = {f: ts for f, ts in _this_sessions_edits(authored, floor).items() if f not in named}
+    return _unreviewed_code_file_names(scoped, windows)
 
 
 def _first_review_base_case(rec: object, floor: float) -> list[tuple[float, float]]:
@@ -938,11 +981,31 @@ def _first_review_base_case(rec: object, floor: float) -> list[tuple[float, floa
     return [(lo_f, float(started))]
 
 
+# T5.4 (01M25Y93RB): how far back an edit may sit and still count as THIS session's when the
+# SessionStart baseline is missing. Without a bound the filter disarmed entirely and a resumed
+# transcript's ancient work counted as unreviewed — measured on the hub 2026-09-12: 20 code files
+# last edited 2026-06-04…06-16 reported as uncovered while a review record with 55 covered windows
+# was live. A day is generous for "this session" and kills the months-old case outright.
+# ⚠️ STATED COST: work authored more than a day ago in a genuinely long-lived session drops out of
+# this cause. That is the same fail-open direction the cause already takes by design — it BLOCKS an
+# exit, so its failure mode must be letting a stop through, never trapping a session behind edits
+# it cannot attribute — and it is bounded, unlike the disarmed state it replaces.
+_RESUMED_TRANSCRIPT_FALLBACK_S = 86_400.0
+
+
 def _sixth_cause_floor(session_floor: float) -> float:
     """The floor the sixth cause judges from: the SessionStart baseline, raised to the ledger's
     birth (`_LEDGER_EPOCH`). Edits before the ledger existed were adjudicated by the per-session
-    rule of their day and no ledger holds their closes — re-judging them can only re-block."""
-    return max(float(session_floor or 0.0), _LEDGER_EPOCH)
+    rule of their day and no ledger holds their closes — re-judging them can only re-block.
+
+    ⚠️ NO BASELINE IS NOT NO FLOOR. When SessionStart's baseline cannot be stat'd the caller
+    passes 0.0, and the filter used to keep EVERYTHING back to the ledger's birth — months, on a
+    resumed transcript. The fallback is a bounded window ending now, so the cause still judges
+    something real instead of judging a transcript's whole history."""
+    baseline = float(session_floor or 0.0)
+    if baseline <= 0.0:
+        baseline = time.time() - _RESUMED_TRANSCRIPT_FALLBACK_S
+    return max(baseline, _LEDGER_EPOCH)
 
 
 def _this_sessions_edits(authored: dict[str, int], session_floor: float) -> dict[str, int]:
@@ -963,7 +1026,21 @@ def _unreviewed_code_files(
 ) -> int:
     """Code files this session authored OUTSIDE every covered window — the ones no command's
     contract has reviewed. An edit with no parseable timestamp (ts == 0, `_session_files`)
-    COUNTS: unknown is not covered (A-F10). A single window (the pre-P1-1 shape) is accepted."""
+    COUNTS: unknown is not covered (A-F10). A single window (the pre-P1-1 shape) is accepted.
+
+    The COUNT is `len()` of the names, never a second traversal — see
+    `_unreviewed_code_file_names`, which is the one place the rule is written."""
+    return len(_unreviewed_code_file_names(authored, windows))
+
+
+def _unreviewed_code_file_names(
+    authored: dict[str, int],
+    windows: list[tuple[float, float]] | tuple[float, float] | None,
+) -> list[str]:
+    """The names behind the count, sorted — so the block can say WHICH files it means.
+
+    Two readers, one traversal: a count computed separately from the list it describes is two
+    implementations of one rule, and the stale one reads exactly like the current one."""
     from pathlib import PurePosixPath
 
     if windows is None:
@@ -972,16 +1049,16 @@ def _unreviewed_code_files(
         wins = [windows]
     else:
         wins = list(windows)
-    n = 0
+    out: list[str] = []
     for f, ts in authored.items():
         if PurePosixPath(f).suffix.lower() not in _CODE_EXTS:
             continue
         if not isinstance(ts, (int, float)) or ts == 0:
-            n += 1
+            out.append(f)
             continue
         if not any(lo <= float(ts) <= hi for lo, hi in wins):
-            n += 1
-    return n
+            out.append(f)
+    return sorted(out)
 
 
 def decide_review(code_files: int, attempts: int, cap: int = CAP) -> tuple[str, int]:
@@ -1650,7 +1727,7 @@ def main(argv: list[str]) -> int:
             g, c, s_att, p_att, r_att, v_att = _read_counters(counter)
             run = _run_record(sid)
             run_active = bool(run) and (run or {}).get("state") == "running"
-            ahead = _ahead_of_upstream(root)
+            ahead = _ahead_of_upstream(root, set(authored_map))
             p_action, p_att = decide_stall(bool(ahead), p_att)
             if p_action == "block_stall":
                 counter.write_text(
@@ -1752,7 +1829,8 @@ def main(argv: list[str]) -> int:
                     _floor = _baseline_path(sid).stat().st_mtime
                 except OSError:
                     pass
-                _unreviewed = _unreviewed_spontaneous(_rec, authored_map, _floor, sid)
+                _unreviewed_files = _unreviewed_spontaneous_files(_rec, authored_map, _floor, sid)
+                _unreviewed = len(_unreviewed_files)
                 v_action, v_att = decide_review(_unreviewed, v_att)
                 if v_action == "block_review":
                     counter.write_text(f"{g},{c},0,{p_att},{r_att},{v_att}")
@@ -1769,8 +1847,19 @@ def main(argv: list[str]) -> int:
                                 "decision": "block",
                                 "reason": (
                                     f"UNREVIEWED SPONTANEOUS WORK (attempt {v_att}/{CAP}). This "
-                                    "session authored code files OUTSIDE every command run's covered window (before the first started, between runs, or after the last closed) — "
-                                    "plain-chat work that skipped every review contract. Run "
+                                    f"session authored {_unreviewed} code file(s) OUTSIDE every "
+                                    "command run's covered window (before the first started, "
+                                    "between runs, or after the last closed) — plain-chat work "
+                                    "that skipped every review contract. "
+                                    + (
+                                        "Named: "
+                                        + ", ".join(_unreviewed_files[:3])
+                                        + (f" (+{_unreviewed - 3} more)" if _unreviewed > 3 else "")
+                                        + ". "
+                                        if _unreviewed_files
+                                        else ""
+                                    )
+                                    + "Run "
                                     "`/fabrik-review-scoped` (minutes: diff-scoped, same "
                                     "convergence spine, fix-in-run) — or the full "
                                     "`/fabrik-review` for gate/hook/enforcement, auth/schema/"
@@ -1971,7 +2060,10 @@ def main(argv: list[str]) -> int:
         _run_live = (_run_record(sid) or {}).get("state") == "running"
         counter.write_text(
             f"{gate_attempts},{commit_attempts},{stall_attempts if stall else 0},"
-            f"{push_attempts if _ahead_of_upstream(root) else 0},"
+            # the SAME scoped question as the block site — a bare call now answers None
+            # (indeterminate) and would reset this streak on every unrelated gate/commit
+            # block, restarting the 3-attempt ladder in the trapping direction
+            f"{push_attempts if _ahead_of_upstream(root, set(authored_map)) else 0},"
             f"{run_attempts if _run_live else 0},{review_attempts}"
         )
         if action == "block_commit":
