@@ -172,6 +172,19 @@ grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading 
 | F31 | RECORDED — measured (a prevalence figure; makes no code or doc claim) |
 ```
 
+### The residuals of THIS review
+
+| Candidate | Verdict |
+|---|---|
+| `_CORPUS_PATHS` cannot express two of the seven axes | RECORDED — a design gap with a destination. An `infra:` verdict is answered in `.claude/hooks/` or `scripts/enforcement/`, a `manifesto:` one in `docs/reference/operating-manifesto.md`; none is a corpus path, so such a verdict is unmarkable and the gate's cheapest satisfying path becomes "also touch a command file" — the Cobra mirror. Denominator: 4 of 180 live rows carry a recognised key, so this is latent, not today's pain. → **infra**, `scripts/command_feedback_report.py::_CORPUS_PATHS`, `docs/STRATEGIC_BACKLOG.md` |
+| `_resolve_commit` is called twice per mark (once directly, once inside `_commit_touches_corpus`) | RECORDED — measured. Two `git rev-parse` calls at ~10 ms; the TOCTOU window between them is real but both resolve the SAME ref and a mark that resolved a moving ref differently between two calls 10 ms apart would still store one of two shas that each touched the corpus. Not worth a refactor that would thread the sha through a second parameter. |
+| An `infra`/`manifesto` verdict answered by a NON-corpus edit has no way to be marked | RECORDED — the same gap as row 1, stated from the agent's side rather than the code's. |
+| fabrik-lib and its two worktrees do not carry the fixed gate | RECORDED — by design. They are sync-EXCLUDED and pull on their own schedule (45 of 48 on-disk copies are current; the 3 are `/opt/fabrik-lib{,-account,-review}`). Their agents keep the pre-fix close behaviour until they pull. → **fabrik-lib**, informational |
+| `_axis_of` does not strip a DECORATED key before its placeholder test, while `_is_placeholder` does | RECORDED — cosmetic. `> lean: <the ONE concrete edit…>` is refused by the close either way, so no such row can reach the ledger for the reader to mis-bucket. The property sweep now asserts the invariant that matters (nothing ACCEPTED is unkeyable) rather than label equality. → **infra**, `command_feedback_report.py::_axis_of` |
+| The `rows=` trailer is prose inside `Agent-Context:`, not a literal git trailer key | RECORDED — wording. The underlying fact ("no such commit exists") is TRUE and was verified; the shorthand is imprecise. → **infra**, `commands/_sources/fabrik-command-improve.md` |
+| `--json` is ignored by `--mark-answered` while every other mode honours it | RECORDED — the mode is a WRITE with a one-line receipt, not a report; a JSON envelope would imply a machine contract nothing consumes. Revisit if a script ever drives it. → **infra**, same file |
+| D-260's two wrong numbers | FIXED by a superseding row (D-261), because ledger rows are immutable by contract. The DECISION stands; only its evidence is corrected. |
+
 `RECORDED — by design` names the OWNING row's first-cell id and the EARLIER round that adjudicated
 it (or a `D-nnn` with no round); the gate refuses an absent owner and a round that is not below the
 closing `Pass N`. `RECORDED — measured` and `RECORDED — unexecuted` never enter `confirmed:`;
@@ -179,7 +192,29 @@ closing `Pass N`. `RECORDED — measured` and `RECORDED — unexecuted` never en
 
 ## Per-phase verdicts
 
-### Phase 1 — <title>: UNCHECKED
+### Phase 1 — the axis gate (`scripts/command_run.py`, fleet-synced to ~46 repos): FIXED(8)
+
+The gate enforces what three documents already claimed. Its own cheapest bypass — a verdict whose
+first word is `none`/`nothing`/`n/a`/`-`, which passed AND vanished from the queue before the
+anti-gaming tally could see it — was found by an author-blind seat and closed, along with the
+mirror that refused the honest `change: none: <why>` and wedged the turn. The mechanism is pinned
+by an executable probe (`<scratchpad>/kzrev/probes/axis-gate.sh`, 26 shapes, all correct).
+
+### Phase 2 — the ACT half's trigger and state (`scripts/command_feedback_report.py`): FIXED(12)
+
+A CRITICAL argv injection (`--commit=--all`) let nine characters mark an entire queue answered with
+zero edits — the counter-measure a Cobra note named, defeated because writing the note is not
+testing it. Closed with `--end-of-options` and a resolved 40-char sha, alongside the env scrub, the
+`--ledger` scoping, the atomic append, the path boundary and the duplicate-handle refusal.
+
+### Phase 3 — the loop, end to end: PROVEN
+
+Executed in an isolated scratch HOME and corpus repo
+(`<scratchpad>/kzrev/probes/loop-closes-end-to-end.md`): a close writes an axis-keyed verdict and
+prints the depth → `--queue` lists it with a copyable handle → a corpus edit is committed →
+`--mark-answered` records it against that sha → the queue falls to `0 unanswered … 1 already
+answered and excluded` → the NEXT close prints no `QUEUE:` line at all. Before this run, step 1
+printed nothing, step 4 did not exist, and the number at step 5 could only grow.
 
 ## Gate
 

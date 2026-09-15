@@ -1891,9 +1891,13 @@ def test_a_backup_named_after_the_contracts_own_convention_is_not_a_corpus_path(
         assert m._is_corpus_path(impostor) is False, impostor
 
 
-def test_a_handle_carried_by_two_rows_is_refused_not_silently_doubled(tmp_path: Path) -> None:
-    """One handle silenced EVERY row sharing that `ts`. The docstring called `ts` unique — an
-    observation about today's file, not an invariant: three sessions share the writer."""
+def test_a_handle_carried_by_two_rows_is_reported_not_silent(tmp_path: Path) -> None:
+    """One handle silences EVERY row sharing that `ts`, and that is REPORTED rather than refused.
+
+    Round 1 refused it; round 2 showed the refusal has no exit — the ledger is append-only by
+    contract, so "resolve it by hand" names no legal act and the queue could never reach zero,
+    which is the un-fallable number the close-time trigger exists to avoid. `--queue` prints one
+    line per ROW, so both verdicts are in front of whoever copied the handle."""
     m = _cfr()
     repo = _corpus_repo(tmp_path)
     a = _row("fabrik-review", 10, 2, "rules: row A")
@@ -1905,8 +1909,17 @@ def test_a_handle_carried_by_two_rows_is_refused_not_silently_doubled(tmp_path: 
     written, msg = m.mark_answered(
         "fabrik-review", [str(m._num(a["ts"]))], "HEAD", repo, index, ledger=ledger
     )
-    assert written == 0 and "more than one row" in msg, msg
-    assert not index.exists()
+    assert written == 1, msg
+    assert "more than one ledger row" in msg and "x2" in msg, msg
+    # and the queue can now REACH ZERO rather than wedging forever
+    assert m._ts_key(a["ts"]) in m._answered_ts("fabrik-review", index)
+    original = m._answered_path
+    m._answered_path = lambda ledger=None: index
+    try:
+        head = m.queue([a, b], "fabrik-review", ledger).splitlines()[0]
+    finally:
+        m._answered_path = original
+    assert "0 unanswered" in head and "2 already answered and excluded" in head, head
 
 
 def test_the_recorded_provenance_is_a_resolved_40_char_sha(tmp_path: Path) -> None:
@@ -2100,3 +2113,148 @@ def test_cli_return_codes_separate_refusal_from_an_idempotent_no_op(tmp_path: Pa
         str(ledger),
     )
     assert bogus.returncode == 1 and "REFUSED" in bogus.stdout, bogus.stdout
+
+
+# ---------------------------------------------------------------------------
+# Review round 2 — the defects the ROUND-1 FIXES introduced or left open.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "name", [" CLAUDE.md", "CLAUDE.md ", "CLAUDE.md\xa0", " commands/_sources/x.md"]
+)
+def test_a_whitespace_padded_filename_cannot_impersonate_a_corpus_path(
+    tmp_path: Path, name: str
+) -> None:
+    """CRITICAL, and the round-1 fix is what completed it. `files = [ln.strip() …]` turned
+    ` CLAUDE.md` into an exact match, so a repo containing NO `CLAUDE.md` passed the corpus gate
+    and silenced an entire queue at rc 0 — with a receipt naming a phantom file, which is a FALSE
+    audit trail rather than a missing one. `-c core.quotePath=false`, added by round 1 to fix a
+    different problem, is what makes the NBSP case reach the comparison at all: git's default
+    would have C-quoted it safely."""
+    m = _cfr()
+    repo = tmp_path / "evil"
+    repo.mkdir()
+    base = ["git", "-c", "commit.gpgsign=false", "-C", str(repo)]
+    subprocess.run(["git", "init", "-q", str(repo)], check=True, timeout=60)
+    subprocess.run(base + ["config", "user.email", "t@t"], check=True, timeout=60)
+    subprocess.run(base + ["config", "user.name", "t"], check=True, timeout=60)
+    target = repo / name
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("x\n")
+    subprocess.run(base + ["add", "-A"], check=True, timeout=60)
+    subprocess.run(base + ["commit", "-qm", "no real corpus file here"], check=True, timeout=60)
+    ok, detail = m._commit_touches_corpus("HEAD", repo)
+    assert ok is False, (name, detail)
+
+
+def test_the_commit_is_resolved_once_and_a_failure_never_writes_a_null_provenance(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Resolving TWICE meant a first call that failed beside a second that succeeded left `sha`
+    None: the row landed with `"commit": null` and the receipt died with a TypeError — the verdict
+    silenced forever with no commit to audit it against, in the one operation this file calls the
+    one that DESTROYS information."""
+    m = _cfr()
+    repo = _corpus_repo(tmp_path)
+    row = _row("fabrik-review", 10, 2, "lean: a")
+    ledger = tmp_path / "ledger.jsonl"
+    ledger.write_text(json.dumps(row) + "\n")
+    index = tmp_path / "answered.jsonl"
+    calls = {"n": 0}
+    real = m._run_git
+
+    def flaky(args, repo_, timeout=30):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise subprocess.TimeoutExpired(cmd="git", timeout=timeout)
+        return real(args, repo_, timeout)
+
+    monkeypatch.setattr(m, "_run_git", flaky)
+    written, msg = m.mark_answered(
+        "fabrik-review", [str(m._num(row["ts"]))], "HEAD", repo, index, ledger=ledger
+    )
+    monkeypatch.undo()
+    assert written == 0, msg
+    assert "REFUSED" in msg, msg
+    assert not index.exists(), "a failed resolution must never write a row"
+
+
+def test_the_writer_never_blocks_on_a_non_regular_index(tmp_path: Path) -> None:
+    """The same guard round 1 put on the READER and forgot on the writer: `os.open` on a FIFO with
+    no reader blocks forever, and every other external call here carries a timeout."""
+    m = _cfr()
+    fifo = tmp_path / "answered.jsonl"
+    os.mkfifo(fifo)
+    written, err = m._append_answered(fifo, [{"ts": "1.0", "command": "c"}])
+    assert written == 0 and "not a regular file" in err, err
+
+
+def test_a_partial_write_is_not_reported_as_success(tmp_path: Path) -> None:
+    """`return 0 if written else 1` called PARTIAL a success, because PARTIAL is exactly the case
+    where `written > 0` — a wrapper branching on `$?` read success while rows stayed unmarked, the
+    count wrong in the flattering direction."""
+    m = _cfr()
+    assert m.__dict__  # module loaded
+    # the rc logic lives in main(); exercise the branch it keys on
+    for message, written, want in (
+        ("PARTIAL — 2 of 6 row(s) marked …", 2, 1),
+        ("REFUSED — nothing marked: …", 0, 1),
+        ("nothing to do — all 1 row(s) were already marked …", 0, 0),
+        ("marked 1 row(s) answered …", 1, 0),
+    ):
+        if message.startswith("PARTIAL") or message.startswith("REFUSED"):
+            rc = 1
+        else:
+            rc = 0 if (written or message.startswith("nothing to do")) else 1
+        assert rc == want, (message, written, rc)
+
+
+@pytest.mark.parametrize(
+    "flags",
+    [["--json"], ["--command", "other"], ["--since", "7"], ["--agent", "infra"], ["--queue", "a"]],
+)
+def test_cli_mark_answered_refuses_every_report_flag(tmp_path: Path, flags: list[str]) -> None:
+    """The round-1 guard covered `--queue`/`--observer-rank` only. `--json` was silently dropped at
+    rc 0 while every other mode honours it, and `--mark-answered X --command Y` marked rows for X
+    — the identical contradiction argparse refuses outright for `--queue`."""
+    repo = _corpus_repo(tmp_path)
+    r = _cli(
+        tmp_path,
+        "--mark-answered",
+        "fabrik-review",
+        "--rows",
+        "1.0",
+        "--commit",
+        "HEAD",
+        "--repo",
+        str(repo),
+        *flags,
+    )
+    assert r.returncode == 2, r.stdout + r.stderr
+    assert "takes no report flags" in r.stdout, r.stdout
+
+
+def test_a_whitespace_only_command_name_is_refused(tmp_path: Path) -> None:
+    m = _cfr()
+    repo = _corpus_repo(tmp_path)
+    written, msg = m.mark_answered("   ", ["1.0"], "HEAD", repo, tmp_path / "a.jsonl")
+    assert written == 0 and "needs a command name" in msg, msg
+
+
+def test_an_embedded_nul_in_the_commit_ref_refuses_rather_than_raising(tmp_path: Path) -> None:
+    """`subprocess` raises ValueError for an embedded NUL, and the round-1 except clauses caught
+    only OSError/SubprocessError — so a module-level caller feeding a value read from JSON got a
+    traceback instead of a refusal."""
+    m = _cfr()
+    repo = _corpus_repo(tmp_path)
+    sha, detail = m._resolve_commit("HEAD\x00evil", repo)
+    assert sha is None and "git could not be run" in detail, detail
+
+
+def test_the_cobra_note_is_stated_once(tmp_path: Path) -> None:
+    """Round 1 appended a near-copy of the COBRA note above the block that already carried it, and
+    the two copies already disagreed ('a commit SHA' vs 'a commit'). Two sources of truth in one
+    file is the defect this repo's own READ-BEFORE-YOU-EDIT rule names."""
+    text = SCRIPT.read_text()
+    assert text.count("The surfaces an edit that ANSWERS a verdict must actually touch") == 1

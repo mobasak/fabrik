@@ -158,14 +158,24 @@ block did not parse.
 
 ```bash
 python3 /opt/fabrik/scripts/command_feedback_report.py --mark-answered <command> \
-    --rows <ts,ts,…> --commit $(git rev-parse HEAD)
+    --rows <ts,ts,…> --commit $(git -C /opt/fabrik rev-parse HEAD) --repo /opt/fabrik
 ```
 
-Same `ts` list as the trailer. It REFUSES a commit that touches no corpus path
-(`commands/_sources/`, `commands/_fragments/`, `commands/_agents/`, `.windsurf/rules/`, either
-`CLAUDE.md`) — a verdict is answered by an EDIT, and marking is the one act in this loop that
-removes a row from view. Re-running it on already-marked rows is a no-op that says so. Verify with
-`--queue <command>`: the header must now show your rows under "already answered and excluded".
+⚠️ **Both `-C /opt/fabrik` and `--repo /opt/fabrik` are load-bearing, and neither is decoration.**
+`--repo` defaults to the hub, so a bare `$(git rev-parse HEAD)` run from anywhere else resolves
+YOUR repo's sha and then verifies it against the HUB's history — a 4-hex abbreviation collision
+between two repos was brute-forced in review and silenced a verdict on the strength of an unrelated
+commit. The `-C` makes the two halves name the same repository by construction.
+
+Same `ts` list as the trailer, and every handle must match a REAL row of that command's queue —
+copy them from `--queue` exactly, since a typo used to be accepted as answered work. It REFUSES a
+commit that touches no corpus path (`commands/_sources/`, `commands/_fragments/`,
+`commands/_agents/`, `.windsurf/rules/`, either `CLAUDE.md`) — a verdict is answered by an EDIT,
+and marking is the one act in this loop that removes a row from view. Re-running it on
+already-marked rows is a no-op that says so (rc 0). ⚠️ Run it ALONE: combining it with `--queue`
+in one invocation is refused, because the verification below must read the state the mark left.
+Verify with `--queue <command>`: the header must now show your rows under
+"already answered and excluded".
 
 Doc Sync: a command source added or removed → `INDEX.md`. A change to what a command DOES →
 `CHANGELOG.md`. Both are orchestrator-applied shared-append surfaces: commit them with the

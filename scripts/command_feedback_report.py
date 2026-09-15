@@ -75,11 +75,6 @@ def _rows(path: Path | None) -> list[dict]:
 
 # The surfaces an edit that ANSWERS a verdict must actually touch. ⚠️ COBRA NOTE: the cheapest way
 # to make a queue shrink without doing the work is to mark rows answered and commit nothing — so
-# `--mark-answered` demands a commit SHA and refuses one that touched none of these paths. It
-# cannot judge whether the edit is GOOD (that is the review's job, and a gate that tried would be
-# judging prose); it can and does refuse an edit that does not exist.
-# The surfaces an edit that ANSWERS a verdict must actually touch. ⚠️ COBRA NOTE: the cheapest way
-# to make a queue shrink without doing the work is to mark rows answered and commit nothing — so
 # `--mark-answered` demands a commit and refuses one that touched none of these paths. It cannot
 # judge whether the edit is GOOD (that is the review's job, and a gate that tried would be judging
 # prose); it can and does refuse an edit that does not exist.
@@ -146,7 +141,7 @@ def _resolve_commit(commit: str, repo: Path) -> tuple[str | None, str]:
 
     try:
         proc = _run_git(["rev-parse", "--verify", "--end-of-options", f"{commit}^{{commit}}"], repo)
-    except (OSError, subprocess.SubprocessError) as exc:
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
         return None, f"git could not be run ({exc})"
     sha = proc.stdout.strip()
     if proc.returncode != 0 or len(sha) != 40:
@@ -157,17 +152,21 @@ def _resolve_commit(commit: str, repo: Path) -> tuple[str | None, str]:
     return sha, sha
 
 
-def _commit_touches_corpus(commit: str, repo: Path) -> tuple[bool, str]:
-    """`(touched, detail)` — does this commit change a file the corpus is made of?
+def _touches_corpus(sha: str, repo: Path) -> tuple[bool, str]:
+    """`(touched, detail)` for an ALREADY-RESOLVED 40-char sha.
+
+    ⚠️ It takes the resolved sha, not the caller's ref, because resolving TWICE was a defect:
+    `mark_answered` resolved once for the record and this function resolved again for the check,
+    so a first call that failed (a 30 s git timeout on a loaded box) beside a second that
+    succeeded left `sha` None — the row landed with `"commit": null` and the receipt died with a
+    TypeError, silencing the verdict forever with no provenance. Executed in review round 2. One
+    resolution also closes the TOCTOU window between the two.
 
     Fails CLOSED on purpose: a commit that cannot be read is not evidence of an edit, and marking
     rows answered is the one operation in this loop that DESTROYS information.
     """
     import subprocess
 
-    sha, detail = _resolve_commit(commit, repo)
-    if sha is None:
-        return False, detail
     try:
         # `-m --first-parent` so a MERGE prints its diff (bare `git show` prints nothing for one,
         # which read as "touches no corpus path (0 file(s))" — a misleading refusal);
@@ -185,17 +184,31 @@ def _commit_touches_corpus(commit: str, repo: Path) -> tuple[bool, str]:
             ],
             repo,
         )
-    except (OSError, subprocess.SubprocessError) as exc:
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
         return False, f"git could not be run ({exc})"
     if proc.returncode != 0:
         return False, f"git show {sha[:8]} failed: {proc.stderr.strip()[:200]}"
-    files = [ln.strip() for ln in proc.stdout.splitlines() if ln.strip()]
-    hit = [f for f in files if _is_corpus_path(f)]
+    # ⚠️ DO NOT STRIP THE PAYLOAD. A path is whatever git prints, and `.strip()` turned
+    # ` CLAUDE.md`, `CLAUDE.md ` and `CLAUDE.md\xa0` into an exact match for `CLAUDE.md` — so a
+    # repo containing NO `CLAUDE.md` at all passed the corpus gate and silenced an entire queue at
+    # rc 0, with a receipt naming a phantom file. The COBRA bypass round 1 closed
+    # (`--commit=--all`) reopened through a different door, and `-c core.quotePath=false` — added
+    # by that same round-1 fix — is what completes it: git's DEFAULT would have C-quoted the NBSP
+    # path safely. Executed in review round 2. A quoted line is also refused: a path git had to
+    # quote is not one we can compare.
+    files = [ln for ln in proc.stdout.split("\n") if ln]
+    hit = [f for f in files if f == f.strip() and not f.startswith('"') and _is_corpus_path(f)]
     if not hit:
         return False, (
             f"{sha[:8]} touches no corpus path ({len(files)} file(s): {', '.join(files[:5])})"
         )
     return True, f"{sha[:8]} touches {', '.join(hit[:5])}"
+
+
+def _commit_touches_corpus(commit: str, repo: Path) -> tuple[bool, str]:
+    """Ref-taking wrapper: resolve, then check. The resolved form is `_touches_corpus`."""
+    sha, detail = _resolve_commit(commit, repo)
+    return (False, detail) if sha is None else _touches_corpus(sha, repo)
 
 
 def _ts_key(value: object) -> str:
@@ -280,6 +293,11 @@ def _append_answered(path: Path, rows: list[dict]) -> tuple[int, str]:
     import os
 
     written = 0
+    # ⚠️ The same guard round 1 put on the READER (`command_run.py::_queue_depth`) and forgot on
+    # the writer: `os.open` on a FIFO with no reader BLOCKS FOREVER, and every other external call
+    # in this file carries a timeout. Executed in review round 2: `rc=124`.
+    if path.exists() and not path.is_file():
+        return 0, f"{path} is not a regular file"
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         fd = os.open(str(path), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
@@ -314,11 +332,13 @@ def mark_answered(
     ledger: Path | None = None,
 ) -> tuple[int, str]:
     """Append one answered-row per `ts`. Returns `(written, message)`; 0 written is a refusal."""
-    command = command.lstrip("/")
+    command = command.strip().lstrip("/").strip()
     if not command:
         return 0, "REFUSED — --mark-answered needs a command name."
-    sha, _detail = _resolve_commit(commit, repo)
-    ok, detail = _commit_touches_corpus(commit, repo)
+    sha, detail = _resolve_commit(commit, repo)
+    if sha is None:
+        return 0, f"REFUSED — nothing marked: {detail}. A verdict is answered by an EDIT."
+    ok, detail = _touches_corpus(sha, repo)
     if not ok:
         return 0, f"REFUSED — nothing marked: {detail}. A verdict is answered by an EDIT."
     # ⚠️ Every handle must name a REAL row of THIS command's queue. Taking `--rows` on trust was a
@@ -346,14 +366,13 @@ def mark_answered(
             f"`--queue {command}` exactly — the ledger is append-only, so an unknown handle is a "
             f"miscopy or the wrong command, never a row that expired."
         )
-    shared = [t for t in wanted if known[t] > 1]
-    if shared:
-        return 0, (
-            f"REFUSED — nothing marked: {len(shared)} handle(s) are carried by more than one row "
-            f"of /{command} ({', '.join(shared[:5])}), and marking one would silence them all. "
-            f"`ts` uniqueness is an observation about today's ledger, not an invariant — three "
-            f"sessions share the writer. Resolve it by hand."
-        )
+    # ⚠️ A handle carried by MORE THAN ONE row silences them together, and that is reported rather
+    # than refused. Round 1 refused it; round 2 showed the refusal has no exit — the ledger is
+    # append-only by contract, so "resolve it by hand" names no legal act, and the queue could
+    # never reach zero. That is the un-fallable number `command_run.py::_ts_key` calls the exact
+    # wallpaper the close-time trigger exists to avoid. `--queue` prints one line per ROW, so both
+    # verdicts are in front of the agent who copied the handle; the receipt says how many went.
+    shared = {t: known[t] for t in wanted if known[t] > 1}
     path = path if path is not None else _answered_path(ledger)
     if path is None:
         return 0, "REFUSED — no resolvable state dir for the answered index."
@@ -374,6 +393,11 @@ def mark_answered(
         )
     skipped = len(wanted) - len(fresh)
     tail = f" ({skipped} already marked)" if skipped else ""
+    if shared:
+        tail += (
+            f" ⚠️ {len(shared)} handle(s) are carried by more than one ledger row and silence "
+            f"every row sharing them: {', '.join(f'{t}x{n}' for t, n in list(shared.items())[:5])}"
+        )
     return written, (
         f"marked {written} row(s) answered for /{command} by {sha[:8]}{tail} — {detail}"
     )
@@ -1250,8 +1274,26 @@ def main(argv: list[str] | None = None) -> int:
         # the same mode-exclusivity the `--queue`/`--observer-rank` pair already has: combining
         # them silently ran ONE, and this command's own PHASE 5 tells the agent to verify with
         # `--queue` in the same breath (review round 1)
-        if a.queue is not None or a.observer_rank:
-            print("REFUSED — --mark-answered WRITES; run it alone, then --queue to verify.")
+        _report_flags = [
+            n
+            for n, v in (
+                ("--queue", a.queue is not None),
+                ("--observer-rank", a.observer_rank),
+                ("--json", a.json),
+                ("--command", a.command is not None),
+                ("--since", a.since is not None),
+                ("--agent", a.agent is not None),
+            )
+            if v
+        ]
+        if _report_flags:
+            # ⚠️ ALL the report flags, not just the two reports. `--json` was silently dropped at
+            # rc 0 while every other mode honours it, and `--mark-answered X --command Y` marked
+            # rows for X — the same contradiction argparse refuses outright for `--queue`.
+            print(
+                "REFUSED — --mark-answered WRITES and takes no report flags "
+                f"({', '.join(_report_flags)}); run it alone, then --queue to verify."
+            )
             return 2
         ts_rows = [t.strip() for t in a.rows.split(",") if t.strip()]
         if not a.commit or not ts_rows:
@@ -1269,8 +1311,12 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(message)
         # 0 = the index now reflects the edit (a fresh mark, or an idempotent no-op);
-        # 1 = REFUSED or PARTIAL, i.e. the caller must look. A script could not tell the three
-        # apart while "already marked" shared rc 1 with a refusal.
+        # 1 = REFUSED or PARTIAL, i.e. the caller must look. ⚠️ PARTIAL has `written > 0`, so the
+        # obvious `0 if written` returned SUCCESS while rows stayed unmarked — the count wrong in
+        # the flattering direction, which is the failure class this whole mechanism exists to
+        # close. Executed in review round 2 under RLIMIT_FSIZE.
+        if message.startswith("PARTIAL") or message.startswith("REFUSED"):
+            return 1
         return 0 if (written or message.startswith("nothing to do")) else 1
     if a.queue is not None:
         text = queue(rows, a.queue, ledger)

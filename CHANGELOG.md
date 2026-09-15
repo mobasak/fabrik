@@ -51,6 +51,22 @@ All notable changes to this project will be documented in this file.
   record lock. Six graders were vacuous under mutation and `main()`'s whole hunk had zero tests —
   which is exactly why the `--ledger` leak was invisible to 97 passing tests. The 7-case property
   list is now a 565-shape sweep, and it immediately caught drift the round-1 fix itself introduced.
+- **Round 2 reviewed the round-1 fixes and found nine more — including a CRITICAL one that the
+  round-1 fix itself enabled.** A filename with leading/trailing whitespace (or a non-breaking
+  space) impersonated a corpus path, because the file list was `.strip()`ed before comparison: a
+  repo containing NO `CLAUDE.md` passed the gate and silenced an entire queue at rc 0, with a
+  receipt naming a phantom file — a FALSE audit trail, not a missing one. The `-c
+  core.quotePath=false` that round 1 added to fix a merge/rename problem is what let the NBSP case
+  reach the comparison at all; git's default would have quoted it safely. The COBRA bypass round 1
+  closed reopened through a different door in the same function.
+- Also from round 2: the commit was resolved TWICE, so a first call that timed out beside a second
+  that succeeded wrote `"commit": null` and then died with a TypeError — silencing a verdict
+  forever with no provenance; `PARTIAL` exited 0, contradicting the comment three lines above it;
+  the duplicate-handle REFUSAL had no exit that respects an append-only ledger, so the queue could
+  never reach zero (it now marks and reports); `_append_answered` blocked forever on a FIFO — the
+  exact guard round 1 had added to the reader and forgotten on the writer; the mode guard covered
+  two report flags of six; and round 1 had appended a near-copy of the COBRA note above the block
+  that already carried it, two sources of truth already disagreeing.
 - ⚠️ The axis list is DUPLICATED (`command_run.py::_CHANGE_AXES` ↔ `command_feedback_report.py::AXES`):
   the first is fleet-synced to ~46 repos, the second is hub-only, so an import either way fails
   CLOSED in every project the day it lands. Two graders keep the copies and their classifiers in

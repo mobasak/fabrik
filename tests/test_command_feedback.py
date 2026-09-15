@@ -20,10 +20,13 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "command_run.py"
+# ⚠️ `change:` is AXIS-KEYED and the close REFUSES an unkeyed value (2026-09-15). Every fixture
+# here closes a real run through the CLI, so an unkeyed value makes 14 of these tests fail on a
+# refusal that has nothing to do with what they are testing.
 STRUCTURED = (
     "confusion: step 3's 'arm' verb read as a dispatch · waste: two gate re-runs on an "
-    "unchanged tree · change: name the rubric command in step 2 · filed: none — surfaces "
-    "exercised: the rubric, the round ledger"
+    "unchanged tree · change: accurate: name the rubric command in step 2 · filed: none — "
+    "surfaces exercised: the rubric, the round ledger"
 )
 
 
@@ -111,11 +114,12 @@ def test_a_structured_close_lands_a_ledger_row_with_the_auto_captured_metrics(
     assert isinstance(row["wall_s"], (int, float)) and row["wall_s"] >= 0
     assert row["confusion"].startswith("step 3's")
     assert row["waste"].startswith("two gate re-runs")
-    assert row["change"].startswith("name the rubric")
+    assert row["change"].startswith("accurate: name the rubric")
     assert row["filed"].startswith("none — surfaces exercised")
     # the printed line is the FINAL OUTPUT block's 7th line, ready to paste
     line = next(ln for ln in r.stdout.splitlines() if ln.startswith("FEEDBACK:"))
-    assert "/fabrik-probe" in line and "rounds 2" in line and "change: name the rubric" in line
+    assert "/fabrik-probe" in line and "rounds 2" in line
+    assert "change: accurate: name the rubric" in line
     # the filing verdict is still classified from the `filed:` field alone
     rec = json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))
     assert rec["feedback"] == "none", rec["feedback"]
@@ -181,12 +185,12 @@ def test_a_label_named_inside_a_value_does_not_split_the_field(run_dir: Path) ->
         "--evidence",
         "x",
         "--feedback",
-        "confusion: none · waste: none · change: rename the 'waste:' label to 'burn:' · "
+        "confusion: none · waste: none · change: rules: rename the 'waste:' label to 'burn:' · "
         "filed: mailed the cost:5 defect 01M1XYZ to infra",
     )
     assert r.returncode == 0, r.stdout + r.stderr
     row = _ledger(run_dir)[0]
-    assert row["change"] == "rename the 'waste:' label to 'burn:'", row
+    assert row["change"] == "rules: rename the 'waste:' label to 'burn:'", row
     assert row["filed"] == "mailed the cost:5 defect 01M1XYZ to infra", row
     assert row["cost"] == "", row
 
