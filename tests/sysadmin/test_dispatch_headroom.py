@@ -45,8 +45,13 @@ def test_read_only_seats_are_bounded_by_the_box_too_a_finder_still_runs_pytest()
     1 GB planned per read-only seat, against min(MemAvailable, CommitLimit − Committed_AS)."""
     r = dh.budget(12, False, dict(BOX_OK, mem_available_gb=4.0), Q_OK)
     assert r["caps"]["box_cap"] == 4 and r["seats"] == 4
-    r = dh.budget(12, False, dict(BOX_OK, commit_headroom_gb=2.5), Q_OK)
-    assert r["caps"]["box_cap"] == 2 and r["seats"] == 2  # the commit limit binds first
+    # ⚠️ the commit limit binds first ONLY where the kernel enforces it (`vm.overcommit_memory=2`)
+    r = dh.budget(12, False, dict(BOX_OK, commit_headroom_gb=2.5, commit_enforced=True), Q_OK)
+    assert r["caps"]["box_cap"] == 2 and r["seats"] == 2
+    # under the default heuristic mode it is an accounting figure, not a ceiling, and capping on
+    # it hard-zeroed the budget on a box with 21 GB free (2026-09-15)
+    r = dh.budget(12, False, dict(BOX_OK, commit_headroom_gb=0.0, commit_enforced=False), Q_OK)
+    assert r["caps"]["box_cap"] > 0 and r["seats"] > 0
 
 
 def test_the_cli_concurrency_cap_is_hard_and_the_floor_never_raises_past_it(monkeypatch):
@@ -1550,3 +1555,37 @@ def test_the_delta_round_floor_invariants_hold_across_the_whole_grid():
         if not q["ok"] or q.get("hold") or (q.get("hottest_pct") or 0) >= 85:
             assert r["caps"]["quota_cap"] <= 1, r["caps"]
     assert calls == 2880 and sized == 1152, (calls, sized)  # the grid's own denominator
+
+
+def test_commit_headroom_caps_seats_only_under_strict_overcommit() -> None:
+    """`CommitLimit` is a ceiling ONLY under `vm.overcommit_memory = 2`. Under the default
+    heuristic mode the kernel never refuses an allocation for exceeding it, and Python/Node/Go each
+    reserve arenas and thread stacks they never touch — so across ~30 processes `Committed_AS`
+    routinely passes the limit on a box with tens of GB free.
+
+    Measured 2026-09-15: Committed_AS 111 GB against a CommitLimit of 91 GB while `MemAvailable`
+    was 21 GB and swap 39 GB free. The cap fired unconditionally, the budget returned `SEATS: 0`,
+    and a review round read that as "the box cannot host another seat" — a fabricated constraint
+    that would have stalled a loop the box could easily have run. The figure is still REPORTED
+    (under strict mode it binds); it is only a CAP when the kernel would enforce it.
+    """
+    strict = dict(BOX_OK, commit_headroom_gb=0.0, commit_enforced=True)
+    loose = dict(BOX_OK, commit_headroom_gb=0.0, commit_enforced=False)
+    capped = dh.budget(2, False, strict, Q_OK)
+    free = dh.budget(2, False, loose, Q_OK)
+    assert capped["caps"]["box_cap"] == 0, capped["caps"]
+    assert free["caps"]["box_cap"] > 0, free["caps"]
+    assert free["seats"] > 0, free
+
+
+def test_an_unreadable_overcommit_mode_never_invents_a_ceiling(monkeypatch) -> None:
+    """Fail-soft in the permissive direction: if `/proc/sys/vm/overcommit_memory` cannot be read we
+    assume the default heuristic mode, because inventing a ceiling stalls a loop while assuming
+    none at worst over-dispatches by one seat on a box that also reports MemAvailable."""
+    box = dh.box()
+    if not box.get("ok") or "commit_headroom_gb" not in box:
+        pytest.skip("no /proc meminfo on this box")
+    assert "commit_enforced" in box
+    assert box["commit_enforced"] is (
+        Path("/proc/sys/vm/overcommit_memory").read_text().strip() == "2"
+    )

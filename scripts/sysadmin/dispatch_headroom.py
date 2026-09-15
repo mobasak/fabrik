@@ -131,11 +131,26 @@ def box() -> dict:
             mem[k] = int(v.split()[0])
         out["mem_available_gb"] = mem["MemAvailable"] / 1024 / 1024
         out["mem_total_gb"] = mem["MemTotal"] / 1024 / 1024
-        # the quantity that reaches zero BEFORE the OOM killer runs; MemAvailable ignores it
+        # ⚠️ `CommitLimit` is a CEILING ONLY UNDER STRICT OVERCOMMIT (`vm.overcommit_memory = 2`).
+        # Under the default heuristic mode (0) — and under always-overcommit (1) — the kernel never
+        # refuses an allocation for exceeding it, so the difference is an accounting curiosity:
+        # Python, Node and Go each reserve arenas and thread stacks they never touch, and across
+        # ~30 processes `Committed_AS` routinely passes the limit on a box with tens of GB free.
+        # Measured 2026-09-15 on this WSL2 box: Committed_AS 111 GB against a CommitLimit of 91 GB
+        # while `MemAvailable` was 21 GB and swap was 39 GB free. The old code capped seats on that
+        # difference unconditionally, so the budget returned `SEATS: 0` and a review round read it
+        # as "the box cannot host another seat" — a fabricated constraint that would have stalled
+        # the loop. The figure is still REPORTED (it is real, and under strict mode it binds); it
+        # is only used as a cap when the kernel would actually enforce it.
         if "CommitLimit" in mem and "Committed_AS" in mem:
             out["commit_headroom_gb"] = (
                 max(mem["CommitLimit"] - mem["Committed_AS"], 0) / 1024 / 1024
             )
+            try:
+                mode = int(Path("/proc/sys/vm/overcommit_memory").read_text().strip())
+            except (OSError, ValueError):
+                mode = 0  # unreadable: assume the permissive default, never invent a ceiling
+            out["commit_enforced"] = mode == 2
         out["cores"] = os.cpu_count() or 1
         out["load1"] = os.getloadavg()[0]
     except (OSError, KeyError, ValueError, IndexError) as exc:
@@ -489,7 +504,7 @@ def budget(
     per_seat = HEAVY_GB_PER_SEAT if heavy else LIGHT_GB_PER_SEAT
     if b.get("ok"):
         mem = b["mem_available_gb"]
-        if "commit_headroom_gb" in b:
+        if "commit_headroom_gb" in b and b.get("commit_enforced"):
             mem = min(mem, b["commit_headroom_gb"])
         by_mem = int(mem // per_seat)
         by_cpu = max(int(b["cores"] - math.ceil(b["load1"])), 0)
@@ -974,6 +989,7 @@ def main(argv: list[str] | None = None) -> int:
             f"  box: {b['mem_available_gb']:.1f}/{b['mem_total_gb']:.1f} GB available"
             + (
                 f", commit headroom {b['commit_headroom_gb']:.1f} GB"
+                + ("" if b.get("commit_enforced") else " (advisory — overcommit is not strict)")
                 if "commit_headroom_gb" in b
                 else ""
             )

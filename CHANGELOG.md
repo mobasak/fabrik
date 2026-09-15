@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The seat budget capped on a memory limit the kernel does not enforce (2026-09-15)
+
+- `dispatch_headroom.py` used `CommitLimit − Committed_AS` as a hard box cap. That difference is a
+  ceiling ONLY under `vm.overcommit_memory = 2`; this box runs mode 0 (heuristic), where the kernel
+  never refuses an allocation for exceeding it. Python, Node and Go each reserve arenas and thread
+  stacks they never touch, so across ~30 processes `Committed_AS` routinely passes the limit on a
+  machine with tens of GB free.
+- Measured while it bit: `Committed_AS` 111 GB against a `CommitLimit` of 91 GB, with
+  `MemAvailable` at 21 GB and 39 GB of free swap. The budget returned `SEATS: 0`, and a review
+  round read that as "the box cannot host another seat" and began closing itself BLOCKED on a
+  constraint that did not exist. The figure is still reported — under strict mode it binds — and is
+  labelled `(advisory — overcommit is not strict)` when it does not; it caps seats only when the
+  kernel would enforce it. An unreadable `/proc/sys/vm/overcommit_memory` assumes the permissive
+  default, because inventing a ceiling stalls a loop while assuming none costs at most one seat on
+  a box that also reports `MemAvailable`.
+
 ### Fixed — The kaizen loop's axis was unenforced, its ACT half had no trigger, and no row was ever marked answered (2026-09-15)
 
 - **The axis key was documented in three places and enforced in none.** Measured by closing a real

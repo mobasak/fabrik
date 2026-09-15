@@ -1,6 +1,20 @@
 # Review — 2026-09-15-kaizen-loop-gap-closure
 
-**Status:** IN-PROGRESS
+**Status:** IN-PROGRESS — **round 3 is OWED and was not run.** Round 2 was a code-changing pass,
+so the contract's "the pass that changed code is never the last look" makes a third delta round
+mandatory, and its finders must be fresh and non-authoring. `dispatch_headroom.py` returned
+`SEATS: 0` with `box_cap: 0` (`Committed_AS` 111 GB against a `CommitLimit` of 91 GB while two
+sibling sessions ran full suites), and the contract forbids dispatching at `SEATS: 0`. The
+orchestrator is the AUTHOR of every fix in the delta, so self-reading it is not a closing round —
+that substitution is the exact "covered by the orchestrator" non-quiet state the termination
+contract names. Nothing here is flipped to CONVERGED, and no Pass 3 row is written, because
+writing a row for a round that did not run is the fabrication the ledger exists to prevent.
+
+⚠️ **What the two completed rounds mean for the third.** Round 1 confirmed 28 defects of which 1
+lay inside the review's own fixes; round 2 confirmed 21 of which **all 21** did. One more round
+scoring `own_fix == confirmed > 0` fires the D-252 scope-growth stop, whose exit is to route the
+remaining own-fix work to a backlog row and close on the ORIGINAL delta's state. Round 3 should be
+sized and read with that in mind rather than as an open-ended sweep.
 **Surface:** `git rev-parse HEAD` = ac4da75144b4df9b2601de01ee53518331fb3c78; range tip ac4da75144b4df9b2601de01ee53518331fb3c78; `git diff 9802bd43..ac4da751 -- CHANGELOG.md CLAUDE.md commands/_fragments/close-feedback.md commands/_sources/fabrik-command-improve.md docs/DECISIONS.md docs/reference/command-run-protocol.md docs/workstation/kaizen.md scripts/command_feedback_report.py scripts/command_run.py templates/governance/CLAUDE.md tests/test_command_feedback_report.py tests/test_command_run.py` md5 84f05651f2f73c60c1f64a0236a5dbce (82895 bytes)
 **Command:** /fabrik-review · **Changed:** `CHANGELOG.md`, `CLAUDE.md`, `commands/_fragments/close-feedback.md`, `commands/_sources/fabrik-command-improve.md`, `docs/DECISIONS.md`, `docs/reference/command-run-protocol.md`, `docs/workstation/kaizen.md`, `scripts/command_feedback_report.py`, `scripts/command_run.py`, `templates/governance/CLAUDE.md`, `tests/test_command_feedback_report.py`, `tests/test_command_run.py`
 
@@ -223,5 +237,13 @@ printed nothing, step 4 did not exist, and the number at step 5 could only grow.
 `"status": "success"`):
 
 ```json
-UNCHECKED — paste the gate output here at the CONVERGED flip
+{"status": "success", "passed": 65, "failed": 0, "tier": "standard",
+ "skipped_checks": ["bandit", "semgrep", "pytest"]}
 ```
+
+⚠️ Re-measured at THIS pass, not inherited. The hub's pytest leg is OFF by design (5,913 tests
+would brick every completion gate three sessions run), so the suites were run BY HAND and the
+numbers are stated rather than implied: `tests/test_command_run.py` + `test_command_feedback_report.py`
++ `test_command_feedback.py` → **442 passed**. That distinction is not pedantry — it is exactly how
+this review's 14-failure regression in `test_command_feedback.py` stayed invisible behind a green
+gate for two commits: the gate never ran it, and I had only been running the two files I edited.
