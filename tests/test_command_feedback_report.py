@@ -1630,6 +1630,33 @@ def test_the_command_keeps_its_lock_refusal_and_names_the_key_it_reads() -> None
     # either: pinning a line break plus two spaces of indent reds on a pure reflow. The pair below
     # discriminates without that brittleness.
     assert "`status`" in text and '`"active"`' in text, "the status filter is unguarded"
+    # …and the ORDER, which is the whole rule: a verdict phrased about behaviour names no file, so
+    # the write target — the command's own fragments included — is resolved BEFORE any lock is
+    # read. Measured 2026-09-15: /fabrik-review's queue reads lock-blocked on its SOURCE while the
+    # rows that drove the edit named a FRAGMENT no lock owns.
+    #
+    # Matched against FLAT, never the raw slice: a multi-word literal pinned to hard-wrapped text
+    # reds on a pure reflow (executed at fill widths 72 and 80).
+    #
+    # The ordering assertion uses the FIRST `.fabrik/plan-locks/` mention, not the step labels: an
+    # executed mutant prepended "FIRST, read the locks" while leaving the labelled steps in order,
+    # and a label-index comparison passed it green.
+    #
+    # ⚠️ Cobra (D-253): these are prose pins. The cheapest pass without the rule is to keep every
+    # phrase and append a weakening clause ("skip this when the target is obvious") — executed,
+    # passes green. Nothing here can catch that; only a reader can.
+    bullet = text[
+        text.index("the file you would WRITE is lock-owned") : text.index("STOP and mail")
+    ]
+    flat = " ".join(bullet.split())
+    assert "RESOLVE THE TARGET FIRST, THEN READ THE LOCKS" in flat, "the order headline is gone"
+    assert "one of the fragments that command renders" in flat, (
+        "a fragment is no longer named as a legitimate write target"
+    )
+    assert flat.index("fragments that command renders") < flat.index(".fabrik/plan-locks/"), (
+        "a lock is read before the target is resolved — the order this rule exists to fix"
+    )
+
 
 
 def test_the_command_spells_the_commit_trailer_it_requires() -> None:

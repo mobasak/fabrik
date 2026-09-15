@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Resolve the write target before reading the locks (/fabrik-command-improve) (2026-09-15)
+
+- `commands/_sources/fabrik-command-improve.md` — PHASE 2's lock bullet now states the ORDER (resolve the
+  write target, then read `.fabrik/plan-locks/`) and names a command's own fragments as a legitimate
+  target beside its source and its pack. Answers the single verdict in this command's own queue: the
+  bullet keyed on the write target but enumerated only source-or-pack and then said "Read the locks
+  first", so `/fabrik-review`'s queue read as lock-blocked on `commands/_sources/fabrik-review.md` while
+  the rows that drove the edit named `commands/_fragments/term-coverage.md`, which no lock owns. +245 B.
+- `tests/test_command_feedback_report.py` — the existing lock-refusal grader gains the ordering
+  assertion, matched against whitespace-flattened text and keyed on the FIRST `.fabrik/plan-locks/`
+  mention rather than the step labels (an executed mutant beat the label form). No test added or removed.
+
 ### Changed — A grader is proven by its red: term-coverage gains round-zero rule (4) (2026-09-15)
 
 - `commands/_fragments/term-coverage.md` — the round-zero probe gains a fourth rule, answering five

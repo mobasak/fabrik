@@ -72,28 +72,29 @@ and stop; do not invent an edit to justify the run.
 ## PHASE 2 — Pick the ONE edit
 
 Group the rows by what they are actually about, then choose the group that (a) the most rows name,
-and (b) you can express as a CONCRETE change to `commands/_sources/<command>.md` or to the rule pack
-it cites. Name the rows you are answering by `ts`. ⚠️ **A `.windsurf/rules/` edit is a FLEET-WIDE
+and (b) you can express as a CONCRETE change to `commands/_sources/<command>.md`, to one of the
+fragments that command renders, or to the rule pack it cites. Name the rows you are answering by `ts`. ⚠️ **A `.windsurf/rules/` edit is a FLEET-WIDE
 change** — that directory is a governance-sync trigger, so a commit there distributes to ~46 repos
 on the post-commit hook. Make it only if it is correct for all of them, and say so in the commit;
 one hub agent's verdict is not evidence about 46 projects.
 
 Three shapes are NOT yours to apply here, and each has a destination:
 
-- **the file you would WRITE is lock-owned.** Key this on the write TARGET —
-  `commands/_sources/<command>.md`, or the pack you would edit — never on what the verdict talks
-  about: a verdict phrased about behaviour names no file and still lands in one. Read the locks
-  first: `python3 -c` over `.fabrik/plan-locks/*.json`, keeping the files whose `status` is
-  `"active"` and testing your write target against their **`owned_paths`** list — name that key, a
-  guess like `files` returns `[]` and reads as "no lock owns this", which is a silent fail-open past
-  the STOP itself.
+- **the file you would WRITE is lock-owned.** RESOLVE THE TARGET FIRST, THEN READ THE LOCKS. Key it
+  on the write TARGET — `commands/_sources/<command>.md`, one of the fragments that command renders
+  (`command grep -n 'include:' commands/_sources/<command>.md` names them), or the pack you would
+  edit — never on what the verdict talks about: a verdict phrased about behaviour names no file and
+  still lands in one. ONLY THEN read the locks: `python3 -c` over `.fabrik/plan-locks/*.json`,
+  keeping the files whose `status` is `"active"` and testing your write target against their
+  **`owned_paths`** list — name that key, a guess like `files` returns `[]` and reads as "no lock
+  owns this", which is a silent fail-open past the STOP itself.
   If an active lock owns it → **STOP and mail the edit** with the exact text you would have written.
   The lock JSON carries no addressee, so route by BEAT (`commands/_sources/` and `.windsurf/rules/`
   are infra's; `docs/reference/agents/` has the charters) and name the lock file in the mail.
-  ⚠️ This is not rare: when this command was written the two DEEPEST queues were both owned by an
-  active lock (`/fabrik-review` and `/fabrik-review-scoped` — run `--queue` on each for today's
-  depth rather than trusting a number frozen here), so **"the whole queue is lock-blocked" is a
-  legitimate, recordable outcome** exactly like an empty one. Mail it and close.
+  ⚠️ Not rare, and the ORDER is why: a queue reads as lock-blocked on the command SOURCE while its
+  rows name a FRAGMENT no lock owns. Run `--queue` for today's depth rather than trusting any number
+  frozen here, and **"the whole queue is lock-blocked" IS a legitimate, recordable outcome** exactly
+  like an empty one — but only once the target is named. Mail it and close.
 - a verdict that wants a NEW mechanism, a gate, a hook, or a schema → that is SPEC/PLAN work
   (`/fabrik-spec` → `/fabrik-plan-after-chat`), not a command edit. Say so and file it.
 - a verdict about the machinery this command itself reads (the ledger, the close, the report) → file
@@ -109,8 +110,8 @@ restates what the file already says creates two sources of truth in one document
 DELETE what it replaces. The history lives in git.
 
 ⚠️ **Weight is a cost, and piece 3 measures it.** Every byte you add to `commands/_sources/` or
-`commands/_fragments/` is loaded on every invocation of that command, box-wide — a fragment edit is
-once per command, and a `_fragments/` edit renders into EVERY command — so an edit that adds a
+`commands/_fragments/` is loaded on every invocation of that command, box-wide — a `_fragments/` edit renders into every command that
+INCLUDES it — 5 commands or 34, so count before you assume — so an edit that adds a
 paragraph should retire one. `python3 /opt/fabrik/scripts/enforcement/check_corpus_weight.py --check`
 reports the delta against the base branch in one reading and exits 0 either way: read its ⚠ line,
 not its exit code, and if the surface grew say in the commit what the growth buys.

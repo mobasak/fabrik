@@ -2578,6 +2578,24 @@ notion of "mine" the check does not currently have — spec-shaped, not a one-li
 
 ### Kaizen loop — the residue of the D-252 stop (2026-09-15)
 
+- **`commands/assemble_commands.py::PARAMS` holds per-command TEXT that `--mark-answered` refuses**
+  (owner: **infra**) — `_is_corpus_path('commands/assemble_commands.py')` is False, so a verdict about a
+  per-command slot can be edited but never marked answered; the run dies mid-PHASE-5 and the queue never
+  falls. Executed in a throwaway repo: `REFUSED — nothing marked: … touches no corpus path`.
+- **The lock-status filter is narrower than the writer's own partition** (owner: **infra**) —
+  `/fabrik-command-improve` and its readers filter `status == "active"`, while
+  `scripts/enforcement/check_plan_lock_release.py:59` defines `NON_TERMINAL = {active, paused, blocked}`.
+  No paused/blocked lock exists today (0 of 70), so this is a latent fail-open, not a live one.
+- **A foreign `{{include:}}` on its own line renders GREEN and silently inlines** (owner: **infra**) —
+  `assemble_commands.py:1170` substitutes `[\w-]+` while the leftover guard at `:1171` matches only
+  `[A-Za-z_-]+`, so a digit-bearing directive passes both. A round-3 seat rendered a copied corpus with a
+  foreign fragment inserted: rc 0, `rendered 37 commands`, the file 3.5 KB larger. Only the mid-line shape
+  errors — the corpus warning about this is therefore true only for that shape.
+- **`COMMAND_RUN_DIR` does not scope kaizen events** (owner: **infra**) — a review seat's scratch-scoped
+  `command_run.py` probe still wrote a fabricated session into the shared fleet stream
+  (`~/.claude/state/events/probe-seat-r3.jsonl`, removed). `kaizen_events.py` keys only on
+  `KAIZEN_EVENTS_DIR`; every probe brief that scopes `COMMAND_RUN_DIR` must set both, or the scoping lies.
+
 - **`^def test_` reaches 75% of Python graders** (owner: **infra**) — round 3 measured 310,030 of
   413,590 declaration lines across 79,354 files (`rg --no-ignore --hidden`): the pattern misses every
   class-method and `async def test_` grader. Rule (4) now hedges with "whichever pattern the suite's
