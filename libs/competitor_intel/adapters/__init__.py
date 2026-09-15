@@ -74,7 +74,15 @@ def enabled_adapters(product_type: str, env: Mapping[str, str]) -> list[Adapter]
     Phase A: the registry is empty → always ``[]`` (Tier-C search-excerpts only). This is the ToS-clean,
     self-contained default; the module works with zero adapters."""
     active: list[Adapter] = []
-    for adapter, product_types in _REGISTRY.values():
+    # ⚠️ ITERATE A SNAPSHOT. `_REGISTRY` is module-level and mutable, and `register()` /
+    # `_clear_registry()` are public enough for a consumer to call while a `run()` is in flight (a
+    # config reload, a lazily-wired custom adapter). Iterating it live raised
+    # `RuntimeError: dictionary changed size during iteration` — reproduced with three threads
+    # registering, clearing and enumerating concurrently. That exception had NO never-raise boundary
+    # around the `enabled_adapters()` call in `run()`, so it escaped the orchestrator entirely and
+    # broke the module's headline promise: `run()` never raises except a `ValueError` at entry on a
+    # wiring bug. A snapshot costs one dict copy per run and removes the whole class.
+    for adapter, product_types in list(_REGISTRY.values()):
         if product_type not in product_types:
             continue
         gate = adapter.key_env

@@ -23,7 +23,8 @@ from urllib.parse import urlparse
 
 from ._ingest import Taken, take
 from .adapters import enabled_adapters
-from .dossier import Dossier, Signal, Tier, Us
+from .dossier import ADVISORY_CAUSES as _ADVISORY_CAUSES
+from .dossier import Dossier, Seed, Signal, Tier, Us
 from .protocols import Deps, Pack
 from .stages import PricingBlock, WhiteSpaceBlock, price_wedge, white_space
 from .synth import LlmMeter, align_features, build_matrix, extract_features, gap_synthesis
@@ -33,9 +34,37 @@ logger = logging.getLogger(__name__)
 #: `degrade_causes` entry for two discovered rivals sharing one display name. A CLASS NAME, never a
 #: message — the field is persisted and restored, so anything derived from scraped text or an LLM
 #: answer would be stored forever (see README § Gotchas). The offending names go to the log line.
-#: ⚠️ The ONLY self-clearing cause in the module: it is recomputed from `discovered` every run, so it
-#: is withdrawn when the collision is gone rather than outliving it.
+#: ⚠️ SELF-CLEARING: it is recomputed from `discovered` every run, so it is withdrawn when the collision
+#: is gone rather than outliving it. It is NOT the only one, and the denominator is DERIVED, not grepped:
+#: `tests/test_wiring_contract.py::test_the_SELF_CLEARING_cause_list_is_re_derived_not_remembered` walks
+#: the AST for `degrade_causes` removal sites and fails if the README does not name each. (This line said
+#: "the ONLY self-clearing cause in the module" while five such sites existed. It is the strongest claim
+#: of the family and it outlived a sweep that corrected its two weaker siblings below, because a
+#: superlative reads as a definition rather than as a count. ⚠️ And a BARE GREP is the wrong instrument
+#: here — it over-counts, because comments, including this one, quote the string. No number is stated
+#: for the grep DELIBERATELY: that number changes every time one of these comments is edited, which is
+#: how the first attempt at this correction shipped its own wrong count.)
+#: ADVISORY (never sets `partial`): this run re-billed the synthesis tail on a RESUMED job. The tail's
+#: RESULTS are not checkpointed, so every `run()` on an existing `job_id` re-does the LLM synthesis and
+#: `LlmMeter` charges `synth_call_estimate` per call. That is deliberate — but it was SILENT, and the
+#: silence is the defect: measured, 7 repeat calls on an already-complete 2-competitor job walked spend
+#: 0.33 -> 0.50 and exhausted the budget with `status="ok"` and `degrade_causes=[]` throughout, so a
+#: caller polling `run()` could not distinguish "budget spent doing work" from "budget spent re-doing
+#: nothing". The charge stays; the silence does not.
+_SYNTHESIS_REBILLED = "SynthesisRebilled"
+#: `degrade_causes` entry for a synthesis tail that could not CLUSTER — `align_features` fell back to
+#: its identity taxonomy (the budget was exhausted before synthesis, or the LLM failed, or it answered
+#: an unusable shape). NOT advisory: the feature matrix is built on unmerged synonyms, so rows that are
+#: one capability stay several and the `us` column can only answer ❓ for anything it does not match
+#: verbatim. ⚠️ WITHOUT THIS THE DEGRADATION IS INVISIBLE. `meter.degraded` covers only an LLM call that
+#: RAISED; a budget-SKIPPED call and a call that returned junk both fall through it, so a run whose
+#: whole us-vs-them comparison was unusable reported `partial=False status="ok" degrade_causes=[]` and
+#: simply OMITTED the MATCH section — `to_markdown` drops the header entirely when the list is empty,
+#: so the reader cannot tell "no table-stakes gaps" from "we could not compute them". Naming the cell ❓
+#: made the matrix honest; without a cause it made the DOSSIER silent, which is the worse half.
+_TAXONOMY_DEGRADED = "TaxonomyDegraded"
 _RIVAL_NAME_COLLISION = "RivalNameCollision"
+#: (the single definition lives in `dossier.py` — the RENDERER needs it too, and cannot import upward)
 
 #: `degrade_causes` entry for elements the synthesis tail could not use. A FIXED token: the per-rival
 #: detail lives in `Dossier.element_drops` and the log line, never in this persisted enumerated field.
@@ -46,6 +75,11 @@ _ELEMENT_DROPPED = "ElementDropped"
 _PARTIAL_CAUSE_UNREADABLE = "PartialCauseUnreadable"
 
 #: Max length of the SUBJECT half of an `element_drops` key.
+#: The reserved aggregate key for losses whose SUBJECT was evicted by `_MAX_DROP_ENTRIES`. Chosen to
+#: be un-collidable with a real `site:subject` key: every real key contains a `:` after a site name,
+#: and no site name is empty. A consumer summing `element_drops.values()` therefore still gets the
+#: true element-loss total after truncation.
+_DROPS_EVICTED: Final = "(evicted)"
 _DROP_SUBJECT_MAX: Final = 80
 
 #: Max number of ``element_drops`` entries kept. The map is persisted and sticky, so without a size
@@ -56,12 +90,68 @@ _MAX_DROP_ENTRIES: Final = 200
 _DROP_DETAIL_TRUNCATED = "DropDetailTruncated"
 
 
+def _bound_drop_map(element_drops: dict[str, int], this_run: Mapping[str, int]) -> None:
+    """Bound `element_drops` to `_MAX_DROP_ENTRIES`, in place, publishing the residual as a count.
+
+    ⚠️ EXTRACTED SO A TEST CAN CALL THE REAL CODE. Round 15's regression test was a hand-copied
+    reimplementation of this block against a locally-built dict — structurally identical the day it
+    was written, pinned to nothing, and therefore free to drift from the code it claimed to cover. A
+    test that re-implements its subject tests the re-implementation.
+
+    ⚠️ THE AGGREGATE IS PER-RUN, NOT CUMULATIVE, and that is the correction to my own round-15 fix.
+    Seeding `carried` from the restored `(evicted)` value looked like conservation and was double
+    counting: the synthesis tail re-derives EVERY discovered rival on every `run()`, so a loss folded
+    into the aggregate on run 1 comes back as a fresh named key on run 2 while the stale aggregate is
+    never decremented. Four IDENTICAL resumes measured 220 -> 241 -> 262 -> 283 with no new data:
+    the key COUNT was bounded and the SUM had quietly taken over the unbounded growth the bound
+    exists to prevent.
+
+    **The cost, stated precisely — my first statement of it was wrong.** Dropping the stale aggregate
+    means a leg evicted on an earlier run that does NOT re-run has its count fall out of the total:
+    the aggregate is anonymous, so nothing distinguishes a superseded loss from a still-standing one.
+    I called that a "bounded undercount" and it is NOT bounded. Measured over 15 resumes with 30% key
+    drift, `sum(element_drops.values())` PLATEAUS while the true cumulative loss keeps rising —
+    undercount 31 -> 691 -> 2011. Round 15 was an unbounded OVERCOUNT; this is an unbounded
+    UNDERCOUNT. Neither is bounded, and claiming otherwise was the same over-confident phrasing that
+    made the original bug survive review.
+
+    It is still the better failure — an undercount degrades quietly toward "we know at least this
+    much" while an overcount invents losses that never happened — but the honest statement is:
+    **once eviction has fired for a `job_id`, `sum(element_drops.values())` is a FLOOR, not a total.**
+    Exact only while the map has never exceeded the bound. There is no repair without identity, and
+    identity is precisely what a bound spends: the unknown quantity IS the evicted set.
+    """
+    keep_first = [k for k in element_drops if k in this_run and k != _DROPS_EVICTED]
+    keep_rest = sorted(k for k in element_drops if k not in this_run and k != _DROPS_EVICTED)
+    element_drops.pop(_DROPS_EVICTED, None)  # per-run: never carried across a resume
+    carried = 0
+    for stale in (keep_first + keep_rest)[_MAX_DROP_ENTRIES - 1 :]:
+        carried += _plain_count(element_drops.pop(stale, 0))
+    if carried:
+        element_drops[_DROPS_EVICTED] = carried
+
+
+def _plain_count(value: object) -> int:
+    """A non-negative builtin ``int`` from a restored map's value — never raising, never negative.
+
+    `element_drops` round-trips through JSON in the resume checkpoint, so a hand-edited or
+    partially-written file can put anything in a count position. `int.__int__` converts real ints and
+    their subclasses and refuses everything else, including an object merely CLAIMING to be an int.
+    """
+    try:
+        n = int.__int__(value)  # type: ignore[arg-type]
+    except Exception:  # noqa: BLE001 — an unreadable count contributes nothing rather than crashing
+        return 0
+    return n if n > 0 else 0
+
+
 def _drop_subject(subject: str) -> str:
     """Bound and flatten the subject half of an ``element_drops`` key.
 
     ⚠️ `Dossier.element_drops`' own docstring claimed its keys were "a code-controlled site plus a rival
-    name already published in `competitors` and the matrix columns". That is true for two of the four
-    call sites and FALSE for the other two: `beat_theme_collapsed`'s subject is a `Signal.aspect` and
+    name already published in `competitors` and the matrix columns". That is true for the code-controlled
+    rival/us family — `extract_features`, `rival_features`, `us_features` — and FALSE for the other
+    two, which is why the split matters more than the tally: `beat_theme_collapsed`'s subject is a `Signal.aspect` and
     `white_space_collapsed`'s is an LLM-proposed need phrase — raw, unbounded model output over scraped
     text, and those two fire on ordinary synthesis rather than on an edge case.
 
@@ -189,7 +279,7 @@ def _synth_estimate(value: Any) -> Decimal:
 #: Checkpoint fields whose READER uses `is True` rather than `bool(...)`. For these a JSON `1` is a real
 #: loss — it reads as NOT done and re-enters a billed leg — whereas for the `bool(...)` readers it is the
 #: correct value and flagging it would be a false alarm. The reporting question must match the reader.
-_STRICT_TRUE_FIELDS = frozenset({"discovery_done", "spend_baseline_lost"})
+_STRICT_TRUE_FIELDS = frozenset({"discovery_done", "spend_baseline_lost", "synthesis_billed"})
 
 
 def _canonical_signal(sig: Signal) -> Signal:
@@ -380,6 +470,37 @@ def _is_usable_usd(value: Any) -> bool:
 # checkpoint (so a crash-resume does not re-grant the whole budget), and each sub-call is reserved
 # ``remaining / ceiling_factor`` so the deep-research ceiling (reserved x factor) equals the true remaining
 # — making ``total_budget_usd`` a HARD cap even with a >1 factor.
+#
+# ⚠️ THAT HARD CAP IS CONDITIONAL ON SERIAL DISPATCH, and this is the caveat's definition site. All
+# four ``_run_leg`` call sites are sequential today and the reservation scheme REQUIRES it. To find
+# them, grep ``stage="``: ``discover`` and ``white-space`` are SINGLE calls, while ``reviews`` and
+# ``pricing`` are PER-RIVAL LOOPS — those two are what would tempt a gather. Each call reserves the whole remaining
+# budget, which is bounded only by what earlier calls already CHARGED; dispatch two against this same
+# ``_Budget`` concurrently and both read the same ``remaining()``, reintroducing exactly the N-way
+# multiplication described two paragraphs up. ``_Budget`` has no lock and ``remaining()``/``charge()``
+# are un-synchronised. Measured on the reviews loop with a real ``asyncio.gather``: $4.80 against a
+# $1.00 ceiling, reported as ``status="ok"``/``partial=False``/no degrade cause. Full footgun + the
+# conditions for doing it correctly: the comment above the reviews loop (search SEQUENTIAL BY CONTRACT)
+# and README § Gotchas.
+#
+# ✅ THE IN-MODULE PRECEDENT FOR DOING IT SAFELY is ``LlmMeter.call`` (synth.py) — it wraps THIS SAME
+# ``_Budget`` and is used inside the THIRD per-rival budget-CHARGING loop (feature extraction — three
+# of three, counting only loops that CHARGE; the per-ADAPTER fan-out nested inside the reviews loop
+# only READS ``remaining()`` and never charges, so it multiplies invisibly rather than over-charging,
+# and the module has other per-rival loops that touch no budget at all), yet it is concurrency-safe,
+# because it ``charge``s the estimate BEFORE it awaits the LLM: there is no suspension point between
+# ``remaining() <= 0`` and ``charge(estimate)``, so under asyncio that pair is atomic and N concurrent
+# calls cannot all pass the gate on the same balance. ⚠️ THAT ATOMICITY IS SINGLE-EVENT-LOOP ONLY —
+# ``charge`` is a bare ``self.spent += amount``, a non-atomic read-modify-write with no lock, so ANY
+# parallelisation that puts two charges on different THREADS breaks ``LlmMeter`` too — a worker pool,
+# ``run_coroutine_threadsafe`` onto a second loop, a sync wrapper driven from an executor. (Not a bare
+# ``to_thread(_run_leg, …)``: these are ``async def``, so that hands a thread an un-awaited coroutine.)
+# None of these warnings would fire for that shape, because they all name ``asyncio.gather``. The
+# hazard is CONCURRENCY, not one API.
+# ``_run_leg`` has the opposite shape — it reserves
+# up front and charges only AFTER the await returns, leaving the whole budget claimable by every leg in
+# flight. That difference, not the loop, is the actual bug surface: charge-before-await is what a correct
+# parallel version of the two ``_run_leg`` loops would have to adopt.
 class _Budget:
     """The single injected USD total + a running-spend accountant, shared by every stage and persisted."""
 
@@ -704,7 +825,9 @@ async def _run_leg(
 ) -> _StageResult:
     """One budgeted, checkpointed, never-raising research sub-call. Reserves ``remaining / ceiling_factor``
     (so the engine's ceiling ``reserved x factor`` equals the true remaining → total is a HARD cap even
-    with a >1 factor), charges the true actual afterward, and flags truncation. A non-finite reported spend
+    with a >1 factor — ⚠️ CONDITIONAL ON SERIAL DISPATCH: this reserves the WHOLE remaining budget, so
+    concurrent callers all read the same ``remaining()`` and are each handed all of it; see the
+    ``_Budget`` banner), charges the true actual afterward, and flags truncation. A non-finite reported spend
     is charged at the full reservation (conservative — never under-count real dollars)."""
     remaining = budget.remaining()
     if remaining <= 0:
@@ -980,6 +1103,122 @@ def _ck(name: str, url: str) -> str:
     return f"{_slug(name)}-{_hash(f'{len(name)}|{name}|{url}')}"
 
 
+def _seed_key(url: str) -> str:
+    """The roster DEDUP identity: the NORMALIZED host — the ``urlparse`` netloc of the stripped url,
+    LOWER-CASED (``urlparse`` keeps the case: ``Explee.com`` != ``explee.com`` otherwise) with a leading
+    ``www.`` removed (``www.explee.com`` and ``explee.com`` are the same vendor). Falls back to the raw url
+    (lower-cased) when there is no netloc — e.g. a scheme-less ``"explee.com"``.
+
+    ⚠️ This is host-normalization, NOT full registrable-domain (eTLD+1) extraction — that needs a Public
+    Suffix List, and this module is PyYAML-only by contract. So ``app.explee.com`` and ``explee.com`` do
+    NOT collapse (they legitimately may be different products); only case + a ``www.`` prefix are
+    normalized, which covers the seed-vs-discovery mismatch that actually double-bills. ⚠️ Keyed on the URL
+    ONLY, never the name — the rival-NAME derivation is centralized in ``_named_cards`` (a structural test
+    forbids a second one), and the host is the sharper identity anyway (``Explee`` vs ``Explee Inc``)."""
+    u = url.strip()
+    host = _netloc(u).lower()
+    if not host and u:
+        # scheme-less (``www.foo.com`` / ``explee.com/product``): ``urlparse`` needs a ``//`` to see a
+        # netloc, else the whole string is a path. Prepending it lets a scheme-less discovery card dedup
+        # against a schemed seed (same vendor, same bill) instead of leaking a duplicate.
+        host = _netloc("//" + u).lower()
+    if host.startswith("www."):
+        host = host[4:]
+    return host or u.lower()
+
+
+def _merge_seeds(discovered: list[dict[str, Any]], seeds: Sequence[Seed] | None) -> None:
+    """Inject caller-PINNED vendors into the roster, IN PLACE and IDEMPOTENTLY. Each seed ends up
+    represented by exactly one card — its own freshly-created card
+    ``{name, url, positioning, evidence, verified: False, seeded: True, pinned: True}`` if discovery did
+    not surface it, or the EXISTING card that already represents it (marked ``seeded=True``) — and every
+    representative is FRONT-LOADED in the caller's seed order, so under a tight budget the pinned vendors'
+    review legs mine BEFORE adjacent discoveries EVEN WHEN the pin merely corroborates a discovery hit.
+    De-dup is by NORMALIZED HOST (see ``_seed_key`` — lower-cased + ``www.``-stripped, NOT full
+    registrable-domain/eTLD+1): a seed that discovery ALSO found is not double-counted.
+
+    ⚠️ Reads the roster THROUGH the one sanctioned card iterator, ``_named_cards`` (a structural test
+    forbids raw iteration of the roster list outside it); the final reorder is one ``list[:]`` slice-assign.
+
+    ⚠️ SEAM-CONSISTENCY (the element-ingestion seam, coordination mail ``01M14TCN``): this is a BUSINESS
+    decision, never evidence loss. It **NEVER sets ``dossier.partial`` and NEVER appends a
+    ``degrade_cause``** — a seed already present is a ``want`` filter (nothing was destroyed), and per
+    ``_ingest.take`` a ``want`` failure must never manufacture a cause. A MALFORMED seed is a caller WIRING
+    bug caught LOUD at ``run()`` ENTRY (not here); a well-formed seed whose URL is unreachable degrades at
+    its reviews leg like any rival. Idempotent, so calling it on every entry (including a resume) is safe."""
+    if not seeds:
+        return
+    # TWO different dedups, deliberately keyed differently — conflating them SILENTLY DROPS a pinned vendor:
+    #   * a seed vs a DISCOVERY card → by normalized HOST: the same vendor found both ways (the operator
+    #     pinned `explee.com`, discovery surfaced `explee.com/product`) collapses to one card.
+    #   * a seed vs ANOTHER SEED (or a prior-run pin) → by EXACT url only: the operator EXPLICITLY named
+    #     each, so two distinct pins on one host (`Seed("Docs","x.com/a")`, `Seed("Sheets","x.com/b")`) are
+    #     DISTINCT and BOTH kept — only a copy-paste of the SAME url collapses.
+    # `by_exact` (ALL cards) is the RESUME-IDEMPOTENCY key: a seed whose exact url is already on the restored
+    # roster is its OWN prior card → mark seeded, reuse it (no duplicate). `disc_by_host` is the host-collapse
+    # target map and must hold ONLY genuine DISCOVERY cards — a pin card is NEVER a valid collapse target
+    # (folding one pin onto another silently drops the second). A card is excluded from the target map when:
+    #   (a) `pinned is True` — it is a pin card created by THIS function, on THIS or ANY PRIOR call. This is
+    #       the PERSISTENT classifier: `seed_exacts` only knows the CURRENT call's seeds, so on a resume that
+    #       drops the original seed and adds a NEW same-host seed, a prior pin would otherwise masquerade as a
+    #       discovery card and the new distinct vendor would collapse onto it and VANISH (partial=False, no
+    #       cause — the module's cardinal silent-drop, found by the confirming review round). The `pinned`
+    #       flag rides through the checkpoint, so the classification is stable across resumes.
+    #   (b) its exact url is in `seed_exacts` — a THIS-call seed will OWN-match it, so it must not ALSO be a
+    #       host-collapse target for a DIFFERENT same-host seed (which would drop that different seed).
+    # Front-loading every representative (not just freshly-inserted ones) keeps order STABLE across a resume
+    # AND honors the budget-priority contract for a pin that corroborates a discovery card. Every seed is
+    # thus: own-matched (mark, reuse), collapsed onto a discovery hit (mark, one pin per host), or inserted —
+    # never folded onto another pin, never dropped, never duplicated; fresh order == resume order.
+    seed_exacts = {str(s.url).strip().lower() for s in seeds}
+    disc_by_host: dict[str, dict[str, Any]] = {}
+    by_exact: dict[str, dict[str, Any]] = {}
+    for _name, url, card in _named_cards(discovered).kept:
+        u = url.strip().lower()
+        by_exact.setdefault(u, card)
+        if u not in seed_exacts and card.get("pinned") is not True:
+            disc_by_host.setdefault(_seed_key(url), card)
+    reps: list[dict[str, Any]] = []  # one representative card per DISTINCT seed, in caller seed order
+    seen_exact: set[str] = set()  # exact urls handled THIS call — copy-paste dedup within the seeds list
+    claimed_hosts: set[str] = set()
+    for seed in seeds:
+        exact = seed.url.strip().lower()
+        if exact in seen_exact:
+            continue  # the SAME url listed twice in this call — one card, not a double bill
+        seen_exact.add(exact)
+        own = by_exact.get(exact)
+        if own is not None:
+            own["seeded"] = True  # this seed's OWN card is already on the roster (a resume) — mark, reuse
+            reps.append(own)
+            continue
+        host = _seed_key(seed.url)
+        existing = disc_by_host.get(host)
+        if existing is not None and host not in claimed_hosts:
+            existing["seeded"] = True  # collapse onto the discovery hit for this host (at most one pin)
+            claimed_hosts.add(host)
+            reps.append(existing)
+            continue
+        new_card: dict[str, Any] = {
+            "name": seed.name,
+            "url": seed.url,
+            "positioning": seed.positioning,
+            "evidence": seed.evidence,
+            "verified": False,
+            "seeded": True,
+            "pinned": True,  # PERSISTENT: marks a pure-pin card so it is never a future host-collapse target
+        }
+        discovered.append(new_card)
+        reps.append(new_card)
+    # Front-load every representative in seed order; the rest of the roster keeps its relative order behind.
+    # Identity bookkeeping ONLY (no name derivation) — so `_named_cards` is deliberately NOT used here (it
+    # would drop nameless cards); iterate a COPY of the roster so the roster's ONE name-normalization stays
+    # inside `_named_cards` (the DRY structural guard).
+    rep_ids = {id(c) for c in reps}
+    roster_snapshot = list(discovered)
+    tail = [c for c in roster_snapshot if id(c) not in rep_ids]
+    discovered[:] = reps + tail
+
+
 def _load_source_profile(product_type: str) -> dict[str, Any]:
     """The product-type source profile (review venues + query-site patterns) — DATA, not code. Resolves a
     common fabrik scaffold-type alias first. A missing file, malformed YAML, or unknown type degrades to an
@@ -1008,6 +1247,9 @@ async def run(
     *,
     product_type: str,
     deps: Deps,
+    seeds: Sequence[Seed] | None = None,  # PINNED vendors — bypass discovery ranking, join the roster
+    discover: bool = True,  # False = pin-only: skip NEW discovery (fresh run → roster is exactly the seeds;
+    #                          a RESUME keeps discoveries a prior discover=True run already paid for). Needs ≥1 seed.
     enable_pricing: bool = False,  # Phase B stage — accepted here, wired in Phase B
     enable_white_space: bool = False,  # Phase B stage — accepted here, wired in Phase B
 ) -> Dossier:
@@ -1025,7 +1267,52 @@ async def run(
         raise ValueError(
             "competitor-intel deps wiring error: checkpoint_dir must be a Path and job_id a non-empty str"
         )
+    # ⚠️ SEED WIRING is caller structure (like checkpoint_dir/job_id), so a malformed `seeds` fails LOUD
+    # HERE, at ENTRY, before any spend — NOT a mid-run degrade. This preserves the module's contract that
+    # "the only raise is a ValueError at entry"; a well-formed seed whose URL turns out unreachable is a
+    # different thing and degrades at its reviews leg. A `str`/`bytes` is refused (it would iterate to
+    # characters), and `discover=False` with nothing pinned is a wiring bug (a pin-only run must pin).
+    if seeds is not None:
+        if isinstance(seeds, (str, bytes)) or not isinstance(seeds, Sequence):
+            raise ValueError(
+                f"competitor-intel deps wiring error: seeds must be a sequence of Seed, got {type(seeds).__name__}"
+            )
+        for s in seeds:
+            # ⚠️ isinstance(str) BEFORE strip: `Seed` is a frozen dataclass with no runtime validation, so a
+            # caller can construct `Seed(name=None, url=123)` past the type annotations. `str(None).strip()`
+            # is the truthy `"None"`, which would PASS a stringifying check and then land a nameless card
+            # that degrades mid-run — the exact fail-loud-at-entry contract this guard exists to keep.
+            if (
+                not isinstance(s, Seed)
+                or not isinstance(s.name, str)
+                or not isinstance(s.url, str)
+                or not s.name.strip()
+                or not s.url.strip()
+            ):
+                raise ValueError(
+                    "competitor-intel deps wiring error: every seed must be a Seed with a non-empty str name and url"
+                )
+    if not discover and not seeds:
+        raise ValueError(
+            "competitor-intel deps wiring error: discover=False pins the roster to the seeds, so it requires "
+            "at least one seed (a pin-only run with nothing pinned would silently return an empty dossier)"
+        )
     progress = _load_progress(deps)  # job_id-verified; {} if absent/foreign/corrupt
+    # ⚠️ NOT `bool(progress)`. A checkpoint EXISTING and synthesis HAVING BEEN BILLED are different
+    # facts, and round 19 conflated them: a crash between the last leg's `_persist()` and the synthesis
+    # tail leaves a full checkpoint whose synthesis never ran, so the next call — the job's FIRST-EVER
+    # synthesis billing — was announced as a re-bill. Reproduced by hand-writing exactly that on-disk
+    # state and observing `SynthesisRebilled` with `research.entered == []` (no leg re-ran).
+    # `is True` and not truthiness, for the same reason `_STRICT_TRUE_FIELDS` exists: a module-written
+    # `False` must stay False rather than being read as "unknown, assume billed".
+    _synthesis_billed_before = progress.get("synthesis_billed") is True
+    # ⚠️ initialised HERE, not at the tail: `_persist()` closes over this name and is called many times
+    # during the legs loop, long before the tail runs. Defining it later made every one of those calls
+    # raise `UnboundLocalError` — 167 tests red, which is the cheap version of finding that out.
+    _synthesis_billed = _synthesis_billed_before
+    #: `budget.spent` when the synthesis tail was entered — `None` until it is. The FLAG is derived
+    #: from an actual spend delta, never from having reached the code.
+    _spend_at_tail_start: Decimal | None = None
     budget = _Budget(deps.total_budget_usd)
     # ⚠️ The LEDGER is restored before the TOTAL, because it is the only honest floor under the total.
     # `charged` holds per-sub-call engine-reported cumulatives, so their sum is a real lower bound on
@@ -1157,10 +1444,11 @@ async def run(
     # the append became idempotent carries the documented 2->4->6->8 duplication, and `_extend_signals`
     # cannot remove what is ALREADY in `target`: the inflated BEAT weight was re-persisted every run and
     # would have been permanent for every consumer mid-job at upgrade time.
-    _RESTORE_DROPPED.clear()
     _restore_dropped: list[Any] = []
     _extend_signals(
-        dossier.review_signal, _rehydrate_signals(progress.get("review_signal")), _restore_dropped
+        dossier.review_signal,
+        _rehydrate_signals(progress.get("review_signal"), _restore_dropped),
+        _restore_dropped,
     )
     dossier.partial = bool(progress.get("partial"))
     #: `partial` restored TRUE while its reason is absent. `_shape_lost` exempts a MISSING key, which is
@@ -1199,7 +1487,7 @@ async def run(
     _shape_expect = {
         "degrade_causes": list, "review_signal": list, "competitors": list,
         "reviews_done": dict, "charged": dict, "element_drops": dict,
-        "truncated": bool, "partial": bool, "discovery_done": bool,
+        "truncated": bool, "partial": bool, "discovery_done": bool, "synthesis_billed": bool,
         "spend_baseline_lost": bool,
     }
     def _shape_lost(k: str, typ: type) -> bool:
@@ -1333,7 +1621,7 @@ async def run(
         dossier.partial = True
         if "SpendTotalUnreadable" not in dossier.degrade_causes:
             dossier.degrade_causes.append("SpendTotalUnreadable")
-    if _restore_dropped or _RESTORE_DROPPED:
+    if _restore_dropped:
         # ⚠️ The rejection sink was wired to the ADAPTER call site only. The RESTORE site drops evidence
         # too — and round 5's field-type validation changed that failure's CHARACTER: before it, a torn
         # checkpoint entry detonated loudly downstream (`s.sentiment.lower()`); after it, the entry is
@@ -1365,7 +1653,33 @@ async def run(
     # Only a real JSON boolean counts as done; anything else means "not proven done" → re-run, which
     # fails toward re-charging real work rather than toward skipping it.
 
+    def _reconcile_partial_pair() -> None:
+        """`partial` and `degrade_causes` are a PAIR: a flag and its reason. Keep them coherent.
+
+        ⚠️ ONE DEFINITION, called wherever the pair is WRITTEN or finally READ. Six review rounds each
+        found this invariant broken one layer further out, because each fix put the check at a single
+        point and the next writer sat past it:
+          r3 the cause cleared but the flag could not → r4 checked only at RESTORE time
+          → r5 the placeholder outlived what it stood for → r6 the terminal `_persist` ran after the
+          check → r7 the INTERMEDIATE `_persist` calls write the broken pair to DISK.
+        That last one is why this is a function and not a fourth inline copy. `RivalNameCollision`
+        self-clears upstream of five more `_persist()` calls, so a resume whose collision has resolved
+        wrote `partial: true, degrade_causes: []` into a file literally named `progress.json` — and a
+        crash in that window leaves it as the final artifact for anything reading the file directly
+        (a dashboard, an operator diagnosing a stuck job). It self-heals on the next `run()`, but "it
+        is wrong only until someone runs it again" is not the property the module claims.
+        """
+        explanatory = [c for c in dossier.degrade_causes if c not in _ADVISORY_CAUSES]
+        if dossier.partial and not explanatory:
+            dossier.degrade_causes.append(_PARTIAL_CAUSE_UNREADABLE)
+        elif _PARTIAL_CAUSE_UNREADABLE in dossier.degrade_causes and [
+            c for c in explanatory if c != _PARTIAL_CAUSE_UNREADABLE
+        ]:
+            # a FALLBACK, not a finding — it yields the moment a real cause exists
+            dossier.degrade_causes.remove(_PARTIAL_CAUSE_UNREADABLE)
+
     def _persist() -> None:
+        _reconcile_partial_pair()  # the payload below must never carry a flag without its reason
         # ⚠️ NEVER write over state we could not READ. `read_text` failing is not evidence the bytes are
         # bad — `os.replace` needs only DIRECTORY write permission, so this module can always clobber a
         # file it cannot read. A transient read error (a UID change across a redeploy, a chmod, an EIO)
@@ -1390,6 +1704,16 @@ async def run(
             {
                 "job_id": deps.job_id,
                 "discovery_done": discovery_done,
+                # ⚠️ DERIVED FROM A SPEND DELTA, not from having entered the tail. Round 20 replaced
+                # the resume PROXY with a persisted fact and then made the fact itself a proxy one
+                # layer down: `_synthesis_billed = True` on ENTERING `if discovered:`, before any
+                # `meter.call`. `LlmMeter.call` only charges while `remaining() > 0`, and the stages
+                # skip the meter entirely when there are no sources — so a run that charged $0 for
+                # synthesis persisted "billed", and the NEXT resume announced a re-bill that never
+                # happened. Two reproductions: budget exhausted by discovery, and a discovered card
+                # with no quotable sources. Same bug as its own fix, one layer down.
+                "synthesis_billed": _synthesis_billed
+                or (_spend_at_tail_start is not None and budget.spent > _spend_at_tail_start),
                 "competitors": discovered,
                 "reviews_done": reviews_done,
                 "review_signal": [s.to_dict() for s in dossier.review_signal],
@@ -1431,11 +1755,7 @@ async def run(
             # lifetime/ordering repair that created the next ordering hole. `_persist` is the ONLY code
             # that appends a cause after that check, so putting the reconciliation where the cause is
             # BORN removes the ordering dependency instead of moving it one statement further along.
-            if (
-                _PARTIAL_CAUSE_UNREADABLE in dossier.degrade_causes
-                and len(dossier.degrade_causes) > 1
-            ):
-                dossier.degrade_causes.remove(_PARTIAL_CAUSE_UNREADABLE)
+            _reconcile_partial_pair()
 
     # Load + wiring-check BOTH packs at ENTRY (before any spend) so a malformed pack / wiring bug fails
     # LOUD as ValueError at entry — never after discovery has already spent (the "only raise is at entry"
@@ -1446,7 +1766,7 @@ async def run(
     white_space_pack = _pack(deps, "white-space") if enable_white_space else None
 
     # ── stage 1: discover competitors ────────────────────────────────────────────────────────────────
-    if not discovery_done:
+    if discover and not discovery_done:
         disc_brief = {
             "industry": (us.category if us else "") or market,
             "brand_name": us.name if us else "",
@@ -1460,7 +1780,30 @@ async def run(
         # durable, and the dossier returned `status="empty"` with `partial=False`: "this market has no
         # competitors". That is the exact mis-read the whole degrade-cause machinery exists to prevent,
         # and it destroyed data the consumer had already been billed for.
-        fresh = [c for c in res.doc.get("cards", []) if isinstance(c, dict)]
+        # ⚠️ THROUGH THE SEAM, and this was the ONE ingestion site the seam never reached. A non-dict
+        # card from a FRESHLY-RUN discovery leg was dropped here with no count, no cause and no flag:
+        # `partial=False status=ok causes=[]` on a leg that had already been BILLED. The restore path
+        # one screen up IS covered (its raw length is compared and folds into `CheckpointFieldDropped`),
+        # but that comparison runs BEFORE the leg executes, over the RESTORED list — so the fresh path
+        # had no witness at all. `_named_cards` looks like it would catch it and cannot: by the time it
+        # runs, this line has already removed every non-dict, so the `isinstance(c, dict)` half of its
+        # predicate is dead code for this population.
+        # SHAPE, not want: a non-dict where a card belongs is evidence loss, not a business rule.
+        _fresh_taken = take(
+            res.doc.get("cards", []),
+            site="discover",
+            shape=lambda c: isinstance(c, dict),
+            cause="MalformedCard",
+        )
+        fresh = list(_fresh_taken.kept)
+        if _fresh_taken.n_malformed:
+            dossier.partial = True
+            if _fresh_taken.cause and _fresh_taken.cause not in dossier.degrade_causes:
+                dossier.degrade_causes.append(_fresh_taken.cause)
+            logger.warning(
+                "competitor_intel.discovery_cards_malformed n=%d kept=%d",
+                _fresh_taken.n_malformed, len(fresh),
+            )
         # Four states, and only ONE may erase a paid-for list. `res.ran` alone was too weak and
         # `res.ran and res.ok` is too strong — it throws away cards a DEGRADED leg really delivered
         # (a broken spend report sets `ok=False` while the doc still holds real, billed rivals):
@@ -1513,6 +1856,11 @@ async def run(
         # `ran` describes whether we spent money. The done-flag is a question about spending.
         discovery_done = res.ok and res.ran
         _persist()
+    # ⚠️ UNCONDITIONAL + AFTER the discovery block (outside `if discover and not discovery_done`), so a
+    # seed is merged into the roster whether discovery ran, was skipped (`discover=False`), or the run
+    # resumed with discovery already done — and a NEW seed added on a resume still enters. `_merge_seeds`
+    # is idempotent + a business merge: it NEVER sets `partial` or a `degrade_cause` (seam-consistency).
+    _merge_seeds(discovered, seeds)
     dossier.competitors = discovered
 
     # ── stage 2: mine reviews per competitor (product-type-aware; Tier-C default) ─────────────────────
@@ -1529,7 +1877,28 @@ async def run(
         # degraded" and gives the reader nothing to act on — the ambiguity this field exists to end.
         if _named.cause and _named.cause not in dossier.degrade_causes:
             dossier.degrade_causes.append(_named.cause)
-    for name, url, card in _named.kept:
+    # ⚠️ SEQUENTIAL BY CONTRACT — do NOT wrap this in `asyncio.gather`. `_run_leg` reserves
+    # `budget.remaining() / factor` (the WHOLE remaining budget) as this leg's engine ceiling, which is
+    # only sound because the previous leg has already returned AND been charged. Dispatch these
+    # concurrently and every leg reads the same `remaining()`, so each is handed the full budget and
+    # `total_budget_usd` stops being a cap. Measured with a real gather here (5 rivals, total $1.00, legs
+    # spending to their ceiling): $4.80 spent, a 4.8x breach reported as `status="ok"` with `partial=False`
+    # and no degrade cause — every leg respected the ceiling it was individually given. `truncated` is
+    # True in BOTH the serial and the breached run, so it cannot discriminate either. The engine's own
+    # fan-out over SEARCH LEGS is a DIFFERENT LEVEL and cannot help here whatever revision you inject:
+    # this loop hands the engine exactly ONE rival's brief per call, so any gather it performs happens
+    # inside a single rival. (Verified against the fabrik-lib copy at deep_research/engine.py, but the
+    # argument is structural — it does not depend on that revision, and the engine is INJECTED.)
+    # ⚠️ AND THE OVERSPEND IS ONLY THE FIRST HARM. This loop's `_persist()` runs per rival, AFTER that
+    # rival's leg was billed; hoisting the dispatches means every leg is in flight before any checkpoint
+    # is written, so an abort loses the `reviews_done`/`charged` record of work ALREADY PAID FOR and the
+    # next resume re-bills it — the same 0.20 -> 0.30 -> 0.40 re-billing regression the ledger above
+    # exists to prevent. Proven: `test_the_ledger_and_done_flags_survive_a_REAL_abort` also reds under a
+    # gathered loop, so the suite already defends this half.
+    # Real concurrency needs the budget partitioned across the in-flight window AND the per-rival
+    # checkpoint preserved; that is a design change.
+    # Pinned by `test_total_budget_is_a_HARD_cap_across_concurrently_dispatchable_review_legs`.
+    for name, url, _card in _named.kept:
         # Collision-safe only because `_ck`'s hash input is LENGTH-PREFIXED. This comment used to assert
         # "two names never share a checkpoint/skip key" while the bare `|` separator made that false.
         key = _ck(name, url)
@@ -1566,7 +1935,18 @@ async def run(
         # signals 2 -> 4 -> 6 -> 8, BEAT weight 1.6 -> 3.2 -> 4.8 -> 6.4 from the SAME two sources,
         # because `synth` sums `source_weight` over entries rather than distinct urls.
         # Making the append IDEMPOTENT fixes the whole class instead of one door at a time.
-        _extend_signals(dossier.review_signal, _cards_to_signals(name, res.doc.get("cards", []), tier="C"))
+        _mined_dropped: list[int] = []
+        _extend_signals(
+            dossier.review_signal,
+            _cards_to_signals(name, res.doc.get("cards", []), tier="C", dropped_sink=_mined_dropped),
+        )
+        if _mined_dropped:
+            dossier.partial = True
+            if "MalformedCard" not in dossier.degrade_causes:
+                dossier.degrade_causes.append("MalformedCard")
+            logger.warning(
+                "competitor_intel.review_cards_malformed competitor=%s n=%d", name, sum(_mined_dropped)
+            )
 
         # opt-in adapters (empty registry → this loop body never runs). Gate on the budget: don't keep
         # hitting external APIs after the ceiling is exhausted (and paid follow-on adapters must not spend
@@ -1663,12 +2043,21 @@ async def run(
         if _RIVAL_NAME_COLLISION not in dossier.degrade_causes:
             dossier.degrade_causes.append(_RIVAL_NAME_COLLISION)
     elif _RIVAL_NAME_COLLISION in dossier.degrade_causes:
-        # SELF-CLEARING, per the plan's cross-cutting criterion. Every other cause in this module is
+        # SELF-CLEARING, per the plan's cross-cutting criterion. MOST causes in this module are
         # append-only, so a stale one restored from a checkpoint outlives the condition forever — the
-        # exact permanence shape `c61065c` was written to kill. This cause is recomputed from
+        # exact permanence shape `c61065c` was written to kill. ("Every other cause" was false here too:
+        # same grep, same denominator.) This cause is recomputed from
         # `discovered` on every run, so it can and must be withdrawn when the collision is gone.
         dossier.degrade_causes.remove(_RIVAL_NAME_COLLISION)
 
+    # ⚠️ THE ANCHOR SITS OUTSIDE `if discovered:`, and putting it inside was the third variant of one
+    # defect. The synthesis PHASE is the rivals tail PLUS pricing PLUS white-space — and white-space
+    # deliberately runs with zero rivals, "exactly the greenfield case where it matters most". With the
+    # anchor nested in the rivals branch, a greenfield job re-billed white-space on every single resume
+    # while `synthesis_billed` stayed False and `degrade_causes` stayed empty: measured 0.21 -> 0.26
+    # across six calls, `status="ok"` throughout. The mechanism covered the branch it was written in
+    # and not the branch that motivated the feature.
+    _spend_at_tail_start = budget.spent
     if discovered:
         feature_sets = []
         for cname, _curl, card in _named_cards(discovered).kept:
@@ -1677,6 +2066,47 @@ async def run(
             )
         _persist()  # persist synth spend accrued so far — a crash mid-tail must not lose the accounting
         taxonomy = await align_features(feature_sets, us, meter=meter)
+        # The clustering failed → say so. `_identity_taxonomy` is only reachable with a NON-empty name
+        # list (the no-names case returns early), so this never fires on a run that had nothing to
+        # cluster in the first place.
+        # ⚠️ ALL THREE SIGNALS, not just `degraded`. This block was keyed on `taxonomy.degraded` alone,
+        # and then the SAME change narrowed the coarse flag into per-name `unmapped` / `us_unmapped`
+        # fields — moving most of the untrustworthiness OUT from under the only thing that reported it.
+        # Measured end-to-end afterwards, on the exact shape this change's own test parametrises as
+        # "well-formed, but OUR name is missing from the mapping": 20 of 20 us cells ❓, MATCH empty,
+        # and `partial=False status="ok" degrade_causes=[] truncated=False` with NO MATCH section in
+        # the brief. That is VERBATIM the signature the comment on `_TAXONOMY_DEGRADED` says this cause
+        # exists to end — reintroduced by the refinement, for the field the refinement introduced.
+        # A narrowing that improves the VERDICTS must not narrow what gets REPORTED.
+        if taxonomy.degraded or taxonomy.us_unmapped or taxonomy.unmapped:
+            dossier.partial = True
+            if _TAXONOMY_DEGRADED not in dossier.degrade_causes:
+                dossier.degrade_causes.append(_TAXONOMY_DEGRADED)
+        elif _TAXONOMY_DEGRADED in dossier.degrade_causes:
+            # ⚠️ SELF-CLEARING, like `RivalNameCollision` and for the identical reason. The synthesis
+            # tail is NOT checkpointed — `align_features` re-runs in full on every `run()` — so
+            # `taxonomy.degraded` is a fact about THIS invocation, not a record of past work. A cause is
+            # append-only-forever only when it records an irreversible past fact (evidence lost, money
+            # spent); one recomputed fresh each run must withdraw itself or it becomes a permanent false
+            # alarm. Measured before this line: run 1 exhausts the budget → cause appended and
+            # persisted; the operator raises the budget and resumes the SAME job_id → clustering
+            # succeeds and the matrix is trustworthy, but `degrade_causes` still carried
+            # `['TaxonomyDegraded', 'SynthesisRebilled']`. The README tells that reader to treat a short
+            # MATCH list as "not computed" — forever, on a job that had recovered.
+            dossier.degrade_causes.remove(_TAXONOMY_DEGRADED)
+            # ⚠️ AND THE FLAG, not only the cause. `dossier.partial` is RESTORED from the checkpoint
+            # (`:1444`) and is otherwise only ever set True — never recomputed — so withdrawing the
+            # cause alone left `partial=True` with nothing explanatory behind it, and the pair
+            # invariant then "explained" it with `PartialCauseUnreadable`: a recovered run reporting
+            # that it was degraded for a reason that had been lost. Measured on a resume that
+            # recovered: `causes=['SynthesisRebilled', 'PartialCauseUnreadable']`. Clearing here is
+            # safe because every later stage that degrades sets the flag again on its own.
+            # ⚠️ SCOPED TO THIS CAUSE DELIBERATELY: `RivalNameCollision` self-clears the same way and
+            # has the same sticky-flag shape. That is PRE-EXISTING and shared, so it is REPORTED in the
+            # review artifact rather than fixed here — widening a flag's lifecycle for a sibling cause
+            # is not this change's business.
+            if not [c for c in dossier.degrade_causes if c not in _ADVISORY_CAUSES]:
+                dossier.partial = False
         matrix = build_matrix(taxonomy, feature_sets, us)
         def _on_theme_collapse(theme: str, n_signals: int) -> None:
             """A BEAT theme that had enough signals but lost their attribution.
@@ -1747,6 +2177,18 @@ async def run(
             dossier.partial = True
         _persist()  # persist the white-space leg + synth spend
 
+    # ── the synthesis phase is over: did it CHARGE, and had it charged before? ────────────────────────
+    # Advisory, like `RivalNameCollision`: nothing was lost, so `partial` stays down. The cause exists
+    # so a caller that polls or retries `run()` can tell "budget spent doing work" from "budget spent
+    # re-doing work" — those were byte-identical before it. DERIVED every run, never appended once: a
+    # cause is a statement about THIS call, and this one is restored from the checkpoint like any other.
+    _billed_this_call = _spend_at_tail_start is not None and budget.spent > _spend_at_tail_start
+    if _synthesis_billed_before and _billed_this_call:
+        if _SYNTHESIS_REBILLED not in dossier.degrade_causes:
+            dossier.degrade_causes.append(_SYNTHESIS_REBILLED)
+    elif _SYNTHESIS_REBILLED in dossier.degrade_causes:
+        dossier.degrade_causes.remove(_SYNTHESIS_REBILLED)
+
     if meter.degraded:  # an LLM synthesis call FAILED (not merely budget-skipped) → the dossier is partial
         dossier.partial = True
         # The CAUSES too, not just the flag. The synthesis tail is where a ONE-arity mis-wiring actually
@@ -1776,17 +2218,29 @@ async def run(
         # about to act on, and the restored ones have already been reported at least once. That is the
         # third time in this sequence a bound I added did the opposite of its purpose, which is why the
         # rule is now stated rather than implied.
-        keep_first = [k for k in dossier.element_drops if k in this_run]
-        keep_rest = sorted(k for k in dossier.element_drops if k not in this_run)
-        for stale in (keep_first + keep_rest)[_MAX_DROP_ENTRIES:]:
-            del dossier.element_drops[stale]
+        # ⚠️ AND THE FOURTH TIME. The ordering above is right, and it silently assumed `this_run`
+        # itself fits in the bound. A single large scan (220 rivals, one dropped feature each —
+        # reproduced end-to-end) makes `keep_first` longer than the cap on its own, so the slice
+        # evicts from `keep_first`: THIS RUN'S OWN LOSSES, the precise data the ordering exists to
+        # protect, and the README promised "the counts kept are this run's, the evicted ones are
+        # older". Ordering cannot save a bound once the current run alone exceeds it.
+        #
+        # So the bound now publishes its RESIDUAL as a number rather than only as a flag. One slot is
+        # reserved for an aggregate entry: the evicted subjects' names are gone (that is what a bound
+        # costs), but the COUNT of lost elements survives, so `sum(element_drops.values())` stays a
+        # truthful total instead of quietly shrinking. `DropDetailTruncated` tells you detail was
+        # lost; this tells you how much — the difference between a warning and an accounting.
+        _bound_drop_map(dossier.element_drops, this_run)
         if _DROP_DETAIL_TRUNCATED not in dossier.degrade_causes:
             dossier.degrade_causes.append(_DROP_DETAIL_TRUNCATED)
     # ⚠️ Derived from the MERGED map (restored + this run), not from `meter.drops` alone — a resume
     # does not re-run finished legs, so their losses live only in the restored half. And derived
     # rather than appended, so the cause CLEARS when the map is empty: the cross-cutting criterion
-    # this plan wrote and this phase then broke. Every other cause here is append-only and outlives
-    # its condition; this one and `RivalNameCollision` are the two that do not.
+    # this plan wrote and this phase then broke. MOST causes here are append-only and outlive their
+    # condition; the self-clearing ones are every cause with a `degrade_causes.remove` site — derive
+    # the set from `test_the_SELF_CLEARING_cause_list_is_re_derived_not_remembered`, which AST-walks it;
+    # do not read a number here, and do not use a bare grep (the comments quote the string). (This comment said "this one and `RivalNameCollision` are the two that do not" while
+    # five such sites existed, three of them added after it was written.)
     if dossier.element_drops:
         dossier.partial = True
         if _ELEMENT_DROPPED not in dossier.degrade_causes:
@@ -1795,8 +2249,14 @@ async def run(
         dossier.degrade_causes.remove(_ELEMENT_DROPPED)
     # ⚠️ THE INVARIANT IS RE-CHECKED HERE, AT THE END, and the first version was checked only at
     # RESTORE time — which is where it is first ESTABLISHED, not where it must HOLD.
-    # Two causes SELF-CLEAR later in this same call: `RivalNameCollision` (recomputed from
-    # `discovered`) and `ElementDropped` (derived from the merged drop map). If a restored
+    # Causes SELF-CLEAR later in this same call — `RivalNameCollision` (recomputed from `discovered`),
+    # `TaxonomyDegraded`, `SynthesisRebilled` and `ElementDropped` (derived from the merged drop map);
+    # The self-clearing set is AST-derived by `test_the_SELF_CLEARING_cause_list_is_re_derived_not_remembered`;
+    # every removal site is ABOVE this line. (This number has now been wrong three times in three
+    # different ways: "Two" when there were four; then "four sites sat below it" when all five sit
+    # ABOVE — wrong count AND wrong direction; and a pointer to "the grep above" as the denominator,
+    # eleven lines under a comment saying not to use a bare grep, for a grep that same round deleted.
+    # Three attempts, three wrong statements. Do not write a fourth: run the test.) If a restored
     # `degrade_causes` held only one of those and its condition has since resolved, the `.remove()`
     # happens AFTER the restore-time check has already passed — leaving `partial=True` with an EMPTY
     # list, the exact "warned without saying why" state, and the final `_persist()` then writes that
@@ -1805,17 +2265,13 @@ async def run(
     # before `element_drops` was persisted carries `ElementDropped` and no `element_drops` key, so a
     # resume on the current build withdraws the cause and strands the flag.
     # A flag and its reason are a PAIR; a pair must be checked where it is finally read.
-    if dossier.partial and not dossier.degrade_causes:
-        dossier.degrade_causes.append(_PARTIAL_CAUSE_UNREADABLE)
-    elif _PARTIAL_CAUSE_UNREADABLE in dossier.degrade_causes and len(dossier.degrade_causes) > 1:
-        # ⚠️ IT IS A FALLBACK, NOT A FACT — the third self-clearing cause, and the one I nearly
-        # shipped as permanent. Every OTHER sticky cause records a real, billed event worth
-        # remembering forever; this one records only that the bookkeeping could not name a reason. So
-        # once a run DOES have a real cause, the placeholder must go, or it sits beside genuine
-        # findings looking like one of them. Review put it plainly: before the end-of-run fix a
-        # stranded flag was at least distinguishable BY ITS EMPTINESS; after it, without this branch,
-        # it was indistinguishable from a live degradation forever.
-        dossier.degrade_causes.remove(_PARTIAL_CAUSE_UNREADABLE)
+    # ⚠️ REDUNDANT TODAY, KEPT DELIBERATELY — and a mutation sweep proved it so rather than my
+    # assuming it. Deleting this call kills no test, because the unconditional final `_persist()`
+    # below reconciles before it writes and nothing mutates the pair after it. The redundancy is the
+    # point: without this line the invariant depends on `_persist()` being called last and
+    # unconditionally, which is exactly the kind of positional assumption that broke six review
+    # rounds running. One cheap call buys independence from that ordering.
+    _reconcile_partial_pair()
     if budget.total > 0 and budget.remaining() <= 0:
         dossier.truncated = True
     # ⚠️ REPORT what this module can attest; the BUDGET decision is separate.
@@ -1930,7 +2386,14 @@ async def _pricing_stage(
     spend record and the next resume re-granted it (measured: 3 legs billed, ledger recorded none). The
     same sibling-pair shape as the rest of this file: one loop careful, its twin not."""
     rival_sources: dict[str, list[tuple[str, str]]] = {}
-    for name, url, card in _named_cards(discovered).kept:
+    # ⚠️ SEQUENTIAL BY CONTRACT — the TWIN of the reviews loop, and subject to the identical money
+    # invariant: `_run_leg` reserves the WHOLE remaining budget per call, so dispatching these rivals
+    # concurrently multiplies `total_budget_usd` by the number of legs in flight. This is the second of
+    # the module's two per-rival `_run_leg` loops (reviews is the other); the docstring above already
+    # names the "one loop careful, its twin not" shape this file keeps hitting, so do not fix one
+    # without the other. Full reasoning: the `_Budget` banner and README § Gotchas.
+    # Pinned by `test_total_budget_is_a_HARD_cap_across_concurrently_dispatchable_PRICING_legs`.
+    for name, url, _card in _named_cards(discovered).kept:
         res = await _run_leg(
             deps, budget, {"competitor_name": name, "competitor_url": url}, market,
             pack=pack, stage="pricing", slug=_ck(name, url), charged=charged,
@@ -1945,9 +2408,13 @@ async def _pricing_stage(
         if res.truncated:
             truncated.append(True)
         persist()  # per rival — the money for THIS leg is already spent
+        _raw_cards = res.doc.get("cards", [])
+        _bad = sum(1 for c in _raw_cards if not isinstance(c, dict)) if isinstance(_raw_cards, list) else 0
+        if _bad and "MalformedCard" not in causes:
+            causes.append("MalformedCard")  # a billed leg lost evidence — say so through the sink
         texts = [
             (str(c.get("snippet") or ""), str(c.get("source_url") or ""))
-            for c in res.doc.get("cards", [])
+            for c in (_raw_cards if isinstance(_raw_cards, list) else [])
             if isinstance(c, dict) and c.get("snippet")
         ]
         if texts:
@@ -1977,20 +2444,19 @@ async def _white_space_stage(
         causes.append("LedgerReset")
     if res.truncated:
         truncated.append(True)
+    _raw_cards = res.doc.get("cards", [])
+    _bad = sum(1 for c in _raw_cards if not isinstance(c, dict)) if isinstance(_raw_cards, list) else 0
+    if _bad and "MalformedCard" not in causes:
+        causes.append("MalformedCard")  # same sibling; white-space carries a causes sink for exactly this
     sources = [
         (str(c.get("snippet") or ""), str(c.get("source_url") or ""))
-        for c in res.doc.get("cards", [])
+        for c in (_raw_cards if isinstance(_raw_cards, list) else [])
         if isinstance(c, dict) and c.get("snippet")
     ]
     return await white_space(sources, meter=meter)
 
 
-#: module-level sink so `run()` can see that a restore silently discarded entries. A list so a
-#: single run's two restore calls both register; cleared by `run()` at entry.
-_RESTORE_DROPPED: list[int] = []
-
-
-def _rehydrate_signals(raw: Any) -> list[Signal]:
+def _rehydrate_signals(raw: Any, dropped_sink: list[int] | None = None) -> list[Signal]:
     """Rebuild `review_signal` from a persisted progress file (a list of `Signal.to_dict()` dicts). Tolerant
     of a corrupt/partial file — a malformed entry is skipped, never a raise."""
     out: list[Signal] = []
@@ -2021,11 +2487,23 @@ def _rehydrate_signals(raw: Any) -> list[Signal]:
         )
     if dropped:
         logger.warning("competitor_intel.restored_signals_dropped n=%d", dropped)
-        _RESTORE_DROPPED.append(dropped)
+        # ⚠️ THE CALLER'S sink, never a module global — constraint 5, which the plan called ABSOLUTE
+        # and this site was violating. `_RESTORE_DROPPED` was a module-level list cleared by `run()`
+        # at ENTRY, so two concurrent `run()` calls corrupted each other. Reproduced two ways: a
+        # focused thread interleave where run A discarded 3 restored signals and then reported 0, and
+        # a 200-iteration concurrent-`run()` probe where a job with a PERFECTLY HEALTHY checkpoint
+        # came back `partial=True` with `MalformedSignalRestored` borrowed from the other job.
+        # Both directions are the exact silent-loss/false-alarm pair `degrade_causes` exists to end,
+        # reintroduced inside the mechanism itself. "Cleared at entry" reads like ownership; it is a
+        # race, and no test in the suite ran two `run()` calls at once to notice.
+        if dropped_sink is not None:
+            dropped_sink.append(dropped)
     return out
 
 
-def _cards_to_signals(competitor: str, cards: Any, *, tier: str) -> list[Signal]:
+def _cards_to_signals(
+    competitor: str, cards: Any, *, tier: str, dropped_sink: list[int] | None = None
+) -> list[Signal]:
     """Map deep-research review cards → tier-tagged :class:`Signal`s. Tolerant of missing fields (a garbage
     card contributes an empty-quote signal, never a raise)."""
     out: list[Signal] = []
@@ -2033,6 +2511,12 @@ def _cards_to_signals(competitor: str, cards: Any, *, tier: str) -> list[Signal]
         return out
     for card in cards:
         if not isinstance(card, dict):
+            # ⚠️ COUNTED, not silently skipped — the SIBLING of the discovery-leg drop closed one round
+            # earlier. Three seams read the same `res.doc.get("cards", [])` shape with the same bare
+            # `isinstance(c, dict)` filter, and fixing only the first left the other three silent. This
+            # one is the worst of them: reviews-mining is the core evidence feeding BEAT/MATCH.
+            if dropped_sink is not None:
+                dropped_sink.append(1)
             continue
         out.append(
             Signal(

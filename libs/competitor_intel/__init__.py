@@ -15,7 +15,7 @@ Public API (Phase A):
 
 from __future__ import annotations
 
-from .dossier import Dossier, Signal, Tier, Us
+from .dossier import ADVISORY_CAUSES, Dossier, Seed, Signal, Tier, Us
 from .orchestrator import run
 from .protocols import Deps, Pack, PackLoader, ResearchFn, SynthLlm
 from .stages import PricingBlock, PricingModel, UnmetNeed, WhiteSpaceBlock
@@ -31,9 +31,11 @@ from .synth import (
 )
 
 __all__ = [
+    "ADVISORY_CAUSES",
     "run",
     "Deps",
     "Us",
+    "Seed",
     "Dossier",
     "Signal",
     "Tier",

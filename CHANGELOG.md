@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — `libs/competitor_intel` re-vendored: the us-column bug was live here for 18 days (2026-09-15)
+
+- **Our vendored copy was a pristine canonical snapshot of 2026-08-28** — seven files behind, not
+  edited. fabrik-lib reported the degraded-taxonomy fix was absent (`01M2J82N9TF7`), and their
+  follow-up established the adjudication collapses to a straight re-vendor. ⚠️ Verified independently
+  rather than taken: every one of our seven divergent files md5-matches an EXACT historical revision
+  of canonical (synth/orchestrator/dossier/stages/_ingest/adapters at 2026-08-28, `__init__` at
+  08-27), so the "196 lines only on our side" were lines canonical REMOVED, not hub-local edits.
+  That is what made a `cp` safe here — the same check that would have refused it in `libs/subagents`.
+- **The us-column bug was therefore LIVE for `/fabrik-rivals` on this box**: `us_unmapped` 0 → 5,
+  `trust_us` 0 → 7, `_UNSTRIPPABLE` 0 → 9. Tree now byte-identical to canonical (0 differing files
+  excluding `__pycache__`); all eight submodules import; `rivals_run.py --preflight-only` passes its
+  eight wiring checks against the new engine without spending.
+- **Operator-approved before running** (2026-09-15) because it changes what `/fabrik-rivals` produces
+  fleet-wide. Backup taken before the first overwrite, per the vendored-revert rule.
+
 ### Changed — The hub inbox is empty: 132 messages handled, and the reason they piled up is fixed (2026-09-15)
 
 - **132 → 0.** Every message read, validated at HEAD, dispositioned and acked; 8 archive STRANDS

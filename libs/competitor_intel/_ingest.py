@@ -2,7 +2,9 @@
 
 Every filtering comprehension in this module discards elements. Before this seam each one decided,
 independently and usually silently, whether that discard was worth telling anyone about — and a
-mechanical enumeration found 62 such candidate sites across 10 files. The failure that motivated the
+mechanical enumeration found 62 such candidate sites across 10 files (measured 2026-08-28 at `de5d646`;
+the seam narrowed the ones that matter to 3 `take()` call sites, so treat 62 as the SIZE OF THE
+PROBLEM then, not a live count now). The failure that motivated the
 seam is not any single drop; it is that a drop and a genuinely empty market produced **identical**
 output: ``partial=False``, ``degrade_causes=[]``, ``status="ok"``.
 
