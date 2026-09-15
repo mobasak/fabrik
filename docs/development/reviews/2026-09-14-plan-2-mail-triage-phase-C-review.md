@@ -3,7 +3,7 @@
 **Status:** IN-PROGRESS
 **Surface:** `git rev-parse HEAD` = e60461399bbc64f1b9e9d7f90a74a31132befa4e; range tip dffcca1a034e96833b7919860112fea5e545fc5b; `git diff dffcca1a~1..dffcca1a -- .claude/hooks/final_gate_stop.py tests/test_stop_hook_spontaneous_review.py tests/test_governance_template_split.py docs/workstation/hooks-index.md CLAUDE.md templates/governance/CLAUDE.md` md5 143c3138ba1fbe837160f6ab071e5f41 (75123 bytes)
 **Command:** /fabrik-review · **Changed:** `.claude/hooks/final_gate_stop.py`, `tests/test_stop_hook_spontaneous_review.py`, `tests/test_governance_template_split.py`, `docs/workstation/hooks-index.md`, `CLAUDE.md`, `templates/governance/CLAUDE.md`
-**Plan:** `docs/development/plans/2026-09-12-plan-2-mail-triage-command-machinery.md`
+**Plan:** `docs/development/plans/archived/2026-09-12-plan-2-mail-triage-command-machinery.md`
 
 ## Coverage Checklist
 

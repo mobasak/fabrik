@@ -3,7 +3,7 @@
 **Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = 0a1fe8bc62209b3ebbf14f6c63e5947fffee6698; range tip 0a1fe8bc62209b3ebbf14f6c63e5947fffee6698; `git diff a63bda73~1..HEAD -- scripts/final_gate.py docs/workflows/FINAL_GATE_WORKFLOW.md tests/test_final_gate_advisory_display.py docs/superpowers/specs/2026-09-10-kaizen-feedback-loop-design.md docs/development/plans/2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round.md` md5 909d50b3f75aa55cbe5920b85d49baca (90080 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/final_gate.py`, `docs/workflows/FINAL_GATE_WORKFLOW.md`, `tests/test_final_gate_advisory_display.py`, `docs/superpowers/specs/2026-09-10-kaizen-feedback-loop-design.md`, `docs/development/plans/2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round.md`
-**Plan:** `docs/development/plans/2026-09-12-plan-2-mail-triage-command-machinery.md`
+**Plan:** `docs/development/plans/archived/2026-09-12-plan-2-mail-triage-command-machinery.md`
 
 ## Coverage Checklist
 

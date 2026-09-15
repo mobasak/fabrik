@@ -1170,7 +1170,7 @@ _MAIL_TRIAGE_PHASE_A = {
 
 
 def test_the_mail_triage_phase_a_sentences_reach_their_rendered_commands_once(tmp_path):
-    """Phase A of docs/development/plans/2026-09-12-plan-2-mail-triage-command-machinery.md:
+    """Phase A of docs/development/plans/archived/2026-09-12-plan-2-mail-triage-command-machinery.md:
     each mailed fix is ONE sentence in its command source; a render that loses or doubles it
     ships the old behaviour box-wide. Presence is asserted on the RENDERED file, count == 1."""
     ac.render(tmp_path, tmp_path / "_skills", agents_dest=tmp_path / "_agents")

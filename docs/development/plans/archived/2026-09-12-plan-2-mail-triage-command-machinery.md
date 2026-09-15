@@ -1,6 +1,6 @@
 # Mail triage — the command corpus, the review machinery and the feedback relays (every message in the hub inbox — 219 at the 2026-09-12 18:50 snapshot, validated 2026-09-12)
 
-Status: CONVERGED (2026-09-12 — /fabrik-plan-review, ten passes: 22 · 17 · 4 · 3 · 2 · 1 · 3 · 2 · 1 · 0 confirmed; D-243)
+Status: EXECUTED (2026-09-15 — Phase A `b9981f45`, B `a86950e2`, C `035469b5`, D `07adb760`, E `f386e250`, F `951c5560`, G `e0e7a2a9`, H `dc6fbc1d`, Finish `e625e891`…`ac46719d`; whole-plan review closed on the D-252 scope-growth stop — six rounds, 12 seats, 53 confirmed — at `docs/development/reviews/2026-09-12-plan-2-mail-triage-command-machinery-review.md`; the ONE forced sync distributed 9,360 files to 45 projects, 0 failed)
 Profile: standard
 **Owner:** — (infra; the unnamed hub window fabrik-06, session dd3c06d1)
 Date: 2026-09-12
@@ -624,9 +624,9 @@ claiming to rewrite it. Receipt: `docs/development/reviews/2026-09-15-plan-2-mai
 Per phase at execution: ≥1 `path:line` and ≥1 fenced command-output block. The plan review's own evidence (2026-09-12, the tree at f9355e3d):
 
 ```
-$ python3 scripts/enforcement/check_review_hygiene.py --surface docs/development/plans/2026-09-12-plan-2-mail-triage-command-machinery.md
+$ python3 scripts/enforcement/check_review_hygiene.py --surface docs/development/plans/archived/2026-09-12-plan-2-mail-triage-command-machinery.md
 hygiene: 0 hit(s) over 1 file(s), 0 rows ungraded
-$ python3 scripts/enforcement/check_citations_resolve.py --changed docs/development/plans/2026-09-12-plan-2-mail-triage-command-machinery.md
+$ python3 scripts/enforcement/check_citations_resolve.py --changed docs/development/plans/archived/2026-09-12-plan-2-mail-triage-command-machinery.md
 ✓ citations resolve — 13 `path:line` citation(s) across 3 docs all land
 $ python3 scripts/enforcement/check_rule_grounding.py --root <flipped scratch copy>
 rule grounding: 1 CONVERGED in-window plan(s) examined, 0 with findings (artifact-only; reading quality is the review's)

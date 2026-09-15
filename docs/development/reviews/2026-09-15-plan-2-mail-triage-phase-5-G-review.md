@@ -3,7 +3,7 @@
 **Status:** CONVERGED on the scope-growth stop (D-252) — rounds 1 and 2 each confirmed ONLY defects inside text this review itself added (confirmed/own-fix 7/7 → 6/6), which is the stop's definition; `command_run.py` printed the stop at round 2 and the residuals are routed with named destinations. Read by `check_review_coverage.py::_scope_growth_exit` (:419), the fourth sanctioned exit shipped in this plan's Phase E.
 **Surface:** `git rev-parse HEAD` = faad987a5a14c52648f2d299cc5d4e18cc6c9349; range tip faad987a5a14c52648f2d299cc5d4e18cc6c9349; `git diff 02bca58e..faad987a -- scripts/mail.py tests/test_mail_structure.py CHANGELOG.md docs/STRATEGIC_BACKLOG.md` md5 c92d08b12d23a6cfd8efae70311df2bd (31088 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/mail.py`, `tests/test_mail_structure.py`, `CHANGELOG.md`, `docs/STRATEGIC_BACKLOG.md`
-**Plan:** `docs/development/plans/2026-09-12-plan-2-mail-triage-command-machinery.md`
+**Plan:** `docs/development/plans/archived/2026-09-12-plan-2-mail-triage-command-machinery.md`
 
 ## Coverage Checklist
 

@@ -256,7 +256,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ## Documentation Structure Map
 
 <!-- AUTO-GENERATED:STRUCTURE:START -->
-<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-09-15T02:23 -->
+<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-09-15T09:09 -->
 ```text
 docs/
 ├── BUSINESS_MODEL.md               # Monetization strategy
@@ -370,7 +370,6 @@ docs/
 │   │   │   ├── T08-hygiene-script.md
 │   │   │   ├── T09-run-record-docs.md
 │   │   │   └── T10-integration.md
-│   │   ├── 2026-09-12-plan-2-mail-triage-command-machinery.md
 │   │   └── archived
 │   └── reviews
 │       ├── 2026-07-21-claude-p-scoring-review.md
@@ -663,6 +662,7 @@ docs/
 │       ├── 2026-09-11-plan-1-review-family-pass3-review.md
 │       ├── 2026-09-12-mail-triage-t7-review.md
 │       ├── 2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round-review.md
+│       ├── 2026-09-12-plan-2-mail-triage-command-machinery-review.md
 │       ├── 2026-09-12-plan-2-mail-triage-phase-A-review.md
 │       ├── 2026-09-12-plan-2-mail-triage-phase-B-review.md
 │       ├── 2026-09-13-rotation-refresh-chain-review.md
@@ -671,6 +671,8 @@ docs/
 │       ├── 2026-09-14-plan-2-mail-triage-phase-3-E-review.md
 │       ├── 2026-09-14-plan-2-mail-triage-phase-C-review.md
 │       ├── 2026-09-14-scope-growth-stop-review.md
+│       ├── 2026-09-15-plan-2-mail-triage-phase-4-F-review.md
+│       ├── 2026-09-15-plan-2-mail-triage-phase-5-G-review.md
 │       ├── archived
 │       ├── docs-truth-infra-ops-review.md
 │       ├── docs-truth-orchestrator-review.md
@@ -1138,6 +1140,7 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | [2026-09-03-infra-mailbox-second-pass-review.md](docs/development/reviews/2026-09-03-infra-mailbox-second-pass-review.md) | `/fabrik-review` of the mailbox second pass (66aa32a5) reviewed as a COMMITTED range after a sibling's pre-commit stashed the working tree — 3 passes, 7 findings → 5 FIXED (af7005bf) + 2 REFUTED, closing re-derivation 0/0/0, gate success embedded |
 | [2026-09-03-deploy-triad-frozen-contract-precondition-review.md](docs/development/reviews/2026-09-03-deploy-triad-frozen-contract-precondition-review.md) | `/fabrik-review` (routed up from `/fabrik-review-scoped`) of the deploy-triad change: `/fabrik-deploy-plan` + `/fabrik-deploy` read the FROZEN parity contract before the deploy, the no-interpreter leg class, the shared deploy-chain fragment — 4 passes, 9 findings → 6 FIXED + 3 REFUTED, closing re-derivation 0/0/0, gate success embedded |
 | [2026-09-07-feedback-ledger-dimensions-review.md](docs/development/reviews/2026-09-07-feedback-ledger-dimensions-review.md) | Full /fabrik-review of the feedback ledger's analysis dimensions + per-run token usage (61b0e8ac..71314d47): 29-pass ledger to found: 0 · fixed: 0, 149 candidates adjudicated (82 FIXED red-first, 56 REFUTED with executed proof), pool trio + native seats + orchestrator re-derivation per pass, embedded gate success at 44756889. |
+| [2026-09-12-plan-2-mail-triage-command-machinery-review.md](docs/development/reviews/2026-09-12-plan-2-mail-triage-command-machinery-review.md) | The WHOLE-PLAN `/fabrik-review` of the mail-triage plan (101 files over 75 commits, `36da6bb4..ac46719d`) — six rounds, 12 seats, 53 confirmed, CLOSED ON THE D-252 SCOPE-GROWTH STOP, which fired twice (passes 2–3 and 5–6). Pass 1 found the plan's defects; every later pass found only defects inside the review's own fixes, except pass 4, which was scoped back to the ORIGINAL surface per the stop's exit sentence and found the run's worst defect there — a ruff bump wedging the completion gate fleet-wide. 15 residuals routed. |
 | [2026-09-12-plan-2-mail-triage-phase-B-review.md](docs/development/reviews/2026-09-12-plan-2-mail-triage-phase-B-review.md) | `/fabrik-review` of Phase B of the mail-triage plan (`command_run.py` + the convergence graders, `bb995e60`..`a86950e2`) — 20 rounds, CLOSED ON THE SCOPE-GROWTH STOP (D-252) rather than converged: the code was quiet from round 13 and rounds 14–20 only reviewed the review's own fix prose |
 | [2026-09-14-scope-growth-stop-review.md](docs/development/reviews/2026-09-14-scope-growth-stop-review.md) | `/fabrik-review` of the counted scope-growth stop (D-252) — three rounds over `5ae502bd`..`7a4b161a`: the mechanism, then its own fixes. Round 2 is the first round of any review recorded with `--own-fix`, the counter the change adds |
 | [test_canary_grounding_column.py](scripts/kilo-benchmarks/tests/test_canary_grounding_column.py) | Phase B canary-column tests — real-throwaway-PG execution of the generator's QUERY/CANARY_QUERY (reconcile contract, canary exclusion, ≥2 floor, 30-day decay) + `load_task_ranking` as the column-position oracle (min_n engaged) + per-table width invariant. |
@@ -1293,7 +1296,11 @@ the `wordpress` **scaffold type** (`fabrik scaffold --type wordpress`).
 | [distribute_subagents.sh](scripts/distribute_subagents.sh) | Re-vendors canonical `/opt/fabrik-lib/subagents` → the hub `libs/subagents`. **HUB-ONLY since D-196** — the module left `VENDORED_DIRS`, so a subagents change no longer reaches projects; the fleet sync it then runs serves the OTHER governance surfaces. Called by the `/opt/fabrik-lib` `post-commit` hook (fail-closed on import error; safe during active use via tmp+`os.replace`). |
 | [test_sync_trigger_coverage.py](tests/test_sync_trigger_coverage.py) | 15 tests for the sync-trigger coverage gate — filter extraction by hook ID (block scalars, hook reordering), manifest surface derivation per category, live no-gap invariant, declared-non-trigger boundary matching, loud failure on a missing config / renamed constant / empty derivation, and the synced copy self-skipping inside a project instead of failing its gate. |
 | [test_sync_worktree_adoption.py](tests/test_sync_worktree_adoption.py) | 68 tests — T01b: the sync's worktree leg (git-config seeding, the hash-vs-ledger re-copy into linked worktrees, the per-worktree ledger and its age-guarded tempfile reap, prune authorisation, the five-pattern `info/exclude` floor with dated upgrade addenda, dry-run parity, the tally, the settings block's additivity) |
-| [test_sync_head_source.py](tests/test_sync_head_source.py) | 6 tests on a throwaway hub — the fleet sync must ship COMMITTED bytes, never the hub's working tree (an uncommitted edit reached 48 project copies on 2026-09-07); an untracked source still ships the tree, the executable bit survives the HEAD read, drift is recorded for the report and a clean file records none. T12.17, 01M1Y86PQ. |
+| [test_check_review_coverage_scope_growth.py](tests/test_check_review_coverage_scope_growth.py) | 11 tests on the D-252 scope-growth exit: the stop must be DECLARED in the header zone AND shown in the ledger (two consecutive rounds each confirming something, no stated `unexecuted:`), an appendix mention is not the escape, and a Status line that DENIES the stop is not a declaration of it. |
+| [test_hooks_headless_guard.py](tests/test_hooks_headless_guard.py) | 9 tests: `FABRIK_HEADLESS=1` must be `main()`'s literal first non-docstring statement in every notifier hook, and every `claude -p` spawner must declare it — structural, so a guard made inert still reds. T13.1. |
+| [test_stop_hook_push_attribution.py](tests/test_stop_hook_push_attribution.py) | 12 tests: the UNPUSHED cause counts only commits THIS SESSION authored — a sibling's unpushed commit must not be ordered published, a docs-only own task end must still be caught, and the edit set is FLOORED so a resumed transcript cannot trap the session behind someone else's work. T13.4, 01M20E1QN. |
+| [test_stop_hook_sixth_cause_floor.py](tests/test_stop_hook_sixth_cause_floor.py) | 14 tests on the sixth cause's floor — the LATEST of the SessionStart baseline, the edit-age window and the ledger epoch — so a months-long transcript's ancient edits are not counted as this session's unreviewed work, and the block names the window because the floor slides. |
+| [test_sync_head_source.py](tests/test_sync_head_source.py) | 18 tests on a throwaway hub — the fleet sync must ship COMMITTED bytes, never the hub's working tree (an uncommitted edit reached 48 project copies on 2026-09-07); an untracked source still ships the tree, the executable bit survives the HEAD read, drift is recorded for the report and a clean file records none. T12.17, 01M1Y86PQ. |
 | [test_scratch_sweep_sync_materialised.py](tests/test_scratch_sweep_sync_materialised.py) | 5 tests — a worktree the governance sync wrote into is not dirty: a manifest-owned path counts as the sync's own output ONLY when byte-identical to the hub's copy, a hand edit keeps the worktree, an unowned path is never exempt, and every unanswerable case fails toward keeping the work. T12.23, 01M23JK2R. |
 | [test_synced_manifest.py](tests/test_synced_manifest.py) | Tests for `fabrik_synced_manifest` — category coverage, compiled-bytecode exclusion, source mapping, PORTS.md seed-exemption, gitignore grouping, and the D-198/D-199 retired-vendored-dir contract (ignored, never synced, never worktree-copied). Count deliberately not stated: it read "5" while the file held 23 (D-199). |
 | [test_exec_bits.py](tests/test_exec_bits.py) | The exec bit IN HEAD for hook-invoked scripts — a lost one is a silent no-op on any fresh clone, and `git diff --numstat` cannot see it (D-199). |
