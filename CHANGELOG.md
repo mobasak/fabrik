@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Two shared-machinery defects reported from web-ecommerce-factory (2026-09-15)
+
+- **The shared-append private-index recipe silently produced an EMPTY COMMIT when run across two
+  Bash calls** — valid SHA, full commit message, rc 0, ref moved, hunk lost. `GIT_INDEX_FILE` is an
+  exported variable and each tool call is a fresh process, and the recipe's step-4 assertion exists
+  to be READ, which invites splitting the run. **None of the five guards can see it:** step 4 ran in
+  the first call and truthfully described an index the commit never used; the compare-and-swap
+  checks the BASE, which an empty commit leaves unchanged; the no-deletions assertion says nothing
+  about zero INSERTIONS; `env -u`/`unset` are no-ops on an unset variable. Every guard watches the
+  INDEX or the REF — only the COMMITTED TREE fails. Reproduced end-to-end on a scratch repo before
+  the fix. Both `CLAUDE.md` and `templates/governance/CLAUDE.md` (≈46 repos) gain a one-shell warning
+  at step 2 and a step 5a assertion on the committed tree: `git show --numstat HEAD -- <file>` must
+  print your hunk's counts, empty output meaning an empty commit. Reported by wef3
+  (`01M2HNBSQQFJDB0FB33KT801J3`), who lost a `docs/DECISIONS.md` row this way and pushed it.
+- **`check_plan_tickets.py` demoted a session's OWN plan findings to advisory, silently.** `own_dirs`
+  is built from working-tree/staged plan-file edits alone, so the moment a session COMMITS its plan
+  work the tree goes clean, `own_dirs` empties, and a dir selected via that session's own lock is
+  downgraded to `[sibling plan]` WARNs with everyone else's — a dispatcher-mode run commits plan
+  files constantly, so the set is unenforced exactly when you are about to report done (measured
+  there: a clean tree read 0 errors / 32 warns where `--plan-dir` on the SAME plan read 4 errors /
+  28 warns). Attributing severity needs a session identity no lock records — filed to the backlog.
+  What ships here is the end of the SILENCE: a demotion now prints how many ERRORs it demoted and
+  the exact `--plan-dir` command that shows them at full severity. Severity is unchanged, so no
+  currently-passing repo starts failing. Reported by wef3 (`01M2HH0NVMMDV043GR0FKHKYYV`).
+
 ### Fixed — Mail handling: the operator's six kaizen edits installed, and an unguarded expansion synced to 45 repos (2026-09-15)
 
 - **`scripts/rivals_run.py` (fleet-synced) — `_shared_env_path`'s override branch could RAISE out of

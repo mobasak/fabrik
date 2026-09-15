@@ -2673,6 +2673,27 @@ def main() -> int:
     for d in dirs:
         found = check_plan_dir(d, context=run_context, external_root=external_root)
         if d in lock_only:
+            # ⚠️ The downgrade is SILENT and it cannot tell "selected via a SIBLING's lock" from
+            # "selected via MY OWN lock" — `own_dirs` is built from working-tree/staged plan-file
+            # edits alone, so the moment this session COMMITS its plan work the tree goes clean,
+            # `own_dirs` empties, and the session's own plan is downgraded with everyone else's.
+            # A dispatcher-mode run commits plan files constantly, so the set is unenforced exactly
+            # when you are about to report done — the failure direction is toward silence at the
+            # worst moment (web-ecommerce-factory wef3, 01M2HH0NVMMD: a clean tree read 0 errors /
+            # 32 warns where `--plan-dir` on the SAME plan read 4 errors / 28 warns).
+            # Attributing severity needs a session identity no lock records — that is filed. What
+            # is fixable here and now is the SILENCE: say how many errors were demoted and print
+            # the exact command that shows them at full severity.
+            demoted = sum(1 for r in found if r.severity.value == "error")
+            if demoted:
+                _note(
+                    f"NOTE: plan_tickets — {demoted} ERROR(s) for {d.name} demoted to advisory "
+                    f"[sibling plan]: this dir was selected via a LOCK, not via a changed plan "
+                    f"file, and discovery cannot tell your own lock from a sibling's. If this "
+                    f"plan is YOURS, re-run at full severity: "
+                    f"python3 scripts/enforcement/check_plan_tickets.py --plan-dir "
+                    f"docs/development/plans/{d.name}"
+                )
             found = [
                 CheckResult(
                     check_name=r.check_name,

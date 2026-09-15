@@ -670,6 +670,64 @@ def test_bc10_21_staleness_window(tmp_path: Path) -> None:
     assert not any("still ⬜" in m for m in msgs)
 
 
+# --- the silent demotion names itself -------------------------------------------------------
+
+
+def test_a_demoted_error_says_so_and_prints_the_full_severity_command(
+    tmp_path: Path, capsys, monkeypatch
+) -> None:
+    """The `[sibling plan]` downgrade cannot tell a SIBLING's lock from MY OWN — `own_dirs` is
+    built from working-tree/staged plan-file edits, so committing plan work empties it and the
+    session's own plan is demoted with everyone else's. A dispatcher-mode run commits plan files
+    constantly, so the set is unenforced exactly when you are about to report done, and the gate
+    reads green. Attributing severity needs a session identity no lock records (filed); the SILENCE
+    is what is fixable, so a demotion must name its count and print the command that shows it at
+    full severity (web-ecommerce-factory wef3, 01M2HH0NVMMDV043GR0FKHKYYV).
+
+    The findings are INJECTED rather than provoked from a fixture: this grader is about the
+    demotion path, and building a plan that happens to emit an ERROR would test the fixture's
+    contents instead — and would go quietly green the day that unrelated rule changed."""
+    root = _repo(tmp_path)
+    plan_dir = _build(root)
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "seed")
+    locks = root / ".fabrik" / "plan-locks"
+    locks.mkdir(parents=True)
+    (locks / f"{DIRNAME}.json").write_text(
+        json.dumps({"plan": "x", "status": "active", "owned_paths": ["src/app/schema.py"]}),
+        encoding="utf-8",
+    )
+    (root / "src" / "app").mkdir(parents=True, exist_ok=True)
+    (root / "src" / "app" / "schema.py").write_text("seed\n", encoding="utf-8")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "track schema")
+    (root / "src" / "app" / "schema.py").write_text("changed\n", encoding="utf-8")
+    dirs, lock_only = cpt._discover_dirs(root)
+    assert plan_dir.resolve() in {d.resolve() for d in lock_only}, (
+        "precondition: the dir must be selected via the LOCK alone"
+    )
+
+    monkeypatch.setattr(
+        cpt,
+        "check_plan_dir",
+        lambda d, context="gate", external_root=None: [
+            cpt.CheckResult(
+                check_name="board_staleness",
+                severity=cpt.Severity.ERROR,
+                message="commit abc123 carries 'Agent-Task: T01' but the Board row is still ⬜",
+                file_path=str(d / f"{DIRNAME}.md"),
+            )
+        ],
+    )
+    monkeypatch.setattr("sys.argv", ["check_plan_tickets.py", "--project-root", str(root)])
+    rc = cpt.main()
+    out = capsys.readouterr().out
+    assert "1 ERROR(s)" in out and "demoted to advisory" in out, out[:600]
+    assert f"--plan-dir docs/development/plans/{DIRNAME}" in out, out[:600]
+    assert "[sibling plan]" in out, out[:600]
+    assert rc == 0, "this fix changes VISIBILITY, not severity — the demotion still stands"
+
+
 # --- BC 26: no-arg CLI selects active-lock plan dirs ---------------------------------------
 
 
