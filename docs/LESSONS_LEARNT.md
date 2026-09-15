@@ -1,6 +1,52 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## The finder must not be the fixer — measured seven times in one plan (2026-09-15, mail-triage plan, D-257)
+
+This plan's own review ledger is the evidence, not an opinion: **confirmed 19 · 10 · 14 · 4 · 6 · 4,
+own-fix 0 · 10 · 14 · 1 · 6 · 4.** Pass 1 found the plan's defects. Four of the five later passes
+found ONLY defects introduced while fixing the previous defect. The D-252 scope-growth stop fired
+twice and the NON-CONVERGENCE advisory once; every diagnosis was correct, including the one that
+named my own re-scoping between rounds.
+
+**Two mechanisms each took three or four cuts, every cut wrong in a DIFFERENT direction:**
+
+| | the credential carve | the lint-ratchet relief |
+|---|---|---|
+| cut 1 | no left boundary — `trailers:KEY=<secret>` DELIVERED | version alone — real debt absorbed into a stale floor |
+| cut 2 | too narrow — refused the repo's own multi-key literal | count taken on trust — a hand-edited version string defeated it |
+| cut 3 | too broad — blanked before every pattern, silencing all six HIGH classes | count as a precondition (`<= current`) |
+| cut 4 | too partial — fixed 1 of 6 against mid-value splicing | — |
+
+Every cut was caught by a reviewer. None by me. A fix feels finished precisely when you stop
+looking, and the author is the person least able to see the direction they just over-corrected in.
+
+**FOUR graders written in this run could not fail, all four mine:**
+1. a mtime tolerance satisfied by test speed;
+2. a NOTE grader asserting set membership, never invoking the NOTE path — green through a revert of
+   the line it named AND through deleting the gate;
+3. a revert harness with `REPO = Path("/opt/fabrik")` hardcoded, grading the live tree while a
+   reverted copy sat beside it;
+4. a fixture calling a helper that does `git add -A`, committing the very uncommitted state the
+   test depended on.
+
+Each cost a round to discover, and each was found by MUTATING the line — never by reading the
+green. **The highest-yield probe of the entire run was mutating every clause a fix ADDS, not only
+the lines its graders cite:** three of four new predicate clauses shipped unguarded and a seat found
+them that way.
+
+**The most consequential defect was found in the FINISH review, not in any phase.** Two guards, each
+correct alone, were jointly unsatisfiable: a HEAD-bound baseline read (so a local edit cannot lower
+the floor) plus `return 1` on a version mismatch (so a ruleset change cannot be absorbed silently).
+Together the printed remedy could not clear the gate it blocked — and one repo was live-wedged when
+measured. Nothing in the process asked whether the remedy one guard prints is REACHABLE under the
+other. It surfaced only because a reviewer executed the four-run sequence end to end instead of
+reading the branch.
+
+**Corollary worth more than any single fix:** un-wedging by fail-open is a worse trade than the
+wedge. My first correction traded a gate nobody could clear for a gate that silently absorbed real
+debt. A stuck gate is visible; a hole is not.
+
 ## 2026-09-14 — A count of guarded call sites is not a proof of the guarded property, and a property has as many ends as it has consumers
 
 **Context:** the whole-plan `/fabrik-review` over kaizen pieces 3 + 4 (`docs/development/reviews/2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round-review.md`, seven passes, confirmed 12 → 3 → 3 → 3 → 5 → 4 → 0).
