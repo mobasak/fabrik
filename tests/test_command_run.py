@@ -5291,3 +5291,31 @@ def test_the_close_prints_the_queue_trigger(tmp_path: Path) -> None:
     # row this very run just filed. That is the honest figure — the queue really is 2 deep now.
     assert "QUEUE: /fabrik-mail-handle has 2 unanswered verdict(s) of 2 filed" in out, out
     assert "/fabrik-command-improve fabrik-mail-handle" in out, out
+
+
+def test_an_integer_ts_still_matches_what_the_queue_printed(tmp_path: Path) -> None:
+    """The row handle crosses THREE stringifications — the ledger cell, what `--queue` prints, and
+    what `--mark-answered` stored — and they must agree. `--queue` renders `ts` through the
+    report's `_num`, which returns a float, so an integer cell prints `1789470862.0`; comparing the
+    raw cell would never match it and the close-time trigger would count an answered row forever.
+    Executed across three JSON spellings 2026-09-15; the integer one disagreed."""
+    cr = _cr_module("tsk")
+    assert cr._ts_key(1789470862) == "1789470862.0"
+    assert cr._ts_key(1789470862.1264205) == "1789470862.1264205"
+    assert cr._ts_key(float("nan")) == "nan"  # no crash, and never equal to a real handle
+    assert cr._ts_key("already-a-string") == "already-a-string"
+    assert cr._ts_key(None) == "None"
+    state = tmp_path / "state"
+    (state / "command-runs").mkdir(parents=True)
+    (state / "command-feedback.jsonl").write_text(
+        json.dumps({"ts": 1789470862, "command": "fabrik-review", "change": "lean: a"}) + "\n"
+    )
+    # what an agent copies out of --queue is the FLOAT spelling
+    (state / "command-feedback-answered.jsonl").write_text(
+        json.dumps({"ts": "1789470862.0", "command": "fabrik-review", "commit": "abc"}) + "\n"
+    )
+    os.environ["COMMAND_RUN_DIR"] = str(state / "command-runs")
+    try:
+        assert cr._queue_depth("fabrik-review") == (0, 1)
+    finally:
+        os.environ.pop("COMMAND_RUN_DIR", None)

@@ -26,6 +26,12 @@ All notable changes to this project will be documented in this file.
   `~/.claude/state/command-feedback-answered.jsonl` beside the ledger and `--queue` excludes those
   rows, stating how many it dropped. It REFUSES a commit touching no corpus path — the cheapest way
   to shrink a queue without doing the work is to mark rows and commit nothing.
+- **The row handle crosses three stringifications and an INTEGER `ts` broke the match.** `--queue`
+  renders `ts` through the report's `_num`, which returns a float, so an integer cell prints
+  `1789470862.0` — and comparing the raw cell (`str(1789470862)`) never matches it, so the
+  close-time trigger would count an answered row forever: a number that can never fall, which is
+  the wallpaper the trigger exists to avoid. Found by executing the round-trip across three JSON
+  spellings, not by reading it. `_ts_key` normalises both sides; graded red-on-revert.
 - ⚠️ The axis list is DUPLICATED (`command_run.py::_CHANGE_AXES` ↔ `command_feedback_report.py::AXES`):
   the first is fleet-synced to ~46 repos, the second is hub-only, so an import either way fails
   CLOSED in every project the day it lands. Two graders keep the copies and their classifiers in

@@ -1430,6 +1430,27 @@ def _answered_ledger_path() -> Path:
     return _state_dir().parent / "command-feedback-answered.jsonl"
 
 
+def _ts_key(value: object) -> str:
+    """One ledger row's handle, normalised the way `--queue` PRINTS it.
+
+    ⚠️ Not `str(value)`. `--queue` renders `ts` through the report's `_num`, which returns a
+    float, so an INTEGER `ts` in the ledger is printed `1789470862.0` — and that string is what an
+    agent copies into `--mark-answered`. Comparing the raw cell instead (`str(1789470862)` →
+    `"1789470862"`) never matches it, so the row would be excluded from `--queue` and counted
+    forever by the close-time trigger: a number that can never fall, which is exactly the wallpaper
+    the trigger exists to avoid. Executed 2026-09-15 across three JSON spellings; the integer one
+    disagreed. Every row the close writes is a `time.time()` float, so this is the append-only
+    ledger's hand-written and cross-version tail, not today's writer.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return str(value)
+    try:
+        f = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return str(value)
+    return str(f) if math.isfinite(f) else str(value)
+
+
 def _queue_depth(command: str) -> tuple[int, int] | None:
     """`(unanswered, carrying a verdict)` for one command — or None when it cannot be known.
 
@@ -1453,7 +1474,7 @@ def _queue_depth(command: str) -> tuple[int, int] | None:
             except ValueError:
                 continue
             if isinstance(row, dict) and str(row.get("command") or "") == command:
-                answered.add(str(row.get("ts")))
+                answered.add(_ts_key(row.get("ts")))
         unanswered = 0
         ledger = _feedback_ledger_path().read_text(encoding="utf-8", errors="replace")
         for ln in ledger.splitlines():
@@ -1470,7 +1491,7 @@ def _queue_depth(command: str) -> tuple[int, int] | None:
             if _change_is_none_value(str(row.get("change") or "")):
                 continue
             rows += 1
-            if str(row.get("ts")) not in answered:
+            if _ts_key(row.get("ts")) not in answered:
                 unanswered += 1
         return (unanswered, rows) if rows else None
     except Exception:  # advisory only — never let a counter wedge a close
