@@ -433,8 +433,10 @@ _GRAMMAR_PHRASES: tuple[str, ...] = (
     "the one concrete edit to this command or a rule",
     "what in the command text was ambiguous or misleading",
     "steps, turns or tokens spent without",
+    "steps/turns/tokens spent without changing the outcome",
     "surfaces exercised: <what your run touched",
     "mail id(s) to infra|fleet|intel | none",
+    "mail id(s) to <infra|fleet|intel> | none",
 )
 
 
@@ -514,37 +516,27 @@ def _change_is_none(value: str) -> bool:
 
 # Mirrors `command_run.py::_NONE_WORDS` / `_NONE_SEPARATORS`; pinned by a drift grader. Longest
 # first, so `nothing` is tested before `none`.
-_NONE_WORDS = ("nothing", "none", "n/a", "-")
+_NONE_WORDS = ("nothing", "none", "n/a")
 _NONE_SEPARATORS = frozenset(":,;.—–(|")
 
 
 def _is_none_whole(value: str) -> bool:
-    """Is the WHOLE value a none verdict — not merely a value that STARTS with one?
+    """Mirrors `command_run.py::_is_none_head` — see that docstring for why it is permissive and
+    for the COBRA note naming `none: <the verdict>` as the uncountered cheapest path.
 
-    `none of the axes fit — step 3 must dispatch` is a real verdict whose first word happens to be
-    `none`; the shared :func:`_is_none` reads the first token only and books it as "nothing to
-    change", which on the CLOSE side was the cheapest bypass of the axis gate. Kept SEPARATE from
-    `_is_none` deliberately: that one also gates `confusion:` and `waste:`, which carry no axis key
-    and whose published statistics would shift under a stricter rule.
+    Kept SEPARATE from the shared :func:`_is_none`, which also gates `confusion:` and `waste:`.
     """
     stripped = (value or "").strip()
     if not stripped:
         return True
-    low = stripped.lower()
-    for word in _NONE_WORDS:
-        if not low.startswith(word):
-            continue
-        rest = low[len(word) :].lstrip()
-        if not rest or rest.rstrip(".,;:") == "":
-            return True
-        if rest[:1] not in _NONE_SEPARATORS:
-            return False
-        # ⚠️ and what follows the separator must be a JUSTIFICATION, not the grammar's own
-        # bracketed template: `none: <the ONE concrete edit…>` is a paste wearing a none prefix,
-        # and reading it as an honest none would let a template into the ledger as a signed
-        # verdict (property sweep, review round 1)
-        return not rest[1:].strip().startswith("<")
-    return False
+    low = " ".join(stripped.lower().split())
+    # a BARE dash is a none; a dash with content after it is a BULLET, and the verdict behind it
+    # must still be keyed (`- lean: cut step 7` was silently booked as "nothing to change")
+    if low.rstrip(".,;:") == "-":
+        return True
+    head = low.split()[0].rstrip(".,;:")
+    # the none-word must be a WORD, not a prefix: `nonetheless` and `none-blocking` are verdicts
+    return head in _NONE_WORDS
 
 
 def _is_none(value: str) -> bool:
@@ -1138,11 +1130,17 @@ def queue(rows: list[dict], command: str, ledger: Path | None = None) -> str:
     # the denominator is the rows FOR THIS COMMAND, never the whole ledger: "2 of 5 rows carry a
     # verdict for it" is false of a 5-row ledger where only 3 rows are about it at all, and this is
     # the figure a reader uses to decide whether the queue is worth a run
+    # ⚠️ THE COBRA READER for `_is_none_head`'s uncountered path. `change: none: <the verdict>`
+    # files a real edit as "nothing to change" and no gate can tell the two apart without judging
+    # prose — so the none RATE is published instead. A command whose verdicts are mostly `none` is
+    # either genuinely finished or being dodged, and either way the reader can see it.
+    nones = len(for_it) - (len(mine) + len(excluded))
     head = (
         f"queue /{command} — {len(mine)} unanswered of "
         f"{len(mine) + len(excluded)} verdict row(s), "
         f"{len(for_it)} row(s) for it in all ({len(rows)} in the window)"
         + (f"; {len(excluded)} already answered and excluded" if excluded else "")
+        + (f"; {nones} filed as `none`" if nones else "")
     )
     if not mine:
         return head + "\n(nothing to improve from — pick another command)"

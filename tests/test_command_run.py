@@ -5159,10 +5159,12 @@ def test_axis_list_is_pinned_to_the_report_reader() -> None:
     ],
 )
 def test_gate_and_queue_reader_agree_on_every_shape(value: str) -> None:
-    """THE property, over shapes rather than one example: the close refuses exactly the values the
-    queue reader cannot key. Two independent implementations of one rule (they may not import each
-    other) drift silently otherwise — the close says fine, the queue says unkeyed, and the row is
-    invisible to the loop that exists to answer it."""
+    """The close refuses exactly the values the queue reader cannot key.
+
+    ⚠️ This asserts refusal PARITY. It cannot see a regression that reclassifies a value BETWEEN
+    `unkeyed` and `bad-axis`, because both collapse into the same `unkeyable` outcome — a seat
+    proved that by mutating the reader's key-attempt detector and watching 565 shapes stay green.
+    Bucket correctness is asserted separately below."""
     report = _load("cfr_agree", _SCRIPT.parent / "command_feedback_report.py")
     cr = _cr_module(f"ax8{abs(hash(value)) % 9999}")
     _, missing = cr._parse_usage_feedback(
@@ -5175,10 +5177,12 @@ def test_gate_and_queue_reader_agree_on_every_shape(value: str) -> None:
     # reader, or the loop's queue carries a row it can never sort or answer.
     refused = any(m.startswith("change (") for m in missing)
     bucket = report._axis_of(value)
-    unkeyable = bucket in ("unkeyed", "bad-axis", "placeholder") and not report._change_is_none(
-        value
+    # a PLACEHOLDER is unkeyable whatever its first word: `none: <the ONE concrete edit…>` is a
+    # template wearing a none prefix, never an honest "nothing to change"
+    unkeyable = bucket == "placeholder" or (
+        bucket in ("unkeyed", "bad-axis") and not report._change_is_none(value)
     )
-    assert refused == unkeyable, (value, bucket, refused, missing)
+    assert not (unkeyable and not refused), (value, bucket, refused, missing)
 
 
 def test_the_axis_cutover_is_in_the_past() -> None:
@@ -5350,21 +5354,38 @@ def test_an_integer_ts_still_matches_what_the_queue_printed(tmp_path: Path) -> N
     "value",
     [
         "none of the axes fit — step 3 must dispatch, not narrate",
-        "nothing in step 3 works — rewrite the dispatch block",
-        "n/a because the command text is fine but the RULE is wrong: cut pack 62",
-        "- lean: cut step 7",
+        "none: cut the rubric block to the matched rows",
+        "none, but step 7 should print the mail id",
     ],
 )
-def test_a_real_verdict_starting_with_a_none_word_is_not_a_none(value: str) -> None:
-    """THE CHEAPEST BYPASS, and the counter-measure could not see it. `_is_none_head` read the
-    FIRST WHITESPACE TOKEN only, so a loaded verdict beginning with `none`/`nothing`/`n/a`/`-` was
-    booked as "nothing to change": it passed the gate, was written to the ledger, printed no
-    `QUEUE:` line, never reached `--queue`, and never reached `_axis_tally` — the reader the COBRA
-    NOTE names as the counter-measure — because it was filtered out upstream. An agent refused once
-    for `unkeyed axis` finds it in a single retry. Executed: 4 of 5 real verdicts vanished."""
-    cr = _cr_module(f"nb{abs(hash(value)) % 9999}")
-    assert cr._change_is_none_value(value) is False, value
-    assert cr._change_axis_verdict(value) == "unkeyed axis", value
+def test_the_none_bypass_is_accepted_and_the_reader_is_the_counter_measure(value: str) -> None:
+    """THE COBRA PATH, recorded rather than guessed at — this test keeps the trade honest.
+
+    A verdict filed as `none: <the edit>` passes the gate and never reaches `--queue`. Round 1
+    tried to close it by demanding punctuation-then-not-a-letter after the none-word; round 2
+    measured the cost — 18 ordinary "nothing to change" wordings refused, and 4 rows ALREADY IN THE
+    LIVE LEDGER refused on replay, each a wedged turn in ~46 repos — for the closing of a single
+    shape that a space still walks around. Telling an honest justification from a smuggled edit is
+    prose judgement, which this repo bans in a gate.
+
+    So the bypass is ACCEPTED and made VISIBLE instead: the queue header states how many rows a
+    command filed as `none`. If this test starts failing because someone tightened the rule, read
+    the four live rows named in `_is_none_head`'s docstring before agreeing with them."""
+    cr = _cr_module(f"cob{abs(hash(value)) % 9999}")
+    assert cr._is_none_head(value) is True, value
+    assert cr._change_axis_verdict(value) is None, value
+
+
+def test_the_none_rate_is_published_so_the_bypass_is_visible() -> None:
+    """The counter-measure the test above names: a READER, not a gate."""
+    report = _load("cfr_none_rate", _SCRIPT.parent / "command_feedback_report.py")
+    rows = [
+        {"ts": 1.0, "command": "c", "change": "lean: a real edit"},
+        {"ts": 2.0, "command": "c", "change": "none: cut the rubric block"},
+        {"ts": 3.0, "command": "c", "change": "none"},
+    ]
+    head = report.queue(rows, "c").splitlines()[0]
+    assert "2 filed as `none`" in head, head
 
 
 @pytest.mark.parametrize(
@@ -5635,11 +5656,199 @@ def test_nothing_the_gate_accepts_is_unkeyable_by_the_reader() -> None:
             continue
         refused = any(m.startswith("change (") for m in missing)
         bucket = report._axis_of(value)
-        unkeyable = bucket in ("unkeyed", "bad-axis", "placeholder") and not report._change_is_none(
-            value
+        unkeyable = bucket == "placeholder" or (
+            bucket in ("unkeyed", "bad-axis") and not report._change_is_none(value)
         )
-        if refused != unkeyable:
+        # ⚠️ ONE DIRECTION, and it is the load-bearing one: nothing the gate ACCEPTS may be
+        # unkeyable by the reader, or the queue carries a row it can neither sort nor answer. The
+        # converse — refused while the reader would have kept it — is not a defect and is not
+        # asserted: `n/a: <the ONE concrete edit…>` is a template the gate is RIGHT to refuse and
+        # the reader reads as a none, because `n/a` is not a key it can strip. A refused value
+        # never reaches the ledger, so the reader never sees it.
+        if unkeyable and not refused:
             disagreements.append((value, bucket, refused))
     assert not disagreements, (
-        f"{len(disagreements)} of {len(shapes)} shapes disagree: {disagreements[:8]}"
+        f"{len(disagreements)} of {len(shapes)} shapes are ACCEPTED but unkeyable: "
+        f"{disagreements[:8]}"
     )
+
+
+def test_a_keyed_value_lands_in_the_axis_the_reader_names() -> None:
+    """The half the parity sweep structurally cannot see. `unkeyed` and `bad-axis` both mean
+    "unkeyable", so a regression moving a value from one to the other leaves parity intact while
+    the QUEUE's axis column — the thing the operator asked to sort by — silently changes. This
+    asserts the bucket itself, and that a colon inside a URL or a Windows path is not a key."""
+    cr = _cr_module("bucket")
+    report = _load("cfr_bucket", _SCRIPT.parent / "command_feedback_report.py")
+    cases = {
+        "lean: cut step 7": "lean",
+        "manifesto: violates derive-not-menu": "manifesto",
+        "banana: cut step 7": "bad-axis",
+        "make it faster": "unkeyed",
+        "https://example.com/x is wrong": "unkeyed",
+        r"c:\users\x is the wrong path": "unkeyed",
+        "step 7: print the id": "unkeyed",
+        "the ONE concrete edit to this command or a rule": "placeholder",
+    }
+    for value, want in cases.items():
+        assert report._axis_of(value) == want, (value, report._axis_of(value))
+    # and the gate agrees about which of those are refusable
+    for value, want in cases.items():
+        refused = bool(cr._change_axis_verdict(value))
+        assert refused == (want in ("unkeyed", "bad-axis", "placeholder")), (value, want, refused)
+
+
+def test_the_none_test_rejects_a_bracketed_template_on_its_own() -> None:
+    """A template wearing a none prefix must never close.
+
+    The none test itself is PERMISSIVE by design (round 2 measured that a stricter one refused 18
+    ordinary wordings and 4 live ledger rows), so the guard that catches this is the PLACEHOLDER
+    rule, not the none rule. What matters is the OUTCOME, which is what this asserts."""
+    cr = _cr_module("brk")
+    for value in ("none: <the ONE concrete edit…>", "nothing: <what your run touched>"):
+        _, missing = cr._parse_usage_feedback(
+            f"confusion: none · waste: none · change: {value} · filed: none — surfaces exercised: p"
+        )
+        assert "change (placeholder)" in missing, (value, missing)
+    for value in ("none: the command text is fine", "nothing: it is already lean"):
+        _, missing = cr._parse_usage_feedback(
+            f"confusion: none · waste: none · change: {value} · filed: none — surfaces exercised: p"
+        )
+        assert not [m for m in missing if m.startswith("change")], (value, missing)
+
+
+# ---------------------------------------------------------------------------
+# Review round 2 — what the round-1 fixes to the close gate broke or left open.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "none",
+        "none needed",
+        "none required",
+        "nothing to change",
+        "nothing further",
+        "none for this run",
+        "nothing to fix",
+        "none at this time",
+        "none identified",
+        "n/a for this run",
+        "nothing worth changing",
+        "none: the command text is fine",
+        "none — nothing to change",
+        "none, the command is fine",
+        "none.",
+        "n/a",
+        "-",
+        "none - reading the components is what made this a one-rule fix",
+    ],
+)
+def test_an_ordinary_nothing_to_change_wording_is_never_refused(value: str) -> None:
+    """THE REGRESSION ROUND 1 SHIPPED. Demanding punctuation after the none-word refused 18 of 20
+    ordinary wordings, and a replay of the live ledger showed 4 rows that had closed at rc 0 would
+    be refused — one of them because an ASCII hyphen was missing from a separator set carrying the
+    em- and en-dash. A refused close leaves the record `running` and the Stop hook blocks the whole
+    turn, in ~46 repos. The rule is permissive now; the bypass it leaves is documented, not
+    guessed at."""
+    cr = _cr_module(f"hon{abs(hash(value)) % 9999}")
+    assert cr._is_none_head(value) is True, value
+    assert cr._change_axis_verdict(value) is None, value
+
+
+@pytest.mark.parametrize(
+    "value", ["nonetheless step 3 must dispatch", "none-blocking: cut step 7", "- lean: cut step 7"]
+)
+def test_a_none_word_glued_into_something_longer_is_not_a_none(value: str) -> None:
+    """The none-word must be a WORD. `- lean: cut step 7` is a BULLETED verdict, not a bare dash,
+    and it was silently booked as "nothing to change" before this."""
+    cr = _cr_module(f"glu{abs(hash(value)) % 9999}")
+    assert cr._is_none_head(value) is False, value
+
+
+def test_every_live_ledger_row_that_reads_as_a_none_still_closes(tmp_path: Path) -> None:
+    """Replayed against the REAL ledger rather than invented shapes: no row already written by an
+    agent may be refused by a later tightening of this gate. The ledger is the only record of what
+    agents actually write, and it is the population a false-refusal regression lands on."""
+    cr = _cr_module("replay")
+    led = Path.home() / ".claude" / "state" / "command-feedback.jsonl"
+    if not led.is_file():
+        pytest.skip("no live ledger on this box")
+    rows = []
+    for line in led.read_text(errors="replace").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rows.append(json.loads(line))
+        except ValueError:
+            continue
+    none_ish = [
+        str(r.get("change") or "")
+        for r in rows
+        if str(r.get("change") or "").strip().lower().split(" ")[:1]
+        and str(r.get("change") or "").strip().lower().split()[:1]
+        and str(r.get("change") or "").strip().lower().split()[0].rstrip(".,;:-")
+        in ("none", "nothing", "n/a")
+    ]
+    refused = [v for v in none_ish if cr._change_axis_verdict(v)]
+    assert not refused, (
+        f"{len(refused)} of {len(none_ish)} none-shaped live rows now refused: {refused[:3]}"
+    )
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "lean: the ONE concrete edit to this command or a rule",
+        "infra: the one concrete edit to this command or a rule",
+        "manifesto: what in the command text was ambiguous or misleading",
+    ],
+)
+def test_a_keyed_unbracketed_paste_is_still_a_paste(value: str) -> None:
+    """The first cut read the WHOLE value where the reader reads the KEY-STRIPPED body, so exactly
+    the shape the ORIGINAL hole taught agents to write — a valid axis in front of the template —
+    closed at rc 0 and was stored, while the reader called it a placeholder."""
+    cr = _cr_module(f"kp{abs(hash(value)) % 9999}")
+    _, missing = cr._parse_usage_feedback(
+        f"confusion: none · waste: none · change: {value} · filed: none — surfaces exercised: p"
+    )
+    assert "change (placeholder)" in missing, missing
+
+
+def test_the_paste_guard_covers_every_field_not_just_change() -> None:
+    """Four of the grammar's five clauses belong to `confusion:`, `waste:` and `filed:`. The first
+    cut tested `change` alone, so the whole grammar minus its angle brackets closed the gate and
+    landed as three signed verdicts."""
+    cr = _cr_module("allf")
+    _, missing = cr._parse_usage_feedback(
+        "confusion: what in the command text was ambiguous or misleading · "
+        "waste: steps/turns/tokens spent without changing the outcome · "
+        "change: lean: cut step 7 · filed: mail id(s) to infra|fleet|intel | none"
+    )
+    for field in ("confusion", "waste", "filed"):
+        assert f"{field} (placeholder)" in missing, missing
+
+
+def test_the_grammar_phrases_cover_both_spellings_the_system_prints() -> None:
+    """Two grammars in one system: the phrase list was pinned to the FRAGMENT's wording, while the
+    refusal prints `_USAGE_GRAMMAR`'s — and they differ on two clauses, so pasting what the CLI
+    itself had just printed was accepted."""
+    cr = _cr_module("two")
+    grammar = cr._USAGE_GRAMMAR.lower()
+    hits = [ph for ph in cr._GRAMMAR_PHRASES if ph in grammar]
+    assert len(hits) >= 4, (len(hits), cr._GRAMMAR_PHRASES)
+
+
+def test_the_hint_never_tells_an_agent_to_replace_a_valid_axis() -> None:
+    """`change: lean:` — a LEGAL key with an empty body — took the "your key is wrong" arm and
+    printed "(replace `lean` — it is not one of the seven)" two lines under a list containing
+    `lean`, never naming the real defect."""
+    cr = _cr_module("hint3")
+    fields, missing = cr._parse_usage_feedback(
+        "confusion: none · waste: none · change: lean: · filed: none — surfaces exercised: p"
+    )
+    assert "change (unkeyed axis)" in missing, missing
+    attempt = cr._change_axis_attempt("lean:")
+    assert attempt is not None and attempt[0] in cr._CHANGE_AXES and not attempt[1]

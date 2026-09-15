@@ -1323,8 +1323,16 @@ def test_the_placeholder_phrases_are_pinned_against_the_live_fragment() -> None:
         .lower()
         .split()
     )
-    missing = [p for p in m._GRAMMAR_PHRASES if p not in text]
-    assert not missing, f"phrases no longer in the fragment: {missing}"
+    # ⚠️ EITHER printed source, not just the fragment. Round 2 found two grammars in one system:
+    # the phrase list was pinned here against `close-feedback.md` while the REFUSAL prints
+    # `command_run.py::_USAGE_GRAMMAR`, and the two differ on two clauses — so pasting what the
+    # CLI had just printed at the agent was accepted. Both spellings are carried now, and a phrase
+    # is pinned if it survives in either place.
+    grammar = " ".join(
+        (ROOT / "scripts" / "command_run.py").read_text(encoding="utf-8").lower().split()
+    )
+    missing = [p for p in m._GRAMMAR_PHRASES if p not in text and p not in grammar]
+    assert not missing, f"phrases in neither the fragment nor _USAGE_GRAMMAR: {missing}"
     raw = [re.sub(r"^\s*>\s?", "", ln) for ln in FRAGMENT.read_text(encoding="utf-8").splitlines()]
     i = next(k for k, ln in enumerate(raw) if "· change:" in ln)
     change_clause = " ".join(" ".join(raw[i : i + 2]).lower().split())
@@ -1492,6 +1500,7 @@ def test_queue_prints_one_commands_verdicts_newest_first_with_their_ts(tmp_path:
     assert (
         lines[0]
         == "queue /a — 2 unanswered of 2 verdict row(s), 3 row(s) for it in all (4 in the window)"
+        "; 1 filed as `none`"
     ), lines[0]
     rows = [ln.split("\t") for ln in lines[1:]]
     assert [c[2] for c in rows] == ["fast: newer", "lean: older"], rows

@@ -1215,44 +1215,43 @@ def _change_is_none_value(value: str) -> bool:
 # What may follow a none-word and still leave the verdict a NONE: punctuation that opens a
 # justification (`none: the text is fine`, `none — nothing to change`). A LETTER may not — `none of
 # the axes fit — step 3 must dispatch` is a real verdict whose first word happens to be `none`.
-_NONE_WORDS = ("nothing", "none", "n/a", "-")
+_NONE_WORDS = ("nothing", "none", "n/a")
 _NONE_SEPARATORS = frozenset(":,;.—–(|")
 
 
 def _is_none_head(value: str) -> bool:
-    """Is the WHOLE value a `none` verdict — not merely a value that STARTS with one?
+    """Does this `change:` value say "nothing to change"?
 
-    ⚠️ Review round 1, the cheapest bypass of the axis gate and the one its own counter-measure
-    could not see. The old test read the first whitespace token only, so `change: none of the axes
-    fit — step 3 must dispatch, not narrate` was booked as "nothing to change": it passed the gate,
-    was written to the ledger, printed no `QUEUE:` line, never appeared in `--queue`, and never
-    reached `_axis_tally` — the reader the COBRA NOTE names as the counter-measure — because it was
-    filtered out upstream as a none. An agent refused once for `unkeyed axis` discovers it in a
-    single retry, and it is cheaper than keying honestly AND leaves no countable row. Executed: 4
-    of 5 real verdicts vanished that way.
+    ⚠️ DELIBERATELY PERMISSIVE, and this is the second cut. The first tried to separate an honest
+    none from a verdict whose first word happens to be `none`, by demanding that whatever follows
+    the none-word begin with punctuation. Round 2 measured what that cost: **18 of 20 ordinary
+    wordings were newly REFUSED** — `none needed`, `nothing to change`, `none for this run`,
+    `n/a for this run` — and **4 rows already in the live ledger** would have been refused on
+    replay, one of them because an ASCII hyphen was missing from a separator set that carried the
+    em- and en-dash. A refused close leaves the record `running` and the Stop hook blocks the whole
+    turn, in ~46 repos. That price buys the closing of exactly ONE shape, and even then only for a
+    space: `none: cut step 7` still reads as a none. A rule that wedges honest turns to stop a
+    dodge that costs one character is not a gate, it is a tax.
 
-    The MIRROR, fixed in the same change: `change: none: the command text is fine` — a none with
-    one clause of justification — was REFUSED as `unknown axis`, wedging the turn and teaching a
-    fabricated `lean:` verdict as the way out.
+    ⚠️ COBRA NOTE — the cheapest way to file a verdict without keying it is `change: none: <the
+    verdict>`, and this function does NOT stop it. Nothing here can: telling an honest
+    justification from a smuggled edit is prose judgement, which this repo bans in a gate. The
+    counter-measure is a READER — `command_feedback_report.py`'s queue header states how many rows
+    a command filed as `none`, so a command whose none-rate climbs is visible to whoever reads the
+    queue. A gate that guesses at meaning would fail honest closes, which is the failure this
+    docstring exists to record.
     """
     stripped = (value or "").strip()
     if not stripped:
         return True
-    low = stripped.lower()
-    for word in _NONE_WORDS:  # longest first: `nothing` before `none` before `n/a`
-        if not low.startswith(word):
-            continue
-        rest = low[len(word) :].lstrip()
-        if not rest or rest.rstrip(".,;:") == "":
-            return True
-        if rest[:1] not in _NONE_SEPARATORS:
-            return False
-        # ⚠️ and what follows the separator must be a JUSTIFICATION, not the grammar's own
-        # bracketed template: `none: <the ONE concrete edit…>` is a paste wearing a none prefix,
-        # and reading it as an honest none would let a template into the ledger as a signed
-        # verdict (property sweep, review round 1)
-        return not rest[1:].strip().startswith("<")
-    return False
+    low = " ".join(stripped.lower().split())
+    # a BARE dash is a none; a dash with content after it is a BULLET, and the verdict behind it
+    # must still be keyed (`- lean: cut step 7` was silently booked as "nothing to change")
+    if low.rstrip(".,;:") == "-":
+        return True
+    head = low.split()[0].rstrip(".,;:")
+    # the none-word must be a WORD, not a prefix: `nonetheless` and `none-blocking` are verdicts
+    return head in _NONE_WORDS
 
 
 def _change_axis_verdict(value: str) -> str | None:
@@ -1294,8 +1293,10 @@ _GRAMMAR_PHRASES = (
     "the one concrete edit to this command or a rule",
     "what in the command text was ambiguous or misleading",
     "steps, turns or tokens spent without",
+    "steps/turns/tokens spent without changing the outcome",
     "surfaces exercised: <what your run touched",
     "mail id(s) to infra|fleet|intel | none",
+    "mail id(s) to <infra|fleet|intel> | none",
 )
 
 
@@ -1432,15 +1433,29 @@ def _parse_usage_feedback(
     # T3.4 (backlog F25/F26): a value pasted verbatim from the grammar — `<…>` — names nothing;
     # it is refused as a placeholder, by label, so the grammar string cannot pass its own parser
     placeholders = [f for f in _USAGE_FIELDS if _is_placeholder(fields.get(f), f)]
-    # the UNBRACKETED paste: `_is_placeholder` anchors on `<…>`, so a template whose angle
+    # The UNBRACKETED paste: `_is_placeholder` anchors on `<…>`, so a template whose angle
     # brackets were dropped reached the axis test and was labelled `unkeyed axis` while the queue
-    # reader bucketed it `placeholder`. Same refusal, different name — and the drift is exactly
-    # what the two classifiers' agreement grader exists to forbid (review round 1).
-    if "change" not in placeholders:
-        _cv = " ".join((fields.get("change") or "").strip().lower().split())
-        _cv = _cv.lstrip("> -*\"'`(")
-        if any(_cv.startswith(_ph) for _ph in _GRAMMAR_PHRASES):
-            placeholders.append("change")
+    # reader bucketed it `placeholder` (review round 1).
+    # ⚠️ Round 2 found the first cut of this block wrong twice. (a) It read the WHOLE value where
+    # the reader reads the KEY-STRIPPED body, so `change: lean: the ONE concrete edit to this
+    # command or a rule` — the exact shape the ORIGINAL hole taught agents to write — closed at
+    # rc 0 and was stored, while the reader called it a template. (b) It tested `change` alone,
+    # while `_is_placeholder` tests all four fields: four of the five phrases below belong to
+    # `confusion:`, `waste:` and `filed:`, so the whole grammar minus its angle brackets closed the
+    # gate and landed as three signed verdicts. Both executed end-to-end.
+    for _f in _USAGE_FIELDS:
+        if _f in placeholders:
+            continue
+        _raw = fields.get(_f) or ""
+        if _f == "change":
+            if _change_is_none_value(_raw):
+                continue  # mirrors `_change_is_none`'s own precedence in the reader
+            _att = _change_axis_attempt(_raw)
+            _cv = _att[1] if _att else " ".join(_raw.strip().lower().split())
+        else:
+            _cv = " ".join(_raw.strip().lower().split())
+        if any(_cv.lstrip("> -*\"'`(").startswith(_ph) for _ph in _GRAMMAR_PHRASES):
+            placeholders.append(_f)
     missing += [f"{f} (placeholder)" for f in placeholders]
     # THE AXIS GATE — `change:` only, and only on a value that is not already the grammar's own
     # template. The precedence MIRRORS the report's `_axis_of`, which decides `placeholder` before
@@ -3209,14 +3224,35 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             # stores with a nested key — and told an agent who pasted the grammar template to
             # write `change: lean: <the grammar>`, which the gate ALSO accepts, turning a correct
             # refusal into a stored non-verdict. Executed in review round 1.
+            # ⚠️ THREE branches, because round 2 executed the two-branch form and found it told
+            # agents to write three different invalid things. (a) `change: lean:` — a LEGAL key
+            # with an empty body — took the "your key is wrong" arm and printed "(replace `lean` —
+            # it is not one of the seven)" two lines under a list containing `lean`, never naming
+            # the real defect. (b) a pseudo-key that is not one alphabetic word (`step 7:`,
+            # `<one of the seven>:`) returns None from `_change_axis_attempt` and fell to the
+            # unconditional `lean: ` prefix — reproducing the nested key this branch was ADDED to
+            # prevent, including for a literal copy of the hint's own example. (c) the example
+            # itself used `<…>` meta-variables, which `_is_placeholder` refuses everywhere else in
+            # this file, so copying the fix produced a second refusal.
             _attempt = _change_axis_attempt(_own)
-            if _attempt is not None:  # they keyed something; the key is the wrong half
+            if _attempt is not None and _attempt[0] in _CHANGE_AXES:
                 _fix_line = (
-                    f"\n  keyed:      change: <one of the seven>: {_attempt[1][:59] or '<your edit>'}"
-                    f"\n              (replace `{_attempt[0]}` — it is not one of the seven)"
+                    f"\n  keyed:      change: {_attempt[0]}: the edit itself"
+                    f"\n              (`{_attempt[0]}` is a valid axis — what followed it was empty)"
+                )
+            elif _attempt is not None:
+                _fix_line = (
+                    f"\n  keyed:      change: lean: {(_attempt[1][:59] or _shown)}"
+                    f"\n              (drop `{_attempt[0][:40]}` — it is not one of the seven)"
                 )
             else:
-                _fix_line = f"\n  keyed:      change: lean: {_shown}"
+                # a pseudo-key `_change_axis_attempt` cannot read — a bracketed meta-variable, or
+                # a token with a space in it — is DROPPED from the suggestion rather than nested
+                # under `lean: `. The pattern is deliberately narrow (a `<…>` group, or one
+                # space-free token) so an ordinary verdict carrying a colon (`the doc at
+                # path:line is wrong`) is left exactly as the agent wrote it.
+                _m = re.match(r"^(?:<[^>\n]{0,40}>|[^\s:]{1,30})\s*:\s+(.+)$", _shown, re.S)
+                _fix_line = f"\n  keyed:      change: lean: {_m.group(1) if _m else _shown}"
             _axis_hint = (
                 f"\n\n⚠️ `change:` is AXIS-KEYED — lead the value with ONE of "
                 f"{' | '.join(_CHANGE_AXES)} then a colon. The axis is the property of the COMMAND "
