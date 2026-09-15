@@ -564,3 +564,24 @@ def test_the_blank_is_bound_to_the_assignment_pattern_only():
             if rx.search(probe):
                 assert mail._secret_level(f"%(trailers:{probe})") == "high"
                 break
+
+
+def test_a_trailer_token_spliced_into_a_value_does_not_split_it():
+    """The carve removes whole `%(trailers:…)` tokens before the assignment scan. Blanking them
+    to same-length spaces preserved offsets that nothing reads — and SPLIT the value: a short
+    fake token spliced into the MIDDLE of a credential broke the `\\S{16,}` run, so the body
+    scored `low` (advisory only) and was DELIVERED, while the same secret unspliced scored
+    `high`. A 15-character insertion defeating a secret of any length is a far cheaper evasion
+    than the whole-value wrap the mechanism knowingly accepts."""
+    for body in (
+        "SECRET=AAAAAAAAAA%(trailers:x)BBBBBBBBBB",
+        "KEY=AAAA%(trailers:a)BBBB%(trailers:b)CCCCCCCCCCCC",
+        "TOKEN=%(trailers:x)AAAAAAAAAAAAAAAAAAAA",
+        "PASSWORD=AAAAAAAAAAAAAAAAAAAA%(trailers:z)",
+    ):
+        assert mail._secret_level(body) == "high", f"delivered a spliced credential: {body}"
+    # the mirror: removing the token must not start REFUSING the repo's own literals
+    src = Path(__file__).resolve().parent.parent / "commands/_sources/fabrik-execute-plan.md"
+    for ln in src.read_text(encoding="utf-8").splitlines():
+        if "%(trailers:" in ln:
+            assert mail._secret_level(ln.strip()) is None, ln

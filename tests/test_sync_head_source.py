@@ -22,7 +22,10 @@ from pathlib import Path
 
 import pytest
 
-REPO = Path("/opt/fabrik")
+# the tree this test file LIVES IN — never a hardcoded absolute. With `/opt/fabrik` pinned
+# here, a red-on-revert run against a copied tree silently graded the LIVE script and went
+# green on a reverted copy sitting right beside it.
+REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "sync_enforcement_to_projects.py"
 
 
@@ -117,7 +120,7 @@ def test_an_untracked_source_still_ships_the_working_tree(hub, tmp_path: Path) -
 
 def test_the_executable_bit_survives_the_head_read(hub, tmp_path: Path) -> None:
     """`shutil.copy2` carried the mode; reading bytes from git does not, so the mode comes from
-    `git ls-files -s`. A synced hook that lands 644 does not run."""
+    `git ls-tree HEAD`. A synced hook that lands 644 does not run."""
     mod, _hub_root, committed, _untracked = hub
     dest = tmp_path / "out" / "committed.py"
     mod._atomic_copy(committed, dest)
@@ -285,7 +288,7 @@ def test_a_project_copy_holding_the_uncommitted_bytes_is_corrected(hub, tmp_path
 def test_the_drift_report_never_claims_a_sync_a_dry_run_did_not_do(hub, tmp_path: Path) -> None:
     """`_head_source` is consulted on every branch, including those that write nothing, so the
     report's verb has to come from the RUN, not from the drift set being non-empty."""
-    src = Path("scripts/sync_enforcement_to_projects.py").read_text(encoding="utf-8")
+    src = SCRIPT.read_text(encoding="utf-8")  # the module under test, not a CWD-relative guess
     assert "nothing was written (--dry-run)" in src
     assert "wherever this run wrote, it wrote the COMMITTED bytes" in src
     # the flat claim is gone — it was printed verbatim on dry runs and on SKIP/WARN branches
@@ -378,7 +381,7 @@ def test_the_memo_sees_a_head_that_moved_under_it(hub) -> None:
     stat was byte-identical, and the memo served the pre-commit bytes — to every remaining repo of
     the 47, all reported `copied`, with the drift report computed against the stale HEAD. This runs
     as a POST-COMMIT hook on a tree three sessions commit to, so that race is the normal case, not
-    an exotic one. The key now carries the blob SHA that `git ls-files -s` already prints."""
+    an exotic one. The key now carries the blob SHA that `git ls-tree HEAD` already prints."""
     mod, hub_dir, committed, _untracked = hub
     mod._head_cache.clear()
     assert mod._head_source(committed)[0] == b"COMMITTED = 1\n"

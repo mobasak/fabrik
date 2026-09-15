@@ -1188,9 +1188,23 @@ def _baseline_floor(sid: str) -> float:
     forbids: this cause blocks an exit, so its failure mode must be letting a stop through,
     never holding a session behind someone else's work."""
     try:
-        return _baseline_path(sid).stat().st_mtime
+        # ⚠️ `_sixth_cause_floor`, not the RAW baseline. main() keeps the ORIGINAL baseline across
+        # a resume/compact BY DESIGN, so on the very transcript this helper's docstring cites
+        # (454 code files over 116 days in one sid) the baseline is 116 days old and filters
+        # NOTHING — the fix was inert on its own named incident. `_sixth_cause_floor` is
+        # `max(baseline, now - edit-age, _LEDGER_EPOCH)`, the bound the sixth cause has always
+        # used; on this box 87 of 98 baselines are older than 24h, so the two differ for ~89% of
+        # live sessions and the raw one was the wrong half of that pair.
+        return _sixth_cause_floor(_baseline_path(sid).stat().st_mtime)
     except OSError:
-        return 0.0
+        # ⚠️ NEVER 0.0. `_this_sessions_edits` reads a FALSY floor as "no floor" and keeps every
+        # entry (`not session_floor` at :1206), so returning 0.0 on a missing baseline silently
+        # restores the LIFETIME edit set — the precise defect this helper was added to close, in
+        # the case the file elsewhere calls routine ("No baseline (SessionStart didn't run /
+        # older session)"). The sibling consumer `_sixth_cause_floor` never had this hole because
+        # it takes a `max()` with the edit-age window; the same window is the right fallback here,
+        # and it fails toward "nothing is distinctive" (no block) rather than "everything is".
+        return _sixth_cause_floor(0.0)
 
 
 def _this_sessions_edits(authored: dict[str, int], session_floor: float) -> dict[str, int]:

@@ -264,3 +264,32 @@ def test_the_real_receipt_this_plan_shipped_still_declares_the_stop():
         ln for ln in receipt.read_text(encoding="utf-8").splitlines() if ln.startswith("**Status:")
     )
     assert crc._scope_growth_exit(status, [(1, 7, None, None), (2, 6, None, None)]), status
+
+
+def test_an_honest_declaration_in_the_loops_own_vocabulary_is_accepted():
+    """The over-correction guard, and the half my first cut of `_EXIT_NEGATION` got wrong.
+
+    A scope-growth stop's DEFINITION is that the loop never went quiet, so the truthful way to
+    declare it is full of negations: "the loop was never quiet, SO IT CLOSED on …", "round 7
+    found nothing new AND CLOSED on …", "no quiet round was reached; CLOSED on …". Searching the
+    whole prefix rejected all three — the negation and the governing verb sit a dozen characters
+    apart, so no fixed character window can separate them. Only the FINAL clause can negate the
+    verb; everything before the last clause boundary is setup.
+    """
+    crc = _crc()
+    rows = [(1, 8, None, None), (2, 6, None, None)]
+    for honest in (
+        "Status: CLOSED — the loop was never quiet, so it closed on the D-252 scope-growth stop",
+        "Status: CLOSED — round 7 found nothing new and closed on the D-252 scope-growth stop",
+        "Status: CLOSED — no quiet round was reached; closed on the D-252 scope-growth stop",
+        "Status: CONVERGED — closed on the scope-growth stop with no quiet round",
+        "Status: CONVERGED on the D-252 scope-growth stop",
+    ):
+        assert crc._scope_growth_exit(honest, rows), honest
+    for denial in (
+        "Status: CONVERGED — this review did NOT close on the D-252 scope-growth stop",
+        "Status: CONVERGED — nothing here turned on a purported scope-growth stop",
+        "Status: CONVERGED (see the appendix for why this is not a scope-growth stop)",
+        "Status: CONVERGED — it cannot have closed on a scope-growth stop",
+    ):
+        assert not crc._scope_growth_exit(denial, rows), denial

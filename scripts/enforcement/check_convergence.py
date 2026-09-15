@@ -829,7 +829,7 @@ def _archived_midflight(root: Path) -> list[str]:
 
 
 _PLAN_STEM_RE = re.compile(
-    r"docs/development/plans/(?:archived/)?([^/\s`'\"),:;]+?)(?:\.md)?(?=[/\s`'\"),:;]|$)"
+    r"docs/development/plans/(?:archived/)?([^/\s`'\"),:;]+?)(?:\.md)?(?=[/\s`'\"),:;.]|$)"
 )
 
 

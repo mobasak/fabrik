@@ -2330,11 +2330,25 @@ own hunks, so under the D-230 bar they are RECORDED with destinations rather tha
    but it fires on every `/fabrik-execute-plan` start fleet-wide. **Fix:** exclude
    `.fabrik/plan-locks/` and `.fabrik/cert-locks/` from `_CODE_ROOTS`, or reuse
    `check_doc_sync.SKIP_PATTERNS`.
-10. **`tests/test_sync_head_source.py` — the red-on-revert harness does not reproduce in an
-    isolated copy.** The staleness fix is proven both ways by direct probe (old → STALE, new →
-    FRESH on identical bytes), but the same scenario run through pytest against a reverted copy
-    PASSES, because the copied tree lacks `fabrik_synced_manifest` and the module resolves
-    differently there. A revert harness that silently diverges from the real import path can
-    certify a fix it never exercised. **Fix:** copy the whole `scripts/` import surface into the
-    revert tree, or assert the loaded module's md5 inside the test.
+10. **`tests/test_sync_head_source.py` — the red-on-revert harness graded the LIVE tree.**
+    ⚠️ **TWO causes, and I filed one while a reviewer filed the other — each of us called the
+    other's wrong.** Both were real and neither alone was sufficient, which is why the first two
+    attempts at a proof both lied, in opposite directions.
+    (a) `REPO = Path("/opt/fabrik")`, hardcoded absolute, so `SCRIPT = REPO / "scripts" / …`
+    loaded the LIVE script whichever tree pytest ran in — the reverted copy sat beside the test
+    and was never read, and both arms went green.
+    (b) the revert tree carried only the one file, so once (a) was fixed the module hit
+    `ModuleNotFoundError` on its `fabrik_synced_manifest` import and both arms went RED — a
+    failure that looks like a passing red-on-revert and is not.
+    FIXED 2026-09-15: `REPO = Path(__file__).resolve().parents[1]`, the third CWD-relative
+    spelling at `:288` aligned to `SCRIPT`, and the revert recipe copies the import surface. With
+    all three, GREEN with the fix and RED on the reverted blob, md5-asserted. The assertion was
+    sound throughout; only the harness was blind.
+    **Lesson worth more than the fix:** each of us diagnosed from a plausible mechanism rather
+    than executing both arms to completion, and a partial diagnosis reads exactly like a whole
+    one. Three files is the minimum revert tree here, and a revert harness that goes green on
+    BOTH arms — or red on both — is reporting on itself, not on the code.
+    **Lesson worth more than the fix:** I diagnosed a harness failure from a plausible mechanism
+    instead of executing it, and filed the guess as a finding — the same defect this review
+    confirmed nineteen times in other people's code.
 

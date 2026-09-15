@@ -1565,7 +1565,7 @@ def create_backup(path: Path) -> Path:
 
 _head_drift: set[str] = set()  # synced paths whose working tree differs from HEAD, for the report
 # (rel, blob_sha, mtime_ns, size) -> (data, mode, drifted). MEASURED 2026-09-15: `_head_source` costs
-# 5.26 ms (two subprocesses — `git ls-files -s` then `git show`), and after the T12.17 hoist it
+# 5.26 ms (two subprocesses — `git ls-tree HEAD` then `git show`), and after the T12.17 hoist it
 # runs twice per COPIED file and once per skipped one, plus once per `_shipped_hash` call. Over
 # the manifest against the 47 repos carrying `.fabrik/synced.lock` that is tens of seconds of
 # pure re-asking, on a post-commit hook three sessions trigger. Keyed on the stat so an edit
@@ -1623,7 +1623,7 @@ def _head_source(source: Path) -> tuple[bytes, int] | None:
             # NOT cached: an untracked file has no blob SHA, so there is no HEAD-aware key to
             # store it under — and a stat-only key here would re-open exactly the staleness the
             # SHA closes (the file becomes tracked and the memo keeps answering "untracked").
-            # One `ls-files` is the whole cost of this path.
+            # One `ls-tree HEAD` is the whole cost of this path.
             return None  # untracked: the working tree is the only source there is
         # `ls-tree` prints: <mode> SP blob SP <sha> TAB <path>
         mode = int(ls.stdout.split()[0].decode(), 8)
@@ -1633,7 +1633,7 @@ def _head_source(source: Path) -> tuple[bytes, int] | None:
         # move is invisible to a stat-only key, and this runs as a POST-COMMIT hook on a tree three
         # sessions commit to, walking 47 repos for tens of seconds. Executed round 4: a sibling's
         # commit landed mid-run and every remaining repo was served the pre-commit bytes, all
-        # reported `copied`, with the drift report computed against the stale HEAD. `ls-files -s` is
+        # reported `copied`, with the drift report computed against the stale HEAD. `ls-tree HEAD` is
         # the cheap half of the pair and it already prints the SHA, so keying on it costs nothing
         # and memoises only the expensive `git show` + `read_bytes`.
         sha = ls.stdout.split()[2].decode()  # field 2 under ls-tree (field 1 is the word "blob")

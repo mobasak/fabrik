@@ -363,7 +363,15 @@ def _secret_level(body: str) -> str | None:
     # `KEY=<secret>` inside a CLOSED `%(trailers:…)` span, which still reads as `None` — but only
     # for the bare-assignment shape. Any credential carrying its own vendor signature (`sk-`,
     # `ghp_`, `AKIA`, a DSN, a JWT, a PEM header) is caught wherever it appears, wrapped or not.
-    blanked = _GIT_FMT_TOKEN.sub(lambda mo: " " * len(mo.group(0)), body)
+    # ⚠️ STRIP, do not blank. Blanking preserved offsets (nothing in production reads a span
+    # from this scan, so that bought nothing) but it SPLIT the value: a short fake token spliced
+    # into the MIDDLE of a credential broke the `\S{16,}` run the assignment pattern needs, so
+    # `SECRET=AAAAAAAAAA%(trailers:x)BBBBBBBBBB` scored `low` — advisory only — and was DELIVERED,
+    # while the same secret unspliced scored `high`. That is a far cheaper evasion than the
+    # whole-value wrap the comment above accepts: a 15-character insertion defeats a secret of any
+    # length. Removing the token leaves the value's characters contiguous, so the splice
+    # re-joins and the pattern fires.
+    blanked = _GIT_FMT_TOKEN.sub("", body)
     for rx in _SECRET_HIGH:
         if rx.search(blanked if rx is _ASSIGNMENT_RX else body):
             return "high"

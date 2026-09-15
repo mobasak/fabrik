@@ -152,7 +152,11 @@ def test_the_json_gate_separates_advisory_rows_from_blocking_ones() -> None:
         "check_script_headers has no failing exit path (`return 0  # WARN-only — never "
         "blocks`) and must be reported as an advisory row, not counted as enforcement"
     )
-    assert payload["blocking"] == payload["passed"] - len(payload["advisory"])
+    # ⚠️ NOT `passed - advisory`: that arithmetic never learned about SKIPS, so it disagreed
+    # with the roster in the same envelope whenever any tool was missing. It survived here
+    # only because --lean happens to skip nothing today — i.e. it would have started failing
+    # the moment the gate became RIGHT.
+    assert payload["blocking"] == sum(1 for c in payload["checks"] if c.get("outcome") == "pass")
     assert payload["blocking"] < payload["passed"], "the split must actually be visible"
 
 

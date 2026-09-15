@@ -492,7 +492,7 @@ def _round_report(rec: dict[str, Any]) -> str:
     clean_c = sorted(k for k, v in classes.items() if v == "clean")
     lines = [
         f"ROUND {len(rounds)} recorded · findings: {last.get('findings', 0)} "
-        f"· new: {last.get('new_count', len(last.get('new') or []))} "
+        f"· new: {last['new_count'] if last.get('new_count') is not None else len(last.get('new') or [])} "
         f"· confirmed: {'unstated' if last_confirmed is None else last_confirmed} "
         f"· classes open: {', '.join(open_c) or 'none'} "
         f"· clean: {', '.join(clean_c) or 'none'}"
@@ -2540,7 +2540,15 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 # `--findings 0 --classes-new a,b,c` recorded `new: 3` for a round that found
                 # nothing. The class NAMES remain visible in `new` and in "classes open:", so
                 # the bound loses no information — only the nonsense ratio.
-                "new_count": (args.new if args.new is not None else min(len(new_c), args.findings)),
+                # ⚠️ TWO UNITS, TWO KEYS. `--new` counts new CANDIDATES and is checked against
+                # `--findings`; `--classes-new` opens ledger CLASSES to sweep, which is a
+                # different quantity and may legitimately exceed findings. They shared one key
+                # and one `new:` label, so the derived path recorded what the explicit path
+                # REFUSES. Bounding the derived value was the first fix and it was worse: it
+                # discarded the count instead of separating it, leaving `new_count` disagreeing
+                # with `len(new)` inside the same row.
+                "new_count": args.new,
+                "new_classes": len(new_c),
                 **({} if args.delta is None else {"delta": args.delta}),
                 "phase": _phase_now,
             }

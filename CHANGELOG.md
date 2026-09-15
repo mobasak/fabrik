@@ -40,6 +40,42 @@ All notable changes to this project will be documented in this file.
   message aged past the 14-day threshold as the clock moved and began sweeping alongside the stale
   one. It passed when written and rotted on a calendar date. Pinned to `now`.
 
+**Finish — round 2: 10 confirmed, every one of them inside round 1's own fix (2026-09-15).**
+Two fresh seats over the 663-line fix delta. The round that reviews the reviewer is where this
+plan kept finding its worst work, and it held again:
+
+- **My NOTE grader could not fail.** It asserted `_tokish` and set membership and never invoked
+  the NOTE path — green through a revert of the line it named AND through deleting the gate
+  outright. Both CLAUDE.md files cite that NOTE as D-252's cobra counter-measure, so the
+  counter-measure had no guard. Rewritten to drive `round` end-to-end; it also read the wrong
+  stream (the NOTE goes to stderr), which only running it revealed.
+- **The `_plan_stem` fix landed on 1 of 3 copies.** `check_review_coverage.py` and
+  `check_convergence.py` still returned a `.md.` stem — both fail OPEN, both fleet-synced.
+- **`_baseline_floor` was inert on its own named incident.** A resumed session keeps the ORIGINAL
+  baseline by design, so on the 116-day transcript the docstring cites, the floor filtered
+  nothing; and a missing baseline returned `0.0`, which `_this_sessions_edits` reads as "no
+  floor". Both arms now route through `_sixth_cause_floor` — the bound the sixth cause always had.
+- **Blanking trailer tokens SPLIT the value.** A 15-character fake token spliced mid-credential
+  broke the `\S{16,}` run, so `SECRET=AAAA…%(trailers:x)…BBBB` scored `low` and was DELIVERED.
+  Stripping re-joins it. The offsets blanking preserved are read by nothing.
+- **`_EXIT_NEGATION` rejected honest declarations.** A scope-growth stop's definition is that the
+  loop never went quiet, so the truthful sentence is full of negations; the check now scopes to
+  the clause that governs the verb, and its cobra path (put the denial AFTER the phrase) is
+  written down.
+- **`blocking` was fixed in the JSON envelope and not in human mode**, so one run reported 37 and
+  40 — and the existing grader pinned the arithmetic this plan calls wrong, surviving only
+  because `--lean` skips nothing today. It would have started failing the moment the gate became
+  right.
+- Also: a citation I corrected went stale inside the same commit that corrected it (my own
+  addition shifted the line — it now cites the symbol); a `new_count` bound that discarded a
+  count instead of separating two units; six comments naming a command the code no longer runs.
+
+⚠️ **And the red-on-revert harness I filed a finding against had TWO causes, one filed by me and
+one by a reviewer, each of us calling the other's wrong.** A hardcoded `REPO = Path("/opt/fabrik")`
+made both arms green; fixing it alone made both arms RED on a missing import. Both were real,
+neither sufficient. A revert harness that goes green on both arms — or red on both — is reporting
+on itself.
+
 **Finish — the whole-plan review, round 1: 19 confirmed defects across 5 seats (2026-09-15).**
 101 files over 75 commits, partitioned by file — Opus on the two fleet-synced slices, Sonnet on
 breadth. Every candidate re-executed before it was counted; two were REFUTED that way (a stamp

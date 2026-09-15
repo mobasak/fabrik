@@ -3059,7 +3059,11 @@ def main() -> int:
     # Human-readable output mode
     advisory_names = [name for name, ok, _ in all_results if ok and name in WARN_ONLY_CHECKS]
     print_header("SUMMARY")
-    print(f"  {GREEN}Passed:{RESET} {passed_count} ({passed_count - len(advisory_names)} blocking)")
+    # the SAME derivation as the JSON envelope's "blocking" — the two modes described one run
+    # with two different numbers (37 in --json, 40 in human mode) because only the envelope was
+    # rewired to the roster, and a check that never ran did not pass.
+    _blocking = sum(1 for c in _check_roster(all_results) if c.get("outcome") == "pass")
+    print(f"  {GREEN}Passed:{RESET} {passed_count} ({_blocking} blocking)")
     print(f"  {RED}Failed:{RESET} {len(failed)}")
     if advisory_names:
         print(

@@ -222,3 +222,21 @@ def test_both_push_call_sites_pass_the_floored_set(tmp_path):
         i = src.index(call)
         window = src[i : i + 240]
         assert "_this_sessions_edits(authored_map, _baseline_floor(sid))" in window, window
+
+
+def test_a_missing_baseline_does_not_restore_the_lifetime_edit_set():
+    """`_this_sessions_edits` reads a FALSY floor as "no floor" and keeps every entry, so a
+    `_baseline_floor` returning 0.0 on an unreadable baseline silently restored the LIFETIME set —
+    the exact defect the helper was added to close, in the case this hook elsewhere calls routine
+    ("No baseline (SessionStart didn't run / older session)"). The sibling `_sixth_cause_floor`
+    never had the hole because it takes a `max()` with the edit-age window."""
+    import time as _t
+
+    floor = hook._baseline_floor("nonexistent-probe-sid-zzz-88888")
+    assert floor > 0, "a falsy floor disables the filter it is supposed to apply"
+    assert abs(floor - (_t.time() - hook._SIXTH_CAUSE_MAX_EDIT_AGE_S)) < 5.0
+
+    # ancient edits drop (nothing distinctive -> indeterminate -> never blocks)
+    assert hook._this_sessions_edits({"old.py": 1_000_000_000.0}, floor) == {}
+    # and the fallback must not disarm the cause for work this session really did
+    assert set(hook._this_sessions_edits({"mine.py": _t.time()}, floor)) == {"mine.py"}

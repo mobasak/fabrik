@@ -381,6 +381,7 @@ SCOPE_GROWTH_EXIT = re.compile(
 # D-252 scope-growth stop` satisfied it, and the exemption then let a loop whose last two
 # rounds confirmed 8 and 6 flip to CONVERGED. A sentence that says the stop did NOT happen is
 # the strongest possible evidence it did not happen; reading it as the declaration inverts it.
+_CLAUSE_SPLIT = re.compile(r"[,;:]|\b(?:so|and|then|but|therefore|hence)\b", re.I)
 _EXIT_NEGATION = re.compile(
     r"\b(?:not|never|no|none|nothing|without|purported|purportedly|rather\s+than|instead\s+of"
     r"|isn't|wasn't|didn't|doesn't|hasn't|won't|cannot|can't)\b",
@@ -449,8 +450,21 @@ def _scope_growth_exit(text: str, ordered_rows: list[_Row]) -> bool:
     _m = SCOPE_GROWTH_EXIT.search(_strip_fences(header))
     if not _m:
         return False
-    # a Status line that DENIES the stop is not a declaration of it
-    if _EXIT_NEGATION.search(_m.group(1)) or _EXIT_NEGATION.search(_m.group(2)):
+    # ⚠️ A Status line that DENIES the stop is not a declaration of it — but the negation has to
+    # GOVERN THE VERB, and searching the whole prefix rejected honest declarations written in the
+    # loop's own vocabulary: "the loop was NEVER quiet, so it closed on the D-252 scope-growth
+    # stop" and "round 7 found NOTHING new and closed on the …" are exactly how this stop is
+    # truthfully described — its definition IS that the loop never went quiet. Only the clause
+    # immediately before `on the …` can negate it, so the window is the tail of group(1).
+    # ⚠️ CHEAPEST WAY TO SATISFY THIS WITHOUT THE OUTCOME (cobra-effect): put the denial AFTER the
+    # phrase — "closed on the scope-growth stop with no quiet round" is ACCEPTED, and deliberately
+    # so, because that sentence AFFIRMS the stop; a reader writing it means it.
+    # only the FINAL clause can negate the verb: everything before the last clause boundary is
+    # setup ("the loop was never quiet, SO IT CLOSED on …" affirms; "this review did NOT close
+    # on …" denies). A fixed character window cannot separate those — the negation and the verb
+    # sit a dozen characters apart in both.
+    _governing = _CLAUSE_SPLIT.split(_m.group(1))[-1]
+    if _EXIT_NEGATION.search(_governing) or _EXIT_NEGATION.search(_m.group(2)):
         return False
     if len(ordered_rows) < _OWN_FIX_ROUNDS_FOR_STOP:
         return False
@@ -2918,7 +2932,7 @@ _RECEIPT_WRITING_COMMANDS = frozenset(
     }
 )
 _PLAN_STEM_RE = re.compile(
-    r"docs/development/plans/(?:archived/)?([^/\s`'\"),:;]+?)(?:\.md)?(?=[/\s`'\"),:;]|$)"
+    r"docs/development/plans/(?:archived/)?([^/\s`'\"),:;]+?)(?:\.md)?(?=[/\s`'\"),:;.]|$)"
 )
 
 
