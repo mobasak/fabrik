@@ -2578,6 +2578,18 @@ notion of "mine" the check does not currently have — spec-shaped, not a one-li
 
 ### Kaizen loop — the residue of the D-252 stop (2026-09-15)
 
+- **`mail.py ack()` cannot distinguish "handled and answered" from "handled and silent"**
+  (owner: **infra**; SPEC work, not a patch) — `ack()` takes a `disposition` from a fixed set and
+  appends an `acked-by:` line; it has no notion of whether a reply was ever sent, so a message can
+  leave the inbox with the sender never hearing anything and nothing downstream can see it.
+  Measured on the HUB's own archive (1,254 messages, reply-threading resolved across the whole
+  `/opt/fabrik-mail` store): **342 of 669 findings, 62 of 171 requests and 15 of 27 relays carry no
+  reply anywhere** — worse than the fabrik-lib number that prompted the question (187 of 350).
+  Reported by fabrik-lib-dev1 (01M2K5ZAAS41EHGQ52HDW6QFDM), who asked BEFORE building because
+  `scripts/mail.py` is hub-vendored. It is: the fix changes the mail contract's grammar on a file
+  distributed to ~46 repos, so it opens at /fabrik-spec — a `reply-sent` fact the ack can read, or
+  a disposition that names silence honestly, plus whatever the digest should do with it.
+
 - **The denominator rule never warns that a SEARCH ROOT can contain whole duplicate trees**
   (owner: **infra**) — it names `.claude/worktrees` only inside its `*.py` population example, so a
   compliant census rooted at a repo root over-counts: fabrik-lib measured `LlmMeter(` at 43 hits of
