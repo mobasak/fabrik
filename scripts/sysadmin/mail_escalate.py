@@ -18,6 +18,18 @@ send, with the send-moment's local date). Failure is fail-soft: exit 0, loud on 
 a stamp WRITE failure after a delivered send warns loudly and re-sends next run — a
 duplicate beats a crash-loop and beats silence.
 
+⚠️ THE MEASURE AND ITS CHEAPEST EVASION (FIX DIRECTIVE 5 / D-253 — you get the behaviour you
+measure). This counts AGED UNACKED OBLIGATIONS. It deliberately does NOT count inbox depth:
+depth falls to ``mail.py sweep``, which archives by AGE, and shortening its ``--days`` to force
+a tidy number is already an operator-banned move. Obligations are never swept, so the count can
+only fall by ACKing. **The cheapest way to satisfy this measure without doing the work is
+therefore an ack that resolves nothing** — ``ack --disposition done`` on a message nobody read.
+Nothing here can prevent that, and a check that tried would just move the lie. What holds it
+honest instead is that an ack is ATTRIBUTED and DURABLE: the disposition is written into the
+message and the message is archived carrying it, so a false ``done`` is auditable forever
+against the finding it claims to have closed. If this count ever falls sharply without commits
+behind it, read the archive, not the number.
+
 Cron (operator-installed; the env prefix IS the override point — cron reads no .env):
   0 */6 * * * /bin/sh -c 'mkdir -p $HOME/.claude/state/mail-escalate && cd /opt/fabrik && FABRIK_MAIL_ESCALATE_DAYS=3 flock -n $HOME/.claude/state/mail-escalate/cron.lock python3 scripts/sysadmin/mail_escalate.py' >> /var/log/fabrik-mail-escalate.log 2>&1
 """
@@ -26,6 +38,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import re as _re
+import subprocess as _subprocess
 import sys
 import time
 from dataclasses import dataclass
@@ -44,6 +57,8 @@ import mail as _mail  # noqa: E402  (scripts/mail.py — the protocol's own pars
 
 STATE_DIR = Path.home() / ".claude" / "state" / "mail-escalate"
 DAY_STAMP = STATE_DIR / "day-stamp"
+# The hub's own mail.py — absolute, because this runs from cron with no cwd guarantee
+_MAIL_PY = _REPO_ROOT / "scripts" / "mail.py"
 MAX_ROWS = 20
 BODY_BUDGET = 3900  # under telegram.py's own 4096 title+body truncation
 _CTRL = _re.compile(r"[\x00-\x1f\x7f]")
@@ -188,6 +203,54 @@ def build_digest(items: list[Obligation]) -> str:
     return "\n".join([*rows, tail])
 
 
+def _deliver_to_agent(body: str) -> bool:
+    """Deliver the digest INTO the hub mailbox, addressed to ``infra`` — the leg that reaches
+    someone who can ACT.
+
+    ⚠️ THE REASON THIS EXISTS. The Telegram leg reports to the OPERATOR, whose standing directive
+    is "i dont read anything, you read". This cron ran every 6 hours and logged ``send=OK`` while
+    the hub inbox grew to 132 messages with a 10-day-old oldest obligation: the alert was landing
+    where nobody who could act would read it. ``feedback_relay.py`` had already learned exactly
+    this ("the digest was operator-facing, and the operator does not read dashboards … This relay
+    makes an AGENT the reader") and this script never got the same leg. A session that opens the
+    delivered message is bound by the handle-now law, which is the whole point.
+
+    ⚠️ ``--ack no`` is LOAD-BEARING: an ``ack: required`` digest would be counted as an obligation
+    by the very next run, so the number could never fall and the digest would feed itself.
+
+    Fail-soft like every other leg: never raise into the cron.
+    """
+    try:
+        proc = _subprocess.run(
+            [
+                sys.executable,
+                str(_MAIL_PY),
+                "send",
+                "--to",
+                "fabrik",
+                "--to-agent",
+                "infra",
+                "--kind",
+                "finding",
+                "--ack",
+                "no",
+            ],
+            input=body,
+            text=True,
+            capture_output=True,
+            timeout=60,
+        )
+    except Exception as exc:  # noqa: BLE001 — the cron must never die on a delivery leg
+        print(f"mail-escalate: agent leg raised {type(exc).__name__}: {exc}")
+        return False
+    if proc.returncode != 0:
+        print(
+            f"mail-escalate: agent leg failed rc={proc.returncode}: {proc.stderr.strip()[:200]}"
+        )
+        return False
+    return True
+
+
 def _resolve_sender():
     """Lazy production resolution (see the _send seam note at module top)."""
     from libs.alerting import send_alert  # noqa: PLC0415
@@ -216,8 +279,16 @@ def main() -> int:
     except Exception as exc:  # noqa: BLE001 — fail-soft IS the contract: never crash the cron
         print(f"mail-escalate: send raised {type(exc).__name__}: {exc}")
         ok = False
-    print(f"mail-escalate: {len(items)} obligation(s) · send={'OK' if ok else 'FAILED'} ({today})")
-    if ok:
+    # THE leg that reaches someone who can act (see `_deliver_to_agent`). Independent of the
+    # Telegram result: it is LOCAL — no ssh, no DNS — where the operator leg has failed whole
+    # days on this box (2026-09-12: ssh to vps timed out AND telegram name resolution failed).
+    agent_ok = _deliver_to_agent(body)
+    print(
+        f"mail-escalate: {len(items)} obligation(s) · send={'OK' if ok else 'FAILED'} · "
+        f"agent={'OK' if agent_ok else 'FAILED'} ({today})"
+    )
+    # EITHER leg delivered = the obligation was surfaced; only TOTAL failure retries in <=6h.
+    if ok or agent_ok:
         try:
             STATE_DIR.mkdir(parents=True, exist_ok=True)
             DAY_STAMP.write_text(today + "\n", encoding="utf-8")  # only after success

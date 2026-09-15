@@ -4,6 +4,45 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The mail escalation digest now reaches an AGENT, not only the operator (2026-09-15)
+
+- **`scripts/sysadmin/mail_escalate.py` gains a second delivery leg.** The cron has run every 6 h
+  since August and logs `send=OK` — and the hub inbox still grew to **132 messages with a 10-day-old
+  oldest obligation, 115 aged obligations fleet-wide**. The mechanism was never broken: its ONLY
+  reader was a Telegram to the operator, whose standing directive is *"i dont read anything, you
+  read"*. `feedback_relay.py` had already learned exactly this ("the digest was operator-facing, and
+  the operator does not read dashboards … This relay makes an AGENT the reader"); this script never
+  got the same leg. The digest is now ALSO delivered into the `fabrik` inbox addressed to `infra`
+  (`--kind finding --ack no`), where the handle-now law binds the session that opens it. `ack: no`
+  is load-bearing — an `ack: required` digest would count itself on the next run and the number
+  could never fall. **Either leg delivering stamps the day**; only TOTAL failure retries within 6 h,
+  which matters because the operator leg has failed whole days here (2026-09-12: ssh to vps timed
+  out AND Telegram name resolution failed). Three red-first graders, and the three existing tests
+  that encoded the old single-leg contract were updated to pin the new one rather than deleted.
+  The measure's cheapest evasion is written into the module docstring per D-253.
+- **Eight archive STRANDS resolved** in the `fabrik` mailbox — obligations claimed into `archive/`
+  and never given an `acked-by:` line, aged 30–33 days and invisible to `list`. Each was read before
+  disposition: seven were superseded (their plans archived, their locks released, their incidents
+  long over) and one was `done` — a Turkish-glyph font defect that HAD been correctly relayed to
+  brand-identiy-creator the same day (`01M02K8RWR5P1MK7C3KGH8APTW`, acked there) with only the
+  source strand left open. Fleet aged obligations 115 → 107.
+- **`scripts/final_gate.py`'s corpus-weight comment said "five" governance surfaces; the check
+  measures SIX** (`check_corpus_weight.py::SURFACES`; D-241 added `commands/_agents/`). Rewritten to
+  point at the tuple rather than restate its count — `docs/workflows/FINAL_GATE_WORKFLOW.md` already
+  said six and enumerated them, which is how the comment stood out (`01M2G1SCAPRM`).
+- **`/fabrik-execute-plan` Finish now says a rename is only half a change until its REFERRERS move.**
+  Archiving a plan breaks every doc citing its pre-archive path; Doc Link Integrity catches it, but
+  at the last gate before the commit — after the move — costing a full gate re-run and landing the
+  repair in a commit whose message was already written (`01M2GCTCP5F8`; hit again on the mail-triage
+  plan's own Finish).
+- **`/fabrik-review` now requires a PUBLISH-GATE fix to be re-run against LIVE data before the round
+  closes.** A grader constructs the rows it needs, so it only tests the branch its author imagined:
+  a row-count gate became a value-only gate, every grader passed, and `sum([]) == 0` gave 4 of 14
+  real ledger rows a phantom `0` (`01M2GBWCEZN3`).
+- **`docs/reference/command-run-protocol.md`** documents the report's thirteenth column
+  `tok/round (num/den/both)` and its two-clause mass rule, written from the script's own
+  `Conventions:` footer rather than the requesting mail's paraphrase (`01M2G3Y62BVV`).
+
 ### Fixed — Two shared-machinery defects reported from web-ecommerce-factory (2026-09-15)
 
 - **The shared-append private-index recipe silently produced an EMPTY COMMIT when run across two

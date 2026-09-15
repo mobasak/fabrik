@@ -116,7 +116,7 @@ reply yourself with a plain `--re` (no `--auto` — a human is never gated), or 
 (`FABRIK_MAIL_HOP_CAP` / `FABRIK_MAIL_RATE_CAP` / `FABRIK_MAIL_RATE_WINDOW_S`; cap 0 = refuse all
 auto-replies). Pre-check any message with `python scripts/mail.py should-reply <id>`.
 
-## Escalation digest (mail_escalate.py — the daily unacked-obligations Telegram)
+## Escalation digest (mail_escalate.py — the daily unacked-obligations digest)
 
 `scripts/sysadmin/mail_escalate.py` scans EVERY mailbox for `ack: required` obligations aged
 ≥ `FABRIK_MAIL_ESCALATE_DAYS` (default 3) — inbox (regardless of `agent:` — the population is
@@ -126,6 +126,18 @@ via `libs.alerting.send_alert` (day-stamp written only after a successful send).
 rows (`id · repo · sender · age · agent`), plain-text sanitized; the `+K more (total)` count
 line always survives. Failure is fail-soft: exit 0, loud in the log, retried ≤6 h later by the
 no-stamp rule.
+
+⚠️ **TWO delivery legs, and the second is the one that produces action.** The Telegram reaches the
+OPERATOR, whose standing directive is *"i dont read anything, you read"* — so from 2026-09-15 the
+same digest is ALSO delivered into the `fabrik` inbox addressed to `infra` (`--kind finding
+--ack no`), where the handle-now law binds the session that opens it. This is the lesson
+`feedback_relay.py` had already learned and this script had not: for three weeks the cron ran every
+6 h and logged `send=OK` while the hub inbox grew to 132 with a 10-day-old oldest obligation,
+because the only reader was one who does not read dashboards. `ack: no` is load-bearing — an
+`ack: required` digest would count itself on the next run and the number could never fall.
+**EITHER leg delivering stamps the day**; only TOTAL failure retries within 6 h. The agent leg is
+local (no ssh, no DNS), which matters because the operator leg has failed whole days here
+(2026-09-12: ssh to vps timed out and Telegram name resolution failed).
 
 ### Install (operator — crontab writes are classifier-blocked for agents)
 

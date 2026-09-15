@@ -1670,8 +1670,10 @@ def run_consistency_checks(
         )
         # Corpus weight — the byte ratchet of the kaizen loop's piece 3 (spec
         # docs/superpowers/specs/2026-09-10-kaizen-feedback-loop-design.md § D4 row 3, D-234):
-        # the hub's five governance surfaces may only GROW in a change that cites a D-row; a
-        # synced project owns none of them and the check says so. Registered on the gate owner's
+        # the hub's governance surfaces (`check_corpus_weight.py::SURFACES` — SIX since D-241
+        # added `commands/_agents/`; read the tuple, never this number, which is how this
+        # comment came to say "five") may only GROW in a change that cites a D-row; a synced
+        # project owns none of them and the check says so. Registered on the gate owner's
         # side (mail 01M2AJKKVGH8Q2PK51CM2GJ5FC); the check itself ships under plan
         # 2026-09-12-plan-1-kaizen-corpus-weight-and-tokens-per-round and is skipped until it
         # exists. warn_only marks the row non-blocking in the DISPLAY and the --json buckets only —

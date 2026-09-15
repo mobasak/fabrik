@@ -343,7 +343,10 @@ most one Telegram/day) it scans EVERY mailbox for `ack: required` obligations ag
 `FABRIK_MAIL_ESCALATE_DAYS` (default 3) in three populations: inbox mail regardless of `agent:`
 (the population is UNACKED, never unaddressed — an addressed-but-ignored obligation still
 escalates), archive strands (claimed, no `acked-by:` line), and stranded `*.md.resolving*`
-windows (mtime-aged). Delivery via `libs.alerting.send_alert`; plain-text sanitized rows,
+windows (mtime-aged). **Delivered on TWO legs:** `libs.alerting.send_alert` (Telegram, the
+operator) and — since 2026-09-15 — the `fabrik` inbox addressed to `infra` (`--kind finding
+--ack no`), so an AGENT bound by the handle-now law reads it. The agent leg is what makes this a
+loop rather than a dashboard; either leg delivering stamps the day. Plain-text sanitized rows,
 oldest ≤20 + an always-surviving total. Install + override mechanics (operator-owned):
 `docs/workstation/fabrik-mail.md` § Escalation digest.
 

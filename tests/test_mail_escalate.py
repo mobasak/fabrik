@@ -189,6 +189,48 @@ def test_digest_leads_with_the_oldest(env):
     )
 
 
+def test_the_digest_also_reaches_an_AGENT_not_only_the_operator(env, monkeypatch, capsys):
+    """THE reason this backlog grew to 132 with a 10-day-old oldest while this cron ran every 6h
+    and reported `send=OK`: the only delivery leg is a Telegram to the OPERATOR, whose standing
+    directive is "i dont read anything, you read". `feedback_relay.py` learned this already — its
+    docstring says the digest "was operator-facing, and the operator does not read dashboards …
+    This relay makes an AGENT the reader". mail_escalate never got that leg, so nobody who could
+    ACT was ever told. The digest must also land in the `fabrik` inbox addressed to `infra`, where
+    the handle-now law binds the session that opens it.
+
+    ⚠️ `ack: no` is load-bearing: an `ack: required` digest would count itself as an obligation on
+    the next run and the number would never fall."""
+    _msg(env, "fabrik", "01OLDESTOLDESTOLDESTOLDEST", ts=_old_ts(40))
+    sent: list = []
+    monkeypatch.setattr(me, "_resolve_sender", lambda: (lambda t, b: sent.append((t, b)) or True))
+    mailed: list = []
+    monkeypatch.setattr(me, "_deliver_to_agent", lambda body: mailed.append(body) or True)
+    assert me.main() == 0
+    assert mailed, "the digest never reached an agent mailbox — operator-only delivery is the bug"
+    assert "01OLDESTOLDESTOLDESTOLDEST" in mailed[0], mailed[0][:300]
+
+
+def test_the_agent_leg_alone_is_enough_to_stamp_the_day(env, monkeypatch, capsys):
+    """The mailbox leg is LOCAL — no ssh, no DNS — while the Telegram leg has failed whole days on
+    this box (2026-09-12: ssh to vps timed out AND telegram name resolution failed, `send=FAILED`).
+    A day on which the obligation reached someone who can act is a delivered day, so either leg
+    stamps it; only TOTAL failure retries within 6h."""
+    _msg(env, "fabrik", "01NNNNNNNNNNNNNNNNNNNNNNNN", ts=_old_ts(9))
+    monkeypatch.setattr(me, "_resolve_sender", lambda: (lambda t, b: False))  # Telegram down
+    monkeypatch.setattr(me, "_deliver_to_agent", lambda body: True)
+    assert me.main() == 0
+    assert me.DAY_STAMP.exists(), "the agent leg delivered — the day must be stamped"
+
+
+def test_total_delivery_failure_leaves_no_stamp(env, monkeypatch, capsys):
+    """Both legs down must still retry in <=6h — the pre-existing contract, kept."""
+    _msg(env, "fabrik", "01NNNNNNNNNNNNNNNNNNNNNNNN", ts=_old_ts(9))
+    monkeypatch.setattr(me, "_resolve_sender", lambda: (lambda t, b: False))
+    monkeypatch.setattr(me, "_deliver_to_agent", lambda body: False)
+    assert me.main() == 0
+    assert not me.DAY_STAMP.exists(), "no leg delivered — a stamp would silence the whole day"
+
+
 def test_fmt_age_caps_finite_values_too():
     assert me._fmt_age(1200.0) == ">999d"
     assert me._fmt_age(12.4) == "12d"
@@ -198,8 +240,11 @@ def test_day_stamp_only_after_success_and_carries_local_date(env, monkeypatch, c
     _msg(env, "fabrik", "01NNNNNNNNNNNNNNNNNNNNNNNN", ts=_old_ts(4))
     sent = []
     monkeypatch.setattr(me, "_resolve_sender", lambda: (lambda t, b: sent.append((t, b)) or False))
+    # since the agent leg was added, "no stamp" means NO leg delivered — pin both, or a live
+    # agent leg delivers, stamps the day honestly, and this reads as a regression
+    monkeypatch.setattr(me, "_deliver_to_agent", lambda body: False)
     assert me.main() == 0
-    assert not me.DAY_STAMP.exists(), "a FAILED send must leave no stamp (retry in <=6h)"
+    assert not me.DAY_STAMP.exists(), "no leg delivered — a stamp would silence the whole day"
     assert "FAILED" in capsys.readouterr().out
     (title, body) = sent[0]
     assert "1 unacked obligation" in title, title
@@ -259,6 +304,9 @@ def test_send_raising_is_fail_soft(env, monkeypatch, capsys):
         raise RuntimeError("apprise leg exploded")
 
     monkeypatch.setattr(me, "_resolve_sender", lambda: exploder)
+    # the AGENT leg is pinned down too: the no-stamp rule is about TOTAL failure, and since
+    # the agent leg was added a live one would deliver and legitimately stamp the day
+    monkeypatch.setattr(me, "_deliver_to_agent", lambda body: False)
     assert me.main() == 0
     out = capsys.readouterr().out
     assert "send raised RuntimeError" in out and "FAILED" in out
@@ -271,6 +319,7 @@ def test_stamp_write_failure_after_delivery_warns_never_crashes(env, monkeypatch
     _msg(env, "fabrik", "01TTTTTTTTTTTTTTTTTTTTTTTT", ts=_old_ts(4))
     me.DAY_STAMP.mkdir(parents=True)  # a DIRECTORY occupying the stamp slot
     monkeypatch.setattr(me, "_resolve_sender", lambda: (lambda t, b: True))
+    monkeypatch.setattr(me, "_deliver_to_agent", lambda body: True)
     assert me.main() == 0
     assert "day-stamp write failed" in capsys.readouterr().out
 

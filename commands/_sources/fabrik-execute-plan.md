@@ -1194,7 +1194,15 @@ is where `BASE` goes, and each of step 8's three positions has its own dispositi
    docs/development/plans/archived/<dir>` (spine, tickets, and Board travel together — never the
    single-file move, which strands the tickets as gate-flagged orphans). Explicit paths either way;
    repoint the lock's `plan` field to the
-   archived path. ⚠️ **`git mv` moves the INDEXED content, not your working tree — re-stage the plan
+   archived path. ⚠️ **A rename is only half a change until its REFERRERS move with it — repoint
+   every doc that cites the plan by its pre-archive path, IN THIS SAME COMMIT.** `command grep -rln
+   '<plan-stem>' docs/ *.md` names them; the two that exist for any plan worth executing are
+   `docs/DECISIONS.md` (rows minted while it was in flight) and `docs/STRATEGIC_BACKLOG.md` (rows
+   routed out of its reviews), plus the review receipts under `docs/development/reviews/`. Doc Link
+   Integrity DOES catch this — but at the last gate before the commit, after the move, so it costs a
+   full gate re-run and lands the repair in a commit whose message was already written
+   (`01M2GCTCP5F8`; hit again on the 2026-09-12 mail-triage plan's own Finish, where a `DECISIONS.md`
+   row still pointed at the pre-archive path). ⚠️ **`git mv` moves the INDEXED content, not your working tree — re-stage the plan
    AFTER the move:** `git add docs/development/plans/archived/<plan>.md`. ⚠️ **And the scoped commit
    must name BOTH paths** — `git commit -m <msg> -- <old-path> <new-path>` — or the deletion half of the
    rename stays staged-uncommitted and the plan lives at TWO paths in HEAD (youtube `01M1584B0`;

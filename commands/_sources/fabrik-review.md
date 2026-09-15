@@ -303,6 +303,16 @@ REFUTATION too** — a refutation is proof, not a shrug — and cite the command
 candidate's disposition row. This execution is what replaced D-191's Opus re-read of every file, so
 it is not optional and never delegated to a finder.
 
+⚠️ **A fix that changes a PUBLISH GATE — any condition under which a figure, row or verdict is
+emitted — is re-run against the LIVE data before the round closes, and the output diffed against the
+previous round's pin.** Graders cannot see this class: a grader CONSTRUCTS the rows it needs, so it
+only tests the branch the author already imagined, while the real population carries the case nobody
+did. Measured: a fix converted three render cells from a row-count gate to a value-only gate, every
+grader passed, the targeted property was genuinely closed — and `sum([]) == 0`, so a command with no
+measured rows published a confident `0` instead of an em dash. **4 of 14 rows of the real ledger
+gained a phantom zero**, and the next round's seat found it only by rendering the live ledger and
+diffing (`01M2GBWCEZN3`). The diff is the evidence; paste it in the round's disposition row.
+
 Every candidate lands on ONE of these, and only the first counts toward `confirmed:`:
 
 - **CONFIRMED** — executed and reproduced. Fix it in THIS round (Phase 3); a confirmed defect is

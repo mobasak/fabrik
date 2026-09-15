@@ -360,6 +360,22 @@ cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — 
   `[agents · surfaces]` — every agent and every surface that raised it) — every distinct `change:` item with its
   recurrence count, and the `confusion:` and `waste:` items. This is what the corpus is optimised
   from: a `change:` that recurs across runs is a command edit waiting to be made.
+- **The thirteenth column, `tok/round (num/den/both)`** — Σ(`tok_in`+`tok_out`) ÷ Σ rounds over the
+  rows carrying a POSITIVE token pair AND a whole `rounds > 0`. **Cache tokens are excluded**: they
+  measure how much of a prompt was re-read, not how much work a round did. It is MASS-WEIGHTED, not
+  a median, so one heavy run moves it more than a light one. The `(num/den/both)` are three SEPARATE
+  counts — rows with a token pair, rows with `rounds > 0`, and the rows the figure is actually
+  computed over; the third needs both of the first two plus a positive pair, so it is normally
+  smaller than either. ⚠️ **`median tokens` in the same table is cache-INCLUSIVE and needs all four
+  token fields**, so the report carries two token conventions at once, over two populations where
+  neither contains the other — their row counts do not compare, and the report names both.
+- **`tok/round` is silent behind a MASS RULE, in two ordered clauses:** a command whose total token
+  mass is 0 publishes nothing ("zero token mass"), evaluated FIRST because there is nothing to take
+  a ratio of; and one whose both-sides rows hold under two thirds of its mass publishes nothing and
+  states the measured ratio, which `--json` carries. `--json` also exposes a top-level `conventions`
+  dict so a machine reader gets the same definitions as the text footer. ⚠️ The script's own
+  `Conventions:` footer is the canonical wording — this paragraph is a summary of it, and
+  `command_feedback_report.py` is where to read it if the two ever disagree.
 - Pre-cutoff records keep the old grammar (the duty binds forward, never retroactively — the same
   fail-open the `_FEEDBACK_REQUIRED_FROM` cutoff has always had).
 
