@@ -1,6 +1,39 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A gate whose cutover is in the FUTURE is dead, and every grader still passes (2026-09-15)
+
+The `change:` axis gate shipped with `_AXIS_REQUIRED_FROM` set 45 minutes ahead of the clock. Its
+seven unit tests were green. Its in-flight-exemption test was green — and could never have failed,
+because it compares against the very constant it is meant to pin, so it passes for ANY value. The
+only thing that caught it was running the REAL close path, where all four probe shapes were still
+accepted at rc 0, exactly as before the fix.
+
+**A cutover constant is a behaviour, and it needs a grader that reads the CLOCK, not the constant.**
+`test_the_axis_cutover_is_in_the_past` now asserts both cutovers are in the past at test time. The
+general form: when a test's expected value is derived from the thing under test, it measures
+self-consistency, not correctness — and self-consistency is what a dead mechanism has most of.
+
+## A hand-carried count reached six files, inside the change that cites denominator honesty (2026-09-15)
+
+"175 of the first 180 ledger rows carry no key" was measured once, early, and then typed into the
+close-out fragment (which renders into all 37 commands), the command source, a code docstring, two
+test comments, two reference docs, the CHANGELOG and an immutable decision row. It was wrong — and
+wrong in an instructive way: 176 rows bucket `unkeyed`, but 5 of those are legitimate `change: none`
+verdicts that carry no key by contract, so the number that actually matters is 171. "175" was the
+non-`none` population, a third quantity nobody had asked for. Three readers derived three different
+correct-looking numbers from one ledger because the CLASSIFIER was never stated.
+
+Two rules, both already in the contract and both violated by the change that quotes them:
+- **A count is a DATED snapshot of a growing file.** Re-derive it at the point of use; never quote
+  one forward. Where the number genuinely belongs in prose, ship it with its date AND its method.
+- **Name the classifier with the count.** `unkeyed` and "carries no verdict" and "has no axis" are
+  three different populations over the same 180 rows.
+
+The corpus fix was not to correct the number in six places but to DELETE it from five of them: the
+fragment ships to 37 commands and 36 of them have no use for a historical ledger statistic. That
+trim alone cut the change's box-wide weight from +16,872 B to +9,139 B.
+
 ## The mechanism was never broken — its only reader could not act (2026-09-15)
 
 A 132-message hub inbox, oldest 10 days, and an escalation cron that had run every six hours since

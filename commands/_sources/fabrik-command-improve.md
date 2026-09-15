@@ -32,10 +32,13 @@ the axis convention, or by an agent who skipped it), `bad-axis` (a key outside t
 `placeholder` (the close-out grammar pasted rather than answered). **Sort your reading by axis, not
 by recency:** four rows saying the same thing about `lean` are one edit; four rows on four axes are
 four runs. ⚠️ **Expect `unkeyed` to dominate the BACKLOG and to vanish from new rows.** The axis
-convention landed 2026-09-15 and was documented-but-unenforced for its first hours — 175 of the
-first 180 rows carry no key. The close now REFUSES an unkeyed or unknown-axis `change:`
-(`command_run.py::_change_axis_verdict`), so every row written after that is keyed and `bad-axis`
-should be empty. On the historical tail the axis column is near-constant and the grouping that
+convention landed 2026-09-15 and was documented-but-unenforced for its first hours, so the
+historical tail is almost entirely `unkeyed`. ⚠️ Do not trust any figure quoted here: run the tally
+yourself over today's ledger, and note that the `unkeyed` bucket folds in every legitimate
+`change: none`, which carries no key by contract — separate them before you report a number. Rows written after the gate landed are
+all keyed and `bad-axis` should be empty — the close refuses both shapes now (the rule and its
+seven keys live in `commands/_fragments/close-feedback.md`, which this command also renders; it is
+not restated here). On the historical tail the axis column is near-constant and the grouping that
 matters is by SUBJECT; read those by what they SAY, not by their bucket.
 
 **Rows a previous run answered are ALREADY EXCLUDED** — `--queue` reads the answered index
@@ -129,8 +132,10 @@ in the new text is the finding.
 
 ## PHASE 5 — Commit, naming what you answered
 
-The commit IS the record — there is no separate ledger, and the trailer is what a later reader (and
-axis 5, continuous improvement, which is read across runs) uses to connect an edit to its evidence:
+The commit is the PROVENANCE — immutable, and what a later reader (and axis 5, continuous
+improvement, which is read across runs) uses to connect an edit to its evidence. The answered index
+`--mark-answered` writes is not a second source of truth for WHY an edit was made; it is the
+mechanical exclusion that keeps `--queue` honest, and it carries the commit sha so the two agree:
 
 ```
 Agent-Role: primary

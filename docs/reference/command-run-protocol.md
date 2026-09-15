@@ -292,15 +292,19 @@ cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — 
   seven (`change: banana: …`) is REFUSED, with the key list and the agent's own value re-keyed as
   the example; `change: none` carries no key and always passes. It was documented in three places
   and enforced in none until 2026-09-15 — measured by closing a real record three ways, all
-  accepted at rc 0 — which is why 175 of the ledger's first 180 rows are unkeyed and `--queue`
-  could not sort by the property the axis names. ⚠️ The axis list is DUPLICATED in
+  accepted at rc 0 — which is why, of the ledger's 180 rows on 2026-09-15, **171 carried a real
+  verdict with no axis** (a further 5 are legitimate `change: none`, which carries no key by
+  contract, and 4 were keyed). A DATED snapshot of a growing file: re-derive it rather than quoting
+  it forward. `--queue` could not sort by the property the axis names. ⚠️ The axis list is DUPLICATED in
   `command_feedback_report.py::AXES` because this script is fleet-synced and that one is hub-only,
   so neither may import the other; `test_axis_list_is_pinned_to_the_report_reader` and
   `test_gate_and_queue_reader_agree_on_every_shape` keep the two copies and their two classifiers
   in step. A run STARTED before the cutover closes under the old rule — a refused close leaves the
   record `running`, so a gate landing mid-run would wedge every in-flight session in ~46 repos.
-- **The close PRINTS the queue depth** — `QUEUE: /<command> has N unanswered verdict(s) of M filed
-  — answer them with /fabrik-command-improve <command>`. Advisory, one line, never a block, and
+- **The close PRINTS the queue depth** — a line opening `QUEUE: /<command> has N unanswered
+  verdict(s) of M filed — ` and naming BOTH the improve command and the `--queue` read; the exact
+  f-string lives at `command_run.py::main`'s top-level close and is not re-quoted whole here, because
+  a governance doc quoting a machine string is a second source of truth that drifts. Advisory, one line, never a block, and
   fail-soft in every direction (`_queue_depth` returns None on any unreadable input rather than
   raising on the close path). It is the loop's only real trigger: `/fabrik-command-improve` shipped
   on 2026-09-15 and had never run, because its trigger was a sentence inside its own command text.

@@ -339,14 +339,19 @@ on the operator's directive (`01M2HYV1MJ4QMZP5R4DAKFQW2W`).
 
 **CLOSED 2026-09-15 — the loop's two remaining gaps: the axis was unenforced, and the ACT half had
 no trigger and no state.** Measured before the fix, not assumed: closing a real record accepted
-`change: make it faster` (no key) AND `change: banana: …` at rc 0, so 175 of the first 180 rows are
-`unkeyed`; `/fabrik-command-improve` had never run once (0 ledger rows, 0 commits carrying its
+`change: make it faster` (no key) AND `change: banana: …` at rc 0. Of the 180 rows present on
+2026-09-15, `_axis_of` buckets 176 `unkeyed` — but 5 of those are legitimate `change: none` verdicts
+that carry no key BY CONTRACT, so the number that matters is **171 rows carrying a real verdict with
+no axis**, against 4 keyed. ⚠️ A DATED snapshot of a growing file: re-derive it, never quote it
+forward. The first cut of this sentence said "175 of 180 unkeyed", which is neither figure — it was
+the non-`none` population — and the hand-carried number reached six files before a seat re-derived
+it; `/fabrik-command-improve` had never run once (0 ledger rows, 0 commits carrying its
 `rows=` trailer); and no row had ever been marked answered, so the queue could only grow.
 
 | Gap | Closed by |
 |---|---|
 | the axis was documented in three places, enforced in none | `command_run.py::_change_axis_verdict` refuses an unkeyed or unknown-axis `change:`, names the seven keys and re-keys the agent's own value; `_AXIS_REQUIRED_FROM` lets an in-flight run close under the old rule, because a refused close leaves the record `running` and would wedge every live session in ~46 repos |
-| nothing told anyone the queue existed | every close prints `QUEUE: /<command> has N unanswered verdict(s) of M filed — answer them with /fabrik-command-improve <command>`. Advisory, one line, fail-soft: `_queue_depth` returns None on any unreadable input rather than raising on the close path |
+| nothing told anyone the queue existed | every close prints a line OPENING `QUEUE: /<command> has N unanswered verdict(s) of M filed — answer them with ` and closing with the two commands (the improve command, then the `--queue` read) — see `command_run.py` for the exact f-string rather than trusting a quote here. Advisory, one line, fail-soft: `_queue_depth` returns None on any unreadable input rather than raising on the close path |
 | nothing marked a row answered, so the number could never fall | `--mark-answered <command> --rows <ts,…> --commit <sha>` writes `~/.claude/state/command-feedback-answered.jsonl` beside the ledger, and `--queue` excludes those rows and states how many it dropped. ⚠️ It REFUSES a commit that touches no corpus path — the cheapest way to shrink a queue without doing the work is to mark rows and commit nothing |
 
 ⚠️ **The axis list is duplicated** (`command_run.py::_CHANGE_AXES` ↔ `command_feedback_report.py::AXES`)
@@ -355,7 +360,7 @@ fails CLOSED in every project the day it lands. Two graders keep the copies and 
 in step — `test_axis_list_is_pinned_to_the_report_reader` and
 `test_gate_and_queue_reader_agree_on_every_shape`. ⚠️ And the FIRST cut of the gate was DEAD:
 `_AXIS_REQUIRED_FROM` was set 45 minutes into the future, every grader passed, and the real close
-path accepted all four shapes — `test_the_axis_cutover_is_in_the_PAST` is what catches that.
+path accepted all four shapes — `test_the_axis_cutover_is_in_the_past` is what catches that.
 
 Cron — the report is UNSCHEDULED (⚠️ operator-installed; agent crontab writes are
 classifier-blocked on this box):

@@ -1205,6 +1205,10 @@ def _change_is_none_value(value: str) -> bool:
     nothing needed changing, and stripping it would report the malformation as compliance."""
     text = (value or "").strip()
     head, sep, rest = text.partition(":")
+    # `none: <why>` is an honest none, not a key attempt on an axis called `none` — decided BEFORE
+    # the axis branch or `_change_axis_verdict` reads it as `unknown axis` and refuses the close
+    if sep and head.strip().lower().rstrip(".,;") in _NONE_WORDS:
+        return True
     if sep and not (rest == "" or rest[:1].isspace()):
         return _is_none_head(text)
     if sep and head.strip().lower() in _CHANGE_AXES and rest.strip():
@@ -1212,10 +1216,41 @@ def _change_is_none_value(value: str) -> bool:
     return _is_none_head(text)
 
 
+# What may follow a none-word and still leave the verdict a NONE: punctuation that opens a
+# justification (`none: the text is fine`, `none — nothing to change`). A LETTER may not — `none of
+# the axes fit — step 3 must dispatch` is a real verdict whose first word happens to be `none`.
+_NONE_WORDS = ("nothing", "none", "n/a", "-")
+_NONE_SEPARATORS = frozenset(":,;.—–(|")
+
+
 def _is_none_head(value: str) -> bool:
+    """Is the WHOLE value a `none` verdict — not merely a value that STARTS with one?
+
+    ⚠️ Review round 1, the cheapest bypass of the axis gate and the one its own counter-measure
+    could not see. The old test read the first whitespace token only, so `change: none of the axes
+    fit — step 3 must dispatch, not narrate` was booked as "nothing to change": it passed the gate,
+    was written to the ledger, printed no `QUEUE:` line, never appeared in `--queue`, and never
+    reached `_axis_tally` — the reader the COBRA NOTE names as the counter-measure — because it was
+    filtered out upstream as a none. An agent refused once for `unkeyed axis` discovers it in a
+    single retry, and it is cheaper than keying honestly AND leaves no countable row. Executed: 4
+    of 5 real verdicts vanished that way.
+
+    The MIRROR, fixed in the same change: `change: none: the command text is fine` — a none with
+    one clause of justification — was REFUSED as `unknown axis`, wedging the turn and teaching a
+    fabricated `lean:` verdict as the way out.
+    """
     stripped = (value or "").strip()
-    head = stripped.lower().split()[0].rstrip(".,;") if stripped else ""
-    return not stripped or head in {"none", "nothing", "n/a", "-"}
+    if not stripped:
+        return True
+    low = stripped.lower()
+    for word in _NONE_WORDS:  # longest first: `nothing` before `none` before `n/a`
+        if not low.startswith(word):
+            continue
+        rest = low[len(word) :].lstrip()
+        if not rest or rest.rstrip(".,;:") == "":
+            return True
+        return rest[:1] in _NONE_SEPARATORS
+    return False
 
 
 def _change_axis_verdict(value: str) -> str | None:
@@ -1225,7 +1260,7 @@ def _change_axis_verdict(value: str) -> str | None:
     the COMMAND TEXT the edit improves, and it is what makes the accumulated queue sortable by the
     thing being optimised. It was documented in three places and enforced in none: measured
     2026-09-15, `change: <edit>`, `change: lean: <edit>` and `change: banana: <edit>` all closed at
-    rc 0, and 175 of the ledger's 180 rows carried no key at all.
+    rc 0, and all but four of the ledger's rows carried no key at all.
 
     ⚠️ COBRA NOTE (the rule this mechanism must ship with). The cheapest way to satisfy this gate
     WITHOUT producing the outcome is to key every verdict with the same axis regardless of what the
@@ -1462,7 +1497,13 @@ def _queue_depth(command: str) -> tuple[int, int] | None:
         rows = 0
         answered: set[str] = set()
         try:
-            text = _answered_ledger_path().read_text(encoding="utf-8", errors="replace")
+            _ap = _answered_ledger_path()
+            # ⚠️ `is_file()` BEFORE the read, and it is not belt-and-braces. This runs inside
+            # `_record_lock(sid)`, and `read_text()` on a FIFO with no writer BLOCKS FOREVER — a
+            # `try/except Exception` catches exceptions, not a blocking `open()`. Executed in
+            # review round 1: the close held the lock indefinitely and the agent's turn never
+            # returned, while the docstring above promised "never an error".
+            text = _ap.read_text(encoding="utf-8", errors="replace") if _ap.is_file() else ""
         except OSError:
             text = ""
         for ln in text.splitlines():
@@ -1476,7 +1517,10 @@ def _queue_depth(command: str) -> tuple[int, int] | None:
             if isinstance(row, dict) and str(row.get("command") or "") == command:
                 answered.add(_ts_key(row.get("ts")))
         unanswered = 0
-        ledger = _feedback_ledger_path().read_text(encoding="utf-8", errors="replace")
+        _lp = _feedback_ledger_path()
+        if not _lp.is_file():  # the same FIFO/blocking guard as the answered index above
+            return None
+        ledger = _lp.read_text(encoding="utf-8", errors="replace")
         for ln in ledger.splitlines():
             ln = ln.strip()
             if not ln:
@@ -3133,14 +3177,29 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         if _axis_bad:
             _own = (_usage_fields.get("change") or "").strip()
             _shown = _own if len(_own) <= 60 else _own[:59] + "…"
+            # ⚠️ The example must BRANCH on the verdict. A hint that unconditionally prefixed
+            # `lean: ` told an agent who wrote `banana: cut step 7` to write
+            # `change: lean: banana: cut step 7` — which the gate ACCEPTS and the ledger then
+            # stores with a nested key — and told an agent who pasted the grammar template to
+            # write `change: lean: <the grammar>`, which the gate ALSO accepts, turning a correct
+            # refusal into a stored non-verdict. Executed in review round 1.
+            _attempt = _change_axis_attempt(_own)
+            if _attempt is not None:  # they keyed something; the key is the wrong half
+                _fix_line = (
+                    f"\n  keyed:      change: <one of the seven>: {_attempt[1][:59] or '<your edit>'}"
+                    f"\n              (replace `{_attempt[0]}` — it is not one of the seven)"
+                )
+            else:
+                _fix_line = f"\n  keyed:      change: lean: {_shown}"
             _axis_hint = (
                 f"\n\n⚠️ `change:` is AXIS-KEYED — lead the value with ONE of "
                 f"{' | '.join(_CHANGE_AXES)} then a colon. The axis is the property of the COMMAND "
                 f"TEXT your edit improves, not your run's topic, and it is what lets "
-                f"`command_feedback_report.py --queue` sort the backlog by what you are optimising."
+                f"`--queue` sort the backlog by what you are optimising."
                 f"\n  you wrote:  change: {_shown}"
-                f"\n  keyed:      change: lean: {_shown}"
-                f"\n`change: none` is a verdict you sign and carries no key."
+                + _fix_line
+                + "\n`change: none` is a verdict you sign and carries no key — and it may carry "
+                "one clause of justification (`change: none: the command text is fine`)."
             )
         msg = (
             f"REFUSED — closing /{live} needs the STRUCTURED usage feedback (D-175): "
@@ -3432,9 +3491,10 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
     if _depth and _depth[0]:
         _un, _tot = _depth
         print(
-            f"QUEUE: /{rec.get('command')} has {_un} unanswered verdict(s) of {_tot} filed — "
+            f"QUEUE: /{rec.get('command')} has {_un} unanswered of {_tot} verdict row(s) — "
             f"answer them with `/fabrik-command-improve {rec.get('command')}` "
-            f"(read them: `python3 scripts/command_feedback_report.py --queue {rec.get('command')}`)."
+            f"(read them: `python3 /opt/fabrik/scripts/command_feedback_report.py "
+            f"--queue {rec.get('command')}`)."
         )
     # Queue the scratch advisory for `main()` to print AFTER the record lock drops. Set here, not
     # printed here, and only on a top-level close that actually persisted: the NOT-CLOSED path

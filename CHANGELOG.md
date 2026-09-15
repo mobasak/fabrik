@@ -8,9 +8,12 @@ All notable changes to this project will be documented in this file.
 
 - **The axis key was documented in three places and enforced in none.** Measured by closing a real
   record three ways: `change: make the loop stop earlier` (no key) and `change: banana: …` (a key
-  outside the seven) both closed at rc 0, alongside the legal `change: lean: …`. 175 of the ledger's
-  first 180 rows carry no key, so `--queue` could not sort the backlog by the property the axis
-  names. `command_run.py::_change_axis_verdict` now REFUSES both shapes, names the seven keys and
+  outside the seven) both closed at rc 0, alongside the legal `change: lean: …`. Of the 180 rows
+  present on 2026-09-15, **171 carried a real verdict with no axis** (5 more are legitimate
+  `change: none`, 4 were keyed), so `--queue` could not sort the backlog by the property the axis
+  names. ⚠️ The first cut of this entry said "175 of 180 unkeyed", which is neither figure — it was
+  the non-`none` population — and that hand-carried number had reached SIX files before a review
+  seat re-derived it. Re-derive a ledger count; never quote one forward. `command_run.py::_change_axis_verdict` now REFUSES both shapes, names the seven keys and
   re-keys the agent's own value as the example; `change: none` carries no key and always passes.
   ⚠️ `_AXIS_REQUIRED_FROM` exempts runs STARTED before the cutover — a refused close leaves the
   record `running`, so a gate landing mid-run would wedge every live session in ~46 repos.

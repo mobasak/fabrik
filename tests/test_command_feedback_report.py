@@ -6,6 +6,7 @@ from __future__ import annotations
 import ast
 import json
 import math
+import os
 import re
 import subprocess
 import sys
@@ -1669,7 +1670,7 @@ def test_answered_rows_are_excluded_from_the_queue(tmp_path: Path, monkeypatch) 
     index.write_text(
         json.dumps({"ts": str(rows[0]["ts"]), "command": "fabrik-review", "commit": "abc"}) + "\n"
     )
-    monkeypatch.setattr(m, "_answered_path", lambda: index)
+    monkeypatch.setattr(m, "_answered_path", lambda ledger=None: index)
     out = m.queue(rows, "fabrik-review")
     assert "cut step 7" not in out, out
     assert "name the artifacts" in out, out
@@ -1683,7 +1684,7 @@ def test_the_queue_states_how_many_it_excluded(tmp_path: Path, monkeypatch) -> N
     index.write_text(
         json.dumps({"ts": str(rows[0]["ts"]), "command": "fabrik-review", "commit": "abc"}) + "\n"
     )
-    monkeypatch.setattr(m, "_answered_path", lambda: index)
+    monkeypatch.setattr(m, "_answered_path", lambda ledger=None: index)
     head = m.queue(rows, "fabrik-review").splitlines()[0]
     assert "1 unanswered of 2" in head, head
     assert "1 already answered and excluded" in head, head
@@ -1693,7 +1694,7 @@ def test_an_absent_index_hides_nothing(tmp_path: Path, monkeypatch) -> None:
     """The safe direction: no index means every row shows. Over-reporting work beats hiding a
     verdict nobody acted on."""
     m = _cfr()
-    monkeypatch.setattr(m, "_answered_path", lambda: tmp_path / "does-not-exist.jsonl")
+    monkeypatch.setattr(m, "_answered_path", lambda ledger=None: tmp_path / "does-not-exist.jsonl")
     rows = [_row("fabrik-review", 10, 2, "lean: a")]
     assert "lean: a" in m.queue(rows, "fabrik-review")
 
@@ -1728,11 +1729,17 @@ def test_mark_answered_accepts_a_real_corpus_edit(tmp_path: Path) -> None:
     subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
     subprocess.run(["git", "commit", "-qm", "corpus edit"], cwd=repo, check=True)
     index = tmp_path / "answered.jsonl"
-    written, msg = m.mark_answered("fabrik-review", ["1.0", "2.0"], "HEAD", repo, index)
+    # the handles must name REAL rows of this command's queue (round-1 fail-open fix), so the
+    # ledger is seeded with exactly the two rows being answered
+    ledger = tmp_path / "ledger.jsonl"
+    rows = [_row("fabrik-review", 10, 2, "lean: a"), _row("fabrik-review", 10, 2, "lean: b")]
+    ledger.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+    handles = [str(m._num(r["ts"])) for r in rows]
+    written, msg = m.mark_answered("fabrik-review", handles, "HEAD", repo, index, ledger=ledger)
     assert written == 2, msg
-    assert m._answered_ts("fabrik-review", index) == {"1.0", "2.0"}
+    assert m._answered_ts("fabrik-review", index) == set(handles)
     # idempotent: the same rows again mark nothing and say so
-    again, msg2 = m.mark_answered("fabrik-review", ["1.0", "2.0"], "HEAD", repo, index)
+    again, msg2 = m.mark_answered("fabrik-review", handles, "HEAD", repo, index, ledger=ledger)
     assert again == 0 and "already marked" in msg2, msg2
 
 
@@ -1751,3 +1758,345 @@ def test_the_answered_index_sits_beside_the_ledger(monkeypatch, tmp_path: Path) 
     m = _cfr()
     monkeypatch.setenv("COMMAND_RUN_DIR", str(tmp_path / "state" / "command-runs"))
     assert m._answered_path() == m._default_ledger().parent / "command-feedback-answered.jsonl"
+
+
+def test_mark_answered_refuses_a_handle_that_matches_no_ledger_row(tmp_path: Path) -> None:
+    """FAIL-OPEN found in review round 1. `--rows` was taken on trust: a typo'd, invented or
+    wrong-command handle was written to the index and reported as `marked 2 row(s) answered`,
+    while the REAL rows stayed in the queue. The agent then believes it closed work it did not,
+    and the one number this loop exists to move is wrong in the flattering direction."""
+    m = _cfr()
+    repo = tmp_path / "repo"
+    (repo / "commands" / "_sources").mkdir(parents=True)
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.email", "t@t"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=repo, check=True)
+    (repo / "commands" / "_sources" / "fabrik-review.md").write_text("edited\n")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "corpus edit"], cwd=repo, check=True)
+    real = _row("fabrik-review", 10, 2, "lean: a")
+    ledger = tmp_path / "ledger.jsonl"
+    ledger.write_text(json.dumps(real) + "\n")
+    index = tmp_path / "answered.jsonl"
+
+    # a handle that matches nothing is REFUSED, and the message names it
+    written, msg = m.mark_answered(
+        "fabrik-review", ["not-a-real-ts"], "HEAD", repo, index, ledger=ledger
+    )
+    assert written == 0, msg
+    assert "not-a-real-ts" in msg and "REFUSED" in msg, msg
+    assert not index.exists(), "a refusal must write nothing"
+
+    # the real handle, exactly as --queue prints it, is accepted
+    printed = str(m._num(real["ts"]))
+    written, msg = m.mark_answered("fabrik-review", [printed], "HEAD", repo, index, ledger=ledger)
+    assert written == 1, msg
+
+    # a real handle belonging to ANOTHER command is refused too — the commonest miscopy
+    other = _row("fabrik-spec", 10, 2, "lean: b")
+    ledger.write_text(json.dumps(real) + "\n" + json.dumps(other) + "\n")
+    written, msg = m.mark_answered(
+        "fabrik-review", [str(m._num(other["ts"]))], "HEAD", repo, index, ledger=ledger
+    )
+    assert written == 0 and "REFUSED" in msg, msg
+
+
+# ---------------------------------------------------------------------------
+# Review round 1 — `mark_answered` is the one operation here that DESTROYS information.
+# Every test below was a defect first, reproduced end-to-end before it was a test.
+# ---------------------------------------------------------------------------
+
+
+def _corpus_repo(tmp_path: Path, name: str = "repo") -> Path:
+    repo = tmp_path / name
+    (repo / "commands" / "_sources").mkdir(parents=True)
+    # `-c commit.gpgsign=false`: on a machine with global commit signing and no TTY/agent, a bare
+    # `git commit` blocks on a passphrase prompt and takes pytest down with it
+    base = ["git", "-c", "commit.gpgsign=false", "-C", str(repo)]
+    subprocess.run(["git", "init", "-q", str(repo)], check=True, timeout=60)
+    subprocess.run(base + ["config", "user.email", "t@t"], check=True, timeout=60)
+    subprocess.run(base + ["config", "user.name", "t"], check=True, timeout=60)
+    (repo / "commands" / "_sources" / "fabrik-review.md").write_text("edited\n")
+    subprocess.run(base + ["add", "-A"], check=True, timeout=60)
+    subprocess.run(base + ["commit", "-qm", "corpus edit"], check=True, timeout=60)
+    return repo
+
+
+@pytest.mark.parametrize(
+    "flag", ["--all", "--branches", "--tags", "--glob=refs/*", "--stdin", "-1"]
+)
+def test_a_commit_argument_can_never_become_a_git_flag(tmp_path: Path, flag: str) -> None:
+    """CRITICAL, reproduced end-to-end before this test existed. `git show --name-only --format=
+    <commit>` left `<commit>` unanchored, so `--commit=--all` became a git OPTION: `show` walked
+    every ref, printed every file in the repo, matched a corpus path, and marked an ENTIRE queue
+    answered at rc 0 with zero edits made. Nine characters defeating the counter-measure the gate
+    exists to be. `--end-of-options` on the rev-parse is the anchor."""
+    m = _cfr()
+    repo = _corpus_repo(tmp_path)
+    index = tmp_path / "answered.jsonl"
+    ledger = tmp_path / "ledger.jsonl"
+    row = _row("fabrik-review", 10, 2, "lean: a")
+    ledger.write_text(json.dumps(row) + "\n")
+    written, msg = m.mark_answered(
+        "fabrik-review", [str(m._num(row["ts"]))], flag, repo, index, ledger=ledger
+    )
+    assert written == 0, (flag, msg)
+    assert "REFUSED" in msg and "does not resolve to a commit" in msg, msg
+    assert not index.exists(), "a refusal must write nothing"
+
+
+def test_git_dir_in_the_environment_cannot_redirect_the_corpus_check(tmp_path: Path) -> None:
+    """`subprocess.run(cwd=repo)` inherits the environment, and `GIT_DIR` beats `cwd` — so an
+    exported one turned a refusal into an acceptance by checking a DIFFERENT repository. Reachable
+    by following another rule: CLAUDE.md's private-index recipe, which `/fabrik-command-improve`
+    PHASE 5 mandates, exports git variables and warns they persist in the shell."""
+    m = _cfr()
+    corpus = _corpus_repo(tmp_path, "corpus")
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    base = ["git", "-c", "commit.gpgsign=false", "-C", str(plain)]
+    subprocess.run(["git", "init", "-q", str(plain)], check=True, timeout=60)
+    subprocess.run(base + ["config", "user.email", "t@t"], check=True, timeout=60)
+    subprocess.run(base + ["config", "user.name", "t"], check=True, timeout=60)
+    (plain / "app.py").write_text("x\n")
+    subprocess.run(base + ["add", "-A"], check=True, timeout=60)
+    subprocess.run(base + ["commit", "-qm", "app change"], check=True, timeout=60)
+    old = os.environ.get("GIT_DIR")
+    os.environ["GIT_DIR"] = str(corpus / ".git")
+    try:
+        ok, detail = m._commit_touches_corpus("HEAD", plain)
+    finally:
+        os.environ.pop("GIT_DIR", None)
+        if old is not None:
+            os.environ["GIT_DIR"] = old
+    assert ok is False, detail
+    assert "app.py" in detail, detail
+
+
+def test_a_backup_named_after_the_contracts_own_convention_is_not_a_corpus_path() -> None:
+    """`startswith` had no path boundary, and `CLAUDE.md.backup.<date>` is the exact filename
+    CLAUDE.md § Pointers mandates for config backups — so the false-accept was reachable by
+    following another rule. Directory entries match by prefix; file entries match EXACTLY."""
+    m = _cfr()
+    assert m._is_corpus_path("CLAUDE.md") is True
+    assert m._is_corpus_path("templates/governance/CLAUDE.md") is True
+    assert m._is_corpus_path("commands/_sources/fabrik-review.md") is True
+    for impostor in (
+        "CLAUDE.md.bak",
+        "CLAUDE.mdx",
+        "CLAUDE.md.backup.20260915",
+        "commands/_sources_backup/x.md",
+        "docs/CLAUDE.md",
+    ):
+        assert m._is_corpus_path(impostor) is False, impostor
+
+
+def test_a_handle_carried_by_two_rows_is_refused_not_silently_doubled(tmp_path: Path) -> None:
+    """One handle silenced EVERY row sharing that `ts`. The docstring called `ts` unique — an
+    observation about today's file, not an invariant: three sessions share the writer."""
+    m = _cfr()
+    repo = _corpus_repo(tmp_path)
+    a = _row("fabrik-review", 10, 2, "rules: row A")
+    b = _row("fabrik-review", 10, 2, "manifesto: row B")
+    b["ts"] = a["ts"]
+    ledger = tmp_path / "ledger.jsonl"
+    ledger.write_text(json.dumps(a) + "\n" + json.dumps(b) + "\n")
+    index = tmp_path / "answered.jsonl"
+    written, msg = m.mark_answered(
+        "fabrik-review", [str(m._num(a["ts"]))], "HEAD", repo, index, ledger=ledger
+    )
+    assert written == 0 and "more than one row" in msg, msg
+    assert not index.exists()
+
+
+def test_the_recorded_provenance_is_a_resolved_40_char_sha(tmp_path: Path) -> None:
+    """`HEAD`, a branch, a tag and an abbreviation are all moving or ambiguous pointers, and an
+    abbreviation was resolved in the WRONG repo (a real 4-hex collision, brute-forced). The index
+    is a permanent record, so it stores what the ref resolved TO."""
+    m = _cfr()
+    repo = _corpus_repo(tmp_path)
+    row = _row("fabrik-review", 10, 2, "lean: a")
+    ledger = tmp_path / "ledger.jsonl"
+    ledger.write_text(json.dumps(row) + "\n")
+    index = tmp_path / "answered.jsonl"
+    written, _ = m.mark_answered(
+        "fabrik-review", [str(m._num(row["ts"]))], "HEAD", repo, index, ledger=ledger
+    )
+    assert written == 1
+    stored = json.loads(index.read_text().splitlines()[0])["commit"]
+    assert len(stored) == 40 and stored != "HEAD", stored
+
+
+def test_a_partial_write_reports_what_actually_landed(tmp_path: Path, monkeypatch) -> None:
+    """A single buffered write of the whole batch reported `0 written / REFUSED` while 44 rows had
+    landed — verdicts silenced under a receipt denying anything was written — and the truncated
+    final line then corrupted the NEXT append. One `os.write` loop per row bounds the damage to a
+    single line and makes the count honest."""
+    m = _cfr()
+    index = tmp_path / "answered.jsonl"
+    real_write = os.write
+    state = {"calls": 0}
+
+    def flaky(fd, data):
+        state["calls"] += 1
+        if state["calls"] > 2:
+            raise OSError(27, "File too large")
+        return real_write(fd, data)
+
+    monkeypatch.setattr(os, "write", flaky)
+    rows = [{"ts": f"{i}.0", "command": "c", "commit": "s", "at": 0} for i in range(5)]
+    written, err = m._append_answered(index, rows)
+    monkeypatch.undo()
+    assert 0 < written < 5, (written, err)
+    assert err, "a partial write must report its error"
+    # every line that landed is parseable — the damage is bounded, not a corrupt tail
+    lines = [ln for ln in index.read_text().splitlines() if ln.strip()]
+    assert len(lines) == written
+    for ln in lines:
+        json.loads(ln)
+
+
+def test_an_append_after_a_truncated_line_does_not_glue_onto_it(tmp_path: Path) -> None:
+    """The compounding half: with no trailing newline the next mark reported success for a row
+    that was silently discarded, because both lines became unparseable and `_answered_ts` swallows
+    a ValueError (correctly, for a foreign row — which is what hid the half-state)."""
+    m = _cfr()
+    index = tmp_path / "answered.jsonl"
+    index.write_text('{"ts": "1.0", "command": "c", "commit": "s", "at": 0}\n{"ts": "2.0", "comm')
+    written, err = m._append_answered(
+        index, [{"ts": "3.0", "command": "c", "commit": "s", "at": 0}]
+    )
+    assert written == 1 and not err
+    assert "3.0" in m._answered_ts("c", index), m._answered_ts("c", index)
+
+
+def test_the_ts_key_is_pinned_to_the_close_gates_copy() -> None:
+    """DRIFT GRADER, the second of the pair. The inline key was `str(_num(v) or v)` — an
+    `or`-falsiness bug: an integer `ts` of 0 keyed `'0'` against the close's `'0.0'`, and a
+    string/None/NaN `ts` PRINTED as `?`, making three distinct rows indistinguishable and
+    un-markable, so such a queue could never reach zero."""
+    m = _cfr()
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("cr_tskey", ROOT / "scripts" / "command_run.py")
+    cr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cr)
+    for value in (
+        0,
+        0.0,
+        1789470862,
+        1789470862.5,
+        "1789470862.5",
+        None,
+        True,
+        False,
+        float("nan"),
+        float("inf"),
+        -1.5,
+        [],
+        {},
+    ):
+        assert m._ts_key(value) == cr._ts_key(value), value
+
+
+# --- CLI-level coverage: `main()`'s whole hunk had ZERO tests, which is exactly why the
+# --- `--ledger` leak, the return codes and the missing mode guard were invisible to the suite.
+
+
+def _cli(tmp_path: Path, *args: str) -> subprocess.CompletedProcess:
+    home = tmp_path / "home"
+    (home / ".claude" / "state").mkdir(parents=True, exist_ok=True)
+    env = {**os.environ, "HOME": str(home)}
+    env.pop("COMMAND_RUN_DIR", None)
+    for k in [k for k in env if k.startswith("GIT_")]:
+        env.pop(k)
+    return subprocess.run(
+        [sys.executable, str(SCRIPT), *args], capture_output=True, text=True, env=env, timeout=120
+    )
+
+
+def test_cli_mark_answered_writes_beside_the_named_ledger_not_the_live_one(tmp_path: Path) -> None:
+    """`--ledger` scoped every other mode and not this one, so polluting live state was the
+    DEFAULT — the mistake this review's own orchestrator made once with a single probe."""
+    repo = _corpus_repo(tmp_path)
+    row = _row("fabrik-review", 10, 2, "lean: a")
+    ledger = tmp_path / "isolated" / "ledger.jsonl"
+    ledger.parent.mkdir()
+    ledger.write_text(json.dumps(row) + "\n")
+    m = _cfr()
+    r = _cli(
+        tmp_path,
+        "--mark-answered",
+        "fabrik-review",
+        "--rows",
+        str(m._num(row["ts"])),
+        "--commit",
+        "HEAD",
+        "--repo",
+        str(repo),
+        "--ledger",
+        str(ledger),
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert (ledger.parent / "command-feedback-answered.jsonl").is_file(), r.stdout
+    assert not (
+        tmp_path / "home" / ".claude" / "state" / "command-feedback-answered.jsonl"
+    ).exists()
+    # and the SAME scoping on the read side
+    q = _cli(tmp_path, "--queue", "fabrik-review", "--ledger", str(ledger))
+    assert "1 already answered and excluded" in q.stdout, q.stdout
+
+
+def test_cli_refuses_to_mark_and_report_in_one_invocation(tmp_path: Path) -> None:
+    """The file already guards `--queue`/`--observer-rank` ("silently picking one was the
+    defect"); the new writing flag reintroduced it — and PHASE 5 tells the agent to verify with
+    `--queue`, so the combined invocation marks and silently skips the verification."""
+    repo = _corpus_repo(tmp_path)
+    r = _cli(
+        tmp_path,
+        "--queue",
+        "a",
+        "--mark-answered",
+        "a",
+        "--rows",
+        "1.0",
+        "--commit",
+        "HEAD",
+        "--repo",
+        str(repo),
+    )
+    assert r.returncode == 2 and "run it alone" in r.stdout, r.stdout
+
+
+def test_cli_return_codes_separate_refusal_from_an_idempotent_no_op(tmp_path: Path) -> None:
+    """rc 1 meant refused, already-done AND you-passed-nothing; a script could not tell them
+    apart. And `--rows ',,,'` passed the raw-string guard, then reported the vacuously true
+    "all 0 row(s) were already marked"."""
+    repo = _corpus_repo(tmp_path)
+    row = _row("fabrik-review", 10, 2, "lean: a")
+    ledger = tmp_path / "ledger.jsonl"
+    ledger.write_text(json.dumps(row) + "\n")
+    m = _cfr()
+    handle = str(m._num(row["ts"]))
+    common = ["--commit", "HEAD", "--repo", str(repo), "--ledger", str(ledger)]
+    assert (
+        _cli(tmp_path, "--mark-answered", "fabrik-review", "--rows", ",,,", *common).returncode == 2
+    )
+    first = _cli(tmp_path, "--mark-answered", "fabrik-review", "--rows", handle, *common)
+    assert first.returncode == 0, first.stdout
+    again = _cli(tmp_path, "--mark-answered", "fabrik-review", "--rows", handle, *common)
+    assert again.returncode == 0 and "nothing to do" in again.stdout, again.stdout
+    bogus = _cli(
+        tmp_path,
+        "--mark-answered",
+        "fabrik-review",
+        "--rows",
+        "9.9",
+        "--commit",
+        "HEAD",
+        "--repo",
+        str(repo),
+        "--ledger",
+        str(ledger),
+    )
+    assert bogus.returncode == 1 and "REFUSED" in bogus.stdout, bogus.stdout

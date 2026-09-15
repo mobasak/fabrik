@@ -5069,8 +5069,8 @@ def test_the_three_plan_stem_parsers_agree():
 # WHY these exist: the axis key was documented in three places (CLAUDE.md's FINAL OUTPUT block,
 # `commands/_fragments/close-feedback.md`, `_USAGE_GRAMMAR`) and enforced in NONE — measured
 # 2026-09-15 by closing a real record three ways: `change: <edit>` (no key), `change: lean: <edit>`
-# and `change: banana: <edit>` were ALL accepted at rc 0. 175 of the ledger's 180 rows carry no
-# key, so `--queue` cannot sort by the property the operator asked to optimise.
+# and `change: banana: <edit>` were ALL accepted at rc 0, and all but four of the ledger's rows
+# carried no key — so `--queue` could not sort by the property the operator asked to optimise.
 # ---------------------------------------------------------------------------
 
 
@@ -5084,7 +5084,7 @@ def _axis_missing(tag: str, change: str) -> list[str]:
 
 
 def test_change_unkeyed_axis_is_refused_at_the_close() -> None:
-    """The shape 175 of 180 historical rows use. Refused BY LABEL so the message can name it."""
+    """The shape nearly every historical row uses. Refused BY LABEL so the message can name it."""
     assert "change (unkeyed axis)" in _axis_missing("ax1", "make the loop stop earlier")
 
 
@@ -5289,7 +5289,11 @@ def test_the_close_prints_the_queue_trigger(tmp_path: Path) -> None:
     ).stdout
     # TWO, not one: the close appends its OWN verdict before counting, so the number includes the
     # row this very run just filed. That is the honest figure — the queue really is 2 deep now.
-    assert "QUEUE: /fabrik-mail-handle has 2 unanswered verdict(s) of 2 filed" in out, out
+    # "verdict row(s)", not "filed": `_tot` counts rows carrying a verdict, and `of N filed` was
+    # the wrong denominator for it (review round 1)
+    assert "QUEUE: /fabrik-mail-handle has 2 unanswered of 2 verdict row(s)" in out, out
+    # the advisory ships to ~46 repos where the report does NOT exist, so it must name it absolutely
+    assert "/opt/fabrik/scripts/command_feedback_report.py" in out, out
     assert "/fabrik-command-improve fabrik-mail-handle" in out, out
 
 
@@ -5319,3 +5323,210 @@ def test_an_integer_ts_still_matches_what_the_queue_printed(tmp_path: Path) -> N
         assert cr._queue_depth("fabrik-review") == (0, 1)
     finally:
         os.environ.pop("COMMAND_RUN_DIR", None)
+
+
+# ---------------------------------------------------------------------------
+# Review round 1 — the axis gate's own bypasses and its vacuous graders.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "none of the axes fit — step 3 must dispatch, not narrate",
+        "nothing in step 3 works — rewrite the dispatch block",
+        "n/a because the command text is fine but the RULE is wrong: cut pack 62",
+        "- lean: cut step 7",
+    ],
+)
+def test_a_real_verdict_starting_with_a_none_word_is_not_a_none(value: str) -> None:
+    """THE CHEAPEST BYPASS, and the counter-measure could not see it. `_is_none_head` read the
+    FIRST WHITESPACE TOKEN only, so a loaded verdict beginning with `none`/`nothing`/`n/a`/`-` was
+    booked as "nothing to change": it passed the gate, was written to the ledger, printed no
+    `QUEUE:` line, never reached `--queue`, and never reached `_axis_tally` — the reader the COBRA
+    NOTE names as the counter-measure — because it was filtered out upstream. An agent refused once
+    for `unkeyed axis` finds it in a single retry. Executed: 4 of 5 real verdicts vanished."""
+    cr = _cr_module(f"nb{abs(hash(value)) % 9999}")
+    assert cr._change_is_none_value(value) is False, value
+    assert cr._change_axis_verdict(value) == "unkeyed axis", value
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "none: the command text is fine",
+        "nothing: the command is already lean",
+        "n/a: nothing to change",
+        "none — nothing to change",
+        "none, the command is fine",
+        "none.",
+        "none",
+        "None",
+        "-",
+    ],
+)
+def test_an_honest_none_with_a_justification_clause_is_never_refused(value: str) -> None:
+    """THE MIRROR of the bypass fix, and the one that wedges turns. `change: none: the command
+    text is fine` was read as a key attempt on an axis called `none` and REFUSED as `unknown
+    axis`, leaving the record `running` with the Stop hook blocking — and the hint it printed
+    told the agent to write `change: lean: none: …`, a fabricated verdict."""
+    cr = _cr_module(f"nh{abs(hash(value)) % 9999}")
+    assert cr._change_is_none_value(value) is True, value
+    assert cr._change_axis_verdict(value) is None, value
+
+
+def test_the_refusal_hint_never_nests_a_second_key_or_teaches_the_template() -> None:
+    """The hint unconditionally prefixed `lean: `, so it told an agent who wrote `banana: x` to
+    write `lean: banana: x` — which the gate ACCEPTS, storing a nested key — and told one who
+    pasted the grammar to write `lean: <the grammar>`, which the gate ALSO accepts, converting a
+    correct refusal into a stored non-verdict."""
+    cr = _cr_module("hint")
+    _, missing = cr._parse_usage_feedback(
+        "confusion: none · waste: none · change: banana: cut step 7 · filed: none — "
+        "surfaces exercised: probe"
+    )
+    assert "change (unknown axis)" in missing
+    # the value the hint would suggest must itself be refused, not accepted
+    assert cr._change_axis_verdict("lean: banana: cut step 7") is None  # a legal key wins...
+    attempt = cr._change_axis_attempt("banana: cut step 7")
+    assert attempt == ("banana", "cut step 7"), attempt
+
+
+def test_queue_depth_returns_none_for_a_non_regular_ledger(tmp_path: Path) -> None:
+    """A FIFO at the ledger path BLOCKED `read_text()` forever — inside `_record_lock(sid)`, so
+    the close held the lock and the agent's turn never returned. A `try/except Exception` catches
+    exceptions, not a blocking `open()`; only an `is_file()` check before the read does."""
+    cr = _cr_module("fifo")
+    state = tmp_path / "state"
+    (state / "command-runs").mkdir(parents=True)
+    os.mkfifo(state / "command-feedback.jsonl")
+    os.environ["COMMAND_RUN_DIR"] = str(state / "command-runs")
+    try:
+        assert cr._queue_depth("fabrik-review") is None
+    finally:
+        os.environ.pop("COMMAND_RUN_DIR", None)
+
+
+def _depth_fixture(tmp_path: Path, ledger_rows: list[dict], answered: list[dict]) -> Path:
+    state = tmp_path / "state"
+    (state / "command-runs").mkdir(parents=True)
+    (state / "command-feedback.jsonl").write_text(
+        "".join(json.dumps(r) + "\n" for r in ledger_rows)
+    )
+    if answered:
+        (state / "command-feedback-answered.jsonl").write_text(
+            "".join(json.dumps(r) + "\n" for r in answered)
+        )
+    return state
+
+
+def test_the_queue_trigger_is_silent_when_every_row_is_answered(tmp_path: Path) -> None:
+    """`if _depth and _depth[0]:` — dropping the `_depth[0]` half survived the whole battery, and
+    would print `QUEUE: … has 0 unanswered …` on every close forever: exactly the wallpaper the
+    mechanism's own docstring forbids. No grader covered the all-answered case."""
+    home = tmp_path / "home"
+    state = home / ".claude" / "state"
+    (state / "command-runs").mkdir(parents=True)
+    (state / "command-feedback.jsonl").write_text(
+        json.dumps({"ts": 1.0, "command": "fabrik-mail-handle", "change": "lean: a"}) + "\n"
+    )
+    (state / "command-feedback-answered.jsonl").write_text(
+        json.dumps({"ts": "1.0", "command": "fabrik-mail-handle", "commit": "abc"}) + "\n"
+    )
+    env = {**os.environ, "HOME": str(home)}
+    env.pop("COMMAND_RUN_DIR", None)
+    base = [sys.executable, str(_SCRIPT)]
+    subprocess.run(
+        base
+        + [
+            "start",
+            "--command",
+            "fabrik-mail-handle",
+            "--phases",
+            "1",
+            "--terminal",
+            "probe",
+            "--session",
+            "probe-silent",
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=120,
+    )
+    out = subprocess.run(
+        base
+        + [
+            "done",
+            "--command",
+            "fabrik-mail-handle",
+            "--session",
+            "probe-silent",
+            "--evidence",
+            "probe run",
+            "--feedback",
+            "confusion: none · waste: none · change: none · "
+            "filed: none — surfaces exercised: probe",
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    ).stdout
+    # the close writes its OWN `change: none` row, which is not a verdict, so the queue stays at 0
+    assert "QUEUE:" not in out, out
+
+
+def test_the_trigger_puts_each_count_on_the_right_side(tmp_path: Path) -> None:
+    """The original fixture had unanswered == total == 2, so swapping the two f-string arguments
+    was byte-identical output and undetectable. An ASYMMETRIC fixture is what pins the order."""
+    cr = _cr_module("asym")
+    state = _depth_fixture(
+        tmp_path,
+        [
+            {"ts": 1.0, "command": "fabrik-review", "change": "lean: a"},
+            {"ts": 2.0, "command": "fabrik-review", "change": "fast: b"},
+            {"ts": 3.0, "command": "fabrik-review", "change": "accurate: c"},
+        ],
+        [{"ts": "1.0", "command": "fabrik-review", "commit": "abc"}],
+    )
+    os.environ["COMMAND_RUN_DIR"] = str(state / "command-runs")
+    try:
+        assert cr._queue_depth("fabrik-review") == (2, 3)  # unanswered FIRST, total SECOND
+    finally:
+        os.environ.pop("COMMAND_RUN_DIR", None)
+
+
+def test_an_axis_keyed_none_is_not_counted_as_actionable_work(tmp_path: Path) -> None:
+    """`_change_is_none_value`'s axis-strip branch had no grader observing its effect: disabling
+    it left every test green, because a keyed value with body `none` also satisfies the ordinary
+    "known axis + non-empty body" path. The semantic that matters is whether `_queue_depth` COUNTS
+    the row — a regression would inflate "N unanswered" forever for axis-keyed nones."""
+    cr = _cr_module("keyednone")
+    assert cr._change_is_none_value("lean: none") is True
+    state = _depth_fixture(
+        tmp_path,
+        [
+            {"ts": 1.0, "command": "fabrik-review", "change": "lean: none"},
+            {"ts": 2.0, "command": "fabrik-review", "change": "lean: a real edit"},
+        ],
+        [],
+    )
+    os.environ["COMMAND_RUN_DIR"] = str(state / "command-runs")
+    try:
+        assert cr._queue_depth("fabrik-review") == (1, 1)  # the keyed none is NOT a verdict row
+    finally:
+        os.environ.pop("COMMAND_RUN_DIR", None)
+
+
+def test_the_axis_gate_is_change_scoped_even_for_a_filed_value_that_is_not_axis_shaped() -> None:
+    """The old fixture used `filed: infra: …`, and `infra` is itself a legal axis — so a mutation
+    that wrongly scoped the gate to `filed` ALONE stayed green. A first word that is NOT an axis
+    is what discriminates."""
+    cr = _cr_module("scoped")
+    _, missing = cr._parse_usage_feedback(
+        "confusion: two rounds on one count · waste: none · change: lean: cut step 7 · "
+        "filed: mailer 01M2ABCDEF"
+    )
+    assert not [m for m in missing if "axis" in m], missing
