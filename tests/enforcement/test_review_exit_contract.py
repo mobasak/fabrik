@@ -321,6 +321,15 @@ _MAIL_TRIAGE_FRAGMENT_SENTENCES = {
         "under an explicit `timeout` at or above its own measured runtime",  # T2.4 (01M25Y93M)
         "Scope-growth stop",  # T2.6 (01M2AJG97)
         "the previous seat's REFUTED list verbatim",  # T2.8 — in BOTH termination fragments
+        # /fabrik-command-improve 2026-09-15 — round-zero rule (4), answering five queue
+        # verdicts: a grader is proven by its RED. term-edit carries the artifact-side form
+        # ("verify the check CAN fail", below); these are the code-side half.
+        "proven it CAN fail",
+        "REMOVING THE GUARD",
+        "EVERY CLAUSE THE FIX ADDS",
+        "the grader NAMES it removed and added",
+        "whose BODY it changed",
+        "a clean ZERO",
     ),
     "commands/_fragments/term-edit.md": (
         "Scope-growth stop",  # T2.6

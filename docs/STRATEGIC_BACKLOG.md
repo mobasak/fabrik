@@ -2578,6 +2578,21 @@ notion of "mine" the check does not currently have — spec-shaped, not a one-li
 
 ### Kaizen loop — the residue of the D-252 stop (2026-09-15)
 
+- **`^def test_` reaches 75% of Python graders** (owner: **infra**) — round 3 measured 310,030 of
+  413,590 declaration lines across 79,354 files (`rg --no-ignore --hidden`): the pattern misses every
+  class-method and `async def test_` grader. Rule (4) now hedges with "whichever pattern the suite's
+  language uses" rather than prescribing; the pattern engineering is deferred, not done. Routed here by
+  the D-252 scope-growth stop on `/fabrik-command-improve` 2026-09-15 (rounds 2 and 3 both confirmed
+  only defects inside round 1's own fix).
+- **No check greps the command corpus for BRE-invalid regex literals** (owner: **infra**) — rule (4)
+  shipped `^\s*(test|it)\(`, which exits 2 under default BRE and reads as a clean `0` through a pipe:
+  the exact trap CLAUDE.md § denominator-honesty names in prose. The corpus now warns in-line; nothing
+  enforces it. Found by the round-3 seat's MACHINERY note.
+- **`_MAIL_TRIAGE_FRAGMENT_SENTENCES` is named for a plan that no longer owns it** (owner: **infra**) —
+  it is now the general fragment-phrase registry (adjudicated COSMETIC by the round-2 seat: the rows
+  carry their own provenance comments, and a second dict would re-create the third-parallel-reader
+  defect this run removed). Rename when something else touches the file.
+
 `/fabrik-review` over `9802bd43..11b75eac` closed on the D-252 scope-growth stop after three
 rounds (confirmed 28 / 21 / 9; own-fix 1 / 21 / 9). Every confirmed defect of rounds 2 and 3 lay
 inside a fix the review itself had written, which is the stop's own definition. These four were

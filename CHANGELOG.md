@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — A grader is proven by its red: term-coverage gains round-zero rule (4) (2026-09-15)
+
+- `commands/_fragments/term-coverage.md` — the round-zero probe gains a fourth rule, answering five
+  `change:` verdicts from `/fabrik-review`'s feedback queue (the first edit the kaizen loop's ACT half
+  has ever made): the battery mutates EVERY clause a fix adds, a grader is killed by REMOVING THE
+  GUARD rather than by breaking an expression inside it (an exception that lands in the surrounding
+  handler makes a SOUND grader look weak), a fix landing in both a function and its CLI half is graded
+  on each half even when the function half is green, and a round that edits a test file states the
+  grader names it removed and added AND every grader whose body it changed. Renders into the 5
+  review-family commands that include the fragment. The preamble's mutation clause moved into the new
+  rule so the mutation contract has one home; `+1315 B` on a surface loaded every invocation, which
+  buys the class that produced five graders that could not fail in one run.
+- `tests/enforcement/test_review_exit_contract.py` — six phrase pins in the existing
+  `_MAIL_TRIAGE_FRAGMENT_SENTENCES` reader (no new parallel reader), each proven red-on-revert.
+
 ### Fixed — The seat budget capped on a memory limit the kernel does not enforce (2026-09-15)
 
 - `dispatch_headroom.py` used `CommitLimit − Committed_AS` as a hard box cap. That difference is a
