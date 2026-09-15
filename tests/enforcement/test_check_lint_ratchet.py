@@ -345,7 +345,7 @@ def test_a_reseed_clears_the_block_before_the_commit(repo: Path) -> None:
     assert "NOT COMMITTED" in out, out
 
 
-def test_the_count_floor_is_still_head_bound_under_the_SAME_ruleset(repo: Path) -> None:
+def test_the_count_floor_is_still_head_bound_under_the_same_ruleset(repo: Path) -> None:
     """The MIRROR of the version relief — re-cut, because the first version tested the wrong state.
 
     The HEAD-bound floor exists so a SIBLING's uncommitted re-seed cannot raise the bar under the
@@ -370,7 +370,7 @@ def test_the_count_floor_is_still_head_bound_under_the_SAME_ruleset(repo: Path) 
     assert rc == 1, f"a forged LOCAL floor lowered the gate under the same ruleset:\n{out}"
 
 
-def test_a_reseed_clears_the_block_when_the_ruleset_RAISED_the_count(repo: Path) -> None:
+def test_a_reseed_clears_the_block_when_the_ruleset_raised_the_count(repo: Path) -> None:
     """The direction the motivating incident actually took (youtube 01M1H0D5: 390 against a stored
     388 after a ruff release WIDENED a rule) — and the direction the first cut of the un-wedge did
     not handle. There the relief never fired, so the block stayed, the truthful "not comparable"
