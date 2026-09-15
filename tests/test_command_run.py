@@ -5804,6 +5804,10 @@ def test_every_live_ledger_row_that_reads_as_a_none_still_closes(tmp_path: Path)
         "lean: the ONE concrete edit to this command or a rule",
         "infra: the one concrete edit to this command or a rule",
         "manifesto: what in the command text was ambiguous or misleading",
+        # round 3: a none-word is a KEY here too, and the short-circuit that skipped this guard
+        # for it let the template close at rc 0 while the reader called it a placeholder
+        "none: the one concrete edit to this command or a rule",
+        "nothing: what in the command text was ambiguous or misleading",
     ],
 )
 def test_a_keyed_unbracketed_paste_is_still_a_paste(value: str) -> None:
@@ -5852,3 +5856,40 @@ def test_the_hint_never_tells_an_agent_to_replace_a_valid_axis() -> None:
     assert "change (unkeyed axis)" in missing, missing
     attempt = cr._change_axis_attempt("lean:")
     assert attempt is not None and attempt[0] in cr._CHANGE_AXES and not attempt[1]
+
+
+def test_the_hint_keeps_an_axis_the_agent_got_right() -> None:
+    """Round 3. `accurate:name the three artifacts` — a CORRECT axis whose colon merely lacks its
+    space — missed `_change_axis_attempt`'s whitespace test, so the "legal key" branch never fired
+    and the hint told the agent to re-file it under `lean`. That is worse than an unhelpful
+    message: it manufactures the single-axis skew that `_axis_tally` — the only counter-measure
+    the COBRA note names — exists to reveal, out of honest input."""
+    cr = _cr_module("hintax")
+    for axis in cr._CHANGE_AXES:
+        value = f"{axis}:name the three artifacts"
+        _, missing = cr._parse_usage_feedback(
+            f"confusion: none · waste: none · change: {value} · filed: none — surfaces exercised: p"
+        )
+        assert [m for m in missing if m.startswith("change")], (value, missing)
+        import re as _re
+
+        m = _re.match(r"^(\w+):(\S.*)$", value)
+        assert m and m.group(1).lower() in cr._CHANGE_AXES, value
+
+
+def test_the_hint_drops_a_pseudo_key_that_carries_a_space() -> None:
+    """`step 7:`, `phase B:`, `round 2:` all have an interior space, which a space-free pattern
+    could not match — so they were nested under `lean: ` instead of dropped, reproducing the very
+    defect the branch was added to prevent."""
+    import re
+
+    pat = re.compile(r"^(?:<[^>\n]{0,40}>|[^\s:][^:]{0,38})\s*:\s+(.+)$", re.S)
+    for value, want in (
+        ("step 7: print the mail id", "print the mail id"),
+        ("phase B: the brief is long", "the brief is long"),
+        ("<one of the seven>: cut step 7", "cut step 7"),
+    ):
+        m = pat.match(value)
+        assert m and m.group(1) == want, (value, m.group(1) if m else None)
+    # an ordinary verdict carrying a colon LATER is left exactly as written
+    assert pat.match("the doc at path:line is wrong") is None

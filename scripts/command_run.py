@@ -1448,8 +1448,16 @@ def _parse_usage_feedback(
             continue
         _raw = fields.get(_f) or ""
         if _f == "change":
-            if _change_is_none_value(_raw):
-                continue  # mirrors `_change_is_none`'s own precedence in the reader
+            # ⚠️ NO none short-circuit here, and that is the point. Round 2 added one "to mirror
+            # `_change_is_none`'s precedence in the reader" and it disabled this whole guard for
+            # any value whose first word is a none-word: `change: none: the one concrete edit to
+            # this command or a rule` closed at rc 0 and was stored, while the reader bucketed it
+            # `placeholder` — the template filed as a signed none, which is the class the loop's
+            # own agreement grader forbids. Its BRACKETED twin was refused the whole time, because
+            # `_is_placeholder` strips the `none:` key before its test; only the unbracketed path
+            # had the hole. Measured on removal: 30 values newly refused, every one a verbatim
+            # grammar clause behind a none-word, all 18 protected "nothing to change" wordings
+            # still closing, and 0 of 186 live ledger rows changed.
             _att = _change_axis_attempt(_raw)
             _cv = _att[1] if _att else " ".join(_raw.strip().lower().split())
         else:
@@ -3246,13 +3254,26 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
                     f"\n              (drop `{_attempt[0][:40]}` — it is not one of the seven)"
                 )
             else:
-                # a pseudo-key `_change_axis_attempt` cannot read — a bracketed meta-variable, or
-                # a token with a space in it — is DROPPED from the suggestion rather than nested
-                # under `lean: `. The pattern is deliberately narrow (a `<…>` group, or one
-                # space-free token) so an ordinary verdict carrying a colon (`the doc at
-                # path:line is wrong`) is left exactly as the agent wrote it.
-                _m = re.match(r"^(?:<[^>\n]{0,40}>|[^\s:]{1,30})\s*:\s+(.+)$", _shown, re.S)
-                _fix_line = f"\n  keyed:      change: lean: {_m.group(1) if _m else _shown}"
+                # ⚠️ A LEGAL axis whose colon simply lacks its space (`accurate:name the three
+                # artifacts`) misses `_change_axis_attempt`'s `rest[:1].isspace()` test, so branch
+                # (a) never fires and the old code told an agent who had identified the axis
+                # CORRECTLY to re-file it under `lean`. That is worse than an unhelpful hint: it
+                # manufactures the exact single-axis skew that `_axis_tally` — the only
+                # counter-measure the COBRA note names — exists to reveal. Checked FIRST.
+                _sp = re.match(r"^(\w+):(\S.*)$", _shown, re.S)
+                if _sp and _sp.group(1).lower() in _CHANGE_AXES:
+                    _fix_line = (
+                        f"\n  keyed:      change: {_sp.group(1).lower()}: {_sp.group(2)}"
+                        f"\n              (the axis is right — a colon needs a space after it)"
+                    )
+                else:
+                    # a pseudo-key `_change_axis_attempt` cannot read is DROPPED from the
+                    # suggestion rather than nested under `lean: `. The token alternative allows an
+                    # interior space (`step 7:`, `phase B:`, `round 2:` were all nested by a
+                    # space-free pattern) but no colon, so an ordinary verdict carrying a colon
+                    # later (`the doc at path:line is wrong`) is left exactly as written.
+                    _m = re.match(r"^(?:<[^>\n]{0,40}>|[^\s:][^:]{0,38})\s*:\s+(.+)$", _shown, re.S)
+                    _fix_line = f"\n  keyed:      change: lean: {_m.group(1) if _m else _shown}"
             _axis_hint = (
                 f"\n\n⚠️ `change:` is AXIS-KEYED — lead the value with ONE of "
                 f"{' | '.join(_CHANGE_AXES)} then a colon. The axis is the property of the COMMAND "

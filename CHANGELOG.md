@@ -99,6 +99,21 @@ All notable changes to this project will be documented in this file.
   tested `change` alone, so the whole grammar minus its angle brackets landed as three signed
   verdicts on the other fields. The refusal hint told an agent who wrote `change: lean:` to
   "replace `lean` — it is not one of the seven", two lines under a list containing `lean`.
+- **Round 3 confirmed two more, both of them round 2's own fixes contradicting their own comments.**
+  (a) The `continue` round 2 added "to mirror the reader's precedence" DISABLED its paste guard for
+  every value whose first word is a none-word, so `change: none: the one concrete edit to this
+  command or a rule` closed at rc 0 and was stored while the reader bucketed it `placeholder` — the
+  grammar template filed as a signed none, and the agent's real verdict for that run lost. Its
+  BRACKETED twin was refused the whole time, because `_is_placeholder` strips the `none:` key
+  before its own test; only the unbracketed path had the hole. Removing the short-circuit newly
+  refuses 30 values, every one a verbatim grammar clause behind a none-word, with all 18 protected
+  "nothing to change" wordings still closing and 0 of 186 live ledger rows changed.
+  (b) The refusal hint told an agent who wrote `change: accurate:name the three artifacts` — a
+  CORRECT axis whose colon merely lacked its space — to re-file it under `lean`, because the
+  missing space made `_change_axis_attempt` return None and the "legal key" branch never fired.
+  That manufactures the single-axis skew `_axis_tally` exists to reveal, out of honest input. And
+  the pseudo-key pattern could not match any token with an interior space (`step 7:`, `phase B:`),
+  so those were nested rather than dropped — the exact defect the branch was written to prevent.
 - ⚠️ The axis list is DUPLICATED (`command_run.py::_CHANGE_AXES` ↔ `command_feedback_report.py::AXES`):
   the first is fleet-synced to ~46 repos, the second is hub-only, so an import either way fails
   CLOSED in every project the day it lands. Two graders keep the copies and their classifiers in
