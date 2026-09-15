@@ -40,6 +40,14 @@ All notable changes to this project will be documented in this file.
   message aged past the 14-day threshold as the clock moved and began sweeping alongside the stale
   one. It passed when written and rotted on a calendar date. Pinned to `now`.
 
+**Phase H — the mail register worked against the live mailbox (2026-09-15).** 16 of 36 register ids
+still needed action; the moot and informational groups were already archived, so the plan's appendix
+was a dated snapshot and the tree was the truth. 8 T6 governance acks (each precondition verified in
+`CLAUDE.md` before the ack, not assumed), 8 fleet-beat routes to `@fleet`, and an audit of the four
+REFUTED-at-HEAD mails that found one reply genuinely missing — all four had been acked before their
+replies landed. `01M1T129A`'s finding no longer reproduces: the secret scan and the D-035 advisory
+both now precede `_publish`, and a credential-bearing body publishes zero files.
+
 ⚠️ **The secret-scanner carve above shipped WRONG and the review caught it within the hour.** The
 first cut used `(?<!trailers:)` — nine characters with NO left boundary — so `mytrailers:KEY=…`,
 `X-Trailers:KEY=…` (the pattern is `re.I`) and `https://internal/p/trailers:KEY=…` all carved. And

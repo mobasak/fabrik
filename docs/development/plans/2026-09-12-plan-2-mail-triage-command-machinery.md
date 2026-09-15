@@ -545,7 +545,7 @@ Whole-plan `/fabrik-review` (receipt `docs/development/reviews/2026-09-12-plan-2
 ### Phase G (T14) — executed 2026-09-15
 
 `path:line` grounding: `scripts/mail.py::_structure_gaps` (the header regex and the D-035 advisory
-text), `_SECRET_HIGH[1]` (the `(?<!trailers:)` carve), the `send` parser (`--body-file`, and the
+text), `_SECRET_HIGH[1]` and `_GIT_FMT_TOKEN` (the git-token carve — shipped as `(?<!trailers:)`, narrowed to `(?<!%\(trailers:)` by review round 1, and replaced outright in round 2 by a bounded same-length token blank, because no fixed-width lookbehind can be both wide enough for the real repo literals and narrow enough to refuse a credential), the `send` parser (`--body-file`, and the
 explicit `--body` refusal that closes the argparse prefix trap adding it created), and the third
 trailer trap in both `CLAUDE.md` and `templates/governance/CLAUDE.md`.
 
@@ -645,6 +645,42 @@ EOF
 $ ls /opt/fabrik-mail/fabrik/inbox/*.md | wc -l
 112
 ```
+
+### Phase H (T15) — executed 2026-09-15
+
+The register's routed / moot / informational lists, worked against the LIVE mailbox rather than
+against the plan's dated snapshot. Measured first: **16 of 36 register ids still needed action**;
+the moot (9) and informational (7) groups were already archived, so the appendix's counts were a
+snapshot and the tree was the truth.
+
+**8 T6 governance acks**, each with its precondition VERIFIED before the ack rather than assumed —
+T6.2's hunk-level guard (`Assert git diff-index --cached --numstat`, crucially "against `$base`,
+not `HEAD`") and T6.3's five `0 0` shapes ("Executed 2026-09-14 across five shapes",
+`mode change 100644 => 100755`) are both present in `CLAUDE.md`, and the template carries the hunk
+guard too. Three of the eight owed a reply before their ack and got one: `01M1RGRVT` (fabrik-lib)
+and `01M1RHJEY` (youtube), who independently filed the same class — that explicit pathspecs do NOT
+prevent bundling a sibling's work — and `01M20DXPT`, whose `0 0` blind-spot finding became the
+clause enumerating all five shapes.
+
+**8 fleet-beat routes** to `@fleet` (`01M1RSFQ6`, `01M1S2MNG`, `01M1SAAZA`, `01M20H4H0`,
+`01M20YBDF`, `01M1RPD62`, `01M1V15GR`, `01M1V1EJP`) — routed, not acked, because they are not this
+beat's to close.
+
+**The four REFUTED-at-HEAD replies audited, and one was genuinely missing.** All four had been
+acked before their replies landed — my error, recorded rather than quietly repaired. Checking the
+recipients' mailboxes for `re:` rather than trusting the archive state: three replies existed;
+`01M1T129A` (youtube) had none. Its finding — that the D-035 structure advisory fired AFTER
+publish, so a non-conforming message could not be corrected — no longer reproduces: measured at
+HEAD the secret scan (`:837`) and the advisory (`:846`/`:849`) both precede `_publish` (`:956`),
+and a credential-bearing body publishes **zero** files under a scratch mail root. `git log -S`
+attributes that placement to `aed5d45d`, the commit that introduced the contract, so the reply
+claims no credit for it.
+
+That finding's SYSTEMIC paragraph predicted this plan's own work: *"the same shape would apply to
+any check the mail machinery adds later (size, secret patterns, addressing) if it is placed on the
+same side of the publish."* All three were added in T14. Ordering held for all three — and the size
+check failed anyway, for an adjacent reason (`is_file()` is False for a FIFO), which is the half
+worth keeping: correct ordering was necessary and not sufficient.
 
 ## Self-audit
 

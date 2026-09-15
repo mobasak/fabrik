@@ -2221,3 +2221,21 @@ fail-silent-green class the enforcement corpus already tracks.
 **Shape of the fix:** emit a per-check `status` field, or document at the schema that the top-level
 counters are the only verdict. Ungraded either way today.
 
+## [infra] The phase-boundary review gate matches receipts by record ORDINAL while plans name them by LETTER, so a reviewed phase reads as unreviewed (2026-09-15, plan-2 Phase H step, found by a refused `command_run.py step`)
+
+`/fabrik-execute-plan`'s D4 gate refuses a step when "phase N has no review artifact", looking for a
+filename containing `phase-<N>`. Plans A/B/C name their receipts by LETTER
+(`…-phase-C-review.md`), which is the convention those phases actually shipped with. Phase C of
+plan-2 HAS a committed receipt and still read as unreviewed, because it is record-phase 1 and its
+filename says `phase-C`.
+
+The escape hatch works and was used honestly (`--review-waived` with the reason recorded), but a
+gate whose normal outcome on a correctly-reviewed phase is a waiver trains agents to waive. Phases
+E/F/G of the same plan carry BOTH (`phase-3-E`, `phase-4-F`, `phase-5-G`) and are read correctly,
+which is the accidental workaround rather than a documented convention.
+
+**Shape of the fix:** accept either spelling — match `phase-<ordinal>` OR `phase-<letter>` where the
+letter is the plan's Nth `## Phase <X>` heading — or state the dual-token naming
+(`phase-<ordinal>-<letter>`) in the receipt convention so it stops being folklore. Do NOT just widen
+to a bare `phase-.` glob: that makes any phase's receipt satisfy every phase.
+
