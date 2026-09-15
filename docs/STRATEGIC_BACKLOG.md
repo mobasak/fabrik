@@ -218,13 +218,19 @@ draws. Recorded here rather than left in a reply nobody greps.
    quiesce every session, finish destructive in-flight work, then relaunch — had to be asked for
    rather than read. Those three are the section.
 
-4. **fabrik-lib holds 2 of the 4 multi-agent artifacts, not 0** (T13.8, 01M1V59MK): both git-config
-   items are live; `.worktreeinclude` and the `.gitignore` `.claude/worktrees` line are absent, and
-   both ride the governance sync that structurally cannot reach a sync-EXCLUDED repo. Theirs to
-   add, or to declare deliberate in their CLAUDE.md — a hub agent editing another repo is a hard
-   stop. ⚠️ The general shape: a fleet claim of the form "N of N verified" is measured over the
-   SYNCED population, and a sync-excluded repo sits outside that denominator rather than inside it
-   and passing.
+4. **CLOSED by fabrik-lib — and the row asserting otherwise was stale when it was committed.**
+   T13.8 (01M1V59MK) measured 2 of 4 and the reply asked them to add the two file artifacts or
+   declare the exclusion deliberate. They added both: `fabrik-lib 371059f3`, *"add
+   .worktreeinclude and version the worktrees ignore rule — the two adoption artifacts the sync
+   cannot deliver here"*, committed **2026-09-15T03:09:44** — **four minutes before** the fabrik
+   commit (`51e6cfa7`, 03:13:54) that recorded them as absent. Re-verified live: all four present
+   (`.worktreeinclude`, `.gitignore:82`, `rerere.enabled=true`, `push.autoSetupRemote=true`).
+   ⚠️ TWO lessons, and the second is the one worth keeping. (a) A fleet claim of the form "N of N
+   verified" is measured over the SYNCED population, and a sync-excluded repo sits outside that
+   denominator rather than inside it and passing. (b) **A cross-repo measurement is stale the
+   moment another repo acts on it** — and here the mail asking them to act is what caused the
+   action, so the claim was racing a change it had itself set in motion. A cross-repo number gets
+   re-checked at WRITE time, not carried from when it was measured.
 
 5. **`isolation: "worktree"` cuts from origin/main** (T13.6, 01M1S5DGF) — harness behaviour, not
    ours to change; recorded so the next reader does not re-derive it.

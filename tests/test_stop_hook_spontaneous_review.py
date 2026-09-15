@@ -266,8 +266,13 @@ def test_edits_older_than_the_ledgers_birth_are_not_re_judged():
     assert epoch == 1788713768.0, (
         "pinned to ff887758's commit epoch — a moved epoch widens the hole"
     )
-    assert fgs._sixth_cause_floor(epoch - 100_000) == epoch, "an older baseline is raised"
-    assert fgs._sixth_cause_floor(epoch + 5) == epoch + 5, "a newer baseline stands"
+    # T5.4: the floor is now the LATEST of three bounds, so an exact equality against any one of
+    # them is stale by construction. What these two legs pin is the RELATION each bound carries.
+    assert fgs._sixth_cause_floor(epoch - 100_000) >= epoch, "an older baseline is raised"
+    import time as _t
+
+    monkeypatch_free_floor = fgs._sixth_cause_floor(_t.time() - 60)
+    assert abs(monkeypatch_free_floor - (_t.time() - 60)) < 5, "a newer baseline stands"
     # T5.4 (01M25Y93RB) replaced the no-baseline value: it used to BE the ledger epoch, which on a
     # resumed transcript kept months of edits. It is now a bounded window ending now — strictly
     # tighter, and this asserts the INVARIANT the old equality was standing in for, so a future
@@ -275,13 +280,15 @@ def test_edits_older_than_the_ledgers_birth_are_not_re_judged():
     no_baseline = fgs._sixth_cause_floor(0.0)
     assert no_baseline >= epoch, "the floor may never reach back past the ledger's birth"
     assert no_baseline <= time.time(), "the floor may never be in the future"
-    assert time.time() - no_baseline <= fgs._RESUMED_TRANSCRIPT_FALLBACK_S + 5, (
+    assert time.time() - no_baseline <= fgs._SIXTH_CAUSE_MAX_EDIT_AGE_S + 5, (
         "no baseline must still mean a BOUNDED window, never the whole transcript"
     )
-    mine = fgs._this_sessions_edits(
-        {"old.py": epoch - 1, "new.py": epoch + 1}, fgs._sixth_cause_floor(epoch - 100_000)
-    )
-    assert mine == {"new.py": epoch + 1}, "pre-ledger edit dropped, post-ledger edit judged"
+    # ⚠️ NOW-relative, because the floor's third bound slides: a fixture at the ledger's birth is
+    # two hundred days old and would be dropped by the AGE bound, proving nothing about the ledger
+    # bound this leg is named for. The relation is what matters — one edit either side of a floor.
+    floor = fgs._sixth_cause_floor(0.0)
+    mine = fgs._this_sessions_edits({"old.py": floor - 1, "new.py": floor + 1}, floor)
+    assert mine == {"new.py": floor + 1}, "below-floor edit dropped, above-floor edit judged"
 
 
 def test_the_ledger_floor_is_wired_at_the_sixth_causes_call_site():
@@ -463,6 +470,12 @@ def test_the_sixth_cause_counts_through_one_composed_reader(monkeypatch):
     otherwise T5.2's exemption could be deleted with a green suite (D-252 round 3's lesson: a
     fix whose wiring no test reaches is a fix nothing guards). All three filters are exercised."""
     monkeypatch.setattr(fgs, "_LEDGER_EPOCH", 0.0)
+    # ...and the AGE bound with it (T5.4). This fixture uses synthetic epoch-second
+    # timestamps (1000, 3000, 5500) to make the window arithmetic readable; the sliding
+    # `now - _SIXTH_CAUSE_MAX_EDIT_AGE_S` term would drop every one of them and the test
+    # would pass for a reason unrelated to its subject. Neutralised exactly as the ledger
+    # bound above is, so what remains under test is the window logic itself.
+    monkeypatch.setattr(fgs, "_SIXTH_CAUSE_MAX_EDIT_AGE_S", 1e12)
     rec = {
         "command": "fabrik-review",
         "state": "running",
@@ -524,6 +537,12 @@ def test_the_first_review_of_a_session_can_still_cover_work_that_preceded_it(mon
     SessionStart baseline's mtime — so the base case is applied here, once, as an ADDED window
     rather than a mutated pair."""
     monkeypatch.setattr(fgs, "_LEDGER_EPOCH", 0.0)
+    # ...and the AGE bound with it (T5.4). This fixture uses synthetic epoch-second
+    # timestamps (1000, 3000, 5500) to make the window arithmetic readable; the sliding
+    # `now - _SIXTH_CAUSE_MAX_EDIT_AGE_S` term would drop every one of them and the test
+    # would pass for a reason unrelated to its subject. Neutralised exactly as the ledger
+    # bound above is, so what remains under test is the window logic itself.
+    monkeypatch.setattr(fgs, "_SIXTH_CAUSE_MAX_EDIT_AGE_S", 1e12)
     base, edit, start, close = 1000.0, 2000.0, 9000.0, 9100.0
     authored = {"scripts/interrupted.py": int(edit)}
     done = {

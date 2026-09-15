@@ -101,3 +101,75 @@ def test_no_upstream_stays_indeterminate(tmp_path: Path) -> None:
     _git(work, "add", "a.py")
     _git(work, "commit", "-qm", "solo")
     assert hook._ahead_of_upstream(work, {"a.py"}) is None
+
+
+def test_a_shared_append_file_never_attributes_a_commit_on_its_own(tmp_path: Path) -> None:
+    """⚠️ THE HOLE THE FIRST CUT LEFT, and it was the common case rather than a corner.
+
+    `authored` is the WHOLE transcript with no time filter, so on a multi-day resumed session it
+    is every file the session ever touched — `CHANGELOG.md` included, because every task-end
+    writes one. A sibling's task-end commit (their own file PLUS the shared CHANGELOG entry) was
+    therefore attributed to any session that had ever touched CHANGELOG.md, which is all of them.
+    Executed on the live repo: 109 of the last 200 commits touch one of these names.
+
+    `_failure_cites_session` already carries this exact rule for the same reason — "every session
+    writes them" — so this is the house pattern applied to the cause that was missing it."""
+    repo = _repo_with_upstream(tmp_path)
+    (repo / "CHANGELOG.md").write_text("### Fixed — their entry\n")
+    (repo / "sibling_only.py").write_text("SIBLING = 1\n")
+    _git(repo, "add", "CHANGELOG.md", "sibling_only.py")
+    _git(repo, "commit", "-qm", "sibling task-end")
+
+    # this session wrote a CHANGELOG entry at some point; it never touched sibling_only.py
+    assert hook._ahead_of_upstream(repo, {"CHANGELOG.md"}) in (None, 0), (
+        "a sibling's commit was attributed to this session through the shared CHANGELOG"
+    )
+    assert hook._ahead_of_upstream(repo, {"CHANGELOG.md", "mine.py"}) == 0
+
+    # ...and a file that IS distinctively this session's still attributes, or the rule has simply
+    # switched the cause off
+    assert hook._ahead_of_upstream(repo, {"sibling_only.py"}) == 1
+
+
+def test_a_non_ascii_path_is_not_lost_to_quotepath(tmp_path: Path) -> None:
+    """git escapes a non-ASCII path (`"docs/caf\\303\\251.py"`) while `_session_files` stores it
+    decoded, so the push law went silent on exactly the file the session authored. `_dirty_paths`
+    already passes `core.quotePath=false` for the same reason."""
+    repo = _repo_with_upstream(tmp_path)
+    rel = "docs/café.py"
+    (repo / "docs").mkdir(exist_ok=True)
+    (repo / rel).write_text("CAFE = 1\n", encoding="utf-8")
+    _git(repo, "add", rel)
+    _git(repo, "commit", "-qm", "non-ascii")
+    assert hook._ahead_of_upstream(repo, {rel}) == 1, (
+        "the push law is silent on a non-ASCII path the session authored"
+    )
+
+
+def test_a_renamed_file_still_attributes_to_the_session_that_edited_it(tmp_path: Path) -> None:
+    """Rename detection prints only the NEW path, so a session that edited `a.py` with Edit and
+    then `git mv`-ed it in Bash attributed nothing. `--no-renames` prints both halves."""
+    repo = _repo_with_upstream(tmp_path)
+    _commit(repo, "a.py", "A = 1\n")
+    _git(repo, "mv", "a.py", "b.py")
+    _git(repo, "commit", "-qm", "rename")
+    assert hook._ahead_of_upstream(repo, {"a.py"}) >= 1, "the pre-rename name attributed nothing"
+
+
+def test_the_range_costs_one_subprocess_not_one_per_commit(tmp_path: Path, monkeypatch) -> None:
+    """The per-commit form cost ~3 ms each with a `timeout=15` PER COMMIT, so a git stalled on
+    `index.lock` — three sessions commit to this tree — gave a worst case of 15s x N inside a Stop
+    hook. Counted, not timed: a timing assertion on a shared box is a flake."""
+    repo = _repo_with_upstream(tmp_path)
+    for i in range(5):
+        _commit(repo, f"mine{i}.py", f"M = {i}\n")
+    calls: list[list[str]] = []
+    real = hook.subprocess.run
+
+    def counting(cmd, *a, **k):
+        calls.append(list(cmd))
+        return real(cmd, *a, **k)
+
+    monkeypatch.setattr(hook.subprocess, "run", counting)
+    assert hook._ahead_of_upstream(repo, {"mine0.py", "mine3.py"}) == 2
+    assert len(calls) == 1, f"{len(calls)} subprocesses for a 5-commit range: {calls}"

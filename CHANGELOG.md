@@ -35,7 +35,15 @@ Fourteen graders, each proven red on the mutation that removes its half. Six exi
 updated rather than weakened: three encoded the OLD floor value (`_LEDGER_EPOCH`) where the contract
 now says "bounded", two had fixtures anchored to that constant — one of which carried a comment
 warning about this exact hazard — and one pinned the call site's literal text, which `ruff format`
-reflowed minutes after it was written. 377 tests green across every Stop-hook suite.
+reflowed minutes after it was written.
+
+⚠️ **The test count this entry first carried — "377 tests green across every Stop-hook suite" — was
+unfounded and is retracted.** No population reproduces it; the review that followed could not find
+one either. The honest numbers, each with the command that produces it: the plan's own named gate
+for this phase (`pytest tests/test_stop_hook*.py tests/test_quota_stop_hook.py
+tests/test_selfwatch_check.py`) gives **132**, and every Stop-hook suite including the new
+headless-guard file gives **243**. A count whose population is unnamed is not a denominator; it is
+a number — this repo's own rule, broken by the entry asserting it.
 
 ### Fixed — round 4: 8 defects inside round 3's fixes, including a fail-open I shipped (2026-09-15)
 

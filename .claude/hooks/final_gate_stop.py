@@ -582,34 +582,63 @@ def _ahead_of_upstream(root: Path, authored: set[str] | None = None) -> int | No
     session behind someone else's work. With `authored` empty or None the count is indeterminate
     rather than "everything", for the same reason.
     """
+    # ⚠️ SHARED-APPEND NAMES NEVER ATTRIBUTE ON THEIR OWN — the same rule `_failure_cites_session`
+    # already applies, for the same reason: every session writes them. The first cut of this fix
+    # matched on the raw authored set, so a sibling's task-end commit (their own file PLUS the
+    # shared CHANGELOG entry) was attributed to any session that had touched `CHANGELOG.md` at any
+    # point in its transcript — which on a multi-day resumed session is all of them. Executed: a
+    # sibling commit of `['CHANGELOG.md', 'sibling_only.py']` against `authored={'CHANGELOG.md'}`
+    # returned 1, i.e. exactly the pre-fix behaviour the change claimed to remove, and it refuted
+    # this phase's own Behavior Contract. MEASURED on this repo: 109 of the last 200 commits touch
+    # one of these names, so the hole was the common case, not a corner.
+    # ⚠️ the None guard comes FIRST: `authored` is Optional and a set comprehension over None
+    # raises TypeError out of a Stop hook, which takes all six causes dark for the turn. Caught by
+    # `test_no_authored_set_is_indeterminate_never_everything` the minute it was introduced.
+    if not authored:
+        return None
+    distinctive = {f for f in authored if f not in _ROUTINE_GOVERNANCE}
     try:
-        if not authored:
+        if not distinctive:
             return None
+        # ONE subprocess for the whole range, not one per commit. The per-commit form cost ~3 ms
+        # each (measured 207 commits -> 0.67 s) with a `timeout=15` PER COMMIT, so a git stalled on
+        # `index.lock` — three sessions commit to this tree — gave a worst case of 15 s x N inside
+        # a Stop hook. `--no-renames` because rename detection prints only the NEW path, so a
+        # session that edited `a.py` and then `git mv`-ed it attributed nothing (executed).
+        # `core.quotePath=false` because git escapes a non-ASCII path (`"docs/caf\303\251.py"`)
+        # while `_session_files` stores it decoded, so the push law went silent on it entirely
+        # (executed) — `_dirty_paths` already passes this flag for the same reason.
         r = subprocess.run(
-            ["git", "rev-list", "@{upstream}..HEAD"],
+            [
+                "git",
+                "-c",
+                "core.quotePath=false",
+                "log",
+                "--no-renames",
+                "--name-only",
+                "--format=%H",
+                "@{upstream}..HEAD",
+            ],
             cwd=root,
             capture_output=True,
             text=True,
-            timeout=15,
+            timeout=30,
         )
         if r.returncode != 0:
             return None
-        shas = [s for s in r.stdout.split() if s]
-        if not shas:
-            return 0
-        mine = 0
-        for sha in shas:
-            f = subprocess.run(
-                ["git", "show", "--name-only", "--format=", sha],
-                cwd=root,
-                capture_output=True,
-                text=True,
-                timeout=15,
-            )
-            if f.returncode != 0:
-                return None  # cannot attribute → indeterminate, which never blocks
-            if any(line.strip() in authored for line in f.stdout.splitlines() if line.strip()):
-                mine += 1
+        mine, touched = 0, set()
+        for line in r.stdout.splitlines():
+            s = line.strip()
+            if not s:
+                continue
+            if len(s) == 40 and all(c in "0123456789abcdef" for c in s):
+                if touched & distinctive:
+                    mine += 1
+                touched = set()
+                continue
+            touched.add(s)
+        if touched & distinctive:
+            mine += 1
         return mine
     except Exception:
         return None
@@ -916,14 +945,14 @@ def _first_review_base_case(rec: object, floor: float) -> list[tuple[float, floa
     not. The bound this needs — the SessionStart baseline — exists only on this side, which is why
     the base case is applied here.
 
-    STATED COST, measured rather than assumed: when SessionStart's baseline file cannot be stat'd
-    `main` passes `session_floor = 0.0`, so the floor falls back to `_LEDGER_EPOCH` and one `done`
-    review then covers everything this session authored since the ledger was born. That is the
-    fail-open direction ON PURPOSE — without a baseline the hook already cannot separate this
-    session's work from a resumed transcript's (`_this_sessions_edits`'s own P1-3 filter is
-    disarmed in that state), and the alternative is the permanent block this fix exists to end
-    (01M21JAET). It is bounded by `_LEDGER_EPOCH` and by the review actually closing `done`; it is
-    written down here because an unstated fail-open is the class this phase is closing.
+    STATED COST, rewritten 2026-09-15 because T5.4 falsified both of its sentences and a stale
+    cost paragraph is worse than none — the next reader reasons from it. It used to say that a
+    missing baseline drops the floor to `_LEDGER_EPOCH` and that `_this_sessions_edits`'s filter is
+    disarmed in that state. Neither holds: `_sixth_cause_floor` now takes the MAX of the baseline,
+    `now - _SIXTH_CAUSE_MAX_EDIT_AGE_S` and the ledger's birth, so the filter is armed in every
+    state and the widest window this base case can grant is one day, not the ledger's whole life.
+    The fail-open direction is unchanged and still deliberate — this cause BLOCKS an exit, so its
+    failure mode must be letting a stop through rather than the permanent block of 01M21JAET.
 
     THE PREDICATE THIS FUNCTION EVALUATES, stated as the code reads rather than as a list of the
     writer's shapes — round 2 of this change's own review found the previous paragraph describing
@@ -981,31 +1010,47 @@ def _first_review_base_case(rec: object, floor: float) -> list[tuple[float, floa
     return [(lo_f, float(started))]
 
 
-# T5.4 (01M25Y93RB): how far back an edit may sit and still count as THIS session's when the
-# SessionStart baseline is missing. Without a bound the filter disarmed entirely and a resumed
-# transcript's ancient work counted as unreviewed — measured on the hub 2026-09-12: 20 code files
-# last edited 2026-06-04…06-16 reported as uncovered while a review record with 55 covered windows
-# was live. A day is generous for "this session" and kills the months-old case outright.
-# ⚠️ STATED COST: work authored more than a day ago in a genuinely long-lived session drops out of
-# this cause. That is the same fail-open direction the cause already takes by design — it BLOCKS an
-# exit, so its failure mode must be letting a stop through, never trapping a session behind edits
-# it cannot attribute — and it is bounded, unlike the disarmed state it replaces.
-_RESUMED_TRANSCRIPT_FALLBACK_S = 86_400.0
+# T5.4 (01M25Y93RB): the OLDEST an edit may be and still count as THIS session's work. Not a
+# fallback — it binds whether or not a SessionStart baseline exists, which is the correction the
+# Phase F review forced. The first cut applied it only when the baseline was MISSING, and the
+# reported shape is a RESUMED transcript, which HAS a baseline; it is merely old. Measured live:
+# this session's baseline was 135.3 h old, so a 2.5-day-old transcript entry for a file that was
+# committed and reviewed to `done` was reported as unreviewed work — and 87 of the 97 baselines on
+# this box are older than this window, so the mis-fire was the norm rather than a corner.
+# ⚠️ STATED COST, and it is a real one: work authored more than this window ago in a genuinely
+# long-lived session drops out of this cause permanently. `decide_review` RE-ARMS on warn-through
+# (executed: `decide_review(1, 3)` -> `('allow_warn_review', 0)`), so the status quo was not three
+# blocks but three blocks per stop-cycle for the session's whole life — a block that cries wolf is
+# one agents learn to warn through, which is its own hollowing-out. This is a widening of a PROXY
+# (edit timestamp vs covered window), not a fix of the predicate; the predicate fix is on the
+# writer side — `command_run.py` stamps `first_review_reach` only when the ledger was EMPTY, so a
+# session whose first command run was not a review can never cover its pre-first-command work.
+# ⚠️ THE CHEAPEST WAY TO SATISFY THIS WITHOUT THE OUTCOME (cobra-effect): wait a day, or end three
+# turns and let it warn through — neither of which reviews anything. That is why the block NAMES
+# the window and the files: an agent who waits it out should at least have to read what it was.
+_SIXTH_CAUSE_MAX_EDIT_AGE_S = 86_400.0
 
 
 def _sixth_cause_floor(session_floor: float) -> float:
-    """The floor the sixth cause judges from: the SessionStart baseline, raised to the ledger's
-    birth (`_LEDGER_EPOCH`). Edits before the ledger existed were adjudicated by the per-session
-    rule of their day and no ledger holds their closes — re-judging them can only re-block.
+    """The floor the sixth cause judges from: the LATEST of the SessionStart baseline, a bounded
+    edit-age window, and the ledger's birth. Edits before the ledger existed were adjudicated by
+    the per-session rule of their day and no ledger holds their closes — re-judging them can only
+    re-block; edits older than the window belong to a resumed transcript's history, not to the
+    work this stop is deciding about.
 
-    ⚠️ NO BASELINE IS NOT NO FLOOR. When SessionStart's baseline cannot be stat'd the caller
-    passes 0.0, and the filter used to keep EVERYTHING back to the ledger's birth — months, on a
-    resumed transcript. The fallback is a bounded window ending now, so the cause still judges
-    something real instead of judging a transcript's whole history."""
-    baseline = float(session_floor or 0.0)
-    if baseline <= 0.0:
-        baseline = time.time() - _RESUMED_TRANSCRIPT_FALLBACK_S
-    return max(baseline, _LEDGER_EPOCH)
+    ⚠️ ONE `max()`, THREE BOUNDS, and the age bound binds whether or not a baseline exists. The
+    first cut branched — bounded window when the baseline was missing, the raw baseline otherwise —
+    which is two implementations of one rule, and it left the REPORTED shape untouched: a resumed
+    transcript has a baseline, it is merely old. Collapsed here so there is one place to read.
+
+    The floor therefore SLIDES between stops. That is deliberate and it is why the block names the
+    window and the files: a verdict that changes on its own, silently, is indistinguishable from a
+    broken one."""
+    return max(
+        float(session_floor or 0.0),
+        time.time() - _SIXTH_CAUSE_MAX_EDIT_AGE_S,
+        _LEDGER_EPOCH,
+    )
 
 
 def _this_sessions_edits(authored: dict[str, int], session_floor: float) -> dict[str, int]:
@@ -1847,7 +1892,8 @@ def main(argv: list[str]) -> int:
                                 "decision": "block",
                                 "reason": (
                                     f"UNREVIEWED SPONTANEOUS WORK (attempt {v_att}/{CAP}). This "
-                                    f"session authored {_unreviewed} code file(s) OUTSIDE every "
+                                    f"session authored {_unreviewed} code file(s) edited in the "
+                                    f"last {int(_SIXTH_CAUSE_MAX_EDIT_AGE_S // 3600)}h and OUTSIDE every "
                                     "command run's covered window (before the first started, "
                                     "between runs, or after the last closed) — plain-chat work "
                                     "that skipped every review contract. "
