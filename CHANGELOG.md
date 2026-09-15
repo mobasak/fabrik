@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The mail claim lock came LAST in the contract, so two windows duplicated an outbound relay (2026-09-15)
+
+- **`mail.py claim` already existed and the contract never mentioned it.** Its docstring calls itself
+  "the honest claim-first-then-work verb" — the atomic inbox→archive rename with no disposition
+  written, loser gets ENOENT — and both governance files put `ack` LAST by construction. So the lock
+  correctly refused a duplicate ACK and did nothing about the duplicate SEND, which is the only part
+  the other repo sees. Reproduced live: two hub windows both handled one relay request and
+  brand-identiy-creator received the SAME relay twice, 40 seconds apart, before either ack ran
+  (`01M2J9C243WM`) — one of the two was mine. Both contracts now read **`claim` FIRST** → read →
+  validate → SIZE → do the work → review → reply → `ack`, with the reason and the reproduction cited.
+  The template ships to ~46 repos, so every multi-reader mailbox gets it.
+- **The Doc Sync Matrix promised more than the gate checks.** "File added/removed/renamed → INDEX.md"
+  reads as a mechanical duty for every file; `check_doc_index.py`'s scope is `docs/`-prefixed
+  markdown ONLY, so a new test, script or source file with no INDEX row passes green — three test
+  files slipped three green gates at web-ecommerce-factory (`01M2J9HKBHY7`). The row now states its
+  real enforcement scope and names the rest as judgment, per the table's own FLOOR rule.
+- **`claude-stop-decider.py`'s lock prune is per-entry** (operator-approved; the file is box-local,
+  tracked by no repo, and the mesh scripts are otherwise read-only to agents). `f.stat()` sat in the
+  try wrapping the WHOLE loop, so one entry vanishing between `iterdir()` and `stat()` — a concurrent
+  session releasing its own lock, the normal case here — aborted the prune and left every stale lock
+  behind it. Reproduced (6 stale, one vanishing at index 2: pruned 2, abandoned 3; after: 5 pruned,
+  0 survivors), backup in `~/.claude/bin/backups/`, recorded in `docs/workstation/hooks-index.md`
+  since the file itself cannot be committed.
+
 ### Fixed — `libs/competitor_intel` re-vendored: the us-column bug was live here for 18 days (2026-09-15)
 
 - **Our vendored copy was a pristine canonical snapshot of 2026-08-28** — seven files behind, not

@@ -21,6 +21,12 @@ it is gone from `git status` entirely. Verified 2026-09-15: `check_convergence` 
 staged state is never re-gated and the subject is checked at no moment at all. The NOTE improved the
 visibility and left the hole.
 
+⚠️ **fabrik-lib-dev1's stated preference is (c) — re-run the gate once after auto-staging** — for a
+shared-tree reason worth recording: (a) gating the staged set makes the check read a SHARED index
+that carries siblings' staged paths, and (b) a pre-commit hook fires per-commit on a tree three
+sessions commit into. (c) keeps the subject the session's own post-stage state. Their preference,
+not mine, and they found the hole.
+
 Not fixed as a drive-by on purpose: narrowing the `??` skip changes the FAIL DIRECTION of a
 fleet-synced check across ~46 repos, and the skip exists because the alternative reds every session
 on a sibling's in-flight draft. The shapes worth weighing: gate the staged set explicitly (`git
