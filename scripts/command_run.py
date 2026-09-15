@@ -557,7 +557,13 @@ def _round_report(rec: dict[str, Any]) -> str:
         _trend_series(rounds),
         str(rec.get("command") or ""),
         _trend_label(rounds),
-        deltas=[r.get("delta") if isinstance(r, dict) else None for r in rounds],
+        # ⚠️ SAME filter as `_trend_series`, which drops non-dict rows. Mapping over the
+        # unfiltered list made the two lengths differ, the `len(deltas) == len(series)`
+        # guard fail, and the delta stand-down silently switch OFF: executed, five rounds
+        # all carrying delta=5 stayed silent, and the same five plus ONE junk row fired
+        # NON-CONVERGENCE. Advisory-only and fail-loud, so it traps nobody — but it is a
+        # hole in a guard this plan added.
+        deltas=[r.get("delta") for r in rounds if isinstance(r, dict)],
     )
     if warn:
         lines.append(warn)

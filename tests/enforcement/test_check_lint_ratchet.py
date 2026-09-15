@@ -307,3 +307,65 @@ def test_a_rise_in_the_callers_own_file_is_marked_as_theirs(repo: Path) -> None:
     assert "src/mine.py" in out
     assert "in YOUR diff" in out
     assert "none of the offending files is in your diff" not in out
+
+
+def test_a_reseed_clears_the_block_before_the_commit(repo: Path) -> None:
+    """The remedy the version-mismatch branch prints must be FOLLOWABLE.
+
+    Two correct changes interacted into an unsatisfiable gate: `_baseline_payload` reads
+    `git show HEAD:<rel>` so a local edit cannot lower the committed floor, and the mismatch
+    branch returns 1 so a ruleset change cannot be absorbed silently. Together, executed:
+
+        run 1 plain     -> rc 1, "re-seed explicitly with `… --reseed`"
+        run 2 --reseed  -> rc 0, writes and stages the working tree
+        run 3 plain     -> rc 1   (identical — the read is HEAD-bound)
+        run 4 git add   -> rc 1   (`git show HEAD:` is blind to the index)
+
+    The completion contract requires a green gate BEFORE the commit, so the only exit was to
+    commit while red — in every repo carrying this synced check, the moment its baseline gains a
+    `ruff_version` key. `_write_baseline` writes that key on every seed, so the immune repos arm
+    themselves on their next write.
+    """
+    _set_errors(repo, 0)
+    (repo / ".fabrik").mkdir(exist_ok=True)
+    (repo / ".fabrik" / "lint-baseline.json").write_text(
+        '{"ruff_errors": 0, "ruff_version": "0.0.1-OLD"}\n', encoding="utf-8"
+    )
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "committed baseline"], cwd=repo, check=True)
+
+    rc, _ = _run(repo)
+    assert rc == 1, "a ruleset change must not be absorbed silently"
+
+    rc, _ = _run(repo, "--reseed")
+    assert rc == 0
+
+    rc, out = _run(repo)
+    assert rc == 0, f"the re-seed did not clear the block — the remedy is unfollowable:\n{out}"
+    assert "NOT COMMITTED" in out, out
+
+
+def test_the_count_floor_is_still_head_bound_after_the_version_unwedge(repo: Path) -> None:
+    """The MIRROR of the fix above: only the VERSION may consult the working tree. If the COUNT
+    floor followed it, a local edit could raise the floor and wave real debt through — which is
+    the whole reason `_baseline_payload` reads HEAD."""
+    _set_errors(repo, 0)
+    (repo / ".fabrik").mkdir(exist_ok=True)
+    (repo / ".fabrik" / "lint-baseline.json").write_text(
+        '{"ruff_errors": 0, "ruff_version": "0.0.1-OLD"}\n', encoding="utf-8"
+    )
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "floor 0"], cwd=repo, check=True)
+
+    _set_errors(repo, 3)  # real debt, above the committed floor of 0
+    # forge a permissive LOCAL floor AND a matching version (so the unwedge path is taken)
+    live = _run(repo, "--reseed")  # normalises the version to the live one
+    assert live[0] == 0
+    (repo / ".fabrik" / "lint-baseline.json").write_text(
+        (repo / ".fabrik" / "lint-baseline.json").read_text(encoding="utf-8").replace(
+            '"ruff_errors": 3', '"ruff_errors": 999'
+        ),
+        encoding="utf-8",
+    )
+    rc, out = _run(repo)
+    assert rc == 1, f"a forged LOCAL floor lowered the gate:\n{out}"

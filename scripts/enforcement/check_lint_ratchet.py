@@ -243,6 +243,35 @@ def _baseline_payload() -> dict | None:
         return None
 
 
+def _worktree_baseline_version() -> str | None:
+    """The version recorded in the WORKING-TREE baseline, ignoring HEAD.
+
+    ⚠️ THIS EXISTS TO UN-WEDGE THE GATE, and the wedge was real: `_baseline_payload` reads
+    `git show HEAD:<rel>` so a local edit cannot lower the committed floor — correct — and the
+    version-mismatch branch returns 1 so a ruleset change cannot be absorbed silently — also
+    correct. Together they were unsatisfiable. Executed on a throwaway repo:
+
+        run 1 plain     -> rc 1, "re-seed explicitly with `… --reseed`"
+        run 2 --reseed  -> rc 0, writes and stages the working tree
+        run 3 plain     -> rc 1   (identical: the read is HEAD-bound)
+        run 4 git add   -> rc 1   (`git show HEAD:` is blind to the index)
+
+    The completion contract requires a green gate BEFORE the commit, so the only exit was to
+    commit while red — in every repo carrying the synced check, the moment its baseline gains a
+    `ruff_version` key. The COUNT floor stays HEAD-bound; only the VERSION consults the working
+    tree, so a re-seed clears the block immediately while CI still reads the committed floor."""
+    try:
+        import json as _json
+
+        data = _json.loads(BASELINE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    v = data.get("ruff_version")
+    return str(v) if v else None
+
+
 def _read_baseline_version() -> str | None:
     data = _baseline_payload()
     if not isinstance(data, dict):
@@ -300,6 +329,15 @@ def main() -> int:
 
     baseline = _read_baseline()
     stored_version, live_version = _read_baseline_version(), _ruff_version()
+    # ⚠️ A RE-SEED MUST CLEAR THE BLOCK BEFORE THE COMMIT, or the remedy this branch prints is
+    # unfollowable — see `_worktree_baseline_version`. The count floor is untouched by this.
+    _local_version = _worktree_baseline_version()
+    if stored_version != live_version and _local_version == live_version:
+        print(
+            f"NOTE: lint-ratchet — the re-seed under ruff {live_version} is written but NOT "
+            "COMMITTED; commit .fabrik/lint-baseline.json or CI still holds the old floor."
+        )
+        stored_version = _local_version
     if baseline is not None and stored_version and live_version and stored_version != live_version:
         # A ruleset change is not debt — but it is not nothing either, and it must not be absorbed
         # SILENTLY. The old behaviour re-seeded at the current count and passed, which meant the
@@ -379,7 +417,13 @@ def main() -> int:
     if current < baseline:
         if not check_only:
             _write_baseline(current)
-            print(f"lint-ratchet: ratcheted DOWN {baseline} → {current}. New floor committed.")
+            # ⚠️ "committed" was always inaccurate — this WRITES and `git add`s — and since the
+            # baseline read became HEAD-bound it also repeats on every run until someone
+            # actually commits, which is the opposite of the reassurance it offers.
+            print(
+                f"lint-ratchet: ratcheted DOWN {baseline} → {current}. New floor written and "
+                "staged — commit .fabrik/lint-baseline.json to move the floor CI reads."
+            )
         else:
             print(
                 f"lint-ratchet: OK — {current} ≤ baseline {baseline} (would tighten to {current})."

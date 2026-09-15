@@ -40,6 +40,39 @@ All notable changes to this project will be documented in this file.
   message aged past the 14-day threshold as the clock moved and began sweeping alongside the stale
   one. It passed when written and rotted on a calendar date. Pinned to `now`.
 
+**Finish — round 4: the closing round re-swept the PLAN's surface and found a fleet-wide gate
+wedge (2026-09-15).** The D-252 stop had fired on rounds 2 and 3, and its exit sentence says to
+close on the ORIGINAL delta's state. So round 4 was scoped back to the plan's own work rather than
+the review's fixes — and only 1 of its 4 confirmed defects was own-fix, which is the evidence that
+re-scoping was right.
+
+**A ruff version bump wedged the completion gate in every fleet repo, and the remedy the error
+printed could not clear it.** Two Phase E changes, each correct alone: the baseline became
+HEAD-bound (so a local edit cannot lower the committed floor) and a version mismatch became
+`return 1` (so a ruleset change cannot be absorbed silently). Together, executed:
+
+    run 1 plain     -> rc 1, "re-seed explicitly with `… --reseed`"
+    run 2 --reseed  -> rc 0, writes and stages the working tree
+    run 3 plain     -> rc 1   (identical — the read is HEAD-bound)
+    run 4 git add   -> rc 1   (`git show HEAD:` is blind to the index)
+
+The contract requires a green gate BEFORE the commit, so the only exit was to commit while red.
+17 baselines exist under `/opt/*`; 15 carry no `ruff_version` key yet and so arm themselves on
+their next write. Fixed: the COUNT floor stays HEAD-bound, only the VERSION consults the working
+tree, and a re-seed now clears the block while printing that it is not yet committed. Both the fix
+and its mirror — a forged local floor must still red — ship with graders.
+
+- **`"New floor committed."` was printed forever and nothing was committed** — the same HEAD-bound
+  read made a message that was already inaccurate repeat on every run.
+- **One malformed round row silently disabled the delta stand-down**: `_round_report` mapped over
+  the unfiltered rounds while `_trend_series` filtered non-dicts, so the length guard failed and
+  the oscillation advisory fired on a loop it should have excused.
+- **The cobra comment's bound was false.** It claimed the blind region "ends at the paren"; a
+  13-character token straddling the SEPARATOR leaves the credential outside the parens entirely
+  (`KEY%(trailers:=)<secret>` → `None`). ⚠️ Adding `\bkey\b` as a `_SECRET_LOW` backstop was
+  MEASURED AND REJECTED — it fires on 405 of 4,789 live mail files, 8% of all traffic, which is
+  wallpaper. The claim was corrected instead, and the rejection recorded with its measurement.
+
 **Finish — round 3: 14 confirmed, and the D-252 stop fired (2026-09-15).** Two fresh seats over
 round 2's 310-line delta. Every confirmed defect was again inside the review's own fix, so the
 counted stop fired on rounds 2 and 3 (10/10 → 14/14).

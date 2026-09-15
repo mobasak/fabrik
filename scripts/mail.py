@@ -227,10 +227,22 @@ _SECRET_LOW = _re.compile(r"\b(?:password|passwd|pwd|secret|token|credential|api
 # `Agent-Role,`, not by `%(trailers:`, so the lookbehind never applied.
 # ⚠️ The closing paren is REQUIRED, which makes an unterminated token fail CLOSED: the text
 # is left intact, the scanner reads it, and the send is refused. A real token always closes.
-# ⚠️ CHEAPEST WAY TO SATISFY THIS WITHOUT THE OUTCOME (cobra-effect): wrap a real credential
-# as `%(trailers:KEY=<secret>)`, closing paren included, to be blanked before the scan. That
-# is a deliberate act, not an accident, and it is bounded — the blind region now ENDS at the
-# paren, where the lookbehind's blind region ran to the end of the value.
+# ⚠️ CHEAPEST WAY TO SATISFY THIS WITHOUT THE OUTCOME (cobra-effect): place a closed
+# `%(trailers:…)` token so that the scanner loses the credential. A deliberate act, never an
+# accident — but ⚠️ THE BOUND IS THE TOKEN'S SPAN WHEREVER IT SITS, not "the value inside the
+# parens", and an earlier cut of this comment claimed the latter. Executed at HEAD: a 13-char
+# token straddling the SEPARATOR leaves the credential entirely outside the parens and still
+# defeats the assignment pattern —
+#     KEY%(trailers:=)Zx82Kf9mQpLr7TAAAA        -> None   (delivered)
+#     AUTH_KEY%(trailers::)Zx82Kf9mQpLr7TAAAA   -> None
+#     PASSWORD%(trailers:=)Zx82Kf9mQpLr7TAAAA   -> low    (only `password` has a LOW backstop)
+# `KEY` is the one assignment keyword with no `_SECRET_LOW` counterpart (`api[_-]?key`, not bare
+# `key`), so that shape scores None rather than low.
+# ⚠️ ADDING `\bkey\b` TO `_SECRET_LOW` WAS MEASURED AND REJECTED (FIX DIRECTIVE 5): it fires on
+# 405 of 4,789 files in the live mail store — 8% of all traffic — which is wallpaper, and
+# wallpaper is how enforcement dies. A vendor-signature credential (`sk-`, `ghp_`, `AKIA`, a
+# DSN, a JWT, a PEM header) is caught wherever it sits, spliced or not, because every pattern
+# reads the stripped copy; only the bare `KEY=<value>` shape has this residual.
 _GIT_FMT_TOKEN = _re.compile(r"%\(trailers:[^)\n]*\)", _re.I)
 
 # Path-safety: a repo/recipient token is a single /opt directory name; a msg id is a
