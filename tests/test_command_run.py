@@ -5151,6 +5151,11 @@ def test_axis_list_is_pinned_to_the_report_reader() -> None:
         "lean:",
         "step 7: print the id",
         "accurate: name the three artifacts",
+        # the UNBRACKETED paste — the one shape of 59 where the two classifiers disagreed, found
+        # by an author-blind seat running the property over shapes the 7-case list did not carry
+        "the ONE concrete edit to this command or a rule",
+        "what in the command text was ambiguous or misleading",
+        "> lean: <the ONE concrete edit…>",
     ],
 )
 def test_gate_and_queue_reader_agree_on_every_shape(value: str) -> None:
@@ -5159,10 +5164,21 @@ def test_gate_and_queue_reader_agree_on_every_shape(value: str) -> None:
     other) drift silently otherwise — the close says fine, the queue says unkeyed, and the row is
     invisible to the loop that exists to answer it."""
     report = _load("cfr_agree", _SCRIPT.parent / "command_feedback_report.py")
-    refused = bool(_axis_missing(f"ax8{value}", value))
+    cr = _cr_module(f"ax8{abs(hash(value)) % 9999}")
+    _, missing = cr._parse_usage_feedback(
+        f"confusion: none · waste: none · change: {value} · filed: none — "
+        "surfaces exercised: command_run.py"
+    )
+    # ANY refusal of the `change:` field, not just an axis-labelled one. WHICH label the gate uses
+    # is cosmetic — a refused value never reaches the ledger, so the reader never sees it. The
+    # invariant that matters runs the other way: nothing the gate ACCEPTS may be unkeyable by the
+    # reader, or the loop's queue carries a row it can never sort or answer.
+    refused = any(m.startswith("change (") for m in missing)
     bucket = report._axis_of(value)
-    unkeyable = bucket in ("unkeyed", "bad-axis") and not report._change_is_none(value)
-    assert refused == unkeyable, (value, bucket, refused)
+    unkeyable = bucket in ("unkeyed", "bad-axis", "placeholder") and not report._change_is_none(
+        value
+    )
+    assert refused == unkeyable, (value, bucket, refused, missing)
 
 
 def test_the_axis_cutover_is_in_the_past() -> None:
@@ -5530,3 +5546,100 @@ def test_the_axis_gate_is_change_scoped_even_for_a_filed_value_that_is_not_axis_
         "filed: mailer 01M2ABCDEF"
     )
     assert not [m for m in missing if "axis" in m], missing
+
+
+def test_the_grammar_phrase_list_is_pinned_to_the_report_reader() -> None:
+    """The THIRD drift grader across the sync boundary (axes, ts-key, and now the grammar
+    phrases). `command_run.py` is fleet-synced and `command_feedback_report.py` is hub-only, so
+    neither may import the other; a phrase reworded in one copy silently empties the other's
+    placeholder bucket."""
+    cr = _cr_module("gp")
+    report = _load("cfr_phrases", _SCRIPT.parent / "command_feedback_report.py")
+    assert tuple(cr._GRAMMAR_PHRASES) == tuple(report._GRAMMAR_PHRASES)
+    # the none vocabulary is the FOURTH thing duplicated across the sync boundary (axes, ts-key,
+    # grammar phrases, and this). Teaching one side that `none: <why>` is honest and not the other
+    # put 155 of 565 shapes into disagreement in one edit.
+    assert tuple(cr._NONE_WORDS) == tuple(report._NONE_WORDS)
+    assert cr._NONE_SEPARATORS == report._NONE_SEPARATORS
+    # and the two whole-value classifiers must agree shape for shape
+    for value in (
+        "none",
+        "none.",
+        "none: why",
+        "none: <the ONE concrete edit…>",
+        "none of the axes fit",
+        "nothing in step 3 works",
+        "n/a",
+        "-",
+        "- lean: x",
+        "",
+    ):
+        assert cr._is_none_head(value) == report._is_none_whole(value), value
+
+
+def test_nothing_the_gate_accepts_is_unkeyable_by_the_reader() -> None:
+    """The property SWEPT, not sampled. An author-blind seat ran 59 shapes and found the one
+    disagreement the 7-case parametrize could not; this sweeps a generated corpus so the next
+    divergence is caught by construction rather than by someone thinking of the right example."""
+    cr = _cr_module("sweep")
+    report = _load("cfr_sweep", _SCRIPT.parent / "command_feedback_report.py")
+    bodies = [
+        "cut step 7",
+        "none",
+        "",
+        "<the ONE concrete edit…>",
+        "a, b",
+        "see https://x/y — fix",
+        r"c:\users\x is wrong",
+        "T00: a, T01: b",
+    ]
+    keys = [
+        "",
+        "lean",
+        "banana",
+        "Lean",
+        "LEAN",
+        "none",
+        "nothing",
+        "n/a",
+        "step 7",
+        "**lean**",
+        "`lean`",
+        "lean ",
+        "infra",
+        "manifesto",
+    ]
+    decorations = ["", "> ", "- ", "*", "  "]
+    shapes = {
+        f"{d}{k}{':' if k else ''}{' ' if k and b else ''}{b}"
+        for d in decorations
+        for k in keys
+        for b in bodies
+    }
+    shapes |= {
+        "none of the axes fit — step 3 must dispatch",
+        "nothing in step 3 works — rewrite it",
+        "the ONE concrete edit to this command or a rule",
+        "lean:",
+        "-",
+        "none.",
+    }
+    disagreements = []
+    for value in sorted(shapes):
+        _, missing = cr._parse_usage_feedback(
+            f"confusion: none · waste: none · change: {value} · filed: none — "
+            "surfaces exercised: command_run.py"
+        )
+        # an EMPTY value is a missing field, a different defect with its own label and message
+        if "change" in missing:
+            continue
+        refused = any(m.startswith("change (") for m in missing)
+        bucket = report._axis_of(value)
+        unkeyable = bucket in ("unkeyed", "bad-axis", "placeholder") and not report._change_is_none(
+            value
+        )
+        if refused != unkeyable:
+            disagreements.append((value, bucket, refused))
+    assert not disagreements, (
+        f"{len(disagreements)} of {len(shapes)} shapes disagree: {disagreements[:8]}"
+    )

@@ -470,11 +470,14 @@ def _change_is_none(value: str) -> bool:
     """
     text = (value or "").strip()
     head, sep, rest = text.partition(":")
-    # the SAME key-attempt shape `_axis_of` uses — one alphabetic word, a colon, then whitespace —
-    # or the two helpers disagree about `lean:none` (`unkeyed` there, `none` here) and the row
-    # leaves the tally while being booked as "nothing to change"
+    # ⚠️ MIRRORS `command_run.py::_is_none_head` + `_change_is_none_value`, and the mirror is the
+    # point: the close gate learned that `change: none: the command text is fine` is an honest
+    # none (it had been REFUSING it as an `unknown axis`, wedging the turn), and without the same
+    # rule here the reader buckets that row `unkeyed` and offers it to `/fabrik-command-improve`
+    # as actionable work. Caught by the property sweep — 155 of 565 shapes disagreed the moment
+    # the gate side changed alone (review round 1).
     if sep and not (rest == "" or rest[:1].isspace()):
-        return _is_none(text)
+        return _is_none_whole(text)
     # only strip a key that actually has a verdict behind it: `lean:` with nothing after it is a
     # MALFORMED verdict, not a claim that nothing needed changing, and stripping it would report
     # the malformation as compliance — the two helpers would then disagree about the same row
@@ -482,7 +485,42 @@ def _change_is_none(value: str) -> bool:
     # tally altogether
     if sep and head.strip().lower() in AXES and rest.strip():
         text = rest
-    return _is_none(text)
+    return _is_none_whole(text)
+
+
+# Mirrors `command_run.py::_NONE_WORDS` / `_NONE_SEPARATORS`; pinned by a drift grader. Longest
+# first, so `nothing` is tested before `none`.
+_NONE_WORDS = ("nothing", "none", "n/a", "-")
+_NONE_SEPARATORS = frozenset(":,;.—–(|")
+
+
+def _is_none_whole(value: str) -> bool:
+    """Is the WHOLE value a none verdict — not merely a value that STARTS with one?
+
+    `none of the axes fit — step 3 must dispatch` is a real verdict whose first word happens to be
+    `none`; the shared :func:`_is_none` reads the first token only and books it as "nothing to
+    change", which on the CLOSE side was the cheapest bypass of the axis gate. Kept SEPARATE from
+    `_is_none` deliberately: that one also gates `confusion:` and `waste:`, which carry no axis key
+    and whose published statistics would shift under a stricter rule.
+    """
+    stripped = (value or "").strip()
+    if not stripped:
+        return True
+    low = stripped.lower()
+    for word in _NONE_WORDS:
+        if not low.startswith(word):
+            continue
+        rest = low[len(word) :].lstrip()
+        if not rest or rest.rstrip(".,;:") == "":
+            return True
+        if rest[:1] not in _NONE_SEPARATORS:
+            return False
+        # ⚠️ and what follows the separator must be a JUSTIFICATION, not the grammar's own
+        # bracketed template: `none: <the ONE concrete edit…>` is a paste wearing a none prefix,
+        # and reading it as an honest none would let a template into the ledger as a signed
+        # verdict (property sweep, review round 1)
+        return not rest[1:].strip().startswith("<")
+    return False
 
 
 def _is_none(value: str) -> bool:

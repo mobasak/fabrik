@@ -35,6 +35,22 @@ All notable changes to this project will be documented in this file.
   close-time trigger would count an answered row forever: a number that can never fall, which is
   the wallpaper the trigger exists to avoid. Found by executing the round-trip across three JSON
   spellings, not by reading it. `_ts_key` normalises both sides; graded red-on-revert.
+- **Round 1 of the heavy review found 28 defects in the above, and every fail-open it found was in
+  code written the same day to close a different fail-open.** The sharpest: `--commit=--all` was an
+  argv injection into `git show`, so it walked every ref, matched a corpus path and marked an ENTIRE
+  queue answered at rc 0 with zero edits — the cobra counter-measure beaten by nine characters, now
+  anchored with `rev-parse --verify --end-of-options` and storing the resolved 40-char sha. And the
+  axis gate's own cheapest bypass: `_is_none_head` read the first whitespace token, so
+  `change: none of the axes fit — step 3 must dispatch` was booked as nothing-to-change, passing the
+  gate AND vanishing before `_axis_tally` — the reader the COBRA NOTE names as the counter-measure —
+  could see it. Its mirror refused the honest `change: none: <why>` and wedged the turn.
+- Also fixed: `GIT_DIR` overriding `--repo`; `--ledger` scoping every mode except the writing one,
+  making live-state pollution the default; a buffered append reporting `0 written` while 44 rows had
+  landed; `startswith` accepting `CLAUDE.md.backup.<date>`, the exact name this contract mandates for
+  backups; one handle silencing every row sharing a `ts`; a FIFO ledger blocking the close inside the
+  record lock. Six graders were vacuous under mutation and `main()`'s whole hunk had zero tests —
+  which is exactly why the `--ledger` leak was invisible to 97 passing tests. The 7-case property
+  list is now a 565-shape sweep, and it immediately caught drift the round-1 fix itself introduced.
 - ⚠️ The axis list is DUPLICATED (`command_run.py::_CHANGE_AXES` ↔ `command_feedback_report.py::AXES`):
   the first is fleet-synced to ~46 repos, the second is hub-only, so an import either way fails
   CLOSED in every project the day it lands. Two graders keep the copies and their classifiers in

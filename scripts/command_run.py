@@ -1205,10 +1205,6 @@ def _change_is_none_value(value: str) -> bool:
     nothing needed changing, and stripping it would report the malformation as compliance."""
     text = (value or "").strip()
     head, sep, rest = text.partition(":")
-    # `none: <why>` is an honest none, not a key attempt on an axis called `none` — decided BEFORE
-    # the axis branch or `_change_axis_verdict` reads it as `unknown axis` and refuses the close
-    if sep and head.strip().lower().rstrip(".,;") in _NONE_WORDS:
-        return True
     if sep and not (rest == "" or rest[:1].isspace()):
         return _is_none_head(text)
     if sep and head.strip().lower() in _CHANGE_AXES and rest.strip():
@@ -1249,7 +1245,13 @@ def _is_none_head(value: str) -> bool:
         rest = low[len(word) :].lstrip()
         if not rest or rest.rstrip(".,;:") == "":
             return True
-        return rest[:1] in _NONE_SEPARATORS
+        if rest[:1] not in _NONE_SEPARATORS:
+            return False
+        # ⚠️ and what follows the separator must be a JUSTIFICATION, not the grammar's own
+        # bracketed template: `none: <the ONE concrete edit…>` is a paste wearing a none prefix,
+        # and reading it as an honest none would let a template into the ledger as a signed
+        # verdict (property sweep, review round 1)
+        return not rest[1:].strip().startswith("<")
     return False
 
 
@@ -1280,6 +1282,21 @@ def _change_axis_verdict(value: str) -> str | None:
     if not body:
         return "unkeyed axis"  # `lean:` with nothing after it keys nothing
     return None if key in _CHANGE_AXES else "unknown axis"
+
+
+# The grammar's whole clauses, as they appear when a template is pasted WITHOUT its angle
+# brackets. ⚠️ Mirrors `command_feedback_report.py::_GRAMMAR_PHRASES` (duplicated across the
+# sync boundary like `_CHANGE_AXES`, and pinned equal by a drift grader). LONG clauses on purpose:
+# the short noun phrases below are ordinary English a genuine verdict ABOUT the close-out grammar
+# uses in its own sentence, and this loop's verdicts are exactly about that grammar. A paste
+# reproduces a whole clause; a verdict borrows three words and then says something.
+_GRAMMAR_PHRASES = (
+    "the one concrete edit to this command or a rule",
+    "what in the command text was ambiguous or misleading",
+    "steps, turns or tokens spent without",
+    "surfaces exercised: <what your run touched",
+    "mail id(s) to infra|fleet|intel | none",
+)
 
 
 _GRAMMAR_NOUNS = (
@@ -1415,6 +1432,15 @@ def _parse_usage_feedback(
     # T3.4 (backlog F25/F26): a value pasted verbatim from the grammar — `<…>` — names nothing;
     # it is refused as a placeholder, by label, so the grammar string cannot pass its own parser
     placeholders = [f for f in _USAGE_FIELDS if _is_placeholder(fields.get(f), f)]
+    # the UNBRACKETED paste: `_is_placeholder` anchors on `<…>`, so a template whose angle
+    # brackets were dropped reached the axis test and was labelled `unkeyed axis` while the queue
+    # reader bucketed it `placeholder`. Same refusal, different name — and the drift is exactly
+    # what the two classifiers' agreement grader exists to forbid (review round 1).
+    if "change" not in placeholders:
+        _cv = " ".join((fields.get("change") or "").strip().lower().split())
+        _cv = _cv.lstrip("> -*\"'`(")
+        if any(_cv.startswith(_ph) for _ph in _GRAMMAR_PHRASES):
+            placeholders.append("change")
     missing += [f"{f} (placeholder)" for f in placeholders]
     # THE AXIS GATE — `change:` only, and only on a value that is not already the grammar's own
     # template. The precedence MIRRORS the report's `_axis_of`, which decides `placeholder` before
