@@ -52,6 +52,14 @@ def _set_errors(repo: Path, n: int) -> None:
     subprocess.run(["git", "commit", "-qm", "x"], cwd=repo, check=True)
 
 
+def _ruff_version_for_test() -> str:
+    """The live ruff version as the CHECK sees it — `sys.executable -m ruff`, never bare python3."""
+    out = subprocess.run(
+        [sys.executable, "-m", "ruff", "--version"], capture_output=True, text=True, check=True
+    ).stdout.strip()
+    return out.split()[-1]
+
+
 def _baseline(repo: Path) -> int | None:
     f = repo / ".fabrik" / "lint-baseline.json"
     return json.loads(f.read_text())["ruff_errors"] if f.exists() else None
@@ -431,3 +439,91 @@ def test_an_uncommitted_reseed_cannot_absorb_real_debt_into_the_old_floor(repo: 
 
     rc, out = _run(repo)
     assert rc == 1, f"2 real new lint errors were absorbed into the old floor:\n{out}"
+
+
+@pytest.mark.parametrize(
+    "local_payload",
+    [
+        '{"ruff_errors": 5, "ruff_version": "LIVE"}',  # hand-edited version, stale count
+        '{"ruff_version": "LIVE"}',  # count absent      -> KeyError
+        '{"ruff_errors": null, "ruff_version": "LIVE"}',  # count null   -> TypeError
+        '{"ruff_errors": 1000000000, "ruff_version": "LIVE"}',  # absurd count
+    ],
+)
+def test_a_local_baseline_that_is_not_a_reseed_cannot_take_the_version_relief(
+    repo: Path, local_payload: str
+) -> None:
+    """The relief's premise is "the local count is the only one measured under the live ruleset".
+    Nothing verifies that — `.fabrik/lint-baseline.json` is plain JSON anything may write — and two
+    earlier cuts were fail-open for exactly that reason. All four of these scored rc 0 GREEN with
+    2 real new errors present, HEAD's floor at 5 and the honest floor at 2; worse, the ratchet-down
+    arm then WROTE and staged the poisoned floor, losing the honest one permanently.
+
+    ⚠️ The cheapest way to satisfy this gate without the outcome is to edit ONE string in a file the
+    agent already owns — strictly cheaper than `--reseed` and leaving no explicit line in the log.
+    `_local_count <= current` is the falsifiable stand-in for "this is a re-seed": a real re-seed
+    records the count it just measured, so it can never exceed `current`.
+    """
+    live = _ruff_version_for_test()
+    _set_errors(repo, 2)
+    (repo / ".fabrik").mkdir(exist_ok=True)
+    (repo / ".fabrik" / "lint-baseline.json").write_text(
+        '{"ruff_errors": 5, "ruff_version": "0.0.1-OLD"}\n', encoding="utf-8"
+    )
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "a LOOSER old floor"], cwd=repo, check=True)
+
+    mods = ["os", "sys", "json", "re"]  # 4 real errors, above the honest floor of 2
+    (repo / "src" / "a.py").write_text("".join(f"import {m}\n" for m in mods), encoding="utf-8")
+    (repo / ".fabrik" / "lint-baseline.json").write_text(
+        local_payload.replace("LIVE", live) + "\n", encoding="utf-8"
+    )
+    rc, out = _run(repo)
+    assert rc == 1, f"a non-reseed local baseline took the relief:\n{out}"
+
+
+def test_check_never_takes_the_relief_and_never_prints_the_note(repo: Path) -> None:
+    """`--check` describes the COMMITTED state — it is the mode `final_gate.py --check` uses and
+    the mode the convergence HARD STOP requires before a CONVERGED claim. A dirty working-tree
+    baseline must not flip its verdict. Deleting the `not check_only` clause left all 17 tests
+    green, so this fix shipped unguarded."""
+    live = _ruff_version_for_test()
+    _set_errors(repo, 2)
+    (repo / ".fabrik").mkdir(exist_ok=True)
+    (repo / ".fabrik" / "lint-baseline.json").write_text(
+        '{"ruff_errors": 2, "ruff_version": "0.0.1-OLD"}\n', encoding="utf-8"
+    )
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "old-ruleset floor"], cwd=repo, check=True)
+
+    # an honest, UNCOMMITTED re-seed sitting in the tree
+    (repo / ".fabrik" / "lint-baseline.json").write_text(
+        f'{{"ruff_errors": 2, "ruff_version": "{live}"}}\n', encoding="utf-8"
+    )
+    rc, out = _run(repo, "--check")
+    assert rc == 1, f"--check took the relief from an uncommitted file:\n{out}"
+    assert "NOT COMMITTED" not in out, out
+
+
+def test_no_note_when_head_carries_no_version_at_all(repo: Path) -> None:
+    """15 of 17 fleet baselines carry no `ruff_version` key, so `stored_version` is None and
+    `stored_version != live_version` is trivially true. Without the `and stored_version` clause the
+    NOTE claimed a re-seed nobody performed, forever, on the ordinary ratchet-down path. Deleting
+    that clause also left all 17 tests green."""
+    _set_errors(repo, 3)
+    (repo / ".fabrik").mkdir(exist_ok=True)
+    (repo / ".fabrik" / "lint-baseline.json").write_text('{"ruff_errors": 3}\n', encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "a baseline with no version key"], cwd=repo, check=True)
+
+    _set_errors(repo, 1)  # somebody FIXES two errors — the ordinary ratchet-down path
+    # ⚠️ the WORKING-TREE baseline must carry a matching live version, or the relief never fires
+    # for a different reason (`_local_version` is None) and this grader passes without ever
+    # reaching the clause it names — which is exactly how it first shipped.
+    live = _ruff_version_for_test()
+    (repo / ".fabrik" / "lint-baseline.json").write_text(
+        f'{{"ruff_errors": 1, "ruff_version": "{live}"}}\n', encoding="utf-8"
+    )
+    rc, out = _run(repo)
+    assert rc == 0, out
+    assert "NOT COMMITTED" not in out, f"claimed a re-seed nobody performed:\n{out}"

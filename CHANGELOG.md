@@ -40,6 +40,43 @@ All notable changes to this project will be documented in this file.
   message aged past the 14-day threshold as the clock moved and began sweeping alongside the stale
   one. It passed when written and rotted on a calendar date. Pinned to `now`.
 
+**Finish — round 6: the relief was fail-open a THIRD time, and the review closes on the D-252
+stop (2026-09-15).** One fresh seat re-sweeping round 5's ledger with the same brief; 4 confirmed,
+all own-fix, so the stop fired again (6/6 → 4/4) — the second time in this review.
+
+**The local count was taken on trust.** Round 5 made the count travel with the version but never
+checked it, and `.fabrik/lint-baseline.json` is plain JSON anything may write. All four of these
+scored **rc 0 GREEN** with 2 real new errors present, HEAD's floor at 5 and the honest floor at 2 —
+and the ratchet-down arm then wrote and staged the poisoned floor, losing the honest one
+permanently:
+
+    {"ruff_errors": 5,          "ruff_version": "<live>"}   a hand-edited version string
+    {                           "ruff_version": "<live>"}   KeyError  -> except: pass
+    {"ruff_errors": null,       "ruff_version": "<live>"}   TypeError -> except: pass
+    {"ruff_errors": 1000000000, "ruff_version": "<live>"}   absurd, accepted
+
+⚠️ The cobra was never written down: editing ONE string in a file the agent already owns is
+strictly cheaper than `--reseed` and leaves no "explicit" line in the log. The count is now a
+PRECONDITION — `_local_count is not None and _local_count <= current` — because a real re-seed
+records the count it just measured and so can never exceed it.
+
+- **Three of the four new predicate clauses had no grader**: deleting `not check_only`,
+  `and stored_version`, or the clamp left all 17 tests green. Two of them were themselves named
+  fixes of round 5. All three are guarded now and proven red on mutation.
+- ⚠️ **And one of those new graders could not fail either** — its fixture left the working-tree
+  baseline without a version, so the relief never fired and the clause was never reached. Fourth
+  can't-fail grader of this run, mine every time.
+- A dead `_worktree_baseline_version` whose docstring stated the OPPOSITE of the shipped code, with
+  a live comment pointing readers at it. Removed.
+- `docs/TROUBLESHOOTING.md`'s remedy was the bare-`python3` form this same file calls broken —
+  the ratchet's own `# AFTER-EDIT:` coupled doc, which the coupling check flagged. Fixed, and so
+  was `final_gate.py:1834`'s claim that only a RISE fails, which Phase E made incomplete.
+
+**STATED RESIDUAL, routed not silenced:** inside the mismatch window a sibling's honest but
+uncommitted `--reseed` still satisfies the predicate, so on a shared tree their floor can serve
+another session's gate. Bounded three ways, and the alternative is the wedge — a gate nobody can
+clear gets switched off. Filed with a fix shape that needs a notion of "mine" the check lacks.
+
 **Finish — round 5: my round-4 un-wedge was a FAIL-OPEN regression (2026-09-15).** One fresh seat
 over the 169-line delta; 6 confirmed, all own-fix.
 
@@ -96,8 +133,10 @@ now**: `/opt/site-provisioner` stores `0.14.10` while its own venv reports ruff 
 completion gate currently cannot be cleared by the remedy it prints. (`/opt/youtube` is armed but
 matching, so it wedges on its next ruff bump.) Checked by reading both baselines and asking each
 repo's own interpreter — never by running the checker in another repo's tree, because its
-ratchet-down arm WRITES. Fixed: the COUNT floor stays HEAD-bound, only the VERSION consults the working
-tree, and a re-seed now clears the block while printing that it is not yet committed. Both the fix
+ratchet-down arm WRITES. Fixed — **as corrected twice below**: the count travels WITH the version and is a
+precondition, not an input taken on trust. (The clause that stood here, "only the VERSION
+consults the working tree", was superseded by round 5 and is left named rather than silently
+rewritten.) Both the fix
 and its mirror — a forged local floor must still red — ship with graders.
 
 - **`"New floor committed."` was printed forever and nothing was committed** — the same HEAD-bound

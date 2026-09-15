@@ -243,29 +243,6 @@ def _baseline_payload() -> dict | None:
         return None
 
 
-def _worktree_baseline_version() -> str | None:
-    """The version recorded in the WORKING-TREE baseline, ignoring HEAD.
-
-    ⚠️ THIS EXISTS TO UN-WEDGE THE GATE, and the wedge was real: `_baseline_payload` reads
-    `git show HEAD:<rel>` so a local edit cannot lower the committed floor — correct — and the
-    version-mismatch branch returns 1 so a ruleset change cannot be absorbed silently — also
-    correct. Together they were unsatisfiable. Executed on a throwaway repo:
-
-        run 1 plain     -> rc 1, "re-seed explicitly with `… --reseed`"
-        run 2 --reseed  -> rc 0, writes and stages the working tree
-        run 3 plain     -> rc 1   (identical: the read is HEAD-bound)
-        run 4 git add   -> rc 1   (`git show HEAD:` is blind to the index)
-
-    The completion contract requires a green gate BEFORE the commit, so the only exit was to
-    commit while red — in every repo carrying the synced check, the moment its baseline gains a
-    `ruff_version` key. The COUNT floor stays HEAD-bound; only the VERSION consults the working
-    tree, so a re-seed clears the block immediately while CI still reads the committed floor."""
-    data = _worktree_baseline_payload()
-    if not isinstance(data, dict):
-        return None
-    v = data.get("ruff_version")
-    return str(v) if v else None
-
 
 def _worktree_baseline_payload() -> dict | None:
     """The WORKING-TREE baseline object, or None — the count travels with the version."""
@@ -334,13 +311,49 @@ def main() -> int:
     baseline = _read_baseline()
     stored_version, live_version = _read_baseline_version(), _ruff_version()
     # ⚠️ A RE-SEED MUST CLEAR THE BLOCK BEFORE THE COMMIT, or the remedy this branch prints is
-    # unfollowable — see `_worktree_baseline_version`. The count floor is untouched by this.
+    # unfollowable — the read is HEAD-bound and `git show HEAD:` is blind to the working tree AND
+    # the index, so `--reseed` could not clear its own block. See `_worktree_baseline_payload`.
+    #
+    # ⚠️ THE COUNT TRAVELS WITH THE VERSION, AND IS A PRECONDITION — not an input taken on trust.
+    # Two earlier cuts of this relief were fail-open, in the same direction, for the same reason.
+    # Cut 1 took the version ALONE and kept HEAD's count, re-opening the cobra the error text
+    # below names: HEAD's count was measured under the OLD ruleset, so when the new ruleset is
+    # LOOSER the stale floor sits above the honest one and everything between is free debt.
+    # Cut 2 took the local count but never checked it, and `.fabrik/lint-baseline.json` is plain
+    # JSON that anything may write — executed, ALL FOUR of these scored rc 0 GREEN with 2 real new
+    # errors present and HEAD's floor at 5 while the honest floor was 2:
+    #     {"ruff_errors": 5,          "ruff_version": "<live>"}   a hand-edited version string
+    #     {                           "ruff_version": "<live>"}   KeyError  -> except: pass
+    #     {"ruff_errors": null,       "ruff_version": "<live>"}   TypeError -> except: pass
+    #     {"ruff_errors": 1000000000, "ruff_version": "<live>"}   absurd, accepted
+    # and in every one the ratchet-down arm then WROTE and `git add`ed the poisoned floor, so the
+    # honest floor was lost permanently rather than transiently.
+    #
+    # ⚠️ CHEAPEST WAY TO SATISFY THIS WITHOUT THE OUTCOME (cobra-effect): edit ONE string in a file
+    # the agent already owns — `"0.0.1-OLD"` -> the live version — which is strictly cheaper than
+    # `--reseed` and, unlike `--reseed`, leaves no "explicit" line in the log. `_local_count is not
+    # None and _local_count <= current` is the falsifiable stand-in for "this is a re-seed, not a
+    # stale file wearing a live version string": a real re-seed records the count it just measured,
+    # so it can never exceed `current`.
+    #
+    # ⚠️ STATED RESIDUAL, narrowed rather than closed. Inside the mismatch window a SIBLING's
+    # honest but uncommitted `--reseed` does satisfy this predicate, so on a shared tree their
+    # floor can serve another session's gate — the hazard `_baseline_payload`'s HEAD-bound read
+    # exists to prevent, surviving for the COUNT in this one window. It is bounded three ways: the
+    # versions must genuinely differ, a local baseline must exist carrying the LIVE version, and
+    # its count must not exceed what the tree measures now. The alternative is the wedge, which is
+    # strictly worse — a gate nobody can clear gets switched off. Routed to
+    # `docs/STRATEGIC_BACKLOG.md` [infra] rather than left implicit.
     _local = _worktree_baseline_payload()
     _local_version = (
         str(_local["ruff_version"])
         if isinstance(_local, dict) and _local.get("ruff_version")
         else None
     )
+    try:
+        _local_count: int | None = max(int(_local["ruff_errors"]), 0)  # type: ignore[index]
+    except (KeyError, TypeError, ValueError):
+        _local_count = None
     if (
         not check_only  # --check DESCRIBES the committed state; a dirty file must not flip it
         and baseline is not None
@@ -348,23 +361,15 @@ def main() -> int:
         and live_version
         and stored_version != live_version
         and _local_version == live_version
+        and _local_count is not None
+        and _local_count <= current
     ):
         print(
             f"NOTE: lint-ratchet — the re-seed under ruff {live_version} is written but NOT "
             "COMMITTED; commit .fabrik/lint-baseline.json or CI still holds the old floor."
         )
         stored_version = _local_version
-        # ⚠️ THE COUNT TRAVELS WITH THE VERSION, and the first cut of this relief took the version
-        # ALONE — which re-opened, in the same file, the cobra the error text below names: HEAD's
-        # count was measured under the OLD ruleset, so when the new ruleset is looser the stale
-        # floor sits above the honest one and everything between them is free debt. Executed:
-        # committed floor 5/OLD, today's ruleset reads 2, agent adds 2 REAL new errors — at the
-        # first cut `ratcheted DOWN 5 → 4`, rc 0 GREEN, and the honest floor of 2 overwritten
-        # with 4; at the parent, rc 1. Un-wedging by fail-open is a worse trade than the wedge.
-        try:
-            baseline = max(int(_local["ruff_errors"]), 0)
-        except (KeyError, TypeError, ValueError):
-            pass
+        baseline = _local_count
     if baseline is not None and stored_version and live_version and stored_version != live_version:
         # A ruleset change is not debt — but it is not nothing either, and it must not be absorbed
         # SILENTLY. The old behaviour re-seeded at the current count and passed, which meant the

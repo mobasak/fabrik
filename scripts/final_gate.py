@@ -1831,8 +1831,12 @@ def run_consistency_checks(
         # backwards, as most of the documents and scripts dont have this"). BLOCKING, unlike the
         # two rows above, because touch-on-change alone grandfathers every script nobody happens
         # to edit. Safe to block from day one: the first run in a repo SEEDS at today's count and
-        # passes — only a RISE fails — which is the same contract check_lint_ratchet.py has held
-        # here since it shipped.
+        # passes — only a RISE fails — which is the contract check_lint_ratchet.py held here since
+        # it shipped. ⚠️ THAT SIBLING'S CONTRACT GAINED A SECOND FAILURE MODE in this plan's Phase
+        # E and this line did not follow it: a ruff VERSION mismatch now fails too, because an
+        # absolute count is only comparable within one ruleset. THIS ratchet has no such axis (a
+        # headerless-file count needs no linter version), so the comparison holds for the part it
+        # is making — seed-and-pass, rise-fails — and not for the whole contract.
         results.append(
             run_optional_check(
                 "scripts/render_doc_script_links.py",
