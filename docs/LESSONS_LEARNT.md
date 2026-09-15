@@ -25,6 +25,18 @@ non-`none` population, a third quantity nobody had asked for. Three readers deri
 correct-looking numbers from one ledger because the CLASSIFIER was never stated.
 
 Two rules, both already in the contract and both violated by the change that quotes them:
+- **Two fragments that state the same rule in different words will DIVERGE, and the half that loses
+  it is invisible.** `term-edit.md` (17 doc-side commands) carried "verify the check CAN fail - plant
+  one known-bad line and watch it red". `term-coverage.md` - the fragment the CODE review family
+  renders, where graders actually live - carried ZERO occurrences of it. Nothing compared the two:
+  `test_both_fragments_carry_the_bounded_hop_...` pins three D10 phrases in BOTH fragments, so they
+  LOOK symmetric while an asymmetric rule sits outside the pinned set. `/fabrik-review` then shipped
+  five graders that could not fail and two silent grader deletions in one day, rendering the fragment
+  that omitted the rule - and five agents filed `change:` verdicts naming the class before anything
+  read them. **A rule that belongs to a FAMILY of fragments is pinned in every member, or the pin
+  states why one is exempt: a phrase-presence test over a SUBSET is a symmetry claim it never made.**
+  (2026-09-15, `/fabrik-command-improve fabrik-review` - the kaizen loop's first edit, fd9bb57b.)
+
 - **A count is a DATED snapshot of a growing file.** Re-derive it at the point of use; never quote
   one forward. Where the number genuinely belongs in prose, ship it with its date AND its method.
 - **Name the classifier with the count.** `unkeyed` and "carries no verdict" and "has no axis" are
