@@ -449,3 +449,76 @@ def test_help_prints_cleanly_and_exits_zero():
         )
         assert r.returncode == 0, (argv, r.returncode)
         assert "mail.py send: the body is read from STDIN" not in r.stdout, argv
+
+
+def test_the_repo_s_own_multi_key_trailer_literal_is_deliverable():
+    """The multi-key form is read FROM DISK, not retyped — a grader that retypes the
+    literal certifies its own copy and survives the command text drifting away from it.
+    Round 1's carve refused this exact line: the second `key=` is preceded by
+    `Agent-Role,`, so a `(?<!%\\(trailers:)` lookbehind never applied."""
+    src = Path(__file__).resolve().parent.parent / "commands/_sources/fabrik-execute-plan.md"
+    lits = [
+        ln.strip()
+        for ln in src.read_text(encoding="utf-8").splitlines()
+        if "%(trailers:" in ln and ln.count("key=") >= 2
+    ]
+    assert lits, "the multi-key trailer literal vanished from fabrik-execute-plan.md"
+    for lit in lits:
+        assert mail._secret_level(lit) is None, f"repo's own command refused: {lit}"
+
+
+def test_a_credential_in_an_unterminated_trailer_token_is_still_refused():
+    """The carve's own interior. `KEY` is the one keyword of the six with no _SECRET_LOW
+    backstop, so a hole here scores None — delivered silently, no refusal, no warning.
+    Round 1 narrowed this hole; it did not close it."""
+    secret = "Zx82Kf9mQpLr7TnV4bWq"
+    for prefix in (
+        "%(trailers:",
+        "%%(trailers:",
+        "%(TRAILERS:",
+        "x%(trailers:",
+        "mytrailers:",
+        "X-Trailers:",
+        "trailers:",
+        "",
+    ):
+        for kw in ("KEY", "TOKEN", "SECRET", "PASSWORD", "PASSWD", "PWD"):
+            assert mail._secret_level(f"{prefix}{kw}={secret}") == "high", (
+                f"{prefix}{kw}= delivered a credential"
+            )
+
+
+def test_a_body_file_that_is_not_a_regular_file_is_bounded(tmp_path):
+    """`is_file()` is False for a FIFO and for a device, so a stat-based guard short-circuits
+    and the unbounded read runs anyway — and `<(cmd)`, the idiomatic shell form, IS a FIFO."""
+    import subprocess
+
+    fifo = tmp_path / "f"
+    os.mkfifo(fifo)
+    writer = subprocess.Popen(
+        [sys.executable, "-c", f"open({str(fifo)!r},'w').write('x'*{mail.MAX_BODY * 4})"],
+    )
+    try:
+        root = tmp_path / "root"
+        proc = subprocess.run(
+            [
+                sys.executable,
+                str(Path(__file__).resolve().parent.parent / "scripts/mail.py"),
+                "send",
+                "--to",
+                "fabrik",
+                "--kind",
+                "finding",
+                "--body-file",
+                str(fifo),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            env={**os.environ, "FABRIK_MAIL_ROOT": str(root)},
+        )
+    finally:
+        writer.kill()
+        writer.wait()
+    assert "body cap" in proc.stdout, f"stdout was {proc.stdout!r} / stderr {proc.stderr!r}"
+    assert "Traceback" not in proc.stderr, proc.stderr

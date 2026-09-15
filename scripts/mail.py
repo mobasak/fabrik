@@ -146,23 +146,21 @@ _SECRET_HIGH = [
     #     "value", so the send was REFUSED outright — and that command is the one BOTH governance
     #     contracts prescribe for verifying a trailer block parsed. The check that certifies a
     #     commit's provenance could not be quoted in a message about commit provenance.
-    #     ⚠️ THE CARVE IS `%(trailers:`, THE WHOLE GIT TOKEN — and the first cut got this wrong in
-    #     the direction that matters. It used `(?<!trailers:)`, which has NO LEFT BOUNDARY, so any
-    #     text ending in those nine characters carved: executed, `mytrailers:KEY=…`,
-    #     `X-Trailers:KEY=…` (the pattern is `re.I`) and `https://internal/p/trailers:KEY=…` all
-    #     went silent. Worse, `KEY` is the ONE keyword of the six with no `_SECRET_LOW` counterpart
-    #     (`:209` lists `api[_-]?key`, not bare `key`), and it is precisely the keyword the git
-    #     token supplies — so `trailers:KEY=<credential>` scored `None`: no refusal, no warning,
-    #     delivered. The other five only dropped to `low`. The carve had been cut around the only
-    #     keyword with zero backstop. `%(` restores the boundary and is still fixed-width, which
-    #     the lookbehind requires.
-    #     ⚠️ THE CHEAPEST WAY TO SATISFY THIS WITHOUT THE OUTCOME (cobra-effect): write a real
-    #     credential as `%(trailers:KEY=…` to slip it past. That is absurd to do by accident and
-    #     visible to any reader — and it is the reason the carve is a fixed TOKEN rather than a
-    #     relaxation of the value pattern: loosening `\S{16,}` to exclude commas or parens would
-    #     let any secret hide by appending one.
+    #     ⚠️ TWO CUTS GOT THIS WRONG BEFORE THE THIRD, both by reaching for a LOOKBEHIND — see
+    #     `_GIT_FMT_TOKEN` at :218 for the mechanism that replaced it. A lookbehind can only see a
+    #     FIXED number of characters, which fails in both directions at once. Too wide:
+    #     `(?<!trailers:)` has no left boundary, so any text ending in those nine characters
+    #     carved — `mytrailers:KEY=…`, `X-Trailers:KEY=…` (the pattern is `re.I`),
+    #     `https://internal/p/trailers:KEY=…` all went silent, and since `KEY` is the ONE keyword
+    #     of the six with no `_SECRET_LOW` backstop (:217 lists `api[_-]?key`, not bare `key`),
+    #     `trailers:KEY=<credential>` scored `None` — no refusal, no warning, DELIVERED. Too
+    #     narrow: `(?<!%\(trailers:)` still refused the MULTI-key form
+    #     `%(trailers:key=Agent-Role,key=Agent-Task,separator=, )`, which
+    #     commands/_sources/fabrik-execute-plan.md:359 prescribes, because the second `key=` is
+    #     preceded by `Agent-Role,`. No fixed-width left-context can be both. Blanking the whole
+    #     bounded token is, which is why the scanner reads a blanked COPY.
     _re.compile(
-        r"(?<!%\(trailers:)(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|PWD)[\w-]{0,64}+\s*[:=](?!:)\s*\S{16,}",
+        r"(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|PWD)[\w-]{0,64}+\s*[:=](?!:)\s*\S{16,}",
         _re.I,
     ),
     _re.compile(r"\bsk-[A-Za-z0-9-]{16,}"),  # sk-, sk-ant-, sk-proj- (hyphens kept)
@@ -215,6 +213,21 @@ _SECRET_HIGH = [
 # while the identical `password:` line was at least caught by this net — the two
 # keyword sets had silently diverged.
 _SECRET_LOW = _re.compile(r"\b(?:password|passwd|pwd|secret|token|credential|api[_-]?key)\b", _re.I)
+
+# A git format token is shaped like an assignment (`%(trailers:key=Agent-Role,valueonly)`),
+# so the scanner is run over a copy with each whole token blanked. This replaced a negative
+# lookbehind, which could only ever see a FIXED number of characters to its left and so
+# carved on ANY text ending in them (`mytrailers:`, `X-Trailers:`, a URL path) while still
+# refusing the MULTI-key form the repo itself prescribes at
+# commands/_sources/fabrik-execute-plan.md:359 — there the second `key=` is preceded by
+# `Agent-Role,`, not by `%(trailers:`, so the lookbehind never applied.
+# ⚠️ The closing paren is REQUIRED, which makes an unterminated token fail CLOSED: the text
+# is left intact, the scanner reads it, and the send is refused. A real token always closes.
+# ⚠️ CHEAPEST WAY TO SATISFY THIS WITHOUT THE OUTCOME (cobra-effect): wrap a real credential
+# as `%(trailers:KEY=<secret>)`, closing paren included, to be blanked before the scan. That
+# is a deliberate act, not an accident, and it is bounded — the blind region now ENDS at the
+# paren, where the lookbehind's blind region ran to the end of the value.
+_GIT_FMT_TOKEN = _re.compile(r"%\(trailers:[^)\n]*\)", _re.I)
 
 # Path-safety: a repo/recipient token is a single /opt directory name; a msg id is a
 # 26-char Crockford ULID. Neither may contain a path separator or a `..` component —
@@ -333,10 +346,12 @@ def _body_has_bare_ack_line(body: str) -> bool:
 
 
 def _secret_level(body: str) -> str | None:
+    # blank same-length so any span a caller reports still indexes into `body`
+    scan = _GIT_FMT_TOKEN.sub(lambda mo: " " * len(mo.group(0)), body)
     for rx in _SECRET_HIGH:
-        if rx.search(body):
+        if rx.search(scan):
             return "high"
-    if _SECRET_LOW.search(body):
+    if _SECRET_LOW.search(scan):
         return "low"
     return None
 
@@ -1691,20 +1706,30 @@ def main(argv: list[str] | None = None) -> int:
             if getattr(args, "body_file", None):
                 try:
                     src = Path(args.body_file)
-                    # ⚠️ SIZE FIRST. `read_text()` is unbounded and `MAX_BODY` is enforced later
-                    # inside `send`, so a --body-file pointing at a multi-GB log blew up memory
-                    # before the cap ever ran.
-                    if src.is_file() and src.stat().st_size > MAX_BODY:
+                    # ⚠️ BOUND THE READ, NOT THE STAT. `read_text()` is unbounded and `MAX_BODY`
+                    # is enforced later inside `send`, so a --body-file pointing at a multi-GB log
+                    # blew up memory before the cap ever ran. The first cut guarded with
+                    # `src.is_file() and src.stat().st_size > MAX_BODY`, which is blind to every
+                    # NON-REGULAR file: executed, `is_file()` is False for a FIFO and for
+                    # /dev/zero, so the guard short-circuited and the unbounded read ran anyway —
+                    # and `<(journalctl -u svc)`, the idiomatic shell form, IS a FIFO. The
+                    # resulting MemoryError is neither OSError nor UnicodeDecodeError, so it
+                    # escaped the handler below into a raw traceback with EMPTY stdout: verbatim
+                    # the failure the handler exists to remove. Reading MAX_BODY+1 bytes bounds
+                    # regular files, FIFOs and devices alike, and closes the stat-then-grow race.
+                    with src.open("rb") as fh:
+                        raw = fh.read(MAX_BODY + 1)
+                    if len(raw) > MAX_BODY:
                         print(
                             f"mail.py send: cannot read --body-file {args.body_file}: "
-                            f"{src.stat().st_size} bytes exceeds the {MAX_BODY}-byte body cap"
+                            f"over the {MAX_BODY}-byte body cap"
                         )
                         return 2
-                    body = src.read_text(encoding="utf-8")
+                    body = raw.decode("utf-8")
                 # ⚠️ UnicodeDecodeError is a ValueError, NOT an OSError — so a body with one
                 # CP-1252 dash escaped this handler AND every arm of main's error ladder, giving
                 # a raw traceback with an EMPTY stdout: exactly the failure this hunk exists to
-                # remove, reintroduced by the hunk. 11 of the 12 `read_text` sites in this file
+                # remove, reintroduced by the hunk. 10 of the 11 `read_text` sites in this file (ast.walk)
                 # pass `errors="replace"`; refusing loudly is the better direction for a body
                 # that is about to be scanned for secrets.
                 except (OSError, UnicodeDecodeError) as exc:

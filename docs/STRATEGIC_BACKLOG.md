@@ -2190,10 +2190,34 @@ change the plan template to number its phases. Do NOT just widen the regex to `[
 makes a phase-A receipt satisfy phase 1 of a plan whose first phase is Phase 0, which is the
 prefix bug the existing comment at `:608` already paid for once.
 
-## [infra] A review that closes on the SCOPE-GROWTH STOP cannot flip its receipt — the stop has no representation in the receipt grammar (2026-09-14, D-252 review round 3, found by the stop's own close)
+## ~~[infra] A review that closes on the SCOPE-GROWTH STOP cannot flip its receipt~~ — RESOLVED 2026-09-15, plan-2 Phase E (`check_review_coverage.py::_scope_growth_exit` at :419, twinned constant `_OWN_FIX_ROUNDS_FOR_STOP` at :378). Kept for its measurements. (2026-09-14, D-252 review round 3, found by the stop's own close)
 
 D-252 added a counted scope-growth stop whose sanctioned exit is "STOP the loop — route the remaining own-fix work to a backlog row and close on the ORIGINAL delta's state". A review that obeys it ends on a round with `confirmed > 0`, because the whole point is that the loop is still finding things and they are no longer worth another round. `check_review_coverage.py` then refuses the flip: *"the exit round must be quiet, or the stuck finding must be BLOCKED-escalated (named + 3 failed attempts), or the report must declare `Status: IN-PROGRESS`"*. None of the three fits — the round is not quiet, there is no stuck finding with three failed attempts, and IN-PROGRESS understates a review that reached a designed terminal state.
 
 Measured on the stop's own review: rounds confirmed 5 · 4 · 5 with own-fix 0 · 4 · 5; the stop fired at round 3 (`4/4 → 5/5`); the receipt was written, every finding fixed or routed, and it still cannot say CONVERGED.
 
 **Shape of the fix:** a fourth sanctioned exit in the receipt grammar and in `check_review_coverage.py` — a closing row whose method cell declares the scope-growth stop and whose RECORDED rows all carry backlog destinations, accepted as terminal. It belongs with the `_confirmed_quiet` / `QUIET_PASS` readers that already encode the other exits. Deliberately NOT built inside the review that found it: that review had already tripped its own stop, and building the fix there is the exact scope growth the rule forbids.
+
+## [infra] A grader anchored to a live shared-tree governance clause by an emoji heading raises IndexError, not an assertion failure (2026-09-15, plan-2 Phase G review round 2, RECORDED one hop out)
+
+`tests/test_mail_structure.py` reads the trailer-trap clause with
+`Path("CLAUDE.md").read_text().split("⚠️ **And a THIRD trap")[1][:986]`. Three concurrent sessions
+share that file. The moment any of them rewords that heading the grader raises `IndexError` — not a
+readable assertion failure naming the drifted clause — and the fixed `[:986]` window silently
+shortens if the clause is edited without moving the heading, so the test can weaken without failing.
+
+Pre-existing: the round-2 diff changed only the `verify` loop above it. **Shape of the fix:** anchor
+on a stable sentinel comment in `CLAUDE.md` rather than on prose, and assert the split succeeded
+with a message naming the expected anchor before indexing `[1]`.
+
+## [infra] `final_gate.py --json` per-check dicts carry no `status` key — a consumer cannot tell green from red per check (2026-09-15, plan-2 Phase G review round 2, MACHINERY note)
+
+Executed: `json.load(...)['checks']` over `final_gate.py --check --json` gives
+`Counter({None: 63})` for `d.get('status')` across every check dict. Pass/fail/skip counts exist only
+as the top-level `passed`/`failed`/`skipped`/`skipped_checks` keys. Any consumer following the
+obvious per-check shape reads N statusless entries and silently learns nothing — the same
+fail-silent-green class the enforcement corpus already tracks.
+
+**Shape of the fix:** emit a per-check `status` field, or document at the schema that the top-level
+counters are the only verdict. Ungraded either way today.
+

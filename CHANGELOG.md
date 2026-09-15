@@ -46,8 +46,17 @@ first cut used `(?<!trailers:)` — nine characters with NO left boundary — so
 `KEY` is the ONE keyword of the six with no `_SECRET_LOW` counterpart, which is exactly the keyword
 the git token supplies: `trailers:KEY=<credential>` scored **`None`** — no refusal, no warning,
 delivered — while the other five merely dropped to `low`. The carve had been cut around the only
-keyword with zero backstop, in a file synced to ~46 repos. It anchors on the whole token
-`%(trailers:` now, which restores the boundary and is still fixed-width as the lookbehind requires.
+keyword with zero backstop, in a file synced to ~46 repos. ⚠️ **The SECOND cut was wrong too, and
+round 2 caught that one.** Narrowing the lookbehind to `(?<!%\(trailers:)` shrank the hole without
+closing it — executed, `%(trailers:KEY=<secret>` still scored `None`, as did `%%(trailers:`,
+`%(TRAILERS:` and `x%(trailers:` — while newly REFUSING the multi-key form
+`%(trailers:key=Agent-Role,key=Agent-Task,separator=, )` that
+`commands/_sources/fabrik-execute-plan.md:359` prescribes, because there the second `key=` is
+preceded by `Agent-Role,`. A fixed-width lookbehind cannot be both wide enough for the real literals
+and narrow enough to refuse a credential; the third cut stops carving and instead scans a COPY with
+each whole `%(trailers:…)` token blanked (`_GIT_FMT_TOKEN`). The closing paren is required, so an
+unterminated token fails CLOSED. All six keywords × eight prefixes now refuse; all three real repo
+literals deliver.
 ⚠️ **And the grader that certified it asserted the safety property using `SECRET`** — one of the
 five where it held — so it certified a property the code did not have. It loops all six keywords
 and all four boundary shapes now.
@@ -59,7 +68,7 @@ exists to remove. And the send-specific stdout contract line was printed on EVER
 error, so `msg=$(mail.py read "$id")` with a malformed id received a paragraph about stdin AS the
 message body. Both fixed, both graded, plus a size bound before the read.
 
-`pytest tests/test_mail*.py` → **260 passed**; `final_gate.py --check --json` → success, 65/0.
+`pytest tests/test_mail*.py` → **263 passed**; `final_gate.py --check --json` → success, 65/0, 5 skipped (`ruff-format (--check)`, `ruff`, `bandit`, `semgrep`, `pytest`) — a green `status` is necessary, and `skipped_checks` is what it does NOT assert.
 
 ### Fixed — Phase F (T13.3–T13.5): three Stop-hook and headless defects from the mail triage (2026-09-15)
 
