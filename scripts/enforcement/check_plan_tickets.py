@@ -1302,8 +1302,11 @@ def _find_fences(lines: list[str]) -> tuple[int, int] | None:
     if not lines or _classify_fm_line(_line_content(lines[0]))[0] != "fence":
         return None
     close_idx = next(
-        (idx for idx in range(1, len(lines))
-         if _classify_fm_line(_line_content(lines[idx]))[0] == "fence"),
+        (
+            idx
+            for idx in range(1, len(lines))
+            if _classify_fm_line(_line_content(lines[idx]))[0] == "fence"
+        ),
         None,
     )
     if close_idx is None:

@@ -1605,8 +1605,16 @@ def _head_source(source: Path) -> tuple[bytes, int] | None:
     except ValueError:
         return None  # outside the hub tree — not ours to read from git
     try:
+        # ⚠️ `ls-tree HEAD`, NOT `ls-files -s`. Both print a mode and a blob SHA, but `ls-files`
+        # prints the INDEX entry — which is written at STAGE time and is NOT touched by the
+        # commit. Executed: stage B (index f70f…→223b…, HEAD still A), then commit — the index
+        # SHA, the mtime and the size are ALL unchanged while HEAD moves A→B, so the cache key
+        # below could not see the very HEAD move it was introduced to catch, and every remaining
+        # repo in the 47-repo walk was served the pre-commit bytes. Reading HEAD's own tree keys
+        # the memo on what the function actually returns, at the same one-subprocess cost, and
+        # takes the MODE from HEAD too (the index's mode is as stale as its SHA).
         ls = subprocess.run(
-            ["git", "ls-files", "-s", "--", rel],
+            ["git", "ls-tree", "HEAD", "--", rel],
             cwd=FABRIK_ROOT,
             capture_output=True,
             check=False,
@@ -1617,6 +1625,7 @@ def _head_source(source: Path) -> tuple[bytes, int] | None:
             # SHA closes (the file becomes tracked and the memo keeps answering "untracked").
             # One `ls-files` is the whole cost of this path.
             return None  # untracked: the working tree is the only source there is
+        # `ls-tree` prints: <mode> SP blob SP <sha> TAB <path>
         mode = int(ls.stdout.split()[0].decode(), 8)
         # ⚠️ THE KEY CARRIES THE BLOB SHA, not just the working file's stat. The first cut keyed on
         # `(rel, st_mtime_ns, st_size)` and claimed "an edit DURING a run is never served stale" —
@@ -1627,7 +1636,7 @@ def _head_source(source: Path) -> tuple[bytes, int] | None:
         # reported `copied`, with the drift report computed against the stale HEAD. `ls-files -s` is
         # the cheap half of the pair and it already prints the SHA, so keying on it costs nothing
         # and memoises only the expensive `git show` + `read_bytes`.
-        sha = ls.stdout.split()[1].decode()
+        sha = ls.stdout.split()[2].decode()  # field 2 under ls-tree (field 1 is the word "blob")
         try:
             st = source.stat()
             key: tuple[str, str, int, int] | None = (rel, sha, st.st_mtime_ns, st.st_size)

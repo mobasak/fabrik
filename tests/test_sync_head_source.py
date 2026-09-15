@@ -391,3 +391,55 @@ def test_the_memo_sees_a_head_that_moved_under_it(hub) -> None:
     assert mod._head_source(committed)[0] == b"COMMITTED = 2\n", (
         "the memo served pre-commit bytes after HEAD moved — every later repo in the run gets them"
     )
+
+
+def test_a_commit_of_already_staged_content_is_not_served_from_the_cache(tmp_path):
+    """The memo must key on what the function RETURNS — HEAD's blob — not on the index entry.
+
+    `git ls-files -s` prints the INDEX entry, which is written at STAGE time and is NOT touched
+    by the commit. Executed: stage B (index f70f…→223b…, HEAD still A), then commit — the index
+    SHA, the working file's mtime and its size are ALL unchanged while HEAD moves A→B. The whole
+    cache key was therefore blind to the one event it was introduced to catch, and on a tree three
+    sessions commit to, a sibling's mid-walk commit left every remaining repo of the 47 served the
+    pre-commit bytes and reported `copied`.
+    """
+    mod = _mod()
+    repo = tmp_path / "hub"
+    (repo / "scripts" / "enforcement").mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    for cfg in (("user.email", "t@t"), ("user.name", "t"), ("commit.gpgsign", "false")):
+        subprocess.run(["git", "-C", str(repo), "config", *cfg], check=True)
+    f = repo / "scripts" / "enforcement" / "x.py"
+    f.write_text("A\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-qm", "a"], check=True, capture_output=True)
+
+    mod.FABRIK_ROOT = repo
+
+    # ⚠️ THE CACHE MUST BE POPULATED BETWEEN THE STAGE AND THE COMMIT, or the defect cannot
+    # reproduce: call before staging and the index SHA legitimately changes, so the old key is a
+    # MISS and the read is fresh by accident. The staleness needs the index already holding B
+    # while HEAD is still A — which is the real shape, because the gate stages and the contract
+    # commits as two steps. Getting this wrong is a grader that cannot fail.
+    f.write_text("B\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "-C", str(repo), "add", "scripts/enforcement/x.py"], check=True, capture_output=True
+    )
+    assert mod._head_source(f)[0] == b"A\n"  # staged B, HEAD still A — memo populated here
+    idx_before = subprocess.run(
+        ["git", "-C", str(repo), "ls-files", "-s", "--", "scripts/enforcement/x.py"],
+        capture_output=True, text=True, check=True,
+    ).stdout.split()[1]
+    st_before = f.stat()
+    subprocess.run(["git", "-C", str(repo), "commit", "-qm", "b"], check=True, capture_output=True)
+    idx_after = subprocess.run(
+        ["git", "-C", str(repo), "ls-files", "-s", "--", "scripts/enforcement/x.py"],
+        capture_output=True, text=True, check=True,
+    ).stdout.split()[1]
+
+    # the premise: the old key's every component survived the commit unchanged
+    assert idx_before == idx_after, "premise broken — the index SHA moved after all"
+    assert (st_before.st_mtime_ns, st_before.st_size) == (f.stat().st_mtime_ns, f.stat().st_size)
+
+    # and the memo still answers with the NEW HEAD
+    assert mod._head_source(f)[0] == b"B\n", "served the pre-commit bytes from the cache"

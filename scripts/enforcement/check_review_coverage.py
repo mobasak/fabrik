@@ -371,9 +371,20 @@ IN_PROGRESS = re.compile(
 # mention — and what defends against the cheap deliberate path is the ledger requirement below,
 # which costs two real rounds.
 SCOPE_GROWTH_EXIT = re.compile(
-    r"^\**Status:\**[^\S\r\n\v\f\x1c\x1d\x1e\x85\u2028\u2029]*\**\w[^\n]*?"
-    r"\bon\s+(?:the|a)\s+[^;.\u2014\n]{0,40}?\bscope-growth stop\b",
+    r"^\**Status:\**[^\S\r\n\v\f\x1c\x1d\x1e\x85\u2028\u2029]*\**\w([^\n]*?)"
+    r"\bon\s+(?:the|a)\s+([^;.\u2014\n]{0,40}?)\bscope-growth stop\b",
     re.M | re.I,
+)
+# ⚠️ The window above matches the SHAPE; this rejects the shape wearing a DENIAL. The comment
+# preceding it claimed the window "defends against the ACCIDENT — a negation or a passing
+# mention" and it did not: executed, `Status: CONVERGED — this review did NOT close on the
+# D-252 scope-growth stop` satisfied it, and the exemption then let a loop whose last two
+# rounds confirmed 8 and 6 flip to CONVERGED. A sentence that says the stop did NOT happen is
+# the strongest possible evidence it did not happen; reading it as the declaration inverts it.
+_EXIT_NEGATION = re.compile(
+    r"\b(?:not|never|no|none|nothing|without|purported|purportedly|rather\s+than|instead\s+of"
+    r"|isn't|wasn't|didn't|doesn't|hasn't|won't|cannot|can't)\b",
+    re.I,
 )
 _OWN_FIX_ROUNDS_FOR_STOP = 2
 PASS2 = re.compile(r"\bPass\s*2\b")
@@ -435,7 +446,11 @@ def _scope_growth_exit(text: str, ordered_rows: list[_Row]) -> bool:
     closes no loop, however the loop ended.
     """
     header = "".join(_normalized(text).splitlines(keepends=True)[:10])
-    if not SCOPE_GROWTH_EXIT.search(_strip_fences(header)):
+    _m = SCOPE_GROWTH_EXIT.search(_strip_fences(header))
+    if not _m:
+        return False
+    # a Status line that DENIES the stop is not a declaration of it
+    if _EXIT_NEGATION.search(_m.group(1)) or _EXIT_NEGATION.search(_m.group(2)):
         return False
     if len(ordered_rows) < _OWN_FIX_ROUNDS_FOR_STOP:
         return False
@@ -2861,6 +2876,19 @@ def _running_review_receipts(root: Path) -> list[Path]:
         f.get("surface") for f in (rec.get("stack") or []) if isinstance(f, dict)
     ]
     stems = {stem for s in surfaces for stem in _PLAN_STEM_RE.findall(str(s or ""))}
+    # ⚠️ NO STEM ⇒ NO CLAIM. The `if stems:` filter below is the whole of "a sibling's receipt is
+    # not this run's own", and when the surface names no plan it did not run at all — so an
+    # unscoped record pulled EVERY receipt written since its start into the BLOCKING set and
+    # hard-failed this session's gate on a sibling's committed artifact. Measured on the live
+    # store: 22 of 26 records yield no stem (13 have `surface: null` outright), so the filter was
+    # inert on 85% of records — the opposite of the comment above it.
+    # The cost is honest and smaller: an unscoped record's own receipt is no longer force-graded
+    # while it is committed-and-unchanged. It is still graded whenever it is in the git changed
+    # set (the ordinary case — it is written, then staged, then committed), and on any run once
+    # the record closes. A gate that reds a sibling's unrelated commit is a gate that gets
+    # switched off, which is this file's own stated rule for `_committed_nonquiet`.
+    if not stems:
+        return []
     out: list[Path] = []
     for p in sorted((root / REVIEWS_DIR).rglob("*.md")):
         if p.name.endswith("-archive.md"):

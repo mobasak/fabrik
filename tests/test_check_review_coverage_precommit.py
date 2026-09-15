@@ -107,8 +107,20 @@ def test_a_changed_path_with_no_hunt_row_is_refused(tmp_path):
 
 def test_a_running_review_records_own_receipt_is_graded_even_when_unchanged(tmp_path, monkeypatch):
     """T4.5 (01M28K3F44): a receipt COMMITTED and unchanged was invisible to the blocking scan
-    while its review was still RUNNING. With a live review-family record in COMMAND_RUN_DIR, the
-    receipts written since its start are graded with the full battery regardless of git state."""
+    while its review was still RUNNING. With a live review-family record in COMMAND_RUN_DIR whose
+    surface NAMES THE PLAN, the receipts written since its start are graded with the full battery
+    regardless of git state.
+
+    ⚠️ THE SURFACE IS PART OF THE CONTRACT, and this test used to omit it. The ownership filter
+    ("a sibling's receipt written since the start is not this run's own") keys on the plan stem in
+    the record's surface; with no stem it did not run at all, so an UNSCOPED record swept every
+    receipt touched since its start into the BLOCKING set — including a sibling's committed
+    artifact on a tree three sessions share. Measured on the live store: 22 of 26 records yield no
+    stem. An unscoped record now claims nothing and its receipts fall through to
+    `_committed_nonquiet`, which is ADVISORY by deliberate design two lines below the call site —
+    still printed, no longer a hard red on work that may not be yours. The cost is stated in
+    `docs/STRATEGIC_BACKLOG.md`: an unscoped run's own committed receipt is advisory, not blocking.
+    """
     import json
     import subprocess as sp
     import time
@@ -120,10 +132,16 @@ def test_a_running_review_records_own_receipt_is_graded_even_when_unchanged(tmp_
     sp.run(["git", "config", "user.name", "t"], cwd=repo, check=True)
     started = time.time() - 60
     f = repo / "docs/development/reviews/2026-08-30-x-review.md"
+    # a real receipt names its plan in the body — that line is what the ownership filter reads,
+    # and a fixture without it cannot exercise the scoped path at all
     f.write_text(
         _BAD_REVIEW.replace(
             "| 1 | fail-open/fail-closed | CLEAN | hunted x.py guards |",
             "| 1 | fail-open/fail-closed | UNCHECKED |",
+        ).replace(
+            "**Surface:** abc",
+            "**Surface:** abc\n**Plan:** `docs/development/plans/2026-08-30-x.md`",
+            1,
         ),
         encoding="utf-8",
     )
@@ -138,6 +156,8 @@ def test_a_running_review_records_own_receipt_is_graded_even_when_unchanged(tmp_
                 "state": "running",
                 "started_epoch": started,
                 "repo_root": str(repo),
+                # the stem is what makes this receipt claimable as THIS run's own
+                "surface": "docs/development/plans/2026-08-30-x.md",
             }
         )
     )
@@ -531,3 +551,58 @@ def test_a_running_record_pulls_only_its_own_receipts(tmp_path):
     assert r.returncode == 1 and "Traceback" not in r.stderr and "UNCHECKED" in r.stdout, (
         r.stdout + r.stderr
     )  # a malformed start falls through to the outer frame — never a crash (round 5)
+
+
+def test_an_unscoped_running_record_does_not_block_on_a_siblings_receipt(tmp_path):
+    """The ownership filter keys on the plan stem in the record's surface, and `if stems:` meant
+    it did not run AT ALL when there was no stem — so an unscoped record swept every receipt
+    touched since its start into the BLOCKING set. On a tree three sessions share that hard-fails
+    MY gate on a SIBLING's committed artifact, which is the death this file's own
+    `_committed_nonquiet` comment names ("a gate that reds someone's unrelated commit is a gate
+    that gets switched off"). Measured on the live store when this was found: 22 of 26 records
+    yield no stem, 13 with `surface: null` outright.
+    """
+    import json
+    import subprocess as sp
+    import time
+
+    repo = tmp_path / "repo"
+    (repo / "docs/development/reviews").mkdir(parents=True)
+    for cmd in (["git", "init", "-q"], ["git", "config", "user.email", "t@t"],
+                ["git", "config", "user.name", "t"]):
+        sp.run(cmd, cwd=repo, check=True)
+    started = time.time() - 60
+    # a SIBLING's receipt: unconverged, committed, and about a plan this run never names
+    sib = repo / "docs/development/reviews/2026-09-15-sibling-review.md"
+    sib.write_text(
+        _BAD_REVIEW.replace(
+            "| 1 | fail-open/fail-closed | CLEAN | hunted x.py guards |",
+            "| 1 | fail-open/fail-closed | UNCHECKED |",
+        ).replace(
+            "**Surface:** abc",
+            "**Surface:** abc\n**Plan:** `docs/development/plans/2026-09-15-someone-elses.md`",
+            1,
+        ),
+        encoding="utf-8",
+    )
+    sp.run(["git", "add", "-A"], cwd=repo, check=True)
+    sp.run(["git", "commit", "-qm", "a sibling's receipt"], cwd=repo, check=True)
+
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    (runs / "s10.json").write_text(
+        json.dumps({
+            "command": "fabrik-review",
+            "state": "running",
+            "started_epoch": started,
+            "repo_root": str(repo),
+            "surface": "scripts/mine.py",   # a real surface that names NO plan
+        }),
+        encoding="utf-8",
+    )
+    env = dict(__import__("os").environ, COMMAND_RUN_DIR=str(runs), CLAUDE_SESSION_ID="s10")
+    r = sp.run(
+        [sys.executable, str(SCRIPT), "--root", str(repo)],
+        cwd=repo, capture_output=True, text=True, timeout=120, env=env,
+    )
+    assert r.returncode == 0, f"a sibling's receipt blocked an unscoped run: {r.stdout!r}"

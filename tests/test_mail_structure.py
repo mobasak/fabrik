@@ -522,3 +522,45 @@ def test_a_body_file_that_is_not_a_regular_file_is_bounded(tmp_path):
         writer.wait()
     assert "body cap" in proc.stdout, f"stdout was {proc.stdout!r} / stderr {proc.stderr!r}"
     assert "Traceback" not in proc.stderr, proc.stderr
+
+
+def test_the_trailer_blank_does_not_silence_the_vendor_signatures():
+    """The `%(trailers:...)` blank exists for ONE pattern — the bare `KEY=<value>` assignment,
+    which is the only signature a real git format token can trip. An earlier cut applied it
+    before every pattern ran, which silenced the whole scanner: an AWS key, an `sk-` key, a
+    GitHub PAT, a Postgres DSN and a JWT each scored `high` bare and `None` wrapped. A credential
+    carrying its own vendor signature must be caught wherever it appears."""
+    vendor = [
+        "AKIAABCDEFGHIJKLMNOP",
+        "sk-ant-api03-ABCDEFGHIJKLMNOPQRSTU",
+        "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij",
+        "postgres://svc:hunter2ABCDEFGHIJK@10.99.0.1:5432/main",
+        "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.dGhpc2lzdGVzdA",
+    ]
+    for secret in vendor:
+        assert mail._secret_level(secret) == "high", f"bare {secret[:12]} not caught"
+        assert mail._secret_level(f"%(trailers:{secret})") == "high", (
+            f"{secret[:12]} silenced by the trailer blank"
+        )
+
+
+def test_the_blank_is_bound_to_the_assignment_pattern_only():
+    """A structural guard on the mechanism, not on one example: the blank must be reachable by
+    exactly one member of _SECRET_HIGH. If a future edit widens it back to the whole list, the
+    example-based test above can be satisfied by adding one more vendor regex while the hole
+    reopens for everything else."""
+    assert mail._ASSIGNMENT_RX in mail._SECRET_HIGH
+    others = [rx for rx in mail._SECRET_HIGH if rx is not mail._ASSIGNMENT_RX]
+    assert others, "the assignment pattern is not the only HIGH pattern; the test is vacuous"
+    # every OTHER pattern must see the raw body: prove it with a value each one matches
+    for rx in others:
+        for probe in (
+            "AKIAABCDEFGHIJKLMNOP",
+            "sk-ant-api03-ABCDEFGHIJKLMNOPQRSTU",
+            "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij",
+            "postgres://svc:hunter2ABCDEFGHIJK@10.99.0.1:5432/main",
+            "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.dGhpc2lzdGVzdA",
+        ):
+            if rx.search(probe):
+                assert mail._secret_level(f"%(trailers:{probe})") == "high"
+                break

@@ -177,3 +177,48 @@ def test_the_range_costs_one_subprocess_not_one_per_commit(tmp_path: Path, monke
     monkeypatch.setattr(hook.subprocess, "run", counting)
     assert hook._ahead_of_upstream(repo, {"mine0.py", "mine3.py"}) == 2
     assert len(calls) == 1, f"{len(calls)} subprocesses for a 5-commit range: {calls}"
+
+
+def test_an_ancient_edit_does_not_make_a_siblings_commit_mine(tmp_path):
+    """The floor, applied at the CALL SITE, is what keeps this cause out of the trapping
+    direction. `_ahead_of_upstream` is handed `distinctive` — the files this session edited —
+    and on a RESUMED transcript the unfloored map is every file the session ever touched
+    (454 code files over 116 days in one sid, measured). A sibling committing to any of them
+    then reads as my unpushed work, and the hook blocks a session behind someone else's commit.
+    """
+    work = _repo_with_upstream(tmp_path)
+    (work / "old_file.py").write_text("# a sibling's edit to a file I touched weeks ago\n")
+    _git(work, "add", "old_file.py")
+    _git(work, "commit", "-qm", "sibling's commit")
+
+    ancient, recent = 1_000_000_000, 2_000_000_000
+    authored_map = {"old_file.py": ancient}
+
+    # unfloored — the shape that trapped: the ancient edit still counts as distinctive
+    assert hook._ahead_of_upstream(work, set(authored_map)) == 1
+
+    # floored at a baseline NEWER than the edit — the edit drops, nothing is distinctive,
+    # and an indeterminate answer (None) never blocks
+    floored = set(hook._this_sessions_edits(authored_map, recent))
+    assert floored == set()
+    assert hook._ahead_of_upstream(work, floored) is None
+
+    # and an edit INSIDE the window still counts, or the fix would have disabled the cause
+    live = set(hook._this_sessions_edits({"old_file.py": recent}, ancient))
+    assert live == {"old_file.py"}
+    assert hook._ahead_of_upstream(work, live) == 1
+
+
+def test_both_push_call_sites_pass_the_floored_set(tmp_path):
+    """A structural guard beside the behavioural one: the fix lives at the CALL SITES, so a
+    future edit could revert either one and every behavioural test above would still pass —
+    they exercise `_ahead_of_upstream` directly, not the callers."""
+    src = _HOOK.read_text(encoding="utf-8")
+    assert "def _baseline_floor(" in src
+    # no call site may hand it the raw lifetime map again
+    assert "_ahead_of_upstream(root, set(authored_map))" not in src
+    assert src.count("_ahead_of_upstream(") == 3  # the def + exactly two call sites
+    for call in ("ahead = _ahead_of_upstream(", "push_attempts if _ahead_of_upstream("):
+        i = src.index(call)
+        window = src[i : i + 240]
+        assert "_this_sessions_edits(authored_map, _baseline_floor(sid))" in window, window

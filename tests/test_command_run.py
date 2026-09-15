@@ -14,6 +14,7 @@ import datetime as dt
 import importlib.util
 import json
 import math
+import os
 import subprocess
 import sys
 import time
@@ -4815,3 +4816,70 @@ def test_a_non_empty_but_unreadable_ledger_still_blocks_the_reach(run_dir: Path)
     f.write_text(json.dumps(r), encoding="utf-8")
     _cr(run_dir, "done", "--command", "fabrik-review-scoped", "--evidence", "e", sid=sid)
     assert json.loads(f.read_text(encoding="utf-8")).get("first_review_reach") is None
+
+
+def test_a_sentence_final_surface_still_yields_a_usable_plan_stem():
+    """`--surface "… command-machinery.md."` used to yield the stem `…command-machinery.md.`,
+    because the lookahead's character class omitted `.` and the lazy group could swallow `.md.`
+    whole. A stem carrying `.md.` matches no ticket receipt, so every DISPATCHER-mode artifact
+    goes invisible and the phase gate refuses — quoting the bogus stem back at the agent."""
+    cr = _load("cr_stem", _SCRIPT)
+    want = "2026-09-12-plan-2-mail-triage-command-machinery"
+    base = f"docs/development/plans/{want}.md"
+    for surface in (
+        base,
+        f"the plan {base}.",           # sentence-final — the shape that broke
+        f"`{base}`",
+        f'"{base}", phase F',
+        f"{base}; then Finish",
+    ):
+        assert cr._plan_stem({"surface": surface}) == want, surface
+    # a directory-form surface has no .md at all
+    assert cr._plan_stem({"surface": "docs/development/plans/2026-09-11-plan-1-x/"}) == "2026-09-11-plan-1-x"
+
+
+def test_the_own_fix_note_covers_every_command_the_stop_can_fire_on():
+    """The cobra counter-measure named in BOTH CLAUDE.md files: omitting `--own-fix` makes the
+    scope-growth stop compute nothing, "which is why command_run.py prints a NOTE on exactly that
+    path". The NOTE was gated on REVIEW_FAMILY (2 commands) while the stop stands down only for
+    PER_UNIT_ROUND_COMMANDS — so eight review commands could trip the stop and were never told
+    the flag exists, and the governance text was false for them."""
+    cr = _load("cr_note", _SCRIPT)
+    stop_can_fire = {
+        "fabrik-spec-review", "fabrik-plan-review", "fabrik-docs-review", "fabrik-flows-review",
+        "fabrik-conformance-review", "fabrik-deploy-plan-review", "fabrik-ui-design-review",
+        "fabrik-epics-review", "fabrik-review", "fabrik-review-scoped",
+    }
+    for cmd in stop_can_fire:
+        assert cr._tokish(cmd) not in cr.PER_UNIT_ROUND_COMMANDS, cmd
+    for cmd in cr.PER_UNIT_ROUND_COMMANDS:
+        assert cr._tokish(cmd) in cr.PER_UNIT_ROUND_COMMANDS, cmd
+    # and the read is hashable-safe — a dict command must not raise out of `round`
+    for weird in ({"x": 1}, ["a"], None, 3):
+        assert cr._tokish(weird) == ""
+
+
+def test_the_derived_new_count_cannot_state_what_the_explicit_one_refuses(run_dir, tmp_path):
+    """`--new 3 --findings 0` is REFUSED as impossible. The derived path counted CLASSES from
+    `--classes-new` with no bound at all and printed them under the same `new:` label, so the
+    record stated for a round that found nothing exactly what the explicit path calls impossible.
+    The class NAMES stay visible in `new` and in "classes open:", so the bound loses nothing."""
+    env = {
+        **os.environ, "COMMAND_RUN_DIR": str(run_dir),
+        "COMMAND_RUN_TRANSCRIPT": str(tmp_path / "t.jsonl"),
+        "KAIZEN_EVENTS_DIR": str(tmp_path / "kz"), "HOME": str(tmp_path / "home"),
+        "FABRIK_SCRATCH_SWEEP": "0",
+    }
+    def run(*a):
+        return subprocess.run(
+            [sys.executable, str(_SCRIPT), *a, "--session", "probe-newcount"],
+            capture_output=True, text=True, env=env, timeout=120,
+        )
+    run("start", "--command", "fabrik-spec-review", "--phases", "2", "--terminal", "x")
+    out = run("round", "--findings", "0", "--classes-new", "a,b,c").stdout
+    assert "new: 0" in out, out
+    assert "classes open: a, b, c" in out, out
+    rec = json.loads(next(run_dir.glob("*.json")).read_text())
+    last = rec["rounds"][-1]
+    assert last["new_count"] == 0, last
+    assert last["new"] == ["a", "b", "c"], last   # the names survive the bound

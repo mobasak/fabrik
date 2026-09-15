@@ -58,11 +58,24 @@ surface is missing one. Cross-repo, so it is fabrik-lib's to fix.
 **Do:** mail fabrik-lib — a bounded store (or a documented `reset()`), and a note in the pack that a
 title must be a STABLE key, not a formatted string.
 
-## [infra] Four `tests/enforcement` tests pass in isolation and FAIL in the full-suite run — pre-existing pollution, attributed by execution
+## [infra] THREE `tests/enforcement` tests pass in isolation and FAIL in the full-suite run — pre-existing pollution, attributed by execution
 
-`python3 -m pytest tests/enforcement -q` is RED at HEAD and was before Phase E: **4 failed, 1378
-passed**. Three of the four pass cleanly when their file runs alone (`test_pack_reachability.py` →
-16 passed), which makes this a test-ORDERING defect, not a defect in the checks.
+⚠️ **Narrowed from four to three, 2026-09-15 (plan-2 Finish).** The fourth,
+`test_plan_tickets_epic_scope.py::test_frontmatter_parser_matches_epic_order_verbatim`, was NOT an
+ordering defect and is now FIXED: it is a twin-parser drift guard, and `_find_fences` had genuinely
+diverged between `scripts/enforcement/check_plan_tickets.py`'s ported block and its source
+`scripts/epic_order.py`. The port sits inside a `# fmt: off` block (`:1153`) whose own comment says
+it "keeps the SOURCE MODULE's formatting", so `ruff format` reformatted the SOURCE and left the
+frozen copy behind — both files are individually ruff-stable, which is why no formatting gate saw
+it and only the verbatim-comparison test did. Re-synced the ported block; that file now reads
+84 passed. The drift was already present at this plan's base commit `36da6bb4`, so it was never
+this plan's — but the plan touched `check_plan_tickets.py` eight times and a defect in committed
+code is the repo's.
+
+`python3 -m pytest tests/enforcement -q` remains RED at HEAD for the other three, and was before
+Phase E. All three pass cleanly when their file runs alone (`test_pack_reachability.py` →
+16 passed, re-verified 2026-09-15), which makes this a test-ORDERING defect, not a defect in the
+checks.
 
 **Attribution, executed rather than assumed** (2026-09-14, three independent probes):
 
@@ -2238,4 +2251,90 @@ which is the accidental workaround rather than a documented convention.
 letter is the plan's Nth `## Phase <X>` heading — or state the dual-token naming
 (`phase-<ordinal>-<letter>`) in the receipt convention so it stops being folklore. Do NOT just widen
 to a bare `phase-.` glob: that makes any phase's receipt satisfy every phase.
+
+## [infra] `commands/_sources/fabrik-review.md:23`'s ROUTED-UP citations resolve to unrelated lines, and there is no route-up logic in `command_run.py` at all (2026-09-15, plan-2 Finish review, RECORDED — pre-existing)
+
+The sentence cites `command_run.py:1863` → `:2702` as "the ledger's only positive witness that
+`/fabrik-review-scoped`'s route-up fired", and `:2585` for the reach-back. Executed:
+`command grep -n "ROUTED-UP\|route-up\|route_up" scripts/command_run.py` → **0 matches**; the three
+cited lines are `common.add_argument(`, `started_epoch = rec.get(...)` and a `_scratch_advisory`
+docstring line. ROUTED-UP exists only as prose inside the command markdown — the run record witnesses
+it because the surface STRING is written by the caller, not because any code detects it.
+
+Unchanged by plan-2 (present at `36da6bb4`), so RECORDED rather than fixed in that run. **Shape of the
+fix:** cite the real closing-state check (`AGENT_CLOSED_STATES` at `:774`) or drop the false precision —
+three exact line numbers that resolve to unrelated code read as verified and are not.
+
+## [infra] `check_plan_lock_release.py` cannot see a cross-plan overlap — it judges staleness only from the plan's own `Status:` string (2026-09-15, plan-2 Finish review)
+
+`.fabrik/plan-locks/2026-09-09-plan-1-review-convergence-redesign.json` is `status: active` with 34
+`owned_paths` that cover essentially plan-2's entire File Scope (`commands/_sources/fabrik-review.md`,
+`fabrik-review-scoped.md`, `scripts/command_run.py`, `scripts/final_gate.py`,
+`docs/workflows/FINAL_GATE_WORKFLOW.md`, `CLAUDE.md`, `templates/governance/CLAUDE.md`, …). Plan-2 ran
+75 commits across those paths over three days and never referenced that lock
+(`command grep -c "review-convergence-redesign"` over the plan file → **0**), and no plan-lock JSON
+exists for plan-2 at all. No work was lost — both are this operator's own sequential sessions — but the
+one check that exists to catch this is structurally blind to it.
+
+**Shape of the fix:** flag an `active` lock whose `owned_paths` have been edited by commits carrying a
+DIFFERENT plan's provenance (`Agent-Phase`/`Agent-Context`) since the lock's own creation. Staleness
+read from the plan's self-reported `Status:` cannot detect a lock the editing plan never knew about.
+
+## [infra] Findings RECORDED by the plan-2 Finish review (2026-09-15) — one hop out, or measured rather than defective
+
+Each was EXECUTED by the seat that raised it and re-checked before filing; none is inside plan-2's
+own hunks, so under the D-230 bar they are RECORDED with destinations rather than counted.
+
+1. **`final_gate_stop.py` — the widened `_ROUTINE_GOVERNANCE` also widened the GATE cause's
+   exclusion.** `candidates` excludes the two new ledger names, so a `docs/DECISIONS.md` failure the
+   session itself caused is WAIVED whenever any sibling token is present. Disclosed in the
+   constant's own MIRROR comment, but the comment does not say the fail direction is OPEN on a gate
+   cause. **Fix:** keep ledger files out of `candidates` only when they are the SOLE token.
+2. **`final_gate_stop.py::_surface_reviewed` matches only whole root-relative paths**, so a review
+   whose `--surface` names a file by BASENAME exempts nothing and the sixth cause false-BLOCKs.
+   Bounded by the 3-attempt warn-through. **Fix:** match basenames too, or say so in the docstring.
+3. **`mail_notify.py` / `mcp_watch.py` — the headless guard sits OUTSIDE the catch-all** both
+   modules document as wrapping "the WHOLE body". `os.environ.get` cannot raise, so there is no
+   live defect; the INVARIANT as written is simply no longer true, and the next edit to that region
+   is unprotected. **Fix:** move the guard inside the `try`, or amend the docstring's claim.
+4. **`command_run.py:303` — the delta stand-down accepts a bool.** `isinstance(d, (int, float))` is
+   True for `True` and `0 <= True <= 20`, so `delta: true` silences the oscillation advisory; and
+   `_trend_series` filters non-dict rows while `deltas` does not, so `len(deltas) == len(series)`
+   fails silently on a malformed row. Both advisory-only. **Fix:** mirror `_count`'s bool guard.
+5. **`sync_enforcement_to_projects.py::_head_source` has no symlink/gitlink guard.**
+   `stat.S_IMODE(0o120000)` is `0o000` and `git show HEAD:<link>` returns the LINK TEXT, so a
+   symlinked synced source would distribute as a 0-permission regular file containing a path. Not
+   live: exactly one symlink exists under the synced roots (`scripts/verify_prod_parity.py`) and it
+   is in neither `CORE_SCRIPTS` nor `scripts/enforcement/`. **Fix:** `if mode not in (0o100644,
+   0o100755): return None`.
+6. **`check_review_hygiene.py` — `--stop-at-heading ""` is a silent no-op**, the only selector in a
+   file where every other bad argument prints a `REFUSED —` envelope. **Fix:** route it through
+   `_refuse`.
+7. **`check_plan_tickets.py::_GATE_FILE_RE` roots are Python/hub-shaped** —
+   `(?:tests?|src|scripts|server|app|lib)/` covers no `packages/`, `apps/`, `web/`, `api/`, `ios/`,
+   `android/`, `functions/`, which is what the `node-api`, `mobile-app`, `chrome-extension` and
+   `office-extension` scaffolds actually use. Direction is a MISS, never a false red — degraded
+   coverage, not a break. **Fix:** widen the root alternation per scaffold type.
+8. **The bandit `scripts/` leg's "0 today" denominator is the HUB's.** Measured across all 47
+   `.fabrik/synced.lock` repos with each repo's own interpreter: bandit is installed in 6, and
+   `/opt/tryton-crm` already carries the leg and now reds on pre-existing code no change touched
+   (its own `certification_inventory.py:105`, B324 — that file is tryton-crm's, not the hub's). The other 41 get a green
+   `NOT INSTALLED — skipped`, so a check "measured at 0" is unarmed in 87% of the fleet.
+   **Fix:** state the denominator in the comment and seed a per-repo allowance (the lint-ratchet
+   shape the comment itself invokes) instead of a flag-day HIGH floor.
+9. **`check_doc_index.py` and `check_doc_sync.py` disagree about `.fabrik/plan-locks/`** — one
+   demands an INDEX row for a tracked plan lock, the sibling hunk declares the path transient.
+   Re-derived on this repo: of 128 files added under the four `_CODE_ROOTS` since 2026-09-01, 52
+   are unindexed and 13 of those (25%) are `.fabrik/` paths, 12 of them plan locks — a quarter of
+   the advisory's real output is the class the sibling just declared out of scope. Advisory-only,
+   but it fires on every `/fabrik-execute-plan` start fleet-wide. **Fix:** exclude
+   `.fabrik/plan-locks/` and `.fabrik/cert-locks/` from `_CODE_ROOTS`, or reuse
+   `check_doc_sync.SKIP_PATTERNS`.
+10. **`tests/test_sync_head_source.py` — the red-on-revert harness does not reproduce in an
+    isolated copy.** The staleness fix is proven both ways by direct probe (old → STALE, new →
+    FRESH on identical bytes), but the same scenario run through pytest against a reverted copy
+    PASSES, because the copied tree lacks `fabrik_synced_manifest` and the module resolves
+    differently there. A revert harness that silently diverges from the real import path can
+    certify a fix it never exercised. **Fix:** copy the whole `scripts/` import surface into the
+    revert tree, or assert the loaded module's md5 inside the test.
 

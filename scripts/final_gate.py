@@ -3020,7 +3020,13 @@ def main() -> int:
             "failed": len(failed),
             **_summarize_skipped(all_results),
             "advisory": advisory_rows,
-            "blocking": passed_count - len(advisory_rows),
+            # ⚠️ DERIVED FROM THE ROSTER, not from `passed - advisory`. The old arithmetic never
+            # learned about SKIPS, which the roster below does know about, so the two keys in this
+            # same envelope answered differently about one run: on a gate where ruff, ruff-format,
+            # bandit x2, semgrep, pytest and vulture all did not execute, `blocking` still
+            # advertised 41 while the roster counted 35 passes. "Blocking checks that PASSED" is
+            # the claim a consumer reads, and a check that never ran did not pass.
+            "blocking": sum(1 for c in _check_roster(all_results) if c.get("outcome") == "pass"),
             # T12.2: the per-check roster. `passed`/`failed`/`skipped` are counts; this is the
             # only key that lets a consumer assert a NAMED check actually ran in this tier.
             "checks": _check_roster(all_results),

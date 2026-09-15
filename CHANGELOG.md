@@ -40,6 +40,44 @@ All notable changes to this project will be documented in this file.
   message aged past the 14-day threshold as the clock moved and began sweeping alongside the stale
   one. It passed when written and rotted on a calendar date. Pinned to `now`.
 
+**Finish — the whole-plan review, round 1: 19 confirmed defects across 5 seats (2026-09-15).**
+101 files over 75 commits, partitioned by file — Opus on the two fleet-synced slices, Sonnet on
+breadth. Every candidate re-executed before it was counted; two were REFUTED that way (a stamp
+filename read from a diff that a later commit had already corrected, and a gate-success claim that
+read `status` without the `skipped_checks` the contract pairs it with).
+
+The ones that mattered, each with a red-on-revert grader:
+- **`mail.py` — my own Phase G fix was worse than the hole it closed.** Blanking `%(trailers:…)`
+  before running ANY pattern silenced all six HIGH classes: an AWS key, an `sk-` key, a GitHub PAT,
+  a Postgres DSN and a JWT each scored `high` bare and `None` wrapped. The blank now binds to the
+  ONE pattern a git token can trip, measured rather than assumed, with a structural guard so a
+  future widening cannot be papered over by adding one more vendor regex.
+- **`final_gate_stop.py` — the push cause read the transcript's LIFETIME edit set**, not the floored
+  one every other consumer uses, so on a resumed transcript a sibling's unpushed commit counted as
+  mine and BLOCKED the exit — the trapping direction the function's own docstring forbids.
+- **`check_review_coverage.py` — an unscoped running record claimed every receipt** touched since
+  its start, hard-failing this session's gate on a sibling's committed artifact. Measured: 22 of 26
+  live records yield no plan stem, so the ownership filter was inert on 85% of them.
+- **`check_review_coverage.py` — the scope-growth exit accepted a Status line that DENIED the stop.**
+  `… did NOT close on the D-252 scope-growth stop` satisfied it, and the exemption then let a loop
+  whose last two rounds confirmed 8 and 6 flip to CONVERGED.
+- **`sync_enforcement_to_projects.py` — the cache key could not see the HEAD move it was built for.**
+  `git ls-files -s` prints the INDEX entry, written at STAGE time and untouched by the commit:
+  executed, the SHA, mtime and size are all unchanged across a commit while HEAD moves, so a
+  sibling's mid-walk commit served every remaining repo the pre-commit bytes. Keyed on `ls-tree
+  HEAD` now — same one-subprocess cost, and the mode comes from HEAD too.
+- **`check_lint_ratchet.py` — the remedy the error printed was a no-op**, telling the reader to
+  re-seed with bare `python3` when the count comes from `sys.executable`.
+- **`_doc_registry.py` — `office-extension` was in `_GUI` but not `_DEPLOYED`**, so five docs stopped
+  being required for the one live instance, which ships compose.yaml, Dockerfile and db/ and
+  carries four of them.
+- Plus: `_plan_stem` swallowing `.md.` on a sentence-final surface; the `--own-fix` NOTE reaching 2
+  of 10 review commands while the stop fires on all 10; a derived `new_count` stating what the
+  explicit path REFUSES; `blocking` disagreeing with its own roster by 6; two `12 types` comments
+  left at 12 by the hunk that added the 13th; a `34 checks` line contradicting the `tier1=36`
+  declaration 22 lines above it; and an `assert … or True` on a drained buffer — one instance of
+  each shape in 354 test files.
+
 **Phase H — the mail register worked against the live mailbox (2026-09-15).** 16 of 36 register ids
 still needed action; the moot and informational groups were already archived, so the plan's appendix
 was a dated snapshot and the tree was the truth. 8 T6 governance acks (each precondition verified in

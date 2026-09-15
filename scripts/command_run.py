@@ -567,11 +567,25 @@ def _round_report(rec: dict[str, Any]) -> str:
 PHASE_REVIEW_COMMANDS = frozenset({"fabrik-execute-plan"})
 
 
+def _tokish(v: object) -> str:
+    """A hashable, lowercased command token for a membership test.
+
+    `x in SOME_SET` over a raw record field raises `TypeError: unhashable type` when that field
+    is a dict or list — the Stop hook closed this exact class in `_tok` after 660 fuzzed calls
+    over 11 record fields raised 40 times, every one a membership test on an unhashable value.
+    Here it would abort `round` rather than a Stop hook."""
+    return v.strip().lower() if isinstance(v, str) else ""
+
+
 def _plan_stem(rec: dict[str, Any]) -> str | None:
     """The plan stem a record's `--surface` names (`docs/development/plans/<stem>.md` or `<stem>/`),
     or None — the DISPATCHER ticket artifact `<stem>-T##-review.md` binds to it (T3.1)."""
     m = re.search(
-        r"docs/development/plans/(?:archived/)?([^/\s`'\"),:;]+?)(?:\.md)?(?=[/\s`'\"),:;]|$)",
+        # ⚠️ the `.` in the LOOKAHEAD is load-bearing: without it a sentence-final surface
+        # ("… command-machinery.md.") lets the lazy group swallow `.md.` whole, and the stem it
+        # returns can never match a ticket receipt — the phase gate then refuses and quotes the
+        # bogus stem back at the agent.
+        r"docs/development/plans/(?:archived/)?([^/\s`'\"),:;]+?)(?:\.md)?(?=[/\s`'\"),:;.]|$)",
         str(rec.get("surface") or ""),
     )
     return m.group(1) if m else None
@@ -2391,7 +2405,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             args.own_fix is None
             and args.confirmed is not None
             and args.confirmed > 0
-            and (rec.get("command") or "") in REVIEW_FAMILY
+            and _tokish(rec.get("command")) not in PER_UNIT_ROUND_COMMANDS
         ):
             print(
                 f"[command_run] NOTE — round --confirmed {args.confirmed} without --own-fix: "
@@ -2519,7 +2533,14 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 "new": new_c,
                 # T3.2 (01M1SWQJ): the receipt ledger's `new:` is DERIVED here — the classes opened
                 # this round — never hand-typed; an explicit --new is bounded by --findings above
-                "new_count": args.new if args.new is not None else len(new_c),
+                # ⚠️ TWO UNITS, ONE LABEL — bound the derived value or the record states an
+                # impossibility the explicit path REFUSES. `--new` counts CANDIDATES and is
+                # checked against `--findings`; the fallback counts CLASSES opened via
+                # `--classes-new`, which is a different thing and was unbounded, so
+                # `--findings 0 --classes-new a,b,c` recorded `new: 3` for a round that found
+                # nothing. The class NAMES remain visible in `new` and in "classes open:", so
+                # the bound loses no information — only the nonsense ratio.
+                "new_count": (args.new if args.new is not None else min(len(new_c), args.findings)),
                 **({} if args.delta is None else {"delta": args.delta}),
                 "phase": _phase_now,
             }

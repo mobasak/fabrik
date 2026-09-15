@@ -1146,7 +1146,12 @@ _MAIL_TRIAGE_PHASE_A = {
         "A class check must LOAD the artefact it grades",  # T2.5 (01M25Q9S0)
         "handed to a `fabrik-researcher` seat, never refuted from memory",  # T2.9 (01M215G84)
         "a MUTATION-TESTING seat works on a COPY of the surface",  # T2.18 (01M25RZC3)
-        "`command grep -rn --exclude-dir=.claude",  # T2.21 (01M25H4SR)
+        # T2.21 (01M25H4SR). ⚠️ The needle tracks the CORRECTED sentence: `--exclude-dir=.claude`
+        # was the original fix and was itself wrong — a NAME-component match, so it can never
+        # match `.claude/worktrees` while it DOES drop the seven fleet-synced hooks (CLAUDE.md
+        # § denominator, seventh shape). Corrected at its origin by 7b5bdb86; this guard went
+        # stale in the same change and only reddened when the whole suite was next run.
+        "`command grep -rn --exclude-dir=worktrees",
     ),
     "fabrik-plan-review.md": (
         "positive control recorded beside it",  # T2.17 (01M1VDFYH)

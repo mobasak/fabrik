@@ -221,3 +221,46 @@ def test_the_lockstep_parser_is_not_defeated_by_a_prefix_sibling(tmp_path):
     # a computed constant is unreadable and must fall through to the loud raise, never to a guess
     assert parse("SCOPE_GROWTH_ROUNDS = int(os.getenv('X', '2'))") is None
     assert parse("    SCOPE_GROWTH_ROUNDS = 2") is None  # indented: not a module constant
+
+
+def test_a_status_line_that_denies_the_stop_is_not_a_declaration_of_it():
+    """The window matches the SHAPE of the declaration; this rejects the shape wearing a DENIAL.
+
+    The comment above `SCOPE_GROWTH_EXIT` claimed it "defends against the ACCIDENT — a negation or
+    a passing mention", and it did not: `Status: CONVERGED — this review did NOT close on the
+    D-252 scope-growth stop` satisfied it, and the exemption then let a loop whose last two rounds
+    confirmed 8 and 6 — a loop plainly still converging — flip to CONVERGED. A sentence saying the
+    stop did not happen is the strongest evidence it did not; reading it as the declaration
+    inverts the claim.
+    """
+    crc = _crc()
+    still_converging = [(1, 8, None, None), (2, 6, None, None)]
+
+    assert crc._scope_growth_exit(
+        "Status: CONVERGED on the D-252 scope-growth stop", still_converging
+    )
+    for denial in (
+        "Status: CONVERGED — this review did NOT close on the D-252 scope-growth stop",
+        "Status: CONVERGED — the loop never needed the scope-growth stop",
+        "Status: CONVERGED — nothing here turned on a purported scope-growth stop",
+        "Status: CONVERGED (see the appendix for why this is not a scope-growth stop)",
+        "Status: CONVERGED — closed without reaching the scope-growth stop",
+        "Status: CONVERGED — it cannot have closed on a scope-growth stop",
+    ):
+        assert not crc._scope_growth_exit(denial, still_converging), denial
+
+
+def test_the_real_receipt_this_plan_shipped_still_declares_the_stop():
+    """A guard against over-correcting: the negation list must not reject a genuine declaration
+    that happens to contain ordinary prose. Read from the committed artifact, not retyped — a
+    retyped copy certifies itself."""
+    crc = _crc()
+    receipt = ROOT / "docs/development/reviews/2026-09-15-plan-2-mail-triage-phase-5-G-review.md"
+    if not receipt.is_file():
+        import pytest
+
+        pytest.skip("the Phase G receipt is not in this tree")
+    status = next(
+        ln for ln in receipt.read_text(encoding="utf-8").splitlines() if ln.startswith("**Status:")
+    )
+    assert crc._scope_growth_exit(status, [(1, 7, None, None), (2, 6, None, None)]), status

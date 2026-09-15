@@ -1031,8 +1031,8 @@ def _unreviewed_spontaneous(
     is deliberately NOT written here: round 2 found both endpoints of the line-number cite stale by
     34 in the very commit that called them "re-derived, not recalled", because the same commit's
     other hunks moved them. A self-referential line cite in a file still being edited is
-    unmaintainable by construction — the function NAME is the durable address — where
-    nothing can grade it — a fix whose wiring no test reaches is a fix that can
+    unmaintainable by construction — the function NAME is the durable address — and
+    a fix whose wiring no test reaches is a fix that can
     be deleted with a green suite (measured on this hook's sibling, D-252 round 3)."""
     return len(_unreviewed_spontaneous_files(rec, authored, session_floor, sid))
 
@@ -1174,6 +1174,23 @@ def _sixth_cause_floor(session_floor: float) -> float:
         time.time() - _SIXTH_CAUSE_MAX_EDIT_AGE_S,
         _LEDGER_EPOCH,
     )
+
+
+def _baseline_floor(sid: str) -> float:
+    """This session's SessionStart baseline mtime, 0.0 when it cannot be read.
+
+    Exists so the PUSH cause reads the same floor every other consumer does. It used to be
+    handed `set(authored_map)` — the transcript's LIFETIME edit set — while
+    `_failure_cites_session` and the sixth cause both floored theirs. On a resumed transcript
+    (454 code files over 116 days in one sid, measured) that made any file the session ever
+    touched "distinctive", so a sibling's unpushed commit on one of them counted as mine and
+    the hook BLOCKED. That is the trapping direction `_ahead_of_upstream`'s own docstring
+    forbids: this cause blocks an exit, so its failure mode must be letting a stop through,
+    never holding a session behind someone else's work."""
+    try:
+        return _baseline_path(sid).stat().st_mtime
+    except OSError:
+        return 0.0
 
 
 def _this_sessions_edits(authored: dict[str, int], session_floor: float) -> dict[str, int]:
@@ -1897,7 +1914,10 @@ def main(argv: list[str]) -> int:
             g, c, s_att, p_att, r_att, v_att = _read_counters(counter)
             run = _run_record(sid)
             run_active = bool(run) and (run or {}).get("state") == "running"
-            ahead = _ahead_of_upstream(root, set(authored_map))
+            # FLOORED, not the lifetime set — see `_baseline_floor`
+            ahead = _ahead_of_upstream(
+                root, set(_this_sessions_edits(authored_map, _baseline_floor(sid)))
+            )
             p_action, p_att = decide_stall(bool(ahead), p_att)
             if p_action == "block_stall":
                 counter.write_text(
@@ -2228,7 +2248,7 @@ def main(argv: list[str]) -> int:
             # the SAME scoped question as the block site — a bare call now answers None
             # (indeterminate) and would reset this streak on every unrelated gate/commit
             # block, restarting the 3-attempt ladder in the trapping direction
-            f"{push_attempts if _ahead_of_upstream(root, set(authored_map)) else 0},"
+            f"{push_attempts if _ahead_of_upstream(root, set(_this_sessions_edits(authored_map, _baseline_floor(sid)))) else 0},"
             f"{run_attempts if _run_live else 0},{review_attempts}"
         )
         if action == "block_commit":

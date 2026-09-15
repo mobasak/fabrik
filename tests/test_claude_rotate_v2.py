@@ -1593,8 +1593,11 @@ def test_flip_leg_trips_on_the_projected_reading(monkeypatch, tmp_path, capsys):
     assert flips == [], "92 with no history is below the line"
     monkeypatch.setattr(cr, "_now", lambda: NOW + 300)
     cr._fleet_flip_leg([], [_ob(96.0, 48.0)], threshold=98.0)
-    assert flips == ["sarp"], capsys.readouterr().out
-    assert "projected" in capsys.readouterr().out or True
+    # ONE capture: readouterr() DRAINS the buffer, so a second call reads "" and any
+    # assertion on it is vacuous whatever it says.
+    out = capsys.readouterr().out
+    assert flips == ["sarp"], out
+    assert "projected" in out, out
 
 
 def test_projection_needs_the_same_account_same_window_and_a_recent_reading(monkeypatch, tmp_path):

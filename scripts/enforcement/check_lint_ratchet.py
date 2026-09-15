@@ -327,7 +327,13 @@ def main() -> int:
             f"ERROR: lint-ratchet — ruff changed {stored_version} → {live_version}, so the stored "
             f"count ({baseline}) was measured under a DIFFERENT ruleset and {current} is not "
             "comparable to it. This is not a regression and it is not a pass: re-seed explicitly "
-            "with `python3 scripts/enforcement/check_lint_ratchet.py --reseed` (which records "
+            # ⚠️ THE INTERPRETER IS PART OF THE REMEDY. `_ruff_version()` reads
+            # `sys.executable -m ruff`, so a remedy printed as bare `python3` re-seeds under
+            # whatever ruff THAT interpreter has — which on site-provisioner is the 0.14.10
+            # already stored, so the reseed is a no-op and the gate reds again on the next run.
+            # This is the sibling of the defect the version pin itself closed: a count and its
+            # version must come from ONE interpreter, and so must the instruction to re-take them.
+            f"with `{sys.executable} scripts/enforcement/check_lint_ratchet.py --reseed` (which records "
             f"{current} under {live_version}), in a commit that says the linter moved. Re-seeding "
             "silently is how a floor drifts — a rise landing in the same change as the bump would "
             "be absorbed into the new baseline and never seen."

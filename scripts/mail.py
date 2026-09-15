@@ -113,6 +113,13 @@ DISPOSITIONS = (
 # classifier here; five rounds of evidence say it will leak.
 
 # High-confidence secret signatures — REFUSE the send.
+# The ONE signature a git format token can trip (`key=` supplies the keyword and the `=`), and so
+# the only one the `%(trailers:…)` blank in `_secret_level` is allowed to apply to.
+_ASSIGNMENT_RX = _re.compile(
+    r"(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|PWD)[\w-]{0,64}+\s*[:=](?!:)\s*\S{16,}",
+    _re.I,
+)
+
 _SECRET_HIGH = [
     _re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----"),
     # P22-2: the `\w*` runs are BOUNDED. Unbounded, this backtracks quadratically —
@@ -159,10 +166,7 @@ _SECRET_HIGH = [
     #     commands/_sources/fabrik-execute-plan.md:359 prescribes, because the second `key=` is
     #     preceded by `Agent-Role,`. No fixed-width left-context can be both. Blanking the whole
     #     bounded token is, which is why the scanner reads a blanked COPY.
-    _re.compile(
-        r"(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|PWD)[\w-]{0,64}+\s*[:=](?!:)\s*\S{16,}",
-        _re.I,
-    ),
+    _ASSIGNMENT_RX,
     _re.compile(r"\bsk-[A-Za-z0-9-]{16,}"),  # sk-, sk-ant-, sk-proj- (hyphens kept)
     # P16-4: the hyphen form above misses the UNDERSCORE vendor style (Stripe
     # `sk_live_`/`sk_test_`, restricted `rk_`), which then fell in the dead zone
@@ -346,12 +350,24 @@ def _body_has_bare_ack_line(body: str) -> bool:
 
 
 def _secret_level(body: str) -> str | None:
-    # blank same-length so any span a caller reports still indexes into `body`
-    scan = _GIT_FMT_TOKEN.sub(lambda mo: " " * len(mo.group(0)), body)
+    # ⚠️ THE BLANK APPLIES TO EXACTLY ONE PATTERN, AND THAT IS THE WHOLE POINT.
+    # `_ASSIGNMENT_RX` is the only signature a real git format token can trip — measured, not
+    # assumed: over the repo's own trailer literals, `_SECRET_HIGH` index 1 fires and every other
+    # index, plus `_SECRET_LOW`, stays silent. An earlier cut of this function blanked the token
+    # BEFORE running any pattern, which silenced ALL of them: executed, an AWS key, an `sk-` key,
+    # a GitHub PAT, a Postgres DSN and a JWT each scored `high` bare and `None` wrapped in
+    # `%(trailers:…)`. That is strictly worse than the lookbehind it replaced, which at least
+    # carved only the assignment pattern. Scanning the RAW body with everything else keeps the
+    # blind region to the one class that needs it.
+    # ⚠️ CHEAPEST WAY TO SATISFY THIS WITHOUT THE OUTCOME (cobra-effect): write a credential as
+    # `KEY=<secret>` inside a CLOSED `%(trailers:…)` span, which still reads as `None` — but only
+    # for the bare-assignment shape. Any credential carrying its own vendor signature (`sk-`,
+    # `ghp_`, `AKIA`, a DSN, a JWT, a PEM header) is caught wherever it appears, wrapped or not.
+    blanked = _GIT_FMT_TOKEN.sub(lambda mo: " " * len(mo.group(0)), body)
     for rx in _SECRET_HIGH:
-        if rx.search(scan):
+        if rx.search(blanked if rx is _ASSIGNMENT_RX else body):
             return "high"
-    if _SECRET_LOW.search(scan):
+    if _SECRET_LOW.search(body):
         return "low"
     return None
 

@@ -48,6 +48,13 @@ ALL_TYPES: frozenset[str] = frozenset(
 # deployed = runs a backend service → gets SERVICES/OPERATIONS/RESILIENCE/PORTS.
 # Excludes the client-app types (chrome-extension/mobile-app/desktop-app) and the
 # static-site types (docusaurus/static-site) — they ship no backend service.
+# ⚠️ `office-extension` IS here, and was briefly excluded on the reasoning that it "ships no
+# backend service". The registry's own definition of the type contradicts that — `scaffold.py`
+# describes it as "a HOSTED taskpane web app + backend API + a manifest.xml" — and so does the
+# only live instance: /opt/tojlo-mail carries compose.yaml, Dockerfile and db/, plus four of the
+# five docs the exclusion had just made optional. The exclusion made their rot invisible to
+# `fleet_doc_audit.py::_required_docs` and stopped seeding them in new scaffolds. A type's
+# membership here is decided by what the REGISTRY says it emits, never by one project's shape.
 _DEPLOYED: frozenset[str] = frozenset(
     {
         "python-api",
@@ -56,6 +63,7 @@ _DEPLOYED: frozenset[str] = frozenset(
         "file-api",
         "file-worker",
         "saas-skeleton",
+        "office-extension",
         "wordpress",
     }
 )
@@ -133,7 +141,7 @@ class DocRow:
 # template paths under templates/scaffold/{,docs/,workflows/}).
 # --------------------------------------------------------------------------------------
 PROJECT_DOCS: tuple[DocRow, ...] = (
-    # --- universal (all 12 types) ---
+    # --- universal (all 13 types) ---
     DocRow(
         "README.md",
         "docs/PROJECT_README_TEMPLATE.md",
@@ -276,7 +284,7 @@ PROJECT_DOCS: tuple[DocRow, ...] = (
         "docs/STRATEGIC_BACKLOG_TEMPLATE.md",
         # universal by operator rule (2026-08-27, relayed via job-agent 01M11GMK9M):
         # "STRATEGIC_BACKLOG.md must exist for all projects, no exception." Was saas-only,
-        # which made the rule unenforceable for 11 of 12 types.
+        # which made the rule unenforceable for 12 of 13 types.
         frozenset({"universal"}),
         "deferred-work / session findings",
         "agent",
