@@ -381,7 +381,6 @@ SCOPE_GROWTH_EXIT = re.compile(
 # D-252 scope-growth stop` satisfied it, and the exemption then let a loop whose last two
 # rounds confirmed 8 and 6 flip to CONVERGED. A sentence that says the stop did NOT happen is
 # the strongest possible evidence it did not happen; reading it as the declaration inverts it.
-_CLAUSE_SPLIT = re.compile(r"[,;:]|\b(?:so|and|then|but|therefore|hence)\b", re.I)
 _EXIT_NEGATION = re.compile(
     r"\b(?:not|never|no|none|nothing|without|purported|purportedly|rather\s+than|instead\s+of"
     r"|isn't|wasn't|didn't|doesn't|hasn't|won't|cannot|can't)\b",
@@ -450,21 +449,33 @@ def _scope_growth_exit(text: str, ordered_rows: list[_Row]) -> bool:
     _m = SCOPE_GROWTH_EXIT.search(_strip_fences(header))
     if not _m:
         return False
-    # ⚠️ A Status line that DENIES the stop is not a declaration of it — but the negation has to
-    # GOVERN THE VERB, and searching the whole prefix rejected honest declarations written in the
-    # loop's own vocabulary: "the loop was NEVER quiet, so it closed on the D-252 scope-growth
-    # stop" and "round 7 found NOTHING new and closed on the …" are exactly how this stop is
-    # truthfully described — its definition IS that the loop never went quiet. Only the clause
-    # immediately before `on the …` can negate it, so the window is the tail of group(1).
-    # ⚠️ CHEAPEST WAY TO SATISFY THIS WITHOUT THE OUTCOME (cobra-effect): put the denial AFTER the
-    # phrase — "closed on the scope-growth stop with no quiet round" is ACCEPTED, and deliberately
-    # so, because that sentence AFFIRMS the stop; a reader writing it means it.
-    # only the FINAL clause can negate the verb: everything before the last clause boundary is
-    # setup ("the loop was never quiet, SO IT CLOSED on …" affirms; "this review did NOT close
-    # on …" denies). A fixed character window cannot separate those — the negation and the verb
-    # sit a dozen characters apart in both.
-    _governing = _CLAUSE_SPLIT.split(_m.group(1))[-1]
-    if _EXIT_NEGATION.search(_governing) or _EXIT_NEGATION.search(_m.group(2)):
+    # ⚠️ A Status line that DENIES the stop is not a declaration of it, and this check is
+    # deliberately FAIL-CLOSED: ANY negation anywhere before `on the …` refuses the exemption.
+    #
+    # Three cuts were needed to get the DIRECTION right, which is the part that matters here.
+    # Cut 1 searched the whole prefix — safe, but it rejected honest sentences written in the
+    # loop's own vocabulary ("the loop was NEVER quiet, so it closed on the stop"), and that read
+    # like the defect. Cut 2 kept only the last clause after `, ; : so and then but`. That was
+    # FAIL-OPEN, and punctuation is no defence: measured, all five of these were ACCEPTED while
+    # the loop's last two rounds confirmed 8 and 6 —
+    #     "did not, in the end, close on the …"        governing = " close "
+    #     "makes no claim, and takes no exit, on the …" governing = " "  (empty!)
+    #     "no early stop happened and round 9 closed"   governing = " round 9 closed "
+    #     "never, on any round, did it close on the …"  governing = " did it close "
+    #     "not a scope-growth exit: it closed on the …" governing = " it closed "
+    # This guards a GATE EXEMPTION. Fail-open flips CONVERGED on a loop that is still finding
+    # defects; fail-closed costs the author one rewritten sentence. So cut 3 returns to the whole
+    # prefix and STATES the cost instead of engineering around it.
+    #
+    # ⚠️ THE STATED COST, so nobody has to rediscover it: the declaration must LEAD with the
+    # affirmation and put any caveat AFTER the phrase. `Status: CONVERGED — closed on the D-252
+    # scope-growth stop with no quiet round` is ACCEPTED and says exactly the same thing as the
+    # rejected `the loop was never quiet, so it closed on …`.
+    # ⚠️ CHEAPEST WAY TO SATISFY THIS WITHOUT THE OUTCOME (cobra-effect): write the affirmation
+    # and mean none of it. Unreachable by any text check — which is why the LEDGER half (two
+    # consecutive rounds that each confirmed something) is what actually costs work, and this
+    # half only stops the accident.
+    if _EXIT_NEGATION.search(_m.group(1)) or _EXIT_NEGATION.search(_m.group(2)):
         return False
     if len(ordered_rows) < _OWN_FIX_ROUNDS_FOR_STOP:
         return False

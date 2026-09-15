@@ -266,30 +266,34 @@ def test_the_real_receipt_this_plan_shipped_still_declares_the_stop():
     assert crc._scope_growth_exit(status, [(1, 7, None, None), (2, 6, None, None)]), status
 
 
-def test_an_honest_declaration_in_the_loops_own_vocabulary_is_accepted():
-    """The over-correction guard, and the half my first cut of `_EXIT_NEGATION` got wrong.
+def test_the_exemption_is_fail_closed_on_any_negation_before_the_phrase():
+    """This guards a GATE EXEMPTION, so its failure direction is the whole design.
 
-    A scope-growth stop's DEFINITION is that the loop never went quiet, so the truthful way to
-    declare it is full of negations: "the loop was never quiet, SO IT CLOSED on …", "round 7
-    found nothing new AND CLOSED on …", "no quiet round was reached; CLOSED on …". Searching the
-    whole prefix rejected all three — the negation and the governing verb sit a dozen characters
-    apart, so no fixed character window can separate them. Only the FINAL clause can negate the
-    verb; everything before the last clause boundary is setup.
+    Three cuts were needed. Cut 1 searched the whole prefix (safe, but rejected honest sentences).
+    Cut 2 kept only the last clause after `, ; : so and then but` — FAIL-OPEN, and punctuation is
+    no defence: five denials were ACCEPTED while the loop's last two rounds confirmed 8 and 6.
+    Cut 3 returns to the whole prefix and STATES the cost: the declaration must LEAD with the
+    affirmation and put any caveat AFTER the phrase.
     """
     crc = _crc()
-    rows = [(1, 8, None, None), (2, 6, None, None)]
-    for honest in (
-        "Status: CLOSED — the loop was never quiet, so it closed on the D-252 scope-growth stop",
-        "Status: CLOSED — round 7 found nothing new and closed on the D-252 scope-growth stop",
-        "Status: CLOSED — no quiet round was reached; closed on the D-252 scope-growth stop",
-        "Status: CONVERGED — closed on the scope-growth stop with no quiet round",
-        "Status: CONVERGED on the D-252 scope-growth stop",
-    ):
-        assert crc._scope_growth_exit(honest, rows), honest
+    still_converging = [(1, 8, None, None), (2, 6, None, None)]
+
+    # every one of these was ACCEPTED by the clause-split cut
     for denial in (
+        "Status: CONVERGED — this review did not, in the end, close on the D-252 scope-growth stop",
+        "Status: CONVERGED — this review makes no claim, and takes no exit, on the scope-growth stop",
+        "Status: CONVERGED — no early stop happened and round 9 closed on the scope-growth stop",
+        "Status: CONVERGED — never, on any round, did it close on the D-252 scope-growth stop",
+        "Status: CONVERGED — not a scope-growth exit: it closed on the scope-growth stop",
         "Status: CONVERGED — this review did NOT close on the D-252 scope-growth stop",
-        "Status: CONVERGED — nothing here turned on a purported scope-growth stop",
         "Status: CONVERGED (see the appendix for why this is not a scope-growth stop)",
-        "Status: CONVERGED — it cannot have closed on a scope-growth stop",
     ):
-        assert not crc._scope_growth_exit(denial, rows), denial
+        assert not crc._scope_growth_exit(denial, still_converging), denial
+
+    # the documented shape: affirmation first, caveat after the phrase — says the same thing
+    for affirmation in (
+        "Status: CONVERGED on the D-252 scope-growth stop",
+        "Status: CONVERGED — closed on the D-252 scope-growth stop with no quiet round",
+        "Status: CLOSED — closed on the scope-growth stop; the loop was never quiet",
+    ):
+        assert crc._scope_growth_exit(affirmation, still_converging), affirmation

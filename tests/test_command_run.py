@@ -4918,7 +4918,41 @@ def test_the_derived_new_count_cannot_state_what_the_explicit_one_refuses(run_di
     rec = json.loads(next(run_dir.glob("*.json")).read_text())
     last = rec["rounds"][-1]
     # two units, two keys — each says only what it measures
-    assert last["new_count"] is None, last     # `--new` was not stated
-    assert last["new_classes"] == 3, last      # three ledger classes opened
+    assert last["new_count"] is None, last  # `--new` was not stated
+    assert last["new_classes"] == 3, last  # three ledger classes opened
     assert last["new"] == ["a", "b", "c"], last
-    assert "new: 3" in out, out                # and the row agrees with len(new)
+    # TWO fields, because they are two units — and `check_review_coverage` keys the
+    # NON-CONVERGENCE stop on `new:`, so collapsing the class count into it ordered a loop that
+    # found nothing to declare itself stuck
+    assert "new: 0" in out, out
+    assert "classes new: 3" in out, out
+
+
+def test_the_three_plan_stem_parsers_agree():
+    """Round 2's headline defect was a `_plan_stem` fix landing on 1 of 3 copies of the same
+    rule — `check_review_coverage.py` and `check_convergence.py` kept returning a `.md.` stem
+    while `command_run.py` was correct, and BOTH stale copies fail OPEN (an untracked plan
+    flipping to EXECUTED is silently dropped; a running review's own receipt is never graded).
+    Nothing guarded the agreement, so nothing caught it. This does.
+
+    The three are separate by design (two are fleet-synced enforcement scripts that must run
+    standalone), so this asserts BEHAVIOUR on the shapes that have actually broken, not source
+    equality — a copy may legitimately be spelled differently as long as it answers the same.
+    """
+    cr = _load("cr_parity", _SCRIPT)
+    enf = _SCRIPT.parent / "enforcement"
+    crc = _load("crc_parity", enf / "check_review_coverage.py")
+    cc = _load("cc_parity", enf / "check_convergence.py")
+
+    want = "2026-09-12-plan-2-mail-triage-command-machinery"
+    base = f"docs/development/plans/{want}.md"
+    for surface in (
+        base,
+        f"the plan {base}.",  # sentence-final — the shape that broke
+        f"`{base}`",
+        f'"{base}", phase F',
+        f"docs/development/plans/archived/{want}.md",
+    ):
+        assert cr._plan_stem({"surface": surface}) == want, f"command_run: {surface}"
+        assert crc._PLAN_STEM_RE.findall(surface) == [want], f"check_review_coverage: {surface}"
+        assert cc._PLAN_STEM_RE.findall(surface) == [want], f"check_convergence: {surface}"

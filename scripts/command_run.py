@@ -492,7 +492,12 @@ def _round_report(rec: dict[str, Any]) -> str:
     clean_c = sorted(k for k, v in classes.items() if v == "clean")
     lines = [
         f"ROUND {len(rounds)} recorded · findings: {last.get('findings', 0)} "
-        f"· new: {last['new_count'] if last.get('new_count') is not None else len(last.get('new') or [])} "
+        # ⚠️ TWO FIELDS, because they are two units and a live consumer reads one of them:
+        # `check_review_coverage` keys the NON-CONVERGENCE stop on three rounds of non-decreasing,
+        # NONZERO `new:` read off the pasted rows. Collapsing the class count into `new:` ordered
+        # a loop that found nothing but opened three classes to emit `## BLOCKED: NON-CONVERGENCE`.
+        f"· new: {last.get('new_count') or 0} "
+        f"· classes new: {last.get('new_classes', len(last.get('new') or []))} "
         f"· confirmed: {'unstated' if last_confirmed is None else last_confirmed} "
         f"· classes open: {', '.join(open_c) or 'none'} "
         f"· clean: {', '.join(clean_c) or 'none'}"
@@ -2531,22 +2536,14 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 "ts": time.time(),
                 "swept": swept,
                 "new": new_c,
-                # T3.2 (01M1SWQJ): the receipt ledger's `new:` is DERIVED here — the classes opened
-                # this round — never hand-typed; an explicit --new is bounded by --findings above
-                # ⚠️ TWO UNITS, ONE LABEL — bound the derived value or the record states an
-                # impossibility the explicit path REFUSES. `--new` counts CANDIDATES and is
-                # checked against `--findings`; the fallback counts CLASSES opened via
-                # `--classes-new`, which is a different thing and was unbounded, so
-                # `--findings 0 --classes-new a,b,c` recorded `new: 3` for a round that found
-                # nothing. The class NAMES remain visible in `new` and in "classes open:", so
-                # the bound loses no information — only the nonsense ratio.
-                # ⚠️ TWO UNITS, TWO KEYS. `--new` counts new CANDIDATES and is checked against
-                # `--findings`; `--classes-new` opens ledger CLASSES to sweep, which is a
-                # different quantity and may legitimately exceed findings. They shared one key
-                # and one `new:` label, so the derived path recorded what the explicit path
-                # REFUSES. Bounding the derived value was the first fix and it was worse: it
-                # discarded the count instead of separating it, leaving `new_count` disagreeing
-                # with `len(new)` inside the same row.
+                # T3.2 (01M1SWQJ), as re-cut twice. ⚠️ TWO UNITS, TWO KEYS: `--new` counts new
+                # CANDIDATES and is bounded by `--findings` above; `--classes-new` opens ledger
+                # CLASSES to sweep, a different quantity that may legitimately exceed findings.
+                # They shared one key and one `new:` label, so the derived path RECORDED what the
+                # explicit path REFUSES (`--findings 0 --classes-new a,b,c` → `new: 3`). Bounding
+                # the derived value was the first attempt and it was worse — it discarded the
+                # count instead of separating it, leaving `new_count` disagreeing with `len(new)`
+                # in one row. `_round_report` prints both fields for the same reason.
                 "new_count": args.new,
                 "new_classes": len(new_c),
                 **({} if args.delta is None else {"delta": args.delta}),

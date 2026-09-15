@@ -2203,7 +2203,32 @@ change the plan template to number its phases. Do NOT just widen the regex to `[
 makes a phase-A receipt satisfy phase 1 of a plan whose first phase is Phase 0, which is the
 prefix bug the existing comment at `:608` already paid for once.
 
-## ~~[infra] A review that closes on the SCOPE-GROWTH STOP cannot flip its receipt~~ — RESOLVED 2026-09-15, plan-2 Phase E (`check_review_coverage.py::_scope_growth_exit` at :419, twinned constant `_OWN_FIX_ROUNDS_FOR_STOP` at :378). Kept for its measurements. (2026-09-14, D-252 review round 3, found by the stop's own close)
+## [infra] A review that closes on the SCOPE-GROWTH STOP can flip its RECEIPT but still cannot flip its PLAN — the exit was taught to one checker of two
+
+⚠️ **Re-opened 2026-09-15 (plan-2 Finish).** I marked this RESOLVED when Phase E shipped
+`check_review_coverage.py::_scope_growth_exit` — and that closed only half of it. The plan's
+`Status: EXECUTED` flip is graded by a DIFFERENT script, `check_convergence.py`, which has zero
+occurrences of `scope.growth` (`command grep -c` → 0) and refuses the flip unless the last Pass
+row reads `confirmed: 0` (`CLOSING_ROW_REFUSAL`, `:215`). So a review that legitimately closes on
+the stop writes a receipt that `check_review_coverage` accepts and a plan that `check_convergence`
+rejects — the two gates disagree about the same artifact.
+
+Found by RUNNING `check_convergence.py --project-root .` while preparing this plan's own archive,
+not by reading: the flip had not been attempted yet, so nothing had surfaced it.
+
+**This is the same class as round 2's headline defect** — a fix landing on 1 of N copies of the
+same rule. `_plan_stem` was 1 of 3; this exit is 1 of 2.
+
+**Shape of the fix:** give `check_convergence.py` the same fourth sanctioned exit, reading the
+receipt's header-zone declaration and its ledger tail exactly as `_scope_growth_exit` does —
+ideally by IMPORTING that predicate rather than copying it, since copying is what produced both
+of this round's instances. Deliberately not built inside plan-2's Finish: adding a gate mechanism
+during a Finish is the scope growth the stop itself exists to refuse.
+
+**Consequence for plan-2:** its whole-plan review is therefore driven to a GENUINE quiet round
+(`confirmed: 0`) rather than closing on the stop — which is the review's own terminal condition
+anyway, so no exemption is needed and no gate is weakened to accommodate one. (2026-09-14, D-252
+review round 3, found by the stop's own close) (2026-09-14, D-252 review round 3, found by the stop's own close)
 
 D-252 added a counted scope-growth stop whose sanctioned exit is "STOP the loop — route the remaining own-fix work to a backlog row and close on the ORIGINAL delta's state". A review that obeys it ends on a round with `confirmed > 0`, because the whole point is that the loop is still finding things and they are no longer worth another round. `check_review_coverage.py` then refuses the flip: *"the exit round must be quiet, or the stuck finding must be BLOCKED-escalated (named + 3 failed attempts), or the report must declare `Status: IN-PROGRESS`"*. None of the three fits — the round is not quiet, there is no stuck finding with three failed attempts, and IN-PROGRESS understates a review that reached a designed terminal state.
 
@@ -2340,15 +2365,61 @@ own hunks, so under the D-230 bar they are RECORDED with destinations rather tha
     (b) the revert tree carried only the one file, so once (a) was fixed the module hit
     `ModuleNotFoundError` on its `fabrik_synced_manifest` import and both arms went RED — a
     failure that looks like a passing red-on-revert and is not.
-    FIXED 2026-09-15: `REPO = Path(__file__).resolve().parents[1]`, the third CWD-relative
-    spelling at `:288` aligned to `SCRIPT`, and the revert recipe copies the import surface. With
+    FIXED 2026-09-15: `REPO = Path(__file__).resolve().parents[1]`, the other spellings aligned to `SCRIPT` — the CWD-relative
+    one and a long-hand re-derivation of the same path, FOUR in one file before this — and the
+    revert recipe copies the import surface. With
     all three, GREEN with the fix and RED on the reverted blob, md5-asserted. The assertion was
     sound throughout; only the harness was blind.
     **Lesson worth more than the fix:** each of us diagnosed from a plausible mechanism rather
     than executing both arms to completion, and a partial diagnosis reads exactly like a whole
-    one. Three files is the minimum revert tree here, and a revert harness that goes green on
-    BOTH arms — or red on both — is reporting on itself, not on the code.
-    **Lesson worth more than the fix:** I diagnosed a harness failure from a plausible mechanism
-    instead of executing it, and filed the guess as a finding — the same defect this review
-    confirmed nineteen times in other people's code.
+    one — the same defect this review confirmed nineteen times in other people's code. Three
+    files is the minimum revert tree here, and a revert harness that goes green on BOTH arms —
+    or red on both — is reporting on itself, not on the code.
+
+## [infra] 15 of this plan's 66 phase-named commits carry no `Agent-Phase` trailer, so phase attribution under-reports its own work (2026-09-15, plan-2 Finish, found while assembling the archive Status line)
+
+Measured over `git log 36da6bb4..HEAD`, kaizen commits excluded, by reading
+`%(trailers:key=Agent-Phase,valueonly)` per commit: **66 commits name a phase in their SUBJECT and
+15 of them (23%) carry no trailer** — Phase B ×1, Phase C ×9, Phase D ×5. Phases C and D were
+therefore committed almost entirely without it, and
+`git log --format='%h %(trailers:key=Agent-Phase)'` — the query the trailer table exists to serve —
+shows those phases as empty. Assembling this plan's own archive Status line is what surfaced it:
+the per-phase closer had to be recovered by subject grep instead.
+
+⚠️ **Why no check caught it, and why the obvious fix would not have:** every one of those commits
+was made with the private-index recipe (`commit-tree` + `update-ref`), and that path runs **no
+commit hook at all** — not pre-commit, not commit-msg. A `commit-msg` guard would have fired on
+exactly the commits that do not use it. The contract already says the trailers are "yours to run by
+hand" there; the gap is that nothing then checks the hand-written result.
+
+**Shape of the fix:** a repo-health check (Tier-3, advisory) that reads back the last N commits and
+reports any whose subject names a phase, a ticket or a review round while the corresponding trailer
+is absent — a POST-hoc audit, since the pre-commit seam is structurally unavailable on the one path
+this repo mandates for shared-append files. Note the cobra before arming it: the cheapest way to
+satisfy such a check is to stop naming the phase in the subject, which is worse than the gap — so it
+must key on the plan-lock or the run record, not on subject text alone.
+
+## [infra] CLAUDE.md's denominator rule names `.claude/worktrees/` but not `mutants/`, and a repo-root recursive count descends both (2026-09-15, plan-2 Finish round 3, raised by a reviewer seat's MACHINERY note)
+
+The § HARD STOPS denominator rule teaches `command grep` / `rg --no-ignore --hidden` for negatives
+over synced paths, and warns that worktrees are 36% of an unscoped `*.py` count. It does not name
+`/opt/fabrik/mutants/` — a gitignored, untracked full copy of the tree left by mutation runs — so
+an agent following the rule exactly still gets an inflated number. Measured with `find` (the
+producing tool, not a grep pipeline), this hour:
+
+| question | answer |
+|---|---|
+| `find tests -type f -name '*.py'` | **354** |
+| `find . -type f -name 'test_*.py'` | **9,798** |
+| same, excluding `mutants/`, `.claude/worktrees/`, `.tmp/` | **3,354** |
+
+A 2.9× inflation between the second and third rows, and neither equals the first — rooting the
+search at the directory you mean is what makes the count immune, which the rule's own advice about
+search ROOTS already implies but never states beside the exclusion list.
+
+**Shape of the fix:** add `mutants/` to the rule's named exclusions and state the general form —
+the exclusion list is unbounded because it is generated by tooling, so the durable advice is to
+ROOT the search at the directory whose population you are claiming, and to name that root beside
+the number. A reviewer seat hit this independently on one pattern (919 hits from `mutants/` alone),
+which is the evidence that the current wording is not sufficient.
 

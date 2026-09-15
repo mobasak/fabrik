@@ -241,7 +241,7 @@ def test_there_is_exactly_one_hub_root_constant(hub) -> None:
     """Two sources of truth for the same path meant a change to one left `_head_source` reading git
     in the WRONG tree and silently returning None — i.e. shipping the working tree again, with no
     warning, which is the failure the whole change exists to prevent."""
-    src = Path(Path(__file__).resolve().parents[1] / "scripts" / "sync_enforcement_to_projects.py")
+    src = SCRIPT  # one spelling for the module under test (see REPO/SCRIPT above)
     text = src.read_text(encoding="utf-8")
     assert "_HUB_ROOT" not in text, "a second hub-root constant is back"
     assert "FABRIK_ROOT.resolve()" in text, (
@@ -301,7 +301,7 @@ def test_head_source_is_not_re_shelled_for_every_caller(hub, monkeypatch) -> Non
     The first cut asserted `len(mod._head_cache)` grew — satisfied by a cache that is WRITTEN
     every call and never READ, which is precisely the bug it would have to catch. Proven: neuter
     the read branch and the dict still reaches 1 then 2, and the old assertions still passed
-    (Phase E review, round 4). The saving is `git show` + `read_bytes`; `git ls-files` still runs
+    (Phase E review, round 4). The saving is `git show` + `read_bytes`; `git ls-tree HEAD` still runs
     every call because it is where the blob SHA comes from, and the SHA is what makes the memo
     HEAD-aware."""
     mod, _hub_root, committed, _untracked = hub
@@ -431,13 +431,17 @@ def test_a_commit_of_already_staged_content_is_not_served_from_the_cache(tmp_pat
     assert mod._head_source(f)[0] == b"A\n"  # staged B, HEAD still A — memo populated here
     idx_before = subprocess.run(
         ["git", "-C", str(repo), "ls-files", "-s", "--", "scripts/enforcement/x.py"],
-        capture_output=True, text=True, check=True,
+        capture_output=True,
+        text=True,
+        check=True,
     ).stdout.split()[1]
     st_before = f.stat()
     subprocess.run(["git", "-C", str(repo), "commit", "-qm", "b"], check=True, capture_output=True)
     idx_after = subprocess.run(
         ["git", "-C", str(repo), "ls-files", "-s", "--", "scripts/enforcement/x.py"],
-        capture_output=True, text=True, check=True,
+        capture_output=True,
+        text=True,
+        check=True,
     ).stdout.split()[1]
 
     # the premise: the old key's every component survived the commit unchanged

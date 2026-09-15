@@ -40,6 +40,39 @@ All notable changes to this project will be documented in this file.
   message aged past the 14-day threshold as the clock moved and began sweeping alongside the stale
   one. It passed when written and rotted on a calendar date. Pinned to `now`.
 
+**Finish — round 3: 14 confirmed, and the D-252 stop fired (2026-09-15).** Two fresh seats over
+round 2's 310-line delta. Every confirmed defect was again inside the review's own fix, so the
+counted stop fired on rounds 2 and 3 (10/10 → 14/14).
+
+The security one first: **the splice fix closed 1 of 6 patterns.** Round 2 established splicing as
+the threat and then fixed only `_ASSIGNMENT_RX`; measured, `sk-…`, `sk_live_…` and a spliced PEM
+header each still scored **`None`** — delivered, not even `low` — while a comment I wrote claimed
+every vendor signature "is caught wherever it appears". Every pattern now reads the stripped copy;
+only the assignment pattern is CONFINED to it, because that is the one a real git token can trip.
+
+- **`_CLAUSE_SPLIT` traded one false-reject for five false-ACCEPTS.** Punctuation is no defence:
+  "did not, in the end, close on the …" and four more denials were all exempted while the loop's
+  last two rounds confirmed 8 and 6. This guards a gate EXEMPTION, so the third cut returns to
+  fail-closed and states the cost — lead with the affirmation, put the caveat after the phrase.
+- **The `_baseline_floor` fix reached 1 of 2 sites.** The unfixed one carried both halves of the
+  defect and fed `_failure_cites_session`. All three consumers now share one spelling.
+- **That fix's headline line had NO grader** — reverting it left 379 tests green. It has one now.
+- **Nothing guarded that the three plan-stem copies agree**, which is exactly how round 2's
+  1-of-3 defect happened. A parity grader now catches a single stale copy.
+- **The `blocking` fix had no grader either**, and human mode still had no Skipped line — so an
+  agent reading the completion gate saw un-run checks counted inside `Passed` and named nowhere,
+  the precise trap CLAUDE.md § GATE warns about. Both modes now agree and both name their skips.
+- Also: a `new:` field that collapsed two units and fed the NON-CONVERGENCE stop; three
+  overlapping comment blocks where I left two superseded ones above their replacement; a
+  docstring promising `0.0` from a function that can no longer return it; a citation of mine that
+  drifted by 27 lines because my own edits moved it — now by symbol; "six comments" that was
+  five, with a sixth still false in the tree; and a fourth spelling of one path in one test file.
+
+⚠️ **The mirror I had not stated:** flooring at the 24h window means a session whose only edits
+are older than that is never told its work is unpushed. That is the deliberate direction — this
+cause BLOCKS, so it must fail toward letting a stop through — but it is a cost, and it is now
+written where the next reader will find it.
+
 **Finish — round 2: 10 confirmed, every one of them inside round 1's own fix (2026-09-15).**
 Two fresh seats over the 663-line fix delta. The round that reviews the reviewer is where this
 plan kept finding its worst work, and it held again:
@@ -68,7 +101,9 @@ plan kept finding its worst work, and it held again:
   right.
 - Also: a citation I corrected went stale inside the same commit that corrected it (my own
   addition shifted the line — it now cites the symbol); a `new_count` bound that discarded a
-  count instead of separating two units; six comments naming a command the code no longer runs.
+  count instead of separating two units; five comments naming a command the code no longer runs (the count is the producing tool's:
+  `git diff -U0 … | command grep -c '^+.*ls-tree HEAD'` → 5, not the six I first wrote — and
+  a SIXTH was still false in the tree, corrected in round 3).
 
 ⚠️ **And the red-on-revert harness I filed a finding against had TWO causes, one filed by me and
 one by a reviewer, each of us calling the other's wrong.** A hardcoded `REPO = Path("/opt/fabrik")`

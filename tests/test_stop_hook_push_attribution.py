@@ -9,8 +9,11 @@ own unpushed; it is the one the push law never asked for.
 from __future__ import annotations
 
 import importlib.util
+import os
 import subprocess
 from pathlib import Path
+
+import pytest
 
 _HOOK = Path(__file__).resolve().parents[1] / ".claude" / "hooks" / "final_gate_stop.py"
 _spec = importlib.util.spec_from_file_location("fgs_push_attr", _HOOK)
@@ -239,4 +242,28 @@ def test_a_missing_baseline_does_not_restore_the_lifetime_edit_set():
     # ancient edits drop (nothing distinctive -> indeterminate -> never blocks)
     assert hook._this_sessions_edits({"old.py": 1_000_000_000.0}, floor) == {}
     # and the fallback must not disarm the cause for work this session really did
+    assert set(hook._this_sessions_edits({"mine.py": _t.time()}, floor)) == {"mine.py"}
+
+
+def test_an_old_baseline_is_bounded_not_trusted(tmp_path, monkeypatch):
+    """The headline line of the floor fix — `_sixth_cause_floor(baseline mtime)` — had NO grader:
+    reverting it to the raw mtime left 379 tests green. The missing-baseline test below exercises
+    only the `except OSError` arm; this one exercises the arm that actually fires, because
+    `main()` keeps the ORIGINAL baseline across a resume BY DESIGN, so the 116-day transcript the
+    docstring cites goes through the TRY branch with a real, ancient mtime."""
+    import time as _t
+
+    baseline = tmp_path / "fabrik-gate-baseline-oldsid.json"
+    baseline.write_text("{}", encoding="utf-8")
+    ancient = _t.time() - 116 * 86_400
+    os.utime(baseline, (ancient, ancient))
+    monkeypatch.setattr(hook, "_baseline_path", lambda sid: baseline)
+
+    floor = hook._baseline_floor("oldsid")
+    # the raw mtime would be 116 days old and filter nothing; the bound pulls it to the window
+    assert floor > ancient + 86_400, "a 116-day baseline was trusted raw"
+    assert floor == pytest.approx(_t.time() - hook._SIXTH_CAUSE_MAX_EDIT_AGE_S, abs=5)
+
+    # and the consequence the bound exists for: an edit from 100 days ago is no longer "mine"
+    assert hook._this_sessions_edits({"old.py": _t.time() - 100 * 86_400}, floor) == {}
     assert set(hook._this_sessions_edits({"mine.py": _t.time()}, floor)) == {"mine.py"}

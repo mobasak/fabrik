@@ -3064,6 +3064,18 @@ def main() -> int:
     # rewired to the roster, and a check that never ran did not pass.
     _blocking = sum(1 for c in _check_roster(all_results) if c.get("outcome") == "pass")
     print(f"  {GREEN}Passed:{RESET} {passed_count} ({_blocking} blocking)")
+    # ⚠️ HUMAN MODE MUST NAME ITS SKIPS TOO. `_summarize_skipped` was called only inside the
+    # `--json` branch, so `passed - blocking` had two causes here and only ADVISORY was printed:
+    # an agent in a .venv missing ruff/mypy read `Passed: 41 (35 blocking)` with four advisory
+    # rows and the un-run checks were counted inside `Passed` and named nowhere — the exact trap
+    # CLAUDE.md § GATE warns about ("read the skip lines before treating green as verified").
+    _skips = _summarize_skipped(all_results)
+    if _skips.get("skipped"):
+        print(
+            f"  {YELLOW}Skipped:{RESET} {_skips['skipped']} "
+            f"({', '.join(_skips.get('skipped_checks') or [])}) — this green asserts nothing "
+            "about them"
+        )
     print(f"  {RED}Failed:{RESET} {len(failed)}")
     if advisory_names:
         print(

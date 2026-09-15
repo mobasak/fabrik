@@ -373,7 +373,14 @@ def _secret_level(body: str) -> str | None:
     # re-joins and the pattern fires.
     blanked = _GIT_FMT_TOKEN.sub("", body)
     for rx in _SECRET_HIGH:
-        if rx.search(blanked if rx is _ASSIGNMENT_RX else body):
+        # ⚠️ EVERY pattern sees the stripped copy; only the ASSIGNMENT pattern is CONFINED to it.
+        # The strip exists so a real git token cannot trip `KEY=…`, and that exemption must stay
+        # narrow — so `_ASSIGNMENT_RX` reads the stripped text ALONE. Every other pattern reads
+        # BOTH, because the splice defeats them too and none of them can false-positive on a
+        # trailer literal: measured, `sk-AAAA%(trailers:x)BBBB`, `sk_live_…` and a spliced PEM
+        # header each scored `None` — DELIVERED — when only the assignment pattern was stripped,
+        # while the comment above claimed every vendor signature was "caught wherever it appears".
+        if rx.search(blanked) or (rx is not _ASSIGNMENT_RX and rx.search(body)):
             return "high"
     if _SECRET_LOW.search(body):
         return "low"

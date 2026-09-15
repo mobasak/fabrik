@@ -1177,9 +1177,22 @@ def _sixth_cause_floor(session_floor: float) -> float:
 
 
 def _baseline_floor(sid: str) -> float:
-    """This session's SessionStart baseline mtime, 0.0 when it cannot be read.
+    """The FLOORED baseline — `_sixth_cause_floor(mtime)`, never a falsy value.
 
-    Exists so the PUSH cause reads the same floor every other consumer does. It used to be
+    ⚠️ IT CANNOT RETURN 0.0, and an earlier line of this docstring said it could. `0.0` is the one
+    value that breaks every consumer: `_this_sessions_edits` and `_failure_cites_session` both read
+    a falsy floor as "no floor" and keep every entry, which is the LIFETIME set this helper exists
+    to stop.
+
+    ⚠️ THE MIRROR — the shape this bound BREAKS, stated rather than left for the next reader.
+    Flooring at `now - _SIXTH_CAUSE_MAX_EDIT_AGE_S` means a session whose only edits are OLDER than
+    that window has an empty `_this_sessions_edits`, so `_ahead_of_upstream` returns `None` and the
+    PUSH law never fires for it: a session that committed at hour 0 and stops at hour 25 is not
+    told its work is unpushed. That is the deliberate direction — this cause BLOCKS an exit, so it
+    must fail toward letting a stop through rather than trapping a session behind someone else's
+    work — but it IS a cost, and `_SIXTH_CAUSE_MAX_EDIT_AGE_S` states it only for the sixth cause.
+
+    Exists so the PUSH cause reads a bounded floor rather than the raw baseline. It used to be
     handed `set(authored_map)` — the transcript's LIFETIME edit set — while
     `_failure_cites_session` and the sixth cause both floored theirs. On a resumed transcript
     (454 code files over 116 days in one sid, measured) that made any file the session ever
@@ -1198,7 +1211,8 @@ def _baseline_floor(sid: str) -> float:
         return _sixth_cause_floor(_baseline_path(sid).stat().st_mtime)
     except OSError:
         # ⚠️ NEVER 0.0. `_this_sessions_edits` reads a FALSY floor as "no floor" and keeps every
-        # entry (`not session_floor` at :1206), so returning 0.0 on a missing baseline silently
+        # entry (the `not session_floor` arm of `_this_sessions_edits`, and the same arm in
+        # `_failure_cites_session`), so returning 0.0 on a missing baseline silently
         # restores the LIFETIME edit set — the precise defect this helper was added to close, in
         # the case the file elsewhere calls routine ("No baseline (SessionStart didn't run /
         # older session)"). The sibling consumer `_sixth_cause_floor` never had this hole because
@@ -2028,11 +2042,14 @@ def main(argv: list[str]) -> int:
                 # 01M1NTNCFEWMP82YQFGNN6NHYP shape (reviewed, closed, idle under a hold) stays
                 # allowed: idle authors nothing after the close.
                 _rec = _run_record_raw(sid)
-                _floor = 0.0
-                try:
-                    _floor = _baseline_path(sid).stat().st_mtime
-                except OSError:
-                    pass
+                # ONE spelling for "this session's floor" across all three consumers. This site
+                # was already safe — `_unreviewed_spontaneous_files` floors internally — but a
+                # raw read sitting beside two floored ones is how the 1-of-N class recurs. The
+                # double application is safe but NOT strictly idempotent: `_sixth_cause_floor`
+                # takes a `max()` against `now - 24h`, and `now` advances between calls, so
+                # `f(f(x))` exceeds `f(x)` by the call gap — microseconds here, and always in the
+                # SAFE direction (a higher floor drops more, never fewer, ancient edits).
+                _floor = _baseline_floor(sid)
                 _unreviewed_files = _unreviewed_spontaneous_files(_rec, authored_map, _floor, sid)
                 _unreviewed = len(_unreviewed_files)
                 v_action, v_att = decide_review(_unreviewed, v_att)
@@ -2182,11 +2199,15 @@ def main(argv: list[str]) -> int:
         # INDETERMINATE (keep blocking up to the cap) rather than waving it through.
         # Runs only when we actually know the session's files (transcript present).
         if new_failures and authored:
-            session_floor = 0.0
-            try:
-                session_floor = baseline_file.stat().st_mtime
-            except OSError:
-                pass
+            # ⚠️ `_baseline_floor`, not the raw mtime. This site carried BOTH halves of the
+            # defect the helper exists to close: a `0.0` fallback, which `_failure_cites_session`
+            # reads as "no floor" through the same `not session_floor` expression as
+            # `_this_sessions_edits`; and a RAW baseline, which on a resumed transcript is months
+            # old and filters nothing. The sixth cause's site two hundred lines up was already
+            # safe because its callee floors internally (`_unreviewed_spontaneous_files` →
+            # `_sixth_cause_floor`); this one had no such backstop, so a sibling's dirty file
+            # could be attributed to a path this session touched three months ago and BLOCK.
+            session_floor = _baseline_floor(sid)
             new_outputs = [gate_outputs.get(n, "") for n in new_failures]
             verdict = _failure_cites_session(new_outputs, authored, session_floor)
             if verdict is False:

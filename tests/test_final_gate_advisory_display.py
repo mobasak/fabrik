@@ -962,3 +962,49 @@ def test_a_row_that_never_ran_never_renders_pass(capsys):
     capsys.readouterr()
     fg.print_step("ruff", True, "")
     assert "PASS" in capsys.readouterr().out
+
+
+@pytest.mark.slow
+def test_human_mode_names_its_skips_and_agrees_with_the_envelope() -> None:
+    """`_summarize_skipped` was called only inside the `--json` branch, so the HUMAN summary —
+    the one an agent actually reads at a completion gate — printed `Passed: N (M blocking)` and
+    an Advisory list while the un-run checks sat silently inside `Passed`, named nowhere. That is
+    the trap CLAUDE.md § GATE warns about in its own words ("read the skip lines before treating
+    green as verified").
+
+    Both modes are run against the SAME tree in one test, because the defect was precisely that
+    the two modes disagreed: `blocking` had been rewired in the envelope and not in the print, and
+    one run reported 37 and 40. `--lean` is deliberately NOT used — it skips nothing today, which
+    is how the previous assertion survived being wrong.
+    """
+    human = subprocess.run(
+        [sys.executable, "scripts/final_gate.py", "--check"],
+        capture_output=True,
+        text=True,
+        cwd=str(REPO_ROOT),
+        timeout=900,
+    ).stdout
+    payload = json.loads(
+        subprocess.run(
+            [sys.executable, "scripts/final_gate.py", "--check", "--json"],
+            capture_output=True,
+            text=True,
+            cwd=str(REPO_ROOT),
+            timeout=900,
+        ).stdout
+    )
+
+    # ⚠️ strip ANSI FIRST: the reset code `\033[0m` contains a DIGIT, so a `\D*` gap cannot span
+    # it and the match silently fails on coloured output while passing on piped output.
+    human = re.sub(r"\033\[[0-9;]*m", "", human)
+    m = re.search(r"Passed:\s*(\d+)\s*\((\d+) blocking\)", human)
+    assert m, human[:800]
+    assert int(m.group(1)) == payload["passed"], (m.group(0), payload["passed"])
+    assert int(m.group(2)) == payload["blocking"], (m.group(0), payload["blocking"])
+
+    if payload.get("skipped"):
+        s = re.search(r"Skipped:\D*(\d+)", human)
+        assert s, f"human mode hid {payload['skipped']} skipped check(s):\n{human[:800]}"
+        assert int(s.group(1)) == payload["skipped"]
+        for name in payload.get("skipped_checks") or []:
+            assert name in human, f"{name} skipped but not named in human mode"
