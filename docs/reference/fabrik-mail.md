@@ -338,8 +338,8 @@ AI ONCE (fabrik-lib is mail-deaf until the hook lands there); after that fabrik-
 ## Escalation digest (hub-side cron — the destination-side backstop)
 
 Sender-side enforcement makes NEW hub mail carry an owner; `scripts/sysadmin/mail_escalate.py`
-covers the other half — recipients not ACTING. Every ≤6 h (cron + a local-date day-stamp = at
-most one Telegram/day) it scans EVERY mailbox for `ack: required` obligations aged ≥
+covers the other half — recipients not ACTING. Every ≤6 h (cron + a local-date day-stamp PER LEG = at
+most one delivery per leg per day) it scans EVERY mailbox for `ack: required` obligations aged ≥
 `FABRIK_MAIL_ESCALATE_DAYS` (default 3) in three populations: inbox mail regardless of `agent:`
 (the population is UNACKED, never unaddressed — an addressed-but-ignored obligation still
 escalates), archive strands (claimed, no `acked-by:` line), and stranded `*.md.resolving*`

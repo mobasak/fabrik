@@ -31,11 +31,31 @@ All notable changes to this project will be documented in this file.
 - Verified against LIVE data, not fixtures: **525 real ledger values across the three non-`change`
   fields — 0 verdict changes; 175 real `change` values — 0 wrongly refused**; 23 of 24 template
   shapes refused, 10/10 honest values accepted.
+- **Round 3 then refuted round 2's guard block nine ways** and it is now PROSE. The fenced block's
+  own defects, each executed: an empty `$new` makes `"$new":<file>` resolve to `:<file>` — git's
+  shorthand for the INDEX — so the guard passed on a commit that does not exist; `grep -vx` is a BRE
+  and the `.` in all four shared-append filenames is a wildcard, hiding a stowaway; `core.quotePath`
+  made it fire on every non-ASCII path; `|| true` swallowed an rc-128; `|| echo MISSING` never fired
+  because `git rev-parse` echoes its argument to stdout; `<branch>` was nowhere derivable; it fired
+  on the legitimate `git mv` two-path commit the SAME bullet mandates; a lost exec bit passed all
+  three; and the column-0 fence SPLIT the ordered list so steps 5b/6/7 stopped being steps (7 list
+  items → 5, now 7 again). The executable form is filed as a tested script — enumerating nine edge
+  cases in a bullet ~46 repos copy by hand is what the evidence says does not work.
+- **`D-259`'s own row was unreadable**: a literal `||` in a cell split it into 8 fields against a
+  6-column header, so the rendered table AND `scripts/decisions.py` dropped its `why` and `where` —
+  on a superseding row, its whole provenance. Reworded. A sweep found 9 of 260 `| D-` rows off-width;
+  `docs/DECISIONS.md` is the one mandated table with no cell-count check. Both filed.
+- Suites re-derived with the exact command rather than restated: `pytest tests/test_command_run.py
+  tests/test_final_gate_advisory_display.py tests/enforcement/test_check_plan_tickets.py
+  tests/test_mail_escalate.py tests/test_rivals_run.py tests/test_command_feedback_report.py -q` →
+  **632 passed**. An earlier entry said 631; that number was not re-derived.
 
 ### Fixed — Review round 2: 26 more defects, all of them in round 1's own fixes (2026-09-15)
 
-- **Step 5a is now three `|| exit 1` guards, not prose.** Round 1 rewrote it; round 2 refuted the
-  rewrite eight ways by execution. A numstat assertion on `$new` still PASSES when a sibling is
+- **Step 5a was rewritten again.** Round 1 rewrote it; round 2 refuted the rewrite by execution in
+  TWO concrete ways (the count first published here said "eight", which was not re-derived — the
+  two are: a sibling staged on the same shared-append file, and a dangling `$new` after an rc-128
+  CAS). A numstat assertion on `$new` still PASSES when a sibling is
   staged on the SAME shared-append file — your commit ships THEIR blob and prints a plausible
   `1 0 <file>` — and it PASSES on a DANGLING `$new` when step 5's compare-and-swap refused at rc 128
   and execution fell through. Only asserting the committed BLOB, the REF and the absence of stowaway
@@ -61,11 +81,13 @@ All notable changes to this project will be documented in this file.
 - **A grader that matched its own comment.** The new `advisory=True` pin asserted the substring
   `advisory=True` against source text — and the registration's explanatory COMMENT contains that
   literal, so deleting the real kwarg left it green. Rewritten to parse the call with `ast`.
-- **Eleven surviving mutants killed** across four suites, each re-run to prove the kill: the window
-  `ack` filter, the self-flock, the `cwd` pin, the skipped-leg log, the demotion count at full
-  severity, the `--project-root` suffix, the lock/upstream reason, and the advisory registration.
-  Plus two lint slips of mine — an unused local and a SECOND N802 from an uppercase acronym in a
-  test name. `ruff check .` → `All checks passed!`; 631 tests green across the six affected suites.
+- **Eight surviving mutants killed** across three suites, each re-run to prove the kill — four on
+  `mail_escalate` (the window `ack` filter, the self-flock, the `cwd` pin, the skipped-leg log),
+  three on `check_plan_tickets` (the demotion count at full severity, the `--project-root` suffix,
+  the lock/upstream reason) and one on the `final_gate` advisory registration. ⚠️ This bullet first
+  read "eleven … across four suites", which was round 1's count reused rather than re-derived — the
+  named items sum to eight across three. Plus two lint slips of mine: an unused local and a SECOND
+  N802 from an uppercase acronym in a test name. `ruff check .` → `All checks passed!`.
 
 ### Fixed — Review round 1 of the mail-handling run: 8 seats, 20 confirmed defects in my own fixes (2026-09-15)
 

@@ -10,6 +10,41 @@ Generated from the end-of-day plan-state on 2026-06-07 after the trio Phase 5.1.
 ---
 
 - **[intel] `/fabrik-rivals` guard debt left after the 2026-09-14 key-autoload review** — four low-severity grader gaps a 25-mutant battery found and the run deliberately did not close, each one line: the unreadable-`.env` fail-open path (`chmod 000`) is claimed by a docstring and pinned by no test; the `expanduser()` on `$SUBAGENTS_ENV_FILE` is documented as a deliberate divergence from `libs/alerting/_dotenv.py` and nothing pins it, so the next re-port reverts it; `main()`'s `load_env(str(REPO))` argument is ungraded, and swapping it for `os.getcwd()` — the historical wrong-repo bug — passes every test; and the `note:` the docs make a contract is not asserted. Plus one behaviour item: running the HUB's copy of the driver from another repo binds `REPO` to the hub, so it reads the hub's `.env` and writes its checkpoint under `/opt/fabrik/.tmp` while preflight calls it repo-local (reproduced; the doc now states the precondition, but no check enforces it). None is a live defect in the shipped path — the closing reader's verdict was SAFE for 48 repos.
+## [infra] The private-index recipe's post-commit assertion wants a TESTED SCRIPT, not a bullet ~46 repos copy by hand
+
+Three consecutive review rounds tried to write step 5a's assertion as copy-paste shell inside
+`CLAUDE.md` § Behavior, and each cut was refuted by execution. The third attempt — a fenced
+`|| exit 1` block — carried NINE executed defects in the block itself: an empty `$new` makes
+`"$new":<file>` resolve to `:<file>`, which is git's shorthand for the INDEX, so the guard passes on
+a commit that does not exist; `grep -vx` is a BRE, so the `.` in every one of the four shared-append
+files this recipe names is a wildcard and a stowaway `CHANGELOGxmd` is hidden; `core.quotePath`
+(default on) makes the stowaway guard fire on every non-ASCII path; `|| true` swallows an rc-128 and
+passes on a non-existent SHA; `|| echo MISSING` never fires because `git rev-parse` echoes its
+unresolved argument to stdout; `<branch>` is nowhere derivable and on a detached HEAD
+`--abbrev-ref HEAD` returns the literal `HEAD`; the guard fires on a legitimate `git mv` two-path
+commit that the SAME bullet mandates; a lost exec bit passes all three; and the column-0 fence SPLIT
+the ordered list so steps 5b, 6 and 7 stopped being steps in every renderer.
+
+Step 5a is now PROSE stating the invariant (`git ls-tree "$new" -- <file>` against the built
+mode+blob, root-relative path, the ref equal to `$new`, an empty `$new` meaning a split run and NOT
+a lost hunk). That is true and short. The EXECUTABLE form belongs in `scripts/` with its own
+red-first graders per shape — the shapes are enumerated above and every one of them is already a
+written-down failing case, so the test table exists before the script does. Until it ships, the
+recipe asks a human to hold nine edge cases in their head, which is exactly what the executed
+evidence says does not work.
+
+## [infra] `docs/DECISIONS.md` is the one mandated markdown table with NO cell-count check, and 9 of 260 rows are off-width
+
+A literal `||` inside a D-row's `what` cell splits the row into 8 fields against a 6-column header:
+the rendered table and `scripts/decisions.py` BOTH silently drop the `why` and `where` columns — on
+a superseding row, that is its entire provenance. Found on `D-259` at mint time (repaired by
+rewording; `decisions.py:83` does a bare `line.strip("|").split("|")` and honours no `\|` escape, so
+the markdown escape fixes renderers and not the tool — the two consumers disagree about the same
+file). A sweep of the pinned file found **9 of 260** `| D-` rows with a pipe count ≠ 7; 8 predate
+this run. `check_governance_tables.py` exists and reports "across 2 contract(s)" — the two
+`CLAUDE.md` files — and is structurally blind to the ledger, which § Behavior mandates a row in on
+every decision. A cell-count check over `docs/DECISIONS.md` would have caught this at commit time.
+
 ## [infra] Eleven code spans in the rule packs carry `\|`, which is a LITERAL pipe in every language they illustrate
 
 Swept after a Phase D fix escaped two pipes inside a Python regex in `core/45-testing-strategy.md`

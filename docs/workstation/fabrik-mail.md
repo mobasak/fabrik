@@ -121,8 +121,9 @@ auto-replies). Pre-check any message with `python scripts/mail.py should-reply <
 `scripts/sysadmin/mail_escalate.py` scans EVERY mailbox for `ack: required` obligations aged
 ≥ `FABRIK_MAIL_ESCALATE_DAYS` (default 3) — inbox (regardless of `agent:` — the population is
 UNACKED, never unaddressed), archive strands (claimed, never resolved), and stranded
-`*.md.resolving*` windows (mtime-aged) — and sends AT MOST ONE Telegram per LOCAL calendar day
-via `libs.alerting.send_alert` (day-stamp written only after a successful send). Oldest ≤20
+`*.md.resolving*` windows (mtime-aged, and FILTERED on the window's own `ack:` — a window IS the
+message) — and delivers at most once per LEG per LOCAL calendar day, each leg stamping only after
+ITS OWN successful send (see the two-leg note below). Oldest ≤20
 rows (`id · repo · sender · age · agent`), plain-text sanitized; the `+K more (total)` count
 line always survives. Failure is fail-soft: exit 0, loud in the log, retried ≤6 h later by the
 no-stamp rule.
