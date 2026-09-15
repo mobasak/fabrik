@@ -25,6 +25,20 @@ non-`none` population, a third quantity nobody had asked for. Three readers deri
 correct-looking numbers from one ledger because the CLASSIFIER was never stated.
 
 Two rules, both already in the contract and both violated by the change that quotes them:
+- **A fix to a CHECKER is graded by driving the checker, never by asserting on a regex or helper
+  it uses.** Two of three mail-driven enforcement fixes shipped graders that could not observe their
+  own subject. One asserted `CITE_RE.search('.env.example:12')` — true, and irrelevant: `check_text`
+  discards every bare filename 40 lines later, so the regex change was INERT and the grader could not
+  tell. The other asserted on the cell-splitting logic I had just written rather than `check_file`, and
+  stayed GREEN on revert. Both were caught by seats driving the real entry point — one ran the CLI end
+  to end and got `✓ citations resolve — 0 citation(s)` on a citation 99,000 lines past EOF.
+  **The proxy-never-evidence rule has a specific shape for checkers: build a fixture, run the entry
+  point, assert on its OUTPUT.** A constant it happens to consume is navigation, not evidence.
+  Corollary measured the same run: widening a checker GRADES text that was previously invisible, so
+  the mirror is mandatory — the allowlist rewrite that passed all ten synthetic cases retro-RED nine
+  committed receipts across three repos, and a blanket citation widening would have reddened five more.
+  (2026-09-15, mail-driven enforcement fixes, 99da670b; D-262.)
+
 - **Size the edit to the verdict, not to everything you learned making it.** One queue row asked
   for one thing: resolve the write target before reading the locks. I shipped a 28-line bullet with
   three recipes, four warnings and a cobra note. Rounds 2 and 3 of its own review then confirmed 7
