@@ -25,6 +25,19 @@ non-`none` population, a third quantity nobody had asked for. Three readers deri
 correct-looking numbers from one ledger because the CLASSIFIER was never stated.
 
 Two rules, both already in the contract and both violated by the change that quotes them:
+- **Size the edit to the verdict, not to everything you learned making it.** One queue row asked
+  for one thing: resolve the write target before reading the locks. I shipped a 28-line bullet with
+  three recipes, four warnings and a cobra note. Rounds 2 and 3 of its own review then confirmed 7
+  defects each, every one inside my previous patch, and NONE in the original text - a false
+  measurement, a recipe blind to the auto-appended fragment, a self-matching grep, a literal
+  `{{include:}}` that broke the renderer, a cobra note aimed at the wrong step. The D-252 stop's exit
+  - "close on the ORIGINAL delta's state" - meant REVERTING my own elaboration to 15 lines and +245 B
+  instead of +1,698. **Each added clause is a new surface the next round reviews, so an edit that
+  answers a one-sentence verdict with five paragraphs buys five paragraphs of residue.** The
+  corollary the corpus already states and I did not apply: commands are RULES, not changelogs - the
+  war story belongs in the commit and the lesson, never in the rule.
+  (2026-09-15, `/fabrik-command-improve fabrik-command-improve`, 9e2477f7.)
+
 - **Two fragments that state the same rule in different words will DIVERGE, and the half that loses
   it is invisible.** `term-edit.md` (17 doc-side commands) carried "verify the check CAN fail - plant
   one known-bad line and watch it red". `term-coverage.md` - the fragment the CODE review family
