@@ -189,6 +189,46 @@ every word preserved — a SHAPE fix, not a content edit — and the grader is g
 **Kept as the lesson, not as work:** when a grader exists, run the grader. A hand count beside a
 green test is a second opinion nobody asked for, and it is the one that was wrong.
 
+## [infra] Phase F routed four items whose fix crosses a tree boundary — the class a triage pass cannot close by itself
+
+Measured 2026-09-15 while executing T13 of the mail-triage plan. Each is real, each is verified
+read-only, and none is fixable from inside `/opt/fabrik` without crossing a boundary the contract
+draws. Recorded here rather than left in a reply nobody greps.
+
+1. **The self-watch has no transcript-age ceiling** (T13.2, 01M1S6CWX). `MESH_CEILING`
+   (`~/.claude/bin/claude-selfwatch.sh:56`) keys on the DEATH RECORD's age, not the pane's, so a
+   pane that dies WITHOUT its lock file vanishing is covered by neither the ceiling nor the W11
+   orphan guard (`:43`) and polls indefinitely. ⚠️ The file is box-local, in no repo, production,
+   and the standing rule is to diagnose the sound/mesh scripts READ-ONLY — so this needs the
+   operator's word, not a patch from here.
+   *Refuted at HEAD while measuring, so the row is not overstated:* the mail's headline — "11 of 15
+   sessions carry 2+ live watchers" — is now **0 of 7** (a `/proc` walk over argv, excluding self;
+   `pgrep -af` self-matches and answered a garbage 15-over-16). And the "no 'my pane is gone' exit"
+   half has been closed since 2026-09-07 by W11.
+
+2. **`docs_updater.py --adopt` assigns ownership by ROUND-ROBIN** — `names[idx % len(names)]` at
+   `:1139`, `:1153`, `:1161` — so it cannot agree with a repo's documented lanes except by luck,
+   and web-ecommerce-factory measured two of its first three rows inverted. The `--dry-run`
+   MUTATION half was fixed 2026-09-14 (T12); this half was not. ⚠️ It propagates by INSTRUCTION:
+   the ORIENT block sends every multi-window project through `--adopt`, so each one inherits it.
+
+3. **`docs/reference/multi-agent-operating-model.md` has ADOPTION but no MIGRATION** (wef2's
+   systemic note, 01M1Z0YKQ). Adoption assumes a standing start; a live repo is several sessions
+   deep with open plans, uncommitted work and a shared index, and the ordering constraints —
+   quiesce every session, finish destructive in-flight work, then relaunch — had to be asked for
+   rather than read. Those three are the section.
+
+4. **fabrik-lib holds 2 of the 4 multi-agent artifacts, not 0** (T13.8, 01M1V59MK): both git-config
+   items are live; `.worktreeinclude` and the `.gitignore` `.claude/worktrees` line are absent, and
+   both ride the governance sync that structurally cannot reach a sync-EXCLUDED repo. Theirs to
+   add, or to declare deliberate in their CLAUDE.md — a hub agent editing another repo is a hard
+   stop. ⚠️ The general shape: a fleet claim of the form "N of N verified" is measured over the
+   SYNCED population, and a sync-excluded repo sits outside that denominator rather than inside it
+   and passing.
+
+5. **`isolation: "worktree"` cuts from origin/main** (T13.6, 01M1S5DGF) — harness behaviour, not
+   ours to change; recorded so the next reader does not re-derive it.
+
 ## [infra] The Phase E review stopped on D-252 with six classes closed-but-unswept — the next review of this machinery reads the round-4 fix diff as its ORIGINAL surface
 
 The Phase E review of the gate/enforcement/sync surface ran four rounds: 21 confirmed on the graded
