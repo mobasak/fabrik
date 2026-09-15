@@ -1461,6 +1461,35 @@ def test_load_env_survives_an_unresolvable_home(tmp_path, monkeypatch):
     os.environ.pop("EXA_API_KEY", None)
 
 
+def test_a_tilde_override_survives_an_unresolvable_home(tmp_path, monkeypatch):
+    """The SIBLING of the guard above, on the branch that runs FIRST. `Path(x).expanduser()` resolves
+    the home directory by the same mechanism as `Path.home()` and raises the same RuntimeError — so a
+    tilde-prefixed `$SUBAGENTS_ENV_FILE` under a stripped env raised straight out of `load_env`, whose
+    docstring says "Never raises", and took the project's own `.env` down with it. The override branch
+    sits ABOVE the try that exists for exactly this, so the guard there never covered it
+    (fabrik-lib-sentinel, 01M2GSRM4T1YQXN3KGGQVSB4BZ; reproduced on python 3.12.3)."""
+    import os
+    import types
+
+    (tmp_path / "repo").mkdir()
+    (tmp_path / "repo" / ".env").write_text("EXA_API_KEY=project-key\n")
+    monkeypatch.delenv("HOME", raising=False)
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    monkeypatch.setenv("SUBAGENTS_ENV_FILE", "~/.config/fabrik/subagents.env")
+    monkeypatch.delenv("EXA_API_KEY", raising=False)
+    fake_pwd = types.ModuleType("pwd")
+    fake_pwd.getpwuid = lambda _uid: (_ for _ in ()).throw(KeyError("no passwd entry"))
+    monkeypatch.setitem(sys.modules, "pwd", fake_pwd)
+    with pytest.raises(RuntimeError):  # the precondition, asserted rather than assumed
+        Path("~/x").expanduser()
+    # Degrades to the UNEXPANDED path — a literal `~` simply misses the file, which is the
+    # pre-existing silent-miss and strictly better than raising.
+    assert rr._shared_env_path() == Path("~/.config/fabrik/subagents.env")
+    rr.load_env(str(tmp_path / "repo"))
+    assert os.environ["EXA_API_KEY"] == "project-key"
+    os.environ.pop("EXA_API_KEY", None)
+
+
 def test_no_web_tools_config_key_field_is_left_unpassed(monkeypatch):
     """The CLASS, not the instance. `brave_api_key` went missing once and nothing could see it; a
     grader that hard-codes the same three names would miss the next field the same way. Derive the

@@ -4,6 +4,46 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Mail handling: the operator's six kaizen edits installed, and an unguarded expansion synced to 45 repos (2026-09-15)
+
+- **`scripts/rivals_run.py` (fleet-synced) — `_shared_env_path`'s override branch could RAISE out of
+  a function contracted "Never raises".** `Path(override).expanduser()` resolves the home directory
+  by the same mechanism as `Path.home()` and raises the same `RuntimeError` on an unresolvable home
+  (no HOME, no passwd entry: a container, a systemd unit, a cron with a stripped env) — and the
+  override branch sits ABOVE the `try` written for exactly that, so the guard never covered it. The
+  call precedes the apply loop, so a raise took the project's own `.env` down with it: a repo holding
+  all three keys locally would get none. Now degrades to the UNEXPANDED path, which is the
+  pre-existing silent-miss and strictly better than raising. Latent, not burning — nothing on the box
+  sets `SUBAGENTS_ENV_FILE` — but it shipped to 45 repos. Reported by fabrik-lib-sentinel
+  (`01M2GSRM4T1YQXN3KGGQVSB4BZ`), reproduced here before the fix; grader
+  `test_a_tilde_override_survives_an_unresolvable_home`.
+- **The close-out `change:` grammar said two different things in four places.** Piece 1 of the kaizen
+  loop made `change:` axis-keyed in `commands/_fragments/close-feedback.md`; its hand-kept twins in
+  `command_run.py::_USAGE_GRAMMAR`, `docs/reference/command-run-protocol.md` and both `CLAUDE.md`
+  FINAL OUTPUT blocks still printed the un-keyed form to every agent they refused. All four now
+  match. They cannot be single-sourced — `command_run.py` is fleet-synced to ~46 repos with no
+  `commands/_fragments/` — so drift is GRADED:
+  `test_the_usage_grammar_constant_states_the_axis_key_the_fragment_mandates` reads the fragment and
+  fails if the constant falls behind (proven red-on-revert, both halves asserted).
+- **`command_run.py::_is_placeholder` — an axis key defeated the placeholder refusal.** The guard was
+  a `re.fullmatch` on `<…>`, so ANY prefix beat it: `change: <the ONE concrete edit…>` was refused at
+  a close, `change: lean: <the ONE concrete edit…>` closed cleanly. An agent could paste the grammar
+  back at the gate. It now strips a leading `<word>:` before the bracket test — keyed or not, per
+  `command_feedback_report.py::_axis_of`, which buckets `placeholder` ahead of `bad-axis`. The real
+  keyed values rounds 1-5 established (`lean: <01M1RHJY>`, `lean: <none — surfaces exercised: …>`)
+  are pinned as the regression risk.
+- **Both `CLAUDE.md` contracts now name the loop's ACT half.** The close-out duty bullet stated the
+  WRITE half only; the queue is read by `command_feedback_report.py --queue <command>` and acted on
+  by `/fabrik-command-improve`, which fires when a queue is non-empty — after each usage, not weekly.
+  The template's wording is true for a project agent, which has no `command_feedback_report.py`.
+  `commands/assemble_commands.py` gains the `fabrik-command-improve` NEXT entry (it was falling back
+  to "no defined successor"); corpus re-rendered from the main checkout, `--check` and
+  `check_command_corpus.py` green.
+- Installed on the operator's directive relayed as `01M2HYV1MJ4QMZP5R4DAKFQW2W` (the six edits of
+  `01M2H05R2SSTJK166WAVBR3MKG`), each validated against the real code before it landed rather than
+  applied on the prose. `docs/workstation/kaizen.md`'s ⚠️ OPEN paragraph is closed out in the same
+  change.
+
 ### Fixed — Phase G (T14): three rules that refused the project's own prescribed text (2026-09-15)
 
 - **The D-035 mail advisory rejected the header form it invites.** `WHAT/WHERE:` passed;

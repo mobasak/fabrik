@@ -275,7 +275,7 @@ behaved). The four labelled fields, all required, any of them `none` but never e
 ```
 confusion: <what in the command text was ambiguous or misleading | none>
 waste:     <steps, turns or tokens spent without changing the outcome | none>
-change:    <the ONE concrete edit to the command or a rule that would have made this run faster or more accurate | none>
+change:    <axis>: <the ONE concrete edit to this command or a rule that would have made this run faster or more accurate | none>   (axis ∈ lean|fast|accurate|waste|infra|rules|manifesto; `change: none` carries no key)
 filed:     <mail id(s) to infra|fleet|intel | none — surfaces exercised: <what the run touched>>
 cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — prose or a bare integer before usd (`10 usd`: write `$10`) is REFUSED at the close> (optional)
 ```

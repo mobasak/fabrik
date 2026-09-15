@@ -41,13 +41,17 @@ and a ` · cost:` truncates your sentence SILENTLY and files a phantom cost. Sin
 axis and a field label, a `change: waste: …` value must never begin a line; a wrapped FEEDBACK line
 is the case that bites, and you cannot see where it wraps — which is why the habit is to keep all
 four characters out rather than to reason about what follows them. (2) **Never paste the
-grammar:** an axis key in front of the `<…>` template defeats the close's placeholder refusal
-(`_is_placeholder` is a `re.fullmatch` on `<…>`), so a pasted template that is refused today closes
-cleanly once it is keyed. The report buckets it as `placeholder` and it is visible; write a verdict.
+grammar.** `_is_placeholder` strips an axis key before its `<…>` test, so a keyed template
+(`change: lean: <the ONE concrete edit …>`) is REFUSED at the close exactly like the unkeyed one —
+it was not, until 2026-09-15, and a pasted template closed cleanly the moment it was keyed. The
+report buckets any that predate the fix as `placeholder`, so they stay visible; write a verdict.
 
-A close with nothing to change writes `change: none`, with no key. **This sentence is canonical:**
-`command_run.py`'s `_USAGE_GRAMMAR` and `CLAUDE.md`'s FINAL OUTPUT block each hold a hand-kept twin
-that does not yet name the axis — both are lock-owned and both are in the edit mailed to infra.
+A close with nothing to change writes `change: none`, with no key. **This fragment is canonical:**
+`command_run.py`'s `_USAGE_GRAMMAR`, `docs/reference/command-run-protocol.md` and both `CLAUDE.md`
+FINAL OUTPUT blocks each hold a hand-kept twin, all four now keyed to match. They cannot be
+single-sourced — `command_run.py` is fleet-synced to ~46 repos that have no `commands/_fragments/`
+— so the drift is GRADED instead: `test_the_usage_grammar_constant_states_the_axis_key_the_fragment_mandates`
+reads this file and fails if the constant falls behind it. Reword this line and read that grader.
 
 **On an expensive command a SEAT writes the line, not you.** If
 `python3 /opt/fabrik/scripts/command_feedback_report.py --observer-rank` names the command you are

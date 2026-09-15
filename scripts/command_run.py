@@ -1153,8 +1153,8 @@ _USAGE_LABEL_RE = re.compile(
 _USAGE_GRAMMAR = (
     "confusion: <what in the command text was ambiguous or misleading | none> · "
     "waste: <steps/turns/tokens spent without changing the outcome | none> · "
-    "change: <the ONE concrete edit to the command/rule that would have made this run faster "
-    "or more accurate | none> · filed: <mail id(s) to <infra|fleet|intel> | none — surfaces "
+    "change: <axis>: <the ONE concrete edit to this command or a rule that would have made this "
+    "run faster or more accurate | none> · filed: <mail id(s) to <infra|fleet|intel> | none — surfaces "
     "exercised: <what your run touched>> [· cost: <pool $>]"
 )
 
@@ -1190,7 +1190,17 @@ def _is_placeholder(value: str | None) -> bool:
     REAL values written inside the brackets (review rounds 1–3), never the placeholder."""
     if not value:
         return False
-    m = re.fullmatch(r"<(?P<c>.*)>\s*\[?", value.strip(), re.S)
+    v = value.strip()
+    # ⚠️ Strip an AXIS KEY before the bracket test. Piece 1 of the kaizen loop made `change:`
+    # axis-keyed (`change: lean: <edit>`), and this guard anchors on the value STARTING with `<`
+    # — so ANY key in front of the grammar text defeated it and a close could paste the grammar
+    # back at the gate. Stripped for the TEST only: the key is not part of the placeholder.
+    # Keyed or not, per `command_feedback_report.py::_axis_of`, which buckets `placeholder` ahead
+    # of `bad-axis` — so an unknown key (`speed: <…>`) is stripped too, not just the seven AXES;
+    # a key is one word, so a real value's prose (`lean: cut the rubric block`) never matches the
+    # bracket test afterwards either way (01M2HYV1MJ4Q, the operator directive).
+    v = re.sub(r"^[A-Za-z][\w-]*:\s*(?=<)", "", v)
+    m = re.fullmatch(r"<(?P<c>.*)>\s*\[?", v, re.S)
     if not m:
         return False
     c = m.group("c").strip()

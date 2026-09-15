@@ -138,10 +138,22 @@ def _shared_env_path() -> Path | None:
     ⚠️ ONE DELIBERATE DIVERGENCE from the standalone fabrik-lib copies (`libs/alerting/_dotenv.py`):
     the override is `expanduser()`-ed here, so `SUBAGENTS_ENV_FILE=~/.config/…` resolves instead of
     silently missing a file whose path begins with a literal `~`. Better, but NOT the same — do not
-    describe the two as identical, and the mirror change is fabrik-lib's to make."""
+    describe the two as identical. ⚠️ And the expansion is GUARDED, because `expanduser()` raises the
+    same RuntimeError as `Path.home()` on an unresolvable home: the first cut of this divergence put
+    the raise ABOVE the guard written for it, so neither copy on the box was right — fabrik-lib's
+    silently misses a tilde path, ours could raise. The correct shape is guarded expansion, and it is
+    the one fabrik-lib's SB-003 backlog row now carries (01M2GSRM4T1Y)."""
     override = os.getenv("SUBAGENTS_ENV_FILE")
     if override:
-        return Path(override).expanduser()
+        try:
+            return Path(override).expanduser()
+        except (KeyError, RuntimeError):
+            # `expanduser()` resolves the home directory by the SAME mechanism as `Path.home()`
+            # below and raises the SAME RuntimeError — and this branch runs BEFORE that guard, so
+            # the guard never covered it. Degrade to the UNEXPANDED path: a literal `~` misses the
+            # file, which is this function's pre-existing behaviour and strictly better than raising
+            # out of `load_env`'s "Never raises" contract (fabrik-lib-sentinel, 01M2GSRM4T1Y).
+            return Path(override)
     xdg = os.getenv("XDG_CONFIG_HOME")
     if xdg:
         return Path(xdg) / "fabrik" / "subagents.env"

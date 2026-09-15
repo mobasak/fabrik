@@ -4602,6 +4602,52 @@ def test_a_real_id_inside_angle_brackets_is_not_a_placeholder() -> None:
     assert "written at or after" in cr._since_label({"started_epoch": 1789000000.0})
 
 
+def test_the_usage_grammar_constant_states_the_axis_key_the_fragment_mandates() -> None:
+    """`_USAGE_GRAMMAR` is a HAND-KEPT TWIN of `commands/_fragments/close-feedback.md`'s grammar
+    line, and it drifted the moment the fragment gained the axis key: the constant kept printing
+    the un-keyed form to every agent it refused. The two cannot be single-sourced — `command_run.py`
+    is fleet-synced to ~46 repos that have no `commands/_fragments/` — so the drift is pinned by a
+    grader instead, the same way `command_feedback_report.py` pins its own phrase copies
+    (01M2HYV1MJ4Q (c), the operator directive; the systemic half of its own mail)."""
+    fragment = (
+        Path(__file__).resolve().parents[1] / "commands" / "_fragments" / "close-feedback.md"
+    )
+    if not fragment.exists():  # a synced consumer repo has no fragment — nothing to pin against
+        pytest.skip("close-feedback.md is hub-only")
+    cr = _cr_module("grammarpin")
+    text = fragment.read_text(encoding="utf-8")
+    assert "change: <axis>: <the ONE concrete edit" in " ".join(text.split()), (
+        "the FRAGMENT no longer states the axis-keyed change clause — re-derive this pin"
+    )
+    assert "change: <axis>:" in cr._USAGE_GRAMMAR, (
+        "_USAGE_GRAMMAR has drifted from the fragment's axis-keyed change clause"
+    )
+
+
+def test_an_axis_keyed_placeholder_is_still_a_placeholder() -> None:
+    """Piece 1 of the kaizen loop made `change:` AXIS-KEYED (`change: lean: <edit>`), and the
+    placeholder guard anchors on the value STARTING with `<` — so any key in front of the grammar
+    text defeated it and a close could paste the grammar straight back at the gate. The reader
+    (`_axis_of` in command_feedback_report.py) understands the keyed shape; a reader is not a gate.
+    The keyed forms must be refused WITHOUT breaking the real values rounds 1-5 established, which
+    are the regression risk (01M2HYV1MJ4Q, the operator directive)."""
+    cr = _cr_module("axisph")
+    for ph in (
+        "lean: <the ONE concrete edit to this command or a rule>",
+        "accuracy: <mail id(s)>",
+        "speed:<x … y>",
+        "  lean:  <what you filed|none>  ",
+    ):
+        assert cr._is_placeholder(ph), ph
+    # the axis key must not make a REAL keyed value look like a placeholder
+    for real in (
+        "lean: cut the rubric block to the matched rows",
+        "accuracy: <01M1RHJY>",
+        "lean: <none — surfaces exercised: mail.py>",
+    ):
+        assert not cr._is_placeholder(real), real
+
+
 def test_the_phase_gate_refusal_names_the_stem_and_states_the_bound_only_when_in_force(
     run_dir: Path,
 ) -> None:

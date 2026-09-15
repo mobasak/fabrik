@@ -320,11 +320,15 @@ run. The bucket is the axis read: one of the seven, or `unkeyed` · `bad-axis` �
 write `.fabrik/corpus-weight-baseline.json` and `git add` it; only `--check`, `--check --strict`
 and `--help` are read-only. The baseline is a trend, not a gate — which is why it re-seeds.
 
-⚠️ **OPEN — the axis key defeats the placeholder guard.** `command_run.py::_is_placeholder` is a
-`re.fullmatch` on `<…>`, so any prefix beats it: `change: <the ONE concrete edit…>` is refused at a
-close and `change: lean: <the ONE concrete edit…>` is not. The report's `placeholder` bucket READS
-that shape; it does not gate it. The one-line fix sits with infra (mail
-`01M2H05R2SSTJK166WAVBR3MKG`), whose active lock owns that file.
+**CLOSED 2026-09-15 — the axis key no longer defeats the placeholder guard.**
+`command_run.py::_is_placeholder` was a `re.fullmatch` on `<…>`, so any prefix beat it:
+`change: <the ONE concrete edit…>` was refused at a close and `change: lean: <the ONE concrete edit…>`
+was not. It now strips a leading `<word>:` before the bracket test — keyed or not, per
+`command_feedback_report.py::_axis_of`, which buckets `placeholder` ahead of `bad-axis`, so an
+unknown key is stripped too. Graded by `test_an_axis_keyed_placeholder_is_still_a_placeholder`,
+which also pins the real keyed values (`lean: <01M1RHJY>`, `lean: <none — surfaces exercised: …>`)
+that are the regression risk. Installed with the other five edits of `01M2H05R2SSTJK166WAVBR3MKG`
+on the operator's directive (`01M2HYV1MJ4QMZP5R4DAKFQW2W`).
 
 Cron — the report is UNSCHEDULED (⚠️ operator-installed; agent crontab writes are
 classifier-blocked on this box):
