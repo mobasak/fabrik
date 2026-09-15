@@ -1224,11 +1224,12 @@ def _is_none_head(value: str) -> bool:
 
     ⚠️ DELIBERATELY PERMISSIVE, and this is the second cut. The first tried to separate an honest
     none from a verdict whose first word happens to be `none`, by demanding that whatever follows
-    the none-word begin with punctuation. Round 2 measured what that cost: **18 of 20 ordinary
-    wordings were newly REFUSED** — `none needed`, `nothing to change`, `none for this run`,
-    `n/a for this run` — and **4 rows already in the live ledger** would have been refused on
-    replay, one of them because an ASCII hyphen was missing from a separator set that carried the
-    em- and en-dash. A refused close leaves the record `running` and the Stop hook blocks the whole
+    the none-word begin with punctuation. Round 2 measured what that cost: of the 18 ordinary
+    wordings the regression grader now carries, **11 were newly REFUSED** — `none needed`,
+    `nothing to change`, `none for this run`, `n/a for this run` (the other 7 carry a separator and
+    close under both rules) — and **4 of the 5 none-shaped rows already in the live ledger** would
+    have been refused on replay, one of them only because an ASCII hyphen was missing from a
+    separator set that carried the em- and en-dash. A refused close leaves the record `running` and the Stop hook blocks the whole
     turn, in ~46 repos. That price buys the closing of exactly ONE shape, and even then only for a
     space: `none: cut step 7` still reads as a none. A rule that wedges honest turns to stop a
     dodge that costs one character is not a gate, it is a tax.

@@ -1328,9 +1328,16 @@ def test_the_placeholder_phrases_are_pinned_against_the_live_fragment() -> None:
     # `command_run.py::_USAGE_GRAMMAR`, and the two differ on two clauses — so pasting what the
     # CLI had just printed at the agent was accepted. Both spellings are carried now, and a phrase
     # is pinned if it survives in either place.
-    grammar = " ".join(
-        (ROOT / "scripts" / "command_run.py").read_text(encoding="utf-8").lower().split()
-    )
+    # ⚠️ The grammar CONSTANT, never the whole source file. Reading the file made this guard a
+    # TAUTOLOGY: `_GRAMMAR_PHRASES`' own tuple literals live in it, so every phrase was trivially
+    # "present" and `missing` could never be non-empty. The widening that introduced it was meant
+    # to accommodate two clauses absent from the fragment; it silently destroyed the drift guard
+    # instead, and only a mutation that deleted a clause from BOTH sources exposed it.
+    _cr = (ROOT / "scripts" / "command_run.py").read_text(encoding="utf-8")
+    _start = _cr.index("_USAGE_GRAMMAR = (")
+    _ns: dict = {}
+    exec(_cr[_start : _cr.index("\n\n\ndef ", _start)], _ns)  # noqa: S102 - one literal
+    grammar = " ".join(_ns["_USAGE_GRAMMAR"].lower().split())
     missing = [p for p in m._GRAMMAR_PHRASES if p not in text and p not in grammar]
     assert not missing, f"phrases in neither the fragment nor _USAGE_GRAMMAR: {missing}"
     raw = [re.sub(r"^\s*>\s?", "", ln) for ln in FRAGMENT.read_text(encoding="utf-8").splitlines()]

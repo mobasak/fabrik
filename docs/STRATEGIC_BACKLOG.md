@@ -2576,3 +2576,20 @@ stated residual rather than a fourth attempt inside a Finish.
 session marker) before its count is honoured, so a sibling's unstaged file cannot serve. Needs a
 notion of "mine" the check does not currently have — spec-shaped, not a one-liner.
 
+### Kaizen loop — the residue of the D-252 stop (2026-09-15)
+
+`/fabrik-review` over `9802bd43..11b75eac` closed on the D-252 scope-growth stop after three
+rounds (confirmed 28 / 21 / 9; own-fix 1 / 21 / 9). Every confirmed defect of rounds 2 and 3 lay
+inside a fix the review itself had written, which is the stop's own definition. These four were
+RECORDED rather than fixed, each with its destination.
+
+| Residue | Why it was not fixed in-run | Destination |
+|---|---|---|
+| `tests/test_command_feedback_report.py::test_a_partial_write_is_not_reported_as_success` is a pure tautology — it re-implements `main()`'s rc branch inside the test body and never drives the CLI (mutating `main()` to `return 0` leaves it green) | One hop out: it landed at `84b62eb7`, the left endpoint of round 3's range, so the D-230 bar makes it RECORDED. The CLASS is covered — `test_cli_return_codes_separate_refusal_from_an_idempotent_no_op` reds under the same mutation — so the guard is a decoy, not a hole | **infra** — drive `main()` via `_cli(...)` with a forced PARTIAL and assert `returncode == 1` |
+| `test_every_live_ledger_row_that_reads_as_a_none_still_closes` has three narrownesses: it `pytest.skip`s when the ledger is absent (CI, a fresh clone) so it asserts nothing there; its filter strips an ASCII hyphen that `_is_none_head` does not, so a row whose first token is `none-` would be selected and falsely reported; and it hard-codes `("none","nothing","n/a")` instead of reading `cr._NONE_WORDS` | Not vacuous — it selects 5 of 186 live rows and 4 of those 5 catch the regression it guards — so the value is real and the narrowing is a hardening, not a fix | **infra** — same file |
+| `test_the_writer_never_blocks_on_a_non_regular_index` catches its regression by HANGING (rc 124), not failing | A genuine catch, but in a repo with the pytest leg armed it would wedge the completion gate with no diagnostic instead of printing a failure | **infra** — wrap in `signal.alarm` / `faulthandler.dump_traceback_later` |
+| `command_feedback_report.py::_axis_of` buckets `<legal axis>: <anything bracketed>` as `placeholder`, so `change: lean: <cut the rubric block>` never counts toward its axis | Pre-dates this diff (`eca8da1d`), and 0 of 186 live rows are affected. Either `_axis_of` mirrors `_is_placeholder`'s keyed rule, or the sweep's `unkeyable` definition excludes a keyed bracket — today they contradict | **infra** — `_axis_of`, or the grader's definition |
+
+**Not blocking.** Every fix from all three rounds is committed, pushed and fleet-synced; the gate is
+green; the loop is proven end to end at `<scratchpad>/kzrev/probes/loop-closes-end-to-end.md`.
+Receipt: `docs/development/reviews/2026-09-15-kaizen-loop-gap-closure-review.md`.

@@ -1,6 +1,22 @@
 # Review — 2026-09-15-kaizen-loop-gap-closure
 
-**Status:** IN-PROGRESS — round 3 (the confirming delta over round 2's fixes) is running.
+**Surface:** `git rev-parse HEAD` = 11b75eac3b7dab5c64e27e158150cd5f2abc224f; working-tree `git diff HEAD` md5 e04d706a052f6b9fdef3b6da870623d2; range `git diff 9802bd43..HEAD` over the 18 files this run changed
+
+**Status:** CLOSED ON THE D-252 SCOPE-GROWTH STOP — not converged, and the distinction is the
+point. `command_run.py` fired the stop after round 3: *"the last 2 rounds confirmed ONLY defects
+inside text this review itself added (confirmed/own-fix: 21/21 → 9/9). The artifact's own surface
+is quiet; you are reviewing your previous fix, and correcting prose regenerates the surface you are
+correcting."* Its exit is to route the remaining own-fix work to a backlog row with a named
+destination and close on the ORIGINAL delta's state — which is what this receipt does.
+
+**The original delta is quiet.** Round 1 swept `9802bd43..ac4da751` wide and confirmed 28 defects
+of it; every one is fixed with a grader. Rounds 2 and 3 found 30 more and **every single one was a
+defect of a fix this review had just written** — an argv injection opened by a round-1 quotePath
+change, a none rule that refused honest closes, a paste guard reading the wrong half, and five
+graders that could not fail. That is a real and useful yield, and it is also the signal the stop
+exists to read: the loop had stopped converging the diff and started converging itself.
+
+~~IN-PROGRESS~~ — round 3 (the confirming delta over round 2's fixes) is running.
 
 ⚠️ **A fictitious constraint nearly stopped this review, and it is worth recording.**
 `dispatch_headroom.py` returned `SEATS: 0` with `box_cap: 0`, and I read that as "the box cannot
@@ -124,7 +140,7 @@ $ python scripts/review_rubric.py --changed CHANGELOG.md CLAUDE.md commands/_fra
 | Hunt: `CLAUDE.md` — every changed hunk, its enclosing function, its callers | CLEAN — shared axis clause byte-identical to the template (393 B, md5-compared); 14 of 14 UNIVERSAL anchors verified case-exact against `check_governance_drift.py`'s own parser, none reworded by this diff |
 | Hunt: `commands/_fragments/close-feedback.md` — every changed hunk, its enclosing function, its callers | FIXED(2) — the historical statistic DELETED (it shipped to all 37 commands and 36 have no use for it, cutting box-wide weight +16,872 B → +9,139 B); the enforcement sentence kept as the single source |
 | Hunt: `commands/_sources/fabrik-command-improve.md` — every changed hunk, its enclosing function, its callers | FIXED(3) — PHASE 5's `there is no separate ledger` contradicted the answered index this diff introduces; the rule restatement replaced by a pointer to the fragment; the count re-derived |
-| Hunt: `docs/DECISIONS.md` — every changed hunk, its enclosing function, its callers | RECORDED — D-260 carries two wrong numbers (`175 of 180`, `18 graders` vs an actual 20). Rows are IMMUTABLE by contract, so the correction is a superseding row (D-261), not an edit |
+| Hunt: `docs/DECISIONS.md` — every changed hunk, its enclosing function, its callers | FIXED(2) — D-260 carried two wrong numbers (`175 of 180`, and `18 graders` against an actual 20). Ledger rows are IMMUTABLE by contract, so under this repo's own convention the fix IS a superseding row: **D-261** states both corrections with their re-derivations. Verified by `decisions.py D-261` rendering all six columns |
 | Hunt: `docs/reference/command-run-protocol.md` — every changed hunk, its enclosing function, its callers | FIXED(3) — the count; the `QUEUE:` machine string quoted incompletely (it dropped the whole `(read them: …)` clause) now described rather than re-quoted; the cutover claim verified |
 | Hunt: `docs/workstation/kaizen.md` — every changed hunk, its enclosing function, its callers | FIXED(3) — the count; a cited test name that did not exist (`..._in_the_PAST` vs the real lowercase, renamed for N802); the incomplete machine-string quote |
 | Hunt: `scripts/command_feedback_report.py` — every changed hunk, its enclosing function, its callers | FIXED(12) — argv injection (CRITICAL), GIT_* env scoping, `--ledger` scoping on BOTH halves, non-atomic append + dishonest partial receipt, `str(_num(v) or v)` key bug, duplicate-`ts` silencing, unresolved provenance ref, path-boundary false accepts, return codes, mode exclusivity, parsed-rows guard, merge/rename/quotePath flags |
@@ -165,7 +181,7 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 |---|---|---|---|
 | Pass 1 | native opus×2 (`scripts/command_run.py`, `scripts/command_feedback_report.py`) + sonnet×4 (governance twins, the two test files, the corpus text, the docs+ledger rows) — dispatched 6, returned 6, partitions re-covered 0 | found: 45, new: 45, confirmed: 28, fixed: 28, unexecuted: 0 | method: citation — every candidate reproduced end-to-end by the orchestrator before it counted (84 shapes on the report slice, 67 CLI closes on the gate slice, 24 mutation batteries on the graders); round-zero probe — the gate pinned as an executable script at `<scratchpad>/kzrev/probes/axis-gate.sh`, 17 shapes, output filed beside it; mirrors: 4 claims swept with `check_review_hygiene.py --claim` |
 | Pass 2 (DELTA over round 1's fix diff) | native opus×2 (`command_feedback_report.py`, `command_run.py`) + sonnet×1 (the 22 new graders, mutation-tested) — dispatched 3, returned 3, partitions re-covered 0 | found: 24, new: 24, confirmed: 21, fixed: 21, unexecuted: 0 | method: citation — 84 + 149 + 25,920 + 11,968 shapes executed across the three seats, plus a **replay of the 186-row live ledger** which is what proved the round-1 axis fix would refuse 4 rows agents had already written; round-zero probe — the gate re-pinned at `<scratchpad>/kzrev/probes/axis-gate.sh` (26 shapes) and the loop proven end to end at `probes/loop-closes-end-to-end.md`; ⚠️ ALL 21 confirmed defects lay inside round 1's OWN fixes |
-| Pass 3 (DELTA over round 2's fix diff) | native opus×2 (the close gate + the reader; the graders + docs) — dispatched 2, returned 2, partitions re-covered 0 | found: 8, new: 8, confirmed: 2, fixed: 2, unexecuted: 0 | method: re-derivation — every count in this receipt re-derived from its primary source at this pass (186 live ledger rows by `wc`; 45 of 48 fleet copies by md5 against the hub; 62 graders by `git diff | grep -c '^+def test_'`; 7 commits by `git rev-list --count`; the corpus deltas by `git show <base>:<file> | wc -c`), and the gate re-run rather than inherited. Denominators the seats swept: 122,230 generated `change:` values, 1,114,112 Unicode codepoints, 60,000 fuzz cases, 28 phrase×field combinations, 186 live rows. ⚠️ BOTH confirmed defects were round 2's OWN fixes contradicting their own comments |
+| Pass 3 (DELTA over round 2's fix diff) | native opus×2 (the close gate + the reader; the graders + docs) — dispatched 2, returned 2, partitions re-covered 0 | found: 14, new: 14, confirmed: 9, fixed: 9, unexecuted: 0 | method: re-derivation — every count in this receipt re-derived from its primary source at this pass (186 live ledger rows by `wc`; 45 of 48 fleet copies by md5 against the hub; 62 graders by `git diff | grep -c '^+def test_'`; 7 commits by `git rev-list --count`; the corpus deltas by `git show <base>:<file> | wc -c`), and the gate re-run rather than inherited. Denominators the seats swept: 122,230 generated `change:` values, 1,114,112 Unicode codepoints, 60,000 fuzz cases, 28 phrase×field combinations, 186 live rows. ⚠️ BOTH confirmed defects were round 2's OWN fixes contradicting their own comments |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -201,6 +217,10 @@ grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading 
 | The `rows=` trailer is prose inside `Agent-Context:`, not a literal git trailer key | RECORDED — wording. The underlying fact ("no such commit exists") is TRUE and was verified; the shorthand is imprecise. → **infra**, `commands/_sources/fabrik-command-improve.md` |
 | `--json` is ignored by `--mark-answered` while every other mode honours it | RECORDED — the mode is a WRITE with a one-line receipt, not a report; a JSON envelope would imply a machine contract nothing consumes. Revisit if a script ever drives it. → **infra**, same file |
 | `tests/enforcement/test_pack_reachability.py` — 2 failures in the FULL suite, 16/16 passing in isolation | RECORDED — one hop out and not this diff's. Nothing in `9802bd43..HEAD` touches pack reachability, the scaffolder or `select_rules`; the two names (`..._masked_scaffolder_failure_is_reported_not_silent`, `..._corpus_is_parsed_exactly_once_per_run`) read as global-state assertions, and the full run happened with 12 concurrent pytest processes and a sibling's WIP in the tree. Reproduced as: `pytest tests/enforcement -q` → 3 failed / 1398 passed; `pytest tests/enforcement/test_pack_reachability.py -q` → 16 passed. → **infra**, an order/isolation defect in that file |
+| `test_a_partial_write_is_not_reported_as_success` is a pure tautology (it re-implements `main()`'s rc branch in the test body) | RECORDED — one hop out (it landed at round 3's left endpoint) and the CLASS is covered by `test_cli_return_codes_separate_refusal_from_an_idempotent_no_op`, which reds under the same mutation. A decoy, not a hole. → **infra**, `docs/STRATEGIC_BACKLOG.md` |
+| `test_every_live_ledger_row_that_reads_as_a_none_still_closes` skips when the ledger is absent, strips an ASCII hyphen `_is_none_head` does not, and hard-codes the none vocabulary | RECORDED — NOT vacuous: it selects 5 of 186 live rows and 4 of those 5 catch the regression it guards. The narrowings are a hardening. → **infra** |
+| `test_the_writer_never_blocks_on_a_non_regular_index` catches by HANGING (rc 124), not failing | RECORDED — a genuine catch that would wedge a pytest-armed gate with no diagnostic. → **infra**, wrap in `signal.alarm` |
+| `_axis_of` buckets `<legal axis>: <anything bracketed>` as `placeholder`, so a keyed bracketed verdict never counts toward its axis | RECORDED — pre-dates this diff (`eca8da1d`); 0 of 186 live rows affected. Either `_axis_of` mirrors `_is_placeholder`'s keyed rule or the sweep's `unkeyable` excludes a keyed bracket — today they contradict. → **infra** |
 | D-260's two wrong numbers | FIXED by a superseding row (D-261), because ledger rows are immutable by contract. The DECISION stands; only its evidence is corrected. |
 
 `RECORDED — by design` names the OWNING row's first-cell id and the EARLIER round that adjudicated
@@ -256,11 +276,23 @@ printed nothing, step 4 did not exist, and the number at step 5 could only grow.
 `"status": "success"`):
 
 ```json
-{"status": "success", "passed": 65, "failed": 0, "tier": "standard",
- "skipped_checks": ["bandit", "semgrep", "pytest"]}
+{
+ "status": "success",
+ "tier": 2,
+ "passed": 65,
+ "failed": 0,
+ "skipped_checks": [
+  "bandit",
+  "semgrep",
+  "pytest"
+ ]
+}
 ```
 
-⚠️ Re-measured at THIS pass, not inherited. The hub's pytest leg is OFF by design (5,913 tests
+⚠️ PASTED from `final_gate.py --check --json`, not composed. The first cut of this block carried
+`"tier": "standard"` — a string `final_gate.py` never emits (it writes an integer) — which is the
+proxy-never-evidence anchor broken inside the one block that exists to satisfy it. A round-3 seat
+caught it by re-running the tool. Re-measured at THIS pass, not inherited. The hub's pytest leg is OFF by design (5,913 tests
 would brick every completion gate three sessions run), so the suites were run BY HAND and the
 numbers are stated rather than implied: `tests/test_command_run.py` + `test_command_feedback_report.py`
 + `test_command_feedback.py` → **442 passed**. That distinction is not pedantry — it is exactly how

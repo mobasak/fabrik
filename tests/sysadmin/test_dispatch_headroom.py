@@ -1579,13 +1579,31 @@ def test_commit_headroom_caps_seats_only_under_strict_overcommit() -> None:
 
 
 def test_an_unreadable_overcommit_mode_never_invents_a_ceiling(monkeypatch) -> None:
-    """Fail-soft in the permissive direction: if `/proc/sys/vm/overcommit_memory` cannot be read we
+    """Fail-soft in the PERMISSIVE direction: an unreadable `/proc/sys/vm/overcommit_memory` must
     assume the default heuristic mode, because inventing a ceiling stalls a loop while assuming
-    none at worst over-dispatches by one seat on a box that also reports MemAvailable."""
+    none costs at most one seat on a box that also reports MemAvailable and load.
+
+    ⚠️ The first cut took `monkeypatch` and never used it — it compared `box()`'s answer to a
+    re-read of the SAME file, so it was tautological on any box not in mode 2. Two mutations
+    survived it: hard-coding `commit_enforced = False`, and flipping the except branch to
+    `mode = 2`, i.e. an unreadable file INVENTING a ceiling, which is precisely what this test's
+    name forbids. Both directions are driven here instead."""
+    real = dh.Path.read_text
+
+    def unreadable(self, *a, **k):
+        if str(self) == "/proc/sys/vm/overcommit_memory":
+            raise OSError("unreadable")
+        return real(self, *a, **k)
+
+    monkeypatch.setattr(dh.Path, "read_text", unreadable)
     box = dh.box()
-    if not box.get("ok") or "commit_headroom_gb" not in box:
-        pytest.skip("no /proc meminfo on this box")
-    assert "commit_enforced" in box
-    assert box["commit_enforced"] is (
-        Path("/proc/sys/vm/overcommit_memory").read_text().strip() == "2"
-    )
+    assert box.get("ok"), box
+    assert box.get("commit_enforced") is False, box
+
+    def strict(self, *a, **k):
+        if str(self) == "/proc/sys/vm/overcommit_memory":
+            return "2\n"
+        return real(self, *a, **k)
+
+    monkeypatch.setattr(dh.Path, "read_text", strict)
+    assert dh.box().get("commit_enforced") is True

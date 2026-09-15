@@ -5363,9 +5363,9 @@ def test_the_none_bypass_is_accepted_and_the_reader_is_the_counter_measure(value
 
     A verdict filed as `none: <the edit>` passes the gate and never reaches `--queue`. Round 1
     tried to close it by demanding punctuation-then-not-a-letter after the none-word; round 2
-    measured the cost — 18 ordinary "nothing to change" wordings refused, and 4 rows ALREADY IN THE
-    LIVE LEDGER refused on replay, each a wedged turn in ~46 repos — for the closing of a single
-    shape that a space still walks around. Telling an honest justification from a smuggled edit is
+    measured the cost — 11 of the 18 ordinary "nothing to change" wordings below refused, and 4 of
+    the 5 none-shaped rows ALREADY IN THE LIVE LEDGER refused on replay, each a wedged turn in ~46
+    repos — for the closing of a single shape that a space still walks around. Telling an honest justification from a smuggled edit is
     prose judgement, which this repo bans in a gate.
 
     So the bypass is ACCEPTED and made VISIBLE instead: the queue header states how many rows a
@@ -5386,6 +5386,17 @@ def test_the_none_rate_is_published_so_the_bypass_is_visible() -> None:
     ]
     head = report.queue(rows, "c").splitlines()[0]
     assert "2 filed as `none`" in head, head
+    # ⚠️ and again with a row ANSWERED, so the `excluded` term of
+    # `nones = for_it - (mine + excluded)` is exercised. Dropping that term reported answered
+    # verdicts as nones — a FALSE Cobra signal in the one reader the accepted-bypass trade rests
+    # on — and passed all 130 report tests.
+    original = report._answered_ts
+    report._answered_ts = lambda command, path=None: {report._ts_key(1.0)}
+    try:
+        head2 = report.queue(rows, "c").splitlines()[0]
+    finally:
+        report._answered_ts = original
+    assert "2 filed as `none`" in head2 and "1 already answered and excluded" in head2, head2
 
 
 @pytest.mark.parametrize(
@@ -5696,6 +5707,16 @@ def test_a_keyed_value_lands_in_the_axis_the_reader_names() -> None:
     for value, want in cases.items():
         refused = bool(cr._change_axis_verdict(value))
         assert refused == (want in ("unkeyed", "bad-axis", "placeholder")), (value, want, refused)
+    # ⚠️ the docstring's "a colon in a URL or a Windows path is not a key" claim, asserted against
+    # the GATE's own parser too. Without it, dropping `_change_axis_attempt`'s whitespace
+    # requirement — which its own docstring says "must stay the same" as the reader's — passed all
+    # 376 tests while the two classifiers told different stories about the same value.
+    for value in (
+        "https://example.com/x is wrong",
+        "c:" + chr(92) + "users is the wrong path",
+        "step 7: print the id",
+    ):
+        assert cr._change_axis_attempt(value) is None, (value, cr._change_axis_attempt(value))
 
 
 def test_the_none_test_rejects_a_bracketed_template_on_its_own() -> None:
@@ -5746,9 +5767,9 @@ def test_the_none_test_rejects_a_bracketed_template_on_its_own() -> None:
     ],
 )
 def test_an_ordinary_nothing_to_change_wording_is_never_refused(value: str) -> None:
-    """THE REGRESSION ROUND 1 SHIPPED. Demanding punctuation after the none-word refused 18 of 20
-    ordinary wordings, and a replay of the live ledger showed 4 rows that had closed at rc 0 would
-    be refused — one of them because an ASCII hyphen was missing from a separator set carrying the
+    """THE REGRESSION ROUND 1 SHIPPED. Demanding punctuation after the none-word refused 11 of the
+    18 wordings below (the other 7 carry a separator and close under both rules), and a replay of
+    the live ledger showed 4 of its 5 none-shaped rows that had closed at rc 0 would be refused — one of them because an ASCII hyphen was missing from a separator set carrying the
     em- and en-dash. A refused close leaves the record `running` and the Stop hook blocks the whole
     turn, in ~46 repos. The rule is permissive now; the bypass it leaves is documented, not
     guessed at."""
@@ -5842,7 +5863,9 @@ def test_the_grammar_phrases_cover_both_spellings_the_system_prints() -> None:
     cr = _cr_module("two")
     grammar = cr._USAGE_GRAMMAR.lower()
     hits = [ph for ph in cr._GRAMMAR_PHRASES if ph in grammar]
-    assert len(hits) >= 4, (len(hits), cr._GRAMMAR_PHRASES)
+    # EXACT, not `>= 4`: one clause of slack let a phrase be dropped from `_USAGE_GRAMMAR` with
+    # the guard still green
+    assert len(hits) == 5, (len(hits), hits)
 
 
 def test_the_hint_never_tells_an_agent_to_replace_a_valid_axis() -> None:
@@ -5858,38 +5881,74 @@ def test_the_hint_never_tells_an_agent_to_replace_a_valid_axis() -> None:
     assert attempt is not None and attempt[0] in cr._CHANGE_AXES and not attempt[1]
 
 
-def test_the_hint_keeps_an_axis_the_agent_got_right() -> None:
+def _hint_for(tag: str, value: str, tmp_path: Path) -> str:
+    """The refusal a real close PRINTS for this `change:` value — the whole point being that the
+    hint is TEXT an agent reads, so a grader that re-implements its regex guards nothing."""
+    home = tmp_path / tag
+    (home / ".claude" / "state" / "command-runs").mkdir(parents=True)
+    env = {**os.environ, "HOME": str(home)}
+    env.pop("COMMAND_RUN_DIR", None)
+    base = [sys.executable, str(_SCRIPT)]
+    subprocess.run(
+        base
+        + [
+            "start",
+            "--command",
+            "fabrik-mail-handle",
+            "--phases",
+            "1",
+            "--terminal",
+            "probe",
+            "--session",
+            f"probe-hint-{tag}",
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=120,
+    )
+    return subprocess.run(
+        base
+        + [
+            "done",
+            "--command",
+            "fabrik-mail-handle",
+            "--session",
+            f"probe-hint-{tag}",
+            "--evidence",
+            "probe run",
+            "--feedback",
+            f"confusion: none · waste: none · change: {value} · "
+            "filed: none — surfaces exercised: probe",
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    ).stdout
+
+
+def test_the_hint_keeps_an_axis_the_agent_got_right(tmp_path: Path) -> None:
     """Round 3. `accurate:name the three artifacts` — a CORRECT axis whose colon merely lacks its
     space — missed `_change_axis_attempt`'s whitespace test, so the "legal key" branch never fired
-    and the hint told the agent to re-file it under `lean`. That is worse than an unhelpful
-    message: it manufactures the single-axis skew that `_axis_tally` — the only counter-measure
-    the COBRA note names — exists to reveal, out of honest input."""
-    cr = _cr_module("hintax")
-    for axis in cr._CHANGE_AXES:
-        value = f"{axis}:name the three artifacts"
-        _, missing = cr._parse_usage_feedback(
-            f"confusion: none · waste: none · change: {value} · filed: none — surfaces exercised: p"
-        )
-        assert [m for m in missing if m.startswith("change")], (value, missing)
-        import re as _re
+    and the agent was told to re-file it under `lean`. That manufactures, from honest input, the
+    single-axis skew `_axis_tally` is the sole named counter-measure for.
 
-        m = _re.match(r"^(\w+):(\S.*)$", value)
-        assert m and m.group(1).lower() in cr._CHANGE_AXES, value
+    ⚠️ Asserted on the PRINTED hint. The first cut re-implemented the regex in its own body and
+    never touched the module: gutting both hint patterns left all 251 tests green."""
+    out = _hint_for("axis", "accurate:name the three artifacts", tmp_path)
+    assert "change: accurate: name the three artifacts" in out, out
+    assert "lean: accurate:" not in out, out
+    assert "a colon needs a space after it" in out, out
 
 
-def test_the_hint_drops_a_pseudo_key_that_carries_a_space() -> None:
-    """`step 7:`, `phase B:`, `round 2:` all have an interior space, which a space-free pattern
-    could not match — so they were nested under `lean: ` instead of dropped, reproducing the very
-    defect the branch was added to prevent."""
-    import re
-
-    pat = re.compile(r"^(?:<[^>\n]{0,40}>|[^\s:][^:]{0,38})\s*:\s+(.+)$", re.S)
-    for value, want in (
-        ("step 7: print the mail id", "print the mail id"),
-        ("phase B: the brief is long", "the brief is long"),
-        ("<one of the seven>: cut step 7", "cut step 7"),
-    ):
-        m = pat.match(value)
-        assert m and m.group(1) == want, (value, m.group(1) if m else None)
-    # an ordinary verdict carrying a colon LATER is left exactly as written
-    assert pat.match("the doc at path:line is wrong") is None
+def test_the_hint_drops_a_pseudo_key_that_carries_a_space(tmp_path: Path) -> None:
+    """`step 7:` and `phase B:` carry an interior space, which a space-free pattern could not
+    match — so they were nested under `lean: ` instead of dropped, reproducing the defect the
+    branch exists to prevent. Asserted on the PRINTED hint, for the same reason as above."""
+    out = _hint_for("pseudo", "step 7: print the mail id", tmp_path)
+    assert "change: lean: print the mail id" in out, out
+    assert "lean: step 7:" not in out, out
+    out2 = _hint_for("colon", "the doc at path:line is wrong", tmp_path)
+    assert "change: lean: the doc at path:line is wrong" in out2, out2

@@ -11,8 +11,10 @@ All notable changes to this project will be documented in this file.
   never refuses an allocation for exceeding it. Python, Node and Go each reserve arenas and thread
   stacks they never touch, so across ~30 processes `Committed_AS` routinely passes the limit on a
   machine with tens of GB free.
-- Measured while it bit: `Committed_AS` 111 GB against a `CommitLimit` of 91 GB, with
-  `MemAvailable` at 21 GB and 39 GB of free swap. The budget returned `SEATS: 0`, and a review
+- Measured while it bit: `Committed_AS` ~111 GB against a `CommitLimit` of ~91 GB — decimal GB of
+  the kB values in `/proc/meminfo`; the tool itself divides by 1024² and prints that limit as
+  87.5 GiB, so a reader comparing the two must know which unit is quoted — with `MemAvailable` at
+  ~21 GB and ~39 GB of free swap. The budget returned `SEATS: 0`, and a review
   round read that as "the box cannot host another seat" and began closing itself BLOCKED on a
   constraint that did not exist. The figure is still reported — under strict mode it binds — and is
   labelled `(advisory — overcommit is not strict)` when it does not; it caps seats only when the
@@ -83,8 +85,11 @@ All notable changes to this project will be documented in this file.
   exact guard round 1 had added to the reader and forgotten on the writer; the mode guard covered
   two report flags of six; and round 1 had appended a near-copy of the COBRA note above the block
   that already carried it, two sources of truth already disagreeing.
-- **Round 2 also found that the round-1 axis fix REFUSED 18 ordinary "nothing to change" wordings
-  and 4 rows already in the live ledger.** `none needed`, `nothing to change`, `none for this run`
+- **Round 2 also found that the round-1 axis fix REFUSED 11 of 18 ordinary "nothing to change"
+  wordings and 4 of the 5 none-shaped rows already in the live ledger.** ⚠️ An earlier cut of this
+  entry said "18 of 20" — a figure I carried from a seat's report without re-deriving it, which is
+  the SECOND hand-carried count this run. Re-derived by running the round-1 rule over the
+  regression grader's own 18 wordings: 11 refused, 7 unaffected. `none needed`, `nothing to change`, `none for this run`
   — every one wedged a turn, in 46 repos, because a refused close leaves the record `running`. One
   of the four live rows failed only because an ASCII hyphen was missing from a separator set that
   carried the em- and en-dash. That price bought the closing of exactly ONE bypass shape, and even

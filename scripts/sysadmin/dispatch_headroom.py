@@ -136,8 +136,10 @@ def box() -> dict:
         # refuses an allocation for exceeding it, so the difference is an accounting curiosity:
         # Python, Node and Go each reserve arenas and thread stacks they never touch, and across
         # ~30 processes `Committed_AS` routinely passes the limit on a box with tens of GB free.
-        # Measured 2026-09-15 on this WSL2 box: Committed_AS 111 GB against a CommitLimit of 91 GB
-        # while `MemAvailable` was 21 GB and swap was 39 GB free. The old code capped seats on that
+        # Measured 2026-09-15 on this WSL2 box: Committed_AS ~111 GB against a CommitLimit of
+        # ~91 GB (decimal GB of the kB values `/proc/meminfo` reports; this function divides by
+        # 1024² and so PRINTS the same limit as 87.5 GiB — quote whichever unit, but say which)
+        # while `MemAvailable` was ~21 GB and swap ~39 GB free. The old code capped seats on that
         # difference unconditionally, so the budget returned `SEATS: 0` and a review round read it
         # as "the box cannot host another seat" — a fabricated constraint that would have stalled
         # the loop. The figure is still REPORTED (it is real, and under strict mode it binds); it
