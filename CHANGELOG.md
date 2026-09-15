@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Two contract contradictions fabrik-lib hit in one plan run (2026-09-16)
+
+- `commands/_sources/fabrik-execute-plan.md` — the phase-artifact rule and the `Profile: small`
+  rule bind at once and cannot both be satisfied: the per-phase pass is `/fabrik-review-scoped`,
+  which writes no file BY DESIGN, while `step --phase N+1` refuses until a file exists. The rule now
+  names `--review-waived` as the SANCTIONED exit there, not an unavoidable skip (01M2JWEMFRFN3H).
+- `CLAUDE.md` + `templates/governance/CLAUDE.md` — the private-index recipe's step 7 gains a guard
+  pointer at step 5b plus the one fact 5b lacks: the pathspec is CWD-relative, so the same command
+  run from a subdirectory prints nothing and reads as a clean pass over a live data-loss state.
+  `update-ref` never touches the working tree, so a skipped carry leaves the row just committed as
+  a pending deletion (01M2JZC35M5K9V, measured twice in one run). Retires the sentence it subsumes;
+  D-263 records the net growth.
+- `docs/DECISIONS.md` — D-262 and D-263 repaired from 5 cells to the header's 6.
+
 ### Fixed — check_structure flagged the docs/ subdirectory CLAUDE.md mandates (2026-09-15)
 
 - `scripts/enforcement/check_structure.py` — `VALID_DOCS_SUBDIRS` gains `workstation`. CLAUDE.md's Doc

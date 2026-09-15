@@ -2578,6 +2578,23 @@ notion of "mine" the check does not currently have — spec-shaped, not a one-li
 
 ### Kaizen loop — the residue of the D-252 stop (2026-09-15)
 
+- **The denominator rule never warns that a SEARCH ROOT can contain whole duplicate trees**
+  (owner: **infra**) — it names `.claude/worktrees` only inside its `*.py` population example, so a
+  compliant census rooted at a repo root over-counts: fabrik-lib measured `LlmMeter(` at 43 hits of
+  which 35 were stale worktree copies, an AST pass returned 10. Two independent reports (fabrik-lib
+  01M2JWEMFRFN3H item 3; a hub review seat the same day).
+- **The mutation rule and a read-only finder brief contradict each other** (owner: **infra**) —
+  CLAUDE.md mandates `repo_lock.py acquire` before a mutation sweep; a finder brief forbids mutating
+  the shared tree at all. They reconcile only if "mutate a COPY under your own scratchpad" is named
+  as the sanctioned finder path, which neither document says. A seat took the right route and
+  reported worrying it was non-compliant (fabrik-lib 01M2JWEMFRFN3H item 4).
+- **Nothing catches a malformed `docs/DECISIONS.md` row** (owner: **infra**) — `decisions.py:97` pads
+  a short row with `[""] * (6 - len(cells))` and `check_decisions_unique.py` exits rc 0, so a
+  column-shifted row answers the ledger query the contract says to run FIRST with a blank `where`.
+  Two rows shipped that way this session (D-262, D-263) and were repaired by hand; a one-line
+  cell-count assertion closes the class for all 264 rows. Separately, 8 rows carry MORE cells than
+  the header from a literal `|` in prose (D-178, D-099, D-092, D-090, D-087, D-084, D-075, D-055).
+
 - **The Pass-row FINDERS cell: checker, command text, error string and generator all disagree** (owner:
   **infra**; D-262) — `check_review_coverage.py:753` reads `cells[1]`; `commands/_fragments/term-coverage.md`
   documents "METHOD FIRST … finders after"; the checker's sibling error string and `review_receipt.py:180`

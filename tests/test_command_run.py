@@ -5952,3 +5952,25 @@ def test_the_hint_drops_a_pseudo_key_that_carries_a_space(tmp_path: Path) -> Non
     assert "lean: step 7:" not in out, out
     out2 = _hint_for("colon", "the doc at path:line is wrong", tmp_path)
     assert "change: lean: the doc at path:line is wrong" in out2, out2
+
+
+def test_execute_plan_names_review_waived_for_the_profile_small_case() -> None:
+    """The artifact rule and the Profile: small rule bind at once and cannot both be satisfied:
+    `step --phase N+1` refuses until phase N wrote a file under docs/development/reviews/, while
+    under `Profile: small` the per-phase pass is /fabrik-review-scoped, whose round ledger IS its
+    artifact and which writes no file BY DESIGN. `--review-waived` is the sanctioned exit and was
+    documented only as an "unavoidable skip", so a reader hit a refusal with no named way out and
+    wrote a file anyway (fabrik-lib 01M2JWEMFRFN3H).
+
+    Pins the flag AND the case together: the flag alone was already in the text, so a pin on it
+    could not have caught this.
+    """
+    src = (_SCRIPT.parents[1] / "commands" / "_sources" / "fabrik-execute-plan.md").read_text(encoding="utf-8")
+    flat = " ".join(src.split())
+    assert "--review-waived" in flat, "the sanctioned exit is gone from the command"
+    assert "Under `Profile: small` this and item 3 bind at once" in flat, (
+        "execute-plan no longer names the Profile: small collision"
+    )
+    assert flat.index("Under `Profile: small` this and item 3 bind at once") > flat.index(
+        "now REFUSES until phase N's artifact exists"
+    ), "the carve-out must follow the rule it carves out of"

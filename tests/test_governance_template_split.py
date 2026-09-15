@@ -118,6 +118,16 @@ T6_CLAIMS = (
     "**A pathspec protects the FILE LIST, never the CONTENT.**",
     "The last argument is the expected OLD value and it MUST be the captured `$base`.",
     "the `env -u` is load-bearing",
+    # T6.3 (fabrik-lib 01M2JZC35M5K9V7XWMCMA5GM4W, 2026-09-16) — step 7 warned what happens if the
+    # carry is SKIPPED but pointed at no guard, so a just-committed row sat in the working tree as a
+    # pending DELETION and the next pathspec commit would have removed it. Measured twice in one run.
+    "Then run step 5b's guard",
+    "FROM THE REPO ROOT",
+    # Round 2: the un-discriminated wording FALSE-ALARMED on a CORRECT CHANGELOG.md carry — the
+    # scratch blob is built with `>>` at EOF per step 2 while step 7 places the hunk atop
+    # [Unreleased], which is a `-`/`+` PAIR and loses nothing. Executed in a throwaway repo, and
+    # reverting it failed 0 of the other 18 claims.
+    "sanctioned `CHANGELOG.md` relocation, not a loss",
     "follow it with a real `unset GIT_INDEX_FILE`",
     "never `cp <scratch>/<file> <file>`",
     "never put the hunk in printf's FORMAT position",
