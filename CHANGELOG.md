@@ -38,12 +38,22 @@ warning about this exact hazard — and one pinned the call site's literal text,
 reflowed minutes after it was written.
 
 ⚠️ **The test count this entry first carried — "377 tests green across every Stop-hook suite" — was
-unfounded and is retracted.** No population reproduces it; the review that followed could not find
-one either. The honest numbers, each with the command that produces it: the plan's own named gate
-for this phase (`pytest tests/test_stop_hook*.py tests/test_quota_stop_hook.py
-tests/test_selfwatch_check.py`) gives **132**, and every Stop-hook suite including the new
-headless-guard file gives **243**. A count whose population is unnamed is not a denominator; it is
-a number — this repo's own rule, broken by the entry asserting it.
+unfounded and is retracted.** No population reproduces it. ⚠️ And the FIRST correction was wrong
+too: it claimed **243**, which reproduces under no population either — the review caught it inside
+the retraction paragraph, which is the same defect the paragraph exists to retract. The numbers
+below are each printed by the command beside them, run 2026-09-15:
+
+```
+$ pytest tests/test_stop_hook*.py tests/test_quota_stop_hook.py tests/test_selfwatch_check.py
+131 passed
+$ pytest <the same> tests/test_hooks_headless_guard.py tests/test_final_gate_stop_hook.py
+256 passed
+```
+
+The first is the plan's own named gate command for this phase; the second adds the two Stop-hook
+files that command's glob does not match. A count whose population is unnamed is not a denominator;
+it is a number — this repo's own rule, broken twice by the entry asserting it, which is why the
+command is now printed rather than described.
 
 ### Fixed — round 4: 8 defects inside round 3's fixes, including a fail-open I shipped (2026-09-15)
 

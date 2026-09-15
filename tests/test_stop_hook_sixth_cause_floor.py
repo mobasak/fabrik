@@ -91,74 +91,64 @@ def test_the_names_are_sorted_so_the_block_is_stable() -> None:
     ]
 
 
-def _render_block(files: list[str]) -> str:
-    """The block's message, built exactly as `main` builds it — the ONE expression under test.
+def test_the_named_files_clause_is_exercised_not_mirrored() -> None:
+    """⚠️ THIS USED TO BE A MIRROR, and the mirror drifted from the hook it copied.
 
-    ⚠️ Kept in lockstep with `final_gate_stop.py` by `test_the_rendered_block_matches_the_hook`
-    below, which asserts the hook's own source still contains the pieces this mirrors. A mirror
-    nothing pins is a second implementation that drifts."""
-    n = len(files)
-    named = (
-        "Named: " + ", ".join(files[:3]) + (f" (+{n - 3} more)" if n > 3 else "") + ". "
-        if files
-        else ""
+    Round 1 wrote a `_render_block` helper that re-implemented the message expression, pinned by
+    four substrings. Executed in round 2: changing the real `", ".join` to `"; "` left the mirror
+    AND its pin green while the rendered block changed — a second implementation and a pin too
+    coarse to notice. The clause now lives in the hook as `_named_files_phrase`, and this calls
+    the real thing, so there is nothing to drift.
+    """
+    names = [f"{c}.py" for c in "abcdefghij"]
+    assert hook._named_files_phrase([]) == ""
+    assert hook._named_files_phrase(names[:1]) == "Named: a.py. "
+    assert hook._named_files_phrase(names[:3]) == "Named: a.py, b.py, c.py. ", (
+        "3 is not a truncation"
     )
-    return f"session authored {n} code file(s) ... {named}Run "
+    assert hook._named_files_phrase(names[:4]) == "Named: a.py, b.py, c.py (+1 more). "
+    assert hook._named_files_phrase(names) == "Named: a.py, b.py, c.py (+7 more). "
 
 
-def test_the_truncation_arithmetic_is_executed_not_just_present() -> None:
-    """⚠️ THE FIRST CUT OF THIS GRADER COULD NOT FAIL. It asserted the literal `_unreviewed - 3`
-    appears in the source — so mutating it to `_unreviewed - 99` left 163 tests green (Phase F
-    review, seat finding 1). The count is now EXERCISED at each boundary."""
-    assert "Named: " not in _render_block([])
-    assert _render_block(["a.py"]).count("Named: a.py. ") == 1
-    assert "more)" not in _render_block(["a.py", "b.py", "c.py"]), "3 files is not a truncation"
-    four = _render_block(["a.py", "b.py", "c.py", "d.py"])
-    assert "Named: a.py, b.py, c.py (+1 more). " in four, four
-    ten = _render_block([f"{c}.py" for c in "abcdefghij"])
-    assert "(+7 more)" in ten, ten
-    assert ten.count(".py") == 3 + 0, "only three names are listed"
-
-
-def test_the_rendered_block_matches_the_hook() -> None:
-    """The mirror above is only worth having if it is pinned to the real expression."""
+def test_the_block_calls_the_clause_rather_than_rebuilding_it() -> None:
+    """The extraction is only worth having if the message actually uses it."""
     src = _HOOK.read_text(encoding="utf-8")
     block = src.split("UNREVIEWED SPONTANEOUS WORK")[1][:1400]
-    assert "{_unreviewed} code file(s)" in block, "the block states no count"
-    assert "_unreviewed_files[:3]" in block, "the block names no file"
-    assert "_unreviewed - 3" in block, "the truncation count is not len-minus-three"
-    assert "if _unreviewed > 3" in block, "the truncation has no boundary guard"
+    assert "_named_files_phrase(_unreviewed_files)" in block, "the block rebuilds the clause"
+    assert '", ".join' not in block, "a second join in the message means the clause was re-inlined"
 
 
-def test_the_age_bound_binds_even_with_a_real_baseline(tmp_path=None) -> None:
-    """⚠️ THE CORRECTION THE PHASE F REVIEW FORCED. The first cut applied the bound only when the
-    baseline was MISSING — and the shape 01M25Y93RB reports is a RESUMED transcript, which HAS a
-    baseline; it is merely old. Measured live while this fired on the author's own session: the
-    baseline was 135.3h old, so a 2.5-day-old entry for a file committed and reviewed to `done`
-    was reported as unreviewed, and 87 of the 97 baselines on the box were older than the window."""
-    ancient = time.time() - 135 * 3600
-    floor = hook._sixth_cause_floor(ancient)
-    assert floor > ancient, "an ancient baseline was used verbatim — the bound did not bind"
-    assert time.time() - floor <= hook._SIXTH_CAUSE_MAX_EDIT_AGE_S + 5
+def test_the_edit_age_phrase_never_renders_a_lossy_window() -> None:
+    """`int(seconds // 3600)` rendered `0h` for any sub-hour value and `1h` for 90 minutes — and
+    the message is the only place the window is disclosed, so the lossy form would have started
+    lying at exactly the moment someone tuned it down."""
+    import contextlib
 
-    # a 2.5-day-old edit — the live false positive — is dropped
-    assert hook._this_sessions_edits({"scripts/x.py": time.time() - 2.5 * 86400}, floor) == {}
+    original = hook._SIXTH_CAUSE_MAX_EDIT_AGE_S
+    try:
+        for seconds, expected in (
+            (86400.0, "within the last 24h"),
+            (5400.0, "within the last 1.5h"),
+            (3599.0, "within the last 1.0h"),
+            (1800.0, "within the last 0.5h"),
+            (30.0, "within the last 30s"),
+        ):
+            hook._SIXTH_CAUSE_MAX_EDIT_AGE_S = seconds
+            assert hook._edit_age_phrase() == expected, (seconds, hook._edit_age_phrase())
+    finally:
+        hook._SIXTH_CAUSE_MAX_EDIT_AGE_S = original
+    with contextlib.suppress(AttributeError):
+        assert original == hook._SIXTH_CAUSE_MAX_EDIT_AGE_S
 
 
-def test_a_fresh_baseline_still_wins_over_the_age_bound() -> None:
-    """...or the bound has replaced the measurement instead of bounding it. A session that started
-    two hours ago must judge exactly its own two hours, not a day."""
-    fresh = time.time() - 7200
-    assert hook._sixth_cause_floor(fresh) == fresh
-
-
-def test_the_block_names_the_window_because_the_floor_slides() -> None:
-    """The floor moves between stops, so the same stop run twice can give different verdicts. A
-    verdict that changes on its own, silently, is indistinguishable from a broken one — which is
-    the complaint T5.4's file-naming half exists to answer, and it applies to the window too."""
+def test_the_block_does_not_claim_a_window_it_exempts_files_from() -> None:
+    """`ts == 0` (an unparseable transcript timestamp) is kept by `_this_sessions_edits` and
+    COUNTED by `_unreviewed_code_file_names` — both say so in their docstrings — so a message
+    reading "edited in the last 24h" was false for exactly those files. The agent opens one,
+    finds a months-old committed edit, and learns to warn the block through."""
     src = _HOOK.read_text(encoding="utf-8")
     block = src.split("UNREVIEWED SPONTANEOUS WORK")[1][:900]
-    assert "_SIXTH_CAUSE_MAX_EDIT_AGE_S // 3600" in block, "the block does not name its window"
+    assert "no readable timestamp" in block, "the block still claims a window it exempts files from"
 
 
 def test_the_floor_is_one_max_not_a_branch() -> None:

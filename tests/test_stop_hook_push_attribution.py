@@ -110,7 +110,11 @@ def test_a_shared_append_file_never_attributes_a_commit_on_its_own(tmp_path: Pat
     is every file the session ever touched — `CHANGELOG.md` included, because every task-end
     writes one. A sibling's task-end commit (their own file PLUS the shared CHANGELOG entry) was
     therefore attributed to any session that had ever touched CHANGELOG.md, which is all of them.
-    Executed on the live repo: 109 of the last 200 commits touch one of these names.
+    Executed on the live repo (`git -C /opt/fabrik log -200 --name-only`, population = 200):
+    **109** of the last 200 commits touch one of these SEVEN names — 91 via the five listed
+    originally, 54 via `docs/DECISIONS.md` / `docs/STRATEGIC_BACKLOG.md`, which were missing until
+    round 2 of this review. The 109 was cited while only five were implemented, so the number was
+    measured over a population the code did not have.
 
     `_failure_cites_session` already carries this exact rule for the same reason — "every session
     writes them" — so this is the house pattern applied to the cause that was missing it."""

@@ -253,7 +253,25 @@ _PATH_TOKEN = re.compile(r"[A-Za-z0-9_\-./]*/[A-Za-z0-9_\-./]+|[A-Za-z0-9_\-]+\.
 # sibling-caused: the sibling's code change created the CHANGELOG/INDEX obligation,
 # and the session's own routine edits to these files must not claim the failure.
 _ROUTINE_GOVERNANCE = frozenset(
-    {"CHANGELOG.md", "INDEX.md", "PORTS.md", "docs/README.md", "docs/LESSONS_LEARNT.md"}
+    {
+        "CHANGELOG.md",
+        "INDEX.md",
+        "PORTS.md",
+        "docs/README.md",
+        "docs/LESSONS_LEARNT.md",
+        # Added 2026-09-15: CLAUDE.md names FOUR shared-append files and two of them were absent
+        # here, so the "never attribute on their own" rule had a hole exactly the size of the
+        # decision ledger — which every session is required to write a row in, in the same change.
+        # Measured over the last 200 commits of this repo: the five names already listed cover 91,
+        # these two cover 54, the union is 109. The 109 was the number quoted when this exclusion
+        # shipped, so the citation was for a population the code did not implement.
+        # ⚠️ MIRROR, stated rather than absorbed: this constant is shared with
+        # `_failure_cites_session`, so widening it also widens the GATE-attribution cause's
+        # "never attribute on their own" rule. Correct there for the same reason — every session
+        # writes these — but it is a second fleet-synced behaviour change, not a free one.
+        "docs/DECISIONS.md",
+        "docs/STRATEGIC_BACKLOG.md",
+    }
 )
 
 
@@ -563,6 +581,66 @@ def _run_block_reason(rec: dict, attempt: int) -> str:
     )
 
 
+def _named_files_phrase(files: list[str], shown: int = 3) -> str:
+    """The "Named: a, b, c (+N more). " clause — the ONE implementation.
+
+    ⚠️ This exists because the TEST had a MIRROR of it. A mirror is a second implementation by
+    construction, and its pin was four substrings, so changing the real `", ".join` to `"; "` left
+    both the mirror and its pin green while the rendered block changed (executed, Phase F review
+    round 2). The answer to "how do I stop the copy drifting" is to not have a copy: the hook
+    builds the clause here and the grader calls this.
+    """
+    if not files:
+        return ""
+    more = len(files) - shown
+    tail = f" (+{more} more)" if more > 0 else ""
+    return "Named: " + ", ".join(files[:shown]) + tail + ". "
+
+
+def _edit_age_phrase() -> str:
+    """The edit-age window in words, for the one message that discloses it.
+
+    ⚠️ NOT `int(seconds // 3600)`. That renders `0h` for any sub-hour value and `1h` for 90
+    minutes — and tuning this window downward is the obvious next move, so the lossy form would
+    have started lying at exactly the moment someone changed it. Executed across 86400/5400/3599/
+    1800 before this replaced it.
+    """
+    s = _SIXTH_CAUSE_MAX_EDIT_AGE_S
+    if s >= 3600 and s % 3600 == 0:
+        return f"within the last {int(s // 3600)}h"
+    if s >= 60:
+        return f"within the last {s / 3600:.1f}h"
+    return f"within the last {int(s)}s"
+
+
+def _commit_is_mine(touched: set[str], distinctive: set[str], authored: set[str]) -> bool:
+    """Is this commit attributable to THIS session?
+
+    Two ways, and the second exists because the first alone caused a regression. A commit that
+    touches a file only this session edited is mine — that is the strong signal, and it is what
+    keeps a sibling's task-end commit (their code PLUS the shared CHANGELOG entry) from being
+    ordered published under my name.
+
+    ⚠️ BUT a commit made ENTIRELY of shared-append files has no distinctive file to offer, and the
+    first cut therefore discarded it — so a docs-only task end (CHANGELOG + INDEX and nothing
+    else) left the push law SILENT on the session's own unpushed work. Executed: `ahead` returned
+    `None` where the pre-fix code returned 1, and 3 of the last 200 commits here have exactly that
+    shape. Silence there breaks the `push-at-task-end` universal marker, which is the one thing
+    this cause exists to enforce, so a governance-only commit counts when its files are ones this
+    session touched.
+
+    ⚠️ THE RESIDUE, stated rather than hidden: a SIBLING's governance-only commit whose files this
+    session also touched is still attributed to us. That is a narrower version of the complaint
+    01M20E1QN made — it can no longer happen for a commit carrying the sibling's own code, only
+    for one that is pure governance — and the alternative is silence on our own task end. Between
+    being told to push someone's already-committed docs and losing our own commit off-box, the
+    contract is unambiguous about which is worse.
+    """
+    if touched & distinctive:
+        return True
+    return bool(touched) and touched <= _ROUTINE_GOVERNANCE and bool(touched & authored)
+
+
 def _ahead_of_upstream(root: Path, authored: set[str] | None = None) -> int | None:
     """Commits on the current branch not on its upstream that THIS SESSION authored; None =
     indeterminate (no upstream / detached HEAD / any git error — indeterminate never blocks:
@@ -598,25 +676,29 @@ def _ahead_of_upstream(root: Path, authored: set[str] | None = None) -> int | No
         return None
     distinctive = {f for f in authored if f not in _ROUTINE_GOVERNANCE}
     try:
-        if not distinctive:
-            return None
         # ONE subprocess for the whole range, not one per commit. The per-commit form cost ~3 ms
         # each (measured 207 commits -> 0.67 s) with a `timeout=15` PER COMMIT, so a git stalled on
         # `index.lock` — three sessions commit to this tree — gave a worst case of 15 s x N inside
         # a Stop hook. `--no-renames` because rename detection prints only the NEW path, so a
         # session that edited `a.py` and then `git mv`-ed it attributed nothing (executed).
-        # `core.quotePath=false` because git escapes a non-ASCII path (`"docs/caf\303\251.py"`)
-        # while `_session_files` stores it decoded, so the push law went silent on it entirely
-        # (executed) — `_dirty_paths` already passes this flag for the same reason.
+        #
+        # ⚠️ NUL-DELIMITED, because the first cut detected commit boundaries by sniffing "a line of
+        # exactly 40 hex characters" — and a FILENAME can be 40 hex characters. Executed: one
+        # commit containing `a.py`, `ffff…ffff` and `z.py` was counted as TWO, and the inflated
+        # number reaches the agent verbatim in the block text. The same cut passed
+        # `core.quotePath=false`, which governs only NON-ASCII escaping, so a path containing a
+        # quote, newline, tab or backslash was still C-quoted and never matched — executed, a file
+        # named `a"b.py` gave 0. `-z` emits every path raw and `%x00%H` delimits each commit with a
+        # NUL, so both classes close on the delimiter git already provides instead of on a
+        # heuristic. It also makes a sha256-object repo a non-question.
         r = subprocess.run(
             [
                 "git",
-                "-c",
-                "core.quotePath=false",
                 "log",
+                "-z",
                 "--no-renames",
                 "--name-only",
-                "--format=%H",
+                "--format=%x00%H",
                 "@{upstream}..HEAD",
             ],
             cwd=root,
@@ -626,18 +708,26 @@ def _ahead_of_upstream(root: Path, authored: set[str] | None = None) -> int | No
         )
         if r.returncode != 0:
             return None
-        mine, touched = 0, set()
-        for line in r.stdout.splitlines():
-            s = line.strip()
-            if not s:
-                continue
-            if len(s) == 40 and all(c in "0123456789abcdef" for c in s):
-                if touched & distinctive:
+        mine = 0
+        touched: set[str] = set()
+        expect_sha = True
+        started = False
+        for field in r.stdout.split("\0"):
+            if not field:
+                # the NUL that opens each commit: bank the previous one
+                if started and _commit_is_mine(touched, distinctive, authored):
                     mine += 1
                 touched = set()
+                expect_sha = True
                 continue
-            touched.add(s)
-        if touched & distinctive:
+            if expect_sha:
+                expect_sha = False
+                started = True
+                continue  # the sha itself is not a path
+            path = field.lstrip("\n")
+            if path:
+                touched.add(path)
+        if started and _commit_is_mine(touched, distinctive, authored):
             mine += 1
         return mine
     except Exception:
@@ -1058,8 +1148,10 @@ def _this_sessions_edits(authored: dict[str, int], session_floor: float) -> dict
     not this session's (the same filter `_failure_cites_session` applies). Unfiltered, a
     months-long transcript (454 code files over 116 days in one sid, measured) made any window
     of minutes count hundreds of files as unreviewed (review P1-3). ts == 0 (unknown) stays.
-    The sixth cause passes `_sixth_cause_floor(baseline)` — the baseline raised to the ledger's
-    birth — so pre-ledger edits are dropped here too (pool DOC-001, 2026-09-07)."""
+    The sixth cause passes `_sixth_cause_floor(baseline)` — the LATEST of the baseline, the
+    edit-age window and the ledger's birth — so pre-ledger edits are dropped here, and so are
+    edits older than the window (pool DOC-001, 2026-09-07; the third bound added 2026-09-15, and
+    on this box it is the one that usually binds: 87 of 97 baselines are older than it)."""
     return {
         f: ts for f, ts in authored.items() if not ts or not session_floor or ts >= session_floor
     }
@@ -1892,19 +1984,13 @@ def main(argv: list[str]) -> int:
                                 "decision": "block",
                                 "reason": (
                                     f"UNREVIEWED SPONTANEOUS WORK (attempt {v_att}/{CAP}). This "
-                                    f"session authored {_unreviewed} code file(s) edited in the "
-                                    f"last {int(_SIXTH_CAUSE_MAX_EDIT_AGE_S // 3600)}h and OUTSIDE every "
+                                    f"session authored {_unreviewed} code file(s) — edited "
+                                    f"{_edit_age_phrase()}, or carrying no readable timestamp, "
+                                    "which counts because unknown is not covered — and OUTSIDE every "
                                     "command run's covered window (before the first started, "
                                     "between runs, or after the last closed) — plain-chat work "
                                     "that skipped every review contract. "
-                                    + (
-                                        "Named: "
-                                        + ", ".join(_unreviewed_files[:3])
-                                        + (f" (+{_unreviewed - 3} more)" if _unreviewed > 3 else "")
-                                        + ". "
-                                        if _unreviewed_files
-                                        else ""
-                                    )
+                                    + _named_files_phrase(_unreviewed_files)
                                     + "Run "
                                     "`/fabrik-review-scoped` (minutes: diff-scoped, same "
                                     "convergence spine, fix-in-run) — or the full "

@@ -88,7 +88,18 @@ def test_the_guard_is_mains_first_statement_and_nothing_else_short_circuits(name
     tree = ast.parse(src)
     main = next((n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "main"), None)
     assert main is not None, f"{name} has no module-level main()"
-    body = [n for n in main.body if not isinstance(n, ast.Expr)]  # skip the docstring
+    # ⚠️ SKIP THE DOCSTRING, NOT EVERY EXPRESSION. The first cut filtered all `ast.Expr` nodes, so
+    # inserting `print("banner")` as main()'s real first statement left the test green — the exact
+    # "cost with no reader" this file exists to prevent, slipping past the grader that exists to
+    # prevent it (executed, Phase F review round 2). Only a leading string constant is a docstring.
+    body = list(main.body)
+    if (
+        body
+        and isinstance(body[0], ast.Expr)
+        and isinstance(body[0].value, ast.Constant)
+        and isinstance(body[0].value.value, str)
+    ):
+        body = body[1:]
     assert body, f"{name}: main() is empty"
     first = body[0]
     assert isinstance(first, ast.If), f"{name}: main()'s first statement is not the guard"
@@ -96,3 +107,49 @@ def test_the_guard_is_mains_first_statement_and_nothing_else_short_circuits(name
     assert "FABRIK_HEADLESS" in rendered and "'1'" in rendered, rendered
     assert ast.unparse(first.body[0]).strip() == "return 0", ast.unparse(first.body[0])
     assert not first.orelse, f"{name}: the guard has an else branch"
+
+
+def test_every_headless_claude_spawn_sets_the_flag() -> None:
+    """⚠️ RESTORED. Round 1 replaced the test above it and, in doing so, DELETED this one entirely
+    — so for one commit nothing in the repo asserted that the `claude -p` spawn sites declare
+    themselves headless, and the CHANGELOG said they did (Phase F review round 2, seat finding 1).
+    A deleted grader is worse than one that cannot fail: there is no red to notice.
+
+    AST, not substrings: an earlier version asserted the three strings co-occur ANYWHERE in the
+    file, so moving the literal into a dead comment while deleting it from the real `env={...}`
+    passed. And the AST version must handle BOTH spawn shapes — `subprocess.run(["claude", ...])`
+    passes argv as a LIST while `asyncio.create_subprocess_exec("claude", ...)` passes it as
+    *args; handling only the first silently passed half the population.
+    """
+    import ast
+
+    root = Path(__file__).resolve().parents[1]
+    checked = 0
+    for rel in ("scripts/ci_fix_dispatcher.py", "scripts/rivals_run.py"):
+        src = (root / rel).read_text(encoding="utf-8")
+        tree = ast.parse(src)
+        spawns = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call) or not node.args:
+                continue
+            first_arg = node.args[0]
+            elts = getattr(first_arg, "elts", None)
+            head = elts[0] if elts else first_arg
+            if not (isinstance(head, ast.Constant) and head.value == "claude"):
+                continue
+            spawns.append((node, next((k for k in node.keywords if k.arg == "env"), None)))
+        assert spawns, f"{rel} no longer spawns claude with a literal argv — re-point this grader"
+        for node, env_kw in spawns:
+            checked += 1
+            assert env_kw is not None, f"{rel}:{node.lineno}: a claude spawn with no env="
+            keys = [
+                k.value for k in getattr(env_kw.value, "keys", []) if isinstance(k, ast.Constant)
+            ]
+            assert "FABRIK_HEADLESS" in keys, (
+                f"{rel}:{node.lineno} spawns a headless claude turn without declaring it in the "
+                f"env it actually passes — keys were {keys}"
+            )
+            assert [k for k in getattr(env_kw.value, "keys", []) if k is None], (
+                f"{rel}:{node.lineno} must EXTEND the environment (**os.environ), never replace it"
+            )
+    assert checked == 2, f"expected one spawn in each of the two files, found {checked}"
