@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — check_structure flagged the docs/ subdirectory CLAUDE.md mandates (2026-09-15)
+
+- `scripts/enforcement/check_structure.py` — `VALID_DOCS_SUBDIRS` gains `workstation`. CLAUDE.md's Doc
+  Sync Matrix mandates `docs/workstation/<name>.md` for a box-local subsystem and the allowlist omitted it,
+  so the checker warned on the directory the contract requires (26 such files on the hub; the mandating row
+  is already in `templates/governance/CLAUDE.md`, so all ~46 repos carried the contradiction). Reported by
+  trade-intelligence (01M2JTQWZ8QJ4R6Q21GA7N5V5F). Grader pinned on the contract's own mandated path shape.
+- Two further mail-driven fixes were WITHDRAWN after review proved each worse than the status quo — see
+  D-262 and `docs/development/reviews/2026-09-15-mail-driven-enforcement-fixes-review.md`.
+
 ### Changed — /fabrik-command-improve sizes the edit to the verdict (2026-09-15)
 
 - `commands/_sources/fabrik-command-improve.md` — PHASE 3's cost paragraph gains one sentence: every

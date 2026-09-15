@@ -55,6 +55,10 @@ VALID_DOCS_SUBDIRS = {
     "development",
     "archive",
     "superpowers",  # brainstorming/writing-plans skills save specs/ + plans/ here
+    "workstation",  # CLAUDE.md Doc Sync Matrix MANDATES docs/workstation/<name>.md for a box-local
+    # subsystem; omitting it here flagged the directory the contract requires (site of 26 files on the
+    # hub) — the same gate-vs-contract contradiction as the user-guide row below (trade-intelligence
+    # 01M2JTQWZ8QJ4R6Q21GA7N5V5F, 2026-09-15)
     "user-guide",  # check_user_guide REQUIRES docs/user-guide/ when has_user_guide: true — this list flagging it was a gate-vs-gate contradiction (found file 8 of the rules pass)
 }
 

@@ -2578,6 +2578,19 @@ notion of "mine" the check does not currently have — spec-shaped, not a one-li
 
 ### Kaizen loop — the residue of the D-252 stop (2026-09-15)
 
+- **The Pass-row FINDERS cell: checker, command text, error string and generator all disagree** (owner:
+  **infra**; D-262) — `check_review_coverage.py:753` reads `cells[1]`; `commands/_fragments/term-coverage.md`
+  documents "METHOD FIRST … finders after"; the checker's sibling error string and `review_receipt.py:180`
+  both emit finders SECOND. A row written as documented is REFUSED. Three patches were tried and withdrawn
+  (fail-open twice, then 9 retro-red receipts across 3 repos). Size: /fabrik-spec — it is a fleet-synced
+  grammar with 847 receipts constraining it. Reported by site-provisioner 01M2K19AEKKAXG5NB211C2WFCM.
+- **`check_citations_resolve` cannot grade a bare-filename citation, by design** (owner: **infra**; D-262) —
+  `check_text:72-77` skips every path without a `/` because a bare name is ambiguous across repos (measured:
+  11 of 30 hits at review of 66aa32a5). So `.env.example:N`, `Makefile:N` and CLAUDE.md's own `.gitignore:199`
+  are ungraded and a wrong line number there is invisible. A fix must engage that measurement — root-anchored
+  dotfiles are safe (measured: 43 repos, 156 resolve, 0 red) while `Makefile`/`Dockerfile` are not (5 false
+  reds in the hub alone). Reported by trade-intelligence 01M2JT7N2RKZ7DABFMRDXE6KJ1.
+
 - **`commands/assemble_commands.py::PARAMS` holds per-command TEXT that `--mark-answered` refuses**
   (owner: **infra**) — `_is_corpus_path('commands/assemble_commands.py')` is False, so a verdict about a
   per-command slot can be edited but never marked answered; the run dies mid-PHASE-5 and the queue never

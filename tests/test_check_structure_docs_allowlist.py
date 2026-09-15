@@ -302,3 +302,35 @@ def test_a_missing_registry_name_is_not_reported_as_an_unreadable_one(tmp_path: 
     assert a[0] != u[0], "two different facts reported with one message"
     for msg in (a[0], u[0]):
         assert "This is not a pass" in msg
+
+
+def test_the_allowlist_admits_the_docs_subdir_the_contract_mandates():
+    """CLAUDE.md's Doc Sync Matrix MANDATES `docs/workstation/<name>.md` for a box-local subsystem,
+    and VALID_DOCS_SUBDIRS omitted it — so the checker flagged the directory the contract requires
+    (26 such files on the hub). The same gate-vs-contract contradiction the `user-guide` entry was
+    added to fix (trade-intelligence 01M2JTQWZ8QJ4R6Q21GA7N5V5F, 2026-09-15).
+
+    Pinned against CLAUDE.md's mandating row, so the gate and the contract cannot drift apart
+    silently.
+    """
+    import importlib.util
+    from pathlib import Path
+
+    repo = Path(__file__).resolve().parents[1]
+    spec = importlib.util.spec_from_file_location(
+        "cs", repo / "scripts" / "enforcement" / "check_structure.py"
+    )
+    assert spec and spec.loader
+    cs = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cs)
+    contract = (repo / "CLAUDE.md").read_text(encoding="utf-8")
+    # The MANDATING row, not any mention: `docs/workstation/` appears 4x in CLAUDE.md and only
+    # the Doc Sync Matrix row mandates it — deleting just that row left 3 incidental citations
+    # and this arm green, so the "cannot drift silently" claim was false for the one direction
+    # it protects (executed by the closing seat).
+    assert "docs/workstation/<name>.md" in contract, (
+        "the Doc Sync Matrix no longer mandates docs/workstation/<name>.md"
+    )
+    assert "workstation" in cs.VALID_DOCS_SUBDIRS, (
+        "CLAUDE.md mandates docs/workstation/ but check_structure would flag it"
+    )
