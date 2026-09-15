@@ -1202,13 +1202,25 @@ def _is_placeholder(value: str | None, field: str | None = None) -> bool:
     # A fail-CLOSED gate that wedges the session is worse than the hole it closed (review round 1).
     # ⚠️ The strip tolerates DECORATION and REPEATS: a bare `^\w+:` closed exactly one shape while
     # `**lean**:`, `` `lean`: ``, `lean :`, `lean: waste:` and a fullwidth `：` all still admitted a
-    # verbatim template — measured 13 of 18 probed shapes closing at rc 0. Bounded to 40 chars and
-    # to a single line so it can never eat a real value's prose.
+    # verbatim template — measured 13 of 18 probed shapes closing at rc 0.
+    # ⚠️ THE WHITESPACE IS HOISTED OUT OF THE REPETITION, and that is not style. With `[^\S\n]*`
+    # INSIDE the group, it and the next iteration's `[^<>\n:]{0,40}` both match a space, so the
+    # engine re-partitions every `colon-space` segment before the lookahead fails — catastrophic
+    # backtracking, ~4x per segment. EXECUTED on the real close path: an ordinary per-ticket verdict
+    # (`change: lean: T00: fix0, T01: fix1, …`) burned 78 SECONDS of CPU at 28 pairs, ~20 minutes at
+    # 30, and nothing bounds the input — `_LEDGER_FIELD_CAP` applies only at persist time. A hung
+    # close leaves the record `running`, so the Stop hook blocks the turn (review round 2).
+    keyed = False
     if field == "change":
-        v = re.sub(r"^[>\s*_`'\"()\[\]-]+", "", v).strip()
-        v = re.sub(r"^(?:[^<>\n:]{0,40}[:\uff1a\u2236][^\S\n]*)+(?=<)", "", v)
+        v = re.sub(r"^[>\s*_`'\"()\[\]\u2014\u2013\u00b7\u2022\u2192#+.\d-]+", "", v).strip()
+        stripped = re.sub(
+            r"^(?:[^<>\n:]{0,40}[:\uff1a\u2236\ua789\u0589\u1365\u205a\ufe55\ufe30])+[^\S\n]*(?=<)",
+            "",
+            v,
+        )
         # a BRACKETED key carries no colon (`[lean] <…>`) — the one shape the colon form misses
-        v = re.sub(r"^\w[\w-]{0,38}[\]\)][^\S\n]*(?=<)", "", v)
+        stripped = re.sub(r"^\w[\w-]{0,38}[\]\)][^\S\n]*(?=<)", "", stripped)
+        keyed, v = stripped != v, stripped
     m = re.fullmatch(r"<(?P<c>.*)>\s*\[?", v, re.S)
     if not m:
         return False
@@ -1249,6 +1261,17 @@ def _is_placeholder(value: str | None, field: str | None = None) -> bool:
         return True
     if re.search(r"[a-z]{2,}\s*\||\|\s*[a-z]{2,}", c):
         return True  # a prose alternation is the grammar's, `01M1AAA|01M1BBB` is a value
+    # ⚠️ The terminal catch-all — "several prose tokens, no real value at the head" — must NOT
+    # decide a value whose AXIS KEY we just stripped. It cannot tell the grammar's prose from an
+    # agent's own verdict written inside the brackets, and `change:` is the ONE field whose grammar
+    # MANDATES the key, so the shape `change: lean: <cut the rubric block to the matched rows>` is
+    # what following the grammar literally looks like. Refusing it leaves the record `running` and
+    # the Stop hook blocking the turn — the same fail-CLOSED wedge round 1 removed, reintroduced
+    # for one field. Past this point a keyed value has already been tested against the ellipsis, a
+    # nested `<`, the grammar's own noun phrases and a prose alternation; that is the whole of what
+    # is knowably the template, and the catch-all beyond it guesses (review round 2).
+    if keyed:
+        return False
     return len(c.split()) > 1 and re.search(r"[a-z]{2,}", c) is not None
 
 

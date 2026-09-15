@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — A ReDoS in the close gate, and three more defects in round 2's own fix (2026-09-15)
+
+- **⚠️ CATASTROPHIC BACKTRACKING in `_is_placeholder`, on the close path of a fleet-synced script.**
+  Round 2's key-strip put `[^\S\n]*` INSIDE the repetition, where it and the next iteration's
+  `[^<>\n:]{0,40}` both match a space — so the engine re-partitioned every `colon-space` segment
+  before the lookahead failed. Growth ~4× per segment, EXECUTED on the real close path: an ordinary
+  per-ticket verdict (`change: lean: T00: fix0, T01: fix1, …`) burned **78 seconds of CPU** at 28
+  pairs, ~20 minutes at 30. Nothing bounds the input — `_LEDGER_FIELD_CAP` applies only at persist
+  time — and a hung close leaves the record `running`, so the Stop hook blocks the turn. The
+  whitespace is hoisted out of the repetition: 78 s → 6 µs, with 0 substitution differences over
+  120k inputs. Graded by a timing assertion.
+- **One em dash defeated the whole gate.** The decoration class was ASCII-only while the FEEDBACK
+  grammar's own separators are `·` and `—`: `change: — <the ONE concrete edit…>` was ACCEPTED, so a
+  pasted template landed in the fleet ledger as a verdict. `—–·•→#+.` and digits added (the last
+  closes `1. <…>`), plus six more Unicode colons.
+- **The gate refused a value that follows the grammar literally.** `change:` is the ONE field whose
+  grammar MANDATES a key, so `change: lean: <cut the rubric block to the matched rows>` is what
+  obeying it looks like — and it was refused, leaving the record `running` and the Stop hook
+  blocking the turn: the same fail-CLOSED wedge round 1 removed, reintroduced for one field. Past
+  the ellipsis, nested-`<`, noun-phrase and alternation tests, a KEYED value is no longer judged by
+  the "multi-word lowercase" catch-all, which cannot tell the grammar's prose from an agent's own.
+- **Four of six strip components had no grader**, and the two bound assertions this round first
+  wrote could not fail — they used a real-value body, which returns False under both the real and
+  the widened bound. Rewritten with a template body; all six mutants now killed.
+- Verified against LIVE data, not fixtures: **525 real ledger values across the three non-`change`
+  fields — 0 verdict changes; 175 real `change` values — 0 wrongly refused**; 23 of 24 template
+  shapes refused, 10/10 honest values accepted.
+
 ### Fixed — Review round 2: 26 more defects, all of them in round 1's own fixes (2026-09-15)
 
 - **Step 5a is now three `|| exit 1` guards, not prose.** Round 1 rewrote it; round 2 refuted the

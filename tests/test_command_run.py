@@ -4661,6 +4661,50 @@ def test_an_axis_keyed_placeholder_is_still_a_placeholder() -> None:
     # …while a BARE template is still refused in every field
     for field in ("confusion", "waste", "change", "filed"):
         assert cr._is_placeholder("<mail id(s)>", field), field
+    # the four strip components, each of which survived mutation with no assertion of its own
+    for ph in (
+        "- <mail id(s)>",
+        "[lean] <mail id(s)>",
+        "(lean) <mail id(s)>",
+        "— <mail id(s)>",
+        "· <mail id(s)>",
+        "1. <mail id(s)>",
+        "lean꞉ <mail id(s)>",
+    ):
+        assert cr._is_placeholder(ph, "change"), ph
+    # ...and the BOUNDS are real and DELIBERATE: the 40/38-char windows exist so the strip can
+    # never eat a long run of prose. A key longer than the window is therefore NOT stripped, and
+    # the template behind it is NOT detected — an accepted, narrow cost. Pinned with a TEMPLATE
+    # body, because that is the only shape whose verdict flips when the bound is widened: with a
+    # real-value body both bounds give False and the assertion cannot fail (it did not — widening
+    # 40->400 and 38->380 both survived the first cut of this pin, review round 3).
+    assert not cr._is_placeholder(("k" * 41) + ": <mail id(s)>", "change")
+    assert not cr._is_placeholder(("k" * 41) + "] <mail id(s)>", "change")
+    # the bound's own edge: one char INSIDE the window still strips, so the template is caught
+    assert cr._is_placeholder(("k" * 39) + ": <mail id(s)>", "change")
+    # ⚠️ A KEYED value is judged ONLY by the grammar's own markers, never by the "multi-word
+    # lowercase" catch-all — `change:` is the one field whose grammar MANDATES a key, so
+    # `change: lean: <my real edit>` is what following it literally looks like. Refusing that
+    # leaves the record `running` and the Stop hook blocking the turn.
+    assert not cr._is_placeholder("lean: <cut the rubric block to the matched rows>", "change")
+    assert cr._is_placeholder("lean: <the ONE concrete edit to this command or a rule>", "change")
+
+
+def test_the_placeholder_strip_cannot_backtrack_catastrophically() -> None:
+    r"""The strip's whitespace is HOISTED OUT of the repetition. Inside it, `[^\S\n]*` and the next
+    iteration's `[^<>\n:]{0,40}` both match a space, so the engine re-partitions every
+    `colon-space` segment before the lookahead fails — ~4x per segment. An ordinary per-ticket
+    verdict burned 78 SECONDS of CPU at 28 pairs on the real close path, ~20 minutes at 30, and
+    nothing bounds the input: `_LEDGER_FIELD_CAP` applies only at persist time. A hung close leaves
+    the record `running`, so the Stop hook blocks the turn (review round 2)."""
+    import time
+
+    cr = _cr_module("redos")
+    value = "lean: " + ", ".join(f"T{i:02d}: fix{i}" for i in range(30))
+    start = time.perf_counter()
+    cr._is_placeholder(value, "change")
+    elapsed = time.perf_counter() - start
+    assert elapsed < 0.5, f"catastrophic backtracking is back: {elapsed:.1f}s on {len(value)} chars"
 
 
 def test_the_phase_gate_refusal_names_the_stem_and_states_the_bound_only_when_in_force(
