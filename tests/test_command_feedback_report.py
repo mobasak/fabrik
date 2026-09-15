@@ -1489,7 +1489,8 @@ def test_queue_prints_one_commands_verdicts_newest_first_with_their_ts(tmp_path:
     assert r.returncode == 0, r.stderr
     lines = r.stdout.splitlines()
     assert (
-        lines[0] == "queue /a — 2 of 3 row(s) for it carry a change: verdict (4 in the window)"
+        lines[0]
+        == "queue /a — 2 unanswered of 2 verdict row(s), 3 row(s) for it in all (4 in the window)"
     ), lines[0]
     rows = [ln.split("\t") for ln in lines[1:]]
     assert [c[2] for c in rows] == ["fast: newer", "lean: older"], rows
@@ -1502,7 +1503,8 @@ def test_queue_says_so_when_a_command_has_nothing_to_improve_from(tmp_path: Path
     _write(ledger, [_row("a", 60, 1, "none"), _row("b", 60, 1, "lean: x")])
     r = _run(ledger, "--queue", "a")
     assert r.returncode == 0, r.stderr
-    assert "0 of 1 row(s) for it" in r.stdout and "(2 in the window)" in r.stdout
+    assert "0 unanswered of 0 verdict row(s), 1 row(s) for it in all" in r.stdout
+    assert "(2 in the window)" in r.stdout
     assert "nothing to improve from" in r.stdout
 
 
@@ -1523,7 +1525,7 @@ def test_queue_is_unaffected_by_the_axis_key_when_the_verdict_is_none(tmp_path: 
     ledger = tmp_path / "l.jsonl"
     _write(ledger, [_row("a", 60, 1, "lean: none"), _row("a", 60, 1, "lean: real")])
     r = _run(ledger, "--queue", "a")
-    assert "1 of 2 row(s) for it" in r.stdout
+    assert "1 unanswered of 1 verdict row(s), 2 row(s) for it in all" in r.stdout
     assert "lean: none" not in r.stdout
 
 
@@ -1547,7 +1549,10 @@ def test_queue_honours_the_window_and_the_filters_like_observer_rank(tmp_path: P
     )
     out = _run(ledger, "--queue", "a", "--since", "7").stdout
     assert "lean: new" in out and "lean: old" not in out
-    assert "1 of 1 row(s) for it" in out and "(1 in the window)" in out
+    assert (
+        "1 unanswered of 1 verdict row(s), 1 row(s) for it in all" in out
+        and "(1 in the window)" in out
+    )
     j = json.loads(_run(ledger, "--queue", "a", "--json").stdout)
     assert j["queue"][0].startswith("queue /a —")
 
@@ -1633,3 +1638,116 @@ def test_the_two_report_modes_refuse_to_be_combined(tmp_path: Path) -> None:
         assert "two different reports" in r.stderr
     r = _run(ledger, "--queue", "a", "--command", "b")
     assert r.returncode == 2 and "name different commands" in r.stderr
+
+
+# ---------------------------------------------------------------------------
+# The ANSWERED INDEX — the state that lets a queue SHRINK.
+#
+# Measured 2026-09-15: `/fabrik-command-improve` had never run, zero rows had ever been marked
+# answered, and the exclusion the command text described was a PROSE step ("run `git log --grep`
+# and exclude them yourself"). A manual exclusion is one a reader skips, and then run N+1 reads
+# the identical queue and can pick the identical group.
+# ---------------------------------------------------------------------------
+
+
+def _cfr():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("cfr_ans", SCRIPT)
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def test_answered_rows_are_excluded_from_the_queue(tmp_path: Path, monkeypatch) -> None:
+    m = _cfr()
+    rows = [
+        _row("fabrik-review", 10, 2, "lean: cut step 7"),
+        _row("fabrik-review", 10, 2, "accurate: name the artifacts"),
+    ]
+    index = tmp_path / "answered.jsonl"
+    index.write_text(
+        json.dumps({"ts": str(rows[0]["ts"]), "command": "fabrik-review", "commit": "abc"}) + "\n"
+    )
+    monkeypatch.setattr(m, "_answered_path", lambda: index)
+    out = m.queue(rows, "fabrik-review")
+    assert "cut step 7" not in out, out
+    assert "name the artifacts" in out, out
+
+
+def test_the_queue_states_how_many_it_excluded(tmp_path: Path, monkeypatch) -> None:
+    """An exclusion you cannot see is a denominator you cannot check — the repo's own rule."""
+    m = _cfr()
+    rows = [_row("fabrik-review", 10, 2, "lean: a"), _row("fabrik-review", 10, 2, "lean: b")]
+    index = tmp_path / "answered.jsonl"
+    index.write_text(
+        json.dumps({"ts": str(rows[0]["ts"]), "command": "fabrik-review", "commit": "abc"}) + "\n"
+    )
+    monkeypatch.setattr(m, "_answered_path", lambda: index)
+    head = m.queue(rows, "fabrik-review").splitlines()[0]
+    assert "1 unanswered of 2" in head, head
+    assert "1 already answered and excluded" in head, head
+
+
+def test_an_absent_index_hides_nothing(tmp_path: Path, monkeypatch) -> None:
+    """The safe direction: no index means every row shows. Over-reporting work beats hiding a
+    verdict nobody acted on."""
+    m = _cfr()
+    monkeypatch.setattr(m, "_answered_path", lambda: tmp_path / "does-not-exist.jsonl")
+    rows = [_row("fabrik-review", 10, 2, "lean: a")]
+    assert "lean: a" in m.queue(rows, "fabrik-review")
+
+
+def test_mark_answered_refuses_a_commit_that_touches_no_corpus_path(tmp_path: Path) -> None:
+    """THE COBRA COUNTER-MEASURE. The cheapest way to make a queue shrink without doing the work
+    is to mark rows answered and commit nothing; this is what makes that cost a real edit."""
+    m = _cfr()
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.email", "t@t"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=repo, check=True)
+    (repo / "README.md").write_text("not the corpus\n")
+    subprocess.run(["git", "add", "README.md"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "no corpus"], cwd=repo, check=True)
+    index = tmp_path / "answered.jsonl"
+    written, msg = m.mark_answered("fabrik-review", ["1.0"], "HEAD", repo, index)
+    assert written == 0, msg
+    assert "REFUSED" in msg and "no corpus path" in msg, msg
+    assert not index.exists(), "a refusal must write nothing"
+
+
+def test_mark_answered_accepts_a_real_corpus_edit(tmp_path: Path) -> None:
+    m = _cfr()
+    repo = tmp_path / "repo"
+    (repo / "commands" / "_sources").mkdir(parents=True)
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.email", "t@t"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=repo, check=True)
+    (repo / "commands" / "_sources" / "fabrik-review.md").write_text("edited\n")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "corpus edit"], cwd=repo, check=True)
+    index = tmp_path / "answered.jsonl"
+    written, msg = m.mark_answered("fabrik-review", ["1.0", "2.0"], "HEAD", repo, index)
+    assert written == 2, msg
+    assert m._answered_ts("fabrik-review", index) == {"1.0", "2.0"}
+    # idempotent: the same rows again mark nothing and say so
+    again, msg2 = m.mark_answered("fabrik-review", ["1.0", "2.0"], "HEAD", repo, index)
+    assert again == 0 and "already marked" in msg2, msg2
+
+
+def test_mark_answered_fails_closed_when_git_cannot_read_the_commit(tmp_path: Path) -> None:
+    """Marking is the one operation in this loop that DESTROYS information (a row stops being
+    offered). A commit that cannot be verified is not evidence of an edit."""
+    m = _cfr()
+    index = tmp_path / "answered.jsonl"
+    written, msg = m.mark_answered("fabrik-review", ["1.0"], "deadbeef", tmp_path, index)
+    assert written == 0 and "REFUSED" in msg, msg
+    assert not index.exists()
+
+
+def test_the_answered_index_sits_beside_the_ledger(monkeypatch, tmp_path: Path) -> None:
+    """Box-global, like the ledger — closes happen in ~46 repos and the corpus lives in one."""
+    m = _cfr()
+    monkeypatch.setenv("COMMAND_RUN_DIR", str(tmp_path / "state" / "command-runs"))
+    assert m._answered_path() == m._default_ledger().parent / "command-feedback-answered.jsonl"

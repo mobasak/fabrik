@@ -1164,6 +1164,89 @@ def _usage_is_required(rec: dict[str, Any]) -> bool:
     return started is not None and started >= _USAGE_REQUIRED_FROM
 
 
+# ⚠️ The AXIS GATE's own cutover. A record STARTED before this landed closes under the OLD rule:
+# a refused close leaves the record `running` and the Stop hook then blocks the whole turn, so a
+# gate that lands mid-run would wedge every in-flight session in ~46 repos at once.
+_AXIS_REQUIRED_FROM = dt.datetime(2026, 9, 15, 11, 24, tzinfo=dt.UTC)  # the moment it landed
+
+# The seven PER-RUN axes a `change:` verdict may be keyed with. ⚠️ DUPLICATED ON PURPOSE from
+# `scripts/command_feedback_report.py::AXES`, and the duplication is the lesser evil: THIS file is
+# fleet-synced to ~46 repos and that one is hub-only, so an import in either direction fails
+# CLOSED in every project the day it lands — the close gate would die on ImportError fleet-wide.
+# `tests/test_command_run.py::test_axis_list_is_pinned_to_the_report_reader` keeps them equal, and
+# `::test_gate_and_queue_reader_agree_on_every_shape` keeps their CLASSIFIERS agreeing over shapes.
+_CHANGE_AXES: tuple[str, ...] = ("lean", "fast", "accurate", "waste", "infra", "rules", "manifesto")
+
+
+def _axis_is_required(rec: dict[str, Any]) -> bool:
+    started = _parse_ts(str(rec.get("started_at") or ""))
+    return started is not None and started >= _AXIS_REQUIRED_FROM
+
+
+def _change_axis_attempt(value: str) -> tuple[str, str] | None:
+    r"""`(key, body)` when the value ATTEMPTS a key, else None — the same shape the report's
+    `_axis_of` uses, and it must stay the same: one alphabetic word, a colon, then whitespace or
+    nothing. The whitespace is what separates a key from a URL or a Windows path (`https://x`,
+    `c:\users`), whose colon is punctuation inside a token and keys nothing. The key is the token
+    before the first comma, so `a, lean: x` keys nothing either."""
+    low = " ".join((value or "").strip().lower().split())
+    head = low.split(",", 1)[0]
+    key, sep, _rest_of_head = head.partition(":")
+    rest = low.partition(":")[2] if ":" in low else ""
+    key = key.strip()
+    if not (sep and key.isalpha() and (rest == "" or rest[:1].isspace())):
+        return None
+    return key, rest.strip()
+
+
+def _change_is_none_value(value: str) -> bool:
+    """`change: none` reads through an optional axis key — mirrors the report's `_change_is_none`.
+    Only a key with a verdict BEHIND it is stripped: `lean:` alone is malformed, not a claim that
+    nothing needed changing, and stripping it would report the malformation as compliance."""
+    text = (value or "").strip()
+    head, sep, rest = text.partition(":")
+    if sep and not (rest == "" or rest[:1].isspace()):
+        return _is_none_head(text)
+    if sep and head.strip().lower() in _CHANGE_AXES and rest.strip():
+        text = rest
+    return _is_none_head(text)
+
+
+def _is_none_head(value: str) -> bool:
+    stripped = (value or "").strip()
+    head = stripped.lower().split()[0].rstrip(".,;") if stripped else ""
+    return not stripped or head in {"none", "nothing", "n/a", "-"}
+
+
+def _change_axis_verdict(value: str) -> str | None:
+    """None = the value is acceptable; otherwise the label suffix the refusal names.
+
+    The `change:` field is AXIS-KEYED (`change: lean: <edit>`) because the axis is the property of
+    the COMMAND TEXT the edit improves, and it is what makes the accumulated queue sortable by the
+    thing being optimised. It was documented in three places and enforced in none: measured
+    2026-09-15, `change: <edit>`, `change: lean: <edit>` and `change: banana: <edit>` all closed at
+    rc 0, and 175 of the ledger's 180 rows carried no key at all.
+
+    ⚠️ COBRA NOTE (the rule this mechanism must ship with). The cheapest way to satisfy this gate
+    WITHOUT producing the outcome is to key every verdict with the same axis regardless of what the
+    edit is about — `lean:` on everything — which passes forever and makes the tally a constant.
+    That is cheaper than thinking about the axis, so it is the behaviour to expect. The
+    counter-measure ships with it and is a READER, not a second gate: the report's per-command axis
+    tally (`command_feedback_report.py::_axis_tally`) prints the distribution, so a queue that is
+    100% one axis is visible at a glance, and `--queue` emits the bucket beside every row. A gate
+    that tried to judge whether the axis FITS the verdict would be judging prose, which is exactly
+    the wallpaper this repo bans."""
+    if _change_is_none_value(value):
+        return None
+    attempt = _change_axis_attempt(value)
+    if attempt is None:
+        return "unkeyed axis"
+    key, body = attempt
+    if not body:
+        return "unkeyed axis"  # `lean:` with nothing after it keys nothing
+    return None if key in _CHANGE_AXES else "unknown axis"
+
+
 _GRAMMAR_NOUNS = (
     "mail id",
     "what in the command",
@@ -1275,7 +1358,9 @@ def _is_placeholder(value: str | None, field: str | None = None) -> bool:
     return len(c.split()) > 1 and re.search(r"[a-z]{2,}", c) is not None
 
 
-def _parse_usage_feedback(text: str) -> tuple[dict[str, str], list[str]]:
+def _parse_usage_feedback(
+    text: str, axis_required: bool = True
+) -> tuple[dict[str, str], list[str]]:
     """Split a FEEDBACK line into its labelled fields. Returns (fields, missing) — `missing`
     names every required label that is absent OR empty, so the refusal can say which; a label
     written TWICE is listed as `<label> (duplicate)` and refused too — last-wins silently
@@ -1294,7 +1379,16 @@ def _parse_usage_feedback(text: str) -> tuple[dict[str, str], list[str]]:
     missing = [f for f in _USAGE_FIELDS if not fields.get(f)]
     # T3.4 (backlog F25/F26): a value pasted verbatim from the grammar — `<…>` — names nothing;
     # it is refused as a placeholder, by label, so the grammar string cannot pass its own parser
-    missing += [f"{f} (placeholder)" for f in _USAGE_FIELDS if _is_placeholder(fields.get(f), f)]
+    placeholders = [f for f in _USAGE_FIELDS if _is_placeholder(fields.get(f), f)]
+    missing += [f"{f} (placeholder)" for f in placeholders]
+    # THE AXIS GATE — `change:` only, and only on a value that is not already the grammar's own
+    # template. The precedence MIRRORS the report's `_axis_of`, which decides `placeholder` before
+    # it looks for a key: a value can satisfy both rules at once (`foo: <…>`) and must be named
+    # once, or the refusal lists one defect twice and the two readers partition differently.
+    if axis_required and "change" not in placeholders and fields.get("change"):
+        _axis_verdict = _change_axis_verdict(fields["change"])
+        if _axis_verdict:
+            missing.append(f"change ({_axis_verdict})")
     missing += [f"{d} (duplicate)" for d in dupes if f"{d} (duplicate)" not in missing]
     return fields, missing
 
@@ -1320,6 +1414,67 @@ def _append_ledger_row(path: Path, row: dict[str, Any]) -> None:
 
 def _feedback_ledger_path() -> Path:
     return _state_dir().parent / "command-feedback.jsonl"
+
+
+def _answered_ledger_path() -> Path:
+    """The `ts` handles an applied corpus edit has already answered — box-global, BESIDE the
+    ledger, because the ledger is box-global too.
+
+    ⚠️ WHY a file and not the commit trailer alone. `/fabrik-command-improve` writes a trailer
+    naming the rows it answered, and that stays (it is the provenance, and it is immutable). But
+    the trailer is readable only from a git checkout of the HUB, while closes happen in ~46 repos
+    — so from 45 of them the answered set is invisible, and even in the hub reading it costs a
+    `git log` the reader was asked to run BY PROSE. Measured 2026-09-15: zero rows had ever been
+    marked answered, and the queue could only grow. This index is what makes the number fall.
+    """
+    return _state_dir().parent / "command-feedback-answered.jsonl"
+
+
+def _queue_depth(command: str) -> tuple[int, int] | None:
+    """`(unanswered, carrying a verdict)` for one command — or None when it cannot be known.
+
+    Fail-soft by construction: this runs on the CLOSE path in ~46 repos, and a close that dies
+    reading an advisory counter leaves the record `running` and the Stop hook blocking the turn.
+    Any unreadable, absent or malformed file means "no advice", never an error.
+    """
+    try:
+        rows = 0
+        answered: set[str] = set()
+        try:
+            text = _answered_ledger_path().read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            text = ""
+        for ln in text.splitlines():
+            ln = ln.strip()
+            if not ln:
+                continue
+            try:
+                row = json.loads(ln)
+            except ValueError:
+                continue
+            if isinstance(row, dict) and str(row.get("command") or "") == command:
+                answered.add(str(row.get("ts")))
+        unanswered = 0
+        ledger = _feedback_ledger_path().read_text(encoding="utf-8", errors="replace")
+        for ln in ledger.splitlines():
+            ln = ln.strip()
+            if not ln:
+                continue
+            try:
+                row = json.loads(ln)
+            except ValueError:
+                continue
+            if not isinstance(row, dict) or str(row.get("command") or "") != command:
+                continue
+            # the same population `--queue` renders: rows carrying an actual verdict, never `none`
+            if _change_is_none_value(str(row.get("change") or "")):
+                continue
+            rows += 1
+            if str(row.get("ts")) not in answered:
+                unanswered += 1
+        return (unanswered, rows) if rows else None
+    except Exception:  # advisory only — never let a counter wedge a close
+        return None
 
 
 # The three dimensions a ledger row needs to be ANALYSED rather than merely read (operator,
@@ -2945,14 +3100,34 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         print(msg)
         return 1
     _fb_text = str(getattr(args, "feedback", "") or "")
-    _usage_fields, _usage_missing = _parse_usage_feedback(_fb_text)
+    _usage_fields, _usage_missing = _parse_usage_feedback(
+        _fb_text, axis_required=_axis_is_required(rec)
+    )
     if _usage_is_required(rec) and _usage_missing:
+        # An AXIS defect is not a missing field, and the generic sentence sends the agent looking
+        # for a field it already wrote. Name the real defect, the seven keys, and re-key its OWN
+        # value as the example — a refusal that costs a second read costs a round.
+        _axis_bad = [m for m in _usage_missing if m.startswith("change (") and "axis" in m]
+        _axis_hint = ""
+        if _axis_bad:
+            _own = (_usage_fields.get("change") or "").strip()
+            _shown = _own if len(_own) <= 60 else _own[:59] + "…"
+            _axis_hint = (
+                f"\n\n⚠️ `change:` is AXIS-KEYED — lead the value with ONE of "
+                f"{' | '.join(_CHANGE_AXES)} then a colon. The axis is the property of the COMMAND "
+                f"TEXT your edit improves, not your run's topic, and it is what lets "
+                f"`command_feedback_report.py --queue` sort the backlog by what you are optimising."
+                f"\n  you wrote:  change: {_shown}"
+                f"\n  keyed:      change: lean: {_shown}"
+                f"\n`change: none` is a verdict you sign and carries no key."
+            )
         msg = (
             f"REFUSED — closing /{live} needs the STRUCTURED usage feedback (D-175): "
             f"missing, empty or duplicated: {', '.join(f + ':' for f in _usage_missing)}. The line describes "
             "how the COMMAND behaved this run, so the corpus can be optimised for fewer rounds, "
             "less confusion and fewer tokens:\n  --feedback '" + _USAGE_GRAMMAR + "'\n"
             "Wall-clock and the round count are captured for you; write the four fields."
+            + _axis_hint
         )
         sys.stderr.write(f"[command_run] {msg}\n")
         print(msg)
@@ -3225,6 +3400,21 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         print(pinned_line(parent))
         return 0
     print(f"{args.cmd.upper()} /{rec.get('command')} — run record closed.")
+    # THE TRIGGER for the other half of the loop. A verdict is written at every close and, until
+    # 2026-09-15, nothing ever told anyone the pile existed: `/fabrik-command-improve` had never
+    # run once, and its only trigger was a sentence in its own command text — which binds nobody
+    # who is not already reading it. Printed at the close because that is the moment the agent is
+    # still deciding what to do next, the same argument the Stop hook is built on. ADVISORY, one
+    # line, never a block: it fires on every close with a non-empty queue, and a gate that fires
+    # every time is wallpaper.
+    _depth = _queue_depth(str(rec.get("command") or ""))
+    if _depth and _depth[0]:
+        _un, _tot = _depth
+        print(
+            f"QUEUE: /{rec.get('command')} has {_un} unanswered verdict(s) of {_tot} filed — "
+            f"answer them with `/fabrik-command-improve {rec.get('command')}` "
+            f"(read them: `python3 scripts/command_feedback_report.py --queue {rec.get('command')}`)."
+        )
     # Queue the scratch advisory for `main()` to print AFTER the record lock drops. Set here, not
     # printed here, and only on a top-level close that actually persisted: the NOT-CLOSED path
     # returns above, so a close that did not happen never offers advice about it.

@@ -63,6 +63,126 @@ def _rows(path: Path | None) -> list[dict]:
     return out
 
 
+# ---------------------------------------------------------------------------
+# The ANSWERED INDEX — which `ts` handles an applied corpus edit has already closed out.
+#
+# The commit trailer stays the provenance (it is immutable and human-readable), but it cannot be
+# the only state: it is readable only from a hub checkout, while closes happen in ~46 repos, and
+# reading it costs a `git log` that a PROSE step asked the agent to run. Measured 2026-09-15: zero
+# rows had ever been marked, `/fabrik-command-improve` had never run, and the queue could only
+# grow. This index is written by `--mark-answered` at the moment the edit is committed.
+# ---------------------------------------------------------------------------
+
+# The surfaces an edit that ANSWERS a verdict must actually touch. ⚠️ COBRA NOTE: the cheapest way
+# to make a queue shrink without doing the work is to mark rows answered and commit nothing — so
+# `--mark-answered` demands a commit SHA and refuses one that touched none of these paths. It
+# cannot judge whether the edit is GOOD (that is the review's job, and a gate that tried would be
+# judging prose); it can and does refuse an edit that does not exist.
+_CORPUS_PATHS: tuple[str, ...] = (
+    "commands/_sources/",
+    "commands/_fragments/",
+    "commands/_agents/",
+    ".windsurf/rules/",
+    "CLAUDE.md",
+    "templates/governance/CLAUDE.md",
+)
+
+
+def _answered_path() -> Path | None:
+    led = _default_ledger()
+    return None if led is None else led.parent / "command-feedback-answered.jsonl"
+
+
+def _answered_ts(command: str, path: Path | None = None) -> set[str]:
+    """The `ts` set already answered for one command. An absent or unreadable index means nothing
+    is answered — the queue then shows every row, which is the safe direction: it over-reports work
+    rather than hiding a verdict nobody acted on."""
+    path = path if path is not None else _answered_path()
+    if path is None:
+        return set()
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return set()
+    out: set[str] = set()
+    for ln in text.splitlines():
+        ln = ln.strip()
+        if not ln:
+            continue
+        try:
+            row = json.loads(ln)
+        except ValueError:
+            continue
+        if isinstance(row, dict) and str(row.get("command") or "") == command:
+            out.add(str(row.get("ts")))
+    return out
+
+
+def _commit_touches_corpus(commit: str, repo: Path) -> tuple[bool, str]:
+    """`(touched, detail)` — does this commit change a file the corpus is made of?
+
+    The refusal is the counter-measure named in :data:`_CORPUS_PATHS`. Fails CLOSED on purpose:
+    a commit that cannot be read (not a repo, bad sha, no git) is not evidence of an edit, and
+    marking rows answered is the one operation in this loop that DESTROYS information.
+    """
+    import subprocess
+
+    try:
+        proc = subprocess.run(
+            ["git", "show", "--name-only", "--format=", commit],
+            cwd=str(repo),
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return False, f"git could not be run ({exc})"
+    if proc.returncode != 0:
+        return False, f"git show {commit} failed: {proc.stderr.strip()[:200]}"
+    files = [ln.strip() for ln in proc.stdout.splitlines() if ln.strip()]
+    hit = [f for f in files if any(f.startswith(pref) for pref in _CORPUS_PATHS)]
+    if not hit:
+        return (
+            False,
+            f"{commit} touches no corpus path ({len(files)} file(s): {', '.join(files[:5])})",
+        )
+    return True, f"{commit} touches {', '.join(hit[:5])}"
+
+
+def mark_answered(
+    command: str, ts_rows: list[str], commit: str, repo: Path, path: Path | None = None
+) -> tuple[int, str]:
+    """Append one answered-row per `ts`. Returns `(written, message)`; 0 written is a refusal."""
+    command = command.lstrip("/")
+    ok, detail = _commit_touches_corpus(commit, repo)
+    if not ok:
+        return 0, f"REFUSED — nothing marked: {detail}. A verdict is answered by an EDIT."
+    path = path if path is not None else _answered_path()
+    if path is None:
+        return 0, "REFUSED — no resolvable state dir for the answered index."
+    already = _answered_ts(command, path)
+    fresh = [t for t in dict.fromkeys(ts_rows) if t and t not in already]
+    if not fresh:
+        return 0, f"nothing to do — all {len(ts_rows)} row(s) were already marked for /{command}."
+    now = time.time()
+    lines = "".join(
+        json.dumps({"ts": t, "command": command, "commit": commit, "at": now}, ensure_ascii=False)
+        + "\n"
+        for t in fresh
+    )
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as fh:
+            fh.write(lines)
+    except OSError as exc:
+        return 0, f"REFUSED — could not write the answered index: {exc}"
+    skipped = len(dict.fromkeys(ts_rows)) - len(fresh)
+    tail = f" ({skipped} already marked)" if skipped else ""
+    return len(
+        fresh
+    ), f"marked {len(fresh)} row(s) answered for /{command} by {commit}{tail} — {detail}"
+
+
 # The seven PER-RUN axes a `change:` value may be keyed with (spec § D4, the axis table rows
 # :347-350 and :352-354). The one axis with NO per-run key is axis 5, continuous improvement
 # (:351) — it is read ACROSS runs — which is why seven keys serve eight axes. Not "the eighth":
@@ -749,12 +869,22 @@ def queue(rows: list[dict], command: str) -> str:
     command = command.lstrip("/")  # the ledger stores names slash-free; a reader types the slash
     for_it = [r for r in rows if str(r.get("command") or "") == command]
     mine = [r for r in for_it if not _change_is_none(str(r.get("change") or ""))]
+    # ANSWERED rows are excluded HERE rather than by a prose step the reader was asked to perform.
+    # The command text used to say "run `git log --grep=... ` and exclude them yourself"; a manual
+    # exclusion is one an agent skips, and then run N+1 reads the identical queue and can pick the
+    # identical group. The count is STATED, never silent — an exclusion you cannot see is a
+    # denominator you cannot check.
+    answered = _answered_ts(command)
+    excluded = [r for r in mine if str(_num(r.get("ts")) or r.get("ts")) in answered]
+    mine = [r for r in mine if str(_num(r.get("ts")) or r.get("ts")) not in answered]
     # the denominator is the rows FOR THIS COMMAND, never the whole ledger: "2 of 5 rows carry a
     # verdict for it" is false of a 5-row ledger where only 3 rows are about it at all, and this is
     # the figure a reader uses to decide whether the queue is worth a run
     head = (
-        f"queue /{command} — {len(mine)} of {len(for_it)} row(s) for it carry a change: verdict "
-        f"({len(rows)} in the window)"
+        f"queue /{command} — {len(mine)} unanswered of "
+        f"{len(mine) + len(excluded)} verdict row(s), "
+        f"{len(for_it)} row(s) for it in all ({len(rows)} in the window)"
+        + (f"; {len(excluded)} already answered and excluded" if excluded else "")
     )
     if not mine:
         return head + "\n(nothing to improve from — pick another command)"
@@ -833,6 +963,21 @@ def main(argv: list[str] | None = None) -> int:
             "first — and exit; the input /fabrik-command-improve reads"
         ),
     )
+    ap.add_argument(
+        "--mark-answered",
+        default=None,
+        metavar="COMMAND",
+        help=(
+            "record that an applied edit answered rows of this command's queue — needs --rows "
+            "(comma-separated ts handles from --queue) and --commit (the SHA of the edit). The "
+            "commit must touch a corpus path or nothing is marked."
+        ),
+    )
+    ap.add_argument("--rows", default="", help="--mark-answered: comma-separated ts handles")
+    ap.add_argument("--commit", default="", help="--mark-answered: the SHA of the applied edit")
+    ap.add_argument(
+        "--repo", type=Path, default=Path("/opt/fabrik"), help="--mark-answered: repo to verify in"
+    )
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--ledger", type=Path, default=None)
     a = ap.parse_args(argv)
@@ -867,6 +1012,14 @@ def main(argv: list[str] | None = None) -> int:
             and (a.command is None or r.get("command") == a.command)
             and (a.agent is None or str(r.get("agent") or "") == a.agent)
         ]
+    if a.mark_answered is not None:
+        if not a.commit or not a.rows:
+            print("REFUSED — --mark-answered needs both --rows and --commit.")
+            return 2
+        ts_rows = [t.strip() for t in a.rows.split(",") if t.strip()]
+        written, message = mark_answered(a.mark_answered, ts_rows, a.commit, a.repo)
+        print(message)
+        return 0 if written else 1
     if a.queue is not None:
         text = queue(rows, a.queue)
         if a.json:

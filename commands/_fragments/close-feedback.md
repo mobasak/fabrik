@@ -32,6 +32,11 @@ wrong about this box's machinery — paths, scripts, gates; NOT the infra BEAT o
 principle). The one axis with no per-run key is axis 5, continuous improvement — it is read
 ACROSS runs, which is why seven keys serve eight axes.
 One axis per close — the report groups the queue by it, and a second key after a comma is not read.
+⚠️ **The close REFUSES an unkeyed or unknown-axis `change:`** (`change: make it faster` and
+`change: banana: …` both), names the seven keys, and re-keys your own value as the example. Until
+2026-09-15 this was documented in three places and enforced in none: 175 of the first 180 ledger
+rows carry no key, so the queue the loop reads could not be sorted by the property it exists to
+optimise. `change: none` is a verdict you sign and carries no key.
 
 **Two traps, both executed against the real parser.** (1) **Keep ` · `, `|`, `;` and newlines out of
 the value.** Precisely: the close splits on one of those four ONLY when a field label

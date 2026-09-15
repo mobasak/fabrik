@@ -5061,3 +5061,233 @@ def test_the_three_plan_stem_parsers_agree():
         assert cr._plan_stem({"surface": surface}) == want, f"command_run: {surface}"
         assert crc._PLAN_STEM_RE.findall(surface) == [want], f"check_review_coverage: {surface}"
         assert cc._PLAN_STEM_RE.findall(surface) == [want], f"check_convergence: {surface}"
+
+
+# ---------------------------------------------------------------------------
+# The AXIS GATE — `change:` must be keyed with one of the seven per-run axes.
+#
+# WHY these exist: the axis key was documented in three places (CLAUDE.md's FINAL OUTPUT block,
+# `commands/_fragments/close-feedback.md`, `_USAGE_GRAMMAR`) and enforced in NONE — measured
+# 2026-09-15 by closing a real record three ways: `change: <edit>` (no key), `change: lean: <edit>`
+# and `change: banana: <edit>` were ALL accepted at rc 0. 175 of the ledger's 180 rows carry no
+# key, so `--queue` cannot sort by the property the operator asked to optimise.
+# ---------------------------------------------------------------------------
+
+
+def _axis_missing(tag: str, change: str) -> list[str]:
+    cr = _cr_module(tag)
+    _, missing = cr._parse_usage_feedback(
+        f"confusion: none · waste: none · change: {change} · filed: none — "
+        "surfaces exercised: command_run.py"
+    )
+    return [m for m in missing if "axis" in m]
+
+
+def test_change_unkeyed_axis_is_refused_at_the_close() -> None:
+    """The shape 175 of 180 historical rows use. Refused BY LABEL so the message can name it."""
+    assert "change (unkeyed axis)" in _axis_missing("ax1", "make the loop stop earlier")
+
+
+def test_change_unknown_axis_is_a_different_verdict_from_unkeyed() -> None:
+    """An attempt that missed is not the same defect as no attempt, and the refusal says which —
+    `banana:` needs the list, an unkeyed value needs to learn a key is owed at all."""
+    got = _axis_missing("ax2", "banana: make the loop stop earlier")
+    assert "change (unknown axis)" in got, got
+    assert "change (unkeyed axis)" not in got, got
+
+
+def test_every_legal_axis_passes_the_gate() -> None:
+    cr = _cr_module("ax3")
+    for axis in cr._CHANGE_AXES:
+        assert not _axis_missing(f"ax3{axis}", f"{axis}: cut the round-1 brief in half"), axis
+
+
+def test_change_none_carries_no_key_and_is_never_refused() -> None:
+    """`change: none` is a verdict an agent SIGNS — the contract says it carries no key. Refusing
+    it would make the honest 'nothing to change' the expensive answer and key-spam the cheap one."""
+    for value in ("none", "None", "none.", "lean: none"):
+        assert not _axis_missing(f"ax4{value}", value), value
+
+
+def test_axis_gate_does_not_fire_on_a_field_that_carries_no_key() -> None:
+    """FIELD-SCOPED, like `_is_placeholder`'s strip. `filed: infra: 01M2ABC` is an honest value
+    whose first word is an axis name; `confusion:` and `waste:` carry no key at all."""
+    cr = _cr_module("ax5")
+    _, missing = cr._parse_usage_feedback(
+        "confusion: the step-7 wording · waste: two rounds re-deriving one count · "
+        "change: lean: cut step 7 · filed: infra: 01M2ABCDEF"
+    )
+    assert not [m for m in missing if "axis" in m], missing
+
+
+def test_an_in_flight_run_closes_under_the_old_rule() -> None:
+    """The cutover mirror: a record STARTED before this gate landed must not be wedged by it. A
+    refused close leaves the record `running`, and the Stop hook then blocks the whole turn."""
+    cr = _cr_module("ax6")
+    before = (cr._AXIS_REQUIRED_FROM - dt.timedelta(hours=1)).isoformat()
+    after = (cr._AXIS_REQUIRED_FROM + dt.timedelta(hours=1)).isoformat()
+    assert not cr._axis_is_required({"started_at": before})
+    assert cr._axis_is_required({"started_at": after})
+
+
+def test_axis_list_is_pinned_to_the_report_reader() -> None:
+    """DRIFT GRADER. `command_run.py` is fleet-synced to ~46 repos and
+    `command_feedback_report.py` is hub-only, so neither may import the other — the lists are
+    duplicated on purpose and THIS is what keeps them equal. Without it the gate and the queue
+    reader disagree about which keys are legal, and a verdict accepted at the close is bucketed
+    `bad-axis` by the very reader that exists to consume it."""
+    cr = _cr_module("ax7")
+    report = _load("cfr_axis", _SCRIPT.parent / "command_feedback_report.py")
+    assert tuple(cr._CHANGE_AXES) == tuple(report.AXES), (cr._CHANGE_AXES, report.AXES)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "make the loop stop earlier",
+        "lean: cut step 7",
+        "banana: cut step 7",
+        "none",
+        "lean:",
+        "step 7: print the id",
+        "accurate: name the three artifacts",
+    ],
+)
+def test_gate_and_queue_reader_agree_on_every_shape(value: str) -> None:
+    """THE property, over shapes rather than one example: the close refuses exactly the values the
+    queue reader cannot key. Two independent implementations of one rule (they may not import each
+    other) drift silently otherwise — the close says fine, the queue says unkeyed, and the row is
+    invisible to the loop that exists to answer it."""
+    report = _load("cfr_agree", _SCRIPT.parent / "command_feedback_report.py")
+    refused = bool(_axis_missing(f"ax8{value}", value))
+    bucket = report._axis_of(value)
+    unkeyable = bucket in ("unkeyed", "bad-axis") and not report._change_is_none(value)
+    assert refused == unkeyable, (value, bucket, refused)
+
+
+def test_the_axis_cutover_is_in_the_past() -> None:
+    """A cutover constant set in the FUTURE is a gate that silently does nothing — and the
+    relative in-flight test above passes either way, because it compares against the constant
+    itself. Executed 2026-09-15: the first cut of `_AXIS_REQUIRED_FROM` sat 45 minutes ahead of
+    the clock, every grader was green, and the REAL close path accepted all four shapes. This is
+    the grader that catches it. The same reasoning binds `_USAGE_REQUIRED_FROM`, so both are
+    pinned here rather than one."""
+    cr = _cr_module("axcut")
+    now = dt.datetime.now(dt.UTC)
+    assert now > cr._AXIS_REQUIRED_FROM, cr._AXIS_REQUIRED_FROM
+    assert now > cr._USAGE_REQUIRED_FROM, cr._USAGE_REQUIRED_FROM
+
+
+# ---------------------------------------------------------------------------
+# THE TRIGGER — the close tells the agent the queue exists.
+#
+# Measured 2026-09-15: `/fabrik-command-improve` shipped, was installed, and had never run once.
+# Its only trigger was a sentence inside its own command text, which binds nobody who is not
+# already reading it — the same argument CLAUDE.md makes for why the Stop hook exists and prose
+# does not. The close is where the agent is still deciding what to do next.
+# ---------------------------------------------------------------------------
+
+
+def test_queue_depth_counts_unanswered_rows_and_skips_none_verdicts(tmp_path: Path) -> None:
+    cr = _cr_module("qd1")
+    state = tmp_path / "state"
+    (state / "command-runs").mkdir(parents=True)
+    led = state / "command-feedback.jsonl"
+    led.write_text(
+        "\n".join(
+            json.dumps(r)
+            for r in [
+                {"ts": 1.0, "command": "fabrik-review", "change": "lean: a"},
+                {"ts": 2.0, "command": "fabrik-review", "change": "accurate: b"},
+                {"ts": 3.0, "command": "fabrik-review", "change": "none"},
+                {"ts": 4.0, "command": "other", "change": "lean: c"},
+            ]
+        )
+        + "\n"
+    )
+    (state / "command-feedback-answered.jsonl").write_text(
+        json.dumps({"ts": "1.0", "command": "fabrik-review", "commit": "abc"}) + "\n"
+    )
+    os.environ["COMMAND_RUN_DIR"] = str(state / "command-runs")
+    try:
+        # 2 verdict rows for it (the `none` row is not a verdict), 1 of them answered
+        assert cr._queue_depth("fabrik-review") == (1, 2)
+        assert cr._queue_depth("nothing-here") is None
+    finally:
+        os.environ.pop("COMMAND_RUN_DIR", None)
+
+
+def test_queue_depth_is_failsoft_on_a_corrupt_ledger(tmp_path: Path) -> None:
+    """This runs on the CLOSE path in ~46 repos. A close that dies reading an advisory counter
+    leaves the record `running` and the Stop hook then blocks the whole turn — so every
+    unreadable, absent or malformed input means 'no advice', never an exception."""
+    cr = _cr_module("qd2")
+    state = tmp_path / "state"
+    (state / "command-runs").mkdir(parents=True)
+    (state / "command-feedback.jsonl").write_text("{not json\n\x00\nalso not json\n")
+    (state / "command-feedback-answered.jsonl").write_text("garbage\n")
+    os.environ["COMMAND_RUN_DIR"] = str(state / "command-runs")
+    try:
+        assert cr._queue_depth("fabrik-review") is None
+    finally:
+        os.environ.pop("COMMAND_RUN_DIR", None)
+    # and with NO state dir at all
+    os.environ["COMMAND_RUN_DIR"] = str(tmp_path / "gone" / "command-runs")
+    try:
+        assert cr._queue_depth("fabrik-review") is None
+    finally:
+        os.environ.pop("COMMAND_RUN_DIR", None)
+
+
+def test_the_close_prints_the_queue_trigger(tmp_path: Path) -> None:
+    """End-to-end through the real CLI: a close names the unanswered count and the command that
+    answers it. Without this line the loop has no trigger at all."""
+    home = tmp_path / "home"
+    state = home / ".claude" / "state"
+    (state / "command-runs").mkdir(parents=True)
+    (state / "command-feedback.jsonl").write_text(
+        json.dumps({"ts": 1.0, "command": "fabrik-mail-handle", "change": "lean: a"}) + "\n"
+    )
+    env = {**os.environ, "HOME": str(home)}
+    env.pop("COMMAND_RUN_DIR", None)
+    base = [sys.executable, str(_SCRIPT)]
+    subprocess.run(
+        base
+        + [
+            "start",
+            "--command",
+            "fabrik-mail-handle",
+            "--phases",
+            "1",
+            "--terminal",
+            "probe",
+            "--session",
+            "probe-trigger",
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    out = subprocess.run(
+        base
+        + [
+            "done",
+            "--command",
+            "fabrik-mail-handle",
+            "--session",
+            "probe-trigger",
+            "--evidence",
+            "probe run",
+            "--feedback",
+            "confusion: none · waste: none · change: lean: cut step 7 · "
+            "filed: none — surfaces exercised: probe",
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+    ).stdout
+    # TWO, not one: the close appends its OWN verdict before counting, so the number includes the
+    # row this very run just filed. That is the honest figure — the queue really is 2 deep now.
+    assert "QUEUE: /fabrik-mail-handle has 2 unanswered verdict(s) of 2 filed" in out, out
+    assert "/fabrik-command-improve fabrik-mail-handle" in out, out

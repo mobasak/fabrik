@@ -31,17 +31,22 @@ The bucket is piece 1's axis read: one of the seven axes (`lean` · `fast` · `a
 the axis convention, or by an agent who skipped it), `bad-axis` (a key outside the seven),
 `placeholder` (the close-out grammar pasted rather than answered). **Sort your reading by axis, not
 by recency:** four rows saying the same thing about `lean` are one edit; four rows on four axes are
-four runs. ⚠️ **Expect `unkeyed` to dominate for a while** — the axis convention landed on
-2026-09-15 and every row written before it is unkeyed, so on today's ledger the axis column is
-nearly constant and the grouping that matters is by SUBJECT. The axis becomes the sort key as keyed
-rows accumulate; until then it is a filter for the rows that have one.
+four runs. ⚠️ **Expect `unkeyed` to dominate the BACKLOG and to vanish from new rows.** The axis
+convention landed 2026-09-15 and was documented-but-unenforced for its first hours — 175 of the
+first 180 rows carry no key. The close now REFUSES an unkeyed or unknown-axis `change:`
+(`command_run.py::_change_axis_verdict`), so every row written after that is keyed and `bad-axis`
+should be empty. On the historical tail the axis column is near-constant and the grouping that
+matters is by SUBJECT; read those by what they SAY, not by their bucket.
 
-**Two exclusions the queue cannot make for you, and both are cheap:**
+**Rows a previous run answered are ALREADY EXCLUDED** — `--queue` reads the answered index
+(`~/.claude/state/command-feedback-answered.jsonl`, written by PHASE 5's `--mark-answered`) and its
+header states how many it dropped, so the count you read is the work that is actually left. This
+used to be a manual `git log --grep` step described here in prose; it was never once performed,
+because a prose step is one a reader skips and then run N+1 reads the identical queue. The commit
+trailer is still written and is still the provenance — it is simply no longer the only state.
 
-- **Rows a previous run already answered.** The commit trailer is this loop's only state —
-  `git log --grep='command-improve <command>' --format='%h %(trailers:key=Agent-Context,valueonly)'`
-  lists every `ts` already answered. Exclude them. A trailer written and never read is not a state
-  machine, and without this step run N+1 reads the identical queue and can pick the identical group.
+**One exclusion the queue cannot make for you, and it is cheap:**
+
 - **Rows whose edit already landed.** A `change:` verdict is often written by the run that ALSO made
   the edit ("the one edit is already made and is what closed this run…"), or by a later run that
   shipped it. Read the row, then read the command's current text: if the change is already there,
@@ -143,6 +148,19 @@ The declaration is what makes grading possible later; writing it now costs one l
 ⚠️ The trailer block must be its OWN paragraph with NO blank line inside it, or git parses none of
 it. Verify: `git log -1 --format='%(trailers:key=Agent-Context,valueonly)'` — empty output means the
 block did not parse.
+
+**Then MARK the rows answered — the step that makes the queue fall:**
+
+```bash
+python3 /opt/fabrik/scripts/command_feedback_report.py --mark-answered <command> \
+    --rows <ts,ts,…> --commit $(git rev-parse HEAD)
+```
+
+Same `ts` list as the trailer. It REFUSES a commit that touches no corpus path
+(`commands/_sources/`, `commands/_fragments/`, `commands/_agents/`, `.windsurf/rules/`, either
+`CLAUDE.md`) — a verdict is answered by an EDIT, and marking is the one act in this loop that
+removes a row from view. Re-running it on already-marked rows is a no-op that says so. Verify with
+`--queue <command>`: the header must now show your rows under "already answered and excluded".
 
 Doc Sync: a command source added or removed → `INDEX.md`. A change to what a command DOES →
 `CHANGELOG.md`. Both are orchestrator-applied shared-append surfaces: commit them with the

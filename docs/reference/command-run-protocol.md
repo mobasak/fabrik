@@ -287,6 +287,28 @@ cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — 
   The D-036 substance floor now grades the `filed:` field (a bare `filed: none` is refused; a
   `none — surfaces exercised: …` or a filing with its id passes), and the kaizen filing verdict
   (`filed` / `none` / `unstated`) is classified from that field alone.
+- **The AXIS is enforced, not merely documented** (`_change_axis_verdict`, `_AXIS_REQUIRED_FROM`).
+  A `change:` value that keys nothing (`change: make it faster`) or keys something outside the
+  seven (`change: banana: …`) is REFUSED, with the key list and the agent's own value re-keyed as
+  the example; `change: none` carries no key and always passes. It was documented in three places
+  and enforced in none until 2026-09-15 — measured by closing a real record three ways, all
+  accepted at rc 0 — which is why 175 of the ledger's first 180 rows are unkeyed and `--queue`
+  could not sort by the property the axis names. ⚠️ The axis list is DUPLICATED in
+  `command_feedback_report.py::AXES` because this script is fleet-synced and that one is hub-only,
+  so neither may import the other; `test_axis_list_is_pinned_to_the_report_reader` and
+  `test_gate_and_queue_reader_agree_on_every_shape` keep the two copies and their two classifiers
+  in step. A run STARTED before the cutover closes under the old rule — a refused close leaves the
+  record `running`, so a gate landing mid-run would wedge every in-flight session in ~46 repos.
+- **The close PRINTS the queue depth** — `QUEUE: /<command> has N unanswered verdict(s) of M filed
+  — answer them with /fabrik-command-improve <command>`. Advisory, one line, never a block, and
+  fail-soft in every direction (`_queue_depth` returns None on any unreadable input rather than
+  raising on the close path). It is the loop's only real trigger: `/fabrik-command-improve` shipped
+  on 2026-09-15 and had never run, because its trigger was a sentence inside its own command text.
+  The number includes the verdict this close just wrote, and it FALLS only when an applied edit
+  marks its rows — `command_feedback_report.py --mark-answered <command> --rows <ts,…> --commit
+  <sha>`, which refuses a commit touching no corpus path and writes
+  `~/.claude/state/command-feedback-answered.jsonl` beside the ledger. `--queue` excludes those
+  rows and states how many it dropped.
 - **Auto-captured:** wall-clock (`now − started_epoch`), the round count and the trend (the `confirmed`
   series when every round states it, the `findings` series otherwise), the phase reached. The close
   prints the finished line — `FEEDBACK: /<command> · <wall> · rounds <n> (<trend>) · confusion: … ·
