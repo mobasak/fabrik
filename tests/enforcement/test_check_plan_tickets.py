@@ -728,9 +728,19 @@ def test_a_demoted_error_says_so_and_prints_the_full_severity_command(
     assert f"--plan-dir {plan_dir}" in out, out[:600]
     # the demotion MARKER must be on a finding line, not merely inside the NOTE's own prose —
     # asserting the bare literal passed even with the marker stripped from every finding
-    assert any(line.startswith("⚠") and "[sibling plan]" in line for line in out.splitlines()), out[
-        :600
-    ]
+    # ⚠️ Anchored on the FINDING line's own prefix, not merely on "⚠ … [sibling plan]" — since
+    # `_note` gained its ⚠ marker (so the NOTE reaches `--json`), the NOTE itself starts with ⚠ and
+    # contains "[sibling plan]", which would make a looser assertion match the NOTE it already
+    # checks twice and grade nothing (review round 3).
+    assert any(
+        line.startswith("⚠ [") and "[sibling plan]" in line  # a FINDING; the NOTE is "⚠ NOTE:"
+        for line in out.splitlines()
+    ), out[:600]
+    # the MIRROR of test_the_demotion_note_names_the_real_selection_reason: this fixture IS
+    # lock-selected, so the reason text must say so. Without it, "always say upstream" — the same
+    # defect in the opposite direction — passed the entire suite.
+    assert "via an active LOCK" in out, out[:600]
+    assert "no lock is involved" not in out, out[:600]
     assert rc == 0, "this fix changes VISIBILITY, not severity — the demotion still stands"
 
 
@@ -766,6 +776,15 @@ def test_the_demotion_count_is_taken_at_full_severity_not_gate_severity(
         return [
             cpt.CheckResult(check_name="a", severity=sev, message="one", file_path=str(d)),
             cpt.CheckResult(check_name="b", severity=sev, message="two", file_path=str(d)),
+            # ⚠️ NOT all-ERROR: with a homogeneous list the filtered and unfiltered sums answer
+            # identically, so dropping the severity filter survived — and an unfiltered count
+            # would announce "41 ERROR(s) demoted" where 2 were (review round 3).
+            cpt.CheckResult(
+                check_name="c", severity=cpt.Severity.PASS, message="ok", file_path=str(d)
+            ),
+            cpt.CheckResult(
+                check_name="d", severity=cpt.Severity.WARN, message="w", file_path=str(d)
+            ),
         ]
 
     monkeypatch.setattr(cpt, "check_plan_dir", by_context)
@@ -897,6 +916,15 @@ def test_the_demotion_note_never_lands_on_json_stdout(tmp_path, capsys, monkeypa
     cap = capsys.readouterr()
     _json.loads(cap.out)  # raises if the NOTE leaked onto stdout
     assert "demoted to advisory" in cap.err, "the NOTE must still be VISIBLE, on stderr"
+    # ⚠️ And it must survive into `final_gate.py --json`, which is the mode the contract tells
+    # every agent to read. A PASSING row's stdout reaches that envelope through exactly two doors:
+    # the `advisory` array (WARN_ONLY_CHECKS members only — this check is registered `advisory=`,
+    # not `warn_only=`) and the `warnings` array, which requires `output.lstrip().startswith("⚠")`.
+    # Without the marker the NOTE reached the human renderer and NOTHING in `--json` — a green row
+    # with no text, the exact silence it was added to end (review round 3).
+    assert cap.err.lstrip().startswith("⚠"), (
+        f"the NOTE must carry the ⚠ marker or --json drops it entirely:\n{cap.err[:200]}"
+    )
 
 
 # --- BC 26: no-arg CLI selects active-lock plan dirs ---------------------------------------

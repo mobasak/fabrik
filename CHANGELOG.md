@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The demotion NOTE was invisible in `--json`, the mode the contract mandates (2026-09-15)
+
+- **`advisory=True` bought nothing where it mattered.** `final_gate.py` surfaces a PASSING row's
+  stdout into `--json` through exactly two doors — the `advisory` array (WARN_ONLY_CHECKS members
+  only; this check is registered `advisory=`, not `warn_only=`) and the `warnings` array, which
+  requires `output.lstrip().startswith("⚠")`. The demotion NOTE matched neither, so it reached the
+  human renderer and NOTHING in `--json`: a green row with no text, which is the exact silence the
+  NOTE was added to end. `_note` now carries the ⚠ marker. Verified against the live gate, where
+  the row appeared in `checks` as a bare `pass` and in neither array.
+- **The digest told readers to run a command that reports the opposite of the truth.** `route` was
+  printed without `--repo` while `read`/`ack` had been fixed to carry it — and 94% of rows are not
+  the hub's (2,173 non-hub inbox files vs 133). Without it the refusal reads *"an archived message
+  is settled history"*, so an agent concludes a live obligation is closed. Graded as a CLASS: every
+  `mail.py <verb> <id>` the digest prints must carry `--repo`.
+- **Four graders of mine could not fail**, each found by mutation: the NOTE-reason test pinned only
+  the `upstream` branch, so "always say upstream" — the same defect reversed — passed the whole
+  suite; an all-ERROR mock left the severity filter unpinned; the concurrency test would HANG rather
+  than red on a `LOCK_NB` regression (pytest-timeout is not installed, and the hub's pytest leg is
+  off, so nothing bounds it); and it held `LOCK_EX`, which also excludes a `LOCK_SH` acquirer, so an
+  `EX→SH` weakening survived. Also: adding the ⚠ marker made an existing assertion vacuous — the
+  NOTE now starts with ⚠ and contains `[sibling plan]` — re-anchored on the finding-line shape.
+
 ### Fixed — A ReDoS in the close gate, and three more defects in round 2's own fix (2026-09-15)
 
 - **⚠️ CATASTROPHIC BACKTRACKING in `_is_placeholder`, on the close path of a fleet-synced script.**

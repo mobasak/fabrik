@@ -11,6 +11,7 @@ import datetime as dt
 import importlib.util
 import os
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -247,9 +248,9 @@ def test_a_lock_failure_that_is_not_contention_proceeds_rather_than_silencing(
     def boom(*a, **k):
         raise PermissionError(13, "state dir is read-only")
 
-    monkeypatch.setitem(me.__builtins__, "open", boom) if isinstance(
-        me.__builtins__, dict
-    ) else monkeypatch.setattr("builtins.open", boom)
+    # module-global shadow, NOT the process-wide builtins dict: a bare `open()` resolves module
+    # globals before builtins, so this reaches main()'s lock and nothing else in the interpreter.
+    monkeypatch.setattr(me, "open", boom, raising=False)
     assert me.main() == 0
     out = capsys.readouterr().out
     assert "proceeding UNLOCKED" in out, out[:300]
@@ -266,12 +267,23 @@ def test_a_second_concurrent_run_is_excluded_by_the_scripts_own_lock(env, monkey
     _msg(env, "fabrik", "01CONCURRENTCONCURRENTCON", ts=_old_ts(9))
     me.STATE_DIR.mkdir(parents=True, exist_ok=True)
     holder = open(me.STATE_DIR / "run.lock", "w")  # noqa: SIM115 — held for the assertion
-    _fcntl.flock(holder, _fcntl.LOCK_EX | _fcntl.LOCK_NB)
+    # SHARED on purpose: a LOCK_EX holder excludes a LOCK_SH acquirer too, so an EX->SH
+    # regression in the script would pass against an EX holder. Only an EXCLUSIVE acquire is
+    # excluded by a SHARED holder, which is exactly the property under test (review round 3).
+    _fcntl.flock(holder, _fcntl.LOCK_SH | _fcntl.LOCK_NB)
     delivered: list = []
     monkeypatch.setattr(me, "_resolve_sender", lambda: (lambda t, b: True))
     monkeypatch.setattr(me, "_deliver_to_agent", lambda body: delivered.append(body) or True)
     try:
-        assert me.main() == 0
+        # ⚠️ BOUNDED. A LOCK_NB regression deadlocks against the lock THIS test holds, so an
+        # unbounded call wedges the suite instead of failing it — and pytest-timeout is not
+        # installed here, so nothing else bounds it (review round 3).
+        rc: list = []
+        worker = threading.Thread(target=lambda: rc.append(me.main()), daemon=True)
+        worker.start()
+        worker.join(10)
+        assert not worker.is_alive(), "main() blocked on the lock — LOCK_NB is gone"
+        assert rc == [0]
     finally:
         _fcntl.flock(holder, _fcntl.LOCK_UN)
         holder.close()
@@ -326,6 +338,16 @@ def test_the_agent_digest_carries_a_subject_and_the_message_contract(env, monkey
     for section in ("WHAT", "WHO", "WHERE", "WHEN", "WHY", "HOW", "SYSTEMIC"):
         assert f"{section}:" in body, f"D-035 section {section} missing from the delivered digest"
     assert "01AAA · r · s · 9d · - (inbox)" in body, "the rows must survive the preamble"
+    # ⚠️ EVERY mail.py command the digest prints must carry `--repo`, as a CLASS rather than the
+    # three instances. This script scans every mailbox and 94% of rows are not the hub's, so a
+    # command without it fails — and for `route` the refusal reads "an archived message is settled
+    # history", which tells the reader the obligation is closed when it is not (review round 3).
+    import re as _re
+
+    cmds = _re.findall(r"`mail\.py (\w+) <id>([^`]*)`", body)
+    assert cmds, f"no mail.py commands found in the digest body:\n{body[:400]}"
+    for verb, rest in cmds:
+        assert "--repo <repo>" in rest, f"`mail.py {verb} <id>{rest}` omits --repo"
 
 
 def test_the_digest_also_reaches_an_agent_not_only_the_operator(env, monkeypatch, capsys):

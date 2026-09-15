@@ -102,7 +102,15 @@ _JSON_MODE = False  # T4.8 (01M25Q9S0): under --json every NOTE goes to stderr, 
 
 
 def _note(msg: str) -> None:
-    print(msg, file=sys.stderr if _JSON_MODE else sys.stdout)
+    # ⚠️ The MARKER is load-bearing, not decoration. `final_gate.py` surfaces a PASSING row's
+    # stdout into `--json` through exactly two doors: the `advisory` array (members of
+    # WARN_ONLY_CHECKS — this check is registered `advisory=`, not `warn_only=`, so never) and the
+    # `warnings` array, which requires `output.lstrip().startswith("⚠")`. Without the marker the
+    # demotion NOTE reached the human renderer and NOTHING in `--json`, which is the mode the
+    # contract tells every agent to read — a green row with no text, the exact silence the NOTE was
+    # added to end (review round 3). Applied here so whichever NOTE prints first carries it:
+    # `lstrip()` only ever sees line 1.
+    print(f"⚠ {msg}", file=sys.stderr if _JSON_MODE else sys.stdout)
 
 
 # T4.8 (01M21804): a Gate: that RUNS a file naming it nowhere else — the executor sees one
