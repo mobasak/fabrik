@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — The hub inbox is empty: 132 messages handled, and the reason they piled up is fixed (2026-09-15)
+
+- **132 → 0.** Every message read, validated at HEAD, dispositioned and acked; 8 archive STRANDS
+  (obligations claimed and abandoned, aged 31–34 days) resolved; fabrik's own aged obligations 28 → 0
+  and the fleet's 115 → 79 (the balance are other repos' mailboxes). Nothing was swept: 1,231 of
+  1,234 archived messages carry an explicit `disposition:`.
+- **The cause, measured rather than assumed: 69 of the 132 had their findings FIXED IN CODE by the
+  mail-triage plan and were never acked.** A step row that closes a finding does not close the mail,
+  and nothing connected the two — a peer learned their fix had shipped only by reading this tree. 8
+  grouped replies went out covering all 69, each naming the ids, the archived plan and receipt that
+  closed them, and inviting refutation rather than asking for a clean ack. Two peers took that up and
+  both were right: one showed `01M1RFN3BT` defect 1 is NOT closed (the `??` skip's hole is
+  reachability, not visibility — filed), the other that a docstring verdict of mine about their tree
+  had gone stale (corrected at source).
+- **Findings validated and fixed this run:** a fleet-synced `expanduser()` that could raise out of a
+  "Never raises" contract and whose obvious fallback was a cwd-relative CREDENTIAL read; the
+  shared-append recipe's silent empty-commit; `check_plan_tickets` demoting a session's own plan in
+  silence; the operator's six kaizen edits; and a catastrophic-backtracking regex introduced mid-run.
+- **Findings SIZED as spec work rather than half-fixed, each filed with a named owner:** the
+  quota-hold verb resolver (proven that the naive fix opens a force-push bypass), the plan-lock
+  severity attribution, harness-worktree synced staleness, `libs/competitor_intel`'s vendored drift
+  (196 lines exist only on our side), the `??` convergence hole, and `claude-stop-decider`'s prune
+  (box-local, operator-owned).
+- **`/fabrik-review` now carries both halves of the mutation-timeout fact** — a Bash call over its
+  timeout AUTO-BACKGROUNDS here, it is not killed, so a backgrounded mutation finishes and restores;
+  the COPY rule is the guard that carries the weight. Adjudicated against fabrik-lib-dev1's filing by
+  execution, since the two contracts disagreed and the losing text instructs agents about a
+  deliberately-broken tree.
+
 ### Fixed — The demotion NOTE was invisible in `--json`, the mode the contract mandates (2026-09-15)
 
 - **`advisory=True` bought nothing where it mattered.** `final_gate.py` surfaces a PASSING row's

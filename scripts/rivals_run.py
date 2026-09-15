@@ -143,10 +143,14 @@ def _shared_env_path() -> Path | None:
     and all 21 canonical `_dotenv` loaders now carry the same guarded expansion — verified at
     `/opt/fabrik-lib/alerting/_dotenv.py:110-125` (NOT `libs/alerting/…`, a path that does not
     exist; the old docstring named it unchecked).
-    ⚠️ ONE REAL DIVERGENCE REMAINS, and it is ours: on an unresolvable home fabrik-lib falls back to
-    the literal `Path(override)` while we return None, because a bare `~/...` path is RELATIVE and
-    the caller's `.is_file()` resolves it against the CWD — a cwd-relative credential read. Theirs
-    is the more permissive shape; do not "align" by copying it back."""
+    ⚠️ NO divergence remains. The earlier note here called fabrik-lib's literal-path fallback "the
+    more permissive shape" — that was WRONG, and they refuted it by execution rather than argument:
+    a bare `~/...` is RELATIVE, `load_env` does `shared.is_file()` which resolves it against the
+    CWD, and they reproduced a planted `<cwd>/~/.config/fabrik/subagents.env` supplying a real
+    `TELEGRAM_BOT_TOKEN` through `alerting/_dotenv.py`. It was the same vulnerability, in 21 loaders
+    that ship by being COPIED into ~46 repos. All 21 now degrade to None and catch `OSError` too
+    (`b1a6df58`, verified here at their HEAD). Do not re-introduce a literal-path fallback in
+    either tree (01M2J5XX7SVR)."""
     override = os.getenv("SUBAGENTS_ENV_FILE")
     if override:
         try:

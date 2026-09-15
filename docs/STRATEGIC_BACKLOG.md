@@ -10,6 +10,83 @@ Generated from the end-of-day plan-state on 2026-06-07 after the trio Phase 5.1.
 ---
 
 - **[intel] `/fabrik-rivals` guard debt left after the 2026-09-14 key-autoload review** — four low-severity grader gaps a 25-mutant battery found and the run deliberately did not close, each one line: the unreadable-`.env` fail-open path (`chmod 000`) is claimed by a docstring and pinned by no test; the `expanduser()` on `$SUBAGENTS_ENV_FILE` is documented as a deliberate divergence from `libs/alerting/_dotenv.py` and nothing pins it, so the next re-port reverts it; `main()`'s `load_env(str(REPO))` argument is ungraded, and swapping it for `os.getcwd()` — the historical wrong-repo bug — passes every test; and the `note:` the docs make a contract is not asserted. Plus one behaviour item: running the HUB's copy of the driver from another repo binds `REPO` to the hub, so it reads the hub's `.env` and writes its checkpoint under `/opt/fabrik/.tmp` while preflight calls it repo-local (reproduced; the doc now states the precondition, but no check enforces it). None is a live defect in the shipped path — the closing reader's verdict was SAFE for 48 repos.
+## [infra] A plan authored and committed in one motion is a convergence subject at NO moment a gate runs
+
+`check_convergence.py:550` skips `??` paths — deliberately, so a sibling's mid-write scratch never
+reds this session's gate — and since 2026-09-12 it says so with a NOTE ("checked at staging"). But
+fabrik-lib-dev1's original finding (`01M1RFN3BT` defect 1) was never that the skip was SILENT; it is
+that the skip has no downstream: the plan is `??` when the completion gate fires, and once committed
+it is gone from `git status` entirely. Verified 2026-09-15: `check_convergence` appears in no
+`.pre-commit-config.yaml` hook, so **nothing forces a gate run between staging and commit** — the
+staged state is never re-gated and the subject is checked at no moment at all. The NOTE improved the
+visibility and left the hole.
+
+Not fixed as a drive-by on purpose: narrowing the `??` skip changes the FAIL DIRECTION of a
+fleet-synced check across ~46 repos, and the skip exists because the alternative reds every session
+on a sibling's in-flight draft. The shapes worth weighing: gate the staged set explicitly (`git
+diff --cached --name-only`) rather than the working tree; or register `check_convergence` as a
+pre-commit hook so the staged state is the subject; or have the gate re-run itself once after
+auto-staging. Each is a contract change with its own mirror.
+
+## [infra] `libs/competitor_intel` has drifted from fabrik-lib canonical, and the VENDORED set has no drift signal at all
+
+Measured 2026-09-15 on fabrik-lib's report (`01M2J82N9TF7`), verified at HEAD against
+`/opt/fabrik-lib/competitor-intel/competitor_intel/`: the degraded-taxonomy fix is absent from our
+copy (`us_unmapped` canonical 5 / ours 0, `trust_us` 7/0, `_UNSTRIPPABLE` 9/0), so the us-column bug
+is LIVE for `/fabrik-rivals` here. ⚠️ A re-vendor is NOT a copy: ours is a different shape, not just
+older — synth 590 lines vs canonical 1401, and **196 lines exist only on our side** across
+synth/orchestrator/dossier/stages (43/52/87/14); `protocols.py` is byte-identical. A blind `cp`
+closes their bug and reverts 196 lines with no git trace, which is the trap this repo paid for three
+times on 2026-09-05 in `libs/subagents`. The work is: adjudicate those 196 lines, then re-vendor.
+
+SYSTEMIC, and the larger half: the hub enforces `check_synced_unmodified.py` over the SYNCED set and
+has NOTHING equivalent for the VENDORED set (`libs/*`). This drift was invisible until a peer
+measured it by hand. A periodic md5 sweep of `libs/*` against fabrik-lib canonical, reported the way
+the sync check reports, would surface it the day it happens.
+
+## [infra] The fleet-quota hold refuses read-only `git -C`, a piped `mail.py send`, and a `cd`-prefixed close — and the obvious fix opens a force-push bypass
+
+Reported by fabrik-32 (`01M2CX7RGK44`) and reproduced: `_ALLOWED_BASH` is START-anchored, so
+`git -C /opt/fabrik log -1` is refused while `git log -1` passes, and `printf … | mail.py send` is
+refused although `mail.py`'s body IS stdin — so the hold's own mail exemption cannot be exercised at
+all. ⚠️ EXECUTED: the naive relaxation is WORSE than the bug. `_git_flags_forbidden` reads
+`verb = argv[1]`, so admitting `-C` past the regex makes
+`_git_flags_forbidden("git -C /opt/fabrik push --force origin master")` return **False** — the
+force-push veto bypassed, across ~46 repos. A correct fix threads a verb RESOLVER (strip `cd <dir>;`
+and `-C <dir>`) through `_ALLOWED_BASH`, `_git_flags_forbidden` AND `_positional_forbidden` together,
+with a red-first grader per shape. Spec work, deliberately not an inline patch.
+
+## [infra] `check_plan_tickets` cannot tell a session's OWN plan lock from a sibling's, so a clean tree silently demotes its own findings
+
+`own_dirs` is built from working-tree/staged plan-file edits alone, so committing plan work empties
+it and the session's own plan is demoted to `[sibling plan]` advisory WARNs — measured at
+web-ecommerce-factory (`01M2HH0NVMMD`): 0 errors / 32 warns on the gate path vs 4 errors / 28 warns
+with `--plan-dir` on the same plan. A dispatcher-mode run commits plan files constantly, so the set
+is unenforced exactly when you are about to report done. The SILENCE is fixed (the demotion now
+names its count, its real selection reason and a working remedy, and reaches `--json`); ATTRIBUTION
+is not, because no plan lock records a session identity. Needs a decision on what identifies "my
+plan" — the active run record's `surface`, a lock owner field, or the working-tree/upstream split.
+
+## [infra] Harness worktrees carry STALE synced copies, so every subagent's completion gate runs a different `final_gate.py` than master
+
+Reported by wef3 (`01M2H05T88XM`): a harness worktree holds untracked copies of every
+gitignored-but-synced path, snapshotted at creation and never refreshed. Measured there:
+`check_synced_unmodified` says "all 208 match" in the main checkout and names TEN stale files inside
+a worktree; four coder seats in one dispatcher run each separately diagnosed it and each concluded
+"pre-existing, not mine". The check's own remedy text ("Revert it") tells a seat to edit a synced
+file, which is a HARD STOP. Directions: refresh the synced set at worktree creation; make the check
+worktree-aware via `git rev-parse --git-common-dir` with a distinct non-blocking staleness verdict.
+⚠️ ALSO sweep `scripts/enforcement/` for the sibling shape — any check matching an exclusion pattern
+against an ABSOLUTE path self-excludes inside `.claude/worktrees/`.
+
+## [operator] `claude-stop-decider.py`'s lock prune aborts on one vanishing entry
+
+`acquire_lock`'s prune puts `f.stat()` inside the try that wraps the WHOLE loop, so one entry
+disappearing between `iterdir()` and `stat()` aborts the prune and every stale lock behind it
+survives. CONFIRMED by reading the code at HEAD (`01M2CH5CWPWV`, from fabrik-32). NOT fixable by an
+agent: `~/.claude/bin/claude-stop-decider.py` is box-local, tracked by no repo, and the mesh scripts
+are read-only by contract — this one is the operator's.
+
 ## [infra] The private-index recipe's post-commit assertion wants a TESTED SCRIPT, not a bullet ~46 repos copy by hand
 
 Three consecutive review rounds tried to write step 5a's assertion as copy-paste shell inside

@@ -1,6 +1,56 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## The mechanism was never broken — its only reader could not act (2026-09-15)
+
+A 132-message hub inbox, oldest 10 days, and an escalation cron that had run every six hours since
+August and logged `send=OK` the whole time. Nothing was failing. Its ONLY delivery leg was a Telegram
+to the operator, whose standing directive is *"i dont read anything, you read"* — so for three weeks
+it reported a growing backlog, faithfully, to the one person who had already said they would not read
+it. `feedback_relay.py` had learned this exact lesson months earlier ("the digest was operator-facing
+… this relay makes an AGENT the reader") and the sibling script never got the same leg.
+
+**Before adding a mechanism, find out whether one exists and who reads it.** The fix was one delivery
+leg, not a new system. The diagnosis took one `crontab -l` and one log tail; building a replacement
+first would have produced a second unread dashboard.
+
+⚠️ The same shape bit three more times INSIDE the fix, each time in a gate I had just written:
+- `check_plan_tickets`' demotion NOTE was discarded by `run_optional_check` (no `advisory=True`) — a
+  green row with no text.
+- Adding `advisory=True` fixed the human renderer and still produced NOTHING in `--json`, the mode
+  the contract tells every agent to read: a passing row's stdout reaches that envelope only through
+  `WARN_ONLY_CHECKS` or an output starting with `⚠`, and it was in neither.
+- The digest's own remedy commands omitted `--repo`, so they failed for 94% of rows — and `route`'s
+  refusal reads *"an archived message is settled history"*, telling the reader a live obligation is
+  closed.
+
+**A fix to a GATE is not done until its output is proven to reach the mode the contract mandates
+reading.** All three "worked" when run by hand.
+
+## 69 findings were fixed in code and never closed in the mailbox (2026-09-15)
+
+The mail-triage plan closed 69 findings in its step rows and acked none of them: a step row that
+fixes a finding does not close the mail. 69 peers' reports sat with their work already done, and a
+peer learned their fix had shipped only by reading this tree. The defect is the decoupling, not the
+reports — and the only durable record that a mail was handled is its ack.
+
+## The fixer of a fix is the worst reviewer of it (2026-09-15)
+
+Four review rounds, 17 seats, 101 candidates, 67 confirmed — and after round 1 every single confirmed
+defect was in MY OWN corrections (26/26, then 14/14, then 7/7). The D-252 scope-growth stop fired
+three times. Each fix was cleverer than the last and each was worse: prose about git plumbing was
+refuted, so I wrote a shell guard block; the block carried NINE executed defects the prose never had
+(an empty `$new` making `"$new":<file>` read the INDEX; `grep -vx` treating `.` as a wildcard) and its
+fence structurally split the numbered list in a document ~46 repos copy by hand.
+
+**The answer to a twice-refuted paragraph is not a third cut.** It is to state what is true in prose
+and file the executable form as a tested script, where the nine edge cases become a test table
+instead of nine things a reader must hold in their head.
+
+⚠️ And the worst single defect of the run was introduced by a fix, not found in the original: a
+catastrophic-backtracking regex on a fleet-synced close path — 78 seconds of CPU on an ordinary
+verdict, which leaves the run record `running` and the Stop hook blocking the turn, across ~46 repos.
+
 ## The finder must not be the fixer — measured seven times in one plan (2026-09-15, mail-triage plan, D-257)
 
 This plan's own review ledger is the evidence, not an opinion: **confirmed 19 · 10 · 14 · 4 · 6 · 4,
