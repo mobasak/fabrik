@@ -2865,3 +2865,22 @@ Receipt: `docs/development/reviews/2026-09-15-kaizen-loop-gap-closure-review.md`
 - **The drift-pin grader reads its two sources from the LIVE tree** (owner: **infra**) — three
   sessions edit this repo concurrently, so the pin scores a moving target; it should read them at a
   pinned SHA. Reported by the closing seat as machinery, not a defect in the code under review.
+
+### Self-naming identity — the residue of the D-271 build (2026-09-16)
+
+- **Two sessions can still hold one agent name, and nothing downstream catches it** (owner:
+  **infra**) — `whoami_agent.py --force` deliberately overrides a live holder, which is the
+  sanctioned escape, but `check_commit_trailers.py::_warn_agent_name_mismatch` reads
+  `CLAUDE_AGENT` directly and never consults the binding, so a session named with `--as` gets NO
+  mismatch check at all — not merely a missing cross-session one. Executed: two sessions bound to
+  one name both sign consistently and the check stays silent. Shape of the fix: teach that check
+  the resolver, then compare the SIGNED name against the store's live holders rather than against
+  this session's own resolved name. ⚠️ The `agent-identity.md` doc claimed this was already routed
+  here before this row existed; that claim was false and this row is the repair.
+- **`force` is write-only** (owner: **infra**) — the flag is recorded on the row and read by
+  nothing. Either surface it (the SessionStart advisory is the natural reader) or drop the field;
+  an audit trail nobody reads is not an audit trail.
+- **The two SessionStart hooks and `check_commit_trailers.py` are untaught** (owner: **infra**) —
+  D-271 shipped the writer, the resolver and `command_run.py` only. Until the hooks are taught, a
+  session that names itself mid-flight gets attribution immediately but its role charter waits for
+  the next start.

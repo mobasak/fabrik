@@ -621,8 +621,14 @@ def test_adopted_project_warns_an_unnamed_session_and_names_the_owner(tmp_path: 
     # Every consequence the message asserts is pinned, so a mutant that rewrites the prose
     # into a false claim cannot stay green (round 1: a wrong path in this string killed 0/34).
     assert "agent_role.py" in out and "check_commit_trailers.py" in out
-    assert "command_run.py" in out and "unattributable" in out
-    assert "A live session cannot change its own environment" in out
+    assert "command_run.py" in out and "attributable" in out
+    # ⚠️ The advisory must name the REMEDY THAT WORKS WITHOUT A RELAUNCH. It previously asserted
+    # "a live session cannot change its own environment" — true of the env var, but D-271 shipped
+    # whoami_agent.py, which makes the SESSION nameable anyway, so that sentence became false in
+    # 46 distributed copies the moment the writer landed.
+    assert "whoami_agent.py --as" in out
+    assert "without a relaunch" in out
+    assert "cannot change its own environment" not in out, "a claim this fleet's own code falsified"
 
 
 def test_the_rendered_plans_marker_alone_never_declares_adoption(tmp_path: Path) -> None:

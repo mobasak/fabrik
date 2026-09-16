@@ -1654,12 +1654,21 @@ def _agent_name() -> str:
     if _AGENT_NAME_RE.match(name):
         return name
     try:
-        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        # ⚠️ Insert ONCE. Executed: an unguarded insert grew `sys.path` by 1000 entries over 1000
+        # calls, and this runs on every start/step/round/dispatch/done — every entry slows each
+        # later import and widens what a same-named module could shadow.
+        here = str(Path(__file__).resolve().parent)
+        if here not in sys.path:
+            sys.path.insert(0, here)
         from whoami_agent import resolve_agent_name  # noqa: PLC0415
 
         bound = resolve_agent_name()
         return bound if _AGENT_NAME_RE.match(bound) else ""
-    except Exception:
+    # ⚠️ SystemExit is BaseException, not Exception. A `sys.exit()` reached at import or in the
+    # call would otherwise abort `start` with NO record written — rc 7/9 measured through the real
+    # CLI — which is precisely the fleet-wide turn-blocker the docstring above promises cannot
+    # happen. KeyboardInterrupt is deliberately NOT caught: a real Ctrl-C belongs to the operator.
+    except (Exception, SystemExit):
         return ""
 
 

@@ -261,14 +261,14 @@ def _identity_line(cwd: str, live: int | None = None) -> str:
         else:
             remedy = "a relaunch as `CLAUDE_AGENT=<name> claude`"
         return (
-            f"- ⚠️ **CLAUDE_AGENT is UNSET and {why}.** Agent identity resolves from that ONE env"
-            " var, so three controls are silent in this session: no role charter is injected"
-            " (`agent_role.py`), the `Agent-Name` trailer mismatch check cannot fire"
-            " (`check_commit_trailers.py`), and the run record's agent dimension records EMPTY —"
-            " so every `command_run.py` row and every `FEEDBACK:` verdict you file this session"
-            " is unattributable. ⚠️ **A live session cannot change its own environment**, so"
-            f" naming this window means {remedy}, or writing the `Agent-Name:` trailer by hand on"
-            " every commit. Ask the operator which name is yours before you sign one.\n"
+            f"- ⚠️ **CLAUDE_AGENT is UNSET and {why}.** Without a name the role charter is not"
+            " injected (`agent_role.py`) and the `Agent-Name` trailer mismatch check cannot fire"
+            " (`check_commit_trailers.py`, which reads the env var only). ✅ **You can fix this"
+            " right now, without a relaunch:** `python3 /opt/fabrik/scripts/whoami_agent.py --as"
+            " <name>` binds THIS session — `command_run.py` then resolves it, so your run records"
+            " and `FEEDBACK:` verdicts become attributable immediately (the charter waits for your"
+            f" next start). A named relaunch — {remedy} — still works and still wins. Ask the"
+            " operator which name is yours before you bind or sign one.\n"
         )
     except Exception:
         pass

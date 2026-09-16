@@ -27,6 +27,8 @@ identity, never remove it.
 from __future__ import annotations
 
 import argparse
+import contextlib
+import fcntl
 import json
 import os
 import re
@@ -41,7 +43,12 @@ from pathlib import Path
 # bind here and then be silently dropped by two consumers, leaving one session with two identities
 # and no error anywhere. Byte-identical to `command_run.py:1602`; `tests/test_whoami_agent.py` pins
 # the three copies against each other because none of these files may import another.
-_NAME_RE = re.compile(r"^[a-z0-9-]{1,32}$")
+# ⚠️ Every use is `fullmatch`, never `match`: with `match`, `$` matches BEFORE a trailing
+# newline, so `--as $'infra\n'` bound the name "infra\n" — and a newline inside an
+# `Agent-Name:` trailer makes git parse the WHOLE block as nothing, reproducing the exact
+# "0 of 40 commits carried Agent-Name" failure this feature was built to fix. `agent_role.py`
+# already uses fullmatch, so `match` also falsified the "strictest of the three" claim below.
+_NAME_RE = re.compile(r"[a-z0-9-]{1,32}")
 
 _TRIM_AFTER_S = 30 * 24 * 3600  # nothing else prunes ~/.claude/state: `scratch_sweep.py:59` states
 # it touches only its own lock there and "reads, writes and deletes nothing else". An unowned store
@@ -100,17 +107,58 @@ def _session_pid() -> int | None:
     return None
 
 
-def _pid_alive(pid: int | None) -> bool:
+def _at(row: dict) -> int:
+    """A row's timestamp as an int, or 0 when it is missing or uncoercible (never raises)."""
+    try:
+        return int(row.get("at") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _pid_start(pid: int | None) -> int | None:
+    """Field 22 of `/proc/<pid>/stat` (start time in clock ticks), or None.
+
+    Recorded beside the pid so a RECYCLED pid cannot impersonate the original holder: rows live 30
+    days and `pid_max` here is 4194304. Measured before this: a stale row carrying `pid: 1` refused
+    a legitimate bind with "held by a LIVE session (pid 1)".
+    """
+    if not pid:
+        return None
+    try:
+        raw = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8", errors="replace")
+        return int(raw[raw.rindex(")") + 1 :].split()[19])
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def _pid_alive_same_start(row: dict) -> bool:
+    """True only when the row's pid is alive AND is the same process the row was written for.
+
+    ⚠️ A row with NO pid is NOT a holder. That is a GAP, not a safety property — a session whose
+    pid could not be determined gets no collision protection — and `bind()` says so in its success
+    message rather than implying a protection it does not have.
+    """
+    pid = row.get("pid")
     if not pid:
         return False
     try:
-        return Path(f"/proc/{pid}").is_dir()
+        if not Path(f"/proc/{pid}").is_dir():
+            return False
     except OSError:
         return False
+    was = row.get("pid_start")
+    if was is None:
+        return True  # a row written before start-times existed: pid-only, as before
+    return _pid_start(pid) == was
 
 
 def _toplevel() -> str:
-    """The git toplevel, or "" — the collision scope.
+    """The git COMMON DIR, or "" — the collision scope.
+
+    ⚠️ Common-dir, NOT `--show-toplevel`: a worktree and its main checkout are ONE repo with two
+    toplevels, so a toplevel scope let two sessions committing into one history hold one name
+    (measured: they differ under `--show-toplevel`, agree under `--git-common-dir`). This repo has
+    18 registered worktrees.
 
     ⚠️ NOT ``os.getcwd()``. Executed: with a cwd-scoped check, a plain ``cd`` into a subdirectory
     bound a name another live session held, at rc 0 and with no ``--force`` recorded — cheaper than
@@ -120,7 +168,7 @@ def _toplevel() -> str:
     """
     try:
         out = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
+            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
             capture_output=True,
             text=True,
             timeout=10,
@@ -131,9 +179,49 @@ def _toplevel() -> str:
         return ""
 
 
+@contextlib.contextmanager
+def _locked(path: Path):
+    """Exclusive flock across the whole READ-MODIFY-WRITE of a bind.
+
+    ⚠️ Without this the 30-day TRIM silently destroys a sibling's binding. `bind()` snapshots the
+    rows, and when any row is older than the window it REWRITES the file from that snapshot — so a
+    row a sibling appended in between is gone. Executed: session B's row appended between A's read
+    and A's write vanished, leaving only A's. That is invisible identity loss, and it becomes
+    INEVITABLE once the store ages past 30 days.
+
+    Same `fcntl.flock` idiom as `command_run.py`'s mutating subcommands (`:161-190`), including its
+    fail-soft: if the lock cannot be taken the body still runs unserialized rather than wedging the
+    caller — a binding that races is better than a binding that hangs.
+    """
+    fd = None
+    try:
+        lock_path = path.with_suffix(path.suffix + ".lock")
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(str(lock_path), os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+        fcntl.flock(fd, fcntl.LOCK_EX)
+    except Exception:
+        if fd is not None:
+            with contextlib.suppress(OSError):
+                os.close(fd)
+            fd = None
+    try:
+        yield
+    finally:
+        if fd is not None:
+            with contextlib.suppress(OSError):
+                fcntl.flock(fd, fcntl.LOCK_UN)
+            with contextlib.suppress(OSError):
+                os.close(fd)
+
+
 def _rows(path: Path) -> list[dict]:
     """Every parseable row, oldest first. A corrupt line is skipped, never fatal."""
     try:
+        # ⚠️ REGULAR FILES ONLY. `read_text` on a FIFO blocks forever with no writer — executed, it
+        # hung past a 6 s timeout — and this function is reached from a fleet-synced close gate,
+        # where a hang stalls the turn rather than failing it. A non-regular path reads as empty.
+        if not path.is_file():
+            return []
         raw = path.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return []
@@ -155,14 +243,14 @@ def resolve_agent_name() -> str:
     """The one resolution order. Returns "" when identity is genuinely unknown — never raises."""
     try:
         env = (os.environ.get("CLAUDE_AGENT") or "").strip()
-        if _NAME_RE.match(env):
+        if _NAME_RE.fullmatch(env):
             return env
         sid = session_id()
         if not sid:
             return ""
         name = ""
         for row in _rows(store_path()):  # LAST row wins for this sid
-            if row.get("session_id") == sid and _NAME_RE.match(str(row.get("name") or "")):
+            if row.get("session_id") == sid and _NAME_RE.fullmatch(str(row.get("name") or "")):
                 name = str(row["name"])
         return name
     except Exception:
@@ -174,14 +262,21 @@ def _write_rows(path: Path, rows: list[dict]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + f".tmp{os.getpid()}")
     data = "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows)
-    fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     try:
-        buf = data.encode("utf-8")
-        while buf:
-            buf = buf[os.write(fd, buf) :]
+        fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        try:
+            buf = data.encode("utf-8")
+            while buf:
+                buf = buf[os.write(fd, buf) :]
+        finally:
+            os.close(fd)
+        os.replace(tmp, path)
     finally:
-        os.close(fd)
-    os.replace(tmp, path)
+        # ⚠️ `os.replace` consumes `tmp` on success; on ANY failure it survives forever, because
+        # `scratch_sweep.py:59` states it "reads, writes and deletes nothing else" in this
+        # directory — an unowned leak in 46 distributed copies.
+        with contextlib.suppress(OSError):
+            tmp.unlink()
 
 
 def _append_row(path: Path, row: dict) -> None:
@@ -201,7 +296,7 @@ def _append_row(path: Path, row: dict) -> None:
 
 def bind(name: str, force: bool = False) -> tuple[int, str]:
     """Bind this session to `name`. Returns (exit code, message)."""
-    if not _NAME_RE.match(name):
+    if not _NAME_RE.fullmatch(name):
         return 2, (
             f"whoami_agent: refused — {name!r} is not a valid agent name. The alphabet is "
             "^[a-z0-9-]{1,32}$, the strictest of the three live validators: a name outside it "
@@ -214,8 +309,14 @@ def bind(name: str, force: bool = False) -> tuple[int, str]:
             "bind. This is expected outside a Claude Code session (cron, `env -i`)."
         )
     path = store_path()
+    top = _toplevel()  # outside the lock: it shells out to git and must not hold the lock for that
+    with _locked(path):
+        return _bind_locked(path, sid, name, force, top)
+
+
+def _bind_locked(path: Path, sid: str, name: str, force: bool, top: str) -> tuple[int, str]:
+    """The read-modify-write half of `bind`, serialized by `_locked`."""
     rows = _rows(path)
-    top = _toplevel()
 
     mine = [r for r in rows if r.get("session_id") == sid]
     if mine and not force:
@@ -231,9 +332,14 @@ def bind(name: str, force: bool = False) -> tuple[int, str]:
         for r in rows:
             if r.get("session_id") == sid or str(r.get("name") or "") != name:
                 continue
-            if top and str(r.get("toplevel") or "") != top:
+            # ⚠️ An UNKNOWN scope is its own scope, never a wildcard. With `if top and …`, a
+            # holder scoped "" was invisible to any checker inside a repo, and a checker scoped ""
+            # matched every holder everywhere (both measured). `_toplevel()` returns "" on a
+            # git-less dir AND on its 10 s timeout, so a transient git failure silently downgraded
+            # a binding into the unprotected half.
+            if str(r.get("toplevel") or "") != top:
                 continue
-            if _pid_alive(r.get("pid")):
+            if _pid_alive_same_start(r):
                 return 1, (
                     f"whoami_agent: refused — {name!r} is held by a LIVE session (pid "
                     f"{r.get('pid')}) in this repo. Pick another name, or --force if that session "
@@ -244,18 +350,35 @@ def bind(name: str, force: bool = False) -> tuple[int, str]:
     row = {
         "session_id": sid,
         "name": name,
-        "pid": _session_pid(),
+        "pid": (_pid := _session_pid()),
+        "pid_start": _pid_start(_pid),
         "toplevel": top,
         "at": int(time.time()),
         "force": bool(force),
     }
     cutoff = int(time.time()) - _TRIM_AFTER_S
-    keep = [r for r in rows if int(r.get("at") or 0) >= cutoff]
+    # ⚠️ A row's `at` is whatever is on disk. `int("abc")` raises ValueError and `int([1])` raises
+    # TypeError (both executed), and an exception here would abort a BIND — the one operation the
+    # operator runs by hand. An uncoercible timestamp is treated as ANCIENT and trimmed, never
+    # fatal: a row we cannot date is a row we cannot honour.
+    keep = [r for r in rows if _at(r) >= cutoff]
     if len(keep) != len(rows):
         _write_rows(path, keep + [row])
     else:
         _append_row(path, row)
-    return 0, f"whoami_agent: {name} bound to session {sid}" + (" (forced)" if force else "")
+    unprotected = (
+        ""
+        if row["pid"]
+        else (
+            " ⚠️ no session pid could be determined, so this binding does NOT reserve the name against"
+            " a sibling"
+        )
+    )
+    return 0, (
+        f"whoami_agent: {name} bound to session {sid}"
+        + (" (forced)" if force else "")
+        + unprotected
+    )
 
 
 def main(argv: list[str]) -> int:
@@ -263,11 +386,16 @@ def main(argv: list[str]) -> int:
         prog="whoami_agent.py",
         description="Bind THIS live session to an agent name, or print the resolved name.",
     )
-    ap.add_argument("--as", dest="name", help="the agent name to bind this session to")
+    mode = ap.add_mutually_exclusive_group()
+    mode.add_argument("--as", dest="name", help="the agent name to bind this session to")
+    # ⚠️ Mutually exclusive, and the branch below tests `is None` rather than truthiness. Before
+    # this, `--as ""` (the live shape is an unset shell variable, `--as "$NAME"`) fell into the
+    # --who branch and reported the OLD name at rc 0 — a silent no-op that reads as success — and
+    # `--who --as fleet` silently ignored the bind.
+    mode.add_argument("--who", action="store_true", help="print the resolved name and exit")
     ap.add_argument("--force", action="store_true", help="override a collision, and record that")
-    ap.add_argument("--who", action="store_true", help="print the resolved name and exit")
     args = ap.parse_args(argv[1:])
-    if args.who or not args.name:
+    if args.who or args.name is None:
         name = resolve_agent_name()
         print(name)
         return 0 if name else 1

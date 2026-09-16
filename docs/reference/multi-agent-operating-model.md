@@ -19,9 +19,21 @@ heredocs). Projects first; the hub is deferred (§ Hub vs project, below).
 ```bash
 # agent-1 — the merge owner: the main checkout, NO --worktree
 CLAUDE_AGENT=alpha claude -n alpha-<repo>
+
 # agents 2..N — one linked worktree each
 CLAUDE_AGENT=<name> claude --worktree <name> -n <name>-<repo>
 ```
+
+⚠️ **A window that is ALREADY RUNNING does not need a relaunch** (D-271). `CLAUDE_AGENT` is
+launch-time and a `/rename` never reaches it — measured, three windows named `agent-1/2/3` in the
+UI all reported `CLAUDE_AGENT=<UNSET>` — so bind the live session instead, and keep its history:
+
+```bash
+python3 /opt/fabrik/scripts/whoami_agent.py --as alpha   # then --who to confirm
+```
+
+The env var still WINS where it is set, so a named launch never needs the command. Detail:
+`docs/workstation/agent-identity.md`.
 
 - **Two names, deliberately.** `CLAUDE_AGENT=<name>` is repo-local — what `owner:` fields, `**Owner:**`
   lines, `[tags]` and the `Agent-Name:` trailer carry (`agent_role.py` accepts any `[a-z0-9-]{1,32}`; a

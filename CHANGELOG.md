@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — 20 defects in the self-naming identity channel, found by its own review (2026-09-16)
+
+- Four author-blind seats over `0a8d5fc7` confirmed 20; three I had already fixed mid-flight. The
+  operator ruled the plan chain out for this build, so this review was the only gate between the
+  code and 46 repos — and it earned that.
+- **The write path was the damage.** No lock: 30 of 30 barrier-synced trials had BOTH sessions take
+  the same name, with `force:false` on both, so the audit field could not even tell. The 30-day trim
+  rewrote the store from a snapshot, destroying a sibling's row (1 in 25 trials, and inevitable once
+  the store ages). `re.match` + `$` accepted a TRAILING NEWLINE, and such a name makes git parse the
+  whole trailer block as nothing — reproducing the exact "0 of 40 commits carried Agent-Name"
+  failure this feature exists to fix. All three closed: `bind()` is serialized by an `flock` around
+  the whole read-modify-write, and the alphabet uses `fullmatch`.
+- The collision scope is now the git COMMON DIR, not `--show-toplevel` — a worktree and its main
+  checkout are one repo with two toplevels, and this repo has 18 worktrees. An unknown scope is its
+  own scope rather than a wildcard. A recycled pid can no longer impersonate a holder (the row
+  records the process start time). `--as ""` and `--who --as X` refuse instead of silently
+  reporting success at rc 0. The `.tmp<pid>` file no longer leaks into a directory nothing prunes.
+- `scripts/command_run.py`: `sys.path` leaked one entry per call (1000 calls → 1000 entries; a
+  failed import went from 30 µs to 38 ms at 10k), and `except Exception` did not catch `SystemExit`,
+  which aborted `start` with NO record written — the exact fleet-wide turn-blocker its own docstring
+  promised could not happen.
+- `.claude/hooks/session_orient.py`: the advisory asserted "identity resolves from that ONE env var"
+  and "a live session cannot change its own environment" — **both falsified by this very feature**,
+  in 46 distributed copies. It now names the command that works.
+- `docs/workstation/agent-identity.md` claimed `check_commit_trailers.py` partially covers the
+  shared-name case (it reads the env var directly and does not fire at all for a `--as` session) and
+  claimed a backlog routing that had never happened. Both corrected; the backlog row now exists.
+- 31 graders. Three were vacuous by construction and are repaired — the alphabet pin asserted raw
+  text and passed while a mutant changed the live regex; the conftest pin asserted a token and
+  passed with the `setenv` commented out. The race grader took three attempts: a 24-way subprocess
+  race passed against the unlocked build, and an in-process simulation bypassed the lock entirely.
+
 ### Added — A live session can name itself, with no relaunch (2026-09-16)
 
 - `scripts/whoami_agent.py` (new, fleet-synced) — `--as <name>` binds THIS session to an agent name;

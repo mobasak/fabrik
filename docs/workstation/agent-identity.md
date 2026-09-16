@@ -64,10 +64,16 @@ row wins per session, rows trimmed at 30 days by the writer — nothing else pru
 
 ## What it does NOT do — read this before relying on it
 
-- **It is not a lock.** Two windows can still end up on one name via `--force`, and nothing
-  downstream catches that: `check_commit_trailers.py` compares the signed trailer against *this*
-  session's own resolved name and has no cross-session state, so two sessions on one name sign
-  consistently and stay silent. Routed to `docs/STRATEGIC_BACKLOG.md`, owner infra.
+- **It is not a lock against `--force`.** A bind is serialized (an `flock` around the whole
+  read-modify-write, so a concurrent sibling can neither double-bind nor be erased by the 30-day
+  trim), but `--force` deliberately overrides a live holder. Nothing downstream catches two
+  sessions on one name: `check_commit_trailers.py` reads `CLAUDE_AGENT` **directly** and never
+  consults this binding at all — so for a session named with `--as` its mismatch check does not
+  merely lack cross-session state, it **does not fire**. Routed to
+  `docs/STRATEGIC_BACKLOG.md`, owner infra.
+- **A binding with no session pid reserves nothing.** If the `/proc` ancestry walk cannot find the
+  `claude` ancestor, the row carries no pid and cannot hold the name against a sibling. The bind
+  says so in its success message rather than implying protection it does not have.
 - **The SessionStart hooks bind late.** `agent_role.py` (the role charter) and `session_orient.py`
   (the unnamed-session advisory) both run at session start, so naming yourself mid-flight takes
   effect for them at the NEXT start. Attribution in run records is immediate.
