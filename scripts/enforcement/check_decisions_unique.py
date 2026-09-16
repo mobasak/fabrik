@@ -35,6 +35,7 @@ Exit codes:
 
 from __future__ import annotations
 
+import json
 import re
 from collections import Counter
 from pathlib import Path
@@ -93,10 +94,117 @@ def find_rows_outside_the_table(text: str) -> list[tuple[int, str]]:
     return [(i + 1, m.group(1)) for i, ln in enumerate(lines[:delim]) if (m := _ID_CELL.match(ln))]
 
 
+_SHAPE_BASELINE = Path(__file__).resolve().parents[2] / ".fabrik" / "decision-shape-baseline.json"
+
+
+def _all_row_ids(text: str) -> list[tuple[int, str]]:
+    """(lineno, id) for every data row BELOW the delimiter — the ledger's actual population."""
+    lines = text.split("\n")
+    delim = next(
+        (
+            i
+            for i, ln in enumerate(lines)
+            if _DELIMITER.match(ln.strip()) and i and _HEADER_ROW.match(lines[i - 1].strip())
+        ),
+        None,
+    )
+    if delim is None:
+        return []
+    return [
+        (i + 1, m.group(1))
+        for i, ln in enumerate(lines[delim + 1 :], start=delim + 1)
+        if (m := _ID_CELL.match(ln.strip()))
+    ]
+
+
+def malformed_ids(text: str) -> dict[str, str]:
+    """``{id: reason}`` for every row whose SHAPE or CONTENT makes it unreadable.
+
+    A row is malformed when its cell count differs from the header, OR when its ``why`` or ``where``
+    cell is empty. **Content, not shape alone** — and that is the counter-measure, not a nicety:
+    padding a short row to six EMPTY cells is cheaper than repairing it and restores exactly the blank
+    the reader cannot use, so a shape-only rule rewards the cheapest wrong move.
+    """
+    lines = text.split("\n")
+    delim = next(
+        (
+            i
+            for i, ln in enumerate(lines)
+            if _DELIMITER.match(ln.strip()) and i and _HEADER_ROW.match(lines[i - 1].strip())
+        ),
+        None,
+    )
+    if delim is None:
+        return {}
+    width = len(lines[delim - 1].strip().strip("|").split("|"))
+    out: dict[str, str] = {}
+    for ln in lines[delim + 1 :]:
+        m = _ID_CELL.match(ln.strip())
+        if not m:
+            continue
+        cells = [c.strip() for c in ln.strip().strip("|").split("|")]
+        if len(cells) != width:
+            out[m.group(1)] = f"{len(cells)} cells, header has {width}"
+        elif not cells[4] or not cells[5]:
+            out[m.group(1)] = "why/where empty — a padded row answers blank"
+    return out
+
+
+def check_row_shape(text: str) -> None:
+    """ADVISORY row-integrity ratchet over the SET of malformed ids. Never touches the exit code.
+
+    ⚠ This check has been BLOCKING since 2026-09-04 for duplicates and stray rows, so this leg must
+    print and return nothing: 79 rows across 49 ledgers are malformed today and a blocking day one
+    would red every repo at once. Promotion follows the same WARN-first sequencing D-057 documents.
+
+    The baseline stores the SET OF IDS, not a count. An aggregate count is defeated by three moves,
+    all built and executed against a baseline of malformed=1 / total=4 — and the cheapest is not the
+    obvious one:
+      · delete the malformed row                       → count ratchet REFUSES (total also fell)
+      · delete it AND record any new decision           → count ratchet PASSES  ✗
+      · pad the row to six empty cells (an edit, no
+        deletion, total never moves)                    → count ratchet PASSES  ✗  ← cheapest
+      · repair it properly                              → both pass             ✓
+    Identity refuses all three: an id in the baseline must still be PRESENT and now well-formed.
+    """
+    now = malformed_ids(text)
+    try:
+        base = set(json.loads(_SHAPE_BASELINE.read_text(encoding="utf-8"))["malformed_ids"])
+    except (OSError, ValueError, KeyError, TypeError):
+        print(
+            f"⚠ decision-shape: seeding baseline with {len(now)} malformed row(s) — advisory, "
+            f"nothing blocked. Write {_SHAPE_BASELINE} with "
+            f'{{"malformed_ids": {sorted(now)}}} to arm the ratchet.'
+        )
+        return
+    present = {i for _, i in _all_row_ids(text)}
+    unrepaired = sorted(base & set(now))
+    regressed = sorted(set(now) - base)
+    # ABSENT means gone from the LEDGER, not merely gone from the malformed set — a REPAIRED row
+    # leaves the malformed set, which is the success case. Deriving absence from `now` instead of
+    # from the ledger reported every repair as a deletion (caught by the fixture pair, not by review).
+    gone = sorted(base - present)
+    if regressed:
+        print(
+            f"⚠ decision-shape: {len(regressed)} row(s) became malformed since the baseline: "
+            f"{', '.join(regressed)} — the set may only shrink, and only by REPAIR"
+        )
+    for did in unrepaired:
+        print(f"⚠ decision-shape: {did} still malformed — {now[did]}")
+    if gone:
+        print(
+            f"⚠ decision-shape: {len(gone)} baseline row(s) are ABSENT rather than repaired "
+            f"({', '.join(gone)}) — a deleted row is not a repair; restore it and fix its cells"
+        )
+    if not (regressed or unrepaired or gone):
+        print(f"decision-shape: OK — {len(base)} baseline row(s) all repaired or absent-by-design")
+
+
 def main() -> int:
     if not LEDGER.exists():
         return 0
     text = LEDGER.read_text(encoding="utf-8")
+    check_row_shape(text)  # ADVISORY — prints only, never reaches the exit code below
     dups = find_duplicates(text)
     stray = find_rows_outside_the_table(text)
     for lineno, did in stray:

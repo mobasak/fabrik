@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — The decision ledger gains an ADVISORY row-integrity ratchet keyed on row IDENTITY (2026-09-17)
+
+- `scripts/enforcement/check_decisions_unique.py` gains `check_row_shape()`. A row is MALFORMED when
+  its cell count differs from the header **or** its `why`/`where` cell is empty — content, not shape
+  alone. The baseline `.fabrik/decision-shape-baseline.json` records the **SET of malformed row IDs**,
+  so the set may only shrink, and only by REPAIR.
+- ⚠️ ADVISORY, and that is load-bearing: this checker has BLOCKED for duplicates and stray rows since
+  2026-09-04, and 79 rows across 49 ledgers are malformed today. The new leg prints and contributes
+  nothing to the exit code. Proven: `final_gate.py --check` is `success` with the hub's 10 malformed
+  rows present.
+- ⚠️ COBRA (D-253) — an aggregate COUNT is defeated by three moves, all built and executed; the
+  cheapest is not the obvious one. Delete the row → a count refuses. Delete it **and record any new
+  decision** → a count PASSES. **Pad it to six empty cells** (an edit, no deletion, the total never
+  moves) → a count PASSES, and this is the cheapest. Identity refuses all three, and each is a
+  regression test.
+- Seeded with the hub's 10: D-055, D-075, D-084, D-087, D-090, D-092, D-099, D-178, D-266, D-275.
+- Completes delta §5 of `docs/superpowers/specs/2026-09-16-ledger-write-integrity-design.md`. Only the
+  merge-base read (§3) remains.
+
 ### Changed — The QUOTA line explains its own band, because the contract cannot reach a running session (2026-09-17)
 
 - `scripts/sysadmin/quota_posture_hook.py::_fleet_clause`: the injected line now carries the FLEET

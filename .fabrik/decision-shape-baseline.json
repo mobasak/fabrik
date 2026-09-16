@@ -1,0 +1,16 @@
+{
+ "malformed_ids": [
+  "D-055",
+  "D-075",
+  "D-084",
+  "D-087",
+  "D-090",
+  "D-092",
+  "D-099",
+  "D-178",
+  "D-266",
+  "D-275"
+ ],
+ "seeded": "2026-09-17",
+ "note": "Advisory ratchet: this SET may only shrink, and only by REPAIR. A deleted row is not a repair; a row padded to six empty cells is not a repair."
+}
