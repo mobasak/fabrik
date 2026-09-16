@@ -1637,8 +1637,30 @@ _COST_MARKED_RE = re.compile(
 
 
 def _agent_name() -> str:
+    """The agent behind this run: a well-formed ``CLAUDE_AGENT``, else this session's BINDING.
+
+    ⚠️ The env var is LAUNCH-TIME and a window ``/rename`` never reaches it, so before the binding
+    existed this returned ``""`` for every project session — and an empty agent dimension makes
+    every run record and every ``FEEDBACK:`` verdict unattributable (measured: 3 live windows named
+    `agent-1/2/3` in the UI, all three ``CLAUDE_AGENT=<UNSET>``). ``whoami_agent.py --as <name>``
+    lets a LIVE session bind itself with no relaunch; this is the read side (D-267/D-268).
+
+    ⚠️ The import is GUARDED and the fallback is today's behaviour exactly. This file is synced to
+    ~46 repos and ``whoami_agent.py`` travels on the same sync, so during the window where a repo
+    has the new reader and not yet the writer the import simply fails and identity degrades to the
+    env var — never an exception, because an exception here blocks a turn fleet-wide.
+    """
     name = os.environ.get("CLAUDE_AGENT", "").strip()
-    return name if _AGENT_NAME_RE.match(name) else ""
+    if _AGENT_NAME_RE.match(name):
+        return name
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from whoami_agent import resolve_agent_name  # noqa: PLC0415
+
+        bound = resolve_agent_name()
+        return bound if _AGENT_NAME_RE.match(bound) else ""
+    except Exception:
+        return ""
 
 
 def _active_account() -> str:

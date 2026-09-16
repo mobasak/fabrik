@@ -140,6 +140,11 @@ def _isolated_command_run_dir(tmp_path, monkeypatch):
     # which the repo-scoped nosession fallback would split into two records
     monkeypatch.setenv("CLAUDE_SESSION_ID", "pytest-isolated")
     monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
+    # The identity BINDING store (D-267/D-268). The READ side is already safe — the delenv above
+    # means a grader resolves "" by default and cannot pick up a live binding — but the WRITER
+    # graders would otherwise append to the operator's real ~/.claude/state/agent-identity.jsonl.
+    # Same class as the three pins above: one autouse pin, no opt-in.
+    monkeypatch.setenv("AGENT_IDENTITY_FILE", str(tmp_path / "agent-identity.jsonl"))
     yield runs
 
 

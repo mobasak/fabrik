@@ -58,6 +58,7 @@ CORE_SCRIPTS = [
     # RETIRED_VENDORED_DIRS below), and the stale premise is what let /fabrik-rivals run with three
     # of four providers unauthenticated in every repo past the delete.
     "command_run.py",  # COMMAND RUN-RECORD: the pinned `RUN:` line + class ledger; the Stop hook's 5th cause reads its state
+    "whoami_agent.py",  # SELF-NAMING IDENTITY: a LIVE session binds itself to an agent name with no relaunch, and command_run.py imports its resolver — so it MUST travel on the same sync as command_run.py or the guarded import degrades to the env var (D-267/D-268)
     "thread_anchor.py",  # THREAD ANCHORS: durable NEXT:-line memory — the Stop hook harvests, SessionStart/UserPromptSubmit re-inject (settings.json references it, so it must travel with settings.json)
 ]
 

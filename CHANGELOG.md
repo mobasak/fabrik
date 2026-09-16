@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — A live session can name itself, with no relaunch (2026-09-16)
+
+- `scripts/whoami_agent.py` (new, fleet-synced) — `--as <name>` binds THIS session to an agent name;
+  `--who` prints the resolved one. Identity has always come from `CLAUDE_AGENT`, a LAUNCH-TIME
+  variable a window `/rename` never reaches: measured on three live windows named `agent-1/2/3` in
+  the UI, all three `CLAUDE_AGENT=<UNSET>`, and 0 of that repo's last 40 commits attributable while
+  40 of 40 carried `Agent-Role`. The binding is keyed on `CLAUDE_CODE_SESSION_ID`, which — unlike
+  `CLAUDE_AGENT` — is exported into every shell a live session runs and IS inherited by git hooks.
+- `scripts/command_run.py` (fleet-synced) — `_agent_name()` now falls back to the binding, so a bound
+  session's run records and `FEEDBACK:` verdicts become attributable. The import is GUARDED and the
+  fallback is today's behaviour exactly, because this file reaches ~46 repos and an exception in the
+  identity path would block a turn fleet-wide.
+- `tests/conftest.py` — pins `AGENT_IDENTITY_FILE` so the writer graders never append to the
+  operator's real store. The read side was already safe (`:142` delenvs the session id).
+- 18 graders, 8 mutants. Seven died on the first pass; the eighth survived a grader whose NAME
+  claimed to cover it (liveness gating passed, because the recorded pid is the live `claude`
+  ancestor) — a grader seeded with a DEAD pid now kills it.
+- ⚠️ NOT closed, and stated rather than implied: two sessions can still share one name via `--force`
+  and nothing downstream catches it; both SessionStart hooks bind at the NEXT start; and the mandated
+  shared-append commit path (`commit-tree` + `update-ref`) fires no git hook, so the trailer there is
+  written by hand after calling `--who`. Design and residue: D-271.
+
 ### Fixed — The identity advisory's ledger read, its UNDECLARED guard, and its duplicate bullet (2026-09-16)
 
 - `.claude/hooks/session_orient.py` (fleet-synced) — round 2 of the review over `b5c01855`, six
