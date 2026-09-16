@@ -96,6 +96,20 @@ The older design's reasoning, kept for the record:
 
 Rows sort by weekly headroom, so the fleet's next flip target is the top eligible row.
 
+**The forecast on the ACTIVE row (2026-09-16, D-273).** Each window cell's sub-line — the one
+reading `N% used · resets <when>` — gains two more facts on the active account's row only:
+the burn rate the rotation tick smoothed over its last ~35 minutes of samples, and whichever of
+the wall or the reset comes FIRST, as `0.60%/m, wall in ~48m`. Both are READ from
+`~/.claude/state/quota-posture.json`, the same file the `QUOTA:` line injected into every prompt
+reads, so the board and that line can never disagree — the board re-derives nothing. `no burn
+yet` when the tick has only one sample or the window's reset epoch just moved; nothing at all
+when there is no posture, which is how the board rendered before this existed and how it still
+renders on a box where the tick has not run.
+
+⚠️ **A standby row carries no forecast, deliberately.** An account that is not the active pointer
+is not burning fleet quota, so a rate for it would be a number with nothing behind it — the same
+reasoning as the `idle — not the active pointer` cell above.
+
 ### The box-budget banner (2026-09-08, D-191)
 
 One muted line above the commands table, served from a 60 s cache that a background probe of

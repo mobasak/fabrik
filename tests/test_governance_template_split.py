@@ -198,3 +198,102 @@ def test_the_governance_files_are_on_the_sync_trigger_path() -> None:
     assert m, "the governance-sync hook has no files: filter"
     pattern = m.group(1).strip().strip("'\"")
     assert re.search(pattern, TEMPLATE_REL), (pattern, TEMPLATE_REL)
+
+
+# --- Phase A of docs/development/plans/2026-09-16-plan-1-quota-posture.md (D-269) ---------------
+THIRD_CONTRACT = Path("/opt/fabrik-lib/CLAUDE.md")
+
+# The quota BANDS (D-265) and the QUOTA line (D-269) live INSIDE the D-175 quota bullet of all THREE
+# contracts — the hub's own, the template that reaches ~46 repos, and the sync-excluded
+# fabrik-lib's hand-kept copy, which was measured one version behind on 2026-09-16. Short substrings
+# of the shared sentences; counted on whitespace-normalised text because the hub and the template
+# hard-wrap the bullet at ~93-96 columns while fabrik-lib keeps it on one line.
+QUOTA_CLAIMS = (
+    "**under 85 — GREEN:**",
+    "85 to under 90",
+    "RED: commit, push, close your run record",
+    "The `QUOTA:` line (D-269)",
+    "posture unavailable",
+    "at RED the hook HOLDS `Agent` and a new",
+    "is banded on its Fable window too",
+    "is the authority on WHEN you resume, in every band",
+)
+
+
+def _normalised(path: Path) -> str:
+    import re
+
+    return re.sub(r"\s+", " ", path.read_text(encoding="utf-8"))
+
+
+def test_the_quota_bands_and_the_quota_line_are_identical_in_all_three_contracts() -> None:
+    """Each QUOTA claim appears exactly once in the hub file, the template AND fabrik-lib's contract.
+
+    fabrik-lib is sync-excluded and hand-maintained, so nothing but a grader like this one binds a
+    shared sentence across it and the hub (it carried D-264's `85-90` / `90+ with NO eligible
+    successor` text for a day after the hub moved to D-265). The third file is skipped with a
+    stated reason when it is not checked out, so the suite stays portable.
+    """
+    hub = _normalised(FABRIK / "CLAUDE.md")
+    template = _normalised(FABRIK / TEMPLATE_REL)
+    missing = [
+        (c[:48], hub.count(c), template.count(c))
+        for c in QUOTA_CLAIMS
+        if hub.count(c) != 1 or template.count(c) != 1
+    ]
+    assert not missing, f"claim | hub count | template count -> {missing}"
+    if not THIRD_CONTRACT.exists():
+        import pytest
+
+        pytest.skip("fabrik-lib is not checked out on this box — the third-file half is ungraded")
+    third = _normalised(THIRD_CONTRACT)
+    missing3 = [(c[:48], third.count(c)) for c in QUOTA_CLAIMS if third.count(c) != 1]
+    assert not missing3, f"claim | fabrik-lib count -> {missing3}"
+
+
+# The two shared spans, extracted from the NORMALISED text: the D-269 sentence set and the D-265
+# resume-authority sentences. Anchors are the spans' own first and last words, so a wrap boundary
+# inside either span is not a miss.
+_SHARED_SPANS = (
+    r"\*\*The `QUOTA:` line \(D-269\)\.\*\*.*?the hottest of 5h, weekly and Fable\.",
+    r"`claude_rotate\.py --status` is the authority on WHEN you resume.*?read `--status` rather than assuming\.",
+)
+
+
+def _shared_spans(text: str) -> tuple[str, ...]:
+    import re
+
+    found = tuple(m.group(0) if (m := re.search(p, text)) else "" for p in _SHARED_SPANS)
+    assert all(found), f"a shared span is missing from a contract: {[bool(f) for f in found]}"
+    return found
+
+
+def test_the_quota_line_sentence_set_is_identical_across_the_three_contracts() -> None:
+    """A1b: the shared spans are IDENTICAL (after whitespace normalisation) in all three contracts.
+
+    The eight-anchor count above catches a sentence that went missing; only this grader catches a
+    format token, a band name or an action that DRIFTED in one file while every anchor still counts
+    one — which is what the contract's carve-out claims is graded. The third file skips as above.
+    """
+    hub = _shared_spans(_normalised(FABRIK / "CLAUDE.md"))
+    template = _shared_spans(_normalised(FABRIK / TEMPLATE_REL))
+    assert hub == template, "the hub and the template drifted on a shared QUOTA span"
+    if not THIRD_CONTRACT.exists():
+        import pytest
+
+        pytest.skip("fabrik-lib is not checked out on this box — the third-file half is ungraded")
+    assert _shared_spans(_normalised(THIRD_CONTRACT)) == hub, (
+        "fabrik-lib drifted on a shared QUOTA span"
+    )
+
+
+def test_the_third_contract_half_skips_with_a_reason_when_fabrik_lib_is_absent(
+    monkeypatch, tmp_path
+) -> None:
+    """A2: the hub/template half still grades when the third file is missing; the skip names why."""
+    import pytest
+
+    monkeypatch.setitem(globals(), "THIRD_CONTRACT", tmp_path / "absent" / "CLAUDE.md")
+    with pytest.raises(pytest.skip.Exception) as excinfo:
+        test_the_quota_bands_and_the_quota_line_are_identical_in_all_three_contracts()
+    assert "not checked out" in str(excinfo.value)

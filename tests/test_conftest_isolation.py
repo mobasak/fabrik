@@ -129,3 +129,61 @@ def test_the_suite_never_reads_the_operators_live_run_record(tmp_path) -> None:
     spec.loader.exec_module(cr)
     assert Path(cr._state_dir()).resolve() == Path(d).resolve()
     assert cr._session_id(None) == "pytest-isolated"
+
+
+def test_no_test_can_reach_the_real_opt_or_mail_a_real_repo(tmp_path_factory):
+    """A test must not be able to enumerate the real `/opt` — that is how a suite SENT REAL MAIL.
+
+    On 2026-09-16 a rotation grader drove `_cmd_tick()` into the fleet-exhausted branch with
+    fixture data; `_mailbox_repos()` walked the real `/opt` and `_drain_mail()` delivered roughly a
+    thousand "stop gracefully until 2027-01-22" notices into 49 live project mailboxes. The date
+    was the fixture's own `_usage_blob` weekly reset, mailed as fact.
+
+    Graded through the CONSUMER and through a FRESHLY LOADED module, because that is the load order
+    that beat the first fix: patching the import-time `OPT_DIR` constant left a module imported
+    during the test still bound to the real `/opt`. `_opt_dir()` reads `FABRIK_OPT_DIR` at call
+    time, so the pin holds whatever the order.
+    """
+    pinned = os.environ.get("FABRIK_OPT_DIR")
+    assert pinned, "FABRIK_OPT_DIR is unset inside a test — the conftest autouse pin is gone"
+    assert Path(pinned).resolve() != Path("/opt").resolve(), pinned
+    assert Path(pinned).resolve().is_relative_to(tmp_path_factory.getbasetemp().resolve()), pinned
+    cr = _load_rotate()
+    assert cr._opt_dir().resolve() == Path(pinned).resolve(), cr._opt_dir()
+    # the real /opt holds ~49 mailbox-bearing repos; the pinned one is empty, so a fleet-exhausted
+    # tick inside a test has nobody to mail
+    assert cr._mailbox_repos() == [], cr._mailbox_repos()
+    state = os.environ.get("ROTATE_STATE_DIR")
+    assert state, "ROTATE_STATE_DIR is unset inside a test — the same pin is gone"
+    assert Path(state).resolve().is_relative_to(tmp_path_factory.getbasetemp().resolve()), state
+    assert Path(state).resolve() != (Path.home() / ".claude" / "state").resolve()
+    # ⚠️ BOTH sinks, because the branch fires two and the first cut of this guard checked one. The
+    # Telegram notifier goes out BEFORE the mail, and `_drain_mail`'s SENDER was hardcoded, so the
+    # mailbox pin held only while the pinned dir happened to be empty — and populating it is the
+    # natural way to grade `_mailbox_repos()` positively.
+    assert (
+        cr._sound_script().resolve()
+        != (Path.home() / ".claude" / "bin" / "claude-sound.sh").resolve()
+    )
+    assert not cr._sound_script().is_file(), "a test must not be able to run the real notifier"
+    populated = Path(pinned) / "somerepo" / ".claude" / "hooks"
+    populated.mkdir(parents=True, exist_ok=True)
+    (populated / "mail_notify.py").write_text("", encoding="utf-8")
+    assert cr._mailbox_repos() == ["somerepo"], "the pinned opt dir is what gets enumerated"
+    sender = Path(str(cr._opt_dir())) / "fabrik" / "scripts" / "mail.py"
+    assert not sender.is_file(), "the mail SENDER must resolve inside the pin, not to the real one"
+    # ⚠️ THE THIRD SINK, and the only WRITE among them: the tick's flip leg `os.replace`s the
+    # `active` symlink under the fleet root, repointing which account every window on this box uses.
+    # Nothing pinned it, so containment rested on each fleet test remembering to — and on the day
+    # this was found the operator had to switch accounts by hand while off-cadence flip rows sat in
+    # the live ledger during this plan's own test runs.
+    root = os.environ.get("CLAUDE_FLEET_ROOT")
+    assert root, "CLAUDE_FLEET_ROOT is unset inside a test — the tick could repoint the live fleet"
+    assert Path(root).resolve() != (Path.home() / ".claude-fleet").resolve(), root
+    assert Path(root).resolve().is_relative_to(tmp_path_factory.getbasetemp().resolve()), root
+    assert cr._fleet_root().resolve() == Path(root).resolve(), cr._fleet_root()
+    assert cr._active_pointer_path().resolve().is_relative_to(Path(root).resolve())
+    settings = os.environ.get("QUOTA_POSTURE_SETTINGS")
+    assert settings and Path(settings).resolve().is_relative_to(
+        tmp_path_factory.getbasetemp().resolve()
+    ), settings

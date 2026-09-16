@@ -124,6 +124,58 @@ def _isolated_kaizen_events_dir(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _isolated_opt_dir(tmp_path, monkeypatch):
+    """`claude_rotate`'s `/opt` seam and its state dir, pinned for EVERY test — autouse, no opt-in.
+
+    ⚠️ This pin exists because a test SENT REAL MAIL. On 2026-09-16 a Phase B grader drove
+    `_cmd_tick()` into the fleet-exhausted branch with fixture data (a capped account with no
+    eligible successor — exactly the state that branch exists for). That branch calls
+    `_mailbox_repos()`, which enumerated the real `/opt` and
+    handed every repo it found to `_drain_mail()`. About a thousand "URGENT fleet quota — stop
+    gracefully" notices landed in 49 live project mailboxes (mailboxes holding one, inbox and archive together; 48 received one in the six hours before the sweep), ordering every repo on the box to stop
+    until 2027-01-22: the fixture's own `_usage_blob` weekly reset, mailed as fact.
+
+    The seam was always advertised ("so tests have ONE seam") and nothing pinned it, so the first
+    fixture to reach that branch walked straight out to production. `FABRIK_OPT_DIR` is read at
+    CALL time by `_opt_dir()`, so this pin holds whatever order the module is loaded in — patching
+    the old import-time module constant did NOT, because a module loaded during the test rebinds it
+    to the real `/opt` after this fixture has run, which is exactly what the probe in
+    `test_conftest_isolation.py` does.
+
+    `ROTATE_STATE_DIR` is pinned in the same fixture because that branch also writes the
+    `fleet-exhausted` stamp, the drain latch and the rotate ledger; a test must never be able to
+    latch — or silence — the operator's live fleet warning.
+    """
+    opt = tmp_path / "isolated-opt"
+    opt.mkdir(exist_ok=True)
+    state = tmp_path / "isolated-rotate-state"
+    state.mkdir(exist_ok=True)
+    monkeypatch.setenv("FABRIK_OPT_DIR", str(opt))
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    # ⚠️ The SECOND sink, and the one that fires FIRST: the fleet-exhausted branch calls
+    # `_tick_telegram` before `_drain_mail`, and the notifier is resolved from `Path.home()`, which
+    # nothing here pins. The first cut of this fixture closed only the mailbox half, leaving a test
+    # able to send the operator a Telegram carrying fixture text. `_tick_telegram` returns False for
+    # an absent notifier, so a path that does not exist is complete isolation — and the sound system
+    # itself is untouched, which it must be: it is production and read-only by standing rule.
+    monkeypatch.setenv("CLAUDE_SOUND_SH", str(tmp_path / "no-notifier-in-tests.sh"))
+    # ⚠️ THE THIRD SINK, and the only one that WRITES to the operator's live fleet. The tick's flip
+    # leg calls `_flip_active`, which `os.replace`s the `active` SYMLINK under `_fleet_root()` —
+    # repointing which account every window on this box uses. Containment rested entirely on each
+    # fleet test remembering to set this itself, which is the "a seam only a lucky fixture can pin
+    # is not a seam" shape that let a grader mail 49 live mailboxes on 2026-09-16. On that same day
+    # the operator reported having to switch accounts by hand while off-cadence flip rows appeared
+    # in the live ledger during this plan's test runs — consistent with exactly this hole.
+    fleet = tmp_path / "isolated-fleet"
+    fleet.mkdir(exist_ok=True)
+    monkeypatch.setenv("CLAUDE_FLEET_ROOT", str(fleet))
+    # and the settings list the installer and the tick's advisory walk, so neither reads the
+    # operator's real per-account files
+    monkeypatch.setenv("QUOTA_POSTURE_SETTINGS", str(tmp_path / "isolated-settings.json"))
+    yield opt
+
+
+@pytest.fixture(autouse=True)
 def _isolated_command_run_dir(tmp_path, monkeypatch):
     """The convergence and coverage graders read the SESSION'S OWN run record (T4.1/T4.5 —
     `CLAUDE_SESSION_ID` or the harness's `CLAUDE_CODE_SESSION_ID`, under `COMMAND_RUN_DIR` or the

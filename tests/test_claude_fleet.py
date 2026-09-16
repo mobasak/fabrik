@@ -1003,11 +1003,29 @@ def _fake_oauth(monkeypatch, profiles=None, usages=None):
     return calls
 
 
-def _usage_blob(session=42.0, weekly=31.0):
-    return {
-        "five_hour": {"utilization": session, "resets_at": "2027-01-20T00:00:00+00:00"},
-        "seven_day": {"utilization": weekly, "resets_at": "2027-01-22T00:00:00+00:00"},
+def _usage_blob(
+    session=42.0,
+    weekly=31.0,
+    fable=None,
+    session_reset="2027-01-20T00:00:00+00:00",
+    weekly_reset="2027-01-22T00:00:00+00:00",
+):
+    """The usage endpoint's shape. ``fable`` adds the Fable weekly-scoped limit exactly as
+    ``_usage_windows`` parses it (``limits[].kind == "weekly_scoped"``, ``scope.model.display_name``)."""
+    blob = {
+        "five_hour": {"utilization": session, "resets_at": session_reset},
+        "seven_day": {"utilization": weekly, "resets_at": weekly_reset},
     }
+    if fable is not None:
+        blob["limits"] = [
+            {
+                "kind": "weekly_scoped",
+                "scope": {"model": {"display_name": "Fable"}},
+                "percent": fable,
+                "resets_at": "2027-01-23T00:00:00+00:00",
+            }
+        ]
+    return blob
 
 
 def _fleet_two_accounts(tmp_path, monkeypatch):
@@ -1430,6 +1448,9 @@ def test_tick_telegram_reports_delivery_from_the_notifier_artifact(tmp_path, mon
     monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(locks))
     assert cr._tick_telegram("x") is False, "no notifier at all"
     script = tmp_path / ".claude" / "bin" / "claude-sound.sh"
+    # the autouse pin points CLAUDE_SOUND_SH at a path that does not exist; a test that
+    # wants a real notifier names its own, which is what the pin's composability is for
+    monkeypatch.setenv("CLAUDE_SOUND_SH", str(script))
     script.parent.mkdir(parents=True)
     script.write_text("#!/bin/bash\nexit 0\n")
     assert cr._tick_telegram("x") is False, "exit 0 without the artifact is NOT delivery"
@@ -1455,6 +1476,9 @@ def test_tick_telegram_reads_both_artifact_epochs_against_one_clock(tmp_path, mo
     locks.mkdir()
     monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(locks))
     script = tmp_path / ".claude" / "bin" / "claude-sound.sh"
+    # the autouse pin points CLAUDE_SOUND_SH at a path that does not exist; a test that
+    # wants a real notifier names its own, which is what the pin's composability is for
+    monkeypatch.setenv("CLAUDE_SOUND_SH", str(script))
     script.parent.mkdir(parents=True)
     script.write_text("#!/bin/bash\nexit 0\n")
     clock = iter([FLEET_NOW] + [FLEET_NOW + 10.0] * 8)
@@ -1483,6 +1507,9 @@ def test_tick_telegram_never_raises_on_an_unencodable_message(tmp_path, monkeypa
     locks.mkdir()
     monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(locks))
     script = tmp_path / ".claude" / "bin" / "claude-sound.sh"
+    # the autouse pin points CLAUDE_SOUND_SH at a path that does not exist; a test that
+    # wants a real notifier names its own, which is what the pin's composability is for
+    monkeypatch.setenv("CLAUDE_SOUND_SH", str(script))
     script.parent.mkdir(parents=True)
     script.write_text(
         '#!/bin/bash\nprintf "%s" "$4" > "$CLAUDE_SOUND_LOCKDIR/seen.txt"\n'
@@ -1530,6 +1557,12 @@ def test_drain_mail_never_raises_on_an_unencodable_message(monkeypatch):
         broken = True
 
     monkeypatch.setattr(cr.subprocess, "Popen", FakeProc)
+    # `_drain_mail` resolves its SENDER through `_opt_dir()` now, not a hardcoded
+    # /opt/fabrik/scripts/mail.py, so that one pin closes delivery as well as enumeration. A test
+    # that wants the send attempted builds the sender inside its own pinned opt dir.
+    sender = Path(str(cr._opt_dir())) / "fabrik" / "scripts" / "mail.py"
+    sender.parent.mkdir(parents=True, exist_ok=True)
+    sender.write_text("", encoding="utf-8")
     cr._drain_mail(["repo-a", "repo-b"], "fleet \ud800 exhausted")
     assert len(procs) == 2, "every repo attempted"
     for proc in procs:
@@ -1684,6 +1717,9 @@ def test_chain_push_names_the_notifier_verdict_it_can_know(tmp_path, monkeypatch
     assert cr._chain_expiry_push([row], FLEET_NOW) == 0
     assert "unavailable" in capsys.readouterr().out
     script = tmp_path / ".claude" / "bin" / "claude-sound.sh"
+    # the autouse pin points CLAUDE_SOUND_SH at a path that does not exist; a test that
+    # wants a real notifier names its own, which is what the pin's composability is for
+    monkeypatch.setenv("CLAUDE_SOUND_SH", str(script))
     script.parent.mkdir(parents=True)
     script.write_text("#!/bin/bash\nexit 0\n")  # runs, delivers nothing
     assert cr._chain_expiry_push([row], FLEET_NOW) == 0
@@ -1820,6 +1856,9 @@ def test_notify_failure_reason_names_every_cause_it_cannot_tell_apart(tmp_path, 
     key = "quota-rotation-chain-abcdef12"
     assert "unavailable" in cr._notify_failure_reason()
     script = tmp_path / ".claude" / "bin" / "claude-sound.sh"
+    # the autouse pin points CLAUDE_SOUND_SH at a path that does not exist; a test that
+    # wants a real notifier names its own, which is what the pin's composability is for
+    monkeypatch.setenv("CLAUDE_SOUND_SH", str(script))
     script.parent.mkdir(parents=True)
     script.write_text("#!/bin/bash\nexit 0\n")
     for content in (str(int(FLEET_NOW - 600)), str(int(FLEET_NOW + 600)), "garbage", ""):
@@ -4517,3 +4556,421 @@ def test_the_tick_row_still_writes_when_the_weekly_window_is_absent(tmp_path, mo
     t = ticks[0]
     assert "weekly_pct" not in t, f"an absent window omits the key, never invents a 0.0: {t}"
     assert t.get("pct") == 42.0, f"the session reading is unaffected by the weekly guard: {t}"
+
+
+# ── D-269: the quota posture — the tick writes it, --status shows it ─────────────────────────────
+
+
+def _posture_path(tmp_path):
+    return tmp_path / "state" / "quota-posture.json"
+
+
+def _posture_fixture(tmp_path, monkeypatch, seo=(42.0, 50.0), intel=(10.0, 20.0), **blob_kw):
+    """Two live accounts, both freshly probed on every tick (a <8h token re-probes). Returns
+    (fleet, rows_captured_by_ledger_append)."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fake_oauth(
+        monkeypatch,
+        usages={
+            "tok-seo": _usage_blob(*seo, **blob_kw),
+            "tok-intel": _usage_blob(*intel, **blob_kw),
+        },
+    )
+    rows: list[dict] = []
+    monkeypatch.setattr(cr, "_ledger_append", rows.append)
+    return fleet, rows
+
+
+def _tick_row(rows):
+    ticks = [r for r in rows if r.get("event") == "tick"]
+    assert len(ticks) == 1, ticks
+    return ticks[0]
+
+
+def test_the_fleet_tick_writes_the_quota_posture_file_atomically(tmp_path, monkeypatch):
+    """B1 — one file per tick, atomic, describing the ACTIVE account the ledger row names."""
+    _fleet, rows = _posture_fixture(tmp_path, monkeypatch)
+    # the test's NAME claims atomic, so record the mechanism rather than only the absence of
+    # litter: a direct `p.write_text(...)` regression leaves the file present and no .tmp
+    # behind, and would pass every assertion below (review round 1, seat 3)
+    replaced: list[tuple[str, str]] = []
+    _real_replace = os.replace
+
+    def _spy(src, dst, *a, **kw):
+        replaced.append((str(src), str(dst)))
+        return _real_replace(src, dst, *a, **kw)
+
+    monkeypatch.setattr(cr.os, "replace", _spy)
+    assert cr._cmd_tick() == 0
+    p = _posture_path(tmp_path)
+    assert p.exists() and not p.with_name(p.name + ".tmp").exists()
+    posture_writes = [(s, d) for s, d in replaced if Path(d) == p]
+    assert posture_writes, f"the posture was written without os.replace: {replaced}"
+    src, dst = posture_writes[-1]
+    assert Path(src).parent == p.parent, (src, dst)
+    posture = json.loads(p.read_text())
+    t = _tick_row(rows)
+    assert posture["schema"] == 1 and abs(posture["ts"] - FLEET_NOW) <= 5.0
+    assert posture["active"]["email"] == t["account"]
+    assert posture["active"]["windows"]["five_hour"]["utilization"] == t["pct"]
+    assert posture["active"]["windows"]["seven_day"]["utilization"] == t["weekly_pct"]
+    assert posture["fleet"]["thresholds"] == {"trip": 98.0, "drain_band": 85.0, "urgent": 90.0}
+
+
+def test_posture_burn_is_null_on_the_first_sample_and_positive_on_the_second(tmp_path, monkeypatch):
+    """B2 — the smoothed burn needs two samples of the same window 300 s apart; the second file
+    forecasts the wall from it."""
+    _fleet, rows = _posture_fixture(tmp_path, monkeypatch)
+    assert cr._cmd_tick() == 0
+    first = json.loads(_posture_path(tmp_path).read_text())
+    assert first["active"]["windows"]["five_hour"]["burn_per_min"] is None
+    active = first["active"]["email"]
+    tok = "tok-seo" if "sarp" in active else "tok-intel"
+    other = "tok-intel" if tok == "tok-seo" else "tok-seo"
+    base_s, base_w = (
+        first["active"]["windows"]["five_hour"]["utilization"],
+        first["active"]["windows"]["seven_day"]["utilization"],
+    )
+    _fake_oauth(
+        monkeypatch,
+        usages={tok: _usage_blob(base_s + 3.0, base_w), other: _usage_blob(10.0, 20.0)},
+    )
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW + 300.0)
+    assert cr._cmd_tick() == 0
+    second = json.loads(_posture_path(tmp_path).read_text())
+    fh, wk = second["active"]["windows"]["five_hour"], second["active"]["windows"]["seven_day"]
+    assert second["active"]["email"] == active
+    assert abs(fh["burn_per_min"] - 0.6) < 1e-9, fh
+    assert abs(fh["minutes_to_wall"] - (100.0 - (base_s + 3.0)) / 0.6) < 1e-6, fh
+    assert fh["verdict"] == "wall_first", fh  # the fixture's reset is months away
+    assert (
+        wk["burn_per_min"] == 0.0
+        and wk["minutes_to_wall"] is None
+        and wk["verdict"] == "reset_first"
+    ), wk
+
+
+def test_posture_burn_restarts_when_the_window_reset_epoch_moves(tmp_path, monkeypatch):
+    """B3 — a moved reset epoch is a NEW window: no burn until it has two samples of its own."""
+    _fleet, rows = _posture_fixture(tmp_path, monkeypatch)
+    assert cr._cmd_tick() == 0
+    first = json.loads(_posture_path(tmp_path).read_text())
+    active = first["active"]["email"]
+    tok = "tok-seo" if "sarp" in active else "tok-intel"
+    other = "tok-intel" if tok == "tok-seo" else "tok-seo"
+    _fake_oauth(
+        monkeypatch,
+        usages={
+            tok: _usage_blob(60.0, 50.0, session_reset="2027-01-21T00:00:00+00:00"),
+            other: _usage_blob(10.0, 20.0),
+        },
+    )
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW + 300.0)
+    assert cr._cmd_tick() == 0
+    second = json.loads(_posture_path(tmp_path).read_text())
+    assert second["active"]["windows"]["five_hour"]["burn_per_min"] is None
+
+
+def test_posture_samples_ring_is_bounded_and_per_email(tmp_path, monkeypatch):
+    """B4 — at most 8 kept samples (the 35-minute window at the 5-minute cadence); a new active
+    email starts with one sample and no burn."""
+    _fleet, rows = _posture_fixture(tmp_path, monkeypatch)
+    for i in range(12):
+        monkeypatch.setattr(cr, "_now", lambda i=i: FLEET_NOW + 300.0 * i)
+        assert cr._cmd_tick() == 0
+    posture = json.loads(_posture_path(tmp_path).read_text())
+    active = posture["active"]["email"]
+    assert list(posture["samples"]) == [active]
+    assert 2 <= len(posture["samples"][active]) <= cr._RING_LEN == 8
+    # a flip: the same prev ring, a picture whose active is the OTHER account
+    rows_now, _ = cr._fleet_account_rows(cr._fleet_dirs(), allow_pings=False)
+    other_row = next(r for r in rows_now if r["email"] != active)
+    pic = cr._fleet_picture(rows_now, other_row["slugs"][0], FLEET_NOW + 300.0 * 12)
+    flipped = cr._quota_posture(rows_now, pic, FLEET_NOW + 300.0 * 12, posture, hold=False)
+    assert list(flipped["samples"]) == [other_row["email"]]
+    assert len(flipped["samples"][other_row["email"]]) == 1
+    assert flipped["active"]["windows"]["five_hour"]["burn_per_min"] is None
+
+
+def test_posture_ring_length_is_derived_from_the_window_and_cadence():
+    """B13 — one constant moves on a cadence change, and the identity is graded."""
+    assert cr._RING_LEN == int(cr._RING_WINDOW_S // cr._TICK_PERIOD_S) + 1 == 8
+
+
+@pytest.mark.parametrize(
+    ("session", "weekly", "expect"),
+    [
+        (84.9, 10.0, "GREEN"),
+        (85.0, 10.0, "AMBER"),
+        (10.0, 89.9, "AMBER"),
+        (10.0, 90.0, "RED"),
+        (0.0, 0.0, "GREEN"),
+    ],
+)
+def test_posture_band_follows_the_hottest_window_and_the_hold(
+    tmp_path, monkeypatch, session, weekly, expect
+):
+    """B5 — the raw D-265 line on the hottest of the two windows; WALL on the hold; null on no reading."""
+    _fleet, rows = _posture_fixture(tmp_path, monkeypatch)
+    assert cr._cmd_tick() == 0
+    rows_now, _ = cr._fleet_account_rows(cr._fleet_dirs(), allow_pings=False)
+    active = json.loads(_posture_path(tmp_path).read_text())["active"]["email"]
+    row = next(r for r in rows_now if r["email"] == active)
+    row["five_hour"]["utilization"], row["seven_day"]["utilization"] = session, weekly
+    pic = cr._fleet_picture(rows_now, row["slugs"][0], FLEET_NOW)
+    got = cr._quota_posture(rows_now, pic, FLEET_NOW, None, hold=False)
+    assert got["active"]["band"] == expect and got["active"]["band_fable"] == expect, got["active"]
+    assert cr._quota_posture(rows_now, pic, FLEET_NOW, None, hold=True)["active"]["band"] == "WALL"
+    row["five_hour"], row["seven_day"] = None, None
+    pic2 = cr._fleet_picture(rows_now, row["slugs"][0], FLEET_NOW)
+    blank = cr._quota_posture(rows_now, pic2, FLEET_NOW, None, hold=False)
+    assert blank["active"]["band"] is None and blank["active"]["hottest"] is None
+    assert blank["active"]["windows"]["five_hour"]["utilization"] is None
+
+
+def test_posture_is_still_written_when_the_active_account_has_no_reading(tmp_path, monkeypatch):
+    """B5 (the file half) — no reading ⇒ band null, and the file exists anyway (the hook then
+    prints `band ?`, never nothing)."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fake_oauth(monkeypatch, usages={})  # the endpoint answers nothing for every token
+    assert cr._cmd_tick() == 0
+    posture = json.loads(_posture_path(tmp_path).read_text())
+    assert posture["schema"] == 1 and posture["active"]["band"] is None
+
+
+def test_posture_carries_the_fable_window_and_keys_band_fable_on_it(tmp_path, monkeypatch):
+    """B6 — the Fable weekly-scoped window rides the posture; band_fable includes it, band does not."""
+    _fleet, rows = _posture_fixture(tmp_path, monkeypatch, fable=32.0)
+    assert cr._cmd_tick() == 0
+    p = json.loads(_posture_path(tmp_path).read_text())["active"]
+    assert p["windows"]["fable"]["utilization"] == 32.0 and "Fable" in p["windows"]["models"]
+    assert p["band"] == "GREEN" and p["band_fable"] == "GREEN"
+    rows_now, _ = cr._fleet_account_rows(cr._fleet_dirs(), allow_pings=False)
+    row = next(r for r in rows_now if r["email"] == p["email"])
+    row["model_windows"]["Fable"]["utilization"] = 91.0
+    pic = cr._fleet_picture(rows_now, row["slugs"][0], FLEET_NOW)
+    hot = cr._quota_posture(rows_now, pic, FLEET_NOW, None, hold=False)["active"]
+    assert (
+        hot["band"] == "GREEN" and hot["band_fable"] == "RED" and hot["hottest_fable"] == "fable"
+    ), hot
+    row.pop("model_windows", None)
+    pic = cr._fleet_picture(rows_now, row["slugs"][0], FLEET_NOW)
+    none = cr._quota_posture(rows_now, pic, FLEET_NOW, None, hold=False)["active"]
+    assert none["windows"]["fable"] is None and none["band_fable"] == none["band"]
+
+
+def test_the_fleet_tick_ledgers_the_fable_reading_beside_the_weekly_one(tmp_path, monkeypatch):
+    """B11 — `fable_pct` on the tick row, same guard and write condition as `weekly_pct`."""
+    _fleet, rows = _posture_fixture(tmp_path, monkeypatch, fable=32.0)
+    assert cr._cmd_tick() == 0
+    assert _tick_row(rows)["fable_pct"] == 32.0
+    _fleet2, rows2 = _posture_fixture(tmp_path / "b", monkeypatch)
+    assert cr._cmd_tick() == 0
+    t = _tick_row(rows2)
+    assert "fable_pct" not in t and "weekly_pct" in t
+
+
+def test_posture_weekly_wall_is_the_caps_json_cap(tmp_path, monkeypatch):
+    """B7 — the weekly wall is the operator's cap when one exists."""
+    fleet, rows = _posture_fixture(tmp_path, monkeypatch)
+    _caps(fleet, {"sarp@ocoron.com": 95, "ob@ocoron.com": 95})
+    assert cr._cmd_tick() == 0
+    p = json.loads(_posture_path(tmp_path).read_text())["active"]
+    assert p["weekly_cap"] == 95.0 and p["windows"]["seven_day"]["wall_pct"] == 95.0
+    assert p["windows"]["five_hour"]["wall_pct"] == 100.0
+
+
+def test_posture_forecast_reaches_the_wall_at_the_weekly_cap(tmp_path, monkeypatch, capsys):
+    """B12 — both accounts cap-walled (no successor, so the flip leg leaves the pointer): the
+    posture names the capped account, the band stays the raw line (GREEN at 80), the forecast says
+    the wall is reached; the NEXT tick reads WALL because the advisory stamped."""
+    fleet, rows = _posture_fixture(tmp_path, monkeypatch, seo=(10.0, 80.0), intel=(10.0, 80.0))
+    _caps(fleet, {"sarp@ocoron.com": 80, "ob@ocoron.com": 80})
+    assert cr._cmd_tick() == 0
+    p = json.loads(_posture_path(tmp_path).read_text())["active"]
+    wk = p["windows"]["seven_day"]
+    assert p["band"] == "GREEN" and wk["wall_pct"] == 80.0
+    assert (
+        wk["minutes_to_wall"] == 0.0
+        and wk["verdict"] == "wall_first"
+        and wk["burn_per_min"] is None
+    )
+    assert cr._fmt_forecast(wk) == "wall in ~0m at —%/m"
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW + 300.0)
+    assert cr._cmd_tick() == 0
+    second = json.loads(_posture_path(tmp_path).read_text())["active"]
+    assert second["band"] == "WALL", second
+
+
+def test_posture_successor_is_the_first_eligible_after_the_active(tmp_path, monkeypatch):
+    """The successor is the first ELIGIBLE row after the active in the picker's queue; a row with
+    no slug is skipped (skip-and-continue); none ⇒ null."""
+    _fleet, rows = _posture_fixture(tmp_path, monkeypatch)
+    assert cr._cmd_tick() == 0
+    posture = json.loads(_posture_path(tmp_path).read_text())
+    active = posture["active"]["email"]
+    rows_now, _ = cr._fleet_account_rows(cr._fleet_dirs(), allow_pings=False)
+    other = next(r for r in rows_now if r["email"] != active)
+    assert posture["fleet"]["successor"] == {"email": other["email"], "slug": other["slugs"][0]}
+    # two eligible siblings, the first with no slug → the second is the successor
+    ghost = json.loads(json.dumps(other))
+    ghost["email"], ghost["slugs"] = "ghost@ocoron.com", []
+    rows_plus = rows_now + [ghost]
+    active_row = next(r for r in rows_now if r["email"] == active)
+    pic = cr._fleet_picture(rows_plus, active_row["slugs"][0], FLEET_NOW)
+    queue = pic["queue"]
+    assert active in queue and "ghost@ocoron.com" in queue
+    got = cr._quota_posture(rows_plus, pic, FLEET_NOW, None, hold=False)["fleet"]["successor"]
+    assert got is not None and got["email"] != "ghost@ocoron.com" and got["slug"], got
+    # the only eligible sibling has no slug → null
+    lone = [active_row, ghost]
+    pic2 = cr._fleet_picture(lone, active_row["slugs"][0], FLEET_NOW)
+    assert cr._quota_posture(lone, pic2, FLEET_NOW, None, hold=False)["fleet"]["successor"] is None
+    # no eligible sibling at all → null
+    pic3 = cr._fleet_picture([active_row], active_row["slugs"][0], FLEET_NOW)
+    assert (
+        cr._quota_posture([active_row], pic3, FLEET_NOW, None, hold=False)["fleet"]["successor"]
+        is None
+    )
+
+
+def test_posture_write_failure_never_takes_the_tick_down(tmp_path, monkeypatch, capsys):
+    """B8 — the ledger's own tolerance: an unwritable state dir costs a file, never the tick."""
+    _fleet, rows = _posture_fixture(tmp_path, monkeypatch)
+    state = tmp_path / "state"
+    state.mkdir(exist_ok=True)
+    state.chmod(0o500)
+    try:
+        assert cr._cmd_tick() == 0
+    finally:
+        state.chmod(0o700)
+    assert "Traceback" not in capsys.readouterr().out
+    assert not _posture_path(tmp_path).exists()
+
+
+def test_status_json_carries_the_posture_and_status_text_prints_one_posture_line(
+    tmp_path, monkeypatch, capsys
+):
+    """B9 — `--status --json` carries the file; the text board prints ONE `posture:` line."""
+    _fleet, rows = _posture_fixture(tmp_path, monkeypatch)
+    capsys.readouterr()
+    assert cr.main(["--status"]) == 0
+    before = [ln for ln in capsys.readouterr().out.splitlines() if ln.startswith("posture:")]
+    assert before == ["posture: none written yet"], before
+    assert cr._cmd_tick() == 0
+    capsys.readouterr()
+    assert cr.main(["--status", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["posture"]["schema"] == 1
+    assert cr.main(["--status"]) == 0
+    lines = [ln for ln in capsys.readouterr().out.splitlines() if ln.startswith("posture:")]
+    assert len(lines) == 1 and " · 5h " in lines[0] and "written 0m ago" in lines[0], lines
+
+
+# --- review round 1: the guards seat 1's confirmed findings owe (Phase B, D-269) ----------------
+
+
+def test_posture_staging_file_is_per_process(tmp_path, monkeypatch):
+    """B14 — the staging path carries the pid, so two overlapping ticks cannot tear each other.
+
+    `os.replace` makes the PUBLISH atomic and says nothing about the STAGING: with one shared
+    `<file>.tmp` the seat measured 3,471 of 4,000 concurrent reads unparseable. A real fork race is
+    flaky as a grader, so this asserts the PROPERTY that makes the race impossible — the name the
+    writer actually stages through — which a revert to `p.name + ".tmp"` fails immediately.
+    """
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
+    (tmp_path / "state").mkdir(parents=True, exist_ok=True)
+    staged: list[str] = []
+    _real = os.replace
+
+    def _spy(src, dst, *a, **kw):
+        staged.append(str(src))
+        return _real(src, dst, *a, **kw)
+
+    monkeypatch.setattr(cr.os, "replace", _spy)
+    cr._write_quota_posture({"schema": 1, "ts": FLEET_NOW})
+    assert staged, "the posture was published without os.replace"
+    assert str(os.getpid()) in Path(staged[-1]).name, staged
+    assert not list((tmp_path / "state").glob("*.tmp")), "the staging file outlived the publish"
+
+
+def test_posture_write_failure_is_raised_not_swallowed(tmp_path, monkeypatch):
+    """B15 — a failing write raises, so the tick's own handler prints one line.
+
+    The inner `except: pass` froze the posture silently until some reader's staleness bound
+    noticed, contradicting the call site's own "never silent, never fatal" comment.
+    """
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "nope"))
+
+    def _boom(*_a, **_k):
+        raise OSError("read-only state dir")
+
+    monkeypatch.setattr(Path, "write_text", _boom)
+    with pytest.raises(OSError):
+        cr._write_quota_posture({"schema": 1, "ts": FLEET_NOW})
+
+
+def test_posture_a_past_reset_never_wins_the_forecast(monkeypatch):
+    """B16 — a reset epoch already in the past is stale data, not a reset that "came first".
+
+    Clamped to 0.0 it won every tie, so an account burning 5%/min ten minutes from its wall was
+    told `reset in 0:00` — the calmest possible line at the hottest possible moment.
+    """
+    now = FLEET_NOW
+    past = cr._forecast(50.0, now - 3600.0, 100.0, 5.0, now)
+    assert past["verdict"] == "wall_first" and past["minutes_to_wall"] == 10.0
+    assert past["minutes_to_reset"] == 0.0  # still clamped for DISPLAY
+    future = cr._forecast(50.0, now + 300.0, 100.0, 5.0, now)
+    assert future["verdict"] == "reset_first" and future["minutes_to_reset"] == 5.0
+    # the exact tie still goes to the reset, which is the calmer and the correct reading
+    tie = cr._forecast(50.0, now + 600.0, 100.0, 5.0, now)
+    assert tie["verdict"] == "reset_first"
+
+
+def test_posture_a_non_finite_file_reads_as_absent(tmp_path, monkeypatch):
+    """B18 — a posture file holding a bare NaN is ABSENT, not a reading.
+
+    `_window_reading` drops non-finite at the ROW, and Python's `json` re-admitted it at the FILE:
+    `json.loads` accepts a bare `NaN`, `int(nan)` then raised out of `_fmt_forecast`, and
+    `_cmd_status` calls that renderer unguarded — so one poisoned file took down the command the
+    contract names as the authority. A NaN carried forward in the sample ring was worse than a
+    crash: `max(0.0, nan)` is `0.0`, so the burn read "no burn" at the hottest possible moment.
+    """
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path))
+    cr._posture_path().write_text('{"schema": 1, "ts": NaN}', encoding="utf-8")
+    assert cr._read_quota_posture() is None, "a non-finite posture must read as absent"
+    cr._posture_path().write_text(
+        '{"schema": 1, "ts": 1.0, "active": {"windows": {"five_hour": {"utilization": Infinity}}}}',
+        encoding="utf-8",
+    )
+    assert cr._read_quota_posture() is None
+    # and the renderer the status path calls is reached with None, which it handles
+    assert (
+        cr._posture_status_line(cr._read_quota_posture(), FLEET_NOW) == "posture: none written yet"
+    )
+
+
+def test_posture_a_non_finite_reading_is_no_reading(monkeypatch):
+    """B17 — NaN and infinity are dropped at the reader, so no band and no renderer ever sees one.
+
+    NaN compares False against every threshold, so it banded GREEN — the hottest possible reading
+    presented as the safest — and `int(nan)` crashed `--status`, the contract's named authority.
+    """
+    for bad in (float("nan"), float("inf"), float("-inf")):
+        u, r = cr._window_reading({"utilization": bad, "resets_at_epoch": bad})
+        assert u is None and r is None, bad
+        assert cr._band_of(u, False, 85.0, 90.0) is None
+    # ⚠️ and the RENDERER survives a window that already holds one, which is the crash that took
+    # `--status` down: `int(nan)` raised out of `_fmt_forecast`. A window built from None returns
+    # "—" with or without the fix, so asserting THAT proved nothing (review round 1, seat 1).
+    poisoned = {
+        "utilization": float("nan"),
+        "verdict": "wall_first",
+        "minutes_to_wall": float("nan"),
+        "burn_per_min": float("nan"),
+    }
+    assert cr._fmt_forecast(poisoned) == "no burn"

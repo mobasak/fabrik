@@ -87,7 +87,23 @@ except ValueError:
 HEAVY_GB_PER_SEAT = 2.0
 LIGHT_GB_PER_SEAT = 1.0
 ROTATE = Path(__file__).resolve().parent / "claude_rotate.py"
-RUNS_DIR = Path.home() / ".claude" / "state" / "command-runs"
+
+
+def _runs_dir() -> Path:
+    """The run-record dir, resolved AT CALL TIME from ``COMMAND_RUN_DIR`` — the key `command_run.py`
+    and `tests/conftest.py` already use.
+
+    ⚠️ It was a module constant bound to `Path.home()` at import, which no fixture could pin, so a
+    suite run inside a live Claude session read the OPERATOR'S REAL seat reservations and sized its
+    budget against them. Read-only, so the blast radius was smaller than the `/opt` constant of the
+    same shape that let a grader mail 49 live project mailboxes on 2026-09-16 — but it is the same
+    defect, and the conftest pin that closes it was already there and simply unread.
+    Pre-existing: introduced by 1b9714166 (D-189), not by the quota-posture plan.
+    """
+    raw = os.environ.get("COMMAND_RUN_DIR")
+    return Path(raw) if raw else Path.home() / ".claude" / "state" / "command-runs"
+
+
 # a sibling's run record counts as LIVE for this purpose when it is `running` and was touched
 # within this window — an abandoned record (the Stop hook's stale bound is 12 h) must not hold
 # the box hostage
@@ -160,6 +176,45 @@ def box() -> dict:
     return out
 
 
+# ⚠️ `QUOTA_POSTURE_STALE_S` is read here, in `scripts/sysadmin/quota_posture_hook.py` and nowhere
+# else. Three readers, ONE env key and one default: a second hardcoded 900 is how two readers come
+# to disagree about whether the same file is stale. `tests/test_dispatch_headroom.py` asserts this
+# function and the hook's agree on the same inputs.
+_POSTURE_STALE_S_DEFAULT = 900.0
+
+
+def _posture_stale_s() -> float:
+    raw = os.environ.get("QUOTA_POSTURE_STALE_S")
+    if not raw:
+        return _POSTURE_STALE_S_DEFAULT
+    try:
+        v = float(raw)
+    except (TypeError, ValueError):
+        return _POSTURE_STALE_S_DEFAULT
+    return v if math.isfinite(v) and v > 0 else _POSTURE_STALE_S_DEFAULT
+
+
+def _fresh_posture(posture: object) -> dict | None:
+    """The posture when it is a dict with a finite `ts` inside the staleness bound, else None."""
+    if not isinstance(posture, dict):
+        return None
+    ts = posture.get("ts")
+    if not (isinstance(ts, (int, float)) and not isinstance(ts, bool) and math.isfinite(ts)):
+        return None
+    age = time.time() - float(ts)
+    return posture if age <= _posture_stale_s() else None
+
+
+def _posture_hot(act: dict) -> float | None:
+    """The hottest reading the posture itself names, never a re-derivation from its windows."""
+    wins = act.get("windows") if isinstance(act.get("windows"), dict) else {}
+    hot_key = act.get("hottest")
+    w = wins.get(hot_key) if isinstance(hot_key, str) else None
+    u = w.get("utilization") if isinstance(w, dict) else None
+    ok = isinstance(u, (int, float)) and not isinstance(u, bool) and math.isfinite(u)
+    return float(u) if ok else None
+
+
 def quota() -> dict:
     """The active account's hottest window + eligible-standby count, via claude_rotate.py. The
     drain band is read from the picture, not re-hardcoded, so the two cannot drift."""
@@ -171,10 +226,13 @@ def quota() -> dict:
             timeout=60,
             check=True,
         ).stdout
-        pic = json.loads(raw).get("picture") or {}
+        payload = json.loads(raw)
+        pic = payload.get("picture") or {}
+        posture = payload.get("posture")
         accounts = pic.get("accounts") or []
         active = pic.get("active")
-        act = next((a for a in accounts if a.get("email") == active), None)
+        act_row = next((a for a in accounts if a.get("email") == active), None)
+        act = act_row
         # a reading of None is UNKNOWN, never 0 % — `or 0` priced an active account with no
         # reading as cool and set no quota cap at all (round-5 finding)
         vals = (
@@ -197,7 +255,7 @@ def quota() -> dict:
             1 for a in accounts if a.get("state") == "eligible" and a.get("in_drain_band") is False
         )
         band = float((pic.get("thresholds") or {}).get("drain_band") or 85.0)
-        return {
+        out = {
             "ok": True,
             "active": active,
             "hottest_pct": hottest,
@@ -207,6 +265,33 @@ def quota() -> dict:
             "hold": bool(pic.get("hold")),
             "drain_band": band,
         }
+        # ⚠️ The posture WINS when it is fresh, and that is the point: the seat budget and the
+        # `QUOTA:` line every prompt carries must never name two different bands for one box. The
+        # posture's band is computed from the same thresholds by the tick that took the reading, so
+        # preferring it removes a second derivation rather than adding one. A stale or absent
+        # posture changes nothing — the picture's values stand, which is today's behaviour.
+        fresh = _fresh_posture(posture)
+        act = fresh.get("active") if isinstance((fresh or {}).get("active"), dict) else {}
+        # ⚠️ WHOSE posture is it? The posture is keyed by SLUG and the picture by EMAIL, and nothing
+        # compared them until now. Right after a flip the previous tick's posture is still inside the
+        # staleness window, so a fresh-but-stale-pointer posture could hand the seat budget a band
+        # for the account we just LEFT — measured in both directions, and the dangerous one is
+        # fail-open: the picture's active account at 96% reported GREEN, which would license a heavy
+        # fan-out on a hot account. A posture about someone else is no better than no posture, so it
+        # is treated as none and the picture's own values stand.
+        # the membership test is type-guarded: were `slugs` ever a STRING, `in` would be a
+        # SUBSTRING test and a posture for `ob` would match a row listing `sarp-ob-x`
+        slugs = (act_row or {}).get("slugs")
+        same_account = bool(act.get("slug")) and act["slug"] in (
+            slugs if isinstance(slugs, list) else []
+        )
+        if fresh is not None and same_account:
+            hot = _posture_hot(act)
+            if hot is not None:
+                out["hottest_pct"] = hot
+            if isinstance(act.get("band"), str):
+                out["band"] = act["band"]
+        return out
     except Exception as exc:  # noqa: BLE001 — a malformed picture (a row that is not a dict, a
         # list where a dict was promised) crashed the CLI through main() (round-5 finding);
         # every probe fails SOFT to the floor and says why
@@ -252,7 +337,7 @@ def own_session_id() -> tuple[str, str]:
 
 
 def siblings(
-    now: float | None = None, runs_dir: Path = RUNS_DIR, exclude_sid: str | None = None
+    now: float | None = None, runs_dir: Path | None = None, exclude_sid: str | None = None
 ) -> dict:
     """Seats OTHER live sessions on this box have dispatched — each running record's DISPATCH
     stamp is the reservation; a record with no stamp falls back to its last round's `seats`, dated
@@ -275,6 +360,7 @@ def siblings(
         "excluded_own": False,
         "own_source": own_source,
     }
+    runs_dir = _runs_dir() if runs_dir is None else runs_dir
     try:
         for p in runs_dir.glob("*.json"):
             if own_stem and p.stem == own_stem:

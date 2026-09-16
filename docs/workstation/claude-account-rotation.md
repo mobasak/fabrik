@@ -220,6 +220,23 @@ python3 scripts/sysadmin/claude_rotate.py --status [--json]
   lapse (`_CHAIN_EXPIRY_WARN_S`) · carrier problems · occupancy · identity mismatch.
 - `--json` carries `active`, `weekly_cap`/`cap_walled` per row, `pause`, and `fleet_warnings`.
 
+**The `posture:` line and the posture file (2026-09-16, D-269).** Under `last flip:` the board prints ONE
+more line — `posture: <band> · 5h <n>% <forecast> · weekly <n>% <forecast> · Fable <n>% · burn 5h <n>%/m ·
+written <m>m ago` — read from `~/.claude/state/quota-posture.json` (`_posture_path()`), which the rotation tick
+writes atomically (tmp + `os.replace`) every cycle for the account the pointer names AFTER its flip leg ran:
+`schema` 1, `ts`, `active.slug`, and per window (`five_hour`, `seven_day`, `fable` when the probe reports a
+`weekly_scoped` limit) the `utilization`, `resets_at`, `wall_pct` (100, or the `caps.json` cap for the weekly),
+`burn_per_min` (a smoothed rate over the last ~35 minutes of tick samples, `null` on the first sample or when
+the window's reset epoch moved), `minutes_to_wall`, `minutes_to_reset` and a `verdict` — `reset_first`,
+`wall_first` or `unknown`; `active.band` (`GREEN`/`AMBER`/`RED` on the hottest of 5h and weekly at the live
+`ROTATE_DRAIN_THRESHOLD`/`ROTATE_URGENT_DRAIN_PCT` lines, `WALL` while the `fleet-exhausted` stamp stands,
+`null` with no reading), `active.band_fable` (the same with the Fable window joining the hottest-of), and the
+`successor` the queue would name. Every reader — `--status`, `--status --json` (the `posture` key),
+`dispatch_headroom.py`, the dashboard and the prompt hook — treats a missing, unreadable or >15-minute-old
+file as ABSENT and fails open (`posture: none written yet` / `posture: STALE …`), the posture `quota_stop.py`
+already takes for the stamp; a dead tick never freezes a session. The bands are the contract in `CLAUDE.md`
+(D-265); this file computes them from the same thresholds, it does not redefine them.
+
 ### `dispatch_headroom.py` — the seat budget a fan-out is allowed (D-189)
 
 `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py [--units <N> | --slices opus=<n>,sonnet=<n>,haiku=<n>] [--heavy] [--risky <R>] [--mechanical <M>] [--json]`
@@ -531,4 +548,5 @@ means updating this page in the same change. This list is generated from those h
 - `scripts/sysadmin/claude_rotate.py`
 - `scripts/sysadmin/dispatch_headroom.py`
 - `scripts/sysadmin/quota_dashboard.py`
+- `scripts/sysadmin/quota_posture_hook.py`
 <!-- END related-scripts -->

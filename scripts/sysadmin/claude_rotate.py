@@ -657,9 +657,17 @@ def _should_alert_401() -> bool:
     return True
 
 
-ENV_SYSADMIN = Path(
-    "/opt/fabrik/.env.sysadmin"
-)  # fleet sysadmin env (ozgur-readable) — token fallback
+def _env_sysadmin() -> Path:
+    """The fleet sysadmin env file (ozgur-readable) — the 401 alert's token fallback.
+
+    ⚠️ Through `_opt_dir()`, resolved at CALL time. As a hardcoded `/opt/fabrik/.env.sysadmin` it sat
+    OUTSIDE the `FABRIK_OPT_DIR` pin that closed the mailbox sink, so `_telegram_config()` still read
+    the operator's real bot token and `_notify_telegram()` still POSTed to the Bot API: a test
+    driving a 401 without remembering a per-test stub sends the operator a real Telegram carrying
+    fixture text. That is the 2026-09-16 mail incident one rung over, and it was missed twice because
+    the path was spelled as a literal instead of going through the seam added to fix its sibling.
+    """
+    return _opt_dir() / "fabrik" / ".env.sysadmin"
 
 
 def _telegram_config() -> tuple[str, str] | None:
@@ -672,7 +680,7 @@ def _telegram_config() -> tuple[str, str] | None:
     chat = os.environ.get("TELEGRAM_OWNER_ID")
     if not (tok and chat):
         try:
-            for raw in ENV_SYSADMIN.read_text().splitlines():
+            for raw in _env_sysadmin().read_text().splitlines():
                 line = raw.strip()
                 if not line or line.startswith("#") or "=" not in line:
                     continue
@@ -2217,13 +2225,46 @@ def _last_switch_ts(event: str = "switch") -> tuple[float | None, bool]:
     return None, False
 
 
+def _sound_script() -> Path:
+    """The mesh notifier, resolved AT CALL TIME from ``CLAUDE_SOUND_SH``.
+
+    ⚠️ A SECOND sink, and the one that fires FIRST. The fleet-exhausted branch calls
+    ``_tick_telegram`` before ``_drain_mail``, so pinning only the mailbox enumeration left a test
+    able to send the operator a Telegram carrying fixture text — which is exactly what happened on
+    2026-09-16, and what the first cut of that incident fix missed. ``Path.home()`` is not pinned by
+    any fixture, so the seam has to be here.
+
+    ⚠️ This changes WHERE this script looks for the notifier and NOTHING about the notifier itself:
+    ``claude-sound.sh`` is production and is neither read nor modified here. ``_tick_telegram``
+    already returns False when the file is absent, so a test pointing this at a path that does not
+    exist is complete isolation with no behaviour change in production.
+    """
+    raw = os.environ.get("CLAUDE_SOUND_SH")
+    return Path(raw) if raw else Path.home() / ".claude" / "bin" / "claude-sound.sh"
+
+
+def _opt_dir() -> Path:
+    """The repo root this process treats as ``/opt``, resolved AT CALL TIME from ``FABRIK_OPT_DIR``.
+
+    ⚠️ Call-time, not import-time, and that is the whole point. As a module constant bound at
+    import, this seam could not be pinned by a test fixture at all: a module loaded DURING a test
+    re-binds it to the real ``/opt`` after the fixture has run. On 2026-09-16 a grader drove
+    ``_cmd_tick()`` into the fleet-exhausted branch with fixture data, ``_mailbox_repos`` walked the
+    real ``/opt``, and roughly a thousand "stop gracefully" notices — naming the fixture's own
+    2027-01-22 reset as fact — were delivered into 49 live project mailboxes (the count of mailboxes holding one, inbox and archive together; 48 of them received one in the six hours before the sweep). A seam that only a
+    lucky import order can pin is not a seam.
+    """
+    raw = os.environ.get("FABRIK_OPT_DIR")
+    return Path(raw) if raw else OPT_DIR
+
+
 def _mailbox_repos() -> list[str]:
     """Repos that can SURFACE mail (mail.py:157 rule) — enumerated, never hardcoded. Scans
-    ``OPT_DIR`` (== /opt in production) so tests have ONE seam, shared with the fleet
+    ``_opt_dir()`` (== /opt in production) so tests have ONE seam, shared with the fleet
     drain-mail routing's existence checks."""
     out = []
     try:
-        entries = sorted(OPT_DIR.iterdir())
+        entries = sorted(_opt_dir().iterdir())
     except OSError:
         return out
     for d in entries:
@@ -2236,7 +2277,11 @@ def _mailbox_repos() -> list[str]:
 
 
 def _drain_mail(repos: list[str], msg: str) -> None:
-    mail = Path("/opt/fabrik/scripts/mail.py")
+    # ⚠️ Resolved through `_opt_dir()`, not hardcoded: `FABRIK_OPT_DIR` otherwise closes the
+    # ENUMERATION seam and leaves the DELIVERY one open, so the isolation holds only while the
+    # pinned dir happens to be EMPTY — and populating it is the natural way to grade
+    # `_mailbox_repos()` positively, which would put real mail back on the wire.
+    mail = _opt_dir() / "fabrik" / "scripts" / "mail.py"
     if not mail.is_file():
         return
     msg = _argv_safe(msg)
@@ -2333,7 +2378,7 @@ def _tick_telegram(msg: str, key: str = "quota-rotation") -> bool:
     delivered as `\\ud800`, never raised on). A False means the notifier is absent, could not be
     run to completion, or its artifact did not advance — `_notify_failure_reason` names what this
     side can know and the causes it cannot tell apart."""
-    sound = Path.home() / ".claude" / "bin" / "claude-sound.sh"
+    sound = _sound_script()
     if not sound.is_file():
         return False
     marker = _notify_marker(key)
@@ -2365,7 +2410,12 @@ def _notify_failure_reason() -> str:
     unreadable or non-numeric file, or a clock-implausible value reads as nothing
     (`_stamp_epoch`), and a torn write can land at or below it. So the line names them all rather
     than guess one."""
-    if not (Path.home() / ".claude" / "bin" / "claude-sound.sh").is_file():
+    # ⚠️ `_sound_script()`, not `Path.home()`: this function and `_tick_telegram` must answer about
+    # the SAME notifier. Resolved differently they contradict each other on one tick — one reports
+    # the notifier absent while the other stats a different file and prints the long
+    # "could not be confirmed" list, which is what `_chain_expiry_push` shows the operator during a
+    # wall. Half a seam is not a seam (review round 3).
+    if not _sound_script().is_file():
         return "mesh-notify unavailable (no claude-sound.sh)"
     return (
         "the send could not be confirmed — suppressed by the notifier's 30-minute window for this"
@@ -3700,6 +3750,76 @@ def _relogin_block(slug: str, email: str) -> str:
     )
 
 
+def _posture_hook_wiring_warnings() -> list[str]:
+    """One advisory line when the quota-posture hook is missing from any user-level settings file.
+
+    Without the hook the posture is written every cycle and READ by nobody: the session sees no
+    `QUOTA:` line at all, which the contract tells the agent means exactly this. The tick is the one
+    process that runs regardless of what any window is doing, so it is where the gap can be noticed.
+
+    ADVISORY, never a block — a file the operator deliberately left unwired is their business, and
+    an absent hook script yields no warning at all rather than a false one.
+
+    ⚠️ The settings enumeration below is a deliberate COPY of `quota_posture_hook.settings_files()`,
+    not a call: the `scripts/aro-wake/` twin ships as ONE file and can import nothing. That is the
+    same trade the hook itself makes for its `command_run` copies, and it is only safe with the same
+    guard — `tests/test_quota_posture.py` re-derives both enumerations over the same fixtures and
+    asserts they agree, including the `active` symlink exclusion. An earlier draft of this docstring
+    claimed the list "comes from the hook itself, so the two cannot enumerate different files",
+    which was simply false of a hand-copy; a claim that a copy cannot drift is the one thing a copy
+    can never promise on its own.
+    """
+    # ⚠️ Through `_opt_dir()`, not a hardcoded absolute path: the same seam the mail sender uses, so
+    # one pin covers this too and a test can exercise the warning instead of silently getting none.
+    # An ABSENT hook yields no warning at all — nagging about something that is not installed is
+    # noise, and this line has to stay worth reading.
+    hook = _opt_dir() / "fabrik" / "scripts" / "sysadmin" / "quota_posture_hook.py"
+    if not hook.is_file():
+        return []
+    raw = os.environ.get("QUOTA_POSTURE_SETTINGS")
+    if raw:
+        # de-duplicated exactly as the hook does: a repeated path would inflate the RATIO this
+        # function prints, which is the count-without-its-denominator defect in the one line whose
+        # whole job is to report a count
+        paths = [Path(p) for p in dict.fromkeys(x for x in raw.split(os.pathsep) if x)]
+    else:
+        paths = [Path.home() / ".claude" / "settings.json"]
+        try:
+            # ⚠️ `_fleet_root()`, not a hardcoded `~/.claude-fleet`: on a box where
+            # `CLAUDE_FLEET_ROOT` is set, hardcoding enumerates ONE file, finds it wired and reports
+            # nothing wrong while every per-slug window is unwired — a false green in the check that
+            # exists to notice nobody is reading the posture
+            root = _fleet_root()
+            paths += sorted(
+                d / "settings.json" for d in root.iterdir() if d.is_dir() and not d.is_symlink()
+            )
+        except OSError:
+            pass
+    unwired = 0
+    for p in paths:
+        try:
+            cfg = json.loads(p.read_text())
+        except _STATE_DIR_ERRORS:
+            unwired += 1
+            continue
+        hooks = cfg.get("hooks") if isinstance(cfg, dict) else None
+        # the SAME normalisation `quota_posture_hook._is_wired` applies: a non-list at the event key
+        # is UNWIRED, not "whatever json.dumps makes of it" — two checkers that normalise differently
+        # disagree about the same file, which is the drift the copy above is guarded against.
+        if not isinstance(hooks, dict) or any(
+            not isinstance(hooks.get(ev), list)
+            or "quota_posture_hook.py" not in json.dumps(hooks.get(ev))
+            for ev in ("UserPromptSubmit", "PreToolUse")
+        ):
+            unwired += 1
+    if not unwired:
+        return []
+    return [
+        f"⚠ quota-posture hook not wired in {unwired} of {len(paths)} settings file(s) — those "
+        f"windows get NO QUOTA: line; fix: python3 {hook} --install"
+    ]
+
+
 def _fleet_row_warnings(accounts: list[dict]) -> list[str]:
     """Chain-health warnings derived from data already on the account rows (this function adds
     no probes; the rows were built with at most one hourly identity probe per account), printed
@@ -3902,6 +4022,377 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
     }
 
 
+# ── Quota posture — one writer (the tick), many readers (D-269) ───────────────────────────────
+# The tick writes ``<state>/quota-posture.json`` once per cycle: per window the utilization, a
+# 35-minute smoothed burn, the reset epoch and a forecast (minutes to the wall at the current burn,
+# minutes to the reset, and which comes first), the D-265 band on the hottest window, the Fable
+# weekly-scoped window when the probe reported one, and the fleet queue with the first eligible
+# successor. Readers (the box-level hook, ``--status``, the dashboard, ``dispatch_headroom``) never
+# probe; each treats an absent, unreadable or stale file as ABSENT and fails OPEN — the same posture
+# ``quota_stop.py`` takes for the fleet-exhausted stamp. The band has NO cap clause: a cap reached
+# trips the flip leg, and with no successor the wall predicate counts the account as walled and the
+# advisory stamps — the posture reads WALL one tick later; the forecast already says ``wall in ~0m``.
+# ``_tick_burn`` (the flip leg's single-tick projection) and this smoothed burn answer two different
+# questions and neither reads the other. No statistics live here — the ledger is the source.
+_POSTURE_SCHEMA = 1
+_POSTURE_FILE = "quota-posture.json"
+_TICK_PERIOD_S = 300.0  # descriptive; the ring bound below is what the code consumes
+_RING_WINDOW_S = 35 * 60.0
+_RING_LEN = int(_RING_WINDOW_S // _TICK_PERIOD_S) + 1  # 8 at the 5-minute cadence
+_RING_MIN_SPAN_S = 240.0
+_SAME_RESET_TOL_S = 60.0
+
+
+def _posture_path() -> Path:
+    return _rotate_state_dir() / _POSTURE_FILE
+
+
+def _read_quota_posture() -> dict | None:
+    """The last written posture, or ``None`` on absent / unreadable / not-a-dict. No staleness
+    judgement here — every reader owns its own bound (the hook and the seat budget read
+    ``QUOTA_POSTURE_STALE_S``; ``--status`` prints the age)."""
+    try:
+        # ⚠️ `parse_constant` is the whole fix for a class the ROW reader cannot close. Python's
+        # `json` accepts a BARE `NaN`/`Infinity`, so a poisoned or hand-edited file re-admitted
+        # exactly what `_window_reading` drops: `int(nan)` in the renderer crashed `--status` — the
+        # command the contract names as the authority — and a NaN sample carried forward in the ring
+        # made the burn read 0.0, i.e. "no burn", the calmest possible line at the hottest possible
+        # moment. `ValueError` is already in `_STATE_DIR_ERRORS`, so such a file reads as ABSENT,
+        # which every reader already fails open on.
+        d = json.loads(
+            _posture_path().read_text(),
+            parse_constant=lambda c: (_ for _ in ()).throw(ValueError(f"non-finite: {c}")),
+        )
+    except _STATE_DIR_ERRORS:
+        return None
+    return d if isinstance(d, dict) else None
+
+
+def _write_quota_posture(posture: dict) -> None:
+    """Atomic publish through a PER-PROCESS staging file, then ``os.replace``.
+
+    ⚠️ The pid in the tmp name is load-bearing. ``os.replace`` makes the PUBLISH atomic; it says
+    nothing about the STAGING. With one shared ``<file>.tmp``, two overlapping ticks truncate each
+    other mid-write and whoever replaces first publishes the mixture — and nothing serialises them:
+    ``_cmd_tick`` has no single-instance lock and the picture's probes have no wall-clock bound, so
+    a slow tick straddles the next 5-minute cron one. That is exactly when the fleet is degraded
+    enough to matter. Measured under a 6-writer race: 3,471 of 4,000 concurrent reads unparseable
+    with the shared name (review round 1). Readers fail open on a torn file, so the cost is a whole
+    cadence of ``posture unavailable``.
+
+    The staging file is removed on the failure path, and the failure is RAISED: the caller in the
+    tick prints one line for it. A silent swallow here froze the posture until some reader's
+    staleness bound noticed, which contradicted that call site's own "never silent" comment.
+    """
+    p = _posture_path()
+    tmp = p.with_name(f"{p.name}.{os.getpid()}.tmp")
+    # ⚠️ The per-pid name removes the tearing and introduces litter: the except-path unlink covers
+    # exceptions, and a SIGKILL between the write and the replace leaves a staging file forever
+    # under a pid that never returns. The old shared name self-healed by overwrite; this one
+    # accumulates, so sweep anything of ours older than an hour before staging a new one.
+    try:
+        cutoff = _now() - 3600.0
+        for orphan in p.parent.glob(f"{p.name}.*.tmp"):
+            if orphan != tmp and orphan.stat().st_mtime < cutoff:
+                orphan.unlink()
+    except OSError:
+        pass  # a sweep is housekeeping; never let it cost the write
+    try:
+        tmp.write_text(json.dumps(posture))
+        os.replace(tmp, p)
+    except _STATE_DIR_ERRORS:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        raise
+
+
+def _window_reading(w: object) -> tuple[float | None, float | None]:
+    """(utilization, resets_at_epoch) with the ``_row_utils`` guard shape — a non-dict window is no
+    reading; a bool never passes."""
+    if not isinstance(w, dict):
+        return None, None
+    # ⚠️ ``math.isfinite`` is not decoration. ``json.loads`` accepts a bare ``NaN`` from the
+    # upstream payload, NaN compares False against EVERY threshold, and ``_band_of`` therefore
+    # returned GREEN for the hottest possible reading — failing open at the safest-looking band,
+    # the one direction a quota guard must never take. ``int(nan)`` also crashed ``--status``, the
+    # command the contract names as the authority (review round 1, both executed).
+    u, r = w.get("utilization"), w.get("resets_at_epoch")
+    if not (isinstance(u, (int, float)) and not isinstance(u, bool) and math.isfinite(u)):
+        u = None
+    if not (isinstance(r, (int, float)) and not isinstance(r, bool) and math.isfinite(r)):
+        r = None
+    return (float(u) if u is not None else None), (float(r) if r is not None else None)
+
+
+def _fable_window(row: dict | None) -> tuple[str | None, dict | None]:
+    """The first ``model_windows`` key that starts with ``Fable`` (the dashboard reads the literal
+    ``Fable`` at its column; the prefix match is the mirror — a renamed display name still lands)."""
+    mw = row.get("model_windows") if isinstance(row, dict) else None
+    if isinstance(mw, dict):
+        for k, v in mw.items():
+            if isinstance(k, str) and k.startswith("Fable") and isinstance(v, dict):
+                return k, v
+    return None, None
+
+
+def _burn_per_min(
+    ring: list[dict], key: str, now: float, u_now: float | None, reset_now: float | None
+) -> float | None:
+    """Smoothed burn from the oldest kept sample of the SAME window (reset epoch within a minute);
+    ``None`` unless two samples span at least ``_RING_MIN_SPAN_S``; never negative."""
+    if u_now is None:
+        return None
+    kept = [
+        smp
+        for smp in ring
+        if isinstance(smp.get(key), (int, float))
+        and (
+            (reset_now is None and smp.get(key + "_reset") is None)
+            or (
+                isinstance(smp.get(key + "_reset"), (int, float))
+                and reset_now is not None
+                and abs(float(smp[key + "_reset"]) - reset_now) <= _SAME_RESET_TOL_S
+            )
+        )
+    ]
+    if not kept:
+        return None
+    oldest = min(kept, key=lambda smp: float(smp["ts"]))
+    span = now - float(oldest["ts"])
+    if span < _RING_MIN_SPAN_S:
+        return None
+    return max(0.0, (u_now - float(oldest[key])) / (span / 60.0))
+
+
+def _forecast(
+    u: float | None, reset: float | None, wall_pct: float, burn: float | None, now: float
+) -> dict:
+    mtw: float | None
+    if u is None:
+        mtw = None
+    elif u >= wall_pct:
+        mtw = 0.0
+    elif isinstance(burn, float) and burn > 0.0 and math.isfinite(burn):
+        mtw = (wall_pct - u) / burn
+    else:
+        mtw = None
+    # ⚠️ a reset epoch that is NOT in the future has not "come first" — it is stale data. Clamping
+    # it to 0.0 made it win every tie, so an account burning 5%/min ten minutes from the wall was
+    # told `reset in 0:00` (review round 1, executed). The clamp stays for DISPLAY; only a future
+    # reset may claim the verdict.
+    ahead = (reset - now) / 60.0 if reset is not None else None
+    mtr = max(0.0, ahead) if ahead is not None else None
+    if ahead is not None and ahead > 0.0 and (mtw is None or mtr <= mtw):
+        verdict = "reset_first"
+    elif mtw is not None:
+        verdict = "wall_first"
+    else:
+        verdict = "unknown"
+    return {
+        "utilization": u,
+        "resets_at": reset,
+        "wall_pct": wall_pct,
+        "burn_per_min": burn,
+        "minutes_to_wall": mtw,
+        "minutes_to_reset": mtr,
+        "verdict": verdict,
+    }
+
+
+def _band_of(hot: float | None, hold: bool, drain: float, urgent: float) -> str | None:
+    if hold:
+        return "WALL"
+    if hot is None:
+        return None
+    if hot >= urgent:
+        return "RED"
+    if hot >= drain:
+        return "AMBER"
+    return "GREEN"
+
+
+def _quota_posture(
+    accounts: list[dict], picture: dict, now: float, prev: dict | None, hold: bool
+) -> dict:
+    """PURE: the posture dict for this tick. ``prev`` is the last written posture (its ``samples``
+    ring is carried forward for the active email only — a flip starts the new email empty)."""
+    active_email = picture.get("active")
+    row = (
+        next((r for r in accounts if r.get("email") == active_email), None)
+        if active_email
+        else None
+    )
+    slug = next(iter((row or {}).get("slugs") or []), None)
+    thresholds = dict(picture.get("thresholds") or {})
+    drain = float(thresholds.get("drain_band") or 85.0)
+    urgent = _urgent_drain_pct()
+    thresholds["urgent"] = urgent
+    cap = (row or {}).get("weekly_cap")
+    cap_f = float(cap) if isinstance(cap, (int, float)) and not isinstance(cap, bool) else None
+
+    fh_u, fh_r = _window_reading((row or {}).get("five_hour"))
+    wk_u, wk_r = _window_reading((row or {}).get("seven_day"))
+    fable_key, fable_raw = _fable_window(row)
+    fb_u, fb_r = _window_reading(fable_raw)
+
+    ring_all = (prev or {}).get("samples") if isinstance((prev or {}).get("samples"), dict) else {}
+    ring = (
+        [
+            smp
+            for smp in (ring_all.get(active_email) or [])
+            if isinstance(smp, dict) and isinstance(smp.get("ts"), (int, float))
+        ]
+        if active_email
+        else []
+    )
+    ring = [smp for smp in ring if 0.0 <= now - float(smp["ts"]) <= _RING_WINDOW_S]
+    sample = {
+        "ts": now,
+        "five_hour": fh_u,
+        "five_hour_reset": fh_r,
+        "seven_day": wk_u,
+        "seven_day_reset": wk_r,
+        "fable": fb_u,
+        "fable_reset": fb_r,
+    }
+    ring = (ring + [sample])[-_RING_LEN:]
+    history = ring[:-1]
+
+    windows = {
+        "five_hour": _forecast(
+            fh_u, fh_r, 100.0, _burn_per_min(history, "five_hour", now, fh_u, fh_r), now
+        ),
+        "seven_day": _forecast(
+            wk_u,
+            wk_r,
+            cap_f if cap_f is not None else 100.0,
+            _burn_per_min(history, "seven_day", now, wk_u, wk_r),
+            now,
+        ),
+        "fable": (
+            _forecast(fb_u, fb_r, 100.0, _burn_per_min(history, "fable", now, fb_u, fb_r), now)
+            if fable_raw is not None
+            else None
+        ),
+        "models": {},
+    }
+    mw = (row or {}).get("model_windows")
+    if isinstance(mw, dict):
+        for k, v in mw.items():
+            mu, mr = _window_reading(v)
+            if isinstance(k, str) and mu is not None:
+                windows["models"][k] = _forecast(mu, mr, 100.0, None, now)
+
+    readings = [(k, u) for k, u in (("five_hour", fh_u), ("seven_day", wk_u)) if u is not None]
+    hottest = max(readings, key=lambda kv: kv[1])[0] if readings else None
+    hot = max((u for _, u in readings), default=None)
+    readings_f = readings + ([("fable", fb_u)] if fb_u is not None else [])
+    hottest_f = max(readings_f, key=lambda kv: kv[1])[0] if readings_f else None
+    hot_f = max((u for _, u in readings_f), default=None)
+
+    successor = None
+    queue = list(picture.get("queue") or [])
+    by_email = {r.get("email"): r for r in picture.get("accounts") or []}
+    seen_active = active_email is None
+    for email in queue:
+        if not seen_active:
+            seen_active = email == active_email
+            continue
+        prow = by_email.get(email) or {}
+        if prow.get("state") != "eligible":
+            continue
+        s_slug = next(iter(prow.get("slugs") or []), None)
+        if s_slug is None:
+            continue  # skip-and-continue: a row with no slug is no successor, the scan goes on
+        successor = {"email": email, "slug": s_slug}
+        break
+
+    return {
+        "schema": _POSTURE_SCHEMA,
+        "ts": now,
+        "tick_period_s": _TICK_PERIOD_S,
+        "active": {
+            "email": active_email,
+            "slug": slug,
+            "weekly_cap": cap_f,
+            "windows": windows,
+            "hottest": hottest,
+            "band": _band_of(hot, hold, drain, urgent),
+            "hottest_fable": hottest_f,
+            "band_fable": _band_of(hot_f, hold, drain, urgent),
+        },
+        "fleet": {
+            "queue": queue,
+            "successor": successor,
+            "next_relief": picture.get("next_relief"),
+            "hold": picture.get("hold"),
+            "last_flip": picture.get("last_flip"),
+            "thresholds": thresholds,
+        },
+        "samples": {active_email: ring} if active_email else {},
+    }
+
+
+def _fmt_forecast(w: dict | None) -> str:
+    if not isinstance(w, dict) or w.get("utilization") is None:
+        return "—"
+
+    # ⚠️ `_finite` is defence in depth, not decoration. The file reader refuses non-finite JSON, so
+    # a poisoned window cannot arrive from the posture file — but this renderer is also reached from
+    # `--status`, and `int(nan)` raises ValueError while `int(inf)` raises OverflowError. A renderer
+    # that can raise on its own data can take down the command the contract names as the authority,
+    # so an unusable number is treated as NO forecast rather than as an exception.
+    def _finite(x: object) -> float | None:
+        ok = isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x)
+        return float(x) if ok else None
+
+    v = w.get("verdict")
+    mtr = _finite(w.get("minutes_to_reset"))
+    if v == "reset_first" and mtr is not None:
+        m = int(mtr)
+        return f"reset in {m // 60}:{m % 60:02d}"
+    mtw = _finite(w.get("minutes_to_wall"))
+    if v == "wall_first" and mtw is not None:
+        b = _finite(w.get("burn_per_min"))
+        bt = f"{b:.2f}" if b is not None else "—"
+        return f"wall in ~{int(mtw)}m at {bt}%/m"
+    return "no burn"
+
+
+def _posture_status_line(posture: dict | None, now: float, stale_s: float = 900.0) -> str:
+    """The ONE ``posture:`` line ``--status`` prints under ``last flip:``."""
+    if not isinstance(posture, dict) or not isinstance(posture.get("ts"), (int, float)):
+        return "posture: none written yet"
+    age = max(0.0, now - float(posture["ts"]))
+    if age > stale_s:
+        return (
+            f"posture: STALE written {age / 60:.0f}m ago (readers fail open — is the tick running?)"
+        )
+    act = posture.get("active") or {}
+    wins = act.get("windows") or {}
+
+    def pct(w: object) -> str:
+        u = w.get("utilization") if isinstance(w, dict) else None
+        # `isinstance(True, int)` is True in Python, so a bool prints as `1%`, and a NaN raises out
+        # of the format. The same guard `_window_reading` and `_fmt_forecast._finite` already apply,
+        # so the convention travels with the field rather than stopping at one reader.
+        ok = isinstance(u, (int, float)) and not isinstance(u, bool) and math.isfinite(u)
+        return f"{u:.0f}%" if ok else "—"
+
+    fh = wins.get("five_hour")
+    burn = fh.get("burn_per_min") if isinstance(fh, dict) else None
+    return (
+        f"posture: {act.get('band') or '?'} · 5h {pct(fh)} {_fmt_forecast(fh)} · weekly {pct(wins.get('seven_day'))} "
+        f"{_fmt_forecast(wins.get('seven_day'))} · Fable {pct(wins.get('fable'))} · burn 5h "
+        f"{burn:.2f}%/m"
+        if isinstance(burn, (int, float))
+        else f"posture: {act.get('band') or '?'} · 5h {pct(fh)} {_fmt_forecast(fh)} · weekly {pct(wins.get('seven_day'))} "
+        f"{_fmt_forecast(wins.get('seven_day'))} · Fable {pct(wins.get('fable'))} · burn 5h —"
+    ) + f" · written {age / 60:.0f}m ago"
+
+
 def _print_picture(pic: dict) -> None:
     if pic.get("error"):
         print(f"picture: unavailable ({pic['error']}) — the account lines above still hold")
@@ -3940,6 +4431,7 @@ def _print_picture(pic: dict) -> None:
             else "none"
         )
     )
+    print(_posture_status_line(_read_quota_posture(), _now()))
 
 
 def _cmd_fleet_status(dirs: list[Path], as_json: bool) -> int:
@@ -3957,6 +4449,7 @@ def _cmd_fleet_status(dirs: list[Path], as_json: bool) -> int:
                     "pause": _pause_state(),
                     "fleet_warnings": warns,
                     "picture": _safe_picture(accounts, active),
+                    "posture": _read_quota_posture(),
                 },
                 indent=1,
             )
@@ -4572,7 +5065,7 @@ def _urgent_drain_pct() -> float:
     send an URGENT mail to repos"). Below the flip line on purpose: the flip (`_rotate_threshold`, 98 since D-201 — read it there,
     never from this sentence) is the
     remedy when a successor exists; this is the remedy when none does, and it needs the five
-    points of runway a graceful stop takes. ``ROTATE_URGENT_DRAIN_PCT`` overrides."""
+    points of runway a graceful stop takes. ``ROTATE_URGENT_DRAIN_PCT`` overrides. The quota posture (D-269) reads it as the RED line too — on the hottest window, successor or not — so a session's band and the drain mail share one number."""
     return _env_float("ROTATE_URGENT_DRAIN_PCT", 90.0)
 
 
@@ -4984,12 +5477,31 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
             _wk = _wk_window.get("utilization") if isinstance(_wk_window, dict) else None
             if isinstance(_wk, (int, float)) and not isinstance(_wk, bool):
                 _row["weekly_pct"] = float(_wk)
+            # the Fable weekly-scoped window rides the row too (D-269) — same guard, same write
+            # condition, so the Finish can measure the third axis the way it measures the weekly one
+            _fk, _fw = _fable_window(_active_row)
+            _fv = _fw.get("utilization") if isinstance(_fw, dict) else None
+            if isinstance(_fv, (int, float)) and not isinstance(_fv, bool):
+                _row["fable_pct"] = float(_fv)
             _ledger_append(_row)
+    # The quota posture (D-269): resolved AFTER the flip leg so it describes the POST-flip pointer;
+    # at function level so the no-reading path writes too (band null). A picture error prints one
+    # line and never takes the tick down.
+    _active_slug = _resolve_active()
+    try:
+        _pic = _fleet_picture(accounts, _active_slug, now)
+        _write_quota_posture(
+            _quota_posture(
+                accounts, _pic, now, _read_quota_posture(), hold=_pic.get("hold") is not None
+            )
+        )
+    except Exception as exc:  # noqa: BLE001 — never silent, never fatal
+        print(f"tick: quota-posture not written — {type(exc).__name__}: {exc}")
     # The advisory is FLEET-WIDE, not per-account: fire ONLY when the active account (the one
     # every agent is using) is walled with no auto-relief. A single account crossing the threshold is a
     # non-event — the flip leg above already re-pointed to a sibling with headroom.
     _fleet_active_wall_advisory(accounts, now, threshold)
-    for warn in _fleet_row_warnings(accounts):
+    for warn in _fleet_row_warnings(accounts) + _posture_hook_wiring_warnings():
         print(warn)
     _chain_expiry_push(accounts, now)
     for p in pending:
