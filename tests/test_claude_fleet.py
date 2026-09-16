@@ -1003,11 +1003,29 @@ def _fake_oauth(monkeypatch, profiles=None, usages=None):
     return calls
 
 
-def _usage_blob(session=42.0, weekly=31.0):
-    return {
-        "five_hour": {"utilization": session, "resets_at": "2027-01-20T00:00:00+00:00"},
-        "seven_day": {"utilization": weekly, "resets_at": "2027-01-22T00:00:00+00:00"},
+def _usage_blob(
+    session=42.0,
+    weekly=31.0,
+    fable=None,
+    session_reset="2027-01-20T00:00:00+00:00",
+    weekly_reset="2027-01-22T00:00:00+00:00",
+):
+    """The usage endpoint's shape. ``fable`` adds the Fable weekly-scoped limit exactly as
+    ``_usage_windows`` parses it (``limits[].kind == "weekly_scoped"``, ``scope.model.display_name``)."""
+    blob = {
+        "five_hour": {"utilization": session, "resets_at": session_reset},
+        "seven_day": {"utilization": weekly, "resets_at": weekly_reset},
     }
+    if fable is not None:
+        blob["limits"] = [
+            {
+                "kind": "weekly_scoped",
+                "scope": {"model": {"display_name": "Fable"}},
+                "percent": fable,
+                "resets_at": "2027-01-23T00:00:00+00:00",
+            }
+        ]
+    return blob
 
 
 def _fleet_two_accounts(tmp_path, monkeypatch):
@@ -4517,3 +4535,301 @@ def test_the_tick_row_still_writes_when_the_weekly_window_is_absent(tmp_path, mo
     t = ticks[0]
     assert "weekly_pct" not in t, f"an absent window omits the key, never invents a 0.0: {t}"
     assert t.get("pct") == 42.0, f"the session reading is unaffected by the weekly guard: {t}"
+
+
+# ── D-269: the quota posture — the tick writes it, --status shows it ─────────────────────────────
+
+
+def _posture_path(tmp_path):
+    return tmp_path / "state" / "quota-posture.json"
+
+
+def _posture_fixture(tmp_path, monkeypatch, seo=(42.0, 50.0), intel=(10.0, 20.0), **blob_kw):
+    """Two live accounts, both freshly probed on every tick (a <8h token re-probes). Returns
+    (fleet, rows_captured_by_ledger_append)."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fake_oauth(
+        monkeypatch,
+        usages={
+            "tok-seo": _usage_blob(*seo, **blob_kw),
+            "tok-intel": _usage_blob(*intel, **blob_kw),
+        },
+    )
+    rows: list[dict] = []
+    monkeypatch.setattr(cr, "_ledger_append", rows.append)
+    return fleet, rows
+
+
+def _tick_row(rows):
+    ticks = [r for r in rows if r.get("event") == "tick"]
+    assert len(ticks) == 1, ticks
+    return ticks[0]
+
+
+def test_the_fleet_tick_writes_the_quota_posture_file_atomically(tmp_path, monkeypatch):
+    """B1 — one file per tick, atomic, describing the ACTIVE account the ledger row names."""
+    _fleet, rows = _posture_fixture(tmp_path, monkeypatch)
+    assert cr._cmd_tick() == 0
+    p = _posture_path(tmp_path)
+    assert p.exists() and not p.with_name(p.name + ".tmp").exists()
+    posture = json.loads(p.read_text())
+    t = _tick_row(rows)
+    assert posture["schema"] == 1 and abs(posture["ts"] - FLEET_NOW) <= 5.0
+    assert posture["active"]["email"] == t["account"]
+    assert posture["active"]["windows"]["five_hour"]["utilization"] == t["pct"]
+    assert posture["active"]["windows"]["seven_day"]["utilization"] == t["weekly_pct"]
+    assert posture["fleet"]["thresholds"] == {"trip": 98.0, "drain_band": 85.0, "urgent": 90.0}
+
+
+def test_posture_burn_is_null_on_the_first_sample_and_positive_on_the_second(tmp_path, monkeypatch):
+    """B2 — the smoothed burn needs two samples of the same window 300 s apart; the second file
+    forecasts the wall from it."""
+    _fleet, rows = _posture_fixture(tmp_path, monkeypatch)
+    assert cr._cmd_tick() == 0
+    first = json.loads(_posture_path(tmp_path).read_text())
+    assert first["active"]["windows"]["five_hour"]["burn_per_min"] is None
+    active = first["active"]["email"]
+    tok = "tok-seo" if "sarp" in active else "tok-intel"
+    other = "tok-intel" if tok == "tok-seo" else "tok-seo"
+    base_s, base_w = (
+        first["active"]["windows"]["five_hour"]["utilization"],
+        first["active"]["windows"]["seven_day"]["utilization"],
+    )
+    _fake_oauth(
+        monkeypatch,
+        usages={tok: _usage_blob(base_s + 3.0, base_w), other: _usage_blob(10.0, 20.0)},
+    )
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW + 300.0)
+    assert cr._cmd_tick() == 0
+    second = json.loads(_posture_path(tmp_path).read_text())
+    fh, wk = second["active"]["windows"]["five_hour"], second["active"]["windows"]["seven_day"]
+    assert second["active"]["email"] == active
+    assert abs(fh["burn_per_min"] - 0.6) < 1e-9, fh
+    assert abs(fh["minutes_to_wall"] - (100.0 - (base_s + 3.0)) / 0.6) < 1e-6, fh
+    assert fh["verdict"] == "wall_first", fh  # the fixture's reset is months away
+    assert (
+        wk["burn_per_min"] == 0.0
+        and wk["minutes_to_wall"] is None
+        and wk["verdict"] == "reset_first"
+    ), wk
+
+
+def test_posture_burn_restarts_when_the_window_reset_epoch_moves(tmp_path, monkeypatch):
+    """B3 — a moved reset epoch is a NEW window: no burn until it has two samples of its own."""
+    _fleet, rows = _posture_fixture(tmp_path, monkeypatch)
+    assert cr._cmd_tick() == 0
+    first = json.loads(_posture_path(tmp_path).read_text())
+    active = first["active"]["email"]
+    tok = "tok-seo" if "sarp" in active else "tok-intel"
+    other = "tok-intel" if tok == "tok-seo" else "tok-seo"
+    _fake_oauth(
+        monkeypatch,
+        usages={
+            tok: _usage_blob(60.0, 50.0, session_reset="2027-01-21T00:00:00+00:00"),
+            other: _usage_blob(10.0, 20.0),
+        },
+    )
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW + 300.0)
+    assert cr._cmd_tick() == 0
+    second = json.loads(_posture_path(tmp_path).read_text())
+    assert second["active"]["windows"]["five_hour"]["burn_per_min"] is None
+
+
+def test_posture_samples_ring_is_bounded_and_per_email(tmp_path, monkeypatch):
+    """B4 — at most 8 kept samples (the 35-minute window at the 5-minute cadence); a new active
+    email starts with one sample and no burn."""
+    _fleet, rows = _posture_fixture(tmp_path, monkeypatch)
+    for i in range(12):
+        monkeypatch.setattr(cr, "_now", lambda i=i: FLEET_NOW + 300.0 * i)
+        assert cr._cmd_tick() == 0
+    posture = json.loads(_posture_path(tmp_path).read_text())
+    active = posture["active"]["email"]
+    assert list(posture["samples"]) == [active]
+    assert 2 <= len(posture["samples"][active]) <= cr._RING_LEN == 8
+    # a flip: the same prev ring, a picture whose active is the OTHER account
+    rows_now, _ = cr._fleet_account_rows(cr._fleet_dirs(), allow_pings=False)
+    other_row = next(r for r in rows_now if r["email"] != active)
+    pic = cr._fleet_picture(rows_now, other_row["slugs"][0], FLEET_NOW + 300.0 * 12)
+    flipped = cr._quota_posture(rows_now, pic, FLEET_NOW + 300.0 * 12, posture, hold=False)
+    assert list(flipped["samples"]) == [other_row["email"]]
+    assert len(flipped["samples"][other_row["email"]]) == 1
+    assert flipped["active"]["windows"]["five_hour"]["burn_per_min"] is None
+
+
+def test_posture_ring_length_is_derived_from_the_window_and_cadence():
+    """B13 — one constant moves on a cadence change, and the identity is graded."""
+    assert cr._RING_LEN == int(cr._RING_WINDOW_S // cr._TICK_PERIOD_S) + 1 == 8
+
+
+@pytest.mark.parametrize(
+    ("session", "weekly", "expect"),
+    [
+        (84.9, 10.0, "GREEN"),
+        (85.0, 10.0, "AMBER"),
+        (10.0, 89.9, "AMBER"),
+        (10.0, 90.0, "RED"),
+        (0.0, 0.0, "GREEN"),
+    ],
+)
+def test_posture_band_follows_the_hottest_window_and_the_hold(
+    tmp_path, monkeypatch, session, weekly, expect
+):
+    """B5 — the raw D-265 line on the hottest of the two windows; WALL on the hold; null on no reading."""
+    _fleet, rows = _posture_fixture(tmp_path, monkeypatch)
+    assert cr._cmd_tick() == 0
+    rows_now, _ = cr._fleet_account_rows(cr._fleet_dirs(), allow_pings=False)
+    active = json.loads(_posture_path(tmp_path).read_text())["active"]["email"]
+    row = next(r for r in rows_now if r["email"] == active)
+    row["five_hour"]["utilization"], row["seven_day"]["utilization"] = session, weekly
+    pic = cr._fleet_picture(rows_now, row["slugs"][0], FLEET_NOW)
+    got = cr._quota_posture(rows_now, pic, FLEET_NOW, None, hold=False)
+    assert got["active"]["band"] == expect and got["active"]["band_fable"] == expect, got["active"]
+    assert cr._quota_posture(rows_now, pic, FLEET_NOW, None, hold=True)["active"]["band"] == "WALL"
+    row["five_hour"], row["seven_day"] = None, None
+    pic2 = cr._fleet_picture(rows_now, row["slugs"][0], FLEET_NOW)
+    blank = cr._quota_posture(rows_now, pic2, FLEET_NOW, None, hold=False)
+    assert blank["active"]["band"] is None and blank["active"]["hottest"] is None
+    assert blank["active"]["windows"]["five_hour"]["utilization"] is None
+
+
+def test_posture_is_still_written_when_the_active_account_has_no_reading(tmp_path, monkeypatch):
+    """B5 (the file half) — no reading ⇒ band null, and the file exists anyway (the hook then
+    prints `band ?`, never nothing)."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fake_oauth(monkeypatch, usages={})  # the endpoint answers nothing for every token
+    assert cr._cmd_tick() == 0
+    posture = json.loads(_posture_path(tmp_path).read_text())
+    assert posture["schema"] == 1 and posture["active"]["band"] is None
+
+
+def test_posture_carries_the_fable_window_and_keys_band_fable_on_it(tmp_path, monkeypatch):
+    """B6 — the Fable weekly-scoped window rides the posture; band_fable includes it, band does not."""
+    _fleet, rows = _posture_fixture(tmp_path, monkeypatch, fable=32.0)
+    assert cr._cmd_tick() == 0
+    p = json.loads(_posture_path(tmp_path).read_text())["active"]
+    assert p["windows"]["fable"]["utilization"] == 32.0 and "Fable" in p["windows"]["models"]
+    assert p["band"] == "GREEN" and p["band_fable"] == "GREEN"
+    rows_now, _ = cr._fleet_account_rows(cr._fleet_dirs(), allow_pings=False)
+    row = next(r for r in rows_now if r["email"] == p["email"])
+    row["model_windows"]["Fable"]["utilization"] = 91.0
+    pic = cr._fleet_picture(rows_now, row["slugs"][0], FLEET_NOW)
+    hot = cr._quota_posture(rows_now, pic, FLEET_NOW, None, hold=False)["active"]
+    assert (
+        hot["band"] == "GREEN" and hot["band_fable"] == "RED" and hot["hottest_fable"] == "fable"
+    ), hot
+    row.pop("model_windows", None)
+    pic = cr._fleet_picture(rows_now, row["slugs"][0], FLEET_NOW)
+    none = cr._quota_posture(rows_now, pic, FLEET_NOW, None, hold=False)["active"]
+    assert none["windows"]["fable"] is None and none["band_fable"] == none["band"]
+
+
+def test_the_fleet_tick_ledgers_the_fable_reading_beside_the_weekly_one(tmp_path, monkeypatch):
+    """B11 — `fable_pct` on the tick row, same guard and write condition as `weekly_pct`."""
+    _fleet, rows = _posture_fixture(tmp_path, monkeypatch, fable=32.0)
+    assert cr._cmd_tick() == 0
+    assert _tick_row(rows)["fable_pct"] == 32.0
+    _fleet2, rows2 = _posture_fixture(tmp_path / "b", monkeypatch)
+    assert cr._cmd_tick() == 0
+    t = _tick_row(rows2)
+    assert "fable_pct" not in t and "weekly_pct" in t
+
+
+def test_posture_weekly_wall_is_the_caps_json_cap(tmp_path, monkeypatch):
+    """B7 — the weekly wall is the operator's cap when one exists."""
+    fleet, rows = _posture_fixture(tmp_path, monkeypatch)
+    _caps(fleet, {"sarp@ocoron.com": 95, "ob@ocoron.com": 95})
+    assert cr._cmd_tick() == 0
+    p = json.loads(_posture_path(tmp_path).read_text())["active"]
+    assert p["weekly_cap"] == 95.0 and p["windows"]["seven_day"]["wall_pct"] == 95.0
+    assert p["windows"]["five_hour"]["wall_pct"] == 100.0
+
+
+def test_posture_forecast_reaches_the_wall_at_the_weekly_cap(tmp_path, monkeypatch, capsys):
+    """B12 — both accounts cap-walled (no successor, so the flip leg leaves the pointer): the
+    posture names the capped account, the band stays the raw line (GREEN at 80), the forecast says
+    the wall is reached; the NEXT tick reads WALL because the advisory stamped."""
+    fleet, rows = _posture_fixture(tmp_path, monkeypatch, seo=(10.0, 80.0), intel=(10.0, 80.0))
+    _caps(fleet, {"sarp@ocoron.com": 80, "ob@ocoron.com": 80})
+    assert cr._cmd_tick() == 0
+    p = json.loads(_posture_path(tmp_path).read_text())["active"]
+    wk = p["windows"]["seven_day"]
+    assert p["band"] == "GREEN" and wk["wall_pct"] == 80.0
+    assert (
+        wk["minutes_to_wall"] == 0.0
+        and wk["verdict"] == "wall_first"
+        and wk["burn_per_min"] is None
+    )
+    assert cr._fmt_forecast(wk) == "wall in ~0m at —%/m"
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW + 300.0)
+    assert cr._cmd_tick() == 0
+    second = json.loads(_posture_path(tmp_path).read_text())["active"]
+    assert second["band"] == "WALL", second
+
+
+def test_posture_successor_is_the_first_eligible_after_the_active(tmp_path, monkeypatch):
+    """The successor is the first ELIGIBLE row after the active in the picker's queue; a row with
+    no slug is skipped (skip-and-continue); none ⇒ null."""
+    _fleet, rows = _posture_fixture(tmp_path, monkeypatch)
+    assert cr._cmd_tick() == 0
+    posture = json.loads(_posture_path(tmp_path).read_text())
+    active = posture["active"]["email"]
+    rows_now, _ = cr._fleet_account_rows(cr._fleet_dirs(), allow_pings=False)
+    other = next(r for r in rows_now if r["email"] != active)
+    assert posture["fleet"]["successor"] == {"email": other["email"], "slug": other["slugs"][0]}
+    # two eligible siblings, the first with no slug → the second is the successor
+    ghost = json.loads(json.dumps(other))
+    ghost["email"], ghost["slugs"] = "ghost@ocoron.com", []
+    rows_plus = rows_now + [ghost]
+    active_row = next(r for r in rows_now if r["email"] == active)
+    pic = cr._fleet_picture(rows_plus, active_row["slugs"][0], FLEET_NOW)
+    queue = pic["queue"]
+    assert active in queue and "ghost@ocoron.com" in queue
+    got = cr._quota_posture(rows_plus, pic, FLEET_NOW, None, hold=False)["fleet"]["successor"]
+    assert got is not None and got["email"] != "ghost@ocoron.com" and got["slug"], got
+    # the only eligible sibling has no slug → null
+    lone = [active_row, ghost]
+    pic2 = cr._fleet_picture(lone, active_row["slugs"][0], FLEET_NOW)
+    assert cr._quota_posture(lone, pic2, FLEET_NOW, None, hold=False)["fleet"]["successor"] is None
+    # no eligible sibling at all → null
+    pic3 = cr._fleet_picture([active_row], active_row["slugs"][0], FLEET_NOW)
+    assert (
+        cr._quota_posture([active_row], pic3, FLEET_NOW, None, hold=False)["fleet"]["successor"]
+        is None
+    )
+
+
+def test_posture_write_never_raises_on_an_unwritable_state_dir(tmp_path, monkeypatch, capsys):
+    """B8 — the ledger's own tolerance: an unwritable state dir costs a file, never the tick."""
+    _fleet, rows = _posture_fixture(tmp_path, monkeypatch)
+    state = tmp_path / "state"
+    state.mkdir(exist_ok=True)
+    state.chmod(0o500)
+    try:
+        assert cr._cmd_tick() == 0
+    finally:
+        state.chmod(0o700)
+    assert "Traceback" not in capsys.readouterr().out
+    assert not _posture_path(tmp_path).exists()
+
+
+def test_status_json_carries_the_posture_and_status_text_prints_one_posture_line(
+    tmp_path, monkeypatch, capsys
+):
+    """B9 — `--status --json` carries the file; the text board prints ONE `posture:` line."""
+    _fleet, rows = _posture_fixture(tmp_path, monkeypatch)
+    capsys.readouterr()
+    assert cr.main(["--status"]) == 0
+    before = [ln for ln in capsys.readouterr().out.splitlines() if ln.startswith("posture:")]
+    assert before == ["posture: none written yet"], before
+    assert cr._cmd_tick() == 0
+    capsys.readouterr()
+    assert cr.main(["--status", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["posture"]["schema"] == 1
+    assert cr.main(["--status"]) == 0
+    lines = [ln for ln in capsys.readouterr().out.splitlines() if ln.startswith("posture:")]
+    assert len(lines) == 1 and " · 5h " in lines[0] and "written 0m ago" in lines[0], lines

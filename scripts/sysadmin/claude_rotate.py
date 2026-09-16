@@ -3902,6 +3902,311 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
     }
 
 
+# ── Quota posture — one writer (the tick), many readers (D-269) ───────────────────────────────
+# The tick writes ``<state>/quota-posture.json`` once per cycle: per window the utilization, a
+# 30-minute smoothed burn, the reset epoch and a forecast (minutes to the wall at the current burn,
+# minutes to the reset, and which comes first), the D-265 band on the hottest window, the Fable
+# weekly-scoped window when the probe reported one, and the fleet queue with the first eligible
+# successor. Readers (the box-level hook, ``--status``, the dashboard, ``dispatch_headroom``) never
+# probe; each treats an absent, unreadable or stale file as ABSENT and fails OPEN — the same posture
+# ``quota_stop.py`` takes for the fleet-exhausted stamp. The band has NO cap clause: a cap reached
+# trips the flip leg, and with no successor the wall predicate counts the account as walled and the
+# advisory stamps — the posture reads WALL one tick later; the forecast already says ``wall in ~0m``.
+# ``_tick_burn`` (the flip leg's single-tick projection) and this smoothed burn answer two different
+# questions and neither reads the other. No statistics live here — the ledger is the source.
+_POSTURE_SCHEMA = 1
+_POSTURE_FILE = "quota-posture.json"
+_TICK_PERIOD_S = 300.0  # descriptive; the ring bound below is what the code consumes
+_RING_WINDOW_S = 35 * 60.0
+_RING_LEN = int(_RING_WINDOW_S // _TICK_PERIOD_S) + 1  # 8 at the 5-minute cadence
+_RING_MIN_SPAN_S = 240.0
+_SAME_RESET_TOL_S = 60.0
+
+
+def _posture_path() -> Path:
+    return _rotate_state_dir() / _POSTURE_FILE
+
+
+def _read_quota_posture() -> dict | None:
+    """The last written posture, or ``None`` on absent / unreadable / not-a-dict. No staleness
+    judgement here — every reader owns its own bound (the hook and the seat budget read
+    ``QUOTA_POSTURE_STALE_S``; ``--status`` prints the age)."""
+    try:
+        d = json.loads(_posture_path().read_text())
+    except _STATE_DIR_ERRORS:
+        return None
+    return d if isinstance(d, dict) else None
+
+
+def _write_quota_posture(posture: dict) -> None:
+    """Atomic: ``<file>.tmp`` then ``os.replace``; swallows ``_STATE_DIR_ERRORS`` exactly as
+    ``_ledger_append`` does — the tick never dies on its own state dir."""
+    try:
+        p = _posture_path()
+        tmp = p.with_name(p.name + ".tmp")
+        tmp.write_text(json.dumps(posture))
+        os.replace(tmp, p)
+    except _STATE_DIR_ERRORS:
+        pass
+
+
+def _window_reading(w: object) -> tuple[float | None, float | None]:
+    """(utilization, resets_at_epoch) with the ``_row_utils`` guard shape — a non-dict window is no
+    reading; a bool never passes."""
+    if not isinstance(w, dict):
+        return None, None
+    u, r = w.get("utilization"), w.get("resets_at_epoch")
+    u = float(u) if isinstance(u, (int, float)) and not isinstance(u, bool) else None
+    r = float(r) if isinstance(r, (int, float)) and not isinstance(r, bool) else None
+    return u, r
+
+
+def _fable_window(row: dict | None) -> tuple[str | None, dict | None]:
+    """The first ``model_windows`` key that starts with ``Fable`` (the dashboard reads the literal
+    ``Fable`` at its column; the prefix match is the mirror — a renamed display name still lands)."""
+    mw = row.get("model_windows") if isinstance(row, dict) else None
+    if isinstance(mw, dict):
+        for k, v in mw.items():
+            if isinstance(k, str) and k.startswith("Fable") and isinstance(v, dict):
+                return k, v
+    return None, None
+
+
+def _burn_per_min(
+    ring: list[dict], key: str, now: float, u_now: float | None, reset_now: float | None
+) -> float | None:
+    """Smoothed burn from the oldest kept sample of the SAME window (reset epoch within a minute);
+    ``None`` unless two samples span at least ``_RING_MIN_SPAN_S``; never negative."""
+    if u_now is None:
+        return None
+    kept = [
+        smp
+        for smp in ring
+        if isinstance(smp.get(key), (int, float))
+        and (
+            (reset_now is None and smp.get(key + "_reset") is None)
+            or (
+                isinstance(smp.get(key + "_reset"), (int, float))
+                and reset_now is not None
+                and abs(float(smp[key + "_reset"]) - reset_now) <= _SAME_RESET_TOL_S
+            )
+        )
+    ]
+    if not kept:
+        return None
+    oldest = min(kept, key=lambda smp: float(smp["ts"]))
+    span = now - float(oldest["ts"])
+    if span < _RING_MIN_SPAN_S:
+        return None
+    return max(0.0, (u_now - float(oldest[key])) / (span / 60.0))
+
+
+def _forecast(
+    u: float | None, reset: float | None, wall_pct: float, burn: float | None, now: float
+) -> dict:
+    mtw: float | None
+    if u is None:
+        mtw = None
+    elif u >= wall_pct:
+        mtw = 0.0
+    elif isinstance(burn, float) and burn > 0.0 and math.isfinite(burn):
+        mtw = (wall_pct - u) / burn
+    else:
+        mtw = None
+    mtr = max(0.0, (reset - now) / 60.0) if reset is not None else None
+    if mtr is not None and (mtw is None or mtr <= mtw):
+        verdict = "reset_first"
+    elif mtw is not None:
+        verdict = "wall_first"
+    else:
+        verdict = "unknown"
+    return {
+        "utilization": u,
+        "resets_at": reset,
+        "wall_pct": wall_pct,
+        "burn_per_min": burn,
+        "minutes_to_wall": mtw,
+        "minutes_to_reset": mtr,
+        "verdict": verdict,
+    }
+
+
+def _band_of(hot: float | None, hold: bool, drain: float, urgent: float) -> str | None:
+    if hold:
+        return "WALL"
+    if hot is None:
+        return None
+    if hot >= urgent:
+        return "RED"
+    if hot >= drain:
+        return "AMBER"
+    return "GREEN"
+
+
+def _quota_posture(
+    accounts: list[dict], picture: dict, now: float, prev: dict | None, hold: bool
+) -> dict:
+    """PURE: the posture dict for this tick. ``prev`` is the last written posture (its ``samples``
+    ring is carried forward for the active email only — a flip starts the new email empty)."""
+    active_email = picture.get("active")
+    row = (
+        next((r for r in accounts if r.get("email") == active_email), None)
+        if active_email
+        else None
+    )
+    slug = next(iter((row or {}).get("slugs") or []), None)
+    thresholds = dict(picture.get("thresholds") or {})
+    drain = float(thresholds.get("drain_band") or 85.0)
+    urgent = _urgent_drain_pct()
+    thresholds["urgent"] = urgent
+    cap = (row or {}).get("weekly_cap")
+    cap_f = float(cap) if isinstance(cap, (int, float)) and not isinstance(cap, bool) else None
+
+    fh_u, fh_r = _window_reading((row or {}).get("five_hour"))
+    wk_u, wk_r = _window_reading((row or {}).get("seven_day"))
+    fable_key, fable_raw = _fable_window(row)
+    fb_u, fb_r = _window_reading(fable_raw)
+
+    ring_all = (prev or {}).get("samples") if isinstance((prev or {}).get("samples"), dict) else {}
+    ring = (
+        [
+            smp
+            for smp in (ring_all.get(active_email) or [])
+            if isinstance(smp, dict) and isinstance(smp.get("ts"), (int, float))
+        ]
+        if active_email
+        else []
+    )
+    ring = [smp for smp in ring if 0.0 <= now - float(smp["ts"]) <= _RING_WINDOW_S]
+    sample = {
+        "ts": now,
+        "five_hour": fh_u,
+        "five_hour_reset": fh_r,
+        "seven_day": wk_u,
+        "seven_day_reset": wk_r,
+        "fable": fb_u,
+        "fable_reset": fb_r,
+    }
+    ring = (ring + [sample])[-_RING_LEN:]
+    history = ring[:-1]
+
+    windows = {
+        "five_hour": _forecast(
+            fh_u, fh_r, 100.0, _burn_per_min(history, "five_hour", now, fh_u, fh_r), now
+        ),
+        "seven_day": _forecast(
+            wk_u,
+            wk_r,
+            cap_f if cap_f is not None else 100.0,
+            _burn_per_min(history, "seven_day", now, wk_u, wk_r),
+            now,
+        ),
+        "fable": (
+            _forecast(fb_u, fb_r, 100.0, _burn_per_min(history, "fable", now, fb_u, fb_r), now)
+            if fable_raw is not None
+            else None
+        ),
+        "models": {},
+    }
+    mw = (row or {}).get("model_windows")
+    if isinstance(mw, dict):
+        for k, v in mw.items():
+            mu, mr = _window_reading(v)
+            if isinstance(k, str) and mu is not None:
+                windows["models"][k] = _forecast(mu, mr, 100.0, None, now)
+
+    readings = [(k, u) for k, u in (("five_hour", fh_u), ("seven_day", wk_u)) if u is not None]
+    hottest = max(readings, key=lambda kv: kv[1])[0] if readings else None
+    hot = max((u for _, u in readings), default=None)
+    readings_f = readings + ([("fable", fb_u)] if fb_u is not None else [])
+    hottest_f = max(readings_f, key=lambda kv: kv[1])[0] if readings_f else None
+    hot_f = max((u for _, u in readings_f), default=None)
+
+    successor = None
+    queue = list(picture.get("queue") or [])
+    by_email = {r.get("email"): r for r in picture.get("accounts") or []}
+    seen_active = active_email is None
+    for email in queue:
+        if not seen_active:
+            seen_active = email == active_email
+            continue
+        prow = by_email.get(email) or {}
+        if prow.get("state") != "eligible":
+            continue
+        s_slug = next(iter(prow.get("slugs") or []), None)
+        if s_slug is None:
+            continue  # skip-and-continue: a row with no slug is no successor, the scan goes on
+        successor = {"email": email, "slug": s_slug}
+        break
+
+    return {
+        "schema": _POSTURE_SCHEMA,
+        "ts": now,
+        "tick_period_s": _TICK_PERIOD_S,
+        "active": {
+            "email": active_email,
+            "slug": slug,
+            "weekly_cap": cap_f,
+            "windows": windows,
+            "hottest": hottest,
+            "band": _band_of(hot, hold, drain, urgent),
+            "hottest_fable": hottest_f,
+            "band_fable": _band_of(hot_f, hold, drain, urgent),
+        },
+        "fleet": {
+            "queue": queue,
+            "successor": successor,
+            "next_relief": picture.get("next_relief"),
+            "hold": picture.get("hold"),
+            "last_flip": picture.get("last_flip"),
+            "thresholds": thresholds,
+        },
+        "samples": {active_email: ring} if active_email else {},
+    }
+
+
+def _fmt_forecast(w: dict | None) -> str:
+    if not isinstance(w, dict) or w.get("utilization") is None:
+        return "—"
+    v = w.get("verdict")
+    if v == "reset_first" and isinstance(w.get("minutes_to_reset"), (int, float)):
+        m = int(w["minutes_to_reset"])
+        return f"reset in {m // 60}:{m % 60:02d}"
+    if v == "wall_first" and isinstance(w.get("minutes_to_wall"), (int, float)):
+        b = w.get("burn_per_min")
+        bt = f"{b:.2f}" if isinstance(b, (int, float)) else "—"
+        return f"wall in ~{int(w['minutes_to_wall'])}m at {bt}%/m"
+    return "no burn"
+
+
+def _posture_status_line(posture: dict | None, now: float, stale_s: float = 900.0) -> str:
+    """The ONE ``posture:`` line ``--status`` prints under ``last flip:``."""
+    if not isinstance(posture, dict) or not isinstance(posture.get("ts"), (int, float)):
+        return "posture: none written yet"
+    age = max(0.0, now - float(posture["ts"]))
+    if age > stale_s:
+        return (
+            f"posture: STALE written {age / 60:.0f}m ago (readers fail open — is the tick running?)"
+        )
+    act = posture.get("active") or {}
+    wins = act.get("windows") or {}
+
+    def pct(w: object) -> str:
+        u = w.get("utilization") if isinstance(w, dict) else None
+        return f"{u:.0f}%" if isinstance(u, (int, float)) else "—"
+
+    fh = wins.get("five_hour")
+    burn = fh.get("burn_per_min") if isinstance(fh, dict) else None
+    return (
+        f"posture: {act.get('band') or '?'} · 5h {pct(fh)} {_fmt_forecast(fh)} · weekly {pct(wins.get('seven_day'))} "
+        f"{_fmt_forecast(wins.get('seven_day'))} · Fable {pct(wins.get('fable'))} · burn 5h "
+        f"{burn:.2f}%/m"
+        if isinstance(burn, (int, float))
+        else f"posture: {act.get('band') or '?'} · 5h {pct(fh)} {_fmt_forecast(fh)} · weekly {pct(wins.get('seven_day'))} "
+        f"{_fmt_forecast(wins.get('seven_day'))} · Fable {pct(wins.get('fable'))} · burn 5h —"
+    ) + f" · written {age / 60:.0f}m ago"
+
+
 def _print_picture(pic: dict) -> None:
     if pic.get("error"):
         print(f"picture: unavailable ({pic['error']}) — the account lines above still hold")
@@ -3940,6 +4245,7 @@ def _print_picture(pic: dict) -> None:
             else "none"
         )
     )
+    print(_posture_status_line(_read_quota_posture(), _now()))
 
 
 def _cmd_fleet_status(dirs: list[Path], as_json: bool) -> int:
@@ -3957,6 +4263,7 @@ def _cmd_fleet_status(dirs: list[Path], as_json: bool) -> int:
                     "pause": _pause_state(),
                     "fleet_warnings": warns,
                     "picture": _safe_picture(accounts, active),
+                    "posture": _read_quota_posture(),
                 },
                 indent=1,
             )
@@ -4572,7 +4879,7 @@ def _urgent_drain_pct() -> float:
     send an URGENT mail to repos"). Below the flip line on purpose: the flip (`_rotate_threshold`, 98 since D-201 — read it there,
     never from this sentence) is the
     remedy when a successor exists; this is the remedy when none does, and it needs the five
-    points of runway a graceful stop takes. ``ROTATE_URGENT_DRAIN_PCT`` overrides."""
+    points of runway a graceful stop takes. ``ROTATE_URGENT_DRAIN_PCT`` overrides. The quota posture (D-269) reads it as the RED line too — on the hottest window, successor or not — so a session's band and the drain mail share one number."""
     return _env_float("ROTATE_URGENT_DRAIN_PCT", 90.0)
 
 
@@ -4984,7 +5291,26 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
             _wk = _wk_window.get("utilization") if isinstance(_wk_window, dict) else None
             if isinstance(_wk, (int, float)) and not isinstance(_wk, bool):
                 _row["weekly_pct"] = float(_wk)
+            # the Fable weekly-scoped window rides the row too (D-269) — same guard, same write
+            # condition, so the Finish can measure the third axis the way it measures the weekly one
+            _fk, _fw = _fable_window(_active_row)
+            _fv = _fw.get("utilization") if isinstance(_fw, dict) else None
+            if isinstance(_fv, (int, float)) and not isinstance(_fv, bool):
+                _row["fable_pct"] = float(_fv)
             _ledger_append(_row)
+    # The quota posture (D-269): resolved AFTER the flip leg so it describes the POST-flip pointer;
+    # at function level so the no-reading path writes too (band null). A picture error prints one
+    # line and never takes the tick down.
+    _active_slug = _resolve_active()
+    try:
+        _pic = _fleet_picture(accounts, _active_slug, now)
+        _write_quota_posture(
+            _quota_posture(
+                accounts, _pic, now, _read_quota_posture(), hold=_pic.get("hold") is not None
+            )
+        )
+    except Exception as exc:  # noqa: BLE001 — never silent, never fatal
+        print(f"tick: quota-posture not written — {type(exc).__name__}: {exc}")
     # The advisory is FLEET-WIDE, not per-account: fire ONLY when the active account (the one
     # every agent is using) is walled with no auto-relief. A single account crossing the threshold is a
     # non-event — the flip leg above already re-pointed to a sibling with headroom.
