@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import time
 from pathlib import Path
 
@@ -154,6 +155,32 @@ def test_a_posture_about_another_account_never_steers_the_seat_budget(monkeypatc
     _pin(mod, monkeypatch, json.dumps(doc))
     q = mod.quota()
     assert q["hottest_pct"] == 96.0 and "band" not in q, q
+
+
+def test_the_seat_budget_never_reads_the_operators_real_run_records(tmp_path, monkeypatch):
+    """The run-record dir is resolved AT CALL TIME from `COMMAND_RUN_DIR`, the key the conftest pins.
+
+    ⚠️ It was a module constant bound to `Path.home()` at import, which no fixture could pin — so a
+    suite run inside a live Claude session read the OPERATOR'S REAL seat reservations and sized its
+    budget against them. Read-only, so smaller than the `/opt` constant of the same shape that let a
+    grader mail 49 live project mailboxes on 2026-09-16, but the same defect. Pre-existing: 1b971416
+    (D-189), not this plan.
+    """
+    mod = _load()
+    pinned = os.environ.get("COMMAND_RUN_DIR")
+    assert pinned, "COMMAND_RUN_DIR is unset inside a test — the conftest autouse pin is gone"
+    assert mod._runs_dir() == Path(pinned)
+    assert mod._runs_dir() != Path.home() / ".claude" / "state" / "command-runs"
+
+    # and the CONSUMER honours it: a record in the pinned dir is seen, and the real dir is not read
+    runs = Path(pinned)
+    runs.mkdir(parents=True, exist_ok=True)
+    (runs / "other.json").write_text(
+        json.dumps({"state": "running", "dispatch": {"seats": 3, "ts": time.time()}}),
+        encoding="utf-8",
+    )
+    seen = mod.siblings(exclude_sid="not-this-one")
+    assert seen["seats"] >= 3, seen
 
 
 def test_the_staleness_bound_is_the_one_env_key_the_hook_reads(monkeypatch):

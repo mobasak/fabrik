@@ -18,7 +18,11 @@
     "docs/workstation/claude-account-rotation.md",
     "docs/workstation/hooks-index.md",
     "docs/workstation/quota-dashboard.md",
-    "docs/development/PLANS.md"
+    "docs/development/PLANS.md",
+    "tests/conftest.py",
+    "tests/test_conftest_isolation.py",
+    "tests/test_dispatch_headroom_posture.py",
+    "tests/test_quota_dashboard_posture.py"
   ],
   "branch": "worktree-quota-posture",
   "started_at": "2026-09-16T15:29:27+00:00",
@@ -52,5 +56,6 @@
     ],
     "ruling": "operator dispatched /fabrik-execute-plan by pasting the NEXT line that named this decision (2026-09-16), after ruling earlier the same session 'infra is busy, you are fleet. cant you figure it on your own?'; the sibling lock is NOT deleted; recorded as D-271"
   },
-  "isolation": "position (b): the run's own worktree /opt/fabrik/.claude/worktrees/quota-posture (two other plan locks active at start)"
+  "isolation": "position (b): the run's own worktree /opt/fabrik/.claude/worktrees/quota-posture (two other plan locks active at start)",
+  "owned_paths_note": "Four paths added at Finish, after the heavy review found the lock did not own files the plan had written: two NEW grader files (the C12/C13 graders live here, not in the files the Behavior Contract originally named) and the two conftest surfaces the mail incident forced. \u26a0\ufe0f scripts/command_run.py and .claude/hooks/final_gate_stop.py are deliberately NOT here: those comment edits were made in error at 82f37e21, reverted, and mailed to infra (01M2NSXK1FBJEZS0T3AAGXBX6D) exactly as Phase D step 5 always said to do \u2014 one is lock-owned by another plan and the other is a governance-sync trigger surface on infra's beat."
 }

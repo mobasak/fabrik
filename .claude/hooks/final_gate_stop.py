@@ -811,12 +811,8 @@ _CLOSED_STATES = frozenset(
 _REVIEW_FAMILY = frozenset(
     {"fabrik-review", "fabrik-review-scoped"}
 )  # the commands whose contract IS a review — `command_run.py::REVIEW_FAMILY`, bound by a parity
-# grader for the same reason `_CLOSED_STATES` is: this would otherwise be one more hand-kept copy
-# of a set the writer owns. Since 2026-09-16 there is a THIRD reader of that set,
-# `scripts/sysadmin/quota_posture_hook.py`, which decides at band RED whether a `command_run.py
-# start` is the mandated review of the change being checkpointed or a fresh round on something new
-# (D-269) — it carries its own copy, for the same no-import reason, under its own parity grader.
-# Only these may exempt code they did not author (T5.2).
+# grader for the same reason `_CLOSED_STATES` is: this would otherwise be the fifth hand-kept copy
+# of a set the writer owns. Only these may exempt code they did not author (T5.2).
 
 
 def _hold_in_force(tick_age_s: float, stale_s: float) -> bool:

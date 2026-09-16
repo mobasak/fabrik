@@ -3770,11 +3770,18 @@ def _posture_hook_wiring_warnings() -> list[str]:
         return []
     raw = os.environ.get("QUOTA_POSTURE_SETTINGS")
     if raw:
-        paths = [Path(p) for p in raw.split(os.pathsep) if p]
+        # de-duplicated exactly as the hook does: a repeated path would inflate the RATIO this
+        # function prints, which is the count-without-its-denominator defect in the one line whose
+        # whole job is to report a count
+        paths = [Path(p) for p in dict.fromkeys(x for x in raw.split(os.pathsep) if x)]
     else:
         paths = [Path.home() / ".claude" / "settings.json"]
         try:
-            root = Path.home() / ".claude-fleet"
+            # ⚠️ `_fleet_root()`, not a hardcoded `~/.claude-fleet`: on a box where
+            # `CLAUDE_FLEET_ROOT` is set, hardcoding enumerates ONE file, finds it wired and reports
+            # nothing wrong while every per-slug window is unwired — a false green in the check that
+            # exists to notice nobody is reading the posture
+            root = _fleet_root()
             paths += sorted(
                 d / "settings.json" for d in root.iterdir() if d.is_dir() and not d.is_symlink()
             )
@@ -4360,7 +4367,11 @@ def _posture_status_line(posture: dict | None, now: float, stale_s: float = 900.
 
     def pct(w: object) -> str:
         u = w.get("utilization") if isinstance(w, dict) else None
-        return f"{u:.0f}%" if isinstance(u, (int, float)) else "—"
+        # `isinstance(True, int)` is True in Python, so a bool prints as `1%`, and a NaN raises out
+        # of the format. The same guard `_window_reading` and `_fmt_forecast._finite` already apply,
+        # so the convention travels with the field rather than stopping at one reader.
+        ok = isinstance(u, (int, float)) and not isinstance(u, bool) and math.isfinite(u)
+        return f"{u:.0f}%" if ok else "—"
 
     fh = wins.get("five_hour")
     burn = fh.get("burn_per_min") if isinstance(fh, dict) else None

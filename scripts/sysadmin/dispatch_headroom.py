@@ -87,7 +87,23 @@ except ValueError:
 HEAVY_GB_PER_SEAT = 2.0
 LIGHT_GB_PER_SEAT = 1.0
 ROTATE = Path(__file__).resolve().parent / "claude_rotate.py"
-RUNS_DIR = Path.home() / ".claude" / "state" / "command-runs"
+
+
+def _runs_dir() -> Path:
+    """The run-record dir, resolved AT CALL TIME from ``COMMAND_RUN_DIR`` — the key `command_run.py`
+    and `tests/conftest.py` already use.
+
+    ⚠️ It was a module constant bound to `Path.home()` at import, which no fixture could pin, so a
+    suite run inside a live Claude session read the OPERATOR'S REAL seat reservations and sized its
+    budget against them. Read-only, so the blast radius was smaller than the `/opt` constant of the
+    same shape that let a grader mail 49 live project mailboxes on 2026-09-16 — but it is the same
+    defect, and the conftest pin that closes it was already there and simply unread.
+    Pre-existing: introduced by 1b9714166 (D-189), not by the quota-posture plan.
+    """
+    raw = os.environ.get("COMMAND_RUN_DIR")
+    return Path(raw) if raw else Path.home() / ".claude" / "state" / "command-runs"
+
+
 # a sibling's run record counts as LIVE for this purpose when it is `running` and was touched
 # within this window — an abandoned record (the Stop hook's stale bound is 12 h) must not hold
 # the box hostage
@@ -321,7 +337,7 @@ def own_session_id() -> tuple[str, str]:
 
 
 def siblings(
-    now: float | None = None, runs_dir: Path = RUNS_DIR, exclude_sid: str | None = None
+    now: float | None = None, runs_dir: Path | None = None, exclude_sid: str | None = None
 ) -> dict:
     """Seats OTHER live sessions on this box have dispatched — each running record's DISPATCH
     stamp is the reservation; a record with no stamp falls back to its last round's `seats`, dated
@@ -344,6 +360,7 @@ def siblings(
         "excluded_own": False,
         "own_source": own_source,
     }
+    runs_dir = _runs_dir() if runs_dir is None else runs_dir
     try:
         for p in runs_dir.glob("*.json"):
             if own_stem and p.stem == own_stem:

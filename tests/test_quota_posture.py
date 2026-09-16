@@ -294,6 +294,21 @@ def test_red_holds_agent_only_without_a_live_run(tmp_path):
         # a trailing comment with an apostrophe is an unbalanced quote to shlex; the retry reads it,
         # and an unreadable line ALLOWS rather than denying the commit RED mandates
         ('git commit -m "msg" -- scripts/command_run.py  # don\'t forget', False),
+        # ⚠️ the heavy review. An unquoted NEWLINE yields no shlex token at all, so a `--command` on
+        # the NEXT LINE bound to the unnamed start above it — the cheapest bypass on the board,
+        # since it is what a multi-line Bash script has by default. The name binding now consumes
+        # argv the way argparse does and stops at the first bare token.
+        ("python3 scripts/command_run.py start --phases 2\necho --command fabrik-review", True),
+        ("python3 scripts/command_run.py start --phases 2\necho --command=fabrik-review", True),
+        # a COMBINED short flag is the habitual spelling of a payload; an exact-string set matched
+        # none of them
+        ('bash -lc "python3 scripts/command_run.py start --command fabrik-spec"', True),
+        ('bash -ec "python3 scripts/command_run.py start --command fabrik-spec"', True),
+        ("sh -eu -c 'python3 scripts/command_run.py start --command fabrik-review'", False),
+        # a bare MENTION as an argument is not an invocation; matching it denied read-only commands,
+        # which is the expensive direction
+        ("grep -c command_run.py start", False),
+        ('git -c core.editor="scripts/command_run.py start" rebase --continue', False),
     ],
 )
 def test_red_holds_a_new_command_start_but_not_the_review_that_finishes(tmp_path, command, denied):
@@ -825,6 +840,11 @@ def test_settings_files_skips_the_active_symlink(tmp_path, monkeypatch):
     (fleet / "active").symlink_to(fleet / "can")
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
     monkeypatch.delenv("QUOTA_POSTURE_SETTINGS", raising=False)
+    # the fleet root is read from `CLAUDE_FLEET_ROOT` now, the seam `_fleet_root()` already used —
+    # hardcoding `~/.claude-fleet` made the installer and the tick's advisory blind to a relocated
+    # root, reporting nothing wrong while every per-slug window was unwired. The conftest pins it,
+    # and a test that wants its own fleet names it, which is what the pin's composability is for.
+    monkeypatch.setenv("CLAUDE_FLEET_ROOT", str(fleet))
     found = mod.settings_files()
     assert len(found) == 6, found
     assert not any("active" in str(p) for p in found), found

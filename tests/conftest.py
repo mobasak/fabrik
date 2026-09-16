@@ -159,6 +159,19 @@ def _isolated_opt_dir(tmp_path, monkeypatch):
     # an absent notifier, so a path that does not exist is complete isolation — and the sound system
     # itself is untouched, which it must be: it is production and read-only by standing rule.
     monkeypatch.setenv("CLAUDE_SOUND_SH", str(tmp_path / "no-notifier-in-tests.sh"))
+    # ⚠️ THE THIRD SINK, and the only one that WRITES to the operator's live fleet. The tick's flip
+    # leg calls `_flip_active`, which `os.replace`s the `active` SYMLINK under `_fleet_root()` —
+    # repointing which account every window on this box uses. Containment rested entirely on each
+    # fleet test remembering to set this itself, which is the "a seam only a lucky fixture can pin
+    # is not a seam" shape that let a grader mail 49 live mailboxes on 2026-09-16. On that same day
+    # the operator reported having to switch accounts by hand while off-cadence flip rows appeared
+    # in the live ledger during this plan's test runs — consistent with exactly this hole.
+    fleet = tmp_path / "isolated-fleet"
+    fleet.mkdir(exist_ok=True)
+    monkeypatch.setenv("CLAUDE_FLEET_ROOT", str(fleet))
+    # and the settings list the installer and the tick's advisory walk, so neither reads the
+    # operator's real per-account files
+    monkeypatch.setenv("QUOTA_POSTURE_SETTINGS", str(tmp_path / "isolated-settings.json"))
     yield opt
 
 

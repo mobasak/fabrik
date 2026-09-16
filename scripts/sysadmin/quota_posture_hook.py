@@ -43,19 +43,23 @@ many small non-``Agent`` calls is the gaming path that remains, and it burns quo
 on the injected line every prompt; NO second gate is added for it, because a gate on tool
 COUNT would punish exactly the checkpoint work RED exists to protect.
 
-⚠️ The FIRST draft of this block named that as "the one gaming path", and the review found
-two far cheaper ones that a regex predicate could not see: QUOTE the script path, or lead
-with a decoy ``--command fabrik-review`` before the real one. Both defeated the hold
-entirely. Naming the wrong cheapest path is worse than naming none, because it tells the
-next reader the question has already been asked — so the answer here is now a property of
-the PREDICATE (it tokenises with ``shlex`` ONCE, segments on the operator TOKENS shlex itself
-yields, and reads the LAST ``--command`` the way argparse does) rather than a claim in prose,
-and the bypass corpus in the graders is what keeps it true. ⚠️ The second draft was wrong too,
-in the opposite direction: it pre-split the raw string on separators, severing any quote that
-held one, and denied the very commit it claimed to unblock. Two shapes remain OPEN and are
-named rather than implied — an ALIASED script and an ``xargs`` pipe never carry the basename
-next to the verb, so nothing string-shaped can see them, and closing them would mean touching
-the filesystem on every tool call.
+⚠️ **THE BASH HALF IS BEST-EFFORT AND THIS PARAGRAPH WILL NOT PRETEND OTHERWISE.** Three
+drafts of ``_is_new_run_start`` each ended by ENUMERATING the shapes that remained open, and
+each enumeration was disproved by the next reviewer: draft 1 missed a quoted path and a decoy
+``--command``; draft 2 severed quotes and denied the commit it claimed to unblock; draft 3
+named an aliased script and an ``xargs`` pipe as the only gaps, and a reviewer then found a
+newline decoy, ``bash -lc`` and a shell MCP. The lesson is not that the list was short but
+that a CLOSED list is the wrong artifact: it tells the next reader the question has been
+asked and settled, which is the one thing that has never been true here.
+
+So: this predicate reads arbitrary shell and will be wrong about some of it. It is built to
+be wrong in the CHEAP direction — it fails OPEN, so a shape it misses leaks a run record
+while the ``Agent`` hold still stands and the line still says RED on every prompt, rather
+than blocking the commit RED exists to force. The ``Agent`` half is one exact tool-name
+comparison and has never been wrong in any draft; it is the half that carries the contract.
+The living record of what this predicate actually handles is the bypass corpus in
+``tests/test_quota_posture.py`` — every case in it is a shape some draft got wrong, which is
+the only form of this claim that cannot rot.
 
 Env keys, declared here and nowhere else:
   ``ROTATE_STATE_DIR``       the state dir holding the posture file and the stamp
@@ -192,6 +196,12 @@ def _load_posture(now: float) -> tuple[dict | None, str]:
     if not (isinstance(ts, (int, float)) and not isinstance(ts, bool) and math.isfinite(ts)):
         return None, "unreadable"
     age = now - float(ts)
+    # ⚠️ BOTH sides. Only the upper bound was checked, so a `ts` in the FUTURE — a millisecond epoch
+    # from some other writer, or WSL clock skew after a resume — read as fresh forever. That is the
+    # same permanently-confident-wrong-answer failure the NaN guard above exists to stop, left open
+    # on the other side of zero.
+    if age < -_stale_s():
+        return None, f"ahead {abs(age) / 60:.0f}m"
     if age > _stale_s():
         return None, f"stale {age / 60:.0f}m"
     return data, ""
@@ -230,7 +240,8 @@ def _forecast(w: object) -> str:
 
     v = w.get("verdict")
     mtr = _finite(w.get("minutes_to_reset"))
-    if v == "reset_first" and mtr is not None:
+    # a negative reset rendered `reset in -1:53`, outside the contract's own grammar
+    if v == "reset_first" and mtr is not None and mtr >= 0:
         m = int(mtr)
         return f"reset in {m // 60}:{m % 60:02d}"
     mtw = _finite(w.get("minutes_to_wall"))
@@ -342,8 +353,10 @@ _BOUNDARY = frozenset({";", "&", "&&", "|", "||"})
 # fails and the hold VANISHES — the same class as the quoted path, for the spellings an agent writes
 # by habit rather than by evasion. Every token is cut at its first operator before any comparison.
 _OPERATOR = re.compile(r"[;&|<>()]")
-# the flags whose ARGUMENT is itself a command line: `bash -c "…"`, `sh -c '…'`, `env -S "…"`
-_PAYLOAD_FLAGS = frozenset({"-c", "-S", "--command-string"})
+# the flags whose ARGUMENT is itself a command line. A COMBINED short flag is the habitual
+# spelling — `bash -lc "…"`, `sh -ec "…"` — and an exact-string set missed every one of them.
+_PAYLOAD_FLAG_RE = re.compile(r"^--?[A-Za-z]*c$")
+_PAYLOAD_FLAGS = frozenset({"-S", "--command-string"})
 
 
 def _cut(tok: str) -> str:
@@ -374,7 +387,8 @@ def _tokens(command: str) -> list[str] | None:
         out: list[str] = []
         for i, tok in enumerate(toks):
             prev = _cut(toks[i - 1]) if i else ""
-            if prev in _PAYLOAD_FLAGS and "command_run.py" in tok:
+            payload = prev in _PAYLOAD_FLAGS or bool(_PAYLOAD_FLAG_RE.match(prev))
+            if payload and "command_run.py" in tok:
                 try:
                     out.extend(shlex.split(tok, comments=False))
                     continue
@@ -476,25 +490,49 @@ def _is_new_run_start(command: object) -> tuple[bool, str | None]:
     starts, name = 0, None
     for tokens in segments:
         for i, tok in enumerate(tokens):
-            if _cut(tok).rsplit("/", 1)[-1] != "command_run.py":
+            # a `KEY=…/command_run.py` assignment and a bare mention as an ARGUMENT
+            # (`grep -c command_run.py start`, `git -c core.editor="…/command_run.py start"`)
+            # are not invocations; matching them denied ordinary read-only commands, which is
+            # the expensive direction
+            cut = _cut(tok)
+            # ⚠️ An INVOCATION carries a path: a bare `command_run.py` cannot be executed on Linux
+            # without `./` or a PATH entry, so a bare mention beside the word `start` is an
+            # ARGUMENT — `grep -c command_run.py start`, `git -c core.editor="… start"` — and
+            # denying those blocked read-only commands, the expensive direction. Requiring the
+            # separator fails the other way: a script genuinely on PATH is missed, which leaks a
+            # record while the `Agent` hold still stands.
+            if "=" in cut or "/" not in cut or cut.rsplit("/", 1)[-1] != "command_run.py":
                 continue
             verb = _cut(tokens[i + 1]) if i + 1 < len(tokens) else ""
             if verb != "start":
                 continue
             starts += 1
-            # ⚠️ the name is bound to THIS start, scanning forward only, and stopping at the next
-            # invocation of the script. Accumulating names globally made segmentation pointless:
-            # `done --command fabrik-review && start --phases 2` read the DONE's name and allowed an
-            # unnamed start, and the mirror denied a legitimate review start followed by a `done`.
+            # ⚠️ The name is bound to THIS start, by consuming argv THE WAY ARGPARSE DOES: flags and
+            # their values, stopping at the first BARE token that is not a flag's value — because
+            # that token is a new command, whatever separated it. Scanning to a segment boundary was
+            # not enough: an unquoted NEWLINE yields no `shlex` token at all, so
+            # `start --phases 2 ⏎ echo --command fabrik-review` bound the decoy on the next LINE to
+            # the unnamed start above it and allowed it. Consuming argv stops at `echo` and needs no
+            # newline boundary to do it. The consumer is argparse, so the reader is argparse-shaped.
             name = None
-            for j in range(i + 2, len(tokens)):
+            j = i + 2
+            while j < len(tokens):
                 nxt = _cut(tokens[j])
-                if nxt.rsplit("/", 1)[-1] == "command_run.py":
-                    break
-                if nxt == "--command" and j + 1 < len(tokens):
-                    name = _cut(tokens[j + 1])
-                elif nxt.startswith("--command="):
+                if nxt.startswith("--command="):
                     name = _cut(nxt.split("=", 1)[1])
+                    j += 1
+                elif nxt.startswith("-"):
+                    if nxt == "--command" and j + 1 < len(tokens):
+                        name = _cut(tokens[j + 1])
+                    j += 2 if j + 1 < len(tokens) and not _cut(tokens[j + 1]).startswith("-") else 1
+                elif nxt == "\n" or not nxt:
+                    # a BACKSLASH continuation yields a literal newline token (an unquoted one
+                    # yields nothing at all). It joins a line, it does not start a command, and
+                    # treating it as a new command denied the multi-line `start --command … \` that
+                    # is how a real run is actually opened.
+                    j += 1
+                else:
+                    break  # a bare token that no flag claimed — a new command begins here
     if not starts:
         return False, None
     if starts > 1:
@@ -517,7 +555,10 @@ def decide(
         if tool == "Agent" and not _has_live_run(sid):
             return "deny", "The Agent tool"
         is_start, name = _is_new_run_start(command)
-        if tool == "Bash" and is_start and name not in REVIEW_FAMILY:
+        # ⚠️ judged on the COMMAND, not on the tool's name. `tool == "Bash"` left every shell MCP
+        # unheld — `mcp__wsl-shell__run` carries the same `command` field and ran the same start at
+        # RED. The sibling `quota_stop.py` has no such gap: its matcher is `.*`.
+        if is_start and name not in REVIEW_FAMILY:
             return "deny", f"Starting /{name or '<unnamed>'}"
         return "pass", ""
     if band == "AMBER":
@@ -570,7 +611,10 @@ def _said_already(sid: object, band: str) -> bool:
     disagree and two concurrent tool calls cannot both decide they are first.
     """
     if not isinstance(sid, str) or not sid:
-        return False
+        # ⚠️ TRUE, not False. With no session there is nowhere to record that the notice was given,
+        # so `False` meant "not said yet" on EVERY call and AMBER was injected into every single
+        # tool call — the opposite of the "ONCE per (session, band)" this function exists to deliver.
+        return True
     p = _rotate_state_dir() / f"quota-posture-said-{_safe_sid(sid)}-{band}"
     try:
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -607,7 +651,9 @@ def settings_files() -> list[Path]:
         return [Path(p) for p in dict.fromkeys(x for x in raw.split(os.pathsep) if x)]
     out = [Path.home() / ".claude" / "settings.json"]
     try:
-        root = Path.home() / ".claude-fleet"
+        # the same seam `claude_rotate._fleet_root()` uses; hardcoding it made the installer and the
+        # tick's advisory blind to a relocated fleet root in the same way
+        root = Path(os.environ.get("CLAUDE_FLEET_ROOT") or Path.home() / ".claude-fleet")
         out += sorted(
             d / "settings.json" for d in root.iterdir() if d.is_dir() and not d.is_symlink()
         )
@@ -621,7 +667,17 @@ def _is_wired(cfg: dict, event: str) -> bool:
     if not isinstance(hooks, dict):
         return False
     lst = hooks.get(event)
-    return _BASENAME in json.dumps(lst) if isinstance(lst, list) else False
+    if not isinstance(lst, list):
+        return False
+    # ⚠️ the COMMAND field, not a substring of the whole entry: an unrelated hook whose text merely
+    # MENTIONS this basename (`echo quota_posture_hook.py is not wired`) read as wired, so `--check`
+    # printed OK and `--install` skipped the file it was there to fix.
+    for entry in lst:
+        for h in (entry or {}).get("hooks", []) if isinstance(entry, dict) else []:
+            cmd = h.get("command") if isinstance(h, dict) else None
+            if isinstance(cmd, str) and cmd.strip().endswith(_HOOK_PATH):
+                return True
+    return False
 
 
 def check(paths: list[Path]) -> list[tuple[Path, str]]:

@@ -172,3 +172,18 @@ def test_no_test_can_reach_the_real_opt_or_mail_a_real_repo(tmp_path_factory):
     assert cr._mailbox_repos() == ["somerepo"], "the pinned opt dir is what gets enumerated"
     sender = Path(str(cr._opt_dir())) / "fabrik" / "scripts" / "mail.py"
     assert not sender.is_file(), "the mail SENDER must resolve inside the pin, not to the real one"
+    # ⚠️ THE THIRD SINK, and the only WRITE among them: the tick's flip leg `os.replace`s the
+    # `active` symlink under the fleet root, repointing which account every window on this box uses.
+    # Nothing pinned it, so containment rested on each fleet test remembering to — and on the day
+    # this was found the operator had to switch accounts by hand while off-cadence flip rows sat in
+    # the live ledger during this plan's own test runs.
+    root = os.environ.get("CLAUDE_FLEET_ROOT")
+    assert root, "CLAUDE_FLEET_ROOT is unset inside a test — the tick could repoint the live fleet"
+    assert Path(root).resolve() != (Path.home() / ".claude-fleet").resolve(), root
+    assert Path(root).resolve().is_relative_to(tmp_path_factory.getbasetemp().resolve()), root
+    assert cr._fleet_root().resolve() == Path(root).resolve(), cr._fleet_root()
+    assert cr._active_pointer_path().resolve().is_relative_to(Path(root).resolve())
+    settings = os.environ.get("QUOTA_POSTURE_SETTINGS")
+    assert settings and Path(settings).resolve().is_relative_to(
+        tmp_path_factory.getbasetemp().resolve()
+    ), settings
