@@ -215,7 +215,8 @@ QUOTA_CLAIMS = (
     "The `QUOTA:` line (D-269)",
     "posture unavailable",
     "at RED the hook HOLDS `Agent` and a new",
-    "reads the `Fable` figure as its weekly",
+    "is banded on its Fable window too",
+    "is the authority on WHEN you resume, in every band",
 )
 
 
@@ -250,7 +251,9 @@ def test_the_quota_bands_and_the_quota_line_are_identical_in_all_three_contracts
     assert not missing3, f"claim | fabrik-lib count -> {missing3}"
 
 
-def test_the_third_contract_half_skips_with_a_reason_when_fabrik_lib_is_absent(monkeypatch, tmp_path) -> None:
+def test_the_third_contract_half_skips_with_a_reason_when_fabrik_lib_is_absent(
+    monkeypatch, tmp_path
+) -> None:
     """A2: the hub/template half still grades when the third file is missing; the skip names why."""
     import pytest
 

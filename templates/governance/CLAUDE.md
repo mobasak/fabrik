@@ -401,22 +401,25 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
   **The `QUOTA:` line (D-269).** Every prompt opens with one injected line — `QUOTA: <slug> · 5h
   <n>% (<forecast>) · weekly <n>% (<forecast>) · Fable <n>% · band <GREEN|AMBER|RED|WALL> ·
   successor <slug or none>` — where `<forecast>` is `reset in <h:mm>` or `wall in ~<m>m at
-  <n>%/m` whichever comes FIRST, a figure the tick has no reading for prints `—` and a band it
-  cannot compute prints `?`, written by the rotation tick and read by a box-level hook. `posture
-  unavailable` means the tick is dead or stale, not that quota is fine — run `python3
-  /opt/fabrik/scripts/sysadmin/claude_rotate.py --status`. **The band names the action:** at
-  AMBER the line is advice; at RED the hook HOLDS `Agent` and a new `command_run.py start` (a
-  run record already live keeps its seats, and a review-family start — `/fabrik-review-scoped`
-  or `/fabrik-review` — stays allowed because it is the finish path) — everything a checkpoint
-  needs stays allowed, so RED is finish-and-checkpoint, never freeze. **A session on a Fable
-  model reads the `Fable` figure as its weekly** — Fable draws on the account's weekly pool
-  under its own ceiling, reported as its own percentage, and the hook keys the band on it when
-  the transcript says the model is Fable.
-  ⚠️ **`claude_rotate.py --status` is the authority on WHEN you resume, in every band.**
+  <n>%/m` whichever comes FIRST, or `no burn` when neither is derivable yet; a figure the tick
+  has no reading for prints `—` and a band it cannot compute prints `?`. It is written by the
+  rotation tick and read by the box-level `scripts/sysadmin/quota_posture_hook.py` (not
+  `quota_stop.py`, which owns the WALL alone). `posture unavailable` means the posture could not
+  be READ — a dead or stale tick, or an unreadable file — not that quota is fine; no `QUOTA:`
+  line at all means the hook is not installed on this box; same reading, same action: run
+  `python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --status`. **The band names the
+  action:** at AMBER the line is advice; at RED the hook HOLDS `Agent` and a new `command_run.py
+  start` (a run record already live and readable keeps its seats, and a review-family start —
+  `/fabrik-review-scoped` or `/fabrik-review` — stays allowed because it is the mandated review
+  of the change you are checkpointing, never a fresh round on something new) — everything a
+  checkpoint needs stays allowed, so RED is finish-and-checkpoint, never freeze. **A session on
+  a Fable model is banded on its Fable window too** — Fable's weekly-scoped limit is reported as
+  its own percentage, and on a Fable model the band is the hottest of 5h, weekly and Fable.
+  ⚠️ **`claude_rotate.py --status` is the authority on WHEN you resume, in every band — the line's `<forecast>` is a projection from a smoothed burn, never the authority.**
   The urgent-drain mail names a resume instant too, but it does not fire in every state and its
   line is the SESSION window — so read `--status`, and never wait on a mail you cannot confirm was
   sent. A reading that is missing entirely is not a band at all: read `--status` rather than
-  assuming. ⚠️ **The bands are the ACTIONS; the machinery that produces them is not restated here**
+  assuming. ⚠️ **The bands are the ACTIONS; the machinery that produces them is not restated here** (the `QUOTA:` line's own format and the actions it binds, above, are the one carve-out — a hook grader asserts them byte for byte)
   — `_fleet_tick_inner` and `_fleet_active_wall_advisory` in
   `/opt/fabrik/scripts/sysadmin/claude_rotate.py` carry it in comments beside the code, which is
   the only copy that cannot go stale against it. Three rounds of trying to summarise that machinery
@@ -426,7 +429,7 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
   re-creation costs a cache WRITE (1.25x base input on the 5-minute TTL, 2x on the 1-hour) against
   the ~0.1x you were paying to read it; compacting first shrinks what gets
   re-created, but a compaction ALSO discards the prefix and pays summarization, so it is a pure
-  LOSS whenever no flip arrives. Judge it on the three facts `claude_rotate.py --status` already
+  LOSS whenever no flip arrives. Judge it on the three facts the `QUOTA:` line and `claude_rotate.py --status` both
   gives you — your current %, when your window RESETS, and whether an eligible successor exists:
   compact when a flip is likely to beat your reset, ride it out when the reset comes first.
   ⚠️ **Never "help" by moving the knobs.** Lowering `ROTATE_THRESHOLD` (98) or `ROTATE_DWELL_MIN`
