@@ -3088,7 +3088,9 @@ def _invalidate_quota_posture(new_slug: str) -> None:
     """
     try:
         _posture_path().unlink(missing_ok=True)
-    except OSError as exc:  # pragma: no cover - defensive; the flip itself already landed
+    except (
+        _STATE_DIR_ERRORS
+    ) as exc:  # the flip itself already landed; `Path.home()` raises RuntimeError
         sys.stderr.write(
             f"claude_rotate: posture not invalidated after flip to {new_slug}: {exc}\n"
         )
@@ -4291,25 +4293,32 @@ def _fleet_readings(accounts: list[dict], picture: dict) -> dict:
         slug = next(iter(row.get("slugs") or []), None)
         wk_u, _ = _window_reading(row.get("seven_day"))
         cap = caps.get(email)
-        # a weekly at or over its cap serves nothing, whatever the picker's state string says
-        if (
-            wk_u is not None
-            and isinstance(cap, (int, float))
-            and not isinstance(cap, bool)
-            and wk_u >= float(cap)
-        ):
+        # a weekly at or over its WALL serves nothing, whatever the picker's state string says —
+        # and the wall is the cap when one is finite, else 100, exactly `_fleet_picture`'s predicate
+        # (the ACTIVE account is always `state == "active"`, so only this guard can drop it; the
+        # first cut walled only on a cap and let a capless active at weekly 100 serve 5h — seat 1)
+        wall = (
+            float(cap)
+            if isinstance(cap, (int, float)) and not isinstance(cap, bool) and math.isfinite(cap)
+            else 100.0
+        )
+        if wk_u is not None and wk_u >= wall:
             continue
         if wk_u is not None and (("seven_day" not in best) or wk_u < best["seven_day"][0]):
             best["seven_day"] = (wk_u, slug)
+        # Fable is WEEKLY-scoped (the contract: "Fable's weekly-scoped limit"), so it follows the
+        # weekly rule — a spent session still holds it. The first cut scored it on the 5h rule and
+        # discarded a session-exhausted account's cool Fable reading (seat 1, F7): the "not
+        # prospective" complaint the ruling was written to fix, left in place for one window.
+        _, fable_raw = _fable_window(row)
+        fb_u, _ = _window_reading(fable_raw)
+        if fb_u is not None and (("fable" not in best) or fb_u < best["fable"][0]):
+            best["fable"] = (fb_u, slug)
         if state == "session-exhausted":
             continue
         fh_u, _ = _window_reading(row.get("five_hour"))
         if fh_u is not None and (("five_hour" not in best) or fh_u < best["five_hour"][0]):
             best["five_hour"] = (fh_u, slug)
-        _, fable_raw = _fable_window(row)
-        fb_u, _ = _window_reading(fable_raw)
-        if fb_u is not None and (("fable" not in best) or fb_u < best["fable"][0]):
-            best["fable"] = (fb_u, slug)
     return {k: {"utilization": u, "slug": sl} for k, (u, sl) in best.items()}
 
 
@@ -4324,10 +4333,23 @@ def _fleet_band(
     """
     if hold or account_band == "WALL":
         return account_band
-    keys = ("five_hour", "seven_day") + (("fable",) if fable else ())
-    utils = [fleet[k]["utilization"] for k in keys if isinstance(fleet.get(k), dict)]
-    if not utils:
+
+    def _u(k: str) -> float | None:
+        w = fleet.get(k) if isinstance(fleet, dict) else None
+        u = w.get("utilization") if isinstance(w, dict) else None
+        ok = isinstance(u, (int, float)) and not isinstance(u, bool) and math.isfinite(u)
+        return float(u) if ok else None
+
+    # ⚠️ BOTH required windows must have a serving account. A key ABSENT from `fleet` means nobody
+    # can serve that window — that is maximal scarcity, not "no constraint" — and `max()` over the
+    # surviving key read GREEN in the very tick that stamped the fleet-exhaustion marker (closing
+    # seat 1: capped active + session-exhausted sibling, executed). Then the account's own band is
+    # the only honest reading; the WALL stamp takes over on the next tick.
+    utils = [_u("five_hour"), _u("seven_day")]
+    if any(u is None for u in utils):
         return account_band
+    if fable and _u("fable") is not None:
+        utils.append(_u("fable"))
     return _band_of(max(utils), False, drain, urgent)
 
 
@@ -5429,6 +5451,51 @@ _WAKE_EVENT = (
 )
 
 
+def _open_wall_episode(email: str) -> dict | None:
+    """The `fleet-active-wall` ledger row that no later relief (`hold-lifted`) or `flip` row has
+    closed, for *email* — or None. Shared by the latch (to decide) and the relief paths (to CLOSE
+    it when there is no stamp to clear: seat 2 drove wall → relief → wall with a dead stamp and
+    the second wall was silent for the whole promised window)."""
+    try:
+        lines = (_rotate_state_dir() / "rotate-ledger.jsonl").read_text().splitlines()
+    except Exception:  # noqa: BLE001 — see _advisory_ledger_latch
+        return None
+    last = None
+    for ln in lines:
+        try:
+            row = json.loads(ln)
+        except ValueError:
+            continue
+        if not isinstance(row, dict):
+            continue
+        ev = row.get("event")
+        if ev == "fleet-active-wall" and row.get("account") == email:
+            last = row
+        elif ev in (_WAKE_EVENT, "flip") and last is not None:
+            last = None
+    return last
+
+
+def _close_wall_episode_without_stamp(email: str, now: float, site: str) -> None:
+    """Relief arrived but there was no stamp to clear — write the episode's END to the ledger, or
+    the ledger latch never re-arms and the NEXT genuine wall is silenced (D-276 mirror)."""
+    if _open_wall_episode(email) is not None:
+        _ledger_append(
+            {
+                "event": _WAKE_EVENT,
+                "ts": now,
+                "reason": f"{site}-no-stamp",
+                "site": site,
+                "account": email,
+                "armed": 0,
+                "dead": 0,
+                "woken": 0,
+                "pending": 0,
+                "errors": 0,
+            }
+        )
+
+
 def _advisory_ledger_latch(email: str, now: float) -> bool:
     """True when the LEDGER says this wall episode was already advised — the latch that survives a
     dead stamp.
@@ -5463,25 +5530,7 @@ def _advisory_ledger_latch(email: str, now: float) -> bool:
     minimum GAP, never a maximum count, and the graders assert the advisory still fires ONCE per
     episode and again after relief.
     """
-    try:
-        lines = (_rotate_state_dir() / "rotate-ledger.jsonl").read_text().splitlines()
-    except Exception as exc:  # noqa: BLE001 - fail OPEN on any read fault; the stamp latch still stands
-        if not isinstance(exc, (OSError, ValueError, *_STATE_DIR_ERRORS)):
-            raise
-        return False
-    last = None
-    for ln in lines:
-        try:
-            row = json.loads(ln)
-        except ValueError:
-            continue
-        if not isinstance(row, dict):
-            continue
-        ev = row.get("event")
-        if ev == "fleet-active-wall" and row.get("account") == email:
-            last = row
-        elif ev in (_WAKE_EVENT, "flip") and last is not None:
-            last = None  # relief or a flip ends the episode the row described
+    last = _open_wall_episode(email)
     if last is None:
         return False
     ts = last.get("ts")
@@ -5493,11 +5542,12 @@ def _advisory_ledger_latch(email: str, now: float) -> bool:
     if age < _ADVISORY_MIN_GAP_S:
         return True
     promised = last.get("resume_epoch")
-    return (
-        isinstance(promised, (int, float))
-        and not isinstance(promised, bool)
-        and now < float(promised)
-    )
+    if isinstance(promised, (int, float)) and not isinstance(promised, bool):
+        return now < float(promised)
+    # no promise to break (no relief time could be named — which IS the fleet wall): latched to
+    # the week re-arm, exactly like a stamp whose content is "0". The first cut released at the
+    # 30-min floor here and re-broadcast every half hour for as long as the wall stood (seat 2).
+    return True
 
 
 def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: float) -> None:
@@ -5543,6 +5593,8 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
         elif stamp.exists() and _clear_stamp(stamp):
             # relief arrived (flip/reset) → re-arm for the next wall, and wake the held sessions
             _wake_held_sessions(now, "relief", reading_ok)
+        elif row is not None and reading_ok and not stamp.exists():
+            _close_wall_episode_without_stamp(str(row["email"]), now, "relief")
         return
     # Relief IS coming when a headroom successor exists AND rotation is not paused: the active
     # account is walled only because the flip is held by the transient 30-min dwell, not because
@@ -5555,6 +5607,8 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
         if stamp.exists() and _clear_stamp(stamp):
             # transient dwell hold, not exhaustion → re-arm; the hold is gone for the sessions too
             _wake_held_sessions(now, "dwell", reading_ok)
+        elif not stamp.exists():
+            _close_wall_episode_without_stamp(str(row["email"]), now, "dwell")
         return
     # Latch: fire once per wall episode. But a latch is not forever — a WEEK of unbroken
     # exhaustion is a fact worth repeating (restores the per-account "week without a word" re-arm
@@ -5607,13 +5661,14 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
         os.utime(stamp, (now, now))
     except OSError as exc:
         # The ledger latch above still bounds the repeat; but a stamp that cannot be written also
-        # means `quota_stop.py` sees no WALL — say so, every tick, rather than fail silently.
+        # means `quota_stop.py` sees no WALL — say so on the tick that broadcasts (this write sits
+        # after the latch, so it runs once per episode), rather than fail silently.
         sys.stderr.write(f"claude_rotate: fleet-exhausted stamp NOT written ({stamp}): {exc}\n")
     _ledger_append(
         {
             "event": "fleet-active-wall",
             "ts": now,
-            "account": row["email"],
+            "account": str(row["email"]),
             "at_pct": hot,
             "tier": "walled" if walled else "urgent-90",
             "resume_epoch": (int(relief[0]) + _drain_resume_lead_s()) if relief else None,

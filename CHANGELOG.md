@@ -4,6 +4,48 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The closing round: a GREEN at the wall, a silenced wall, and thirteen smaller ones (2026-09-17)
+
+- **`_fleet_band` required-window rule** (`scripts/sysadmin/claude_rotate.py`, twin identical): a
+  window with NO serving account was scored as "no constraint", so `max()` over the one surviving
+  window wrote `band: GREEN` in the very tick that stamped the fleet-exhaustion marker — the hook
+  holds nothing at GREEN. Driven end to end by closing seat 1 (capped active at 5h 0%, sibling
+  session-exhausted). Both required windows must now have a serving account or the account's own
+  band stands; malformed entries are not readings. Graders B20c (re-cut — its first fixture was
+  short-circuited by the hold before it was read) and B20f (a real tick), both proven red.
+- **The ledger latch's DISARM** (seat 2, the worse direction): relief with an absent stamp cleared
+  no stamp and wrote no end row, so the next genuine wall was "the same episode" for the whole
+  promised window — silence on a real wall. `_open_wall_episode` is shared by the latch and the two
+  relief paths, which now write the `hold-lifted` end row when there is no stamp to clear. Grader
+  B21b uses a RESET on the same account as relief, because a sibling regaining headroom is a flip
+  and a flip row already closes the episode — the first cut of the grader stayed green with the
+  fix removed for exactly that reason. Proven red.
+- A `resume_epoch` of None released the ledger latch at the 30-minute floor and re-broadcast
+  every half hour for as long as the wall stood; it now holds to the week re-arm like a `"0"` stamp
+  (B21c). The ledger reader re-raised unlisted exceptions and could abort the whole tick at rc 0,
+  advisory included; it fails OPEN on anything now, per `_ledger_append`'s own rule (B21c).
+- `_fleet_readings`: the weekly wall is the cap when finite, else 100 — `_fleet_picture`'s own
+  predicate; a capless active at weekly 100 no longer serves 5h and a NaN cap is no cap (B20d).
+  Fable follows the WEEKLY serving rule — it is weekly-scoped, so a spent session still holds it;
+  the first cut scored it on the 5h rule and discarded a session-exhausted account's cool reading
+  (B20e; B20's expectation updated accordingly). `_invalidate_quota_posture` catches the module's
+  `_STATE_DIR_ERRORS`, not bare `OSError` — `Path.home()` raises `RuntimeError`, which escaped a
+  landed flip. The flip→invalidate WIRING gets its own grader (B19a drives `_flip_active`); the
+  `--status` line's `(account X)` and `· fleet …` segments get theirs (B22).
+- `quota_posture_hook.py`: a JSON `true` in a fleet window's utilization survived `_load_posture`
+  and outranked real readings, so the deny reason named a window rendered as `—` (seat 3); `_util`
+  now shares `_pct`'s guard (C2e, red-on-revert). `tests/conftest.py` pins
+  `COMMAND_RUN_ACCOUNT_FILE` — the recorder read the operator's live `~/.claude/.active-account`
+  on every `start` (seat 6); the isolation grader asserts it. `dispatch_headroom` publishes
+  `band_account` beside the fleet `band` so no reader infers which axis a number is on; the
+  dashboard's tick log keeps stderr instead of discarding it whenever stdout is non-empty; a stale
+  fixture comment describing the removed successor gate is rewritten; B5 names the account behind
+  the fleet band instead of a label a hardcoded GREEN would also print.
+- Denominators: 353 graders across the six owned suites; `106` collected in the three
+  posture suites; every new grader proven red on a copy in a throwaway worktree, never the shared
+  tree. fabrik-lib's copy of the D-175 bullet dropped the D-264 statistics the hub retracted
+  (seat 4; fabrik-lib `cab820d4`).
+
 ### Fixed — A stale branch can no longer re-issue a live decision id (2026-09-17)
 
 - `scripts/decisions.py::_merge_base_ids` unions the INTEGRATION branch's ledger ids into the
@@ -282,7 +324,7 @@ All notable changes to this project will be documented in this file.
 
 - `scripts/sysadmin/quota_posture_hook.py` (NEW, box-local, never fleet-synced): `UserPromptSubmit` injects ONE line per prompt — `QUOTA: <slug> · 5h <n>% (<forecast>) · weekly <n>% (<forecast>) · Fable <n>% · band <…> · successor <…>` — read from the posture file the rotation tick writes. `PreToolUse` at RED denies exactly the two things that start NEW work: the `Agent` tool outside a live run record, and a fresh `command_run.py start` outside the review family. Everything a checkpoint needs stays allowed, so RED is finish-and-checkpoint, never freeze. AMBER says so once per session and band as context with no permission decision. A Fable session is banded on its Fable window, read from the transcript's last 64 KiB because the payload carries no model. The WALL stays `quota_stop.py`'s alone — the stamp is read before the band. Fail-open on every path: absent, unreadable or stale is ABSENT and says so out loud, because silence reads as "quota is fine". `--install`/`--check` wire it into the six user-level settings files, skipping the fleet root's `active` symlink so no account is wired twice.
 - `dispatch_headroom.quota()` and the dashboard read the SAME posture: a fresh posture's band and hottest reading win over the picture-derived ones, so the seat budget and the injected line can never name two different bands for one box; each window's dashboard cell gains the tick's own burn rate and whichever of the wall or the reset comes first. The rotation tick prints one advisory line naming how many settings files are unwired, because the whole system is invisible when the hook is missing.
-- 99 collected graders (35 functions, the rest parametrize cases) across `tests/test_quota_posture.py`, `tests/test_dispatch_headroom_posture.py` and `tests/test_quota_dashboard_posture.py`, watched RED first and mutation-checked: four mutations of the RED predicate are all caught, and a grader found asserting nothing was fixed rather than left. Docs: two rows in `docs/workstation/hooks-index.md`. Plan 2026-09-16-plan-1-quota-posture Phase C (D-269).
+- 106 collected graders (40 functions, the rest parametrize cases) across `tests/test_quota_posture.py`, `tests/test_dispatch_headroom_posture.py` and `tests/test_quota_dashboard_posture.py`, watched RED first and mutation-checked: four mutations of the RED predicate are all caught, and a grader found asserting nothing was fixed rather than left. Docs: two rows in `docs/workstation/hooks-index.md`. Plan 2026-09-16-plan-1-quota-posture Phase C (D-269).
 
 ### Added — The rotation tick writes the quota posture file; --status prints it (2026-09-16)
 

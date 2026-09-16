@@ -188,6 +188,9 @@ def _isolated_command_run_dir(tmp_path, monkeypatch):
     )  # not `command-runs`: test_command_run's own fixture name
     runs.mkdir(exist_ok=True)
     monkeypatch.setenv("COMMAND_RUN_DIR", str(runs))
+    # ⚠️ the recorder's `_active_account()` reads `~/.claude/.active-account` on every `start` — a READ, but
+    # the file's own invariant is that nothing here reaches the operator's live state (closing seat 6)
+    monkeypatch.setenv("COMMAND_RUN_ACCOUNT_FILE", str(tmp_path / "active-account"))
     # a FIXED fake sid, never an unset one: two `done` tests key one record across a cwd change,
     # which the repo-scoped nosession fallback would split into two records
     monkeypatch.setenv("CLAUDE_SESSION_ID", "pytest-isolated")

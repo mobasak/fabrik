@@ -277,8 +277,11 @@ def quota() -> dict:
         # staleness window, so a fresh-but-stale-pointer posture could hand the seat budget a band
         # for the account we just LEFT — measured in both directions, and the dangerous one is
         # fail-open: the picture's active account at 96% reported GREEN, which would license a heavy
-        # fan-out on a hot account. A posture about someone else is no better than no posture, so it
-        # is treated as none and the picture's own values stand.
+        # fan-out on a hot account. (Since D-275 a GREEN beside a hot account is the EXPECTED steady
+        # state when the fleet has relief — the guard here is about the posture naming the WRONG
+        # account, not about the band disagreeing with the account's percentage.) A posture about
+        # someone else is no better than no posture, so it is treated as none and the picture's own
+        # values stand.
         # the membership test is type-guarded: were `slugs` ever a STRING, `in` would be a
         # SUBSTRING test and a posture for `ob` would match a row listing `sarp-ob-x`
         slugs = (act_row or {}).get("slugs")
@@ -290,7 +293,12 @@ def quota() -> dict:
             if hot is not None:
                 out["hottest_pct"] = hot
             if isinstance(act.get("band"), str):
+                # `band` is the FLEET's (D-275); `hottest_pct` above is the ACCOUNT's, so the two
+                # can legitimately read GREEN beside 99 — the account's own band travels with them
+                # so no reader has to infer which axis a number belongs to (closing seat 1, F8)
                 out["band"] = act["band"]
+            if isinstance(act.get("band_account"), str):
+                out["band_account"] = act["band_account"]
         return out
     except Exception as exc:  # noqa: BLE001 — a malformed picture (a row that is not a dict, a
         # list where a dict was promised) crashed the CLI through main() (round-5 finding);

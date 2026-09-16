@@ -98,9 +98,11 @@ def _posture(
         },
         "fleet": {
             "queue": [],
-            # ⚠️ parameterised, and the RED-hold graders pass `successor=None` deliberately: the
-            # hold BINDS only when the fleet has no relief queued. With a successor the band is a
-            # pending flip, not a capacity limit, and holding would stop work the fleet can afford.
+            # parameterised for C5b, which proves the hold reads this field NOT AT ALL: the band
+            # in the posture is already the FLEET's (D-275), so a RED means every serving account is
+            # RED and `decide()` holds regardless of any successor. An interim cut gated the hold on
+            # this field; that gate is gone, and the `successor=None` on the RED fixtures below is
+            # harmless residue kept as documentation of that history.
             "successor": (
                 {"email": f"{successor}@ocoron.com", "slug": successor} if successor else None
             ),
@@ -892,6 +894,38 @@ def test_the_hook_and_the_recorder_agree_on_the_name_a_start_will_carry(tmp_path
             f"{raw!r}: the hook says {mod._command_name(raw)!r} but the recorder wrote "
             f"{recorded!r} — a start the hook blesses would not count as that command"
         )
+
+
+def test_a_boolean_utilization_in_a_fleet_window_is_neither_compared_nor_named(tmp_path):
+    """C2e — closing seat 3: a JSON `true` survives `_load_posture` (it guards NaN/Infinity, not
+    booleans) and `True == 1` outranks every real reading in a `max()`, so the deny reason named a
+    window rendered as `—` and asserted "no flip relieves this". The comparison and the rendering
+    now share `_util`, the guard `_pct` already applies, so a value that cannot be printed cannot
+    win the comparison either."""
+    state = tmp_path / "state"
+    fw = {
+        "five_hour": {"utilization": 0.5, "slug": "can"},
+        "seven_day": {"utilization": True, "slug": "ob"},
+    }
+    _posture(state, band="AMBER", band_account="AMBER", fleet_windows=fw, successor="can")
+    p = _hook({"hook_event_name": "UserPromptSubmit", "session_id": "b1"}, state=state)
+    line = p.stdout.strip()
+    assert "band AMBER on 5h (fleet-wide: 5h 0% can)" in line, line
+    assert "weekly —" not in line and "on weekly" not in line, line
+    _posture(state, band="RED", band_account="RED", fleet_windows=fw, successor=None)
+    p = _hook(
+        {
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Agent",
+            "session_id": "b2",
+            "tool_input": {},
+        },
+        state=state,
+        runs=tmp_path / "runs",
+    )
+    reason = json.loads(p.stdout)["hookSpecificOutput"]["permissionDecisionReason"]
+    assert "serve five_hour is can at 0%" in reason, reason
+    assert "at —" not in reason, reason
 
 
 # --- C5b: the hold trusts the FLEET band and nothing softens it -------------------------------

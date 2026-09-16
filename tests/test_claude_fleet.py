@@ -4731,7 +4731,16 @@ def test_posture_band_follows_the_hottest_window_and_the_hold(
     # the ACCOUNT's band is null with no reading; the FLEET's band is not, because the other
     # account still serves — which is exactly the per-window design (operator ruling 2026-09-17)
     assert blank["active"]["band_account"] is None and blank["active"]["hottest"] is None
-    assert blank["active"]["band"] == "GREEN", "the fleet's reading survives a blank active row"
+    # the fleet's reading survives a blank active row — and it is the OTHER account's, by name and
+    # value, not merely a GREEN label a hardcoded band would also print (closing seat 5)
+    other = next(r for r in rows_now if r["email"] != active)
+    assert blank["fleet"]["windows"]["seven_day"] == {
+        "utilization": other["seven_day"]["utilization"],
+        "slug": other["slugs"][0],
+    }
+    assert blank["active"]["band"] == cr._band_of(
+        max(other["five_hour"]["utilization"], other["seven_day"]["utilization"]), False, 85.0, 90.0
+    )
     assert blank["active"]["windows"]["five_hour"]["utilization"] is None
 
 
@@ -5016,6 +5025,21 @@ def test_a_flip_invalidates_the_posture_so_no_reader_names_the_previous_account(
     cr._invalidate_quota_posture("ozgurbasak")
 
 
+def test_a_real_flip_invalidates_the_posture_through_the_wiring(tmp_path, monkeypatch):
+    """B19a — closing seat 1 neutered the `_invalidate_quota_posture(slug)` call inside
+    `_flip_active` and 222 of 223 graders stayed green: B19 called the helper directly and never
+    drove a flip. This one flips for real and reads the file."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _point(fleet, "seo")
+    posture = cr._posture_path()
+    posture.parent.mkdir(parents=True, exist_ok=True)
+    posture.write_text(json.dumps({"ts": time.time(), "active": {"slug": "seo", "band": "GREEN"}}))
+    assert cr._flip_active("intel", manual=True), "fixture: the manual flip must land"
+    assert not posture.exists(), "the flip landed and the posture still names the previous account"
+
+
 def _probe_row(email, slug, fh, wk, fable=None):
     row = {
         "email": email,
@@ -5059,7 +5083,9 @@ def test_fleet_readings_take_the_coolest_serving_account_per_window():
     assert fw["five_hour"] == {"utilization": 0.0, "slug": "can"}, (
         "a spent session cannot serve 5h now"
     )
-    assert fw["fable"] == {"utilization": 20.0, "slug": "can"}, "Fable follows the 5h serving rule"
+    assert fw["fable"] == {"utilization": 18.0, "slug": "ob"}, (
+        "Fable is weekly-scoped: a spent session still holds it (seat 1 F7), so ob's 18 beats can's 20"
+    )
     assert "mob" not in {w["slug"] for w in fw.values()}, (
         "a weekly-exhausted account serves nothing"
     )
@@ -5100,18 +5126,34 @@ def test_fleet_band_ignores_fable_unless_asked_and_a_cap_is_a_wall():
     assert cr._fleet_band(fw, "GREEN", False, 85.0, 90.0, fable=True) == "RED"
 
 
-def test_the_wall_is_never_softened_and_an_empty_pool_keeps_the_accounts_band():
-    """B20c — `hold` means every account is spent; the stamp owns it. No serving account at all ->
-    the account's own band stands, because a fleet cannot report a capacity nobody measured."""
+def test_the_wall_is_never_softened_and_a_window_nobody_serves_keeps_the_accounts_band():
+    """B20c — `hold` means every account is spent; the stamp owns it. And a REQUIRED window with NO
+    serving account is maximal scarcity, not "no constraint": closing seat 1 drove a capped active
+    (5h 0%, weekly at cap) beside a session-exhausted sibling and the posture read GREEN in the
+    same tick that stamped the fleet-exhaustion marker — `max()` over the one surviving key. The
+    first cut of this grader passed a fleet dict that the hold short-circuited before reading."""
     import scripts.sysadmin.claude_rotate as cr  # noqa: PLC0415
 
-    fw = {"five_hour": {"utilization": 0.0, "slug": "c"}}
-    assert cr._fleet_band(fw, "WALL", True, 85.0, 90.0, fable=False) == "WALL"
-    assert cr._fleet_band(fw, "RED", True, 85.0, 90.0, fable=False) == "RED", (
+    only_weekly = {"seven_day": {"utilization": 60.0, "slug": "b"}}
+    assert cr._fleet_band(only_weekly, "RED", False, 85.0, 90.0, fable=False) == "RED", (
+        "nobody can serve 5h: the account's own band stands, never GREEN from the surviving key"
+    )
+    only_5h = {"five_hour": {"utilization": 0.0, "slug": "c"}}
+    assert cr._fleet_band(only_5h, "AMBER", False, 85.0, 90.0, fable=False) == "AMBER"
+    both = {
+        "five_hour": {"utilization": 0.0, "slug": "c"},
+        "seven_day": {"utilization": 60.0, "slug": "b"},
+    }
+    assert cr._fleet_band(both, "RED", False, 85.0, 90.0, fable=False) == "GREEN"
+    assert cr._fleet_band(both, "WALL", True, 85.0, 90.0, fable=False) == "WALL"
+    assert cr._fleet_band(both, "RED", True, 85.0, 90.0, fable=False) == "RED", (
         "a hold must not be downgraded"
     )
     assert cr._fleet_band({}, "AMBER", False, 85.0, 90.0, fable=False) == "AMBER"
     assert cr._fleet_band({}, None, False, 85.0, 90.0, fable=False) is None
+    # malformed entries are not readings (seat 1 F10): no KeyError, no TypeError, no GREEN
+    junk = {"five_hour": {"slug": "a"}, "seven_day": {"utilization": None}}
+    assert cr._fleet_band(junk, "RED", False, 85.0, 90.0, fable=False) == "RED"
 
 
 def test_the_wall_advisory_cannot_storm_when_the_stamp_cannot_be_written(tmp_path, monkeypatch):
@@ -5177,3 +5219,180 @@ def test_the_ledger_latch_ends_with_relief_and_honours_the_floor_and_the_promise
     assert cr._advisory_ledger_latch("a@x", now) is False
     led.write_text("{not json\n")
     assert cr._advisory_ledger_latch("a@x", now) is False
+
+
+def test_fleet_readings_wall_a_capless_weekly_at_100_and_treat_a_nan_cap_as_no_cap():
+    """B20d — seat 1 F2: `_fleet_picture` walls a weekly at >=100 with no cap, or at its cap; the
+    first `_fleet_readings` walled ONLY on a cap, so a capless ACTIVE account at weekly 100 kept
+    serving the 5h window (its state string is always `active`, so nothing else drops it), and a
+    NaN cap disarmed the guard entirely."""
+    import scripts.sysadmin.claude_rotate as cr  # noqa: PLC0415
+
+    accounts = [_probe_row("a@x", "a", 0.0, 100.0), _probe_row("b@x", "b", 5.0, 20.0)]
+    fw = cr._fleet_readings(accounts, _pic_rows(("a@x", "active", None), ("b@x", "eligible", None)))
+    assert fw["five_hour"]["slug"] == "b", "a capless weekly at 100 serves nothing"
+    fw = cr._fleet_readings(
+        accounts, _pic_rows(("a@x", "active", float("nan")), ("b@x", "eligible", None))
+    )
+    assert fw["five_hour"]["slug"] == "b", "a NaN cap is no cap: the wall is 100"
+
+
+def test_fable_follows_the_weekly_rule_so_a_spent_session_still_holds_it():
+    """B20e — seat 1 F7: Fable is weekly-scoped, so a session-exhausted account's cool Fable reading
+    is fleet capacity exactly as its weekly is; the first cut scored Fable on the 5h rule."""
+    import scripts.sysadmin.claude_rotate as cr  # noqa: PLC0415
+
+    accounts = [
+        _probe_row("a@x", "a", 5.0, 30.0, fable=95.0),
+        _probe_row("b@x", "b", 99.0, 20.0, fable=2.0),
+    ]
+    fw = cr._fleet_readings(
+        accounts, _pic_rows(("a@x", "active", 99), ("b@x", "session-exhausted", 99))
+    )
+    assert fw["fable"] == {"utilization": 2.0, "slug": "b"}
+    assert "five_hour" in fw and fw["five_hour"]["slug"] == "a", "the 5h rule still excludes b"
+
+
+def test_the_posture_is_not_green_in_the_tick_that_stamps_the_wall(tmp_path, monkeypatch):
+    """B20f — seat 1 F1 end to end: the active account walled on weekly (5h 0%), the only sibling
+    session-exhausted (5h 95 / weekly 60). Nobody can serve 5h. The first cut wrote `band: GREEN`
+    from the one surviving window in the very tick that stamped the fleet-exhaustion marker, and
+    the hook holds nothing at GREEN. (Seat 1 walled the active on a cap; this fixture walls it at
+    weekly 100 with no cap — the F2 predicate — because the picture reads caps from a file, not
+    from a monkeypatch. Both are the same shape: an active that serves nothing.)"""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(0.0, 100.0), "tok-intel": _usage_blob(95.0, 60.0)},
+    )
+    _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    _point(fleet, "seo")
+    assert cr._cmd_tick() == 0
+    doc = json.loads(_posture_path(tmp_path).read_text())
+    fw = doc["fleet"]["windows"]
+    assert "five_hour" not in fw, f"fixture: nobody must be able to serve 5h — {fw}"
+    assert doc["active"]["band"] != "GREEN", doc["active"]
+
+
+def _ledger_events(tmp_path):
+    led = Path(os.environ["ROTATE_STATE_DIR"]) / "rotate-ledger.jsonl"
+    if not led.exists():
+        return []
+    out = []
+    for ln in led.read_text().splitlines():
+        try:
+            out.append(json.loads(ln))
+        except ValueError:
+            continue
+    return out
+
+
+def test_relief_with_an_absent_stamp_closes_the_ledger_episode_so_the_next_wall_speaks(
+    tmp_path, monkeypatch
+):
+    """B21b — seat 2 #1, the worse direction: with the stamp unwritable, wall -> relief -> wall gave
+    ONE advisory; relief cleared no stamp and wrote no end row, so the ledger latch called the second
+    wall "the same episode" for the whole promised window. Relief now closes the episode in the
+    ledger when there is no stamp to clear. ⚠️ The relief here is a RESET on the same account, not a
+    sibling regaining headroom: that would FLIP, and a `flip` row already closes the episode — the
+    first cut of this grader used a flip and stayed green with the episode-close removed."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    usages = {"tok-seo": _usage_blob(OVER_LINE, 96.0), "tok-intel": _usage_blob(100.0, 100.0)}
+    _fake_oauth(monkeypatch, usages=usages)
+    actions = _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: ["fabrik"])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    monkeypatch.setattr(
+        cr, "_fleet_exhaustion_stamp", lambda: tmp_path / "no-such-dir" / "fleet-exhausted"
+    )
+    _point(fleet, "seo")
+    assert cr._cmd_tick() == 0
+    assert len(actions["telegrams"]) == 1
+    usages["tok-seo"] = _usage_blob(10.0, 10.0)  # relief WITHOUT a flip: the active's own reset
+    _fake_oauth(monkeypatch, usages=usages)
+    assert cr._cmd_tick() == 0
+    assert len(actions["telegrams"]) == 1
+    assert "flip" not in [e.get("event") for e in _ledger_events(tmp_path)], (
+        "fixture: relief must not be a flip"
+    )
+    usages["tok-seo"] = _usage_blob(OVER_LINE + 1.0, 97.0)  # a fresh, genuine wall, same account
+    _fake_oauth(monkeypatch, usages=usages)
+    assert cr._cmd_tick() == 0
+    assert len(actions["telegrams"]) == 2, (
+        "a new wall after a no-flip relief must speak even with a dead stamp"
+    )
+
+
+def test_the_ledger_latch_without_a_promise_holds_to_the_week_and_a_crashing_reader_fails_open(
+    tmp_path, monkeypatch
+):
+    """B21c — seat 2 #2 and #3: with `resume_epoch` None the first cut released at the 30-minute
+    floor and re-broadcast forever (2/h to every mailbox); a stamp with content "0" holds a week.
+    And a reader that raises anything must fail OPEN, never abort the tick's advisory."""
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    led = state / "rotate-ledger.jsonl"
+    now = FLEET_NOW
+    led.write_text(
+        json.dumps(
+            {
+                "event": "fleet-active-wall",
+                "ts": now - 2 * cr._ADVISORY_MIN_GAP_S,
+                "account": "a@x",
+                "resume_epoch": None,
+            }
+        )
+        + "\n"
+    )
+    assert cr._advisory_ledger_latch("a@x", now) is True, (
+        "no promise: latched until the week re-arm"
+    )
+    assert cr._advisory_ledger_latch("a@x", now + cr._FLEET_WALL_REARM_S + 1) is False
+
+    def boom() -> Path:
+        raise TypeError("synthetic non-listed failure")
+
+    monkeypatch.setattr(cr, "_rotate_state_dir", boom)
+    assert cr._advisory_ledger_latch("a@x", now) is False, "a reader fault must not reach the tick"
+
+
+def test_the_status_posture_line_shows_both_bands_and_the_fleet_readings():
+    """B22 — seat 1 F6: the `posture:` line's new `(account X)` and `· fleet …` segments were
+    ungraded. They are the operator's answer to "why is the band GREEN beside weekly 90%"."""
+    import scripts.sysadmin.claude_rotate as cr  # noqa: PLC0415
+
+    now = FLEET_NOW
+    posture = {
+        "ts": now,
+        "active": {
+            "band": "GREEN",
+            "band_account": "AMBER",
+            "windows": {
+                "five_hour": {"utilization": 11.0},
+                "seven_day": {"utilization": 87.0},
+                "fable": {"utilization": 62.0},
+            },
+        },
+        "fleet": {
+            "windows": {
+                "five_hour": {"utilization": 0.0, "slug": "can"},
+                "seven_day": {"utilization": 31.0, "slug": "ob"},
+                "fable": {"utilization": 17.0, "slug": "can"},
+            }
+        },
+    }
+    line = cr._posture_status_line(posture, now)
+    assert line.startswith("posture: GREEN (account AMBER) ·"), line
+    assert "· fleet 5h 0% (can) weekly 31% (ob) Fable 17% (can)" in line, line
+    posture["active"]["band_account"] = "GREEN"
+    del posture["fleet"]["windows"]
+    line = cr._posture_status_line(posture, now)
+    assert line.startswith("posture: GREEN ·") and "fleet" not in line and "(account" not in line, (
+        line
+    )

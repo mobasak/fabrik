@@ -252,6 +252,19 @@ def _forecast(w: object) -> str:
     return "no burn"
 
 
+def _util(w: object) -> float | None:
+    """A window's utilization as a comparable float, or None — the SAME guard `_pct` applies.
+
+    ⚠️ A JSON `true` survives `_load_posture` (its `parse_constant` guard catches NaN/Infinity,
+    not booleans), and `True == 1` outranks every real reading in a `max()`. Closing seat 3 drove
+    it end to end: the deny reason named a window "at —" and asserted no flip relieves it. The
+    comparison and the rendering now share one predicate, so they cannot disagree.
+    """
+    u = w.get("utilization") if isinstance(w, dict) else None
+    ok = isinstance(u, (int, float)) and not isinstance(u, bool) and math.isfinite(u)
+    return float(u) if ok else None
+
+
 def _fleet_clause(posture: dict, band: str | None, *, is_fable: bool) -> str:
     """The fleet readings behind the band, and — when this account alone would read worse — say so.
 
@@ -273,10 +286,10 @@ def _fleet_clause(posture: dict, band: str | None, *, is_fable: bool) -> str:
     parts, hottest = [], None
     for key, label in keys:
         w = fw.get(key)
-        if isinstance(w, dict) and w.get("utilization") is not None:
-            u = w["utilization"]
+        u = _util(w)
+        if u is not None:
             parts.append(f"{label} {_pct(w)} {w.get('slug') or '?'}")
-            if isinstance(u, (int, float)) and (hottest is None or u > hottest[0]):
+            if hottest is None or u > hottest[0]:
                 hottest = (u, label)
     out = ""
     if parts:
@@ -681,12 +694,8 @@ def _deny_reason(posture: dict, band: str, what: str, *, is_fable: bool = False)
     if fw:
         keys = ("five_hour", "seven_day") + (("fable",) if is_fable else ())
         best = max(
-            (
-                (k, fw[k])
-                for k in keys
-                if isinstance(fw.get(k), dict) and fw[k].get("utilization") is not None
-            ),
-            key=lambda kv: kv[1]["utilization"],
+            ((k, fw[k]) for k in keys if _util(fw.get(k)) is not None),
+            key=lambda kv: _util(kv[1]),
             default=None,
         )
         if best:

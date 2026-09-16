@@ -122,6 +122,14 @@ def test_the_suite_never_reads_the_operators_live_run_record(tmp_path) -> None:
     # operator's live record while this assertion on the fixture stayed green
     import importlib.util
 
+    # closing seat 6 (2026-09-17): the recorder reads the operator's live `~/.claude/.active-account`
+    # on every `start` unless this is pinned — a READ, but the invariant here is that nothing reaches
+    # live state, and the hand-built env of the recorder-agreement grader inherits this pin.
+    acct = os.environ.get("COMMAND_RUN_ACCOUNT_FILE", "")
+    assert acct and "pytest" in acct, (
+        f"COMMAND_RUN_ACCOUNT_FILE not pinned under the suite tmp: {acct!r}"
+    )
+
     spec = importlib.util.spec_from_file_location(
         "cr_pin_probe", Path(__file__).resolve().parents[1] / "scripts" / "command_run.py"
     )

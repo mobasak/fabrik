@@ -2603,7 +2603,8 @@ def _maybe_trigger_rotation(payload: dict) -> threading.Thread | None:
                 )
                 return
             sys.stderr.write(
-                f"quota_dashboard: tick exit {proc.returncode}: {(proc.stdout or proc.stderr).strip()[:300]}\n"
+                f"quota_dashboard: tick exit {proc.returncode}: "
+                f"{((proc.stdout or '') + (proc.stderr or '')).strip()[:300]}\n"
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
             sys.stderr.write(f"quota_dashboard: tick failed to run: {type(exc).__name__}: {exc}\n")
