@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — A review grader must observe its subject through the consumer's entry point and mode (2026-09-16)
+
+- `commands/_fragments/term-coverage.md` gains rule (5) of the round-zero probe: a fix to a checker
+  or a gate is graded by building a fixture that EXHIBITS the condition and one that does not,
+  driving the real entry point over both, and ASSERTING on the output the fix changes, in every mode
+  the consuming contract reads — never on a regex, a constant or the subject's source text, and never
+  only from the test file beside the module. Answers three `change:` verdicts from `/fabrik-review`
+  closes (rows 1789576911, 1789501488, 1789466791). Renders into `/fabrik-review`,
+  `/fabrik-repo-review`, `/fabrik-conformance-review`, `/fabrik-service-test`, `/fabrik-user-test`.
+
 ### Fixed — the identity review's last two rounds, and its close on the D-252 stop (2026-09-16)
 
 - Pass 4 found ten defects in the GRADERS, and the sharpest is the one worth remembering:

@@ -2898,3 +2898,34 @@ Receipt: `docs/development/reviews/2026-09-15-kaizen-loop-gap-closure-review.md`
   Re-binding the **same** name appends a duplicate row every time; only the 30-day trim reclaims
   them. (e) `os.replace` silently converts a **symlinked store** into a regular file while
   `_append_row` writes *through* the link — two write paths, two behaviours for one store.
+
+## [infra] Round zero legislates for consumers that may never reach it, and rule (5) speaks only to checkers and gates
+
+`commands/_fragments/term-coverage.md:16` frames the round-zero probe as "the orchestrator's OWN
+pre-pin probe … before any finder sees a delta", and line 14 says a certification gauntlet "runs a
+DELTA round only where its own text names one as such" — so a gauntlet may never reach round zero
+at all, while line 14 also states that every obligation below "binds all five consumers alike".
+Two of the five consumers (`/fabrik-user-test`, `/fabrik-service-test`) are gauntlets.
+
+Rule (5)'s governing subject is "a fix to a checker or a gate". A gauntlet is neither, so the rule
+is silent for them by construction. That is a defensible reading, but it is nowhere stated, and a
+first draft of rule (5) tried to legislate a gauntlet's evidence mode and was wrong twice in two
+rounds: it named a rendered screen, which `/fabrik-service-test` ("a system with no screen",
+`commands/_sources/fabrik-service-test.md:9`) never produces; then it named screen-or-payload, which
+a `file-worker` certification also never produces — its evidence is a job record
+(`fabrik-service-test.md:167`), and a rasterized PDF deliverable is a third shape again
+(`commands/_fragments/cert-visual-deliverable.md`).
+
+RESOLUTION, when someone takes this: decide whether round zero binds gauntlets at all, and say so
+in line 14's parenthetical — which currently enumerates "(the exit row, the ledger grammar, the
+finder-return rule, the gates)" and never names round zero. Do NOT re-enumerate gauntlet evidence
+modes inside rule (5); delegate to each gauntlet's own evidence rule or leave them out of scope
+explicitly. Pre-existing — this was true before the rule (5) edit and is not a defect that edit
+introduced. Owner: infra.
+
+Also still open and deliberately unmarked in the `/fabrik-review` change queue: row `1788875064`,
+which asks that the CLOSING round build evidence outside the module's own suite, including that a
+grader whose outcome depends on an environment privilege ASSERT that privilege first. Rule (5) does
+not carry it — wrong round, wrong subject — and the row's near-synonymous wording ("outside the
+module's own suite" vs rule (5)'s "never only from the test file that ships beside the module")
+makes it easy to mark answered by accident. It is not answered.
