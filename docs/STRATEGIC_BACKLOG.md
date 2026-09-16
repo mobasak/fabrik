@@ -2943,7 +2943,7 @@ claim". A closing review seat CONFIRMED the gap that wording leaves: nothing req
 actually RESOLVE to the fact at the moment of the edit.
 
 The cheapest bypass it opens: delete the restating sentence, drop in a plausible pointer
-(`see path:line`, `see docs/X.md`) aimed at a target that is stale, wrong, or itself another
+(a bare `see <path>:<line>` at whatever looks plausible) aimed at a target that is stale, wrong, or itself another
 restatement one hop away. The letter is satisfied — the sentence is gone, no citation was appended to
 a surviving sentence — and the fact is still not re-derivable where the pointer says it is. Contrast
 rule (2), which for its own case mandates RUNNING `check_review_hygiene.py --surface <pin> --claim
