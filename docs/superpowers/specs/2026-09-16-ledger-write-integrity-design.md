@@ -1,6 +1,6 @@
 # Ledger write integrity — the append writer, id reservation, and the ratcheted gate
 
-**Status:** CONVERGED
+**Status:** EXECUTED (2026-09-17 — all five delta points built and proven; see D-277)
 **Profile:** delta — every Intake Inventory IN item maps to code that exists today
 (`scripts/decisions.py`, `scripts/enforcement/check_decisions_unique.py`); this is a change to an
 existing engine, not a new component.
