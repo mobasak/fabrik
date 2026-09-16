@@ -145,15 +145,31 @@ def _memory_line(cwd: str) -> str:
 # the cheap path IS the outcome. The other cheap path is naming every session the same string;
 # `check_commit_trailers.py::_warn_agent_name_mismatch` compares the SIGNED name against the
 # resolved one, so two sessions sharing one name still mis-sign and still warn.
-# The grammar is single-sourced at `docs_updater.py:940` and `decisions.py:34`; this hook is
+# The grammar is single-sourced at `docs_updater.py::MERGE_OWNER_RE` and `decisions.py::MERGE_OWNER_RE` (cited by SYMBOL: a line number in a file this change itself grows is drift by construction — :940 was already wrong for :938 when it was written); this hook is
 # standalone and fleet-synced so it cannot import either — `tests/test_session_orient_hook.py`
 # pins the copy against both, the precedent `command_run.py` already set for its axis list.
-_MERGE_OWNER_RE = re.compile(r"^\**\s*MERGE OWNER:\s*([A-Za-z0-9][A-Za-z0-9_.@-]{0,31})", re.I)
+# C3: `(?!UNDECLARED)` is NOT decoration — `--adopt` cannot mint that name (`_ADOPT_NAME_RE`)
+# but a HUMAN writes `MERGE OWNER: UNDECLARED — we un-adopted` as an ordinary un-adoption
+# row, and without the lookahead this hook then announces `UNDECLARED` as the owner.
+# Case-insensitive because the phrase match is, so `undeclared` cannot sneak past it.
+# ⚠️ The CAPTURE is byte-identical to both single sources — no length quantifier of
+# our own. `docs_updater.py` states the permissiveness is deliberate ("stays permissive so
+# it can still READ a name minted before this tightening"), so a narrower copy here would be
+# a silent third dialect; the length cap belongs at RENDER time and lives in `_identity_line`.
+_MERGE_OWNER_RE = re.compile(
+    r"^\**\s*MERGE OWNER:\s*(?!UNDECLARED\b)([A-Za-z0-9][A-Za-z0-9_.@-]*)", re.I
+)
 _LEDGER_ROW_RE = re.compile(r"^\|\s*D-\d+\s*\|", re.I)
-_LEDGER_MAX_BYTES = 64 * 1024  # bounded like every other read here (see _MEMORY_READ_BYTES):
-# a SessionStart hook must not spike on a pathological file. Measured population 2026-09-16:
-# 49 ledgers, largest 219 KB — so this reads the HEAD of a big ledger, and a merge-owner row
-# below the cut is simply not seen, which fails to the quiet side on purpose.
+_LEDGER_WINDOW_BYTES = 64 * 1024  # bounded like every other read here (see _MEMORY_READ_BYTES)
+# ⚠️ BOTH ENDS, because a HEAD-only read retires this key by ordinary use. The merge-owner row is
+# written ONCE at adoption and never moves, while new rows are appended — 6 of the 10 multi-row
+# ledgers put newest at the TOP, 0 at the bottom, 4 mixed — so the row SINKS out of a head window
+# or was never in a tail one. Executed: appending 30 rows to a copy of the fleet's only declared
+# ledger silenced it. Re-measured 2026-09-16 over 49 ledgers: largest 415.8 KB (the hub's own),
+# and 4 already exceed one window (fabrik 415.8 · fabrik-lib 366.7 · web-ecommerce-factory 261.3 ·
+# youtube 101.7). An earlier comment here said "largest 219 KB"; that was the size of a WORKTREE
+# COPY, quoted as a fleet maximum — the wrong denominator, and it is what made a head-only read
+# look safe.
 
 
 def _declared_merge_owner(cwd: str) -> str:
@@ -164,12 +180,30 @@ def _declared_merge_owner(cwd: str) -> str:
     fail-open boundary for this hook is `_identity_line`'s own `except Exception`, and saying
     so here rather than claiming a guarantee this function does not hold."""
     try:
-        with open(Path(cwd) / "docs" / "DECISIONS.md", "rb") as fh:
-            raw = fh.read(_LEDGER_MAX_BYTES)
+        path = Path(cwd) / "docs" / "DECISIONS.md"
+        size = path.stat().st_size
+        with open(path, "rb") as fh:
+            head = fh.read(_LEDGER_WINDOW_BYTES)
+            if size > _LEDGER_WINDOW_BYTES:
+                fh.seek(-_LEDGER_WINDOW_BYTES, 2)
+                tail = fh.read(_LEDGER_WINDOW_BYTES)
+            else:
+                tail = b""
     except (OSError, ValueError):
         return ""
+    # ⚠️ Drop the trailing partial line of the head and the leading partial line of the tail.
+    # Without this a cut landing inside an owner name renders the TRUNCATED name as fact —
+    # executed: a row cut at byte 65,536 announced `alphab` for `alphabravocharliedelta`, and a
+    # cut inside a UTF-8 sequence announced `b` for `bob`. That is the loud-and-wrong side of
+    # the bound, not the quiet side an earlier comment here claimed.
+    head_txt = head.decode("utf-8", errors="replace")
+    if size > _LEDGER_WINDOW_BYTES:
+        head_txt = head_txt[: head_txt.rfind("\n") + 1]
+    tail_txt = tail.decode("utf-8", errors="replace")
+    nl = tail_txt.find("\n")
+    tail_txt = tail_txt[nl + 1 :] if nl != -1 else ""
     found = ""
-    for line in raw.decode("utf-8", errors="replace").splitlines():
+    for line in (head_txt + tail_txt).splitlines():
         s = line.strip()
         if not _LEDGER_ROW_RE.match(s):
             continue
@@ -182,7 +216,7 @@ def _declared_merge_owner(cwd: str) -> str:
     return found
 
 
-def _identity_line(cwd: str) -> str:
+def _identity_line(cwd: str, live: int | None = None) -> str:
     """Advisory (D-034, re-keyed 2026-09-16): an UNNAMED session is a mistake wherever several
     agents share one tree — the hub always, and any project repo that either DECLARES a merge
     owner in its ledger or currently has >=2 live `claude` sessions in this exact checkout.
@@ -198,16 +232,34 @@ def _identity_line(cwd: str) -> str:
                 " class). Ask the operator which role this window is, or work without beat"
                 " claims until named.\n"
             )
-        owner = _declared_merge_owner(cwd)
-        live = _count_sessions_sharing(os.path.realpath(cwd))
+        if live is None:
+            live = _count_sessions_sharing(os.path.realpath(cwd))
+        owner = _declared_merge_owner(cwd)[:32]  # the grammar is permissive by design; the
+        # cap belongs HERE, at render time, so the regex stays byte-identical to both sources
         if not owner and live < 2:
+            return ""
+        # ⚠️ C5: do NOT print a second bullet about the same measured fact. When `_sessions_line`
+        # will fire — non-hub, non-worktree, live >= 2 — it already names the count AND gives the
+        # worktree relaunch, which is the correct remedy for a shared MAIN checkout. Two bullets
+        # stating one fact with two different commands is what this branch shipped at b5c01855,
+        # live in 5 of 45 repos. The identity bullet survives for the cases `_sessions_line` does
+        # not cover: a DECLARED owner (any session count) and a worktree session.
+        if not owner and "/.claude/worktrees/" not in cwd:
             return ""
         why = (
             f"this repo DECLARES merge owner `{owner}`"
             if owner
             else f"{live} live sessions share this checkout"
         )
-        worktree = " --worktree <name> -n <name>-<repo>" if "/.claude/worktrees/" in cwd else ""
+        # ⚠️ ONE remedy per block. When the shared-checkout bullet also fires it already gives
+        # the worktree relaunch, and a second, DIFFERENT command here is the contradiction
+        # b5c01855 shipped. Point at it instead of restating it differently.
+        if "/.claude/worktrees/" in cwd:
+            remedy = "a relaunch as `CLAUDE_AGENT=<name> claude --worktree <name> -n <name>-<repo>`"
+        elif live >= 2:
+            remedy = "the relaunch named in the shared-checkout bullet below"
+        else:
+            remedy = "a relaunch as `CLAUDE_AGENT=<name> claude`"
         return (
             f"- ⚠️ **CLAUDE_AGENT is UNSET and {why}.** Agent identity resolves from that ONE env"
             " var, so three controls are silent in this session: no role charter is injected"
@@ -215,9 +267,8 @@ def _identity_line(cwd: str) -> str:
             " (`check_commit_trailers.py`), and the run record's agent dimension records EMPTY —"
             " so every `command_run.py` row and every `FEEDBACK:` verdict you file this session"
             " is unattributable. ⚠️ **A live session cannot change its own environment**, so"
-            f" naming this window means a relaunch as `CLAUDE_AGENT=<name> claude{worktree}`, or"
-            " writing the `Agent-Name:` trailer by hand on every commit. Ask the operator which"
-            " name is yours before you sign one.\n"
+            f" naming this window means {remedy}, or writing the `Agent-Name:` trailer by hand on"
+            " every commit. Ask the operator which name is yours before you sign one.\n"
         )
     except Exception:
         pass
@@ -251,7 +302,7 @@ def _count_sessions_sharing(real_cwd: str) -> int:
     return count
 
 
-def _sessions_line(cwd: str) -> str:
+def _sessions_line(cwd: str, live: int | None = None) -> str:
     """D5 (multi-agent-adoption spec): ≥2 live `claude` processes sharing this
     exact main checkout is the shared-index way that has lost work before
     (D-099) — undetected until now. A self-contained `/proc` scan: no
@@ -266,14 +317,15 @@ def _sessions_line(cwd: str) -> str:
     try:
         if (Path(cwd) / "scripts" / "fabrik_synced_manifest.py").is_file():
             return ""
-        real_cwd = os.path.realpath(cwd)
+        if live is None:  # a direct caller may still invoke this with one argument
+            live = _count_sessions_sharing(os.path.realpath(cwd))
     # ValueError: a cwd carrying an embedded NUL raises out of realpath, and `print()` evaluates
     # every argument before emitting — so one raise here costs the ENTIRE ORIENT block at rc 0,
     # zero bytes, no stderr (executed; present in this file before the identity work touched it).
     except (OSError, ValueError):
         return ""
 
-    count = _count_sessions_sharing(real_cwd)
+    count = live
     if count < 2:
         return ""
     return (
@@ -418,6 +470,14 @@ def main() -> int:
         except OSError:
             pass  # fail-open: an unmarkable session is un-swept, never a broken start
 
+    # ONE /proc scan per SessionStart, shared by both advisories. Two scans cost 2x (11 ->
+    # 22 ms on this box, 643 pids) and, worse, can DISAGREE inside one emitted block: a
+    # sibling that exits between them made the identity bullet name a count the sessions
+    # bullet then denied, and the reverse — both executed against a mutated fake /proc.
+    try:
+        live = _count_sessions_sharing(os.path.realpath(cwd))
+    except (OSError, ValueError):
+        live = 0  # the same "cannot tell" the helper itself returns
     print(
         "## ORIENT (binding — read before acting)\n"
         + arm_line
@@ -425,8 +485,8 @@ def main() -> int:
         + "\n"
         + _memory_line(cwd)
         + "\n"
-        + _identity_line(cwd)
-        + _sessions_line(cwd)
+        + _identity_line(cwd, live)
+        + _sessions_line(cwd, live)
         + _mcp_line(cwd)
         + "- **Decision-shaped question? LEDGER FIRST:** grep `docs/DECISIONS.md` (fleet-wide:"
         " `python3 /opt/fabrik/scripts/decisions.py <term>`) BEFORE any wider hunt — a prior ruling,"

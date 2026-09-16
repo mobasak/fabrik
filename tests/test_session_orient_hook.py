@@ -639,10 +639,13 @@ def test_the_rendered_plans_marker_alone_never_declares_adoption(tmp_path: Path)
     assert "CLAUDE_AGENT is UNSET" not in out
 
 
-def test_live_sessions_alone_warn_with_no_adoption_at_all(tmp_path: Path) -> None:
+def test_live_sessions_alone_warn_once_not_twice(tmp_path: Path) -> None:
     # /opt/iterative_image_editor runs three lanes with 14 plan-locks and has NEITHER a ledger
     # row NOR a PLANS.md marker (executed 2026-09-16) — an adoption-keyed advisory can never
-    # reach it. A repo is multi-agent when several agents are IN it.
+    # reach it. A repo is multi-agent when several agents are IN it, so this MUST warn.
+    # ⚠️ But exactly ONCE: b5c01855 printed two bullets about the same measured fact with two
+    # DIFFERENT relaunch commands, live in 5 of 45 repos. `_sessions_line` owns this case
+    # because its remedy (the worktree form) is the right one for a shared MAIN checkout.
     proj = _adopted_repo(tmp_path, None)
     proc = _fake_proc(tmp_path, [("301", "claude", str(proj)), ("302", "claude", str(proj))])
     rc, out = _run(
@@ -652,7 +655,112 @@ def test_live_sessions_alone_warn_with_no_adoption_at_all(tmp_path: Path) -> Non
         extra_env={"FABRIK_PROC_ROOT": str(proc)},
     )
     assert rc == 0
-    assert "CLAUDE_AGENT is UNSET and 2 live sessions share this checkout" in out
+    assert "ORIENT" in out
+    assert out.count("sessions share this main checkout") == 1
+    assert "CLAUDE_AGENT is UNSET and 2 live sessions" not in out, "two bullets, one fact"
+
+
+def test_a_declared_owner_still_warns_even_with_one_session(tmp_path: Path) -> None:
+    # The suppression above must not swallow the DECLARED case, which `_sessions_line` never
+    # covers (it needs >=2 live sessions and this has one).
+    proj = _adopted_repo(tmp_path, "agent-1")
+    proc = _fake_proc(tmp_path, [("311", "claude", str(proj))])
+    rc, out = _run(
+        proj, tmp_path, json.dumps({"cwd": str(proj)}), extra_env={"FABRIK_PROC_ROOT": str(proc)}
+    )
+    assert rc == 0
+    assert "DECLARES merge owner `agent-1`" in out
+
+
+def test_an_undeclared_row_is_not_an_owner(tmp_path: Path) -> None:
+    # `--adopt` cannot mint the name (its own ^[a-z0-9-]{1,32}$ refuses it), but a HUMAN writes
+    # `MERGE OWNER: UNDECLARED — we un-adopted` as an ordinary row. Without the lookahead the
+    # hook announces `UNDECLARED` as the merge owner. Case-insensitive: the phrase match is.
+    for name in ("UNDECLARED", "undeclared", "Undeclared"):
+        proj = _adopted_repo(tmp_path / name, f"{name} — we un-adopted, no single writer")
+        rc, out = _run(proj, tmp_path, json.dumps({"cwd": str(proj)}))
+        assert rc == 0, name
+        assert "DECLARES merge owner" not in out, name
+
+
+def test_a_merge_owner_row_below_the_head_window_is_still_found(tmp_path: Path) -> None:
+    # The merge-owner row is written ONCE at adoption and never moves, while new rows are
+    # appended — so a head-only window RETIRES this key by ordinary use. Executed on the real
+    # fleet before this fix: +30 rows to the only declared ledger silenced it.
+    proj = tmp_path / "opt" / "bigledger"
+    (proj / "docs" / "development").mkdir(parents=True)
+    filler = "| D-%03d | 2026-09-16 | w | routine row | y | z |\n"
+    rows = "".join(filler % i for i in range(1, 2000))  # comfortably past one 64 KB window
+    (proj / "docs/DECISIONS.md").write_text(
+        "| id | when | who | what | why | where |\n|---|---|---|---|---|---|\n"
+        + rows
+        + "| D-901 | 2026-09-16 | a | MERGE OWNER: deepowner | y | z |\n",
+        encoding="utf-8",
+    )
+    assert (proj / "docs/DECISIONS.md").stat().st_size > 64 * 1024
+    rc, out = _run(proj, tmp_path, json.dumps({"cwd": str(proj)}))
+    assert rc == 0
+    assert "DECLARES merge owner `deepowner`" in out
+
+
+def test_a_window_cut_never_renders_a_truncated_owner_name(tmp_path: Path) -> None:
+    # A cut landing INSIDE the owner name used to render the truncated name as fact
+    # (`alphab` for `alphabravocharliedelta`) — the loud-and-wrong side of a bounded read.
+    # The row is placed so the 64 KB head cut falls 6 characters into the NAME, and the file
+    # is wider than TWO windows so the tail cannot reach back and supply the row intact.
+    proj = tmp_path / "opt" / "cutledger"
+    (proj / "docs" / "development").mkdir(parents=True)
+    hdr = "| id | when | who | what | why | where |\n|---|---|---|---|---|---|\n"
+    filler = "| D-%03d | 2026-09-16 | w | routine row | y | z |\n"
+    row = "| D-999 | 2026-09-16 | a | MERGE OWNER: alphabravocharliedelta | y | z |\n"
+    target = 64 * 1024 - (len(b"| D-999 | 2026-09-16 | a | MERGE OWNER: ") + 6)
+    body = hdr
+    i = 1
+    while len(body.encode()) + len((filler % i).encode()) <= target:
+        body += filler % i
+        i += 1
+    pad = target - len(body.encode())  # a non-row filler line lands the row start on target
+    if pad:
+        body += "x" * (pad - 1) + "\n"
+    assert len(body.encode()) == target, len(body.encode())
+    body += row
+    body += "".join(filler % j for j in range(i, i + 4000))  # wider than two windows
+    (proj / "docs/DECISIONS.md").write_text(body, encoding="utf-8")
+    rc, out = _run(proj, tmp_path, json.dumps({"cwd": str(proj)}))
+    assert rc == 0
+    assert "`alphab`" not in out, "a truncated name was rendered as the declared owner"
+    assert "`alphabravocharliedelta`" not in out, "a row in neither window must not be claimed"
+
+
+def test_the_last_merge_owner_row_wins(tmp_path: Path) -> None:
+    # The ledger's own law: a changed owner is a NEW superseding row, so the LAST one wins.
+    # A first-match-wins mutant passed every grader before this test existed.
+    proj = tmp_path / "opt" / "superseded"
+    (proj / "docs" / "development").mkdir(parents=True)
+    (proj / "docs/DECISIONS.md").write_text(
+        "| id | when | who | what | why | where |\n|---|---|---|---|---|---|\n"
+        "| D-010 | 2026-09-01 | a | MERGE OWNER: oldowner | y | z |\n"
+        "| D-020 | 2026-09-16 | a | MERGE OWNER: newowner — supersedes D-010 | y | z |\n",
+        encoding="utf-8",
+    )
+    rc, out = _run(proj, tmp_path, json.dumps({"cwd": str(proj)}))
+    assert rc == 0
+    assert "DECLARES merge owner `newowner`" in out
+    assert "oldowner" not in out
+
+
+def test_a_lowercase_row_id_still_parses(tmp_path: Path) -> None:
+    # `_LEDGER_ROW_RE` carries re.I; nothing graded it, so dropping the flag was free.
+    proj = tmp_path / "opt" / "lowercase"
+    (proj / "docs" / "development").mkdir(parents=True)
+    (proj / "docs/DECISIONS.md").write_text(
+        "| id | when | who | what | why | where |\n|---|---|---|---|---|---|\n"
+        "| d-029 | 2026-09-16 | a | MERGE OWNER: caseowner | y | z |\n",
+        encoding="utf-8",
+    )
+    rc, out = _run(proj, tmp_path, json.dumps({"cwd": str(proj)}))
+    assert rc == 0
+    assert "DECLARES merge owner `caseowner`" in out
 
 
 def test_single_session_unadopted_repo_stays_silent(tmp_path: Path) -> None:
@@ -713,13 +821,25 @@ def test_a_nul_in_cwd_still_prints_the_whole_block(tmp_path: Path) -> None:
     assert "ORIENT" in out
 
 
-def test_the_merge_owner_grammar_matches_its_two_single_sources(tmp_path: Path) -> None:
-    # This hook is standalone and fleet-synced, so it cannot import either owner of the
-    # grammar; the copy is pinned here instead (the precedent command_run.py set for its axis
-    # list). A one-sided edit to any of the three fails this.
+def test_the_merge_owner_grammar_tracks_its_sources_and_names_its_one_divergence(
+    tmp_path: Path,
+) -> None:
+    # This hook is standalone and fleet-synced, so it cannot import either owner of the grammar;
+    # the copy is pinned here (the precedent command_run.py set for its axis list).
+    # ⚠️ The pin asserts the CAPTURE verbatim — INCLUDING the quantifier, which an earlier cut
+    # stopped one character short of, leaving it structurally blind to the only position where
+    # the three actually differed. The one deliberate divergence is the UNDECLARED lookahead,
+    # which the hook alone carries and which is asserted HERE so it cannot be dropped silently.
     hook = (FABRIK / ".claude/hooks/session_orient.py").read_text(encoding="utf-8")
     du = (FABRIK / "scripts/docs_updater.py").read_text(encoding="utf-8")
     dec = (FABRIK / "scripts/decisions.py").read_text(encoding="utf-8")
-    core = "MERGE OWNER:" + chr(92) + "s*([A-Za-z0-9][A-Za-z0-9_.@-]"
-    assert core in hook, "the hook's grammar drifted from its single sources"
-    assert core in du and core in dec, "docs_updater/decisions drifted from the hook"
+    bs = chr(92)
+    capture = "([A-Za-z0-9][A-Za-z0-9_.@-]*)"
+    phrase = "MERGE OWNER:" + bs + "s*"
+    assert phrase + capture in du, "docs_updater's MERGE_OWNER_RE drifted"
+    assert phrase + capture in dec, "decisions.py's MERGE_OWNER_RE drifted"
+    lookahead = "(?!UNDECLARED" + bs + "b)"
+    assert phrase + lookahead + capture in hook, "the hook's grammar drifted from its sources"
+    assert lookahead not in du and lookahead not in dec, (
+        "a source grew the hook's lookahead — reconcile deliberately, do not let it drift in"
+    )
