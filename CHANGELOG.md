@@ -4,21 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed — RED denied the review-family start in two slash spellings the corpus uses (2026-09-16)
+### Fixed — the RED hold's deny text, and a widening of it that was worse than the bug (2026-09-16)
 
-- `scripts/sysadmin/quota_posture_hook.py::_command_name` stripped only the LEADING slash, so at band
-  RED a `command_run.py start --command /fabrik-review/` was DENIED — as was `fabrik-review-scoped/`.
-  `REVIEW_FAMILY` holds these names bare, and the review family is precisely the start RED must keep
-  allowed, because it is the mandated review of the change being checkpointed. The failure is
-  fail-CLOSED in the one direction the band exists to keep open: a wrongly-allowed review start is a
-  review, a wrongly-denied one is a session that cannot check its work in. `strip("/")` now closes
-  both ends; an INTERIOR slash still disqualifies, so `/opt/x/fabrik-review` stays a path and stays
-  denied. Three graders, two proven red-on-revert and one asserting the strip did not widen into a
-  basename match.
-- This is the SECOND half of the same class: the leading-slash spelling was fixed one commit earlier
-  and shipped without a `### Fixed` entry of its own, so a fail-closed bug blocking a mandated
-  checkpoint was described nowhere in this file by name — found by a fresh review seat reading the
-  Doc Sync Matrix against the diff, not by the author. Both halves are recorded here.
+- `scripts/sysadmin/quota_posture_hook.py::_command_name` now renders a denied start AS TYPED. The
+  old `f"Starting /{name}"` re-prepended a slash to a value whose slash had just been stripped, so
+  the refusal printed `Starting //fabrik-review` — the same doubled slash that exposed an earlier
+  bug in this function — and `Starting / /fabrik-review` for a space-prefixed value. A deny that
+  garbles what it is refusing teaches the reader nothing.
+- ⚠️ **A widening of that same function was REVERTED, and the revert is the finding.** A review
+  round flagged that `--command /fabrik-review/` is denied at RED; I widened `lstrip("/")` to
+  `strip("/")` to accept it. A fresh seat then executed the consumer and proved the trade backwards:
+  `command_run.py` records the name with `lstrip("/")` (`:2501`, `:3008`), so the widened hook
+  PASSED that start while the record landed as `fabrik-review/` — outside `REVIEW_FAMILY` for every
+  downstream reader, so `command_run.py:3398` skipped the close's coverage window and
+  `final_gate_stop.py:1000` granted no surface exemption. The session paid for the entire review and
+  was still blocked at Stop as unreviewed. A loud deny at the START is strictly better than a silent
+  failure to COUNT at the end, so the trailing-slash spelling stays denied, deliberately, with the
+  reasoning in the graders. Making the RECORDER canonical is the real fix; `scripts/command_run.py`
+  is fleet-synced, on infra's beat and owned by another plan's lock, so it is filed there.
+- The parity grader between the hook's copied `REVIEW_FAMILY` and `command_run`'s compared only the
+  SET, which is why it passed throughout the divergence above. It now also asserts the normalizer
+  agrees over nine spellings — parity of the vocabulary is worth nothing without parity of the
+  spelling rule. Proven red against the exact mutation that shipped.
+
 
 ### Added — The QUOTA line, the RED hold, and the readers that share one posture (2026-09-16)
 

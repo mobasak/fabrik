@@ -368,15 +368,21 @@ def _command_name(val: str) -> str | None:
     checkpointed. The deny text rendered `Starting //fabrik-review`, which is the code admitting the
     mismatch: the template prepends a slash to a name it assumed was already bare.
 
-    ⚠️ It strips BOTH ends, and that is the whole class rather than the instance the first fix
-    closed. The quiet round pointed at `/fabrik-review/` still being denied — it declined to confirm
-    it as live, since nothing in the corpus writes that spelling, and it was right about the
-    evidence. But the fix costs one character and the failure it prevents is fail-CLOSED at exactly
-    the moment RED exists to keep open, so the asymmetry decides it: a wrongly-allowed review start
-    is a review, and a wrongly-denied one is a session that cannot check in its work.
-    An INTERIOR slash still disqualifies — `/opt/x/fabrik-review` is a path, not this command.
+    ⚠️ **LEADING only, and that is not a bug — it MIRRORS the recorder.** `command_run.py` writes
+    the record name with `lstrip("/")` (`scripts/command_run.py:2501`, and `:3008` on the close), so
+    this function is defined by what the record will SAY, not by what looks tidy. A delta round
+    caught me widening it to `strip("/")` to also accept `/fabrik-review/`: the hook then PASSED
+    that start while the record landed as `fabrik-review/`, which is outside `REVIEW_FAMILY` for
+    every downstream consumer — `command_run.py:3398` skips the close's coverage window and
+    `final_gate_stop.py:1000` grants no surface exemption. The session paid for the whole review and
+    was still blocked at Stop as unreviewed. That trade is strictly worse than the deny it removed:
+    a loud refusal at the START became a silent failure to COUNT at the end.
+    So the trailing-slash spelling stays denied, deliberately. Closing it for real means making the
+    RECORDER canonical, and `scripts/command_run.py` is fleet-synced, on infra's beat and owned by
+    another plan's lock — filed there, not reached into from here.
+    An INTERIOR slash disqualifies too: `/opt/x/fabrik-review` is a path, not this command.
     """
-    return val.strip("/") or None
+    return val.lstrip("/") or None
 
 
 def _cut(tok: str) -> str:
@@ -579,7 +585,12 @@ def decide(
         # unheld — `mcp__wsl-shell__run` carries the same `command` field and ran the same start at
         # RED. The sibling `quota_stop.py` has no such gap: its matcher is `.*`.
         if is_start and name not in REVIEW_FAMILY:
-            return "deny", f"Starting /{name or '<unnamed>'}"
+            # ⚠️ the value is rendered AS TYPED. The old `f"Starting /{name}"` re-prepended a
+            # slash to a name that had just had one stripped, which printed `Starting //fabrik-review`
+            # — the double slash that exposed the original bug — and `Starting / /fabrik-review` for
+            # a space-prefixed value. A deny that garbles the thing it is refusing teaches the
+            # reader nothing.
+            return "deny", f"Starting {name or '<unnamed>'}"
         return "pass", ""
     if band == "AMBER":
         return "notice", ""

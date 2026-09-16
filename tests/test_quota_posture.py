@@ -316,12 +316,16 @@ def test_red_holds_agent_only_without_a_live_run(tmp_path):
         ("python3 scripts/command_run.py start --command /fabrik-review --phases 3", False),
         ("python3 scripts/command_run.py start --command /fabrik-review-scoped", False),
         ("python3 scripts/command_run.py start --command=/fabrik-review", False),
-        # the quiet round's residue: the first fix stripped the LEADING slash only, so a trailing
-        # one was still fail-CLOSED. Nothing in the corpus writes it — the round was right not to
-        # confirm it live — but the cost of the fix is one character and the cost of the failure is
-        # a session that cannot check its work in, so the class is closed rather than the instance.
-        ("python3 scripts/command_run.py start --command /fabrik-review/", False),
-        ("python3 scripts/command_run.py start --command fabrik-review-scoped/", False),
+        # ⚠️ a TRAILING slash is denied ON PURPOSE, and this is the case that documents why. I
+        # widened `_command_name` to `strip("/")` so these two would pass, and a delta round proved
+        # the trade was backwards: `command_run.py` records the name with `lstrip("/")`, so the
+        # start was ALLOWED while the record landed as `fabrik-review/` — off-family for every
+        # consumer, so the close skipped its coverage window and Stop still called the session
+        # unreviewed. A loud deny at the start beats a silent failure to count at the end. Closing
+        # it for real means making the RECORDER canonical; that file is fleet-synced and another
+        # plan's lock owns it, so it is filed, not reached into.
+        ("python3 scripts/command_run.py start --command /fabrik-review/", True),
+        ("python3 scripts/command_run.py start --command fabrik-review-scoped/", True),
         ("python3 scripts/command_run.py start --command /fabrik-spec --phases 3", True),
         # an INTERIOR slash is a PATH, not this command, and must stay denied — the strip must not
         # widen into a basename match
@@ -702,6 +706,27 @@ def test_the_hook_review_family_copy_agrees_with_command_run():
     cr = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(cr)
     assert set(mod.REVIEW_FAMILY) == set(cr.REVIEW_FAMILY)
+
+    # ⚠️ the SET was never the whole parity, and the half it left open is the half that broke.
+    # `_command_name` exists to answer "what will the RECORD say", so it must normalise exactly as
+    # `command_run.py` does (`lstrip("/")`, scripts/command_run.py:2501 and :3008). A delta round
+    # caught this module widened to `strip("/")`: the sets still matched, this assertion still
+    # passed, and the hook blessed a start whose recorded name no consumer would recognise. Parity
+    # of the vocabulary is worth nothing without parity of the SPELLING RULE.
+    for raw in (
+        "/fabrik-review",
+        "fabrik-review/",
+        "//fabrik-review//",
+        "/",
+        "",
+        " /fabrik-review",
+        "/opt/x/fabrik-review",
+        "/fabrik-review-scoped",
+        "fabrik-spec",
+    ):
+        assert mod._command_name(raw) == (raw.lstrip("/") or None), (
+            f"{raw!r}: the hook and command_run.py disagree about the recorded name"
+        )
 
 
 # --- C11: the installer --------------------------------------------------------------------------
