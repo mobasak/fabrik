@@ -359,6 +359,18 @@ _PAYLOAD_FLAG_RE = re.compile(r"^--?[A-Za-z]*c$")
 _PAYLOAD_FLAGS = frozenset({"-S", "--command-string"})
 
 
+def _command_name(val: str) -> str | None:
+    """A ``--command`` value as `REVIEW_FAMILY` spells it: the leading slash removed.
+
+    ⚠️ Fail-CLOSED bug, found by the heavy review's closing seat. The contract, the corpus and every
+    agent write these commands as `/fabrik-review-scoped`, and `REVIEW_FAMILY` holds them bare — so
+    the slash spelling fell outside the set and RED DENIED the mandated review of the change being
+    checkpointed. The deny text rendered `Starting //fabrik-review`, which is the code admitting the
+    mismatch: the template prepends a slash to a name it assumed was already bare.
+    """
+    return val.lstrip("/") or None
+
+
 def _cut(tok: str) -> str:
     """A token with its shell decoration removed: cut at the first operator, then unwrap quotes."""
     return _OPERATOR.split(tok, 1)[0].strip("`$'\"")
@@ -519,11 +531,11 @@ def _is_new_run_start(command: object) -> tuple[bool, str | None]:
             while j < len(tokens):
                 nxt = _cut(tokens[j])
                 if nxt.startswith("--command="):
-                    name = _cut(nxt.split("=", 1)[1])
+                    name = _command_name(_cut(nxt.split("=", 1)[1]))
                     j += 1
                 elif nxt.startswith("-"):
                     if nxt == "--command" and j + 1 < len(tokens):
-                        name = _cut(tokens[j + 1])
+                        name = _command_name(_cut(tokens[j + 1]))
                     j += 2 if j + 1 < len(tokens) and not _cut(tokens[j + 1]).startswith("-") else 1
                 elif nxt == "\n" or not nxt:
                     # a BACKSLASH continuation yields a literal newline token (an unquoted one

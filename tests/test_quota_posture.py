@@ -309,6 +309,14 @@ def test_red_holds_agent_only_without_a_live_run(tmp_path):
         # which is the expensive direction
         ("grep -c command_run.py start", False),
         ('git -c core.editor="scripts/command_run.py start" rebase --continue', False),
+        # ⚠️ the SLASH spelling, which is how the contract, the corpus and every agent writes these
+        # commands — and it was DENIED, because `REVIEW_FAMILY` holds them bare. The fourth time
+        # this escape hatch broke, and the first in a spelling the documentation itself uses. The
+        # deny text rendered `Starting //fabrik-review`, the code admitting its own mismatch.
+        ("python3 scripts/command_run.py start --command /fabrik-review --phases 3", False),
+        ("python3 scripts/command_run.py start --command /fabrik-review-scoped", False),
+        ("python3 scripts/command_run.py start --command=/fabrik-review", False),
+        ("python3 scripts/command_run.py start --command /fabrik-spec --phases 3", True),
     ],
 )
 def test_red_holds_a_new_command_start_but_not_the_review_that_finishes(tmp_path, command, denied):

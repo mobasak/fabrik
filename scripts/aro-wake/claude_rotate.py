@@ -657,9 +657,17 @@ def _should_alert_401() -> bool:
     return True
 
 
-ENV_SYSADMIN = Path(
-    "/opt/fabrik/.env.sysadmin"
-)  # fleet sysadmin env (ozgur-readable) — token fallback
+def _env_sysadmin() -> Path:
+    """The fleet sysadmin env file (ozgur-readable) — the 401 alert's token fallback.
+
+    ⚠️ Through `_opt_dir()`, resolved at CALL time. As a hardcoded `/opt/fabrik/.env.sysadmin` it sat
+    OUTSIDE the `FABRIK_OPT_DIR` pin that closed the mailbox sink, so `_telegram_config()` still read
+    the operator's real bot token and `_notify_telegram()` still POSTed to the Bot API: a test
+    driving a 401 without remembering a per-test stub sends the operator a real Telegram carrying
+    fixture text. That is the 2026-09-16 mail incident one rung over, and it was missed twice because
+    the path was spelled as a literal instead of going through the seam added to fix its sibling.
+    """
+    return _opt_dir() / "fabrik" / ".env.sysadmin"
 
 
 def _telegram_config() -> tuple[str, str] | None:
@@ -672,7 +680,7 @@ def _telegram_config() -> tuple[str, str] | None:
     chat = os.environ.get("TELEGRAM_OWNER_ID")
     if not (tok and chat):
         try:
-            for raw in ENV_SYSADMIN.read_text().splitlines():
+            for raw in _env_sysadmin().read_text().splitlines():
                 line = raw.strip()
                 if not line or line.startswith("#") or "=" not in line:
                     continue
