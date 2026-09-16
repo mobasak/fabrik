@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Ledger write integrity design spec: the append writer, id reservation, and the ratcheted gate (2026-09-16)
+
+- `docs/superpowers/specs/2026-09-16-ledger-write-integrity-design.md` (new, CONVERGED) — the design
+  for `scripts/decisions.py --append` (a writer that allocates the id and escapes code-span-aware
+  inside ONE flock), a box-local `--next-id` reservation keyed on the git COMMON-DIR alone and seeded
+  from the ledger being written, a merge-base read, the `_rows` code-span-aware decoder, and an
+  ADVISORY ratcheted row-integrity assertion in `check_decisions_unique.py` whose baseline records the
+  SET of malformed ids rather than a count. Answers iterative_image_editor's twice-collided `--next-id`
+  report and the re-derived census of 79 malformed rows of 953 across 49 fleet ledgers.
+- Three review passes (14 / 13 / 7 confirmed). Closed on the D-252 scope-growth stop: every pass-3
+  finding lay inside pass 2's own patch. The `docs_updater.py` parser mirror and the baseline-seeding
+  duty are named in the spec as backlog and as U4 rather than patched a fourth time.
+
 ### Fixed — decisions.py answered blank for the ledger's own first-stop question (2026-09-16)
 
 - `scripts/decisions.py` — the tool CLAUDE.md makes the FIRST stop for "where is X / why is Z"

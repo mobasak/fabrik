@@ -919,6 +919,7 @@ docs/
 │       ├── 2026-09-10-kaizen-feedback-loop-design.md
 │       ├── 2026-09-10-review-family-adoption-design.md
 │       ├── 2026-09-11-review-family-pass3-design.md
+│       ├── 2026-09-16-ledger-write-integrity-design.md
 │       └── archived
 ├── traycer
 │   ├── PLAN_OUTPUT_LOCATION.md     # Plan output location

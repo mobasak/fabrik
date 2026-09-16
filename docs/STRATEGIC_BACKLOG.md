@@ -2617,6 +2617,25 @@ notion of "mine" the check does not currently have — spec-shaped, not a one-li
 
 ### Kaizen loop — the residue of the D-252 stop (2026-09-15)
 
+- **`docs_updater.py` reimplements the ledger row parser and will DIVERGE from it** (owner:
+  **infra**) — routed out of the ledger-write-integrity spec by its own D-252 stop. `docs_updater.py`
+  deliberately does not import `decisions.py` (`:936`, *"no import — see the Interfaces seam"*): it
+  carries its own `MERGE_OWNER_RE` / `_DECISION_ROW_ID_RE` (`:938-939`) and a plain
+  `stripped.strip("|").split("|")` at `:1190`. Once `_rows` becomes code-span-aware the two disagree
+  on cell boundaries for any row carrying an escaped pipe. Second half of the same seam:
+  `read_merge_owner` takes the LAST match in FILE order while `--append` writes atop the table, so a
+  merge-owner row written by the sanctioned writer would lose to an older one below it (the hub
+  ledger's last merge-owner match is D-155 at line 244 today). Shape of the fix: one shared helper, or
+  the same rule taught to both with a drift pin across the seam.
+
+- **`check_governance_tables.py` does not see the two files carrying addressable rows** (owner:
+  **infra**) — it scopes itself to governance contracts (`:19-23`, `OK — … across 1 contract(s)`), so
+  `docs/DECISIONS.md` and `INDEX.md` have no cell-width check at all, and the same sweep found a `-`
+  bullet inside an `INDEX.md` table dropping 13 rows out of the render with no gate able to see it.
+  Its docstring names the wallpaper trade-off deliberately, so this is a judgement call, not an
+  oversight. Reported by iterative_image_editor inside 01M2JQYM9PGQK6Q53GJ3SGP3TV; kept OUT of the
+  ledger-write-integrity spec because that spec's gate covers `DECISIONS.md` only.
+
 - **`decisions.py` reconstruction residue** (owner: **infra**) — routed by the scope-growth stop
   rather than patched a fourth time: (a) the both-ends read anchors on the last two cells, which is
   wrong when the shatter happens INSIDE the `why` — fabrik-lib D-177 gets a prose fragment as its
