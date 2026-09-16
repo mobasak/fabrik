@@ -388,7 +388,22 @@ structured rows beat lexical transcripts (a decision phrased differently is invi
   over — RED: commit, push, close your run record, and start nothing new.** **the WALL**
   (`fleet-exhausted` stamp): `.claude/hooks/quota_stop.py` holds every world-changing tool by
   default-deny, and commit + push + close + stop is the only path through — every tool it needs is
-  allowed. ⚠️ **`claude_rotate.py --status` is the authority on WHEN you resume, in every band.**
+  allowed.
+  **The `QUOTA:` line (D-269).** Every prompt opens with one injected line — `QUOTA: <slug> · 5h
+  <n>% (<forecast>) · weekly <n>% (<forecast>) · Fable <n>% · band <GREEN|AMBER|RED|WALL> ·
+  successor <slug or none>` — where `<forecast>` is `reset in <h:mm>` or `wall in ~<m>m at
+  <n>%/m` whichever comes FIRST, a figure the tick has no reading for prints `—` and a band it
+  cannot compute prints `?`, written by the rotation tick and read by a box-level hook. `posture
+  unavailable` means the tick is dead or stale, not that quota is fine — run `python3
+  /opt/fabrik/scripts/sysadmin/claude_rotate.py --status`. **The band names the action:** at
+  AMBER the line is advice; at RED the hook HOLDS `Agent` and a new `command_run.py start` (a
+  run record already live keeps its seats, and a review-family start — `/fabrik-review-scoped`
+  or `/fabrik-review` — stays allowed because it is the finish path) — everything a checkpoint
+  needs stays allowed, so RED is finish-and-checkpoint, never freeze. **A session on a Fable
+  model reads the `Fable` figure as its weekly** — Fable draws on the account's weekly pool
+  under its own ceiling, reported as its own percentage, and the hook keys the band on it when
+  the transcript says the model is Fable.
+  ⚠️ **`claude_rotate.py --status` is the authority on WHEN you resume, in every band.**
   The urgent-drain mail names a resume instant too, but it does not fire in every state and its
   line is the SESSION window — so read `--status`, and never wait on a mail you cannot confirm was
   sent. A reading that is missing entirely is not a band at all: read `--status` rather than
