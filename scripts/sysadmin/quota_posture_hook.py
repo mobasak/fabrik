@@ -135,12 +135,21 @@ def _load_posture(now: float) -> tuple[dict | None, str]:
     except _READ_ERRORS:
         return None, "unreadable"
     try:
-        data = json.loads(raw)
+        # ⚠️ Both halves matter. A bare `NaN` passes `isinstance(ts, (int, float))`, and
+        # `now - nan` is `nan`, which is never `>` the staleness bound — so a posture with a
+        # non-finite `ts` renders as FRESH FOREVER and `posture unavailable` can never fire. That is
+        # the worst failure direction this hook has: not a crash, a permanently confident wrong
+        # answer on every prompt. The rotation script's own reader refuses these the same way.
+        data = json.loads(
+            raw,
+            parse_constant=lambda c: (_ for _ in ()).throw(ValueError(f"non-finite: {c}")),
+        )
     except ValueError:
         return None, "unreadable"
-    if not isinstance(data, dict) or not isinstance(data.get("ts"), (int, float)):
+    ts = data.get("ts") if isinstance(data, dict) else None
+    if not (isinstance(ts, (int, float)) and not isinstance(ts, bool) and math.isfinite(ts)):
         return None, "unreadable"
-    age = now - float(data["ts"])
+    age = now - float(ts)
     if age > _stale_s():
         return None, f"stale {age / 60:.0f}m"
     return data, ""

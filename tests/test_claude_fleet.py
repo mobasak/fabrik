@@ -4973,6 +4973,4 @@ def test_posture_a_non_finite_reading_is_no_reading(monkeypatch):
         "minutes_to_wall": float("nan"),
         "burn_per_min": float("nan"),
     }
-    assert cr._fmt_forecast(poisoned) in ("no burn", "—") or isinstance(
-        cr._fmt_forecast(poisoned), str
-    )
+    assert cr._fmt_forecast(poisoned) == "no burn"

@@ -2402,7 +2402,12 @@ def _notify_failure_reason() -> str:
     unreadable or non-numeric file, or a clock-implausible value reads as nothing
     (`_stamp_epoch`), and a torn write can land at or below it. So the line names them all rather
     than guess one."""
-    if not (Path.home() / ".claude" / "bin" / "claude-sound.sh").is_file():
+    # ⚠️ `_sound_script()`, not `Path.home()`: this function and `_tick_telegram` must answer about
+    # the SAME notifier. Resolved differently they contradict each other on one tick — one reports
+    # the notifier absent while the other stats a different file and prints the long
+    # "could not be confirmed" list, which is what `_chain_expiry_push` shows the operator during a
+    # wall. Half a seam is not a seam (review round 3).
+    if not _sound_script().is_file():
         return "mesh-notify unavailable (no claude-sound.sh)"
     return (
         "the send could not be confirmed — suppressed by the notifier's 30-minute window for this"

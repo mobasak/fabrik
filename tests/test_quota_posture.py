@@ -356,6 +356,67 @@ def test_amber_is_said_once_per_band_change(tmp_path):
     )
 
 
+def test_the_two_notifier_readers_answer_about_the_same_file(tmp_path, monkeypatch):
+    """The notifier seam, graded where it can DISCRIMINATE.
+
+    `_tick_telegram` and `_notify_failure_reason` must resolve the SAME notifier. The existing
+    grader for the reason string patches `Path.home()` AND sets `CLAUDE_SOUND_SH` to the same file,
+    so it passes identically with the seam half-applied — it cannot see the defect. Here the two
+    deliberately DISAGREE: the seam points at a file that does not exist while home holds one that
+    does, which is exactly the production shape (a custom notifier) that made one function report
+    "absent" while the other printed the long "could not be confirmed" list for the same tick.
+    """
+    import importlib.util
+
+    home = tmp_path / "home"
+    (home / ".claude" / "bin").mkdir(parents=True)
+    (home / ".claude" / "bin" / "claude-sound.sh").write_text("#!/bin/bash\n", encoding="utf-8")
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+    monkeypatch.setenv("CLAUDE_SOUND_SH", str(tmp_path / "nowhere" / "custom-notifier.sh"))
+
+    spec = importlib.util.spec_from_file_location(
+        "cr_notifier_probe", HOOK.parent / "claude_rotate.py"
+    )
+    cr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cr)
+
+    assert not cr._sound_script().is_file(), "the seam must win over home"
+    assert cr._tick_telegram("k", "m") is False
+    assert "unavailable" in cr._notify_failure_reason(), (
+        "the two readers disagree: one says the notifier is absent, the other stats a different file"
+    )
+
+
+def test_a_non_finite_timestamp_is_unreadable_never_eternally_fresh(tmp_path):
+    """C1b — a posture whose `ts` is a bare NaN must read as UNREADABLE, not as fresh forever.
+
+    `isinstance(nan, float)` is True and `now - nan` is `nan`, and `nan > bound` is False — so the
+    staleness check silently passed and the hook rendered an arbitrarily old posture as current on
+    every prompt, with `posture unavailable` unable to fire. That is worse than a crash: a
+    permanently confident wrong answer about the one thing this line exists to report.
+    """
+    mod = _load()
+    state = tmp_path / "state"
+    state.mkdir()
+    for raw in (
+        '{"schema": 1, "ts": NaN}',
+        '{"schema": 1, "ts": Infinity}',
+        '{"schema": 1, "ts": -Infinity}',
+        '{"schema": 1, "ts": true}',
+    ):
+        (state / "quota-posture.json").write_text(raw, encoding="utf-8")
+        p = _hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"}, state=state)
+        assert "posture unavailable (unreadable)" in p.stdout, (raw, p.stdout)
+    # and the hook's reader agrees with the rotation script's, which refuses the same constants
+    import os as _os
+
+    _os.environ["ROTATE_STATE_DIR"] = str(state)
+    try:
+        assert mod._load_posture(time.time()) == (None, "unreadable")
+    finally:
+        _os.environ.pop("ROTATE_STATE_DIR", None)
+
+
 def test_malformed_payloads_never_block(tmp_path):
     """C10 — rc 0 and silence on anything we cannot parse: never block on our own defect."""
     state = tmp_path / "state"
