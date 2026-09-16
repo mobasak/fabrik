@@ -128,6 +128,13 @@ T6_CLAIMS = (
     # [Unreleased], which is a `-`/`+` PAIR and loses nothing. Executed in a throwaway repo, and
     # reverting it failed 0 of the other 18 claims.
     "sanctioned `CHANGELOG.md` relocation, not a loss",
+    # T6.4 (operator directive 01M2K9JZNG4Y6110629YZGA65A, 2026-09-16) — the quota BANDS are a
+    # behaviour contract, and they live INSIDE the D-175 quota bullet that teaches the read.
+    # Measured over 2,237 tick rows before the rule was written: 141 at or above 85, 111 at or
+    # above 90, ZERO at the 98 flip line — so AMBER forbids STARTING heavy work rather than
+    # ordering a compaction, which on 94% of ticks would cost more than it saves.
+    "THE QUOTA BANDS ARE A BEHAVIOUR CONTRACT",
+    "COMPACTION IS CONDITIONAL",
     "follow it with a real `unset GIT_INDEX_FILE`",
     "never `cp <scratch>/<file> <file>`",
     "never put the hunk in printf's FORMAT position",

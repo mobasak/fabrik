@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — The quota bands become a behaviour contract in both CLAUDE.md twins (2026-09-16)
+
+- `CLAUDE.md` + `templates/governance/CLAUDE.md` — operator directive 01M2K9JZNG4Y6110629YZGA65A
+  lands inside the existing D-175 quota bullet: four bands that name an ACTION (green under 85,
+  amber 85-90 finish-what-you-started, red 90+ with no successor, the wall), conditional
+  compaction with its three decision inputs, the pin recipe with BOTH carrier env vars, and the
+  cobra path naming the four knobs that silence the bands. D-264.
+- Two statistics I authored for it were refuted in review and deleted; the operator's measured
+  hedge stands alone, with a note on why neither ledger series can re-derive it.
+
 ### Fixed — Two contract contradictions fabrik-lib hit in one plan run (2026-09-16)
 
 - `commands/_sources/fabrik-execute-plan.md` — the phase-artifact rule and the `Profile: small`

@@ -388,6 +388,48 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
 
 ## Pointers (detail in packs)
 - **The fleet quota picture — every agent, every repo, one query (operator directive 2026-09-07):** `python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --status` (add `--json` for machines; the `picture` key) tells you which account is ACTIVE, which are eligible / session-exhausted / weekly- or cap-walled, the rotation QUEUE in the picker's own order with when each returns, the NEXT RELIEF the tick would name, whether the fleet-exhausted HOLD is on and the resume it promised, and the last flip and its kind. Read it before dispatching long subagent work near a cap, and whenever a quota notice lands — the absolute path works from any `/opt` repo, fabrik-lib included. Authority: `/opt/fabrik/docs/workstation/claude-account-rotation.md` § `--status`.
+  ⚠️ **THE QUOTA BANDS ARE A BEHAVIOUR CONTRACT, not just a dashboard.** The active account's
+  hottest window puts you in one of four bands, and each names a different action. **under 85 —
+  GREEN:** work normally. **85-90 — AMBER: finish what you started, start nothing heavy** — no new
+  fan-out, no new plan phase, no fresh review round, because a flip mid-round costs that whole
+  round's cached prefix. **90+ with NO eligible successor — RED:** the urgent-drain mail has
+  already named the resume instant, so commit, push, close your run record and hook your resume to
+  it. ⚠️ That mail keys on the SESSION window alone (`_urgent_drain_pct`, "The SESSION line"), so
+  an account that is weekly-hot and session-cold is RED by the hottest-window rule with NO mail
+  coming — there, read `--status`'s own next-relief line instead of waiting. **the WALL** (`fleet-exhausted` stamp): `.claude/hooks/quota_stop.py` holds every
+  world-changing tool by default-deny, and commit + push + close + stop is the only path through —
+  every tool it needs is allowed. ⚠️ **COMPACTION IS CONDITIONAL — reflexive compaction is the
+  trap.** A flip invalidates your cached prefix (caches are per-account AND model-scoped), so
+  re-creation costs a cache WRITE (1.25x base input on the 5-minute TTL, 2x on the 1-hour) against
+  the ~0.1x you were paying to read it; compacting first shrinks what gets
+  re-created, but a compaction ALSO discards the prefix and pays summarization, so it is a pure
+  LOSS whenever no flip arrives. Judge it on the three facts `claude_rotate.py --status` already
+  gives you — your current %, when your window RESETS, and whether an eligible successor exists:
+  compact when a flip is likely to beat your reset, ride it out when the reset comes first.
+  ⚠️ **Never "help" by moving the knobs.** Lowering `ROTATE_THRESHOLD` (98) or `ROTATE_DWELL_MIN`
+  (30m) makes flips frequent and thrashy, and every point down re-creates every live session's
+  prefix. RAISING the two that draw the bands is worse and cheaper: `ROTATE_DRAIN_THRESHOLD` (85)
+  gates the relief flip leg itself, so raising it silences AMBER *and* stops relief flips, and
+  (the `nan`/`inf` escape is CLOSED — `_env_float` rejects a non-finite value loudly and keeps the
+  default);
+  `ROTATE_URGENT_DRAIN_PCT` (90) draws RED. Those four are the cobra path on this rule. ⚠️ **Pin heavy work; never round-robin accounts:** a session launched with
+  `CLAUDE_CONFIG_DIR=$HOME/.claude-fleet/<slug>` AND `CLAUDE_QUOTA_HOME` set to the same slug —
+  both, or the binding is a no-op and the window sleeps on another account's wall — does not
+  follow the shared pointer, so a global
+  flip cannot touch its cache — check that slug's WEEKLY headroom covers the whole job first
+  (session windows refill in hours, weekly ones do not; a pinned session receives no relief flip).
+  ⚠️ THE COBRA CHECK (D-253): the cheapest way to satisfy "compact at 85" WITHOUT producing the
+  outcome is to compact reflexively on every entry to the band, which is a loss whenever the reset
+  arrives first — and per the OPERATOR's own measurement, most amber episodes end in a reset. That is why the
+  rule hands you the three decision inputs instead of ordering a compaction. ⚠️ **Do not try to
+  re-derive that ratio from `rotate-ledger.jsonl` — neither series in it can answer the question.**
+  The tick rows' `pct` is the FIVE-HOUR window alone (`claude_rotate.py` writes `float(_sess)` from
+  `five_hour`) while the `walled` verdict beside it reads both windows plus the cap, so a row can
+  honestly read `verdict: walled, pct: 22`; and `at_pct` on the flip rows is supplied by only two
+  legs — relief, gated at `ROTATE_DRAIN_THRESHOLD`, and trip, gated at `ROTATE_THRESHOLD` or the
+  account's `caps.json` cap — so "every flip was at or above 85" restates those gates rather than
+  measuring the fleet. Take the hedge as the operator measured it and do not re-argue it from
+  these rows — two attempts to do so shipped refuted claims into this contract (D-264).
 - **Backup secrets before edit** (`.env`, `*.key`, `*.pem`, `secrets/`, `.ssh/`) → `backups/` dir (gitignored).
 - **Password policy** (32-char `[a-zA-Z0-9]` via `secrets.choice()`).
 - **Naming:** kebab-case. Exceptions: `README.md`, `CHANGELOG.md`, `INDEX.md`, `PORTS.md`, `AGENTS.md`, `AGENTS-compact.md`, `LESSONS_LEARNT.md`, `DECISIONS.md`, `CLAUDE.md`, `Makefile`, `Dockerfile`, Python pkgs (snake_case), auto-generated, dotfiles.

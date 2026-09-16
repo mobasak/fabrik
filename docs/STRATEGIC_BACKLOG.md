@@ -2578,6 +2578,21 @@ notion of "mine" the check does not currently have — spec-shaped, not a one-li
 
 ### Kaizen loop — the residue of the D-252 stop (2026-09-15)
 
+- **The quota-band contract's routed residue** (owner: **infra**; D-264) — four items the
+  scope-growth stop routed rather than patched a fourth time: (a) the bands overlap at exactly 90
+  and the RED band's mail keys on the SESSION window while the band keys on the HOTTEST, an 8-point
+  gap where an agent is RED with no mail coming — both are in the operator's own directive text and
+  are raised on its ack, not rewritten by its implementer; (b)
+  `docs/workstation/claude-account-rotation.md:30` says the carrier binding is "a no-op" without
+  both env vars while `claude_rotate.py:1386` says it fails OPEN onto the wrong chain — the doc
+  overstates; (c) the legacy tick writer records `pct` as `max(five_hour, seven_day)` while the
+  fleet writer records `five_hour` alone, so one file holds two incompatible series under one key;
+  (d) stale comments in `claude_rotate.py` — `:4257` names caps "sarp 90, ob 80" against a live
+  `caps.json` of 95/99, and `:4908` says the threshold defaults to 95 when it returns 98.
+- **`check_corpus_weight.py` exits rc 0 while printing its growth warning** (owner: **infra**) — a
+  caller gating on the exit code alone sees green, and the warning names a D-row obligation the
+  script never verifies. Both halves surfaced by review seats on 2026-09-16.
+
 - **`mail.py ack()` cannot distinguish "handled and answered" from "handled and silent"**
   (owner: **infra**; SPEC work, not a patch) — `ack()` takes a `disposition` from a fixed set and
   appends an `acked-by:` line; it has no notion of whether a reply was ever sent, so a message can
