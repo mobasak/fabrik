@@ -265,9 +265,11 @@ def _identity_line(cwd: str, live: int | None = None) -> str:
             " injected (`agent_role.py`) and the `Agent-Name` trailer mismatch check cannot fire"
             " (`check_commit_trailers.py`, which reads the env var only). ✅ **You can fix this"
             " right now, without a relaunch:** `python3 /opt/fabrik/scripts/whoami_agent.py --as"
-            " <name>` binds THIS session — `command_run.py` then resolves it, so your run records"
-            " and `FEEDBACK:` verdicts become attributable immediately (the charter waits for your"
-            f" next start). A named relaunch — {remedy} — still works and still wins. Ask the"
+            " <name>` binds THIS session, and every `command_run.py`"
+            " run you START from here on is attributable. ⚠️ A run record ALREADY OPEN keeps the empty agent it"
+            " resolved at its own `start` — close and re-`start` it, or accept that one empty cell."
+            " The role CHARTER needs a named relaunch either way (`agent_role.py` reads the env var"
+            f" only). A named relaunch — {remedy} — still works and still wins. Ask the"
             " operator which name is yours before you bind or sign one.\n"
         )
     except Exception:

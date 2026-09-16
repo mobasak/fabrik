@@ -517,3 +517,47 @@ def test_a_binding_with_no_session_pid_says_it_is_unprotected(store, monkeypatch
     code, msg = m.bind("agent-2")
     assert code == 0
     assert "does NOT reserve" in msg
+
+
+def test_an_unavailable_lock_is_loud_and_auditable(store, tmp_path):
+    # A SILENT fail-soft re-opens the very race the lock exists to close: a lock path that is a
+    # DIRECTORY double-bound 7 of 10 trials at rc 0 with a success message. The module already
+    # warns when the session pid is unknown; a lost lock is strictly worse.
+    (tmp_path / (store.name + ".lock")).mkdir()
+    m = _mod()
+    code, msg = m.bind("agent-2")
+    assert code == 0
+    assert "NOT serialized" in msg, "a degraded bind must say so"
+    row = json.loads(store.read_text().splitlines()[-1])
+    assert row.get("unlocked") is True, "the row must record that it was written unserialized"
+
+
+def test_a_held_lock_does_not_block_forever(store, tmp_path):
+    # `LOCK_EX` alone is BLOCKING, so the fail-soft covered only error cases and never contention
+    # — executed, a bind blocked past 12 s behind a stopped holder, unbounded.
+    import fcntl
+
+    lock = tmp_path / (store.name + ".lock")
+    fd = os.open(str(lock), os.O_CREAT | os.O_RDWR, 0o600)
+    fcntl.flock(fd, fcntl.LOCK_EX)
+    try:
+        t0 = time.monotonic()
+        m = _mod()
+        code, msg = m.bind("agent-2")
+        elapsed = time.monotonic() - t0
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
+    assert code == 0
+    assert elapsed < 20, f"bind blocked {elapsed:.1f}s behind a held lock"
+    assert "NOT serialized" in msg
+
+
+def test_the_lock_path_is_resolved_not_spelled(store):
+    # Two spellings of one store must produce ONE lock, or there is no mutual exclusion at all.
+    m = _mod()
+    assert m.bind("agent-2")[0] == 0
+    import inspect
+
+    src = inspect.getsource(m._locked)
+    assert ".resolve()" in src, "the lock name is derived from an unresolved path"

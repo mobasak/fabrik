@@ -194,18 +194,34 @@ def _locked(path: Path):
     caller — a binding that races is better than a binding that hangs.
     """
     fd = None
+    why = ""
     try:
-        lock_path = path.with_suffix(path.suffix + ".lock")
+        lock_path = path.resolve().with_suffix(path.suffix + ".lock")
         lock_path.parent.mkdir(parents=True, exist_ok=True)
         fd = os.open(str(lock_path), os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
-        fcntl.flock(fd, fcntl.LOCK_EX)
-    except Exception:
+        # ⚠️ NON-blocking with a bounded retry. A bare LOCK_EX is BLOCKING, so the fail-soft this
+        # docstring promises covered only the ERROR cases and never contention — executed, a bind
+        # blocked past 12 s behind a stopped holder. The critical section is milliseconds, so ~5 s
+        # of retry is generous; after that we proceed unserialized and SAY SO.
+        for _ in range(50):
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError:
+                time.sleep(0.1)
+        else:
+            why = "another process held the store lock for over 5 s"
+            with contextlib.suppress(OSError):
+                os.close(fd)
+            fd = None
+    except Exception as exc:
+        why = f"{type(exc).__name__}: {exc}"
         if fd is not None:
             with contextlib.suppress(OSError):
                 os.close(fd)
             fd = None
     try:
-        yield
+        yield fd is not None, why
     finally:
         if fd is not None:
             with contextlib.suppress(OSError):
@@ -310,11 +326,19 @@ def bind(name: str, force: bool = False) -> tuple[int, str]:
         )
     path = store_path()
     top = _toplevel()  # outside the lock: it shells out to git and must not hold the lock for that
-    with _locked(path):
-        return _bind_locked(path, sid, name, force, top)
+    with _locked(path) as (locked, why):
+        code, msg = _bind_locked(path, sid, name, force, top, locked)
+    if code == 0 and not locked:
+        msg += (
+            f" ⚠️ the store lock could not be taken ({why}); this bind was NOT serialized against"
+            " a concurrent sibling"
+        )
+    return code, msg
 
 
-def _bind_locked(path: Path, sid: str, name: str, force: bool, top: str) -> tuple[int, str]:
+def _bind_locked(
+    path: Path, sid: str, name: str, force: bool, top: str, locked: bool = True
+) -> tuple[int, str]:
     """The read-modify-write half of `bind`, serialized by `_locked`."""
     rows = _rows(path)
 
@@ -355,6 +379,7 @@ def _bind_locked(path: Path, sid: str, name: str, force: bool, top: str) -> tupl
         "toplevel": top,
         "at": int(time.time()),
         "force": bool(force),
+        "unlocked": not locked,  # auditable: this row was written without serialization
     }
     cutoff = int(time.time()) - _TRIM_AFTER_S
     # ⚠️ A row's `at` is whatever is on disk. `int("abc")` raises ValueError and `int([1])` raises

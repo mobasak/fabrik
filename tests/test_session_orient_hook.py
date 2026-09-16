@@ -629,6 +629,13 @@ def test_adopted_project_warns_an_unnamed_session_and_names_the_owner(tmp_path: 
     assert "whoami_agent.py --as" in out
     assert "without a relaunch" in out
     assert "cannot change its own environment" not in out, "a claim this fleet's own code falsified"
+    # ⚠️ And it must not OVERPROMISE. `command_run.py` resolves the agent at `start`, so a run
+    # record already open keeps its empty cell — an advisory saying attribution is fixed
+    # "immediately" sends the reader on to file another unattributable FEEDBACK row.
+    assert "ALREADY OPEN" in out, "the advisory must state what binding does NOT retroactively fix"
+    assert "attributable immediately" not in out
+    # and the charter needs a named relaunch either way: agent_role.py reads the env var only
+    assert "charter waits for your next start" not in out
 
 
 def test_the_rendered_plans_marker_alone_never_declares_adoption(tmp_path: Path) -> None:
