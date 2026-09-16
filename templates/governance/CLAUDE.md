@@ -403,7 +403,7 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
   successor <slug or none>` — where `<forecast>` is `reset in <h:mm>` or `wall in ~<m>m at
   <n>%/m` whichever comes FIRST, or `no burn` when neither is derivable yet; a figure the tick
   has no reading for prints `—` and a band it cannot compute prints `?`. It is written by the
-  rotation tick and read by the box-level `scripts/sysadmin/quota_posture_hook.py` (not
+  rotation tick and read by the box-level `/opt/fabrik/scripts/sysadmin/quota_posture_hook.py` (not
   `quota_stop.py`, which owns the WALL alone). `posture unavailable` means the posture could not
   be READ — a dead or stale tick, or an unreadable file — not that quota is fine; no `QUOTA:`
   line at all means the hook is not wired into this session's settings, or did not run; same
