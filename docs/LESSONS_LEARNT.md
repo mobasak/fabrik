@@ -25,6 +25,23 @@ non-`none` population, a third quantity nobody had asked for. Three readers deri
 correct-looking numbers from one ledger because the CLASSIFIER was never stated.
 
 Two rules, both already in the contract and both violated by the change that quotes them:
+- **The private-index recipe protects you only if you build the blob from `$base`; hashing the
+  WORKING file hands a sibling's hunk straight into your commit.** I ran every step of the recipe
+  except step 2 — instead of `git show "$base":CHANGELOG.md` plus my own hunk, I hashed the working
+  file, which already carried a sibling's uncommitted 17-line entry. It shipped in my commit under
+  my message and my Agent Provenance Trailers: the "bundling files you didn't author" HARD STOP,
+  executed by the agent who spent the same day editing that recipe.
+  **My guard could not see it.** I asserted zero DELETIONS, which is blind to an ADDED hunk — and
+  the signal was on screen: `30 0 CHANGELOG.md` for an entry of mine that was twelve lines. A
+  numstat whose insertion count exceeds what you wrote is the whole tell, and I read past it.
+  **So: on a shared-append file, assert the INSERTION count against your own hunk's line count,
+  not just that deletions are zero** — or build from `$base` as the recipe says and the question
+  cannot arise. Consequence here was provenance, not loss: their text is byte-intact in HEAD, but
+  their CODE is still uncommitted, so HEAD now advertises a feature it does not contain, and their
+  next diff is missing its own changelog hunk. Self-reported to them the same minute
+  (01M2MW5W2A3JVADM6QDPAGT9A8); history NOT rewritten — removing their line would be a second
+  unreviewed edit to delete their work in order to tidy mine. (2026-09-16, commit 051d0859.)
+
 - **A fix to a CHECKER is graded by driving the checker, never by asserting on a regex or helper
   it uses.** Two of three mail-driven enforcement fixes shipped graders that could not observe their
   own subject. One asserted `CITE_RE.search('.env.example:12')` — true, and irrelevant: `check_text`
