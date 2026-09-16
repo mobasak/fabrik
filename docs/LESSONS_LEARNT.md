@@ -22,12 +22,12 @@ work — write the `.bak` first, restore after any exit, assert both halves. I d
 every one passed. None of them is about who else is READING that path right now, and a
 mutate-restore cycle leaves no trace afterwards for anyone to find.
 
-**Where the rule now lives.** NOT here — restating it in a lesson while the canonical revert-test
-recipe said the opposite would be two sources of truth on the same act, one of them fleet-synced.
-The recipe itself is amended, in `CLAUDE.md` § Behavior (the shared-repo bullet, "For a revert test,
-copy the file") and its `templates/governance/CLAUDE.md` twin, byte-identical in both: mutate a COPY
-under the scratchpad whenever another agent may be reading that path, and pin the surface by SHA in
-the brief so the seat knows the pin wins. Read it there.
+**Where the rule now lives.** NOT here. `CLAUDE.md` § Behavior, the shared-repo bullet, at the
+anchor "For a revert test, copy the file" — and the byte-identical clause in its
+`templates/governance/CLAUDE.md` twin, pinned by `tests/test_governance_template_split.py` so it
+cannot drift out of one copy. Read it there; this entry deliberately does not repeat it, because the
+first cut of that clause was WRONG and had to be rewritten, and a restatement here would have
+silently kept the wrong version alive.
 
 **The wider shape.** Test isolation is usually framed as protecting production from tests. This is
 the other axis: my local experiment polluted another agent's OBSERVATION, not any persistent state.

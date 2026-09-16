@@ -596,7 +596,7 @@ def decide(
             # (An earlier cut of this comment said the typed value was out of scope; a round read
             # `decide`'s own signature and showed that it is not.)
             # I briefly "fixed" this to print `name` bare on the theory that
-            # it rendered the value as typed; it does not — `decide` never sees the raw value — and
+            # it rendered the value as typed; it does not — and
             # it LOST the slash on the common case, printing `Starting fabrik-spec`. Reverted.
             # (The `Starting //fabrik-review` doubling belongs to the code BEFORE `_command_name`
             # existed; no input reaches it now. A space-prefixed value still renders oddly, which is

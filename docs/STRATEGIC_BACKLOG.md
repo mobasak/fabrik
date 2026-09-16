@@ -72,8 +72,9 @@ Generated from the end-of-day plan-state on 2026-06-07 after the trio Phase 5.1.
   "$CMD"` reads as the literal name `CMD`, `--command "$(echo /fabrik-review)"` reads as nothing,
   and an UNQUOTED backtick form reads as `echo` — while the QUOTED `` "`echo /fabrik-review`" ``,
   which is the form parallelling the two examples above, reads as `echo /fabrik-review`; a guard
-  written against the wrong one of those two tests nothing. All three are DENIED at RED — so a session whose command name
-  comes from a variable is refused the one start RED exists to permit, the mandated review of the
+  written against the wrong one of those two tests nothing. All FOUR are DENIED at RED — so a
+  session whose command name comes from a variable is refused the one start RED exists to permit,
+  the mandated review of the
   change it is checkpointing, and the deny text names a command that does not exist so the reader
   cannot tell what was refused. Measured end-to-end: the recorder files `fabrik-review` (in-family)
   for exactly the line the hook denies. This inverts the trade `_is_new_run_start`'s own docstring

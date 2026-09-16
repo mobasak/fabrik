@@ -142,6 +142,15 @@ T6_CLAIMS = (
     # "**85 to under 90 — AMBER" and "**90 and over —", and the very next rewrite of the bullet
     # rewrapped both across lines, so the pins stopped matching and the test went red on text that
     # was actually correct. Pin a fragment that lives on ONE line.
+    # T6.5 (2026-09-17) — the revert-test recipe never asked who else is READING the file, and the
+    # first cut of the fix was NOT EXECUTABLE: it said to copy the FILE, which makes every grader
+    # (they resolve their subject by tree path) run against the unmutated original and print a FALSE
+    # GREEN — the outcome the surrounding sentences exist to prevent. It shipped to 45 repos before a
+    # seat executed it. These pins are why the second cut cannot drift or vanish from one copy.
+    # ⚠️ WRAP-SAFE: each must live on ONE line of the contract (see the note above).
+    "never on a single copied FILE",
+    "it can reach committed state",
+    "treat the condition as TRUE by default",
     "under 85 — GREEN",
     "85 to under 90",
     "RED: commit, push, close your run record",

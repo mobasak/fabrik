@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — The revert-test recipe: a throwaway WORKTREE, never the shared tree (2026-09-17)
+
+- `CLAUDE.md` § Behavior (the shared-repo bullet's "For a revert test, copy the file" recipe) and the
+  byte-identical clause in its `templates/governance/CLAUDE.md` twin: on a shared tree, run the
+  mutate-restore cycle in a throwaway worktree (`git worktree add <scratch>/probe HEAD`), never in
+  the shared checkout **and never on a single copied FILE**.
+- ⚠️ **The first cut of this clause said "copy the FILE" and was NOT EXECUTABLE — it shipped to 45
+  repos before a review seat ran it.** Every grader resolves its subject by tree path
+  (`Path(__file__).resolve().parents[1] / …`), so a one-file copy leaves the graders running against
+  the unmutated original: executed, `_command_name` was killed in a scratchpad copy and all 80
+  graders that exist to catch that reported GREEN. It reinstated the precise false-green failure the
+  sentences around it exist to prevent, and it collided with the `proxy-never-evidence` anchor by
+  making the real check unrunnable. Corrected here, with the corrected clause pinned in
+  `tests/test_governance_template_split.py::T6_CLAIMS` (three wrap-safe substrings) and proven red
+  against a template-only deletion — the silent drift that grader exists for — inside a throwaway
+  worktree, which is the new rule executed on its own first use.
+- Two further corrections to that first cut: its justification claimed the worst case was another
+  agent's OBSERVATION, which UNDERSTATES it — a sibling committing in the mutation window ships the
+  MUTANT to HEAD, because a directory or glob pathspec commits the working tree and needs never name
+  your file; and it keyed on "when another agent may be reading", which is undecidable on a shared
+  tree where you see siblings' files and never their chat, so the clause now says to treat that as
+  TRUE by default and reconciles with § Completion Contract 1's "never left in the tree".
+- Origin, measured 2026-09-16: a review seat watched the file under review change and change back
+  mid-pass — the author running mutate-restore cycles in the tree — and reported that had it re-read
+  the live path instead of its SHA pin, it would have filed a CONFIRMED defect as REFUTED. The
+  `docs/LESSONS_LEARNT.md` entry points at the recipe and deliberately does not repeat it.
+
 ### Changed — When review residue is a restatement, the mandated rewrite is a deletion (2026-09-16)
 
 - `commands/_fragments/term-coverage.md` rule (3) of the round-zero probe — the two-consecutive-
@@ -17,21 +44,6 @@ All notable changes to this project will be documented in this file.
   moves on a shared tree — is NOT fixed here: `commands/_sources/fabrik-review-scoped.md` is owned by
   the active plan-lock `2026-09-09-plan-1-review-convergence-redesign`. The exact replacement text was
   mailed to infra as `01M2NWVT2GVZ1KK4STMEP42VN8` and all nine rows stay unanswered in the queue.
-
-### Changed — The revert-test recipe now covers who else is READING that file (2026-09-17)
-
-- `CLAUDE.md` § Behavior (the shared-repo bullet's "For a revert test, copy the file" recipe) and its
-  byte-identical `templates/governance/CLAUDE.md` twin: mutate a COPY under the scratchpad whenever
-  another agent may be reading that path, and pin the surface by SHA in a review brief so the seat
-  knows the pin wins over the live file. **Every guard the recipe already had protects YOUR file's
-  integrity and none of them asks who else is reading** — a mutate-restore cycle is byte-perfect
-  afterwards and leaves no trace, so the damage is to another agent's OBSERVATION rather than to any
-  state, and it is invisible in every artifact after the fact. Measured 2026-09-16: a review seat
-  watched the file under review change and change back mid-pass (the author was running
-  mutate-run-restore experiments in the tree) and reported that had it re-read the live path instead
-  of its SHA pin, it would have filed a CONFIRMED defect as REFUTED. The finding was real.
-  Fleet-synced: distributes to ~46 project contracts. The `docs/LESSONS_LEARNT.md` entry POINTS at
-  the recipe rather than restating it — a rule in two places is two things to drift.
 
 ### Fixed — RED denied the review-family start in the corpus's own spelling (2026-09-16)
 
