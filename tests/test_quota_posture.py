@@ -755,7 +755,7 @@ def test_the_hook_and_the_recorder_agree_on_the_name_a_start_will_carry(tmp_path
             "fabrik-spec",
             # ⚠️ these three are NOT padding. A round proved the six-spelling set sleeps through two
             # whole mutant classes that only these catch: a `.strip()` added to either side's
-            # normalisation (likely — `command_run.py:2505` already strips `surface` beside an
+            # normalisation (likely — `command_run.py:2519` already strips `surface` beside an
             # unstripped `command`), and removal of the `or None` collapse, which only the empty-ish
             # spellings exercise. Dropping them was an unremarked coverage cut.
             "/",

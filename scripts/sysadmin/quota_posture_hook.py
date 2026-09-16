@@ -590,7 +590,12 @@ def decide(
             # CANONICAL spelling — which is NOT always the typed one, and a round rightly objected
             # to an earlier claim that it was: `fabrik-spec` gains a slash it did not have and
             # `//fabrik-spec` loses one. Canonical is the right target here; the value as typed is
-            # not available at this point anyway. I briefly "fixed" this to print `name` bare on the theory that
+            # not what is missing here: `decide` DOES receive the raw command line and parses it a
+            # few lines up — what it does not get back is the PARSED value, since `_is_new_run_start` returns
+            # only the normalised name, and recovering it would mean a second normalisation path.
+            # (An earlier cut of this comment said the typed value was out of scope; a round read
+            # `decide`'s own signature and showed that it is not.)
+            # I briefly "fixed" this to print `name` bare on the theory that
             # it rendered the value as typed; it does not — `decide` never sees the raw value — and
             # it LOST the slash on the common case, printing `Starting fabrik-spec`. Reverted.
             # (The `Starting //fabrik-review` doubling belongs to the code BEFORE `_command_name`

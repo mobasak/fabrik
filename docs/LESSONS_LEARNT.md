@@ -22,12 +22,12 @@ work — write the `.bak` first, restore after any exit, assert both halves. I d
 every one passed. None of them is about who else is READING that path right now, and a
 mutate-restore cycle leaves no trace afterwards for anyone to find.
 
-**The rule.** While any review seat is live against a surface, run mutation experiments on a COPY
-under the scratchpad, never on the file in the tree. Mutating in place is only safe when nothing
-else is reading — and with concurrent seats, sibling sessions and a shared tree, that is rarely
-knowable. The seat's pin is what saved this verdict, so the mirror rule holds too: a seat brief must
-pin by SHA and say to re-read the pin rather than the live path, because the tree is not stable for
-the duration of a review.
+**Where the rule now lives.** NOT here — restating it in a lesson while the canonical revert-test
+recipe said the opposite would be two sources of truth on the same act, one of them fleet-synced.
+The recipe itself is amended, in `CLAUDE.md` § Behavior (the shared-repo bullet, "For a revert test,
+copy the file") and its `templates/governance/CLAUDE.md` twin, byte-identical in both: mutate a COPY
+under the scratchpad whenever another agent may be reading that path, and pin the surface by SHA in
+the brief so the seat knows the pin wins. Read it there.
 
 **The wider shape.** Test isolation is usually framed as protecting production from tests. This is
 the other axis: my local experiment polluted another agent's OBSERVATION, not any persistent state.

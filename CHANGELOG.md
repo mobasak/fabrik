@@ -18,6 +18,21 @@ All notable changes to this project will be documented in this file.
   the active plan-lock `2026-09-09-plan-1-review-convergence-redesign`. The exact replacement text was
   mailed to infra as `01M2NWVT2GVZ1KK4STMEP42VN8` and all nine rows stay unanswered in the queue.
 
+### Changed — The revert-test recipe now covers who else is READING that file (2026-09-17)
+
+- `CLAUDE.md` § Behavior (the shared-repo bullet's "For a revert test, copy the file" recipe) and its
+  byte-identical `templates/governance/CLAUDE.md` twin: mutate a COPY under the scratchpad whenever
+  another agent may be reading that path, and pin the surface by SHA in a review brief so the seat
+  knows the pin wins over the live file. **Every guard the recipe already had protects YOUR file's
+  integrity and none of them asks who else is reading** — a mutate-restore cycle is byte-perfect
+  afterwards and leaves no trace, so the damage is to another agent's OBSERVATION rather than to any
+  state, and it is invisible in every artifact after the fact. Measured 2026-09-16: a review seat
+  watched the file under review change and change back mid-pass (the author was running
+  mutate-run-restore experiments in the tree) and reported that had it re-read the live path instead
+  of its SHA pin, it would have filed a CONFIRMED defect as REFUTED. The finding was real.
+  Fleet-synced: distributes to ~46 project contracts. The `docs/LESSONS_LEARNT.md` entry POINTS at
+  the recipe rather than restating it — a rule in two places is two things to drift.
+
 ### Fixed — RED denied the review-family start in the corpus's own spelling (2026-09-16)
 
 - `scripts/sysadmin/quota_posture_hook.py::_command_name` — at band RED a
