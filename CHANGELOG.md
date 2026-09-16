@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the identity review's last two rounds, and its close on the D-252 stop (2026-09-16)
+
+- Pass 4 found ten defects in the GRADERS, and the sharpest is the one worth remembering:
+  `_pid_start` had **no positive grader at all**, so a mutant returning a random integer silently
+  disabled the entire anti-double-bind protection — the core of the feature — and survived every
+  one of the 31 tests. Every other pid test was a negative case or used the legacy fallback.
+- A second vacuity of the same family: `assert "attributable" in out` is satisfied by
+  *"un*attributable", so reverting the advisory's central new claim to "remain unattributable,
+  sadly" **passed** the pin that existed to catch exactly that. Four more graders asserted `rc == 0`
+  without ever checking the effect, and a `bind()` that wrote nothing satisfied them.
+- Also graded now: the rewrite path's `0600` mode (only the append path was covered), the
+  `O_APPEND` flag (and that grader was itself vacuous on first writing — it searched source that
+  includes the docstring, where the flag name also appears), and the race grader no longer leaks its
+  sibling subprocess when its own assertion fails.
+- The `~20 worktrees` figure is softened to a re-derivable statement: it is a moving count on a box
+  three sessions create and remove worktrees on, and a seat measured 20 where the text said 18.
+- ⚠️ **The review CLOSES here on the D-252 scope-growth stop** — passes 3 and 4 confirmed only
+  defects inside this review's own fixes (4 of 4, then 10 of 10). All 34 confirmed defects are
+  fixed; five RECORDED items one hop out are routed to `docs/STRATEGIC_BACKLOG.md` with an owner,
+  not patched a third time. Receipt:
+  `docs/development/reviews/2026-09-16-self-naming-identity-review.md`.
+
 ### Fixed — 20 defects in the self-naming identity channel, found by its own review (2026-09-16)
 
 - Four author-blind seats over `0a8d5fc7` confirmed 20; three I had already fixed mid-flight. The
@@ -17,7 +39,7 @@ All notable changes to this project will be documented in this file.
   failure this feature exists to fix. All three closed: `bind()` is serialized by an `flock` around
   the whole read-modify-write, and the alphabet uses `fullmatch`.
 - The collision scope is now the git COMMON DIR, not `--show-toplevel` — a worktree and its main
-  checkout are one repo with two toplevels, and this repo has 18 worktrees. An unknown scope is its
+  checkout are one repo with two toplevels, and this repo routinely registers ~20 (a moving count). An unknown scope is its
   own scope rather than a wildcard. A recycled pid can no longer impersonate a holder (the row
   records the process start time). `--as ""` and `--who --as X` refuse instead of silently
   reporting success at rc 0. The `.tmp<pid>` file no longer leaks into a directory nothing prunes.

@@ -193,6 +193,7 @@ def test_a_name_held_by_a_live_session_in_this_repo_is_refused(store, monkeypatc
     code, msg = m.bind("agent-2")
     assert code == 1 and "held by a LIVE session" in msg
     assert m.bind("agent-2", force=True)[0] == 0
+    assert m.resolve_agent_name() == "agent-2", "the force override had no effect"
 
 
 def test_a_dead_holder_does_not_block_the_name(store, monkeypatch):
@@ -382,9 +383,12 @@ def test_the_trim_cannot_destroy_a_concurrent_binding(store, monkeypatch):
         return real_pid()
 
     monkeypatch.setattr(m, "_session_pid", widen_the_window)
-    assert m.bind("agent-a")[0] == 0
-    if proc:
-        proc[0].wait(timeout=60)
+    try:
+        assert m.bind("agent-a")[0] == 0
+    finally:
+        # the sibling must be reaped even when the assertion above fails, or a failing run leaks it
+        if proc:
+            proc[0].wait(timeout=60)
     sids = {
         json.loads(line)["session_id"] for line in store.read_text().splitlines() if line.strip()
     }
@@ -472,6 +476,7 @@ def test_an_unknown_scope_is_its_own_scope_not_a_wildcard(store):
     )
     code, _ = m.bind("agent-2")  # our scope is this repo's common dir, the holder's is ""
     assert code == 0, "a holder in a DIFFERENT scope must not block"
+    assert m.resolve_agent_name() == "agent-2"  # rc 0 alone passes a bind() that does nothing
 
 
 def test_a_recycled_pid_does_not_cause_a_false_refusal(store):
@@ -495,6 +500,7 @@ def test_a_recycled_pid_does_not_cause_a_false_refusal(store):
     )
     code, _ = m.bind("agent-2")
     assert code == 0, "a recycled pid impersonated the original holder"
+    assert m.resolve_agent_name() == "agent-2"
 
 
 def test_an_empty_name_and_a_mixed_mode_are_refused_not_silent(store):
@@ -561,3 +567,62 @@ def test_the_lock_path_is_resolved_not_spelled(store):
 
     src = inspect.getsource(m._locked)
     assert ".resolve()" in src, "the lock name is derived from an unresolved path"
+
+
+def test_a_live_holder_with_a_correct_start_time_actually_blocks(store):
+    # ⚠️ THE grader for the whole point of the feature. Every other pid test is a NEGATIVE case
+    # (a recycled pid must not block) or uses the legacy `pid_start is None` fallback — so a
+    # mutant making `_pid_start` return a random int silently disabled the entire anti-double-bind
+    # protection and survived every grader. This one fails the moment `_pid_start` stops agreeing
+    # with itself for a live process.
+    m = _mod()
+    me = os.getpid()
+    start = m._pid_start(me)
+    assert isinstance(start, int) and start > 0, "_pid_start must read a real start time"
+    store.write_text(
+        json.dumps(
+            {
+                "session_id": "sid-other",
+                "name": "agent-2",
+                "pid": me,
+                "pid_start": start,
+                "toplevel": m._toplevel(),
+                "at": 9_999_999_999,
+                "force": False,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    code, msg = m.bind("agent-2")
+    assert code == 1 and "held by a LIVE session" in msg, "a live holder failed to block"
+    # and it is stable: two reads of the same live process must agree, or nothing can ever match
+    assert m._pid_start(me) == start, "_pid_start is not stable for one live process"
+
+
+def test_the_rewrite_path_is_also_private_and_atomic(store):
+    # `test_the_store_is_written_private` only exercises the fresh-store APPEND path; the trim
+    # REWRITE had no mode grader, and a 0644 mutant on it survived.
+    m = _mod()
+    store.write_text(
+        json.dumps({"session_id": "sid-ancient", "name": "old", "at": 1}) + "\n", encoding="utf-8"
+    )
+    assert m.bind("agent-2")[0] == 0  # forces the trim/rewrite branch
+    assert oct(store.stat().st_mode)[-3:] == "600", "the rewrite path loosened the mode"
+    import inspect
+
+    src = inspect.getsource(m._write_rows)
+    assert "os.replace" in src, "the rewrite must be atomic, not an in-place truncate"
+
+
+def test_the_append_path_uses_o_append(store):
+    # The docstring claims 30 concurrent writers x 400 rows with 0 torn rows; nothing graded the
+    # flag that makes it true, and a seek-to-end mutant survived every test.
+    import inspect
+
+    # ⚠️ Search the BODY, not the whole source: "O_APPEND" also appears in the docstring, so the
+    # obvious `in inspect.getsource(...)` passed a mutant that removed the flag from the os.open
+    # call (executed) — the same vacuity class as a raw-text regex pin.
+    src = inspect.getsource(_mod()._append_row)
+    body = src.split('"""')[-1]
+    assert "O_APPEND" in body, "concurrent appends are only atomic under O_APPEND"

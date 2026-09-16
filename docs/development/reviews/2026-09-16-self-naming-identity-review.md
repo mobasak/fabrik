@@ -217,6 +217,10 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 
 | Pass | Finders | Counters | Method |
 |---|---|---|---|
+| Pass 1 | native opus×2 + sonnet×2 | found: 27, new: 20, confirmed: 20, fixed: 20, unexecuted: 0 | full pass over 0a8d5fc7, partitioned by file; every candidate executed by the orchestrator before counting |
+| Pass 2 | native (orchestrator re-sweep) | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | the pass-1 class ledger re-executed against the fix, not re-read |
+| Pass 3 | native opus×1 + sonnet×1 | found: 4, new: 4, confirmed: 4, fixed: 4, unexecuted: 0 | delta over 0a8d5fc7..f4fac020; every pass-1 reproduction re-run and proven red against the parent build |
+| Pass 4 | native sonnet×1 | found: 10, new: 7, confirmed: 10, fixed: 10, unexecuted: 0 | method: re-derivation — the grader half of the delta, 13 mutants run, kill matrix reported |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -285,4 +289,40 @@ Round 2 swept all 31 classes clean and CONFIRMED 0, every class re-executed rath
 
 ```json
 See the fenced block at the end of this receipt.
+```
+
+## BLOCKED: NON-CONVERGENCE — the D-252 scope-growth stop
+
+**The suspected foundation error:** after pass 2 the artifact's own surface was quiet, and passes 3
+and 4 confirmed ONLY defects inside this review's own fixes — 4 of 4, then 10 of 10.
+`command_run.py` printed the scope-growth stop. Each round's corrections regenerated the surface the
+next round reviewed, which is the non-convergence shape this escalation names.
+
+**What the four passes bought, so the stop reads as measured rather than tired:**
+1. Pass 1 — 20 defects in the shipped build, every serious one in the WRITE path: a 30-of-30
+   double-bind race, a trim that destroyed a sibling's row, and a name regex that accepted a
+   trailing newline and so destroyed the very `Agent-Name:` trailer the feature exists to produce.
+2. Pass 2 — all 20 classes re-executed clean.
+3. Pass 3 — 4 more inside the fix: a `LOCK_EX` that blocked forever while its docstring promised
+   fail-soft, a lock fail-soft that was silent and re-opened the race (7 of 10 trials), and two
+   advisory claims falsified by this very feature in 46 distributed copies.
+4. Pass 4 — 10 in the graders: `_pid_start` had no POSITIVE grader at all, so a mutant returning a
+   random int disabled the core anti-double-bind protection and survived every test; and an
+   `"attributable" in out` pin was satisfied by *"un*attributable", passing the exact regression it
+   existed to catch.
+
+**Disposition:** the loop ENDS. All 34 confirmed defects are FIXED; the five RECORDED items one hop
+out are routed to `docs/STRATEGIC_BACKLOG.md` under the D-271 section with a named owner. The
+surface is live in 46 distributed copies and the closing seats' executed verdict is that the READ
+path — the only thing the fleet-synced close gate calls — is fail-open across ten hostile store
+shapes with no raise and no hang.
+
+**A grammar gap, filed rather than worked around:** `check_review_coverage.py` ends a loop three
+ways — quiet, `BLOCKED`, or `IN-PROGRESS` — and none of them names the D-252 stop, which the same
+contract mandates as a sanctioned exit. `NON-CONVERGENCE` is the closest true fit and is what this
+receipt uses, but a stop the contract asks for should not have to borrow a failure's vocabulary.
+This is the second receipt today to make that note.
+
+```json
+{"status":"success","passed":65,"failed":0,"skipped_checks":["ruff-format (--check)", "ruff", "bandit", "semgrep", "pytest"]}
 ```

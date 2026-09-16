@@ -621,7 +621,10 @@ def test_adopted_project_warns_an_unnamed_session_and_names_the_owner(tmp_path: 
     # Every consequence the message asserts is pinned, so a mutant that rewrites the prose
     # into a false claim cannot stay green (round 1: a wrong path in this string killed 0/34).
     assert "agent_role.py" in out and "check_commit_trailers.py" in out
-    assert "command_run.py" in out and "attributable" in out
+    # ⚠️ "attributable" is a SUBSTRING of "unattributable", so the obvious pin passes on the
+    # exact regression it exists to catch (executed: "remain unattributable, sadly" passed).
+    assert "command_run.py" in out
+    assert "is attributable" in out and "unattributable" not in out
     # ⚠️ The advisory must name the REMEDY THAT WORKS WITHOUT A RELAUNCH. It previously asserted
     # "a live session cannot change its own environment" — true of the env var, but D-271 shipped
     # whoami_agent.py, which makes the SESSION nameable anyway, so that sentence became false in

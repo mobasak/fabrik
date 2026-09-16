@@ -2884,3 +2884,17 @@ Receipt: `docs/development/reviews/2026-09-15-kaizen-loop-gap-closure-review.md`
   D-271 shipped the writer, the resolver and `command_run.py` only. Until the hooks are taught, a
   session that names itself mid-flight gets attribution immediately but its role charter waits for
   the next start.
+
+- **`whoami_agent.py` residue routed by the D-252 stop** (owner: **infra**) — the review closed on
+  the scope-growth stop after two consecutive rounds confirmed only defects inside its own fixes
+  (4 of 4, then 10 of 10). All 34 confirmed defects are fixed; these are the RECORDED items the
+  seats raised one hop out, none of them reachable in normal use, none patched a third time:
+  (a) a **SIGKILL** mid-`_write_rows` still leaks `<store>.tmp<pid>` — a `finally` cannot run on
+  SIGKILL and `scratch_sweep.py:59` prunes nothing in that directory; cheap fix is to unlink stale
+  `*.tmp*` at the top of the locked section. (b) Rows written by the pre-`pid_start` build keep the
+  **recycled-pid false refusal** by documented backward compatibility — the store is per-box and the
+  old build was live for hours, so the exposure is small but real. (c) **`--force` with no `--as`**
+  is still a silent no-op at rc 0 — the argparse mutex covers `--as`/`--who` but not this. (d)
+  Re-binding the **same** name appends a duplicate row every time; only the 30-day trim reclaims
+  them. (e) `os.replace` silently converts a **symlinked store** into a regular file while
+  `_append_row` writes *through* the link — two write paths, two behaviours for one store.

@@ -158,7 +158,8 @@ def _toplevel() -> str:
     ⚠️ Common-dir, NOT `--show-toplevel`: a worktree and its main checkout are ONE repo with two
     toplevels, so a toplevel scope let two sessions committing into one history hold one name
     (measured: they differ under `--show-toplevel`, agree under `--git-common-dir`). This repo has
-    18 registered worktrees.
+    ~20 registered worktrees at any moment — a MOVING count, so re-derive it rather than
+    quoting this sentence.
 
     ⚠️ NOT ``os.getcwd()``. Executed: with a cwd-scoped check, a plain ``cd`` into a subdirectory
     bound a name another live session held, at rc 0 and with no ``--force`` recorded — cheaper than
