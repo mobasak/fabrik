@@ -24,15 +24,20 @@ All notable changes to this project will be documented in this file.
   the existing session `pct`. The write CONDITION is unchanged, so no row starts or stops existing
   and every existing reader's population is byte-for-byte what it was.
 - WHY: D-264's quota bands key RED on the account's HOTTEST window while the urgent-drain mail
-  gates on the SESSION window alone (`_urgent_drain_pct`), and which of the two should move could
-  not be decided — a scan of all 2,498 rotate-ledger rows (2,318 of them tick rows) found no weekly
-  figure on any. This is the instrument, not the threshold; the threshold change is deliberately
-  NOT made until the band has been measured. Same shape as D-201, which restored the session row
-  for exactly this reason.
-- COST, measured not waved past: ~20 B against a 115.8 B mean tick row (+17.3%), so
-  `_ledger_rotate`'s 1 MB cap retains ~2.6 weeks of history where D-201 sized it at ~3.
-- `tests/test_claude_fleet.py` — one grader, watched RED before the fix and unconditional in its
-  session-vs-weekly distinctness assert.
+  gates on the SESSION window alone, and which of the two should move could not be decided — no
+  ledger row had ever carried a weekly figure. This is the INSTRUMENT, not the threshold; the
+  threshold stays unset until the band has been measured. Same shape as D-201, which restored the
+  session row for exactly this reason.
+- The comment carries three BOUNDS on what the series can answer: active-account-only sampling
+  (the picker ranks perishable-first and excludes on each account's own `caps.json` cap, so the
+  high-weekly band is under-sampled except while the fleet is exhausted), `_ledger_rotate`'s
+  keep-the-newest-HALF truncation (so retained history sawtooths and the guaranteed floor is half
+  the apparent window), and NO hand-maintained byte statistics — four review rounds found a fresh
+  arithmetic defect in those every single time, so they are deleted rather than corrected again.
+- `tests/test_claude_fleet.py` — three graders, each proven red before green: the field lands and
+  is distinguishable from the session figure; an absent weekly window still writes the row and
+  omits the key; and both ends of the range (0.0, 99.0) are recorded, which kills the truthiness
+  and high-band mutations that survived the first two.
 
 ### Added — The quota bands become a behaviour contract in both CLAUDE.md twins (2026-09-16)
 

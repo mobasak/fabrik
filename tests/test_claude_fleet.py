@@ -4395,3 +4395,125 @@ def test_the_fleet_tick_ledgers_the_active_session_reading(tmp_path, monkeypatch
     assert t["pct"] == sessions[slug], t  # the SESSION window, never the max of both windows
     assert t["pct"] != 50.0, "50 is seo's WEEKLY — the flip line governs the session window"
     assert t["verdict"] == "ok" and t["account"] and "source" in t, t
+
+
+def test_the_fleet_tick_ledgers_the_weekly_reading_beside_the_session_one(tmp_path, monkeypatch):
+    """The bands contract keys RED on the account's HOTTEST window; the tick recorded only the
+    SESSION one, so a weekly urgent line could never be tuned — only argued. Measured 2026-09-16:
+    a scan of all 2,498 rotate-ledger rows found NO weekly-ish key on any row, while three of five
+    live accounts sat weekly-hot and session-cold (mob 98/0, ob 100/0, sarp 97/0) — exactly the
+    band `_urgent_drain_pct` (session-gated, read in `_fleet_active_wall_advisory`) cannot see.
+
+    Same row, one added field: the write CONDITION is deliberately unchanged, so no row starts or
+    stops existing and every reader's population is byte-for-byte what it was (the mirror).
+    """
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(42.0, 50.0), "tok-intel": _usage_blob(10.0, 20.0)},
+    )
+    rows: list[dict] = []
+    monkeypatch.setattr(cr, "_ledger_append", rows.append)
+    assert cr._cmd_tick() == 0
+
+    ticks = [r for r in rows if r.get("event") == "tick"]
+    assert len(ticks) == 1, f"one row per tick, ACTIVE account only: {ticks}"
+    t = ticks[0]
+    slug = "seo" if "sarp" in str(t["account"]) else "intel"
+    sessions, weeklies = {"seo": 42.0, "intel": 10.0}, {"seo": 50.0, "intel": 20.0}
+    assert t.get("weekly_pct") == weeklies[slug], (
+        f"the SEVEN_DAY window belongs on the row beside pct: {t}"
+    )
+    # ⚠️ BOTH fixture accounts carry weekly != session on purpose. The first cut gave intel
+    # 10/10 and guarded this assert with `if slug == "seo"`, so on the intel branch a code path
+    # that wrote `pct` into `weekly_pct` would have passed — the grader would prove nothing
+    # exactly where it is the only witness. Unconditional now, whichever account the fixture
+    # elects as active.
+    assert t["weekly_pct"] != t["pct"], (
+        f"session and weekly must be distinguishable on the row, not coincidentally equal: {t}"
+    )
+    assert t["pct"] == sessions[slug], f"pct stays the SESSION window, unmoved by this change: {t}"
+
+
+@pytest.mark.parametrize("weekly", [0.0, 99.0])
+def test_the_weekly_reading_is_recorded_at_both_ends_of_its_range(tmp_path, monkeypatch, weekly):
+    """Two mutations survived the first graders, and both live at the ends of the range.
+
+    `if _wk:` (a truthiness guard, the likeliest simplification of that line) DROPS a weekly
+    reading of exactly 0.0 — which is what an account reads right after its weekly reset — and the
+    absent-window grader then reads that omission as "no reading". `_wk < 99.0` drops the HIGH
+    band, which is the RED case the field exists to observe. Both passed every earlier test.
+    """
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(42.0, 50.0), "tok-intel": _usage_blob(10.0, 20.0)},
+    )
+    monkeypatch.setattr(
+        cr,
+        "_active_account_walled",
+        lambda accounts, threshold: (
+            False,
+            {
+                "email": "edge@ocoron.com",
+                "source": "live",
+                "five_hour": {"utilization": 42.0},
+                "seven_day": {"utilization": weekly},
+            },
+        ),
+    )
+    rows: list[dict] = []
+    monkeypatch.setattr(cr, "_ledger_append", rows.append)
+    assert cr._cmd_tick() == 0
+
+    t = next(r for r in rows if r.get("event") == "tick")
+    assert "weekly_pct" in t, f"a {weekly} reading is a READING, not an absence: {t}"
+    assert t["weekly_pct"] == weekly, t
+
+
+def test_the_tick_row_still_writes_when_the_weekly_window_is_absent(tmp_path, monkeypatch):
+    """The MIRROR half of the weekly field, and the half prose alone was asserting.
+
+    The change's whole safety claim is "the write CONDITION is unchanged, so no row starts or stops
+    existing". Nothing held that: a mutation making the weekly key unconditional
+    (`_row["weekly_pct"] = float(_wk or 0)`) passed the entire suite, and so would one that moved
+    the weekly read ABOVE the session gate and dropped the row when `seven_day` is missing. Here the
+    account has NO seven_day window at all: the row must still be written, still carry the session
+    `pct`, and simply omit `weekly_pct`.
+    """
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(42.0, 50.0), "tok-intel": _usage_blob(10.0, 20.0)},
+    )
+    # ⚠️ Injected HERE, not by deleting `seven_day` from the usage blob: `_usage_windows` is
+    # all-or-nothing (None when EITHER window is malformed), so a blob without `seven_day` yields
+    # no reading at all and therefore no row — which grades nothing. That is also why this branch
+    # is DEFENSIVE: no producer on this box can currently emit session-without-weekly.
+    monkeypatch.setattr(
+        cr,
+        "_active_account_walled",
+        lambda accounts, threshold: (
+            False,
+            {
+                "email": "weekly-less@ocoron.com",
+                "source": "live",
+                "five_hour": {"utilization": 42.0},
+            },
+        ),
+    )
+    rows: list[dict] = []
+    monkeypatch.setattr(cr, "_ledger_append", rows.append)
+    assert cr._cmd_tick() == 0
+
+    ticks = [r for r in rows if r.get("event") == "tick"]
+    assert len(ticks) == 1, f"the row must still be written without a weekly window: {ticks}"
+    t = ticks[0]
+    assert "weekly_pct" not in t, f"an absent window omits the key, never invents a 0.0: {t}"
+    assert t.get("pct") == 42.0, f"the session reading is unaffected by the weekly guard: {t}"

@@ -4935,22 +4935,53 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
     # `{"event": "tick", "verdict": "ok", "pct": …}` on every pass; the FLEET tick never did, so
     # the samples stop dead on 2026-08-15 — the day this box moved to fleet mode — and the
     # distribution behind `_rotate_threshold`'s 95-vs-98 argument became unrefreshable. One row
-    # per tick for the ACTIVE account only: it is the account the flip line acts on, and a row per
-    # account would be four times the volume for three windows nothing reads.
+    # per tick for the ACTIVE account only, and BOTH windows ride it as of 2026-09-16: the bands
+    # contract (D-264) keys RED on the account's HOTTEST window while the urgent-drain mail gates
+    # on the SESSION one alone (`_urgent_drain_pct`, read in `_fleet_active_wall_advisory`), and
+    # which of the two should move could not be decided because no row had ever carried a weekly
+    # figure. Reproducible boundary, if you need to re-derive that: the row before the first one
+    # carrying `weekly_pct` — everything before it has a session reading and no weekly one.
+    #
+    # ⚠️ The write CONDITION is deliberately unchanged — one ADDED field starts and stops no row,
+    # so every existing reader's population is byte-for-byte what it was.
+    #
+    # ⚠️ THREE BOUNDS on what this series can answer, because a tuner who misses them will argue
+    # from a distribution that does not mean what it looks like:
+    #   1. ACTIVE account only. `_pick_flip_target` ranks PERISHABLE-FIRST (soonest weekly reset),
+    #      with weekly utilization only a tiebreak, and `_flip_churn_excluded` EXCLUDES candidates
+    #      whose weekly is at/over their own `caps.json` cap — five different ceilings, not one
+    #      band. The flip leg then trips the active account out on `seven_day + burn >= weekly_thr`.
+    #      So the high-weekly band is under-sampled except while the fleet is exhausted, which is
+    #      exactly the RED case and the reason the field still earns its place.
+    #   2. `_ledger_rotate` keeps only the NEWEST HALF when the file crosses its cap, so retained
+    #      history sawtooths — the guaranteed floor is half the apparent window, and a rotate can
+    #      land mid-sample. Measure the window you actually have before trusting a count.
+    #   3. Every byte figure this comment used to carry has been DELETED on purpose. Three rounds
+    #      of review found a fresh arithmetic defect in them each time (wrong separators, a mean
+    #      over two different row shapes, a span whose early weeks had no ticks at all), and they
+    #      were never load-bearing for the code. Re-derive from the ledger when you need them;
+    #      a hand-maintained statistic in a comment is a second source of truth that always rots.
     _active_walled, _active_row = _active_account_walled(accounts, threshold)
     if _active_row is not None and isinstance(_active_row.get("five_hour"), dict):
         _sess = _active_row["five_hour"].get("utilization")
         if isinstance(_sess, (int, float)):
-            _ledger_append(
-                {
-                    "event": "tick",
-                    "ts": now,
-                    "verdict": "walled" if _active_walled else "ok",
-                    "pct": float(_sess),
-                    "account": _active_row.get("email"),
-                    "source": _active_row.get("source"),
-                }
-            )
+            _row = {
+                "event": "tick",
+                "ts": now,
+                "verdict": "walled" if _active_walled else "ok",
+                "pct": float(_sess),
+                "account": _active_row.get("email"),
+                "source": _active_row.get("source"),
+            }
+            # same shape `_row_utils` uses to read a window — a non-dict window is no reading.
+            # `not isinstance(_wk, bool)` matches `dispatch_headroom.quota()`'s guard on this same
+            # field name, which earned that clause in its own review; unreachable today (both
+            # producers coerce with float()), adopted so the convention travels with the name.
+            _wk_window = _active_row.get("seven_day")
+            _wk = _wk_window.get("utilization") if isinstance(_wk_window, dict) else None
+            if isinstance(_wk, (int, float)) and not isinstance(_wk, bool):
+                _row["weekly_pct"] = float(_wk)
+            _ledger_append(_row)
     # The advisory is FLEET-WIDE, not per-account: fire ONLY when the active account (the one
     # every agent is using) is walled with no auto-relief. A single account crossing the threshold is a
     # non-event — the flip leg above already re-pointed to a sibling with headroom.
