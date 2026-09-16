@@ -406,7 +406,8 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
   rotation tick and read by the box-level `scripts/sysadmin/quota_posture_hook.py` (not
   `quota_stop.py`, which owns the WALL alone). `posture unavailable` means the posture could not
   be READ — a dead or stale tick, or an unreadable file — not that quota is fine; no `QUOTA:`
-  line at all means the hook is not installed on this box; same reading, same action: run
+  line at all means the hook is not wired into this session's settings, or did not run; same
+  reading, same action: run
   `python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --status`. **The band names the
   action:** at AMBER the line is advice; at RED the hook HOLDS `Agent` and a new `command_run.py
   start` (a run record already live and readable keeps its seats, and a review-family start —
@@ -415,11 +416,15 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
   checkpoint needs stays allowed, so RED is finish-and-checkpoint, never freeze. **A session on
   a Fable model is banded on its Fable window too** — Fable's weekly-scoped limit is reported as
   its own percentage, and on a Fable model the band is the hottest of 5h, weekly and Fable.
-  ⚠️ **`claude_rotate.py --status` is the authority on WHEN you resume, in every band — the line's `<forecast>` is a projection from a smoothed burn, never the authority.**
+  ⚠️ **`claude_rotate.py --status` is the authority on WHEN you resume, in every band — the
+  line's `<forecast>` is a projection from a smoothed burn, never the authority.**
   The urgent-drain mail names a resume instant too, but it does not fire in every state and its
   line is the SESSION window — so read `--status`, and never wait on a mail you cannot confirm was
   sent. A reading that is missing entirely is not a band at all: read `--status` rather than
-  assuming. ⚠️ **The bands are the ACTIONS; the machinery that produces them is not restated here** (the `QUOTA:` line's own format and the actions it binds, above, are the one carve-out — a hook grader asserts them byte for byte)
+  assuming. ⚠️ **The bands are the ACTIONS; the machinery that produces them is not restated
+  here** (the `QUOTA:` line's own format and the actions it binds, above, are the one carve-out
+  — the three contracts are graded identical on it, and Phase C's hook grader asserts the
+  emitted line byte for byte)
   — `_fleet_tick_inner` and `_fleet_active_wall_advisory` in
   `/opt/fabrik/scripts/sysadmin/claude_rotate.py` carry it in comments beside the code, which is
   the only copy that cannot go stale against it. Three rounds of trying to summarise that machinery
@@ -429,8 +434,9 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
   re-creation costs a cache WRITE (1.25x base input on the 5-minute TTL, 2x on the 1-hour) against
   the ~0.1x you were paying to read it; compacting first shrinks what gets
   re-created, but a compaction ALSO discards the prefix and pays summarization, so it is a pure
-  LOSS whenever no flip arrives. Judge it on the three facts the `QUOTA:` line and `claude_rotate.py --status` both
-  gives you — your current %, when your window RESETS, and whether an eligible successor exists:
+  LOSS whenever no flip arrives. Judge it on the three facts `claude_rotate.py --status` gives
+  you (the `QUOTA:` line carries the reset only when its `<forecast>` reads `reset in <h:mm>`) —
+  your current %, when your window RESETS, and whether an eligible successor exists:
   compact when a flip is likely to beat your reset, ride it out when the reset comes first.
   ⚠️ **Never "help" by moving the knobs.** Lowering `ROTATE_THRESHOLD` (98) or `ROTATE_DWELL_MIN`
   (30m) makes flips frequent and thrashy, and every point down re-creates every live session's
@@ -438,7 +444,8 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
   gates the relief flip leg itself, so raising it silences AMBER *and* stops relief flips, and
   (the `nan`/`inf` escape is CLOSED — `_env_float` rejects a non-finite value loudly and keeps the
   default);
-  `ROTATE_URGENT_DRAIN_PCT` (90) draws RED. Those four are the cobra path on this rule. ⚠️ **Pin heavy work; never round-robin accounts:** a session launched with
+  `ROTATE_URGENT_DRAIN_PCT` (90) draws RED. Those four are the cobra path on this rule. ⚠️ **Pin
+  heavy work; never round-robin accounts:** a session launched with
   `CLAUDE_CONFIG_DIR=$HOME/.claude-fleet/<slug>` AND `CLAUDE_QUOTA_HOME` set to the same slug —
   both, or the binding is a no-op and the window sleeps on another account's wall — does not
   follow the shared pointer, so a global
@@ -446,8 +453,10 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
   (session windows refill in hours, weekly ones do not; a pinned session receives no relief flip).
   ⚠️ THE COBRA CHECK (D-253): the cheapest way to satisfy "compact at 85" WITHOUT producing the
   outcome is to compact reflexively on every entry to the band, which is a loss whenever the reset
-  arrives first — and per the OPERATOR's own measurement, most amber episodes end in a reset. That is why the
-  rule hands you the three decision inputs instead of ordering a compaction. ⚠️ **Do not re-argue that
+  arrives first — and per the OPERATOR's own measurement, most amber episodes end in a reset.
+  That is why the
+  rule hands you the three decision inputs instead of ordering a compaction. ⚠️ **Do not
+  re-argue that
   ratio from `rotate-ledger.jsonl` — take the hedge as the operator measured it.** Two attempts to
   re-derive it shipped refuted claims into this contract (D-264), and a third round of trying to
   describe the ledger's shape HERE put a fresh wrong claim in this bullet every time (D-265). What
