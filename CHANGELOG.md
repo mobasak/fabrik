@@ -22,7 +22,7 @@ All notable changes to this project will be documented in this file.
   byte-identical to `docs_updater.py::MERGE_OWNER_RE` and `decisions.py::MERGE_OWNER_RE` — the
   drift pin now asserts the capture INCLUDING the quantifier it previously stopped one character
   short of, plus the single deliberate divergence.
-- `tests/test_session_orient_hook.py` — 44 graders; seven mutants, each killing its target. One of
+- `tests/test_session_orient_hook.py` — 44 graders; of seven mutants run, FIVE kill their target. The closing seat showed two do not: the tail-side partial-line drop is ungraded, and dropping the worktree conjunct from the C5 suppression survives all 44 (it silences the very worktree case the code claims to preserve). Both are routed, not patched — the loop is at its D-252 stop. One of
   the new graders was itself vacuous on first writing (the tail window rescued the row its mutant
   was meant to expose) and was rebuilt with a byte-exact fixture.
 - ⚠️ The review CLOSES here on the D-252 scope-growth stop (rounds of 11/11 then 13/13 own-fix).

@@ -2828,3 +2828,39 @@ Receipt: `docs/development/reviews/2026-09-15-kaizen-loop-gap-closure-review.md`
 - **`docs/workstation/hooks-index.md` still says the mesh has FIVE Stop causes; it has six**
   (owner: **infra**) — pre-existing, and the identity work rewrote that very table cell twice
   without fixing it. One-line correction on the next hooks-index pass.
+
+- **The identity advisory's truncated-owner class is NOT closed, and the review said it was**
+  (owner: **infra**) — routed by the D-252 stop after the closing round confirmed it. Two halves,
+  both executed by an author-blind seat. (a) The partial-line drop branches on a `stat()` size taken
+  BEFORE the read, so a ledger crossing 64 KiB between the stat and the read gets a full-window
+  truncated head with the drop skipped — **1,703 of 87,919 reads (1.9%) rendered `alphab` for
+  `alphabravocharliedelta`**, reproduced on a second run at 1,518/46,244. Fix: branch on the bytes
+  actually read (`len(head) == _LEDGER_WINDOW_BYTES`), which drops the rate to 0.84%. (b) The
+  residue is a plain non-atomic append: `docs_updater.py:2063` writes the ledger with
+  `write_text`, no temp+rename, so a **185-byte** ledger renders a truncated owner at 2.8% — the
+  same before and after this review's window work (28,224/992,946 vs 21,859/783,167). The delta did
+  not move it and the CHANGELOG's claim that the class was closed was wrong. Real fix: accept a row
+  only when its source line ended on a newline, and make the ledger write atomic.
+- **Five behaviours of the identity advisory are ungraded** (owner: **infra**) — every one proven by
+  a surviving mutant against all 44 graders: the TAIL-side partial-line drop; dropping the worktree
+  conjunct from the duplicate-bullet suppression (which SILENCES the worktree case the code claims
+  to preserve); un-threading the shared `live` count; setting `live = 2` on the exception path
+  (fabricating "2 sessions share this main checkout" on a NUL cwd); and swapping the two bullets so
+  the "bullet below" pointer points up. Also: `len(cells) < 4` -> `< 3` survives, and the render cap
+  `[:32]` -> `[:64]` survives because the grader asserts `"a"*32 in out`, which a 64-cap satisfies.
+  The positive grader for the headline fix is itself under-sized — its fixture is 1.51 windows, so a
+  mutant reading the SECOND block instead of the end passes; the hub's own ledger is 6.3 windows.
+- **The hook and `docs_updater.read_merge_owner` disagree on any ledger wider than two windows**
+  (owner: **infra**) — the hook reads head+tail, the updater reads the whole file; executed, hook
+  `''` vs updater `('deepowner','D-901')` on a 4.56-window ledger. On the hub's 415.8 KB ledger the
+  blind middle is ~287 KB. Belongs with the three-readers row above.
+- **`main()` now scans `/proc` unconditionally** (owner: **infra**) — b5c01855 returned before
+  scanning for hub, named and worktree sessions. Measured at 653 pids, median of 9: hub named
+  36.9 -> 46.5 ms, hub unnamed 34.8 -> 44.7 ms; the intended saving is real elsewhere (unnamed
+  project 59.5 -> 47.5 ms) but the code comment names only the saving. Make `live` lazy or memoised.
+- **8 of 44 graders in `tests/test_session_orient_hook.py` pass against a dead hook** (owner:
+  **infra**) — six pre-existing, two added by this work; they assert absence with no positive
+  control. The file's own convention is `assert "ORIENT" in out`. Add it to all eight.
+- **The drift-pin grader reads its two sources from the LIVE tree** (owner: **infra**) — three
+  sessions edit this repo concurrently, so the pin scores a moving target; it should read them at a
+  pinned SHA. Reported by the closing seat as machinery, not a defect in the code under review.
