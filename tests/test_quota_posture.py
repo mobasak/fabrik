@@ -1118,3 +1118,14 @@ def test_settings_files_skips_the_active_symlink(tmp_path, monkeypatch):
     found = mod.settings_files()
     assert len(found) == 6, found
     assert not any("active" in str(p) for p in found), found
+
+
+def test_prompt_line_names_a_required_window_nobody_serves(tmp_path):
+    """C2f — Delta 8 seat A #2: the injected line printed `weekly 81% … band GREEN` with nothing
+    to explain either; an unserved REQUIRED window is now named, because it is why the band is RED."""
+    state = tmp_path / "state"
+    fw = {"seven_day": {"utilization": 30.0, "slug": "intel"}}
+    _posture(state, band="RED", band_account="GREEN", fleet_windows=fw, successor=None)
+    p = _hook({"hook_event_name": "UserPromptSubmit", "session_id": "u1"}, state=state)
+    line = p.stdout.strip()
+    assert "band RED on weekly (fleet-wide: 5h — nobody serves it · weekly 30% intel)" in line, line

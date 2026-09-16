@@ -291,6 +291,12 @@ def _fleet_clause(posture: dict, band: str | None, *, is_fable: bool) -> str:
             parts.append(f"{label} {_pct(w)} {w.get('slug') or '?'}")
             if hottest is None or u > hottest[0]:
                 hottest = (u, label)
+        elif fw and key != "fable" and key not in fw:
+            # an unserved REQUIRED window (key ABSENT: no account can serve it) is why the band is
+            # RED; a line that omitted it printed `weekly 81% … band GREEN` with nothing to explain
+            # either (Delta 8 seat A). A key PRESENT but unusable (a `true`, a NaN) is a malformed
+            # reading, not scarcity — it is omitted, as `_pct` refuses to print it.
+            parts.append(f"{label} — nobody serves it")
     out = ""
     if parts:
         on = f" on {hottest[1]}" if band in ("AMBER", "RED") and hottest else ""

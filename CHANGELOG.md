@@ -4,6 +4,46 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Delta 8: scarcity is RED, not the walled account's raw band; and the line says which window nobody serves (2026-09-17)
+
+- **`_fleet_band`'s scarcity fallback** (`scripts/sysadmin/claude_rotate.py`, twin identical): the
+  previous fix returned the ACCOUNT's own band when a required window had no serving account —
+  and that account is routinely the one `_fleet_readings` just walled OUT by its cap. Weekly 81
+  against a `caps.json` cap of 80 is GREEN on the raw 85/90 line, so the posture read GREEN in the
+  tick that broadcast the ACTIVE-WALL advisory; with the stamp unwritable, nothing held at all
+  (Delta 8 seat A, driven end to end). An unserved required window is RED now — commit, push,
+  close — and only a missing reading stays unknown. Graders B20c (re-cut to the corrected rule)
+  and B20g (a real tick with `caps.json` {active: 80}), proven red with the fallback reverted.
+- `--status`'s fleet segment and the injected line's fleet clause name an UNSERVED required window
+  (`5h — (nobody serves it)` / `5h — nobody serves it`) instead of omitting it: absence became
+  load-bearing with the required-window rule, and the line that exists to explain the band said
+  nothing about the one condition that decided it (B22a, C2f). Fable stays non-required, with the
+  asymmetry written down: an absent Fable reading means the API reported none, not that every
+  account's Fable window is spent.
+- `_invalidate_quota_posture` is a documented never-raise boundary and now catches everything —
+  a `TypeError` from `_posture_path` escaped after the pointer had moved and reported a landed flip
+  as failed. The `_fleet_readings` cap comment is scoped to the cap shapes `_account_caps` can
+  actually produce. B5's blank-active leg gets a HOT sibling so a hardcoded GREEN can no longer
+  pass it (seat A #3, the commit before this one had claimed otherwise).
+- **Delta 8 seat B — the ledger latch's closer.** The first cut also closed the episode on the
+  DWELL branch (a validated successor exists, flip withheld) while the account was still walled,
+  so a successor oscillating across the picker's bar turned every tick-pair into close→advisory:
+  six broadcasts an hour with a dead stamp, three times the floor and worse than the code it
+  replaced (F1, measured). Only true relief closes an episode now. The close row is its own
+  FLEET-wide event, `wall-episode-closed` — never a `hold-lifted` row, whose counters are the relief
+  wake's census and a doc-defined denominator (F4); it ends EVERY account's open episode like the
+  stamp it stands in for, so an episode for an account the pointer has left no longer strands
+  (F5, F6); the closer fails toward WRITING when the ledger cannot be read (F2); and the latch
+  tolerates the stamp's 60 s of clock skew, as its docstring claimed (F3). `_open_wall_episode`
+  returns readability separately because its two callers need opposite fail directions. Graders
+  B21d (the oscillation, ≤1 advisory in 7 ticks), B21e, B21f; B21b re-cut to a no-flip relief.
+  `docs/workstation/claude-account-rotation.md` names the second end row. Out of slice, taken:
+  `_usage_windows` no longer coerces a JSON `true` from the endpoint to 1% (B23).
+- Delta 8 seats C and D (landed at `063113a63` / `cbef44cd1`): `dispatch_headroom`'s `band_account`
+  gets its grader; the dashboard's tick log gains a `" | "` delimiter between stdout and stderr;
+  the isolation grader's account-file check is tmp-relative rather than a substring of "pytest",
+  which was false-red under an explicit `--basetemp`.
+
 ### Fixed — The closing round: a GREEN at the wall, a silenced wall, and thirteen smaller ones (2026-09-17)
 
 - **`_fleet_band` required-window rule** (`scripts/sysadmin/claude_rotate.py`, twin identical): a

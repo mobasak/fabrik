@@ -3088,9 +3088,7 @@ def _invalidate_quota_posture(new_slug: str) -> None:
     """
     try:
         _posture_path().unlink(missing_ok=True)
-    except (
-        _STATE_DIR_ERRORS
-    ) as exc:  # the flip itself already landed; `Path.home()` raises RuntimeError
+    except Exception as exc:  # noqa: BLE001 — a documented never-raise boundary: the flip already landed
         sys.stderr.write(
             f"claude_rotate: posture not invalidated after flip to {new_slug}: {exc}\n"
         )
@@ -3465,7 +3463,7 @@ def _usage_windows(usage: dict | None) -> dict | None:
     for key in ("five_hour", "seven_day"):
         w = usage.get(key)
         u = w.get("utilization") if isinstance(w, dict) else None
-        if not isinstance(u, (int, float)):
+        if not isinstance(u, (int, float)) or isinstance(u, bool):  # a JSON `true` is not 1%
             return None
         out[key] = {"utilization": float(u), "resets_at_epoch": _iso_to_epoch(w.get("resets_at"))}
     # Per-MODEL weekly limits arrive as scoped entries in the `limits` array, each carrying the
@@ -4294,7 +4292,9 @@ def _fleet_readings(accounts: list[dict], picture: dict) -> dict:
         wk_u, _ = _window_reading(row.get("seven_day"))
         cap = caps.get(email)
         # a weekly at or over its WALL serves nothing, whatever the picker's state string says —
-        # and the wall is the cap when one is finite, else 100, exactly `_fleet_picture`'s predicate
+        # and the wall is the cap when one is finite, else 100 — `_fleet_picture`'s predicate on every
+        # cap `_account_caps` can produce (it rejects bools and non-numbers and clamps to 1..100);
+        # the two differ only on shapes that loader refuses
         # (the ACTIVE account is always `state == "active"`, so only this guard can drop it; the
         # first cut walled only on a cap and let a capless active at weekly 100 serve 5h — seat 1)
         wall = (
@@ -4347,7 +4347,19 @@ def _fleet_band(
     # the only honest reading; the WALL stamp takes over on the next tick.
     utils = [_u("five_hour"), _u("seven_day")]
     if any(u is None for u in utils):
-        return account_band
+        # ⚠️ Maximal scarcity is NOT the account's own reading. The account whose band would stand
+        # is routinely the one `_fleet_readings` just walled OUT — weekly 81 against a caps.json cap
+        # of 80 is GREEN on the raw 85/90 line — so "return account_band" read GREEN at the fleet
+        # wall, and with the stamp unwritable nothing held at all (Delta 8 seat A, executed). A
+        # required window nobody can serve is RED: commit, push, close. Only an outright missing
+        # reading (no account measured at all) stays unknown.
+        if account_band in ("RED", "WALL"):
+            return account_band
+        return "RED" if account_band is not None else None
+    # Fable is NOT a required window: an absent Fable reading means the usage API reported none for
+    # any serving account (a Fable session with nothing to report), not that every account's Fable
+    # window is spent — treating absence as scarcity would RED every Fable session on a box that
+    # has not used Fable yet. Asymmetric with the two required windows on purpose (seat A, #5).
     if fable and _u("fable") is not None:
         utils.append(_u("fable"))
     return _band_of(max(utils), False, drain, urgent)
@@ -4554,6 +4566,10 @@ def _posture_status_line(posture: dict | None, now: float, stale_s: float = 900.
             w = fw.get(key)
             if isinstance(w, dict):
                 parts.append(f"{label} {pct(w)} ({w.get('slug') or '?'})")
+            elif key != "fable" and key not in fw:
+                # ABSENCE is load-bearing since the required-window rule: say it, do not omit it
+                # (a present-but-unusable entry is a malformed reading, omitted like `_pct` does)
+                parts.append(f"{label} — (nobody serves it)")
         fleet_s = " · fleet " + " ".join(parts) if parts else ""
     burn_s = f"{burn:.2f}%/m" if isinstance(burn, (int, float)) else "—"
     return (
@@ -5451,15 +5467,30 @@ _WAKE_EVENT = (
 )
 
 
-def _open_wall_episode(email: str) -> dict | None:
-    """The `fleet-active-wall` ledger row that no later relief (`hold-lifted`) or `flip` row has
-    closed, for *email* — or None. Shared by the latch (to decide) and the relief paths (to CLOSE
-    it when there is no stamp to clear: seat 2 drove wall → relief → wall with a dead stamp and
-    the second wall was silent for the whole promised window)."""
+_EPISODE_CLOSE_EVENT = (
+    "wall-episode-closed"  # the ledger's END of a wall episode when there was no stamp to clear
+)
+_EPISODE_END_EVENTS = (_WAKE_EVENT, "flip", _EPISODE_CLOSE_EVENT)
+
+
+def _open_wall_episode(email: str | None) -> tuple[dict | None, bool]:
+    """``(row, readable)``: the `fleet-active-wall` ledger row for *email* that no later end row has
+    closed — or None — and whether the ledger could be read at all.
+
+    Two callers, OPPOSITE fail directions, which is why readability is returned rather than
+    folded into None (Delta 8 seat B): the LATCH must fail OPEN (speak) on an unreadable ledger,
+    the CLOSER must fail toward WRITING the end row — a transient read fault on the relief tick
+    otherwise resurrected the silenced-wall defect this whole mechanism exists to prevent.
+
+    End rows are FLEET-wide, exactly like the stamp they stand in for: a relief (`hold-lifted`),
+    a `flip`, or a `wall-episode-closed` row ends EVERY account's open episode. An episode for an
+    account the pointer has since left is therefore closed by the next relief of whoever is
+    active, instead of stranding until the week re-arm (seat B, F6).
+    """
     try:
         lines = (_rotate_state_dir() / "rotate-ledger.jsonl").read_text().splitlines()
-    except Exception:  # noqa: BLE001 — see _advisory_ledger_latch
-        return None
+    except Exception:  # noqa: BLE001 — a ledger READER is never a crash source
+        return None, False
     last = None
     for ln in lines:
         try:
@@ -5469,31 +5500,30 @@ def _open_wall_episode(email: str) -> dict | None:
         if not isinstance(row, dict):
             continue
         ev = row.get("event")
-        if ev == "fleet-active-wall" and row.get("account") == email:
+        if ev == "fleet-active-wall" and (email is None or row.get("account") == email):
             last = row
-        elif ev in (_WAKE_EVENT, "flip") and last is not None:
+        elif ev in _EPISODE_END_EVENTS and last is not None:
             last = None
-    return last
+    return last, True
 
 
 def _close_wall_episode_without_stamp(email: str, now: float, site: str) -> None:
     """Relief arrived but there was no stamp to clear — write the episode's END to the ledger, or
-    the ledger latch never re-arms and the NEXT genuine wall is silenced (D-276 mirror)."""
-    if _open_wall_episode(email) is not None:
-        _ledger_append(
-            {
-                "event": _WAKE_EVENT,
-                "ts": now,
-                "reason": f"{site}-no-stamp",
-                "site": site,
-                "account": email,
-                "armed": 0,
-                "dead": 0,
-                "woken": 0,
-                "pending": 0,
-                "errors": 0,
-            }
-        )
+    the ledger latch never re-arms and the NEXT genuine wall is silenced (D-276 mirror).
+
+    Its own event (`wall-episode-closed`), never a `hold-lifted` row: that row is the relief WAKE's
+    census (armed/woken/dead counts) and a doc-defined denominator; a close row with hardcoded
+    zeros read as a lift that found nobody (seat B, F4). Fleet-wide, like the stamp: no account
+    key, and the reader treats it as ending every open episode (F5, F6). Idempotent when the
+    ledger is readable (no open episode → no row); when it is NOT readable the row is written
+    anyway — a surplus end row is inert, a missing one silences a wall (F2).
+    """
+    # ANY account's open episode, not only the relieved one: the stamp is fleet-wide, and an
+    # episode for an account the pointer has since left is exactly the one that strands (F6) —
+    # the first cut asked only about the active account and wrote nothing (Delta 8 seat B, B21e).
+    row, readable = _open_wall_episode(None)
+    if row is not None or not readable:
+        _ledger_append({"event": _EPISODE_CLOSE_EVENT, "ts": now, "site": site, "relieved": email})
 
 
 def _advisory_ledger_latch(email: str, now: float) -> bool:
@@ -5530,14 +5560,15 @@ def _advisory_ledger_latch(email: str, now: float) -> bool:
     minimum GAP, never a maximum count, and the graders assert the advisory still fires ONCE per
     episode and again after relief.
     """
-    last = _open_wall_episode(email)
-    if last is None:
-        return False
+    last, readable = _open_wall_episode(email)
+    if not readable or last is None:
+        return False  # unreadable fails OPEN: speak
     ts = last.get("ts")
     if not isinstance(ts, (int, float)) or isinstance(ts, bool):
         return False
     age = now - float(ts)
-    if age < 0 or age > _FLEET_WALL_REARM_S:
+    # the stamp tolerates 60 s of future-dating (WSL suspend / NTP); so does this (seat B, F3)
+    if age < -_CLOCK_SKEW_TOLERANCE_S or age > _FLEET_WALL_REARM_S:
         return False
     if age < _ADVISORY_MIN_GAP_S:
         return True
@@ -5607,8 +5638,11 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
         if stamp.exists() and _clear_stamp(stamp):
             # transient dwell hold, not exhaustion → re-arm; the hold is gone for the sessions too
             _wake_held_sessions(now, "dwell", reading_ok)
-        elif not stamp.exists():
-            _close_wall_episode_without_stamp(str(row["email"]), now, "dwell")
+        # ⚠️ No ledger close here. The account is STILL walled — relief is EXPECTED, not arrived —
+        # and closing the episode on expectation let a successor oscillating across the picker's
+        # bar turn every tick-pair into close→advisory: 6 broadcasts/hour with a dead stamp, three
+        # times the floor (Delta 8 seat B, F1). The flip that eventually lands writes a `flip` row,
+        # which is the episode's honest end.
         return
     # Latch: fire once per wall episode. But a latch is not forever — a WEEK of unbroken
     # exhaustion is a fact worth repeating (restores the per-account "week without a word" re-arm
@@ -5661,8 +5695,10 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
         os.utime(stamp, (now, now))
     except OSError as exc:
         # The ledger latch above still bounds the repeat; but a stamp that cannot be written also
-        # means `quota_stop.py` sees no WALL — say so on the tick that broadcasts (this write sits
-        # after the latch, so it runs once per episode), rather than fail silently.
+        # means `quota_stop.py` sees no WALL — say so on the tick that broadcasts, rather than fail
+        # silently. (Once per episode while a latch is armed; with the stamp unwritable AND the
+        # ledger unreadable both latches are down and this prints every tick — correctly, since the
+        # broadcast repeats too.)
         sys.stderr.write(f"claude_rotate: fleet-exhausted stamp NOT written ({stamp}): {exc}\n")
     _ledger_append(
         {

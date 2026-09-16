@@ -4726,6 +4726,10 @@ def test_posture_band_follows_the_hottest_window_and_the_hold(
     ), got["active"]
     assert cr._quota_posture(rows_now, pic, FLEET_NOW, None, hold=True)["active"]["band"] == "WALL"
     row["five_hour"], row["seven_day"] = None, None
+    # the sibling is made HOT on weekly so the fleet's band is AMBER — a hardcoded GREEN would pass
+    # against a cool sibling (Delta 8 seat A #3); the expectation below is derived, not typed
+    other_row = next(r for r in rows_now if r["email"] != row["email"])
+    other_row["seven_day"]["utilization"] = 88.0
     pic2 = cr._fleet_picture(rows_now, row["slugs"][0], FLEET_NOW)
     blank = cr._quota_posture(rows_now, pic2, FLEET_NOW, None, hold=False)
     # the ACCOUNT's band is null with no reading; the FLEET's band is not, because the other
@@ -4809,7 +4813,10 @@ def test_posture_forecast_reaches_the_wall_at_the_weekly_cap(tmp_path, monkeypat
     assert cr._cmd_tick() == 0
     p = json.loads(_posture_path(tmp_path).read_text())["active"]
     wk = p["windows"]["seven_day"]
-    assert p["band"] == "GREEN" and wk["wall_pct"] == 80.0
+    # the account sits AT its cap, so `_fleet_readings` walls it and nobody serves either window:
+    # the FLEET band is RED (D-275, Delta 8 seat A) while the account's own raw reading stays GREEN
+    # on the 85/90 line — the two bands are the point, not a contradiction
+    assert p["band_account"] == "GREEN" and p["band"] == "RED" and wk["wall_pct"] == 80.0, p
     assert (
         wk["minutes_to_wall"] == 0.0
         and wk["verdict"] == "wall_first"
@@ -5126,20 +5133,21 @@ def test_fleet_band_ignores_fable_unless_asked_and_a_cap_is_a_wall():
     assert cr._fleet_band(fw, "GREEN", False, 85.0, 90.0, fable=True) == "RED"
 
 
-def test_the_wall_is_never_softened_and_a_window_nobody_serves_keeps_the_accounts_band():
+def test_the_wall_is_never_softened_and_a_window_nobody_serves_is_red():
     """B20c — `hold` means every account is spent; the stamp owns it. And a REQUIRED window with NO
-    serving account is maximal scarcity, not "no constraint": closing seat 1 drove a capped active
-    (5h 0%, weekly at cap) beside a session-exhausted sibling and the posture read GREEN in the
-    same tick that stamped the fleet-exhaustion marker — `max()` over the one surviving key. The
-    first cut of this grader passed a fleet dict that the hold short-circuited before reading."""
+    serving account is RED — maximal scarcity, never "no constraint" and never the account's own
+    raw band: closing seat 1 drove a capped active beside a session-exhausted sibling and the
+    posture read GREEN from the one surviving key; Delta 8 seat A then showed the first fix's
+    fallback (`return account_band`) reading GREEN for an account walled by a cap of 80 at weekly
+    81. Only an outright missing reading stays unknown."""
     import scripts.sysadmin.claude_rotate as cr  # noqa: PLC0415
 
     only_weekly = {"seven_day": {"utilization": 60.0, "slug": "b"}}
-    assert cr._fleet_band(only_weekly, "RED", False, 85.0, 90.0, fable=False) == "RED", (
-        "nobody can serve 5h: the account's own band stands, never GREEN from the surviving key"
+    assert cr._fleet_band(only_weekly, "GREEN", False, 85.0, 90.0, fable=False) == "RED", (
+        "nobody can serve 5h: RED, whatever the walled account's raw percentage says"
     )
     only_5h = {"five_hour": {"utilization": 0.0, "slug": "c"}}
-    assert cr._fleet_band(only_5h, "AMBER", False, 85.0, 90.0, fable=False) == "AMBER"
+    assert cr._fleet_band(only_5h, "AMBER", False, 85.0, 90.0, fable=False) == "RED"
     both = {
         "five_hour": {"utilization": 0.0, "slug": "c"},
         "seven_day": {"utilization": 60.0, "slug": "b"},
@@ -5149,11 +5157,13 @@ def test_the_wall_is_never_softened_and_a_window_nobody_serves_keeps_the_account
     assert cr._fleet_band(both, "RED", True, 85.0, 90.0, fable=False) == "RED", (
         "a hold must not be downgraded"
     )
-    assert cr._fleet_band({}, "AMBER", False, 85.0, 90.0, fable=False) == "AMBER"
-    assert cr._fleet_band({}, None, False, 85.0, 90.0, fable=False) is None
-    # malformed entries are not readings (seat 1 F10): no KeyError, no TypeError, no GREEN
+    assert cr._fleet_band({}, "AMBER", False, 85.0, 90.0, fable=False) == "RED"
+    assert cr._fleet_band({}, "WALL", False, 85.0, 90.0, fable=False) == "WALL"
+    assert cr._fleet_band({}, None, False, 85.0, 90.0, fable=False) is None, (
+        "no reading at all stays unknown"
+    )
     junk = {"five_hour": {"slug": "a"}, "seven_day": {"utilization": None}}
-    assert cr._fleet_band(junk, "RED", False, 85.0, 90.0, fable=False) == "RED"
+    assert cr._fleet_band(junk, "GREEN", False, 85.0, 90.0, fable=False) == "RED"
 
 
 def test_the_wall_advisory_cannot_storm_when_the_stamp_cannot_be_written(tmp_path, monkeypatch):
@@ -5396,3 +5406,188 @@ def test_the_status_posture_line_shows_both_bands_and_the_fleet_readings():
     assert line.startswith("posture: GREEN ·") and "fleet" not in line and "(account" not in line, (
         line
     )
+
+
+def test_a_cap_below_the_drain_band_cannot_read_green_at_the_fleet_wall(tmp_path, monkeypatch):
+    """B20g — Delta 8 seat A #1: with caps.json {active: 80} and the active at weekly 81 (5h 0%),
+    `_fleet_readings` walls the active out, nobody serves 5h, and the fallback returned the
+    active's RAW band — GREEN on the 85/90 line — in the tick that broadcast the ACTIVE-WALL
+    advisory. Scarcity is RED, whatever the walled account's raw percentage says."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _caps(
+        fleet, {"sarp@ocoron.com": 80}
+    )  # the B16 idiom; the fixture's own email, not a guessed one
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(0.0, 81.0), "tok-intel": _usage_blob(95.0, 30.0)},
+    )
+    _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    _point(fleet, "seo")
+    assert cr._cmd_tick() == 0
+    doc = json.loads(_posture_path(tmp_path).read_text())
+    assert "five_hour" not in doc["fleet"]["windows"], doc["fleet"]["windows"]
+    assert doc["active"]["band_account"] == "GREEN", (
+        "fixture: the raw band must be the misleading one"
+    )
+    assert doc["active"]["band"] == "RED", doc["active"]
+
+
+def test_the_status_line_names_a_required_window_nobody_serves():
+    """B22a — Delta 8 seat A #2: absence became load-bearing with the required-window rule, and the
+    line that exists to explain the band omitted it."""
+    import scripts.sysadmin.claude_rotate as cr  # noqa: PLC0415
+
+    posture = {
+        "ts": FLEET_NOW,
+        "active": {
+            "band": "RED",
+            "band_account": "GREEN",
+            "windows": {"five_hour": {"utilization": 10.0}, "seven_day": {"utilization": 81.0}},
+        },
+        "fleet": {"windows": {"seven_day": {"utilization": 30.0, "slug": "intel"}}},
+    }
+    line = cr._posture_status_line(posture, FLEET_NOW)
+    assert (
+        "posture: RED (account GREEN)" in line
+        and "5h — (nobody serves it) weekly 30% (intel)" in line
+    ), line
+
+
+def test_a_withheld_flip_is_not_relief_so_an_oscillating_successor_cannot_storm(
+    tmp_path, monkeypatch
+):
+    """B21d — Delta 8 seat B F1: the first cut closed the ledger episode on the DWELL branch (a
+    validated successor exists but the flip is withheld) while the account was still walled, so a
+    successor oscillating across the picker's bar turned every tick-pair into close→advisory: six
+    broadcasts an hour with a dead stamp. Only true relief closes an episode now. The advisory is
+    driven directly with a sentinel pick, because a real `_validated_pick` refuses a sibling that is
+    walled at 100/100 — the first cut of this grader never reached the dwell branch at all."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(OVER_LINE, 96.0), "tok-intel": _usage_blob(100.0, 100.0)},
+    )
+    actions = _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: ["fabrik"])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    monkeypatch.setattr(
+        cr, "_fleet_exhaustion_stamp", lambda: tmp_path / "no-such-dir" / "fleet-exhausted"
+    )
+    _point(fleet, "seo")
+    assert cr._cmd_tick() == 0  # the wall: one advisory, one open ledger episode, no stamp
+    assert len(actions["telegrams"]) == 1
+    rows_now, _ = cr._fleet_account_rows(cr._fleet_dirs(), allow_pings=False)
+    for k in range(1, 7):  # alternate: a successor named but the flip withheld / no successor
+        monkeypatch.setattr(
+            cr,
+            "_validated_pick",
+            (lambda *a, **kw: "intel@ocoron.com") if k % 2 else (lambda *a, **kw: None),
+        )
+        cr._fleet_active_wall_advisory(rows_now, FLEET_NOW + 300 * k, 85.0)
+    assert len(actions["telegrams"]) == 1, (
+        f"{len(actions['telegrams'])} advisories — the oscillation storm"
+    )
+    events = [e.get("event") for e in _ledger_events(tmp_path)]
+    assert cr._EPISODE_CLOSE_EVENT not in events, (
+        "a withheld flip is not relief; nothing may close the episode"
+    )
+
+
+def test_the_closer_writes_its_own_fleet_wide_event_and_writes_even_when_the_ledger_is_unreadable(
+    tmp_path, monkeypatch
+):
+    """B21e — seat B F2/F4/F5/F6: the close row is `wall-episode-closed` (never a `hold-lifted` wake
+    census with hardcoded zeros), it is FLEET-wide so it ends another account's stranded episode,
+    and when the ledger cannot be read the closer fails toward WRITING, never toward silence."""
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    led = state / "rotate-ledger.jsonl"
+    now = FLEET_NOW
+    led.write_text(
+        json.dumps(
+            {
+                "event": "fleet-active-wall",
+                "ts": now - 60,
+                "account": "b@x",
+                "resume_epoch": now + 3600,
+            }
+        )
+        + "\n"
+    )
+    assert cr._advisory_ledger_latch("b@x", now) is True
+    cr._close_wall_episode_without_stamp(
+        "a@x", now, "relief"
+    )  # relief of a DIFFERENT active account
+    rows = [json.loads(ln) for ln in led.read_text().splitlines()]
+    assert rows[-1]["event"] == cr._EPISODE_CLOSE_EVENT and "armed" not in rows[-1], rows[-1]
+    assert cr._advisory_ledger_latch("b@x", now) is False, (
+        "a fleet-wide close ends b's stranded episode"
+    )
+    cr._close_wall_episode_without_stamp("a@x", now, "relief")
+    assert len(led.read_text().splitlines()) == 2, (
+        "idempotent when readable: no open episode, no row"
+    )
+    written = []
+    monkeypatch.setattr(cr, "_open_wall_episode", lambda email: (None, False))
+    monkeypatch.setattr(cr, "_ledger_append", lambda row: written.append(row))
+    cr._close_wall_episode_without_stamp("a@x", now, "relief")
+    assert written and written[0]["event"] == cr._EPISODE_CLOSE_EVENT, (
+        "unreadable ledger: write anyway"
+    )
+
+
+def test_the_ledger_latch_tolerates_the_stamps_clock_skew(tmp_path, monkeypatch):
+    """B21f — seat B F3: the stamp tolerates 60 s of future-dating (WSL suspend / NTP); the ledger
+    latch tolerated none, and its docstring claimed the two mirror. A row 30 s ahead of the clock
+    is latched; 120 s ahead is not."""
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    led = state / "rotate-ledger.jsonl"
+    now = FLEET_NOW
+    led.write_text(
+        json.dumps(
+            {
+                "event": "fleet-active-wall",
+                "ts": now + 30,
+                "account": "a@x",
+                "resume_epoch": now + 3600,
+            }
+        )
+        + "\n"
+    )
+    assert cr._advisory_ledger_latch("a@x", now) is True, (
+        "30 s of skew is inside the stamp's tolerance"
+    )
+    led.write_text(
+        json.dumps(
+            {
+                "event": "fleet-active-wall",
+                "ts": now + 120,
+                "account": "a@x",
+                "resume_epoch": now + 3600,
+            }
+        )
+        + "\n"
+    )
+    assert cr._advisory_ledger_latch("a@x", now) is False, (
+        "beyond the tolerance a future row is invalid: speak"
+    )
+
+
+def test_a_json_true_utilization_from_the_endpoint_is_not_one_percent():
+    """B23 — seat B, out of slice: `_usage_windows` coerced a JSON `true` to 1.0 and would have
+    silenced a wall at 1%; the same bool class the hook's `_util` already refuses."""
+    import scripts.sysadmin.claude_rotate as cr  # noqa: PLC0415
+
+    w = cr._usage_windows(
+        {"five_hour": {"utilization": True, "resets_at": "2026-09-18T00:00:00+00:00"}}
+    )
+    fh = (w or {}).get("five_hour") if isinstance(w, dict) else None
+    assert not (isinstance(fh, dict) and fh.get("utilization") == 1.0), w

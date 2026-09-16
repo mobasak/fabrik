@@ -162,7 +162,7 @@ The `*/5` tick reads every account dir (five as of 2026-09-06 — it discovers t
   headroom when its window turns. A stamp written before this field existed holds its own write
   time, which is never later than its mtime, so it migrates silently to the old behaviour.
 - **Manual:** `--switch <account>` flips now — pause- and dwell-exempt, the deliberate
-  override. It warns if the target carries a cap.
+  override. It warns if the target carries a cap. ⚠️ Since 2026-09-17 a SECOND end-of-episode row exists, `wall-episode-closed` (`site`, `relieved`, no census counters): the relief path writes it when there was no stamp to clear, so the ledger latch on the wall advisory re-arms; like `hold-lifted` and `flip` it is FLEET-wide — the reader (`_open_wall_episode`) treats any of the three as ending every account's open episode. It is never a `hold-lifted` row, because that row's counters are the relief wake's census and a close with hardcoded zeros would read as a lift that found nobody.
 
 Sessions ride through a flip: a running session keeps its in-memory token (up to 8h) and lands
 on the new account at its next renewal. No login is ever triggered.
