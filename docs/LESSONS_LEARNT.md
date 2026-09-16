@@ -2,6 +2,33 @@
 # Lessons Learnt
 
 
+## A key that must both UNIFY and SEPARATE is proven by executing it against every shape on the box (2026-09-16)
+
+**What happened.** The ledger-write-integrity spec needed one key for a per-repo id reservation.
+Review pass 1 wrote it as the git common-dir. Pass 2 refuted that by execution — `/opt/fabrik-lib`,
+`-account` and `-review` are three worktrees of one repo carrying three separate ledgers (237, 1 and
+1 rows), so one key pushes a 1-row ledger's next id past D-268 — and replaced it with the common-dir
+PLUS the ledger's own path. Pass 3 refuted THAT by execution in the other direction: `/opt/fabrik`
+has 18 registered worktrees of its own whose `docs/DECISIONS.md` is the SAME ledger at an older
+commit, and a path-keyed reservation hands one of them (stopping at D-155) an id space in which it
+mints D-156 — live on master. Both cases present identically as one common-dir plus the repo-relative
+path `docs/DECISIONS.md`, so no path-based key can satisfy both. Pass 2 also DELETED the grader that
+would have caught it: the old V5 asserted cross-worktree visibility, the new one asserted separation.
+
+**The lesson.** When a key's job is to unify some things and separate others, enumerate every shape
+the box actually has BEFORE writing the rule, and execute the candidate key against each one — two
+repos are not an enumeration. Here the fix was to stop making the KEY do both jobs: one reservation
+file per common-dir, and the high-water mark seeded from the LEDGER BEING WRITTEN. And when a fix
+rewrites a grader, ask what the OLD grader was asserting; a replacement that drops the old assertion
+removes the guard for exactly the case the fix is about to get wrong.
+
+**Also measured, and worth its own shape.** `200 - $(git log -200 --merges | wc -l)` reads 194 direct
+commits here. It is wrong: `-N` bounds the OUTPUT of the filter, not the window. The true figure is
+200 of 200 — zero merge commits in that window, the most recent merge sitting at `rev-list` position
+2,930. This is an eighth shape for `CLAUDE.md`'s `denominator-honesty` rule (bounded-search shapes),
+routed rather than added here because that rule is a fleet-synced surface and the edit owes its own
+review.
+
 ## A guard you read AFTER the commit is not a guard (2026-09-16)
 
 **What happened.** An insert into `docs/STRATEGIC_BACKLOG.md` computed its end offset as
