@@ -108,7 +108,7 @@ the first — which is why no round here was taken on the author's own reading.
 
 | Delta 5 | 1 fresh (Opus) | `e73962839097…`, commit `505de5545` | confirmed: 4 — NO code defects; all four were wrong references or overclaims, three of them shipped by the previous two corrections. A test comment cited `command_run.py:2505` as stripping `surface` (it is `"terminal"` and strips nothing — `:2519` is the real one, so the ARGUMENT held and its evidence did not). The backlog row's backtick claim is true only UNQUOTED — the quoted spelling, which parallels the row's own examples, reads as `echo /fabrik-review`, so a guard written from the row would test the wrong value. ⚠️ And a lesson I had written contradicted `CLAUDE.md`'s canonical revert-test recipe: two sources of truth on one act, one fleet-synced. Verified INDEPENDENTLY by this round, not by me: all nine restored spellings drive a real recorder to rc 0 and none is vacuous; across a 7-mutant matrix on BOTH sides the three restored spellings are the SOLE catchers of their two classes; there is no third write channel on `start` (`env -i` with a fake HOME created exactly three files, all inside the two pinned dirs); 99/35 correct; 0.61s, no leak, no order dependence. |
 | Delta 6 | 1 fresh (Opus) | `e13e471179b3…`, commit `11cad364e` | confirmed: 8 (+3 plausible, 5 refuted) — ⚠️ **the worst defect of the run, and it was live in 45 repos.** The clause said to copy the FILE; every grader resolves its subject by TREE PATH, so the mutation lands in the copy while the graders run the original: executed, `_command_name` killed in a scratchpad copy and all 80 graders that exist to catch it reported GREEN. It reinstated the exact false-green failure the surrounding sentences exist to prevent, and collided with the `proxy-never-evidence` anchor by making the real check unrunnable. Its justification was also false in the direction that relaxes the reader — a sibling's directory/glob pathspec commits the WORKING TREE, so the mutant can reach HEAD; and its trigger ("when another agent may be READING") is undecidable on a tree where you see files and never chat. It shipped with NO grader, and the one test for that class was blind to it. All corrected at `e402f7626`; three wrap-safe pins added and proven red against a template-only deletion, inside a throwaway worktree. |
-| Delta 7 | NOT RUN | — | **Not dispatched, on the D-252 scope-growth stop and the AMBER band, in that order.** See below. |
+| Delta 7 | NOT RUN | `b989e2cb3` (hub) + `f767e3bf` (fabrik-lib) | **Not dispatched — first on the D-252 stop and the AMBER band, then because the operator paused the run and redirected it.** The redirect produced the largest UNREVIEWED change on this surface: the band is now the FLEET's, per window (`_fleet_readings`, D-275), re-cut in all three contracts, with the interim successor-gate removed from the hook. 334 graders green and the gate green, but no non-authoring seat has read it. The closing round covers THIS, not `e402f7626`. |
 
 ⚠️ **A process finding, not a code one, and the most useful thing this review produced.** Delta 4's
 seat reported the file changing under it and changing back mid-pass. That was the AUTHOR running
@@ -161,10 +161,15 @@ resume block below.
 
 Pick up here. Everything below is open; nothing above it is.
 
-1. **Run the closing delta round** over commit `e402f7626` (pin md5 `9d9456476e1f37cfed594d1de7f66c87`,
-   at `<scratch>/delta7.diff`), one fresh non-authoring seat, when the band is GREEN. Brief it that
-   Deltas 3-6 found only fix residue, so it must say whether a finding is a defect in the PLAN's
-   surface or in a correction — the two have different dispositions now.
+1. **Run the closing delta round over `b989e2cb3`** (hub: the per-window fleet band at the writer,
+   the three-contract re-cut, the hook's gate removal, graders B20-B20c/C5b/B5) **plus `f767e3bf`**
+   (fabrik-lib's copy). `e402f7626` is superseded as the pin — this change is larger and is
+   UNREVIEWED by any seat. One fresh non-authoring seat, briefed to attack `_fleet_readings`'
+   serving rules by execution (a session-exhausted account holding its weekly; a capped account
+   holding nothing; unknown states excluded; Fable folded into `band_fable` only; an empty pool
+   keeping the account's band) and the contract text against the code. The band is GREEN now
+   (fleet 5h 0% can · weekly 31% ob), so the round is allowed; it was not dispatched because the
+   operator paused the run — resume on their word, not on the band.
 2. **If it confirms zero:** add the literal `confirmed: 0, fixed: 0` row to the Pass Ledger above,
    flip the plan's `Status:` to EXECUTED, archive it to `docs/development/plans/archived/`, release
    `.fabrik/plan-locks/2026-09-16-plan-1-quota-posture.json`, run `check_convergence.py` green,
