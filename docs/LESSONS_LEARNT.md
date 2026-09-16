@@ -1,6 +1,31 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+
+## A guard you read AFTER the commit is not a guard (2026-09-16)
+
+**What happened.** An insert into `docs/STRATEGIC_BACKLOG.md` computed its end offset as
+`s.index("\n### ", start) if "\n### " in s[start:] else len(s)`. The fallback fired, so "replace my
+row" became "replace my row and everything after it": the file went 2,718 lines -> 167, destroying
+~2,551 lines, most of them siblings' rows. It was committed (`cdd000bf`) and restored by
+`6d2aec8c`; nothing was pushed in between.
+
+**The machinery caught it and I defeated the catch.** The private-index recipe's step-4 assertion
+printed `30 2581 docs/STRATEGIC_BACKLOG.md` — exactly the "nonzero deletions column means your blob
+is stale" case the contract names. I had put that assertion and `update-ref` in the same shell
+block and read the output afterwards, so the guard reported a disaster that had already happened.
+**An assertion that does not gate the next command is a log line.** The fix is mechanical: branch on
+it (`if [ "$DEL" != "0" ]; then echo REFUSING; exit 1; fi`) so the commit cannot run when it fires.
+
+**The edit-shape rule underneath it.** Never slice a shared document to `len(s)`. Locate BOTH ends of
+the region you mean to replace and fail loudly when the closing anchor is missing — a fallback that
+silently widens the range to end-of-file is indistinguishable from a correct edit right up until the
+diff. Same family as the range-replacement defect that deleted four graders twice.
+
+**Cheapest way to satisfy this without producing the outcome** (cobra check): print the numstat and
+call it "verified" without comparing it to an expectation. That is precisely what happened here, so
+the rule is the BRANCH, not the print.
+
 ## A gate whose cutover is in the FUTURE is dead, and every grader still passes (2026-09-15)
 
 The `change:` axis gate shipped with `_AXIS_REQUIRED_FROM` set 45 minutes ahead of the clock. Its
