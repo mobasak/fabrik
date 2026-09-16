@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Two reported defects in fleet-synced scripts: quoted link scans and companion-package resolution (2026-09-17)
+
+- `scripts/docs_updater.py::check_link_integrity` now scans `_strip_quoted(content)` — the helper
+  already in the file, used by the owner-line and status scans but not this one. It was flagging
+  markdown links inside FENCED CODE BLOCKS, so any document quoting a broken-link report was flagged
+  for the text it documents (site-provisioner, `01M2K85BVKWV9A`, self-referentially: the
+  docs_updater false-positive proposal flagged itself). COST, stated: blockquoted links are no longer
+  checked either — a blockquote quotes another document, whose links resolve in that document's tree.
+- `scripts/rivals_run.py::_resolve_engine` now also puts the `deep_research` / `web_tools` parents on
+  `sys.path` via `_add_companion_dirs()`. A FLAT `libs/` layout shares one parent with
+  `competitor_intel` so this was invisible; fabrik-lib — the repo that AUTHORS the engine — lays each
+  package under its own kebab parent, so a byte-exact vendored copy died on `ModuleNotFoundError: No
+  module named 'deep_research'` (fabrik-lib-dev1, `01M2NHRDCNP0QW`). Both package and single-module
+  shapes resolve; absent entries are skipped, so flat layouts are byte-unchanged.
+
 ### Changed — The revert-test recipe: a throwaway WORKTREE, never the shared tree (2026-09-17)
 
 - `CLAUDE.md` § Behavior (the shared-repo bullet's "For a revert test, copy the file" recipe) and the

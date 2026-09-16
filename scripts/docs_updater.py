@@ -1587,7 +1587,14 @@ def check_link_integrity() -> list[str]:
         if _is_scaffold_template(str(doc.relative_to(docs_dir.parent)).replace("\\", "/")):
             continue
 
-        content = doc.read_text()
+        # QUOTED spans are someone else's text — a doc that QUOTES a broken-link report was
+        # flagged for the very output it documents (site-provisioner, 01M2K85BVKWV9A: the
+        # docs_updater false-positive proposal flagged itself for its own example at line 15).
+        # `_strip_quoted` is the same helper the owner-line and status scans already use.
+        # ⚠️ COST, stated: it strips blockquotes as well as fences, so a REAL broken link inside a
+        # `>` quote is no longer reported. That is the intended trade — a blockquote quotes another
+        # document, and its links resolve in that document's tree, not this one.
+        content = _strip_quoted(doc.read_text())
         for match in link_pattern.finditer(content):
             link_text, link_path = match.groups()
 

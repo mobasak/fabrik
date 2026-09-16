@@ -276,6 +276,33 @@ _LOCAL_ENGINE_DIRS = (
     Path("competitor-intel") / "competitor_intel",
 )
 
+# The driver imports `deep_research` and `web_tools` alongside `competitor_intel`. A FLAT vendored
+# layout (`libs/`) shares ONE parent with competitor_intel, so resolving that one covered all three
+# and this stayed invisible. fabrik-lib — the repo that AUTHORS the engine — lays each package under
+# its own kebab parent, so a byte-exact vendored copy died on `ModuleNotFoundError: No module named
+# 'deep_research'` in the one repo that owns it (fabrik-lib-dev1, 01M2NHRDCNP0QW). Entries that do
+# not exist are skipped, so this is a no-op everywhere the flat layout already worked.
+_COMPANION_ENGINE_DIRS = (
+    Path("libs") / "deep_research",
+    Path("deep-research") / "deep_research",
+    Path("libs") / "web_tools",
+    Path("web-tools") / "web_tools",
+)
+
+
+def _add_companion_dirs() -> None:
+    """Put the `deep_research` / `web_tools` parents on sys.path beside the engine's.
+
+    A package may ship as a DIRECTORY or as a single module (`libs/web_tools.py` exists in the
+    field), so both shapes are resolved; the parent is what goes on the path either way.
+    """
+    for rel in _COMPANION_ENGINE_DIRS:
+        target = REPO / rel
+        if target.is_dir() or target.with_suffix(".py").is_file():
+            parent = str(target.parent)
+            if parent not in sys.path:
+                sys.path.insert(0, parent)
+
 
 def _resolve_engine() -> str:
     """Put the engine on sys.path. Returns 'local' or 'hub'; raises PreflightError if neither."""
@@ -285,6 +312,7 @@ def _resolve_engine() -> str:
             parent = str((REPO / rel).parent)
             if parent not in sys.path:
                 sys.path.insert(0, parent)
+            _add_companion_dirs()
             return "local"
     if (HUB_LIBS / "competitor_intel").is_dir():
         # APPEND and guard, mirroring the local branch above and `main()`'s key-loader. An
