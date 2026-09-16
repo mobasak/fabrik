@@ -1,6 +1,6 @@
 # Review — 2026-09-16-self-naming-identity
 
-**Status:** IN-PROGRESS
+**Status:** CLOSED — D-252 scope-growth stop
 **Surface:** `git rev-parse HEAD` = f4fac020443db4a4e5d2179ffd5fc495f7a3db12; range tip f4fac020443db4a4e5d2179ffd5fc495f7a3db12; `git diff 0a8d5fc7^..HEAD -- scripts/whoami_agent.py scripts/command_run.py scripts/fabrik_synced_manifest.py .pre-commit-config.yaml tests/conftest.py tests/test_whoami_agent.py tests/test_session_orient_hook.py .claude/hooks/session_orient.py docs/workstation/agent-identity.md docs/reference/multi-agent-operating-model.md CHANGELOG.md docs/DECISIONS.md INDEX.md docs/STRATEGIC_BACKLOG.md` md5 ca5b06563874fbab5d3bda8f3c53d419 (78677 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/whoami_agent.py`, `scripts/command_run.py`, `scripts/fabrik_synced_manifest.py`, `.pre-commit-config.yaml`, `tests/conftest.py`, `tests/test_whoami_agent.py`, `tests/test_session_orient_hook.py`, `.claude/hooks/session_orient.py`, `docs/workstation/agent-identity.md`, `docs/reference/multi-agent-operating-model.md`, `CHANGELOG.md`, `docs/DECISIONS.md`, `INDEX.md`, `docs/STRATEGIC_BACKLOG.md`
 
