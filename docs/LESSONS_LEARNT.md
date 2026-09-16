@@ -2,6 +2,38 @@
 # Lessons Learnt
 
 
+## My red-on-revert experiments ran on the live tree while a seat was reviewing it (2026-09-16)
+
+**What happened.** A review seat reported, in its MACHINERY note, that the file it was reviewing
+changed under it and changed back inside its window: at one point `_command_name`'s call sites had
+no `_cut` wrapper and carried an eight-line comment that does not exist at the pinned commit; four
+minutes later the same path matched its pin's md5 exactly. That was me. I was executing two
+candidate fixes — dropping `_cut` from the value, then punctuation-aware tokenisation — as
+mutate-run-restore cycles on `/opt/fabrik/scripts/sysadmin/quota_posture_hook.py`, the live file,
+while the seat was reading it.
+
+**What it nearly cost.** The seat said so itself: had it re-read from the live path instead of its
+pin, it would have filed a CONFIRMED defect as REFUTED. The finding in question was real. So the
+cost of my convenience was very nearly a real defect dismissed with evidence attached.
+
+**Why the existing rules did not catch it.** The contract's mutation discipline is about not losing
+work — write the `.bak` first, restore after any exit, assert both halves. I did all of that, and
+`cmp` confirmed the restore byte for byte. Every guard I ran was about MY file's integrity, and
+every one passed. None of them is about who else is READING that path right now, and a
+mutate-restore cycle leaves no trace afterwards for anyone to find.
+
+**The rule.** While any review seat is live against a surface, run mutation experiments on a COPY
+under the scratchpad, never on the file in the tree. Mutating in place is only safe when nothing
+else is reading — and with concurrent seats, sibling sessions and a shared tree, that is rarely
+knowable. The seat's pin is what saved this verdict, so the mirror rule holds too: a seat brief must
+pin by SHA and say to re-read the pin rather than the live path, because the tree is not stable for
+the duration of a review.
+
+**The wider shape.** Test isolation is usually framed as protecting production from tests. This is
+the other axis: my local experiment polluted another agent's OBSERVATION, not any persistent state.
+Nothing was corrupted and nothing was lost — the damage would have been entirely epistemic, and
+entirely invisible in every artifact afterwards.
+
 ## A number "derived at write time" three times, stale all three times — derive it AFTER your last edit (2026-09-16)
 
 **What happened.** One CHANGELOG line counting the graders a plan shipped was wrong three times in a

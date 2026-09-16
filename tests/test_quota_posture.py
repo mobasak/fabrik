@@ -753,11 +753,28 @@ def test_the_hook_and_the_recorder_agree_on_the_name_a_start_will_carry(tmp_path
             "/fabrik-review-scoped",
             "/opt/x/fabrik-review",
             "fabrik-spec",
+            # ⚠️ these three are NOT padding. A round proved the six-spelling set sleeps through two
+            # whole mutant classes that only these catch: a `.strip()` added to either side's
+            # normalisation (likely — `command_run.py:2505` already strips `surface` beside an
+            # unstripped `command`), and removal of the `or None` collapse, which only the empty-ish
+            # spellings exercise. Dropping them was an unremarked coverage cut.
+            "/",
+            "",
+            " /fabrik-review",
         )
     ):
         runs = tmp_path / f"runs{i}"
         runs.mkdir()
-        env = {**os.environ, "COMMAND_RUN_DIR": str(runs)}
+        # ⚠️ `start` writes TWO places: the run record under `COMMAND_RUN_DIR` and an event line
+        # under `KAIZEN_EVENTS_DIR`. conftest pins the second for the whole suite, so this is safe
+        # today — but a grader that builds its own env and pins only one of two write channels is
+        # the exact shape that once wrote fabricated events into the operator's REAL log. Pinned
+        # here so the isolation is a property of this test, not of a fixture it never names.
+        env = {
+            **os.environ,
+            "COMMAND_RUN_DIR": str(runs),
+            "KAIZEN_EVENTS_DIR": str(tmp_path / f"events{i}"),
+        }
         proc = subprocess.run(
             [
                 sys.executable,

@@ -360,7 +360,7 @@ _PAYLOAD_FLAGS = frozenset({"-S", "--command-string"})
 
 
 def _command_name(val: str) -> str | None:
-    """A ``--command`` value as `REVIEW_FAMILY` spells it: the LEADING slash removed.
+    """A ``--command`` value as `REVIEW_FAMILY` spells it: the LEADING slashes removed.
 
     ⚠️ Fail-CLOSED bug, found by the heavy review's closing seat. The contract, the corpus and every
     agent write these commands as `/fabrik-review-scoped`, and `REVIEW_FAMILY` holds them bare — so
@@ -586,8 +586,11 @@ def decide(
         # RED. The sibling `quota_stop.py` has no such gap: its matcher is `.*`.
         if is_start and name not in REVIEW_FAMILY:
             # ⚠️ the slash is RE-ADDED on purpose: `name` is normalised, and every command in the
-            # corpus and in CLAUDE.md is written `/fabrik-spec`, so this renders the spelling the
-            # reader actually typed. I briefly "fixed" this to print `name` bare on the theory that
+            # corpus and in CLAUDE.md is written `/fabrik-spec`, so re-adding it renders the
+            # CANONICAL spelling — which is NOT always the typed one, and a round rightly objected
+            # to an earlier claim that it was: `fabrik-spec` gains a slash it did not have and
+            # `//fabrik-spec` loses one. Canonical is the right target here; the value as typed is
+            # not available at this point anyway. I briefly "fixed" this to print `name` bare on the theory that
             # it rendered the value as typed; it does not — `decide` never sees the raw value — and
             # it LOST the slash on the common case, printing `Starting fabrik-spec`. Reverted.
             # (The `Starting //fabrik-review` doubling belongs to the code BEFORE `_command_name`

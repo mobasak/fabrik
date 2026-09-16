@@ -67,6 +67,18 @@ Generated from the end-of-day plan-state on 2026-06-07 after the trio Phase 5.1.
   fixing something else. Owner: infra (the hook is box-local but the class is the predicate's
   shape). First step: decide whether the string predicate survives at all — the sibling row above
   already asks that question, and this is a second measured argument for answering it.
+  ⚠️ **AND IT FAILS IN THE WORSE DIRECTION TOO — this half is the more serious one.** `_cut` also
+  does `.strip("`$'\"")`, so a SUBSTITUTED value is mangled instead of truncated: `--command
+  "$CMD"` reads as the literal name `CMD`, `--command "$(echo /fabrik-review)"` reads as nothing,
+  and a backtick form reads as `echo`. All three are DENIED at RED — so a session whose command name
+  comes from a variable is refused the one start RED exists to permit, the mandated review of the
+  change it is checkpointing, and the deny text names a command that does not exist so the reader
+  cannot tell what was refused. Measured end-to-end: the recorder files `fabrik-review` (in-family)
+  for exactly the line the hook denies. This inverts the trade `_is_new_run_start`'s own docstring
+  states out loud ("Between leaking a record and blocking a checkpoint, leak"), and the docstring's
+  gap list says substitution is CAUGHT — true of the script path token, false of the `--command`
+  VALUE, and it does not distinguish them. Whoever takes this row fixes both directions together or
+  neither: they are one `_cut` call.
 
 - **`docs/workstation/claude-account-rotation.md` carries no band wording at all**, while the two
   CLAUDE.md twins now make the bands a behaviour contract and name that doc as the Authority. Doc
