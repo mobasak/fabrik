@@ -129,3 +129,31 @@ def test_the_suite_never_reads_the_operators_live_run_record(tmp_path) -> None:
     spec.loader.exec_module(cr)
     assert Path(cr._state_dir()).resolve() == Path(d).resolve()
     assert cr._session_id(None) == "pytest-isolated"
+
+
+def test_no_test_can_reach_the_real_opt_or_mail_a_real_repo(tmp_path_factory):
+    """A test must not be able to enumerate the real `/opt` — that is how a suite SENT REAL MAIL.
+
+    On 2026-09-16 a rotation grader drove `_cmd_tick()` into the fleet-exhausted branch with
+    fixture data; `_mailbox_repos()` walked the real `/opt` and `_drain_mail()` delivered roughly a
+    thousand "stop gracefully until 2027-01-22" notices into 49 live project mailboxes. The date
+    was the fixture's own `_usage_blob` weekly reset, mailed as fact.
+
+    Graded through the CONSUMER and through a FRESHLY LOADED module, because that is the load order
+    that beat the first fix: patching the import-time `OPT_DIR` constant left a module imported
+    during the test still bound to the real `/opt`. `_opt_dir()` reads `FABRIK_OPT_DIR` at call
+    time, so the pin holds whatever the order.
+    """
+    pinned = os.environ.get("FABRIK_OPT_DIR")
+    assert pinned, "FABRIK_OPT_DIR is unset inside a test — the conftest autouse pin is gone"
+    assert Path(pinned).resolve() != Path("/opt").resolve(), pinned
+    assert Path(pinned).resolve().is_relative_to(tmp_path_factory.getbasetemp().resolve()), pinned
+    cr = _load_rotate()
+    assert cr._opt_dir().resolve() == Path(pinned).resolve(), cr._opt_dir()
+    # the real /opt holds ~49 mailbox-bearing repos; the pinned one is empty, so a fleet-exhausted
+    # tick inside a test has nobody to mail
+    assert cr._mailbox_repos() == [], cr._mailbox_repos()
+    state = os.environ.get("ROTATE_STATE_DIR")
+    assert state, "ROTATE_STATE_DIR is unset inside a test — the same pin is gone"
+    assert Path(state).resolve().is_relative_to(tmp_path_factory.getbasetemp().resolve()), state
+    assert Path(state).resolve() != (Path.home() / ".claude" / "state").resolve()
