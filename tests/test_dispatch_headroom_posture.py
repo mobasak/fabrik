@@ -63,6 +63,8 @@ def _payload(*, posture_ts, hot=92.0, band="RED", picture_hot=60.0, posture_slug
                 "windows": {"five_hour": {"utilization": hot}, "seven_day": {"utilization": 10.0}},
                 "hottest": "five_hour",
                 "band": band,
+                # the account's OWN reading beside the fleet's (D-275); the two can disagree by design
+                "band_account": "RED" if band == "GREEN" else band,
             },
         }
     return json.dumps(doc)
@@ -83,6 +85,7 @@ def test_dispatch_headroom_prefers_a_fresh_posture_band(monkeypatch):
     assert q["ok"] is True
     assert q["hottest_pct"] == 92.0, "the picture's 60 was used — the posture was ignored"
     assert q["band"] == "RED"
+    assert q["band_account"] == "RED", "the account's own band travels beside the fleet's"
 
 
 def test_a_stale_posture_leaves_the_picture_in_charge(monkeypatch):
@@ -126,6 +129,7 @@ def test_a_posture_about_another_account_never_steers_the_seat_budget(monkeypatc
     q = mod.quota()
     assert q["hottest_pct"] == 60.0, q
     assert "band" not in q, "a posture about another account must not set the band"
+    assert "band_account" not in q, "nor the account's own band — it is about someone else"
 
     # fail-OPEN, the one that matters: hot active account, cool posture about someone else
     _pin(
@@ -209,3 +213,14 @@ def test_the_staleness_bound_is_the_one_env_key_the_hook_reads(monkeypatch):
         assert mod._posture_stale_s() == expect, raw
         assert hook._stale_s() == expect, raw
         assert mod._posture_stale_s() == hook._stale_s(), raw
+
+
+def test_a_fresh_posture_publishes_the_fleet_band_and_the_accounts_own_band_distinctly(monkeypatch):
+    """Delta 8 seat C: `band_account` shipped without a grader. Since D-275 `band` is the FLEET's and
+    can legitimately read GREEN beside a hot account; the account's own band travels with it so no
+    reader has to infer which axis a number belongs to — and dropping the field must red."""
+    mod = _load()
+    _pin(mod, monkeypatch, _payload(posture_ts=time.time(), band="GREEN"))
+    q = mod.quota()
+    assert q["ok"] is True
+    assert q["band"] == "GREEN" and q["band_account"] == "RED", q
