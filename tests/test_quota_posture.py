@@ -41,6 +41,8 @@ def _posture(
     ts=None,
     slug="ozgurbasak",
     successor="mob",
+    fleet_windows=None,
+    band_account=None,
     **over,
 ):
     """A schema-1 posture file in *state*, shaped exactly as `_quota_posture` writes it."""
@@ -86,8 +88,13 @@ def _posture(
             },
             "hottest": "five_hour",
             "band": band,
+            # the account's OWN reading (D-275); defaults to the band so older graders see no clause
+            "band_account": band_account if band_account is not None else band,
             "hottest_fable": "five_hour",
             "band_fable": band if band_fable is None else band_fable,
+            "band_account_fable": band_account
+            if band_account is not None
+            else (band if band_fable is None else band_fable),
         },
         "fleet": {
             "queue": [],
@@ -97,6 +104,8 @@ def _posture(
             "successor": (
                 {"email": f"{successor}@ocoron.com", "slug": successor} if successor else None
             ),
+            # per-window fleet readings (D-275); None keeps the bare `band X` rendering
+            "windows": fleet_windows or {},
             "next_relief": None,
             "hold": None,
             "last_flip": None,
@@ -162,6 +171,75 @@ def test_prompt_line_matches_the_contract_format_byte_for_byte(tmp_path):
     ), line
     for token in ("QUOTA: ", " · band ", " · successor ", " · Fable "):
         assert token in line, token
+
+
+_FLEET = {
+    "five_hour": {"utilization": 0.0, "slug": "can"},
+    "seven_day": {"utilization": 31.0, "slug": "ob"},
+    "fable": {"utilization": 17.0, "slug": "can"},
+}
+
+
+def test_prompt_line_explains_the_fleet_band_and_names_when_this_account_alone_would_read_worse(
+    tmp_path,
+):
+    """C2b — the line reaches every RUNNING session; the contract does not (Lesson 116). A fabrik-lib
+    agent with the old per-account table in context saw `weekly 89% · band GREEN`, judged the label
+    wrong, and overrode it by hand all session (01M2P42QZMTX8RAQ24SCV45VSY). So the line carries the
+    fleet readings behind the band and states the rule when this account's reading disagrees."""
+    state = tmp_path / "state"
+    _posture(state, band="GREEN", band_account="AMBER", fleet_windows=_FLEET, successor="can")
+    p = _hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"}, state=state)
+    line = p.stdout.strip()
+    assert line == (
+        "QUOTA: ozgurbasak · 5h 71% (wall in ~48m at 0.60%/m) · weekly 44% (reset in 2:10) · "
+        "Fable 32% · band GREEN (fleet-wide: 5h 0% can · weekly 31% ob) — this account alone reads "
+        "AMBER; the band is the fleet's, act on it · successor can"
+    ), line
+
+
+def test_prompt_line_names_the_window_that_binds_at_amber_and_says_nothing_extra_when_bands_agree(
+    tmp_path,
+):
+    """C2c — at AMBER/RED the line names the fleet window that put it there (the reporter's ask);
+    when the account's reading equals the fleet's there is no "alone" clause to mislead with."""
+    state = tmp_path / "state"
+    hot = {
+        "five_hour": {"utilization": 3.0, "slug": "can"},
+        "seven_day": {"utilization": 86.0, "slug": "can"},
+    }
+    _posture(state, band="AMBER", band_account="AMBER", fleet_windows=hot, successor="can")
+    p = _hook({"hook_event_name": "UserPromptSubmit", "session_id": "s2"}, state=state)
+    line = p.stdout.strip()
+    assert (
+        " · band AMBER on weekly (fleet-wide: 5h 3% can · weekly 86% can) · successor can" in line
+    ), line
+    assert "alone" not in line, line
+
+
+def test_prompt_line_shows_the_fleet_fable_reading_only_on_a_fable_model(tmp_path):
+    """C2d — Fable is relevant solely where the running agent is Fable (operator): the fleet Fable
+    reading joins the clause only there, and the "alone" clause then compares the Fable bands."""
+    state = tmp_path / "state"
+    _posture(state, band="GREEN", band_fable="GREEN", band_account="GREEN", fleet_windows=_FLEET)
+    doc = json.loads((state / "quota-posture.json").read_text())
+    doc["active"]["band_account_fable"] = "RED"
+    (state / "quota-posture.json").write_text(json.dumps(doc))
+    tp = tmp_path / "t.jsonl"
+    tp.write_text(
+        json.dumps({"type": "assistant", "message": {"model": "claude-fable-5-1"}}) + "\n"
+    )
+    p = _hook(
+        {"hook_event_name": "UserPromptSubmit", "session_id": "s3", "transcript_path": str(tp)},
+        state=state,
+    )
+    line = p.stdout.strip()
+    assert (
+        "(fleet-wide: 5h 0% can · weekly 31% ob · Fable 17% can) — this account alone reads RED"
+        in line
+    ), line
+    p2 = _hook({"hook_event_name": "UserPromptSubmit", "session_id": "s4"}, state=state)
+    assert "Fable 17% can" not in p2.stdout and "alone" not in p2.stdout, p2.stdout
 
 
 def test_prompt_line_prints_an_em_dash_for_a_missing_figure_and_a_question_mark_for_no_band(

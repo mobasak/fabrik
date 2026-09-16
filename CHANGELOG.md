@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — The QUOTA line explains its own band, because the contract cannot reach a running session (2026-09-17)
+
+- `scripts/sysadmin/quota_posture_hook.py::_fleet_clause`: the injected line now carries the FLEET
+  readings the band was computed from, names the window that binds at AMBER/RED, shows the fleet
+  Fable reading only on a Fable model, and — when this account alone would read a worse band —
+  says so: `band GREEN (fleet-wide: 5h 0% can · weekly 31% ob) — this account alone reads RED; the
+  band is the fleet's, act on it · successor can`. The RED deny reason names the fleet's coolest
+  serving account beside this one's, so it no longer restates the single-account picture.
+- ⚠️ **Why the line and not the contract:** Lesson 116 — a documentation fix is invisible to every
+  session already running. A fabrik-lib agent holding the old per-account bands table in context
+  saw `weekly 89% · band GREEN`, judged the label wrong by that table, and overrode a correct GREEN
+  by hand all session (`01M2P42QZMTX8RAQ24SCV45VSY`); infra's window did the same from 87%. Only
+  the line reaches every session, every prompt, so the instruction lives in the line. The `QUOTA:`
+  line paragraph is re-cut identically in all three contracts ("Read the line, not the
+  arithmetic") and pinned in `tests/test_governance_template_split.py`; graders C2b-C2d render the
+  clause byte for byte, the window-that-binds, and the Fable-only rule.
+- Caught by a peer before it landed: the first cut bound `_is_fable` and read `is_fable` — a live
+  NameError on every prompt — because my call-site check matched `is_fable = _band_for_session(`
+  as a SUBSTRING of `_is_fable = …`. `ruff --select F821` is the check that answers that question.
+
 ### Added — `decisions.py --append` and `--reserve-id`: a sanctioned write path that cannot mint a duplicate (2026-09-17)
 
 - **`--append REPO_DIR --when --who --what --why --where`** allocates the id ITSELF and writes the row

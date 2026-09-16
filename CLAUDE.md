@@ -401,16 +401,24 @@ structured rows beat lexical transcripts (a decision phrased differently is invi
   (`fleet-exhausted` stamp): `.claude/hooks/quota_stop.py` holds every world-changing tool by
   default-deny, and commit + push + close + stop is the only path through — every tool it needs is
   allowed.
-  **The `QUOTA:` line (D-269).** Every prompt opens with one injected line — `QUOTA: <slug> · 5h
-  <n>% (<forecast>) · weekly <n>% (<forecast>) · Fable <n>% · band <GREEN|AMBER|RED|WALL> ·
-  successor <slug or none>` — where `<forecast>` is `reset in <h:mm>` or `wall in ~<m>m at
-  <n>%/m` whichever comes FIRST, or `no burn` when neither is derivable yet; a figure the tick
-  has no reading for prints `—` and a band it cannot compute prints `?`. It is written by the
-  rotation tick and read by the box-level `/opt/fabrik/scripts/sysadmin/quota_posture_hook.py` (not
-  `quota_stop.py`, which owns the WALL alone). `posture unavailable` means the posture could not
-  be READ — a dead or stale tick, or an unreadable file — not that quota is fine; no `QUOTA:`
-  line at all means the hook is not wired into this session's settings, or did not run; same
-  reading, same action: run
+  **The `QUOTA:` line (D-269, D-275).** Every prompt opens with one injected line — `QUOTA: <slug> · 5h
+  <n>% (<forecast>) · weekly <n>% (<forecast>) · Fable <n>% · band <GREEN|AMBER|RED|WALL>[ on
+  <window>] (fleet-wide: 5h <n>% <slug> · weekly <n>% <slug>[ · Fable <n>% <slug>])[ — this
+  account alone reads <band>; the band is the fleet's, act on it] · successor <slug or none>` —
+  where `<forecast>` is `reset in <h:mm>` or `wall in ~<m>m at <n>%/m` whichever comes FIRST, or
+  `no burn` when neither is derivable yet; a figure the tick has no reading for prints `—` and a
+  band it cannot compute prints `?`. ⚠️ **Read the line, not the arithmetic.** The three
+  percentages are the ACTIVE account's. The parenthesis is the FLEET's reading per window — the
+  coolest account that can still serve it, which is what the band was computed from; at AMBER or
+  RED it names the window that binds; the Fable reading appears only on a Fable model. When this
+  account alone would read a worse band, the line says so and tells you to act on the fleet's —
+  that sentence is there because agents holding the old per-account table in context re-derived
+  AMBER from `weekly 89%` and overrode a correct GREEN by hand (operator ruling 2026-09-17). It
+  is written by the rotation tick and read by the box-level
+  `/opt/fabrik/scripts/sysadmin/quota_posture_hook.py` (not `quota_stop.py`, which owns the WALL
+  alone). `posture unavailable` means the posture could not be READ — a dead or stale tick, or an
+  unreadable file — not that quota is fine; no `QUOTA:` line at all means the hook is not wired
+  into this session's settings, or did not run; same reading, same action: run
   `python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --status`. **The band names the
   action:** at AMBER the line is advice; at RED the hook HOLDS `Agent` and a new `command_run.py
   start` (a run record already live and readable keeps its seats, and a review-family start —

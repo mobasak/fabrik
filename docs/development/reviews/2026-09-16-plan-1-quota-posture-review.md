@@ -176,6 +176,18 @@ Pick up here. Everything below is open; nothing above it is.
    commit, push.
 3. **If it confirms defects:** fix them, and re-apply the scope-growth test above before dispatching
    another round — do not run the loop on reflex.
+4a. **THE DRAIN RE-BROADCAST LATCH — the storm the operator reported first, root-caused by
+   fabrik-lib, confirmed live in the code by infra, routed to this plan** (`01M2P19KP9GE9S4EGD2FKDC63W`,
+   acked `blocked` by infra because this plan's lock owns `claude_rotate.py`). `:5350`:
+   `latched = stamp.exists() and not (age re-arm or promise-came-due)` — with the fleet-exhausted
+   stamp ABSENT, `latched` is False on EVERY tick and the advisory re-fires forever; the stamp write
+   sits in a `try … except OSError: pass`, so a failed write can never engage the latch. Storm
+   measured: 460 copies in one hour, 2 the next, none since — the ending retires nothing because the
+   mechanism is unchanged. Open question they flagged first: the early return on a validated
+   successor should have fired (eligible accounts showed throughout) and did not — check
+   `_validated_pick` returning None while the queue prints those accounts eligible (two chains
+   expiring, three STALE readings that day). Design question for the closing round: a presence-latch
+   fails as UNBOUNDED REPETITION; episode identity belongs in recomputable state. NOT fixed yet.
 4. **fabrik-lib is carrying a defect I gave them.** `/opt/fabrik-lib/CLAUDE.md` adopted the BROKEN
    "copy the FILE" clause from my mail `01M2P0K798QC5TTJZYE8Q3R1EW` before it was corrected. They are
    sync-EXCLUDED, so no mechanism reaches them. The correction is mailed

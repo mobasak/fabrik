@@ -221,7 +221,6 @@ QUOTA_CLAIMS = (
     "**under 85 — GREEN:**",
     "85 to under 90",
     "RED: commit, push, close your run record",
-    "The `QUOTA:` line (D-269)",
     "posture unavailable",
     # ⚠️ re-pinned 2026-09-17 on the operator's ruling: the hold is FLEET-aware, so the claim must
     # carry the precondition. Pinning the bare "at RED the hook HOLDS" would let a contract that
@@ -232,6 +231,11 @@ QUOTA_CLAIMS = (
     # slid back to a per-account band, or one that let agents re-derive it from the percentages,
     # is the version that stopped agents while fresh accounts sat in the queue.
     "FLEET'S, computed per window, never one account's",
+    # T6.7 (2026-09-17, 01M2P42QZMTX8RAQ24SCV45VSY) — the LINE explains its own band, because the
+    # contract cannot reach a session that loaded the old table hours ago.
+    "**The `QUOTA:` line (D-269, D-275).**",
+    "Read the line, not the arithmetic.",
+    "account alone reads <band>; the band is the fleet's, act on it]",
     "Never re-derive the band from the percentages",
     "a `successor` still named is a",
     "is banded on its Fable window too",
@@ -274,7 +278,7 @@ def test_the_quota_bands_and_the_quota_line_are_identical_in_all_three_contracts
 # resume-authority sentences. Anchors are the spans' own first and last words, so a wrap boundary
 # inside either span is not a miss.
 _SHARED_SPANS = (
-    r"\*\*The `QUOTA:` line \(D-269\)\.\*\*.*?the hottest of 5h, weekly and Fable\.",
+    r"\*\*The `QUOTA:` line \(D-269, D-275\)\.\*\*.*?the hottest of 5h, weekly and Fable\.",
     r"`claude_rotate\.py --status` is the authority on WHEN you resume.*?read `--status` rather than assuming\.",
 )
 

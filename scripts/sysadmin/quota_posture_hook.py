@@ -252,7 +252,43 @@ def _forecast(w: object) -> str:
     return "no burn"
 
 
-def _format_line(posture: dict, band: str | None) -> str:
+def _fleet_clause(posture: dict, band: str | None, *, is_fable: bool) -> str:
+    """The fleet readings behind the band, and — when this account alone would read worse — say so.
+
+    ⚠️ This clause exists because the CONTRACT cannot reach a running session. A fabrik-lib agent
+    with the old per-account bands table in context saw `weekly 89% · band GREEN`, judged the label
+    wrong by that table, and overrode it by hand all session (01M2P42QZMTX8RAQ24SCV45VSY); infra's
+    window did the same from `weekly 87%`. Lesson 116: a documentation fix is invisible to every
+    session already running; only the line reaches all of them, every prompt. So the line carries
+    the fleet readings that produced the band, names the window that binds at AMBER/RED (the
+    reporter's own ask), and states the rule when the account's reading disagrees — an agent
+    reading the label alone must get the RIGHT instruction, not the opposite one.
+    """
+    act = posture.get("active") if isinstance(posture.get("active"), dict) else {}
+    fleet = posture.get("fleet") if isinstance(posture.get("fleet"), dict) else {}
+    fw = fleet.get("windows") if isinstance(fleet.get("windows"), dict) else {}
+    keys = (("five_hour", "5h"), ("seven_day", "weekly")) + (
+        (("fable", "Fable"),) if is_fable else ()
+    )
+    parts, hottest = [], None
+    for key, label in keys:
+        w = fw.get(key)
+        if isinstance(w, dict) and w.get("utilization") is not None:
+            u = w["utilization"]
+            parts.append(f"{label} {_pct(w)} {w.get('slug') or '?'}")
+            if isinstance(u, (int, float)) and (hottest is None or u > hottest[0]):
+                hottest = (u, label)
+    out = ""
+    if parts:
+        on = f" on {hottest[1]}" if band in ("AMBER", "RED") and hottest else ""
+        out += f"{on} (fleet-wide: {' · '.join(parts)})"
+    own = act.get("band_account_fable") if is_fable else act.get("band_account")
+    if isinstance(own, str) and isinstance(band, str) and own != band and band != "WALL":
+        out += f" — this account alone reads {own}; the band is the fleet's, act on it"
+    return out
+
+
+def _format_line(posture: dict, band: str | None, *, is_fable: bool = False) -> str:
     act = posture.get("active") if isinstance(posture.get("active"), dict) else {}
     wins = act.get("windows") if isinstance(act.get("windows"), dict) else {}
     fleet = posture.get("fleet") if isinstance(posture.get("fleet"), dict) else {}
@@ -262,7 +298,8 @@ def _format_line(posture: dict, band: str | None) -> str:
     return (
         f"QUOTA: {act.get('slug') or '—'} · 5h {_pct(fh)} ({_forecast(fh)}) · "
         f"weekly {_pct(wk)} ({_forecast(wk)}) · Fable {_pct(wins.get('fable'))} · "
-        f"band {band or '?'} · successor {succ_slug or 'none'}"
+        f"band {band or '?'}{_fleet_clause(posture, band, is_fable=is_fable)} · "
+        f"successor {succ_slug or 'none'}"
     )
 
 
@@ -634,9 +671,32 @@ def _deny_reason(posture: dict, band: str, what: str, *, is_fable: bool = False)
     wins = act.get("windows") if isinstance(act.get("windows"), dict) else {}
     hot = act.get("hottest_fable") if is_fable else act.get("hottest")
     w = wins.get(hot) if isinstance(hot, str) else None
+    # ⚠️ the band is the FLEET's (D-275): a RED means every account that could serve the hot
+    # window is RED too, so the evidence names the fleet's reading — the coolest serving account —
+    # beside this account's own. Naming only the active account would restate the very
+    # single-account picture the operator ruled wrong.
+    fleet = posture.get("fleet") if isinstance(posture.get("fleet"), dict) else {}
+    fw = fleet.get("windows") if isinstance(fleet.get("windows"), dict) else {}
+    fleet_s = ""
+    if fw:
+        keys = ("five_hour", "seven_day") + (("fable",) if is_fable else ())
+        best = max(
+            (
+                (k, fw[k])
+                for k in keys
+                if isinstance(fw.get(k), dict) and fw[k].get("utilization") is not None
+            ),
+            key=lambda kv: kv[1]["utilization"],
+            default=None,
+        )
+        if best:
+            fleet_s = (
+                f" Fleet-wide the coolest account that can still serve {best[0]} is "
+                f"{best[1].get('slug') or '?'} at {_pct(best[1])}, so no flip relieves this."
+            )
     return (
-        f"QUOTA {band} on {act.get('slug') or 'the active account'} — "
-        f"{hot or 'the hottest window'} {_pct(w)} ({_forecast(w)}). {what} starts NEW work, and at "
+        f"QUOTA {band} fleet-wide — on {act.get('slug') or 'the active account'} "
+        f"{hot or 'the hottest window'} is {_pct(w)} ({_forecast(w)}).{fleet_s} {what} starts NEW work, and at "
         f"RED the only path is finish, commit, push, close your run record. Every tool a checkpoint "
         f"needs is allowed, and so is the review of the change you are checkpointing. {_REMEDY} — "
         f"it is the authority on when you resume, not this line's forecast."
@@ -853,8 +913,8 @@ def main(argv: list[str] | None = None) -> int:
         if posture is None:
             print(_unavailable(reason))
         else:
-            band, _is_fable = _band_for_session(posture, payload.get("transcript_path"))
-            print(_format_line(posture, band))
+            band, is_fable = _band_for_session(posture, payload.get("transcript_path"))
+            print(_format_line(posture, band, is_fable=is_fable))
         return 0
 
     if event != "PreToolUse":
@@ -895,7 +955,7 @@ def main(argv: list[str] | None = None) -> int:
                 {
                     "hookSpecificOutput": {
                         "hookEventName": "PreToolUse",
-                        "additionalContext": _format_line(posture, band)
+                        "additionalContext": _format_line(posture, band, is_fable=is_fable)
                         + " — AMBER: finish what you started, start nothing heavy.",
                     }
                 }
