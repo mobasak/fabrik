@@ -261,6 +261,39 @@ def test_red_holds_agent_only_without_a_live_run(tmp_path):
         ("python3 `echo scripts/command_run.py` start --command fabrik-spec", True),
         # a longer filename that merely ENDS with the script's name is not the script
         ("python3 scripts/my_command_run.py start --command fabrik-spec", False),
+        # ⚠️ round 3. `shlex` splits on WHITESPACE only, so an unspaced operator rides on the verb
+        # and an exact comparison failed — the hold VANISHED for the spellings an agent writes by
+        # habit, not by evasion. Same class as the quoted path, three rewrites later.
+        ("python3 scripts/command_run.py start;echo done", True),
+        ("python3 scripts/command_run.py start&&echo done", True),
+        ("python3 scripts/command_run.py start>/tmp/log", True),
+        ("(python3 scripts/command_run.py start)", True),
+        # the name must bind to THIS start. Accumulating names across the whole line made the
+        # segmentation pointless in BOTH directions:
+        (
+            "python3 scripts/command_run.py done --command fabrik-review --evidence x && "
+            "python3 scripts/command_run.py start --phases 2 --terminal t",
+            True,  # the start is UNNAMED; the name belongs to the `done`
+        ),
+        (
+            "python3 scripts/command_run.py start --command fabrik-review --phases 2 && "
+            "python3 scripts/command_run.py done --command fabrik-deploy --evidence x",
+            False,  # the START is review-family; the `done` afterwards is irrelevant
+        ),
+        ("python3 scripts/command_run.py start --phases 2 ; echo --command=fabrik-review", True),
+        # the `--command` VALUE needs the same decoration cut as the script token, or the escape
+        # hatch denies itself: the name read as `fabrik-review-scoped)`
+        ("(python3 scripts/command_run.py start --command fabrik-review-scoped)", False),
+        ("(python3 scripts/command_run.py start --command=fabrik-review)", False),
+        # a `-c` payload is ONE token, so the basename never reached the comparison
+        ('bash -c "python3 scripts/command_run.py start --command fabrik-spec"', True),
+        ("sh -c 'python3 scripts/command_run.py start --command fabrik-review'", False),
+        # ⚠️ and the fix for THAT must not re-expose a quoted message: only a `-c` argument is
+        # re-parsed, never any token that merely contains the script name
+        ('git commit -m "ran command_run.py start --command fabrik-spec" -- x', False),
+        # a trailing comment with an apostrophe is an unbalanced quote to shlex; the retry reads it,
+        # and an unreadable line ALLOWS rather than denying the commit RED mandates
+        ('git commit -m "msg" -- scripts/command_run.py  # don\'t forget', False),
     ],
 )
 def test_red_holds_a_new_command_start_but_not_the_review_that_finishes(tmp_path, command, denied):

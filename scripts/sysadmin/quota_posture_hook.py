@@ -71,6 +71,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import shlex
 import shutil
 import sys
@@ -336,6 +337,52 @@ def _band_for_session(posture: dict, transcript_path: object) -> tuple[str | Non
 # the shell operators `shlex` yields as their OWN tokens — segment on these, never on a regex split
 # of the raw string, which severs any quote containing one of them
 _BOUNDARY = frozenset({";", "&", "&&", "|", "||"})
+# ⚠️ `shlex` splits on WHITESPACE only, so an unspaced operator rides on the token beside it:
+# `start;echo done`, `start&&x`, `start>log`, `(python3 … start)`. Comparing the verb exactly then
+# fails and the hold VANISHES — the same class as the quoted path, for the spellings an agent writes
+# by habit rather than by evasion. Every token is cut at its first operator before any comparison.
+_OPERATOR = re.compile(r"[;&|<>()]")
+# the flags whose ARGUMENT is itself a command line: `bash -c "…"`, `sh -c '…'`, `env -S "…"`
+_PAYLOAD_FLAGS = frozenset({"-c", "-S", "--command-string"})
+
+
+def _cut(tok: str) -> str:
+    """A token with its shell decoration removed: cut at the first operator, then unwrap quotes."""
+    return _OPERATOR.split(tok, 1)[0].strip("`$'\"")
+
+
+def _tokens(command: str) -> list[str] | None:
+    """`shlex` tokens for *command*, with `-c`-style payloads flattened in. ``None`` when unreadable.
+
+    A `bash -c "python3 … command_run.py start"` payload is ONE token, so the basename never reaches
+    the comparison even though it sits right beside the verb. Re-parsing it costs one extra parse
+    and no filesystem access.
+
+    ⚠️ ONLY the argument of a `-c`-style flag is re-parsed, never any token that merely contains the
+    script name. Flattening on content alone re-exposed the phrase inside `git commit -m "ran
+    command_run.py start for the review"` and denied the commit — the same defect this predicate has
+    now reintroduced three times by three different routes, each time while fixing something else.
+
+    The comments retry matters too: with ``comments=False`` a trailing ``# don't forget`` is an
+    unbalanced quote and the whole line fails to parse.
+    """
+    for comments in (False, True):
+        try:
+            toks = shlex.split(command, comments=comments)
+        except ValueError:
+            continue
+        out: list[str] = []
+        for i, tok in enumerate(toks):
+            prev = _cut(toks[i - 1]) if i else ""
+            if prev in _PAYLOAD_FLAGS and "command_run.py" in tok:
+                try:
+                    out.extend(shlex.split(tok, comments=False))
+                    continue
+                except ValueError:
+                    pass
+            out.append(tok)
+        return out
+    return None
 
 
 def _has_live_run(sid: object) -> bool:
@@ -404,44 +451,56 @@ def _is_new_run_start(command: object) -> tuple[bool, str | None]:
     an oversight: closing them means resolving the filesystem on every tool call, and a hold that
     slows every call to catch a spelling nobody uses by accident is a worse trade than saying so.
 
-    FAIL-CLOSED on what cannot be read: an unparseable line that mentions the script is treated as
-    an unnamed start and denied. A hold that gives up on the hard cases is not a hold.
+    ⚠️ FAIL-**OPEN** on what cannot be read, which is the reverse of the obvious instinct and is a
+    stated trade rather than a shrug. The two costs are not symmetric. A missed start means an agent
+    opens a run record at RED — while the `Agent` hold still stands, so it cannot fan out, and the
+    injected line still says RED on every prompt. A wrongly DENIED line means the mandated commit is
+    refused, which is the one act RED exists to force. The fail-closed version of this function
+    denied `git commit … # don't forget`, because an apostrophe in a trailing comment is an
+    unbalanced quote to `shlex`. Between leaking a record and blocking a checkpoint, leak.
     """
     if not isinstance(command, str) or "command_run.py" not in command:
         return False, None
-    try:
-        toks = shlex.split(command, comments=False)
-    except ValueError:
-        return True, None  # unreadable and it names the script ⇒ unnamed start ⇒ denied
+    toks = _tokens(command)
+    if toks is None:
+        return False, None  # unreadable ⇒ ALLOW; the Agent hold is the one that has to be right
     segments, cur = [], []
     for tok in toks:
-        if tok in _BOUNDARY:
+        if _cut(tok) == "" and tok.strip() in _BOUNDARY:
             segments.append(cur)
             cur = []
         else:
             cur.append(tok)
     segments.append(cur)
-    starts, names = 0, []
+
+    starts, name = 0, None
     for tokens in segments:
         for i, tok in enumerate(tokens):
-            # the metacharacters of a substituted path ride on the token, so `command_run.py)` and
-            # ``command_run.py` `` would never compare equal — strip them before the comparison
-            if tok.rsplit("/", 1)[-1].strip("`$()'\"") == "command_run.py" and tokens[
-                i + 1 : i + 2
-            ] == ["start"]:
-                starts += 1
-            if tok == "--command" and i + 1 < len(tokens):
-                names.append(tokens[i + 1])
-            elif tok.startswith("--command="):
-                names.append(tok.split("=", 1)[1])
+            if _cut(tok).rsplit("/", 1)[-1] != "command_run.py":
+                continue
+            verb = _cut(tokens[i + 1]) if i + 1 < len(tokens) else ""
+            if verb != "start":
+                continue
+            starts += 1
+            # ⚠️ the name is bound to THIS start, scanning forward only, and stopping at the next
+            # invocation of the script. Accumulating names globally made segmentation pointless:
+            # `done --command fabrik-review && start --phases 2` read the DONE's name and allowed an
+            # unnamed start, and the mirror denied a legitimate review start followed by a `done`.
+            name = None
+            for j in range(i + 2, len(tokens)):
+                nxt = _cut(tokens[j])
+                if nxt.rsplit("/", 1)[-1] == "command_run.py":
+                    break
+                if nxt == "--command" and j + 1 < len(tokens):
+                    name = _cut(tokens[j + 1])
+                elif nxt.startswith("--command="):
+                    name = _cut(nxt.split("=", 1)[1])
     if not starts:
         return False, None
     if starts > 1:
         # two starts on one line cannot be blessed by one name; judged as unnamed, so denied
         return True, None
-    # argparse resolves a repeated flag to the LAST occurrence, so the hold must read it the same
-    # way — reading the first is what let a decoy through
-    return True, (names[-1] if names else None)
+    return True, name
 
 
 def decide(
