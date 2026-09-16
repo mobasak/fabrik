@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — When review residue is a restatement, the mandated rewrite is a deletion (2026-09-16)
+
+- `commands/_fragments/term-coverage.md` rule (3) of the round-zero probe — the two-consecutive-
+  residue-passes rewrite — now says that when the residue is itself a sentence which RESTATES, COUNTS
+  or PARTITIONS what another artifact owns, the rewrite IS a deletion: cite the path where it is
+  re-derivable instead, never re-cut it (`545da2862` deleted such an enumeration after two rounds
+  confirmed it wrong). Answers three `change:` verdicts from `/fabrik-review-scoped` closes (rows
+  1789559500, 1789555515, 1789207730). Renders into `/fabrik-review`, `/fabrik-repo-review`,
+  `/fabrik-conformance-review`, `/fabrik-service-test`, `/fabrik-user-test`.
+- The queue's DOMINANT cluster — nine rows saying the seat pin is keyed on `git diff HEAD`, which
+  moves on a shared tree — is NOT fixed here: `commands/_sources/fabrik-review-scoped.md` is owned by
+  the active plan-lock `2026-09-09-plan-1-review-convergence-redesign`. The exact replacement text was
+  mailed to infra as `01M2NWVT2GVZ1KK4STMEP42VN8` and all nine rows stay unanswered in the queue.
+
 ### Fixed — the RED hold's deny text, and a widening of it that was worse than the bug (2026-09-16)
 
 - `scripts/sysadmin/quota_posture_hook.py::_command_name` now renders a denied start AS TYPED. The

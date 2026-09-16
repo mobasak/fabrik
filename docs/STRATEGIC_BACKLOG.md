@@ -2933,3 +2933,29 @@ grader whose outcome depends on an environment privilege ASSERT that privilege f
 not carry it — wrong round, wrong subject — and the row's near-synonymous wording ("outside the
 module's own suite" vs rule (5)'s "never only from the test file that ships beside the module")
 makes it easy to mark answered by accident. It is not answered.
+
+## [infra] The restatement rule enforces a pointer's FORMAT but never its FIDELITY
+
+`commands/_fragments/term-coverage.md` rule (3) now says that when review residue is a sentence which
+restates, counts or partitions what another artifact owns, the rewrite is a DELETION — "the sentence
+goes, replaced by at most a pointer to where the fact is re-derivable, never by a re-cut of the
+claim". A closing review seat CONFIRMED the gap that wording leaves: nothing requires the pointer to
+actually RESOLVE to the fact at the moment of the edit.
+
+The cheapest bypass it opens: delete the restating sentence, drop in a plausible pointer
+(`see path:line`, `see docs/X.md`) aimed at a target that is stale, wrong, or itself another
+restatement one hop away. The letter is satisfied — the sentence is gone, no citation was appended to
+a surviving sentence — and the fact is still not re-derivable where the pointer says it is. Contrast
+rule (2), which for its own case mandates RUNNING `check_review_hygiene.py --surface <pin> --claim
+<term>` and reading each mirror before the pin; rule (3)'s pointer has no equivalent.
+
+RESOLUTION when someone takes this: the seat's own four-word candidate is "…re-derivable AS OF THE
+PIN", which at least dates the claim; a stronger form would require the pointer be opened and the
+fact seen there before the pin, the way rule (2) requires the sweep be run. Do NOT simply re-cut the
+existing sentence a third time — this residue has already survived two consecutive delta rounds, and
+rule (3) itself says the next edit is a rewrite in one batch, not a third patch.
+
+NOT a defect this edit introduced in the sense of regressing anything: the clause is a net
+improvement and the gap is narrower than what it closed. Routed under the D-252 scope-growth stop
+(rounds 2 and 3 both confirmed only own-fix defects: 2/2 then 1/1), which is why this is a backlog row
+rather than a fourth round. Owner: infra.
