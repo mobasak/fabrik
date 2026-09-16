@@ -138,9 +138,13 @@ def _safe_sid(sid: str) -> str:
     innocent session inherited (and was blocked by) another's run. When flattening
     changed anything, a short digest of the RAW id is appended — distinct raw ids
     therefore always get distinct files. Ordinary uuid-shaped ids are unchanged, so
-    no existing record is renamed. ⚠️ `.claude/hooks/final_gate_stop.py` carries a
-    byte-identical copy (it must not import this module — see its comment); the
-    agreement is pinned by ``test_hook_and_script_agree_on_every_record_filename``.
+    no existing record is renamed. ⚠️ TWO hooks carry a byte-identical copy, and neither may import
+    this module — `.claude/hooks/final_gate_stop.py` (see its comment) and, since 2026-09-16,
+    `scripts/sysadmin/quota_posture_hook.py`, which reads a run record on EVERY tool call in every
+    window on this box and cannot afford a 1,000-line import on that path (D-269). Each agreement is
+    pinned by its own parity grader — ``test_hook_and_script_agree_on_every_record_filename`` and
+    ``test_the_hook_sid_and_state_dir_copies_agree_with_command_run`` — because a copy is only ever
+    as safe as the thing that re-derives it.
     """
     safe = "".join(c if (c.isalnum() or c in "-_") else "_" for c in sid)
     if not safe:
