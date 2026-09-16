@@ -210,6 +210,32 @@ def test_red_holds_agent_only_without_a_live_run(tmp_path):
         ("python3 scripts/command_run.py start --command fabrik-review --phases 4", False),
         ("python3 scripts/command_run.py done --command fabrik-spec --evidence x", False),
         ("python3 scripts/command_run.py round --findings 0 --confirmed 0", False),
+        # ⚠️ every case below defeated the regex the review replaced, and the suite was fully green.
+        # A corpus that contains only the spellings the author thought of grades the author.
+        # a QUOTED script path made the hold VANISH — no match, no deny, a new run at RED
+        ('python3 "/opt/fabrik/scripts/command_run.py" start --command fabrik-spec', True),
+        ("python3 '/opt/fabrik/scripts/command_run.py' start --command fabrik-spec", True),
+        # a QUOTED name fell outside the value class, so the REVIEW FAMILY was denied
+        ("python3 scripts/command_run.py start --command 'fabrik-review'", False),
+        ('python3 scripts/command_run.py start --command "fabrik-review-scoped"', False),
+        # a decoy FIRST flag beat the real one, because argparse takes the LAST and the hold took
+        # the first
+        (
+            "python3 scripts/command_run.py start --command fabrik-review --command fabrik-spec",
+            True,
+        ),
+        # two starts on one line cannot be blessed by one name
+        (
+            "python3 scripts/command_run.py start --command fabrik-review ; "
+            "python3 scripts/command_run.py start --command fabrik-spec",
+            True,
+        ),
+        # the phrase inside a quoted MESSAGE is data — denying this denied a COMMIT, which is
+        # precisely what RED mandates
+        ('git commit -m "ran command_run.py start for the review" -- x', False),
+        ("echo 'reminder: command_run.py start --command fabrik-spec'", False),
+        ("python3 scripts/command_run.py start --command=fabrik-review", False),
+        ("python3 scripts/command_run.py start --command=fabrik-spec", True),
     ],
 )
 def test_red_holds_a_new_command_start_but_not_the_review_that_finishes(tmp_path, command, denied):
@@ -387,6 +413,99 @@ def test_the_two_notifier_readers_answer_about_the_same_file(tmp_path, monkeypat
     )
 
 
+def test_amber_is_announced_again_after_a_red_excursion(tmp_path):
+    """C9b — a session that drops to RED and comes back to AMBER hears it again.
+
+    The marker only ever accumulated, so the second AMBER was silent — and nothing pruned these
+    files either: one per session per band, forever, in the state dir the tick reads, with no owner.
+    Clearing on the band change does both jobs, and it does them exactly when the fact stops holding.
+    """
+    state, runs = tmp_path / "state", tmp_path / "runs"
+    runs.mkdir()
+    call = {"hook_event_name": "PreToolUse", "tool_name": "Bash", "session_id": "s1"}
+
+    _posture(state, band="AMBER")
+    assert "additionalContext" in _hook(call, state=state, runs=runs).stdout
+    assert _hook(call, state=state, runs=runs).stdout.strip() == "", "said twice in one band"
+
+    _posture(state, band="RED")
+    _hook(call, state=state, runs=runs)
+    assert not list(state.glob("quota-posture-said-*")), "the marker outlived its band"
+
+    _posture(state, band="AMBER")
+    assert "additionalContext" in _hook(call, state=state, runs=runs).stdout, (
+        "AMBER after a RED excursion was never announced again"
+    )
+
+
+def test_a_stale_run_record_does_not_license_fan_out_at_red(tmp_path):
+    """C3b — a record has to be LIVE, not merely present.
+
+    An abandoned `running` record from a crashed session used to keep the `Agent` carve-out open
+    forever. The Stop hook applies a 12-hour bound to the same file; so does this now.
+    """
+    state, runs = tmp_path / "state", tmp_path / "runs"
+    runs.mkdir()
+    _posture(state, band="RED")
+    rec = runs / "s1.json"
+    rec.write_text(json.dumps({"state": "running"}), encoding="utf-8")
+    call = {"hook_event_name": "PreToolUse", "tool_name": "Agent", "session_id": "s1"}
+    assert _hook(call, state=state, runs=runs).stdout.strip() == "", (
+        "a fresh record keeps its seats"
+    )
+
+    old = time.time() - (13 * 3600)
+    os.utime(rec, (old, old))
+    out = _hook(call, state=state, runs=runs).stdout
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny", out
+
+
+def test_the_deny_names_the_window_that_binds_this_session(tmp_path):
+    """C3c — the deny message is the operator-facing evidence, so it must name the right window.
+
+    It used to infer Fable-ness by comparing `band == band_fable`, which is ALWAYS true at RED:
+    `band_fable` is the hottest INCLUDING Fable. Every RED deny therefore reported the Fable window,
+    to Opus and Sonnet sessions alike.
+    """
+    state, runs = tmp_path / "state", tmp_path / "runs"
+    runs.mkdir()
+    _posture(state, band="RED", band_fable="RED")
+    call = {"hook_event_name": "PreToolUse", "tool_name": "Agent", "session_id": "s1"}
+    reason = json.loads(_hook(call, state=state, runs=runs).stdout)["hookSpecificOutput"][
+        "permissionDecisionReason"
+    ]
+    assert "five_hour" in reason and "fable" not in reason, reason
+
+    t = tmp_path / "t.jsonl"
+    t.write_text(
+        json.dumps({"type": "assistant", "message": {"model": "claude-fable-5-1"}}),
+        encoding="utf-8",
+    )
+    reason = json.loads(_hook(dict(call, transcript_path=str(t)), state=state, runs=runs).stdout)[
+        "hookSpecificOutput"
+    ]["permissionDecisionReason"]
+    assert "five_hour" in reason, reason  # the fixture's hottest_fable is five_hour
+
+
+def test_the_session_model_is_the_last_assistant_entry_not_the_last_model_string(tmp_path):
+    """C8b — a structured tool result AFTER the final assistant turn can carry a model of its own.
+
+    The substring version picked it up, so an Opus session whose last tool result mentioned a Fable
+    model was banded on the Fable window and could be denied at RED on a window that does not bind
+    it. The scan is line-wise and reads only entries whose `type` is `assistant`.
+    """
+    mod = _load()
+    t = tmp_path / "t.jsonl"
+    t.write_text(
+        json.dumps({"type": "assistant", "message": {"model": "claude-opus-5"}})
+        + "\n"
+        + json.dumps({"type": "user", "toolUseResult": {"model": "claude-fable-5-1"}})
+        + "\n",
+        encoding="utf-8",
+    )
+    assert mod._session_model(str(t)) == "claude-opus-5"
+
+
 def test_a_non_finite_timestamp_is_unreadable_never_eternally_fresh(tmp_path):
     """C1b — a posture whose `ts` is a bare NaN must read as UNREADABLE, not as fresh forever.
 
@@ -558,6 +677,63 @@ def test_the_tick_warns_when_the_posture_hook_is_not_wired(tmp_path, monkeypatch
     files[2].write_text(json.dumps({"hooks": {}}), encoding="utf-8")
     warns = cr._posture_hook_wiring_warnings()
     assert len(warns) == 1 and "1 of 6" in warns[0], warns
+
+
+def test_the_installer_never_claims_ok_about_a_file_it_did_not_fix(tmp_path):
+    """C11c — an event key holding a non-list is REPORTED, not silently skipped.
+
+    `setdefault` returns the EXISTING value when the key is present, so the isinstance guard used to
+    `continue` without recording the event: the file then said `OK (already wired)` on every later
+    run while `check()` correctly said MISSING forever. An installer that reports OK about something
+    it did not fix is worse than one that crashes — the operator has no reason to look again.
+    """
+    mod = _load()
+    p = tmp_path / "settings.json"
+    p.write_text(json.dumps({"hooks": {"UserPromptSubmit": "not-a-list"}}), encoding="utf-8")
+
+    first = mod.install([p])[0][1]
+    assert "SKIPPED" in first and "UserPromptSubmit" in first, first
+    second = mod.install([p])[0][1]
+    assert "OK (already wired)" not in second, (
+        "the second run claimed OK about the event it never fixed"
+    )
+    assert "SKIPPED" in second and "UserPromptSubmit" in second, second
+    # check() is the honest one and must still disagree with nothing
+    assert "MISSING" in mod.check([p])[0][1]
+    # the operator's own value is never rewritten
+    assert json.loads(p.read_text())["hooks"]["UserPromptSubmit"] == "not-a-list"
+
+
+def test_two_installs_in_one_second_keep_both_backups(tmp_path, monkeypatch):
+    """C11d — the backup name is unique per process, because it is the only undo on offer.
+
+    It carried a second-resolution stamp while the staging file was already pid-qualified, so two
+    installs of one file inside the same wall-clock second destroyed the earlier backup silently.
+    """
+    mod = _load()
+    monkeypatch.setattr(mod.time, "strftime", lambda *_a, **_k: "FROZEN")
+    p = tmp_path / "settings.json"
+    p.write_text(json.dumps({"hooks": {}}), encoding="utf-8")
+    mod.install([p])
+    p.write_text(json.dumps({"hooks": {}, "marker": "second"}), encoding="utf-8")
+    real_pid = os.getpid
+    monkeypatch.setattr(mod.os, "getpid", lambda: real_pid() + 1)
+    mod.install([p])
+    backups = sorted(q.name for q in tmp_path.glob("settings.json.backup.*"))
+    assert len(backups) == 2, backups
+
+
+def test_the_settings_denominator_counts_distinct_files(tmp_path, monkeypatch):
+    """C11e — a repeated path would inflate `--check`'s own denominator and print one file twice.
+
+    That is the count-without-its-denominator defect this repo's contract names, committed by the
+    very thing that reports the count.
+    """
+    mod = _load()
+    a = tmp_path / "a.json"
+    a.write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("QUOTA_POSTURE_SETTINGS", os.pathsep.join([str(a), "", str(a)]))
+    assert mod.settings_files() == [a], mod.settings_files()
 
 
 def test_settings_files_skips_the_active_symlink(tmp_path, monkeypatch):

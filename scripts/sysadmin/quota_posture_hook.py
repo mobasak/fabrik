@@ -36,10 +36,19 @@ AMBER (>=85) 6.0%, RED (>=90) 4.7%, the 98 flip line 0. Signal, not wallpaper.
 
 ⚠️ **THE COBRA CHECK (D-253).** The cheapest way to satisfy "no heavy dispatch at RED"
 WITHOUT producing the outcome is to finish the current work fast and dispatch after the
-flip — which IS the wanted behaviour, so the measure and the goal agree. The one gaming
-path is spending RED on many small non-``Agent`` calls, and that burns quota visibly on
-the injected line every prompt. NO second gate is added for it: a gate on tool COUNT
-would punish exactly the checkpoint work RED exists to protect.
+flip — which IS the wanted behaviour, so the measure and the goal agree. Spending RED on
+many small non-``Agent`` calls is the gaming path that remains, and it burns quota visibly
+on the injected line every prompt; NO second gate is added for it, because a gate on tool
+COUNT would punish exactly the checkpoint work RED exists to protect.
+
+⚠️ The FIRST draft of this block named that as "the one gaming path", and the review found
+two far cheaper ones that a regex predicate could not see: QUOTE the script path, or lead
+with a decoy ``--command fabrik-review`` before the real one. Both defeated the hold
+entirely. Naming the wrong cheapest path is worse than naming none, because it tells the
+next reader the question has already been asked — so the answer here is now a property of
+the PREDICATE (it tokenises with ``shlex`` and reads the LAST ``--command`` the way argparse
+does) rather than a claim in prose, and the bypass corpus in the graders is what keeps it
+true.
 
 Env keys, declared here and nowhere else:
   ``ROTATE_STATE_DIR``       the state dir holding the posture file and the stamp
@@ -55,12 +64,16 @@ import json
 import math
 import os
 import re
+import shlex
 import shutil
 import sys
 import time
 from pathlib import Path
 
 _STALE_S_DEFAULT = 900.0
+# the same bound `.claude/hooks/final_gate_stop.py` applies to the same record: a run nobody has
+# touched in half a day is not a session in flight, and treating it as one licensed fan-out at RED
+_RUN_RECORD_STALE_S = 12 * 3600.0
 _TAIL_BYTES = 64 * 1024
 _ROTATE = "/opt/fabrik/scripts/sysadmin/claude_rotate.py"
 _REMEDY = f"run python3 {_ROTATE} --status"
@@ -220,8 +233,6 @@ def _unavailable(reason: str) -> str:
 
 # ── the session's model ────────────────────────────────────────────────────────────
 
-_MODEL_RE = re.compile(r'"model"\s*:\s*"([^"]+)"')
-
 
 def _session_model(transcript_path: object) -> str | None:
     """The model of the LAST assistant entry, from the transcript's final 64 KiB.
@@ -237,47 +248,88 @@ def _session_model(transcript_path: object) -> str | None:
     try:
         with open(transcript_path, "rb") as fh:
             fh.seek(0, os.SEEK_END)
-            fh.seek(max(0, fh.tell() - _TAIL_BYTES))
+            size = fh.tell()
+            fh.seek(max(0, size - _TAIL_BYTES))
             tail = fh.read().decode("utf-8", "ignore")
     except (OSError, ValueError):
         return None
-    found = _MODEL_RE.findall(tail)
-    return found[-1] if found else None
+    lines = tail.splitlines()
+    # the first line is dropped ONLY when the read was actually truncated, because that is the one
+    # the slice cut in half. Dropping it unconditionally threw away the whole transcript whenever
+    # the file fit inside the window — which is every short session, and every test fixture.
+    if size > _TAIL_BYTES:
+        lines = lines[1:]
+    # ⚠️ The LAST ASSISTANT ENTRY, scanned line-wise — not the last `"model"` string anywhere in the
+    # tail. A structured tool result following the final assistant turn can carry a `model` field of
+    # its own (a subagent's, say), and the substring version picked it up: an Opus session whose
+    # last tool result mentioned a Fable model was banded on the Fable window and could be DENIED at
+    # RED on a window that does not bind it.
+    for line in reversed(lines):
+        try:
+            entry = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(entry, dict) and entry.get("type") == "assistant":
+            msg = entry.get("message")
+            model = msg.get("model") if isinstance(msg, dict) else None
+            return model if isinstance(model, str) else None
+    return None
 
 
-def _band_for_session(posture: dict, transcript_path: object) -> str | None:
-    """The band THIS session is in: on a Fable model the Fable window joins the
+def _band_for_session(posture: dict, transcript_path: object) -> tuple[str | None, bool]:
+    """``(band, is_fable)`` for THIS session: on a Fable model the Fable window joins the
     hottest-of, so ``band_fable`` governs; on any other model, or an unknown one, the
-    plain ``band`` does. The LINE shows the Fable figure either way."""
+    plain ``band`` does. The LINE shows the Fable figure either way.
+
+    The flag is returned rather than re-inferred downstream, because the obvious inference —
+    comparing the two bands — is always true at RED and named the wrong window in every deny.
+    """
     act = posture.get("active") if isinstance(posture.get("active"), dict) else {}
     band = act.get("band")
     model = _session_model(transcript_path)
+    # ⚠️ The prefix is grounded, not guessed, and the two sides of this system identify Fable from
+    # DIFFERENT sources, which is why it is worth writing down. The POSTURE names the window from
+    # the usage API's `scope.model.display_name == "Fable"`; the SESSION names its model from the
+    # transcript's `"model"` field, which carries the API model id — `claude-fable-5-1` for Fable
+    # 5.1, beside `claude-opus-5`, `claude-sonnet-5` and `claude-haiku-4-5-20251001`. The prefix
+    # match covers the whole family, so a point release does not silently stop banding. If the id
+    # scheme ever changes, this branch goes quiet rather than wrong: an unrecognised model keeps the
+    # plain band, so the failure direction is a Fable session under-banded, never anything
+    # over-held.
     if isinstance(model, str) and model.startswith("claude-fable"):
         fb = act.get("band_fable")
         if isinstance(fb, str):
-            return fb
-    return band if isinstance(band, str) else None
+            return fb, True
+    return (band if isinstance(band, str) else None), False
 
 
 # ── the RED predicate ──────────────────────────────────────────────────────────────
 
-_START_RE = re.compile(r"command_run\.py\s+start\b")
-_COMMAND_RE = re.compile(r"--command[=\s]+([A-Za-z0-9._-]+)")
+_SEPARATORS = re.compile(r"[;&|\n]+")
 
 
 def _has_live_run(sid: object) -> bool:
     """True when this session has a run record that is READABLE and says ``running``.
 
-    An unreadable record is not a live run here. The caller only ever uses this to
-    ALLOW, so False is the conservative direction — and a session held at RED can always
-    clear it by starting (or repairing) its own run record, which the review family is
-    explicitly permitted to do.
+    An unreadable record is not a live run here. The caller only ever uses this to ALLOW, so False
+    is the conservative direction — and a session held at RED can clear it by starting (or
+    repairing) its own run record, which the review family is permitted to do. ⚠️ That last clause
+    was FALSE as shipped: a quoted ``--command 'fabrik-review'`` read as an unnamed start and was
+    denied, so the escape the sentence promised did not exist for anyone who quotes their arguments.
+
+    ⚠️ A record has to be live, not merely present. `final_gate_stop.py` applies a 12 h staleness
+    bound to the same file and this reader applied none, so a crashed session's abandoned `running`
+    record licensed unlimited fan-out at RED forever. The same bound is applied here, from the same
+    reasoning: a record nobody has touched in half a day is not a session in flight.
     """
     if not isinstance(sid, str) or not sid:
         return False
+    p = _state_dir() / f"{_safe_sid(sid)}.json"
     try:
-        raw = (_state_dir() / f"{_safe_sid(sid)}.json").read_text(encoding="utf-8")
-        return json.loads(raw).get("state") == "running"
+        rec = json.loads(p.read_text(encoding="utf-8"))
+        if rec.get("state") != "running":
+            return False
+        return (time.time() - p.stat().st_mtime) <= _RUN_RECORD_STALE_S
     except (*_READ_ERRORS, AttributeError):
         return False
 
@@ -285,14 +337,55 @@ def _has_live_run(sid: object) -> bool:
 def _is_new_run_start(command: object) -> tuple[bool, str | None]:
     """``(True, name)`` when this Bash command STARTS a fresh run record.
 
-    Matched on the SCRIPT PATH plus the verb, never on a leading token, so every
-    legitimate spelling lands: a bare ``python3 scripts/command_run.py start``, a
-    ``uv run`` prefix, a ``cd /opt/x && …`` chain, an absolute path, reordered flags.
+    ⚠️ TOKENISED with ``shlex``, never matched as a substring, and the review that forced this
+    rewrite found three HIGH defects in the regex version — all of them in the direction that
+    matters, because this predicate is the only thing standing between RED and a fresh fan-out:
+
+    * a QUOTED script path (``python3 "…/command_run.py" start``) failed the whitespace-after-`.py`
+      match, so the hold VANISHED and any new run started at RED;
+    * a QUOTED ``--command 'fabrik-review'`` fell outside the value class, so the name read as
+      ``None`` and the review family — the one start RED must allow — was DENIED;
+    * the regex took the FIRST ``--command`` while ``command_run.py``'s argparse takes the LAST, so
+      a decoy ``--command fabrik-review`` in front of the real one allowed anything.
+
+    And a substring match had no command position at all, so ``git commit -m "ran command_run.py
+    start …"`` was denied — a COMMIT, which is exactly what RED mandates. Tokenising fixes that for
+    free: the phrase inside a quoted argument is ONE token and matches nothing.
+
+    Every legitimate spelling still lands, now by construction rather than by hope: a bare
+    invocation, a ``uv run`` prefix, an env assignment, a ``cd … &&`` chain, an absolute or quoted
+    path, reordered flags, ``--command=name``. Each of those is a case in the graders' corpus, which
+    is the only reason that sentence is worth anything — the previous version made the same claim
+    and three of the cases in it were false.
+
+    FAIL-CLOSED on what cannot be read: an unparseable line that mentions the script is treated as
+    an unnamed start and denied. A hold that gives up on the hard cases is not a hold.
     """
-    if not isinstance(command, str) or not _START_RE.search(command):
+    if not isinstance(command, str) or "command_run.py" not in command:
         return False, None
-    m = _COMMAND_RE.search(command)
-    return True, (m.group(1) if m else None)
+    starts, names = 0, []
+    for segment in _SEPARATORS.split(command):
+        try:
+            tokens = shlex.split(segment, comments=False)
+        except ValueError:
+            if "command_run.py" in segment:
+                return True, None  # unreadable and it names the script ⇒ unnamed start ⇒ denied
+            continue
+        for i, tok in enumerate(tokens):
+            if tok.rsplit("/", 1)[-1] == "command_run.py" and tokens[i + 1 : i + 2] == ["start"]:
+                starts += 1
+            if tok == "--command" and i + 1 < len(tokens):
+                names.append(tokens[i + 1])
+            elif tok.startswith("--command="):
+                names.append(tok.split("=", 1)[1])
+    if not starts:
+        return False, None
+    if starts > 1:
+        # two starts on one line cannot be blessed by one name; judged as unnamed, so denied
+        return True, None
+    # argparse resolves a repeated flag to the LAST occurrence, so the hold must read it the same
+    # way — reading the first is what let a decoy through
+    return True, (names[-1] if names else None)
 
 
 def decide(
@@ -317,10 +410,17 @@ def decide(
     return "pass", ""
 
 
-def _deny_reason(posture: dict, band: str, what: str) -> str:
+def _deny_reason(posture: dict, band: str, what: str, *, is_fable: bool = False) -> str:
+    """The operator-facing evidence for a hold, so the window it names has to be the one that binds.
+
+    ⚠️ It used to infer Fable-ness by comparing `band == band_fable`, which is ALWAYS true at RED:
+    `band_fable` is the hottest INCLUDING Fable, so whenever the plain band is RED the Fable one is
+    too. Every RED deny therefore reported the Fable window, to Opus and Sonnet sessions alike — a
+    window that does not bind them. The caller already knows the model, so it says so.
+    """
     act = posture.get("active") if isinstance(posture.get("active"), dict) else {}
     wins = act.get("windows") if isinstance(act.get("windows"), dict) else {}
-    hot = act.get("hottest_fable") if band == act.get("band_fable") else act.get("hottest")
+    hot = act.get("hottest_fable") if is_fable else act.get("hottest")
     w = wins.get(hot) if isinstance(hot, str) else None
     return (
         f"QUOTA {band} on {act.get('slug') or 'the active account'} — "
@@ -329,6 +429,23 @@ def _deny_reason(posture: dict, band: str, what: str) -> str:
         f"needs is allowed, and so is the review of the change you are checkpointing. {_REMEDY} — "
         f"it is the authority on when you resume, not this line's forecast."
     )
+
+
+def _clear_said(sid: object) -> None:
+    """Drop this session's AMBER marker, called on any band that is not AMBER.
+
+    ⚠️ Two jobs, one line. A session that went AMBER, dropped to RED and came back to AMBER was
+    never told again, because the marker only ever accumulated. And nothing pruned these files: one
+    per session per band, forever, in the state dir the tick reads, with no owner — the plan called
+    for a prune in the tick and there wasn't one. Clearing on the band change is better than a
+    timed prune, because it is exactly when the fact stops being true.
+    """
+    if not isinstance(sid, str) or not sid:
+        return
+    try:
+        (_rotate_state_dir() / f"quota-posture-said-{_safe_sid(sid)}-AMBER").unlink()
+    except OSError:
+        pass  # absent is the normal case; unreadable is not worth a word on the tool path
 
 
 def _said_already(sid: object, band: str) -> bool:
@@ -369,7 +486,10 @@ def settings_files() -> list[Path]:
     """
     raw = os.environ.get("QUOTA_POSTURE_SETTINGS")
     if raw:
-        return [Path(p) for p in raw.split(os.pathsep) if p]
+        # de-duplicated: a repeated path would inflate `--check`'s own denominator ("0 of 2" for one
+        # real file) and print one file's verdict twice, which is the count-without-its-denominator
+        # defect this repo's contract names, committed by the thing that reports counts.
+        return [Path(p) for p in dict.fromkeys(x for x in raw.split(os.pathsep) if x)]
     out = [Path.home() / ".claude" / "settings.json"]
     try:
         root = Path.home() / ".claude-fleet"
@@ -426,24 +546,39 @@ def install(paths: list[Path]) -> list[tuple[Path, str]]:
             out.append((p, "SKIPPED (not the expected shape — not overwritten)"))
             continue
         hooks = cfg["hooks"]
-        added = []
+        added, blocked = [], []
         for event in _EVENTS:
             if _is_wired(cfg, event):
                 continue
+            # ⚠️ `setdefault` returns the EXISTING value when the key is present, so an event key
+            # holding a non-list used to fall through this guard, skip the event WITHOUT recording
+            # it, and let the file report `OK (already wired)` forever while `check()` said MISSING.
+            # A verdict that says OK about something it did not fix is worse than a crash: the
+            # operator has no reason to look again. Say it instead, and never rewrite their value.
+            if event in hooks and not isinstance(hooks[event], list):
+                blocked.append(event)
+                continue
             lst = hooks.setdefault(event, [])
             if not isinstance(lst, list):
+                blocked.append(event)
                 continue
             lst.append(
                 {"hooks": [{"type": "command", "command": f"python3 {_HOOK_PATH}", "timeout": 10}]}
             )
             added.append(event)
+        if blocked and not added:
+            out.append((p, f"SKIPPED ({', '.join(blocked)} is not a list — not overwritten)"))
+            continue
         if not added:
             out.append((p, "OK (already wired)"))
             continue
         try:
             if p.exists():
+                # ⚠️ pid-qualified like the staging name below, and for a stronger reason: two
+                # installs of one file inside the same wall-clock second used to overwrite each
+                # other's backup, and this backup is the ONLY undo this installer offers.
                 stamp = time.strftime("%Y%m%d-%H%M%S")
-                shutil.copy2(p, p.with_name(p.name + f".backup.{stamp}"))
+                shutil.copy2(p, p.with_name(p.name + f".backup.{stamp}.{os.getpid()}"))
             p.parent.mkdir(parents=True, exist_ok=True)
             tmp = p.with_name(f"{p.name}.{os.getpid()}.tmp")
             tmp.write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
@@ -451,7 +586,10 @@ def install(paths: list[Path]) -> list[tuple[Path, str]]:
         except OSError as exc:
             out.append((p, f"FAILED ({type(exc).__name__})"))
             continue
-        out.append((p, f"WIRED ({', '.join(added)})"))
+        verdict = f"WIRED ({', '.join(added)})"
+        if blocked:
+            verdict += f" · SKIPPED {', '.join(blocked)} (not a list)"
+        out.append((p, verdict))
     return out
 
 
@@ -488,7 +626,7 @@ def main(argv: list[str] | None = None) -> int:
         if posture is None:
             print(_unavailable(reason))
         else:
-            band = _band_for_session(posture, payload.get("transcript_path"))
+            band, _is_fable = _band_for_session(posture, payload.get("transcript_path"))
             print(_format_line(posture, band))
         return 0
 
@@ -499,12 +637,17 @@ def main(argv: list[str] | None = None) -> int:
     # second deny for a call `quota_stop.py` is already denying
     if _stamp_exists() or posture is None:
         return 0
-    band = _band_for_session(posture, payload.get("transcript_path"))
+    band, is_fable = _band_for_session(posture, payload.get("transcript_path"))
     tool = str(payload.get("tool_name") or "")
     ti = payload.get("tool_input")
     command = ti.get("command") if isinstance(ti, dict) else None
     sid = payload.get("session_id")
     action, what = decide(band, tool, command, sid=sid, stamp=False)
+    # ⚠️ Any band that is NOT amber clears this session's amber marker, which does two jobs with one
+    # line: a session that drops to RED and comes back to AMBER hears it again (it never did), and
+    # the markers stop accumulating in the state dir with nobody to prune them.
+    if band != "AMBER":
+        _clear_said(sid)
     if action == "deny":
         print(
             json.dumps(
@@ -512,7 +655,9 @@ def main(argv: list[str] | None = None) -> int:
                     "hookSpecificOutput": {
                         "hookEventName": "PreToolUse",
                         "permissionDecision": "deny",
-                        "permissionDecisionReason": _deny_reason(posture, band or "RED", what),
+                        "permissionDecisionReason": _deny_reason(
+                            posture, band or "RED", what, is_fable=is_fable
+                        ),
                     }
                 }
             )

@@ -160,7 +160,6 @@ def box() -> dict:
     return out
 
 
-
 # ⚠️ `QUOTA_POSTURE_STALE_S` is read here, in `scripts/sysadmin/quota_posture_hook.py` and nowhere
 # else. Three readers, ONE env key and one default: a second hardcoded 900 is how two readers come
 # to disagree about whether the same file is stale. `tests/test_dispatch_headroom.py` asserts this
@@ -216,7 +215,8 @@ def quota() -> dict:
         posture = payload.get("posture")
         accounts = pic.get("accounts") or []
         active = pic.get("active")
-        act = next((a for a in accounts if a.get("email") == active), None)
+        act_row = next((a for a in accounts if a.get("email") == active), None)
+        act = act_row
         # a reading of None is UNKNOWN, never 0 % — `or 0` priced an active account with no
         # reading as cool and set no quota cap at all (round-5 finding)
         vals = (
@@ -255,8 +255,16 @@ def quota() -> dict:
         # preferring it removes a second derivation rather than adding one. A stale or absent
         # posture changes nothing — the picture's values stand, which is today's behaviour.
         fresh = _fresh_posture(posture)
-        if fresh is not None:
-            act = fresh.get("active") if isinstance(fresh.get("active"), dict) else {}
+        act = fresh.get("active") if isinstance((fresh or {}).get("active"), dict) else {}
+        # ⚠️ WHOSE posture is it? The posture is keyed by SLUG and the picture by EMAIL, and nothing
+        # compared them until now. Right after a flip the previous tick's posture is still inside the
+        # staleness window, so a fresh-but-stale-pointer posture could hand the seat budget a band
+        # for the account we just LEFT — measured in both directions, and the dangerous one is
+        # fail-open: the picture's active account at 96% reported GREEN, which would license a heavy
+        # fan-out on a hot account. A posture about someone else is no better than no posture, so it
+        # is treated as none and the picture's own values stand.
+        same_account = bool(act.get("slug")) and act["slug"] in ((act_row or {}).get("slugs") or [])
+        if fresh is not None and same_account:
             hot = _posture_hot(act)
             if hot is not None:
                 out["hottest_pct"] = hot

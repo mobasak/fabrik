@@ -83,9 +83,23 @@ def test_a_missing_or_malformed_posture_renders_nothing():
 
 def test_only_the_active_account_gets_a_forecast():
     """C13d — a standby is not burning fleet quota, so a forecast for it is a number with nothing
-    behind it. The row renderer gates on `is_active`."""
+    behind it.
+
+    Graded through the RENDERED ROW, not by grepping the source: an assertion on source text passes
+    whenever the string is present and says nothing about whether the branch is reached.
+    """
     mod = _load()
-    src = _SRC.read_text(encoding="utf-8")
-    assert src.count("_posture_sub(posture, 'five_hour') if is_active else ''") == 1
-    assert src.count("_posture_sub(posture, 'seven_day') if is_active else ''") == 1
-    assert src.count("_posture_sub(posture, 'fable') if is_active else ''") == 1
+    acct = {
+        "email": "mob@ocoron.com",
+        "slugs": ["mob"],
+        "source": "live",
+        "five_hour": {"utilization": 71.0, "resets_at_epoch": 9_999_999_999.0},
+        "seven_day": {"utilization": 44.0, "resets_at_epoch": 9_999_999_999.0},
+    }
+    active_row = mod._row(acct, "mob", None, _posture())
+    standby_row = mod._row(acct, "someone-else", None, _posture())
+    assert "0.60%/m" in active_row, active_row
+    assert "wall in ~48m" in active_row
+    assert "0.60%/m" not in standby_row, "a standby must carry no forecast"
+    # and the row renders identically with no posture at all — the board predates it
+    assert "0.60%/m" not in mod._row(acct, "mob", None, None)

@@ -3749,9 +3749,17 @@ def _posture_hook_wiring_warnings() -> list[str]:
     `QUOTA:` line at all, which the contract tells the agent means exactly this. The tick is the one
     process that runs regardless of what any window is doing, so it is where the gap can be noticed.
 
-    ADVISORY, never a block — a file the operator deliberately left unwired is their business. The
-    settings list comes from the hook itself, so the two cannot enumerate different files, and an
-    absent hook script yields no warning at all rather than a false one.
+    ADVISORY, never a block — a file the operator deliberately left unwired is their business, and
+    an absent hook script yields no warning at all rather than a false one.
+
+    ⚠️ The settings enumeration below is a deliberate COPY of `quota_posture_hook.settings_files()`,
+    not a call: the `scripts/aro-wake/` twin ships as ONE file and can import nothing. That is the
+    same trade the hook itself makes for its `command_run` copies, and it is only safe with the same
+    guard — `tests/test_quota_posture.py` re-derives both enumerations over the same fixtures and
+    asserts they agree, including the `active` symlink exclusion. An earlier draft of this docstring
+    claimed the list "comes from the hook itself, so the two cannot enumerate different files",
+    which was simply false of a hand-copy; a claim that a copy cannot drift is the one thing a copy
+    can never promise on its own.
     """
     # ⚠️ Through `_opt_dir()`, not a hardcoded absolute path: the same seam the mail sender uses, so
     # one pin covers this too and a test can exercise the warning instead of silently getting none.
@@ -3780,8 +3788,12 @@ def _posture_hook_wiring_warnings() -> list[str]:
             unwired += 1
             continue
         hooks = cfg.get("hooks") if isinstance(cfg, dict) else None
+        # the SAME normalisation `quota_posture_hook._is_wired` applies: a non-list at the event key
+        # is UNWIRED, not "whatever json.dumps makes of it" — two checkers that normalise differently
+        # disagree about the same file, which is the drift the copy above is guarded against.
         if not isinstance(hooks, dict) or any(
-            "quota_posture_hook.py" not in json.dumps(hooks.get(ev) or [])
+            not isinstance(hooks.get(ev), list)
+            or "quota_posture_hook.py" not in json.dumps(hooks.get(ev))
             for ev in ("UserPromptSubmit", "PreToolUse")
         ):
             unwired += 1

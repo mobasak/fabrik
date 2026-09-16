@@ -26,7 +26,7 @@ def _load():
     return mod
 
 
-def _payload(*, posture_ts, hot=92.0, band="RED", picture_hot=60.0):
+def _payload(*, posture_ts, hot=92.0, band="RED", picture_hot=60.0, posture_slug="ozgurbasak"):
     """A `--status --json` payload whose PICTURE is cool and whose POSTURE is hot, so any
     assertion below distinguishes which one the budget actually read."""
     doc = {
@@ -35,6 +35,7 @@ def _payload(*, posture_ts, hot=92.0, band="RED", picture_hot=60.0):
             "accounts": [
                 {
                     "email": "ozgurbasak@ocoron.com",
+                    "slugs": ["ozgurbasak"],
                     "state": "active",
                     "session_pct": picture_hot,
                     "weekly_pct": 10.0,
@@ -57,7 +58,7 @@ def _payload(*, posture_ts, hot=92.0, band="RED", picture_hot=60.0):
             "schema": 1,
             "ts": posture_ts,
             "active": {
-                "slug": "ozgurbasak",
+                "slug": posture_slug,
                 "windows": {"five_hour": {"utilization": hot}, "seven_day": {"utilization": 10.0}},
                 "hottest": "five_hour",
                 "band": band,
@@ -107,6 +108,40 @@ def test_a_malformed_posture_timestamp_is_absent_never_fresh(monkeypatch, ts):
     q = mod.quota()
     assert q["hottest_pct"] == 60.0, (ts, q)
     assert "band" not in q
+
+
+def test_a_posture_about_another_account_never_steers_the_seat_budget(monkeypatch):
+    """C12e — WHOSE posture is it? The posture is keyed by SLUG and the picture by EMAIL.
+
+    Right after a flip the previous tick's posture is still inside the staleness window, so a
+    fresh-but-stale-pointer posture would hand the budget a band for the account we just LEFT.
+    Both directions are graded, and the dangerous one is the second: a hot active account reported
+    GREEN would license a heavy fan-out on the very account that is nearly out of quota.
+    """
+    mod = _load()
+
+    # over-restrictive: cool active account, RED posture about someone else
+    _pin(mod, monkeypatch, _payload(posture_ts=time.time(), posture_slug="someone-else"))
+    q = mod.quota()
+    assert q["hottest_pct"] == 60.0, q
+    assert "band" not in q, "a posture about another account must not set the band"
+
+    # fail-OPEN, the one that matters: hot active account, cool posture about someone else
+    _pin(
+        mod,
+        monkeypatch,
+        _payload(
+            posture_ts=time.time(), posture_slug="someone-else", hot=5.0, band="GREEN",
+            picture_hot=96.0,
+        ),
+    )
+    q = mod.quota()
+    assert q["hottest_pct"] == 96.0, f"the picture's hot reading was overwritten by a cool one: {q}"
+    assert "band" not in q
+
+    # and the matching slug still wins, or the check would have broken the feature
+    _pin(mod, monkeypatch, _payload(posture_ts=time.time()))
+    assert mod.quota()["band"] == "RED"
 
 
 def test_the_staleness_bound_is_the_one_env_key_the_hook_reads(monkeypatch):
