@@ -221,7 +221,7 @@ python3 scripts/sysadmin/claude_rotate.py --status [--json]
 - `--json` carries `active`, `weekly_cap`/`cap_walled` per row, `pause`, and `fleet_warnings`.
 
 **The `posture:` line and the posture file (2026-09-16, D-269).** Under `last flip:` the board prints ONE
-more line — `posture: <band> · 5h <n>% (<forecast>) · weekly <n>% (<forecast>) · Fable <n>% · burn 5h <n>%/m ·
+more line — `posture: <band> · 5h <n>% <forecast> · weekly <n>% <forecast> · Fable <n>% · burn 5h <n>%/m ·
 written <m>m ago` — read from `~/.claude/state/quota-posture.json` (`_posture_path()`), which the rotation tick
 writes atomically (tmp + `os.replace`) every cycle for the account the pointer names AFTER its flip leg ran:
 `schema` 1, `ts`, `active.slug`, and per window (`five_hour`, `seven_day`, `fable` when the probe reports a
@@ -548,4 +548,5 @@ means updating this page in the same change. This list is generated from those h
 - `scripts/sysadmin/claude_rotate.py`
 - `scripts/sysadmin/dispatch_headroom.py`
 - `scripts/sysadmin/quota_dashboard.py`
+- `scripts/sysadmin/quota_posture_hook.py`
 <!-- END related-scripts -->

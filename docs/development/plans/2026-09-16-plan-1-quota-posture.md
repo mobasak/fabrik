@@ -35,7 +35,7 @@ named so § Self-audit can walk the list.
 | # | Operator item | Delivered by |
 |---|---|---|
 | I1 | "all agents must see a dashboard, account tracking" — every agent, every repo, without running a command by hand | Phase C (the `QUOTA:` line on every prompt, box-level wiring reaches all `/opt` repos incl. fabrik-lib) |
-| I2 | "measure active usage and consumption" — live burn, not only the current % | Phase B (`burn_per_min` per window from a 30-minute sample ring) |
+| I2 | "measure active usage and consumption" — live burn, not only the current % | Phase B (`burn_per_min` per window from a 35-minute sample ring) |
 | I3 | "foresee when will the active 5h quota and weekly quota end" | Phase B (`minutes_to_wall`, `minutes_to_reset`, `reset_first` / `wall_first`) |
 | I4 | "all agents should keep an eye on it and adjust their work properly. slowdown, pause, finish fast" — a signal agents ACT on mechanically, graded before the wall | Phase A (the contract sentence per band) + Phase C (advise at AMBER, HOLD at RED — the operator's option 2) |
 | I5 | "fable 5 has its own usage limit weekly and if an agent is fable 5 it should also know this" | Phase B (the Fable window in the file) + Phase C (the hook keys the band on it when the transcript says the model is Fable) + Phase A (the contract tells a Fable session which figure is theirs) |
@@ -208,7 +208,7 @@ Steps:
 | B13 | the ring constants | the grader runs | `_RING_LEN == int(_RING_WINDOW_S // _TICK_PERIOD_S) + 1 == 8` | `test_posture_ring_length_is_derived_from_the_window_and_cadence` |
 | B11 | the probe reports a Fable window / does not | the tick runs | the tick row carries `fable_pct` / omits it; the row's write condition unchanged | `test_the_fleet_tick_ledgers_the_fable_reading_beside_the_weekly_one` |
 | B14 | two overlapping ticks | the writer publishes | the staging file carries the pid, and none outlives the publish | `test_posture_staging_file_is_per_process` (red-on-revert) |
-| B15 | an unwritable state dir | the writer runs | the failure RAISES, so the tick's own handler prints one line — never a silent freeze | `test_posture_write_failure_is_raised_not_swallowed` (red-on-revert) |
+| B15 | an unwritable state dir | the writer runs | the failure RAISES rather than being swallowed (the tick's own handler then prints one line — that half is the pre-existing call site, not this grader) | `test_posture_write_failure_is_raised_not_swallowed` (red-on-revert) |
 | B16 | a reset epoch already in the past, with a live burn | the forecast runs | `wall_first` — a past reset is stale data, not a reset that came first; `minutes_to_reset` stays clamped for display | `test_posture_a_past_reset_never_wins_the_forecast` (red-on-revert) |
 | B17 | a NaN or infinite reading | the window is read | no reading, so no band and no renderer ever sees one | `test_posture_a_non_finite_reading_is_no_reading` (red-on-revert) |
 

@@ -132,7 +132,7 @@ def _isolated_opt_dir(tmp_path, monkeypatch):
     eligible successor — exactly the state that branch exists for). That branch calls
     `_mailbox_repos()`, which enumerated the real `/opt` and
     handed every repo it found to `_drain_mail()`. About a thousand "URGENT fleet quota — stop
-    gracefully" notices landed in 48 live project mailboxes, ordering every repo on the box to stop
+    gracefully" notices landed in 49 live project mailboxes (mailboxes holding one, inbox and archive together; 48 received one in the six hours before the sweep), ordering every repo on the box to stop
     until 2027-01-22: the fixture's own `_usage_blob` weekly reset, mailed as fact.
 
     The seam was always advertised ("so tests have ONE seam") and nothing pinned it, so the first

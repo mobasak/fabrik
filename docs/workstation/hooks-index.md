@@ -246,6 +246,7 @@ means updating this page in the same change. This list is generated from those h
 - `scripts/enforcement/check_hooks_index.py`
 - `scripts/scratch_sweep.py`
 - `scripts/sysadmin/install_user_hooks.py`
+- `scripts/sysadmin/quota_posture_hook.py`
 - `scripts/sysadmin/selfwatch_check.py`
 - `scripts/sysadmin/user_hook_gate.py`
 <!-- END related-scripts -->

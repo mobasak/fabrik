@@ -160,6 +160,46 @@ def box() -> dict:
     return out
 
 
+
+# ⚠️ `QUOTA_POSTURE_STALE_S` is read here, in `scripts/sysadmin/quota_posture_hook.py` and nowhere
+# else. Three readers, ONE env key and one default: a second hardcoded 900 is how two readers come
+# to disagree about whether the same file is stale. `tests/test_dispatch_headroom.py` asserts this
+# function and the hook's agree on the same inputs.
+_POSTURE_STALE_S_DEFAULT = 900.0
+
+
+def _posture_stale_s() -> float:
+    raw = os.environ.get("QUOTA_POSTURE_STALE_S")
+    if not raw:
+        return _POSTURE_STALE_S_DEFAULT
+    try:
+        v = float(raw)
+    except (TypeError, ValueError):
+        return _POSTURE_STALE_S_DEFAULT
+    return v if math.isfinite(v) and v > 0 else _POSTURE_STALE_S_DEFAULT
+
+
+def _fresh_posture(posture: object) -> dict | None:
+    """The posture when it is a dict with a finite `ts` inside the staleness bound, else None."""
+    if not isinstance(posture, dict):
+        return None
+    ts = posture.get("ts")
+    if not (isinstance(ts, (int, float)) and not isinstance(ts, bool) and math.isfinite(ts)):
+        return None
+    age = time.time() - float(ts)
+    return posture if age <= _posture_stale_s() else None
+
+
+def _posture_hot(act: dict) -> float | None:
+    """The hottest reading the posture itself names, never a re-derivation from its windows."""
+    wins = act.get("windows") if isinstance(act.get("windows"), dict) else {}
+    hot_key = act.get("hottest")
+    w = wins.get(hot_key) if isinstance(hot_key, str) else None
+    u = w.get("utilization") if isinstance(w, dict) else None
+    ok = isinstance(u, (int, float)) and not isinstance(u, bool) and math.isfinite(u)
+    return float(u) if ok else None
+
+
 def quota() -> dict:
     """The active account's hottest window + eligible-standby count, via claude_rotate.py. The
     drain band is read from the picture, not re-hardcoded, so the two cannot drift."""
@@ -171,7 +211,9 @@ def quota() -> dict:
             timeout=60,
             check=True,
         ).stdout
-        pic = json.loads(raw).get("picture") or {}
+        payload = json.loads(raw)
+        pic = payload.get("picture") or {}
+        posture = payload.get("posture")
         accounts = pic.get("accounts") or []
         active = pic.get("active")
         act = next((a for a in accounts if a.get("email") == active), None)
@@ -197,7 +239,7 @@ def quota() -> dict:
             1 for a in accounts if a.get("state") == "eligible" and a.get("in_drain_band") is False
         )
         band = float((pic.get("thresholds") or {}).get("drain_band") or 85.0)
-        return {
+        out = {
             "ok": True,
             "active": active,
             "hottest_pct": hottest,
@@ -207,6 +249,20 @@ def quota() -> dict:
             "hold": bool(pic.get("hold")),
             "drain_band": band,
         }
+        # ⚠️ The posture WINS when it is fresh, and that is the point: the seat budget and the
+        # `QUOTA:` line every prompt carries must never name two different bands for one box. The
+        # posture's band is computed from the same thresholds by the tick that took the reading, so
+        # preferring it removes a second derivation rather than adding one. A stale or absent
+        # posture changes nothing — the picture's values stand, which is today's behaviour.
+        fresh = _fresh_posture(posture)
+        if fresh is not None:
+            act = fresh.get("active") if isinstance(fresh.get("active"), dict) else {}
+            hot = _posture_hot(act)
+            if hot is not None:
+                out["hottest_pct"] = hot
+            if isinstance(act.get("band"), str):
+                out["band"] = act["band"]
+        return out
     except Exception as exc:  # noqa: BLE001 — a malformed picture (a row that is not a dict, a
         # list where a dict was promised) crashed the CLI through main() (round-5 finding);
         # every probe fails SOFT to the floor and says why

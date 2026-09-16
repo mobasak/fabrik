@@ -2225,7 +2225,7 @@ def _opt_dir() -> Path:
     re-binds it to the real ``/opt`` after the fixture has run. On 2026-09-16 a grader drove
     ``_cmd_tick()`` into the fleet-exhausted branch with fixture data, ``_mailbox_repos`` walked the
     real ``/opt``, and roughly a thousand "stop gracefully" notices — naming the fixture's own
-    2027-01-22 reset as fact — were delivered into 48 live project mailboxes. A seam that only a
+    2027-01-22 reset as fact — were delivered into 49 live project mailboxes (the count of mailboxes holding one, inbox and archive together; 48 of them received one in the six hours before the sweep). A seam that only a
     lucky import order can pin is not a seam.
     """
     raw = os.environ.get("FABRIK_OPT_DIR")
