@@ -138,7 +138,7 @@ Steps:
 | A2 | fabrik-lib not checked out | the grader runs | the third-file half SKIPS with a stated reason; the hub/template half still grades | same test, `pytest.skip` branch (run once with `THIRD_CONTRACT` monkeypatched to a missing path) |
 | A3 | the D-175 bullet | the sentences are inserted | they sit after the WALL sentence INSIDE the bullet, no new heading; the insert refuses when the anchor is missing | the insert script's own assert + `command grep -c '^## .*QUOTA' <file>` = 0 |
 
-## Phase B — the writer: the posture file from the tick, with forecast and the Fable window
+## Phase B — the writer: the posture file from the tick, with forecast and the Fable window — ✅ EXECUTED 2026-09-16 (4538f2a2 · 827b4c8a · 7e8bd695 · 6d4de529 · a65ea8b3; scoped review closed after 4 rounds under the D-252 stop)
 
 **Responsibility:** `scripts/sysadmin/claude_rotate.py` (+ twin) computes and atomically writes `<state>/quota-posture.json` once per tick, exposes it on `--status` (text: one `posture:` line; `--json`: a top-level `posture` key), and never raises. One pure function computes, one I/O function writes, one reads.
 
