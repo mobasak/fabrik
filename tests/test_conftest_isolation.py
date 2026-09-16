@@ -126,7 +126,9 @@ def test_the_suite_never_reads_the_operators_live_run_record(tmp_path) -> None:
     # on every `start` unless this is pinned — a READ, but the invariant here is that nothing reaches
     # live state, and the hand-built env of the recorder-agreement grader inherits this pin.
     acct = os.environ.get("COMMAND_RUN_ACCOUNT_FILE", "")
-    assert acct and "pytest" in acct, (
+    # the same relationship COMMAND_RUN_DIR is held to above — a substring "pytest" only held under
+    # the DEFAULT basetemp and went false-red under an explicit --basetemp (Delta 8 seat D)
+    assert acct and Path(acct).resolve().is_relative_to(tmp_path.resolve().parent), (
         f"COMMAND_RUN_ACCOUNT_FILE not pinned under the suite tmp: {acct!r}"
     )
 
