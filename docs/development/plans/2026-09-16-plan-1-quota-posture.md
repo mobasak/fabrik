@@ -109,7 +109,7 @@ MUST-READ set = FLOOR + `python3 scripts/review_rubric.py --changed <the 18 File
 | `deploy.resources.limits.memory` is mandatory. | `.windsurf/rules/core/30-ops.md:148` | no compose, container or VPS surface — a box-local cron tick and a user-level hook; nothing to declare |
 | `anon` / `authenticated` / `service_role` | `.windsurf/rules/core/35-security-auth.md:90` | no auth surface, no endpoint, no role — the hook reads local state files and denies tool calls by band; no secret VALUE ever enters a posture file, a hook line or a mail (env NAMES only) |
 
-## Phase A — the three contracts (repair fabrik-lib, then one identical sentence set in all three)
+## Phase A — the three contracts (repair fabrik-lib, then one identical sentence set in all three) — ✅ EXECUTED 2026-09-16 (a661a566 · d45b82d0 · 5906ffc0 · cac4dbf5; fabrik-lib 2577492d · 34814499 · 4ff42359)
 
 **Responsibility:** the BEHAVIOUR half — what an agent does with the `QUOTA:` line, what each band obliges, which figure a Fable session reads — as ONE sentence set present exactly once in `CLAUDE.md`, `templates/governance/CLAUDE.md` and `/opt/fabrik-lib/CLAUDE.md`, inside the existing D-175 quota bullet, graded by the twin-contract test extended to the third file. Machinery stays out of the contract (D-265).
 
