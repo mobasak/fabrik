@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — A stale branch can no longer re-issue a live decision id (2026-09-17)
+
+- `scripts/decisions.py::_merge_base_ids` unions the INTEGRATION branch's ledger ids into the
+  allocation pool, so an agent on a days-old branch allocates above what master actually holds rather
+  than above what their own checkout happens to show. Proven: a branch whose ledger stops at D-100
+  while master carries D-120 now allocates **D-121**, not D-101.
+- Fails OPEN and silent — no git, no upstream, a detached head or a fresh repo all fall back to the
+  working ledger alone, which is the pre-existing answer.
+- Completes delta §3, and with it every delta point of
+  `docs/superpowers/specs/2026-09-16-ledger-write-integrity-design.md`.
+
 ### Added — The decision ledger gains an ADVISORY row-integrity ratchet keyed on row IDENTITY (2026-09-17)
 
 - `scripts/enforcement/check_decisions_unique.py` gains `check_row_shape()`. A row is MALFORMED when

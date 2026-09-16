@@ -389,6 +389,38 @@ def _ledger_ids(ledger: Path) -> list[int]:
     return [int(m) for m in re.findall(r"^\|\s*D-(\d+)\s*\|", text, re.M)]
 
 
+def _merge_base_ids(ledger: Path) -> list[int]:
+    """Ids in the ledger as it stands on the INTEGRATION branch, not just in this checkout.
+
+    Spec delta §3. An agent on a three-day-old branch reads a ledger that is missing every row
+    master gained meanwhile, so ``max(ledger)+1`` there re-issues ids already live. Unioning the
+    integration branch's ids into the pool makes the allocation correct from a stale branch without
+    needing that branch to be up to date.
+
+    ⚠ Fails OPEN and SILENT: no git, no upstream, a detached head or a fresh repo all return [] and
+    the caller falls back to the working ledger alone — the same answer as before this existed. The
+    high-water mark absorbs the caveat the cited sources raise, that a merge-base "next free" shifts
+    across rebases: a shifting FLOOR cannot lower an id that is already the max of a wider pool.
+    """
+    rel = "docs/DECISIONS.md"
+    probe = ledger.parent.parent if ledger.name == "DECISIONS.md" else ledger.parent
+    for ref in ("origin/HEAD", "origin/master", "origin/main", "master", "main"):
+        try:
+            out = subprocess.run(
+                ["git", "show", f"{ref}:{rel}"],
+                cwd=probe,
+                capture_output=True,
+                text=True,
+                timeout=15,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return []
+        if out.returncode == 0 and out.stdout:
+            return [int(m) for m in re.findall(r"^\|\s*D-(\d+)\s*\|", out.stdout, re.M)]
+    return []
+
+
 def _allocate(ledger: Path, key: str, *, reserve: bool) -> tuple[int | None, str]:
     """Next id as a MONOTONIC HIGH-WATER MARK, optionally reserving it. Returns (id, note).
 
@@ -418,12 +450,12 @@ def _allocate(ledger: Path, key: str, *, reserve: bool) -> tuple[int | None, str
         with _locked(path) as held:
             if not held:
                 return None, "decisions: could not take the reservation lock — no id issued\n"
-            pool = ids + _live_reservations(path)
+            pool = ids + _live_reservations(path) + _merge_base_ids(ledger)
             return (max(pool) + 1 if pool else 1), ""
     with _locked(path) as held:
         if not held:
             return None, "decisions: could not take the reservation lock — no id issued\n"
-        pool = ids + _live_reservations(path)
+        pool = ids + _live_reservations(path) + _merge_base_ids(ledger)
         nid = max(pool) + 1 if pool else 1
         try:
             with path.open("a", encoding="utf-8") as fh:
@@ -454,7 +486,7 @@ def _append_row(ledger: Path, fields: list[str], key: str) -> int:
             sys.stderr.write("decisions: could not take the lock — nothing written\n")
             return 1
         ids = _ledger_ids(ledger)
-        pool = ids + _live_reservations(path)
+        pool = ids + _live_reservations(path) + _merge_base_ids(ledger)
         nid = max(pool) + 1 if pool else 1
         try:
             lines = ledger.read_text(encoding="utf-8", errors="replace").split("\n")
