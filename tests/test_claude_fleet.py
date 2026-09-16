@@ -4571,9 +4571,24 @@ def _tick_row(rows):
 def test_the_fleet_tick_writes_the_quota_posture_file_atomically(tmp_path, monkeypatch):
     """B1 — one file per tick, atomic, describing the ACTIVE account the ledger row names."""
     _fleet, rows = _posture_fixture(tmp_path, monkeypatch)
+    # the test's NAME claims atomic, so record the mechanism rather than only the absence of
+    # litter: a direct `p.write_text(...)` regression leaves the file present and no .tmp
+    # behind, and would pass every assertion below (review round 1, seat 3)
+    replaced: list[tuple[str, str]] = []
+    _real_replace = os.replace
+
+    def _spy(src, dst, *a, **kw):
+        replaced.append((str(src), str(dst)))
+        return _real_replace(src, dst, *a, **kw)
+
+    monkeypatch.setattr(cr.os, "replace", _spy)
     assert cr._cmd_tick() == 0
     p = _posture_path(tmp_path)
     assert p.exists() and not p.with_name(p.name + ".tmp").exists()
+    posture_writes = [(s, d) for s, d in replaced if Path(d) == p]
+    assert posture_writes, f"the posture was written without os.replace: {replaced}"
+    src, dst = posture_writes[-1]
+    assert Path(src).parent == p.parent, (src, dst)
     posture = json.loads(p.read_text())
     t = _tick_row(rows)
     assert posture["schema"] == 1 and abs(posture["ts"] - FLEET_NOW) <= 5.0
@@ -4833,3 +4848,78 @@ def test_status_json_carries_the_posture_and_status_text_prints_one_posture_line
     assert cr.main(["--status"]) == 0
     lines = [ln for ln in capsys.readouterr().out.splitlines() if ln.startswith("posture:")]
     assert len(lines) == 1 and " · 5h " in lines[0] and "written 0m ago" in lines[0], lines
+
+
+# --- review round 1: the guards seat 1's confirmed findings owe (Phase B, D-269) ----------------
+
+
+def test_posture_staging_file_is_per_process(tmp_path, monkeypatch):
+    """B14 — the staging path carries the pid, so two overlapping ticks cannot tear each other.
+
+    `os.replace` makes the PUBLISH atomic and says nothing about the STAGING: with one shared
+    `<file>.tmp` the seat measured 3,471 of 4,000 concurrent reads unparseable. A real fork race is
+    flaky as a grader, so this asserts the PROPERTY that makes the race impossible — the name the
+    writer actually stages through — which a revert to `p.name + ".tmp"` fails immediately.
+    """
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "state"))
+    (tmp_path / "state").mkdir(parents=True, exist_ok=True)
+    staged: list[str] = []
+    _real = os.replace
+
+    def _spy(src, dst, *a, **kw):
+        staged.append(str(src))
+        return _real(src, dst, *a, **kw)
+
+    monkeypatch.setattr(cr.os, "replace", _spy)
+    cr._write_quota_posture({"schema": 1, "ts": FLEET_NOW})
+    assert staged, "the posture was published without os.replace"
+    assert str(os.getpid()) in Path(staged[-1]).name, staged
+    assert not list((tmp_path / "state").glob("*.tmp")), "the staging file outlived the publish"
+
+
+def test_posture_write_failure_is_raised_not_swallowed(tmp_path, monkeypatch):
+    """B15 — a failing write raises, so the tick's own handler prints one line.
+
+    The inner `except: pass` froze the posture silently until some reader's staleness bound
+    noticed, contradicting the call site's own "never silent, never fatal" comment.
+    """
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path / "nope"))
+
+    def _boom(*_a, **_k):
+        raise OSError("read-only state dir")
+
+    monkeypatch.setattr(Path, "write_text", _boom)
+    with pytest.raises(OSError):
+        cr._write_quota_posture({"schema": 1, "ts": FLEET_NOW})
+
+
+def test_posture_a_past_reset_never_wins_the_forecast(monkeypatch):
+    """B16 — a reset epoch already in the past is stale data, not a reset that "came first".
+
+    Clamped to 0.0 it won every tie, so an account burning 5%/min ten minutes from its wall was
+    told `reset in 0:00` — the calmest possible line at the hottest possible moment.
+    """
+    now = FLEET_NOW
+    past = cr._forecast(50.0, now - 3600.0, 100.0, 5.0, now)
+    assert past["verdict"] == "wall_first" and past["minutes_to_wall"] == 10.0
+    assert past["minutes_to_reset"] == 0.0  # still clamped for DISPLAY
+    future = cr._forecast(50.0, now + 300.0, 100.0, 5.0, now)
+    assert future["verdict"] == "reset_first" and future["minutes_to_reset"] == 5.0
+    # the exact tie still goes to the reset, which is the calmer and the correct reading
+    tie = cr._forecast(50.0, now + 600.0, 100.0, 5.0, now)
+    assert tie["verdict"] == "reset_first"
+
+
+def test_posture_a_non_finite_reading_is_no_reading(monkeypatch):
+    """B17 — NaN and infinity are dropped at the reader, so no band and no renderer ever sees one.
+
+    NaN compares False against every threshold, so it banded GREEN — the hottest possible reading
+    presented as the safest — and `int(nan)` crashed `--status`, the contract's named authority.
+    """
+    for bad in (float("nan"), float("inf"), float("-inf")):
+        u, r = cr._window_reading({"utilization": bad, "resets_at_epoch": bad})
+        assert u is None and r is None, bad
+        assert cr._band_of(u, False, 85.0, 90.0) is None
+    # and the renderer survives a window built from one, rather than raising out of --status
+    w = cr._forecast(None, None, 100.0, None, FLEET_NOW)
+    assert cr._fmt_forecast(w) == "\u2014"

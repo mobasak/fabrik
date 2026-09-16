@@ -124,6 +124,38 @@ def _isolated_kaizen_events_dir(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _isolated_opt_dir(tmp_path, monkeypatch):
+    """`claude_rotate`'s `/opt` seam and its state dir, pinned for EVERY test — autouse, no opt-in.
+
+    ⚠️ This pin exists because a test SENT REAL MAIL. On 2026-09-16 a Phase B grader drove
+    `_cmd_tick()` into the fleet-exhausted branch with fixture data (a capped account with no
+    eligible successor — exactly the state that branch exists for). That branch calls
+    `_mailbox_repos()`, which enumerated the real `/opt` and
+    handed every repo it found to `_drain_mail()`. About a thousand "URGENT fleet quota — stop
+    gracefully" notices landed in 48 live project mailboxes, ordering every repo on the box to stop
+    until 2027-01-22: the fixture's own `_usage_blob` weekly reset, mailed as fact.
+
+    The seam was always advertised ("so tests have ONE seam") and nothing pinned it, so the first
+    fixture to reach that branch walked straight out to production. `FABRIK_OPT_DIR` is read at
+    CALL time by `_opt_dir()`, so this pin holds whatever order the module is loaded in — patching
+    the old import-time module constant did NOT, because a module loaded during the test rebinds it
+    to the real `/opt` after this fixture has run, which is exactly what the probe in
+    `test_conftest_isolation.py` does.
+
+    `ROTATE_STATE_DIR` is pinned in the same fixture because that branch also writes the
+    `fleet-exhausted` stamp, the drain latch and the rotate ledger; a test must never be able to
+    latch — or silence — the operator's live fleet warning.
+    """
+    opt = tmp_path / "isolated-opt"
+    opt.mkdir(exist_ok=True)
+    state = tmp_path / "isolated-rotate-state"
+    state.mkdir(exist_ok=True)
+    monkeypatch.setenv("FABRIK_OPT_DIR", str(opt))
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    yield opt
+
+
+@pytest.fixture(autouse=True)
 def _isolated_command_run_dir(tmp_path, monkeypatch):
     """The convergence and coverage graders read the SESSION'S OWN run record (T4.1/T4.5 —
     `CLAUDE_SESSION_ID` or the harness's `CLAUDE_CODE_SESSION_ID`, under `COMMAND_RUN_DIR` or the

@@ -226,7 +226,7 @@ written <m>m ago` — read from `~/.claude/state/quota-posture.json` (`_posture_
 writes atomically (tmp + `os.replace`) every cycle for the account the pointer names AFTER its flip leg ran:
 `schema` 1, `ts`, `active.slug`, and per window (`five_hour`, `seven_day`, `fable` when the probe reports a
 `weekly_scoped` limit) the `utilization`, `resets_at`, `wall_pct` (100, or the `caps.json` cap for the weekly),
-`burn_per_min` (a smoothed rate over the last ~30 minutes of tick samples, `null` on the first sample or when
+`burn_per_min` (a smoothed rate over the last ~35 minutes of tick samples, `null` on the first sample or when
 the window's reset epoch moved), `minutes_to_wall`, `minutes_to_reset` and a `verdict` — `reset_first`,
 `wall_first` or `unknown`; `active.band` (`GREEN`/`AMBER`/`RED` on the hottest of 5h and weekly at the live
 `ROTATE_DRAIN_THRESHOLD`/`ROTATE_URGENT_DRAIN_PCT` lines, `WALL` while the `fleet-exhausted` stamp stands,

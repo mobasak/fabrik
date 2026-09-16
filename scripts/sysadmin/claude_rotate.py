@@ -2217,13 +2217,28 @@ def _last_switch_ts(event: str = "switch") -> tuple[float | None, bool]:
     return None, False
 
 
+def _opt_dir() -> Path:
+    """The repo root this process treats as ``/opt``, resolved AT CALL TIME from ``FABRIK_OPT_DIR``.
+
+    ⚠️ Call-time, not import-time, and that is the whole point. As a module constant bound at
+    import, this seam could not be pinned by a test fixture at all: a module loaded DURING a test
+    re-binds it to the real ``/opt`` after the fixture has run. On 2026-09-16 a grader drove
+    ``_cmd_tick()`` into the fleet-exhausted branch with fixture data, ``_mailbox_repos`` walked the
+    real ``/opt``, and roughly a thousand "stop gracefully" notices — naming the fixture's own
+    2027-01-22 reset as fact — were delivered into 48 live project mailboxes. A seam that only a
+    lucky import order can pin is not a seam.
+    """
+    raw = os.environ.get("FABRIK_OPT_DIR")
+    return Path(raw) if raw else OPT_DIR
+
+
 def _mailbox_repos() -> list[str]:
     """Repos that can SURFACE mail (mail.py:157 rule) — enumerated, never hardcoded. Scans
-    ``OPT_DIR`` (== /opt in production) so tests have ONE seam, shared with the fleet
+    ``_opt_dir()`` (== /opt in production) so tests have ONE seam, shared with the fleet
     drain-mail routing's existence checks."""
     out = []
     try:
-        entries = sorted(OPT_DIR.iterdir())
+        entries = sorted(_opt_dir().iterdir())
     except OSError:
         return out
     for d in entries:
@@ -3904,7 +3919,7 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
 
 # ── Quota posture — one writer (the tick), many readers (D-269) ───────────────────────────────
 # The tick writes ``<state>/quota-posture.json`` once per cycle: per window the utilization, a
-# 30-minute smoothed burn, the reset epoch and a forecast (minutes to the wall at the current burn,
+# 35-minute smoothed burn, the reset epoch and a forecast (minutes to the wall at the current burn,
 # minutes to the reset, and which comes first), the D-265 band on the hottest window, the Fable
 # weekly-scoped window when the probe reported one, and the fleet queue with the first eligible
 # successor. Readers (the box-level hook, ``--status``, the dashboard, ``dispatch_headroom``) never
@@ -3939,15 +3954,32 @@ def _read_quota_posture() -> dict | None:
 
 
 def _write_quota_posture(posture: dict) -> None:
-    """Atomic: ``<file>.tmp`` then ``os.replace``; swallows ``_STATE_DIR_ERRORS`` exactly as
-    ``_ledger_append`` does — the tick never dies on its own state dir."""
+    """Atomic publish through a PER-PROCESS staging file, then ``os.replace``.
+
+    ⚠️ The pid in the tmp name is load-bearing. ``os.replace`` makes the PUBLISH atomic; it says
+    nothing about the STAGING. With one shared ``<file>.tmp``, two overlapping ticks truncate each
+    other mid-write and whoever replaces first publishes the mixture — and nothing serialises them:
+    ``_cmd_tick`` has no single-instance lock and the picture's probes have no wall-clock bound, so
+    a slow tick straddles the next 5-minute cron one. That is exactly when the fleet is degraded
+    enough to matter. Measured under a 6-writer race: 3,471 of 4,000 concurrent reads unparseable
+    with the shared name (review round 1). Readers fail open on a torn file, so the cost is a whole
+    cadence of ``posture unavailable``.
+
+    The staging file is removed on the failure path, and the failure is RAISED: the caller in the
+    tick prints one line for it. A silent swallow here froze the posture until some reader's
+    staleness bound noticed, which contradicted that call site's own "never silent" comment.
+    """
+    p = _posture_path()
+    tmp = p.with_name(f"{p.name}.{os.getpid()}.tmp")
     try:
-        p = _posture_path()
-        tmp = p.with_name(p.name + ".tmp")
         tmp.write_text(json.dumps(posture))
         os.replace(tmp, p)
     except _STATE_DIR_ERRORS:
-        pass
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        raise
 
 
 def _window_reading(w: object) -> tuple[float | None, float | None]:
@@ -3955,10 +3987,17 @@ def _window_reading(w: object) -> tuple[float | None, float | None]:
     reading; a bool never passes."""
     if not isinstance(w, dict):
         return None, None
+    # ⚠️ ``math.isfinite`` is not decoration. ``json.loads`` accepts a bare ``NaN`` from the
+    # upstream payload, NaN compares False against EVERY threshold, and ``_band_of`` therefore
+    # returned GREEN for the hottest possible reading — failing open at the safest-looking band,
+    # the one direction a quota guard must never take. ``int(nan)`` also crashed ``--status``, the
+    # command the contract names as the authority (review round 1, both executed).
     u, r = w.get("utilization"), w.get("resets_at_epoch")
-    u = float(u) if isinstance(u, (int, float)) and not isinstance(u, bool) else None
-    r = float(r) if isinstance(r, (int, float)) and not isinstance(r, bool) else None
-    return u, r
+    if not (isinstance(u, (int, float)) and not isinstance(u, bool) and math.isfinite(u)):
+        u = None
+    if not (isinstance(r, (int, float)) and not isinstance(r, bool) and math.isfinite(r)):
+        r = None
+    return (float(u) if u is not None else None), (float(r) if r is not None else None)
 
 
 def _fable_window(row: dict | None) -> tuple[str | None, dict | None]:
@@ -4013,8 +4052,13 @@ def _forecast(
         mtw = (wall_pct - u) / burn
     else:
         mtw = None
-    mtr = max(0.0, (reset - now) / 60.0) if reset is not None else None
-    if mtr is not None and (mtw is None or mtr <= mtw):
+    # ⚠️ a reset epoch that is NOT in the future has not "come first" — it is stale data. Clamping
+    # it to 0.0 made it win every tie, so an account burning 5%/min ten minutes from the wall was
+    # told `reset in 0:00` (review round 1, executed). The clamp stays for DISPLAY; only a future
+    # reset may claim the verdict.
+    ahead = (reset - now) / 60.0 if reset is not None else None
+    mtr = max(0.0, ahead) if ahead is not None else None
+    if ahead is not None and ahead > 0.0 and (mtw is None or mtr <= mtw):
         verdict = "reset_first"
     elif mtw is not None:
         verdict = "wall_first"
