@@ -588,3 +588,72 @@ def test_sessions_advisory_live_scan_is_fast(tmp_path: Path) -> None:
             os.environ["FABRIK_PROC_ROOT"] = saved
     assert isinstance(result, str)
     assert elapsed < 0.2
+
+
+def _adopted_repo(tmp_path: Path, marker: str | None) -> Path:
+    """A PROJECT repo (no manifest file) whose PLANS.md carries `marker`, or none."""
+    proj = tmp_path / "opt" / "adoptedish"
+    (proj / "docs" / "development").mkdir(parents=True)
+    body = "# Plans\n\n" + (marker + "\n" if marker else "") + "\n## Board\n"
+    (proj / "docs/development/PLANS.md").write_text(body, encoding="utf-8")
+    return proj
+
+
+def test_adopted_project_warns_an_unnamed_session_and_names_the_owner(tmp_path: Path) -> None:
+    # The multi-agent model's only identity channel is CLAUDE_AGENT and every control
+    # keyed on it fails SILENT when unset — while `--adopt` targets repos whose sessions
+    # are already running and cannot set it (trade-intelligence 01M2N1MJK1, D-030).
+    # A repo that DECLARED a merge owner is running several agents on one tree, so an
+    # unnamed session there gets the same warning the hub has always had.
+    proj = _adopted_repo(tmp_path, "<!-- Merge owner: agent-1 | source: D-029 -->")
+    rc, out = _run(proj, tmp_path, json.dumps({"cwd": str(proj)}))
+    assert rc == 0
+    assert "CLAUDE_AGENT is UNSET" in out
+    assert "ADOPTED multi-agent mode" in out
+    assert "agent-1" in out, "the warning must name the declared owner, not just the state"
+    # The dead end is stated so nobody spends a turn trying to set it in-process.
+    assert "LIVE session cannot set it" in out
+
+
+def test_undeclared_marker_is_not_adoption(tmp_path: Path) -> None:
+    # `--adopt` writes UNDECLARED into PLANS.md BEFORE anyone adopts (docs_updater.py:1206).
+    # Keying on the marker instead of the DECLARATION is what would make this wallpaper:
+    # measured over /opt 2026-09-16, 37 of 45 repos carry PLANS.md and exactly 1 declares.
+    proj = _adopted_repo(
+        tmp_path,
+        "<!-- Merge owner: UNDECLARED — run: python scripts/docs_updater.py --adopt <name> -->",
+    )
+    rc, out = _run(proj, tmp_path, json.dumps({"cwd": str(proj)}))
+    assert rc == 0
+    assert "ADOPTED multi-agent mode" not in out
+
+
+def test_project_repo_without_a_marker_stays_silent(tmp_path: Path) -> None:
+    proj = _adopted_repo(tmp_path, None)
+    rc, out = _run(proj, tmp_path, json.dumps({"cwd": str(proj)}))
+    assert rc == 0
+    assert "CLAUDE_AGENT is UNSET" not in out
+
+
+def test_named_session_in_an_adopted_repo_gets_no_warning(tmp_path: Path) -> None:
+    proj = _adopted_repo(tmp_path, "<!-- Merge owner: agent-1 | source: D-029 -->")
+    rc, out = _run(
+        proj, tmp_path, json.dumps({"cwd": str(proj)}), extra_env={"CLAUDE_AGENT": "agent-2"}
+    )
+    assert rc == 0
+    assert "CLAUDE_AGENT is UNSET" not in out
+
+
+def test_the_hub_keeps_its_own_wording_not_the_adopted_one(tmp_path: Path) -> None:
+    # The hub has a manifest AND (here) a declared owner; it must take the hub branch.
+    hub = tmp_path / "opt" / "fabrikish"
+    (hub / "scripts").mkdir(parents=True)
+    (hub / "scripts/fabrik_synced_manifest.py").write_text("# marker\n", encoding="utf-8")
+    (hub / "docs" / "development").mkdir(parents=True)
+    (hub / "docs/development/PLANS.md").write_text(
+        "<!-- Merge owner: agent-1 | source: D-029 -->\n", encoding="utf-8"
+    )
+    rc, out = _run(hub, tmp_path, json.dumps({"cwd": str(hub)}))
+    assert rc == 0
+    assert "this hub session is UNNAMED" in out
+    assert "ADOPTED multi-agent mode" not in out

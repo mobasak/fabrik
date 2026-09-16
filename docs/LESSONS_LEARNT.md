@@ -2,6 +2,29 @@
 # Lessons Learnt
 
 
+## Keying an advisory on the FILE instead of the DECLARATION is the difference between a warning and wallpaper (2026-09-16)
+
+**What happened.** A proposal asked to widen the unnamed-session advisory from the hub to "adopted"
+project repos, keyed on `docs/development/PLANS.md` — the artifact `docs_updater.py --adopt` creates.
+Measured over `/opt` before arming it: 45 git repos, **37** carry that file, **2** carry a Merge-owner
+marker at all, and **1** carries a DECLARED owner. Keying on the file would have shipped a warning to
+37 of 45 repos on day one, which is wallpaper, and wallpaper is how enforcement dies. Keying on the
+declaration — the marker with a real name, excluding the `UNDECLARED` placeholder `--adopt` writes
+first — fires in exactly the repo that adopted. Verified after the change by running the real hook
+against all 45: 1 of 45.
+
+**The lesson.** When a proposal names an artifact as a trigger, ask whether the artifact means what
+the trigger needs. `PLANS.md` means "this repo has a plans board"; the merge-owner DECLARATION means
+"this repo runs several agents on one tree". Those differ by 36 repos. FIX DIRECTIVE 5 says measure
+the fire rate before arming; the measurement here did not merely approve the mechanism, it chose the
+key.
+
+**And the negative graders needed their own mutants.** Four of the five tests assert ABSENCE, so they
+pass under the un-changed code and prove nothing by red-on-revert. Each was instead killed by a
+distinct mutant of the change itself — drop the `UNDECLARED` exclusion, force `is_hub` False, drop
+the env short-circuit, treat any `PLANS.md` as adoption. A grader for "it stays quiet here" is proven
+by the wrong version of your own fix, never by the version you replaced.
+
 ## A key that must both UNIFY and SEPARATE is proven by executing it against every shape on the box (2026-09-16)
 
 **What happened.** The ledger-write-integrity spec needed one key for a per-repo id reservation.

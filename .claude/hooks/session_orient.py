@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_session_orient_hook.py
+# AFTER-EDIT: tests/test_session_orient_hook.py, docs/workstation/hooks-index.md
 """SessionStart orientation (Fabrik-synced, stdlib-only, fail-open).
 
 Every session starts with an explicit orientation block so the agent is AWARE
@@ -130,20 +130,66 @@ def _memory_line(cwd: str) -> str:
     )
 
 
-def _identity_line(cwd: str) -> str:
-    """Hub-only advisory (D-034): an UNNAMED hub session is always a mistake — three
-    sessions share this tree and the role hook binds only through CLAUDE_AGENT (a
-    window /rename never reaches hooks; a full day was once mis-signed). Project
-    repos (no manifest file) and named sessions get nothing."""
+# `docs_updater.py --adopt` writes `<!-- Merge owner: <name> | source: <D-NNN> -->` into
+# docs/development/PLANS.md; before it runs, the same line reads `Merge owner: UNDECLARED`
+# (docs_updater.py:1206/:1209). The DECLARATION — not the file, not the marker — is what
+# says "this repo runs several agents on one tree", so it is what `_identity_line` keys on.
+# ⚠️ FIRE RATE, measured over /opt 2026-09-16 before arming this: 45 git repos · 37 carry
+# docs/development/PLANS.md · 2 carry a Merge-owner marker at all · exactly 1 DECLARES an
+# owner. Keying on the FILE would fire in 37 of 45 — wallpaper; keying on the DECLARATION
+# fires in 1, the repo that actually adopted. ⚠️ COBRA (D-253): the cheapest way to silence
+# this warning without naming your sessions is to delete the marker, which un-adopts the
+# repo — `docs_updater.py --adopt`'s own advisory then fires instead (it keys on the
+# UNDECLARED form), so the cheap path is not quiet, only differently loud.
+_DECLARED_OWNER_RE = re.compile(
+    r"^<!--\s*Merge owner:\s*(?!UNDECLARED\b)([A-Za-z0-9][A-Za-z0-9_.@-]*)", re.M
+)
+
+
+def _declared_merge_owner(cwd: str) -> str:
+    """The agent name `--adopt` declared in this repo's PLANS.md, or "" — "" for an
+    unadopted repo, a repo with no PLANS.md, the UNDECLARED placeholder, and any read
+    error. Fail-open by construction: no declaration, no warning."""
     try:
+        text = (Path(cwd) / "docs" / "development" / "PLANS.md").read_text(
+            encoding="utf-8", errors="replace"
+        )
+    except OSError:
+        return ""
+    m = _DECLARED_OWNER_RE.search(text)
+    return m.group(1) if m else ""
+
+
+def _identity_line(cwd: str) -> str:
+    """Advisory (D-034, widened): an UNNAMED session is a mistake wherever several
+    agents share one tree — the hub always, and any project repo that has ADOPTED
+    multi-agent mode. The role hook binds only through CLAUDE_AGENT (a window /rename
+    never reaches hooks; a full day was once mis-signed). Unadopted project repos and
+    named sessions get nothing."""
+    try:
+        if os.environ.get("CLAUDE_AGENT", "").strip():
+            return ""
         is_hub = (Path(cwd) / "scripts" / "fabrik_synced_manifest.py").is_file()
-        if is_hub and not os.environ.get("CLAUDE_AGENT", "").strip():
+        if is_hub:
             return (
                 "- ⚠️ **CLAUDE_AGENT is UNSET — this hub session is UNNAMED.** Three sessions"
                 " share this tree; the role charter, beat routing and Agent-Name trailers all"
                 " key on the env var (a window rename never reaches hooks — the mis-signed-day"
                 " class). Ask the operator which role this window is, or work without beat"
                 " claims until named.\n"
+            )
+        owner = _declared_merge_owner(cwd)
+        if owner:
+            return (
+                "- ⚠️ **CLAUDE_AGENT is UNSET and this repo has ADOPTED multi-agent mode**"
+                f" (merge owner `{owner}`, declared in `docs/development/PLANS.md`). Agent"
+                " identity resolves from that ONE env var, so three controls are silent in"
+                " this session: no role charter is injected, the `Agent-Name` trailer"
+                " mismatch warning cannot fire, and nothing attributes a shared-append edit"
+                " to you. ⚠️ **A LIVE session cannot set it** — the environment is fixed at"
+                " launch, so do not spend a turn trying: either relaunch as"
+                " `CLAUDE_AGENT=<your-name> claude`, or stay unnamed and write the"
+                " `Agent-Name:` trailer by hand on every commit.\n"
             )
     except Exception:
         pass

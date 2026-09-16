@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — An adopted project repo now tells an UNNAMED session that its identity is missing (2026-09-16)
+
+- `.claude/hooks/session_orient.py` (fleet-synced) — `_identity_line`'s advisory was gated on
+  `is_hub`, so the ONE warning about a missing `CLAUDE_AGENT` reached the hub and nothing else. It
+  now also fires in a PROJECT repo that has ADOPTED multi-agent mode, keyed on the merge owner
+  `docs_updater.py --adopt` DECLARES in `docs/development/PLANS.md` — never on the file, never on the
+  `UNDECLARED` placeholder. Measured over `/opt` before arming: 45 git repos, 37 carry `PLANS.md`,
+  2 carry a Merge-owner marker, exactly 1 DECLARES one — so keying on the file would have fired in
+  37 of 45 and keying on the declaration fires in 1, the repo that adopted. Executed against the
+  live fleet after the change: fires in 1 of 45.
+- The new text names the declared owner, the three controls that are silent without identity, and
+  the dead end — a LIVE session cannot set the env var — so nobody spends a turn trying.
+- `tests/test_session_orient_hook.py` — five graders, each proven non-vacuous by its own mutant
+  (revert, drop the `UNDECLARED` exclusion, force `is_hub` False, drop the env short-circuit, treat
+  any `PLANS.md` as adoption). Reported by trade-intelligence `01M2N1MJK1FVS543HS7MHW0D7K`.
+
 ### Added — Ledger write integrity design spec: the append writer, id reservation, and the ratcheted gate (2026-09-16)
 
 - `docs/superpowers/specs/2026-09-16-ledger-write-integrity-design.md` (new, CONVERGED) — the design
