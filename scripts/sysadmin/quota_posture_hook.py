@@ -360,15 +360,23 @@ _PAYLOAD_FLAGS = frozenset({"-S", "--command-string"})
 
 
 def _command_name(val: str) -> str | None:
-    """A ``--command`` value as `REVIEW_FAMILY` spells it: the leading slash removed.
+    """A ``--command`` value as `REVIEW_FAMILY` spells it: SURROUNDING slashes removed.
 
     ⚠️ Fail-CLOSED bug, found by the heavy review's closing seat. The contract, the corpus and every
     agent write these commands as `/fabrik-review-scoped`, and `REVIEW_FAMILY` holds them bare — so
     the slash spelling fell outside the set and RED DENIED the mandated review of the change being
     checkpointed. The deny text rendered `Starting //fabrik-review`, which is the code admitting the
     mismatch: the template prepends a slash to a name it assumed was already bare.
+
+    ⚠️ It strips BOTH ends, and that is the whole class rather than the instance the first fix
+    closed. The quiet round pointed at `/fabrik-review/` still being denied — it declined to confirm
+    it as live, since nothing in the corpus writes that spelling, and it was right about the
+    evidence. But the fix costs one character and the failure it prevents is fail-CLOSED at exactly
+    the moment RED exists to keep open, so the asymmetry decides it: a wrongly-allowed review start
+    is a review, and a wrongly-denied one is a session that cannot check in its work.
+    An INTERIOR slash still disqualifies — `/opt/x/fabrik-review` is a path, not this command.
     """
-    return val.lstrip("/") or None
+    return val.strip("/") or None
 
 
 def _cut(tok: str) -> str:

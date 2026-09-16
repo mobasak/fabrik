@@ -316,7 +316,16 @@ def test_red_holds_agent_only_without_a_live_run(tmp_path):
         ("python3 scripts/command_run.py start --command /fabrik-review --phases 3", False),
         ("python3 scripts/command_run.py start --command /fabrik-review-scoped", False),
         ("python3 scripts/command_run.py start --command=/fabrik-review", False),
+        # the quiet round's residue: the first fix stripped the LEADING slash only, so a trailing
+        # one was still fail-CLOSED. Nothing in the corpus writes it — the round was right not to
+        # confirm it live — but the cost of the fix is one character and the cost of the failure is
+        # a session that cannot check its work in, so the class is closed rather than the instance.
+        ("python3 scripts/command_run.py start --command /fabrik-review/", False),
+        ("python3 scripts/command_run.py start --command fabrik-review-scoped/", False),
         ("python3 scripts/command_run.py start --command /fabrik-spec --phases 3", True),
+        # an INTERIOR slash is a PATH, not this command, and must stay denied — the strip must not
+        # widen into a basename match
+        ("python3 scripts/command_run.py start --command /opt/x/fabrik-review", True),
     ],
 )
 def test_red_holds_a_new_command_start_but_not_the_review_that_finishes(tmp_path, command, denied):

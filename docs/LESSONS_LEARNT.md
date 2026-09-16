@@ -2,6 +2,36 @@
 # Lessons Learnt
 
 
+## A number "derived at write time" three times, stale all three times — derive it AFTER your last edit (2026-09-16)
+
+**What happened.** One CHANGELOG line counting the graders a plan shipped was wrong three times in a
+row, and each correction was made by the person who had just been told it was wrong.
+
+1. First it read `41 collected graders (25 functions)`. A review confirmed it stale.
+2. The fix ran the collector, got `89/34`, and wrote a commit message saying the number was now
+   "DERIVED at write time, by running the collector" — naming the defect class and claiming
+   immunity from it. But the SAME commit then added four parametrize cases, so `89` was stale
+   before it was committed. The true value was 93.
+3. A quiet round caught that. Fixing it, I re-derived `96/34` — correct only because the derivation
+   ran after this round's own three new cases, which I added first precisely because of (2).
+
+**The mechanism.** A derived number is a snapshot of a tree, and an edit in the same change moves the
+tree after the snapshot. Automating the derivation does not help if the automation runs at the wrong
+MOMENT: step (2)'s script genuinely ran `pytest --collect-only` and genuinely read its real total —
+the tooling was correct and the answer was wrong, because the script ran before the test edits it
+shared a commit with. That is why "I derived it" felt like sufficient evidence twice in a row.
+
+**The rule.** Derive a count as the LAST act before staging, after every edit to what it counts, and
+re-derive it if you touch those files again. A commit message asserting a number was derived is not
+evidence the derivation happened after the commit's own edits — and the assertion is actively
+harmful, because it tells the next reviewer the class is closed.
+
+**The wider shape.** This is the proxy ban (§ HARD STOPS) with a clock on it: executing the real
+check IS required, but a real check run at the wrong time is a proxy for the state you ship. Pair it
+with the denominator rule — the count was also never compared against the population it claimed to
+describe until a seat did it independently. Both times, the catch came from a fresh seat, never from
+the author re-reading.
+
 ## Four false mechanism claims in one session, every one caught by EXECUTION and none by re-reading (2026-09-16)
 
 **What happened.** In a single session I asserted, four separate times, what a mechanism does without

@@ -4,11 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — RED denied the review-family start in two slash spellings the corpus uses (2026-09-16)
+
+- `scripts/sysadmin/quota_posture_hook.py::_command_name` stripped only the LEADING slash, so at band
+  RED a `command_run.py start --command /fabrik-review/` was DENIED — as was `fabrik-review-scoped/`.
+  `REVIEW_FAMILY` holds these names bare, and the review family is precisely the start RED must keep
+  allowed, because it is the mandated review of the change being checkpointed. The failure is
+  fail-CLOSED in the one direction the band exists to keep open: a wrongly-allowed review start is a
+  review, a wrongly-denied one is a session that cannot check its work in. `strip("/")` now closes
+  both ends; an INTERIOR slash still disqualifies, so `/opt/x/fabrik-review` stays a path and stays
+  denied. Three graders, two proven red-on-revert and one asserting the strip did not widen into a
+  basename match.
+- This is the SECOND half of the same class: the leading-slash spelling was fixed one commit earlier
+  and shipped without a `### Fixed` entry of its own, so a fail-closed bug blocking a mandated
+  checkpoint was described nowhere in this file by name — found by a fresh review seat reading the
+  Doc Sync Matrix against the diff, not by the author. Both halves are recorded here.
+
 ### Added — The QUOTA line, the RED hold, and the readers that share one posture (2026-09-16)
 
 - `scripts/sysadmin/quota_posture_hook.py` (NEW, box-local, never fleet-synced): `UserPromptSubmit` injects ONE line per prompt — `QUOTA: <slug> · 5h <n>% (<forecast>) · weekly <n>% (<forecast>) · Fable <n>% · band <…> · successor <…>` — read from the posture file the rotation tick writes. `PreToolUse` at RED denies exactly the two things that start NEW work: the `Agent` tool outside a live run record, and a fresh `command_run.py start` outside the review family. Everything a checkpoint needs stays allowed, so RED is finish-and-checkpoint, never freeze. AMBER says so once per session and band as context with no permission decision. A Fable session is banded on its Fable window, read from the transcript's last 64 KiB because the payload carries no model. The WALL stays `quota_stop.py`'s alone — the stamp is read before the band. Fail-open on every path: absent, unreadable or stale is ABSENT and says so out loud, because silence reads as "quota is fine". `--install`/`--check` wire it into the six user-level settings files, skipping the fleet root's `active` symlink so no account is wired twice.
 - `dispatch_headroom.quota()` and the dashboard read the SAME posture: a fresh posture's band and hottest reading win over the picture-derived ones, so the seat budget and the injected line can never name two different bands for one box; each window's dashboard cell gains the tick's own burn rate and whichever of the wall or the reset comes first. The rotation tick prints one advisory line naming how many settings files are unwired, because the whole system is invisible when the hook is missing.
-- 89 collected graders (34 functions, the rest parametrize cases) across `tests/test_quota_posture.py`, `tests/test_dispatch_headroom_posture.py` and `tests/test_quota_dashboard_posture.py`, watched RED first and mutation-checked: four mutations of the RED predicate are all caught, and a grader found asserting nothing was fixed rather than left. Docs: two rows in `docs/workstation/hooks-index.md`. Plan 2026-09-16-plan-1-quota-posture Phase C (D-269).
+- 96 collected graders (34 functions, the rest parametrize cases) across `tests/test_quota_posture.py`, `tests/test_dispatch_headroom_posture.py` and `tests/test_quota_dashboard_posture.py`, watched RED first and mutation-checked: four mutations of the RED predicate are all caught, and a grader found asserting nothing was fixed rather than left. Docs: two rows in `docs/workstation/hooks-index.md`. Plan 2026-09-16-plan-1-quota-posture Phase C (D-269).
 
 ### Added — The rotation tick writes the quota posture file; --status prints it (2026-09-16)
 
