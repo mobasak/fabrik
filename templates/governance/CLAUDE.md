@@ -283,6 +283,7 @@ Git can't distinguish AI agents — every commit is authored by the same user. T
 | Trailer | Values | When |
 |---|---|---|
 | `Agent-Role` | `primary` · `orchestrator` · `subagent` · `review-fix` | every AI commit |
+| `Agent-Name` | any `[a-z0-9-]{1,32}` name — whatever the operator calls your window (`agent-1`, `reviewer`, …) | **every AI commit in a repo where more than one agent works.** ⚠️ **Write it BY HAND.** The hub's tooling reads `CLAUDE_AGENT`, which is fixed at launch, and a window `/rename` never reaches it: measured 2026-09-16 in a 3-agent repo, all three windows named in the UI and all three `CLAUDE_AGENT=<UNSET>`, with **0 of the last 40 commits** attributable to anyone. Without this trailer nothing — not a review, not a collision on a shared-append file, not a run record — can say which of you did it. Ask the operator which name is yours; never invent one, and never sign a name that is not yours. |
 | `Agent-Phase` | `A`, `B`, `C`, … | plan execution only |
 | `Agent-Task` | task number | subagent commits only |
 | `Agent-Context` | short description of what the agent did | every AI commit |
