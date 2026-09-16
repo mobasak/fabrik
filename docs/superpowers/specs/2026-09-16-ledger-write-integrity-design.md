@@ -366,10 +366,11 @@ seat, and the implementation plan's own review is where that is caught.
 
 ## Decisions taken
 
-To be minted at the implementing commit with `decisions.py --append`, as the mechanism's own first
-customer: the choice of box-local
-reservation over id-format change and over renumbering, with the reporter's ranking and the reason
-each rejection rests on. It supersedes nothing.
+**D-266** (minted at the CONVERGED flip, `5b7fd8db`) records the choice of a box-local reservation
+over an id-format change and over renumbering, with the reporter's ranking, the reason each rejection
+rests on, and why the reservation key is the common-dir ALONE. It supersedes nothing. The
+IMPLEMENTING commit mints its own row with `decisions.py --append`, as the mechanism's first
+customer.
 
 ## Open / blocking unknowns
 
