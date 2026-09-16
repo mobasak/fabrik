@@ -18,35 +18,37 @@ All notable changes to this project will be documented in this file.
   the active plan-lock `2026-09-09-plan-1-review-convergence-redesign`. The exact replacement text was
   mailed to infra as `01M2NWVT2GVZ1KK4STMEP42VN8` and all nine rows stay unanswered in the queue.
 
-### Fixed — the RED hold's deny text, and a widening of it that was worse than the bug (2026-09-16)
+### Fixed — RED denied the review-family start in the corpus's own spelling (2026-09-16)
 
-- `scripts/sysadmin/quota_posture_hook.py::_command_name` now renders a denied start AS TYPED. The
-  old `f"Starting /{name}"` re-prepended a slash to a value whose slash had just been stripped, so
-  the refusal printed `Starting //fabrik-review` — the same doubled slash that exposed an earlier
-  bug in this function — and `Starting / /fabrik-review` for a space-prefixed value. A deny that
-  garbles what it is refusing teaches the reader nothing.
-- ⚠️ **A widening of that same function was REVERTED, and the revert is the finding.** A review
-  round flagged that `--command /fabrik-review/` is denied at RED; I widened `lstrip("/")` to
-  `strip("/")` to accept it. A fresh seat then executed the consumer and proved the trade backwards:
-  `command_run.py` records the name with `lstrip("/")` (`:2501`, `:3008`), so the widened hook
-  PASSED that start while the record landed as `fabrik-review/` — outside `REVIEW_FAMILY` for every
-  downstream reader, so `command_run.py:3398` skipped the close's coverage window and
-  `final_gate_stop.py:1000` granted no surface exemption. The session paid for the entire review and
-  was still blocked at Stop as unreviewed. A loud deny at the START is strictly better than a silent
-  failure to COUNT at the end, so the trailing-slash spelling stays denied, deliberately, with the
-  reasoning in the graders. Making the RECORDER canonical is the real fix; `scripts/command_run.py`
-  is fleet-synced, on infra's beat and owned by another plan's lock, so it is filed there.
+- `scripts/sysadmin/quota_posture_hook.py::_command_name` — at band RED a
+  `command_run.py start --command /fabrik-review` was DENIED. `REVIEW_FAMILY` holds these names
+  bare, while the contract, the corpus and every agent write them with the leading slash, so the one
+  start RED must keep allowed — the mandated review of the change being checkpointed — fell outside
+  the set. The value is normalised with `lstrip("/")` now, MIRRORING what `command_run.py` records
+  (`:2501`, and `:3008` on the close), so the hook's verdict and the record's name cannot disagree.
+- ⚠️ **A widening of that same fix was REVERTED, and the revert is the more useful finding.** A
+  round flagged that the trailing-slash spelling `/fabrik-review/` is still denied; I widened
+  `lstrip` to `strip("/")` to accept it. A fresh seat executed the consumer and proved the trade
+  backwards: the widened hook PASSED that start while the record landed as `fabrik-review/`, outside
+  `REVIEW_FAMILY` for every downstream reader, so `command_run.py:3398` skipped the close's coverage
+  window and `final_gate_stop.py:1000` granted no surface exemption. The session paid for the whole
+  review and was still blocked at Stop as unreviewed. A loud deny at the START beats a silent failure
+  to COUNT at the end, so the trailing-slash spelling stays denied, deliberately. Making the RECORDER
+  canonical is the real fix; `scripts/command_run.py` is fleet-synced, on infra's beat and owned by
+  another plan's lock, so it is filed there (`01M2NXMJYRWRJ6VZP5R99WMDZ3`) rather than reached into.
 - The parity grader between the hook's copied `REVIEW_FAMILY` and `command_run`'s compared only the
-  SET, which is why it passed throughout the divergence above. It now also asserts the normalizer
-  agrees over nine spellings — parity of the vocabulary is worth nothing without parity of the
-  spelling rule. Proven red against the exact mutation that shipped.
-
+  SET, so it passed green through that entire divergence. It now drives the REAL recorder — an
+  actual `start` in an isolated `COMMAND_RUN_DIR`, reading the name off disk — and fails whichever
+  side moves. ⚠️ Its first version asserted against a hardcoded `raw.lstrip("/")`, and the next seat
+  showed that a literal oracle stays green when the CONSUMER is the half that changes: proven by
+  mutating `command_run.py` alone. That matters now, because the filing above asks infra to change
+  exactly that side. Both mutation directions are proven red.
 
 ### Added — The QUOTA line, the RED hold, and the readers that share one posture (2026-09-16)
 
 - `scripts/sysadmin/quota_posture_hook.py` (NEW, box-local, never fleet-synced): `UserPromptSubmit` injects ONE line per prompt — `QUOTA: <slug> · 5h <n>% (<forecast>) · weekly <n>% (<forecast>) · Fable <n>% · band <…> · successor <…>` — read from the posture file the rotation tick writes. `PreToolUse` at RED denies exactly the two things that start NEW work: the `Agent` tool outside a live run record, and a fresh `command_run.py start` outside the review family. Everything a checkpoint needs stays allowed, so RED is finish-and-checkpoint, never freeze. AMBER says so once per session and band as context with no permission decision. A Fable session is banded on its Fable window, read from the transcript's last 64 KiB because the payload carries no model. The WALL stays `quota_stop.py`'s alone — the stamp is read before the band. Fail-open on every path: absent, unreadable or stale is ABSENT and says so out loud, because silence reads as "quota is fine". `--install`/`--check` wire it into the six user-level settings files, skipping the fleet root's `active` symlink so no account is wired twice.
 - `dispatch_headroom.quota()` and the dashboard read the SAME posture: a fresh posture's band and hottest reading win over the picture-derived ones, so the seat budget and the injected line can never name two different bands for one box; each window's dashboard cell gains the tick's own burn rate and whichever of the wall or the reset comes first. The rotation tick prints one advisory line naming how many settings files are unwired, because the whole system is invisible when the hook is missing.
-- 96 collected graders (34 functions, the rest parametrize cases) across `tests/test_quota_posture.py`, `tests/test_dispatch_headroom_posture.py` and `tests/test_quota_dashboard_posture.py`, watched RED first and mutation-checked: four mutations of the RED predicate are all caught, and a grader found asserting nothing was fixed rather than left. Docs: two rows in `docs/workstation/hooks-index.md`. Plan 2026-09-16-plan-1-quota-posture Phase C (D-269).
+- 97 collected graders (35 functions, the rest parametrize cases) across `tests/test_quota_posture.py`, `tests/test_dispatch_headroom_posture.py` and `tests/test_quota_dashboard_posture.py`, watched RED first and mutation-checked: four mutations of the RED predicate are all caught, and a grader found asserting nothing was fixed rather than left. Docs: two rows in `docs/workstation/hooks-index.md`. Plan 2026-09-16-plan-1-quota-posture Phase C (D-269).
 
 ### Added — The rotation tick writes the quota posture file; --status prints it (2026-09-16)
 

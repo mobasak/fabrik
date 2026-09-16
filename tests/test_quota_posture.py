@@ -707,25 +707,61 @@ def test_the_hook_review_family_copy_agrees_with_command_run():
     spec.loader.exec_module(cr)
     assert set(mod.REVIEW_FAMILY) == set(cr.REVIEW_FAMILY)
 
-    # ⚠️ the SET was never the whole parity, and the half it left open is the half that broke.
-    # `_command_name` exists to answer "what will the RECORD say", so it must normalise exactly as
-    # `command_run.py` does (`lstrip("/")`, scripts/command_run.py:2501 and :3008). A delta round
-    # caught this module widened to `strip("/")`: the sets still matched, this assertion still
-    # passed, and the hook blessed a start whose recorded name no consumer would recognise. Parity
-    # of the vocabulary is worth nothing without parity of the SPELLING RULE.
-    for raw in (
-        "/fabrik-review",
-        "fabrik-review/",
-        "//fabrik-review//",
-        "/",
-        "",
-        " /fabrik-review",
-        "/opt/x/fabrik-review",
-        "/fabrik-review-scoped",
-        "fabrik-spec",
+
+def test_the_hook_and_the_recorder_agree_on_the_name_a_start_will_carry(tmp_path):
+    """C15c — the SET was never the whole parity, and the half it left open is the half that broke.
+
+    `_command_name` exists to answer ONE question: what will the RECORD say? A delta round caught
+    this module widened to `strip("/")` — the sets still matched, the set assertion still passed,
+    and the hook blessed a start whose recorded name no consumer would recognise.
+
+    ⚠️ The oracle is the RECORDER ITSELF, driven for real, not a restatement of its rule. The first
+    version of this grader asserted against a hardcoded `raw.lstrip("/")`, and the very next seat
+    showed why that is worthless: mutate `command_run.py` instead of the hook and the grader stays
+    green through the identical divergence. That is not hypothetical here — this run FILED a request
+    to infra to make the recorder canonical (`strip("/")`), and when it lands, a literal oracle would
+    keep passing while the hook began fail-CLOSED denying an in-family review start. So this runs the
+    real `command_run.py start` in an isolated `COMMAND_RUN_DIR` and reads the name off disk: it
+    fails whichever side moves.
+    """
+    mod = _load()
+    for i, raw in enumerate(
+        (
+            "/fabrik-review",
+            "fabrik-review/",
+            "//fabrik-review//",
+            "/fabrik-review-scoped",
+            "/opt/x/fabrik-review",
+            "fabrik-spec",
+        )
     ):
-        assert mod._command_name(raw) == (raw.lstrip("/") or None), (
-            f"{raw!r}: the hook and command_run.py disagree about the recorded name"
+        runs = tmp_path / f"runs{i}"
+        runs.mkdir()
+        env = {**os.environ, "COMMAND_RUN_DIR": str(runs)}
+        proc = subprocess.run(
+            [
+                sys.executable,
+                str(Path(__file__).resolve().parents[1] / "scripts" / "command_run.py"),
+                "start",
+                "--command",
+                raw,
+                "--phases",
+                "1",
+                "--terminal",
+                "parity probe",
+            ],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=120,
+        )
+        assert proc.returncode == 0, f"{raw!r}: start failed: {proc.stderr[-400:]}"
+        files = list(runs.glob("*.json"))
+        assert files, f"{raw!r}: the recorder wrote no record"
+        recorded = json.loads(files[0].read_text()).get("command")
+        assert mod._command_name(raw) == (recorded or None), (
+            f"{raw!r}: the hook says {mod._command_name(raw)!r} but the recorder wrote "
+            f"{recorded!r} — a start the hook blesses would not count as that command"
         )
 
 

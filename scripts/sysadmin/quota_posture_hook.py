@@ -360,7 +360,7 @@ _PAYLOAD_FLAGS = frozenset({"-S", "--command-string"})
 
 
 def _command_name(val: str) -> str | None:
-    """A ``--command`` value as `REVIEW_FAMILY` spells it: SURROUNDING slashes removed.
+    """A ``--command`` value as `REVIEW_FAMILY` spells it: the LEADING slash removed.
 
     ⚠️ Fail-CLOSED bug, found by the heavy review's closing seat. The contract, the corpus and every
     agent write these commands as `/fabrik-review-scoped`, and `REVIEW_FAMILY` holds them bare — so
@@ -585,12 +585,15 @@ def decide(
         # unheld — `mcp__wsl-shell__run` carries the same `command` field and ran the same start at
         # RED. The sibling `quota_stop.py` has no such gap: its matcher is `.*`.
         if is_start and name not in REVIEW_FAMILY:
-            # ⚠️ the value is rendered AS TYPED. The old `f"Starting /{name}"` re-prepended a
-            # slash to a name that had just had one stripped, which printed `Starting //fabrik-review`
-            # — the double slash that exposed the original bug — and `Starting / /fabrik-review` for
-            # a space-prefixed value. A deny that garbles the thing it is refusing teaches the
-            # reader nothing.
-            return "deny", f"Starting {name or '<unnamed>'}"
+            # ⚠️ the slash is RE-ADDED on purpose: `name` is normalised, and every command in the
+            # corpus and in CLAUDE.md is written `/fabrik-spec`, so this renders the spelling the
+            # reader actually typed. I briefly "fixed" this to print `name` bare on the theory that
+            # it rendered the value as typed; it does not — `decide` never sees the raw value — and
+            # it LOST the slash on the common case, printing `Starting fabrik-spec`. Reverted.
+            # (The `Starting //fabrik-review` doubling belongs to the code BEFORE `_command_name`
+            # existed; no input reaches it now. A space-prefixed value still renders oddly, which is
+            # cosmetic and ungraded — it is not worth a second normalisation path here.)
+            return "deny", f"Starting /{name or '<unnamed>'}"
         return "pass", ""
     if band == "AMBER":
         return "notice", ""
