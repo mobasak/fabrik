@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — A BLOCKED plan set no longer reds its own gate; two rule-pack rows render as a table (2026-09-17)
+
+- `scripts/enforcement/check_plan_tickets.py::_sizing_severity` adds `BLOCKED` to the gate-path WARN
+  list. A BLOCKED set is as un-re-splittable as an IN-PROGRESS one — its merged tickets are merged —
+  and the list predated `/fabrik-execute-plan`'s D7 blocked-end, so the moment a spine flipped to
+  BLOCKED its merged tickets became full-severity ERRORs and `final_gate.py` returned failure: a plan
+  could not record its own terminal state without reddening its gate (web-ecommerce-factory,
+  `01M2NXAHYJKY0K`, six merged tickets). The docstring's copy of the list moved with it.
+- `.windsurf/rules/saas/60-saas-ui.md` — the Terms of Service and Privacy Policy rows followed a PROSE
+  paragraph with no table above them, so they rendered as literal pipe text and were invisible as rows
+  in the rendered rule (iterative_image_editor, `01M2JY6X8XC8KB`). They now carry a header + separator.
+
 ### Fixed — Two reported defects in fleet-synced scripts: quoted link scans and companion-package resolution (2026-09-17)
 
 - `scripts/docs_updater.py::check_link_integrity` now scans `_strip_quoted(content)` — the helper

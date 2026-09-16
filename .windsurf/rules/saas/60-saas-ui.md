@@ -116,6 +116,8 @@ ships `passwordless_enabled: bool = True` (`settings.py:38`), so treating `/forg
 required page contradicts the fleet's own default auth module. Read the project's auth mode first;
 `/signup` and `/verify-email` stay as REDIRECTS under passwordless rather than 404s, because links
 to them survive in old emails and bookmarks (transdoc, 2026-08-28).
+| Page | Route | Why |
+|---|---|---|
 | **Terms of Service** | `/terms` | Required before accepting payment (see `88-saas-launch-checklist.md`). |
 | **Privacy Policy** | `/privacy` | Required by GDPR/KVKK + payment processors. |
 

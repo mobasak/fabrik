@@ -56,7 +56,7 @@ Checks (per the 2026-08-04 spine-ticket plan, the canonical grammar):
   ZONE (before the first ``##`` heading), line-end anchored, blockquote- and
   fence-stripped (tilde fences included), so a quoted example never arms it. Only the READ budget
   takes the invocation-context severity: cli/flip = ERROR; the gate path = WARN
-  while the spine is DRAFT, IN-PROGRESS or EXECUTED (a merged set cannot be re-split). (validate_conventions exempts this
+  while the spine is DRAFT, IN-PROGRESS, EXECUTED or BLOCKED (a merged set cannot be re-split). (validate_conventions exempts this
   check's WARNs from --strict promotion — they are designed advisories.)
 - **Board-staleness:** only when this plan's lock carries ``baseline_commit``.
   One bulk ``git log --first-parent -m --name-only`` over the window (merge
@@ -949,8 +949,15 @@ def _sizing_severity(context: str, spine_status: str) -> Severity:
     # and a ticket that grows its own file measures over budget on the post-merge
     # tree forever (plan 2026-09-06-plan-2: docs_updater.py 59 → 90 KB through its
     # own tickets turned every sibling's gate red at the EXECUTED flip). EXECUTED is
-    # advisory here; the author's CLI and the flips keep the ERROR.
-    if spine_status in (*_DRAFT_LIKE, "IN-PROGRESS", "EXECUTED"):
+    # advisory here; the author's CLI and the flips keep the ERROR. BLOCKED is here for the same
+    # reason as IN-PROGRESS — a BLOCKED set is as un-re-splittable as an in-progress one, its merged
+    # tickets are merged — and the list simply predated /fabrik-execute-plan's D7 blocked-end. Without
+    # it the blocked-end contradicts the gate on exactly the sets that need it most: the moment a
+    # spine flips to BLOCKED its merged tickets became full-severity ERRORs and `final_gate.py`
+    # returned failure, so a plan could not record its own terminal state without reddening its gate
+    # (web-ecommerce-factory, 01M2NXAHYJKY0K: six merged tickets of the finish-bhdtrade set, gate
+    # green again only with the literal reverted to IN-PROGRESS).
+    if spine_status in (*_DRAFT_LIKE, "IN-PROGRESS", "EXECUTED", "BLOCKED"):
         return Severity.WARN
     return Severity.ERROR
 
