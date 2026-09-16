@@ -130,10 +130,21 @@ T6_CLAIMS = (
     "sanctioned `CHANGELOG.md` relocation, not a loss",
     # T6.4 (operator directive 01M2K9JZNG4Y6110629YZGA65A, 2026-09-16) — the quota BANDS are a
     # behaviour contract, and they live INSIDE the D-175 quota bullet that teaches the read.
-    # Measured over 2,237 tick rows before the rule was written: 141 at or above 85, 111 at or
-    # above 90, ZERO at the 98 flip line — so AMBER forbids STARTING heavy work rather than
-    # ordering a compaction, which on 94% of ticks would cost more than it saves.
+    # AMBER forbids STARTING heavy work rather than ordering a compaction, because a compaction
+    # that no flip follows costs more than it saves. ⚠️ The tick-row counts this comment used to
+    # quote are DELETED: D-264 records them as refuted (a wrong-window artefact), and they were the
+    # last surviving copy of the very claim the contract paragraph forbids re-deriving.
     "THE QUOTA BANDS ARE A BEHAVIOUR CONTRACT",
+    # the BOUNDARIES themselves, not just the heading: the bands were edited three times in one
+    # session and twice landed wrong (an overlap at 90, then a hole at 90), so the strings a
+    # one-sided hub edit would break are pinned here rather than trusted to review.
+    # ⚠️ WRAP-SAFE substrings only — these must never span a line break. The first cut pinned
+    # "**85 to under 90 — AMBER" and "**90 and over —", and the very next rewrite of the bullet
+    # rewrapped both across lines, so the pins stopped matching and the test went red on text that
+    # was actually correct. Pin a fragment that lives on ONE line.
+    "under 85 — GREEN",
+    "85 to under 90",
+    "RED: commit, push, close your run record",
     "COMPACTION IS CONDITIONAL",
     "follow it with a real `unset GIT_INDEX_FILE`",
     "never `cp <scratch>/<file> <file>`",

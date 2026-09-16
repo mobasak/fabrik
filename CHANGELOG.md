@@ -17,6 +17,29 @@ All notable changes to this project will be documented in this file.
   finding lay inside pass 2's own patch. The `docs_updater.py` parser mirror and the baseline-seeding
   duty are named in the spec as backlog and as U4 rather than patched a fourth time.
 
+### Changed — The quota bands become a partition, and the contract stops restating the machinery (2026-09-16)
+
+- `CLAUDE.md` + `templates/governance/CLAUDE.md` (byte-identical, and the template is a
+  governance-sync trigger, so this reaches ~46 repos) — the bands are now a true partition: GREEN
+  `under 85`, AMBER `85 to under 90`, RED `90 and over`, the WALL. D-264's `RED 90+ with NO
+  eligible successor` left 90 in two bands; the first correction left `90 with a successor` in
+  none. The successor state no longer gates band membership at all, and `--status` is named as the
+  single authority on when you resume, because the urgent-drain mail does not fire in every state.
+- Same bullet, and this is the larger change: every restatement of the rotation MACHINERY is
+  DELETED and replaced by a pointer to the comments beside the code that writes it. Four
+  author-blind review rounds put a fresh wrong claim into that restatement every single time — a
+  mail that is not sent under one successor state, a "missing reading reads GREEN" rule the
+  stamp-based WALL contradicts, a majority claim that decays within hours, a ratio ban that
+  contradicted its own opening. Net +507 B per twin, down from +2,434.
+- `scripts/sysadmin/claude_rotate.py` + its aro-wake twin — two stale hand-quoted numbers replaced
+  by pointers to their live source: a comment quoting four weekly caps (two had gone stale) now
+  points at `caps.json`, and `_urgent_drain_pct`'s docstring said the flip line was 95 where D-201
+  moved it to 98.
+- `tests/test_governance_template_split.py` — the band boundaries are pinned so a one-sided hub
+  edit fails (proven by injecting one), the pins are wrap-safe substrings after the first pair
+  broke on a rewrap, and the refuted tick-row counts are deleted.
+- `~/.claude-fleet/caps.json` — `ob@ocoron.com` weekly cap 99 → 95 on the operator's word.
+
 ### Fixed — decisions.py answered blank for the ledger's own first-stop question (2026-09-16)
 
 - `scripts/decisions.py` — the tool CLAUDE.md makes the FIRST stop for "where is X / why is Z"

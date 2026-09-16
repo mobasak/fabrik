@@ -389,16 +389,23 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
 ## Pointers (detail in packs)
 - **The fleet quota picture — every agent, every repo, one query (operator directive 2026-09-07):** `python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --status` (add `--json` for machines; the `picture` key) tells you which account is ACTIVE, which are eligible / session-exhausted / weekly- or cap-walled, the rotation QUEUE in the picker's own order with when each returns, the NEXT RELIEF the tick would name, whether the fleet-exhausted HOLD is on and the resume it promised, and the last flip and its kind. Read it before dispatching long subagent work near a cap, and whenever a quota notice lands — the absolute path works from any `/opt` repo, fabrik-lib included. Authority: `/opt/fabrik/docs/workstation/claude-account-rotation.md` § `--status`.
   ⚠️ **THE QUOTA BANDS ARE A BEHAVIOUR CONTRACT, not just a dashboard.** The active account's
-  hottest window puts you in one of four bands, and each names a different action. **under 85 —
-  GREEN:** work normally. **85-90 — AMBER: finish what you started, start nothing heavy** — no new
-  fan-out, no new plan phase, no fresh review round, because a flip mid-round costs that whole
-  round's cached prefix. **90+ with NO eligible successor — RED:** the urgent-drain mail has
-  already named the resume instant, so commit, push, close your run record and hook your resume to
-  it. ⚠️ That mail keys on the SESSION window alone (`_urgent_drain_pct`, "The SESSION line"), so
-  an account that is weekly-hot and session-cold is RED by the hottest-window rule with NO mail
-  coming — there, read `--status`'s own next-relief line instead of waiting. **the WALL** (`fleet-exhausted` stamp): `.claude/hooks/quota_stop.py` holds every
-  world-changing tool by default-deny, and commit + push + close + stop is the only path through —
-  every tool it needs is allowed. ⚠️ **COMPACTION IS CONDITIONAL — reflexive compaction is the
+  hottest window puts you in one band, each naming an ACTION; the percentage axis PARTITIONS, so
+  every reading lands in exactly one. **under 85 — GREEN:** work normally. **85 to under 90 —
+  AMBER: finish what you started, start nothing heavy** — no new fan-out, no new plan phase, no
+  fresh review round, because a flip mid-round costs that whole round's cached prefix. **90 and
+  over — RED: commit, push, close your run record, and start nothing new.** **the WALL**
+  (`fleet-exhausted` stamp): `.claude/hooks/quota_stop.py` holds every world-changing tool by
+  default-deny, and commit + push + close + stop is the only path through — every tool it needs is
+  allowed. ⚠️ **`claude_rotate.py --status` is the authority on WHEN you resume, in every band.**
+  The urgent-drain mail names a resume instant too, but it does not fire in every state and its
+  line is the SESSION window — so read `--status`, and never wait on a mail you cannot confirm was
+  sent. A reading that is missing entirely is not a band at all: read `--status` rather than
+  assuming. ⚠️ **The bands are the ACTIONS; the machinery that produces them is not restated here**
+  — `_fleet_tick_inner` and `_fleet_active_wall_advisory` in
+  `/opt/fabrik/scripts/sysadmin/claude_rotate.py` carry it in comments beside the code, which is
+  the only copy that cannot go stale against it. Three rounds of trying to summarise that machinery
+  in this bullet put a wrong claim in it every single time (D-265).
+  ⚠️ **COMPACTION IS CONDITIONAL — reflexive compaction is the
   trap.** A flip invalidates your cached prefix (caches are per-account AND model-scoped), so
   re-creation costs a cache WRITE (1.25x base input on the 5-minute TTL, 2x on the 1-hour) against
   the ~0.1x you were paying to read it; compacting first shrinks what gets
@@ -421,15 +428,15 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
   ⚠️ THE COBRA CHECK (D-253): the cheapest way to satisfy "compact at 85" WITHOUT producing the
   outcome is to compact reflexively on every entry to the band, which is a loss whenever the reset
   arrives first — and per the OPERATOR's own measurement, most amber episodes end in a reset. That is why the
-  rule hands you the three decision inputs instead of ordering a compaction. ⚠️ **Do not try to
-  re-derive that ratio from `rotate-ledger.jsonl` — neither series in it can answer the question.**
-  The tick rows' `pct` is the FIVE-HOUR window alone (`claude_rotate.py` writes `float(_sess)` from
-  `five_hour`) while the `walled` verdict beside it reads both windows plus the cap, so a row can
-  honestly read `verdict: walled, pct: 22`; and `at_pct` on the flip rows is supplied by only two
-  legs — relief, gated at `ROTATE_DRAIN_THRESHOLD`, and trip, gated at `ROTATE_THRESHOLD` or the
-  account's `caps.json` cap — so "every flip was at or above 85" restates those gates rather than
-  measuring the fleet. Take the hedge as the operator measured it and do not re-argue it from
-  these rows — two attempts to do so shipped refuted claims into this contract (D-264).
+  rule hands you the three decision inputs instead of ordering a compaction. ⚠️ **Do not re-argue that
+  ratio from `rotate-ledger.jsonl` — take the hedge as the operator measured it.** Two attempts to
+  re-derive it shipped refuted claims into this contract (D-264), and a third round of trying to
+  describe the ledger's shape HERE put a fresh wrong claim in this bullet every time (D-265). What
+  the rows can and cannot answer — which window each field holds, which legs write `at_pct`, and
+  the four bounds on the `weekly_pct` series added 2026-09-16 — is documented in comments beside
+  the code that writes them, in `_fleet_tick_inner` and `_fleet_active_wall_advisory`
+  (`/opt/fabrik/scripts/sysadmin/claude_rotate.py`). Read it there, where it cannot go stale
+  against the writer; anything restated here is a second source of truth by construction.
 - **Backup secrets before edit** (`.env`, `*.key`, `*.pem`, `secrets/`, `.ssh/`) → `backups/` dir (gitignored).
 - **Password policy** (32-char `[a-zA-Z0-9]` via `secrets.choice()`).
 - **Naming:** kebab-case. Exceptions: `README.md`, `CHANGELOG.md`, `INDEX.md`, `PORTS.md`, `AGENTS.md`, `AGENTS-compact.md`, `LESSONS_LEARNT.md`, `DECISIONS.md`, `CLAUDE.md`, `Makefile`, `Dockerfile`, Python pkgs (snake_case), auto-generated, dotfiles.

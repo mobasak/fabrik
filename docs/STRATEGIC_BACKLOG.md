@@ -49,6 +49,27 @@ Generated from the end-of-day plan-state on 2026-06-07 after the trio Phase 5.1.
   subject to the sampling bound above, which means the high band accumulates slowly by design.
   Owner: infra.
 
+
+### Residue from the 2026-09-16 quota-bands contract pass (D-265)
+
+- **`docs/workstation/claude-account-rotation.md` carries no band wording at all**, while the two
+  CLAUDE.md twins now make the bands a behaviour contract and name that doc as the Authority. Doc
+  Sync Matrix floor rule. Same doc has an illustrative `{"ob@ocoron.com": 90}` using a REAL account
+  with a number that matches neither the old cap (99) nor the new (95). Owner: fleet.
+- **`scripts/sysadmin/test_bot_rotation_wire.py` — 4 pre-existing failures** in the
+  `claude-keepalive-rotate.sh` shim tests (e.g. `test_shim_fail_on_401` expects
+  `KEEPALIVE_FAIL:401_auth`, gets `KEEPALIVE_OK`). Both the script and the test are unmodified at
+  HEAD, so this predates today's work — but it is red and nothing watches it, because the hub's
+  pytest leg is off by design. Owner: fleet.
+- **Both resume channels can be silent at once**: the urgent-drain mail does not fire when an
+  eligible successor exists, and `_next_session_relief` returns None when no sibling is blocked by
+  a readable future reset. The contract now says "read `--status`", which is right, but `--status`
+  itself can name no relief. Owner: fleet.
+- **`_fleet_active_wall_advisory`'s candidate test is looser than the relief leg's** — the advisory
+  suppresses on any `_validated_pick` candidate, while the relief flip additionally requires the
+  successor under 85 on BOTH windows. So the fleet can be told nothing while no flip is possible.
+  Worth a decision on which predicate is canonical. Owner: fleet.
+
 ## [infra] A plan authored and committed in one motion is a convergence subject at NO moment a gate runs
 
 `check_convergence.py:550` skips `??` paths — deliberately, so a sibling's mid-write scratch never

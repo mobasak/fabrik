@@ -4254,7 +4254,9 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
     # TWO legs, decided separately (scoped review 2026-09-03 — `min(threshold, cap)` tripped a
     # cap of 99 at 98 the moment the session threshold moved): the SESSION leg trips at
     # ROTATE_THRESHOLD; the WEEKLY leg trips at the account's caps.json cap when one exists (the
-    # cap IS the operator's weekly rule — can/mob 99, sarp 90, ob 80) and at the threshold otherwise.
+    # cap IS the operator's weekly rule; read the LIVE values from caps.json, never from here — an
+    # earlier cut of this comment quoted four of them and two had gone stale) and at the threshold
+    # otherwise.
     cap = row.get("weekly_cap")
     weekly_thr = float(cap) if cap is not None else threshold
     # PROJECTED trip: reading + the burn since the previous tick (see _tick_burn) — a line that
@@ -4567,7 +4569,8 @@ def _urgent_drain_pct() -> float:
     """The SESSION line at which, with NO eligible successor, every repo is told to stop
     gracefully and hook itself to the next session reset. Default **90** (operator rule
     2026-09-03: "when we see 90% session limit reached and if no account is available we must
-    send an URGENT mail to repos"). Below the flip line on purpose: the flip at 95 is the
+    send an URGENT mail to repos"). Below the flip line on purpose: the flip (`_rotate_threshold`, 98 since D-201 — read it there,
+    never from this sentence) is the
     remedy when a successor exists; this is the remedy when none does, and it needs the five
     points of runway a graceful stop takes. ``ROTATE_URGENT_DRAIN_PCT`` overrides."""
     return _env_float("ROTATE_URGENT_DRAIN_PCT", 90.0)
