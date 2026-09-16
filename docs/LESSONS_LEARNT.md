@@ -2,6 +2,36 @@
 # Lessons Learnt
 
 
+## A key on a RENDERED artifact measures the renderer, and a fire rate over declarations cannot see who never declared (2026-09-16)
+
+**What happened.** I gated an advisory on the `<!-- Merge owner: … -->` comment in
+`docs/development/PLANS.md`, having measured the fire rate carefully first (37 of 45 repos carry
+that file, 1 declares an owner) and written a Cobra note saying the cheap bypass — deleting the
+comment — would make `docs_updater.py`'s own advisory fire instead. Two independent executions
+refuted the note: that comment is RENDERED from the ledger row, `read_merge_owner()` reads
+`docs/DECISIONS.md` and still returned `('agent-1','D-029')` with the comment gone, and
+`validate_ownership_advisory()` returned `[]`. Deleting one HTML comment silenced the warning for
+good, for free, in silence — the exact defect the note existed to surface, committed inside the note.
+
+**And the measurement that justified the key was blind in the direction that mattered.**
+`/opt/iterative_image_editor` declares the multi-agent model live in its own D-031, runs lanes
+iie1/iie2/iie3, holds 14 plan-locks and committed that day — with no marker and no ledger row. A
+fire rate computed over *declarations* counts only repos that declared; it cannot see the
+population that is doing the thing without saying so, and that population was the target.
+Re-keyed to a LEDGER row OR ≥2 live sessions in the checkout, the advisory fires in 5 of 45, and
+all five were genuinely concurrent when measured.
+
+**The lesson, in two parts.** Before keying a gate on an artifact, ask what WRITES it: if
+something else renders it, you are measuring the renderer and your bypass analysis is about the
+wrong file. And when a fire rate is the evidence for a design, state which population it can
+*structurally* not see — a false-negative class is invisible to the measurement by construction,
+so it has to be argued for separately, never inferred from a clean number.
+
+**A third thing, and the one I would least like to repeat.** The ledger row I wrote said a fact
+was wrong "as the proposal had it". The proposal never said it; the wrong path was my own first
+guess, which I promoted into a durable repo-to-repo claim about another agent's work. Check what
+the other party actually wrote before correcting them in an immutable artifact.
+
 ## Keying an advisory on the FILE instead of the DECLARATION is the difference between a warning and wallpaper (2026-09-16)
 
 **What happened.** A proposal asked to widen the unnamed-session advisory from the hub to "adopted"

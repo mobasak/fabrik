@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The unnamed-session advisory is re-keyed off a rendered artifact onto the ledger and live sessions (2026-09-16)
+
+- `.claude/hooks/session_orient.py` (fleet-synced) — `8c50d815` keyed the advisory on the
+  `<!-- Merge owner: … -->` comment in `docs/development/PLANS.md`. That comment is RENDERED from
+  the ledger row (`docs_updater.py::_merge_owner_header_line`), so deleting it silenced the
+  advisory for good while `read_merge_owner()` still returned the owner — a free, silent bypass,
+  and the Cobra note shipped beside it claimed the opposite. Executed twice, independently.
+- Worse, keying on ADOPTION missed the repos that need it most: `/opt/iterative_image_editor`
+  runs three lanes with 14 plan-locks and commits daily, with neither a marker nor a ledger row.
+  The advisory now fires on a LEDGER-declared merge owner OR ≥2 live `claude` sessions in this
+  exact checkout, reusing a `_count_sessions_sharing` helper extracted from `_sessions_line` so
+  the two cannot drift. Executed against the live fleet: fires in 5 of 45, and all five are
+  genuinely multi-agent at that instant (a live reading, so the number is moment-in-time).
+- Also fixed, all found by the round-1 seats: the message claimed a third silenced "control"
+  that does not exist and omitted the real one (`command_run.py::_agent_name` records empty, so
+  every run-record row and `FEEDBACK:` verdict is unattributable); `_declared_merge_owner`'s
+  docstring promised a fail-open it did not hold (9 of 14 exception types escaped its `OSError`);
+  the read is now bounded like every other read in the file; the owner name is capped at the
+  grammar's own 32 chars; the remediation names the worktree form for a worktree session; and a
+  NUL in `cwd` no longer costs the ENTIRE ORIENT block at rc 0 (pre-existing in `_sessions_line`).
+- `tests/test_session_orient_hook.py` — 9 graders (38 total), each killed by its own mutant,
+  including a regression guard for the rendered-marker key and a drift pin holding the copied
+  `MERGE OWNER:` grammar against both its single sources.
+
 ### Fixed — An adopted project repo now tells an UNNAMED session that its identity is missing (2026-09-16)
 
 - `.claude/hooks/session_orient.py` (fleet-synced) — `_identity_line`'s advisory was gated on

@@ -130,47 +130,67 @@ def _memory_line(cwd: str) -> str:
     )
 
 
-# `docs_updater.py --adopt` writes `<!-- Merge owner: <name> | source: <D-NNN> -->` into
-# docs/development/PLANS.md; before it runs, the same line reads `Merge owner: UNDECLARED`
-# (docs_updater.py:1206/:1209). The DECLARATION — not the file, not the marker — is what
-# says "this repo runs several agents on one tree", so it is what `_identity_line` keys on.
-# ⚠️ FIRE RATE, measured over /opt 2026-09-16 before arming this: 45 git repos · 37 carry
-# docs/development/PLANS.md · 2 carry a Merge-owner marker at all · exactly 1 DECLARES an
-# owner. Keying on the FILE would fire in 37 of 45 — wallpaper; keying on the DECLARATION
-# fires in 1, the repo that actually adopted. ⚠️ COBRA (D-253): the cheapest way to silence
-# this warning without naming your sessions is to delete the marker, which un-adopts the
-# repo — `docs_updater.py --adopt`'s own advisory then fires instead (it keys on the
-# UNDECLARED form), so the cheap path is not quiet, only differently loud.
-_DECLARED_OWNER_RE = re.compile(
-    r"^<!--\s*Merge owner:\s*(?!UNDECLARED\b)([A-Za-z0-9][A-Za-z0-9_.@-]*)", re.M
-)
+# ⚠️ KEY ON THE LEDGER ROW AND ON LIVE SESSIONS — never on `docs/development/PLANS.md`.
+# Two defects drove this, both executed. (1) The PLANS.md `<!-- Merge owner: … -->` line is
+# RENDERED from the ledger row (`docs_updater.py::_merge_owner_header_line`), so keying on it is
+# a free, silent bypass: delete that HTML comment and `read_merge_owner()` still returns the
+# owner while this advisory goes quiet for good. The ledger row is IMMUTABLE by contract, so
+# silencing THIS means an edit the contract forbids — loud by construction. (2) Keying on
+# ADOPTION at all misses the repos that need it most: `/opt/iterative_image_editor` runs three
+# lanes with 14 plan-locks and commits daily, and carries neither a marker nor a ledger row
+# (executed 2026-09-16), so no adoption key can ever reach it. A repo is multi-agent when
+# several agents are IN it — which the /proc scan already answers for `_sessions_line`.
+# ⚠️ COBRA (D-253): the cheapest way to satisfy this without naming anyone is to close a window
+# so the live count drops below 2 — but that also ends the concurrency the warning is about, so
+# the cheap path IS the outcome. The other cheap path is naming every session the same string;
+# `check_commit_trailers.py::_warn_agent_name_mismatch` compares the SIGNED name against the
+# resolved one, so two sessions sharing one name still mis-sign and still warn.
+# The grammar is single-sourced at `docs_updater.py:940` and `decisions.py:34`; this hook is
+# standalone and fleet-synced so it cannot import either — `tests/test_session_orient_hook.py`
+# pins the copy against both, the precedent `command_run.py` already set for its axis list.
+_MERGE_OWNER_RE = re.compile(r"^\**\s*MERGE OWNER:\s*([A-Za-z0-9][A-Za-z0-9_.@-]{0,31})", re.I)
+_LEDGER_ROW_RE = re.compile(r"^\|\s*D-\d+\s*\|", re.I)
+_LEDGER_MAX_BYTES = 64 * 1024  # bounded like every other read here (see _MEMORY_READ_BYTES):
+# a SessionStart hook must not spike on a pathological file. Measured population 2026-09-16:
+# 49 ledgers, largest 219 KB — so this reads the HEAD of a big ledger, and a merge-owner row
+# below the cut is simply not seen, which fails to the quiet side on purpose.
 
 
 def _declared_merge_owner(cwd: str) -> str:
-    """The agent name `--adopt` declared in this repo's PLANS.md, or "" — "" for an
-    unadopted repo, a repo with no PLANS.md, the UNDECLARED placeholder, and any read
-    error. Fail-open by construction: no declaration, no warning."""
+    """The agent name this repo's LEDGER declares as merge owner, or "". The LAST matching row
+    wins — the ledger's own law (a changed owner is a NEW superseding row), matching
+    `docs_updater.py::read_merge_owner`. Returns "" for an unadopted repo, a missing or
+    unreadable ledger, and a decode/parse failure. ⚠️ It does NOT catch every exception: the
+    fail-open boundary for this hook is `_identity_line`'s own `except Exception`, and saying
+    so here rather than claiming a guarantee this function does not hold."""
     try:
-        text = (Path(cwd) / "docs" / "development" / "PLANS.md").read_text(
-            encoding="utf-8", errors="replace"
-        )
-    except OSError:
+        with open(Path(cwd) / "docs" / "DECISIONS.md", "rb") as fh:
+            raw = fh.read(_LEDGER_MAX_BYTES)
+    except (OSError, ValueError):
         return ""
-    m = _DECLARED_OWNER_RE.search(text)
-    return m.group(1) if m else ""
+    found = ""
+    for line in raw.decode("utf-8", errors="replace").splitlines():
+        s = line.strip()
+        if not _LEDGER_ROW_RE.match(s):
+            continue
+        cells = [c.strip() for c in s.strip("|").split("|")]
+        if len(cells) < 4:
+            continue
+        m = _MERGE_OWNER_RE.match(cells[3])
+        if m:
+            found = m.group(1)
+    return found
 
 
 def _identity_line(cwd: str) -> str:
-    """Advisory (D-034, widened): an UNNAMED session is a mistake wherever several
-    agents share one tree — the hub always, and any project repo that has ADOPTED
-    multi-agent mode. The role hook binds only through CLAUDE_AGENT (a window /rename
-    never reaches hooks; a full day was once mis-signed). Unadopted project repos and
-    named sessions get nothing."""
+    """Advisory (D-034, re-keyed 2026-09-16): an UNNAMED session is a mistake wherever several
+    agents share one tree — the hub always, and any project repo that either DECLARES a merge
+    owner in its ledger or currently has >=2 live `claude` sessions in this exact checkout.
+    A named session, and a single-session unadopted repo, get nothing."""
     try:
         if os.environ.get("CLAUDE_AGENT", "").strip():
             return ""
-        is_hub = (Path(cwd) / "scripts" / "fabrik_synced_manifest.py").is_file()
-        if is_hub:
+        if (Path(cwd) / "scripts" / "fabrik_synced_manifest.py").is_file():
             return (
                 "- ⚠️ **CLAUDE_AGENT is UNSET — this hub session is UNNAMED.** Three sessions"
                 " share this tree; the role charter, beat routing and Agent-Name trailers all"
@@ -179,21 +199,56 @@ def _identity_line(cwd: str) -> str:
                 " claims until named.\n"
             )
         owner = _declared_merge_owner(cwd)
-        if owner:
-            return (
-                "- ⚠️ **CLAUDE_AGENT is UNSET and this repo has ADOPTED multi-agent mode**"
-                f" (merge owner `{owner}`, declared in `docs/development/PLANS.md`). Agent"
-                " identity resolves from that ONE env var, so three controls are silent in"
-                " this session: no role charter is injected, the `Agent-Name` trailer"
-                " mismatch warning cannot fire, and nothing attributes a shared-append edit"
-                " to you. ⚠️ **A LIVE session cannot set it** — the environment is fixed at"
-                " launch, so do not spend a turn trying: either relaunch as"
-                " `CLAUDE_AGENT=<your-name> claude`, or stay unnamed and write the"
-                " `Agent-Name:` trailer by hand on every commit.\n"
-            )
+        live = _count_sessions_sharing(os.path.realpath(cwd))
+        if not owner and live < 2:
+            return ""
+        why = (
+            f"this repo DECLARES merge owner `{owner}`"
+            if owner
+            else f"{live} live sessions share this checkout"
+        )
+        worktree = " --worktree <name> -n <name>-<repo>" if "/.claude/worktrees/" in cwd else ""
+        return (
+            f"- ⚠️ **CLAUDE_AGENT is UNSET and {why}.** Agent identity resolves from that ONE env"
+            " var, so three controls are silent in this session: no role charter is injected"
+            " (`agent_role.py`), the `Agent-Name` trailer mismatch check cannot fire"
+            " (`check_commit_trailers.py`), and the run record's agent dimension records EMPTY —"
+            " so every `command_run.py` row and every `FEEDBACK:` verdict you file this session"
+            " is unattributable. ⚠️ **A live session cannot change its own environment**, so"
+            f" naming this window means a relaunch as `CLAUDE_AGENT=<name> claude{worktree}`, or"
+            " writing the `Agent-Name:` trailer by hand on every commit. Ask the operator which"
+            " name is yours before you sign one.\n"
+        )
     except Exception:
         pass
     return ""
+
+
+def _count_sessions_sharing(real_cwd: str) -> int:
+    """Live `claude` processes whose cwd IS this checkout. 0 on any scan failure — every caller
+    reads 0 as "cannot tell", never as "nobody else is here". Extracted so `_identity_line` and
+    `_sessions_line` cannot drift on the definition of "several agents are in this repo"."""
+    proc_root_env = os.environ.get("FABRIK_PROC_ROOT", "")
+    proc_root = (
+        Path(proc_root_env) if proc_root_env and Path(proc_root_env).is_dir() else Path("/proc")
+    )
+    try:
+        pids = [e.name for e in os.scandir(proc_root) if e.name.isdigit()]
+    except OSError:
+        return 0
+    count = 0
+    for pid in pids:
+        entry = proc_root / pid
+        try:
+            comm = (entry / "comm").read_text(encoding="utf-8", errors="replace").strip()
+            if comm != "claude":
+                continue
+            entry_cwd = os.path.realpath(os.readlink(entry / "cwd"))
+        except OSError:
+            continue  # vanished or unreadable mid-scan — never fatal
+        if entry_cwd == real_cwd:
+            count += 1
+    return count
 
 
 def _sessions_line(cwd: str) -> str:
@@ -212,31 +267,13 @@ def _sessions_line(cwd: str) -> str:
         if (Path(cwd) / "scripts" / "fabrik_synced_manifest.py").is_file():
             return ""
         real_cwd = os.path.realpath(cwd)
-    except OSError:
+    # ValueError: a cwd carrying an embedded NUL raises out of realpath, and `print()` evaluates
+    # every argument before emitting — so one raise here costs the ENTIRE ORIENT block at rc 0,
+    # zero bytes, no stderr (executed; present in this file before the identity work touched it).
+    except (OSError, ValueError):
         return ""
 
-    proc_root_env = os.environ.get("FABRIK_PROC_ROOT", "")
-    proc_root = (
-        Path(proc_root_env) if proc_root_env and Path(proc_root_env).is_dir() else Path("/proc")
-    )
-    try:
-        pids = [e.name for e in os.scandir(proc_root) if e.name.isdigit()]
-    except OSError:
-        return ""
-
-    count = 0
-    for pid in pids:
-        entry = proc_root / pid
-        try:
-            comm = (entry / "comm").read_text(encoding="utf-8", errors="replace").strip()
-            if comm != "claude":
-                continue
-            entry_cwd = os.path.realpath(os.readlink(entry / "cwd"))
-        except OSError:
-            continue  # vanished or unreadable mid-scan — never fatal
-        if entry_cwd == real_cwd:
-            count += 1
-
+    count = _count_sessions_sharing(real_cwd)
     if count < 2:
         return ""
     return (

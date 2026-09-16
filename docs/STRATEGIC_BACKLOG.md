@@ -2638,6 +2638,8 @@ notion of "mine" the check does not currently have — spec-shaped, not a one-li
 
 ### Kaizen loop — the residue of the D-252 stop (2026-09-15)
 
+### Multi-agent identity — trade-intelligence's proposal, the part not yet built (2026-09-16, D-267/D-268)
+
 - **Multi-agent identity has ONE channel and it is write-only at process launch — SPEC work**
   (owner: **infra**; reported by trade-intelligence `01M2N1MJK1FVS543HS7MHW0D7K`, ruled in D-267).
   Direction 3 shipped; these three did not, because together they are a new mechanism spanning

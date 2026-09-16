@@ -590,70 +590,136 @@ def test_sessions_advisory_live_scan_is_fast(tmp_path: Path) -> None:
     assert elapsed < 0.2
 
 
-def _adopted_repo(tmp_path: Path, marker: str | None) -> Path:
-    """A PROJECT repo (no manifest file) whose PLANS.md carries `marker`, or none."""
+def _adopted_repo(tmp_path: Path, owner: str | None, plans_marker: str | None = None) -> Path:
+    """A PROJECT repo (no manifest file). `owner` writes a real MERGE OWNER ledger row — the
+    only thing that declares adoption. `plans_marker` writes the RENDERED PLANS.md comment,
+    which must NEVER be sufficient on its own (it is deletable; the ledger row is not)."""
     proj = tmp_path / "opt" / "adoptedish"
     (proj / "docs" / "development").mkdir(parents=True)
-    body = "# Plans\n\n" + (marker + "\n" if marker else "") + "\n## Board\n"
+    rows = "| id | when | who | what | why | where |\n|---|---|---|---|---|---|\n"
+    if owner:
+        rows += (
+            f"| D-029 | 2026-09-16 | agent-1 (--adopt) | MERGE OWNER: {owner} — the only writer"
+            " of the base branch | declared at adoption | docs/development/PLANS.md |\n"
+        )
+    (proj / "docs/DECISIONS.md").write_text(rows, encoding="utf-8")
+    body = "# Plans\n\n" + (plans_marker + "\n" if plans_marker else "") + "\n## Board\n"
     (proj / "docs/development/PLANS.md").write_text(body, encoding="utf-8")
     return proj
 
 
 def test_adopted_project_warns_an_unnamed_session_and_names_the_owner(tmp_path: Path) -> None:
-    # The multi-agent model's only identity channel is CLAUDE_AGENT and every control
-    # keyed on it fails SILENT when unset — while `--adopt` targets repos whose sessions
-    # are already running and cannot set it (trade-intelligence 01M2N1MJK1, D-030).
-    # A repo that DECLARED a merge owner is running several agents on one tree, so an
-    # unnamed session there gets the same warning the hub has always had.
-    proj = _adopted_repo(tmp_path, "<!-- Merge owner: agent-1 | source: D-029 -->")
+    # The multi-agent model's only identity channel is CLAUDE_AGENT and every control keyed on
+    # it fails SILENT when unset, while `--adopt` targets repos whose sessions are already
+    # running and cannot set it (trade-intelligence 01M2N1MJK1, D-030/D-267).
+    proj = _adopted_repo(tmp_path, "agent-1")
     rc, out = _run(proj, tmp_path, json.dumps({"cwd": str(proj)}))
     assert rc == 0
+    assert "ORIENT" in out  # the block still prints — rc alone hides an empty hook
     assert "CLAUDE_AGENT is UNSET" in out
-    assert "ADOPTED multi-agent mode" in out
-    assert "agent-1" in out, "the warning must name the declared owner, not just the state"
-    # The dead end is stated so nobody spends a turn trying to set it in-process.
-    assert "LIVE session cannot set it" in out
+    assert "DECLARES merge owner `agent-1`" in out
+    # Every consequence the message asserts is pinned, so a mutant that rewrites the prose
+    # into a false claim cannot stay green (round 1: a wrong path in this string killed 0/34).
+    assert "agent_role.py" in out and "check_commit_trailers.py" in out
+    assert "command_run.py" in out and "unattributable" in out
+    assert "A live session cannot change its own environment" in out
 
 
-def test_undeclared_marker_is_not_adoption(tmp_path: Path) -> None:
-    # `--adopt` writes UNDECLARED into PLANS.md BEFORE anyone adopts (docs_updater.py:1206).
-    # Keying on the marker instead of the DECLARATION is what would make this wallpaper:
-    # measured over /opt 2026-09-16, 37 of 45 repos carry PLANS.md and exactly 1 declares.
+def test_the_rendered_plans_marker_alone_never_declares_adoption(tmp_path: Path) -> None:
+    # THE REGRESSION GUARD FOR D-267's first cut. The PLANS.md comment is RENDERED from the
+    # ledger row (docs_updater.py::_merge_owner_header_line), so keying on it let anyone
+    # silence the advisory for good by deleting one HTML comment, while read_merge_owner()
+    # still returned the owner. Executed against the real docs_updater before this fix.
     proj = _adopted_repo(
-        tmp_path,
-        "<!-- Merge owner: UNDECLARED — run: python scripts/docs_updater.py --adopt <name> -->",
+        tmp_path, None, plans_marker="<!-- Merge owner: agent-1 | source: D-029 -->"
     )
     rc, out = _run(proj, tmp_path, json.dumps({"cwd": str(proj)}))
     assert rc == 0
-    assert "ADOPTED multi-agent mode" not in out
+    assert "ORIENT" in out
+    assert "CLAUDE_AGENT is UNSET" not in out
 
 
-def test_project_repo_without_a_marker_stays_silent(tmp_path: Path) -> None:
+def test_live_sessions_alone_warn_with_no_adoption_at_all(tmp_path: Path) -> None:
+    # /opt/iterative_image_editor runs three lanes with 14 plan-locks and has NEITHER a ledger
+    # row NOR a PLANS.md marker (executed 2026-09-16) — an adoption-keyed advisory can never
+    # reach it. A repo is multi-agent when several agents are IN it.
     proj = _adopted_repo(tmp_path, None)
-    rc, out = _run(proj, tmp_path, json.dumps({"cwd": str(proj)}))
+    proc = _fake_proc(tmp_path, [("301", "claude", str(proj)), ("302", "claude", str(proj))])
+    rc, out = _run(
+        proj,
+        tmp_path,
+        json.dumps({"cwd": str(proj)}),
+        extra_env={"FABRIK_PROC_ROOT": str(proc)},
+    )
     assert rc == 0
+    assert "CLAUDE_AGENT is UNSET and 2 live sessions share this checkout" in out
+
+
+def test_single_session_unadopted_repo_stays_silent(tmp_path: Path) -> None:
+    proj = _adopted_repo(tmp_path, None)
+    proc = _fake_proc(tmp_path, [("303", "claude", str(proj))])
+    rc, out = _run(
+        proj,
+        tmp_path,
+        json.dumps({"cwd": str(proj)}),
+        extra_env={"FABRIK_PROC_ROOT": str(proc)},
+    )
+    assert rc == 0
+    assert "ORIENT" in out
     assert "CLAUDE_AGENT is UNSET" not in out
 
 
 def test_named_session_in_an_adopted_repo_gets_no_warning(tmp_path: Path) -> None:
-    proj = _adopted_repo(tmp_path, "<!-- Merge owner: agent-1 | source: D-029 -->")
+    proj = _adopted_repo(tmp_path, "agent-1")
     rc, out = _run(
         proj, tmp_path, json.dumps({"cwd": str(proj)}), extra_env={"CLAUDE_AGENT": "agent-2"}
     )
     assert rc == 0
+    assert "ORIENT" in out
     assert "CLAUDE_AGENT is UNSET" not in out
 
 
 def test_the_hub_keeps_its_own_wording_not_the_adopted_one(tmp_path: Path) -> None:
-    # The hub has a manifest AND (here) a declared owner; it must take the hub branch.
     hub = tmp_path / "opt" / "fabrikish"
     (hub / "scripts").mkdir(parents=True)
     (hub / "scripts/fabrik_synced_manifest.py").write_text("# marker\n", encoding="utf-8")
-    (hub / "docs" / "development").mkdir(parents=True)
-    (hub / "docs/development/PLANS.md").write_text(
-        "<!-- Merge owner: agent-1 | source: D-029 -->\n", encoding="utf-8"
+    (hub / "docs").mkdir(parents=True)
+    (hub / "docs/DECISIONS.md").write_text(
+        "| id | when | who | what | why | where |\n|---|---|---|---|---|---|\n"
+        "| D-029 | 2026-09-16 | a | MERGE OWNER: agent-1 | x | y |\n",
+        encoding="utf-8",
     )
     rc, out = _run(hub, tmp_path, json.dumps({"cwd": str(hub)}))
     assert rc == 0
     assert "this hub session is UNNAMED" in out
-    assert "ADOPTED multi-agent mode" not in out
+    assert "DECLARES merge owner" not in out
+
+
+def test_an_over_long_owner_name_cannot_flood_the_first_message(tmp_path: Path) -> None:
+    # The PLANS/ledger grammar is deliberately permissive (docs_updater.py:944-947), so a
+    # hand-minted row can carry a name `--adopt`'s own ^[a-z0-9-]{1,32}$ would refuse.
+    proj = _adopted_repo(tmp_path, "a" * 5000)
+    rc, out = _run(proj, tmp_path, json.dumps({"cwd": str(proj)}))
+    assert rc == 0
+    assert "a" * 5000 not in out
+    assert "a" * 32 in out  # capped at the grammar's own 32, not dropped
+
+
+def test_a_nul_in_cwd_still_prints_the_whole_block(tmp_path: Path) -> None:
+    # `os.path.realpath` raises ValueError on an embedded NUL and `print()` evaluates every
+    # argument before emitting, so one raise used to cost the ENTIRE block at rc 0 / 0 bytes.
+    rc, out = _run(tmp_path, tmp_path, json.dumps({"cwd": str(tmp_path) + "\x00x"}))
+    assert rc == 0
+    assert "ORIENT" in out
+
+
+def test_the_merge_owner_grammar_matches_its_two_single_sources(tmp_path: Path) -> None:
+    # This hook is standalone and fleet-synced, so it cannot import either owner of the
+    # grammar; the copy is pinned here instead (the precedent command_run.py set for its axis
+    # list). A one-sided edit to any of the three fails this.
+    hook = (FABRIK / ".claude/hooks/session_orient.py").read_text(encoding="utf-8")
+    du = (FABRIK / "scripts/docs_updater.py").read_text(encoding="utf-8")
+    dec = (FABRIK / "scripts/decisions.py").read_text(encoding="utf-8")
+    core = "MERGE OWNER:" + chr(92) + "s*([A-Za-z0-9][A-Za-z0-9_.@-]"
+    assert core in hook, "the hook's grammar drifted from its single sources"
+    assert core in du and core in dec, "docs_updater/decisions drifted from the hook"
