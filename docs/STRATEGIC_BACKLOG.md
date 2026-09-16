@@ -3024,3 +3024,35 @@ and **`terminator_spam: 1.19`** (>1.00 is spam). Those are fleet-wide measuremen
 before the work is finished and emitting terminator blocks more than once per run. The operator raised
 the same complaint about this window directly on 2026-09-17. The number is already being collected and
 nothing reads it; that is the gap, not the number.
+
+## [infra] The READ-budget exemption for MERGED tickets is EARNED by measurement — and the right key is git-derived, not the ✅ row
+
+web-ecommerce-factory asked for the exemption, I asked for the fire rate, and they measured it
+(`01M2P2Z7B7M1PC` and its same-hour erratum `01M2P30TXGWCRP`, which corrected its own population from
+one live set to six before I could). **18 tickets over `READ_BUDGET_BYTES` across 6 live sets / 59
+tickets; 16 carry a ✅ merged Board row, 2 do not.** So the exemption removes the check on 16 tickets
+no cold coder will ever read again and leaves both unmerged ones — which is exactly the shape that
+justifies removing a check.
+
+WHY IT IS NOT A ONE-TOKEN EDIT, measured here 2026-09-17:
+`_sizing_severity` already returns WARN in the GATE path for DRAFT / IN-PROGRESS / EXECUTED /
+BLOCKED, and ERROR only for CONVERGED. Their 18 ERRORs were all at **cli** severity. So:
+· a GATE-path-only exemption bites only on CONVERGED spines — **3 of 19 live plan-set spines
+  fleet-wide** — and does essentially nothing for the problem they measured;
+· a cli/flip exemption is the loosening of the author's own path, and they explicitly did NOT ask
+  for it ("keep the cli/flip context strict if you would rather").
+
+THE KEY IS THE DECIDING QUESTION, and their second proposal answers my Cobra objection outright. The
+✅ row is SELF-REPORTED, so keying an exemption on it lets a ticket exempt itself from a dispatch-time
+guard by editing its own row. They noted it is not free to forge (the emit-time gate errors on a merge
+commit whose Board row is still ⬜, and D5 makes the Board flip ride the squash commit carrying the
+ticket's `Agent-Task` trailer, so a ✅ without a landed commit shows in `git log`) — and then offered
+the better key: **derive "merged" from git** — a commit carrying `Agent-Task: T##` touching the
+ticket's `Touches` paths within the lock's `baseline_commit..HEAD` window. That is not self-reported,
+so the bypass closes and the exemption becomes defensible in cli/flip too.
+
+DESTINATION: this is a NEW MECHANISM (git-derived merge detection inside `check_plan_tickets.py`), not
+a list edit, so it is spec/plan work rather than a patch — `/fabrik-spec` on the key, then the change.
+Whoever takes it has the fire rate already: 18/59 over budget, 16 merged, 2 not, across six live sets
+in one repo, plus the fleet figure that only 3 of 19 live spines are CONVERGED. Do NOT ship the
+✅-keyed version as a shortcut; it is the half that fails the Cobra check. Owner: infra.
