@@ -712,7 +712,32 @@ def _tone(remaining: float) -> str:
     return "ok"
 
 
-def _row(acct: dict, active: str | None, rank: str | None = None) -> str:
+def _posture_sub(posture: object, key: str) -> str:
+    """The burn and the nearer of wall-or-reset for one window, from the posture file (D-269).
+
+    Empty string when there is nothing to say, so a caller can concatenate it unconditionally. The
+    numbers are the tick's own — the board does not re-derive them, because two derivations of one
+    fact are two things to drift.
+    """
+    if not isinstance(posture, dict):
+        return ""
+    act = posture.get("active") if isinstance(posture.get("active"), dict) else {}
+    wins = act.get("windows") if isinstance(act.get("windows"), dict) else {}
+    w = wins.get(key)
+    if not isinstance(w, dict) or w.get("utilization") is None:
+        return ""
+    burn = w.get("burn_per_min")
+    if not (isinstance(burn, (int, float)) and not isinstance(burn, bool) and math.isfinite(burn)):
+        return " · no burn yet"
+    verdict = w.get("verdict")
+    mins = w.get("minutes_to_wall") if verdict == "wall_first" else w.get("minutes_to_reset")
+    if not (isinstance(mins, (int, float)) and not isinstance(mins, bool) and math.isfinite(mins)):
+        return f" · {burn:.2f}%/m"
+    which = "wall" if verdict == "wall_first" else "reset"
+    return f" · {burn:.2f}%/m, {which} in ~{int(mins)}m"
+
+
+def _row(acct: dict, active: str | None, rank: str | None = None, posture: object = None) -> str:
     email = str(acct.get("email", "?"))
     slug = (acct.get("slugs") or ["?"])[0]
     is_active = bool(active) and slug == active
@@ -743,7 +768,11 @@ def _row(acct: dict, active: str | None, rank: str | None = None) -> str:
         badges.append(f'<span class="badge stale">{escape(stale)}</span>')
 
     def cell(
-        left: float | None, used: float | None, reset: float | None, window_s: float | None = None
+        left: float | None,
+        used: float | None,
+        reset: float | None,
+        window_s: float | None = None,
+        extra: str = "",
     ) -> str:
         if left is None:
             return '<td class="num muted">no reading<br><span class="sub">—</span></td>'
@@ -788,7 +817,8 @@ def _row(acct: dict, active: str | None, rank: str | None = None) -> str:
         return (
             f'<td class="num"><span class="pct {tone}">{left:.0f}%</span> left'
             f"{_bar(left, tone)}"
-            f'<span class="sub">{used:.0f}% used · resets {escape(_fmt_reset(reset))}</span></td>'
+            f'<span class="sub">{used:.0f}% used · resets {escape(_fmt_reset(reset))}'
+            f"{escape(extra)}</span></td>"
         )
 
     # Fable-5's separate weekly limit (from the usage `limits` array, keyed by display_name).
@@ -803,9 +833,11 @@ def _row(acct: dict, active: str | None, rank: str | None = None) -> str:
         f'<tr class="{"is-active" if is_active else ""}">'
         f'<td class="acct"><strong>{escape(email)}</strong><span class="sub">{escape(slug)}</span>'
         f'<div class="badges">{"".join(badges)}</div></td>'
-        f"{cell(s_left, s_used, five.get('resets_at_epoch'), _FIVE_HOUR_S)}"
-        f"{cell(w_left, w_used, seven.get('resets_at_epoch'), _SEVEN_DAY_S)}"
-        f"{cell(f_left, f_used, fable.get('resets_at_epoch'), _SEVEN_DAY_S)}"
+        # the posture describes the ACTIVE account only — a standby is not burning fleet quota,
+        # so a forecast for it would be a number with nothing behind it
+        f"{cell(s_left, s_used, five.get('resets_at_epoch'), _FIVE_HOUR_S, _posture_sub(posture, 'five_hour') if is_active else '')}"
+        f"{cell(w_left, w_used, seven.get('resets_at_epoch'), _SEVEN_DAY_S, _posture_sub(posture, 'seven_day') if is_active else '')}"
+        f"{cell(f_left, f_used, fable.get('resets_at_epoch'), _SEVEN_DAY_S, _posture_sub(posture, 'fable') if is_active else '')}"
         f"{_switch_cell(slug, is_active)}"
         "</tr>"
     )
@@ -2164,7 +2196,7 @@ def render(
         else:  # the active account's own return slot
             rows += _return_row(n, a, e["returns_at"])
             continue
-        rows += _row(a, active, rank)
+        rows += _row(a, active, rank, payload.get("posture"))
     # Scaffolded-but-unlogged dirs LAST: real rows first, then the one thing the operator still
     # owes. Older payloads (no `pending` key) render nothing extra.
     rows += "".join(_pending_row(str(x)) for x in (payload.get("pending") or []))

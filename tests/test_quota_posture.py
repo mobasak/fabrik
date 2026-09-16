@@ -517,6 +517,49 @@ def test_install_adds_both_entries_once_and_preserves_every_other_key(tmp_path):
             assert len(entries) == 1, (p, event, "a second --install duplicated the entry")
 
 
+def test_the_tick_warns_when_the_posture_hook_is_not_wired(tmp_path, monkeypatch):
+    """C14 — the tick names the gap, because nothing else can.
+
+    Without the hook the posture is written every cycle and read by nobody, and the session sees NO
+    `QUOTA:` line — which the contract tells the agent means exactly this. Advisory, never a block.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "cr_wiring_probe", HOOK.parent / "claude_rotate.py"
+    )
+    cr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cr)
+
+    # the hook is looked up through the `/opt` seam, so an ABSENT hook warns about nothing —
+    # assert that first, then install one inside the pinned dir and watch the warning appear
+    assert cr._posture_hook_wiring_warnings() == [], "no hook installed ⇒ nothing to nag about"
+    installed = Path(os.environ["FABRIK_OPT_DIR"]) / "fabrik" / "scripts" / "sysadmin"
+    installed.mkdir(parents=True, exist_ok=True)
+    (installed / "quota_posture_hook.py").write_text("", encoding="utf-8")
+
+    files = []
+    for i in range(6):
+        p = tmp_path / f"s{i}" / "settings.json"
+        p.parent.mkdir(parents=True)
+        p.write_text(json.dumps({"hooks": {}}), encoding="utf-8")
+        files.append(p)
+    monkeypatch.setenv("QUOTA_POSTURE_SETTINGS", os.pathsep.join(str(p) for p in files))
+
+    warns = cr._posture_hook_wiring_warnings()
+    assert len(warns) == 1 and "6 of 6" in warns[0], warns
+    assert "--install" in warns[0], "the warning must name its own remedy"
+
+    mod = _load()
+    mod.install(files)
+    assert cr._posture_hook_wiring_warnings() == [], "a wired fleet must warn about nothing"
+
+    # one file unwired again ⇒ the count is the population, not a bare number
+    files[2].write_text(json.dumps({"hooks": {}}), encoding="utf-8")
+    warns = cr._posture_hook_wiring_warnings()
+    assert len(warns) == 1 and "1 of 6" in warns[0], warns
+
+
 def test_settings_files_skips_the_active_symlink(tmp_path, monkeypatch):
     """C11b — the fleet root's `active` is a SYMLINK to whichever account is current. Including it
     would wire ONE account twice and take the second backup of an already-edited file."""

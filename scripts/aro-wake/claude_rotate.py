@@ -3742,6 +3742,57 @@ def _relogin_block(slug: str, email: str) -> str:
     )
 
 
+def _posture_hook_wiring_warnings() -> list[str]:
+    """One advisory line when the quota-posture hook is missing from any user-level settings file.
+
+    Without the hook the posture is written every cycle and READ by nobody: the session sees no
+    `QUOTA:` line at all, which the contract tells the agent means exactly this. The tick is the one
+    process that runs regardless of what any window is doing, so it is where the gap can be noticed.
+
+    ADVISORY, never a block — a file the operator deliberately left unwired is their business. The
+    settings list comes from the hook itself, so the two cannot enumerate different files, and an
+    absent hook script yields no warning at all rather than a false one.
+    """
+    # ⚠️ Through `_opt_dir()`, not a hardcoded absolute path: the same seam the mail sender uses, so
+    # one pin covers this too and a test can exercise the warning instead of silently getting none.
+    # An ABSENT hook yields no warning at all — nagging about something that is not installed is
+    # noise, and this line has to stay worth reading.
+    hook = _opt_dir() / "fabrik" / "scripts" / "sysadmin" / "quota_posture_hook.py"
+    if not hook.is_file():
+        return []
+    raw = os.environ.get("QUOTA_POSTURE_SETTINGS")
+    if raw:
+        paths = [Path(p) for p in raw.split(os.pathsep) if p]
+    else:
+        paths = [Path.home() / ".claude" / "settings.json"]
+        try:
+            root = Path.home() / ".claude-fleet"
+            paths += sorted(
+                d / "settings.json" for d in root.iterdir() if d.is_dir() and not d.is_symlink()
+            )
+        except OSError:
+            pass
+    unwired = 0
+    for p in paths:
+        try:
+            cfg = json.loads(p.read_text())
+        except _STATE_DIR_ERRORS:
+            unwired += 1
+            continue
+        hooks = cfg.get("hooks") if isinstance(cfg, dict) else None
+        if not isinstance(hooks, dict) or any(
+            "quota_posture_hook.py" not in json.dumps(hooks.get(ev) or [])
+            for ev in ("UserPromptSubmit", "PreToolUse")
+        ):
+            unwired += 1
+    if not unwired:
+        return []
+    return [
+        f"⚠ quota-posture hook not wired in {unwired} of {len(paths)} settings file(s) — those "
+        f"windows get NO QUOTA: line; fix: python3 {hook} --install"
+    ]
+
+
 def _fleet_row_warnings(accounts: list[dict]) -> list[str]:
     """Chain-health warnings derived from data already on the account rows (this function adds
     no probes; the rows were built with at most one hourly identity probe per account), printed
@@ -5419,7 +5470,7 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
     # every agent is using) is walled with no auto-relief. A single account crossing the threshold is a
     # non-event — the flip leg above already re-pointed to a sibling with headroom.
     _fleet_active_wall_advisory(accounts, now, threshold)
-    for warn in _fleet_row_warnings(accounts):
+    for warn in _fleet_row_warnings(accounts) + _posture_hook_wiring_warnings():
         print(warn)
     _chain_expiry_push(accounts, now)
     for p in pending:
