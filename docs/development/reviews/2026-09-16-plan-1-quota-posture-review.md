@@ -1,0 +1,183 @@
+# Heavy review — 2026-09-16-plan-1-quota-posture
+
+**Surface:** the whole-plan diff, base `400c83c7` (the branch point from master) to the Finish head.
+23 files, 3,933 changed lines, pinned at `<scratch>/reviewB/whole-plan.diff`, md5
+`ff56a46a03c53fc2ab8a1e7592136113`.
+
+**Partition:** by FILE (D-207), six disjoint slices, `dispatch_headroom.py --slices
+opus=2,sonnet=3,haiku=1` → `SEATS: 6`, stamped before dispatch. No file's logic read by two seats.
+
+| Slice | Model | Subject |
+|---|---|---|
+| 1 | Opus | `scripts/sysadmin/quota_posture_hook.py`, whole (796 lines, NEW) |
+| 2 | Opus | the new region of `scripts/sysadmin/claude_rotate.py` (+500/-7) |
+| 3 | Sonnet | the three governance contracts, the hooks index, the rotation doc, CHANGELOG |
+| 4 | Sonnet | every test file this plan added or changed |
+| 5 | Sonnet | `dispatch_headroom.py`, `quota_dashboard.py`, the plan and the lock |
+| 6 | Haiku | the mechanical sweep across all four scripts |
+
+**Round 1: 31 findings, 21 confirmed, 4 of them inside this review's own earlier fixes.** Every
+class in the ledger swept clean (`command_run.py round` → `classes open: none`).
+
+---
+
+## What this review was for
+
+Three findings justify the whole exercise, and all three are the same defect wearing different
+clothes: **a module constant bound at import cannot be pinned by a test fixture.**
+
+### 1. A test could repoint the operator's live account pointer
+
+`CLAUDE_FLEET_ROOT` was not pinned autouse. The tick's flip leg calls `_flip_active`, which
+`os.replace`s the `active` SYMLINK under `_fleet_root()` — the pointer that decides which account
+every window on this box uses. Containment rested entirely on each fleet test remembering to set the
+env itself.
+
+This is not hypothetical. On the same day, the operator reported having to switch accounts by hand
+while off-cadence flip rows appeared in the live `rotate-ledger.jsonl` during this plan's own test
+runs. `CLAUDE_FLEET_ROOT` and `QUOTA_POSTURE_SETTINGS` are now pinned in the same autouse fixture,
+and `tests/test_conftest_isolation.py` asserts both, plus that `_fleet_root()` and the active-pointer
+path resolve inside the pin.
+
+### 2. A test DID mail 49 live project mailboxes
+
+Found during Phase B, before this review. A grader drove `_cmd_tick()` into the fleet-exhausted
+branch with fixture data; `_mailbox_repos()` enumerated the real `/opt`; roughly a thousand notices
+went out ordering every repo on the box to stop until **2027-01-22** — the fixture's own default
+weekly reset, mailed as fact. The first fix closed only the mailbox sink; a later seat found
+`_tick_telegram` fires FIRST and was still live, and that `_drain_mail` hardcoded its SENDER so the
+pin held only while the isolated dir happened to be empty.
+
+Sinks found one at a time, three rounds apart: **the enumeration, the notifier, the fleet root.**
+The lesson is in the pattern, not in any one of them.
+
+### 3. The RED hold did not hold
+
+`_is_new_run_start` was rewritten three times and narrowed once. Each version shipped a docstring
+claiming the spellings were handled, and each next reviewer disproved it:
+
+| draft | broken by |
+|---|---|
+| 1, regex substring | a quoted script path (hold vanished) · a quoted `--command 'fabrik-review'` (denied the review family) · the FIRST `--command` beating the LAST · a commit message naming the script (denied the act RED mandates) |
+| 2, shlex with a pre-split on `[;&\|\n]+` | the pre-split severed quotes and denied that commit AGAIN · `\n` in the class denied the review-family start |
+| 3, one parse + operator-cut tokens | the verb compared exactly while shlex splits on whitespace (`start;echo done` vanished) · names accumulated globally · the `--command` value uncut · a `bash -c` payload unseen |
+| narrowed (current) | a newline decoy binding to the line above · `bash -lc` · a shell MCP unheld · a bare mention denied |
+
+**The verdict was NARROW, and the reasoning matters more than the code:** a CLOSED list of remaining
+gaps is the wrong artifact, because it tells the next reader the question is settled. The docstring
+now states only what survived all four passes — this reads arbitrary shell, it will be wrong about
+some of it, it is wrong in the fail-OPEN direction, and the `Agent` half (one exact tool-name
+comparison, never wrong in any draft) is what carries the contract. The living record is the bypass
+corpus, where every case is a shape some draft got wrong.
+
+---
+
+## Per-phase verdict
+
+| Phase | Verdict | Evidence |
+|---|---|---|
+| A — the three contracts | **PASS** | one byte-identical sentence set in all three, graded twice: an eight-anchor count and a span-identity check. `tests/test_governance_template_split.py` → 11 passed. Scoped review 3 rounds (11→5→1), closed under the D-252 stop. |
+| B — the writer | **PASS with fixes** | 3 MEDIUM defects found by review, each executed not argued: a shared staging name tearing under concurrent ticks (3,471 of 4,000 concurrent reads unparseable); a PAST reset clamped to 0 winning every tie; NaN banding the hottest reading GREEN and crashing `--status`. All fixed with guards proven red-on-revert. 4 rounds, closed under the D-252 stop. |
+| C — the readers | **PASS with fixes** | 24 confirmed across 3 rounds, including the three HIGH bypasses of the RED hold and a grader that could not fail. Closed under the D-252 stop with residue in a named backlog row. |
+| D — Finish | **PASS with fixes** | this review: 21 confirmed, including the fleet-root write sink and four errors in the plan's own record. |
+
+## What the review corrected in the plan's own record
+
+A plan's record is what someone audits this from later, and this one was wrong four times:
+
+- the lock omitted four files the plan wrote, and two Behavior Contract rows cited the wrong files;
+- the Coverage Checklist claimed a doc (`quota-dashboard.md`) that was never written — now written;
+- the Execution notes cited a `B18` row the table did not contain — now present;
+- and I had directly edited two files the plan reserves for infra (`scripts/command_run.py`,
+  `.claude/hooks/final_gate_stop.py` — one lock-owned, one a governance-sync trigger). Both reverted;
+  the finding mailed to infra as `01M2NSXK1FBJEZS0T3AAGXBX6D`.
+
+## Pass Ledger — the closing rounds
+
+Rounds 1-6 of the heavy review are summarised in the per-phase verdict above. These are the CLOSING
+delta rounds, each carrying a fresh non-authoring seat over a pinned diff. ⚠️ Two of the three found
+a defect the author had missed, and the second found one the author had just INTRODUCED while fixing
+the first — which is why no round here was taken on the author's own reading.
+
+| Round | Seats | Pin | Result |
+|---|---|---|---|
+| Delta 1 | 1 fresh (Sonnet) | `3d720be6a11054aaacacbe10ccbd6329`, commit `0d98e112` | confirmed: 1, fixed: 1 — the CHANGELOG grader count was stale a THIRD time (89 against an actual 93): the commit that wrote it claimed the number was "derived at write time" while the same commit added four cases after the derivation ran. Also raised a trailing-slash spelling as PLAUSIBLE and explicitly declined to confirm it live. |
+| Delta 2 | 2 fresh (Opus predicate · Sonnet doc-truth) | `b3747278409840180b75eade3e9449e1` | confirmed: 2, fixed: 2 — ⚠️ the author had "closed the class" the previous round declined to confirm, widening `_command_name` to `strip("/")`. The Opus seat drove a REAL `command_run.py start` under an isolated `COMMAND_RUN_DIR` and proved the widening broke the mirror with the recorder (`lstrip("/")`, `:2501`/`:3008`): the hook PASSED a start whose record read `fabrik-review/`, off-family for `command_run.py:3398` and `final_gate_stop.py:1000`, so the session would pay for the review and still be blocked at Stop as unreviewed. A loud deny at the start traded for a silent failure to count at the end. The Sonnet seat separately found the fail-closed fix had shipped with no `### Fixed` CHANGELOG entry of its own, so a bug blocking a mandated checkpoint was named nowhere in that file. |
+| Delta 3 | 1 fresh (Opus) | `9cce6b05f0565f5a5dd1040305dea7ef`, commit `fc6a07e8c` | confirmed: 5, fixed: 5 · refuted: 2 — ⚠️ the round found that the grader written in Delta 2 to prevent Delta 2's defect COULD NOT have caught it: the parity oracle asserted against a hardcoded `raw.lstrip("/")`, a restatement of the recorder's rule rather than the recorder, and stayed green when `command_run.py` alone was mutated. Live risk, not theoretical — the same commit FILED a request asking infra to change exactly that side. Re-keyed to drive the real recorder (an actual `start` in an isolated `COMMAND_RUN_DIR`), proven red in BOTH directions. Also: the deny-text change from Delta 2 was REVERTED (it claimed to render the value "as typed", but `decide` never sees the raw value, so it rendered the normalised name and LOST the slash on the common case — `Starting fabrik-spec` where the corpus writes `/fabrik-spec`), its `//fabrik-review` justification was false of the code it changed, the Delta-2 CHANGELOG rewrite had DELETED the entry documenting the original fix (re-opening Delta 2's own finding), and a docstring summary still asserted what the revert removed. REFUTED by execution: the `_cut`-on-the-value finding (its harness never went through a shell — under real bash the quoted forms record in-family exactly as the hook predicts, and the operator forms produce no record at all) and the mirror-exactness hypothesis (20 spellings, 0 disagreements). |
+| Delta 4 | 2 fresh (Opus predicate · Sonnet doc-truth) | `b3747278…` / `d4f60f2e…` | confirmed: 5+7 — the parity grader written in Delta 3 to close Delta 2's class had SILENTLY CUT ITS OWN COVERAGE: three spellings dropped, taking two whole mutant classes with them (a `.strip()` on either side's normalisation; removal of the `or None` collapse). It also pinned one of the subprocess's TWO write channels. Both fixed, both mutant classes proven red. Same root `_cut` call found failing in the WORSE direction — a substituted `--command "$CMD"` reads as the literal name `CMD`, so RED DENIES the one start it exists to permit; backlog row extended to both directions. Two comments narrowed from overclaims. ⚠️ The author's filing to infra carried two false claims (a RELEASED lock named as the blocker; a coverage count of nine while shipping six) — corrected by mail `01M2NZES67YG4HG29QD6JTV7HW`. |
+
+| Delta 5 | 1 fresh (Opus) | `e73962839097…`, commit `505de5545` | in flight at the time of writing — this row is completed by its own verdict, never in advance. |
+
+⚠️ **A process finding, not a code one, and the most useful thing this review produced.** Delta 4's
+seat reported the file changing under it and changing back mid-pass. That was the AUTHOR running
+mutate-run-restore experiments on the live `quota_posture_hook.py` while the seat was reading that
+path. Every mutation guard passed — backup written first, restore `cmp`-verified byte for byte —
+because all of them protect the author's work and none asks who else is READING. The seat stated
+that had it re-read the live path instead of its SHA pin, it would have filed a CONFIRMED defect as
+REFUTED. Recorded in `docs/LESSONS_LEARNT.md`; every later brief carries a trust-the-pin clause.
+
+⚠️ **What this ledger is really recording.** Three consecutive closing rounds each found a real
+defect, and TWO of them found a defect the author had introduced while fixing the previous round's.
+Every one was caught by a seat that had not written the code, and none by the author re-reading. The
+Delta-3 finding is the sharpest: a regression guard can be written, watched fail, and still be
+worthless, because it was graded against a RESTATEMENT of the contract instead of against the other
+side of it. A guard whose oracle is prose the author typed is a guard that agrees with the author.
+
+## Recorded, not fixed
+
+- **Whether a string predicate over arbitrary shell is the right SHAPE at all.** The `Agent` half is
+  one comparison and has never been wrong; this half has been wrong in every version. Dropping it
+  needs the frozen sentence set in all three contracts re-cut, so it is a named
+  `docs/STRATEGIC_BACKLOG.md` row rather than a mid-Finish decision.
+- **~25 dead `monkeypatch.setattr(cr, "OPT_DIR", …)` calls**, now that `_opt_dir()` prefers the env.
+  They fail safe; a 25-site mechanical replace at the end of a long run is how this same session
+  rewrote five unrelated sentences earlier, so it is a backlog row with a named destination.
+- **An aliased script and an `xargs` pipe** never carry the basename next to the verb. Closing them
+  means touching the filesystem on every tool call — a worse trade than saying so.
+
+## Gate
+
+`python3 scripts/final_gate.py --json --check`, run from the MAIN checkout after the merge, verbatim:
+
+```json
+{
+  "status": "success",
+  "tier": 2,
+  "passed": 66,
+  "failed": 0,
+  "skipped": 3,
+  "skipped_checks": ["bandit", "semgrep", "pytest"]
+}
+```
+
+⚠️ The gate is run from the main checkout **on purpose**. In the run's worktree its Doc Link
+Integrity row reds on six documents this branch never touched, because their targets are gitignored
+cache files that exist at `/opt/fabrik` and not in any worktree checkout — verified file by file. The
+same class made `docs_updater.py --sync` unsafe here: run from the worktree it regenerated `INDEX.md`
+from a tree missing `docs/development/certifications/`, deleting that row. Caught by reading the
+diff; `INDEX.md` reverted, only the `PLANS.md` row kept.
+
+## Suites
+
+```
+tests/test_quota_posture.py tests/test_claude_fleet.py tests/test_conftest_isolation.py
+tests/test_dispatch_headroom_posture.py tests/test_quota_dashboard_posture.py
+tests/test_governance_template_split.py
+  -> 326 passed in 119.51s   (run on the MERGED master, not on the branch)
+
+Live smoke, the wired hook at its installed path:
+  $ echo '{"hook_event_name":"UserPromptSubmit","session_id":"live-smoke"}' \
+      | python3 /opt/fabrik/scripts/sysadmin/quota_posture_hook.py
+  QUOTA: ob · 5h 47% (reset in 2:44) · weekly 22% (reset in 160:24) · Fable 13% · band GREEN · successor can
+  rc=0
+  $ echo '{"hook_event_name":"PreToolUse","tool_name":"Agent","session_id":"live-smoke"}' | ...
+  (silent) rc=0        # GREEN holds nothing
+
+Wiring, all six user-level settings files:
+  0 of 6 settings file(s) not wired
+  one entry per event in each, six other hook events intact, the per-account `model` drift
+  preserved (three accounts on claude-fable-5-1[1m], three on opus[1m]), a backup beside each.
+
+Distribution (D2): 47 of 47 SYNCED project contracts carry the D-269 sentence set. The two
+/opt/*/CLAUDE.md files that do not are fabrik-lib worktrees, which are sync-EXCLUDED by design.
+```
