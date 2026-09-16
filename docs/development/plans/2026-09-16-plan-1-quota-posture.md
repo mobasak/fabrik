@@ -212,7 +212,7 @@ Steps:
 | B16 | a reset epoch already in the past, with a live burn | the forecast runs | `wall_first` — a past reset is stale data, not a reset that came first; `minutes_to_reset` stays clamped for display | `test_posture_a_past_reset_never_wins_the_forecast` (red-on-revert) |
 | B17 | a NaN or infinite reading | the window is read | no reading, so no band and no renderer ever sees one | `test_posture_a_non_finite_reading_is_no_reading` (red-on-revert) |
 
-## Phase C — the readers: the prompt line, the RED hold, and the existing surfaces
+## Phase C — the readers: the prompt line, the RED hold, and the existing surfaces — ✅ EXECUTED 2026-09-16 (4ee1d467 · 7cf69144 · 10c65b70 · ef0a6438 · ebfda9e3 · a9d71bb9; scoped review closed after 3 rounds under the D-252 stop, residue at c3eceda5). Step 5 (wire this box) MOVED to Finish — see the Execution note.
 
 **Responsibility:** `scripts/sysadmin/quota_posture_hook.py` (NEW, box-local, one file, both events, `--install`/`--check`), `dispatch_headroom.py::quota()` and `quota_dashboard.py` reading the same posture through the `--status --json` payload, the six settings files wired, the tick warning when wiring is missing.
 
