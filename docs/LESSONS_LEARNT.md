@@ -2,6 +2,43 @@
 # Lessons Learnt
 
 
+## Four false mechanism claims in one session, every one caught by EXECUTION and none by re-reading (2026-09-16)
+
+**What happened.** In a single session I asserted, four separate times, what a mechanism does without
+running it:
+
+1. **D-267's Cobra note** — "deleting the PLANS.md marker makes `docs_updater`'s advisory fire
+   instead". Executed: `read_merge_owner()` reads `docs/DECISIONS.md`, so with the marker deleted it
+   still returned `('agent-1','D-029')` and `validate_ownership_advisory()` returned `[]`. The cheap
+   bypass was silent, and the note promising otherwise shipped to 46 repos.
+2. **The self-naming spec's Cobra note** — "`check_commit_trailers.py` compares SIGNED against
+   RESOLVED, so two sessions sharing one name still warn". Executed across four permutations: it
+   compares against *this session's own* resolved name and has no cross-session state, so two
+   sessions on one name sign consistently and it is silent by construction.
+3. **A claim to the OPERATOR** — "`Profile: small` means the plan chain drops out, three gates not
+   five", given as the justification for a recommendation about their time. Executed:
+   `fabrik-plan-after-chat.md:207` classifies `Profile: small` INTERNALLY and `:719` mandates
+   `/fabrik-plan-review` unconditionally; D-220, D-232 and D-246 are all `Profile: small` plans that
+   went through it.
+4. **A claim in my own rewrite, fifteen minutes old** — "`conftest.py` does not pin
+   `CLAUDE_CODE_SESSION_ID`". Executed: `:142` DELETES it in an autouse fixture whose docstring names
+   both spellings. I had taken a review seat's framing and written it as my own finding without
+   checking — the same failure with an extra step.
+
+**The lesson.** The contract already says *"Read it, don't recall it"* and I believed I was obeying
+it, because in every one of these cases I HAD read something — a docstring, a seat's report, a
+neighbouring rule. Reading the wrong artifact is indistinguishable from not reading. The discriminator
+is not reading versus recalling; it is **running versus not running**. A claim of the shape "X fires",
+"Y catches this", "Z prunes that" is a claim about BEHAVIOUR, and the only thing that settles behaviour
+is executing it.
+
+**The rule I would give my next self.** Any sentence asserting that a mechanism fires, catches, prunes
+or refuses carries the command that proved it — in the artifact, next to the claim, the way a count
+already has to carry its denominator. Three of these four were one `grep` and one `python -c` away.
+And a counter-measure is the highest-risk instance of the class: a Cobra note exists precisely to name
+the cheap path, so a Cobra note that names a protection which does not exist is worse than no note —
+it retires the question while leaving the hole. Twice in one day, on two different specs.
+
 ## A key on a RENDERED artifact measures the renderer, and a fire rate over declarations cannot see who never declared (2026-09-16)
 
 **What happened.** I gated an advisory on the `<!-- Merge owner: … -->` comment in
