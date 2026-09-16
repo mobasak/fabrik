@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `decisions.py --append` and `--reserve-id`: a sanctioned write path that cannot mint a duplicate (2026-09-17)
+
+- **`--append REPO_DIR --when --who --what --why --where`** allocates the id ITSELF and writes the row
+  atop the table, both inside ONE flock critical section. The caller never picks an id. Fields are
+  escaped code-span-aware through the same helper `_rows` decodes with, and a field containing a
+  newline is refused with nothing written.
+- **`--reserve-id REPO_DIR`** allocates AND reserves box-locally under
+  `~/.claude/state/decision-ids/<key>.jsonl`. The key is the git COMMON DIR alone — never the ledger
+  path, because `/opt/fabrik`'s 18 worktrees share one ledger while fabrik-lib's three worktrees carry
+  three, and no path-based key separates the second without breaking the first. The seed is the ledger
+  being written, which is what lets one key serve both.
+- Allocation is a MONOTONIC HIGH-WATER MARK (`max(ledger ∪ reservations) + 1`), never a first-free
+  scan: backfilling a gap re-issues a retired number and every `supersedes D-011` then resolves to the
+  wrong row.
+- ⚠️ The two failure legs point deliberately opposite ways. A lock TIMEOUT fails **CLOSED** — non-zero
+  exit, NO id printed — because an id printed is an id minted, and an earlier draft's fail-open had
+  agent B minting exactly the id agent A held. An unwritable state dir fails **OPEN** (`max+1`, exit 0,
+  stderr line), because then nobody can reserve and degradation is uniform.
+- Implements delta §1 and §2 of `docs/superpowers/specs/2026-09-16-ledger-write-integrity-design.md`.
+  Still outstanding: the merge-base read (§3) and the ratcheted gate (§5).
+
 ### Fixed — The ledger reader decodes CODE-SPAN-AWARE, so it agrees with the rendered ledger (2026-09-17)
 
 - `scripts/decisions.py` gains `_code_span_ranges()` (CommonMark §6.1: a run of N backticks opens a

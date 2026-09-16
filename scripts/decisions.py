@@ -23,8 +23,14 @@ silently skipped (adoption is rolling). Query always exits 0; only --check has a
 from __future__ import annotations
 
 import argparse
+import contextlib
+import fcntl
+import json
 import re
+import subprocess
 import sys
+import time
+from collections.abc import Iterator
 from pathlib import Path
 
 # Case-insensitive + normalized to upper in _rows(): a lowercase-minted `| d-003 |` row
@@ -67,7 +73,6 @@ def _ledgers(root: Path) -> list[tuple[str, Path]]:
     except OSError:
         pass
     return out
-
 
 
 def _code_span_ranges(s: str) -> list[tuple[int, int]]:
@@ -131,6 +136,7 @@ def _escape_cell(text: str) -> str:
         else:
             out.append(ch)
     return "".join(out)
+
 
 def _rows(path: Path) -> list[tuple[str, list[str]]]:
     """(id, cells) per data row; header/separator rows carry no D-NNN id and never match."""
@@ -275,6 +281,215 @@ def _check(root: Path) -> int:
     return 0
 
 
+# --- id reservation, box-local (spec delta §2) -------------------------------------------------
+_RESERVE_TTL_DAYS = 7
+_LOCK_TRIES, _LOCK_WAIT_S = 50, 0.1
+
+
+def _repo_key(target: Path) -> str:
+    """The reservation key for *target*: the basename of the repo the ledger belongs to.
+
+    ⚠ The key is the GIT COMMON DIR ALONE — the ledger's own path must NOT enter it. Both shapes
+    that tempt you present identically (one common-dir, the repo-relative path ``docs/DECISIONS.md``):
+    ``/opt/fabrik-lib`` + ``-account`` + ``-review`` are worktrees of ONE repo carrying THREE separate
+    ledgers, while ``/opt/fabrik`` has 18 registered worktrees whose ledger is the SAME one at an older
+    commit. A path-keyed file hands that stale worktree its own high-water (D-155) and it mints D-156,
+    an id already live on master. No path-based key separates the first case while unifying the second,
+    so the key unifies and the SEED separates (see :func:`_allocate`).
+
+    ``git rev-parse`` runs against the TARGET, never the cwd — ``--next-id .`` is the contract-mandated
+    spelling and ``Path('.').name`` is ``''``, which would put all 49 repos in one file.
+    """
+    probe = target if target.is_dir() else target.parent
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            cwd=probe,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        if out.returncode == 0 and out.stdout.strip():
+            return Path(out.stdout.strip()).parent.name or "_root"
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return probe.resolve().name or "_root"
+
+
+def _reserve_path(key: str) -> Path:
+    return Path.home() / ".claude" / "state" / "decision-ids" / f"{key}.jsonl"
+
+
+@contextlib.contextmanager
+def _locked(path: Path) -> Iterator[bool]:
+    """flock *path*.lock. Yields True when held, False when it could not be taken.
+
+    The CALLER decides the failure direction, because the two legs differ: a lock TIMEOUT fails
+    CLOSED (see :func:`_allocate`) while an unwritable state dir fails OPEN. An earlier draft let the
+    timeout fall open to ``max+1``; executed, agent B then minted the exact id agent A was holding —
+    a collision generator in precisely the two-agent condition the reservation exists for.
+    """
+    lock = path.with_suffix(path.suffix + ".lock")
+    fh = None
+    try:
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        fh = lock.open("a+")
+    except OSError:
+        yield False
+        return
+    try:
+        for _ in range(_LOCK_TRIES):
+            try:
+                fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError:
+                time.sleep(_LOCK_WAIT_S)
+        else:
+            yield False
+            return
+        yield True
+    finally:
+        if fh is not None:
+            try:
+                fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+            except OSError:
+                pass
+            fh.close()
+
+
+def _live_reservations(path: Path) -> list[int]:
+    """Reserved ids not older than the TTL. A pruned id is NEVER re-issued — allocation is a
+    monotonic high-water mark, so the hole it leaves is permanent, which is what makes pruning safe."""
+    cutoff = time.time() - _RESERVE_TTL_DAYS * 86400
+    out: list[int] = []
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return out
+    for line in text.splitlines():
+        try:
+            row = json.loads(line)
+            if float(row.get("at", 0)) >= cutoff:
+                out.append(int(row["id"]))
+        except (ValueError, TypeError, KeyError):
+            continue
+    return out
+
+
+def _ledger_of(target: Path) -> Path:
+    return target / "docs" / "DECISIONS.md" if target.is_dir() else target
+
+
+def _ledger_ids(ledger: Path) -> list[int]:
+    try:
+        text = ledger.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return []
+    return [int(m) for m in re.findall(r"^\|\s*D-(\d+)\s*\|", text, re.M)]
+
+
+def _allocate(ledger: Path, key: str, *, reserve: bool) -> tuple[int | None, str]:
+    """Next id as a MONOTONIC HIGH-WATER MARK, optionally reserving it. Returns (id, note).
+
+    ``max(THIS ledger's rows ∪ THIS key's reservations) + 1`` — never a first-free scan. A first-free
+    scan backfills gaps (executed: it returns D-011 in fabrik-lib, which has 31, and D-003 in
+    web-ecommerce-factory), re-issuing retired numbers so every ``supersedes D-011`` resolves to the
+    wrong row. Gaps are normal and correct.
+
+    The SEED is the ledger being written, which is what lets ONE common-dir key serve worktrees that
+    share a ledger AND sibling checkouts that do not: a stale hub worktree is seeded from master's
+    reservations and cannot re-issue a live id, while fabrik-lib-account's 1-row ledger gets an id
+    above fabrik-lib's high-water instead of D-002.
+
+    FAILURE DIRECTIONS, deliberately different: a lock TIMEOUT fails CLOSED (returns None — a refused
+    allocation costs a retry, a colliding one costs the duplicate). An unwritable state dir fails OPEN
+    (returns max+1 with a note) because then NOBODY can reserve, so degradation is uniform and no id
+    is stolen from a holder that does not exist.
+    """
+    ids = _ledger_ids(ledger)
+    path = _reserve_path(key)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        base = max(ids) + 1 if ids else 1
+        return base, f"decisions: reservation dir unwritable ({exc}) — not reserved\n"
+    if not reserve:
+        with _locked(path) as held:
+            if not held:
+                return None, "decisions: could not take the reservation lock — no id issued\n"
+            pool = ids + _live_reservations(path)
+            return (max(pool) + 1 if pool else 1), ""
+    with _locked(path) as held:
+        if not held:
+            return None, "decisions: could not take the reservation lock — no id issued\n"
+        pool = ids + _live_reservations(path)
+        nid = max(pool) + 1 if pool else 1
+        try:
+            with path.open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps({"id": nid, "at": time.time()}) + "\n")
+        except OSError as exc:
+            return nid, f"decisions: reservation not written ({exc})\n"
+        return nid, ""
+
+
+def _append_row(ledger: Path, fields: list[str], key: str) -> int:
+    """Allocate an id and write the row atop the table — BOTH inside ONE lock (spec delta §1).
+
+    ⚠ Allocation and the write are one critical section. Two concurrent ``--append`` calls that each
+    computed ``max(...)+1`` outside a lock would produce exactly the duplicate this exists to prevent,
+    through the SANCTIONED path.
+    """
+    for f in fields:
+        if "\n" in f or "\r" in f:
+            sys.stderr.write("decisions: a field contains a newline — refused, nothing written\n")
+            return 2
+    path = _reserve_path(key)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
+    with _locked(path) as held:
+        if not held:
+            sys.stderr.write("decisions: could not take the lock — nothing written\n")
+            return 1
+        ids = _ledger_ids(ledger)
+        pool = ids + _live_reservations(path)
+        nid = max(pool) + 1 if pool else 1
+        try:
+            lines = ledger.read_text(encoding="utf-8", errors="replace").split("\n")
+        except OSError as exc:
+            sys.stderr.write(f"decisions: cannot read {ledger} ({exc})\n")
+            return 1
+        sep = next(
+            (
+                n
+                for n, ln in enumerate(lines)
+                if re.match(r"^\|[\s:|-]+\|\s*$", ln.strip())
+                and n
+                and lines[n - 1].lstrip().startswith("|")
+            ),
+            None,
+        )
+        if sep is None:
+            sys.stderr.write(f"decisions: no table header found in {ledger}\n")
+            return 1
+        row = "| " + " | ".join([f"D-{nid:03d}", *(_escape_cell(f) for f in fields)]) + " |"
+        lines.insert(sep + 1, row)
+        try:
+            ledger.write_text("\n".join(lines), encoding="utf-8")
+        except OSError as exc:
+            sys.stderr.write(f"decisions: cannot write {ledger} ({exc})\n")
+            return 1
+        try:
+            with path.open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps({"id": nid, "at": time.time()}) + "\n")
+        except OSError:
+            pass
+        print(f"D-{nid:03d}")
+        return 0
+
+
 def _next_id(repo: Path) -> int:
     """Print the next free ``D-NNN`` for *repo*'s ledger, derived from the file right now.
 
@@ -346,12 +561,47 @@ def main(argv: list[str] | None = None) -> int:
         help="print the next free D- id for that repo's docs/DECISIONS.md, read AT THIS INSTANT "
         "(mint it in the same change as the row — see _next_id)",
     )
+    parser.add_argument(
+        "--reserve-id",
+        metavar="REPO_DIR",
+        help="allocate AND RESERVE the next D- id for that repo's ledger (box-local, flocked). "
+        "Unlike --next-id this is atomic against a sibling: two concurrent callers get two ids.",
+    )
+    parser.add_argument(
+        "--append",
+        metavar="REPO_DIR",
+        help="allocate an id and WRITE the row atop that repo's ledger, under one lock; "
+        "needs --when --who --what --why --where. The id is allocated by the tool, never by you.",
+    )
+    for _f in ("when", "who", "what", "why", "where"):
+        parser.add_argument(f"--{_f}", help=f"--append: the {_f} cell")
     args = parser.parse_args(argv)
+
+    if args.append:
+        target = Path(args.append)
+        missing = [f for f in ("when", "who", "what", "why", "where") if not getattr(args, f)]
+        if missing:
+            sys.stderr.write(f"decisions: --append needs {', '.join('--' + m for m in missing)}\n")
+            return 2
+        return _append_row(
+            _ledger_of(target),
+            [args.when, args.who, args.what, args.why, args.where],
+            _repo_key(target),
+        )
     root = Path(args.root)
     if args.merge_owner:
         return _merge_owner(Path(args.merge_owner))
     if args.next_id:
         return _next_id(Path(args.next_id))
+    if args.reserve_id:
+        target = Path(args.reserve_id)
+        nid, note = _allocate(_ledger_of(target), _repo_key(target), reserve=True)
+        if note:
+            sys.stderr.write(note)
+        if nid is None:
+            return 1  # the lock leg fails CLOSED: no id is printed, so none can be minted
+        print(f"D-{nid:03d}")
+        return 0
     if args.check:
         return _check(root)
     if not args.term:
