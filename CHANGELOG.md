@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The identity advisory's ledger read, its UNDECLARED guard, and its duplicate bullet (2026-09-16)
+
+- `.claude/hooks/session_orient.py` (fleet-synced) — round 2 of the review over `b5c01855`, six
+  defects confirmed by a fresh Opus seat and three by my own re-sweep, all inside my own fixes:
+  the 64 KB **head-only** read RETIRED the key by ordinary use (the merge-owner row is written once
+  and never moves while new rows are appended — executed: +30 rows to the fleet's only declared
+  ledger silenced it, and 4 of 49 ledgers already exceed one window); a window cut landing inside
+  the owner name rendered the TRUNCATED name as fact (`alphab` for `alphabravocharliedelta`); the
+  re-key DROPPED the `(?!UNDECLARED)` lookahead, so a hand-written un-adoption row announced
+  `UNDECLARED` as the owner; the `/proc` scan ran TWICE per SessionStart and the two scans could
+  disagree inside one block; and the no-owner case printed TWO bullets about one fact with TWO
+  different relaunch commands — live in 5 of 45 repos.
+- Now: both window ends are read with partial lines dropped at each edge, the lookahead is restored
+  case-insensitively, one scan is shared by both advisories, and exactly one remedy is given per
+  block. The owner length cap moved from the regex to render time so the grammar stays
+  byte-identical to `docs_updater.py::MERGE_OWNER_RE` and `decisions.py::MERGE_OWNER_RE` — the
+  drift pin now asserts the capture INCLUDING the quantifier it previously stopped one character
+  short of, plus the single deliberate divergence.
+- `tests/test_session_orient_hook.py` — 44 graders; seven mutants, each killing its target. One of
+  the new graders was itself vacuous on first writing (the tail window rescued the row its mutant
+  was meant to expose) and was rebuilt with a byte-exact fixture.
+- ⚠️ The review CLOSES here on the D-252 scope-growth stop (rounds of 11/11 then 13/13 own-fix).
+  Residue routed to `docs/STRATEGIC_BACKLOG.md`, not patched a third time.
+
 ### Fixed — The unnamed-session advisory is re-keyed off a rendered artifact onto the ledger and live sessions (2026-09-16)
 
 - `.claude/hooks/session_orient.py` (fleet-synced) — `8c50d815` keyed the advisory on the

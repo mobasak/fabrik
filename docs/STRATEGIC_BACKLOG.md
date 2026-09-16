@@ -2638,29 +2638,6 @@ notion of "mine" the check does not currently have — spec-shaped, not a one-li
 
 ### Kaizen loop — the residue of the D-252 stop (2026-09-15)
 
-### Multi-agent identity — trade-intelligence's proposal, the part not yet built (2026-09-16, D-267/D-268)
-
-- **Multi-agent identity has ONE channel and it is write-only at process launch — SPEC work**
-  (owner: **infra**; reported by trade-intelligence `01M2N1MJK1FVS543HS7MHW0D7K`, ruled in D-267).
-  Direction 3 shipped; these three did not, because together they are a new mechanism spanning
-  fleet-synced hooks and `mail.py`:
-  (1) **ROOT FIX — a second identity source a LIVE session can write.** `--adopt` also emits
-  `.fabrik/agents.json`; resolution becomes `CLAUDE_AGENT` → `Agent-Name:` trailer → file →
-  unresolved. ⚠️ A roster alone does not say WHICH session you are — but hooks receive `session_id`
-  on stdin (executed: `session_orient.py:280` already reads it), so a session→name map is the shape
-  worth speccing. `agent_role.py` is SessionStart-only, so a mid-flight self-naming binds the
-  charter on the NEXT start; say so in the spec rather than implying otherwise.
-  (2) **`acked-by: <repo>/<agent>` via an optional `mail.py --as`.** The reporter proved all five
-  consumers route through one `_ACK_LINE` regex and that the suffixed form matches; the open half is
-  the READ path across ~46 repos' archives, which is why it is not a one-liner.
-  (3) **`owner:` on the plan-lock schema** (`commands/_sources/fabrik-execute-plan.md` step 7);
-  `check_plan_lock_release.py` is local and unsynced, so projects adopt at their own pace.
-  Measured by the reporter in their repo, denominators stated: `Agent-Role` parses in 299 of 300
-  commits, `Agent-Name` appears in 0 of 300, 174 of 300 commits touch a shared-append file, and 0 of
-  28 plan-locks carry an owner. A path gate would therefore sit on the MAJORITY path and must fail
-  OPEN on an unresolvable owner — the false-positive rate of such a gate is still unmeasured, which
-  the reporter stated rather than letting their numbers read as an argument for blocking.
-
 - **`docs_updater.py` reimplements the ledger row parser and will DIVERGE from it** (owner:
   **infra**) — routed out of the ledger-write-integrity spec by its own D-252 stop. `docs_updater.py`
   deliberately does not import `decisions.py` (`:936`, *"no import — see the Interfaces seam"*): it
@@ -2801,3 +2778,53 @@ RECORDED rather than fixed, each with its destination.
 **Not blocking.** Every fix from all three rounds is committed, pushed and fleet-synced; the gate is
 green; the loop is proven end to end at `<scratchpad>/kzrev/probes/loop-closes-end-to-end.md`.
 Receipt: `docs/development/reviews/2026-09-15-kaizen-loop-gap-closure-review.md`.
+
+### Multi-agent identity — trade-intelligence's proposal, the part not yet built (2026-09-16, D-267/D-268)
+
+- **Multi-agent identity has ONE channel and it is write-only at process launch — SPEC work**
+  (owner: **infra**; reported by trade-intelligence `01M2N1MJK1FVS543HS7MHW0D7K`, ruled in D-267).
+  Direction 3 shipped; these three did not, because together they are a new mechanism spanning
+  fleet-synced hooks and `mail.py`:
+  (1) **ROOT FIX — a second identity source a LIVE session can write.** `--adopt` also emits
+  `.fabrik/agents.json`; resolution becomes `CLAUDE_AGENT` → `Agent-Name:` trailer → file →
+  unresolved. ⚠️ A roster alone does not say WHICH session you are — but hooks receive `session_id`
+  on stdin (executed: `session_orient.py`'s SessionStart payload parse already reads it — cited by symbol, not line, because this very change moved that line twice), so a session→name map is the shape
+  worth speccing. `agent_role.py` is SessionStart-only, so a mid-flight self-naming binds the
+  charter on the NEXT start; say so in the spec rather than implying otherwise.
+  (2) **`acked-by: <repo>/<agent>` via an optional `mail.py --as`.** The reporter proved all five
+  consumers route through one `_ACK_LINE` regex and that the suffixed form matches; the open half is
+  the READ path across ~46 repos' archives, which is why it is not a one-liner.
+  (3) **`owner:` on the plan-lock schema** (`commands/_sources/fabrik-execute-plan.md` step 7);
+  `check_plan_lock_release.py` is local and unsynced, so projects adopt at their own pace.
+  Measured by the reporter in their repo, denominators stated: `Agent-Role` parses in 299 of 300
+  commits, `Agent-Name` appears in 0 of 300, 174 of 300 commits touch a shared-append file, and 0 of
+  28 plan-locks carry an owner. A path gate would therefore sit on the MAJORITY path and must fail
+  OPEN on an unresolvable owner — the false-positive rate of such a gate is still unmeasured, which
+  the reporter stated rather than letting their numbers read as an argument for blocking.
+
+- **The three ledger readers disagree, and the identity advisory now depends on one of them**
+  (owner: **infra**) — routed by the D-252 stop that closed the identity-advisory review rather
+  than patched a third time. All executed, all with ZERO live instances today, which is why they
+  are backlog and not a fix: (a) a `| D-NNN |` row inside a fenced code block is parsed as a real
+  row by `session_orient.py`, `decisions.py::_rows` AND `docs_updater.py` alike, so a
+  documentation EXAMPLE of a merge-owner row declares its owner (`ghost`, executed) — the advisory
+  moved the key from a machine-rendered HTML comment onto a prose document, which is where this
+  starts to matter; (b) an escaped pipe in a cell BEFORE the `what` column shifts the split and
+  silences a real declaration — `session_orient.py` matches `docs_updater.py:1190`'s naive
+  `strip("|").split("|")` while `decisions.py::_rows` consumes the escape correctly, and
+  `read_merge_owner`'s docstring falsely claims it uses *"decisions.py's own cell scan"*; 0 of 956
+  rows across 49 ledgers place one before cell 3 today; (c) a FIFO at `docs/DECISIONS.md` hangs the
+  hook past the 10 s SessionStart budget (pre-existing in kind — the old hook hung the same way on
+  `PLANS.md`); the fix is `O_NONBLOCK` plus an `S_ISREG` check. Shape of the fix: make
+  `docs_updater.py` actually call the escape-aware scan its docstring already claims, teach all
+  three fence-awareness, then re-copy into the hook and widen the drift pin to cover it.
+
+- **`_count_sessions_sharing` is called outside the widened guard** (owner: **infra**) — the same
+  review widened `_sessions_line`'s guard to `except (OSError, ValueError)` for the NUL class, but
+  the helper is invoked from `main()` and its own loop still catches `OSError` alone. No reachable
+  trigger was found (`Path.is_dir()` swallows `ValueError`, symlink targets cannot carry NUL), so
+  it is latent — but it is the exact asymmetry the commit just paid to close.
+
+- **`docs/workstation/hooks-index.md` still says the mesh has FIVE Stop causes; it has six**
+  (owner: **infra**) — pre-existing, and the identity work rewrote that very table cell twice
+  without fixing it. One-line correction on the next hooks-index pass.
