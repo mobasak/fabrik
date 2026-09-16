@@ -69,6 +69,7 @@ Generated from the end-of-day plan-state on 2026-06-07 after the trio Phase 5.1.
   suppresses on any `_validated_pick` candidate, while the relief flip additionally requires the
   successor under 85 on BOTH windows. So the fleet can be told nothing while no flip is possible.
   Worth a decision on which predicate is canonical. Owner: fleet.
+- **Residue risk of `/fabrik-plan-review`'s own round-4 fix batch on `2026-09-16-plan-1-quota-posture.md`** (owner: **fleet**; destination: `/fabrik-execute-plan`'s Phase B and Phase C `/fabrik-review-scoped` passes, which read the same paragraphs against the CODE) — rounds 2-4 of that review confirmed only defects inside the review's own fix prose (11/11 · 10/10 · 6/6) and the loop closed on the operator's stop + D-252; the last batch (the cap-is-bounded-by-the-stamp paragraph, B12's no-successor fixture, the null-burn rendering arm, the successor skip-and-continue rule, the derived ring length) was fixed by the orchestrator and NOT re-read by a fresh seat. The executor treats those five paragraphs as unreviewed prose: verify each against `claude_rotate.py` (`cap_trip` `:4271`, the trip-leg return `:4357-4362`, `_active_account_walled` `:4391`) before building from them.
 
 ## [infra] A plan authored and committed in one motion is a convergence subject at NO moment a gate runs
 
