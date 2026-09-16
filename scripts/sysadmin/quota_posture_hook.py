@@ -167,14 +167,26 @@ def _forecast(w: object) -> str:
     tick's own verdict names. The contract's grammar, byte for byte (D-269)."""
     if not isinstance(w, dict) or w.get("utilization") is None:
         return "—"
+
+    # ⚠️ `_finite` is defence in depth, not decoration. The file reader refuses non-finite JSON, so
+    # a poisoned window cannot arrive from the posture file — but this renderer is also reached from
+    # `--status`, and `int(nan)` raises ValueError while `int(inf)` raises OverflowError. A renderer
+    # that can raise on its own data can take down the command the contract names as the authority,
+    # so an unusable number is treated as NO forecast rather than as an exception.
+    def _finite(x: object) -> float | None:
+        ok = isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x)
+        return float(x) if ok else None
+
     v = w.get("verdict")
-    if v == "reset_first" and isinstance(w.get("minutes_to_reset"), (int, float)):
-        m = int(w["minutes_to_reset"])
+    mtr = _finite(w.get("minutes_to_reset"))
+    if v == "reset_first" and mtr is not None:
+        m = int(mtr)
         return f"reset in {m // 60}:{m % 60:02d}"
-    if v == "wall_first" and isinstance(w.get("minutes_to_wall"), (int, float)):
-        b = w.get("burn_per_min")
-        bt = f"{b:.2f}" if isinstance(b, (int, float)) else "—"
-        return f"wall in ~{int(w['minutes_to_wall'])}m at {bt}%/m"
+    mtw = _finite(w.get("minutes_to_wall"))
+    if v == "wall_first" and mtw is not None:
+        b = _finite(w.get("burn_per_min"))
+        bt = f"{b:.2f}" if b is not None else "—"
+        return f"wall in ~{int(mtw)}m at {bt}%/m"
     return "no burn"
 
 

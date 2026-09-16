@@ -2217,6 +2217,24 @@ def _last_switch_ts(event: str = "switch") -> tuple[float | None, bool]:
     return None, False
 
 
+def _sound_script() -> Path:
+    """The mesh notifier, resolved AT CALL TIME from ``CLAUDE_SOUND_SH``.
+
+    ⚠️ A SECOND sink, and the one that fires FIRST. The fleet-exhausted branch calls
+    ``_tick_telegram`` before ``_drain_mail``, so pinning only the mailbox enumeration left a test
+    able to send the operator a Telegram carrying fixture text — which is exactly what happened on
+    2026-09-16, and what the first cut of that incident fix missed. ``Path.home()`` is not pinned by
+    any fixture, so the seam has to be here.
+
+    ⚠️ This changes WHERE this script looks for the notifier and NOTHING about the notifier itself:
+    ``claude-sound.sh`` is production and is neither read nor modified here. ``_tick_telegram``
+    already returns False when the file is absent, so a test pointing this at a path that does not
+    exist is complete isolation with no behaviour change in production.
+    """
+    raw = os.environ.get("CLAUDE_SOUND_SH")
+    return Path(raw) if raw else Path.home() / ".claude" / "bin" / "claude-sound.sh"
+
+
 def _opt_dir() -> Path:
     """The repo root this process treats as ``/opt``, resolved AT CALL TIME from ``FABRIK_OPT_DIR``.
 
@@ -2251,7 +2269,11 @@ def _mailbox_repos() -> list[str]:
 
 
 def _drain_mail(repos: list[str], msg: str) -> None:
-    mail = Path("/opt/fabrik/scripts/mail.py")
+    # ⚠️ Resolved through `_opt_dir()`, not hardcoded: `FABRIK_OPT_DIR` otherwise closes the
+    # ENUMERATION seam and leaves the DELIVERY one open, so the isolation holds only while the
+    # pinned dir happens to be EMPTY — and populating it is the natural way to grade
+    # `_mailbox_repos()` positively, which would put real mail back on the wire.
+    mail = _opt_dir() / "fabrik" / "scripts" / "mail.py"
     if not mail.is_file():
         return
     msg = _argv_safe(msg)
@@ -2348,7 +2370,7 @@ def _tick_telegram(msg: str, key: str = "quota-rotation") -> bool:
     delivered as `\\ud800`, never raised on). A False means the notifier is absent, could not be
     run to completion, or its artifact did not advance — `_notify_failure_reason` names what this
     side can know and the causes it cannot tell apart."""
-    sound = Path.home() / ".claude" / "bin" / "claude-sound.sh"
+    sound = _sound_script()
     if not sound.is_file():
         return False
     marker = _notify_marker(key)
@@ -3947,7 +3969,17 @@ def _read_quota_posture() -> dict | None:
     judgement here — every reader owns its own bound (the hook and the seat budget read
     ``QUOTA_POSTURE_STALE_S``; ``--status`` prints the age)."""
     try:
-        d = json.loads(_posture_path().read_text())
+        # ⚠️ `parse_constant` is the whole fix for a class the ROW reader cannot close. Python's
+        # `json` accepts a BARE `NaN`/`Infinity`, so a poisoned or hand-edited file re-admitted
+        # exactly what `_window_reading` drops: `int(nan)` in the renderer crashed `--status` — the
+        # command the contract names as the authority — and a NaN sample carried forward in the ring
+        # made the burn read 0.0, i.e. "no burn", the calmest possible line at the hottest possible
+        # moment. `ValueError` is already in `_STATE_DIR_ERRORS`, so such a file reads as ABSENT,
+        # which every reader already fails open on.
+        d = json.loads(
+            _posture_path().read_text(),
+            parse_constant=lambda c: (_ for _ in ()).throw(ValueError(f"non-finite: {c}")),
+        )
     except _STATE_DIR_ERRORS:
         return None
     return d if isinstance(d, dict) else None
@@ -3971,6 +4003,17 @@ def _write_quota_posture(posture: dict) -> None:
     """
     p = _posture_path()
     tmp = p.with_name(f"{p.name}.{os.getpid()}.tmp")
+    # ⚠️ The per-pid name removes the tearing and introduces litter: the except-path unlink covers
+    # exceptions, and a SIGKILL between the write and the replace leaves a staging file forever
+    # under a pid that never returns. The old shared name self-healed by overwrite; this one
+    # accumulates, so sweep anything of ours older than an hour before staging a new one.
+    try:
+        cutoff = _now() - 3600.0
+        for orphan in p.parent.glob(f"{p.name}.*.tmp"):
+            if orphan != tmp and orphan.stat().st_mtime < cutoff:
+                orphan.unlink()
+    except OSError:
+        pass  # a sweep is housekeeping; never let it cost the write
     try:
         tmp.write_text(json.dumps(posture))
         os.replace(tmp, p)
@@ -4212,14 +4255,26 @@ def _quota_posture(
 def _fmt_forecast(w: dict | None) -> str:
     if not isinstance(w, dict) or w.get("utilization") is None:
         return "—"
+
+    # ⚠️ `_finite` is defence in depth, not decoration. The file reader refuses non-finite JSON, so
+    # a poisoned window cannot arrive from the posture file — but this renderer is also reached from
+    # `--status`, and `int(nan)` raises ValueError while `int(inf)` raises OverflowError. A renderer
+    # that can raise on its own data can take down the command the contract names as the authority,
+    # so an unusable number is treated as NO forecast rather than as an exception.
+    def _finite(x: object) -> float | None:
+        ok = isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x)
+        return float(x) if ok else None
+
     v = w.get("verdict")
-    if v == "reset_first" and isinstance(w.get("minutes_to_reset"), (int, float)):
-        m = int(w["minutes_to_reset"])
+    mtr = _finite(w.get("minutes_to_reset"))
+    if v == "reset_first" and mtr is not None:
+        m = int(mtr)
         return f"reset in {m // 60}:{m % 60:02d}"
-    if v == "wall_first" and isinstance(w.get("minutes_to_wall"), (int, float)):
-        b = w.get("burn_per_min")
-        bt = f"{b:.2f}" if isinstance(b, (int, float)) else "—"
-        return f"wall in ~{int(w['minutes_to_wall'])}m at {bt}%/m"
+    mtw = _finite(w.get("minutes_to_wall"))
+    if v == "wall_first" and mtw is not None:
+        b = _finite(w.get("burn_per_min"))
+        bt = f"{b:.2f}" if b is not None else "—"
+        return f"wall in ~{int(mtw)}m at {bt}%/m"
     return "no burn"
 
 

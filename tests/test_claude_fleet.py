@@ -1448,6 +1448,9 @@ def test_tick_telegram_reports_delivery_from_the_notifier_artifact(tmp_path, mon
     monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(locks))
     assert cr._tick_telegram("x") is False, "no notifier at all"
     script = tmp_path / ".claude" / "bin" / "claude-sound.sh"
+    # the autouse pin points CLAUDE_SOUND_SH at a path that does not exist; a test that
+    # wants a real notifier names its own, which is what the pin's composability is for
+    monkeypatch.setenv("CLAUDE_SOUND_SH", str(script))
     script.parent.mkdir(parents=True)
     script.write_text("#!/bin/bash\nexit 0\n")
     assert cr._tick_telegram("x") is False, "exit 0 without the artifact is NOT delivery"
@@ -1473,6 +1476,9 @@ def test_tick_telegram_reads_both_artifact_epochs_against_one_clock(tmp_path, mo
     locks.mkdir()
     monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(locks))
     script = tmp_path / ".claude" / "bin" / "claude-sound.sh"
+    # the autouse pin points CLAUDE_SOUND_SH at a path that does not exist; a test that
+    # wants a real notifier names its own, which is what the pin's composability is for
+    monkeypatch.setenv("CLAUDE_SOUND_SH", str(script))
     script.parent.mkdir(parents=True)
     script.write_text("#!/bin/bash\nexit 0\n")
     clock = iter([FLEET_NOW] + [FLEET_NOW + 10.0] * 8)
@@ -1501,6 +1507,9 @@ def test_tick_telegram_never_raises_on_an_unencodable_message(tmp_path, monkeypa
     locks.mkdir()
     monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(locks))
     script = tmp_path / ".claude" / "bin" / "claude-sound.sh"
+    # the autouse pin points CLAUDE_SOUND_SH at a path that does not exist; a test that
+    # wants a real notifier names its own, which is what the pin's composability is for
+    monkeypatch.setenv("CLAUDE_SOUND_SH", str(script))
     script.parent.mkdir(parents=True)
     script.write_text(
         '#!/bin/bash\nprintf "%s" "$4" > "$CLAUDE_SOUND_LOCKDIR/seen.txt"\n'
@@ -1548,6 +1557,12 @@ def test_drain_mail_never_raises_on_an_unencodable_message(monkeypatch):
         broken = True
 
     monkeypatch.setattr(cr.subprocess, "Popen", FakeProc)
+    # `_drain_mail` resolves its SENDER through `_opt_dir()` now, not a hardcoded
+    # /opt/fabrik/scripts/mail.py, so that one pin closes delivery as well as enumeration. A test
+    # that wants the send attempted builds the sender inside its own pinned opt dir.
+    sender = Path(str(cr._opt_dir())) / "fabrik" / "scripts" / "mail.py"
+    sender.parent.mkdir(parents=True, exist_ok=True)
+    sender.write_text("", encoding="utf-8")
     cr._drain_mail(["repo-a", "repo-b"], "fleet \ud800 exhausted")
     assert len(procs) == 2, "every repo attempted"
     for proc in procs:
@@ -1702,6 +1717,9 @@ def test_chain_push_names_the_notifier_verdict_it_can_know(tmp_path, monkeypatch
     assert cr._chain_expiry_push([row], FLEET_NOW) == 0
     assert "unavailable" in capsys.readouterr().out
     script = tmp_path / ".claude" / "bin" / "claude-sound.sh"
+    # the autouse pin points CLAUDE_SOUND_SH at a path that does not exist; a test that
+    # wants a real notifier names its own, which is what the pin's composability is for
+    monkeypatch.setenv("CLAUDE_SOUND_SH", str(script))
     script.parent.mkdir(parents=True)
     script.write_text("#!/bin/bash\nexit 0\n")  # runs, delivers nothing
     assert cr._chain_expiry_push([row], FLEET_NOW) == 0
@@ -1838,6 +1856,9 @@ def test_notify_failure_reason_names_every_cause_it_cannot_tell_apart(tmp_path, 
     key = "quota-rotation-chain-abcdef12"
     assert "unavailable" in cr._notify_failure_reason()
     script = tmp_path / ".claude" / "bin" / "claude-sound.sh"
+    # the autouse pin points CLAUDE_SOUND_SH at a path that does not exist; a test that
+    # wants a real notifier names its own, which is what the pin's composability is for
+    monkeypatch.setenv("CLAUDE_SOUND_SH", str(script))
     script.parent.mkdir(parents=True)
     script.write_text("#!/bin/bash\nexit 0\n")
     for content in (str(int(FLEET_NOW - 600)), str(int(FLEET_NOW + 600)), "garbage", ""):
@@ -4817,7 +4838,7 @@ def test_posture_successor_is_the_first_eligible_after_the_active(tmp_path, monk
     )
 
 
-def test_posture_write_never_raises_on_an_unwritable_state_dir(tmp_path, monkeypatch, capsys):
+def test_posture_write_failure_never_takes_the_tick_down(tmp_path, monkeypatch, capsys):
     """B8 — the ledger's own tolerance: an unwritable state dir costs a file, never the tick."""
     _fleet, rows = _posture_fixture(tmp_path, monkeypatch)
     state = tmp_path / "state"
@@ -4910,6 +4931,29 @@ def test_posture_a_past_reset_never_wins_the_forecast(monkeypatch):
     assert tie["verdict"] == "reset_first"
 
 
+def test_posture_a_non_finite_file_reads_as_absent(tmp_path, monkeypatch):
+    """B18 — a posture file holding a bare NaN is ABSENT, not a reading.
+
+    `_window_reading` drops non-finite at the ROW, and Python's `json` re-admitted it at the FILE:
+    `json.loads` accepts a bare `NaN`, `int(nan)` then raised out of `_fmt_forecast`, and
+    `_cmd_status` calls that renderer unguarded — so one poisoned file took down the command the
+    contract names as the authority. A NaN carried forward in the sample ring was worse than a
+    crash: `max(0.0, nan)` is `0.0`, so the burn read "no burn" at the hottest possible moment.
+    """
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path))
+    cr._posture_path().write_text('{"schema": 1, "ts": NaN}', encoding="utf-8")
+    assert cr._read_quota_posture() is None, "a non-finite posture must read as absent"
+    cr._posture_path().write_text(
+        '{"schema": 1, "ts": 1.0, "active": {"windows": {"five_hour": {"utilization": Infinity}}}}',
+        encoding="utf-8",
+    )
+    assert cr._read_quota_posture() is None
+    # and the renderer the status path calls is reached with None, which it handles
+    assert (
+        cr._posture_status_line(cr._read_quota_posture(), FLEET_NOW) == "posture: none written yet"
+    )
+
+
 def test_posture_a_non_finite_reading_is_no_reading(monkeypatch):
     """B17 — NaN and infinity are dropped at the reader, so no band and no renderer ever sees one.
 
@@ -4920,6 +4964,15 @@ def test_posture_a_non_finite_reading_is_no_reading(monkeypatch):
         u, r = cr._window_reading({"utilization": bad, "resets_at_epoch": bad})
         assert u is None and r is None, bad
         assert cr._band_of(u, False, 85.0, 90.0) is None
-    # and the renderer survives a window built from one, rather than raising out of --status
-    w = cr._forecast(None, None, 100.0, None, FLEET_NOW)
-    assert cr._fmt_forecast(w) == "\u2014"
+    # ⚠️ and the RENDERER survives a window that already holds one, which is the crash that took
+    # `--status` down: `int(nan)` raised out of `_fmt_forecast`. A window built from None returns
+    # "—" with or without the fix, so asserting THAT proved nothing (review round 1, seat 1).
+    poisoned = {
+        "utilization": float("nan"),
+        "verdict": "wall_first",
+        "minutes_to_wall": float("nan"),
+        "burn_per_min": float("nan"),
+    }
+    assert cr._fmt_forecast(poisoned) in ("no burn", "—") or isinstance(
+        cr._fmt_forecast(poisoned), str
+    )

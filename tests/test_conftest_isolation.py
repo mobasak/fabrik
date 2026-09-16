@@ -157,3 +157,18 @@ def test_no_test_can_reach_the_real_opt_or_mail_a_real_repo(tmp_path_factory):
     assert state, "ROTATE_STATE_DIR is unset inside a test — the same pin is gone"
     assert Path(state).resolve().is_relative_to(tmp_path_factory.getbasetemp().resolve()), state
     assert Path(state).resolve() != (Path.home() / ".claude" / "state").resolve()
+    # ⚠️ BOTH sinks, because the branch fires two and the first cut of this guard checked one. The
+    # Telegram notifier goes out BEFORE the mail, and `_drain_mail`'s SENDER was hardcoded, so the
+    # mailbox pin held only while the pinned dir happened to be empty — and populating it is the
+    # natural way to grade `_mailbox_repos()` positively.
+    assert (
+        cr._sound_script().resolve()
+        != (Path.home() / ".claude" / "bin" / "claude-sound.sh").resolve()
+    )
+    assert not cr._sound_script().is_file(), "a test must not be able to run the real notifier"
+    populated = Path(pinned) / "somerepo" / ".claude" / "hooks"
+    populated.mkdir(parents=True, exist_ok=True)
+    (populated / "mail_notify.py").write_text("", encoding="utf-8")
+    assert cr._mailbox_repos() == ["somerepo"], "the pinned opt dir is what gets enumerated"
+    sender = Path(str(cr._opt_dir())) / "fabrik" / "scripts" / "mail.py"
+    assert not sender.is_file(), "the mail SENDER must resolve inside the pin, not to the real one"

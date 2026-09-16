@@ -152,6 +152,13 @@ def _isolated_opt_dir(tmp_path, monkeypatch):
     state.mkdir(exist_ok=True)
     monkeypatch.setenv("FABRIK_OPT_DIR", str(opt))
     monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    # ⚠️ The SECOND sink, and the one that fires FIRST: the fleet-exhausted branch calls
+    # `_tick_telegram` before `_drain_mail`, and the notifier is resolved from `Path.home()`, which
+    # nothing here pins. The first cut of this fixture closed only the mailbox half, leaving a test
+    # able to send the operator a Telegram carrying fixture text. `_tick_telegram` returns False for
+    # an absent notifier, so a path that does not exist is complete isolation — and the sound system
+    # itself is untouched, which it must be: it is production and read-only by standing rule.
+    monkeypatch.setenv("CLAUDE_SOUND_SH", str(tmp_path / "no-notifier-in-tests.sh"))
     yield opt
 
 
