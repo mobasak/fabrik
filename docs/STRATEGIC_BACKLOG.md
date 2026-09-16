@@ -2991,3 +2991,36 @@ NOT a defect this edit introduced in the sense of regressing anything: the claus
 improvement and the gap is narrower than what it closed. Routed under the D-252 scope-growth stop
 (rounds 2 and 3 both confirmed only own-fix defects: 2/2 then 1/1), which is why this is a backlog row
 rather than a fourth round. Owner: infra.
+
+## [infra] Three CONFIRMED mailed defects on unlocked paths, deferred at the quota band — not blocked, just unstarted
+
+Triaged 2026-09-17 during a full mailbox pass (77 → 12). Each is confirmed, each target is FREE of any
+active plan-lock, and each needs a code change plus its own review pass — which is why they stopped at
+the AMBER band rather than being half-landed. Four OTHER mailed defects from the same pass DID ship
+(`5f39fd5f4`, `d429cd6bd`).
+
+1. **`docs_updater.py --adopt` tags every backlog row as live work** (trade-intelligence,
+   `01M2MY0D99TZ6K`). `_classify_backlog_row` skips only the legend table and header/separator rows, so
+   it has no notion of a WORK ITEM; its only "done" signal is strikethrough, which no project's backlog
+   actually uses. Measured there: 232 rows written, 224 of them backlog-row tags. Destination:
+   `scripts/docs_updater.py`, and the real question first — what IS the done signal, given strikethrough
+   is unused fleet-wide. Do not add a second tagging pass before answering that.
+
+2. **`docs_updater.py`'s staleness gate watches 7 of 26 project docs** (site-provisioner,
+   `01M2NJGZGV20WP`). Every defect in the other 19 is invisible to a two-command sweep. Destination:
+   the same file; widening the watch list is the easy half, and the fire rate over the other 19 across
+   ~46 repos is the half that decides whether it is armed (FIX DIRECTIVE 5).
+
+3. **`.windsurf/rules/core/40-documentation.md` retires the only complete API reference** in favour of
+   a `/docs` endpoint that does not carry the same content (site-provisioner, `01M2NXHVCS9WYJ`). ⚠️ The
+   reporter filed THREE self-corrections to their own denominator on this thread (`19 of 45` → `19 of
+   46` → `19 of 65`, the last noting the two sets are DISJOINT and the finding gets STRONGER). Whoever
+   takes it re-derives the ratio themselves rather than inheriting any of the four numbers. The rule
+   file is free of the review-convergence lock, which owns only `core/62-using-subagents.md`.
+
+ALSO WORTH A READER, from the same pass — the kaizen daily collection reports
+**`premature_stop_rate: 61% (379/620)`**, stop verdicts whose cause is a run-record or promise stall,
+and **`terminator_spam: 1.19`** (>1.00 is spam). Those are fleet-wide measurements of agents stopping
+before the work is finished and emitting terminator blocks more than once per run. The operator raised
+the same complaint about this window directly on 2026-09-17. The number is already being collected and
+nothing reads it; that is the gap, not the number.
