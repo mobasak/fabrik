@@ -361,3 +361,151 @@ def test_merge_owner_skips_a_short_row_above_the_matching_one(tmp_path, capsys):
     out = capsys.readouterr().out
     assert rc == 0
     assert out.strip() == "beta"
+
+
+def test_a_row_with_an_escaped_pipe_keeps_its_six_columns() -> None:
+    """GFM treats `\\|` inside a cell as escaped CONTENT, not a separator. The old naive
+    `.split("|")` shattered such a row into more cells than the header — and `_query`'s padding
+    arithmetic `[""] * (6 - len(cells))` is `[]` when the row is LONG, so `padded[4]`/`padded[5]`
+    printed fragments of `what` where `why` and `where` belong (iterative_image_editor
+    01M2JQYM9PGQK6Q53GJ3SGP3TV, executed against this helper).
+    """
+    row = r"| D-900 | 2026-09-16 | who | kinds `image \| json \| video` | why it | where.md |"
+    # Drives the REAL parser over a real file — an earlier cut of this test fell back to an inline
+    # re-implementation of the split, which could not fail when `_rows` broke.
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as d:
+        led = Path(d) / "DECISIONS.md"
+        led.write_text(
+            "| id | when | who | what | why | where |\n|---|---|---|---|---|---|\n" + row + "\n",
+            encoding="utf-8",
+        )
+        parsed = dec._rows(led)
+    assert len(parsed) == 1, parsed
+    rid, cells = parsed[0]
+    assert rid == "D-900"
+    assert len(cells) == 6, cells
+    assert cells[3] == "kinds `image | json | video`", cells[3]
+    assert dec._six(cells) == cells
+
+
+def test_a_long_row_is_read_from_both_ends_so_where_is_never_a_what_fragment() -> None:
+    """A row carrying an UNESCAPED `|` in prose (a real enum, `capped | done | error`) parses long.
+    Padding cannot help — `[""] * (6 - 11)` is `[]` — so the contract's promised `where`, the
+    path:line pointer that makes the ledger cheaper than the hunt, came back as a slice of `what`.
+    Measured on the hub ledger: 6 of 265 rows parse long, and for 6 of 6 the LAST cell is the real
+    `where` and the one before it the real `why`.
+    """
+    cells = ["D-900", "2026-09-16", "who", "what", "capped", "done", "error", "why it", "docs/x.md"]
+    six = dec._six(cells)
+    assert len(six) == 6, six
+    assert six[5] == "docs/x.md", "the where must be the LAST cell, never a what fragment"
+    assert six[4] == "why it"
+    assert six[3] == "what | capped | done | error", "the middle rejoins with its separator intact"
+
+
+def test_a_short_row_is_flagged_not_silently_blanked() -> None:
+    """The old code filled a 4-cell row with two empty strings, so the tool the contract makes the
+    FIRST stop for "where is X / why is Z" answered BLANK — indistinguishable from "no pointer
+    recorded", which sends the reader into the wider hunt the rule exists to prevent. Measured: 5
+    of 39 rows in iterative_image_editor, and 1 here (D-262 at 99da670b, repaired at 7e24fa0c).
+    """
+    six = dec._six(["D-900", "2026-09-16", "who", "what"])
+    assert len(six) == 6
+    assert all("MALFORMED" in c for c in six[4:]), six[4:]
+
+
+def test_every_row_in_the_live_hub_ledger_yields_exactly_six_columns() -> None:
+    """The invariant the two fixes above exist to hold, asserted against the real ledger rather
+    than a fixture — a parser that is correct only on constructed rows is not the claim."""
+    rows = dec._rows(REPO / "docs" / "DECISIONS.md")
+    assert rows, "no rows parsed — the ledger or the row regex moved"
+    bad = [(rid, len(dec._six(cells))) for rid, cells in rows if len(dec._six(cells)) != 6]
+    assert not bad, bad
+
+
+def test_a_trailing_provenance_comment_is_not_mistaken_for_the_where() -> None:
+    """A row may append an HTML provenance comment AFTER its last column. Reading a long row from
+    both ends without peeling it hands the COMMENT back as `where` and demotes the real `where` to
+    `why` — which regressed four live fabrik-lib rows (D-045..D-048) that had been correct, because
+    the first cut of this fix was validated on the hub's 265 rows instead of the 944 the tool
+    actually serves across 49 ledgers.
+    """
+    cells = [
+        "D-900", "2026-09-16", "who", "what", "why it", "docs/x.md",
+        "<!-- renumbered from D-039: id collision -->",
+    ]
+    six = dec._six(cells)
+    assert six[5] == "docs/x.md", "the provenance comment was taken for the where"
+    assert six[4] == "why it"
+
+
+def test_an_escaped_backslash_before_a_separator_still_splits() -> None:
+    """`\\\\|` is a literal backslash followed by a REAL separator. A fixed-width negative lookbehind
+    cannot count backslashes, so it refused to split there and dropped a column — shifting `where`
+    into `why`. The scan consumes the escape instead.
+    """
+    import tempfile
+
+    row = r"| D-911 | 2026-09-16 | who | path ends C:\\| because it does | docs/x.md |"
+    with tempfile.TemporaryDirectory() as d:
+        led = Path(d) / "DECISIONS.md"
+        led.write_text(
+            "| id | when | who | what | why | where |\n|---|---|---|---|---|---|\n" + row + "\n",
+            encoding="utf-8",
+        )
+        _rid, cells = dec._rows(led)[0]
+    assert len(cells) == 6, cells
+    six = dec._six(cells)
+    assert six[4] == "because it does" and six[5] == "docs/x.md", six
+
+
+def test_padding_a_row_with_empty_cells_buys_nothing() -> None:
+    """THE COBRA, graded (D-253): the cheapest way to silence the malformed marker without
+    recording anything is to pad the row with two empty cells, restoring exactly the pre-fix silent
+    blank. An empty RECONSTRUCTED why/where is marked too, so the cheat costs the same as the work.
+    """
+    padded = ["D-900", "2026-09-16", "who", "what", "capped", "done", "", ""]
+    six = dec._six(padded)
+    assert all("MALFORMED" in c for c in six[4:]), six[4:]
+
+
+def test_a_backslash_before_a_non_punctuation_char_is_kept() -> None:
+    """GFM escapes ASCII PUNCTUATION only; before anything else the backslash is LITERAL, and
+    inside a code span every backslash is literal. A scan that consumed `\\X` for every X deleted
+    the backslash from `\\d`, `\\s`, `\\n` in code spans — and since `_query` matches on the joined
+    cells, the row became UNFINDABLE by its own text while the tool told the reader to go do the
+    wider hunt the ledger exists to prevent. Executed: 6 rows across 2 repos, including
+    fabrik-lib D-229, whose `'\\udcff'` is the term a reader would actually type.
+    """
+    import tempfile
+
+    row = r"| D-912 | 2026-09-16 | who | becomes `'\udcff'` and `\d` here | why it | docs/x.md |"
+    with tempfile.TemporaryDirectory() as d:
+        led = Path(d) / "DECISIONS.md"
+        led.write_text(
+            "| id | when | who | what | why | where |\n|---|---|---|---|---|---|\n" + row + "\n",
+            encoding="utf-8",
+        )
+        _rid, cells = dec._rows(led)[0]
+    assert len(cells) == 6, cells
+    assert r"\udcff" in cells[3] and r"\d" in cells[3], cells[3]
+
+
+def test_a_six_cell_row_whose_where_is_a_comment_is_not_peeled() -> None:
+    """The peel is bounded at `> 6` so it can only ever remove a cell BEYOND the six columns.
+    Without that bound a six-cell row whose `where` legitimately begins `<!--` would be peeled to
+    five and then marked malformed — losing a real column to a heuristic built for a seventh.
+    """
+    six = dec._six(["D-900", "2026-09-16", "who", "what", "why", "<!-- see the note -->"])
+    assert six[5] == "<!-- see the note -->", six
+
+
+def test_padding_a_six_cell_row_with_empty_cells_is_also_marked() -> None:
+    """THE COBRA the docstring names, graded at the shape it names. The earlier cobra grader fed an
+    EIGHT-cell row, so it only exercised the long branch and passed while the two-keystroke cheat
+    — pad a short row to six with `| |` — returned early and bought exactly the pre-fix blank.
+    """
+    six = dec._six(["D-900", "2026-09-16", "who", "what", "", ""])
+    assert all("MALFORMED" in c for c in six[4:]), six[4:]

@@ -10,6 +10,23 @@ Generated from the end-of-day plan-state on 2026-06-07 after the trio Phase 5.1.
 ---
 
 - **[intel] `/fabrik-rivals` guard debt left after the 2026-09-14 key-autoload review** — four low-severity grader gaps a 25-mutant battery found and the run deliberately did not close, each one line: the unreadable-`.env` fail-open path (`chmod 000`) is claimed by a docstring and pinned by no test; the `expanduser()` on `$SUBAGENTS_ENV_FILE` is documented as a deliberate divergence from `libs/alerting/_dotenv.py` and nothing pins it, so the next re-port reverts it; `main()`'s `load_env(str(REPO))` argument is ungraded, and swapping it for `os.getcwd()` — the historical wrong-repo bug — passes every test; and the `note:` the docs make a contract is not asserted. Plus one behaviour item: running the HUB's copy of the driver from another repo binds `REPO` to the hub, so it reads the hub's `.env` and writes its checkpoint under `/opt/fabrik/.tmp` while preflight calls it repo-local (reproduced; the doc now states the precondition, but no check enforces it). None is a live defect in the shipped path — the closing reader's verdict was SAFE for 48 repos.
+
+### D-201's ledger-retention figure is ~5x off, and the fleet tick's weekly leg is still unbuilt (2026-09-16)
+
+- **D-201 states the 1 MB `_ledger_rotate` cap holds "roughly three weeks of history"**, derived from
+  ~288 ticks/day at ~150 B. Measured over this ledger's real 33.8-day span on 2026-09-16: **68.7
+  ticks/day at 115.9 B = 8,929 B/day**, so the cap actually holds ~16 weeks (~14 after the
+  `weekly_pct` field). The row is immutable, so this needs a NEW decision row correcting it —
+  D-201's tuning argument leans on that window being scarce when it is not. Owner: infra.
+- **One ledger row carries `ts=0` (1970-01-01)**, which poisons any `min()`/`max()` span computed
+  over `rotate-ledger.jsonl` — it produced a 20,712-day span before I range-filtered. Nothing reads
+  the span today, so this is latent, not live. Owner: infra.
+- **The weekly urgent-drain leg itself is NOT built.** `_urgent_drain_pct` remains session-gated, so
+  an account that is weekly-hot and session-cold is RED by the bands contract with no mail. The
+  instrument now records `weekly_pct` per tick; the threshold stays unset until that band has been
+  measured over real data, exactly as D-201 restored the session row before moving the flip line.
+  Owner: infra, after ~2 weeks of `weekly_pct` rows accumulate.
+
 ## [infra] A plan authored and committed in one motion is a convergence subject at NO moment a gate runs
 
 `check_convergence.py:550` skips `??` paths — deliberately, so a sibling's mid-write scratch never
@@ -2577,6 +2594,22 @@ session marker) before its count is honoured, so a sibling's unstaged file canno
 notion of "mine" the check does not currently have — spec-shaped, not a one-liner.
 
 ### Kaizen loop — the residue of the D-252 stop (2026-09-15)
+
+- **`decisions.py` reconstruction residue** (owner: **infra**) — routed by the scope-growth stop
+  rather than patched a fourth time: (a) the both-ends read anchors on the last two cells, which is
+  wrong when the shatter happens INSIDE the `why` — fabrik-lib D-177 gets a prose fragment as its
+  `where` where HEAD had an honest blank (1 of 947 rows); a `where` plausibility test would close
+  it; (b) the short-branch marker is ungraded for columns 0-3, so a 3-cell row could regain a
+  silent blank in `what` (0 live rows today); (c) `tests/test_decisions_table_shape.py` strips code
+  spans before counting pipes, so 10 of 947 rows pass its shape check while the parser splits them
+  long — the guard is lenient exactly where the parser is strict; (d) `.strip("|")` still eats a
+  trailing escaped pipe (0 live rows, unchanged from HEAD).
+- **`--next-id` collides when two agents mint correctly** (owner: **infra**; SPEC work) —
+  `decisions.py --next-id` reads max+1 without reserving, and in a linked worktree the window is
+  until MERGE, not seconds. Two incidents in iterative_image_editor alone (2026-09-03 three agents
+  minted D-006 twice; 2026-09-15 lanes A and C both minted D-037/D-038). Rows are immutable, so the
+  repair renumbers rows and BREAKS citations written before the merge. Reported with a proposal at
+  01M2KA20BJ02GF1GG3TQ8YA6VB; needs a mechanism (reservation, or worktree-scoped ids), not a patch.
 
 - **The quota-band contract's routed residue** (owner: **infra**; D-264) — four items the
   scope-growth stop routed rather than patched a fourth time: (a) the bands overlap at exactly 90

@@ -9,6 +9,7 @@ FIRST on any where-is/did-we-decide question (operator directive 2026-08-30; des
 - **In-repo:** `grep -i <term> docs/DECISIONS.md` — or just read it; ledgers are short by design.
 - **Fleet-wide (hub-side):** `python3 /opt/fabrik/scripts/decisions.py <term>` — greps every
   `/opt/*/docs/DECISIONS.md` plus the hub's own, printing `repo · D-NNN · when · who · what · why · where`.
+
   Box-topology note: the helper assumes the `/opt` single-filesystem layout of this box; the per-repo
   practice works in any checkout.
 - **Order of recall for decision-shaped questions:** ledger → session-recall → wider hunt. A ledger
@@ -37,6 +38,21 @@ FIRST on any where-is/did-we-decide question (operator directive 2026-08-30; des
   later-minted row IN PLACE (only the id cell changes — the row keeps its file position, so
   id order ≠ position for a renumbered row; newest-first is a mint-time convention). Still no
   lock machinery by design.
+
+⚠ **A column the row does not carry is MARKED, never blanked.** Where a row parses to fewer
+than six columns the missing ones are marked; where it parses to MORE — an unescaped `|` in
+its prose — the row is reconstructed from both ends (`where` is the last cell, `why` the one before
+it, the middle rejoined as `what`) and only an EMPTY reconstructed column is marked. Where it parses
+to fewer than six columns — or to more, because it carries an unescaped `|` in its prose — the reader
+prints `⚠ MALFORMED ROW — column missing; read the ledger` in that position instead of an
+empty string. A blank was indistinguishable from "no pointer recorded" and sent the reader
+into the wider hunt this ledger exists to prevent (66 of 944 fleet rows are affected today).
+Padding the row with empty cells does NOT silence the marker — an empty `why`/`where` is
+marked too, so the cheat costs the same as recording the real answer.
+
+⚠ **To put a literal `|` inside a cell, escape it: `\|`.** The reader consumes GFM escapes
+(ASCII punctuation only — `\d` and `\n` keep their backslash, as a code span requires), so an
+escaped pipe stays content instead of shattering the row into an extra column.
 
 ## Where the duties live (the binding text, not this doc)
 

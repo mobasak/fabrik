@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_decisions_helper.py, docs/reference/decision-ledger.md, docs/superpowers/specs/2026-08-30-decision-ledger-v2-design.md, scripts/docs_updater.py (keep MERGE_OWNER_RE identical)
+# AFTER-EDIT: tests/test_decisions_helper.py, docs/reference/decision-ledger.md, scripts/docs_updater.py (keep MERGE_OWNER_RE identical) | NOT the 2026-08-30 design spec: it is a FROZEN CONVERGED artifact, so a behaviour change is recorded in a D-row, never by editing it
 """Fleet decision-ledger query — grep every repo's docs/DECISIONS.md in one command.
 
 The read half of the decision ledger (spec: docs/superpowers/specs/
@@ -80,9 +80,72 @@ def _rows(path: Path) -> list[tuple[str, list[str]]]:
         m = ROW_RE.match(line.strip())
         if not m:
             continue
-        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        # GFM: `\X` is literal X, so `\|` is CONTENT and `\\|` is a literal backslash
+        # followed by a REAL separator. A fixed-width lookbehind cannot count backslashes and
+        # mis-parsed the second shape, dropping a column; this scan consumes the escape.
+        cells: list[str] = []
+        buf: list[str] = []
+        s = line.strip().strip("|")
+        i = 0
+        while i < len(s):
+            if s[i] == "\\" and i + 1 < len(s) and s[i + 1] in _ESCAPABLE:
+                buf.append(s[i + 1])
+                i += 2
+            elif s[i] == "\\" and i + 1 < len(s):
+                # NOT escapable: GFM escapes ASCII punctuation only, so the backslash is
+                # LITERAL here. Eating it deleted `\d`/`\s`/`\n` from code spans and made
+                # the row unfindable by its own text (executed: 6 rows, 2 repos).
+                buf.append(s[i])
+                buf.append(s[i + 1])
+                i += 2
+            elif s[i] == "|":
+                cells.append("".join(buf).strip())
+                buf = []
+                i += 1
+            else:
+                buf.append(s[i])
+                i += 1
+        cells.append("".join(buf).strip())
         rows.append((m.group(1).upper(), cells))
     return rows
+
+
+_ESCAPABLE = frozenset("""!"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~""")  # GFM: punctuation only
+_MALFORMED = "⚠ MALFORMED ROW — column missing; read the ledger"
+
+
+def _six(cells: list[str]) -> list[str]:
+    """The six columns the contract promises, from a row that may not carry exactly six.
+
+    A row with an UNESCAPED `|` inside its prose (a real enum like `capped | done | error`)
+    parses long, and the old code padded with `[""] * (6 - len(cells))` — which is `[]` when the
+    row is long, so `padded[4]`/`padded[5]` printed FRAGMENTS of `what` where `why` and `where`
+    belong. A SHORT row was silently filled with blanks instead, so the tool the contract makes
+    the FIRST stop for "where is X / why is Z" answered blank and sent the reader into the wider
+    hunt the rule exists to prevent (measured: 6 of 265 hub rows long, 5 of 39 short in
+    iterative_image_editor; 01M2JQYM9PGQK6Q53GJ3SGP3TV).
+
+    A long row is read from BOTH ENDS — `where` is the last cell and `why` the one before it,
+    which held for 6 of 6 long rows on this ledger — and the middle is rejoined as `what` with
+    the separator restored. A SHORT row is never fabricated: the missing columns are marked so the
+    reader opens the file instead of trusting a blank.
+
+    ⚠ Validated FLEET-WIDE (49 ledgers, 944 rows, 14 long, 64 short) — an earlier cut measured the
+    hub's 265 alone, took a trailing HTML provenance comment for the `where`, and REGRESSED four
+    fabrik-lib rows that had been correct. Such a comment is peeled before the both-ends read.
+
+    ⚠ COBRA (D-253): the cheapest way to silence the marker WITHOUT recording anything is to pad
+    the row with two empty cells `| |`, restoring exactly the pre-fix silent blank. That is why an
+    EMPTY reconstructed `why`/`where` is marked too — padding buys nothing.
+    """
+    while len(cells) > 6 and cells[-1].startswith("<!--"):
+        cells = cells[:-1]
+    if len(cells) > 6:
+        six = [*cells[:3], " | ".join(cells[3:-2]), cells[-2], cells[-1]]
+    else:
+        six = cells + [_MALFORMED] * (6 - len(cells))
+    # BOTH branches, so padding a short row with `| |` to silence the marker buys nothing.
+    return [c if c or n < 4 else _MALFORMED for n, c in enumerate(six)]
 
 
 def _query(root: Path, term: str) -> None:
@@ -91,7 +154,7 @@ def _query(root: Path, term: str) -> None:
     for repo, path in _ledgers(root):
         for rid, cells in _rows(path):
             if needle in " ".join(cells).lower():
-                padded = cells + [""] * (6 - len(cells))
+                padded = _six(cells)
                 # ALL six cells — the duty this tool serves promises "what+why+where is
                 # the full answer", and WHY was the one field the output omitted
                 # (review 2026-08-31; the D-000 directive is ABOUT the why).

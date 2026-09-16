@@ -1173,7 +1173,7 @@ def _tag_backlog_rows(text: str, names: list[str]) -> tuple[str, list[tuple[str,
 
 def read_merge_owner() -> tuple[str, str] | None:
     """The `(name, "D-NNN")` declared by the LAST row of `docs/DECISIONS.md` whose `what`
-    cell (cells[3] — decisions.py:82's own `|`-split) matches MERGE_OWNER_RE. A LATER row
+    cell (cells[3] — decisions.py's own cell scan in `_rows`) matches MERGE_OWNER_RE. A LATER row
     always wins: a changed merge owner is a NEW row that supersedes, never an edit of this
     one (the ledger's own law). `None` when the ledger is missing/unreadable or no row
     matches — the repo hasn't adopted yet."""
@@ -1917,7 +1917,7 @@ def _insert_owner_line(path: Path, name: str, dry_run: bool = False) -> bool:
 
 def _mint_next_decision_id() -> str:
     """max existing `D-NNN` id + 1 in `docs/DECISIONS.md`, `D-001` when none/absent —
-    the same `^\\|\\s*D-(\\d+)\\s*\\|` scan `decisions.py:162`'s `_next_id` uses,
+    the same `^\\|\\s*D-(\\d+)\\s*\\|` scan `decisions.py`'s `_next_id` (inline in both files; neither names the regex) uses,
     reimplemented locally (T02a does not import `scripts/decisions.py` — see the
     Interfaces seam; `# AFTER-EDIT` binds the two regexes to stay identical)."""
     ledger = PROJECT_ROOT / "docs" / "DECISIONS.md"

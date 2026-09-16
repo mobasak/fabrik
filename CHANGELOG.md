@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — decisions.py answered blank for the ledger's own first-stop question (2026-09-16)
+
+- `scripts/decisions.py` — the tool CLAUDE.md makes the FIRST stop for "where is X / why is Z"
+  returned an EMPTY `why`/`where` for a short row and `what` fragments for a row carrying a pipe
+  in its prose, so the ledger answered blank and sent the reader into the wider hunt it exists to
+  prevent. The row scan now consumes GFM escapes (ASCII punctuation only, so `\d` keeps its
+  backslash), a long row is reconstructed from both ends after peeling a trailing provenance
+  comment, and a missing or empty column is MARKED rather than blanked — padding with `| |` buys
+  nothing. Reported by iterative_image_editor (01M2JQYM9PGQK6Q53GJ3SGP3TV). Measured fleet-wide:
+  49 ledgers / 947 rows, 10 `where` columns repaired, 0 rows lost non-escape text.
+- `docs/reference/decision-ledger.md`, `scripts/docs_updater.py` — the coupled doc documents the
+  marker and the `\|` escape; two stale line citations now name symbols.
+
+### Added — The fleet tick records the weekly window beside the session one (2026-09-16)
+
+- `scripts/sysadmin/claude_rotate.py` + its byte-identical `scripts/aro-wake/` twin — the fleet
+  tick's ledger row now carries `weekly_pct` (the active account's `seven_day` utilization) beside
+  the existing session `pct`. The write CONDITION is unchanged, so no row starts or stops existing
+  and every existing reader's population is byte-for-byte what it was.
+- WHY: D-264's quota bands key RED on the account's HOTTEST window while the urgent-drain mail
+  gates on the SESSION window alone (`_urgent_drain_pct`), and which of the two should move could
+  not be decided — a scan of all 2,498 rotate-ledger rows (2,318 of them tick rows) found no weekly
+  figure on any. This is the instrument, not the threshold; the threshold change is deliberately
+  NOT made until the band has been measured. Same shape as D-201, which restored the session row
+  for exactly this reason.
+- COST, measured not waved past: ~20 B against a 115.8 B mean tick row (+17.3%), so
+  `_ledger_rotate`'s 1 MB cap retains ~2.6 weeks of history where D-201 sized it at ~3.
+- `tests/test_claude_fleet.py` — one grader, watched RED before the fix and unconditional in its
+  session-vs-weekly distinctness assert.
+
 ### Added — The quota bands become a behaviour contract in both CLAUDE.md twins (2026-09-16)
 
 - `CLAUDE.md` + `templates/governance/CLAUDE.md` — operator directive 01M2K9JZNG4Y6110629YZGA65A
