@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The ledger reader decodes CODE-SPAN-AWARE, so it agrees with the rendered ledger (2026-09-17)
+
+- `scripts/decisions.py` gains `_code_span_ranges()` (CommonMark §6.1: a run of N backticks opens a
+  span only a run of exactly N closes; an unclosed run is literal) and `_escape_cell()`, and `_rows`
+  now decodes through the same helper. OUTSIDE a code span punctuation escapes decode; INSIDE one only
+  `\|` does, because a code span performs no escape processing. Encoder and decoder call ONE shared
+  helper so `read(append(x)) == x` cannot drift.
+- ⚠️ BEHAVIOUR CHANGE to a reader 49 ledgers depend on: 4 rows of 975 fleet-wide now decode
+  differently, all toward the RENDER. `` `LIKE 'pg\_temp%'` `` keeps its backslash (GitHub shows it);
+  `` `[AC]\\d+` `` keeps both. The old decoder stripped them and disagreed with what a reader sees.
+  A `decisions.py <term>` search now matches the rendered text rather than a de-escaped variant.
+- Implements delta §4 of `docs/superpowers/specs/2026-09-16-ledger-write-integrity-design.md`
+  (CONVERGED). The writer (`--append`), the box-local id reservation and the ratcheted gate are the
+  remaining delta points.
+
 ### Fixed — The docs staleness gate watches 10 docs instead of 7, measured through the check itself (2026-09-17)
 
 - `scripts/docs_updater.py::MANUAL_DOCS` gains `docs/API_REFERENCE.md`, `docs/FUNNEL.md` and

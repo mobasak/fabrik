@@ -69,6 +69,69 @@ def _ledgers(root: Path) -> list[tuple[str, Path]]:
     return out
 
 
+
+def _code_span_ranges(s: str) -> list[tuple[int, int]]:
+    """Half-open ``(start, end)`` ranges of the CommonMark §6.1 code spans in *s*.
+
+    A run of N backticks opens a span that only a run of EXACTLY N closes; an unclosed run is
+    literal text and opens nothing.
+
+    ⚠ The ENCODER and the DECODER both call this — they do not each implement the rule. A byte of
+    disagreement between them makes ``read(append(x)) != x``, which is the one failure a writer
+    whose whole purpose is round-tripping cannot have.
+    """
+    spans: list[tuple[int, int]] = []
+    i, n = 0, len(s)
+    while i < n:
+        if s[i] != "`":
+            i += 1
+            continue
+        j = i
+        while j < n and s[j] == "`":
+            j += 1
+        run = j - i
+        k = j
+        while k < n:
+            if s[k] != "`":
+                k += 1
+                continue
+            m = k
+            while m < n and s[m] == "`":
+                m += 1
+            if m - k == run:
+                spans.append((i, m))
+                i = m
+                break
+            k = m
+        else:
+            i = j  # unclosed run: literal, opens nothing
+    return spans
+
+
+def _in_span(idx: int, spans: list[tuple[int, int]]) -> bool:
+    return any(a <= idx < b for a, b in spans)
+
+
+def _escape_cell(text: str) -> str:
+    """One authored field as a table cell, escaped exactly as :func:`_rows` decodes it.
+
+    OUTSIDE a code span ``\\`` then ``|`` are escaped. INSIDE one only ``|`` is — a code span
+    decodes nothing else, so an unconditional backslash-doubling puts a LITERAL second backslash
+    into the rendered ledger. Executed on a real web-ecommerce-factory regex row: every ``\\d``
+    became ``\\\\d`` on GitHub, breaking both halves of the round trip
+    (``read(append(x)) == x`` AND ``render(append(x)) == x``).
+    """
+    spans = _code_span_ranges(text)
+    out: list[str] = []
+    for idx, ch in enumerate(text):
+        if ch == "|":
+            out.append("\\|")
+        elif ch == "\\" and not _in_span(idx, spans):
+            out.append("\\\\")
+        else:
+            out.append(ch)
+    return "".join(out)
+
 def _rows(path: Path) -> list[tuple[str, list[str]]]:
     """(id, cells) per data row; header/separator rows carry no D-NNN id and never match."""
     rows: list[tuple[str, list[str]]] = []
@@ -86,9 +149,20 @@ def _rows(path: Path) -> list[tuple[str, list[str]]]:
         cells: list[str] = []
         buf: list[str] = []
         s = line.strip().strip("|")
+        # Code spans decode NOTHING but `\|` — the separator must still be escapable inside one or
+        # a cell could not carry a pipe in code. Same helper the writer uses, so the two agree.
+        spans = _code_span_ranges(s)
         i = 0
         while i < len(s):
-            if s[i] == "\\" and i + 1 < len(s) and s[i + 1] in _ESCAPABLE:
+            if s[i] == "\\" and i + 1 < len(s) and s[i + 1] == "|":
+                buf.append("|")
+                i += 2
+            elif (
+                s[i] == "\\"
+                and i + 1 < len(s)
+                and s[i + 1] in _ESCAPABLE
+                and not _in_span(i, spans)
+            ):
                 buf.append(s[i + 1])
                 i += 2
             elif s[i] == "\\" and i + 1 < len(s):
