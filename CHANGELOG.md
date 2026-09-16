@@ -15,6 +15,28 @@ All notable changes to this project will be documented in this file.
 - Completes delta §3, and with it every delta point of
   `docs/superpowers/specs/2026-09-16-ledger-write-integrity-design.md`.
 
+### Fixed — The fleet-wall advisory latched on a FILE's presence, so a lost file was a broadcast storm (2026-09-17)
+
+- `scripts/sysadmin/claude_rotate.py::_advisory_ledger_latch` (byte-identical `scripts/aro-wake/`
+  twin): the advisory was latched on `stamp.exists()`. With the fleet-exhausted stamp absent — its
+  write failed inside a silent `except OSError: pass`, its directory fell back to a tempdir, or the
+  state dir was fresh — every 5-minute tick composed the message again and broadcast it to every
+  mailbox on the box. **2026-09-16: 460 copies in one hour across 49 repos** — the operator's
+  first complaint of the day, root-caused by fabrik-lib after nine mails, confirmed live in the
+  code by infra, routed to this plan (`01M2P19KP9GE9S`). A presence-latch fails as UNBOUNDED
+  REPETITION, and repetition is the one failure a broadcast channel cannot survive.
+- The `fleet-active-wall` ledger row the advisory already writes is now the second, recomputable
+  latch, mirroring the stamp's rules exactly: the current episode is the last such row with no
+  later relief or `flip` row; inside a 30-minute floor it is latched unconditionally (bounding any
+  storm at 2/h per account even if everything else is wrong); beyond it, until the promised
+  `resume_epoch` comes due or the week-long re-arm. An unreadable ledger fails OPEN — the stamp
+  latch still stands, and silence on a real wall is the worse failure. A stamp write that fails
+  now says so on stderr every tick instead of nothing. Cobra: the floor is a minimum GAP, never a
+  maximum count — B21 asserts the advisory still fires once per episode and again after relief.
+- Graders: `tests/test_claude_fleet.py::B21` reproduces the storm (stamp unwritable, three ticks
+  → one advisory, proven three-for-three with the ledger latch removed); `B21a` drives every
+  rule of the ledger latch. Decision: D-276.
+
 ### Added — The decision ledger gains an ADVISORY row-integrity ratchet keyed on row IDENTITY (2026-09-17)
 
 - `scripts/enforcement/check_decisions_unique.py` gains `check_row_shape()`. A row is MALFORMED when

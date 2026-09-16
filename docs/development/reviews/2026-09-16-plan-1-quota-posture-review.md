@@ -187,7 +187,8 @@ Pick up here. Everything below is open; nothing above it is.
    successor should have fired (eligible accounts showed throughout) and did not — check
    `_validated_pick` returning None while the queue prints those accounts eligible (two chains
    expiring, three STALE readings that day). Design question for the closing round: a presence-latch
-   fails as UNBOUNDED REPETITION; episode identity belongs in recomputable state. NOT fixed yet.
+   fails as UNBOUNDED REPETITION; episode identity belongs in recomputable state. **FIXED on the
+   resumed run: `_advisory_ledger_latch` (D-276), B21 reproduces the storm and proves it bounded.**
 4. **fabrik-lib is carrying a defect I gave them.** `/opt/fabrik-lib/CLAUDE.md` adopted the BROKEN
    "copy the FILE" clause from my mail `01M2P0K798QC5TTJZYE8Q3R1EW` before it was corrected. They are
    sync-EXCLUDED, so no mechanism reaches them. The correction is mailed

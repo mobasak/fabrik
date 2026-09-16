@@ -5421,6 +5421,85 @@ def _urgent_drain_message(
     )
 
 
+_ADVISORY_MIN_GAP_S = (
+    30 * 60.0
+)  # hard floor: one wall advisory per account per 30 min, whatever the stamp says
+_WAKE_EVENT = (
+    "hold-lifted"  # the relief/wake row `_wake_held_sessions` writes — it ENDS a wall episode
+)
+
+
+def _advisory_ledger_latch(email: str, now: float) -> bool:
+    """True when the LEDGER says this wall episode was already advised — the latch that survives a
+    dead stamp.
+
+    ⚠️ Why a second latch. The advisory was latched on the PRESENCE of the fleet-exhausted stamp:
+    `latched = stamp.exists() and not (...)`. With the stamp absent — its write failed silently
+    (`except OSError: pass`), its dir fell back to a tempdir, or the state dir was fresh — every
+    tick composed the message again and broadcast it to every mailbox on the box. 2026-09-16:
+    460 copies in one hour across 49 repos, the fleet's only "stop now" channel spent on
+    repetition (01M2P19KP9GE9S, root-caused by fabrik-lib, confirmed by infra). A presence-latch
+    fails as UNBOUNDED REPETITION, and repetition is the one failure a broadcast channel cannot
+    survive. Episode identity therefore also lives where it is recomputable: the ledger row the
+    advisory already writes (`fleet-active-wall`, with `resume_epoch`).
+
+    ⚠️ It is consulted ONLY when the stamp is ABSENT. When the stamp exists its own rules decide —
+    including the two re-arms, which the graders (and a real WSL suspend) drive by ageing the
+    stamp's mtime while the clock stands still; a ledger row cannot be aged that way, so letting
+    it vote while the stamp stands would silence the week re-arm. Presence lost is the only case
+    this latch exists for, and it is exactly the case the storm came from.
+
+    The rule mirrors the stamp's, so the two never disagree on a healthy box:
+    - a `fleet-active-wall` row for this account with no LATER relief (`hold-lifted`) or `flip` row
+      is the CURRENT episode;
+    - within `_ADVISORY_MIN_GAP_S` of that row the fleet is latched unconditionally — the floor
+      that bounds a storm at 2/h even if everything else is wrong;
+    - beyond the floor it stays latched until the row's promised `resume_epoch` comes due, or the
+      week-long re-arm (`_FLEET_WALL_REARM_S`) — the same two re-arms the stamp honours.
+    An unreadable ledger fails OPEN here (returns False): the stamp latch still stands, and a
+    storm is a bounded failure while silence on a real wall is not.
+
+    COBRA (D-253): the cheapest way to satisfy "no storm" is to never fire; the floor is a
+    minimum GAP, never a maximum count, and the graders assert the advisory still fires ONCE per
+    episode and again after relief.
+    """
+    try:
+        lines = (_rotate_state_dir() / "rotate-ledger.jsonl").read_text().splitlines()
+    except Exception as exc:  # noqa: BLE001 - fail OPEN on any read fault; the stamp latch still stands
+        if not isinstance(exc, (OSError, ValueError, *_STATE_DIR_ERRORS)):
+            raise
+        return False
+    last = None
+    for ln in lines:
+        try:
+            row = json.loads(ln)
+        except ValueError:
+            continue
+        if not isinstance(row, dict):
+            continue
+        ev = row.get("event")
+        if ev == "fleet-active-wall" and row.get("account") == email:
+            last = row
+        elif ev in (_WAKE_EVENT, "flip") and last is not None:
+            last = None  # relief or a flip ends the episode the row described
+    if last is None:
+        return False
+    ts = last.get("ts")
+    if not isinstance(ts, (int, float)) or isinstance(ts, bool):
+        return False
+    age = now - float(ts)
+    if age < 0 or age > _FLEET_WALL_REARM_S:
+        return False
+    if age < _ADVISORY_MIN_GAP_S:
+        return True
+    promised = last.get("resume_epoch")
+    return (
+        isinstance(promised, (int, float))
+        and not isinstance(promised, bool)
+        and now < float(promised)
+    )
+
+
 def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: float) -> None:
     """Fire ONE advisory only when the fleet's ACTIVE account is walled with no auto-relief.
 
@@ -5498,7 +5577,10 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
         (age is not None and (age > _FLEET_WALL_REARM_S or age < -_CLOCK_SKEW_TOLERANCE_S))
         or (promised is not None and now >= promised)
     )
-    if latched:
+    # ⚠️ The stamp is a PRESENCE latch and presence can be lost — a failed write, a tempdir
+    # fallback, a fresh state dir — and every loss re-fires the broadcast. The ledger row this
+    # very function writes is the recomputable copy of the same fact (01M2P19KP9GE9S).
+    if latched or (not stamp.exists() and _advisory_ledger_latch(str(row["email"]), now)):
         return  # already advised for this wall episode — one fact, one message
     hot = max(
         (
@@ -5523,8 +5605,10 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
             str(int(relief[0]) + _drain_resume_lead_s() if relief else 0), encoding="utf-8"
         )
         os.utime(stamp, (now, now))
-    except OSError:
-        pass
+    except OSError as exc:
+        # The ledger latch above still bounds the repeat; but a stamp that cannot be written also
+        # means `quota_stop.py` sees no WALL — say so, every tick, rather than fail silently.
+        sys.stderr.write(f"claude_rotate: fleet-exhausted stamp NOT written ({stamp}): {exc}\n")
     _ledger_append(
         {
             "event": "fleet-active-wall",

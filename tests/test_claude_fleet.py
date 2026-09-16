@@ -5112,3 +5112,68 @@ def test_the_wall_is_never_softened_and_an_empty_pool_keeps_the_accounts_band():
     )
     assert cr._fleet_band({}, "AMBER", False, 85.0, 90.0, fable=False) == "AMBER"
     assert cr._fleet_band({}, None, False, 85.0, 90.0, fable=False) is None
+
+
+def test_the_wall_advisory_cannot_storm_when_the_stamp_cannot_be_written(tmp_path, monkeypatch):
+    """B21 — the 2026-09-16 storm, reproduced: with the fleet-exhausted stamp UNWRITABLE, the
+    presence latch never engages and every tick re-broadcasts (460 copies in one hour across 49
+    mailboxes — 01M2P19KP9GE9S). The ledger row the advisory writes is now the second latch, so a
+    dead stamp bounds the repeat at ONE per episode instead of one per tick."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    usages = {"tok-seo": _usage_blob(OVER_LINE, 96.0), "tok-intel": _usage_blob(100.0, 100.0)}
+    _fake_oauth(monkeypatch, usages=usages)
+    actions = _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: ["fabrik"])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    # the stamp's parent does not exist and cannot be created: every write raises OSError
+    dead = tmp_path / "no-such-dir" / "fleet-exhausted"
+    monkeypatch.setattr(cr, "_fleet_exhaustion_stamp", lambda: dead)
+    _point(fleet, "seo")
+
+    for _ in range(3):
+        assert cr._cmd_tick() == 0
+    assert not dead.exists(), "fixture: the stamp must really be unwritable"
+    assert len(actions["telegrams"]) == 1, (
+        f"{len(actions['telegrams'])} advisories in 3 ticks with a dead stamp — the storm shape"
+    )
+
+
+def test_the_ledger_latch_ends_with_relief_and_honours_the_floor_and_the_promise(
+    tmp_path, monkeypatch
+):
+    """B21a — the ledger latch mirrors the stamp's rules: a relief or flip row ENDS the episode
+    (so a fresh wall after relief speaks again), the 30-minute floor holds unconditionally, and
+    beyond it the promised resume instant is what re-arms."""
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    led = state / "rotate-ledger.jsonl"
+    now = FLEET_NOW
+    row = {
+        "event": "fleet-active-wall",
+        "ts": now - 60,
+        "account": "a@x",
+        "resume_epoch": now + 3600,
+    }
+    led.write_text(json.dumps(row) + "\n")
+    assert cr._advisory_ledger_latch("a@x", now) is True, "inside the floor: latched"
+    assert cr._advisory_ledger_latch("b@x", now) is False, "another account: not this episode"
+    # beyond the floor, the promise still stands -> latched; once due -> re-armed
+    old = dict(row, ts=now - 2 * cr._ADVISORY_MIN_GAP_S)
+    led.write_text(json.dumps(old) + "\n")
+    assert cr._advisory_ledger_latch("a@x", now) is True
+    assert cr._advisory_ledger_latch("a@x", now + 3600) is False, "promise came due: speak"
+    # a relief row after the wall row ends the episode
+    led.write_text(
+        json.dumps(row) + "\n" + json.dumps({"event": cr._WAKE_EVENT, "ts": now - 30}) + "\n"
+    )
+    assert cr._advisory_ledger_latch("a@x", now) is False, "relief ended the episode"
+    led.write_text(json.dumps(row) + "\n" + json.dumps({"event": "flip", "ts": now - 30}) + "\n")
+    assert cr._advisory_ledger_latch("a@x", now) is False, "a flip ended the episode"
+    # the week-long re-arm, and an unreadable ledger fails OPEN (the stamp latch still stands)
+    led.write_text(json.dumps(dict(row, ts=now - cr._FLEET_WALL_REARM_S - 1)) + "\n")
+    assert cr._advisory_ledger_latch("a@x", now) is False
+    led.write_text("{not json\n")
+    assert cr._advisory_ledger_latch("a@x", now) is False
