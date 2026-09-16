@@ -609,16 +609,34 @@ README_PATH = PROJECT_ROOT / "INDEX.md"
 TEMPLATE_PATH = PROJECT_ROOT / "templates" / "docs" / "MODULE_REFERENCE_TEMPLATE.md"
 
 # All docs that need staleness/completeness checks
+# ⚠️ WIDENING THIS LIST IS A FIRE-RATE DECISION, not a coverage one. An entry that EXISTS without a
+# `**Last Updated:**` marker reports "Missing 'Last Updated' date" immediately, in every repo that has
+# the file. Measured 2026-09-17 over the 47 repos carrying `.fabrik/synced.lock`, arming the thirteen
+# obvious candidates at once would have raised 151 new issues — SERVICES 32, OPERATIONS 34, CHANGELOG
+# 22, data-contract 21 — which is wallpaper, and wallpaper is how enforcement dies (FIX DIRECTIVE 5).
+# ⚠️ AND MEASURE BY DRIVING `check_staleness()`, NOT by grepping for the marker: the gate fires on a
+# marker that is STALE as well as one that is absent, so marker-presence is a proxy that reads as a
+# clean zero while the entry would fire everywhere. Measured both ways 2026-09-17: `PORTS.md` has the
+# marker in 47 of 47 repos (proxy says "safe to arm") and fires "Stale doc (93 days old)" in 47 of 47
+# (the real check), because the scaffolder seeded one date fleet-wide. That is ONE seeding artifact
+# wearing 47 hats, not 47 defects, so it is NOT in this list. The three added below were measured
+# through the real check: FUNNEL 0/47, AUTOMATION 0/47, API_REFERENCE 1/47 — and that single hit is a
+# TRUE POSITIVE kept deliberately, which is what the gate is for. The remaining candidates need their
+# markers added before they can be watched; measurements and destination are in
+# docs/STRATEGIC_BACKLOG.md. Re-measure before adding any entry; the numbers move.
+# (site-provisioner, 01M2NJGZGV20WP: 7 watched of 26 project-owned docs, and every defect their
+# two-command sweep found that day was in an unwatched one.)
 MANUAL_DOCS = [
     "README.md",
-    # tasks.md is a deliberately-frozen 2026-03 superseded snapshot (see its banner) — kept as
-    # history, not a living doc, so it is exempt from the freshness/staleness gate.
     "AGENTS.md",
     "docs/INDEX.md",
     "docs/QUICKSTART.md",
     "docs/CONFIGURATION.md",
     "docs/TROUBLESHOOTING.md",
     "docs/BUSINESS_MODEL.md",
+    "docs/API_REFERENCE.md",
+    "docs/FUNNEL.md",
+    "docs/AUTOMATION.md",
 ]
 
 # Placeholder markers that indicate incomplete stubs

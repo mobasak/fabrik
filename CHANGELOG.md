@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The docs staleness gate watches 10 docs instead of 7, measured through the check itself (2026-09-17)
+
+- `scripts/docs_updater.py::MANUAL_DOCS` gains `docs/API_REFERENCE.md`, `docs/FUNNEL.md` and
+  `docs/AUTOMATION.md`, and loses an ORPHANED comment that explained why `tasks.md` was exempt — a
+  file that was never in the list, described with two false facts (site-provisioner,
+  `01M2NJGZGV20WP`, who measured 7 watched of 26 project-owned docs).
+- ⚠️ The entries were chosen by DRIVING `check_staleness()` across the 47 repos carrying
+  `.fabrik/synced.lock`, not by grepping for the `**Last Updated:**` marker. The two disagree: the
+  gate fires on a STALE marker as well as an absent one, so `PORTS.md` reads "safe to arm" by marker
+  presence (47/47 carry it) and fires in **47 of 47** through the real check. It is deliberately NOT
+  added. Arming the thirteen obvious candidates at once would have raised 151 issues. Net effect of
+  this change fleet-wide: **one** new issue, a true positive.
+
 ### Fixed — A BLOCKED plan set no longer reds its own gate; two rule-pack rows render as a table (2026-09-17)
 
 - `scripts/enforcement/check_plan_tickets.py::_sizing_severity` adds `BLOCKED` to the gate-path WARN
