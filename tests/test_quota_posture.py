@@ -327,6 +327,26 @@ def test_red_holds_agent_only_without_a_live_run(tmp_path):
         ("python3 scripts/command_run.py start --command /fabrik-review/", True),
         ("python3 scripts/command_run.py start --command fabrik-review-scoped/", True),
         ("python3 scripts/command_run.py start --command /fabrik-spec --phases 3", True),
+        # ⚠️ A QUOTED shell operator inside the value is a KNOWN, RECORDED GAP — these cases pin
+        # what the hook does today, which is NOT what it should do. shlex discards quoting, so the
+        # hook cannot tell `--command 'fabrik-review;x'` (bash passes it whole; the recorder files
+        # `fabrik-review;x`, off-family) from `--command fabrik-review;x` (bash cuts at the `;`).
+        # `_cut` guesses the second, so the first is ALLOWED at RED and then counts as no review —
+        # confirmed end-to-end against a real recorder. The guess is deliberate and it is the RIGHT
+        # way round: dropping `_cut` fixes this and breaks the far likelier subshell spelling
+        # `(… --command fabrik-review-scoped)`, where the `)` is bash syntax and dropping the cut
+        # DENIES a legitimate review start. Punctuation-aware tokenisation resolves both in theory
+        # and was executed here: it breaks the `$(echo …)` bypass this corpus already guards. So the
+        # real fix is a fourth rewrite of the predicate, and each of its three rewrites introduced a
+        # new defect — it is a named docs/STRATEGIC_BACKLOG.md row, not an end-of-run change.
+        (
+            "python3 scripts/command_run.py start --command 'fabrik-review;x' --phases 1 --terminal p",
+            False,
+        ),
+        (
+            "python3 scripts/command_run.py start --command='fabrik-review;x' --phases 1 --terminal p",
+            False,
+        ),
         # an INTERIOR slash is a PATH, not this command, and must stay denied — the strip must not
         # widen into a basename match
         ("python3 scripts/command_run.py start --command /opt/x/fabrik-review", True),
