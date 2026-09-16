@@ -263,7 +263,12 @@ def quota() -> dict:
         # fail-open: the picture's active account at 96% reported GREEN, which would license a heavy
         # fan-out on a hot account. A posture about someone else is no better than no posture, so it
         # is treated as none and the picture's own values stand.
-        same_account = bool(act.get("slug")) and act["slug"] in ((act_row or {}).get("slugs") or [])
+        # the membership test is type-guarded: were `slugs` ever a STRING, `in` would be a
+        # SUBSTRING test and a posture for `ob` would match a row listing `sarp-ob-x`
+        slugs = (act_row or {}).get("slugs")
+        same_account = bool(act.get("slug")) and act["slug"] in (
+            slugs if isinstance(slugs, list) else []
+        )
         if fresh is not None and same_account:
             hot = _posture_hot(act)
             if hot is not None:

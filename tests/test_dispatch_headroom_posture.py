@@ -131,7 +131,10 @@ def test_a_posture_about_another_account_never_steers_the_seat_budget(monkeypatc
         mod,
         monkeypatch,
         _payload(
-            posture_ts=time.time(), posture_slug="someone-else", hot=5.0, band="GREEN",
+            posture_ts=time.time(),
+            posture_slug="someone-else",
+            hot=5.0,
+            band="GREEN",
             picture_hot=96.0,
         ),
     )
@@ -142,6 +145,15 @@ def test_a_posture_about_another_account_never_steers_the_seat_budget(monkeypatc
     # and the matching slug still wins, or the check would have broken the feature
     _pin(mod, monkeypatch, _payload(posture_ts=time.time()))
     assert mod.quota()["band"] == "RED"
+
+    # ⚠️ a STRING `slugs` would make `in` a SUBSTRING test, so a posture for `ob` would match a row
+    # listing `sarp-ob-x` — defence in depth, since the picture always emits a list today
+    doc = json.loads(_payload(posture_ts=time.time(), posture_slug="ob", hot=5.0, band="GREEN"))
+    doc["picture"]["accounts"][0]["slugs"] = "sarp-ob-x"
+    doc["picture"]["accounts"][0]["session_pct"] = 96.0
+    _pin(mod, monkeypatch, json.dumps(doc))
+    q = mod.quota()
+    assert q["hottest_pct"] == 96.0 and "band" not in q, q
 
 
 def test_the_staleness_bound_is_the_one_env_key_the_hook_reads(monkeypatch):

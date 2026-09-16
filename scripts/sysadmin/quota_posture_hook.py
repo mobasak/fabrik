@@ -15,8 +15,10 @@ Reads the posture file the rotation tick writes (`_quota_posture` in
   never freeze. At AMBER it says so ONCE per (session, band) through
   ``additionalContext``, carrying no permission decision at all.
 
-⚠️ **BOX-LOCAL, NOT FLEET-SYNCED.** `--install` wires this into the six user-level
-``settings.json`` files, so it reaches every window on this box without shipping into
+⚠️ **BOX-LOCAL, NOT FLEET-SYNCED.** `--install` wires this into the user-level
+``settings.json`` files — one per fleet account dir plus the top-level one, enumerated at
+run time rather than counted here, because a literal denominator in prose goes stale on the
+next account added or removed — so it reaches every window on this box without shipping into
 the ~46 project repos. ``scripts/sysadmin/`` is absent from ``fabrik_synced_manifest.py``;
 keep it that way.
 
@@ -46,14 +48,20 @@ two far cheaper ones that a regex predicate could not see: QUOTE the script path
 with a decoy ``--command fabrik-review`` before the real one. Both defeated the hold
 entirely. Naming the wrong cheapest path is worse than naming none, because it tells the
 next reader the question has already been asked — so the answer here is now a property of
-the PREDICATE (it tokenises with ``shlex`` and reads the LAST ``--command`` the way argparse
-does) rather than a claim in prose, and the bypass corpus in the graders is what keeps it
-true.
+the PREDICATE (it tokenises with ``shlex`` ONCE, segments on the operator TOKENS shlex itself
+yields, and reads the LAST ``--command`` the way argparse does) rather than a claim in prose,
+and the bypass corpus in the graders is what keeps it true. ⚠️ The second draft was wrong too,
+in the opposite direction: it pre-split the raw string on separators, severing any quote that
+held one, and denied the very commit it claimed to unblock. Two shapes remain OPEN and are
+named rather than implied — an ALIASED script and an ``xargs`` pipe never carry the basename
+next to the verb, so nothing string-shaped can see them, and closing them would mean touching
+the filesystem on every tool call.
 
 Env keys, declared here and nowhere else:
   ``ROTATE_STATE_DIR``       the state dir holding the posture file and the stamp
   ``QUOTA_POSTURE_STALE_S``  the staleness bound in seconds (default 900 = 3 ticks)
   ``COMMAND_RUN_DIR``        the run-record dir (through the LOCAL copy below)
+  ``COMMAND_RUN_STALE_H``    how old a ``running`` record may be and still keep its seats (12)
   ``QUOTA_POSTURE_SETTINGS`` ``os.pathsep``-joined settings files for --install/--check
 """
 
@@ -63,7 +71,6 @@ import hashlib
 import json
 import math
 import os
-import re
 import shlex
 import shutil
 import sys
@@ -71,9 +78,14 @@ import time
 from pathlib import Path
 
 _STALE_S_DEFAULT = 900.0
-# the same bound `.claude/hooks/final_gate_stop.py` applies to the same record: a run nobody has
-# touched in half a day is not a session in flight, and treating it as one licensed fan-out at RED
-_RUN_RECORD_STALE_S = 12 * 3600.0
+# the same DEFAULT `.claude/hooks/final_gate_stop.py` applies to the same record, read from the same
+# env key: a run nobody has touched in half a day is not a session in flight, and treating it as one
+# licensed fan-out at RED. ⚠️ Not the same SEMANTICS at the bottom end, deliberately. There a
+# non-positive value means "never trap me" and disables the Stop hook's staleness trap; here it
+# keeps the default, because disabling a trap that holds YOU must not silently widen a carve-out
+# that holds the FLEET — an abandoned record would otherwise license unlimited fan-out at RED
+# forever. The two are the same number and the same knob, not the same meaning at zero.
+_RUN_RECORD_STALE_H_DEFAULT = 12.0
 _TAIL_BYTES = 64 * 1024
 _ROTATE = "/opt/fabrik/scripts/sysadmin/claude_rotate.py"
 _REMEDY = f"run python3 {_ROTATE} --status"
@@ -136,6 +148,22 @@ def _stale_s() -> float:
     # a non-finite or non-positive bound makes every posture stale, or none ever — a
     # silent policy change from an env typo. Keep the default instead.
     return v if math.isfinite(v) and v > 0 else _STALE_S_DEFAULT
+
+
+def _run_record_stale_s() -> float:
+    """The run-record staleness bound, from the same ``COMMAND_RUN_STALE_H`` the Stop hook reads.
+
+    A non-positive or unreadable value keeps the default here, for the reason given beside the
+    constant: the Stop hook's "never trap me" must not become "never hold the fleet".
+    """
+    raw = os.environ.get("COMMAND_RUN_STALE_H")
+    try:
+        h = float(raw) if raw else _RUN_RECORD_STALE_H_DEFAULT
+    except (TypeError, ValueError):
+        return _RUN_RECORD_STALE_H_DEFAULT * 3600.0
+    if not (math.isfinite(h) and h > 0):
+        h = _RUN_RECORD_STALE_H_DEFAULT
+    return h * 3600.0
 
 
 def _load_posture(now: float) -> tuple[dict | None, str]:
@@ -305,7 +333,9 @@ def _band_for_session(posture: dict, transcript_path: object) -> tuple[str | Non
 
 # ── the RED predicate ──────────────────────────────────────────────────────────────
 
-_SEPARATORS = re.compile(r"[;&|\n]+")
+# the shell operators `shlex` yields as their OWN tokens — segment on these, never on a regex split
+# of the raw string, which severs any quote containing one of them
+_BOUNDARY = frozenset({";", "&", "&&", "|", "||"})
 
 
 def _has_live_run(sid: object) -> bool:
@@ -329,7 +359,7 @@ def _has_live_run(sid: object) -> bool:
         rec = json.loads(p.read_text(encoding="utf-8"))
         if rec.get("state") != "running":
             return False
-        return (time.time() - p.stat().st_mtime) <= _RUN_RECORD_STALE_S
+        return (time.time() - p.stat().st_mtime) <= _run_record_stale_s()
     except (*_READ_ERRORS, AttributeError):
         return False
 
@@ -349,30 +379,56 @@ def _is_new_run_start(command: object) -> tuple[bool, str | None]:
       a decoy ``--command fabrik-review`` in front of the real one allowed anything.
 
     And a substring match had no command position at all, so ``git commit -m "ran command_run.py
-    start …"`` was denied — a COMMIT, which is exactly what RED mandates. Tokenising fixes that for
-    free: the phrase inside a quoted argument is ONE token and matches nothing.
+    start …"`` was denied — a COMMIT, which is exactly what RED mandates.
 
-    Every legitimate spelling still lands, now by construction rather than by hope: a bare
-    invocation, a ``uv run`` prefix, an env assignment, a ``cd … &&`` chain, an absolute or quoted
-    path, reordered flags, ``--command=name``. Each of those is a case in the graders' corpus, which
-    is the only reason that sentence is worth anything — the previous version made the same claim
-    and three of the cases in it were false.
+    ⚠️ ONE parse, then segment on TOKENS — never a regex split before `shlex`. The first cut of this
+    rewrite pre-split on ``[;&|\\n]+``, which severs a quote whenever one of those characters sits
+    INSIDE a quoted argument, and both halves then fail to parse. The half carrying the filename hit
+    the fail-closed arm, so ``git commit -m "fix(run): start; then done" -- scripts/command_run.py``
+    was denied — the same commit the previous defect denied, by a new route, in the fix that claimed
+    to have closed it. Worse, ``\\n`` was in that class, so an ordinary backslash line continuation
+    (how a real ``start --command … --phases … --terminal "…"`` is actually written) severed at the
+    ``\\`` and denied the review-family start this hold's own escape hatch depends on. ``shlex``
+    already joins a continuation and already yields ``;``, ``&&`` and ``|`` as their own tokens, so
+    parsing once and splitting on those tokens gets both right for free.
+
+    Every legitimate spelling lands, and each is a case in the graders' corpus, which is the only
+    reason that claim is worth anything: a bare invocation, a ``uv run`` prefix, an env assignment,
+    a ``cd … &&`` chain, an absolute or quoted path, a backslash continuation, a separator inside a
+    quoted message, reordered flags, ``--command=name``.
+
+    ⚠️ NOT closable by this predicate, and named here rather than left implied: a path built by
+    substitution (```` `echo …` ````, ``$(…)``) is stripped of its metacharacters and caught, but an
+    ALIASED script (``ln -s … /tmp/x && python3 /tmp/x start``) and an ``xargs`` pipe never carry the
+    basename next to the verb, so nothing string-shaped can see them. They are a deliberate gap, not
+    an oversight: closing them means resolving the filesystem on every tool call, and a hold that
+    slows every call to catch a spelling nobody uses by accident is a worse trade than saying so.
 
     FAIL-CLOSED on what cannot be read: an unparseable line that mentions the script is treated as
     an unnamed start and denied. A hold that gives up on the hard cases is not a hold.
     """
     if not isinstance(command, str) or "command_run.py" not in command:
         return False, None
+    try:
+        toks = shlex.split(command, comments=False)
+    except ValueError:
+        return True, None  # unreadable and it names the script ⇒ unnamed start ⇒ denied
+    segments, cur = [], []
+    for tok in toks:
+        if tok in _BOUNDARY:
+            segments.append(cur)
+            cur = []
+        else:
+            cur.append(tok)
+    segments.append(cur)
     starts, names = 0, []
-    for segment in _SEPARATORS.split(command):
-        try:
-            tokens = shlex.split(segment, comments=False)
-        except ValueError:
-            if "command_run.py" in segment:
-                return True, None  # unreadable and it names the script ⇒ unnamed start ⇒ denied
-            continue
+    for tokens in segments:
         for i, tok in enumerate(tokens):
-            if tok.rsplit("/", 1)[-1] == "command_run.py" and tokens[i + 1 : i + 2] == ["start"]:
+            # the metacharacters of a substituted path ride on the token, so `command_run.py)` and
+            # ``command_run.py` `` would never compare equal — strip them before the comparison
+            if tok.rsplit("/", 1)[-1].strip("`$()'\"") == "command_run.py" and tokens[
+                i + 1 : i + 2
+            ] == ["start"]:
                 starts += 1
             if tok == "--command" and i + 1 < len(tokens):
                 names.append(tokens[i + 1])

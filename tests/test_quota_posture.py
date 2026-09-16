@@ -236,6 +236,31 @@ def test_red_holds_agent_only_without_a_live_run(tmp_path):
         ("echo 'reminder: command_run.py start --command fabrik-spec'", False),
         ("python3 scripts/command_run.py start --command=fabrik-review", False),
         ("python3 scripts/command_run.py start --command=fabrik-spec", True),
+        # ⚠️ and these defeated the FIRST tokenised version, which pre-split on `[;&|\n]+` before
+        # shlex — severing any quote holding one of those characters. The half carrying the
+        # filename then failed to parse and fell to the fail-closed arm, so the very commit the
+        # previous fix claimed to unblock was denied again by a new route.
+        ('git commit -m "fix(run): start; then done" -- scripts/command_run.py', False),
+        ('git commit -m "fix: guard start && done" -- scripts/command_run.py', False),
+        ('git commit -m "docs: the start|done pair" -- scripts/command_run.py', False),
+        # a backslash continuation is how a real start is actually written, and `\n` was in that
+        # split class, so the review-family start this hold's own escape depends on was denied
+        (
+            "python3 scripts/command_run.py start \\\n  --command fabrik-review-scoped \\\n"
+            '  --phases 1 --terminal "x"',
+            False,
+        ),
+        (
+            "python3 scripts/command_run.py start \\\n  --command fabrik-spec \\\n  --phases 3",
+            True,
+        ),
+        # a separator INSIDE a quoted argument is data; the start after it is still a start
+        ('echo "a;b" ; python3 scripts/command_run.py start --command fabrik-spec', True),
+        # a substituted path carries its metacharacters on the token
+        ("python3 $(echo scripts/command_run.py) start --command fabrik-spec", True),
+        ("python3 `echo scripts/command_run.py` start --command fabrik-spec", True),
+        # a longer filename that merely ENDS with the script's name is not the script
+        ("python3 scripts/my_command_run.py start --command fabrik-spec", False),
     ],
 )
 def test_red_holds_a_new_command_start_but_not_the_review_that_finishes(tmp_path, command, denied):
@@ -459,6 +484,16 @@ def test_a_stale_run_record_does_not_license_fan_out_at_red(tmp_path):
     out = _hook(call, state=state, runs=runs).stdout
     assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny", out
 
+    # the bound is the Stop hook's own env key, so raising it there raises it here
+    out = _hook(call, state=state, runs=runs, extra_env={"COMMAND_RUN_STALE_H": "24"}).stdout
+    assert out.strip() == "", "a raised bound must keep the record's seats"
+    # ⚠️ but its "never trap me" does NOT disable this: a trap that holds YOU is not a carve-out
+    # that holds the FLEET, and a non-positive value here keeps the default rather than becoming
+    # an abandoned record licensing unlimited fan-out at RED forever
+    for disable in ("0", "-1", "nonsense"):
+        out = _hook(call, state=state, runs=runs, extra_env={"COMMAND_RUN_STALE_H": disable}).stdout
+        assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny", (disable, out)
+
 
 def test_the_deny_names_the_window_that_binds_this_session(tmp_path):
     """C3c — the deny message is the operator-facing evidence, so it must name the right window.
@@ -469,12 +504,21 @@ def test_the_deny_names_the_window_that_binds_this_session(tmp_path):
     """
     state, runs = tmp_path / "state", tmp_path / "runs"
     runs.mkdir()
-    _posture(state, band="RED", band_fable="RED")
+    # ⚠️ The two hottest keys must DIFFER or this grader cannot fail: `_deny_reason` branches only to
+    # choose between them, so a fixture where both are `five_hour` renders byte-identically on both
+    # sides and a revert to the old always-true inference sails through. The first version of this
+    # test did exactly that, and its own comment said so without fixing it.
+    doc = _posture(state, band="RED", band_fable="RED")
+    doc["active"]["hottest_fable"] = "fable"
+    doc["active"]["windows"]["fable"]["utilization"] = 97.0
+    (state / "quota-posture.json").write_text(json.dumps(doc), encoding="utf-8")
     call = {"hook_event_name": "PreToolUse", "tool_name": "Agent", "session_id": "s1"}
+
     reason = json.loads(_hook(call, state=state, runs=runs).stdout)["hookSpecificOutput"][
         "permissionDecisionReason"
     ]
     assert "five_hour" in reason and "fable" not in reason, reason
+    assert "71%" in reason and "97%" not in reason, reason
 
     t = tmp_path / "t.jsonl"
     t.write_text(
@@ -484,7 +528,7 @@ def test_the_deny_names_the_window_that_binds_this_session(tmp_path):
     reason = json.loads(_hook(dict(call, transcript_path=str(t)), state=state, runs=runs).stdout)[
         "hookSpecificOutput"
     ]["permissionDecisionReason"]
-    assert "five_hour" in reason, reason  # the fixture's hottest_fable is five_hour
+    assert "fable" in reason and "97%" in reason, reason
 
 
 def test_the_session_model_is_the_last_assistant_entry_not_the_last_model_string(tmp_path):
