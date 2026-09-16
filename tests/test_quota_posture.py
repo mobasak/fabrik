@@ -33,7 +33,16 @@ def _load():
     return mod
 
 
-def _posture(state: Path, *, band="GREEN", band_fable=None, ts=None, slug="ozgurbasak", **over):
+def _posture(
+    state: Path,
+    *,
+    band="GREEN",
+    band_fable=None,
+    ts=None,
+    slug="ozgurbasak",
+    successor="mob",
+    **over,
+):
     """A schema-1 posture file in *state*, shaped exactly as `_quota_posture` writes it."""
     state.mkdir(parents=True, exist_ok=True)
     now = time.time() if ts is None else ts
@@ -82,7 +91,12 @@ def _posture(state: Path, *, band="GREEN", band_fable=None, ts=None, slug="ozgur
         },
         "fleet": {
             "queue": [],
-            "successor": {"email": "mob@ocoron.com", "slug": "mob"},
+            # ⚠️ parameterised, and the RED-hold graders pass `successor=None` deliberately: the
+            # hold BINDS only when the fleet has no relief queued. With a successor the band is a
+            # pending flip, not a capacity limit, and holding would stop work the fleet can afford.
+            "successor": (
+                {"email": f"{successor}@ocoron.com", "slug": successor} if successor else None
+            ),
             "next_relief": None,
             "hold": None,
             "last_flip": None,
@@ -168,7 +182,7 @@ def test_red_holds_agent_only_without_a_live_run(tmp_path):
     """C3/C4 — RED holds a NEW fan-out; a session already holding a run record keeps its seats."""
     state, runs = tmp_path / "state", tmp_path / "runs"
     runs.mkdir()
-    _posture(state, band="RED")
+    _posture(state, band="RED", successor=None)
     p = _hook(
         {"hook_event_name": "PreToolUse", "tool_name": "Agent", "session_id": "s1"},
         state=state,
@@ -357,7 +371,7 @@ def test_red_holds_a_new_command_start_but_not_the_review_that_finishes(tmp_path
     checkpointing is the one start that stays allowed, in every spelling the corpus uses."""
     state, runs = tmp_path / "state", tmp_path / "runs"
     runs.mkdir()
-    _posture(state, band="RED")
+    _posture(state, band="RED", successor=None)
     p = _hook(
         {
             "hook_event_name": "PreToolUse",
@@ -387,7 +401,7 @@ def test_wall_is_left_to_quota_stop(tmp_path):
     )
     assert p.stdout.strip() == ""
 
-    _posture(state, band="RED")
+    _posture(state, band="RED", successor=None)
     (state / "fleet-exhausted").write_text("", encoding="utf-8")
     p = _hook(
         {"hook_event_name": "PreToolUse", "tool_name": "Agent", "session_id": "s1"},
@@ -414,7 +428,7 @@ def test_fable_sessions_key_the_band_on_the_fable_window(tmp_path):
     model never bands on Fable. The LINE shows the Fable figure either way."""
     state, runs = tmp_path / "state", tmp_path / "runs"
     runs.mkdir()
-    _posture(state, band="GREEN", band_fable="RED")
+    _posture(state, band="GREEN", band_fable="RED", successor=None)
     t = tmp_path / "t.jsonl"
 
     t.write_text(
@@ -542,7 +556,7 @@ def test_amber_is_announced_again_after_a_red_excursion(tmp_path):
     assert "additionalContext" in _hook(call, state=state, runs=runs).stdout
     assert _hook(call, state=state, runs=runs).stdout.strip() == "", "said twice in one band"
 
-    _posture(state, band="RED")
+    _posture(state, band="RED", successor=None)
     _hook(call, state=state, runs=runs)
     assert not list(state.glob("quota-posture-said-*")), "the marker outlived its band"
 
@@ -560,7 +574,7 @@ def test_a_stale_run_record_does_not_license_fan_out_at_red(tmp_path):
     """
     state, runs = tmp_path / "state", tmp_path / "runs"
     runs.mkdir()
-    _posture(state, band="RED")
+    _posture(state, band="RED", successor=None)
     rec = runs / "s1.json"
     rec.write_text(json.dumps({"state": "running"}), encoding="utf-8")
     call = {"hook_event_name": "PreToolUse", "tool_name": "Agent", "session_id": "s1"}
@@ -597,7 +611,7 @@ def test_the_deny_names_the_window_that_binds_this_session(tmp_path):
     # choose between them, so a fixture where both are `five_hour` renders byte-identically on both
     # sides and a revert to the old always-true inference sails through. The first version of this
     # test did exactly that, and its own comment said so without fixing it.
-    doc = _posture(state, band="RED", band_fable="RED")
+    doc = _posture(state, band="RED", band_fable="RED", successor=None)
     doc["active"]["hottest_fable"] = "fable"
     doc["active"]["windows"]["fable"]["utilization"] = 97.0
     (state / "quota-posture.json").write_text(json.dumps(doc), encoding="utf-8")
@@ -672,7 +686,7 @@ def test_a_non_finite_timestamp_is_unreadable_never_eternally_fresh(tmp_path):
 def test_malformed_payloads_never_block(tmp_path):
     """C10 — rc 0 and silence on anything we cannot parse: never block on our own defect."""
     state = tmp_path / "state"
-    _posture(state, band="RED")
+    _posture(state, band="RED", successor=None)
     env = dict(os.environ, ROTATE_STATE_DIR=str(state))
     for raw in ("not json at all", "[]", "{}", "", "null", '{"hook_event_name": 7}'):
         proc = subprocess.run(
@@ -800,6 +814,35 @@ def test_the_hook_and_the_recorder_agree_on_the_name_a_start_will_carry(tmp_path
             f"{raw!r}: the hook says {mod._command_name(raw)!r} but the recorder wrote "
             f"{recorded!r} — a start the hook blesses would not count as that command"
         )
+
+
+# --- C5b: the hold trusts the FLEET band and nothing softens it -------------------------------
+
+
+@pytest.mark.parametrize("successor", ["can", "ozgurbasak", None])
+def test_red_holds_whatever_the_successor_field_says(tmp_path, successor):
+    """C5b — the band in the posture is already the FLEET's (`claude_rotate.py::_fleet_readings`,
+    per window, coolest serving account), so a RED means every account that could serve the hot
+    window is RED too. The hold therefore binds regardless of `fleet.successor`: a successor at 89%
+    weekly is a flip, not relief. An earlier cut gated the hold on that field as a stopgap for a
+    per-account band; the operator's ruling (2026-09-17: fleet-wide, session and weekly combined,
+    Fable where the agent is Fable) is honoured at the WRITER, and the hook trusts the band.
+    """
+    state, runs = tmp_path / "state", tmp_path / "runs"
+    runs.mkdir()
+    _posture(state, band="RED", successor=successor)
+    p = _hook(
+        {
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Agent",
+            "session_id": "fleet",
+            "tool_input": {},
+        },
+        state=state,
+        runs=runs,
+    )
+    assert p.stdout.strip(), f"successor={successor!r}: a fleet RED must hold"
+    assert json.loads(p.stdout)["hookSpecificOutput"]["permissionDecision"] == "deny"
 
 
 # --- C11: the installer --------------------------------------------------------------------------

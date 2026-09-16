@@ -3063,7 +3063,35 @@ def _flip_active(
             "kind": kind or ("switch" if manual else "trip"),
         }
     )
+    _invalidate_quota_posture(slug)
     return True
+
+
+def _invalidate_quota_posture(new_slug: str) -> None:
+    """Drop the posture file after a flip, so no reader reports the PREVIOUS account's numbers.
+
+    ⚠️ Measured 2026-09-17, on the operator's own box, minutes after this system went live. A manual
+    `--switch ozgurbasak` repointed `active`, and the injected line still read
+    `QUOTA: ob · weekly 31% · band AMBER` — naming the OLD account, with the OLD weekly figure,
+    while the account actually in use sat at weekly 85%. It under-reported the binding constraint by
+    54 points in the direction that makes an agent spend freely, and NO staleness guard fired,
+    because the file was three minutes old and every reader's guard is a TIMESTAMP: the posture was
+    fresh and wrong, which is the one combination the readers cannot see.
+
+    A flip is the only event that makes a fresh posture wrong, so the invalidation belongs here
+    rather than in each of the three readers. Absent is a state they all already handle by failing
+    OPEN and saying `posture unavailable` out loud, so the worst case is one tick (~5 min) of
+    honest silence instead of five minutes of confident misinformation. The next tick rewrites it.
+
+    Never raises: a flip that succeeded must not be reported as failed because a cache file could
+    not be unlinked.
+    """
+    try:
+        _posture_path().unlink(missing_ok=True)
+    except OSError as exc:  # pragma: no cover - defensive; the flip itself already landed
+        sys.stderr.write(
+            f"claude_rotate: posture not invalidated after flip to {new_slug}: {exc}\n"
+        )
 
 
 def _account_flip_dir(slugs: list[str]) -> str | None:
@@ -4213,6 +4241,96 @@ def _band_of(hot: float | None, hold: bool, drain: float, urgent: float) -> str 
     return "GREEN"
 
 
+# States in which an account can still serve SOME window. Anything else — cap-walled, weekly-
+# exhausted, a dead chain, an unknown state — serves nothing and is left out of every fleet
+# reading. Unknown states are excluded on purpose: the fail direction is toward SCARCITY, never
+# toward a capacity the fleet may not have.
+_SERVING_STATES = frozenset({"active", "eligible", "session-exhausted"})
+
+
+def _fleet_readings(accounts: list[dict], picture: dict) -> dict:
+    """Per-WINDOW fleet capacity: for each window, the coolest account that can still serve it.
+
+    ⚠️ The band agents act on is the FLEET's, and capacity is per window TYPE, not per account.
+    Operator ruling 2026-09-17, hours after this system shipped: *"band should be fleet wide and
+    also aware of existing session limits and weekly limits combined. also fable limits too … it
+    does not think of next available accounts which will be switched. it is not prospective. it
+    behaves like there is only one account exist"*. A per-account band made every reader report
+    scarcity the fleet did not have, and agents stopped while fresh accounts sat in the queue.
+
+    The rule per window:
+    - ``seven_day``: the coolest weekly reading over every account that can serve at all — an
+      account whose SESSION is spent still holds its weekly; that capacity comes back within 5h.
+    - ``five_hour``: the coolest session reading over serving accounts that are NOT
+      session-exhausted — a spent session cannot serve right now, whatever its weekly says.
+    - ``fable``: as ``five_hour``, over accounts with a Fable reading. Folded into ``band_fable``
+      only — Fable is relevant solely where the running agent is on a Fable model (operator).
+
+    Each reading names the account that provides it, so ``--status`` and the dashboard can say
+    WHY the band is what it is. An empty pool yields no reading, and the caller falls back to the
+    active account's own band — the only truth left.
+    """
+    states = {
+        r.get("email"): r.get("state")
+        for r in (picture.get("accounts") or [])
+        if isinstance(r, dict)
+    }
+    caps = {
+        r.get("email"): r.get("weekly_cap")
+        for r in (picture.get("accounts") or [])
+        if isinstance(r, dict)
+    }
+    best: dict[str, tuple[float, str | None]] = {}
+    for row in accounts:
+        if not isinstance(row, dict):
+            continue
+        email = row.get("email")
+        state = states.get(email)
+        if state not in _SERVING_STATES:
+            continue
+        slug = next(iter(row.get("slugs") or []), None)
+        wk_u, _ = _window_reading(row.get("seven_day"))
+        cap = caps.get(email)
+        # a weekly at or over its cap serves nothing, whatever the picker's state string says
+        if (
+            wk_u is not None
+            and isinstance(cap, (int, float))
+            and not isinstance(cap, bool)
+            and wk_u >= float(cap)
+        ):
+            continue
+        if wk_u is not None and (("seven_day" not in best) or wk_u < best["seven_day"][0]):
+            best["seven_day"] = (wk_u, slug)
+        if state == "session-exhausted":
+            continue
+        fh_u, _ = _window_reading(row.get("five_hour"))
+        if fh_u is not None and (("five_hour" not in best) or fh_u < best["five_hour"][0]):
+            best["five_hour"] = (fh_u, slug)
+        _, fable_raw = _fable_window(row)
+        fb_u, _ = _window_reading(fable_raw)
+        if fb_u is not None and (("fable" not in best) or fb_u < best["fable"][0]):
+            best["fable"] = (fb_u, slug)
+    return {k: {"utilization": u, "slug": sl} for k, (u, sl) in best.items()}
+
+
+def _fleet_band(
+    fleet: dict, account_band: str | None, hold: bool, drain: float, urgent: float, *, fable: bool
+) -> str | None:
+    """The band to ACT on: the hottest of the FLEET's window readings, on the D-265 thresholds.
+
+    The WALL is untouched — `hold` means every account is spent, and the stamp owns that state.
+    With no fleet reading at all the account's own band stands: a fleet cannot report a capacity
+    no account was measured for.
+    """
+    if hold or account_band == "WALL":
+        return account_band
+    keys = ("five_hour", "seven_day") + (("fable",) if fable else ())
+    utils = [fleet[k]["utilization"] for k in keys if isinstance(fleet.get(k), dict)]
+    if not utils:
+        return account_band
+    return _band_of(max(utils), False, drain, urgent)
+
+
 def _quota_posture(
     accounts: list[dict], picture: dict, now: float, prev: dict | None, hold: bool
 ) -> dict:
@@ -4309,6 +4427,7 @@ def _quota_posture(
         successor = {"email": email, "slug": s_slug}
         break
 
+    fleet_w = _fleet_readings(accounts, picture)
     return {
         "schema": _POSTURE_SCHEMA,
         "ts": now,
@@ -4319,13 +4438,26 @@ def _quota_posture(
             "weekly_cap": cap_f,
             "windows": windows,
             "hottest": hottest,
-            "band": _band_of(hot, hold, drain, urgent),
+            # ⚠️ TWO bands, and the difference is the whole point. `band_account` is this account's
+            # own reading — a TRUE fact, kept for the deny reason and for cache economics. `band` is
+            # what agents and readers ACT on, and it is the FLEET's: per window, the coolest account
+            # that can still serve that window (`_fleet_readings`), then the hottest of those on
+            # the D-265 thresholds. Operator ruling 2026-09-17 — see `_fleet_readings`.
+            "band_account": _band_of(hot, hold, drain, urgent),
+            "band": _fleet_band(
+                fleet_w, _band_of(hot, hold, drain, urgent), hold, drain, urgent, fable=False
+            ),
             "hottest_fable": hottest_f,
-            "band_fable": _band_of(hot_f, hold, drain, urgent),
+            "band_account_fable": _band_of(hot_f, hold, drain, urgent),
+            "band_fable": _fleet_band(
+                fleet_w, _band_of(hot_f, hold, drain, urgent), hold, drain, urgent, fable=True
+            ),
         },
         "fleet": {
             "queue": queue,
             "successor": successor,
+            # the per-window readings the band above was computed from, each naming its account
+            "windows": fleet_w,
             "next_relief": picture.get("next_relief"),
             "hold": picture.get("hold"),
             "last_flip": picture.get("last_flip"),
@@ -4383,13 +4515,28 @@ def _posture_status_line(posture: dict | None, now: float, stale_s: float = 900.
 
     fh = wins.get("five_hour")
     burn = fh.get("burn_per_min") if isinstance(fh, dict) else None
+    # the band is the FLEET's; when the account's own reading differs, say so — the operator's
+    # first question on seeing `weekly 87% · GREEN` is "why", and the answer is the fleet line
+    band = act.get("band") or "?"
+    acct = act.get("band_account")
+    band_s = f"{band} (account {acct})" if acct and acct != band else band
+    fw = (
+        (posture.get("fleet") or {}).get("windows")
+        if isinstance(posture.get("fleet"), dict)
+        else None
+    )
+    fleet_s = ""
+    if isinstance(fw, dict) and fw:
+        parts = []
+        for key, label in (("five_hour", "5h"), ("seven_day", "weekly"), ("fable", "Fable")):
+            w = fw.get(key)
+            if isinstance(w, dict):
+                parts.append(f"{label} {pct(w)} ({w.get('slug') or '?'})")
+        fleet_s = " · fleet " + " ".join(parts) if parts else ""
+    burn_s = f"{burn:.2f}%/m" if isinstance(burn, (int, float)) else "—"
     return (
-        f"posture: {act.get('band') or '?'} · 5h {pct(fh)} {_fmt_forecast(fh)} · weekly {pct(wins.get('seven_day'))} "
-        f"{_fmt_forecast(wins.get('seven_day'))} · Fable {pct(wins.get('fable'))} · burn 5h "
-        f"{burn:.2f}%/m"
-        if isinstance(burn, (int, float))
-        else f"posture: {act.get('band') or '?'} · 5h {pct(fh)} {_fmt_forecast(fh)} · weekly {pct(wins.get('seven_day'))} "
-        f"{_fmt_forecast(wins.get('seven_day'))} · Fable {pct(wins.get('fable'))} · burn 5h —"
+        f"posture: {band_s} · 5h {pct(fh)} {_fmt_forecast(fh)} · weekly {pct(wins.get('seven_day'))} "
+        f"{_fmt_forecast(wins.get('seven_day'))} · Fable {pct(wins.get('fable'))} · burn 5h {burn_s}{fleet_s}"
     ) + f" · written {age / 60:.0f}m ago"
 
 

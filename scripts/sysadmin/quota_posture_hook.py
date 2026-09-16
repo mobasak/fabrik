@@ -568,12 +568,26 @@ def _is_new_run_start(command: object) -> tuple[bool, str | None]:
 
 
 def decide(
-    band: str | None, tool: str, command: object, *, sid: object, stamp: bool
+    band: str | None,
+    tool: str,
+    command: object,
+    *,
+    sid: object,
+    stamp: bool,
 ) -> tuple[str, str]:
     """``("deny"|"notice"|"pass", what)`` — PURE, so the graders drive it directly.
 
     The stamp wins BEFORE the band: while the fleet-exhausted stamp stands the WALL is
     ``quota_stop.py``'s alone and this hook says nothing.
+
+    ⚠️ **THE BAND IS THE FLEET'S, and this function trusts it.** The tick computes `band` per
+    window across every account that can still serve that window (`claude_rotate.py::
+    _fleet_readings`), so a RED here means every account that could serve the hot window is at
+    RED too — the fleet's wall, never one account's. An earlier cut of this function gated the hold
+    on the posture's `successor` field instead; that was a stopgap for a per-account band and is
+    gone, because a successor at 89% weekly is not relief and the hold must bind. Operator ruling
+    2026-09-17: *"band should be fleet wide and also aware of existing session limits and weekly
+    limits combined … it behaves like there is only one account exist"*.
     """
     if stamp or band == "WALL":
         return "pass", ""

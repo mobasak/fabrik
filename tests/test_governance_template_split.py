@@ -223,7 +223,17 @@ QUOTA_CLAIMS = (
     "RED: commit, push, close your run record",
     "The `QUOTA:` line (D-269)",
     "posture unavailable",
+    # ⚠️ re-pinned 2026-09-17 on the operator's ruling: the hold is FLEET-aware, so the claim must
+    # carry the precondition. Pinning the bare "at RED the hook HOLDS" would let a contract that
+    # dropped the successor caveat pass — which is the version that stopped agents while eligible
+    # accounts sat in the queue.
     "at RED the hook HOLDS `Agent` and a new",
+    # T6.6 (operator ruling 2026-09-17) — the band is the FLEET's, per window. A contract that
+    # slid back to a per-account band, or one that let agents re-derive it from the percentages,
+    # is the version that stopped agents while fresh accounts sat in the queue.
+    "FLEET'S, computed per window, never one account's",
+    "Never re-derive the band from the percentages",
+    "a `successor` still named is a",
     "is banded on its Fable window too",
     "is the authority on WHEN you resume, in every band",
 )

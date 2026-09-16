@@ -380,12 +380,24 @@ structured rows beat lexical transcripts (a decision phrased differently is invi
 
 ## Pointers (detail in packs)
 - **The fleet quota picture — every agent, every repo, one query (operator directive 2026-09-07):** `python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --status` (add `--json` for machines; the `picture` key) tells you which account is ACTIVE, which are eligible / session-exhausted / weekly- or cap-walled, the rotation QUEUE in the picker's own order with when each returns, the NEXT RELIEF the tick would name, whether the fleet-exhausted HOLD is on and the resume it promised, and the last flip and its kind. Read it before dispatching long subagent work near a cap, and whenever a quota notice lands — the absolute path works from any `/opt` repo, fabrik-lib included. Authority: `/opt/fabrik/docs/workstation/claude-account-rotation.md` § `--status`.
-  ⚠️ **THE QUOTA BANDS ARE A BEHAVIOUR CONTRACT, not just a dashboard.** The active account's
-  hottest window puts you in one band, each naming an ACTION; the percentage axis PARTITIONS, so
-  every reading lands in exactly one. **under 85 — GREEN:** work normally. **85 to under 90 —
-  AMBER: finish what you started, start nothing heavy** — no new fan-out, no new plan phase, no
-  fresh review round, because a flip mid-round costs that whole round's cached prefix. **90 and
-  over — RED: commit, push, close your run record, and start nothing new.** **the WALL**
+  ⚠️ **THE QUOTA BANDS ARE A BEHAVIOUR CONTRACT, not just a dashboard — and the band is the
+  FLEET'S, computed per window, never one account's.** The tick computes it FOR you and it is the
+  only band you act on. Capacity is per window TYPE across every account that can still serve
+  that window: an account whose session is spent still holds its weekly (it is back within 5h), an
+  account at its weekly cap holds nothing, and each window's fleet reading is the coolest such
+  account. The band is the hottest of the fleet's session and weekly readings — and, only on a
+  Fable model, its Fable reading — on the same thresholds. So it is GREEN while any account can
+  serve, whatever the ACTIVE account reads; AMBER or RED mean every account that could serve the
+  hot window is there too. ⚠️ **Never re-derive the band from the percentages** — they are the
+  ACTIVE account's, a true fact about one account, and they tell you a flip is coming and what it
+  costs in cached prefix, not that you must slow down (operator ruling 2026-09-17: agents read
+  `weekly 87%` and declared AMBER themselves while fresh accounts sat in the queue — *"it is not
+  prospective. it behaves like there is only one account exist"*). Each band names an ACTION; the
+  axis PARTITIONS, so every reading lands in exactly one. **under 85 — GREEN:** work normally —
+  the tick rotates; you never pick accounts. **85 to under 90 — AMBER: finish what you started,
+  start nothing heavy** — no new fan-out, no new plan phase, no fresh review round, because the
+  fleet's wall is next and a flip cannot save the round.
+  **90 and over — RED: commit, push, close your run record, and start nothing new.** **the WALL**
   (`fleet-exhausted` stamp): `.claude/hooks/quota_stop.py` holds every world-changing tool by
   default-deny, and commit + push + close + stop is the only path through — every tool it needs is
   allowed.
@@ -404,7 +416,10 @@ structured rows beat lexical transcripts (a decision phrased differently is invi
   start` (a run record already live and readable keeps its seats, and a review-family start —
   `/fabrik-review-scoped` or `/fabrik-review` — stays allowed because it is the mandated review
   of the change you are checkpointing, never a fresh round on something new) — everything a
-  checkpoint needs stays allowed, so RED is finish-and-checkpoint, never freeze. **A session on
+  checkpoint needs stays allowed, so RED is finish-and-checkpoint, never freeze. Because the band
+  is the fleet's, a RED means every account that could serve the hot window is RED too — the
+  hold is the fleet's wall approaching, never one account's, and a `successor` still named is a
+  flip the tick will make, not capacity it can buy on that window. **A session on
   a Fable model is banded on its Fable window too** — Fable's weekly-scoped limit is reported as
   its own percentage, and on a Fable model the band is the hottest of 5h, weekly and Fable.
   ⚠️ **`claude_rotate.py --status` is the authority on WHEN you resume, in every band — the

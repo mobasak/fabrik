@@ -228,7 +228,7 @@ writes atomically (tmp + `os.replace`) every cycle for the account the pointer n
 `weekly_scoped` limit) the `utilization`, `resets_at`, `wall_pct` (100, or the `caps.json` cap for the weekly),
 `burn_per_min` (a smoothed rate over the last ~35 minutes of tick samples, `null` on the first sample or when
 the window's reset epoch moved), `minutes_to_wall`, `minutes_to_reset` and a `verdict` — `reset_first`,
-`wall_first` or `unknown`; `active.band` (`GREEN`/`AMBER`/`RED` on the hottest of 5h and weekly at the live
+`wall_first` or `unknown`; `active.band` — the FLEET's band (operator ruling 2026-09-17): per window, the coolest account that can still serve it (`fleet.windows`, each naming its account — a session-exhausted account still holds its weekly, a capped one holds nothing), then the hottest of the fleet's 5h and weekly (and, for `band_fable`, Fable) on the same thresholds; `active.band_account` keeps the active account's own reading (`GREEN`/`AMBER`/`RED` on the hottest of 5h and weekly at the live
 `ROTATE_DRAIN_THRESHOLD`/`ROTATE_URGENT_DRAIN_PCT` lines, `WALL` while the `fleet-exhausted` stamp stands,
 `null` with no reading), `active.band_fable` (the same with the Fable window joining the hottest-of), and the
 `successor` the queue would name. Every reader — `--status`, `--status --json` (the `posture` key),

@@ -107,7 +107,8 @@ the first — which is why no round here was taken on the author's own reading.
 | Delta 4 | 2 fresh (Opus predicate · Sonnet doc-truth) | `b3747278…` / `d4f60f2e…` | confirmed: 5+7 — the parity grader written in Delta 3 to close Delta 2's class had SILENTLY CUT ITS OWN COVERAGE: three spellings dropped, taking two whole mutant classes with them (a `.strip()` on either side's normalisation; removal of the `or None` collapse). It also pinned one of the subprocess's TWO write channels. Both fixed, both mutant classes proven red. Same root `_cut` call found failing in the WORSE direction — a substituted `--command "$CMD"` reads as the literal name `CMD`, so RED DENIES the one start it exists to permit; backlog row extended to both directions. Two comments narrowed from overclaims. ⚠️ The author's filing to infra carried two false claims (a RELEASED lock named as the blocker; a coverage count of nine while shipping six) — corrected by mail `01M2NZES67YG4HG29QD6JTV7HW`. |
 
 | Delta 5 | 1 fresh (Opus) | `e73962839097…`, commit `505de5545` | confirmed: 4 — NO code defects; all four were wrong references or overclaims, three of them shipped by the previous two corrections. A test comment cited `command_run.py:2505` as stripping `surface` (it is `"terminal"` and strips nothing — `:2519` is the real one, so the ARGUMENT held and its evidence did not). The backlog row's backtick claim is true only UNQUOTED — the quoted spelling, which parallels the row's own examples, reads as `echo /fabrik-review`, so a guard written from the row would test the wrong value. ⚠️ And a lesson I had written contradicted `CLAUDE.md`'s canonical revert-test recipe: two sources of truth on one act, one fleet-synced. Verified INDEPENDENTLY by this round, not by me: all nine restored spellings drive a real recorder to rc 0 and none is vacuous; across a 7-mutant matrix on BOTH sides the three restored spellings are the SOLE catchers of their two classes; there is no third write channel on `start` (`env -i` with a fake HOME created exactly three files, all inside the two pinned dirs); 99/35 correct; 0.61s, no leak, no order dependence. |
-| Delta 6 | 1 fresh (Opus) | `e13e471179b3…`, commit `11cad364e` | in flight at the time of writing — completed by its own verdict, never in advance. Surface is FLEET-SYNCED: the amended revert-test recipe is already live in 45 of 45 eligible project contracts. |
+| Delta 6 | 1 fresh (Opus) | `e13e471179b3…`, commit `11cad364e` | confirmed: 8 (+3 plausible, 5 refuted) — ⚠️ **the worst defect of the run, and it was live in 45 repos.** The clause said to copy the FILE; every grader resolves its subject by TREE PATH, so the mutation lands in the copy while the graders run the original: executed, `_command_name` killed in a scratchpad copy and all 80 graders that exist to catch it reported GREEN. It reinstated the exact false-green failure the surrounding sentences exist to prevent, and collided with the `proxy-never-evidence` anchor by making the real check unrunnable. Its justification was also false in the direction that relaxes the reader — a sibling's directory/glob pathspec commits the WORKING TREE, so the mutant can reach HEAD; and its trigger ("when another agent may be READING") is undecidable on a tree where you see files and never chat. It shipped with NO grader, and the one test for that class was blind to it. All corrected at `e402f7626`; three wrap-safe pins added and proven red against a template-only deletion, inside a throwaway worktree. |
+| Delta 7 | NOT RUN | — | **Not dispatched, on the D-252 scope-growth stop and the AMBER band, in that order.** See below. |
 
 ⚠️ **A process finding, not a code one, and the most useful thing this review produced.** Delta 4's
 seat reported the file changing under it and changing back mid-pass. That was the AUTHOR running
@@ -123,6 +124,62 @@ Every one was caught by a seat that had not written the code, and none by the au
 Delta-3 finding is the sharpest: a regression guard can be written, watched fail, and still be
 worthless, because it was graded against a RESTATEMENT of the contract instead of against the other
 side of it. A guard whose oracle is prose the author typed is a guard that agrees with the author.
+
+## Why Delta 7 was not dispatched — the D-252 scope-growth stop
+
+**The ORIGINAL surface has been quiet since Delta 2.** Read the ledger by what each round's findings
+were ABOUT, not by their count:
+
+| Round | Findings were defects in… |
+|---|---|
+| Delta 1-2 | the PLAN's own surface (the RED predicate's fail-closed spelling, a stale grader count) |
+| Delta 3 | the fix Delta 2 shipped |
+| Delta 4 | the fix Delta 3 shipped |
+| Delta 5 | the fixes Delta 4 shipped (all citations and claims; zero code defects) |
+| Delta 6 | the fix Delta 5 shipped (the contract clause) |
+
+Four consecutive rounds found ONLY residue of my own corrections. That is verbatim the condition
+D-252's scope-growth stop names — "once the ORIGINAL artifact has been quiet for three rounds and
+the confirmed items are residue of the fixes, STOP, fix the last round, close, and say so" — and
+this receipt is the saying so. Delta 6's findings are all fixed at `e402f7626`; what a Delta 7 would
+most likely find is residue of THAT commit, continuing the loop rather than converging it.
+
+⚠️ **And the quota band said the same thing independently.** At dispatch time the posture read
+`5h 87% · band AMBER`, whose contract is "finish what you started, start nothing heavy — no new
+fan-out, no new plan phase, no fresh review round". A review round IS a fresh fan-out. The band
+flipped from GREEN to AMBER between reading it and stamping the dispatch, which is the system this
+very plan BUILT making its first real call on its own author — so it is obeyed here rather than
+argued with. The evidence and the band agree; the stop is taken on the evidence, with the band as
+the second, independent reason.
+
+**What this means for the plan's Status.** It stays IN-PROGRESS, not EXECUTED. `check_convergence.py`
+requires a closing round reading `confirmed: 0, fixed: 0`, and no such round exists — writing one
+would be a false claim about a round that never ran. The EXECUTED flip is the FIRST item of the
+resume block below.
+
+## RESUME
+
+Pick up here. Everything below is open; nothing above it is.
+
+1. **Run the closing delta round** over commit `e402f7626` (pin md5 `9d9456476e1f37cfed594d1de7f66c87`,
+   at `<scratch>/delta7.diff`), one fresh non-authoring seat, when the band is GREEN. Brief it that
+   Deltas 3-6 found only fix residue, so it must say whether a finding is a defect in the PLAN's
+   surface or in a correction — the two have different dispositions now.
+2. **If it confirms zero:** add the literal `confirmed: 0, fixed: 0` row to the Pass Ledger above,
+   flip the plan's `Status:` to EXECUTED, archive it to `docs/development/plans/archived/`, release
+   `.fabrik/plan-locks/2026-09-16-plan-1-quota-posture.json`, run `check_convergence.py` green,
+   commit, push.
+3. **If it confirms defects:** fix them, and re-apply the scope-growth test above before dispatching
+   another round — do not run the loop on reflex.
+4. **fabrik-lib is carrying a defect I gave them.** `/opt/fabrik-lib/CLAUDE.md` adopted the BROKEN
+   "copy the FILE" clause from my mail `01M2P0K798QC5TTJZYE8Q3R1EW` before it was corrected. They are
+   sync-EXCLUDED, so no mechanism reaches them. The correction is mailed
+   (`01M2P1DD06P282RNDSTFV9PTZ4`) and UNACKNOWLEDGED — check whether they have taken it, and if the
+   broken text is still in their contract after a reasonable window, raise it again. Verify with:
+   `python3 -c "print('do the mutate-run cycle on a COPY under your scratchpad' in open('/opt/fabrik-lib/CLAUDE.md').read())"` → must become False.
+5. **The 495 bogus notices in 49 mailboxes remain the operator's call** — quarantine to
+   `/opt/fabrik-mail/.quarantine-20260916-fixture-broadcast/` with a manifest, or delete. The script
+   is at `<scratch>/wt/quarantine_spam.py`; a prior run was classifier-blocked. Untouched by design.
 
 ## Recorded, not fixed
 

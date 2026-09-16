@@ -4721,12 +4721,17 @@ def test_posture_band_follows_the_hottest_window_and_the_hold(
     row["five_hour"]["utilization"], row["seven_day"]["utilization"] = session, weekly
     pic = cr._fleet_picture(rows_now, row["slugs"][0], FLEET_NOW)
     got = cr._quota_posture(rows_now, pic, FLEET_NOW, None, hold=False)
-    assert got["active"]["band"] == expect and got["active"]["band_fable"] == expect, got["active"]
+    assert (
+        got["active"]["band_account"] == expect and got["active"]["band_account_fable"] == expect
+    ), got["active"]
     assert cr._quota_posture(rows_now, pic, FLEET_NOW, None, hold=True)["active"]["band"] == "WALL"
     row["five_hour"], row["seven_day"] = None, None
     pic2 = cr._fleet_picture(rows_now, row["slugs"][0], FLEET_NOW)
     blank = cr._quota_posture(rows_now, pic2, FLEET_NOW, None, hold=False)
-    assert blank["active"]["band"] is None and blank["active"]["hottest"] is None
+    # the ACCOUNT's band is null with no reading; the FLEET's band is not, because the other
+    # account still serves — which is exactly the per-window design (operator ruling 2026-09-17)
+    assert blank["active"]["band_account"] is None and blank["active"]["hottest"] is None
+    assert blank["active"]["band"] == "GREEN", "the fleet's reading survives a blank active row"
     assert blank["active"]["windows"]["five_hour"]["utilization"] is None
 
 
@@ -4755,12 +4760,14 @@ def test_posture_carries_the_fable_window_and_keys_band_fable_on_it(tmp_path, mo
     pic = cr._fleet_picture(rows_now, row["slugs"][0], FLEET_NOW)
     hot = cr._quota_posture(rows_now, pic, FLEET_NOW, None, hold=False)["active"]
     assert (
-        hot["band"] == "GREEN" and hot["band_fable"] == "RED" and hot["hottest_fable"] == "fable"
+        hot["band_account"] == "GREEN"
+        and hot["band_account_fable"] == "RED"
+        and hot["hottest_fable"] == "fable"
     ), hot
     row.pop("model_windows", None)
     pic = cr._fleet_picture(rows_now, row["slugs"][0], FLEET_NOW)
     none = cr._quota_posture(rows_now, pic, FLEET_NOW, None, hold=False)["active"]
-    assert none["windows"]["fable"] is None and none["band_fable"] == none["band"]
+    assert none["windows"]["fable"] is None and none["band_account_fable"] == none["band_account"]
 
 
 def test_the_fleet_tick_ledgers_the_fable_reading_beside_the_weekly_one(tmp_path, monkeypatch):
@@ -4974,3 +4981,134 @@ def test_posture_a_non_finite_reading_is_no_reading(monkeypatch):
         "burn_per_min": float("nan"),
     }
     assert cr._fmt_forecast(poisoned) == "no burn"
+
+
+def test_a_flip_invalidates_the_posture_so_no_reader_names_the_previous_account(
+    tmp_path, monkeypatch
+):
+    """B19 — a FRESH posture naming the OLD account is the one wrong state no reader can detect.
+
+    Measured live 2026-09-17: `--switch ozgurbasak` repointed `active`, and the injected line still
+    read `QUOTA: ob · weekly 31%` while the account actually in use sat at weekly 85% — under-
+    reporting the binding constraint by 54 points, with every staleness guard silent because the
+    file was three minutes old. Timestamps cannot catch this; only the flip can.
+    """
+    import scripts.sysadmin.claude_rotate as cr  # noqa: PLC0415
+
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    posture = cr._posture_path()
+    posture.parent.mkdir(parents=True, exist_ok=True)
+    posture.write_text(
+        json.dumps({"ts": time.time(), "active": {"slug": "ob", "band": "GREEN"}}),
+        encoding="utf-8",
+    )
+    assert posture.exists(), "fixture must start from a posture on disk"
+
+    cr._invalidate_quota_posture("ozgurbasak")
+
+    assert not posture.exists(), (
+        "after a flip the posture still names the previous account; a reader would inject that "
+        "account's band and percentages for the account now in use"
+    )
+    # and it must never turn a landed flip into a reported failure
+    cr._invalidate_quota_posture("ozgurbasak")
+
+
+def _probe_row(email, slug, fh, wk, fable=None):
+    row = {
+        "email": email,
+        "slugs": [slug],
+        "five_hour": {"utilization": fh, "resets_at_epoch": FLEET_NOW + 3600},
+        "seven_day": {"utilization": wk, "resets_at_epoch": FLEET_NOW + 86400},
+    }
+    if fable is not None:
+        row["model_windows"] = {
+            "Fable 5.1": {"utilization": fable, "resets_at_epoch": FLEET_NOW + 86400}
+        }
+    return row
+
+
+def _pic_rows(*states):
+    return {"accounts": [{"email": e, "state": st, "weekly_cap": cap} for e, st, cap in states]}
+
+
+def test_fleet_readings_take_the_coolest_serving_account_per_window():
+    """B20 — capacity is per WINDOW across the fleet, and the live 2026-09-17 shape proves why:
+    `ob` session-exhausted at weekly 31% still holds the fleet's weekly; `can` fresh at weekly 85%
+    holds the fleet's session; the active account at 87% weekly is nobody's constraint."""
+    import scripts.sysadmin.claude_rotate as cr  # noqa: PLC0415
+
+    accounts = [
+        _probe_row("oz@x", "ozgurbasak", 11.0, 87.0, fable=62.0),
+        _probe_row("can@x", "can", 0.0, 85.0, fable=20.0),
+        _probe_row("ob@x", "ob", 88.0, 31.0, fable=18.0),
+        _probe_row("mob@x", "mob", 0.0, 100.0, fable=0.0),
+    ]
+    pic = _pic_rows(
+        ("oz@x", "active", 99),
+        ("can@x", "eligible", 99),
+        ("ob@x", "session-exhausted", 95),
+        ("mob@x", "weekly-exhausted", 99),
+    )
+    fw = cr._fleet_readings(accounts, pic)
+    assert fw["seven_day"] == {"utilization": 31.0, "slug": "ob"}, (
+        "a spent session still holds its weekly"
+    )
+    assert fw["five_hour"] == {"utilization": 0.0, "slug": "can"}, (
+        "a spent session cannot serve 5h now"
+    )
+    assert fw["fable"] == {"utilization": 20.0, "slug": "can"}, "Fable follows the 5h serving rule"
+    assert "mob" not in {w["slug"] for w in fw.values()}, (
+        "a weekly-exhausted account serves nothing"
+    )
+    # and the band that follows: fleet hottest is 31 -> GREEN, while the account's own is 87 -> AMBER
+    assert cr._fleet_band(fw, "AMBER", False, 85.0, 90.0, fable=False) == "GREEN"
+    assert cr._fleet_band(fw, "AMBER", False, 85.0, 90.0, fable=True) == "GREEN"
+
+
+def test_fleet_band_is_amber_or_red_only_when_every_serving_account_is():
+    """B20a — the fleet is constrained on a window only when EVERY serving account is hot on it."""
+    import scripts.sysadmin.claude_rotate as cr  # noqa: PLC0415
+
+    accounts = [_probe_row("a@x", "a", 5.0, 91.0), _probe_row("b@x", "b", 0.0, 90.0)]
+    pic = _pic_rows(("a@x", "active", 99), ("b@x", "eligible", 99))
+    fw = cr._fleet_readings(accounts, pic)
+    assert fw["seven_day"]["utilization"] == 90.0
+    assert cr._fleet_band(fw, "RED", False, 85.0, 90.0, fable=False) == "RED", (
+        "every account >= 90 weekly: the fleet's wall"
+    )
+    accounts[1]["seven_day"]["utilization"] = 86.0
+    fw = cr._fleet_readings(accounts, pic)
+    assert cr._fleet_band(fw, "RED", False, 85.0, 90.0, fable=False) == "AMBER"
+
+
+def test_fleet_band_ignores_fable_unless_asked_and_a_cap_is_a_wall():
+    """B20b — Fable is folded in ONLY for `band_fable` (operator: relevant solely where the running
+    agent is Fable), and a weekly at its cap serves nothing whatever the state string says."""
+    import scripts.sysadmin.claude_rotate as cr  # noqa: PLC0415
+
+    accounts = [
+        _probe_row("a@x", "a", 5.0, 10.0, fable=95.0),
+        _probe_row("c@x", "c", 0.0, 99.0, fable=0.0),
+    ]
+    pic = _pic_rows(("a@x", "active", 99), ("c@x", "eligible", 99))
+    fw = cr._fleet_readings(accounts, pic)
+    assert "c" not in {w["slug"] for w in fw.values()}, "weekly 99 >= cap 99 serves nothing"
+    assert cr._fleet_band(fw, "GREEN", False, 85.0, 90.0, fable=False) == "GREEN"
+    assert cr._fleet_band(fw, "GREEN", False, 85.0, 90.0, fable=True) == "RED"
+
+
+def test_the_wall_is_never_softened_and_an_empty_pool_keeps_the_accounts_band():
+    """B20c — `hold` means every account is spent; the stamp owns it. No serving account at all ->
+    the account's own band stands, because a fleet cannot report a capacity nobody measured."""
+    import scripts.sysadmin.claude_rotate as cr  # noqa: PLC0415
+
+    fw = {"five_hour": {"utilization": 0.0, "slug": "c"}}
+    assert cr._fleet_band(fw, "WALL", True, 85.0, 90.0, fable=False) == "WALL"
+    assert cr._fleet_band(fw, "RED", True, 85.0, 90.0, fable=False) == "RED", (
+        "a hold must not be downgraded"
+    )
+    assert cr._fleet_band({}, "AMBER", False, 85.0, 90.0, fable=False) == "AMBER"
+    assert cr._fleet_band({}, None, False, 85.0, 90.0, fable=False) is None

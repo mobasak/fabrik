@@ -44,6 +44,65 @@ All notable changes to this project will be documented in this file.
   module named 'deep_research'` (fabrik-lib-dev1, `01M2NHRDCNP0QW`). Both package and single-module
   shapes resolve; absent entries are skipped, so flat layouts are byte-unchanged.
 
+### Changed — The quota band is the FLEET's, per window — never one account's (2026-09-17)
+
+- `scripts/sysadmin/claude_rotate.py::_fleet_readings` (byte-identical `scripts/aro-wake/` twin):
+  the posture's `active.band` is now computed across the fleet, per window TYPE. For each window
+  the fleet reading is the coolest account that can still serve it — an account whose SESSION is
+  spent still holds its weekly (it is back within 5h), an account at its weekly cap holds nothing,
+  and unknown states are excluded so the fail direction is toward scarcity — and the band is the
+  hottest of the fleet's 5h and weekly readings on the unchanged D-265 thresholds. `band_fable`
+  folds in the fleet's Fable reading, and ONLY it: Fable is relevant solely where the running agent
+  is on a Fable model. `active.band_account` keeps the account's own reading, and
+  `fleet.windows` carries each reading with the account that provides it, so `--status` now prints
+  `posture: GREEN (account AMBER) … · fleet 5h 0% (can) weekly 31% (ob) Fable 18% (ob)` — the
+  "why" behind a band that disagrees with the percentages beside it.
+- ⚠️ **Operator ruling 2026-09-17, hours after the system went live:** *"this green, amber etc
+  setting is wrong, it does not think of next available accounts which will be switched. it is not
+  prospective. it behaves like there is only one account exist why? … band should be fleet wide and
+  also aware of existing session limits and weekly limits combined. also fable limits too. fable is
+  only relevant where the running agent is fable in a window."* Correct on every count, and it was
+  a DESIGN error rather than a threshold to tune: the band was defined on the active account, the
+  hold bound on it, and the contract's own bands table told agents to classify themselves from that
+  one reading — so an agent seeing `weekly 87%` declared AMBER and stopped while `can` sat fresh in
+  the queue and `ob` held 69% of a week. Measured on the live box, in the operator's own words
+  from another window: *"Active account is ozgurbasak at weekly 87% — AMBER … no new heavy code
+  work"*.
+- An interim cut gated the hook's RED hold on `fleet.successor` alone; it is REMOVED. A successor
+  at 89% weekly is a flip, not relief, and the hold must bind when every serving account is hot —
+  which the writer now decides, so `quota_posture_hook.py::decide` trusts the band and nothing
+  softens a fleet RED (`tests/test_quota_posture.py::C5b`).
+- The bands table is re-cut identically in all three contracts (`CLAUDE.md`,
+  `templates/governance/CLAUDE.md`, `/opt/fabrik-lib/CLAUDE.md` — the third under this plan's
+  standing authorisation for the three-contract sentence set): the band is the fleet's, computed
+  per window; **never re-derive it from the percentages**, which are the active account's and tell
+  you a flip is coming and what it costs in cached prefix, not that you must slow down. Pinned in
+  `tests/test_governance_template_split.py::QUOTA_CLAIMS` on three wrap-safe substrings.
+  `docs/workstation/claude-account-rotation.md` documents both bands and `fleet.windows`.
+- Graders: `tests/test_claude_fleet.py::B20`-`B20c` build the live 2026-09-17 shape (active 87%
+  weekly, `can` fresh at 85%, `ob` session-exhausted at 31%, `mob` weekly-exhausted) and assert
+  each window's reading names the right account, that AMBER/RED appear only when EVERY serving
+  account is there, that Fable is folded in only for `band_fable`, that a cap is a wall whatever
+  the state string says, that a hold is never softened and an empty pool keeps the account's band.
+  `B5` now asserts the fleet's band survives a blank active row. Decision: D-275.
+
+### Fixed — an account flip left the posture naming the PREVIOUS account (2026-09-17)
+
+- `scripts/sysadmin/claude_rotate.py::_flip_active` now drops `~/.claude/state/quota-posture.json`
+  on every successful flip (manual `--switch` and the tick's own), via
+  `_invalidate_quota_posture`; the `scripts/aro-wake/` twin is byte-identical.
+- ⚠️ **Found live on the operator's box minutes after this system went live, and it failed in the
+  spending direction.** A `--switch ozgurbasak` repointed `active`, and the injected line still read
+  `QUOTA: ob · weekly 31% · band AMBER` — the OLD account's slug and figures — while the account
+  actually in use sat at **weekly 85%**. It under-reported the binding constraint by 54 points, and
+  NO staleness guard fired: every reader's guard is a TIMESTAMP, and the file was three minutes old.
+  A fresh-and-wrong posture is the one state the readers cannot see, and a flip is the only event
+  that produces it — so the invalidation belongs at the flip, not in each of the three readers.
+  Absent is a state they all already handle by failing OPEN and saying `posture unavailable` out
+  loud, so the cost is one tick (~5 min) of honest silence instead of five minutes of confident
+  misinformation. Grader `tests/test_claude_fleet.py::B19` builds the exact live shape (a
+  timestamp-fresh posture naming the previous account) and is proven red with the call removed.
+
 ### Changed — The revert-test recipe: a throwaway WORKTREE, never the shared tree (2026-09-17)
 
 - `CLAUDE.md` § Behavior (the shared-repo bullet's "For a revert test, copy the file" recipe) and the
