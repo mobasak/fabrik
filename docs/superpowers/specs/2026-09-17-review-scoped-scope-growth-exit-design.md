@@ -642,6 +642,48 @@ single-evaluation prose branch cannot express a sliding window (round 1 is the f
 `--own-fix 0` and permanently occupies a slot it can never qualify in, so a one-shot evaluation
 degenerates to a consecutive bar — the shape the COBRA note measured as dodgeable).
 
+**D5 — round zero's executable obligation widens from MECHANISM claims to ANY claim the FIX
+introduces.** ⚠️ **ADDED AFTER CONVERGENCE, on the operator's direction (2026-09-17), and marked as
+such so a reader can tell it apart from the converged text.** It was not reviewed by the five rounds
+above; it is carried by the build's own review.
+
+**The rule today** (`commands/_fragments/term-edit.md` and `term-coverage.md`, round zero rule (1)):
+*"THE MECHANISM IS A SCRIPT, NOT PROSE — a claim about what a verb, a window or a reach-back does is
+executed at round 1 as a probe script…"* — scoped to MECHANISM claims, and everything else a fix
+introduces is covered only by round zero's opening duty to **re-read** every added line
+*"(length, citations, claims)"*.
+
+**Why that is the wrong scope, measured on this spec's own review.** Rounds 2, 3 and 4 confirmed 19
+own-fix defects — defects inside text an earlier round's FIX had written. Classified (the
+classification is mine, the instances are in the Pass Ledger): the large majority were **counts and
+enumerations** ("four consistent domains" when one was the opposite; "two contracts" when there were
+three; "TWO provisions" when there were three; "20 commands" with no derivable population), **negatives
+stated without a bound** ("no source found *says*", falsified by the citation two lines below it), and
+**line anchors cited without resolving them** (`:2749` cited for a return that does not return). Only
+two were mechanism or logic claims — the class rule (1) already covers.
+**The asymmetry is the cause:** the original draft passed four grounding seats, the rule-grounding gate,
+a constraints digest and six review seats. The fix text passed nothing, and round zero asks for a
+RE-READ — which is precisely what the `proxy-never-evidence` HARD STOP says is never evidence. A count
+is not checked by looking at it again.
+
+**The change:** rule (1) becomes *any claim the fix introduces that has a checkable referent* — a count,
+an enumeration, a line anchor, a negative — **executed before the pin, never re-read**. ⚠️ **It must be
+written TWICE, not copy-pasted:** the two fragments are deliberately NOT byte-identical here —
+`term-edit` says "pinned beside the `{{ARTIFACT}}` … never re-derived by a **seat**", `term-coverage`
+says "pinned beside the **receipt** … never re-derived by a **finder**". A single shared wording would
+be wrong in one of the two.
+
+**COBRA (D-253), in the same change.** The cheapest way to satisfy "execute every claim your fix
+introduces" WITHOUT doing it is to introduce no checkable claims — write vaguer corrections with no
+numbers in them. **Counter-measure, stated in the rule itself:** the obligation is discharged by
+DELETING an unverifiable claim just as well as by executing it, so the honest cheap path and the
+compliant path are the same one; and `denominator-honesty` already forbids a count without its
+population, so vagueness is not free either.
+
+**Blast radius:** 22 command sources render one of the two fragments (`/fabrik-review-scoped` renders
+neither, which is the whole reason this spec exists). `commands/` is not a governance-sync trigger, so
+this distributes by render, not by sync.
+
 ## Contract deltas
 
 None. No data-contract or ui-design surface; no schema, no field, no screen. The rendered command
@@ -848,17 +890,21 @@ ORIGINAL-surface defects found.
 4a. **The greppable-marking check (D3's last bullet):** exactly ONE marked normative occurrence of the
    exit rule per command, and every other occurrence byte-identical to the fragment's rendered string.
    This is the check that replaces the convention, and it is what a seventh well-meant sentence trips.
-5. `.venv/bin/python scripts/final_gate.py --check --json` → `success` (read-only; the tree is shared).
-6. `sync_enforcement_to_projects.py --dry-run` clean before the one forced sync for D4.
+5. **(D5)** the two fragments diffed against each other at the edited clause, asserting the
+   per-fragment vocabulary survived (`{{ARTIFACT}}`/`seat` vs `receipt`/`finder`) — a copy-paste that
+   flattened them would be the defect D5 itself warns about.
+6. `.venv/bin/python scripts/final_gate.py --check --json` → `success` (read-only; the tree is shared).
+7. `sync_enforcement_to_projects.py --dry-run` clean before the one forced sync for D4.
 
 ## Cost
 
-`Profile: small` for the build (D-169): ~4 files — `scripts/command_run.py`, its graders,
-`commands/_sources/fabrik-review-scoped.md`, `.windsurf/rules/core/50-code-review.md` — so the plan is
-INLINE: no `/fabrik-plan-after-chat`, no `/fabrik-plan-review`. Three phases: A `command_run.py` +
+`Profile: small` for the build (D-169): ~6 files — `scripts/command_run.py`, its graders,
+`commands/_sources/fabrik-review-scoped.md`, `.windsurf/rules/core/50-code-review.md`, and (D5)
+`commands/_fragments/term-edit.md` + `term-coverage.md` — so the plan is INLINE: no `/fabrik-plan-after-chat`, no `/fabrik-plan-review`. Three phases: A `command_run.py` +
 graders (HEAVY surface — fleet-synced to 49 dirs and the Stop hook reads its records — so a full
-`/fabrik-review`), B the command text (render, `--check`, `/fabrik-review-scoped`), C the pack + the
-one forced sync.
+`/fabrik-review`), B the command text AND D5's two fragments (render, `--check`,
+`/fabrik-review-scoped`; D5 rides here because it is the same render), C the pack + the one forced
+sync.
 
 ## Defects found IN THE SURFACE during this review (the build fixes them)
 

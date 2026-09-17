@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the CONVERGED scope-growth spec is APPROVED and gains D5: round zero executes any claim a FIX introduces (2026-09-17)
+
+- **Operator ruling (D-282)**, answering "agents fixing the findings but creating new issues, why?".
+  Root-caused on this spec's own review: of 19 own-fix defects across rounds 2-4, the large majority
+  were counts, enumerations, line anchors and unbounded negatives introduced while FIXING and never
+  executed. The original draft passed four grounding seats and six review seats; the fix text passed
+  nothing, and round zero asks only for a RE-READ — what `proxy-never-evidence` calls no evidence.
+- **D5** widens round zero rule (1) from MECHANISM claims to any claim the fix introduces with a
+  checkable referent, executed before the pin; discharged equally by DELETING an unverifiable claim.
+  Written twice — the two fragments deliberately differ at that clause.
+- Also routed: the refuted-never-reopens protection is enforced via the `confirmed` counter, but
+  **31 of 60 scoped closes (51%) state no `--confirmed`** and fall back to the raw-findings rule.
+
 ### Fixed — Rotation: the heavy review's round 3 — the verdict and the board read an unreadable weekly the one way; the D-278 stop (2026-09-17)
 
 The closing delta round's fresh seats over `5b8452da0` confirmed 5 of 9, every one inside the round-2 fix — the second consecutive round at or above two-thirds own-fix, so the D-278 scope-growth stop took this fixed set (`d11f83883`) to one bounded remainder round: `_flip_candidate_verdict` read an unreadable weekly figure as no reading and named the row ELIGIBLE while the flag, the warning and the relief writer read it as walled (one reading now, not a target until the cache re-reads it); the board's `returns_at` keyed on the raw predicate, so an eligible row carried a resume a day out (it keys on the state); a capped unreadable figure reaches the `cap-walled` state the warning names and a capless one is `weekly-unreadable`, named for what it is; `_soonest_reset`'s bar is `>=` like its siblings; a parked row skips `_walled`, so the sort key's window reads reached a non-dict window bare (`_window_of` guards them). Three graders red on HEAD; five suites → 506 passed; both twins byte-identical.

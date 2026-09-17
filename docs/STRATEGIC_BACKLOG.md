@@ -3467,3 +3467,29 @@ do NOT transfer (they assume a stationary, independent series; a convergence loo
 is no borrowed number, and the question is open on our data: after one month, re-measure whether
 qualifying rounds are followed by reviews that still find ORIGINAL-surface defects. If they are, the
 stop is firing on healthy reviews and this spec moved the wallpaper rather than removing it.
+
+## [infra] The refuted-never-reopens protection is INACTIVE on half of all scoped review runs
+
+Operator question, 2026-09-17: *"does refuted review findings cause a new review loop in our review
+commands or not? they should not."* **They should not, and by design they do not** — the exit counter
+is `confirmed`, not raw findings (`scripts/command_run.py:515-520`; `check_review_coverage.py:717`
+grades `_confirmed_quiet` on the receipt's last row), REFUTED and RECORDED are named non-counting
+buckets, and a delta seat's brief carries the previous seat's REFUTED list verbatim so a fresh reader
+cannot re-raise one. One deliberate carve-out stands: a re-raise carrying evidence the refutation does
+not cover COUNTS.
+
+**The gap is adoption, and it is measurable.** Adoption of the `confirmed` counter is STICKY — the
+legacy `--findings 0` rule survives for any record whose rounds NEVER state `--confirmed`. Measured
+over `~/.claude/state/command-feedback.jsonl`, window 2026-09-07..2026-09-17: of 60
+`/fabrik-review-scoped` closes carrying a round series, **29 (48%) carry an explicit `confirmed`
+series and 31 (51%) do not**. On those 31 the loop closes on RAW findings — where a refuted candidate
+does keep it open, and where "quiet" can be reached by relabelling rather than by converging.
+
+So the rule is right, is enforced where the counter is stated, and is silently inert on about half the
+runs. **Two candidate closures, neither taken here:** make `--confirmed` required on a review-family
+round the same way D-281's D1 makes `--own-fix` required (same selector, same NOTE-then-refuse
+ratchet, same file — so it is nearly free if done in that build); or have the close REFUSE a terminal
+verdict computed on the raw-findings fallback for a command whose contract names `confirmed` as its
+exit counter. The first is cheaper and is where it belongs. **Destination: D-281's build, as a
+successor item — not folded into it without the operator's word, because it widens a refusal on a
+file fleet-synced to 49 dirs.**
