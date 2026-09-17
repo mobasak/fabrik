@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review-scoped's pin binds the orchestrator, not only the seat (2026-09-17)
+
+- `commands/_sources/fabrik-review-scoped.md`: step 5 bound what a SEAT reads and said nothing about the
+  orchestrator's own mid-pass edits, so a fix landing while seats were out could make one confirm a defect
+  already removed or refute a real one against vanished text, leaving no trace. One sentence, +130 B, no
+  new machinery. Answers ts 1789494438.58. The richer versions (pin bases, md5 recomputation, kill-the-round
+  semantics, stamp accounting) were written, reviewed over three rounds, reverted, and filed as spec work at
+  b3a09de05 — they need a ruling on `command_run.py` behaviour, not a wording edit.
+
 ### Fixed — Rotation: the dangling-link drop requires a mkdir that can succeed; a link to a canonical FILE is named (2026-09-17)
 
 The scoped review's remainder seat found two edge shapes inside the round-3 fix: a mkdir-name whose canonical path is held by a file still consumed the dangling link and replaced it with nothing, and a fleet link whose canonical target became a file passed every detector arm. Fixed at `eaa117ce3`: the drop requires the canonical dir to exist or its path to be free; `_shared_link_warnings()` names "links to a FILE, not a dir"; the doc's heal ends with `rmdir` so a record `mv -n` declined stops the replacement. Grader red on HEAD; fleet + rotate suites 400 passed. The review of D-287's fix closes here under the D-278 stop (rounds 2/0 → 4/4 → 2/2 → 2/2 own-fix); its residue is on the backlog row.
