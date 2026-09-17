@@ -3788,3 +3788,17 @@ entry) and `scripts/sysadmin/mcp_health.py` reported `firecrawl: CONNECTED` in t
 researcher seat reading its own agent definition is told a live arm is dead. One-line fix in the agent
 source, rendered to `~/.claude/agents/` (not a governance-sync trigger); its own scoped review. Found as
 MACHINERY by a `fabrik-researcher` seat verifying the spec's citations.
+
+### [infra] The /fabrik-task lane spec closed run 2 on the D-278 exit at DRAFT — the last apply has been read by no fresh seat
+
+`docs/superpowers/specs/2026-09-17-fabrik-task-lane-design.md` after `/fabrik-spec-review` run 2 (2026-09-18):
+three rounds confirmed 53 / 47 / 25 defects with 37 / 45 / 25 inside text the review itself had just written;
+`command_run.py` printed `⚠️ SCOPE GROWTH` at round 3. Per the exit the last named set (25, incl. the
+`--no-merges` non-sequitur, the `1` branch's missing sync arm, the nested-heavy-review contradiction, the
+`handoff` line missing `--command`/`--feedback`, "six of eight" route-up classes) was FIXED and no further seat
+re-armed — so the 19-line r6 diff is unverified by a non-authoring reader. Destination: a THIRD run is the
+operator's call; if taken, it starts with ONE fresh Opus seat over `git diff a929b33f8..HEAD -- <the spec>`
+restricted to § Chosen approach + § The decision rule, and the round-zero rule that every mechanism claim the
+apply introduces is executed BEFORE the seats go out — the lesson of this run is that two applies of 34 and
+20 block edits each carried ~20 executable claims nobody ran. Also unresolved, for the operator at D-291: the
+U19 pointer's MIRROR (>5 → >3 files fleet-wide; synced and vendored surfaces change lane).

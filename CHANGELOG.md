@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the /fabrik-task lane spec: run 2 of /fabrik-spec-review, closed on the D-278 exit at DRAFT (2026-09-18)
+
+- `docs/superpowers/specs/2026-09-17-fabrik-task-lane-design.md`: run 1's residue (U6–U27) applied under the
+  operator's three rulings — U8 (§ 1a gains "a governance-sync path", D-289), U10 (two row fields, existing
+  reader, D-290), U19 (the inline sizing clauses become pointers; the >5→>3, synced-surface and vendored-surface
+  MIRROR is stated for confirmation, D-291). Three rounds (4 + 3 + 2 seats) confirmed 53 / 47 / 25 defects with
+  37 / 45 / 25 inside text the review itself had just written; `command_run.py` printed the D-278 SCOPE GROWTH
+  verdict at round 3; the last set is fixed and no further seat re-armed, so Status stays DRAFT and the third
+  run is the operator's call. Substantive since a929b33f8: phase 0's observable is dirty-at-start (the mtime
+  test was vacuous), one path per `--file`, `heavy=` declared, a real `1` branch in the re-measure
+  (`--name-status`, every close), `upgrade` keyed on the `UPGRADE:` reason, every V0/V1/V4 number re-derived at
+  basis `a929b33f8` (101 lane-choice commits, 3 of 27 sync refusals false), the router row RESOLVED-NEGATIVE.
+
 ### Changed — /fabrik-review-scoped's pin binds the orchestrator, not only the seat (2026-09-17)
 
 - `commands/_sources/fabrik-review-scoped.md`: step 5 bound what a SEAT reads and said nothing about the
