@@ -1937,7 +1937,10 @@ def _scaffold_dir(dest: Path, notes: list[str], source: Path) -> None:
             # loop below can re-link it (the canonical dir exists, or this loop creates it);
             # an unlinked dead link is a signal destroyed, and the CLI then makes a REAL dir
             # in its place (confirming seat E, F1)
-            if not ((CLAUDE_DIR / name).is_dir() or name in _SHARED_DIR_MKDIR):
+            # the mkdir must be able to SUCCEED: a canonical path held by a file consumed the
+            # dangling link and replaced it with nothing (remainder seat F, F1)
+            _src = CLAUDE_DIR / name
+            if not (_src.is_dir() or (name in _SHARED_DIR_MKDIR and not os.path.lexists(_src))):
                 notes.append(
                     f"{name}/ is a DANGLING link — {CLAUDE_DIR / name} does not exist; left in "
                     "place so --status keeps naming it"
@@ -3963,6 +3966,8 @@ def _shared_link_warnings() -> list[str]:
             if p.is_symlink():
                 if not p.exists():
                     bad.append(f"{d.name}/{name} (dangling link)")
+                elif not p.is_dir():
+                    bad.append(f"{d.name}/{name} (links to a FILE, not a dir)")
                 elif p.resolve() != (CLAUDE_DIR / name).resolve():
                     bad.append(f"{d.name}/{name} (links elsewhere: {p.resolve()})")
             elif p.is_dir():

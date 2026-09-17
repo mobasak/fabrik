@@ -40,7 +40,9 @@ Two environment variables — both, or the binding is a no-op:
   (`for d in ~/.claude-fleet/*/sessions ~/.claude/sessions; do [ -e "$d" ] && [ ! -L "$d" ] && ls
   "$d"; done | sort | uniq -d` — the unfiltered `ls` lists the shared dir once per link and reports
   every file as a collision; none on 2026-09-17), move its `sessions/*` into `~/.claude/sessions/`
-  with `mv -n` (a same-named record in the destination must never be clobbered), replace
+  with `mv -n` (a same-named record in the destination must never be clobbered), `rmdir` the
+  emptied dir (it refuses a non-empty one, so a record `mv -n` declined stops the replacement
+  instead of being deleted with it), then replace
   the dir with the symlink. `--new-dir` now creates the canonical dir when the CLI has not yet, names
   a REAL dir it finds where the link belongs, heals a DANGLING link by re-linking when the
   canonical dir exists or it can create it (and leaves it in place, named, when it cannot), and

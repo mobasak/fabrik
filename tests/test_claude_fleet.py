@@ -231,6 +231,26 @@ def test_a_dangling_shared_link_is_named_until_a_resume_heals_it(tmp_path, monke
     (fleet / "seo" / "commands").unlink()
     (fleet / "seo" / "commands").symlink_to(cdir / "commands", target_is_directory=True)
     assert cr._shared_link_warnings() == []
+    # a link whose canonical target became a FILE passed every arm (remainder seat F, F2)
+    shutil.rmtree(cdir / "agents")
+    (cdir / "agents").write_text("x")
+    assert "seo/agents (links to a FILE, not a dir)" in cr._shared_link_warnings()[0]
+    (cdir / "agents").unlink()
+    (cdir / "agents").mkdir()
+    assert cr._shared_link_warnings() == []
+    # a MKDIR name whose canonical path is held by a file: the mkdir cannot succeed, so the
+    # dangling link stays named, never consumed (remainder seat F, F1)
+    shutil.rmtree(cdir / "sessions")
+    (cdir / "sessions").write_text("not a dir")
+    (fleet / "seo" / "sessions").unlink()
+    (fleet / "seo" / "sessions").symlink_to(tmp_path / "gone", target_is_directory=True)
+    assert cr.main(["--new-dir", "seo", "a@b.com"]) == 0
+    assert os.path.lexists(fleet / "seo" / "sessions")
+    assert "seo/sessions (dangling link)" in cr._shared_link_warnings()[0]
+    (cdir / "sessions").unlink()
+    (cdir / "sessions").mkdir()
+    assert cr.main(["--new-dir", "seo", "a@b.com"]) == 0
+    assert (fleet / "seo" / "sessions").exists() and cr._shared_link_warnings() == []
     # a canonical entry that is a FILE cannot be a link target: the note says what is in the way
     shutil.rmtree(cdir / "projects")
     (cdir / "projects").write_text("not a dir")
