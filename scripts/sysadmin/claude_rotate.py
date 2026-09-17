@@ -1344,10 +1344,32 @@ def _walled(row: dict) -> bool:
         w = row.get(key)
         if not w:
             return True  # no telemetry → not a safe switch target
-        u = _usable_ts(w.get("utilization"))  # the same class as the sort key one hop below
+        u = (
+            _usable_ts(w.get("utilization")) if isinstance(w, dict) else None
+        )  # as every sibling site
         if u is None or u >= 100.0:
             return True  # an unreadable figure is not a safe switch target either
     return False
+
+
+def _util_or_full(u: object) -> float:
+    """A validated utilization, or 100.0 when there is none — `or 100.0` read a genuine 0.0 (a
+    just-reset window) as fully spent and inverted the tie-break (delta round seat A, F1)."""
+    v = _usable_ts(u)
+    return v if v is not None else 100.0
+
+
+def _weekly_blocked(wk: object, cap: object) -> bool:
+    """ONE reading of "the weekly window is walled" for the board, the relief writer and the
+    cap-walled flag: at 100, at the account's cap when it has one, and on an UNREADABLE figure
+    (present, refused by the validator — a NaN `json.loads` admits, a bool, a giant int) while
+    an ABSENT figure is no reading. Three sites carried three readings and disagreed on exactly
+    the garbage value (delta round seat A, F3)."""
+    raw = wk.get("utilization") if isinstance(wk, dict) else None
+    wu = _usable_ts(raw)
+    if wu is None:
+        return raw is not None
+    return wu >= 100.0 or (cap is not None and wu >= float(cap))
 
 
 def _future_or_far(reset: object, now: float, far: float) -> float:
@@ -1374,8 +1396,8 @@ def _pick_successor(candidates: list[dict], current_name: str | None, now: float
             # a validated epoch that is in the FUTURE, else far — `or far` let a negative reset win
             # (truthy), the mirror of `_pick_flip_target`'s `reset > _now()` (round 1 seat 2, F5)
             _future_or_far((r.get("seven_day") or {}).get("resets_at_epoch"), now, far),
-            _usable_ts((r.get("seven_day") or {}).get("utilization")) or 100.0,
-            _usable_ts((r.get("five_hour") or {}).get("utilization")) or 100.0,
+            _util_or_full((r.get("seven_day") or {}).get("utilization")),
+            _util_or_full((r.get("five_hour") or {}).get("utilization")),
         )
     )
     return eligible[0]["name"]
@@ -2186,7 +2208,7 @@ def _usable_ts(ts: object) -> float | None:
     number read from a cache, a ledger, a memory file or the API (`grep _usable_ts(` for the
     sites; it began as the two ledger readers' shared check). It validates TYPE and FINITENESS,
     never RANGE: each reader bounds the value its own way (the flip reader's era floor and skew
-    ceiling; the wall reader's week of age; `_dateable_ts` for an epoch that will be rendered).
+    ceiling; the wall reader's week of age; `_dateable_ts` for an epoch that will be promised).
     A JSON boolean is refused (`true` is 1.0 — a 1970 stamp), and so is a non-finite
     value. The float conversion runs INSIDE a guard: JSON parses a giant integer literal into an
     arbitrary-precision `int`, and both `math.isfinite` and `float()` raise OverflowError on
@@ -2755,7 +2777,7 @@ def _tick_inner() -> int:
                 # in the FUTURE must read EXPIRED, never "suppressed until the clock catches up".
                 age = None
             if age is None or age >= 86400:
-                revive_s = _fmt_reset_clock(_soonest_reset(rows), "unknown")
+                revive_s = _fmt_reset_clock(_soonest_reset(rows, now), "unknown")
                 msg = (
                     f"QUOTA DRAIN: pool exhaustion approaching ({hot:.0f}% on the last "
                     f"eligible account, no installable sibling). Reach a commit-and-push "
@@ -3773,17 +3795,11 @@ def _fleet_account_rows(
                     row["model_windows"] = c["model_windows"]
                 row["source"] = "cache"
                 row["age_s"] = max(0.0, now - float(c["ts"]))
-        wk = row["seven_day"]
-        raw_wu = wk.get("utilization") if isinstance(wk, dict) else None
-        wu = _usable_ts(raw_wu)
-        # a compare on garbage never raises, but a NaN read as NOT walled (fail-open) — a cached
-        # row is used as-is and `json.loads` admits NaN — so an UNREADABLE figure (present, refused
-        # by the validator) reads as walled, while an ABSENT one stays "no reading" (round 1 seat 3, F7)
-        row["cap_walled"] = bool(
-            row["weekly_cap"] is not None
-            and (
-                (raw_wu is not None and wu is None) or (wu is not None and wu >= row["weekly_cap"])
-            )
+        # walled BY ITS CAP — a cap concept, so a capless account is never cap-walled; the
+        # successor filter (`_walled`) and the board/relief reading (`_weekly_blocked`) still
+        # refuse a capless account whose figure is unreadable (delta round seat A, F4)
+        row["cap_walled"] = row["weekly_cap"] is not None and _weekly_blocked(
+            row["seven_day"], row["weekly_cap"]
         )
         accounts.append(row)
     if cache_dirty:
@@ -3794,7 +3810,7 @@ def _fleet_account_rows(
     return accounts, pending
 
 
-def _soonest_reset(rows: list[dict]) -> float | None:
+def _soonest_reset(rows: list[dict], now: float) -> float | None:
     """The earliest reset across every VALID row's two windows, each through the ONE validator —
     the drain broadcast's "Work revives at": a bare `min()` over raw cache values raised TypeError
     on a string reset one line above the guarded renderer, losing the mail and the telegram
@@ -3806,15 +3822,16 @@ def _soonest_reset(rows: list[dict]) -> float | None:
         if isinstance(w, dict)
         and (ts := _usable_ts(w.get("resets_at_epoch"))) is not None
         and ts
-        > 0  # a 0.0 epoch won the min and collapsed a known revive to "unknown" (round 1, F2)
+        > now  # a 0.0 epoch won the min (round 1, F2); a PAST reset won it too (delta seat A, F2)
     ]
     return min(resets) if resets else None
 
 
 def _dateable_ts(ts: object) -> float | None:
     """`_usable_ts` AND the platform can date it — the validator for an epoch that will be
-    rendered, stamped or promised (`_next_session_relief`): `_fmt_reset_clock` refuses exactly
-    what `datetime.fromtimestamp` refuses, so the two cannot disagree."""
+    PROMISED or STAMPED (`_next_session_relief`, whose tuple reaches the wall stamp and the
+    ledger); a merely rendered epoch needs no more than `_fmt_reset_clock`, which guards its own
+    conversion. Both refuse exactly what `datetime.fromtimestamp` refuses."""
     value = _usable_ts(ts)
     return value if value is not None and _fmt_reset_clock(value, "") else None
 
@@ -3983,9 +4000,13 @@ def _fleet_row_warnings(accounts: list[dict]) -> list[str]:
         if row.get("cap_walled"):
             wk = row.get("seven_day")
             wu = _usable_ts(wk.get("utilization")) if isinstance(wk, dict) else None
-            at = f"{wu:.0f}%" if wu is not None else "?"
+            at = (
+                f"weekly {wu:.0f}% ≥ cap {row['weekly_cap']}"
+                if wu is not None
+                else f"weekly reading unreadable, treated as over cap {row['weekly_cap']}"
+            )
             warns.append(
-                f"⚠ {row['email']}: cap-walled — weekly {at} ≥ cap {row['weekly_cap']} "
+                f"⚠ {row['email']}: cap-walled — {at} "
                 "(caps.json) — reserved for operator use until weekly reset; automated flips "
                 "exclude it (--switch still may, deliberately)"
             )
@@ -4046,7 +4067,7 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
         # session window (the picker refuses `a window >= thr` too) — replacing one with the
         # other left a row between a raised bar and the trip reading `unavailable` (native N7)
         session_spent = fv is not None and (fv > session_bar or fv >= thr)
-        weekly_walled = wv is not None and (wv >= 100.0 or (cap is not None and wv >= float(cap)))
+        weekly_walled = _weekly_blocked(row.get("seven_day"), cap)  # the relief writer's reading
         if active_slug is not None and active_slug in (row.get("slugs") or []):
             state = "active"
         elif reason is None:
@@ -5024,8 +5045,14 @@ def _tick_burn(email: str, row: dict, now: float) -> dict[str, float]:
                 # int written there raised here, BEFORE the rewrite below, so the poisoned file
                 # wedged every later tick until hand-deleted (heavy review round 1 seat 1, F1)
                 prf, crf, puf = _usable_ts(pr), _usable_ts(cr_), _usable_ts(pu)
+                # the memory file holds VALIDATED values, so `pr is None` means "no usable reset";
+                # the current side must say the same — an unreadable current reset paired with
+                # an absent previous one as "same window" and burned across two windows (delta
+                # round seat A, F7)
+                w_now = row.get(key)
+                cur_raw = w_now.get("resets_at_epoch") if isinstance(w_now, dict) else None
                 same_window = (prf is not None and crf is not None and abs(prf - crf) < 60.0) or (
-                    pr is None and cr_ is None
+                    pr is None and cur_raw is None
                 )
                 if puf is not None and isinstance(cu, float) and same_window:
                     burn[key] = max(0.0, cu - puf)
@@ -5461,13 +5488,8 @@ def _next_session_relief(
         fh, wk = row.get("five_hour"), row.get("seven_day")
         fh = fh if isinstance(fh, dict) else {}
         wk = wk if isinstance(wk, dict) else {}
-        raw_wu = wk.get("utilization")
-        wu = _usable_ts(raw_wu)
         cap = row.get("weekly_cap")
-        # same reading as `cap_walled`: an unreadable figure blocks, an absent one does not
-        weekly_blocked = (raw_wu is not None and wu is None) or (
-            wu is not None and (wu >= 100.0 or (cap is not None and wu >= float(cap)))
-        )
+        weekly_blocked = _weekly_blocked(wk, cap)  # the board's reading, one predicate
         # through the ONE validator: `float()` of a giant JSON int in the usage cache raised out
         # of this writer and the tick (Delta 22 seat A, A3); a bool reads None as it read 1.0
         # and DATEABLE: a finite 1e300 passes the validator, and the message renderer alone

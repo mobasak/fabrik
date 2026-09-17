@@ -3817,7 +3817,7 @@ def test_every_reader_of_a_cache_utilization_survives_the_value_the_validator_re
         )
         is None
     )
-    assert any("cap-walled" in s and "?" in s for s in cr._fleet_row_warnings([row]))
+    assert any("cap-walled" in s and "unreadable" in s for s in cr._fleet_row_warnings([row]))
     assert (
         cr._fmt_forecast({"utilization": 5.0, "verdict": "reset_first", "minutes_to_reset": giant})
         == "no burn"
@@ -3921,9 +3921,11 @@ def test_the_drain_broadcast_soonest_reset_skips_a_reset_the_validator_refuses()
         },
         {"valid": False, "five_hour": {"resets_at_epoch": FLEET_NOW + 1}, "seven_day": None},
     ]
-    assert cr._soonest_reset(rows) == FLEET_NOW + 20
+    assert cr._soonest_reset(rows, FLEET_NOW) == FLEET_NOW + 20
     assert (
-        cr._soonest_reset([{"valid": True, "five_hour": {"resets_at_epoch": int("1" + "0" * 400)}}])
+        cr._soonest_reset(
+            [{"valid": True, "five_hour": {"resets_at_epoch": int("1" + "0" * 400)}}], FLEET_NOW
+        )
         is None
     )
 
@@ -3966,6 +3968,134 @@ def test_a_nan_weekly_figure_reads_as_cap_walled_and_weekly_blocked_not_as_headr
     assert cr._next_session_relief([act, ok_row], "act@x", now) == (now + 3000, "ok@x", "session")
 
 
+def test_the_legacy_picker_prefers_a_just_reset_zero_over_a_nearly_spent_sibling():
+    """`_usable_ts(...) or 100.0` read a genuine 0.0 as fully spent, so with no reset epochs the
+    tick installed the 97%/84% account over the 0%/0% one (delta round seat A, F1)."""
+    rows = [
+        {
+            "name": "spent",
+            "valid": True,
+            "five_hour": {"utilization": 84.0},
+            "seven_day": {"utilization": 97.0},
+        },
+        {
+            "name": "fresh",
+            "valid": True,
+            "five_hour": {"utilization": 0.0},
+            "seven_day": {"utilization": 0.0},
+        },
+    ]
+    assert cr._pick_successor(rows, None, FLEET_NOW) == "fresh"
+    rows[1]["seven_day"]["utilization"] = 84.0  # weekly tie broken by the session element too
+    rows[0]["seven_day"]["utilization"] = 84.0
+    assert cr._pick_successor(rows, None, FLEET_NOW) == "fresh"
+    assert (
+        cr._walled({"five_hour": "87%", "seven_day": {"utilization": 1.0}}) is True
+    )  # non-dict window (F5)
+
+
+def test_cap_walled_is_set_from_a_cached_row_whose_weekly_figure_is_unreadable(
+    tmp_path, monkeypatch
+):
+    """`cap_walled` is computed in `_fleet_account_rows` from the cached row AS-IS; a NaN there
+    (which `json.loads` admits) read as headroom, and no grader reached the flag (delta round
+    seat B, m9). A capped account with an unreadable weekly is cap-walled; a capless one is not
+    cap-walled but is still refused by the successor filter."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _caps(fleet, {"sarp@ocoron.com": 90})
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=10 * 3600.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=10 * 3600.0)
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
+    state = tmp_path / "state"
+    state.mkdir(exist_ok=True)
+    (state / "fleet-usage-cache.json").write_text(
+        json.dumps(
+            {
+                "sarp@ocoron.com": {
+                    "ts": FLEET_NOW - 9 * 3600.0,
+                    "five_hour": {"utilization": 10.0, "resets_at_epoch": FLEET_NOW + 3600},
+                    "seven_day": {
+                        "utilization": float("nan"),
+                        "resets_at_epoch": FLEET_NOW + 86400,
+                    },
+                },
+                "ob@ocoron.com": {
+                    "ts": FLEET_NOW - 9 * 3600.0,
+                    "five_hour": {"utilization": 10.0, "resets_at_epoch": FLEET_NOW + 3600},
+                    "seven_day": {
+                        "utilization": float("nan"),
+                        "resets_at_epoch": FLEET_NOW + 86400,
+                    },
+                },
+            }
+        )
+    )
+    _fake_oauth(monkeypatch)
+    rows, _pending = cr._fleet_account_rows(cr._fleet_dirs(), allow_pings=False)
+    by = {r["email"]: r for r in rows}
+    assert (
+        by["sarp@ocoron.com"]["source"] == "cache" and by["sarp@ocoron.com"]["cap_walled"] is True
+    ), by["sarp@ocoron.com"]
+    assert by["ob@ocoron.com"]["cap_walled"] is False and cr._walled(by["ob@ocoron.com"]) is True
+
+
+def test_the_board_the_relief_writer_and_the_cap_flag_share_one_weekly_walled_reading():
+    """Three sites carried three readings of "weekly walled" and disagreed on exactly the
+    garbage value: the board read an unreadable figure as headroom while the relief writer
+    blocked it, so one `--status` payload promised two resume times (delta round seat A, F3);
+    and a capless account's unreadable figure read as no wall at all (F4)."""
+    for garbage in ("97", True, float("nan"), int("1" + "0" * 400)):
+        assert cr._weekly_blocked({"utilization": garbage}, None) is True, garbage
+        assert cr._weekly_blocked({"utilization": garbage}, 90) is True, garbage
+    assert (
+        cr._weekly_blocked({"utilization": None}, 90) is False
+        and cr._weekly_blocked(None, 90) is False
+    )
+    assert (
+        cr._weekly_blocked({"utilization": 95.0}, 90) is True
+        and cr._weekly_blocked({"utilization": 95.0}, None) is False
+    )
+    assert cr._weekly_blocked({"utilization": 100.0}, None) is True
+    now = FLEET_NOW
+    row = _row("g@x", 97.0, 30.0, cap=90, s_reset=now + 3000, w_reset=now + 7200, slug="g")
+    row["seven_day"]["utilization"] = "97"
+    board = cr._fleet_picture([row], None, now)["accounts"][0]
+    assert board["state"] != "eligible" and board["returns_at"] == now + 7200, (
+        board
+    )  # the weekly reset, not the session one
+    assert cr._next_session_relief([_row("act@x", 91.0, 40.0, cap=99), row], "act@x", now) == (
+        now + 7200,
+        "g@x",
+        "weekly",
+    )
+
+
+def test_tick_burn_pairs_only_two_windows_that_both_lack_a_reset(tmp_path, monkeypatch):
+    """The second `same_window` arm compared a RAW previous reset with a VALIDATED current one,
+    so an unreadable current reset paired with an absent previous one and burned across two
+    windows (delta round seat A, F7)."""
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path))
+    p = tmp_path / "tick-last-reading.json"
+    p.write_text(
+        json.dumps(
+            {
+                "email": "a@x",
+                "ts": FLEET_NOW - 60,
+                "five_hour": 40.0,
+                "five_hour_reset": FLEET_NOW + 3600,
+                "seven_day": 30.0,
+                "seven_day_reset": None,
+            }
+        )
+    )
+    row = {
+        "email": "a@x",
+        "five_hour": {"utilization": 45.0, "resets_at_epoch": FLEET_NOW + 3600},
+        "seven_day": {"utilization": 37.0, "resets_at_epoch": int("1" + "0" * 400)},
+    }
+    assert cr._tick_burn("a@x", row, FLEET_NOW) == {"five_hour": 5.0, "seven_day": 0.0}
+
+
 def test_tick_burn_survives_and_rewrites_a_poisoned_memory_file(tmp_path, monkeypatch):
     """The previous reading is `json.loads` of the memory file and was compared bare: a giant
     int there raised BEFORE the rewrite, so the poisoned file wedged every later tick until a
@@ -3993,11 +4123,32 @@ def test_tick_burn_survives_and_rewrites_a_poisoned_memory_file(tmp_path, monkey
     }
     assert cr._tick_burn("a@x", row, FLEET_NOW) == {"five_hour": 0.0, "seven_day": 1.0}
     assert json.loads(p.read_text())["five_hour_reset"] == FLEET_NOW + 3600
+    # the VALUE alone poisoned, the reset matching — `same_window` is True and the subtraction is
+    # reached: a bare `float(pu)` there survived the battery (delta round seat B, m1)
+    p.write_text(
+        json.dumps(
+            {
+                "email": "a@x",
+                "ts": FLEET_NOW - 60,
+                "five_hour": giant,
+                "five_hour_reset": FLEET_NOW + 3600,
+                "seven_day": 30.0,
+                "seven_day_reset": FLEET_NOW + 7200,
+            }
+        )
+    )
+    assert cr._tick_burn("a@x", row, FLEET_NOW) == {"five_hour": 0.0, "seven_day": 1.0}
+    # a memory file that is not JSON at all is rewritten too, never left to wedge the next tick (m2)
+    p.write_text("not json")
+    assert cr._tick_burn("a@x", row, FLEET_NOW) == {"five_hour": 0.0, "seven_day": 0.0}
+    assert json.loads(p.read_text())["email"] == "a@x"
 
 
-def test_the_soonest_reset_ignores_a_zero_epoch_instead_of_letting_it_win():
+def test_the_soonest_reset_ignores_a_zero_or_past_epoch_instead_of_letting_it_win():
     """A `0.0` reset passed the validator and won the `min()`, so a known revive rendered as
-    "unknown" (heavy review round 1 seat 1, F2)."""
+    "unknown" (heavy review round 1 seat 1, F2); a reset three days PAST won it too and the drain
+    broadcast named an instant long gone — the floor is `now`, like every sibling bar (delta
+    round seat A, F2)."""
     rows = [
         {
             "valid": True,
@@ -4005,8 +4156,13 @@ def test_the_soonest_reset_ignores_a_zero_epoch_instead_of_letting_it_win():
             "seven_day": {"resets_at_epoch": FLEET_NOW + 3600},
         }
     ]
-    assert cr._soonest_reset(rows) == FLEET_NOW + 3600
-    assert cr._soonest_reset([{"valid": True, "five_hour": {"resets_at_epoch": -0.0}}]) is None
+    assert cr._soonest_reset(rows, FLEET_NOW) == FLEET_NOW + 3600
+    rows[0]["five_hour"] = {"resets_at_epoch": FLEET_NOW - 3 * 86400}
+    assert cr._soonest_reset(rows, FLEET_NOW) == FLEET_NOW + 3600
+    assert (
+        cr._soonest_reset([{"valid": True, "five_hour": {"resets_at_epoch": -0.0}}], FLEET_NOW)
+        is None
+    )
 
 
 def test_an_undateable_relief_epoch_is_refused_at_the_source_not_only_in_the_message():
@@ -4022,6 +4178,9 @@ def test_an_undateable_relief_epoch_is_refused_at_the_source_not_only_in_the_mes
     rows[1] = _row("far@x", 97.0, 30.0, cap=90, s_reset=now + 3000, w_reset=now + 86400)
     assert cr._next_session_relief(rows, "act@x", now) == (now + 3000, "far@x", "session")
     assert cr._dateable_ts(1e300) is None and cr._dateable_ts(now) == now
+    # the mirror site: a weekly-blocked sibling whose WEEKLY reset is undateable (delta seat B, m5)
+    rows[1] = _row("far@x", 97.0, 100.0, cap=90, s_reset=now + 3000, w_reset=1e300)
+    assert cr._next_session_relief(rows, "act@x", now) is None
 
 
 def test_the_legacy_picker_reads_an_unreadable_utilization_as_walled_and_sorts_it_last(monkeypatch):
