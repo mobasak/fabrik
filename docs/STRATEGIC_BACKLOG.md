@@ -51,6 +51,25 @@ Generated from the end-of-day plan-state on 2026-06-07 after the trio Phase 5.1.
 
 
 ### Residue from the 2026-09-16 quota-bands contract pass (D-265)
+- **Three review-harness gaps the quota-posture closing rounds paid for, each measured by a seat
+  (2026-09-17).** (1) `tests/conftest.py` pins ten box-state seams autouse but NOT the clock: every
+  multi-tick probe hand-rolls a 4-line `cr._now` monkeypatch — one seat wrote it sixteen times. A
+  `_fleet_clock` fixture beside `_fleet_tick_spies` is one edit. (2) `/opt/fabrik/mutants/` holds a
+  full second copy of `tests/`, so a repo-root grep for a rotate symbol inflates 8.6× (223 vs 26
+  once `.claude/worktrees/` and `mutants/` are excluded); the contract names the worktrees trap and
+  nothing names this one. (3) Driving `_cmd_tick()` many times in one pytest file is a ~300× wall-clock
+  trap with no code cause: 32 ticks took 99 s under capture while one tick profiles at 3 ms — the
+  cost is pytest capturing the per-dir "fleet dir:" lines. A note beside `_fleet_tick_spies`, or
+  `-s`/`--capture=no` guidance for tick-driving probes, saves the two 280 s timeouts a seat lost.
+  Owner: infra (test harness). Also worth carrying: the reviewer brief fragment should PIN every
+  write-channel env for seats and MANDATE a per-seat scratch subdir — two seats collided on a shared
+  path and one landed a nested run record under the dispatcher's session id (both measured this run).
+  Two more from Delta 9: hand-built fleet rows cost a seat a round each to a silent mismatch
+  (`_active_account_walled` matches on `slugs`, a list, so a row carrying `slug` reads as a clean
+  negative; `_cmd_status` takes `as_json` positionally) — a `_fleet_row(...)` helper beside
+  `_fleet_two_accounts` removes both; and the mirror recipe every brief carries must name
+  `tests/test_claude_fleet.py` itself (its fixtures) and `quota_posture_hook.py` + its suite, or
+  the mirror collects 293 of 324.
 - **The RED predicate cannot tell a QUOTED shell operator from shell SYNTAX, and no fix is free.**
   `quota_posture_hook.py::_is_new_run_start` reads `--command`'s value through `_cut`, which
   truncates at the first `[;&|<>()]`. `shlex` has already discarded the quoting by then, so

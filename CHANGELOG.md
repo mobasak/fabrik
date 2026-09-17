@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Delta 9: an empty fleet map now says whether nobody was measured or nobody can serve; the dwell-site wake no longer ends a wall episode (2026-09-17)
+
+- **`fleet.measured`** (`scripts/sysadmin/claude_rotate.py`, twin identical): the posture carried
+  nothing to tell "no account was measured" from "no account can serve" — both were an empty
+  `fleet.windows` — so `_fleet_band` resolved the same `{}` toward RED while `--status` and the
+  injected line resolved it toward silence, in the same tick; with both accounts cap-walled the
+  line printed `band RED` and no fleet clause at all (Delta 9 seat A, F2, driven on the real B12
+  tick). And the unknown arm was keyed on the ACTIVE account's band, so an unmeasured active beside
+  a measured sibling read `?` at maximal scarcity and the hook held nothing (A F1). The tick now
+  writes how many accounts a required window was READ for; the band is RED on an absent required
+  window whenever that is > 0 and `?` only at 0, and both renderers print `nobody serves it` on the
+  same fact (B20h, B12 extended, C2h; `_fleet_measured`). A present-but-unusable fleet entry is
+  omitted by `--status` as the hook already did, instead of `5h — (x)` under a comment claiming
+  omission (A F5, B22b).
+- **The dwell-site `hold-lifted` row is not an episode end** (`_open_wall_episode`): Delta 8
+  removed the dwell-branch CLOSER, but the dwell branch still clears the stamp and wakes the held
+  sessions on the EXPECTATION of a flip, and that wake row was counted as an end — with a WRITABLE
+  stamp the oscillation storm ran at 7 broadcasts an hour on a healthy box; B21d's stamp path was
+  a dead directory and never saw one (Delta 9 seat B, F1; B21d-2). An absent ledger is "nothing
+  has ever walled", not a fault, so a virgin box no longer writes a phantom close row (F3); a wall
+  row the latch retired past the week is not open to the closer either (F6, B21g); the close row
+  names whose episode it ended (`closed_for`, F7); B21e proves the closer's fail-toward-writing on
+  a real write-only ledger instead of a stub of the reader (F2); the floor's comment says what a
+  flapping ledger under a dead stamp does instead of claiming a bound (F4); the fleet-wide close's
+  cost is written beside its benefit (F5); the latch's dead `readable` disjunct is gone (F8).
+- **The hook's `on <window>` names the window nobody serves**, not the hottest numeric one —
+  `on weekly` while 5h was the unserved window, and C2f pinned it (seat C; C2f re-cut, C2g for both
+  absent). The three contracts describe the `nobody serves it` token (`CLAUDE.md`,
+  `templates/governance/CLAUDE.md`, `/opt/fabrik-lib/CLAUDE.md`, one pin in
+  `tests/test_governance_template_split.py`); the `wall-episode-closed` sentence moved from the
+  `--switch` bullet to the wall-episode bullet in `docs/workstation/claude-account-rotation.md`,
+  which also names `fleet.measured` and `closed_for`.
+- Graders: B23 could not reach the bool guard (its fixture lacked `seven_day`) and passed with the
+  guard deleted (seat D / A F4); B21d passed a literal 85.0 where the tick passes the derived
+  threshold (D); `except Exception` on the flip's never-raise boundary had no guard (A F6, B19b);
+  four prose sites still said the account's band stands in for the fleet's (A F3). Every new or
+  re-cut grader red on the pre-fix code in a throwaway worktree or under its mutation there.
+
 ### Fixed — Delta 8: scarcity is RED, not the walled account's raw band; and the line says which window nobody serves (2026-09-17)
 
 - **`_fleet_band`'s scarcity fallback** (`scripts/sysadmin/claude_rotate.py`, twin identical): the
