@@ -4,9 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Rotation: `--new-dir` creates the lazily-made canonical dirs, names a real dir, and `--status` warns on the D-287 state (2026-09-17)
+
+The scoped review of D-287's fix found the scaffolder skipping the `sessions/` link on a box where the CLI had not yet created `~/.claude/sessions` (an rc-0 note; the CLI then made a REAL per-account dir and the defect returned for that slug), silently skipping a fleet dir whose `sessions/` had regressed to a real dir, and no runtime signal for that state anywhere. Fixed at `13c1271d3`: `_SHARED_DIR_MKDIR` names the two lazily-made dirs (`projects`, `sessions`) and the scaffolder creates the canonical one instead of skipping; a resume names a real dir with the merge-by-hand remedy and never touches it; `_shared_link_warnings()` rides `--status` and the tick beside the hook-wiring warning. The rotation doc carries the collision check before a merge and the pid-reuse ghosts the merge concentrated (the CLI reaps only on ESRCH). Two graders red on HEAD in a throwaway worktree; fleet + rotate suites 399 passed.
 ### Fixed — Rotation: the peer registry (`sessions/`) is box-shared, so a flip no longer empties every window's peer list (2026-09-17)
 
 `ListAgents` reads `<config dir>/sessions/<pid>.json` through the `active` pointer as it stands now, while each session wrote its record under the dir the pointer named when it started — so after the 18:51 flip to `sarp` every window on the box listed exactly one peer, the session started after the flip ("only crm-1 is seen"); 18 live sessions sat unlisted under `ozgurbasak/sessions/`. The registry is pid-keyed box state with no account content, the same class as `projects/`: `sessions` joins `_SHARED_DIR_LINKS` at `30781421d` (D-287), `--new-dir` links it for every future dir, and the five existing dirs are merged by hand once into `~/.claude/sessions/` and replaced by the symlink. A red-first grader writes a record under one slug's `sessions/` and reads it under another's; the write-through grader pins the five-name set.
+
 ### Changed — /fabrik-review briefs must name the SUBJECT of every quantity, not just the surface (2026-09-17)
 
 - `commands/_sources/fabrik-review.md`: the brief contract carried the Phase-0 surface digest and the
