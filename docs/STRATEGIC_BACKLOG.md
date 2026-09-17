@@ -3737,3 +3737,32 @@ verdict wanting a new mechanism to `/fabrik-spec`, not to a wording edit.
 +738 B on an 18,524 B command whose identity is being cheaper than `/fabrik-review`; a seat judged the
 obligations earned but the wording not at its Pareto frontier every time. A spec should decide how much of
 this belongs in the command text at all versus in `command_run.py` behaviour.
+
+### [infra] `term-edit.md` reads as LICENSING the working-tree edit that `/fabrik-review-scoped` now forbids — 17 consumers vs 1
+
+Found by the confirming pass of `/fabrik-review-scoped` over 02df9b74f (D-288), which added to that one
+command: *"While seats are out you do not edit the pinned files either — queue what you find and fix it
+when you adjudicate the union."* The MIRROR of that change, named per CLAUDE.md § Behavior:
+
+`commands/_fragments/term-edit.md:20`, pin obligation (2): *"…and never touch the pin while its seats run
+(the seats read the pin; you edit the working tree)."*
+
+The subordinate *"while its seats run"* scopes the parenthetical, so it reads as a WHEN claim licensing
+working-tree edits during the seat window — the exact behaviour the nine ledger verdicts behind D-288
+describe as harmful. A charitable reading exists and may be the author's intent: the contrast is WHERE
+(the seats read the pin copy, you work in the tree), not WHEN. Either reading is defensible from the words,
+which is itself the defect — a rule 17 commands render should not depend on which one a reader takes.
+
+**Measured 2026-09-17:** `{{include:term-edit}}` appears in **17 of 37** `commands/_sources/*.md`; the new
+sentence appears in **1 of 37**. So the ambiguous posture out-reaches the explicit one seventeen-fold, and
+`fabrik-review-scoped.md:63` cites `term-edit.md` BY PATH as canonical for its own delta rounds — the file
+now points at a fragment a reader may take as saying the opposite.
+
+**Why this is filed, not fixed.** The repair is four words, but it lands in a fragment rendering into 17
+commands whose orchestrators never asked for the rule, and a fragment edit must be verified coherent for
+every consumer (the `spec-review`/`plan-review` family included). This session already spent three reverted
+attempts learning that a small-looking edit on a shared surface is not small. Size it, then make it.
+
+**Not a regression introduced by D-288:** before it, 17 commands carried the ambiguous sentence and none
+carried an explicit rule. D-288 did not change those 17; it made a pre-existing ambiguity visible by stating
+the opposite clearly in one place. Leaving it costs nothing that was not already being paid.
