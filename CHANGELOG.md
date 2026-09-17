@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Delta 22: one reading of a wall row's promise in both consumers; the usage cache's reset epochs through the one validator; the re-arm's temp orphans swept (2026-09-17)
+
+- **A promise at or before its own row's ts is no promise in BOTH consumers** — the ledger latch read it as
+  released while the stamp reader read it as a week's hold, so the verdict on a corrupt row turned on which
+  side of the 30-min floor a tick landed. The latch now applies the stamp reader's relation; the re-arm
+  writes `0` for it. No writer can emit such a promise; a corrupt row now latches to the week. Grader red on HEAD.
+- **A giant JSON int in the usage cache no longer kills the tick** — the relief writer, the picture composer and
+  the window reader called `float()` / `math.isfinite` bare on `resets_at_epoch` and `utilization`; all go
+  through `_usable_ts`, the class Delta 17 closed for the ledger readers. Grader red on HEAD (OverflowError).
+- **The re-arm sweeps its own orphaned temp files** (older than an hour, under pids that never returned), as the
+  posture writer already does; the `missing_ok` comment states its real reason; two prose counts corrected
+  (eleven undo calls across eight files; 167 sibling tests). Fix commit `895cd0d9`; 247 + 295 passed; gate
+  `status: success`.
+
 ### Fixed — Delta 21: the wall row's promise goes through the one validator in the re-arm and the ledger latch; a per-call temp name (2026-09-17)
 
 - **A corrupt `resume_epoch` no longer raises out of the re-arm or the ledger latch** — `Infinity` round-trips
