@@ -51,18 +51,19 @@ Generated from the end-of-day plan-state on 2026-06-07 after the trio Phase 5.1.
 
 
 ### Residue from the 2026-09-16 quota-bands contract pass (D-265)
-- **Two adjacent shapes the quota-posture closing round recorded rather than cut (Delta 18 seat A, 2026-09-17).**
+- **Three adjacent shapes the quota-posture closing rounds recorded rather than cut (Delta 18 · 20 · 21 seat A, 2026-09-17).**
   (1) `_refresh_expiry_epoch` (`scripts/sysadmin/claude_rotate.py`) — the guard `_usable_ts` cites for the
   giant-int class — has no bool exclusion: `{"refreshTokenExpiresAt": true}` reads as an expiry of 0.001
   (1970), so the chain reads long-dead and the account is excluded from flip candidacy. Fail-safe direction,
   outside the plan's diff; the one-line `isinstance(exp, bool)` refusal wants its own red-first grader beside
-  the existing OverflowError one. (2) `os.utime` silently CLAMPS the stored mtime to the filesystem's ceiling
+  the existing OverflowError one. Owner: fleet. (2) `os.utime` silently CLAMPS the stored mtime to the filesystem's ceiling
   (`0x3_7FFF_FFFF` = `15032385535.0`) for every ts between there and `time_t` (~9.2e18) — measured with
   `1e17`, first recorded here as a wrap (Delta 19 seat A, F3); no writer can emit such a ts (`time.time()`),
   so it is unreachable, but the re-arm has no upper bound on a returned row's ts below `time_t`. A clamped
   mtime is FUTURE-dated, so the advisory latch reads the stamp as invalid, re-fires once, and the primary
   write resets it (fail-open, measured 1 → 2 telegrams) — while the ledger ROW carrying that ts stays open
   by the future-dated rule (Delta 20 seats A F6 / C #3; the first cut of this row said the opposite).
+  Owner: fleet.
   (3) Both tick invokers — the crontab line and the quota board — wrap the run in `flock -n` on the rotate
   lock, so two ticks never overlap; `ROTATE_LOCK` (credential writers only) is not what serialises them.
   The re-arm's documented intra-tick race therefore needs an UNLOCKED direct `--tick` call, where a relief
