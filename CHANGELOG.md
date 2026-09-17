@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Delta 18: the wall-stamp re-arm survives a ts `os.utime` refuses; the era floor's prose says `at or` (2026-09-17)
+
+- **A huge finite ts no longer raises out of the re-arm** — `1e308` passes `_usable_ts`, stays open in the
+  wall reader, and `os.utime` refuses it with OverflowError, not the OSError the handler caught; the raise
+  escaped the tick AFTER `write_text` had landed, leaving a stamp with a fresh mtime — the drift the
+  docstring names. The handler catches OverflowError/ValueError too and removes the half-written stamp,
+  so a failed re-arm leaves the hold down like a failed write (unreachable in production today: the
+  ledger latch fails open on a future-dated row first). B21i arm, red on HEAD.
+- **The floor prose matches the code** — three sites said `below`/`before` where the flip reader's floor
+  is strict `>`; restored to `at or`, with the stderr naming the too-large-for-a-float class; the wall
+  reader's does-NOT-do list says it has no era floor and why. B21k `ts == floor` arm, red on a `>=`
+  mutant. Fix commit `c7c75e80`; 246 + 159 passed; gate `status: success`.
+
 ### Fixed — Delta 17: one usable-ts validator for both ledger readers; the flip floor is the ledger's era (2026-09-17)
 
 - **A giant JSON integer `ts` no longer kills the tick** — `math.isfinite` and `float()` both raise
