@@ -3495,3 +3495,44 @@ verdict computed on the raw-findings fallback for a command whose contract names
 exit counter. The first is cheaper and is where it belongs. **Destination: D-281's build, as a
 successor item — not folded into it without the operator's word, because it widens a refusal on a
 file fleet-synced to 49 dirs.**
+
+## [infra] Three findings routed out of the D-281 build's heavy review (2026-09-17)
+
+The build shipped D1–D5 and its heavy review CONVERGED on the D-278 scope-growth stop
+(`docs/development/reviews/2026-09-17-scope-growth-exit-build-review.md`, four passes
+19 → 9 → 7 → 0 confirmed). These three were RECORDED rather than fixed, each for a stated reason.
+
+**1. `quota_dashboard.py::_FLOOR_RE` is stale against the corpus it reads — PRE-EXISTING, two
+graders already red.** `scripts/sysadmin/quota_dashboard.py:1726` matches
+`Floor — every \w+ dispatches ≥1 native`, written 2026-09-08 in `7178fa278`. Measured 2026-09-17:
+that string appears in **ZERO** command sources at HEAD, so `_command_seat_rule(...)[0]` is False
+for every command and the dashboard's seat column reports no Opus floor anywhere.
+`tests/test_quota_dashboard.py::test_the_seat_rule_reads_the_real_corpus_correctly` and
+`::test_the_matrix_reads_the_rendered_corpus_not_the_sources` are red on it. **Verified NOT caused by
+this build** — grepped every `commands/**.md` at HEAD before any of its edits. The fix is a re-key,
+and whoever takes it should anchor on a phrase the fragments OWN rather than one a reword can move,
+which is the lesson D5 shipped in the same build.
+
+**2. The fragment and the pack hedge the converging claim differently.**
+`commands/_fragments/scope-growth-exit.md` says "nothing prints when the loop is **simply**
+converging"; `.windsurf/rules/core/50-code-review.md` was corrected to "a loop that is **MERELY**
+converging **with no own-fix residue** — a FALLING count that is mostly own-fix still prints SCOPE
+GROWTH". The pack's form is the precise one. The fragment's is not wrong, but it is weaker than its
+own downstream copy, which inverts the maintained-source relationship D3 exists to establish. Left
+alone deliberately: the remainder round was bounded to the fixed set, and widening it to chase a
+wording asymmetry is exactly what the stop had just forbidden.
+
+**3. ⚠️ A CONTRACT CONTRADICTION that costs every read-only finder a valid probe method.**
+`CLAUDE.md` § Behavior (the shared-tree bullet) mandates
+`git worktree add <scratch>/probe HEAD` for any mutate-restore probe, and states that a single
+copied FILE "fails in the worst direction" because graders resolve their subject by
+`Path(__file__).resolve().parents[1]`. But every finder brief forbids writing git verbs — and
+`git worktree add` writes (it registers under `.git/worktrees/`). **The two rules together leave a
+read-only finder no sanctioned probe method.** A seat this run obeyed the brief, built a multi-file
+`git show` mirror instead, and got **18 false FAILs at baseline** because cross-file agreement tests
+resolved `parents[1]` into a mirror root with no command corpus — the exact false-verdict class the
+worktree rule exists to prevent, reached by obeying the brief. Two candidate fixes: carve out
+`git worktree add <scratch>` as a sanctioned exception in the finder briefs (it writes only under
+the scratchpad and the repo's worktree registry, never the working tree), or have the DISPATCHER
+create the probe worktree and hand its path to the seat. The second is cleaner and costs the seat
+nothing. Destination: the review-command fragments, next `/fabrik-command-improve` run over them.

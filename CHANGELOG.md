@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — /fabrik-review-scoped's scope-growth exit is BUILT; the review closed on the stop it shipped (2026-09-17)
+
+- **`command_run.py` computes D-278's two-of-three two-thirds bar and emits THREE verdicts** where
+  it emitted one: `SCOPE GROWTH`, `ESCALATE` (ratio computed, unmet, count not falling), and
+  `UNCOMPUTABLE` (a window round unreadable and it would decide). Silence is now never a verdict.
+- **The command reads the verdict off** instead of prescribing one remedy for a symptom with two
+  opposite causes; the rule is maintained once in a fragment; the fleet-synced pack states it
+  self-contained with its fix-and-re-verify duty and keeps its anti-routing guard.
+- **Round zero now executes ANY claim a fix introduces** with a checkable referent — counts,
+  enumerations, line anchors, negatives — discharged equally by deleting an unverifiable one (D5).
+- **The review closed on its own subject.** Four passes confirmed 19 · 9 · 7 · 0 at own-fix
+  0% · 88% · 100%: two of the last three cleared two-thirds and the tool printed the stop on the
+  review of itself. D-283 records the build; it corrects D-281's selector and twin-constant phrasing.
+
 ### Fixed — Rotation: the cap-walled warning says what the pick does; the routed-up review CONVERGED (2026-09-17)
 
 The confirming seat over `bc40dc40e` found the restored warning asserting "automated flips exclude it" for a row whose weekly figure is unreadable — a row the verdict deliberately leaves pickable — and the capless guard without a grader (the mutant dropping it printed `≥ cap None` for every capless walled row and survived the file). Fixed at `fddbfa5cf`: the warning's tail splits on the flag (a readable figure at or over the cap keeps the "reserved" line; an unreadable one says the pick does NOT exclude it and names the remedies), the capless twin is asserted to print nothing, and `_weekly_blocked`'s docstring names its real readers. One grader red on HEAD, the guard mutant killed, five suites → 508 passed. The heavy review over `67421508d..fddbfa5cf` closes here under D-278/D-281 (receipt `docs/development/reviews/2026-09-17-review-scoped-pick-flip-target-review.md`, Status CONVERGED): rounds 0–4 fixed 17 → 11 → 5 → 4 confirmed, the two remainder rounds' own-fix residue is recorded on the backlog row.
