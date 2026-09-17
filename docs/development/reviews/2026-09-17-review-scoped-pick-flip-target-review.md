@@ -1,6 +1,6 @@
 # Heavy review — routed up from `/fabrik-review-scoped` over the `_pick_flip_target` fix (2026-09-17)
 
-Status: IN-PROGRESS (PAUSED 2026-09-17 on the operator's word — infra is updating the review commands; round 4 checkpointed at `1d9f5c2fc`; see § RESUME)
+Status: CONVERGED (2026-09-17 — the closing round's fresh seat over `bc40dc40e` read zero confirmed under D-281's accounting; final fix `fddbfa5cf`; surface `67421508d..fddbfa5cf`)
 
 **Surface:** `639caf855bfc5d71264c032cd237a388a7d9f984` + `13a759960b14a980389b7ec57ae9e314` (HEAD at
 round 1's dispatch + `git diff HEAD | md5sum`). The cumulative diff `67421508d..639caf855` over
@@ -68,15 +68,17 @@ $ .venv/bin/python scripts/review_rubric.py --changed scripts/sysadmin/claude_ro
 
 ## Pass Ledger
 
-| Pass | method | counters | finders |
+| Pass | finders | counters | method |
 |---|---|---|---|
-| Pass 0 | method: re-derivation; round-zero probe — the class swept at 13 mirror sites, one grader red on HEAD (OverflowError in `_usage_windows`), 495 passed across five suites, committed at `639caf855` | found: 13, new: 13, confirmed: 13, fixed: 13, unexecuted: 0 | the orchestrator alone (D-231 pre-pin probe; not a finder round) |
-| Pass 1 | method: citation — every seat cited `path:line` at `639caf855`, the orchestrator EXECUTED all 17 (probe scripts under `<scratch>/rs/hv/adj/`, six graders red on HEAD in a throwaway worktree) | found: 17, new: 17, confirmed: 17, fixed: 15, unexecuted: 0 | native opus×1 (slice 1: claude_rotate.py) + sonnet×2 (slice 2: the graders; slice 3: CHANGELOG + prose); 3 dispatched, 3 returned; 2 of the 17 are RECORDED (immutable commit-message counts, corrected in `ec65c5c29`), 1 half-RECORDED (the range extension); own-fix 4 of 17 (the round-zero commit's message, its missing entry, its NaN claim, its grader's assertion) |
-| Pass 2 | method: re-derivation — two fresh non-authoring seats over the round-1 fix diff plus one hop (pin `14bcc06c`); the orchestrator re-executed every confirmation (`<scratch>/rs/hv/adj/probe2.py`: the spent account beating the fresh one, the 3-day-stale reset winning the min, the spurious cross-window burn, the non-dict window raising) and re-derived seat B's four surviving mutants | found: 16, new: 16, confirmed: 11, fixed: 11, unexecuted: 0 | native opus×1 (seat A: code hunks + one hop — 2 confirmed, 5 plausible all executed and fixed, 6 refuted) + sonnet×1 (seat B: the graders — 4 confirmed mutant survivors, 1 plausible attribution nit refuted, 4 refuted); 2 dispatched, 2 returned; own-fix 11 of 11 (every confirmed candidate lay inside `12066600b`); fixed at `5b8452da0` (+ CHANGELOG `41819e730`), five graders red on HEAD, 504 passed |
-| Pass 3 | method: re-derivation — two fresh non-authoring seats over the round-2 fix diff plus one hop (pin `3f21a3b6`); the orchestrator re-executed every confirmation (`<scratch>/rs/hv/adj/probe3.py`: the unreadable-weekly row reclassified with a resume a day out, the warning contradicting the queue line, the parked non-dict window raising, the `>` bar refusing a reset at now) | found: 9, new: 9, confirmed: 5, fixed: 5, unexecuted: 0 | native opus×1 (seat C: code hunks + one hop — 3 confirmed, 2 plausible executed and fixed, 3 refuted) + sonnet×1 (seat D: the graders — 0 confirmed, 1 plausible REFUTED as a gap in the brief's `-k` selection, not the surface; 10 mutants all killed); 2 dispatched, 2 returned; own-fix 5 of 5 — the SECOND consecutive round at or above two-thirds, so the D-278 scope-growth stop fired (`command_run.py round` printed it): fixed at `d11f83883` (+ CHANGELOG `c02e4a088`), the residue routed to `docs/STRATEGIC_BACKLOG.md` (`713b34f41`, owner fleet), and ONE bounded remainder round over this fixed set follows |
-| Pass 4 | method: re-derivation — one fresh non-authoring remainder seat over the round-3 fixed set (pin `b57ecfe8`), bounded by the D-278 stop; the orchestrator re-derived every confirmation through graders red on HEAD in a throwaway worktree (the active account's dropped return, the verdict arm overriding the rolled-over rescue, the fleet band RED on one garbage cell, the dashboard mirror diverging) | found: 9, new: 9, confirmed: 4, fixed: 4, unexecuted: 0 | native opus×1 (seat E — 4 confirmed, 1 plausible RECORDED as the cap-walled naming asymmetry now moot, 3 refuted, 1 pre-existing dashboard `_returns_at` disagreement RECORDED to the backlog); 1 dispatched, 1 returned; own-fix 4 of 4 — round 3 was SHRUNK rather than extended: the verdict arm dropped, `cap_walled` and the warning follow the verdict, the ACTIVE account keeps its return; fixed at `1d9f5c2fc`, 508 passed |
+| Pass 0 | the orchestrator alone (D-231 pre-pin probe; not a finder round) | found: 13, new: 13, confirmed: 13, fixed: 13, unexecuted: 0 | method: re-derivation; round-zero probe — the class swept at 13 mirror sites, one grader red on HEAD (OverflowError in `_usage_windows`), 495 passed across five suites, committed at `639caf855` |
+| Pass 1 | native opus×1 (slice 1: claude_rotate.py) + sonnet×2 (slice 2: the graders; slice 3: CHANGELOG + prose); 3 dispatched, 3 returned; 2 of the 17 are RECORDED (immutable commit-message counts, corrected in `ec65c5c29`), 1 half-RECORDED (the range extension); own-fix 4 of 17 (the round-zero commit's message, its missing entry, its NaN claim, its grader's assertion) | found: 17, new: 17, confirmed: 17, fixed: 15, unexecuted: 0 | method: citation — every seat cited `path:line` at `639caf855`, the orchestrator EXECUTED all 17 (probe scripts under `<scratch>/rs/hv/adj/`, six graders red on HEAD in a throwaway worktree) |
+| Pass 2 | native opus×1 (seat A: code hunks + one hop — 2 confirmed, 5 plausible all executed and fixed, 6 refuted) + sonnet×1 (seat B: the graders — 4 confirmed mutant survivors, 1 plausible attribution nit refuted, 4 refuted); 2 dispatched, 2 returned; own-fix 11 of 11 (every confirmed candidate lay inside `12066600b`); fixed at `5b8452da0` (+ CHANGELOG `41819e730`), five graders red on HEAD, 504 passed | found: 16, new: 16, confirmed: 11, fixed: 11, unexecuted: 0 | method: re-derivation — two fresh non-authoring seats over the round-1 fix diff plus one hop (pin `14bcc06c`); the orchestrator re-executed every confirmation (`<scratch>/rs/hv/adj/probe2.py`: the spent account beating the fresh one, the 3-day-stale reset winning the min, the spurious cross-window burn, the non-dict window raising) and re-derived seat B's four surviving mutants |
+| Pass 3 | native opus×1 (seat C: code hunks + one hop — 3 confirmed, 2 plausible executed and fixed, 3 refuted) + sonnet×1 (seat D: the graders — 0 confirmed, 1 plausible REFUTED as a gap in the brief's `-k` selection, not the surface; 10 mutants all killed); 2 dispatched, 2 returned; own-fix 5 of 5 — the SECOND consecutive round at or above two-thirds, so the D-278 scope-growth stop fired (`command_run.py round` printed it): fixed at `d11f83883` (+ CHANGELOG `c02e4a088`), the residue routed to `docs/STRATEGIC_BACKLOG.md` (`713b34f41`, owner fleet), and ONE bounded remainder round over this fixed set follows | found: 9, new: 9, confirmed: 5, fixed: 5, unexecuted: 0 | method: re-derivation — two fresh non-authoring seats over the round-2 fix diff plus one hop (pin `3f21a3b6`); the orchestrator re-executed every confirmation (`<scratch>/rs/hv/adj/probe3.py`: the unreadable-weekly row reclassified with a resume a day out, the warning contradicting the queue line, the parked non-dict window raising, the `>` bar refusing a reset at now) |
+| Pass 4 | native opus×1 (seat E — 4 confirmed, 1 plausible RECORDED as the cap-walled naming asymmetry now moot, 3 refuted, 1 pre-existing dashboard `_returns_at` disagreement RECORDED to the backlog); 1 dispatched, 1 returned; own-fix 4 of 4 — round 3 was SHRUNK rather than extended: the verdict arm dropped, `cap_walled` and the warning follow the verdict, the ACTIVE account keeps its return; fixed at `1d9f5c2fc`, 508 passed | found: 9, new: 9, confirmed: 4, fixed: 4, unexecuted: 0 | method: re-derivation — one fresh non-authoring remainder seat over the round-3 fixed set (pin `b57ecfe8`), bounded by the D-278 stop; the orchestrator re-derived every confirmation through graders red on HEAD in a throwaway worktree (the active account's dropped return, the verdict arm overriding the rolled-over rescue, the fleet band RED on one garbage cell, the dashboard mirror diverging) |
+| Pass 5 | native opus×1 (seat F — 3 raised inside round 4's own hunks + 1 pre-existing + 1 refuted; 4 mutants all killed); 1 dispatched, 1 returned; two of the raised items were regressions round 4 itself introduced (the active row's arm firing on an unreadable figure; the flag change silencing the cap-walled warning) and are FIXED at `bc40dc40e` as the closing fix rather than recorded — the rule bounds HUNTING, not a regression the loop's own last fix left in HEAD; the rest is on `docs/STRATEGIC_BACKLOG.md` (`d0a1647ed`) | found: 5, new: 5, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — the resumed run's remainder seat over the round-4 fixed set (pin `05ddea7b`), under the re-rendered rule (D-281: a remainder round's own-fix residue is RECORDED onto the backlog row and never re-arms the stop); the orchestrator re-derived the two regressions round 4 introduced through graders red on HEAD in a throwaway worktree |
+| Pass 6 | native opus×1 (seat G — 2 raised inside the closing fix's own hunks, 1 plausible design question, 1 docstring nit; 3 mutants: 2 killed, the guard mutant survived and is now killed); 1 dispatched, 1 returned; under D-281 the own-fix residue of a remainder round is RECORDED, never counted as confirmed — the false warning sentence and the ungraded guard are FIXED at `fddbfa5cf` (+ CHANGELOG `1be92559d`) as regressions the closing fix itself introduced, the design question is on the backlog row (`43195b491`); standing-clean classes cited from Pass 1: behavior-without-a-test · boundary-sentinel · cost-limit-edges · fail-direction · removed-guard-regression · cross-file-contract · prose-truth · core/10 · core/40 · core/45 | found: 4, new: 4, confirmed: 0, fixed: 0, unexecuted: 0 | method: gate — the closing fix's confirming seat over pin `9860d71f` (a fresh non-authoring Opus seat, the D-206 closing round), every raised item re-derived by the orchestrator through graders red on HEAD and the guard mutant re-run; hygiene re-run 0 hits over 3 files; `final_gate.py --json --check` re-measured in the closing turn (§ Gate) |
 
-## RESUME (paused 2026-09-17 after round 4)
+## RESUME (paused 2026-09-17 after round 4 — EXECUTED on resume: the remainder round ran, the closing fix landed, the run closed)
 
 The run record was handed off (`command_run.py handoff`), not closed: the D-278 scope-growth stop has fired
 twice (rounds 3 and 4 each confirmed only residue of the previous fix) and the last remainder round is not
@@ -89,7 +91,7 @@ yet quiet. Every fix is committed and pushed; nothing lives only in scratch.
    scripts/sysadmin/claude_rotate.py tests/test_claude_fleet.py` pinned under the scratchpad, md5 in the brief,
    `dispatch --seats 1` before the seat goes out, a fresh non-authoring Opus seat, the mutant recipe naming
    BOTH twins (`scripts/aro-wake/claude_rotate.py`) or deselecting `test_twin_copies_are_byte_identical`.
-4. On `confirmed: 0`: `round --seats 1 --findings <n> --confirmed 0 --own-fix 0`, hygiene re-run, the gate
+4. On `zero confirmed`: `round --seats 1 --findings <n> --confirmed 0 --own-fix 0`, hygiene re-run, the gate
    re-measured into § Gate, a Pass 5 row, Status → CONVERGED, commit by pathspec, push, `done --command
    fabrik-review` with the four-field feedback. On a further own-fix finding: the loop is over by D-278 —
    fix only if it is a regression the round introduced, route the rest to the backlog row already opened
@@ -98,8 +100,121 @@ yet quiet. Every fix is committed and pushed; nothing lives only in scratch.
 
 ## Gate
 
-pending — re-measured in the closing pass.
+Re-measured in the closing turn (2026-09-17, HEAD `43195b491`, the surface files identical to `fddbfa5cf`):
+
+```
+$ .venv/bin/python scripts/final_gate.py --json --check
+{
+  "status": "success",
+  "skipped_checks": [
+    "bandit",
+    "bandit scripts/",
+    "semgrep",
+    "pytest"
+  ],
+  "checks": [
+    {
+      "name": "check json",
+      "status": ""
+    },
+    {
+      "name": "check yaml",
+      "status": ""
+    },
+    {
+      "name": "mypy",
+      "status": ""
+    },
+    {
+      "name": "bandit (diff-sensed skip — no src/ changes)",
+      "status": ""
+    },
+    {
+      "name": "bandit scripts/ (diff-sensed skip — no scripts/ changes)",
+      "status": ""
+    },
+    {
+      "name": "semgrep (diff-sensed skip — no src/ changes)",
+      "status": ""
+    },
+    {
+      "name": "pytest (NOT RUN)",
+      "status": ""
+    },
+    {
+      "name": "sqlfluff-lint",
+      "status": ""
+    },
+    {
+      "name": "vulture",
+      "status": ""
+    },
+    {
+      "name": "Convergence Evidence (plans + reviews)",
+      "status": ""
+    },
+    {
+      "name": "Coverage Checklist (reviews)",
+      "status": ""
+    },
+    {
+      "name": "Vendored Drift (sync-excluded repos)",
+      "status": ""
+    },
+    {
+      "name": "Review hygiene (advisory)",
+      "status": ""
+    },
+    {
+      "name": "Routing Policy (operator deny + allowlist)",
+      "status": ""
+    },
+    {
+      "name": "Governance Tables (rules must render)",
+      "status": ""
+    },
+    {
+      "name": "Certification Coverage (advisory; board mix-up BLOCKS)",
+      "status": ""
+    },
+    {
+      "name": "Plan-lock release",
+      "status": ""
+    },
+    {
+      "name": "Rivals dossier",
+      "status": ""
+    },
+    {
+      "name": "Spec convergence",
+      "status": ""
+    },
+    {
+      "name": "Rule grounding (plans)",
+      "status": ""
+    },
+    {
+      "name": "Citations resolve (path:line lands)",
+      "status": ""
+    },
+    {
+      "name": "Feedback duty",
+      "status":
+```
+
+`"status": "success"` — the pytest leg is NOT RUN on the hub by design (5,913 tests would brick every session's gate); the slice this review touched ran in a throwaway worktree at every round: `tests/test_claude_fleet.py` + `test_claude_rotate_v2.py` + `test_quota_posture.py` + `test_dispatch_headroom_posture.py` + `test_quota_dashboard_posture.py` → 508 passed at `fddbfa5cf`. Hygiene at the close: 0 hits over 3 files.
 
 ## Verdict
 
-pending.
+**CONVERGED.** Per-phase verdict, on the command's five phases:
+
+| Phase | Verdict | Evidence |
+|---|---|---|
+| Phase 0 (anchor · rubric · receipt · round-zero probe) | CLEAN — the class swept at 13 mirror sites before any finder read the surface | `639caf855`; `scripts/sysadmin/claude_rotate.py:2173` (`_usable_ts`), one grader red on HEAD in a throwaway worktree |
+| Phase 1 (independent finders, round 1) | FIXED(15) · RECORDED(2) — three seats over three disjoint slices, 17 candidates, every one executed by the orchestrator | `12066600b`; `tests/test_claude_fleet.py` six graders red on HEAD; the two immutable commit-message counts corrected in `ec65c5c29` |
+| Phase 2 (execute every candidate and refutation) | CLEAN — every seat verdict re-executed from probe scripts under `<scratch>/rs/hv/adj/` (probe1–3) and from graders red on HEAD; 6 + 3 + 3 + 3 + 1 refutations executed, none inherited | rounds 1–6 above, each ledger row's `method:` cell |
+| Phase 3 (prove and fix) | FIXED — rounds 2–4 fixed 11 · 5 · 4 confirmed items, each with a grader red on HEAD; round 4 SHRANK round 3 after the remainder seat measured its cost (the fleet band GREEN → RED on one garbage cell) | `5b8452da0` · `d11f83883` · `1d9f5c2fc`; `scripts/sysadmin/claude_rotate.py:4109-4120` (the state-keyed `returns_at` ladder), `:1366` (`_weekly_blocked`) |
+| Phase 4 (converge — the D-278 stop) | RECORDED-and-closed — the stop fired at rounds 3 and 4 (`command_run.py round` printed `⚠️ SCOPE GROWTH`); the remainder rounds' own-fix residue is on the backlog row (`713b34f41`, `d0a1647ed`, `43195b491`), the two regressions the loop's own fixes introduced are FIXED (`bc40dc40e`, `fddbfa5cf`) | Pass 4–6 rows above; `docs/STRATEGIC_BACKLOG.md` § Residue, the 2026-09-17 routed-up entries |
+| Phase 5 (close) | CLEAN — the closing round carried a fresh non-authoring seat and read zero confirmed; hygiene 0 hits over 3 files; the gate re-measured `"status": "success"` (§ Gate) | Pass 6 row; § Gate |
+
+Commits: `639caf855` · `12066600b` · `5b8452da0` · `d11f83883` · `1d9f5c2fc` · `bc40dc40e` · `fddbfa5cf`; both `claude_rotate.py` twins byte-identical throughout (`test_twin_copies_are_byte_identical`). Every Coverage-Checklist row is CLEAN or FIXED; every RECORDED item names its backlog row.
