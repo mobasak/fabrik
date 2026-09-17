@@ -3817,7 +3817,7 @@ def test_every_reader_of_a_cache_utilization_survives_the_value_the_validator_re
         )
         is None
     )
-    assert any("cap-walled" in s and "unreadable" in s for s in cr._fleet_row_warnings([row]))
+    assert any("cap-walled" in s and "?" in s for s in cr._fleet_row_warnings([row]))
     assert (
         cr._fmt_forecast({"utilization": 5.0, "verdict": "reset_first", "minutes_to_reset": giant})
         == "no burn"
@@ -3989,9 +3989,11 @@ def test_an_unreadable_weekly_figure_is_one_reading_in_the_verdict_the_board_and
         w_reset=now + 86400,
         slug="seo",
     )
-    assert "unreadable" in str(cr._flip_candidate_verdict(capped, 98.0)[2])
+    # the verdict does NOT refuse it (round 4 seat E: refusing here overrode the rolled-over
+    # rescue and took the fleet band RED on one garbage cell); a pickable row carries no return
+    assert cr._flip_candidate_verdict(capped, 98.0)[2] is None
     board = cr._fleet_picture([capped], None, now)["accounts"][0]
-    assert (board["state"], board["returns_at"]) == ("cap-walled", now + 86400), board
+    assert (board["state"], board["returns_at"]) == ("eligible", None), board
     capless = _row(
         "sarp@ocoron.com",
         10.0,
@@ -4001,9 +4003,9 @@ def test_an_unreadable_weekly_figure_is_one_reading_in_the_verdict_the_board_and
         w_reset=now + 86400,
         slug="seo",
     )
-    assert "unreadable" in str(cr._flip_candidate_verdict(capless, 98.0)[2])
+    assert cr._flip_candidate_verdict(capless, 98.0)[2] is None
     board = cr._fleet_picture([capless], None, now)["accounts"][0]
-    assert (board["state"], board["returns_at"]) == ("weekly-unreadable", now + 86400), board
+    assert (board["state"], board["returns_at"]) == ("eligible", None), board
     spent = _row(
         "sarp@ocoron.com",
         90.0,
@@ -4022,6 +4024,64 @@ def test_an_unreadable_weekly_figure_is_one_reading_in_the_verdict_the_board_and
     )
     board = cr._fleet_picture([readable], None, now)["accounts"][0]
     assert (board["state"], board["returns_at"]) == ("eligible", None), board
+
+
+def test_the_active_account_keeps_its_return_instant_on_the_board(tmp_path, monkeypatch):
+    """Keying `returns_at` on the state dropped the ACTIVE account's return in every walled or
+    spent shape — the one fact an agent needs at the wall (round 4 seat E, F1)."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=600.0)
+    now = FLEET_NOW
+    walled = _row(
+        "sarp@ocoron.com", 10.0, 100.0, cap=99, s_reset=now + 3600, w_reset=now + 86400, slug="seo"
+    )
+    board = cr._fleet_picture([walled], "seo", now)["accounts"][0]
+    assert (board["state"], board["returns_at"]) == ("active", now + 86400), board
+    spent = _row(
+        "sarp@ocoron.com", 99.0, 20.0, cap=99, s_reset=now + 3600, w_reset=now + 86400, slug="seo"
+    )
+    board = cr._fleet_picture([spent], "seo", now)["accounts"][0]
+    assert (board["state"], board["returns_at"]) == ("active", now + 3600), board
+
+
+def test_an_unreadable_cached_weekly_never_costs_the_fleet_its_session_reading(
+    tmp_path, monkeypatch
+):
+    """Refusing an unreadable-weekly row in the verdict moved it out of `_SERVING_STATES`, so its
+    cool session reading left the fleet picture and the band went GREEN → RED on one garbage
+    cache cell (round 4 seat E, F3); and the rolled-over cached row stayed refused while its 100%
+    twin was rescued (F2). The verdict leaves such a row pickable; the board serves it."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=600.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=600.0)
+    now = FLEET_NOW
+    active = _row(
+        "ob@ocoron.com", 96.0, 40.0, cap=99, s_reset=now + 3600, w_reset=now + 86400, slug="intel"
+    )
+    standby = _row(
+        "sarp@ocoron.com",
+        3.0,
+        float("nan"),
+        cap=90,
+        s_reset=now + 3600,
+        w_reset=now + 86400,
+        slug="seo",
+    )
+    pic = cr._fleet_picture([active, standby], "intel", now)
+    states = {a["email"]: a["state"] for a in pic["accounts"]}
+    assert states["sarp@ocoron.com"] == "eligible", states
+    assert cr._fleet_readings([active, standby], pic)["five_hour"]["slug"] == "seo"
+    rolled = _row(
+        "sarp@ocoron.com",
+        3.0,
+        float("nan"),
+        cap=90,
+        s_reset=now + 3600,
+        w_reset=now - 60,
+        slug="seo",
+        source="cache",
+    )
+    assert cr._flip_candidate_verdict(rolled, 98.0)[2] is None
 
 
 def test_the_legacy_picker_survives_a_parked_row_whose_window_is_not_a_dict():
@@ -4110,9 +4170,13 @@ def test_cap_walled_is_set_from_a_cached_row_whose_weekly_figure_is_unreadable(
     _fake_oauth(monkeypatch)
     rows, _pending = cr._fleet_account_rows(cr._fleet_dirs(), allow_pings=False)
     by = {r["email"]: r for r in rows}
+    # round 4: the flag follows the VERDICT — an unreadable figure is no reading, never a cap wall
+    # (round 3 fused the two and the fleet band went RED on one garbage cell); the relief writer
+    # alone refuses to promise from it, and the legacy successor filter stays conservative
     assert (
-        by["sarp@ocoron.com"]["source"] == "cache" and by["sarp@ocoron.com"]["cap_walled"] is True
+        by["sarp@ocoron.com"]["source"] == "cache" and by["sarp@ocoron.com"]["cap_walled"] is False
     ), by["sarp@ocoron.com"]
+    assert cr._weekly_blocked(by["sarp@ocoron.com"]["seven_day"], 90) is True
     assert by["ob@ocoron.com"]["cap_walled"] is False and cr._walled(by["ob@ocoron.com"]) is True
 
 

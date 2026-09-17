@@ -3330,11 +3330,13 @@ def _flip_candidate_verdict(
         if cap is not None and wu is not None and wu >= cap:
             return slug, utils, f"weekly {wu:.0f}% ≥ cap {cap}"
         return slug, utils, f"a window ≥ {threshold:.0f}% (flip-away next tick)"
-    # the flag, the warning and the relief writer read an UNREADABLE weekly figure as walled;
-    # the verdict read it as no reading and named the row ELIGIBLE with a resume a day out
-    # (heavy review round 3 seat C, F1) — one reading, `_weekly_blocked`
-    if utils["seven_day"] is None and _weekly_blocked(row.get("seven_day"), row.get("weekly_cap")):
-        return slug, utils, "weekly reading unreadable — not a target until the cache re-reads it"
+    # An UNREADABLE weekly figure is NOT a verdict: the pick stays with the validated readings
+    # (a None weekly is no reading, and the rolled-over rescue above already decided what a
+    # cached row is worth). Round 3 of the heavy review refused such a row here and the
+    # remainder round measured the cost: the arm overrode the rescue thirty lines up, and
+    # moving the row out of `_SERVING_STATES` took the fleet band GREEN → RED on one garbage
+    # cache cell while its session reading was fine. The board still names the state honestly
+    # (`weekly-unreadable`) and `returns_at` follows the state (round 4 seat E, F2/F3).
     return slug, utils, None
 
 
@@ -3805,11 +3807,14 @@ def _fleet_account_rows(
                     row["model_windows"] = c["model_windows"]
                 row["source"] = "cache"
                 row["age_s"] = max(0.0, now - float(c["ts"]))
-        # walled BY ITS CAP — a cap concept, so a capless account is never cap-walled; the
-        # successor filter (`_walled`) and the board/relief reading (`_weekly_blocked`) still
-        # refuse a capless account whose figure is unreadable (delta round seat A, F4)
-        row["cap_walled"] = row["weekly_cap"] is not None and _weekly_blocked(
-            row["seven_day"], row["weekly_cap"]
+        # walled BY ITS CAP — a READABLE figure at or over the cap, the verdict's own cap arm;
+        # an UNREADABLE figure is no reading here as it is for the pick (the relief writer alone
+        # refuses to promise from it — `_weekly_blocked`), so the flag, the warning, the verdict
+        # and the board agree on every cell (round 4 seat E, after round 3 fused them wrongly)
+        _wk = row["seven_day"]
+        _wu = _usable_ts(_wk.get("utilization")) if isinstance(_wk, dict) else None
+        row["cap_walled"] = (
+            row["weekly_cap"] is not None and _wu is not None and _wu >= row["weekly_cap"]
         )
         accounts.append(row)
     if cache_dirty:
@@ -4010,13 +4015,9 @@ def _fleet_row_warnings(accounts: list[dict]) -> list[str]:
         if row.get("cap_walled"):
             wk = row.get("seven_day")
             wu = _usable_ts(wk.get("utilization")) if isinstance(wk, dict) else None
-            at = (
-                f"weekly {wu:.0f}% ≥ cap {row['weekly_cap']}"
-                if wu is not None
-                else f"weekly reading unreadable, treated as over cap {row['weekly_cap']}"
-            )
+            at = f"{wu:.0f}%" if wu is not None else "?"
             warns.append(
-                f"⚠ {row['email']}: cap-walled — {at} "
+                f"⚠ {row['email']}: cap-walled — weekly {at} ≥ cap {row['weekly_cap']} "
                 "(caps.json) — reserved for operator use until weekly reset; automated flips "
                 "exclude it (--switch still may, deliberately)"
             )
@@ -4101,19 +4102,23 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
         else:
             state = "unavailable"
         # gated on the STATE the ladder just chose, never on the raw predicates — an `eligible`
-        # row carried a `returns_at` a day out when its weekly figure was unreadable (round 3, F1)
+        # row carried a `returns_at` a day out when its weekly figure was unreadable (round 3,
+        # F1) — and the ACTIVE account keeps its return, which is the one fact an agent needs
+        # at the wall (round 4 seat E, F1)
         returns_at: float | None = None
+        active_walled = state == "active" and weekly_walled
+        active_spent = state == "active" and session_spent
         if state == "over-threshold" and wr is not None and wr >= now:
             returns_at = wr
         elif (
-            state in ("weekly-exhausted", "cap-walled", "weekly-unreadable")
+            (state in ("weekly-exhausted", "cap-walled", "weekly-unreadable") or active_walled)
             and wr is not None
             and wr >= now
         ):
             returns_at = wr
             if session_spent and fr is not None and fr > returns_at:
                 returns_at = fr  # the LATER of the two (D1)
-        elif state == "session-exhausted" and fr is not None and fr >= now:
+        elif (state == "session-exhausted" or active_spent) and fr is not None and fr >= now:
             returns_at = fr
         hot = (
             max(v for v in (fv, wv) if v is not None)
