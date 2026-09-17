@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Rotation: the validated-but-undateable value class, six bare reads closed behind the round-1 fix (2026-09-17)
+
+Round 2 of the scoped review over the `_pick_flip_target` fix (delta seats A + C, pin e1c17e97). The same corrupt cache row that round 1 taught `_tick_burn` to survive killed the tick one line later: `_fleet_flip_leg` read the ACTIVE row's utilization bare and raised at the projection sum (no flip, no posture, no advisory, cron rc 0); `_fmt_quota_window` and the legacy `--status` closure left the utilization f-string bare beside the guarded reset; `_fmt_reset_clock` rendered a JSON `true` or a negative epoch as a 1970 clock the picker reads as undated; the drain leg's `min()` over raw resets raised TypeError on a string ABOVE the guarded renderer; `_urgent_drain_message` reached four bare conversions on a finite 1e300 relief BEFORE the telegram, the mail and the fleet-exhausted stamp; `_pick_successor`'s sort key took the raw reset. Every read goes through `_usable_ts` now (`_soonest_reset` extracted for the drain leg; a relief the platform cannot date falls back to the no-resume-time text), the picker comment's "remaining bare sites" claim points at the grep instead of a list, and the ledger `pct` write takes the same value the same way. Four new graders and two extended, each red on HEAD (OverflowError / TypeError) in a throwaway worktree, green patched; seat C's surviving mutant (the bare legacy fmt) is killed. 474 passed across `test_claude_fleet` + `test_claude_rotate_v2` + `test_quota_posture` (e96386725; both twins byte-identical).
 ### Added — design spec: /fabrik-review-scoped's scope-growth exit, and an erratum to D-278 (2026-09-17)
 
 - **`docs/superpowers/specs/2026-09-17-review-scoped-scope-growth-exit-design.md`** (DRAFT) — the light
