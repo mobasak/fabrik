@@ -3840,7 +3840,9 @@ def test_every_reader_of_a_cache_utilization_survives_the_value_the_validator_re
         },
         FLEET_NOW,
     )
-    assert isinstance(line, str) and "%" not in line.split("5h")[-1][:6]
+    assert "5h —" in line, (
+        line
+    )  # the primary 5h field, not the `burn 5h` field (round 1 seat 2, F3)
     monkeypatch.setattr(cr, "_tick_telegram", lambda m: None)
     monkeypatch.setattr(cr, "_drain_mail", lambda repos, m: None)
     monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
@@ -3866,6 +3868,13 @@ def test_the_legacy_successor_picker_reads_a_reset_the_validator_refuses_as_none
             "valid": True,
             "seven_day": {"utilization": 50.0, "resets_at_epoch": FLEET_NOW + 60},
         },
+        # a NEGATIVE epoch passed the validator and, truthy, beat `or far` to win perishable-first
+        # — the flip picker's `reset > _now()` mirror was missing here (round 1 seat 2, F5)
+        {
+            "name": "negative",
+            "valid": True,
+            "seven_day": {"utilization": 10.0, "resets_at_epoch": -50.0},
+        },
     ]
     assert cr._pick_successor(rows, None, FLEET_NOW) == "dated"
 
@@ -3886,7 +3895,13 @@ def test_a_giant_int_utilization_on_the_active_row_does_not_kill_the_flip_leg(mo
         "seven_day": {"utilization": 31.0, "resets_at_epoch": FLEET_NOW + 7200},
     }
     cr._fleet_flip_leg([], [row], 98.0)  # red on HEAD: OverflowError at the projection sum
-    assert "tick:" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "at 31%" in out and "no flip" in out, out  # the surviving weekly reading decided
+    # the mirror: giant in the WEEKLY window, the session reading decides (round 1 seat 2, F2)
+    row["five_hour"], row["seven_day"] = row["seven_day"], row["five_hour"]
+    cr._fleet_flip_leg([], [row], 98.0)
+    out = capsys.readouterr().out
+    assert "at 31%" in out and "no flip" in out, out
 
 
 def test_the_drain_broadcast_soonest_reset_skips_a_reset_the_validator_refuses():
@@ -3919,6 +3934,118 @@ def test_the_urgent_drain_message_survives_a_relief_epoch_the_platform_cannot_da
     (round 2 seat A, F3). Such a relief is no relief: the no-resume-time text goes out."""
     msg = cr._urgent_drain_message("a@x", "session exhausted", (1e300, "b@x", "session"))
     assert "no resume time can be given" in msg and "RESUME AT" not in msg
+
+    # each exception the platform can raise from the conversion, not only the one 1e300 raises —
+    # a mutant narrowing the tuple to OverflowError survived the whole battery (round 1 seat 2, F1)
+    def _refusing(exc):
+        class _DT:
+            @staticmethod
+            def fromtimestamp(*a, **k):
+                raise exc("platform refused")
+
+        return _DT
+
+    for exc in (OverflowError, OSError, ValueError):
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(cr, "datetime", _refusing(exc))
+            out = cr._urgent_drain_message("a@x", "r", (FLEET_NOW + 60, "b@x", "session"))
+        assert "no resume time can be given" in out, exc
+
+
+def test_a_nan_weekly_figure_reads_as_cap_walled_and_weekly_blocked_not_as_headroom():
+    """`json.loads` admits NaN and a cached row is used as-is; the comparison-only sites never
+    raised on it but read it as NOT walled — fail-open on the one value the whole class is about
+    (round 1 seat 3, F7). An unreadable figure blocks; an absent one is still no reading."""
+    now = FLEET_NOW
+    nan_row = _row("nan@x", 97.0, float("nan"), cap=90, s_reset=now + 3000, w_reset=now + 86400)
+    ok_row = _row("ok@x", 97.0, 30.0, cap=90, s_reset=now + 3000, w_reset=now + 86400)
+    # the relief writer: a NaN weekly is BLOCKED, so the account waits on its weekly reset —
+    # on HEAD it read as headroom and the session reset was promised
+    act = _row("act@x", 91.0, 40.0, cap=99)
+    assert cr._next_session_relief([act, nan_row], "act@x", now) == (now + 86400, "nan@x", "weekly")
+    assert cr._next_session_relief([act, ok_row], "act@x", now) == (now + 3000, "ok@x", "session")
+
+
+def test_tick_burn_survives_and_rewrites_a_poisoned_memory_file(tmp_path, monkeypatch):
+    """The previous reading is `json.loads` of the memory file and was compared bare: a giant
+    int there raised BEFORE the rewrite, so the poisoned file wedged every later tick until a
+    human deleted it (heavy review round 1 seat 1, F1). Now the burn falls back to zero AND the
+    file is rewritten with the finite current reading."""
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(tmp_path))
+    giant = int("9" * 400)
+    p = tmp_path / "tick-last-reading.json"
+    p.write_text(
+        json.dumps(
+            {
+                "email": "a@x",
+                "ts": FLEET_NOW - 60,
+                "five_hour": giant,
+                "five_hour_reset": giant,
+                "seven_day": 30.0,
+                "seven_day_reset": FLEET_NOW + 7200,
+            }
+        )
+    )
+    row = {
+        "email": "a@x",
+        "five_hour": {"utilization": 45.0, "resets_at_epoch": FLEET_NOW + 3600},
+        "seven_day": {"utilization": 31.0, "resets_at_epoch": FLEET_NOW + 7200},
+    }
+    assert cr._tick_burn("a@x", row, FLEET_NOW) == {"five_hour": 0.0, "seven_day": 1.0}
+    assert json.loads(p.read_text())["five_hour_reset"] == FLEET_NOW + 3600
+
+
+def test_the_soonest_reset_ignores_a_zero_epoch_instead_of_letting_it_win():
+    """A `0.0` reset passed the validator and won the `min()`, so a known revive rendered as
+    "unknown" (heavy review round 1 seat 1, F2)."""
+    rows = [
+        {
+            "valid": True,
+            "five_hour": {"resets_at_epoch": 0.0},
+            "seven_day": {"resets_at_epoch": FLEET_NOW + 3600},
+        }
+    ]
+    assert cr._soonest_reset(rows) == FLEET_NOW + 3600
+    assert cr._soonest_reset([{"valid": True, "five_hour": {"resets_at_epoch": -0.0}}]) is None
+
+
+def test_an_undateable_relief_epoch_is_refused_at_the_source_not_only_in_the_message():
+    """A finite 1e300 passed `_usable_ts`, so the relief tuple carried it to the wall stamp and
+    the ledger while only the message fell back — `_promised_resume` could never reach that
+    instant and the re-arm slept for a week (heavy review round 1 seat 1, F3)."""
+    now = FLEET_NOW
+    rows = [
+        _row("act@x", 91.0, 40.0, cap=99, s_reset=None),
+        _row("far@x", 97.0, 30.0, cap=90, s_reset=1e300, w_reset=now + 86400),
+    ]
+    assert cr._next_session_relief(rows, "act@x", now) is None
+    rows[1] = _row("far@x", 97.0, 30.0, cap=90, s_reset=now + 3000, w_reset=now + 86400)
+    assert cr._next_session_relief(rows, "act@x", now) == (now + 3000, "far@x", "session")
+    assert cr._dateable_ts(1e300) is None and cr._dateable_ts(now) == now
+
+
+def test_the_legacy_picker_reads_an_unreadable_utilization_as_walled_and_sorts_it_last(monkeypatch):
+    """`_walled` and the two utilization sort elements were the last bare reads one line from the
+    guarded reset element (heavy review round 1 seat 1, F4): a string raised TypeError; now it
+    reads as walled, and a bool utilization sorts as no reading."""
+    assert (
+        cr._walled({"five_hour": {"utilization": "x"}, "seven_day": {"utilization": 1.0}}) is True
+    )
+    rows = [
+        {
+            "name": "bool",
+            "valid": True,
+            "five_hour": {"utilization": 1.0},
+            "seven_day": {"utilization": True, "resets_at_epoch": FLEET_NOW + 60},
+        },
+        {
+            "name": "real",
+            "valid": True,
+            "five_hour": {"utilization": 1.0},
+            "seven_day": {"utilization": 50.0, "resets_at_epoch": FLEET_NOW + 60},
+        },
+    ]
+    assert cr._pick_successor(rows, None, FLEET_NOW) == "real"
 
 
 def test_next_session_relief_prefers_the_soonest_session_reset_of_a_weekly_ok_sibling():
