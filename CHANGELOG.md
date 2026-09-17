@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the review scope-growth stop: a ratio over a three-round window (2026-09-17)
+
+- `commands/_fragments/term-coverage.md` + `term-edit.md`, rendering into 22 commands. The D-252 stop
+  required EVERY confirmed defect to be own-fix for two consecutive rounds. Measured on a live
+  14-round review, 88% of its confirmed defects were own-fix and 13 of 14 rounds sat above two-thirds,
+  yet the equality held on only 3 rounds as one consecutive pair — it fired once, at round 12, and the
+  loop ran two more. The bar is now TWO OF THE LAST THREE rounds at or above two-thirds; the window is
+  three rather than two-consecutive because alternating rounds defeat a consecutive bar forever
+  (executed). Because a ratio — unlike an equality — leaves up to a third of a qualifying round's
+  defects on the ORIGINAL surface, the stop now states that it suspends new HUNTING and never the
+  close: every defect still open anywhere in the window, its non-qualifying round included, is
+  re-verified until a round reads quiet, and only genuine own-fix work takes the backlog exit. Stating
+  `--own-fix` is a duty on every DELTA round (round 1 is the full pass and owes none); an omitting
+  round leaves the stop unable to compute, which is routed to `command_run.py` rather than asserted as
+  a sanction prose cannot enforce. D-278 supersedes D-252 and carries the figures. The enforcement
+  halves — the tool's equality, its `--own-fix` help string, and `/fabrik-review-scoped` having no
+  scope-growth stop at all — are lock-owned and filed as 01M2QCJBYV9F8ZKPR9KMNVV6FC.
+
 ### Fixed — Delta 22: one reading of a wall row's promise in both consumers; the usage cache's reset epochs through the one validator; the re-arm's temp orphans swept (2026-09-17)
 
 - **A promise at or before its own row's ts is no promise in BOTH consumers** — the ledger latch read it as
