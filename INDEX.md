@@ -918,6 +918,7 @@ docs/
 │       ├── 2026-09-11-review-family-pass3-design.md
 │       ├── 2026-09-16-ledger-write-integrity-design.md
 │       ├── 2026-09-16-multi-agent-self-naming-identity-design.md
+│       ├── 2026-09-17-review-scoped-scope-growth-exit-design.md
 │       └── archived
 ├── traycer
 │   ├── PLAN_OUTPUT_LOCATION.md     # Plan output location

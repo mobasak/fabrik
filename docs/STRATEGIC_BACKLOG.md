@@ -3404,3 +3404,28 @@ and a size threshold stated as a number in rendered text is a moving number unle
 thumb — write it as "never `cat` a pin, range-read it", not as a byte budget nobody can check.
 **Blast radius:** every partitioned review dispatches 3+ seats per round, so each cost lands 3× per
 round. Take it in the next `/fabrik-command-improve` run over the review fragments.
+
+**ADDENDUM 2026-09-17, same day — reproduced by MY OWN grounding seat, with a number the original
+report did not have.** An Opus `fabrik-researcher` seat on this hub session lost **three** fetch results
+to the same sink: `mcp__exa__web_fetch_exa` auto-persists a result over roughly 50 KB to
+`/home/ozgur/.claude-fleet/active/projects/<repo-key>/<session>/tool-results/<id>.json`, which its own
+brief forbade it to read. The lost calls were `maxCharacters` 78,000 (77.9 KB), 63,000 (63.1 KB) and one
+`web_search_exa` at `numResults 8` (54.8 KB). **So the effective reachable window is ~48 KB, not
+`maxCharacters`** — a reference page longer than that has a tail no in-session arm can reach, and it
+reads as ABSENCE rather than as truncation. The seat hit exactly that on ISO/IEC Directives Part 2, a
+single ~200 KB XHTML (WebFetch returns 403 on iso.org), and had to downgrade one load-bearing quote to
+a search-extract and SAY so. **Two concrete additions to the fix already named above:** a grounding
+brief that bans `.claude` paths must ALSO cap `maxCharacters` at ~45,000 and say why, and the
+fetch-routing block in the grounding-subagent definition should state the effective ~48 KB ceiling
+rather than implying `maxCharacters` is the only bound.
+
+**A SECOND, unrelated finding from the same seat — for `docs/workstation/mcp-roster.md`, not for the
+brief fragments.** The `fabrik-researcher` definition's fetch-routing block says firecrawl "is not
+connected on this box … Verified gone 2026-08-30", while this session's MCP server-instructions preamble
+advertises a firecrawl server with `firecrawl_scrape` / `firecrawl_search` / `firecrawl_map` /
+`firecrawl_agent`. The seat probed it: `ToolSearch "+firecrawl scrape search"` returned "No matching
+deferred tools found". **The definition is correct in effect; the PREAMBLE is the stale surface** — an
+MCP server whose instructions load while it exposes zero callable tools. Cost: one probe, plus a live
+contradiction between two instruction sources a seat is told to trust. Worth one line in the roster's
+§ the servers naming firecrawl as instructions-present / tools-absent, so the next seat does not
+re-probe it.

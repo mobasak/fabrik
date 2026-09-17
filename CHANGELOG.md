@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — design spec: /fabrik-review-scoped's scope-growth exit, and an erratum to D-278 (2026-09-17)
+
+- **`docs/superpowers/specs/2026-09-17-review-scoped-scope-growth-exit-design.md`** (DRAFT) — the light
+  review pass escalates to the heavy one after "the second consecutive round that confirms defects",
+  which is also the signature of a loop reviewing its own fixes. Measured on the feedback ledger
+  (2026-09-07 to 2026-09-17): the trigger was met in 41 of 60 scoped closes carrying a round series,
+  and 4 heavy reviews in the same window declare a step-5 route-up.
+- **The exit is stated in EIGHT sites, not the six the routed brief named**, plus TWO statements in the
+  fleet-synced pack. The design makes the verdict a COMPUTED value `command_run.py` prints at `round`,
+  and every other site carries one condition-free sentence rendered from a single fragment.
+- **D-280 is an erratum to D-278** — its ratio bar stands; its omitted-round clause describes a
+  mechanism the shipped fragments do not implement, and the fragments govern.
+
 ### Fixed — the tick-burn projection and the `--status` clock renderers survive a corrupt cache row (2026-09-17)
 
 - **`_tick_burn` no longer raises on the active row** — it converted the cache's utilization and reset bare
