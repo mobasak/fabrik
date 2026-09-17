@@ -51,6 +51,20 @@ Generated from the end-of-day plan-state on 2026-06-07 after the trio Phase 5.1.
 
 
 ### Residue from the 2026-09-16 quota-bands contract pass (D-265)
+- **Routed residue of the D-278 scope-growth stop on the quota-posture Finish review (2026-09-17; owner:
+  fleet).** The review took the stop at recorded round 14 (108 of 123 confirmed defects own-fix), re-verified
+  the last fixed set, and routes what that round RECORDED here rather than opening a hunting round on it.
+  (1) `_fleet_picture` (`scripts/sysadmin/claude_rotate.py`) still calls `float(cap)` bare on a row's
+  `weekly_cap` — a caps.json field, not the usage cache — so a giant JSON int there raises OverflowError into
+  the picture's guarded call sites (`--status` prints the safe picture, the tick prints `quota-posture not
+  written`); route it through `_usable_ts` with a red-first grader that builds the value. (2) A FRACTIONAL
+  `resume_epoch` in the open interval `(ts, ts + 1)` still reads two ways — the ledger latch sees a promise
+  already due and speaks, the re-armed stamp truncates it to `ts` and `_promised_resume` reads no promise (a
+  week's hold); unreachable from the one writer, which adds two ints, so it waits for a writer that emits
+  fractions. (3) `tests/test_external_services_chain.py::test_gen_dashboard_help_writes_no_file` lists
+  `tmp_path` and expects it empty while the autouse pins create six dirs there — fails on HEAD's own conftest;
+  mailed to infra as 01M2QG0YAP88HJQD5RDGB24WRD. (4) `_isolated_sound_lock_dir` never had a docstring, so
+  the docstring grader cannot cover it — one line and one tuple entry.
 - **Three adjacent shapes the quota-posture closing rounds recorded rather than cut (Delta 18 · 20 · 21 seat A, 2026-09-17).**
   (1) `_refresh_expiry_epoch` (`scripts/sysadmin/claude_rotate.py`) — the guard `_usable_ts` cites for the
   giant-int class — has no bool exclusion: `{"refreshTokenExpiresAt": true}` reads as an expiry of 0.001
