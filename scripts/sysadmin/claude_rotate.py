@@ -2208,7 +2208,9 @@ def _last_switch_ts(event: str = "switch") -> tuple[float | None, bool]:
             e = json.loads(line)
         except ValueError:
             continue
-        if e.get("event") == event:
+        if (
+            isinstance(e, dict) and e.get("event") == event
+        ):  # a stray line is skipped, never a crash
             ts = e.get("ts")
             if isinstance(ts, (int, float)) and float(ts) <= _now() + _CLOCK_SKEW_TOLERANCE_S:
                 return float(ts), False
@@ -5542,7 +5544,7 @@ _ADVISORY_MIN_GAP_S = (
 )  # floor: one wall advisory per 30 min whatever the STAMP says — held by BOTH latches: the
 # stamp path from the stamp's mtime (the re-arm sets it to the episode's ts) and the ledger
 # latch from the row's ts (Delta 11 seat A). The ledger latch is per ACCOUNT; the stamp is one
-# fleet-wide file, so inside the floor it holds a SECOND account's fresh wall too (Delta 12
+# fleet-wide file, so it holds a SECOND account's fresh wall until the first's promise (Delta 12
 # seat A, #6). The escapes apply only while the stamp is ABSENT and the ledger latch decides:
 # an unreadable ledger fails open past it, a ledger flapping readable/unreadable re-fires at
 # the tick rate (Delta 9 seat B, F4), and a ledger that lost the row (truncated by hand —
@@ -5734,7 +5736,8 @@ def _rearm_wall_stamp(stamp: Path, email: str, now: float) -> None:
     a fresh mtime would restart the stamp's week re-arm and the two latches would drift apart.
     Never raises (the tick must not fail on a cache file); an unwritable stamp is said on stderr
     like the first write, and so is an unreadable ledger — reachable by a direct call or an
-    intra-tick race only, since the one production caller's guard has just read the ledger."""
+    intra-tick race only, since the one production caller's guard has just read the ledger; a row
+    that VANISHED in the same race is not said and leaves the hold down identically (F6)."""
     row, readable = _open_wall_episode(email, now)
     if not isinstance(row, dict):
         if not readable:
@@ -5846,10 +5849,15 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     # stamp says" (Delta 11 seat A, A2-1). The stamp's mtime is the episode's start (the re-arm
     # writes the row's ts), so within one episode both latches count the floor from the same
     # instant. The stamp is FLEET-wide, though: inside the floor a SECOND account's fresh wall
-    # is held too (measured: announced at +1800 rather than +900), where the per-account ledger
-    # latch would speak — the two agree only within one episode (Delta 12 seat A, #6). Cost: a
-    # promise falling due inside the floor defers the follow-up notice — the wake the message
-    # names as its mechanism — to the floor, up to ~28 min past the epoch the fleet was given.
+    # is held too — until the FIRST account's promised epoch or the week re-arm, not merely to
+    # the floor (measured: +1800 with A's promise due at +600; 120 h with a weekly-reset promise)
+    # where the per-account ledger latch speaks at once (Delta 12 seat A #6, Delta 13 seat A F1).
+    # The fleet IS still walled then, so the HOLD is right; what the second account loses is its
+    # own message, and the relief WAKE — not the message — is what frees sessions when the wall
+    # actually lifts. Cost: a promise falling due inside the floor defers the follow-up notice —
+    # the wake the message names as its mechanism — to the floor: up to ~28 min past the epoch
+    # the fleet was given on the code clock, one `*/5` tick more in practice (~33 min) since the
+    # floor is strict and the release is evaluated only on a tick (F4).
     inside_floor = age is not None and -_CLOCK_SKEW_TOLERANCE_S <= age < _ADVISORY_MIN_GAP_S
     latched = stamp.exists() and (
         inside_floor

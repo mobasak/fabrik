@@ -5774,6 +5774,41 @@ def test_the_floor_binds_the_stamp_path_too(tmp_path, monkeypatch):
     assert len(actions["telegrams"]) == 2, (
         "AT the floor it releases — the ledger latch's own strict `<` (Delta 12 seat A, #4)"
     )
+    # and that ledger latch's `<` is pinned too, on a row whose promise is already due — the arm
+    # above cited it as its authority while nothing checked it (Delta 13 seat A, F3)
+    led = cr._rotate_state_dir() / "rotate-ledger.jsonl"
+    with led.open("a", encoding="utf-8") as fh:
+        fh.write(
+            json.dumps(
+                {
+                    "event": "fleet-active-wall",
+                    "ts": FLEET_NOW,
+                    "account": "z@x",
+                    "resume_epoch": FLEET_NOW + 600,
+                }
+            )
+            + "\n"
+        )
+    assert cr._advisory_ledger_latch("z@x", FLEET_NOW + cr._ADVISORY_MIN_GAP_S - 1) is True
+    assert cr._advisory_ledger_latch("z@x", FLEET_NOW + cr._ADVISORY_MIN_GAP_S) is False
+
+
+def test_a_stray_ledger_line_does_not_abort_the_flip_reader(tmp_path, monkeypatch):
+    """B21k — Delta 13 seat A F5: `_open_wall_rows` skips a non-dict line; its sibling reader
+    `_last_switch_ts` did not, and a stray `"x"` line on the ledger raised out of it — inside a
+    tick that is `INTERNAL ERROR`, no flip, no advisory, no posture."""
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)  # the reader skips a future-dated row
+    led = state / "rotate-ledger.jsonl"
+    led.write_text(
+        json.dumps({"event": "flip", "ts": FLEET_NOW - 600, "from": "a@x", "to": "b@x"})
+        + "\n"
+        + '"x"\n'
+    )
+    ts, _ = cr._last_switch_ts(event="flip")
+    assert ts == FLEET_NOW - 600, ts
 
 
 def test_the_rearmed_stamp_carries_the_episodes_own_promise(tmp_path, monkeypatch, capsys):
@@ -5852,6 +5887,9 @@ def test_the_close_row_names_every_episode_it_ends(tmp_path, monkeypatch):
         json.dumps({"event": "fleet-active-wall", "ts": now - 60})
         + "\n"
         + json.dumps({"event": "fleet-active-wall", "ts": now - 30, "account": ["a"]})
+        + "\n"
+        # every JSON shape that is unhashable, or a guard narrowed to lists survives (Delta 13 B)
+        + json.dumps({"event": "fleet-active-wall", "ts": now - 20, "account": {"x": 1}})
         + "\n"
     )
     cr._close_wall_episode_without_stamp("a@x", now, "relief")
