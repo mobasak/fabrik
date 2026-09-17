@@ -5952,10 +5952,43 @@ def test_the_rearmed_stamp_carries_the_episodes_own_promise(tmp_path, monkeypatc
         cr._rearm_wall_stamp(stamp6, "a@x", now)
     err6 = capsys.readouterr().err
     assert not stamp6.exists() and "NOT re-armed" in err6 and "left in place" in err6, err6
-    assert stamp6.with_name(stamp6.name + ".rearm").exists()
+    assert stamp6.with_name(f"{stamp6.name}.{os.getpid()}.rearm").exists()
     # said FIRST — the order is the point of the fix and was ungraded (Delta 20 seat A, F4)
     assert err6.index("NOT re-armed") < err6.index("left in place"), err6
     assert os.environ["ROTATE_STATE_DIR"] == str(state), "the seams stayed pinned"
+    # and a temp file a sibling's replace has already taken: the cleanup must say nothing false —
+    # a shared temp name and a bare `unlink` printed `NOT re-armed` AND `left in place` for a
+    # stamp that WAS armed (Delta 21 seat A, A2)
+    stamp8 = tmp_path / "locks" / "fleet-exhausted-8"
+
+    def _move_then_refuse(path, times):
+        os.replace(path, stamp8)
+        raise OverflowError("refused after a sibling's move")
+
+    with monkeypatch.context() as m:
+        m.setattr(cr.os, "utime", _move_then_refuse)
+        cr._rearm_wall_stamp(stamp8, "a@x", now)
+    err8 = capsys.readouterr().err
+    assert "NOT re-armed" in err8 and "left in place" not in err8, err8
+    # and a path with an EMPTY name: `with_name` raised ValueError OUTSIDE the try (A3)
+    cr._rearm_wall_stamp(Path("/"), "a@x", now)
+    assert "NOT re-armed" in capsys.readouterr().err
+    # and the PROMISE: `Infinity` round-trips through json and raised out of `int()` with nothing
+    # said; a giant int wrote a 401-digit stamp that read back as a promise that never comes;
+    # the ledger latch's own `float()` of the same field raised too (Delta 21 seat A, A1 + mirror)
+    for bad in ("Infinity", "NaN", "1" + "0" * 400, "true"):
+        (state / "rotate-ledger.jsonl").write_text(
+            '{"event": "fleet-active-wall", "ts": '
+            + repr(now - 900)
+            + ', "account": "a@x", "resume_epoch": '
+            + bad
+            + "}\n"
+        )
+        stamp9 = tmp_path / "locks" / "fleet-exhausted-9"
+        cr._rearm_wall_stamp(stamp9, "a@x", now)
+        assert stamp9.read_text(encoding="utf-8") == "0", bad
+        stamp9.unlink()
+        assert cr._advisory_ledger_latch("a@x", now + cr._ADVISORY_MIN_GAP_S) is True, bad
     # and a NUL byte in the path, with no monkeypatch: write_text raises ValueError, which the
     # outer except must catch (Delta 19 A F5 / Delta 20 A F3) — and since nothing was written,
     # no cleanup runs and nothing claims a temp file was left (the first cut said so falsely)

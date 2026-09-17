@@ -106,8 +106,9 @@ import pytest  # noqa: E402 — placed with the rule it serves
 @pytest.fixture
 def _private_monkeypatch():
     """A `MonkeyPatch` of its OWN for the autouse box-state pins below. The function-scoped
-    `monkeypatch` fixture is SHARED with the test, so a test's `monkeypatch.undo()` — ten calls
-    across eight hub test files when measured — consumed the whole stack and unpinned every seam
+    `monkeypatch` fixture is SHARED with the test, so a test's `monkeypatch.undo()` — eleven calls
+    across eight hub test files when measured, ten across seven once this file's own moved to a
+    context — consumed the whole stack and unpinned every seam
     for the rest of that test: the fleet suite then mkdir'd and read the operator's real
     `~/.claude/state` (Delta 20 seat A, F2). A private instance is out of any test's reach;
     `tests/test_conftest_isolation.py` grades it."""
@@ -127,11 +128,11 @@ def _isolated_sound_lock_dir(tmp_path, _private_monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _isolated_kaizen_events_dir(tmp_path, _private_monkeypatch):
-    monkeypatch = _private_monkeypatch
     """Five tests built their own `dict(os.environ, …)` without `KAIZEN_EVENTS_DIR`, so a suite
     run wrote fabricated round/run events into the operator's REAL per-session events log under
     the live sid (D-191 review round 16, F349). Same class as the two pins above: one autouse
     pin, composable — a test that wants a specific dir still sets it after this."""
+    monkeypatch = _private_monkeypatch
     events = tmp_path / "kaizen-events"
     events.mkdir(exist_ok=True)
     monkeypatch.setenv("KAIZEN_EVENTS_DIR", str(events))

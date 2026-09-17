@@ -158,10 +158,28 @@ def test_a_tests_own_monkeypatch_undo_cannot_unpin_the_box_state_seams(
         "CLAUDE_FLEET_ROOT",
         "COMMAND_RUN_DIR",
         "KAIZEN_EVENTS_DIR",
+        "CLAUDE_SOUND_LOCKDIR",  # the sixth pin, missed by the first cut (Delta 21 seat B)
     ):
         val = os.environ.get(var)
         assert val and Path(val).resolve().is_relative_to(base), (var, val)
     assert os.environ.get("CLAUDE_SESSION_ID") == "pytest-isolated"
+
+
+def test_every_autouse_pin_keeps_its_docstring():
+    """The private-instance refactor inserted `monkeypatch = _private_monkeypatch` ABOVE one
+    fixture's docstring, demoting the record of why that pin exists to a dead expression that no
+    linter flags (Delta 21 seats A A4 / B)."""
+    import ast
+
+    tree = ast.parse((Path(__file__).resolve().parent / "conftest.py").read_text(encoding="utf-8"))
+    fixtures = {
+        n.name: n
+        for n in tree.body
+        if isinstance(n, ast.FunctionDef) and n.name.startswith("_isolated_")
+    }
+    assert len(fixtures) >= 4, sorted(fixtures)
+    for name in ("_isolated_kaizen_events_dir", "_isolated_opt_dir", "_isolated_command_run_dir"):
+        assert ast.get_docstring(fixtures[name]), name
 
 
 def test_no_test_can_reach_the_real_opt_or_mail_a_real_repo(tmp_path_factory):
