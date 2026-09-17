@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Rotation: the heavy review's round 4 — round 3 shrunk: the verdict decides the pick, the board reports honestly (2026-09-17)
+
+The D-278 remainder seat over `d11f83883` confirmed 4 of 9, all inside round 3's own hunks, fixed at `1d9f5c2fc`: refusing an unreadable-weekly row in the verdict had overridden the rolled-over-cache rescue thirty lines above it and moved the row out of `_SERVING_STATES`, taking the fleet band GREEN → RED on one garbage cache cell while its session reading was fine — the arm is gone, an unreadable weekly is no reading for the pick as it always was; `cap_walled` and its warning follow the verdict's own cap arm (a readable figure at or over its cap), and the relief writer alone refuses to promise from an unreadable figure; the state-keyed `returns_at` ladder had dropped the ACTIVE account's return in every walled or spent shape — it keeps it. Five graders red on HEAD; five suites → 508 passed; both twins byte-identical. The run is PAUSED here on the operator's word (infra is updating the review commands); the receipt's § RESUME carries the path.
 ### Changed — the CONVERGED scope-growth spec is APPROVED and gains D5: round zero executes any claim a FIX introduces (2026-09-17)
 
 - **Operator ruling (D-282)**, answering "agents fixing the findings but creating new issues, why?".
