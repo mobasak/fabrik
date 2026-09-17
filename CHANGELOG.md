@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the tick-burn projection and the `--status` clock renderers survive a corrupt cache row (2026-09-17)
+
+- **`_tick_burn` no longer raises on the active row** — it converted the cache's utilization and reset bare
+  and runs before the picker on every tick, so the picker fix's headline case was not achieved; both go
+  through `_usable_ts`. Grader red on HEAD.
+- **`--status` renders a reset the platform cannot date as `?`** — `datetime.fromtimestamp` raised on the
+  same value, and a finite `1e300` raises past any type validator, so the guard is on the conversion: one
+  `_fmt_reset_clock` helper for the fleet view, the legacy view and the drain leg. Grader red on HEAD.
+- **The picker's ordering is pinned** — a dated sibling wins over an undated one, a past reset and a reset
+  at `now` sort last (mutants M3/M4/M2 survived the first grader). Fix commit `175c6cff`; 250 + 295 passed;
+  gate `status: success`.
+
 ### Changed — /fabrik-review-scoped's round template carries `--own-fix` (2026-09-17)
 
 - Step 4's `command_run.py round` template — the command line an agent copies every round — never
@@ -18,7 +30,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed — the flip picker reads a candidate's weekly reset through the one validator (2026-09-17)
 
 - **A giant JSON int in a candidate row's weekly reset no longer raises out of `_pick_flip_target` or
-  `_fleet_picture`** — the picker's own `float(reset)` was the last bare reset read; it goes through
+  `_fleet_picture`** — the picker's own `float(reset)` was one more bare reset read; it goes through
   `_usable_ts`. Grader on the fleet fixture (a live-chained credentialed dir makes the row a candidate),
   red on HEAD. Fix commit `67421508`; the scoped review's reader passes are paused while infra edits the
   command (`docs/development/reviews/2026-09-17-review-scoped-pick-flip-target-resume.md`).
