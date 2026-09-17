@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Delta 23: the flip-candidate verdict reads the usage-cache row through the one validator; the review closes under the D-278 stop (2026-09-17)
+
+- **A giant JSON int in a cache-sourced row no longer raises out of the picture** — `_fleet_picture` reaches
+  `_flip_candidate_verdict` before its own validated reads, and that function converted `utilization` and
+  `resets_at_epoch` bare; both go through `_usable_ts`. The grader that missed it pinned `source: "live"`;
+  it now drives a cache-sourced giant row through the verdict, the picture and the flip target. Red on HEAD.
+- **The quota-posture Finish review closed under the D-278 scope-growth stop** at recorded round 14 (108 of 123
+  confirmed defects were the loop's own fixes): a single re-verification of the last fixed set, five of six
+  holding and the sixth fixed above; the recorded residue is routed to `docs/STRATEGIC_BACKLOG.md` with an
+  owner. Fix commit `18a5a98e`; 247 + 295 passed; gate `status: success`.
+
 ### Changed — the review scope-growth stop: a ratio over a three-round window (2026-09-17)
 
 - `commands/_fragments/term-coverage.md` + `term-edit.md`, rendering into 22 commands. The D-252 stop
