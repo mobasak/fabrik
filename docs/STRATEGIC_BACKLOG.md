@@ -57,10 +57,16 @@ Generated from the end-of-day plan-state on 2026-06-07 after the trio Phase 5.1.
   (1970), so the chain reads long-dead and the account is excluded from flip candidacy. Fail-safe direction,
   outside the plan's diff; the one-line `isinstance(exp, bool)` refusal wants its own red-first grader beside
   the existing OverflowError one. (2) `os.utime` silently CLAMPS the stored mtime to the filesystem's ceiling
-  (`0x3_FFFF_FFFF` = `15032385535.0`) for every ts between there and `time_t` (~9.2e18) — measured with
+  (`0x3_7FFF_FFFF` = `15032385535.0`) for every ts between there and `time_t` (~9.2e18) — measured with
   `1e17`, first recorded here as a wrap (Delta 19 seat A, F3); no writer can emit such a ts (`time.time()`),
-  so it is unreachable, but the re-arm has no upper bound on a returned row's ts below `time_t`, and a
-  clamped stamp never ages out. Owner: fleet.
+  so it is unreachable, but the re-arm has no upper bound on a returned row's ts below `time_t`. A clamped
+  mtime is FUTURE-dated, so the advisory latch reads the stamp as invalid, re-fires once, and the primary
+  write resets it (fail-open, measured 1 → 2 telegrams) — while the ledger ROW carrying that ts stays open
+  by the future-dated rule (Delta 20 seats A F6 / C #3; the first cut of this row said the opposite).
+  (3) The tick does not serialise itself — cron and the quota board both invoke it and `ROTATE_LOCK`
+  guards only credential writers — so the re-arm's documented intra-tick race is real: a sibling's relief
+  clearing the stamp between the re-arm's ledger read and its `os.replace` re-raises a hold just lifted,
+  with nothing said (Delta 20 seat A, P2). Owner: fleet.
 - **Three review-harness gaps the quota-posture closing rounds paid for, each measured by a seat
   (2026-09-17).** (1) `tests/conftest.py` pins ten box-state seams autouse but NOT the clock: every
   multi-tick probe hand-rolls a 4-line `cr._now` monkeypatch — one seat wrote it sixteen times. A
