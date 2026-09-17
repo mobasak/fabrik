@@ -109,7 +109,7 @@
 - [scripts/command_feedback_report.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_command_feedback_report.py, docs/reference/command-run-protocol.md
 - [scripts/command_run.py](../INDEX.md) (owner: infra): AFTER-EDIT: CLAUDE.md | templates/governance/CLAUDE.md | docs/reference/command-run-protocol.md | .claude/hooks/final_gate_stop.py | commands/_sources/fabrik-re
 - [scripts/container_images.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/reference/prebuilt-app-containers.md
-- [scripts/decisions.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_decisions_helper.py, docs/reference/decision-ledger.md, docs/superpowers/specs/2026-08-30-decision-ledger-v2-design.md, scripts/docs_upda
+- [scripts/decisions.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_decisions_helper.py, docs/reference/decision-ledger.md, scripts/docs_updater.py (keep MERGE_OWNER_RE identical) | NOT the 2026-08-30 desi
 - [scripts/declare_subscription.py](../INDEX.md) (owner: infra): AFTER-EDIT: db/services_registry_schema.sql
 - [scripts/deploy_doc_policy.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/workflows/DATA_SYNC_WORKFLOW.md
 - [scripts/doc_reconcile.py](../INDEX.md) (owner: infra): AFTER-EDIT: none
@@ -212,6 +212,7 @@
 - [scripts/verify_prod_parity.py](../INDEX.md) (owner: infra): AFTER-EDIT: docs/DEPLOYMENT.md, docs/OPERATIONS.md | none
 - [scripts/vps_apply_limits.sh](../INDEX.md) (owner: fleet): AFTER-EDIT: docs/superpowers/specs/2026-09-04-vps1-container-memory-limits-design.md | docs/STRATEGIC_BACKLOG.md
 - [scripts/vps_sync.py](../INDEX.md) (owner: fleet): AFTER-EDIT: none
+- [scripts/whoami_agent.py](../INDEX.md) (owner: infra): AFTER-EDIT: tests/test_whoami_agent.py, docs/workstation/agent-identity.md
 
 ## lib-module
 - [abuse-prevention](/opt/fabrik-lib/abuse-prevention/README.md) (owner: external:fabrik-lib): abuse-prevention
