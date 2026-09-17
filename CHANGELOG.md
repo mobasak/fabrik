@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Delta 21: the wall row's promise goes through the one validator in the re-arm and the ledger latch; a per-call temp name (2026-09-17)
+
+- **A corrupt `resume_epoch` no longer raises out of the re-arm or the ledger latch** — `Infinity` round-trips
+  through json and `int()` raised past the guard with nothing said (the tick's outer handler ate it and the
+  hold stayed down); a giant int wrote a 401-digit stamp that read back as a promise that never comes; the
+  latch's `float()` of the same field raised too. Both consumers run `_usable_ts`; an unusable promise is no
+  promise. Graders red on HEAD.
+- **The re-arm's temp file has a per-call name** (`<stamp>.<pid>.rearm`) and its removal tolerates a file a
+  sibling's move already took; `with_name` runs inside the guard, so an empty-name path is said, not raised.
+- **Harness and prose** — the alias line that demoted one autouse pin's docstring is moved below it and an
+  `ast.get_docstring` grader keeps it there; the isolation grader checks the sixth pin; the backlog's race
+  sentence is scoped to an unlocked direct call (both tick invokers hold `flock -n`); the undo count reads
+  eleven across eight files. Fix commit `6303ff01`; 246 + 167 passed; gate `status: success`.
+
 ### Fixed — Delta 20: the wall-stamp re-arm is built beside its path and moved in by one replace; the autouse test pins ride a private MonkeyPatch (2026-09-17)
 
 - **A failed re-arm never touches an existing stamp** — the in-place write overwrote a pre-existing writable
@@ -12,7 +26,7 @@ All notable changes to this project will be documented in this file.
   temp file the call wrote is ever removed. Three handler behaviours are newly graded: the failure is said
   before any cleanup, a NUL-byte path's ValueError is caught, a sealed directory raises nothing out.
 - **A test's own `monkeypatch.undo()` can no longer unpin the box-state seams** — the four autouse pins in
-  `tests/conftest.py` ride a private `pytest.MonkeyPatch`; before, one bare undo (ten exist across eight hub
+  `tests/conftest.py` ride a private `pytest.MonkeyPatch`; before, one bare undo (eleven existed across eight hub
   test files) unpinned `ROTATE_STATE_DIR` and friends for the rest of the test, and the fleet suite mkdir'd
   and read the operator's real `~/.claude/state`. Graded in `tests/test_conftest_isolation.py`, red on HEAD.
 - **Prose** — the mtime ceiling's hex is `0x3_7FFF_FFFF`; a clamped mtime is future-dated, so the latch reads it
