@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the GATE sentence's delta round: the setup-error trigger, the two rows' names, the older skip line (2026-09-17)
+
+The scoped review's fresh delta seat found three items inside the round-1 fix: the setup-error parenthetical named pytest as the trigger when `REQUIRED_TOOLS` probes ruff first and before any tier runs; "each not-run row" contradicted the sentence's own "a leg that ran but collected nothing"; and `FINAL_GATE_WORKFLOW.md`'s older four-skip line contradicted the table two lines below it. Fixed at `82f53ce5e` in both contracts and the doc, with "Tier-2 (`--json`)" reworded (a bare run is Tier 2), the roster-name claim narrowed to the decorated not-run rows, and the hub's static-tier clause excepting ruff and pytest; the split grader's pinned span follows at `1184db4d6`.
 ### Fixed — the GATE sentence claims only what the gate does, in every mode (2026-09-17)
 
 The scoped review over the GATE-row correction (three seats, 8 confirmed, all executed against `final_gate.py`'s branches) found the new sentence over-claiming: it promised a `pytest (NOT RUN)` row that `--lean`, `--systemic` and a docs-only Tier-2 run never emit; said the gate prints the no-`-x` remedy on every red when the tail is gated on the early-stop marker (a timeout or an exit-4 refusal carries neither); omitted the `pytest (NO TESTS COLLECTED)` row and the `status: "setup-error"` envelope; and left `tests/` unqualified when the gate resolves it against the invocation directory. Fixed at `036c7b237` in both contracts (the template's D-ref reads `hub D-284`), with the workflow table's nested-backtick cell, its third NOT-RUN reason and its exit-5 path repaired, and `tests/test_governance_template_split.py` now pinning three spans of the sentence in both copies (red on the previous contracts).
