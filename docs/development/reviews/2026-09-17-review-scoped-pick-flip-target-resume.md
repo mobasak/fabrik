@@ -26,7 +26,7 @@ that loop.
 |---|---|---|
 | 1 | 3 `fabrik-reviewer` seats on one brief (pin `1621c4ae`) | 12 candidates, 5 confirmed, 0 own-fix — fixed at `175c6cff0` (+ CHANGELOG `0b4df223e`) |
 | 2 (delta) | 3 fresh seats (pin `e1c17e97`) | 8 candidates, 7 confirmed, 5 own-fix — fixed at `e96386725` (+ CHANGELOG `dd1309b6a`) |
-| — | — | two consecutive confirming rounds: the scoped record closed by name and the surface ROUTED UP to `/fabrik-review` (its step-5 rule); the heavy review's receipt is `2026-09-17-review-scoped-pick-flip-target-review.md` (round zero `639caf855`, round 1 `12066600b`) |
+| — | — | two consecutive confirming rounds: the scoped record closed by name and the surface ROUTED UP to `/fabrik-review` (its step-5 rule); the heavy review's receipt is `2026-09-17-review-scoped-pick-flip-target-review.md` (round zero `639caf855`, rounds 1–4 `12066600b` · `5b8452da0` · `d11f83883` · `1d9f5c2fc`; PAUSED after round 4 on the operator's word — its § RESUME carries the path) |
 
 ## RESUME (executed 2026-09-17 — kept as the record of the path taken)
 

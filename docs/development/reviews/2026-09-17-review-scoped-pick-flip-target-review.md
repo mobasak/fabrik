@@ -1,6 +1,6 @@
 # Heavy review — routed up from `/fabrik-review-scoped` over the `_pick_flip_target` fix (2026-09-17)
 
-Status: IN-PROGRESS (round 1 seats dispatched 2026-09-17; the closing delta round is owed)
+Status: IN-PROGRESS (PAUSED 2026-09-17 on the operator's word — infra is updating the review commands; round 4 checkpointed at `1d9f5c2fc`; see § RESUME)
 
 **Surface:** `639caf855bfc5d71264c032cd237a388a7d9f984` + `13a759960b14a980389b7ec57ae9e314` (HEAD at
 round 1's dispatch + `git diff HEAD | md5sum`). The cumulative diff `67421508d..639caf855` over
@@ -72,6 +72,29 @@ $ .venv/bin/python scripts/review_rubric.py --changed scripts/sysadmin/claude_ro
 |---|---|---|---|
 | Pass 0 | method: re-derivation; round-zero probe — the class swept at 13 mirror sites, one grader red on HEAD (OverflowError in `_usage_windows`), 495 passed across five suites, committed at `639caf855` | found: 13, new: 13, confirmed: 13, fixed: 13, unexecuted: 0 | the orchestrator alone (D-231 pre-pin probe; not a finder round) |
 | Pass 1 | method: citation — every seat cited `path:line` at `639caf855`, the orchestrator EXECUTED all 17 (probe scripts under `<scratch>/rs/hv/adj/`, six graders red on HEAD in a throwaway worktree) | found: 17, new: 17, confirmed: 17, fixed: 15, unexecuted: 0 | native opus×1 (slice 1: claude_rotate.py) + sonnet×2 (slice 2: the graders; slice 3: CHANGELOG + prose); 3 dispatched, 3 returned; 2 of the 17 are RECORDED (immutable commit-message counts, corrected in `ec65c5c29`), 1 half-RECORDED (the range extension); own-fix 4 of 17 (the round-zero commit's message, its missing entry, its NaN claim, its grader's assertion) |
+| Pass 2 | method: re-derivation — two fresh non-authoring seats over the round-1 fix diff plus one hop (pin `14bcc06c`); the orchestrator re-executed every confirmation (`<scratch>/rs/hv/adj/probe2.py`: the spent account beating the fresh one, the 3-day-stale reset winning the min, the spurious cross-window burn, the non-dict window raising) and re-derived seat B's four surviving mutants | found: 16, new: 16, confirmed: 11, fixed: 11, unexecuted: 0 | native opus×1 (seat A: code hunks + one hop — 2 confirmed, 5 plausible all executed and fixed, 6 refuted) + sonnet×1 (seat B: the graders — 4 confirmed mutant survivors, 1 plausible attribution nit refuted, 4 refuted); 2 dispatched, 2 returned; own-fix 11 of 11 (every confirmed candidate lay inside `12066600b`); fixed at `5b8452da0` (+ CHANGELOG `41819e730`), five graders red on HEAD, 504 passed |
+| Pass 3 | method: re-derivation — two fresh non-authoring seats over the round-2 fix diff plus one hop (pin `3f21a3b6`); the orchestrator re-executed every confirmation (`<scratch>/rs/hv/adj/probe3.py`: the unreadable-weekly row reclassified with a resume a day out, the warning contradicting the queue line, the parked non-dict window raising, the `>` bar refusing a reset at now) | found: 9, new: 9, confirmed: 5, fixed: 5, unexecuted: 0 | native opus×1 (seat C: code hunks + one hop — 3 confirmed, 2 plausible executed and fixed, 3 refuted) + sonnet×1 (seat D: the graders — 0 confirmed, 1 plausible REFUTED as a gap in the brief's `-k` selection, not the surface; 10 mutants all killed); 2 dispatched, 2 returned; own-fix 5 of 5 — the SECOND consecutive round at or above two-thirds, so the D-278 scope-growth stop fired (`command_run.py round` printed it): fixed at `d11f83883` (+ CHANGELOG `c02e4a088`), the residue routed to `docs/STRATEGIC_BACKLOG.md` (`713b34f41`, owner fleet), and ONE bounded remainder round over this fixed set follows |
+| Pass 4 | method: re-derivation — one fresh non-authoring remainder seat over the round-3 fixed set (pin `b57ecfe8`), bounded by the D-278 stop; the orchestrator re-derived every confirmation through graders red on HEAD in a throwaway worktree (the active account's dropped return, the verdict arm overriding the rolled-over rescue, the fleet band RED on one garbage cell, the dashboard mirror diverging) | found: 9, new: 9, confirmed: 4, fixed: 4, unexecuted: 0 | native opus×1 (seat E — 4 confirmed, 1 plausible RECORDED as the cap-walled naming asymmetry now moot, 3 refuted, 1 pre-existing dashboard `_returns_at` disagreement RECORDED to the backlog); 1 dispatched, 1 returned; own-fix 4 of 4 — round 3 was SHRUNK rather than extended: the verdict arm dropped, `cap_walled` and the warning follow the verdict, the ACTIVE account keeps its return; fixed at `1d9f5c2fc`, 508 passed |
+
+## RESUME (paused 2026-09-17 after round 4)
+
+The run record was handed off (`command_run.py handoff`), not closed: the D-278 scope-growth stop has fired
+twice (rounds 3 and 4 each confirmed only residue of the previous fix) and the last remainder round is not
+yet quiet. Every fix is committed and pushed; nothing lives only in scratch.
+
+1. Re-read `~/.claude/commands/fabrik-review.md` — the rule that binds the resumed round is the rendered file.
+2. `python3 scripts/command_run.py handoff --resume <the artifact this record's handoff names>` (or a fresh
+   `start --command fabrik-review --phases 5 --surface "<this file> — resumed"` if the resume path is gone).
+3. ONE more bounded remainder round over the round-4 fixed set — `git diff 1d9f5c2fc~1 1d9f5c2fc --
+   scripts/sysadmin/claude_rotate.py tests/test_claude_fleet.py` pinned under the scratchpad, md5 in the brief,
+   `dispatch --seats 1` before the seat goes out, a fresh non-authoring Opus seat, the mutant recipe naming
+   BOTH twins (`scripts/aro-wake/claude_rotate.py`) or deselecting `test_twin_copies_are_byte_identical`.
+4. On `confirmed: 0`: `round --seats 1 --findings <n> --confirmed 0 --own-fix 0`, hygiene re-run, the gate
+   re-measured into § Gate, a Pass 5 row, Status → CONVERGED, commit by pathspec, push, `done --command
+   fabrik-review` with the four-field feedback. On a further own-fix finding: the loop is over by D-278 —
+   fix only if it is a regression the round introduced, route the rest to the backlog row already opened
+   (`docs/STRATEGIC_BACKLOG.md` § Residue, the 2026-09-17 routed-up entry), and close on that state with the
+   receipt's last row honest.
 
 ## Gate
 
