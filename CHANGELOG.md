@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Delta 16: the wall reader's usable-ts invariant written once and trusted; a timestamp at or before the epoch is not a flip (2026-09-17)
+
+- **`_open_wall_rows` states its INVARIANT** — every row it returns carries a usable ts, clock or
+  no clock — and its consumers trust it (`scripts/sysadmin/claude_rotate.py`, twin identical):
+  the latch's remaining re-validation and the re-arm's `else now` arm were unreachable the moment
+  `usable` shipped, the third sibling of a guard four rounds kept, deleted and re-added one at a
+  time (Delta 16 seat A). Two deliberate non-rules said beside it: a future-dated finite ts stays
+  open (the latches fail open on it); a later corrupt row retires an account's earlier episode.
+- **The flip reader refuses a ts at or before the epoch** — the ledger cannot predate its writer,
+  so `0` or `-5` is corruption, not a flip in 1970; the boolean guard had closed the type door
+  and left the value door open (seat A; B21k arm red on the pre-fix code). Its docstring and
+  stderr now name every cause that fires (a JSON boolean, non-finite, at or before the epoch,
+  stamped in the future); the caller-facing docstring carries the clockless rule; the two readers'
+  opposite fail directions are said where the rule is (seat C).
+
 ### Fixed — Delta 15: any unusable wall-row timestamp expires the row; the dead latch guard removed; the flip reader's `-Infinity` arm graded (2026-09-17)
 
 - **`_open_wall_rows` treats every unusable timestamp alike** (`scripts/sysadmin/claude_rotate.py`,
