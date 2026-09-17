@@ -3249,7 +3249,10 @@ def _flip_candidate_verdict(
     for key in ("five_hour", "seven_day"):
         w = row.get(key)
         u = w.get("utilization") if isinstance(w, dict) else None
-        utils[key] = float(u) if isinstance(u, (int, float)) else None
+        # through the ONE validator: `_fleet_picture` reaches here BEFORE its own validated reads,
+        # and a giant JSON int in the cache raised out of `float()` — the posture was never written
+        # for as long as it sat there (Delta 23, the D-278 remainder round); a bool reads None
+        utils[key] = _usable_ts(u)
     # A CACHED standby whose reset time has already passed holds a ROLLED-OVER window: an idle
     # account cannot burn fleet quota, so that window is empty by construction (the board applies
     # the same rule, per cell). Read it as 0% — the stale 100% is not evidence of anything
@@ -3257,12 +3260,12 @@ def _flip_candidate_verdict(
     # weekly-walled account wait a full probe cycle after its weekly reset (closing review P3-3).
     for key in ("five_hour", "seven_day"):
         w = row.get(key)
-        w_reset = w.get("resets_at_epoch") if isinstance(w, dict) else None
+        w_reset = _usable_ts(w.get("resets_at_epoch") if isinstance(w, dict) else None)
         if (
             row.get("source") == "cache"
             and utils[key] is not None
-            and isinstance(w_reset, (int, float))
-            and float(w_reset) <= _now()
+            and w_reset is not None
+            and w_reset <= _now()
         ):
             utils[key] = 0.0
     if slug is None:

@@ -3650,11 +3650,11 @@ def test_no_advisory_churn_from_reset_jitter_while_a_sibling_has_headroom(tmp_pa
 # yourself to start 1 minute after next account session resets" ──────────────────────────────
 
 
-def _row(email, session, weekly, cap=None, s_reset=None, w_reset=None, slug=None):
+def _row(email, session, weekly, cap=None, s_reset=None, w_reset=None, slug=None, source="live"):
     return {
         "email": email,
         "slugs": [slug or email.split("@")[0]],
-        "source": "live",
+        "source": source,
         "weekly_cap": cap,
         "five_hour": {"utilization": session, "resets_at_epoch": s_reset},
         "seven_day": {"utilization": weekly, "resets_at_epoch": w_reset},
@@ -3680,6 +3680,14 @@ def test_a_giant_int_in_the_usage_cache_does_not_raise_out_of_the_relief_writer_
     assert cr._window_reading({"utilization": giant, "resets_at_epoch": now}) == (None, now)
     picture = cr._fleet_picture(rows, "act", now)  # the picture composer read the same field bare
     assert isinstance(picture, dict)
+    # and the CACHE-sourced row with the giant in BOTH fields: `_fleet_picture` calls
+    # `_flip_candidate_verdict` before its own validated reads, and that function converted bare —
+    # the first cut of this grader pinned `source: "live"` and could not reach it (Delta 23 seat)
+    cached = _row("c@x", giant, giant, cap=90, s_reset=giant, w_reset=giant, source="cache")
+    verdict = cr._flip_candidate_verdict(cached, 98.0)
+    assert verdict[1] == {"five_hour": None, "seven_day": None}, verdict
+    assert isinstance(cr._fleet_picture(rows + [cached], "act", now), dict)
+    assert cr._pick_flip_target(rows + [cached]) != "c@x"
 
 
 def test_next_session_relief_prefers_the_soonest_session_reset_of_a_weekly_ok_sibling():

@@ -144,7 +144,7 @@ def test_the_suite_never_reads_the_operators_live_run_record(tmp_path) -> None:
 def test_a_tests_own_monkeypatch_undo_cannot_unpin_the_box_state_seams(
     monkeypatch, tmp_path_factory
 ):
-    """The autouse pins ride a PRIVATE `MonkeyPatch`, so a test's own `monkeypatch.undo()` — ten
+    """The autouse pins ride a PRIVATE `MonkeyPatch`, so a test's own `monkeypatch.undo()` — eleven
     calls across eight hub test files — undoes the test's patches and nothing else. Before, undo
     consumed the shared stack, every seam went unset for the rest of the test, and the fleet suite
     mkdir'd and read the operator's real `~/.claude/state` (Delta 20 seat A, F2)."""
