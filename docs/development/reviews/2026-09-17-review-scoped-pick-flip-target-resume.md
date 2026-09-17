@@ -1,4 +1,4 @@
-# /fabrik-review-scoped — `_pick_flip_target`'s weekly reset through the one validator (PAUSED 2026-09-17)
+# /fabrik-review-scoped — `_pick_flip_target`'s weekly reset through the one validator (RESUMED and ROUTED UP 2026-09-17)
 
 The Delta 24 seat of the quota-posture Finish review (`2026-09-16-plan-1-quota-posture-review.md`,
 Round 24) RECORDED that `_pick_flip_target` still converted a candidate row's `seven_day.resets_at_epoch`
@@ -24,9 +24,11 @@ that loop.
 
 | Round | Seats | Result |
 |---|---|---|
-| 1 | not yet dispatched | the floor is three readers on one brief over the diff, then a delta pass with a fresh non-authoring reader confirming zero — PAUSED on the operator's word (2026-09-17) because infra is editing `/fabrik-review-scoped` itself; the passes run under the command as re-rendered |
+| 1 | 3 `fabrik-reviewer` seats on one brief (pin `1621c4ae`) | 12 candidates, 5 confirmed, 0 own-fix — fixed at `175c6cff0` (+ CHANGELOG `0b4df223e`) |
+| 2 (delta) | 3 fresh seats (pin `e1c17e97`) | 8 candidates, 7 confirmed, 5 own-fix — fixed at `e96386725` (+ CHANGELOG `dd1309b6a`) |
+| — | — | two consecutive confirming rounds: the scoped record closed by name and the surface ROUTED UP to `/fabrik-review` (its step-5 rule); the heavy review's receipt is `2026-09-17-review-scoped-pick-flip-target-review.md` (round zero `639caf855`, round 1 `12066600b`) |
 
-## RESUME
+## RESUME (executed 2026-09-17 — kept as the record of the path taken)
 
 1. Re-read `~/.claude/commands/fabrik-review-scoped.md` (infra's edit will have landed) — the rule that
    binds the resumed passes is the rendered file, not this note.
