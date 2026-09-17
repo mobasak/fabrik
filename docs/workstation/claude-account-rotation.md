@@ -36,7 +36,13 @@ Two environment variables — both, or the binding is a no-op:
   set on 2026-09-17 (D-287): it is the CLI's peer registry, read through the pointer as it stands
   now but written under the dir the pointer named at each session's start, so per-account it
   emptied every window's `ListAgents` on every flip. A dir created before that date is healed by
-  hand once: move its `sessions/*` into `~/.claude/sessions/`, replace the dir with the symlink)
+  hand once: check for a same-named `<pid>.json` across the dirs first (`ls ~/.claude-fleet/*/sessions
+  | sort | uniq -d` — none on 2026-09-17), move its `sessions/*` into `~/.claude/sessions/`, replace
+  the dir with the symlink. `--new-dir` now creates the canonical dir when the CLI has not yet, names
+  a REAL dir it finds where the link belongs, and `--status`/the tick warn on one — the D-287 state
+  has a signal. Records whose pid another process has since reused are never reaped by the CLI
+  (it only trusts ESRCH); harmless — their socket is gone — but the merge concentrated them, five
+  of 911 on 2026-09-17)
 - `CLAUDE_QUOTA_HOME` → the same path; the wall/resume layer (`claude-quota.py`) resolves its
   home from THIS variable, not from `CLAUDE_CONFIG_DIR`.
 

@@ -1429,6 +1429,11 @@ _SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 # 2026-09-17: 18 live sessions registered under ozgurbasak/, one under sarp/ after the 18:51 flip,
 # and every window on the box listed exactly one peer (D-287).
 _SHARED_DIR_LINKS: Final = ("agents", "commands", "skills", "projects", "sessions")
+# The CLI creates these two LAZILY on a box's first session, so on a fresh box the canonical dir
+# is absent when --new-dir runs; skipping the link there (the rule for the operator-content dirs
+# above) would let the CLI create a REAL per-account dir and bring D-287 back for that slug. The
+# scaffolder creates the canonical dir instead (scoped review of D-287, seat A F1).
+_SHARED_DIR_MKDIR: Final = ("projects", "sessions")
 # settings.json is COPIED, never symlinked. WRITE-THROUGH PROBE (2026-08-15): the CLI writes config
 # with tmp+rename, and POSIX rename(2) operates on the LINK rather than its target — os.replace onto
 # a FILE symlink REPLACES the link with a regular file. A symlinked settings.json would therefore
@@ -1923,12 +1928,27 @@ def _scaffold_dir(dest: Path, notes: list[str], source: Path) -> None:
 
     for name in _SHARED_DIR_LINKS:
         link = dest / name
-        if link.is_symlink() or link.exists():
+        if link.is_symlink():
+            continue
+        if link.exists():
+            # a REAL dir where the link belongs is the D-287 state; a silent resume kept it
+            # invisible (scoped review, seat A F2) — say it, never touch it (it may hold live records)
+            notes.append(
+                f"{name}/ is a REAL directory, not the shared link — its contents are invisible "
+                f"to every other account; merge it into {CLAUDE_DIR / name} by hand and replace "
+                "it with the symlink"
+            )
             continue
         src = CLAUDE_DIR / name
         if not src.is_dir():
-            notes.append(f"skipped the {name}/ symlink — {src} does not exist")
-            continue
+            if name not in _SHARED_DIR_MKDIR:
+                notes.append(f"skipped the {name}/ symlink — {src} does not exist")
+                continue
+            try:
+                src.mkdir(mode=0o700, parents=True, exist_ok=True)
+            except OSError as e:
+                notes.append(f"skipped the {name}/ symlink — cannot create {src} ({e})")
+                continue
         link.symlink_to(src, target_is_directory=True)
 
     for name in _SHARED_FILE_COPIES:
@@ -3910,6 +3930,27 @@ def _relogin_block(slug: str, email: str) -> str:
         f'CLAUDE_CONFIG_DIR="$HOME/.claude-fleet/{slug}" CLAUDE_QUOTA_HOME="$HOME/.claude-fleet/{slug}" claude'
         f" → /login as {email} → /exit"
     )
+
+
+def _shared_link_warnings() -> list[str]:
+    """One ⚠ line when any fleet dir holds a REAL directory where a `_SHARED_DIR_LINKS` link
+    belongs — the D-287 state (for `sessions/`: every window's peer list shrinks to the sessions
+    started after the last flip) had NO runtime signal, and the operator's symptom was the only
+    detector (scoped review, seat A F3). Read-only: the merge is the operator's, by hand."""
+    bad = [
+        f"{d.name}/{name}"
+        for d in _fleet_dirs()
+        for name in _SHARED_DIR_LINKS
+        if (d / name).exists() and not (d / name).is_symlink()
+    ]
+    if not bad:
+        return []
+    return [
+        f"⚠ shared state fragmented: {', '.join(bad)} — a REAL dir where the link to "
+        f"{CLAUDE_DIR}/<name>/ belongs, invisible to every other account (sessions/: the peer "
+        "list shrinks to one after a flip, D-287); merge it into the canonical dir by hand and "
+        "replace it with the symlink"
+    ]
 
 
 def _posture_hook_wiring_warnings() -> list[str]:
@@ -6277,7 +6318,9 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
     # every agent is using) is walled with no auto-relief. A single account crossing the threshold is a
     # non-event — the flip leg above already re-pointed to a sibling with headroom.
     _fleet_active_wall_advisory(accounts, now, threshold)
-    for warn in _fleet_row_warnings(accounts) + _posture_hook_wiring_warnings():
+    for warn in (
+        _fleet_row_warnings(accounts) + _posture_hook_wiring_warnings() + _shared_link_warnings()
+    ):
         print(warn)
     _chain_expiry_push(accounts, now)
     for p in pending:

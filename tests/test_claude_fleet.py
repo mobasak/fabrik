@@ -140,6 +140,49 @@ def test_the_peer_registry_is_one_dir_across_every_account(tmp_path, monkeypatch
     assert (cdir / "sessions" / "4242.json").is_file()  # the one canonical inode, like projects/
 
 
+def test_new_dir_creates_the_lazily_made_canonical_dirs_instead_of_skipping_the_link(
+    tmp_path, monkeypatch, capsys
+):
+    """On a fresh box `~/.claude/sessions` (and `projects`) do not exist until the CLI's first
+    session; skipping the link there let the CLI create a REAL per-account dir and brought D-287
+    back for that slug (scoped review, seat A F1). The scaffolder creates the canonical dir."""
+    fleet, cdir, _home = _canonical(tmp_path, monkeypatch)
+    shutil.rmtree(cdir / "sessions")
+    shutil.rmtree(cdir / "projects")
+    capsys.readouterr()
+    assert cr.main(["--new-dir", "seo", "a@b.com"]) == 0
+    out = capsys.readouterr().out
+    for name in ("sessions", "projects"):
+        assert (fleet / "seo" / name).is_symlink(), (name, out)
+        assert (cdir / name).is_dir() and oct((cdir / name).stat().st_mode & 0o777) == "0o700"
+    assert "skipped the sessions/" not in out and "skipped the projects/" not in out
+
+
+def test_a_real_dir_where_the_shared_link_belongs_is_named_on_resume_and_on_status(
+    tmp_path, monkeypatch, capsys
+):
+    """The D-287 state — a REAL `sessions/` in a fleet dir — was silently skipped on every
+    `--new-dir` resume and had no runtime signal at all (scoped review, seat A F2/F3): the
+    resume names it, `--status` and the tick warn, and nothing touches the dir."""
+    fleet, cdir, _home = _canonical(tmp_path, monkeypatch)
+    assert cr.main(["--new-dir", "seo", "a@b.com"]) == 0
+    link = fleet / "seo" / "sessions"
+    link.unlink()
+    link.mkdir()
+    (link / "4242.json").write_text("{}")
+    capsys.readouterr()
+    assert cr.main(["--new-dir", "seo", "a@b.com"]) == 0
+    out = capsys.readouterr().out
+    assert "sessions/ is a REAL directory" in out, out
+    assert link.is_dir() and not link.is_symlink() and (link / "4242.json").exists()
+    warns = cr._shared_link_warnings()
+    assert len(warns) == 1 and "seo/sessions" in warns[0] and "D-287" in warns[0], warns
+    link.rmdir() if False else None
+    shutil.rmtree(link)
+    link.symlink_to(cdir / "sessions", target_is_directory=True)
+    assert cr._shared_link_warnings() == []
+
+
 def test_new_dir_without_a_project_writes_no_carrier(tmp_path, monkeypatch):
     """Hub role dirs carry the env on the launch line, not in a repo file."""
     fleet, *_ = _canonical(tmp_path, monkeypatch)
