@@ -5800,15 +5800,33 @@ def test_a_stray_ledger_line_does_not_abort_the_flip_reader(tmp_path, monkeypatc
     state = tmp_path / "state"
     state.mkdir()
     monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
-    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)  # the reader skips a future-dated row
+    # the pin is load-bearing: a future-dated DICT row ends the scan fail-CLOSED (it is not skipped —
+    # only a non-dict line is), and FLEET_NOW is in the real clock's future (Delta 14 seat A, F7)
+    monkeypatch.setattr(cr, "_now", lambda: FLEET_NOW)
     led = state / "rotate-ledger.jsonl"
     led.write_text(
         json.dumps({"event": "flip", "ts": FLEET_NOW - 600, "from": "a@x", "to": "b@x"})
         + "\n"
         + '"x"\n'
     )
-    ts, _ = cr._last_switch_ts(event="flip")
-    assert ts == FLEET_NOW - 600, ts
+    ts, degraded = cr._last_switch_ts(event="flip")
+    # both fields: `degraded` is what `_flip_active` fails closed on, and a reader that reported
+    # a clean read as degraded passed the first cut of this grader (Delta 14 seat B)
+    assert ts == FLEET_NOW - 600 and degraded is False, (ts, degraded)
+    # the EVENT selector, which the guard's grader never pinned (Delta 14 seat A, F1): a `switch`
+    # row must not answer the flip clock — under a selector-less reader every dict row would
+    led.write_text(
+        json.dumps({"event": "flip", "ts": FLEET_NOW - 600, "from": "a@x", "to": "b@x"})
+        + "\n"
+        + json.dumps({"event": "switch", "ts": FLEET_NOW - 60, "from": "b@x", "to": "a@x"})
+        + "\n"
+    )
+    assert cr._last_switch_ts(event="flip") == (FLEET_NOW - 600, False)
+    # and a JSON `true` ts is an UNUSABLE ts (fail-closed), never a flip in 1970 (fail-open) — the
+    # docstring forbids exactly that and the sibling readers already refuse a bool (F2)
+    led.write_text(json.dumps({"event": "flip", "ts": True, "from": "a@x", "to": "b@x"}) + "\n")
+    ts2, degraded2 = cr._last_switch_ts(event="flip")
+    assert degraded2 is True and ts2 != 1.0, (ts2, degraded2)
 
 
 def test_the_rearmed_stamp_carries_the_episodes_own_promise(tmp_path, monkeypatch, capsys):
@@ -5850,6 +5868,12 @@ def test_the_rearmed_stamp_carries_the_episodes_own_promise(tmp_path, monkeypatc
         finally:
             led.chmod(0o644)
         assert not stamp2.exists() and "ledger unreadable" in capsys.readouterr().err
+    # and the ROW-GONE race: readable ledger, no open row — no stamp, and nothing said (the
+    # docstring says so; the negative had no grader — Delta 14 seat A, F5)
+    (state / "rotate-ledger.jsonl").write_text("")
+    stamp3 = tmp_path / "locks" / "fleet-exhausted-3"
+    cr._rearm_wall_stamp(stamp3, "a@x", now)
+    assert not stamp3.exists() and capsys.readouterr().err == ""
 
 
 def test_the_close_row_names_every_episode_it_ends(tmp_path, monkeypatch):
@@ -5931,6 +5955,11 @@ def test_a_wall_row_the_latch_has_retired_is_not_an_open_episode_to_the_closer(
         + "\n"
     )
     assert cr._open_wall_episode("b@x") != (None, True), "without a clock the row is open"
+    # a bare NaN ts never expired (`now - nan > week` is False) and never released the latch —
+    # an immortal wall row silencing that account forever (Delta 14 seat A, F6)
+    led.write_text('{"event": "fleet-active-wall", "ts": NaN, "account": "b@x"}\n')
+    assert cr._open_wall_episode("b@x", now) == (None, True)
+    assert cr._advisory_ledger_latch("b@x", now + 8 * 86400) is False
     cr._close_wall_episode_without_stamp("a@x", now, "relief")
     assert len(led.read_text().splitlines()) == 1, "no close row for a retired episode"
 

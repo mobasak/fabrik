@@ -2212,7 +2212,14 @@ def _last_switch_ts(event: str = "switch") -> tuple[float | None, bool]:
             isinstance(e, dict) and e.get("event") == event
         ):  # a stray line is skipped, never a crash
             ts = e.get("ts")
-            if isinstance(ts, (int, float)) and float(ts) <= _now() + _CLOCK_SKEW_TOLERANCE_S:
+            if (
+                isinstance(ts, (int, float))
+                and not isinstance(
+                    ts, bool
+                )  # `true` read as 1.0 — a 1970 flip, fail-OPEN (Delta 14 A F2)
+                and math.isfinite(ts)
+                and float(ts) <= _now() + _CLOCK_SKEW_TOLERANCE_S
+            ):
                 return float(ts), False
             # Two unknowns, one verdict. A non-numeric ts cannot be compared at all; a ts stamped
             # in the FUTURE makes ``now - last`` negative, which reads as "within dwell" for as
@@ -5545,7 +5552,9 @@ _ADVISORY_MIN_GAP_S = (
 # stamp path from the stamp's mtime (the re-arm sets it to the episode's ts) and the ledger
 # latch from the row's ts (Delta 11 seat A). The ledger latch is per ACCOUNT; the stamp is one
 # fleet-wide file, so it holds a SECOND account's fresh wall until the first's promise (Delta 12
-# seat A, #6). The escapes apply only while the stamp is ABSENT and the ledger latch decides:
+# seat A #6 measured the floor, Delta 13 seat A F1 the promise — or the WEEK re-arm when no
+# relief could be named, the fleet-wall case). The escapes apply only while
+# the stamp is ABSENT and the ledger latch decides:
 # an unreadable ledger fails open past it, a ledger flapping readable/unreadable re-fires at
 # the tick rate (Delta 9 seat B, F4), and a ledger that lost the row (truncated by hand —
 # nothing tracked truncates it) re-advises inside the floor (Delta 10 seat B, F5) — bounded,
@@ -5590,7 +5599,7 @@ def _open_wall_rows(now: float | None = None) -> tuple[dict[str, dict], bool]:
                 now is not None
                 and isinstance(ts, (int, float))
                 and not isinstance(ts, bool)
-                and now - float(ts) > _FLEET_WALL_REARM_S
+                and (not math.isfinite(ts) or now - float(ts) > _FLEET_WALL_REARM_S)
             )
             acct = row.get("account")
             if isinstance(acct, (list, dict, set)):
@@ -5710,7 +5719,7 @@ def _advisory_ledger_latch(email: str, now: float) -> bool:
             False  # no open episode — an unreadable ledger reads (None, False): fails OPEN, speak
         )
     ts = last.get("ts")
-    if not isinstance(ts, (int, float)) or isinstance(ts, bool):
+    if not isinstance(ts, (int, float)) or isinstance(ts, bool) or not math.isfinite(ts):
         return False
     age = now - float(ts)
     # the stamp tolerates 60 s of future-dating (WSL suspend / NTP); so does this (seat B, F3)
@@ -5853,11 +5862,14 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     # the floor (measured: +1800 with A's promise due at +600; 120 h with a weekly-reset promise)
     # where the per-account ledger latch speaks at once (Delta 12 seat A #6, Delta 13 seat A F1).
     # The fleet IS still walled then, so the HOLD is right; what the second account loses is its
-    # own message, and the relief WAKE — not the message — is what frees sessions when the wall
-    # actually lifts. Cost: a promise falling due inside the floor defers the follow-up notice —
-    # the wake the message names as its mechanism — to the floor: up to ~28 min past the epoch
-    # the fleet was given on the code clock, one `*/5` tick more in practice (~33 min) since the
-    # floor is strict and the release is evaluated only on a tick (F4).
+    # own message. What frees sessions when the wall actually lifts is not the message: a LIVE
+    # session is freed by the stamp's absence at its next tool call (`quota_stop.py`), an ended
+    # one by the relief WAKE — and only if its self-watch is ARMED (D-178). Cost: a promise
+    # falling due inside the floor defers the follow-up notice — the wake the message names as
+    # its mechanism — to the floor: up to ~28 min past the epoch the fleet was given on the code
+    # clock, and up to one `*/5` tick more (≤ ~33 min): the floor is exactly six ticks and the
+    # release is evaluated only on a tick, so a tick landing a hair early waits one more (the
+    # strict `<` is what lets an exactly-aligned tick release — Delta 14 seat A, F4).
     inside_floor = age is not None and -_CLOCK_SKEW_TOLERANCE_S <= age < _ADVISORY_MIN_GAP_S
     latched = stamp.exists() and (
         inside_floor
