@@ -3116,3 +3116,74 @@ mailbox pass that passed for the wrong reason.
 DESTINATION: `CLAUDE.md` § Behavior, the private-index recipe, when the lock clears — add the
 non-empty-blob abort at step 2 and name the second cause beside the split-shell one. Both mail ids
 above carry the executed evidence. Owner: infra.
+
+## [infra] /fabrik-execute-plan's phase-gate verdicts: three rows, three rejected cuts, and the referent that killed them
+
+`/fabrik-command-improve` ran over `/fabrik-execute-plan`'s queue on 2026-09-17 and closed with **NO
+EDIT**. Three review rounds (9, 3 and 5 CONFIRMED) killed three successive cuts, the D-252 scope-growth
+stop fired at 3/3 → 5/5 own-fix, and the working-tree edit was reverted. This row exists so the next
+attempt starts from the evidence rather than from a fourth draft. Rows still UNANSWERED:
+1788820659.8885953, 1789477812.4539094, 1788815558.909572 (and 1788799311.0929735, below).
+
+**WHAT THE THREE ROWS ACTUALLY DESCRIBE** — one failure: an agent acted on a gate's `status` without
+establishing what the gate executed. A suite under an interpreter missing a dep; a `-x` stop naming one
+failure of an unknown-sized list; a green mechanism check read as evidence about DATA.
+
+**THE ROOT CAUSE OF ALL THREE REJECTED CUTS — read this before writing any replacement.** The line the
+edit kept landing on is `run phase validation gate (bash checks from the plan)`. Its subject is a
+**plan-authored command**, NOT `final_gate.py`. `commands/_sources/fabrik-plan-after-chat.md:498-505`
+defines a per-step gate as "the exact command + the expected result" and reserves `final_gate.py` for the
+plan's FINAL step; a live hub plan confirms it — `docs/development/plans/2026-09-16-plan-1-quota-posture.md:130`
+is `uv run pytest tests/test_governance_template_split.py -x --tb=short` and `:249` is the same without
+`-x`. So every `final_gate.py` fact is FALSE of that line's actual subject: a `uv run pytest` gate emits
+no `warnings`/`skipped_checks`/`status` JSON, runs under uv's project env rather than
+`final_gate.py:69-79`'s resolution, may or may not pass `-x`, and prints no re-run remedy.
+**A replacement must either be machinery-free, or name its referent in each sentence.**
+
+**EXECUTED EVIDENCE, so it is not re-derived** (all verified by the orchestrator, not taken from a seat):
+- An UNGUARDED missing import is a collection ERROR (`Interrupted: 1 error during collection`, rc 2) that
+  ABORTS the run — never a silent green. Only a GUARDED import (`pytest.importorskip`, a conftest
+  `except -> skip`) yields `1 passed, 1 skipped` at rc 0. Cut 1 asserted the opposite.
+- `final_gate.py:69` `PROJECT_ROOT = Path.cwd()`; `:70` `VENV_PYTHON = PROJECT_ROOT/".venv"/"bin"/"python"`;
+  `:79` `PYTHON = str(VENV_PYTHON) if VENV_PYTHON.exists() else sys.executable`. So "never the interpreter
+  you typed" (cut 2) is FALSE in the else branch, and it is the CWD's venv, not the repo's. 22 of the 45
+  git repos under /opt have no `.venv/bin/python` (git-aware count; a `[ -d .git ]` sweep answers 20 of 43
+  because it misses two linked worktrees whose `.git` is a FILE).
+- `final_gate.py --json` keys are exactly: advisory, blocking, checks, failed, failures, passed, skipped,
+  skipped_checks, status, tier, warnings. There is no "tail" key (cut 2 pointed at one). `skip_advisory`'s
+  text reaches `warnings` only while the leg stayed GREEN (`:3058` filters on `ok and …startswith("⚠")`);
+  a RED leg's untested remainder lands in `failures`.
+- `--lean` returns at `:1105` BEFORE the pytest leg at `:1260`, so a lean envelope has no pytest row at
+  all — `skipped_checks: []` is not evidence the suite ran. Tier 2 does carry it: 39 of 45 /opt repos have
+  no `.fabrik/run-pytest` sentinel.
+- `final_gate.py:1273` hardcodes `-x`; `:1317-1319` records "`-x` STAYS — it is a deliberate cost
+  decision". `:1320-1327` already prints the no-`-x` re-run remedy, and `skip_advisory` (`:196-236`)
+  already prints "this green SKIPPED n test(s) … asserts NOTHING about them", counting deselected too.
+  **Both remedies the three rows ask for already ship as gate runtime output** — which is why a
+  restatement in a command's own words is the wrong form; a pointer that names its referent is the right
+  one. Mail 01M2PT1G6K2EXFDBDM6TMBHVYQ carries the doc half of this to infra.
+
+**OTHER RESIDUE FROM THE SAME RUN:**
+- **The phase-gate lines are invisible in DISPATCHER mode.** That Execution Loop is headed `PHASE MODE
+  ONLY — in dispatcher mode this entire loop is REPLACED`, so a spine+ticket run reads none of it. D4's
+  per-ticket gate and D7 have no equivalent. Fix ONCE for both modes; mirroring is two sources of truth.
+- **Verdict 1788815558.909572 asked for its rule "in the review contract"**, and the command has two
+  plausible homes (§ Reviewer & fix-dispatch discipline, Finish step 1) with neither canonical. Pick one.
+- **Pin line 413 (`run FULL final gate: python scripts/final_gate.py --json`) is the ONE place where every
+  envelope claim above is unconditionally true, and it carries none of the advice** — the cheapest correct
+  home for a referent-bound version.
+- **Four of the six `final_gate.py` references in that command source invoke a bare `python`** (counted
+  with `command grep`), ambiguous on any box with a `.venv`. Not respelled: `tests/test_kaizen_hook_emitters.py`
+  embeds the string as a fixture and one occurrence is the completion-block template.
+- **`scripts/final_gate.py` defects found in passing** (the file is owned by the ACTIVE
+  `.fabrik/plan-locks/2026-09-09-plan-1-review-convergence-redesign.json`, so filed not fixed): `:1326`
+  prints its own remedy as a bare `python -m pytest` while `:79` deliberately resolves an interpreter;
+  `:1322-1324` asserts "the first one, not the only one" whenever `stopping after` appears, which pytest
+  emits even when the failing test is the LAST collected; `:1277-1279`'s green `pytest (NOT RUN)` branch
+  for `"No module named pytest"` looks unreachable behind `_toolchain_missing` at `:2877`, which exits
+  with a third envelope shape carrying no `warnings`/`skipped_checks` at all.
+- **Queue row 1788799311.0929735 stays UNANSWERED**: a mandatory live-box census at Finish for any
+  mechanism acting on box state. Same family, different phase of the run.
+
+The rejected text and all three review reports are in this run's scratchpad; the commit body of this row
+is the durable copy.
