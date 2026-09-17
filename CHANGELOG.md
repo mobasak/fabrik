@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Rotation: the peer registry (`sessions/`) is box-shared, so a flip no longer empties every window's peer list (2026-09-17)
+
+`ListAgents` reads `<config dir>/sessions/<pid>.json` through the `active` pointer as it stands now, while each session wrote its record under the dir the pointer named when it started — so after the 18:51 flip to `sarp` every window on the box listed exactly one peer, the session started after the flip ("only crm-1 is seen"); 18 live sessions sat unlisted under `ozgurbasak/sessions/`. The registry is pid-keyed box state with no account content, the same class as `projects/`: `sessions` joins `_SHARED_DIR_LINKS` at `30781421d` (D-287), `--new-dir` links it for every future dir, and the five existing dirs are merged by hand once into `~/.claude/sessions/` and replaced by the symlink. A red-first grader writes a record under one slug's `sessions/` and reads it under another's; the write-through grader pins the five-name set.
 ### Changed — /fabrik-review briefs must name the SUBJECT of every quantity, not just the surface (2026-09-17)
 
 - `commands/_sources/fabrik-review.md`: the brief contract carried the Phase-0 surface digest and the
