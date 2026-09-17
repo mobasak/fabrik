@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Delta 11: the 30-minute floor binds the stamp path; the deny reason speaks the line's vocabulary; dead arms out, graders made to prove (2026-09-17)
+
+- **The floor binds the STAMP latch too** (`scripts/sysadmin/claude_rotate.py`, twin identical):
+  the ledger latch applied `_ADVISORY_MIN_GAP_S` and the stamp path did not, so a stamp re-armed
+  with a promise that had ALREADY come due (the promise fell due while the dwell branch had the
+  stamp cleared) released on the next tick — a second advisory 900 s inside the floor whose own
+  comment claims it holds "whatever the stamp says" (Delta 11 seat A). Inside the floor the
+  stamp is latched unconditionally; both latches count it from the episode's start, since the
+  re-arm writes the row's `ts`. B21j drives it on B21d-2's fixture, red on the pre-fix code.
+- **The deny reason says `5h and weekly`**, the prompt line's labels and a conjunction, instead
+  of the JSON keys joined with "or" (`scripts/sysadmin/quota_posture_hook.py`; C2j re-cut, and
+  its own bool exclusion graded). `_open_wall_episode` takes one account — the any-account arm
+  lost its last caller to the refactor that kept it; the latch's week bound was unreachable
+  behind the reader's and is gone; `closed_for` names every open key as a string, so `[]` means
+  only "unreadable"; the re-arm says an unreadable ledger on stderr instead of returning silent;
+  the cost comment states its bound instead of an uncited out-of-repo fact.
+- **Graders that proved nothing, fixed**: B21d-2 compared the re-armed stamp's content with
+  itself (now derived from the ledger row, plus B21i on a real promise and a write failure);
+  `pytest.raises(TypeError)` could not show `measured` is REQUIRED because `None > 0` raises
+  too (the signature is asserted); B20h never drove the absent-from-picture branch; B21h's
+  `sorted()` and B21g's `pop` had no arm. Every one red under its own mutation in a throwaway
+  worktree.
+
 ### Fixed — Delta 10: the hold survives the dwell clear; the deny reason reads the fleet; `measured` counts quota facts (2026-09-17)
 
 - **The MESSAGE latch is not the HOLD** (`scripts/sysadmin/claude_rotate.py`, twin identical):
