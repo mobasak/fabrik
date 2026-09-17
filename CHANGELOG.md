@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Delta 10: the hold survives the dwell clear; the deny reason reads the fleet; `measured` counts quota facts (2026-09-17)
+
+- **The MESSAGE latch is not the HOLD** (`scripts/sysadmin/claude_rotate.py`, twin identical):
+  Delta 9 stopped the dwell-site `hold-lifted` row ending a wall episode, so the ledger latch
+  stays armed across the dwell branch's stamp clear — and when the successor drained before the
+  flip landed, the advisory returned latched BEFORE the only stamp write in the file: no
+  `quota_stop.py` hold, no WALL band, for the week the latch runs (Delta 10 seat B, F1 — measured
+  167.9 h with the hold down at a genuine wall). The tick now re-arms the stamp from the episode's
+  own ledger row (`_rearm_wall_stamp`: content the promised resume or `0`, mtime the row's `ts`,
+  never `now`) without a second broadcast; B21d-2 asserts the stamp survives, the one thing it
+  never asked. `closed_for` is a list of every episode the fleet-wide row ends (F4, B21h); an
+  `unavailable` account with cached readings no longer counts as measured (seat A #6).
+- **The deny reason** (`scripts/sysadmin/quota_posture_hook.py`) — the one message a held agent
+  reads — was the third consumer of `fleet.windows` the `measured` fix skipped: at maximal
+  scarcity it said nothing fleet-wide, and with one window unserved it named the OTHER window, at
+  12%, as why no flip relieves (seat A #1/#2, C2j). It names the unserved window now. `--status`
+  coerces a missing/null/list map like the hook and proceeds on `measured` (A #4, B22c); the
+  `limits[]` Fable leg refuses a JSON `true` like the required legs (A #3, B23 extended); the
+  hook's own bool exclusion on `measured` has its grader (seat C, C2i); the contracts admit the
+  joined `on 5h and weekly` (all three + a pin).
+- **`measured` is a required keyword of `_fleet_band`**: the account-keyed default arm was dead
+  in production and alive in fifteen graders, three of which pinned the opposite of what ships
+  (A #5) — deleted, every call re-cut. B21e's `chmod 0o222` arm is skipped under root inline, as
+  the file already does elsewhere (B F6, D #1). Every new or re-cut grader red on the pre-fix code
+  in a throwaway worktree (8) or under its mutation there (C2i).
+
 ### Fixed — Delta 9: an empty fleet map now says whether nobody was measured or nobody can serve; the dwell-site wake no longer ends a wall episode (2026-09-17)
 
 - **`fleet.measured`** (`scripts/sysadmin/claude_rotate.py`, twin identical): the posture carried
