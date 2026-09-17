@@ -220,12 +220,20 @@ def _load_gen_dashboard():
 
 def test_gen_dashboard_help_writes_no_file(tmp_path, monkeypatch):
     gd = _load_gen_dashboard()
-    monkeypatch.chdir(tmp_path)
+    # The probe runs in a SUBDIRECTORY of tmp_path, never tmp_path itself: conftest's autouse
+    # pins (`_isolated_sound_lock_dir`, `_isolated_kaizen_events_dir`, `_isolated_opt_dir`,
+    # `_isolated_command_run_dir`) each create a directory under the SAME tmp_path, so
+    # `os.listdir(tmp_path)` has not been empty since those pins landed 2026-09-16 — the
+    # assertion below failed for that unrelated reason on every run, which left the real
+    # 2026-09-02 defect (a `--help` that writes a file) UNGRADED behind a permanent red.
+    work = tmp_path / "work"
+    work.mkdir()
+    monkeypatch.chdir(work)
     monkeypatch.setattr(gd, "load", lambda: pytest.fail("--help must not touch the registry"))
     with pytest.raises(SystemExit) as exc:
         gd.main(["--help"])
     assert exc.value.code == 0
-    assert os.listdir(tmp_path) == [], "gen_dashboard --help wrote a file (the 2026-09-02 defect)"
+    assert os.listdir(work) == [], "gen_dashboard --help wrote a file (the 2026-09-02 defect)"
 
 
 def test_gen_dashboard_writes_the_named_output(tmp_path, monkeypatch):
