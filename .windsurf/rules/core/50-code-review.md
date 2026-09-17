@@ -75,8 +75,10 @@ code-changing chunk of work gets one:
   changes. (The Stop hook BLOCKS a code-editing session that never opened a review record.)
 - **`/fabrik-review`** — the full command. Escalate to it for: a new mechanism, any
   gate/hook/enforcement path, auth/schema/migrations/concurrency, >5 files, anything the owner
-  asked for by name, or a scoped review whose SECOND consecutive round CONFIRMS defects (it routes
-  up by its own rule, in one shell line).
+  asked for by name, or a scoped review whose SECOND consecutive round CONFIRMS defects
+  **and whose scope-growth verdict says the defects are the ARTIFACT'S** (it routes up by its own
+  rule, in one shell line). ⚠️ When that verdict says the opposite — see the scope-growth stop
+  below — escalating is the WRONG answer and the loop stops instead.
 
 Both arm their finders from `scripts/review_rubric.py --changed <paths>` (synced to every project),
 converge to a delta round that CONFIRMS **zero** code or doc defects (D-206 — refuted and RECORDED
@@ -121,6 +123,27 @@ there is no human at the merge point — the loop IS the oversight. Two obligati
 2. **A quiet round is evidence only if the search was diverse.** Zero findings because the code is
    clean and zero because every pass looked the same way are indistinguishable from inside the loop.
 
+3. **The scope-growth stop — when the loop itself is the thing generating the findings.** Every
+   delta round reports how many of its CONFIRMED defects lay inside code or prose THIS REVIEW added
+   in an earlier round rather than in the original surface: `own-fix`. **TWO OF THE LAST THREE
+   rounds at or above TWO-THIRDS own-fix (`own-fix × 3 ≥ confirmed × 2`, with `confirmed` > 0) is
+   the stop.** The window is two-of-three and not two-consecutive because alternating rounds
+   (100% / 50% / 100%) defeat a consecutive bar forever; the `confirmed > 0` guard is load-bearing
+   because `0 × 3 ≥ 0 × 2` is true and two quiet rounds would otherwise trip it on a CONVERGED loop.
+   `command_run.py` computes this at every `round` and prints the verdict — read it off rather than
+   evaluating the window yourself.
+   ⚠️ **THE STOP IS ON SCOPE, NEVER ON AN OUTSTANDING DEFECT, and shipping the halt without this
+   half licenses stopping a loop whose rounds still confirm.** A ratio — unlike an equality — leaves
+   up to a third of a qualifying round's defects on the original surface. So the stop suspends new
+   HUNTING and never the close: every confirmed defect still open ANYWHERE in the three-round
+   window, its non-qualifying round INCLUDED (by construction the round holding the most
+   original-surface defects), is NAMED at the stop and FIXED, and the remainder rounds re-verify
+   THAT FIXED SET and nothing else, so they terminate. Only work that is genuinely own-fix takes the
+   backlog exit, with a named destination. The last round must still reach zero confirmed.
+   ⚠️ **COBRA:** the cheapest dodge is to omit the counter so nothing computes, and the mirror dodge
+   is to over-classify an original-surface defect as own-fix — which both trips the stop sooner and
+   buys the backlog exit. So own-fix is EVIDENCED per finding, never asserted as a total.
+
 **Cross-REPO findings are logged, not converged on** — recorded with an owner and excluded from the
 convergence check, or the loop oscillates: fixer applies a local workaround, next reviewer flags the
 workaround, forever. That is what `ROUTED` is for. ⚠️ It is scoped to ANOTHER REPO only —
@@ -144,7 +167,7 @@ Repo health: docker, ports, docs sprawl, duplicates, deps sync, health endpoints
 - **The full `--json` gate is the per-task completion gate** — green on it (this turn, not an earlier run) is the definition of done. **Changelog is MANDATORY for any code/config/infrastructure change.**
 - The coding agent FIXES what the review finds, in the same run. A finding handed onward is not a review.
 - **The agent COMMITS AND PUSHES its own work at task end** — explicit pathspecs + provenance trailers, never `git add -A`. An uncommitted task is an unfinished task; an unpushed one is off-box-unprotected. (Hub + project contracts, § EXIT — Stop-hook-enforced.)
-- **Review iterates to a FIXED POINT, not to a counter** — done is a pass that raises zero new candidates. Only the three sanctioned BLOCKED cases halt early: 3 consecutive same-test failures · missing infra · an unresolvable spec contradiction. Rounds that keep finding mean the surface outgrew the scoped command — escalate to `/fabrik-review`, don't stop.
+- **Review iterates to a FIXED POINT, not to a counter** — done is a pass that raises zero new candidates. Only the three sanctioned BLOCKED cases halt early: 3 consecutive same-test failures · missing infra · an unresolvable spec contradiction. Rounds that keep finding have TWO possible causes and opposite correct remedies — do not assume the first. If the defects are the ARTIFACT'S, the surface outgrew the scoped command: escalate to `/fabrik-review`, don't stop. If they are the REVIEW'S OWN earlier fixes, escalating hands a bigger reviewer a surface whose only remaining defects the review authored: take the scope-growth stop below instead.
 - Non-trivial = any of: new file, >50 lines changed, new dependency, DB change, or any code/config/infrastructure/Docker/compose change.
 
 ---
