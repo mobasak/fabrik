@@ -3484,7 +3484,12 @@ def _usage_windows(usage: dict | None) -> dict | None:
             model = scope.get("model") if isinstance(scope, dict) else None
             name = model.get("display_name") if isinstance(model, dict) else None
             pct = lim.get("percent")
-            if isinstance(name, str) and name and isinstance(pct, (int, float)):
+            if (
+                isinstance(name, str)
+                and name
+                and isinstance(pct, (int, float))
+                and not isinstance(pct, bool)  # a JSON `true` is not 1% here either (Delta 10 A #3)
+            ):
                 models[name] = {
                     "utilization": float(pct),
                     "resets_at_epoch": _iso_to_epoch(lim.get("resets_at")),
@@ -4322,15 +4327,26 @@ def _fleet_readings(accounts: list[dict], picture: dict) -> dict:
     return {k: {"utilization": u, "slug": sl} for k, (u, sl) in best.items()}
 
 
-def _fleet_measured(accounts: list[dict]) -> int:
-    """How many accounts the tick actually READ a required window for — the fact that tells an
+def _fleet_measured(accounts: list[dict], picture: dict) -> int:
+    """How many accounts the tick actually READ a required window for, among the accounts that
+    are a QUOTA fact — the picture's state is not `unavailable` (a dead refresh chain with cool
+    cached readings counted, and a fleet of dead credentials read RED "out of quota" with the
+    hook telling agents to finish and push — Delta 10 seat A, #6). This is the fact that tells an
     empty fleet map apart: `{}` with `measured > 0` is "nobody can serve" (RED, and the renderers
     say which window); `{}` with `measured == 0` is a blackout (band `?`, nothing to explain).
     The posture carried no such field, so `_fleet_band` resolved the same `{}` toward RED while
     both renderers resolved it toward silence — in the same tick (Delta 9 seat A, F2)."""
+    states = {
+        r.get("email"): r.get("state")
+        for r in (picture.get("accounts") or [])
+        if isinstance(r, dict)
+    }
     n = 0
     for row in accounts:
         if not isinstance(row, dict):
+            continue
+        state = states.get(row.get("email"))
+        if state is None or state == "unavailable":
             continue
         fh, _ = _window_reading(row.get("five_hour"))
         wk, _ = _window_reading(row.get("seven_day"))
@@ -4347,7 +4363,7 @@ def _fleet_band(
     urgent: float,
     *,
     fable: bool,
-    measured: int | None = None,
+    measured: int,
 ) -> str | None:
     """The band to ACT on: the hottest of the FLEET's window readings, on the D-265 thresholds.
 
@@ -4380,12 +4396,12 @@ def _fleet_band(
         # reading — no account measured at all — stays unknown, and `measured` is what says so:
         # keyed on the ACTIVE account's band, an unmeasured active beside a measured sibling that
         # served only weekly read `?`, and the hook held nothing at maximal scarcity (Delta 9
-        # seat A, F1). Callers that pass no count keep the account-keyed reading.
+        # seat A, F1). The count is REQUIRED: a default arm keyed on the account was dead in
+        # production and alive in fifteen graders, three of which pinned the opposite of what
+        # ships (Delta 10 seat A, #5).
         if account_band in ("RED", "WALL"):
             return account_band
-        if isinstance(measured, int) and not isinstance(measured, bool):
-            return "RED" if measured > 0 else None
-        return "RED" if account_band is not None else None
+        return "RED" if measured > 0 else None
     # Fable is NOT a required window: an absent Fable reading means the usage API reported none for
     # any serving account (a Fable session with nothing to report), not that every account's Fable
     # window is spent — treating absence as scarcity would RED every Fable session on a box that
@@ -4492,7 +4508,7 @@ def _quota_posture(
         break
 
     fleet_w = _fleet_readings(accounts, picture)
-    measured = _fleet_measured(accounts)
+    measured = _fleet_measured(accounts, picture)
     return {
         "schema": _POSTURE_SCHEMA,
         "ts": now,
@@ -4605,6 +4621,8 @@ def _posture_status_line(posture: dict | None, now: float, stale_s: float = 900.
         if isinstance(posture.get("fleet"), dict)
         else None
     )
+    if not isinstance(fw, dict):
+        fw = {}  # a missing/null/list map reads like the hook's: `measured` decides (Delta 10 A #4)
     measured = (
         (posture.get("fleet") or {}).get("measured")
         if isinstance(posture.get("fleet"), dict)
@@ -4617,7 +4635,7 @@ def _posture_status_line(posture: dict | None, now: float, stale_s: float = 900.
         measured > 0 if isinstance(measured, int) and not isinstance(measured, bool) else bool(fw)
     )
     fleet_s = ""
-    if isinstance(fw, dict) and (fw or scarce):
+    if fw or scarce:
         parts = []
         for key, label in (("five_hour", "5h"), ("seven_day", "weekly"), ("fable", "Fable")):
             w = fw.get(key)
@@ -5522,12 +5540,16 @@ def _urgent_drain_message(
 _ADVISORY_MIN_GAP_S = (
     30 * 60.0
 )  # floor: one wall advisory per account per 30 min whatever the STAMP says — it is held by
-# the ledger latch, so it stands only while the ledger can be READ: an unreadable ledger fails
-# open past it, and a ledger flapping readable/unreadable under a dead stamp re-fires at the
-# tick rate (Delta 9 seat B, F4) — bounded, and said here rather than claimed away.
+# the ledger latch, so it stands only while the episode's own ROW can be found: an unreadable
+# ledger fails open past it, a ledger flapping readable/unreadable under a dead stamp re-fires
+# at the tick rate (Delta 9 seat B, F4), and a ledger that lost the row (truncated by hand —
+# nothing tracked truncates it) re-advises inside the floor (Delta 10 seat B, F5) — bounded,
+# and said here rather than claimed away.
 _WAKE_EVENT = (
     "hold-lifted"  # the wake row `_wake_held_sessions` writes; its RELIEF-site row ENDS a wall
-    # episode, its DWELL-site row does not (`_open_wall_episode`, Delta 9 seat B F1)
+    # episode, its DWELL-site row does not (`_open_wall_episode`, Delta 9 seat B F1); a row
+    # with no `site` at all ends one (fail-open: speak) — none exists, the key has been written
+    # since the event was introduced (45bbed1db, 2026-09-07)
 )
 
 
@@ -5535,6 +5557,45 @@ _EPISODE_CLOSE_EVENT = (
     "wall-episode-closed"  # the ledger's END of a wall episode when there was no stamp to clear
 )
 _EPISODE_END_EVENTS = (_WAKE_EVENT, "flip", _EPISODE_CLOSE_EVENT)
+
+
+def _open_wall_rows(now: float | None = None) -> tuple[dict[str, dict], bool]:
+    """Every account's open `fleet-active-wall` row (insertion order = ledger order), and whether
+    the ledger could be read. The rules are `_open_wall_episode`'s; this is its core, split out
+    because a fleet-wide end row ends ALL open episodes and the close row must name all of
+    them — `closed_for` named only the last (Delta 10 seat B, F4)."""
+    try:
+        lines = (_rotate_state_dir() / "rotate-ledger.jsonl").read_text().splitlines()
+    except FileNotFoundError:
+        return {}, True  # no ledger yet = nothing has ever walled (fresh box, not a fault)
+    except Exception:  # noqa: BLE001 — a ledger READER is never a crash source
+        return {}, False
+    open_rows: dict[str, dict] = {}
+    for ln in lines:
+        try:
+            row = json.loads(ln)
+        except ValueError:
+            continue
+        if not isinstance(row, dict):
+            continue
+        ev = row.get("event")
+        if ev == "fleet-active-wall":
+            ts = row.get("ts")
+            expired = (
+                now is not None
+                and isinstance(ts, (int, float))
+                and not isinstance(ts, bool)
+                and now - float(ts) > _FLEET_WALL_REARM_S
+            )
+            acct = row.get("account")
+            open_rows.pop(acct, None)
+            if not expired:
+                open_rows[acct] = row
+        elif ev in _EPISODE_END_EVENTS and open_rows:
+            if ev == _WAKE_EVENT and row.get("site") == "dwell":
+                continue  # a hold cleared on EXPECTATION — the account is still walled (F1)
+            open_rows.clear()
+    return open_rows, True
 
 
 def _open_wall_episode(email: str | None, now: float | None = None) -> tuple[dict | None, bool]:
@@ -5561,35 +5622,10 @@ def _open_wall_episode(email: str | None, now: float | None = None) -> tuple[dic
     An ABSENT ledger is a definite answer (nothing has ever walled), not a fault: `(None,
     True)`, or a virgin box wrote a phantom close row on its first relief (F3).
     """
-    try:
-        lines = (_rotate_state_dir() / "rotate-ledger.jsonl").read_text().splitlines()
-    except FileNotFoundError:
-        return None, True  # no ledger yet = nothing has ever walled (fresh box, not a fault)
-    except Exception:  # noqa: BLE001 — a ledger READER is never a crash source
-        return None, False
-    last = None
-    for ln in lines:
-        try:
-            row = json.loads(ln)
-        except ValueError:
-            continue
-        if not isinstance(row, dict):
-            continue
-        ev = row.get("event")
-        if ev == "fleet-active-wall" and (email is None or row.get("account") == email):
-            ts = row.get("ts")
-            expired = (
-                now is not None
-                and isinstance(ts, (int, float))
-                and not isinstance(ts, bool)
-                and now - float(ts) > _FLEET_WALL_REARM_S
-            )
-            last = None if expired else row
-        elif ev in _EPISODE_END_EVENTS and last is not None:
-            if ev == _WAKE_EVENT and row.get("site") == "dwell":
-                continue  # a hold cleared on EXPECTATION — the account is still walled (F1)
-            last = None
-    return last, True
+    rows, readable = _open_wall_rows(now)
+    if email is not None:
+        return rows.get(email), readable
+    return (next(reversed(rows.values())) if rows else None), readable
 
 
 def _close_wall_episode_without_stamp(email: str, now: float, site: str) -> None:
@@ -5606,17 +5642,19 @@ def _close_wall_episode_without_stamp(email: str, now: float, site: str) -> None
     # ANY account's open episode, not only the relieved one: the stamp is fleet-wide, and an
     # episode for an account the pointer has since left is exactly the one that strands (F6) —
     # the first cut asked only about the active account and wrote nothing (Delta 8 seat B, B21e).
-    row, readable = _open_wall_episode(None, now)
-    if row is not None or not readable:
+    rows, readable = _open_wall_rows(now)
+    if rows or not readable:
         _ledger_append(
             {
                 "event": _EPISODE_CLOSE_EVENT,
                 "ts": now,
                 "site": site,
                 "relieved": email,
-                # whose episode this ends — the relieved account is the ACTIVE one, which
-                # need not be the walled one (F5/F6); None when the ledger was unreadable
-                "closed_for": row.get("account") if isinstance(row, dict) else None,
+                # whose episodes this ends — EVERY open one, since the row is fleet-wide (the
+                # relieved account is the ACTIVE one, not necessarily a walled one — F5/F6); a
+                # singular key named only the last of two (Delta 10 seat B, F4); [] when the
+                # ledger was unreadable
+                "closed_for": sorted(k for k in rows if isinstance(k, str)),
             }
         )
 
@@ -5666,6 +5704,8 @@ def _advisory_ledger_latch(email: str, now: float) -> bool:
         return False
     age = now - float(ts)
     # the stamp tolerates 60 s of future-dating (WSL suspend / NTP); so does this (seat B, F3)
+    # the week bound is applied by `_open_wall_rows` when it has a clock; kept here for a caller
+    # that passes none (Delta 10 seat B, F3: redundant on this path, not wrong)
     if age < -_CLOCK_SKEW_TOLERANCE_S or age > _FLEET_WALL_REARM_S:
         return False
     if age < _ADVISORY_MIN_GAP_S:
@@ -5677,6 +5717,30 @@ def _advisory_ledger_latch(email: str, now: float) -> bool:
     # the week re-arm, exactly like a stamp whose content is "0". The first cut released at the
     # 30-min floor here and re-broadcast every half hour for as long as the wall stood (seat 2).
     return True
+
+
+def _rearm_wall_stamp(stamp: Path, email: str, now: float) -> None:
+    """Re-create the fleet-exhausted stamp from the OPEN episode's ledger row — content = the
+    `resume_epoch` the advisory promised ("0" when none), mtime = the row's `ts`, never `now`:
+    a fresh mtime would restart the stamp's week re-arm and the two latches would drift apart.
+    Never raises (the tick must not fail on a cache file); an unwritable stamp is said on stderr
+    like the first write."""
+    row, _readable = _open_wall_episode(email, now)
+    if not isinstance(row, dict):
+        return
+    promised = row.get("resume_epoch")
+    content = (
+        str(int(promised))
+        if isinstance(promised, (int, float)) and not isinstance(promised, bool)
+        else "0"
+    )
+    ts = row.get("ts")
+    at = float(ts) if isinstance(ts, (int, float)) and not isinstance(ts, bool) else now
+    try:
+        stamp.write_text(content, encoding="utf-8")
+        os.utime(stamp, (at, at))
+    except OSError as exc:
+        sys.stderr.write(f"claude_rotate: fleet-exhausted stamp NOT re-armed ({stamp}): {exc}\n")
 
 
 def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: float) -> None:
@@ -5769,6 +5833,17 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     # fallback, a fresh state dir — and every loss re-fires the broadcast. The ledger row this
     # very function writes is the recomputable copy of the same fact (01M2P19KP9GE9S).
     if latched or (not stamp.exists() and _advisory_ledger_latch(str(row["email"]), now)):
+        # ⚠️ The MESSAGE is latched; the HOLD is not. The dwell branch clears the stamp on the
+        # EXPECTATION of a flip, and since the dwell-site wake row ends no episode (Delta 9),
+        # the ledger latch holds through that clear — so when the successor drained before the
+        # flip landed, this return came BEFORE the only stamp write in the file and
+        # `quota_stop.py` held NOTHING at a real wall, for the week the latch runs (Delta 10
+        # seat B, F1: measured 167.9 h). Re-arm the stamp from the episode's own row, silently.
+        # Cost, said here: an oscillating successor now re-arms and re-clears it once per
+        # tick-pair (a `hold-lifted(dwell)` row each time; the `.holdlifted` files are O_EXCL,
+        # so sessions are not re-woken).
+        if not stamp.exists():
+            _rearm_wall_stamp(stamp, str(row["email"]), now)
         return  # already advised for this wall episode — one fact, one message
     hot = max(
         (

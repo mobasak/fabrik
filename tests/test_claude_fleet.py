@@ -5104,8 +5104,18 @@ def test_fleet_readings_take_the_coolest_serving_account_per_window():
         "a weekly-exhausted account serves nothing"
     )
     # and the band that follows: fleet hottest is 31 -> GREEN, while the account's own is 87 -> AMBER
-    assert cr._fleet_band(fw, "AMBER", False, 85.0, 90.0, fable=False) == "GREEN"
-    assert cr._fleet_band(fw, "AMBER", False, 85.0, 90.0, fable=True) == "GREEN"
+    assert (
+        cr._fleet_band(
+            fw, "AMBER", False, 85.0, 90.0, fable=False, measured=cr._fleet_measured(accounts, pic)
+        )
+        == "GREEN"
+    )
+    assert (
+        cr._fleet_band(
+            fw, "AMBER", False, 85.0, 90.0, fable=True, measured=cr._fleet_measured(accounts, pic)
+        )
+        == "GREEN"
+    )
 
 
 def test_fleet_band_is_amber_or_red_only_when_every_serving_account_is():
@@ -5116,12 +5126,20 @@ def test_fleet_band_is_amber_or_red_only_when_every_serving_account_is():
     pic = _pic_rows(("a@x", "active", 99), ("b@x", "eligible", 99))
     fw = cr._fleet_readings(accounts, pic)
     assert fw["seven_day"]["utilization"] == 90.0
-    assert cr._fleet_band(fw, "RED", False, 85.0, 90.0, fable=False) == "RED", (
-        "every account >= 90 weekly: the fleet's wall"
-    )
+    assert (
+        cr._fleet_band(
+            fw, "RED", False, 85.0, 90.0, fable=False, measured=cr._fleet_measured(accounts, pic)
+        )
+        == "RED"
+    ), "every account >= 90 weekly: the fleet's wall"
     accounts[1]["seven_day"]["utilization"] = 86.0
     fw = cr._fleet_readings(accounts, pic)
-    assert cr._fleet_band(fw, "RED", False, 85.0, 90.0, fable=False) == "AMBER"
+    assert (
+        cr._fleet_band(
+            fw, "RED", False, 85.0, 90.0, fable=False, measured=cr._fleet_measured(accounts, pic)
+        )
+        == "AMBER"
+    )
 
 
 def test_fleet_band_ignores_fable_unless_asked_and_a_cap_is_a_wall():
@@ -5136,8 +5154,18 @@ def test_fleet_band_ignores_fable_unless_asked_and_a_cap_is_a_wall():
     pic = _pic_rows(("a@x", "active", 99), ("c@x", "eligible", 99))
     fw = cr._fleet_readings(accounts, pic)
     assert "c" not in {w["slug"] for w in fw.values()}, "weekly 99 >= cap 99 serves nothing"
-    assert cr._fleet_band(fw, "GREEN", False, 85.0, 90.0, fable=False) == "GREEN"
-    assert cr._fleet_band(fw, "GREEN", False, 85.0, 90.0, fable=True) == "RED"
+    assert (
+        cr._fleet_band(
+            fw, "GREEN", False, 85.0, 90.0, fable=False, measured=cr._fleet_measured(accounts, pic)
+        )
+        == "GREEN"
+    )
+    assert (
+        cr._fleet_band(
+            fw, "GREEN", False, 85.0, 90.0, fable=True, measured=cr._fleet_measured(accounts, pic)
+        )
+        == "RED"
+    )
 
 
 def test_the_wall_is_never_softened_and_a_window_nobody_serves_is_red():
@@ -5150,27 +5178,27 @@ def test_the_wall_is_never_softened_and_a_window_nobody_serves_is_red():
     import scripts.sysadmin.claude_rotate as cr  # noqa: PLC0415
 
     only_weekly = {"seven_day": {"utilization": 60.0, "slug": "b"}}
-    assert cr._fleet_band(only_weekly, "GREEN", False, 85.0, 90.0, fable=False) == "RED", (
-        "nobody can serve 5h: RED, whatever the walled account's raw percentage says"
-    )
+    assert (
+        cr._fleet_band(only_weekly, "GREEN", False, 85.0, 90.0, fable=False, measured=1) == "RED"
+    ), "nobody can serve 5h: RED, whatever the walled account's raw percentage says"
     only_5h = {"five_hour": {"utilization": 0.0, "slug": "c"}}
-    assert cr._fleet_band(only_5h, "AMBER", False, 85.0, 90.0, fable=False) == "RED"
+    assert cr._fleet_band(only_5h, "AMBER", False, 85.0, 90.0, fable=False, measured=1) == "RED"
     both = {
         "five_hour": {"utilization": 0.0, "slug": "c"},
         "seven_day": {"utilization": 60.0, "slug": "b"},
     }
-    assert cr._fleet_band(both, "RED", False, 85.0, 90.0, fable=False) == "GREEN"
-    assert cr._fleet_band(both, "WALL", True, 85.0, 90.0, fable=False) == "WALL"
-    assert cr._fleet_band(both, "RED", True, 85.0, 90.0, fable=False) == "RED", (
+    assert cr._fleet_band(both, "RED", False, 85.0, 90.0, fable=False, measured=2) == "GREEN"
+    assert cr._fleet_band(both, "WALL", True, 85.0, 90.0, fable=False, measured=2) == "WALL"
+    assert cr._fleet_band(both, "RED", True, 85.0, 90.0, fable=False, measured=2) == "RED", (
         "a hold must not be downgraded"
     )
-    assert cr._fleet_band({}, "AMBER", False, 85.0, 90.0, fable=False) == "RED"
-    assert cr._fleet_band({}, "WALL", False, 85.0, 90.0, fable=False) == "WALL"
-    assert cr._fleet_band({}, None, False, 85.0, 90.0, fable=False) is None, (
-        "no reading at all stays unknown"
+    assert cr._fleet_band({}, "AMBER", False, 85.0, 90.0, fable=False, measured=1) == "RED"
+    assert cr._fleet_band({}, "WALL", False, 85.0, 90.0, fable=False, measured=1) == "WALL"
+    assert cr._fleet_band({}, None, False, 85.0, 90.0, fable=False, measured=0) is None, (
+        "no reading at all (nobody measured) stays unknown"
     )
     junk = {"five_hour": {"slug": "a"}, "seven_day": {"utilization": None}}
-    assert cr._fleet_band(junk, "GREEN", False, 85.0, 90.0, fable=False) == "RED"
+    assert cr._fleet_band(junk, "GREEN", False, 85.0, 90.0, fable=False, measured=1) == "RED"
 
 
 def test_the_wall_advisory_cannot_storm_when_the_stamp_cannot_be_written(tmp_path, monkeypatch):
@@ -5456,9 +5484,15 @@ def test_the_fleet_band_reads_an_empty_map_by_who_was_measured():
     rows = [
         {"email": "a@x", "five_hour": None, "seven_day": None},
         {"email": "b@x", "five_hour": None, "seven_day": {"utilization": 5.0}},
+        # a dead refresh chain with COOL cached readings is not a quota fact: counting it made
+        # a fleet of dead credentials read RED "out of quota" (Delta 10 seat A, #6)
+        {"email": "c@x", "five_hour": {"utilization": 0.0}, "seven_day": {"utilization": 5.0}},
         "junk",
     ]
-    assert cr._fleet_measured(rows) == 1 and cr._fleet_measured([]) == 0
+    pic = _pic_rows(
+        ("a@x", "eligible", 99), ("b@x", "weekly-exhausted", 99), ("c@x", "unavailable", 99)
+    )
+    assert cr._fleet_measured(rows, pic) == 1 and cr._fleet_measured([], pic) == 0
 
 
 def test_a_posture_that_cannot_be_unlinked_never_fails_the_flip(tmp_path, monkeypatch, capsys):
@@ -5473,6 +5507,26 @@ def test_a_posture_that_cannot_be_unlinked_never_fails_the_flip(tmp_path, monkey
     monkeypatch.setattr(cr, "_posture_path", lambda: _Stuck())
     cr._invalidate_quota_posture("intel")  # must return, not raise
     assert "posture not invalidated after flip to intel" in capsys.readouterr().err
+
+
+def test_the_status_line_reads_a_missing_or_null_map_as_scarcity_when_someone_was_measured():
+    """B22c — Delta 10 seat A #4: the hook coerces a missing/null/list `windows` to `{}` and goes
+    on to `measured`; `--status` coerced it to None and bailed — three of four malformed shapes
+    rendered no fleet section at maximal scarcity."""
+    import scripts.sysadmin.claude_rotate as cr  # noqa: PLC0415
+
+    for shape in (
+        {"measured": 2},
+        {"measured": 2, "windows": None},
+        {"measured": 2, "windows": []},
+    ):
+        posture = {
+            "ts": FLEET_NOW,
+            "active": {"band": "RED", "band_account": "GREEN", "windows": {}},
+            "fleet": shape,
+        }
+        line = cr._posture_status_line(posture, FLEET_NOW)
+        assert "fleet 5h — (nobody serves it) weekly — (nobody serves it)" in line, (shape, line)
 
 
 def test_the_status_line_omits_a_present_but_unusable_fleet_reading():
@@ -5596,6 +5650,15 @@ def test_a_withheld_flip_cannot_storm_through_a_writable_stamp_either(tmp_path, 
     assert len(actions["telegrams"]) == 1, (
         f"{len(actions['telegrams'])} advisories — the dwell-site wake row re-armed the latch"
     )
+    # and the HOLD survived: the last tick had NO successor and the account is still walled, so
+    # the stamp `quota_stop.py` reads must be back — Delta 9 latched the message and let the
+    # hold stay down for the week the latch runs (Delta 10 seat B, F1)
+    stamp = tmp_path / "locks" / "fleet-exhausted"
+    assert stamp.exists(), "the message is latched; the hold must not be"
+    assert stamp.read_text(encoding="utf-8").strip() in ("0", str(int(float(stamp.read_text())))), (
+        stamp.read_text()
+    )
+    assert abs(stamp.stat().st_mtime - FLEET_NOW) < 1.0, "re-armed from the row's ts, not now"
 
 
 def test_the_closer_writes_its_own_fleet_wide_event_and_writes_even_when_the_ledger_is_unreadable(
@@ -5633,24 +5696,47 @@ def test_the_closer_writes_its_own_fleet_wide_event_and_writes_even_when_the_led
     assert len(led.read_text().splitlines()) == 2, (
         "idempotent when readable: no open episode, no row"
     )
-    assert rows[1]["closed_for"] == "b@x", rows[1]  # whose episode it ended (F7)
+    assert rows[1]["closed_for"] == ["b@x"], rows[1]  # whose episodes it ended (F7, F4)
     # a REAL unreadable ledger (write-only), not a stub of the reader: the stub proved the
     # branch, not the property — a reader that reported unreadable as READABLE passed it
-    # (Delta 9 seat B, F2)
-    led.chmod(0o222)
-    try:
-        cr._close_wall_episode_without_stamp("a@x", now, "relief")
-    finally:
-        led.chmod(0o644)
-    rows = [json.loads(ln) for ln in led.read_text().splitlines()]
-    assert len(rows) == 3 and rows[-1]["event"] == cr._EPISODE_CLOSE_EVENT, (
-        "unreadable ledger: write anyway"
-    )
-    assert rows[-1]["closed_for"] is None, rows[-1]
+    # (Delta 9 seat B, F2). Root reads a 0o222 file anyway, so this arm alone is skipped there
+    # — the repo's inline convention, never the whole test (Delta 10 seat B, F6).
+    if os.geteuid() != 0:
+        led.chmod(0o222)
+        try:
+            cr._close_wall_episode_without_stamp("a@x", now, "relief")
+        finally:
+            led.chmod(0o644)
+        rows = [json.loads(ln) for ln in led.read_text().splitlines()]
+        assert len(rows) == 3 and rows[-1]["event"] == cr._EPISODE_CLOSE_EVENT, (
+            "unreadable ledger: write anyway"
+        )
+        assert rows[-1]["closed_for"] == [], rows[-1]
     # an ABSENT ledger is "nothing has ever walled", not a fault: no phantom close (F3)
     led.unlink()
     cr._close_wall_episode_without_stamp("a@x", now, "relief")
     assert not led.exists(), led.read_text()
+
+
+def test_the_close_row_names_every_episode_it_ends(tmp_path, monkeypatch):
+    """B21h — Delta 10 seat B F4: two open episodes are reachable (a hand flip writes no `flip`
+    row); the fleet-wide close ends both, and the singular key named only the last."""
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    led = state / "rotate-ledger.jsonl"
+    now = FLEET_NOW
+    led.write_text(
+        json.dumps({"event": "fleet-active-wall", "ts": now - 600, "account": "a@x"})
+        + "\n"
+        + json.dumps({"event": "fleet-active-wall", "ts": now - 60, "account": "b@x"})
+        + "\n"
+    )
+    assert cr._advisory_ledger_latch("a@x", now) and cr._advisory_ledger_latch("b@x", now)
+    cr._close_wall_episode_without_stamp("b@x", now, "relief")
+    row = json.loads(led.read_text().splitlines()[-1])
+    assert row["closed_for"] == ["a@x", "b@x"], row
+    assert not cr._advisory_ledger_latch("a@x", now) and not cr._advisory_ledger_latch("b@x", now)
 
 
 def test_a_wall_row_the_latch_has_retired_is_not_an_open_episode_to_the_closer(
@@ -5729,3 +5815,19 @@ def test_a_json_true_utilization_from_the_endpoint_is_not_one_percent():
     )
     fh = (w or {}).get("five_hour") if isinstance(w, dict) else None
     assert not (isinstance(fh, dict) and fh.get("utilization") == 1.0), w
+    # the same class on the `limits[]` leg: a Fable `percent: true` coerced to 1.0 upstream of
+    # every guard, and a Fable session read GREEN at its wall (Delta 10 seat A, #3)
+    w = cr._usage_windows(
+        {
+            "five_hour": {"utilization": 10.0, "resets_at": "2026-09-18T00:00:00+00:00"},
+            "seven_day": {"utilization": 20.0, "resets_at": "2026-09-18T00:00:00+00:00"},
+            "limits": [
+                {
+                    "kind": "weekly_scoped",
+                    "scope": {"model": {"display_name": "Fable"}},
+                    "percent": True,
+                }
+            ],
+        }
+    )
+    assert isinstance(w, dict) and "Fable" not in (w.get("model_windows") or {}), w

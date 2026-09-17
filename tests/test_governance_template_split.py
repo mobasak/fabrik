@@ -242,6 +242,7 @@ QUOTA_CLAIMS = (
     "is the authority on WHEN you resume, in every band",
     # Delta 9 seat C — the line can print a token the contracts never described.
     "nobody serves it` inside the parenthesis",
+    "joined as `on 5h and weekly`, when neither is served",
 )
 
 

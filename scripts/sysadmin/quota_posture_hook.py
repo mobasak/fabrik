@@ -708,9 +708,22 @@ def _deny_reason(posture: dict, band: str, what: str, *, is_fable: bool = False)
     # single-account picture the operator ruled wrong.
     fleet = posture.get("fleet") if isinstance(posture.get("fleet"), dict) else {}
     fw = fleet.get("windows") if isinstance(fleet.get("windows"), dict) else {}
+    measured = fleet.get("measured")
+    scarce = (
+        measured > 0 if isinstance(measured, int) and not isinstance(measured, bool) else bool(fw)
+    )
+    keys = ("five_hour", "seven_day") + (("fable",) if is_fable else ())
+    absent = [k for k in keys if k != "fable" and k not in fw] if scarce else []
     fleet_s = ""
-    if fw:
-        keys = ("five_hour", "seven_day") + (("fable",) if is_fable else ())
+    if absent:
+        # the window that binds is the one NOBODY serves: the max() below runs over PRESENT keys
+        # only, so this reason named a window with 88% headroom as why no flip relieves, and at
+        # maximal scarcity said nothing fleet-wide at all — the third consumer the `measured`
+        # fix skipped, and the only message a held agent reads (Delta 10 seat A, #1/#2)
+        fleet_s = (
+            f" Fleet-wide NO account can serve {' or '.join(absent)}, so no flip relieves this."
+        )
+    elif fw:
         best = max(
             ((k, fw[k]) for k in keys if _util(fw.get(k)) is not None),
             key=lambda kv: _util(kv[1]),

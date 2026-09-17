@@ -1156,6 +1156,54 @@ def test_prompt_line_explains_maximal_scarcity_when_the_fleet_map_is_empty(tmp_p
     assert "fleet-wide" not in p.stdout, p.stdout
 
 
+def test_the_deny_reason_names_the_window_nobody_serves(tmp_path):
+    """C2j — Delta 10 seat A #1/#2: the deny reason is the message a HELD agent reads, and it was
+    the one consumer the `measured` fix skipped — at maximal scarcity it said nothing fleet-wide,
+    and with one window unserved it named the OTHER window, at 12%, as why no flip relieves."""
+    state, runs = tmp_path / "state", tmp_path / "runs"
+    runs.mkdir()
+    call = {"hook_event_name": "PreToolUse", "tool_name": "Agent", "session_id": "s1"}
+    _posture(
+        state, band="RED", band_account="GREEN", fleet_windows={}, fleet_measured=2, successor=None
+    )
+    reason = json.loads(_hook(call, state=state, runs=runs).stdout)["hookSpecificOutput"][
+        "permissionDecisionReason"
+    ]
+    assert "NO account can serve five_hour or seven_day" in reason, reason
+    fw = {"seven_day": {"utilization": 12.0, "slug": "intel"}}
+    _posture(
+        state, band="RED", band_account="GREEN", fleet_windows=fw, fleet_measured=1, successor=None
+    )
+    reason = json.loads(_hook(call, state=state, runs=runs).stdout)["hookSpecificOutput"][
+        "permissionDecisionReason"
+    ]
+    assert "NO account can serve five_hour" in reason and "at 12%" not in reason, reason
+    _posture(
+        state, band="RED", band_account="GREEN", fleet_windows={}, fleet_measured=0, successor=None
+    )
+    reason = json.loads(_hook(call, state=state, runs=runs).stdout)["hookSpecificOutput"][
+        "permissionDecisionReason"
+    ]
+    assert "Fleet-wide" not in reason, reason
+
+
+def test_a_bool_measured_is_not_a_count_for_the_hook(tmp_path):
+    """C2i — Delta 10 seat C: the hook's own copy of the bool-exclusion on `measured` had no
+    grader (the writer's did); a JSON `true` must fall back to the map's truthiness, never read
+    as 1 measured account."""
+    state = tmp_path / "state"
+    _posture(
+        state,
+        band="RED",
+        band_account="GREEN",
+        fleet_windows={},
+        fleet_measured=True,
+        successor=None,
+    )
+    p = _hook({"hook_event_name": "UserPromptSubmit", "session_id": "u1"}, state=state)
+    assert "fleet-wide" not in p.stdout and "nobody serves it" not in p.stdout, p.stdout
+
+
 def test_prompt_line_names_both_required_windows_when_nobody_serves_either(tmp_path):
     """C2g — Delta 9 seat C #3: with BOTH required windows unserved the line named no window at
     all (`hottest` was only ever set on a numeric reading); the contract says RED names the
