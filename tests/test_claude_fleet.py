@@ -5765,9 +5765,15 @@ def test_the_floor_binds_the_stamp_path_too(tmp_path, monkeypatch):
     cr._fleet_active_wall_advisory(rows_now, FLEET_NOW + 900, cr._rotate_threshold())
     assert len(actions["telegrams"]) == 1, "the promise is due but the floor has not passed"
     cr._fleet_active_wall_advisory(
-        rows_now, FLEET_NOW + cr._ADVISORY_MIN_GAP_S + 1, cr._rotate_threshold()
+        rows_now, FLEET_NOW + cr._ADVISORY_MIN_GAP_S - 1, cr._rotate_threshold()
     )
-    assert len(actions["telegrams"]) == 2, "past the floor a due promise re-advises, by design"
+    assert len(actions["telegrams"]) == 1, "one second inside the floor is still inside it"
+    cr._fleet_active_wall_advisory(
+        rows_now, FLEET_NOW + cr._ADVISORY_MIN_GAP_S, cr._rotate_threshold()
+    )
+    assert len(actions["telegrams"]) == 2, (
+        "AT the floor it releases — the ledger latch's own strict `<` (Delta 12 seat A, #4)"
+    )
 
 
 def test_the_rearmed_stamp_carries_the_episodes_own_promise(tmp_path, monkeypatch, capsys):
@@ -5797,6 +5803,18 @@ def test_the_rearmed_stamp_carries_the_episodes_own_promise(tmp_path, monkeypatc
     assert abs(stamp.stat().st_mtime - (now - 900)) < 1.0, "mtime is the row's ts, never now"
     cr._rearm_wall_stamp(tmp_path / "no-such-dir" / "fleet-exhausted", "a@x", now)
     assert "NOT re-armed" in capsys.readouterr().err
+    # and the arm this fix added: an UNREADABLE ledger is said too, not swallowed — the first
+    # cut of this grader only ever reached the write-failure line (Delta 12 seat C); root reads
+    # a 0o222 file anyway, so this arm alone is skipped there
+    if os.geteuid() != 0:
+        led = state / "rotate-ledger.jsonl"
+        stamp2 = tmp_path / "locks" / "fleet-exhausted-2"
+        led.chmod(0o222)
+        try:
+            cr._rearm_wall_stamp(stamp2, "a@x", now)
+        finally:
+            led.chmod(0o644)
+        assert not stamp2.exists() and "ledger unreadable" in capsys.readouterr().err
 
 
 def test_the_close_row_names_every_episode_it_ends(tmp_path, monkeypatch):
@@ -5827,6 +5845,17 @@ def test_the_close_row_names_every_episode_it_ends(tmp_path, monkeypatch):
     )
     cr._close_wall_episode_without_stamp("a@x", now, "relief")
     assert json.loads(led.read_text().splitlines()[-1])["closed_for"] == ["a@x", "b@x"]
+    # a keyless open episode is NAMED — `[]` may mean only "unreadable ledger" (Delta 10 B F4;
+    # the `str(k)` half had no grader, Delta 12 seat A #3); an UNHASHABLE key is skipped, where
+    # it crashed the reader and the tick with it (#7)
+    led.write_text(
+        json.dumps({"event": "fleet-active-wall", "ts": now - 60})
+        + "\n"
+        + json.dumps({"event": "fleet-active-wall", "ts": now - 30, "account": ["a"]})
+        + "\n"
+    )
+    cr._close_wall_episode_without_stamp("a@x", now, "relief")
+    assert json.loads(led.read_text().splitlines()[-1])["closed_for"] == ["None"]
 
 
 def test_a_wall_row_the_latch_has_retired_is_not_an_open_episode_to_the_closer(

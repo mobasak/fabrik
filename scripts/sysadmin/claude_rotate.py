@@ -5539,10 +5539,13 @@ def _urgent_drain_message(
 
 _ADVISORY_MIN_GAP_S = (
     30 * 60.0
-)  # floor: one wall advisory per account per 30 min whatever the STAMP says — it is held by
-# the ledger latch, so it stands only while the episode's own ROW can be found: an unreadable
-# ledger fails open past it, a ledger flapping readable/unreadable under a dead stamp re-fires
-# at the tick rate (Delta 9 seat B, F4), and a ledger that lost the row (truncated by hand —
+)  # floor: one wall advisory per 30 min whatever the STAMP says — held by BOTH latches: the
+# stamp path from the stamp's mtime (the re-arm sets it to the episode's ts) and the ledger
+# latch from the row's ts (Delta 11 seat A). The ledger latch is per ACCOUNT; the stamp is one
+# fleet-wide file, so inside the floor it holds a SECOND account's fresh wall too (Delta 12
+# seat A, #6). The escapes apply only while the stamp is ABSENT and the ledger latch decides:
+# an unreadable ledger fails open past it, a ledger flapping readable/unreadable re-fires at
+# the tick rate (Delta 9 seat B, F4), and a ledger that lost the row (truncated by hand —
 # nothing tracked truncates it) re-advises inside the floor (Delta 10 seat B, F5) — bounded,
 # and said here rather than claimed away.
 _WAKE_EVENT = (
@@ -5588,6 +5591,8 @@ def _open_wall_rows(now: float | None = None) -> tuple[dict[str, dict], bool]:
                 and now - float(ts) > _FLEET_WALL_REARM_S
             )
             acct = row.get("account")
+            if isinstance(acct, (list, dict, set)):
+                continue  # an unhashable key crashed the reader — and the whole tick (Delta 12 A #7)
             open_rows.pop(acct, None)
             if not expired:
                 open_rows[acct] = row
@@ -5728,7 +5733,8 @@ def _rearm_wall_stamp(stamp: Path, email: str, now: float) -> None:
     `resume_epoch` the advisory promised ("0" when none), mtime = the row's `ts`, never `now`:
     a fresh mtime would restart the stamp's week re-arm and the two latches would drift apart.
     Never raises (the tick must not fail on a cache file); an unwritable stamp is said on stderr
-    like the first write."""
+    like the first write, and so is an unreadable ledger — reachable by a direct call or an
+    intra-tick race only, since the one production caller's guard has just read the ledger."""
     row, readable = _open_wall_episode(email, now)
     if not isinstance(row, dict):
         if not readable:
@@ -5838,7 +5844,12 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     # the dwell branch had the stamp cleared) released here on the next tick — a second advisory
     # 900 s inside the floor the comment on `_ADVISORY_MIN_GAP_S` claims holds "whatever the
     # stamp says" (Delta 11 seat A, A2-1). The stamp's mtime is the episode's start (the re-arm
-    # writes the row's ts), so both latches count the floor from the same instant.
+    # writes the row's ts), so within one episode both latches count the floor from the same
+    # instant. The stamp is FLEET-wide, though: inside the floor a SECOND account's fresh wall
+    # is held too (measured: announced at +1800 rather than +900), where the per-account ledger
+    # latch would speak — the two agree only within one episode (Delta 12 seat A, #6). Cost: a
+    # promise falling due inside the floor defers the follow-up notice — the wake the message
+    # names as its mechanism — to the floor, up to ~28 min past the epoch the fleet was given.
     inside_floor = age is not None and -_CLOCK_SKEW_TOLERANCE_S <= age < _ADVISORY_MIN_GAP_S
     latched = stamp.exists() and (
         inside_floor

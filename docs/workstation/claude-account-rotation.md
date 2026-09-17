@@ -154,7 +154,7 @@ The `*/5` tick reads every account dir (five as of 2026-09-06 — it discovers t
   as windows reset. **The latch has a THIRD re-arm: the promise coming due.** The message names a
   resume instant and tells every repo not to poll before it, so the `fleet-exhausted` stamp's
   CONTENT holds that epoch (`0` when none could be given) and `_promised_resume` re-arms the latch
-  once it passes with the wall unbroken — the next message then carries the next time to try.
+  once it passes with the wall unbroken — but never inside `_ADVISORY_MIN_GAP_S` (30 min) of the episode's start, which binds the STAMP path too since 2026-09-17: a promise falling due sooner waits for the floor, so the follow-up notice can land up to ~28 min after the epoch it named — the next message then carries the next time to try.
   Without it the fleet goes silent until the week-long re-arm: on 2026-09-04 one message at 20:55
   UTC named 21:31, nothing switched, and 47 "NO successor has headroom" ticks passed unannounced
   until the operator flipped the pointer by hand at 07:36. For the same reason the message says
