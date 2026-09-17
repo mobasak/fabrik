@@ -3627,3 +3627,57 @@ without changing what is counted, removing the pressure for the real fix. The or
 SYSTEMIC note is the right interim shape — COUNT THE INSTRUMENT GAP, never bucket it: until the hook
 can tell, the collector should expose that its numerator is undifferentiated rather than call it
 premature.
+
+### [infra] `runtime.md` is MANDATED by /fabrik-user-test and REJECTED at three enforcement sites — SPEC candidate
+
+Raised by web-ecommerce-factory as `01M2R6FHVDKA8S0QMDJR1S5Y0Z` (finding 1, measured on
+`docs/development/certifications/2026-09-17-cert-bhdtrade/`), validated and ESCALATED by infra
+2026-09-17: they found one rejecting site, there are three.
+
+- **Mandates it:** `commands/_sources/fabrik-user-test.md:55` — *"RECORD how you started it —
+  `<board>/runtime.md` — before any round runs."*
+- **Rejects it (a):** `scripts/enforcement/check_certification_coverage.py:331` exempts only the
+  spine and `ledger.md`, so `runtime.md` reports `BAD TICKET: runtime.md is not TC##[a-z]?-<slug>.md`.
+- **Rejects it (b):** `scripts/enforcement/check_doc_sprawl.py:44-47` — `CERT_BOARD_RE` permits
+  `<spine>.md|ledger.md|TC\d{2}[a-z]?-<slug>.md` and nothing else.
+- **Forbids it (c):** `CLAUDE.md` § HARD STOPS, the new-`.md` allowlist row: cert boards are
+  "same-stem spine + `ledger.md` + `TC##[a-z]?-<slug>.md` tickets ONLY" — and its byte-identical twin
+  in `templates/governance/CLAUDE.md`, auto-loaded in ~46 repos.
+
+So a project agent that follows the command exactly creates a file its own governance forbids and two
+of its own gates reject. Advisory today, which is the only reason nothing blocked.
+
+**Why this is SPEC work and not a one-line exemption:** the fix has to land at four sites at once
+(two enforcement scripts, both fleet-synced governance-sync triggers, plus BOTH CLAUDE.md copies),
+and it has to RULE first — either `runtime.md` joins the cert-board namespace everywhere, or the
+command names a different home. Patching only `check_certification_coverage.py`, which is the
+obvious reading of the incoming finding, leaves `check_doc_sprawl.py` and the contract still
+rejecting it, i.e. three of four sites wrong and the symptom hidden.
+
+### [infra] A harness worktree's synced copies are STALE, so every seat's `final_gate --check` reds at random
+
+Raised as finding 3 of the same mail: 7 of 7 fix seats in one web-ecommerce-factory run hit
+`Fabrik-Synced Files Unmodified` or `Doc Link Integrity` red, none naming a file they touched, and one
+seat saw a DIFFERENT red eight minutes later. Reproduced hub-side 2026-09-17: of 18 registered
+worktrees, the sampled `/opt/fabrik/.claude/worktrees/agent-a1465c43f1a445a7f` carries a
+`scripts/command_run.py` that DIFFERS from the main checkout.
+
+⚠️ The mechanism is NOT the same in the two places and a fix must handle both: in a PROJECT the synced
+set is gitignored, so a worktree receives nothing; in the HUB those paths are TRACKED
+(`git check-ignore --no-index` reports no rule), so a worktree receives them at whatever commit it was
+created from and drifts as master moves. Same red, two causes.
+
+This collides with a rule the hub actively mandates: CLAUDE.md § Behavior routes every mutate-restore
+cycle to a throwaway `git worktree add`, and the seat brief template sanctions it. So the contract
+sends seats into an environment whose gate is unreliable. Disposition to rule on: re-sync the ignored
+set on worktree creation, or have the gate say "worktree: synced-set drift is expected" instead of
+`failure`. Related: the already-filed contradiction that read-only finder briefs forbid every writing
+git verb while the shared-tree rule mandates a worktree (cost one seat 18 false FAILs).
+
+### [infra] A background Bash task inside a subagent is killed at ~1h with no signal to the caller
+
+Finding 2 of the same mail, measured: a wave driver died silently at 47 of 99 pages at exactly 60
+minutes and was recovered with `setsid nohup … & disown`. NOT independently reproduced by infra (it
+would cost an hour to observe). Destination: one line in `.windsurf/rules/core/62-using-subagents.md`
+telling a long driver to launch detached from the start — a fleet-synced pack, so it rides whatever
+change next touches that file rather than a commit of its own.
