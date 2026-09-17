@@ -3199,9 +3199,11 @@ def _pick_flip_target(
         # a reset already in the PAST is not perishability either — the rolled-over rescue
         # admits such cached rows, and their past epoch sorted AHEAD of every live account's
         # future reset, inverting perishable-first (closing review R3)
-        reset_at = (
-            float(reset) if isinstance(reset, (int, float)) and float(reset) > _now() else far
-        )
+        # through the ONE validator: a CANDIDATE row whose weekly reset alone carried a giant JSON
+        # int raised OverflowError out of `float()` here — and out of `_fleet_picture` — after
+        # every other reset read had been routed (Delta 24 seat, RECORDED → this scoped fix)
+        reset = _usable_ts(reset)
+        reset_at = reset if reset is not None and reset > _now() else far
         weekly = utils["seven_day"] if utils["seven_day"] is not None else 100.0
         session = utils["five_hour"] if utils["five_hour"] is not None else 100.0
         ranked.append(((reset_at, weekly, session), slug, str(row.get("email"))))

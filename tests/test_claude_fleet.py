@@ -3687,7 +3687,43 @@ def test_a_giant_int_in_the_usage_cache_does_not_raise_out_of_the_relief_writer_
     verdict = cr._flip_candidate_verdict(cached, 98.0)
     assert verdict[1] == {"five_hour": None, "seven_day": None}, verdict
     assert isinstance(cr._fleet_picture(rows + [cached], "act", now), dict)
-    assert cr._pick_flip_target(rows + [cached]) != "c@x"
+    target = cr._pick_flip_target(rows + [cached])  # (slug, email) | None — never a bare email
+    assert target is None or target[1] != "c@x", target
+
+
+def test_a_candidate_row_with_a_giant_weekly_reset_does_not_raise_out_of_the_picker(
+    tmp_path, monkeypatch
+):
+    """The quota-posture review's Delta 24 seat recorded it: a CANDIDATE row (normal utilizations, a
+    live-chained credentialed dir) whose WEEKLY reset alone carries a giant JSON int reached the
+    picker's own bare `float(reset)` after every other reset read had been routed through
+    `_usable_ts` — OverflowError out of `_pick_flip_target` and `_fleet_picture`. A row without a
+    credentialed dir never gets that far (the verdict skips it first), which is why the first cut
+    of this grader could not reach the line."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=600.0)
+    giant = int("1" + "0" * 400)
+    now = FLEET_NOW
+    for src in ("cache", "live"):
+        hot = _row(
+            "sarp@ocoron.com",
+            10.0,
+            20.0,
+            cap=90,
+            s_reset=now + 3600,
+            w_reset=giant,
+            slug="seo",
+            source=src,
+        )
+        assert cr._flip_candidate_verdict(hot, 98.0)[2] is None, (
+            src
+        )  # a CANDIDATE, so the line is reached
+        picked = cr._pick_flip_target([hot])
+        assert picked == ("seo", "sarp@ocoron.com"), (
+            src,
+            picked,
+        )  # returns; the giant reset reads as no reset
+        assert isinstance(cr._fleet_picture([hot], "intel", now), dict), src
 
 
 def test_next_session_relief_prefers_the_soonest_session_reset_of_a_weekly_ok_sibling():
