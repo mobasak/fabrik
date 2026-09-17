@@ -5906,6 +5906,37 @@ def test_the_rearmed_stamp_carries_the_episodes_own_promise(tmp_path, monkeypatc
     stamp4 = tmp_path / "locks" / "fleet-exhausted-4"
     cr._rearm_wall_stamp(stamp4, "a@x", now)
     assert not stamp4.exists() and "NOT re-armed" in capsys.readouterr().err
+    # a FAILED re-arm must never remove a stamp it did not write: the stamp IS the fleet hold
+    # (`quota_stop.py` holds on presence alone), and Delta 18's unconditional unlink dropped it
+    # on any un-writable stamp (Delta 19 seat A, F1); root writes a 0o444 file, so root skips it
+    (state / "rotate-ledger.jsonl").write_text(
+        json.dumps({"event": "fleet-active-wall", "ts": now - 900, "account": "a@x"}) + "\n"
+    )
+    if os.geteuid() != 0:
+        stamp5 = tmp_path / "locks" / "fleet-exhausted-5"
+        stamp5.write_text("1800003600", encoding="utf-8")
+        stamp5.chmod(0o444)
+        try:
+            cr._rearm_wall_stamp(stamp5, "a@x", now)
+            assert stamp5.exists(), "a failed re-arm dropped a hold it did not arm"
+        finally:
+            stamp5.chmod(0o644)
+        assert "NOT re-armed" in capsys.readouterr().err
+    # and a cleanup that FAILS is said, and the fresh stamp stays — the docstring's absolute
+    # ("never a fresh-mtime stamp") was false on exactly this path (Delta 19 seat C, #1)
+    (state / "rotate-ledger.jsonl").write_text(
+        json.dumps({"event": "fleet-active-wall", "ts": 1e308, "account": "a@x"}) + "\n"
+    )
+    stamp6 = tmp_path / "locks" / "fleet-exhausted-6"
+
+    def _refuse(self, missing_ok=False):
+        raise PermissionError("unlink refused by the grader")
+
+    monkeypatch.setattr(type(stamp6), "unlink", _refuse)
+    cr._rearm_wall_stamp(stamp6, "a@x", now)
+    monkeypatch.undo()
+    err6 = capsys.readouterr().err
+    assert stamp6.exists() and "NOT re-armed" in err6 and "left in place" in err6, err6
     # and the ROW-GONE race: readable ledger, no open row — no stamp, and nothing said (the
     # docstring says so; the negative had no grader — Delta 14 seat A, F5)
     (state / "rotate-ledger.jsonl").write_text("")
@@ -6013,6 +6044,12 @@ def test_a_wall_row_the_latch_has_retired_is_not_an_open_episode_to_the_closer(
         assert len(led.read_text().splitlines()) == 1, ("surplus close row", bad)
     cr._close_wall_episode_without_stamp("a@x", now, "relief")
     assert len(led.read_text().splitlines()) == 1, "no close row for a retired episode"
+    # and an OUT-OF-ERA but usable ts: expired by AGE on a clocked call, OPEN with no clock —
+    # the wall reader has no era floor, and its docstring's clause is scoped to a clock
+    # (Delta 18 seat A, F3; Delta 19 seats A F2 / C #2)
+    led.write_text('{"event": "fleet-active-wall", "ts": 1, "account": "b@x"}\n')
+    assert cr._open_wall_episode("b@x", now) == (None, True)
+    assert cr._open_wall_episode("b@x")[0] is not None
 
 
 def test_the_ledger_latch_tolerates_the_stamps_clock_skew(tmp_path, monkeypatch):

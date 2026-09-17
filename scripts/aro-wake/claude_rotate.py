@@ -73,7 +73,7 @@ _CLOCK_SKEW_TOLERANCE_S = 60.0
 # No rotate-ledger row predates this (the ledger's first row is 2026; the writer is `time.time()`).
 # The flip reader's floor: a ts at or below it is corruption, never a flip in 1970 — `{"ts": 1}` is
 # `{"ts": true}`'s VALUE, and a floor at 0 refused the spelling while admitting the value
-# (Delta 17 seat A, F2). Mirror cost, stated: a row honestly stamped before 2020 is refused;
+# (Delta 17 seat A, F2). Mirror cost, stated: a row honestly stamped at or before 2020-01-01Z is refused;
 # none can exist, and the constant must stay below the ledger's real first row forever.
 _LEDGER_ERA_FLOOR_S = 1_577_836_800.0  # 2020-01-01T00:00:00Z
 
@@ -5618,8 +5618,10 @@ def _open_wall_rows(now: float | None = None) -> tuple[dict[str, dict], bool]:
     a later corrupt row for an account retires that account's earlier open episode (the
     `pop` runs before the row is judged) — also fail-open, and the only order that keeps one
     row per account; and NO era floor — `_last_switch_ts`'s floor is the dwell guard's (a
-    1970 ts there INSTALLS an account), while here an out-of-era ts simply expires by age,
-    the fail-open side already (Delta 18 seat A, F3)."""
+    1970 ts there INSTALLS an account), while here an out-of-era ts is expired by AGE on a
+    clocked call — the fail-open side already — and with no clock stays open like every other
+    usable ts (`_open_wall_episode`'s default; both production callers pass a clock)
+    (Delta 18 seat A, F3; scoped Delta 19)."""
     try:
         lines = (_rotate_state_dir() / "rotate-ledger.jsonl").read_text().splitlines()
     except FileNotFoundError:
@@ -5788,11 +5790,18 @@ def _rearm_wall_stamp(stamp: Path, email: str, now: float) -> None:
     """Re-create the fleet-exhausted stamp from the OPEN episode's ledger row — content = the
     `resume_epoch` the advisory promised ("0" when none), mtime = the row's `ts`, never `now`:
     a fresh mtime would restart the stamp's week re-arm and the two latches would drift apart.
-    Never raises (the tick must not fail on a cache file): a returned row's ts converts to a
-    float by `_open_wall_rows`'s INVARIANT, but `os.utime` refuses one outside the platform's
-    `time_t` with OverflowError, not OSError, and the stamp half-written before that refusal is
-    removed — a failed re-arm leaves the hold DOWN, never a fresh-mtime stamp (Delta 18 seat A,
-    F1); an unwritable stamp is said on stderr
+    Never raises (the tick must not fail on a cache file), and a failure is said on stderr FIRST,
+    before any cleanup that could itself raise (Delta 19 seat A, F5). A returned row's ts
+    converts to a float by `_open_wall_rows`'s INVARIANT, but `os.utime` refuses one past the
+    platform's `time_t` with OverflowError, not OSError (Delta 18 seat A, F1) — and between the
+    filesystem's own mtime ceiling and there it SUCCEEDS with a CLAMPED mtime, a stamp whose
+    mtime is not the row's ts and that nobody says (no writer can emit such a ts; backlog,
+    fleet). Only a stamp THIS call created is removed after a failure — the write lands before
+    `os.utime` runs, so it would carry a fresh mtime, the drift named above; a stamp that
+    PRE-EXISTED is the fleet's live hold (`quota_stop.py` holds on presence alone) and is kept
+    whatever the failed write left in it, because an unconditional unlink dropped the hold on
+    any un-writable stamp (Delta 19 seat A, F1); a cleanup that fails is said too and that
+    fresh stamp stays. An unwritable stamp is said on stderr
     like the first write, and so is an unreadable ledger — reachable by a direct call or an
     intra-tick race only, since the one production caller's guard has just read the ledger; a row
     that VANISHED in the same race is not said and leaves the hold down identically (F6)."""
@@ -5811,17 +5820,25 @@ def _rearm_wall_stamp(stamp: Path, email: str, now: float) -> None:
     )
     ts = row.get("ts")
     at = float(ts)  # converts by `_open_wall_rows`'s INVARIANT; `os.utime` may still refuse it
+    fresh = False  # only a stamp THIS call creates may be removed: an existing one IS the hold
     try:
+        fresh = not stamp.exists()
         stamp.write_text(content, encoding="utf-8")
         os.utime(stamp, (at, at))
     except (OSError, OverflowError, ValueError) as exc:
-        # the write landed FIRST, so the stamp now carries a fresh mtime — the drift the
-        # docstring names; remove it so the failed re-arm reads like a failed write (A F1)
-        try:
-            stamp.unlink(missing_ok=True)
-        except OSError:
-            pass
         sys.stderr.write(f"claude_rotate: fleet-exhausted stamp NOT re-armed ({stamp}): {exc}\n")
+        if fresh:
+            # the write landed FIRST, so a stamp this call created carries a fresh mtime — the
+            # drift the docstring names; remove it so the failed re-arm reads like a failed
+            # write. A pre-existing stamp is another writer's live hold, never ours to drop —
+            # Delta 18's unconditional unlink dropped the fleet hold on any un-writable stamp
+            # (Delta 19 seat A, F1); a cleanup that fails is said, and the stamp stays (C #1)
+            try:
+                stamp.unlink(missing_ok=True)
+            except (OSError, ValueError) as exc2:
+                sys.stderr.write(
+                    f"claude_rotate: fleet-exhausted stamp left in place ({stamp}): {exc2}\n"
+                )
 
 
 def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: float) -> None:
