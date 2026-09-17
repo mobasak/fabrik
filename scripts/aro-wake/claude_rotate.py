@@ -1245,12 +1245,14 @@ def _account_status(store: Path) -> dict:
     windows_ok = True
     for key in ("five_hour", "seven_day"):
         w = usage.get(key)
-        u = w.get("utilization") if isinstance(w, dict) else None
-        if not isinstance(u, (int, float)):
+        # through the ONE validator (round zero of the routed-up review): `float()` of a giant
+        # JSON int raised out of the probe parser itself — the row never reached the cache
+        u = _usable_ts(w.get("utilization")) if isinstance(w, dict) else None
+        if u is None:
             windows_ok = False
             row[key] = None
             continue
-        row[key] = {"utilization": float(u), "resets_at_epoch": _iso_to_epoch(w.get("resets_at"))}
+        row[key] = {"utilization": u, "resets_at_epoch": _iso_to_epoch(w.get("resets_at"))}
     row["valid"] = row["email"] is not None and windows_ok
     return row
 
@@ -3496,10 +3498,10 @@ def _usage_windows(usage: dict | None) -> dict | None:
     out: dict = {}
     for key in ("five_hour", "seven_day"):
         w = usage.get(key)
-        u = w.get("utilization") if isinstance(w, dict) else None
-        if not isinstance(u, (int, float)) or isinstance(u, bool):  # a JSON `true` is not 1%
+        u = _usable_ts(w.get("utilization")) if isinstance(w, dict) else None  # `true` is not 1%
+        if u is None:
             return None
-        out[key] = {"utilization": float(u), "resets_at_epoch": _iso_to_epoch(w.get("resets_at"))}
+        out[key] = {"utilization": u, "resets_at_epoch": _iso_to_epoch(w.get("resets_at"))}
     # Per-MODEL weekly limits arrive as scoped entries in the `limits` array, each carrying the
     # model's own display_name — this is the authoritative, self-labeling source for a model's
     # separate weekly quota. Fable-5 lives ONLY here (kind="weekly_scoped",
@@ -3954,8 +3956,8 @@ def _fleet_row_warnings(accounts: list[dict]) -> list[str]:
             )
         if row.get("cap_walled"):
             wk = row.get("seven_day")
-            wu = wk.get("utilization") if isinstance(wk, dict) else None
-            at = f"{wu:.0f}%" if isinstance(wu, (int, float)) else "?"
+            wu = _usable_ts(wk.get("utilization")) if isinstance(wk, dict) else None
+            at = f"{wu:.0f}%" if wu is not None else "?"
             warns.append(
                 f"⚠ {row['email']}: cap-walled — weekly {at} ≥ cap {row['weekly_cap']} "
                 "(caps.json) — reserved for operator use until weekly reset; automated flips "
@@ -4438,9 +4440,8 @@ def _fleet_band(
 
     def _u(k: str) -> float | None:
         w = fleet.get(k) if isinstance(fleet, dict) else None
-        u = w.get("utilization") if isinstance(w, dict) else None
-        ok = isinstance(u, (int, float)) and not isinstance(u, bool) and math.isfinite(u)
-        return float(u) if ok else None
+        # `_usable_ts`: `math.isfinite` itself raises OverflowError on a giant int (round zero)
+        return _usable_ts(w.get("utilization")) if isinstance(w, dict) else None
 
     # ⚠️ BOTH required windows must have a serving account. A key ABSENT from `fleet` means nobody
     # can serve that window — that is maximal scarcity, not "no constraint" — and `max()` over the
@@ -4634,8 +4635,7 @@ def _fmt_forecast(w: dict | None) -> str:
     # that can raise on its own data can take down the command the contract names as the authority,
     # so an unusable number is treated as NO forecast rather than as an exception.
     def _finite(x: object) -> float | None:
-        ok = isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x)
-        return float(x) if ok else None
+        return _usable_ts(x)  # the ONE validator; `math.isfinite` raises on a giant int
 
     v = w.get("verdict")
     mtr = _finite(w.get("minutes_to_reset"))
@@ -4663,12 +4663,11 @@ def _posture_status_line(posture: dict | None, now: float, stale_s: float = 900.
     wins = act.get("windows") or {}
 
     def pct(w: object) -> str:
-        u = w.get("utilization") if isinstance(w, dict) else None
-        # `isinstance(True, int)` is True in Python, so a bool prints as `1%`, and a NaN raises out
-        # of the format. The same guard `_window_reading` and `_fmt_forecast._finite` already apply,
-        # so the convention travels with the field rather than stopping at one reader.
-        ok = isinstance(u, (int, float)) and not isinstance(u, bool) and math.isfinite(u)
-        return f"{u:.0f}%" if ok else "—"
+        # `isinstance(True, int)` is True in Python, so a bool prints as `1%`, a NaN raises out
+        # of the format and a giant int raises out of `math.isfinite` — the ONE validator, the
+        # same guard `_window_reading` and `_fmt_forecast._finite` apply.
+        u = _usable_ts(w.get("utilization")) if isinstance(w, dict) else None
+        return f"{u:.0f}%" if u is not None else "—"
 
     fh = wins.get("five_hour")
     burn = fh.get("burn_per_min") if isinstance(fh, dict) else None
@@ -4700,8 +4699,8 @@ def _posture_status_line(posture: dict | None, now: float, stale_s: float = 900.
         parts = []
         for key, label in (("five_hour", "5h"), ("seven_day", "weekly"), ("fable", "Fable")):
             w = fw.get(key)
-            u = w.get("utilization") if isinstance(w, dict) else None
-            if isinstance(u, (int, float)) and not isinstance(u, bool) and math.isfinite(u):
+            u = _usable_ts(w.get("utilization")) if isinstance(w, dict) else None
+            if u is not None:
                 parts.append(f"{label} {pct(w)} ({w.get('slug') or '?'})")
             elif scarce and key != "fable" and key not in fw:
                 # ABSENCE is load-bearing since the required-window rule: say it, do not omit it
@@ -5199,7 +5198,7 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
 
 def _row_utils(row: dict) -> dict[str, float | None]:
     return {
-        key: (w.get("utilization") if isinstance(w, dict) else None)
+        key: (_usable_ts(w.get("utilization")) if isinstance(w, dict) else None)
         for key, w in (("five_hour", row.get("five_hour")), ("seven_day", row.get("seven_day")))
     }
 
@@ -5490,16 +5489,16 @@ def _drain_trigger_reason(row: dict, session_pct: float | None, walled: bool) ->
     ordered a stop on consecutive days and read in opposite directions.
     """
     wk = row.get("seven_day") if isinstance(row.get("seven_day"), dict) else {}
-    wu = wk.get("utilization") if isinstance(wk, dict) else None
+    wu = _usable_ts(wk.get("utilization")) if isinstance(wk, dict) else None
     cap = row.get("weekly_cap")
     if walled:
-        if isinstance(wu, (int, float)):
-            if cap is not None and float(wu) < 100.0:
+        if wu is not None:
+            if cap is not None and wu < 100.0:
                 return (
-                    f"its weekly window is {float(wu):.0f}% CONSUMED, at or over the "
+                    f"its weekly window is {wu:.0f}% CONSUMED, at or over the "
                     f"{float(cap):.0f}% reserve we set for it in caps.json"
                 )
-            return f"its weekly window is {float(wu):.0f}% CONSUMED (walled)"
+            return f"its weekly window is {wu:.0f}% CONSUMED (walled)"
         return "it is walled with no readable weekly figure"
     if session_pct is not None:
         return f"its 5-hour session window is {float(session_pct):.0f}% CONSUMED"
@@ -5920,8 +5919,7 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     # graceful stop needs. Same latch, same re-arm, one message per episode.
     session_pct = None
     if row is not None and isinstance(row.get("five_hour"), dict):
-        v = row["five_hour"].get("utilization")
-        session_pct = float(v) if isinstance(v, (int, float)) else None
+        session_pct = _usable_ts(row["five_hour"].get("utilization"))
     urgent = session_pct is not None and session_pct >= _urgent_drain_pct()
     stamp = _fleet_exhaustion_stamp()
     # The RELIEF WAKE fires only on a real TRANSITION (stamp present → absent) and only with a
@@ -6023,9 +6021,9 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
         return  # already advised for this wall episode — one fact, one message
     hot = max(
         (
-            w["utilization"]
+            u
             for w in (row.get("five_hour"), row.get("seven_day"))
-            if isinstance(w, dict) and isinstance(w.get("utilization"), (int, float))
+            if isinstance(w, dict) and (u := _usable_ts(w.get("utilization"))) is not None
         ),
         default=0.0,
     )
@@ -6090,9 +6088,7 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
     _fleet_flip_leg(dirs, accounts, threshold)
     for row in accounts:
         windows = [w for w in (row["five_hour"], row["seven_day"]) if isinstance(w, dict)]
-        utils = [
-            w["utilization"] for w in windows if isinstance(w.get("utilization"), (int, float))
-        ]
+        utils = [u for w in windows if (u := _usable_ts(w.get("utilization"))) is not None]
         stale = f" (cached {row['age_s'] / 3600:.0f}h ago)" if row["source"] == "cache" else ""
         if not utils:
             print(f"tick: {row['email']} — no quota reading (no fresh token, nothing cached)")
@@ -6147,15 +6143,17 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
             # field name, which earned that clause in its own review; unreachable today (both
             # producers coerce with float()), adopted so the convention travels with the name.
             _wk_window = _active_row.get("seven_day")
-            _wk = _wk_window.get("utilization") if isinstance(_wk_window, dict) else None
-            if isinstance(_wk, (int, float)) and not isinstance(_wk, bool):
-                _row["weekly_pct"] = float(_wk)
+            _wk = (
+                _usable_ts(_wk_window.get("utilization")) if isinstance(_wk_window, dict) else None
+            )
+            if _wk is not None:
+                _row["weekly_pct"] = _wk
             # the Fable weekly-scoped window rides the row too (D-269) — same guard, same write
             # condition, so the Finish can measure the third axis the way it measures the weekly one
             _fk, _fw = _fable_window(_active_row)
-            _fv = _fw.get("utilization") if isinstance(_fw, dict) else None
-            if isinstance(_fv, (int, float)) and not isinstance(_fv, bool):
-                _row["fable_pct"] = float(_fv)
+            _fv = _usable_ts(_fw.get("utilization")) if isinstance(_fw, dict) else None
+            if _fv is not None:
+                _row["fable_pct"] = _fv
             _ledger_append(_row)
     # The quota posture (D-269): resolved AFTER the flip leg so it describes the POST-flip pointer;
     # at function level so the no-reading path writes too (band null). A picture error prints one
@@ -6562,11 +6560,8 @@ def _cmd_probe_current(as_json: bool) -> int:
         return 0
 
     def _p(w: object) -> str:
-        return (
-            f"{w['utilization']:.0f}%"
-            if isinstance(w, dict) and isinstance(w.get("utilization"), (int, float))
-            else "-"
-        )
+        u = _usable_ts(w.get("utilization")) if isinstance(w, dict) else None
+        return f"{u:.0f}%" if u is not None else "-"
 
     print(
         f"current account: session {_p(row.get('five_hour'))}  "

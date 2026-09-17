@@ -3790,6 +3790,65 @@ def test_status_renders_a_reset_the_platform_cannot_date_as_unknown():
     )
 
 
+def test_every_reader_of_a_cache_utilization_survives_the_value_the_validator_refuses(monkeypatch):
+    """Round zero of the routed-up review swept the CLASS — a value that passes `isinstance` and
+    raises on conversion (`float()`, `math.isfinite`, an f-string) — at every mirror site the
+    two scoped rounds had not reached: both probe parsers, the cap-walled warning, the band and
+    posture-line readers, the forecast renderer, the drain reason, the advisory's hot/session
+    reads and `--probe-current`. Each reads the giant as NO reading, none raises."""
+    giant = int("1" + "0" * 400)
+    w = {"utilization": giant, "resets_at_epoch": FLEET_NOW + 60}
+    row = {
+        "email": "a@x",
+        "valid": True,
+        "weekly_cap": 90,
+        "cap_walled": True,
+        "slugs": ["a"],
+        "source": "live",
+        "five_hour": w,
+        "seven_day": w,
+    }
+    assert (
+        cr._usage_windows(
+            {
+                "five_hour": {"utilization": giant, "resets_at": None},
+                "seven_day": {"utilization": 3, "resets_at": None},
+            }
+        )
+        is None
+    )
+    assert any("cap-walled" in s and "?" in s for s in cr._fleet_row_warnings([row]))
+    assert (
+        cr._fmt_forecast({"utilization": 5.0, "verdict": "reset_first", "minutes_to_reset": giant})
+        == "no burn"
+    )
+    assert (
+        cr._drain_trigger_reason(row, None, True) == "it is walled with no readable weekly figure"
+    )
+    assert cr._row_utils(row) == {"five_hour": None, "seven_day": None}
+    assert (
+        cr._fleet_band(
+            {"five_hour": w, "seven_day": w}, "GREEN", False, 85.0, 90.0, fable=False, measured=1
+        )
+        == "RED"
+    )
+    line = cr._posture_status_line(
+        {
+            "ts": FLEET_NOW,
+            "active": {"slug": "a", "windows": {"five_hour": w}},
+            "fleet": {"five_hour": {**w, "slug": "a"}},
+        },
+        FLEET_NOW,
+    )
+    assert isinstance(line, str) and "%" not in line.split("5h")[-1][:6]
+    monkeypatch.setattr(cr, "_tick_telegram", lambda m: None)
+    monkeypatch.setattr(cr, "_drain_mail", lambda repos, m: None)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: [])
+    monkeypatch.setattr(cr, "_ledger_append", lambda e: None)
+    monkeypatch.setattr(cr, "_resolve_active", lambda: "a")
+    cr._fleet_active_wall_advisory([row], FLEET_NOW, threshold=95.0)
+
+
 def test_the_legacy_successor_picker_reads_a_reset_the_validator_refuses_as_none(monkeypatch):
     """`_pick_successor`'s sort key took the raw cache value: a string reset raised TypeError in
     the tuple compare, a JSON `true` sorted as a 1970 reset and won perishable-first (round 2
