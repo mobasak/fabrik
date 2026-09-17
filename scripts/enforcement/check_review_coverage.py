@@ -386,12 +386,18 @@ _EXIT_NEGATION = re.compile(
     r"|isn't|wasn't|didn't|doesn't|hasn't|won't|cannot|can't)\b",
     re.I,
 )
-# THREE under D-278 (was 2 under the superseded D-252): the window the scope-growth stop slides
-# over. TWIN of `command_run.py::SCOPE_GROWTH_ROUNDS`, asserted equal by
-# tests/test_check_review_coverage_scope_growth.py — one rule, two readers, change them together.
-# ⚠️ This grader can only corroborate the SHAPE (N rounds that each confirmed something); the
-# own-fix half is a run-record counter and never a ledger column, so it stays declarative.
-_OWN_FIX_ROUNDS_FOR_STOP = 3
+# TWO — and the TWIN is `command_run.py::SCOPE_GROWTH_QUALIFY`, never `SCOPE_GROWTH_ROUNDS`.
+# ⚠️ This grader counts trailing rounds that EACH confirmed something. That is the QUALIFYING count,
+# not the window length. Under D-252 the two coincided (window 2, qualify 2) and the lockstep guard
+# was written against whichever name was handy; D-278 split them, and following the WINDOW here
+# makes this gate REFUSE the very stop its twin ADVISES — D-278 deliberately lets a window round be
+# quiet, malformed or low-ratio, and round 1 is the full pass and is often exactly that. Measured
+# over every all-own-fix three-round window where the exemption decides the gate: false refusals
+# 12% at 2 versus 25% at 3, and the newly-broken class is the natural shape (a quiet first round).
+# The run of this build that tried 3 is the evidence; it was reverted here.
+# ⚠️ This grader can only corroborate the SHAPE; the own-fix half is a run-record counter and never
+# a ledger column, so it stays declarative.
+_OWN_FIX_ROUNDS_FOR_STOP = 2
 PASS2 = re.compile(r"\bPass\s*2\b")
 # The proof of a rubric RUN is the script's own generated output header — a prose
 # mention is not an invocation (trade-intelligence 01M17Z7Q: a thrice-converged plan

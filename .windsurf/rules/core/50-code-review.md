@@ -78,7 +78,11 @@ code-changing chunk of work gets one:
   asked for by name, or a scoped review whose SECOND consecutive round CONFIRMS defects
   **and whose scope-growth verdict says the defects are the ARTIFACT'S** (it routes up by its own
   rule, in one shell line). ⚠️ When that verdict says the opposite — see the scope-growth stop
-  below — escalating is the WRONG answer and the loop stops instead.
+  below — escalating is the WRONG answer and the loop stops instead. ⚠️ **And when there is NO
+  verdict, which is the common case: nothing is computed before the THIRD round (the window is
+  three rounds wide) and nothing prints on a converging loop. Silence is not a verdict either way —
+  at round 2, or on any silent round, judge it yourself exactly as you did before the verdict
+  existed, and escalate if the defects are the artifact's.**
 
 Both arm their finders from `scripts/review_rubric.py --changed <paths>` (synced to every project),
 converge to a delta round that CONFIRMS **zero** code or doc defects (D-206 — refuted and RECORDED
@@ -136,8 +140,8 @@ there is no human at the merge point — the loop IS the oversight. Two obligati
    half licenses stopping a loop whose rounds still confirm.** A ratio — unlike an equality — leaves
    up to a third of a qualifying round's defects on the original surface. So the stop suspends new
    HUNTING and never the close: every confirmed defect still open ANYWHERE in the three-round
-   window, its non-qualifying round INCLUDED (by construction the round holding the most
-   original-surface defects), is NAMED at the stop and FIXED, and the remainder rounds re-verify
+   window, its non-qualifying round INCLUDED (the round with the largest SHARE of
+   original-surface defects — a share, not necessarily the largest count), is NAMED at the stop and FIXED, and the remainder rounds re-verify
    THAT FIXED SET and nothing else, so they terminate. Only work that is genuinely own-fix takes the
    backlog exit, with a named destination. The last round must still reach zero confirmed.
    ⚠️ **COBRA:** the cheapest dodge is to omit the counter so nothing computes, and the mirror dodge

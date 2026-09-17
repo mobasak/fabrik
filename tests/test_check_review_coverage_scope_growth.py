@@ -8,10 +8,11 @@ honest close graded as an unconverged review. Found when a sibling's staged revi
 reddened the SHARED gate for every session in the tree (Phase E review, round 4).
 """
 
-# ⚠️ D-278 widened the scope-growth window from TWO rounds to THREE, so every ledger fixture
-# below carries three confirming rounds. The shapes moved because the bar did; each test's
-# intent is unchanged. `_OWN_FIX_ROUNDS_FOR_STOP` and `command_run.py::SCOPE_GROWTH_ROUNDS`
-# are twins and the lockstep test in this file is what forced them to move together.
+# ⚠️ The lockstep below tracks `command_run.py::SCOPE_GROWTH_QUALIFY`, NOT `SCOPE_GROWTH_ROUNDS`.
+# This grader counts trailing rounds that EACH confirmed something — the qualifying count, not the
+# window D-278 slides. The two coincided under D-252, so the first cut of the guard locked onto the
+# window by accident; a build that followed it to 3 made this gate refuse stops its twin advised,
+# and was reverted. Fixtures here therefore stay at two confirming rounds.
 
 from __future__ import annotations
 
@@ -84,9 +85,7 @@ def test_the_phrase_alone_does_not_exempt_a_still_converging_loop():
 
 def test_the_declared_stop_with_its_ledger_shape_is_a_legitimate_exit():
     crc = _crc()
-    text = _doc(
-        "CONVERGED on the D-252 scope-growth stop", [_row(1, 14), _row(2, 6), _row(3, 4)]
-    )
+    text = _doc("CONVERGED on the D-252 scope-growth stop", [_row(1, 14), _row(2, 4)])
     rows = crc._ledger_shapes(text)[2]
     assert crc._scope_growth_exit(text, rows)
 
@@ -98,7 +97,7 @@ def test_a_status_line_that_merely_mentions_the_stop_is_not_the_exit():
     against; a deliberately-worded sentence is not defended against, and the predicate's docstring
     says so rather than pretending otherwise."""
     crc = _crc()
-    rows = [_row(1, 14), _row(2, 6), _row(3, 4)]
+    rows = [_row(1, 14), _row(2, 4)]
     for line in (
         "CONVERGED — quiet at Pass 20; the loop never needed the scope-growth stop",
         "CONVERGED (see the appendix for why this is not a scope-growth stop)",
@@ -164,7 +163,7 @@ def test_check_file_accepts_the_stop_and_still_demands_a_fresh_seat(tmp_path):
     which would make this pass vacuously the day the function is renamed."""
     crc = _crc()
     quiet_err = "the exit round must be quiet"
-    rows = [_row(1, 14), _row(2, 6), _row(3, 4)]
+    rows = [_row(1, 14), _row(2, 4)]
 
     declared = tmp_path / "declared.md"
     declared.write_text(_doc("CONVERGED on the D-252 scope-growth stop", rows), encoding="utf-8")
@@ -189,7 +188,7 @@ def test_the_round_count_stays_in_lockstep_with_the_stop_that_defines_it():
     # with the name, so a future `SCOPE_GROWTH_ROUNDS_MIN = 2` declared above
     # `SCOPE_GROWTH_ROUNDS = 4` parsed 2 and this test PASSED while the twins had drifted —
     # fail-open on the one guard that exists for drift (Phase E review, round 4).
-    rx = re.compile(r"^SCOPE_GROWTH_ROUNDS\s*(?::\s*[^=]+)?=\s*(\d+)\s*(?:#.*)?$")
+    rx = re.compile(r"^SCOPE_GROWTH_QUALIFY\s*(?::\s*[^=]+)?=\s*(\d+)\s*(?:#.*)?$")
     for line in src.splitlines():
         m = rx.match(line)
         if m:
@@ -197,7 +196,7 @@ def test_the_round_count_stays_in_lockstep_with_the_stop_that_defines_it():
             break
     else:  # pragma: no cover - the constant is the subject of this test
         raise AssertionError(
-            "command_run.py no longer declares SCOPE_GROWTH_ROUNDS as a plain integer literal — "
+            "command_run.py no longer declares SCOPE_GROWTH_QUALIFY as a plain integer literal — "
             "if it became computed, this twin cannot be checked and the local copy must go"
         )
     assert declared == crc._OWN_FIX_ROUNDS_FOR_STOP, (
@@ -211,7 +210,7 @@ def test_the_lockstep_parser_is_not_defeated_by_a_prefix_sibling(tmp_path):
 
     Only the prefix-sibling row was fail-open — it is the shape a future `_MIN`/`_MAX`/`_DEFAULT`
     would take, and it made the drift guard silently agree with a number that was not there."""
-    rx = re.compile(r"^SCOPE_GROWTH_ROUNDS\s*(?::\s*[^=]+)?=\s*(\d+)\s*(?:#.*)?$")
+    rx = re.compile(r"^SCOPE_GROWTH_QUALIFY\s*(?::\s*[^=]+)?=\s*(\d+)\s*(?:#.*)?$")
 
     def parse(src: str) -> int | None:
         for line in src.splitlines():
@@ -220,13 +219,18 @@ def test_the_lockstep_parser_is_not_defeated_by_a_prefix_sibling(tmp_path):
                 return int(m.group(1))
         return None
 
-    assert parse("SCOPE_GROWTH_ROUNDS = 2") == 2
-    assert parse("SCOPE_GROWTH_ROUNDS: int = 2") == 2
-    assert parse("SCOPE_GROWTH_ROUNDS = 3  # the breaker uses three") == 3
-    # the defect: the sibling must NOT be mistaken for the constant
-    assert parse("SCOPE_GROWTH_ROUNDS_MIN = 2\nSCOPE_GROWTH_ROUNDS = 4") == 4
+    assert parse("SCOPE_GROWTH_QUALIFY = 2") == 2
+    assert parse("SCOPE_GROWTH_QUALIFY: int = 2") == 2
+    assert parse("SCOPE_GROWTH_QUALIFY = 3  # two of four") == 3
+    # the defect: a prefix sibling must NOT be mistaken for the constant
+    assert parse("SCOPE_GROWTH_QUALIFY_MIN = 2\nSCOPE_GROWTH_QUALIFY = 4") == 4
+    # ⚠️ THE REAL SIBLING, and the one this guard was blind to until D-281's build walked into it:
+    # `SCOPE_GROWTH_ROUNDS` ships in the same file and is the WINDOW, not the qualifying count.
+    # Reading it here is what made a gate refuse the stops its twin advised.
+    assert parse("SCOPE_GROWTH_ROUNDS = 3\nSCOPE_GROWTH_QUALIFY = 2") == 2
+    assert parse("SCOPE_GROWTH_ROUNDS = 3") is None
     # a computed constant is unreadable and must fall through to the loud raise, never to a guess
-    assert parse("SCOPE_GROWTH_ROUNDS = int(os.getenv('X', '2'))") is None
+    assert parse("SCOPE_GROWTH_QUALIFY = int(os.getenv('X', '2'))") is None
     assert parse("    SCOPE_GROWTH_ROUNDS = 2") is None  # indented: not a module constant
 
 
@@ -241,7 +245,7 @@ def test_a_status_line_that_denies_the_stop_is_not_a_declaration_of_it():
     inverts the claim.
     """
     crc = _crc()
-    still_converging = [(1, 8, None, None), (2, 7, None, None), (3, 6, None, None)]
+    still_converging = [(1, 8, None, None), (2, 6, None, None)]
 
     assert crc._scope_growth_exit(
         "Status: CONVERGED on the D-252 scope-growth stop", still_converging
@@ -270,7 +274,7 @@ def test_the_real_receipt_this_plan_shipped_still_declares_the_stop():
     status = next(
         ln for ln in receipt.read_text(encoding="utf-8").splitlines() if ln.startswith("**Status:")
     )
-    assert crc._scope_growth_exit(status, [(1, 7, None, None), (2, 6, None, None), (3, 5, None, None)]), status
+    assert crc._scope_growth_exit(status, [(1, 7, None, None), (2, 6, None, None)]), status
 
 
 def test_the_exemption_is_fail_closed_on_any_negation_before_the_phrase():
@@ -283,7 +287,7 @@ def test_the_exemption_is_fail_closed_on_any_negation_before_the_phrase():
     affirmation and put any caveat AFTER the phrase.
     """
     crc = _crc()
-    still_converging = [(1, 8, None, None), (2, 7, None, None), (3, 6, None, None)]
+    still_converging = [(1, 8, None, None), (2, 6, None, None)]
 
     # every one of these was ACCEPTED by the clause-split cut
     for denial in (

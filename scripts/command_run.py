@@ -384,17 +384,29 @@ def scope_growth_warning(rows: list[Any], command: str = "") -> str:
     surface that had been quiet since round 13. A round reports its own residue with
     `round --own-fix <n>`; when `SCOPE_GROWTH_QUALIFY` of the last `SCOPE_GROWTH_ROUNDS` rounds
     sit at or above TWO-THIRDS own-fix (`own_fix * 3 >= confirmed * 2`, `confirmed > 0`), the
-    review has outgrown the artifact. Three verdicts leave this function, never one: the stop
+    review has outgrown the artifact.
+
+    ⚠️ COBRA (D-253) — the cheapest way to satisfy this measure WITHOUT producing the outcome is to
+    omit `--own-fix` so nothing computes. That is why an omitting round can never QUALIFY, why the
+    UNCOMPUTABLE verdict speaks whenever the omission would decide the answer, and why the CLI
+    prints a NOTE on every omitting round. The mirror dodge is to over-classify an original-surface
+    defect as own-fix, which both trips the stop sooner and buys its backlog exit; the counter is
+    that own-fix is EVIDENCED per finding in the receipt, never asserted as a total here. This
+    advisory is deliberately NEVER a gate — a heuristic that blocks is a heuristic that gets gamed.
+
+    Three verdicts leave this function, never one: the stop
     itself, the ESCALATE case (the ratio computed and unmet on two consecutive confirming rounds),
     and UNCOMPUTABLE (a window round never stated a readable counter, so nothing can be decided).
     Silence therefore means "no verdict applies", never "not the scope-growth case" — a
     distinction the caller's prose depends on.
 
-    CONSECUTIVE means consecutive ROUNDS, never "the last N rounds that happened to state the
-    flag" — filtering the series first made a round-1/round-4 pair read as adjacent while rounds
-    2 and 3 confirmed 17 defects on the artifact's own surface, and the emitted arrow hid the
-    gap (review round 1, C1). A round that does not state the counter therefore BREAKS the run,
-    exactly as a round with artifact defects does.
+    The window is consecutive ROUNDS, never "the last N rounds that happened to state the flag" —
+    filtering the series first made a round-1/round-4 pair read as adjacent while rounds 2 and 3
+    confirmed 17 defects on the artifact's own surface, and the emitted arrow hid the gap (review
+    round 1, C1). ⚠️ Under D-252 a round that did not state the counter BROKE the run outright;
+    under D-278 it OCCUPIES its slot and simply never qualifies, so the other two can still make
+    two-of-three. That is deliberate — the sentence claiming otherwise was the D-252 text and was
+    corrected when this bar shipped.
     """
     if str(command or "").strip().lower() in PER_UNIT_ROUND_COMMANDS:
         # per-unit rounds describe DIFFERENT surfaces (round 4 is T11's review, round 5 is
@@ -439,59 +451,77 @@ def scope_growth_warning(rows: list[Any], command: str = "") -> str:
 
     unreadable = [i for i, (c, o) in enumerate(pairs, 1) if not _readable(c, o)]
     qualifying = sum(1 for c, o in pairs if _qualifies(c, o))
+    # the round numbers an AGENT recognises. `pairs` is the WINDOW, so a window index is NOT the
+    # round number and naming it sends the reader to the wrong round (heavy review, seat 1 item 6:
+    # at round 9 the message said "round 2" for round 8). The sibling advisory at `_stall` prints
+    # the absolute number for the same reason.
+    first = len(rows) - len(window) + 1
 
-    if qualifying < SCOPE_GROWTH_QUALIFY and unreadable:
-        # ⚠️ UNCOMPUTABLE, and deliberately NARROW. Firing on every record that ever omits the
-        # counter would print on the ~78% of rounds that omit it — wallpaper, and wallpaper is
-        # how enforcement dies (FIX DIRECTIVE 5). It speaks only when the readable rounds have
-        # already got close enough that the missing one DECIDES the verdict.
-        # ⚠️ `qualifying >= 1` is what keeps this narrow, and its absence was caught by this
-        # change's own grader: with zero qualifying rounds there ARE no "other rounds close
-        # enough" — the loop simply never states counters, which is the ~78% legacy case, and
-        # printing on it every round from the third on is wallpaper.
-        if qualifying >= 1 and qualifying + len(unreadable) >= SCOPE_GROWTH_QUALIFY:
-            missing = ", ".join(f"round {i} of the window" for i in unreadable)
+    if qualifying >= SCOPE_GROWTH_QUALIFY:
+        return (
+            f"\n⚠️  SCOPE GROWTH — {qualifying} of the last {SCOPE_GROWTH_ROUNDS} rounds confirmed "
+            f"mostly defects inside text this review itself added (confirmed/own-fix: {arrow}).\n"
+            "    The artifact's own surface is quiet; you are reviewing your previous fix, and "
+            "correcting prose regenerates the surface you are correcting.\n"
+            # the pointer names BOTH fragments: a term-coverage loop (`/fabrik-review`,
+            # `/fabrik-repo-review`) never reads term-edit, and naming one sends the reader to a
+            # section its command does not carry — the `_trend_label` incident's shape (round 1, S1)
+            "    Exit (term-edit / term-coverage § Scope-growth stop): STOP the loop — route the "
+            "remaining own-fix "
+            "work to a backlog row with a named destination, and close on the ORIGINAL delta's "
+            "state, whose last own-surface round is the one that matters.\n"
+            "    (Advisory only — nothing is blocked.)"
+        )
+
+    # ESCALATE is decided on the TAIL and is evaluated BEFORE the window-wide unreadable branch.
+    # Ordering it after cost a whole round's verdict whenever an OLDER window round omitted the
+    # counter — and round 1 omitting it is explicitly sanctioned, so a loop that adopts the flag at
+    # round 2 lost the verdict for no reason (heavy review, seat 1 item 3).
+    tail = pairs[-2:]
+    # ⚠️ THREE conditions, and the last two were BOTH missing in the first cut:
+    #   - readable and confirming: the ratio must have been COMPUTED, never inferred from silence;
+    #   - NEITHER tail round may itself qualify — otherwise the sentence "these are the artifact's
+    #     own defects, not the review's" is a lie about a round that was 100% own-fix (seat 1 item 2);
+    #   - the count must NOT be falling. A converging loop (5 → 3 → 2, own-fix 0 throughout) has not
+    #     "outgrown the light pass"; telling it to route up every round is a nag that punishes the
+    #     honest `--own-fix 0` path while omitting the flag buys silence — measured as the sharpest
+    #     cobra in this mechanism (seat 1 item 5). Convergence is the STALL breaker's question, not
+    #     this one's.
+    if (
+        all(_readable(c, o) and c > 0 and not _qualifies(c, o) for c, o in tail)
+        and tail[-1][0] >= tail[0][0]
+    ):
+        return (
+            f"\n↗  ESCALATE — two consecutive rounds confirmed defects, the scope-growth ratio was "
+            f"computed and NOT met, and the count is not falling (confirmed/own-fix: {arrow}), so "
+            f"these are the artifact's own defects, not the review's.\n"
+            "    The surface outgrew this pass: route up to the heavier review your own command "
+            "names (the light pass routes to `/fabrik-review`) in the SAME turn rather than "
+            "opening another round at this weight.\n"
+            "    (Advisory only — nothing is blocked.)"
+        )
+
+    if unreadable:
+        # ⚠️ UNCOMPUTABLE is narrow so it does not become wallpaper on the ~78% of rounds that omit
+        # the counter — but the first cut narrowed it with `qualifying >= 1`, which was a FAIL-OPEN:
+        # a window of one readable non-qualifying round plus two omitted rounds that WOULD decide
+        # the verdict printed nothing, which is exactly what the `--own-fix` help promises it will
+        # not do (seat 1 item 1). The honest gate is "this record has adopted the counter at all";
+        # measured over 110 real windows, the widening adds ZERO extra fires.
+        if any(_readable(c, o) for c, o in pairs) and (
+            qualifying + len(unreadable) >= SCOPE_GROWTH_QUALIFY
+        ):
+            missing = ", ".join(f"round {first + i - 1}" for i in unreadable)
             return (
                 f"\n?  SCOPE GROWTH UNCOMPUTABLE — {missing} never stated a readable "
-                f"`--confirmed`/`--own-fix` pair (confirmed/own-fix: {arrow}), and the other "
-                f"rounds are close enough that it would DECIDE the verdict.\n"
+                f"`--confirmed`/`--own-fix` pair (rounds {first}-{first + len(window) - 1}, "
+                f"confirmed/own-fix: {arrow}), and the other rounds are close enough that it would "
+                f"DECIDE the verdict.\n"
                 "    This is NOT a verdict either way — it is the stop unable to compute. State "
                 "the counter on that round and re-read.\n"
                 "    (Advisory only — nothing is blocked.)"
             )
-        return ""
-
-    if qualifying < SCOPE_GROWTH_QUALIFY:
-        # ⚠️ ESCALATE — the OTHER cause of the same symptom, and the one this command's step 5
-        # already prescribes. It is emitted only when the ratio was COMPUTED and came out unmet,
-        # never inferred from silence: the two last rounds both confirmed, both stated their
-        # counters, and the residue is NOT mostly the review's own.
-        tail = pairs[-2:]
-        if len(tail) == 2 and all(_readable(c, o) and c > 0 for c, o in tail):
-            return (
-                f"\n↗  ESCALATE — two consecutive rounds confirmed defects and the scope-growth "
-                f"ratio was computed and NOT met (confirmed/own-fix: {arrow}), so these are the "
-                f"artifact's own defects, not the review's.\n"
-                "    The surface outgrew the light pass: route up to the heavy `/fabrik-review` "
-                "in the SAME turn rather than opening another light round.\n"
-                "    (Advisory only — nothing is blocked.)"
-            )
-        return ""
-
-    return (
-        f"\n⚠️  SCOPE GROWTH — {qualifying} of the last {SCOPE_GROWTH_ROUNDS} rounds confirmed "
-        f"mostly defects inside text this review itself added (confirmed/own-fix: {arrow}).\n"
-        "    The artifact's own surface is quiet; you are reviewing your previous fix, and "
-        "correcting prose regenerates the surface you are correcting.\n"
-        # the pointer names BOTH fragments: a term-coverage loop (`/fabrik-review`,
-        # `/fabrik-repo-review`) never reads term-edit, and naming one sends the reader to a
-        # section its command does not carry — the `_trend_label` incident's shape (round 1, S1)
-        "    Exit (term-edit / term-coverage § Scope-growth stop): STOP the loop — route the "
-        "remaining own-fix "
-        "work to a backlog row with a named destination, and close on the ORIGINAL delta's "
-        "state, whose last own-surface round is the one that matters.\n"
-        "    (Advisory only — nothing is blocked.)"
-    )
+    return ""
 
 
 def _confirmed(row: Any) -> int | None:

@@ -2996,12 +2996,39 @@ def test_the_scope_growth_stop_fires_when_a_loop_only_reviews_its_own_fixes() ->
         [rows[0], {"n": 2, "confirmed": 7, "own_fix": 7}, {"n": 3, "confirmed": 4, "own_fix": 3}]
     )
     # below two-thirds it does not qualify, and two confirming rounds with the ratio COMPUTED and
-    # unmet are the OTHER cause of the same symptom — the surface outgrew the light pass
+    # unmet are the OTHER cause of the same symptom — the surface outgrew the light pass. ⚠️ THREE
+    # conditions, and the last two were missing from the first cut: neither tail round may itself
+    # QUALIFY (or the sentence "these are the artifact's own defects" lies about a 100%-own-fix
+    # round), and the count must NOT be falling.
     escalate = cr.scope_growth_warning(
-        [rows[0], {"n": 2, "confirmed": 8, "own_fix": 1}, {"n": 3, "confirmed": 7, "own_fix": 1}]
+        [rows[0], {"n": 2, "confirmed": 8, "own_fix": 1}, {"n": 3, "confirmed": 9, "own_fix": 1}]
     )
     assert "ESCALATE" in escalate, escalate
     assert "SCOPE GROWTH" not in escalate, escalate
+    # ⚠️ a CONVERGING loop is NOT escalated, however many rounds confirm. Telling a 5 -> 3 -> 2 loop
+    # with zero own-fix residue to route up every round punishes the honest `--own-fix 0` path while
+    # omitting the flag buys silence — the sharpest cobra in this mechanism (heavy review, seat 1).
+    assert (
+        cr.scope_growth_warning(
+            [
+                {"n": 1, "confirmed": 5, "own_fix": 0},
+                {"n": 2, "confirmed": 3, "own_fix": 0},
+                {"n": 3, "confirmed": 2, "own_fix": 0},
+            ]
+        )
+        == ""
+    )
+    # ⚠️ and ESCALATE never fires when a tail round is itself 100% own-fix
+    assert (
+        cr.scope_growth_warning(
+            [
+                {"n": 1, "confirmed": 3, "own_fix": 0},
+                {"n": 2, "confirmed": 3, "own_fix": 0},
+                {"n": 3, "confirmed": 3, "own_fix": 3},
+            ]
+        )
+        == ""
+    )
 
     # silence is not assent: a loop that never states the counter asserts nothing, exactly as
     # `confirmed` does — a defaulted 0 would claim "no residue" for every legacy record
@@ -3020,7 +3047,13 @@ def test_the_scope_growth_stop_fires_when_a_loop_only_reviews_its_own_fixes() ->
         [rows[0], {"n": 2, "confirmed": 6, "own_fix": 6}, {"n": 3, "confirmed": 4}]
     )
     assert "UNCOMPUTABLE" in unc, unc
-    assert "round 3 of the window" in unc, unc
+    # ⚠️ it must name the ABSOLUTE round, and ONLY the unreadable one. A mutant enumerating every
+    # window round produced useless advice and passed a bare substring test (heavy review, seat 2
+    # item 4); a window-relative index sent a reader at round 9 to round 2 (seat 1 item 6).
+    assert "round 3" in unc, unc
+    assert "round 1" not in unc and "round 2" not in unc, unc
+    # and the sentence carrying the whole semantic payload is graded, not merely present by luck
+    assert "NOT a verdict either way" in unc, unc
     # and it stays NARROW: when the omission cannot decide, nothing prints. Firing on every
     # omitting record would print on the ~78% of rounds that omit the flag — wallpaper.
     assert (
@@ -3058,9 +3091,9 @@ def test_the_scope_growth_stop_fires_when_a_loop_only_reviews_its_own_fixes() ->
     # than raising. `_round_report` has ONE return and sits on the Stop hook's path, so a raise
     # here blanks the whole report, TERMINAL verdict included, via the outer guard.
     for bad in ("n/a", ["x"], {"a": 1}, 2.5, True):
-        assert (
-            "SCOPE GROWTH" not in cr.scope_growth_warning([{"confirmed": 1, "own_fix": bad}] * 3)
-        ), bad
+        # exact-empty, not substring-absence: `"SCOPE GROWTH"` does not appear in the ESCALATE
+        # text either, so a substring assertion would pass on a wrong verdict (seat 2 item 7)
+        assert cr.scope_growth_warning([{"confirmed": 1, "own_fix": bad}] * 3) == "", bad
 
     # C3's shape — own_fix ABOVE confirmed is not a subset and never trips the stop. ⚠️ Under the
     # equality this was structural (`o == c` cannot exceed); under a RATIO it is not — 5 confirmed

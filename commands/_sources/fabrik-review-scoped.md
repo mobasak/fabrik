@@ -63,7 +63,10 @@ proportionate answer.
    fragment defines it (COUNTED under D-230, SIZED under D-229 — the floor paragraph below), over the
    same class ledger (a pass is never a re-scope). Done ONLY on a delta pass with a fresh non-authoring reader that **CONFIRMS zero** —
    minimum two passes, the fixing pass is never the last. Every pass's seats are STAMPED first, before the message that dispatches them (the floor paragraph below carries the command; 01M2368XB). Every seat brief names a PIN — a copy of the surface under the scratchpad and the md5 of `git diff HEAD -- <surface>` — and the finder re-diffs the pin before reporting (01M236V84, 01M23ESF5); a delta seat's brief carries the previous seat's REFUTED list verbatim, so a refuted candidate is never re-raised as new. **At the SECOND consecutive round that confirms
-   defects, the symptom has TWO causes and the round you just recorded printed which one applies.**
+   defects, the symptom has TWO causes** — the surface outgrew this pass, or the loop is correcting
+   its own corrections — **and they have OPPOSITE correct remedies. From the third round on the
+   round you just recorded prints which one applies; at round 2, and on any silent round, no verdict
+   exists and the judgement is yours.**
 
 {{include:scope-growth-exit}}
 
