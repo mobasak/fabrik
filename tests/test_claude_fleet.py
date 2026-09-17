@@ -5839,6 +5839,11 @@ def test_a_stray_ledger_line_does_not_abort_the_flip_reader(tmp_path, monkeypatc
     era = cr._LEDGER_ERA_FLOOR_S + 1  # pinned from the accepting side too
     led.write_text(json.dumps({"event": "flip", "ts": era, "from": "a@x", "to": "b@x"}) + "\n")
     assert cr._last_switch_ts(event="flip") == (era, False)
+    # and the floor itself is refused (`>`, not `>=`) — the boundary was ungraded, so a `>=`
+    # mutant passed every arm (Delta 18 seat A, F2)
+    floor = cr._LEDGER_ERA_FLOOR_S
+    led.write_text(json.dumps({"event": "flip", "ts": floor, "from": "a@x", "to": "b@x"}) + "\n")
+    assert cr._last_switch_ts(event="flip")[1] is True
     # a giant JSON integer raised OverflowError out of the reader — and the tick (Delta 17 A F1)
     led.write_text('{"event": "flip", "ts": 1' + "0" * 400 + ', "from": "a@x", "to": "b@x"}\n')
     assert cr._last_switch_ts(event="flip")[1] is True
@@ -5892,6 +5897,15 @@ def test_the_rearmed_stamp_carries_the_episodes_own_promise(tmp_path, monkeypatc
         finally:
             led.chmod(0o644)
         assert not stamp2.exists() and "ledger unreadable" in capsys.readouterr().err
+    # and a huge FINITE ts: usable to the reader and open (a negative age never expires), but
+    # `os.utime` refuses it with OverflowError — not OSError — so the re-arm raised out of the
+    # tick and left a stamp with a FRESH mtime behind (Delta 18 seat A, F1)
+    (state / "rotate-ledger.jsonl").write_text(
+        json.dumps({"event": "fleet-active-wall", "ts": 1e308, "account": "a@x"}) + "\n"
+    )
+    stamp4 = tmp_path / "locks" / "fleet-exhausted-4"
+    cr._rearm_wall_stamp(stamp4, "a@x", now)
+    assert not stamp4.exists() and "NOT re-armed" in capsys.readouterr().err
     # and the ROW-GONE race: readable ledger, no open row — no stamp, and nothing said (the
     # docstring says so; the negative had no grader — Delta 14 seat A, F5)
     (state / "rotate-ledger.jsonl").write_text("")

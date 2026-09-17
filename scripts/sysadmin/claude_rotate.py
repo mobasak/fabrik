@@ -71,7 +71,7 @@ _ALERT_DEBOUNCE_S = 12 * 3600
 # a real switch (NTP correction, and WSL suspend/resume, move this box's clock in both directions).
 _CLOCK_SKEW_TOLERANCE_S = 60.0
 # No rotate-ledger row predates this (the ledger's first row is 2026; the writer is `time.time()`).
-# The flip reader's floor: a ts below it is corruption, never a flip in 1970 — `{"ts": 1}` is
+# The flip reader's floor: a ts at or below it is corruption, never a flip in 1970 — `{"ts": 1}` is
 # `{"ts": true}`'s VALUE, and a floor at 0 refused the spelling while admitting the value
 # (Delta 17 seat A, F2). Mirror cost, stated: a row honestly stamped before 2020 is refused;
 # none can exist, and the constant must stay below the ledger's real first row forever.
@@ -2174,7 +2174,8 @@ def _drain_stamp_path() -> Path:
 def _usable_ts(ts: object) -> float | None:
     """A ledger `ts` as a float, or None when it cannot be one — the ONE validator both ledger
     readers (`_last_switch_ts`, `_open_wall_rows`) run, so a usable ts means the same thing in
-    both. A JSON boolean is refused (`true` is 1.0 — a 1970 stamp), and so is a non-finite
+    both — each reader then BOUNDS it its own way (the flip reader's era floor and skew ceiling;
+    the wall reader's week of age). A JSON boolean is refused (`true` is 1.0 — a 1970 stamp), and so is a non-finite
     value. The float conversion runs INSIDE a guard: JSON parses a giant integer literal into an
     arbitrary-precision `int`, and both `math.isfinite` and `float()` raise OverflowError on
     it — the class `_refresh_expiry_epoch` already guards, which the readers ran unguarded, so
@@ -2210,8 +2211,8 @@ def _last_switch_ts(event: str = "switch") -> tuple[float | None, bool]:
     and must still be able to make its first switch).
 
     A ledger that cannot be READ — unreachable/corrupt bytes, a permission error, or a well-formed
-    switch record whose ``ts`` is not a usable number (non-numeric, a JSON boolean, non-finite,
-    before the ledger's era, or stamped in the future)
+    switch record whose ``ts`` is not a usable number (non-numeric, a JSON boolean, non-finite or
+    too large for a float, at or before the ledger's era, or stamped in the future)
     — fails **CLOSED**: ``(now, True)``, which reads as
     "just switched" and holds the guard. Answering "no recent switch" to a question we cannot
     answer lets the tick install a fresh pair on every 5-minute run for as long as the fault lasts.
@@ -2253,8 +2254,8 @@ def _last_switch_ts(event: str = "switch") -> tuple[float | None, bool]:
             # box's clock). Neither may read as "no recent switch".
             sys.stderr.write(
                 f"claude_rotate: rotate-ledger {event} record has an unusable ts "
-                f"({ts!r} — non-numeric, a JSON boolean, non-finite, before the ledger's era, or "
-                f"clock-skewed into the "
+                f"({ts!r} — non-numeric, a JSON boolean, non-finite or too large for a float, at "
+                f"or before the ledger's era, or clock-skewed into the "
                 f"future) — dwell guard failing "
                 "CLOSED (holding; no account installed)\n"
             )
@@ -5612,11 +5613,13 @@ def _open_wall_rows(now: float | None = None) -> tuple[dict[str, dict], bool]:
     one validator, and its consumers (`_advisory_ledger_latch`, `_rearm_wall_stamp`) do not
     re-validate; three sibling guards on that one fact were kept,
     deleted and re-added across four rounds before the rule was written down (Delta 16 seat A).
-    Two things the rule does NOT do, on purpose: a finite ts dated in the FUTURE is usable and
+    Three things the rule does NOT do, on purpose: a finite ts dated in the FUTURE is usable and
     stays open here — future-dating is the latches' business, and both fail OPEN on it (speak);
-    and a later corrupt row for an account retires that account's earlier open episode (the
+    a later corrupt row for an account retires that account's earlier open episode (the
     `pop` runs before the row is judged) — also fail-open, and the only order that keeps one
-    row per account."""
+    row per account; and NO era floor — `_last_switch_ts`'s floor is the dwell guard's (a
+    1970 ts there INSTALLS an account), while here an out-of-era ts simply expires by age,
+    the fail-open side already (Delta 18 seat A, F3)."""
     try:
         lines = (_rotate_state_dir() / "rotate-ledger.jsonl").read_text().splitlines()
     except FileNotFoundError:
@@ -5785,8 +5788,11 @@ def _rearm_wall_stamp(stamp: Path, email: str, now: float) -> None:
     """Re-create the fleet-exhausted stamp from the OPEN episode's ledger row — content = the
     `resume_epoch` the advisory promised ("0" when none), mtime = the row's `ts`, never `now`:
     a fresh mtime would restart the stamp's week re-arm and the two latches would drift apart.
-    Never raises on a row `_open_wall_rows` returned (the tick must not fail on a cache file);
-    an unwritable stamp is said on stderr
+    Never raises (the tick must not fail on a cache file): a returned row's ts converts to a
+    float by `_open_wall_rows`'s INVARIANT, but `os.utime` refuses one outside the platform's
+    `time_t` with OverflowError, not OSError, and the stamp half-written before that refusal is
+    removed — a failed re-arm leaves the hold DOWN, never a fresh-mtime stamp (Delta 18 seat A,
+    F1); an unwritable stamp is said on stderr
     like the first write, and so is an unreadable ledger — reachable by a direct call or an
     intra-tick race only, since the one production caller's guard has just read the ledger; a row
     that VANISHED in the same race is not said and leaves the hold down identically (F6)."""
@@ -5804,11 +5810,17 @@ def _rearm_wall_stamp(stamp: Path, email: str, now: float) -> None:
         else "0"
     )
     ts = row.get("ts")
-    at = float(ts)  # usable by `_open_wall_rows`'s INVARIANT; never raises on a returned row
+    at = float(ts)  # converts by `_open_wall_rows`'s INVARIANT; `os.utime` may still refuse it
     try:
         stamp.write_text(content, encoding="utf-8")
         os.utime(stamp, (at, at))
-    except OSError as exc:
+    except (OSError, OverflowError, ValueError) as exc:
+        # the write landed FIRST, so the stamp now carries a fresh mtime — the drift the
+        # docstring names; remove it so the failed re-arm reads like a failed write (A F1)
+        try:
+            stamp.unlink(missing_ok=True)
+        except OSError:
+            pass
         sys.stderr.write(f"claude_rotate: fleet-exhausted stamp NOT re-armed ({stamp}): {exc}\n")
 
 
