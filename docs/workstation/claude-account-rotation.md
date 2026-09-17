@@ -30,8 +30,13 @@ Fleet root override: `CLAUDE_FLEET_ROOT` (`_fleet_root`, `claude_rotate.py:1432`
 
 Two environment variables — both, or the binding is a no-op:
 
-- `CLAUDE_CONFIG_DIR` → `~/.claude-fleet/active` (the CLI's config dir: credentials,
-  `.claude.json`, sessions)
+- `CLAUDE_CONFIG_DIR` → `~/.claude-fleet/active` (the CLI's config dir: credentials and
+  `.claude.json` are per account; `agents/`, `commands/`, `skills/`, `projects/` and `sessions/`
+  are symlinks to the one shared `~/.claude/<name>` — `_SHARED_DIR_LINKS`. `sessions/` joined the
+  set on 2026-09-17 (D-287): it is the CLI's peer registry, read through the pointer as it stands
+  now but written under the dir the pointer named at each session's start, so per-account it
+  emptied every window's `ListAgents` on every flip. A dir created before that date is healed by
+  hand once: move its `sessions/*` into `~/.claude/sessions/`, replace the dir with the symlink)
 - `CLAUDE_QUOTA_HOME` → the same path; the wall/resume layer (`claude-quota.py`) resolves its
   home from THIS variable, not from `CLAUDE_CONFIG_DIR`.
 

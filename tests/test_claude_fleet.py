@@ -49,7 +49,7 @@ def _canonical(tmp_path, monkeypatch):
     """A fake ~/.claude + ~/.claude.json + an empty fleet root. Returns (fleet, cdir, home)."""
     home = tmp_path / "home"
     cdir = home / ".claude"
-    for sub in ("agents", "commands", "skills", "projects"):
+    for sub in ("agents", "commands", "skills", "projects", "sessions"):
         (cdir / sub).mkdir(parents=True)
     (cdir / "settings.json").write_text(json.dumps({"hooks": {"SessionStart": []}}))
     # The shared chain. Nothing under a fleet dir may ever contain these bytes.
@@ -97,7 +97,7 @@ def test_new_dir_seeds_the_full_contract(tmp_path, monkeypatch):
     assert seeded["mcpServers"] == {"serena": {"command": "serena"}}
     assert seeded["projects"] == {"/opt/seo": {"hasTrustDialogAccepted": True}}
 
-    for name in ("agents", "commands", "skills", "projects"):
+    for name in ("agents", "commands", "skills", "projects", "sessions"):
         link = d / name
         assert link.is_symlink(), f"{name}/ must be a symlink to the canonical dir"
         assert link.resolve() == (cdir / name).resolve()
@@ -122,6 +122,22 @@ def test_new_dir_seeds_the_full_contract(tmp_path, monkeypatch):
     for f in d.iterdir():
         if f.is_file() and not f.is_symlink():
             assert SENTINEL not in f.read_text()
+
+
+def test_the_peer_registry_is_one_dir_across_every_account(tmp_path, monkeypatch):
+    """The CLI lists peers from `<config dir>/sessions/<pid>.json`, resolved through the `active`
+    pointer as it stands NOW, while each session wrote its record under the dir the pointer named
+    when it STARTED — so a per-account `sessions/` emptied the whole box's peer list on every flip
+    (2026-09-17: 18 sessions under one slug, one under another, one peer listed anywhere; D-287).
+    A record written under any slug's dir must be the same file under every other slug's."""
+    fleet, cdir, _home = _canonical(tmp_path, monkeypatch)
+    assert cr.main(["--new-dir", "seo", "sarp@ocoron.com"]) == 0
+    assert cr.main(["--new-dir", "intel", "ob@ocoron.com"]) == 0
+    (fleet / "seo" / "sessions" / "4242.json").write_text('{"pid": 4242, "name": "seo-1a"}')
+    assert (
+        fleet / "intel" / "sessions" / "4242.json"
+    ).read_text() == '{"pid": 4242, "name": "seo-1a"}'
+    assert (cdir / "sessions" / "4242.json").is_file()  # the one canonical inode, like projects/
 
 
 def test_new_dir_without_a_project_writes_no_carrier(tmp_path, monkeypatch):
@@ -674,7 +690,7 @@ def test_writethrough_rename_replaces_a_file_symlink(tmp_path):
 
 def test_writethrough_survives_a_directory_symlink(tmp_path):
     """A rename INSIDE a symlinked dir resolves through the link and lands on the canonical
-    inode — which is why agents/, commands/, skills/ and projects/ stay symlinks."""
+    inode — which is why agents/, commands/, skills/, projects/ and sessions/ stay symlinks."""
     canonical = tmp_path / "canonical" / "projects"
     canonical.mkdir(parents=True)
     d = tmp_path / "dir"
@@ -687,7 +703,7 @@ def test_writethrough_survives_a_directory_symlink(tmp_path):
 
     assert (d / "projects").is_symlink()
     assert (canonical / "session.jsonl").read_text() == "row"
-    assert set(cr._SHARED_DIR_LINKS) == {"agents", "commands", "skills", "projects"}
+    assert set(cr._SHARED_DIR_LINKS) == {"agents", "commands", "skills", "projects", "sessions"}
 
 
 # ── B6: carrier-presence + occupancy WARNs on --status ────────────────────────────────────────

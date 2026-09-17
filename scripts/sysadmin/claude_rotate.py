@@ -1422,7 +1422,13 @@ _SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 # Shared state that must NOT fragment across ~15 dirs. DIRECTORIES are symlinked: a rename inside a
 # symlinked dir resolves through the link and lands on the canonical inode, so the link survives
 # every write (proven: test_writethrough_survives_a_directory_symlink).
-_SHARED_DIR_LINKS: Final = ("agents", "commands", "skills", "projects")
+# `sessions` is the CLI's PEER REGISTRY (`<config dir>/sessions/<pid>.json` + the messaging keys):
+# box state keyed by pid, with no account content — the same class as `projects`. Per-account it
+# fragments on every flip: a session writes its record under the dir `active` pointed at when it
+# STARTED, while every `ListAgents` reads through the pointer as it stands NOW. Measured
+# 2026-09-17: 18 live sessions registered under ozgurbasak/, one under sarp/ after the 18:51 flip,
+# and every window on the box listed exactly one peer (D-287).
+_SHARED_DIR_LINKS: Final = ("agents", "commands", "skills", "projects", "sessions")
 # settings.json is COPIED, never symlinked. WRITE-THROUGH PROBE (2026-08-15): the CLI writes config
 # with tmp+rename, and POSIX rename(2) operates on the LINK rather than its target — os.replace onto
 # a FILE symlink REPLACES the link with a regular file. A symlinked settings.json would therefore
