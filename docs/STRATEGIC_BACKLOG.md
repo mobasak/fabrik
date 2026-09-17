@@ -3166,7 +3166,7 @@ failure of an unknown-sized list; a green mechanism check read as evidence about
 edit kept landing on is `run phase validation gate (bash checks from the plan)`. Its subject is a
 **plan-authored command**, NOT `final_gate.py`. `commands/_sources/fabrik-plan-after-chat.md:498-505`
 defines a per-step gate as "the exact command + the expected result" and reserves `final_gate.py` for the
-plan's FINAL step; a live hub plan confirms it — `docs/development/plans/2026-09-16-plan-1-quota-posture.md:130`
+plan's FINAL step; a live hub plan confirms it — `docs/development/plans/archived/2026-09-16-plan-1-quota-posture.md:130`
 is `uv run pytest tests/test_governance_template_split.py -x --tb=short` and `:249` is the same without
 `-x`. So every `final_gate.py` fact is FALSE of that line's actual subject: a `uv run pytest` gate emits
 no `warnings`/`skipped_checks`/`status` JSON, runs under uv's project env rather than
