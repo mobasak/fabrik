@@ -2968,89 +2968,163 @@ def test_the_scope_growth_stop_fires_when_a_loop_only_reviews_its_own_fixes() ->
     cr = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(cr)
 
-    # the real series: falling counts, every one of them the review's own residue
+    # ⚠️ D-278 re-cut this bar: TWO OF THE LAST THREE rounds at or above two-thirds own-fix,
+    # replacing D-252's equality on two CONSECUTIVE rounds. Every case below keeps the intent the
+    # round that wrote it recorded; the shapes moved because the bar did.
+
+    # the real series: falling counts, the residue mostly the review's own. Round 1 is the FULL
+    # pass and states own-fix 0, so it can never qualify — the window needs all three.
     rows = [
-        {"n": 1, "confirmed": 7, "own_fix": 7},
-        {"n": 2, "confirmed": 4, "own_fix": 4},
+        {"n": 1, "confirmed": 9, "own_fix": 0},
+        {"n": 2, "confirmed": 7, "own_fix": 7},
+        {"n": 3, "confirmed": 4, "own_fix": 4},
     ]
     warn = cr.scope_growth_warning(rows)
     assert "SCOPE GROWTH" in warn, warn
-    assert "7/7 → 4/4" in warn, warn
+    assert "9/0 → 7/7 → 4/4" in warn, warn
     assert "backlog row" in warn, warn
 
-    # ONE such round is not the signal — a fix legitimately yields residue once (D10 rule 3
-    # rewrites on the SECOND, and this stop is its mechanical sibling)
+    # ONE such round is not the signal, and neither is a window that is not yet full
     assert cr.scope_growth_warning(rows[:1]) == ""
+    assert cr.scope_growth_warning(rows[:2]) == ""
 
-    # a round that found defects in the ARTIFACT is the loop working, however small the count
-    assert cr.scope_growth_warning([rows[0], {"n": 2, "confirmed": 4, "own_fix": 3}]) == ""
+    # ⚠️ THE SHAPE D-278 CHANGED ON PURPOSE: under the equality, a round with ANY artifact defect
+    # was disqualifying. A RATIO admits up to a third — 4 confirmed / 3 own-fix QUALIFIES — which
+    # is exactly why the stop now suspends HUNTING and never the close: up to a third of a
+    # qualifying round's defects are still the artifact's and are named and fixed at the stop.
+    assert "SCOPE GROWTH" in cr.scope_growth_warning(
+        [rows[0], {"n": 2, "confirmed": 7, "own_fix": 7}, {"n": 3, "confirmed": 4, "own_fix": 3}]
+    )
+    # below two-thirds it does not qualify, and two confirming rounds with the ratio COMPUTED and
+    # unmet are the OTHER cause of the same symptom — the surface outgrew the light pass
+    escalate = cr.scope_growth_warning(
+        [rows[0], {"n": 2, "confirmed": 8, "own_fix": 1}, {"n": 3, "confirmed": 7, "own_fix": 1}]
+    )
+    assert "ESCALATE" in escalate, escalate
+    assert "SCOPE GROWTH" not in escalate, escalate
 
     # silence is not assent: a loop that never states the counter asserts nothing, exactly as
     # `confirmed` does — a defaulted 0 would claim "no residue" for every legacy record
-    assert cr.scope_growth_warning([{"n": 1, "confirmed": 7}, {"n": 2, "confirmed": 4}]) == ""
-
-    # a QUIET round never trips it — zero confirmed is convergence, not scope growth
-    assert cr.scope_growth_warning([{"n": 1, "confirmed": 0, "own_fix": 0}] * 2) == ""
-
-    # round 1 of this change's own review, C1 — CONSECUTIVE means consecutive ROUNDS, never
-    # "the last N that stated the flag". Filtering first made rounds 1 and 4 read as adjacent
-    # while rounds 2 and 3 confirmed 17 defects on the artifact's own surface, and the printed
-    # arrow hid the gap. A round that does not state the counter BREAKS the run.
     assert (
         cr.scope_growth_warning(
-            [
-                {"n": 1, "confirmed": 3, "own_fix": 3},
-                {"n": 2, "confirmed": 9},
-                {"n": 3, "confirmed": 8},
-                {"n": 4, "confirmed": 2, "own_fix": 2},
-            ]
+            [{"n": 1, "confirmed": 7}, {"n": 2, "confirmed": 4}, {"n": 3, "confirmed": 3}]
         )
         == ""
     )
 
-    # C2 — the value is read like `_confirmed` reads its own: a malformed one returns None
-    # rather than raising. `_round_report` has ONE return and sits on the Stop hook's path, so a
-    # raise here blanks the whole report, TERMINAL verdict included, via the outer guard.
-    for bad in ("n/a", ["x"], {"a": 1}, 2.5, True):
-        assert cr.scope_growth_warning([{"confirmed": 1, "own_fix": bad}] * 2) == "", bad
+    # ⚠️ ...but an omission does NOT buy silence when the readable rounds are close enough that
+    # the missing one DECIDES the verdict. That case prints UNCOMPUTABLE and names the round —
+    # never a verdict either way, because reading silence as "not the scope-growth case" is the
+    # fail-open this whole stop exists to close.
+    unc = cr.scope_growth_warning(
+        [rows[0], {"n": 2, "confirmed": 6, "own_fix": 6}, {"n": 3, "confirmed": 4}]
+    )
+    assert "UNCOMPUTABLE" in unc, unc
+    assert "round 3 of the window" in unc, unc
+    # and it stays NARROW: when the omission cannot decide, nothing prints. Firing on every
+    # omitting record would print on the ~78% of rounds that omit the flag — wallpaper.
+    assert (
+        cr.scope_growth_warning(
+            [rows[0], {"n": 2, "confirmed": 6, "own_fix": 0}, {"n": 3, "confirmed": 4}]
+        )
+        == ""
+    )
 
-    # C3's shape — own_fix ABOVE confirmed is not a subset and never trips it (the CLI refuses
-    # it outright; this pins the function so the `==` cannot be loosened to `>=`)
-    assert cr.scope_growth_warning([{"confirmed": 5, "own_fix": 6}] * 2) == ""
+    # a QUIET round never trips it — zero confirmed is convergence, not scope growth. ⚠️ Under a
+    # RATIO this guard is load-bearing in a way it was not under the equality: `0 * 3 >= 0 * 2`
+    # is TRUE, so without `confirmed > 0` two quiet rounds would trip the stop on a CONVERGED
+    # loop — the exact inverse of the signal.
+    assert cr.scope_growth_warning([{"n": 1, "confirmed": 0, "own_fix": 0}] * 3) == ""
+
+    # round 1 of the D-252 change's own review, C1 — the window is consecutive ROUNDS, never "the
+    # last N that stated the flag". Filtering first made non-adjacent rounds read as adjacent
+    # while the rounds between them confirmed artifact defects, and the printed arrow hid the gap.
+    c1 = cr.scope_growth_warning(
+        [
+            {"n": 1, "confirmed": 3, "own_fix": 3},
+            {"n": 2, "confirmed": 9, "own_fix": 0},
+            {"n": 3, "confirmed": 8, "own_fix": 0},
+            {"n": 4, "confirmed": 2, "own_fix": 2},
+        ]
+    )
+    # rounds 1 and 4 are the only qualifying pair and they are NOT adjacent: the window is
+    # `rows[-3:]`, so round 1 is outside it and the stop cannot fire. ⚠️ ESCALATE is the correct
+    # verdict here and its presence is not a regression — rounds 2 and 3 confirmed 17 defects on
+    # the artifact's own surface, which is precisely what "the surface outgrew the light pass"
+    # means. The C1 defect was the window closing ACROSS them; this asserts it does not.
+    assert "SCOPE GROWTH —" not in c1, c1
+
+    # C2 — the value is read like `_confirmed` reads its own: a malformed one returns None rather
+    # than raising. `_round_report` has ONE return and sits on the Stop hook's path, so a raise
+    # here blanks the whole report, TERMINAL verdict included, via the outer guard.
+    for bad in ("n/a", ["x"], {"a": 1}, 2.5, True):
+        assert (
+            "SCOPE GROWTH" not in cr.scope_growth_warning([{"confirmed": 1, "own_fix": bad}] * 3)
+        ), bad
+
+    # C3's shape — own_fix ABOVE confirmed is not a subset and never trips the stop. ⚠️ Under the
+    # equality this was structural (`o == c` cannot exceed); under a RATIO it is not — 5 confirmed
+    # / 6 own-fix satisfies `6 * 3 >= 5 * 2` — so the function bounds `0 <= o <= c` itself rather
+    # than trusting the CLI guard, and an out-of-range pair reads as UNREADABLE, never as a low
+    # ratio that could print ESCALATE ("the ratio was computed" would be a lie about it).
+    for out_of_range in (6, -1):
+        v = cr.scope_growth_warning([{"confirmed": 5, "own_fix": out_of_range}] * 3)
+        assert "SCOPE GROWTH —" not in v, (out_of_range, v)
+        assert "ESCALATE" not in v, (out_of_range, v)
 
     # C4 — per-unit rounds describe DIFFERENT surfaces, so the stop stands down there for the
     # same reason the oscillation advisory does; its exit sentence has no referent when two
     # rounds share no delta
     for cmd in ("fabrik-execute-plan", "fabrik-repo-review"):
-        assert cr.scope_growth_warning([{"confirmed": 2, "own_fix": 2}] * 2, cmd) == "", cmd
+        assert cr.scope_growth_warning([{"confirmed": 2, "own_fix": 2}] * 3, cmd) == "", cmd
     assert "SCOPE GROWTH" in cr.scope_growth_warning(
-        [{"confirmed": 2, "own_fix": 2}] * 2, "fabrik-review"
+        [{"confirmed": 2, "own_fix": 2}] * 3, "fabrik-review"
     )
 
     # S1 — a term-coverage loop never reads term-edit; the exit pointer names both fragments
     assert "term-edit / term-coverage" in cr.scope_growth_warning(
-        [{"confirmed": 2, "own_fix": 2}] * 2
+        [{"confirmed": 2, "own_fix": 2}] * 3
     )
 
     # round 3, C4 — three fixes shipped with no grader; a seat reverted each and the suite stayed
     # green, name for name. Each line below reds exactly one of those reverts.
-    # (a) a MALFORMED row breaks the run — re-adding the `isinstance` filter closes the window
-    #     across it and rounds 1 and 3 read as adjacent, which is the defect round 2 fixed
+    # (a) ⚠️ D-278 CHANGED THIS ON PURPOSE and the change is the point. Under the superseded
+    #     equality a malformed row BROKE the run outright. Under the ratio it OCCUPIES its slot
+    #     and simply never qualifies, so the other two rounds can still make two-of-three — which
+    #     is the shipped fragment's own sentence ("the window never slides past it, so the stop
+    #     stays computable") and this spec's Ruling 1. What round 2 actually fixed is the window
+    #     SLIDING ACROSS the bad row to reach an older one, and that is asserted just below.
+    assert "SCOPE GROWTH" in cr.scope_growth_warning(
+        [
+            {"confirmed": 2, "own_fix": 2},
+            "MALFORMED",
+            {"confirmed": 3, "own_fix": 3},
+        ]
+    )
+    #     ...and the window does NOT slide past it: with a fourth, older qualifying round present
+    #     the window is still the last three, so a malformed row cannot be skipped to reach it.
     assert (
         cr.scope_growth_warning(
-            [{"confirmed": 2, "own_fix": 2}, "MALFORMED", {"confirmed": 3, "own_fix": 3}]
-        )
-        == ""
+            [
+                {"confirmed": 5, "own_fix": 5},
+                {"confirmed": 9, "own_fix": 0},
+                "MALFORMED",
+                {"confirmed": 8, "own_fix": 0},
+            ]
+        ).count("SCOPE GROWTH —")
+        == 0
     )
     # (b) BOTH sides read by one `_count` — un-sharing it lets a bool on the `confirmed` side fire
-    assert cr.scope_growth_warning([{"confirmed": True, "own_fix": 1}] * 2) == ""
+    assert "SCOPE GROWTH" not in cr.scope_growth_warning([{"confirmed": True, "own_fix": 1}] * 3)
     # (c) only NON-INTEGRAL floats are refused — refusing every float silenced the stop for any
     #     JSON record carrying whole floats, a fail-open wider than the `2.5` case it closed
-    assert "SCOPE GROWTH" in cr.scope_growth_warning([{"confirmed": 2, "own_fix": 2.0}] * 2)
+    assert "SCOPE GROWTH" in cr.scope_growth_warning([{"confirmed": 2, "own_fix": 2.0}] * 3)
 
     # round 3, C1 — `int(inf)` raises OverflowError, which the first cut did not suppress:
     # `json.load` overflows `1e999` to `inf`, so the blank-report failure was back on this path
-    assert cr.scope_growth_warning([{"confirmed": 2, "own_fix": float("inf")}] * 2) == ""
+    assert "SCOPE GROWTH" not in cr.scope_growth_warning(
+        [{"confirmed": 2, "own_fix": float("inf")}] * 3
+    )
 
 
 def test_a_malformed_counter_never_blanks_the_round_report() -> None:

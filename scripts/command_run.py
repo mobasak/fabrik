@@ -320,11 +320,23 @@ def convergence_warning(
     )
 
 
-# Rounds of ALL-OWN-FIX residue needed before the scope-growth stop speaks. TWO, not the
-# breaker's three: the signal is far stronger than a flat count. A round whose ENTIRE confirmed
-# yield sits inside text the review itself added is not reviewing the artifact any more — it is
-# reviewing its own previous fix, and that surface regenerates every time it is corrected.
-SCOPE_GROWTH_ROUNDS = 2
+# The scope-growth WINDOW, in rounds. THREE under D-278 (was 2 under the superseded D-252).
+# A round whose confirmed yield sits mostly inside text the review itself added is not reviewing
+# the artifact any more — it is reviewing its own previous fix, and that surface regenerates every
+# time it is corrected.
+#
+# ⚠️ D-278 replaced an EQUALITY on two CONSECUTIVE rounds with a RATIO over a sliding window,
+# because the equality is defeated forever by alternating rounds: 100% / 50% / 100% never puts two
+# all-own-fix rounds side by side, and the old bar never fired. Executed on this change's own
+# review: confirmed 29 · 15 · 6 · 3 at own-fix 0% · 86% · 66% · 66% — plainly a loop correcting its
+# own corrections, and the equality printed NOTHING across all four rounds.
+#
+# ⚠️ `check_review_coverage.py::_OWN_FIX_ROUNDS_FOR_STOP` is this constant's TWIN and
+# `tests/test_check_review_coverage_scope_growth.py` asserts they are equal — one rule, two
+# readers. Change them together or that guard reds, which is what it is for.
+SCOPE_GROWTH_ROUNDS = 3
+# How many of those rounds must qualify. TWO of the last three.
+SCOPE_GROWTH_QUALIFY = 2
 
 
 def _count(row: Any, key: str) -> int | None:
@@ -370,8 +382,13 @@ def scope_growth_warning(rows: list[Any], command: str = "") -> str:
     over the mail-triage Phase B review, 2026-09-14) while every finding lands in the review's
     own fix prose, so nothing mechanical ever caught it and the loop ran 21 rounds over a
     surface that had been quiet since round 13. A round reports its own residue with
-    `round --own-fix <n>`; when the last `SCOPE_GROWTH_ROUNDS` rounds each confirm defects and
-    EVERY one of them was own-fix, the review has outgrown the artifact.
+    `round --own-fix <n>`; when `SCOPE_GROWTH_QUALIFY` of the last `SCOPE_GROWTH_ROUNDS` rounds
+    sit at or above TWO-THIRDS own-fix (`own_fix * 3 >= confirmed * 2`, `confirmed > 0`), the
+    review has outgrown the artifact. Three verdicts leave this function, never one: the stop
+    itself, the ESCALATE case (the ratio computed and unmet on two consecutive confirming rounds),
+    and UNCOMPUTABLE (a window round never stated a readable counter, so nothing can be decided).
+    Silence therefore means "no verdict applies", never "not the scope-growth case" — a
+    distinction the caller's prose depends on.
 
     CONSECUTIVE means consecutive ROUNDS, never "the last N rounds that happened to state the
     flag" — filtering the series first made a round-1/round-4 pair read as adjacent while rounds
@@ -394,12 +411,76 @@ def scope_growth_warning(rows: list[Any], command: str = "") -> str:
         return ""
     window = rows[-SCOPE_GROWTH_ROUNDS:]
     pairs = [(_confirmed(r), _own_fix(r)) for r in window]
-    if not all(c is not None and o is not None and o == c > 0 for c, o in pairs):
+    arrow = " → ".join(
+        f"{'?' if c is None else c}/{'?' if o is None else o}" for c, o in pairs
+    )
+
+    # A round QUALIFIES at or above two-thirds own-fix. ⚠️ The `c > 0` guard is load-bearing and
+    # not decoration: without it a quiet 0/0 round satisfies `0 * 3 >= 0 * 2` and qualifies
+    # VACUOUSLY, so two quiet rounds would trip the stop on a converged loop — the exact inverse
+    # of the signal. Executed against the spec's worked cases before this shipped.
+    def _qualifies(c: int | None, o: int | None) -> bool:
+        # ⚠️ `0 <= o <= c` is not redundant with the CLI's own refusal. own-fix counts a SUBSET of
+        # confirmed, and under the superseded EQUALITY that was structural — `o == c` cannot
+        # exceed. A RATIO can: 5 confirmed / 6 own-fix satisfies `6 * 3 >= 5 * 2` and would
+        # qualify, so loosening `==` to a ratio silently re-opened a hole the CLI guard closes
+        # only for values it sees. This function reads RECORDS — hand-edited, or written by
+        # another vintage of this script — and must not trust its own front door.
+        return (
+            c is not None and o is not None and c > 0 and 0 <= o <= c and o * 3 >= c * 2
+        )
+
+    # READABLE is stricter than "not None": own-fix counts a SUBSET of confirmed, so a pair
+    # outside `0 <= o <= c` is not a low ratio, it is an unreadable one. Routing it to ESCALATE
+    # would print "the ratio was computed and NOT met" about a pair that was never computable —
+    # a wrong verdict is worse than no verdict, and this is the caller's whole distinction.
+    def _readable(c: int | None, o: int | None) -> bool:
+        return c is not None and o is not None and 0 <= o <= c
+
+    unreadable = [i for i, (c, o) in enumerate(pairs, 1) if not _readable(c, o)]
+    qualifying = sum(1 for c, o in pairs if _qualifies(c, o))
+
+    if qualifying < SCOPE_GROWTH_QUALIFY and unreadable:
+        # ⚠️ UNCOMPUTABLE, and deliberately NARROW. Firing on every record that ever omits the
+        # counter would print on the ~78% of rounds that omit it — wallpaper, and wallpaper is
+        # how enforcement dies (FIX DIRECTIVE 5). It speaks only when the readable rounds have
+        # already got close enough that the missing one DECIDES the verdict.
+        # ⚠️ `qualifying >= 1` is what keeps this narrow, and its absence was caught by this
+        # change's own grader: with zero qualifying rounds there ARE no "other rounds close
+        # enough" — the loop simply never states counters, which is the ~78% legacy case, and
+        # printing on it every round from the third on is wallpaper.
+        if qualifying >= 1 and qualifying + len(unreadable) >= SCOPE_GROWTH_QUALIFY:
+            missing = ", ".join(f"round {i} of the window" for i in unreadable)
+            return (
+                f"\n?  SCOPE GROWTH UNCOMPUTABLE — {missing} never stated a readable "
+                f"`--confirmed`/`--own-fix` pair (confirmed/own-fix: {arrow}), and the other "
+                f"rounds are close enough that it would DECIDE the verdict.\n"
+                "    This is NOT a verdict either way — it is the stop unable to compute. State "
+                "the counter on that round and re-read.\n"
+                "    (Advisory only — nothing is blocked.)"
+            )
         return ""
-    arrow = " → ".join(f"{c}/{o}" for c, o in pairs)
+
+    if qualifying < SCOPE_GROWTH_QUALIFY:
+        # ⚠️ ESCALATE — the OTHER cause of the same symptom, and the one this command's step 5
+        # already prescribes. It is emitted only when the ratio was COMPUTED and came out unmet,
+        # never inferred from silence: the two last rounds both confirmed, both stated their
+        # counters, and the residue is NOT mostly the review's own.
+        tail = pairs[-2:]
+        if len(tail) == 2 and all(_readable(c, o) and c > 0 for c, o in tail):
+            return (
+                f"\n↗  ESCALATE — two consecutive rounds confirmed defects and the scope-growth "
+                f"ratio was computed and NOT met (confirmed/own-fix: {arrow}), so these are the "
+                f"artifact's own defects, not the review's.\n"
+                "    The surface outgrew the light pass: route up to the heavy `/fabrik-review` "
+                "in the SAME turn rather than opening another light round.\n"
+                "    (Advisory only — nothing is blocked.)"
+            )
+        return ""
+
     return (
-        f"\n⚠️  SCOPE GROWTH — the last {SCOPE_GROWTH_ROUNDS} rounds confirmed ONLY defects "
-        f"inside text this review itself added (confirmed/own-fix: {arrow}).\n"
+        f"\n⚠️  SCOPE GROWTH — {qualifying} of the last {SCOPE_GROWTH_ROUNDS} rounds confirmed "
+        f"mostly defects inside text this review itself added (confirmed/own-fix: {arrow}).\n"
         "    The artifact's own surface is quiet; you are reviewing your previous fix, and "
         "correcting prose regenerates the surface you are correcting.\n"
         # the pointer names BOTH fragments: a term-coverage loop (`/fabrik-review`,
@@ -2286,8 +2367,11 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="of this round's CONFIRMED defects, how many lay inside text THIS REVIEW added in "
         "an earlier round (its own fix prose or code) rather than the artifact's own surface — "
-        "two consecutive rounds where every confirmed defect is own-fix trips the scope-growth "
-        "stop (omitted = not stated, which asserts nothing)",
+        "TWO OF THE LAST THREE rounds at or above two-thirds own-fix "
+        "(own-fix * 3 >= confirmed * 2, confirmed > 0) trips the scope-growth stop (D-278, "
+        "supersedes the old two-consecutive equality). Omitting it does not buy silence: a round "
+        "that omits it can never qualify, and when the other rounds are close enough that it "
+        "would decide the verdict the stop prints UNCOMPUTABLE and names the round",
     )
     p.add_argument("--classes-swept", default="", help="comma-separated, swept CLEAN")
     p.add_argument("--classes-new", default="", help="comma-separated, newly opened")

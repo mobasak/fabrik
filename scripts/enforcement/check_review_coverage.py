@@ -386,7 +386,12 @@ _EXIT_NEGATION = re.compile(
     r"|isn't|wasn't|didn't|doesn't|hasn't|won't|cannot|can't)\b",
     re.I,
 )
-_OWN_FIX_ROUNDS_FOR_STOP = 2
+# THREE under D-278 (was 2 under the superseded D-252): the window the scope-growth stop slides
+# over. TWIN of `command_run.py::SCOPE_GROWTH_ROUNDS`, asserted equal by
+# tests/test_check_review_coverage_scope_growth.py — one rule, two readers, change them together.
+# ⚠️ This grader can only corroborate the SHAPE (N rounds that each confirmed something); the
+# own-fix half is a run-record counter and never a ledger column, so it stays declarative.
+_OWN_FIX_ROUNDS_FOR_STOP = 3
 PASS2 = re.compile(r"\bPass\s*2\b")
 # The proof of a rubric RUN is the script's own generated output header — a prose
 # mention is not an invocation (trade-intelligence 01M17Z7Q: a thrice-converged plan

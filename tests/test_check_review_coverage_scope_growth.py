@@ -8,6 +8,11 @@ honest close graded as an unconverged review. Found when a sibling's staged revi
 reddened the SHARED gate for every session in the tree (Phase E review, round 4).
 """
 
+# ⚠️ D-278 widened the scope-growth window from TWO rounds to THREE, so every ledger fixture
+# below carries three confirming rounds. The shapes moved because the bar did; each test's
+# intent is unchanged. `_OWN_FIX_ROUNDS_FOR_STOP` and `command_run.py::SCOPE_GROWTH_ROUNDS`
+# are twins and the lockstep test in this file is what forced them to move together.
+
 from __future__ import annotations
 
 import importlib.util
@@ -79,7 +84,9 @@ def test_the_phrase_alone_does_not_exempt_a_still_converging_loop():
 
 def test_the_declared_stop_with_its_ledger_shape_is_a_legitimate_exit():
     crc = _crc()
-    text = _doc("CONVERGED on the D-252 scope-growth stop", [_row(1, 14), _row(2, 4)])
+    text = _doc(
+        "CONVERGED on the D-252 scope-growth stop", [_row(1, 14), _row(2, 6), _row(3, 4)]
+    )
     rows = crc._ledger_shapes(text)[2]
     assert crc._scope_growth_exit(text, rows)
 
@@ -91,7 +98,7 @@ def test_a_status_line_that_merely_mentions_the_stop_is_not_the_exit():
     against; a deliberately-worded sentence is not defended against, and the predicate's docstring
     says so rather than pretending otherwise."""
     crc = _crc()
-    rows = [_row(1, 14), _row(2, 4)]
+    rows = [_row(1, 14), _row(2, 6), _row(3, 4)]
     for line in (
         "CONVERGED — quiet at Pass 20; the loop never needed the scope-growth stop",
         "CONVERGED (see the appendix for why this is not a scope-growth stop)",
@@ -157,7 +164,7 @@ def test_check_file_accepts_the_stop_and_still_demands_a_fresh_seat(tmp_path):
     which would make this pass vacuously the day the function is renamed."""
     crc = _crc()
     quiet_err = "the exit round must be quiet"
-    rows = [_row(1, 14), _row(2, 4)]
+    rows = [_row(1, 14), _row(2, 6), _row(3, 4)]
 
     declared = tmp_path / "declared.md"
     declared.write_text(_doc("CONVERGED on the D-252 scope-growth stop", rows), encoding="utf-8")
@@ -234,7 +241,7 @@ def test_a_status_line_that_denies_the_stop_is_not_a_declaration_of_it():
     inverts the claim.
     """
     crc = _crc()
-    still_converging = [(1, 8, None, None), (2, 6, None, None)]
+    still_converging = [(1, 8, None, None), (2, 7, None, None), (3, 6, None, None)]
 
     assert crc._scope_growth_exit(
         "Status: CONVERGED on the D-252 scope-growth stop", still_converging
@@ -263,7 +270,7 @@ def test_the_real_receipt_this_plan_shipped_still_declares_the_stop():
     status = next(
         ln for ln in receipt.read_text(encoding="utf-8").splitlines() if ln.startswith("**Status:")
     )
-    assert crc._scope_growth_exit(status, [(1, 7, None, None), (2, 6, None, None)]), status
+    assert crc._scope_growth_exit(status, [(1, 7, None, None), (2, 6, None, None), (3, 5, None, None)]), status
 
 
 def test_the_exemption_is_fail_closed_on_any_negation_before_the_phrase():
@@ -276,7 +283,7 @@ def test_the_exemption_is_fail_closed_on_any_negation_before_the_phrase():
     affirmation and put any caveat AFTER the phrase.
     """
     crc = _crc()
-    still_converging = [(1, 8, None, None), (2, 6, None, None)]
+    still_converging = [(1, 8, None, None), (2, 7, None, None), (3, 6, None, None)]
 
     # every one of these was ACCEPTED by the clause-split cut
     for denial in (
