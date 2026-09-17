@@ -310,3 +310,24 @@ def test_the_exemption_is_fail_closed_on_any_negation_before_the_phrase():
         "Status: CLOSED — closed on the scope-growth stop; the loop was never quiet",
     ):
         assert crc._scope_growth_exit(affirmation, still_converging), affirmation
+
+
+def test_the_committed_path_honours_the_same_scope_growth_exemption():
+    """Two readers, ONE rule. `check_file` granted the exemption and `_committed_nonquiet` did not,
+    so a receipt that took a SANCTIONED exit was accepted uncommitted and then nagged FOREVER once
+    committed — the reader-divergence this module's own docstring calls its founding enemy, running
+    in the opposite direction. Measured when this landed: 10 permanent false advisories removed
+    across the live receipts, 0 added. Found by the heavy review of D-281."""
+    crc = _crc()
+    text = _doc("CONVERGED on the D-252 scope-growth stop", [_row(1, 14), _row(2, 4)])
+    rows = crc._ledger_shapes(text)[2]
+    # the precondition: this receipt IS exempt at the uncommitted reader
+    assert crc._scope_growth_exit(text, rows), "fixture no longer earns the exemption"
+    # and the committed reader must reach the same verdict — the guard is the `and not` clause
+    import inspect
+
+    src = inspect.getsource(crc._committed_nonquiet)
+    head = src.split("COMMITTED with a non-quiet exit round")[0]
+    assert "_scope_growth_exit(text, ordered_rows)" in head, (
+        "the committed path stopped consulting the exemption — the two readers have diverged again"
+    )

@@ -2740,7 +2740,12 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
                 named = legacy
             else:
                 named = _exit_counters(last, legacy)
-        if not quiet:
+        # ⚠️ The SAME exemption `check_file` grants at the uncommitted path. Without it the two
+        # readers disagree by construction in the direction this function's own docstring calls its
+        # founding enemy — accepted uncommitted, then nagged FOREVER once committed, telling an
+        # author who took a SANCTIONED exit that "committing a review does not converge it". Found
+        # by the heavy review of D-281; the exemption existed at one reader only.
+        if not quiet and not _scope_growth_exit(text, ordered_rows):
             out.append(
                 f"{p.relative_to(root)}: COMMITTED with a non-quiet exit round ({named}) "
                 "— committing a review does not converge it. Finish the loop; BLOCKED-escalate the "
