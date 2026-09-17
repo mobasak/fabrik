@@ -3817,7 +3817,7 @@ def test_every_reader_of_a_cache_utilization_survives_the_value_the_validator_re
         )
         is None
     )
-    assert any("cap-walled" in s and "?" in s for s in cr._fleet_row_warnings([row]))
+    assert any("cap-walled — weekly ? ≥ cap 90" in s for s in cr._fleet_row_warnings([row]))
     assert (
         cr._fmt_forecast({"utilization": 5.0, "verdict": "reset_first", "minutes_to_reset": giant})
         == "no burn"
@@ -4042,6 +4042,19 @@ def test_the_active_account_keeps_its_return_instant_on_the_board(tmp_path, monk
     )
     board = cr._fleet_picture([spent], "seo", now)["accounts"][0]
     assert (board["state"], board["returns_at"]) == ("active", now + 3600), board
+    # and a HEALTHY active row with an unreadable weekly carries no return — the arm fired on the
+    # relief writer's conservative reading and promised a day out (remainder seat F, F1)
+    healthy = _row(
+        "sarp@ocoron.com",
+        3.0,
+        float("nan"),
+        cap=90,
+        s_reset=now + 3600,
+        w_reset=now + 86400,
+        slug="seo",
+    )
+    board = cr._fleet_picture([healthy], "seo", now)["accounts"][0]
+    assert (board["state"], board["returns_at"]) == ("active", None), board
 
 
 def test_an_unreadable_cached_weekly_never_costs_the_fleet_its_session_reading(
@@ -4177,6 +4190,11 @@ def test_cap_walled_is_set_from_a_cached_row_whose_weekly_figure_is_unreadable(
         by["sarp@ocoron.com"]["source"] == "cache" and by["sarp@ocoron.com"]["cap_walled"] is False
     ), by["sarp@ocoron.com"]
     assert cr._weekly_blocked(by["sarp@ocoron.com"]["seven_day"], 90) is True
+    # the warning is driven by that reading, through the real writer, not by a hand-set flag
+    # (remainder seat F, F2/F3): the operator still sees the "reserved" line for the garbage cell
+    assert any(
+        "sarp@ocoron.com: cap-walled — weekly ? ≥ cap 90" in s for s in cr._fleet_row_warnings(rows)
+    ), rows
     assert by["ob@ocoron.com"]["cap_walled"] is False and cr._walled(by["ob@ocoron.com"]) is True
 
 

@@ -4012,7 +4012,12 @@ def _fleet_row_warnings(accounts: list[dict]) -> list[str]:
                 "refresh, or a login went into the wrong dir). Recovery: ONE /login in that "
                 "dir re-mints its chain; do NOT copy credential files"
             )
-        if row.get("cap_walled"):
+        # the warning follows the BOARD's reading (`_weekly_blocked`, which names an unreadable
+        # figure), not the verdict-aligned flag — keying it on the flag silenced the operator's
+        # "reserved for operator use" line for exactly the garbage cell (remainder seat F, F2)
+        if row.get("weekly_cap") is not None and _weekly_blocked(
+            row.get("seven_day"), row.get("weekly_cap")
+        ):
             wk = row.get("seven_day")
             wu = _usable_ts(wk.get("utilization")) if isinstance(wk, dict) else None
             at = f"{wu:.0f}%" if wu is not None else "?"
@@ -4106,7 +4111,10 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
         # F1) — and the ACTIVE account keeps its return, which is the one fact an agent needs
         # at the wall (round 4 seat E, F1)
         returns_at: float | None = None
-        active_walled = state == "active" and weekly_walled
+        # `weekly_walled` is True on an UNREADABLE figure too (the relief writer's conservative
+        # reading); for the active row that manufactured a return a day out from one garbage
+        # cache cell — a readable figure only (remainder seat F, F1)
+        active_walled = state == "active" and weekly_walled and wv is not None
         active_spent = state == "active" and session_spent
         if state == "over-threshold" and wr is not None and wr >= now:
             returns_at = wr
