@@ -3681,3 +3681,58 @@ minutes and was recovered with `setsid nohup … & disown`. NOT independently re
 would cost an hour to observe). Destination: one line in `.windsurf/rules/core/62-using-subagents.md`
 telling a long driver to launch detached from the start — a fleet-synced pack, so it rides whatever
 change next touches that file rather than a commit of its own.
+
+### [infra] The pin contract binds only the SEAT — extending it to the orchestrator is SPEC work, not a command edit
+
+`commands/_sources/fabrik-review-scoped.md` step 5. Six ledger verdicts ask for this and every one is a
+measured incident, not a preference: *"three seats in this run read a moving target"* (ts 1789584522.96),
+*"I moved the tree under reviewers 3 times"* (1788863357.22), *"2 of the authoritative seat's 8 candidates
+were already fixed live before it could report them"* (1789037346.84), *"a finder reading the live tree
+scores a moving target"* (1788822963.36), *"the single edit that would have saved the most time here"*
+(1788971389.36), *"pin the base sha … so a mid-run sibling commit never empties the diff"* (1788733157.33),
+plus *"the brief tells SEATS not to mutate the tree and says nothing to the ORCHESTRATOR"* (1789494438.58).
+The hub's own LESSONS_LEARNT (2026-09-16) carries the executed case: a seat watched the file under review
+change and change back mid-pass and said that, had it re-read the live path instead of its pin, it would
+have filed a CONFIRMED defect as REFUTED.
+
+**Attempted as a command edit 2026-09-17 and REVERTED.** `/fabrik-command-improve fabrik-review-scoped`
+wrote the paragraph three times; three review rounds (5 native seats, 35 findings, 22 confirmed) each
+found NEW defects in the previous round's fix — confirmed/own-fix **10/0 → 6/6 → 6/6**, which fired the
+D-278 scope-growth stop, and the third cut had introduced a live regression (it deleted the head of the
+following sentence, orphaning the two-causes trigger and unbalancing a `**` span, in the rendered corpus).
+Reverted to HEAD; the corpus is whole. It is filed rather than re-patched because the obligations turn out
+to depend on `command_run.py` internals, which makes it a MECHANISM — this command's own PHASE 2 routes a
+verdict wanting a new mechanism to `/fabrik-spec`, not to a wording edit.
+
+**What the three rounds ESTABLISHED, so the spec need not re-derive it:**
+
+1. **The pin has two plausible bases and BOTH fail empty if named naively.** `git diff HEAD -- <surface>`
+   returns empty once a sibling commits the surface mid-round — the md5 then matches nothing, the seat is
+   told the pin holds, and a CONFIRMED-zero round closes the loop on a surface nobody read. The committed
+   branch fails the same way in different clothes: measured on this repo, `git show <sha> -- <path>` →
+   **0 bytes** where `git show <sha>:<path>` → **18,524 bytes**. A base is a REV; a content pin is
+   `<sha>:<path>`; a diff pin is `<sha>^`. The text must name which.
+2. **The md5 must be of the LIVE file compared against the pinned copy, re-computed at adjudication.**
+   An md5 "of the surface at the base" is immutable by construction, so a "changed md5 kills the round"
+   rule written that way can never fire.
+3. **"Kill the round" is not expressible today.** `command_run.py` registers 9 subcommands
+   (`start·step·dispatch·round·done·blocked·handoff·line·status`) and none abandons a round or releases a
+   stamp. Worse, `cmd_dispatch` ACCUMULATES within a round (`command_run.py:2807`, `carried =
+   prev_disp["seats"] if prev_disp["round"] == len(rec["rounds"])`), so kill + re-dispatch stamps **6**
+   seats on one 25-minute reservation that siblings subtract from their headroom; only the run's close
+   releases it (`:3494`). Either the tool grows a verb or the text must name the accounting.
+4. **An orchestrator-applied fix counts in `--confirmed`, NOT `--own-fix`** — adjudicated and REFUTED as an
+   edit: `--own-fix` means "of those confirmed, how many lay in THIS review's own earlier fixes", so
+   counting an artifact defect there would inflate `own_fix * 3 >= confirmed * 2`, trip the stop early AND
+   buy a backlog exit for a real defect. That is the cobra `command_run.py:397` names in its own docstring.
+5. **Step 3's "no third bucket, no 'noted'" needs a signpost**, because step 3 and the seats-are-out
+   interval are the same interval on every round-1 pass (the floor is 3 readers at round 1), and a reader
+   at step 3 has no reason to read step 5 mid-pass.
+6. **The pin directory must be per-DISPATCH, not per-round** (`<scratch>/<round>-<dispatch>/`), because two
+   Task messages in one round are two stamps (`command_run.py:2804-2806`) and a shared dir lets the second
+   dispatch's copy overwrite a still-running seat's pin — the moving-target failure, re-created by the fix.
+
+**Cost note for whoever sizes it:** the LIGHT pass is the constraint. Three cuts measured +700 / +959 /
++738 B on an 18,524 B command whose identity is being cheaper than `/fabrik-review`; a seat judged the
+obligations earned but the wording not at its Pareto frontier every time. A spec should decide how much of
+this belongs in the command text at all versus in `command_run.py` behaviour.
