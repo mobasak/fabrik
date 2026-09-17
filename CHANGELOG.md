@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Delta 19: a failed wall-stamp re-arm never drops a hold it did not arm; the failure is said first (2026-09-17)
+
+- **The re-arm's cleanup no longer deletes the fleet hold** — Delta 18's `unlink` ran on every failure arm,
+  so an un-writable PRE-EXISTING stamp (the hold itself: `quota_stop.py` holds on presence alone) was
+  deleted by a direct call or an intra-tick race, and the hold went down with the ledger latch silent.
+  Only a stamp the call itself created is removed; the failure is said on stderr before any cleanup
+  that could raise; a cleanup that fails is said and the stamp stays. B21i arms, red on HEAD.
+- **Prose matched to the platform** — `os.utime` clamps, not wraps, to the filesystem's mtime ceiling for
+  every ts between there and `time_t`; the wall reader's no-era-floor clause is scoped to a clocked call
+  (B21g arm pins both halves); the floor's mirror-cost sentence says `at or`. Fix commit `72a969a8`;
+  246 + 159 passed; gate `status: success`.
+
 ### Fixed — Delta 18: the wall-stamp re-arm survives a ts `os.utime` refuses; the era floor's prose says `at or` (2026-09-17)
 
 - **A huge finite ts no longer raises out of the re-arm** — `1e308` passes `_usable_ts`, stays open in the
