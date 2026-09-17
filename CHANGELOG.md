@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Rotation: the dangling-link drop requires a mkdir that can succeed; a link to a canonical FILE is named (2026-09-17)
+
+The scoped review's remainder seat found two edge shapes inside the round-3 fix: a mkdir-name whose canonical path is held by a file still consumed the dangling link and replaced it with nothing, and a fleet link whose canonical target became a file passed every detector arm. Fixed at `eaa117ce3`: the drop requires the canonical dir to exist or its path to be free; `_shared_link_warnings()` names "links to a FILE, not a dir"; the doc's heal ends with `rmdir` so a record `mv -n` declined stops the replacement. Grader red on HEAD; fleet + rotate suites 400 passed. The review of D-287's fix closes here under the D-278 stop (rounds 2/0 → 4/4 → 2/2 → 2/2 own-fix); its residue is on the backlog row.
 ### Fixed — Rotation: a dangling shared link is dropped only when it can be re-linked; the detector names four shapes; the merge check includes the destination (2026-09-17)
 
 The scoped review's confirming seat found the round-2 heal unlinking a dangling link for the three operator-content names the scaffolder never creates (`agents`, `commands`, `skills`): the link vanished, the detector went silent, and the CLI would then make a real dir there. Fixed at `46c94b075`: the drop happens only when the canonical dir exists or the scaffolder creates it, else the link stays, named; `_shared_link_warnings()` names a real dir, a file, a dangling link and a link resolving elsewhere than the canonical dir; the doc's collision check includes `~/.claude/sessions` (the merge destination was outside it, so the guarded `mv` could clobber a canonical record) and the move is `mv -n`. Grader red on HEAD; fleet + rotate suites 400 passed.
