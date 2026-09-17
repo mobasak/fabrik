@@ -5832,12 +5832,22 @@ def test_a_stray_ledger_line_does_not_abort_the_flip_reader(tmp_path, monkeypatc
     # not a flip in 1970 — the type door was closed and the value door left open (Delta 16 A F3)
     led.write_text(json.dumps({"event": "flip", "ts": 0, "from": "a@x", "to": "b@x"}) + "\n")
     assert cr._last_switch_ts(event="flip")[1] is True
+    # `{"ts": 1}` is `{"ts": true}`'s VALUE — a floor at 0 refused the spelling and admitted the
+    # value, installing on every tick; the floor is the ledger's ERA (Delta 17 seat A, F2)
+    led.write_text(json.dumps({"event": "flip", "ts": 1, "from": "a@x", "to": "b@x"}) + "\n")
+    assert cr._last_switch_ts(event="flip")[1] is True
+    era = cr._LEDGER_ERA_FLOOR_S + 1  # pinned from the accepting side too
+    led.write_text(json.dumps({"event": "flip", "ts": era, "from": "a@x", "to": "b@x"}) + "\n")
+    assert cr._last_switch_ts(event="flip") == (era, False)
+    # a giant JSON integer raised OverflowError out of the reader — and the tick (Delta 17 A F1)
+    led.write_text('{"event": "flip", "ts": 1' + "0" * 400 + ', "from": "a@x", "to": "b@x"}\n')
+    assert cr._last_switch_ts(event="flip")[1] is True
     led.write_text(json.dumps({"event": "flip", "ts": True, "from": "a@x", "to": "b@x"}) + "\n")
     ts2, degraded2 = cr._last_switch_ts(event="flip")
     assert degraded2 is True, (ts2, degraded2)  # the flag alone discriminates (seat B, #2)
-    # and `-Infinity`: NaN and +inf already failed the `<= now + skew` test, so the finite guard
-    # buys exactly this value — accepted, it read as a flip infinitely long ago, fail-OPEN, and no
-    # grader drove it (Delta 15 seat A, F1)
+    # and `-Infinity`: accepted, it read as a flip infinitely long ago, fail-OPEN, and no grader
+    # drove it (Delta 15 seat A, F1); the reader's own finite conjunct was dead once the floor
+    # shipped, and finiteness now lives in `_usable_ts` alone (Delta 17 seat B)
     led.write_text('{"event": "flip", "ts": -Infinity, "from": "a@x", "to": "b@x"}\n')
     ts3, degraded3 = cr._last_switch_ts(event="flip")
     assert degraded3 is True, (ts3, degraded3)  # the flag alone discriminates here too (Delta 16 B)
@@ -5977,7 +5987,9 @@ def test_a_wall_row_the_latch_has_retired_is_not_an_open_episode_to_the_closer(
     # every other unusable shape too — `true`, a string, null — clock or no clock: the first cut
     # expired NaN only, and a `true`-stamped row stayed open forever, a surplus close row on
     # every relief (Delta 15 seat A, F3/F4)
-    for bad in ("true", '"x"', "null"):
+    # and a giant JSON integer: `math.isfinite`/`float()` raise OverflowError on it, out of every
+    # ledger reader and the whole tick, forever, until hand-edited (Delta 17 seat A, F1)
+    for bad in ("true", '"x"', "null", "1" + "0" * 400):
         led.write_text('{"event": "fleet-active-wall", "ts": ' + bad + ', "account": "b@x"}\n')
         # with a clock `true` (== 1, epoch 1970) also expires by AGE, so the clockless call below is
         # the one that discriminates the `usable` rule for a bool — keep both (Delta 16 seat B)

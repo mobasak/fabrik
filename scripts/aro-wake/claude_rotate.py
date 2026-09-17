@@ -70,6 +70,12 @@ _ALERT_DEBOUNCE_S = 12 * 3600
 # A ledger timestamp may sit this far ahead of "now" before it is treated as clock skew rather than
 # a real switch (NTP correction, and WSL suspend/resume, move this box's clock in both directions).
 _CLOCK_SKEW_TOLERANCE_S = 60.0
+# No rotate-ledger row predates this (the ledger's first row is 2026; the writer is `time.time()`).
+# The flip reader's floor: a ts below it is corruption, never a flip in 1970 — `{"ts": 1}` is
+# `{"ts": true}`'s VALUE, and a floor at 0 refused the spelling while admitting the value
+# (Delta 17 seat A, F2). Mirror cost, stated: a row honestly stamped before 2020 is refused;
+# none can exist, and the constant must stay below the ledger's real first row forever.
+_LEDGER_ERA_FLOOR_S = 1_577_836_800.0  # 2020-01-01T00:00:00Z
 
 # The fleet-wall advisory latch fires once per wall episode, but re-arms after this long so a
 # sustained total exhaustion re-reminds the operator (the "week without a word" re-arm the old
@@ -2165,6 +2171,23 @@ def _drain_stamp_path() -> Path:
         return Path(tempfile.gettempdir()) / "claude-drain-stamp"
 
 
+def _usable_ts(ts: object) -> float | None:
+    """A ledger `ts` as a float, or None when it cannot be one — the ONE validator both ledger
+    readers (`_last_switch_ts`, `_open_wall_rows`) run, so a usable ts means the same thing in
+    both. A JSON boolean is refused (`true` is 1.0 — a 1970 stamp), and so is a non-finite
+    value. The float conversion runs INSIDE a guard: JSON parses a giant integer literal into an
+    arbitrary-precision `int`, and both `math.isfinite` and `float()` raise OverflowError on
+    it — the class `_refresh_expiry_epoch` already guards, which the readers ran unguarded, so
+    one such row killed every tick until hand-edited (Delta 17 seat A, F1)."""
+    if not isinstance(ts, (int, float)) or isinstance(ts, bool):
+        return None
+    try:
+        value = float(ts)
+    except OverflowError:
+        return None
+    return value if math.isfinite(value) else None
+
+
 # The ledger is an audit trail, never a crash source — an escape from these readers aborts the tick
 # mid-flight, taking the drain broadcast with it.
 def _ledger_append(event: dict) -> None:
@@ -2188,7 +2211,7 @@ def _last_switch_ts(event: str = "switch") -> tuple[float | None, bool]:
 
     A ledger that cannot be READ — unreachable/corrupt bytes, a permission error, or a well-formed
     switch record whose ``ts`` is not a usable number (non-numeric, a JSON boolean, non-finite,
-    at or before the epoch, or stamped in the future)
+    before the ledger's era, or stamped in the future)
     — fails **CLOSED**: ``(now, True)``, which reads as
     "just switched" and holds the guard. Answering "no recent switch" to a question we cannot
     answer lets the tick install a fresh pair on every 5-minute run for as long as the fault lasts.
@@ -2214,23 +2237,23 @@ def _last_switch_ts(event: str = "switch") -> tuple[float | None, bool]:
             isinstance(e, dict) and e.get("event") == event
         ):  # a stray line is skipped, never a crash
             ts = e.get("ts")
+            tsf = _usable_ts(ts)  # type, bool and finiteness live there, once (Delta 17 A F1 / B)
             if (
-                isinstance(ts, (int, float))
-                and not isinstance(
-                    ts, bool
-                )  # `true` read as 1.0 — a 1970 flip, fail-OPEN (Delta 14 A F2)
-                and math.isfinite(ts)
-                and float(ts) > 0  # the ledger cannot predate its writer: 0 or -5 is corruption
-                and float(ts) <= _now() + _CLOCK_SKEW_TOLERANCE_S
+                tsf is not None
+                # the ledger cannot predate its WRITER, and the writer is `time.time()`: the
+                # floor is the ledger's era, not the epoch — `{"ts": 1}` sailed through `> 0`
+                # as the very 1970 flip the bool refusal exists for (Delta 17 A F2)
+                and tsf > _LEDGER_ERA_FLOOR_S
+                and tsf <= _now() + _CLOCK_SKEW_TOLERANCE_S
             ):
-                return float(ts), False
+                return tsf, False
             # Two unknowns, one verdict. A non-numeric ts cannot be compared at all; a ts stamped
             # in the FUTURE makes ``now - last`` negative, which reads as "within dwell" for as
             # long as the skew lasts — a silent hold with no drain (WSL suspend/resume moves this
             # box's clock). Neither may read as "no recent switch".
             sys.stderr.write(
                 f"claude_rotate: rotate-ledger {event} record has an unusable ts "
-                f"({ts!r} — non-numeric, a JSON boolean, non-finite, at or before the epoch, or "
+                f"({ts!r} — non-numeric, a JSON boolean, non-finite, before the ledger's era, or "
                 f"clock-skewed into the "
                 f"future) — dwell guard failing "
                 "CLOSED (holding; no account installed)\n"
@@ -5584,9 +5607,10 @@ def _open_wall_rows(now: float | None = None) -> tuple[dict[str, dict], bool]:
     because a fleet-wide end row ends ALL open episodes and the close row must name all of
     them — `closed_for` named only the last (Delta 10 seat B, F4).
 
-    INVARIANT: every row returned here carries a USABLE ts (a finite non-bool number), clock or
-    no clock — this reader is the one validator, and its consumers (`_advisory_ledger_latch`,
-    `_rearm_wall_stamp`) do not re-validate; three sibling guards on that one fact were kept,
+    INVARIANT: every row returned here carries a USABLE ts (`_usable_ts` — a finite non-bool
+    number that converts to a float without raising), clock or no clock — this reader is the
+    one validator, and its consumers (`_advisory_ledger_latch`, `_rearm_wall_stamp`) do not
+    re-validate; three sibling guards on that one fact were kept,
     deleted and re-added across four rounds before the rule was written down (Delta 16 seat A).
     Two things the rule does NOT do, on purpose: a finite ts dated in the FUTURE is usable and
     stays open here — future-dating is the latches' business, and both fail OPEN on it (speak);
@@ -5617,8 +5641,8 @@ def _open_wall_rows(now: float | None = None) -> tuple[dict[str, dict], bool]:
             # HOLDS (the dwell guard's safe side); here it means "no open episode", so the
             # advisory SPEAKS — silence on a wall is the failure this latch guards against
             # (Delta 16 seat C).
-            usable = isinstance(ts, (int, float)) and not isinstance(ts, bool) and math.isfinite(ts)
-            expired = not usable or (now is not None and now - float(ts) > _FLEET_WALL_REARM_S)
+            tsf = _usable_ts(ts)
+            expired = tsf is None or (now is not None and now - tsf > _FLEET_WALL_REARM_S)
             acct = row.get("account")
             if isinstance(acct, (list, dict, set)):
                 continue  # an unhashable key crashed the reader — and the whole tick (Delta 12 A #7)
@@ -5761,7 +5785,8 @@ def _rearm_wall_stamp(stamp: Path, email: str, now: float) -> None:
     """Re-create the fleet-exhausted stamp from the OPEN episode's ledger row — content = the
     `resume_epoch` the advisory promised ("0" when none), mtime = the row's `ts`, never `now`:
     a fresh mtime would restart the stamp's week re-arm and the two latches would drift apart.
-    Never raises (the tick must not fail on a cache file); an unwritable stamp is said on stderr
+    Never raises on a row `_open_wall_rows` returned (the tick must not fail on a cache file);
+    an unwritable stamp is said on stderr
     like the first write, and so is an unreadable ledger — reachable by a direct call or an
     intra-tick race only, since the one production caller's guard has just read the ledger; a row
     that VANISHED in the same race is not said and leaves the hold down identically (F6)."""
