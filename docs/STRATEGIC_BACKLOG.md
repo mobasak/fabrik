@@ -3766,3 +3766,25 @@ attempts learning that a small-looking edit on a shared surface is not small. Si
 **Not a regression introduced by D-288:** before it, 17 commands carried the ambiguous sentence and none
 carried an explicit rule. D-288 did not change those 17; it made a pre-existing ambiguity visible by stating
 the opposite clearly in one place. Leaving it costs nothing that was not already being paid.
+
+### [infra] The `$HOME`-rooted `.claude*` read ban is keyed on the PATH; the hang is keyed on the TOOL
+
+Every seat brief this session carried "NEVER read any `$HOME`-rooted `.claude*` path — it stalls the seat
+indefinitely" (memory `feedback_subagent_home_dir_reads_hang`), and two briefs in the `/fabrik-spec-review`
+of the `/fabrik-task` spec REQUIRED a read of `~/.claude/state/command-feedback.jsonl` for a measurement.
+Measured by three seats 2026-09-17: `python3 open()` on that path returned in under 2 seconds every time;
+the stall the memory records came from the Read/Grep tools on `~/.claude-fleet/…` transcript-sized files.
+So a seat that obeys the memory refuses a read the brief requires, and a brief that carves out the ledger
+contradicts the memory it also quotes. Fix: re-key the rule to the TOOL — Read/Grep never; `python3`
+`open()`/`sed -n` on a NAMED small file with a size check first — in both the memory and the standing
+brief preamble. Found as MACHINERY by the pass-2 Opus B seat.
+
+### [infra] `commands/_agents/fabrik-researcher.md:22` says firecrawl "is not connected on this box" — it is
+
+The parenthetical reads *"(firecrawl was named here once; it is not connected on this box — a routing arm
+that does not exist is not redundancy. Verified gone 2026-08-30, wef 01M17XXF.)"* — while
+`docs/workstation/mcp-roster.md:65` rules it **ON everywhere** (D-013; the crash was a corrupted npx cache
+entry) and `scripts/sysadmin/mcp_health.py` reported `firecrawl: CONNECTED` in this session three times. A
+researcher seat reading its own agent definition is told a live arm is dead. One-line fix in the agent
+source, rendered to `~/.claude/agents/` (not a governance-sync trigger); its own scoped review. Found as
+MACHINERY by a `fabrik-researcher` seat verifying the spec's citations.
