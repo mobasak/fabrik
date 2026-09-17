@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the flip picker reads a candidate's weekly reset through the one validator (2026-09-17)
+
+- **A giant JSON int in a candidate row's weekly reset no longer raises out of `_pick_flip_target` or
+  `_fleet_picture`** — the picker's own `float(reset)` was the last bare reset read; it goes through
+  `_usable_ts`. Grader on the fleet fixture (a live-chained credentialed dir makes the row a candidate),
+  red on HEAD. Fix commit `67421508`; the scoped review's reader passes are paused while infra edits the
+  command (`docs/development/reviews/2026-09-17-review-scoped-pick-flip-target-resume.md`).
+
 ### Fixed — Delta 23: the flip-candidate verdict reads the usage-cache row through the one validator; the review closes under the D-278 stop (2026-09-17)
 
 - **A giant JSON int in a cache-sourced row no longer raises out of the picture** — `_fleet_picture` reaches
