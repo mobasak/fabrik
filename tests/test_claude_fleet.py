@@ -5489,10 +5489,23 @@ def test_the_fleet_band_reads_an_empty_map_by_who_was_measured():
         {"email": "c@x", "five_hour": {"utilization": 0.0}, "seven_day": {"utilization": 5.0}},
         "junk",
     ]
+    # and a row the picture never saw (no state at all) is not one either (seat D #3)
+    rows.append(
+        {"email": "d@x", "five_hour": {"utilization": 1.0}, "seven_day": {"utilization": 1.0}}
+    )
     pic = _pic_rows(
         ("a@x", "eligible", 99), ("b@x", "weekly-exhausted", 99), ("c@x", "unavailable", 99)
     )
     assert cr._fleet_measured(rows, pic) == 1 and cr._fleet_measured([], pic) == 0
+    # `measured` is REQUIRED — a new caller that omits it must fail loudly, never revive the
+    # account-keyed default arm that let three graders pin the opposite of what ships (seat D #4)
+    # asserted on the SIGNATURE: a call without it raises TypeError either way (`None > 0` in the
+    # body does too), so `pytest.raises` could not tell required from defaulted (Delta 11 M5)
+    import inspect  # noqa: PLC0415
+
+    assert (
+        inspect.signature(cr._fleet_band).parameters["measured"].default is inspect.Parameter.empty
+    )
 
 
 def test_a_posture_that_cannot_be_unlinked_never_fails_the_flip(tmp_path, monkeypatch, capsys):
@@ -5655,8 +5668,15 @@ def test_a_withheld_flip_cannot_storm_through_a_writable_stamp_either(tmp_path, 
     # hold stay down for the week the latch runs (Delta 10 seat B, F1)
     stamp = tmp_path / "locks" / "fleet-exhausted"
     assert stamp.exists(), "the message is latched; the hold must not be"
-    assert stamp.read_text(encoding="utf-8").strip() in ("0", str(int(float(stamp.read_text())))), (
-        stamp.read_text()
+    # the content is the PROMISE the episode's own ledger row carries — derived from the row, never
+    # from the file itself (the first cut compared the file with itself and accepted any integer —
+    # Delta 11 seat D #1); the sibling's session reset is nameable here, so the row carries a promise
+    wall = next(e for e in _ledger_events(tmp_path) if e.get("event") == "fleet-active-wall")
+    promised = wall.get("resume_epoch")
+    expect = str(int(promised)) if isinstance(promised, (int, float)) else "0"
+    assert stamp.read_text(encoding="utf-8").strip() == expect, (
+        promised,
+        stamp.read_text(),
     )
     assert abs(stamp.stat().st_mtime - FLEET_NOW) < 1.0, "re-armed from the row's ts, not now"
 
@@ -5718,6 +5738,67 @@ def test_the_closer_writes_its_own_fleet_wide_event_and_writes_even_when_the_led
     assert not led.exists(), led.read_text()
 
 
+def test_the_floor_binds_the_stamp_path_too(tmp_path, monkeypatch):
+    """B21j — Delta 11 seat A A2-1: a stamp whose promised resume is ALREADY due released the
+    stamp latch on the next tick, and the stamp path never consulted the 30-min floor the
+    ledger latch applies — a second advisory 900 s inside it. Same wall as B21d-2, the stamp
+    handed a promise that comes due 600 s in: silent at 900 s, speaks at the floor."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(OVER_LINE, 96.0), "tok-intel": _usage_blob(100.0, 100.0)},
+    )
+    actions = _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: ["fabrik"])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    (tmp_path / "locks").mkdir()
+    stamp = tmp_path / "locks" / "fleet-exhausted"
+    monkeypatch.setattr(cr, "_fleet_exhaustion_stamp", lambda: stamp)
+    _point(fleet, "seo")
+    assert cr._cmd_tick() == 0 and len(actions["telegrams"]) == 1 and stamp.exists()
+    stamp.write_text(str(int(FLEET_NOW + 600)), encoding="utf-8")  # a promise, due at +600
+    os.utime(stamp, (FLEET_NOW, FLEET_NOW))
+    rows_now, _ = cr._fleet_account_rows(cr._fleet_dirs(), allow_pings=False)
+    monkeypatch.setattr(cr, "_validated_pick", lambda *a, **kw: None)
+    cr._fleet_active_wall_advisory(rows_now, FLEET_NOW + 900, cr._rotate_threshold())
+    assert len(actions["telegrams"]) == 1, "the promise is due but the floor has not passed"
+    cr._fleet_active_wall_advisory(
+        rows_now, FLEET_NOW + cr._ADVISORY_MIN_GAP_S + 1, cr._rotate_threshold()
+    )
+    assert len(actions["telegrams"]) == 2, "past the floor a due promise re-advises, by design"
+
+
+def test_the_rearmed_stamp_carries_the_episodes_own_promise(tmp_path, monkeypatch, capsys):
+    """B21i — Delta 11 seats B F1 / D #1: the re-armed stamp's CONTENT is the promise the episode's
+    row carries (what `_promised_resume` reads for the next re-arm) and its mtime is the row's ts;
+    B21d-2 could only see the no-promise `"0"` case, and its first cut compared the file with
+    itself. A write failure is said on stderr and never raised."""
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    now = FLEET_NOW
+    (state / "rotate-ledger.jsonl").write_text(
+        json.dumps(
+            {
+                "event": "fleet-active-wall",
+                "ts": now - 900,
+                "account": "a@x",
+                "resume_epoch": now + 3600,
+            }
+        )
+        + "\n"
+    )
+    stamp = tmp_path / "locks" / "fleet-exhausted"
+    stamp.parent.mkdir()
+    cr._rearm_wall_stamp(stamp, "a@x", now)
+    assert stamp.read_text(encoding="utf-8") == str(int(now + 3600)), stamp.read_text()
+    assert abs(stamp.stat().st_mtime - (now - 900)) < 1.0, "mtime is the row's ts, never now"
+    cr._rearm_wall_stamp(tmp_path / "no-such-dir" / "fleet-exhausted", "a@x", now)
+    assert "NOT re-armed" in capsys.readouterr().err
+
+
 def test_the_close_row_names_every_episode_it_ends(tmp_path, monkeypatch):
     """B21h — Delta 10 seat B F4: two open episodes are reachable (a hand flip writes no `flip`
     row); the fleet-wide close ends both, and the singular key named only the last."""
@@ -5737,6 +5818,15 @@ def test_the_close_row_names_every_episode_it_ends(tmp_path, monkeypatch):
     row = json.loads(led.read_text().splitlines()[-1])
     assert row["closed_for"] == ["a@x", "b@x"], row
     assert not cr._advisory_ledger_latch("a@x", now) and not cr._advisory_ledger_latch("b@x", now)
+    # and SORTED, not insertion order — the first fixture wrote them already sorted (seat B, F5)
+    led.write_text(
+        json.dumps({"event": "fleet-active-wall", "ts": now - 600, "account": "b@x"})
+        + "\n"
+        + json.dumps({"event": "fleet-active-wall", "ts": now - 60, "account": "a@x"})
+        + "\n"
+    )
+    cr._close_wall_episode_without_stamp("a@x", now, "relief")
+    assert json.loads(led.read_text().splitlines()[-1])["closed_for"] == ["a@x", "b@x"]
 
 
 def test_a_wall_row_the_latch_has_retired_is_not_an_open_episode_to_the_closer(
@@ -5756,6 +5846,23 @@ def test_a_wall_row_the_latch_has_retired_is_not_an_open_episode_to_the_closer(
         + "\n"
     )
     assert cr._open_wall_episode("b@x", now) == (None, True)
+    # an expired row for the SAME account appended after a fresh one retires it (the reader
+    # pops before it decides — seat B F5, the `pop` had no grader)
+    led.write_text(
+        json.dumps({"event": "fleet-active-wall", "ts": now - 60, "account": "b@x"})
+        + "\n"
+        + json.dumps(
+            {"event": "fleet-active-wall", "ts": now - cr._FLEET_WALL_REARM_S - 1, "account": "b@x"}
+        )
+        + "\n"
+    )
+    assert cr._open_wall_episode("b@x", now) == (None, True)
+    led.write_text(
+        json.dumps(
+            {"event": "fleet-active-wall", "ts": now - cr._FLEET_WALL_REARM_S - 1, "account": "b@x"}
+        )
+        + "\n"
+    )
     assert cr._open_wall_episode("b@x") != (None, True), "without a clock the row is open"
     cr._close_wall_episode_without_stamp("a@x", now, "relief")
     assert len(led.read_text().splitlines()) == 1, "no close row for a retired episode"

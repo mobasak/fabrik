@@ -1169,7 +1169,7 @@ def test_the_deny_reason_names_the_window_nobody_serves(tmp_path):
     reason = json.loads(_hook(call, state=state, runs=runs).stdout)["hookSpecificOutput"][
         "permissionDecisionReason"
     ]
-    assert "NO account can serve five_hour or seven_day" in reason, reason
+    assert "NO account can serve 5h and weekly" in reason, reason
     fw = {"seven_day": {"utilization": 12.0, "slug": "intel"}}
     _posture(
         state, band="RED", band_account="GREEN", fleet_windows=fw, fleet_measured=1, successor=None
@@ -1177,9 +1177,23 @@ def test_the_deny_reason_names_the_window_nobody_serves(tmp_path):
     reason = json.loads(_hook(call, state=state, runs=runs).stdout)["hookSpecificOutput"][
         "permissionDecisionReason"
     ]
-    assert "NO account can serve five_hour" in reason and "at 12%" not in reason, reason
+    assert "NO account can serve 5h," in reason and "at 12%" not in reason, reason
     _posture(
         state, band="RED", band_account="GREEN", fleet_windows={}, fleet_measured=0, successor=None
+    )
+    reason = json.loads(_hook(call, state=state, runs=runs).stdout)["hookSpecificOutput"][
+        "permissionDecisionReason"
+    ]
+    assert "Fleet-wide" not in reason, reason
+    # the deny reason's OWN copy of the bool exclusion: a JSON `true` is not a count here either —
+    # C2i drives the prompt line only, and this is the message a held agent reads (seat D #2)
+    _posture(
+        state,
+        band="RED",
+        band_account="GREEN",
+        fleet_windows={},
+        fleet_measured=True,
+        successor=None,
     )
     reason = json.loads(_hook(call, state=state, runs=runs).stdout)["hookSpecificOutput"][
         "permissionDecisionReason"

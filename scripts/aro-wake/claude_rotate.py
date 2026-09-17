@@ -5598,7 +5598,7 @@ def _open_wall_rows(now: float | None = None) -> tuple[dict[str, dict], bool]:
     return open_rows, True
 
 
-def _open_wall_episode(email: str | None, now: float | None = None) -> tuple[dict | None, bool]:
+def _open_wall_episode(email: str, now: float | None = None) -> tuple[dict | None, bool]:
     """``(row, readable)``: the `fleet-active-wall` ledger row for *email* that no later end row has
     closed — or None — and whether the ledger could be read at all.
 
@@ -5623,9 +5623,9 @@ def _open_wall_episode(email: str | None, now: float | None = None) -> tuple[dic
     True)`, or a virgin box wrote a phantom close row on its first relief (F3).
     """
     rows, readable = _open_wall_rows(now)
-    if email is not None:
-        return rows.get(email), readable
-    return (next(reversed(rows.values())) if rows else None), readable
+    # one account only: the any-account arm lost its last caller to `_open_wall_rows` in the same
+    # refactor that kept it — dead in production and in every grader (Delta 11 seat B, F2)
+    return rows.get(email), readable
 
 
 def _close_wall_episode_without_stamp(email: str, now: float, site: str) -> None:
@@ -5654,7 +5654,10 @@ def _close_wall_episode_without_stamp(email: str, now: float, site: str) -> None
                 # relieved account is the ACTIVE one, not necessarily a walled one — F5/F6); a
                 # singular key named only the last of two (Delta 10 seat B, F4); [] when the
                 # ledger was unreadable
-                "closed_for": sorted(k for k in rows if isinstance(k, str)),
+                # every open key, as a string: a wall row with no `account` (none is written, the
+                # one writer always sets it) would otherwise end an episode the row never named,
+                # and `[]` already means "unreadable ledger" (Delta 11 seat B, F4)
+                "closed_for": sorted(str(k) for k in rows),
             }
         )
 
@@ -5704,9 +5707,10 @@ def _advisory_ledger_latch(email: str, now: float) -> bool:
         return False
     age = now - float(ts)
     # the stamp tolerates 60 s of future-dating (WSL suspend / NTP); so does this (seat B, F3)
-    # the week bound is applied by `_open_wall_rows` when it has a clock; kept here for a caller
-    # that passes none (Delta 10 seat B, F3: redundant on this path, not wrong)
-    if age < -_CLOCK_SKEW_TOLERANCE_S or age > _FLEET_WALL_REARM_S:
+    # the week bound lives in `_open_wall_rows`, which retires the row before it reaches here —
+    # `now` is required, so no caller arrives without a clock and a second bound was dead code
+    # (Delta 11 seat B, F3); only the skew tolerance is live on this line
+    if age < -_CLOCK_SKEW_TOLERANCE_S:
         return False
     if age < _ADVISORY_MIN_GAP_S:
         return True
@@ -5725,8 +5729,12 @@ def _rearm_wall_stamp(stamp: Path, email: str, now: float) -> None:
     a fresh mtime would restart the stamp's week re-arm and the two latches would drift apart.
     Never raises (the tick must not fail on a cache file); an unwritable stamp is said on stderr
     like the first write."""
-    row, _readable = _open_wall_episode(email, now)
+    row, readable = _open_wall_episode(email, now)
     if not isinstance(row, dict):
+        if not readable:
+            sys.stderr.write(
+                f"claude_rotate: fleet-exhausted stamp NOT re-armed ({stamp}): ledger unreadable\n"
+            )
         return
     promised = row.get("resume_epoch")
     content = (
@@ -5825,9 +5833,19 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     # switched, and the fleet sat walled and unwarned for 10h41m — 47 "NO successor has
     # headroom" ticks — until the operator flipped the pointer by hand.
     promised = _promised_resume(stamp)
-    latched = stamp.exists() and not (
-        (age is not None and (age > _FLEET_WALL_REARM_S or age < -_CLOCK_SKEW_TOLERANCE_S))
-        or (promised is not None and now >= promised)
+    # ⚠️ The 30-min floor binds the STAMP path too. The ledger latch applied it and this path did
+    # not, so a re-armed stamp whose promised resume was ALREADY due (the promise came due while
+    # the dwell branch had the stamp cleared) released here on the next tick — a second advisory
+    # 900 s inside the floor the comment on `_ADVISORY_MIN_GAP_S` claims holds "whatever the
+    # stamp says" (Delta 11 seat A, A2-1). The stamp's mtime is the episode's start (the re-arm
+    # writes the row's ts), so both latches count the floor from the same instant.
+    inside_floor = age is not None and -_CLOCK_SKEW_TOLERANCE_S <= age < _ADVISORY_MIN_GAP_S
+    latched = stamp.exists() and (
+        inside_floor
+        or not (
+            (age is not None and (age > _FLEET_WALL_REARM_S or age < -_CLOCK_SKEW_TOLERANCE_S))
+            or (promised is not None and now >= promised)
+        )
     )
     # ⚠️ The stamp is a PRESENCE latch and presence can be lost — a failed write, a tempdir
     # fallback, a fresh state dir — and every loss re-fires the broadcast. The ledger row this
@@ -5840,8 +5858,9 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
         # `quota_stop.py` held NOTHING at a real wall, for the week the latch runs (Delta 10
         # seat B, F1: measured 167.9 h). Re-arm the stamp from the episode's own row, silently.
         # Cost, said here: an oscillating successor now re-arms and re-clears it once per
-        # tick-pair (a `hold-lifted(dwell)` row each time; the `.holdlifted` files are O_EXCL,
-        # so sessions are not re-woken).
+        # tick-pair — a `hold-lifted(dwell)` row each time, and one wake per lift for any
+        # session whose previous `.holdlifted` marker its watch has consumed (the file is O_EXCL,
+        # so a marker still present is not rewritten; what the watch does with it is its own).
         if not stamp.exists():
             _rearm_wall_stamp(stamp, str(row["email"]), now)
         return  # already advised for this wall episode — one fact, one message

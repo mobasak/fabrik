@@ -713,7 +713,10 @@ def _deny_reason(posture: dict, band: str, what: str, *, is_fable: bool = False)
         measured > 0 if isinstance(measured, int) and not isinstance(measured, bool) else bool(fw)
     )
     keys = ("five_hour", "seven_day") + (("fable",) if is_fable else ())
-    absent = [k for k in keys if k != "fable" and k not in fw] if scarce else []
+    # the prompt line's labels, and a conjunction: both windows are unserved, not one or the
+    # other — the first cut leaked the JSON keys joined with "or" (Delta 11 seat A, A2-4)
+    labels = {"five_hour": "5h", "seven_day": "weekly"}
+    absent = [labels[k] for k in keys if k != "fable" and k not in fw] if scarce else []
     fleet_s = ""
     if absent:
         # the window that binds is the one NOBODY serves: the max() below runs over PRESENT keys
@@ -721,7 +724,7 @@ def _deny_reason(posture: dict, band: str, what: str, *, is_fable: bool = False)
         # maximal scarcity said nothing fleet-wide at all — the third consumer the `measured`
         # fix skipped, and the only message a held agent reads (Delta 10 seat A, #1/#2)
         fleet_s = (
-            f" Fleet-wide NO account can serve {' or '.join(absent)}, so no flip relieves this."
+            f" Fleet-wide NO account can serve {' and '.join(absent)}, so no flip relieves this."
         )
     elif fw:
         best = max(

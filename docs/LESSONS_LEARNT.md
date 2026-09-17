@@ -7061,6 +7061,11 @@ document.
   output in a brief is a claim the seat must be told to attack, not ground truth. (2) Before
   trusting a grader, ask whether its fixture can REACH the line it guards; if the function has an
   earlier exit, the fixture must pass it. (3) A stub of the thing under test proves the branch
-  after it, never the thing; use the real shape (a write-only file, a missing dir).
+  after it, never the thing; use the real shape (a write-only file, a missing dir). (4) An
+  assertion whose expected value is DERIVED from the value under test is a tautology —
+  `content in ("0", str(int(float(content))))` accepted any integer; derive the expectation
+  from the SOURCE the value was supposed to come from (the ledger row), never from the file.
+  (5) `pytest.raises(TypeError)` cannot prove a keyword is REQUIRED when the body would raise
+  the same error on the default — assert the signature.
 - **Where it lives.** `tests/test_claude_fleet.py` (B23's fixture, B21e's `chmod` arm),
   `docs/development/reviews/2026-09-16-plan-1-quota-posture-review.md` (Delta 9 row).
