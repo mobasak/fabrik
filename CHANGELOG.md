@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Delta 13: a stray ledger line no longer aborts the flip reader; the fleet-wide hold's true bound said; three grader arms (2026-09-17)
+
+- **`_last_switch_ts` skips a non-dict ledger line** like `_open_wall_rows` does, instead of
+  raising out of the reader and turning the tick into `INTERNAL ERROR` — no flip, no advisory,
+  no posture (`scripts/sysadmin/claude_rotate.py`, twin identical; Delta 13 seat A; B21k red on
+  the pre-fix code).
+- The stamp is one fleet-wide file, so it holds a SECOND account's fresh wall until the FIRST
+  account's promised epoch or the week re-arm — not merely to the floor (measured 120 h with a
+  weekly-reset promise); the fleet is still walled then, so the hold is right, and the relief
+  wake, not the message, frees sessions when the wall lifts. The "~28 min" deferred-notice
+  figure is the code-clock bound, one `*/5` tick more in practice. Said in both comments and in
+  `docs/workstation/claude-account-rotation.md`.
+- Grader arms: B21h drives a dict-keyed row, so a guard narrowed to lists cannot survive (seats
+  A and B); B21j pins the ledger latch's own strict `<` at the floor on a row whose promise is
+  due; B21k for the stray line.
+
 ### Fixed — Delta 12: an unhashable ledger key no longer crashes the tick; the floor's two holders and its fleet-wide scope are written down; four grader arms (2026-09-17)
 
 - **`_open_wall_rows` skips a wall row whose `account` is a list or dict** instead of raising
