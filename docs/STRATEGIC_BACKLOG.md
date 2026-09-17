@@ -63,10 +63,12 @@ Generated from the end-of-day plan-state on 2026-06-07 after the trio Phase 5.1.
   mtime is FUTURE-dated, so the advisory latch reads the stamp as invalid, re-fires once, and the primary
   write resets it (fail-open, measured 1 → 2 telegrams) — while the ledger ROW carrying that ts stays open
   by the future-dated rule (Delta 20 seats A F6 / C #3; the first cut of this row said the opposite).
-  (3) The tick does not serialise itself — cron and the quota board both invoke it and `ROTATE_LOCK`
-  guards only credential writers — so the re-arm's documented intra-tick race is real: a sibling's relief
+  (3) Both tick invokers — the crontab line and the quota board — wrap the run in `flock -n` on the rotate
+  lock, so two ticks never overlap; `ROTATE_LOCK` (credential writers only) is not what serialises them.
+  The re-arm's documented intra-tick race therefore needs an UNLOCKED direct `--tick` call, where a relief
   clearing the stamp between the re-arm's ledger read and its `os.replace` re-raises a hold just lifted,
-  with nothing said (Delta 20 seat A, P2). Owner: fleet.
+  with nothing said (Delta 20 seat A, P2; the first cut of this sentence said the tick does not serialise
+  itself — Delta 21 seat C, #1). Owner: fleet.
 - **Three review-harness gaps the quota-posture closing rounds paid for, each measured by a seat
   (2026-09-17).** (1) `tests/conftest.py` pins ten box-state seams autouse but NOT the clock: every
   multi-tick probe hand-rolls a 4-line `cr._now` monkeypatch — one seat wrote it sixteen times. A
