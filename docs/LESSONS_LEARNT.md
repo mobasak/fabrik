@@ -7069,3 +7069,31 @@ document.
   the same error on the default — assert the signature.
 - **Where it lives.** `tests/test_claude_fleet.py` (B23's fixture, B21e's `chmod` arm),
   `docs/development/reviews/2026-09-16-plan-1-quota-posture-review.md` (Delta 9 row).
+
+## A review whose fixer is its finder's only reader seeds its own findings — 108 of 123 confirmed defects over 14 recorded rounds were the loop's own fixes, and the mechanism was the fix's PROSE (2026-09-17)
+
+- **What happened.** The quota-posture Finish review closed the plan's surface by Delta 3 and then ran
+  fourteen recorded rounds (Delta 9–23) in which 88% of confirmed defects lay inside code or docstrings
+  an earlier round had written. Four of those were real: a giant-int timestamp that killed every
+  tick, a re-arm that raised out of the tick, a cleanup that deleted the fleet hold, a promise field
+  that raised out of both its consumers. Each was found by a seat reading the previous round's FIX,
+  and each fix's docstring made a claim ("never raises", "only a stamp this call created", "a
+  clamped stamp never ages out") that the next seat executed and refuted.
+- **Mechanism.** A fix written under a finding carries a sentence that generalises the finding, and the
+  sentence is written BEFORE the matrix that would test it. The next round's seat is briefed to attack
+  the diff, the diff is the sentence, and the sentence is wrong in the corner the fix did not drive.
+  The finder is honest; the loop is self-referential because the surface it is handed is prose the
+  loop wrote. The equality bar (D-252) never fired on it at 86–92% own-fix; D-278's two-of-three ratio
+  fires at round 2 of this series.
+- **How to apply.** (1) Drive the fix across the failure MATRIX before writing its docstring, and let
+  the docstring describe only cells you executed — a claim about a cell you did not drive is the next
+  round's finding. (2) State `--own-fix` on every delta round and take the D-278 stop when two of the
+  last three rounds are at or above two-thirds own-fix: re-verify the fixed set, record the rest to a
+  backlog row with an owner, close. (3) A grader that patches process-wide state (`monkeypatch.undo()`,
+  `os.utime`, `Path.unlink`) is itself a surface — scope it with `monkeypatch.context()` and pin the
+  harness's autouse seams on a private `MonkeyPatch` no test can undo. (4) When a mail from a peer
+  says the rule you are following was defective and is now fixed, read the rendered command, not the
+  advisory the tool prints — the tool lags the rule.
+- **Where it lives.** `docs/development/reviews/2026-09-16-plan-1-quota-posture-review.md` (Pass
+  Ledger Delta 17–23), `docs/DECISIONS.md` (D-278), `tests/conftest.py` (`_private_monkeypatch`),
+  `scripts/sysadmin/claude_rotate.py` (`_usable_ts`, `_rearm_wall_stamp`).
