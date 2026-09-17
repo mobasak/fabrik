@@ -2187,7 +2187,8 @@ def _last_switch_ts(event: str = "switch") -> tuple[float | None, bool]:
     and must still be able to make its first switch).
 
     A ledger that cannot be READ — unreachable/corrupt bytes, a permission error, or a well-formed
-    switch record whose ``ts`` is not a number — fails **CLOSED**: ``(now, True)``, which reads as
+    switch record whose ``ts`` is not a usable number (non-numeric, a JSON ``true``, non-finite)
+    — fails **CLOSED**: ``(now, True)``, which reads as
     "just switched" and holds the guard. Answering "no recent switch" to a question we cannot
     answer lets the tick install a fresh pair on every 5-minute run for as long as the fault lasts.
     ``degraded=True`` is the second half of that contract: the hold is a GUESS, so the caller must
@@ -2227,7 +2228,8 @@ def _last_switch_ts(event: str = "switch") -> tuple[float | None, bool]:
             # box's clock). Neither may read as "no recent switch".
             sys.stderr.write(
                 f"claude_rotate: rotate-ledger {event} record has an unusable ts "
-                f"({ts!r} — non-numeric or clock-skewed into the future) — dwell guard failing "
+                f"({ts!r} — non-numeric, a JSON `true`, non-finite, or clock-skewed into the "
+                f"future) — dwell guard failing "
                 "CLOSED (holding; no account installed)\n"
             )
             return _now(), True
@@ -5551,10 +5553,10 @@ _ADVISORY_MIN_GAP_S = (
 )  # floor: one wall advisory per 30 min whatever the STAMP says — held by BOTH latches: the
 # stamp path from the stamp's mtime (the re-arm sets it to the episode's ts) and the ledger
 # latch from the row's ts (Delta 11 seat A). The ledger latch is per ACCOUNT; the stamp is one
-# fleet-wide file, so it holds a SECOND account's fresh wall until the first's promise (Delta 12
-# seat A #6 measured the floor, Delta 13 seat A F1 the promise — or the WEEK re-arm when no
-# relief could be named, the fleet-wall case). The escapes apply only while
-# the stamp is ABSENT and the ledger latch decides:
+# fleet-wide file, so it holds a SECOND account's fresh wall until the first's promise — or the
+# WEEK re-arm when no relief could be named, the fleet-wall case (Delta 12 seat A #6 measured
+# the floor, Delta 13 seat A F1 the promise). The escapes apply only while the stamp is ABSENT
+# and the ledger latch decides:
 # an unreadable ledger fails open past it, a ledger flapping readable/unreadable re-fires at
 # the tick rate (Delta 9 seat B, F4), and a ledger that lost the row (truncated by hand —
 # nothing tracked truncates it) re-advises inside the floor (Delta 10 seat B, F5) — bounded,
@@ -5595,12 +5597,11 @@ def _open_wall_rows(now: float | None = None) -> tuple[dict[str, dict], bool]:
         ev = row.get("event")
         if ev == "fleet-active-wall":
             ts = row.get("ts")
-            expired = (
-                now is not None
-                and isinstance(ts, (int, float))
-                and not isinstance(ts, bool)
-                and (not math.isfinite(ts) or now - float(ts) > _FLEET_WALL_REARM_S)
-            )
+            # one rule for a corrupt ts, clock or no clock: a row whose ts cannot be compared is
+            # never OPEN — the first cut expired NaN and left `true`/a string/null un-expirable,
+            # so a relief tick wrote a surplus close row for it forever (Delta 15 seat A, F3/F4)
+            usable = isinstance(ts, (int, float)) and not isinstance(ts, bool) and math.isfinite(ts)
+            expired = not usable or (now is not None and now - float(ts) > _FLEET_WALL_REARM_S)
             acct = row.get("account")
             if isinstance(acct, (list, dict, set)):
                 continue  # an unhashable key crashed the reader — and the whole tick (Delta 12 A #7)
@@ -5719,7 +5720,9 @@ def _advisory_ledger_latch(email: str, now: float) -> bool:
             False  # no open episode — an unreadable ledger reads (None, False): fails OPEN, speak
         )
     ts = last.get("ts")
-    if not isinstance(ts, (int, float)) or isinstance(ts, bool) or not math.isfinite(ts):
+    # no `isfinite` here: the reader above expires a NaN/inf row for every caller with a clock,
+    # and this latch always has one — a second guard was unreachable (Delta 15 seat B, #3)
+    if not isinstance(ts, (int, float)) or isinstance(ts, bool):
         return False
     age = now - float(ts)
     # the stamp tolerates 60 s of future-dating (WSL suspend / NTP); so does this (seat B, F3)

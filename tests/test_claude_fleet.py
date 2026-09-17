@@ -5816,7 +5816,11 @@ def test_a_stray_ledger_line_does_not_abort_the_flip_reader(tmp_path, monkeypatc
     # the EVENT selector, which the guard's grader never pinned (Delta 14 seat A, F1): a `switch`
     # row must not answer the flip clock — under a selector-less reader every dict row would
     led.write_text(
-        json.dumps({"event": "flip", "ts": FLEET_NOW - 600, "from": "a@x", "to": "b@x"})
+        # an OLDER flip first: the contract is the LAST match, and one flip row could not tell
+        # last-match from first-match (Delta 15 seat B, #1)
+        json.dumps({"event": "flip", "ts": FLEET_NOW - 3600, "from": "b@x", "to": "a@x"})
+        + "\n"
+        + json.dumps({"event": "flip", "ts": FLEET_NOW - 600, "from": "a@x", "to": "b@x"})
         + "\n"
         + json.dumps({"event": "switch", "ts": FLEET_NOW - 60, "from": "b@x", "to": "a@x"})
         + "\n"
@@ -5826,7 +5830,13 @@ def test_a_stray_ledger_line_does_not_abort_the_flip_reader(tmp_path, monkeypatc
     # docstring forbids exactly that and the sibling readers already refuse a bool (F2)
     led.write_text(json.dumps({"event": "flip", "ts": True, "from": "a@x", "to": "b@x"}) + "\n")
     ts2, degraded2 = cr._last_switch_ts(event="flip")
-    assert degraded2 is True and ts2 != 1.0, (ts2, degraded2)
+    assert degraded2 is True, (ts2, degraded2)  # the flag alone discriminates (seat B, #2)
+    # and `-Infinity`: NaN and +inf already failed the `<= now + skew` test, so the finite guard
+    # buys exactly this value — accepted, it read as a flip infinitely long ago, fail-OPEN, and no
+    # grader drove it (Delta 15 seat A, F1)
+    led.write_text('{"event": "flip", "ts": -Infinity, "from": "a@x", "to": "b@x"}\n')
+    ts3, degraded3 = cr._last_switch_ts(event="flip")
+    assert degraded3 is True and ts3 != float("-inf"), (ts3, degraded3)
 
 
 def test_the_rearmed_stamp_carries_the_episodes_own_promise(tmp_path, monkeypatch, capsys):
@@ -5960,6 +5970,15 @@ def test_a_wall_row_the_latch_has_retired_is_not_an_open_episode_to_the_closer(
     led.write_text('{"event": "fleet-active-wall", "ts": NaN, "account": "b@x"}\n')
     assert cr._open_wall_episode("b@x", now) == (None, True)
     assert cr._advisory_ledger_latch("b@x", now + 8 * 86400) is False
+    # every other unusable shape too — `true`, a string, null — clock or no clock: the first cut
+    # expired NaN only, and a `true`-stamped row stayed open forever, a surplus close row on
+    # every relief (Delta 15 seat A, F3/F4)
+    for bad in ("true", '"x"', "null"):
+        led.write_text('{"event": "fleet-active-wall", "ts": ' + bad + ', "account": "b@x"}\n')
+        assert cr._open_wall_episode("b@x", now) == (None, True), bad
+        assert cr._open_wall_episode("b@x") == (None, True), bad
+        cr._close_wall_episode_without_stamp("a@x", now, "relief")
+        assert len(led.read_text().splitlines()) == 1, ("surplus close row", bad)
     cr._close_wall_episode_without_stamp("a@x", now, "relief")
     assert len(led.read_text().splitlines()) == 1, "no close row for a retired episode"
 
