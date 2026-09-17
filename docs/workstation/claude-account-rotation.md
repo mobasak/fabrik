@@ -36,13 +36,16 @@ Two environment variables — both, or the binding is a no-op:
   set on 2026-09-17 (D-287): it is the CLI's peer registry, read through the pointer as it stands
   now but written under the dir the pointer named at each session's start, so per-account it
   emptied every window's `ListAgents` on every flip. A dir created before that date is healed by
-  hand once: check for a same-named `<pid>.json` across the REAL dirs first (`for d in
-  ~/.claude-fleet/*/sessions; do [ -L "$d" ] || ls "$d"; done | sort | uniq -d` — the unfiltered `ls`
-  lists the shared dir once per link and reports every file as a collision; none on 2026-09-17),
-  move its `sessions/*` into `~/.claude/sessions/`, replace
+  hand once: check for a same-named `<pid>.json` across the REAL dirs AND the destination first
+  (`for d in ~/.claude-fleet/*/sessions ~/.claude/sessions; do [ -e "$d" ] && [ ! -L "$d" ] && ls
+  "$d"; done | sort | uniq -d` — the unfiltered `ls` lists the shared dir once per link and reports
+  every file as a collision; none on 2026-09-17), move its `sessions/*` into `~/.claude/sessions/`
+  with `mv -n` (a same-named record in the destination must never be clobbered), replace
   the dir with the symlink. `--new-dir` now creates the canonical dir when the CLI has not yet, names
-  a REAL dir it finds where the link belongs (and heals a DANGLING link by re-linking), and
-  `--status`/the tick warn on either — the D-287 state has a signal. Records whose pid another process has since reused are never reaped by the CLI
+  a REAL dir it finds where the link belongs, heals a DANGLING link by re-linking when the
+  canonical dir exists or it can create it (and leaves it in place, named, when it cannot), and
+  `--status`/the tick warn on a real dir, a file, a dangling link or a link elsewhere — the D-287
+  state has a signal. Records whose pid another process has since reused are never reaped by the CLI
   (it only trusts ESRCH); harmless — their socket is gone — but the merge concentrated them, five
   of 911 on 2026-09-17)
 - `CLAUDE_QUOTA_HOME` → the same path; the wall/resume layer (`claude-quota.py`) resolves its

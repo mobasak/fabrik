@@ -1933,7 +1933,16 @@ def _scaffold_dir(dest: Path, notes: list[str], source: Path) -> None:
                 continue
             # DANGLING (the canonical dir was removed): the CLI's own mkdir through it raises
             # FileExistsError, every registry write fails ENOENT, and nothing said so (delta
-            # seat D, F3) — drop the dead link and fall through to re-link
+            # seat D, F3) — drop the dead link and fall through to re-link, but ONLY when the
+            # loop below can re-link it (the canonical dir exists, or this loop creates it);
+            # an unlinked dead link is a signal destroyed, and the CLI then makes a REAL dir
+            # in its place (confirming seat E, F1)
+            if not ((CLAUDE_DIR / name).is_dir() or name in _SHARED_DIR_MKDIR):
+                notes.append(
+                    f"{name}/ is a DANGLING link — {CLAUDE_DIR / name} does not exist; left in "
+                    "place so --status keeps naming it"
+                )
+                continue
             link.unlink()
         if link.exists():
             # a REAL dir where the link belongs is the D-287 state; a silent resume kept it
@@ -3945,19 +3954,28 @@ def _shared_link_warnings() -> list[str]:
     belongs — the D-287 state (for `sessions/`: every window's peer list shrinks to the sessions
     started after the last flip) had NO runtime signal, and the operator's symptom was the only
     detector (scoped review, seat A F3). Read-only: the merge is the operator's, by hand."""
-    bad = [
-        f"{d.name}/{name}" + ("" if (d / name).exists() else " (dangling link)")
-        for d in _fleet_dirs()
-        for name in _SHARED_DIR_LINKS
-        if os.path.lexists(d / name) and not ((d / name).is_symlink() and (d / name).exists())
-    ]
+    bad = []
+    for d in _fleet_dirs():
+        for name in _SHARED_DIR_LINKS:
+            p = d / name
+            if not os.path.lexists(p):
+                continue  # absent: --new-dir resume links it; nothing to fragment yet
+            if p.is_symlink():
+                if not p.exists():
+                    bad.append(f"{d.name}/{name} (dangling link)")
+                elif p.resolve() != (CLAUDE_DIR / name).resolve():
+                    bad.append(f"{d.name}/{name} (links elsewhere: {p.resolve()})")
+            elif p.is_dir():
+                bad.append(f"{d.name}/{name}")
+            else:
+                bad.append(f"{d.name}/{name} (a FILE, not a dir)")
     if not bad:
         return []
     return [
-        f"⚠ shared state fragmented: {', '.join(bad)} — a REAL dir (or a dangling link) where "
-        f"the link to {CLAUDE_DIR}/<name>/ belongs, invisible to every other account (sessions/: "
-        "the peer list shrinks to one after a flip, D-287); merge a real dir into the canonical "
-        "dir by hand and replace it with the symlink; a dangling link heals on --new-dir resume"
+        f"⚠ shared state fragmented: {', '.join(bad)} — where the link to {CLAUDE_DIR}/<name>/ "
+        "belongs (sessions/: the peer list shrinks to one after a flip, D-287); a REAL dir is "
+        "merged into the canonical dir by hand and replaced with the symlink; a dangling link "
+        "heals on --new-dir resume when the canonical dir exists or the scaffolder creates it"
     ]
 
 

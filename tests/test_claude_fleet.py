@@ -207,6 +207,30 @@ def test_a_dangling_shared_link_is_named_until_a_resume_heals_it(tmp_path, monke
     assert cr.main(["--new-dir", "seo", "a@b.com"]) == 0
     assert link.is_symlink() and link.exists() and (cdir / "sessions").is_dir()
     assert cr._shared_link_warnings() == []
+    # an operator-content dir the scaffolder never creates: the dangling link STAYS (unlinking it
+    # destroyed the detector's only signal, and the CLI then made a real dir there — seat E, F1)
+    shutil.rmtree(cdir / "skills")
+    assert "seo/skills (dangling link)" in cr._shared_link_warnings()[0]
+    capsys.readouterr()
+    assert cr.main(["--new-dir", "seo", "a@b.com"]) == 0
+    assert "skills/ is a DANGLING link" in capsys.readouterr().out
+    assert (
+        os.path.lexists(fleet / "seo" / "skills")
+        and "seo/skills (dangling link)" in cr._shared_link_warnings()[0]
+    )
+    (cdir / "skills").mkdir()
+    assert cr.main(["--new-dir", "seo", "a@b.com"]) == 0
+    assert (fleet / "seo" / "skills").exists() and cr._shared_link_warnings() == []
+    # the other two shapes the detector must name: a FILE where the link belongs, a link elsewhere
+    (fleet / "seo" / "commands").unlink()
+    (fleet / "seo" / "commands").write_text("junk")
+    assert "seo/commands (a FILE, not a dir)" in cr._shared_link_warnings()[0]
+    (fleet / "seo" / "commands").unlink()
+    (fleet / "seo" / "commands").symlink_to(cdir / "agents", target_is_directory=True)
+    assert "seo/commands (links elsewhere" in cr._shared_link_warnings()[0]
+    (fleet / "seo" / "commands").unlink()
+    (fleet / "seo" / "commands").symlink_to(cdir / "commands", target_is_directory=True)
+    assert cr._shared_link_warnings() == []
     # a canonical entry that is a FILE cannot be a link target: the note says what is in the way
     shutil.rmtree(cdir / "projects")
     (cdir / "projects").write_text("not a dir")
