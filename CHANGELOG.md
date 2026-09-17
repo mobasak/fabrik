@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Delta 17: one usable-ts validator for both ledger readers; the flip floor is the ledger's era (2026-09-17)
+
+- **A giant JSON integer `ts` no longer kills the tick** — `math.isfinite` and `float()` both raise
+  OverflowError on an int too large for a double, and both ledger readers ran them unguarded, so one
+  such row on the append-only ledger aborted every `*/5` tick (no flip, no advisory, no posture) until
+  hand-edited — while `_refresh_expiry_epoch` already guarded the class. `_usable_ts` is now the ONE
+  validator `_last_switch_ts` and `_open_wall_rows` run (type, bool, guarded float, finiteness), which
+  is what Delta 16's INVARIANT paragraph claimed. Grader arms in B21g and B21k, red on HEAD.
+- **The flip reader's floor is the ledger's era, not the epoch** — `> 0` refused `0` and `-5` and admitted
+  `{"ts": 1}`, byte-for-byte `{"ts": true}`'s value, installing on every tick; `_LEDGER_ERA_FLOOR_S`
+  (2020-01-01Z) is pinned from both sides. The reader's own finite conjunct, dead once any floor
+  shipped, is gone with the helper; the re-arm's "never raises" is qualified to a returned row.
+  Fix commit `e8b06655`; 246 + 159 passed; gate `status: success`.
+
 ### Fixed — Delta 16: the wall reader's usable-ts invariant written once and trusted; a timestamp at or before the epoch is not a flip (2026-09-17)
 
 - **`_open_wall_rows` states its INVARIANT** — every row it returns carries a usable ts, clock or
