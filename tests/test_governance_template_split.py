@@ -128,7 +128,7 @@ T6_CLAIMS = (
     # sentence (scoped review seat C) — now it does, on a span no other clause repeats.
     "cited because the paraphrase drifted once (",
     "`skipped_checks` (bare NAMES — both rows reduce to `pytest` there, never the reason) AND `advisory`",
-    "a `status: \"setup-error\"` envelope (`:2881-2893`, the interpreter cannot import pytest) carries none of these keys",
+    "a `status: \"setup-error\"` envelope (`:2877-2893` — the `REQUIRED_TOOLS` probe, ruff OR pytest missing, before any tier runs) carries none of these keys",
     "FROM THE REPO ROOT",
     # Round 2: the un-discriminated wording FALSE-ALARMED on a CORRECT CHANGELOG.md carry — the
     # scratch blob is built with `>>` at EOF per step 2 while step 7 places the hunk atop
