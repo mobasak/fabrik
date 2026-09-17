@@ -3195,3 +3195,56 @@ no `warnings`/`skipped_checks`/`status` JSON, runs under uv's project env rather
 
 The rejected text and all three review reports are in this run's scratchpad; the commit body of this row
 is the durable copy.
+
+## [infra] VERDICT: the gate-verdict rule does NOT belong in /fabrik-execute-plan — fleet-synced governance already owns it
+
+Second attempt, 2026-09-17, after f99153c84 closed the first with NO EDIT. Also closes NO EDIT. Four
+cuts have now been written and all four were CONFIRMED wrong by review (rounds of 9, 3, 5 and 7). This
+row records the SURFACE verdict so a fifth is not attempted: **the three verdict rows cannot be
+answered in this command source, because the content is owned by `templates/governance/CLAUDE.md:211`
+— fleet-synced and auto-loaded in every project session — and any version written here is a second
+source of truth by construction.** Rows still UNANSWERED: 1788820659.8885953, 1789477812.4539094,
+1788815558.909572.
+
+**WHAT ATTEMPT 2 TRIED AND WHY IT FAILED.** Attempt 1 died on a REFERENT error (final_gate.py facts
+attached to `run phase validation gate (bash checks from the plan)`, whose subject is a plan-authored
+command). Attempt 2 SPLIT the claims — referent-free judgement at the phase gate, machinery at the
+FULL-gate line whose subject IS final_gate.py. The authoritative seat refuted the split itself:
+- The phase-gate line still named four pytest-only referents (`importorskip`, `conftest`, COLLECTION,
+  "tests") on a line whose population is not pytest. Measured over `docs/development/plans/**.md`:
+  **58 of 63 GATE blocks contain no `pytest` at all** — they are `curl -sI`, `ls -la`, `grep -c`,
+  `npx jscpd`, `fabrik apply`, `final_gate.py --check`. The paragraph was unexecutable for ~92% of
+  the lines it governed.
+- The machinery line was a DRIFTED restatement of `templates/governance/CLAUDE.md:211`, deleting that
+  row's `(or CI names pytest)` disjunct.
+- It also named the wrong JSON key (below).
+
+**THE TWO EXECUTED CORRECTIONS, now mailed as 01M2Q5PJ2DK33V0N2EFCWRAPW3 (threaded to
+01M2PT1G6K2EXFDBDM6TMBHVYQ), both against files this lock owns:**
+- `pytest (NOT RUN)` is in `WARN_ONLY_CHECKS` (`final_gate.py:327-340`), so `--json` routes it to
+  **`advisory`** (`:3023-3027`); `warnings` collects only ⚠-prefixed output (`:3058-3062`) and is
+  EMPTY for this case; `_summarize_skipped` (`:378`) strips the marker so `skipped_checks` carries the
+  bare name `pytest`, never the REASON. Both CLAUDE.md copies send the reader to `skipped_checks`
+  alone, so nobody reads the gate's own "THIS GREEN ASSERTS NOTHING ABOUT THE TEST SUITE"
+  (`:1340-1350`). Executed by importing the module.
+- The arming clause is short two disjuncts: `final_gate.py:1261-1271` requires `tests/` AND
+  `_ci_runs_pytest()` AND (sentinel OR no diff OR a `src/`/`tests/`/`scripts/` diff). "Absent both …"
+  is wrong — 8 /opt repos run the leg with NO sentinel (6 armed, 10 with CI naming pytest).
+
+**IF SOMEONE LATER WANTS THE COMMAND-SIDE HALF ANYWAY**, two narrow pieces survived review and are the
+only ones worth writing, both referent-free and neither yet attempted:
+- ts 1788820659 wants a RECORDING surface, not a private act. The existing phase report line
+  (`report ONE line: ✓ Phase X — …`) is the natural home: `✓ Phase X — gate <cmd> under <interpreter>,
+  <n> ran / <n> skipped`. "Establish the interpreter" with nowhere to write it is why the phase report
+  can still be silent about it.
+- ts 1788815558 asked for its clause "in the review contract". It exists nowhere in
+  `commands/_sources/` or `commands/_fragments/` — `command grep` for `MECHANISM|plumbing ran|asserts
+  nothing` returns only the rejected cut. `commands/_fragments/term-coverage.md` round-zero rule (5) is
+  the natural home, since that rule already governs how a grader observes its subject.
+- A third, smaller: the phase gate is invoked again at two MERGE-PROTOCOL sites in the same file
+  (`Run the phase validation gate`, `Run the validation gate for EACH phase after merge`) which carry
+  none of this guidance — and `check_review_hygiene.py --claim` cannot find those mirrors, because it
+  sweeps only the surface file despite both fragments describing it as the cross-file mirror sweep.
+
+The rejected text of both attempts and all seven review reports are in the runs' scratchpads; this row
+and the two mails are the durable copies.
