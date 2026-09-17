@@ -3818,6 +3818,8 @@ def test_every_reader_of_a_cache_utilization_survives_the_value_the_validator_re
         is None
     )
     assert any("cap-walled — weekly ? ≥ cap 90" in s for s in cr._fleet_row_warnings([row]))
+    # the capless twin prints nothing — the guard had no grader (confirming seat G, F2)
+    assert cr._fleet_row_warnings([{**row, "weekly_cap": None, "cap_walled": False}]) == []
     assert (
         cr._fmt_forecast({"utilization": 5.0, "verdict": "reset_first", "minutes_to_reset": giant})
         == "no burn"
@@ -4193,7 +4195,10 @@ def test_cap_walled_is_set_from_a_cached_row_whose_weekly_figure_is_unreadable(
     # the warning is driven by that reading, through the real writer, not by a hand-set flag
     # (remainder seat F, F2/F3): the operator still sees the "reserved" line for the garbage cell
     assert any(
-        "sarp@ocoron.com: cap-walled — weekly ? ≥ cap 90" in s for s in cr._fleet_row_warnings(rows)
+        "sarp@ocoron.com: cap-walled — weekly ? ≥ cap 90" in s
+        and "does NOT exclude it" in s
+        and "automated flips exclude it" not in s  # the pick takes this row (seat G, F1)
+        for s in cr._fleet_row_warnings(rows)
     ), rows
     assert by["ob@ocoron.com"]["cap_walled"] is False and cr._walled(by["ob@ocoron.com"]) is True
 

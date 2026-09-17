@@ -1365,7 +1365,8 @@ def _util_or_full(u: object) -> float:
 
 def _weekly_blocked(wk: object, cap: object) -> bool:
     """ONE reading of "the weekly window is walled" for the board, the relief writer and the
-    cap-walled flag: at 100, at the account's cap when it has one, and on an UNREADABLE figure
+    cap-walled WARNING (the flag itself reads only a validated figure, like the verdict's cap
+    arm): at 100, at the account's cap when it has one, and on an UNREADABLE figure
     (present, refused by the validator — a NaN `json.loads` admits, a bool, a giant int) while
     an ABSENT figure is no reading. Three sites carried three readings and disagreed on exactly
     the garbage value (delta round seat A, F3)."""
@@ -4021,10 +4022,19 @@ def _fleet_row_warnings(accounts: list[dict]) -> list[str]:
             wk = row.get("seven_day")
             wu = _usable_ts(wk.get("utilization")) if isinstance(wk, dict) else None
             at = f"{wu:.0f}%" if wu is not None else "?"
+            # the sentence must be TRUE of the pick: the flag (a readable figure at or over the
+            # cap) is what excludes an account from automated flips; an unreadable figure is no
+            # reading for the pick, so the line says that instead (confirming seat G, F1)
+            tail = (
+                "reserved for operator use until weekly reset; automated flips exclude it "
+                "(--switch still may, deliberately)"
+                if row.get("cap_walled")
+                else "the figure is UNREADABLE, so the pick does NOT exclude it — fix the cache "
+                "cell, or reserve the account by hand with --switch"
+            )
             warns.append(
                 f"⚠ {row['email']}: cap-walled — weekly {at} ≥ cap {row['weekly_cap']} "
-                "(caps.json) — reserved for operator use until weekly reset; automated flips "
-                "exclude it (--switch still may, deliberately)"
+                f"(caps.json) — {tail}"
             )
     # F-C2: a caps.json key matching NO known account email (pinned identities + assignments
     # accounts, all lowercased) is a typo silently doing nothing — surface it. File reads
