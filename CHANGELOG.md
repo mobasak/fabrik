@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Delta 12: an unhashable ledger key no longer crashes the tick; the floor's two holders and its fleet-wide scope are written down; four grader arms (2026-09-17)
+
+- **`_open_wall_rows` skips a wall row whose `account` is a list or dict** instead of raising
+  `TypeError: unhashable type` out of the reader and out of the whole tick (`scripts/sysadmin/claude_rotate.py`,
+  twin identical; pre-existing, Delta 12 seat A #7; B21h red on the pre-fix code).
+- The 30-minute floor is held by BOTH latches — the stamp path from the stamp's mtime, the
+  ledger latch from the row's ts — and the stamp is one fleet-wide file, so inside the floor a
+  SECOND account's fresh wall is held too (measured +900 → +1800) where the per-account ledger
+  latch would speak; a promise falling due inside the floor defers the follow-up notice up to
+  ~28 min. Said in the constant's comment and the stamp path's, and in
+  `docs/workstation/claude-account-rotation.md`, whose "re-arms once it passes" sentence was
+  false inside the floor (seat A #1/#5/#6/#8).
+- Grader arms: B21i drives the unreadable-ledger stderr the Delta 11 fix added (all three seats
+  found it ungraded); B21j drives FLOOR−1 silent and FLOOR speaking; B21h names a keyless
+  episode `"None"` and survives an unhashable one. The receipt no longer cites a decision row
+  before it is minted and names the seat that read zero correctly (seat B #2/#3).
+
 ### Fixed — Delta 11: the 30-minute floor binds the stamp path; the deny reason speaks the line's vocabulary; dead arms out, graders made to prove (2026-09-17)
 
 - **The floor binds the STAMP latch too** (`scripts/sysadmin/claude_rotate.py`, twin identical):
