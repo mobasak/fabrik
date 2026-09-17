@@ -3968,6 +3968,83 @@ def test_a_nan_weekly_figure_reads_as_cap_walled_and_weekly_blocked_not_as_headr
     assert cr._next_session_relief([act, ok_row], "act@x", now) == (now + 3000, "ok@x", "session")
 
 
+def test_an_unreadable_weekly_figure_is_one_reading_in_the_verdict_the_board_and_the_flag(
+    tmp_path, monkeypatch
+):
+    """The flag, the warning and the relief writer read an unreadable weekly as walled; the
+    verdict read it as no reading and named the row ELIGIBLE, and the board then gave that
+    eligible row a `returns_at` a day out, called a session-exhausted row weekly-exhausted, and
+    could never reach `cap-walled` for the case the warning names (heavy review round 3 seat C,
+    F1–F3). One reading now: not a target; `cap-walled` under a cap, `weekly-unreadable` without;
+    `returns_at` follows the state."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=600.0)
+    now = FLEET_NOW
+    capped = _row(
+        "sarp@ocoron.com",
+        10.0,
+        float("nan"),
+        cap=90,
+        s_reset=now + 3600,
+        w_reset=now + 86400,
+        slug="seo",
+    )
+    assert "unreadable" in str(cr._flip_candidate_verdict(capped, 98.0)[2])
+    board = cr._fleet_picture([capped], None, now)["accounts"][0]
+    assert (board["state"], board["returns_at"]) == ("cap-walled", now + 86400), board
+    capless = _row(
+        "sarp@ocoron.com",
+        10.0,
+        float("nan"),
+        cap=None,
+        s_reset=now + 3600,
+        w_reset=now + 86400,
+        slug="seo",
+    )
+    assert "unreadable" in str(cr._flip_candidate_verdict(capless, 98.0)[2])
+    board = cr._fleet_picture([capless], None, now)["accounts"][0]
+    assert (board["state"], board["returns_at"]) == ("weekly-unreadable", now + 86400), board
+    spent = _row(
+        "sarp@ocoron.com",
+        90.0,
+        float("nan"),
+        cap=None,
+        s_reset=now + 3600,
+        w_reset=now + 86400,
+        slug="seo",
+    )
+    board = cr._fleet_picture([spent], None, now)["accounts"][
+        0
+    ]  # named for what it is, not "exhausted"
+    assert (board["state"], board["returns_at"]) == ("weekly-unreadable", now + 86400), board
+    readable = _row(
+        "sarp@ocoron.com", 10.0, 20.0, cap=90, s_reset=now + 3600, w_reset=now + 86400, slug="seo"
+    )
+    board = cr._fleet_picture([readable], None, now)["accounts"][0]
+    assert (board["state"], board["returns_at"]) == ("eligible", None), board
+
+
+def test_the_legacy_picker_survives_a_parked_row_whose_window_is_not_a_dict():
+    """A parked row skips `_walled`, so the sort key's window reads reached a non-dict window
+    bare and raised AttributeError out of the legacy picker (round 3 seat C, F4)."""
+    rows = [
+        {
+            "name": "p",
+            "valid": True,
+            "telemetry": "unknown-parked",
+            "seven_day": "?",
+            "five_hour": {"utilization": 1.0},
+        },
+        {
+            "name": "g",
+            "valid": True,
+            "five_hour": {"utilization": 1.0},
+            "seven_day": {"utilization": 1.0},
+        },
+    ]
+    assert cr._pick_successor(rows, None, FLEET_NOW) == "g"
+
+
 def test_the_legacy_picker_prefers_a_just_reset_zero_over_a_nearly_spent_sibling():
     """`_usable_ts(...) or 100.0` read a genuine 0.0 as fully spent, so with no reset epochs the
     tick installed the 97%/84% account over the 0%/0% one (delta round seat A, F1)."""
@@ -4159,6 +4236,9 @@ def test_the_soonest_reset_ignores_a_zero_or_past_epoch_instead_of_letting_it_wi
     assert cr._soonest_reset(rows, FLEET_NOW) == FLEET_NOW + 3600
     rows[0]["five_hour"] = {"resets_at_epoch": FLEET_NOW - 3 * 86400}
     assert cr._soonest_reset(rows, FLEET_NOW) == FLEET_NOW + 3600
+    # a reset AT now is "now", the relief writer's `>=` bar (round 3 seat C, F5)
+    rows[0]["five_hour"] = {"resets_at_epoch": FLEET_NOW}
+    assert cr._soonest_reset(rows, FLEET_NOW) == FLEET_NOW
     assert (
         cr._soonest_reset([{"valid": True, "five_hour": {"resets_at_epoch": -0.0}}], FLEET_NOW)
         is None

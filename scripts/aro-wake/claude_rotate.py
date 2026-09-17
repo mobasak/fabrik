@@ -1344,12 +1344,16 @@ def _walled(row: dict) -> bool:
         w = row.get(key)
         if not w:
             return True  # no telemetry → not a safe switch target
-        u = (
-            _usable_ts(w.get("utilization")) if isinstance(w, dict) else None
-        )  # as every sibling site
+        u = _usable_ts(w.get("utilization")) if isinstance(w, dict) else None
         if u is None or u >= 100.0:
             return True  # an unreadable figure is not a safe switch target either
     return False
+
+
+def _window_of(row: dict, key: str) -> dict:
+    """The row's window dict, or `{}` when the cache holds something else there."""
+    w = row.get(key)
+    return w if isinstance(w, dict) else {}
 
 
 def _util_or_full(u: object) -> float:
@@ -1395,9 +1399,10 @@ def _pick_successor(candidates: list[dict], current_name: str | None, now: float
             # tuple sort, a JSON `true` sorted as 1970 — both read as no reset now
             # a validated epoch that is in the FUTURE, else far — `or far` let a negative reset win
             # (truthy), the mirror of `_pick_flip_target`'s `reset > _now()` (round 1 seat 2, F5)
-            _future_or_far((r.get("seven_day") or {}).get("resets_at_epoch"), now, far),
-            _util_or_full((r.get("seven_day") or {}).get("utilization")),
-            _util_or_full((r.get("five_hour") or {}).get("utilization")),
+            _future_or_far(_window_of(r, "seven_day").get("resets_at_epoch"), now, far),
+            # a parked row skips `_walled`, so a non-dict window reached these reads bare (round 3, F4)
+            _util_or_full(_window_of(r, "seven_day").get("utilization")),
+            _util_or_full(_window_of(r, "five_hour").get("utilization")),
         )
     )
     return eligible[0]["name"]
@@ -3325,6 +3330,11 @@ def _flip_candidate_verdict(
         if cap is not None and wu is not None and wu >= cap:
             return slug, utils, f"weekly {wu:.0f}% ≥ cap {cap}"
         return slug, utils, f"a window ≥ {threshold:.0f}% (flip-away next tick)"
+    # the flag, the warning and the relief writer read an UNREADABLE weekly figure as walled;
+    # the verdict read it as no reading and named the row ELIGIBLE with a resume a day out
+    # (heavy review round 3 seat C, F1) — one reading, `_weekly_blocked`
+    if utils["seven_day"] is None and _weekly_blocked(row.get("seven_day"), row.get("weekly_cap")):
+        return slug, utils, "weekly reading unreadable — not a target until the cache re-reads it"
     return slug, utils, None
 
 
@@ -3822,7 +3832,7 @@ def _soonest_reset(rows: list[dict], now: float) -> float | None:
         if isinstance(w, dict)
         and (ts := _usable_ts(w.get("resets_at_epoch"))) is not None
         and ts
-        > now  # a 0.0 epoch won the min (round 1, F2); a PAST reset won it too (delta seat A, F2)
+        >= now  # a 0.0 epoch won the min (round 1, F2); a PAST reset won it too (delta seat A, F2); `>=` like the relief writer's bar
     ]
     return min(resets) if resets else None
 
@@ -4072,8 +4082,13 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
             state = "active"
         elif reason is None:
             state = "eligible"
-        elif weekly_walled and cap is not None and wv is not None and wv < 100.0:
-            state = "cap-walled"
+        elif weekly_walled and cap is not None and (wv is None or wv < 100.0):
+            state = "cap-walled"  # an unreadable figure under a cap: the flag's and the warning's reading
+        elif weekly_walled and wv is None:
+            # UNREADABLE, capless: walled by the fail-closed rule, named as what it is rather
+            # than as "exhausted" — it serves nothing (`_SERVING_STATES`) and waits on its weekly
+            # reset like the relief writer says (heavy review round 3 seat C, F2/F3)
+            state = "weekly-unreadable"
         elif weekly_walled:
             state = "weekly-exhausted"
         elif session_spent:
@@ -4085,14 +4100,20 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
             state = "over-threshold"
         else:
             state = "unavailable"
+        # gated on the STATE the ladder just chose, never on the raw predicates — an `eligible`
+        # row carried a `returns_at` a day out when its weekly figure was unreadable (round 3, F1)
         returns_at: float | None = None
         if state == "over-threshold" and wr is not None and wr >= now:
             returns_at = wr
-        elif weekly_walled and wr is not None and wr >= now:
+        elif (
+            state in ("weekly-exhausted", "cap-walled", "weekly-unreadable")
+            and wr is not None
+            and wr >= now
+        ):
             returns_at = wr
             if session_spent and fr is not None and fr > returns_at:
                 returns_at = fr  # the LATER of the two (D1)
-        elif session_spent and fr is not None and fr >= now:
+        elif state == "session-exhausted" and fr is not None and fr >= now:
             returns_at = fr
         hot = (
             max(v for v in (fv, wv) if v is not None)
