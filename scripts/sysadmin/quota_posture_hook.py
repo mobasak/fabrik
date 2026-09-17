@@ -280,10 +280,17 @@ def _fleet_clause(posture: dict, band: str | None, *, is_fable: bool) -> str:
     act = posture.get("active") if isinstance(posture.get("active"), dict) else {}
     fleet = posture.get("fleet") if isinstance(posture.get("fleet"), dict) else {}
     fw = fleet.get("windows") if isinstance(fleet.get("windows"), dict) else {}
+    measured = fleet.get("measured")
+    # an EMPTY map is "nobody can serve" when the tick measured someone and a blackout otherwise;
+    # gated on the map's truthiness, the worst case — both required windows unserved — rendered
+    # no fleet clause at all, under the comment that says why it must (Delta 9 seat A, F2)
+    scarce = (
+        measured > 0 if isinstance(measured, int) and not isinstance(measured, bool) else bool(fw)
+    )
     keys = (("five_hour", "5h"), ("seven_day", "weekly")) + (
         (("fable", "Fable"),) if is_fable else ()
     )
-    parts, hottest = [], None
+    parts, hottest, absent = [], None, []
     for key, label in keys:
         w = fw.get(key)
         u = _util(w)
@@ -291,15 +298,20 @@ def _fleet_clause(posture: dict, band: str | None, *, is_fable: bool) -> str:
             parts.append(f"{label} {_pct(w)} {w.get('slug') or '?'}")
             if hottest is None or u > hottest[0]:
                 hottest = (u, label)
-        elif fw and key != "fable" and key not in fw:
+        elif scarce and key != "fable" and key not in fw:
             # an unserved REQUIRED window (key ABSENT: no account can serve it) is why the band is
             # RED; a line that omitted it printed `weekly 81% … band GREEN` with nothing to explain
             # either (Delta 8 seat A). A key PRESENT but unusable (a `true`, a NaN) is a malformed
             # reading, not scarcity — it is omitted, as `_pct` refuses to print it.
             parts.append(f"{label} — nobody serves it")
+            absent.append(label)
     out = ""
     if parts:
-        on = f" on {hottest[1]}" if band in ("AMBER", "RED") and hottest else ""
+        # an ABSENT required window is what made the band RED, so it is the window the band is
+        # ON — naming the hottest NUMERIC window instead pointed the reader at a window that
+        # still had headroom (`on weekly` while nobody served 5h; Delta 9 seat C).
+        binds = " and ".join(absent) if absent else (hottest[1] if hottest else None)
+        on = f" on {binds}" if band in ("AMBER", "RED") and binds else ""
         out += f"{on} (fleet-wide: {' · '.join(parts)})"
     own = act.get("band_account_fable") if is_fable else act.get("band_account")
     if isinstance(own, str) and isinstance(band, str) and own != band and band != "WALL":

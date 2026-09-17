@@ -43,6 +43,7 @@ def _posture(
     successor="mob",
     fleet_windows=None,
     band_account=None,
+    fleet_measured=None,
     **over,
 ):
     """A schema-1 posture file in *state*, shaped exactly as `_quota_posture` writes it."""
@@ -108,6 +109,7 @@ def _posture(
             ),
             # per-window fleet readings (D-275); None keeps the bare `band X` rendering
             "windows": fleet_windows or {},
+            "measured": fleet_measured,
             "next_relief": None,
             "hold": None,
             "last_flip": None,
@@ -1128,4 +1130,42 @@ def test_prompt_line_names_a_required_window_nobody_serves(tmp_path):
     _posture(state, band="RED", band_account="GREEN", fleet_windows=fw, successor=None)
     p = _hook({"hook_event_name": "UserPromptSubmit", "session_id": "u1"}, state=state)
     line = p.stdout.strip()
-    assert "band RED on weekly (fleet-wide: 5h — nobody serves it · weekly 30% intel)" in line, line
+    # the window the band is ON is the one nobody serves, never the hottest numeric one — the
+    # first cut of this grader pinned `on weekly` here (Delta 9 seat C)
+    assert "band RED on 5h (fleet-wide: 5h — nobody serves it · weekly 30% intel)" in line, line
+
+
+def test_prompt_line_explains_maximal_scarcity_when_the_fleet_map_is_empty(tmp_path):
+    """C2h — Delta 9 seat A F2: both accounts measured, neither serving — the map is `{}` and the
+    line rendered no fleet clause at all, in the state the clause exists to explain. With nobody
+    measured the same `{}` is a blackout and the clause stays absent (C2 pins that)."""
+    state = tmp_path / "state"
+    _posture(
+        state, band="RED", band_account="GREEN", fleet_windows={}, fleet_measured=2, successor=None
+    )
+    p = _hook({"hook_event_name": "UserPromptSubmit", "session_id": "u1"}, state=state)
+    line = p.stdout.strip()
+    assert (
+        "band RED on 5h and weekly (fleet-wide: 5h — nobody serves it · weekly — nobody serves it)"
+        in line
+    ), line
+    _posture(
+        state, band=None, band_account=None, fleet_windows={}, fleet_measured=0, successor=None
+    )
+    p = _hook({"hook_event_name": "UserPromptSubmit", "session_id": "u1"}, state=state)
+    assert "fleet-wide" not in p.stdout, p.stdout
+
+
+def test_prompt_line_names_both_required_windows_when_nobody_serves_either(tmp_path):
+    """C2g — Delta 9 seat C #3: with BOTH required windows unserved the line named no window at
+    all (`hottest` was only ever set on a numeric reading); the contract says RED names the
+    window that binds, and here both do."""
+    state = tmp_path / "state"
+    fw = {"fable": {"utilization": 10.0, "slug": "intel"}}
+    _posture(state, band="RED", band_account="GREEN", fleet_windows=fw, successor=None)
+    p = _hook({"hook_event_name": "UserPromptSubmit", "session_id": "u1"}, state=state)
+    line = p.stdout.strip()
+    assert (
+        "band RED on 5h and weekly (fleet-wide: 5h — nobody serves it · weekly — nobody serves it)"
+        in line
+    ), line

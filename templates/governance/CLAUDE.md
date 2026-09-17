@@ -416,7 +416,9 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
   account alone reads <band>; the band is the fleet's, act on it] · successor <slug or none>` —
   where `<forecast>` is `reset in <h:mm>` or `wall in ~<m>m at <n>%/m` whichever comes FIRST, or
   `no burn` when neither is derivable yet; a figure the tick has no reading for prints `—` and a
-  band it cannot compute prints `?`. ⚠️ **Read the line, not the arithmetic.** The three
+  band it cannot compute prints `?`. A required window NO account can serve prints
+  `<window> — nobody serves it` inside the parenthesis, and that window is the one the band
+  is `on`. ⚠️ **Read the line, not the arithmetic.** The three
   percentages are the ACTIVE account's. The parenthesis is the FLEET's reading per window — the
   coolest account that can still serve it, which is what the band was computed from; at AMBER or
   RED it names the window that binds; the Fable reading appears only on a Fable model. When this

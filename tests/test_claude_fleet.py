@@ -4806,8 +4806,9 @@ def test_posture_weekly_wall_is_the_caps_json_cap(tmp_path, monkeypatch):
 
 def test_posture_forecast_reaches_the_wall_at_the_weekly_cap(tmp_path, monkeypatch, capsys):
     """B12 — both accounts cap-walled (no successor, so the flip leg leaves the pointer): the
-    posture names the capped account, the band stays the raw line (GREEN at 80), the forecast says
-    the wall is reached; the NEXT tick reads WALL because the advisory stamped."""
+    posture names the capped account, the ACCOUNT band stays the raw line (GREEN at 80) while the
+    FLEET band is RED and the line says which windows nobody serves, the forecast says the wall is
+    reached; the NEXT tick reads WALL because the advisory stamped."""
     fleet, rows = _posture_fixture(tmp_path, monkeypatch, seo=(10.0, 80.0), intel=(10.0, 80.0))
     _caps(fleet, {"sarp@ocoron.com": 80, "ob@ocoron.com": 80})
     assert cr._cmd_tick() == 0
@@ -4817,6 +4818,12 @@ def test_posture_forecast_reaches_the_wall_at_the_weekly_cap(tmp_path, monkeypat
     # the FLEET band is RED (D-275, Delta 8 seat A) while the account's own raw reading stays GREEN
     # on the 85/90 line — the two bands are the point, not a contradiction
     assert p["band_account"] == "GREEN" and p["band"] == "RED" and wk["wall_pct"] == 80.0, p
+    # both accounts measured, neither serving: the worst case rendered NO fleet section at all
+    # (Delta 9 seat A, F2) — the map is empty either way, `measured` tells them apart
+    full = json.loads(_posture_path(tmp_path).read_text())
+    assert full["fleet"]["measured"] == 2 and full["fleet"]["windows"] == {}, full["fleet"]
+    line = cr._posture_status_line(full, FLEET_NOW)
+    assert "fleet 5h — (nobody serves it) weekly — (nobody serves it)" in line, line
     assert (
         wk["minutes_to_wall"] == 0.0
         and wk["verdict"] == "wall_first"
@@ -5435,6 +5442,62 @@ def test_a_cap_below_the_drain_band_cannot_read_green_at_the_fleet_wall(tmp_path
     assert doc["active"]["band"] == "RED", doc["active"]
 
 
+def test_the_fleet_band_reads_an_empty_map_by_who_was_measured():
+    """B20h — Delta 9 seat A F1: the unknown arm was keyed on the ACTIVE account's band, so an
+    unmeasured active beside a measured sibling read `?` at maximal scarcity and the hook held
+    nothing. `measured` is the fleet's fact; the account's band never stands in for it."""
+    import scripts.sysadmin.claude_rotate as cr  # noqa: PLC0415
+
+    assert cr._fleet_band({}, None, False, 85.0, 90.0, fable=False, measured=2) == "RED"
+    assert cr._fleet_band({}, "GREEN", False, 85.0, 90.0, fable=False, measured=0) is None
+    assert cr._fleet_band({}, None, False, 85.0, 90.0, fable=False, measured=0) is None
+    only_weekly = {"seven_day": {"utilization": 5.0, "slug": "x"}}
+    assert cr._fleet_band(only_weekly, None, False, 85.0, 90.0, fable=False, measured=1) == "RED"
+    rows = [
+        {"email": "a@x", "five_hour": None, "seven_day": None},
+        {"email": "b@x", "five_hour": None, "seven_day": {"utilization": 5.0}},
+        "junk",
+    ]
+    assert cr._fleet_measured(rows) == 1 and cr._fleet_measured([]) == 0
+
+
+def test_a_posture_that_cannot_be_unlinked_never_fails_the_flip(tmp_path, monkeypatch, capsys):
+    """B19b — Delta 9 seat A F6: the never-raise boundary widened to `except Exception` had no
+    grader; narrowed back, every suite stayed green."""
+    import scripts.sysadmin.claude_rotate as cr  # noqa: PLC0415
+
+    class _Stuck:
+        def unlink(self, missing_ok=False):
+            raise TypeError("not an OSError")
+
+    monkeypatch.setattr(cr, "_posture_path", lambda: _Stuck())
+    cr._invalidate_quota_posture("intel")  # must return, not raise
+    assert "posture not invalidated after flip to intel" in capsys.readouterr().err
+
+
+def test_the_status_line_omits_a_present_but_unusable_fleet_reading():
+    """B22b — Delta 9 seat D #2: a key PRESENT but unusable (a JSON `true`) is a malformed
+    reading, not scarcity — omitted, never rendered as `nobody serves it`; no grader held the
+    branch that distinguishes the two."""
+    import scripts.sysadmin.claude_rotate as cr  # noqa: PLC0415
+
+    posture = {
+        "ts": FLEET_NOW,
+        "active": {"band": "GREEN", "band_account": "GREEN", "windows": {}},
+        "fleet": {
+            "windows": {
+                "five_hour": {"utilization": True, "slug": "seo"},
+                "seven_day": {"utilization": 30.0, "slug": "intel"},
+            }
+        },
+    }
+    line = cr._posture_status_line(posture, FLEET_NOW)
+    # the ACTIVE account's own `5h —` precedes the fleet section; assert on the fleet section's
+    # tokens — the unusable entry's slug must not appear, and nothing may claim scarcity
+    assert "nobody serves it" not in line and "(seo)" not in line, line
+    assert "fleet weekly 30% (intel)" in line, line
+
+
 def test_the_status_line_names_a_required_window_nobody_serves():
     """B22a — Delta 8 seat A #2: absence became load-bearing with the required-window rule, and the
     line that exists to explain the band omitted it."""
@@ -5488,13 +5551,50 @@ def test_a_withheld_flip_is_not_relief_so_an_oscillating_successor_cannot_storm(
             "_validated_pick",
             (lambda *a, **kw: "intel@ocoron.com") if k % 2 else (lambda *a, **kw: None),
         )
-        cr._fleet_active_wall_advisory(rows_now, FLEET_NOW + 300 * k, 85.0)
+        cr._fleet_active_wall_advisory(rows_now, FLEET_NOW + 300 * k, cr._rotate_threshold())
     assert len(actions["telegrams"]) == 1, (
         f"{len(actions['telegrams'])} advisories — the oscillation storm"
     )
     events = [e.get("event") for e in _ledger_events(tmp_path)]
     assert cr._EPISODE_CLOSE_EVENT not in events, (
         "a withheld flip is not relief; nothing may close the episode"
+    )
+
+
+def test_a_withheld_flip_cannot_storm_through_a_writable_stamp_either(tmp_path, monkeypatch):
+    """B21d-2 — Delta 9 seat B F1: B21d's stamp path was a dead directory, so the dwell branch
+    never cleared a stamp and never wrote its `hold-lifted` row — the row that, counted as an
+    episode END, re-armed the ledger latch every tick-pair: 7 broadcasts an hour on a HEALTHY
+    box. Same twelve ticks, a writable stamp, one advisory."""
+    fleet = _fleet_two_accounts(tmp_path, monkeypatch)
+    _fleet_creds(fleet, "seo", "tok-seo", age_s=60.0)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=60.0)
+    _fake_oauth(
+        monkeypatch,
+        usages={"tok-seo": _usage_blob(OVER_LINE, 96.0), "tok-intel": _usage_blob(100.0, 100.0)},
+    )
+    actions = _fleet_tick_spies(monkeypatch)
+    monkeypatch.setattr(cr, "_mailbox_repos", lambda: ["fabrik"])
+    monkeypatch.setattr(cr, "OPT_DIR", tmp_path / "opt")
+    (tmp_path / "locks").mkdir()
+    monkeypatch.setattr(
+        cr, "_fleet_exhaustion_stamp", lambda: tmp_path / "locks" / "fleet-exhausted"
+    )
+    _point(fleet, "seo")
+    assert cr._cmd_tick() == 0
+    assert len(actions["telegrams"]) == 1 and (tmp_path / "locks" / "fleet-exhausted").exists()
+    rows_now, _ = cr._fleet_account_rows(cr._fleet_dirs(), allow_pings=False)
+    for k in range(1, 13):
+        monkeypatch.setattr(
+            cr,
+            "_validated_pick",
+            (lambda *a, **kw: "intel@ocoron.com") if k % 2 else (lambda *a, **kw: None),
+        )
+        cr._fleet_active_wall_advisory(rows_now, FLEET_NOW + 300 * k, cr._rotate_threshold())
+    events = [e.get("event") for e in _ledger_events(tmp_path)]
+    assert "hold-lifted" in events, "the dwell branch did clear the stamp and wake"
+    assert len(actions["telegrams"]) == 1, (
+        f"{len(actions['telegrams'])} advisories — the dwell-site wake row re-armed the latch"
     )
 
 
@@ -5533,13 +5633,46 @@ def test_the_closer_writes_its_own_fleet_wide_event_and_writes_even_when_the_led
     assert len(led.read_text().splitlines()) == 2, (
         "idempotent when readable: no open episode, no row"
     )
-    written = []
-    monkeypatch.setattr(cr, "_open_wall_episode", lambda email: (None, False))
-    monkeypatch.setattr(cr, "_ledger_append", lambda row: written.append(row))
-    cr._close_wall_episode_without_stamp("a@x", now, "relief")
-    assert written and written[0]["event"] == cr._EPISODE_CLOSE_EVENT, (
+    assert rows[1]["closed_for"] == "b@x", rows[1]  # whose episode it ended (F7)
+    # a REAL unreadable ledger (write-only), not a stub of the reader: the stub proved the
+    # branch, not the property — a reader that reported unreadable as READABLE passed it
+    # (Delta 9 seat B, F2)
+    led.chmod(0o222)
+    try:
+        cr._close_wall_episode_without_stamp("a@x", now, "relief")
+    finally:
+        led.chmod(0o644)
+    rows = [json.loads(ln) for ln in led.read_text().splitlines()]
+    assert len(rows) == 3 and rows[-1]["event"] == cr._EPISODE_CLOSE_EVENT, (
         "unreadable ledger: write anyway"
     )
+    assert rows[-1]["closed_for"] is None, rows[-1]
+    # an ABSENT ledger is "nothing has ever walled", not a fault: no phantom close (F3)
+    led.unlink()
+    cr._close_wall_episode_without_stamp("a@x", now, "relief")
+    assert not led.exists(), led.read_text()
+
+
+def test_a_wall_row_the_latch_has_retired_is_not_an_open_episode_to_the_closer(
+    tmp_path, monkeypatch
+):
+    """B21g — Delta 9 seat B F6: the latch re-arms past the week, the closer applied no age bound,
+    so a relief tick wrote a close row for an episode retired days earlier."""
+    state = tmp_path / "state"
+    state.mkdir()
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
+    led = state / "rotate-ledger.jsonl"
+    now = FLEET_NOW
+    led.write_text(
+        json.dumps(
+            {"event": "fleet-active-wall", "ts": now - cr._FLEET_WALL_REARM_S - 1, "account": "b@x"}
+        )
+        + "\n"
+    )
+    assert cr._open_wall_episode("b@x", now) == (None, True)
+    assert cr._open_wall_episode("b@x") != (None, True), "without a clock the row is open"
+    cr._close_wall_episode_without_stamp("a@x", now, "relief")
+    assert len(led.read_text().splitlines()) == 1, "no close row for a retired episode"
 
 
 def test_the_ledger_latch_tolerates_the_stamps_clock_skew(tmp_path, monkeypatch):
@@ -5587,7 +5720,12 @@ def test_a_json_true_utilization_from_the_endpoint_is_not_one_percent():
     import scripts.sysadmin.claude_rotate as cr  # noqa: PLC0415
 
     w = cr._usage_windows(
-        {"five_hour": {"utilization": True, "resets_at": "2026-09-18T00:00:00+00:00"}}
+        {
+            "five_hour": {"utilization": True, "resets_at": "2026-09-18T00:00:00+00:00"},
+            # both required keys present, or the loop returns None before the bool guard is
+            # ever reached and the grader passes against a coercing reader (Delta 9 seat D)
+            "seven_day": {"utilization": 20.0, "resets_at": "2026-09-18T00:00:00+00:00"},
+        }
     )
     fh = (w or {}).get("five_hour") if isinstance(w, dict) else None
     assert not (isinstance(fh, dict) and fh.get("utilization") == 1.0), w

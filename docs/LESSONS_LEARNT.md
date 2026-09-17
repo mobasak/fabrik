@@ -7045,3 +7045,22 @@ document.
 - **Where it lives.** `scripts/sysadmin/claude_rotate.py` (`_relogin_block`, `_chain_expiry_push`,
   the retired `_keepalive_sweep`), `docs/workstation/claude-account-rotation.md` § Re-login, memory
   `feedback_never_refresh_on_a_credential_copy`.
+
+## A brief that states the expected output hands the seat its verdict — and a grader that cannot reach the branch, or stubs the reader, proves nothing (2026-09-17)
+
+- **What happened.** Three ways a review round reads green on a defect, all in one round (Delta 9
+  of the quota-posture plan). (1) The dispatcher's brief told a seat what `--status` "renders" in a
+  state — a string the pinned commit did not produce. The seat drove the renderer and refuted the
+  brief; a seat that trusted it would have filed the item CONFIRMED-as-expected and the worst
+  case (both required windows unserved → no fleet clause at all) would have shipped. (2) A grader
+  for a bool guard fed a payload with ONE of the two required keys, so the reader returned None
+  before the guard was reached — it passed with the guard deleted. (3) A grader for "the closer
+  writes even when the ledger is unreadable" monkeypatched the READER to say unreadable, so a
+  reader that reported unreadable as readable passed it; a `chmod 0o222` ledger is the property.
+- **The rules.** (1) A brief states the QUESTION and the pin; never the answer — an expected
+  output in a brief is a claim the seat must be told to attack, not ground truth. (2) Before
+  trusting a grader, ask whether its fixture can REACH the line it guards; if the function has an
+  earlier exit, the fixture must pass it. (3) A stub of the thing under test proves the branch
+  after it, never the thing; use the real shape (a write-only file, a missing dir).
+- **Where it lives.** `tests/test_claude_fleet.py` (B23's fixture, B21e's `chmod` arm),
+  `docs/development/reviews/2026-09-16-plan-1-quota-posture-review.md` (Delta 9 row).
