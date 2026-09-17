@@ -45,7 +45,7 @@ proportionate answer.
    exit and is not a route-up trigger** — the shape describes the FIX, never a permit to leave a
    finding standing. Routing up happens on the triggers in steps 1 and 5, never because a finding was
    called architectural.
-4. **Record each pass:** `python3 scripts/command_run.py round --seats <seats dispatched this pass> --findings <raw candidates> --confirmed <n> --classes-swept <…>
+4. **Record each pass:** `python3 scripts/command_run.py round --seats <seats dispatched this pass> --findings <raw candidates> --confirmed <n> --own-fix <of those confirmed, how many lay in THIS review's own earlier fixes — D-278; a delta round that omits it leaves the scope-growth bar uncomputable> --classes-swept <…>
    --classes-new <…>` — `--findings` is raw recall; `--confirmed` is the EXIT counter as
    `/opt/fabrik/commands/_fragments/term-edit.md` defines it (D-206; the fragment is not installed —
    the hub path resolves from every repo). State `--confirmed` on EVERY round: the close's `FEEDBACK:`

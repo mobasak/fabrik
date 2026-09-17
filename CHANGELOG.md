@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review-scoped's round template carries `--own-fix` (2026-09-17)
+
+- Step 4's `command_run.py round` template — the command line an agent copies every round — never
+  carried `--own-fix`, the counter D-278's scope-growth stop is keyed on. Measured: `own-fix` appeared
+  0 times in the rendered command against 1 in each of fabrik-review, fabrik-repo-review,
+  fabrik-conformance-review and fabrik-rules-review. The larger intervention the queue asked for —
+  naming the stop beside step 5's route-up — was written, reviewed in three rounds (7 → 5 → 13
+  confirmed, the last two 100% own-fix) and REVERTED: the command encodes its exit in six places and a
+  new branch must be mirrored into all of them, so it is `/fabrik-spec` work, not a wording edit. The
+  full finding and everything the attempt proved is in `docs/STRATEGIC_BACKLOG.md`.
+
 ### Fixed — the flip picker reads a candidate's weekly reset through the one validator (2026-09-17)
 
 - **A giant JSON int in a candidate row's weekly reset no longer raises out of `_pick_flip_target` or

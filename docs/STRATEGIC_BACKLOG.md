@@ -3320,3 +3320,54 @@ root. Their words, my agreement, nobody's fix yet.
 
 **SEPARATE AND SMALLER, owner infra:** the hub's own 14 cites above are real debt TODAY — they are
 simply invisible because the matcher never looks. They do not need the spec; they need one docs pass.
+
+## [infra] /fabrik-review-scoped's missing scope-growth exit — the BRANCH does not belong in the command; three rounds, 25 confirmed, count rising
+
+`/fabrik-command-improve` ran over this command's queue 2026-09-17 and shipped only ONE line: step 4's
+`round` template now carries `--own-fix`. The intervention the queue asked for — naming the scope-growth
+stop beside step 5's route-up (ts 1789580959.8031142) — was written, reviewed three times and REVERTED.
+That row stays UNANSWERED. So does 1789439248.852039, which targets `command_run.py`'s advisory.
+
+**THE DEFECT IS REAL AND STILL OPEN.** Step 5 escalates to the heavy `/fabrik-review` after "the SECOND
+consecutive round that confirms defects" — which is also the exact signature of a loop reviewing its own
+fix. So the fleet's most-run review command, the pass the Stop hook mandates for every spontaneous
+code-editing session, routes self-reviewing loops to the most expensive exit it has. Measured before the
+attempt: `own-fix` appeared 0 times in the rendered command against 1 in each of fabrik-review,
+fabrik-repo-review, fabrik-conformance-review and fabrik-rules-review.
+
+**WHY THE FIX WAS REVERTED — the shape, not the wording.** Confirmed counts across the three rounds ran
+7 → 5 → 13, rounds 2 and 3 both 100% own-fix, and `command_run.py` printed the D-278 scope-growth
+advisory on its own. The count RISING is the signal: each fix generated more surface than it closed.
+The cause is structural — this command encodes its exit in SIX places (the `description` frontmatter,
+step 4's round template, step 5's trigger, step 6's close gate, the `Profile: small` carve-out, and the
+fleet-synced `.windsurf/rules/core/50-code-review.md`), so any new BRANCH must be mirrored consistently
+into all six, and each mirror is a fresh contradiction surface. Three rounds never reached a fixed point.
+
+**WHAT THE ATTEMPT PROVED, so the next one does not re-derive it:**
+- Rendering `term-coverage.md` into this command is REFUSED on a measurement: 25,697 B against the
+  command's 16,399 B (+157%) on the command whose identity is being the LIGHT pass.
+- A CWD-relative `commands/_fragments/...` pointer is DEAD off-hub: that directory is absent in 5 of 5
+  project repos checked, and this command renders box-wide. Use the absolute `/opt/fabrik/...` path with
+  step 4's own caveat, as step 4 already does.
+- `check_review_coverage.py::_scope_growth_exit` is INERT for this command (it emits no receipt, by its
+  own step 4) and is keyed on the superseded D-252 shape.
+- A single-evaluation branch cannot express the fragment's SLIDING two-of-three window: round 1 is the
+  full pass at `--own-fix 0` and permanently occupies a slot that can never qualify, so a one-shot
+  evaluation at the trigger degenerates to a consecutive bar — the very shape the fragment's COBRA note
+  measured as dodgeable.
+- Any branch needs an arm for a deferral round that CONFIRMS ZERO, or a converged loop escalates.
+- The `--own-fix` integer is UNFALSIFIABLE here: the fragment requires it EVIDENCED per finding
+  (`own-fix: round k`, checkable against that round's md5 pair), and this command persists no report to
+  carry the citation. That is a real deviation and must be stated openly, not left silent.
+
+**DESTINATION: `/fabrik-spec`,** because this is a control-flow change across six mirror sites plus a
+fleet-synced pack, not a wording edit. Two constraints for it: the synced pack must carry the stop's FIX
+and re-verify duty (a project agent cannot read the hub fragment, so shipping the halt without its duty
+licenses stopping a loop whose rounds still confirm), and the pack defines neither "own-fix" nor the
+bar's arithmetic today.
+
+**SEPARATE AND SMALLER, now unblocked:** `command_run.py` still computes the superseded equality and its
+`--own-fix` help still reads "omitted = not stated, which asserts nothing"; `check_review_coverage.py::_scope_growth_exit`
+is a third site on the superseded bar; and the fragment, D-278 and `command_run.py` give THREE different
+answers for an omitted round (never-qualifies / read-as-own-fix / breaks-the-window). All were lock-owned
+this morning and are free now. Mail 01M2QCJBYV9F8ZKPR9KMNVV6FC.
