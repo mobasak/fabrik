@@ -127,6 +127,9 @@ T6_CLAIMS = (
     # claimed this grader proved the two copies identical when it asserted nothing about the
     # sentence (scoped review seat C) — now it does, on a span no other clause repeats.
     "cited because the paraphrase drifted once (",
+    "in a Tier-2 run (the default tier — only `--lean`/`--systemic` change it, `:2895-2901`)",
+    "the rows that can never fail — `WARN_ONLY_CHECKS`, `:327-340` — carrying each one's own text",
+    "only a leg that ran to completion is the bare `pytest`",
     "`skipped_checks` (bare NAMES — both rows reduce to `pytest` there, never the reason) AND `advisory`",
     "a `status: \"setup-error\"` envelope (`:2877-2893` — the `REQUIRED_TOOLS` probe, ruff OR pytest missing, before any tier runs) carries none of these keys",
     "FROM THE REPO ROOT",

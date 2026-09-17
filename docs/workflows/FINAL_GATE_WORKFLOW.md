@@ -215,7 +215,7 @@ own `.github/workflows/*` run pytest — OR the repo carries `.fabrik/run-pytest
 an agent must not reach `status:success` and still push test-failing code (happened live on
 trading-intelligence 2026-07-24). A repo whose CI doesn't run pytest is skipped (no CI red to prevent;
 fabrik's own ~2,500-test suite takes ~3h — never run it inside a completion gate). Graceful skips:
-one of the three `_why` reasons (`:1336-1350`) → `pytest (NOT RUN)`; exit 5 → the separate `pytest (NO TESTS COLLECTED)` row (`:1280-1283`). A pytest (or ruff) missing from the selected interpreter is not a skip: the gate aborts at `status: "setup-error"` (`:2877-2893`) before any leg runs.
+one of the three `_why` reasons (`:1336-1350`) → `pytest (NOT RUN)`; exit 5 → the separate `pytest (NO TESTS COLLECTED)` row (`:1280-1283`). Via the CLI a missing pytest never reaches these rows — the `REQUIRED_TOOLS` probe aborts at `status: "setup-error"` (`:2877-2893`) first (pytest must import under the selected interpreter, ruff must resolve as a binary, `:80`), which leaves the `pytest (NOT RUN) — pytest is not installed` branch at `:1276-1278` unreachable.
 
 **What the pytest leg PRINTS, and what each line means** (the gate already answers the three questions command authors keep re-deriving — read these before writing prose about the mechanism; a wrong restatement reached one review round away from the corpus on 2026-09-17, mail 01M2PT1G6K2EXFDBDM6TMBHVYQ):
 
