@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the GATE row names the pytest leg's real arming condition and the key that carries the reason (2026-09-17)
+
+Both `CLAUDE.md` copies sent readers to `skipped_checks` for a reason that lands in `advisory` (the not-run row is warn-only, so `_summarize_skipped` keeps only its NAME and `warnings` never sees it), and paraphrased the arming condition as "the sentinel or CI" when it is `tests/` AND (sentinel OR CI names pytest) AND (sentinel OR an empty diff OR a `src/`/`tests/`/`scripts/` change) — 8 repos under `/opt` run the leg with no sentinel. The row now cites `final_gate.py:1261-1271`, names the three keys to read together (`status` · `skipped_checks` · `advisory`; `checks` for a named check), and says the leg runs `-x` (a red names the FIRST failure; the gate prints the no-`-x` remedy) and that a green that skipped or deselected tests says so only in its ⚠ prefix. `docs/workflows/FINAL_GATE_WORKFLOW.md` gains a table of what the leg prints and what each line means, plus the gate's own-interpreter rule. Infra's findings 01M2PT1G6K2EXFDBDM6TMBHVYQ + 01M2Q5PJ2DK33V0N2EFCWRAPW3, handled by fleet on the operator's word; D-284 records the one-home rule and what the contract growth retires.
 ### Added — /fabrik-review-scoped's scope-growth exit is BUILT; the review closed on the stop it shipped (2026-09-17)
 
 - **`command_run.py` computes D-278's two-of-three two-thirds bar and emits THREE verdicts** where
