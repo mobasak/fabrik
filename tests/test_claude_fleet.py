@@ -1196,6 +1196,11 @@ def test_empty_fleet_root_keeps_the_legacy_view_and_one_dir_flips_it(tmp_path, m
     session = f"42% (resets {rs})"
     expected = f"* {row['email']:32} session {session:24} weekly 31% (resets {rs})\n"
     assert out == expected, "empty fleet root must render the legacy view BYTE-unchanged"
+    # round 2 seat C: the legacy view's guard had no grader — a revert to the bare conversion
+    # survived the whole suite. Drive `--status` itself with the row the docstring narrates.
+    row["seven_day"] = {"utilization": int("1" + "0" * 400), "resets_at_epoch": 1e300}
+    assert cr._cmd_status(as_json=False) == 0
+    assert capsys.readouterr().out == f"* {row['email']:32} session {session:24} weekly -\n"
 
     # …and ONE scaffolded dir must flip the same call into the fleet view (the dispatch seam)
     assert cr.main(["--new-dir", "seo", "sarp@ocoron.com"]) == 0
@@ -3775,9 +3780,86 @@ def test_status_renders_a_reset_the_platform_cannot_date_as_unknown():
         ), bad
     assert cr._fmt_quota_window({"utilization": 31.0, "resets_at_epoch": None}) == "31% (resets ?)"
     assert cr._fmt_reset_clock(0) == "?" and cr._fmt_reset_clock(None, "unknown") == "unknown"
+    # round 2 seat A: the utilization half of the SAME row raised one token later (F2); a bool
+    # or a negative reset rendered a 1970 clock the picker reads as undated (F5)
+    for bad in (int("1" + "0" * 400), float("nan"), float("inf"), True, "31"):
+        assert cr._fmt_quota_window({"utilization": bad, "resets_at_epoch": FLEET_NOW}) == "-", bad
+    assert cr._fmt_reset_clock(True) == "?" and cr._fmt_reset_clock(-100) == "?"
     assert cr._fmt_quota_window({"utilization": 31.0, "resets_at_epoch": FLEET_NOW}).startswith(
         "31% (resets "
     )
+
+
+def test_the_legacy_successor_picker_reads_a_reset_the_validator_refuses_as_none(monkeypatch):
+    """`_pick_successor`'s sort key took the raw cache value: a string reset raised TypeError in
+    the tuple compare, a JSON `true` sorted as a 1970 reset and won perishable-first (round 2
+    seat C). Both read as no reset now; the dated sibling wins."""
+    monkeypatch.setattr(cr, "_walled", lambda r: False)
+    rows = [
+        {"name": "bad", "valid": True, "seven_day": {"utilization": 10.0, "resets_at_epoch": "x"}},
+        {
+            "name": "bool",
+            "valid": True,
+            "seven_day": {"utilization": 10.0, "resets_at_epoch": True},
+        },
+        {
+            "name": "dated",
+            "valid": True,
+            "seven_day": {"utilization": 50.0, "resets_at_epoch": FLEET_NOW + 60},
+        },
+    ]
+    assert cr._pick_successor(rows, None, FLEET_NOW) == "dated"
+
+
+def test_a_giant_int_utilization_on_the_active_row_does_not_kill_the_flip_leg(monkeypatch, capsys):
+    """`_tick_burn` was made non-raising on the giant int and its ONLY caller read the same row
+    bare one line later — the tick died at the projection sum, so no flip, no posture, no
+    advisory, and cron saw rc 0 (round 2 seat A, F1). The giant window reads as no reading; the
+    other window still decides."""
+    monkeypatch.setattr(cr, "_resolve_active", lambda: "intel")
+    giant = int("1" + "0" * 400)
+    row = {
+        "email": "a@x",
+        "slugs": ["intel"],
+        "source": "live",
+        "valid": True,
+        "five_hour": {"utilization": giant, "resets_at_epoch": FLEET_NOW + 3600},
+        "seven_day": {"utilization": 31.0, "resets_at_epoch": FLEET_NOW + 7200},
+    }
+    cr._fleet_flip_leg([], [row], 98.0)  # red on HEAD: OverflowError at the projection sum
+    assert "tick:" in capsys.readouterr().out
+
+
+def test_the_drain_broadcast_soonest_reset_skips_a_reset_the_validator_refuses():
+    """`min()` over raw cache values raised TypeError on a string reset one line ABOVE the
+    guarded renderer — the drain mail and telegram were lost to `_cmd_tick`'s blanket except
+    (round 2 seat A, F4). The valid reset still wins; an invalid row contributes nothing."""
+    rows = [
+        {
+            "valid": True,
+            "five_hour": {"resets_at_epoch": FLEET_NOW + 50},
+            "seven_day": {"resets_at_epoch": "x"},
+        },
+        {
+            "valid": True,
+            "five_hour": {"resets_at_epoch": True},
+            "seven_day": {"resets_at_epoch": FLEET_NOW + 20},
+        },
+        {"valid": False, "five_hour": {"resets_at_epoch": FLEET_NOW + 1}, "seven_day": None},
+    ]
+    assert cr._soonest_reset(rows) == FLEET_NOW + 20
+    assert (
+        cr._soonest_reset([{"valid": True, "five_hour": {"resets_at_epoch": int("1" + "0" * 400)}}])
+        is None
+    )
+
+
+def test_the_urgent_drain_message_survives_a_relief_epoch_the_platform_cannot_date():
+    """`_usable_ts` admits any finite float, so a 1e300 relief reached four bare conversions
+    BEFORE the telegram, the mail and the fleet-exhausted stamp — no WALL for quota_stop.py
+    (round 2 seat A, F3). Such a relief is no relief: the no-resume-time text goes out."""
+    msg = cr._urgent_drain_message("a@x", "session exhausted", (1e300, "b@x", "session"))
+    assert "no resume time can be given" in msg and "RESUME AT" not in msg
 
 
 def test_next_session_relief_prefers_the_soonest_session_reset_of_a_weekly_ok_sibling():

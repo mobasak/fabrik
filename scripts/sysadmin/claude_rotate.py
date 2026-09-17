@@ -1313,11 +1313,11 @@ def _cmd_status(as_json: bool) -> int:
         )
 
     def fmt(w):
-        if not w:
+        # the legacy view keeps its SHAPE; both guards are shared with _fmt_quota_window
+        u = _usable_ts(w.get("utilization")) if isinstance(w, dict) else None
+        if u is None:
             return "-"
-        rs = w.get("resets_at_epoch")
-        rs_s = _fmt_reset_clock(rs)  # the legacy view keeps its shape; the guard is shared
-        return f"{w['utilization']:.0f}% (resets {rs_s})"
+        return f"{u:.0f}% (resets {_fmt_reset_clock(w.get('resets_at_epoch'))})"
 
     for r in pay["accounts"]:
         mark = "*" if r["name"] == pay["live"] else " "
@@ -1360,7 +1360,9 @@ def _pick_successor(candidates: list[dict], current_name: str | None, now: float
     eligible.sort(
         key=lambda r: (
             1 if r.get("telemetry") == "unknown-parked" else 0,
-            (r.get("seven_day") or {}).get("resets_at_epoch") or far,
+            # through the ONE validator (round 2 seat C): a string reset raised TypeError in the
+            # tuple sort, a JSON `true` sorted as 1970 — both read as no reset now
+            _usable_ts((r.get("seven_day") or {}).get("resets_at_epoch")) or far,
             (r.get("seven_day") or {}).get("utilization", 100.0),
             (r.get("five_hour") or {}).get("utilization", 100.0),
         )
@@ -2740,14 +2742,7 @@ def _tick_inner() -> int:
                 # in the FUTURE must read EXPIRED, never "suppressed until the clock catches up".
                 age = None
             if age is None or age >= 86400:
-                resets = [
-                    w.get("resets_at_epoch")
-                    for r in rows
-                    for w in ((r.get("five_hour"), r.get("seven_day")) if r.get("valid") else ())
-                    if w and w.get("resets_at_epoch")
-                ]
-                revive = min(resets) if resets else None
-                revive_s = _fmt_reset_clock(revive, "unknown")
+                revive_s = _fmt_reset_clock(_soonest_reset(rows), "unknown")
                 msg = (
                     f"QUOTA DRAIN: pool exhaustion approaching ({hot:.0f}% on the last "
                     f"eligible account, no installable sibling). Reach a commit-and-push "
@@ -3193,9 +3188,11 @@ def _pick_flip_target(
         # admits such cached rows, and their past epoch sorted AHEAD of every live account's
         # future reset, inverting perishable-first (closing review R3)
         # through the ONE validator: a CANDIDATE row whose weekly reset alone carried a giant JSON
-        # int raised OverflowError out of `float()` here — and out of `_fleet_picture`; the tick-burn
-        # projection and the `--status` clock renderers were the remaining bare sites, closed in the
-        # same scoped review (Delta 24 seat, RECORDED → this fix; round 1 seats A + C)
+        # int raised OverflowError out of `float()` here — and out of `_fleet_picture` (Delta 24
+        # seat, RECORDED → this fix). The same scoped review then closed the sibling bare sites
+        # round by round: the tick-burn projection and the clock renderers (round 1), the flip
+        # leg's active-row read, the drain leg's soonest reset, the urgent-drain conversions and
+        # the ledger `pct` write (round 2) — grep `_usable_ts(` for the current set, never this list
         reset = _usable_ts(reset)
         reset_at = reset if reset is not None and reset > _now() else far
         weekly = utils["seven_day"] if utils["seven_day"] is not None else 100.0
@@ -3780,27 +3777,47 @@ def _fleet_account_rows(
     return accounts, pending
 
 
+def _soonest_reset(rows: list[dict]) -> float | None:
+    """The earliest reset across every VALID row's two windows, each through the ONE validator —
+    the drain broadcast's "Work revives at": a bare `min()` over raw cache values raised TypeError
+    on a string reset one line above the guarded renderer, losing the mail and the telegram
+    (round 2 seat A, F4)."""
+    resets = [
+        ts
+        for r in rows
+        for w in ((r.get("five_hour"), r.get("seven_day")) if r.get("valid") else ())
+        if isinstance(w, dict) and (ts := _usable_ts(w.get("resets_at_epoch"))) is not None
+    ]
+    return min(resets) if resets else None
+
+
 def _fmt_reset_clock(epoch: object, absent: str = "?") -> str:
     """`%a %H:%M` for a reset epoch, or *absent* when there is none — or when the platform cannot
     date it: `datetime.fromtimestamp` raises OverflowError/OSError/ValueError on a value past
     `time_t` or non-finite, and a finite `1e300` passes every type validator and still raises, so
     the guard sits around the CONVERSION, not the type (`--status` is the authority the contract
     sends every agent to on a quota notice; it died on one corrupt cache row — scoped review,
-    round 1 seat A)."""
-    if not epoch:
+    round 1 seat A). And the value goes through the ONE validator first: a JSON `true` or a
+    negative epoch rendered as a 1970 clock while the picker reads the same row as undated
+    (round 2 seat A, F5)."""
+    ts = _usable_ts(epoch)
+    if ts is None or ts <= 0:
         return absent
     try:
-        return datetime.fromtimestamp(epoch).strftime("%a %H:%M")  # type: ignore[arg-type]
-    except (OverflowError, OSError, ValueError, TypeError):
+        return datetime.fromtimestamp(ts).strftime("%a %H:%M")
+    except (OverflowError, OSError, ValueError):
         return absent
 
 
 def _fmt_quota_window(w: dict | None) -> str:
     """Fleet-view window formatter (the legacy _cmd_status keeps its own — that view must stay
     byte-identical while the fleet exists nowhere)."""
-    if not isinstance(w, dict) or not isinstance(w.get("utilization"), (int, float)):
+    # the utilization half through the validator too — a giant int on the SAME corrupt row
+    # raised out of the f-string one token after the reset was guarded (round 2 seat A, F2)
+    u = _usable_ts(w.get("utilization")) if isinstance(w, dict) else None
+    if u is None:
         return "-"
-    return f"{w['utilization']:.0f}% (resets {_fmt_reset_clock(w.get('resets_at_epoch'))})"
+    return f"{u:.0f}% (resets {_fmt_reset_clock(w.get('resets_at_epoch'))})"
 
 
 def _fleet_quota_text(row: dict) -> str:
@@ -5048,7 +5065,10 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
     for key in ("five_hour", "seven_day"):
         w = row.get(key)
         u = w.get("utilization") if isinstance(w, dict) else None
-        utils[key] = u if isinstance(u, (int, float)) else None
+        # through the ONE validator, like _flip_candidate_verdict: `_tick_burn` below was made
+        # non-raising on a giant JSON int and this bare read raised one line later on the same
+        # row — the flip never happened, the posture was never written (round 2 seat A, F1)
+        utils[key] = _usable_ts(u)
     present = [u for u in utils.values() if u is not None]
     if not present:
         print(f"tick: active {row['email']} — no quota reading, no flip decision possible")
@@ -5549,14 +5569,20 @@ def _urgent_drain_message(
         )
     epoch, email, window = relief
     lead = _drain_resume_lead_s()
-    resume = int(epoch) + lead
     # BOTH instants, labelled for what they are. The old message computed these strings from
     # `resume` and then described them as when the window "resets" — off by the lead, so the
-    # one number a stopped repo acts on disagreed with its own label.
-    reset_local = datetime.fromtimestamp(epoch).strftime("%a %d %b %H:%M %Z").strip()
-    reset_utc = datetime.fromtimestamp(epoch, tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-    local = datetime.fromtimestamp(resume).strftime("%a %d %b %H:%M %Z").strip()
-    utc = datetime.fromtimestamp(resume, tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    # one number a stopped repo acts on disagreed with its own label. And the conversions are
+    # guarded: `_usable_ts` admits any FINITE float, so a relief epoch the platform cannot date
+    # (1e300) raised here — before the telegram, the mail and the fleet-exhausted stamp, so
+    # `quota_stop.py` saw no WALL (round 2 seat A, F3); such a relief is no relief.
+    try:
+        resume = int(epoch) + lead
+        reset_local = datetime.fromtimestamp(epoch).strftime("%a %d %b %H:%M %Z").strip()
+        reset_utc = datetime.fromtimestamp(epoch, tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        local = datetime.fromtimestamp(resume).strftime("%a %d %b %H:%M %Z").strip()
+        utc = datetime.fromtimestamp(resume, tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    except (OverflowError, OSError, ValueError):
+        return _urgent_drain_message(active_email, reason, None)
     # WHOSE window it is changes what the reader must DO. "NEXT ACCOUNT AVAILABLE: mob@" reads as
     # "switch to mob@" when mob@ is the account you are already on — and a stopped repo acts on
     # this text. When the soonest relief is the active account's own session rolling over, say so
@@ -6106,13 +6132,13 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
     #      a hand-maintained statistic in a comment is a second source of truth that always rots.
     _active_walled, _active_row = _active_account_walled(accounts, threshold)
     if _active_row is not None and isinstance(_active_row.get("five_hour"), dict):
-        _sess = _active_row["five_hour"].get("utilization")
-        if isinstance(_sess, (int, float)):
+        _sess = _usable_ts(_active_row["five_hour"].get("utilization"))
+        if _sess is not None:
             _row = {
                 "event": "tick",
                 "ts": now,
                 "verdict": "walled" if _active_walled else "ok",
-                "pct": float(_sess),
+                "pct": _sess,
                 "account": _active_row.get("email"),
                 "source": _active_row.get("source"),
             }
