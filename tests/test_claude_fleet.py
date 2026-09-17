@@ -5906,37 +5906,73 @@ def test_the_rearmed_stamp_carries_the_episodes_own_promise(tmp_path, monkeypatc
     stamp4 = tmp_path / "locks" / "fleet-exhausted-4"
     cr._rearm_wall_stamp(stamp4, "a@x", now)
     assert not stamp4.exists() and "NOT re-armed" in capsys.readouterr().err
-    # a FAILED re-arm must never remove a stamp it did not write: the stamp IS the fleet hold
-    # (`quota_stop.py` holds on presence alone), and Delta 18's unconditional unlink dropped it
-    # on any un-writable stamp (Delta 19 seat A, F1); root writes a 0o444 file, so root skips it
+    # a FAILED re-arm must never TOUCH a stamp it did not write: the stamp IS the fleet hold
+    # (`quota_stop.py` allows whenever it is absent). Delta 18's unconditional unlink dropped it
+    # on any un-writable stamp (Delta 19 seat A, F1); Delta 19 kept it but only AFTER the in-place
+    # write had overwritten its content and mtime (Delta 20 seat C, #2). Two arms: a read-only
+    # DIRECTORY (nothing can be built beside the stamp; root writes there anyway, so root skips
+    # it — and a 0o444 FILE arm's `finally` chmod masked the assertion once the stamp was gone,
+    # Delta 20 seat B) and a writable stamp with a ts `os.utime` refuses
     (state / "rotate-ledger.jsonl").write_text(
         json.dumps({"event": "fleet-active-wall", "ts": now - 900, "account": "a@x"}) + "\n"
     )
+    held = tmp_path / "held"
+    held.mkdir()
+    stamp5 = held / "fleet-exhausted"
+    stamp5.write_text("9999999999", encoding="utf-8")
+    os.utime(stamp5, (now - 100000, now - 100000))
+    before = (stamp5.read_text(encoding="utf-8"), stamp5.stat().st_mtime)
     if os.geteuid() != 0:
-        stamp5 = tmp_path / "locks" / "fleet-exhausted-5"
-        stamp5.write_text("1800003600", encoding="utf-8")
-        stamp5.chmod(0o444)
+        held.chmod(0o555)
         try:
             cr._rearm_wall_stamp(stamp5, "a@x", now)
-            assert stamp5.exists(), "a failed re-arm dropped a hold it did not arm"
         finally:
-            stamp5.chmod(0o644)
+            held.chmod(0o755)
+        assert (stamp5.read_text(encoding="utf-8"), stamp5.stat().st_mtime) == before
         assert "NOT re-armed" in capsys.readouterr().err
-    # and a cleanup that FAILS is said, and the fresh stamp stays — the docstring's absolute
-    # ("never a fresh-mtime stamp") was false on exactly this path (Delta 19 seat C, #1)
     (state / "rotate-ledger.jsonl").write_text(
         json.dumps({"event": "fleet-active-wall", "ts": 1e308, "account": "a@x"}) + "\n"
     )
+    cr._rearm_wall_stamp(stamp5, "a@x", now)
+    assert (stamp5.read_text(encoding="utf-8"), stamp5.stat().st_mtime) == before
+    assert "NOT re-armed" in capsys.readouterr().err
+    assert sorted(p.name for p in held.iterdir()) == ["fleet-exhausted"], "no temp file left"
+    # and a temp-file cleanup that FAILS is said, and only the TEMP file stays — never a stamp
+    # (Delta 19 seat C, #1; the target of the refused unlink is our own temp file now)
     stamp6 = tmp_path / "locks" / "fleet-exhausted-6"
 
     def _refuse(self, missing_ok=False):
         raise PermissionError("unlink refused by the grader")
 
-    monkeypatch.setattr(type(stamp6), "unlink", _refuse)
-    cr._rearm_wall_stamp(stamp6, "a@x", now)
-    monkeypatch.undo()
+    # a CONTEXT, never a bare `monkeypatch.undo()`: undo consumes the whole shared stack and
+    # unpinned every conftest box-state seam for the rest of the test — the arms below then
+    # read and mkdir'd the operator's REAL state dir (Delta 20 seat A, F2)
+    with monkeypatch.context() as m:
+        m.setattr(type(stamp6), "unlink", _refuse)
+        cr._rearm_wall_stamp(stamp6, "a@x", now)
     err6 = capsys.readouterr().err
-    assert stamp6.exists() and "NOT re-armed" in err6 and "left in place" in err6, err6
+    assert not stamp6.exists() and "NOT re-armed" in err6 and "left in place" in err6, err6
+    assert stamp6.with_name(stamp6.name + ".rearm").exists()
+    # said FIRST — the order is the point of the fix and was ungraded (Delta 20 seat A, F4)
+    assert err6.index("NOT re-armed") < err6.index("left in place"), err6
+    assert os.environ["ROTATE_STATE_DIR"] == str(state), "the seams stayed pinned"
+    # and a NUL byte in the path, with no monkeypatch: write_text raises ValueError, which the
+    # outer except must catch (Delta 19 A F5 / Delta 20 A F3) — and since nothing was written,
+    # no cleanup runs and nothing claims a temp file was left (the first cut said so falsely)
+    cr._rearm_wall_stamp(tmp_path / "locks" / "fleet-exhausted-7\x00x", "a@x", now)
+    err7 = capsys.readouterr().err
+    assert "NOT re-armed" in err7 and "left in place" not in err7, err7
+    # and a stamp inside a SEALED dir (0o000): nothing may raise out of the re-arm, not even the
+    # probe of the path — root traverses it anyway, so root skips it (Delta 20 seat A, F5)
+    if os.geteuid() != 0:
+        sealed = tmp_path / "sealed"
+        sealed.mkdir()
+        sealed.chmod(0o000)
+        try:
+            cr._rearm_wall_stamp(sealed / "fleet-exhausted", "a@x", now)
+        finally:
+            sealed.chmod(0o755)
+        assert "NOT re-armed" in capsys.readouterr().err
     # and the ROW-GONE race: readable ledger, no open row — no stamp, and nothing said (the
     # docstring says so; the negative had no grader — Delta 14 seat A, F5)
     (state / "rotate-ledger.jsonl").write_text("")

@@ -103,8 +103,22 @@ def pytest_configure(config):  # noqa: ARG001 - pytest hook signature
 import pytest  # noqa: E402 — placed with the rule it serves
 
 
+@pytest.fixture
+def _private_monkeypatch():
+    """A `MonkeyPatch` of its OWN for the autouse box-state pins below. The function-scoped
+    `monkeypatch` fixture is SHARED with the test, so a test's `monkeypatch.undo()` — ten calls
+    across eight hub test files when measured — consumed the whole stack and unpinned every seam
+    for the rest of that test: the fleet suite then mkdir'd and read the operator's real
+    `~/.claude/state` (Delta 20 seat A, F2). A private instance is out of any test's reach;
+    `tests/test_conftest_isolation.py` grades it."""
+    mp = pytest.MonkeyPatch()
+    yield mp
+    mp.undo()
+
+
 @pytest.fixture(autouse=True)
-def _isolated_sound_lock_dir(tmp_path, monkeypatch):
+def _isolated_sound_lock_dir(tmp_path, _private_monkeypatch):
+    monkeypatch = _private_monkeypatch
     locks = tmp_path / "sound-locks"
     locks.mkdir(exist_ok=True)
     monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(locks))
@@ -112,7 +126,8 @@ def _isolated_sound_lock_dir(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def _isolated_kaizen_events_dir(tmp_path, monkeypatch):
+def _isolated_kaizen_events_dir(tmp_path, _private_monkeypatch):
+    monkeypatch = _private_monkeypatch
     """Five tests built their own `dict(os.environ, …)` without `KAIZEN_EVENTS_DIR`, so a suite
     run wrote fabricated round/run events into the operator's REAL per-session events log under
     the live sid (D-191 review round 16, F349). Same class as the two pins above: one autouse
@@ -124,7 +139,7 @@ def _isolated_kaizen_events_dir(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def _isolated_opt_dir(tmp_path, monkeypatch):
+def _isolated_opt_dir(tmp_path, _private_monkeypatch):
     """`claude_rotate`'s `/opt` seam and its state dir, pinned for EVERY test — autouse, no opt-in.
 
     ⚠️ This pin exists because a test SENT REAL MAIL. On 2026-09-16 a Phase B grader drove
@@ -146,6 +161,7 @@ def _isolated_opt_dir(tmp_path, monkeypatch):
     `fleet-exhausted` stamp, the drain latch and the rotate ledger; a test must never be able to
     latch — or silence — the operator's live fleet warning.
     """
+    monkeypatch = _private_monkeypatch
     opt = tmp_path / "isolated-opt"
     opt.mkdir(exist_ok=True)
     state = tmp_path / "isolated-rotate-state"
@@ -176,13 +192,14 @@ def _isolated_opt_dir(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def _isolated_command_run_dir(tmp_path, monkeypatch):
+def _isolated_command_run_dir(tmp_path, _private_monkeypatch):
     """The convergence and coverage graders read the SESSION'S OWN run record (T4.1/T4.5 —
     `CLAUDE_SESSION_ID` or the harness's `CLAUDE_CODE_SESSION_ID`, under `COMMAND_RUN_DIR` or the
     operator's live `~/.claude/state/command-runs`): a suite run inside a live Claude session
     would otherwise grade fixtures against whatever plan the operator's real record names
     (mail-triage Phase B review, round 3). Same class as the two pins above — one autouse pin,
     composable: a test that wants a specific record still sets its own dir and sid after this."""
+    monkeypatch = _private_monkeypatch
     runs = (
         tmp_path / "isolated-command-runs"
     )  # not `command-runs`: test_command_run's own fixture name

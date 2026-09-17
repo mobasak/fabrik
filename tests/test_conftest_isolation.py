@@ -141,6 +141,29 @@ def test_the_suite_never_reads_the_operators_live_run_record(tmp_path) -> None:
     assert cr._session_id(None) == "pytest-isolated"
 
 
+def test_a_tests_own_monkeypatch_undo_cannot_unpin_the_box_state_seams(
+    monkeypatch, tmp_path_factory
+):
+    """The autouse pins ride a PRIVATE `MonkeyPatch`, so a test's own `monkeypatch.undo()` — ten
+    calls across eight hub test files — undoes the test's patches and nothing else. Before, undo
+    consumed the shared stack, every seam went unset for the rest of the test, and the fleet suite
+    mkdir'd and read the operator's real `~/.claude/state` (Delta 20 seat A, F2)."""
+    base = tmp_path_factory.getbasetemp().resolve()
+    monkeypatch.setenv("PROBE_ONLY_UNDO", "1")
+    monkeypatch.undo()
+    assert os.environ.get("PROBE_ONLY_UNDO") is None, "the test's OWN patch is undone"
+    for var in (
+        "ROTATE_STATE_DIR",
+        "FABRIK_OPT_DIR",
+        "CLAUDE_FLEET_ROOT",
+        "COMMAND_RUN_DIR",
+        "KAIZEN_EVENTS_DIR",
+    ):
+        val = os.environ.get(var)
+        assert val and Path(val).resolve().is_relative_to(base), (var, val)
+    assert os.environ.get("CLAUDE_SESSION_ID") == "pytest-isolated"
+
+
 def test_no_test_can_reach_the_real_opt_or_mail_a_real_repo(tmp_path_factory):
     """A test must not be able to enumerate the real `/opt` — that is how a suite SENT REAL MAIL.
 

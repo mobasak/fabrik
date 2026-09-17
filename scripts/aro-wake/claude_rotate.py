@@ -5790,18 +5790,19 @@ def _rearm_wall_stamp(stamp: Path, email: str, now: float) -> None:
     """Re-create the fleet-exhausted stamp from the OPEN episode's ledger row — content = the
     `resume_epoch` the advisory promised ("0" when none), mtime = the row's `ts`, never `now`:
     a fresh mtime would restart the stamp's week re-arm and the two latches would drift apart.
-    Never raises (the tick must not fail on a cache file), and a failure is said on stderr FIRST,
-    before any cleanup that could itself raise (Delta 19 seat A, F5). A returned row's ts
+    The stamp is BUILT BESIDE its path and moved into place by one `os.replace`, so a failure
+    anywhere before the move leaves an existing stamp — the fleet's live hold; `quota_stop.py`
+    ALLOWS whenever it is absent — byte-for-byte as it was, and leaves no fresh-mtime stamp
+    behind: an in-place write dropped the hold on any un-writable stamp (its cleanup unlinked
+    whatever was there — Delta 19 seat A, F1), and keeping the stamp instead kept one the
+    successful write had already overwritten (Delta 20 seat C, #2). Never raises (the tick
+    must not fail on a cache file): a failure is said on stderr FIRST, then only OUR temp file
+    is removed, and a removal that fails is said too (Delta 19 seat A, F5). A returned row's ts
     converts to a float by `_open_wall_rows`'s INVARIANT, but `os.utime` refuses one past the
     platform's `time_t` with OverflowError, not OSError (Delta 18 seat A, F1) — and between the
     filesystem's own mtime ceiling and there it SUCCEEDS with a CLAMPED mtime, a stamp whose
     mtime is not the row's ts and that nobody says (no writer can emit such a ts; backlog,
-    fleet). Only a stamp THIS call created is removed after a failure — the write lands before
-    `os.utime` runs, so it would carry a fresh mtime, the drift named above; a stamp that
-    PRE-EXISTED is the fleet's live hold (`quota_stop.py` holds on presence alone) and is kept
-    whatever the failed write left in it, because an unconditional unlink dropped the hold on
-    any un-writable stamp (Delta 19 seat A, F1); a cleanup that fails is said too and that
-    fresh stamp stays. An unwritable stamp is said on stderr
+    fleet). An unwritable stamp is said on stderr
     like the first write, and so is an unreadable ledger — reachable by a direct call or an
     intra-tick race only, since the one production caller's guard has just read the ledger; a row
     that VANISHED in the same race is not said and leaves the hold down identically (F6)."""
@@ -5820,25 +5821,22 @@ def _rearm_wall_stamp(stamp: Path, email: str, now: float) -> None:
     )
     ts = row.get("ts")
     at = float(ts)  # converts by `_open_wall_rows`'s INVARIANT; `os.utime` may still refuse it
-    fresh = False  # only a stamp THIS call creates may be removed: an existing one IS the hold
+    # built beside the stamp, moved in by one replace: nothing here ever writes to, or removes,
+    # a stamp that already exists (Delta 19 A F1 · Delta 20 C #2 — see the docstring)
+    tmp = stamp.with_name(stamp.name + ".rearm")
+    written = False
     try:
-        fresh = not stamp.exists()
-        stamp.write_text(content, encoding="utf-8")
-        os.utime(stamp, (at, at))
+        tmp.write_text(content, encoding="utf-8")
+        written = True
+        os.utime(tmp, (at, at))
+        os.replace(tmp, stamp)
     except (OSError, OverflowError, ValueError) as exc:
         sys.stderr.write(f"claude_rotate: fleet-exhausted stamp NOT re-armed ({stamp}): {exc}\n")
-        if fresh:
-            # the write landed FIRST, so a stamp this call created carries a fresh mtime — the
-            # drift the docstring names; remove it so the failed re-arm reads like a failed
-            # write. A pre-existing stamp is another writer's live hold, never ours to drop —
-            # Delta 18's unconditional unlink dropped the fleet hold on any un-writable stamp
-            # (Delta 19 seat A, F1); a cleanup that fails is said, and the stamp stays (C #1)
+        if written:  # only ever OUR temp file, never the stamp — and only one that exists
             try:
-                stamp.unlink(missing_ok=True)
-            except (OSError, ValueError) as exc2:
-                sys.stderr.write(
-                    f"claude_rotate: fleet-exhausted stamp left in place ({stamp}): {exc2}\n"
-                )
+                tmp.unlink()
+            except OSError as exc2:
+                sys.stderr.write(f"claude_rotate: re-arm temp file left in place ({tmp}): {exc2}\n")
 
 
 def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: float) -> None:
