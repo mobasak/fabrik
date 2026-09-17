@@ -3537,3 +3537,53 @@ worktree rule exists to prevent, reached by obeying the brief. Two candidate fix
 the scratchpad and the repo's worktree registry, never the working tree), or have the DISPATCHER
 create the probe worktree and hand its path to the seat. The second is cleaner and costs the seat
 nothing. Destination: the review-command fragments, next `/fabrik-command-improve` run over them.
+
+### [infra] A lesson RETIRED at its root keeps rendering from the corpus, and nothing links the two
+
+`scripts/sysadmin/dispatch_headroom.py:156-169` fixed the root cause of the `SEATS: 0` incident —
+the budget no longer caps on commit headroom unless `overcommit_memory == 2` means the kernel would
+actually enforce it, and a zero-sum partition now prints its reason (`:749-753`). The feedback
+verdict born of that incident (ts 1789483273.93) nevertheless asks `/fabrik-review` to carry the
+lesson as prose, and `/fabrik-command-improve` duly landed it 2026-09-17. The general predicate is
+sound and was kept deliberately — a tool's zero or refusal is a CLAIM to attribute before it is a
+reason to stop, and that is true of every tool. But nothing in the loop notices when the SPECIFIC
+incident behind a corpus sentence has been fixed at its root, so a restated incident outlives its
+cause with no one watching it go stale.
+
+Scope, measured 2026-09-17: this particular clause sits in `commands/_sources/fabrik-review.md` and
+so renders to **1 of 37** commands. The exposure is larger for the fragments — **21 of 37** commands
+render `subagents-core`, so the same shape landing in `commands/_fragments/` would carry a retired
+lesson into 21 rendered commands at once.
+
+Shape of a fix, unbuilt: `check_corpus_weight.py` already walks the six governance surfaces; a
+sibling check could compare a corpus sentence's cited `path:line` against the CURRENT text at that
+path and flag a citation whose surrounding code no longer says what the sentence claims. That is a
+different check from `check_citations_resolve.py`, which only asks whether the line EXISTS.
+
+Found by the round-1 Opus seat of `/fabrik-command-improve fabrik-review`, filed as its MACHINERY
+note (F9, RECORDED — deliberately not confirmed against the edit, whose general form is correct).
+
+### [infra] The finder-brief lesson list covers a truncated FILE and not a truncated LINE
+
+`commands/_sources/fabrik-review.md:196` tells every finder brief *"the Read tool truncates a long
+file on a token cap with NO marker — read in offset pages and confirm the last line"*. It says
+nothing about the other shape: a single very long LINE. Measured 2026-09-17, `:165` of that same file
+is one line of **3,161 bytes**, and both review seats dispatched over it had to be told per-dispatch
+to use `sed -n '165p' | fold` or python slicing; one of them reported that the warning was the only
+reason it saw the end of the paragraph. A seat that reads that line with the Read tool and concludes
+from the visible half is making exactly the bounded-search error the same lesson list forbids, with
+no marker telling it the read was partial. One clause on the existing lesson would close it — the
+list already owns the file case, so this is an edit INSIDE it, not a new home.
+
+### [infra] The mutation COPY and the pin dir are never linked, so a brief's room obligation is covered only by inference
+
+`commands/_sources/fabrik-review.md:165` now requires a brief to state, for a **pin dir**, its
+CONTENTS and the commit they were built from — the obligation feedback verdict ts 1789501504.70
+asked for. But the artifact that verdict was actually about is the MUTATION room, and the file names
+that with two other phrases which are never tied to the pin dir: `:200` *"a MUTATION-TESTING seat
+works on a COPY of the surface, never the tree"* and `:299` *"a probe on a pinned copy"*. A seat must
+deduce that its COPY is made FROM the pin dir for the provenance obligation to reach the room where
+the verdict's failures actually happened ("every mutation-verification failure this run came from an
+incomplete or stale room"). Pre-dates the 2026-09-17 edit and was RECORDED, not confirmed, against
+it. Destination: one clause in the `:196` lesson list — *"…and a mutation seat's COPY is made FROM
+the pin dir"*. Found by the round-3 seat of `/fabrik-command-improve fabrik-review`.

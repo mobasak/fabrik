@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-review briefs must name the SUBJECT of every quantity, not just the surface (2026-09-17)
+
+- `commands/_sources/fabrik-review.md`: the brief contract carried the Phase-0 surface digest and the
+  RE-READ instruction, both of which pin which BYTES a seat reads and neither of which pins what they
+  MEAN. Every brief now also carries, for each constant, threshold or budget the change touches, what
+  that number GATES in words. Answers four ledger verdicts (ts 1789659180.59, 1789501504.70,
+  1789483273.93, 1789550171.78) that are one class: a right measurement about the wrong quantity, a
+  clean room of unstated provenance, a tool's own `SEATS: 0` read as a cap rather than a claim, and a
+  hedge strengthened as an improvement. Each returns a plausible wrong verdict instead of an error.
+
 ### Fixed — the GATE sentence's round 3: every rewritten clause says the mechanism and is pinned (2026-09-17)
 
 The scoped review's confirming seat found six items inside the round-2 rewrite (`82f53ce5e`), all executed against `final_gate.py`: "each non-asserting row" over-widened `advisory` (it is `WARN_ONLY_CHECKS` membership); "one that ran is the bare name" was false for exit 4 and 5; "ruff and pytest excepted: their absence aborts" was false for ruff, which resolves as a binary with a PATH fallback; "`--json` changes only the output format" ignored the AI-fix gate; the workflow line hid the unreachable "pytest is not installed" branch; and the split grader pinned one of four rewritten clauses. Fixed at `b206f0655`: each clause names the mechanism with its line, and `tests/test_governance_template_split.py` pins every rewritten span — each red under a hub-only mutation in a throwaway worktree whose grader resolves that worktree (a copied grader alone resolves the live repo and reads a false green; executed both ways).
