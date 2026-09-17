@@ -80,7 +80,9 @@ code-changing chunk of work gets one:
   rule, in one shell line). ⚠️ When that verdict says the opposite — see the scope-growth stop
   below — escalating is the WRONG answer and the loop stops instead. ⚠️ **And when there is NO
   verdict, which is the common case: nothing is computed before the THIRD round (the window is
-  three rounds wide) and nothing prints on a converging loop. Silence is not a verdict either way —
+  three rounds wide) and nothing prints on a loop that is MERELY converging with no own-fix
+  residue — ⚠️ a FALLING count that is mostly own-fix still prints SCOPE GROWTH, and that is the
+  mechanism's founding series (8 · 6 · 5 · 7 · 4 · 2). Silence is not a verdict either way —
   at round 2, or on any silent round, judge it yourself exactly as you did before the verdict
   existed, and escalate if the defects are the artifact's.**
 
@@ -171,7 +173,7 @@ Repo health: docker, ports, docs sprawl, duplicates, deps sync, health endpoints
 - **The full `--json` gate is the per-task completion gate** — green on it (this turn, not an earlier run) is the definition of done. **Changelog is MANDATORY for any code/config/infrastructure change.**
 - The coding agent FIXES what the review finds, in the same run. A finding handed onward is not a review.
 - **The agent COMMITS AND PUSHES its own work at task end** — explicit pathspecs + provenance trailers, never `git add -A`. An uncommitted task is an unfinished task; an unpushed one is off-box-unprotected. (Hub + project contracts, § EXIT — Stop-hook-enforced.)
-- **Review iterates to a FIXED POINT, not to a counter** — done is a pass that raises zero new candidates. Only the three sanctioned BLOCKED cases halt early: 3 consecutive same-test failures · missing infra · an unresolvable spec contradiction. Rounds that keep finding have TWO possible causes and opposite correct remedies — do not assume the first. If the defects are the ARTIFACT'S, the surface outgrew the scoped command: escalate to `/fabrik-review`, don't stop. If they are the REVIEW'S OWN earlier fixes, escalating hands a bigger reviewer a surface whose only remaining defects the review authored: take the scope-growth stop below instead. ⚠️ And most rounds carry NO verdict at all — nothing is computed before the third round and nothing prints on a converging loop; silence is not a verdict either way, so judge it yourself.
+- **Review iterates to a FIXED POINT, not to a counter** — done is a pass that raises zero new candidates. Only the three sanctioned BLOCKED cases halt early: 3 consecutive same-test failures · missing infra · an unresolvable spec contradiction. Rounds that keep finding have TWO possible causes and opposite correct remedies — do not assume the first. If the defects are the ARTIFACT'S, the surface outgrew the scoped command: escalate to `/fabrik-review`, don't stop. If they are the REVIEW'S OWN earlier fixes, escalating hands a bigger reviewer a surface whose only remaining defects the review authored: take the scope-growth stop below instead. ⚠️ And most rounds carry NO verdict at all — nothing is computed before the third round, and nothing prints on a loop that is MERELY converging with no own-fix residue (a falling count that is mostly own-fix DOES print the stop); silence is not a verdict either way, so judge it yourself.
 - Non-trivial = any of: new file, >50 lines changed, new dependency, DB change, or any code/config/infrastructure/Docker/compose change.
 
 ---

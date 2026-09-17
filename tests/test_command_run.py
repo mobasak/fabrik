@@ -3054,6 +3054,32 @@ def test_the_scope_growth_stop_fires_when_a_loop_only_reviews_its_own_fixes() ->
     assert "round 1" not in unc and "round 2" not in unc, unc
     # and the sentence carrying the whole semantic payload is graded, not merely present by luck
     assert "NOT a verdict either way" in unc, unc
+    # ⚠️ N2 — the assertions above CANNOT tell absolute from window-relative: the fixture is a
+    # 3-round record, so `first + i - 1 == i` identically and a straight revert of the fix passes.
+    # The defect was "at round 9 it said round 2 for round 8", which needs a window that does NOT
+    # start at round 1. This is that case, and it also grades the window SPAN (two span mutants
+    # survived without it).
+    off = cr.scope_growth_warning(
+        [{"n": i, "confirmed": 1, "own_fix": 0} for i in range(1, 7)]
+        + [{"n": 7, "confirmed": 5, "own_fix": 5}, {"n": 8}, {"n": 9}]
+    )
+    assert "round 8, round 9" in off, off
+    assert "(rounds 7-9," in off, off
+    # ⚠️ N5 — and it must NOT fire on a round that is itself readable and QUIET
+    assert (
+        cr.scope_growth_warning(
+            [{"n": 1, "confirmed": 5}, {"n": 2, "confirmed": 3}, {"n": 3, "confirmed": 0, "own_fix": 0}]
+        )
+        == ""
+    )
+    # ⚠️ N6 — a FLAT count escalates; only a FALLING one is converging. `>` instead of `>=` made a
+    # stalled 5 -> 5 -> 5 loop silently stop escalating, which is the stall shape itself.
+    assert "ESCALATE" in cr.scope_growth_warning([{"confirmed": 5, "own_fix": 0}] * 3)
+    # ⚠️ N1 — a FALLING count that is mostly own-fix still fires. The pack said otherwise about the
+    # mechanism's own founding series (8 · 6 · 5 · 7 · 4 · 2) until this grader pinned it.
+    assert "SCOPE GROWTH" in cr.scope_growth_warning(
+        [{"confirmed": 8, "own_fix": 8}, {"confirmed": 6, "own_fix": 6}, {"confirmed": 5, "own_fix": 5}]
+    )
     # and it stays NARROW: when the omission cannot decide, nothing prints. Firing on every
     # omitting record would print on the ~78% of rounds that omit the flag — wallpaper.
     assert (

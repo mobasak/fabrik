@@ -331,11 +331,15 @@ def convergence_warning(
 # review: confirmed 29 · 15 · 6 · 3 at own-fix 0% · 86% · 66% · 66% — plainly a loop correcting its
 # own corrections, and the equality printed NOTHING across all four rounds.
 #
-# ⚠️ `check_review_coverage.py::_OWN_FIX_ROUNDS_FOR_STOP` is this constant's TWIN and
-# `tests/test_check_review_coverage_scope_growth.py` asserts they are equal — one rule, two
-# readers. Change them together or that guard reds, which is what it is for.
+# ⚠️ NOT the checker's twin. The window is this file's alone; widening it does NOT widen
+# `check_review_coverage.py::_OWN_FIX_ROUNDS_FOR_STOP`, which tracks SCOPE_GROWTH_QUALIFY below.
+# Following this constant instead cost a 25% false-refusal rate once already and was reverted.
 SCOPE_GROWTH_ROUNDS = 3
 # How many of those rounds must qualify. TWO of the last three.
+# ⚠️ THIS is `check_review_coverage.py::_OWN_FIX_ROUNDS_FOR_STOP`'s TWIN, and
+# `tests/test_check_review_coverage_scope_growth.py` asserts they are equal — one rule, two
+# readers. That grader counts trailing rounds that EACH confirmed something, which is a qualifying
+# count, not a window length. Change these two together; the window above moves on its own.
 SCOPE_GROWTH_QUALIFY = 2
 
 
@@ -506,10 +510,16 @@ def scope_growth_warning(rows: list[Any], command: str = "") -> str:
         # the counter — but the first cut narrowed it with `qualifying >= 1`, which was a FAIL-OPEN:
         # a window of one readable non-qualifying round plus two omitted rounds that WOULD decide
         # the verdict printed nothing, which is exactly what the `--own-fix` help promises it will
-        # not do (seat 1 item 1). The honest gate is "this record has adopted the counter at all";
+        # not do (seat 1 item 1). The honest gate is "some round in THIS WINDOW is readable" — the
+        # code reads the window, never the whole record, and an earlier comment claimed the record;
         # measured over 110 real windows, the widening adds ZERO extra fires.
-        if any(_readable(c, o) for c, o in pairs) and (
-            qualifying + len(unreadable) >= SCOPE_GROWTH_QUALIFY
+        # ⚠️ and never on a round that is itself readable and QUIET: telling a loop that just
+        # reached `confirmed 0` that its earlier rounds are "close enough to decide" is the first
+        # UNCOMPUTABLE most agents would ever see, on the one round that needs no verdict at all.
+        if (
+            any(_readable(c, o) for c, o in pairs)
+            and qualifying + len(unreadable) >= SCOPE_GROWTH_QUALIFY
+            and not (_readable(*pairs[-1]) and pairs[-1][0] == 0)
         ):
             missing = ", ".join(f"round {first + i - 1}" for i in unreadable)
             return (

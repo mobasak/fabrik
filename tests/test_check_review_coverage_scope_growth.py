@@ -231,7 +231,9 @@ def test_the_lockstep_parser_is_not_defeated_by_a_prefix_sibling(tmp_path):
     assert parse("SCOPE_GROWTH_ROUNDS = 3") is None
     # a computed constant is unreadable and must fall through to the loud raise, never to a guess
     assert parse("SCOPE_GROWTH_QUALIFY = int(os.getenv('X', '2'))") is None
-    assert parse("    SCOPE_GROWTH_ROUNDS = 2") is None  # indented: not a module constant
+    # ⚠️ N4 — this must use the SAME name as the anchor, or it passes because the NAME misses and
+    # grades nothing about the indentation it exists for.
+    assert parse("    SCOPE_GROWTH_QUALIFY = 2") is None  # indented: not a module constant
 
 
 def test_a_status_line_that_denies_the_stop_is_not_a_declaration_of_it():
