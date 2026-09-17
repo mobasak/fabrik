@@ -2187,7 +2187,8 @@ def _last_switch_ts(event: str = "switch") -> tuple[float | None, bool]:
     and must still be able to make its first switch).
 
     A ledger that cannot be READ — unreachable/corrupt bytes, a permission error, or a well-formed
-    switch record whose ``ts`` is not a usable number (non-numeric, a JSON ``true``, non-finite)
+    switch record whose ``ts`` is not a usable number (non-numeric, a JSON boolean, non-finite,
+    at or before the epoch, or stamped in the future)
     — fails **CLOSED**: ``(now, True)``, which reads as
     "just switched" and holds the guard. Answering "no recent switch" to a question we cannot
     answer lets the tick install a fresh pair on every 5-minute run for as long as the fault lasts.
@@ -2219,6 +2220,7 @@ def _last_switch_ts(event: str = "switch") -> tuple[float | None, bool]:
                     ts, bool
                 )  # `true` read as 1.0 — a 1970 flip, fail-OPEN (Delta 14 A F2)
                 and math.isfinite(ts)
+                and float(ts) > 0  # the ledger cannot predate its writer: 0 or -5 is corruption
                 and float(ts) <= _now() + _CLOCK_SKEW_TOLERANCE_S
             ):
                 return float(ts), False
@@ -2228,7 +2230,8 @@ def _last_switch_ts(event: str = "switch") -> tuple[float | None, bool]:
             # box's clock). Neither may read as "no recent switch".
             sys.stderr.write(
                 f"claude_rotate: rotate-ledger {event} record has an unusable ts "
-                f"({ts!r} — non-numeric, a JSON `true`, non-finite, or clock-skewed into the "
+                f"({ts!r} — non-numeric, a JSON boolean, non-finite, at or before the epoch, or "
+                f"clock-skewed into the "
                 f"future) — dwell guard failing "
                 "CLOSED (holding; no account installed)\n"
             )
@@ -5579,7 +5582,17 @@ def _open_wall_rows(now: float | None = None) -> tuple[dict[str, dict], bool]:
     """Every account's open `fleet-active-wall` row (insertion order = ledger order), and whether
     the ledger could be read. The rules are `_open_wall_episode`'s; this is its core, split out
     because a fleet-wide end row ends ALL open episodes and the close row must name all of
-    them — `closed_for` named only the last (Delta 10 seat B, F4)."""
+    them — `closed_for` named only the last (Delta 10 seat B, F4).
+
+    INVARIANT: every row returned here carries a USABLE ts (a finite non-bool number), clock or
+    no clock — this reader is the one validator, and its consumers (`_advisory_ledger_latch`,
+    `_rearm_wall_stamp`) do not re-validate; three sibling guards on that one fact were kept,
+    deleted and re-added across four rounds before the rule was written down (Delta 16 seat A).
+    Two things the rule does NOT do, on purpose: a finite ts dated in the FUTURE is usable and
+    stays open here — future-dating is the latches' business, and both fail OPEN on it (speak);
+    and a later corrupt row for an account retires that account's earlier open episode (the
+    `pop` runs before the row is judged) — also fail-open, and the only order that keeps one
+    row per account."""
     try:
         lines = (_rotate_state_dir() / "rotate-ledger.jsonl").read_text().splitlines()
     except FileNotFoundError:
@@ -5599,7 +5612,11 @@ def _open_wall_rows(now: float | None = None) -> tuple[dict[str, dict], bool]:
             ts = row.get("ts")
             # one rule for a corrupt ts, clock or no clock: a row whose ts cannot be compared is
             # never OPEN — the first cut expired NaN and left `true`/a string/null un-expirable,
-            # so a relief tick wrote a surplus close row for it forever (Delta 15 seat A, F3/F4)
+            # so a relief tick wrote a surplus close row for it forever (Delta 15 seat A, F3/F4).
+            # Opposite fail direction from `_last_switch_ts` on purpose: there an unusable ts
+            # HOLDS (the dwell guard's safe side); here it means "no open episode", so the
+            # advisory SPEAKS — silence on a wall is the failure this latch guards against
+            # (Delta 16 seat C).
             usable = isinstance(ts, (int, float)) and not isinstance(ts, bool) and math.isfinite(ts)
             expired = not usable or (now is not None and now - float(ts) > _FLEET_WALL_REARM_S)
             acct = row.get("account")
@@ -5635,7 +5652,8 @@ def _open_wall_episode(email: str, now: float | None = None) -> tuple[dict | Non
     counting that row re-armed this latch every tick-pair — with a WRITABLE stamp the storm
     Delta 8 said it closed ran at 7 broadcasts an hour (Delta 9 seat B, F1; B21d's stamp path
     was a dead directory, so it never saw one). With *now* given, a wall row older than the
-    week re-arm is not open here either — the latch had already retired it (F6).
+    week re-arm is not open here either — the latch had already retired it (F6); a row whose ts
+    is not a usable number is not open here with or without *now* (Delta 15 seat A F3).
     An ABSENT ledger is a definite answer (nothing has ever walled), not a fault: `(None,
     True)`, or a virgin box wrote a phantom close row on its first relief (F3).
     """
@@ -5720,10 +5738,7 @@ def _advisory_ledger_latch(email: str, now: float) -> bool:
             False  # no open episode — an unreadable ledger reads (None, False): fails OPEN, speak
         )
     ts = last.get("ts")
-    # no `isfinite` here: the reader above expires a NaN/inf row for every caller with a clock,
-    # and this latch always has one — a second guard was unreachable (Delta 15 seat B, #3)
-    if not isinstance(ts, (int, float)) or isinstance(ts, bool):
-        return False
+    # the row's ts is usable by `_open_wall_rows`'s INVARIANT — no re-validation here
     age = now - float(ts)
     # the stamp tolerates 60 s of future-dating (WSL suspend / NTP); so does this (seat B, F3)
     # the week bound lives in `_open_wall_rows`, which retires the row before it reaches here —
@@ -5764,7 +5779,7 @@ def _rearm_wall_stamp(stamp: Path, email: str, now: float) -> None:
         else "0"
     )
     ts = row.get("ts")
-    at = float(ts) if isinstance(ts, (int, float)) and not isinstance(ts, bool) else now
+    at = float(ts)  # usable by `_open_wall_rows`'s INVARIANT; never raises on a returned row
     try:
         stamp.write_text(content, encoding="utf-8")
         os.utime(stamp, (at, at))

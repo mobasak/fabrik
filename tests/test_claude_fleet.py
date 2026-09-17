@@ -5828,6 +5828,10 @@ def test_a_stray_ledger_line_does_not_abort_the_flip_reader(tmp_path, monkeypatc
     assert cr._last_switch_ts(event="flip") == (FLEET_NOW - 600, False)
     # and a JSON `true` ts is an UNUSABLE ts (fail-closed), never a flip in 1970 (fail-open) — the
     # docstring forbids exactly that and the sibling readers already refuse a bool (F2)
+    # and a ts at or before the epoch: the ledger cannot predate its writer, so 0 is corruption,
+    # not a flip in 1970 — the type door was closed and the value door left open (Delta 16 A F3)
+    led.write_text(json.dumps({"event": "flip", "ts": 0, "from": "a@x", "to": "b@x"}) + "\n")
+    assert cr._last_switch_ts(event="flip")[1] is True
     led.write_text(json.dumps({"event": "flip", "ts": True, "from": "a@x", "to": "b@x"}) + "\n")
     ts2, degraded2 = cr._last_switch_ts(event="flip")
     assert degraded2 is True, (ts2, degraded2)  # the flag alone discriminates (seat B, #2)
@@ -5836,7 +5840,7 @@ def test_a_stray_ledger_line_does_not_abort_the_flip_reader(tmp_path, monkeypatc
     # grader drove it (Delta 15 seat A, F1)
     led.write_text('{"event": "flip", "ts": -Infinity, "from": "a@x", "to": "b@x"}\n')
     ts3, degraded3 = cr._last_switch_ts(event="flip")
-    assert degraded3 is True and ts3 != float("-inf"), (ts3, degraded3)
+    assert degraded3 is True, (ts3, degraded3)  # the flag alone discriminates here too (Delta 16 B)
 
 
 def test_the_rearmed_stamp_carries_the_episodes_own_promise(tmp_path, monkeypatch, capsys):
@@ -5975,6 +5979,8 @@ def test_a_wall_row_the_latch_has_retired_is_not_an_open_episode_to_the_closer(
     # every relief (Delta 15 seat A, F3/F4)
     for bad in ("true", '"x"', "null"):
         led.write_text('{"event": "fleet-active-wall", "ts": ' + bad + ', "account": "b@x"}\n')
+        # with a clock `true` (== 1, epoch 1970) also expires by AGE, so the clockless call below is
+        # the one that discriminates the `usable` rule for a bool — keep both (Delta 16 seat B)
         assert cr._open_wall_episode("b@x", now) == (None, True), bad
         assert cr._open_wall_episode("b@x") == (None, True), bad
         cr._close_wall_episode_without_stamp("a@x", now, "relief")
