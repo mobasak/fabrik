@@ -3,7 +3,7 @@
 **Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = b212d67fbe907a1b0d94624c1c7dea5507d2083e; range tip b212d67fbe907a1b0d94624c1c7dea5507d2083e; `git diff 0fcafed5..b212d67f -- scripts/enforcement/check_review_coverage.py scripts/review_receipt.py tests/enforcement/test_review_refusals.py tests/test_review_receipt.py tests/enforcement/test_review_confirmed_grammar.py` md5 84d1a0af795cc18f4bc13722bfe4ba2e (57751 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/enforcement/check_review_coverage.py`, `scripts/review_receipt.py`, `tests/enforcement/test_review_refusals.py`, `tests/test_review_receipt.py`, `tests/enforcement/test_review_confirmed_grammar.py`
-**Plan:** `docs/development/plans/2026-09-09-plan-1-review-convergence-redesign/2026-09-09-plan-1-review-convergence-redesign.md`
+**Plan:** `docs/development/plans/archived/2026-09-09-plan-1-review-convergence-redesign/2026-09-09-plan-1-review-convergence-redesign.md`
 
 ## Coverage Checklist
 

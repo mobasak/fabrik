@@ -3,7 +3,7 @@
 **Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = f3d8b85fb49721938cca4393c47a404b08f8a274; range tip f3d8b85fb49721938cca4393c47a404b08f8a274; `git diff bd58e5c0..f3d8b85f -- .windsurf/rules/core/62-using-subagents.md CLAUDE.md templates/governance/CLAUDE.md docs/reference/convergence-prompts.md docs/reference/MD/ai-prompt-templates.md` md5 1b6f027d017529e59013732110887bb0 (72790 bytes)
 **Command:** /fabrik-review · **Changed:** `.windsurf/rules/core/62-using-subagents.md`, `CLAUDE.md`, `templates/governance/CLAUDE.md`, `docs/reference/convergence-prompts.md`, `docs/reference/MD/ai-prompt-templates.md`
-**Plan:** `docs/development/plans/2026-09-09-plan-1-review-convergence-redesign/2026-09-09-plan-1-review-convergence-redesign.md`
+**Plan:** `docs/development/plans/archived/2026-09-09-plan-1-review-convergence-redesign/2026-09-09-plan-1-review-convergence-redesign.md`
 
 ## Coverage Checklist
 

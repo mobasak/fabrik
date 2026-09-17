@@ -3,7 +3,7 @@
 **Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = 1221d4c0d90b6a58fcddac054b366861b49da64e; range tip 1221d4c0d90b6a58fcddac054b366861b49da64e; `git diff 0fc15cae..1221d4c0 -- commands/_fragments/subagents-core.md commands/_sources/fabrik-repo-review.md commands/_sources/fabrik-review-scoped.md commands/_sources/fabrik-review.md commands/_sources/fabrik-rules-review.md commands/assemble_commands.py tests/test_assemble_dispatch_step.py` md5 5416d2484270c51ec43ae4f675144dca (83569 bytes)
 **Command:** /fabrik-review · **Changed:** `commands/_fragments/subagents-core.md`, `commands/_sources/fabrik-repo-review.md`, `commands/_sources/fabrik-review-scoped.md`, `commands/_sources/fabrik-review.md`, `commands/_sources/fabrik-rules-review.md`, `commands/assemble_commands.py`, `tests/test_assemble_dispatch_step.py`
-**Plan:** `docs/development/plans/2026-09-09-plan-1-review-convergence-redesign/2026-09-09-plan-1-review-convergence-redesign.md`
+**Plan:** `docs/development/plans/archived/2026-09-09-plan-1-review-convergence-redesign/2026-09-09-plan-1-review-convergence-redesign.md`
 
 ## Coverage Checklist
 

@@ -256,7 +256,7 @@ Both Pre-Kilo (Step 3) and Post-Kilo (Step 5) run identical checks:
 ## Documentation Structure Map
 
 <!-- AUTO-GENERATED:STRUCTURE:START -->
-<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-09-15T09:09 -->
+<!-- AUTO-GENERATED:STRUCTURE v1 | 2026-09-17T13:55 -->
 ```text
 docs/
 ├── BUSINESS_MODEL.md               # Monetization strategy
@@ -358,18 +358,7 @@ docs/
 │   │   │   ├── T04-session-advisory.md
 │   │   │   ├── T05-vision-and-epics-review-text.md
 │   │   │   └── T06-integration.md
-│   │   ├── 2026-09-09-plan-1-review-convergence-redesign
-│   │   │   ├── 2026-09-09-plan-1-review-convergence-redesign.md
-│   │   │   ├── T01-coverage-gate-grammars.md
-│   │   │   ├── T02-coverage-gate-refusals-and-verdicts.md
-│   │   │   ├── T03-convergence-quiet-pass.md
-│   │   │   ├── T04-dispatch-slices.md
-│   │   │   ├── T05-board-banner.md
-│   │   │   ├── T06-rule-pack-and-governance.md
-│   │   │   ├── T07-review-commands-and-fragment.md
-│   │   │   ├── T08-hygiene-script.md
-│   │   │   ├── T09-run-record-docs.md
-│   │   │   └── T10-integration.md
+│   │   ├── 2026-09-16-plan-1-quota-posture.md
 │   │   └── archived
 │   └── reviews
 │       ├── 2026-07-21-claude-p-scoring-review.md
@@ -671,8 +660,16 @@ docs/
 │       ├── 2026-09-14-plan-2-mail-triage-phase-3-E-review.md
 │       ├── 2026-09-14-plan-2-mail-triage-phase-C-review.md
 │       ├── 2026-09-14-scope-growth-stop-review.md
+│       ├── 2026-09-15-kaizen-loop-gap-closure-review.md
+│       ├── 2026-09-15-mail-driven-enforcement-fixes-review.md
+│       ├── 2026-09-15-mail-handling-review.md
 │       ├── 2026-09-15-plan-2-mail-triage-phase-4-F-review.md
 │       ├── 2026-09-15-plan-2-mail-triage-phase-5-G-review.md
+│       ├── 2026-09-16-fabrik-lib-contract-contradictions-review.md
+│       ├── 2026-09-16-identity-advisory-review.md
+│       ├── 2026-09-16-plan-1-quota-posture-review.md
+│       ├── 2026-09-16-quota-bands-behaviour-contract-review.md
+│       ├── 2026-09-16-self-naming-identity-review.md
 │       ├── archived
 │       ├── docs-truth-infra-ops-review.md
 │       ├── docs-truth-orchestrator-review.md
@@ -702,6 +699,7 @@ docs/
 │   │   ├── fleet-doc-audit-2026-08-26.md
 │   │   ├── fleet-doc-audit-2026-09-02.md
 │   │   ├── fleet-doc-audit-2026-09-09.md
+│   │   ├── fleet-doc-audit-2026-09-16.md
 │   │   ├── fleet-doc-audit-latest.md
 │   │   ├── infra-probe-2026-05-31T15-49Z.yaml
 │   │   ├── infra-probe-2026-05-31T22-36Z.yaml
@@ -920,6 +918,7 @@ docs/
 │       ├── 2026-09-10-review-family-adoption-design.md
 │       ├── 2026-09-11-review-family-pass3-design.md
 │       ├── 2026-09-16-ledger-write-integrity-design.md
+│       ├── 2026-09-16-multi-agent-self-naming-identity-design.md
 │       └── archived
 ├── traycer
 │   ├── PLAN_OUTPUT_LOCATION.md     # Plan output location

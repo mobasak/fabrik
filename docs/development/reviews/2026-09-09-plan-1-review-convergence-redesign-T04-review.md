@@ -3,7 +3,7 @@
 **Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = 0c1f2d5005f779baf8ea0641d366b631507a8fb6; range tip e2e57ff54d68c916a0c7b726b3e3966db4246448; `git diff 0c1f2d50..e2e57ff5 -- scripts/sysadmin/dispatch_headroom.py tests/sysadmin/test_dispatch_headroom.py docs/workstation/claude-account-rotation.md` md5 18047473f22cb52c1dcb8b4dd1ce3170 (30446 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/sysadmin/dispatch_headroom.py`, `tests/sysadmin/test_dispatch_headroom.py`, `docs/workstation/claude-account-rotation.md`
-**Plan:** `docs/development/plans/2026-09-09-plan-1-review-convergence-redesign/2026-09-09-plan-1-review-convergence-redesign.md`
+**Plan:** `docs/development/plans/archived/2026-09-09-plan-1-review-convergence-redesign/2026-09-09-plan-1-review-convergence-redesign.md`
 
 ## Coverage Checklist
 

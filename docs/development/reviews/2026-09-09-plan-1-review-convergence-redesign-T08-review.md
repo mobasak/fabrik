@@ -3,7 +3,7 @@
 **Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = ebdde6c1339c148e5a3a485a0bc14fc199c4a64f; range tip ebdde6c1339c148e5a3a485a0bc14fc199c4a64f; `git diff 5559fdcf..ebdde6c1 -- scripts/enforcement/check_review_hygiene.py tests/enforcement/test_check_review_hygiene.py scripts/final_gate.py docs/workflows/FINAL_GATE_WORKFLOW.md` md5 75b3205dfe263177435922369fb630a6 (37538 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/enforcement/check_review_hygiene.py`, `tests/enforcement/test_check_review_hygiene.py`, `scripts/final_gate.py`, `docs/workflows/FINAL_GATE_WORKFLOW.md`
-**Plan:** `docs/development/plans/2026-09-09-plan-1-review-convergence-redesign/2026-09-09-plan-1-review-convergence-redesign.md`
+**Plan:** `docs/development/plans/archived/2026-09-09-plan-1-review-convergence-redesign/2026-09-09-plan-1-review-convergence-redesign.md`
 
 ## Coverage Checklist
 

@@ -3,7 +3,7 @@
 **Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = 0c1f2d5005f779baf8ea0641d366b631507a8fb6; range tip 856659e2c6a36bc35f39fb13c2f04dcfade0046f; `git diff 0c1f2d50..856659e2 -- docs/reference/command-run-protocol.md docs/workstation/kaizen-event-stream.md` md5 25992f24fac0f3ee082e3811eefa8953 (11219 bytes)
 **Command:** /fabrik-review · **Changed:** `docs/reference/command-run-protocol.md`, `docs/workstation/kaizen-event-stream.md`
-**Plan:** `docs/development/plans/2026-09-09-plan-1-review-convergence-redesign/2026-09-09-plan-1-review-convergence-redesign.md`
+**Plan:** `docs/development/plans/archived/2026-09-09-plan-1-review-convergence-redesign/2026-09-09-plan-1-review-convergence-redesign.md`
 
 ## Coverage Checklist
 

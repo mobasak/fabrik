@@ -3,7 +3,7 @@
 **Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = 0c1f2d5005f779baf8ea0641d366b631507a8fb6; range tip b407555bf3bd535ac359d02a9a0f57ffa5eb528e; `git diff 0c1f2d50..b407555b -- scripts/sysadmin/quota_dashboard.py docs/workstation/quota-dashboard.md tests/test_quota_dashboard_banner.py` md5 568f1d6108da12f4d9c9a251b8349fa9 (7056 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/sysadmin/quota_dashboard.py`, `docs/workstation/quota-dashboard.md`, `tests/test_quota_dashboard_banner.py`
-**Plan:** `docs/development/plans/2026-09-09-plan-1-review-convergence-redesign/2026-09-09-plan-1-review-convergence-redesign.md`
+**Plan:** `docs/development/plans/archived/2026-09-09-plan-1-review-convergence-redesign/2026-09-09-plan-1-review-convergence-redesign.md`
 
 ## Coverage Checklist
 

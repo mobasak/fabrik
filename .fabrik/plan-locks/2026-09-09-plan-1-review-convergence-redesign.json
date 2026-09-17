@@ -1,5 +1,5 @@
 {
-  "plan": "docs/development/plans/2026-09-09-plan-1-review-convergence-redesign",
+  "plan": "docs/development/plans/archived/2026-09-09-plan-1-review-convergence-redesign",
   "owned_paths": [
     "scripts/enforcement/check_review_coverage.py",
     "tests/enforcement/test_review_confirmed_grammar.py",
@@ -38,7 +38,7 @@
   ],
   "branch": "master",
   "started_at": "2026-09-09T09:57:28",
-  "status": "active",
+  "status": "released",
   "baseline_commit": "03bb9702",
   "baseline_gate": {
     "lean_status": "success",
@@ -127,7 +127,7 @@
       "branch": "worktree-agent-ad7144e53b2348934",
       "head": "c49f389e",
       "rounds": 3,
-      "series": "20 \u2192 19 \u2192 13 candidates; 4 \u2192 5 \u2192 0 confirmed",
+      "series": "20 → 19 → 13 candidates; 4 → 5 → 0 confirmed",
       "seam": "V7 positive control re-pointed at the T10-split COST label at merge",
       "commit": "5026e90f"
     },
@@ -138,13 +138,15 @@
       "branch": "worktree-agent-abc469fc23e742303",
       "head": "9a4d839d",
       "rounds": 3,
-      "series": "28 \u2192 15 \u2192 7 candidates; 6 \u2192 3 \u2192 0 confirmed",
+      "series": "28 → 15 → 7 candidates; 6 → 3 → 0 confirmed",
       "integration": "D-191 flip 170b1989; docs review 633e38ce; render; dry run 505/2 refusals (wef repaired edcb7e6d, trade-intelligence pending 01M23G21EBSS4BC187HQ7PS02X); seam round 3 confirmed fixed at Finish; forced sync HELD"
     }
   },
   "merge_order_note": "T08 and T10 (code) land before T07: the commands render box-wide and order round --confirmed and the hygiene script; the Integration acts of T10 (D-191 flip, docs review, dry run, forced sync) stay last",
   "finish": {
     "whole_plan_receipt": "docs/development/reviews/2026-09-09-plan-1-review-convergence-redesign-review.md",
-    "sync": "held \u2014 awaiting trade-intelligence repair, then dry run 0 \u2192 sync_enforcement_to_projects.py --force \u2192 Status EXECUTED \u2192 archive \u2192 release"
-  }
+    "sync": "RUN 2026-09-17 — the T10 hold cleared (0 `Pass row refused:` over 538 receipts in 12 repos); sync_enforcement_to_projects.py --force: 45 projects, 0 failed"
+  },
+  "released_at": "2026-09-17T10:55:18+00:00",
+  "released_by": "infra (hub) — plan FINISHED: 10/10 tickets merged, whole-plan receipt CONVERGED, the ONE forced sync run 2026-09-17 (45 projects, 0 failed, 9,405 files, 55 into 107 worktrees), spine EXECUTED, set archived"
 }

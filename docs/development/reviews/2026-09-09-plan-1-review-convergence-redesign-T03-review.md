@@ -3,7 +3,7 @@
 **Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = 0c1f2d5005f779baf8ea0641d366b631507a8fb6; range tip c37386e11eb55a7d576efc874d62ded3788e7842; `git diff 0c1f2d50..c37386e1 -- scripts/enforcement/check_convergence.py tests/test_check_convergence.py` md5 123328f200d9fc4f5cb07d3e341446a8 (11282 bytes)
 **Command:** /fabrik-review · **Changed:** `scripts/enforcement/check_convergence.py`, `tests/test_check_convergence.py`
-**Plan:** `docs/development/plans/2026-09-09-plan-1-review-convergence-redesign/2026-09-09-plan-1-review-convergence-redesign.md`
+**Plan:** `docs/development/plans/archived/2026-09-09-plan-1-review-convergence-redesign/2026-09-09-plan-1-review-convergence-redesign.md`
 
 ## Coverage Checklist
 
