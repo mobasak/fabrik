@@ -3429,3 +3429,40 @@ MCP server whose instructions load while it exposes zero callable tools. Cost: o
 contradiction between two instruction sources a seat is told to trust. Worth one line in the roster's
 § the servers naming firecrawl as instructions-present / tools-absent, so the next seat does not
 re-probe it.
+
+## [infra] Successors routed out of the CONVERGED /fabrik-review-scoped scope-growth spec (D-281)
+
+The spec at `docs/superpowers/specs/2026-09-17-review-scoped-scope-growth-exit-design.md` CONVERGED on
+2026-09-17, closing on **D-278's own scope-growth stop** — rounds confirmed 29 · 15 · 6 · 3 · 0 at
+own-fix 0% · 86% · 66% · 66%, so three of the last three qualified. Under that stop's exit the items
+below were RECORDED rather than fixed, which is what let the remainder terminate.
+
+**1. The `--own-fix` counter is a bare self-report, and the evidence field is CHEAP.** The spec's COBRA
+section concedes the command has only the SOX-404(a) half — a self-report — with its stated attestation
+(D-206's fresh non-authoring reader) unenforced for this command: `check_review_coverage.py`'s V11
+grades a review report `/fabrik-review-scoped` never writes, and the command is absent from
+`command_run.py`'s done-time report floor. The draft claimed a per-finding citation had "nowhere to
+live"; that was a preference, not a structural fact — `own_fix` is stored as a bare integer on the
+round row in the file D1 already edits, so an evidence field costs what the required-flag change costs.
+**Destination: the build, as a stated successor, or a follow-on spec if it grows.**
+
+**2. `check_citations_resolve.py` should reach `commands/_sources/`.** Sweeping the CLASS rather than
+the two instances a seat found, **all FIVE code line-citations in `commands/_sources/fabrik-review-scoped.md`
+are stale** (`command_run.py:338`, `:384`, `:398-404`, `:2288`, `:2585`) — every underlying claim true,
+every pointer rotted as the script grew. The checker's `SOURCE_GLOBS` cover `docs/` roots only, so
+nothing watches the corpus that ships to ~46 repos. The build fixes those five; widening the checker is
+the class fix.
+
+**3. Three wording residues, recorded under the stop and deliberately not fixed** (fixing them would
+have un-quieted the closing round): § Goal's "nine sites touching" lost its object; the
+`term-coverage` rejection row repeats "a 16,559 B source" after a parenthetical insertion; and Ruling
+1's "a fourth was withdrawn" reads positionally where it is meant cardinally. All three are prose-only;
+none changes a claim.
+
+**4. The false-alarm side of D-278's bar is UNMEASURED on our own series.** The spec's grounding found
+that adding window rules to a detector raises its false-signal rate and that the documented human
+response is to keep the rule and take it "less seriously" — but the control-chart figures behind that
+do NOT transfer (they assume a stationary, independent series; a convergence loop is neither). So there
+is no borrowed number, and the question is open on our data: after one month, re-measure whether
+qualifying rounds are followed by reviews that still find ORIGINAL-surface defects. If they are, the
+stop is firing on healthy reviews and this spec moved the wallpaper rather than removing it.

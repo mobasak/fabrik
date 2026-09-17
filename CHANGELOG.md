@@ -20,9 +20,12 @@ Round 2 of the scoped review over the `_pick_flip_target` fix (delta seats A + C
   review pass escalates to the heavy one after "the second consecutive round that confirms defects",
   which is also the signature of a loop reviewing its own fixes. Measured on the feedback ledger
   (2026-09-07 to 2026-09-17): the trigger was met in 41 of 60 scoped closes carrying a round series,
-  and 4 heavy reviews in the same window declare a step-5 route-up.
-- **The exit is stated in EIGHT sites, not the six the routed brief named**, plus TWO statements in the
-  fleet-synced pack. The design makes the verdict a COMPUTED value `command_run.py` prints at `round`,
+  and 4 heavy reviews in the same window declare a step-5 route-up. ⚠️ The convergence review disclosed
+  that those 41 come from only 9 sessions, 56% from two of them, and 12 from the session that wrote the
+  spec — so the figure is a heavy-user rate, not a fleet-wide one.
+- **The exit is stated in NINE sites, not the six the routed brief named** — a review seat found the
+  ninth after the draft asserted its own enumeration was exhaustive — plus TWO statements in the
+  fleet-synced pack. Of the nine, three state the condition and one is operative. The design makes the verdict a COMPUTED value `command_run.py` prints at `round`,
   and every other site carries one condition-free sentence rendered from a single fragment.
 - **D-280 is an erratum to D-278** — its ratio bar stands; its omitted-round clause describes a
   mechanism the shipped fragments do not implement, and the fragments govern.
