@@ -1117,8 +1117,6 @@ def _iso_to_epoch(s: object) -> float | None:
     if not isinstance(s, str) or not s:
         return None
     try:
-        from datetime import datetime
-
         return datetime.fromisoformat(s.replace("Z", "+00:00")).timestamp()
     except ValueError:
         return None
@@ -1313,13 +1311,12 @@ def _cmd_status(as_json: bool) -> int:
             "⏸ auto-switch PAUSED (pause state unreadable — assumed paused; "
             "check the rotate state dir)"
         )
-    from datetime import datetime
 
     def fmt(w):
         if not w:
             return "-"
         rs = w.get("resets_at_epoch")
-        rs_s = datetime.fromtimestamp(rs).strftime("%a %H:%M") if rs else "?"
+        rs_s = _fmt_reset_clock(rs)  # the legacy view keeps its shape; the guard is shared
         return f"{w['utilization']:.0f}% (resets {rs_s})"
 
     for r in pay["accounts"]:
@@ -2750,11 +2747,7 @@ def _tick_inner() -> int:
                     if w and w.get("resets_at_epoch")
                 ]
                 revive = min(resets) if resets else None
-                from datetime import datetime
-
-                revive_s = (
-                    datetime.fromtimestamp(revive).strftime("%a %H:%M") if revive else "unknown"
-                )
+                revive_s = _fmt_reset_clock(revive, "unknown")
                 msg = (
                     f"QUOTA DRAIN: pool exhaustion approaching ({hot:.0f}% on the last "
                     f"eligible account, no installable sibling). Reach a commit-and-push "
@@ -3200,8 +3193,9 @@ def _pick_flip_target(
         # admits such cached rows, and their past epoch sorted AHEAD of every live account's
         # future reset, inverting perishable-first (closing review R3)
         # through the ONE validator: a CANDIDATE row whose weekly reset alone carried a giant JSON
-        # int raised OverflowError out of `float()` here — and out of `_fleet_picture` — after
-        # every other reset read had been routed (Delta 24 seat, RECORDED → this scoped fix)
+        # int raised OverflowError out of `float()` here — and out of `_fleet_picture`; the tick-burn
+        # projection and the `--status` clock renderers were the remaining bare sites, closed in the
+        # same scoped review (Delta 24 seat, RECORDED → this fix; round 1 seats A + C)
         reset = _usable_ts(reset)
         reset_at = reset if reset is not None and reset > _now() else far
         weekly = utils["seven_day"] if utils["seven_day"] is not None else 100.0
@@ -3786,19 +3780,27 @@ def _fleet_account_rows(
     return accounts, pending
 
 
+def _fmt_reset_clock(epoch: object, absent: str = "?") -> str:
+    """`%a %H:%M` for a reset epoch, or *absent* when there is none — or when the platform cannot
+    date it: `datetime.fromtimestamp` raises OverflowError/OSError/ValueError on a value past
+    `time_t` or non-finite, and a finite `1e300` passes every type validator and still raises, so
+    the guard sits around the CONVERSION, not the type (`--status` is the authority the contract
+    sends every agent to on a quota notice; it died on one corrupt cache row — scoped review,
+    round 1 seat A)."""
+    if not epoch:
+        return absent
+    try:
+        return datetime.fromtimestamp(epoch).strftime("%a %H:%M")  # type: ignore[arg-type]
+    except (OverflowError, OSError, ValueError, TypeError):
+        return absent
+
+
 def _fmt_quota_window(w: dict | None) -> str:
     """Fleet-view window formatter (the legacy _cmd_status keeps its own — that view must stay
     byte-identical while the fleet exists nowhere)."""
     if not isinstance(w, dict) or not isinstance(w.get("utilization"), (int, float)):
         return "-"
-    rs = w.get("resets_at_epoch")
-    if rs:
-        from datetime import datetime
-
-        rs_s = datetime.fromtimestamp(rs).strftime("%a %H:%M")
-    else:
-        rs_s = "?"
-    return f"{w['utilization']:.0f}% (resets {rs_s})"
+    return f"{w['utilization']:.0f}% (resets {_fmt_reset_clock(w.get('resets_at_epoch'))})"
 
 
 def _fleet_quota_text(row: dict) -> str:
@@ -4953,8 +4955,11 @@ def _tick_burn(email: str, row: dict, now: float) -> dict[str, float]:
         w = row.get(key)
         u = w.get("utilization") if isinstance(w, dict) else None
         r = w.get("resets_at_epoch") if isinstance(w, dict) else None
-        current[key] = float(u) if isinstance(u, (int, float)) else None
-        current[key + "_reset"] = float(r) if isinstance(r, (int, float)) else None
+        # through the ONE validator: this projection runs on the ACTIVE row BEFORE the picker on
+        # every tick, and a giant JSON int in the cache raised out of `float()` here — the tick,
+        # the posture write and the advisory all died behind it (scoped review, round 1 seat A)
+        current[key] = _usable_ts(u)
+        current[key + "_reset"] = _usable_ts(r)
     try:
         path = _rotate_state_dir() / "tick-last-reading.json"
         try:

@@ -3724,6 +3724,60 @@ def test_a_candidate_row_with_a_giant_weekly_reset_does_not_raise_out_of_the_pic
             picked,
         )  # returns; the giant reset reads as no reset
         assert isinstance(cr._fleet_picture([hot], "intel", now), dict), src
+    # and the ORDERING the fix chose: an undated candidate sorts LAST (`far`), so a dated sibling
+    # wins — a mutant writing `0.0` for the undated row inverted perishable-first fleet-wide and
+    # the single-candidate arm above stayed green (round 1 seat A)
+    _fleet_creds(fleet, "intel", "tok-intel", age_s=600.0)
+    # the dated row carries the WORSE weekly reading on purpose: with every candidate undated the
+    # tie-break (lowest weekly) would pick it anyway, so only perishable-first explains the pick
+    dated = _row(
+        "ob@ocoron.com", 10.0, 30.0, cap=90, s_reset=now + 3600, w_reset=now + 7200, slug="intel"
+    )
+    assert cr._pick_flip_target([hot, dated]) == ("intel", "ob@ocoron.com")
+    # a PAST reset is not perishability either (closing review R3): a stale cached row whose weekly
+    # reset has passed sorts LAST like an undated one, never ahead of a live future reset — and a
+    # reset exactly at `now` is on the past side of the strict `>` (mutants M4 and M2 survived)
+    for stale_reset in (now - 100, now):
+        stale = _row(
+            "sarp@ocoron.com",
+            10.0,
+            20.0,
+            cap=90,
+            s_reset=now + 3600,
+            w_reset=stale_reset,
+            slug="seo",
+        )
+        assert cr._pick_flip_target([stale, dated]) == ("intel", "ob@ocoron.com"), stale_reset
+
+
+def test_a_giant_int_on_the_active_row_does_not_raise_out_of_the_tick_burn_projection():
+    """`_tick_burn` runs on the ACTIVE row before the picker on every tick and converted the cache
+    fields bare — a giant JSON int there killed the tick, the posture write and the advisory
+    (scoped review, round 1 seat A). Its docstring says 'never raises'; now it does not."""
+    giant = int("1" + "0" * 400)
+    row = {
+        "email": "a@x",
+        "five_hour": {"utilization": 40.0, "resets_at_epoch": FLEET_NOW + 3600},
+        "seven_day": {"utilization": 31.0, "resets_at_epoch": giant},
+    }
+    assert cr._tick_burn("a@x", row, FLEET_NOW) == {"five_hour": 0.0, "seven_day": 0.0}
+    row2 = {**row, "five_hour": {"utilization": giant, "resets_at_epoch": FLEET_NOW + 3600}}
+    assert cr._tick_burn("a@x", row2, FLEET_NOW) == {"five_hour": 0.0, "seven_day": 0.0}
+
+
+def test_status_renders_a_reset_the_platform_cannot_date_as_unknown():
+    """Text `--status` died on `datetime.fromtimestamp` for a reset past `time_t` — and a finite
+    `1e300` passes every type validator and still raises, so the guard is on the conversion
+    (round 1 seat A)."""
+    for bad in (1e300, int("1" + "0" * 400), float("nan"), -1e300, "x"):
+        assert (
+            cr._fmt_quota_window({"utilization": 31.0, "resets_at_epoch": bad}) == "31% (resets ?)"
+        ), bad
+    assert cr._fmt_quota_window({"utilization": 31.0, "resets_at_epoch": None}) == "31% (resets ?)"
+    assert cr._fmt_reset_clock(0) == "?" and cr._fmt_reset_clock(None, "unknown") == "unknown"
+    assert cr._fmt_quota_window({"utilization": 31.0, "resets_at_epoch": FLEET_NOW}).startswith(
+        "31% (resets "
+    )
 
 
 def test_next_session_relief_prefers_the_soonest_session_reset_of_a_weekly_ok_sibling():
