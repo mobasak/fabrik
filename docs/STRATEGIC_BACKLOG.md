@@ -3258,3 +3258,50 @@ only ones worth writing, both referent-free and neither yet attempted:
 
 The rejected text of both attempts and all seven review reports are in the runs' scratchpads; this row
 and the two mails are the durable copies.
+
+## [infra] check_doc_links.py's bare-ref matcher is narrower than its subject — widening MEASURED, landing needs a ratchet
+
+Reported by web-ecommerce-factory as `01M2Q61CBECCQFB7YWQW1Z6EE7` (validated at source, replied
+`01M2QBVYCCNBK3G9RYJKJENMA1`). `scripts/enforcement/check_doc_links.py:95-97`'s `_BARE_RE` matches the
+prefixes `docs|scripts|src|specs|configs|templates|.windsurf` and the extensions
+`md|py|sh|yaml|yml|json|txt` — so NO doc citation of a test path, and no `.ts/.tsx/.mjs/.cjs/.astro`
+reference, is ever scanned. A `<!-- link-base: … -->` marker cannot rescue a ref that is never matched.
+The file is owned by NO active plan-lock; edit rights are not the obstacle.
+
+**FIRE RATE, measured 2026-09-17 by DRIVING THE REAL CHECK** (imported the module, repointed its
+module-global `REPO` per repo, ran `main()`; harness first validated against the live CLI on the hub —
+`OK — 0 broken of 2653 refs across 228 docs`, identical both ways). Widening = add `tests` to the
+prefix alternation and `ts|tsx|mjs|cjs|astro` to the extensions:
+- population 45 git repos under /opt (git-aware enumeration)
+- **220 NEW broken refs surface across 39 of the 45 repos**
+- **0 false positives in the sampled set** — every sample is a genuine stale or wrong-path cite. The
+  hub's `INDEX.md` cites `tests/capture_golden.py` and `tests/test_flywheel_safety.py`, which live at
+  `scripts/kilo-benchmarks/tests/`; `tests/test_derive_cost.py` and `tests/test_lcb_smoke.py` exist
+  nowhere.
+- **the hub itself gains 14**, in `INDEX.md`, `docs/CAPABILITIES.md`, `docs/FEATURES.md`,
+  `docs/STRATEGIC_BACKLOG.md`, `docs/orchestrator/orchestrator-cockpit-decisions.md`,
+  `docs/workflows/FABRIK_SCAFFOLD_WORKFLOW.md`, `docs/workstation/wsl-startup-inventory.md`.
+
+**WHY IT IS NOT A REGEX COMMIT.** `check_doc_links.py` is BLOCKING — `final_gate.py:1965-1970`,
+"links + index are blocking (the tree was converged to zero drift and must stay there)" — and it is on
+the governance-sync trigger surface, so one hub commit distributes it fleet-wide on the post-commit
+sync. Landing the widening as-is reds the COMPLETION GATE in 39 repos at once for 220 pre-existing doc
+defects, in repos the hub must not edit (cross-repo HARD STOP). Same shape as the deferred pytest-leg
+promotion ("would flip every repo with a red-but-unrun suite red on landing day").
+
+**DESTINATION: `/fabrik-spec`, with this measurement as its input** (do not re-derive it). Two shapes,
+both already precedented in this repo: a per-repo baseline ratchet that may only go DOWN — the pattern
+of `.fabrik/doc-script-baseline.json`, `.fabrik/decision-shape-baseline.json` and the lint ratchet,
+where the first run seeds today's count, blocks nothing, and the number can only fall — or a
+WARN-then-BLOCK window. The ratchet lands green everywhere on day one while making every NEW bad cite
+blocking, and puts no repo on a deadline. Its cobra (D-253) is written down here in advance: the
+cheapest way to satisfy a doc-link ratchet without producing the outcome is to DELETE the citation
+rather than fix it, which passes a count-based ratchet — so the ratchet keys on the SET of unresolved
+refs, not the count, exactly as `.fabrik/decision-shape-baseline.json` does.
+
+**CARRIED FORWARD, reported and not addressed:** `_resolves()` tries the repo root BEFORE a declared
+`link-base`, so a mistyped repo-root ref can be masked when a same-relative file exists under the site
+root. Their words, my agreement, nobody's fix yet.
+
+**SEPARATE AND SMALLER, owner infra:** the hub's own 14 cites above are real debt TODAY — they are
+simply invisible because the matcher never looks. They do not need the spec; they need one docs pass.
