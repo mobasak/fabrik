@@ -122,6 +122,13 @@ T6_CLAIMS = (
     # carry is SKIPPED but pointed at no guard, so a just-committed row sat in the working tree as a
     # pending DELETION and the next pathspec commit would have removed it. Measured twice in one run.
     "Then run step 5b's guard",
+    # D-284 (2026-09-17) — the pytest leg's semantics have ONE prose home: the GATE row's shared
+    # sentence cites the arming conjunction and names the three `--json` keys; a commit message
+    # claimed this grader proved the two copies identical when it asserted nothing about the
+    # sentence (scoped review seat C) — now it does, on a span no other clause repeats.
+    "cited because the paraphrase drifted once (",
+    "`skipped_checks` (bare NAMES — both rows reduce to `pytest` there, never the reason) AND `advisory`",
+    "a `status: \"setup-error\"` envelope (`:2881-2893`, the interpreter cannot import pytest) carries none of these keys",
     "FROM THE REPO ROOT",
     # Round 2: the un-discriminated wording FALSE-ALARMED on a CORRECT CHANGELOG.md carry — the
     # scratch blob is built with `>>` at EOF per step 2 while step 7 places the hunk atop
