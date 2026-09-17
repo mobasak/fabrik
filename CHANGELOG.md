@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Delta 14: a `true` or NaN ledger timestamp is refused by every reader; the flip reader's event selector graded; the tick figure said honestly (2026-09-17)
+
+- **Ledger timestamps that are a JSON `true` or a NaN are unusable, in all three readers**
+  (`scripts/sysadmin/claude_rotate.py`, twin identical): the flip reader passed `true` through
+  `isinstance(ts, (int, float))`, read it as a flip in 1970 and failed OPEN where its docstring
+  forbids exactly that (Delta 14 seat A F2); a NaN on a wall row never expired and never released
+  the advisory latch — an immortal row silencing that account for good (F6). B21k and B21g red on
+  the pre-fix code.
+- The flip reader's EVENT selector has its grader: a selector-less reader passed the whole suite
+  while every telemetry row would answer the flip clock and no flip would land again (F1). B21k
+  asserts `degraded` too (seat B) and describes the future-dated row honestly (F7); B21i pins the
+  row-gone race's silence (F5).
+- Comments: the floor's fleet-wide hold on a second account lasts to the first's promise OR the
+  week re-arm — the no-relief case (F3); the deferred-notice figure is up to ~28 min plus at most
+  one `*/5` tick, decided by sub-second tick latency, and the strict `<` is what lets an aligned
+  tick release (F4, also in `docs/workstation/claude-account-rotation.md`); a live session is freed
+  by the stamp's absence at its next tool call, an ended one by the relief wake if its watch is
+  armed (F8); the Delta 13 receipt row's own count corrected (seat C).
+
 ### Fixed — Delta 13: a stray ledger line no longer aborts the flip reader; the fleet-wide hold's true bound said; three grader arms (2026-09-17)
 
 - **`_last_switch_ts` skips a non-dict ledger line** like `_open_wall_rows` does, instead of
