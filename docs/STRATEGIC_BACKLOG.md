@@ -56,9 +56,11 @@ Generated from the end-of-day plan-state on 2026-06-07 after the trio Phase 5.1.
   giant-int class — has no bool exclusion: `{"refreshTokenExpiresAt": true}` reads as an expiry of 0.001
   (1970), so the chain reads long-dead and the account is excluded from flip candidacy. Fail-safe direction,
   outside the plan's diff; the one-line `isinstance(exp, bool)` refusal wants its own red-first grader beside
-  the existing OverflowError one. (2) `os.utime` silently WRAPS an mtime of `1e17` on this platform
-  (1e26 ns overflows int64; measured `15032385535.0`) — no writer can emit such a ts (`time.time()`), so it
-  is unreachable, but the re-arm has no upper bound on a returned row's ts beyond `time_t`. Owner: fleet.
+  the existing OverflowError one. (2) `os.utime` silently CLAMPS the stored mtime to the filesystem's ceiling
+  (`0x3_FFFF_FFFF` = `15032385535.0`) for every ts between there and `time_t` (~9.2e18) — measured with
+  `1e17`, first recorded here as a wrap (Delta 19 seat A, F3); no writer can emit such a ts (`time.time()`),
+  so it is unreachable, but the re-arm has no upper bound on a returned row's ts below `time_t`, and a
+  clamped stamp never ages out. Owner: fleet.
 - **Three review-harness gaps the quota-posture closing rounds paid for, each measured by a seat
   (2026-09-17).** (1) `tests/conftest.py` pins ten box-state seams autouse but NOT the clock: every
   multi-tick probe hand-rolls a 4-line `cr._now` monkeypatch — one seat wrote it sixteen times. A
