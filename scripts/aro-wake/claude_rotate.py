@@ -3986,8 +3986,10 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
         fv, wv = utils.get("five_hour"), utils.get("seven_day")
         cap = row.get("weekly_cap")
         fh, wk = row.get("five_hour"), row.get("seven_day")
-        fr = (fh or {}).get("resets_at_epoch") if isinstance(fh, dict) else None
-        wr = (wk or {}).get("resets_at_epoch") if isinstance(wk, dict) else None
+        # through the ONE validator — a giant JSON int in the cache raised out of `float()`
+        # here as it did in `_next_session_relief` (Delta 22 seat A, A3, one hop on)
+        fr = _usable_ts((fh or {}).get("resets_at_epoch") if isinstance(fh, dict) else None)
+        wr = _usable_ts((wk or {}).get("resets_at_epoch") if isinstance(wk, dict) else None)
         # strict at the picker's bar (`> session_max`, R5) OR at the trip threshold on the
         # session window (the picker refuses `a window >= thr` too) — replacing one with the
         # other left a row between a raised bar and the trip reading `unavailable` (native N7)
@@ -4011,14 +4013,14 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
         else:
             state = "unavailable"
         returns_at: float | None = None
-        if state == "over-threshold" and isinstance(wr, (int, float)) and float(wr) >= now:
-            returns_at = float(wr)
-        elif weekly_walled and isinstance(wr, (int, float)) and float(wr) >= now:
-            returns_at = float(wr)
-            if session_spent and isinstance(fr, (int, float)) and float(fr) > returns_at:
-                returns_at = float(fr)  # the LATER of the two (D1)
-        elif session_spent and isinstance(fr, (int, float)) and float(fr) >= now:
-            returns_at = float(fr)
+        if state == "over-threshold" and wr is not None and wr >= now:
+            returns_at = wr
+        elif weekly_walled and wr is not None and wr >= now:
+            returns_at = wr
+            if session_spent and fr is not None and fr > returns_at:
+                returns_at = fr  # the LATER of the two (D1)
+        elif session_spent and fr is not None and fr >= now:
+            returns_at = fr
         hot = (
             max(v for v in (fv, wv) if v is not None)
             if (fv is not None or wv is not None)
@@ -4032,8 +4034,8 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
                 "why": reason,
                 "session_pct": fv,
                 "weekly_pct": wv,
-                "session_resets_at": float(fr) if isinstance(fr, (int, float)) else None,
-                "weekly_resets_at": float(wr) if isinstance(wr, (int, float)) else None,
+                "session_resets_at": fr,  # already a float or None (the validator above)
+                "weekly_resets_at": wr,
                 "weekly_cap": cap,
                 "returns_at": returns_at,
                 "in_drain_band": hot is not None and hot >= band,
@@ -4189,12 +4191,9 @@ def _window_reading(w: object) -> tuple[float | None, float | None]:
     # returned GREEN for the hottest possible reading — failing open at the safest-looking band,
     # the one direction a quota guard must never take. ``int(nan)`` also crashed ``--status``, the
     # command the contract names as the authority (review round 1, both executed).
-    u, r = w.get("utilization"), w.get("resets_at_epoch")
-    if not (isinstance(u, (int, float)) and not isinstance(u, bool) and math.isfinite(u)):
-        u = None
-    if not (isinstance(r, (int, float)) and not isinstance(r, bool) and math.isfinite(r)):
-        r = None
-    return (float(u) if u is not None else None), (float(r) if r is not None else None)
+    # `_usable_ts` is that guard shape with the float conversion INSIDE it: `math.isfinite`
+    # on a giant JSON int raised out of here and the tick (Delta 22 seat A, A3)
+    return _usable_ts(w.get("utilization")), _usable_ts(w.get("resets_at_epoch"))
 
 
 def _fable_window(row: dict | None) -> tuple[str | None, dict | None]:
@@ -5410,9 +5409,11 @@ def _next_session_relief(
         weekly_blocked = (isinstance(wu, (int, float)) and wu >= 100.0) or (
             cap is not None and isinstance(wu, (int, float)) and wu >= float(cap)
         )
-        fr = fh.get("resets_at_epoch")
-        wr = wk.get("resets_at_epoch")
-        su = fh.get("utilization")
+        # through the ONE validator: `float()` of a giant JSON int in the usage cache raised out
+        # of this writer and the tick (Delta 22 seat A, A3); a bool reads None as it read 1.0
+        fr = _usable_ts(fh.get("resets_at_epoch"))
+        wr = _usable_ts(wk.get("resets_at_epoch"))
+        su = _usable_ts(fh.get("utilization"))
         # The PICKER's bar, not the drain threshold: `_flip_candidate_verdict` refuses a target
         # whose session is over ROTATE_TARGET_SESSION_MAX_PCT (85), so relief promised from the
         # 85-95 band named an instant at which nothing was pickable (closing review P3-2).
@@ -5421,24 +5422,19 @@ def _next_session_relief(
         )
         # STRICT, like the picker (`utils["five_hour"] > session_max`): at exactly the bar the
         # picker takes the account now, so it is not waiting on anything (R5)
-        session_spent = isinstance(su, (int, float)) and float(su) > session_bar
+        session_spent = su is not None and su > session_bar
         # `>=`: a reset AT now is "now" — the board's `_returns_at` mirror (P3-7).
-        if (
-            not weekly_blocked
-            and session_spent
-            and isinstance(fr, (int, float))
-            and float(fr) >= now
-        ):
+        if not weekly_blocked and session_spent and fr is not None and fr >= now:
             # blocked ONLY by its session — the docstring's contract. An account under both bars
             # is not waiting for any window; naming its 5h reset promised the whole fleet a wait
             # nothing required (P3-1: a full-window sibling behind an untrusted cache).
-            session_wait.append((float(fr), email))
-        elif weekly_blocked and isinstance(wr, (int, float)) and float(wr) >= now:
+            session_wait.append((fr, email))
+        elif weekly_blocked and wr is not None and wr >= now:
             # A weekly reset does not help an account whose 5h window is ALSO spent past that
             # instant: its relief is the LATER of the two (review 2026-09-06, D1).
-            epoch = float(wr)
-            if session_spent and isinstance(fr, (int, float)) and float(fr) > epoch:
-                epoch = float(fr)
+            epoch = wr
+            if session_spent and fr is not None and fr > epoch:
+                epoch = fr
             weekly_wait.append((epoch, email))
     # The SOONEST epoch across both buckets. It used to prefer ANY session reset over ANY weekly
     # reset — a 10h session wait over a 1h weekly wait (review 2026-09-06, D1). The bucket only
@@ -5781,7 +5777,10 @@ def _advisory_ledger_latch(email: str, now: float) -> bool:
     # (and the tick), and `Infinity` latched forever — an unusable promise reads as NO promise,
     # exactly as the re-arm writes it (Delta 21 seat A, A1 mirror)
     promised = _usable_ts(last.get("resume_epoch"))
-    if promised is not None:
+    # and the STAMP reader's relation on top (`_promised_resume`: a promise not in the future of
+    # its own row is NO promise) — without it a promise at or before the row's ts read as
+    # RELEASED here and as a week-long hold there, one field, two verdicts (Delta 22 seat A, A1)
+    if promised is not None and promised > float(ts):
         return now < promised
     # no promise to break (no relief time could be named — which IS the fleet wall): latched to
     # the week re-arm, exactly like a stamp whose content is "0". The first cut released at the
@@ -5821,10 +5820,12 @@ def _rearm_wall_stamp(stamp: Path, email: str, now: float) -> None:
                 f"claude_rotate: fleet-exhausted stamp NOT re-armed ({stamp}): ledger unreadable\n"
             )
         return
-    promised = _usable_ts(row.get("resume_epoch"))  # unusable = no promise, like the latch
-    content = str(int(promised)) if promised is not None else "0"
     ts = row.get("ts")
     at = float(ts)  # converts by `_open_wall_rows`'s INVARIANT; `os.utime` may still refuse it
+    # unusable, or not in the future of its own row, = NO promise: the stamp reader's rule
+    # (`_promised_resume`) and the ledger latch's, so one field reads the same everywhere (A1)
+    promised = _usable_ts(row.get("resume_epoch"))
+    content = str(int(promised)) if promised is not None and promised > at else "0"
     # built beside the stamp, moved in by one replace: nothing here ever writes to, or removes,
     # a stamp that already exists (Delta 19 A F1 · Delta 20 C #2 — see the docstring)
     tmp: Path | None = None
@@ -5832,6 +5833,16 @@ def _rearm_wall_stamp(stamp: Path, email: str, now: float) -> None:
     try:
         # inside the try: a path with an EMPTY name (`/`) raises ValueError here (A3)
         tmp = stamp.with_name(f"{stamp.name}.{os.getpid()}.rearm")
+        # the per-pid name introduces litter — a SIGKILL between the write and the move leaves
+        # a temp under a pid that never returns — so sweep ours older than an hour first, as
+        # `_write_quota_posture` does for its staging file (Delta 22 seat A, A2)
+        try:
+            cutoff = now - 3600.0
+            for orphan in stamp.parent.glob(f"{stamp.name}.*.rearm"):
+                if orphan != tmp and orphan.stat().st_mtime < cutoff:
+                    orphan.unlink()
+        except OSError:
+            pass  # housekeeping never costs the write
         tmp.write_text(content, encoding="utf-8")
         written = True
         os.utime(tmp, (at, at))
@@ -5840,7 +5851,9 @@ def _rearm_wall_stamp(stamp: Path, email: str, now: float) -> None:
         sys.stderr.write(f"claude_rotate: fleet-exhausted stamp NOT re-armed ({stamp}): {exc}\n")
         if written and tmp is not None:  # only ever OUR temp file, never the stamp
             try:
-                tmp.unlink(missing_ok=True)  # a sibling's replace may have taken it (A2)
+                # no other PROCESS can name our temp now; `missing_ok` keeps an anomalous
+                # disappearance from adding a false second line (Delta 22 seat A, A4)
+                tmp.unlink(missing_ok=True)
             except OSError as exc2:  # `written` is what keeps OSError enough: a NUL-byte
                 # path never reaches it, so no ValueError can arrive here (A7)
                 sys.stderr.write(f"claude_rotate: re-arm temp file left in place ({tmp}): {exc2}\n")

@@ -107,8 +107,8 @@ import pytest  # noqa: E402 — placed with the rule it serves
 def _private_monkeypatch():
     """A `MonkeyPatch` of its OWN for the autouse box-state pins below. The function-scoped
     `monkeypatch` fixture is SHARED with the test, so a test's `monkeypatch.undo()` — eleven calls
-    across eight hub test files when measured, ten across seven once this file's own moved to a
-    context — consumed the whole stack and unpinned every seam
+    across eight hub test files when measured, and this probe file's own call keeps it at eleven —
+    consumed the whole stack and unpinned every seam
     for the rest of that test: the fleet suite then mkdir'd and read the operator's real
     `~/.claude/state` (Delta 20 seat A, F2). A private instance is out of any test's reach;
     `tests/test_conftest_isolation.py` grades it."""

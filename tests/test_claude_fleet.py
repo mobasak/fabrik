@@ -3661,6 +3661,27 @@ def _row(email, session, weekly, cap=None, s_reset=None, w_reset=None, slug=None
     }
 
 
+def test_a_giant_int_in_the_usage_cache_does_not_raise_out_of_the_relief_writer_or_the_window_reader():
+    """Delta 22 seat A, A3: `float()` of a giant JSON int `resets_at_epoch` raised out of
+    `_next_session_relief` — and `math.isfinite` of one out of `_window_reading` — killing the
+    tick on every run until the cache file was hand-edited; the same class Delta 17 closed for
+    the ledger readers, one function away on the same path."""
+    giant = int("1" + "0" * 400)
+    now = FLEET_NOW
+    rows = [
+        _row("act@x", 91.0, 40.0, cap=99, s_reset=now + 4000),
+        _row("g@x", 98.0, 27.0, cap=90, s_reset=giant, w_reset=now + 90000),
+    ]
+    relief = cr._next_session_relief(
+        rows, "act@x", now
+    )  # returns, and an unusable reset is no relief
+    assert relief is None or relief[1] != "g@x", relief
+    assert cr._window_reading({"utilization": 0.5, "resets_at_epoch": giant}) == (0.5, None)
+    assert cr._window_reading({"utilization": giant, "resets_at_epoch": now}) == (None, now)
+    picture = cr._fleet_picture(rows, "act", now)  # the picture composer read the same field bare
+    assert isinstance(picture, dict)
+
+
 def test_next_session_relief_prefers_the_soonest_session_reset_of_a_weekly_ok_sibling():
     now = FLEET_NOW
     rows = [
@@ -5989,6 +6010,33 @@ def test_the_rearmed_stamp_carries_the_episodes_own_promise(tmp_path, monkeypatc
         assert stamp9.read_text(encoding="utf-8") == "0", bad
         stamp9.unlink()
         assert cr._advisory_ledger_latch("a@x", now + cr._ADVISORY_MIN_GAP_S) is True, bad
+    # and a promise NOT in the future of its own row — 0, the row's ts, one second before it: the
+    # stamp reader reads it as NO promise (a week's hold) while the ledger latch read it as
+    # RELEASED, one field, two verdicts (Delta 22 seat A, A1); both say NO promise now
+    for bad in ("0", repr(now - 900), repr(now - 901)):
+        (state / "rotate-ledger.jsonl").write_text(
+            '{"event": "fleet-active-wall", "ts": '
+            + repr(now - 900)
+            + ', "account": "a@x", "resume_epoch": '
+            + bad
+            + "}\n"
+        )
+        stamp10 = tmp_path / "locks" / "fleet-exhausted-10"
+        cr._rearm_wall_stamp(stamp10, "a@x", now)
+        assert stamp10.read_text(encoding="utf-8") == "0", bad
+        assert cr._promised_resume(stamp10) is None, bad
+        stamp10.unlink()
+        assert cr._advisory_ledger_latch("a@x", now + cr._ADVISORY_MIN_GAP_S + 1) is True, bad
+    # and an ORPHAN temp under a pid that never returns is swept by the next healthy re-arm —
+    # the per-pid name accumulated them forever (Delta 22 seat A, A2)
+    (state / "rotate-ledger.jsonl").write_text(
+        json.dumps({"event": "fleet-active-wall", "ts": now - 900, "account": "a@x"}) + "\n"
+    )
+    orphan = tmp_path / "locks" / "fleet-exhausted-11.999999.rearm"
+    orphan.write_text("junk", encoding="utf-8")
+    os.utime(orphan, (1, 1))
+    cr._rearm_wall_stamp(tmp_path / "locks" / "fleet-exhausted-11", "a@x", now)
+    assert not orphan.exists() and (tmp_path / "locks" / "fleet-exhausted-11").exists()
     # and a NUL byte in the path, with no monkeypatch: write_text raises ValueError, which the
     # outer except must catch (Delta 19 A F5 / Delta 20 A F3) — and since nothing was written,
     # no cleanup runs and nothing claims a temp file was left (the first cut said so falsely)
