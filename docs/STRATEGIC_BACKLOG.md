@@ -3371,3 +3371,36 @@ bar's arithmetic today.
 is a third site on the superseded bar; and the fragment, D-278 and `command_run.py` give THREE different
 answers for an omitted round (never-qualifies / read-as-own-fix / breaks-the-window). All were lock-owned
 this morning and are free now. Mail 01M2QCJBYV9F8ZKPR9KMNVV6FC.
+
+## [infra] Two seat-harness costs a partitioned review pays 3× per round — one sends a seat at a forbidden path, the other makes a compliant seat look stalled
+
+Filed by fleet from two native `fabrik-reviewer` seats in the quota-posture Finish review
+(`01M2QGRXNCHY68HHD8PG4WXXDC`, 2026-09-17). Both are MACHINERY, not repo defects, and both are
+silent-cost shapes.
+
+**(1) The Bash tool's overflow target follows the SESSION, not the scratchpad the brief pins.** A seat
+`cat`-ed a 53 KB pin; the result overflowed to
+`/home/ozgur/.claude-fleet/active/projects/<repo-key>/<session>/tool-results/<id>.txt` — under
+`$HOME/.claude*`, the zone every seat brief forbids because a seat that reads it stalls (the
+subagent-home-dir-hang class). **Confirmed first-hand, not taken on report:** this very session's
+overflows land at exactly that path while its scratchpad is `/tmp/claude-1000/…`. So a seat that obeys
+the brief's scratch pin can still be handed a path the same brief forbids, with no warning.
+
+**(2) A Bash safety-classifier outage has no documented fallback for a read-only finder.** During one
+delta the classifier (`claude-sonnet-5[1m]`) reported "temporarily unavailable (connection failed)" then
+"(timed out)" twice mid-pass, refusing `git worktree`/`pytest` invocations it had allowed minutes
+earlier. Each cost a retry and a split of a compound command; nothing tells a seat whether to retry,
+route around, or report.
+
+**Destination — ONE file, both notes:** `commands/_fragments/subagents-core.md:5`, the line that already
+carries the git-verb prohibition every brief renders. The leanest cuts, from the reporter: (a) read a
+pin with `sed -n`/`head`, never `cat` a file over ~20 KB, because the overflow target is not yours to
+choose; (b) a classifier refusal on a command allowed moments earlier is an OUTAGE — retry once after
+30 s, then report it as MACHINERY, so the seat neither loops nor silently drops the step.
+
+**Why it is not a one-line edit anyone can take blind:** `subagents-core.md` renders into the whole
+review family, so the sentence must be true for every consumer (the fragment-consumer enumeration rule),
+and a size threshold stated as a number in rendered text is a moving number unless it is a rule of
+thumb — write it as "never `cat` a pin, range-read it", not as a byte budget nobody can check.
+**Blast radius:** every partitioned review dispatches 3+ seats per round, so each cost lands 3× per
+round. Take it in the next `/fabrik-command-improve` run over the review fragments.
