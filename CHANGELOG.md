@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Delta 20: the wall-stamp re-arm is built beside its path and moved in by one replace; the autouse test pins ride a private MonkeyPatch (2026-09-17)
+
+- **A failed re-arm never touches an existing stamp** — the in-place write overwrote a pre-existing writable
+  stamp's content and mtime before `os.utime` refused the ts, so the stamp Delta 19 kept carried the drift its
+  docstring forbids. The stamp is written to `<stamp>.rearm`, stamped, and moved in by one `os.replace`; only a
+  temp file the call wrote is ever removed. Three handler behaviours are newly graded: the failure is said
+  before any cleanup, a NUL-byte path's ValueError is caught, a sealed directory raises nothing out.
+- **A test's own `monkeypatch.undo()` can no longer unpin the box-state seams** — the four autouse pins in
+  `tests/conftest.py` ride a private `pytest.MonkeyPatch`; before, one bare undo (ten exist across eight hub
+  test files) unpinned `ROTATE_STATE_DIR` and friends for the rest of the test, and the fleet suite mkdir'd
+  and read the operator's real `~/.claude/state`. Graded in `tests/test_conftest_isolation.py`, red on HEAD.
+- **Prose** — the mtime ceiling's hex is `0x3_7FFF_FFFF`; a clamped mtime is future-dated, so the latch reads it
+  as invalid and re-fires once while the primary write resets it (the backlog row said the opposite);
+  `quota_stop.py` allows on absence. Fix commit `b65d6557`; 246 + 166 passed; gate `status: success`.
+
 ### Fixed — Delta 19: a failed wall-stamp re-arm never drops a hold it did not arm; the failure is said first (2026-09-17)
 
 - **The re-arm's cleanup no longer deletes the fleet hold** — Delta 18's `unlink` ran on every failure arm,
