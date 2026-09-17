@@ -2,6 +2,58 @@
 # Lessons Learnt
 
 
+## I matched a constant to the wrong quantity, and measured everything except that (2026-09-17)
+
+**What happened.** Two files carry a constant about the same scope-growth stop.
+`scripts/command_run.py::SCOPE_GROWTH_ROUNDS` is a sliding WINDOW — look at the last three rounds.
+`scripts/enforcement/check_review_coverage.py::_OWN_FIX_ROUNDS_FOR_STOP` is a count of trailing
+rounds that must EACH have confirmed something. A lockstep grader asserted the two were equal, so
+when the window went from 2 to 3 I raised the checker's constant to 3 as well. It shipped to 47
+directories on the post-commit governance sync and stood for about twenty minutes.
+
+**What it cost.** The gate then REFUSED the exit its own twin ADVISED. Measured against the
+receipt corpus, false refusals went from 12% to 25%, and the newly-broken class was the *natural*
+shape of a review loop: round 1 is the full pass and legitimately confirms things at zero own-fix,
+so a three-round all-confirming tail is exactly what an honest loop does not have. The twin of
+`SCOPE_GROWTH_ROUNDS` is `SCOPE_GROWTH_QUALIFY` — how many of the window's rounds must qualify —
+and that number never moved. Reverted to 2 in the same session, the lockstep grader re-pointed at
+the real sibling, and six fixture widenings backed out with it.
+
+**Why every guard passed.** I measured the blast radius carefully before committing: which receipts
+changed verdict, how many, in which repos. The measurement was competent and the number was right.
+It answered "what does changing this constant do" and never once answered "is this the constant
+that corresponds to the one I changed". A blast-radius measurement takes the mapping as given; it
+cannot audit it. The lockstep grader was not a check on that either — it was the thing asserting
+the wrong mapping, so it went green by construction the moment I made both numbers agree.
+
+**The transferable rule.** When two constants in different files are said to be twins, name the
+QUANTITY each one counts, in words, before you move either. Two numbers that are equal today are
+not thereby the same number. `command_run.py` now carries that distinction in a comment beside both
+constants, including the cost of following the wrong one, because the next reader will arrive with
+the same plausible reading I had.
+
+## A commit's post-commit hook holds a sibling's WIP, and a harness timeout kills it silently (2026-09-17)
+
+**What happened.** A commit on a governance-sync trigger path ran with a 2-minute Bash timeout. The
+pre-commit stash had already swept 14 sibling WIP files out of the tree; the post-commit governance
+sync to ~46 repos runs for minutes. The timeout killed the process mid-hook. The commit itself had
+landed. `git status` went from 14 dirty files to 1.
+
+**Why it is dangerous.** A clean `git status` right after a commit is what SUCCESS looks like. There
+is no error anywhere — not in the commit, not in the log, not in the exit code you see. The sibling
+whose fourteen files vanished was in another window and would have found out by looking. I caught it
+only because I had the count from earlier in the session and noticed it drop.
+
+**The recovery.** Confirm no hook is still running first (`pgrep` the sync by a pattern that cannot
+match your own shell — `pgrep -f sync_enforcement_to_projects` matches the shell running it, which
+costs you a ten-minute timeout of its own). Then `git apply --check` the stashed patch as a dry run
+before applying it. All 14 files came back byte-for-byte.
+
+**The rule.** A commit whose paths touch a governance-sync trigger surface gets a foreground timeout
+ABOVE the sync's own runtime, or it runs in the background — never the default. The window between
+the pre-commit stash and its restore is the only moment in the day when another agent's uncommitted
+work exists solely inside a patch file.
+
 ## My red-on-revert experiments ran on the live tree while a seat was reviewing it (2026-09-16)
 
 **What happened.** A review seat reported, in its MACHINERY note, that the file it was reviewing
