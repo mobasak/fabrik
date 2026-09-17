@@ -177,10 +177,45 @@ def test_a_real_dir_where_the_shared_link_belongs_is_named_on_resume_and_on_stat
     assert link.is_dir() and not link.is_symlink() and (link / "4242.json").exists()
     warns = cr._shared_link_warnings()
     assert len(warns) == 1 and "seo/sessions" in warns[0] and "D-287" in warns[0], warns
-    link.rmdir() if False else None
+    # the WIRING, not the function: the --status call site shipped missing once while this grader
+    # read green off the direct call (delta seat D, F1/F5)
+    monkeypatch.setattr(cr, "_shared_bound_sessions", lambda *a, **k: 0)
+    _fake_oauth(monkeypatch)
+    capsys.readouterr()
+    assert cr.main(["--status"]) == 0
+    assert "shared state fragmented: seo/sessions" in capsys.readouterr().out
+    assert cr.main(["--status", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert any("seo/sessions" in w for w in payload["fleet_warnings"]), payload["fleet_warnings"]
     shutil.rmtree(link)
     link.symlink_to(cdir / "sessions", target_is_directory=True)
     assert cr._shared_link_warnings() == []
+
+
+def test_a_dangling_shared_link_is_named_until_a_resume_heals_it(tmp_path, monkeypatch, capsys):
+    """Removing the canonical dir dangles every fleet dir's link at once; the CLI's mkdir through
+    it raises FileExistsError, every registry write fails, and a resume skipped it as "already a
+    symlink" while the detector read it as absent (delta seat D, F3)."""
+    fleet, cdir, _home = _canonical(tmp_path, monkeypatch)
+    assert cr.main(["--new-dir", "seo", "a@b.com"]) == 0
+    shutil.rmtree(cdir / "sessions")
+    link = fleet / "seo" / "sessions"
+    assert link.is_symlink() and not link.exists()
+    warns = cr._shared_link_warnings()
+    assert len(warns) == 1 and "seo/sessions (dangling link)" in warns[0], warns
+    capsys.readouterr()
+    assert cr.main(["--new-dir", "seo", "a@b.com"]) == 0
+    assert link.is_symlink() and link.exists() and (cdir / "sessions").is_dir()
+    assert cr._shared_link_warnings() == []
+    # a canonical entry that is a FILE cannot be a link target: the note says what is in the way
+    shutil.rmtree(cdir / "projects")
+    (cdir / "projects").write_text("not a dir")
+    (fleet / "seo" / "projects").unlink()
+    capsys.readouterr()
+    assert cr.main(["--new-dir", "seo", "a@b.com"]) == 0
+    out = capsys.readouterr().out
+    assert "projects/ symlink" in out and "is not a directory" in out, out
+    assert not os.path.lexists(fleet / "seo" / "projects")
 
 
 def test_new_dir_without_a_project_writes_no_carrier(tmp_path, monkeypatch):

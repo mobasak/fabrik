@@ -1929,7 +1929,12 @@ def _scaffold_dir(dest: Path, notes: list[str], source: Path) -> None:
     for name in _SHARED_DIR_LINKS:
         link = dest / name
         if link.is_symlink():
-            continue
+            if link.exists():
+                continue
+            # DANGLING (the canonical dir was removed): the CLI's own mkdir through it raises
+            # FileExistsError, every registry write fails ENOENT, and nothing said so (delta
+            # seat D, F3) — drop the dead link and fall through to re-link
+            link.unlink()
         if link.exists():
             # a REAL dir where the link belongs is the D-287 state; a silent resume kept it
             # invisible (scoped review, seat A F2) — say it, never touch it (it may hold live records)
@@ -1947,7 +1952,10 @@ def _scaffold_dir(dest: Path, notes: list[str], source: Path) -> None:
             try:
                 src.mkdir(mode=0o700, parents=True, exist_ok=True)
             except OSError as e:
-                notes.append(f"skipped the {name}/ symlink — cannot create {src} ({e})")
+                why = (
+                    "exists but is not a directory" if os.path.lexists(src) else "cannot be created"
+                )
+                notes.append(f"skipped the {name}/ symlink — {src} {why} ({e})")
                 continue
         link.symlink_to(src, target_is_directory=True)
 
@@ -3938,18 +3946,18 @@ def _shared_link_warnings() -> list[str]:
     started after the last flip) had NO runtime signal, and the operator's symptom was the only
     detector (scoped review, seat A F3). Read-only: the merge is the operator's, by hand."""
     bad = [
-        f"{d.name}/{name}"
+        f"{d.name}/{name}" + ("" if (d / name).exists() else " (dangling link)")
         for d in _fleet_dirs()
         for name in _SHARED_DIR_LINKS
-        if (d / name).exists() and not (d / name).is_symlink()
+        if os.path.lexists(d / name) and not ((d / name).is_symlink() and (d / name).exists())
     ]
     if not bad:
         return []
     return [
-        f"⚠ shared state fragmented: {', '.join(bad)} — a REAL dir where the link to "
-        f"{CLAUDE_DIR}/<name>/ belongs, invisible to every other account (sessions/: the peer "
-        "list shrinks to one after a flip, D-287); merge it into the canonical dir by hand and "
-        "replace it with the symlink"
+        f"⚠ shared state fragmented: {', '.join(bad)} — a REAL dir (or a dangling link) where "
+        f"the link to {CLAUDE_DIR}/<name>/ belongs, invisible to every other account (sessions/: "
+        "the peer list shrinks to one after a flip, D-287); merge a real dir into the canonical "
+        "dir by hand and replace it with the symlink; a dangling link heals on --new-dir resume"
     ]
 
 
@@ -4897,7 +4905,7 @@ def _print_picture(pic: dict) -> None:
 
 def _cmd_fleet_status(dirs: list[Path], as_json: bool) -> int:
     accounts, pending = _fleet_account_rows(dirs)
-    warns = _fleet_row_warnings(accounts) + _fleet_warnings()
+    warns = _fleet_row_warnings(accounts) + _fleet_warnings() + _shared_link_warnings()
     active = _resolve_active()  # slug | None (missing/dangling pointer)
     if as_json:
         print(
