@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Delta 15: any unusable wall-row timestamp expires the row; the dead latch guard removed; the flip reader's `-Infinity` arm graded (2026-09-17)
+
+- **`_open_wall_rows` treats every unusable timestamp alike** (`scripts/sysadmin/claude_rotate.py`,
+  twin identical): Delta 14 expired NaN and left a `true`, a string or a null un-expirable, with
+  or without a clock, so a relief tick wrote a surplus `wall-episode-closed` row for it forever
+  (Delta 15 seat A). One `usable` rule now; B21g drives all three shapes, red on the pre-fix code.
+- The latch's own `isfinite` is gone: the reader retires a non-finite row for every caller with a
+  clock and the latch always has one — the same dead-guard shape Delta 11 removed one line below,
+  above the comment that says why (seats A and B). The flip reader's stderr and docstring name the
+  causes that fire (a JSON `true`, non-finite); B21k drives `-Infinity`, the one value the finite
+  guard alone catches, and pins last-match with an older second flip row; one comment's
+  parenthesis no longer swallows the week-re-arm clause; the Delta 14 receipt row's count corrected.
+
 ### Fixed — Delta 14: a `true` or NaN ledger timestamp is refused by every reader; the flip reader's event selector graded; the tick figure said honestly (2026-09-17)
 
 - **Ledger timestamps that are a JSON `true` or a NaN are unusable, in all three readers**
