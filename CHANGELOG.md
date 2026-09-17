@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the GATE sentence's round 3: every rewritten clause says the mechanism and is pinned (2026-09-17)
+
+The scoped review's confirming seat found six items inside the round-2 rewrite (`82f53ce5e`), all executed against `final_gate.py`: "each non-asserting row" over-widened `advisory` (it is `WARN_ONLY_CHECKS` membership); "one that ran is the bare name" was false for exit 4 and 5; "ruff and pytest excepted: their absence aborts" was false for ruff, which resolves as a binary with a PATH fallback; "`--json` changes only the output format" ignored the AI-fix gate; the workflow line hid the unreachable "pytest is not installed" branch; and the split grader pinned one of four rewritten clauses. Fixed at `b206f0655`: each clause names the mechanism with its line, and `tests/test_governance_template_split.py` pins every rewritten span — each red under a hub-only mutation in a throwaway worktree whose grader resolves that worktree (a copied grader alone resolves the live repo and reads a false green; executed both ways).
 ### Fixed — the GATE sentence's delta round: the setup-error trigger, the two rows' names, the older skip line (2026-09-17)
 
 The scoped review's fresh delta seat found three items inside the round-1 fix: the setup-error parenthetical named pytest as the trigger when `REQUIRED_TOOLS` probes ruff first and before any tier runs; "each not-run row" contradicted the sentence's own "a leg that ran but collected nothing"; and `FINAL_GATE_WORKFLOW.md`'s older four-skip line contradicted the table two lines below it. Fixed at `82f53ce5e` in both contracts and the doc, with "Tier-2 (`--json`)" reworded (a bare run is Tier 2), the roster-name claim narrowed to the decorated not-run rows, and the hub's static-tier clause excepting ruff and pytest; the split grader's pinned span follows at `1184db4d6`.
