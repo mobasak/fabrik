@@ -49,13 +49,13 @@ The Stop hook keys on `state == "running"` **alone**, so neither field can chang
 
 | Command | Effect |
 |---|---|
-| `start --command <name> --phases <N> [--terminal "<cond>"]` | begin a run at phase 1 (a running record is pushed onto `stack`) |
-| `step --phase <N> [--title "<t>"]` | advance |
+| `start --command <name> --phases <N> [--terminal "<cond>"] [--surface "<s>"] [--file <path>…] [--declare k=v,…]` | begin a run at phase 1 (a running record is pushed onto `stack`). `--file` (repeatable, ONE repo path per occurrence — a path that does not exist yet is accepted, so the grader the change is about to add is declarable) and `--declare` (all five of `decision`/`heavy`/`mechanism`/`oneway`/`tradeoffs`, each `yes` or `no`) belong to `--command fabrik-task` and are REFUSED under any other command; there they are BOTH REQUIRED and the pair IS the lane's SIZE gate — a missing flag, a path outside the repo, a directory, a path already dirty against `HEAD`, more than 3 files, a governance-sync path or a `yes`/`no` that names another lane REFUSES the start with the correction or the lane (rc 1). It persists `declared: {files, sha, sync_test, decision, heavy, mechanism, oneway, tradeoffs}` (`sync_test` is `unavailable` when the hub's governance-sync filter could not be read — the test fails OPEN, and the close reads that key for its `unmeasurable=sync_test-unavailable` verdict) and prints `RECORD: <started_at>` for the phase-2 scratch path |
+| `step --phase <N> [--title "<t>"] [--design <path>]` | advance. `--design` (`fabrik-task` only) stores that FILE'S TEXT once as the run's `design` — the six DESIGN fields, so they outlive the scratch directory and a `phase_title` the next `step` overwrites; over `_LEDGER_FIELD_CAP` it is REFUSED, never truncated |
 | `dispatch --seats <n>` | stamp a fan-out BEFORE its seats go out — `rec["dispatch"] = {ts, seats, phase, round}`; the STAMP accumulates across the messages of one round, and that round's `round` (or the close) rewrites it as a release marker (`seats: 0, released: true`) — never a pop, because an absent stamp reads as "never dispatched" and the sibling probe would fall back to the round row and re-reserve the returned seats; `dispatch_headroom.py` subtracts a live stamp for 25 minutes on every OTHER session (a `round --seats` at the round's close reserves nothing while the seats run — D-193/D-194) |
 | `round [--seats <n>] [--findings <N>] [--classes-swept a,b] [--classes-new c,d] [--confirmed <N>]` | record one convergence pass; merge the class ledger. `--findings` counts the RAW candidates the pass raised, before adjudication — a receipt's rows are the adjudicated ledger, so the two figures differ by design. `--confirmed <N>` counts the candidates CONFIRMED by execution in that pass (default: not stated); when stated on the LAST round it is the exit counter — TERMINAL fires on `confirmed == 0` with every class swept; the `--findings 0` rule stands only while NO round of the record has ever stated it, because adoption is STICKY — a pass that omits `--confirmed` under a record that adopted it draws a stderr warning and cannot close the RECORD (adoption is a property of ONE record, never of the session: after a `handoff`/`blocked`/`done` close, the next `start` opens a new, un-adopted record); `--confirmed` MAY exceed `--findings` — a delta round raises no new candidate and reproduces the carried-over ones — but a NEGATIVE count of either is REFUSED (rc 2). `--seats` omitted = the round inherits its `dispatch` stamp; `0` = a deliberate zero; a typed count that disagrees with the stamp is said on stderr and recorded as typed; a partial close releases only what closed (`dispatch.seats` keeps the remainder); negative is refused; a round with NO stamp that finds seat transcripts whose newest in-window line is newer than the previous round (or a nested child's close — a `step` never narrows the window) says so on stderr; a partial close keeps the original stamp's clock |
-| `done --command <name> --evidence "<proof>"` | terminal — the contract IS met |
-| `blocked --command <name> --reason "<sanctioned case>"` | terminal — a real halt |
-| `handoff --command <name> --reason "<why rows remain open>" --resume "<RESUME block>"` | terminal — NOT-QUIET: the loop is quiet but rows stay OPEN and are routed (the close `/fabrik-user-test` and `/fabrik-service-test` mandate); `--feedback` owed like `done`/`blocked` |
+| `done --command <name> --evidence "<proof>" [--commit <sha>]` | terminal — the contract IS met. `--commit` is the `fabrik-task` lane's flag on the three close verbs — REQUIRED on `done` there, optional on `blocked`/`handoff` (which may close before any commit exists), REFUSED on every other command; it names THIS run's commit, read from the capture file written the instant the commit returns, and the close re-measures that commit's diff to write `oversized_mini` |
+| `blocked --command <name> --reason "<sanctioned case>" [--commit <sha>]` | terminal — a real halt |
+| `handoff --command <name> --reason "<why rows remain open>" --resume "<RESUME block>" [--commit <sha>]` | terminal — NOT-QUIET: the loop is quiet but rows stay OPEN and are routed (the close `/fabrik-user-test` and `/fabrik-service-test` mandate); `--feedback` owed like `done`/`blocked` |
 | `line` | the pinned status line; **silent + rc 0 when no run is active** |
 | `status --json` | the record (`{}` when there is none) |
 
@@ -322,7 +322,8 @@ cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — 
   is current (fleet-synced; fabrik-lib pulls). Fields: `ts sid repo command state wall_s rounds
   findings confirmed phases phase_reached agent surface account confusion waste change filed cost cost_usd
   tok_in tok_out tok_cache_read tok_cache_create tok_msgs models tok_partial tok_seat_in tok_seat_out
-  tok_seat_cache_read tok_seat_cache_create seats_seen seats_declared seats_partial seats_skipped`.
+  tok_seat_cache_read tok_seat_cache_create seats_seen seats_declared seats_partial seats_skipped`,
+  plus `oversized_mini` and `upgrade` on a `fabrik-task` close.
   **The analysis dimensions** (operator, 2026-09-07 — "which repo, which agent, which command,
   which spec, which file"): `repo` (the run's `repo_root`), `agent` (`CLAUDE_AGENT` at `start`,
   the same env and the same grammar `[a-z0-9-]{1,32}` the provenance trailers key on — anything
@@ -332,7 +333,18 @@ cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — 
   hold or a flip otherwise looks like command slowness; `COMMAND_RUN_ACCOUNT_FILE` overrides the
   path for tests), `cost_usd` (the amount in `cost:` when it is the whole value or sits on a
   `$`/`usd` marker, thousands separators stripped; prose such as `2 hold-era commits` and an
-  absent value are `null` — never a wrong number, never a silent 0). **At the close, `cost:` must be a plain amount or the close is refused** — sixteen
+  absent value are `null` — never a wrong number, never a silent 0). **`oversized_mini` and
+  `upgrade`** (the `/fabrik-task` lane's two row fields, written on EVERY `fabrik-task` close and
+  on no other command's): `oversized_mini` re-measures the run's OWN commit — `done`'s `--commit`
+  is required, `blocked`/`handoff` may close without one — and counts, deduplicated, the committed
+  paths outside `declared.files` ∪ the Doc Sync Matrix destinations parsed from `CLAUDE.md` at close
+  time (plus `docs/CAPABILITIES.md`), UNION every committed path the governance-sync filter matches.
+  One grammar, read on its first token: `0` · `<n> · commit=<sha> · paths=<first three>` ·
+  `unmeasurable=<no-commit|no-git|sync_test-unavailable>` — ⚠️ the non-zero order is `commit=`
+  then `paths=`, which is the CODE's, diverging from the spec's stated order (`command_run.py:3091`).
+  `upgrade: <test>` is written when the close's `--evidence` (`done`) or `--reason`
+  (`blocked`/`handoff`) BEGINS `UPGRADE:` — the token after it — and a `sync` claim the
+  re-measure could not refute records as `sync (unverified)`, never as a bare `sync`. **At the close, `cost:` must be a plain amount or the close is refused** — sixteen
   review passes each found one more prose shape a lenient parser mis-read, so prose never enters a
   field that is summed as money (D-179); the lenient parser stays for the ledger's older rows. All fail-soft to `""`: a row with an empty cell is analysable, a missing row is not.
 - **Tokens per run** (operator, 2026-09-07): the close sums every assistant message's `usage` in
