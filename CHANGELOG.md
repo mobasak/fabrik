@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a Fable-walled account is no longer banded GREEN off fleet headroom no flip can reach (2026-09-18)
+
+- `scripts/sysadmin/claude_rotate.py` + the byte-identical `scripts/aro-wake` twin: `_fleet_band` takes
+  `account_fable_pct` and clamps the Fable band UP to the active account's OWN Fable reading when that is
+  hotter than the fleet's. The relief leg flips on `hot` = max(five_hour, seven_day) and never sees the
+  Fable window, so an account at its Fable wall is never a flip trigger and the fleet's cool Fable reading
+  named headroom reachable only by PINNING. Measured live 2026-09-18: the posture carried
+  `band_account_fable: RED` beside `band_fable: GREEN` at `minutes_to_wall: 0.0` while every Fable session
+  on that account was told to work normally. The two REQUIRED windows keep their decoupling (a flip
+  genuinely relieves there). Clamp keyed on the FABLE window alone, never on `_band_of(hot_f)`, which
+  would band a cool Fable session off its account's weekly. Graders in `tests/test_claude_fleet.py`,
+  watched red in a throwaway worktree (`- RED / + GREEN`). D-294.
+
 ### Changed — `/fabrik-task` lane plan set CONVERGED by /fabrik-plan-review (2026-09-18)
 
 - `docs/development/plans/2026-09-18-plan-1-fabrik-task-lane/` (spine + T01a/T01b/T02/T03/T04a/T04b/T05) flipped `DRAFT → CONVERGED` after five author-blind rounds — 77 defects confirmed and fixed (D-294). Round 1 confirmed 47 defects over a partitioned pass (Opus on the rule/grammar sections + the two `command_run.py` tickets, Sonnet on the rest); four would have shipped a SIZE gate that fails open — the mandated `check=True` subprocess shape raises on all three of the lane's rc-signalling git calls and `command_run.py:2557-2559` converts that to rc 0 with no record; `--command /fabrik-task` bypassed every guard because the record normalises with `.lstrip("/")` at `:2625`; the re-measure's insertion window straddled the `run_close` event queue, so a refusal would emit a close event for a close that did not happen; and invariant (v)'s compressed wording inverted the spec's union of two sets into an exclusion. `git` execution also corrected the diff command (`-z` + `core.quotePath=false` for non-ASCII paths, `-C` because `-M` alone MIS-ATTRIBUTES a rename+copy commit) and the `oversized_mini` field order (`commit=` before `paths=`, or `_cap_field` truncation eats the sha). The `## Constraints Digest` was reordered to the column order `check_rule_grounding._digest_rows` actually reads — it had been resolving each quote's first word as a filename and verifying nothing.
