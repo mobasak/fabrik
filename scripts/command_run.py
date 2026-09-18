@@ -3036,8 +3036,13 @@ def _task_field(n: int, sha: str, paths: list[str]) -> str:
     return f"{n} · commit={sha} · paths=" + ",".join(paths[:3])
 
 
-def _task_diff_pairs(root: Path, base: str, sha: str) -> list[tuple[str | None, str]]:
-    """``(source, destination)`` per changed path; ``source`` is None for an add/modify/delete.
+def _task_diff_pairs(root: Path, base: str, sha: str) -> list[tuple[str, str | None, str]]:
+    """``(kind, source, destination)`` per changed path; ``source`` is None for add/modify/delete.
+
+    ``kind`` is the status LETTER. It is carried out rather than discarded because ``R`` and
+    ``C`` are structurally identical here and semantically opposite: a rename's source ceases
+    to exist, a copy's SURVIVES. Folding them together lets ``cp declared.py undeclared.py``
+    ship a brand-new undeclared file inside a declared surface and score 0.
 
     ``git -c core.quotePath=false diff --name-status -M -C -z <base> <sha>``. All three flags
     matter, each executed:
@@ -3066,14 +3071,16 @@ def _task_diff_pairs(root: Path, base: str, sha: str) -> list[tuple[str | None, 
     fields = r.stdout.split("\0")
     if fields and fields[-1] == "":
         fields.pop()
-    pairs: list[tuple[str | None, str]] = []
+    pairs: list[tuple[str, str | None, str]] = []
     i = 0
     while i < len(fields):
-        if fields[i][:1] in ("R", "C") and i + 2 < len(fields):
-            pairs.append((fields[i + 1], fields[i + 2]))
+        if fields[i][:1] in ("R", "C"):
+            if i + 2 >= len(fields):
+                break  # a truncated R/C tail is not a pair; never guess one
+            pairs.append((fields[i][:1], fields[i + 1], fields[i + 2]))
             i += 3
         elif i + 1 < len(fields):
-            pairs.append((None, fields[i + 1]))
+            pairs.append((fields[i][:1], None, fields[i + 1]))
             i += 2
         else:
             break  # a truncated tail is not a path; never guess one
@@ -3105,12 +3112,30 @@ def _task_measure(
     # ── (ii) RESOLVE the commit ───────────────────────────────────────────────────────────
     ok = True
     parents: list[str] = []
+
+    def _git_unusable() -> bool:
+        """git said NO — but was that the OBJECT, or the ENVIRONMENT?
+
+        `safe.directory` ownership, a half-written `.git/config`, a moved checkout and a pruned
+        worktree all return rc 128 on EVERY verb. Reading that as "the commit is disqualified"
+        refuses the close, leaves the record `running` with `done` unreachable, and the Stop
+        hook then blocks the turn — in ~46 repos. That is precisely what the catch-all below
+        exists to prevent, so a git that cannot name its own git dir RAISES to it instead.
+        """
+        return _task_git(rp, "rev-parse", "--git-dir").returncode != 0
+
     t = _task_git(rp, "cat-file", "-t", sha_in)
-    if t.returncode != 0 or t.stdout.strip() != "commit":
-        ok = False  # unresolvable, or a tag/tree/blob
+    if t.returncode != 0:
+        if _git_unusable():
+            raise RuntimeError(f"git unusable at {root}: {t.stderr.strip()[:200]}")
+        ok = False  # git answered: the object does not resolve
+    elif t.stdout.strip() != "commit":
+        ok = False  # a tag/tree/blob
     if ok:
         pr = _task_git(rp, "log", "-1", "--format=%p", sha_in)
         if pr.returncode != 0:
+            if _git_unusable():
+                raise RuntimeError(f"git unusable at {root}: {pr.stderr.strip()[:200]}")
             ok = False
         else:
             parents = pr.stdout.split()
@@ -3122,7 +3147,11 @@ def _task_measure(
         ct = _task_git(rp, "log", "-1", "--format=%ct", sha_in)
         started = _finite_ts(rec.get("started_epoch"))
         raw = ct.stdout.strip()
-        if ct.returncode != 0 or not raw.isdigit():
+        if ct.returncode != 0:
+            if _git_unusable():
+                raise RuntimeError(f"git unusable at {root}: {ct.stderr.strip()[:200]}")
+            ok = False
+        elif not raw.isdigit():
             ok = False
         elif started is not None and started > 0 and int(raw) < math.floor(started):
             # A STALE capture file — a previous run's SHA — resolves perfectly and has one
@@ -3140,7 +3169,13 @@ def _task_measure(
     pairs = _task_diff_pairs(rp, f"{sha}~1" if parents else _TASK_EMPTY_TREE, sha)
 
     # ── (iv) EXCL, and the sync filter re-read at CLOSE time ──────────────────────────────
-    declared = set((rec.get("declared") or {}).get("files") or [])
+    # ⚠️ A STRING scalar here would become a set of CHARACTERS, so the declared file fails its
+    # own membership test and is scored oversized — a CONFIDENT number derived from a record we
+    # cannot trust. A record this malformed is not measurable; say so rather than publish a count.
+    _raw_files = (rec.get("declared") or {}).get("files")
+    if not isinstance(_raw_files, (list, tuple)):
+        raise TypeError(f"declared.files is {type(_raw_files).__name__}, not a list")
+    declared = {f for f in _raw_files if isinstance(f, str)}
     excl = _task_excl(rp)
     src_txt = _sync_filter_source()
     pat: re.Pattern[str] | None = None
@@ -3160,16 +3195,24 @@ def _task_measure(
     def _member(p: str) -> bool:
         return p in declared or _task_excluded(p, excl)
 
-    for src, dst in pairs:
+    for kind, src, dst in pairs:
         member = _member(dst)
-        if src is not None:
-            # An `R`/`C` DESTINATION inherits its source's membership — a declared file renamed
-            # is still the declared work. The SOURCE is judged on its OWN membership like any
-            # other path, so both tokens of the pair may contribute.
+        if src is not None and kind == "R":
+            # A RENAME's DESTINATION inherits its source's membership — a declared file renamed
+            # is still the declared work, and the source ceases to exist. The SOURCE is judged on
+            # its OWN membership like any other path, so both tokens of the pair may contribute.
             if _member(src):
                 member = True
             else:
                 a.add(src)
+        elif src is not None:
+            # A COPY is NOT a rename. The source SURVIVES — its own edit, if any, arrives as its
+            # OWN entry — and the destination is a brand-new file nobody declared, so it is
+            # judged ALONE. `-C` exists to tell the two apart; inheriting across it is the
+            # cheapest COBRA path in the lane: `cp declared.py undeclared.py` ships an
+            # undeclared file inside a declared surface and scores 0 (found by the T01b
+            # acceptance review, reproduced).
+            pass
         if not member:
             a.add(dst)
         if pat is not None:
@@ -3239,6 +3282,11 @@ def _task_close_fields(rec: dict[str, Any], args: argparse.Namespace) -> tuple[i
         # unconditionally: with no diff the membership arm cannot run, so neither a count nor
         # `sync_test-unavailable` is reachable from here.
         fields["oversized_mini"] = "unmeasurable=no-commit"
+        if fields.get("upgrade") == "sync":
+            # `UPGRADE: sync` says this change reaches ~46 repos. With no commit there is no
+            # diff, so the refutation arm cannot run and the claim would be recorded as though
+            # it had been checked. Say that it was not.
+            fields["upgrade"] = "sync (unverified)"
         return 0, fields
     if not commit.strip():
         # The quoted substitution delivers `''` when the capture file is absent OR empty and the
@@ -3258,7 +3306,12 @@ def _task_close_fields(rec: dict[str, Any], args: argparse.Namespace) -> tuple[i
         sys.stderr.write(
             f"[command_run] ⚠ fabrik-task: re-measure unavailable ({type(e).__name__})\n"
         )
-        fields["oversized_mini"] = "unmeasurable=no-git"
+        # A corrupt RECORD is not a git outage, and a ledger reader counting `no-git` must not
+        # be told a healthy git failed. The shape errors get their own reason.
+        bad_record = isinstance(e, (AttributeError, TypeError, KeyError, IndexError))
+        fields["oversized_mini"] = (
+            "unmeasurable=bad-record" if bad_record else "unmeasurable=no-git"
+        )
         return 0, fields
     if rc:
         return rc, {}

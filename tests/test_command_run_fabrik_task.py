@@ -1355,11 +1355,13 @@ def test_a_copy_and_a_rename_in_one_commit_are_split_on_three_fields(
 
     r = _close_run(run_dir, repo, hub, "done", "--commit", sha, "--evidence", "green")
     assert r.returncode == 0, r.stdout + r.stderr
-    # `src/renamed.py` AND `src/copy.py` both derive from the declared `src/a.py`; the non-ASCII
-    # add is the only undeclared, unexcluded path — and its name arrives UNQUOTED.
-    assert _rows(run_dir)[-1]["oversized_mini"] == f"1 · commit={sha} · paths=src/café.md", _rows(
-        run_dir
-    )[-1]["oversized_mini"]
+    # `src/renamed.py` inherits the declared `src/a.py` — a RENAME moves declared work and its
+    # source ceases to exist. `src/copy.py` does NOT: a COPY leaves the source in place and the
+    # destination is a brand-new file nobody declared, so it counts. The non-ASCII add is the
+    # other undeclared path — and its name arrives UNQUOTED.
+    assert (
+        _rows(run_dir)[-1]["oversized_mini"] == f"2 · commit={sha} · paths=src/café.md,src/copy.py"
+    ), _rows(run_dir)[-1]["oversized_mini"]
 
 
 # ---------------------------------------------------------------- T01b row 4 (six refusals)
@@ -1954,3 +1956,209 @@ def test_an_undecodable_claude_md_still_falls_back(run_dir: Path, repo: Path, hu
     out = _close_run(run_dir, repo, hub, "done", "--commit", sha, "--evidence", "green")
     assert out.returncode == 0, out.stdout + out.stderr
     assert _rows(run_dir)[-1]["oversized_mini"] == f"1 · commit={sha} · paths=src/loose.py"
+
+
+# ------------------------------------------------- T01b acceptance review, round 1
+
+
+def test_an_upgrade_sync_claim_survives_an_unreadable_filter(
+    run_dir: Path, repo: Path, tmp_path: Path
+) -> None:
+    """B1. The `pat is not None` guard at `:3181` is a DELIBERATE fail-open: an unreadable sync
+    filter cannot REFUTE a sync claim, because refusing on it would turn a spoke's missing hub
+    file into a refused close. Condition 6 refuses only when the filter is READABLE and matched
+    nothing. Dropping the guard makes this close refuse, and nothing else in the suite sees it."""
+    _seed_claude(repo)
+    nowhere = tmp_path / "no-hub"
+    nowhere.mkdir()
+    r = _cr(
+        run_dir,
+        *_start("--file", "src/a.py", "--declare", _ALL_NO),
+        cwd=repo,
+        extra_env={"FABRIK_HUB_ROOT": str(nowhere)},
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    _write(repo, "src/a.py", "x = 2\n")
+    sha = _commit_all(repo, "declared only, filter unreadable")
+    out = _close_run(
+        run_dir,
+        repo,
+        nowhere,
+        "done",
+        "--commit",
+        sha,
+        "--evidence",
+        "UPGRADE: sync — claimed against a filter that cannot be read",
+    )
+    assert out.returncode == 0, out.stdout + out.stderr
+    assert "no sync-regex hit" not in out.stdout, out.stdout
+    assert _rows(run_dir)[-1]["upgrade"] == "sync"
+
+
+def test_a_matrix_prefix_row_excludes_its_whole_directory(
+    run_dir: Path, repo: Path, hub_sync: Path
+) -> None:
+    """B2. `_task_excluded`'s `<name>`-prefix branch (`:3004-3006`). `docs/workstation/` is a
+    Doc Sync Matrix prefix token AND is provably NOT a sync-regex hit under the fixture filter
+    (which matches only `^scripts/enforcement/` and one `docs/reference/` file) — so set B cannot
+    smuggle this path in and the exclusion is the ONLY thing keeping the count at 0. Reducing the
+    function to `path in excl` makes this count 1."""
+    _seed_claude(repo)
+    _start_task(run_dir, repo, hub_sync, "src/a.py")
+    _write(repo, "src/a.py", "x = 2\n")
+    _write(repo, "docs/workstation/box-notes.md", "# notes\n")
+    sha = _commit_all(repo, "declared file plus a matrix-prefix doc")
+    out = _close_run(run_dir, repo, hub_sync, "done", "--commit", sha, "--evidence", "green")
+    assert out.returncode == 0, out.stdout + out.stderr
+    assert _rows(run_dir)[-1]["oversized_mini"] == "0", _rows(run_dir)[-1]
+
+
+@pytest.mark.parametrize(
+    "kind", ["blob", "unresolvable"], ids=["a-blob-sha", "an-unresolvable-sha"]
+)
+def test_a_commit_that_does_not_resolve_to_a_commit_is_refused(
+    run_dir: Path, repo: Path, hub_sync: Path, kind: str
+) -> None:
+    """B3. The `cat-file -t` guard (`:3106-3110`). A truncated or corrupted capture file hands the
+    close a sha that resolves to a BLOB, or to nothing at all — both land in the same `ok=False`
+    bucket as the merge and the stale date, sharing their message. Every other `--commit` test
+    supplies a real commit, so deleting this guard changed nothing in the suite."""
+    _seed_claude(repo)
+    _start_task(run_dir, repo, hub_sync, "src/a.py")
+    _write(repo, "src/a.py", "x = 2\n")
+    _commit_all(repo, "a real commit that is not the one we pass")
+    if kind == "blob":
+        bad = subprocess.run(
+            ["git", "hash-object", "-w", "src/a.py"],
+            cwd=str(repo),
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        ).stdout.strip()
+    else:
+        bad = "0" * 40
+    out = _close_run(run_dir, repo, hub_sync, "done", "--commit", bad, "--evidence", "green")
+    assert out.returncode == 1, out.stdout + out.stderr
+    assert f"--commit {bad} is not this run's commit" in out.stdout, out.stdout
+    assert _rec(run_dir)["state"] == "running"
+
+
+def test_the_sync_refusal_names_the_flag_the_closing_verb_actually_takes(
+    run_dir: Path, repo: Path, hub_sync: Path
+) -> None:
+    """B4. `flag = "evidence" if args.cmd == "done" else "reason"` (`:3186`). A `handoff` carries
+    its claim in `--reason`, so a refusal telling the agent to fix `--evidence` names a flag that
+    close does not take. Only the `done` arm was exercised, so the ternary could be swapped with
+    the whole suite still green."""
+    _seed_claude(repo)
+    _start_task(run_dir, repo, hub_sync, "src/a.py")
+    _write(repo, "src/a.py", "x = 2\n")
+    sha = _commit_all(repo, "no sync path here")
+    out = _close_run(
+        run_dir,
+        repo,
+        hub_sync,
+        "handoff",
+        "--resume",
+        "docs/development/reviews/x.md",
+        "--commit",
+        sha,
+        "--reason",
+        "UPGRADE: sync — claimed on a handoff",
+    )
+    assert out.returncode == 1, out.stdout + out.stderr
+    assert "--reason claims UPGRADE: sync" in out.stdout, out.stdout
+    assert "--evidence claims" not in out.stdout, out.stdout
+    assert _rec(run_dir)["state"] == "running"
+
+
+def _mutate_rec(run_dir: Path, sid: str = "s1", **kw: object) -> None:
+    """Hand-edit a record on disk. The close must survive shapes `start` can no longer produce:
+    a half-written file, an older vintage of this script, a hand-repaired record."""
+    f = run_dir / f"{sid}.json"
+    rec = json.loads(f.read_text(encoding="utf-8"))
+    rec.update(kw)
+    f.write_text(json.dumps(rec), encoding="utf-8")
+
+
+def test_a_copy_of_a_declared_file_is_counted_not_inherited(
+    run_dir: Path, repo: Path, hub: Path
+) -> None:
+    """A1 — the lane's cheapest COBRA path, found by the T01b acceptance review. `cp` a declared
+    file to a new name and the destination is a brand-new file nobody declared; folding `C` into
+    `R` let it inherit the source's membership and score 0. A RENAME's destination inherits (the
+    source ceases to exist); a COPY's does not (the source survives)."""
+    body = "".join(f"line {i} of a file long enough for copy detection\n" for i in range(40))
+    _seed_claude(repo, also={"a.py": body})
+    _start_task(run_dir, repo, hub, "a.py")
+    _write(repo, "a.py", body + "# edited\n")
+    _write(repo, "b_undeclared.py", body)
+    sha = _commit_all(repo, "declare one file, ship two")
+    out = _close_run(run_dir, repo, hub, "done", "--commit", sha, "--evidence", "green")
+    assert out.returncode == 0, out.stdout + out.stderr
+    assert _rows(run_dir)[-1]["oversized_mini"] == (f"1 · commit={sha} · paths=b_undeclared.py"), (
+        _rows(run_dir)[-1]["oversized_mini"]
+    )
+
+
+def test_a_broken_git_environment_never_refuses_the_close(
+    run_dir: Path, repo: Path, hub: Path
+) -> None:
+    """A2 — the fail-CLOSED hole. `_task_git` is `check=False`, so a broken git environment
+    returns rc 128 rather than raising, and reading that rc as "the commit is disqualified"
+    refused the close, left the record `running` and made `done` UNREACHABLE — the Stop hook then
+    blocks the turn, in ~46 repos. A git that cannot name its own git dir is a MEASUREMENT
+    failure and must reach the catch-all. Driven by a half-written `.git/config`, the real
+    failure (`safe.directory` ownership is the same rc on every verb)."""
+    _seed_claude(repo)
+    _start_task(run_dir, repo, hub, "src/a.py")
+    _write(repo, "src/a.py", "x = 2\n")
+    sha = _commit_all(repo, "change")
+    cfg = repo / ".git" / "config"
+    cfg.write_text(cfg.read_text(encoding="utf-8") + "\n[core\n", encoding="utf-8")
+    out = _close_run(run_dir, repo, hub, "done", "--commit", sha, "--evidence", "green")
+    assert out.returncode == 0, out.stdout + out.stderr
+    assert _rows(run_dir)[-1]["oversized_mini"] == "unmeasurable=no-git", _rows(run_dir)[-1]
+    assert _rec(run_dir)["state"] == "done"
+
+
+def test_a_corrupt_declared_block_is_not_reported_as_a_git_outage(
+    run_dir: Path, repo: Path, hub: Path
+) -> None:
+    """A4 + A5. A `files` STRING scalar became a set of CHARACTERS, so the declared file failed
+    its own membership test and was scored oversized — a confident number from a record nothing
+    can trust. And every exception was labelled `no-git`, telling a ledger reader a healthy git
+    failed. A corrupt record is `bad-record`; git is fine here and the label must say so."""
+    _seed_claude(repo)
+    _start_task(run_dir, repo, hub, "mas.txt")
+    _mutate_rec(run_dir, declared={"files": "mas.txt", "sync_test": "ok"})
+    _write(repo, "mas.txt", "y\n")
+    _write(repo, "extra.txt", "y\n")
+    sha = _commit_all(repo, "corrupt record")
+    out = _close_run(run_dir, repo, hub, "done", "--commit", sha, "--evidence", "green")
+    assert out.returncode == 0, out.stdout + out.stderr
+    assert _rows(run_dir)[-1]["oversized_mini"] == "unmeasurable=bad-record", _rows(run_dir)[-1]
+    assert _rec(run_dir)["state"] == "done"
+
+
+def test_an_unverifiable_sync_claim_is_recorded_as_unverified(
+    run_dir: Path, repo: Path, hub_sync: Path
+) -> None:
+    """A6. `UPGRADE: sync` is the lane's widest claim — it says this change reaches ~46 repos.
+    A close carrying no commit has no diff, so the refutation arm cannot run and the claim was
+    recorded exactly as a verified one. The row must not assert what nothing checked."""
+    _seed_claude(repo)
+    _start_task(run_dir, repo, hub_sync, "src/a.py")
+    out = _close_run(
+        run_dir,
+        repo,
+        hub_sync,
+        "blocked",
+        "--reason",
+        "UPGRADE: sync — missing infra, nothing committed",
+    )
+    assert out.returncode == 0, out.stdout + out.stderr
+    row = _rows(run_dir)[-1]
+    assert row["upgrade"] == "sync (unverified)", row
+    assert row["oversized_mini"] == "unmeasurable=no-commit", row
