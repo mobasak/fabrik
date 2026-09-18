@@ -53,7 +53,7 @@ Intake: 14 items — 12 IN, 2 OUT-OF-SCOPE (each named above), 0 ASK.
 | T01b | `command_run.py` — `--commit` on the close verbs, the own-commit re-measure, the two row fields | T01a | ⛓️ | ✅ | f0a7b6a08 |
 | T02 | `command_feedback_report.py --queue` header: the two series + the adoption share | T01b | ⛓️ | ✅ | 3b71592f7 |
 | T03 | the command source `commands/_sources/fabrik-task.md`, its render, the docs rows | T01b | ⚡ | ✅ | 2958f46c1 |
-| T04a | hub `CLAUDE.md`: the lane table, § 1a's trigger, the HANDLE-NOW pointer | T03 | ⛓️ | ⬜ | |
+| T04a | hub `CLAUDE.md`: the lane table, § 1a's trigger, the HANDLE-NOW pointer | T03 | ⛓️ | ✅ | f1ce6c310 |
 | T04b | `templates/governance/CLAUDE.md`: the same table + trigger, outcome (ii)'s pointer; the fabrik-lib mail | T04a | ⛓️ | ⬜ | |
 | T05 | Integration: receipt, whole-plan gate + review, docs-review, the sync, V0/V1/V2/V3 | T02, T04b | ⛓️ | ⬜ | |
 

@@ -3860,3 +3860,48 @@ rounds (23 → 25 → 19 → 20 → 19 → 12 → 15 confirmed, all own-fix; SCO
 grader can. Recommendation: the operator flips the spec CONVERGED by ruling with phase 5's six invariants as the
 build's Phase A acceptance criteria (each with a red-first grader), and the build's full `/fabrik-review` on
 `command_run.py` is where the re-measure is settled. Not recommended: an eighth prose round.
+
+## check_governance_tables.py is blind to two GFM-invisible table shapes (routed from T04a, D-297)
+
+Found by T04a's review (2026-09-18) and verified by reading the code plus rendering through
+markdown-it-py. `scripts/enforcement/check_governance_tables.py` is the fleet-facing guard that a
+governance rule living in a markdown table still RENDERS, and it misses two shapes that render
+nothing at all:
+
+- `:121` `indent = len(raw) - len(raw.lstrip(" "))` is space-only. A TAB-indented row scores
+  indent 0 and is checked as a normal row, but GFM expands a tab to the next 4-column stop, making
+  the whole table an indented code block — invisible to every rendered reader.
+- `:128` gates the header-vs-delimiter width comparison on `_DELIM.match(nxt)`. Delete the
+  delimiter row and the only check that would notice self-disables; GFM then renders a paragraph.
+
+A third, narrower gap: the width comparison only runs when a delimiter row is present AND both
+outer pipes are there, so a delimiter one cell short is caught but a pipe-less one is not examined
+at all (the same convention T04a's grader now names in its failure message).
+
+Fix shape: `e = raw.expandtabs(4); indent = len(e) - len(e.lstrip(" "))` at both sites, and track
+whether a delimiter row was seen per table rather than gating on finding one. T04a solved the same
+class in its own grader by delegating validity to markdown-it-py instead of approximating GFM —
+three rounds of approximation there produced defects in BOTH directions — so the leanest fix here
+may be the same delegation rather than a fourth hand-rolled rule.
+
+⚠️ This is `scripts/enforcement/` — a governance-sync path distributing to ~46 repos — so by the
+lane table T04a adds, it is rule 1: right-now + a full `/fabrik-review`, never a rider on another
+ticket. That is why it was routed rather than fixed in T04a (D-297).
+
+## Two test suites reach back into the live tree from a scratch probe (routed from T04a, D-297)
+
+`tests/test_command_run_fabrik_task.py:25` hard-pins `_HUB_CONFIG = Path("/opt/fabrik/.pre-commit-config.yaml")`
+while resolving everything else via `Path(__file__).resolve().parents[1]`, and
+`tests/test_governance_template_split.py:230` hard-pins `THIRD_CONTRACT = Path("/opt/fabrik-lib/CLAUDE.md")`.
+Both make those suites ungradeable from an isolated worktree — the mixed resolution grades the live
+repo while the probe believes it is isolated, which is the "a grader copied into a worktree still
+grades the live repo" class the review constraints exist to prevent. Found by two independent T04a
+review seats, each of which had to work around it.
+
+## § Completion Contract 1a's `>5 files` and the lane table's `>3` are two numbers in one contract (routed from T04a)
+
+§ 1a's `>5` is REVIEW sizing (how heavy a pass does work already in flight owe?); the lane table's
+`>3` is LANE sizing (which lane should this change take at all?). They are different axes and both
+are correct, but they sit ~170 lines apart with nothing saying so, and T04a's step 3 permits exactly
+one change on that line. Worth one disambiguating clause in § 1a, or an explicit note that 1a keeps
+its own number.
