@@ -4,7 +4,7 @@ Three facts about the source, each mechanically decidable (spec
 `docs/superpowers/specs/2026-09-17-fabrik-task-lane-design.md` § Constraints C2, § Chosen approach;
 ticket T03 Behavior Contract):
 
-1. SIZE + INCLUDES — the source is at most `fabrik-features.md`'s 8,847 bytes (the smallest source
+1. SIZE + INCLUDES — the source is at most `SIZE_CAP` bytes (D-296; NOT C2's original 8,847
    in the corpus, C2's cap) and its only `{{include:}}` is `run-record`. The include half is C2's
    cobra counter (cobra 8): the cheapest way to satisfy a source-byte cap is to move the prose into
    a fragment, so a second include is refused whatever the byte count says.
@@ -36,7 +36,7 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[1]
 SOURCE = REPO / "commands" / "_sources" / "fabrik-task.md"
-# `fabrik-features.md`, the smallest source in the corpus the day the cap was set (spec C2).
+# D-296: re-based above C2's 8,847 for T03's correctness fixes. May FALL, never rise, without a row.
 SIZE_CAP = 8980
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
