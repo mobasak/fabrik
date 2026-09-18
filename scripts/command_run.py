@@ -2712,6 +2712,26 @@ def _sync_filter_source() -> str | None:
         return None
 
 
+# ⚠️ git reads the REPOSITORY out of the environment before it looks at `cwd`. An ambient
+# `GIT_DIR` (leaked from a hook, a shell, or THIS repo's own private-index recipe, which exports
+# `GIT_INDEX_FILE` and warns that it leaks) makes every call below answer about a repository the
+# close never named. Executed: with `GIT_DIR` pointed at a decoy holding only the declared file, a
+# three-file task closes `oversized_mini: 0` — a VERIFIED-looking zero, and the cheapest cobra
+# path in the lane. Pointed at any other real repo it does the opposite: the honest SHA resolves
+# nowhere and the close is refused with the record left `running`. Both directions found by
+# T01b's delta review, both reproduced.
+_GIT_ENV_OVERRIDES = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_COMMON_DIR",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_INDEX_FILE",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_CEILING_DIRECTORIES",
+    "GIT_NAMESPACE",
+)
+
+
 def _task_git(root: Path, *a: str) -> subprocess.CompletedProcess[str]:
     """rc-SIGNALLING git: `check=False`, read `.returncode`. Under `check=True` every call here
     RAISES on the answer it exists to report, and `main`'s fail-soft (`:2557-2559`) turns that
@@ -2729,6 +2749,7 @@ def _task_git(root: Path, *a: str) -> subprocess.CompletedProcess[str]:
         timeout=10,
         check=False,
         cwd=str(root),
+        env={k: v for k, v in os.environ.items() if k not in _GIT_ENV_OVERRIDES},
     )
 
 
@@ -3087,11 +3108,28 @@ def _task_diff_pairs(root: Path, base: str, sha: str) -> list[tuple[str, str | N
     return pairs
 
 
+def _mark_unverified_sync(fields: dict[str, Any]) -> None:
+    """`UPGRADE: sync` says this change reaches ~46 repos — the widest claim the lane makes, and
+    the only one refutable from the commit itself. Every path that could NOT run that refutation
+    says so, or the row asserts a reach nothing checked.
+
+    Three arms reach here and T01b's first cut marked only one: no commit at all, a measurement
+    that raised (which the git-environment fix made strictly MORE reachable, by converting a
+    refusal into an `unmeasurable` close), and a filter too unreadable to refute anything.
+    """
+    if fields.get("upgrade") == "sync":
+        fields["upgrade"] = "sync (unverified)"
+
+
 def _task_measure(
     rec: dict[str, Any], args: argparse.Namespace, sha_in: str, upgrade: str
-) -> tuple[int, str]:
-    """Invariants (ii)-(vi) for a close that CARRIED a commit. ``(rc, field)``; rc 1 means the
-    close is refused and the refusal has already printed.
+) -> tuple[int, str, bool]:
+    """Invariants (ii)-(vi) for a close that CARRIED a commit. ``(rc, field, sync_tested)``; rc 1
+    means the close is refused and the refusal has already printed.
+
+    ``sync_tested`` says whether condition 6 could actually RUN — it needs a readable sync filter.
+    Without it an `UPGRADE: sync` claim, the widest claim the lane can make, is recorded exactly
+    as a checked one. The caller marks such a row unverified.
 
     ⚠️ COBRA (D-253): the cheapest way to score ``oversized_mini: 0`` without producing the
     outcome is to park the extra work under ``docs/reference/`` or ``docs/workstation/``, whose
@@ -3161,7 +3199,11 @@ def _task_measure(
             ok = False
     if not ok:
         # The merge and the stale date SHARE this message: both answer the same question.
-        return _refuse(f"REFUSED — fabrik-task: --commit {sha_in} is not this run's commit"), ""
+        return (
+            _refuse(f"REFUSED — fabrik-task: --commit {sha_in} is not this run's commit"),
+            "",
+            False,
+        )
     rv = _task_git(rp, "rev-parse", "-q", "--verify", sha_in + "^{commit}")
     sha = rv.stdout.strip() if rv.returncode == 0 else sha_in
 
@@ -3173,9 +3215,11 @@ def _task_measure(
     # own membership test and is scored oversized — a CONFIDENT number derived from a record we
     # cannot trust. A record this malformed is not measurable; say so rather than publish a count.
     _raw_files = (rec.get("declared") or {}).get("files")
-    if not isinstance(_raw_files, (list, tuple)):
-        raise TypeError(f"declared.files is {type(_raw_files).__name__}, not a list")
-    declared = {f for f in _raw_files if isinstance(f, str)}
+    if not isinstance(_raw_files, (list, tuple)) or not all(isinstance(f, str) for f in _raw_files):
+        # The ELEMENTS too: dropping a non-string member silently would publish a confident count
+        # from the same corruption class the container check refuses.
+        raise TypeError(f"declared.files is not a list of str: {type(_raw_files).__name__}")
+    declared = set(_raw_files)
     excl = _task_excl(rp)
     src_txt = _sync_filter_source()
     pat: re.Pattern[str] | None = None
@@ -3227,19 +3271,23 @@ def _task_measure(
         # `pat is not None`: an UNREADABLE filter cannot refute the claim, and refusing on it
         # would turn a spoke's missing hub file into a refused close.
         flag = "evidence" if args.cmd == "done" else "reason"
-        return _refuse(
-            f"REFUSED — fabrik-task: --{flag} claims UPGRADE: sync but the commit has no "
-            "sync-regex hit"
-        ), ""
+        return (
+            _refuse(
+                f"REFUSED — fabrik-task: --{flag} claims UPGRADE: sync but the commit has no "
+                "sync-regex hit"
+            ),
+            "",
+            True,
+        )
 
     paths = sorted(a | b)
     if paths:
-        return 0, _task_field(len(paths), sha, paths)
+        return 0, _task_field(len(paths), sha, paths), pat is not None
     if (rec.get("declared") or {}).get("sync_test") == "unavailable" and pat is None:
         # Invariant (vi)'s third reason, and its PRECEDENCE: the membership arm still ran, so a
         # COUNT still wins above — this is reported only when the measurable half found nothing.
-        return 0, "unmeasurable=sync_test-unavailable"
-    return 0, "0"
+        return 0, "unmeasurable=sync_test-unavailable", False
+    return 0, "0", pat is not None
 
 
 def _task_close_fields(rec: dict[str, Any], args: argparse.Namespace) -> tuple[int, dict[str, str]]:
@@ -3282,11 +3330,7 @@ def _task_close_fields(rec: dict[str, Any], args: argparse.Namespace) -> tuple[i
         # unconditionally: with no diff the membership arm cannot run, so neither a count nor
         # `sync_test-unavailable` is reachable from here.
         fields["oversized_mini"] = "unmeasurable=no-commit"
-        if fields.get("upgrade") == "sync":
-            # `UPGRADE: sync` says this change reaches ~46 repos. With no commit there is no
-            # diff, so the refutation arm cannot run and the claim would be recorded as though
-            # it had been checked. Say that it was not.
-            fields["upgrade"] = "sync (unverified)"
+        _mark_unverified_sync(fields)
         return 0, fields
     if not commit.strip():
         # The quoted substitution delivers `''` when the capture file is absent OR empty and the
@@ -3297,7 +3341,7 @@ def _task_close_fields(rec: dict[str, Any], args: argparse.Namespace) -> tuple[i
         ), {}
 
     try:
-        rc, value = _task_measure(rec, args, commit.strip(), up)
+        rc, value, sync_tested = _task_measure(rec, args, commit.strip(), up)
     except Exception as e:
         # The BARE class: a MEASUREMENT failure must never block a close. A refusal here would
         # leave the record `running` and the Stop hook blocking the turn over a git binary, a
@@ -3306,16 +3350,18 @@ def _task_close_fields(rec: dict[str, Any], args: argparse.Namespace) -> tuple[i
         sys.stderr.write(
             f"[command_run] ⚠ fabrik-task: re-measure unavailable ({type(e).__name__})\n"
         )
-        # A corrupt RECORD is not a git outage, and a ledger reader counting `no-git` must not
-        # be told a healthy git failed. The shape errors get their own reason.
-        bad_record = isinstance(e, (AttributeError, TypeError, KeyError, IndexError))
-        fields["oversized_mini"] = (
-            "unmeasurable=bad-record" if bad_record else "unmeasurable=no-git"
-        )
+        # ⚠️ ONE reason, not two. A corrupt record genuinely is not a git outage, but invariant
+        # (vi)'s grammar is CLOSED at three reasons — the ticket freezes it and two statements in
+        # this file say "NEVER a fourth". Splitting it needs a ticket amendment and a D-row, not a
+        # review fix; the mislabel is routed to the backlog instead (T01b delta review).
+        fields["oversized_mini"] = "unmeasurable=no-git"
+        _mark_unverified_sync(fields)
         return 0, fields
     if rc:
         return rc, {}
     fields["oversized_mini"] = _cap_field(value)
+    if not sync_tested:
+        _mark_unverified_sync(fields)
     return 0, fields
 
 

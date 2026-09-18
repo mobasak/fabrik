@@ -1964,7 +1964,7 @@ def test_an_undecodable_claude_md_still_falls_back(run_dir: Path, repo: Path, hu
 def test_an_upgrade_sync_claim_survives_an_unreadable_filter(
     run_dir: Path, repo: Path, tmp_path: Path
 ) -> None:
-    """B1. The `pat is not None` guard at `:3181` is a DELIBERATE fail-open: an unreadable sync
+    """B1. The `pat is not None` guard at `:3224` is a DELIBERATE fail-open: an unreadable sync
     filter cannot REFUTE a sync claim, because refusing on it would turn a spoke's missing hub
     file into a refused close. Condition 6 refuses only when the filter is READABLE and matched
     nothing. Dropping the guard makes this close refuse, and nothing else in the suite sees it."""
@@ -1992,7 +1992,9 @@ def test_an_upgrade_sync_claim_survives_an_unreadable_filter(
     )
     assert out.returncode == 0, out.stdout + out.stderr
     assert "no sync-regex hit" not in out.stdout, out.stdout
-    assert _rows(run_dir)[-1]["upgrade"] == "sync"
+    # NOT plain `sync`: an unreadable filter cannot REFUTE the claim, and it cannot CONFIRM
+    # one either. The first cut of this grader asserted `== "sync"` and pinned that hole.
+    assert _rows(run_dir)[-1]["upgrade"] == "sync (unverified)", _rows(run_dir)[-1]
 
 
 def test_a_matrix_prefix_row_excludes_its_whole_directory(
@@ -2019,10 +2021,15 @@ def test_a_matrix_prefix_row_excludes_its_whole_directory(
 def test_a_commit_that_does_not_resolve_to_a_commit_is_refused(
     run_dir: Path, repo: Path, hub_sync: Path, kind: str
 ) -> None:
-    """B3. The `cat-file -t` guard (`:3106-3110`). A truncated or corrupted capture file hands the
+    """B3. The `cat-file -t` guard (`:3127-3133`). A truncated or corrupted capture file hands the
     close a sha that resolves to a BLOB, or to nothing at all — both land in the same `ok=False`
     bucket as the merge and the stale date, sharing their message. Every other `--commit` test
-    supplies a real commit, so deleting this guard changed nothing in the suite."""
+    supplies a real commit, so deleting this guard changed nothing in the suite.
+
+    ⚠️ This grader covers the BEHAVIOUR — a sha that is not a commit is refused — which three
+    legs deliver JOINTLY, so deleting the `cat-file` guard alone leaves it green. The input
+    that isolates this guard is an ANNOTATED TAG (it resolves, peels, dates and diffs
+    perfectly), and it has its own grader below. Found by T01b's delta review."""
     _seed_claude(repo)
     _start_task(run_dir, repo, hub_sync, "src/a.py")
     _write(repo, "src/a.py", "x = 2\n")
@@ -2047,7 +2054,7 @@ def test_a_commit_that_does_not_resolve_to_a_commit_is_refused(
 def test_the_sync_refusal_names_the_flag_the_closing_verb_actually_takes(
     run_dir: Path, repo: Path, hub_sync: Path
 ) -> None:
-    """B4. `flag = "evidence" if args.cmd == "done" else "reason"` (`:3186`). A `handoff` carries
+    """B4. `flag = "evidence" if args.cmd == "done" else "reason"` (`:3229`). A `handoff` carries
     its claim in `--reason`, so a refusal telling the agent to fix `--evidence` names a flag that
     close does not take. Only the `done` arm was exercised, so the ternary could be swapped with
     the whole suite still green."""
@@ -2123,22 +2130,28 @@ def test_a_broken_git_environment_never_refuses_the_close(
     assert _rec(run_dir)["state"] == "done"
 
 
-def test_a_corrupt_declared_block_is_not_reported_as_a_git_outage(
-    run_dir: Path, repo: Path, hub: Path
+@pytest.mark.parametrize(
+    "files", ["mas.txt", ["mas.txt", 7]], ids=["a-string-scalar", "a-non-string-member"]
+)
+def test_a_corrupt_declared_block_refuses_to_publish_a_count(
+    run_dir: Path, repo: Path, hub: Path, files: object
 ) -> None:
-    """A4 + A5. A `files` STRING scalar became a set of CHARACTERS, so the declared file failed
-    its own membership test and was scored oversized — a confident number from a record nothing
-    can trust. And every exception was labelled `no-git`, telling a ledger reader a healthy git
-    failed. A corrupt record is `bad-record`; git is fine here and the label must say so."""
+    """A5 + its element half. A `files` STRING scalar became a set of CHARACTERS, so the declared
+    file failed its own membership test and was scored oversized. Guarding only the CONTAINER left
+    the same class open one level down: `["mas.txt", 7]` silently dropped the bad member and still
+    published a confident number. Both are equally corrupt and neither is measurable.
+
+    The reason stays `no-git` — invariant (vi)'s grammar is closed at three and the mislabel
+    (a healthy git reported as an outage) is routed to the backlog, not fixed by a fourth."""
     _seed_claude(repo)
     _start_task(run_dir, repo, hub, "mas.txt")
-    _mutate_rec(run_dir, declared={"files": "mas.txt", "sync_test": "ok"})
+    _mutate_rec(run_dir, declared={"files": files, "sync_test": "ok"})
     _write(repo, "mas.txt", "y\n")
     _write(repo, "extra.txt", "y\n")
     sha = _commit_all(repo, "corrupt record")
     out = _close_run(run_dir, repo, hub, "done", "--commit", sha, "--evidence", "green")
     assert out.returncode == 0, out.stdout + out.stderr
-    assert _rows(run_dir)[-1]["oversized_mini"] == "unmeasurable=bad-record", _rows(run_dir)[-1]
+    assert _rows(run_dir)[-1]["oversized_mini"] == "unmeasurable=no-git", _rows(run_dir)[-1]
     assert _rec(run_dir)["state"] == "done"
 
 
@@ -2162,3 +2175,104 @@ def test_an_unverifiable_sync_claim_is_recorded_as_unverified(
     row = _rows(run_dir)[-1]
     assert row["upgrade"] == "sync (unverified)", row
     assert row["oversized_mini"] == "unmeasurable=no-commit", row
+
+
+def test_an_annotated_tag_sha_is_refused(run_dir: Path, repo: Path, hub_sync: Path) -> None:
+    """The input that ISOLATES the `cat-file -t` guard. A blob or a garbage sha is caught by the
+    parent-count leg two lines below as well, so deleting the guard leaves those green — an
+    annotated tag is the one shape that resolves, peels through `rev-parse …^{commit}`, dates and
+    diffs perfectly, and is still not this run's commit. Found by T01b's delta review, which
+    deleted the whole guard and watched all 59 graders pass."""
+    _seed_claude(repo)
+    _start_task(run_dir, repo, hub_sync, "src/a.py")
+    _write(repo, "src/a.py", "x = 2\n")
+    _write(repo, "src/undeclared.py")
+    _commit_all(repo, "two files")
+    subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "tag", "-a", "v1", "-m", "annotated"],
+        cwd=str(repo),
+        check=True,
+        timeout=15,
+    )
+    tag = subprocess.run(
+        ["git", "rev-parse", "-q", "--verify", "v1"],
+        cwd=str(repo),
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=15,
+    ).stdout.strip()
+    out = _close_run(run_dir, repo, hub_sync, "done", "--commit", tag, "--evidence", "green")
+    assert out.returncode == 1, out.stdout + out.stderr
+    assert f"--commit {tag} is not this run's commit" in out.stdout, out.stdout
+    assert _rec(run_dir)["state"] == "running"
+
+
+def test_a_truncated_rename_tail_is_dropped_not_guessed(tmp_path: Path, monkeypatch) -> None:
+    """The splitter's truncated `R`/`C` arm. Falling through to the 2-field arm re-reads a
+    truncated rename's SOURCE as an independent DESTINATION, so the count gains a path the commit
+    never added and `_task_field` NAMES it in the ledger row. Shipped with no grader at all until
+    T01b's delta review reverted the `break` and watched all 59 pass."""
+    mod = _load("cr_pairs", _SCRIPT)
+
+    class _R:
+        returncode = 0
+        stderr = ""
+
+        def __init__(self, out: str) -> None:
+            self.stdout = out
+
+    monkeypatch.setattr(mod, "_task_git", lambda root, *a: _R("M\0src/a.py\0R100\0src/b.py\0"))
+    assert mod._task_diff_pairs(tmp_path, "base", "sha") == [("M", None, "src/a.py")]
+
+
+def test_an_ambient_git_dir_cannot_relocate_the_measurement(
+    run_dir: Path, repo: Path, hub: Path, tmp_path: Path
+) -> None:
+    """The one-variable launder. git reads the REPOSITORY out of the environment before it looks
+    at `cwd`, so an ambient `GIT_DIR` — leaked from a hook, a shell, or this repo's own
+    private-index recipe, which exports `GIT_INDEX_FILE` and warns that it leaks — made every git
+    call in the re-measure answer about a repository the close never named. Pointed at a decoy
+    holding only the declared file it produced a VERIFIED-looking `0` for a two-file commit;
+    pointed at any other real repo it refused an honest close and left the record `running`.
+    Both directions reproduced by T01b's delta review."""
+    _seed_claude(repo)
+    _start_task(run_dir, repo, hub, "src/a.py")
+    _write(repo, "src/a.py", "x = 2\n")
+    _write(repo, "src/undeclared.py")
+    sha = _commit_all(repo, "declared plus one undeclared")
+
+    decoy = tmp_path / "decoy"
+    decoy.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=str(decoy), check=True, timeout=15)
+    (decoy / "src").mkdir()
+    (decoy / "src" / "a.py").write_text("x = 1\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=str(decoy), check=True, timeout=15)
+    subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "decoy"],
+        cwd=str(decoy),
+        check=True,
+        timeout=15,
+    )
+
+    out = _cr(
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-task",
+        "--commit",
+        sha,
+        "--evidence",
+        "green",
+        "--feedback",
+        _FB,
+        cwd=repo,
+        extra_env={"FABRIK_HUB_ROOT": str(hub), "GIT_DIR": str(decoy / ".git")},
+    )
+    assert out.returncode == 0, out.stdout + out.stderr
+    # The HONEST count, taken from the run's own repository — not the decoy's `0`, and not a
+    # refusal of a commit that exists exactly where the record says it does.
+    assert _rows(run_dir)[-1]["oversized_mini"] == (
+        f"1 · commit={sha} · paths=src/undeclared.py"
+    ), _rows(run_dir)[-1]["oversized_mini"]
+    assert _rec(run_dir)["state"] == "done"
