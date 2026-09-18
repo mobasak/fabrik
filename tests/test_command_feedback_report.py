@@ -2714,8 +2714,9 @@ def test_queue_fabrik_task_a_non_ascii_digit_never_crashes_the_reader(tmp_path: 
     accepts make `int()` RAISE (`²`, `⑴`, `₃`, `፩` …), and a digit string over 4,300 chars raises
     too. At rc 1 both `/fabrik-command-improve` and the daily relay lose their input.
 
-    ⚠️ And `unmeasurable=…` must NOT be counted as unreadable: it is a legitimate outcome with its
-    own cell three fields along, so counting it here would double-report it as damage."""
+    (The `unmeasurable` exclusion this guard needs is graded separately, by a fixture that actually
+    carries such a row — this one does not, and a docstring claiming what its own fixture cannot
+    reach is the defect it would otherwise hide.)"""
     ledger = tmp_path / "l.jsonl"
     rows = [
         _row("fabrik-task", 60, 1, "none", oversized_mini="² · commit=a · paths=p"),
@@ -2763,3 +2764,53 @@ def test_the_redundant_queue_and_command_pair_is_refused(tmp_path: Path) -> None
     assert "drop --command" in r.stderr, r.stderr
     r2 = _run(ledger, "--queue", "fabrik-task", "--command", "fabrik-review")
     assert r2.returncode == 2 and "name different commands" in r2.stderr, r2.stderr
+
+
+@pytest.mark.parametrize("pad", ["", " ", "\t", "\xa0"], ids=["bare", "space", "tab", "nbsp"])
+def test_queue_fabrik_task_an_unmeasurable_row_lands_in_exactly_one_bucket(
+    tmp_path: Path, pad: str
+) -> None:
+    """The two readers of `oversized_mini` must key on the SAME string. They did not: the
+    `unreadable` exclusion tested the whitespace-stripped first token while the `unmeasurable` cell
+    tested the raw value, so a leading whitespace codepoint put the row in NEITHER bucket —
+    excluded from the damage count AND absent from its own cell, invisible. 29 of the 29 codepoints
+    `str.split()` honours produce it; NBSP is the ordinary result of a copy-paste out of a rendered
+    doc, and hand-edited rows are exactly the population these guards exist for."""
+    ledger = tmp_path / "l.jsonl"
+    _write(ledger, [_row("fabrik-task", 60, 1, "none", oversized_mini=f"{pad}unmeasurable=no-git")])
+    r = _run(ledger, "--queue", "fabrik-task")
+    assert r.returncode == 0, r.stderr
+    line = r.stdout.splitlines()[1]
+    assert "unmeasurable 1/1" in line, line
+    assert "unreadable" not in line, line
+
+
+def test_queue_fabrik_task_a_missing_field_is_not_damage(tmp_path: Path) -> None:
+    """F2: the `val and` half of the guard is the only thing keeping a row with NO
+    `oversized_mini` at all out of the damage cell — a pre-lane row, or any older vintage. Dropping
+    it reports every such row as unreadable, and nothing caught that."""
+    ledger = tmp_path / "l.jsonl"
+    _write(ledger, [_row("fabrik-task", 60, 1, "none") for _ in range(4)])
+    r = _run(ledger, "--queue", "fabrik-task")
+    assert r.returncode == 0, r.stderr
+    line = r.stdout.splitlines()[1]
+    assert "unreadable" not in line, line
+    assert line.startswith("series: oversized_mini —/0 · unmeasurable 0/4"), line
+
+
+def test_queue_fabrik_task_both_suffixes_compose_in_a_stable_order(tmp_path: Path) -> None:
+    """No grader put both suffixes on one line, so their ORDER was unpinned — and the two counts
+    mean different things: one is measurement LOST, the other measurement structurally excluded.
+    A reader who cannot tell them apart cannot check the denominator either way."""
+    ledger = tmp_path / "l.jsonl"
+    rows = [
+        _row("fabrik-task", 60, 1, "none", oversized_mini="² · commit=a · paths=p"),
+        _row("fabrik-task", 60, 1, "none", oversized_mini="5 · commit=b · paths=q", upgrade="sync"),
+        _row("fabrik-task", 60, 1, "none", oversized_mini="3 · commit=c · paths=r"),
+    ]
+    _write(ledger, rows)
+    r = _run(ledger, "--queue", "fabrik-task")
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.splitlines()[1].startswith(
+        "series: oversized_mini 1/1 (100%) [+1 unreadable] [+1 upgrade: sync]"
+    ), r.stdout.splitlines()[1]

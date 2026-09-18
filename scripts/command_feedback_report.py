@@ -1103,6 +1103,19 @@ def render(report: dict) -> str:
     return "\n".join(lines)
 
 
+def _is_unmeasurable(raw: object) -> bool:
+    """One predicate for BOTH readers of `oversized_mini`.
+
+    ⚠️ They keyed on different strings and a row fell between them: the exclusion below tested the
+    whitespace-STRIPPED first token while the `unmeasurable` cell tested the RAW value, so any value
+    with a leading whitespace codepoint was excluded from `unreadable` AND absent from
+    `unmeasurable` — in no bucket at all, invisible. 29 of the 29 codepoints `str.split()` honours
+    produce it, NBSP among them, which is the ordinary result of a copy-paste out of a rendered
+    doc — and hand-edited rows are precisely the population these guards exist for.
+    """
+    return ("" if raw is None else str(raw)).lstrip().startswith("unmeasurable")
+
+
 def _task_series_nested(r: dict, others: list[dict]) -> bool:
     """A `/fabrik-review-scoped` row `r` is NESTED when some OTHER command's row `o` (in
     `others`) shares its `sid`, both rows' `repo` are non-empty and name the same repository —
@@ -1162,6 +1175,12 @@ def _task_series(for_it: list[dict], rows: list[dict]) -> str:
         # append-only ledger. That is the class `_num` and `_rows` were rewritten to close (review
         # passes 22 and 23); reintroducing it would cost `/fabrik-command-improve` and the daily
         # relay their input at rc 1.
+        # ⚠️ The STRUCTURAL exclusion is tested FIRST. A `upgrade: sync` row was never in the
+        # denominator to begin with, so counting an unparseable one as `unreadable` bills a
+        # structural exclusion as lost measurement and the reader cannot tell the two apart.
+        if str(r.get("upgrade") or "") == "sync":
+            sync_excluded += 1
+            continue
         if not (val.isascii() and val.isdigit() and len(val) <= 18):
             # ⚠️ DISCLOSED, for the same reason its neighbour is. This guard is deliberately
             # WIDER than the crash class — `.isascii()` rejects 670 codepoints `int()` parses
@@ -1172,7 +1191,7 @@ def _task_series(for_it: list[dict], rows: list[dict]) -> str:
             # ⚠️ NOT every non-numeric value: `unmeasurable=…` is a LEGITIMATE outcome with its
             # own cell three fields along, and counting it here would double-report it as damage.
             # Only a value that CLAIMS to be a count and cannot be read is unreadable.
-            if val and not val.startswith("unmeasurable"):
+            if val and not _is_unmeasurable(raw):
                 unreadable += 1
             continue
         # ⚠️ EQUALITY, never `startswith("sync")`, and the reason is mechanical rather than moral.
@@ -1183,9 +1202,6 @@ def _task_series(for_it: list[dict], rows: list[dict]) -> str:
         # filter was unreadable, so set B was never populated and the count is the pure membership
         # measurement, with none of that inflation — it STAYS IN. Hardening this to a prefix match
         # would silently delete real oversize measurements from the denominator.
-        if str(r.get("upgrade") or "") == "sync":
-            sync_excluded += 1
-            continue
         nums.append(int(val))
     over_n, over_k = len(nums), sum(1 for n in nums if n >= 1)
     over_cell = "—/0" if over_n == 0 else f"{over_k}/{over_n} ({round(100 * over_k / over_n)}%)"
@@ -1198,7 +1214,7 @@ def _task_series(for_it: list[dict], rows: list[dict]) -> str:
         # byte-identical line, and V4's own scaling term needs this count.
         over_cell += f" [+{sync_excluded} upgrade: sync]"
     total = len(for_it)
-    unmeas = sum(1 for r in for_it if str(r.get("oversized_mini") or "").startswith("unmeasurable"))
+    unmeas = sum(1 for r in for_it if _is_unmeasurable(r.get("oversized_mini")))
     upgraded = sum(1 for r in for_it if str(r.get("upgrade") or "").strip())
     # spec § UPGRADE and § V4: the baseline is DONE-only, on BOTH sides. A `handoff` fabrik-task
     # row is a run that LEFT the lane for the spec chain — counting it as adoption inverts the
