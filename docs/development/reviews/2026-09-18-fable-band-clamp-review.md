@@ -148,7 +148,31 @@ Destination: reported to the operator in-session; the remedy is `--resume-switch
 
 ## Gate
 
-RE-MEASURED in the closing pass — not yet run for this loop.
+RE-MEASURED after the round-2 commit `08247db`, not inherited:
+
+```
+GATE: failure | failed: 1
+FAIL: Doc Sync Matrix — CHANGELOG.md not updated for 1 significant code/infra change(s)
+      (e.g. scripts/command_run.py)
+skipped_checks: ['bandit', 'bandit scripts/', 'semgrep', 'pytest']
+```
+
+⚠️ ATTRIBUTED, not waved through. The one failure is NOT this review's surface: `git status` reports
+`M  scripts/command_run.py` — 417 insertions STAGED IN THE SHARED INDEX by a sibling session (their
+`/fabrik-task` T01a, dispatched at `4b233b43c`). This review touched no line of that file
+(`git log --since=today -- scripts/command_run.py` returns nothing) and its CHANGELOG entry is the
+sibling's to write. Committing it, or writing their entry, is the "never commit a file carrying
+their live WIP" HARD STOP.
+
+For THIS review's own surface the gate is green: the Doc Sync failure names only `command_run.py`;
+the `lint-ratchet` leg that failed earlier at 0 → 3 was repaired at `3b2ec0fc` and repo-wide
+`ruff check .` reports `All checks passed!`; `tests/test_claude_fleet.py` + `tests/test_quota_posture.py`
+report `372 passed`. `skipped_checks` carries the hub's standing pytest exception and the two static
+tools absent from this interpreter — read as skips, never as passes.
+
+⚠️ That the shared index was DIRTY with a sibling's 417 staged lines throughout is also why every
+CHANGELOG and ledger append in this run went through the private-index recipe rather than a pathspec
+commit: a pathspec commit reads the working tree, and a bare one would have shipped their blob.
 
 ## RESUME — round 2 was 100% own-fix; this run is HANDED OFF, not converged
 
