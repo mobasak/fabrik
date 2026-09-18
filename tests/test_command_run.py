@@ -6114,7 +6114,7 @@ def test_the_artifact_floor_holds_under_a_malformed_ambient_git_config(tmp_path)
     a handler that fails OPEN: with `GIT_CONFIG_PARAMETERS="'core.'"` — git's own `-c` propagation
     variable, exported into every hook whenever the invoking command carried `-c`, which the
     contract mandates — `/fabrik-review done` with NO report closed at rc 0 (delta round of the
-    /fabrik-task lane review, executed; 6 of the 21 scrubbed variables bypassed it). The floor
+    /fabrik-task lane review, executed; 6 of the 20 scrubbed variables bypassed it). The floor
     must refuse under an ambient value exactly as it does under a clean environment."""
     import subprocess
     import sys
@@ -6134,3 +6134,35 @@ def test_the_artifact_floor_holds_under_a_malformed_ambient_git_config(tmp_path)
         )
         assert r.returncode == 1, f"{var}: the floor closed with no report ({r.stdout})"
         assert "persisted report" in r.stdout, (var, r.stdout)
+
+
+def test_the_artifact_floor_finds_a_committed_report_under_a_malformed_ambient_git_config(tmp_path):
+    """The mirror of the floor's fail-open: its `git log` walk is what finds a report that is
+    COMMITTED (clean tree — the porcelain walk sees nothing), and that call's own `except` swallows
+    an rc-128 into `log = []`, so an unscrubbed env there turns a legitimate close into a false
+    REFUSAL. The grader above cannot see it (its repo has no report at all). Reverting only the
+    log call's scrub survived every case (closing seat, executed); this pins it."""
+    import subprocess
+    import sys
+
+    script = str(_SCRIPT)
+    env, repo = _artifact_repo(tmp_path, name="floor-committed")
+    subprocess.run(
+        [sys.executable, script, "start", "--command", "fabrik-review", "--phases", "1", "--terminal", "t"],
+        cwd=repo, env=env, check=True, timeout=15,
+    )
+    rep = repo / "docs/development/reviews/2026-09-19-fabrik-review-x.md"
+    rep.parent.mkdir(parents=True)
+    rep.write_text("# review\nStatus: CONVERGED\n")
+    subprocess.run(["git", "add", "docs/development/reviews"], cwd=repo, check=True, timeout=15)
+    subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "report"],
+        cwd=repo, check=True, timeout=15,
+    )
+    env["GIT_CONFIG_PARAMETERS"] = "'core.'"
+    r = subprocess.run(
+        [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "committed report",
+         "--feedback", "confusion: none · waste: none · change: none · filed: none — harness setup"],
+        cwd=repo, env=env, capture_output=True, text=True, timeout=15,
+    )
+    assert r.returncode == 0, f"a committed report was not found under an ambient value ({r.stdout})"

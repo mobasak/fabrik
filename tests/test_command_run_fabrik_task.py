@@ -2574,10 +2574,11 @@ def test_the_matrix_harvest_takes_destinations_never_prose_and_matches_case() ->
 def test_the_refusal_names_the_first_row_that_fires_inside_each_tier(
     run_dir: Path, repo: Path, hub: Path
 ) -> None:
-    """Nothing pinned the order of the chain at all — not inside a tier and not the tier boundary
-    either: the only 4-file grader declares `_ALL_NO`, so `files>3`↔`mechanism` was unobservable,
-    and the first cut of THIS docstring claimed that boundary was pinned elsewhere (delta round:
-    every one of the six adjacent swaps survived 73 cases except the two pinned here). Two of the
+    """Only two of the chain's six adjacent pairs were pinned, both by this test's own two cases —
+    `mechanism`↔`oneway` and `sync`↔`heavy`. The tier boundary was unobservable: the only 4-file
+    grader declares `_ALL_NO`, so `files>3`↔`mechanism` never fired (delta round: the other four
+    swaps survived all 73 cases in this file; the first cut of this docstring claimed the boundary
+    was pinned elsewhere, and its second cut claimed nothing was pinned at all). Two of the
     survivors change the ROUTE, not the label — `tradeoffs`↔`sync` sends spec-chain work to the
     right-now lane, `heavy`↔`decision` downgrades a heavy surface to the scoped review — so every
     adjacent pair is pinned. The contract's sentence ("the first row that fires wins"; rows 2-5
