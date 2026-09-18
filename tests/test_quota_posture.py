@@ -38,6 +38,7 @@ def _posture(
     *,
     band="GREEN",
     band_fable=None,
+    band_fable_clamped=False,
     ts=None,
     slug="ozgurbasak",
     successor="mob",
@@ -93,6 +94,9 @@ def _posture(
             "band_account": band_account if band_account is not None else band,
             "hottest_fable": "five_hour",
             "band_fable": band if band_fable is None else band_fable,
+            # ⚠️ goes in `active`, NOT through `**over` — that merges into `active.windows`, so a
+            # test passing it as a kwarg silently exercised the UNCLAMPED path and read green
+            "band_fable_clamped": band_fable_clamped,
             "band_account_fable": band_account
             if band_account is not None
             else (band if band_fable is None else band_fable),
@@ -1231,3 +1235,79 @@ def test_prompt_line_names_both_required_windows_when_nobody_serves_either(tmp_p
         "band RED on 5h and weekly (fleet-wide: 5h — nobody serves it · weekly — nobody serves it)"
         in line
     ), line
+
+
+def test_a_clamped_fable_band_explains_itself_instead_of_naming_a_cool_window(tmp_path):
+    """Round 1 seat A, F1/F2/F3 — the Fable clamp made the band come from THIS ACCOUNT's own Fable
+    window, a figure that is not in `fleet.windows` at all. Every consumer that explains a band
+    from the fleet readings then explained the wrong thing: the line printed `band RED on weekly`
+    while weekly sat at 21%, the deny text told a held agent "the coolest account that can still
+    serve seven_day is sarp at 21%, so no flip relieves this" about a window a flip WOULD relieve,
+    and the provenance sentence asserted "the band is the fleet's, act on it" about a band that is
+    the account's. All three are the Delta 9 seat C class, one window further out."""
+    state, runs = tmp_path / "state", tmp_path / "runs"
+    runs.mkdir()
+    t = tmp_path / "t.jsonl"
+    t.write_text(json.dumps({"type": "assistant", "message": {"model": "claude-fable-5-1"}}) + "\n")
+    fw = {
+        "five_hour": {"utilization": 10.0, "slug": "sarp"},
+        "seven_day": {"utilization": 21.0, "slug": "sarp"},
+        "fable": {"utilization": 21.0, "slug": "sarp"},
+    }
+    _posture(
+        state,
+        band="GREEN",
+        band_account="AMBER",
+        band_fable="RED",
+        band_fable_clamped=True,
+        fleet_windows=fw,
+        fleet_measured=2,
+        successor="sarp",
+    )
+    line = _hook(
+        {"hook_event_name": "UserPromptSubmit", "session_id": "s9", "transcript_path": str(t)},
+        state=state,
+        runs=runs,
+    ).stdout
+    assert "on weekly" not in line, f"a cool window must not be named as what binds: {line}"
+    assert "Fable on this account (no relief leg)" in line, line
+    assert "the band is the fleet's, act on it" not in line, (
+        "false provenance: on the clamped path the band is the ACCOUNT's"
+    )
+    assert "only pinning" in line, "the line must name the one remedy that reaches Fable headroom"
+
+    reason = json.loads(
+        _hook(
+            {
+                "hook_event_name": "PreToolUse",
+                "tool_name": "Agent",
+                "session_id": "s9",
+                "transcript_path": str(t),
+            },
+            state=state,
+            runs=runs,
+        ).stdout
+    )["hookSpecificOutput"]["permissionDecisionReason"]
+    assert "at 21%, so no flip relieves this" not in reason, (
+        f"the deny must not cite a window a flip WOULD relieve: {reason}"
+    )
+    assert "relief leg flips on the 5h and weekly windows only" in reason, reason
+    assert "fleet-wide —" not in reason, "the header must not claim a fleet-wide band"
+
+    # and the UNCLAMPED path is untouched: the fleet's own explanation still stands
+    _posture(
+        state,
+        band="RED",
+        band_account="GREEN",
+        band_fable="RED",
+        band_fable_clamped=False,
+        fleet_windows={"seven_day": {"utilization": 95.0, "slug": "sarp"}},
+        fleet_measured=2,
+        successor=None,
+    )
+    line2 = _hook(
+        {"hook_event_name": "UserPromptSubmit", "session_id": "s9", "transcript_path": str(t)},
+        state=state,
+        runs=runs,
+    ).stdout
+    assert "Fable on this account" not in line2, "the clamped wording must not leak onto the fleet path"

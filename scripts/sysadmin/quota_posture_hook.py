@@ -306,15 +306,35 @@ def _fleet_clause(posture: dict, band: str | None, *, is_fable: bool) -> str:
             parts.append(f"{label} — nobody serves it")
             absent.append(label)
     out = ""
+    # hoisted ABOVE `if parts:` — the provenance sentence below reads it whether or not any fleet
+    # window rendered, and a definition inside the block raised NameError on an empty `parts`
+    clamped = is_fable and bool(act.get("band_fable_clamped"))
     if parts:
         # an ABSENT required window is what made the band RED, so it is the window the band is
         # ON — naming the hottest NUMERIC window instead pointed the reader at a window that
         # still had headroom (`on weekly` while nobody served 5h; Delta 9 seat C).
-        binds = " and ".join(absent) if absent else (hottest[1] if hottest else None)
+        # ⚠️ When the Fable clamp binds, the band came from THIS ACCOUNT's own Fable window, which
+        # is not in `fw` at all — so the hottest fleet reading explains nothing and naming it is the
+        # Delta 9 seat C defect again, one window further out (round 1 seat A, F1: `band RED on
+        # weekly` printed while every fleet figure, weekly included, sat at 21%).
+        binds = (
+            "Fable on this account (no relief leg)"
+            if clamped
+            else (" and ".join(absent) if absent else (hottest[1] if hottest else None))
+        )
         on = f" on {binds}" if band in ("AMBER", "RED") and binds else ""
         out += f"{on} (fleet-wide: {' · '.join(parts)})"
     own = act.get("band_account_fable") if is_fable else act.get("band_account")
-    if isinstance(own, str) and isinstance(band, str) and own != band and band != "WALL":
+    if clamped:
+        # ⚠️ NOT "the band is the fleet's, act on it" — on this path it is the ACCOUNT's, and that
+        # sentence exists precisely to be believed over the numbers in context, so asserting a false
+        # provenance on it is worse than printing nothing (round 1 seat A, F3). Name the remedy the
+        # band does have: the relief leg cannot reach another account's Fable window, pinning can.
+        out += (
+            " — this account's own Fable window binds; no flip reaches another account's Fable"
+            " headroom, only pinning CLAUDE_CONFIG_DIR + CLAUDE_QUOTA_HOME to a slug that has it"
+        )
+    elif isinstance(own, str) and isinstance(band, str) and own != band and band != "WALL":
         out += f" — this account alone reads {own}; the band is the fleet's, act on it"
     return out
 
@@ -726,6 +746,17 @@ def _deny_reason(posture: dict, band: str, what: str, *, is_fable: bool = False)
         fleet_s = (
             f" Fleet-wide NO account can serve {' and '.join(absent)}, so no flip relieves this."
         )
+    elif is_fable and act.get("band_fable_clamped"):
+        # ⚠️ The `elif fw:` arm below picks the coolest fleet reading and asserts "so no flip
+        # relieves this" — true while the band could only come from the fleet, FALSE once the clamp
+        # can raise it off this account's own Fable window: it named `seven_day … at 21%` as the
+        # reason while a flip to that very account would have relieved weekly completely (round 1
+        # seat A, F2). The hook's own comment above records the same class being paid for once.
+        fleet_s = (
+            " Fable is weekly-scoped and the relief leg flips on the 5h and weekly windows only,"
+            " so NO flip relieves this — only pinning CLAUDE_CONFIG_DIR + CLAUDE_QUOTA_HOME to a"
+            " slug with Fable headroom does."
+        )
     elif fw:
         best = max(
             ((k, fw[k]) for k in keys if _util(fw.get(k)) is not None),
@@ -738,7 +769,7 @@ def _deny_reason(posture: dict, band: str, what: str, *, is_fable: bool = False)
                 f"{best[1].get('slug') or '?'} at {_pct(best[1])}, so no flip relieves this."
             )
     return (
-        f"QUOTA {band} fleet-wide — on {act.get('slug') or 'the active account'} "
+        f"QUOTA {band} {'on this account\'s Fable window' if is_fable and act.get('band_fable_clamped') else 'fleet-wide'} — on {act.get('slug') or 'the active account'} "
         f"{hot or 'the hottest window'} is {_pct(w)} ({_forecast(w)}).{fleet_s} {what} starts NEW work, and at "
         f"RED the only path is finish, commit, push, close your run record. Every tool a checkpoint "
         f"needs is allowed, and so is the review of the change you are checkpointing. {_REMEDY} — "

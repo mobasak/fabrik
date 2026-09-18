@@ -4611,6 +4611,51 @@ def _fleet_band(
     if hold or account_band == "WALL":
         return account_band
 
+    def _clamp(b: str | None) -> str | None:
+        """Raise `b` to the ACTIVE account's own FABLE band when that is hotter — on the fable
+        path only, and on EVERY return of it.
+
+        ⚠️ FABLE HAS NO RELIEF LEG: the tick flips on `hot` = max(five_hour, seven_day)
+        (`_fleet_flip_leg`), so an active account at its Fable wall is never a flip trigger and the
+        fleet's cool Fable reading names headroom no automated flip will move the session onto —
+        reachable by PINNING alone, which the band does not speak to. Measured 2026-09-18:
+        `band_account_fable: RED` beside `band_fable: GREEN` at `minutes_to_wall: 0.0`.
+
+        ⚠️ Applied as a HELPER, not as one tail clause, because the scarcity arm above returns
+        BEFORE the tail: a tail-only clamp left `band_fable = None` whenever a required window had
+        no reading, `_band_for_session` then required `isinstance(fb, str)` and fell through to the
+        plain band, and a Fable-walled account passed FREE during a telemetry blackout — fail-open
+        in exactly the state this clamp exists to close (round 1 seat A, F5).
+
+        ⚠️ Keyed on the account's OWN FABLE window, never on `account_band` — that argument is
+        `_band_of(hot_f)`, the hottest of all THREE windows, so clamping on it would band a cool
+        Fable session RED off its account's WEEKLY and re-introduce the "behaves like there is only
+        one account exist" defect the 2026-09-17 ruling exists to prevent, on this one path.
+
+        Through `_usable_ts`, the module's ONE validator, like every other number here: a bare NaN
+        survives `json.loads` and `_band_of` reads it as GREEN — failing open at the safest-looking
+        band, the one direction a quota guard must never take (`_window_reading`'s own note), and a
+        string would raise out of the tick's posture write (round 1 seat A, F6).
+
+        An unmappable `b` defaults to -1 so `own` wins: raising the band is the conservative
+        direction, and an unknown severity must never SUPPRESS a hotter reading (F7)."""
+        if not fable:
+            return b
+        pct = _usable_ts(account_fable_pct)
+        if pct is None:
+            return b
+        own = _band_of(pct, False, drain, urgent)
+        if own is None:
+            return b
+        if b is None:
+            # ⚠️ A BLACKOUT is "unknown", never "cool". A HOT own-Fable reading is still actionable
+            # — this session cannot spend Fable whatever the fleet turns out to be — but a COOL one
+            # says nothing about the fleet, and returning it would fabricate a GREEN out of `?`,
+            # which every renderer reads as "no constraint". Caught by this round's own grader while
+            # fixing F5: the first cut returned GREEN here.
+            return own if _BAND_SEVERITY.get(own, -1) > _BAND_SEVERITY["GREEN"] else None
+        return own if _BAND_SEVERITY.get(own, -1) > _BAND_SEVERITY.get(b, -1) else b
+
     def _u(k: str) -> float | None:
         w = fleet.get(k) if isinstance(fleet, dict) else None
         # `_usable_ts`: `math.isfinite` itself raises OverflowError on a giant int (round zero)
@@ -4635,8 +4680,8 @@ def _fleet_band(
         # production and alive in fifteen graders, three of which pinned the opposite of what
         # ships (Delta 10 seat A, #5).
         if account_band in ("RED", "WALL"):
-            return account_band
-        return "RED" if measured > 0 else None
+            return _clamp(account_band)
+        return _clamp("RED" if measured > 0 else None)
     # Fable is NOT a required window: an absent Fable reading means the usage API reported none for
     # any serving account (a Fable session with nothing to report), not that every account's Fable
     # window is spent — treating absence as scarcity would RED every Fable session on a box that
@@ -4644,24 +4689,7 @@ def _fleet_band(
     if fable and _u("fable") is not None:
         utils.append(_u("fable"))
     band = _band_of(max(utils), False, drain, urgent)
-    # ⚠️ FABLE HAS NO RELIEF LEG, so on THIS path the account's own band still stands. The tick
-    # flips on `hot` — the session and weekly windows only — so an active account at its FABLE
-    # wall is never a flip trigger, and the fleet's cool Fable reading names headroom no automated
-    # flip will ever move the session onto. It is reachable by PINNING alone, which the band does
-    # not speak to. Measured 2026-09-18: `band_account_fable: RED` beside `band_fable: GREEN`
-    # (fleet Fable 21% at `can`, whose weekly 88% also keeps the relief leg bouncing off it), and
-    # every Fable session on the active account worked normally at `minutes_to_wall: 0.0` until
-    # the operator noticed. The two REQUIRED windows keep the decoupling Delta 9 seat A F3 put in
-    # — there a flip genuinely can relieve, so the fleet's reading is the honest one.
-    # ⚠️ Keyed on the account's OWN FABLE window, never on `account_band` — that argument is
-    # `_band_of(hot_f)`, the hottest of all THREE windows, so clamping on it would band a Fable
-    # session RED off its account's WEEKLY and re-introduce the "behaves like there is only one
-    # account exist" defect the 2026-09-17 ruling exists to prevent, on this one path.
-    if fable and account_fable_pct is not None:
-        own = _band_of(account_fable_pct, False, drain, urgent)
-        if _BAND_SEVERITY.get(own, -1) > _BAND_SEVERITY.get(band, -1):
-            return own
-    return band
+    return _clamp(band)
 
 
 def _quota_posture(
@@ -4762,6 +4790,11 @@ def _quota_posture(
 
     fleet_w = _fleet_readings(accounts, picture)
     measured = _fleet_measured(accounts, picture)
+    # both readings of the SAME pure function — the difference IS the clamp's verdict, so the
+    # predicate lives in exactly one place (`_fleet_band._clamp`) and no consumer re-derives it
+    _bf_args = (fleet_w, _band_of(hot_f, hold, drain, urgent), hold, drain, urgent)
+    _band_fable_unclamped = _fleet_band(*_bf_args, fable=True, measured=measured)
+    _band_fable = _fleet_band(*_bf_args, fable=True, measured=measured, account_fable_pct=fb_u)
     return {
         "schema": _POSTURE_SCHEMA,
         "ts": now,
@@ -4789,16 +4822,18 @@ def _quota_posture(
             ),
             "hottest_fable": hottest_f,
             "band_account_fable": _band_of(hot_f, hold, drain, urgent),
-            "band_fable": _fleet_band(
-                fleet_w,
-                _band_of(hot_f, hold, drain, urgent),
-                hold,
-                drain,
-                urgent,
-                fable=True,
-                measured=measured,
-                account_fable_pct=fb_u,
-            ),
+            "band_fable": _band_fable,
+            # ⚠️ WHY the Fable band is what it is, not just what it is. When the clamp binds, the
+            # band comes from THIS ACCOUNT's Fable window — a figure that is NOT in `fleet.windows`
+            # — so every consumer that explains a band from the fleet readings explains the wrong
+            # thing: the hook named a window with headroom as the one that binds, told a held agent
+            # "the coolest account that can still serve <window> is <slug> at <n>%, so no flip
+            # relieves this" about a window a flip WOULD relieve, and printed "the band is the
+            # fleet's, act on it" about a band that is the account's (round 1 seat A, F1-F3 — all
+            # three are the Delta 9 seat C defect the hook's own comment says was already paid for
+            # once). Derived by CONSTRUCTION rather than by re-deriving the predicate: the clamp
+            # binds exactly when passing the account's reading changes the answer.
+            "band_fable_clamped": _band_fable != _band_fable_unclamped,
         },
         "fleet": {
             "queue": queue,
@@ -4868,6 +4903,15 @@ def _posture_status_line(posture: dict | None, now: float, stale_s: float = 900.
     band = act.get("band") or "?"
     acct = act.get("band_account")
     band_s = f"{band} (account {acct})" if acct and acct != band else band
+    # ⚠️ `--status` is what the hook's own deny text calls "the authority on when you resume", and
+    # it read `band`/`band_account` only — so a Fable session held at RED by `band_fable` consulted
+    # it and was answered GREEN, with nothing in the line hinting at the hold. Reachable with every
+    # fleet window cool only since the clamp (round 1 seat A, F4); render it whenever it differs.
+    _bf = act.get("band_fable")
+    if isinstance(_bf, str) and _bf != band:
+        band_s += f" · Fable band {_bf}"
+        if act.get("band_fable_clamped"):
+            band_s += " (this account's own Fable window — no flip reaches other Fable headroom)"
     fw = (
         (posture.get("fleet") or {}).get("windows")
         if isinstance(posture.get("fleet"), dict)

@@ -7129,3 +7129,107 @@ def test_the_required_windows_keep_their_decoupling_from_the_account_band():
     assert (
         cr._fleet_band(fleet, "RED", False, 85.0, 90.0, fable=False, measured=4) == "GREEN"
     ), "a RED account beside a genuinely fresh fleet is still GREEN on the required windows"
+    # ⚠️ The line above passes against the PRE-CLAMP source too — executed round 1, seat B F1: it
+    # exercises none of this change and could never go red for any mutation of it. The assertion
+    # that makes this a GRADER is the one below: the clamp must be inert on the non-fable path even
+    # when the argument is supplied, which is the `if not fable: return b` guard. Drop that guard
+    # and this goes RED while the line above stays green.
+    assert (
+        cr._fleet_band(
+            fleet, "RED", False, 85.0, 90.0, fable=False, measured=4, account_fable_pct=100.0
+        )
+        == "GREEN"
+    ), "a Fable reading must not leak into the REQUIRED-windows band, even when it is passed"
+
+
+def test_the_fable_clamp_holds_on_every_return_including_the_scarcity_arm():
+    """Round 1 seat A, F5 — the clamp used to be ONE tail clause, and the scarcity arm returns
+    BEFORE the tail. So whenever a REQUIRED window had no reading, `band_fable` came back `None`,
+    `_band_for_session` requires `isinstance(fb, str)` and fell through to the plain band, and a
+    Fable-walled account passed FREE during a telemetry blackout — fail-open in exactly the state
+    the clamp exists to close."""
+    import scripts.sysadmin.claude_rotate as cr  # noqa: PLC0415
+
+    # a required window with NO fleet reading => the scarcity arm, both of its returns
+    blackout = {"seven_day": {"utilization": 20.0, "slug": "ob"}}  # five_hour absent
+    assert (
+        cr._fleet_band(
+            blackout, "GREEN", False, 85.0, 90.0, fable=True, measured=4, account_fable_pct=100.0
+        )
+        == "RED"
+    ), "measured>0 scarcity arm must still carry the account's own Fable wall"
+    assert (
+        cr._fleet_band(
+            blackout, "GREEN", False, 85.0, 90.0, fable=True, measured=0, account_fable_pct=100.0
+        )
+        == "RED"
+    ), "a probe BLACKOUT must not hand a Fable-walled account a None band the hook reads as pass"
+    # and the blackout stays honest when the account's own Fable is cool: None, not a fabricated band
+    assert (
+        cr._fleet_band(
+            blackout, "GREEN", False, 85.0, 90.0, fable=True, measured=0, account_fable_pct=4.0
+        )
+        is None
+    ), "a cool account must not invent a band out of a blackout"
+
+
+def test_the_fable_clamp_validates_its_input_like_every_other_reading():
+    """Round 1 seat A, F6 — `account_fable_pct` was the one number in `_fleet_band` bypassing
+    `_usable_ts`, the module's declared ONE validator. A bare NaN survives `json.loads` and
+    `_band_of` reads it as GREEN: fail-open at the safest-looking band, the one direction a quota
+    guard must never take. A string raised out of the tick's posture write entirely."""
+    import math  # noqa: PLC0415
+
+    import scripts.sysadmin.claude_rotate as cr  # noqa: PLC0415
+
+    fleet = {
+        "five_hour": {"utilization": 10.0, "slug": "ob"},
+        "seven_day": {"utilization": 20.0, "slug": "ob"},
+    }
+    base = dict(fable=True, measured=4)
+    for bad in (float("nan"), float("inf"), True, "100", [100.0], None):
+        got = cr._fleet_band(fleet, "GREEN", False, 85.0, 90.0, account_fable_pct=bad, **base)
+        assert got == "GREEN", f"{bad!r} must be rejected as no reading, not clamp-or-raise: {got}"
+    # the VALID neighbour still clamps, so the guard rejects garbage without rejecting the class
+    assert (
+        cr._fleet_band(fleet, "GREEN", False, 85.0, 90.0, account_fable_pct=100.0, **base) == "RED"
+    )
+
+
+def test_the_fable_clamp_across_the_spellings_that_reach_it():
+    """Round 1 seat B, F3 — the first cut of these graders covered ONE of five legitimate spellings
+    of the target state (different magnitudes). The four it missed are here: an ABSENT fleet Fable
+    key, NON-DEFAULT thresholds, the EXACT band boundaries, and the WALL/hold interaction."""
+    import scripts.sysadmin.claude_rotate as cr  # noqa: PLC0415
+
+    required = {
+        "five_hour": {"utilization": 10.0, "slug": "ob"},
+        "seven_day": {"utilization": 20.0, "slug": "ob"},
+    }
+    base = dict(fable=True, measured=4)
+
+    # (1) absent fleet `fable` key — the "nobody has used Fable this tick" shape
+    assert (
+        cr._fleet_band(required, "GREEN", False, 85.0, 90.0, account_fable_pct=95.0, **base)
+        == "RED"
+    ), "an absent fleet Fable reading must not stop the account's own wall from binding"
+
+    # (2) NON-DEFAULT thresholds — the graders used to hardcode 85/90 everywhere
+    assert (
+        cr._fleet_band(required, "GREEN", False, 50.0, 60.0, account_fable_pct=55.0, **base)
+        == "AMBER"
+    ), "the clamp must read the thresholds it is passed, not the module defaults"
+
+    # (3) the EXACT boundaries `_band_of` flips on
+    for pct, want in ((84.999, "GREEN"), (85.0, "AMBER"), (89.999, "AMBER"), (90.0, "RED")):
+        got = cr._fleet_band(required, "GREEN", False, 85.0, 90.0, account_fable_pct=pct, **base)
+        assert got == want, f"boundary {pct} -> {got}, want {want}"
+
+    # (4) the WALL/hold interaction — the early return precedes the clamp and WALL is maximal
+    assert (
+        cr._fleet_band(required, "WALL", True, 85.0, 90.0, account_fable_pct=4.0, **base) == "WALL"
+    ), "the hold owns the WALL state; a cool Fable reading must never lower it"
+    assert (
+        cr._fleet_band(required, "WALL", False, 85.0, 90.0, account_fable_pct=100.0, **base)
+        == "WALL"
+    ), "WALL is maximal — the clamp can never displace it"

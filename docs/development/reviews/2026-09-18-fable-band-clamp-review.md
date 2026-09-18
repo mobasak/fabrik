@@ -2,8 +2,58 @@
 
 Status: IN-PROGRESS
 
-Surface: `0a019413f` — `scripts/sysadmin/claude_rotate.py` (+ the byte-identical `scripts/aro-wake`
-twin) and `tests/test_claude_fleet.py`. 24/1 lines in each twin, 60/0 in the grader.
+Surface: `0a019413f` · diff md5 `7fe2c72b6df73c9f8a1c646b981d7004` · tree at open `4b233b43c` ·
+worktree md5 `2a9807d9dc3f805d5e263d1513c40798` (clean of this surface).
+
+⚠️ ANCHOR DID NOT MATCH, and why: the prior receipt for this scope (this same file, written by the
+handed-off `/fabrik-review-scoped` run) recorded `Surface: 0a019413f` — a COMMIT, not the
+`git rev-parse HEAD` + `git diff HEAD | md5sum` pair the termination contract compares. A commit sha
+cannot match that pair by construction, so no checklist is inherited and this run is a full WIDE
+pass 1, not a verification-and-delta. The prior receipt's rows are re-adjudicated from scratch below;
+its REJECTED section and Pass-1 findings are carried as CONTEXT for the seats, never as CLEAN rows.
+
+## Rubric (armed)
+
+`python scripts/review_rubric.py --changed scripts/sysadmin/claude_rotate.py scripts/aro-wake/claude_rotate.py tests/test_claude_fleet.py`
+— 82 lines total, pinned at `<scratchpad>/rv/rubric.txt`. The FLOOR rows are the web-app packs
+(`uv`/asyncpg/uvicorn/Playwright) and hit nothing on this surface; the MATCHED section is the part
+that governs it and is fenced verbatim below. Bound stated per `denominator-honesty`: 14 of 82 lines
+quoted, the remaining 68 being FLOOR rows whose globs do not hit these three paths.
+
+```
+## MATCHED — packs whose globs hit the changed paths
+
+### core/45-testing-strategy.md  (hit: tests/test_claude_fleet.py)
+- **Behavior Contract**: every ticket enumerates its distinct **user-observable behaviors / acceptance criteria** and tests **each one** — one high-value integration/E2E test per behavior, risk-ordered, TDD for the risky ones. Skip trivia (getters / framework glue / config): **lean-but-complete, NOT 100%-line-coverage dogma**. Do not chase line coverage — ensure every behavior has a test that would fail if that behavior regressed. (Cheap pool subagents can author the per-behavior tests — the suggest→curate→author→fix workflow in `62-using-subagents.md` § Dispatch policy + `~/.claude/commands/fabrik-review.md`.)
+- **No cosmetic assertions**: never assert against CSS classes, Tailwind utility strings, pixel measurements, or snapshot hashes. Assert application state and user-visible outcomes only.
+- **Watched-fail-first** (for tests this change adds or modifies; trivia stays skipped per the Behavior Contract): a non-trivial behavior's test proves something only if it has been SEEN RED — either write it first and watch it fail, or (after the fact) neuter the fix/feature, prove the test goes red, then RESTORE and re-run to green. The neutered state is never staged, committed, or left in the tree. A green test never seen red is unverified — a suite can pass with its guard deleted.
+- **Run tests**: `uv run pytest tests/` (never bare `pytest` — Fabrik uses `uv`) — **when the project has a `pyproject.toml`/`uv.lock`**. A `requirements.txt`-only project (no manifest) runs `.venv/bin/python -m pytest tests/` — the manifest clause chooses the RUNNER, it never disarms the mandate to run the suite (web-ecommerce-factory 01M1QEY5, 2026-09-05: the clause read as "does not apply here"). ⚠️ **Gate this on the manifest, because this line is FLOOR-injected into finder prompts and a vendored fabrik-lib MODULE has neither by design**: the module recipe ships `requirements.txt` (`fabrik-lib/README.md` § Creating a Reference Implementation), so `uv run` cannot resolve it and `python3 -m pytest` is the only thing that works. Telling a finder the sole working … (wrapped further — read the pack)
+- **Zero-mock database policy**: never mock SQLAlchemy, SQLModel, or database sessions. All backend tests execute against a real PostgreSQL instance.
+- **`ASGITransport` never runs lifespan** — anything the app initializes at startup (scaffolded apps are lifespan-based) silently does not exist in tests; wrap with `asgi-lifespan`'s `LifespanManager` when a test needs startup state.
+- Use `structlog` in test helpers if logging is needed — never `print()`. See `55-observability.md`.
+- **Never stub a server action from Playwright** — the server is the E2E boundary; stubbing belongs in the unit lane where the action is a plain function.
+- Run Playwright against the PRODUCTION build (`next build && next start`), never the dev server.
+- All locators must be **semantic**: `page.getByRole('button', { name: /submit/i })`. Never use CSS selectors or XPath.
+- Launch Playwright's **bundled Chromium** (`channel: 'chromium'`) — stable Chrome/Edge removed the `--load-extension` / `--disable-extensions-except` side-load flags (Chrome 137/139), so those args only work under bundled Chromium, never installed stable Chrome.
+```
+
+## Coverage Checklist
+
+One row per governing class (rubric MATCHED + the four standing recurrence classes). Every row starts
+UNCHECKED; nothing is inherited.
+
+| # | Class | Status | Evidence |
+|---|---|---|---|
+| C1 | fail-open vs fail-closed on the clamp | FIXED(1) | seat A F5: the clamp was ONE tail clause and the scarcity arm returns before it, so a required window with no reading gave `band_fable = None`, `_band_for_session` requires a str and fell through — a Fable-walled account passed FREE in a blackout. Hoisted into `_clamp()` applied to every return. Grader `test_the_fable_clamp_holds_on_every_return_including_the_scarcity_arm`, red against `0a019413f`. |
+| C2 | cost/quota/limit accounting edges | FIXED(1) | seat A F6: `account_fable_pct` was the one number bypassing `_usable_ts`; NaN read as GREEN (fail-open at the safest band), a str raised out of the tick's posture write. Now validated. Grader `test_the_fable_clamp_validates_its_input_like_every_other_reading`, red against `0a019413f`. |
+| C3 | boundary/sentinel/prefix collisions | FIXED(1) | seat A F7: `_BAND_SEVERITY`'s `WALL` is unreachable from this path and the `.get(-1)` defaults were asymmetric. Documented as deliberate (an unknown severity must never SUPPRESS a hotter reading) and the blackout arm corrected — a COOL account reading no longer fabricates GREEN out of `None`, caught by this round's own grader while fixing C1. |
+| C4 | behavior-without-a-test | FIXED(2) | seat B F1: `test_the_required_windows_keep_their_decoupling` exercised none of the change and passed against pre-commit source — orchestrator re-executed and confirmed. Now carries the `fable=False` + `account_fable_pct` assertion and dies on the guard-removal mutant. |
+| C5 | Behavior Contract — one test per behaviour, watched red | CLEAN | every behaviour this round changed has a grader proven red: two against `0a019413f`, one against the guard-removal mutant, one (the consumer) against `HEAD`'s hook. |
+| C6 | guard-keyed-on-one-spelling | FIXED(1) | seat B F3 measured 1 of 5. The four misses it NAMED — absent fleet Fable key, non-default thresholds, the exact 85.0/90.0 boundaries, the WALL/hold interaction — are now executable cases in `test_the_fable_clamp_across_the_spellings_that_reach_it`. That grader is green both before and after this round's fixes: it EXTENDS coverage of behaviour that was already correct, and is labelled as such rather than counted as red-proven. |
+| C7 | caller/consumer integrity | FIXED(4) | seat A F1-F4: the band came from a figure not in `fleet.windows`, so every consumer explaining it named the wrong thing — `on weekly` while weekly sat at 21%; a deny telling a held agent "no flip relieves this" about a window a flip WOULD relieve; "the band is the fleet's, act on it" about a band that is the account's; and `--status`, which the deny calls the authority, never rendering `band_fable` at all. Posture now carries `band_fable_clamped`, derived by construction from two readings of the same pure function, and all four sites read it. |
+| C8 | twin integrity | CLEAN | `cmp` identical after every edit; `test_twin_copies_are_byte_identical` green (seat B F5/F6). |
+| C9 | doc/contract truth | FIXED(1), RECORDED(1) | seat C F1 (HIGH): `docs/workstation/claude-account-rotation.md` described `band_fable` as a pure fleet max — the dedicated reference doc for this exact mechanism, a Doc Sync FLOOR violation. Brought current. RECORDED: seat C F2, the three CLAUDE.md bullets say "the hottest of 5h, weekly and Fable" — incomplete, not false; a three-contract byte-identical edit on a fleet-synced surface is not work to start under a quota wall. Destination: `docs/STRATEGIC_BACKLOG.md` + D-295's row. |
+| C10 | the REJECTED broader predicate is absent | CLEAN | seat A F8: `_fleet_readings` byte-identical across `0a019413f~1..0a019413f` (`sed -n '4488,4562p'` md5 `2a1ce9228880219a7b5be6d939ca0d55` both sides). No silent reintroduction. |
 
 ## What shipped
 
@@ -41,43 +91,58 @@ one citing the 2026-09-17 operator ruling directly, because it collapses the fle
 "the active account only": hot-on-weekly (≥ 85) IS the drain band, so no reachable sibling can ever
 supply an AMBER weekly reading. Reverted before commit; recorded in D-295.
 
-## Pass ledger
 
-| Pass | Finders | Found | Method |
+## Live production evidence (orchestrator, executed during round 1)
+
+The cron tick has run the patched `scripts/sysadmin/claude_rotate.py` every 5 minutes since
+`0a019413f` (crontab: `*/5 * * * * … /opt/fabrik/scripts/sysadmin/claude_rotate.py --tick`). Posture
+written 11:45:01, active `can`:
+
+```
+fable util: 23.0
+band: GREEN | band_account: RED
+band_fable: GREEN | band_account_fable: RED
+fleet fable: {'utilization': 23.0, 'slug': 'can'}
+```
+
+This is the DISCRIMINATION case executing in production, not a fixture: `band_account_fable` is RED
+because it is `_band_of(hot_f)` = max(5h 16, weekly 92, Fable 23) and can's WEEKLY is 92%; the clamp
+reads `account_fable_pct` = 23.0, computes GREEN, and correctly does NOT fire. Had the clamp been
+keyed on `account_band` — the first cut, rejected before commit — a Fable session with 77 points of
+Fable headroom would have been banded RED off its account's weekly. The grader
+`test_a_fable_walled_active_account_is_never_banded_green_by_fleet_headroom` pins that arm with
+`account_fable_pct=4.0` against `account_band="RED"`.
+
+
+## RECORDED — outside this diff, raised by the orchestrator during round 1
+
+**A held `--pause-switch` converts the active account's wall into a FLEET-WIDE hold, by design.**
+`_active_account_walled` uses the shared `_flip_churn_excluded` predicate and its docstring states the
+behaviour explicitly: the walled verdict "stays true across a pause (the flip was held)". The
+suppression that would otherwise say *relief is coming* is guarded by
+`if not _switch_paused() and _validated_pick(...) is not None:` — so under a pause it does not apply,
+and the comment above it is deliberate: "The operator's PAUSE is the exception: it deliberately froze
+the safety valve, so a walled active under pause IS a real stall worth the warning."
+
+Consequence, with numbers measured at 11:45 on 2026-09-18: the operator is holding a pause with the
+pointer on `can`, whose weekly is 92% against `ROTATE_THRESHOLD` 98 and a `caps.json` cap of 99, and
+the posture's own forecast reads `wall in ~76m at 0.09%/m`. When that line is crossed the tick writes
+the `fleet-exhausted` stamp and `.claude/hooks/quota_stop.py` default-denies every world-changing tool
+for EVERY session on the box — while `sarp` sits at weekly 75% and cannot be reached, because the
+pause is what holds the flip.
+
+Disposition: RECORDED, not FIXED and not a defect of this diff — this is pre-existing, intended
+behaviour that the change under review does not touch, and it is the operator's call, not a code fix.
+Destination: reported to the operator in-session; the remedy is `--resume-switch` (which flips `can`
+→ `sarp` immediately, since `can` is above the drain threshold) or pinning the work that must stay on
+`can`. Named here so it does not die with the session.
+
+## Pass Ledger
+
+| Pass | Finders | Counters | Method |
 |---|---|---|---|
-| Pass 1 | author (self-review, no independent seat) | found: 2 | method: read every changed hunk plus the enclosing function and both callers; ran the two suites; red-on-revert in a throwaway worktree |
+| Pass 1 | native opus×1 (band predicate + callers) · sonnet×2 (graders; docs/consumer/ledger) — dispatched: 3, returned: 3 | found: 16, new: 16, confirmed: 14, fixed: 13, unexecuted: 0 | method: re-derivation — every seat re-derived its own counts from primary sources; the orchestrator re-executed seat B F1 (the mutation-insensitive grader) and seat A F5 (the scarcity fail-open) before accepting either; round-zero probe — the patched tick's live posture read at 11:45:01 confirming the discrimination case in production; mirrors: 8 read (`check_review_hygiene.py --claim band_fable`) |
 
-Pass 1's two findings were both the author's own and both fixed in-run: the first clamp keyed on
-`account_band` (= `_band_of(hot_f)`, the hottest of all THREE windows) would have banded a cool Fable
-session RED off its account's weekly — the 2026-09-17 "as if only one account exists" defect on this
-path; and the broader `_fleet_readings` predicate above. No independent reader has seen this diff.
+## Gate
 
-## RESUME
-
-This run is HANDED OFF, not converged: the surface classifies as **operator-named work**, which the
-rendered `/fabrik-review-scoped` names as a route-up trigger to the full `/fabrik-review`, and the
-closing pass owes an independent non-authoring reader that this session has not dispatched.
-
-Resume with `/fabrik-review` over `0a019413f` (its `start` naming
-`--surface "ROUTED-UP: step 1 — operator-named work · 0a019413f"`). The attack list is in the
-handoff reason and in this file's REJECTED and Pass-ledger sections; the open question a fresh seat
-should answer first is (8) below.
-
-Open rows for the successor:
-
-1. Is the clamp keyed on the right quantity, and does the `account_fable_pct=4.0` / `account_band="RED"`
-   pin actually fail if the argument is swapped back to `account_band`?
-2. `_BAND_SEVERITY` against every value `_band_of` and the hold path can produce (`WALL`, `None`) —
-   the hold/WALL early return precedes the clamp; prove it rather than reading it.
-3. The one-directional claim: a cool account must never cool a HOT fleet reading.
-4. Doc Sync — the three CLAUDE.md band bullets say a Fable session is banded on the hottest of 5h,
-   weekly and Fable. Is that still true after the clamp, and is a contract edit owed?
-5. Should the relief leg itself become Fable-aware (the capability fix), making the fleet reading
-   TRUE rather than merely reported honestly? That changes flip policy and is the operator's call.
-
-## Deferred, with its reason
-
-Not deferred for convenience: at the time of the handoff the active account `can` sat at weekly 91%
-against a cap of 99 with `wall in ~85m`, and the operator's `--pause-switch` marker was deliberately
-held — so no relief flip could fire. Dispatching a multi-seat review onto that account risked walling
-the fleet with its automatic successor disabled. The disposition is the operator's.
+RE-MEASURED in the closing pass — not yet run for this loop.
