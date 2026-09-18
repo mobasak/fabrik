@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the quota band is drawn from headroom to each account's own cap (2026-09-18)
+
+- Operator ruling (D-299): *"utilize quotas utmost without causing premature stops"*, RED only when a
+  reading REACHES the account's `caps.json` cap. `_band_lines()` derives the pair from the wall —
+  RED at the cap, AMBER five points before — and `_fleet_band` now bands EACH window against its own
+  wall and takes the hottest BAND, not the hottest percentage against one shared pair of lines. Each
+  fleet reading carries the `wall` it was measured against, so no consumer re-derives it.
+- ⚠️ Rotation is deliberately untouched: `ROTATE_DRAIN_THRESHOLD` still gates the relief flip leg,
+  the flip-target bar and the successor hysteresis, and `ROTATE_URGENT_DRAIN_PCT` still arms the
+  fleet-exhausted stamp. Raising those would stop the tick rotating until an account was nearly
+  spent and then flip it onto another that already was; the separation is the point of the change.
+- Measured at the ruling: the live line moved `band RED on weekly` → `band AMBER`, sarp sitting at
+  90% against its 95 cap with five points still spendable. 373 passed; 13 graders re-expressed with
+  each one's original finding preserved.
+- ⚠️ OWED: the three `CLAUDE.md` copies and `docs/workstation/claude-account-rotation.md` still
+  describe the old 85/90 lines. The band table is grader-pinned, so that is a separate change.
+
 ### Fixed — the whole-plan review's `command_run.py` seat, before the one forced sync (2026-09-18)
 
 - **A clean `oversized_mini: 0` when half the measurement never ran.** The third `unmeasurable` reason keyed on the START-time sync reading, so a filter readable at start and unreadable at close scored `0` — indistinguishable from an honest clean run, and folded into the oversized rate as one. Keyed on the close-time reading now. Its grader had passed a fixture *object* where it meant the fixture *value*, so it never reached the arm it named; given the value, it went red on the defect and green on the fix.
