@@ -15,6 +15,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -2526,6 +2527,15 @@ def test_an_ambient_git_config_parameters_cannot_skip_the_dirty_check(
     assert not (run_dir / "s1.json").exists()
 
 
+_LOWERCASE_PROSE_MATRIX = """\
+## Doc Sync Matrix (update matched docs in same change)
+| Change | Update |
+|---|---|
+| Code changed | `CHANGELOG.md` (lowercase `changelog.md` is tolerated) |
+| Ports | `PORTS.md` |
+"""
+
+
 def test_the_matrix_harvest_takes_destinations_never_prose_and_matches_case() -> None:
     r"""The LESSONS row reads `\`docs/LESSONS_LEARNT.md\` (canonical name; lowercase
     \`lessons-learnt.md\` is legacy-tolerated)`, and the harvest took BOTH backticked tokens — so a
@@ -2543,24 +2553,50 @@ def test_the_matrix_harvest_takes_destinations_never_prose_and_matches_case() ->
     assert cr._task_excluded("CHANGELOG.md", {"CHANGELOG.md"})
     assert not cr._task_excluded("docs/changelog.md", {"docs/CHANGELOG.md"})
     assert not cr._task_excluded("changelog.md", {"CHANGELOG.md"})
+    # The HARVEST is case-exact too: a case-insensitive membership test re-admits the prose token
+    # in its lowercase spelling — F5 reborn (delta round: the mutant survived every case above).
+    low = cr._doc_sync_tokens(_LOWERCASE_PROSE_MATRIX)
+    assert "CHANGELOG.md" in low and "changelog.md" not in low, sorted(low)
+    # And the frozen root set is a COPY of a live list: a matrix row naming a new root file would
+    # silently fall out of EXCL in ~46 repos. Read the root tokens OUT of both live matrices with
+    # an extraction the harvest does not share (a `bare ⊆ set` check through the harvest itself is
+    # circular — the harvest drops exactly what the set drops, executed) and pin equality both ways.
+    for p in ("CLAUDE.md", "templates/governance/CLAUDE.md"):
+        text = (_SCRIPT.resolve().parents[1] / p).read_text("utf-8")
+        body = text[text.index("## Doc Sync Matrix"):]
+        body = body[: body.index("\n## ", 1)] if "\n## " in body[1:] else body
+        cells = [ln.split("|")[2] for ln in body.splitlines() if ln.startswith("| ") and ln.count("|") >= 3]
+        cells = [re.sub(r"\([^()]*\)", "", c) for c in cells[1:]]
+        roots = {m for c in cells for m in re.findall(r"`([^`/\s]+\.(?:md|example))`", c)}  # a doc, never a script
+        assert roots == cr._TASK_ROOT_DESTINATIONS, (p, sorted(roots ^ cr._TASK_ROOT_DESTINATIONS))
 
 
 def test_the_refusal_names_the_first_row_that_fires_inside_each_tier(
     run_dir: Path, repo: Path, hub: Path
 ) -> None:
-    """The graders pinned the tier BOUNDARIES (files>3 outranks mechanism; the file cap) and
-    nothing inside a tier: swapping `sync`↔`heavy` or `mechanism`↔`oneway` survived all 66
-    (whole-plan review, executed). The contract's sentence — "the first row that fires wins", with
-    row 1 before 1b and 2 before 3 — is what the refusal TELLS the agent to re-read, so the label
-    is the contract property, not a message detail."""
+    """Nothing pinned the order of the chain at all — not inside a tier and not the tier boundary
+    either: the only 4-file grader declares `_ALL_NO`, so `files>3`↔`mechanism` was unobservable,
+    and the first cut of THIS docstring claimed that boundary was pinned elsewhere (delta round:
+    every one of the six adjacent swaps survived 73 cases except the two pinned here). Two of the
+    survivors change the ROUTE, not the label — `tradeoffs`↔`sync` sends spec-chain work to the
+    right-now lane, `heavy`↔`decision` downgrades a heavy surface to the scoped review — so every
+    adjacent pair is pinned. The contract's sentence ("the first row that fires wins"; rows 2-5
+    over 1/1b over 4b) is what the refusal TELLS the agent to re-read."""
     env = {"FABRIK_HUB_ROOT": str(hub)}
-    _seed_claude(repo, also={"scripts/enforcement/x.py": "x = 1\n", "src/a.py": "x = 1\n"})
-    r = _cr(run_dir, *_start("--file", "scripts/enforcement/x.py", "--declare",
-            "decision=yes,heavy=yes,mechanism=no,oneway=no,tradeoffs=no"), cwd=repo, extra_env=env)
-    assert r.returncode == 1 and "fabrik-task: sync →" in r.stdout, r.stdout
-    r = _cr(run_dir, *_start("--file", "src/a.py", "--declare",
-            "decision=yes,heavy=no,mechanism=yes,oneway=yes,tradeoffs=no"), cwd=repo, extra_env=env)
-    assert r.returncode == 1 and "fabrik-task: mechanism →" in r.stdout, r.stdout
+    _seed_claude(repo, also={"scripts/enforcement/x.py": "x = 1\n", "src/a.py": "x = 1\n",
+                             "src/b.py": "x = 1\n", "src/c.py": "x = 1\n", "src/d.py": "x = 1\n"})
+    four = ("--file", "src/a.py", "--file", "src/b.py", "--file", "src/c.py", "--file", "src/d.py")
+    cases = (
+        (("--file", "src/a.py"), "decision=yes,heavy=no,mechanism=yes,oneway=yes,tradeoffs=no", "mechanism →"),
+        (("--file", "src/a.py"), "decision=yes,heavy=no,mechanism=no,oneway=yes,tradeoffs=yes", "oneway →"),
+        (("--file", "scripts/enforcement/x.py"), "decision=yes,heavy=no,mechanism=no,oneway=no,tradeoffs=yes", "tradeoffs →"),
+        (("--file", "scripts/enforcement/x.py"), "decision=yes,heavy=yes,mechanism=no,oneway=no,tradeoffs=no", "sync →"),
+        (("--file", "src/a.py"), "decision=no,heavy=yes,mechanism=no,oneway=no,tradeoffs=no", "heavy →"),
+        (four, "decision=yes,heavy=no,mechanism=yes,oneway=no,tradeoffs=no", "files"),
+    )
+    for files, declare, label in cases:
+        r = _cr(run_dir, *_start(*files, "--declare", declare), cwd=repo, extra_env=env)
+        assert r.returncode == 1 and f"fabrik-task: {label}" in r.stdout, (label, r.stdout)
 
 
 def test_a_rename_of_an_excluded_sync_hit_counts_its_source(

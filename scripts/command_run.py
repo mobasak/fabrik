@@ -877,7 +877,9 @@ _GIT_ENV_OVERRIDES = (
     # git's OWN `-c` propagation variable — exported into every hook and subprocess whenever the
     # invoking command carried `-c`, which the hub contract mandates (`git -c core.quotePath=false`).
     # A malformed inherited value fails every verb at 128 and the dirty check read that as
-    # "not a repo" (whole-plan review, executed). `GIT_EXEC_PATH` fails soft to `no-git`; same edit.
+    # "not a repo" (whole-plan review, executed). `GIT_EXEC_PATH` is DEFENCE-IN-DEPTH only: on git
+    # 2.43 every verb this module runs is a builtin, dispatched before the exec-path lookup, so a
+    # bogus value changes no rc here (delta round, executed). Scrubbed against a future non-builtin.
     "GIT_CONFIG_PARAMETERS",
     "GIT_EXEC_PATH",
     "GIT_PREFIX",
@@ -4165,6 +4167,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
                 timeout=10,
                 check=True,
                 cwd=root,
+                env=_scrubbed_git_env(),
             ).stdout
             ok_artifact = False
             for ln in porcelain.splitlines():
@@ -4226,6 +4229,7 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
                         timeout=10,
                         check=True,
                         cwd=root,
+                        env=_scrubbed_git_env(),
                     ).stdout.splitlines()
                 except Exception:
                     log = []  # no commits yet = no HEAD artifact; NOT "broken git" (round 31:

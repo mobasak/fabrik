@@ -6107,3 +6107,30 @@ def test_execute_plan_names_review_waived_for_the_profile_small_case() -> None:
     assert flat.index("Under `Profile: small` this and item 3 bind at once") > flat.index(
         "now REFUSES until phase N's artifact exists"
     ), "the carve-out must follow the rule it carves out of"
+
+
+def test_the_artifact_floor_holds_under_a_malformed_ambient_git_config(tmp_path):
+    """The review-artifact floor's two git calls were the only unscrubbed ones in the file, inside
+    a handler that fails OPEN: with `GIT_CONFIG_PARAMETERS="'core.'"` — git's own `-c` propagation
+    variable, exported into every hook whenever the invoking command carried `-c`, which the
+    contract mandates — `/fabrik-review done` with NO report closed at rc 0 (delta round of the
+    /fabrik-task lane review, executed; 6 of the 21 scrubbed variables bypassed it). The floor
+    must refuse under an ambient value exactly as it does under a clean environment."""
+    import subprocess
+    import sys
+
+    script = str(_SCRIPT)
+    for var, val in (("GIT_CONFIG_PARAMETERS", "'core.'"), ("GIT_DIR", str(tmp_path / "nowhere"))):
+        env, repo = _artifact_repo(tmp_path, name=f"floor-{var.lower()}")
+        env[var] = val
+        subprocess.run(
+            [sys.executable, script, "start", "--command", "fabrik-review", "--phases", "1", "--terminal", "t"],
+            cwd=repo, env=env, check=True, timeout=15,
+        )
+        r = subprocess.run(
+            [sys.executable, script, "done", "--command", "fabrik-review", "--evidence", "nothing written",
+             "--feedback", "confusion: none · waste: none · change: none · filed: none — harness setup"],
+            cwd=repo, env=env, capture_output=True, text=True, timeout=15,
+        )
+        assert r.returncode == 1, f"{var}: the floor closed with no report ({r.stdout})"
+        assert "persisted report" in r.stdout, (var, r.stdout)
