@@ -2317,3 +2317,244 @@ def test_the_cobra_note_is_stated_once(tmp_path: Path) -> None:
     file is the defect this repo's own READ-BEFORE-YOU-EDIT rule names."""
     text = SCRIPT.read_text()
     assert text.count("The surfaces an edit that ANSWERS a verdict must actually touch") == 1
+
+
+# ═══════════════════ T02 — `--queue fabrik-task`'s `series:` header line ═══════════════════
+
+_CMD_RUN = ROOT / "scripts" / "command_run.py"
+_TASK_FB = (
+    "confusion: none · waste: none · change: none · filed: none — surfaces exercised: the seam"
+)
+
+
+def test_queue_fabrik_task_header_carries_the_four_numbers(tmp_path: Path) -> None:
+    """Behavior Contract row 1: the `series:` line's four numbers, each read from the exact
+    source the ticket names — three from `for_it` (this command's own rows), the adoption
+    denominator's addend from `rows` filtered to `/fabrik-review-scoped` and then to its
+    STANDALONE subset by the nesting rule.
+
+    4 fabrik-task rows: `0` (numeric, not >=1), `2 · commit=abc · paths=a,b` (numeric, >=1),
+    `unmeasurable=no-commit` (not numeric) and a `5 · …` row carrying `upgrade: sync` (numeric
+    but EXCLUDED by the upgrade filter). Expected: oversized_mini counts only the middle two
+    survivors (1 of 2 >= 1 = 50%); unmeasurable is 1 of 4; upgrade is 1 of 4 (the sync row).
+
+    One `fabrik-execute-plan` row (sid `parent`, repo `/opt/x`, `ts` T, `wall_s` 1000) and three
+    `fabrik-review-scoped` rows: one nested under it (same sid, repo `/opt/x/sub` — a path UNDER
+    `/opt/x` on a `/` boundary — `ts` = T-500, inside [T-1000, T]) and two standalone (distinct
+    sids). Adoption: t=4 fabrik-task rows over t + 2 standalone review-scoped = 6.
+    """
+    ledger = tmp_path / "l.jsonl"
+    parent_ts = 2_000_000.0
+    rows = [
+        _row("fabrik-task", 60, 1, "none", oversized_mini="0"),
+        _row("fabrik-task", 60, 1, "none", oversized_mini="2 · commit=abc · paths=a,b"),
+        _row("fabrik-task", 60, 1, "none", oversized_mini="unmeasurable=no-commit"),
+        _row(
+            "fabrik-task",
+            60,
+            1,
+            "none",
+            oversized_mini="5 · commit=def · paths=e,f",
+            upgrade="sync",
+        ),
+        _row("fabrik-execute-plan", 1000, 1, "none", sid="parent", repo="/opt/x", ts=parent_ts),
+        _row(
+            "fabrik-review-scoped",
+            5,
+            1,
+            "none",
+            sid="parent",
+            repo="/opt/x/sub",
+            ts=parent_ts - 500,
+        ),
+        _row("fabrik-review-scoped", 5, 1, "none", sid="rs1", repo="/opt/y", ts=1_000.0),
+        _row("fabrik-review-scoped", 5, 1, "none", sid="rs2", repo="/opt/z", ts=2_000.0),
+    ]
+    _write(ledger, rows)
+    r = _run(ledger, "--queue", "fabrik-task")
+    assert r.returncode == 0, r.stderr
+    lines = r.stdout.splitlines()
+    assert lines[0].startswith("queue /fabrik-task — "), lines[0]
+    assert lines[1] == (
+        "series: oversized_mini 1/2 (50%) · unmeasurable 1/4 · upgrade 1/4 · adoption 4/6"
+    ), lines[1]
+
+
+def test_queue_fabrik_task_all_unmeasurable_window_prints_a_dash_denominator(
+    tmp_path: Path,
+) -> None:
+    """When NO row in the window survives to a numeric first token, the denominator is 0 and the
+    cell prints `oversized_mini —/0` rather than dividing by zero."""
+    ledger = tmp_path / "l.jsonl"
+    _write(
+        ledger,
+        [
+            _row("fabrik-task", 60, 1, "none", oversized_mini="unmeasurable=no-git"),
+            _row("fabrik-task", 60, 1, "none", oversized_mini="unmeasurable=no-commit"),
+        ],
+    )
+    r = _run(ledger, "--queue", "fabrik-task")
+    assert r.returncode == 0, r.stderr
+    lines = r.stdout.splitlines()
+    assert lines[1] == (
+        "series: oversized_mini —/0 · unmeasurable 2/2 · upgrade 0/2 · adoption 2/2"
+    ), lines[1]
+
+
+def test_queue_other_commands_header_is_byte_identical(tmp_path: Path) -> None:
+    """The `series:` line is `--queue fabrik-task`-only — every other command's header, proven
+    here on `fabrik-review`, must read exactly as it did before this ticket: no `series:` line at
+    all, and the pre-existing head string unchanged."""
+    ledger = tmp_path / "l.jsonl"
+    _write(
+        ledger,
+        [
+            _row("fabrik-review", 60, 1, "lean: older", days_ago=3),
+            _row("fabrik-review", 60, 1, "fast: newer", days_ago=1),
+        ],
+    )
+    r = _run(ledger, "--queue", "fabrik-review")
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.splitlines()[0] == (
+        "queue /fabrik-review — 2 unanswered of 2 verdict row(s), 2 row(s) for it in all "
+        "(2 in the window)"
+    ), r.stdout
+    assert "series:" not in r.stdout
+
+
+def _run_command_run(
+    state_dir: Path, home: Path, *args: str, cwd: Path, sid: str
+) -> subprocess.CompletedProcess[str]:
+    env = {
+        "PATH": "/usr/bin:/bin",
+        "COMMAND_RUN_DIR": str(state_dir),
+        "HOME": str(home),
+        "CLAUDE_SESSION_ID": sid,
+    }
+    return subprocess.run(
+        [sys.executable, str(_CMD_RUN), *args],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        cwd=str(cwd),
+        env=env,
+    )
+
+
+def test_queue_fabrik_task_seam_counts_a_real_command_run_close(tmp_path: Path) -> None:
+    """Behavior Contract row 1's SEAM half: a row written by the REAL `command_run.py done
+    --commit …` — never a synthetic one — is read back by `--queue fabrik-task --ledger <that
+    file>` and counted. Both prerequisites the close needs are supplied — a matching `start
+    --command fabrik-task …` in the SAME `COMMAND_RUN_DIR` and session first, and a four-field
+    `--feedback` — or `done` prints `no run record for this session` and appends NO row (the
+    exact vacuity T01b's own review caught: comparing against a stale `rows[-1]`), which is why
+    the row COUNT is asserted before any indexing."""
+    repo = tmp_path / "repo"
+    (repo / "src").mkdir(parents=True)
+    (repo / "src" / "a.py").write_text("x = 1\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True, timeout=15)
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True, timeout=15)
+    subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "x"],
+        cwd=repo,
+        check=True,
+        timeout=15,
+    )
+    state_dir = tmp_path / "state" / "command-runs"
+    state_dir.mkdir(parents=True)
+    home = tmp_path / "home"
+    home.mkdir()
+    # An EMPTY dir: `_sync_filter_source` then finds no `.pre-commit-config.yaml` and fails open
+    # (`pat=None`) rather than depending on this machine's real /opt/fabrik hub file.
+    hub = tmp_path / "hub"
+    hub.mkdir()
+    sid = "seam-t02"
+
+    r = _run_command_run(
+        state_dir,
+        home,
+        "start",
+        "--command",
+        "fabrik-task",
+        "--phases",
+        "5",
+        "--terminal",
+        "the change ships with its grader",
+        "--file",
+        "src/a.py",
+        "--declare",
+        "decision=yes,heavy=no,mechanism=no,oneway=no,tradeoffs=no",
+        cwd=repo,
+        sid=sid,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+
+    (repo / "extra.py").write_text("y = 1\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True, timeout=15)
+    subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "the change"],
+        cwd=repo,
+        check=True,
+        timeout=15,
+    )
+    sha = subprocess.run(
+        ["git", "rev-parse", "-q", "--verify", "HEAD"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=True,
+    ).stdout.strip()
+
+    d = _run_command_run(
+        state_dir,
+        home,
+        "done",
+        "--command",
+        "fabrik-task",
+        "--commit",
+        sha,
+        "--evidence",
+        "the grader is green",
+        "--feedback",
+        _TASK_FB,
+        cwd=repo,
+        sid=sid,
+    )
+    assert d.returncode == 0, d.stdout + d.stderr
+
+    ledger = state_dir.parent / "command-feedback.jsonl"
+    assert ledger.exists(), "done wrote no ledger row — the run-record prerequisites were not met"
+    written = [json.loads(x) for x in ledger.read_text(encoding="utf-8").splitlines() if x.strip()]
+    assert len(written) == 1, written  # the row COUNT, asserted before any indexing
+    row = written[0]
+    assert row["command"] == "fabrik-task"
+    assert row["oversized_mini"] == f"1 · commit={sha} · paths=extra.py", row["oversized_mini"]
+
+    out = _run(ledger, "--queue", "fabrik-task").stdout
+    lines = out.splitlines()
+    assert lines[1] == (
+        "series: oversized_mini 1/1 (100%) · unmeasurable 0/1 · upgrade 0/1 · adoption 1/1"
+    ), lines[1]
+
+
+def test_queue_fabrik_task_an_empty_repo_never_nests(tmp_path: Path) -> None:
+    """`_repo_root()` can write `""` on any failure (`scripts/command_run.py:844-855`, and the
+    row literal at `:3659` writes `str(rec.get("repo_root") or "")`), so an empty `repo` is a
+    reachable value — and without the non-empty guard, two rows sharing the same `sid` and an
+    empty `repo` on BOTH sides would nest against EVERY other empty-repo row, collapsing the
+    whole test. Same `sid`, same (empty) `repo`, `ts` inside the window: still counted
+    STANDALONE — no fabrik-task rows at all, so `t=0` and the lone review-scoped row is the
+    entire adoption denominator."""
+    ledger = tmp_path / "l.jsonl"
+    rows = [
+        _row("fabrik-execute-plan", 1000, 1, "none", sid="p", repo="", ts=2_000.0),
+        _row("fabrik-review-scoped", 5, 1, "none", sid="p", repo="", ts=1_500.0),
+    ]
+    _write(ledger, rows)
+    r = _run(ledger, "--queue", "fabrik-task")
+    assert r.returncode == 0, r.stderr
+    lines = r.stdout.splitlines()
+    assert lines[1] == (
+        "series: oversized_mini —/0 · unmeasurable 0/0 · upgrade 0/0 · adoption 0/1"
+    ), lines[1]

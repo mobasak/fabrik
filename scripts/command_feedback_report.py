@@ -1103,6 +1103,61 @@ def render(report: dict) -> str:
     return "\n".join(lines)
 
 
+def _task_series_nested(r: dict, others: list[dict]) -> bool:
+    """A `/fabrik-review-scoped` row `r` is NESTED when some OTHER command's row `o` (in
+    `others`) shares its `sid`, both rows' `repo` are non-empty and name the same repository —
+    equal, or one a path under the other on a `/` boundary — and `o`'s own
+    ``[ts - wall_s, ts]`` window brackets `r`'s `ts`. The non-empty test is load-bearing:
+    `_repo_root()` can write `""` (`scripts/command_run.py:844-855`, `:3659`), and without it an
+    empty `repo` on either side would nest against anything (or against nothing correctly by
+    accident) — tolerant of a malformed/non-numeric `ts`/`wall_s` (`_num` returns `None`, never
+    raises), which simply never nests."""
+    r_repo, r_ts, r_sid = str(r.get("repo") or ""), _num(r.get("ts")), str(r.get("sid") or "")
+    if not r_repo or r_ts is None:
+        return False
+    for o in others:
+        o_repo = str(o.get("repo") or "")
+        if str(o.get("sid") or "") != r_sid or not o_repo:
+            continue
+        if not (
+            r_repo == o_repo
+            or r_repo.startswith(o_repo.rstrip("/") + "/")
+            or o_repo.startswith(r_repo.rstrip("/") + "/")
+        ):
+            continue
+        o_ts, o_wall = _num(o.get("ts")), _num(o.get("wall_s"))
+        if o_ts is not None and o_wall is not None and o_ts - o_wall <= r_ts <= o_ts:
+            return True
+    return False
+
+
+def _task_series(for_it: list[dict], rows: list[dict]) -> str:
+    """The `--queue fabrik-task`-only `series:` header line (spec § Validation V4): the
+    `oversized_mini` rate over numeric rows excluding `upgrade: sync`, the `unmeasurable` share
+    and the `upgrade` rate — all three read from `for_it` (this command's own rows, never the
+    unfiltered `rows`) — and the ADOPTION SHARE, whose denominator needs `/fabrik-review-scoped`
+    rows and so is the one reading of `rows`: filtered to that command, then to its STANDALONE
+    subset by `_task_series_nested`."""
+    nums: list[int] = []
+    for r in for_it:
+        tok = str(r.get("oversized_mini") or "").split()[:1]
+        if tok and tok[0].isdigit() and str(r.get("upgrade") or "") != "sync":
+            nums.append(int(tok[0]))
+    over_n, over_k = len(nums), sum(1 for n in nums if n >= 1)
+    over_cell = "—/0" if over_n == 0 else f"{over_k}/{over_n} ({round(100 * over_k / over_n)}%)"
+    total = len(for_it)
+    unmeas = sum(1 for r in for_it if str(r.get("oversized_mini") or "").startswith("unmeasurable"))
+    upgraded = sum(1 for r in for_it if str(r.get("upgrade") or "").strip())
+    rs = [r for r in rows if str(r.get("command") or "") == "fabrik-review-scoped"]
+    others = [r for r in rows if str(r.get("command") or "") != "fabrik-review-scoped"]
+    standalone = sum(1 for r in rs if not _task_series_nested(r, others))
+    t = len(for_it)
+    return (
+        f"series: oversized_mini {over_cell} · unmeasurable {unmeas}/{total} · "
+        f"upgrade {upgraded}/{total} · adoption {t}/{t + standalone}"
+    )
+
+
 def queue(rows: list[dict], command: str, ledger: Path | None = None) -> str:
     """One command's `change:` queue — the whole input `/fabrik-command-improve` reads.
 
@@ -1142,6 +1197,8 @@ def queue(rows: list[dict], command: str, ledger: Path | None = None) -> str:
         + (f"; {len(excluded)} already answered and excluded" if excluded else "")
         + (f"; {nones} filed as `none`" if nones else "")
     )
+    if command == "fabrik-task":
+        head += "\n" + _task_series(for_it, rows)
     if not mine:
         return head + "\n(nothing to improve from — pick another command)"
     mine.sort(key=lambda r: _num(r.get("ts")) or 0, reverse=True)
