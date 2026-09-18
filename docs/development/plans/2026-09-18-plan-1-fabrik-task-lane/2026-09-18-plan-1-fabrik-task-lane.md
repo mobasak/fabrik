@@ -54,7 +54,7 @@ Intake: 14 items — 12 IN, 2 OUT-OF-SCOPE (each named above), 0 ASK.
 | T02 | `command_feedback_report.py --queue` header: the two series + the adoption share | T01b | ⛓️ | ✅ | 3b71592f7 |
 | T03 | the command source `commands/_sources/fabrik-task.md`, its render, the docs rows | T01b | ⚡ | ✅ | 2958f46c1 |
 | T04a | hub `CLAUDE.md`: the lane table, § 1a's trigger, the HANDLE-NOW pointer | T03 | ⛓️ | ✅ | f1ce6c310 |
-| T04b | `templates/governance/CLAUDE.md`: the same table + trigger, outcome (ii)'s pointer; the fabrik-lib mail | T04a | ⛓️ | ⬜ | |
+| T04b | `templates/governance/CLAUDE.md`: the same table + trigger, outcome (ii)'s pointer; the fabrik-lib mail | T04a | ⛓️ | ✅ | 733dee75a |
 | T05 | Integration: receipt, whole-plan gate + review, docs-review, the sync, V0/V1/V2/V3 | T02, T04b | ⛓️ | ⬜ | |
 
 **Breadth advisory, adjudicated (`check_ticket_breadth.py --plan-dir` 2026-09-18 flagged T01a score 9 · T01b score 9 (7 before round 1 added two graded behaviours)):** both are KEPT, not split — their behaviours are one coupled invariant apiece. T01a's eight rows are the single guard CHAIN the spec fixes in ORDER (flag guards → path/state checks → lane tests + declared answers); splitting it would put two halves of one ordering contract in two tickets and add a third serialized merge on the same fleet-synced file. T01b's rows ARE the operator's Phase A acceptance-criteria SET (D-293) and are read together; the split the advisory suggests would split a ruling. The advisory's own calibration (recall 2/3, precision 0.50, ρ=0.45) is a prompt to look, and looking is what this line records.

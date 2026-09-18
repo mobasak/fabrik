@@ -3905,3 +3905,29 @@ review seats, each of which had to work around it.
 are correct, but they sit ~170 lines apart with nothing saying so, and T04a's step 3 permits exactly
 one change on that line. Worth one disambiguating clause in § 1a, or an explicit note that 1a keeps
 its own number.
+
+## `_TASK_LEDGER_EXCL` misses the lowercase lessons file in 12 of 43 repos (routed from T04b)
+
+`scripts/command_run.py:2996` lists `docs/LESSONS_LEARNT.md` in `_TASK_LEDGER_EXCL`, and
+`_task_excluded` matches a non-directory token EXACTLY. But the Doc Sync Matrix row it mirrors says
+`docs/LESSONS_LEARNT.md` (canonical name; lowercase `lessons-learnt.md` is legacy-tolerated), and a
+sweep of `/opt` finds **24 repos with the uppercase name only, 12 with the LOWERCASE only, 3 with
+both, 4 with neither**. So in those 12 repos a `/fabrik-task` run that writes its mandated lessons
+entry either burns a `--file` slot on a file the contract calls free, or has the close score it
+undeclared — the COBRA counter-measure firing on an agent who followed the instruction.
+
+Fix shape: add `"docs/lessons-learnt.md"` to `_TASK_LEDGER_EXCL` with a grader asserting BOTH
+spellings are excluded. One line, but `scripts/command_run.py` is fleet-synced to 47 dirs and the
+Stop hook reads its records, so by the lane table's own rule 1 it is right-now + a full
+`/fabrik-review`, as its own work. Found by T04b's authoritative review seat, verified here.
+
+## The lane table's hub-only references, as seen from a project repo (routed from T04b)
+
+Three were fixed in the template (the sync regex path, the vendored-surface example, and
+`docs/CAPABILITIES.md`). Two references remain hub-shaped in the template and are worth a pass:
+`templates/governance/CLAUDE.md:162` tells a project agent to run
+`scripts/sync_enforcement_to_projects.py --force` "yourself" on a governance-sync trigger surface —
+pre-existing, not T04b's, but it is the hub's fleet-wide distribution script and a project agent
+either no-ops or, from a box carrying `/opt/fabrik`, pushes the hub's tree to 46 repos. And the
+grounding pointer at `:66` now names an absolute hub path, which is correct but means a project
+reader cannot follow it without the hub checked out.
