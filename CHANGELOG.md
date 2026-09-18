@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the Fable clamp was defeated in the state it was built for (2026-09-18)
+
+- `/fabrik-review` round 2, one fresh non-authoring Opus seat: 15 candidates, 9 confirmed, ALL NINE
+  inside round 1's own fixes — the D-278 scope-growth signal on its first qualifying round.
+- The material one: `_quota_posture` passed `_band_of(hot_f)` as the fable call's `account_band`, and
+  `hot_f` is the hottest of ALL THREE of that account's windows, Fable included. So during a
+  required-window blackout the account's Fable reading arrived AS the band before `_clamp` saw it;
+  `_clamp` found `own == b`, raised nothing, `band_fable_clamped` read False, and all three consumer
+  defects re-opened — `on Fable` naming a 21% fleet window as what binds, the deny citing it as why
+  no flip relieves, the `fleet-wide` header. Now reads `hot`, so the account's Fable can enter only
+  through the clamp, which is the thing the flag measures.
+- Also: a `_fleet_band` docstring sentence and a "fixed finding" citation the clamp falsifies; an
+  `on Fable on this account` stutter; and a backslash inside an f-string expression (PEP 701 — a
+  SyntaxError on ≤3.11, and a module-level SyntaxError in this hook fails OPEN).
+- Graders +2. `--status`'s Fable block and `band_fable_clamped` were both DELETABLE with the suite
+  green. The status grader now reds on deletion; ⚠️ the flag grader covers binds/does-not-bind but
+  does NOT discriminate the blackout defect above — recorded as owed in the receipt, not claimed.
+- 372 passed. Receipt: `docs/development/reviews/2026-09-18-fable-band-clamp-review.md`, handed off
+  with five owed items including the `CLAUDE.md` contract-line drift. D-295.
+
 ### Fixed — the Fable band clamp, as its own review found it (2026-09-18)
 
 - `/fabrik-review` over `0a019413f`, three seats, 16 candidates, 14 confirmed, 13 fixed. Four of them
