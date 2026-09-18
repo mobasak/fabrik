@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the docs review found four false claims in the lane's own contract text (2026-09-19)
+
+- **Row 5 named the wrong quantity.** "the `--file` count" reads as the occurrence count; the gate counts DISTINCT repo-root-normalised paths, so four `--file` occurrences of two files start at rc 0 (executed). Row 5 now says which count, and its grader pins both halves — the first cut pinned only the flag name, so the wrong quantity survived.
+- **"a CLOSED set" was true of the tokens and false of the paths.** Two of the exclusion tokens are whole-directory prefixes (`docs/reference/`, `docs/workstation/`) that exclude anything beneath them — the lane's cheapest cobra, named in `_task_measure`'s docstring and absent from the rule that teaches it. Now in both contracts, with the five ledger files enumerated instead of gestured at.
+- **Row 6 dropped a test conjunct the spec states.** A change that is reversible, small and trips nothing else but is not statable in the six fields fails row 6 in the spec and fired it in the contracts. Restored.
+- **The protocol doc described a bug we had already fixed.** It said the close "reads that key" for `sync_test`; the close re-derives readability at close time and never reads the start-time key back — which is the fix that stopped a half-blind run scoring a clean `0`. Also: the five hardcoded ledger exclusions a matrix-less repo still gets, and a citation re-anchored to a symbol instead of a drifting line.
+- **The capability catalog truncated every command description mid-word.** 38 of 38 exceed the old 160-char cut and 0 of 38 rendered rows ended in a period, so the catalog a cold agent reads first to discover a tool stopped `/fabrik-task`'s row at "SIZE (the start IS the gate), ME". Truncation now prefers a sentence boundary, falls back to a word boundary, and marks itself with an ellipsis.
+
 ### Changed — the first real `/fabrik-task` run withdrew its own change and recorded the ruling instead (2026-09-19)
 
 - V2 of the lane plan: one declared file, one decision (`tests/test_command_run_fabrik_task.py::_HUB_CONFIG` repo-relative instead of the absolute `/opt/fabrik/…` pin), built red-first, then the phase-4 `/fabrik-review-scoped` seats found that `scripts/command_run.py:2694-2697` already rules the hub path ABSOLUTE — the equality test must grade the scalar the post-commit sync opens, and 18 of 23 registered worktrees carry a different one. The change is withdrawn, the ruling is D-300 so the SIZE gate's `tradeoffs` question and `decisions.py` can see it, and the backlog row that named the pin as a defect is amended. The close re-measured the run's own commit: `oversized_mini: 0`.

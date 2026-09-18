@@ -517,7 +517,13 @@ def test_the_lane_tables_verdicts_match_the_size_gates_own_routing() -> None:
     # declare one" passed — re-introducing the exact defect the caveat exists to close.
     assert "is neither excluded nor free" in rows["5"][1]
     assert "the close scores it undeclared" in rows["5"][1]
-    assert "the `--file` count" in rows["5"][1], "row 5's executable basis is --file, not --declare"
+    # The basis is `--file`, and the COUNT is of DISTINCT normalised paths — the gate dedupes
+    # (`src/a.py`, `./src/a.py` and the absolute spelling are one file), so "the `--file` count"
+    # read as the occurrence count and was refuted by execution: four occurrences of two paths
+    # start at rc 0 (docs review, 2026-09-19). Both halves pinned; the first cut pinned only the
+    # flag name, so the wrong quantity survived.
+    assert "DISTINCT `--file` paths" in rows["5"][1], "row 5's executable basis is --file, not --declare"
+    assert "normalised repo-root-relative" in rows["5"][1], "row 5 must say WHICH count: distinct, normalised"
     assert "excluded at CLOSE, not at start" in rows["5"][1], (
         "row 5 must say WHEN the exclusion applies — it is close-only, and the first cut of\n"
         "this row claimed the --file count itself was already the code surface"

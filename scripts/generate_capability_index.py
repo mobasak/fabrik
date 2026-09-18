@@ -111,6 +111,23 @@ def _classify_script(path: Path) -> tuple[str, str]:
 _BLOCK_SCALAR = ("|", ">", "|-", ">-", "|+", ">+")
 
 
+def _clip(val: str, cap: int = 400) -> str:
+    """Truncate a front-matter description VISIBLY, on a boundary.
+
+    The old `val[:160]` cut mid-word with no marker, so every row read as a complete sentence that
+    simply stopped: measured 2026-09-19, 38 of 38 command descriptions exceed 160 chars and 0 of 38
+    rendered rows end in a period. A catalog whose stated purpose is "a cold AI planner reads this
+    first to discover and invoke tools" cannot do that when the TRIGGER/SKIP clauses are cut off.
+    Prefer a sentence boundary inside the cap, else a word boundary, and always mark the cut.
+    """
+    if len(val) <= cap:
+        return val
+    head = val[:cap]
+    stop = max(head.rfind(". "), head.rfind("; "), head.rfind(" — "))
+    cut = stop + 1 if stop > cap // 2 else head.rfind(" ")
+    return head[: cut if cut > 0 else cap].rstrip(" ,;—-") + "…"
+
+
 def _first_docline(head: str) -> str:
     """First human-readable doc line — skipping shebangs, coding cookies, and a YAML front-matter block.
 
@@ -133,7 +150,7 @@ def _first_docline(head: str) -> str:
                     if (
                         val and val not in _BLOCK_SCALAR
                     ):  # empty / block-scalar → fall through to heading
-                        return val[:160]
+                        return _clip(val)
             body_start = close + 1  # no usable description → parse the body after the block
         # else: no closing fence → leading `---` is just an HR; parse from the top (body_start stays 0)
     for raw in lines[body_start:]:
