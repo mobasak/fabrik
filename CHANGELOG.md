@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the lane table's test 4 re-cut by V1's own gate (2026-09-18, D-298)
+
+- Test 4 was "genuine trade-offs to adjudicate" and row 6 required "no trade-off". Measured against 24 sampled commits: test 4 fired on **10 of 10** answerable decision-bearing rows and none recorded "no trade-off" — the decision ledger's what/why columns record a settled alternative for nearly every decision, so the lane's entry condition was empty of exactly the decisions it exists for. Test 4 now asks for a trade-off that must be settled **before** building; row 6 asks for "no trade-off to settle first". Re-scored: test 4 at 1 of 9 (11%), the union at 3 of 22 (14%), under the 30% stop.
+- Root cause, in command terms: the spec's V1 says "re-cut before the build"; the plan scheduled it in the last ticket; plan-review passed the inversion; execution ran it as written. The contradiction between rows 4 and 6 was readable directly and survived three spec-review runs and fifteen review rounds because all of them verified text against code and none executed the validation the spec described — with its 24 sample SHAs already listed.
+
 ### Added — T04b: the `/fabrik-task` LANE table mirrored into the fleet template (2026-09-18)
 
 - `templates/governance/CLAUDE.md` gains the lane table in § Orient step 0, `a governance-sync path` in § Completion Contract 1a's heavy-surface list, and outcome (ii) of the mail HANDLE-NOW clause collapses to a pointer naming `/fabrik-task`. The table block was lifted VERBATIM from the hub's text rather than retyped, and a grader asserts the two copies row for row.

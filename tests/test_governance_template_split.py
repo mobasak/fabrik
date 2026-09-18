@@ -542,7 +542,7 @@ def test_the_lane_tables_verdicts_match_the_size_gates_own_routing() -> None:
     # the question each row ASKS, not only its label — two rows' prose were swapped wholesale and
     # every grader stayed green, leaving a table that contradicted its own annotations.
     for n, noun in (("1", "governance-sync"), ("1b", "heavy surface"), ("2", "NEW MECHANISM"),
-                    ("3", "ONE-WAY"), ("4", "TRADE-OFFS"), ("4b", "pure fix")):
+                    ("3", "ONE-WAY"), ("4", "TRADE-OFF"), ("4b", "pure fix")):
         assert noun in rows[n][1], (n, noun)
     assert ".pre-commit-config.yaml" in rows["1"][1]
     for n, phrase in (("1b", "operator-named work"), ("1b", "D-137"),
