@@ -2590,6 +2590,8 @@ _TASK_COMMAND = "fabrik-task"
 _TASK_DECLARE_KEYS = ("decision", "heavy", "mechanism", "oneway", "tradeoffs")
 # The lane's surface cap: a fourth file is the spec chain's work, not a right-now task's.
 _TASK_MAX_FILES = 3
+# The only two answers. The plan's Interfaces declares the seam dict as "yes"|"no" per key.
+_YN = ("yes", "no")
 
 
 def _refuse(msg: str) -> int:
@@ -2598,6 +2600,13 @@ def _refuse(msg: str) -> int:
     sys.stderr.write(f"[command_run] {msg}\n")
     print(msg)
     return 1
+
+
+def _is_marker(ln: str) -> bool:
+    """Is this line a YAML sequence-item marker? `- x` AND a bare `-` on its own line, which is
+    equally legal and is what defeated the first cut of this block terminator."""
+    s = ln.lstrip()
+    return s.startswith("- ") or s.rstrip() == "-"
 
 
 def _sync_filter_source() -> str | None:
@@ -2623,29 +2632,56 @@ def _sync_filter_source() -> str | None:
     try:
         root = os.environ.get("FABRIK_HUB_ROOT") or "/opt/fabrik"
         lines = (Path(root) / ".pre-commit-config.yaml").read_text(encoding="utf-8").splitlines()
+
         # Anchored on the hook ID, never the first `files:` in the file and never a positional
         # index: the hub config carries six `files:` scalars and governance-sync's is the last.
-        at = next((i for i, ln in enumerate(lines) if ln.strip() == "- id: governance-sync"), -1)
+        # The id may sit ANYWHERE in the item, not only on its first line — a hook is free to
+        # list `name:` first, and an anchor demanding `- id: …` returns None on a reordering
+        # that leaves the filter perfectly readable.
+        def _is_id(ln: str) -> bool:
+            s = ln.strip()
+            if s.startswith("- "):
+                s = s[2:].strip()
+            return s == "id: governance-sync"
+
+        at = next((i for i, ln in enumerate(lines) if _is_id(ln)), -1)
         if at < 0:
+            return None
+        # Walk BACK to the item's own `-` marker: that line's indent is what bounds the block,
+        # and starting the scan there also finds a `files:` written ABOVE the id.
+        item = at
+        while item >= 0 and not _is_marker(lines[item]):
+            item -= 1
+        if item < 0:
             return None
         # The block ENDS at the next sibling list item or at any dedent — `- id:` alone is not
         # a sufficient terminator, because a hook is free to list `name:` first and a
         # governance-sync block that merely LOST its `files:` key would then silently adopt a
         # LATER hook's regex. That is the one failure this reader must not have: an unavailable
-        # filter fails open and SAYS so, a wrong one refuses the wrong starts in silence.
-        indent = len(lines[at]) - len(lines[at].lstrip())
+        # filter fails open and SAYS so, a wrong one refuses the wrong starts in silence. A bare
+        # `-` on its own line is a legal sequence item and terminates too (`_is_marker`).
+        indent = len(lines[item]) - len(lines[item].lstrip())
         raw = ""
-        for ln in lines[at + 1 :]:
+        for ln in lines[item + 1 :]:
             if not ln.strip():
                 continue
             lead = len(ln) - len(ln.lstrip())
-            if lead < indent or (lead == indent and ln.lstrip().startswith("- ")):
+            if lead < indent or (lead == indent and _is_marker(ln)):
                 break
             s = ln.strip()
             if s.startswith("files:"):
                 raw = s[len("files:") :].strip()
                 break
         if not raw:
+            return None
+        if raw[:1] in ("|", ">"):
+            # A BLOCK (`|`) or FOLDED (`>`) scalar: the value is on the FOLLOWING lines and the
+            # indicator is NOT the regex. Taking it literally is the "empty regex" hazard in the
+            # spelling this scan cannot read — executed: `>-` compiles to a literal that matches
+            # NOTHING (every sync path starts rc 0, `sync_test: ok`, no warning), and `|`
+            # compiles to an empty alternation that matches EVERY path (every start refused in
+            # every repo). Both are silent because `pat is not None`. Route them to the
+            # documented fail-open, exactly as the `'` arm already does for its multi-line case.
             return None
         if raw.startswith("'"):
             body, out, i, closed = raw[1:], [], 0, False
@@ -2676,9 +2712,20 @@ def _sync_filter_source() -> str | None:
 def _task_git(root: Path, *a: str) -> subprocess.CompletedProcess[str]:
     """rc-SIGNALLING git: `check=False`, read `.returncode`. Under `check=True` every call here
     RAISES on the answer it exists to report, and `main`'s fail-soft (`:2557-2559`) turns that
-    into rc 0 with no record — a dirty declared path would be a SILENT SUCCESS."""
+    into rc 0 with no record — a dirty declared path would be a SILENT SUCCESS.
+
+    ⚠️ `--literal-pathspecs` is load-bearing: a DECLARED PATH is a filename, never a pathspec,
+    and git reads glob metacharacters in one as magic. Executed: a clean `src/rep[1].py` was
+    refused because its glob sibling `src/rep1.py` was dirty — the refusal naming a file the
+    agent never declared. Inert for `rev-parse`; it is a global option, so it precedes the verb.
+    """
     return subprocess.run(
-        ["git", *a], capture_output=True, text=True, timeout=10, check=False, cwd=str(root)
+        ["git", "--literal-pathspecs", *a],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+        cwd=str(root),
     )
 
 
@@ -2697,21 +2744,38 @@ def _task_size_gate(args: argparse.Namespace) -> tuple[int, dict[str, Any] | Non
     """
     paths = [str(p) for p in (getattr(args, "file", None) or [])]
     answers: dict[str, str] = {}
+    malformed: list[str] = []
     for item in str(getattr(args, "declare", "") or "").split(","):
         item = item.strip()
         if not item:
             continue
-        k, v = item.split("=", 1)  # an item with no `=` raises; the caller's arm owns it
+        if "=" not in item:
+            # COLLECTED, never unpacked eagerly: a bare `decision` is the likeliest `--declare`
+            # mistake there is, and surfacing it as `start could not complete (ValueError)` names
+            # neither the flag nor the member. The exception arm stays the backstop for the
+            # escapes nobody enumerated.
+            malformed.append(item)
+            continue
+        k, v = item.split("=", 1)
         answers[k.strip().lower()] = v.strip().lower()
 
-    # (1) THE FLAG GUARD. Both gaps print, one line each: an agent who fixes one and re-runs
+    # (1) THE FLAG GUARD. Every gap prints, one line each: an agent who fixes one and re-runs
     # into the other has paid two round trips for a single correction.
     gaps = []
     if not paths:
         gaps.append("REFUSED — fabrik-task: missing --file")
+    if malformed:
+        gaps.append("REFUSED — fabrik-task: --declare members must be k=v: " + ", ".join(malformed))
     absent = [k for k in _TASK_DECLARE_KEYS if k not in answers]
     if absent:
         gaps.append("REFUSED — fabrik-task: missing --declare keys: " + ", ".join(absent))
+    # VALIDATE the answers, or a typo fails OPEN in the direction of the cheapest lane: four keys
+    # are tested `== "yes"`, so `yse`/`nope`/`1`/`true` all read as *no*, and `decision` is tested
+    # `!= "yes"` and fails the other way. Executed: every typo persisted verbatim into the seam
+    # dict the plan declares as "yes"|"no", where T01b re-measures against it.
+    wrong = [f"{k}={answers[k]}" for k in _TASK_DECLARE_KEYS if answers.get(k, "yes") not in _YN]
+    if wrong:
+        gaps.append("REFUSED — fabrik-task: --declare values must be yes|no: " + ", ".join(wrong))
     if gaps:
         for g in gaps:
             _refuse(g)
@@ -2720,29 +2784,57 @@ def _task_size_gate(args: argparse.Namespace) -> tuple[int, dict[str, Any] | Non
     # (2) THE PATH/STATE CHECKS. Normalise FIRST: the sync regex is `^`-anchored per
     # alternative, so `./scripts/x.py` or an absolute spelling would clear the lane's most
     # consequential test on two characters.
-    root = Path(_repo_root() or Path.cwd()).resolve()
+    repo = _repo_root()
+    root = Path(repo or Path.cwd()).resolve()
     rels: list[str] = []
     for p in paths:
         q = Path(p)
-        full = (q if q.is_absolute() else Path.cwd() / q).resolve()
+        # ⚠️ ABSPATH, never `resolve()`: `resolve()` follows SYMLINKS, so the path that reached
+        # `rels`, the dirty probe and the sync regex was the link's TARGET, not the declaration.
+        # Executed: a tracked symlink retargeted until `git status` reported ` M src/blink.py`
+        # STARTED rc 0, because the dirty probe ran against the resolved, clean target. The
+        # population is not theoretical — thousands of tracked symlinks live under `/opt`, the
+        # hub's own `scripts/verify_prod_parity.py` among them.
+        full = Path(os.path.abspath(q if q.is_absolute() else Path.cwd() / q))
         try:
             rel = full.relative_to(root)
         except ValueError:
-            _refuse(f"REFUSED — fabrik-task: {p} is outside the repository — declare a repo path")
-            return 1, None
-        if full.is_dir():
+            # Only NOW resolve: the literal path may sit outside the repo purely because a PARENT
+            # is a symlink INTO it. Containment gets the second chance; the spelling never does.
+            try:
+                rel = full.resolve().relative_to(root)
+            except (ValueError, OSError):
+                _refuse(
+                    f"REFUSED — fabrik-task: {p} is outside the repository — declare a repo path"
+                )
+                return 1, None
+        if full.is_dir() and not full.is_symlink():
+            # A symlink TO a directory is still a declared file for git's purposes; only a real
+            # directory is the "declare files" correction.
             _refuse(f"REFUSED — fabrik-task: {p} is a directory — declare files")
             return 1, None
         rels.append(rel.as_posix())
+    # DISTINCT paths, not occurrences: `--file src/a.py` twice recorded the path twice (which
+    # T01b re-measures against) and four times routed a ONE-file task into the spec chain.
+    rels = list(dict.fromkeys(rels))
 
     # `-q --verify` is the form that ANSWERS: the bare `git rev-parse HEAD` is rc 128 and prints
     # the literal `HEAD`. Before the first commit `git diff --quiet HEAD` is rc 128 too, so the
-    # dirty check is SKIPPED rather than reading every declared path as dirty.
+    # dirty check is SKIPPED rather than reading every declared path as dirty. NOT a git repo at
+    # all is a THIRD state, and it is not "no commits yet": it is recorded distinguishably so
+    # T01b's re-measure can tell a virgin repo from no repo, where no path-state check ran.
+    # ⚠️ The probe runs UNCONDITIONALLY, and `repo` only LABELS the result. Gating the call on
+    # `_repo_root()` being non-empty looks equivalent and is not: `_repo_root` swallows its own
+    # exceptions and returns "" (`:854-855`), so a MISSING git binary would read as "not a repo"
+    # and silently skip the dirty check — the one fail-open this gate must never have. Called
+    # unconditionally, that same absence raises here and the caller's arm refuses the start.
     head = _task_git(root, "rev-parse", "-q", "--verify", "HEAD")
     sha = head.stdout.strip() if head.returncode == 0 else ""
     if sha:
         for rel in rels:
-            if not (root / rel).exists():
+            # LEXISTS, not `exists()`: a symlink whose target is gone is PRESENT to git and would
+            # otherwise be read as an absent path and skipped.
+            if not os.path.lexists(str(root / rel)):
                 continue  # absent — deleted or never created — is not dirty
             dirty = _task_git(root, "diff", "--quiet", "HEAD", "--", rel).returncode != 0
             if not dirty:
@@ -2779,8 +2871,13 @@ def _task_size_gate(args: argparse.Namespace) -> tuple[int, dict[str, Any] | Non
 
     declared: dict[str, Any] = {
         "files": rels,
-        "sha": sha or "unavailable",
-        "sync_test": "unavailable" if pat is None else "pass",
+        # Three distinguishable states, because they mean three different things to T01b's
+        # re-measure: a real SHA, `unavailable` (a git repo with no commits — the dirty check
+        # was skipped), and `no-repo` (not a git repo at all — no path-state check ran).
+        "sha": sha or ("unavailable" if repo else "no-repo"),
+        # The plan's Interfaces declares this seam as "ok"|"unavailable" and T01b/T02 are
+        # written against it — not a value this file gets to pick.
+        "sync_test": "unavailable" if pat is None else "ok",
     }
     for k in _TASK_DECLARE_KEYS:
         declared[k] = answers[k]
@@ -3077,8 +3174,16 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # deletes its own `run_close` event to prevent. `rec["phase"]` above is in-memory only,
         # so returning here leaves the phase on disk exactly where it was.
         _design = str(getattr(args, "design", "") or "")
-        if _design and str(rec.get("command") or "").lstrip("/") == _TASK_COMMAND:
-            if rec.get("design"):
+        if _design and str(rec.get("command") or "").lstrip("/") != _TASK_COMMAND:
+            # The MIRROR of `start`'s cross-command guard. Without it a `--design` on any other
+            # record was rc 0 with the pinned line printed and nothing stored: every signal of
+            # success, and the design gone.
+            return _refuse("REFUSED — --design belongs to --command fabrik-task")
+        if _design:
+            # PRESENCE, not truth. An EMPTY design file sets `design = ''`, which is falsy, so a
+            # truthiness guard let the next `--design` overwrite it with no NOTE — defeating the
+            # "no later step overwrites it" contract on exactly the input that needs it most.
+            if "design" in rec:
                 # A WARNED no-op, never a refusal: refusing would wedge the phase, and with it
                 # the Stop hook. Never silent either — the second draft is the one the agent
                 # believes landed. "no later step overwrites it" is this branch.

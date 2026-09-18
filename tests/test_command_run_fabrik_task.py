@@ -56,6 +56,30 @@ def _load(name: str, path: Path):
     return mod
 
 
+def _commit(repo: Path, path: str, msg: str, also: str | None = None) -> None:
+    """Stage the named path(s) in the throwaway fixture repo and commit them."""
+    paths = [path] + ([also] if also else [])
+    subprocess.run(["git", "add", "--", *paths], cwd=str(repo), check=True, timeout=15)
+    subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", msg],
+        cwd=str(repo),
+        check=True,
+        timeout=15,
+    )
+
+
+def _porcelain(repo: Path, path: str) -> str:
+    """The fixture repo's own view of one path — used to ASSERT the fixture is in the state the
+    grader claims, so a symlink test can never pass because the setup silently did nothing."""
+    return subprocess.run(
+        ["git", "--literal-pathspecs", "status", "--porcelain", "--", path],
+        cwd=str(repo),
+        capture_output=True,
+        text=True,
+        timeout=15,
+    ).stdout
+
+
 def _events_dir(run_dir: Path) -> Path:
     d = run_dir.parent / "events"
     d.mkdir(exist_ok=True)
@@ -151,7 +175,7 @@ def _rec(run_dir: Path, sid: str = "s1") -> dict:
 
 
 def test_start_refuses_a_gapped_declaration_and_never_exits_0_on_an_exception(
-    run_dir: Path, repo: Path, hub: Path
+    run_dir: Path, repo: Path, hub: Path, tmp_path: Path
 ) -> None:
     """Row 1. A bare `fabrik-task` start passes every lane test VACUOUSLY (zero files ≤ 3, no
     path for the regex or the dirty check, no answer to refuse on), so it is refused and BOTH
@@ -168,15 +192,31 @@ def test_start_refuses_a_gapped_declaration_and_never_exits_0_on_an_exception(
     )
     assert not (run_dir / "s1.json").exists(), "a refused start must open no record"
 
-    # A `--declare` item with no `=` raises inside the parse; the lane block owns it.
+    # A `--declare` member with no `=` is the likeliest mistake there is, so it NAMES itself and
+    # the member rather than surfacing as an anonymous exception class.
     r2 = _cr(
         run_dir,
-        *_start("--file", "src/a.py", "--declare", "decision"),
+        *_start("--file", "src/a.py", "--declare", "decision,heavy=no"),
         cwd=repo,
         extra_env=env,
     )
     assert r2.returncode == 1, r2.stdout + r2.stderr
-    assert "REFUSED — fabrik-task: start could not complete (ValueError)" in r2.stdout
+    assert "REFUSED — fabrik-task: --declare members must be k=v: decision" in r2.stdout
+    assert not (run_dir / "s1.json").exists()
+
+    # The exception arm itself, driven by a REAL escape: no `git` on PATH. Anything raised inside
+    # the lane block must become rc 1 + the template + no record — never `main`'s fail-soft rc 0,
+    # which reads to the agent exactly like a record that opened.
+    nogit = tmp_path / "nogit"
+    nogit.mkdir()
+    r3 = _cr(
+        run_dir,
+        *_start("--file", "src/a.py", "--declare", _ALL_NO),
+        cwd=repo,
+        extra_env={**env, "PATH": str(nogit)},
+    )
+    assert r3.returncode == 1, r3.stdout + r3.stderr
+    assert "REFUSED — fabrik-task: start could not complete (FileNotFoundError)" in r3.stdout
     assert not (run_dir / "s1.json").exists()
 
 
@@ -260,7 +300,9 @@ def test_a_sync_path_names_the_review_lane_and_the_spec_chain_wins(
         extra_env=env,
     )
     assert r3.returncode == 0, r3.stdout + r3.stderr
-    assert _rec(run_dir)["declared"]["sync_test"] != "unavailable"
+    # The seam value the plan's Interfaces declares — "ok"|"unavailable", nothing else. A
+    # `!= "unavailable"` assertion passes against any string and cannot catch a drifted seam.
+    assert _rec(run_dir)["declared"]["sync_test"] == "ok"
 
 
 # ---------------------------------------------------------------- row 4
@@ -350,21 +392,27 @@ def test_a_valid_declaration_persists_and_prints_the_record_id(
     assert lines[0].startswith("RUN: /fabrik-task")
     assert lines[1] == f"RECORD: {rec['started_at']}", r.stdout
 
-    # A directory and an out-of-repo path are CORRECTIONS, not lane verdicts.
+    # A directory and an out-of-repo path are CORRECTIONS, not lane verdicts. Their OWN session
+    # ids: reusing the id of the call that just succeeded would let a stale record satisfy an
+    # assertion about a refusal.
     bad = _cr(
         run_dir,
         *_start("--file", "src", "--declare", _ALL_NO),
         cwd=repo,
+        sid="s-dir",
         extra_env={"FABRIK_HUB_ROOT": str(hub)},
     )
     assert bad.returncode == 1 and "is a directory — declare files" in bad.stdout
+    assert not (run_dir / "s-dir.json").exists()
     out = _cr(
         run_dir,
         *_start("--file", str(hub / ".pre-commit-config.yaml"), "--declare", _ALL_NO),
         cwd=repo,
+        sid="s-out",
         extra_env={"FABRIK_HUB_ROOT": str(hub)},
     )
     assert out.returncode == 1 and "is outside the repository" in out.stdout
+    assert not (run_dir / "s-out.json").exists()
 
 
 # ---------------------------------------------------------------- row 6 (a)
@@ -392,6 +440,38 @@ def test_the_stdlib_files_scalar_equals_pyyamls_on_the_live_hub_file(monkeypatch
     assert mine == theirs, f"stdlib {len(mine or '')} chars vs PyYAML {len(theirs)}"
     # The denominator for the equality claim: the byte length both readings agreed on.
     assert len(theirs) > 100, len(theirs)
+
+    # Same STRING is not the same BEHAVIOUR. The gate's whole purpose is to predict what
+    # `grep -qE` will do in `governance_sync_postcommit.sh`, and Python's `re` and POSIX ERE are
+    # different engines — an ERE-only construct added to the hub's scalar would keep both
+    # readers byte-equal while the gate and the sync quietly disagreed about which paths are
+    # sync paths. Compare what they MATCH over the hub's real tracked file list, with the
+    # population stated.
+    tracked = subprocess.run(
+        ["git", "ls-files"],
+        cwd=str(_HUB_CONFIG.parent),
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=True,
+    ).stdout.splitlines()
+    assert len(tracked) > 100, f"only {len(tracked)} tracked files — is this the hub?"
+    pat = __import__("re").compile(theirs)
+    by_python = {f for f in tracked if pat.search(f)}
+    ere = subprocess.run(
+        ["grep", "-E", "-e", theirs],
+        input="\n".join(tracked),
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert ere.returncode in (0, 1), ere.stderr
+    by_ere = set(ere.stdout.splitlines())
+    assert by_python == by_ere, (
+        f"engines disagree over {len(tracked)} tracked files: "
+        f"python-only={sorted(by_python - by_ere)[:5]} ere-only={sorted(by_ere - by_python)[:5]}"
+    )
+    assert by_python, f"the filter matched 0 of {len(tracked)} tracked files"
 
 
 # ---------------------------------------------------------------- row 6 (b)
@@ -576,3 +656,379 @@ def test_a_repo_with_no_commits_records_sha_unavailable(
     )
     assert out.returncode == 0, out.stdout + out.stderr
     assert _rec(run_dir)["declared"]["sha"] == "unavailable"
+
+
+# ------------------------------------------- fixup round: the territory round 1 never reached
+
+
+def test_a_fourth_declared_file_routes_to_the_spec_chain(
+    run_dir: Path, repo: Path, hub: Path
+) -> None:
+    """The lane's HEADLINE behaviour, and nothing in the first batch declared more than three
+    files — raising the cap to 4 left every grader green. Three is the boundary that must still
+    START; the fourth is the spec chain's."""
+    env = {"FABRIK_HUB_ROOT": str(hub)}
+    three = _cr(
+        run_dir,
+        *_start(
+            "--file",
+            "src/a.py",
+            "--file",
+            "src/c.py",
+            "--file",
+            "src/d.py",
+            "--declare",
+            _ALL_NO,
+        ),
+        cwd=repo,
+        sid="s-3",
+        extra_env=env,
+    )
+    assert three.returncode == 0, three.stdout + three.stderr
+    assert len(_rec(run_dir, "s-3")["declared"]["files"]) == 3
+
+    four = _cr(
+        run_dir,
+        *_start(
+            "--file",
+            "src/a.py",
+            "--file",
+            "src/c.py",
+            "--file",
+            "src/d.py",
+            "--file",
+            "scripts/plain.py",
+            "--declare",
+            _ALL_NO,
+        ),
+        cwd=repo,
+        sid="s-4",
+        extra_env=env,
+    )
+    assert four.returncode == 1, four.stdout + four.stderr
+    assert "REFUSED — fabrik-task: files > 3 → /fabrik-spec" in four.stdout
+    assert not (run_dir / "s-4.json").exists()
+
+
+def test_every_declared_answer_names_its_own_lane(run_dir: Path, repo: Path, hub: Path) -> None:
+    """Four of the seven lane outcomes had ZERO occurrences in the first batch — deleting their
+    branches left every grader green. Each answer names the lane its message promises, and the
+    spec chain outranks the right-now lanes when both trip."""
+    env = {"FABRIK_HUB_ROOT": str(hub)}
+    cases = [
+        (
+            "decision=yes,heavy=yes,mechanism=no,oneway=no,tradeoffs=no",
+            "REFUSED — fabrik-task: heavy → right-now + /fabrik-review",
+        ),
+        (
+            "decision=yes,heavy=no,mechanism=no,oneway=yes,tradeoffs=no",
+            "REFUSED — fabrik-task: oneway → /fabrik-spec",
+        ),
+        (
+            "decision=yes,heavy=no,mechanism=no,oneway=no,tradeoffs=yes",
+            "REFUSED — fabrik-task: tradeoffs → /fabrik-spec",
+        ),
+        (
+            "decision=no,heavy=no,mechanism=no,oneway=no,tradeoffs=no",
+            "REFUSED — fabrik-task: decision=no → right-now + /fabrik-review-scoped",
+        ),
+    ]
+    for i, (declare, expected) in enumerate(cases):
+        r = _cr(
+            run_dir,
+            *_start("--file", "scripts/plain.py", "--declare", declare),
+            cwd=repo,
+            sid=f"s-lane{i}",
+            extra_env=env,
+        )
+        assert r.returncode == 1, r.stdout + r.stderr
+        assert expected in r.stdout, f"{declare} -> {r.stdout!r}"
+        assert not (run_dir / f"s-lane{i}.json").exists()
+
+    # PRECEDENCE: a sync path AND a spec-chain answer — the spec chain is the one named.
+    both = _cr(
+        run_dir,
+        *_start(
+            "--file",
+            "scripts/enforcement/check_x.py",
+            "--declare",
+            "decision=yes,heavy=yes,mechanism=no,oneway=yes,tradeoffs=no",
+        ),
+        cwd=repo,
+        sid="s-prec",
+        extra_env=env,
+    )
+    assert both.returncode == 1, both.stdout + both.stderr
+    assert "REFUSED — fabrik-task: oneway → /fabrik-spec" in both.stdout
+
+
+def test_out_of_domain_declare_values_are_refused(run_dir: Path, repo: Path, hub: Path) -> None:
+    """A typo failed OPEN into the cheapest lane: four keys are tested `== "yes"`, so `yse` and
+    `nope` both read as *no*, and every typo persisted verbatim into a seam the plan declares as
+    yes|no. The correction prints beside the other flag gaps, not after a second round trip."""
+    r = _cr(
+        run_dir,
+        *_start(
+            "--file",
+            "scripts/plain.py",
+            "--declare",
+            "decision=yes,heavy=yse,mechanism=nope,oneway=no,tradeoffs=1",
+        ),
+        cwd=repo,
+        extra_env={"FABRIK_HUB_ROOT": str(hub)},
+    )
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "REFUSED — fabrik-task: --declare values must be yes|no: " in r.stdout
+    for bad in ("heavy=yse", "mechanism=nope", "tradeoffs=1"):
+        assert bad in r.stdout, r.stdout
+    assert "decision=yes" not in r.stdout and "oneway=no" not in r.stdout
+    assert not (run_dir / "s1.json").exists()
+
+
+def test_duplicate_declared_paths_are_de_duplicated(run_dir: Path, repo: Path, hub: Path) -> None:
+    """The cap counted OCCURRENCES: one file named four times routed a ONE-file task into the
+    spec chain, and named twice it reached the record twice — which T01b re-measures against."""
+    r = _cr(
+        run_dir,
+        *_start(
+            "--file",
+            "src/a.py",
+            "--file",
+            "./src/a.py",
+            "--file",
+            "src/./a.py",
+            "--file",
+            "src/a.py",
+            "--declare",
+            _ALL_NO,
+        ),
+        cwd=repo,
+        extra_env={"FABRIK_HUB_ROOT": str(hub)},
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert _rec(run_dir)["declared"]["files"] == ["src/a.py"]
+
+
+def test_a_declared_symlink_keeps_its_spelling_and_its_dirtiness(
+    run_dir: Path, repo: Path, hub: Path
+) -> None:
+    """`resolve()` followed the link, so the path that reached the record, the dirty probe and
+    the sync regex was the TARGET. A dirty declared symlink was therefore a SILENT SUCCESS —
+    probed against a clean target — and the record named a file the agent never declared."""
+    env = {"FABRIK_HUB_ROOT": str(hub)}
+    (repo / "src" / "link.py").symlink_to("a.py")
+    _commit(repo, "src/link.py", "link")
+    clean = _cr(
+        run_dir,
+        *_start("--file", "src/link.py", "--declare", _ALL_NO),
+        cwd=repo,
+        sid="s-link",
+        extra_env=env,
+    )
+    assert clean.returncode == 0, clean.stdout + clean.stderr
+    assert _rec(run_dir, "s-link")["declared"]["files"] == ["src/link.py"], "the link, not a.py"
+
+    # Retarget the LINK so the porcelain sees the symlink itself as modified; a.py stays clean.
+    (repo / "src" / "link.py").unlink()
+    (repo / "src" / "link.py").symlink_to("c.py")
+    assert _porcelain(repo, "src/link.py").strip(), "fixture: the symlink must read as modified"
+    assert not _porcelain(repo, "src/a.py").strip(), "fixture: the target must stay clean"
+    dirty = _cr(
+        run_dir,
+        *_start("--file", "src/link.py", "--declare", _ALL_NO),
+        cwd=repo,
+        sid="s-link2",
+        extra_env=env,
+    )
+    assert dirty.returncode == 1, dirty.stdout + dirty.stderr
+    assert "REFUSED — fabrik-task: src/link.py dirty at start" in dirty.stdout
+
+
+def test_a_glob_metacharacter_in_a_declared_path_is_literal(
+    run_dir: Path, repo: Path, hub: Path
+) -> None:
+    """A declared path is a FILENAME, never a pathspec. Without `--literal-pathspecs` the probe
+    read `src/rep[1].py` as a glob, matched its DIRTY sibling `src/rep1.py`, and refused a clean
+    start while naming a file the agent never declared — fail-CLOSED, but still wrong."""
+    (repo / "src" / "rep[1].py").write_text("x = 1\n", encoding="utf-8")
+    (repo / "src" / "rep1.py").write_text("x = 1\n", encoding="utf-8")
+    _commit(repo, "src/rep[1].py", "glob", also="src/rep1.py")
+    (repo / "src" / "rep1.py").write_text("x = 2\n", encoding="utf-8")  # the SIBLING is dirty
+
+    r = _cr(
+        run_dir,
+        *_start("--file", "src/rep[1].py", "--declare", _ALL_NO),
+        cwd=repo,
+        extra_env={"FABRIK_HUB_ROOT": str(hub)},
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert _rec(run_dir)["declared"]["files"] == ["src/rep[1].py"]
+
+
+def test_design_outside_the_lane_is_refused(run_dir: Path, repo: Path) -> None:
+    """`start` refuses `--file`/`--declare` outside the lane and `--design` had no mirror: rc 0,
+    the pinned line printed, nothing stored — every signal of success and the design gone."""
+    ok = _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-review",
+        "--phases",
+        "3",
+        "--terminal",
+        "t",
+        cwd=repo,
+    )
+    assert ok.returncode == 0, ok.stdout + ok.stderr
+    d = repo / "d.md"
+    d.write_text("PROBLEM: x\n", encoding="utf-8")
+    r = _cr(run_dir, "step", "--phase", "2", "--design", str(d), cwd=repo)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "REFUSED — --design belongs to --command fabrik-task" in r.stdout
+    rec = _rec(run_dir)
+    assert "design" not in rec and rec["phase"] == 1, "the phase must NOT advance"
+
+
+def test_the_design_cap_accepts_exactly_the_cap(
+    run_dir: Path, repo: Path, hub: Path, tmp_path: Path
+) -> None:
+    """Only 2001 was ever sent, so flipping `>` to `>=` left every grader green. Exactly 2000 —
+    `_LEDGER_FIELD_CAP` — must SUCCEED; the cap is a ceiling, not a limit to duck under."""
+    env = {"FABRIK_HUB_ROOT": str(hub)}
+    ok = _cr(
+        run_dir,
+        *_start("--file", "scripts/plain.py", "--declare", _ALL_NO),
+        cwd=repo,
+        extra_env=env,
+    )
+    assert ok.returncode == 0, ok.stdout + ok.stderr
+    exact = tmp_path / "exact.md"
+    exact.write_text("y" * 2000, encoding="utf-8")
+    r = _cr(run_dir, "step", "--phase", "2", "--design", str(exact), cwd=repo, extra_env=env)
+    assert r.returncode == 0, r.stdout + r.stderr
+    rec = _rec(run_dir)
+    assert len(rec["design"]) == 2000 and rec["phase"] == 2
+
+
+def test_an_empty_design_still_cannot_be_overwritten(
+    run_dir: Path, repo: Path, hub: Path, tmp_path: Path
+) -> None:
+    """The already-recorded guard was a TRUTHINESS test, so an empty design file set `design=''`
+    and the next `--design` overwrote it silently — the one input on which "no later step
+    overwrites it" must hold is exactly the one it failed on."""
+    env = {"FABRIK_HUB_ROOT": str(hub)}
+    ok = _cr(
+        run_dir,
+        *_start("--file", "scripts/plain.py", "--declare", _ALL_NO),
+        cwd=repo,
+        extra_env=env,
+    )
+    assert ok.returncode == 0, ok.stdout + ok.stderr
+    empty = tmp_path / "empty.md"
+    empty.write_text("", encoding="utf-8")
+    first = _cr(run_dir, "step", "--phase", "2", "--design", str(empty), cwd=repo, extra_env=env)
+    assert first.returncode == 0, first.stdout + first.stderr
+    assert _rec(run_dir)["design"] == ""
+
+    later = tmp_path / "later.md"
+    later.write_text("a real design\n", encoding="utf-8")
+    second = _cr(run_dir, "step", "--phase", "3", "--design", str(later), cwd=repo, extra_env=env)
+    assert second.returncode == 0, second.stdout + second.stderr
+    assert "NOTE — fabrik-task: design already recorded" in second.stderr
+    assert _rec(run_dir)["design"] == ""
+
+
+def test_outside_a_git_repo_the_sha_says_no_repo(run_dir: Path, tmp_path: Path, hub: Path) -> None:
+    """`sha: unavailable` conflated "a repo with no commits" with "not a repo at all", and in the
+    second the dirty check never ran — a state T01b's re-measure must be able to tell apart."""
+    plain = tmp_path / "plain-dir"
+    (plain / "src").mkdir(parents=True)
+    (plain / "src" / "a.py").write_text("x = 1\n", encoding="utf-8")
+    r = _cr(
+        run_dir,
+        *_start("--file", "src/a.py", "--declare", _ALL_NO),
+        cwd=plain,
+        extra_env={"FABRIK_HUB_ROOT": str(hub)},
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert _rec(run_dir)["declared"]["sha"] == "no-repo"
+
+
+@pytest.mark.parametrize(
+    ("name", "body"),
+    [
+        # A FOLDED scalar: `>-` extracted literally compiles and matches NOTHING, so every sync
+        # path starts clean with no warning — the lane test silently off.
+        ("folded", "        files: >-\n          (^scripts/enforcement/)\n"),
+        # A BLOCK scalar: `|` compiles to an EMPTY ALTERNATION that matches EVERY path, so every
+        # fabrik-task start in every repo is refused.
+        ("block", "        files: |\n          (^scripts/enforcement/)\n"),
+    ],
+)
+def test_a_block_or_folded_scalar_fails_open(
+    run_dir: Path, repo: Path, tmp_path: Path, name: str, body: str
+) -> None:
+    """Both are the "an empty regex is truthy" hazard in a spelling the scan cannot read, and
+    NEITHER printed the warning line, because the extracted indicator compiles fine."""
+    h = tmp_path / f"hub-{name}"
+    h.mkdir()
+    (h / ".pre-commit-config.yaml").write_text(
+        "repos:\n  - repo: local\n    hooks:\n      - id: governance-sync\n        name: x\n"
+        + body,
+        encoding="utf-8",
+    )
+    r = _cr(
+        run_dir,
+        *_start("--file", "scripts/enforcement/check_x.py", "--declare", _ALL_NO),
+        cwd=repo,
+        extra_env={"FABRIK_HUB_ROOT": str(h)},
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert _rec(run_dir)["declared"]["sync_test"] == "unavailable"
+    assert "sync lane test SKIPPED" in r.stderr, r.stderr
+
+
+def test_a_bare_dash_item_terminates_the_block(run_dir: Path, repo: Path, tmp_path: Path) -> None:
+    """The block terminator required `"- "`, but a bare `-` on its own line with the mapping keys
+    beneath it is equally legal YAML — so a governance-sync block that lost its `files:` walked
+    straight into the NEXT hook and adopted its regex, silently."""
+    h = tmp_path / "hub-dash"
+    h.mkdir()
+    (h / ".pre-commit-config.yaml").write_text(
+        "repos:\n  - repo: local\n    hooks:\n      - id: governance-sync\n        name: x\n"
+        "      -\n        id: later\n        files: '(^src/)'\n",
+        encoding="utf-8",
+    )
+    r = _cr(
+        run_dir,
+        *_start("--file", "src/a.py", "--declare", _ALL_NO),
+        cwd=repo,
+        extra_env={"FABRIK_HUB_ROOT": str(h)},
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert _rec(run_dir)["declared"]["sync_test"] == "unavailable"
+    assert "sync lane test SKIPPED" in r.stderr, r.stderr
+
+
+def test_the_id_may_sit_anywhere_in_the_hook_item(
+    run_dir: Path, repo: Path, tmp_path: Path
+) -> None:
+    """The anchor demanded `- id: governance-sync` as the item's FIRST line, so a `name:`-first
+    reordering of the hub's own config turned the fleet's sync lane test off with only a stderr
+    line. The id is found anywhere in the item, and a `files:` written ABOVE it is still read."""
+    h = tmp_path / "hub-name-first"
+    h.mkdir()
+    (h / ".pre-commit-config.yaml").write_text(
+        "repos:\n  - repo: local\n    hooks:\n      - name: Sync governance\n"
+        "        files: '(^scripts/enforcement/)'\n        id: governance-sync\n",
+        encoding="utf-8",
+    )
+    r = _cr(
+        run_dir,
+        *_start("--file", "scripts/enforcement/check_x.py", "--declare", _ALL_NO),
+        cwd=repo,
+        extra_env={"FABRIK_HUB_ROOT": str(h)},
+    )
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "REFUSED — fabrik-task: sync → right-now + /fabrik-review" in r.stdout
+    assert "sync lane test SKIPPED" not in r.stderr
