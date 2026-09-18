@@ -15,7 +15,7 @@ All notable changes to this project will be documented in this file.
   on that account was told to work normally. The two REQUIRED windows keep their decoupling (a flip
   genuinely relieves there). Clamp keyed on the FABLE window alone, never on `_band_of(hot_f)`, which
   would band a cool Fable session off its account's weekly. Graders in `tests/test_claude_fleet.py`,
-  watched red in a throwaway worktree (`- RED / + GREEN`). D-294.
+  watched red in a throwaway worktree (`- RED / + GREEN`). D-295.
 
 ### Changed — `/fabrik-task` lane plan set CONVERGED by /fabrik-plan-review (2026-09-18)
 
