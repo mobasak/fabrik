@@ -1,0 +1,33 @@
+# T05 — Integration: receipt, whole-plan gate + review, docs-review, the sync, V0/V1/V2/V3
+
+## Scope
+The set's Integration ticket: the whole-plan `/fabrik-review` (the one receipt), `python scripts/final_gate.py --check --json` + `check_convergence.py`, `check_doc_sync.py --range` + `check_doc_stubs.py --range`, `/fabrik-docs-review`, the cross-ticket seam-test run, and the spec's own validation (§ Validation): V1's backtest FIRST (before the sync — a >30% disagreement on answerable rows stops the sync and re-opens the rule), V0's project-repo measurement in `/opt/youtube` (read-only), then `scripts/sync_enforcement_to_projects.py --dry-run` → one `--force` distributing `templates/governance/CLAUDE.md`, then V2's dogfood `/fabrik-task` run on the candidate the backtest names and V3's cobra probe (a seat under-declares a spec-sized change; phase 0 or phase 5 must catch it). DO-NOT: run the sync before the backtest; edit any project repo; treat this ticket's own edits as the dogfood candidate.
+
+Depends: T02, T04b
+Parallel: ⛓️
+Complexity: native
+Integration: true
+Gate: .venv/bin/python scripts/final_gate.py --check --json && .venv/bin/python scripts/enforcement/check_convergence.py
+Docs: `docs/development/reviews/2026-09-18-plan-1-fabrik-task-lane-review.md` (the receipt) · `docs/LESSONS_LEARNT.md` entry (Deltas) · CHANGELOG (Deltas)
+
+## Touches
+- docs/development/reviews/2026-09-18-plan-1-fabrik-task-lane-review.md
+
+## Behavior Contract
+- **Given** the whole-plan diff, **When** T05 runs, **Then** `final_gate.py --check --json` is `success`, `check_convergence.py` passes, the receipt embeds both, the sync dry-run lists only the template's project copies and one `--force` distributes it, V0 is measured in one project repo, V1's agreement is reported, and the dogfood `/fabrik-task` run closes with a `0` row (spec § Validation V0–V3)
+
+## Steps (the orchestrator's order)
+1. Seam tests across the set: `uv run pytest tests/test_command_run_fabrik_task.py tests/test_command_feedback_report.py tests/test_fabrik_task_source.py tests/test_governance_template_split.py -q` green.
+2. V1 backtest (spec § Validation V1): the 24 lane-choice commits at basis `a929b33f8`; tests 1 and 5 executed from `git show --name-only`; tests 2–4 answered by three author-blind Sonnet `fabrik-reviewer` seats from a cited D-row only (else UNANSWERABLE); agreement per test reported in the receipt; >30% disagreement on answerable rows → STOP before step 4, re-cut the rule in the spec (a new spec-review round), never a silent sync.
+3. V0 in a project repo (read-only, `/opt/youtube`): the plan's script over its last 300 commits with the HUB's regex read by absolute path — the refusal rate and false-refusal sample, reported beside the hub's 46%/11%.
+4. `python scripts/sync_enforcement_to_projects.py --dry-run` (expect only `templates/governance/CLAUDE.md` → `<repo>/CLAUDE.md` rows) then `--force`, ONCE; confirm one project copy carries the lane table.
+5. Whole-plan `/fabrik-review` over the set's diff (`git diff <baseline_commit>..HEAD -- <File Scope>`), partitioned by file — Opus on `scripts/command_run.py`, Sonnet on the rest (`dispatch_headroom.py --slices opus=1,sonnet=4`, stamped first), delta rounds under D-229, closing on a fresh seat's confirmed 0; receipt at `docs/development/reviews/2026-09-18-plan-1-fabrik-task-lane-review.md` via `scripts/review_receipt.py --init` then filled, embedding the verbatim `final_gate.py --check --json` and the per-ticket verdicts.
+6. `/fabrik-docs-review` over `docs/CAPABILITIES.md`, `docs/reference/command-run-protocol.md`, both CLAUDE.md copies and the rendered command — claim→proof per file.
+7. V2 dogfood: open a REAL `/fabrik-task` run (the backtest's named candidate: a ≤3-file reversible decision) through the rendered command; the lane is not done until that run closes with an `oversized_mini: 0` row visible in `--queue fabrik-task`.
+8. V3 cobra probe: one Sonnet seat attempts to route a known spec-sized task through `/fabrik-task` by under-declaring (3 files declared, 6 touched; `mechanism=no` with a flag added) in a throwaway worktree with a scratch `COMMAND_RUN_DIR`; the receipt records which phase caught it (phase 0's refusal, phase 4's seat verdict, or phase 5's count).
+9. `docs/LESSONS_LEARNT.md` entry (or `none`), CHANGELOG, `INDEX.md` rows — via the Deltas mechanism; Status → EXECUTED in the spine; the plan lock released.
+10. Commit with explicit pathspecs + provenance trailers (`Agent-Role: orchestrator`).
+
+## Context Files
+- docs/superpowers/specs/2026-09-17-fabrik-task-lane-design.md
+- .windsurf/rules/core/62-using-subagents.md

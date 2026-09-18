@@ -1,0 +1,248 @@
+# Plan 1 (2026-09-18) — the `/fabrik-task` lane: SIZE at `start`, DESIGN in the record, one own-commit re-measure
+
+Status: DRAFT
+Profile: standard
+**Owner:** —
+**Spec:** `docs/superpowers/specs/2026-09-17-fabrik-task-lane-design.md` — CONVERGED at a40d75870 by the operator's ruling (D-293; the three rulings D-289/D-290/D-291, the MIRROR confirmed by D-292).
+
+## Goal
+
+Build the lane the spec designs (spec § Goal): a `/fabrik-task` command whose SIZE gate is the `start` verb of the fleet-synced `scripts/command_run.py`, whose design lives in the run record, whose review is the unchanged `/fabrik-review-scoped`, and whose close re-measures the run's OWN commit against its declaration and writes two feedback-ledger fields — plus the two CLAUDE.md copies carrying the six-test decision rule, § 1a's new trigger and the two sizing pointers, and one mail to `fabrik-lib`.
+
+## What we already agreed (from the spec + this conversation)
+
+- The decision rule, its six tests and verdict row, and the moment it applies — spec § The decision rule (rule 1, 1b, 2–6; the MIRROR paragraph).
+- SIZE is the `start` itself with a stated inventory (two flag guards, three path/state checks, two lane tests, five declared answers; thirteen refusal outcomes over seven templates) — spec § Chosen approach, Phase 0.
+- Phase 2's six design fields in the record via `step --design <path>`, refused over 2,000 characters — spec § Chosen approach, Phase 2.
+- `/fabrik-review-scoped` invoked unchanged at phase 4; the heavy review only on a mid-run sync/heavy crossing — spec § Chosen approach, Phase 4 and UPGRADE.
+- Phase 5's re-measure as SIX INVARIANTS with graders — the operator's ruling makes them this plan's Phase A acceptance criteria (D-293): spec § Chosen approach, Phase 5, (i)–(vi).
+- Two row fields only, `oversized_mini` and `upgrade`, read by `command_feedback_report.py --queue`'s existing header — spec § Validation V4, D-290 (U10).
+- § 1a gains "a governance-sync path" in all three contract copies; fabrik-lib by mail — spec § Documentation landing sites, D-289 (U8).
+- The two inline sizing clauses become pointers to the step-0 table; the three MIRROR consequences are confirmed — spec § The decision rule (the pointer paragraph), D-291, D-292.
+- The router row is RESOLVED-NEGATIVE; no `skill_router.py` change — spec § Awareness, D-k.
+- Cost and profile: five code/contract files plus two tests, `Profile: standard` because `command_run.py` is a fleet-synced heavy surface owing the full `/fabrik-review` — spec § Cost.
+- Validation the build owns: V0's project-repo measurement (U28), V1's backtest (U29), V2's dogfood, V3's cobra probe — spec § Validation, § Open unknowns.
+- Operator this turn: *"yes as usual until it converges then run necessary commands till you finish the entire execution"* — the chain runs to the end without an operator gate between review and execution (the ruling of 2026-09-18; the design approval is D-293).
+
+## Intake Inventory
+
+| I# | Item (anchored) | Disposition | Where |
+|---|---|---|---|
+| I1 | *"run necessary commands till you finish the entire execution"* | IN | this plan → `/fabrik-plan-review` → `/fabrik-execute-plan` in one chain |
+| I2 | *"yes as usual until it converges"* — the spec approval | IN | D-293; spec CONVERGED at a40d75870 |
+| I3 | U19's three MIRROR consequences, confirmed | IN | T04a/T04b (the pointers), D-292 |
+| I4 | U8 — § 1a gains "a governance-sync path" in three copies | IN | T04a (hub), T04b (template), T04b (the mail to fabrik-lib) |
+| I5 | U10 — two row fields, existing reader | IN | T01b (writer), T02 (reader) |
+| I6 | the six phase-5 invariants as Phase A acceptance criteria | IN | T01b Behavior Contract |
+| I7 | V0's project-repo measurement before the sync (U28) | IN | T05 |
+| I8 | V1's backtest over the 24 lane-choice commits (U29) | IN | T05 |
+| I9 | V2's dogfood run on a real candidate | IN | T05 |
+| I10 | V3's cobra probe | IN | T05 |
+| I11 | the router row | OUT-OF-SCOPE | RESOLVED-NEGATIVE by the spec (§ Awareness, D-k) with its return bar; no ticket |
+| I12 | the 23 unanswered `/fabrik-spec-review` feedback verdicts this chain produced | OUT-OF-SCOPE | `python3 scripts/command_feedback_report.py --queue fabrik-spec-review` is the destination; `/fabrik-command-improve fabrik-spec-review` after this chain |
+| I13 | 14 sibling WIP files dirty in the shared tree | IN | § Global Constraints (never staged, never `noqa`'d) |
+| I14 | the spec's own residual: phase-5 edge cases that graders settle | IN | T01b's graders are the settlement; spec § Review line |
+
+Intake: 14 items — 12 IN, 2 OUT-OF-SCOPE (each named above), 0 ASK.
+
+## Ticket Board
+
+| Ticket | Title | Depends | Parallel | State | Commit |
+|---|---|---|---|---|---|
+| T01a | `command_run.py` — SIZE at `start` (`--file`/`--declare`, the inventory) + `step --design` | — | ⚡ | ⬜ | |
+| T01b | `command_run.py` — `--commit` on the close verbs, the own-commit re-measure, the two row fields | T01a | ⛓️ | ⬜ | |
+| T02 | `command_feedback_report.py --queue` header: the two series + the adoption share | T01b | ⛓️ | ⬜ | |
+| T03 | the command source `commands/_sources/fabrik-task.md`, its render, the docs rows | T01b | ⚡ | ⬜ | |
+| T04a | hub `CLAUDE.md`: the lane table, § 1a's trigger, the HANDLE-NOW pointer | T03 | ⛓️ | ⬜ | |
+| T04b | `templates/governance/CLAUDE.md`: the same table + trigger, outcome (ii)'s pointer; the fabrik-lib mail | T04a | ⛓️ | ⬜ | |
+| T05 | Integration: receipt, whole-plan gate + review, docs-review, the sync, V0/V1/V2/V3 | T02, T04b | ⛓️ | ⬜ | |
+
+## Merge Order
+
+1. T01a
+2. T01b
+3. T02
+4. T03
+5. T04a
+6. T04b
+7. T05
+
+Serialized: scripts/command_run.py — T01a T01b
+Serialized: CLAUDE.md — T04a T04b
+
+## Interfaces
+
+- **T01a → T01b:** `rec["declared"]` — a dict `{files: [<repo-relative path>…], decision, heavy, mechanism, oneway, tradeoffs: "yes"|"no", sha: <hex or "unavailable">, sync_test: "ok"|"unavailable"}` persisted by `start` (T01a Produces; T01b Consumes at close). Seam test: T01b's grader starts a `fabrik-task` record through the real `start` and reads `declared` back from the record json.
+- **T01a → T01b:** `rec["design"]` — the text `step --design <path>` stored (≤ 2,000 chars). Consumed only by the coroner/resume; no seam test beyond T01a's own.
+- **T01b → T02:** the feedback-ledger row keys `oversized_mini` (a string: `0` · `<n> · paths=<p1,p2,p3> · commit=<sha>` · `unmeasurable=<no-commit|no-git|sync_test-unavailable>`) and `upgrade` (a string token, e.g. `sync`, `heavy`, `mechanism`, or absent). Seam test, owned by T02: a row written by the real `command_run.py done --commit …` in a throwaway `COMMAND_RUN_DIR` + ledger is read by `queue()` and counted.
+- **T01a/T01b → T03:** the CLI lines the source prints (`start --file … --declare …`, `step --design`, `done --commit …`). Seam test, owned by T03: every `command_run.py <verb> …` line the source carries parses under the real parser (`--help` accepts the flags; a refused flag fails the test).
+- **T03 → T04a/T04b:** the rendered `/fabrik-task` command exists (`~/.claude/commands/fabrik-task.md`) before the contract tables name it. Seam test, owned by T04a: the lane table's `/fabrik-task` cell is a name `commands/_sources/` carries.
+
+## Behavior Contract
+
+- **Given** `start --command fabrik-task` with no `--file`, **When** it runs, **Then** it exits 1 with `REFUSED — fabrik-task: missing --file` and no record opens (scripts/command_run.py:2360-2368; spec § Chosen approach, Phase 0)
+- **Given** `start --command fabrik-review --file a.py`, **When** it runs, **Then** it exits 1 with `REFUSED — --file/--declare belong to --command fabrik-task` and every other command's start output is byte-identical to today's (scripts/command_run.py:2360-2368; spec § Chosen approach, Phase 0)
+- **Given** a declared path that matches the governance-sync regex read from the hub's `.pre-commit-config.yaml` `- id: governance-sync` block, **When** `start` runs with `mechanism=no`, **Then** it exits 1 with `REFUSED — fabrik-task: sync → right-now + /fabrik-review`; with `mechanism=yes` also declared the lane named is `/fabrik-spec` (scripts/governance_sync_postcommit.sh:28-30; .pre-commit-config.yaml:149-155; spec § The decision rule)
+- **Given** a declared path that is tracked, present and modified, or present and untracked, **When** `start` runs, **Then** it exits 1 with the dirty-at-start message; an absent declared path starts (scripts/command_run.py:2583, :2623-2663; spec § Chosen approach, Phase 0)
+- **Given** a valid declaration, **When** `start` succeeds, **Then** the record carries `declared` with the seven keys and `sha`, and stdout carries `RECORD: <started_at>` after the pinned line (scripts/command_run.py:2636, :2682; spec § Chosen approach, Phase 0)
+- **Given** the stdlib extraction of the `files:` scalar, **When** compared to PyYAML's read of the same file, **Then** they are equal on the live file, and an absent or empty scalar yields `sync_test: unavailable`, never an empty regex (scripts/governance_sync_postcommit.sh:44; spec § Chosen approach, Phase 0)
+- **Given** `step --phase 2 --design <path>` on a `fabrik-task` record, **When** the file is ≤ 2,000 characters, **Then** `rec["design"]` holds its text and no later `step` overwrites it; over 2,000 it is REFUSED (scripts/command_run.py:2370-2377, :1602; spec § Chosen approach, Phase 2)
+- **Given** a `fabrik-task` record in a repo with no commits, **When** `start` runs, **Then** the record carries `sha: unavailable` and the dirty check is skipped (scripts/command_run.py:2636; spec § Chosen approach, Phase 0)
+- **Given** a `fabrik-task` record with `declared.files = [a]` and a commit that changed `a` and added `b`, **When** `done --commit <that sha>` runs, **Then** the ledger row carries `oversized_mini: 1 · paths=b · commit=<sha>` (scripts/command_run.py:3121, :3655-3676; spec § Chosen approach, Phase 5 (iii)–(vi))
+- **Given** the same record and a commit that changed only `a`, `CHANGELOG.md` and `docs/FEATURES.md`, **When** `done --commit` runs, **Then** the row carries `oversized_mini: 0` (the Doc Sync Matrix destinations parsed from `CLAUDE.md` § Doc Sync Matrix at close time plus `docs/CAPABILITIES.md` are excluded) (CLAUDE.md § Doc Sync Matrix; spec § Chosen approach, Phase 5 (iv))
+- **Given** a commit that renames a declared file into `scripts/enforcement/`, **When** `done --commit` runs, **Then** the row counts the destination as a sync hit (scripts/command_run.py:3121; spec § Chosen approach, Phase 5 (v))
+- **Given** `--commit` that is empty, resolves to a merge, or is dated before `started_at`, **When** `done` runs, **Then** it is REFUSED with the matching one of the three close-time messages and the record stays `running` (scripts/command_run.py:3360-3371; spec § Chosen approach, Phase 5 (ii))
+- **Given** `handoff --reason "UPGRADE: mechanism"` or `done --evidence "UPGRADE: sync — …"` on a `fabrik-task` record, **When** the close runs, **Then** the row carries `upgrade: mechanism` / `upgrade: sync`; a `/fabrik-review` close writes neither field (scripts/command_run.py:3074, :3655-3676; spec § Chosen approach, UPGRADE)
+- **Given** the parser of `CLAUDE.md` § Doc Sync Matrix, **When** run on the live file, **Then** it reads every table row (22 today) and yields 25 paths plus the two prefixes (CLAUDE.md § Doc Sync Matrix; spec § Chosen approach, Phase 5 (iv))
+- **Given** a ledger with `fabrik-task` rows carrying `oversized_mini`/`upgrade` and review-scoped rows some of which are nested (same `sid`, `o.ts − o.wall_s ≤ r.ts ≤ o.ts`), **When** `--queue fabrik-task` renders, **Then** the header carries the `oversized_mini` rate over numeric rows excluding `upgrade: sync` rows, the `unmeasurable` share, the `upgrade` rate and the adoption share with nested rows excluded (scripts/command_feedback_report.py:1106, :1139-1142; spec § Validation V4)
+- **Given** `--queue <any other command>`, **When** it renders, **Then** the header is byte-identical to today's (scripts/command_feedback_report.py:1139-1142)
+- **Given** `commands/_sources/fabrik-task.md`, **When** the size/include grader runs, **Then** it is ≤ 8,847 bytes and its only `{{include:}}` is `run-record` (commands/assemble_commands.py:1170, :1184; spec § Constraints C2)
+- **Given** the rendered corpus, **When** `assemble_commands.py --check` and `check_command_corpus.py` run, **Then** both are green and `~/.claude/commands/fabrik-task.md` exists (commands/assemble_commands.py:1170)
+- **Given** every `command_run.py …` line the source carries, **When** parsed by the real parser, **Then** none is refused (scripts/command_run.py:2360-2496; spec § Chosen approach)
+- **Given** hub `CLAUDE.md`, **When** T04a lands, **Then** § Orient step 0 carries the six-test + verdict-row table between the stage table and `Fork rules:`, § 1a's list contains "a governance-sync path", and the HANDLE-NOW clause's enumeration is replaced by the pointer sentence (CLAUDE.md:63-74, :198, :238; spec § The decision rule)
+- **Given** `templates/governance/CLAUDE.md`, **When** T04b lands, **Then** its step-0 table, § 1a list and outcome (ii) mirror the hub's edits, `tests/test_governance_template_split.py` is green, and the mail to `fabrik-lib` carrying § 1a's trigger is sent (templates/governance/CLAUDE.md:56-67, :210, :355; /opt/fabrik-lib/CLAUDE.md:524; spec § Documentation landing sites)
+- **Given** the whole-plan diff, **When** T05 runs, **Then** `final_gate.py --check --json` is `success`, `check_convergence.py` passes, the receipt embeds both, the sync dry-run lists only the template's project copies and one `--force` distributes it, V0 is measured in one project repo, V1's agreement is reported, and the dogfood `/fabrik-task` run closes with a `0` row (spec § Validation V0–V3)
+
+## Global Constraints
+
+- The tree is SHARED: three sessions; 14 sibling WIP files are dirty today (`PORTS.md`, `docs/reference/agents/kaizen-log-*.md`, 8 under `libs/subagents/`, `tests/test_assemble_dispatch_step.py`, `tests/test_check_review_coverage_precommit.py`, `tests/test_final_gate_stop_hook.py`) — never staged, reverted, stashed or `noqa`'d; explicit pathspecs; provenance trailers; never `--amend`; shared-append files (`CHANGELOG.md`, `docs/DECISIONS.md`, `docs/STRATEGIC_BACKLOG.md`, `INDEX.md`) by the private-index recipe in ONE shell.
+- `scripts/command_run.py` is fleet-synced (governance-sync trigger; `.pre-commit-config.yaml:155`): every change is correct for ~46 repos, stdlib-only (`scripts/command_run.py:46-60`), and its new behaviour is scoped to `--command fabrik-task` — every other command's `start`/`close` output byte-identical.
+- `templates/governance/CLAUDE.md` is a governance-sync trigger; the hub copy is not; the shared blocks stay byte-identical (`tests/test_governance_template_split.py`).
+- Render from the main checkout only, in the order render → `--check` → `check_command_corpus.py` → commit; never bare-render from a worktree.
+- Never bare-run the gate: `.venv/bin/python scripts/final_gate.py --check --json`.
+- The pool is OFF (D-181/D-182): native seats only; `dispatch_headroom.py` then `command_run.py dispatch --seats N` before every fan-out.
+- Tests: `uv run pytest tests/<file> -q`; watched-fail-first on a throwaway worktree (`git worktree add <scratch>/probe HEAD`), never a copied file; a `command_run.py` probe sets `COMMAND_RUN_DIR=<scratch>` and `--session probe-<id>`; never write `~/.claude/state/`.
+- No new dependency (`pyproject.toml`/`uv.lock` untouched); PyYAML appears only in a GRADER (the equality assertion), never in `command_run.py`.
+- 12-Factor non-negotiables inherited by every phase: logs to stdout only, never a logfile (XI) · no migration from startup (XII) · same backing services in every env (X) · no sticky sessions (VI) · no daemonizing/PID files (VIII) · workers requeue on SIGTERM, idempotent jobs (IX) · immutable releases (V) · granular env vars, no grouped sets, no secrets in code (III) · shelled-out binaries pinned in the Dockerfile (II). None of this plan's tickets touches a service, a worker or a compose file; the rows bind by inheritance.
+- Naming kebab-case; `Never-Route:` scripts/enforcement/ (built-in) — untouched by this plan.
+
+## Context Ledger
+
+| Source | What binds | Grounded ref |
+|---|---|---|
+| `.windsurf/rules/core/10-python.md` (FLOOR) | `uv` runs the tests; stdlib-only script stays stdlib-only; `datetime.now(UTC)`; no bare `asyncio.create_task` (n/a) | `.windsurf/rules/core/10-python.md:21` |
+| `.windsurf/rules/core/45-testing-strategy.md` (MATCHED: tests/) | one test per behaviour, watched-fail-first, `uv run pytest tests/` | `:19-21`, `:47-49` |
+| `.windsurf/rules/core/40-documentation.md` (MATCHED: CLAUDE.md, commands/_sources/, templates/) | Doc Sync Matrix rows are gate-checked; markdown rules (no skipped heading levels, fenced code with a language) | `:133`, `:240-243` |
+| `.windsurf/rules/core/62-using-subagents.md` (judgement read) | native seats for every fan-out; role separation in review loops | `:63`, `:184` |
+| `fabrik-lib` (consulted: `/opt/fabrik-lib/README.md` module table) | no module supplies a run-record extension, a YAML-scalar extraction or a git-diff re-measure — BUILD fresh; not a fabrik-lib candidate (hub-only machinery, one consumer) | README module table, 40 rows read |
+| `agents-fabrik.md` § Planning Constraints | solo developer; no port, compose or deploy surface touched by this plan | `agents-fabrik.md:362-380` |
+| `specs/services/*.yaml` `shape.*` | none — no service, DB, cache or metrics change | — |
+| `docs/data-contract.md` / `docs/ui-design.md` | absent in the hub — not a GUI project | — |
+| `CLAUDE.md` § Sync-consciousness + § Behavior (shared tree) | the trigger regex is read from the YAML; the private-index recipe; render order | `CLAUDE.md:198`, `.pre-commit-config.yaml:155` |
+
+## Constraints Digest
+
+| Pack | Rule (verbatim) | file:line |
+|---|---|---|
+| core/10-python | "**`uv`** is the mandated Python package manager. Never use raw `pip`, `pip install`, `poetry`, or `pipenv`." | `.windsurf/rules/core/10-python.md:21` |
+| core/45-testing-strategy | "**Behavior Contract**: every ticket enumerates its distinct **user-observable behaviors / acceptance criteria** and tests **each one** — one high-value integration/E2E test per behavior, risk-ordered, TDD for the risky ones." | `.windsurf/rules/core/45-testing-strategy.md:19` |
+| core/45-testing-strategy | "**Watched-fail-first** (for tests this change adds or modifies; trivia stays skipped per the Behavior Contract): a non-trivial behavior's test proves something only if it has been SEEN RED" | `.windsurf/rules/core/45-testing-strategy.md:21` |
+| core/45-testing-strategy | "**Run tests**: `uv run pytest tests/` (never bare `pytest` — Fabrik uses `uv`)" | `.windsurf/rules/core/45-testing-strategy.md:47` |
+| core/40-documentation | "**Enforced:** Gate-checked, no exceptions. Every code-shipping ticket must produce exactly one entry." | `.windsurf/rules/core/40-documentation.md:133` |
+| core/40-documentation | "**No skipped heading levels** — `##` to `###`, never `##` to `####`" | `.windsurf/rules/core/40-documentation.md:240` |
+| core/40-documentation | "**Fenced code blocks only** — never indented code (AI treats it inconsistently)" | `.windsurf/rules/core/40-documentation.md:242` |
+| 12-Factor (FLOOR) | "XI logs: unbuffered stdout only; the app never writes/rotates a logfile" | `scripts/review_rubric.py` FLOOR block (rendered above) |
+
+Every selection below cites a digest row or states `unconstrained`: the graders' runner (row 4), the test-per-behaviour shape (row 2), red-first (row 3), the CHANGELOG entry per ticket via the orchestrator's Deltas (row 5), the markdown of the new source and the CLAUDE.md edits (rows 6–7); the re-measure's git calls are `unconstrained` by any pack (subprocess in a stdlib script, the file's existing pattern).
+
+## Execution Discipline (binding on /fabrik-execute-plan)
+
+- **Review floor** — every ticket, on the coder's return, runs `/fabrik-review` on its changed surface to a coverage-adjudicated exit BEFORE its merge; no ticket merges on a first-pass green. T01a and T01b are the heavy surface (fleet-synced `command_run.py`): their reviews are partitioned by file with the Opus seat on `scripts/command_run.py` (`dispatch_headroom.py --slices opus=1,sonnet=1`, stamped first). T05's whole-plan `/fabrik-review` writes the receipt.
+- **Dispatch policy** — native Claude seats for every fan-out (the pool is OFF, D-181/D-182); the coders are native worktree coders (`Complexity: native` on T01a/T01b/T03/T04a/T04b — Opus for the two `command_run.py` tickets, the design-heavy surface; Sonnet default for T02); the Opus seat for the authoritative review pass and for the decide/merge the orchestrator owns.
+- **Parallelism + merge** — T01a runs first alone (it carries the parser changes every later ticket cites); on its merge T01b runs alone (same file, Serialized); on T01b's merge T02 and T03 fan out concurrently (disjoint Touches) and merge in Merge-Order position; T04a then T04b follow serially on the two contract copies; T05 last. Results merge in the main checkout by the orchestrator, per ticket, each after its own review.
+
+## File Scope (owned paths)
+
+- scripts/command_run.py
+- tests/test_command_run_fabrik_task.py
+- scripts/command_feedback_report.py
+- tests/test_command_feedback_report.py
+- commands/_sources/fabrik-task.md
+- tests/test_fabrik_task_source.py
+- docs/CAPABILITIES.md
+- docs/reference/command-run-protocol.md
+- CLAUDE.md
+- templates/governance/CLAUDE.md
+- tests/test_governance_template_split.py
+- docs/development/reviews/2026-09-18-plan-1-fabrik-task-lane-review.md
+
+## Evidence
+
+- `scripts/command_run.py:2360-2368` — the `start` subparser: `--command` (required), `--phases` (required, int), `--terminal`, `--surface`; T01a adds `--file` (append) and `--declare` beside them.
+- `scripts/command_run.py:2370-2377` — the `step` subparser: `--review-waived` (`:2371-2375`), `--phase` (required), `--title`; handled inline at `:2708`; `:2709` clamps `--phase` to ≥ 1 (why SIZE is the `start`, not a step); `rec["phase_title"] = args.title` at `:2789`, `save` at `:2792` — `design` is set between `:2789` and `:2790`; the review-artifact refusal `:2726-2760` keys on `PHASE_REVIEW_COMMANDS = frozenset({"fabrik-execute-plan"})` (`:699`), which `fabrik-task` never joins.
+- `scripts/command_run.py:2583` — `start` is handled INLINE in `_mutate` (`if args.cmd == "start":`; there is no `_start` function): the nested-record park (`:2614-2622`), the record literal `new = {` at `:2623-2663` with `"command"` at `:2625`, `started_at: _now()` at `:2631` (`:912-913`, `%Y-%m-%dT%H:%M:%S%z`), `started_epoch: time.time()` at `:2636`, `repo_root: _repo_root()` at `:2639` (`_repo_root` `:844-855`, `git rev-parse --show-toplevel`); `save(sid, new)` at `:2681`, the ONLY stdout print `print(pinned_line(new))` at `:2682`, the stderr NESTED START warning `:2690-2697`, `return 0` at `:2699`. A `--file`/`--declare` guard sits between `:2583` and `:2623`; `RECORD: <started_at>` prints after `:2682`.
+- `scripts/command_run.py:2440-2456`, `:2464-2477`, `:2485-2496` — the `done`/`handoff`/`blocked` subparsers (`--evidence` required at `:2447`; `--resume` required at `:2469-2477`; `--reason` required on `blocked` at `:2494`); T01b adds `--commit` to all three.
+- `scripts/command_run.py:3074-3075` → `_close` (`:3121`) serves `done`, `blocked` and `handoff`; the verb branch `:3500-3511` (`evidence` at `:3501`, `handoff`'s `blocked_reason`/`resume` at `:3508-3509`, `blocked`'s at `:3511`); `rec["state"] = args.cmd` at `:3493`; `:3360-3371` the `--feedback` refusal keyed on `started_at` (`_feedback_is_required`, `:1193-1202`) — the canonical close-time REFUSED shape: rc 1, the message on BOTH streams (`sys.stderr.write(f"[command_run] {msg}\n")` then `print(msg)`, `:3369-3371`), which the three new refusals copy.
+- `scripts/command_run.py:3655-3676` — `_row`, the ledger row literal (`ts sid repo command state wall_s rounds findings confirmed phases phase_reached agent surface account …`; the two new keys go in at `:3674-3675`, after `cost_usd` and before `**_tok`); `:3677` `_pending_row = _row`; `:3682` strips `stack` from the nested copy; the ledger append `:3705-3712` (`_feedback_ledger_path` `:1621-1622` = `$COMMAND_RUN_DIR`'s parent `/command-feedback.jsonl`; `_append_ledger_row` `:1609-1618`); the `run_close` kaizen event dict `:3600-3624` (a new row key is NOT echoed unless added there); `:1602-1606` `_LEDGER_FIELD_CAP = 2000` / `_cap_field`, applied at `:3671` and `:3673`; the git-subprocess shape to copy is `:3215-3229` (`capture_output=True, text=True, timeout=10, check=True, cwd=root`) — the file runs no `git diff` today.
+- `scripts/command_feedback_report.py:1106` — `queue(rows, command, ledger)`; `:1119-1129` the `for_it`/`mine`/`excluded` filters; `:1138-1144` the header f-string T02 extends (one more `+ (f"; …" if … else "")` clause); `_default_ledger()` `:33-41` (`$COMMAND_RUN_DIR`'s parent, else `~/.claude/state`), `_rows()` `:44-63`; the `--queue` dispatch `:1319-1325`; `:941-950` the `surface` aggregation; `tests/test_command_feedback_report.py:22-43` the `_row`/`_write` fixture and `:46-52` `_run(... --ledger <path>)`, `:1493-1515` the header-assertion test the new graders copy.
+- `.pre-commit-config.yaml:149-155` — the `- id: governance-sync` block; its `files:` scalar is the fifth of five in the file (lengths 84/30/74/33/678) and must be located by the id; `scripts/governance_sync_postcommit.sh:28-30` parses it with PyYAML, `:44` refuses an EMPTY filter.
+- `CLAUDE.md:63-74` — § Orient step 0's stage table (`| Stage | Covers |` at `:63`, last row `| \`utility\` |` at `:72`, blank `:73`, `Fork rules:` at `:74`; rows indented three spaces — the lane table lands between `:72` and `:74`); `:198` the HANDLE-NOW clause carrying "SPEC/PLAN work (a new mechanism, a vendored/synced surface, schema, auth, >5 files) … or a RIGHT-NOW fix"; `:238` § 1a's "heavy surfaces (new mechanism, gate/hook/enforcement, auth/schema/migrations/concurrency, >5 files, or anything an operator asked for by name)". Template twins at `:56-67` (`| \`utility\` |` at `:65`, `Fork rules:` at `:67`), `:353-359` (outcomes (i)–(iii); (ii) at `:355-356`) and `:210` (the 1a substring byte-identical to the hub's). The `review-after-change` anchor (`EVERY code-changing chunk of work gets a review-family pass`) lives in the SAME 1a paragraph — the edit touches only the `heavy surfaces (…)` clause. `tests/test_governance_template_split.py` pins the T6 commit-recipe claims (`:112-184`), the QUOTA claims (`:230-256`) and two shared spans (`:293-296`) — none in step 0 or 1a. `/opt/fabrik-lib/CLAUDE.md:524` carries the same § 1a list and no SIZE clause (read-only; the mail). `.pre-commit-config.yaml:149-156` the governance-sync block (`files:` at `:155`; `^templates/governance/` matches, root `CLAUDE.md` does not); the template → `<repo>/CLAUDE.md` mapping is `scripts/fabrik_synced_manifest.py:110` (`GOVERNANCE_TEMPLATES`), iterated at `scripts/sync_enforcement_to_projects.py:2028`; `--dry-run` `:2325-2329`, `--force` `:2335-2339`; `command_run.py` is in `CORE_SCRIPTS` (`fabrik_synced_manifest.py:61`), `command_feedback_report.py` and `commands/` are not synced. `scripts/mail.py:1625-1649` — `send --to <repo> --kind <k>` with the body on stdin (`--to-agent` is required only for hub-bound sends); the D-035 contract at `docs/reference/fabrik-mail.md:175`.
+- `scripts/enforcement/check_corpus_weight.py:62-69` (`SURFACES`, four directories + two files), `:97-134` (`measure()`), `:162`/`:198-233` (base comparison), `:362-365` (the growth WARN's prose asks for a D-row cite; nothing enforces it) — no per-file cap; `commands/assemble_commands.py:1170` (the single-pass `{{include:NAME}}` substitution), `:1184-1195` (close-feedback auto-appended), `:50-88` (the `NEXT` dict, injected into the SKILL wrapper only, `:103` the fallback), `:912-914` (only `description:` is parsed; `Stage:` is read by `skill_router.py:739` from the installed SKILL text), `:97-136` (the wrapper written to `~/.claude/skills/<name>/SKILL.md`, `:37-38` the two destinations); `scripts/enforcement/check_command_corpus.py:22-53` (its eight predicates — a source must open a run record, `:96-98`, and print `--feedback` on every close line, `:121-123`); `commands/_fragments/run-record.md` 3,245 B (no nested include); `commands/_sources/fabrik-features.md` 8,847 B (the smallest of 37); `docs/CAPABILITIES.md:391-393` (the alphabetical bullet block; `fabrik-task` lands between `:392` and `:393`); `docs/reference/command-run-protocol.md:52-56` (the `start`/`step`/`done` CLI rows); `.claude/hooks/skill_router.py:105-114` (a not-yet-built command auto-enrolls at fire time — no edit needed, and the router row is out by D-k).
+- `tests/test_command_run.py:43-80` — the `_cr` harness (`COMMAND_RUN_DIR`, `KAIZEN_EVENTS_DIR`, `CLAUDE_SESSION_ID`, the auto-injected `--feedback`); `:497-510` the throwaway-git-repo fixture; the new graders live in `tests/test_command_run_fabrik_task.py` because that file is 262,935 bytes — larger than the READ budget on its own.
+- `scripts/enforcement/check_phase_tests.py:36`, `:46`, `:53`, `:131`, `:153-154`, `:223`, `:245-246` — the plan-lock read the command source mirrors (with `--name-status -M` and both paths of a rename).
+- `scripts/enforcement/check_decisions_unique.py:145` — the ledger splits on bare `|`; the D-row mapping writes `&#124;`.
+
+```text
+$ git -C /opt/fabrik log -300 --format=%H a929b33f8 | wc -l ; python3 - <<'EOF'   # V0 at the pinned basis (executed 2026-09-18)
+300
+base a929b33f8: 300 commits; sync 97 (32%); <=3 208 (69%); pass both 162 (54%); refused 138 (46%)
+lane-choice: 101; refused 34 (34%); sync-refused 27; >3-only 7
+sync-refused touching templates/governance/CLAUDE.md: 9 ; false refusals (comment/docstring-only in a synced script): 3 of 27 (11%)
+EOF
+```
+
+```text
+$ python3 scripts/sysadmin/dispatch_headroom.py --units 4 --mechanical 0     # this plan's grounding fan-out
+SEATS: 5  (units=4, read-only; caps {'wanted': 5, 'concurrency_cap': 20, 'box_cap': 22})
+```
+
+## Self-audit
+
+- Grounding passes: the spec review's three runs executed every `path:line` above against `a929b33f8`/`ccb26ed14`/`a40d75870`; this run re-read the parser blocks, `_start`, `_row`, `queue()`, the corpus and CLAUDE.md anchors, and dispatched five native researcher seats (Opus authoritative on `command_run.py`, Sonnet on the four units) whose corrections are folded into § Evidence and the tickets — the Pass Ledger records the round.
+- (a) Coverage — the rule + inventory → T01a; the six invariants + two fields → T01b; the reader → T02; the source + docs → T03; the two contract copies + the mail → T04a/T04b; V0–V3 + the sync + the receipt → T05. No agreed item lacks a ticket.
+- (b) Cross-ticket signatures — `declared` keys named identically in T01a (Produces), T01b (Consumes) and T03 (the printed `--declare` grammar); the row grammar in T01b (Produces) and T02 (Consumes); the CLI lines in T03 are graded against the real parser; the table's `/fabrik-task` cell in T04a/T04b is graded against the rendered corpus.
+- Sizing: `python -m scripts.enforcement.check_plan_tickets --plan-dir docs/development/plans/2026-09-18-plan-1-fabrik-task-lane` — its SUMMARY line is recorded in § Residual unknowns once run; the READ budget is the reason `tests/test_command_run.py` is not a Touches/Context entry and the two CLAUDE.md copies are two tickets.
+- Fixed point: not yet — `/fabrik-plan-review` runs next in this turn.
+
+## Coverage Checklist
+
+Rubric over the touched surfaces (`python scripts/review_rubric.py --changed scripts/command_run.py scripts/command_feedback_report.py commands/_sources/fabrik-task.md CLAUDE.md templates/governance/CLAUDE.md tests/test_command_run_fabrik_task.py`):
+
+```text
+# REVIEW RUBRIC — inject into EVERY finder prompt (generated by review_rubric.py)
+# Honesty (L1): this arms the review — it raises compliance probability, it does not guarantee it.
+
+## FLOOR — always injected, regardless of glob (spec L3; TOOLING surface)
+
+### core/10-python.md
+### 12-FACTOR (all twelve axes)
+
+## MATCHED — packs whose globs hit the changed paths
+
+### core/40-documentation.md  (hit: CLAUDE.md, commands/_sources/fabrik-task.md, templates/governance/CLAUDE.md)
+### core/45-testing-strategy.md  (hit: tests/test_command_run.py)
+```
+
+| # | Class | Verdict | Where |
+|---|---|---|---|
+| 1 | core/10-python — stdlib-only script, `uv` runner, no new dependency | UNCHECKED | T01a/T01b Global Constraints; T05's gate |
+| 2 | 12-Factor — no service/worker/compose surface touched; rows inherited | UNCHECKED | § Global Constraints |
+| 3 | core/40-documentation — Doc Sync Matrix rows per ticket; markdown rules on the two CLAUDE.md copies and the new source | UNCHECKED | T03/T04a/T04b `Docs:` |
+| 4 | core/45-testing-strategy — one test per behaviour, red-first, `uv run pytest` | UNCHECKED | every ticket's Gate |
+| 5 | fail-open / fail-closed — `sync_test: unavailable` fails OPEN by design; the three close-time refusals fail CLOSED; the empty-regex arm | UNCHECKED | T01a/T01b |
+| 6 | cost / limit edges — `_LEDGER_FIELD_CAP` on `design` and the row strings; the ≤ 8,847 B source cap | UNCHECKED | T01a, T03 |
+| 7 | boundary / sentinel — root commit (empty tree), merge (refused), `HEAD`-less repo (`sha: unavailable`), absent vs present-untracked path | UNCHECKED | T01a/T01b |
+| 8 | behaviour without a test — every Behavior Contract row above names its grader | UNCHECKED | the roll-up |
+
+## Pass Ledger
+
+| Pass | Seats | Findings | Confirmed | Own-fix | Note |
+|---|---|---|---|---|---|
+
+## Residual unknowns
+
+- **Resolved by the spec:** the lane rule, the inventory, the invariants, the row fields, the exclusion set, the numbers (all at basis `a929b33f8`).
+- **Open (self-service, T05):** V0's project-repo fire rate — measured in `/opt/youtube` before the sync with the plan's own script (`git log -300` there, the hub's regex read by absolute path); expected far below the hub's 46%.
+- **Open (self-service, T05):** V1's per-test agreement over the 24 lane-choice commits (author-blind seats answer tests 2–4 only from a cited D-row, else UNANSWERABLE); >30% disagreement on answerable rows re-cuts the rule before T04a lands — which is why T05 depends on T04b but the backtest step runs FIRST inside T05, before the sync.
+- **Open (self-service, T05):** the dogfood candidate — the first `/fabrik-task` run is on a real ≤3-file reversible decision the backtest names; the plan's own Integration ticket is NOT that candidate.
+- **Sizing evidence (executed at the emit gate, 2026-09-18):** `✓ [plan_tickets] /opt/fabrik/docs/development/plans/2026-09-18-plan-1-fabrik-task-lane: graded 7 ticket(s), 14 Touches path(s), 23 Context-Files entry(ies); READ budget measured against /opt/fabrik; 0 finding(s)`.
