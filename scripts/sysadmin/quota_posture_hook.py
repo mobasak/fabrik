@@ -318,7 +318,7 @@ def _fleet_clause(posture: dict, band: str | None, *, is_fable: bool) -> str:
         # Delta 9 seat C defect again, one window further out (round 1 seat A, F1: `band RED on
         # weekly` printed while every fleet figure, weekly included, sat at 21%).
         binds = (
-            "Fable on this account (no relief leg)"
+            "this account's own Fable window (no relief leg)"
             if clamped
             else (" and ".join(absent) if absent else (hottest[1] if hottest else None))
         )
@@ -768,8 +768,15 @@ def _deny_reason(posture: dict, band: str, what: str, *, is_fable: bool = False)
                 f" Fleet-wide the coolest account that can still serve {best[0]} is "
                 f"{best[1].get('slug') or '?'} at {_pct(best[1])}, so no flip relieves this."
             )
+    # a plain local, not a backslash inside an f-string expression: that is PEP 701 and a
+    # SyntaxError on <=3.11, and a whole-module SyntaxError in this hook fails OPEN (D13)
+    _scope_s = (
+        "on this account's own Fable window"
+        if is_fable and act.get("band_fable_clamped")
+        else "fleet-wide"
+    )
     return (
-        f"QUOTA {band} {'on this account\'s Fable window' if is_fable and act.get('band_fable_clamped') else 'fleet-wide'} — on {act.get('slug') or 'the active account'} "
+        f"QUOTA {band} {_scope_s} — on {act.get('slug') or 'the active account'} "
         f"{hot or 'the hottest window'} is {_pct(w)} ({_forecast(w)}).{fleet_s} {what} starts NEW work, and at "
         f"RED the only path is finish, commit, push, close your run record. Every tool a checkpoint "
         f"needs is allowed, and so is the review of the change you are checkpointing. {_REMEDY} — "

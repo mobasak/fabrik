@@ -4606,7 +4606,11 @@ def _fleet_band(
     The WALL is untouched — `hold` means every account is spent, and the stamp owns that state.
     A required window with no fleet reading is RED when any account was measured (nobody can
     serve it), and unknown (None) only when nobody was — the account's own band never stands in
-    for the fleet's (Delta 9 seat A, F3: three prose sites said it did; executed, none held).
+    for the fleet's ON THE TWO REQUIRED WINDOWS (Delta 9 seat A, F3: three prose sites said it did;
+    executed, none held). ⚠️ The FABLE path is the one exception and `_clamp` below is it: a flip
+    genuinely relieves 5h and weekly, so the fleet's reading is the honest one there, while nothing
+    relieves Fable — see `_clamp`'s own docstring (round 2 delta seat, D7: this sentence sat 28
+    lines above the code that falsifies it).
     """
     if hold or account_band == "WALL":
         return account_band
@@ -4638,7 +4642,11 @@ def _fleet_band(
         string would raise out of the tick's posture write (round 1 seat A, F6).
 
         An unmappable `b` defaults to -1 so `own` wins: raising the band is the conservative
-        direction, and an unknown severity must never SUPPRESS a hotter reading (F7)."""
+        direction, and an unknown severity must never SUPPRESS a hotter reading. ⚠️ That default is
+        DEAD as written — `b` here is only ever `_band_of`'s output or the scarcity arm's "RED", and
+        "WALL" is intercepted by the early return — so no grader can red on it and it defends a
+        state this function cannot reach (round 2 delta seat, D9). Kept as a total-function guard,
+        never claimed as a tested one."""
         if not fable:
             return b
         pct = _usable_ts(account_fable_pct)
@@ -4792,7 +4800,14 @@ def _quota_posture(
     measured = _fleet_measured(accounts, picture)
     # both readings of the SAME pure function — the difference IS the clamp's verdict, so the
     # predicate lives in exactly one place (`_fleet_band._clamp`) and no consumer re-derives it
-    _bf_args = (fleet_w, _band_of(hot_f, hold, drain, urgent), hold, drain, urgent)
+    # ⚠️ `hot`, NOT `hot_f`. `hot_f` is the hottest of ALL THREE of this account's windows, Fable
+    # included, so passing it here smuggles the account's Fable reading in as `account_band`: during
+    # a required-window blackout the scarcity arm returns it, `_clamp` finds `own == b` and raises
+    # nothing, and `band_fable_clamped` reads False while the band is 100% the account's own — which
+    # re-opened all three consumer defects (`on Fable` naming a 21% fleet window as what binds, the
+    # deny citing it as why no flip relieves, the `fleet-wide` header). The account's Fable must
+    # enter ONLY through `_clamp`, which is the thing the flag measures (round 2 delta seat, D1).
+    _bf_args = (fleet_w, _band_of(hot, hold, drain, urgent), hold, drain, urgent)
     _band_fable_unclamped = _fleet_band(*_bf_args, fable=True, measured=measured)
     _band_fable = _fleet_band(*_bf_args, fable=True, measured=measured, account_fable_pct=fb_u)
     return {

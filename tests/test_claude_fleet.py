@@ -7231,3 +7231,65 @@ def test_the_fable_clamp_across_the_spellings_that_reach_it():
         cr._fleet_band(required, "WALL", False, 85.0, 90.0, account_fable_pct=100.0, **base)
         == "WALL"
     ), "WALL is maximal — the clamp can never displace it"
+
+
+def test_the_posture_records_whether_the_fable_clamp_actually_bound():
+    """Round 2 delta seat, D1/D2 — `band_fable_clamped` is the key every consumer uses to decide
+    whether to explain the band from `fleet.windows` or from this account's own Fable window, and
+    it had NO grader: hardcoding it True OR False passed the whole suite.
+
+    D1 is the state it was wrong in. The fable call used to receive `_band_of(hot_f)` as its
+    `account_band`, and `hot_f` is the hottest of all THREE of this account's windows — Fable
+    included. So during a required-window blackout the account's Fable reading was ALREADY the
+    band, `_clamp` found `own == b` and raised nothing, and the flag read False while the band was
+    100% the account's own."""
+    import scripts.sysadmin.claude_rotate as cr  # noqa: PLC0415
+
+    def _act(rows):
+        pic = _pic_rows(("oz@x", "active", 99), ("can@x", "eligible", 99))
+        pic["active"] = "oz@x"
+        return cr._quota_posture(rows, pic, FLEET_NOW, None, hold=False)["active"]
+
+    cool = _probe_row("can@x", "can", 0.0, 21.0, fable=21.0)
+
+    # (a) the clamp BINDS: this account Fable-walled, a sibling holding cool Fable headroom
+    act = _act([_probe_row("oz@x", "ozgurbasak", 10.0, 20.0, fable=99.0), cool])
+    assert act["band_fable"] == "RED", act
+    assert act["band_fable_clamped"] is True, act
+
+    # (b) the clamp does NOT bind: this account's own Fable is cool
+    act = _act([_probe_row("oz@x", "ozgurbasak", 10.0, 20.0, fable=4.0), cool])
+    assert act["band_fable_clamped"] is False, act
+
+    # (c) D1 itself — a required-window BLACKOUT on the active account. `hot_f` would have carried
+    # the Fable 99 into `account_band`; only reading `hot` keeps the flag honest here.
+    blind = _probe_row("oz@x", "ozgurbasak", 10.0, 20.0, fable=99.0)
+    blind["five_hour"] = None
+    blind["seven_day"] = None
+    act = _act([blind, cool])
+    assert act["band_fable"] == "RED", act
+    assert act["band_fable_clamped"] is True, (
+        "the band is this account's own Fable window, so the flag that says so must be True"
+    )
+
+
+def test_status_names_the_fable_band_when_it_differs_from_the_one_it_prints():
+    """Round 2 delta seat, D3 — `--status` is what the hook's deny text calls "the authority on
+    when you resume", and the block that renders the Fable band could be DELETED with the whole
+    suite still green. A Fable session held at RED consulted it and was answered GREEN."""
+    import scripts.sysadmin.claude_rotate as cr  # noqa: PLC0415
+
+    def _line(rows):
+        pic = _pic_rows(("oz@x", "active", 99), ("can@x", "eligible", 99))
+        pic["active"] = "oz@x"
+        return cr._posture_status_line(
+            cr._quota_posture(rows, pic, FLEET_NOW, None, hold=False), FLEET_NOW
+        )
+
+    cool = _probe_row("can@x", "can", 0.0, 21.0, fable=21.0)
+    line = _line([_probe_row("oz@x", "ozgurbasak", 10.0, 20.0, fable=99.0), cool])
+    assert "Fable band RED" in line, f"the held band must appear in the authority's own line: {line}"
+    assert "no flip reaches other Fable headroom" in line, line
+    # and it stays silent when the Fable band agrees with the one already printed
+    line2 = _line([_probe_row("oz@x", "ozgurbasak", 10.0, 20.0, fable=4.0), cool])
+    assert "Fable band" not in line2, f"no redundant clause when it agrees: {line2}"

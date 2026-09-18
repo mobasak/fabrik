@@ -92,6 +92,8 @@ one citing the 2026-09-17 operator ruling directly, because it collapses the fle
 supply an AMBER weekly reading. Reverted before commit; recorded in D-295.
 
 
+| Pass 2 (DELTA) | native opus×1, fresh non-authoring — dispatched: 1, returned: 1 | found: 15, new: 15, confirmed: 9, fixed: 7, unexecuted: 0 | method: re-derivation — 16 executed mutations each grep-proven to land and cmp-restored, 10 end-to-end `_quota_posture` states, the real hook driven as a subprocess; round-zero probe — the seat re-verified the twin and the pin mid-pass and caught that the tree moved under it (HEAD 75826b18 → 15f5e83a → 3b2ec0fc2), grading its snapshot rather than the live path |
+
 ## Live production evidence (orchestrator, executed during round 1)
 
 The cron tick has run the patched `scripts/sysadmin/claude_rotate.py` every 5 minutes since
@@ -142,7 +144,52 @@ Destination: reported to the operator in-session; the remedy is `--resume-switch
 | Pass | Finders | Counters | Method |
 |---|---|---|---|
 | Pass 1 | native opus×1 (band predicate + callers) · sonnet×2 (graders; docs/consumer/ledger) — dispatched: 3, returned: 3 | found: 16, new: 16, confirmed: 14, fixed: 13, unexecuted: 0 | method: re-derivation — every seat re-derived its own counts from primary sources; the orchestrator re-executed seat B F1 (the mutation-insensitive grader) and seat A F5 (the scarcity fail-open) before accepting either; round-zero probe — the patched tick's live posture read at 11:45:01 confirming the discrimination case in production; mirrors: 8 read (`check_review_hygiene.py --claim band_fable`) |
+| Pass 2 (DELTA) | native opus×1, fresh non-authoring — dispatched: 1, returned: 1 | found: 15, new: 15, confirmed: 9, fixed: 7, unexecuted: 0 | method: re-derivation — 16 executed mutations each grep-proven to land and cmp-restored, 10 end-to-end `_quota_posture` states, the real hook driven as a subprocess; round-zero probe — the seat re-verified the twin and the pin mid-pass and caught that the tree moved under it (HEAD 75826b18 → 15f5e83a → 3b2ec0fc2), grading its snapshot rather than the live path |
 
 ## Gate
 
 RE-MEASURED in the closing pass — not yet run for this loop.
+
+## RESUME — round 2 was 100% own-fix; this run is HANDED OFF, not converged
+
+`command_run.py round --confirmed 9 --own-fix 9` — every confirmed defect of the delta round lay
+inside round 1's OWN fixes, not in the original diff. That is the D-278 scope-growth signal on its
+first qualifying round (the stop needs two of the last three), and it is the honest state: the
+original `0a019413f` surface has been quiet since round 1, while my fixes to it keep producing
+defects.
+
+FIXED this round (committed): the delta seat's D1 — `_quota_posture` passed `_band_of(hot_f)` as the
+fable call's `account_band`, and `hot_f` is the hottest of all THREE of this account's windows, so
+the account's Fable reading arrived as the band before `_clamp` ever saw it; `_clamp` found nothing
+to raise, `band_fable_clamped` read False, and all three consumer defects re-opened in the blackout
+state round 1 built the fix for. Now reads `hot`. Plus D7/D9 (a docstring and a claimed-tested
+default the change falsifies), D12 (a `on Fable on this account` stutter) and D13 (a backslash inside
+an f-string expression — PEP 701, a SyntaxError on ≤3.11, and a module-level SyntaxError in this hook
+fails OPEN).
+
+⚠️ OWED, and NOT claimed as done:
+
+1. **D2's grader does not discriminate D1.** `test_the_posture_records_whether_the_fable_clamp_actually_bound`
+   covers the binds/does-not-bind pair, but executed against the `hot_f` mutant it PASSED — so the
+   flag is guarded, the D1 state is not. The fix rests on the delta seat's own executed 8-state grid,
+   not on a grader of mine. A guard proven only by the spelling I already fixed is the rubric's own
+   named defect and this one does not even reach that bar.
+2. **D3's grader DOES discriminate** — deleting the `--status` Fable block reds it, executed.
+3. **D4 — contract drift, unfixed.** The emitted `QUOTA:` line no longer matches the shape pinned in
+   `CLAUDE.md` (`on <window>` now carries a phrase, and a trailing clause the contract does not
+   list), and `CLAUDE.md`'s sentence *"a RED means … never one account's"* is now FALSE for a Fable
+   session, by design. `test_prompt_line_matches_the_contract_format_byte_for_byte` passes only
+   because it has no clamped case. Three CLAUDE.md copies are graded identical on that text, so this
+   is a fleet-synced three-file edit plus a grader — spec-sized, and not work to start under a wall.
+4. **D5/D6 — two doc sentences this round made false** (`band_fable_clamped` "records whether it
+   bound" was false while D1 stood; the `--status` sentence predates the Fable-band element).
+   D1's fix makes D5 true; D6 is still owed.
+5. **C9's RECORDED row stands**: the three CLAUDE.md band bullets.
+
+Successor: `/fabrik-review` over `git diff 0a019413f..HEAD` for these five, with the D4 contract work
+routed to `/fabrik-spec` or a backlog row first — the loop converges a diff, it never designs one.
+
+DEFERRED WITH ITS REASON, measured not assumed: at handoff `can` was at weekly 95% against a cap of
+99 with the posture reading `wall in ~41m`, and the operator's `--pause-switch` was deliberately held,
+so no relief flip could fire. A third round plus the D4 contract edit does not fit that window, and
+the alternative — stamping CONVERGED on a round that confirmed 9 defects — would be a forged exit.

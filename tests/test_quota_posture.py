@@ -1270,7 +1270,7 @@ def test_a_clamped_fable_band_explains_itself_instead_of_naming_a_cool_window(tm
         runs=runs,
     ).stdout
     assert "on weekly" not in line, f"a cool window must not be named as what binds: {line}"
-    assert "Fable on this account (no relief leg)" in line, line
+    assert "this account's own Fable window (no relief leg)" in line, line
     assert "the band is the fleet's, act on it" not in line, (
         "false provenance: on the clamped path the band is the ACCOUNT's"
     )
@@ -1310,4 +1310,4 @@ def test_a_clamped_fable_band_explains_itself_instead_of_naming_a_cool_window(tm
         state=state,
         runs=runs,
     ).stdout
-    assert "Fable on this account" not in line2, "the clamped wording must not leak onto the fleet path"
+    assert "own Fable window" not in line2, "the clamped wording must not leak onto the fleet path"
