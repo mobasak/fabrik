@@ -1415,7 +1415,7 @@ def main(argv: list[str] | None = None) -> int:
         ap.error(
             "--queue fabrik-task prints the adoption share, which V4 defines over one denominator "
             "(the whole ledger); a --since/--agent window would give it a second one — drop the "
-            "window, or read the queue rows without the series via --queue on another command"
+            "window: fabrik-task's queue and its series print together and cannot be windowed apart"
         )
     if a.queue is not None and a.observer_rank:
         ap.error("--queue and --observer-rank are two different reports; pass one of them")

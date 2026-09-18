@@ -2859,7 +2859,10 @@ def test_queue_fabrik_task_refuses_a_since_or_agent_window(tmp_path: Path) -> No
     ])
     base = _run(ledger, "--queue", "fabrik-task")
     assert base.returncode == 0 and "adoption 1/2" in base.stdout, base.stdout
-    for flag in (("--since", "1"), ("--agent", "s")):
-        r = _run(ledger, "--queue", "fabrik-task", *flag)
-        assert r.returncode == 2, (flag, r.stdout, r.stderr)
-        assert "one denominator" in r.stderr, (flag, r.stderr)
+    # Both spellings: the guard normalises a leading slash itself, and a mutant that drops that
+    # `.lstrip("/")` passed every other case here at `adoption 1/1`, rc 0 (delta round, executed).
+    for spelling in ("fabrik-task", "/fabrik-task"):
+        for flag in (("--since", "1"), ("--agent", "s")):
+            r = _run(ledger, "--queue", spelling, *flag)
+            assert r.returncode == 2, (spelling, flag, r.stdout, r.stderr)
+            assert "one denominator" in r.stderr, (spelling, flag, r.stderr)
