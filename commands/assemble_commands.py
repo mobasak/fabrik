@@ -71,6 +71,7 @@ NEXT = {
     "fabrik-deploy-plan": "/fabrik-deploy-plan-review — adversarially converge the deploy plan before it is trusted.",
     "fabrik-deploy-plan-review": "Gate 2 — human approval; on the operator's explicit go: /fabrik-deploy <plan>.",
     "fabrik-deploy": "/fabrik-deploy-verify — prove the deployed service against its live checklist.",
+    "fabrik-task": "resume what you were doing — a gate-shaped lane, not a pipeline stage; on UPGRADE /fabrik-spec seeded with the phase-2 design.md.",
     "fabrik-review-scoped": "resume what you were doing — a gate, not a stage (heavy surfaces escalate to /fabrik-review).",
     "fabrik-command-improve": "/fabrik-command-improve <the next command whose queue is non-empty> — one command, one edit, one commit per run; `command_feedback_report.py --queue <command>` says which queues still carry rows.",
     "fabrik-review": "resume the phase/plan that invoked it, only after the round is CLEAN (no linear successor — it is a gate, not a stage).",

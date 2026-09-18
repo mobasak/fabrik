@@ -390,6 +390,7 @@
 - [fabrik-service-test](../CLAUDE.md) (owner: infra): End-to-end certification for HEADLESS systems (python-api, python-api-gpu, node-api, file-api, file-worker, wordpress) — builds the contract inventory + CONSUME
 - [fabrik-spec](../CLAUDE.md) (owner: infra): Turn a rough idea into a dual-grounded, execution-ready design spec — a BLOCKING live-research gate for every external fact (never memory) + a BLOCKING best-pra
 - [fabrik-spec-review](../CLAUDE.md) (owner: infra): Converge a /fabrik-spec design to a fixed point — adversarially re-verify every cited external fact against the LIVE web, audit the fabrik-lib vendor→enhance→bu
+- [fabrik-task](../CLAUDE.md) (owner: infra): One small change, one decision, one commit — the lane between a right-now fix and the spec chain. Six phases on ONE run record: SIZE (the start IS the gate), ME
 - [fabrik-ui-design](../CLAUDE.md) (owner: infra): Freeze a GUI project's UI/UX design — a lean, frozen screen + flow contract (docs/ui-design.md): DESIGN SYSTEM FIRST, then screens, minimal-click flows, IA, and
 - [fabrik-ui-design-review](../CLAUDE.md) (owner: infra): Converge a FROZEN docs/ui-design.md to a fixed point — an INDEPENDENT adversarial review (design-system integrity, data-wiring vs docs/data-contract.md, screen/
 - [fabrik-upstream](../CLAUDE.md) (owner: infra): Two-mode synced-file-defect flow (trade-intelligence 2026-08-05/06 + fabrik's own 2026-08-07 check_secrets DSN fix). PROJECT mode (any project, no hub shell-out
