@@ -7178,15 +7178,13 @@ def test_the_fable_clamp_validates_its_input_like_every_other_reading():
     `_usable_ts`, the module's declared ONE validator. A bare NaN survives `json.loads` and
     `_band_of` reads it as GREEN: fail-open at the safest-looking band, the one direction a quota
     guard must never take. A string raised out of the tick's posture write entirely."""
-    import math  # noqa: PLC0415
-
     import scripts.sysadmin.claude_rotate as cr  # noqa: PLC0415
 
     fleet = {
         "five_hour": {"utilization": 10.0, "slug": "ob"},
         "seven_day": {"utilization": 20.0, "slug": "ob"},
     }
-    base = dict(fable=True, measured=4)
+    base = {"fable": True, "measured": 4}
     for bad in (float("nan"), float("inf"), True, "100", [100.0], None):
         got = cr._fleet_band(fleet, "GREEN", False, 85.0, 90.0, account_fable_pct=bad, **base)
         assert got == "GREEN", f"{bad!r} must be rejected as no reading, not clamp-or-raise: {got}"
@@ -7206,7 +7204,7 @@ def test_the_fable_clamp_across_the_spellings_that_reach_it():
         "five_hour": {"utilization": 10.0, "slug": "ob"},
         "seven_day": {"utilization": 20.0, "slug": "ob"},
     }
-    base = dict(fable=True, measured=4)
+    base = {"fable": True, "measured": 4}
 
     # (1) absent fleet `fable` key — the "nobody has used Fable this tick" shape
     assert (
