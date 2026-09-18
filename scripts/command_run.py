@@ -2366,6 +2366,22 @@ def _build_parser() -> argparse.ArgumentParser:
         default="",
         help="what the run is OVER — the spec, plan dir, ticket or diff range (ledger dimension)",
     )
+    # /fabrik-task's SIZE gate (phase 0). Repeatable, ONE path per occurrence, so a path is
+    # never split on a separator and a `,` or `:` in a filename needs no rule. `--surface`
+    # keeps its ledger meaning: a unique path list there would pollute the column
+    # `command_feedback_report.py` aggregates.
+    p.add_argument(
+        "--file",
+        action="append",
+        metavar="PATH",
+        help="/fabrik-task only: one declared path (repeatable) — the CODE surface of the task",
+    )
+    p.add_argument(
+        "--declare",
+        default="",
+        metavar="K=V,...",
+        help="/fabrik-task only: decision=,heavy=,mechanism=,oneway=,tradeoffs= (yes|no)",
+    )
 
     p = sub.add_parser("step", help="advance to a phase", parents=[common])
     p.add_argument(
@@ -2375,6 +2391,11 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--phase", required=True, type=int)
     p.add_argument("--title", default="")
+    p.add_argument(
+        "--design",
+        metavar="PATH",
+        help="/fabrik-task only: record that file's TEXT as the run's design — once, capped",
+    )
 
     p = sub.add_parser(
         "dispatch",
@@ -2559,6 +2580,234 @@ def main(argv: list[str]) -> int:
         return 0
 
 
+# ──────────────────────────── the /fabrik-task SIZE gate (phase 0) ────────────────────────────
+# Everything below runs ONLY under `start --command fabrik-task`. Every other command's
+# `start`/`step` output stays byte-identical: this file is fleet-synced into ~46 repos and
+# stdlib-only (`:46-60`), so no import is added and no other lane is touched.
+
+_TASK_COMMAND = "fabrik-task"
+# The decision rule's five non-executable tests, in the order the missing-keys refusal prints.
+_TASK_DECLARE_KEYS = ("decision", "heavy", "mechanism", "oneway", "tradeoffs")
+# The lane's surface cap: a fourth file is the spec chain's work, not a right-now task's.
+_TASK_MAX_FILES = 3
+
+
+def _refuse(msg: str) -> int:
+    """The close's refusal shape (`:3369-3371`): rc 1, `[command_run] ` on stderr, the bare
+    message on stdout — a log reads one and an agent reads the other."""
+    sys.stderr.write(f"[command_run] {msg}\n")
+    print(msg)
+    return 1
+
+
+def _sync_filter_source() -> str | None:
+    """The governance-sync `files:` scalar, read from the HUB's `.pre-commit-config.yaml`.
+
+    `scripts/governance_sync_postcommit.sh:28-30` reads the SAME scalar of the SAME file with
+    PyYAML; this file is stdlib-only and fleet-synced into venvs that mostly lack `yaml`, so the
+    scalar is extracted by a stdlib scan and `tests/test_command_run_fabrik_task.py` asserts the
+    two readings are equal on the live file — a folded or re-quoted scalar fails there before it
+    can split the gate from the sync.
+
+    The hub path is ABSOLUTE by default (the file `governance_sync_postcommit.sh:30` opens),
+    because a project repo's own `governance-sync` filter DIFFERS from the hub's and a lane test
+    run against the wrong regex is worse than no test. `FABRIK_HUB_ROOT` exists only so a grader
+    can reach the fail-open arm, as `COMMAND_RUN_DIR` (`:85`) and `COMMAND_RUN_TRANSCRIPT`
+    (`:1998`) already do. ⚠️ The `or` form, never the two-arg `os.environ.get(k, default)`: an
+    EMPTY override (a wrapper exporting an unset variable) makes the two-arg form yield the
+    RELATIVE path — the RUNNING repo's copy — with no `unavailable` signal at all.
+
+    Returns the scalar, or None when it cannot be read — never an empty string, because an empty
+    regex is truthy against every path (`re.search('', p)`) and would refuse every start.
+    """
+    try:
+        root = os.environ.get("FABRIK_HUB_ROOT") or "/opt/fabrik"
+        lines = (Path(root) / ".pre-commit-config.yaml").read_text(encoding="utf-8").splitlines()
+        # Anchored on the hook ID, never the first `files:` in the file and never a positional
+        # index: the hub config carries six `files:` scalars and governance-sync's is the last.
+        at = next((i for i, ln in enumerate(lines) if ln.strip() == "- id: governance-sync"), -1)
+        if at < 0:
+            return None
+        # The block ENDS at the next sibling list item or at any dedent — `- id:` alone is not
+        # a sufficient terminator, because a hook is free to list `name:` first and a
+        # governance-sync block that merely LOST its `files:` key would then silently adopt a
+        # LATER hook's regex. That is the one failure this reader must not have: an unavailable
+        # filter fails open and SAYS so, a wrong one refuses the wrong starts in silence.
+        indent = len(lines[at]) - len(lines[at].lstrip())
+        raw = ""
+        for ln in lines[at + 1 :]:
+            if not ln.strip():
+                continue
+            lead = len(ln) - len(ln.lstrip())
+            if lead < indent or (lead == indent and ln.lstrip().startswith("- ")):
+                break
+            s = ln.strip()
+            if s.startswith("files:"):
+                raw = s[len("files:") :].strip()
+                break
+        if not raw:
+            return None
+        if raw.startswith("'"):
+            body, out, i, closed = raw[1:], [], 0, False
+            while i < len(body):
+                if body[i] == "'":
+                    if i + 1 < len(body) and body[i + 1] == "'":
+                        out.append("'")  # YAML's single-quote escape
+                        i += 2
+                        continue
+                    closed = True
+                    break
+                out.append(body[i])
+                i += 1
+            if not closed:  # a folded or multi-line scalar — not a shape this scan reads
+                return None
+            raw = "".join(out)
+        elif raw.startswith('"'):
+            # A double-quoted scalar carries backslash escapes PyYAML resolves and this scan
+            # would not. Fail open rather than compile a regex that differs from the sync's.
+            return None
+        else:
+            raw = raw.split(" #", 1)[0].strip()  # a plain scalar's trailing comment
+        return raw or None
+    except Exception:
+        return None
+
+
+def _task_git(root: Path, *a: str) -> subprocess.CompletedProcess[str]:
+    """rc-SIGNALLING git: `check=False`, read `.returncode`. Under `check=True` every call here
+    RAISES on the answer it exists to report, and `main`'s fail-soft (`:2557-2559`) turns that
+    into rc 0 with no record — a dirty declared path would be a SILENT SUCCESS."""
+    return subprocess.run(
+        ["git", *a], capture_output=True, text=True, timeout=10, check=False, cwd=str(root)
+    )
+
+
+def _task_size_gate(args: argparse.Namespace) -> tuple[int, dict[str, Any] | None]:
+    """The SIZE inventory, in ORDER. The flag guards and the path/state checks SHORT-CIRCUIT —
+    a missing flag, an invalid path or a dirty path makes every later test meaningless, so that
+    correction prints alone and no lane verdict is printed. The two lane tests and the five
+    declared answers are then evaluated TOGETHER, the spec chain taking precedence.
+
+    Returns (rc, declared); a non-zero rc means the start is refused and NO record opens.
+
+    ⚠️ COBRA (D-253): the cheapest way to satisfy this gate without sizing anything is to
+    declare one file and answer `no` five times. Nothing here can see that, and nothing tries
+    to — the counter-measure is the close's re-measure against `declared`, and the tripwire in
+    the command's own § The decision rule, not a check that would only teach a better lie.
+    """
+    paths = [str(p) for p in (getattr(args, "file", None) or [])]
+    answers: dict[str, str] = {}
+    for item in str(getattr(args, "declare", "") or "").split(","):
+        item = item.strip()
+        if not item:
+            continue
+        k, v = item.split("=", 1)  # an item with no `=` raises; the caller's arm owns it
+        answers[k.strip().lower()] = v.strip().lower()
+
+    # (1) THE FLAG GUARD. Both gaps print, one line each: an agent who fixes one and re-runs
+    # into the other has paid two round trips for a single correction.
+    gaps = []
+    if not paths:
+        gaps.append("REFUSED — fabrik-task: missing --file")
+    absent = [k for k in _TASK_DECLARE_KEYS if k not in answers]
+    if absent:
+        gaps.append("REFUSED — fabrik-task: missing --declare keys: " + ", ".join(absent))
+    if gaps:
+        for g in gaps:
+            _refuse(g)
+        return 1, None
+
+    # (2) THE PATH/STATE CHECKS. Normalise FIRST: the sync regex is `^`-anchored per
+    # alternative, so `./scripts/x.py` or an absolute spelling would clear the lane's most
+    # consequential test on two characters.
+    root = Path(_repo_root() or Path.cwd()).resolve()
+    rels: list[str] = []
+    for p in paths:
+        q = Path(p)
+        full = (q if q.is_absolute() else Path.cwd() / q).resolve()
+        try:
+            rel = full.relative_to(root)
+        except ValueError:
+            _refuse(f"REFUSED — fabrik-task: {p} is outside the repository — declare a repo path")
+            return 1, None
+        if full.is_dir():
+            _refuse(f"REFUSED — fabrik-task: {p} is a directory — declare files")
+            return 1, None
+        rels.append(rel.as_posix())
+
+    # `-q --verify` is the form that ANSWERS: the bare `git rev-parse HEAD` is rc 128 and prints
+    # the literal `HEAD`. Before the first commit `git diff --quiet HEAD` is rc 128 too, so the
+    # dirty check is SKIPPED rather than reading every declared path as dirty.
+    head = _task_git(root, "rev-parse", "-q", "--verify", "HEAD")
+    sha = head.stdout.strip() if head.returncode == 0 else ""
+    if sha:
+        for rel in rels:
+            if not (root / rel).exists():
+                continue  # absent — deleted or never created — is not dirty
+            dirty = _task_git(root, "diff", "--quiet", "HEAD", "--", rel).returncode != 0
+            if not dirty:
+                # `git diff --quiet` reads an UNTRACKED path as CLEAN; ask git whether it tracks
+                # the path at all before believing that.
+                dirty = _task_git(root, "ls-files", "--error-unmatch", "--", rel).returncode != 0
+            if dirty:
+                _refuse(
+                    f"REFUSED — fabrik-task: {rel} dirty at start; open the record before the "
+                    "work — or a sibling's WIP on your declared path: message the author"
+                )
+                return 1, None
+
+    # (3) THE TWO LANE TESTS + the five declared answers, evaluated together.
+    src = _sync_filter_source()
+    pat: re.Pattern[str] | None = None
+    if src:
+        try:
+            # A BARE compile, never `re.X`: the canonical consumer is `grep -qE` in
+            # governance_sync_postcommit.sh — POSIX ERE, where whitespace is literal and `#`
+            # is not a comment.
+            pat = re.compile(src)
+        except re.error:
+            pat = None
+    if pat is None:
+        # Fail OPEN — a spoke, a container, a permissions change, a re-quoted scalar — but never
+        # SILENTLY: without this line a project-repo agent's start is byte-identical to a clean
+        # one and they learn the test never ran only at close, after the commit.
+        sys.stderr.write(
+            "[command_run] ⚠ fabrik-task: sync lane test SKIPPED "
+            "(cannot read the governance-sync filter)\n"
+        )
+    sync_hit = pat is not None and any(pat.search(r) for r in rels)
+
+    declared: dict[str, Any] = {
+        "files": rels,
+        "sha": sha or "unavailable",
+        "sync_test": "unavailable" if pat is None else "pass",
+    }
+    for k in _TASK_DECLARE_KEYS:
+        declared[k] = answers[k]
+
+    # The spec chain takes PRECEDENCE: mechanism/oneway/tradeoffs or a fourth file name
+    # /fabrik-spec even when the sync or heavy test also tripped.
+    lane: tuple[str, str] | None = None
+    if len(rels) > _TASK_MAX_FILES:
+        lane = (f"files > {_TASK_MAX_FILES}", "/fabrik-spec")
+    elif answers["mechanism"] == "yes":
+        lane = ("mechanism", "/fabrik-spec")
+    elif answers["oneway"] == "yes":
+        lane = ("oneway", "/fabrik-spec")
+    elif answers["tradeoffs"] == "yes":
+        lane = ("tradeoffs", "/fabrik-spec")
+    elif sync_hit:
+        lane = ("sync", "right-now + /fabrik-review")
+    elif answers["heavy"] == "yes":
+        lane = ("heavy", "right-now + /fabrik-review")
+    elif answers["decision"] != "yes":
+        lane = ("decision=no", "right-now + /fabrik-review-scoped")
+    if lane:
+        _refuse(f"REFUSED — fabrik-task: {lane[0]} → {lane[1]}")
+        return 1, None
+    return 0, declared
+
+
 def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
     """The mutating subcommands. Runs with the record's flock HELD.
 
@@ -2581,6 +2830,32 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         return 0
 
     if args.cmd == "start":
+        # ⚠️ Bind the NORMALISED name ONCE and test THIS, never raw `args.command`: the record
+        # normalises at its own `"command"` key below, so a guard on the raw value is bypassed
+        # entirely by `--command /fabrik-task` — executed 2026-09-18, a record opened with
+        # `command: 'fabrik-task'` and NO `declared` key, the SIZE gate skipped, while `_close`
+        # keys on the normalised name and then demands `--commit`. The mirror is a wrongly
+        # REFUSED `--command /fabrik-task --file a.py`, which the same binding closes.
+        _cmd = (args.command or "").lstrip("/")
+        _declared: dict[str, Any] | None = None
+        try:
+            if _cmd != _TASK_COMMAND:
+                if getattr(args, "file", None) or str(getattr(args, "declare", "") or "").strip():
+                    return _refuse("REFUSED — --file/--declare belong to --command fabrik-task")
+            else:
+                _rc, _declared = _task_size_gate(args)
+                if _rc:
+                    return _rc
+        except Exception as e:
+            # The BARE class, deliberately: the escape list is not closed. Dropping `check=True`
+            # removed `CalledProcessError`, and what remains includes `subprocess.TimeoutExpired`
+            # from `timeout=10`, `FileNotFoundError` when git is absent, `OSError`/
+            # `UnicodeDecodeError` from a read, `re.error` from the extracted scalar, and
+            # `ValueError`/`KeyError` from the `--declare k=v` parse. An exception that escapes
+            # here becomes rc 0 with NO record at `:2557-2559` — a start that LOOKS like it
+            # opened one. Its own template, so the arm is assertable by string and not only rc.
+            return _refuse(f"REFUSED — fabrik-task: start could not complete ({type(e).__name__})")
+
         # the windows earlier commands of this session COVERED, carried across this overwrite
         # (review P1-1). A record closed BEFORE the ledger existed holds its window only in its own
         # started_epoch/updated_ts — seed that too, or every pre-deploy run's coverage is lost.
@@ -2661,6 +2936,10 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             # session's next command (Phase C review round 1, F5).
             "first_review_reach": None if parent else _finite_ts(rec.get("first_review_reach")),
         }
+        # Set CONDITIONALLY, not as a key of the literal above: a `declared: None` on every
+        # OTHER command's record would change the record shape in ~46 repos for no reader.
+        if _declared is not None:
+            new["declared"] = _declared
         # The `start` verb's join window is the WHOLE store, so the anchor is cleared —
         # never this record's own start (that would exclude every candidate landing
         # microseconds earlier, and `started_at` is second-truncated so WHICH ones would
@@ -2680,6 +2959,11 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         _touch(new)
         fields["persisted"] = save(sid, new)
         print(pinned_line(new))
+        if _declared is not None:
+            # The record's own `started_at` (`%Y-%m-%dT%H:%M:%S%z`) keys phase 2's scratch
+            # directory. Printing it is what lets the agent PASTE the id rather than retype a
+            # timestamp with a `%z` offset in it.
+            print(f"RECORD: {new['started_at']}")
         # A second `start` for the SAME command inside the join window is almost always a
         # DOUBLE-START, not a legitimate nest: a command invoking itself recursively is not a
         # shape we have, while an agent who missed the confirmation and re-ran is exactly what
@@ -2787,6 +3071,34 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             )
         rec["phase"] = target
         rec["phase_title"] = args.title
+        # STRICTLY before the `phase` event is queued below — never merely "before `save`":
+        # `_flush_events` runs in a `finally` (`:2544-2545`), so a refusal placed AFTER the
+        # queue emits a `phase` event for a step that did not happen, the very thing the close
+        # deletes its own `run_close` event to prevent. `rec["phase"]` above is in-memory only,
+        # so returning here leaves the phase on disk exactly where it was.
+        _design = str(getattr(args, "design", "") or "")
+        if _design and str(rec.get("command") or "").lstrip("/") == _TASK_COMMAND:
+            if rec.get("design"):
+                # A WARNED no-op, never a refusal: refusing would wedge the phase, and with it
+                # the Stop hook. Never silent either — the second draft is the one the agent
+                # believes landed. "no later step overwrites it" is this branch.
+                sys.stderr.write(
+                    "[command_run] NOTE — fabrik-task: design already recorded; "
+                    "this --design was ignored\n"
+                )
+            else:
+                try:
+                    _text = Path(_design).read_text(encoding="utf-8")
+                except Exception:
+                    return _refuse(f"REFUSED — fabrik-task: --design {_design} cannot be read")
+                if len(_text) > _LEDGER_FIELD_CAP:
+                    # REFUSED, never `_cap_field` (`:1605-1606`): a silent cut loses TERMINAL
+                    # and OUT first, the two design fields with no other durable home.
+                    return _refuse(
+                        f"REFUSED — fabrik-task: --design is {len(_text)} chars, "
+                        f"the cap is {_LEDGER_FIELD_CAP}"
+                    )
+                rec["design"] = _text
         fields = _queue(rec, outbox, "phase", {"n": rec["phase"], "title": rec["phase_title"]})
         _touch(rec)
         fields["persisted"] = save(sid, rec)
