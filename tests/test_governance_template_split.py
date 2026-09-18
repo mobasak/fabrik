@@ -365,6 +365,10 @@ def test_the_third_contract_half_skips_with_a_reason_when_fabrik_lib_is_absent(
 # Hub-only for now; T04b mirrors it into templates/governance/CLAUDE.md for the ~46 repos.
 _STEP0_START = "0. **Task→skill routing:**"
 _STEP0_END = "1. **Hub identity, not a scaffold type:**"
+# The template is a PROJECT contract: its step 1 is the scaffold type, not the hub identity, so
+# the section's lower bound differs and the hub's anchor would never match (the END guard caught
+# this the moment the mirror landed — which is the guard working, not a defect in it).
+_STEP0_END_TPL = "1. `project.yaml::type` tells you which"
 # The pointer the two sizing clauses collapse to (operator ruling U19) — it names the table by the
 # heading and the noun, so both must survive a rewording of either.
 _LANE_POINTER = "SIZE it against § Orient step 0's lane table"
@@ -384,7 +388,7 @@ def _delim_row():
                  "scripts/enforcement/check_governance_tables.py")._DELIM
 
 
-def _step0_body(text: str) -> str:
+def _step0_body(text: str, end: str = _STEP0_END) -> str:
     """§ Orient step 0, bounded at BOTH ends.
 
     ⚠️ A missing START raises IndexError (loud); a missing END does NOT raise — `split` on an
@@ -392,11 +396,11 @@ def _step0_body(text: str) -> str:
     of a 130 KB file and every `in step0` check passes from anywhere in the document. The first cut
     of this guard protected one of the two split sites; the other kept the unbounded shape."""
     assert text.count(_STEP0_START) == 1, f"§ Orient step-0 START anchor drifted: {_STEP0_START!r}"
-    assert text.count(_STEP0_END) == 1, f"§ Orient step-0 END anchor drifted: {_STEP0_END!r}"
-    return text.split(_STEP0_START, 1)[1].split(_STEP0_END, 1)[0]
+    assert text.count(end) == 1, f"§ Orient step-0 END anchor drifted: {end!r}"
+    return text.split(_STEP0_START, 1)[1].split(end, 1)[0]
 
 
-def _step0_tables(text: str) -> list[list[list[str]]]:
+def _step0_tables(text: str, end: str = _STEP0_END) -> list[list[list[str]]]:
     """Every markdown table inside § Orient step 0, as rows of stripped cells.
 
     ⚠️ A pure EXTRACTOR. It does not decide whether a table is valid GFM — three rounds of
@@ -407,7 +411,7 @@ def _step0_tables(text: str) -> list[list[list[str]]]:
     Validity is now decided by an actual renderer in
     `test_the_lane_table_renders_as_a_table_for_every_gfm_reader`, which cannot disagree with GFM
     because it IS GFM."""
-    body = _step0_body(text)
+    body = _step0_body(text, end)
     delim = _delim_row()
     tables: list[list[list[str]]] = []
     current: list[list[str]] = []
@@ -425,9 +429,9 @@ def _step0_tables(text: str) -> list[list[list[str]]]:
     return tables
 
 
-def _lane_table(text: str) -> list[list[str]]:
+def _lane_table(text: str, end: str = _STEP0_END) -> list[list[str]]:
     """The lane table specifically — identified by its header, not by its rows' first cells."""
-    lane = [t for t in _step0_tables(text) if t and t[0][:2] == ["#", "Test"]]
+    lane = [t for t in _step0_tables(text, end) if t and t[0][:2] == ["#", "Test"]]
     assert len(lane) == 1, (
         f"expected exactly one lane table in step 0, found {len(lane)}. House convention: every "
         "governance-table row carries BOTH outer pipes — `scripts/enforcement/check_governance_"
@@ -637,3 +641,115 @@ def test_the_lane_table_renders_as_a_table_for_every_gfm_reader() -> None:
         "invisible to every rendered reader (check the delimiter row's width, the indentation, "
         "and whether anything fenced it)"
     )
+
+
+# ── T04b: the lane table MIRRORED into the fleet template ──────────────────────────────────────
+# The hub's copy reaches three sessions; the template's reaches ~46 repos on the next governance
+# sync, and the failure mode is silent — the hub agent who wrote the table reads it every session
+# and never notices the fleet does not have it. Nothing binds the two but a grader like this one.
+_TEMPLATE_OUTCOME_II_OLD = "a new mechanism, schema, auth, >5 files"
+
+
+# Rows that MUST differ between the two contracts, and what the project copy must say. A
+# byte-identical mirror was the ticket's premise and the review refuted it by measurement: 38 of 38
+# project repos carry a stale, narrower `governance-sync` regex (all 38 omit `^templates/governance/`),
+# and `libs/subagents/` was retired from the sync (hub D-196) and is gitignored in 35 of 38.
+_TEMPLATE_ROW_DIVERGENCES = {
+    "1": "/opt/fabrik/.pre-commit-config.yaml",
+    "1b": "copied from fabrik-lib rather than imported",
+}
+
+
+def test_the_lane_table_is_mirrored_into_the_fleet_template_row_for_row() -> None:
+    """T04b Behavior Contract: the template's lane table equals the hub's EXCEPT where a project
+    repo needs a different answer — and those cells must actually differ, not merely be allowed to.
+
+    Both halves are load-bearing. Unexempted drift is the silent-divergence failure this file
+    exists to prevent; an exempted row that stops diverging means the template has quietly
+    re-acquired a hub-only path, which is how row 1 shipped a relative `.pre-commit-config.yaml`
+    that resolves to a stale regex in every one of the 38 project repos that has one."""
+    hub = _lane_table((FABRIK / "CLAUDE.md").read_text(encoding="utf-8"))
+    tpl = _lane_table((FABRIK / TEMPLATE_REL).read_text(encoding="utf-8"), _STEP0_END_TPL)
+    assert len(tpl) == len(hub), (len(tpl), len(hub))
+    for h, t in zip(hub, tpl, strict=True):
+        if h[0] in _TEMPLATE_ROW_DIVERGENCES:
+            assert h != t, f"row {h[0]} must differ for a project repo and no longer does"
+            assert _TEMPLATE_ROW_DIVERGENCES[h[0]] in " ".join(t), (h[0], t)
+        else:
+            assert h == t, f"row {h[0]} diverges between the hub and the fleet template: {h} vs {t}"
+
+
+def test_the_templates_mirrored_prose_matches_the_hubs() -> None:
+    """The lane table ships with three PROSE paragraphs — the precedence sentence, the no-code
+    clause and the tripwire — and the row-comparison above reads none of them. Executed: inverting
+    the template's no-code verdict to "take the `/fabrik-task` lane anyway", gutting the tripwire,
+    and deleting both paragraphs outright each passed the whole suite."""
+    hub_s = _step0_body((FABRIK / "CLAUDE.md").read_text(encoding="utf-8"))
+    tpl_s = _step0_body((FABRIK / TEMPLATE_REL).read_text(encoding="utf-8"), _STEP0_END_TPL)
+    for lead in ("**No code surface at all**", "**Tripwire:**"):
+        assert lead in tpl_s, f"the template lost a mirrored paragraph: {lead}"
+        h = hub_s[hub_s.index(lead):].split("\n", 1)[0]
+        t = tpl_s[tpl_s.index(lead):].split("\n", 1)[0]
+        # the hub names `docs/CAPABILITIES.md`, which exists in 1 of 45 repos; the template says
+        # "docs or ledgers only" instead. That is the only sanctioned difference in these two.
+        if lead == "**No code surface at all**":
+            assert "(docs or ledgers only)" in t
+            h, t = h.replace(" or `docs/CAPABILITIES.md`", "").replace("(docs, ledgers", "(docs"), t
+            assert h.replace("(docs only)", "(docs or ledgers only)") == t, (h, t)
+        else:
+            assert h == t, f"mirrored paragraph drifted: {lead}"
+    # the precedence claim, which the hub binds and the template did not
+    assert "Rows 2, 3, 4 and 5 take PRECEDENCE over rows 1 and 1b" in tpl_s
+    assert "any of 2, 3, 4 or 5 is spec-chain work" in tpl_s
+    # and the ordering the SPEC mandates for the project copy: outcome (i) outranks the table
+    assert "ahead of every test below" in tpl_s
+    assert "Editing the synced copy is a HARD STOP" in tpl_s
+
+
+def test_the_template_renders_its_lane_table_for_every_gfm_reader() -> None:
+    """The mirror is worthless if it renders as a paragraph in ~46 repos."""
+    markdown_it = pytest.importorskip("markdown_it", reason="renderer needed to grade GFM validity")
+    html = markdown_it.MarkdownIt("gfm-like").enable("table").render(
+        _step0_body((FABRIK / TEMPLATE_REL).read_text(encoding="utf-8"), _STEP0_END_TPL)
+    )
+    assert re.search(r"<td>\s*one reversible decision", html), (
+        "the template's lane table did not render inside a table cell — it would be invisible "
+        "to every reader in ~46 repos"
+    )
+
+
+def test_the_templates_heavy_surface_list_names_a_governance_sync_path() -> None:
+    """§ 1a's trigger, mirrored. In a PROJECT repo the synced set is never hand-edited, so this
+    refuses almost nothing there — it is carried for parity, and because a project that vendors a
+    synced surface locally is exactly the case it must catch."""
+    tpl = (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8")
+    para = [ln for ln in tpl.split("\n") if ln.lstrip().startswith("1a. **SELF-REVIEW")]
+    assert len(para) == 1, f"§ 1a's opening line moved or split ({len(para)} matches)"
+    assert "gate/hook/enforcement, a governance-sync path, auth/schema" in para[0], (
+        "the trigger must sit INSIDE the heavy-surface list — a bare substring check let it be "
+        "removed from the list and re-added as a negating sentence on the same line"
+    )
+    assert "EVERY code-changing chunk of work gets a review-family pass" in para[0]
+
+
+def test_the_templates_outcome_ii_points_at_the_lane_table_and_keeps_all_three() -> None:
+    """Operator ruling U19, mirrored — one test, one home. The project copy carries D-098's own
+    third outcome (a synced-surface defect files UPSTREAM) which the hub has no equivalent of, so
+    only outcome (ii) collapses; (i) and (iii) survive untouched, and the lane the table's verdict
+    row names must be reachable from the clause that points at it."""
+    tpl = (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8")
+    assert _LANE_POINTER in tpl, "outcome (ii) does not point at the lane table"
+    assert _TEMPLATE_OUTCOME_II_OLD not in tpl, "outcome (ii) still restates its own sizing test"
+    clause = tpl.split("it has THREE outcomes, not two:", 1)[1].split("Mail is worked by", 1)[0]
+    assert "`/fabrik-task`" in clause, (
+        "the table's row-6 verdict is unreachable from the mail clause — the first cut of this "
+        "assertion read the WHOLE file, so the lane table's own row 6 satisfied it and a mutation "
+        "that severed the clause from `/fabrik-task` entirely passed green"
+    )
+    for kept in (
+        "it is NOT yours to plan or patch, file it upstream",
+        "never half-built inline",
+        "**every right-now fix ships with `/fabrik-review-scoped`**",
+        "the review comes BEFORE",
+    ):
+        assert kept in tpl, f"outcome (i), (ii) or (iii) lost an obligation: {kept}"
