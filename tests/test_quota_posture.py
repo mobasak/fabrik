@@ -181,6 +181,51 @@ def test_prompt_line_matches_the_contract_format_byte_for_byte(tmp_path):
         assert token in line, token
 
 
+def test_the_contract_line_is_rendered_byte_for_byte_on_the_CLAMPED_fable_path_too(tmp_path):
+    """D-295 — the byte-for-byte grader above had NO clamped case, so the one path where the band is
+    NOT the fleet's rendered unpinned: `on <window>` carried a phrase instead of a window label and a
+    trailing clause the contract did not list, and nothing went red. The contracts now state that
+    path (the THAT LAST ONE span, graded three-way identical), so the line that serves it is pinned
+    here in the same shape as the unclamped one."""
+    state, runs = tmp_path / "state", tmp_path / "runs"
+    runs.mkdir()
+    t = tmp_path / "t.jsonl"
+    t.write_text(json.dumps({"type": "assistant", "message": {"model": "claude-fable-5-1"}}) + "\n")
+    _posture(
+        state,
+        band="GREEN",
+        band_account="GREEN",
+        band_fable="RED",
+        band_fable_clamped=True,
+        fleet_windows={
+            "five_hour": {"utilization": 10.0, "slug": "sarp"},
+            "seven_day": {"utilization": 21.0, "slug": "sarp"},
+            "fable": {"utilization": 21.0, "slug": "sarp"},
+        },
+        fleet_measured=2,
+        successor="sarp",
+    )
+    line = _hook(
+        {"hook_event_name": "UserPromptSubmit", "session_id": "s1", "transcript_path": str(t)},
+        state=state,
+        runs=runs,
+    ).stdout.strip()
+    assert line == (
+        "QUOTA: ozgurbasak · 5h 71% (wall in ~48m at 0.60%/m) · weekly 44% (reset in 2:10) · "
+        "Fable 32% · band RED on this account's own Fable window (no relief leg) "
+        "(fleet-wide: 5h 10% sarp · weekly 21% sarp · Fable 21% sarp) — this account's own Fable "
+        "window binds; no flip reaches another account's Fable headroom, only pinning "
+        "CLAUDE_CONFIG_DIR + CLAUDE_QUOTA_HOME to a slug that has it · successor sarp"
+    ), line
+    # the same required tokens the unclamped line owes
+    for token in ("QUOTA: ", " · band ", " · successor ", " · Fable "):
+        assert token in line, token
+    # and the provenance sentence the contract pins for the UNCLAMPED path must not appear here
+    assert "the band is the fleet's, act on it" not in line, (
+        "on the clamped path the band is the account's — the contract now says so"
+    )
+
+
 _FLEET = {
     "five_hour": {"utilization": 0.0, "slug": "can"},
     "seven_day": {"utilization": 31.0, "slug": "ob"},

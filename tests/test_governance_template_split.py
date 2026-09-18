@@ -293,6 +293,12 @@ def test_the_quota_bands_and_the_quota_line_are_identical_in_all_three_contracts
 _SHARED_SPANS = (
     r"\*\*The `QUOTA:` line \(D-269, D-275\)\.\*\*.*?the hottest of 5h, weekly and Fable\.",
     r"`claude_rotate\.py --status` is the authority on WHEN you resume.*?read `--status` rather than assuming\.",
+    # D-295: the Fable clamp is the ONE place a band is not the fleet's, so the sentences that say
+    # so are graded three-way identical like every other shared QUOTA span. Pinned as its OWN span
+    # rather than by widening the first: that one ends on `the hottest of 5h, weekly and Fable.`,
+    # and extending the wording past that period silently unanchors it (measured — the first cut of
+    # this change did exactly that and `_shared_spans` reported the span MISSING, not drifted).
+    r"THAT LAST ONE IS THE SINGLE PLACE A BAND IS NOT THE FLEET'S.*?never a wait \(D-295\)\.",
 )
 
 

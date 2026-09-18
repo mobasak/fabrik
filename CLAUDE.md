@@ -432,6 +432,13 @@ structured rows beat lexical transcripts (a decision phrased differently is invi
   flip the tick will make, not capacity it can buy on that window. **A session on
   a Fable model is banded on its Fable window too** — Fable's weekly-scoped limit is reported as
   its own percentage, and on a Fable model the band is the hottest of 5h, weekly and Fable.
+  ⚠️ **THAT LAST ONE IS THE SINGLE PLACE A BAND IS NOT THE FLEET'S, and the reason is
+  mechanical:** the relief leg flips on the session and weekly windows only and never reads Fable,
+  so an account at its Fable wall is never a flip trigger and the fleet's cool Fable reading names
+  headroom no automated flip can deliver — it is reachable by PINNING alone. So the Fable band is
+  raised to THIS ACCOUNT'S OWN Fable reading whenever that is hotter than the fleet's, a Fable RED
+  can be one account's while every other account sits cool, the line says which (`on this
+  account's own Fable window`), and the remedy is a pin, never a wait (D-295).
   ⚠️ **`claude_rotate.py --status` is the authority on WHEN you resume, in every band — the
   line's `<forecast>` is a projection from a smoothed burn, never the authority.**
   The urgent-drain mail names a resume instant too, but it does not fire in every state and its
