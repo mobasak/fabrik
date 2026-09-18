@@ -1175,10 +1175,14 @@ def _task_series(for_it: list[dict], rows: list[dict]) -> str:
         # append-only ledger. That is the class `_num` and `_rows` were rewritten to close (review
         # passes 22 and 23); reintroducing it would cost `/fabrik-command-improve` and the daily
         # relay their input at rc 1.
-        # ⚠️ The STRUCTURAL exclusion is tested FIRST. A `upgrade: sync` row was never in the
-        # denominator to begin with, so counting an unparseable one as `unreadable` bills a
-        # structural exclusion as lost measurement and the reader cannot tell the two apart.
-        if str(r.get("upgrade") or "") == "sync":
+        # ⚠️ The STRUCTURAL exclusion is tested FIRST, but ONLY for a row that had a measurement
+        # to exclude — `and not _is_unmeasurable`. Without that second half the row lands in TWO
+        # buckets (here AND in `unmeasurable` below) and the printed numbers still SUM to the
+        # total, so a reader checking the denominator concludes every row is accounted for while
+        # one is counted twice and another is hidden. That is the same invisible-row defect this
+        # whole line of fixes exists to close, wearing a reconciling set of numbers instead of a
+        # short one. EVERY row lands in exactly ONE of {counted, unreadable, unmeasurable, sync}.
+        if str(r.get("upgrade") or "") == "sync" and not _is_unmeasurable(raw):
             sync_excluded += 1
             continue
         if not (val.isascii() and val.isdigit() and len(val) <= 18):

@@ -2814,3 +2814,32 @@ def test_queue_fabrik_task_both_suffixes_compose_in_a_stable_order(tmp_path: Pat
     assert r.stdout.splitlines()[1].startswith(
         "series: oversized_mini 1/1 (100%) [+1 unreadable] [+1 upgrade: sync]"
     ), r.stdout.splitlines()[1]
+
+
+def test_queue_fabrik_task_a_sync_row_lands_in_one_bucket_not_two(tmp_path: Path) -> None:
+    """EVERY row lands in exactly ONE of {counted, unreadable, unmeasurable, upgrade: sync}.
+
+    The `upgrade: sync` test runs before the readability guard — but only for a row that HAD a
+    measurement to exclude. Without that second half a row that is both `sync` and `unmeasurable`
+    is counted TWICE, and the printed numbers still SUM to the total, so a reader checking the
+    denominator concludes every row is accounted for while one is double-counted and another is
+    hidden. That is the invisible-row defect in its mirror form: reconciling numbers instead of
+    short ones. Nothing pinned the order OR the second half — reverting either left 152 green."""
+    ledger = tmp_path / "l.jsonl"
+    rows = [
+        _row("fabrik-task", 60, 1, "none", oversized_mini="1 · commit=a · paths=p"),
+        _row("fabrik-task", 60, 1, "none", oversized_mini="² · commit=b · paths=q"),
+        _row(
+            "fabrik-task", 60, 1, "none", oversized_mini="\xa0unmeasurable=no-git", upgrade="sync"
+        ),
+        _row("fabrik-task", 60, 1, "none", oversized_mini="5 · commit=c · paths=r", upgrade="sync"),
+    ]
+    _write(ledger, rows)
+    r = _run(ledger, "--queue", "fabrik-task")
+    assert r.returncode == 0, r.stderr
+    line = r.stdout.splitlines()[1]
+    # the sync+unmeasurable row is ONLY unmeasurable; the sync+numeric row is ONLY structural
+    assert "[+1 unreadable]" in line, line
+    assert "[+1 upgrade: sync]" in line, line
+    assert "unmeasurable 1/4" in line, line
+    assert line.startswith("series: oversized_mini 1/1 (100%)"), line
