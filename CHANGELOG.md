@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `/fabrik-task` SIZE gate at `command_run.py start`, and `step --design` (2026-09-18)
+
+- `scripts/command_run.py` (+417) and `tests/test_command_run_fabrik_task.py` (new, 1,034 lines): T01a of the `/fabrik-task` lane plan set. `start --command fabrik-task` gains `--file` (repeatable) and `--declare k=v,…`, running the SIZE inventory in a fixed guard order — required flags, path validity, dirty-at-start, then the two lane tests and five declared answers with spec-chain precedence — and persisting `declared` plus a `RECORD: <started_at>` line; `step --phase 2 --design <path>` records the design text once under a 2,000-char cap. Every behaviour is scoped to `--command fabrik-task`: byte-identity for every other command was verified by diffing stdout, stderr and record keys live-vs-built across three verbs. The acceptance review confirmed 15 defects the ticket's own nine graders could not see — a block or folded `files:` scalar silently became the regex (`files: >-` matched nothing and recorded a pass; `files: |` matched everything and refused every start), `.resolve()` rewrote a declared symlink to its target so a dirty declared path was ACCEPTED (5,731 tracked symlinks across 4 of the 45 `/opt` repos), the five `--declare` answers were unvalidated so `heavy=yse` routed a mechanism-introducing task to the cheapest lane, an empty design file left the write-once slot re-writable, and the file cap counted occurrences rather than distinct paths. 23 graders now; 19 of 19 mutations caught red; 817 existing tests green.
+
 ### Fixed — the Fable clamp was defeated in the state it was built for (2026-09-18)
 
 - `/fabrik-review` round 2, one fresh non-authoring Opus seat: 15 candidates, 9 confirmed, ALL NINE
