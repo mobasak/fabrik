@@ -393,9 +393,17 @@ def test_clip_marks_every_cut_and_never_exceeds_its_cap() -> None:
     the first cut returned 401 for a 600-char run of one word)."""
     assert gci._clip("x" * 400) == "x" * 400, "at the cap: untouched, and NOT marked"
     assert gci._clip("short") == "short"
-    for val in ("y" * 600, "word " * 200, "a. " + "b" * 500, "z" * 401, "one sentence. " + "w" * 500):
+    for val in ("y" * 600, "word " * 200, "a. " + "b" * 500, "z" * 401, "one sentence. " + "w" * 500,
+                # A pre-existing `…` AT the cut: without it in the rstrip set the mark doubles, and
+                # the `……` assert below never fired because no other input puts one there.
+                "a" * 398 + "…" + "b" * 300):
         out = gci._clip(val)
         assert out.endswith("…"), (val[:20], out[-20:])
         assert len(out) <= 400, (val[:20], len(out))
         assert not out.endswith("……") and not out.endswith(".…"), out[-20:]
         assert not out.rstrip("…").endswith(" "), out[-20:]
+    # An EARLY sentence boundary with a distinct LATER word boundary: the `stop > cap // 2` guard is
+    # what refuses the early one. Every other input here has its two candidates at the same index,
+    # so the guard could be dropped and nothing noticed (closing seat, executed: 205 chars vs 3).
+    early = gci._clip("Hi. " + "b" * 200 + " " + "c" * 200)
+    assert len(early) > 100, f"an early sentence marker must not win over a later word boundary: {early!r}"
