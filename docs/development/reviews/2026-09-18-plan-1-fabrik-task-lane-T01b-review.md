@@ -267,6 +267,22 @@ Routed, with reasons recorded in the backlog: E5, E6, E7, and the two remaining 
 lower severity, deliberately untouched because T01b's acceptance rests on byte-identity for every
 other command and those calls are on the path every command takes.
 
+## Round 5 — the class-ledger sweep (2026-09-18)
+
+`round --findings 0 --confirmed 0` retiring the two classes round 4 opened (`chooser-vs-consumer`,
+`two-lists-one-class`), and `command_run.py` printed its TERMINAL verdict with every known class
+clean.
+
+⚠️ **State plainly what this round was and was not.** It carried NO fresh finder seat — it was the
+orchestrator's own verification of round 4's fixes: every one of the seven new graders proven red by
+reverting the code it names, 69 cases green, 321 with the pre-existing suite, byte-identity
+re-verified, each mutation marker-verified on disk and each restore md5-checked against a reference.
+The tool's own verdict text says a delta round closes when it carried a fresh non-authoring finder,
+so this round does NOT meet that bar and is not claimed to. **T01b's exit is the D-278 scope-growth
+stop** — two of three rounds entirely own-fix — whose sanctioned exit is to fix the named set, route
+the residue, and close on the original delta. That is what happened, and the distinction is recorded
+here rather than left for a reader to infer from a green verdict line.
+
 ## Final state (committed `f0a7b6a08`)
 
 `scripts/command_run.py` **+518 / −1** and `tests/test_command_run_fabrik_task.py` **+1,470 / −0**
