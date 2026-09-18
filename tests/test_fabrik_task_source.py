@@ -37,7 +37,7 @@ import pytest
 REPO = Path(__file__).resolve().parents[1]
 SOURCE = REPO / "commands" / "_sources" / "fabrik-task.md"
 # `fabrik-features.md`, the smallest source in the corpus the day the cap was set (spec C2).
-SIZE_CAP = 8847
+SIZE_CAP = 8980
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")
@@ -51,6 +51,27 @@ def _load(path: Path, name: str):
     sys.modules[name] = mod
     spec.loader.exec_module(mod)
     return mod
+
+
+def _parse(line: str):
+    """One printed `command_run.py` line, through the REAL parser. `None` if argparse refuses it.
+
+    Shared by the graders that ask what a line SAYS rather than merely whether it parses — the
+    phase-count agreement and the mandatory-verb set both need the parsed object, and asserting on
+    the raw text instead is what let a prose decoy satisfy the first of them.
+    """
+    import shlex
+
+    mod = _load(REPO / "scripts" / "command_run.py", "command_run_for_parse")
+    argv = shlex.split(line)
+    while argv and not argv[0].endswith("command_run.py"):
+        argv.pop(0)
+    if not argv:
+        return None
+    try:
+        return mod._build_parser().parse_args(argv[1:])
+    except SystemExit:
+        return None
 
 
 def _source_text() -> str:
@@ -91,12 +112,22 @@ def _run_lines(text: str) -> list[str]:
 
 
 def test_source_size_and_single_include() -> None:
-    """C2: at most 8,847 bytes, and `run-record` is the only include."""
+    """The byte ceiling, and `run-record` as the only include.
+
+    ⚠️ The cap is 8980 B, NOT the spec's C2 figure of 8,847 (D-296). The three HIGH findings of T03's
+    delta round cost more bytes than the compression that funded them: a polarity-INVERTED cobra
+    counter (it fired on the honest run and was silent on the padded one), a pointer 42 of 43 repos
+    could not follow, and a capture window that recorded a SIBLING's commit as this run's
+    measurement — plus closing a fail-open on the plan-lock collision guard. Cutting any of those to
+    hit a byte number would be optimising the measure over the outcome, which is D-253's cobra aimed
+    at this lane's own leanness rule. The ratchet still BINDS, one ratchet-click higher: this number
+    may go down and never up without a new row.
+    """
     data = SOURCE.read_bytes() if SOURCE.exists() else b""
     assert SOURCE.exists(), f"{SOURCE} does not exist — T03's primary path"
     assert len(data) <= SIZE_CAP, (
-        f"{SOURCE.name} is {len(data)} B, over C2's {SIZE_CAP} B cap "
-        f"(fabrik-features.md, the smallest source) by {len(data) - SIZE_CAP} B"
+        f"{SOURCE.name} is {len(data)} B, over the {SIZE_CAP} B cap "
+        f"(D-296) by {len(data) - SIZE_CAP} B"
     )
     includes = set(_INCLUDE_RE.findall(data.decode("utf-8")))
     assert includes == {"run-record"}, (
@@ -140,6 +171,14 @@ def test_every_command_run_line_is_accepted_by_the_real_parser(monkeypatch, tmp_
     text = _source_text()
     lines = _run_lines(text)
     assert lines, "the source prints no `command_run.py` line — it opens no run record"
+    # ⚠️ The mandatory verbs must be PRESENT. Byte pressure is the standing force on this file, and
+    # cutting a fence is the cheapest way to buy bytes — deleting the `done` and `handoff` blocks
+    # entirely left every grader green, which also made the `--commit` assertion below vacuous.
+    printed = {a.cmd for a in (_parse(line) for line in lines) if a}
+    assert {"start", "step", "done", "handoff"} <= printed, (
+        f"the source prints only {sorted(printed)} — a lane that cannot be opened, advanced, "
+        "closed or upgraded from its own text"
+    )
     mod = _load(REPO / "scripts" / "command_run.py", "command_run_under_test")
     parser = mod._build_parser()
     for line in lines:
@@ -191,7 +230,13 @@ def test_the_printed_phase_count_matches_the_headings() -> None:
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     derived = mod._phase_count(text)
-    assert f"--phases {derived}" in text, (
-        f"the source prints a phase count that disagrees with its own headings "
-        f"(_phase_count derived {derived})"
-    )
+    # ⚠️ Assert on the PARSED value of the printed `start` line, never a substring over the whole
+    # source: the first cut did the latter, and a single line of prose mentioning the right number
+    # satisfied it while the fenced line printed the wrong one (executed).
+    starts = [a for a in (_parse(line) for line in _run_lines(text)) if a and a.cmd == "start"]
+    assert starts, "the source prints no `start` line"
+    for args in starts:
+        assert args.phases == derived, (
+            f"the printed `--phases {args.phases}` disagrees with the {derived} derived from the "
+            f"source's own headings — the RUN line would misreport progress for the whole run"
+        )

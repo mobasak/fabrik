@@ -5,8 +5,9 @@ argument-hint: "[the ask in one line — sized against the SMALLEST change that 
 
 **One small change, one decision, one commit.** This command SEQUENCES existing machinery and
 RESTATES none of it — the run record, the FIX DIRECTIVE, `/fabrik-review-scoped`, the close-out
-feedback and the decision-ledger rule keep their own text. It adds three things: the SIZE gate
-(phase 0, which IS the `start`), the DESIGN step (phase 2), and phase 5's re-measure of its own commit.
+feedback and the decision-ledger rule keep their own text. New here: the SIZE gate (phase 0, which
+IS the `start`), the DESIGN step (phase 2), phase 5's re-measure of its own commit, and the UPGRADE
+ratchet.
 
 {{include:run-record}}
 
@@ -18,7 +19,7 @@ without `--file`/`--declare` and a `done` without `--commit`; paste the SIZE lin
 ## SIZE — phase 0 is the `start` itself
 
 Apply the lane table (`CLAUDE.md` § Orient step 0) to the **smallest change that discharges the ask,
-before drafting** — never a draft already elaborated. Then open the record:
+before drafting**. Then open the record:
 
 ```bash
 python3 scripts/command_run.py start --command fabrik-task --phases 5 \
@@ -33,17 +34,17 @@ purpose: **declare the grader you are about to write.** Declare the CODE surface
 excludes the Doc Sync Matrix destinations, the ledger files and `docs/CAPABILITIES.md`, so declaring
 `CHANGELOG.md` burns a slot and can refuse the start on a sibling's WIP.
 
-The tool prints either CORRECTIONS — a missing flag, a bad `--declare` pair, a path outside the repo,
-a directory, or one already DIRTY at `start` (pre-record work — or a sibling's WIP: message the
-author) — or a LANE verdict naming where the work belongs. Read every line — flag gaps print together, path checks stop at the first. ⚠️ `sync lane test SKIPPED`
-on stderr means the hub filter was unreadable — that test did NOT run. **A refusal is the answer, not an obstacle**: take the named lane, no record was opened. On
+The tool prints either CORRECTIONS, each naming itself (a DIRTY declared path may be a sibling's
+WIP — message the author, never stage it), or a LANE verdict naming where the work belongs. Read
+every line: flag gaps print together, path checks stop at the first. ⚠️ `sync lane test SKIPPED` on
+stderr means the hub filter was unreadable — that test did NOT run. **A refusal is the answer, not an obstacle**: take the named lane, no record was opened. On
 success it prints `RECORD: <started_at>` — paste that into the phase-2 path; it keys the scratch
 dir to this record, not to the session.
 
 ⚠️ **COBRA (D-253).** The cheapest way to satisfy this gate without producing the outcome is to
 UNDER-DECLARE here and touch more at phase 3; the counter is phase 5's re-measure of this run's own
-commit. All twelve, each with its counter or its honest lack of one, are (1)–(12) in § Constraints C3 of /opt/fabrik
-of `docs/superpowers/specs/2026-09-17-fabrik-task-lane-design.md`; read them there, not here.
+commit. All twelve, each with its counter or its honest lack of one, are (1)–(12) in § Constraints C3 of
+`/opt/fabrik/docs/superpowers/specs/2026-09-17-fabrik-task-lane-design.md`; read them there, not here.
 
 ## Phase 1 — MEASURE
 
@@ -72,14 +73,15 @@ escape makes `check_decisions_unique.py` read a 7-cell row.
 ## Phase 3 — BUILD
 
 **Plan locks first** — no CLI reads them: each `*.json` in `.fabrik/plan-locks/` with `status: active`.
-A declared path inside another lock's `owned_paths` is a STOP. Then the change and its grader, red-first per FIX
+A declared path inside another lock's `owned_paths` is a STOP; so is an ACTIVE lock with EMPTY `owned_paths` (a half-landed blocked-resume — the empty set passes everything). Then the change and its grader, red-first per FIX
 DIRECTIVE 4; a shared-append file goes through § EXIT's private-index recipe, never the working file.
 
 ## Phase 4 — REVIEW
 
 Invoke `/fabrik-review-scoped` as the skill — unchanged, never from memory. Give its seat briefs
-the phase-2 `design.md` path and the phase-0 declaration, plus three questions: *does the change fit
-the declared files, and does it MATCH them — declaring three and touching one buys a guaranteed `0`? did it add a mechanism the declaration said `no` to? can you name a second approach
+the phase-2 `design.md` path and the phase-0 declaration, plus three questions: *does the change ESCAPE
+the declared files, or MISS any it still means to touch — three declared and one touched buys a
+guaranteed `0` no machinery sees? did it add a mechanism the declaration said `no` to? can you name a second approach
 the declaration said did not exist?* A `yes` to any is that seat's UPGRADE verdict — take it. This is
 where spec-review is folded in: the design is reviewed with what it produced.
 
@@ -90,11 +92,12 @@ where spec-review is folded in: the design is reviewed with what it produced.
    reversible/ONE-WAY classification stay the decision-ledger rule's.
 3. `CHANGELOG.md` atop `[Unreleased]`; `docs/LESSONS_LEARNT.md` or an explicit `none`.
 4. `python scripts/final_gate.py --json` → `status: "success"`.
-5. Commit with explicit pathspecs + provenance trailers, and **in the SAME Bash call as the commit**, or a sibling's commit lands in the window and you capture THEIRS:
+5. Commit with explicit pathspecs + provenance trailers, **chaining the capture off the commit** — that NARROWS the window to the instant the commit returns; it never closes, and a sibling landing inside it is captured instead:
 
 ```bash
-mkdir -p <scratchpad>/fabrik-task/<sid>/<started_at> && \
-  git rev-parse -q --verify HEAD > <scratchpad>/fabrik-task/<sid>/<started_at>/commit.sha || exit 1
+mkdir -p <scratchpad>/fabrik-task/<sid>/<started_at> \
+  && git commit -m "<subject>" -- <your paths> \
+  && git rev-parse -q --verify HEAD > <scratchpad>/fabrik-task/<sid>/<started_at>/commit.sha || exit 1
 ```
 
 6. § EXIT's push ladder (never `--force`), then close — the capture file, not a post-ladder `HEAD`
