@@ -5592,10 +5592,25 @@ def test_posture_band_follows_the_hottest_window_and_the_hold(
     assert blank["fleet"]["windows"]["seven_day"] == {
         "utilization": other["seven_day"]["utilization"],
         "slug": other["slugs"][0],
+        # the reading carries the WALL it is banded against (D-299): weekly walls at the
+        # account's caps.json cap, and this fixture's rows carry none, so 100
+        "wall": 100.0,
     }
-    assert blank["active"]["band"] == cr._band_of(
-        max(other["five_hour"]["utilization"], other["seven_day"]["utilization"]), False, 85.0, 90.0
+    # D-299: each window is banded against ITS OWN wall and the hottest BAND wins — not the hottest
+    # PERCENTAGE against one shared pair of lines. Re-derived here the same way the code does it, so
+    # this stays a real expectation rather than a copy of the implementation's answer.
+    _fwin = blank["fleet"]["windows"]
+    _expect = max(
+        (
+            cr._band_of(
+                _fwin[_k]["utilization"], False, *cr._band_lines(_fwin[_k].get("wall"))
+            )
+            for _k in ("five_hour", "seven_day")
+            if isinstance(_fwin.get(_k), dict)
+        ),
+        key=lambda b: cr._BAND_SEVERITY.get(b, -1),
     )
+    assert blank["active"]["band"] == _expect
     assert blank["active"]["windows"]["five_hour"]["utilization"] is None
 
 
@@ -5942,13 +5957,13 @@ def test_fleet_readings_take_the_coolest_serving_account_per_window():
         ("mob@x", "weekly-exhausted", 99),
     )
     fw = cr._fleet_readings(accounts, pic)
-    assert fw["seven_day"] == {"utilization": 31.0, "slug": "ob"}, (
-        "a spent session still holds its weekly"
+    assert fw["seven_day"] == {"utilization": 31.0, "slug": "ob", "wall": 95.0}, (
+        "a spent session still holds its weekly, and the reading carries ob's own cap as its wall"
     )
-    assert fw["five_hour"] == {"utilization": 0.0, "slug": "can"}, (
-        "a spent session cannot serve 5h now"
+    assert fw["five_hour"] == {"utilization": 0.0, "slug": "can", "wall": 100.0}, (
+        "a spent session cannot serve 5h now; 5h is uncapped so it walls at 100"
     )
-    assert fw["fable"] == {"utilization": 18.0, "slug": "ob"}, (
+    assert fw["fable"] == {"utilization": 18.0, "slug": "ob", "wall": 100.0}, (
         "Fable is weekly-scoped: a spent session still holds it (seat 1 F7), so ob's 18 beats can's 20"
     )
     assert "mob" not in {w["slug"] for w in fw.values()}, (
@@ -5973,17 +5988,30 @@ def test_fleet_band_is_amber_or_red_only_when_every_serving_account_is():
     """B20a — the fleet is constrained on a window only when EVERY serving account is hot on it."""
     import scripts.sysadmin.claude_rotate as cr  # noqa: PLC0415
 
-    accounts = [_probe_row("a@x", "a", 5.0, 91.0), _probe_row("b@x", "b", 0.0, 90.0)]
+    # D-299: the fleet is constrained on weekly only when EVERY account has REACHED its cap —
+    # and `_fleet_readings` drops an account at its cap, so the honest expression of "every serving
+    # account is hot" is that the window has NO reading left at all, which the scarcity arm reads
+    # as RED. At 91/90 against a cap of 99 both still serve and the fleet is GREEN.
+    cool = [_probe_row("a@x", "a", 5.0, 91.0), _probe_row("b@x", "b", 0.0, 90.0)]
     pic = _pic_rows(("a@x", "active", 99), ("b@x", "eligible", 99))
+    assert (
+        cr._fleet_band(
+            cr._fleet_readings(cool, pic), "RED", False, 85.0, 90.0, fable=False,
+            measured=cr._fleet_measured(cool, pic),
+        )
+        == "GREEN"
+    ), "8 points of runway on every account is not a constrained fleet"
+    accounts = [_probe_row("a@x", "a", 5.0, 99.0), _probe_row("b@x", "b", 0.0, 99.0)]
     fw = cr._fleet_readings(accounts, pic)
-    assert fw["seven_day"]["utilization"] == 90.0
+    assert "seven_day" not in fw, "an account AT its cap serves nothing, so the window has no reading"
     assert (
         cr._fleet_band(
             fw, "RED", False, 85.0, 90.0, fable=False, measured=cr._fleet_measured(accounts, pic)
         )
         == "RED"
-    ), "every account >= 90 weekly: the fleet's wall"
-    accounts[1]["seven_day"]["utilization"] = 86.0
+    ), "every account has REACHED its cap, so nobody serves weekly: the fleet's wall"
+    # one account drops back below its cap into the warning band -> the fleet leaves RED
+    accounts[1]["seven_day"]["utilization"] = 94.0
     fw = cr._fleet_readings(accounts, pic)
     assert (
         cr._fleet_band(
@@ -5999,7 +6027,7 @@ def test_fleet_band_ignores_fable_unless_asked_and_a_cap_is_a_wall():
     import scripts.sysadmin.claude_rotate as cr  # noqa: PLC0415
 
     accounts = [
-        _probe_row("a@x", "a", 5.0, 10.0, fable=95.0),
+        _probe_row("a@x", "a", 5.0, 10.0, fable=100.0),
         _probe_row("c@x", "c", 0.0, 99.0, fable=0.0),
     ]
     pic = _pic_rows(("a@x", "active", 99), ("c@x", "eligible", 99))
@@ -6145,7 +6173,7 @@ def test_fable_follows_the_weekly_rule_so_a_spent_session_still_holds_it():
     fw = cr._fleet_readings(
         accounts, _pic_rows(("a@x", "active", 99), ("b@x", "session-exhausted", 99))
     )
-    assert fw["fable"] == {"utilization": 2.0, "slug": "b"}
+    assert fw["fable"] == {"utilization": 2.0, "slug": "b", "wall": 100.0}
     assert "five_hour" in fw and fw["five_hour"]["slug"] == "a", "the 5h rule still excludes b"
 
 
@@ -7092,10 +7120,10 @@ def test_a_fable_walled_active_account_is_never_banded_green_by_fleet_headroom()
     )
     assert (
         cr._fleet_band(
-            fleet, "GREEN", False, 85.0, 90.0, fable=True, measured=4, account_fable_pct=87.0
+            fleet, "GREEN", False, 85.0, 90.0, fable=True, measured=4, account_fable_pct=96.0
         )
         == "AMBER"
-    ), "the clamp follows severity, not just the RED case"
+    ), "the clamp follows severity, not just the RED case (D-299: Fable is uncapped, AMBER at 95)"
     # ⚠️ the clamp keys on the FABLE window alone. `account_band` is `_band_of(hot_f)` — the
     # hottest of all three windows — so a hot WEEKLY must not drag a cool Fable session to RED,
     # which would be the 2026-09-17 "as if only one account exists" defect on this path.
@@ -7106,7 +7134,7 @@ def test_a_fable_walled_active_account_is_never_banded_green_by_fleet_headroom()
         == "GREEN"
     ), "a hot weekly must not band a cool Fable session — the clamp reads the Fable window only"
     # and the fleet's reading still wins when it is the HOTTER of the two
-    hot_fleet = dict(fleet, fable={"utilization": 99.0, "slug": "can"})
+    hot_fleet = dict(fleet, fable={"utilization": 100.0, "slug": "can", "wall": 100.0})
     assert (
         cr._fleet_band(
             hot_fleet, "GREEN", False, 85.0, 90.0, fable=True, measured=4, account_fable_pct=4.0
@@ -7208,18 +7236,19 @@ def test_the_fable_clamp_across_the_spellings_that_reach_it():
 
     # (1) absent fleet `fable` key — the "nobody has used Fable this tick" shape
     assert (
-        cr._fleet_band(required, "GREEN", False, 85.0, 90.0, account_fable_pct=95.0, **base)
+        cr._fleet_band(required, "GREEN", False, 85.0, 90.0, account_fable_pct=100.0, **base)
         == "RED"
     ), "an absent fleet Fable reading must not stop the account's own wall from binding"
 
     # (2) NON-DEFAULT thresholds — the graders used to hardcode 85/90 everywhere
     assert (
-        cr._fleet_band(required, "GREEN", False, 50.0, 60.0, account_fable_pct=55.0, **base)
+        cr._fleet_band(required, "GREEN", False, 50.0, 60.0, account_fable_pct=96.0, **base)
         == "AMBER"
     ), "the clamp must read the thresholds it is passed, not the module defaults"
 
     # (3) the EXACT boundaries `_band_of` flips on
-    for pct, want in ((84.999, "GREEN"), (85.0, "AMBER"), (89.999, "AMBER"), (90.0, "RED")):
+    # D-299: the lines are the WALL's, and Fable is uncapped -> AMBER at 95, RED at 100
+    for pct, want in ((94.999, "GREEN"), (95.0, "AMBER"), (99.999, "AMBER"), (100.0, "RED")):
         got = cr._fleet_band(required, "GREEN", False, 85.0, 90.0, account_fable_pct=pct, **base)
         assert got == want, f"boundary {pct} -> {got}, want {want}"
 
@@ -7253,7 +7282,7 @@ def test_the_posture_records_whether_the_fable_clamp_actually_bound():
     cool = _probe_row("can@x", "can", 0.0, 21.0, fable=21.0)
 
     # (a) the clamp BINDS: this account Fable-walled, a sibling holding cool Fable headroom
-    act = _act([_probe_row("oz@x", "ozgurbasak", 10.0, 20.0, fable=99.0), cool])
+    act = _act([_probe_row("oz@x", "ozgurbasak", 10.0, 20.0, fable=100.0), cool])
     assert act["band_fable"] == "RED", act
     assert act["band_fable_clamped"] is True, act
 
@@ -7263,7 +7292,7 @@ def test_the_posture_records_whether_the_fable_clamp_actually_bound():
 
     # (c) D1 itself — a required-window BLACKOUT on the active account. `hot_f` would have carried
     # the Fable 99 into `account_band`; only reading `hot` keeps the flag honest here.
-    blind = _probe_row("oz@x", "ozgurbasak", 10.0, 20.0, fable=99.0)
+    blind = _probe_row("oz@x", "ozgurbasak", 10.0, 20.0, fable=100.0)
     blind["five_hour"] = None
     blind["seven_day"] = None
     act = _act([blind, cool])
@@ -7287,7 +7316,7 @@ def test_status_names_the_fable_band_when_it_differs_from_the_one_it_prints():
         )
 
     cool = _probe_row("can@x", "can", 0.0, 21.0, fable=21.0)
-    line = _line([_probe_row("oz@x", "ozgurbasak", 10.0, 20.0, fable=99.0), cool])
+    line = _line([_probe_row("oz@x", "ozgurbasak", 10.0, 20.0, fable=100.0), cool])
     assert "Fable band RED" in line, f"the held band must appear in the authority's own line: {line}"
     assert "no flip reaches other Fable headroom" in line, line
     # and it stays silent when the Fable band agrees with the one already printed

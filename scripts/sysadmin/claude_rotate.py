@@ -4556,7 +4556,20 @@ def _fleet_readings(accounts: list[dict], picture: dict) -> dict:
         fh_u, _ = _window_reading(row.get("five_hour"))
         if fh_u is not None and (("five_hour" not in best) or fh_u < best["five_hour"][0]):
             best["five_hour"] = (fh_u, slug)
-    return {k: {"utilization": u, "slug": sl} for k, (u, sl) in best.items()}
+    # the WALL each reading is measured against travels WITH it: the band is drawn from headroom,
+    # and only the account that PROVIDED a window's reading knows its own cap (weekly); 5h and
+    # Fable are uncapped and wall at 100
+    walls = {r.get("email"): r.get("weekly_cap") for r in (picture.get("accounts") or []) if isinstance(r, dict)}
+    by_slug = {}
+    for row in accounts:
+        if isinstance(row, dict):
+            for sl in row.get("slugs") or []:
+                by_slug[sl] = walls.get(row.get("email"))
+    out = {}
+    for k, (u, sl) in best.items():
+        wall = by_slug.get(sl) if k == "seven_day" else None
+        out[k] = {"utilization": u, "slug": sl, "wall": _band_lines(wall)[1] + _BAND_RED_RUNWAY}
+    return out
 
 
 def _fleet_measured(accounts: list[dict], picture: dict) -> int:
@@ -4585,6 +4598,40 @@ def _fleet_measured(accounts: list[dict], picture: dict) -> int:
         if fh is not None or wk is not None:
             n += 1
     return n
+
+
+# ⚠️ THE BAND IS DRAWN FROM HEADROOM TO THE ACCOUNT'S OWN WALL, not from a fixed percentage
+# (operator directive 2026-09-18: "utilize quotas utmost without causing premature stops").
+# The old fixed 85/90 were measured against an implicit ceiling of 100 while the REAL ceiling is
+# each account's `caps.json` cap — so the fleet cried AMBER with 10 points still spendable and RED
+# with 5, then the tail burned to the cap anyway: early warning, late stop. Expressed as points of
+# runway instead, the lines land where the wall actually is — RED exactly AT the cap (99 on a
+# 99-cap account, 95 on a 95-cap one, 100 uncapped) and AMBER five points before it — and mean the
+# same thing everywhere: AMBER is the warning, RED is arrival.
+# ⚠️ ROTATION IS UNTOUCHED. `ROTATE_DRAIN_THRESHOLD` (85) still gates the relief flip leg, the
+# flip-target bar and the successor hysteresis; `ROTATE_URGENT_DRAIN_PCT` (90) still arms the
+# fleet-exhausted stamp. Those govern WHEN THE POINTER MOVES, not what an agent is told, and
+# raising them would stop the tick rotating until an account is nearly spent and then flip it onto
+# another that already is. The separation is the whole point of this change.
+_BAND_AMBER_RUNWAY: Final = 5.0  # points to the wall at which "start nothing heavy" begins
+# ⚠️ ZERO. RED fires when the reading REACHES the wall, not a couple of points short of it
+# (operator, 2026-09-18: "not two points. when it reaches the cap value it is red only"). At the cap
+# the account is cap-walled anyway — excluded from automated flips, its quota spent — so RED means
+# "this is the end", never "the end is near". AMBER above is the warning that used to be RED's job.
+_BAND_RED_RUNWAY: Final = 0.0
+
+
+def _band_lines(wall: float | None) -> tuple[float, float]:
+    """``(amber_at, red_at)`` as UTILIZATION percentages for an account whose wall is *wall*.
+
+    A window with no cap walls at 100 (`five_hour`, and Fable, which `caps.json` does not cover).
+    An unreadable or non-finite wall falls back to 100 rather than to the caller's thresholds: a
+    garbage cap must never silently widen the runway, and 100 is the only bound every window has.
+    """
+    w = _usable_ts(wall)
+    if w is None or not (0.0 < w <= 100.0):
+        w = 100.0
+    return max(w - _BAND_AMBER_RUNWAY, 0.0), max(w - _BAND_RED_RUNWAY, 0.0)
 
 
 _BAND_SEVERITY: Final = {"GREEN": 0, "AMBER": 1, "RED": 2, "WALL": 3}
@@ -4652,7 +4699,9 @@ def _fleet_band(
         pct = _usable_ts(account_fable_pct)
         if pct is None:
             return b
-        own = _band_of(pct, False, drain, urgent)
+        # Fable is not covered by caps.json, so it walls at 100 like every uncapped window
+        _fa, _fr = _band_lines(None)
+        own = _band_of(pct, False, _fa, _fr)
         if own is None:
             return b
         if b is None:
@@ -4696,7 +4745,20 @@ def _fleet_band(
     # has not used Fable yet. Asymmetric with the two required windows on purpose (seat A, #5).
     if fable and _u("fable") is not None:
         utils.append(_u("fable"))
-    band = _band_of(max(utils), False, drain, urgent)
+    # ⚠️ Each window is banded against ITS OWN wall and the hottest BAND wins — not the hottest
+    # PERCENTAGE against one shared pair of lines. 91% on a 95-cap account is two points of runway
+    # while 91% on a 99-cap one is eight; a single max() over the raw numbers cannot tell them
+    # apart, which is how the fleet read RED with capacity still spendable (operator, 2026-09-18).
+    _keys = ("five_hour", "seven_day") + (("fable",) if fable and _u("fable") is not None else ())
+    _bands = []
+    for _k in _keys:
+        _uv = _u(_k)
+        if _uv is None:
+            continue
+        _w = fleet.get(_k) if isinstance(fleet, dict) else None
+        _a, _r = _band_lines(_w.get("wall") if isinstance(_w, dict) else None)
+        _bands.append(_band_of(_uv, False, _a, _r))
+    band = max(_bands, key=lambda b: _BAND_SEVERITY.get(b, -1)) if _bands else None
     return _clamp(band)
 
 
