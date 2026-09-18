@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the /fabrik-task lane spec is CONVERGED by ruling (2026-09-18)
+
+- `docs/superpowers/specs/2026-09-17-fabrik-task-lane-design.md`: Status DRAFT → CONVERGED on the operator's
+  approval ruling (D-293), with phase 5's six re-measure invariants as the build's Phase A acceptance criteria.
+  Next: `/fabrik-plan-after-chat` under `Profile: standard`.
+
 ### Changed — the /fabrik-task lane spec: run 3 of /fabrik-spec-review, seven rounds, closed on the D-278 exit at DRAFT (2026-09-18)
 
 - `docs/superpowers/specs/2026-09-17-fabrik-task-lane-design.md`: seven fresh-seat delta rounds on the operator's
