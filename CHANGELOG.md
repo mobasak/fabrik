@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — `/fabrik-task` lane plan set CONVERGED by /fabrik-plan-review (2026-09-18)
+
+- `docs/development/plans/2026-09-18-plan-1-fabrik-task-lane/` (spine + T01a/T01b/T02/T03/T04a/T04b/T05) flipped `DRAFT → CONVERGED` after five author-blind rounds — 77 defects confirmed and fixed (D-294). Round 1 confirmed 47 defects over a partitioned pass (Opus on the rule/grammar sections + the two `command_run.py` tickets, Sonnet on the rest); four would have shipped a SIZE gate that fails open — the mandated `check=True` subprocess shape raises on all three of the lane's rc-signalling git calls and `command_run.py:2557-2559` converts that to rc 0 with no record; `--command /fabrik-task` bypassed every guard because the record normalises with `.lstrip("/")` at `:2625`; the re-measure's insertion window straddled the `run_close` event queue, so a refusal would emit a close event for a close that did not happen; and invariant (v)'s compressed wording inverted the spec's union of two sets into an exclusion. `git` execution also corrected the diff command (`-z` + `core.quotePath=false` for non-ASCII paths, `-C` because `-M` alone MIS-ATTRIBUTES a rename+copy commit) and the `oversized_mini` field order (`commit=` before `paths=`, or `_cap_field` truncation eats the sha). The `## Constraints Digest` was reordered to the column order `check_rule_grounding._digest_rows` actually reads — it had been resolving each quote's first word as a filename and verifying nothing.
+
 ### Changed — the /fabrik-task lane spec is CONVERGED by ruling (2026-09-18)
 
 - `docs/superpowers/specs/2026-09-17-fabrik-task-lane-design.md`: Status DRAFT → CONVERGED on the operator's
