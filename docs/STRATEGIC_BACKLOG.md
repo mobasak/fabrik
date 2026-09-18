@@ -20,7 +20,7 @@ Generated from the end-of-day plan-state on 2026-06-07 after the trio Phase 5.1.
 
 - **[intel] `/fabrik-rivals` guard debt left after the 2026-09-14 key-autoload review** — four low-severity grader gaps a 25-mutant battery found and the run deliberately did not close, each one line: the unreadable-`.env` fail-open path (`chmod 000`) is claimed by a docstring and pinned by no test; the `expanduser()` on `$SUBAGENTS_ENV_FILE` is documented as a deliberate divergence from `libs/alerting/_dotenv.py` and nothing pins it, so the next re-port reverts it; `main()`'s `load_env(str(REPO))` argument is ungraded, and swapping it for `os.getcwd()` — the historical wrong-repo bug — passes every test; and the `note:` the docs make a contract is not asserted. Plus one behaviour item: running the HUB's copy of the driver from another repo binds `REPO` to the hub, so it reads the hub's `.env` and writes its checkpoint under `/opt/fabrik/.tmp` while preflight calls it repo-local (reproduced; the doc now states the precondition, but no check enforces it). None is a live defect in the shipped path — the closing reader's verdict was SAFE for 48 repos.
 
-### [fleet] The Fable clamp makes a sentence in all three CLAUDE.md copies FALSE, and the emitted `QUOTA:` line no longer matches its pinned shape
+### ~~[fleet] The Fable clamp makes a sentence in all three CLAUDE.md copies FALSE~~ — LANDED 2026-09-18, and the emitted `QUOTA:` line no longer matches its pinned shape
 
 Raised by the closing delta seat of `/fabrik-review` over D-295 (2026-09-18), receipt
 `docs/development/reviews/2026-09-18-fable-band-clamp-review.md` § RESUME item 3. RECORDED, not
@@ -41,7 +41,9 @@ On the clamped path the emitted line carries a PHRASE where `<window>` belongs
 list. `test_prompt_line_matches_the_contract_format_byte_for_byte` passes only because it has no
 clamped case — so the byte-for-byte grader the contract points at is blind to exactly this.
 
-**Why it is not a quick edit.** The three copies are graded identical on that text; the hub copy is a
+**LANDED the same day, on the operator's push-back** (*"why did you add it into docs/STRATEGIC_BACKLOG.md but not fixed/implemented?"*): all three contracts corrected byte-identically, the clause pinned as its own three-way-graded shared span, and the byte-for-byte line grader given the clamped case it lacked. The deferral reason below was real when written — `can` at weekly 95% with the wall ~40 minutes out — and expired when the fleet relief-flipped to `sarp`. Kept for the record:
+
+**Why it was not a quick edit.** The three copies are graded identical on that text; the hub copy is a
 governance-sync trigger distributing to ~46 repos; and fabrik-lib's is sync-excluded and CROSS-REPO,
 so it needs the operator's explicit approval in the turn it is made. The grader must gain a clamped
 case in the same change, or the next drift is invisible again.
